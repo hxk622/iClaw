@@ -89,6 +89,65 @@ for (const item of DOWNLOADS[ENV_NAME]) {
   grid.append(card);
 }
 
+const downloadCards = Array.from(document.querySelectorAll('.download-card'));
+
+// Spring-like card hover motion.
+for (const card of downloadCards) {
+  let tx = 0;
+  let ty = 0;
+  let cx = 0;
+  let cy = 0;
+  let raf = 0;
+
+  const tick = () => {
+    cx += (tx - cx) * 0.18;
+    cy += (ty - cy) * 0.18;
+    card.style.transform = `translate3d(${cx}px, ${cy}px, 0) scale(1)`;
+    if (Math.abs(tx - cx) > 0.08 || Math.abs(ty - cy) > 0.08) {
+      raf = requestAnimationFrame(tick);
+    } else {
+      raf = 0;
+    }
+  };
+
+  const queue = () => {
+    if (!raf) raf = requestAnimationFrame(tick);
+  };
+
+  card.addEventListener('pointermove', (event) => {
+    const rect = card.getBoundingClientRect();
+    const nx = (event.clientX - rect.left) / rect.width - 0.5;
+    const ny = (event.clientY - rect.top) / rect.height - 0.5;
+    tx = nx * 10;
+    ty = ny * 7;
+    queue();
+  });
+
+  card.addEventListener('pointerleave', () => {
+    tx = 0;
+    ty = 0;
+    queue();
+  });
+}
+
+// Enter animation when cards appear in viewport.
+const io = new IntersectionObserver(
+  (entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      const el = entry.target;
+      el.classList.add('is-visible');
+      io.unobserve(el);
+    }
+  },
+  { threshold: 0.2 },
+);
+
+downloadCards.forEach((card, idx) => {
+  card.style.transitionDelay = `${idx * 70}ms`;
+  io.observe(card);
+});
+
 // Spring-like pointer parallax for hero layers.
 const hero = document.querySelector('.hero');
 const layers = Array.from(document.querySelectorAll('.spring-layer'));
