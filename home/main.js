@@ -8,14 +8,14 @@ const DOWNLOADS = {
     {
       title: 'Mac Apple Silicon (dev)',
       status: 'ready',
-      href: 'http://127.0.0.1:9000/iclaw-dev/iClaw_1.0.0_aarch64-dev.dmg',
-      note: 'M 系列芯片',
+      href: 'http://127.0.0.1:9000/iclaw-dev/iClaw_1.0.0_aarch64_dev.dmg',
+      note: 'M 系列芯片 · 开发版',
     },
     {
       title: 'Mac Intel (dev)',
       status: 'ready',
-      href: 'http://127.0.0.1:9000/iclaw-dev/iClaw_1.0.0_x64-dev.dmg',
-      note: 'Intel 芯片',
+      href: 'http://127.0.0.1:9000/iclaw-dev/iClaw_1.0.0_x64_dev.dmg',
+      note: 'Intel 芯片 · 开发版',
     },
     { title: 'Windows', status: 'soon', note: '敬请期待' },
     { title: 'iOS', status: 'soon', note: '敬请期待' },
@@ -26,13 +26,13 @@ const DOWNLOADS = {
       title: 'Mac Apple Silicon',
       status: 'ready',
       href: 'https://iclaw.aiyuanxi.com/downloads/iClaw_1.0.0_aarch64_prod.dmg',
-      note: 'M 系列芯片',
+      note: 'M 系列芯片 · 正式版',
     },
     {
       title: 'Mac Intel',
       status: 'ready',
       href: 'https://iclaw.aiyuanxi.com/downloads/iClaw_1.0.0_x64_prod.dmg',
-      note: 'Intel 芯片',
+      note: 'Intel 芯片 · 正式版',
     },
     { title: 'Windows', status: 'soon', note: '敬请期待' },
     { title: 'iOS', status: 'soon', note: '敬请期待' },
@@ -64,7 +64,7 @@ for (const item of DOWNLOADS[ENV_NAME]) {
   action.className = `action ${item.status === 'ready' ? 'ready' : 'soon'}`;
 
   if (item.status === 'ready') {
-    action.textContent = '下载';
+    action.textContent = '立即下载';
     action.href = item.href;
     action.target = '_blank';
     action.rel = 'noreferrer';
