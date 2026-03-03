@@ -10,77 +10,43 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap"
       rel="stylesheet"
     />
     <script type="module" src="./main.js"></script>
   </head>
   <body>
-    <div class="noise"></div>
-
-    <header class="topbar">
-      <div class="brand">
-        <img src="/logo.png" alt="iClaw logo" class="brand-logo" />
-        <div class="brand-text">
-          <strong>iClaw</strong>
-          <span>Consumer AI Client</span>
+    <section class="hero" id="top">
+      <img class="hero-art" src="/hero-art.svg" alt="iClaw hero artwork" />
+      <div class="hero-overlay"></div>
+      <header class="hero-topbar">
+        <div class="brand">
+          <img src="/logo.png" alt="iClaw logo" class="brand-logo" />
+          <span>iClaw</span>
         </div>
-      </div>
-      <nav class="topnav">
-        <a href="#about">产品</a>
-        <a href="#download">下载</a>
-        <a href="#roadmap">路线</a>
-      </nav>
-    </header>
+        <a href="#download" class="top-cta">下载</a>
+      </header>
 
-    <main class="shell">
-      <section class="hero" id="about">
-        <p class="hero-kicker">官方站点</p>
-        <h1>iClaw：给普通用户的 AI 客户端。</h1>
-        <p class="hero-subtitle">
-          打开即用，不讲术语。你只需要提问题、下任务、拿结果。其余复杂能力由本地引擎自动处理。
+      <div class="hero-content">
+        <p class="kicker">Official Website</p>
+        <h1>让 AI 真正像软件一样，装上就能用。</h1>
+        <p>
+          iClaw 面向普通用户设计。少一点配置，多一点结果。
+          打开、提问、执行、拿答案。
         </p>
-        <div class="hero-meta">
-          <span>本地壳层体验</span>
-          <span>流式对话</span>
-          <span>自动能力调用</span>
-        </div>
-      </section>
+        <a href="#download" class="scroll-down">
+          <span>向下下载</span>
+          <strong>↓</strong>
+        </a>
+      </div>
+    </section>
 
-      <section class="section card-grid">
-        <article class="card">
-          <h3>打开就能聊</h3>
-          <p>安装后直接登录使用，界面只保留必要动作，减少学习成本。</p>
-        </article>
-        <article class="card">
-          <h3>结果优先</h3>
-          <p>前端做 raw render，后端返回什么就展示什么，不做额外“美化干预”。</p>
-        </article>
-        <article class="card">
-          <h3>本地运行</h3>
-          <p>能力引擎以 sidecar 形态随应用发布，确保桌面端体验一致可控。</p>
-        </article>
-      </section>
-
-      <section class="section roadmap" id="roadmap">
-        <div class="section-head">
-          <h2>产品路线</h2>
-          <p>官网是长期入口，下载只是当前首发能力。</p>
-        </div>
-        <div class="timeline">
-          <div class="tl-item done"><span>v1</span><b>Mac 客户端 + 登录 + 对话</b></div>
-          <div class="tl-item current"><span>v1.x</span><b>下载中心 + 发布流程自动化</b></div>
-          <div class="tl-item"><span>v2</span><b>更多平台（Windows / iOS / Android）</b></div>
-        </div>
-      </section>
-
-      <section class="section download" id="download" aria-labelledby="downloads-title">
-        <div class="section-head">
-          <h2 id="downloads-title">下载中心</h2>
-          <span id="env-pill" class="env-pill"></span>
-        </div>
-        <div id="downloads-grid" class="downloads-grid"></div>
-      </section>
-    </main>
+    <section class="download" id="download" aria-labelledby="downloads-title">
+      <div class="download-head">
+        <h2 id="downloads-title">下载 iClaw</h2>
+        <span id="env-pill" class="env-pill"></span>
+      </div>
+      <div id="downloads-grid" class="downloads-grid"></div>
+    </section>
   </body>
 </html>

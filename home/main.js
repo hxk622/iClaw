@@ -10,16 +10,20 @@ const DOWNLOADS = {
       status: 'ready',
       href: 'http://127.0.0.1:9000/iclaw-dev/iClaw_1.0.0_aarch64_dev.dmg',
       note: 'M 系列芯片 · 开发版',
+      icon: '⬢',
+      tone: 'cyan',
     },
     {
       title: 'Mac Intel (dev)',
       status: 'ready',
       href: 'http://127.0.0.1:9000/iclaw-dev/iClaw_1.0.0_x64_dev.dmg',
       note: 'Intel 芯片 · 开发版',
+      icon: '◆',
+      tone: 'violet',
     },
-    { title: 'Windows', status: 'soon', note: '敬请期待' },
-    { title: 'iOS', status: 'soon', note: '敬请期待' },
-    { title: 'Android', status: 'soon', note: '敬请期待' },
+    { title: 'Windows', status: 'soon', note: '敬请期待', icon: '▣', tone: 'amber' },
+    { title: 'iOS', status: 'soon', note: '敬请期待', icon: '◉', tone: 'cyan' },
+    { title: 'Android', status: 'soon', note: '敬请期待', icon: '△', tone: 'violet' },
   ],
   prod: [
     {
@@ -27,16 +31,20 @@ const DOWNLOADS = {
       status: 'ready',
       href: 'https://iclaw.aiyuanxi.com/downloads/iClaw_1.0.0_aarch64_prod.dmg',
       note: 'M 系列芯片 · 正式版',
+      icon: '⬢',
+      tone: 'cyan',
     },
     {
       title: 'Mac Intel',
       status: 'ready',
       href: 'https://iclaw.aiyuanxi.com/downloads/iClaw_1.0.0_x64_prod.dmg',
       note: 'Intel 芯片 · 正式版',
+      icon: '◆',
+      tone: 'violet',
     },
-    { title: 'Windows', status: 'soon', note: '敬请期待' },
-    { title: 'iOS', status: 'soon', note: '敬请期待' },
-    { title: 'Android', status: 'soon', note: '敬请期待' },
+    { title: 'Windows', status: 'soon', note: '敬请期待', icon: '▣', tone: 'amber' },
+    { title: 'iOS', status: 'soon', note: '敬请期待', icon: '◉', tone: 'cyan' },
+    { title: 'Android', status: 'soon', note: '敬请期待', icon: '△', tone: 'violet' },
   ],
 };
 
@@ -51,7 +59,11 @@ envPill.textContent = `当前环境：${ENV_LABEL}`;
 
 for (const item of DOWNLOADS[ENV_NAME]) {
   const card = document.createElement('article');
-  card.className = 'download-card';
+  card.className = `download-card tone-${item.tone}`;
+
+  const icon = document.createElement('div');
+  icon.className = 'platform-icon';
+  icon.textContent = item.icon;
 
   const title = document.createElement('h3');
   title.textContent = item.title;
@@ -73,6 +85,6 @@ for (const item of DOWNLOADS[ENV_NAME]) {
     action.disabled = true;
   }
 
-  card.append(title, note, action);
+  card.append(icon, title, note, action);
   grid.append(card);
 }
