@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { IClawClient } from '@iclaw/sdk';
 import { clearAuth, readAuth, writeAuth } from './lib/auth-storage';
+import { isTauriRuntime, startSidecar } from './lib/tauri-sidecar';
 import { AuthPanel } from './components/AuthPanel';
 import { ChatArea } from './components/ChatArea';
+import { HealthStatusBar } from './components/HealthStatusBar';
 import { InputBar } from './components/InputBar';
 import { Sidebar } from './components/Sidebar';
 
@@ -13,6 +15,11 @@ interface Message {
 }
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || 'http://127.0.0.1:2026';
+const SIDE_CAR_COMMAND = (import.meta.env.VITE_SIDE_CAR_COMMAND as string) || 'openclaw';
+const SIDE_CAR_ARGS = ((import.meta.env.VITE_SIDE_CAR_ARGS as string) || '--port 2026')
+  .split(' ')
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 function createId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -26,6 +33,10 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [healthChecking, setHealthChecking] = useState(true);
+  const [healthy, setHealthy] = useState(false);
+  const [healthError, setHealthError] = useState<string | null>(null);
+  const [sidecarAttempted, setSidecarAttempted] = useState(false);
 
   useEffect(() => {
     const auth = readAuth();
@@ -88,7 +99,7 @@ export default function App() {
   };
 
   const sendMessage = async (content: string) => {
-    if (!accessToken) return;
+    if (!accessToken || !healthy) return;
     const text = content.trim();
     if (!text || streaming) return;
 
@@ -123,6 +134,53 @@ export default function App() {
     }
   };
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const check = async (): Promise<boolean> => {
+      setHealthChecking(true);
+      try {
+        await client.health();
+        if (!cancelled) {
+          setHealthy(true);
+          setHealthError(null);
+        }
+        return true;
+      } catch (e) {
+        if (!cancelled) {
+          setHealthy(false);
+          setHealthError(e instanceof Error ? e.message : 'health check failed');
+        }
+        return false;
+      } finally {
+        if (!cancelled) setHealthChecking(false);
+      }
+    };
+
+    const boot = async () => {
+      const healthyNow = await check();
+      if (!cancelled && !healthyNow && isTauriRuntime()) {
+        try {
+          await startSidecar(SIDE_CAR_COMMAND, SIDE_CAR_ARGS);
+          setSidecarAttempted(true);
+        } catch {
+          setSidecarAttempted(true);
+        }
+        await check();
+      }
+    };
+
+    void boot();
+    const timer = window.setInterval(() => {
+      void check();
+    }, 10000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [client]);
+
   if (!accessToken) {
     return (
       <AuthPanel
@@ -138,6 +196,12 @@ export default function App() {
     <div className="flex h-screen overflow-hidden bg-white">
       <Sidebar />
       <div className="flex flex-1 flex-col">
+        <HealthStatusBar
+          checking={healthChecking}
+          healthy={healthy}
+          sidecarAttempted={sidecarAttempted}
+          error={healthError}
+        />
         <div className="flex items-center justify-end border-b border-[#efefef] px-4 py-2">
           <button
             onClick={handleLogout}
@@ -147,7 +211,7 @@ export default function App() {
           </button>
         </div>
         <ChatArea messages={messages} streaming={streaming} error={error} />
-        <InputBar onSend={sendMessage} disabled={streaming} />
+        <InputBar onSend={sendMessage} disabled={streaming || !healthy} />
       </div>
     </div>
   );
