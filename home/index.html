@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>iClaw 下载中心</title>
+    <meta name="description" content="iClaw 官网下载页，提供 macOS 安装包下载。" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Manrope:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <script type="module" src="./main.js"></script>
+  </head>
+  <body>
+    <div class="page-bg"></div>
+    <main class="shell">
+      <header class="hero">
+        <p class="eyebrow">OpenAlpha · iClaw</p>
+        <h1>像装普通软件一样，打开就能用 AI。</h1>
+        <p class="subtitle">
+          首发专注 Mac 本地壳层体验。下载后安装到 Applications，即可登录并开始对话。
+        </p>
+      </header>
+
+      <section class="panel" aria-labelledby="downloads-title">
+        <div class="panel-head">
+          <h2 id="downloads-title">下载</h2>
+          <span id="env-pill" class="env-pill"></span>
+        </div>
+        <div id="downloads-grid" class="downloads-grid"></div>
+      </section>
+
+      <section class="panel note-panel">
+        <h3>发布说明</h3>
+        <ul>
+          <li>Mac 每次发布包含 4 包：Apple Silicon / Intel × dev / prod。</li>
+          <li>dev 构建用于联调验证；prod 构建用于正式分发。</li>
+          <li>Windows / iOS / Android 首版暂未开放下载。</li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>

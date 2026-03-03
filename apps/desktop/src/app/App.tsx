@@ -16,7 +16,10 @@ interface Message {
   content: string;
 }
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || 'http://127.0.0.1:2026';
+const DEFAULT_API_BASE_URL = import.meta.env.PROD
+  ? 'https://openalpha.aiyuanxi.com'
+  : 'http://127.0.0.1:2026';
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || DEFAULT_API_BASE_URL;
 const SIDE_CAR_ARGS = ((import.meta.env.VITE_SIDE_CAR_ARGS as string) || '--port 2026')
   .split(' ')
   .map((s) => s.trim())

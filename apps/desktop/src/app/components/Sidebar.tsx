@@ -1,6 +1,10 @@
 import { ChevronRight, Cloud, Code, MoreHorizontal, Sparkles, Wand2 } from 'lucide-react';
 
 export function Sidebar() {
+  const buildChannel = (import.meta.env.VITE_BUILD_CHANNEL as string) || import.meta.env.MODE;
+  const isDevChannel = buildChannel === 'development' || buildChannel === 'dev';
+  const brandText = isDevChannel ? 'iClaw-dev' : 'iClaw';
+
   const menuItems = [
     { icon: Sparkles, label: 'AI 浏览器', hasArrow: true },
     { icon: Code, label: '应用生成', hasArrow: true },
@@ -12,11 +16,14 @@ export function Sidebar() {
   return (
     <div className="flex h-screen w-[246px] flex-col bg-[#f7f7f7]">
       <div className="px-4 pt-5 pb-4">
-        <div className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-white/50">
+        <div
+          title={isDevChannel ? 'iClaw-dev' : 'iClaw'}
+          className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-white/50"
+        >
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-purple-500 text-sm font-medium text-white">
             i
           </div>
-          <span className="text-[15px] text-[#1f1f1f]">iClaw</span>
+          <span className="text-[15px] text-[#1f1f1f]">{brandText}</span>
         </div>
       </div>
 

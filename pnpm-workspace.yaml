@@ -1,4 +1,5 @@
 packages:
+  - 'home'
   - 'apps/*'
   - 'services/*'
   - 'packages/*'
