@@ -10,7 +10,7 @@ mkdir -p "$DST_DIR/skills" "$DST_DIR/mcp"
 if [[ -d "$SRC_DIR/skills" ]]; then
   rm -rf "$DST_DIR/skills"
   mkdir -p "$DST_DIR/skills"
-  cp -R "$SRC_DIR/skills/." "$DST_DIR/skills/"
+  rsync -a --delete --exclude ".DS_Store" "$SRC_DIR/skills/" "$DST_DIR/skills/"
 fi
 
 if [[ -f "$SRC_DIR/mcp/mcp.json" ]]; then

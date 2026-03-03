@@ -1,0 +1,18 @@
+{
+  "version": "0.1.0",
+  "preset": "core-office-finance",
+  "skills": [
+    "docx",
+    "pdf",
+    "xlsx",
+    "stock-analysis-skill",
+    "财报分析师",
+    "财务报表分析师",
+    "投资备忘录生成器",
+    "市场评论生成器",
+    "金融仪表板生成器",
+    "风险管理分析师",
+    "股票研究分析师",
+    "加密货币分析师"
+  ]
+}
