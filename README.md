@@ -26,6 +26,19 @@ scripts/            # Build/release scripts
 
 See `docs/` for product decisions and contracts.
 
+## Web 调试（免 DMG）
+
+浏览器联调模式（自动启动本地 OpenClaw + 前端）：
+
+```bash
+pnpm dev:web
+```
+
+默认地址：
+
+- Web: `http://127.0.0.1:1420`
+- API: `http://127.0.0.1:2026`
+
 ## Logo Source of Truth
 
 Brand source is centralized at:

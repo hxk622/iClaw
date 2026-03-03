@@ -5,6 +5,7 @@
   "packageManager": "pnpm@10",
   "scripts": {
     "version:set": "bash scripts/version.sh",
+    "dev:web": "bash scripts/dev-web.sh",
     "dev:home": "pnpm --dir home dev",
     "build:home": "pnpm --dir home build",
     "dev:desktop": "pnpm --filter @iclaw/desktop dev --host 0.0.0.0 --port 1420",
