@@ -27,6 +27,11 @@ pnpm dev:web
 
 这样可以在浏览器直接联调，不必每次打 DMG。
 
+后端日志目录：
+
+- `logs/openclaw/`
+- 实时查看：`tail -f logs/openclaw/latest.log`
+
 ## 说明
 
 - 内容区为 raw render：后端返回什么展示什么。

@@ -39,6 +39,11 @@ pnpm dev:web
 - Web: `http://127.0.0.1:1420`
 - API: `http://127.0.0.1:2026`
 
+后端日志默认保存到：
+
+- `logs/openclaw/`
+- 最新日志软链：`logs/openclaw/latest.log`
+
 ## Logo Source of Truth
 
 Brand source is centralized at:

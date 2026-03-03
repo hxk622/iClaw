@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "packageManager": "pnpm@10",
   "scripts": {
+    "dev": "pnpm dev:web",
     "version:set": "bash scripts/version.sh",
     "dev:web": "bash scripts/dev-web.sh",
     "dev:home": "pnpm --dir home dev",
