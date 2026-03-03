@@ -3,14 +3,6 @@ import type { RuntimeDiagnosis } from '../lib/tauri-runtime-config';
 interface FirstRunSetupPanelProps {
   diagnosis: RuntimeDiagnosis | null;
   loading: boolean;
-  saving: boolean;
-  openaiKey: string;
-  anthropicKey: string;
-  clawhubUrl: string;
-  onOpenaiKeyChange: (v: string) => void;
-  onAnthropicKeyChange: (v: string) => void;
-  onClawhubUrlChange: (v: string) => void;
-  onSave: () => Promise<void>;
   onRecheck: () => Promise<void>;
 }
 
@@ -21,14 +13,6 @@ function mark(ok: boolean): string {
 export function FirstRunSetupPanel({
   diagnosis,
   loading,
-  saving,
-  openaiKey,
-  anthropicKey,
-  clawhubUrl,
-  onOpenaiKeyChange,
-  onAnthropicKeyChange,
-  onClawhubUrlChange,
-  onSave,
   onRecheck,
 }: FirstRunSetupPanelProps) {
   return (
@@ -43,7 +27,7 @@ export function FirstRunSetupPanel({
           <div>{mark(Boolean(diagnosis?.sidecar_binary_found))} Sidecar 二进制</div>
           <div>{mark(Boolean(diagnosis?.skills_dir_ready))} Skills 资源目录</div>
           <div>{mark(Boolean(diagnosis?.mcp_config_ready))} MCP 配置文件</div>
-          <div>{mark(Boolean(diagnosis?.api_key_configured))} 至少一个模型 API Key</div>
+          <div>{mark(Boolean(diagnosis?.api_key_configured))} 模型 API key（由后端控制）</div>
         </div>
 
         {diagnosis && (
@@ -56,36 +40,7 @@ export function FirstRunSetupPanel({
           </div>
         )}
 
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-          <input
-            value={openaiKey}
-            onChange={(e) => onOpenaiKeyChange(e.target.value)}
-            placeholder="OPENAI_API_KEY（可选）"
-            className="rounded-lg border border-[#e5e5e5] px-3 py-2 text-[14px] outline-none focus:border-[#3b82f6]"
-          />
-          <input
-            value={anthropicKey}
-            onChange={(e) => onAnthropicKeyChange(e.target.value)}
-            placeholder="ANTHROPIC_API_KEY（可选）"
-            className="rounded-lg border border-[#e5e5e5] px-3 py-2 text-[14px] outline-none focus:border-[#3b82f6]"
-          />
-        </div>
-
-        <input
-          value={clawhubUrl}
-          onChange={(e) => onClawhubUrlChange(e.target.value)}
-          placeholder="CLAWHUB_BASE_URL（可选）"
-          className="mt-3 w-full rounded-lg border border-[#e5e5e5] px-3 py-2 text-[14px] outline-none focus:border-[#3b82f6]"
-        />
-
         <div className="mt-4 flex items-center gap-3">
-          <button
-            onClick={() => void onSave()}
-            disabled={saving}
-            className="rounded-lg bg-[#3b82f6] px-4 py-2 text-[14px] text-white hover:bg-[#2563eb] disabled:opacity-50"
-          >
-            {saving ? '保存中...' : '保存配置'}
-          </button>
           <button
             onClick={() => void onRecheck()}
             disabled={loading}

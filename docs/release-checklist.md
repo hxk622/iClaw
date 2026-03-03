@@ -60,7 +60,7 @@
   - sidecar 打包脚本与 tauri externalBin 配置
   - 服务健康检查 + sidecar 启动尝试
   - 本地 DMG 打包成功：`apps/desktop/src-tauri/target/release/bundle/dmg/iClaw_0.1.0_aarch64.dmg`
-  - 首启本地运行环境检查（sidecar/resources/api-key）
+  - 首启本地运行环境检查（sidecar/resources，API key 由后端控制）
   - skills/mcp 资源目录已接入 bundle resources
   - 已预置首发核心 skills（办公+金融）并完成同步
 - 阻塞项：
