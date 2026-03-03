@@ -88,3 +88,51 @@ for (const item of DOWNLOADS[ENV_NAME]) {
   card.append(icon, title, note, action);
   grid.append(card);
 }
+
+// Spring-like pointer parallax for hero layers.
+const hero = document.querySelector('.hero');
+const layers = Array.from(document.querySelectorAll('.spring-layer'));
+if (hero && layers.length > 0) {
+  let targetX = 0;
+  let targetY = 0;
+  let currentX = 0;
+  let currentY = 0;
+  let raf = 0;
+
+  const animate = () => {
+    currentX += (targetX - currentX) * 0.14;
+    currentY += (targetY - currentY) * 0.14;
+
+    layers.forEach((el, idx) => {
+      const depth = (idx + 1) * 0.55;
+      const x = currentX * depth;
+      const y = currentY * depth;
+      el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+    });
+
+    if (Math.abs(targetX - currentX) > 0.1 || Math.abs(targetY - currentY) > 0.1) {
+      raf = requestAnimationFrame(animate);
+    } else {
+      raf = 0;
+    }
+  };
+
+  const queue = () => {
+    if (!raf) raf = requestAnimationFrame(animate);
+  };
+
+  hero.addEventListener('pointermove', (event) => {
+    const rect = hero.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    targetX = ((event.clientX - cx) / rect.width) * 26;
+    targetY = ((event.clientY - cy) / rect.height) * 18;
+    queue();
+  });
+
+  hero.addEventListener('pointerleave', () => {
+    targetX = 0;
+    targetY = 0;
+    queue();
+  });
+}
