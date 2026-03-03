@@ -1,9 +1,10 @@
 {
   "name": "iclaw-monorepo",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "packageManager": "pnpm@10",
   "scripts": {
+    "version:set": "bash scripts/version.sh",
     "dev:desktop": "pnpm --filter @iclaw/desktop dev --host 0.0.0.0 --port 1420",
     "build:desktop": "pnpm --filter @iclaw/desktop build",
     "tauri:dev": "pnpm --filter @iclaw/desktop tauri:dev",

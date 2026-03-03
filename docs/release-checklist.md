@@ -59,13 +59,12 @@
   - Tauri 环境 token 安全存储（keyring）
   - sidecar 打包脚本与 tauri externalBin 配置
   - 服务健康检查 + sidecar 启动尝试
-  - 本地 DMG 打包成功：`apps/desktop/src-tauri/target/release/bundle/dmg/iClaw_0.1.0_aarch64.dmg`
+  - 本地 DMG 打包成功：`apps/desktop/src-tauri/target/release/bundle/dmg/iClaw_1.0.0_aarch64.dmg`
   - 首启本地运行环境检查（sidecar/resources，API key 由后端控制）
   - skills/mcp 资源目录已接入 bundle resources
   - 已预置首发核心 skills（办公+金融）并完成同步
 - 阻塞项：
-  - 当前 DMG 使用 OpenAlpha fallback binary（`../OpenAlpha/src-api/dist/openalpha-api-aarch64-apple-darwin`），仅适合内测验证
-  - 正式发布前需替换为 OpenClaw 正式 sidecar binary 并重打包
+  - 未提供 OpenClaw 正式 sidecar binary 时，构建会失败（已取消 fallback）
 - 下一步：
   - 放置 OpenClaw 正式二进制后执行：`bash scripts/build-openclaw.sh`
   - 再执行：`cd apps/desktop && pnpm tauri build`

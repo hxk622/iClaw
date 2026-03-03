@@ -22,3 +22,8 @@ Thumbs.db
 # Tauri/Rust
 src-tauri/target/
 Cargo.lock
+
+# Local cache
+.cache/
+apps/desktop/src-tauri/binaries/
+apps/desktop/src-tauri/binaries/openclaw-meta-*.json
