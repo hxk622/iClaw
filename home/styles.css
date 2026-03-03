@@ -46,11 +46,26 @@ body {
 
 .eyebrow {
   display: inline-block;
-  margin: 0 0 10px;
+  margin: 0;
   font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.18em;
   color: var(--accent);
+}
+
+.brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.brand-logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  object-fit: cover;
+  box-shadow: 0 6px 20px rgba(31, 28, 24, 0.18);
 }
 
 .hero h1 {
