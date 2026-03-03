@@ -151,25 +151,49 @@ downloadCards.forEach((card, idx) => {
 // Spring-like pointer parallax for hero layers.
 const hero = document.querySelector('.hero');
 const layers = Array.from(document.querySelectorAll('.spring-layer'));
+const creature = document.querySelector('.float-photo');
 if (hero && layers.length > 0) {
   let targetX = 0;
   let targetY = 0;
   let currentX = 0;
   let currentY = 0;
+  let lifeTargetX = 0;
+  let lifeTargetY = 0;
+  let lifeTargetR = 0;
+  let lifeTargetS = 0;
+  let lifeX = 0;
+  let lifeY = 0;
+  let lifeR = 0;
+  let lifeS = 0;
   let raf = 0;
 
   const animate = () => {
     currentX += (targetX - currentX) * 0.14;
     currentY += (targetY - currentY) * 0.14;
+    lifeX += (lifeTargetX - lifeX) * 0.12;
+    lifeY += (lifeTargetY - lifeY) * 0.12;
+    lifeR += (lifeTargetR - lifeR) * 0.12;
+    lifeS += (lifeTargetS - lifeS) * 0.12;
 
     layers.forEach((el, idx) => {
       const depth = (idx + 1) * 0.55;
       const x = currentX * depth;
       const y = currentY * depth;
-      el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+      if (creature && el === creature) {
+        el.style.transform = `translate3d(${x + lifeX}px, ${y + lifeY}px, 0) rotate(${lifeR}deg) scale(${1 + lifeS})`;
+      } else {
+        el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+      }
     });
 
-    if (Math.abs(targetX - currentX) > 0.1 || Math.abs(targetY - currentY) > 0.1) {
+    if (
+      Math.abs(targetX - currentX) > 0.1 ||
+      Math.abs(targetY - currentY) > 0.1 ||
+      Math.abs(lifeTargetX - lifeX) > 0.1 ||
+      Math.abs(lifeTargetY - lifeY) > 0.1 ||
+      Math.abs(lifeTargetR - lifeR) > 0.02 ||
+      Math.abs(lifeTargetS - lifeS) > 0.001
+    ) {
       raf = requestAnimationFrame(animate);
     } else {
       raf = 0;
@@ -194,4 +218,18 @@ if (hero && layers.length > 0) {
     targetY = 0;
     queue();
   });
+
+  // Random living-like movement for the right-side photo.
+  if (creature) {
+    const reseedLifeMotion = () => {
+      lifeTargetX = (Math.random() - 0.5) * 10;
+      lifeTargetY = (Math.random() - 0.5) * 14;
+      lifeTargetR = (Math.random() - 0.5) * 2.6;
+      lifeTargetS = Math.random() * 0.025 - 0.008;
+      queue();
+      const next = 700 + Math.random() * 1300;
+      window.setTimeout(reseedLifeMotion, next);
+    };
+    reseedLifeMotion();
+  }
 }
