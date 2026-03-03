@@ -15,7 +15,6 @@ interface Message {
 }
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || 'http://127.0.0.1:2026';
-const SIDE_CAR_COMMAND = (import.meta.env.VITE_SIDE_CAR_COMMAND as string) || 'openclaw';
 const SIDE_CAR_ARGS = ((import.meta.env.VITE_SIDE_CAR_ARGS as string) || '--port 2026')
   .split(' ')
   .map((s) => s.trim())
@@ -39,21 +38,22 @@ export default function App() {
   const [sidecarAttempted, setSidecarAttempted] = useState(false);
 
   useEffect(() => {
-    const auth = readAuth();
-    if (!auth) return;
-    setAccessToken(auth.accessToken);
-    void client.me(auth.accessToken).catch(async () => {
-      try {
-        const refreshed = await client.refresh(auth.refreshToken);
-        writeAuth({
-          accessToken: refreshed.access_token,
-          refreshToken: refreshed.refresh_token || auth.refreshToken,
-        });
-        setAccessToken(refreshed.access_token);
-      } catch {
-        clearAuth();
-        setAccessToken(null);
-      }
+    void readAuth().then((auth) => {
+      if (!auth) return;
+      setAccessToken(auth.accessToken);
+      void client.me(auth.accessToken).catch(async () => {
+        try {
+          const refreshed = await client.refresh(auth.refreshToken);
+          await writeAuth({
+            accessToken: refreshed.access_token,
+            refreshToken: refreshed.refresh_token || auth.refreshToken,
+          });
+          setAccessToken(refreshed.access_token);
+        } catch {
+          await clearAuth();
+          setAccessToken(null);
+        }
+      });
     });
   }, [client]);
 
@@ -62,7 +62,7 @@ export default function App() {
     setAuthError(null);
     try {
       const data = await client.login(input);
-      writeAuth({
+      await writeAuth({
         accessToken: data.tokens.access_token,
         refreshToken: data.tokens.refresh_token,
       });
@@ -79,7 +79,7 @@ export default function App() {
     setAuthError(null);
     try {
       const data = await client.register(input);
-      writeAuth({
+      await writeAuth({
         accessToken: data.tokens.access_token,
         refreshToken: data.tokens.refresh_token,
       });
@@ -92,7 +92,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    clearAuth();
+    void clearAuth();
     setAccessToken(null);
     setMessages([]);
     setError(null);
@@ -161,7 +161,7 @@ export default function App() {
       const healthyNow = await check();
       if (!cancelled && !healthyNow && isTauriRuntime()) {
         try {
-          await startSidecar(SIDE_CAR_COMMAND, SIDE_CAR_ARGS);
+          await startSidecar(SIDE_CAR_ARGS);
           setSidecarAttempted(true);
         } catch {
           setSidecarAttempted(true);

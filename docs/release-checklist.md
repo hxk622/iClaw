@@ -50,3 +50,18 @@
 - [ ] 可对话
 - [ ] 可恢复（重试/重启后继续使用）
 - [ ] 可收日志
+
+## 首轮勾检（2026-03-03）
+
+- 已完成：
+  - monorepo 与 desktop/sdk/tauri 基础骨架
+  - 登录/注册 + token 刷新链路
+  - Tauri 环境 token 安全存储（keyring）
+  - sidecar 打包脚本与 tauri externalBin 配置
+  - 服务健康检查 + sidecar 启动尝试
+- 阻塞项：
+  - 缺少 OpenClaw 可执行文件：`services/openclaw/bin/openclaw`（或 `OPENCLAW_BINARY_PATH`）
+  - `pnpm tauri build` 已执行，失败于 `beforeBuildCommand`（sidecar 文件缺失）
+- 下一步：
+  - 放置可执行文件后执行：`bash scripts/build-openclaw.sh`
+  - 再执行：`cd apps/desktop && pnpm tauri build`

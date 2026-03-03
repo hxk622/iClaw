@@ -4,9 +4,9 @@ export function isTauriRuntime(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
-export async function startSidecar(command: string, args: string[]): Promise<boolean> {
+export async function startSidecar(args: string[]): Promise<boolean> {
   if (!isTauriRuntime()) return false;
-  return invoke<boolean>('start_sidecar', { command, args });
+  return invoke<boolean>('start_sidecar', { args });
 }
 
 export async function stopSidecar(): Promise<boolean> {
