@@ -60,6 +60,8 @@
   - sidecar 打包脚本与 tauri externalBin 配置
   - 服务健康检查 + sidecar 启动尝试
   - 本地 DMG 打包成功：`apps/desktop/src-tauri/target/release/bundle/dmg/iClaw_0.1.0_aarch64.dmg`
+  - 首启本地运行环境检查（sidecar/resources/api-key）
+  - skills/mcp 资源目录已接入 bundle resources
 - 阻塞项：
   - 当前 DMG 使用 OpenAlpha fallback binary（`../OpenAlpha/src-api/dist/openalpha-api-aarch64-apple-darwin`），仅适合内测验证
   - 正式发布前需替换为 OpenClaw 正式 sidecar binary 并重打包

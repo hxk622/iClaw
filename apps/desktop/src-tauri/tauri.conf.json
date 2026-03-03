@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "identifier": "ai.openalpha.iclaw",
   "build": {
-    "beforeDevCommand": "bash ../../scripts/build-openclaw.sh || true && pnpm dev --host 0.0.0.0 --port 1420",
-    "beforeBuildCommand": "bash ../../scripts/build-openclaw.sh && pnpm build",
+    "beforeDevCommand": "bash ../../scripts/sync-openclaw-resources.sh && bash ../../scripts/build-openclaw.sh || true && pnpm dev --host 0.0.0.0 --port 1420",
+    "beforeBuildCommand": "bash ../../scripts/sync-openclaw-resources.sh && bash ../../scripts/build-openclaw.sh && pnpm build",
     "devUrl": "http://localhost:1420",
     "frontendDist": "../dist"
   },
@@ -28,6 +28,7 @@
     "active": true,
     "externalBin": ["binaries/openclaw"],
     "targets": ["dmg", "nsis"],
+    "resources": ["resources/**/*"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

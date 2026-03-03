@@ -2,8 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { IClawClient } from '@iclaw/sdk';
 import { clearAuth, readAuth, writeAuth } from './lib/auth-storage';
 import { isTauriRuntime, startSidecar } from './lib/tauri-sidecar';
+import {
+  diagnoseRuntime,
+  loadRuntimeConfig,
+  saveRuntimeConfig,
+  type RuntimeDiagnosis,
+} from './lib/tauri-runtime-config';
 import { AuthPanel } from './components/AuthPanel';
 import { ChatArea } from './components/ChatArea';
+import { FirstRunSetupPanel } from './components/FirstRunSetupPanel';
 import { HealthStatusBar } from './components/HealthStatusBar';
 import { InputBar } from './components/InputBar';
 import { Sidebar } from './components/Sidebar';
@@ -36,6 +43,51 @@ export default function App() {
   const [healthy, setHealthy] = useState(false);
   const [healthError, setHealthError] = useState<string | null>(null);
   const [sidecarAttempted, setSidecarAttempted] = useState(false);
+  const [runtimeChecking, setRuntimeChecking] = useState(true);
+  const [runtimeSaving, setRuntimeSaving] = useState(false);
+  const [runtimeReady, setRuntimeReady] = useState(!isTauriRuntime());
+  const [runtimeDiagnosis, setRuntimeDiagnosis] = useState<RuntimeDiagnosis | null>(null);
+  const [openaiKey, setOpenaiKey] = useState('');
+  const [anthropicKey, setAnthropicKey] = useState('');
+  const [clawhubUrl, setClawhubUrl] = useState('');
+
+  const checkRuntime = async () => {
+    if (!isTauriRuntime()) {
+      setRuntimeReady(true);
+      setRuntimeChecking(false);
+      return;
+    }
+    setRuntimeChecking(true);
+    const [cfg, diagnosis] = await Promise.all([loadRuntimeConfig(), diagnoseRuntime()]);
+    if (cfg) {
+      setOpenaiKey(cfg.openai_api_key || '');
+      setAnthropicKey(cfg.anthropic_api_key || '');
+      setClawhubUrl(cfg.clawhub_url || '');
+    }
+    setRuntimeDiagnosis(diagnosis);
+    const ready =
+      Boolean(diagnosis?.sidecar_binary_found) &&
+      Boolean(diagnosis?.skills_dir_ready) &&
+      Boolean(diagnosis?.mcp_config_ready) &&
+      Boolean(diagnosis?.api_key_configured);
+    setRuntimeReady(ready);
+    setRuntimeChecking(false);
+  };
+
+  useEffect(() => {
+    void checkRuntime();
+  }, []);
+
+  const saveRuntime = async () => {
+    setRuntimeSaving(true);
+    await saveRuntimeConfig({
+      openai_api_key: openaiKey.trim() || null,
+      anthropic_api_key: anthropicKey.trim() || null,
+      clawhub_url: clawhubUrl.trim() || null,
+    });
+    setRuntimeSaving(false);
+    await checkRuntime();
+  };
 
   useEffect(() => {
     void readAuth().then((auth) => {
@@ -182,6 +234,32 @@ export default function App() {
   }, [client]);
 
   if (!accessToken) {
+    if (runtimeChecking) {
+      return (
+        <div className="flex h-screen items-center justify-center bg-white text-[14px] text-[#666]">
+          正在检查本地运行环境...
+        </div>
+      );
+    }
+
+    if (!runtimeReady) {
+      return (
+        <FirstRunSetupPanel
+          diagnosis={runtimeDiagnosis}
+          loading={runtimeChecking}
+          saving={runtimeSaving}
+          openaiKey={openaiKey}
+          anthropicKey={anthropicKey}
+          clawhubUrl={clawhubUrl}
+          onOpenaiKeyChange={setOpenaiKey}
+          onAnthropicKeyChange={setAnthropicKey}
+          onClawhubUrlChange={setClawhubUrl}
+          onSave={saveRuntime}
+          onRecheck={checkRuntime}
+        />
+      );
+    }
+
     return (
       <AuthPanel
         loading={authLoading}

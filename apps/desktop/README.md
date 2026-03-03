@@ -27,3 +27,11 @@ iClaw 桌面壳（UI + Tauri）。
 1. 将二进制放到 `services/openclaw/bin/openclaw`（Windows 为 `.exe`）  
 2. 或设置环境变量 `OPENCLAW_BINARY_PATH` 指向二进制路径  
 3. 执行 `bash ../../scripts/build-openclaw.sh`，脚本会复制到 `src-tauri/binaries/openclaw-<target>`
+
+## 本地能力资源（skills / mcp）
+
+- 源目录（可维护）：`services/openclaw/resources/skills`、`services/openclaw/resources/mcp/mcp.json`
+- 打包目录（自动同步）：`apps/desktop/src-tauri/resources/skills`、`apps/desktop/src-tauri/resources/mcp/mcp.json`
+- 同步命令：`bash ../../scripts/sync-openclaw-resources.sh`
+
+`tauri dev` / `tauri build` 会在 pre-command 自动执行资源同步。
