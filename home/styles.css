@@ -155,33 +155,24 @@ body {
 .hero-title-pre {
   font-size: clamp(24px, 4.1vw, 46px);
   line-height: 1.14;
-  opacity: 0.9;
-}
-
-.hero-title-main {
-  font-size: clamp(52px, 9vw, 120px);
-  line-height: 1.04;
-}
-
-.shine-text {
-  display: inline-block;
-  color: #eaf8ff;
   background: linear-gradient(
-    100deg,
-    rgba(255, 255, 255, 0.18) 0%,
-    rgba(255, 255, 255, 0.18) 28%,
-    rgba(255, 255, 255, 1) 44%,
-    rgba(255, 255, 255, 0.18) 62%,
-    rgba(255, 255, 255, 0.18) 100%
+    96deg,
+    #a06d1f 0%,
+    #dca84a 22%,
+    #fff3cf 45%,
+    #dca84a 62%,
+    #a06d1f 100%
   );
   background-size: 220% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: shine-ltr 2.4s linear infinite;
+  animation: gold-shine-ltr 2.2s linear infinite;
 }
 
-.shine-mark {
+.hero-title-main {
+  font-size: clamp(52px, 9vw, 120px);
+  line-height: 1.04;
   color: #f2f5fb;
 }
 
@@ -395,7 +386,7 @@ body {
   }
 }
 
-@keyframes shine-ltr {
+@keyframes gold-shine-ltr {
   0% {
     background-position: 140% 0;
   }
