@@ -20,6 +20,12 @@ interface RegisterInput extends LoginInput {
   name: string;
 }
 
+interface MeResponse {
+  data: {
+    user: unknown;
+  };
+}
+
 interface StreamChatInput {
   message: string;
   taskId?: string;
@@ -91,6 +97,17 @@ export class IClawClient {
     if (!res.ok) throw await parseError(res);
     const json = (await res.json()) as { data: AuthTokens };
     return json.data;
+  }
+
+  async me(token: string): Promise<unknown> {
+    const res = await fetch(`${this.apiBaseUrl}/auth/me`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as MeResponse;
+    return json.data.user;
   }
 
   async streamChat(input: StreamChatInput, callbacks: StreamCallbacks): Promise<void> {
