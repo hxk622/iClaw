@@ -4,6 +4,7 @@ This directory is the canonical source for bundled local sidecar resources.
 
 - `skills/`: preinstalled core skills
 - `mcp/mcp.json`: default MCP server config
+- `config/runtime-config.json`: default runtime model/provider config
 
 Sync to Tauri bundle resources:
 

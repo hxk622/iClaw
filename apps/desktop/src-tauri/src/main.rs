@@ -152,19 +152,46 @@ fn runtime_config_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(base.join("config.json"))
 }
 
+fn resource_runtime_config_path(app: &AppHandle) -> PathBuf {
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let p = resource_dir
+            .join("resources")
+            .join("config")
+            .join("runtime-config.json");
+        if p.exists() {
+            return p;
+        }
+    }
+
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("resources")
+        .join("config")
+        .join("runtime-config.json")
+}
+
 fn load_runtime_config_internal(app: &AppHandle) -> Result<RuntimeConfig, String> {
     let config_path = runtime_config_path(app)?;
-    if !config_path.exists() {
-        return Ok(RuntimeConfig {
-            openai_api_key: None,
-            openai_base_url: None,
-            openai_model: None,
-            anthropic_api_key: None,
-            clawhub_url: None,
-        });
+    if config_path.exists() {
+        let raw = fs::read_to_string(&config_path).map_err(|e| format!("failed to read config: {e}"))?;
+        return serde_json::from_str::<RuntimeConfig>(&raw)
+            .map_err(|e| format!("failed to parse config: {e}"));
     }
-    let raw = fs::read_to_string(&config_path).map_err(|e| format!("failed to read config: {e}"))?;
-    serde_json::from_str::<RuntimeConfig>(&raw).map_err(|e| format!("failed to parse config: {e}"))
+
+    let default_path = resource_runtime_config_path(app);
+    if default_path.exists() {
+        let raw =
+            fs::read_to_string(&default_path).map_err(|e| format!("failed to read default config: {e}"))?;
+        return serde_json::from_str::<RuntimeConfig>(&raw)
+            .map_err(|e| format!("failed to parse default config: {e}"));
+    }
+
+    Ok(RuntimeConfig {
+        openai_api_key: None,
+        openai_base_url: None,
+        openai_model: None,
+        anthropic_api_key: None,
+        clawhub_url: None,
+    })
 }
 
 #[tauri::command]

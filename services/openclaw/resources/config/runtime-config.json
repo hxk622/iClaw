@@ -1,0 +1,7 @@
+{
+  "openai_api_key": "sk-84490d4994e66860f384e1dc3e45af5bd1b47326421a8ffa01979e54a548c0e8",
+  "openai_base_url": "https://vpsairobot.com",
+  "openai_model": "gpt-5.2",
+  "anthropic_api_key": null,
+  "clawhub_url": null
+}
