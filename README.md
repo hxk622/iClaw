@@ -25,3 +25,15 @@ scripts/            # Build/release scripts
 ```
 
 See `docs/` for product decisions and contracts.
+
+## Logo Source of Truth
+
+Brand source is centralized at:
+
+- `brand/logo.master.png`
+
+Generate all app icon derivatives with:
+
+```bash
+bash scripts/generate-icons.sh
+```
