@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DESKTOP_DIR="$ROOT_DIR/apps/desktop"
 OUT_DIR="$ROOT_DIR/dist/releases"
-VERSION="${1:-$(node -p "require('$ROOT_DIR/package.json').version") }"
+VERSION="${1:-$(node -p "require('$ROOT_DIR/package.json').version")}"
 
 TARGETS=(
   "aarch64-apple-darwin"
@@ -34,6 +34,9 @@ build_one() {
   fi
 
   echo "==> building: target=$target channel=$channel"
+
+  # Ensure target-specific sidecar name exists before tauri bundles externalBin.
+  bash "$ROOT_DIR/scripts/build-openclaw.sh" "$target"
 
   (
     cd "$DESKTOP_DIR"

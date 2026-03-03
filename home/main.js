@@ -25,13 +25,13 @@ const DOWNLOADS = {
     {
       title: 'Mac Apple Silicon',
       status: 'ready',
-      href: 'https://115.191.6.179/iclaw-prod/iClaw_1.0.0_aarch64.dmg',
+      href: 'https://iclaw.aiyuanxi.com/downloads/iClaw_1.0.0_aarch64_prod.dmg',
       note: 'M 系列芯片',
     },
     {
       title: 'Mac Intel',
       status: 'ready',
-      href: 'https://115.191.6.179/iclaw-prod/iClaw_1.0.0_x64.dmg',
+      href: 'https://iclaw.aiyuanxi.com/downloads/iClaw_1.0.0_x64_prod.dmg',
       note: 'Intel 芯片',
     },
     { title: 'Windows', status: 'soon', note: '敬请期待' },
