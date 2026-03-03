@@ -59,6 +59,16 @@ body {
   will-change: transform;
 }
 
+.float-photo {
+  position: absolute;
+  border-radius: 24px;
+  width: min(34vw, 430px);
+  height: min(48vh, 520px);
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  box-shadow: 0 42px 120px rgba(0, 0, 0, 0.54);
+}
+
 .float-a {
   right: 4.8vw;
   top: 14vh;
@@ -151,6 +161,28 @@ body {
 .hero-title-main {
   font-size: clamp(52px, 9vw, 120px);
   line-height: 1.04;
+}
+
+.shine-text {
+  display: inline-block;
+  color: #eaf8ff;
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0.18) 0%,
+    rgba(255, 255, 255, 0.18) 28%,
+    rgba(255, 255, 255, 1) 44%,
+    rgba(255, 255, 255, 0.18) 62%,
+    rgba(255, 255, 255, 0.18) 100%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shine-ltr 2.4s linear infinite;
+}
+
+.shine-mark {
+  color: #f2f5fb;
 }
 
 .hero p {
@@ -350,6 +382,7 @@ body {
     right: -10vw;
     bottom: 16vh;
     width: 62vw;
+    height: auto;
   }
 
   .hero h1 {
@@ -359,5 +392,14 @@ body {
 
   .download {
     padding-top: 32px;
+  }
+}
+
+@keyframes shine-ltr {
+  0% {
+    background-position: 140% 0;
+  }
+  100% {
+    background-position: -80% 0;
   }
 }
