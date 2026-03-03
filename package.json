@@ -1,0 +1,11 @@
+{
+  "name": "iclaw-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10",
+  "scripts": {
+    "dev": "echo \"run workspace-specific dev scripts\"",
+    "build": "echo \"run workspace-specific build scripts\"",
+    "lint": "echo \"run workspace-specific lint scripts\""
+  }
+}

@@ -1,0 +1,23 @@
+# Node
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+coverage/
+
+# Env
+.env
+.env.*
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tauri/Rust
+src-tauri/target/
+Cargo.lock
