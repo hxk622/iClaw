@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::sync::Mutex;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 struct SidecarState {
     child: Mutex<Option<Child>>,
@@ -22,13 +22,26 @@ struct StoredAuthTokens {
 }
 
 fn sidecar_binary_name() -> String {
+    let arch = if cfg!(target_arch = "aarch64") {
+        "aarch64"
+    } else {
+        "x86_64"
+    };
+
+    #[cfg(target_os = "macos")]
+    let target = format!("{arch}-apple-darwin");
+    #[cfg(target_os = "linux")]
+    let target = format!("{arch}-unknown-linux-gnu");
+    #[cfg(target_os = "windows")]
+    let target = format!("{arch}-pc-windows-msvc");
+
     #[cfg(target_os = "windows")]
     {
-        format!("openclaw-{}.exe", env!("TARGET"))
+        format!("openclaw-{target}.exe")
     }
     #[cfg(not(target_os = "windows"))]
     {
-        format!("openclaw-{}", env!("TARGET"))
+        format!("openclaw-{target}")
     }
 }
 

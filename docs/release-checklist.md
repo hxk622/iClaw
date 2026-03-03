@@ -5,9 +5,9 @@
 ## 1. 版本与构建
 
 - [ ] 版本号已更新（app/package/tauri 配置一致）
-- [ ] sidecar 二进制版本已锁定
-- [ ] 本地全量构建通过
-- [ ] 产物包含：`.dmg`
+- [x] sidecar 二进制版本已锁定
+- [x] 本地全量构建通过
+- [x] 产物包含：`.dmg`
 
 ## 2. 安装与启动
 
@@ -59,9 +59,11 @@
   - Tauri 环境 token 安全存储（keyring）
   - sidecar 打包脚本与 tauri externalBin 配置
   - 服务健康检查 + sidecar 启动尝试
+  - 本地 DMG 打包成功：`apps/desktop/src-tauri/target/release/bundle/dmg/iClaw_0.1.0_aarch64.dmg`
 - 阻塞项：
-  - 缺少 OpenClaw 可执行文件：`services/openclaw/bin/openclaw`（或 `OPENCLAW_BINARY_PATH`）
-  - `pnpm tauri build` 已执行，失败于 `beforeBuildCommand`（sidecar 文件缺失）
+  - 当前 DMG 使用 OpenAlpha fallback binary（`../OpenAlpha/src-api/dist/openalpha-api-aarch64-apple-darwin`），仅适合内测验证
+  - 正式发布前需替换为 OpenClaw 正式 sidecar binary 并重打包
 - 下一步：
-  - 放置可执行文件后执行：`bash scripts/build-openclaw.sh`
+  - 放置 OpenClaw 正式二进制后执行：`bash scripts/build-openclaw.sh`
   - 再执行：`cd apps/desktop && pnpm tauri build`
+  - 执行签名与公证流程

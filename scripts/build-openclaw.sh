@@ -26,9 +26,17 @@ if [[ "$TARGET_TRIPLE" == *"windows"* ]]; then
 fi
 
 if [[ ! -f "$SOURCE_BIN" ]]; then
-  echo "OpenClaw binary not found: $SOURCE_BIN"
-  echo "Provide it via OPENCLAW_BINARY_PATH or place it at services/openclaw/bin/openclaw"
-  exit 1
+  # Fallback: reuse local OpenAlpha API binary if present.
+  FALLBACK_OPENALPHA="$ROOT_DIR/../OpenAlpha/src-api/dist/openalpha-api-$TARGET_TRIPLE"
+  if [[ -f "$FALLBACK_OPENALPHA" ]]; then
+    SOURCE_BIN="$FALLBACK_OPENALPHA"
+    echo "OpenClaw binary not found, fallback to OpenAlpha binary: $SOURCE_BIN"
+  else
+    echo "OpenClaw binary not found: $SOURCE_BIN"
+    echo "Provide it via OPENCLAW_BINARY_PATH or place it at services/openclaw/bin/openclaw"
+    echo "Fallback also missing: $FALLBACK_OPENALPHA"
+    exit 1
+  fi
 fi
 
 mkdir -p "$BIN_DIR"
