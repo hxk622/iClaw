@@ -19,6 +19,8 @@ const AUTH_REFRESH_KEY: &str = "refresh_token";
 #[derive(Serialize, Deserialize, Clone)]
 struct RuntimeConfig {
     openai_api_key: Option<String>,
+    openai_base_url: Option<String>,
+    openai_model: Option<String>,
     anthropic_api_key: Option<String>,
     clawhub_url: Option<String>,
 }
@@ -155,6 +157,8 @@ fn load_runtime_config_internal(app: &AppHandle) -> Result<RuntimeConfig, String
     if !config_path.exists() {
         return Ok(RuntimeConfig {
             openai_api_key: None,
+            openai_base_url: None,
+            openai_model: None,
             anthropic_api_key: None,
             clawhub_url: None,
         });
@@ -195,6 +199,17 @@ fn start_sidecar(
     if let Some(v) = config.openai_api_key {
         if !v.trim().is_empty() {
             command.env("OPENAI_API_KEY", v);
+        }
+    }
+    if let Some(v) = config.openai_base_url {
+        if !v.trim().is_empty() {
+            command.env("OPENAI_BASE_URL", &v);
+            command.env("OPENAI_API_BASE", v);
+        }
+    }
+    if let Some(v) = config.openai_model {
+        if !v.trim().is_empty() {
+            command.env("OPENAI_MODEL", v);
         }
     }
     if let Some(v) = config.anthropic_api_key {
