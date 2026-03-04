@@ -28,16 +28,22 @@ See `docs/` for product decisions and contracts.
 
 ## Web 调试（免 DMG）
 
-浏览器联调模式（自动启动本地 OpenClaw + 前端）：
+仅启动前端 Web（不自动拉起后端）：
 
 ```bash
 pnpm dev:web
 ```
 
-仅启动本地后端（Web/桌面共用）：
+仅启动本地后端 sidecar（Web/桌面共用）：
 
 ```bash
 pnpm dev:api
+```
+
+前后端联调（一键）：
+
+```bash
+pnpm dev:all
 ```
 
 默认地址：
