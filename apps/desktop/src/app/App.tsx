@@ -337,36 +337,22 @@ function AuthedView({
     await saveIclawSettingsAndApply(settings);
   };
 
+  if (activeView === 'settings') {
+    return <SettingsPanel onClose={() => setActiveView('chat')} onSave={handleSaveSettings} />;
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-white">
-      <Sidebar
-        user={currentUser}
-        activeView={activeView}
-        onOpenSettings={() => setActiveView('settings')}
-      />
+      <Sidebar user={currentUser} onOpenSettings={() => setActiveView('settings')} onLogout={handleLogout} />
       <div className="flex flex-1 flex-col">
-        {activeView === 'chat' ? (
-          <>
-            <HealthStatusBar
-              checking={healthChecking}
-              healthy={healthy}
-              sidecarAttempted={sidecarAttempted}
-              error={healthError}
-            />
-            <div className="flex items-center justify-end border-b border-[#efefef] px-4 py-2">
-              <button
-                onClick={handleLogout}
-                className="rounded-md border border-[#e5e5e5] px-3 py-1 text-[12px] text-[#666] hover:bg-[#fafafa]"
-              >
-                退出登录
-              </button>
-            </div>
-            <ChatArea messages={messages} streaming={streaming} error={error} />
-            <InputBar onSend={sendMessage} disabled={streaming || !healthy} />
-          </>
-        ) : (
-          <SettingsPanel onClose={() => setActiveView('chat')} onSave={handleSaveSettings} />
-        )}
+        <HealthStatusBar
+          checking={healthChecking}
+          healthy={healthy}
+          sidecarAttempted={sidecarAttempted}
+          error={healthError}
+        />
+        <ChatArea messages={messages} streaming={streaming} error={error} />
+        <InputBar onSend={sendMessage} disabled={streaming || !healthy} />
       </div>
     </div>
   );

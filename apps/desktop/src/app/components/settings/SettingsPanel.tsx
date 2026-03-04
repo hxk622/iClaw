@@ -7,6 +7,7 @@ import {
   User,
   UserCircle,
   ChevronLeft,
+  X,
 } from 'lucide-react';
 import { useSettings } from '@/app/contexts/settings-context';
 import { SettingsOverview, type SettingsSection } from '@/app/components/settings/SettingsOverview';
@@ -56,13 +57,6 @@ export function SettingsPanel({ onClose, onSave }: SettingsPanelProps) {
     <div className="flex h-screen bg-white dark:bg-zinc-950">
       <aside className="flex w-[220px] flex-col border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
         <div className="border-b border-zinc-200 p-4 dark:border-zinc-800">
-          <button
-            onClick={onClose}
-            className="mb-3 inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            返回对话
-          </button>
           <h1 className="text-lg text-zinc-900 dark:text-zinc-100">iClaw 设置</h1>
         </div>
 
@@ -89,6 +83,22 @@ export function SettingsPanel({ onClose, onSave }: SettingsPanelProps) {
       </aside>
 
       <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-3 dark:border-zinc-800">
+          <button
+            onClick={onClose}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            返回
+          </button>
+          <button
+            onClick={onClose}
+            className="rounded-md p-1 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
         <main className="flex-1 overflow-y-auto">{content}</main>
 
         <div className="border-t border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-950">
