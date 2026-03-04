@@ -3,7 +3,6 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 API_PORT="${ICLAW_API_PORT:-2126}"
-WEB_PORT="${ICLAW_WEB_PORT:-1520}"
 OPENCLAW_BIN="${OPENCLAW_BINARY_PATH:-$ROOT_DIR/services/openclaw/bin/openclaw}"
 LOG_DIR="${ICLAW_LOG_DIR:-$ROOT_DIR/logs/openclaw}"
 LOG_FILE="${ICLAW_OPENCLAW_LOG:-$LOG_DIR/openclaw-$(date +%Y%m%d-%H%M%S).log}"
@@ -14,26 +13,32 @@ ensure_sidecar_bin() {
     return 0
   fi
 
-  echo "[web-dev] 后端二进制缺失，正在准备..."
+  echo "[api-dev] 后端二进制缺失，正在准备..."
   (cd "$ROOT_DIR" && bash scripts/build-openclaw.sh)
 
   if [[ ! -x "$OPENCLAW_BIN" ]]; then
-    echo "[web-dev] 后端二进制不可用: $OPENCLAW_BIN" >&2
+    echo "[api-dev] 后端二进制不可用: $OPENCLAW_BIN" >&2
     exit 1
   fi
 }
 
-start_openclaw_if_needed() {
-  if lsof -ti ":$API_PORT" >/dev/null 2>&1; then
-    echo "[web-dev] 复用已存在后端服务 (:$API_PORT)"
-    return 0
+stop_existing_api() {
+  local pids=""
+  pids="$(lsof -ti ":$API_PORT" || true)"
+  if [[ -n "$pids" ]]; then
+    echo "[api-dev] 关闭已存在后端进程 (:$API_PORT): $pids"
+    kill $pids >/dev/null 2>&1 || true
+    sleep 0.4
   fi
+}
 
+start_openclaw() {
   mkdir -p "$LOG_DIR"
   ln -sfn "$LOG_FILE" "$LATEST_LOG"
 
-  echo "[web-dev] 启动后端服务 :$API_PORT"
-  nohup "$OPENCLAW_BIN" --port "$API_PORT" >"$LOG_FILE" 2>&1 &
+  echo "[api-dev] 启动后端服务 :$API_PORT"
+  OPENCLAW_LOG_DIR="$LOG_DIR" nohup "$OPENCLAW_BIN" --port "$API_PORT" >"$LOG_FILE" 2>&1 &
+  local pid=$!
 
   local ok=""
   for _ in {1..40}; do
@@ -45,19 +50,17 @@ start_openclaw_if_needed() {
   done
 
   if [[ -z "$ok" ]]; then
-    echo "[web-dev] 后端健康检查失败: http://127.0.0.1:$API_PORT/health" >&2
-    echo "[web-dev] Check logs: $LOG_FILE" >&2
+    echo "[api-dev] 后端健康检查失败: http://127.0.0.1:$API_PORT/health" >&2
+    echo "[api-dev] Check logs: $LOG_FILE" >&2
     exit 1
   fi
 
-  echo "[web-dev] 后端已就绪 (log: $LOG_FILE)"
-  echo "[web-dev] 最新日志软链: $LATEST_LOG"
+  echo "[api-dev] 后端已就绪 PID=$pid (log: $LOG_FILE)"
+  echo "[api-dev] 最新日志软链: $LATEST_LOG"
+  echo "[api-dev] Tail logs: tail -f $LATEST_LOG"
 }
 
 ensure_sidecar_bin
 bash "$ROOT_DIR/scripts/prepare-openclaw-workspace.sh"
-start_openclaw_if_needed
-
-echo "[web-dev] Starting frontend on :$WEB_PORT"
-cd "$ROOT_DIR"
-VITE_API_BASE_URL="http://127.0.0.1:$API_PORT" pnpm --filter @iclaw/desktop dev --host 0.0.0.0 --port "$WEB_PORT"
+stop_existing_api
+start_openclaw

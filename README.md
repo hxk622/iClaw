@@ -34,6 +34,12 @@ See `docs/` for product decisions and contracts.
 pnpm dev:web
 ```
 
+仅启动本地后端（Web/桌面共用）：
+
+```bash
+pnpm dev:api
+```
+
 默认地址：
 
 - Web: `http://127.0.0.1:1520`

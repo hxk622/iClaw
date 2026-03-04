@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "pnpm dev:web",
     "version:set": "bash scripts/version.sh",
+    "dev:api": "bash scripts/dev-api.sh",
     "dev:web": "bash scripts/dev-web.sh",
     "dev:home": "pnpm --dir home dev",
     "build:home": "pnpm --dir home build",
