@@ -28,7 +28,7 @@ bash scripts/build-desktop-matrix.sh
 
 - dev 包：
   - `VITE_BUILD_CHANNEL=dev`
-  - `VITE_API_BASE_URL=http://127.0.0.1:2026`
+  - `VITE_API_BASE_URL=http://127.0.0.1:2126`
   - Logo hover 显示 `iClaw-dev`
 - prod 包：
   - `VITE_BUILD_CHANNEL=prod`

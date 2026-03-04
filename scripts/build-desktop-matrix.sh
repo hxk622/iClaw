@@ -22,7 +22,7 @@ build_one() {
   local arch_label
 
   if [[ "$channel" == "dev" ]]; then
-    api_base_url="http://127.0.0.1:2026"
+    api_base_url="http://127.0.0.1:2126"
   else
     api_base_url="https://openalpha.aiyuanxi.com"
   fi

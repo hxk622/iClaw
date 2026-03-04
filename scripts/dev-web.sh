@@ -2,8 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-API_PORT="${ICLAW_API_PORT:-2026}"
-WEB_PORT="${ICLAW_WEB_PORT:-1420}"
+API_PORT="${ICLAW_API_PORT:-2126}"
+WEB_PORT="${ICLAW_WEB_PORT:-1520}"
 OPENCLAW_BIN="${OPENCLAW_BINARY_PATH:-$ROOT_DIR/services/openclaw/bin/openclaw}"
 LOG_DIR="${ICLAW_LOG_DIR:-$ROOT_DIR/logs/openclaw}"
 LOG_FILE="${ICLAW_OPENCLAW_LOG:-$LOG_DIR/openclaw-$(date +%Y%m%d-%H%M%S).log}"

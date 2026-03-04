@@ -18,9 +18,9 @@ interface Message {
 
 const DEFAULT_API_BASE_URL = import.meta.env.PROD
   ? 'https://openalpha.aiyuanxi.com'
-  : 'http://127.0.0.1:2026';
+  : 'http://127.0.0.1:2126';
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || DEFAULT_API_BASE_URL;
-const SIDE_CAR_ARGS = ((import.meta.env.VITE_SIDE_CAR_ARGS as string) || '--port 2026')
+const SIDE_CAR_ARGS = ((import.meta.env.VITE_SIDE_CAR_ARGS as string) || '--port 2126')
   .split(' ')
   .map((s) => s.trim())
   .filter(Boolean);

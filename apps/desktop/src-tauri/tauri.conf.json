@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "identifier": "ai.openalpha.iclaw",
   "build": {
-    "beforeDevCommand": "bash ../../scripts/sync-openclaw-resources.sh && bash ../../scripts/build-openclaw.sh || true && pnpm dev --host 0.0.0.0 --port 1420",
+    "beforeDevCommand": "bash ../../scripts/sync-openclaw-resources.sh && bash ../../scripts/build-openclaw.sh || true && pnpm dev --host 0.0.0.0 --port 1520",
     "beforeBuildCommand": "bash ../../scripts/sync-openclaw-resources.sh && bash ../../scripts/build-openclaw.sh && pnpm build",
-    "devUrl": "http://localhost:1420",
+    "devUrl": "http://localhost:1520",
     "frontendDist": "../dist"
   },
   "app": {
