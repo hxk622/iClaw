@@ -63,9 +63,8 @@ function resolveUserName(user: SidebarUser | null): string {
 }
 
 export function Sidebar({ user, onLogout, onOpenSettings }: SidebarProps) {
-  const buildChannel = (import.meta.env.VITE_BUILD_CHANNEL as string) || import.meta.env.MODE;
-  const isDevChannel = buildChannel === 'development' || buildChannel === 'dev';
-  const brandText = isDevChannel ? 'iClaw-dev' : 'iClaw';
+  const isDevChannel = import.meta.env.DEV || import.meta.env.MODE === 'development';
+  const brandText = isDevChannel ? 'iClaw-理财客-dev' : 'iClaw-理财客';
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -93,7 +92,7 @@ export function Sidebar({ user, onLogout, onOpenSettings }: SidebarProps) {
     <div className="flex h-screen w-[246px] flex-col bg-[#f7f7f7]">
       <div className="px-4 pt-5 pb-4">
         <div
-          title={isDevChannel ? 'iClaw-dev' : 'iClaw'}
+          title={brandText}
           className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-white/50"
         >
           <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-[#e8e8e8] bg-white">
