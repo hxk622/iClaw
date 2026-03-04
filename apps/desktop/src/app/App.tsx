@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from 'react';
 import { IClawClient } from '@iclaw/sdk';
 import { clearAuth, readAuth, writeAuth } from './lib/auth-storage';
 import { isTauriRuntime, startSidecar } from './lib/tauri-sidecar';
@@ -9,11 +9,21 @@ import { FirstRunSetupPanel } from './components/FirstRunSetupPanel';
 import { HealthStatusBar } from './components/HealthStatusBar';
 import { InputBar } from './components/InputBar';
 import { Sidebar } from './components/Sidebar';
+import { SettingsPanel } from './components/settings/SettingsPanel';
+import { SettingsProvider, useSettings } from './contexts/settings-context';
+import { saveIclawSettingsAndApply } from './lib/iclaw-settings';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+}
+
+interface AuthUser {
+  id?: string;
+  name?: string | null;
+  email?: string | null;
+  avatar_url?: string | null;
 }
 
 const DEFAULT_API_BASE_URL = import.meta.env.PROD
@@ -33,6 +43,8 @@ export default function App() {
   const client = useMemo(() => new IClawClient({ apiBaseUrl: API_BASE_URL }), []);
   const [messages, setMessages] = useState<Message[]>([]);
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [sessionAuthed, setSessionAuthed] = useState(false);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -44,6 +56,7 @@ export default function App() {
   const [runtimeChecking, setRuntimeChecking] = useState(true);
   const [runtimeReady, setRuntimeReady] = useState(!isTauriRuntime());
   const [runtimeDiagnosis, setRuntimeDiagnosis] = useState<RuntimeDiagnosis | null>(null);
+  const [activeView, setActiveView] = useState<'chat' | 'settings'>('chat');
 
   const checkRuntime = async () => {
     if (!isTauriRuntime()) {
@@ -68,21 +81,44 @@ export default function App() {
 
   useEffect(() => {
     void readAuth().then((auth) => {
-      if (!auth) return;
-      setAccessToken(auth.accessToken);
-      void client.me(auth.accessToken).catch(async () => {
-        try {
-          const refreshed = await client.refresh(auth.refreshToken);
-          await writeAuth({
-            accessToken: refreshed.access_token,
-            refreshToken: refreshed.refresh_token || auth.refreshToken,
+      if (!auth) {
+        void client
+          .me()
+          .then((user) => {
+            setSessionAuthed(true);
+            setCurrentUser((user as AuthUser) || null);
+          })
+          .catch(() => {
+            setSessionAuthed(false);
+            setCurrentUser(null);
           });
-          setAccessToken(refreshed.access_token);
-        } catch {
-          await clearAuth();
-          setAccessToken(null);
-        }
-      });
+        return;
+      }
+      setAccessToken(auth.accessToken);
+      void client
+        .me(auth.accessToken)
+        .then((user) => {
+          setSessionAuthed(true);
+          setCurrentUser((user as AuthUser) || null);
+        })
+        .catch(async () => {
+          try {
+            const refreshed = await client.refresh(auth.refreshToken);
+            await writeAuth({
+              accessToken: refreshed.access_token,
+              refreshToken: refreshed.refresh_token || auth.refreshToken,
+            });
+            setAccessToken(refreshed.access_token);
+            const user = (await client.me(refreshed.access_token)) as AuthUser;
+            setSessionAuthed(true);
+            setCurrentUser(user || null);
+          } catch {
+            await clearAuth();
+            setAccessToken(null);
+            setSessionAuthed(false);
+            setCurrentUser(null);
+          }
+        });
     });
   }, [client]);
 
@@ -96,6 +132,8 @@ export default function App() {
         refreshToken: data.tokens.refresh_token,
       });
       setAccessToken(data.tokens.access_token);
+      setSessionAuthed(true);
+      setCurrentUser((data.user as AuthUser) || null);
     } catch (e) {
       setAuthError(e instanceof Error ? e.message : '登录失败');
     } finally {
@@ -113,6 +151,8 @@ export default function App() {
         refreshToken: data.tokens.refresh_token,
       });
       setAccessToken(data.tokens.access_token);
+      setSessionAuthed(true);
+      setCurrentUser((data.user as AuthUser) || null);
     } catch (e) {
       setAuthError(e instanceof Error ? e.message : '注册失败');
     } finally {
@@ -123,12 +163,14 @@ export default function App() {
   const handleLogout = () => {
     void clearAuth();
     setAccessToken(null);
+    setSessionAuthed(false);
+    setCurrentUser(null);
     setMessages([]);
     setError(null);
   };
 
   const sendMessage = async (content: string) => {
-    if (!accessToken || !healthy) return;
+    if ((!accessToken && !sessionAuthed) || !healthy) return;
     const text = content.trim();
     if (!text || streaming) return;
 
@@ -142,7 +184,7 @@ export default function App() {
       await client.streamChat(
         {
           message: text,
-          token: accessToken,
+          token: accessToken || undefined,
         },
         {
           onDelta: (delta) => {
@@ -210,7 +252,7 @@ export default function App() {
     };
   }, [client]);
 
-  if (!accessToken) {
+  if (!accessToken && !sessionAuthed) {
     if (runtimeChecking) {
       return (
         <div className="flex h-screen items-center justify-center bg-white text-[14px] text-[#666]">
@@ -240,25 +282,91 @@ export default function App() {
   }
 
   return (
+    <SettingsProvider>
+      <AuthedView
+        activeView={activeView}
+        setActiveView={setActiveView}
+        currentUser={currentUser}
+        healthChecking={healthChecking}
+        healthy={healthy}
+        sidecarAttempted={sidecarAttempted}
+        healthError={healthError}
+        handleLogout={handleLogout}
+        messages={messages}
+        streaming={streaming}
+        error={error}
+        sendMessage={sendMessage}
+      />
+    </SettingsProvider>
+  );
+}
+
+interface AuthedViewProps {
+  activeView: 'chat' | 'settings';
+  setActiveView: Dispatch<SetStateAction<'chat' | 'settings'>>;
+  currentUser: AuthUser | null;
+  healthChecking: boolean;
+  healthy: boolean;
+  sidecarAttempted: boolean;
+  healthError: string | null;
+  handleLogout: () => void;
+  messages: Message[];
+  streaming: boolean;
+  error: string | null;
+  sendMessage: (content: string) => Promise<void>;
+}
+
+function AuthedView({
+  activeView,
+  setActiveView,
+  currentUser,
+  healthChecking,
+  healthy,
+  sidecarAttempted,
+  healthError,
+  handleLogout,
+  messages,
+  streaming,
+  error,
+  sendMessage,
+}: AuthedViewProps) {
+  const { settings, saveSettings } = useSettings();
+
+  const handleSaveSettings = async () => {
+    saveSettings();
+    await saveIclawSettingsAndApply(settings);
+  };
+
+  return (
     <div className="flex h-screen overflow-hidden bg-white">
-      <Sidebar />
+      <Sidebar
+        user={currentUser}
+        activeView={activeView}
+        onOpenSettings={() => setActiveView('settings')}
+      />
       <div className="flex flex-1 flex-col">
-        <HealthStatusBar
-          checking={healthChecking}
-          healthy={healthy}
-          sidecarAttempted={sidecarAttempted}
-          error={healthError}
-        />
-        <div className="flex items-center justify-end border-b border-[#efefef] px-4 py-2">
-          <button
-            onClick={handleLogout}
-            className="rounded-md border border-[#e5e5e5] px-3 py-1 text-[12px] text-[#666] hover:bg-[#fafafa]"
-          >
-            退出登录
-          </button>
-        </div>
-        <ChatArea messages={messages} streaming={streaming} error={error} />
-        <InputBar onSend={sendMessage} disabled={streaming || !healthy} />
+        {activeView === 'chat' ? (
+          <>
+            <HealthStatusBar
+              checking={healthChecking}
+              healthy={healthy}
+              sidecarAttempted={sidecarAttempted}
+              error={healthError}
+            />
+            <div className="flex items-center justify-end border-b border-[#efefef] px-4 py-2">
+              <button
+                onClick={handleLogout}
+                className="rounded-md border border-[#e5e5e5] px-3 py-1 text-[12px] text-[#666] hover:bg-[#fafafa]"
+              >
+                退出登录
+              </button>
+            </div>
+            <ChatArea messages={messages} streaming={streaming} error={error} />
+            <InputBar onSend={sendMessage} disabled={streaming || !healthy} />
+          </>
+        ) : (
+          <SettingsPanel onClose={() => setActiveView('chat')} onSave={handleSaveSettings} />
+        )}
       </div>
     </div>
   );

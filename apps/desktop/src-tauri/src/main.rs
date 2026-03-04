@@ -371,6 +371,134 @@ fn diagnose_runtime(app: AppHandle) -> Result<RuntimeDiagnosis, String> {
     })
 }
 
+fn iclaw_settings_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let base = app_data_base_dir(app)?;
+    let dir = base.join("iclaw-settings");
+    fs::create_dir_all(&dir).map_err(|e| format!("failed to create iclaw settings dir: {e}"))?;
+    Ok(dir)
+}
+
+fn openclaw_workspace_dir(app: &AppHandle) -> PathBuf {
+    if let Ok(home) = app.path().home_dir() {
+        return home.join(".openclaw").join("openclaw-workspace");
+    }
+    PathBuf::from(".openclaw/openclaw-workspace")
+}
+
+fn value_str(settings: &serde_json::Value, path: &[&str], default: &str) -> String {
+    let mut current = settings;
+    for key in path {
+        match current.get(*key) {
+            Some(v) => current = v,
+            None => return default.to_string(),
+        }
+    }
+    current
+        .as_str()
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| default.to_string())
+}
+
+fn value_bool(settings: &serde_json::Value, path: &[&str], default: bool) -> bool {
+    let mut current = settings;
+    for key in path {
+        match current.get(*key) {
+            Some(v) => current = v,
+            None => return default,
+        }
+    }
+    current.as_bool().unwrap_or(default)
+}
+
+fn write_text(path: &Path, content: &str) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("failed to create parent dir: {e}"))?;
+    }
+    fs::write(path, content).map_err(|e| format!("failed to write {}: {e}", path.to_string_lossy()))
+}
+
+fn apply_iclaw_settings_files(app: &AppHandle, settings: &serde_json::Value) -> Result<(), String> {
+    let settings_dir = iclaw_settings_dir(app)?;
+    let workspace_dir = openclaw_workspace_dir(app);
+    fs::create_dir_all(&workspace_dir).map_err(|e| format!("failed to create workspace dir: {e}"))?;
+
+    let identity_name = value_str(settings, &["identity", "assistantName"], "iClaw 助手");
+    let identity_theme = value_str(settings, &["identity", "theme"], "专业");
+    let identity_emoji = value_str(settings, &["identity", "emoji"], "🐾");
+    let preferred_name = value_str(settings, &["userProfile", "preferredName"], "");
+    let language = value_str(settings, &["userProfile", "language"], "中文");
+    let timezone = value_str(settings, &["userProfile", "timezone"], "Asia/Shanghai");
+    let work_role = value_str(settings, &["userProfile", "workRole"], "");
+    let use_case = value_str(settings, &["userProfile", "primaryUseCase"], "");
+    let response_length = value_str(settings, &["userProfile", "responseLengthPreference"], "中等");
+    let tone = value_str(settings, &["soulPersona", "tone"], "平衡");
+    let clarification = value_str(
+        settings,
+        &["soulPersona", "clarificationPolicy"],
+        "不清楚时询问",
+    );
+    let risk = value_str(settings, &["soulPersona", "riskPolicy"], "保守");
+    let decision = value_str(settings, &["soulPersona", "decisionStyle"], "协作式");
+    let markdown = value_str(settings, &["soulPersona", "markdownContent"], "");
+    let soul_md = if markdown.trim().is_empty() {
+        format!(
+            "# SOUL.md - Persona & Boundaries\n- Tone: {}\n- Clarification: {}\n- Risk policy: {}\n- Decision style: {}\n- Keep replies concise and direct.\n",
+            tone, clarification, risk, decision
+        )
+    } else {
+        markdown
+    };
+
+    let identity_md = format!(
+        "# IDENTITY.md - Agent Identity\n- Name: {}\n- Theme: {}\n- Emoji: {}\n",
+        identity_name, identity_theme, identity_emoji
+    );
+    let user_md = format!(
+        "# USER.md - User Profile\n- Preferred name: {}\n- Language: {}\n- Timezone: {}\n- Work role: {}\n- Primary use case: {}\n- Response length preference: {}\n",
+        preferred_name, language, timezone, work_role, use_case, response_length
+    );
+    let agents_md = format!(
+        "# AGENTS.md - OpenClaw Workspace\nThis workspace is managed by iClaw settings.\n- Identity source: {}/IDENTITY.md\n- User source: {}/USER.md\n- Soul source: {}/SOUL.md\n",
+        settings_dir.to_string_lossy(),
+        settings_dir.to_string_lossy(),
+        settings_dir.to_string_lossy()
+    );
+    let channel = value_str(settings, &["channelPreference", "defaultChannel"], "web");
+    let sync_to_im = value_bool(settings, &["channelPreference", "syncToIM"], false);
+    let safety_mode = value_str(settings, &["safetyDefaults", "systemRunMode"], "ask");
+    let settings_json = serde_json::to_string_pretty(settings)
+        .map_err(|e| format!("failed to serialize settings json: {e}"))?;
+    let summary_md = format!(
+        "# ICLAW_SETTINGS.md\n- channel.default: {}\n- channel.sync_to_im: {}\n- safety.system_run_mode: {}\n",
+        channel, sync_to_im, safety_mode
+    );
+
+    for base in [&settings_dir, &workspace_dir] {
+        write_text(&base.join("SOUL.md"), &soul_md)?;
+        write_text(&base.join("IDENTITY.md"), &identity_md)?;
+        write_text(&base.join("USER.md"), &user_md)?;
+        write_text(&base.join("AGENTS.md"), &agents_md)?;
+        write_text(&base.join("ICLAW_SETTINGS.md"), &summary_md)?;
+    }
+    write_text(&settings_dir.join("settings.json"), &settings_json)?;
+
+    let bootstrap_path = workspace_dir.join("BOOTSTRAP.md");
+    if bootstrap_path.exists() {
+        let _ = fs::remove_file(bootstrap_path);
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+fn save_iclaw_settings_and_apply(
+    app: AppHandle,
+    settings: serde_json::Value,
+) -> Result<bool, String> {
+    apply_iclaw_settings_files(&app, &settings)?;
+    Ok(true)
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(SidecarState {
@@ -384,7 +512,8 @@ fn main() {
             clear_auth_tokens,
             load_runtime_config,
             save_runtime_config,
-            diagnose_runtime
+            diagnose_runtime,
+            save_iclaw_settings_and_apply
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

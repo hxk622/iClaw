@@ -3,12 +3,15 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 WORKSPACE_DIR="${OPENCLAW_WORKSPACE_DIR:-$HOME/.openclaw/openclaw-workspace}"
+SETTINGS_DIR="${ICLAW_SETTINGS_DIR:-$HOME/.openclaw/iclaw-settings}"
+
+mkdir -p "$SETTINGS_DIR"
 
 mkdir -p "$WORKSPACE_DIR"
 rm -f "$WORKSPACE_DIR/BOOTSTRAP.md"
 
-if [[ ! -f "$WORKSPACE_DIR/IDENTITY.md" ]]; then
-  cat > "$WORKSPACE_DIR/IDENTITY.md" <<'EOF'
+if [[ ! -f "$SETTINGS_DIR/IDENTITY.md" ]]; then
+  cat > "$SETTINGS_DIR/IDENTITY.md" <<'EOF'
 # IDENTITY.md
 - Name: iClaw
 - Theme: Calm
@@ -16,8 +19,8 @@ if [[ ! -f "$WORKSPACE_DIR/IDENTITY.md" ]]; then
 EOF
 fi
 
-if [[ ! -f "$WORKSPACE_DIR/USER.md" ]]; then
-  cat > "$WORKSPACE_DIR/USER.md" <<'EOF'
+if [[ ! -f "$SETTINGS_DIR/USER.md" ]]; then
+  cat > "$SETTINGS_DIR/USER.md" <<'EOF'
 # USER.md
 - Preferred language: zh-CN
 - Timezone: Asia/Shanghai
@@ -25,8 +28,8 @@ if [[ ! -f "$WORKSPACE_DIR/USER.md" ]]; then
 EOF
 fi
 
-if [[ ! -f "$WORKSPACE_DIR/SOUL.md" ]]; then
-  cat > "$WORKSPACE_DIR/SOUL.md" <<'EOF'
+if [[ ! -f "$SETTINGS_DIR/SOUL.md" ]]; then
+  cat > "$SETTINGS_DIR/SOUL.md" <<'EOF'
 # SOUL.md
 - Be concise and direct.
 - Ask clarifying questions when needed.
@@ -34,12 +37,18 @@ if [[ ! -f "$WORKSPACE_DIR/SOUL.md" ]]; then
 EOF
 fi
 
-if [[ ! -f "$WORKSPACE_DIR/AGENTS.md" ]]; then
-  cat > "$WORKSPACE_DIR/AGENTS.md" <<'EOF'
+if [[ ! -f "$SETTINGS_DIR/AGENTS.md" ]]; then
+  cat > "$SETTINGS_DIR/AGENTS.md" <<'EOF'
 # AGENTS.md
 This workspace is pre-seeded by iClaw.
-Identity/User/Soul are managed by Settings and local defaults.
+Identity/User/Soul are managed by iClaw settings source.
 EOF
 fi
 
+cp "$SETTINGS_DIR/IDENTITY.md" "$WORKSPACE_DIR/IDENTITY.md"
+cp "$SETTINGS_DIR/USER.md" "$WORKSPACE_DIR/USER.md"
+cp "$SETTINGS_DIR/SOUL.md" "$WORKSPACE_DIR/SOUL.md"
+cp "$SETTINGS_DIR/AGENTS.md" "$WORKSPACE_DIR/AGENTS.md"
+
 echo "[openclaw-workspace] ready: $WORKSPACE_DIR"
+echo "[openclaw-workspace] source: $SETTINGS_DIR"
