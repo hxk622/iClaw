@@ -27,7 +27,21 @@ RESOLVED_RELEASE_URL=""
 DOWNLOADED_BIN=""
 
 resolve_local_source_bin() {
-  local source_bin="${OPENCLAW_BINARY_PATH:-$ROOT_DIR/services/openclaw/bin/openclaw}"
+  if [[ -n "${OPENCLAW_BINARY_PATH:-}" ]]; then
+    local source_bin="$OPENCLAW_BINARY_PATH"
+
+    if [[ "$TARGET_TRIPLE" == *"windows"* && -f "${source_bin}.exe" ]]; then
+      source_bin="${source_bin}.exe"
+    fi
+
+    if [[ -f "$source_bin" ]]; then
+      echo "$source_bin"
+      return 0
+    fi
+    return 1
+  fi
+
+  local source_bin="$ROOT_DIR/services/openclaw/bin/openclaw-server"
 
   if [[ "$TARGET_TRIPLE" == *"windows"* ]]; then
     if [[ -f "${source_bin}.exe" ]]; then
@@ -55,45 +69,32 @@ resolve_release_asset() {
   fi
 
   local release_json
-  release_json="$(curl -fsSL "$release_api")"
+  if ! release_json="$(curl -fsSL "$release_api")"; then
+    echo "Failed to fetch release metadata: $release_api" >&2
+    return 1
+  fi
 
-  node -e '
+  if ! node -e '
 const fs = require("fs");
-const release = JSON.parse(fs.readFileSync(0, "utf8"));
+const raw = fs.readFileSync(0, "utf8");
+let release;
+try {
+  release = JSON.parse(raw);
+} catch {
+  process.exit(3);
+}
 const target = process.argv[1];
 const assets = Array.isArray(release.assets) ? release.assets : [];
 
-const isDsym = (name) => /\.dSYM\.zip$/i.test(name);
-const isMainZip = (name) => /^OpenClaw-.*\.zip$/i.test(name) && !isDsym(name);
+const serverRe = /(openclaw[-_.]?server|server[-_.]?openclaw)/i;
+const byTarget = (name) => {
+  if (target.includes("apple-darwin")) return /(darwin|mac|osx)/i.test(name);
+  if (target.includes("windows")) return /(windows|win)/i.test(name);
+  return /(linux|gnu|appimage)/i.test(name);
+};
+const serverAssets = assets.filter((a) => serverRe.test(a.name));
 
-function pickDarwin() {
-  return assets.find((a) => isMainZip(a.name)) || null;
-}
-
-function pickWindows() {
-  return (
-    assets.find((a) => /windows|win/i.test(a.name) && /\.(zip|exe)$/i.test(a.name) && !isDsym(a.name)) ||
-    assets.find((a) => isMainZip(a.name)) ||
-    null
-  );
-}
-
-function pickLinux() {
-  return (
-    assets.find((a) => /linux|appimage/i.test(a.name)) ||
-    assets.find((a) => /OpenClaw-.*linux.*\.(tar\.gz|zip)$/i.test(a.name)) ||
-    null
-  );
-}
-
-let asset = null;
-if (target.includes("apple-darwin")) {
-  asset = pickDarwin();
-} else if (target.includes("windows")) {
-  asset = pickWindows();
-} else {
-  asset = pickLinux();
-}
+const asset = serverAssets.find((a) => byTarget(a.name)) || serverAssets[0] || null;
 
 if (!asset) {
   process.exit(2);
@@ -101,7 +102,10 @@ if (!asset) {
 
 const tag = release.tag_name || "unknown";
 process.stdout.write(`${tag}\n${asset.name}\n${asset.browser_download_url}\n`);
-' "$TARGET_TRIPLE" <<<"$release_json"
+' "$TARGET_TRIPLE" <<<"$release_json"; then
+    echo "Failed to parse or resolve release asset for target: $TARGET_TRIPLE" >&2
+    return 1
+  fi
 }
 
 download_release_binary() {
@@ -144,6 +148,12 @@ download_release_binary() {
     *.zip)
       unzip -q "$asset_file" -d "$extract_dir"
       ;;
+    *.tar.gz|*.tgz)
+      tar -xzf "$asset_file" -C "$extract_dir"
+      ;;
+    *.exe)
+      cp "$asset_file" "$extract_dir/"
+      ;;
     *.dmg)
       echo "DMG asset is not supported for automated extraction. Please set OPENCLAW_BINARY_PATH manually." >&2
       return 1
@@ -155,16 +165,14 @@ download_release_binary() {
   esac
 
   local extracted_bin=""
-  if [[ "$TARGET_TRIPLE" == *"apple-darwin"* ]]; then
-    extracted_bin="$(find "$extract_dir" -type f -path '*/OpenClaw.app/Contents/MacOS/OpenClaw' | head -n1)"
-  elif [[ "$TARGET_TRIPLE" == *"windows"* ]]; then
-    extracted_bin="$(find "$extract_dir" -type f -iname 'OpenClaw.exe' | head -n1)"
+  if [[ "$TARGET_TRIPLE" == *"windows"* ]]; then
+    extracted_bin="$(find "$extract_dir" -type f \( -iname 'openclaw-server*.exe' -o -iname '*openclaw*server*.exe' \) | head -n1)"
   else
-    extracted_bin="$(find "$extract_dir" -type f -name 'openclaw' | head -n1)"
+    extracted_bin="$(find "$extract_dir" -type f \( -name 'openclaw-server*' -o -name '*openclaw*server*' \) ! -name '*.dSYM' | head -n1)"
   fi
 
   if [[ -z "$extracted_bin" || ! -f "$extracted_bin" ]]; then
-    echo "Cannot find OpenClaw executable in asset: $asset_name" >&2
+    echo "Cannot find openclaw-server executable in asset: $asset_name" >&2
     return 1
   fi
 
@@ -201,13 +209,18 @@ JSON
 
 SOURCE_BIN=""
 if SOURCE_BIN="$(resolve_local_source_bin)"; then
-  SOURCE_KIND="local"
-  echo "Using local OpenClaw binary: $SOURCE_BIN"
+  if [[ -n "${OPENCLAW_BINARY_PATH:-}" && "$SOURCE_BIN" == "${OPENCLAW_BINARY_PATH}"* ]]; then
+    SOURCE_KIND="manual"
+  else
+    SOURCE_KIND="local"
+  fi
+  echo "Using sidecar source binary ($SOURCE_KIND): $SOURCE_BIN"
 else
   SOURCE_KIND="github_release"
-  echo "Local OpenClaw binary not found, falling back to GitHub Releases"
+  echo "Local openclaw-server binary not found, trying GitHub Releases"
   if ! download_release_binary; then
-    echo "Failed to prepare OpenClaw sidecar binary" >&2
+    echo "Failed to prepare openclaw-server sidecar binary" >&2
+    echo "Hint: provide OPENCLAW_BINARY_PATH=/path/to/openclaw-server" >&2
     exit 1
   fi
   SOURCE_BIN="$DOWNLOADED_BIN"

@@ -17,17 +17,14 @@ resolve_openclaw_bin() {
     return 0
   fi
 
-  local target_triple
-  target_triple="$(detect_target_triple)"
-  local openalpha_api_bin="$ROOT_DIR/../OpenAlpha/src-api/dist/openalpha-api-${target_triple}"
-  local local_openclaw_bin="$ROOT_DIR/services/openclaw/bin/openclaw"
-
-  if [[ -n "$target_triple" && -x "$openalpha_api_bin" ]]; then
-    echo "$openalpha_api_bin"
+  local local_openclaw_server_bin="$ROOT_DIR/services/openclaw/bin/openclaw-server"
+  if [[ -x "$local_openclaw_server_bin" ]]; then
+    echo "$local_openclaw_server_bin"
     return 0
   fi
 
-  echo "$local_openclaw_bin"
+  local local_openclaw_gui_bin="$ROOT_DIR/services/openclaw/bin/openclaw"
+  echo "$local_openclaw_gui_bin"
 }
 
 OPENCLAW_BIN="$(resolve_openclaw_bin)"
