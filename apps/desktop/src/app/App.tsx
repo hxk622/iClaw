@@ -39,6 +39,10 @@ function createId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
+function isLikelyJwt(token: string): boolean {
+  return /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token);
+}
+
 export default function App() {
   const client = useMemo(() => new IClawClient({ apiBaseUrl: API_BASE_URL }), []);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -92,6 +96,13 @@ export default function App() {
             setSessionAuthed(false);
             setCurrentUser(null);
           });
+        return;
+      }
+      if (!isLikelyJwt(auth.accessToken)) {
+        void clearAuth();
+        setAccessToken(null);
+        setSessionAuthed(false);
+        setCurrentUser(null);
         return;
       }
       setAccessToken(auth.accessToken);
