@@ -10,6 +10,8 @@ import { Sidebar } from './components/Sidebar';
 import { SettingsPanel } from './components/settings/SettingsPanel';
 import { SettingsProvider, useSettings } from './contexts/settings-context';
 import { saveIclawSettingsAndApply } from './lib/iclaw-settings';
+import { beginChatRun, appendUserMessage, createInitialChatState, handleChatEvent } from './chat-core/controller';
+import type { ChatEventPayload, ChatEventState, ChatRuntimeState } from './chat-core/types';
 
 interface Message {
   id: string;
@@ -28,6 +30,7 @@ const DEFAULT_API_BASE_URL = import.meta.env.PROD
   ? 'https://openalpha.aiyuanxi.com'
   : 'http://127.0.0.1:2126';
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || DEFAULT_API_BASE_URL;
+const CHAT_SESSION_KEY = 'main';
 const SIDE_CAR_ARGS = ((import.meta.env.VITE_SIDE_CAR_ARGS as string) || '--port 2126')
   .split(' ')
   .map((s) => s.trim())
@@ -41,16 +44,76 @@ function isLikelyJwt(token: string): boolean {
   return /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token);
 }
 
+function coerceChatEventState(raw: unknown, fallback: ChatEventState): ChatEventState {
+  return raw === 'start' || raw === 'delta' || raw === 'final' || raw === 'aborted' || raw === 'end' || raw === 'error'
+    ? raw
+    : fallback;
+}
+
+function buildChatEventPayload(
+  fallbackState: ChatEventState,
+  runId: string,
+  sessionKey: string,
+  payload?: unknown,
+): ChatEventPayload {
+  const data = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
+  const state = coerceChatEventState(data.state, fallbackState);
+  const message = (data.message as unknown) ?? data;
+  const nextRunId = typeof data.runId === 'string' ? data.runId : runId;
+  const nextSessionKey = typeof data.sessionKey === 'string' ? data.sessionKey : sessionKey;
+  const errorMessage =
+    typeof data.errorMessage === 'string'
+      ? data.errorMessage
+      : typeof data.message === 'string' && state === 'error'
+        ? data.message
+        : undefined;
+
+  return {
+    runId: nextRunId,
+    sessionKey: nextSessionKey,
+    state,
+    message,
+    errorMessage,
+  };
+}
+
+function toUiMessages(state: ChatRuntimeState): Message[] {
+  const mapped = state.messages
+    .map((message, index) => {
+      if (message.role !== 'user' && message.role !== 'assistant') {
+        return null;
+      }
+      const content = message.content
+        .map((item) => item.text)
+        .filter((value): value is string => typeof value === 'string')
+        .join('\n')
+        .trim();
+      return {
+        id: message.id || `msg_${message.timestamp}_${index}`,
+        role: message.role,
+        content: content || '...',
+      };
+    })
+    .filter((value): value is Message => value !== null);
+
+  if (state.runId !== null) {
+    mapped.push({
+      id: `stream_${state.runId}`,
+      role: 'assistant',
+      content: (state.streamText || '').trim() || '...',
+    });
+  }
+  return mapped;
+}
+
 export default function App() {
   const client = useMemo(() => new IClawClient({ apiBaseUrl: API_BASE_URL }), []);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [chatState, setChatState] = useState<ChatRuntimeState>(() => createInitialChatState(CHAT_SESSION_KEY));
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [sessionAuthed, setSessionAuthed] = useState(false);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [streaming, setStreaming] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [healthChecking, setHealthChecking] = useState(true);
   const [healthy, setHealthy] = useState(false);
   const [healthError, setHealthError] = useState<string | null>(null);
@@ -174,20 +237,16 @@ export default function App() {
     setAccessToken(null);
     setSessionAuthed(false);
     setCurrentUser(null);
-    setMessages([]);
-    setError(null);
+    setChatState(createInitialChatState(CHAT_SESSION_KEY));
   };
 
   const sendMessage = async (content: string) => {
     if ((!accessToken && !sessionAuthed) || !healthy) return;
     const text = content.trim();
-    if (!text || streaming) return;
+    if (!text || chatState.runId) return;
 
-    const userMessage: Message = { id: createId('user'), role: 'user', content: text };
-    const assistantId = createId('assistant');
-    setError(null);
-    setMessages((prev) => [...prev, userMessage, { id: assistantId, role: 'assistant', content: '' }]);
-    setStreaming(true);
+    const runId = createId('run');
+    setChatState((prev) => beginChatRun(appendUserMessage(prev, text), runId));
 
     try {
       await client.streamChat(
@@ -196,21 +255,38 @@ export default function App() {
           token: accessToken || undefined,
         },
         {
-          onDelta: (delta) => {
-            setMessages((prev) =>
-              prev.map((msg) => (msg.id === assistantId ? { ...msg, content: msg.content + delta } : msg)),
-            );
+          onStart: (payload) => {
+            const event = buildChatEventPayload('start', runId, CHAT_SESSION_KEY, payload);
+            setChatState((prev) => handleChatEvent(prev, event));
+          },
+          onDelta: (delta, payload) => {
+            const fallback = { role: 'assistant', content: [{ type: 'text', text: delta }] };
+            const event = buildChatEventPayload('delta', runId, CHAT_SESSION_KEY, payload ?? fallback);
+            setChatState((prev) => handleChatEvent(prev, event));
+          },
+          onEnd: (payload) => {
+            const event = buildChatEventPayload('final', runId, CHAT_SESSION_KEY, payload);
+            setChatState((prev) => handleChatEvent(prev, event));
           },
           onError: (e) => {
-            setError(`${e.code}: ${e.message}`);
+            const event = buildChatEventPayload('error', runId, CHAT_SESSION_KEY, {
+              state: 'error',
+              message: `${e.code}: ${e.message}`,
+            });
+            setChatState((prev) => handleChatEvent(prev, event));
           },
         },
       );
     } catch (e) {
       const message = e instanceof Error ? e.message : '请求失败';
-      setError(message);
-    } finally {
-      setStreaming(false);
+      setChatState((prev) =>
+        handleChatEvent(prev, {
+          runId,
+          sessionKey: CHAT_SESSION_KEY,
+          state: 'error',
+          errorMessage: message,
+        }),
+      );
     }
   };
 
@@ -260,6 +336,10 @@ export default function App() {
       window.clearInterval(timer);
     };
   }, [client]);
+
+  const messages = useMemo(() => toUiMessages(chatState), [chatState]);
+  const streaming = chatState.runId !== null;
+  const error = chatState.lastError;
 
   if (!accessToken && !sessionAuthed) {
     if (runtimeChecking) {
@@ -313,7 +393,7 @@ interface AuthedViewProps {
   currentUser: AuthUser | null;
   healthy: boolean;
   handleLogout: () => void;
-  messages: Message[];
+  messages: Array<{ id: string; role: 'user' | 'assistant'; content: string }>;
   streaming: boolean;
   error: string | null;
   sendMessage: (content: string) => Promise<void>;
