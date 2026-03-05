@@ -23,8 +23,7 @@ resolve_openclaw_bin() {
     return 0
   fi
 
-  local local_openclaw_gui_bin="$ROOT_DIR/services/openclaw/bin/openclaw"
-  echo "$local_openclaw_gui_bin"
+  echo "$local_openclaw_server_bin"
 }
 
 OPENCLAW_BIN="$(resolve_openclaw_bin)"
@@ -131,10 +130,24 @@ start_openclaw() {
   local pid=$!
 
   local ok=""
+  local health_http=""
+  local health_body=""
   for _ in {1..40}; do
-    if env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u all_proxy -u ALL_PROXY \
-      curl -fsS "http://127.0.0.1:$API_PORT/health" >/dev/null 2>&1; then
+    health_http="$(env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u all_proxy -u ALL_PROXY \
+      curl -sS -o /tmp/iclaw-dev-api-health-body.$$ -w '%{http_code}' "http://127.0.0.1:$API_PORT/health" 2>/dev/null || true)"
+    health_body="$(cat /tmp/iclaw-dev-api-health-body.$$ 2>/dev/null || true)"
+    rm -f /tmp/iclaw-dev-api-health-body.$$ >/dev/null 2>&1 || true
+
+    if [[ "$health_http" =~ ^2[0-9][0-9]$ ]]; then
       ok="1"
+      break
+    fi
+    if [[ "$health_http" == "503" ]] && echo "$health_body" | grep -q "Control UI assets not found"; then
+      # openclaw-server gateway is alive; only Control UI static assets are missing.
+      ok="1"
+      break
+    fi
+    if ! kill -0 "$pid" >/dev/null 2>&1; then
       break
     fi
     sleep 0.25
@@ -145,6 +158,12 @@ start_openclaw() {
       echo "[api-dev] 检测到 OpenClaw 二进制在无 App Bundle 场景下崩溃（NSInternalInconsistencyException）。" >&2
       echo "[api-dev] 当前 $OPENCLAW_BIN 更像 GUI App 主程序，不适合作为 headless API sidecar 直接 nohup 启动。" >&2
       echo "[api-dev] 请提供可独立运行 API 的 OpenClaw binary，并通过 OPENCLAW_BINARY_PATH 指定路径。" >&2
+    fi
+    if [[ -n "$health_http" ]]; then
+      echo "[api-dev] /health 响应状态: $health_http" >&2
+    fi
+    if [[ -n "$health_body" ]]; then
+      echo "[api-dev] /health 响应内容: $health_body" >&2
     fi
     echo "[api-dev] 后端健康检查失败: http://127.0.0.1:$API_PORT/health" >&2
     echo "[api-dev] Check logs: $LOG_FILE" >&2
