@@ -39,7 +39,7 @@ export function AvatarDropdown({ open, onClose, onOpenSettings, onLogout }: Avat
       style={{ transitionTimingFunction: 'var(--motion-spring)' }}
     >
       <button
-        className="mb-1 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left hover:bg-[var(--bg-hover)]"
+        className="mb-1 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]/40"
         onClick={() => {
           onClose();
           onOpenSettings();
@@ -49,25 +49,27 @@ export function AvatarDropdown({ open, onClose, onOpenSettings, onLogout }: Avat
         <span className="text-[16px] text-[var(--text-primary)]">设置</span>
       </button>
 
-      <button className="mb-1 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left hover:bg-[var(--bg-hover)]">
+      <button className="mb-1 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]/40">
         <FolderPlus className="h-5 w-5 text-[var(--text-secondary)]" />
         <span className="text-[16px] text-[var(--text-primary)]">收藏夹</span>
       </button>
 
       <div className="my-2 h-px bg-[var(--border-default)]" />
 
-      <button className="mb-1 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left hover:bg-[var(--bg-hover)]">
+      <button className="mb-1 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]/40">
         <Globe className="h-5 w-5 text-[var(--text-secondary)]" />
         <span className="text-[16px] text-[var(--text-primary)]">豆包官网</span>
       </button>
 
-      <div className="mb-1 flex items-center gap-3 rounded-md px-3 py-2.5 hover:bg-[var(--bg-hover)]">
+      <button className="mb-1 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]/40">
         <RefreshCw className="h-5 w-5 text-[var(--text-secondary)]" />
         <span className="flex-1 text-[16px] text-[var(--text-primary)]">新版本已安装</span>
-        <button className="rounded-lg bg-[var(--bg-hover)] px-3 py-1.5 text-[13px] text-[var(--text-primary)]">重启应用</button>
-      </div>
+        <span className="rounded-md bg-[var(--brand-primary)] px-3 py-1 text-[13px] text-[var(--brand-on-primary)]">
+          重启应用
+        </span>
+      </button>
 
-      <button className="mb-1 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left hover:bg-[var(--bg-hover)]">
+      <button className="mb-1 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]/40">
         <CircleHelp className="h-5 w-5 text-[var(--text-secondary)]" />
         <span className="text-[16px] text-[var(--text-primary)]">帮助与反馈</span>
       </button>
@@ -75,14 +77,14 @@ export function AvatarDropdown({ open, onClose, onOpenSettings, onLogout }: Avat
       <div className="my-2 h-px bg-[var(--border-default)]" />
 
       <button
-        className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left hover:bg-[var(--bg-hover)]"
+        className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]/40"
         onClick={() => {
           onClose();
           onLogout();
         }}
       >
-        <LogOut className="h-5 w-5 text-[var(--text-secondary)]" />
-        <span className="text-[16px] text-[var(--text-primary)]">退出登录</span>
+        <LogOut className="h-5 w-5 text-[var(--state-error)]" />
+        <span className="text-[16px] text-[var(--state-error)]">退出登录</span>
       </button>
     </div>
   );

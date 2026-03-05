@@ -35,6 +35,7 @@ interface SidebarItem {
   icon: React.ComponentType<{ className?: string }>;
   iconClass: string;
   badge?: string;
+  dot?: boolean;
   onClick?: () => void;
 }
 
@@ -89,7 +90,7 @@ export function Sidebar({ user, onLogout, onOpenSettings }: SidebarProps) {
 
   const mainItems: SidebarItem[] = [
     { key: 'chat', label: '智能对话', icon: MessageSquare, iconClass: 'text-blue-500' },
-    { key: 'task', label: '定时任务', icon: CheckSquare, iconClass: 'text-emerald-500' },
+    { key: 'task', label: '定时任务', icon: CheckSquare, iconClass: 'text-emerald-500', dot: true },
     { key: 'skill', label: '技能中心', icon: TrendingUp, iconClass: 'text-violet-500', badge: '15' },
     { key: 'link', label: '数据接续', icon: Link2, iconClass: 'text-cyan-500' },
   ];
@@ -117,6 +118,7 @@ export function Sidebar({ user, onLogout, onOpenSettings }: SidebarProps) {
           >
             <item.icon className={`h-5 w-5 ${item.iconClass}`} />
             <span className="flex-1 text-[14px] text-[var(--text-primary)]">{item.label}</span>
+            {item.dot && <span className="h-2 w-2 rounded-full bg-[var(--state-success)]" />}
             {item.badge && (
               <span className="rounded-full bg-[var(--brand-primary)] px-2 py-0.5 text-[11px] text-[var(--brand-on-primary)]">
                 {item.badge}
@@ -130,7 +132,7 @@ export function Sidebar({ user, onLogout, onOpenSettings }: SidebarProps) {
 
   return (
     <div className="flex h-screen w-[256px] flex-col border-r border-[var(--border-default)] bg-[var(--bg-page)]">
-      <div className="flex items-center gap-3 border-b border-[var(--border-default)] px-4 py-3">
+      <div className="flex h-10 items-center gap-3 border-b border-[var(--border-default)] px-4">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--brand-primary)] text-[var(--brand-on-primary)]">
           <img src="/logo.png" alt="iClaw logo" className="h-6 w-6 object-cover" />
         </div>

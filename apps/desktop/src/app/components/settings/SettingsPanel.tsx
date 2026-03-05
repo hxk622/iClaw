@@ -36,7 +36,7 @@ const navItems: Array<{ key: SettingsSection; label: string; icon: ComponentType
 
 export function SettingsPanel({ onClose, onSave }: SettingsPanelProps) {
   const { settings, resetSettings } = useSettings();
-  const [activeSection, setActiveSection] = useState<SettingsSection>('overview');
+  const [activeSection, setActiveSection] = useState<SettingsSection>('general');
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
@@ -78,7 +78,7 @@ export function SettingsPanel({ onClose, onSave }: SettingsPanelProps) {
 
   return (
     <div className="flex h-screen bg-[var(--bg-page)]">
-      <aside className="flex w-[220px] flex-col border-r border-[var(--border-default)] bg-[var(--bg-hover)]">
+      <aside className="flex w-56 flex-col border-r border-[var(--border-default)] bg-[var(--bg-card)]">
         <div className="border-b border-[var(--border-default)] p-4">
           <h1 className="text-lg text-[var(--text-primary)]">iClaw 设置</h1>
         </div>
@@ -91,11 +91,12 @@ export function SettingsPanel({ onClose, onSave }: SettingsPanelProps) {
               <button
                 key={item.key}
                 onClick={() => setActiveSection(item.key)}
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
+                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all ${
                   active
-                    ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm'
-                    : 'text-[var(--text-secondary)] hover:bg-[var(--bg-card)]/80'
+                    ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)]'
+                    : 'text-[var(--text-primary)] hover:translate-x-[2px] hover:bg-[var(--bg-hover)]'
                 }`}
+                style={{ transitionTimingFunction: 'var(--motion-spring)' }}
               >
                 <Icon className="h-4 w-4" />
                 {item.label}
@@ -124,41 +125,43 @@ export function SettingsPanel({ onClose, onSave }: SettingsPanelProps) {
 
         <main className="flex-1 overflow-y-auto">{content}</main>
 
-        <div className="border-t border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-[var(--text-secondary)]">
-              {saveState === 'saved'
-                ? '所有更改已保存'
-                : settings.hasUnsavedChanges
-                  ? '有未保存更改'
-                  : '所有更改已保存'}
+        {(settings.hasUnsavedChanges || saveState !== 'idle') && (
+          <div className="border-t border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-[var(--text-secondary)]">
+                {saveState === 'saved'
+                  ? '所有更改已保存'
+                  : saveState === 'error'
+                    ? '保存失败，请重试'
+                    : '有未保存更改'}
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={resetSettings}
+                  className="rounded-lg border border-[var(--border-default)] px-4 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+                >
+                  重置
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={!settings.hasUnsavedChanges || saveState === 'saving'}
+                  className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm text-[var(--brand-on-primary)] hover:bg-[var(--brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {saveState === 'saving' ? '保存中...' : saveState === 'saved' ? '已保存' : '保存'}
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={resetSettings}
-                className="rounded-lg border border-[var(--border-default)] px-4 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+            {saveMessage && (
+              <p
+                className={`mt-2 text-xs ${
+                  saveState === 'error' ? 'text-[var(--state-error)]' : 'text-[var(--state-info)]'
+                }`}
               >
-                重置
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={!settings.hasUnsavedChanges || saveState === 'saving'}
-                className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm text-[var(--brand-on-primary)] hover:bg-[var(--brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {saveState === 'saving' ? '保存中...' : saveState === 'saved' ? '已保存' : '保存'}
-              </button>
-            </div>
+                {saveMessage}
+              </p>
+            )}
           </div>
-          {saveMessage && (
-            <p
-              className={`mt-2 text-xs ${
-                saveState === 'error' ? 'text-[var(--state-error)]' : 'text-[var(--state-info)]'
-              }`}
-            >
-              {saveMessage}
-            </p>
-          )}
-        </div>
+        )}
       </div>
     </div>
   );
