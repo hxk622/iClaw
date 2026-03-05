@@ -12,16 +12,15 @@ export function Identity() {
   return (
     <div className="mx-auto max-w-3xl p-8">
       <div className="mb-8">
-        <h1 className="mb-2 text-2xl text-zinc-900 dark:text-zinc-100">身份设置</h1>
-        <p className="text-zinc-500 dark:text-zinc-400">自定义助手如何展示自己。</p>
+        <h1 className="mb-2 text-2xl text-[var(--text-primary)]">身份设置</h1>
+        <p className="text-[var(--text-secondary)]">自定义助手如何展示自己。</p>
       </div>
 
-      <div className="space-y-6 rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="space-y-6 rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] p-6">
         <FormRow label="助手名称" help="助手对外展示的名称">
           <input
             value={identity.assistantName}
             onChange={(e) => updateIdentity({ assistantName: e.target.value })}
-            className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-zinc-900 outline-none ring-0 focus:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
           />
         </FormRow>
 
@@ -33,8 +32,8 @@ export function Identity() {
                 onClick={() => updateIdentity({ emoji })}
                 className={`h-12 w-12 rounded-lg border-2 text-2xl ${
                   identity.emoji === emoji
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/50'
-                    : 'border-zinc-200 dark:border-zinc-700'
+                    ? 'border-[var(--brand-primary)] bg-[var(--bg-hover)]'
+                    : 'border-[var(--border-default)]'
                 }`}
               >
                 {emoji}
@@ -47,7 +46,6 @@ export function Identity() {
           <select
             value={identity.theme}
             onChange={(e) => updateIdentity({ theme: e.target.value })}
-            className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-zinc-900 outline-none focus:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
           >
             {themes.map((theme) => (
               <option key={theme} value={theme}>
@@ -61,7 +59,6 @@ export function Identity() {
           <select
             value={identity.selfIntroStyle}
             onChange={(e) => updateIdentity({ selfIntroStyle: e.target.value })}
-            className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-zinc-900 outline-none focus:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
           >
             {introStyles.map((style) => (
               <option key={style} value={style}>

@@ -14,11 +14,11 @@ export function ChannelPreference() {
   return (
     <div className="mx-auto max-w-3xl p-8">
       <div className="mb-8">
-        <h1 className="mb-2 text-2xl text-zinc-900 dark:text-zinc-100">渠道偏好</h1>
-        <p className="text-zinc-500 dark:text-zinc-400">配置默认沟通渠道与通知方式。</p>
+        <h1 className="mb-2 text-2xl text-[var(--text-primary)]">渠道偏好</h1>
+        <p className="text-[var(--text-secondary)]">配置默认沟通渠道与通知方式。</p>
       </div>
 
-      <div className="space-y-6 rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="space-y-6 rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] p-6">
         <FormRow label="默认渠道">
           <div className="grid grid-cols-3 gap-3">
             {channels.map((item) => (
@@ -27,8 +27,8 @@ export function ChannelPreference() {
                 onClick={() => updateChannelPreference({ defaultChannel: item.value })}
                 className={`rounded-lg border px-4 py-3 text-sm ${
                   channelPreference.defaultChannel === item.value
-                    ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
-                    : 'border-zinc-200 text-zinc-700 dark:border-zinc-700 dark:text-zinc-300'
+                    ? 'border-[var(--brand-primary)] bg-[var(--bg-hover)] text-[var(--brand-primary)]'
+                    : 'border-[var(--border-default)] text-[var(--text-secondary)]'
                 }`}
               >
                 {item.label}
@@ -41,7 +41,6 @@ export function ChannelPreference() {
           <input
             value={channelPreference.notificationLevel}
             onChange={(e) => updateChannelPreference({ notificationLevel: e.target.value })}
-            className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
           />
         </FormRow>
 
@@ -49,12 +48,11 @@ export function ChannelPreference() {
           <input
             value={channelPreference.messageFormat}
             onChange={(e) => updateChannelPreference({ messageFormat: e.target.value })}
-            className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
           />
         </FormRow>
 
         <FormRow label="同步到 IM">
-          <label className="flex items-center gap-3 text-sm text-zinc-700 dark:text-zinc-300">
+          <label className="flex items-center gap-3 text-sm text-[var(--text-secondary)]">
             <input
               type="checkbox"
               checked={channelPreference.syncToIM}
@@ -69,7 +67,6 @@ export function ChannelPreference() {
             <input
               value={channelPreference.imTarget}
               onChange={(e) => updateChannelPreference({ imTarget: e.target.value })}
-              className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
             />
           </FormRow>
         )}

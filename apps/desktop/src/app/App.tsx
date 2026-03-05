@@ -344,8 +344,8 @@ function AuthedView({
   const { settings, saveSettings } = useSettings();
 
   const handleSaveSettings = async () => {
-    saveSettings();
     await saveIclawSettingsAndApply(settings);
+    saveSettings();
   };
 
   if (activeView === 'settings') {

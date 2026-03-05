@@ -19,12 +19,12 @@ export function SoulPersona() {
     <div className="mx-auto max-w-4xl p-8">
       <div className="mb-8">
         <div className="mb-2 flex items-center justify-between">
-          <h1 className="text-2xl text-zinc-900 dark:text-zinc-100">人格配置（可选）</h1>
-          <span className="rounded-full bg-blue-50 px-3 py-1 text-sm text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
+          <h1 className="text-2xl text-[var(--text-primary)]">人格配置（可选）</h1>
+          <span className="rounded-full bg-[var(--bg-hover)] px-3 py-1 text-sm text-[var(--state-info)]">
             可选
           </span>
         </div>
-        <p className="text-zinc-500 dark:text-zinc-400">定义助手的语气、澄清与风险决策风格。</p>
+        <p className="text-[var(--text-secondary)]">定义助手的语气、澄清与风险决策风格。</p>
       </div>
 
       <div className="mb-6 flex gap-3">
@@ -41,7 +41,7 @@ export function SoulPersona() {
             setShowWizard(false);
             setEditingMarkdown(false);
           }}
-          className="rounded-lg border border-zinc-200 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+          className="rounded-lg border border-[var(--border-default)] px-4 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
         >
           使用默认
         </button>
@@ -51,7 +51,7 @@ export function SoulPersona() {
             setShowWizard(true);
             setEditingMarkdown(false);
           }}
-          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+          className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm text-[var(--brand-on-primary)] hover:bg-[var(--brand-primary-hover)]"
         >
           打开向导
         </button>
@@ -61,7 +61,7 @@ export function SoulPersona() {
             setEditingMarkdown(true);
             setShowWizard(false);
           }}
-          className="rounded-lg border border-zinc-200 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+          className="rounded-lg border border-[var(--border-default)] px-4 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
         >
           编辑 Markdown
         </button>
@@ -70,12 +70,11 @@ export function SoulPersona() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           {showWizard && (
-            <div className="space-y-6 rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="space-y-6 rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] p-6">
               <FormRow label="语气">
                 <select
                   value={soulPersona.tone}
                   onChange={(e) => updateSoulPersona({ tone: e.target.value })}
-                  className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
                 >
                   {tones.map((tone) => (
                     <option key={tone} value={tone}>
@@ -88,7 +87,6 @@ export function SoulPersona() {
                 <select
                   value={soulPersona.clarificationPolicy}
                   onChange={(e) => updateSoulPersona({ clarificationPolicy: e.target.value })}
-                  className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
                 >
                   {clarifications.map((item) => (
                     <option key={item} value={item}>
@@ -101,7 +99,6 @@ export function SoulPersona() {
                 <select
                   value={soulPersona.riskPolicy}
                   onChange={(e) => updateSoulPersona({ riskPolicy: e.target.value })}
-                  className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
                 >
                   {risks.map((item) => (
                     <option key={item} value={item}>
@@ -114,7 +111,6 @@ export function SoulPersona() {
                 <select
                   value={soulPersona.decisionStyle}
                   onChange={(e) => updateSoulPersona({ decisionStyle: e.target.value })}
-                  className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
                 >
                   {decisions.map((item) => (
                     <option key={item} value={item}>
@@ -127,13 +123,13 @@ export function SoulPersona() {
           )}
 
           {editingMarkdown && (
-            <div className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] p-6">
               <FormRow label="SOUL.md">
                 <textarea
                   rows={16}
                   value={soulPersona.markdownContent || markdown}
                   onChange={(e) => updateSoulPersona({ markdownContent: e.target.value })}
-                  className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 font-mono text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                  className="font-mono text-sm"
                 />
               </FormRow>
             </div>
@@ -141,9 +137,9 @@ export function SoulPersona() {
         </div>
 
         <div className="lg:col-span-1">
-          <div className="sticky top-8 rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
-            <h4 className="mb-3 text-sm text-zinc-700 dark:text-zinc-300">SOUL.md 预览</h4>
-            <pre className="max-h-[500px] overflow-auto whitespace-pre-wrap rounded bg-zinc-50 p-3 text-xs text-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
+          <div className="sticky top-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] p-5">
+            <h4 className="mb-3 text-sm text-[var(--text-secondary)]">SOUL.md 预览</h4>
+            <pre className="max-h-[500px] overflow-auto whitespace-pre-wrap rounded bg-[var(--bg-hover)] p-3 text-xs text-[var(--text-primary)]">
               {soulPersona.mode === 'markdown' && soulPersona.markdownContent
                 ? soulPersona.markdownContent
                 : markdown}

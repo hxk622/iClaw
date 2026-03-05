@@ -12,23 +12,21 @@ export function UserProfile() {
   return (
     <div className="mx-auto max-w-3xl p-8">
       <div className="mb-8">
-        <h1 className="mb-2 text-2xl text-zinc-900 dark:text-zinc-100">用户资料</h1>
-        <p className="text-zinc-500 dark:text-zinc-400">帮助助手更好地理解你的偏好。</p>
+        <h1 className="mb-2 text-2xl text-[var(--text-primary)]">用户资料</h1>
+        <p className="text-[var(--text-secondary)]">帮助助手更好地理解你的偏好。</p>
       </div>
 
-      <div className="space-y-6 rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="space-y-6 rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] p-6">
         <FormRow label="首选称呼">
           <input
             value={userProfile.preferredName}
             onChange={(e) => updateUserProfile({ preferredName: e.target.value })}
-            className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-zinc-900 outline-none focus:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
           />
         </FormRow>
         <FormRow label="语言">
           <select
             value={userProfile.language}
             onChange={(e) => updateUserProfile({ language: e.target.value })}
-            className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-zinc-900 outline-none focus:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
           >
             {languages.map((lang) => (
               <option key={lang} value={lang}>
@@ -41,7 +39,6 @@ export function UserProfile() {
           <select
             value={userProfile.timezone}
             onChange={(e) => updateUserProfile({ timezone: e.target.value })}
-            className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-zinc-900 outline-none focus:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
           >
             {timezones.map((tz) => (
               <option key={tz} value={tz}>
@@ -54,14 +51,12 @@ export function UserProfile() {
           <input
             value={userProfile.workRole}
             onChange={(e) => updateUserProfile({ workRole: e.target.value })}
-            className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-zinc-900 outline-none focus:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
           />
         </FormRow>
         <FormRow label="主要用途">
           <input
             value={userProfile.primaryUseCase}
             onChange={(e) => updateUserProfile({ primaryUseCase: e.target.value })}
-            className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-zinc-900 outline-none focus:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
           />
         </FormRow>
         <FormRow label="回复长度偏好">
@@ -72,8 +67,8 @@ export function UserProfile() {
                 onClick={() => updateUserProfile({ responseLengthPreference: len })}
                 className={`flex-1 rounded-lg border px-4 py-2 text-sm ${
                   userProfile.responseLengthPreference === len
-                    ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300'
-                    : 'border-zinc-200 text-zinc-700 dark:border-zinc-700 dark:text-zinc-300'
+                    ? 'border-[var(--brand-primary)] bg-[var(--bg-hover)] text-[var(--brand-primary)]'
+                    : 'border-[var(--border-default)] text-[var(--text-secondary)]'
                 }`}
               >
                 {len}

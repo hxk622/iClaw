@@ -37,8 +37,8 @@ export function SettingsGeneral() {
   return (
     <div className="mx-auto max-w-3xl p-8">
       <div className="mb-8">
-        <h1 className="mb-2 text-2xl text-zinc-900 dark:text-zinc-100">通用</h1>
-        <p className="text-zinc-500 dark:text-zinc-400">管理主题和全局偏好。</p>
+        <h1 className="mb-2 text-2xl text-[var(--text-primary)]">通用</h1>
+        <p className="text-[var(--text-secondary)]">管理主题和全局偏好。</p>
       </div>
 
       <div className="space-y-8 rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] p-6">

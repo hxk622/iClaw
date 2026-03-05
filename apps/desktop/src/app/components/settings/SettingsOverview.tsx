@@ -80,8 +80,8 @@ export function SettingsOverview({ onNavigate }: SettingsOverviewProps) {
   return (
     <div className="mx-auto max-w-4xl p-8">
       <div className="mb-8">
-        <h1 className="mb-2 text-2xl text-zinc-900 dark:text-zinc-100">引导目标（可选）</h1>
-        <p className="text-zinc-500 dark:text-zinc-400">这些配置均为可选，不影响立即开始使用。</p>
+        <h1 className="mb-2 text-2xl text-[var(--text-primary)]">引导目标（可选）</h1>
+        <p className="text-[var(--text-secondary)]">这些配置均为可选，不影响立即开始使用。</p>
       </div>
 
       <div className="space-y-4">
@@ -91,19 +91,19 @@ export function SettingsOverview({ onNavigate }: SettingsOverviewProps) {
             <button
               key={card.key}
               onClick={() => onNavigate(card.section)}
-              className="group flex w-full items-center gap-4 rounded-lg border border-zinc-200 bg-white p-5 text-left transition-colors hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-700"
+              className="group flex w-full items-center gap-4 rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] p-5 text-left transition-colors hover:border-[var(--border-strong)]"
             >
-              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-800">
-                <Icon className="h-6 w-6 text-zinc-800 dark:text-zinc-200" />
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--bg-hover)]">
+                <Icon className="h-6 w-6 text-[var(--text-primary)]" />
               </div>
               <div className="flex-1">
                 <div className="mb-1 flex items-center gap-2">
-                  <h3 className="text-base text-zinc-900 dark:text-zinc-100">{card.title}</h3>
+                  <h3 className="text-base text-[var(--text-primary)]">{card.title}</h3>
                   <StatusBadge status={settings.configStatuses[card.statusKey!]} />
                 </div>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">{card.description}</p>
+                <p className="text-sm text-[var(--text-secondary)]">{card.description}</p>
               </div>
-              <ChevronRight className="h-5 w-5 text-zinc-400 transition-colors group-hover:text-zinc-600 dark:group-hover:text-zinc-300" />
+              <ChevronRight className="h-5 w-5 text-[var(--text-muted)] transition-colors group-hover:text-[var(--text-secondary)]" />
             </button>
           );
         })}

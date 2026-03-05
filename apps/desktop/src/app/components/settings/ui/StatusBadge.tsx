@@ -11,15 +11,15 @@ export function StatusBadge({ status }: StatusBadgeProps) {
   > = {
     'not-configured': {
       label: '未配置',
-      cls: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
+      cls: 'bg-[var(--bg-hover)] text-[var(--text-secondary)]',
     },
     'using-default': {
       label: '使用默认',
-      cls: 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300',
+      cls: 'bg-[var(--bg-hover)] text-[var(--state-info)]',
     },
     customized: {
       label: '已自定义',
-      cls: 'bg-green-50 text-green-700 dark:bg-green-950/60 dark:text-green-300',
+      cls: 'bg-[var(--bg-hover)] text-[var(--brand-primary)]',
     },
   };
 
