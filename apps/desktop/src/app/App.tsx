@@ -4,10 +4,8 @@ import { clearAuth, readAuth, writeAuth } from './lib/auth-storage';
 import { isTauriRuntime, startSidecar } from './lib/tauri-sidecar';
 import { diagnoseRuntime, type RuntimeDiagnosis } from './lib/tauri-runtime-config';
 import { AuthPanel } from './components/AuthPanel';
-import { ChatArea } from './components/ChatArea';
+import { ChatWorkspace } from './components/ChatWorkspace';
 import { FirstRunSetupPanel } from './components/FirstRunSetupPanel';
-import { HealthStatusBar } from './components/HealthStatusBar';
-import { InputBar } from './components/InputBar';
 import { Sidebar } from './components/Sidebar';
 import { SettingsPanel } from './components/settings/SettingsPanel';
 import { SettingsProvider, useSettings } from './contexts/settings-context';
@@ -355,16 +353,17 @@ function AuthedView({
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--bg-page)]">
       <Sidebar user={currentUser} onOpenSettings={() => setActiveView('settings')} onLogout={handleLogout} />
-      <div className="flex flex-1 flex-col">
-        <HealthStatusBar
-          checking={healthChecking}
-          healthy={healthy}
-          sidecarAttempted={sidecarAttempted}
-          error={healthError}
-        />
-        <ChatArea messages={messages} streaming={streaming} error={error} />
-        <InputBar onSend={sendMessage} disabled={streaming || !healthy} />
-      </div>
+      <ChatWorkspace
+        messages={messages}
+        streaming={streaming}
+        error={error}
+        disabled={streaming || !healthy}
+        onSend={sendMessage}
+        healthChecking={healthChecking}
+        healthy={healthy}
+        sidecarAttempted={sidecarAttempted}
+        healthError={healthError}
+      />
     </div>
   );
 }
