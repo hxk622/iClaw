@@ -210,6 +210,7 @@ fn start_sidecar(
     }
 
     let sidecar_path = find_sidecar_path(&app)?;
+    ensure_openclaw_workspace_seed(&app)?;
     let config = load_runtime_config_internal(&app)?;
     let paths = ensure_runtime_dirs(&app)?;
     let skills_dir = resource_skills_dir(&app);
@@ -380,9 +381,9 @@ fn iclaw_settings_dir(app: &AppHandle) -> Result<PathBuf, String> {
 
 fn openclaw_workspace_dir(app: &AppHandle) -> PathBuf {
     if let Ok(home) = app.path().home_dir() {
-        return home.join(".openclaw").join("openclaw-workspace");
+        return home.join(".openclaw").join("workspace");
     }
-    PathBuf::from(".openclaw/openclaw-workspace")
+    PathBuf::from(".openclaw/workspace")
 }
 
 fn value_str(settings: &serde_json::Value, path: &[&str], default: &str) -> String {
@@ -415,6 +416,58 @@ fn write_text(path: &Path, content: &str) -> Result<(), String> {
         fs::create_dir_all(parent).map_err(|e| format!("failed to create parent dir: {e}"))?;
     }
     fs::write(path, content).map_err(|e| format!("failed to write {}: {e}", path.to_string_lossy()))
+}
+
+fn ensure_openclaw_workspace_seed(app: &AppHandle) -> Result<(), String> {
+    let settings_dir = iclaw_settings_dir(app)?;
+    let identity_path = settings_dir.join("IDENTITY.md");
+    let user_path = settings_dir.join("USER.md");
+    let soul_path = settings_dir.join("SOUL.md");
+    let agents_path = settings_dir.join("AGENTS.md");
+
+    if !identity_path.exists() {
+        write_text(
+            &identity_path,
+            "# IDENTITY.md\n- Name: iClaw\n- Theme: Calm\n- Emoji: 🦀\n",
+        )?;
+    }
+    if !user_path.exists() {
+        write_text(
+            &user_path,
+            "# USER.md\n- Preferred language: zh-CN\n- Timezone: Asia/Shanghai\n- Notes:\n",
+        )?;
+    }
+    if !soul_path.exists() {
+        write_text(
+            &soul_path,
+            "# SOUL.md\n- Be concise and direct.\n- Ask clarifying questions when needed.\n- Refuse unsafe or illegal requests.\n",
+        )?;
+    }
+    if !agents_path.exists() {
+        write_text(
+            &agents_path,
+            "# AGENTS.md\nThis workspace is pre-seeded by iClaw.\nIdentity/User/Soul are managed by iClaw settings source.\n",
+        )?;
+    }
+
+    let workspace_dir = openclaw_workspace_dir(app);
+    fs::create_dir_all(&workspace_dir).map_err(|e| format!("failed to create workspace dir: {e}"))?;
+
+    let bootstrap_path = workspace_dir.join("BOOTSTRAP.md");
+    if bootstrap_path.exists() {
+        let _ = fs::remove_file(bootstrap_path);
+    }
+
+    fs::copy(&identity_path, workspace_dir.join("IDENTITY.md"))
+        .map_err(|e| format!("failed to sync IDENTITY.md: {e}"))?;
+    fs::copy(&user_path, workspace_dir.join("USER.md"))
+        .map_err(|e| format!("failed to sync USER.md: {e}"))?;
+    fs::copy(&soul_path, workspace_dir.join("SOUL.md"))
+        .map_err(|e| format!("failed to sync SOUL.md: {e}"))?;
+    fs::copy(&agents_path, workspace_dir.join("AGENTS.md"))
+        .map_err(|e| format!("failed to sync AGENTS.md: {e}"))?;
+
+    Ok(())
 }
 
 fn apply_iclaw_settings_files(app: &AppHandle, settings: &serde_json::Value) -> Result<(), String> {
@@ -473,13 +526,17 @@ fn apply_iclaw_settings_files(app: &AppHandle, settings: &serde_json::Value) -> 
         channel, sync_to_im, safety_mode
     );
 
-    for base in [&settings_dir, &workspace_dir] {
-        write_text(&base.join("SOUL.md"), &soul_md)?;
-        write_text(&base.join("IDENTITY.md"), &identity_md)?;
-        write_text(&base.join("USER.md"), &user_md)?;
-        write_text(&base.join("AGENTS.md"), &agents_md)?;
-        write_text(&base.join("ICLAW_SETTINGS.md"), &summary_md)?;
-    }
+    write_text(&settings_dir.join("SOUL.md"), &soul_md)?;
+    write_text(&settings_dir.join("IDENTITY.md"), &identity_md)?;
+    write_text(&settings_dir.join("USER.md"), &user_md)?;
+    write_text(&settings_dir.join("AGENTS.md"), &agents_md)?;
+    write_text(&settings_dir.join("ICLAW_SETTINGS.md"), &summary_md)?;
+
+    write_text(&workspace_dir.join("SOUL.md"), &soul_md)?;
+    write_text(&workspace_dir.join("IDENTITY.md"), &identity_md)?;
+    write_text(&workspace_dir.join("USER.md"), &user_md)?;
+    write_text(&workspace_dir.join("AGENTS.md"), &agents_md)?;
+    write_text(&workspace_dir.join("ICLAW_SETTINGS.md"), &summary_md)?;
     write_text(&settings_dir.join("settings.json"), &settings_json)?;
 
     let bootstrap_path = workspace_dir.join("BOOTSTRAP.md");

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-WORKSPACE_DIR="${OPENCLAW_WORKSPACE_DIR:-$HOME/.openclaw/openclaw-workspace}"
+WORKSPACE_DIR="${OPENCLAW_WORKSPACE_DIR:-$HOME/.openclaw/workspace}"
 SETTINGS_DIR="${ICLAW_SETTINGS_DIR:-$HOME/.openclaw/iclaw-settings}"
 
 mkdir -p "$SETTINGS_DIR"
