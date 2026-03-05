@@ -296,10 +296,7 @@ export default function App() {
         activeView={activeView}
         setActiveView={setActiveView}
         currentUser={currentUser}
-        healthChecking={healthChecking}
         healthy={healthy}
-        sidecarAttempted={sidecarAttempted}
-        healthError={healthError}
         handleLogout={handleLogout}
         messages={messages}
         streaming={streaming}
@@ -314,10 +311,7 @@ interface AuthedViewProps {
   activeView: 'chat' | 'settings';
   setActiveView: Dispatch<SetStateAction<'chat' | 'settings'>>;
   currentUser: AuthUser | null;
-  healthChecking: boolean;
   healthy: boolean;
-  sidecarAttempted: boolean;
-  healthError: string | null;
   handleLogout: () => void;
   messages: Message[];
   streaming: boolean;
@@ -329,10 +323,7 @@ function AuthedView({
   activeView,
   setActiveView,
   currentUser,
-  healthChecking,
   healthy,
-  sidecarAttempted,
-  healthError,
   handleLogout,
   messages,
   streaming,
@@ -359,10 +350,6 @@ function AuthedView({
         error={error}
         disabled={streaming || !healthy}
         onSend={sendMessage}
-        healthChecking={healthChecking}
-        healthy={healthy}
-        sidecarAttempted={sidecarAttempted}
-        healthError={healthError}
       />
     </div>
   );

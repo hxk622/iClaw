@@ -133,7 +133,7 @@ export function Sidebar({ user, onLogout, onOpenSettings }: SidebarProps) {
   return (
     <div className="flex h-screen w-[256px] flex-col border-r border-[var(--border-default)] bg-[var(--bg-page)]">
       <div className="flex h-10 items-center gap-3 border-b border-[var(--border-default)] px-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--brand-primary)] text-[var(--brand-on-primary)]">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)]">
           <img src="/logo.png" alt="iClaw logo" className="h-6 w-6 object-cover" />
         </div>
         <div className="min-w-0">

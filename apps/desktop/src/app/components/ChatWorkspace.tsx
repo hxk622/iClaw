@@ -11,7 +11,6 @@ import {
   Wind,
   Zap,
 } from 'lucide-react';
-import { HealthStatusBar } from './HealthStatusBar';
 
 interface Message {
   id: string;
@@ -25,10 +24,6 @@ interface ChatWorkspaceProps {
   error: string | null;
   disabled: boolean;
   onSend: (content: string) => Promise<void>;
-  healthChecking: boolean;
-  healthy: boolean;
-  sidecarAttempted: boolean;
-  healthError: string | null;
 }
 
 const marketData = [
@@ -65,10 +60,6 @@ export function ChatWorkspace({
   error,
   disabled,
   onSend,
-  healthChecking,
-  healthy,
-  sidecarAttempted,
-  healthError,
 }: ChatWorkspaceProps) {
   const [input, setInput] = useState('');
   const messagesRef = useRef<HTMLDivElement | null>(null);
@@ -87,13 +78,6 @@ export function ChatWorkspace({
 
   return (
     <div className="flex flex-1 flex-col bg-[var(--bg-page)]">
-      <HealthStatusBar
-        checking={healthChecking}
-        healthy={healthy}
-        sidecarAttempted={sidecarAttempted}
-        error={healthError}
-      />
-
       <div className="flex h-10 items-center gap-6 border-b border-[var(--border-default)] bg-[var(--bg-card)] px-4 text-xs">
         <div className="flex flex-1 items-center gap-6 overflow-x-auto">
           {marketData.map((item) => (
