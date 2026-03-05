@@ -30,6 +30,13 @@ const DEFAULT_API_BASE_URL = import.meta.env.PROD
   ? 'https://openalpha.aiyuanxi.com'
   : 'http://127.0.0.1:2126';
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || DEFAULT_API_BASE_URL;
+const AUTH_BASE_URL =
+  (import.meta.env.VITE_AUTH_BASE_URL as string) || 'https://openalpha.aiyuanxi.com';
+const GATEWAY_WS_URL =
+  (import.meta.env.VITE_GATEWAY_WS_URL as string) ||
+  API_BASE_URL.replace(/^http:\/\//, 'ws://').replace(/^https:\/\//, 'wss://');
+const GATEWAY_TOKEN = (import.meta.env.VITE_GATEWAY_TOKEN as string) || undefined;
+const GATEWAY_PASSWORD = (import.meta.env.VITE_GATEWAY_PASSWORD as string) || undefined;
 const CHAT_SESSION_KEY = 'main';
 const SIDE_CAR_ARGS = ((import.meta.env.VITE_SIDE_CAR_ARGS as string) || '--port 2126')
   .split(' ')
@@ -107,7 +114,17 @@ function toUiMessages(state: ChatRuntimeState): Message[] {
 }
 
 export default function App() {
-  const client = useMemo(() => new IClawClient({ apiBaseUrl: API_BASE_URL }), []);
+  const client = useMemo(
+    () =>
+      new IClawClient({
+        apiBaseUrl: API_BASE_URL,
+        authBaseUrl: AUTH_BASE_URL,
+        gatewayWsUrl: GATEWAY_WS_URL,
+        gatewayToken: GATEWAY_TOKEN,
+        gatewayPassword: GATEWAY_PASSWORD,
+      }),
+    [],
+  );
   const [chatState, setChatState] = useState<ChatRuntimeState>(() => createInitialChatState(CHAT_SESSION_KEY));
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [sessionAuthed, setSessionAuthed] = useState(false);
