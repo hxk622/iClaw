@@ -104,12 +104,13 @@ start_openclaw() {
   ln -sfn "$LOG_FILE" "$LATEST_LOG"
 
   echo "[api-dev] 启动后端服务 :$API_PORT"
-  OPENCLAW_LOG_DIR="$LOG_DIR" nohup "$OPENCLAW_BIN" --port "$API_PORT" >"$LOG_FILE" 2>&1 &
+  OPENCLAW_LOG_DIR="$LOG_DIR" PORT="$API_PORT" nohup "$OPENCLAW_BIN" --port "$API_PORT" >"$LOG_FILE" 2>&1 &
   local pid=$!
 
   local ok=""
   for _ in {1..40}; do
-    if curl -fsS "http://127.0.0.1:$API_PORT/health" >/dev/null 2>&1; then
+    if env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u all_proxy -u ALL_PROXY \
+      curl -fsS "http://127.0.0.1:$API_PORT/health" >/dev/null 2>&1; then
       ok="1"
       break
     fi
