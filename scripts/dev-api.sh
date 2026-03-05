@@ -3,12 +3,38 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 API_PORT="${ICLAW_API_PORT:-2126}"
-OPENCLAW_BIN="${OPENCLAW_BINARY_PATH:-$ROOT_DIR/services/openclaw/bin/openclaw}"
 LOG_DIR="${ICLAW_LOG_DIR:-$ROOT_DIR/logs/openclaw}"
 LOG_FILE="${ICLAW_OPENCLAW_LOG:-$LOG_DIR/openclaw-$(date +%Y%m%d-%H%M%S).log}"
 LATEST_LOG="$LOG_DIR/latest.log"
 
+detect_target_triple() {
+  rustc -vV 2>/dev/null | sed -n 's/^host: //p'
+}
+
+resolve_openclaw_bin() {
+  if [[ -n "${OPENCLAW_BINARY_PATH:-}" ]]; then
+    echo "$OPENCLAW_BINARY_PATH"
+    return 0
+  fi
+
+  local target_triple
+  target_triple="$(detect_target_triple)"
+  local openalpha_api_bin="$ROOT_DIR/../OpenAlpha/src-api/dist/openalpha-api-${target_triple}"
+  local local_openclaw_bin="$ROOT_DIR/services/openclaw/bin/openclaw"
+
+  if [[ -n "$target_triple" && -x "$openalpha_api_bin" ]]; then
+    echo "$openalpha_api_bin"
+    return 0
+  fi
+
+  echo "$local_openclaw_bin"
+}
+
+OPENCLAW_BIN="$(resolve_openclaw_bin)"
+
 ensure_sidecar_bin() {
+  echo "[api-dev] 使用后端二进制: $OPENCLAW_BIN"
+
   if [[ -x "$OPENCLAW_BIN" ]]; then
     return 0
   fi
