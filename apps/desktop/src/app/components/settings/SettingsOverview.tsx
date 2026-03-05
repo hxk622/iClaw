@@ -5,6 +5,7 @@ import { StatusBadge } from '@/app/components/settings/ui/StatusBadge';
 
 export type SettingsSection =
   | 'overview'
+  | 'general'
   | 'identity'
   | 'user-profile'
   | 'soul-persona'
@@ -16,14 +17,24 @@ interface SettingsOverviewProps {
 }
 
 const cards: Array<{
-  key: keyof ReturnType<typeof useSettings>['settings']['configStatuses'];
+  key: string;
+  statusKey?: keyof ReturnType<typeof useSettings>['settings']['configStatuses'];
   title: string;
   description: string;
   icon: ComponentType<{ className?: string }>;
   section: SettingsSection;
 }> = [
   {
+    key: 'general',
+    statusKey: 'general',
+    title: '通用',
+    description: '主题、语言与全局行为设置',
+    icon: UserCircle,
+    section: 'general',
+  },
+  {
     key: 'identity',
+    statusKey: 'identity',
     title: '身份设置',
     description: '配置助手名称、表情和介绍风格',
     icon: UserCircle,
@@ -31,6 +42,7 @@ const cards: Array<{
   },
   {
     key: 'userProfile',
+    statusKey: 'userProfile',
     title: '用户资料',
     description: '设置称呼、语言、时区与主要用途',
     icon: User,
@@ -38,6 +50,7 @@ const cards: Array<{
   },
   {
     key: 'soulPersona',
+    statusKey: 'soulPersona',
     title: '人格配置',
     description: '定义语气、澄清策略和决策风格',
     icon: Sparkles,
@@ -45,6 +58,7 @@ const cards: Array<{
   },
   {
     key: 'channelPreference',
+    statusKey: 'channelPreference',
     title: '渠道偏好',
     description: '选择默认渠道和通知策略',
     icon: MessageSquare,
@@ -52,6 +66,7 @@ const cards: Array<{
   },
   {
     key: 'safetyDefaults',
+    statusKey: 'safetyDefaults',
     title: '安全策略',
     description: '配置系统操作和文件访问边界',
     icon: Shield,
@@ -84,7 +99,7 @@ export function SettingsOverview({ onNavigate }: SettingsOverviewProps) {
               <div className="flex-1">
                 <div className="mb-1 flex items-center gap-2">
                   <h3 className="text-base text-zinc-900 dark:text-zinc-100">{card.title}</h3>
-                  <StatusBadge status={settings.configStatuses[card.key]} />
+                  <StatusBadge status={settings.configStatuses[card.statusKey!]} />
                 </div>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">{card.description}</p>
               </div>

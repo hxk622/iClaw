@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import './theme.css';
 
 html,
 body,
@@ -9,7 +10,7 @@ body,
 
 body {
   margin: 0;
-  background: #ffffff;
-  color: #1f1f1f;
+  background: var(--bg-page);
+  color: var(--text-primary);
   font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
 }

@@ -1,19 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ChevronRight,
-  CircleHelp,
   Cloud,
   Code,
-  FolderPlus,
-  Globe,
-  LogOut,
   MoreHorizontal,
-  RefreshCw,
-  Settings,
   Sparkles,
   Wand2,
-  X,
 } from 'lucide-react';
+import { AvatarDropdown } from './AvatarDropdown';
 
 interface SidebarUser {
   name?: string | null;
@@ -143,63 +137,12 @@ export function Sidebar({ user, onLogout, onOpenSettings }: SidebarProps) {
           </div>
         </button>
 
-        {menuOpen && (
-          <div className="absolute bottom-[60px] left-2 right-2 z-40 rounded-[18px] border border-[#e5e5e5] bg-[#f8f8f8] px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.08)]">
-            <button
-              className="mb-1 flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-[20px] text-[#1f1f1f] hover:bg-white/70"
-              onClick={() => {
-                setMenuOpen(false);
-                onOpenSettings?.();
-              }}
-            >
-              <Settings className="h-6 w-6" />
-              <span>设置</span>
-            </button>
-
-            <button className="mb-1 flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-[20px] text-[#1f1f1f] hover:bg-white/70">
-              <FolderPlus className="h-6 w-6" />
-              <span>收藏夹</span>
-            </button>
-
-            <div className="my-2 h-px bg-[#e2e2e2]" />
-
-            <button className="mb-1 flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-[20px] text-[#1f1f1f] hover:bg-white/70">
-              <Globe className="h-6 w-6" />
-              <span>豆包官网</span>
-            </button>
-
-            <div className="mb-1 flex items-center gap-3 rounded-lg px-2 py-2 text-[20px] text-[#1f1f1f]">
-              <RefreshCw className="h-6 w-6" />
-              <span className="flex-1">新版本已安装</span>
-              <button className="rounded-xl bg-[#ececec] px-4 py-2 text-[14px] text-[#2a2a2a]">重启应用</button>
-            </div>
-
-            <button className="mb-1 flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-[20px] text-[#1f1f1f] hover:bg-white/70">
-              <CircleHelp className="h-6 w-6" />
-              <span>帮助与反馈</span>
-            </button>
-
-            <div className="my-2 h-px bg-[#e2e2e2]" />
-
-            <button
-              className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-[20px] text-[#1f1f1f] hover:bg-white/70"
-              onClick={() => {
-                setMenuOpen(false);
-                onLogout?.();
-              }}
-            >
-              <LogOut className="h-6 w-6" />
-              <span>退出登录</span>
-            </button>
-
-            <button
-              className="absolute right-2 top-2 rounded-md p-1 text-[#8f8f8f] hover:bg-white/80"
-              onClick={() => setMenuOpen(false)}
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        )}
+        <AvatarDropdown
+          open={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          onOpenSettings={() => onOpenSettings?.()}
+          onLogout={() => onLogout?.()}
+        />
       </div>
     </div>
   );

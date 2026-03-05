@@ -9,6 +9,13 @@ export type IdentityConfig = {
   selfIntroStyle: string;
 };
 
+export type GeneralConfig = {
+  themeMode: 'light' | 'dark' | 'system';
+  language: string;
+  startupBehavior: string;
+  updateStrategy: string;
+};
+
 export type UserProfileConfig = {
   preferredName: string;
   language: string;
@@ -44,12 +51,14 @@ export type SafetyDefaultsConfig = {
 };
 
 export type SettingsState = {
+  general: GeneralConfig;
   identity: IdentityConfig;
   userProfile: UserProfileConfig;
   soulPersona: SoulPersonaConfig;
   channelPreference: ChannelPreferenceConfig;
   safetyDefaults: SafetyDefaultsConfig;
   configStatuses: {
+    general: ConfigStatus;
     identity: ConfigStatus;
     userProfile: ConfigStatus;
     soulPersona: ConfigStatus;
@@ -61,6 +70,7 @@ export type SettingsState = {
 
 type SettingsContextType = {
   settings: SettingsState;
+  updateGeneral: (config: Partial<GeneralConfig>) => void;
   updateIdentity: (config: Partial<IdentityConfig>) => void;
   updateUserProfile: (config: Partial<UserProfileConfig>) => void;
   updateSoulPersona: (config: Partial<SoulPersonaConfig>) => void;
@@ -71,6 +81,12 @@ type SettingsContextType = {
 };
 
 const defaultSettings: SettingsState = {
+  general: {
+    themeMode: 'system',
+    language: '简体中文',
+    startupBehavior: '即将支持',
+    updateStrategy: '即将支持',
+  },
   identity: {
     assistantName: 'iClaw 助手',
     emoji: '🐾',
@@ -108,6 +124,7 @@ const defaultSettings: SettingsState = {
     toolFallbackPolicy: '优雅降级',
   },
   configStatuses: {
+    general: 'using-default',
     identity: 'using-default',
     userProfile: 'not-configured',
     soulPersona: 'using-default',
@@ -130,6 +147,15 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       ...prev,
       identity: { ...prev.identity, ...config },
       configStatuses: { ...prev.configStatuses, identity: 'customized' },
+      hasUnsavedChanges: true,
+    }));
+  };
+
+  const updateGeneral = (config: Partial<GeneralConfig>) => {
+    setSettings((prev) => ({
+      ...prev,
+      general: { ...prev.general, ...config },
+      configStatuses: { ...prev.configStatuses, general: 'customized' },
       hasUnsavedChanges: true,
     }));
   };
@@ -187,6 +213,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     <SettingsContext.Provider
       value={{
         settings,
+        updateGeneral,
         updateIdentity,
         updateUserProfile,
         updateSoulPersona,

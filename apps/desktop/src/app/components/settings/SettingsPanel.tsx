@@ -8,9 +8,11 @@ import {
   UserCircle,
   ChevronLeft,
   X,
+  Settings2,
 } from 'lucide-react';
 import { useSettings } from '@/app/contexts/settings-context';
 import { SettingsOverview, type SettingsSection } from '@/app/components/settings/SettingsOverview';
+import { SettingsGeneral } from '@/app/components/settings/SettingsGeneral';
 import { Identity } from '@/app/components/settings/Identity';
 import { UserProfile } from '@/app/components/settings/UserProfile';
 import { SoulPersona } from '@/app/components/settings/SoulPersona';
@@ -24,6 +26,7 @@ interface SettingsPanelProps {
 
 const navItems: Array<{ key: SettingsSection; label: string; icon: ComponentType<{ className?: string }> }> = [
   { key: 'overview', label: '概览', icon: LayoutGrid },
+  { key: 'general', label: '通用', icon: Settings2 },
   { key: 'identity', label: '身份设置', icon: UserCircle },
   { key: 'user-profile', label: '用户资料', icon: User },
   { key: 'soul-persona', label: '人格配置', icon: Sparkles },
@@ -38,6 +41,8 @@ export function SettingsPanel({ onClose, onSave }: SettingsPanelProps) {
 
   const content = useMemo(() => {
     switch (activeSection) {
+      case 'general':
+        return <SettingsGeneral />;
       case 'identity':
         return <Identity />;
       case 'user-profile':
