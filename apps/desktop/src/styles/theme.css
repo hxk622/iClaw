@@ -1,6 +1,8 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  --font-size: 16px;
+
   --bg-page: #fafafa;
   --bg-card: #ffffff;
   --bg-elevated: #ffffff;
@@ -9,7 +11,9 @@
   --text-primary: #171717;
   --text-secondary: #525252;
   --text-muted: #a3a3a3;
+  --text-disabled: #d4d4d4;
 
+  --border-subtle: #f5f5f5;
   --border-default: #e5e5e5;
   --border-strong: #d4d4d4;
 
@@ -17,15 +21,21 @@
   --brand-primary-hover: #2563eb;
   --brand-on-primary: #ffffff;
 
+  --state-success: #22c55e;
+  --state-warn: #f59e0b;
   --state-error: #ef4444;
   --state-info: #3b82f6;
 
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-dropdown: 0 4px 12px 0 rgb(0 0 0 / 0.08);
   --shadow-popover: 0 8px 16px 0 rgb(0 0 0 / 0.1);
+  --shadow-modal: 0 12px 24px 0 rgb(0 0 0 / 0.12);
 
   --motion-micro: 150ms;
   --motion-panel: 220ms;
   --motion-page: 260ms;
   --motion-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
   --background: var(--bg-page);
   --foreground: var(--text-primary);
@@ -33,11 +43,11 @@
   --card-foreground: var(--text-primary);
   --primary: var(--brand-primary);
   --primary-foreground: var(--brand-on-primary);
-  --secondary: #f5f5f5;
+  --secondary: var(--bg-hover);
   --secondary-foreground: var(--text-primary);
-  --muted: #f5f5f5;
+  --muted: var(--bg-hover);
   --muted-foreground: #737373;
-  --accent: #f5f5f5;
+  --accent: var(--bg-hover);
   --accent-foreground: var(--text-primary);
   --destructive: var(--state-error);
   --destructive-foreground: #ffffff;
@@ -55,7 +65,9 @@
   --text-primary: #fafafa;
   --text-secondary: #a3a3a3;
   --text-muted: #525252;
+  --text-disabled: #404040;
 
+  --border-subtle: #262626;
   --border-default: #404040;
   --border-strong: #525252;
 
@@ -63,10 +75,15 @@
   --brand-primary-hover: #b89850;
   --brand-on-primary: #ffffff;
 
+  --state-success: #22c55e;
+  --state-warn: #f59e0b;
   --state-error: #ef4444;
   --state-info: #c9a961;
 
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-dropdown: 0 4px 12px 0 rgb(0 0 0 / 0.4);
   --shadow-popover: 0 8px 16px 0 rgb(0 0 0 / 0.5);
+  --shadow-modal: 0 12px 24px 0 rgb(0 0 0 / 0.6);
 
   --background: var(--bg-page);
   --foreground: var(--text-primary);
@@ -74,11 +91,11 @@
   --card-foreground: var(--text-primary);
   --primary: var(--brand-primary);
   --primary-foreground: var(--brand-on-primary);
-  --secondary: #262626;
+  --secondary: var(--bg-hover);
   --secondary-foreground: var(--text-primary);
-  --muted: #262626;
+  --muted: var(--bg-hover);
   --muted-foreground: #a3a3a3;
-  --accent: #262626;
+  --accent: var(--bg-hover);
   --accent-foreground: var(--text-primary);
   --destructive: var(--state-error);
   --destructive-foreground: #ffffff;
@@ -105,4 +122,18 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+}
+
+@layer base {
+  html {
+    font-size: var(--font-size);
+  }
+
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
 }

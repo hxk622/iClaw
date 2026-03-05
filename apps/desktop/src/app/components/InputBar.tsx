@@ -17,14 +17,14 @@ export function InputBar({ onSend, disabled = false }: InputBarProps) {
   };
 
   return (
-    <div className="bg-white py-4">
+    <div className="bg-[var(--bg-page)] py-4">
       <div className="mx-auto max-w-[1000px] px-8">
-        <div className="relative rounded-2xl border-2 border-[#e5e5e5] bg-white shadow-sm transition-colors hover:border-[#d4d4d4] focus-within:border-[#3b82f6]">
+        <div className="relative rounded-3xl border-2 border-[var(--border-default)] bg-[var(--bg-card)] shadow-[var(--shadow-sm)] transition-colors duration-[var(--motion-micro)] hover:border-[var(--border-strong)] focus-within:border-[var(--brand-primary)]">
           <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="发消息..."
-            className="min-h-[52px] w-full resize-none bg-transparent px-4 pt-4 pb-3 text-[15px] text-[#1f1f1f] outline-none placeholder:text-[#8f8f8f]"
+            className="min-h-[56px] w-full resize-none bg-transparent px-5 pt-4 pb-3 text-[15px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
             rows={1}
             disabled={disabled}
             onKeyDown={(e) => {
@@ -38,10 +38,11 @@ export function InputBar({ onSend, disabled = false }: InputBarProps) {
           <div className="flex items-center justify-end gap-2 px-3 pb-3 pt-1">
             <button
               onClick={() => void handleSend()}
-              className="rounded-lg bg-[#3b82f6] p-2 transition-colors hover:bg-[#2563eb] disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-xl bg-[var(--brand-primary)] p-2.5 transition-all duration-[var(--motion-micro)] hover:scale-[1.03] hover:bg-[var(--brand-primary-hover)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ transitionTimingFunction: 'var(--motion-spring)' }}
               disabled={!message.trim() || disabled}
             >
-              <Send className="h-5 w-5 text-white" />
+              <Send className="h-5 w-5 text-[var(--brand-on-primary)]" />
             </button>
           </div>
         </div>

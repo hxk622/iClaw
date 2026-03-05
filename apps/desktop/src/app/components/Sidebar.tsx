@@ -83,57 +83,60 @@ export function Sidebar({ user, onLogout, onOpenSettings }: SidebarProps) {
   }, [menuOpen]);
 
   return (
-    <div className="flex h-screen w-[246px] flex-col bg-[#f7f7f7]">
+    <div className="flex h-screen w-[248px] flex-col border-r border-[var(--border-default)] bg-[var(--bg-page)]">
       <div className="px-4 pt-5 pb-4">
         <div
           title={brandText}
-          className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-white/50"
+          className="group flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 transition-colors duration-[var(--motion-micro)] hover:bg-[var(--bg-hover)]"
         >
-          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-[#e8e8e8] bg-white">
+          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-[var(--border-default)] bg-[var(--bg-card)]">
             <img src="/logo.png" alt="iClaw logo" className="h-full w-full object-cover" />
           </div>
-          <span className="text-[15px] text-[#1f1f1f]">{brandText}</span>
+          <span className="text-[15px] font-medium text-[var(--text-primary)]">{brandText}</span>
         </div>
       </div>
 
       <div className="space-y-1 px-4">
         {menuItems.map((item) => (
-          <div
+          <button
             key={item.label}
-            className="group flex cursor-pointer items-center justify-between rounded-lg px-3 py-2.5 transition-colors hover:bg-white/50"
+            className="group flex w-full cursor-pointer items-center justify-between rounded-lg px-3 py-2.5 text-left transition-all duration-[var(--motion-micro)] hover:translate-x-[2px] hover:bg-[var(--bg-hover)]"
+            style={{ transitionTimingFunction: 'var(--motion-spring)' }}
           >
             <div className="flex items-center gap-3">
-              <item.icon className="h-5 w-5 text-[#1f1f1f]" />
-              <span className="text-[14px] text-[#1f1f1f]">{item.label}</span>
+              <item.icon className="h-5 w-5 text-[var(--text-secondary)]" />
+              <span className="text-[14px] text-[var(--text-primary)]">{item.label}</span>
             </div>
             {item.hasArrow && (
-              <ChevronRight className="h-4 w-4 text-[#8f8f8f] opacity-0 transition-opacity group-hover:opacity-100" />
+              <ChevronRight className="h-4 w-4 text-[var(--text-muted)] opacity-0 transition-opacity group-hover:opacity-100" />
             )}
-          </div>
+          </button>
         ))}
       </div>
 
-      <div className="mx-4 my-4 h-px bg-[#e5e5e5]" />
+      <div className="mx-4 my-4 h-px bg-[var(--border-default)]" />
 
       <div className="flex-1 overflow-y-auto px-4">
-        <div className="rounded-lg px-3 py-2.5 text-[14px] text-[#646464]">v0 仅实现基础对话</div>
+        <div className="rounded-lg bg-[var(--bg-hover)] px-3 py-2.5 text-[13px] text-[var(--text-secondary)]">
+          v0 仅实现基础对话
+        </div>
       </div>
 
-      <div className="relative border-t border-[#e5e5e5] px-4 py-2.5" ref={menuRef}>
+      <div className="relative border-t border-[var(--border-default)] px-4 py-2.5" ref={menuRef}>
         <button
           onClick={() => setMenuOpen((v) => !v)}
-          className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-white/50"
+          className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 text-left transition-colors duration-[var(--motion-micro)] hover:bg-[var(--bg-hover)]"
         >
-          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-blue-400 to-purple-500 text-sm font-medium text-white">
+          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-hover)] text-sm font-medium text-[var(--brand-on-primary)]">
             {resolveAvatarUrl(user) ? (
               <img src={resolveAvatarUrl(user)!} alt="user avatar" className="h-full w-full object-cover" />
             ) : (
               userInitial(user)
             )}
           </div>
-          <div className="flex-1">
-            <div className="truncate text-[13px] text-[#1f1f1f]">{resolveUserName(user)}</div>
-            <div className="text-[11px] text-[#8f8f8f]">v0 preview</div>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13px] text-[var(--text-primary)]">{resolveUserName(user)}</div>
+            <div className="text-[11px] text-[var(--text-muted)]">v0 preview</div>
           </div>
         </button>
 

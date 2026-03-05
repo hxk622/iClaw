@@ -353,7 +353,7 @@ function AuthedView({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white">
+    <div className="flex h-screen overflow-hidden bg-[var(--bg-page)]">
       <Sidebar user={currentUser} onOpenSettings={() => setActiveView('settings')} onLogout={handleLogout} />
       <div className="flex flex-1 flex-col">
         <HealthStatusBar
