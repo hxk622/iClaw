@@ -221,6 +221,7 @@ else
   if ! download_release_binary; then
     echo "Failed to prepare openclaw-server sidecar binary" >&2
     echo "Hint: provide OPENCLAW_BINARY_PATH=/path/to/openclaw-server" >&2
+    echo "Hint: or build runtime from source: OPENCLAW_SOURCE_DIR=/path/to/openclaw bash scripts/build-openclaw-server-runtime.sh" >&2
     exit 1
   fi
   SOURCE_BIN="$DOWNLOADED_BIN"
