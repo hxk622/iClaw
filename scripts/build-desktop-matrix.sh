@@ -20,11 +20,17 @@ mkdir -p "$OUT_DIR"
 build_one() {
   local target="$1"
   local channel="$2"
-  local api_base_url
+  local node_env
   local arch_label
 
-  # Desktop app always talks to bundled local sidecar (gateway/API).
-  api_base_url="http://127.0.0.1:2126"
+  if [[ "$channel" == "dev" ]]; then
+    node_env="dev"
+  elif [[ "$channel" == "prod" ]]; then
+    node_env="prod"
+  else
+    echo "Unsupported channel: $channel" >&2
+    exit 1
+  fi
 
   if [[ "$target" == "aarch64-apple-darwin" ]]; then
     arch_label="aarch64"
@@ -36,11 +42,11 @@ build_one() {
 
   # Ensure target-specific sidecar name exists before tauri bundles externalBin.
   bash "$ROOT_DIR/scripts/build-openclaw.sh" "$target"
+  NODE_ENV="$node_env" bash "$ROOT_DIR/scripts/env.sh"
 
   (
     cd "$DESKTOP_DIR"
-    VITE_BUILD_CHANNEL="$channel" \
-    VITE_API_BASE_URL="$api_base_url" \
+    NODE_ENV="$node_env" \
     pnpm tauri build --target "$target"
   )
 

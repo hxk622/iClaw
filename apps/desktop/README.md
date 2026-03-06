@@ -4,11 +4,10 @@ iClaw 桌面壳（UI + Tauri）。
 
 ## 开发
 
-1. 复制环境变量：
-   `cp .env.example .env`
-2. 设置：
-   - `VITE_API_BASE_URL`
-   - `VITE_SIDE_CAR_ARGS`
+1. 在仓库根目录切换环境：
+   `pnpm env:dev`
+2. 如需修改配置，编辑根目录：
+   - `.env.dev` / `.env.test` / `.env.prod`
 3. 启动：
    `pnpm dev:desktop`
 

@@ -5,15 +5,26 @@
   "packageManager": "pnpm@10",
   "scripts": {
     "dev": "pnpm dev:all",
+    "env:dev": "bash scripts/env.sh dev",
+    "env:test": "bash scripts/env.sh test",
+    "env:prod": "bash scripts/env.sh prod",
+    "env:switch": "bash scripts/env.sh",
     "version:set": "bash scripts/version.sh",
+    "predev:all": "bash scripts/env.sh dev",
     "dev:all": "bash scripts/dev-all.sh",
+    "predev:api": "bash scripts/env.sh dev",
     "dev:api": "bash scripts/dev-api.sh",
+    "predev:web": "bash scripts/env.sh dev",
     "dev:web": "bash scripts/dev-web.sh",
     "dev:home": "pnpm --dir home dev",
     "build:home": "pnpm --dir home build",
-    "dev:desktop": "pnpm --filter @iclaw/desktop dev --host 0.0.0.0 --port 1520",
+    "predev:desktop": "bash scripts/env.sh dev",
+    "dev:desktop": "pnpm --filter @iclaw/desktop dev --host 0.0.0.0 --port 1520 --strictPort",
+    "prebuild:desktop": "bash scripts/env.sh ${NODE_ENV:-prod}",
     "build:desktop": "pnpm --filter @iclaw/desktop build",
+    "pretauri:dev": "bash scripts/env.sh ${NODE_ENV:-dev}",
     "tauri:dev": "pnpm --filter @iclaw/desktop tauri:dev",
+    "pretauri:build": "bash scripts/env.sh ${NODE_ENV:-prod}",
     "tauri:build": "pnpm --filter @iclaw/desktop tauri:build"
   }
 }

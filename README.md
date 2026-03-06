@@ -26,6 +26,22 @@ scripts/            # Build/release scripts
 
 See `docs/` for product decisions and contracts.
 
+## 环境切换
+
+统一使用根目录环境文件：
+
+- `.env.dev`
+- `.env.test`
+- `.env.prod`
+
+在编译/启动前，通过脚本生成 `.env`：
+
+```bash
+pnpm env:dev
+pnpm env:test
+pnpm env:prod
+```
+
 ## Web 调试（免 DMG）
 
 仅启动前端 Web（不自动拉起后端）：

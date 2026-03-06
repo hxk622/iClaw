@@ -27,12 +27,11 @@ bash scripts/build-desktop-matrix.sh
 ## 环境行为
 
 - dev 包：
-  - `VITE_BUILD_CHANNEL=dev`
-  - `VITE_API_BASE_URL=http://127.0.0.1:2126`
+  - `NODE_ENV=dev`，自动应用 `.env.dev -> .env`
   - Logo hover 显示 `iClaw-dev`
 - prod 包：
-  - `VITE_BUILD_CHANNEL=prod`
-  - `VITE_API_BASE_URL=http://127.0.0.1:2126`（桌面端固定走内置 sidecar）
+  - `NODE_ENV=prod`，自动应用 `.env.prod -> .env`
+  - 桌面端 API/Gateway 固定走内置 sidecar（`127.0.0.1:2126`）
 
 ## 下载站部署
 
