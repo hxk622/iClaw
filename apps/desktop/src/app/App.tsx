@@ -1,7 +1,7 @@
 import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from 'react';
 import { IClawClient } from '@iclaw/sdk';
 import { clearAuth, readAuth, writeAuth } from './lib/auth-storage';
-import { isTauriRuntime, startSidecar } from './lib/tauri-sidecar';
+import { isTauriRuntime, loadGatewayAuth, startSidecar } from './lib/tauri-sidecar';
 import { diagnoseRuntime, type RuntimeDiagnosis } from './lib/tauri-runtime-config';
 import { AuthPanel } from './components/AuthPanel';
 import { ChatWorkspace } from './components/ChatWorkspace';
@@ -11,6 +11,7 @@ import { SettingsPanel } from './components/settings/SettingsPanel';
 import { SettingsProvider, useSettings } from './contexts/settings-context';
 import { saveIclawSettingsAndApply } from './lib/iclaw-settings';
 import { beginChatRun, appendUserMessage, createInitialChatState, handleChatEvent } from './chat-core/controller';
+import { extractText } from './chat-core/message-extract';
 import type { ChatEventPayload, ChatEventState, ChatRuntimeState } from './chat-core/types';
 
 interface Message {
@@ -26,22 +27,37 @@ interface AuthUser {
   avatar_url?: string | null;
 }
 
-const DEFAULT_API_BASE_URL = import.meta.env.PROD
-  ? 'https://openalpha.aiyuanxi.com'
-  : 'http://127.0.0.1:2126';
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || DEFAULT_API_BASE_URL;
-const AUTH_BASE_URL =
-  (import.meta.env.VITE_AUTH_BASE_URL as string) || 'https://openalpha.aiyuanxi.com';
-const GATEWAY_WS_URL =
-  (import.meta.env.VITE_GATEWAY_WS_URL as string) ||
-  API_BASE_URL.replace(/^http:\/\//, 'ws://').replace(/^https:\/\//, 'wss://');
-const GATEWAY_TOKEN = (import.meta.env.VITE_GATEWAY_TOKEN as string) || undefined;
-const GATEWAY_PASSWORD = (import.meta.env.VITE_GATEWAY_PASSWORD as string) || undefined;
-const CHAT_SESSION_KEY = 'main';
+function resolveSidecarPort(args: string[]): string {
+  for (let i = 0; i < args.length; i += 1) {
+    if (args[i] !== '--port') continue;
+    const next = args[i + 1];
+    if (next && /^\d+$/.test(next)) return next;
+  }
+  return '2126';
+}
+
 const SIDE_CAR_ARGS = ((import.meta.env.VITE_SIDE_CAR_ARGS as string) || '--port 2126')
   .split(' ')
   .map((s) => s.trim())
   .filter(Boolean);
+const SIDECAR_PORT = resolveSidecarPort(SIDE_CAR_ARGS);
+const LOCAL_API_BASE_URL = `http://127.0.0.1:${SIDECAR_PORT}`;
+const CLOUD_API_BASE_URL = 'https://openalpha.aiyuanxi.com';
+const IS_TAURI_RUNTIME = isTauriRuntime();
+const DEFAULT_API_BASE_URL = import.meta.env.PROD ? CLOUD_API_BASE_URL : LOCAL_API_BASE_URL;
+const CONFIGURED_API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || DEFAULT_API_BASE_URL;
+// Desktop DMG must always talk to local bundled sidecar for health/gateway.
+const API_BASE_URL = IS_TAURI_RUNTIME ? LOCAL_API_BASE_URL : CONFIGURED_API_BASE_URL;
+const AUTH_BASE_URL =
+  (import.meta.env.VITE_AUTH_BASE_URL as string) || 'https://openalpha.aiyuanxi.com';
+const DEFAULT_GATEWAY_WS_URL = API_BASE_URL.replace(/^http:\/\//, 'ws://').replace(/^https:\/\//, 'wss://');
+const GATEWAY_WS_URL =
+  IS_TAURI_RUNTIME
+    ? DEFAULT_GATEWAY_WS_URL
+    : (import.meta.env.VITE_GATEWAY_WS_URL as string) || DEFAULT_GATEWAY_WS_URL;
+const GATEWAY_TOKEN = (import.meta.env.VITE_GATEWAY_TOKEN as string) || undefined;
+const GATEWAY_PASSWORD = (import.meta.env.VITE_GATEWAY_PASSWORD as string) || undefined;
+const CHAT_SESSION_KEY = 'main';
 
 function createId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -113,17 +129,58 @@ function toUiMessages(state: ChatRuntimeState): Message[] {
   return mapped;
 }
 
+function mapHistoryMessages(payload: unknown): ChatRuntimeState['messages'] {
+  const data = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
+  const history = Array.isArray(data.messages) ? data.messages : Array.isArray(payload) ? payload : [];
+  const now = Date.now();
+  return history
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const message = item as Record<string, unknown>;
+      const role = typeof message.role === 'string' ? message.role : '';
+      if (role !== 'user' && role !== 'assistant') return null;
+      const text = extractText(message);
+      if (!text) return null;
+      return {
+        id: typeof message.id === 'string' ? message.id : undefined,
+        role,
+        content: [{ type: 'text', text }],
+        timestamp: typeof message.timestamp === 'number' ? message.timestamp : now,
+      };
+    })
+    .filter((value): value is ChatRuntimeState['messages'][number] => value !== null);
+}
+
 export default function App() {
+  const [gatewayAuth, setGatewayAuth] = useState<{ token?: string; password?: string }>({
+    token: GATEWAY_TOKEN,
+    password: GATEWAY_PASSWORD,
+  });
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    if (gatewayAuth.token || gatewayAuth.password) return;
+    void loadGatewayAuth().then((auth) => {
+      if (!auth) return;
+      const token = typeof auth.token === 'string' && auth.token.trim() ? auth.token.trim() : undefined;
+      const password =
+        typeof auth.password === 'string' && auth.password.trim() ? auth.password.trim() : undefined;
+      if (!token && !password) return;
+      setGatewayAuth({ token, password });
+    });
+  }, [gatewayAuth.password, gatewayAuth.token]);
+
   const client = useMemo(
     () =>
       new IClawClient({
         apiBaseUrl: API_BASE_URL,
         authBaseUrl: AUTH_BASE_URL,
         gatewayWsUrl: GATEWAY_WS_URL,
-        gatewayToken: GATEWAY_TOKEN,
-        gatewayPassword: GATEWAY_PASSWORD,
+        gatewayToken: gatewayAuth.token,
+        gatewayPassword: gatewayAuth.password,
+        preferGatewayWs: true,
       }),
-    [],
+    [gatewayAuth.password, gatewayAuth.token],
   );
   const [chatState, setChatState] = useState<ChatRuntimeState>(() => createInitialChatState(CHAT_SESSION_KEY));
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -257,8 +314,31 @@ export default function App() {
     setChatState(createInitialChatState(CHAT_SESSION_KEY));
   };
 
+  const syncChatHistory = async () => {
+    try {
+      const payload = await client.chatHistory({ sessionKey: CHAT_SESSION_KEY, limit: 200 });
+      const messages = mapHistoryMessages(payload);
+      setChatState((prev) => ({
+        ...prev,
+        messages,
+        runId: null,
+        streamText: null,
+        streamStartedAt: null,
+        lastError: null,
+      }));
+    } catch (e) {
+      setChatState((prev) => ({
+        ...prev,
+        runId: null,
+        streamText: null,
+        streamStartedAt: null,
+        lastError: e instanceof Error ? e.message : 'chat history sync failed',
+      }));
+    }
+  };
+
   const sendMessage = async (content: string) => {
-    if ((!accessToken && !sessionAuthed) || !healthy) return;
+    if (!accessToken && !sessionAuthed) return;
     const text = content.trim();
     if (!text || chatState.runId) return;
 
@@ -269,6 +349,7 @@ export default function App() {
       await client.streamChat(
         {
           message: text,
+          runId,
           token: accessToken || undefined,
         },
         {
@@ -282,8 +363,8 @@ export default function App() {
             setChatState((prev) => handleChatEvent(prev, event));
           },
           onEnd: (payload) => {
-            const event = buildChatEventPayload('final', runId, CHAT_SESSION_KEY, payload);
-            setChatState((prev) => handleChatEvent(prev, event));
+            void payload;
+            void syncChatHistory();
           },
           onError: (e) => {
             const event = buildChatEventPayload('error', runId, CHAT_SESSION_KEY, {
@@ -306,6 +387,12 @@ export default function App() {
       );
     }
   };
+
+  useEffect(() => {
+    if (!accessToken && !sessionAuthed) return;
+    void syncChatHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessToken, sessionAuthed]);
 
   useEffect(() => {
     let cancelled = false;
@@ -445,7 +532,7 @@ function AuthedView({
         messages={messages}
         streaming={streaming}
         error={error}
-        disabled={streaming || !healthy}
+        disabled={streaming}
         onSend={sendMessage}
       />
     </div>

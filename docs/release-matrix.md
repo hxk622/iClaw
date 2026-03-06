@@ -32,7 +32,7 @@ bash scripts/build-desktop-matrix.sh
   - Logo hover 显示 `iClaw-dev`
 - prod 包：
   - `VITE_BUILD_CHANNEL=prod`
-  - `VITE_API_BASE_URL=https://openalpha.aiyuanxi.com`
+  - `VITE_API_BASE_URL=http://127.0.0.1:2126`（桌面端固定走内置 sidecar）
 
 ## 下载站部署
 

@@ -4,7 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DESKTOP_DIR="$ROOT_DIR/apps/desktop"
 OUT_DIR="$ROOT_DIR/dist/releases"
-VERSION="${1:-$(node -p "require('$ROOT_DIR/package.json').version")}"
+APP_VERSION="$(node -p "require('$ROOT_DIR/package.json').version")"
+timestamp="$(date +%Y%m%d%H%M)"
+RELEASE_VERSION="${1:-${APP_VERSION}.${timestamp}}"
 
 TARGETS=(
   "aarch64-apple-darwin"
@@ -21,11 +23,8 @@ build_one() {
   local api_base_url
   local arch_label
 
-  if [[ "$channel" == "dev" ]]; then
-    api_base_url="http://127.0.0.1:2126"
-  else
-    api_base_url="https://openalpha.aiyuanxi.com"
-  fi
+  # Desktop app always talks to bundled local sidecar (gateway/API).
+  api_base_url="http://127.0.0.1:2126"
 
   if [[ "$target" == "aarch64-apple-darwin" ]]; then
     arch_label="aarch64"
@@ -45,13 +44,17 @@ build_one() {
     pnpm tauri build --target "$target"
   )
 
-  local dmg_path="$DESKTOP_DIR/src-tauri/target/$target/release/bundle/dmg/iClaw_${VERSION}_${arch_label}.dmg"
+  local dmg_dir="$DESKTOP_DIR/src-tauri/target/$target/release/bundle/dmg"
+  local dmg_path="$dmg_dir/iClaw_${APP_VERSION}_${arch_label}.dmg"
   if [[ ! -f "$dmg_path" ]]; then
-    echo "Expected DMG not found: $dmg_path" >&2
+    dmg_path="$dmg_dir/iClaw-理财客_${APP_VERSION}_${arch_label}.dmg"
+  fi
+  if [[ ! -f "$dmg_path" ]]; then
+    echo "Expected DMG not found under: $dmg_dir (appVersion=$APP_VERSION arch=$arch_label)" >&2
     exit 1
   fi
 
-  local out_file="$OUT_DIR/iClaw_${VERSION}_${arch_label}_${channel}.dmg"
+  local out_file="$OUT_DIR/iClaw_${RELEASE_VERSION}_${arch_label}_${channel}.dmg"
   cp "$dmg_path" "$out_file"
   echo "saved: $out_file"
 }
