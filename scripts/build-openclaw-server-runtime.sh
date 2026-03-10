@@ -131,6 +131,8 @@ else
   ensure_runtime_dependencies
 fi
 
+openclaw_patch_package_runtime_http_cors "$SOURCE_DIR"
+
 RUNTIME_DIR="$ROOT_DIR/services/openclaw/runtime/openclaw"
 NODE_DIR="$ROOT_DIR/services/openclaw/runtime/node"
 BIN_DIR="$ROOT_DIR/services/openclaw/bin"

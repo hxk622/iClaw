@@ -131,6 +131,143 @@ openclaw_package_has_runtime_deps() {
   [[ -f "$source_dir/node_modules/chalk/package.json" ]]
 }
 
+openclaw_patch_package_runtime_http_cors() {
+  local source_dir="$1"
+  local dist_dir="$source_dir/dist"
+
+  [[ -d "$dist_dir" ]] || return 0
+
+  SOURCE_DIR_FOR_PATCH="$source_dir" node <<'EOF'
+const fs = require('fs');
+const path = require('path');
+
+const sourceDir = process.env.SOURCE_DIR_FOR_PATCH;
+if (!sourceDir) process.exit(0);
+
+const distDir = path.join(sourceDir, 'dist');
+if (!fs.existsSync(distDir) || !fs.statSync(distDir).isDirectory()) process.exit(0);
+
+const gatewayCorsSnippet = `const ICLAW_DESKTOP_ALLOWED_ORIGINS = new Set([
+\t"http://127.0.0.1:1520",
+\t"http://localhost:1520",
+\t"https://tauri.localhost",
+\t"http://tauri.localhost",
+\t"tauri://localhost"
+]);
+function resolveIclawDesktopCorsOrigin(originHeader) {
+\tconst origin = typeof originHeader === "string" ? originHeader.trim() : "";
+\tif (!origin) return null;
+\treturn ICLAW_DESKTOP_ALLOWED_ORIGINS.has(origin) ? origin : null;
+}
+function applyIclawDesktopCorsHeaders(req, res) {
+\tconst allowOrigin = resolveIclawDesktopCorsOrigin(req.headers.origin);
+\tif (!allowOrigin) return false;
+\tres.setHeader("Access-Control-Allow-Origin", allowOrigin);
+\tres.setHeader("Access-Control-Allow-Credentials", "true");
+\tres.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+\tres.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-OpenClaw-Password");
+\tres.setHeader("Vary", "Origin");
+\treturn true;
+}
+`;
+
+const browserCorsSnippet = `const ICLAW_DESKTOP_ALLOWED_ORIGINS = new Set([
+\t"http://127.0.0.1:1520",
+\t"http://localhost:1520",
+\t"https://tauri.localhost",
+\t"http://tauri.localhost",
+\t"tauri://localhost"
+]);
+function resolveIclawDesktopCorsOrigin(originHeader) {
+\tconst origin = typeof originHeader === "string" ? originHeader.trim() : "";
+\tif (!origin) return null;
+\treturn ICLAW_DESKTOP_ALLOWED_ORIGINS.has(origin) ? origin : null;
+}
+function applyIclawDesktopCorsHeaders(req, res) {
+\tconst allowOrigin = resolveIclawDesktopCorsOrigin(req.headers.origin);
+\tif (!allowOrigin) return false;
+\tres.setHeader("Access-Control-Allow-Origin", allowOrigin);
+\tres.setHeader("Access-Control-Allow-Credentials", "true");
+\tres.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+\tres.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-OpenClaw-Password");
+\tres.setHeader("Vary", "Origin");
+\treturn true;
+}
+`;
+
+function patchGatewayFile(filePath) {
+  let raw = fs.readFileSync(filePath, 'utf8');
+  if (raw.includes('ICLAW_DESKTOP_ALLOWED_ORIGINS')) return false;
+  if (!raw.includes('function createGatewayHttpServer(opts) {')) return false;
+  if (!raw.includes('setDefaultSecurityHeaders(res, { strictTransportSecurity: strictTransportSecurityHeader });')) {
+    throw new Error(`gateway server patch anchor missing in ${filePath}`);
+  }
+
+  raw = raw.replace(
+    'function createGatewayHttpServer(opts) {',
+    `${gatewayCorsSnippet}\nfunction createGatewayHttpServer(opts) {`,
+  );
+  raw = raw.replace(
+    'setDefaultSecurityHeaders(res, { strictTransportSecurity: strictTransportSecurityHeader });',
+    `setDefaultSecurityHeaders(res, { strictTransportSecurity: strictTransportSecurityHeader });\n\t\t\tapplyIclawDesktopCorsHeaders(req, res);\n\t\t\tif (req.method === "OPTIONS") {\n\t\t\t\tres.statusCode = 204;\n\t\t\t\tres.end();\n\t\t\t\treturn;\n\t\t\t}`,
+  );
+  fs.writeFileSync(filePath, raw);
+  return true;
+}
+
+function patchBrowserMiddlewareFile(filePath) {
+  let raw = fs.readFileSync(filePath, 'utf8');
+  if (raw.includes('ICLAW_DESKTOP_ALLOWED_ORIGINS')) return false;
+  if (!raw.includes('function installBrowserCommonMiddleware(app) {')) return false;
+  if (!raw.includes('app.use(express.json({ limit: "1mb" }));')) {
+    throw new Error(`browser middleware patch anchor missing in ${filePath}`);
+  }
+
+  raw = raw.replace(
+    'function installBrowserCommonMiddleware(app) {',
+    `${browserCorsSnippet}\nfunction installBrowserCommonMiddleware(app) {`,
+  );
+  raw = raw.replace(
+    'function installBrowserCommonMiddleware(app) {\n\tapp.use((req, res, next) => {',
+    'function installBrowserCommonMiddleware(app) {\n\tapp.use((req, res, next) => {\n\t\tapplyIclawDesktopCorsHeaders(req, res);\n\t\tif (req.method === "OPTIONS") {\n\t\t\tres.status(204).end();\n\t\t\treturn;\n\t\t}\n\t\tnext();\n\t});\n\tapp.use((req, res, next) => {',
+  );
+  fs.writeFileSync(filePath, raw);
+  return true;
+}
+
+function collectJavaScriptFiles(dirPath, out) {
+  for (const entry of fs.readdirSync(dirPath, { withFileTypes: true })) {
+    const entryPath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      collectJavaScriptFiles(entryPath, out);
+      continue;
+    }
+    if (entry.isFile() && entry.name.endsWith('.js')) {
+      out.push(entryPath);
+    }
+  }
+}
+
+const entries = [];
+collectJavaScriptFiles(distDir, entries);
+let patched = 0;
+for (const filePath of entries) {
+  const name = path.basename(filePath);
+  if (/^gateway-cli-.*\.js$/.test(name)) {
+    if (patchGatewayFile(filePath)) patched += 1;
+    continue;
+  }
+  if (/^(?:server-middleware|pi-embedded-helpers)-.*\.js$/.test(name)) {
+    if (patchBrowserMiddlewareFile(filePath)) patched += 1;
+  }
+}
+
+if (patched > 0) {
+  process.stderr.write(`[openclaw-runtime] patched local CORS allowlist into ${patched} dist files\n`);
+}
+EOF
+}
+
 openclaw_ensure_package_runtime_deps() {
   local source_dir="$1"
 
