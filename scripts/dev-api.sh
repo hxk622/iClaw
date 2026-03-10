@@ -7,6 +7,7 @@ API_DETACH="${ICLAW_API_DETACH:-0}"
 LOG_DIR="${ICLAW_LOG_DIR:-$ROOT_DIR/logs/openclaw}"
 LOG_FILE="${ICLAW_OPENCLAW_LOG:-$LOG_DIR/openclaw-$(date +%Y%m%d-%H%M%S).log}"
 LATEST_LOG="$LOG_DIR/latest.log"
+RUNTIME_CONFIG_PATH="${ICLAW_RUNTIME_CONFIG_PATH:-$ROOT_DIR/services/openclaw/resources/config/runtime-config.json}"
 
 read_env_value() {
   local key="$1"
@@ -15,8 +16,29 @@ read_env_value() {
   sed -n "s/^${key}=//p" "$env_file" | tail -n1
 }
 
+read_runtime_config_value() {
+  local key="$1"
+  [[ -f "$RUNTIME_CONFIG_PATH" ]] || return 0
+  node -e '
+const fs = require("fs");
+const [configPath, key] = process.argv.slice(1);
+try {
+  const raw = fs.readFileSync(configPath, "utf8");
+  const parsed = JSON.parse(raw);
+  const value = parsed && typeof parsed === "object" ? parsed[key] : undefined;
+  if (typeof value === "string") process.stdout.write(value);
+} catch {}
+' "$RUNTIME_CONFIG_PATH" "$key"
+}
+
 ENV_GATEWAY_TOKEN="$(read_env_value VITE_GATEWAY_TOKEN)"
 GATEWAY_TOKEN="${OPENCLAW_GATEWAY_TOKEN:-${ENV_GATEWAY_TOKEN:-iclaw-local-dev-gateway-token}}"
+OPENCLAW_STATE_DIR="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}"
+OPENCLAW_CONFIG_PATH="${OPENCLAW_CONFIG_PATH:-$OPENCLAW_STATE_DIR/openclaw.json}"
+RUNTIME_OPENAI_API_KEY="${OPENAI_API_KEY:-$(read_runtime_config_value openai_api_key)}"
+RUNTIME_OPENAI_BASE_URL="${OPENAI_BASE_URL:-${OPENAI_API_BASE:-$(read_runtime_config_value openai_base_url)}}"
+RUNTIME_OPENAI_MODEL="${OPENAI_MODEL:-$(read_runtime_config_value openai_model)}"
+RUNTIME_ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-$(read_runtime_config_value anthropic_api_key)}"
 
 detect_target_triple() {
   rustc -vV 2>/dev/null | sed -n 's/^host: //p'
@@ -138,6 +160,75 @@ ensure_macos_runtime_frameworks() {
   rm -rf "$tmp_dir"
 }
 
+sync_gateway_token_config() {
+  mkdir -p "$(dirname "$OPENCLAW_CONFIG_PATH")"
+
+  OPENCLAW_CONFIG_PATH="$OPENCLAW_CONFIG_PATH" \
+  OPENCLAW_SYNC_GATEWAY_TOKEN="$GATEWAY_TOKEN" \
+  OPENCLAW_SYNC_OPENAI_MODEL="$RUNTIME_OPENAI_MODEL" \
+  node <<'EOF'
+const fs = require('fs');
+
+const configPath = process.env.OPENCLAW_CONFIG_PATH;
+const nextToken = (process.env.OPENCLAW_SYNC_GATEWAY_TOKEN || '').trim();
+const rawOpenAiModel = (process.env.OPENCLAW_SYNC_OPENAI_MODEL || '').trim();
+if (!configPath || !nextToken) process.exit(0);
+
+let config = {};
+try {
+  if (fs.existsSync(configPath)) {
+    config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  }
+} catch (error) {
+  console.error(`[api-dev] failed to parse ${configPath}: ${String(error)}`);
+  process.exit(1);
+}
+
+if (!config || typeof config !== 'object' || Array.isArray(config)) {
+  config = {};
+}
+
+const gateway = config.gateway && typeof config.gateway === 'object' && !Array.isArray(config.gateway)
+  ? config.gateway
+  : {};
+const auth = gateway.auth && typeof gateway.auth === 'object' && !Array.isArray(gateway.auth)
+  ? gateway.auth
+  : {};
+
+auth.mode = 'token';
+auth.token = nextToken;
+gateway.auth = auth;
+config.gateway = gateway;
+
+if (rawOpenAiModel) {
+  const modelRef = rawOpenAiModel.includes('/') ? rawOpenAiModel : `openai/${rawOpenAiModel}`;
+  const agents = config.agents && typeof config.agents === 'object' && !Array.isArray(config.agents)
+    ? config.agents
+    : {};
+  const defaults = agents.defaults && typeof agents.defaults === 'object' && !Array.isArray(agents.defaults)
+    ? agents.defaults
+    : {};
+  const existingModel = defaults.model;
+  defaults.model = existingModel && typeof existingModel === 'object' && !Array.isArray(existingModel)
+    ? { ...existingModel, primary: modelRef }
+    : { primary: modelRef };
+  const models = defaults.models && typeof defaults.models === 'object' && !Array.isArray(defaults.models)
+    ? defaults.models
+    : {};
+  models[modelRef] = models[modelRef] && typeof models[modelRef] === 'object' && !Array.isArray(models[modelRef])
+    ? models[modelRef]
+    : {};
+  defaults.models = models;
+  agents.defaults = defaults;
+  config.agents = agents;
+}
+
+fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+EOF
+
+  echo "[api-dev] gateway token synced to $OPENCLAW_CONFIG_PATH"
+}
+
 stop_existing_api() {
   local pids=""
   pids="$(lsof -ti ":$API_PORT" || true)"
@@ -197,7 +288,15 @@ start_openclaw_detached() {
   ln -sfn "$LOG_FILE" "$LATEST_LOG"
 
   echo "[api-dev] 启动后端服务 :$API_PORT"
-  OPENCLAW_LOG_DIR="$LOG_DIR" OPENCLAW_GATEWAY_TOKEN="$GATEWAY_TOKEN" PORT="$API_PORT" nohup "$OPENCLAW_BIN" --port "$API_PORT" >"$LOG_FILE" 2>&1 &
+  OPENCLAW_LOG_DIR="$LOG_DIR" \
+  OPENCLAW_GATEWAY_TOKEN="$GATEWAY_TOKEN" \
+  OPENAI_API_KEY="$RUNTIME_OPENAI_API_KEY" \
+  OPENAI_BASE_URL="$RUNTIME_OPENAI_BASE_URL" \
+  OPENAI_API_BASE="$RUNTIME_OPENAI_BASE_URL" \
+  OPENAI_MODEL="$RUNTIME_OPENAI_MODEL" \
+  ANTHROPIC_API_KEY="$RUNTIME_ANTHROPIC_API_KEY" \
+  PORT="$API_PORT" \
+  nohup "$OPENCLAW_BIN" --port "$API_PORT" >"$LOG_FILE" 2>&1 &
   local pid=$!
 
   wait_for_health "$pid"
@@ -237,7 +336,15 @@ start_openclaw_foreground() {
   tee_pid=$!
 
   echo "[api-dev] 启动后端服务 :$API_PORT (foreground)"
-  OPENCLAW_LOG_DIR="$LOG_DIR" OPENCLAW_GATEWAY_TOKEN="$GATEWAY_TOKEN" PORT="$API_PORT" "$OPENCLAW_BIN" --port "$API_PORT" >"$pipe_path" 2>&1 &
+  OPENCLAW_LOG_DIR="$LOG_DIR" \
+  OPENCLAW_GATEWAY_TOKEN="$GATEWAY_TOKEN" \
+  OPENAI_API_KEY="$RUNTIME_OPENAI_API_KEY" \
+  OPENAI_BASE_URL="$RUNTIME_OPENAI_BASE_URL" \
+  OPENAI_API_BASE="$RUNTIME_OPENAI_BASE_URL" \
+  OPENAI_MODEL="$RUNTIME_OPENAI_MODEL" \
+  ANTHROPIC_API_KEY="$RUNTIME_ANTHROPIC_API_KEY" \
+  PORT="$API_PORT" \
+  "$OPENCLAW_BIN" --port "$API_PORT" >"$pipe_path" 2>&1 &
   pid=$!
 
   wait_for_health "$pid"
@@ -253,6 +360,7 @@ ensure_sidecar_bin
 ensure_macos_runtime_frameworks
 ensure_macos_codesign_if_needed
 bash "$ROOT_DIR/scripts/prepare-openclaw-workspace.sh"
+sync_gateway_token_config
 bash "$ROOT_DIR/scripts/dev-control-plane.sh"
 stop_existing_api
 if [[ "$API_DETACH" == "1" ]]; then

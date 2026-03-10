@@ -705,6 +705,7 @@ fn ensure_child_object<'a>(
 }
 
 fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Result<PathBuf, String> {
+    let runtime_config = load_runtime_config_internal(app)?;
     let config_path = openclaw_config_path(app)?;
     let mut root = if config_path.exists() {
         let raw = fs::read_to_string(&config_path)
@@ -726,6 +727,26 @@ fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Resul
     let auth_obj = ensure_child_object(gateway_obj, "auth");
     auth_obj.insert(String::from("mode"), json!("token"));
     auth_obj.insert(String::from("token"), json!(gateway_token));
+
+    if let Some(model) = clean_optional(runtime_config.openai_model.clone()) {
+        let model_ref = if model.contains('/') {
+            model
+        } else {
+            format!("openai/{model}")
+        };
+
+        let agents_obj = ensure_child_object(root_obj, "agents");
+        let defaults_obj = ensure_child_object(agents_obj, "defaults");
+        defaults_obj.insert(String::from("model"), json!({ "primary": model_ref.clone() }));
+
+        let models_value = defaults_obj
+            .entry(String::from("models"))
+            .or_insert_with(|| json!({}));
+        let models_obj = ensure_object_value(models_value);
+        models_obj
+            .entry(model_ref)
+            .or_insert_with(|| json!({}));
+    }
 
     let normalized = serde_json::to_string_pretty(&root)
         .map_err(|e| format!("failed to serialize openclaw config: {e}"))?;
