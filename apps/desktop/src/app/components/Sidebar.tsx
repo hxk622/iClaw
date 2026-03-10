@@ -25,7 +25,10 @@ interface SidebarUser {
 
 interface SidebarProps {
   user: SidebarUser | null;
+  authenticated?: boolean;
   onLogout?: () => void;
+  onOpenAccount?: () => void;
+  onOpenLogin?: () => void;
   onOpenSettings?: () => void;
 }
 
@@ -65,11 +68,18 @@ function resolveUserName(user: SidebarUser | null): string {
     user?.nickname ||
     user?.username ||
     user?.email ||
-    'iClaw User'
+    '游客模式'
   );
 }
 
-export function Sidebar({ user, onLogout, onOpenSettings }: SidebarProps) {
+export function Sidebar({
+  user,
+  authenticated = false,
+  onLogout,
+  onOpenAccount,
+  onOpenLogin,
+  onOpenSettings,
+}: SidebarProps) {
   const isDevChannel = import.meta.env.DEV || import.meta.env.MODE === 'development';
   const brandText = isDevChannel ? 'iClaw-理财客-dev' : 'iClaw-理财客';
 
@@ -134,7 +144,7 @@ export function Sidebar({ user, onLogout, onOpenSettings }: SidebarProps) {
     <div className="flex h-screen w-[256px] flex-col border-r border-[var(--border-default)] bg-[var(--bg-page)]">
       <div className="flex h-10 items-center gap-3 border-b border-[var(--border-default)] px-4">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)]">
-          <img src="/logo.png" alt="iClaw logo" className="h-6 w-6 object-cover" />
+          <img src="/favicon.png" alt="iClaw logo" className="h-6 w-6 object-cover" />
         </div>
         <div className="min-w-0">
           <div className="truncate text-[14px] font-medium text-[var(--text-primary)]">{brandText}</div>
@@ -169,13 +179,16 @@ export function Sidebar({ user, onLogout, onOpenSettings }: SidebarProps) {
           </div>
           <div className="min-w-0 flex-1">
             <div className="truncate text-[13px] text-[var(--text-primary)]">{resolveUserName(user)}</div>
-            <div className="text-[11px] text-[var(--text-muted)]">v0 preview</div>
+            <div className="text-[11px] text-[var(--text-muted)]">{authenticated ? 'v0 preview' : '点击登录解锁完整功能'}</div>
           </div>
         </button>
 
         <AvatarDropdown
           open={menuOpen}
+          authenticated={authenticated}
           onClose={() => setMenuOpen(false)}
+          onOpenAccount={() => onOpenAccount?.()}
+          onOpenLogin={() => onOpenLogin?.()}
           onOpenSettings={() => onOpenSettings?.()}
           onLogout={() => onLogout?.()}
         />

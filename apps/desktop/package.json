@@ -1,6 +1,6 @@
 {
   "name": "@iclaw/desktop",
-  "version": "1.0.0",
+  "version": "1.0.0+202603091514",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "bash ../../scripts/build-desktop-dmg.sh"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.8.0",

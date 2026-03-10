@@ -14,7 +14,7 @@ export function HealthStatusBar({
   if (healthy) {
     return (
       <div className="border-b border-[var(--state-success)]/30 bg-[var(--state-success)]/10 px-4 py-2 text-[12px] text-[var(--state-success)]">
-        OpenClaw 服务可用
+        本地服务已就绪
       </div>
     );
   }
@@ -29,7 +29,7 @@ export function HealthStatusBar({
 
   return (
     <div className="border-b border-[var(--state-error)]/30 bg-[var(--state-error)]/10 px-4 py-2 text-[12px] text-[var(--state-error)]">
-      服务未就绪{sidecarAttempted ? '（已尝试拉起 sidecar）' : ''} {error ? `: ${error}` : ''}
+      服务未就绪{sidecarAttempted ? '（已尝试拉起本地服务）' : ''} {error ? `: ${error}` : ''}
     </div>
   );
 }

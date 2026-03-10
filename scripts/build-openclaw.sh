@@ -6,12 +6,50 @@ BIN_DIR="$ROOT_DIR/apps/desktop/src-tauri/binaries"
 CACHE_DIR="$ROOT_DIR/.cache/openclaw-release"
 
 TARGET_TRIPLE="${1:-}"
+infer_target_triple_from_system() {
+  local os
+  local arch
+  os="$(uname -s)"
+  arch="$(uname -m)"
+
+  case "$os" in
+    Darwin)
+      case "$arch" in
+        arm64|aarch64) echo "aarch64-apple-darwin" ;;
+        x86_64) echo "x86_64-apple-darwin" ;;
+        *) return 1 ;;
+      esac
+      ;;
+    Linux)
+      case "$arch" in
+        x86_64|amd64) echo "x86_64-unknown-linux-gnu" ;;
+        arm64|aarch64) echo "aarch64-unknown-linux-gnu" ;;
+        *) return 1 ;;
+      esac
+      ;;
+    MINGW*|MSYS*|CYGWIN*|Windows_NT)
+      case "$arch" in
+        x86_64|amd64) echo "x86_64-pc-windows-msvc" ;;
+        arm64|aarch64) echo "aarch64-pc-windows-msvc" ;;
+        *) return 1 ;;
+      esac
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 if [[ -z "$TARGET_TRIPLE" ]]; then
-  TARGET_TRIPLE="$(rustc -vV | sed -n 's/^host: //p')"
+  if command -v rustc >/dev/null 2>&1; then
+    TARGET_TRIPLE="$(rustc -vV | sed -n 's/^host: //p')"
+  else
+    TARGET_TRIPLE="$(infer_target_triple_from_system || true)"
+  fi
 fi
 
 if [[ -z "$TARGET_TRIPLE" ]]; then
-  echo "Cannot determine rust target triple" >&2
+  echo "Cannot determine rust target triple (missing rustc and system inference failed)" >&2
   exit 1
 fi
 

@@ -23,7 +23,7 @@ interface ChatWorkspaceProps {
   streaming: boolean;
   error: string | null;
   disabled: boolean;
-  onSend: (content: string) => Promise<void>;
+  onSend: (content: string) => Promise<boolean>;
 }
 
 const marketData = [
@@ -72,8 +72,10 @@ export function ChatWorkspace({
   const submit = async (raw: string) => {
     const text = raw.trim();
     if (!text || disabled || streaming) return;
-    setInput('');
-    await onSend(text);
+    const sent = await onSend(text);
+    if (sent) {
+      setInput('');
+    }
   };
 
   return (

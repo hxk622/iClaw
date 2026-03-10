@@ -36,7 +36,7 @@ const navItems: Array<{ key: SettingsSection; label: string; icon: ComponentType
 
 export function SettingsPanel({ onClose, onSave }: SettingsPanelProps) {
   const { settings, resetSettings } = useSettings();
-  const [activeSection, setActiveSection] = useState<SettingsSection>('general');
+  const [activeSection, setActiveSection] = useState<SettingsSection>('identity');
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
@@ -77,7 +77,11 @@ export function SettingsPanel({ onClose, onSave }: SettingsPanelProps) {
   };
 
   return (
-    <div className="flex h-screen bg-[var(--bg-page)]">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-[rgba(28,24,16,0.24)] px-5 py-5 backdrop-blur-[2px]" onClick={onClose}>
+      <div
+        className="flex h-full max-h-[920px] w-full max-w-7xl overflow-hidden rounded-[32px] border border-[var(--border-default)] bg-[var(--bg-page)] shadow-[0_28px_90px_rgba(42,31,10,0.18)]"
+        onClick={(event) => event.stopPropagation()}
+      >
       <aside className="flex w-56 flex-col border-r border-[var(--border-default)] bg-[var(--bg-card)]">
         <div className="border-b border-[var(--border-default)] p-4">
           <h1 className="text-lg text-[var(--text-primary)]">iClaw 设置</h1>
@@ -162,6 +166,7 @@ export function SettingsPanel({ onClose, onSave }: SettingsPanelProps) {
             )}
           </div>
         )}
+      </div>
       </div>
     </div>
   );

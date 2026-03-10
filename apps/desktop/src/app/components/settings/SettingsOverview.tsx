@@ -35,24 +35,24 @@ const cards: Array<{
   {
     key: 'identity',
     statusKey: 'identity',
-    title: '身份设置',
-    description: '配置助手名称、表情和介绍风格',
+    title: 'IDENTITY.md',
+    description: '编辑助手身份与长期自我定位文件',
     icon: UserCircle,
     section: 'identity',
   },
   {
     key: 'userProfile',
     statusKey: 'userProfile',
-    title: '用户资料',
-    description: '设置称呼、语言、时区与主要用途',
+    title: 'USER.md',
+    description: '编辑当前用户画像、协作偏好与隐私边界',
     icon: User,
     section: 'user-profile',
   },
   {
     key: 'soulPersona',
     statusKey: 'soulPersona',
-    title: '人格配置',
-    description: '定义语气、澄清策略和决策风格',
+    title: 'SOUL.md',
+    description: '编辑行为边界、风险姿态与风格约束',
     icon: Sparkles,
     section: 'soul-persona',
   },
@@ -80,8 +80,8 @@ export function SettingsOverview({ onNavigate }: SettingsOverviewProps) {
   return (
     <div className="mx-auto max-w-4xl p-8">
       <div className="mb-8">
-        <h1 className="mb-2 text-2xl text-[var(--text-primary)]">引导目标（可选）</h1>
-        <p className="text-[var(--text-secondary)]">这些配置均为可选，不影响立即开始使用。</p>
+        <h1 className="mb-2 text-2xl text-[var(--text-primary)]">工作区设置</h1>
+        <p className="text-[var(--text-secondary)]">以 `~/.openclaw/workspace` 为唯一真相源管理本地文件。</p>
       </div>
 
       <div className="space-y-4">

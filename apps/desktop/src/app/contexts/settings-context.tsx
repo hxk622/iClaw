@@ -1,12 +1,14 @@
-import { type ReactNode, createContext, useContext, useState } from 'react';
+import { type ReactNode, createContext, useContext, useEffect, useState } from 'react';
+import {
+  loadIclawWorkspaceFiles,
+  onIclawWorkspaceUpdated,
+  type IclawWorkspaceFiles,
+} from '@/app/lib/iclaw-settings';
 
 export type ConfigStatus = 'not-configured' | 'using-default' | 'customized';
 
 export type IdentityConfig = {
-  assistantName: string;
-  emoji: string;
-  theme: string;
-  selfIntroStyle: string;
+  markdownContent: string;
 };
 
 export type GeneralConfig = {
@@ -17,20 +19,10 @@ export type GeneralConfig = {
 };
 
 export type UserProfileConfig = {
-  preferredName: string;
-  language: string;
-  timezone: string;
-  workRole: string;
-  primaryUseCase: string;
-  responseLengthPreference: string;
+  markdownContent: string;
 };
 
 export type SoulPersonaConfig = {
-  mode: 'default' | 'wizard' | 'markdown';
-  tone: string;
-  clarificationPolicy: string;
-  riskPolicy: string;
-  decisionStyle: string;
   markdownContent: string;
 };
 
@@ -65,7 +57,9 @@ export type SettingsState = {
     channelPreference: ConfigStatus;
     safetyDefaults: ConfigStatus;
   };
+  workspaceDir: string;
   hasUnsavedChanges: boolean;
+  isLoading: boolean;
 };
 
 type SettingsContextType = {
@@ -80,33 +74,22 @@ type SettingsContextType = {
   resetSettings: () => void;
 };
 
+const LOCAL_STORAGE_KEY = 'iclaw-settings';
+
 const defaultSettings: SettingsState = {
   general: {
-    themeMode: 'system',
+    themeMode: 'light',
     language: '简体中文',
     startupBehavior: '即将支持',
     updateStrategy: '即将支持',
   },
   identity: {
-    assistantName: 'iClaw 助手',
-    emoji: '🐾',
-    theme: '专业',
-    selfIntroStyle: '友好',
+    markdownContent: '',
   },
   userProfile: {
-    preferredName: '',
-    language: '中文',
-    timezone: 'Asia/Shanghai',
-    workRole: '',
-    primaryUseCase: '',
-    responseLengthPreference: '中等',
+    markdownContent: '',
   },
   soulPersona: {
-    mode: 'default',
-    tone: '平衡',
-    clarificationPolicy: '不清楚时询问',
-    riskPolicy: '保守',
-    decisionStyle: '协作式',
     markdownContent: '',
   },
   channelPreference: {
@@ -126,21 +109,85 @@ const defaultSettings: SettingsState = {
   configStatuses: {
     general: 'using-default',
     identity: 'using-default',
-    userProfile: 'not-configured',
+    userProfile: 'using-default',
     soulPersona: 'using-default',
     channelPreference: 'using-default',
     safetyDefaults: 'using-default',
   },
+  workspaceDir: '',
   hasUnsavedChanges: false,
+  isLoading: true,
 };
+
+type PersistedSettings = Pick<
+  SettingsState,
+  'general' | 'channelPreference' | 'safetyDefaults' | 'configStatuses'
+>;
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
+function readPersistedSettings(): PersistedSettings | null {
+  const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+  if (!saved) return null;
+  try {
+    return JSON.parse(saved) as PersistedSettings;
+  } catch {
+    return null;
+  }
+}
+
+function mergeWorkspaceFiles(
+  current: SettingsState,
+  workspaceFiles: IclawWorkspaceFiles,
+): SettingsState {
+  return {
+    ...current,
+    identity: { markdownContent: workspaceFiles.identity_md },
+    userProfile: { markdownContent: workspaceFiles.user_md },
+    soulPersona: { markdownContent: workspaceFiles.soul_md },
+    workspaceDir: workspaceFiles.workspace_dir,
+    configStatuses: {
+      ...current.configStatuses,
+      identity: 'using-default',
+      userProfile: 'using-default',
+      soulPersona: 'using-default',
+    },
+    hasUnsavedChanges: false,
+    isLoading: false,
+  };
+}
+
 export function SettingsProvider({ children }: { children: ReactNode }) {
+  const [lastWorkspaceFiles, setLastWorkspaceFiles] = useState<IclawWorkspaceFiles | null>(null);
   const [settings, setSettings] = useState<SettingsState>(() => {
-    const saved = localStorage.getItem('iclaw-settings');
-    return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
+    const persisted = readPersistedSettings();
+    return persisted ? { ...defaultSettings, ...persisted, isLoading: true } : defaultSettings;
   });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const refreshWorkspace = () => {
+      void loadIclawWorkspaceFiles()
+        .then((workspaceFiles) => {
+          if (cancelled || !workspaceFiles) return;
+          setLastWorkspaceFiles(workspaceFiles);
+          setSettings((prev) => mergeWorkspaceFiles(prev, workspaceFiles));
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setSettings((prev) => ({ ...prev, isLoading: false }));
+        });
+    };
+
+    refreshWorkspace();
+    const unsubscribe = onIclawWorkspaceUpdated(refreshWorkspace);
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
 
   const updateIdentity = (config: Partial<IdentityConfig>) => {
     setSettings((prev) => ({
@@ -173,10 +220,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setSettings((prev) => ({
       ...prev,
       soulPersona: { ...prev.soulPersona, ...config },
-      configStatuses: {
-        ...prev.configStatuses,
-        soulPersona: config.mode === 'default' ? 'using-default' : 'customized',
-      },
+      configStatuses: { ...prev.configStatuses, soulPersona: 'customized' },
       hasUnsavedChanges: true,
     }));
   };
@@ -200,13 +244,57 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   };
 
   const saveSettings = () => {
-    localStorage.setItem('iclaw-settings', JSON.stringify(settings));
+    const persisted: PersistedSettings = {
+      general: settings.general,
+      channelPreference: settings.channelPreference,
+      safetyDefaults: settings.safetyDefaults,
+      configStatuses: settings.configStatuses,
+    };
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(persisted));
+    setLastWorkspaceFiles({
+      workspace_dir: settings.workspaceDir,
+      identity_md: settings.identity.markdownContent,
+      user_md: settings.userProfile.markdownContent,
+      soul_md: settings.soulPersona.markdownContent,
+      agents_md: '',
+      finance_decision_framework_md: '',
+    });
     setSettings((prev) => ({ ...prev, hasUnsavedChanges: false }));
   };
 
   const resetSettings = () => {
-    setSettings(defaultSettings);
-    localStorage.removeItem('iclaw-settings');
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
+    setSettings((prev) => {
+      if (!lastWorkspaceFiles) {
+        return {
+          ...defaultSettings,
+          workspaceDir: prev.workspaceDir,
+          isLoading: false,
+        };
+      }
+
+      return {
+        ...defaultSettings,
+        general: prev.general,
+        channelPreference: prev.channelPreference,
+        safetyDefaults: prev.safetyDefaults,
+        configStatuses: {
+          ...defaultSettings.configStatuses,
+          general: prev.configStatuses.general,
+          channelPreference: prev.configStatuses.channelPreference,
+          safetyDefaults: prev.configStatuses.safetyDefaults,
+          identity: 'using-default',
+          userProfile: 'using-default',
+          soulPersona: 'using-default',
+        },
+        workspaceDir: lastWorkspaceFiles.workspace_dir,
+        identity: { markdownContent: lastWorkspaceFiles.identity_md },
+        userProfile: { markdownContent: lastWorkspaceFiles.user_md },
+        soulPersona: { markdownContent: lastWorkspaceFiles.soul_md },
+        hasUnsavedChanges: false,
+        isLoading: false,
+      };
+    });
   };
 
   return (

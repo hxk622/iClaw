@@ -40,14 +40,12 @@ build_one() {
 
   echo "==> building: target=$target channel=$channel"
 
-  # Ensure target-specific sidecar name exists before tauri bundles externalBin.
-  bash "$ROOT_DIR/scripts/build-openclaw.sh" "$target"
   NODE_ENV="$node_env" bash "$ROOT_DIR/scripts/env.sh"
 
   (
     cd "$DESKTOP_DIR"
     NODE_ENV="$node_env" \
-    pnpm tauri build --target "$target"
+    bash "$ROOT_DIR/scripts/build-desktop-dmg.sh" --target "$target"
   )
 
   local dmg_dir="$DESKTOP_DIR/src-tauri/target/$target/release/bundle/dmg"

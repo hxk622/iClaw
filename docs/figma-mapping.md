@@ -1,7 +1,7 @@
 # Figma -> iClaw v0 映射清单
 
 更新时间：2026-03-03
-设计来源：`/Users/xingkaihan/Downloads/openalphaclaw`
+设计来源：iClaw 当前前端稿与实现对照
 
 ## 标记说明
 

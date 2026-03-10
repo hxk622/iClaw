@@ -1,14 +1,25 @@
 import { useEffect, useRef } from 'react';
-import { CircleHelp, FolderPlus, Globe, LogOut, RefreshCw, Settings } from 'lucide-react';
+import { CircleHelp, FolderPlus, Globe, LogIn, LogOut, RefreshCw, Settings, UserCircle2 } from 'lucide-react';
 
 interface AvatarDropdownProps {
   open: boolean;
+  authenticated: boolean;
   onClose: () => void;
+  onOpenAccount: () => void;
+  onOpenLogin: () => void;
   onOpenSettings: () => void;
   onLogout: () => void;
 }
 
-export function AvatarDropdown({ open, onClose, onOpenSettings, onLogout }: AvatarDropdownProps) {
+export function AvatarDropdown({
+  open,
+  authenticated,
+  onClose,
+  onOpenAccount,
+  onOpenLogin,
+  onOpenSettings,
+  onLogout,
+}: AvatarDropdownProps) {
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -38,6 +49,30 @@ export function AvatarDropdown({ open, onClose, onOpenSettings, onLogout }: Avat
       }`}
       style={{ transitionTimingFunction: 'var(--motion-spring)' }}
     >
+      {authenticated ? (
+        <button
+          className="mb-1 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]/40"
+          onClick={() => {
+            onClose();
+            onOpenAccount();
+          }}
+        >
+          <UserCircle2 className="h-5 w-5 text-[var(--text-secondary)]" />
+          <span className="text-[16px] text-[var(--text-primary)]">个人中心</span>
+        </button>
+      ) : (
+        <button
+          className="mb-1 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]/40"
+          onClick={() => {
+            onClose();
+            onOpenLogin();
+          }}
+        >
+          <LogIn className="h-5 w-5 text-[var(--text-secondary)]" />
+          <span className="text-[16px] text-[var(--text-primary)]">登录 / 注册</span>
+        </button>
+      )}
+
       <button
         className="mb-1 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]/40"
         onClick={() => {
@@ -74,18 +109,22 @@ export function AvatarDropdown({ open, onClose, onOpenSettings, onLogout }: Avat
         <span className="text-[16px] text-[var(--text-primary)]">帮助与反馈</span>
       </button>
 
-      <div className="my-2 h-px bg-[var(--border-default)]" />
+      {authenticated ? (
+        <>
+          <div className="my-2 h-px bg-[var(--border-default)]" />
 
-      <button
-        className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]/40"
-        onClick={() => {
-          onClose();
-          onLogout();
-        }}
-      >
-        <LogOut className="h-5 w-5 text-[var(--state-error)]" />
-        <span className="text-[16px] text-[var(--state-error)]">退出登录</span>
-      </button>
+          <button
+            className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]/40"
+            onClick={() => {
+              onClose();
+              onLogout();
+            }}
+          >
+            <LogOut className="h-5 w-5 text-[var(--state-error)]" />
+            <span className="text-[16px] text-[var(--state-error)]">退出登录</span>
+          </button>
+        </>
+      ) : null}
     </div>
   );
 }

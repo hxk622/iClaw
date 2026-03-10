@@ -1,6 +1,6 @@
 [package]
 name = "iclaw-desktop"
-version = "1.0.0"
+version = "1.0.0+202603091514"
 description = "iClaw desktop shell"
 authors = ["iClaw Team"]
 edition = "2021"
@@ -13,6 +13,12 @@ tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 keyring = "2"
+flate2 = "1"
+rand = "0.8"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+sha2 = "0.10"
+tar = "0.4"
+zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [features]
 default = ["custom-protocol"]

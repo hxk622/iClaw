@@ -22,13 +22,14 @@ iClaw/
 ## 2. 职责边界
 
 - 壳层（apps/desktop）：UI 展示、安装包、更新、登录页、错误提示。
+- 云端 control plane（services/control-plane）：auth、session、credit、usage、run authorize。
 - 能力层（services/openclaw）：能力选择、执行、skill 处理、回答生成。
 - iClaw 不改写后端回答内容，不做能力编排。
 
 ## 3. v0 功能范围
 
 只做基础对话能力：
-- 登录/注册（复用 OpenAlpha 云端 API）
+- 登录/注册（走 iClaw 自有 control plane）
 - 发送消息
 - 流式显示后端返回
 - 失败重试
@@ -53,8 +54,16 @@ iClaw/
 ## 6. 登录策略
 
 - 首版必须登录，不提供游客模式。
-- 账号体系：复用 OpenAlpha 云端。
+- 账号体系：迁移到 iClaw 自有 cloud control plane。
+- PostgreSQL 用户体系全新设计，不复用 OpenAlpha 现有表。
+- 用户名、邮箱、密码凭据使用 iClaw 独立 schema。
 - token 存储：系统安全存储（macOS Keychain / Windows Credential Manager）。
+
+## 6.1 计费策略
+
+- credit、usage、billing 一律以云端 control plane 为准。
+- 本地 sidecar 可缓存 usage 草稿，但不是最终计费依据。
+- PostgreSQL 作为权威账本数据库，由 control plane 持有。
 
 ## 7. 本地运行模式
 

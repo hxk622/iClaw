@@ -28,6 +28,7 @@ Cargo.lock
 
 # Local cache
 .cache/
+.artifacts/
 apps/desktop/src-tauri/binaries/
 apps/desktop/src-tauri/binaries/openclaw-meta-*.json
 services/openclaw/bin/

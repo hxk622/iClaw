@@ -1,11 +1,11 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "iClaw-理财客",
-  "version": "1.0.0",
-  "identifier": "ai.openalpha.iclaw",
+  "version": "1.0.0+202603091514",
+  "identifier": "ai.iclaw.desktop",
   "build": {
-    "beforeDevCommand": "bash ../../scripts/sync-openclaw-resources.sh && bash ../../scripts/build-openclaw.sh || true && pnpm dev --host 0.0.0.0 --port 1520",
-    "beforeBuildCommand": "bash ../../scripts/sync-openclaw-resources.sh && bash ../../scripts/build-openclaw.sh && pnpm build",
+    "beforeDevCommand": "bash ../../scripts/sync-openclaw-resources.sh && pnpm dev --host 0.0.0.0 --port 1520",
+    "beforeBuildCommand": "bash ../../scripts/sync-openclaw-resources.sh && pnpm build",
     "devUrl": "http://localhost:1520",
     "frontendDist": "../dist"
   },
@@ -26,9 +26,13 @@
   },
   "bundle": {
     "active": true,
-    "externalBin": ["binaries/openclaw"],
-    "targets": ["dmg", "nsis"],
-    "resources": ["resources/**/*"],
+    "targets": [
+      "dmg",
+      "nsis"
+    ],
+    "resources": [
+      "resources/**/*"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

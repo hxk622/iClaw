@@ -17,7 +17,7 @@ export function ChatArea({ messages, streaming, error }: ChatAreaProps) {
     <div className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-page)]">
       <div className="border-b border-[var(--border-default)] px-6 py-2.5 text-center">
         <h1 className="mb-0 text-[13px] font-medium text-[var(--text-primary)]">iClaw-理财客</h1>
-        <p className="text-[11px] text-[var(--text-muted)]">内容由 OpenClaw 返回，前端原样展示</p>
+        <p className="text-[11px] text-[var(--text-muted)]">内容由本地服务返回，前端原样展示</p>
       </div>
 
       <div className="flex-1 overflow-y-auto">

@@ -1,7 +1,7 @@
 {
   "name": "iclaw-monorepo",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.0+202603091514",
   "packageManager": "pnpm@10.11.0",
   "scripts": {
     "dev": "pnpm dev:all",
@@ -12,12 +12,17 @@
     "version:set": "bash scripts/version.sh",
     "predev:all": "bash scripts/env.sh dev",
     "dev:all": "bash scripts/dev-all.sh",
+    "db:init:control-plane": "bash scripts/init-control-plane-db.sh",
+    "dev:control-plane:bg": "bash scripts/dev-control-plane.sh",
     "predev:api": "bash scripts/env.sh dev",
     "dev:api": "bash scripts/dev-api.sh",
     "predev:web": "bash scripts/env.sh dev",
     "dev:web": "bash scripts/dev-web.sh",
+    "dev:control-plane": "pnpm --filter @iclaw/control-plane dev",
     "dev:home": "pnpm --dir home dev",
     "build:home": "pnpm --dir home build",
+    "check:control-plane": "pnpm --filter @iclaw/control-plane check",
+    "build:openclaw-runtime": "bash scripts/build-openclaw-runtime.sh",
     "predev:desktop": "bash scripts/env.sh dev",
     "dev:desktop": "pnpm --filter @iclaw/desktop dev --host 0.0.0.0 --port 1520 --strictPort",
     "prebuild:desktop": "bash scripts/env.sh ${NODE_ENV:-prod}",
@@ -26,5 +31,8 @@
     "tauri:dev": "pnpm --filter @iclaw/desktop tauri:dev",
     "pretauri:build": "bash scripts/env.sh ${NODE_ENV:-prod}",
     "tauri:build": "pnpm --filter @iclaw/desktop tauri:build"
+  },
+  "devDependencies": {
+    "semver": "6.3.1"
   }
 }

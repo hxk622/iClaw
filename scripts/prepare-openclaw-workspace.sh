@@ -3,52 +3,30 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 WORKSPACE_DIR="${OPENCLAW_WORKSPACE_DIR:-$HOME/.openclaw/workspace}"
-SETTINGS_DIR="${ICLAW_SETTINGS_DIR:-$HOME/.openclaw/iclaw-settings}"
-
-mkdir -p "$SETTINGS_DIR"
+DEFAULTS_DIR="$ROOT_DIR/services/openclaw/resources"
 
 mkdir -p "$WORKSPACE_DIR"
 rm -f "$WORKSPACE_DIR/BOOTSTRAP.md"
 
-if [[ ! -f "$SETTINGS_DIR/IDENTITY.md" ]]; then
-  cat > "$SETTINGS_DIR/IDENTITY.md" <<'EOF'
-# IDENTITY.md
-- Name: iClaw
-- Theme: Calm
-- Emoji: 🦀
-EOF
+if [[ ! -f "$WORKSPACE_DIR/IDENTITY.md" ]]; then
+  cp "$DEFAULTS_DIR/IDENTITY.md" "$WORKSPACE_DIR/IDENTITY.md"
 fi
 
-if [[ ! -f "$SETTINGS_DIR/USER.md" ]]; then
-  cat > "$SETTINGS_DIR/USER.md" <<'EOF'
-# USER.md
-- Preferred language: zh-CN
-- Timezone: Asia/Shanghai
-- Notes:
-EOF
+if [[ ! -f "$WORKSPACE_DIR/USER.md" ]]; then
+  cp "$DEFAULTS_DIR/USER.md" "$WORKSPACE_DIR/USER.md"
 fi
 
-if [[ ! -f "$SETTINGS_DIR/SOUL.md" ]]; then
-  cat > "$SETTINGS_DIR/SOUL.md" <<'EOF'
-# SOUL.md
-- Be concise and direct.
-- Ask clarifying questions when needed.
-- Refuse unsafe or illegal requests.
-EOF
+if [[ ! -f "$WORKSPACE_DIR/SOUL.md" ]]; then
+  cp "$DEFAULTS_DIR/SOUL.md" "$WORKSPACE_DIR/SOUL.md"
 fi
 
-if [[ ! -f "$SETTINGS_DIR/AGENTS.md" ]]; then
-  cat > "$SETTINGS_DIR/AGENTS.md" <<'EOF'
-# AGENTS.md
-This workspace is pre-seeded by iClaw.
-Identity/User/Soul are managed by iClaw settings source.
-EOF
+if [[ ! -f "$WORKSPACE_DIR/AGENTS.md" ]]; then
+  cp "$DEFAULTS_DIR/AGENTS.md" "$WORKSPACE_DIR/AGENTS.md"
 fi
 
-cp "$SETTINGS_DIR/IDENTITY.md" "$WORKSPACE_DIR/IDENTITY.md"
-cp "$SETTINGS_DIR/USER.md" "$WORKSPACE_DIR/USER.md"
-cp "$SETTINGS_DIR/SOUL.md" "$WORKSPACE_DIR/SOUL.md"
-cp "$SETTINGS_DIR/AGENTS.md" "$WORKSPACE_DIR/AGENTS.md"
+if [[ ! -f "$WORKSPACE_DIR/FINANCE_DECISION_FRAMEWORK.md" ]]; then
+  cp "$DEFAULTS_DIR/FINANCE_DECISION_FRAMEWORK.md" \
+    "$WORKSPACE_DIR/FINANCE_DECISION_FRAMEWORK.md"
+fi
 
 echo "[openclaw-workspace] ready: $WORKSPACE_DIR"
-echo "[openclaw-workspace] source: $SETTINGS_DIR"

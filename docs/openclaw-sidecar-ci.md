@@ -14,12 +14,12 @@
   - `services/openclaw/runtime/openclaw/{openclaw.mjs,dist,node_modules,extensions}`
   - `services/openclaw/runtime/node/node`
 
-## 本地构建（当前可用）
-1. 更新 openclaw 源码（建议固定 tag）：
-   - `git -C <openclaw-source> fetch --tags`
-   - `git -C <openclaw-source> checkout <tag>`
+## 本地构建（当前推荐）
+1. 基于 npm 发布包准备统一输入：
+   - `OPENCLAW_NPM_SPEC=openclaw@<version> pnpm build:openclaw-runtime`
+   - 原始 package tgz 会保留在 `.artifacts/openclaw-runtime/packages/`
 2. 在 iClaw 里构建 sidecar runtime：
-   - `OPENCLAW_SOURCE_DIR=<openclaw-source> bash scripts/build-openclaw-server-runtime.sh`
+   - `OPENCLAW_PACKAGE_TGZ=<package-tgz> bash scripts/build-openclaw-server-runtime.sh`
 3. 生成桌面包：
    - `pnpm tauri build`
 

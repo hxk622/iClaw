@@ -9,11 +9,15 @@ export interface RuntimeConfig {
 }
 
 export interface RuntimeDiagnosis {
-  sidecar_binary_found: boolean;
+  runtime_found: boolean;
+  runtime_installable: boolean;
+  runtime_source: string | null;
+  runtime_path: string | null;
+  runtime_version: string | null;
+  runtime_download_url: string | null;
   skills_dir_ready: boolean;
   mcp_config_ready: boolean;
   api_key_configured: boolean;
-  sidecar_path: string | null;
   skills_dir: string;
   mcp_config: string;
   work_dir: string;
@@ -33,6 +37,11 @@ export async function loadRuntimeConfig(): Promise<RuntimeConfig | null> {
 export async function saveRuntimeConfig(config: RuntimeConfig): Promise<boolean> {
   if (!isTauriRuntime()) return false;
   return invoke<boolean>('save_runtime_config', { config });
+}
+
+export async function installRuntime(): Promise<boolean> {
+  if (!isTauriRuntime()) return false;
+  return invoke<boolean>('install_runtime');
 }
 
 export async function diagnoseRuntime(): Promise<RuntimeDiagnosis | null> {
