@@ -634,7 +634,7 @@ export default function App() {
       const messages = mapHistoryMessages(payload);
       setChatState((prev) => ({
         ...prev,
-        messages,
+        messages: messages.length > 0 || prev.messages.length === 0 ? messages : prev.messages,
         runId: null,
         streamText: null,
         streamStartedAt: null,
