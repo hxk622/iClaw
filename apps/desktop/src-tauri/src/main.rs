@@ -6,6 +6,7 @@ use rand::rngs::OsRng;
 use rand::RngCore;
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::env;
 use std::fs::{self, File};
@@ -669,6 +670,69 @@ fn runtime_config_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(base.join("config.json"))
 }
 
+fn openclaw_state_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app_data_base_dir(app)?.join("state");
+    fs::create_dir_all(&dir).map_err(|e| format!("failed to create openclaw state dir: {e}"))?;
+    Ok(dir)
+}
+
+fn openclaw_config_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let path = app_data_base_dir(app)?.join("config").join("openclaw.json");
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("failed to create openclaw config dir: {e}"))?;
+    }
+    Ok(path)
+}
+
+fn ensure_object_value<'a>(
+    value: &'a mut serde_json::Value,
+) -> &'a mut serde_json::Map<String, serde_json::Value> {
+    if !value.is_object() {
+        *value = json!({});
+    }
+    value
+        .as_object_mut()
+        .expect("json value should be object after normalization")
+}
+
+fn ensure_child_object<'a>(
+    parent: &'a mut serde_json::Map<String, serde_json::Value>,
+    key: &str,
+) -> &'a mut serde_json::Map<String, serde_json::Value> {
+    let value = parent.entry(String::from(key)).or_insert_with(|| json!({}));
+    ensure_object_value(value)
+}
+
+fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Result<PathBuf, String> {
+    let config_path = openclaw_config_path(app)?;
+    let mut root = if config_path.exists() {
+        let raw = fs::read_to_string(&config_path)
+            .map_err(|e| format!("failed to read openclaw config {}: {e}", config_path.to_string_lossy()))?;
+        serde_json::from_str::<serde_json::Value>(&raw).map_err(|e| {
+            format!(
+                "failed to parse openclaw config {}: {e}",
+                config_path.to_string_lossy()
+            )
+        })?
+    } else {
+        json!({})
+    };
+
+    let root_obj = ensure_object_value(&mut root);
+    let gateway_obj = ensure_child_object(root_obj, "gateway");
+    gateway_obj.insert(String::from("mode"), json!("local"));
+
+    let auth_obj = ensure_child_object(gateway_obj, "auth");
+    auth_obj.insert(String::from("mode"), json!("token"));
+    auth_obj.insert(String::from("token"), json!(gateway_token));
+
+    let normalized = serde_json::to_string_pretty(&root)
+        .map_err(|e| format!("failed to serialize openclaw config: {e}"))?;
+    write_text(&config_path, &normalized)?;
+    Ok(config_path)
+}
+
 fn resource_runtime_config_path(app: &AppHandle) -> PathBuf {
     if let Ok(resource_dir) = app.path().resource_dir() {
         let p = resource_dir
@@ -729,6 +793,8 @@ fn start_sidecar(
     let runtime = resolve_runtime_command(&app)?;
     let gateway_token = load_or_create_gateway_token()?;
     ensure_openclaw_workspace_seed(&app)?;
+    let openclaw_state_dir = openclaw_state_dir(&app)?;
+    let openclaw_config_path = ensure_openclaw_runtime_config(&app, &gateway_token)?;
     let config = load_runtime_config_internal(&app)?;
     let paths = ensure_runtime_dirs(&app)?;
     let skills_dir = resource_skills_dir(&app);
@@ -740,6 +806,8 @@ fn start_sidecar(
     }
     command.args(&runtime.args_prefix);
     command.args(args);
+    command.env("OPENCLAW_STATE_DIR", openclaw_state_dir);
+    command.env("OPENCLAW_CONFIG_PATH", openclaw_config_path);
     command.env("OPENCLAW_WORK_DIR", paths.work_dir);
     command.env("OPENCLAW_LOG_DIR", paths.log_dir);
     command.env("OPENCLAW_SKILLS_CACHE_DIR", paths.cache_dir);
