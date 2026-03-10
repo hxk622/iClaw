@@ -329,6 +329,22 @@ fn resource_mcp_config_path(app: &AppHandle) -> PathBuf {
         .join("mcp.json")
 }
 
+fn resource_extra_ca_certs_path(app: &AppHandle) -> PathBuf {
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let p = resource_dir
+            .join("resources")
+            .join("certs")
+            .join("isrg-root-x1.pem");
+        if p.exists() {
+            return p;
+        }
+    }
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("resources")
+        .join("certs")
+        .join("isrg-root-x1.pem")
+}
+
 fn app_data_base_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let p = app
         .path()
@@ -947,6 +963,7 @@ fn start_sidecar(
     let paths = ensure_runtime_dirs(&app)?;
     let skills_dir = resource_skills_dir(&app);
     let mcp_config = resource_mcp_config_path(&app);
+    let extra_ca_certs = resource_extra_ca_certs_path(&app);
 
     let mut command = Command::new(&runtime.program);
     if let Some(working_dir) = runtime.working_dir.as_ref() {
@@ -962,6 +979,9 @@ fn start_sidecar(
     command.env("OPENCLAW_SKILLS_DIR", skills_dir);
     command.env("OPENCLAW_MCP_CONFIG", mcp_config);
     command.env("OPENCLAW_GATEWAY_TOKEN", gateway_token);
+    if extra_ca_certs.exists() {
+        command.env("NODE_EXTRA_CA_CERTS", extra_ca_certs);
+    }
 
     if let Some(v) = config.openai_api_key {
         if !v.trim().is_empty() {

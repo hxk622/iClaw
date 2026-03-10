@@ -8,6 +8,7 @@ LOG_DIR="${ICLAW_LOG_DIR:-$ROOT_DIR/logs/openclaw}"
 LOG_FILE="${ICLAW_OPENCLAW_LOG:-$LOG_DIR/openclaw-$(date +%Y%m%d-%H%M%S).log}"
 LATEST_LOG="$LOG_DIR/latest.log"
 RUNTIME_CONFIG_PATH="${ICLAW_RUNTIME_CONFIG_PATH:-$ROOT_DIR/services/openclaw/resources/config/runtime-config.json}"
+EXTRA_CA_CERTS_PATH="${ICLAW_EXTRA_CA_CERTS_PATH:-$ROOT_DIR/services/openclaw/resources/certs/isrg-root-x1.pem}"
 
 read_env_value() {
   local key="$1"
@@ -397,6 +398,7 @@ start_openclaw_detached() {
   OPENAI_API_BASE="$RUNTIME_OPENAI_BASE_URL" \
   OPENAI_MODEL="$RUNTIME_OPENAI_MODEL" \
   ANTHROPIC_API_KEY="$RUNTIME_ANTHROPIC_API_KEY" \
+  NODE_EXTRA_CA_CERTS="$EXTRA_CA_CERTS_PATH" \
   PORT="$API_PORT" \
   nohup "$OPENCLAW_BIN" --port "$API_PORT" >"$LOG_FILE" 2>&1 &
   local pid=$!
@@ -445,6 +447,7 @@ start_openclaw_foreground() {
   OPENAI_API_BASE="$RUNTIME_OPENAI_BASE_URL" \
   OPENAI_MODEL="$RUNTIME_OPENAI_MODEL" \
   ANTHROPIC_API_KEY="$RUNTIME_ANTHROPIC_API_KEY" \
+  NODE_EXTRA_CA_CERTS="$EXTRA_CA_CERTS_PATH" \
   PORT="$API_PORT" \
   "$OPENCLAW_BIN" --port "$API_PORT" >"$pipe_path" 2>&1 &
   pid=$!
