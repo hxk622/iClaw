@@ -51,6 +51,19 @@ function resolveSidecarPort(args: string[]): string {
   return '2126';
 }
 
+function isLoopbackHostname(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase();
+  return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1' || normalized === '[::1]';
+}
+
+function isLoopbackUrl(url: string): boolean {
+  try {
+    return isLoopbackHostname(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
+
 const SIDE_CAR_ARGS = ((import.meta.env.VITE_SIDE_CAR_ARGS as string) || '--port 2126')
   .split(' ')
   .map((s) => s.trim())
@@ -72,6 +85,11 @@ const GATEWAY_WS_URL =
     : (import.meta.env.VITE_GATEWAY_WS_URL as string) || DEFAULT_GATEWAY_WS_URL;
 const GATEWAY_TOKEN = (import.meta.env.VITE_GATEWAY_TOKEN as string) || undefined;
 const GATEWAY_PASSWORD = (import.meta.env.VITE_GATEWAY_PASSWORD as string) || undefined;
+const DISABLE_GATEWAY_DEVICE_IDENTITY =
+  IS_TAURI_RUNTIME ||
+  (typeof window !== 'undefined' &&
+    isLoopbackHostname(window.location.hostname) &&
+    isLoopbackUrl(API_BASE_URL));
 const CHAT_SESSION_KEY = 'main';
 
 function createId(prefix: string): string {
@@ -290,7 +308,7 @@ export default function App() {
         gatewayToken: gatewayAuth.token,
         gatewayPassword: gatewayAuth.password,
         preferGatewayWs: true,
-        disableGatewayDeviceIdentity: IS_TAURI_RUNTIME,
+        disableGatewayDeviceIdentity: DISABLE_GATEWAY_DEVICE_IDENTITY,
       }),
     [gatewayAuth.password, gatewayAuth.token],
   );
