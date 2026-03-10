@@ -126,16 +126,57 @@ openclaw_extract_package_tgz() {
   rm -rf "$tmp_root"
 }
 
+openclaw_package_has_runtime_deps() {
+  local source_dir="$1"
+  [[ -f "$source_dir/node_modules/chalk/package.json" ]]
+}
+
 openclaw_ensure_package_runtime_deps() {
   local source_dir="$1"
 
-  if [[ -d "$source_dir/node_modules" ]]; then
+  if openclaw_package_has_runtime_deps "$source_dir"; then
     return 0
   fi
 
-  echo "[openclaw-runtime] node_modules missing, running npm install --omit=dev"
+  if [[ -d "$source_dir/node_modules" ]]; then
+    echo "[openclaw-runtime] runtime deps incomplete, refreshing with npm install --omit=dev"
+  else
+    echo "[openclaw-runtime] node_modules missing, running npm install --omit=dev"
+  fi
   (
     cd "$source_dir"
     npm install --omit=dev
   )
+
+  if ! openclaw_package_has_runtime_deps "$source_dir"; then
+    echo "[openclaw-runtime] required root dependency missing after npm install: chalk" >&2
+    return 1
+  fi
+}
+
+openclaw_write_runtime_bootstrap_config() {
+  local root_dir="$1"
+  local version="$2"
+  local artifact_url="$3"
+  local artifact_sha256="${4:-}"
+  local artifact_format="${5:-tar.gz}"
+  local launcher_relative_path="${6:-}"
+  local config_path
+  config_path="$(openclaw_runtime_bootstrap_config_path "$root_dir")"
+
+  mkdir -p "$(dirname "$config_path")"
+  node -e '
+const fs = require("fs");
+const [configPath, version, artifactUrl, artifactSha, artifactFormat, launcherPath] = process.argv.slice(1);
+const payload = {
+  version,
+  artifact_url: artifactUrl,
+  artifact_sha256: artifactSha || null,
+  artifact_format: artifactFormat || "tar.gz",
+  launcher_relative_path: launcherPath || null,
+  dev_source_dir: null,
+  dev_node_path: null,
+};
+fs.writeFileSync(configPath, `${JSON.stringify(payload, null, 2)}\n`);
+' "$config_path" "$version" "$artifact_url" "$artifact_sha256" "$artifact_format" "$launcher_relative_path"
 }

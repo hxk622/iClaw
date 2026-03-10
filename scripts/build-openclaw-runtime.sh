@@ -314,6 +314,14 @@ if [[ -n "$SHA256" ]]; then
   echo "  sha256:  $SHA256"
 fi
 echo
+
+if [[ "${OPENCLAW_UPDATE_BOOTSTRAP_CONFIG:-1}" == "1" ]]; then
+  openclaw_write_runtime_bootstrap_config "$ROOT_DIR" "$VERSION" "$ARCHIVE_PATH" "$SHA256" "tar.gz"
+  echo "Updated bootstrap config:"
+  echo "  $(openclaw_runtime_bootstrap_config_path "$ROOT_DIR")"
+  echo
+fi
+
 echo "Bootstrap config:"
 echo "{"
 echo "  \"version\": \"$VERSION\","
