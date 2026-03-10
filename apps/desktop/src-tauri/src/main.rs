@@ -704,6 +704,72 @@ fn ensure_child_object<'a>(
     ensure_object_value(value)
 }
 
+fn upsert_managed_openai_model(
+    provider: &mut serde_json::Map<String, serde_json::Value>,
+    model_id: &str,
+) {
+    if model_id.trim().is_empty() {
+        return;
+    }
+
+    let models_value = provider
+        .entry(String::from("models"))
+        .or_insert_with(|| json!([]));
+    if !models_value.is_array() {
+        *models_value = json!([]);
+    }
+
+    let models = models_value
+        .as_array_mut()
+        .expect("models should be an array after normalization");
+
+    let position = models.iter().position(|entry| {
+        entry
+            .get("id")
+            .and_then(|value| value.as_str())
+            .map(|value| value == model_id)
+            .unwrap_or(false)
+    });
+
+    let mut next = if let Some(index) = position {
+        models
+            .get(index)
+            .cloned()
+            .unwrap_or_else(|| json!({}))
+    } else {
+        json!({})
+    };
+    let next_obj = ensure_object_value(&mut next);
+    next_obj.insert(String::from("id"), json!(model_id));
+    next_obj.insert(
+        String::from("name"),
+        json!(if model_id == "gpt-5.4" {
+            String::from("GPT 5.4")
+        } else {
+            model_id.to_string()
+        }),
+    );
+    next_obj.insert(String::from("reasoning"), json!(true));
+    next_obj.insert(String::from("input"), json!(["text", "image"]));
+    next_obj.insert(
+        String::from("cost"),
+        json!({
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+        }),
+    );
+    next_obj.insert(String::from("contextWindow"), json!(272000));
+    next_obj.insert(String::from("maxTokens"), json!(128000));
+
+    if let Some(index) = position {
+        models[index] = next;
+    } else {
+        models.push(next);
+    }
+}
+
 fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Result<PathBuf, String> {
     let runtime_config = load_runtime_config_internal(app)?;
     let config_path = openclaw_config_path(app)?;
@@ -728,38 +794,73 @@ fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Resul
     auth_obj.insert(String::from("mode"), json!("token"));
     auth_obj.insert(String::from("token"), json!(gateway_token));
 
-    if let Some(base_url) = clean_optional(runtime_config.openai_base_url.clone()) {
-        let normalized_base_url = normalize_openai_base_url(&base_url);
-        if !normalized_base_url.is_empty() {
-            let models_root = ensure_child_object(root_obj, "models");
-            let providers_obj = ensure_child_object(models_root, "providers");
-            let openai_obj = ensure_child_object(providers_obj, "openai");
-            openai_obj.insert(String::from("api"), json!("openai-completions"));
-            openai_obj.insert(String::from("baseUrl"), json!(normalized_base_url));
+    let normalized_base_url = clean_optional(runtime_config.openai_base_url.clone())
+        .map(|base_url| normalize_openai_base_url(&base_url))
+        .filter(|base_url| !base_url.is_empty());
+    let normalized_api_key = clean_optional(runtime_config.openai_api_key.clone());
+    let normalized_model = clean_optional(runtime_config.openai_model.clone());
+    let model_ref = normalized_model.as_ref().map(|model| {
+        if model.contains('/') {
+            model.clone()
+        } else {
+            format!("openai/{model}")
+        }
+    });
+    let model_id = model_ref
+        .as_deref()
+        .and_then(|value| value.rsplit('/').next())
+        .map(String::from);
+
+    {
+        let models_root = ensure_child_object(root_obj, "models");
+        let providers_obj = ensure_child_object(models_root, "providers");
+        let openai_obj = ensure_child_object(providers_obj, "openai");
+        openai_obj.insert(String::from("api"), json!("openai-completions"));
+        openai_obj.insert(String::from("authHeader"), json!(true));
+        if let Some(base_url) = normalized_base_url.as_ref() {
+            openai_obj.insert(String::from("baseUrl"), json!(base_url));
+        }
+        if let Some(api_key) = normalized_api_key.as_ref() {
+            openai_obj.insert(String::from("apiKey"), json!(api_key));
+        }
+        if let Some(model_id) = model_id.as_deref() {
+            upsert_managed_openai_model(openai_obj, model_id);
+        } else {
             openai_obj
                 .entry(String::from("models"))
                 .or_insert_with(|| json!([]));
         }
     }
 
-    if let Some(model) = clean_optional(runtime_config.openai_model.clone()) {
-        let model_ref = if model.contains('/') {
-            model
-        } else {
-            format!("openai/{model}")
-        };
-
+    {
         let agents_obj = ensure_child_object(root_obj, "agents");
         let defaults_obj = ensure_child_object(agents_obj, "defaults");
-        defaults_obj.insert(String::from("model"), json!({ "primary": model_ref.clone() }));
+        if let Some(model_ref) = model_ref.as_ref() {
+            let model_value = defaults_obj
+                .entry(String::from("model"))
+                .or_insert_with(|| json!({}));
+            let model_obj = ensure_object_value(model_value);
+            model_obj.insert(String::from("primary"), json!(model_ref));
 
-        let models_value = defaults_obj
-            .entry(String::from("models"))
-            .or_insert_with(|| json!({}));
-        let models_obj = ensure_object_value(models_value);
-        models_obj
-            .entry(model_ref)
-            .or_insert_with(|| json!({}));
+            let models_value = defaults_obj
+                .entry(String::from("models"))
+                .or_insert_with(|| json!({}));
+            let models_obj = ensure_object_value(models_value);
+            models_obj
+                .entry(model_ref.clone())
+                .or_insert_with(|| json!({}));
+        }
+        defaults_obj.insert(
+            String::from("workspace"),
+            json!(openclaw_workspace_dir(app).to_string_lossy().to_string()),
+        );
+        let compaction_obj = ensure_child_object(defaults_obj, "compaction");
+        compaction_obj.insert(String::from("mode"), json!("safeguard"));
+        defaults_obj.insert(String::from("thinkingDefault"), json!("xhigh"));
+        defaults_obj.insert(String::from("timeoutSeconds"), json!(1800));
+        defaults_obj.insert(String::from("maxConcurrent"), json!(4));
+        let subagents_obj = ensure_child_object(defaults_obj, "subagents");
+        subagents_obj.insert(String::from("maxConcurrent"), json!(8));
     }
 
     let normalized = serde_json::to_string_pretty(&root)

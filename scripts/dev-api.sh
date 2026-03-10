@@ -184,6 +184,8 @@ sync_gateway_token_config() {
   OPENCLAW_SYNC_GATEWAY_TOKEN="$GATEWAY_TOKEN" \
   OPENCLAW_SYNC_OPENAI_MODEL="$RUNTIME_OPENAI_MODEL" \
   OPENCLAW_SYNC_OPENAI_BASE_URL="$RUNTIME_OPENAI_BASE_URL" \
+  OPENCLAW_SYNC_OPENAI_API_KEY="$RUNTIME_OPENAI_API_KEY" \
+  OPENCLAW_SYNC_WORKSPACE_DIR="$OPENCLAW_STATE_DIR/workspace" \
   node <<'EOF'
 const fs = require('fs');
 
@@ -191,6 +193,8 @@ const configPath = process.env.OPENCLAW_CONFIG_PATH;
 const nextToken = (process.env.OPENCLAW_SYNC_GATEWAY_TOKEN || '').trim();
 const rawOpenAiModel = (process.env.OPENCLAW_SYNC_OPENAI_MODEL || '').trim();
 const rawOpenAiBaseUrl = (process.env.OPENCLAW_SYNC_OPENAI_BASE_URL || '').trim();
+const rawOpenAiApiKey = (process.env.OPENCLAW_SYNC_OPENAI_API_KEY || '').trim();
+const rawWorkspaceDir = (process.env.OPENCLAW_SYNC_WORKSPACE_DIR || '').trim();
 if (!configPath || !nextToken) process.exit(0);
 
 let config = {};
@@ -207,6 +211,36 @@ if (!config || typeof config !== 'object' || Array.isArray(config)) {
   config = {};
 }
 
+function ensureObject(parent, key) {
+  const current = parent[key];
+  if (!current || typeof current !== 'object' || Array.isArray(current)) {
+    parent[key] = {};
+  }
+  return parent[key];
+}
+
+function upsertManagedOpenAiModel(models, modelId) {
+  if (!modelId) return models;
+  const index = models.findIndex((entry) => entry && typeof entry === 'object' && entry.id === modelId);
+  const base = index >= 0 && models[index] && typeof models[index] === 'object' ? models[index] : {};
+  const next = {
+    ...base,
+    id: modelId,
+    name: modelId === 'gpt-5.4' ? 'GPT 5.4' : (base.name || modelId),
+    reasoning: true,
+    input: ['text', 'image'],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: 272000,
+    maxTokens: 128000,
+  };
+  if (index >= 0) {
+    models[index] = next;
+  } else {
+    models.push(next);
+  }
+  return models;
+}
+
 const gateway = config.gateway && typeof config.gateway === 'object' && !Array.isArray(config.gateway)
   ? config.gateway
   : {};
@@ -221,12 +255,9 @@ config.gateway = gateway;
 
 if (rawOpenAiModel) {
   const modelRef = rawOpenAiModel.includes('/') ? rawOpenAiModel : `openai/${rawOpenAiModel}`;
-  const agents = config.agents && typeof config.agents === 'object' && !Array.isArray(config.agents)
-    ? config.agents
-    : {};
-  const defaults = agents.defaults && typeof agents.defaults === 'object' && !Array.isArray(agents.defaults)
-    ? agents.defaults
-    : {};
+  const modelId = modelRef.split('/').pop() || rawOpenAiModel;
+  const agents = ensureObject(config, 'agents');
+  const defaults = ensureObject(agents, 'defaults');
   const existingModel = defaults.model;
   defaults.model = existingModel && typeof existingModel === 'object' && !Array.isArray(existingModel)
     ? { ...existingModel, primary: modelRef }
@@ -237,25 +268,58 @@ if (rawOpenAiModel) {
   models[modelRef] = models[modelRef] && typeof models[modelRef] === 'object' && !Array.isArray(models[modelRef])
     ? models[modelRef]
     : {};
+  defaults.workspace = rawWorkspaceDir || defaults.workspace || '';
+  defaults.compaction = {
+    ...(defaults.compaction && typeof defaults.compaction === 'object' && !Array.isArray(defaults.compaction)
+      ? defaults.compaction
+      : {}),
+    mode: 'safeguard',
+  };
+  defaults.thinkingDefault = 'xhigh';
+  defaults.timeoutSeconds = 1800;
+  defaults.maxConcurrent = 4;
+  defaults.subagents = {
+    ...(defaults.subagents && typeof defaults.subagents === 'object' && !Array.isArray(defaults.subagents)
+      ? defaults.subagents
+      : {}),
+    maxConcurrent: 8,
+  };
   defaults.models = models;
   agents.defaults = defaults;
   config.agents = agents;
-}
-
-if (rawOpenAiBaseUrl) {
-  const modelsConfig = config.models && typeof config.models === 'object' && !Array.isArray(config.models)
-    ? config.models
-    : {};
-  const providers = modelsConfig.providers && typeof modelsConfig.providers === 'object' && !Array.isArray(modelsConfig.providers)
-    ? modelsConfig.providers
-    : {};
-  const openaiProvider = providers.openai && typeof providers.openai === 'object' && !Array.isArray(providers.openai)
-    ? providers.openai
-    : {};
-
+  const modelsConfig = ensureObject(config, 'models');
+  const providers = ensureObject(modelsConfig, 'providers');
+  const openaiProvider = ensureObject(providers, 'openai');
   openaiProvider.api = 'openai-completions';
-  openaiProvider.baseUrl = rawOpenAiBaseUrl;
-  openaiProvider.models = Array.isArray(openaiProvider.models) ? openaiProvider.models : [];
+  openaiProvider.authHeader = true;
+  if (rawOpenAiBaseUrl) {
+    openaiProvider.baseUrl = rawOpenAiBaseUrl;
+  }
+  if (rawOpenAiApiKey) {
+    openaiProvider.apiKey = rawOpenAiApiKey;
+  }
+  openaiProvider.models = upsertManagedOpenAiModel(
+    Array.isArray(openaiProvider.models) ? openaiProvider.models : [],
+    modelId,
+  );
+  providers.openai = openaiProvider;
+  modelsConfig.providers = providers;
+  config.models = modelsConfig;
+} else if (rawOpenAiBaseUrl || rawOpenAiApiKey) {
+  const modelsConfig = ensureObject(config, 'models');
+  const providers = ensureObject(modelsConfig, 'providers');
+  const openaiProvider = ensureObject(providers, 'openai');
+  openaiProvider.api = 'openai-completions';
+  openaiProvider.authHeader = true;
+  if (rawOpenAiBaseUrl) {
+    openaiProvider.baseUrl = rawOpenAiBaseUrl;
+  }
+  if (rawOpenAiApiKey) {
+    openaiProvider.apiKey = rawOpenAiApiKey;
+  }
+  if (!Array.isArray(openaiProvider.models)) {
+    openaiProvider.models = [];
+  }
   providers.openai = openaiProvider;
   modelsConfig.providers = providers;
   config.models = modelsConfig;
