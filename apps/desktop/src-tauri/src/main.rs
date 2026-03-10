@@ -10,6 +10,7 @@ use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::env;
 use std::fs::{self, File};
+use std::net::TcpListener;
 use std::io::{Read, Write};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -102,6 +103,11 @@ struct StoredAuthTokens {
 struct StoredGatewayAuth {
     token: Option<String>,
     password: Option<String>,
+}
+
+#[derive(Serialize)]
+struct PortConflictStatus {
+    occupied_ports: Vec<u16>,
 }
 
 #[derive(Clone)]
@@ -680,6 +686,17 @@ fn ensure_runtime_dirs(app: &AppHandle) -> Result<RuntimePaths, String> {
     Ok(paths)
 }
 
+fn is_loopback_port_occupied(port: u16) -> bool {
+    TcpListener::bind(("127.0.0.1", port)).is_err()
+}
+
+fn detect_local_service_port_conflicts() -> Vec<u16> {
+    [2126_u16, 2128_u16, 2130_u16]
+        .into_iter()
+        .filter(|port| is_loopback_port_occupied(*port))
+        .collect()
+}
+
 fn runtime_config_path(app: &AppHandle) -> Result<PathBuf, String> {
     let base = app_data_base_dir(app)?;
     fs::create_dir_all(&base).map_err(|e| format!("failed to create app_data base dir: {e}"))?;
@@ -954,6 +971,18 @@ fn start_sidecar(
         return Ok(true);
     }
 
+    let occupied_ports = detect_local_service_port_conflicts();
+    if !occupied_ports.is_empty() {
+        let ports = occupied_ports
+            .iter()
+            .map(|port| port.to_string())
+            .collect::<Vec<_>>()
+            .join("/");
+        return Err(format!(
+            "检测到本地开发服务正在运行，占用了 {ports}。请先关闭 `pnpm dev:api` 或释放这些端口后再启动应用。"
+        ));
+    }
+
     let runtime = resolve_runtime_command(&app)?;
     let gateway_token = load_or_create_gateway_token()?;
     ensure_openclaw_workspace_seed(&app)?;
@@ -1091,6 +1120,13 @@ fn load_gateway_auth() -> Result<StoredGatewayAuth, String> {
     Ok(StoredGatewayAuth {
         token: Some(load_or_create_gateway_token()?),
         password: None,
+    })
+}
+
+#[tauri::command]
+fn detect_port_conflicts() -> Result<PortConflictStatus, String> {
+    Ok(PortConflictStatus {
+        occupied_ports: detect_local_service_port_conflicts(),
     })
 }
 
@@ -1366,6 +1402,7 @@ fn main() {
             load_auth_tokens,
             clear_auth_tokens,
             load_gateway_auth,
+            detect_port_conflicts,
             load_runtime_config,
             save_runtime_config,
             install_runtime,

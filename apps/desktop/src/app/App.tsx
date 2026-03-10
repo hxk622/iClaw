@@ -2,7 +2,7 @@ import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from
 import { IClawClient } from '@iclaw/sdk';
 import { clearAuth, readAuth, writeAuth } from './lib/auth-storage';
 import { getGoogleOAuthUrl, getWeChatOAuthUrl, openOAuthPopup, type OAuthProvider } from './lib/oauth';
-import { isTauriRuntime, loadGatewayAuth, startSidecar } from './lib/tauri-sidecar';
+import { detectPortConflicts, isTauriRuntime, loadGatewayAuth, startSidecar } from './lib/tauri-sidecar';
 import {
   diagnoseRuntime,
   installRuntime,
@@ -83,6 +83,14 @@ const CHAT_SESSION_KEY = 'main';
 
 function isLikelyAccessToken(token: string): boolean {
   return token.trim().length >= 16;
+}
+
+function formatPortConflictMessage(ports: number[]): string | null {
+  if (ports.length === 0) {
+    return null;
+  }
+  const joined = ports.join('/');
+  return `检测到本地开发服务正在运行，占用了 ${joined}。请先关闭 pnpm dev:api 或释放这些端口后再启动应用。`;
 }
 
 export default function App() {
@@ -439,6 +447,11 @@ export default function App() {
 
     let cancelled = false;
 
+    const resolvePortConflictMessage = async (): Promise<string | null> => {
+      const status = await detectPortConflicts().catch(() => null);
+      return formatPortConflictMessage(status?.occupied_ports ?? []);
+    };
+
     const check = async (): Promise<boolean> => {
       setHealthChecking(true);
       try {
@@ -449,9 +462,12 @@ export default function App() {
         }
         return true;
       } catch (e) {
+        const portConflictMessage = await resolvePortConflictMessage();
         if (!cancelled) {
           setHealthy(false);
-          setHealthError(e instanceof Error ? e.message : 'health check failed');
+          setHealthError(
+            portConflictMessage || (e instanceof Error ? e.message : 'health check failed'),
+          );
         }
         return false;
       } finally {
@@ -465,9 +481,13 @@ export default function App() {
         try {
           await startSidecar(SIDE_CAR_ARGS);
         } catch (error) {
+          const portConflictMessage = await resolvePortConflictMessage();
           if (!cancelled) {
             setHealthy(false);
-            setHealthError(error instanceof Error ? error.message : 'failed to start openclaw runtime');
+            setHealthError(
+              portConflictMessage ||
+                (error instanceof Error ? error.message : 'failed to start openclaw runtime'),
+            );
           }
           return;
         }

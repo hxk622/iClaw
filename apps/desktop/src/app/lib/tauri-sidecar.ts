@@ -5,6 +5,10 @@ export interface GatewayAuth {
   password?: string;
 }
 
+export interface PortConflictStatus {
+  occupied_ports: number[];
+}
+
 export function isTauriRuntime(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
@@ -17,6 +21,11 @@ export async function loadGatewayAuth(): Promise<GatewayAuth | null> {
 export async function startSidecar(args: string[]): Promise<boolean> {
   if (!isTauriRuntime()) return false;
   return invoke<boolean>('start_sidecar', { args });
+}
+
+export async function detectPortConflicts(): Promise<PortConflictStatus | null> {
+  if (!isTauriRuntime()) return null;
+  return invoke<PortConflictStatus>('detect_port_conflicts');
 }
 
 export async function stopSidecar(): Promise<boolean> {
