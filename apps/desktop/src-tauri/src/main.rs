@@ -118,6 +118,13 @@ struct PortConflictStatus {
 }
 
 #[derive(Clone)]
+struct ListeningProcess {
+    pid: u32,
+    command: String,
+    details: String,
+}
+
+#[derive(Clone)]
 struct ResolvedRuntimeCommand {
     program: PathBuf,
     args_prefix: Vec<String>,
@@ -766,6 +773,108 @@ fn detect_local_service_port_conflicts() -> Vec<u16> {
         .collect()
 }
 
+fn listen_port_targets() -> [u16; 3] {
+    [2126_u16, 2128_u16, 2130_u16]
+}
+
+fn port_listener_pids(port: u16) -> Vec<u32> {
+    let output = match Command::new("lsof")
+        .args(["-nP", &format!("-iTCP:{port}"), "-sTCP:LISTEN", "-t"])
+        .output()
+    {
+        Ok(output) if output.status.success() => output,
+        _ => return Vec::new(),
+    };
+
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| line.trim().parse::<u32>().ok())
+        .collect()
+}
+
+fn inspect_process(pid: u32) -> Option<ListeningProcess> {
+    let command_output = Command::new("ps")
+        .args(["-p", &pid.to_string(), "-o", "command="])
+        .output()
+        .ok()?;
+    if !command_output.status.success() {
+        return None;
+    }
+
+    let command = String::from_utf8_lossy(&command_output.stdout).trim().to_string();
+    if command.is_empty() {
+        return None;
+    }
+
+    let details_output = Command::new("lsof")
+        .args(["-p", &pid.to_string()])
+        .output()
+        .ok()?;
+    let details = if details_output.status.success() {
+        String::from_utf8_lossy(&details_output.stdout).to_string()
+    } else {
+        String::new()
+    };
+
+    Some(ListeningProcess {
+        pid,
+        command,
+        details,
+    })
+}
+
+fn process_is_managed_local_service(process: &ListeningProcess, app: &AppHandle) -> bool {
+    let runtime_root = match app_data_base_dir(app) {
+        Ok(base) => base.join("runtime"),
+        Err(_) => return false,
+    };
+    let runtime_root_text = runtime_root.to_string_lossy();
+
+    process.command.contains("openclaw-gateway")
+        || process.command.contains("openclaw-runtime")
+        || process.details.contains(runtime_root_text.as_ref())
+}
+
+fn terminate_pid(pid: u32) -> bool {
+    Command::new("kill")
+        .args(["-TERM", &pid.to_string()])
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}
+
+fn reclaim_managed_local_service_ports(app: &AppHandle) {
+    let mut pids = Vec::new();
+
+    for port in listen_port_targets() {
+        for pid in port_listener_pids(port) {
+            if pids.contains(&pid) {
+                continue;
+            }
+            if let Some(process) = inspect_process(pid) {
+                if process_is_managed_local_service(&process, app) {
+                    pids.push(process.pid);
+                }
+            }
+        }
+    }
+
+    if pids.is_empty() {
+        return;
+    }
+
+    for pid in pids {
+        let _ = terminate_pid(pid);
+    }
+
+    for _ in 0..20 {
+        if detect_local_service_port_conflicts().is_empty() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(150));
+    }
+}
+
 fn runtime_config_path(app: &AppHandle) -> Result<PathBuf, String> {
     let base = app_data_base_dir(app)?;
     fs::create_dir_all(&base).map_err(|e| format!("failed to create app_data base dir: {e}"))?;
@@ -1040,6 +1149,7 @@ fn start_sidecar(
         return Ok(true);
     }
 
+    reclaim_managed_local_service_ports(&app);
     let occupied_ports = detect_local_service_port_conflicts();
     if !occupied_ports.is_empty() {
         let ports = occupied_ports
