@@ -728,6 +728,20 @@ fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Resul
     auth_obj.insert(String::from("mode"), json!("token"));
     auth_obj.insert(String::from("token"), json!(gateway_token));
 
+    if let Some(base_url) = clean_optional(runtime_config.openai_base_url.clone()) {
+        let normalized_base_url = normalize_openai_base_url(&base_url);
+        if !normalized_base_url.is_empty() {
+            let models_root = ensure_child_object(root_obj, "models");
+            let providers_obj = ensure_child_object(models_root, "providers");
+            let openai_obj = ensure_child_object(providers_obj, "openai");
+            openai_obj.insert(String::from("api"), json!("openai-completions"));
+            openai_obj.insert(String::from("baseUrl"), json!(normalized_base_url));
+            openai_obj
+                .entry(String::from("models"))
+                .or_insert_with(|| json!([]));
+        }
+    }
+
     if let Some(model) = clean_optional(runtime_config.openai_model.clone()) {
         let model_ref = if model.contains('/') {
             model
@@ -752,6 +766,18 @@ fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Resul
         .map_err(|e| format!("failed to serialize openclaw config: {e}"))?;
     write_text(&config_path, &normalized)?;
     Ok(config_path)
+}
+
+fn normalize_openai_base_url(raw: &str) -> String {
+    let trimmed = raw.trim().trim_end_matches('/');
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    if trimmed.ends_with("/v1") {
+        trimmed.to_string()
+    } else {
+        format!("{trimmed}/v1")
+    }
 }
 
 fn resource_runtime_config_path(app: &AppHandle) -> PathBuf {
@@ -842,9 +868,10 @@ fn start_sidecar(
         }
     }
     if let Some(v) = config.openai_base_url {
-        if !v.trim().is_empty() {
-            command.env("OPENAI_BASE_URL", &v);
-            command.env("OPENAI_API_BASE", v);
+        let normalized_base_url = normalize_openai_base_url(&v);
+        if !normalized_base_url.is_empty() {
+            command.env("OPENAI_BASE_URL", &normalized_base_url);
+            command.env("OPENAI_API_BASE", normalized_base_url);
         }
     }
     if let Some(v) = config.openai_model {

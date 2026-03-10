@@ -40,6 +40,23 @@ RUNTIME_OPENAI_BASE_URL="${OPENAI_BASE_URL:-${OPENAI_API_BASE:-$(read_runtime_co
 RUNTIME_OPENAI_MODEL="${OPENAI_MODEL:-$(read_runtime_config_value openai_model)}"
 RUNTIME_ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-$(read_runtime_config_value anthropic_api_key)}"
 
+normalize_openai_base_url() {
+  local base_url="${1:-}"
+  base_url="${base_url%"${base_url##*[![:space:]]}"}"
+  base_url="${base_url#"${base_url%%[![:space:]]*}"}"
+  base_url="${base_url%/}"
+  if [[ -z "$base_url" ]]; then
+    return 0
+  fi
+  if [[ "$base_url" == */v1 ]]; then
+    printf '%s' "$base_url"
+  else
+    printf '%s/v1' "$base_url"
+  fi
+}
+
+RUNTIME_OPENAI_BASE_URL="$(normalize_openai_base_url "$RUNTIME_OPENAI_BASE_URL")"
+
 detect_target_triple() {
   rustc -vV 2>/dev/null | sed -n 's/^host: //p'
 }
@@ -166,12 +183,14 @@ sync_gateway_token_config() {
   OPENCLAW_CONFIG_PATH="$OPENCLAW_CONFIG_PATH" \
   OPENCLAW_SYNC_GATEWAY_TOKEN="$GATEWAY_TOKEN" \
   OPENCLAW_SYNC_OPENAI_MODEL="$RUNTIME_OPENAI_MODEL" \
+  OPENCLAW_SYNC_OPENAI_BASE_URL="$RUNTIME_OPENAI_BASE_URL" \
   node <<'EOF'
 const fs = require('fs');
 
 const configPath = process.env.OPENCLAW_CONFIG_PATH;
 const nextToken = (process.env.OPENCLAW_SYNC_GATEWAY_TOKEN || '').trim();
 const rawOpenAiModel = (process.env.OPENCLAW_SYNC_OPENAI_MODEL || '').trim();
+const rawOpenAiBaseUrl = (process.env.OPENCLAW_SYNC_OPENAI_BASE_URL || '').trim();
 if (!configPath || !nextToken) process.exit(0);
 
 let config = {};
@@ -221,6 +240,25 @@ if (rawOpenAiModel) {
   defaults.models = models;
   agents.defaults = defaults;
   config.agents = agents;
+}
+
+if (rawOpenAiBaseUrl) {
+  const modelsConfig = config.models && typeof config.models === 'object' && !Array.isArray(config.models)
+    ? config.models
+    : {};
+  const providers = modelsConfig.providers && typeof modelsConfig.providers === 'object' && !Array.isArray(modelsConfig.providers)
+    ? modelsConfig.providers
+    : {};
+  const openaiProvider = providers.openai && typeof providers.openai === 'object' && !Array.isArray(providers.openai)
+    ? providers.openai
+    : {};
+
+  openaiProvider.api = 'openai-completions';
+  openaiProvider.baseUrl = rawOpenAiBaseUrl;
+  openaiProvider.models = Array.isArray(openaiProvider.models) ? openaiProvider.models : [];
+  providers.openai = openaiProvider;
+  modelsConfig.providers = providers;
+  config.models = modelsConfig;
 }
 
 fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
