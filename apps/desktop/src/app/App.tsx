@@ -290,6 +290,7 @@ export default function App() {
         gatewayToken: gatewayAuth.token,
         gatewayPassword: gatewayAuth.password,
         preferGatewayWs: true,
+        disableGatewayDeviceIdentity: IS_TAURI_RUNTIME,
       }),
     [gatewayAuth.password, gatewayAuth.token],
   );

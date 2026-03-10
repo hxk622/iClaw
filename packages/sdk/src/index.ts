@@ -8,6 +8,7 @@ export interface ClientOptions {
   gatewayPassword?: string;
   gatewaySessionKey?: string;
   preferGatewayWs?: boolean;
+  disableGatewayDeviceIdentity?: boolean;
 }
 
 export interface StreamCallbacks {
@@ -363,6 +364,7 @@ export class IClawClient {
   private readonly gatewayPassword?: string;
   private readonly gatewaySessionKey: string;
   private readonly preferGatewayWs: boolean;
+  private readonly disableGatewayDeviceIdentity: boolean;
 
   constructor(options: ClientOptions) {
     this.apiBaseUrl = options.apiBaseUrl.replace(/\/$/, '');
@@ -374,6 +376,7 @@ export class IClawClient {
     this.gatewayPassword = options.gatewayPassword;
     this.gatewaySessionKey = options.gatewaySessionKey || 'main';
     this.preferGatewayWs = Boolean(options.preferGatewayWs);
+    this.disableGatewayDeviceIdentity = Boolean(options.disableGatewayDeviceIdentity);
   }
 
   async health(): Promise<unknown> {
@@ -666,7 +669,7 @@ export class IClawClient {
   }
 
   private async buildGatewayConnectParams(nonce?: string): Promise<Record<string, unknown>> {
-    const identity = await loadOrCreateBrowserDeviceIdentity();
+    const identity = this.disableGatewayDeviceIdentity ? null : await loadOrCreateBrowserDeviceIdentity();
     const explicitGatewayToken = this.gatewayToken?.trim() || undefined;
     const explicitGatewayPassword = this.gatewayPassword?.trim() || undefined;
     const storedDeviceToken =
