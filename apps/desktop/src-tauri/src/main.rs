@@ -68,6 +68,13 @@ struct RuntimeBootstrapConfig {
     dev_node_path: Option<String>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Default)]
+struct RuntimeInstallReceipt {
+    version: Option<String>,
+    artifact_url: Option<String>,
+    artifact_sha256: Option<String>,
+}
+
 #[derive(Serialize)]
 struct RuntimeDiagnosis {
     runtime_found: bool,
@@ -264,12 +271,70 @@ fn find_runtime_launcher(root: &Path, config: &RuntimeBootstrapConfig) -> Option
     }
 }
 
+fn runtime_install_receipt_path(root: &Path) -> PathBuf {
+    root.join(".iclaw-runtime-install.json")
+}
+
+fn load_runtime_install_receipt(root: &Path) -> Option<RuntimeInstallReceipt> {
+    let path = runtime_install_receipt_path(root);
+    let raw = fs::read_to_string(path).ok()?;
+    serde_json::from_str::<RuntimeInstallReceipt>(&raw).ok()
+}
+
+fn write_runtime_install_receipt(root: &Path, config: &RuntimeBootstrapConfig) -> Result<(), String> {
+    let receipt = RuntimeInstallReceipt {
+        version: clean_optional(config.version.clone()),
+        artifact_url: clean_optional(config.artifact_url.clone()),
+        artifact_sha256: clean_optional(config.artifact_sha256.clone())
+            .map(|value| value.to_ascii_lowercase()),
+    };
+    let raw = serde_json::to_string_pretty(&receipt)
+        .map_err(|e| format!("failed to serialize runtime install receipt: {e}"))?;
+    fs::write(runtime_install_receipt_path(root), format!("{raw}\n"))
+        .map_err(|e| format!("failed to write runtime install receipt: {e}"))
+}
+
+fn expected_runtime_sha256(config: &RuntimeBootstrapConfig) -> Option<String> {
+    clean_optional(config.artifact_sha256.clone()).map(|value| value.to_ascii_lowercase())
+}
+
+fn runtime_layout_complete(root: &Path, config: &RuntimeBootstrapConfig) -> bool {
+    let launcher_ok = find_runtime_launcher(root, config).is_some();
+    let node_ok = root.join("bin").join("node").exists() || root.join("bin").join("node.exe").exists();
+    let openclaw_root = root.join("openclaw");
+    let openclaw_ok = openclaw_root.join("openclaw.mjs").exists() && openclaw_root.join("package.json").exists();
+    let deps_ok = openclaw_root
+        .join("node_modules")
+        .join("chalk")
+        .join("package.json")
+        .exists();
+
+    launcher_ok && node_ok && openclaw_ok && deps_ok
+}
+
+fn installed_runtime_matches(root: &Path, config: &RuntimeBootstrapConfig) -> bool {
+    if !runtime_layout_complete(root, config) {
+        return false;
+    }
+
+    let Some(expected_sha256) = expected_runtime_sha256(config) else {
+        return true;
+    };
+
+    let Some(receipt) = load_runtime_install_receipt(root) else {
+        return false;
+    };
+
+    clean_optional(receipt.artifact_sha256).map(|value| value.to_ascii_lowercase()) == Some(expected_sha256)
+}
+
 fn resolve_runtime_command(app: &AppHandle) -> Result<ResolvedRuntimeCommand, String> {
     let config = load_runtime_bootstrap_config(app)?;
 
     if let Some(dir) = env_override("ICLAW_OPENCLAW_RUNTIME_DIR") {
         let runtime_dir = expand_tilde(app, &dir);
-        if let Some(launcher) = find_runtime_launcher(&runtime_dir, &config) {
+        if runtime_layout_complete(&runtime_dir, &config) {
+            let launcher = runtime_dir.join(runtime_launcher_relative_path(&config));
             return Ok(ResolvedRuntimeCommand {
                 program: launcher.clone(),
                 args_prefix: Vec::new(),
@@ -282,7 +347,8 @@ fn resolve_runtime_command(app: &AppHandle) -> Result<ResolvedRuntimeCommand, St
     }
 
     let installed_dir = installed_runtime_dir(app, &config)?;
-    if let Some(launcher) = find_runtime_launcher(&installed_dir, &config) {
+    if installed_runtime_matches(&installed_dir, &config) {
+        let launcher = installed_dir.join(runtime_launcher_relative_path(&config));
         return Ok(ResolvedRuntimeCommand {
             program: launcher.clone(),
             args_prefix: Vec::new(),
@@ -294,7 +360,8 @@ fn resolve_runtime_command(app: &AppHandle) -> Result<ResolvedRuntimeCommand, St
     }
 
     let bundled_dir = resource_runtime_dir(app);
-    if let Some(launcher) = find_runtime_launcher(&bundled_dir, &config) {
+    if runtime_layout_complete(&bundled_dir, &config) {
+        let launcher = bundled_dir.join(runtime_launcher_relative_path(&config));
         return Ok(ResolvedRuntimeCommand {
             program: launcher.clone(),
             args_prefix: Vec::new(),
@@ -584,7 +651,7 @@ fn install_runtime_internal(app: &AppHandle) -> Result<PathBuf, String> {
     let version_label = runtime_version_label(&config);
     let final_dir = installed_runtime_dir(app, &config)?;
 
-    if find_runtime_launcher(&final_dir, &config).is_some() {
+    if installed_runtime_matches(&final_dir, &config) {
         return Ok(final_dir);
     }
 
@@ -641,6 +708,8 @@ fn install_runtime_internal(app: &AppHandle) -> Result<PathBuf, String> {
             "runtime install completed but launcher is still missing",
         ));
     }
+
+    write_runtime_install_receipt(&final_dir, &config)?;
 
     Ok(final_dir)
 }
