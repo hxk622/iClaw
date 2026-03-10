@@ -6,6 +6,7 @@
     "types": ["vite/client"],
     "skipLibCheck": true,
     "moduleResolution": "Bundler",
+    "experimentalDecorators": true,
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
@@ -14,8 +15,9 @@
     "strict": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@openclaw-ui/*": ["../../../openclaw/ui/src/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "../../../openclaw/ui/src/**/*.ts", "../../../openclaw/src/**/*.ts"]
 }

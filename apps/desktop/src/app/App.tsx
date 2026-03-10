@@ -1,19 +1,17 @@
 import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from 'react';
-import { IClawClient, type RunGrantData } from '@iclaw/sdk';
+import { IClawClient } from '@iclaw/sdk';
 import { clearAuth, readAuth, writeAuth } from './lib/auth-storage';
 import { getGoogleOAuthUrl, getWeChatOAuthUrl, openOAuthPopup, type OAuthProvider } from './lib/oauth';
 import { isTauriRuntime, loadGatewayAuth, startSidecar } from './lib/tauri-sidecar';
 import {
   diagnoseRuntime,
   installRuntime,
-  loadRuntimeConfig,
-  type RuntimeConfig,
   type RuntimeDiagnosis,
 } from './lib/tauri-runtime-config';
 import { AuthPanel } from './components/AuthPanel';
 import { AccountPanel } from './components/account/AccountPanel';
-import { ChatWorkspace } from './components/ChatWorkspace';
 import { FirstRunSetupPanel, type SetupStage } from './components/FirstRunSetupPanel';
+import { OpenClawChatSurface } from './components/OpenClawChatSurface';
 import { Sidebar } from './components/Sidebar';
 import { SettingsPanel } from './components/settings/SettingsPanel';
 import { SettingsProvider, useSettings } from './contexts/settings-context';
@@ -23,15 +21,6 @@ import {
   resetIclawWorkspaceToDefaults,
   saveIclawSettingsAndApply,
 } from './lib/iclaw-settings';
-import { beginChatRun, appendUserMessage, createInitialChatState, handleChatEvent } from './chat-core/controller';
-import { extractText } from './chat-core/message-extract';
-import type { ChatEventPayload, ChatEventState, ChatRuntimeState } from './chat-core/types';
-
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-}
 
 interface AuthUser {
   id?: string;
@@ -92,192 +81,8 @@ const DISABLE_GATEWAY_DEVICE_IDENTITY =
     isLoopbackUrl(API_BASE_URL));
 const CHAT_SESSION_KEY = 'main';
 
-function createId(prefix: string): string {
-  return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-}
-
 function isLikelyAccessToken(token: string): boolean {
   return token.trim().length >= 16;
-}
-
-function estimateTokenCount(text: string): number {
-  const normalized = text.trim();
-  if (!normalized) return 0;
-  return Math.max(1, Math.ceil(normalized.length / 4));
-}
-
-function estimateCreditCost(inputTokens: number, outputTokens: number): number {
-  const totalTokens = Math.max(0, inputTokens) + Math.max(0, outputTokens);
-  if (totalTokens <= 0) return 0;
-  return Math.max(1, Math.ceil(totalTokens / 10));
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
-}
-
-function pickNumber(source: Record<string, unknown> | null, keys: string[]): number | null {
-  if (!source) return null;
-  for (const key of keys) {
-    const value = source[key];
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return Math.max(0, Math.floor(value));
-    }
-    if (typeof value === 'string' && value.trim()) {
-      const parsed = Number(value);
-      if (Number.isFinite(parsed)) {
-        return Math.max(0, Math.floor(parsed));
-      }
-    }
-  }
-  return null;
-}
-
-function pickString(source: Record<string, unknown> | null, keys: string[]): string | undefined {
-  if (!source) return undefined;
-  for (const key of keys) {
-    const value = source[key];
-    if (typeof value === 'string' && value.trim()) {
-      return value.trim();
-    }
-  }
-  return undefined;
-}
-
-function inferProvider(runtimeConfig: RuntimeConfig | null, model?: string): string | undefined {
-  if (model?.startsWith('gpt-')) return 'openai';
-  if (runtimeConfig?.openai_api_key) return 'openai';
-  if (runtimeConfig?.anthropic_api_key) return 'anthropic';
-  return undefined;
-}
-
-function summarizeUsage(
-  payload: unknown,
-  inputText: string,
-  outputText: string,
-  runtimeConfig: RuntimeConfig | null,
-): { inputTokens: number; outputTokens: number; creditCost: number; provider?: string; model?: string } {
-  const root = asRecord(payload);
-  const nestedUsage = asRecord(root?.usage) || asRecord(root?.metrics) || asRecord(root?.stats);
-  const inputTokens =
-    pickNumber(nestedUsage, ['input_tokens', 'inputTokens', 'prompt_tokens', 'promptTokens']) ??
-    pickNumber(root, ['input_tokens', 'inputTokens', 'prompt_tokens', 'promptTokens']) ??
-    estimateTokenCount(inputText);
-  const outputTokens =
-    pickNumber(nestedUsage, ['output_tokens', 'outputTokens', 'completion_tokens', 'completionTokens']) ??
-    pickNumber(root, ['output_tokens', 'outputTokens', 'completion_tokens', 'completionTokens']) ??
-    estimateTokenCount(outputText);
-  const creditCost =
-    pickNumber(nestedUsage, ['credit_cost', 'creditCost', 'cost']) ??
-    pickNumber(root, ['credit_cost', 'creditCost', 'cost']) ??
-    estimateCreditCost(inputTokens, outputTokens);
-  const model =
-    pickString(nestedUsage, ['model']) ||
-    pickString(root, ['model']) ||
-    runtimeConfig?.openai_model?.trim() ||
-    undefined;
-  const provider =
-    pickString(nestedUsage, ['provider']) ||
-    pickString(root, ['provider']) ||
-    inferProvider(runtimeConfig, model);
-
-  return {
-    inputTokens,
-    outputTokens,
-    creditCost,
-    provider,
-    model,
-  };
-}
-
-function extractAssistantText(payload: unknown): string {
-  const root = asRecord(payload);
-  const message = root?.message ?? payload;
-  return extractText(message)?.trim() || '';
-}
-
-function coerceChatEventState(raw: unknown, fallback: ChatEventState): ChatEventState {
-  return raw === 'start' || raw === 'delta' || raw === 'final' || raw === 'aborted' || raw === 'end' || raw === 'error'
-    ? raw
-    : fallback;
-}
-
-function buildChatEventPayload(
-  fallbackState: ChatEventState,
-  runId: string,
-  sessionKey: string,
-  payload?: unknown,
-): ChatEventPayload {
-  const data = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
-  const state = coerceChatEventState(data.state, fallbackState);
-  const message = (data.message as unknown) ?? data;
-  const nextRunId = typeof data.runId === 'string' ? data.runId : runId;
-  const nextSessionKey = typeof data.sessionKey === 'string' ? data.sessionKey : sessionKey;
-  const errorMessage =
-    typeof data.errorMessage === 'string'
-      ? data.errorMessage
-      : typeof data.message === 'string' && state === 'error'
-        ? data.message
-        : undefined;
-
-  return {
-    runId: nextRunId,
-    sessionKey: nextSessionKey,
-    state,
-    message,
-    errorMessage,
-  };
-}
-
-function toUiMessages(state: ChatRuntimeState): Message[] {
-  const mapped = state.messages
-    .map((message, index) => {
-      if (message.role !== 'user' && message.role !== 'assistant') {
-        return null;
-      }
-      const content = message.content
-        .map((item) => item.text)
-        .filter((value): value is string => typeof value === 'string')
-        .join('\n')
-        .trim();
-      return {
-        id: message.id || `msg_${message.timestamp}_${index}`,
-        role: message.role,
-        content: content || '...',
-      };
-    })
-    .filter((value): value is Message => value !== null);
-
-  if (state.runId !== null) {
-    mapped.push({
-      id: `stream_${state.runId}`,
-      role: 'assistant',
-      content: (state.streamText || '').trim() || '...',
-    });
-  }
-  return mapped;
-}
-
-function mapHistoryMessages(payload: unknown): ChatRuntimeState['messages'] {
-  const data = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
-  const history = Array.isArray(data.messages) ? data.messages : Array.isArray(payload) ? payload : [];
-  const now = Date.now();
-  const messages: ChatRuntimeState['messages'] = [];
-  for (const item of history) {
-    if (!item || typeof item !== 'object') continue;
-    const message = item as Record<string, unknown>;
-    const role = typeof message.role === 'string' ? message.role : '';
-    if (role !== 'user' && role !== 'assistant') continue;
-    const text = extractText(message);
-    if (!text) continue;
-    messages.push({
-      id: typeof message.id === 'string' ? message.id : undefined,
-      role,
-      content: [{ type: 'text', text }],
-      timestamp: typeof message.timestamp === 'number' ? message.timestamp : now,
-    });
-  }
-  return messages;
 }
 
 export default function App() {
@@ -312,7 +117,6 @@ export default function App() {
       }),
     [gatewayAuth.password, gatewayAuth.token],
   );
-  const [chatState, setChatState] = useState<ChatRuntimeState>(() => createInitialChatState(CHAT_SESSION_KEY));
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [sessionAuthed, setSessionAuthed] = useState(false);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -322,7 +126,6 @@ export default function App() {
   const [healthChecking, setHealthChecking] = useState(true);
   const [healthy, setHealthy] = useState(false);
   const [healthError, setHealthError] = useState<string | null>(null);
-  const [sidecarAttempted, setSidecarAttempted] = useState(false);
   const [runtimeChecking, setRuntimeChecking] = useState(true);
   const [runtimeInstalling, setRuntimeInstalling] = useState(false);
   const [runtimeInstallError, setRuntimeInstallError] = useState<string | null>(null);
@@ -616,7 +419,6 @@ export default function App() {
     setGuestPromptInitialized(true);
     setAuthModalMode('login');
     setAuthModalOpen(true);
-    setChatState(createInitialChatState(CHAT_SESSION_KEY));
   };
 
   const openAuthModal = (mode: 'login' | 'register' = 'login', nextView: 'account' | null = null) => {
@@ -627,131 +429,6 @@ export default function App() {
   };
 
   const isAuthenticated = Boolean(accessToken || sessionAuthed);
-
-  const syncChatHistory = async () => {
-    try {
-      const payload = await client.chatHistory({ sessionKey: CHAT_SESSION_KEY, limit: 200 });
-      const messages = mapHistoryMessages(payload);
-      setChatState((prev) => ({
-        ...prev,
-        messages: messages.length > 0 || prev.messages.length === 0 ? messages : prev.messages,
-        runId: null,
-        streamText: null,
-        streamStartedAt: null,
-        lastError: null,
-      }));
-    } catch (e) {
-      setChatState((prev) => ({
-        ...prev,
-        runId: null,
-        streamText: null,
-        streamStartedAt: null,
-        lastError: e instanceof Error ? e.message : 'chat history sync failed',
-      }));
-    }
-  };
-
-  const sendMessage = async (content: string): Promise<boolean> => {
-    if (!isAuthenticated || !accessToken) {
-      openAuthModal('login');
-      return false;
-    }
-    const text = content.trim();
-    if (!text || chatState.runId) return false;
-
-    const runId = createId('run');
-    setChatState((prev) => beginChatRun(appendUserMessage(prev, text), runId));
-
-    try {
-      const runtimeConfig = await loadRuntimeConfig().catch(() => null);
-      const estimatedInputTokens = estimateTokenCount(text);
-      const grant = accessToken
-        ? ((await client.authorizeRun({
-            token: accessToken,
-            sessionKey: CHAT_SESSION_KEY,
-            client: IS_TAURI_RUNTIME ? 'desktop-tauri' : 'desktop-web',
-            estimatedInputTokens,
-          })) as RunGrantData)
-        : null;
-      let streamedOutput = '';
-      let finalPayload: unknown = null;
-
-      await client.streamChat(
-        {
-          message: text,
-          runId,
-          token: accessToken || undefined,
-        },
-        {
-          onStart: (payload) => {
-            const event = buildChatEventPayload('start', runId, CHAT_SESSION_KEY, payload);
-            setChatState((prev) => handleChatEvent(prev, event));
-          },
-          onDelta: (delta, payload) => {
-            const nextText = extractAssistantText(payload) || delta.trim();
-            if (nextText) {
-              streamedOutput = nextText;
-            }
-            const fallback = { role: 'assistant', content: [{ type: 'text', text: delta }] };
-            const event = buildChatEventPayload('delta', runId, CHAT_SESSION_KEY, payload ?? fallback);
-            setChatState((prev) => handleChatEvent(prev, event));
-          },
-          onEnd: (payload) => {
-            finalPayload = payload;
-            const finalText = extractAssistantText(payload);
-            if (finalText) {
-              streamedOutput = finalText;
-            }
-          },
-          onError: (e) => {
-            const event = buildChatEventPayload('error', runId, CHAT_SESSION_KEY, {
-              state: 'error',
-              message: `${e.code}: ${e.message}`,
-            });
-            setChatState((prev) => handleChatEvent(prev, event));
-          },
-        },
-      );
-
-      if (accessToken && grant?.grant_id) {
-        const usage = summarizeUsage(finalPayload, text, streamedOutput, runtimeConfig);
-        try {
-          await client.reportUsageEvent({
-            token: accessToken,
-            eventId: `desktop-run:${runId}`,
-            grantId: grant.grant_id,
-            inputTokens: usage.inputTokens,
-            outputTokens: usage.outputTokens,
-            creditCost: usage.creditCost,
-            provider: usage.provider,
-            model: usage.model,
-          });
-        } catch (error) {
-          console.error('[desktop] failed to report usage event', error);
-        }
-      }
-
-      await syncChatHistory();
-      return true;
-    } catch (e) {
-      const message = e instanceof Error ? e.message : '请求失败';
-      setChatState((prev) =>
-        handleChatEvent(prev, {
-          runId,
-          sessionKey: CHAT_SESSION_KEY,
-          state: 'error',
-          errorMessage: message,
-        }),
-      );
-      return false;
-    }
-  };
-
-  useEffect(() => {
-    if (!accessToken && !sessionAuthed) return;
-    void syncChatHistory();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessToken, sessionAuthed]);
 
   useEffect(() => {
     if (isTauriRuntime() && (!runtimeReady || runtimeChecking || runtimeInstalling)) {
@@ -787,9 +464,7 @@ export default function App() {
       if (!cancelled && !healthyNow && isTauriRuntime()) {
         try {
           await startSidecar(SIDE_CAR_ARGS);
-          setSidecarAttempted(true);
         } catch (error) {
-          setSidecarAttempted(true);
           if (!cancelled) {
             setHealthy(false);
             setHealthError(error instanceof Error ? error.message : 'failed to start openclaw runtime');
@@ -810,10 +485,6 @@ export default function App() {
       window.clearInterval(timer);
     };
   }, [client, runtimeChecking, runtimeInstalling, runtimeReady]);
-
-  const messages = useMemo(() => toUiMessages(chatState), [chatState]);
-  const streaming = chatState.runId !== null;
-  const error = chatState.lastError;
   const startupView = (() => {
     if (runtimeInstallError) {
       return {
@@ -904,12 +575,8 @@ export default function App() {
           accessToken={accessToken}
           currentUser={currentUser}
           setCurrentUser={setCurrentUser}
-          healthy={healthy}
+          gatewayAuth={gatewayAuth}
           handleLogout={handleLogout}
-          messages={messages}
-          streaming={streaming}
-          error={error}
-          sendMessage={sendMessage}
           authenticated={isAuthenticated}
           onRequestAuth={openAuthModal}
         />
@@ -939,12 +606,8 @@ interface AuthedViewProps {
   accessToken: string | null;
   currentUser: AuthUser | null;
   setCurrentUser: Dispatch<SetStateAction<AuthUser | null>>;
-  healthy: boolean;
+  gatewayAuth: { token?: string; password?: string };
   handleLogout: () => void;
-  messages: Array<{ id: string; role: 'user' | 'assistant'; content: string }>;
-  streaming: boolean;
-  error: string | null;
-  sendMessage: (content: string) => Promise<boolean>;
   authenticated: boolean;
   onRequestAuth: (mode?: 'login' | 'register', nextView?: 'account' | null) => void;
 }
@@ -956,12 +619,8 @@ function AuthedView({
   accessToken,
   currentUser,
   setCurrentUser,
-  healthy,
+  gatewayAuth,
   handleLogout,
-  messages,
-  streaming,
-  error,
-  sendMessage,
   authenticated,
   onRequestAuth,
 }: AuthedViewProps) {
@@ -1005,13 +664,30 @@ function AuthedView({
         onOpenSettings={() => setActiveView('settings')}
         onLogout={handleLogout}
       />
-      <ChatWorkspace
-        messages={messages}
-        streaming={streaming}
-        error={error}
-        disabled={streaming}
-        onSend={sendMessage}
-      />
+      {authenticated ? (
+        <OpenClawChatSurface
+          gatewayUrl={GATEWAY_WS_URL}
+          gatewayToken={gatewayAuth.token}
+          gatewayPassword={gatewayAuth.password}
+          sessionKey={CHAT_SESSION_KEY}
+        />
+      ) : (
+        <div className="flex flex-1 items-center justify-center bg-[var(--bg-page)] px-10">
+          <div className="max-w-md rounded-[28px] border border-[var(--border-default)] bg-white/90 px-8 py-10 text-center shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
+            <div className="text-[22px] font-medium text-[var(--text-primary)]">登录后继续</div>
+            <p className="mt-3 text-[14px] leading-6 text-[var(--text-secondary)]">
+              对话区已切回运行时原生链路。先完成登录，再进入聊天。
+            </p>
+            <button
+              type="button"
+              onClick={() => onRequestAuth('login')}
+              className="mt-6 inline-flex h-11 items-center justify-center rounded-full bg-[var(--brand-primary)] px-6 text-[14px] font-medium text-white transition hover:bg-[var(--brand-primary-hover)]"
+            >
+              去登录
+            </button>
+          </div>
+        </div>
+      )}
       {activeView === 'account' && accessToken ? (
         <AccountPanel
           client={client}

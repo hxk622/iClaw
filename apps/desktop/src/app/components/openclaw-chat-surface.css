@@ -1,0 +1,148 @@
+:root {
+  --background: var(--bg-page);
+  --foreground: var(--text-primary);
+  --card: var(--bg-card);
+  --card-foreground: var(--text-primary);
+  --primary: var(--brand-primary);
+  --primary-foreground: var(--brand-on-primary);
+  --secondary: var(--bg-hover);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--bg-hover);
+  --muted-foreground: #737373;
+  --accent: var(--bg-hover);
+  --accent-foreground: var(--text-primary);
+  --destructive: var(--state-error);
+  --destructive-foreground: #ffffff;
+  --border: var(--border-default);
+  --input: var(--border-default);
+  --ring: var(--brand-primary);
+}
+
+body {
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+}
+
+.openclaw-chat-surface {
+  --bg: #f6f1e9;
+  --bg-accent: #f1e9dc;
+  --bg-elevated: #fffdf9;
+  --bg-hover: #ece2d2;
+  --bg-muted: #ede4d7;
+  --bg-content: #f8f3eb;
+  --card: #fffdf9;
+  --card-foreground: #231d16;
+  --card-highlight: rgba(97, 71, 47, 0.06);
+  --popover: #fffdf9;
+  --popover-foreground: #231d16;
+  --panel: #efe6d8;
+  --panel-strong: #e7dccb;
+  --panel-hover: #dfd0bb;
+  --chrome: rgba(246, 241, 233, 0.94);
+  --chrome-strong: rgba(246, 241, 233, 0.98);
+  --text: #4b3f32;
+  --text-strong: #231d16;
+  --chat-text: #342b22;
+  --muted: #8e7d6b;
+  --muted-strong: #6f604f;
+  --muted-foreground: #8e7d6b;
+  --border: #dccdb9;
+  --border-strong: #cdb99f;
+  --border-hover: #bda689;
+  --input: #d8c7b0;
+  --ring: #a96a28;
+  --accent: #a96a28;
+  --accent-hover: #955b1f;
+  --accent-muted: #a96a28;
+  --accent-subtle: rgba(169, 106, 40, 0.12);
+  --accent-foreground: #fffaf2;
+  --accent-glow: rgba(169, 106, 40, 0.18);
+  --primary: #a96a28;
+  --primary-foreground: #fffaf2;
+  --secondary: #efe4d4;
+  --secondary-foreground: #3f3428;
+  --accent-2: #2d7b6e;
+  --accent-2-muted: rgba(45, 123, 110, 0.68);
+  --accent-2-subtle: rgba(45, 123, 110, 0.12);
+  --ok: #2f8f53;
+  --ok-muted: rgba(47, 143, 83, 0.68);
+  --ok-subtle: rgba(47, 143, 83, 0.12);
+  --destructive: #d14836;
+  --destructive-foreground: #fffaf7;
+  --warn: #c48a2a;
+  --warn-muted: rgba(196, 138, 42, 0.68);
+  --warn-subtle: rgba(196, 138, 42, 0.12);
+  --danger: #d14836;
+  --danger-muted: rgba(209, 72, 54, 0.68);
+  --danger-subtle: rgba(209, 72, 54, 0.12);
+  --info: #3478c6;
+  --focus: rgba(169, 106, 40, 0.18);
+  --focus-ring: 0 0 0 2px #f6f1e9, 0 0 0 4px var(--ring);
+  --focus-glow: 0 0 0 2px #f6f1e9, 0 0 0 4px var(--ring), 0 0 18px var(--accent-glow);
+  --grid-line: rgba(92, 74, 54, 0.06);
+  --font-body: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+  --mono: 'SF Mono', 'JetBrains Mono', Menlo, Monaco, Consolas, monospace;
+  --shadow-sm: 0 1px 2px rgba(61, 43, 24, 0.06);
+  --shadow-md: 0 10px 30px rgba(61, 43, 24, 0.08);
+  --shadow-lg: 0 18px 48px rgba(61, 43, 24, 0.12);
+  --shadow-xl: 0 28px 64px rgba(61, 43, 24, 0.14);
+  --shadow-glow: 0 0 24px rgba(169, 106, 40, 0.12);
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.72), transparent 34%),
+    linear-gradient(180deg, #f8f2e9 0%, #f5ecdf 100%);
+}
+
+.openclaw-chat-surface openclaw-app {
+  height: 100%;
+  min-height: 100%;
+}
+
+.openclaw-chat-surface .shell {
+  min-height: 100%;
+  height: 100%;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 1fr;
+  grid-template-areas: 'content';
+  background: transparent;
+}
+
+.openclaw-chat-surface .topbar,
+.openclaw-chat-surface .nav {
+  display: none !important;
+}
+
+.openclaw-chat-surface .content {
+  padding: 20px 24px 24px;
+  background: transparent;
+}
+
+.openclaw-chat-surface .content-header {
+  margin-bottom: 14px;
+  padding: 0 6px;
+}
+
+.openclaw-chat-surface .content-header > div:first-child {
+  display: none;
+}
+
+.openclaw-chat-surface .page-meta {
+  width: 100%;
+  justify-content: flex-end;
+}
+
+.openclaw-chat-surface .chat-card,
+.openclaw-chat-surface .chat-panel,
+.openclaw-chat-surface .chat-shell,
+.openclaw-chat-surface .chat-main,
+.openclaw-chat-surface .messages,
+.openclaw-chat-surface .composer {
+  border-radius: 18px;
+}
+
+.openclaw-chat-surface .chat-card,
+.openclaw-chat-surface .chat-panel,
+.openclaw-chat-surface .chat-shell {
+  box-shadow: var(--shadow-md);
+}
