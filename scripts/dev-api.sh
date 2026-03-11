@@ -466,7 +466,6 @@ ensure_macos_runtime_frameworks
 ensure_macos_codesign_if_needed
 bash "$ROOT_DIR/scripts/prepare-openclaw-workspace.sh"
 sync_gateway_token_config
-bash "$ROOT_DIR/scripts/dev-control-plane.sh"
 stop_existing_api
 if [[ "$API_DETACH" == "1" ]]; then
   start_openclaw_detached

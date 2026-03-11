@@ -24,6 +24,8 @@ pnpm dev:web
 1. 启动本地 OpenClaw（`127.0.0.1:2126`）  
 2. 启动前端 Vite（`127.0.0.1:1520`）  
 
+`pnpm dev:web` / `pnpm dev:api` 不会自动启动 control-plane；如需登录/注册联调，请单独执行 `pnpm dev:control-plane`。
+
 这样可以在浏览器直接联调，不必每次打 DMG。
 
 端口约定：

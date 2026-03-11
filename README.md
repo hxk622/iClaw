@@ -104,8 +104,11 @@ docker run --name iclaw-redis -p 6379:6379 redis:7
 4. 本地联调：
 
 ```bash
+pnpm dev:control-plane
 pnpm dev:all
 ```
+
+`pnpm dev:api` / `pnpm dev:all` 不再自动启动或重启 control-plane；需要单独保持 `pnpm dev:control-plane` 运行。
 
 后端日志默认保存到：
 
