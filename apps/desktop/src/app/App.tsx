@@ -134,6 +134,7 @@ export default function App() {
   const [healthChecking, setHealthChecking] = useState(true);
   const [healthy, setHealthy] = useState(false);
   const [healthError, setHealthError] = useState<string | null>(null);
+  const [initialHealthResolved, setInitialHealthResolved] = useState(false);
   const [runtimeChecking, setRuntimeChecking] = useState(true);
   const [runtimeInstalling, setRuntimeInstalling] = useState(false);
   const [runtimeInstallError, setRuntimeInstallError] = useState<string | null>(null);
@@ -442,6 +443,7 @@ export default function App() {
     if (isTauriRuntime() && (!runtimeReady || runtimeChecking || runtimeInstalling)) {
       setHealthChecking(false);
       setHealthy(false);
+      setInitialHealthResolved(false);
       return;
     }
 
@@ -452,8 +454,10 @@ export default function App() {
       return formatPortConflictMessage(status?.occupied_ports ?? []);
     };
 
-    const check = async (): Promise<boolean> => {
-      setHealthChecking(true);
+    const check = async (blocking = false): Promise<boolean> => {
+      if (blocking) {
+        setHealthChecking(true);
+      }
       try {
         await client.health();
         if (!cancelled) {
@@ -471,12 +475,14 @@ export default function App() {
         }
         return false;
       } finally {
-        if (!cancelled) setHealthChecking(false);
+        if (!cancelled && blocking) {
+          setHealthChecking(false);
+        }
       }
     };
 
     const boot = async () => {
-      const healthyNow = await check();
+      const healthyNow = await check(true);
       if (!cancelled && !healthyNow && isTauriRuntime()) {
         try {
           await startSidecar(SIDE_CAR_ARGS);
@@ -489,15 +495,21 @@ export default function App() {
                 (error instanceof Error ? error.message : 'failed to start openclaw runtime'),
             );
           }
+          if (!cancelled) {
+            setInitialHealthResolved(true);
+          }
           return;
         }
-        await check();
+        await check(true);
+      }
+      if (!cancelled) {
+        setInitialHealthResolved(true);
       }
     };
 
     void boot();
     const timer = window.setInterval(() => {
-      void check();
+      void check(false);
     }, 10000);
 
     return () => {
@@ -555,7 +567,14 @@ export default function App() {
   const shouldShowSetupPanel =
     !isAuthenticated &&
     IS_TAURI_RUNTIME &&
-    (runtimeChecking || runtimeInstalling || !runtimeReady || healthChecking || !healthy || Boolean(healthError));
+    (
+      runtimeChecking ||
+      runtimeInstalling ||
+      !runtimeReady ||
+      !initialHealthResolved ||
+      healthChecking ||
+      (!healthy && Boolean(healthError))
+    );
 
   useEffect(() => {
     if (!authBootstrapReady || shouldShowSetupPanel || guestPromptInitialized) {
