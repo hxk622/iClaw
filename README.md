@@ -143,6 +143,24 @@ bash scripts/build-openclaw-server-runtime.sh
 
 artifact 可以通过 HTTPS 地址分发，也可以在本地验证时直接使用绝对路径。
 
+发布到 MinIO 并回写桌面端下载地址：
+
+```bash
+pnpm publish:openclaw-runtime prod
+```
+
+默认行为：
+
+- `prod` 上传到 `remoteprod/iclaw-prod/runtime/`
+- `artifact_url` 回写为 `https://iclaw.aiyuanxi.com/downloads/runtime/<archive>`
+
+如果需要覆盖，可设置：
+
+- `ICLAW_RUNTIME_MINIO_ALIAS`
+- `ICLAW_RUNTIME_MINIO_BUCKET`
+- `ICLAW_RUNTIME_MINIO_PREFIX`
+- `ICLAW_RUNTIME_PUBLIC_BASE_URL`
+
 ## Versioning
 
 iClaw 版本统一使用 SemVer + build metadata：
