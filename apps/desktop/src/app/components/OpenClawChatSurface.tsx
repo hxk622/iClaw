@@ -32,6 +32,9 @@ type OpenClawChatSurfaceProps = {
   sessionKey?: string;
 };
 
+let openClawUiLoaded = false;
+let openClawUiLoadPromise: Promise<void> | null = null;
+
 const DESIGN_SHORTCUTS = [
   { icon: '+', label: '' },
   { icon: '⚡', label: '快捷' },
@@ -42,6 +45,20 @@ const DESIGN_SHORTCUTS = [
   { icon: '</>', label: '编程' },
   { icon: '⋯', label: '更多' },
 ] as const;
+
+function ensureOpenClawUiLoaded(): Promise<void> {
+  if (openClawUiLoaded) {
+    return Promise.resolve();
+  }
+
+  if (!openClawUiLoadPromise) {
+    openClawUiLoadPromise = import('@openclaw-ui/main.ts').then(() => {
+      openClawUiLoaded = true;
+    });
+  }
+
+  return openClawUiLoadPromise;
+}
 
 function resolveThemeMode(): OpenClawTheme {
   return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
@@ -164,7 +181,7 @@ export function OpenClawChatSurface({
   sessionKey = 'main',
 }: OpenClawChatSurfaceProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const [uiReady, setUiReady] = useState(false);
+  const [uiReady, setUiReady] = useState(openClawUiLoaded);
   const [uiError, setUiError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -172,7 +189,7 @@ export function OpenClawChatSurface({
 
     const ensureUiLoaded = async () => {
       try {
-        await import('@openclaw-ui/main.ts');
+        await ensureOpenClawUiLoaded();
         if (cancelled) return;
         setUiReady(true);
         setUiError(null);
