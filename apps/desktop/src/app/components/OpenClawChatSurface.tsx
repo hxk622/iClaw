@@ -58,8 +58,8 @@ function buildSettings(params: {
     sessionKey: params.sessionKey,
     lastActiveSessionKey: params.sessionKey,
     theme: resolveThemeMode(),
-    chatFocusMode: false,
-    chatShowThinking: false,
+    chatFocusMode: true,
+    chatShowThinking: true,
     splitRatio: 0.6,
     navCollapsed: true,
     navGroupsCollapsed: {
