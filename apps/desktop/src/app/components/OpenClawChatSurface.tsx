@@ -265,6 +265,13 @@ export function OpenClawChatSurface({
     }
 
     const app = document.createElement('openclaw-app') as OpenClawAppElement;
+    const settings = buildSettings({ gatewayUrl, gatewayToken, sessionKey });
+
+    app.applySettings(settings);
+    app.password = gatewayPassword?.trim() ?? '';
+    app.sessionKey = sessionKey;
+    app.tab = 'chat';
+
     appRef.current = app;
     host.replaceChildren(app);
 
