@@ -6,11 +6,13 @@ import { detectPortConflicts, isTauriRuntime, loadGatewayAuth, startSidecar } fr
 import {
   diagnoseRuntime,
   installRuntime,
+  listenRuntimeInstallProgress,
   type RuntimeDiagnosis,
+  type RuntimeInstallProgress,
 } from './lib/tauri-runtime-config';
 import { AuthPanel } from './components/AuthPanel';
 import { AccountPanel } from './components/account/AccountPanel';
-import { FirstRunSetupPanel, type SetupStage } from './components/FirstRunSetupPanel';
+import { FirstRunSetupPanel } from './components/FirstRunSetupPanel';
 import { OpenClawChatSurface } from './components/OpenClawChatSurface';
 import { Sidebar } from './components/Sidebar';
 import { SettingsPanel } from './components/settings/SettingsPanel';
@@ -80,6 +82,19 @@ const DISABLE_GATEWAY_DEVICE_IDENTITY =
     isLoopbackHostname(window.location.hostname) &&
     isLoopbackUrl(API_BASE_URL));
 const CHAT_SESSION_KEY = 'main';
+const AUTH_BOOTSTRAP_TIMEOUT_MS = 10_000;
+
+type InstallerViewState = 'loading' | 'error';
+
+type InstallerViewModel = {
+  state: InstallerViewState;
+  title: string;
+  subtitle: string;
+  progress: number;
+  stepLabel: string;
+  stepDetail: string;
+  errorMessage: string | null;
+};
 
 function isLikelyAccessToken(token: string): boolean {
   return token.trim().length >= 16;
@@ -140,8 +155,8 @@ export default function App() {
   const [runtimeInstallError, setRuntimeInstallError] = useState<string | null>(null);
   const [runtimeReady, setRuntimeReady] = useState(!isTauriRuntime());
   const [runtimeDiagnosis, setRuntimeDiagnosis] = useState<RuntimeDiagnosis | null>(null);
+  const [runtimeInstallProgress, setRuntimeInstallProgress] = useState<RuntimeInstallProgress | null>(null);
   const [activeView, setActiveView] = useState<'chat' | 'settings' | 'account'>('chat');
-  const [installStage, setInstallStage] = useState<'download' | 'extract'>('download');
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
   const [postAuthView, setPostAuthView] = useState<'account' | null>(null);
@@ -165,21 +180,47 @@ export default function App() {
     await resetIclawWorkspaceToDefaults();
   };
 
-  useEffect(() => {
-    if (!runtimeInstalling) {
-      setInstallStage('download');
+  const retrySetup = async () => {
+    if (!runtimeReady) {
+      await handleInstallRuntime();
       return;
     }
 
-    setInstallStage('download');
-    const timer = window.setTimeout(() => {
-      setInstallStage('extract');
-    }, 1800);
+    setHealthError(null);
+    setInitialHealthResolved(false);
+    setHealthChecking(true);
+    try {
+      await startSidecar(SIDE_CAR_ARGS);
+      await client.health();
+      setHealthy(true);
+      setHealthError(null);
+    } catch (error) {
+      const status = await detectPortConflicts().catch(() => null);
+      setHealthy(false);
+      setHealthError(
+        formatPortConflictMessage(status?.occupied_ports ?? []) ||
+          (error instanceof Error ? error.message : 'failed to start openclaw runtime'),
+      );
+    } finally {
+      setHealthChecking(false);
+      setInitialHealthResolved(true);
+    }
+  };
+
+  useEffect(() => {
+    if (!IS_TAURI_RUNTIME) return;
+
+    let detach = () => {};
+    void listenRuntimeInstallProgress((payload) => {
+      setRuntimeInstallProgress(payload);
+    }).then((unlisten) => {
+      detach = unlisten;
+    });
 
     return () => {
-      window.clearTimeout(timer);
+      detach();
     };
-  }, [runtimeInstalling]);
+  }, []);
 
   const applyRuntimeDiagnosis = (diagnosis: RuntimeDiagnosis | null): boolean => {
     setRuntimeDiagnosis(diagnosis);
@@ -199,6 +240,14 @@ export default function App() {
     }
     setRuntimeChecking(true);
     setRuntimeInstallError(null);
+    if (!runtimeInstalling) {
+      setRuntimeInstallProgress({
+        phase: 'inspect',
+        progress: 12,
+        label: '正在检查本地环境',
+        detail: '确认核心组件、工作区和运行配置是否已准备就绪。',
+      });
+    }
     try {
       const diagnosis = await diagnoseRuntime();
       applyRuntimeDiagnosis(diagnosis);
@@ -210,6 +259,12 @@ export default function App() {
   const handleInstallRuntime = async () => {
     setRuntimeInstalling(true);
     setRuntimeInstallError(null);
+    setRuntimeInstallProgress({
+      phase: 'prepare',
+      progress: 6,
+      label: '正在准备安装组件',
+      detail: '为首次启动创建本地运行目录并校验安装来源。',
+    });
     try {
       await installRuntime();
       await checkRuntime();
@@ -240,6 +295,12 @@ export default function App() {
         }
 
         setRuntimeInstalling(true);
+        setRuntimeInstallProgress({
+          phase: 'prepare',
+          progress: 6,
+          label: '正在准备安装组件',
+          detail: '首次启动需要部署本地运行环境，请稍候。',
+        });
         await installRuntime();
         if (cancelled) return;
         const nextDiagnosis = await diagnoseRuntime();
@@ -265,71 +326,98 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    void readAuth().then((auth) => {
-      if (!auth) {
-        void client
-          .me()
-          .then((user) => {
-            setSessionAuthed(true);
-            setCurrentUser((user as AuthUser) || null);
-            setAuthBootstrapReady(true);
-          })
-          .catch(() => {
-            setSessionAuthed(false);
-            setCurrentUser(null);
-            setAuthBootstrapReady(true);
-          });
-        return;
+    let cancelled = false;
+    let settled = false;
+
+    const settleGuest = (clearStoredAuth = false) => {
+      if (cancelled || settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      if (clearStoredAuth) {
+        void clearAuth().catch(() => {});
       }
-      if (!isLikelyAccessToken(auth.accessToken)) {
-        void clearAuth();
-        setAccessToken(null);
-        setSessionAuthed(false);
-        setCurrentUser(null);
-        setAuthBootstrapReady(true);
-        return;
-      }
-      setAccessToken(auth.accessToken);
-      void client
-        .me(auth.accessToken)
-        .then(async (user) => {
+      setAccessToken(null);
+      setSessionAuthed(false);
+      setCurrentUser(null);
+      setAuthBootstrapReady(true);
+    };
+
+    const settleAuthed = (token: string | null, user: AuthUser | null) => {
+      if (cancelled || settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      setAccessToken(token);
+      setSessionAuthed(true);
+      setCurrentUser(user);
+      setAuthBootstrapReady(true);
+    };
+
+    const timeoutId = window.setTimeout(() => {
+      settleGuest(true);
+    }, AUTH_BOOTSTRAP_TIMEOUT_MS);
+
+    const bootAuth = async () => {
+      try {
+        const auth = await readAuth();
+        if (!auth) {
+          try {
+            const user = (await client.me()) as AuthUser;
+            if (!user) {
+              settleGuest(false);
+              return;
+            }
+            settleAuthed(null, user || null);
+          } catch {
+            settleGuest(false);
+          }
+          return;
+        }
+
+        if (!isLikelyAccessToken(auth.accessToken)) {
+          settleGuest(true);
+          return;
+        }
+
+        try {
+          const user = (await client.me(auth.accessToken)) as AuthUser;
           try {
             await syncWorkspaceForUser(auth.accessToken);
           } catch (error) {
             console.error('[desktop] failed to sync workspace from backup, resetting to defaults', error);
             await resetIclawWorkspaceToDefaults();
           }
-          setSessionAuthed(true);
-          setCurrentUser((user as AuthUser) || null);
-          setAuthBootstrapReady(true);
-        })
-        .catch(async () => {
+          settleAuthed(auth.accessToken, user || null);
+          return;
+        } catch {}
+
+        try {
+          const refreshed = await client.refresh(auth.refreshToken);
           try {
-            const refreshed = await client.refresh(auth.refreshToken);
-            try {
-              await syncWorkspaceForUser(refreshed.access_token);
-            } catch (error) {
-              console.error('[desktop] failed to sync workspace after refresh, resetting to defaults', error);
-              await resetIclawWorkspaceToDefaults();
-            }
-            await writeAuth({
-              accessToken: refreshed.access_token,
-              refreshToken: refreshed.refresh_token || auth.refreshToken,
-            });
-            setAccessToken(refreshed.access_token);
-            const user = (await client.me(refreshed.access_token)) as AuthUser;
-            setSessionAuthed(true);
-            setCurrentUser(user || null);
-            setAuthBootstrapReady(true);
-          } catch {
-            await clearAuth();
-            setAccessToken(null);
-            setSessionAuthed(false);
-            setCurrentUser(null);
-            setAuthBootstrapReady(true);
+            await syncWorkspaceForUser(refreshed.access_token);
+          } catch (error) {
+            console.error('[desktop] failed to sync workspace after refresh, resetting to defaults', error);
+            await resetIclawWorkspaceToDefaults();
           }
-        });
-    });
+          await writeAuth({
+            accessToken: refreshed.access_token,
+            refreshToken: refreshed.refresh_token || auth.refreshToken,
+          });
+          const user = (await client.me(refreshed.access_token)) as AuthUser;
+          settleAuthed(refreshed.access_token, user || null);
+        } catch {
+          settleGuest(true);
+        }
+      } catch {
+        settleGuest(true);
+      }
+    };
+
+    void bootAuth();
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
   }, [client]);
 
   const handleLogin = async (input: { identifier: string; password: string }) => {
@@ -516,51 +604,65 @@ export default function App() {
       window.clearInterval(timer);
     };
   }, [client, runtimeChecking, runtimeInstalling, runtimeReady]);
-  const startupView = (() => {
-    if (runtimeInstallError) {
+  const installerErrorMessage =
+    runtimeInstallError ||
+    healthError ||
+    (!runtimeReady && !runtimeInstalling && !runtimeDiagnosis?.runtime_installable
+      ? '当前安装包未包含可用的运行时来源，请重新下载应用或联系支持。'
+      : null);
+  const installerView: InstallerViewModel = (() => {
+    if (installerErrorMessage) {
       return {
-        stage: 'failed' as SetupStage,
-        title: '组件准备失败',
-        description: '初始化已中断。错误信息会直接展示，不做静默回退。',
-      };
-    }
-
-    if (healthError) {
-      return {
-        stage: 'failed' as SetupStage,
-        title: '本地服务启动失败',
-        description: '本地组件已准备完成，但服务没有成功就绪。请直接根据错误信息排查。',
+        state: 'error',
+        title: '唤醒失败',
+        subtitle: '安装过程遇到问题',
+        progress: Math.max(0, Math.min(100, runtimeInstallProgress?.progress ?? 0)),
+        stepLabel: runtimeInstallProgress?.label || '安装过程中断',
+        stepDetail: runtimeInstallProgress?.detail || '无法继续准备本地运行环境。',
+        errorMessage: installerErrorMessage,
       };
     }
 
     if (runtimeInstalling) {
-      if (installStage === 'download') {
-        return {
-          stage: 'download' as SetupStage,
-          title: '正在下载核心组件',
-          description: '首次启动需要补齐本地组件。这里只显示阶段进度，不展示伪精确百分比。',
-        };
-      }
-
+      const progress = runtimeInstallProgress ?? {
+        phase: 'prepare',
+        progress: 6,
+        label: '正在准备安装组件',
+        detail: '首次启动需要部署本地运行环境，请稍候。',
+      };
+      const title =
+        progress.progress < 30 ? 'iClaw 正在苏醒' : progress.progress < 85 ? '正在准备 iClaw' : '即将完成';
       return {
-        stage: 'extract' as SetupStage,
-        title: '正在校验并部署',
-        description: '组件已获取完成，正在做完整性校验并写入本地运行目录。',
+        state: 'loading',
+        title,
+        subtitle: '正在部署你的本地 AI 助手',
+        progress: progress.progress,
+        stepLabel: progress.label,
+        stepDetail: progress.detail,
+        errorMessage: null,
       };
     }
 
     if (runtimeChecking || !runtimeReady) {
       return {
-        stage: 'inspect' as SetupStage,
-        title: '正在检查本地运行环境',
-        description: '先确认核心组件、资源目录和配置文件状态，再决定是否继续部署。',
+        state: 'loading',
+        title: 'iClaw 正在苏醒',
+        subtitle: '首次启动需要准备本地运行环境',
+        progress: 12,
+        stepLabel: '正在检查本地环境',
+        stepDetail: '确认核心组件、工作区和运行配置是否已准备就绪。',
+        errorMessage: null,
       };
     }
 
     return {
-      stage: 'launch' as SetupStage,
-      title: '正在启动本地服务',
-      description: '本地组件已经准备完成，正在拉起服务并执行健康检查。',
+      state: 'loading',
+      title: '即将完成',
+      subtitle: '本地运行环境已准备完成',
+      progress: healthy ? 100 : 96,
+      stepLabel: healthy ? 'iClaw 已就绪' : '正在启动本地服务',
+      stepDetail: healthy ? '正在进入应用。' : '正在拉起本地服务并完成最后的健康检查。',
+      errorMessage: null,
     };
   })();
   const shouldShowSetupPanel =
@@ -589,16 +691,14 @@ export default function App() {
   if (shouldShowSetupPanel) {
     return (
       <FirstRunSetupPanel
-        diagnosis={runtimeDiagnosis}
-        stage={startupView.stage}
-        stageTitle={startupView.title}
-        stageDescription={startupView.description}
-        loading={runtimeChecking}
-        installing={runtimeInstalling}
-        installError={runtimeInstallError}
-        launchError={healthError}
-        onRecheck={checkRuntime}
-        onInstall={handleInstallRuntime}
+        state={installerView.state}
+        title={installerView.title}
+        subtitle={installerView.subtitle}
+        progress={installerView.progress}
+        stepLabel={installerView.stepLabel}
+        stepDetail={installerView.stepDetail}
+        errorMessage={installerView.errorMessage}
+        onRetry={retrySetup}
       />
     );
   }

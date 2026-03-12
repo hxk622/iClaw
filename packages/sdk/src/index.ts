@@ -342,32 +342,65 @@ async function parseError(response: Response): Promise<ApiError> {
   });
 }
 
-const AUTH_REQUEST_TIMEOUT_MS = 8_000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 8_000;
+const HEALTH_REQUEST_TIMEOUT_MS = 5_000;
+const STREAM_REQUEST_TIMEOUT_MS = 15_000;
 
-async function fetchWithNetworkError(input: string, init: RequestInit, authBaseUrl: string): Promise<Response> {
+type TimedFetchOptions = {
+  timeoutMs?: number;
+  serviceName: string;
+  serviceBaseUrl: string;
+};
+
+async function fetchWithTimeout(
+  input: string,
+  init: RequestInit,
+  options: TimedFetchOptions,
+): Promise<Response> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), AUTH_REQUEST_TIMEOUT_MS);
+  const timeoutMs = options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+  const upstreamSignal = init.signal;
+  let timedOut = false;
+  const abortFromUpstream = () => controller.abort();
+
+  if (upstreamSignal?.aborted) {
+    controller.abort();
+  } else {
+    upstreamSignal?.addEventListener('abort', abortFromUpstream, { once: true });
+  }
+
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
   try {
     return await fetch(input, {
       ...init,
       signal: controller.signal,
     });
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
+    if (timedOut) {
       throw new ApiError({
         code: 'TIMEOUT',
-        message: `登录服务连接超时，请确认 control-plane 已启动并监听 ${authBaseUrl}`,
+        message: `请求超时，请确认${options.serviceName}已启动并监听 ${options.serviceBaseUrl}`,
+      });
+    }
+    if (upstreamSignal?.aborted) {
+      throw new ApiError({
+        code: 'ABORTED',
+        message: '请求已取消',
       });
     }
     if (error instanceof Error) {
       throw new ApiError({
         code: 'NETWORK_ERROR',
-        message: `无法连接登录服务，请确认 control-plane 已启动并监听 ${authBaseUrl}`,
+        message: `无法连接${options.serviceName}，请确认已启动并监听 ${options.serviceBaseUrl}`,
       });
     }
     throw error;
   } finally {
     clearTimeout(timeoutId);
+    upstreamSignal?.removeEventListener('abort', abortFromUpstream);
   }
 }
 
@@ -394,10 +427,26 @@ export class IClawClient {
     this.disableGatewayDeviceIdentity = Boolean(options.disableGatewayDeviceIdentity);
   }
 
-  async health(): Promise<unknown> {
-    const res = await fetch(`${this.apiBaseUrl}/health`, {
-      credentials: 'include',
+  private fetchAuth(path: string, init: RequestInit = {}, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS): Promise<Response> {
+    return fetchWithTimeout(`${this.authBaseUrl}${path}`, init, {
+      timeoutMs,
+      serviceName: 'control-plane',
+      serviceBaseUrl: this.authBaseUrl,
     });
+  }
+
+  private fetchApi(path: string, init: RequestInit = {}, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS): Promise<Response> {
+    return fetchWithTimeout(`${this.apiBaseUrl}${path}`, init, {
+      timeoutMs,
+      serviceName: '本地 API',
+      serviceBaseUrl: this.apiBaseUrl,
+    });
+  }
+
+  async health(): Promise<unknown> {
+    const res = await this.fetchApi('/health', {
+      credentials: 'include',
+    }, HEALTH_REQUEST_TIMEOUT_MS);
     if (!res.ok) {
       const text = await res.text();
       if (
@@ -418,7 +467,7 @@ export class IClawClient {
   }
 
   async login(input: LoginInput): Promise<{ tokens: AuthTokens; user: unknown }> {
-    const res = await fetchWithNetworkError(`${this.authBaseUrl}/auth/login`, {
+    const res = await this.fetchAuth('/auth/login', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -427,14 +476,14 @@ export class IClawClient {
         email: input.identifier,
         password: input.password,
       }),
-    }, this.authBaseUrl);
+    });
     if (!res.ok) throw await parseError(res);
     const json = (await res.json()) as { data: { tokens: AuthTokens; user: unknown } };
     return json.data;
   }
 
   async register(input: RegisterInput): Promise<{ tokens: AuthTokens; user: unknown }> {
-    const res = await fetchWithNetworkError(`${this.authBaseUrl}/auth/register`, {
+    const res = await this.fetchAuth('/auth/register', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -444,42 +493,42 @@ export class IClawClient {
         password: input.password,
         name: input.name,
       }),
-    }, this.authBaseUrl);
+    });
     if (!res.ok) throw await parseError(res);
     const json = (await res.json()) as { data: { tokens: AuthTokens; user: unknown } };
     return json.data;
   }
 
   async wechatLogin(input: OAuthLoginInput): Promise<{ tokens: AuthTokens; user: unknown }> {
-    const res = await fetchWithNetworkError(`${this.authBaseUrl}/auth/wechat`, {
+    const res = await this.fetchAuth('/auth/wechat', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         code: input.code,
       }),
-    }, this.authBaseUrl);
+    });
     if (!res.ok) throw await parseError(res);
     const json = (await res.json()) as { data: { tokens: AuthTokens; user: unknown } };
     return json.data;
   }
 
   async googleLogin(input: OAuthLoginInput): Promise<{ tokens: AuthTokens; user: unknown }> {
-    const res = await fetchWithNetworkError(`${this.authBaseUrl}/auth/google`, {
+    const res = await this.fetchAuth('/auth/google', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         code: input.code,
       }),
-    }, this.authBaseUrl);
+    });
     if (!res.ok) throw await parseError(res);
     const json = (await res.json()) as { data: { tokens: AuthTokens; user: unknown } };
     return json.data;
   }
 
   async refresh(refreshToken: string): Promise<AuthTokens> {
-    const res = await fetch(`${this.authBaseUrl}/auth/refresh`, {
+    const res = await this.fetchAuth('/auth/refresh', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -493,7 +542,7 @@ export class IClawClient {
   async me(token?: string): Promise<unknown> {
     const headers: Record<string, string> = {};
     if (token) headers.Authorization = `Bearer ${token}`;
-    const res = await fetch(`${this.authBaseUrl}/auth/me`, {
+    const res = await this.fetchAuth('/auth/me', {
       headers,
       credentials: 'include',
     });
@@ -508,7 +557,7 @@ export class IClawClient {
   }
 
   async updateProfile(input: UpdateProfileInput): Promise<unknown> {
-    const res = await fetch(`${this.authBaseUrl}/auth/profile`, {
+    const res = await this.fetchAuth('/auth/profile', {
       method: 'PUT',
       credentials: 'include',
       headers: {
@@ -529,7 +578,7 @@ export class IClawClient {
   }
 
   async changePassword(input: ChangePasswordInput): Promise<{message?: string}> {
-    const res = await fetch(`${this.authBaseUrl}/auth/change-password`, {
+    const res = await this.fetchAuth('/auth/change-password', {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -547,7 +596,7 @@ export class IClawClient {
   }
 
   async linkedAccounts(token: string): Promise<unknown> {
-    const res = await fetch(`${this.authBaseUrl}/auth/linked-accounts`, {
+    const res = await this.fetchAuth('/auth/linked-accounts', {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -559,7 +608,7 @@ export class IClawClient {
   }
 
   async unlinkOAuthAccount(token: string, provider: 'wechat' | 'google'): Promise<{message?: string}> {
-    const res = await fetch(`${this.authBaseUrl}/auth/link/${provider}`, {
+    const res = await this.fetchAuth(`/auth/link/${provider}`, {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -572,7 +621,7 @@ export class IClawClient {
   }
 
   async creditsMe(token: string): Promise<unknown> {
-    const res = await fetch(`${this.authBaseUrl}/credits/me`, {
+    const res = await this.fetchAuth('/credits/me', {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -584,7 +633,7 @@ export class IClawClient {
   }
 
   async creditsLedger(token: string): Promise<unknown> {
-    const res = await fetch(`${this.authBaseUrl}/credits/ledger`, {
+    const res = await this.fetchAuth('/credits/ledger', {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -602,7 +651,7 @@ export class IClawClient {
   }
 
   async authorizeRun(input: AuthorizeRunInput): Promise<RunGrantData> {
-    const res = await fetch(`${this.authBaseUrl}/agent/run/authorize`, {
+    const res = await this.fetchAuth('/agent/run/authorize', {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -621,7 +670,7 @@ export class IClawClient {
   }
 
   async reportUsageEvent(input: UsageEventInput): Promise<UsageEventData> {
-    const res = await fetch(`${this.authBaseUrl}/usage/events`, {
+    const res = await this.fetchAuth('/usage/events', {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -644,7 +693,7 @@ export class IClawClient {
   }
 
   async getWorkspaceBackup(token: string): Promise<WorkspaceBackupData | null> {
-    const res = await fetch(`${this.authBaseUrl}/workspace/backup`, {
+    const res = await this.fetchAuth('/workspace/backup', {
       method: 'GET',
       credentials: 'include',
       headers: {
@@ -657,7 +706,7 @@ export class IClawClient {
   }
 
   async saveWorkspaceBackup(input: WorkspaceBackupInput): Promise<WorkspaceBackupData> {
-    const res = await fetch(`${this.authBaseUrl}/workspace/backup`, {
+    const res = await this.fetchAuth('/workspace/backup', {
       method: 'PUT',
       credentials: 'include',
       headers: {
@@ -939,7 +988,7 @@ export class IClawClient {
       return this.streamChatViaGateway(input, callbacks);
     }
 
-    const res = await fetch(`${this.apiBaseUrl}/agent/stream`, {
+    const res = await this.fetchApi('/agent/stream', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -952,7 +1001,7 @@ export class IClawClient {
         attachments: input.attachments || [],
       }),
       signal: input.signal,
-    });
+    }, STREAM_REQUEST_TIMEOUT_MS);
 
     if (!res.ok) {
       const err = await parseError(res);
