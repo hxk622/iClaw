@@ -712,22 +712,6 @@ function AuthedView({
           gatewayPassword={gatewayAuth.password}
           sessionKey={CHAT_SESSION_KEY}
         />
-      ) : !authModalOpen ? (
-        <div className="flex flex-1 items-center justify-center bg-[var(--bg-page)] px-10">
-          <div className="max-w-md rounded-[28px] border border-[var(--border-default)] bg-white/90 px-8 py-10 text-center shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
-            <div className="text-[22px] font-medium text-[var(--text-primary)]">登录后继续</div>
-            <p className="mt-3 text-[14px] leading-6 text-[var(--text-secondary)]">
-              对话区已切回运行时原生链路。先完成登录，再进入聊天。
-            </p>
-            <button
-              type="button"
-              onClick={() => onRequestAuth('login')}
-              className="mt-6 inline-flex h-11 items-center justify-center rounded-full bg-[var(--brand-primary)] px-6 text-[14px] font-medium text-white transition hover:bg-[var(--brand-primary-hover)]"
-            >
-              去登录
-            </button>
-          </div>
-        </div>
       ) : (
         <div className="flex-1 bg-[var(--bg-page)]" />
       )}

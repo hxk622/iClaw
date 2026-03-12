@@ -20,7 +20,7 @@ function normalizeUsername(value: string): string {
 function getPasswordStrength(password: string): {label: string; tone: string; score: number} {
   const value = password.trim();
   if (!value) {
-    return {label: '请输入密码', tone: 'text-[#8e8069]', score: 0};
+    return {label: '请输入密码', tone: 'text-[var(--text-secondary)]', score: 0};
   }
 
   let score = 0;
@@ -31,12 +31,12 @@ function getPasswordStrength(password: string): {label: string; tone: string; sc
   if (/[^A-Za-z0-9]/.test(value)) score += 1;
 
   if (score <= 1) {
-    return {label: '密码强度较弱', tone: 'text-[#c96b4a]', score: 1};
+    return {label: '密码强度较弱', tone: 'text-[#c65b42]', score: 1};
   }
   if (score <= 3) {
-    return {label: '密码强度中等', tone: 'text-[#b28839]', score: 2};
+    return {label: '密码强度中等', tone: 'text-[#ab7c2d]', score: 2};
   }
-  return {label: '密码强度较强', tone: 'text-[#3f8a53]', score: 3};
+  return {label: '密码强度较强', tone: 'text-[#2f8f5f]', score: 3};
 }
 
 function WechatIcon() {
@@ -79,16 +79,16 @@ function GoogleIcon() {
 
 function SocialDivider() {
   return (
-    <div className="my-5 flex items-center gap-3 text-[11px] uppercase tracking-[0.18em] text-[#a3957f]">
-      <div className="h-px flex-1 bg-[#e7ddcd]" />
+    <div className="my-5 flex items-center gap-3 text-[11px] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+      <div className="h-px flex-1 bg-[rgba(59,130,246,0.16)]" />
       <span>或使用第三方登录</span>
-      <div className="h-px flex-1 bg-[#e7ddcd]" />
+      <div className="h-px flex-1 bg-[rgba(59,130,246,0.16)]" />
     </div>
   );
 }
 
 function FieldLabel({children}: {children: React.ReactNode}) {
-  return <span className="text-[12px] font-medium text-[#756a57]">{children}</span>;
+  return <span className="text-[12px] font-medium text-[var(--text-secondary)]">{children}</span>;
 }
 
 function InputShell({children}: {children: React.ReactNode}) {
@@ -96,7 +96,7 @@ function InputShell({children}: {children: React.ReactNode}) {
 }
 
 const inputClassName =
-  'h-11 w-full rounded-xl border border-[#ddd4c4] bg-white px-3.5 text-[14px] text-[#171614] outline-none transition placeholder:text-[#beb4a3] focus:border-[#b69763] focus:ring-2 focus:ring-[#ead6b0]/60';
+  'h-11 w-full rounded-2xl border border-[rgba(15,23,42,0.09)] bg-[rgba(255,255,255,0.96)] px-3.5 text-[14px] text-[var(--text-primary)] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[rgba(59,130,246,0.4)] focus:ring-4 focus:ring-[rgba(59,130,246,0.12)]';
 
 export function AuthPanel({
   open,
@@ -178,40 +178,42 @@ export function AuthPanel({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center bg-[rgba(28,24,16,0.24)] px-4 py-8 backdrop-blur-[2px] transition-opacity ${
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-[rgba(148,163,184,0.18)] px-4 py-8 backdrop-blur-[10px] transition-opacity ${
         open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
       }`}
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[520px] rounded-[30px] border border-[#ddd3c1] bg-[#f8f4ec]/98 p-5 shadow-[0_28px_90px_rgba(42,31,10,0.22)] backdrop-blur md:p-7"
+        className="w-full max-w-[540px] rounded-[32px] border border-[rgba(255,255,255,0.75)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,250,255,0.96))] p-5 shadow-[0_32px_90px_rgba(30,41,59,0.16)] backdrop-blur md:p-7"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-4 flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-[#d7ccb9] bg-white">
+            <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-[rgba(59,130,246,0.14)] bg-[linear-gradient(180deg,#ffffff,#eff6ff)] shadow-[0_10px_24px_rgba(59,130,246,0.08)]">
               <img src="/favicon.png" alt="iClaw logo" className="h-8 w-8 object-contain" />
             </div>
             <div>
-              <div className="text-[12px] font-semibold uppercase tracking-[0.22em] text-[#ab8d57]">iClaw</div>
-              <div className="text-[13px] text-[#706554]">登录以继续使用账户与额度体系</div>
+              <div className="text-[12px] font-semibold uppercase tracking-[0.22em] text-[var(--brand-primary)]">iClaw</div>
+              <div className="text-[13px] text-[var(--text-secondary)]">登录以继续使用账户与额度体系</div>
             </div>
           </div>
           <button
             type="button"
             aria-label="关闭登录弹窗"
-            className="rounded-full p-2 text-[#8d7d61] transition hover:bg-[#efe7d8] hover:text-[#3b3328]"
+            className="rounded-full p-2 text-[var(--text-muted)] transition hover:bg-[rgba(59,130,246,0.08)] hover:text-[var(--brand-primary)]"
             onClick={onClose}
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="mb-5 flex rounded-2xl bg-[#ece5d8] p-1">
+        <div className="mb-5 flex rounded-2xl border border-[rgba(59,130,246,0.09)] bg-[rgba(59,130,246,0.06)] p-1">
           <button
             type="button"
             className={`flex-1 rounded-[14px] px-4 py-2.5 text-[13px] font-medium transition ${
-              mode === 'login' ? 'bg-[#171614] text-white shadow-sm' : 'text-[#6f6555]'
+              mode === 'login'
+                ? 'bg-[linear-gradient(135deg,var(--brand-primary),#5b9cff)] text-[var(--brand-on-primary)] shadow-[0_10px_22px_rgba(59,130,246,0.24)]'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
             }`}
             onClick={() => {
               setMode('login');
@@ -223,7 +225,9 @@ export function AuthPanel({
           <button
             type="button"
             className={`flex-1 rounded-[14px] px-4 py-2.5 text-[13px] font-medium transition ${
-              mode === 'register' ? 'bg-[#171614] text-white shadow-sm' : 'text-[#6f6555]'
+              mode === 'register'
+                ? 'bg-[linear-gradient(135deg,var(--brand-primary),#5b9cff)] text-[var(--brand-on-primary)] shadow-[0_10px_22px_rgba(59,130,246,0.24)]'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
             }`}
             onClick={() => {
               setMode('register');
@@ -246,7 +250,7 @@ export function AuthPanel({
                       setUsername(e.target.value);
                       setLocalError(null);
                     }}
-                    placeholder=""
+                    placeholder="设置你的用户名"
                     className={inputClassName}
                   />
                 </InputShell>
@@ -292,7 +296,7 @@ export function AuthPanel({
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-[#8d7d61] transition hover:bg-[#f4ecdf]"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-[var(--text-muted)] transition hover:bg-[rgba(59,130,246,0.08)] hover:text-[var(--brand-primary)]"
                   onClick={() => setShowPassword((prev) => !prev)}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -306,7 +310,7 @@ export function AuthPanel({
                     <div
                       key={index}
                       className={`h-1.5 flex-1 rounded-full ${
-                        index < passwordStrength.score ? 'bg-[#b69763]' : 'bg-[#e6dccd]'
+                        index < passwordStrength.score ? 'bg-[var(--brand-primary)]' : 'bg-[rgba(15,23,42,0.08)]'
                       }`}
                     />
                   ))}
@@ -337,7 +341,7 @@ export function AuthPanel({
                 </InputShell>
               </label>
 
-              <label className="flex items-start gap-3 rounded-2xl border border-[#e5dccd] bg-[#f4eee3] px-4 py-3 text-[12px] leading-6 text-[#665d50]">
+              <label className="flex items-start gap-3 rounded-2xl border border-[rgba(59,130,246,0.12)] bg-[rgba(59,130,246,0.05)] px-4 py-3 text-[12px] leading-6 text-[var(--text-secondary)]">
                 <input
                   type="checkbox"
                   checked={agreedToTerms}
@@ -345,7 +349,7 @@ export function AuthPanel({
                     setAgreedToTerms(e.target.checked);
                     setLocalError(null);
                   }}
-                  className="mt-1 h-4 w-4 rounded border-[#b8a17a] text-[#171614]"
+                  className="mt-1 h-4 w-4 rounded border-[rgba(59,130,246,0.28)] text-[var(--brand-primary)]"
                 />
                 <span>我已阅读并同意 iClaw 的服务协议、隐私说明，以及账号 credit 相关计费规则。</span>
               </label>
@@ -354,7 +358,7 @@ export function AuthPanel({
         </div>
 
         {effectiveError ? (
-          <p className="mt-4 rounded-2xl border border-[#efc2c2] bg-[#fff1f1] px-4 py-3 text-[13px] text-[#b23d3d]">
+          <p className="mt-4 rounded-2xl border border-[rgba(239,68,68,0.18)] bg-[rgba(254,242,242,0.96)] px-4 py-3 text-[13px] text-[#b42318]">
             {effectiveError}
           </p>
         ) : null}
@@ -363,7 +367,7 @@ export function AuthPanel({
           type="button"
           onClick={() => void submit()}
           disabled={loading || !canSubmit}
-          className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-[#171614] px-4 text-[14px] font-medium text-white transition hover:bg-[#24211d] disabled:cursor-not-allowed disabled:opacity-55"
+          className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(135deg,var(--brand-primary),#5b9cff)] px-4 text-[14px] font-medium text-white shadow-[0_16px_28px_rgba(59,130,246,0.22)] transition hover:brightness-[1.03] disabled:cursor-not-allowed disabled:opacity-55 disabled:shadow-none"
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           {loading ? '处理中...' : mode === 'login' ? '登录' : '注册'}
@@ -376,7 +380,7 @@ export function AuthPanel({
             type="button"
             disabled={loading || socialLoadingProvider !== null}
             onClick={() => void onSocialLogin('wechat')}
-            className="flex h-11 items-center justify-center gap-2 rounded-2xl border border-[#ddd4c4] bg-white text-[14px] font-medium text-[#171614] transition hover:border-[#b89a68] hover:bg-[#fcfaf6] disabled:cursor-not-allowed disabled:opacity-55"
+            className="flex h-11 items-center justify-center gap-2 rounded-2xl border border-[rgba(15,23,42,0.09)] bg-white/95 text-[14px] font-medium text-[var(--text-primary)] transition hover:border-[rgba(59,130,246,0.26)] hover:bg-[rgba(59,130,246,0.03)] disabled:cursor-not-allowed disabled:opacity-55"
           >
             {socialLoadingProvider === 'wechat' ? <Loader2 className="h-4 w-4 animate-spin" /> : <WechatIcon />}
             <span>微信</span>
@@ -385,14 +389,14 @@ export function AuthPanel({
             type="button"
             disabled={loading || socialLoadingProvider !== null}
             onClick={() => void onSocialLogin('google')}
-            className="flex h-11 items-center justify-center gap-2 rounded-2xl border border-[#ddd4c4] bg-white text-[14px] font-medium text-[#171614] transition hover:border-[#b89a68] hover:bg-[#fcfaf6] disabled:cursor-not-allowed disabled:opacity-55"
+            className="flex h-11 items-center justify-center gap-2 rounded-2xl border border-[rgba(15,23,42,0.09)] bg-white/95 text-[14px] font-medium text-[var(--text-primary)] transition hover:border-[rgba(59,130,246,0.26)] hover:bg-[rgba(59,130,246,0.03)] disabled:cursor-not-allowed disabled:opacity-55"
           >
             {socialLoadingProvider === 'google' ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon />}
             <span>Google</span>
           </button>
         </div>
 
-        <p className="mt-4 text-center text-[12px] text-[#8b7d67]">
+        <p className="mt-4 text-center text-[12px] text-[var(--text-secondary)]">
           {mode === 'login' ? '还没有账号？' : '已有账号？'}{' '}
           <button
             type="button"
@@ -400,7 +404,7 @@ export function AuthPanel({
               setMode(mode === 'login' ? 'register' : 'login');
               setLocalError(null);
             }}
-            className="font-medium text-[#8e6a2b] transition hover:text-[#6f531f]"
+            className="font-medium text-[var(--brand-primary)] transition hover:text-[var(--brand-primary-hover)]"
           >
             {mode === 'login' ? '立即注册' : '去登录'}
           </button>
