@@ -158,6 +158,12 @@ function syncDesignChrome(host: HTMLDivElement) {
   ensureShortcutBar(host);
 }
 
+function hasDesignChrome(host: HTMLDivElement): boolean {
+  return Boolean(
+    host.querySelector('.iclaw-chat-header-actions') && host.querySelector('.iclaw-chat-shortcuts'),
+  );
+}
+
 export function OpenClawChatSurface({
   gatewayUrl,
   gatewayToken,
@@ -192,16 +198,22 @@ export function OpenClawChatSurface({
       return;
     }
 
-    const sync = () => syncDesignChrome(host);
-    sync();
+    let attempts = 0;
+    const maxAttempts = 20;
 
-    const observer = new MutationObserver(() => {
-      sync();
-    });
-    observer.observe(host, { childList: true, subtree: true });
+    const trySync = () => {
+      syncDesignChrome(host);
+      attempts += 1;
+      if (hasDesignChrome(host) || attempts >= maxAttempts) {
+        window.clearInterval(intervalId);
+      }
+    };
+
+    trySync();
+    const intervalId = window.setInterval(trySync, 200);
 
     return () => {
-      observer.disconnect();
+      window.clearInterval(intervalId);
     };
   }, []);
 
