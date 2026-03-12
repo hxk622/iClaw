@@ -146,6 +146,7 @@ export default function App() {
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
   const [postAuthView, setPostAuthView] = useState<'account' | null>(null);
   const [authBootstrapReady, setAuthBootstrapReady] = useState(false);
+  const [guestPromptInitialized, setGuestPromptInitialized] = useState(false);
 
   const syncWorkspaceForUser = async (token: string): Promise<void> => {
     if (!IS_TAURI_RUNTIME) return;
@@ -574,6 +575,17 @@ export default function App() {
       (!healthy && Boolean(healthError))
     );
 
+  useEffect(() => {
+    if (!authBootstrapReady || shouldShowSetupPanel || guestPromptInitialized) {
+      return;
+    }
+    setGuestPromptInitialized(true);
+    if (!isAuthenticated) {
+      setAuthModalMode('login');
+      setAuthModalOpen(true);
+    }
+  }, [authBootstrapReady, guestPromptInitialized, isAuthenticated, shouldShowSetupPanel]);
+
   if (shouldShowSetupPanel) {
     return (
       <FirstRunSetupPanel
@@ -604,6 +616,7 @@ export default function App() {
           gatewayAuth={gatewayAuth}
           handleLogout={handleLogout}
           authenticated={isAuthenticated}
+          authModalOpen={authModalOpen}
           onRequestAuth={openAuthModal}
         />
         <AuthPanel
@@ -635,6 +648,7 @@ interface AuthedViewProps {
   gatewayAuth: { token?: string; password?: string };
   handleLogout: () => void;
   authenticated: boolean;
+  authModalOpen: boolean;
   onRequestAuth: (mode?: 'login' | 'register', nextView?: 'account' | null) => void;
 }
 
@@ -648,6 +662,7 @@ function AuthedView({
   gatewayAuth,
   handleLogout,
   authenticated,
+  authModalOpen,
   onRequestAuth,
 }: AuthedViewProps) {
   const { settings, saveSettings } = useSettings();
@@ -697,7 +712,7 @@ function AuthedView({
           gatewayPassword={gatewayAuth.password}
           sessionKey={CHAT_SESSION_KEY}
         />
-      ) : (
+      ) : !authModalOpen ? (
         <div className="flex flex-1 items-center justify-center bg-[var(--bg-page)] px-10">
           <div className="max-w-md rounded-[28px] border border-[var(--border-default)] bg-white/90 px-8 py-10 text-center shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
             <div className="text-[22px] font-medium text-[var(--text-primary)]">登录后继续</div>
@@ -713,6 +728,8 @@ function AuthedView({
             </button>
           </div>
         </div>
+      ) : (
+        <div className="flex-1 bg-[var(--bg-page)]" />
       )}
       {activeView === 'account' && accessToken ? (
         <AccountPanel
