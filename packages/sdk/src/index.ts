@@ -342,10 +342,23 @@ async function parseError(response: Response): Promise<ApiError> {
   });
 }
 
+const AUTH_REQUEST_TIMEOUT_MS = 8_000;
+
 async function fetchWithNetworkError(input: string, init: RequestInit, authBaseUrl: string): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), AUTH_REQUEST_TIMEOUT_MS);
   try {
-    return await fetch(input, init);
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
   } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new ApiError({
+        code: 'TIMEOUT',
+        message: `登录服务连接超时，请确认 control-plane 已启动并监听 ${authBaseUrl}`,
+      });
+    }
     if (error instanceof Error) {
       throw new ApiError({
         code: 'NETWORK_ERROR',
@@ -353,6 +366,8 @@ async function fetchWithNetworkError(input: string, init: RequestInit, authBaseU
       });
     }
     throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
