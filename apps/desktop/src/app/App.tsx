@@ -146,7 +146,6 @@ export default function App() {
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
   const [postAuthView, setPostAuthView] = useState<'account' | null>(null);
   const [authBootstrapReady, setAuthBootstrapReady] = useState(false);
-  const [guestPromptInitialized, setGuestPromptInitialized] = useState(false);
 
   const syncWorkspaceForUser = async (token: string): Promise<void> => {
     if (!IS_TAURI_RUNTIME) return;
@@ -425,7 +424,6 @@ export default function App() {
     setSessionAuthed(false);
     setCurrentUser(null);
     setActiveView('chat');
-    setGuestPromptInitialized(true);
     setAuthModalMode('login');
     setAuthModalOpen(true);
   };
@@ -575,17 +573,6 @@ export default function App() {
       healthChecking ||
       (!healthy && Boolean(healthError))
     );
-
-  useEffect(() => {
-    if (!authBootstrapReady || shouldShowSetupPanel || guestPromptInitialized) {
-      return;
-    }
-    setGuestPromptInitialized(true);
-    if (!isAuthenticated) {
-      setAuthModalMode('login');
-      setAuthModalOpen(true);
-    }
-  }, [authBootstrapReady, guestPromptInitialized, isAuthenticated, shouldShowSetupPanel]);
 
   if (shouldShowSetupPanel) {
     return (
