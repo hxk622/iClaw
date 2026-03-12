@@ -353,7 +353,7 @@ export default function App() {
     };
 
     const timeoutId = window.setTimeout(() => {
-      settleGuest(true);
+      settleGuest(false);
     }, AUTH_BOOTSTRAP_TIMEOUT_MS);
 
     const bootAuth = async () => {
