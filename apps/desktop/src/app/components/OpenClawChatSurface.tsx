@@ -257,6 +257,7 @@ export function OpenClawChatSurface({
   user,
 }: OpenClawChatSurfaceProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const appRef = useRef<OpenClawAppElement | null>(null);
   useEffect(() => {
     const host = hostRef.current;
     if (!host) {
@@ -264,18 +265,28 @@ export function OpenClawChatSurface({
     }
 
     const app = document.createElement('openclaw-app') as OpenClawAppElement;
-    const settings = buildSettings({ gatewayUrl, gatewayToken, sessionKey });
+    appRef.current = app;
+    host.replaceChildren(app);
 
+    return () => {
+      if (appRef.current === app) {
+        appRef.current = null;
+      }
+      host.replaceChildren();
+    };
+  }, []);
+
+  useEffect(() => {
+    const app = appRef.current;
+    if (!app) {
+      return;
+    }
+
+    const settings = buildSettings({ gatewayUrl, gatewayToken, sessionKey });
     app.applySettings(settings);
     app.password = gatewayPassword?.trim() ?? '';
     app.sessionKey = sessionKey;
     app.tab = 'chat';
-
-    host.replaceChildren(app);
-
-    return () => {
-      host.replaceChildren();
-    };
   }, [gatewayPassword, gatewayToken, gatewayUrl, sessionKey]);
 
   useEffect(() => {
