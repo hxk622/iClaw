@@ -115,6 +115,14 @@ body {
   padding: 0 0 24px;
   background: transparent;
   overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.openclaw-chat-surface .content::-webkit-scrollbar,
+.openclaw-chat-surface .chat-thread::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .openclaw-chat-surface .content-header {
@@ -202,6 +210,8 @@ body {
   padding: 24px 0 210px;
   border-radius: 0;
   background: transparent;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .openclaw-chat-surface .chat-new-messages {
@@ -211,29 +221,94 @@ body {
 }
 
 .openclaw-chat-surface .chat-group {
+  display: flex;
+  align-items: flex-start;
   gap: 0;
   margin: 0 0 24px;
 }
 
+.openclaw-chat-surface .chat-group.assistant {
+  gap: 12px;
+}
+
 .openclaw-chat-surface .chat-group.user {
+  flex-direction: row-reverse;
+  align-items: flex-start;
+  gap: 12px;
   margin-bottom: 32px;
 }
 
 .openclaw-chat-surface .chat-group-messages {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   max-width: min(900px, 100%);
   gap: 10px;
 }
 
 .openclaw-chat-surface .chat-group.user .chat-group-messages {
+  align-items: flex-end;
   max-width: min(600px, 100%);
 }
 
 .openclaw-chat-surface .chat-avatar,
-.openclaw-chat-surface .chat-group-footer,
 .openclaw-chat-surface .chat-copy-btn,
 .openclaw-chat-surface .chat-header,
 .openclaw-chat-surface .chat-focus-exit {
   display: none !important;
+}
+
+.openclaw-chat-surface .chat-group-footer {
+  display: none !important;
+}
+
+.openclaw-chat-surface .chat-avatar {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  margin-top: 2px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+  background-color: #ffffff;
+  background-position: center;
+  background-repeat: no-repeat;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.openclaw-chat-surface .chat-avatar.assistant {
+  padding: 5px;
+  color: transparent;
+  background-size: contain;
+}
+
+.openclaw-chat-surface .chat-avatar.user {
+  background-image: linear-gradient(135deg, #2b2b2b 0%, #4d4d4d 100%);
+}
+
+.openclaw-chat-surface .chat-avatar.user.iclaw-chat-avatar--image {
+  color: transparent;
+  background-color: #e8e8e8;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.openclaw-chat-surface img.chat-avatar {
+  padding: 0;
+  object-fit: cover;
+}
+
+.openclaw-chat-surface img.chat-avatar.assistant {
+  padding: 5px;
+  object-fit: contain;
 }
 
 .openclaw-chat-surface .chat-bubble {
@@ -387,6 +462,10 @@ body {
 .openclaw-chat-surface .chat-compose__actions {
   justify-content: flex-end;
   gap: 8px;
+}
+
+.openclaw-chat-surface .chat-compose .chat-compose__actions .btn:not(.primary) {
+  display: none !important;
 }
 
 .openclaw-chat-surface .chat-compose .chat-compose__actions .btn {

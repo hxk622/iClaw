@@ -31,6 +31,15 @@ type OpenClawChatSurfaceProps = {
   gatewayToken?: string;
   gatewayPassword?: string;
   sessionKey?: string;
+  user?: {
+    name?: string | null;
+    username?: string | null;
+    display_name?: string | null;
+    email?: string | null;
+    avatar_url?: string | null;
+    avatar?: string | null;
+    avatarUrl?: string | null;
+  } | null;
 };
 
 const DESIGN_SHORTCUTS = [
@@ -43,9 +52,45 @@ const DESIGN_SHORTCUTS = [
   { icon: '</>', label: '编程' },
   { icon: '⋯', label: '更多' },
 ] as const;
+const ASSISTANT_AVATAR_SRC = '/favicon.png';
+const ASSISTANT_AVATAR_ALT = 'iClaw';
 
 function resolveThemeMode(): OpenClawTheme {
   return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+}
+
+function resolveUserName(
+  user: OpenClawChatSurfaceProps['user'],
+): string {
+  return (
+    user?.name ||
+    user?.display_name ||
+    user?.username ||
+    user?.email ||
+    '用户'
+  );
+}
+
+function resolveUserInitial(user: OpenClawChatSurfaceProps['user']): string {
+  const name = resolveUserName(user).trim();
+  return name[0]?.toUpperCase() || '我';
+}
+
+function resolveUserAvatarUrl(
+  user: OpenClawChatSurfaceProps['user'],
+): string | null {
+  if (!user) {
+    return null;
+  }
+  return user.avatar_url || user.avatarUrl || user.avatar || null;
+}
+
+function applyAvatarBackground(element: HTMLElement, src: string | null) {
+  if (!src) {
+    element.style.removeProperty('background-image');
+    return;
+  }
+  element.style.backgroundImage = `url(${JSON.stringify(src)})`;
 }
 
 function buildSettings(params: {
@@ -158,10 +203,50 @@ function syncDesignChrome(host: HTMLDivElement) {
   ensureShortcutBar(host);
 }
 
-function hasDesignChrome(host: HTMLDivElement): boolean {
-  return Boolean(
-    host.querySelector('.iclaw-chat-header-actions') && host.querySelector('.iclaw-chat-shortcuts'),
-  );
+function syncRenderedAvatars(
+  host: HTMLDivElement,
+  user: OpenClawChatSurfaceProps['user'],
+) {
+  const userName = resolveUserName(user);
+  const userInitial = resolveUserInitial(user);
+  const userAvatarUrl = resolveUserAvatarUrl(user);
+
+  host.querySelectorAll<HTMLElement>('.chat-avatar.assistant').forEach((avatar) => {
+    avatar.classList.add('iclaw-chat-avatar');
+    avatar.setAttribute('aria-label', ASSISTANT_AVATAR_ALT);
+    avatar.setAttribute('title', ASSISTANT_AVATAR_ALT);
+
+    if (avatar instanceof HTMLImageElement) {
+      if (avatar.src !== new URL(ASSISTANT_AVATAR_SRC, window.location.href).href) {
+        avatar.src = ASSISTANT_AVATAR_SRC;
+      }
+      avatar.alt = ASSISTANT_AVATAR_ALT;
+    } else {
+      avatar.textContent = '';
+      applyAvatarBackground(avatar, ASSISTANT_AVATAR_SRC);
+    }
+  });
+
+  host.querySelectorAll<HTMLElement>('.chat-avatar.user').forEach((avatar) => {
+    avatar.classList.add('iclaw-chat-avatar');
+    avatar.classList.toggle('iclaw-chat-avatar--image', Boolean(userAvatarUrl));
+    avatar.setAttribute('aria-label', userName);
+    avatar.setAttribute('title', userName);
+
+    if (avatar instanceof HTMLImageElement) {
+      avatar.alt = userName;
+      if (userAvatarUrl) {
+        if (avatar.src !== new URL(userAvatarUrl, window.location.href).href) {
+          avatar.src = userAvatarUrl;
+        }
+      } else {
+        avatar.removeAttribute('src');
+      }
+    } else {
+      avatar.textContent = userAvatarUrl ? '' : userInitial;
+      applyAvatarBackground(avatar, userAvatarUrl);
+    }
+  });
 }
 
 export function OpenClawChatSurface({
@@ -169,6 +254,7 @@ export function OpenClawChatSurface({
   gatewayToken,
   gatewayPassword,
   sessionKey = 'main',
+  user,
 }: OpenClawChatSurfaceProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -198,24 +284,38 @@ export function OpenClawChatSurface({
       return;
     }
 
-    let attempts = 0;
-    const maxAttempts = 20;
-
-    const trySync = () => {
+    let rafId = 0;
+    const sync = () => {
       syncDesignChrome(host);
-      attempts += 1;
-      if (hasDesignChrome(host) || attempts >= maxAttempts) {
-        window.clearInterval(intervalId);
+      syncRenderedAvatars(host, user);
+    };
+    const scheduleSync = () => {
+      if (rafId !== 0) {
+        return;
       }
+      rafId = window.requestAnimationFrame(() => {
+        rafId = 0;
+        sync();
+      });
     };
 
-    trySync();
-    const intervalId = window.setInterval(trySync, 200);
+    sync();
+
+    const observer = new MutationObserver(() => {
+      scheduleSync();
+    });
+    observer.observe(host, {
+      childList: true,
+      subtree: true,
+    });
 
     return () => {
-      window.clearInterval(intervalId);
+      observer.disconnect();
+      if (rafId !== 0) {
+        window.cancelAnimationFrame(rafId);
+      }
     };
-  }, []);
+  }, [user?.avatar, user?.avatarUrl, user?.avatar_url, user?.display_name, user?.email, user?.name, user?.username]);
 
   return <div ref={hostRef} className="openclaw-chat-surface h-full flex-1 overflow-hidden" />;
 }

@@ -814,6 +814,7 @@ function AuthedView({
           gatewayToken={gatewayAuth.token}
           gatewayPassword={gatewayAuth.password}
           sessionKey={CHAT_SESSION_KEY}
+          user={currentUser}
         />
       ) : (
         <div className="flex-1 bg-[var(--bg-page)]" />
