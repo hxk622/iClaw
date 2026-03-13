@@ -157,7 +157,7 @@ export default function App() {
   const [runtimeDiagnosis, setRuntimeDiagnosis] = useState<RuntimeDiagnosis | null>(null);
   const [runtimeInstallProgress, setRuntimeInstallProgress] = useState<RuntimeInstallProgress | null>(null);
   const [activeView, setActiveView] = useState<'chat' | 'settings' | 'account'>('chat');
-  const [authModalOpen, setAuthModalOpen] = useState(!IS_TAURI_RUNTIME);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
   const [postAuthView, setPostAuthView] = useState<'account' | null>(null);
   const [authBootstrapReady, setAuthBootstrapReady] = useState(false);
@@ -679,10 +679,7 @@ export default function App() {
     );
 
   useEffect(() => {
-    if (!IS_TAURI_RUNTIME) {
-      return;
-    }
-    if (!authBootstrapReady || shouldShowSetupPanel || guestPromptInitialized) {
+    if (!authBootstrapReady || guestPromptInitialized || (IS_TAURI_RUNTIME && shouldShowSetupPanel)) {
       return;
     }
     setGuestPromptInitialized(true);
