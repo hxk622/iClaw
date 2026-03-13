@@ -138,8 +138,8 @@ export function Sidebar({
           className="flex w-full items-center gap-3 rounded-lg bg-[var(--bg-elevated)] px-2 py-1.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
         >
           <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-hover)] text-sm font-medium text-[var(--brand-on-primary)]">
-            {resolveAvatarUrl(user) ? (
-              <img src={resolveAvatarUrl(user)!} alt="user avatar" className="h-full w-full object-cover" />
+            {resolveUserAvatarUrl(user) ? (
+              <img src={resolveUserAvatarUrl(user)!} alt="user avatar" className="h-full w-full object-cover" />
             ) : (
               resolveUserInitial(user)
             )}
