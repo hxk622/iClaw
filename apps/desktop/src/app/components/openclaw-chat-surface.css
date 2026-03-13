@@ -452,27 +452,36 @@ body {
   background: var(--composer-panel-bg);
   backdrop-filter: blur(16px);
   box-shadow: var(--composer-panel-shadow);
+  transition:
+    border-color var(--motion-micro) ease,
+    box-shadow var(--motion-micro) ease,
+    background var(--motion-micro) ease;
+}
+
+.iclaw-composer__panel:focus-within {
+  border-color: var(--brand-primary);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--brand-primary) 34%, transparent),
+    var(--composer-panel-shadow);
 }
 
 .iclaw-composer__row {
   display: flex;
   align-items: flex-end;
   gap: 12px;
-  padding: 14px 14px 10px;
+  padding: 18px 18px 10px;
 }
 
-.iclaw-composer__attach,
+.iclaw-composer__meta-action,
 .iclaw-composer__submit {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  width: 40px;
   height: 40px;
   min-height: 40px;
   border: 1px solid var(--composer-attach-border);
   border-radius: 999px;
-  font-size: 12px;
-  font-weight: 500;
   line-height: 1;
   transition:
     background var(--motion-micro) ease,
@@ -481,23 +490,21 @@ body {
     transform var(--motion-micro) ease;
 }
 
-.iclaw-composer__attach {
-  flex: 0 0 auto;
-  padding: 0 14px;
+.iclaw-composer__meta-action {
   background: var(--composer-attach-bg);
   color: var(--composer-attach-text);
 }
 
-.iclaw-composer__attach:hover {
+.iclaw-composer__meta-action:hover {
   background: var(--composer-attach-hover);
 }
 
 .iclaw-composer__editor {
-  min-height: 40px;
-  max-height: 164px;
+  min-height: 88px;
+  max-height: 280px;
   flex: 1 1 auto;
   overflow-y: auto;
-  padding: 8px 2px 6px;
+  padding: 2px 4px 0;
   color: var(--composer-editor-text);
   font-size: 14px;
   line-height: 1.8;
@@ -602,7 +609,6 @@ body {
 
 .iclaw-composer__submit {
   flex: 0 0 auto;
-  padding: 0 16px;
   border-color: transparent;
   background: var(--composer-submit-bg);
   color: var(--composer-submit-text);
@@ -623,8 +629,10 @@ body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 14px;
-  padding: 0 16px 12px;
+  gap: 8px 12px;
+  min-height: 54px;
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--composer-panel-border);
   color: var(--composer-meta-text);
   font-size: 11px;
 }
@@ -635,33 +643,18 @@ body {
   gap: 6px;
 }
 
-.iclaw-selection-menu {
-  position: fixed;
-  z-index: 60;
-  display: flex;
-  min-width: 160px;
-  flex-direction: column;
-  padding: 6px;
-  border: 1px solid var(--composer-menu-border);
-  border-radius: 16px;
-  background: var(--composer-menu-bg);
-  box-shadow: var(--composer-menu-shadow);
-  backdrop-filter: blur(18px);
-}
-
-.iclaw-selection-menu__item {
-  border: none;
-  border-radius: 10px;
-  background: transparent;
-  padding: 10px 12px;
-  color: var(--composer-menu-text);
-  text-align: left;
-  font-size: 13px;
-  line-height: 1.2;
-}
-
-.iclaw-selection-menu__item:hover {
-  background: var(--composer-menu-item-hover);
+.iclaw-composer__meta-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--composer-attach-bg);
+  color: var(--composer-attach-text);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 @media (max-width: 900px) {
@@ -684,23 +677,16 @@ body {
   }
 
   .iclaw-composer__row {
-    flex-wrap: wrap;
     align-items: stretch;
   }
 
-  .iclaw-composer__attach,
+  .iclaw-composer__meta-action,
   .iclaw-composer__submit {
     height: 38px;
+    width: 38px;
   }
 
   .iclaw-composer__editor {
-    min-height: 52px;
-    width: 100%;
-    order: 3;
-  }
-
-  .iclaw-composer__attach,
-  .iclaw-composer__submit {
-    order: 1;
+    min-height: 112px;
   }
 }

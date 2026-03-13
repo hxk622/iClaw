@@ -10,7 +10,6 @@ import {
   RichChatComposer,
   type ComposerSendPayload,
   type OpenClawImageAttachment,
-  type RichChatComposerHandle,
 } from './RichChatComposer';
 
 type OpenClawTheme = 'system' | 'light' | 'dark';
@@ -69,12 +68,6 @@ type ChatSurfaceStatus = {
   connected: boolean;
 };
 
-type ChatSelectionMenu = {
-  text: string;
-  x: number;
-  y: number;
-};
-
 function resolveThemeMode(): OpenClawTheme {
   return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
 }
@@ -112,13 +105,7 @@ export function OpenClawChatSurface({
 }: OpenClawChatSurfaceProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const appRef = useRef<OpenClawAppElement | null>(null);
-  const composerRef = useRef<RichChatComposerHandle | null>(null);
   const [status, setStatus] = useState<ChatSurfaceStatus>({ busy: false, connected: false });
-  const [selectionMenu, setSelectionMenu] = useState<ChatSelectionMenu | null>(null);
-
-  const closeSelectionMenu = useCallback(() => {
-    setSelectionMenu(null);
-  }, []);
   useEffect(() => {
     const host = hostRef.current;
     if (!host) {
@@ -193,73 +180,6 @@ export function OpenClawChatSurface({
     return () => window.clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host) {
-      return;
-    }
-
-    const handleContextMenu = (event: MouseEvent) => {
-      const selection = window.getSelection();
-      if (!selection || selection.rangeCount === 0) {
-        return;
-      }
-      const text = selection.toString().trim();
-      if (!text) {
-        return;
-      }
-      const target = event.target as HTMLElement | null;
-      const assistantText = target?.closest('.chat-group.assistant .chat-text');
-      if (!assistantText) {
-        return;
-      }
-      const range = selection.getRangeAt(0);
-      if (!assistantText.contains(range.commonAncestorContainer)) {
-        return;
-      }
-      event.preventDefault();
-      setSelectionMenu({
-        text,
-        x: Math.min(event.clientX, window.innerWidth - 228),
-        y: Math.min(event.clientY, window.innerHeight - 188),
-      });
-    };
-
-    host.addEventListener('contextmenu', handleContextMenu);
-    return () => host.removeEventListener('contextmenu', handleContextMenu);
-  }, []);
-
-  useEffect(() => {
-    if (!selectionMenu) {
-      return;
-    }
-
-    const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (target?.closest('.iclaw-selection-menu')) {
-        return;
-      }
-      closeSelectionMenu();
-    };
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        closeSelectionMenu();
-      }
-    };
-
-    window.addEventListener('mousedown', handlePointerDown);
-    window.addEventListener('resize', closeSelectionMenu);
-    window.addEventListener('scroll', closeSelectionMenu, true);
-    window.addEventListener('keydown', handleEscape);
-
-    return () => {
-      window.removeEventListener('mousedown', handlePointerDown);
-      window.removeEventListener('resize', closeSelectionMenu);
-      window.removeEventListener('scroll', closeSelectionMenu, true);
-      window.removeEventListener('keydown', handleEscape);
-    };
-  }, [closeSelectionMenu, selectionMenu]);
-
   const handleSend = useCallback(async (payload: ComposerSendPayload): Promise<boolean> => {
     const app = appRef.current;
     if (!app?.connected) {
@@ -275,76 +195,16 @@ export function OpenClawChatSurface({
     await appRef.current?.handleAbortChat();
   }, []);
 
-  const sendShortcut = useCallback(async (prompt: string) => {
-    const app = appRef.current;
-    if (!app?.connected) {
-      return;
-    }
-    await app.handleSendChat(prompt, { restoreDraft: true });
-  }, []);
-
   return (
     <div className="openclaw-chat-surface-shell h-full flex-1 overflow-hidden">
       <div ref={hostRef} className="openclaw-chat-surface h-full flex-1 overflow-hidden" />
 
       <RichChatComposer
-        ref={composerRef}
         connected={status.connected}
         busy={status.busy}
         onSend={handleSend}
         onAbort={handleAbort}
       />
-
-      {selectionMenu ? (
-        <div
-          className="iclaw-selection-menu"
-          style={{ left: `${selectionMenu.x}px`, top: `${selectionMenu.y}px` }}
-          role="menu"
-          aria-label="聊天引用操作"
-        >
-          <button
-            type="button"
-            className="iclaw-selection-menu__item"
-            onClick={() => {
-              composerRef.current?.insertReference(selectionMenu.text);
-              composerRef.current?.focus();
-              closeSelectionMenu();
-            }}
-          >
-            追问
-          </button>
-          <button
-            type="button"
-            className="iclaw-selection-menu__item"
-            onClick={() => {
-              void navigator.clipboard.writeText(selectionMenu.text);
-              closeSelectionMenu();
-            }}
-          >
-            复制
-          </button>
-          <button
-            type="button"
-            className="iclaw-selection-menu__item"
-            onClick={() => {
-              void sendShortcut(`请总结下面这段内容，保留关键信息与结论：\n\n${selectionMenu.text}`);
-              closeSelectionMenu();
-            }}
-          >
-            总结这段
-          </button>
-          <button
-            type="button"
-            className="iclaw-selection-menu__item"
-            onClick={() => {
-              void sendShortcut(`请解释下面这段内容，并说明它的核心含义：\n\n${selectionMenu.text}`);
-              closeSelectionMenu();
-            }}
-          >
-            解释这段
-          </button>
-        </div>
-      ) : null}
     </div>
   );
 }

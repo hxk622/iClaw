@@ -2,11 +2,10 @@ import {
   forwardRef,
   useCallback,
   useEffect,
-  useImperativeHandle,
   useRef,
   useState,
 } from 'react';
-import { Film, FileText, Image as ImageIcon, Paperclip, SendHorizontal, Square, Quote } from 'lucide-react';
+import { Film, FileText, Image as ImageIcon, Paperclip, SendHorizontal, Square } from 'lucide-react';
 
 export type OpenClawImageAttachment = {
   id: string;
@@ -35,13 +34,8 @@ type RichChatComposerProps = {
   onSend: (payload: ComposerSendPayload) => Promise<boolean> | boolean;
 };
 
-export type RichChatComposerHandle = {
-  focus: () => void;
-  insertReference: (text: string) => void;
-};
-
 const SUPPORTED_ATTACHMENT_TYPES = ['image/', 'video/', 'application/pdf'];
-const PLACEHOLDER = '输入问题，或在回复里划选内容后右键“追问”…';
+const PLACEHOLDER = '输入问题…';
 
 function createComposerId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -197,8 +191,8 @@ function createRangeAtEnd(root: HTMLElement): Range {
   return range;
 }
 
-export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatComposerProps>(
-  function RichChatComposer({ connected, busy, onAbort, onSend }, ref) {
+export const RichChatComposer = forwardRef<unknown, RichChatComposerProps>(
+  function RichChatComposer({ connected, busy, onAbort, onSend }, _ref) {
     const editorRef = useRef<HTMLDivElement | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const tokenStoreRef = useRef<Map<string, ComposerTokenMeta>>(new Map());
@@ -359,29 +353,6 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       }
     }, [busy, clearComposer, connected, hasContent, onAbort, onSend]);
 
-    useImperativeHandle(
-      ref,
-      () => ({
-        focus: () => {
-          editorRef.current?.focus();
-          restoreRange();
-        },
-        insertReference: (text: string) => {
-          const value = normalizePrompt(text);
-          if (!value) {
-            return;
-          }
-          insertTokenAtCaret({
-            id: createComposerId('reference'),
-            kind: 'reference',
-            label: value.length > 28 ? `${value.slice(0, 28)}…` : value,
-            value,
-          });
-        },
-      }),
-      [insertTokenAtCaret, restoreRange],
-    );
-
     useEffect(() => {
       refreshState();
     }, [refreshState]);
@@ -403,7 +374,6 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       return () => document.removeEventListener('selectionchange', handleSelectionChange);
     }, []);
 
-    const toolLabel = tokenCount > 0 ? `附件 / 引用 ${tokenCount}` : '添加附件';
     const submitLabel = busy && !hasContent ? '停止' : '发送';
 
     return (
@@ -411,18 +381,6 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         <div className="iclaw-composer__halo" aria-hidden="true" />
         <div className="iclaw-composer__panel">
           <div className="iclaw-composer__row">
-            <button
-              type="button"
-              className="iclaw-composer__attach"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => fileInputRef.current?.click()}
-              aria-label="添加截图、PDF 或视频"
-              title="添加截图、PDF 或视频"
-            >
-              <Paperclip className="h-4 w-4" />
-              <span>{toolLabel}</span>
-            </button>
-
             <div
               ref={editorRef}
               className="iclaw-composer__editor"
@@ -509,15 +467,20 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
               title={submitLabel}
             >
               {busy && !hasContent ? <Square className="h-4 w-4" /> : <SendHorizontal className="h-4 w-4" />}
-              <span>{submitLabel}</span>
             </button>
           </div>
 
           <div className="iclaw-composer__meta" aria-hidden="true">
-            <span className="iclaw-composer__meta-item">
-              <Quote className="h-3.5 w-3.5" />
-              划选回复后右键“追问”
-            </span>
+            <button
+              type="button"
+              className="iclaw-composer__meta-action"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => fileInputRef.current?.click()}
+              aria-label="添加附件"
+              title="添加附件"
+            >
+              <Paperclip className="h-3.5 w-3.5" />
+            </button>
             <span className="iclaw-composer__meta-item">
               <ImageIcon className="h-3.5 w-3.5" />
               截图
@@ -530,6 +493,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
               <Film className="h-3.5 w-3.5" />
               视频
             </span>
+            {tokenCount > 0 ? <span className="iclaw-composer__meta-count">{tokenCount}</span> : null}
           </div>
         </div>
 
