@@ -646,7 +646,6 @@ body {
   gap: 8px 12px;
   min-height: 54px;
   padding: 10px 16px 14px;
-  border-top: 1px solid var(--composer-panel-border);
   color: var(--composer-meta-text);
   font-size: 11px;
 }
