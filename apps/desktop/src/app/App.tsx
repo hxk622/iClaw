@@ -349,6 +349,7 @@ export default function App() {
       setAccessToken(token);
       setSessionAuthed(true);
       setCurrentUser(user);
+      setAuthModalOpen(false);
       setAuthBootstrapReady(true);
     };
 
