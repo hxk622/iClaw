@@ -4,6 +4,7 @@ import {
   onIclawWorkspaceUpdated,
   type IclawWorkspaceFiles,
 } from '@/app/lib/iclaw-settings';
+import { applyThemeMode, persistThemeMode, readStoredThemeMode, type ThemeMode } from '@/app/lib/theme';
 
 export type ConfigStatus = 'not-configured' | 'using-default' | 'customized';
 
@@ -11,8 +12,11 @@ export type IdentityConfig = {
   markdownContent: string;
 };
 
-export type GeneralConfig = {
+export type AppearanceConfig = {
   themeMode: 'light' | 'dark' | 'system';
+};
+
+export type GeneralConfig = {
   language: string;
   startupBehavior: string;
   updateStrategy: string;
@@ -43,6 +47,7 @@ export type SafetyDefaultsConfig = {
 };
 
 export type SettingsState = {
+  appearance: AppearanceConfig;
   general: GeneralConfig;
   identity: IdentityConfig;
   userProfile: UserProfileConfig;
@@ -50,6 +55,7 @@ export type SettingsState = {
   channelPreference: ChannelPreferenceConfig;
   safetyDefaults: SafetyDefaultsConfig;
   configStatuses: {
+    appearance: ConfigStatus;
     general: ConfigStatus;
     identity: ConfigStatus;
     userProfile: ConfigStatus;
@@ -64,6 +70,7 @@ export type SettingsState = {
 
 type SettingsContextType = {
   settings: SettingsState;
+  updateAppearance: (config: Partial<AppearanceConfig>) => void;
   updateGeneral: (config: Partial<GeneralConfig>) => void;
   updateIdentity: (config: Partial<IdentityConfig>) => void;
   updateUserProfile: (config: Partial<UserProfileConfig>) => void;
@@ -77,8 +84,10 @@ type SettingsContextType = {
 const LOCAL_STORAGE_KEY = 'iclaw-settings';
 
 const defaultSettings: SettingsState = {
+  appearance: {
+    themeMode: 'system',
+  },
   general: {
-    themeMode: 'light',
     language: '简体中文',
     startupBehavior: '即将支持',
     updateStrategy: '即将支持',
@@ -107,6 +116,7 @@ const defaultSettings: SettingsState = {
     toolFallbackPolicy: '优雅降级',
   },
   configStatuses: {
+    appearance: 'using-default',
     general: 'using-default',
     identity: 'using-default',
     userProfile: 'using-default',
@@ -121,18 +131,57 @@ const defaultSettings: SettingsState = {
 
 type PersistedSettings = Pick<
   SettingsState,
-  'general' | 'channelPreference' | 'safetyDefaults' | 'configStatuses'
+  'appearance' | 'general' | 'channelPreference' | 'safetyDefaults' | 'configStatuses'
 >;
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 function readPersistedSettings(): PersistedSettings | null {
   const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-  if (!saved) return null;
+  const storedTheme = readStoredThemeMode();
+  if (!saved) {
+    return {
+      appearance: { themeMode: storedTheme },
+      general: defaultSettings.general,
+      channelPreference: defaultSettings.channelPreference,
+      safetyDefaults: defaultSettings.safetyDefaults,
+      configStatuses: defaultSettings.configStatuses,
+    };
+  }
   try {
-    return JSON.parse(saved) as PersistedSettings;
+    const parsed = JSON.parse(saved) as Partial<PersistedSettings> & {
+      general?: Partial<GeneralConfig> & { themeMode?: ThemeMode };
+    };
+    const legacyTheme = parsed.general?.themeMode;
+    return {
+      appearance: {
+        themeMode: parsed.appearance?.themeMode || legacyTheme || storedTheme,
+      },
+      general: {
+        ...defaultSettings.general,
+        ...parsed.general,
+      },
+      channelPreference: {
+        ...defaultSettings.channelPreference,
+        ...parsed.channelPreference,
+      },
+      safetyDefaults: {
+        ...defaultSettings.safetyDefaults,
+        ...parsed.safetyDefaults,
+      },
+      configStatuses: {
+        ...defaultSettings.configStatuses,
+        ...parsed.configStatuses,
+      },
+    };
   } catch {
-    return null;
+    return {
+      appearance: { themeMode: storedTheme },
+      general: defaultSettings.general,
+      channelPreference: defaultSettings.channelPreference,
+      safetyDefaults: defaultSettings.safetyDefaults,
+      configStatuses: defaultSettings.configStatuses,
+    };
   }
 }
 
@@ -170,7 +219,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const refreshWorkspace = () => {
       void loadIclawWorkspaceFiles()
         .then((workspaceFiles) => {
-          if (cancelled || !workspaceFiles) return;
+          if (cancelled) return;
+          if (!workspaceFiles) {
+            setSettings((prev) => ({ ...prev, isLoading: false }));
+            return;
+          }
           setLastWorkspaceFiles(workspaceFiles);
           setSettings((prev) => mergeWorkspaceFiles(prev, workspaceFiles));
         })
@@ -188,6 +241,33 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    applyThemeMode(settings.appearance.themeMode);
+  }, [settings.appearance.themeMode]);
+
+  useEffect(() => {
+    if (settings.appearance.themeMode !== 'system') {
+      return;
+    }
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = () => {
+      applyThemeMode('system');
+    };
+    media.addEventListener('change', handleChange);
+    return () => {
+      media.removeEventListener('change', handleChange);
+    };
+  }, [settings.appearance.themeMode]);
+
+  const updateAppearance = (config: Partial<AppearanceConfig>) => {
+    setSettings((prev) => ({
+      ...prev,
+      appearance: { ...prev.appearance, ...config },
+      configStatuses: { ...prev.configStatuses, appearance: 'customized' },
+      hasUnsavedChanges: true,
+    }));
+  };
 
   const updateIdentity = (config: Partial<IdentityConfig>) => {
     setSettings((prev) => ({
@@ -245,12 +325,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const saveSettings = () => {
     const persisted: PersistedSettings = {
+      appearance: settings.appearance,
       general: settings.general,
       channelPreference: settings.channelPreference,
       safetyDefaults: settings.safetyDefaults,
       configStatuses: settings.configStatuses,
     };
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(persisted));
+    persistThemeMode(settings.appearance.themeMode);
     setLastWorkspaceFiles({
       workspace_dir: settings.workspaceDir,
       identity_md: settings.identity.markdownContent,
@@ -268,6 +350,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       if (!lastWorkspaceFiles) {
         return {
           ...defaultSettings,
+          appearance: prev.appearance,
           workspaceDir: prev.workspaceDir,
           isLoading: false,
         };
@@ -275,11 +358,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
       return {
         ...defaultSettings,
+        appearance: prev.appearance,
         general: prev.general,
         channelPreference: prev.channelPreference,
         safetyDefaults: prev.safetyDefaults,
         configStatuses: {
           ...defaultSettings.configStatuses,
+          appearance: prev.configStatuses.appearance,
           general: prev.configStatuses.general,
           channelPreference: prev.configStatuses.channelPreference,
           safetyDefaults: prev.configStatuses.safetyDefaults,
@@ -301,6 +386,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     <SettingsContext.Provider
       value={{
         settings,
+        updateAppearance,
         updateGeneral,
         updateIdentity,
         updateUserProfile,

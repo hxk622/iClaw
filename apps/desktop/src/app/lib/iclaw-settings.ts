@@ -19,6 +19,7 @@ export interface IclawWorkspaceBackupPayload {
 }
 
 const WORKSPACE_UPDATED_EVENT = 'iclaw-workspace-updated';
+const WORKSPACE_DEV_ENDPOINT = '/__iclaw/workspace-files';
 
 export function notifyIclawWorkspaceUpdated(): void {
   if (typeof window === 'undefined') return;
@@ -36,7 +37,18 @@ export function onIclawWorkspaceUpdated(listener: () => void): () => void {
 
 export async function loadIclawWorkspaceFiles(): Promise<IclawWorkspaceFiles | null> {
   if (!isTauriRuntime()) {
-    return null;
+    try {
+      const response = await fetch(WORKSPACE_DEV_ENDPOINT, {
+        method: 'GET',
+        credentials: 'same-origin',
+      });
+      if (!response.ok) {
+        return null;
+      }
+      return (await response.json()) as IclawWorkspaceFiles;
+    } catch {
+      return null;
+    }
   }
 
   return invoke<IclawWorkspaceFiles>('load_iclaw_workspace_files');
@@ -59,7 +71,28 @@ export async function applyIclawWorkspaceBackup(backup: IclawWorkspaceBackupPayl
 export async function saveIclawSettingsAndApply(settings: SettingsState): Promise<boolean> {
   if (!isTauriRuntime()) {
     localStorage.setItem('iclaw-settings', JSON.stringify(settings));
-    return false;
+    try {
+      const response = await fetch(WORKSPACE_DEV_ENDPOINT, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          identity_md: settings.identity.markdownContent,
+          user_md: settings.userProfile.markdownContent,
+          soul_md: settings.soulPersona.markdownContent,
+          agents_md: '',
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`workspace save failed: ${response.status}`);
+      }
+      notifyIclawWorkspaceUpdated();
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   const result = await invoke<boolean>('save_iclaw_settings_and_apply', { settings });
