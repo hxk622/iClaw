@@ -1,7 +1,7 @@
 import { type ComponentType, useMemo, useState } from 'react';
 import {
-  LayoutGrid,
   MessageSquare,
+  Palette,
   Shield,
   Sparkles,
   User,
@@ -11,7 +11,8 @@ import {
   Settings2,
 } from 'lucide-react';
 import { useSettings } from '@/app/contexts/settings-context';
-import { SettingsOverview, type SettingsSection } from '@/app/components/settings/SettingsOverview';
+import { type SettingsSection } from '@/app/components/settings/SettingsOverview';
+import { SettingsAppearance } from '@/app/components/settings/SettingsAppearance';
 import { SettingsGeneral } from '@/app/components/settings/SettingsGeneral';
 import { Identity } from '@/app/components/settings/Identity';
 import { UserProfile } from '@/app/components/settings/UserProfile';
@@ -25,7 +26,7 @@ interface SettingsPanelProps {
 }
 
 const navItems: Array<{ key: SettingsSection; label: string; icon: ComponentType<{ className?: string }> }> = [
-  { key: 'overview', label: '概览', icon: LayoutGrid },
+  { key: 'appearance', label: '风格', icon: Palette },
   { key: 'general', label: '通用', icon: Settings2 },
   { key: 'identity', label: '身份设置', icon: UserCircle },
   { key: 'user-profile', label: '用户资料', icon: User },
@@ -36,12 +37,14 @@ const navItems: Array<{ key: SettingsSection; label: string; icon: ComponentType
 
 export function SettingsPanel({ onClose, onSave }: SettingsPanelProps) {
   const { settings, resetSettings } = useSettings();
-  const [activeSection, setActiveSection] = useState<SettingsSection>('identity');
+  const [activeSection, setActiveSection] = useState<SettingsSection>('general');
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   const content = useMemo(() => {
     switch (activeSection) {
+      case 'appearance':
+        return <SettingsAppearance />;
       case 'general':
         return <SettingsGeneral />;
       case 'identity':
@@ -55,7 +58,7 @@ export function SettingsPanel({ onClose, onSave }: SettingsPanelProps) {
       case 'safety-defaults':
         return <SafetyDefaults />;
       default:
-        return <SettingsOverview onNavigate={setActiveSection} />;
+        return <SettingsGeneral />;
     }
   }, [activeSection]);
 
