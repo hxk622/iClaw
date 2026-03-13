@@ -137,7 +137,7 @@ export function Sidebar({
           onClick={() => setMenuOpen((v) => !v)}
           className="flex w-full items-center gap-3 rounded-lg bg-[var(--bg-elevated)] px-2 py-1.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
         >
-          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-hover)] text-sm font-medium text-[var(--brand-on-primary)]">
+          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[linear-gradient(135deg,#2b2b2b_0%,#4d4d4d_100%)] text-sm font-medium text-white">
             {resolveUserAvatarUrl(user) ? (
               <img src={resolveUserAvatarUrl(user)!} alt="user avatar" className="h-full w-full object-cover" />
             ) : (
