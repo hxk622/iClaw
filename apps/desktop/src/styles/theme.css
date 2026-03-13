@@ -37,6 +37,65 @@
   --motion-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
+  --chat-surface-header-bg: rgba(250, 250, 250, 0.92);
+  --chat-surface-header-border: rgba(0, 0, 0, 0.06);
+  --chat-surface-bubble-user: #e8e8e8;
+  --chat-surface-panel: #ffffff;
+  --chat-surface-panel-muted: #f7f7f7;
+  --chat-surface-panel-subtle: #f0f0f0;
+  --chat-surface-panel-border: rgba(0, 0, 0, 0.08);
+  --chat-surface-panel-border-strong: rgba(0, 0, 0, 0.12);
+  --chat-surface-panel-shadow: 0 20px 48px rgba(0, 0, 0, 0.08);
+  --chat-surface-code-bg: #f0f0f0;
+  --chat-surface-code-fg: #4a4a4a;
+  --chat-surface-pre-bg: #f7f7f7;
+  --chat-surface-pre-fg: #2a2a2a;
+  --chat-surface-blockquote: rgba(0, 0, 0, 0.08);
+  --chat-surface-muted: #7d7d7d;
+  --chat-surface-placeholder: #ababab;
+  --chat-surface-avatar-bg: #ffffff;
+  --chat-surface-avatar-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+
+  --composer-shell-bg: rgba(250, 250, 250, 0.72);
+  --composer-panel-bg: rgba(255, 255, 255, 0.92);
+  --composer-panel-border: rgba(0, 0, 0, 0.08);
+  --composer-panel-shadow: 0 18px 42px rgba(0, 0, 0, 0.08);
+  --composer-editor-text: #171717;
+  --composer-editor-placeholder: #9a9a9a;
+  --composer-editor-selection: rgba(59, 130, 246, 0.14);
+  --composer-attach-bg: #f3f3f3;
+  --composer-attach-hover: #ebebeb;
+  --composer-attach-text: #2d2d2d;
+  --composer-attach-border: rgba(0, 0, 0, 0.06);
+  --composer-submit-bg: #171717;
+  --composer-submit-hover: #000000;
+  --composer-submit-text: #ffffff;
+  --composer-submit-disabled-bg: #e8e8e8;
+  --composer-submit-disabled-text: #9f9f9f;
+  --composer-meta-text: #6a6a6a;
+  --composer-reference-bg: rgba(59, 130, 246, 0.08);
+  --composer-reference-border: rgba(59, 130, 246, 0.18);
+  --composer-reference-text: #1d4ed8;
+  --composer-image-bg: rgba(16, 185, 129, 0.1);
+  --composer-image-border: rgba(16, 185, 129, 0.18);
+  --composer-image-text: #047857;
+  --composer-pdf-bg: rgba(239, 68, 68, 0.1);
+  --composer-pdf-border: rgba(239, 68, 68, 0.18);
+  --composer-pdf-text: #b91c1c;
+  --composer-video-bg: rgba(245, 158, 11, 0.1);
+  --composer-video-border: rgba(245, 158, 11, 0.2);
+  --composer-video-text: #b45309;
+  --composer-file-bg: rgba(100, 116, 139, 0.1);
+  --composer-file-border: rgba(100, 116, 139, 0.18);
+  --composer-file-text: #334155;
+  --composer-token-remove-bg: rgba(255, 255, 255, 0.82);
+  --composer-token-remove-text: rgba(0, 0, 0, 0.66);
+  --composer-menu-bg: rgba(255, 255, 255, 0.96);
+  --composer-menu-border: rgba(0, 0, 0, 0.08);
+  --composer-menu-shadow: 0 18px 42px rgba(0, 0, 0, 0.14);
+  --composer-menu-item-hover: rgba(0, 0, 0, 0.05);
+  --composer-menu-text: #171717;
+
   --background: var(--bg-page);
   --foreground: var(--text-primary);
   --card: var(--bg-card);
@@ -84,6 +143,65 @@
   --shadow-dropdown: 0 4px 12px 0 rgb(0 0 0 / 0.4);
   --shadow-popover: 0 8px 16px 0 rgb(0 0 0 / 0.5);
   --shadow-modal: 0 12px 24px 0 rgb(0 0 0 / 0.6);
+
+  --chat-surface-header-bg: rgba(10, 10, 10, 0.9);
+  --chat-surface-header-border: rgba(255, 255, 255, 0.08);
+  --chat-surface-bubble-user: #202020;
+  --chat-surface-panel: #171717;
+  --chat-surface-panel-muted: #1f1f1f;
+  --chat-surface-panel-subtle: #232323;
+  --chat-surface-panel-border: rgba(255, 255, 255, 0.1);
+  --chat-surface-panel-border-strong: rgba(255, 255, 255, 0.16);
+  --chat-surface-panel-shadow: 0 24px 48px rgba(0, 0, 0, 0.34);
+  --chat-surface-code-bg: #202020;
+  --chat-surface-code-fg: #e5e5e5;
+  --chat-surface-pre-bg: #1b1b1b;
+  --chat-surface-pre-fg: #f3f3f3;
+  --chat-surface-blockquote: rgba(255, 255, 255, 0.16);
+  --chat-surface-muted: #9f9f9f;
+  --chat-surface-placeholder: #7e7e7e;
+  --chat-surface-avatar-bg: #171717;
+  --chat-surface-avatar-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
+
+  --composer-shell-bg: rgba(10, 10, 10, 0.72);
+  --composer-panel-bg: rgba(23, 23, 23, 0.92);
+  --composer-panel-border: rgba(255, 255, 255, 0.08);
+  --composer-panel-shadow: 0 20px 44px rgba(0, 0, 0, 0.34);
+  --composer-editor-text: #fafafa;
+  --composer-editor-placeholder: #7e7e7e;
+  --composer-editor-selection: rgba(201, 169, 97, 0.18);
+  --composer-attach-bg: #222222;
+  --composer-attach-hover: #2b2b2b;
+  --composer-attach-text: #ededed;
+  --composer-attach-border: rgba(255, 255, 255, 0.08);
+  --composer-submit-bg: #c9a961;
+  --composer-submit-hover: #b89850;
+  --composer-submit-text: #171717;
+  --composer-submit-disabled-bg: #262626;
+  --composer-submit-disabled-text: #666666;
+  --composer-meta-text: #9d9d9d;
+  --composer-reference-bg: rgba(201, 169, 97, 0.14);
+  --composer-reference-border: rgba(201, 169, 97, 0.24);
+  --composer-reference-text: #f2d9a4;
+  --composer-image-bg: rgba(34, 197, 94, 0.14);
+  --composer-image-border: rgba(34, 197, 94, 0.24);
+  --composer-image-text: #86efac;
+  --composer-pdf-bg: rgba(248, 113, 113, 0.14);
+  --composer-pdf-border: rgba(248, 113, 113, 0.24);
+  --composer-pdf-text: #fca5a5;
+  --composer-video-bg: rgba(251, 191, 36, 0.14);
+  --composer-video-border: rgba(251, 191, 36, 0.24);
+  --composer-video-text: #fde68a;
+  --composer-file-bg: rgba(148, 163, 184, 0.14);
+  --composer-file-border: rgba(148, 163, 184, 0.24);
+  --composer-file-text: #dbeafe;
+  --composer-token-remove-bg: rgba(255, 255, 255, 0.12);
+  --composer-token-remove-text: rgba(255, 255, 255, 0.86);
+  --composer-menu-bg: rgba(23, 23, 23, 0.96);
+  --composer-menu-border: rgba(255, 255, 255, 0.08);
+  --composer-menu-shadow: 0 18px 42px rgba(0, 0, 0, 0.34);
+  --composer-menu-item-hover: rgba(255, 255, 255, 0.06);
+  --composer-menu-text: #fafafa;
 
   --background: var(--bg-page);
   --foreground: var(--text-primary);
@@ -135,5 +253,89 @@
 
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@keyframes installer-float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes installer-wobble {
+  0%,
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-3px) rotate(-2deg);
+  }
+  75% {
+    transform: translateY(-2px) rotate(2deg);
+  }
+}
+
+@keyframes installer-ripple {
+  0% {
+    opacity: 0.45;
+    transform: scale(0.92);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes installer-glow {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes installer-progress-shimmer {
+  0%,
+  100% {
+    opacity: 0.2;
+    transform: scaleX(0.82);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes installer-particle-float {
+  0%,
+  100% {
+    opacity: 0.1;
+    transform: translate3d(0, 0, 0) scale(0.8);
+  }
+  50% {
+    opacity: 0.8;
+    transform: translate3d(0, -24px, 0) scale(1);
+  }
+}
+
+@keyframes installer-scan-line {
+  0% {
+    opacity: 0;
+    transform: translateY(-15vh);
+  }
+  10% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(115vh);
   }
 }
