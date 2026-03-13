@@ -1569,6 +1569,24 @@ fn save_iclaw_settings_and_apply(
     Ok(true)
 }
 
+#[tauri::command]
+fn save_iclaw_workspace_section(
+    app: AppHandle,
+    section: String,
+    content: String,
+) -> Result<bool, String> {
+    ensure_openclaw_workspace_seed(&app)?;
+    let workspace_dir = openclaw_workspace_dir(&app);
+    let target_path = match section.as_str() {
+        "identity" => workspace_dir.join("IDENTITY.md"),
+        "user-profile" => workspace_dir.join("USER.md"),
+        "soul-persona" => workspace_dir.join("SOUL.md"),
+        _ => return Err(format!("unsupported workspace section: {}", section)),
+    };
+    write_text(&target_path, &content)?;
+    Ok(true)
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(SidecarState {
@@ -1589,7 +1607,8 @@ fn main() {
             load_iclaw_workspace_files,
             reset_iclaw_workspace_to_defaults,
             apply_iclaw_workspace_backup,
-            save_iclaw_settings_and_apply
+            save_iclaw_settings_and_apply,
+            save_iclaw_workspace_section
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

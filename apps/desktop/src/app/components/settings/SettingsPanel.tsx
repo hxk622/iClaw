@@ -1,4 +1,4 @@
-import { type ComponentType, useMemo, useState } from 'react';
+import { type ComponentType, useEffect, useMemo, useState } from 'react';
 import {
   MessageSquare,
   Palette,
@@ -10,8 +10,7 @@ import {
   X,
   Settings2,
 } from 'lucide-react';
-import { useSettings } from '@/app/contexts/settings-context';
-import { type SettingsSection } from '@/app/components/settings/SettingsOverview';
+import { type PersistableSettingsSection, useSettings } from '@/app/contexts/settings-context';
 import { SettingsAppearance } from '@/app/components/settings/SettingsAppearance';
 import { SettingsGeneral } from '@/app/components/settings/SettingsGeneral';
 import { Identity } from '@/app/components/settings/Identity';
@@ -22,10 +21,10 @@ import { SafetyDefaults } from '@/app/components/settings/SafetyDefaults';
 
 interface SettingsPanelProps {
   onClose: () => void;
-  onSave: () => Promise<void>;
+  onSave: (section: PersistableSettingsSection) => Promise<void>;
 }
 
-const navItems: Array<{ key: SettingsSection; label: string; icon: ComponentType<{ className?: string }> }> = [
+const navItems: Array<{ key: PersistableSettingsSection; label: string; icon: ComponentType<{ className?: string }> }> = [
   { key: 'appearance', label: '风格', icon: Palette },
   { key: 'general', label: '通用', icon: Settings2 },
   { key: 'identity', label: '身份设置', icon: UserCircle },
@@ -36,11 +35,11 @@ const navItems: Array<{ key: SettingsSection; label: string; icon: ComponentType
 ];
 
 export function SettingsPanel({ onClose, onSave }: SettingsPanelProps) {
-  const { settings, resetSettings } = useSettings();
-  const [activeSection, setActiveSection] = useState<SettingsSection>('general');
+  const { hasUnsavedChangesForSection, resetSettings } = useSettings();
+  const [activeSection, setActiveSection] = useState<PersistableSettingsSection>('general');
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const hasUnsavedChanges = settings.hasUnsavedChanges;
+  const hasUnsavedChanges = hasUnsavedChangesForSection(activeSection);
   const isSaving = saveState === 'saving';
   const canSave = hasUnsavedChanges && !isSaving;
 
@@ -65,21 +64,32 @@ export function SettingsPanel({ onClose, onSave }: SettingsPanelProps) {
     }
   }, [activeSection]);
 
+  useEffect(() => {
+    setSaveState('idle');
+    setSaveMessage(null);
+  }, [activeSection]);
+
   const handleSave = async () => {
     setSaveState('saving');
     setSaveMessage(null);
     try {
-      await onSave();
+      await onSave(activeSection);
       setSaveState('saved');
-      setSaveMessage('设置已保存并应用');
+      setSaveMessage('当前页面更改已保存');
       window.setTimeout(() => {
         setSaveState((current) => (current === 'saved' ? 'idle' : current));
-        setSaveMessage((current) => (current === '设置已保存并应用' ? null : current));
+        setSaveMessage((current) => (current === '当前页面更改已保存' ? null : current));
       }, 1500);
     } catch (error) {
       setSaveState('error');
       setSaveMessage(error instanceof Error ? error.message : '保存失败，请稍后重试');
     }
+  };
+
+  const handleReset = () => {
+    resetSettings(activeSection);
+    setSaveState('idle');
+    setSaveMessage(null);
   };
 
   return (
@@ -139,16 +149,16 @@ export function SettingsPanel({ onClose, onSave }: SettingsPanelProps) {
           <div className="flex items-center justify-between">
             <div className="text-sm text-[var(--text-secondary)]">
               {saveState === 'saved'
-                ? '所有更改已保存'
+                ? '当前页面已保存'
                 : saveState === 'error'
                   ? '保存失败，请重试'
                   : hasUnsavedChanges
-                    ? '有未保存更改'
-                    : '当前无未保存更改'}
+                    ? '当前页面有未保存更改'
+                    : '当前页面无未保存更改'}
             </div>
             <div className="flex items-center gap-3">
               <button
-                onClick={resetSettings}
+                onClick={handleReset}
                 disabled={!hasUnsavedChanges || isSaving}
                 className="rounded-lg border border-[var(--border-default)] px-4 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:border-[color:rgba(148,163,184,0.35)] disabled:bg-[color:rgba(148,163,184,0.08)] disabled:text-[color:rgba(100,116,139,0.72)] disabled:hover:bg-[color:rgba(148,163,184,0.08)]"
               >

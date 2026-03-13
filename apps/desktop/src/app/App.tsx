@@ -16,12 +16,12 @@ import { FirstRunSetupPanel } from './components/FirstRunSetupPanel';
 import { OpenClawChatSurface } from './components/OpenClawChatSurface';
 import { Sidebar } from './components/Sidebar';
 import { SettingsPanel } from './components/settings/SettingsPanel';
-import { SettingsProvider, useSettings } from './contexts/settings-context';
+import { type PersistableSettingsSection, SettingsProvider, useSettings } from './contexts/settings-context';
 import {
   applyIclawWorkspaceBackup,
   loadIclawWorkspaceFiles,
   resetIclawWorkspaceToDefaults,
-  saveIclawSettingsAndApply,
+  saveIclawWorkspaceSection,
 } from './lib/iclaw-settings';
 
 interface AuthUser {
@@ -766,12 +766,26 @@ function AuthedView({
   authModalOpen,
   onRequestAuth,
 }: AuthedViewProps) {
-  const { settings, saveSettings } = useSettings();
+  const { buildSectionSaveSnapshot, commitSectionSave } = useSettings();
 
-  const handleSaveSettings = async () => {
-    await saveIclawSettingsAndApply(settings);
-    saveSettings();
-    if (accessToken) {
+  const handleSaveSettings = async (section: PersistableSettingsSection) => {
+    const snapshot = buildSectionSaveSnapshot(section);
+    if (section === 'identity' || section === 'user-profile' || section === 'soul-persona') {
+      const content =
+        section === 'identity'
+          ? snapshot.identity.markdownContent
+          : section === 'user-profile'
+            ? snapshot.userProfile.markdownContent
+            : snapshot.soulPersona.markdownContent;
+      await saveIclawWorkspaceSection(section, content);
+    }
+
+    commitSectionSave(section);
+
+    if (
+      accessToken &&
+      (section === 'identity' || section === 'user-profile' || section === 'soul-persona')
+    ) {
       const workspaceFiles = await loadIclawWorkspaceFiles();
       if (workspaceFiles) {
         try {

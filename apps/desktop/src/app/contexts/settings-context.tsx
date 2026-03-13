@@ -7,6 +7,14 @@ import {
 import { applyThemeMode, persistThemeMode, readStoredThemeMode, type ThemeMode } from '@/app/lib/theme';
 
 export type ConfigStatus = 'not-configured' | 'using-default' | 'customized';
+export type PersistableSettingsSection =
+  | 'appearance'
+  | 'general'
+  | 'identity'
+  | 'user-profile'
+  | 'soul-persona'
+  | 'channel-preference'
+  | 'safety-defaults';
 
 export type IdentityConfig = {
   markdownContent: string;
@@ -64,6 +72,7 @@ export type SettingsState = {
     safetyDefaults: ConfigStatus;
   };
   workspaceDir: string;
+  dirtySections: Record<PersistableSettingsSection, boolean>;
   hasUnsavedChanges: boolean;
   isLoading: boolean;
 };
@@ -77,11 +86,25 @@ type SettingsContextType = {
   updateSoulPersona: (config: Partial<SoulPersonaConfig>) => void;
   updateChannelPreference: (config: Partial<ChannelPreferenceConfig>) => void;
   updateSafetyDefaults: (config: Partial<SafetyDefaultsConfig>) => void;
-  saveSettings: () => void;
-  resetSettings: () => void;
+  hasUnsavedChangesForSection: (section: PersistableSettingsSection) => boolean;
+  buildSectionSaveSnapshot: (section: PersistableSettingsSection) => SettingsState;
+  commitSectionSave: (section: PersistableSettingsSection) => void;
+  resetSettings: (section: PersistableSettingsSection) => void;
 };
 
 const LOCAL_STORAGE_KEY = 'iclaw-settings';
+const emptyDirtySections = (): Record<PersistableSettingsSection, boolean> => ({
+  appearance: false,
+  general: false,
+  identity: false,
+  'user-profile': false,
+  'soul-persona': false,
+  'channel-preference': false,
+  'safety-defaults': false,
+});
+
+const hasDirtySections = (dirtySections: Record<PersistableSettingsSection, boolean>) =>
+  Object.values(dirtySections).some(Boolean);
 
 const defaultSettings: SettingsState = {
   appearance: {
@@ -125,6 +148,7 @@ const defaultSettings: SettingsState = {
     safetyDefaults: 'using-default',
   },
   workspaceDir: '',
+  dirtySections: emptyDirtySections(),
   hasUnsavedChanges: false,
   isLoading: true,
 };
@@ -136,7 +160,7 @@ type PersistedSettings = Pick<
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
-function readPersistedSettings(): PersistedSettings | null {
+function readPersistedSettings(): PersistedSettings {
   const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
   const storedTheme = readStoredThemeMode();
   if (!saved) {
@@ -191,26 +215,25 @@ function mergeWorkspaceFiles(
 ): SettingsState {
   return {
     ...current,
-    identity: { markdownContent: workspaceFiles.identity_md },
-    userProfile: { markdownContent: workspaceFiles.user_md },
-    soulPersona: { markdownContent: workspaceFiles.soul_md },
+    identity: current.dirtySections.identity ? current.identity : { markdownContent: workspaceFiles.identity_md },
+    userProfile: current.dirtySections['user-profile']
+      ? current.userProfile
+      : { markdownContent: workspaceFiles.user_md },
+    soulPersona: current.dirtySections['soul-persona']
+      ? current.soulPersona
+      : { markdownContent: workspaceFiles.soul_md },
     workspaceDir: workspaceFiles.workspace_dir,
-    configStatuses: {
-      ...current.configStatuses,
-      identity: 'using-default',
-      userProfile: 'using-default',
-      soulPersona: 'using-default',
-    },
-    hasUnsavedChanges: false,
+    hasUnsavedChanges: hasDirtySections(current.dirtySections),
     isLoading: false,
   };
 }
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [lastWorkspaceFiles, setLastWorkspaceFiles] = useState<IclawWorkspaceFiles | null>(null);
+  const [savedPersistedSettings, setSavedPersistedSettings] = useState<PersistedSettings>(() => readPersistedSettings());
   const [settings, setSettings] = useState<SettingsState>(() => {
     const persisted = readPersistedSettings();
-    return persisted ? { ...defaultSettings, ...persisted, isLoading: true } : defaultSettings;
+    return { ...defaultSettings, ...persisted, dirtySections: emptyDirtySections(), isLoading: true };
   });
 
   useEffect(() => {
@@ -265,6 +288,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       ...prev,
       appearance: { ...prev.appearance, ...config },
       configStatuses: { ...prev.configStatuses, appearance: 'customized' },
+      dirtySections: { ...prev.dirtySections, appearance: true },
       hasUnsavedChanges: true,
     }));
   };
@@ -274,6 +298,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       ...prev,
       identity: { ...prev.identity, ...config },
       configStatuses: { ...prev.configStatuses, identity: 'customized' },
+      dirtySections: { ...prev.dirtySections, identity: true },
       hasUnsavedChanges: true,
     }));
   };
@@ -283,6 +308,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       ...prev,
       general: { ...prev.general, ...config },
       configStatuses: { ...prev.configStatuses, general: 'customized' },
+      dirtySections: { ...prev.dirtySections, general: true },
       hasUnsavedChanges: true,
     }));
   };
@@ -292,6 +318,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       ...prev,
       userProfile: { ...prev.userProfile, ...config },
       configStatuses: { ...prev.configStatuses, userProfile: 'customized' },
+      dirtySections: { ...prev.dirtySections, 'user-profile': true },
       hasUnsavedChanges: true,
     }));
   };
@@ -301,6 +328,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       ...prev,
       soulPersona: { ...prev.soulPersona, ...config },
       configStatuses: { ...prev.configStatuses, soulPersona: 'customized' },
+      dirtySections: { ...prev.dirtySections, 'soul-persona': true },
       hasUnsavedChanges: true,
     }));
   };
@@ -310,6 +338,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       ...prev,
       channelPreference: { ...prev.channelPreference, ...config },
       configStatuses: { ...prev.configStatuses, channelPreference: 'customized' },
+      dirtySections: { ...prev.dirtySections, 'channel-preference': true },
       hasUnsavedChanges: true,
     }));
   };
@@ -319,65 +348,151 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       ...prev,
       safetyDefaults: { ...prev.safetyDefaults, ...config },
       configStatuses: { ...prev.configStatuses, safetyDefaults: 'customized' },
+      dirtySections: { ...prev.dirtySections, 'safety-defaults': true },
       hasUnsavedChanges: true,
     }));
   };
 
-  const saveSettings = () => {
-    const persisted: PersistedSettings = {
-      appearance: settings.appearance,
-      general: settings.general,
-      channelPreference: settings.channelPreference,
-      safetyDefaults: settings.safetyDefaults,
-      configStatuses: settings.configStatuses,
-    };
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(persisted));
-    persistThemeMode(settings.appearance.themeMode);
-    setLastWorkspaceFiles({
-      workspace_dir: settings.workspaceDir,
-      identity_md: settings.identity.markdownContent,
-      user_md: settings.userProfile.markdownContent,
-      soul_md: settings.soulPersona.markdownContent,
-      agents_md: '',
-      finance_decision_framework_md: '',
+  const hasUnsavedChangesForSection = (section: PersistableSettingsSection) => settings.dirtySections[section];
+
+  const buildSectionSaveSnapshot = (section: PersistableSettingsSection): SettingsState => ({
+    ...settings,
+    appearance: section === 'appearance' ? settings.appearance : savedPersistedSettings.appearance,
+    general: section === 'general' ? settings.general : savedPersistedSettings.general,
+    identity:
+      section === 'identity'
+        ? settings.identity
+        : { markdownContent: lastWorkspaceFiles?.identity_md ?? settings.identity.markdownContent },
+    userProfile:
+      section === 'user-profile'
+        ? settings.userProfile
+        : { markdownContent: lastWorkspaceFiles?.user_md ?? settings.userProfile.markdownContent },
+    soulPersona:
+      section === 'soul-persona'
+        ? settings.soulPersona
+        : { markdownContent: lastWorkspaceFiles?.soul_md ?? settings.soulPersona.markdownContent },
+    channelPreference:
+      section === 'channel-preference' ? settings.channelPreference : savedPersistedSettings.channelPreference,
+    safetyDefaults:
+      section === 'safety-defaults' ? settings.safetyDefaults : savedPersistedSettings.safetyDefaults,
+    configStatuses: {
+      ...settings.configStatuses,
+      appearance:
+        section === 'appearance' ? settings.configStatuses.appearance : savedPersistedSettings.configStatuses.appearance,
+      general: section === 'general' ? settings.configStatuses.general : savedPersistedSettings.configStatuses.general,
+      channelPreference:
+        section === 'channel-preference'
+          ? settings.configStatuses.channelPreference
+          : savedPersistedSettings.configStatuses.channelPreference,
+      safetyDefaults:
+        section === 'safety-defaults'
+          ? settings.configStatuses.safetyDefaults
+          : savedPersistedSettings.configStatuses.safetyDefaults,
+    },
+    dirtySections: emptyDirtySections(),
+    hasUnsavedChanges: false,
+    isLoading: false,
+  });
+
+  const commitSectionSave = (section: PersistableSettingsSection) => {
+    if (section === 'appearance' || section === 'general' || section === 'channel-preference' || section === 'safety-defaults') {
+      setSavedPersistedSettings((prev) => {
+        const next: PersistedSettings = {
+          appearance: section === 'appearance' ? settings.appearance : prev.appearance,
+          general: section === 'general' ? settings.general : prev.general,
+          channelPreference:
+            section === 'channel-preference' ? settings.channelPreference : prev.channelPreference,
+          safetyDefaults: section === 'safety-defaults' ? settings.safetyDefaults : prev.safetyDefaults,
+          configStatuses: {
+            ...prev.configStatuses,
+            appearance: section === 'appearance' ? settings.configStatuses.appearance : prev.configStatuses.appearance,
+            general: section === 'general' ? settings.configStatuses.general : prev.configStatuses.general,
+            channelPreference:
+              section === 'channel-preference'
+                ? settings.configStatuses.channelPreference
+                : prev.configStatuses.channelPreference,
+            safetyDefaults:
+              section === 'safety-defaults'
+                ? settings.configStatuses.safetyDefaults
+                : prev.configStatuses.safetyDefaults,
+          },
+        };
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(next));
+        return next;
+      });
+    }
+
+    if (section === 'appearance') {
+      persistThemeMode(settings.appearance.themeMode);
+    }
+
+    if (section === 'identity' || section === 'user-profile' || section === 'soul-persona') {
+      setLastWorkspaceFiles((prev) => ({
+        workspace_dir: settings.workspaceDir,
+        identity_md:
+          section === 'identity' ? settings.identity.markdownContent : (prev?.identity_md ?? settings.identity.markdownContent),
+        user_md:
+          section === 'user-profile'
+            ? settings.userProfile.markdownContent
+            : (prev?.user_md ?? settings.userProfile.markdownContent),
+        soul_md:
+          section === 'soul-persona'
+            ? settings.soulPersona.markdownContent
+            : (prev?.soul_md ?? settings.soulPersona.markdownContent),
+        agents_md: prev?.agents_md ?? '',
+        finance_decision_framework_md: prev?.finance_decision_framework_md ?? '',
+      }));
+    }
+
+    setSettings((prev) => {
+      const dirtySections = { ...prev.dirtySections, [section]: false };
+      return {
+        ...prev,
+        dirtySections,
+        hasUnsavedChanges: hasDirtySections(dirtySections),
+      };
     });
-    setSettings((prev) => ({ ...prev, hasUnsavedChanges: false }));
   };
 
-  const resetSettings = () => {
-    localStorage.removeItem(LOCAL_STORAGE_KEY);
+  const resetSettings = (section: PersistableSettingsSection) => {
     setSettings((prev) => {
-      if (!lastWorkspaceFiles) {
-        return {
-          ...defaultSettings,
-          appearance: prev.appearance,
-          workspaceDir: prev.workspaceDir,
-          isLoading: false,
-        };
-      }
-
+      const dirtySections = { ...prev.dirtySections, [section]: false };
       return {
-        ...defaultSettings,
-        appearance: prev.appearance,
-        general: prev.general,
-        channelPreference: prev.channelPreference,
-        safetyDefaults: prev.safetyDefaults,
+        ...prev,
+        appearance: section === 'appearance' ? savedPersistedSettings.appearance : prev.appearance,
+        general: section === 'general' ? savedPersistedSettings.general : prev.general,
+        identity:
+          section === 'identity'
+            ? { markdownContent: lastWorkspaceFiles?.identity_md ?? defaultSettings.identity.markdownContent }
+            : prev.identity,
+        userProfile:
+          section === 'user-profile'
+            ? { markdownContent: lastWorkspaceFiles?.user_md ?? defaultSettings.userProfile.markdownContent }
+            : prev.userProfile,
+        soulPersona:
+          section === 'soul-persona'
+            ? { markdownContent: lastWorkspaceFiles?.soul_md ?? defaultSettings.soulPersona.markdownContent }
+            : prev.soulPersona,
+        channelPreference:
+          section === 'channel-preference' ? savedPersistedSettings.channelPreference : prev.channelPreference,
+        safetyDefaults:
+          section === 'safety-defaults' ? savedPersistedSettings.safetyDefaults : prev.safetyDefaults,
         configStatuses: {
-          ...defaultSettings.configStatuses,
-          appearance: prev.configStatuses.appearance,
-          general: prev.configStatuses.general,
-          channelPreference: prev.configStatuses.channelPreference,
-          safetyDefaults: prev.configStatuses.safetyDefaults,
-          identity: 'using-default',
-          userProfile: 'using-default',
-          soulPersona: 'using-default',
+          ...prev.configStatuses,
+          appearance:
+            section === 'appearance' ? savedPersistedSettings.configStatuses.appearance : prev.configStatuses.appearance,
+          general: section === 'general' ? savedPersistedSettings.configStatuses.general : prev.configStatuses.general,
+          channelPreference:
+            section === 'channel-preference'
+              ? savedPersistedSettings.configStatuses.channelPreference
+              : prev.configStatuses.channelPreference,
+          safetyDefaults:
+            section === 'safety-defaults'
+              ? savedPersistedSettings.configStatuses.safetyDefaults
+              : prev.configStatuses.safetyDefaults,
         },
-        workspaceDir: lastWorkspaceFiles.workspace_dir,
-        identity: { markdownContent: lastWorkspaceFiles.identity_md },
-        userProfile: { markdownContent: lastWorkspaceFiles.user_md },
-        soulPersona: { markdownContent: lastWorkspaceFiles.soul_md },
-        hasUnsavedChanges: false,
-        isLoading: false,
+        dirtySections,
+        hasUnsavedChanges: hasDirtySections(dirtySections),
       };
     });
   };
@@ -393,7 +508,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         updateSoulPersona,
         updateChannelPreference,
         updateSafetyDefaults,
-        saveSettings,
+        hasUnsavedChangesForSection,
+        buildSectionSaveSnapshot,
+        commitSectionSave,
         resetSettings,
       }}
     >

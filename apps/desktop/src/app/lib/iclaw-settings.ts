@@ -18,6 +18,8 @@ export interface IclawWorkspaceBackupPayload {
   agents_md: string;
 }
 
+export type WorkspaceMarkdownSection = 'identity' | 'user-profile' | 'soul-persona';
+
 const WORKSPACE_UPDATED_EVENT = 'iclaw-workspace-updated';
 const WORKSPACE_DEV_ENDPOINT = '/__iclaw/workspace-files';
 
@@ -64,6 +66,37 @@ export async function resetIclawWorkspaceToDefaults(): Promise<boolean> {
 export async function applyIclawWorkspaceBackup(backup: IclawWorkspaceBackupPayload): Promise<boolean> {
   if (!isTauriRuntime()) return false;
   const result = await invoke<boolean>('apply_iclaw_workspace_backup', { backup });
+  notifyIclawWorkspaceUpdated();
+  return result;
+}
+
+export async function saveIclawWorkspaceSection(
+  section: WorkspaceMarkdownSection,
+  content: string,
+): Promise<boolean> {
+  if (!isTauriRuntime()) {
+    const payload =
+      section === 'identity'
+        ? { identity_md: content }
+        : section === 'user-profile'
+          ? { user_md: content }
+          : { soul_md: content };
+    const response = await fetch(WORKSPACE_DEV_ENDPOINT, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      throw new Error(`workspace save failed: ${response.status}`);
+    }
+    notifyIclawWorkspaceUpdated();
+    return true;
+  }
+
+  const result = await invoke<boolean>('save_iclaw_workspace_section', { section, content });
   notifyIclawWorkspaceUpdated();
   return result;
 }

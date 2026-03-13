@@ -49,11 +49,18 @@ async function writeWorkspacePayload(body: unknown) {
     soul_md?: unknown;
     agents_md?: unknown;
   };
+  const current = await loadWorkspacePayload();
+  const next = {
+    identity_md: payload.identity_md ?? current.identity_md,
+    user_md: payload.user_md ?? current.user_md,
+    soul_md: payload.soul_md ?? current.soul_md,
+    agents_md: payload.agents_md ?? current.agents_md,
+  };
   await fs.mkdir(workspaceDir, { recursive: true });
-  await fs.writeFile(path.join(workspaceDir, 'IDENTITY.md'), String(payload.identity_md ?? ''), 'utf8');
-  await fs.writeFile(path.join(workspaceDir, 'USER.md'), String(payload.user_md ?? ''), 'utf8');
-  await fs.writeFile(path.join(workspaceDir, 'SOUL.md'), String(payload.soul_md ?? ''), 'utf8');
-  await fs.writeFile(path.join(workspaceDir, 'AGENTS.md'), String(payload.agents_md ?? ''), 'utf8');
+  await fs.writeFile(path.join(workspaceDir, 'IDENTITY.md'), String(next.identity_md), 'utf8');
+  await fs.writeFile(path.join(workspaceDir, 'USER.md'), String(next.user_md), 'utf8');
+  await fs.writeFile(path.join(workspaceDir, 'SOUL.md'), String(next.soul_md), 'utf8');
+  await fs.writeFile(path.join(workspaceDir, 'AGENTS.md'), String(next.agents_md), 'utf8');
   const financePath = path.join(workspaceDir, 'FINANCE_DECISION_FRAMEWORK.md');
   try {
     await fs.access(financePath);
