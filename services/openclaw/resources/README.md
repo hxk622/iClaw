@@ -1,8 +1,8 @@
 # OpenClaw Bundled Resources
 
-This directory is the canonical source for bundled local sidecar resources.
+This directory stores bundled local sidecar resources that are synced into the desktop app.
 
-- `skills/`: preinstalled core skills
+- Skills source: repo root `skills/`
 - `mcp/mcp.json`: default MCP server config
 - `config/runtime-config.json`: default runtime model/provider config
 

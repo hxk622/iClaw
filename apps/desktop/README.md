@@ -77,7 +77,7 @@ pnpm dev:web
 
 ## 本地能力资源（skills / mcp）
 
-- 源目录（可维护）：`services/openclaw/resources/skills`、`services/openclaw/resources/mcp/mcp.json`
+- 源目录（可维护）：`skills`、`services/openclaw/resources/mcp/mcp.json`
 - 打包目录（自动同步）：`apps/desktop/src-tauri/resources/skills`、`apps/desktop/src-tauri/resources/mcp/mcp.json`
 - 同步命令：`bash ../../scripts/sync-openclaw-resources.sh`
 
