@@ -1,0 +1,29 @@
+{
+  "brandId": "iclaw",
+  "productName": "iClaw-理财客",
+  "displayName": "iClaw",
+  "websiteTitle": "iClaw-理财客",
+  "sidebarSubtitle": "LiCaiClaw",
+  "legalName": "iClaw",
+  "bundleIdentifier": "ai.iclaw.desktop",
+  "authService": "ai.iclaw.desktop",
+  "theme": {
+    "light": {
+      "primary": "#3b82f6",
+      "primaryHover": "#2563eb",
+      "onPrimary": "#ffffff"
+    },
+    "dark": {
+      "primary": "#c9a961",
+      "primaryHover": "#b89850",
+      "onPrimary": "#ffffff"
+    }
+  },
+  "assets": {
+    "faviconIco": "./assets/favicon.ico",
+    "faviconPng": "./assets/favicon.png",
+    "appleTouchIcon": "./assets/apple-touch-icon.png",
+    "installerHero": "./assets/installer-hero.png",
+    "tauriIconsDir": "./assets/tauri-icons"
+  }
+}

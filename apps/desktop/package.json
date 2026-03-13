@@ -4,10 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node ../../scripts/apply-brand.mjs",
     "dev": "vite",
+    "prebuild": "node ../../scripts/apply-brand.mjs",
     "build": "vite build",
     "preview": "vite preview",
-    "tauri:dev": "tauri dev",
+    "pretauri:dev": "node ../../scripts/apply-brand.mjs",
+    "tauri:dev": "tauri dev --config src-tauri/tauri.generated.conf.json",
+    "pretauri:build": "node ../../scripts/apply-brand.mjs",
     "tauri:build": "bash ../../scripts/build-desktop-dmg.sh"
   },
   "dependencies": {

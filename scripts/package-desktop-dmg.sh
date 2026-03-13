@@ -29,7 +29,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 product_name="$(
-  node -e "const fs=require('fs'); const path=require('path'); const config=JSON.parse(fs.readFileSync(path.join(process.argv[1], 'tauri.conf.json'), 'utf8')); process.stdout.write(config.productName);" \
+  node -e "const fs=require('fs'); const path=require('path'); const config=JSON.parse(fs.readFileSync(path.join(process.argv[1], 'tauri.generated.conf.json'), 'utf8')); process.stdout.write(config.productName);" \
   "$TAURI_DIR"
 )"
 app_version="$(

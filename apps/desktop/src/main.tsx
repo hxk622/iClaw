@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import App from './app/App';
+import { applyBrandTheme, BRAND } from './app/lib/brand';
 import { applyThemeMode, readStoredThemeMode } from './app/lib/theme';
 import './styles/index.css';
 
@@ -13,8 +14,8 @@ if (
   window.location.replace(nextUrl.toString());
 }
 
-const brandTitle = import.meta.env.DEV ? 'iClaw-理财客-dev' : 'iClaw-理财客';
-document.title = brandTitle;
+applyBrandTheme();
+document.title = import.meta.env.DEV ? BRAND.devWebsiteTitle : BRAND.websiteTitle;
 applyThemeMode(readStoredThemeMode());
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
   if (readStoredThemeMode() === 'system') {

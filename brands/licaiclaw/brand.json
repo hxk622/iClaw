@@ -1,0 +1,29 @@
+{
+  "brandId": "licaiclaw",
+  "productName": "LiCaiClaw",
+  "displayName": "LiCaiClaw",
+  "websiteTitle": "LiCaiClaw",
+  "sidebarSubtitle": "OEM Wealth Agent",
+  "legalName": "LiCaiClaw",
+  "bundleIdentifier": "ai.licaiclaw.desktop",
+  "authService": "ai.licaiclaw.desktop",
+  "theme": {
+    "light": {
+      "primary": "#0f766e",
+      "primaryHover": "#115e59",
+      "onPrimary": "#ffffff"
+    },
+    "dark": {
+      "primary": "#5eead4",
+      "primaryHover": "#2dd4bf",
+      "onPrimary": "#042f2e"
+    }
+  },
+  "assets": {
+    "faviconIco": "./assets/favicon.ico",
+    "faviconPng": "./assets/favicon.png",
+    "appleTouchIcon": "./assets/apple-touch-icon.png",
+    "installerHero": "./assets/installer-hero.png",
+    "tauriIconsDir": "./assets/tauri-icons"
+  }
+}

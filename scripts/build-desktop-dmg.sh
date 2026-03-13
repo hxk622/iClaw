@@ -3,6 +3,9 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DESKTOP_DIR="$ROOT_DIR/apps/desktop"
+TAURI_CONFIG_PATH="$DESKTOP_DIR/src-tauri/tauri.generated.conf.json"
+
+node "$ROOT_DIR/scripts/apply-brand.mjs"
 
 tauri_args=()
 skip_next=0
@@ -29,9 +32,9 @@ done
 (
   cd "$DESKTOP_DIR"
   if [[ ${#tauri_args[@]} -gt 0 ]]; then
-    pnpm tauri build --bundles app "${tauri_args[@]}"
+    pnpm tauri build --config "$TAURI_CONFIG_PATH" --bundles app "${tauri_args[@]}"
   else
-    pnpm tauri build --bundles app
+    pnpm tauri build --config "$TAURI_CONFIG_PATH" --bundles app
   fi
 )
 

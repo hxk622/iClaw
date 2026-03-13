@@ -17,6 +17,11 @@ CHANNELS=("dev" "prod")
 
 mkdir -p "$OUT_DIR"
 
+product_name() {
+  node -e "const fs=require('fs'); const path=require('path'); const config=JSON.parse(fs.readFileSync(path.join(process.argv[1], 'tauri.generated.conf.json'), 'utf8')); process.stdout.write(config.productName);" \
+    "$DESKTOP_DIR/src-tauri"
+}
+
 build_one() {
   local target="$1"
   local channel="$2"
@@ -49,16 +54,15 @@ build_one() {
   )
 
   local dmg_dir="$DESKTOP_DIR/src-tauri/target/$target/release/bundle/dmg"
-  local dmg_path="$dmg_dir/iClaw_${APP_VERSION}_${arch_label}.dmg"
-  if [[ ! -f "$dmg_path" ]]; then
-    dmg_path="$dmg_dir/iClaw-理财客_${APP_VERSION}_${arch_label}.dmg"
-  fi
+  local current_product_name
+  current_product_name="$(product_name)"
+  local dmg_path="$dmg_dir/${current_product_name}_${APP_VERSION}_${arch_label}.dmg"
   if [[ ! -f "$dmg_path" ]]; then
     echo "Expected DMG not found under: $dmg_dir (appVersion=$APP_VERSION arch=$arch_label)" >&2
     exit 1
   fi
 
-  local out_file="$OUT_DIR/iClaw_${RELEASE_VERSION}_${arch_label}_${channel}.dmg"
+  local out_file="$OUT_DIR/${current_product_name}_${RELEASE_VERSION}_${arch_label}_${channel}.dmg"
   cp "$dmg_path" "$out_file"
   echo "saved: $out_file"
 }

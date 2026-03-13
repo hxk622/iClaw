@@ -17,14 +17,20 @@
   --border-default: #e5e5e5;
   --border-strong: #d4d4d4;
 
-  --brand-primary: #3b82f6;
-  --brand-primary-hover: #2563eb;
-  --brand-on-primary: #ffffff;
+  --brand-primary-light: #3b82f6;
+  --brand-primary-light-hover: #2563eb;
+  --brand-on-primary-light: #ffffff;
+  --brand-primary-dark: #c9a961;
+  --brand-primary-dark-hover: #b89850;
+  --brand-on-primary-dark: #ffffff;
+  --brand-primary: var(--brand-primary-light);
+  --brand-primary-hover: var(--brand-primary-light-hover);
+  --brand-on-primary: var(--brand-on-primary-light);
 
   --state-success: #22c55e;
   --state-warn: #f59e0b;
   --state-error: #ef4444;
-  --state-info: #3b82f6;
+  --state-info: var(--brand-primary-light);
 
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-dropdown: 0 4px 12px 0 rgb(0 0 0 / 0.08);
@@ -130,14 +136,14 @@
   --border-default: #404040;
   --border-strong: #525252;
 
-  --brand-primary: #c9a961;
-  --brand-primary-hover: #b89850;
-  --brand-on-primary: #ffffff;
+  --brand-primary: var(--brand-primary-dark);
+  --brand-primary-hover: var(--brand-primary-dark-hover);
+  --brand-on-primary: var(--brand-on-primary-dark);
 
   --state-success: #22c55e;
   --state-warn: #f59e0b;
   --state-error: #ef4444;
-  --state-info: #c9a961;
+  --state-info: var(--brand-primary-dark);
 
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
   --shadow-dropdown: 0 4px 12px 0 rgb(0 0 0 / 0.4);

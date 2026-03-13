@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useState} from 'react';
 import {Eye, EyeOff, Loader2, X} from 'lucide-react';
+import { BRAND } from '@/app/lib/brand';
 
 interface AuthPanelProps {
   open: boolean;
@@ -190,10 +191,10 @@ export function AuthPanel({
         <div className="mb-4 flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-[rgba(59,130,246,0.14)] bg-[linear-gradient(180deg,#ffffff,#eff6ff)] shadow-[0_10px_24px_rgba(59,130,246,0.08)]">
-              <img src="/favicon.png" alt="iClaw logo" className="h-8 w-8 object-contain" />
+              <img src={BRAND.assets.faviconPngSrc} alt={BRAND.assets.logoAlt} className="h-8 w-8 object-contain" />
             </div>
             <div>
-              <div className="text-[12px] font-semibold uppercase tracking-[0.22em] text-[var(--brand-primary)]">iClaw</div>
+              <div className="text-[12px] font-semibold uppercase tracking-[0.22em] text-[var(--brand-primary)]">{BRAND.displayName}</div>
               <div className="text-[13px] text-[var(--text-secondary)]">登录以继续使用账户与额度体系</div>
             </div>
           </div>
@@ -351,7 +352,7 @@ export function AuthPanel({
                   }}
                   className="mt-1 h-4 w-4 rounded border-[rgba(59,130,246,0.28)] text-[var(--brand-primary)]"
                 />
-                <span>我已阅读并同意 iClaw 的服务协议、隐私说明，以及账号 credit 相关计费规则。</span>
+                <span>我已阅读并同意 {BRAND.legalName} 的服务协议、隐私说明，以及账号 credit 相关计费规则。</span>
               </label>
             </>
           )}

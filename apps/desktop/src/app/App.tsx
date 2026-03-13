@@ -17,6 +17,7 @@ import { OpenClawChatSurface } from './components/OpenClawChatSurface';
 import { Sidebar } from './components/Sidebar';
 import { SettingsPanel } from './components/settings/SettingsPanel';
 import { type PersistableSettingsSection, SettingsProvider, useSettings } from './contexts/settings-context';
+import { BRAND } from './lib/brand';
 import {
   applyIclawWorkspaceBackup,
   loadIclawWorkspaceFiles,
@@ -632,7 +633,11 @@ export default function App() {
         detail: '首次启动需要部署本地运行环境，请稍候。',
       };
       const title =
-        progress.progress < 30 ? 'iClaw 正在苏醒' : progress.progress < 85 ? '正在准备 iClaw' : '即将完成';
+        progress.progress < 30
+          ? `${BRAND.displayName} 正在苏醒`
+          : progress.progress < 85
+            ? `正在准备 ${BRAND.displayName}`
+            : '即将完成';
       return {
         state: 'loading',
         title,
@@ -647,7 +652,7 @@ export default function App() {
     if (runtimeChecking || !runtimeReady) {
       return {
         state: 'loading',
-        title: 'iClaw 正在苏醒',
+        title: `${BRAND.displayName} 正在苏醒`,
         subtitle: '首次启动需要准备本地运行环境',
         progress: 12,
         stepLabel: '正在检查本地环境',
@@ -661,7 +666,7 @@ export default function App() {
       title: '即将完成',
       subtitle: '本地运行环境已准备完成',
       progress: healthy ? 100 : 96,
-      stepLabel: healthy ? 'iClaw 已就绪' : '正在启动本地服务',
+      stepLabel: healthy ? `${BRAND.displayName} 已就绪` : '正在启动本地服务',
       stepDetail: healthy ? '正在进入应用。' : '正在拉起本地服务并完成最后的健康检查。',
       errorMessage: null,
     };

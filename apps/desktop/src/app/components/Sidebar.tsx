@@ -11,6 +11,7 @@ import {
   Heart,
 } from 'lucide-react';
 import { AvatarDropdown } from './AvatarDropdown';
+import { BRAND } from '../lib/brand';
 import {
   resolveUserAvatarUrl,
   resolveUserInitial,
@@ -48,7 +49,7 @@ export function Sidebar({
   onOpenSettings,
 }: SidebarProps) {
   const isDevChannel = import.meta.env.DEV || import.meta.env.MODE === 'development';
-  const brandText = isDevChannel ? 'iClaw-理财客-dev' : 'iClaw-理财客';
+  const brandText = isDevChannel ? BRAND.devSidebarTitle : BRAND.sidebarTitle;
 
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -119,11 +120,11 @@ export function Sidebar({
     <div className="flex h-screen w-[256px] flex-col border-r border-[var(--border-default)] bg-[var(--bg-page)]">
       <div className="flex h-10 items-center gap-3 border-b border-[var(--border-default)] px-4">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)]">
-          <img src="/favicon.png" alt="iClaw logo" className="h-6 w-6 object-cover" />
+          <img src={BRAND.assets.faviconPngSrc} alt={BRAND.assets.logoAlt} className="h-6 w-6 object-cover" />
         </div>
         <div className="min-w-0">
           <div className="truncate text-[14px] font-medium text-[var(--text-primary)]">{brandText}</div>
-          <div className="text-[11px] text-[var(--text-muted)]">LiCaiClaw</div>
+          <div className="text-[11px] text-[var(--text-muted)]">{BRAND.sidebarSubtitle}</div>
         </div>
       </div>
 

@@ -35,3 +35,5 @@ services/openclaw/bin/
 services/openclaw/runtime/
 services/openclaw/Frameworks/
 logs/
+apps/desktop/public/brand/
+apps/desktop/src-tauri/icons-generated/

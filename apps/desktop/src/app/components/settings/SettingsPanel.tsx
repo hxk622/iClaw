@@ -11,6 +11,7 @@ import {
   Settings2,
 } from 'lucide-react';
 import { type PersistableSettingsSection, useSettings } from '@/app/contexts/settings-context';
+import { BRAND } from '@/app/lib/brand';
 import { SettingsAppearance } from '@/app/components/settings/SettingsAppearance';
 import { SettingsGeneral } from '@/app/components/settings/SettingsGeneral';
 import { Identity } from '@/app/components/settings/Identity';
@@ -100,7 +101,7 @@ export function SettingsPanel({ onClose, onSave }: SettingsPanelProps) {
       >
       <aside className="flex w-56 flex-col border-r border-[var(--border-default)] bg-[var(--bg-card)]">
         <div className="border-b border-[var(--border-default)] p-4">
-          <h1 className="text-lg text-[var(--text-primary)]">iClaw 设置</h1>
+          <h1 className="text-lg text-[var(--text-primary)]">{BRAND.displayName} 设置</h1>
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto p-2">

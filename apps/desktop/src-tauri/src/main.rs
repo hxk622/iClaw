@@ -25,7 +25,10 @@ struct SidecarState {
     child: Mutex<Option<Child>>,
 }
 
-const AUTH_SERVICE: &str = "ai.iclaw.desktop";
+const AUTH_SERVICE: &str = match option_env!("ICLAW_AUTH_SERVICE") {
+    Some(value) => value,
+    None => "ai.iclaw.desktop",
+};
 const AUTH_ACCESS_KEY: &str = "access_token";
 const AUTH_REFRESH_KEY: &str = "refresh_token";
 const AUTH_GATEWAY_TOKEN_KEY: &str = "gateway_token";
