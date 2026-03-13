@@ -40,6 +40,9 @@ export function SettingsPanel({ onClose, onSave }: SettingsPanelProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>('general');
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const hasUnsavedChanges = settings.hasUnsavedChanges;
+  const isSaving = saveState === 'saving';
+  const canSave = hasUnsavedChanges && !isSaving;
 
   const content = useMemo(() => {
     switch (activeSection) {
@@ -132,43 +135,52 @@ export function SettingsPanel({ onClose, onSave }: SettingsPanelProps) {
 
         <main className="flex-1 overflow-y-auto">{content}</main>
 
-        {(settings.hasUnsavedChanges || saveState !== 'idle') && (
-          <div className="border-t border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-[var(--text-secondary)]">
-                {saveState === 'saved'
-                  ? '所有更改已保存'
-                  : saveState === 'error'
-                    ? '保存失败，请重试'
-                    : '有未保存更改'}
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={resetSettings}
-                  className="rounded-lg border border-[var(--border-default)] px-4 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
-                >
-                  重置
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={!settings.hasUnsavedChanges || saveState === 'saving'}
-                  className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm text-[var(--brand-on-primary)] hover:bg-[var(--brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {saveState === 'saving' ? '保存中...' : saveState === 'saved' ? '已保存' : '保存'}
-                </button>
-              </div>
+        <div className="border-t border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-[var(--text-secondary)]">
+              {saveState === 'saved'
+                ? '所有更改已保存'
+                : saveState === 'error'
+                  ? '保存失败，请重试'
+                  : hasUnsavedChanges
+                    ? '有未保存更改'
+                    : '当前无未保存更改'}
             </div>
-            {saveMessage && (
-              <p
-                className={`mt-2 text-xs ${
-                  saveState === 'error' ? 'text-[var(--state-error)]' : 'text-[var(--state-info)]'
-                }`}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={resetSettings}
+                disabled={!hasUnsavedChanges || isSaving}
+                className="rounded-lg border border-[var(--border-default)] px-4 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:border-[color:rgba(148,163,184,0.35)] disabled:bg-[color:rgba(148,163,184,0.08)] disabled:text-[color:rgba(100,116,139,0.72)] disabled:hover:bg-[color:rgba(148,163,184,0.08)]"
               >
-                {saveMessage}
-              </p>
-            )}
+                重置
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={!canSave}
+                className="rounded-lg px-4 py-2 text-sm transition-colors disabled:cursor-not-allowed disabled:border disabled:border-[color:rgba(148,163,184,0.3)] disabled:bg-[color:rgba(148,163,184,0.12)] disabled:text-[color:rgba(100,116,139,0.78)]"
+                style={
+                  canSave
+                    ? {
+                        backgroundColor: 'var(--brand-primary)',
+                        color: 'var(--brand-on-primary)',
+                      }
+                    : undefined
+                }
+              >
+                {isSaving ? '保存中...' : saveState === 'saved' ? '已保存' : '保存'}
+              </button>
+            </div>
           </div>
-        )}
+          {saveMessage && (
+            <p
+              className={`mt-2 text-xs ${
+                saveState === 'error' ? 'text-[var(--state-error)]' : 'text-[var(--state-info)]'
+              }`}
+            >
+              {saveMessage}
+            </p>
+          )}
+        </div>
       </div>
       </div>
     </div>
