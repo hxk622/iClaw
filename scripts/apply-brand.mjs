@@ -9,7 +9,9 @@ const rootDir = path.resolve(__dirname, '..');
 const desktopDir = path.join(rootDir, 'apps', 'desktop');
 const tauriDir = path.join(desktopDir, 'src-tauri');
 const outputBrandDir = path.join(desktopDir, 'public', 'brand');
+const outputPublicDir = path.join(desktopDir, 'public');
 const outputIconsDir = path.join(tauriDir, 'icons-generated');
+const legacyInstallerAssetPath = path.join(desktopDir, 'src', 'app', 'assets', 'installer-lobster.png');
 
 const brandId = process.argv[2] || process.env.ICLAW_BRAND || 'iclaw';
 const brandDir = path.join(rootDir, 'brands', brandId);
@@ -84,10 +86,15 @@ async function main() {
   const tauriIconsDir = resolveBrandPath(brand.assets.tauriIconsDir);
 
   await fs.mkdir(outputBrandDir, { recursive: true });
+  await fs.mkdir(outputPublicDir, { recursive: true });
   await copyFile(faviconIco, path.join(outputBrandDir, 'favicon.ico'));
   await copyFile(faviconPng, path.join(outputBrandDir, 'favicon.png'));
   await copyFile(appleTouchIcon, path.join(outputBrandDir, 'apple-touch-icon.png'));
   await copyFile(installerHero, path.join(outputBrandDir, 'installer-hero.png'));
+  await copyFile(faviconIco, path.join(outputPublicDir, 'favicon.ico'));
+  await copyFile(faviconPng, path.join(outputPublicDir, 'favicon.png'));
+  await copyFile(appleTouchIcon, path.join(outputPublicDir, 'apple-touch-icon.png'));
+  await copyFile(installerHero, legacyInstallerAssetPath);
   await copyDirectory(tauriIconsDir, outputIconsDir);
 
   const tauriConfig = JSON.parse(await fs.readFile(tauriTemplatePath, 'utf8'));
