@@ -399,13 +399,14 @@ export class PgControlPlaneStore implements ControlPlaneStore {
 
     try {
       await client.query('begin');
-      const existing = await client.query<{device_session_id: string; user_id: string}>(
+      const existing = await client.query<{device_session_id: string; user_id: string; created_at: Date}>(
         `
-          select device_session_id, user_id
-          from refresh_tokens
+          select rt.device_session_id, rt.user_id, ds.created_at
+          from refresh_tokens rt
+          join device_sessions ds on ds.id = rt.device_session_id
           where token_hash = $1
-            and revoked_at is null
-            and expires_at > now()
+            and rt.revoked_at is null
+            and rt.expires_at > now()
           limit 1
         `,
         [refreshTokenHash],
@@ -433,8 +434,74 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         `,
         [row.device_session_id],
       );
+      await client.query(
+        `
+          update device_sessions
+          set status = 'active', last_seen_at = now(), revoked_at = null
+          where id = $1
+        `,
+        [row.device_session_id],
+      );
 
-      const session = await this.insertSession(client, row.user_id, tokens);
+      const session = await this.insertSessionTokens(
+        client,
+        row.user_id,
+        row.device_session_id,
+        tokens,
+        row.created_at,
+      );
+      await client.query('commit');
+      return session;
+    } catch (error) {
+      await client.query('rollback');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async touchSession(
+    sessionId: string,
+    expiresAt: {
+      accessTokenExpiresAt: number;
+      refreshTokenExpiresAt: number;
+    },
+  ): Promise<SessionRecord | null> {
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('begin');
+      const accessResult = await client.query(
+        `
+          update access_tokens
+          set expires_at = $2
+          where device_session_id = $1 and revoked_at is null
+        `,
+        [sessionId, new Date(expiresAt.accessTokenExpiresAt)],
+      );
+      const refreshResult = await client.query(
+        `
+          update refresh_tokens
+          set expires_at = $2
+          where device_session_id = $1 and revoked_at is null
+        `,
+        [sessionId, new Date(expiresAt.refreshTokenExpiresAt)],
+      );
+
+      if ((accessResult.rowCount || 0) === 0 || (refreshResult.rowCount || 0) === 0) {
+        await client.query('rollback');
+        return null;
+      }
+
+      await client.query(
+        `
+          update device_sessions
+          set last_seen_at = now()
+          where id = $1
+        `,
+        [sessionId],
+      );
+      const session = await this.getSessionById(sessionId, client);
       await client.query('commit');
       return session;
     } catch (error) {
@@ -791,8 +858,6 @@ export class PgControlPlaneStore implements ControlPlaneStore {
   ): Promise<SessionRecord> {
     const sessionId = randomUUID();
     const now = new Date();
-    const accessTokenExpiresAt = new Date(tokens.accessTokenExpiresAt);
-    const refreshTokenExpiresAt = new Date(tokens.refreshTokenExpiresAt);
 
     await db.query(
       `
@@ -801,6 +866,20 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       `,
       [sessionId, userId, tokens.deviceId, tokens.clientType, now],
     );
+    return this.insertSessionTokens(db, userId, sessionId, tokens, now);
+  }
+
+  private async insertSessionTokens(
+    db: Pool | PoolClient,
+    userId: string,
+    sessionId: string,
+    tokens: SessionTokenPair,
+    createdAt: Date,
+  ): Promise<SessionRecord> {
+    const now = new Date();
+    const accessTokenExpiresAt = new Date(tokens.accessTokenExpiresAt);
+    const refreshTokenExpiresAt = new Date(tokens.refreshTokenExpiresAt);
+
     await db.query(
       `
         insert into access_tokens (id, user_id, device_session_id, token_hash, expires_at, created_at)
@@ -823,8 +902,31 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       refreshTokenHash: tokens.refreshTokenHash,
       accessTokenExpiresAt: tokens.accessTokenExpiresAt,
       refreshTokenExpiresAt: tokens.refreshTokenExpiresAt,
-      createdAt: now.toISOString(),
+      createdAt: createdAt.toISOString(),
     };
+  }
+
+  private async getSessionById(dbSessionId: string, db: Pool | PoolClient): Promise<SessionRecord | null> {
+    const result = await db.query<SessionRow>(
+      `
+        select
+          ds.id as session_id,
+          ds.user_id,
+          at.token_hash as access_token_hash,
+          at.expires_at as access_token_expires_at,
+          rt.token_hash as refresh_token_hash,
+          rt.expires_at as refresh_token_expires_at,
+          ds.created_at
+        from device_sessions ds
+        join access_tokens at on at.device_session_id = ds.id and at.revoked_at is null
+        join refresh_tokens rt on rt.device_session_id = ds.id and rt.revoked_at is null
+        where ds.id = $1
+        order by at.created_at desc, rt.created_at desc
+        limit 1
+      `,
+      [dbSessionId],
+    );
+    return result.rows[0] ? mapSessionRow(result.rows[0]) : null;
   }
 
   private async lockAndReadBalance(client: PoolClient, userId: string): Promise<number> {

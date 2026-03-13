@@ -32,6 +32,10 @@ export interface ControlPlaneStore {
   createUser(input: CreateUserInput): Promise<UserRecord>;
   createSession(userId: string, tokens: SessionTokenPair): Promise<SessionRecord>;
   replaceSession(refreshTokenHash: string, tokens: SessionTokenPair): Promise<SessionRecord | null>;
+  touchSession(sessionId: string, expiresAt: {
+    accessTokenExpiresAt: number;
+    refreshTokenExpiresAt: number;
+  }): Promise<SessionRecord | null>;
   getSessionByAccessToken(accessTokenHash: string): Promise<SessionRecord | null>;
   getSessionByRefreshToken(refreshTokenHash: string): Promise<SessionRecord | null>;
   getUserById(userId: string): Promise<UserRecord | null>;
@@ -61,6 +65,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   private readonly userIdsByUsername = new Map<string, string>();
   private readonly userIdsByEmail = new Map<string, string>();
   private readonly oauthAccountsByProviderKey = new Map<string, OAuthAccountRecord>();
+  private readonly sessionsById = new Map<string, SessionRecord>();
   private readonly sessionsByAccessToken = new Map<string, SessionRecord>();
   private readonly sessionsByRefreshToken = new Map<string, SessionRecord>();
   private readonly creditBalanceByUserId = new Map<string, number>();
@@ -186,6 +191,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       refreshTokenExpiresAt: tokens.refreshTokenExpiresAt,
       createdAt: new Date().toISOString(),
     };
+    this.sessionsById.set(session.id, session);
     this.sessionsByAccessToken.set(session.accessTokenHash, session);
     this.sessionsByRefreshToken.set(session.refreshTokenHash, session);
     return session;
@@ -196,7 +202,39 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     if (!current) return null;
     this.sessionsByAccessToken.delete(current.accessTokenHash);
     this.sessionsByRefreshToken.delete(current.refreshTokenHash);
-    return this.createSession(current.userId, tokens);
+    const next: SessionRecord = {
+      ...current,
+      accessTokenHash: tokens.accessTokenHash,
+      refreshTokenHash: tokens.refreshTokenHash,
+      accessTokenExpiresAt: tokens.accessTokenExpiresAt,
+      refreshTokenExpiresAt: tokens.refreshTokenExpiresAt,
+    };
+    this.sessionsById.set(next.id, next);
+    this.sessionsByAccessToken.set(next.accessTokenHash, next);
+    this.sessionsByRefreshToken.set(next.refreshTokenHash, next);
+    return next;
+  }
+
+  async touchSession(
+    sessionId: string,
+    expiresAt: {
+      accessTokenExpiresAt: number;
+      refreshTokenExpiresAt: number;
+    },
+  ): Promise<SessionRecord | null> {
+    const current = this.sessionsById.get(sessionId);
+    if (!current) {
+      return null;
+    }
+    const next: SessionRecord = {
+      ...current,
+      accessTokenExpiresAt: expiresAt.accessTokenExpiresAt,
+      refreshTokenExpiresAt: expiresAt.refreshTokenExpiresAt,
+    };
+    this.sessionsById.set(next.id, next);
+    this.sessionsByAccessToken.set(next.accessTokenHash, next);
+    this.sessionsByRefreshToken.set(next.refreshTokenHash, next);
+    return next;
   }
 
   async getSessionByAccessToken(accessTokenHash: string): Promise<SessionRecord | null> {

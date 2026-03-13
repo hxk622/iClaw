@@ -142,6 +142,20 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     return session;
   }
 
+  async touchSession(
+    sessionId: string,
+    expiresAt: {
+      accessTokenExpiresAt: number;
+      refreshTokenExpiresAt: number;
+    },
+  ): Promise<SessionRecord | null> {
+    const session = await this.base.touchSession(sessionId, expiresAt);
+    if (session) {
+      await this.cacheSession(session);
+    }
+    return session;
+  }
+
   async getSessionByAccessToken(accessTokenHash: string): Promise<SessionRecord | null> {
     const key = this.accessSessionKey(accessTokenHash);
     const cached = await this.cache.get<SessionRecord>(key);

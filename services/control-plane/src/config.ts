@@ -3,8 +3,9 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const DEFAULT_PORT = 1420;
-const DEFAULT_ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
-const DEFAULT_REFRESH_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30;
+const DEFAULT_ACCESS_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 7;
+const DEFAULT_REFRESH_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 7;
+const DEFAULT_SESSION_ABSOLUTE_TTL_SECONDS = 60 * 60 * 24 * 30;
 const DEFAULT_CREDIT_BALANCE = 100000;
 const DEFAULT_RUN_GRANT_TTL_SECONDS = 5 * 60;
 const DEFAULT_RUN_GRANT_MAX_INPUT_TOKENS = 4000;
@@ -79,6 +80,10 @@ export const config = {
   googleRedirectUri: process.env.GOOGLE_REDIRECT_URI || '',
   accessTokenTtlSeconds: readNumberEnv('ACCESS_TOKEN_TTL_SECONDS', DEFAULT_ACCESS_TOKEN_TTL_SECONDS),
   refreshTokenTtlSeconds: readNumberEnv('REFRESH_TOKEN_TTL_SECONDS', DEFAULT_REFRESH_TOKEN_TTL_SECONDS),
+  sessionAbsoluteTtlSeconds: readNumberEnv(
+    'SESSION_ABSOLUTE_TTL_SECONDS',
+    DEFAULT_SESSION_ABSOLUTE_TTL_SECONDS,
+  ),
   defaultCreditBalance: readNumberEnv('DEFAULT_CREDIT_BALANCE', DEFAULT_CREDIT_BALANCE),
   runGrantTtlSeconds: readNumberEnv('RUN_GRANT_TTL_SECONDS', DEFAULT_RUN_GRANT_TTL_SECONDS),
   runGrantMaxInputTokens: readNumberEnv('RUN_GRANT_MAX_INPUT_TOKENS', DEFAULT_RUN_GRANT_MAX_INPUT_TOKENS),

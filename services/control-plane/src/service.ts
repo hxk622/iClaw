@@ -240,11 +240,16 @@ export class ControlPlaneService {
     }
 
     const session = await this.store.getSessionByRefreshToken(hashOpaqueToken(normalized));
-    if (!session || session.refreshTokenExpiresAt <= Date.now()) {
+    const now = Date.now();
+    if (
+      !session ||
+      session.refreshTokenExpiresAt <= now ||
+      this.getAbsoluteSessionExpiresAt(session.createdAt) <= now
+    ) {
       throw new HttpError(401, 'UNAUTHORIZED', 'refresh token is invalid or expired');
     }
 
-    return (await this.rotateTokens(normalized)).payload;
+    return (await this.rotateTokens(normalized, session.createdAt)).payload;
   }
 
   async me(accessToken: string): Promise<PublicUser> {
@@ -488,11 +493,19 @@ export class ControlPlaneService {
     }
 
     const session = await this.store.getSessionByAccessToken(hashOpaqueToken(token));
-    if (!session || session.accessTokenExpiresAt <= Date.now()) {
+    const now = Date.now();
+    const absoluteSessionExpiresAt = session ? this.getAbsoluteSessionExpiresAt(session.createdAt) : 0;
+    if (!session || session.accessTokenExpiresAt <= now || absoluteSessionExpiresAt <= now) {
       throw new HttpError(401, 'UNAUTHORIZED', 'access token is invalid or expired');
     }
 
-    const user = await this.store.getUserById(session.userId);
+    const expiresAt = this.getSlidingSessionExpiresAt(session.createdAt, now);
+    const renewedSession = await this.store.touchSession(session.id, expiresAt);
+    if (!renewedSession) {
+      throw new HttpError(401, 'UNAUTHORIZED', 'access token is invalid or expired');
+    }
+
+    const user = await this.store.getUserById(renewedSession.userId);
     if (!user) {
       throw new HttpError(401, 'UNAUTHORIZED', 'user not found');
     }
@@ -502,8 +515,9 @@ export class ControlPlaneService {
   private async issueTokens(userId: string, clientType = 'desktop'): Promise<{payload: AuthTokens; refreshToken: string}> {
     const accessToken = generateOpaqueToken('at');
     const refreshToken = generateOpaqueToken('rt');
-    const accessTokenExpiresAt = Date.now() + config.accessTokenTtlSeconds * 1000;
-    const refreshTokenExpiresAt = Date.now() + config.refreshTokenTtlSeconds * 1000;
+    const now = Date.now();
+    const accessTokenExpiresAt = now + config.accessTokenTtlSeconds * 1000;
+    const refreshTokenExpiresAt = now + config.refreshTokenTtlSeconds * 1000;
 
     await this.store.createSession(userId, {
       accessTokenHash: hashOpaqueToken(accessToken),
@@ -524,17 +538,20 @@ export class ControlPlaneService {
     };
   }
 
-  private async rotateTokens(refreshToken: string): Promise<{payload: AuthTokens; refreshToken: string}> {
+  private async rotateTokens(
+    refreshToken: string,
+    sessionCreatedAt: string,
+  ): Promise<{payload: AuthTokens; refreshToken: string}> {
     const accessToken = generateOpaqueToken('at');
     const nextRefreshToken = generateOpaqueToken('rt');
-    const accessTokenExpiresAt = Date.now() + config.accessTokenTtlSeconds * 1000;
-    const refreshTokenExpiresAt = Date.now() + config.refreshTokenTtlSeconds * 1000;
+    const now = Date.now();
+    const expiresAt = this.getSlidingSessionExpiresAt(sessionCreatedAt, now);
 
     const session = await this.store.replaceSession(hashOpaqueToken(refreshToken), {
       accessTokenHash: hashOpaqueToken(accessToken),
       refreshTokenHash: hashOpaqueToken(nextRefreshToken),
-      accessTokenExpiresAt,
-      refreshTokenExpiresAt,
+      accessTokenExpiresAt: expiresAt.accessTokenExpiresAt,
+      refreshTokenExpiresAt: expiresAt.refreshTokenExpiresAt,
       deviceId: 'unknown',
       clientType: 'desktop',
     });
@@ -546,9 +563,27 @@ export class ControlPlaneService {
       payload: {
         access_token: accessToken,
         refresh_token: nextRefreshToken,
-        expires_in: config.accessTokenTtlSeconds,
+        expires_in: Math.max(1, Math.ceil((expiresAt.accessTokenExpiresAt - now) / 1000)),
       },
       refreshToken: nextRefreshToken,
+    };
+  }
+
+  private getAbsoluteSessionExpiresAt(sessionCreatedAt: string): number {
+    return new Date(sessionCreatedAt).getTime() + config.sessionAbsoluteTtlSeconds * 1000;
+  }
+
+  private getSlidingSessionExpiresAt(
+    sessionCreatedAt: string,
+    now: number,
+  ): {
+    accessTokenExpiresAt: number;
+    refreshTokenExpiresAt: number;
+  } {
+    const absoluteSessionExpiresAt = this.getAbsoluteSessionExpiresAt(sessionCreatedAt);
+    return {
+      accessTokenExpiresAt: Math.min(absoluteSessionExpiresAt, now + config.accessTokenTtlSeconds * 1000),
+      refreshTokenExpiresAt: Math.min(absoluteSessionExpiresAt, now + config.refreshTokenTtlSeconds * 1000),
     };
   }
 

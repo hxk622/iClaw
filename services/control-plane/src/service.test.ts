@@ -1,0 +1,134 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import {config} from './config.ts';
+import {HttpError} from './errors.ts';
+import {ControlPlaneService} from './service.ts';
+import {InMemoryControlPlaneStore} from './store.ts';
+import {hashOpaqueToken} from './tokens.ts';
+
+const ACCESS_TTL_MS = config.accessTokenTtlSeconds * 1000;
+const REFRESH_TTL_MS = config.refreshTokenTtlSeconds * 1000;
+const ABSOLUTE_TTL_MS = config.sessionAbsoluteTtlSeconds * 1000;
+
+function withFakeNow<T>(fakeNow: number, run: () => Promise<T>): Promise<T> {
+  const originalNow = Date.now;
+  Date.now = () => fakeNow;
+  return run().finally(() => {
+    Date.now = originalNow;
+  });
+}
+
+test('authenticated API calls slide both token expiries without resetting session creation time', async () => {
+  const store = new InMemoryControlPlaneStore();
+  const service = new ControlPlaneService(store);
+  const registration = await service.register({
+    username: 'sliding-user',
+    email: 'sliding@example.com',
+    password: 'password123',
+    name: 'Sliding User',
+  });
+
+  const initialSession = await store.getSessionByAccessToken(hashOpaqueToken(registration.tokens.access_token));
+  assert.ok(initialSession);
+
+  const createdAtMs = new Date(initialSession.createdAt).getTime();
+  const fakeNow = createdAtMs + 3 * 24 * 60 * 60 * 1000;
+
+  await withFakeNow(fakeNow, async () => {
+    await service.me(registration.tokens.access_token);
+  });
+
+  const renewedSession = await store.getSessionByAccessToken(hashOpaqueToken(registration.tokens.access_token));
+  assert.ok(renewedSession);
+  assert.equal(renewedSession.createdAt, initialSession.createdAt);
+  assert.equal(renewedSession.accessTokenExpiresAt, fakeNow + ACCESS_TTL_MS);
+  assert.equal(renewedSession.refreshTokenExpiresAt, fakeNow + REFRESH_TTL_MS);
+});
+
+test('sliding renewal is clamped by the absolute session lifetime', async () => {
+  const store = new InMemoryControlPlaneStore();
+  const service = new ControlPlaneService(store);
+  const registration = await service.register({
+    username: 'absolute-user',
+    email: 'absolute@example.com',
+    password: 'password123',
+    name: 'Absolute User',
+  });
+
+  const initialSession = await store.getSessionByAccessToken(hashOpaqueToken(registration.tokens.access_token));
+  assert.ok(initialSession);
+
+  const createdAtMs = new Date(initialSession.createdAt).getTime();
+  const absoluteExpiresAt = createdAtMs + ABSOLUTE_TTL_MS;
+
+  for (const dayOffset of [6, 12, 18, 24]) {
+    const fakeNow = createdAtMs + dayOffset * 24 * 60 * 60 * 1000;
+    await withFakeNow(fakeNow, async () => {
+      await service.me(registration.tokens.access_token);
+    });
+  }
+
+  const clampedSession = await store.getSessionByAccessToken(hashOpaqueToken(registration.tokens.access_token));
+  assert.ok(clampedSession);
+  assert.equal(clampedSession.accessTokenExpiresAt, absoluteExpiresAt);
+  assert.equal(clampedSession.refreshTokenExpiresAt, absoluteExpiresAt);
+
+  await withFakeNow(absoluteExpiresAt + 1, async () => {
+    await assert.rejects(service.me(registration.tokens.access_token), (error: unknown) => {
+      assert.ok(error instanceof HttpError);
+      assert.equal(error.statusCode, 401);
+      return true;
+    });
+  });
+});
+
+test('refresh keeps the original session anchor and stops working after the absolute cap', async () => {
+  const store = new InMemoryControlPlaneStore();
+  const service = new ControlPlaneService(store);
+  const registration = await service.register({
+    username: 'refresh-user',
+    email: 'refresh@example.com',
+    password: 'password123',
+    name: 'Refresh User',
+  });
+
+  const initialSession = await store.getSessionByRefreshToken(hashOpaqueToken(registration.tokens.refresh_token));
+  assert.ok(initialSession);
+
+  const createdAtMs = new Date(initialSession.createdAt).getTime();
+  const firstRefreshAt = createdAtMs + 6 * 24 * 60 * 60 * 1000;
+  const refreshedTokens = await withFakeNow(firstRefreshAt, async () =>
+    service.refresh(registration.tokens.refresh_token),
+  );
+
+  const refreshedSession = await store.getSessionByRefreshToken(hashOpaqueToken(refreshedTokens.refresh_token));
+  assert.ok(refreshedSession);
+  assert.equal(refreshedSession.createdAt, initialSession.createdAt);
+  assert.equal(refreshedSession.accessTokenExpiresAt, firstRefreshAt + ACCESS_TTL_MS);
+  assert.equal(refreshedSession.refreshTokenExpiresAt, firstRefreshAt + REFRESH_TTL_MS);
+
+  let currentRefreshToken = refreshedTokens.refresh_token;
+  for (const dayOffset of [12, 18, 24]) {
+    const rotatedTokens = await withFakeNow(createdAtMs + dayOffset * 24 * 60 * 60 * 1000, async () =>
+      service.refresh(currentRefreshToken),
+    );
+    currentRefreshToken = rotatedTokens.refresh_token;
+  }
+
+  const secondRefreshAt = createdAtMs + 28 * 24 * 60 * 60 * 1000;
+  const finalTokens = await withFakeNow(secondRefreshAt, async () => service.refresh(currentRefreshToken));
+  const finalSession = await store.getSessionByRefreshToken(hashOpaqueToken(finalTokens.refresh_token));
+  assert.ok(finalSession);
+  assert.equal(finalSession.createdAt, initialSession.createdAt);
+  assert.equal(finalSession.accessTokenExpiresAt, createdAtMs + ABSOLUTE_TTL_MS);
+  assert.equal(finalSession.refreshTokenExpiresAt, createdAtMs + ABSOLUTE_TTL_MS);
+
+  await withFakeNow(createdAtMs + ABSOLUTE_TTL_MS + 1, async () => {
+    await assert.rejects(service.refresh(finalTokens.refresh_token), (error: unknown) => {
+      assert.ok(error instanceof HttpError);
+      assert.equal(error.statusCode, 401);
+      return true;
+    });
+  });
+});
