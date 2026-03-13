@@ -11,17 +11,14 @@ import {
   Heart,
 } from 'lucide-react';
 import { AvatarDropdown } from './AvatarDropdown';
+import {
+  resolveUserAvatarUrl,
+  resolveUserInitial,
+  resolveUserName,
+  type AppUserAvatarSource,
+} from '../lib/user-avatar';
 
-interface SidebarUser {
-  name?: string | null;
-  username?: string | null;
-  display_name?: string | null;
-  nickname?: string | null;
-  email?: string | null;
-  avatar_url?: string | null;
-  avatar?: string | null;
-  avatarUrl?: string | null;
-}
+type SidebarUser = AppUserAvatarSource;
 
 interface SidebarProps {
   user: SidebarUser | null;
@@ -40,36 +37,6 @@ interface SidebarItem {
   badge?: string;
   dot?: boolean;
   onClick?: () => void;
-}
-
-function userInitial(user: SidebarUser | null): string {
-  if (!user) return 'i';
-  const source = (
-    user.name ||
-    user.display_name ||
-    user.nickname ||
-    user.username ||
-    user.email ||
-    'i'
-  ).trim();
-  if (!source) return 'i';
-  return source[0]!.toUpperCase();
-}
-
-function resolveAvatarUrl(user: SidebarUser | null): string | null {
-  if (!user) return null;
-  return user.avatar_url || user.avatarUrl || user.avatar || null;
-}
-
-function resolveUserName(user: SidebarUser | null): string {
-  return (
-    user?.name ||
-    user?.display_name ||
-    user?.nickname ||
-    user?.username ||
-    user?.email ||
-    '游客模式'
-  );
 }
 
 export function Sidebar({
@@ -174,7 +141,7 @@ export function Sidebar({
             {resolveAvatarUrl(user) ? (
               <img src={resolveAvatarUrl(user)!} alt="user avatar" className="h-full w-full object-cover" />
             ) : (
-              userInitial(user)
+              resolveUserInitial(user)
             )}
           </div>
           <div className="min-w-0 flex-1">

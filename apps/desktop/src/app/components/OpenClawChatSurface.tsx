@@ -1,6 +1,11 @@
 import { useEffect, useRef } from 'react';
 import '@openclaw-ui/main.ts';
 import './openclaw-chat-surface.css';
+import {
+  buildGeneratedUserAvatarDataUrl,
+  resolveUserAvatarUrl,
+  type AppUserAvatarSource,
+} from '../lib/user-avatar';
 
 type OpenClawTheme = 'system' | 'light' | 'dark';
 
@@ -35,6 +40,7 @@ type OpenClawChatSurfaceProps = {
     name?: string | null;
     username?: string | null;
     display_name?: string | null;
+    nickname?: string | null;
     email?: string | null;
     avatar_url?: string | null;
     avatar?: string | null;
@@ -46,15 +52,6 @@ const ASSISTANT_AVATAR_SRC = '/favicon.png';
 
 function resolveThemeMode(): OpenClawTheme {
   return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
-}
-
-function resolveUserAvatarUrl(
-  user: OpenClawChatSurfaceProps['user'],
-): string | null {
-  if (!user) {
-    return null;
-  }
-  return user.avatar_url || user.avatarUrl || user.avatar || null;
 }
 
 function buildSettings(params: {
@@ -135,18 +132,14 @@ export function OpenClawChatSurface({
     }
 
     const assistantAvatarUrl = new URL(ASSISTANT_AVATAR_SRC, window.location.href).href;
-    const userAvatarUrl = resolveUserAvatarUrl(user);
+    const userAvatarUrl =
+      resolveUserAvatarUrl(user as AppUserAvatarSource) ||
+      buildGeneratedUserAvatarDataUrl(user as AppUserAvatarSource, 'i');
 
     host.style.setProperty('--iclaw-assistant-avatar-image', `url("${assistantAvatarUrl}")`);
-    if (userAvatarUrl) {
-      host.dataset.hasUserAvatar = 'true';
-      host.style.setProperty('--iclaw-user-avatar-image', `url("${userAvatarUrl}")`);
-      return;
-    }
-
-    delete host.dataset.hasUserAvatar;
-    host.style.removeProperty('--iclaw-user-avatar-image');
-  }, [user?.avatar, user?.avatarUrl, user?.avatar_url]);
+    host.dataset.hasUserAvatar = 'true';
+    host.style.setProperty('--iclaw-user-avatar-image', `url("${userAvatarUrl}")`);
+  }, [user?.avatar, user?.avatarUrl, user?.avatar_url, user?.display_name, user?.email, user?.name, user?.nickname, user?.username]);
 
   return <div ref={hostRef} className="openclaw-chat-surface h-full flex-1 overflow-hidden" />;
 }
