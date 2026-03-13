@@ -90,14 +90,22 @@ export function Sidebar({
           <button
             key={item.key}
             onClick={() => item.onClick?.()}
-            className="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-all duration-[var(--motion-micro)] hover:translate-x-[2px] hover:bg-[var(--bg-hover)]"
-            style={{ transitionTimingFunction: 'var(--motion-spring)' }}
+            className="group flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-left transition-all duration-[var(--motion-panel)] hover:translate-x-[4px] hover:scale-[1.015] hover:bg-[var(--bg-hover)] active:scale-[0.992]"
+            style={{
+              transitionTimingFunction: 'var(--motion-spring)',
+              transformOrigin: 'left center',
+            }}
           >
-            <item.icon className={`h-5 w-5 ${item.iconClass}`} />
-            <span className="flex-1 text-[14px] text-[var(--text-primary)]">{item.label}</span>
+            <item.icon
+              className={`h-5 w-5 transition-transform duration-[var(--motion-panel)] group-hover:scale-110 ${item.iconClass}`}
+              style={{ transitionTimingFunction: 'var(--motion-spring)' }}
+            />
+            <span className="flex-1 text-[14px] text-[var(--text-primary)] transition-transform duration-[var(--motion-panel)] group-hover:translate-x-[1px]">
+              {item.label}
+            </span>
             {item.dot && <span className="h-2 w-2 rounded-full bg-[var(--state-success)]" />}
             {item.badge && (
-              <span className="rounded-full bg-[var(--brand-primary)] px-2 py-0.5 text-[11px] text-[var(--brand-on-primary)]">
+              <span className="rounded-full bg-[var(--brand-primary)] px-2 py-0.5 text-[11px] text-[var(--brand-on-primary)] transition-transform duration-[var(--motion-panel)] group-hover:scale-105">
                 {item.badge}
               </span>
             )}
@@ -120,7 +128,10 @@ export function Sidebar({
       </div>
 
       <div className="border-b border-[var(--border-default)] p-3">
-        <button className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--brand-primary)] px-4 py-2.5 text-[14px] text-[var(--brand-on-primary)] transition-colors hover:bg-[var(--brand-primary-hover)]">
+        <button
+          className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-[14px] text-[var(--brand-on-primary)] transition-all duration-[var(--motion-panel)] hover:-translate-y-[1px] hover:scale-[1.015] hover:bg-[var(--brand-primary-hover)] active:scale-[0.99]"
+          style={{ transitionTimingFunction: 'var(--motion-spring)' }}
+        >
           <Plus className="h-4 w-4" />
           新建对话
         </button>
@@ -135,9 +146,13 @@ export function Sidebar({
       <div className="relative border-t border-[var(--border-default)] p-3" ref={menuRef}>
         <button
           onClick={() => setMenuOpen((v) => !v)}
-          className="flex w-full items-center gap-3 rounded-lg bg-[var(--bg-elevated)] px-2 py-1.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
+          className="group flex w-full cursor-pointer items-center gap-3 rounded-xl bg-[var(--bg-elevated)] px-2 py-1.5 text-left transition-all duration-[var(--motion-panel)] hover:translate-x-[2px] hover:scale-[1.01] hover:bg-[var(--bg-hover)] active:scale-[0.992]"
+          style={{
+            transitionTimingFunction: 'var(--motion-spring)',
+            transformOrigin: 'left center',
+          }}
         >
-          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[linear-gradient(135deg,#2b2b2b_0%,#4d4d4d_100%)] text-sm font-medium text-white">
+          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[linear-gradient(135deg,#2b2b2b_0%,#4d4d4d_100%)] text-sm font-medium text-white transition-transform duration-[var(--motion-panel)] group-hover:scale-105">
             {resolveUserAvatarUrl(user) ? (
               <img src={resolveUserAvatarUrl(user)!} alt="user avatar" className="h-full w-full object-cover" />
             ) : (
