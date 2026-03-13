@@ -7,7 +7,14 @@ Use:
 ```bash
 ICLAW_BRAND=iclaw pnpm --filter @iclaw/desktop build
 ICLAW_BRAND=licaiclaw pnpm tauri:build
+node scripts/apply-brand.mjs licaiclaw
 ```
+
+Brand selection is controlled by:
+
+- `node scripts/apply-brand.mjs <brand-id>`
+- or `ICLAW_BRAND=<brand-id>`
+- default: `iclaw`
 
 Each profile can override:
 
@@ -20,6 +27,7 @@ Each profile can override:
 - web favicon assets
 - installer illustration
 - Tauri bundle icons
+- optional icon source master for regenerating brand icons
 
 Expected asset layout inside each brand directory:
 
@@ -41,3 +49,20 @@ brands/<brand-id>/
 ```
 
 If you want a new OEM package, copy `brands/licaiclaw` and replace the assets.
+
+If a brand wants a dedicated icon master, add this optional field to `brand.json`:
+
+```json
+{
+  "assets": {
+    "logoMaster": "./assets/logo.master.png"
+  }
+}
+```
+
+If you need to regenerate a brand's Tauri icons:
+
+```bash
+bash scripts/generate-icons.sh iclaw
+ICLAW_BRAND=licaiclaw bash scripts/generate-icons.sh
+```

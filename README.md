@@ -117,14 +117,22 @@ pnpm dev:all
 
 ## Logo Source of Truth
 
-Brand source is centralized at:
+Brand icon generation now follows the profile under `brands/<brand-id>/brand.json`.
 
-- `brand/logo.master.png`
+- Brand selection:
+  `node scripts/apply-brand.mjs <brand-id>` or `ICLAW_BRAND=<brand-id>`
+- Default brand:
+  `iclaw`
+- Default icon source:
+  `brands/<brand-id>/assets/tauri-icons/icon.png`
+- Optional override:
+  set `assets.logoMaster` in `brands/<brand-id>/brand.json`
 
 Generate all app icon derivatives with:
 
 ```bash
 bash scripts/generate-icons.sh
+ICLAW_BRAND=licaiclaw bash scripts/generate-icons.sh
 ```
 
 ## OpenClaw Runtime Artifact
