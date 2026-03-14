@@ -198,6 +198,7 @@ body {
 .openclaw-chat-surface .chat {
   display: flex;
   flex: 1 1 auto;
+  padding: 0;
   background: transparent !important;
 }
 
