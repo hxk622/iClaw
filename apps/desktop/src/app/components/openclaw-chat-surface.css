@@ -333,6 +333,10 @@ body {
   background: var(--chat-surface-bubble-user) !important;
 }
 
+.openclaw-chat-surface .chat-bubble.chat-reading-indicator {
+  padding: 7px 16px;
+}
+
 .openclaw-chat-surface .chat-text {
   color: var(--text-primary);
   font-size: 14px;
