@@ -9,6 +9,9 @@ LOG_FILE="${ICLAW_OPENCLAW_LOG:-$LOG_DIR/openclaw-$(date +%Y%m%d-%H%M%S).log}"
 LATEST_LOG="$LOG_DIR/latest.log"
 RUNTIME_CONFIG_PATH="${ICLAW_RUNTIME_CONFIG_PATH:-$ROOT_DIR/services/openclaw/resources/config/runtime-config.json}"
 EXTRA_CA_CERTS_PATH="${ICLAW_EXTRA_CA_CERTS_PATH:-$ROOT_DIR/services/openclaw/resources/certs/isrg-root-x1.pem}"
+OPENCLAW_VERBOSE="${ICLAW_OPENCLAW_VERBOSE:-1}"
+OPENCLAW_WS_LOG_STYLE="${ICLAW_OPENCLAW_WS_LOG:-compact}"
+OPENCLAW_RAW_STREAM="${ICLAW_OPENCLAW_RAW_STREAM:-0}"
 
 read_env_value() {
   local key="$1"
@@ -423,8 +426,19 @@ wait_for_health() {
 start_openclaw_detached() {
   mkdir -p "$LOG_DIR"
   ln -sfn "$LOG_FILE" "$LATEST_LOG"
+  local -a openclaw_args=("--port" "$API_PORT")
+  if [[ "$OPENCLAW_VERBOSE" == "1" ]]; then
+    openclaw_args+=("--verbose")
+    if [[ "$OPENCLAW_WS_LOG_STYLE" == "compact" || "$OPENCLAW_WS_LOG_STYLE" == "full" || "$OPENCLAW_WS_LOG_STYLE" == "auto" ]]; then
+      openclaw_args+=("--ws-log" "$OPENCLAW_WS_LOG_STYLE")
+    fi
+  fi
+  if [[ "$OPENCLAW_RAW_STREAM" == "1" ]]; then
+    openclaw_args+=("--raw-stream")
+  fi
 
   echo "[api-dev] 启动后端服务 :$API_PORT"
+  echo "[api-dev] gateway tracing: verbose=$OPENCLAW_VERBOSE ws-log=$OPENCLAW_WS_LOG_STYLE raw-stream=$OPENCLAW_RAW_STREAM"
   OPENCLAW_LOG_DIR="$LOG_DIR" \
   OPENCLAW_GATEWAY_TOKEN="$GATEWAY_TOKEN" \
   OPENAI_API_KEY="$RUNTIME_OPENAI_API_KEY" \
@@ -434,7 +448,7 @@ start_openclaw_detached() {
   ANTHROPIC_API_KEY="$RUNTIME_ANTHROPIC_API_KEY" \
   NODE_EXTRA_CA_CERTS="$EXTRA_CA_CERTS_PATH" \
   PORT="$API_PORT" \
-  nohup "$OPENCLAW_BIN" --port "$API_PORT" >"$LOG_FILE" 2>&1 &
+  nohup "$OPENCLAW_BIN" "${openclaw_args[@]}" >"$LOG_FILE" 2>&1 &
   local pid=$!
 
   wait_for_health "$pid"
@@ -447,6 +461,16 @@ start_openclaw_detached() {
 start_openclaw_foreground() {
   mkdir -p "$LOG_DIR"
   ln -sfn "$LOG_FILE" "$LATEST_LOG"
+  local -a openclaw_args=("--port" "$API_PORT")
+  if [[ "$OPENCLAW_VERBOSE" == "1" ]]; then
+    openclaw_args+=("--verbose")
+    if [[ "$OPENCLAW_WS_LOG_STYLE" == "compact" || "$OPENCLAW_WS_LOG_STYLE" == "full" || "$OPENCLAW_WS_LOG_STYLE" == "auto" ]]; then
+      openclaw_args+=("--ws-log" "$OPENCLAW_WS_LOG_STYLE")
+    fi
+  fi
+  if [[ "$OPENCLAW_RAW_STREAM" == "1" ]]; then
+    openclaw_args+=("--raw-stream")
+  fi
 
   local pipe_dir
   local pipe_path
@@ -474,6 +498,7 @@ start_openclaw_foreground() {
   tee_pid=$!
 
   echo "[api-dev] 启动后端服务 :$API_PORT (foreground)"
+  echo "[api-dev] gateway tracing: verbose=$OPENCLAW_VERBOSE ws-log=$OPENCLAW_WS_LOG_STYLE raw-stream=$OPENCLAW_RAW_STREAM"
   OPENCLAW_LOG_DIR="$LOG_DIR" \
   OPENCLAW_GATEWAY_TOKEN="$GATEWAY_TOKEN" \
   OPENAI_API_KEY="$RUNTIME_OPENAI_API_KEY" \
@@ -483,7 +508,7 @@ start_openclaw_foreground() {
   ANTHROPIC_API_KEY="$RUNTIME_ANTHROPIC_API_KEY" \
   NODE_EXTRA_CA_CERTS="$EXTRA_CA_CERTS_PATH" \
   PORT="$API_PORT" \
-  "$OPENCLAW_BIN" --port "$API_PORT" >"$pipe_path" 2>&1 &
+  "$OPENCLAW_BIN" "${openclaw_args[@]}" >"$pipe_path" 2>&1 &
   pid=$!
 
   wait_for_health "$pid"
