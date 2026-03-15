@@ -110,7 +110,9 @@ body {
 }
 
 .openclaw-chat-surface .topbar,
-.openclaw-chat-surface .nav {
+.openclaw-chat-surface .nav,
+.openclaw-chat-surface .shell-nav,
+.openclaw-chat-surface .shell-nav-backdrop {
   display: none !important;
 }
 

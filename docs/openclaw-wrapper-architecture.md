@@ -235,3 +235,11 @@ type ChatShellAuthState = {
 2. 再验证 wrapper 的 auth bridge / theme bridge / diagnostics。
 3. 只在 wrapper 层修复兼容问题。
 4. 若必须改上游 JS，先证明无法通过 wrapper 层解决，再最小化修改并记录原因。
+
+补充检查：
+
+- 每次升级必须 diff upstream layout contract，至少检查：
+  - `ui/src/styles/layout.css`
+  - `ui/src/ui/app-render.ts`
+- wrapper 不能假设导航/壳层 class 永远不变；例如 `v2026.3.8` 使用 `.nav`，`v2026.3.13-1` 已切到 `.shell-nav` / `.sidebar`。
+- 如果 wrapper 继续使用旧选择器，会出现“登录门一闪后白板”或“聊天区被残留壳层布局吞掉”的问题。
