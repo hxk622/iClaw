@@ -96,15 +96,18 @@ export function SkillStoreAdminSheet({
   const deleteDisabled = skill.source === 'bundled' || deleting || saving;
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-end bg-[rgba(17,24,39,0.18)] backdrop-blur-[2px]" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-40 flex justify-end bg-[rgba(17,24,39,0.18)] backdrop-blur-[2px] dark:bg-[rgba(0,0,0,0.34)]"
+      onClick={onClose}
+    >
       <aside
-        className="flex h-full w-full max-w-[520px] flex-col border-l border-[var(--border-default)] bg-[var(--bg-page)] shadow-[0_32px_80px_rgba(15,23,42,0.24)]"
+        className="flex h-full w-full max-w-[520px] flex-col border-l border-[var(--border-default)] bg-[var(--bg-page)] shadow-[0_32px_80px_rgba(15,23,42,0.24)] dark:border-l-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(24,24,24,0.98),rgba(12,12,12,0.96))] dark:shadow-[0_30px_90px_rgba(0,0,0,0.44)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="border-b border-[var(--border-default)] px-6 py-5">
+        <div className="border-b border-[var(--border-default)] px-6 py-5 dark:border-b-[rgba(255,255,255,0.08)]">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2 text-[12px] uppercase tracking-[0.14em] text-[var(--text-muted)]">
+              <div className="flex items-center gap-2 text-[12px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">
                 <ShieldCheck className="h-4 w-4 text-[var(--brand-primary)]" />
                 超管管理
               </div>
@@ -128,33 +131,33 @@ export function SkillStoreAdminSheet({
         </div>
 
         <div className="flex-1 space-y-6 overflow-y-auto px-6 py-6">
-          <section className="rounded-[28px] border border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)]">
+          <section className="rounded-[28px] border border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:shadow-[0_20px_36px_rgba(0,0,0,0.26)]">
             <div className="grid gap-4">
               <label className="grid gap-2">
-                <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                   Skill Slug
                 </span>
                 <input
                   value={form.slug}
                   disabled
-                  className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-hover)] px-4 py-3 text-[14px] text-[var(--text-secondary)] outline-none"
+                  className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-hover)] px-4 py-3 text-[14px] text-[var(--text-secondary)] outline-none dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)] dark:text-[rgba(250,250,250,0.72)]"
                 />
               </label>
 
               <label className="grid gap-2">
-                <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                   技能名称
                 </span>
                 <input
                   value={form.name}
                   onChange={(event) => setForm((current) => (current ? {...current, name: event.target.value} : current))}
-                  className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-page)] px-4 py-3 text-[14px] text-[var(--text-primary)] outline-none transition-all focus:border-[var(--brand-primary)] focus:ring-4"
+                  className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-page)] px-4 py-3 text-[14px] text-[var(--text-primary)] outline-none transition-all focus:border-[var(--brand-primary)] focus:ring-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]"
                   style={{ ['--tw-ring-color' as string]: 'rgba(201,169,97,0.14)' }}
                 />
               </label>
 
               <label className="grid gap-2">
-                <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                   描述
                 </span>
                 <textarea
@@ -163,30 +166,30 @@ export function SkillStoreAdminSheet({
                     setForm((current) => (current ? {...current, description: event.target.value} : current))
                   }
                   rows={4}
-                  className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-page)] px-4 py-3 text-[14px] leading-6 text-[var(--text-primary)] outline-none transition-all focus:border-[var(--brand-primary)] focus:ring-4"
+                  className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-page)] px-4 py-3 text-[14px] leading-6 text-[var(--text-primary)] outline-none transition-all focus:border-[var(--brand-primary)] focus:ring-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]"
                   style={{ ['--tw-ring-color' as string]: 'rgba(201,169,97,0.14)' }}
                 />
               </label>
             </div>
           </section>
 
-          <section className="rounded-[28px] border border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)]">
+          <section className="rounded-[28px] border border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:shadow-[0_20px_36px_rgba(0,0,0,0.26)]">
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="grid gap-2">
-                <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                   市场
                 </span>
                 <input
                   value={form.market}
                   onChange={(event) => setForm((current) => (current ? {...current, market: event.target.value} : current))}
                   placeholder="A股 / 美股 / 通用"
-                  className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-page)] px-4 py-3 text-[14px] text-[var(--text-primary)] outline-none transition-all focus:border-[var(--brand-primary)] focus:ring-4"
+                  className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-page)] px-4 py-3 text-[14px] text-[var(--text-primary)] outline-none transition-all placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)] focus:ring-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:placeholder:text-[rgba(250,250,250,0.34)]"
                   style={{ ['--tw-ring-color' as string]: 'rgba(201,169,97,0.14)' }}
                 />
               </label>
 
               <label className="grid gap-2">
-                <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                   分类
                 </span>
                 <select
@@ -194,7 +197,7 @@ export function SkillStoreAdminSheet({
                   onChange={(event) =>
                     setForm((current) => (current ? {...current, category: event.target.value} : current))
                   }
-                  className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-page)] px-4 py-3 text-[14px] text-[var(--text-primary)] outline-none transition-all focus:border-[var(--brand-primary)] focus:ring-4"
+                  className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-page)] px-4 py-3 text-[14px] text-[var(--text-primary)] outline-none transition-all focus:border-[var(--brand-primary)] focus:ring-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]"
                   style={{ ['--tw-ring-color' as string]: 'rgba(201,169,97,0.14)' }}
                 >
                   <option value="">自动推断</option>
@@ -207,7 +210,7 @@ export function SkillStoreAdminSheet({
               </label>
 
               <label className="grid gap-2">
-                <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                   技能类型
                 </span>
                 <select
@@ -215,7 +218,7 @@ export function SkillStoreAdminSheet({
                   onChange={(event) =>
                     setForm((current) => (current ? {...current, skillType: event.target.value} : current))
                   }
-                  className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-page)] px-4 py-3 text-[14px] text-[var(--text-primary)] outline-none transition-all focus:border-[var(--brand-primary)] focus:ring-4"
+                  className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-page)] px-4 py-3 text-[14px] text-[var(--text-primary)] outline-none transition-all focus:border-[var(--brand-primary)] focus:ring-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]"
                   style={{ ['--tw-ring-color' as string]: 'rgba(201,169,97,0.14)' }}
                 >
                   <option value="">自动推断</option>
@@ -227,7 +230,7 @@ export function SkillStoreAdminSheet({
               </label>
 
               <label className="grid gap-2">
-                <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                   发布者
                 </span>
                 <input
@@ -235,17 +238,17 @@ export function SkillStoreAdminSheet({
                   onChange={(event) =>
                     setForm((current) => (current ? {...current, publisher: event.target.value} : current))
                   }
-                  className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-page)] px-4 py-3 text-[14px] text-[var(--text-primary)] outline-none transition-all focus:border-[var(--brand-primary)] focus:ring-4"
+                  className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-page)] px-4 py-3 text-[14px] text-[var(--text-primary)] outline-none transition-all focus:border-[var(--brand-primary)] focus:ring-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]"
                   style={{ ['--tw-ring-color' as string]: 'rgba(201,169,97,0.14)' }}
                 />
               </label>
             </div>
           </section>
 
-          <section className="rounded-[28px] border border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)]">
+          <section className="rounded-[28px] border border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:shadow-[0_20px_36px_rgba(0,0,0,0.26)]">
             <div className="grid gap-4">
               <label className="grid gap-2">
-                <span className="inline-flex items-center gap-2 text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                <span className="inline-flex items-center gap-2 text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                   <Tags className="h-4 w-4" />
                   标签
                 </span>
@@ -255,13 +258,13 @@ export function SkillStoreAdminSheet({
                     setForm((current) => (current ? {...current, tagsText: event.target.value} : current))
                   }
                   placeholder="A股, ESG, 筛选"
-                  className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-page)] px-4 py-3 text-[14px] text-[var(--text-primary)] outline-none transition-all focus:border-[var(--brand-primary)] focus:ring-4"
+                  className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-page)] px-4 py-3 text-[14px] text-[var(--text-primary)] outline-none transition-all placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)] focus:ring-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:placeholder:text-[rgba(250,250,250,0.34)]"
                   style={{ ['--tw-ring-color' as string]: 'rgba(201,169,97,0.14)' }}
                 />
               </label>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-hover)] p-4">
+                <label className="rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-hover)] p-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
                   <div className="flex items-start gap-3">
                     <input
                       type="checkbox"
@@ -283,7 +286,7 @@ export function SkillStoreAdminSheet({
                   </div>
                 </label>
 
-                <label className="rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-hover)] p-4">
+                <label className="rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-hover)] p-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
                   <div className="flex items-start gap-3">
                     <input
                       type="checkbox"
@@ -302,7 +305,7 @@ export function SkillStoreAdminSheet({
                         {form.visibility === 'showcase' ? (
                           <Eye className="h-4 w-4 text-[var(--brand-primary)]" />
                         ) : (
-                          <EyeOff className="h-4 w-4 text-[var(--text-muted)]" />
+                          <EyeOff className="h-4 w-4 text-[var(--text-secondary)]" />
                         )}
                         商店展示
                       </div>
@@ -316,7 +319,7 @@ export function SkillStoreAdminSheet({
             </div>
           </section>
 
-          <section className="rounded-[28px] border border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)]">
+          <section className="rounded-[28px] border border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:shadow-[0_20px_36px_rgba(0,0,0,0.26)]">
             <div className="grid gap-3 text-sm text-[var(--text-secondary)]">
               <div className="flex items-center justify-between gap-4">
                 <span>创建时间</span>
@@ -349,7 +352,7 @@ export function SkillStoreAdminSheet({
           ) : null}
         </div>
 
-        <div className="border-t border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-5">
+        <div className="border-t border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-5 dark:border-t-[rgba(255,255,255,0.08)] dark:bg-[rgba(12,12,12,0.86)]">
           <div className="flex items-center justify-between gap-3">
             <Button
               variant="ghost"

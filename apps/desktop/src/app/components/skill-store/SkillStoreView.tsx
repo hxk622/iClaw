@@ -266,8 +266,8 @@ function EmptyState({
   description: string;
 }) {
   return (
-    <div className="rounded-[32px] border border-dashed border-[var(--border-strong)] bg-[var(--bg-card)] px-8 py-20 text-center">
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[22px] bg-[var(--bg-hover)] text-[var(--text-muted)]">
+    <div className="rounded-[32px] border border-dashed border-[var(--border-strong)] bg-[var(--bg-card)] px-8 py-20 text-center dark:border-[rgba(255,255,255,0.12)] dark:bg-[linear-gradient(180deg,rgba(24,24,24,0.96),rgba(16,16,16,0.94))]">
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[22px] bg-[var(--bg-hover)] text-[var(--text-muted)] dark:bg-[rgba(255,255,255,0.05)] dark:text-[var(--text-secondary)]">
         <Search className="h-6 w-6" />
       </div>
       <h3 className="mt-5 text-lg font-medium text-[var(--text-primary)]">{title}</h3>
@@ -556,7 +556,7 @@ export function SkillStoreView({
 
             <div className="flex w-full max-w-[520px] flex-col gap-3 sm:w-auto">
               <label className="relative block">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-[var(--text-muted)]" />
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-[var(--text-muted)] dark:text-[var(--text-secondary)]" />
                 <input
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
@@ -599,7 +599,7 @@ export function SkillStoreView({
                   }}
                   variant="primary"
                   size="md"
-                  >
+                >
                   <Package className="h-4 w-4" />
                   刷新技能
                 </Button>
@@ -660,7 +660,7 @@ export function SkillStoreView({
                 >
                   {tab.label}
                   {tab.id === 'myskills' ? (
-                    <span className="ml-2 rounded-full px-2 py-0.5 text-[12px]" style={{ background: 'rgba(255,255,255,0.16)' }}>
+                    <span className="ml-2 rounded-full bg-[rgba(15,23,42,0.06)] px-2 py-0.5 text-[12px] text-[var(--text-secondary)] dark:bg-[rgba(255,255,255,0.10)] dark:text-[rgba(250,250,250,0.82)]">
                       {installedCount}
                     </span>
                   ) : null}
@@ -691,7 +691,7 @@ export function SkillStoreView({
                   className={cn(
                     'whitespace-nowrap px-4 py-2 text-[13px] font-medium',
                     !active &&
-                      'bg-[var(--bg-card)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
+                      'bg-[var(--bg-card)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:text-[rgba(250,250,250,0.72)] dark:hover:border-[rgba(255,255,255,0.16)] dark:hover:bg-[rgba(255,255,255,0.07)] dark:hover:text-[var(--text-primary)]',
                   )}
                 >
                   {category.label}
