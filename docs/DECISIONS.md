@@ -103,3 +103,8 @@ iClaw/
   - 隐藏原生登录门、执行审批覆盖层等功能性 UI
 
 升级 OpenClaw 版本时，优先验证“原生 control UI chat 在 iClaw 容器内可正常工作”，再评估是否需要额外样式覆盖。默认不新增 JS 层兼容逻辑。
+
+补充说明：
+
+- 详细的 wrapper 架构、`3.8` 经验复盘、auth bridge / theme bridge / diagnostics 分层，见：
+  - [openclaw-wrapper-architecture.md](/Users/xingkaihan/Documents/Code/iClaw/docs/openclaw-wrapper-architecture.md)
