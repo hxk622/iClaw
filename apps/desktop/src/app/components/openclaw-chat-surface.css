@@ -164,10 +164,6 @@ body {
   justify-content: flex-end;
 }
 
-.openclaw-chat-surface .page-meta .chat-controls {
-  display: none !important;
-}
-
 .openclaw-chat-surface .page-title {
   font-size: 13px;
   font-weight: 500;
@@ -265,17 +261,6 @@ body {
 .openclaw-chat-surface .chat-group.user .chat-group-messages {
   align-items: flex-end;
   max-width: min(600px, 100%);
-}
-
-.openclaw-chat-surface .chat-avatar,
-.openclaw-chat-surface .chat-copy-btn,
-.openclaw-chat-surface .chat-header,
-.openclaw-chat-surface .chat-focus-exit {
-  display: none !important;
-}
-
-.openclaw-chat-surface .chat-group-footer {
-  display: none !important;
 }
 
 .openclaw-chat-surface .chat-avatar {
@@ -436,7 +421,8 @@ body {
 
 .openclaw-chat-surface .chat-compose,
 .openclaw-chat-surface .agent-chat__input {
-  display: none !important;
+  width: min(900px, calc(100% - 64px));
+  margin: 0 auto 18px;
 }
 
 .openclaw-chat-surface .chat > .callout {
@@ -445,10 +431,9 @@ body {
   border-radius: 12px;
 }
 
-.openclaw-chat-surface .update-banner,
-.openclaw-chat-surface .login-gate,
-.openclaw-chat-surface .exec-approval-overlay {
-  display: none !important;
+.openclaw-chat-surface .update-banner {
+  width: min(900px, calc(100% - 64px));
+  margin-inline: auto;
 }
 
 .openclaw-chat-surface-shell {

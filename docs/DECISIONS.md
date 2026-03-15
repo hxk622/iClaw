@@ -85,3 +85,21 @@ iClaw/
 - 可流式展示
 - 失败可重试
 - 可导出或收集日志
+
+## 10. OpenClaw Chat 包装边界
+
+针对 `apps/desktop/src/app/components/OpenClawChatSurface.tsx`，冻结以下边界：
+
+- 允许：
+  - 挂载 `openclaw-app`
+  - 设置公开配置：`gatewayUrl`、`token`、`password`、`sessionKey`、`tab`
+  - 注入主题变量、品牌色、头像图片、外层容器留白
+  - 隐藏 iClaw 页面不需要的外围导航区域
+- 禁止：
+  - 直接读写 `openclaw-app` 内部聊天状态，例如 `chatMessages`、`chatStream`、`chatThinkingLevel`
+  - 通过 JS 手动回填 `chat.history`
+  - 通过 JS 接管发送、停止、滚动、流式渲染
+  - 隐藏或替换原生聊天输入区
+  - 隐藏原生登录门、执行审批覆盖层等功能性 UI
+
+升级 OpenClaw 版本时，优先验证“原生 control UI chat 在 iClaw 容器内可正常工作”，再评估是否需要额外样式覆盖。默认不新增 JS 层兼容逻辑。
