@@ -500,6 +500,21 @@ body {
   line-height: 1.5;
 }
 
+.iclaw-chat-render-card {
+  position: absolute;
+  right: 0;
+  bottom: 24px;
+  left: 0;
+  z-index: 25;
+  width: min(900px, calc(100% - 64px));
+  margin: 0 auto;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--warn, #c48a2a) 35%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--warn, #c48a2a) 12%, var(--bg-elevated, #fff));
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+}
+
 .openclaw-chat-surface .chat-thread ::selection {
   background: color-mix(in srgb, var(--brand-primary) 18%, transparent);
 }

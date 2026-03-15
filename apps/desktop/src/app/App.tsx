@@ -874,10 +874,34 @@ function AuthedView({
           gatewayToken={gatewayAuth.token}
           gatewayPassword={gatewayAuth.password}
           sessionKey={CHAT_SESSION_KEY}
+          shellAuthenticated={authenticated}
           user={currentUser}
         />
       ) : (
-        <div className="flex-1 bg-[var(--bg-page)]" />
+        <div className="flex flex-1 items-center justify-center bg-[var(--bg-page)] px-8">
+          <div className="w-full max-w-[560px] rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-6 shadow-[var(--shadow-md)]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+              Chat Shell
+            </div>
+            <div className="mt-3 text-[18px] font-semibold text-[var(--text-primary)]">
+              当前聊天区未进入可用态
+            </div>
+            <div className="mt-3 text-[14px] leading-7 text-[var(--text-secondary)]">
+              这不是正常空态。当前是 iClaw shell 还没有确认登录，因此没有挂载 OpenClaw chat wrapper。
+            </div>
+            <div className="mt-4 text-[13px] leading-6 text-[var(--text-secondary)]">
+              control-plane 登录：{authenticated ? '已登录' : '未登录'} · gateway 凭据：
+              {(gatewayAuth.token || gatewayAuth.password) ? '已配置' : '缺失'}
+            </div>
+            <button
+              type="button"
+              onClick={() => onRequestAuth('login')}
+              className="mt-5 inline-flex h-10 items-center justify-center rounded-[12px] bg-[var(--brand-primary)] px-4 text-[14px] font-medium text-[var(--brand-on-primary)] transition hover:opacity-95"
+            >
+              打开登录
+            </button>
+          </div>
+        </div>
       )}
       {overlayView === 'account' && accessToken ? (
         <AccountPanel

@@ -213,11 +213,41 @@ await sleep(6000);
 const snapshot = await evalJSON(
   cdp,
   `(() => {
+    const inspectElement = (node) => {
+      if (!(node instanceof HTMLElement)) {
+        return {
+          exists: false,
+          visible: false,
+          width: 0,
+          height: 0,
+          display: null,
+          visibility: null,
+          opacity: null
+        };
+      }
+      const style = getComputedStyle(node);
+      const rect = node.getBoundingClientRect();
+      return {
+        exists: true,
+        visible:
+          style.display !== 'none' &&
+          style.visibility !== 'hidden' &&
+          style.opacity !== '0' &&
+          rect.width > 0 &&
+          rect.height > 0,
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+        display: style.display,
+        visibility: style.visibility,
+        opacity: style.opacity
+      };
+    };
     const authPanel = Array.from(document.querySelectorAll('div')).find((el) =>
       (el.textContent || '').includes('登录以继续使用账户与额度体系') &&
       getComputedStyle(el).position === 'fixed'
     );
     const app = document.querySelector('openclaw-app');
+    const surface = document.querySelector('.openclaw-chat-surface');
     const chatThread = document.querySelector('.openclaw-chat-surface .chat-thread');
     const nativeInput =
       document.querySelector('.openclaw-chat-surface .agent-chat__input') ||
@@ -236,12 +266,18 @@ const snapshot = await evalJSON(
         lastError: app.lastError || null,
         lastErrorCode: app.lastErrorCode || null,
         tab: app.tab || null,
-        sessionKey: app.sessionKey || null
+        sessionKey: app.sessionKey || null,
+        gatewayUrl: app.settings?.gatewayUrl || null,
+        settingsTokenLength: (app.settings?.token || '').length,
+        hasPassword: Boolean((app.password || '').trim())
       } : null,
       chatGroupCount: document.querySelectorAll('.openclaw-chat-surface .chat-group').length,
       hasNativeInput: !!nativeInput,
+      nativeInputState: inspectElement(nativeInput),
       nativeInputText: nativeInput ? (nativeInput.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 120) : null,
       hasThread: !!chatThread,
+      threadState: inspectElement(chatThread),
+      surfaceState: inspectElement(surface),
       threadTextSample: chatThread ? (chatThread.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 300) : null,
       rootTextSample: rootText.slice(0, 300),
       localStorageKeys: Object.keys(localStorage).sort(),

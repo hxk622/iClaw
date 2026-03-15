@@ -39,6 +39,7 @@ type OpenClawChatSurfaceProps = {
   gatewayToken?: string;
   gatewayPassword?: string;
   sessionKey?: string;
+  shellAuthenticated?: boolean;
   user?: {
     name?: string | null;
     username?: string | null;
@@ -56,11 +57,42 @@ type ChatSurfaceStatus = {
   lastError: string | null;
 };
 
+type ChatSurfaceRenderState = {
+  hostHeight: number;
+  hasNativeInput: boolean;
+  nativeInputVisible: boolean;
+  nativeInputHeight: number;
+  hasThread: boolean;
+  threadVisible: boolean;
+  threadHeight: number;
+  groupCount: number;
+};
+
 const ASSISTANT_AVATAR_SRC = '/favicon.png';
 const OPENCLAW_CONTROL_SETTINGS_KEY = 'openclaw.control.settings.v1';
 const OPENCLAW_CONTROL_TOKEN_PREFIX = 'openclaw.control.token.v1';
 const OPENCLAW_DEVICE_AUTH_KEY = 'openclaw.device.auth.v1';
 const OPENCLAW_DEVICE_IDENTITY_KEY = 'openclaw-device-identity-v1';
+
+function isVisibleElement(node: Element | null): { visible: boolean; height: number } {
+  if (!(node instanceof HTMLElement)) {
+    return { visible: false, height: 0 };
+  }
+
+  const style = window.getComputedStyle(node);
+  const rect = node.getBoundingClientRect();
+  const visible =
+    style.display !== 'none' &&
+    style.visibility !== 'hidden' &&
+    style.opacity !== '0' &&
+    rect.width > 0 &&
+    rect.height > 0;
+
+  return {
+    visible,
+    height: Math.round(rect.height),
+  };
+}
 
 function resolveThemeMode(): OpenClawTheme {
   return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
@@ -148,6 +180,7 @@ export function OpenClawChatSurface({
   gatewayToken,
   gatewayPassword,
   sessionKey = 'main',
+  shellAuthenticated = false,
   user,
 }: OpenClawChatSurfaceProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -157,7 +190,18 @@ export function OpenClawChatSurface({
     connected: false,
     lastError: null,
   });
+  const [renderState, setRenderState] = useState<ChatSurfaceRenderState>({
+    hostHeight: 0,
+    hasNativeInput: false,
+    nativeInputVisible: false,
+    nativeInputHeight: 0,
+    hasThread: false,
+    threadVisible: false,
+    threadHeight: 0,
+    groupCount: 0,
+  });
   const [showConnectionCard, setShowConnectionCard] = useState(false);
+  const [showRenderDiagnosticsCard, setShowRenderDiagnosticsCard] = useState(false);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -242,7 +286,8 @@ export function OpenClawChatSurface({
   useEffect(() => {
     const timer = window.setInterval(() => {
       const app = appRef.current;
-      if (!app) {
+      const host = hostRef.current;
+      if (!app || !host) {
         return;
       }
 
@@ -250,10 +295,36 @@ export function OpenClawChatSurface({
         connected: Boolean(app.connected),
         lastError: app.lastError ?? null,
       };
+      const nativeInput = host.querySelector('.agent-chat__input, .chat-compose');
+      const thread = host.querySelector('.chat-thread');
+      const nativeInputState = isVisibleElement(nativeInput);
+      const threadState = isVisibleElement(thread);
+      const nextRenderState: ChatSurfaceRenderState = {
+        hostHeight: Math.round(host.getBoundingClientRect().height),
+        hasNativeInput: Boolean(nativeInput),
+        nativeInputVisible: nativeInputState.visible,
+        nativeInputHeight: nativeInputState.height,
+        hasThread: Boolean(thread),
+        threadVisible: threadState.visible,
+        threadHeight: threadState.height,
+        groupCount: host.querySelectorAll('.chat-group').length,
+      };
       setStatus((current) =>
         current.connected === nextStatus.connected && current.lastError === nextStatus.lastError
           ? current
           : nextStatus,
+      );
+      setRenderState((current) =>
+        current.hostHeight === nextRenderState.hostHeight &&
+        current.hasNativeInput === nextRenderState.hasNativeInput &&
+        current.nativeInputVisible === nextRenderState.nativeInputVisible &&
+        current.nativeInputHeight === nextRenderState.nativeInputHeight &&
+        current.hasThread === nextRenderState.hasThread &&
+        current.threadVisible === nextRenderState.threadVisible &&
+        current.threadHeight === nextRenderState.threadHeight &&
+        current.groupCount === nextRenderState.groupCount
+          ? current
+          : nextRenderState,
       );
     }, 180);
 
@@ -278,6 +349,28 @@ export function OpenClawChatSurface({
     return () => window.clearTimeout(timer);
   }, [status.connected, status.lastError]);
 
+  useEffect(() => {
+    const nativeInputReady = renderState.hasNativeInput && renderState.nativeInputVisible;
+    const threadReady = renderState.hasThread && renderState.threadVisible;
+    if (!shellAuthenticated || !status.connected || (nativeInputReady && threadReady)) {
+      setShowRenderDiagnosticsCard(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setShowRenderDiagnosticsCard(true);
+    }, 1200);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    renderState.hasNativeInput,
+    renderState.hasThread,
+    renderState.nativeInputVisible,
+    renderState.threadVisible,
+    shellAuthenticated,
+    status.connected,
+  ]);
+
   const hasGatewayAuth = Boolean((gatewayToken ?? '').trim() || (gatewayPassword ?? '').trim());
   const connectionMessage = status.lastError
     ? status.lastError
@@ -288,6 +381,18 @@ export function OpenClawChatSurface({
     typeof window !== 'undefined' && !window.isSecureContext
       ? '当前页面不是安全上下文，OpenClaw 可能会拒绝设备身份校验。'
       : null;
+  const renderDiagnosticsMessage = (() => {
+    if (renderState.hasThread && !renderState.threadVisible) {
+      return 'OpenClaw 已连接，聊天线程节点已挂载，但在当前页面中不可见。更像是容器尺寸或样式兼容问题。';
+    }
+    if (renderState.hasNativeInput && !renderState.nativeInputVisible) {
+      return 'OpenClaw 已连接，输入区节点已挂载，但在当前页面中不可见。更像是样式层或布局层把输入区吞掉了。';
+    }
+    if (renderState.hasThread || renderState.groupCount > 0) {
+      return 'OpenClaw 已连接，但聊天输入区没有渲染出来。更像是前端可见性或样式兼容问题，不是账户登录失败。';
+    }
+    return 'OpenClaw 已连接，但聊天线程和输入区都没有渲染出来。更像是当前浏览器实例中的嵌入层兼容问题。';
+  })();
 
   return (
     <div className="openclaw-chat-surface-shell h-full flex-1 overflow-hidden">
@@ -303,6 +408,27 @@ export function OpenClawChatSurface({
           {secureContextHint ? (
             <div className="iclaw-chat-state-card__meta">{secureContextHint}</div>
           ) : null}
+        </div>
+      ) : null}
+
+      {showRenderDiagnosticsCard ? (
+        <div className="iclaw-chat-render-card" role="status" aria-live="polite">
+          <div className="iclaw-chat-state-card__eyebrow">渲染诊断</div>
+          <div className="iclaw-chat-state-card__title">{renderDiagnosticsMessage}</div>
+          <div className="iclaw-chat-state-card__meta">
+            shell 登录：{shellAuthenticated ? '已登录' : '未登录'} · gateway 认证：
+            {hasGatewayAuth ? '已配置' : '缺失'}
+          </div>
+          <div className="iclaw-chat-state-card__meta">
+            gateway 连接：{status.connected ? '已连接' : '未连接'} · 输入区：
+            {renderState.hasNativeInput ? (renderState.nativeInputVisible ? '可见' : '已挂载但不可见') : '未渲染'} ·
+            线程：{renderState.hasThread ? (renderState.threadVisible ? '可见' : '已挂载但不可见') : '未渲染'} ·
+            消息组：{renderState.groupCount}
+          </div>
+          <div className="iclaw-chat-state-card__meta">
+            容器高度：{renderState.hostHeight}px · 输入区高度：{renderState.nativeInputHeight}px · 线程高度：
+            {renderState.threadHeight}px
+          </div>
         </div>
       ) : null}
     </div>
