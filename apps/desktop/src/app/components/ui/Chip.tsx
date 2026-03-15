@@ -1,13 +1,15 @@
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react';
 import { cn } from '@/app/lib/cn';
 
-type ChipTone = 'muted' | 'outline' | 'brand' | 'success';
+type ChipTone = 'muted' | 'outline' | 'brand' | 'success' | 'warning' | 'danger';
 
 const CHIP_TONE_CLASSES: Record<ChipTone, string> = {
   muted: 'bg-[var(--bg-hover)] text-[var(--text-secondary)]',
   outline: 'border border-[var(--border-default)] text-[var(--text-muted)]',
   brand: 'bg-[rgba(201,169,97,0.14)] text-[var(--brand-primary)]',
   success: 'border border-[rgba(34,197,94,0.18)] bg-[rgba(34,197,94,0.10)] text-[var(--state-success)]',
+  warning: 'border border-[rgba(245,158,11,0.2)] bg-[rgba(245,158,11,0.12)] text-[rgb(180,100,24)]',
+  danger: 'border border-[rgba(239,68,68,0.18)] bg-[rgba(239,68,68,0.10)] text-[var(--state-error)]',
 };
 
 const BASE_CHIP_CLASS =

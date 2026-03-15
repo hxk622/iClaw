@@ -81,6 +81,7 @@ function SummaryCard({
 function SkillCard({
   skill,
   actionLoading = false,
+  installFailed = false,
   compactFooter = false,
   adminMode = false,
   onAction,
@@ -88,14 +89,42 @@ function SkillCard({
 }: {
   skill: SkillStoreItem;
   actionLoading?: boolean;
+  installFailed?: boolean;
   compactFooter?: boolean;
   adminMode?: boolean;
   onAction?: (skill: SkillStoreItem) => void;
   onEdit?: (skill: SkillStoreItem) => void;
 }) {
   const isBundled = skill.source === 'bundled';
-  const badgeLabel = isBundled ? '默认已安装' : skill.installed ? '已安装' : '云端技能';
-  const buttonLabel = isBundled || skill.installed ? '已安装' : actionLoading ? '安装中…' : '安装';
+  const status = installFailed
+    ? 'error'
+    : isBundled || skill.installed
+      ? 'installed'
+      : actionLoading
+        ? 'installing'
+        : 'available';
+  const badgeLabel =
+    status === 'error'
+      ? '安装失败'
+      : isBundled
+        ? '默认已安装'
+        : status === 'installed'
+          ? '已安装'
+          : status === 'installing'
+            ? '安装中'
+            : '未安装';
+  const badgeTone =
+    status === 'error' ? 'danger' : status === 'installed' ? 'success' : 'brand';
+  const buttonLabel =
+    status === 'error'
+      ? '重试安装'
+      : status === 'installed'
+        ? '已安装'
+        : status === 'installing'
+          ? '安装中…'
+          : '安装';
+  const buttonVariant =
+    status === 'error' ? 'danger' : status === 'installed' ? 'success' : 'primary';
   const cardActionable =
     !adminMode && Boolean(onAction) && skill.source === 'cloud' && !skill.installed && !actionLoading;
   const adminSkill = adminMode ? (skill as AdminSkillStoreItem) : null;
@@ -130,8 +159,14 @@ function SkillCard({
                 <h3 className="line-clamp-2 text-[15px] font-medium leading-6 text-[var(--text-primary)]">
                   {skill.name}
                 </h3>
-                <Chip tone="success" className="px-2 py-0.5 text-[11px] font-medium">
-                  {skill.installed || isBundled ? <Check className="h-3 w-3" /> : <Sparkles className="h-3 w-3" />}
+                <Chip tone={badgeTone} className="px-2 py-0.5 text-[11px] font-medium">
+                  {status === 'installed' ? (
+                    <Check className="h-3 w-3" />
+                  ) : status === 'error' ? (
+                    <AlertCircle className="h-3 w-3" />
+                  ) : (
+                    <Sparkles className="h-3 w-3" />
+                  )}
                   {badgeLabel}
                 </Chip>
               </div>
@@ -166,9 +201,9 @@ function SkillCard({
                 event.stopPropagation();
                 onAction?.(skill);
               }}
-              variant="secondary"
+              variant={buttonVariant}
               size="sm"
-              className="shrink-0"
+              className="shrink-0 disabled:opacity-100"
             >
               {buttonLabel}
             </Button>
@@ -179,10 +214,10 @@ function SkillCard({
 
         {adminSkill ? (
           <div className="mt-4 flex flex-wrap items-center gap-2 text-[12px]">
-            <Chip tone={adminSkill.active ? 'success' : 'outline'}>
+            <Chip tone={adminSkill.active ? 'success' : 'warning'}>
               {adminSkill.active ? '启用中' : '已停用'}
             </Chip>
-            <Chip tone={adminSkill.visibility === 'showcase' ? 'brand' : 'outline'}>
+            <Chip tone={adminSkill.visibility === 'showcase' ? 'brand' : 'warning'}>
               {adminSkill.visibility === 'showcase' ? '商店展示' : '后台隐藏'}
             </Chip>
             <Chip tone="outline">{adminSkill.source === 'bundled' ? 'bundled' : 'cloud'}</Chip>
@@ -246,6 +281,7 @@ export function SkillStoreView({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [installingSlug, setInstallingSlug] = useState<string | null>(null);
+  const [installErrorSlug, setInstallErrorSlug] = useState<string | null>(null);
   const [adminMode, setAdminMode] = useState(false);
   const [adminCapable, setAdminCapable] = useState(false);
   const [selectedAdminSkill, setSelectedAdminSkill] = useState<AdminSkillStoreItem | null>(null);
@@ -355,14 +391,17 @@ export function SkillStoreView({
     }
 
     setInstallingSlug(skill.slug);
+    setInstallErrorSlug((current) => (current === skill.slug ? null : current));
     setError(null);
     try {
       await installSkillFromStore({ client, accessToken, item: skill });
+      setInstallErrorSlug(null);
       await refreshCatalog({ preferAdmin: adminMode });
     } catch (nextError) {
       if (nextError instanceof Error && nextError.message === 'AUTH_REQUIRED') {
         onRequestAuth('login');
       } else {
+        setInstallErrorSlug(skill.slug);
         setError('下载安装失败');
       }
     } finally {
@@ -553,6 +592,13 @@ export function SkillStoreView({
               }
             />
           </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2 text-[12px] text-[var(--text-secondary)]">
+            <span className="mr-1">状态颜色：</span>
+            <Chip tone="brand">未安装</Chip>
+            <Chip tone="success">已安装</Chip>
+            <Chip tone="danger">安装失败</Chip>
+          </div>
         </div>
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
@@ -667,6 +713,7 @@ export function SkillStoreView({
               <SkillCard
                 key={skill.slug}
                 skill={skill}
+                installFailed={installErrorSlug === skill.slug}
                 compactFooter={activeTab === 'myskills'}
                 adminMode={adminMode}
                 actionLoading={installingSlug === skill.slug}

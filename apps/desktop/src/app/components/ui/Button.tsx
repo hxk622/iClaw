@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { cn } from '@/app/lib/cn';
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost';
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'success' | 'danger';
 type ButtonSize = 'sm' | 'md';
 
 const SPRING_INTERACTION =
@@ -14,6 +14,10 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
     'border border-[var(--border-default)] bg-[var(--bg-hover)] text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-elevated)]',
   ghost:
     'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
+  success:
+    'border border-[rgba(34,197,94,0.18)] bg-[rgba(34,197,94,0.12)] text-[var(--state-success)] hover:border-[rgba(34,197,94,0.3)] hover:bg-[rgba(34,197,94,0.18)]',
+  danger:
+    'border border-[rgba(239,68,68,0.18)] bg-[rgba(239,68,68,0.10)] text-[var(--state-error)] hover:border-[rgba(239,68,68,0.3)] hover:bg-[rgba(239,68,68,0.16)]',
 };
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {
