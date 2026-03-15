@@ -60,7 +60,7 @@ export function Chip(props: StaticChipProps | ClickableChipProps) {
     const buttonProps = rest as ButtonHTMLAttributes<HTMLButtonElement>;
     return (
       <button type={buttonProps.type || 'button'} className={classes} {...buttonProps}>
-        {leadingIcon}
+        {leadingIcon ? <span className="shrink-0">{leadingIcon}</span> : null}
         {children}
       </button>
     );
@@ -68,7 +68,7 @@ export function Chip(props: StaticChipProps | ClickableChipProps) {
 
   return (
     <span className={classes} {...(rest as HTMLAttributes<HTMLSpanElement>)}>
-      {leadingIcon}
+      {leadingIcon ? <span className="shrink-0">{leadingIcon}</span> : null}
       {children}
     </span>
   );

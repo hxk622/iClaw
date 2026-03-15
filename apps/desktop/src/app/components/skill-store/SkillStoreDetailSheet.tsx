@@ -2,7 +2,7 @@ import { AlertCircle, Check, Package, X } from 'lucide-react';
 import type { SkillStoreItem } from '@/app/lib/skill-store';
 import { Button } from '@/app/components/ui/Button';
 import { Chip } from '@/app/components/ui/Chip';
-import { SkillGlyph, skillVisualLabel } from './SkillStoreVisuals';
+import { SkillGlyph, skillTagClassName, skillVisualLabel } from './SkillStoreVisuals';
 
 function statusMeta(skill: SkillStoreItem, input: {actionLoading: boolean; installFailed: boolean}) {
   const isBundled = skill.source === 'bundled';
@@ -80,7 +80,7 @@ export function SkillStoreDetailSheet({
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(15,23,42,0.08)] bg-white/70 px-3 py-1 text-[12px] text-[var(--text-secondary)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
-                {status.icon}
+                <span className="shrink-0">{status.icon}</span>
                 技能详情
               </div>
               <div className="mt-4 flex items-start gap-4">
@@ -149,7 +149,7 @@ export function SkillStoreDetailSheet({
               <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">标签</div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {skill.tags.map((tag) => (
-                  <Chip key={tag} tone="outline" className="px-3 py-1.5">
+                  <Chip key={tag} tone="outline" className={`px-3 py-1.5 ${skillTagClassName(tag)}`}>
                     {tag}
                   </Chip>
                 ))}
@@ -173,6 +173,7 @@ export function SkillStoreDetailSheet({
                 variant={status.buttonVariant}
                 size="md"
                 disabled={status.disabled}
+                className="disabled:opacity-100"
                 onClick={() => onInstall(skill)}
               >
                 {status.buttonLabel}

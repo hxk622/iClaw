@@ -28,7 +28,7 @@ import { PressableCard } from '@/app/components/ui/PressableCard';
 import { cn } from '@/app/lib/cn';
 import { SkillStoreAdminSheet } from './SkillStoreAdminSheet';
 import { SkillStoreDetailSheet } from './SkillStoreDetailSheet';
-import { SkillGlyph, SummaryGlyph, LayoutGrid, LineChart, ShieldCheck } from './SkillStoreVisuals';
+import { SkillGlyph, SummaryGlyph, LayoutGrid, LineChart, ShieldCheck, skillTagClassName } from './SkillStoreVisuals';
 
 const storeTabs = [
   { id: 'store', label: '技能库' },
@@ -247,7 +247,7 @@ function SkillCard({
         <div className="flex flex-wrap items-center gap-2">
           <Chip>{skill.categoryLabel}</Chip>
           {skill.tags.slice(0, compactFooter ? 1 : 2).map((tag) => (
-            <Chip key={tag} tone="outline">
+            <Chip key={tag} tone="outline" className={skillTagClassName(tag)}>
               {tag}
             </Chip>
           ))}

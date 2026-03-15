@@ -15,9 +15,9 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   ghost:
     'border border-transparent bg-transparent text-[var(--text-secondary)] shadow-none hover:bg-[rgba(15,23,42,0.05)] hover:text-[var(--text-primary)] dark:hover:bg-[rgba(255,255,255,0.06)]',
   success:
-    'border border-[rgba(34,197,94,0.18)] bg-[linear-gradient(180deg,rgba(220,252,231,0.98),rgba(240,253,244,0.9))] text-[var(--state-success)] shadow-[0_1px_0_rgba(255,255,255,0.9)_inset,0_12px_26px_rgba(34,197,94,0.10)] hover:border-[rgba(34,197,94,0.28)] hover:bg-[linear-gradient(180deg,rgba(232,255,239,0.98),rgba(242,255,246,0.94))] dark:border-[rgba(34,197,94,0.20)] dark:bg-[rgba(34,197,94,0.14)] dark:text-[#9ff0b7] dark:shadow-[0_1px_0_rgba(255,255,255,0.03)_inset,0_12px_26px_rgba(0,0,0,0.24)] dark:hover:border-[rgba(34,197,94,0.30)] dark:hover:bg-[rgba(34,197,94,0.18)]',
+    'border border-[rgba(34,197,94,0.18)] bg-[linear-gradient(180deg,rgba(220,252,231,0.98),rgba(240,253,244,0.9))] text-[var(--state-success)] shadow-[0_1px_0_rgba(255,255,255,0.9)_inset,0_12px_26px_rgba(34,197,94,0.10)] hover:border-[rgba(34,197,94,0.28)] hover:bg-[linear-gradient(180deg,rgba(232,255,239,0.98),rgba(242,255,246,0.94))] dark:border-[rgba(111,221,149,0.34)] dark:bg-[linear-gradient(180deg,rgba(144,235,176,0.96),rgba(88,195,125,0.94))] dark:text-[#08140d] dark:shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_14px_30px_rgba(0,0,0,0.32)] dark:hover:border-[rgba(156,239,189,0.4)] dark:hover:bg-[linear-gradient(180deg,rgba(156,239,189,0.98),rgba(96,205,132,0.96))]',
   danger:
-    'border border-[rgba(239,68,68,0.16)] bg-[linear-gradient(180deg,rgba(254,226,226,0.98),rgba(254,242,242,0.9))] text-[var(--state-error)] shadow-[0_1px_0_rgba(255,255,255,0.9)_inset,0_12px_26px_rgba(239,68,68,0.10)] hover:border-[rgba(239,68,68,0.28)] hover:bg-[linear-gradient(180deg,rgba(255,236,236,0.98),rgba(255,245,245,0.94))] dark:border-[rgba(248,113,113,0.24)] dark:bg-[rgba(239,68,68,0.14)] dark:text-[#f8b4b4] dark:shadow-[0_1px_0_rgba(255,255,255,0.03)_inset,0_12px_26px_rgba(0,0,0,0.24)] dark:hover:border-[rgba(248,113,113,0.34)] dark:hover:bg-[rgba(239,68,68,0.18)]',
+    'border border-[rgba(239,68,68,0.16)] bg-[linear-gradient(180deg,rgba(254,226,226,0.98),rgba(254,242,242,0.9))] text-[var(--state-error)] shadow-[0_1px_0_rgba(255,255,255,0.9)_inset,0_12px_26px_rgba(239,68,68,0.10)] hover:border-[rgba(239,68,68,0.28)] hover:bg-[linear-gradient(180deg,rgba(255,236,236,0.98),rgba(255,245,245,0.94))] dark:border-[rgba(255,164,164,0.34)] dark:bg-[linear-gradient(180deg,rgba(255,182,182,0.95),rgba(232,104,104,0.92))] dark:text-[#1b0909] dark:shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_14px_30px_rgba(0,0,0,0.32)] dark:hover:border-[rgba(255,194,194,0.42)] dark:hover:bg-[linear-gradient(180deg,rgba(255,194,194,0.98),rgba(240,114,114,0.95))]',
 };
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {
@@ -52,14 +52,14 @@ export function Button({
         block && 'w-full',
         SPRING_INTERACTION,
         'cursor-pointer hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.985]',
-        'disabled:cursor-not-allowed disabled:transform-none disabled:opacity-60 disabled:shadow-none disabled:saturate-[0.85]',
+        'disabled:cursor-not-allowed disabled:transform-none disabled:opacity-70 disabled:shadow-none',
         VARIANT_CLASSES[variant],
         SIZE_CLASSES[size],
         className,
       )}
       {...props}
     >
-      {leadingIcon}
+      {leadingIcon ? <span className="shrink-0">{leadingIcon}</span> : null}
       {children}
     </button>
   );

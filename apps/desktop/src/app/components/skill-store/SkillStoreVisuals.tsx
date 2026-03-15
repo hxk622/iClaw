@@ -26,6 +26,23 @@ type VisualDescriptor = {
   label: string;
 };
 
+const TAG_TONE_CLASSES = {
+  brand:
+    'border-[rgba(201,169,97,0.22)] bg-[rgba(201,169,97,0.14)] text-[rgb(163,116,29)] dark:border-[rgba(201,169,97,0.26)] dark:bg-[rgba(201,169,97,0.16)] dark:text-[#efd69d]',
+  emerald:
+    'border-[rgba(34,197,94,0.22)] bg-[rgba(34,197,94,0.10)] text-[rgb(22,128,61)] dark:border-[rgba(111,221,149,0.24)] dark:bg-[rgba(34,197,94,0.16)] dark:text-[#aaf3c1]',
+  sky:
+    'border-[rgba(56,189,248,0.22)] bg-[rgba(56,189,248,0.10)] text-[rgb(14,116,144)] dark:border-[rgba(125,211,252,0.24)] dark:bg-[rgba(56,189,248,0.15)] dark:text-[#afe5ff]',
+  amber:
+    'border-[rgba(245,158,11,0.24)] bg-[rgba(245,158,11,0.11)] text-[rgb(180,100,24)] dark:border-[rgba(251,191,36,0.24)] dark:bg-[rgba(245,158,11,0.16)] dark:text-[#f7cf8a]',
+  rose:
+    'border-[rgba(244,63,94,0.22)] bg-[rgba(244,63,94,0.10)] text-[rgb(190,24,93)] dark:border-[rgba(251,113,133,0.24)] dark:bg-[rgba(244,63,94,0.16)] dark:text-[#f6b6c9]',
+  violet:
+    'border-[rgba(139,92,246,0.22)] bg-[rgba(139,92,246,0.10)] text-[rgb(109,40,217)] dark:border-[rgba(167,139,250,0.24)] dark:bg-[rgba(139,92,246,0.16)] dark:text-[#d5c0ff]',
+  slate:
+    'border-[rgba(148,163,184,0.20)] bg-[rgba(148,163,184,0.10)] text-[rgb(71,85,105)] dark:border-[rgba(148,163,184,0.22)] dark:bg-[rgba(148,163,184,0.14)] dark:text-[#d7e2ef]',
+} as const;
+
 const TONE_STYLES: Record<VisualTone, {wrap: string; glow: string; icon: string}> = {
   brand: {
     wrap: 'border-[rgba(201,169,97,0.24)] bg-[linear-gradient(180deg,rgba(244,234,206,0.9),rgba(255,255,255,0.82))] dark:border-[rgba(201,169,97,0.22)] dark:bg-[linear-gradient(180deg,rgba(60,48,20,0.96),rgba(33,27,16,0.92))]',
@@ -118,7 +135,7 @@ export function IconWell({
   return (
     <div
       className={cn(
-        'relative inline-flex items-center justify-center overflow-hidden rounded-[20px] border backdrop-blur-[8px]',
+        'relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-[20px] border backdrop-blur-[8px]',
         palette.wrap,
         palette.glow,
         className,
@@ -145,6 +162,25 @@ export function SkillGlyph({
 
 export function skillVisualLabel(skill: SkillStoreItem): string {
   return resolveSkillVisual(skill).label;
+}
+
+function tagTone(tag: string): keyof typeof TAG_TONE_CLASSES {
+  const text = tag.trim().toLowerCase();
+
+  if (/a股|ashare|esg|治理|可持续|研究|财报|估值|基本面/.test(text)) return 'emerald';
+  if (/美股|us|search|搜索|检索|数据|api|document/.test(text)) return 'sky';
+  if (/组合|风险|策略|量化|交易|portfolio/.test(text)) return 'amber';
+  if (/报告|写作|memo|summary|report/.test(text)) return 'rose';
+  if (/agent|workflow|自动化|proactive|self/.test(text)) return 'violet';
+  if (/官方|内置|bundled|系统/.test(text)) return 'brand';
+
+  const tones: Array<keyof typeof TAG_TONE_CLASSES> = ['brand', 'emerald', 'sky', 'amber', 'rose', 'violet', 'slate'];
+  const hash = Array.from(text).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return tones[hash % tones.length];
+}
+
+export function skillTagClassName(tag: string): string {
+  return TAG_TONE_CLASSES[tagTone(tag)];
 }
 
 export function SummaryGlyph({
