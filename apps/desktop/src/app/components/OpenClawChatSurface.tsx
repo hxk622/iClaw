@@ -30,6 +30,9 @@ type OpenClawSettings = {
 };
 
 type OpenClawAppElement = HTMLElement & {
+  client?: {
+    request: <T = unknown>(method: string, params?: Record<string, unknown>) => Promise<T>;
+  } | null;
   password: string;
   sessionKey: string;
   tab: string;
@@ -38,10 +41,15 @@ type OpenClawAppElement = HTMLElement & {
   chatSending: boolean;
   chatRunId: string | null;
   chatMessage: string;
+  chatMessages: unknown[];
   chatAttachments: OpenClawImageAttachment[];
+  chatThinkingLevel?: string | null;
+  chatStream?: string | null;
   lastError: string | null;
   applySettings: (next: OpenClawSettings) => void;
   connect: () => void;
+  requestUpdate?: () => void;
+  updateComplete?: Promise<unknown>;
   scrollToBottom: (opts?: { smooth?: boolean }) => void;
   handleSendChat: (message?: string, options?: { restoreDraft?: boolean }) => Promise<void>;
   handleAbortChat: () => Promise<void>;
@@ -132,6 +140,8 @@ export function OpenClawChatSurface({
   const selectionMenuRef = useRef<HTMLDivElement | null>(null);
   const reconnectKeyRef = useRef<string | null>(null);
   const initialScrollScheduledRef = useRef(false);
+  const previousBusyRef = useRef(false);
+  const historyReloadInFlightRef = useRef<Promise<void> | null>(null);
   const [status, setStatus] = useState<ChatSurfaceStatus>({
     busy: false,
     connected: false,
@@ -149,6 +159,44 @@ export function OpenClawChatSurface({
       return;
     }
     selection.removeAllRanges();
+  }, []);
+
+  const reconcileChatHistory = useCallback(async () => {
+    const app = appRef.current;
+    if (!app?.client || !app.connected) {
+      return;
+    }
+    if (historyReloadInFlightRef.current) {
+      return historyReloadInFlightRef.current;
+    }
+
+    const task = (async () => {
+      try {
+        const response = await app.client!.request<{
+          messages?: unknown[];
+          thinkingLevel?: string | null;
+        }>('chat.history', {
+          sessionKey: app.sessionKey,
+          limit: 200,
+        });
+        app.chatMessages = Array.isArray(response?.messages) ? response.messages : [];
+        app.chatThinkingLevel = response?.thinkingLevel ?? null;
+        app.chatStream = null;
+        app.requestUpdate?.();
+        await app.updateComplete;
+      } catch (error) {
+        const nextError = error instanceof Error ? error.message : String(error);
+        setStatus((current) => ({
+          ...current,
+          lastError: nextError,
+        }));
+      } finally {
+        historyReloadInFlightRef.current = null;
+      }
+    })();
+
+    historyReloadInFlightRef.current = task;
+    return task;
   }, []);
 
   const resolveChatSelection = useCallback((): { text: string; label: string } | null => {
@@ -271,10 +319,18 @@ export function OpenClawChatSurface({
           ? current
           : nextStatus,
       );
+
+      const wasBusy = previousBusyRef.current;
+      previousBusyRef.current = nextStatus.busy;
+      if (wasBusy && !nextStatus.busy && nextStatus.connected) {
+        void reconcileChatHistory().then(() => {
+          app.scrollToBottom({ smooth: true });
+        });
+      }
     }, 180);
 
     return () => window.clearInterval(timer);
-  }, []);
+  }, [reconcileChatHistory]);
 
   useEffect(() => {
     const app = appRef.current;
