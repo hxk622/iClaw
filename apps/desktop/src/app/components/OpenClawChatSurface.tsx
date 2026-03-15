@@ -142,6 +142,7 @@ export function OpenClawChatSurface({
   const initialScrollScheduledRef = useRef(false);
   const previousBusyRef = useRef(false);
   const historyReloadInFlightRef = useRef<Promise<void> | null>(null);
+  const visualHealAtRef = useRef(0);
   const [status, setStatus] = useState<ChatSurfaceStatus>({
     busy: false,
     connected: false,
@@ -304,6 +305,7 @@ export function OpenClawChatSurface({
   useEffect(() => {
     const timer = window.setInterval(() => {
       const app = appRef.current;
+      const host = hostRef.current;
       if (!app) {
         return;
       }
@@ -326,6 +328,35 @@ export function OpenClawChatSurface({
         void reconcileChatHistory().then(() => {
           app.scrollToBottom({ smooth: true });
         });
+      }
+
+      if (
+        host &&
+        nextStatus.connected &&
+        !nextStatus.busy &&
+        Array.isArray(app.chatMessages) &&
+        app.chatMessages.length > 0 &&
+        !historyReloadInFlightRef.current
+      ) {
+        const thread = host.querySelector<HTMLElement>('.chat-thread');
+        const groups = thread ? Array.from(thread.querySelectorAll<HTMLElement>('.chat-group')) : [];
+        const threadRect = thread?.getBoundingClientRect();
+        const hasVisibleGroup = Boolean(
+          thread &&
+            threadRect &&
+            groups.some((group) => {
+              const rect = group.getBoundingClientRect();
+              return rect.bottom > threadRect.top + 12 && rect.top < threadRect.bottom - 12;
+            }),
+        );
+        const now = Date.now();
+        if (!hasVisibleGroup && now - visualHealAtRef.current > 2500) {
+          visualHealAtRef.current = now;
+          void reconcileChatHistory().then(() => {
+            app.scrollToBottom();
+            window.setTimeout(() => app.scrollToBottom({ smooth: true }), 180);
+          });
+        }
       }
     }, 180);
 
