@@ -95,6 +95,7 @@ body {
 }
 
 .openclaw-chat-surface openclaw-app {
+  display: block;
   height: 100%;
   min-height: 100%;
 }
@@ -119,6 +120,14 @@ body {
   overflow-y: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
+}
+
+.openclaw-chat-surface .content.content--chat {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .openclaw-chat-surface .content::-webkit-scrollbar,
@@ -198,19 +207,23 @@ body {
 .openclaw-chat-surface .chat {
   display: flex;
   flex: 1 1 auto;
+  min-height: 0;
   padding: 0;
   background: transparent !important;
 }
 
+.openclaw-chat-surface .chat-split-container,
 .openclaw-chat-surface .chat-main,
 .openclaw-chat-surface .chat-thread {
+  flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
 }
 
 .openclaw-chat-surface .chat-thread {
   width: min(900px, calc(100% - 64px));
   margin: 0 auto;
-  padding: 24px 0 260px;
+  padding: 24px 0 var(--iclaw-thread-bottom-gap);
   border-radius: 0;
   background: transparent;
   scrollbar-width: none;
@@ -425,15 +438,83 @@ body {
   display: none !important;
 }
 
-.openclaw-chat-surface .callout {
+.openclaw-chat-surface .chat > .callout {
   width: min(900px, calc(100% - 64px));
   margin: 16px auto 0;
   border-radius: 12px;
 }
 
+.openclaw-chat-surface .update-banner,
+.openclaw-chat-surface .login-gate,
+.openclaw-chat-surface .exec-approval-overlay {
+  display: none !important;
+}
+
 .openclaw-chat-surface-shell {
+  --iclaw-composer-height: 170px;
+  --iclaw-thread-bottom-gap: 96px;
   position: relative;
   background: var(--bg-page);
+}
+
+.iclaw-chat-state-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 24;
+  width: min(560px, calc(100% - 64px));
+  padding: 22px 24px;
+  border: 1px solid var(--chat-surface-panel-border);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--chat-surface-panel) 94%, white 6%);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
+  transform: translate(-50%, calc(-50% - 40px));
+}
+
+.iclaw-chat-state-card__eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--chat-surface-muted);
+}
+
+.iclaw-chat-state-card__title {
+  margin-top: 10px;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.iclaw-chat-state-card__meta {
+  margin-top: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  word-break: break-all;
+}
+
+.iclaw-chat-status-banner {
+  position: absolute;
+  right: 0;
+  bottom: calc(var(--iclaw-composer-height) - 14px);
+  left: 0;
+  z-index: 25;
+  width: min(900px, calc(100% - 64px));
+  margin: 0 auto;
+  padding: 12px 16px;
+  border: 1px solid color-mix(in srgb, var(--danger-500, #b42318) 35%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--danger-500, #b42318) 12%, var(--bg-elevated, #fff));
+  color: var(--text-primary);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.openclaw-chat-surface .chat-thread ::selection {
+  background: color-mix(in srgb, var(--brand-primary) 18%, transparent);
 }
 
 .iclaw-composer {
@@ -444,6 +525,41 @@ body {
   z-index: 30;
   width: min(900px, calc(100% - 64px));
   margin: 0 auto;
+}
+
+.iclaw-chat-selection-menu {
+  position: fixed;
+  z-index: 80;
+  display: grid;
+  min-width: 180px;
+  padding: 6px;
+  border: 1px solid var(--chat-surface-panel-border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--chat-surface-panel) 92%, white 8%);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.16);
+}
+
+.iclaw-chat-selection-menu__item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 38px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  transition:
+    background var(--motion-micro) ease,
+    color var(--motion-micro) ease;
+}
+
+.iclaw-chat-selection-menu__item:hover {
+  background: var(--chat-surface-panel-subtle);
 }
 
 .iclaw-composer__halo {
@@ -689,7 +805,9 @@ body {
 
   .openclaw-chat-surface .chat-thread,
   .iclaw-composer,
-  .openclaw-chat-surface .callout {
+  .openclaw-chat-surface .chat > .callout,
+  .iclaw-chat-state-card,
+  .iclaw-chat-status-banner {
     width: calc(100% - 32px);
   }
 

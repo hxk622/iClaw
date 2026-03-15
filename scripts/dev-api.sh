@@ -242,17 +242,51 @@ function upsertManagedOpenAiModel(models, modelId) {
   return models;
 }
 
+function sanitizeLegacySkillEntries(root) {
+  const skills = root.skills;
+  if (!skills || typeof skills !== 'object' || Array.isArray(skills)) {
+    return;
+  }
+  const entries = skills.entries;
+  if (!entries || typeof entries !== 'object' || Array.isArray(entries)) {
+    return;
+  }
+  for (const [key, value] of Object.entries(entries)) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      continue;
+    }
+    if ('apiKeys' in value) {
+      delete value.apiKeys;
+    }
+    entries[key] = value;
+  }
+  skills.entries = entries;
+  root.skills = skills;
+}
+
 const gateway = config.gateway && typeof config.gateway === 'object' && !Array.isArray(config.gateway)
   ? config.gateway
   : {};
 const auth = gateway.auth && typeof gateway.auth === 'object' && !Array.isArray(gateway.auth)
   ? gateway.auth
   : {};
+const controlUi = gateway.controlUi && typeof gateway.controlUi === 'object' && !Array.isArray(gateway.controlUi)
+  ? gateway.controlUi
+  : {};
+const existingOrigins = Array.isArray(controlUi.allowedOrigins)
+  ? controlUi.allowedOrigins.filter((value) => typeof value === 'string').map((value) => value.trim()).filter(Boolean)
+  : [];
+const devOrigins = ['http://127.0.0.1:1520', 'http://localhost:1520'];
+const mergedOrigins = [...new Set([...existingOrigins, ...devOrigins])];
 
 auth.mode = 'token';
 auth.token = nextToken;
 gateway.auth = auth;
+controlUi.allowedOrigins = mergedOrigins;
+controlUi.allowInsecureAuth = true;
+gateway.controlUi = controlUi;
 config.gateway = gateway;
+sanitizeLegacySkillEntries(config);
 
 if (rawOpenAiModel) {
   const modelRef = rawOpenAiModel.includes('/') ? rawOpenAiModel : `openai/${rawOpenAiModel}`;
