@@ -1,13 +1,19 @@
 import type {
   CreateUserInput,
   CreditLedgerRecord,
+  InstallSkillInput,
   OAuthAccountRecord,
   OAuthProvider,
   RunGrantRecord,
   SessionRecord,
   SessionTokenPair,
+  SkillCatalogEntryRecord,
+  SkillReleaseRecord,
   UsageEventInput,
   UsageEventResult,
+  UserRole,
+  UserSkillLibraryRecord,
+  UpdateSkillLibraryItemInput,
   UserRecord,
   WorkspaceBackupInput,
   WorkspaceBackupRecord,
@@ -20,6 +26,8 @@ const CREDIT_BALANCE_CACHE_TTL_SECONDS = 15;
 const CREDIT_LEDGER_CACHE_TTL_SECONDS = 15;
 const USAGE_EVENT_CACHE_TTL_SECONDS = 24 * 60 * 60;
 const WORKSPACE_BACKUP_CACHE_TTL_SECONDS = 5 * 60;
+const SKILL_CATALOG_CACHE_TTL_SECONDS = 5 * 60;
+const USER_SKILL_LIBRARY_CACHE_TTL_SECONDS = 60;
 
 function normalizeIdentifier(identifier: string): string {
   return identifier.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -87,6 +95,18 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
 
   async updateUserProfile(userId: string, input: {displayName?: string}): Promise<UserRecord | null> {
     const user = await this.base.updateUserProfile(userId, input);
+    if (user) {
+      await Promise.all([
+        this.cache.set(this.userIdKey(user.id), user, USER_CACHE_TTL_SECONDS),
+        this.cache.set(this.userIdentifierKey(user.username), user, USER_CACHE_TTL_SECONDS),
+        this.cache.set(this.userIdentifierKey(user.email), user, USER_CACHE_TTL_SECONDS),
+      ]);
+    }
+    return user;
+  }
+
+  async updateUserRole(userId: string, role: UserRole): Promise<UserRecord | null> {
+    const user = await this.base.updateUserRole(userId, role);
     if (user) {
       await Promise.all([
         this.cache.set(this.userIdKey(user.id), user, USER_CACHE_TTL_SECONDS),
@@ -247,6 +267,47 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     return backup;
   }
 
+  async listSkillCatalog(): Promise<SkillCatalogEntryRecord[]> {
+    return this.getOrLoadValue(this.skillCatalogKey(), SKILL_CATALOG_CACHE_TTL_SECONDS, () =>
+      this.base.listSkillCatalog(),
+    );
+  }
+
+  async getSkillRelease(slug: string, version?: string): Promise<SkillReleaseRecord | null> {
+    return this.getOrLoad(this.skillReleaseKey(slug, version), USER_CACHE_TTL_SECONDS, () =>
+      this.base.getSkillRelease(slug, version),
+    );
+  }
+
+  async listUserSkillLibrary(userId: string): Promise<UserSkillLibraryRecord[]> {
+    return this.getOrLoadValue(this.userSkillLibraryKey(userId), USER_SKILL_LIBRARY_CACHE_TTL_SECONDS, () =>
+      this.base.listUserSkillLibrary(userId),
+    );
+  }
+
+  async installUserSkill(userId: string, input: Required<InstallSkillInput>): Promise<UserSkillLibraryRecord> {
+    const record = await this.base.installUserSkill(userId, input);
+    await this.cache.delete(this.userSkillLibraryKey(userId));
+    return record;
+  }
+
+  async updateUserSkill(
+    userId: string,
+    input: Required<UpdateSkillLibraryItemInput>,
+  ): Promise<UserSkillLibraryRecord | null> {
+    const record = await this.base.updateUserSkill(userId, input);
+    await this.cache.delete(this.userSkillLibraryKey(userId));
+    return record;
+  }
+
+  async removeUserSkill(userId: string, slug: string): Promise<boolean> {
+    const removed = await this.base.removeUserSkill(userId, slug);
+    if (removed) {
+      await this.cache.delete(this.userSkillLibraryKey(userId));
+    }
+    return removed;
+  }
+
   private async getOrLoad<T>(key: string, ttlSeconds: number, loader: () => Promise<T | null>): Promise<T | null> {
     const cached = await this.cache.get<T>(key);
     if (cached !== null) {
@@ -320,6 +381,18 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
 
   private workspaceBackupKey(userId: string): string {
     return `workspace-backup:${userId}`;
+  }
+
+  private skillCatalogKey(): string {
+    return 'skills:catalog';
+  }
+
+  private skillReleaseKey(slug: string, version?: string): string {
+    return `skills:release:${slug}:${version || 'latest'}`;
+  }
+
+  private userSkillLibraryKey(userId: string): string {
+    return `skills:library:${userId}`;
   }
 
   private oauthUserKey(provider: OAuthProvider, providerId: string): string {

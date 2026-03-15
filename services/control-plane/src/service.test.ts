@@ -19,6 +19,22 @@ function withFakeNow<T>(fakeNow: number, run: () => Promise<T>): Promise<T> {
   });
 }
 
+async function withBootstrapRoles<T>(
+  overrides: {adminEmails?: string[]; superAdminEmails?: string[]},
+  run: () => Promise<T>,
+): Promise<T> {
+  const previousAdminEmails = [...config.adminEmails];
+  const previousSuperAdminEmails = [...config.superAdminEmails];
+  config.adminEmails = overrides.adminEmails ? [...overrides.adminEmails] : [];
+  config.superAdminEmails = overrides.superAdminEmails ? [...overrides.superAdminEmails] : [];
+  try {
+    return await run();
+  } finally {
+    config.adminEmails = previousAdminEmails;
+    config.superAdminEmails = previousSuperAdminEmails;
+  }
+}
+
 test('authenticated API calls slide both token expiries without resetting session creation time', async () => {
   const store = new InMemoryControlPlaneStore();
   const service = new ControlPlaneService(store);
@@ -130,5 +146,33 @@ test('refresh keeps the original session anchor and stops working after the abso
       assert.equal(error.statusCode, 401);
       return true;
     });
+  });
+});
+
+test('configured super admin email is promoted during auth flows', async () => {
+  await withBootstrapRoles({ superAdminEmails: ['515177265@qq.com'] }, async () => {
+    const store = new InMemoryControlPlaneStore();
+    const service = new ControlPlaneService(store);
+
+    const registration = await service.register({
+      username: 'founder',
+      email: '515177265@qq.com',
+      password: 'password123',
+      name: 'Founder',
+    });
+
+    assert.equal(registration.user.role, 'super_admin');
+
+    const persisted = await store.getUserByEmail('515177265@qq.com');
+    assert.equal(persisted?.role, 'super_admin');
+
+    const login = await service.login({
+      identifier: '515177265@qq.com',
+      password: 'password123',
+    });
+    assert.equal(login.user.role, 'super_admin');
+
+    const current = await service.me(login.tokens.access_token);
+    assert.equal(current.role, 'super_admin');
   });
 });

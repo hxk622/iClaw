@@ -87,11 +87,23 @@ pnpm db:init:control-plane
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 - `GOOGLE_REDIRECT_URI`
+- `CONTROL_PLANE_ADMIN_EMAILS`
+- `CONTROL_PLANE_SUPER_ADMIN_EMAILS`
 - `ACCESS_TOKEN_TTL_SECONDS`
 - `REFRESH_TOKEN_TTL_SECONDS`
 - `DEFAULT_CREDIT_BALANCE`
 - `CREDIT_COST_INPUT_PER_1K`
 - `CREDIT_COST_OUTPUT_PER_1K`
+
+如果设置 `ICLAW_BRAND=<brand-id>`，control-plane 还会从 `brands/<brand-id>/brand.json` 读取这些默认值，环境变量仍然优先：
+
+- `serviceName`
+- `S3_BUCKET`
+- `CONTROL_PLANE_REDIS_KEY_PREFIX`
+- `CONTROL_PLANE_ALLOWED_ORIGINS`
+- `WECHAT_APP_ID`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_REDIRECT_URI`
 
 Redis 是可选的：
 
@@ -108,6 +120,11 @@ OAuth：
 
 - `POST /auth/wechat`
 - `POST /auth/google`
+
+角色引导：
+
+- `CONTROL_PLANE_SUPER_ADMIN_EMAILS` 中的邮箱会在注册、登录、OAuth 登录和 `GET /auth/me` 时自动提升为 `super_admin`
+- `CONTROL_PLANE_ADMIN_EMAILS` 中的邮箱会自动提升为 `admin`
 
 账号相关：
 

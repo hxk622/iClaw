@@ -8,15 +8,24 @@ import type {
   ChangePasswordInput,
   CreditBalanceView,
   CreditLedgerItemView,
+  InstallSkillInput,
   LoginInput,
   OAuthProvider,
   PublicUser,
   RegisterInput,
   RunAuthorizeInput,
   RunGrantView,
+  SkillCatalogEntryRecord,
+  SkillCatalogEntryView,
+  SkillCatalogReleaseView,
+  SkillReleaseRecord,
+  UpdateSkillLibraryItemInput,
   UpdateProfileInput,
   UsageEventInput,
   UsageEventResult,
+  UserRecord,
+  UserRole,
+  UserSkillLibraryItemView,
   WorkspaceBackupInput,
   WorkspaceBackupView,
 } from './domain.ts';
@@ -48,6 +57,7 @@ function toPublicUser(user: {
   email: string;
   displayName: string;
   avatarUrl?: string | null;
+  role: UserRole;
 }): PublicUser {
   return {
     id: user.id,
@@ -55,7 +65,19 @@ function toPublicUser(user: {
     email: user.email,
     name: user.displayName,
     avatar_url: user.avatarUrl || null,
+    role: user.role,
   };
+}
+
+function rolePriority(role: UserRole): number {
+  switch (role) {
+    case 'super_admin':
+      return 3;
+    case 'admin':
+      return 2;
+    default:
+      return 1;
+  }
 }
 
 function makeNonce(): string {
@@ -106,6 +128,81 @@ function requireWorkspaceMarkdown(input: unknown, field: string): string {
     throw new HttpError(400, 'BAD_REQUEST', `${field} is required`);
   }
   return input;
+}
+
+function normalizeSkillSlug(value: string | undefined): string {
+  const normalized = (value || '').trim();
+  if (!normalized) {
+    throw new HttpError(400, 'BAD_REQUEST', 'skill slug is required');
+  }
+  return normalized;
+}
+
+function normalizeOptionalSkillVersion(value: string | undefined): string | undefined {
+  const normalized = (value || '').trim();
+  return normalized || undefined;
+}
+
+function normalizeSkillEnabled(value: unknown): boolean {
+  if (typeof value !== 'boolean') {
+    throw new HttpError(400, 'BAD_REQUEST', 'enabled must be a boolean');
+  }
+  return value;
+}
+
+function toSkillCatalogReleaseView(record: SkillReleaseRecord | null, baseUrl?: string): SkillCatalogReleaseView | null {
+  if (!record) {
+    return null;
+  }
+
+  const origin = (baseUrl || '').trim().replace(/\/$/, '');
+  const artifactUrl =
+    record.artifactUrl ||
+    (origin
+      ? `${origin}/skills/artifact?slug=${encodeURIComponent(record.slug)}&version=${encodeURIComponent(record.version)}`
+      : null);
+
+  return {
+    version: record.version,
+    artifact_url: artifactUrl,
+    artifact_path: record.artifactSourcePath,
+    artifact_format: record.artifactFormat,
+    artifact_sha256: record.artifactSha256,
+    published_at: record.publishedAt,
+  };
+}
+
+function toSkillCatalogEntryView(record: SkillCatalogEntryRecord, baseUrl?: string): SkillCatalogEntryView {
+  return {
+    slug: record.slug,
+    name: record.name,
+    description: record.description,
+    visibility: record.visibility,
+    market: record.market,
+    category: record.category,
+    skill_type: record.skillType,
+    publisher: record.publisher,
+    distribution: record.distribution,
+    source: 'cloud',
+    tags: record.tags,
+    latest_release: toSkillCatalogReleaseView(record.latestRelease, baseUrl),
+  };
+}
+
+function toUserSkillLibraryItemView(record: {
+  slug: string;
+  version: string;
+  enabled: boolean;
+  installedAt: string;
+  updatedAt: string;
+}): UserSkillLibraryItemView {
+  return {
+    slug: record.slug,
+    version: record.version,
+    enabled: record.enabled,
+    installed_at: record.installedAt,
+    updated_at: record.updatedAt,
+  };
 }
 
 function parseAvatarDataBase64(input: string, contentType: string): Buffer {
@@ -165,6 +262,7 @@ export class ControlPlaneService {
         email,
         displayName: name,
         passwordHash: hashPassword(password),
+        role: this.resolveBootstrapRole(email) || 'user',
         initialCreditBalance: config.defaultCreditBalance,
       });
       const tokens = await this.issueTokens(user.id);
@@ -196,10 +294,11 @@ export class ControlPlaneService {
   async login(input: LoginInput): Promise<{tokens: AuthTokens; user: PublicUser}> {
     const identifier = normalizeIdentifier(input.identifier, 'identifier');
     const password = input.password.trim();
-    const user = await this.store.getUserByIdentifier(identifier);
-    if (!user || !user.passwordHash || !verifyPassword(password, user.passwordHash)) {
+    const existingUser = await this.store.getUserByIdentifier(identifier);
+    if (!existingUser || !existingUser.passwordHash || !verifyPassword(password, existingUser.passwordHash)) {
       throw new HttpError(401, 'UNAUTHORIZED', 'invalid credentials');
     }
+    const user = await this.ensureBootstrapRole(existingUser);
 
     const tokens = await this.issueTokens(user.id);
     return {
@@ -224,6 +323,8 @@ export class ControlPlaneService {
     if (!user) {
       user = await this.createOAuthUser(profile);
     }
+
+    user = await this.ensureBootstrapRole(user);
 
     await this.store.linkOAuthAccount(user.id, provider, profile.providerId);
     const tokens = await this.issueTokens(user.id, 'oauth');
@@ -401,6 +502,85 @@ export class ControlPlaneService {
     return toWorkspaceBackupView(backup);
   }
 
+  async listSkillCatalog(baseUrl?: string): Promise<{items: SkillCatalogEntryView[]}> {
+    const items = await this.store.listSkillCatalog();
+    return {
+      items: items.map((item) => toSkillCatalogEntryView(item, baseUrl)),
+    };
+  }
+
+  async listUserSkillLibrary(accessToken: string): Promise<{items: UserSkillLibraryItemView[]}> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const items = await this.store.listUserSkillLibrary(user.id);
+    return {
+      items: items.map((item) => toUserSkillLibraryItemView(item)),
+    };
+  }
+
+  async installSkill(accessToken: string, input: InstallSkillInput): Promise<UserSkillLibraryItemView> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const slug = normalizeSkillSlug(input.slug);
+    const version = normalizeOptionalSkillVersion(input.version);
+    const catalog = await this.store.listSkillCatalog();
+    const entry = catalog.find((item) => item.slug === slug);
+    if (!entry) {
+      throw new HttpError(404, 'NOT_FOUND', 'skill not found');
+    }
+
+    const release = await this.store.getSkillRelease(slug, version);
+    if (!release) {
+      throw new HttpError(404, 'NOT_FOUND', 'skill release not found');
+    }
+
+    const record = await this.store.installUserSkill(user.id, {
+      slug,
+      version: release.version,
+    });
+    return toUserSkillLibraryItemView(record);
+  }
+
+  async updateSkillLibraryItem(
+    accessToken: string,
+    input: UpdateSkillLibraryItemInput,
+  ): Promise<UserSkillLibraryItemView> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const slug = normalizeSkillSlug(input.slug);
+    const enabled = normalizeSkillEnabled(input.enabled);
+    const record = await this.store.updateUserSkill(user.id, {
+      slug,
+      enabled,
+    });
+    if (!record) {
+      throw new HttpError(404, 'NOT_FOUND', 'installed skill not found');
+    }
+    return toUserSkillLibraryItemView(record);
+  }
+
+  async removeSkill(accessToken: string, slugInput: string): Promise<{removed: boolean}> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const slug = normalizeSkillSlug(slugInput);
+    return {
+      removed: await this.store.removeUserSkill(user.id, slug),
+    };
+  }
+
+  async getSkillArtifactRelease(slugInput: string, versionInput?: string): Promise<SkillReleaseRecord> {
+    const slug = normalizeSkillSlug(slugInput);
+    const version = normalizeOptionalSkillVersion(versionInput);
+    const catalog = await this.store.listSkillCatalog();
+    const entry = catalog.find((item) => item.slug === slug);
+    if (!entry) {
+      throw new HttpError(404, 'NOT_FOUND', 'skill not found');
+    }
+
+    const release = await this.store.getSkillRelease(slug, version);
+    if (!release) {
+      throw new HttpError(404, 'NOT_FOUND', 'skill release not found');
+    }
+
+    return release;
+  }
+
   async authorizeRun(accessToken: string, input: RunAuthorizeInput): Promise<RunGrantView> {
     const user = await this.getUserForAccessToken(accessToken);
     const sessionKey = (input.session_key || 'main').trim() || 'main';
@@ -509,7 +689,7 @@ export class ControlPlaneService {
     if (!user) {
       throw new HttpError(401, 'UNAUTHORIZED', 'user not found');
     }
-    return user;
+    return this.ensureBootstrapRole(user);
   }
 
   private async issueTokens(userId: string, clientType = 'desktop'): Promise<{payload: AuthTokens; refreshToken: string}> {
@@ -593,6 +773,29 @@ export class ControlPlaneService {
     return Math.max(0, inputCost + outputCost);
   }
 
+  private resolveBootstrapRole(email: string): UserRole | null {
+    const normalized = email.trim().toLowerCase();
+    if (!normalized) {
+      return null;
+    }
+    if (config.superAdminEmails.includes(normalized)) {
+      return 'super_admin';
+    }
+    if (config.adminEmails.includes(normalized)) {
+      return 'admin';
+    }
+    return null;
+  }
+
+  private async ensureBootstrapRole(user: UserRecord): Promise<UserRecord> {
+    const targetRole = this.resolveBootstrapRole(user.email);
+    if (!targetRole || rolePriority(user.role) >= rolePriority(targetRole)) {
+      return user;
+    }
+    const updated = await this.store.updateUserRole(user.id, targetRole);
+    return updated || user;
+  }
+
   private async createOAuthUser(profile: {
     email?: string;
     name: string;
@@ -617,6 +820,7 @@ export class ControlPlaneService {
           displayName,
           avatarUrl: profile.avatarUrl,
           passwordHash: null,
+          role: this.resolveBootstrapRole(email) || 'user',
           initialCreditBalance: config.defaultCreditBalance,
         });
       } catch (error) {

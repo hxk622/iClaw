@@ -5,13 +5,20 @@ import {Pool, type PoolClient} from 'pg';
 import type {
   CreateUserInput,
   CreditLedgerRecord,
+  InstallSkillInput,
   OAuthAccountRecord,
   OAuthProvider,
   RunGrantRecord,
   SessionRecord,
   SessionTokenPair,
+  SkillCatalogEntryRecord,
+  SkillCatalogRecord,
+  SkillReleaseRecord,
   UsageEventInput,
   UsageEventResult,
+  UserRole,
+  UserSkillLibraryRecord,
+  UpdateSkillLibraryItemInput,
   UserRecord,
   WorkspaceBackupInput,
   WorkspaceBackupRecord,
@@ -25,6 +32,7 @@ type UserRow = {
   displayName: string | null;
   avatarUrl: string | null;
   passwordHash: string | null;
+  role: UserRole;
   status: 'active';
   createdAt: Date;
   updatedAt: Date;
@@ -83,6 +91,41 @@ type WorkspaceBackupRow = {
   updated_at: Date;
 };
 
+type SkillCatalogRow = {
+  slug: string;
+  name: string;
+  description: string;
+  visibility: 'showcase' | 'internal';
+  market: string | null;
+  category: string | null;
+  skill_type: string | null;
+  publisher: string;
+  distribution: 'bundled' | 'cloud';
+  tags: unknown;
+  created_at: Date;
+  updated_at: Date;
+};
+
+type SkillReleaseRow = {
+  skill_slug: string;
+  version: string;
+  artifact_format: 'tar.gz' | 'zip';
+  artifact_url: string | null;
+  artifact_sha256: string | null;
+  artifact_source_path: string | null;
+  published_at: Date;
+  created_at: Date;
+};
+
+type UserSkillLibraryRow = {
+  user_id: string;
+  skill_slug: string;
+  installed_version: string;
+  enabled: boolean;
+  installed_at: Date;
+  updated_at: Date;
+};
+
 function mapUserRow(row: UserRow): UserRecord {
   return {
     id: row.id,
@@ -91,6 +134,7 @@ function mapUserRow(row: UserRow): UserRecord {
     displayName: row.displayName || '',
     avatarUrl: row.avatarUrl || null,
     passwordHash: row.passwordHash,
+    role: row.role,
     status: row.status,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -125,6 +169,52 @@ function mapWorkspaceBackupRow(row: WorkspaceBackupRow): WorkspaceBackupRecord {
   };
 }
 
+function parseSkillTags(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+}
+
+function mapSkillCatalogRow(row: SkillCatalogRow): SkillCatalogRecord {
+  return {
+    slug: row.slug,
+    name: row.name,
+    description: row.description,
+    visibility: row.visibility,
+    market: row.market,
+    category: row.category,
+    skillType: row.skill_type,
+    publisher: row.publisher,
+    distribution: row.distribution,
+    tags: parseSkillTags(row.tags),
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapSkillReleaseRow(row: SkillReleaseRow): SkillReleaseRecord {
+  return {
+    slug: row.skill_slug,
+    version: row.version,
+    artifactFormat: row.artifact_format,
+    artifactUrl: row.artifact_url,
+    artifactSha256: row.artifact_sha256,
+    artifactSourcePath: row.artifact_source_path,
+    publishedAt: row.published_at.toISOString(),
+    createdAt: row.created_at.toISOString(),
+  };
+}
+
+function mapUserSkillLibraryRow(row: UserSkillLibraryRow): UserSkillLibraryRecord {
+  return {
+    userId: row.user_id,
+    slug: row.skill_slug,
+    version: row.installed_version,
+    enabled: row.enabled,
+    installedAt: row.installed_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
 export class PgControlPlaneStore implements ControlPlaneStore {
   readonly storageLabel = 'postgres';
   private readonly pool: Pool;
@@ -144,6 +234,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           u.display_name as "displayName",
           u.avatar_url as "avatarUrl",
           c.password_hash as "passwordHash",
+          u.role,
           u.status,
           u.created_at as "createdAt",
           u.updated_at as "updatedAt"
@@ -170,6 +261,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           u.display_name as "displayName",
           u.avatar_url as "avatarUrl",
           c.password_hash as "passwordHash",
+          u.role,
           u.status,
           u.created_at as "createdAt",
           u.updated_at as "updatedAt"
@@ -194,6 +286,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           u.display_name as "displayName",
           u.avatar_url as "avatarUrl",
           c.password_hash as "passwordHash",
+          u.role,
           u.status,
           u.created_at as "createdAt",
           u.updated_at as "updatedAt"
@@ -289,6 +382,18 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     return this.getUserById(userId);
   }
 
+  async updateUserRole(userId: string, role: UserRole): Promise<UserRecord | null> {
+    await this.pool.query(
+      `
+        update users
+        set role = $2, updated_at = now()
+        where id = $1
+      `,
+      [userId, role],
+    );
+    return this.getUserById(userId);
+  }
+
   async setPasswordHash(userId: string, passwordHash: string): Promise<UserRecord | null> {
     await this.pool.query(
       `
@@ -328,10 +433,17 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       await client.query('begin');
       await client.query(
         `
-          insert into users (id, username, display_name, avatar_url, status, created_at, updated_at)
-          values ($1, $2, $3, $4, 'active', $5, $5)
+          insert into users (id, username, display_name, avatar_url, role, status, created_at, updated_at)
+          values ($1, $2, $3, $4, $5, 'active', $6, $6)
         `,
-        [userId, input.username.trim().replace(/\s+/g, ' '), input.displayName, input.avatarUrl?.trim() || null, now],
+        [
+          userId,
+          input.username.trim().replace(/\s+/g, ' '),
+          input.displayName,
+          input.avatarUrl?.trim() || null,
+          input.role || 'user',
+          now,
+        ],
       );
       await client.query(
         `
@@ -378,6 +490,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         displayName: input.displayName,
         avatarUrl: input.avatarUrl?.trim() || null,
         passwordHash: input.passwordHash?.trim() || null,
+        role: input.role || 'user',
         status: 'active',
         createdAt: now.toISOString(),
         updatedAt: now.toISOString(),
@@ -572,6 +685,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           u.display_name as "displayName",
           u.avatar_url as "avatarUrl",
           c.password_hash as "passwordHash",
+          u.role,
           u.status,
           u.created_at as "createdAt",
           u.updated_at as "updatedAt"
@@ -845,6 +959,146 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       [userId, input.identity_md, input.user_md, input.soul_md, input.agents_md],
     );
     return mapWorkspaceBackupRow(result.rows[0]);
+  }
+
+  async listSkillCatalog(): Promise<SkillCatalogEntryRecord[]> {
+    const catalogResult = await this.pool.query<SkillCatalogRow>(
+      `
+        select
+          slug,
+          name,
+          description,
+          visibility,
+          market,
+          category,
+          skill_type,
+          publisher,
+          distribution,
+          tags,
+          created_at,
+          updated_at
+        from skill_catalog_entries
+        where distribution = 'cloud' and active = true
+        order by name asc
+      `,
+    );
+
+    const releasesResult = await this.pool.query<SkillReleaseRow>(
+      `
+        select distinct on (skill_slug)
+          skill_slug,
+          version,
+          artifact_format,
+          artifact_url,
+          artifact_sha256,
+          artifact_source_path,
+          published_at,
+          created_at
+        from skill_releases
+        where status = 'published'
+        order by skill_slug, published_at desc, created_at desc
+      `,
+    );
+
+    const latestReleaseBySlug = new Map(
+      releasesResult.rows.map((row) => [row.skill_slug, mapSkillReleaseRow(row)]),
+    );
+
+    return catalogResult.rows.map((row) => {
+      const base = mapSkillCatalogRow(row);
+      return {
+        ...base,
+        latestRelease: latestReleaseBySlug.get(base.slug) || null,
+      };
+    });
+  }
+
+  async getSkillRelease(slug: string, version?: string): Promise<SkillReleaseRecord | null> {
+    const result = await this.pool.query<SkillReleaseRow>(
+      `
+        select
+          skill_slug,
+          version,
+          artifact_format,
+          artifact_url,
+          artifact_sha256,
+          artifact_source_path,
+          published_at,
+          created_at
+        from skill_releases
+        where skill_slug = $1
+          and status = 'published'
+          and ($2::text is null or version = $2)
+        order by published_at desc, created_at desc
+        limit 1
+      `,
+      [slug, version || null],
+    );
+    return result.rows[0] ? mapSkillReleaseRow(result.rows[0]) : null;
+  }
+
+  async listUserSkillLibrary(userId: string): Promise<UserSkillLibraryRecord[]> {
+    const result = await this.pool.query<UserSkillLibraryRow>(
+      `
+        select user_id, skill_slug, installed_version, enabled, installed_at, updated_at
+        from user_skill_library
+        where user_id = $1
+        order by installed_at desc
+      `,
+      [userId],
+    );
+    return result.rows.map(mapUserSkillLibraryRow);
+  }
+
+  async installUserSkill(userId: string, input: Required<InstallSkillInput>): Promise<UserSkillLibraryRecord> {
+    const result = await this.pool.query<UserSkillLibraryRow>(
+      `
+        insert into user_skill_library (
+          user_id,
+          skill_slug,
+          installed_version,
+          enabled,
+          installed_at,
+          updated_at
+        )
+        values ($1, $2, $3, true, now(), now())
+        on conflict (user_id, skill_slug)
+        do update set
+          installed_version = excluded.installed_version,
+          enabled = true,
+          updated_at = now()
+        returning user_id, skill_slug, installed_version, enabled, installed_at, updated_at
+      `,
+      [userId, input.slug, input.version],
+    );
+    return mapUserSkillLibraryRow(result.rows[0]);
+  }
+
+  async updateUserSkill(
+    userId: string,
+    input: Required<UpdateSkillLibraryItemInput>,
+  ): Promise<UserSkillLibraryRecord | null> {
+    const result = await this.pool.query<UserSkillLibraryRow>(
+      `
+        update user_skill_library
+        set enabled = $3, updated_at = now()
+        where user_id = $1 and skill_slug = $2
+        returning user_id, skill_slug, installed_version, enabled, installed_at, updated_at
+      `,
+      [userId, input.slug, input.enabled],
+    );
+    return result.rows[0] ? mapUserSkillLibraryRow(result.rows[0]) : null;
+  }
+
+  async removeUserSkill(userId: string, slug: string): Promise<boolean> {
+    const result = await this.pool.query(
+      `
+        delete from user_skill_library
+        where user_id = $1 and skill_slug = $2
+      `,
+      [userId, slug],
+    );
+    return (result.rowCount || 0) > 0;
   }
 
   async close(): Promise<void> {

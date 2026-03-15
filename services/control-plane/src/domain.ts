@@ -1,3 +1,5 @@
+export type UserRole = 'user' | 'admin' | 'super_admin';
+
 export type UserRecord = {
   id: string;
   username: string;
@@ -5,6 +7,7 @@ export type UserRecord = {
   displayName: string;
   avatarUrl: string | null;
   passwordHash: string | null;
+  role: UserRole;
   status: 'active';
   createdAt: string;
   updatedAt: string;
@@ -37,6 +40,7 @@ export type CreateUserInput = {
   displayName: string;
   avatarUrl?: string | null;
   passwordHash?: string | null;
+  role?: UserRole;
   initialCreditBalance: number;
 };
 
@@ -134,12 +138,86 @@ export type WorkspaceBackupView = WorkspaceBackupInput & {
   updated_at: string;
 };
 
+export type SkillDistribution = 'bundled' | 'cloud';
+
+export type SkillCatalogRecord = {
+  slug: string;
+  name: string;
+  description: string;
+  visibility: 'showcase' | 'internal';
+  market: string | null;
+  category: string | null;
+  skillType: string | null;
+  publisher: string;
+  distribution: SkillDistribution;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SkillReleaseRecord = {
+  slug: string;
+  version: string;
+  artifactFormat: 'tar.gz' | 'zip';
+  artifactUrl: string | null;
+  artifactSha256: string | null;
+  artifactSourcePath: string | null;
+  publishedAt: string;
+  createdAt: string;
+};
+
+export type SkillCatalogEntryRecord = SkillCatalogRecord & {
+  latestRelease: SkillReleaseRecord | null;
+};
+
+export type UserSkillLibraryRecord = {
+  userId: string;
+  slug: string;
+  version: string;
+  enabled: boolean;
+  installedAt: string;
+  updatedAt: string;
+};
+
+export type SkillCatalogReleaseView = {
+  version: string;
+  artifact_url: string | null;
+  artifact_path: string | null;
+  artifact_format: 'tar.gz' | 'zip';
+  artifact_sha256: string | null;
+  published_at: string;
+};
+
+export type SkillCatalogEntryView = {
+  slug: string;
+  name: string;
+  description: string;
+  visibility: 'showcase' | 'internal';
+  market: string | null;
+  category: string | null;
+  skill_type: string | null;
+  publisher: string;
+  distribution: SkillDistribution;
+  source: 'cloud';
+  tags: string[];
+  latest_release: SkillCatalogReleaseView | null;
+};
+
+export type UserSkillLibraryItemView = {
+  slug: string;
+  version: string;
+  enabled: boolean;
+  installed_at: string;
+  updated_at: string;
+};
+
 export type PublicUser = {
   id: string;
   username: string;
   email: string;
   name: string;
   avatar_url: string | null;
+  role: UserRole;
 };
 
 export type UpdateProfileInput = {
@@ -182,4 +260,14 @@ export type UsageEventInput = {
   credit_cost?: number;
   provider?: string;
   model?: string;
+};
+
+export type InstallSkillInput = {
+  slug?: string;
+  version?: string;
+};
+
+export type UpdateSkillLibraryItemInput = {
+  slug?: string;
+  enabled?: boolean;
 };

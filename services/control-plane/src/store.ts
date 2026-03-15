@@ -3,13 +3,19 @@ import { randomUUID } from 'node:crypto';
 import type {
   CreateUserInput,
   CreditLedgerRecord,
+  InstallSkillInput,
   OAuthAccountRecord,
   OAuthProvider,
   RunGrantRecord,
   SessionRecord,
   SessionTokenPair,
+  SkillCatalogEntryRecord,
+  SkillReleaseRecord,
   UsageEventInput,
   UsageEventResult,
+  UserRole,
+  UserSkillLibraryRecord,
+  UpdateSkillLibraryItemInput,
   UserRecord,
   WorkspaceBackupInput,
   WorkspaceBackupRecord,
@@ -28,6 +34,7 @@ export interface ControlPlaneStore {
   unlinkOAuthAccount(userId: string, provider: OAuthProvider): Promise<boolean>;
   getOAuthAccountsForUser(userId: string): Promise<OAuthAccountRecord[]>;
   updateUserProfile(userId: string, input: {displayName?: string; avatarUrl?: string | null}): Promise<UserRecord | null>;
+  updateUserRole(userId: string, role: UserRole): Promise<UserRecord | null>;
   setPasswordHash(userId: string, passwordHash: string): Promise<UserRecord | null>;
   createUser(input: CreateUserInput): Promise<UserRecord>;
   createSession(userId: string, tokens: SessionTokenPair): Promise<SessionRecord>;
@@ -56,6 +63,12 @@ export interface ControlPlaneStore {
   recordUsageEvent(userId: string, input: Required<UsageEventInput>): Promise<UsageEventResult>;
   getWorkspaceBackup(userId: string): Promise<WorkspaceBackupRecord | null>;
   saveWorkspaceBackup(userId: string, input: WorkspaceBackupInput): Promise<WorkspaceBackupRecord>;
+  listSkillCatalog(): Promise<SkillCatalogEntryRecord[]>;
+  getSkillRelease(slug: string, version?: string): Promise<SkillReleaseRecord | null>;
+  listUserSkillLibrary(userId: string): Promise<UserSkillLibraryRecord[]>;
+  installUserSkill(userId: string, input: Required<InstallSkillInput>): Promise<UserSkillLibraryRecord>;
+  updateUserSkill(userId: string, input: Required<UpdateSkillLibraryItemInput>): Promise<UserSkillLibraryRecord | null>;
+  removeUserSkill(userId: string, slug: string): Promise<boolean>;
 }
 
 export class InMemoryControlPlaneStore implements ControlPlaneStore {
@@ -73,6 +86,66 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   private readonly runGrantsById = new Map<string, RunGrantRecord>();
   private readonly usageEventsByEventId = new Map<string, UsageEventResult>();
   private readonly workspaceBackupsByUserId = new Map<string, WorkspaceBackupRecord>();
+  private readonly skillCatalog = new Map<string, SkillCatalogEntryRecord>();
+  private readonly userSkillLibrary = new Map<string, UserSkillLibraryRecord>();
+
+  constructor() {
+    const now = new Date().toISOString();
+    const cloudSkills: SkillCatalogEntryRecord[] = [
+      {
+        slug: 'a-share-esg',
+        name: 'A股ESG筛选分析',
+        description: '从ESG角度筛选A股上市公司，评估可持续发展实践与争议风险。',
+        visibility: 'showcase',
+        market: 'A股',
+        category: 'research',
+        skillType: '分析师',
+        publisher: 'iClaw',
+        distribution: 'cloud',
+        tags: ['A股', 'ESG', '筛选'],
+        createdAt: now,
+        updatedAt: now,
+        latestRelease: {
+          slug: 'a-share-esg',
+          version: '1.0.0',
+          artifactFormat: 'tar.gz',
+          artifactUrl: null,
+          artifactSha256: null,
+          artifactSourcePath: 'A股ESG筛选器',
+          publishedAt: now,
+          createdAt: now,
+        },
+      },
+      {
+        slug: 'us-factor-screener',
+        name: '美股量化因子筛选',
+        description: '使用多因子框架筛选美股，识别价值、动量、质量等因子暴露有利的股票。',
+        visibility: 'showcase',
+        market: '美股',
+        category: 'research',
+        skillType: '扫描器',
+        publisher: 'iClaw',
+        distribution: 'cloud',
+        tags: ['美股', '量化', '因子'],
+        createdAt: now,
+        updatedAt: now,
+        latestRelease: {
+          slug: 'us-factor-screener',
+          version: '1.0.0',
+          artifactFormat: 'tar.gz',
+          artifactUrl: null,
+          artifactSha256: null,
+          artifactSourcePath: '美股量化因子扫描器',
+          publishedAt: now,
+          createdAt: now,
+        },
+      },
+    ];
+
+    for (const entry of cloudSkills) {
+      this.skillCatalog.set(entry.slug, entry);
+    }
+  }
 
   async getUserByIdentifier(identifier: string): Promise<UserRecord | null> {
     const normalized = normalizeUsernameLookup(identifier);
@@ -128,6 +201,21 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     return next;
   }
 
+  async updateUserRole(userId: string, role: UserRole): Promise<UserRecord | null> {
+    const current = this.users.get(userId);
+    if (!current) return null;
+    if (current.role === role) {
+      return current;
+    }
+    const next: UserRecord = {
+      ...current,
+      role,
+      updatedAt: new Date().toISOString(),
+    };
+    this.users.set(userId, next);
+    return next;
+  }
+
   async setPasswordHash(userId: string, passwordHash: string): Promise<UserRecord | null> {
     const current = this.users.get(userId);
     if (!current) return null;
@@ -158,6 +246,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       displayName: input.displayName.trim(),
       avatarUrl: input.avatarUrl?.trim() || null,
       passwordHash: input.passwordHash?.trim() || null,
+      role: input.role || 'user',
       status: 'active',
       createdAt: now,
       updatedAt: now,
@@ -334,6 +423,57 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     };
     this.workspaceBackupsByUserId.set(userId, record);
     return record;
+  }
+
+  async listSkillCatalog(): Promise<SkillCatalogEntryRecord[]> {
+    return Array.from(this.skillCatalog.values());
+  }
+
+  async getSkillRelease(slug: string, version?: string): Promise<SkillReleaseRecord | null> {
+    const entry = this.skillCatalog.get(slug);
+    if (!entry?.latestRelease) return null;
+    if (version && entry.latestRelease.version !== version) return null;
+    return entry.latestRelease;
+  }
+
+  async listUserSkillLibrary(userId: string): Promise<UserSkillLibraryRecord[]> {
+    return Array.from(this.userSkillLibrary.values()).filter((item) => item.userId === userId);
+  }
+
+  async installUserSkill(userId: string, input: Required<InstallSkillInput>): Promise<UserSkillLibraryRecord> {
+    const now = new Date().toISOString();
+    const key = `${userId}:${input.slug}`;
+    const existing = this.userSkillLibrary.get(key);
+    const record: UserSkillLibraryRecord = {
+      userId,
+      slug: input.slug,
+      version: input.version,
+      enabled: true,
+      installedAt: existing?.installedAt || now,
+      updatedAt: now,
+    };
+    this.userSkillLibrary.set(key, record);
+    return record;
+  }
+
+  async updateUserSkill(
+    userId: string,
+    input: Required<UpdateSkillLibraryItemInput>,
+  ): Promise<UserSkillLibraryRecord | null> {
+    const key = `${userId}:${input.slug}`;
+    const existing = this.userSkillLibrary.get(key);
+    if (!existing) return null;
+    const record: UserSkillLibraryRecord = {
+      ...existing,
+      enabled: input.enabled,
+      updatedAt: new Date().toISOString(),
+    };
+    this.userSkillLibrary.set(key, record);
+    return record;
+  }
+
+  async removeUserSkill(userId: string, slug: string): Promise<boolean> {
+    return this.userSkillLibrary.delete(`${userId}:${slug}`);
   }
 
   private oauthKey(provider: OAuthProvider, providerId: string): string {
