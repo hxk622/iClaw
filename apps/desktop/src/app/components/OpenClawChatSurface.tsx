@@ -30,6 +30,7 @@ type OpenClawAppElement = HTMLElement & {
   settings: OpenClawSettings;
   connected: boolean;
   lastError: string | null;
+  lastErrorCode?: string | null;
   applySettings: (next: OpenClawSettings) => void;
   connect: () => void;
 };
@@ -55,6 +56,7 @@ type OpenClawChatSurfaceProps = {
 type ChatSurfaceStatus = {
   connected: boolean;
   lastError: string | null;
+  lastErrorCode: string | null;
 };
 
 type ChatSurfaceRenderState = {
@@ -66,6 +68,14 @@ type ChatSurfaceRenderState = {
   threadVisible: boolean;
   threadHeight: number;
   groupCount: number;
+};
+
+type UnhandledGatewayError = {
+  message: string;
+  code: string | null;
+  detailCode: string | null;
+  httpStatus: number | null;
+  raw: string | null;
 };
 
 const ASSISTANT_AVATAR_SRC = '/favicon.png';
@@ -189,6 +199,7 @@ export function OpenClawChatSurface({
   const [status, setStatus] = useState<ChatSurfaceStatus>({
     connected: false,
     lastError: null,
+    lastErrorCode: null,
   });
   const [renderState, setRenderState] = useState<ChatSurfaceRenderState>({
     hostHeight: 0,
@@ -202,6 +213,7 @@ export function OpenClawChatSurface({
   });
   const [showConnectionCard, setShowConnectionCard] = useState(false);
   const [showRenderDiagnosticsCard, setShowRenderDiagnosticsCard] = useState(false);
+  const [unhandledGatewayError, setUnhandledGatewayError] = useState<UnhandledGatewayError | null>(null);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -259,6 +271,66 @@ export function OpenClawChatSurface({
   }, [gatewayPassword, gatewayToken, gatewayUrl, sessionKey]);
 
   useEffect(() => {
+    const onUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason;
+      if (!reason || typeof reason !== 'object') {
+        return;
+      }
+
+      const detailCode =
+        typeof (reason as { details?: { code?: unknown } }).details?.code === 'string'
+          ? String((reason as { details?: { code?: unknown } }).details?.code)
+          : null;
+      const codeValue = (reason as { code?: unknown }).code;
+      const messageValue = (reason as { message?: unknown }).message;
+      const httpStatusValue = (reason as { httpStatus?: unknown }).httpStatus;
+      const code =
+        typeof codeValue === 'number' || typeof codeValue === 'string' ? String(codeValue) : null;
+      const message =
+        typeof messageValue === 'string' && messageValue.trim()
+          ? messageValue
+          : reason instanceof Error
+            ? reason.message
+            : 'Unhandled promise rejection';
+      const httpStatus = typeof httpStatusValue === 'number' ? httpStatusValue : null;
+
+      let raw: string | null = null;
+      try {
+        raw = JSON.stringify(reason);
+      } catch {
+        raw = String(reason);
+      }
+
+      const lowerMessage = message.toLowerCase();
+      const lowerRaw = raw?.toLowerCase() ?? '';
+      const looksRelevant =
+        code === '403' ||
+        detailCode !== null ||
+        lowerMessage.includes('forbidden') ||
+        lowerRaw.includes('openclaw') ||
+        lowerRaw.includes('gateway') ||
+        lowerRaw.includes('"code":403');
+
+      if (!looksRelevant) {
+        return;
+      }
+
+      setUnhandledGatewayError({
+        message,
+        code,
+        detailCode,
+        httpStatus,
+        raw,
+      });
+    };
+
+    window.addEventListener('unhandledrejection', onUnhandledRejection);
+    return () => {
+      window.removeEventListener('unhandledrejection', onUnhandledRejection);
+    };
+  }, []);
+
+  useEffect(() => {
     const host = hostRef.current;
     if (!host) {
       return;
@@ -294,6 +366,7 @@ export function OpenClawChatSurface({
       const nextStatus: ChatSurfaceStatus = {
         connected: Boolean(app.connected),
         lastError: app.lastError ?? null,
+        lastErrorCode: app.lastErrorCode ?? null,
       };
       const nativeInput = host.querySelector('.agent-chat__input, .chat-compose');
       const thread = host.querySelector('.chat-thread');
@@ -310,7 +383,9 @@ export function OpenClawChatSurface({
         groupCount: host.querySelectorAll('.chat-group').length,
       };
       setStatus((current) =>
-        current.connected === nextStatus.connected && current.lastError === nextStatus.lastError
+        current.connected === nextStatus.connected &&
+        current.lastError === nextStatus.lastError &&
+        current.lastErrorCode === nextStatus.lastErrorCode
           ? current
           : nextStatus,
       );
@@ -382,6 +457,9 @@ export function OpenClawChatSurface({
       ? '当前页面不是安全上下文，OpenClaw 可能会拒绝设备身份校验。'
       : null;
   const renderDiagnosticsMessage = (() => {
+    if (unhandledGatewayError?.code === '403') {
+      return '当前页面捕获到了未处理的 403。更像是 OpenClaw 某个初始化或刷新请求被 gateway 拒绝，不是纯样式白板。';
+    }
     if (renderState.hasThread && !renderState.threadVisible) {
       return 'OpenClaw 已连接，聊天线程节点已挂载，但在当前页面中不可见。更像是容器尺寸或样式兼容问题。';
     }
@@ -426,9 +504,19 @@ export function OpenClawChatSurface({
             消息组：{renderState.groupCount}
           </div>
           <div className="iclaw-chat-state-card__meta">
+            网关错误码：{status.lastErrorCode ?? '无'} · 最近未捕获错误码：{unhandledGatewayError?.code ?? '无'} ·
+            详情码：{unhandledGatewayError?.detailCode ?? '无'}
+          </div>
+          <div className="iclaw-chat-state-card__meta">
             容器高度：{renderState.hostHeight}px · 输入区高度：{renderState.nativeInputHeight}px · 线程高度：
             {renderState.threadHeight}px
           </div>
+          {unhandledGatewayError ? (
+            <div className="iclaw-chat-state-card__meta">
+              最近未捕获错误：{unhandledGatewayError.message}
+              {unhandledGatewayError.httpStatus != null ? ` · httpStatus=${unhandledGatewayError.httpStatus}` : ''}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>
