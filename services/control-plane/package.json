@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node --watch --experimental-strip-types src/server.ts",
     "start": "node --experimental-strip-types src/server.ts",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "sync:clawhub:top": "node --experimental-strip-types scripts/sync-clawhub-top-skills.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1005.0",

@@ -5,6 +5,7 @@
   "packageManager": "pnpm@10.11.0",
   "scripts": {
     "dev": "pnpm dev:all",
+    "sync:clawhub:top": "pnpm --filter @iclaw/control-plane sync:clawhub:top",
     "env:dev": "bash scripts/env.sh dev",
     "env:test": "bash scripts/env.sh test",
     "env:prod": "bash scripts/env.sh prod",
