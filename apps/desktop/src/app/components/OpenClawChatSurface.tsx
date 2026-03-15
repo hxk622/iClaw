@@ -31,6 +31,15 @@ type OpenClawAppElement = HTMLElement & {
   connected: boolean;
   lastError: string | null;
   lastErrorCode?: string | null;
+  hello?: {
+    auth?: {
+      role?: string;
+      scopes?: string[];
+    };
+  } | null;
+  client?: {
+    request?: <T = unknown>(method: string, params?: unknown) => Promise<T>;
+  } | null;
   applySettings: (next: OpenClawSettings) => void;
   connect: () => void;
 };
@@ -76,6 +85,13 @@ type UnhandledGatewayError = {
   detailCode: string | null;
   httpStatus: number | null;
   raw: string | null;
+};
+
+type GatewayRpcFailure = {
+  method: string;
+  code: string | null;
+  detailCode: string | null;
+  message: string;
 };
 
 const ASSISTANT_AVATAR_SRC = '/favicon.png';
@@ -214,6 +230,7 @@ export function OpenClawChatSurface({
   const [showConnectionCard, setShowConnectionCard] = useState(false);
   const [showRenderDiagnosticsCard, setShowRenderDiagnosticsCard] = useState(false);
   const [unhandledGatewayError, setUnhandledGatewayError] = useState<UnhandledGatewayError | null>(null);
+  const [lastRpcFailure, setLastRpcFailure] = useState<GatewayRpcFailure | null>(null);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -328,6 +345,60 @@ export function OpenClawChatSurface({
     return () => {
       window.removeEventListener('unhandledrejection', onUnhandledRejection);
     };
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const app = appRef.current;
+      const client = app?.client;
+      if (!app || !client || typeof client.request !== 'function') {
+        return;
+      }
+
+      const currentRequest = client.request as (((method: string, params?: unknown) => Promise<unknown>) & {
+        __iclawWrapped?: boolean;
+      });
+
+      if (currentRequest.__iclawWrapped) {
+        return;
+      }
+
+      const wrappedRequest = (async (method: string, params?: unknown) => {
+        try {
+          return await currentRequest(method, params);
+        } catch (error) {
+          const detailCode =
+            typeof (error as { details?: { code?: unknown } }).details?.code === 'string'
+              ? String((error as { details?: { code?: unknown } }).details?.code)
+              : null;
+          const codeValue = (error as { code?: unknown }).code;
+          const messageValue = (error as { message?: unknown }).message;
+          const code =
+            typeof codeValue === 'number' || typeof codeValue === 'string' ? String(codeValue) : null;
+          const message =
+            typeof messageValue === 'string' && messageValue.trim()
+              ? messageValue
+              : error instanceof Error
+                ? error.message
+                : String(error);
+
+          if (code === '403' || detailCode !== null || message.toLowerCase().includes('forbidden')) {
+            setLastRpcFailure({
+              method,
+              code,
+              detailCode,
+              message,
+            });
+          }
+          throw error;
+        }
+      }) as typeof currentRequest;
+
+      wrappedRequest.__iclawWrapped = true;
+      client.request = wrappedRequest;
+    }, 250);
+
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -456,6 +527,8 @@ export function OpenClawChatSurface({
     typeof window !== 'undefined' && !window.isSecureContext
       ? '当前页面不是安全上下文，OpenClaw 可能会拒绝设备身份校验。'
       : null;
+  const authRole = appRef.current?.hello?.auth?.role ?? null;
+  const authScopes = appRef.current?.hello?.auth?.scopes ?? null;
   const renderDiagnosticsMessage = (() => {
     if (unhandledGatewayError?.code === '403') {
       return '当前页面捕获到了未处理的 403。更像是 OpenClaw 某个初始化或刷新请求被 gateway 拒绝，不是纯样式白板。';
@@ -508,6 +581,14 @@ export function OpenClawChatSurface({
             详情码：{unhandledGatewayError?.detailCode ?? '无'}
           </div>
           <div className="iclaw-chat-state-card__meta">
+            最近失败 RPC：{lastRpcFailure?.method ?? '无'} · RPC 错误码：{lastRpcFailure?.code ?? '无'} ·
+            RPC 详情码：{lastRpcFailure?.detailCode ?? '无'}
+          </div>
+          <div className="iclaw-chat-state-card__meta">
+            gateway 角色：{authRole ?? '未知'} · scopes：
+            {authScopes && authScopes.length > 0 ? authScopes.join(', ') : '未知'}
+          </div>
+          <div className="iclaw-chat-state-card__meta">
             容器高度：{renderState.hostHeight}px · 输入区高度：{renderState.nativeInputHeight}px · 线程高度：
             {renderState.threadHeight}px
           </div>
@@ -515,6 +596,11 @@ export function OpenClawChatSurface({
             <div className="iclaw-chat-state-card__meta">
               最近未捕获错误：{unhandledGatewayError.message}
               {unhandledGatewayError.httpStatus != null ? ` · httpStatus=${unhandledGatewayError.httpStatus}` : ''}
+            </div>
+          ) : null}
+          {lastRpcFailure ? (
+            <div className="iclaw-chat-state-card__meta">
+              最近失败 RPC 信息：{lastRpcFailure.message}
             </div>
           ) : null}
         </div>
