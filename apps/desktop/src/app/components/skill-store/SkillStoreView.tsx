@@ -1,15 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type ComponentType, useEffect, useMemo, useState } from 'react';
 import type { IClawClient } from '@iclaw/sdk';
 import {
   AlertCircle,
-  Brain,
   Check,
-  LayoutGrid,
+  EyeOff,
+  Globe2,
   Package,
   PencilLine,
   Search,
   Settings2,
-  ShieldCheck,
   Sparkles,
 } from 'lucide-react';
 import {
@@ -28,6 +27,8 @@ import { Chip } from '@/app/components/ui/Chip';
 import { PressableCard } from '@/app/components/ui/PressableCard';
 import { cn } from '@/app/lib/cn';
 import { SkillStoreAdminSheet } from './SkillStoreAdminSheet';
+import { SkillStoreDetailSheet } from './SkillStoreDetailSheet';
+import { SkillGlyph, SummaryGlyph, LayoutGrid, LineChart, ShieldCheck } from './SkillStoreVisuals';
 
 const storeTabs = [
   { id: 'store', label: '技能库' },
@@ -60,19 +61,24 @@ function SummaryCard({
   label,
   value,
   note,
+  icon,
+  tone,
 }: {
   label: string;
   value: string;
   note: string;
+  icon: ComponentType<{className?: string}>;
+  tone: 'brand' | 'emerald' | 'sky' | 'amber' | 'violet';
 }) {
   return (
-    <div className="rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-3 shadow-[var(--shadow-sm)]">
+    <div className="rounded-[24px] border border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,247,244,0.9))] px-4 py-4 shadow-[0_18px_34px_rgba(15,23,42,0.06)] backdrop-blur-[10px]">
       <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
+        <div className="min-w-0 pr-3">
           <div className="text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">{label}</div>
-          <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-[var(--text-secondary)]">{note}</p>
+          <div className="mt-2 text-[26px] font-semibold leading-none text-[var(--text-primary)]">{value}</div>
+          <p className="mt-2 line-clamp-2 text-[12px] leading-5 text-[var(--text-secondary)]">{note}</p>
         </div>
-        <div className="shrink-0 text-[24px] font-semibold leading-none text-[var(--text-primary)]">{value}</div>
+        <SummaryGlyph icon={icon} tone={tone} className="h-12 w-12 rounded-[18px]" iconClassName="h-5 w-5" />
       </div>
     </div>
   );
@@ -85,6 +91,7 @@ function SkillCard({
   compactFooter = false,
   adminMode = false,
   onAction,
+  onOpenDetail,
   onEdit,
 }: {
   skill: SkillStoreItem;
@@ -93,6 +100,7 @@ function SkillCard({
   compactFooter?: boolean;
   adminMode?: boolean;
   onAction?: (skill: SkillStoreItem) => void;
+  onOpenDetail?: (skill: SkillStoreItem) => void;
   onEdit?: (skill: SkillStoreItem) => void;
 }) {
   const isBundled = skill.source === 'bundled';
@@ -125,16 +133,19 @@ function SkillCard({
           : '安装';
   const buttonVariant =
     status === 'error' ? 'danger' : status === 'installed' ? 'success' : 'primary';
-  const cardActionable =
-    !adminMode && Boolean(onAction) && skill.source === 'cloud' && !skill.installed && !actionLoading;
+  const cardActionable = !adminMode && Boolean(onOpenDetail);
   const adminSkill = adminMode ? (skill as AdminSkillStoreItem) : null;
+  const showInstallCta = skill.source === 'cloud';
 
   return (
     <PressableCard
       as="article"
       interactive={cardActionable}
-      onClick={cardActionable ? () => onAction?.(skill) : undefined}
-      className={cn('group', !cardActionable && 'cursor-default')}
+      onClick={cardActionable ? () => onOpenDetail?.(skill) : undefined}
+      className={cn(
+        'group border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(246,247,244,0.9))] shadow-[0_18px_34px_rgba(15,23,42,0.06)]',
+        !cardActionable && 'cursor-default',
+      )}
     >
       <div
         className="absolute inset-x-0 top-0 h-px opacity-70 dark:opacity-100"
@@ -146,14 +157,7 @@ function SkillCard({
       <div className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-4">
-            <div
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[var(--border-default)] text-[var(--brand-primary)]"
-              style={{
-                background: 'linear-gradient(135deg, rgba(201,169,97,0.16) 0%, rgba(201,169,97,0.04) 100%)',
-              }}
-            >
-              <Brain className="h-5 w-5" />
-            </div>
+            <SkillGlyph skill={skill} className="h-12 w-12 shrink-0 rounded-[18px]" iconClassName="h-5 w-5" />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="line-clamp-2 text-[15px] font-medium leading-6 text-[var(--text-primary)]">
@@ -195,18 +199,32 @@ function SkillCard({
                 编辑
               </Button>
             ) : null}
-            <Button
-              disabled={isBundled || skill.installed || actionLoading}
-              onClick={(event) => {
-                event.stopPropagation();
-                onAction?.(skill);
-              }}
-              variant={buttonVariant}
-              size="sm"
-              className="shrink-0 disabled:opacity-100"
-            >
-              {buttonLabel}
-            </Button>
+            {showInstallCta ? (
+              <Button
+                disabled={isBundled || skill.installed || actionLoading}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onAction?.(skill);
+                }}
+                variant={buttonVariant}
+                size="sm"
+                className="shrink-0 disabled:opacity-100"
+              >
+                {buttonLabel}
+              </Button>
+            ) : (
+              <Button
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenDetail?.(skill);
+                }}
+                variant="success"
+                size="sm"
+                className="shrink-0"
+              >
+                已内置
+              </Button>
+            )}
           </div>
         </div>
 
@@ -234,7 +252,7 @@ function SkillCard({
             </Chip>
           ))}
         </div>
-        <span>{compactFooter ? '已收纳到我的技能' : isBundled ? '系统预置 · 开箱可用' : '云端安装 · 自动恢复'}</span>
+        <span>{compactFooter ? '点击查看详情' : isBundled ? '系统预置 · 点击查看详情' : '云端安装 · 点击查看详情'}</span>
       </div>
     </PressableCard>
   );
@@ -284,6 +302,7 @@ export function SkillStoreView({
   const [installErrorSlug, setInstallErrorSlug] = useState<string | null>(null);
   const [adminMode, setAdminMode] = useState(false);
   const [adminCapable, setAdminCapable] = useState(false);
+  const [selectedSkill, setSelectedSkill] = useState<SkillStoreItem | null>(null);
   const [selectedAdminSkill, setSelectedAdminSkill] = useState<AdminSkillStoreItem | null>(null);
   const [adminSaving, setAdminSaving] = useState(false);
   const [adminDeleting, setAdminDeleting] = useState(false);
@@ -296,6 +315,9 @@ export function SkillStoreView({
     const preferAdmin = Boolean(options?.preferAdmin);
     const catalog = await loadSkillStoreCatalog({ client, accessToken });
     setSkills(catalog);
+    if (selectedSkill) {
+      setSelectedSkill(catalog.find((item) => item.slug === selectedSkill.slug) || null);
+    }
     let nextAdminCatalog: AdminSkillStoreItem[] = [];
     let nextAdminCapable = adminRoleKnown;
     if (accessToken && (preferAdmin || adminRoleKnown || shouldProbeAdminAccess)) {
@@ -363,7 +385,7 @@ export function SkillStoreView({
           setError(message);
         },
       ),
-    [accessToken, adminMode, client, isAdmin, selectedAdminSkill],
+    [accessToken, adminMode, client, isAdmin, selectedAdminSkill, selectedSkill],
   );
 
   useEffect(() => {
@@ -373,6 +395,12 @@ export function SkillStoreView({
       setAdminError(null);
     }
   }, [adminMode, isAdmin]);
+
+  useEffect(() => {
+    if (adminMode && selectedSkill) {
+      setSelectedSkill(null);
+    }
+  }, [adminMode, selectedSkill]);
 
   useEffect(() => {
     if (!adminMode && selectedAdminSkill) {
@@ -580,8 +608,20 @@ export function SkillStoreView({
           </div>
 
           <div className="mt-5 grid gap-3 md:grid-cols-3">
-            <SummaryCard label="我的技能" value={`${installedCount}`} note="这里只统计你亲手安装到账号里的云端技能，不包含系统预置。" />
-            <SummaryCard label="研究分析" value={`${researchCount}`} note="研究、估值、财报、技术面等投研向能力可以统一管理与安装。" />
+            <SummaryCard
+              label="我的技能"
+              value={`${installedCount}`}
+              note="这里只统计你亲手安装到账号里的云端技能，不包含系统预置。"
+              icon={Sparkles}
+              tone="brand"
+            />
+            <SummaryCard
+              label="研究分析"
+              value={`${researchCount}`}
+              note="研究、估值、财报、技术面等投研向能力可以统一管理与安装。"
+              icon={LineChart}
+              tone="emerald"
+            />
             <SummaryCard
               label={adminMode ? '待整理' : '市场覆盖'}
               value={`${adminMode ? hiddenCount : marketCount}`}
@@ -590,6 +630,8 @@ export function SkillStoreView({
                   ? '隐藏或停用的技能也会被纳入超管视图，方便你直接清理和修正。'
                   : 'A股与美股相关技能会优先归类到市场标签中，便于检索。'
               }
+              icon={adminMode ? EyeOff : Globe2}
+              tone={adminMode ? 'violet' : 'sky'}
             />
           </div>
 
@@ -662,7 +704,7 @@ export function SkillStoreView({
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-                  <Sparkles className="h-4 w-4 text-[var(--brand-primary)]" />
+                  <SummaryGlyph icon={Sparkles} tone="brand" className="h-7 w-7 rounded-[12px]" iconClassName="h-3.5 w-3.5" />
                   我的技能
                 </div>
                 <h2 className="mt-2 text-xl font-medium text-[var(--text-primary)]">你已经安装的技能</h2>
@@ -718,6 +760,10 @@ export function SkillStoreView({
                 adminMode={adminMode}
                 actionLoading={installingSlug === skill.slug}
                 onAction={handleInstall}
+                onOpenDetail={(nextSkill) => {
+                  if (adminMode) return;
+                  setSelectedSkill(nextSkill);
+                }}
                 onEdit={(nextSkill) => {
                   if (!adminMode) return;
                   const adminSkill = adminSkills.find((item) => item.slug === nextSkill.slug);
@@ -732,6 +778,13 @@ export function SkillStoreView({
         )}
       </div>
 
+      <SkillStoreDetailSheet
+        skill={selectedSkill}
+        actionLoading={selectedSkill ? installingSlug === selectedSkill.slug : false}
+        installFailed={selectedSkill ? installErrorSlug === selectedSkill.slug : false}
+        onInstall={handleInstall}
+        onClose={() => setSelectedSkill(null)}
+      />
       <SkillStoreAdminSheet
         skill={selectedAdminSkill}
         saving={adminSaving}
