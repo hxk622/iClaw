@@ -132,6 +132,12 @@ OAuth：
 - `POST /auth/change-password`
 - `GET /auth/linked-accounts`
 
+技能目录管理（admin / super_admin）：
+
+- `GET /admin/skills/catalog`
+- `PUT /admin/skills/catalog`
+- `DELETE /admin/skills/catalog?slug=<slug>`
+
 usage 结算：
 
 - `usage/events` 现在以服务端按 token 数量计费为准，不再信任客户端传入的 `credit_cost`

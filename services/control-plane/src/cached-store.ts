@@ -9,6 +9,7 @@ import type {
   SessionTokenPair,
   SkillCatalogEntryRecord,
   SkillReleaseRecord,
+  UpsertSkillCatalogEntryInput,
   UsageEventInput,
   UsageEventResult,
   UserRole,
@@ -273,6 +274,42 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     );
   }
 
+  async listSkillCatalogAdmin(): Promise<SkillCatalogEntryRecord[]> {
+    return this.getOrLoadValue(this.adminSkillCatalogKey(), SKILL_CATALOG_CACHE_TTL_SECONDS, () =>
+      this.base.listSkillCatalogAdmin(),
+    );
+  }
+
+  async getSkillCatalogEntry(slug: string): Promise<SkillCatalogEntryRecord | null> {
+    return this.getOrLoad(this.skillCatalogEntryKey(slug), SKILL_CATALOG_CACHE_TTL_SECONDS, () =>
+      this.base.getSkillCatalogEntry(slug),
+    );
+  }
+
+  async upsertSkillCatalogEntry(input: Required<UpsertSkillCatalogEntryInput>): Promise<SkillCatalogEntryRecord> {
+    const record = await this.base.upsertSkillCatalogEntry(input);
+    await this.cache.delete(
+      this.skillCatalogKey(),
+      this.adminSkillCatalogKey(),
+      this.skillCatalogEntryKey(input.slug),
+      this.skillReleaseKey(input.slug),
+    );
+    return record;
+  }
+
+  async deleteSkillCatalogEntry(slug: string): Promise<boolean> {
+    const removed = await this.base.deleteSkillCatalogEntry(slug);
+    if (removed) {
+      await this.cache.delete(
+        this.skillCatalogKey(),
+        this.adminSkillCatalogKey(),
+        this.skillCatalogEntryKey(slug),
+        this.skillReleaseKey(slug),
+      );
+    }
+    return removed;
+  }
+
   async getSkillRelease(slug: string, version?: string): Promise<SkillReleaseRecord | null> {
     return this.getOrLoad(this.skillReleaseKey(slug, version), USER_CACHE_TTL_SECONDS, () =>
       this.base.getSkillRelease(slug, version),
@@ -385,6 +422,14 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
 
   private skillCatalogKey(): string {
     return 'skills:catalog';
+  }
+
+  private adminSkillCatalogKey(): string {
+    return 'skills:catalog:admin';
+  }
+
+  private skillCatalogEntryKey(slug: string): string {
+    return `skills:entry:${slug}`;
   }
 
   private skillReleaseKey(slug: string, version?: string): string {

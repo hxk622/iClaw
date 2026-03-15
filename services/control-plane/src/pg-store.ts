@@ -14,6 +14,7 @@ import type {
   SkillCatalogEntryRecord,
   SkillCatalogRecord,
   SkillReleaseRecord,
+  UpsertSkillCatalogEntryInput,
   UsageEventInput,
   UsageEventResult,
   UserRole,
@@ -102,6 +103,7 @@ type SkillCatalogRow = {
   publisher: string;
   distribution: 'bundled' | 'cloud';
   tags: unknown;
+  active: boolean;
   created_at: Date;
   updated_at: Date;
 };
@@ -186,6 +188,7 @@ function mapSkillCatalogRow(row: SkillCatalogRow): SkillCatalogRecord {
     publisher: row.publisher,
     distribution: row.distribution,
     tags: parseSkillTags(row.tags),
+    active: row.active,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -962,7 +965,50 @@ export class PgControlPlaneStore implements ControlPlaneStore {
   }
 
   async listSkillCatalog(): Promise<SkillCatalogEntryRecord[]> {
-    const catalogResult = await this.pool.query<SkillCatalogRow>(
+    return this.listSkillCatalogEntries(`
+      select
+        slug,
+        name,
+        description,
+        visibility,
+        market,
+        category,
+        skill_type,
+        publisher,
+        distribution,
+        tags,
+        active,
+        created_at,
+        updated_at
+      from skill_catalog_entries
+      where distribution = 'cloud' and active = true
+      order by name asc
+    `);
+  }
+
+  async listSkillCatalogAdmin(): Promise<SkillCatalogEntryRecord[]> {
+    return this.listSkillCatalogEntries(`
+      select
+        slug,
+        name,
+        description,
+        visibility,
+        market,
+        category,
+        skill_type,
+        publisher,
+        distribution,
+        tags,
+        active,
+        created_at,
+        updated_at
+      from skill_catalog_entries
+      order by name asc
+    `);
+  }
+
+  async getSkillCatalogEntry(slug: string): Promise<SkillCatalogEntryRecord | null> {
+    const items = await this.listSkillCatalogEntries(
       `
         select
           slug,
@@ -975,42 +1021,82 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           publisher,
           distribution,
           tags,
+          active,
           created_at,
           updated_at
         from skill_catalog_entries
-        where distribution = 'cloud' and active = true
-        order by name asc
+        where slug = $1
+        limit 1
       `,
+      [slug],
     );
+    return items[0] || null;
+  }
 
-    const releasesResult = await this.pool.query<SkillReleaseRow>(
+  async upsertSkillCatalogEntry(input: Required<UpsertSkillCatalogEntryInput>): Promise<SkillCatalogEntryRecord> {
+    await this.pool.query(
       `
-        select distinct on (skill_slug)
-          skill_slug,
-          version,
-          artifact_format,
-          artifact_url,
-          artifact_sha256,
-          artifact_source_path,
-          published_at,
-          created_at
-        from skill_releases
-        where status = 'published'
-        order by skill_slug, published_at desc, created_at desc
+        insert into skill_catalog_entries (
+          slug,
+          name,
+          description,
+          visibility,
+          market,
+          category,
+          skill_type,
+          publisher,
+          distribution,
+          tags,
+          active,
+          created_at,
+          updated_at
+        )
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, now(), now())
+        on conflict (slug)
+        do update set
+          name = excluded.name,
+          description = excluded.description,
+          visibility = excluded.visibility,
+          market = excluded.market,
+          category = excluded.category,
+          skill_type = excluded.skill_type,
+          publisher = excluded.publisher,
+          distribution = excluded.distribution,
+          tags = excluded.tags,
+          active = excluded.active,
+          updated_at = now()
       `,
+      [
+        input.slug,
+        input.name,
+        input.description,
+        input.visibility,
+        input.market,
+        input.category,
+        input.skill_type,
+        input.publisher,
+        input.distribution,
+        JSON.stringify(input.tags),
+        input.active,
+      ],
     );
 
-    const latestReleaseBySlug = new Map(
-      releasesResult.rows.map((row) => [row.skill_slug, mapSkillReleaseRow(row)]),
-    );
+    const record = await this.getSkillCatalogEntry(input.slug);
+    if (!record) {
+      throw new Error('SKILL_UPSERT_FAILED');
+    }
+    return record;
+  }
 
-    return catalogResult.rows.map((row) => {
-      const base = mapSkillCatalogRow(row);
-      return {
-        ...base,
-        latestRelease: latestReleaseBySlug.get(base.slug) || null,
-      };
-    });
+  async deleteSkillCatalogEntry(slug: string): Promise<boolean> {
+    const result = await this.pool.query(
+      `
+        delete from skill_catalog_entries
+        where slug = $1
+      `,
+      [slug],
+    );
+    return (result.rowCount || 0) > 0;
   }
 
   async getSkillRelease(slug: string, version?: string): Promise<SkillReleaseRecord | null> {
@@ -1103,6 +1189,39 @@ export class PgControlPlaneStore implements ControlPlaneStore {
 
   async close(): Promise<void> {
     await this.pool.end();
+  }
+
+  private async listSkillCatalogEntries(query: string, values: unknown[] = []): Promise<SkillCatalogEntryRecord[]> {
+    const catalogResult = await this.pool.query<SkillCatalogRow>(query, values);
+
+    const releasesResult = await this.pool.query<SkillReleaseRow>(
+      `
+        select distinct on (skill_slug)
+          skill_slug,
+          version,
+          artifact_format,
+          artifact_url,
+          artifact_sha256,
+          artifact_source_path,
+          published_at,
+          created_at
+        from skill_releases
+        where status = 'published'
+        order by skill_slug, published_at desc, created_at desc
+      `,
+    );
+
+    const latestReleaseBySlug = new Map(
+      releasesResult.rows.map((row) => [row.skill_slug, mapSkillReleaseRow(row)]),
+    );
+
+    return catalogResult.rows.map((row) => {
+      const base = mapSkillCatalogRow(row);
+      return {
+        ...base,
+        latestRelease: latestReleaseBySlug.get(base.slug) || null,
+      };
+    });
   }
 
   private async insertSession(

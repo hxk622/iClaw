@@ -176,3 +176,56 @@ test('configured super admin email is promoted during auth flows', async () => {
     assert.equal(current.role, 'super_admin');
   });
 });
+
+test('non-admin users cannot access admin skill catalog APIs', async () => {
+  const store = new InMemoryControlPlaneStore();
+  const service = new ControlPlaneService(store);
+  const registration = await service.register({
+    username: 'plain-user',
+    email: 'plain@example.com',
+    password: 'password123',
+    name: 'Plain User',
+  });
+
+  await assert.rejects(service.listAdminSkillCatalog(registration.tokens.access_token), (error: unknown) => {
+    assert.ok(error instanceof HttpError);
+    assert.equal(error.statusCode, 403);
+    return true;
+  });
+});
+
+test('super admin can update and remove cloud skill catalog entries', async () => {
+  await withBootstrapRoles({ superAdminEmails: ['515177265@qq.com'] }, async () => {
+    const store = new InMemoryControlPlaneStore();
+    const service = new ControlPlaneService(store);
+    const registration = await service.register({
+      username: 'skill-admin',
+      email: '515177265@qq.com',
+      password: 'password123',
+      name: 'Skill Admin',
+    });
+
+    const updated = await service.upsertAdminSkillCatalogEntry(registration.tokens.access_token, {
+      slug: 'a-share-esg',
+      category: 'screening',
+      tags: ['A股', 'ESG', '精选'],
+      active: false,
+    });
+    assert.equal(updated.category, 'screening');
+    assert.deepEqual(updated.tags, ['A股', 'ESG', '精选']);
+    assert.equal(updated.active, false);
+
+    const publicCatalog = await service.listSkillCatalog();
+    assert.equal(publicCatalog.items.some((item) => item.slug === 'a-share-esg'), false);
+
+    const adminCatalog = await service.listAdminSkillCatalog(registration.tokens.access_token);
+    const adminEntry = adminCatalog.items.find((item) => item.slug === 'a-share-esg');
+    assert.ok(adminEntry);
+    assert.equal(adminEntry?.active, false);
+
+    const removed = await service.deleteAdminSkillCatalogEntry(registration.tokens.access_token, 'a-share-esg');
+    assert.equal(removed.removed, true);
+    const afterDelete = await service.listAdminSkillCatalog(registration.tokens.access_token);
+    assert.equal(afterDelete.items.some((item) => item.slug === 'a-share-esg'), false);
+  });
+});

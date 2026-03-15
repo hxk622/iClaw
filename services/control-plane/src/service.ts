@@ -5,6 +5,7 @@ import {config} from './config.ts';
 import {randomBytes} from 'node:crypto';
 
 import type {
+  AdminSkillCatalogEntryView,
   ChangePasswordInput,
   CreditBalanceView,
   CreditLedgerItemView,
@@ -19,6 +20,7 @@ import type {
   SkillCatalogEntryView,
   SkillCatalogReleaseView,
   SkillReleaseRecord,
+  UpsertSkillCatalogEntryInput,
   UpdateSkillLibraryItemInput,
   UpdateProfileInput,
   UsageEventInput,
@@ -150,6 +152,79 @@ function normalizeSkillEnabled(value: unknown): boolean {
   return value;
 }
 
+function normalizeSkillVisibility(value: unknown, fallback?: 'showcase' | 'internal'): 'showcase' | 'internal' {
+  if (value === undefined) {
+    if (fallback) return fallback;
+    throw new HttpError(400, 'BAD_REQUEST', 'visibility is required');
+  }
+  if (value === 'showcase' || value === 'internal') {
+    return value;
+  }
+  throw new HttpError(400, 'BAD_REQUEST', 'visibility must be showcase or internal');
+}
+
+function normalizeSkillDistribution(value: unknown, fallback?: 'bundled' | 'cloud'): 'bundled' | 'cloud' {
+  if (value === undefined) {
+    if (fallback) return fallback;
+    throw new HttpError(400, 'BAD_REQUEST', 'distribution is required');
+  }
+  if (value === 'bundled' || value === 'cloud') {
+    return value;
+  }
+  throw new HttpError(400, 'BAD_REQUEST', 'distribution must be bundled or cloud');
+}
+
+function normalizeOptionalCatalogString(
+  value: unknown,
+  field: string,
+  options: {allowNull?: boolean; trimToNull?: boolean} = {},
+): string | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === null) {
+    if (options.allowNull) return null;
+    throw new HttpError(400, 'BAD_REQUEST', `${field} must be a string`);
+  }
+  if (typeof value !== 'string') {
+    throw new HttpError(400, 'BAD_REQUEST', `${field} must be a string`);
+  }
+  const normalized = value.trim();
+  if (!normalized) {
+    return options.trimToNull ? null : '';
+  }
+  return normalized;
+}
+
+function normalizeSkillTags(value: unknown, fallback?: string[]): string[] {
+  if (value === undefined) {
+    return fallback ? [...fallback] : [];
+  }
+  if (!Array.isArray(value)) {
+    throw new HttpError(400, 'BAD_REQUEST', 'tags must be an array of strings');
+  }
+  const deduped = new Set<string>();
+  for (const item of value) {
+    if (typeof item !== 'string') {
+      throw new HttpError(400, 'BAD_REQUEST', 'tags must be an array of strings');
+    }
+    const normalized = item.trim();
+    if (!normalized) continue;
+    deduped.add(normalized);
+  }
+  return Array.from(deduped);
+}
+
+function normalizeOptionalBoolean(value: unknown, field: string): boolean | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== 'boolean') {
+    throw new HttpError(400, 'BAD_REQUEST', `${field} must be a boolean`);
+  }
+  return value;
+}
+
 function toSkillCatalogReleaseView(record: SkillReleaseRecord | null, baseUrl?: string): SkillCatalogReleaseView | null {
   if (!record) {
     return null;
@@ -183,7 +258,7 @@ function toSkillCatalogEntryView(record: SkillCatalogEntryRecord, baseUrl?: stri
     skill_type: record.skillType,
     publisher: record.publisher,
     distribution: record.distribution,
-    source: 'cloud',
+    source: record.distribution,
     tags: record.tags,
     latest_release: toSkillCatalogReleaseView(record.latestRelease, baseUrl),
   };
@@ -201,6 +276,15 @@ function toUserSkillLibraryItemView(record: {
     version: record.version,
     enabled: record.enabled,
     installed_at: record.installedAt,
+    updated_at: record.updatedAt,
+  };
+}
+
+function toAdminSkillCatalogEntryView(record: SkillCatalogEntryRecord, baseUrl?: string): AdminSkillCatalogEntryView {
+  return {
+    ...toSkillCatalogEntryView(record, baseUrl),
+    active: record.active,
+    created_at: record.createdAt,
     updated_at: record.updatedAt,
   };
 }
@@ -509,6 +593,100 @@ export class ControlPlaneService {
     };
   }
 
+  async listAdminSkillCatalog(
+    accessToken: string,
+    baseUrl?: string,
+  ): Promise<{items: AdminSkillCatalogEntryView[]}> {
+    await this.requireAdminUser(accessToken);
+    const items = await this.store.listSkillCatalogAdmin();
+    return {
+      items: items.map((item) => toAdminSkillCatalogEntryView(item, baseUrl)),
+    };
+  }
+
+  async upsertAdminSkillCatalogEntry(
+    accessToken: string,
+    input: UpsertSkillCatalogEntryInput,
+    baseUrl?: string,
+  ): Promise<AdminSkillCatalogEntryView> {
+    await this.requireAdminUser(accessToken);
+    const slug = normalizeSkillSlug(input.slug);
+    const existing = await this.store.getSkillCatalogEntry(slug);
+
+    const nameCandidate = normalizeOptionalCatalogString(input.name, 'name');
+    const descriptionCandidate = normalizeOptionalCatalogString(input.description, 'description');
+    const publisherCandidate = normalizeOptionalCatalogString(input.publisher, 'publisher');
+    const marketCandidate = normalizeOptionalCatalogString(input.market, 'market', {allowNull: true, trimToNull: true});
+    const categoryCandidate = normalizeOptionalCatalogString(input.category, 'category', {
+      allowNull: true,
+      trimToNull: true,
+    });
+    const skillTypeCandidate = normalizeOptionalCatalogString(input.skill_type, 'skill_type', {
+      allowNull: true,
+      trimToNull: true,
+    });
+
+    const name = (nameCandidate === undefined ? (existing?.name ?? '') : (nameCandidate || '')).trim();
+    const description = (
+      descriptionCandidate === undefined ? (existing?.description ?? '') : (descriptionCandidate || '')
+    ).trim();
+    const publisher = (
+      publisherCandidate === undefined ? (existing?.publisher ?? '') : (publisherCandidate || '')
+    ).trim();
+    const visibility = normalizeSkillVisibility(input.visibility, existing?.visibility || 'showcase');
+    const distribution = normalizeSkillDistribution(input.distribution, existing?.distribution || 'cloud');
+    const tags = normalizeSkillTags(input.tags, existing?.tags || []);
+    const active = normalizeOptionalBoolean(input.active, 'active') ?? existing?.active ?? true;
+    const market = marketCandidate === undefined ? (existing?.market ?? null) : marketCandidate;
+    const category = categoryCandidate === undefined ? (existing?.category ?? null) : categoryCandidate;
+    const skillType = skillTypeCandidate === undefined ? (existing?.skillType ?? null) : skillTypeCandidate;
+
+    if (!name) {
+      throw new HttpError(400, 'BAD_REQUEST', 'name is required');
+    }
+    if (!description) {
+      throw new HttpError(400, 'BAD_REQUEST', 'description is required');
+    }
+    if (!publisher) {
+      throw new HttpError(400, 'BAD_REQUEST', 'publisher is required');
+    }
+
+    if (existing?.distribution === 'bundled' && distribution !== 'bundled') {
+      throw new HttpError(400, 'BAD_REQUEST', 'bundled skill distribution cannot be changed');
+    }
+
+    const record = await this.store.upsertSkillCatalogEntry({
+      slug,
+      name,
+      description,
+      visibility,
+      market,
+      category,
+      skill_type: skillType,
+      publisher,
+      distribution,
+      tags,
+      active,
+    });
+
+    return toAdminSkillCatalogEntryView(record, baseUrl);
+  }
+
+  async deleteAdminSkillCatalogEntry(accessToken: string, slugInput: string): Promise<{removed: boolean}> {
+    await this.requireAdminUser(accessToken);
+    const slug = normalizeSkillSlug(slugInput);
+    const entry = await this.store.getSkillCatalogEntry(slug);
+    if (!entry) {
+      return {removed: false};
+    }
+    if (entry.distribution === 'bundled') {
+      throw new HttpError(400, 'BAD_REQUEST', 'bundled skills cannot be deleted');
+    }
+    return {
+      removed: await this.store.deleteSkillCatalogEntry(slug),
+    };
+  }
+
   async listUserSkillLibrary(accessToken: string): Promise<{items: UserSkillLibraryItemView[]}> {
     const user = await this.getUserForAccessToken(accessToken);
     const items = await this.store.listUserSkillLibrary(user.id);
@@ -794,6 +972,14 @@ export class ControlPlaneService {
     }
     const updated = await this.store.updateUserRole(user.id, targetRole);
     return updated || user;
+  }
+
+  private async requireAdminUser(accessToken: string): Promise<UserRecord> {
+    const user = await this.getUserForAccessToken(accessToken);
+    if (rolePriority(user.role) < rolePriority('admin')) {
+      throw new HttpError(403, 'FORBIDDEN', 'admin access required');
+    }
+    return user;
   }
 
   private async createOAuthUser(profile: {

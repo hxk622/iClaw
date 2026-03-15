@@ -11,6 +11,7 @@ import type {
   SessionTokenPair,
   SkillCatalogEntryRecord,
   SkillReleaseRecord,
+  UpsertSkillCatalogEntryInput,
   UsageEventInput,
   UsageEventResult,
   UserRole,
@@ -64,6 +65,10 @@ export interface ControlPlaneStore {
   getWorkspaceBackup(userId: string): Promise<WorkspaceBackupRecord | null>;
   saveWorkspaceBackup(userId: string, input: WorkspaceBackupInput): Promise<WorkspaceBackupRecord>;
   listSkillCatalog(): Promise<SkillCatalogEntryRecord[]>;
+  listSkillCatalogAdmin(): Promise<SkillCatalogEntryRecord[]>;
+  getSkillCatalogEntry(slug: string): Promise<SkillCatalogEntryRecord | null>;
+  upsertSkillCatalogEntry(input: Required<UpsertSkillCatalogEntryInput>): Promise<SkillCatalogEntryRecord>;
+  deleteSkillCatalogEntry(slug: string): Promise<boolean>;
   getSkillRelease(slug: string, version?: string): Promise<SkillReleaseRecord | null>;
   listUserSkillLibrary(userId: string): Promise<UserSkillLibraryRecord[]>;
   installUserSkill(userId: string, input: Required<InstallSkillInput>): Promise<UserSkillLibraryRecord>;
@@ -103,6 +108,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
         publisher: 'iClaw',
         distribution: 'cloud',
         tags: ['A股', 'ESG', '筛选'],
+        active: true,
         createdAt: now,
         updatedAt: now,
         latestRelease: {
@@ -127,6 +133,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
         publisher: 'iClaw',
         distribution: 'cloud',
         tags: ['美股', '量化', '因子'],
+        active: true,
         createdAt: now,
         updatedAt: now,
         latestRelease: {
@@ -426,7 +433,42 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   }
 
   async listSkillCatalog(): Promise<SkillCatalogEntryRecord[]> {
-    return Array.from(this.skillCatalog.values());
+    return Array.from(this.skillCatalog.values()).filter((item) => item.distribution === 'cloud' && item.active);
+  }
+
+  async listSkillCatalogAdmin(): Promise<SkillCatalogEntryRecord[]> {
+    return Array.from(this.skillCatalog.values()).sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  async getSkillCatalogEntry(slug: string): Promise<SkillCatalogEntryRecord | null> {
+    return this.skillCatalog.get(slug) || null;
+  }
+
+  async upsertSkillCatalogEntry(input: Required<UpsertSkillCatalogEntryInput>): Promise<SkillCatalogEntryRecord> {
+    const now = new Date().toISOString();
+    const existing = this.skillCatalog.get(input.slug);
+    const next: SkillCatalogEntryRecord = {
+      slug: input.slug,
+      name: input.name,
+      description: input.description,
+      visibility: input.visibility,
+      market: input.market,
+      category: input.category,
+      skillType: input.skill_type,
+      publisher: input.publisher,
+      distribution: input.distribution,
+      tags: input.tags,
+      active: input.active,
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+      latestRelease: existing?.latestRelease || null,
+    };
+    this.skillCatalog.set(input.slug, next);
+    return next;
+  }
+
+  async deleteSkillCatalogEntry(slug: string): Promise<boolean> {
+    return this.skillCatalog.delete(slug);
   }
 
   async getSkillRelease(slug: string, version?: string): Promise<SkillReleaseRecord | null> {

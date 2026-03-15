@@ -151,6 +151,7 @@ export type SkillCatalogRecord = {
   publisher: string;
   distribution: SkillDistribution;
   tags: string[];
+  active: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -198,7 +199,7 @@ export type SkillCatalogEntryView = {
   skill_type: string | null;
   publisher: string;
   distribution: SkillDistribution;
-  source: 'cloud';
+  source: SkillDistribution;
   tags: string[];
   latest_release: SkillCatalogReleaseView | null;
 };
@@ -208,6 +209,12 @@ export type UserSkillLibraryItemView = {
   version: string;
   enabled: boolean;
   installed_at: string;
+  updated_at: string;
+};
+
+export type AdminSkillCatalogEntryView = SkillCatalogEntryView & {
+  active: boolean;
+  created_at: string;
   updated_at: string;
 };
 
@@ -270,4 +277,18 @@ export type InstallSkillInput = {
 export type UpdateSkillLibraryItemInput = {
   slug?: string;
   enabled?: boolean;
+};
+
+export type UpsertSkillCatalogEntryInput = {
+  slug?: string;
+  name?: string;
+  description?: string;
+  visibility?: 'showcase' | 'internal';
+  market?: string | null;
+  category?: string | null;
+  skill_type?: string | null;
+  publisher?: string;
+  distribution?: SkillDistribution;
+  tags?: string[];
+  active?: boolean;
 };
