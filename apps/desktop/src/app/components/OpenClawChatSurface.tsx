@@ -169,6 +169,32 @@ export function OpenClawChatSurface({
     selection.removeAllRanges();
   }, []);
 
+  const scrollChatViewportToBottom = useCallback((smooth = false) => {
+    const app = appRef.current;
+    const host = hostRef.current;
+    const behavior: ScrollBehavior = smooth ? 'smooth' : 'auto';
+
+    app?.scrollToBottom({ smooth });
+
+    const thread = host?.querySelector<HTMLElement>('.chat-thread');
+    const chat = host?.querySelector<HTMLElement>('.chat');
+    const content = host?.querySelector<HTMLElement>('.content.content--chat');
+    const lastGroup = thread?.querySelector<HTMLElement>('.chat-group:last-child');
+
+    content?.scrollTo({ top: content.scrollHeight, behavior });
+    chat?.scrollTo({ top: chat.scrollHeight, behavior });
+    thread?.scrollTo({ top: thread.scrollHeight, behavior });
+    lastGroup?.scrollIntoView({ block: 'end', behavior });
+  }, []);
+
+  const scheduleScrollRecovery = useCallback((delays: number[]) => {
+    delays.forEach((delay) => {
+      window.setTimeout(() => {
+        scrollChatViewportToBottom(delay > 0);
+      }, delay);
+    });
+  }, [scrollChatViewportToBottom]);
+
   const reconcileChatHistory = useCallback(async (options?: ReconcileChatHistoryOptions) => {
     const app = appRef.current;
     if (!app?.client || !app.connected) {
@@ -353,7 +379,7 @@ export function OpenClawChatSurface({
       if (wasBusy && !nextStatus.busy && nextStatus.connected) {
         busyHistoryHealKeyRef.current = null;
         void reconcileChatHistory().then(() => {
-          app.scrollToBottom({ smooth: true });
+          scheduleScrollRecovery([0, 120, 320, 900]);
         });
       }
 
@@ -381,13 +407,11 @@ export function OpenClawChatSurface({
           busyHistoryHealKeyRef.current = busyHealKey;
           busyHistoryHealAtRef.current = now;
           void reconcileChatHistory({ preserveStream: true }).then(() => {
-            app.scrollToBottom();
-            window.setTimeout(() => app.scrollToBottom({ smooth: true }), 120);
+            scheduleScrollRecovery([0, 120, 320, 900]);
           });
         } else if (!hasVisibleGroup && now - visualHealAtRef.current > 900) {
           visualHealAtRef.current = now;
-          app.scrollToBottom();
-          window.setTimeout(() => app.scrollToBottom({ smooth: true }), 120);
+          scheduleScrollRecovery([0, 120, 320]);
         }
       }
 
@@ -403,8 +427,7 @@ export function OpenClawChatSurface({
         if (!hasVisibleGroup && now - visualHealAtRef.current > 2500) {
           visualHealAtRef.current = now;
           void reconcileChatHistory().then(() => {
-            app.scrollToBottom();
-            window.setTimeout(() => app.scrollToBottom({ smooth: true }), 180);
+            scheduleScrollRecovery([0, 180, 520]);
           });
         }
       }
@@ -423,14 +446,14 @@ export function OpenClawChatSurface({
     const delays = [0, 180, 700, 1500];
     const timers = delays.map((delay) =>
       window.setTimeout(() => {
-        app.scrollToBottom({ smooth: delay > 0 });
+        scrollChatViewportToBottom(delay > 0);
       }, delay),
     );
 
     return () => {
       timers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, [status.connected]);
+  }, [scrollChatViewportToBottom, status.connected]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -515,11 +538,9 @@ export function OpenClawChatSurface({
     app.chatAttachments = payload.imageAttachments;
     await app.handleSendChat();
     void reconcileChatHistory({ preserveStream: true });
-    app.scrollToBottom();
-    window.setTimeout(() => app.scrollToBottom({ smooth: true }), 180);
-    window.setTimeout(() => app.scrollToBottom({ smooth: true }), 900);
+    scheduleScrollRecovery([0, 120, 320, 900, 1600]);
     return true;
-  }, [reconcileChatHistory]);
+  }, [reconcileChatHistory, scheduleScrollRecovery]);
 
   const handleAbort = useCallback(async () => {
     await appRef.current?.handleAbortChat();
