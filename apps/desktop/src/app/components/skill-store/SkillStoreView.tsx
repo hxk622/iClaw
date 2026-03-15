@@ -247,24 +247,34 @@ export function SkillStoreView({
   const [error, setError] = useState<string | null>(null);
   const [installingSlug, setInstallingSlug] = useState<string | null>(null);
   const [adminMode, setAdminMode] = useState(false);
+  const [adminCapable, setAdminCapable] = useState(false);
   const [selectedAdminSkill, setSelectedAdminSkill] = useState<AdminSkillStoreItem | null>(null);
   const [adminSaving, setAdminSaving] = useState(false);
   const [adminDeleting, setAdminDeleting] = useState(false);
   const [adminError, setAdminError] = useState<string | null>(null);
-  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+  const adminRoleKnown = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+  const shouldProbeAdminAccess = Boolean(accessToken) && !adminRoleKnown && currentUser?.role == null;
+  const isAdmin = adminRoleKnown || adminCapable;
 
   const refreshCatalog = async (options?: {preferAdmin?: boolean}) => {
     const preferAdmin = Boolean(options?.preferAdmin);
     const catalog = await loadSkillStoreCatalog({ client, accessToken });
     setSkills(catalog);
     let nextAdminCatalog: AdminSkillStoreItem[] = [];
-    if (preferAdmin && isAdmin && accessToken) {
-      nextAdminCatalog = await loadAdminSkillStoreCatalog({ client, accessToken });
-      setAdminSkills(nextAdminCatalog);
-      if (selectedAdminSkill) {
-        setSelectedAdminSkill(nextAdminCatalog.find((item) => item.slug === selectedAdminSkill.slug) || null);
+    let nextAdminCapable = adminRoleKnown;
+    if (accessToken && (preferAdmin || adminRoleKnown || shouldProbeAdminAccess)) {
+      try {
+        nextAdminCatalog = await loadAdminSkillStoreCatalog({ client, accessToken });
+        nextAdminCapable = true;
+        if (selectedAdminSkill) {
+          setSelectedAdminSkill(nextAdminCatalog.find((item) => item.slug === selectedAdminSkill.slug) || null);
+        }
+      } catch {
+        nextAdminCapable = false;
       }
     }
+    setAdminSkills(nextAdminCatalog);
+    setAdminCapable(nextAdminCapable);
     setError(null);
     return { catalog, adminCatalog: nextAdminCatalog };
   };
@@ -275,13 +285,18 @@ export function SkillStoreView({
     const load = async () => {
       setLoading(true);
       try {
-        const [catalog, nextAdminCatalog] = await Promise.all([
-          loadSkillStoreCatalog({ client, accessToken }),
-          isAdmin && accessToken ? loadAdminSkillStoreCatalog({ client, accessToken }).catch(() => []) : Promise.resolve([]),
-        ]);
+        const catalogPromise = loadSkillStoreCatalog({ client, accessToken });
+        const adminCatalogPromise =
+          accessToken && (adminRoleKnown || shouldProbeAdminAccess)
+            ? loadAdminSkillStoreCatalog({ client, accessToken })
+                .then((items) => ({ items, capable: true }))
+                .catch(() => ({ items: [] as AdminSkillStoreItem[], capable: false }))
+            : Promise.resolve({ items: [] as AdminSkillStoreItem[], capable: adminRoleKnown });
+        const [catalog, adminResult] = await Promise.all([catalogPromise, adminCatalogPromise]);
         if (!cancelled) {
           setSkills(catalog);
-          setAdminSkills(nextAdminCatalog);
+          setAdminSkills(adminResult.items);
+          setAdminCapable(adminResult.capable);
           setError(null);
         }
       } catch (nextError) {
@@ -299,7 +314,7 @@ export function SkillStoreView({
     return () => {
       cancelled = true;
     };
-  }, [accessToken, client, isAdmin]);
+  }, [accessToken, adminRoleKnown, client, shouldProbeAdminAccess]);
 
   useEffect(
     () =>
@@ -412,7 +427,7 @@ export function SkillStoreView({
   const filteredSkills = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return visibleSkills.filter((skill) => {
-      if (activeTab === 'myskills' && !skill.installed) {
+      if (activeTab === 'myskills' && !skill.userInstalled) {
         return false;
       }
       if (!matchesCategory(skill, activeCategory)) {
@@ -429,7 +444,7 @@ export function SkillStoreView({
     });
   }, [activeCategory, activeTab, searchQuery, visibleSkills]);
 
-  const installedCount = useMemo(() => skills.filter((skill) => skill.installed).length, [skills]);
+  const installedCount = useMemo(() => skills.filter((skill) => skill.userInstalled).length, [skills]);
   const researchCount = useMemo(() => visibleSkills.filter((skill) => skill.categoryId === 'research').length, [visibleSkills]);
   const marketCount = useMemo(
     () => visibleSkills.filter((skill) => skill.market === 'A股' || skill.market === '美股').length,
@@ -526,7 +541,7 @@ export function SkillStoreView({
           </div>
 
           <div className="mt-5 grid gap-3 md:grid-cols-3">
-            <SummaryCard label="我的技能" value={`${installedCount}`} note="系统预置与已安装云端技能会统一收纳到一个列表中。" />
+            <SummaryCard label="我的技能" value={`${installedCount}`} note="这里只统计你亲手安装到账号里的云端技能，不包含系统预置。" />
             <SummaryCard label="研究分析" value={`${researchCount}`} note="研究、估值、财报、技术面等投研向能力可以统一管理与安装。" />
             <SummaryCard
               label={adminMode ? '待整理' : '市场覆盖'}
@@ -606,7 +621,7 @@ export function SkillStoreView({
                 </div>
                 <h2 className="mt-2 text-xl font-medium text-[var(--text-primary)]">你已经安装的技能</h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
-                  这里会聚合系统预置技能，以及你登录后安装并同步回当前设备的云端技能。
+                  这里只显示你登录后亲手安装的云端技能。系统预置技能会继续留在技能库里，不会混进这里。
                 </p>
               </div>
               <div className="rounded-[22px] bg-[var(--bg-hover)] px-4 py-3 text-right">

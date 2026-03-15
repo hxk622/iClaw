@@ -66,6 +66,8 @@ export type SkillStoreItem = {
   categoryLabel: string;
   official: boolean;
   installed: boolean;
+  userInstalled: boolean;
+  localInstalled: boolean;
   enabled: boolean;
   sourceLabel: string;
   publisher: string;
@@ -218,6 +220,8 @@ function normalizeBundledSkill(item: RawBundledSkillCatalogItem): SkillStoreItem
     categoryLabel: categoryLabel(categoryId, market),
     official: true,
     installed: true,
+    userInstalled: false,
+    localInstalled: true,
     enabled: true,
     sourceLabel: '系统预置',
     publisher: item.publisher || 'iClaw',
@@ -234,7 +238,9 @@ function normalizeCloudSkill(
   const inferredCategoryId = inferCategoryId(item);
   const categoryId =
     market === 'A股' ? 'a-share' : market === '美股' ? 'us-stock' : inferredCategoryId;
-  const installed = Boolean(libraryItem || localItem);
+  const userInstalled = Boolean(libraryItem);
+  const localInstalled = Boolean(localItem);
+  const installed = userInstalled || localInstalled;
   const enabled = libraryItem?.enabled ?? installed;
 
   return {
@@ -250,6 +256,8 @@ function normalizeCloudSkill(
     categoryLabel: categoryLabel(categoryId, market),
     official: normalizeText(item.publisher) === 'iclaw',
     installed,
+    userInstalled,
+    localInstalled,
     enabled,
     sourceLabel: '云端技能',
     publisher: item.publisher,
@@ -353,8 +361,18 @@ export async function loadSkillStoreCatalog(input: {
   const cloudItems = cloudCatalog
     .map((item) => normalizeCloudSkill(item, libraryBySlug.get(item.slug) || null, localBySlug.get(item.slug) || null))
     .filter((item) => item.visibility === 'showcase');
+  const merged = new Map<string, SkillStoreItem>();
 
-  return [...bundledItems, ...cloudItems].sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
+  for (const item of bundledItems) {
+    merged.set(item.slug, item);
+  }
+  for (const item of cloudItems) {
+    if (!merged.has(item.slug)) {
+      merged.set(item.slug, item);
+    }
+  }
+
+  return Array.from(merged.values()).sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
 }
 
 export async function loadAdminSkillStoreCatalog(input: {
