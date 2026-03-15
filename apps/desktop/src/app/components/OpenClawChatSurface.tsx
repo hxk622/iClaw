@@ -126,7 +126,6 @@ export function OpenClawChatSurface({
   sessionKey = 'main',
   user,
 }: OpenClawChatSurfaceProps) {
-  const shellRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const appRef = useRef<OpenClawAppElement | null>(null);
   const composerRef = useRef<RichChatComposerHandle | null>(null);
@@ -253,44 +252,6 @@ export function OpenClawChatSurface({
     host.dataset.hasUserAvatar = 'true';
     host.style.setProperty('--iclaw-user-avatar-image', `url("${userAvatarUrl}")`);
   }, [user?.avatar, user?.avatarUrl, user?.avatar_url, user?.display_name, user?.email, user?.name, user?.nickname, user?.username]);
-
-  useEffect(() => {
-    const shell = shellRef.current;
-    if (!shell) {
-      return;
-    }
-
-    const updateComposerHeight = () => {
-      const composer = shell.querySelector('.iclaw-composer') as HTMLElement | null;
-      const thread = shell.querySelector('.openclaw-chat-surface .chat-thread') as HTMLElement | null;
-      const composerHeight = composer?.getBoundingClientRect().height ?? 0;
-      const overlap =
-        composer && thread
-          ? Math.max(0, thread.getBoundingClientRect().bottom - composer.getBoundingClientRect().top)
-          : 0;
-      shell.style.setProperty('--iclaw-composer-height', `${Math.ceil(composerHeight)}px`);
-      shell.style.setProperty('--iclaw-thread-bottom-gap', `${Math.ceil(overlap + 24)}px`);
-    };
-
-    updateComposerHeight();
-    const observer = new ResizeObserver(() => {
-      updateComposerHeight();
-    });
-    const composer = shell.querySelector('.iclaw-composer');
-    const thread = shell.querySelector('.openclaw-chat-surface .chat-thread');
-    if (composer) {
-      observer.observe(composer);
-    }
-    if (thread) {
-      observer.observe(thread);
-    }
-    window.addEventListener('resize', updateComposerHeight);
-
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('resize', updateComposerHeight);
-    };
-  }, [status.connected, status.busy]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -473,8 +434,8 @@ export function OpenClawChatSurface({
       : null;
 
   return (
-    <div ref={shellRef} className="openclaw-chat-surface-shell h-full flex-1 overflow-hidden">
-      <div ref={hostRef} className="openclaw-chat-surface h-full flex-1 overflow-hidden" />
+    <div className="openclaw-chat-surface-shell h-full flex-1 overflow-hidden">
+      <div ref={hostRef} className="openclaw-chat-surface h-full min-h-0 flex-1 overflow-hidden" />
 
       {!status.connected ? (
         <div className="iclaw-chat-state-card" role="status" aria-live="polite">

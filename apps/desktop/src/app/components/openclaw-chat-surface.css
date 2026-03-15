@@ -223,7 +223,7 @@ body {
 .openclaw-chat-surface .chat-thread {
   width: min(900px, calc(100% - 64px));
   margin: 0 auto;
-  padding: 24px 0 var(--iclaw-thread-bottom-gap);
+  padding: 24px 0 24px;
   border-radius: 0;
   background: transparent;
   scrollbar-width: none;
@@ -434,7 +434,8 @@ body {
   border-radius: 8px;
 }
 
-.openclaw-chat-surface .chat-compose {
+.openclaw-chat-surface .chat-compose,
+.openclaw-chat-surface .agent-chat__input {
   display: none !important;
 }
 
@@ -451,9 +452,10 @@ body {
 }
 
 .openclaw-chat-surface-shell {
-  --iclaw-composer-height: 170px;
-  --iclaw-thread-bottom-gap: 96px;
   position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   background: var(--bg-page);
 }
 
@@ -498,7 +500,7 @@ body {
 .iclaw-chat-status-banner {
   position: absolute;
   right: 0;
-  bottom: calc(var(--iclaw-composer-height) - 14px);
+  bottom: 24px;
   left: 0;
   z-index: 25;
   width: min(900px, calc(100% - 64px));
@@ -518,13 +520,11 @@ body {
 }
 
 .iclaw-composer {
-  position: absolute;
-  right: 0;
-  bottom: 18px;
-  left: 0;
+  position: relative;
   z-index: 30;
+  flex: 0 0 auto;
   width: min(900px, calc(100% - 64px));
-  margin: 0 auto;
+  margin: 0 auto 18px;
 }
 
 .iclaw-chat-selection-menu {
