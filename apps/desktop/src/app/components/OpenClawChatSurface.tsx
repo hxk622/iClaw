@@ -78,6 +78,10 @@ type ChatSurfaceStatus = {
   lastError: string | null;
 };
 
+type ReconcileChatHistoryOptions = {
+  preserveStream?: boolean;
+};
+
 type SelectionMenuState = {
   x: number;
   y: number;
@@ -143,11 +147,14 @@ export function OpenClawChatSurface({
   const previousBusyRef = useRef(false);
   const historyReloadInFlightRef = useRef<Promise<void> | null>(null);
   const visualHealAtRef = useRef(0);
+  const busyHistoryHealAtRef = useRef(0);
+  const busyHistoryHealKeyRef = useRef<string | null>(null);
   const [status, setStatus] = useState<ChatSurfaceStatus>({
     busy: false,
     connected: false,
     lastError: null,
   });
+  const [showConnectionCard, setShowConnectionCard] = useState(false);
   const [selectionMenu, setSelectionMenu] = useState<SelectionMenuState | null>(null);
 
   const closeSelectionMenu = useCallback(() => {
@@ -162,7 +169,7 @@ export function OpenClawChatSurface({
     selection.removeAllRanges();
   }, []);
 
-  const reconcileChatHistory = useCallback(async () => {
+  const reconcileChatHistory = useCallback(async (options?: ReconcileChatHistoryOptions) => {
     const app = appRef.current;
     if (!app?.client || !app.connected) {
       return;
@@ -173,6 +180,7 @@ export function OpenClawChatSurface({
 
     const task = (async () => {
       try {
+        const preservedStream = options?.preserveStream ? app.chatStream ?? null : null;
         const response = await app.client!.request<{
           messages?: unknown[];
           thinkingLevel?: string | null;
@@ -182,7 +190,7 @@ export function OpenClawChatSurface({
         });
         app.chatMessages = Array.isArray(response?.messages) ? response.messages : [];
         app.chatThinkingLevel = response?.thinkingLevel ?? null;
-        app.chatStream = null;
+        app.chatStream = options?.preserveStream ? preservedStream : null;
         app.requestUpdate?.();
         await app.updateComplete;
       } catch (error) {
@@ -199,6 +207,24 @@ export function OpenClawChatSurface({
     historyReloadInFlightRef.current = task;
     return task;
   }, []);
+
+  useEffect(() => {
+    if (status.connected) {
+      setShowConnectionCard(false);
+      return;
+    }
+
+    if (status.lastError) {
+      setShowConnectionCard(true);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setShowConnectionCard(true);
+    }, 320);
+
+    return () => window.clearTimeout(timer);
+  }, [status.connected, status.lastError]);
 
   const resolveChatSelection = useCallback((): { text: string; label: string } | null => {
     const host = hostRef.current;
@@ -325,9 +351,44 @@ export function OpenClawChatSurface({
       const wasBusy = previousBusyRef.current;
       previousBusyRef.current = nextStatus.busy;
       if (wasBusy && !nextStatus.busy && nextStatus.connected) {
+        busyHistoryHealKeyRef.current = null;
         void reconcileChatHistory().then(() => {
           app.scrollToBottom({ smooth: true });
         });
+      }
+
+      const thread = host?.querySelector<HTMLElement>('.chat-thread') ?? null;
+      const groups = thread ? Array.from(thread.querySelectorAll<HTMLElement>('.chat-group')) : [];
+      const threadRect = thread?.getBoundingClientRect();
+      const hasVisibleGroup = Boolean(
+        thread &&
+          threadRect &&
+          groups.some((group) => {
+            const rect = group.getBoundingClientRect();
+            return rect.bottom > threadRect.top + 12 && rect.top < threadRect.bottom - 12;
+          }),
+      );
+
+      if (host && nextStatus.connected && nextStatus.busy) {
+        const now = Date.now();
+        const busyHealKey = app.chatRunId ?? '__sending__';
+        const shouldRefreshHistory =
+          !historyReloadInFlightRef.current &&
+          (busyHistoryHealKeyRef.current !== busyHealKey ||
+            (!hasVisibleGroup && now - busyHistoryHealAtRef.current > 1800));
+
+        if (shouldRefreshHistory) {
+          busyHistoryHealKeyRef.current = busyHealKey;
+          busyHistoryHealAtRef.current = now;
+          void reconcileChatHistory({ preserveStream: true }).then(() => {
+            app.scrollToBottom();
+            window.setTimeout(() => app.scrollToBottom({ smooth: true }), 120);
+          });
+        } else if (!hasVisibleGroup && now - visualHealAtRef.current > 900) {
+          visualHealAtRef.current = now;
+          app.scrollToBottom();
+          window.setTimeout(() => app.scrollToBottom({ smooth: true }), 120);
+        }
       }
 
       if (
@@ -338,17 +399,6 @@ export function OpenClawChatSurface({
         app.chatMessages.length > 0 &&
         !historyReloadInFlightRef.current
       ) {
-        const thread = host.querySelector<HTMLElement>('.chat-thread');
-        const groups = thread ? Array.from(thread.querySelectorAll<HTMLElement>('.chat-group')) : [];
-        const threadRect = thread?.getBoundingClientRect();
-        const hasVisibleGroup = Boolean(
-          thread &&
-            threadRect &&
-            groups.some((group) => {
-              const rect = group.getBoundingClientRect();
-              return rect.bottom > threadRect.top + 12 && rect.top < threadRect.bottom - 12;
-            }),
-        );
         const now = Date.now();
         if (!hasVisibleGroup && now - visualHealAtRef.current > 2500) {
           visualHealAtRef.current = now;
@@ -464,11 +514,12 @@ export function OpenClawChatSurface({
     app.chatMessage = payload.prompt;
     app.chatAttachments = payload.imageAttachments;
     await app.handleSendChat();
+    void reconcileChatHistory({ preserveStream: true });
     app.scrollToBottom();
     window.setTimeout(() => app.scrollToBottom({ smooth: true }), 180);
     window.setTimeout(() => app.scrollToBottom({ smooth: true }), 900);
     return true;
-  }, []);
+  }, [reconcileChatHistory]);
 
   const handleAbort = useCallback(async () => {
     await appRef.current?.handleAbortChat();
@@ -524,7 +575,7 @@ export function OpenClawChatSurface({
     <div className="openclaw-chat-surface-shell h-full flex-1 overflow-hidden">
       <div ref={hostRef} className="openclaw-chat-surface h-full min-h-0 flex-1 overflow-hidden" />
 
-      {!status.connected ? (
+      {!status.connected && showConnectionCard ? (
         <div className="iclaw-chat-state-card" role="status" aria-live="polite">
           <div className="iclaw-chat-state-card__eyebrow">
             {status.lastError ? '连接失败' : '正在建立连接'}
