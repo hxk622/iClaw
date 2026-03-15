@@ -4,12 +4,18 @@ import { cn } from '@/app/lib/cn';
 type ChipTone = 'muted' | 'outline' | 'brand' | 'success' | 'warning' | 'danger';
 
 const CHIP_TONE_CLASSES: Record<ChipTone, string> = {
-  muted: 'bg-[var(--bg-hover)] text-[var(--text-secondary)]',
-  outline: 'border border-[var(--border-default)] text-[var(--text-muted)]',
-  brand: 'bg-[rgba(201,169,97,0.14)] text-[var(--brand-primary)]',
-  success: 'border border-[rgba(34,197,94,0.18)] bg-[rgba(34,197,94,0.10)] text-[var(--state-success)]',
-  warning: 'border border-[rgba(245,158,11,0.2)] bg-[rgba(245,158,11,0.12)] text-[rgb(180,100,24)]',
-  danger: 'border border-[rgba(239,68,68,0.18)] bg-[rgba(239,68,68,0.10)] text-[var(--state-error)]',
+  muted:
+    'bg-[var(--bg-hover)] text-[var(--text-secondary)] dark:bg-[rgba(255,255,255,0.06)] dark:text-[var(--text-secondary)]',
+  outline:
+    'border border-[var(--border-default)] text-[var(--text-secondary)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:text-[var(--text-secondary)]',
+  brand:
+    'bg-[rgba(201,169,97,0.14)] text-[var(--brand-primary)] dark:border dark:border-[rgba(201,169,97,0.22)] dark:bg-[rgba(201,169,97,0.14)] dark:text-[#efd69d]',
+  success:
+    'border border-[rgba(34,197,94,0.18)] bg-[rgba(34,197,94,0.10)] text-[var(--state-success)] dark:border-[rgba(34,197,94,0.20)] dark:bg-[rgba(34,197,94,0.14)] dark:text-[#9ff0b7]',
+  warning:
+    'border border-[rgba(245,158,11,0.2)] bg-[rgba(245,158,11,0.12)] text-[rgb(180,100,24)] dark:border-[rgba(245,158,11,0.24)] dark:bg-[rgba(245,158,11,0.14)] dark:text-[#f7cf8a]',
+  danger:
+    'border border-[rgba(239,68,68,0.18)] bg-[rgba(239,68,68,0.10)] text-[var(--state-error)] dark:border-[rgba(248,113,113,0.24)] dark:bg-[rgba(239,68,68,0.14)] dark:text-[#f8b4b4]',
 };
 
 const BASE_CHIP_CLASS =
@@ -44,7 +50,7 @@ export function Chip(props: StaticChipProps | ClickableChipProps) {
   const classes = cn(
     BASE_CHIP_CLASS,
     CHIP_TONE_CLASSES[tone],
-    active && 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)]',
+    active && 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)] dark:border-[rgba(201,169,97,0.32)] dark:bg-[rgba(201,169,97,0.9)] dark:text-[#17120b]',
     props.clickable &&
       'cursor-pointer transition-[transform,box-shadow,border-color,background-color,color] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.985] disabled:cursor-not-allowed disabled:transform-none disabled:opacity-60',
     className,

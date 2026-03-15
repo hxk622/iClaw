@@ -28,39 +28,39 @@ type VisualDescriptor = {
 
 const TONE_STYLES: Record<VisualTone, {wrap: string; glow: string; icon: string}> = {
   brand: {
-    wrap: 'border-[rgba(201,169,97,0.24)] bg-[linear-gradient(180deg,rgba(244,234,206,0.9),rgba(255,255,255,0.82))]',
-    glow: 'shadow-[0_18px_36px_rgba(201,169,97,0.18)]',
-    icon: 'text-[rgb(163,116,29)]',
+    wrap: 'border-[rgba(201,169,97,0.24)] bg-[linear-gradient(180deg,rgba(244,234,206,0.9),rgba(255,255,255,0.82))] dark:border-[rgba(201,169,97,0.22)] dark:bg-[linear-gradient(180deg,rgba(60,48,20,0.96),rgba(33,27,16,0.92))]',
+    glow: 'shadow-[0_18px_36px_rgba(201,169,97,0.18)] dark:shadow-[0_16px_28px_rgba(0,0,0,0.24)]',
+    icon: 'text-[rgb(163,116,29)] dark:text-[#efd69d]',
   },
   emerald: {
-    wrap: 'border-[rgba(34,197,94,0.20)] bg-[linear-gradient(180deg,rgba(219,246,228,0.98),rgba(255,255,255,0.84))]',
-    glow: 'shadow-[0_18px_36px_rgba(34,197,94,0.14)]',
-    icon: 'text-[rgb(22,128,61)]',
+    wrap: 'border-[rgba(34,197,94,0.20)] bg-[linear-gradient(180deg,rgba(219,246,228,0.98),rgba(255,255,255,0.84))] dark:border-[rgba(34,197,94,0.22)] dark:bg-[linear-gradient(180deg,rgba(18,63,39,0.96),rgba(15,35,24,0.92))]',
+    glow: 'shadow-[0_18px_36px_rgba(34,197,94,0.14)] dark:shadow-[0_16px_28px_rgba(0,0,0,0.24)]',
+    icon: 'text-[rgb(22,128,61)] dark:text-[#9ff0b7]',
   },
   sky: {
-    wrap: 'border-[rgba(56,189,248,0.22)] bg-[linear-gradient(180deg,rgba(224,242,254,0.98),rgba(255,255,255,0.84))]',
-    glow: 'shadow-[0_18px_36px_rgba(56,189,248,0.14)]',
-    icon: 'text-[rgb(14,116,144)]',
+    wrap: 'border-[rgba(56,189,248,0.22)] bg-[linear-gradient(180deg,rgba(224,242,254,0.98),rgba(255,255,255,0.84))] dark:border-[rgba(56,189,248,0.22)] dark:bg-[linear-gradient(180deg,rgba(19,55,72,0.96),rgba(15,27,37,0.92))]',
+    glow: 'shadow-[0_18px_36px_rgba(56,189,248,0.14)] dark:shadow-[0_16px_28px_rgba(0,0,0,0.24)]',
+    icon: 'text-[rgb(14,116,144)] dark:text-[#9edfff]',
   },
   amber: {
-    wrap: 'border-[rgba(245,158,11,0.22)] bg-[linear-gradient(180deg,rgba(254,243,199,0.98),rgba(255,255,255,0.86))]',
-    glow: 'shadow-[0_18px_36px_rgba(245,158,11,0.14)]',
-    icon: 'text-[rgb(180,100,24)]',
+    wrap: 'border-[rgba(245,158,11,0.22)] bg-[linear-gradient(180deg,rgba(254,243,199,0.98),rgba(255,255,255,0.86))] dark:border-[rgba(245,158,11,0.24)] dark:bg-[linear-gradient(180deg,rgba(74,45,13,0.96),rgba(42,28,12,0.92))]',
+    glow: 'shadow-[0_18px_36px_rgba(245,158,11,0.14)] dark:shadow-[0_16px_28px_rgba(0,0,0,0.24)]',
+    icon: 'text-[rgb(180,100,24)] dark:text-[#f7cf8a]',
   },
   rose: {
-    wrap: 'border-[rgba(244,63,94,0.20)] bg-[linear-gradient(180deg,rgba(255,228,236,0.98),rgba(255,255,255,0.86))]',
-    glow: 'shadow-[0_18px_36px_rgba(244,63,94,0.12)]',
-    icon: 'text-[rgb(190,24,93)]',
+    wrap: 'border-[rgba(244,63,94,0.20)] bg-[linear-gradient(180deg,rgba(255,228,236,0.98),rgba(255,255,255,0.86))] dark:border-[rgba(244,63,94,0.22)] dark:bg-[linear-gradient(180deg,rgba(76,21,39,0.96),rgba(38,16,25,0.92))]',
+    glow: 'shadow-[0_18px_36px_rgba(244,63,94,0.12)] dark:shadow-[0_16px_28px_rgba(0,0,0,0.24)]',
+    icon: 'text-[rgb(190,24,93)] dark:text-[#f6b6c9]',
   },
   violet: {
-    wrap: 'border-[rgba(139,92,246,0.22)] bg-[linear-gradient(180deg,rgba(237,233,254,0.98),rgba(255,255,255,0.84))]',
-    glow: 'shadow-[0_18px_36px_rgba(139,92,246,0.14)]',
-    icon: 'text-[rgb(109,40,217)]',
+    wrap: 'border-[rgba(139,92,246,0.22)] bg-[linear-gradient(180deg,rgba(237,233,254,0.98),rgba(255,255,255,0.84))] dark:border-[rgba(139,92,246,0.22)] dark:bg-[linear-gradient(180deg,rgba(50,31,80,0.96),rgba(27,18,45,0.92))]',
+    glow: 'shadow-[0_18px_36px_rgba(139,92,246,0.14)] dark:shadow-[0_16px_28px_rgba(0,0,0,0.24)]',
+    icon: 'text-[rgb(109,40,217)] dark:text-[#ccb7ff]',
   },
   slate: {
-    wrap: 'border-[rgba(148,163,184,0.18)] bg-[linear-gradient(180deg,rgba(241,245,249,0.98),rgba(255,255,255,0.86))]',
-    glow: 'shadow-[0_18px_36px_rgba(148,163,184,0.12)]',
-    icon: 'text-[rgb(71,85,105)]',
+    wrap: 'border-[rgba(148,163,184,0.18)] bg-[linear-gradient(180deg,rgba(241,245,249,0.98),rgba(255,255,255,0.86))] dark:border-[rgba(148,163,184,0.18)] dark:bg-[linear-gradient(180deg,rgba(42,48,58,0.96),rgba(22,25,31,0.92))]',
+    glow: 'shadow-[0_18px_36px_rgba(148,163,184,0.12)] dark:shadow-[0_16px_28px_rgba(0,0,0,0.24)]',
+    icon: 'text-[rgb(71,85,105)] dark:text-[#d7e2ef]',
   },
 };
 
@@ -124,7 +124,7 @@ export function IconWell({
         className,
       )}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.78),transparent_68%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.78),transparent_68%)] dark:bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_68%)]" />
       <Icon className={cn('relative z-[1]', palette.icon, iconClassName)} />
     </div>
   );

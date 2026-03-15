@@ -71,10 +71,10 @@ function SummaryCard({
   tone: 'brand' | 'emerald' | 'sky' | 'amber' | 'violet';
 }) {
   return (
-    <div className="rounded-[24px] border border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,247,244,0.9))] px-4 py-4 shadow-[0_18px_34px_rgba(15,23,42,0.06)] backdrop-blur-[10px]">
+    <div className="rounded-[24px] border border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,247,244,0.9))] px-4 py-4 shadow-[0_18px_34px_rgba(15,23,42,0.06)] backdrop-blur-[10px] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(28,28,28,0.96),rgba(18,18,18,0.94))] dark:shadow-[0_22px_38px_rgba(0,0,0,0.28)]">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 pr-3">
-          <div className="text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">{label}</div>
+          <div className="text-[11px] uppercase tracking-[0.12em] text-[var(--text-secondary)]">{label}</div>
           <div className="mt-2 text-[26px] font-semibold leading-none text-[var(--text-primary)]">{value}</div>
           <p className="mt-2 line-clamp-2 text-[12px] leading-5 text-[var(--text-secondary)]">{note}</p>
         </div>
@@ -143,7 +143,7 @@ function SkillCard({
       interactive={cardActionable}
       onClick={cardActionable ? () => onOpenDetail?.(skill) : undefined}
       className={cn(
-        'group border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(246,247,244,0.9))] shadow-[0_18px_34px_rgba(15,23,42,0.06)]',
+        'group border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(246,247,244,0.9))] shadow-[0_18px_34px_rgba(15,23,42,0.06)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(29,29,29,0.96),rgba(17,17,17,0.94))] dark:shadow-[0_22px_38px_rgba(0,0,0,0.30)]',
         !cardActionable && 'cursor-default',
       )}
     >
@@ -176,7 +176,7 @@ function SkillCard({
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-[var(--text-secondary)]">
                 <Chip>{skill.market}</Chip>
-                <span>{skill.skillType}</span>
+                <span className="text-[var(--text-secondary)]">{skill.skillType}</span>
                 <span className="inline-flex items-center gap-1">
                   <ShieldCheck className="h-3.5 w-3.5 text-[var(--brand-primary)]" />
                   {skill.sourceLabel}
@@ -243,7 +243,7 @@ function SkillCard({
         ) : null}
       </div>
 
-      <div className="flex items-center justify-between gap-3 border-t border-[var(--border-default)] px-5 py-4 text-[12px] text-[var(--text-secondary)]">
+      <div className="flex items-center justify-between gap-3 border-t border-[var(--border-default)] px-5 py-4 text-[12px] text-[var(--text-secondary)] dark:border-t-[rgba(255,255,255,0.08)]">
         <div className="flex flex-wrap items-center gap-2">
           <Chip>{skill.categoryLabel}</Chip>
           {skill.tags.slice(0, compactFooter ? 1 : 2).map((tag) => (
@@ -526,7 +526,7 @@ export function SkillStoreView({
     <section className="flex min-w-0 flex-1 flex-col overflow-y-auto bg-[var(--bg-page)]">
       <div className="border-b border-[var(--border-default)] bg-[var(--bg-page)] px-8 pb-6 pt-6">
         <div
-          className="rounded-[32px] border border-[var(--border-default)] p-6 shadow-[var(--shadow-sm)]"
+          className="rounded-[32px] border border-[var(--border-default)] p-6 shadow-[var(--shadow-sm)] dark:border-[rgba(255,255,255,0.08)] dark:shadow-[0_26px_48px_rgba(0,0,0,0.34)]"
           style={{
             background:
               'linear-gradient(135deg, rgba(201,169,97,0.11) 0%, rgba(255,255,255,0) 42%), var(--bg-card)',
@@ -534,7 +534,7 @@ export function SkillStoreView({
         >
           <div className="flex flex-wrap items-start justify-between gap-5">
             <div className="max-w-2xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border-default)] bg-[var(--bg-hover)] px-3 py-1 text-[12px] text-[var(--text-secondary)]">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border-default)] bg-[var(--bg-hover)] px-3 py-1 text-[12px] text-[var(--text-secondary)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
                 <LayoutGrid className="h-3.5 w-3.5 text-[var(--brand-primary)]" />
                 Skills / MCP
                 <span
@@ -561,7 +561,7 @@ export function SkillStoreView({
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder="搜索技能名称、市场或用途"
-                  className="w-full rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-page)] py-3 pl-11 pr-4 text-[14px] text-[var(--text-primary)] outline-none transition-all focus:border-[var(--brand-primary)] focus:ring-4"
+                  className="w-full rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-page)] py-3 pl-11 pr-4 text-[14px] text-[var(--text-primary)] outline-none transition-all placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)] focus:ring-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:placeholder:text-[rgba(250,250,250,0.34)]"
                   style={{ ['--tw-ring-color' as string]: 'rgba(201,169,97,0.14)' }}
                 />
               </label>
@@ -644,7 +644,7 @@ export function SkillStoreView({
         </div>
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-1 rounded-full border border-[var(--border-default)] bg-[var(--bg-card)] p-1">
+          <div className="flex items-center gap-1 rounded-full border border-[var(--border-default)] bg-[var(--bg-card)] p-1 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
             {storeTabs.map((tab) => {
               const active = tab.id === activeTab;
               return (
@@ -669,7 +669,7 @@ export function SkillStoreView({
             })}
           </div>
 
-          <div className="flex items-center gap-2 rounded-full border border-[var(--border-default)] bg-[var(--bg-card)] px-3 py-2 text-[12px] text-[var(--text-secondary)]">
+          <div className="flex items-center gap-2 rounded-full border border-[var(--border-default)] bg-[var(--bg-card)] px-3 py-2 text-[12px] text-[var(--text-secondary)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
             <Settings2 className="h-3.5 w-3.5" />
             {adminMode ? '超管目录管理已开启' : 'bundled + cloud 已接入'}
           </div>
@@ -700,7 +700,7 @@ export function SkillStoreView({
             })}
           </div>
         ) : (
-          <div className="mb-6 rounded-[26px] border border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)]">
+          <div className="mb-6 rounded-[26px] border border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(24,24,24,0.96),rgba(16,16,16,0.94))] dark:shadow-[0_20px_36px_rgba(0,0,0,0.26)]">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
@@ -712,8 +712,8 @@ export function SkillStoreView({
                   这里只显示你登录后亲手安装的云端技能。系统预置技能会继续留在技能库里，不会混进这里。
                 </p>
               </div>
-              <div className="rounded-[22px] bg-[var(--bg-hover)] px-4 py-3 text-right">
-                <div className="text-[12px] uppercase tracking-[0.12em] text-[var(--text-muted)]">已收纳技能</div>
+              <div className="rounded-[22px] bg-[var(--bg-hover)] px-4 py-3 text-right dark:bg-[rgba(255,255,255,0.04)]">
+                <div className="text-[12px] uppercase tracking-[0.12em] text-[var(--text-secondary)]">已收纳技能</div>
                 <div className="mt-1 text-[28px] font-semibold text-[var(--text-primary)]">{installedCount}</div>
               </div>
             </div>
@@ -721,7 +721,7 @@ export function SkillStoreView({
         )}
 
         {loading ? (
-          <div className="rounded-[32px] border border-[var(--border-default)] bg-[var(--bg-card)] px-8 py-14 text-sm text-[var(--text-secondary)]">
+          <div className="rounded-[32px] border border-[var(--border-default)] bg-[var(--bg-card)] px-8 py-14 text-sm text-[var(--text-secondary)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(24,24,24,0.96),rgba(16,16,16,0.94))]">
             正在加载技能目录…
           </div>
         ) : error ? (

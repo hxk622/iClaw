@@ -71,15 +71,15 @@ export function SkillStoreDetailSheet({
   const latestVersion = skill.latestRelease?.version || (skill.source === 'bundled' ? 'bundled' : '未发布');
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-end bg-[rgba(20,24,33,0.16)] backdrop-blur-[3px]" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex justify-end bg-[rgba(20,24,33,0.16)] backdrop-blur-[3px] dark:bg-[rgba(0,0,0,0.34)]" onClick={onClose}>
       <aside
-        className="flex h-full w-full max-w-[560px] flex-col border-l border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(252,252,251,0.98),rgba(246,247,244,0.96))] shadow-[0_32px_90px_rgba(15,23,42,0.18)]"
+        className="flex h-full w-full max-w-[560px] flex-col border-l border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(252,252,251,0.98),rgba(246,247,244,0.96))] shadow-[0_32px_90px_rgba(15,23,42,0.18)] dark:border-l-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(24,24,24,0.98),rgba(12,12,12,0.96))] dark:shadow-[0_30px_90px_rgba(0,0,0,0.44)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="border-b border-[rgba(15,23,42,0.08)] px-6 py-5">
+        <div className="border-b border-[rgba(15,23,42,0.08)] px-6 py-5 dark:border-b-[rgba(255,255,255,0.08)]">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(15,23,42,0.08)] bg-white/70 px-3 py-1 text-[12px] text-[var(--text-secondary)]">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(15,23,42,0.08)] bg-white/70 px-3 py-1 text-[12px] text-[var(--text-secondary)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
                 {status.icon}
                 技能详情
               </div>
@@ -103,7 +103,7 @@ export function SkillStoreDetailSheet({
         </div>
 
         <div className="flex-1 space-y-6 overflow-y-auto px-6 py-6">
-          <section className="rounded-[28px] border border-[rgba(15,23,42,0.08)] bg-white/78 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-[10px]">
+          <section className="rounded-[28px] border border-[rgba(15,23,42,0.08)] bg-white/78 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-[10px] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:shadow-[0_20px_36px_rgba(0,0,0,0.26)]">
             <div className="flex flex-wrap items-center gap-2">
               <Chip>{skill.market}</Chip>
               <Chip tone="outline">{skill.skillType}</Chip>
@@ -114,13 +114,13 @@ export function SkillStoreDetailSheet({
           </section>
 
           <section className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-[24px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.05)]">
-              <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-muted)]">视觉语义</div>
+            <div className="rounded-[24px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.05)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
+              <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">视觉语义</div>
               <div className="mt-2 text-[15px] font-medium text-[var(--text-primary)]">{skillVisualLabel(skill)}</div>
               <p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">用于在技能库里快速识别这类能力的用途和方向。</p>
             </div>
-            <div className="rounded-[24px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.05)]">
-              <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-muted)]">最新版本</div>
+            <div className="rounded-[24px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.05)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
+              <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">最新版本</div>
               <div className="mt-2 text-[15px] font-medium text-[var(--text-primary)]">{latestVersion}</div>
               <p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">
                 {skill.latestRelease?.published_at
@@ -128,13 +128,13 @@ export function SkillStoreDetailSheet({
                   : '当前由系统预置或本地目录提供。'}
               </p>
             </div>
-            <div className="rounded-[24px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.05)]">
-              <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-muted)]">发布者</div>
+            <div className="rounded-[24px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.05)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
+              <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">发布者</div>
               <div className="mt-2 text-[15px] font-medium text-[var(--text-primary)]">{skill.publisher}</div>
               <p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">帮助用户识别来源与归属，减少安装时的不确定感。</p>
             </div>
-            <div className="rounded-[24px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.05)]">
-              <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-muted)]">安装方式</div>
+            <div className="rounded-[24px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.05)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
+              <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">安装方式</div>
               <div className="mt-2 text-[15px] font-medium text-[var(--text-primary)]">
                 {skill.source === 'bundled' ? '随应用内置' : '云端安装到账号'}
               </div>
@@ -145,8 +145,8 @@ export function SkillStoreDetailSheet({
           </section>
 
           {skill.tags.length > 0 ? (
-            <section className="rounded-[28px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
-              <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-muted)]">标签</div>
+            <section className="rounded-[28px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
+              <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">标签</div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {skill.tags.map((tag) => (
                   <Chip key={tag} tone="outline" className="px-3 py-1.5">
@@ -158,7 +158,7 @@ export function SkillStoreDetailSheet({
           ) : null}
         </div>
 
-        <div className="border-t border-[rgba(15,23,42,0.08)] bg-white/82 px-6 py-5 backdrop-blur-[10px]">
+        <div className="border-t border-[rgba(15,23,42,0.08)] bg-white/82 px-6 py-5 backdrop-blur-[10px] dark:border-t-[rgba(255,255,255,0.08)] dark:bg-[rgba(12,12,12,0.86)]">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="text-[13px] text-[var(--text-secondary)]">
               {skill.source === 'bundled'
