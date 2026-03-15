@@ -57,9 +57,66 @@ type ChatSurfaceStatus = {
 };
 
 const ASSISTANT_AVATAR_SRC = '/favicon.png';
+const OPENCLAW_CONTROL_SETTINGS_KEY = 'openclaw.control.settings.v1';
+const OPENCLAW_CONTROL_TOKEN_PREFIX = 'openclaw.control.token.v1';
+const OPENCLAW_DEVICE_AUTH_KEY = 'openclaw.device.auth.v1';
+const OPENCLAW_DEVICE_IDENTITY_KEY = 'openclaw-device-identity-v1';
 
 function resolveThemeMode(): OpenClawTheme {
   return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+}
+
+function isLoopbackHost(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase();
+  return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1' || normalized === '[::1]';
+}
+
+function shouldResetEmbeddedOpenClawState(gatewayUrl: string): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  if (!isLoopbackHost(window.location.hostname)) {
+    return false;
+  }
+
+  try {
+    const gatewayHost = new URL(gatewayUrl, window.location.href).hostname;
+    return isLoopbackHost(gatewayHost);
+  } catch {
+    return false;
+  }
+}
+
+function clearOpenClawEmbeddedState(gatewayUrl: string): void {
+  if (!shouldResetEmbeddedOpenClawState(gatewayUrl)) {
+    return;
+  }
+
+  const clearPrefixedKeys = (storage: Storage | undefined, prefix: string) => {
+    if (!storage) {
+      return;
+    }
+    const toDelete: string[] = [];
+    for (let index = 0; index < storage.length; index += 1) {
+      const key = storage.key(index);
+      if (key && key.startsWith(prefix)) {
+        toDelete.push(key);
+      }
+    }
+    toDelete.forEach((key) => storage.removeItem(key));
+  };
+
+  try {
+    window.localStorage.removeItem(OPENCLAW_CONTROL_SETTINGS_KEY);
+    window.localStorage.removeItem(OPENCLAW_DEVICE_AUTH_KEY);
+    window.localStorage.removeItem(OPENCLAW_DEVICE_IDENTITY_KEY);
+    clearPrefixedKeys(window.localStorage, OPENCLAW_CONTROL_TOKEN_PREFIX);
+  } catch {}
+
+  try {
+    clearPrefixedKeys(window.sessionStorage, OPENCLAW_CONTROL_TOKEN_PREFIX);
+  } catch {}
 }
 
 function buildSettings(params: {
@@ -107,6 +164,8 @@ export function OpenClawChatSurface({
     if (!host) {
       return;
     }
+
+    clearOpenClawEmbeddedState(gatewayUrl);
 
     const app = document.createElement('openclaw-app') as OpenClawAppElement;
     const settings = buildSettings({ gatewayUrl, gatewayToken, sessionKey });
