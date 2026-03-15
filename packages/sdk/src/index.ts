@@ -93,6 +93,18 @@ interface WorkspaceBackupInput {
   agentsMd: string;
 }
 
+interface InstallSkillLibraryInput {
+  token: string;
+  slug: string;
+  version?: string;
+}
+
+interface UpdateSkillLibraryInput {
+  token: string;
+  slug: string;
+  enabled: boolean;
+}
+
 export interface WorkspaceBackupData {
   identity_md: string;
   user_md: string;
@@ -115,6 +127,59 @@ export interface RunGrantData {
 export interface UsageEventData {
   accepted: boolean;
   balance_after: number;
+}
+
+export interface SkillCatalogReleaseData {
+  version: string;
+  artifact_url: string | null;
+  artifact_path: string | null;
+  artifact_format: 'tar.gz' | 'zip';
+  artifact_sha256: string | null;
+  published_at: string;
+}
+
+export interface SkillCatalogEntryData {
+  slug: string;
+  name: string;
+  description: string;
+  visibility: 'showcase' | 'internal';
+  market: string | null;
+  category: string | null;
+  skill_type: string | null;
+  publisher: string;
+  distribution: 'bundled' | 'cloud';
+  source: 'bundled' | 'cloud';
+  tags: string[];
+  latest_release: SkillCatalogReleaseData | null;
+}
+
+export interface AdminSkillCatalogEntryData extends SkillCatalogEntryData {
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface UpsertAdminSkillCatalogInput {
+  token: string;
+  slug: string;
+  name?: string;
+  description?: string;
+  visibility?: 'showcase' | 'internal';
+  market?: string | null;
+  category?: string | null;
+  skillType?: string | null;
+  publisher?: string;
+  distribution?: 'bundled' | 'cloud';
+  tags?: string[];
+  active?: boolean;
+}
+
+export interface UserSkillLibraryItemData {
+  slug: string;
+  version: string;
+  enabled: boolean;
+  installed_at: string;
+  updated_at: string;
 }
 
 type BrowserDeviceIdentity = {
@@ -722,6 +787,134 @@ export class IClawClient {
     });
     if (!res.ok) throw await parseError(res);
     const json = (await res.json()) as {data: WorkspaceBackupData};
+    return json.data;
+  }
+
+  async listSkillsCatalog(): Promise<SkillCatalogEntryData[]> {
+    const res = await this.fetchAuth('/skills/catalog', {
+      method: 'GET',
+      credentials: 'include',
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: {items: SkillCatalogEntryData[]}};
+    return json.data.items;
+  }
+
+  async listAdminSkillsCatalog(token: string): Promise<AdminSkillCatalogEntryData[]> {
+    const res = await this.fetchAuth('/admin/skills/catalog', {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: {items: AdminSkillCatalogEntryData[]}};
+    return json.data.items;
+  }
+
+  async upsertAdminSkillCatalogEntry(input: UpsertAdminSkillCatalogInput): Promise<AdminSkillCatalogEntryData> {
+    const res = await this.fetchAuth('/admin/skills/catalog', {
+      method: 'PUT',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${input.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        slug: input.slug,
+        name: input.name,
+        description: input.description,
+        visibility: input.visibility,
+        market: input.market,
+        category: input.category,
+        skill_type: input.skillType,
+        publisher: input.publisher,
+        distribution: input.distribution,
+        tags: input.tags,
+        active: input.active,
+      }),
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: AdminSkillCatalogEntryData};
+    return json.data;
+  }
+
+  async deleteAdminSkillCatalogEntry(token: string, slug: string): Promise<{removed: boolean}> {
+    const path = `/admin/skills/catalog?slug=${encodeURIComponent(slug)}`;
+    const res = await this.fetchAuth(path, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: {removed: boolean}};
+    return json.data;
+  }
+
+  async getSkillLibrary(token: string): Promise<UserSkillLibraryItemData[]> {
+    const res = await this.fetchAuth('/skills/library', {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: {items: UserSkillLibraryItemData[]}};
+    return json.data.items;
+  }
+
+  async installSkill(input: InstallSkillLibraryInput): Promise<UserSkillLibraryItemData> {
+    const res = await this.fetchAuth('/skills/library/install', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${input.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        slug: input.slug,
+        version: input.version,
+      }),
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: UserSkillLibraryItemData};
+    return json.data;
+  }
+
+  async updateSkillLibraryItem(input: UpdateSkillLibraryInput): Promise<UserSkillLibraryItemData> {
+    const res = await this.fetchAuth('/skills/library/state', {
+      method: 'PUT',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${input.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        slug: input.slug,
+        enabled: input.enabled,
+      }),
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: UserSkillLibraryItemData};
+    return json.data;
+  }
+
+  async removeSkillFromLibrary(token: string, slug: string): Promise<{removed: boolean}> {
+    const res = await this.fetchAuth('/skills/library/uninstall', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({slug}),
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: {removed: boolean}};
     return json.data;
   }
 

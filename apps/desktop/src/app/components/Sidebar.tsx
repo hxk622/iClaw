@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { SVGProps } from 'react';
 import {
   CheckSquare,
   History,
@@ -11,6 +12,7 @@ import {
   Heart,
 } from 'lucide-react';
 import { AvatarDropdown } from './AvatarDropdown';
+import { Button } from './ui/Button';
 import { BRAND } from '../lib/brand';
 import {
   resolveUserAvatarUrl,
@@ -20,10 +22,14 @@ import {
 } from '../lib/user-avatar';
 
 type SidebarUser = AppUserAvatarSource;
+type PrimaryView = 'chat' | 'skill-store';
 
 interface SidebarProps {
   user: SidebarUser | null;
+  activeView?: PrimaryView;
   authenticated?: boolean;
+  onOpenChat?: () => void;
+  onOpenSkillStore?: () => void;
   onLogout?: () => void;
   onOpenAccount?: () => void;
   onOpenLogin?: () => void;
@@ -33,16 +39,20 @@ interface SidebarProps {
 interface SidebarItem {
   key: string;
   label: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: React.ComponentType<SVGProps<SVGSVGElement>>;
   iconClass: string;
   badge?: string;
   dot?: boolean;
+  active?: boolean;
   onClick?: () => void;
 }
 
 export function Sidebar({
   user,
+  activeView = 'chat',
   authenticated = false,
+  onOpenChat,
+  onOpenSkillStore,
   onLogout,
   onOpenAccount,
   onOpenLogin,
@@ -67,9 +77,23 @@ export function Sidebar({
   }, [menuOpen]);
 
   const mainItems: SidebarItem[] = [
-    { key: 'chat', label: '智能对话', icon: MessageSquare, iconClass: 'text-blue-500' },
+    {
+      key: 'chat',
+      label: '智能对话',
+      icon: MessageSquare,
+      iconClass: 'text-blue-500',
+      active: activeView === 'chat',
+      onClick: onOpenChat,
+    },
     { key: 'task', label: '定时任务', icon: CheckSquare, iconClass: 'text-emerald-500', dot: true },
-    { key: 'skill', label: '技能中心', icon: TrendingUp, iconClass: 'text-violet-500', badge: '15' },
+    {
+      key: 'skill',
+      label: '技能商店',
+      icon: TrendingUp,
+      iconClass: 'text-violet-500',
+      active: activeView === 'skill-store',
+      onClick: onOpenSkillStore,
+    },
     { key: 'link', label: '数据接续', icon: Link2, iconClass: 'text-cyan-500' },
   ];
 
@@ -91,17 +115,21 @@ export function Sidebar({
           <button
             key={item.key}
             onClick={() => item.onClick?.()}
-            className="group flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-left transition-all duration-[var(--motion-panel)] hover:translate-x-[4px] hover:scale-[1.015] hover:bg-[var(--bg-hover)] active:scale-[0.992]"
+            className={`group flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-left transition-all duration-[var(--motion-panel)] active:scale-[0.992] ${
+              item.active
+                ? 'bg-[var(--bg-hover)] shadow-[var(--shadow-sm)]'
+                : 'hover:translate-x-[4px] hover:scale-[1.015] hover:bg-[var(--bg-hover)]'
+            }`}
             style={{
               transitionTimingFunction: 'var(--motion-spring)',
               transformOrigin: 'left center',
             }}
           >
             <item.icon
-              className={`h-5 w-5 transition-transform duration-[var(--motion-panel)] group-hover:scale-110 ${item.iconClass}`}
+              className={`h-5 w-5 transition-transform duration-[var(--motion-panel)] ${item.active ? 'scale-110' : 'group-hover:scale-110'} ${item.iconClass}`}
               style={{ transitionTimingFunction: 'var(--motion-spring)' }}
             />
-            <span className="flex-1 text-[14px] text-[var(--text-primary)] transition-transform duration-[var(--motion-panel)] group-hover:translate-x-[1px]">
+            <span className={`flex-1 text-[14px] text-[var(--text-primary)] transition-transform duration-[var(--motion-panel)] ${item.active ? 'translate-x-[1px] font-medium' : 'group-hover:translate-x-[1px]'}`}>
               {item.label}
             </span>
             {item.dot && <span className="h-2 w-2 rounded-full bg-[var(--state-success)]" />}
@@ -129,13 +157,10 @@ export function Sidebar({
       </div>
 
       <div className="border-b border-[var(--border-default)] p-3">
-        <button
-          className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-[14px] text-[var(--brand-on-primary)] transition-all duration-[var(--motion-panel)] hover:-translate-y-[1px] hover:scale-[1.015] hover:bg-[var(--brand-primary-hover)] active:scale-[0.99]"
-          style={{ transitionTimingFunction: 'var(--motion-spring)' }}
-        >
+        <Button variant="primary" size="md" block className="rounded-xl py-2.5 text-[14px]">
           <Plus className="h-4 w-4" />
           新建对话
-        </button>
+        </Button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">

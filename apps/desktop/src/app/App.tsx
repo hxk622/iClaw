@@ -15,6 +15,7 @@ import { AccountPanel } from './components/account/AccountPanel';
 import { FirstRunSetupPanel } from './components/FirstRunSetupPanel';
 import { OpenClawChatSurface } from './components/OpenClawChatSurface';
 import { Sidebar } from './components/Sidebar';
+import { SkillStoreView } from './components/skill-store/SkillStoreView';
 import { SettingsPanel } from './components/settings/SettingsPanel';
 import { type PersistableSettingsSection, SettingsProvider, useSettings } from './contexts/settings-context';
 import { BRAND } from './lib/brand';
@@ -24,6 +25,7 @@ import {
   resetIclawWorkspaceToDefaults,
   saveIclawWorkspaceSection,
 } from './lib/iclaw-settings';
+import { syncManagedSkills } from './lib/skill-store';
 
 interface AuthUser {
   id?: string;
@@ -32,6 +34,7 @@ interface AuthUser {
   email?: string | null;
   avatar_url?: string | null;
   display_name?: string | null;
+  role?: 'user' | 'admin' | 'super_admin' | null;
 }
 
 function resolveSidecarPort(args: string[]): string {
@@ -69,7 +72,7 @@ const CONFIGURED_API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) ||
 // Desktop builds always talk to the local OpenClaw runtime for health/gateway.
 const API_BASE_URL = IS_TAURI_RUNTIME ? LOCAL_API_BASE_URL : CONFIGURED_API_BASE_URL;
 const AUTH_BASE_URL =
-  (import.meta.env.VITE_AUTH_BASE_URL as string) || LOCAL_AUTH_BASE_URL;
+  (import.meta.env.VITE_AUTH_BASE_URL as string) || BRAND.endpoints.authBaseUrl || LOCAL_AUTH_BASE_URL;
 const DEFAULT_GATEWAY_WS_URL = API_BASE_URL.replace(/^http:\/\//, 'ws://').replace(/^https:\/\//, 'wss://');
 const GATEWAY_WS_URL =
   IS_TAURI_RUNTIME
@@ -107,6 +110,10 @@ function formatPortConflictMessage(ports: number[]): string | null {
   }
   const joined = ports.join('/');
   return `检测到本地开发服务正在运行，占用了 ${joined}。请先关闭 pnpm dev:api 或释放这些端口后再启动应用。`;
+}
+
+function normalizeBrandRuntimeText(value: string): string {
+  return value.replaceAll('iClaw', BRAND.displayName);
 }
 
 export default function App() {
@@ -157,7 +164,8 @@ export default function App() {
   const [runtimeReady, setRuntimeReady] = useState(!isTauriRuntime());
   const [runtimeDiagnosis, setRuntimeDiagnosis] = useState<RuntimeDiagnosis | null>(null);
   const [runtimeInstallProgress, setRuntimeInstallProgress] = useState<RuntimeInstallProgress | null>(null);
-  const [activeView, setActiveView] = useState<'chat' | 'settings' | 'account'>('chat');
+  const [primaryView, setPrimaryView] = useState<'chat' | 'skill-store'>('chat');
+  const [overlayView, setOverlayView] = useState<'settings' | 'account' | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
   const [postAuthView, setPostAuthView] = useState<'account' | null>(null);
@@ -437,7 +445,7 @@ export default function App() {
       setCurrentUser((data.user as AuthUser) || null);
       setAuthModalOpen(false);
       if (postAuthView) {
-        setActiveView(postAuthView);
+        setOverlayView(postAuthView);
         setPostAuthView(null);
       }
     } catch (e) {
@@ -462,7 +470,7 @@ export default function App() {
       setCurrentUser((data.user as AuthUser) || null);
       setAuthModalOpen(false);
       if (postAuthView) {
-        setActiveView(postAuthView);
+        setOverlayView(postAuthView);
         setPostAuthView(null);
       }
     } catch (e) {
@@ -493,7 +501,7 @@ export default function App() {
       setCurrentUser((data.user as AuthUser) || null);
       setAuthModalOpen(false);
       if (postAuthView) {
-        setActiveView(postAuthView);
+        setOverlayView(postAuthView);
         setPostAuthView(null);
       }
     } catch (error) {
@@ -514,7 +522,8 @@ export default function App() {
     setAccessToken(null);
     setSessionAuthed(false);
     setCurrentUser(null);
-    setActiveView('chat');
+    setPrimaryView('chat');
+    setOverlayView(null);
     setAuthModalMode('login');
     setAuthModalOpen(true);
   };
@@ -613,20 +622,28 @@ export default function App() {
       ? '当前安装包未包含可用的运行时来源，请重新下载应用或联系支持。'
       : null);
   const installerView: InstallerViewModel = (() => {
+    const normalizedProgress = runtimeInstallProgress
+      ? {
+          ...runtimeInstallProgress,
+          label: normalizeBrandRuntimeText(runtimeInstallProgress.label),
+          detail: normalizeBrandRuntimeText(runtimeInstallProgress.detail),
+        }
+      : null;
+
     if (installerErrorMessage) {
       return {
         state: 'error',
         title: '唤醒失败',
         subtitle: '安装过程遇到问题',
-        progress: Math.max(0, Math.min(100, runtimeInstallProgress?.progress ?? 0)),
-        stepLabel: runtimeInstallProgress?.label || '安装过程中断',
-        stepDetail: runtimeInstallProgress?.detail || '无法继续准备本地运行环境。',
+        progress: Math.max(0, Math.min(100, normalizedProgress?.progress ?? 0)),
+        stepLabel: normalizedProgress?.label || '安装过程中断',
+        stepDetail: normalizedProgress?.detail || '无法继续准备本地运行环境。',
         errorMessage: installerErrorMessage,
       };
     }
 
     if (runtimeInstalling) {
-      const progress = runtimeInstallProgress ?? {
+      const progress = normalizedProgress ?? {
         phase: 'prepare',
         progress: 6,
         label: '正在准备安装组件',
@@ -713,8 +730,10 @@ export default function App() {
     <SettingsProvider>
       <div className="relative h-screen overflow-hidden">
         <AuthedView
-          activeView={activeView}
-          setActiveView={setActiveView}
+          primaryView={primaryView}
+          setPrimaryView={setPrimaryView}
+          overlayView={overlayView}
+          setOverlayView={setOverlayView}
           client={client}
           accessToken={accessToken}
           currentUser={currentUser}
@@ -745,8 +764,10 @@ export default function App() {
 }
 
 interface AuthedViewProps {
-  activeView: 'chat' | 'settings' | 'account';
-  setActiveView: Dispatch<SetStateAction<'chat' | 'settings' | 'account'>>;
+  primaryView: 'chat' | 'skill-store';
+  setPrimaryView: Dispatch<SetStateAction<'chat' | 'skill-store'>>;
+  overlayView: 'settings' | 'account' | null;
+  setOverlayView: Dispatch<SetStateAction<'settings' | 'account' | null>>;
   client: IClawClient;
   accessToken: string | null;
   currentUser: AuthUser | null;
@@ -759,8 +780,10 @@ interface AuthedViewProps {
 }
 
 function AuthedView({
-  activeView,
-  setActiveView,
+  primaryView,
+  setPrimaryView,
+  overlayView,
+  setOverlayView,
   client,
   accessToken,
   currentUser,
@@ -772,6 +795,15 @@ function AuthedView({
   onRequestAuth,
 }: AuthedViewProps) {
   const { buildSectionSaveSnapshot, commitSectionSave } = useSettings();
+
+  useEffect(() => {
+    if (!accessToken) {
+      return;
+    }
+    void syncManagedSkills({ client, accessToken }).catch((error) => {
+      console.error('[desktop] failed to sync managed skills', error);
+    });
+  }, [accessToken, client]);
 
   const handleSaveSettings = async (section: PersistableSettingsSection) => {
     const snapshot = buildSectionSaveSnapshot(section);
@@ -813,19 +845,30 @@ function AuthedView({
     <div className="flex h-screen overflow-hidden bg-[var(--bg-page)]">
       <Sidebar
         user={currentUser}
+        activeView={primaryView}
         authenticated={authenticated}
+        onOpenChat={() => setPrimaryView('chat')}
+        onOpenSkillStore={() => setPrimaryView('skill-store')}
         onOpenAccount={() => {
           if (!authenticated) {
             onRequestAuth('login', 'account');
             return;
           }
-          setActiveView('account');
+          setOverlayView('account');
         }}
         onOpenLogin={() => onRequestAuth('login')}
-        onOpenSettings={() => setActiveView('settings')}
+        onOpenSettings={() => setOverlayView('settings')}
         onLogout={handleLogout}
       />
-      {authenticated ? (
+      {primaryView === 'skill-store' ? (
+        <SkillStoreView
+          client={client}
+          accessToken={accessToken}
+          authenticated={authenticated}
+          currentUser={currentUser}
+          onRequestAuth={onRequestAuth}
+        />
+      ) : authenticated ? (
         <OpenClawChatSurface
           gatewayUrl={GATEWAY_WS_URL}
           gatewayToken={gatewayAuth.token}
@@ -836,17 +879,17 @@ function AuthedView({
       ) : (
         <div className="flex-1 bg-[var(--bg-page)]" />
       )}
-      {activeView === 'account' && accessToken ? (
+      {overlayView === 'account' && accessToken ? (
         <AccountPanel
           client={client}
           token={accessToken}
           user={currentUser}
-          onClose={() => setActiveView('chat')}
+          onClose={() => setOverlayView(null)}
           onUserUpdated={(user) => setCurrentUser(user)}
         />
       ) : null}
-      {activeView === 'settings' ? (
-        <SettingsPanel onClose={() => setActiveView('chat')} onSave={handleSaveSettings} />
+      {overlayView === 'settings' ? (
+        <SettingsPanel onClose={() => setOverlayView(null)} onSave={handleSaveSettings} />
       ) : null}
     </div>
   );
