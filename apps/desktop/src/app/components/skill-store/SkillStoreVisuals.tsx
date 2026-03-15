@@ -28,19 +28,19 @@ type VisualDescriptor = {
 
 const TAG_TONE_CLASSES = {
   brand:
-    'border-[rgba(201,169,97,0.22)] bg-[rgba(201,169,97,0.14)] text-[rgb(163,116,29)] dark:border-[rgba(201,169,97,0.26)] dark:bg-[rgba(201,169,97,0.16)] dark:text-[#efd69d]',
+    'border-[rgba(201,169,97,0.18)] bg-[rgba(201,169,97,0.10)] text-[rgb(163,116,29)] dark:border-[rgba(201,169,97,0.22)] dark:bg-[rgba(201,169,97,0.14)] dark:text-[#efd69d]',
   emerald:
-    'border-[rgba(34,197,94,0.22)] bg-[rgba(34,197,94,0.10)] text-[rgb(22,128,61)] dark:border-[rgba(111,221,149,0.24)] dark:bg-[rgba(34,197,94,0.16)] dark:text-[#aaf3c1]',
+    'border-[rgba(34,197,94,0.16)] bg-[rgba(34,197,94,0.10)] text-[rgb(22,128,61)] dark:border-[rgba(111,221,149,0.20)] dark:bg-[rgba(34,197,94,0.18)] dark:text-[#c7f9d7]',
   sky:
-    'border-[rgba(56,189,248,0.22)] bg-[rgba(56,189,248,0.10)] text-[rgb(14,116,144)] dark:border-[rgba(125,211,252,0.24)] dark:bg-[rgba(56,189,248,0.15)] dark:text-[#afe5ff]',
+    'border-[rgba(56,189,248,0.16)] bg-[rgba(56,189,248,0.10)] text-[rgb(14,116,144)] dark:border-[rgba(125,211,252,0.20)] dark:bg-[rgba(56,189,248,0.18)] dark:text-[#b7e7ff]',
   amber:
-    'border-[rgba(245,158,11,0.24)] bg-[rgba(245,158,11,0.11)] text-[rgb(180,100,24)] dark:border-[rgba(251,191,36,0.24)] dark:bg-[rgba(245,158,11,0.16)] dark:text-[#f7cf8a]',
+    'border-[rgba(245,158,11,0.18)] bg-[rgba(245,158,11,0.10)] text-[rgb(180,100,24)] dark:border-[rgba(251,191,36,0.20)] dark:bg-[rgba(245,158,11,0.18)] dark:text-[#f8d48f]',
   rose:
-    'border-[rgba(244,63,94,0.22)] bg-[rgba(244,63,94,0.10)] text-[rgb(190,24,93)] dark:border-[rgba(251,113,133,0.24)] dark:bg-[rgba(244,63,94,0.16)] dark:text-[#f6b6c9]',
+    'border-[rgba(244,63,94,0.16)] bg-[rgba(244,63,94,0.10)] text-[rgb(190,24,93)] dark:border-[rgba(251,113,133,0.20)] dark:bg-[rgba(244,63,94,0.18)] dark:text-[#f6b6c9]',
   violet:
-    'border-[rgba(139,92,246,0.22)] bg-[rgba(139,92,246,0.10)] text-[rgb(109,40,217)] dark:border-[rgba(167,139,250,0.24)] dark:bg-[rgba(139,92,246,0.16)] dark:text-[#d5c0ff]',
+    'border-[rgba(139,92,246,0.16)] bg-[rgba(139,92,246,0.10)] text-[rgb(109,40,217)] dark:border-[rgba(167,139,250,0.20)] dark:bg-[rgba(139,92,246,0.18)] dark:text-[#d9c9ff]',
   slate:
-    'border-[rgba(148,163,184,0.20)] bg-[rgba(148,163,184,0.10)] text-[rgb(71,85,105)] dark:border-[rgba(148,163,184,0.22)] dark:bg-[rgba(148,163,184,0.14)] dark:text-[#d7e2ef]',
+    'border-[rgba(148,163,184,0.16)] bg-[rgba(148,163,184,0.10)] text-[rgb(71,85,105)] dark:border-[rgba(148,163,184,0.20)] dark:bg-[rgba(148,163,184,0.16)] dark:text-[#d7e2ef]',
 } as const;
 
 const TONE_STYLES: Record<VisualTone, {wrap: string; glow: string; icon: string}> = {

@@ -1,4 +1,5 @@
 import type { ConfigStatus } from '@/app/contexts/settings-context';
+import { Chip } from '@/app/components/ui/Chip';
 
 interface StatusBadgeProps {
   status: ConfigStatus;
@@ -7,25 +8,25 @@ interface StatusBadgeProps {
 export function StatusBadge({ status }: StatusBadgeProps) {
   const styles: Record<
     ConfigStatus,
-    { label: string; cls: string }
+    { label: string; tone: 'muted' | 'warning' | 'success' }
   > = {
     'not-configured': {
       label: '未配置',
-      cls: 'bg-[var(--bg-hover)] text-[var(--text-secondary)]',
+      tone: 'warning',
     },
     'using-default': {
       label: '使用默认',
-      cls: 'bg-[var(--bg-hover)] text-[var(--state-info)]',
+      tone: 'muted',
     },
     customized: {
       label: '已自定义',
-      cls: 'bg-[var(--bg-hover)] text-[var(--brand-primary)]',
+      tone: 'success',
     },
   };
 
   return (
-    <span className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-xs ${styles[status].cls}`}>
+    <Chip tone={styles[status].tone} className="rounded-[10px] px-2.5 py-0.5 text-xs font-medium">
       {styles[status].label}
-    </span>
+    </Chip>
   );
 }
