@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SVGProps } from 'react';
 import {
+  Bot,
   CheckSquare,
   History,
   Link2,
   MessageSquare,
   Plus,
   Settings,
-  Smartphone,
   TrendingUp,
   Heart,
 } from 'lucide-react';
@@ -22,7 +22,7 @@ import {
 } from '../lib/user-avatar';
 
 type SidebarUser = AppUserAvatarSource;
-type PrimaryView = 'chat' | 'skill-store';
+type PrimaryView = 'chat' | 'skill-store' | 'im-bots';
 
 interface SidebarProps {
   user: SidebarUser | null;
@@ -30,6 +30,7 @@ interface SidebarProps {
   authenticated?: boolean;
   onOpenChat?: () => void;
   onOpenSkillStore?: () => void;
+  onOpenImBots?: () => void;
   onLogout?: () => void;
   onOpenAccount?: () => void;
   onOpenLogin?: () => void;
@@ -53,6 +54,7 @@ export function Sidebar({
   authenticated = false,
   onOpenChat,
   onOpenSkillStore,
+  onOpenImBots,
   onLogout,
   onOpenAccount,
   onOpenLogin,
@@ -94,7 +96,15 @@ export function Sidebar({
       active: activeView === 'skill-store',
       onClick: onOpenSkillStore,
     },
-    { key: 'link', label: '数据接续', icon: Link2, iconClass: 'text-cyan-500' },
+    { key: 'link', label: '数据连接', icon: Link2, iconClass: 'text-cyan-500' },
+    {
+      key: 'im-bots',
+      label: 'IM机器人',
+      icon: Bot,
+      iconClass: 'text-emerald-500',
+      active: activeView === 'im-bots',
+      onClick: onOpenImBots,
+    },
   ];
 
   const recordItems: SidebarItem[] = [
@@ -104,7 +114,6 @@ export function Sidebar({
   const serviceItems: SidebarItem[] = [
     { key: 'sub', label: '订阅服务', icon: Heart, iconClass: 'text-rose-500' },
     { key: 'setting', label: '系统设置', icon: Settings, iconClass: 'text-[var(--text-secondary)]', onClick: onOpenSettings },
-    { key: 'mobile', label: '手机登录', icon: Smartphone, iconClass: 'text-fuchsia-500' },
   ];
 
   const renderGroup = (title: string, items: SidebarItem[]) => (

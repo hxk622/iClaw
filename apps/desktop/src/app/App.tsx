@@ -16,6 +16,7 @@ import { FirstRunSetupPanel } from './components/FirstRunSetupPanel';
 import { OpenClawChatSurface } from './components/OpenClawChatSurface';
 import { Sidebar } from './components/Sidebar';
 import { SkillStoreView } from './components/skill-store/SkillStoreView';
+import { IMBotsView } from './components/im-bots/IMBotsView';
 import { SettingsPanel } from './components/settings/SettingsPanel';
 import { type PersistableSettingsSection, SettingsProvider, useSettings } from './contexts/settings-context';
 import { BRAND } from './lib/brand';
@@ -164,7 +165,7 @@ export default function App() {
   const [runtimeReady, setRuntimeReady] = useState(!isTauriRuntime());
   const [runtimeDiagnosis, setRuntimeDiagnosis] = useState<RuntimeDiagnosis | null>(null);
   const [runtimeInstallProgress, setRuntimeInstallProgress] = useState<RuntimeInstallProgress | null>(null);
-  const [primaryView, setPrimaryView] = useState<'chat' | 'skill-store'>('chat');
+  const [primaryView, setPrimaryView] = useState<'chat' | 'skill-store' | 'im-bots'>('chat');
   const [overlayView, setOverlayView] = useState<'settings' | 'account' | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
@@ -778,8 +779,8 @@ export default function App() {
 }
 
 interface AuthedViewProps {
-  primaryView: 'chat' | 'skill-store';
-  setPrimaryView: Dispatch<SetStateAction<'chat' | 'skill-store'>>;
+  primaryView: 'chat' | 'skill-store' | 'im-bots';
+  setPrimaryView: Dispatch<SetStateAction<'chat' | 'skill-store' | 'im-bots'>>;
   overlayView: 'settings' | 'account' | null;
   setOverlayView: Dispatch<SetStateAction<'settings' | 'account' | null>>;
   client: IClawClient;
@@ -863,6 +864,7 @@ function AuthedView({
         authenticated={authenticated}
         onOpenChat={() => setPrimaryView('chat')}
         onOpenSkillStore={() => setPrimaryView('skill-store')}
+        onOpenImBots={() => setPrimaryView('im-bots')}
         onOpenAccount={() => {
           if (!authenticated) {
             onRequestAuth('login', 'account');
@@ -882,6 +884,8 @@ function AuthedView({
           currentUser={currentUser}
           onRequestAuth={onRequestAuth}
         />
+      ) : primaryView === 'im-bots' ? (
+        <IMBotsView />
       ) : authenticated ? (
         <OpenClawChatSurface
           gatewayUrl={GATEWAY_WS_URL}
