@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ComponentType } from 'react';
+import type { IClawClient } from '@iclaw/sdk';
 import {
   Activity,
   AlertCircle,
@@ -79,6 +80,8 @@ interface ManagedBot {
   replyFormat: string;
   bindingScope: BindingScope;
   offlineReply: string;
+  welcomeTemplate: string;
+  unavailableTemplate: string;
   testStatus: BotTestStatus;
   lastTestMessage: string;
   lastTestResponse: string;
@@ -250,7 +253,7 @@ const platformMetaList: PlatformCardMeta[] = [
 
 const initialBots: ManagedBot[] = [];
 
-export function IMBotsView() {
+export function IMBotsView({ client }: { client: IClawClient }) {
   const [bots, setBots] = useState<ManagedBot[]>(initialBots);
   const [activeSideTab, setActiveSideTab] = useState<SideTab>('todo');
   const [selectedPlatformId, setSelectedPlatformId] = useState<IMPlatformId | null>(null);
@@ -412,6 +415,8 @@ export function IMBotsView() {
           replyFormat: formatReplyFormat(draft.replyFormat),
           bindingScope: 'organization',
           offlineReply: '我现在暂时离线，稍后会继续处理你的消息。',
+          welcomeTemplate: '你好，我是{{assistant}}，可以直接把问题发给我。',
+          unavailableTemplate: '我暂时无法完成这次请求，已记录到日志，请稍后重试。',
           testStatus: 'idle',
           lastTestMessage: '',
           lastTestResponse: '',
@@ -464,6 +469,26 @@ export function IMBotsView() {
     );
   };
 
+  const handleUpdateBotTemplates = (
+    botId: string,
+    updates: Pick<ManagedBot, 'welcomeTemplate' | 'unavailableTemplate'>,
+  ) => {
+    setBots((prev) =>
+      prev.map((bot) =>
+        bot.id === botId
+          ? {
+              ...bot,
+              ...updates,
+              auditLogs: [
+                createAuditEntry('info', '消息模板已更新', '欢迎语和异常提示模板已保存，后续可作为机器人默认回复语义。'),
+                ...bot.auditLogs,
+              ],
+            }
+          : bot,
+      ),
+    );
+  };
+
   const handleToggleBot = (botId: string) => {
     setBots((prev) =>
       prev.map((bot) => {
@@ -498,7 +523,7 @@ export function IMBotsView() {
     );
   };
 
-  const handleRunConnectionTest = (botId: string) => {
+  const handleRunConnectionTest = async (botId: string) => {
     setBots((prev) =>
       prev.map((bot) =>
         bot.id === botId
@@ -514,7 +539,8 @@ export function IMBotsView() {
       ),
     );
 
-    window.setTimeout(() => {
+    try {
+      await client.health();
       setBots((prev) =>
         prev.map((bot) => {
           if (bot.id !== botId) return bot;
@@ -531,27 +557,47 @@ export function IMBotsView() {
             lastActive: '刚刚',
             healthSummary:
               nextHealthState === 'healthy'
-                ? '最近一次连接测试通过，平台链路与默认助手配置都正常。'
+                ? '本地 OpenClaw runtime 与 gateway 连接正常，默认助手配置也已就绪。'
                 : nextHealthState === 'paused'
-                  ? '机器人当前处于停用状态，连接测试通过但不会接收新消息。'
-                  : '平台链路测试通过，但默认助手还没有配置完成。',
+                  ? 'runtime 健康检查通过，但机器人当前处于停用状态。'
+                  : 'runtime 健康检查通过，但默认助手还没有配置完成。',
             auditLogs: [
               createAuditEntry(
                 'success',
                 '连接测试通过',
                 nextHealthState === 'healthy'
-                  ? '平台链路、回调配置和默认助手检查均通过。'
-                  : '平台链路测试通过，但仍建议继续完成默认助手绑定。',
+                  ? '本地 runtime、gateway 与默认助手检查均通过。'
+                  : '本地 runtime 检查通过，但仍建议继续完成默认助手绑定。',
               ),
               ...bot.auditLogs,
             ],
           };
         }),
       );
-    }, 1100);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '本地 runtime 健康检查失败';
+      setBots((prev) =>
+        prev.map((bot) =>
+          bot.id === botId
+            ? {
+                ...bot,
+                testStatus: 'idle',
+                healthState: 'connectivity_issue',
+                lastActive: '刚刚',
+                healthSummary: '本地 OpenClaw runtime 或 gateway 当前不可用，无法完成真实连接测试。',
+                lastTestResponse: message,
+                auditLogs: [
+                  createAuditEntry('warning', '连接测试失败', message),
+                  ...bot.auditLogs,
+                ],
+              }
+            : bot,
+        ),
+      );
+    }
   };
 
-  const handleSendTestMessage = (botId: string, message: string) => {
+  const handleSendTestMessage = async (botId: string, message: string) => {
     const trimmed = message.trim();
     if (!trimmed) return;
 
@@ -583,28 +629,91 @@ export function IMBotsView() {
       }),
     );
 
-    window.setTimeout(() => {
-      setBots((prev) =>
-        prev.map((bot) => {
-          if (bot.id !== botId || !bot.assistantId) return bot;
-          return {
-            ...bot,
-            testStatus: 'success',
-            healthState: bot.enabled ? 'healthy' : 'paused',
-            lastTestAt: '刚刚',
-            lastActive: '刚刚',
-            lastTestResponse: `已由${bot.assistant}返回一条测试回复，可继续在真实 IM 会话中验证表现。`,
-            healthSummary: bot.enabled
-              ? '连接与首条测试消息均已通过，可以继续在真实 IM 中灰度验证。'
-              : '机器人已停用，测试回复正常，但当前不会主动接收新消息。',
-            auditLogs: [
-              createAuditEntry('success', '测试消息已返回', `默认助手“${bot.assistant}”已成功处理一条测试消息。`),
-              ...bot.auditLogs,
-            ],
-          };
-        }),
+    const responseChunks: string[] = [];
+
+    try {
+      await client.streamChat(
+        {
+          message: trimmed,
+        },
+        {
+          onDelta: (text) => {
+            responseChunks.push(text);
+            setBots((prev) =>
+              prev.map((bot) =>
+                bot.id === botId
+                  ? {
+                      ...bot,
+                      lastTestResponse: responseChunks.join(''),
+                    }
+                  : bot,
+              ),
+            );
+          },
+          onEnd: () => {
+            setBots((prev) =>
+              prev.map((bot) => {
+                if (bot.id !== botId || !bot.assistantId) return bot;
+                const nextResponse = responseChunks.join('').trim() || `已由${bot.assistant}返回一条测试回复。`;
+                return {
+                  ...bot,
+                  testStatus: 'success',
+                  healthState: bot.enabled ? 'healthy' : 'paused',
+                  lastTestAt: '刚刚',
+                  lastActive: '刚刚',
+                  lastTestResponse: nextResponse,
+                  healthSummary: bot.enabled
+                    ? 'runtime 对话测试已通过，可以继续在真实 IM 会话中灰度验证。'
+                    : '机器人已停用，但 runtime 对话测试已通过。',
+                  auditLogs: [
+                    createAuditEntry('success', '测试消息已返回', `默认助手“${bot.assistant}”已成功处理一条真实 runtime 测试消息。`),
+                    ...bot.auditLogs,
+                  ],
+                };
+              }),
+            );
+          },
+          onError: (error) => {
+            setBots((prev) =>
+              prev.map((bot) =>
+                bot.id === botId
+                  ? {
+                      ...bot,
+                      testStatus: 'idle',
+                      healthState: 'connectivity_issue',
+                      lastTestResponse: error.message || '测试消息调用失败',
+                      healthSummary: '测试消息未能从本地 runtime 返回，请先检查 gateway 或本地运行状态。',
+                      auditLogs: [
+                        createAuditEntry('warning', '测试消息失败', error.message || '测试消息调用失败'),
+                        ...bot.auditLogs,
+                      ],
+                    }
+                  : bot,
+              ),
+            );
+          },
+        },
       );
-    }, 900);
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : '测试消息调用失败';
+      setBots((prev) =>
+        prev.map((bot) =>
+          bot.id === botId
+            ? {
+                ...bot,
+                testStatus: 'idle',
+                healthState: 'connectivity_issue',
+                lastTestResponse: messageText,
+                healthSummary: '测试消息未能从本地 runtime 返回，请先检查 gateway 或本地运行状态。',
+                auditLogs: [
+                  createAuditEntry('warning', '测试消息失败', messageText),
+                  ...bot.auditLogs,
+                ],
+              }
+            : bot,
+        ),
+      );
+    }
   };
 
   return (
@@ -736,6 +845,7 @@ export function IMBotsView() {
         assistantOptions={assistantProfiles}
         onClose={() => setSelectedBotId(null)}
         onSave={handleUpdateBot}
+        onSaveTemplates={handleUpdateBotTemplates}
         onToggleEnabled={handleToggleBot}
         onRunConnectionTest={handleRunConnectionTest}
         onSendTestMessage={handleSendTestMessage}
@@ -1125,6 +1235,7 @@ function IMBotDetailSheet({
   assistantOptions,
   onClose,
   onSave,
+  onSaveTemplates,
   onToggleEnabled,
   onRunConnectionTest,
   onSendTestMessage,
@@ -1138,9 +1249,13 @@ function IMBotDetailSheet({
     botId: string,
     updates: Pick<ManagedBot, 'name' | 'company' | 'assistantId' | 'assistant' | 'bindingScope' | 'offlineReply'>,
   ) => void;
+  onSaveTemplates: (
+    botId: string,
+    updates: Pick<ManagedBot, 'welcomeTemplate' | 'unavailableTemplate'>,
+  ) => void;
   onToggleEnabled: (botId: string) => void;
-  onRunConnectionTest: (botId: string) => void;
-  onSendTestMessage: (botId: string, message: string) => void;
+  onRunConnectionTest: (botId: string) => Promise<void> | void;
+  onSendTestMessage: (botId: string, message: string) => Promise<void> | void;
 }) {
   const [draftName, setDraftName] = useState('');
   const [draftCompany, setDraftCompany] = useState('');
@@ -1148,6 +1263,8 @@ function IMBotDetailSheet({
   const [draftBindingScope, setDraftBindingScope] = useState<BindingScope>('organization');
   const [draftOfflineReply, setDraftOfflineReply] = useState('');
   const [draftTestMessage, setDraftTestMessage] = useState('请给我一句上线自检回复');
+  const [draftWelcomeTemplate, setDraftWelcomeTemplate] = useState('');
+  const [draftUnavailableTemplate, setDraftUnavailableTemplate] = useState('');
 
   useEffect(() => {
     if (!bot) return;
@@ -1157,6 +1274,8 @@ function IMBotDetailSheet({
     setDraftBindingScope(bot.bindingScope);
     setDraftOfflineReply(bot.offlineReply);
     setDraftTestMessage('请给我一句上线自检回复');
+    setDraftWelcomeTemplate(bot.welcomeTemplate);
+    setDraftUnavailableTemplate(bot.unavailableTemplate);
   }, [bot]);
 
   if (!open || !bot || !platform) {
@@ -1371,6 +1490,62 @@ function IMBotDetailSheet({
 
           <section className="rounded-[28px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
             <div className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5 text-[var(--brand-primary)]" />
+              <div className="text-[16px] font-semibold text-[var(--text-primary)]">消息模板</div>
+            </div>
+            <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
+              这里放默认欢迎语和异常回复语义。当前先作为机器人级模板配置，后续可继续细分到不同平台或群组。
+            </p>
+            <div className="mt-4 grid gap-4">
+              <label className="space-y-2">
+                <div className="text-[13px] font-medium text-[var(--text-primary)]">欢迎模板</div>
+                <textarea
+                  value={draftWelcomeTemplate}
+                  onChange={(event) => setDraftWelcomeTemplate(event.target.value)}
+                  className="min-h-[108px] w-full rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-3 text-[14px] leading-7 text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]"
+                />
+              </label>
+              <label className="space-y-2">
+                <div className="text-[13px] font-medium text-[var(--text-primary)]">异常 / 不可用模板</div>
+                <textarea
+                  value={draftUnavailableTemplate}
+                  onChange={(event) => setDraftUnavailableTemplate(event.target.value)}
+                  className="min-h-[108px] w-full rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-3 text-[14px] leading-7 text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]"
+                />
+              </label>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
+                <div className="text-[12px] uppercase tracking-[0.12em] text-[var(--text-muted)]">预览 · 欢迎语</div>
+                <div className="mt-2 text-[14px] leading-7 text-[var(--text-primary)]">
+                  {renderTemplatePreview(draftWelcomeTemplate, selectedAssistant?.name ?? bot.assistant)}
+                </div>
+              </div>
+              <div className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
+                <div className="text-[12px] uppercase tracking-[0.12em] text-[var(--text-muted)]">预览 · 异常提示</div>
+                <div className="mt-2 text-[14px] leading-7 text-[var(--text-primary)]">
+                  {renderTemplatePreview(draftUnavailableTemplate, selectedAssistant?.name ?? bot.assistant)}
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() =>
+                  onSaveTemplates(bot.id, {
+                    welcomeTemplate: draftWelcomeTemplate.trim() || bot.welcomeTemplate,
+                    unavailableTemplate: draftUnavailableTemplate.trim() || bot.unavailableTemplate,
+                  })
+                }
+              >
+                保存消息模板
+              </Button>
+            </div>
+          </section>
+
+          <section className="rounded-[28px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
+            <div className="flex items-center gap-2">
               <TestTube2 className="h-5 w-5 text-[var(--brand-primary)]" />
               <div className="text-[16px] font-semibold text-[var(--text-primary)]">测试面板</div>
             </div>
@@ -1558,4 +1733,8 @@ function formatReplyFormat(value: IMBotDraft['replyFormat']): string {
 
 function formatBindingScope(value: BindingScope): string {
   return value === 'organization' ? '组织统一入口' : value === 'group' ? '指定群聊 / 频道' : '私聊助手';
+}
+
+function renderTemplatePreview(template: string, assistantName: string): string {
+  return template.replaceAll('{{assistant}}', assistantName || '默认助手');
 }

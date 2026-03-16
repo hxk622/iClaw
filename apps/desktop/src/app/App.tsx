@@ -88,6 +88,7 @@ const DISABLE_GATEWAY_DEVICE_IDENTITY =
     isLoopbackHostname(window.location.hostname) &&
     isLoopbackUrl(API_BASE_URL));
 const CHAT_SESSION_KEY = 'main';
+const IM_BOT_TEST_SESSION_KEY = 'im-bots-test';
 const AUTH_BOOTSTRAP_TIMEOUT_MS = 10_000;
 
 type InstallerViewState = 'loading' | 'error';
@@ -145,6 +146,20 @@ export default function App() {
         gatewayWsUrl: GATEWAY_WS_URL,
         gatewayToken: gatewayAuth.token,
         gatewayPassword: gatewayAuth.password,
+        preferGatewayWs: true,
+        disableGatewayDeviceIdentity: DISABLE_GATEWAY_DEVICE_IDENTITY,
+      }),
+    [gatewayAuth.password, gatewayAuth.token],
+  );
+  const imBotClient = useMemo(
+    () =>
+      new IClawClient({
+        apiBaseUrl: API_BASE_URL,
+        authBaseUrl: AUTH_BASE_URL,
+        gatewayWsUrl: GATEWAY_WS_URL,
+        gatewayToken: gatewayAuth.token,
+        gatewayPassword: gatewayAuth.password,
+        gatewaySessionKey: IM_BOT_TEST_SESSION_KEY,
         preferGatewayWs: true,
         disableGatewayDeviceIdentity: DISABLE_GATEWAY_DEVICE_IDENTITY,
       }),
@@ -923,7 +938,7 @@ function AuthedView({
           </div>
         )
       ) : primaryView === 'im-bots' ? (
-        <IMBotsView />
+        <IMBotsView client={imBotClient} />
       ) : authenticated ? (
         <OpenClawChatSurface
           gatewayUrl={GATEWAY_WS_URL}
