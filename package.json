@@ -19,7 +19,7 @@
     "dev:api": "bash scripts/dev-api.sh",
     "predev:web": "bash scripts/env.sh dev",
     "dev:web": "bash scripts/dev-web.sh",
-    "dev:control-plane": "pnpm --filter @iclaw/control-plane dev",
+    "dev:control-plane": "ICLAW_CONTROL_PLANE_DETACH=0 bash scripts/dev-control-plane.sh",
     "dev:home": "pnpm --dir home dev",
     "build:home": "pnpm --dir home build",
     "check:control-plane": "pnpm --filter @iclaw/control-plane check",

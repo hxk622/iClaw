@@ -32,6 +32,10 @@ product_name="$(
   node -e "const fs=require('fs'); const path=require('path'); const config=JSON.parse(fs.readFileSync(path.join(process.argv[1], 'tauri.generated.conf.json'), 'utf8')); process.stdout.write(config.productName);" \
   "$TAURI_DIR"
 )"
+artifact_base_name="$(
+  node -e "const fs=require('fs'); const path=require('path'); const config=JSON.parse(fs.readFileSync(path.join(process.argv[1], 'brand.generated.json'), 'utf8')); process.stdout.write(config.artifactBaseName || config.productName);" \
+  "$TAURI_DIR"
+)"
 app_version="$(
   node -e "const fs=require('fs'); const path=require('path'); const pkg=JSON.parse(fs.readFileSync(path.join(process.argv[1], 'package.json'), 'utf8')); process.stdout.write(pkg.version);" \
   "$ROOT_DIR"
@@ -94,7 +98,7 @@ trap cleanup EXIT
 cp -R "$app_bundle_path" "$stage_dir/"
 ln -s /Applications "$stage_dir/Applications"
 
-dmg_name="${product_name}_${app_version}_$(arch_label "$target").dmg"
+dmg_name="${artifact_base_name}_${app_version}_$(arch_label "$target").dmg"
 dmg_path="$dmg_dir/$dmg_name"
 rm -f "$dmg_path"
 

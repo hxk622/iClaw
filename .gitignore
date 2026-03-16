@@ -39,3 +39,5 @@ apps/desktop/public/brand/
 apps/desktop/src-tauri/icons-generated/
 apps/desktop/public/apple-touch-icon.png
 apps/desktop/src/app/assets/installer-lobster.png
+home/brand.generated.js
+home/public/brand/

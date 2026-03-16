@@ -1,7 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
+import { ACCESS_TOKEN_STORAGE_KEY, REFRESH_TOKEN_STORAGE_KEY } from './storage';
 
-const ACCESS_TOKEN_KEY = 'iclaw_access_token';
-const REFRESH_TOKEN_KEY = 'iclaw_refresh_token';
+const LEGACY_ACCESS_TOKEN_KEY = 'iclaw_access_token';
+const LEGACY_REFRESH_TOKEN_KEY = 'iclaw_refresh_token';
 
 export interface StoredAuth {
   accessToken: string;
@@ -28,8 +29,10 @@ export async function readAuth(): Promise<StoredAuth | null> {
     }
   }
 
-  const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
-  const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+  const accessToken =
+    localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY) || localStorage.getItem(LEGACY_ACCESS_TOKEN_KEY);
+  const refreshToken =
+    localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY) || localStorage.getItem(LEGACY_REFRESH_TOKEN_KEY);
   if (!accessToken || !refreshToken) return null;
   return { accessToken, refreshToken };
 }
@@ -43,8 +46,8 @@ export async function writeAuth(auth: StoredAuth): Promise<void> {
     return;
   }
 
-  localStorage.setItem(ACCESS_TOKEN_KEY, auth.accessToken);
-  localStorage.setItem(REFRESH_TOKEN_KEY, auth.refreshToken);
+  localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, auth.accessToken);
+  localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, auth.refreshToken);
 }
 
 export async function clearAuth(): Promise<void> {
@@ -53,6 +56,8 @@ export async function clearAuth(): Promise<void> {
     return;
   }
 
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+  localStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
+  localStorage.removeItem(LEGACY_REFRESH_TOKEN_KEY);
 }

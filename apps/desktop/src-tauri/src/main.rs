@@ -18,7 +18,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::sync::Mutex;
 use std::time::Duration;
-use tauri::{AppHandle, Manager, State};
+use std::time::{SystemTime, UNIX_EPOCH};
+use tauri::{AppHandle, Emitter, Manager, State};
 use zip::ZipArchive;
 
 struct SidecarState {
@@ -97,6 +98,60 @@ struct RuntimeDiagnosis {
 }
 
 #[derive(Serialize)]
+struct BundledSkillCatalogItem {
+    slug: String,
+    name: String,
+    description: String,
+    visibility: Option<String>,
+    tags: Vec<String>,
+    license: Option<String>,
+    homepage: Option<String>,
+    market: Option<String>,
+    category: Option<String>,
+    skill_type: Option<String>,
+    publisher: Option<String>,
+    distribution: Option<String>,
+    path: String,
+    source: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct ManagedSkillInstallInput {
+    slug: String,
+    version: String,
+    artifact_url: String,
+    artifact_sha256: Option<String>,
+    artifact_format: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+struct ManagedSkillInstallReceipt {
+    slug: String,
+    version: String,
+    source: String,
+    installed_at: String,
+    artifact_url: Option<String>,
+    artifact_sha256: Option<String>,
+}
+
+#[derive(Serialize)]
+struct ManagedSkillInstallRecord {
+    slug: String,
+    version: String,
+    source: String,
+    installed_at: String,
+    path: String,
+}
+
+#[derive(Serialize, Clone)]
+struct RuntimeInstallProgress {
+    phase: String,
+    progress: u8,
+    label: String,
+    detail: String,
+}
+
+#[derive(Serialize)]
 struct RuntimePaths {
     work_dir: String,
     log_dir: String,
@@ -146,6 +201,14 @@ fn clean_optional(value: Option<String>) -> Option<String> {
             Some(trimmed.to_string())
         }
     })
+}
+
+fn timestamp_string() -> String {
+    let seconds = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|value| value.as_secs())
+        .unwrap_or(0);
+    seconds.to_string()
 }
 
 fn default_runtime_launcher_name() -> &'static str {
@@ -412,6 +475,410 @@ fn resource_mcp_config_path(app: &AppHandle) -> PathBuf {
         .join("mcp.json")
 }
 
+fn parse_skill_frontmatter(raw: &str) -> Vec<(String, String)> {
+    let mut lines = raw.lines();
+    if lines.next() != Some("---") {
+        return Vec::new();
+    }
+
+    let mut entries = Vec::new();
+    let mut block_key: Option<String> = None;
+    let mut block_lines: Vec<String> = Vec::new();
+
+    for line in lines {
+        let trimmed = line.trim_end();
+        if trimmed == "---" {
+            if let Some(key) = block_key.take() {
+                entries.push((key, block_lines.join("\n").trim().to_string()));
+            }
+            break;
+        }
+
+        if let Some(key) = block_key.clone() {
+            if line.starts_with(' ') || line.starts_with('\t') || trimmed.is_empty() {
+                block_lines.push(line.trim_start().to_string());
+                continue;
+            }
+            entries.push((key, block_lines.join("\n").trim().to_string()));
+            block_key = None;
+            block_lines.clear();
+        }
+
+        let simple = line.trim();
+        if simple.is_empty() || simple.starts_with('#') {
+            continue;
+        }
+        let Some((key, value)) = simple.split_once(':') else {
+            continue;
+        };
+        let normalized_key = key.trim().to_string();
+        let normalized_value = value.trim();
+        if normalized_value == "|" || normalized_value == ">" {
+            block_key = Some(normalized_key);
+            block_lines.clear();
+            continue;
+        }
+        entries.push((
+            normalized_key,
+            normalized_value
+                .trim_matches('"')
+                .trim_matches('\'')
+                .to_string(),
+        ));
+    }
+
+    if let Some(key) = block_key.take() {
+        entries.push((key, block_lines.join("\n").trim().to_string()));
+    }
+
+    entries
+}
+
+fn frontmatter_value(entries: &[(String, String)], key: &str) -> Option<String> {
+    entries
+        .iter()
+        .find(|(entry_key, _)| entry_key == key)
+        .map(|(_, value)| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn parse_skill_tags(value: Option<String>) -> Vec<String> {
+    let Some(raw) = value else {
+        return Vec::new();
+    };
+
+    raw.trim_matches('[')
+        .trim_matches(']')
+        .split(',')
+        .map(|tag| tag.trim().trim_matches('"').trim_matches('\'').to_string())
+        .filter(|tag| !tag.is_empty())
+        .collect()
+}
+
+fn load_bundled_skills_catalog_internal(app: &AppHandle) -> Result<Vec<BundledSkillCatalogItem>, String> {
+    let skills_dir = resource_skills_dir(app);
+    if !skills_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut items: Vec<BundledSkillCatalogItem> = Vec::new();
+    let entries = fs::read_dir(&skills_dir).map_err(|e| format!("failed to read skills dir: {e}"))?;
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("failed to read skills entry: {e}"))?;
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+
+        let skill_md_path = path.join("SKILL.md");
+        if !skill_md_path.exists() {
+            continue;
+        }
+
+        let raw = fs::read_to_string(&skill_md_path)
+            .map_err(|e| format!("failed to read {}: {e}", skill_md_path.display()))?;
+        let frontmatter = parse_skill_frontmatter(&raw);
+        let Some(name) = frontmatter_value(&frontmatter, "name") else {
+            continue;
+        };
+        let Some(description) = frontmatter_value(&frontmatter, "description") else {
+            continue;
+        };
+
+        let directory_name = path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or("skill")
+            .to_string();
+
+        items.push(BundledSkillCatalogItem {
+            slug: frontmatter_value(&frontmatter, "slug").unwrap_or(directory_name),
+            name,
+            description,
+            visibility: frontmatter_value(&frontmatter, "visibility"),
+            tags: parse_skill_tags(frontmatter_value(&frontmatter, "tags")),
+            license: frontmatter_value(&frontmatter, "license"),
+            homepage: frontmatter_value(&frontmatter, "homepage"),
+            market: frontmatter_value(&frontmatter, "market"),
+            category: frontmatter_value(&frontmatter, "category"),
+            skill_type: frontmatter_value(&frontmatter, "skill_type"),
+            publisher: frontmatter_value(&frontmatter, "publisher"),
+            distribution: frontmatter_value(&frontmatter, "distribution"),
+            path: skill_md_path.to_string_lossy().to_string(),
+            source: String::from("bundled"),
+        });
+    }
+
+    items.sort_by(|left, right| left.name.cmp(&right.name));
+    Ok(items)
+}
+
+fn openclaw_managed_skills_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let home = app
+        .path()
+        .home_dir()
+        .map_err(|e| format!("failed to resolve home dir: {e}"))?;
+    let dir = home.join(".openclaw").join("skills");
+    fs::create_dir_all(&dir).map_err(|e| format!("failed to create managed skills dir: {e}"))?;
+    Ok(dir)
+}
+
+fn managed_skill_receipt_path(skill_dir: &Path) -> PathBuf {
+    skill_dir.join(".iclaw-install.json")
+}
+
+fn load_managed_skill_receipt(skill_dir: &Path) -> Option<ManagedSkillInstallReceipt> {
+    let raw = fs::read_to_string(managed_skill_receipt_path(skill_dir)).ok()?;
+    serde_json::from_str::<ManagedSkillInstallReceipt>(&raw).ok()
+}
+
+fn write_managed_skill_receipt(
+    skill_dir: &Path,
+    receipt: &ManagedSkillInstallReceipt,
+) -> Result<(), String> {
+    let raw = serde_json::to_string_pretty(receipt)
+        .map_err(|e| format!("failed to serialize managed skill receipt: {e}"))?;
+    fs::write(managed_skill_receipt_path(skill_dir), format!("{raw}\n"))
+        .map_err(|e| format!("failed to write managed skill receipt: {e}"))
+}
+
+fn managed_skill_archive_format(input: &ManagedSkillInstallInput) -> Result<String, String> {
+    if let Some(format) = clean_optional(input.artifact_format.clone()) {
+        return match format.as_str() {
+            "tar.gz" | "tgz" => Ok(String::from("tar.gz")),
+            "zip" => Ok(String::from("zip")),
+            _ => Err(format!("unsupported managed skill archive format: {format}")),
+        };
+    }
+
+    if input.artifact_url.ends_with(".zip") {
+        Ok(String::from("zip"))
+    } else if input.artifact_url.ends_with(".tar.gz") || input.artifact_url.ends_with(".tgz") {
+        Ok(String::from("tar.gz"))
+    } else {
+        Ok(String::from("tar.gz"))
+    }
+}
+
+fn download_file_with_optional_sha256(
+    app: &AppHandle,
+    url: &str,
+    archive_path: &Path,
+    expected_sha256: Option<String>,
+) -> Result<(), String> {
+    if let Some(local_path) = local_artifact_path(app, url) {
+        let mut input = File::open(&local_path)
+            .map_err(|e| format!("failed to open local skill archive {}: {e}", local_path.to_string_lossy()))?;
+        let mut output =
+            File::create(archive_path).map_err(|e| format!("failed to create skill archive file: {e}"))?;
+        let mut hasher = Sha256::new();
+        let mut buffer = [0_u8; 16 * 1024];
+
+        loop {
+            let read = input
+                .read(&mut buffer)
+                .map_err(|e| format!("failed to read local skill archive: {e}"))?;
+            if read == 0 {
+                break;
+            }
+            hasher.update(&buffer[..read]);
+            output
+                .write_all(&buffer[..read])
+                .map_err(|e| format!("failed to write skill archive file: {e}"))?;
+        }
+
+        if let Some(expected) = clean_optional(expected_sha256) {
+            let actual = format!("{:x}", hasher.finalize());
+            if actual != expected.to_ascii_lowercase() {
+                return Err(format!(
+                    "skill archive sha256 mismatch: expected {expected}, got {actual}"
+                ));
+            }
+        }
+
+        return Ok(());
+    }
+
+    let client = Client::builder()
+        .connect_timeout(Duration::from_secs(20))
+        .timeout(Duration::from_secs(1800))
+        .build()
+        .map_err(|e| format!("failed to build skill downloader: {e}"))?;
+    let mut response = client
+        .get(url)
+        .send()
+        .and_then(|resp| resp.error_for_status())
+        .map_err(|e| format!("failed to download skill archive: {e}"))?;
+    let mut file =
+        File::create(archive_path).map_err(|e| format!("failed to create skill archive file: {e}"))?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 16 * 1024];
+
+    loop {
+        let read = response
+            .read(&mut buffer)
+            .map_err(|e| format!("failed to read skill archive response: {e}"))?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+        file.write_all(&buffer[..read])
+            .map_err(|e| format!("failed to write skill archive file: {e}"))?;
+    }
+
+    if let Some(expected) = clean_optional(expected_sha256) {
+        let actual = format!("{:x}", hasher.finalize());
+        if actual != expected.to_ascii_lowercase() {
+            return Err(format!(
+                "skill archive sha256 mismatch: expected {expected}, got {actual}"
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn normalize_skill_root(extracted_dir: &Path) -> Result<PathBuf, String> {
+    if extracted_dir.join("SKILL.md").exists() {
+        return Ok(extracted_dir.to_path_buf());
+    }
+
+    let mut child_dirs = Vec::new();
+    for entry in fs::read_dir(extracted_dir).map_err(|e| format!("failed to scan skill dir: {e}"))? {
+        let entry = entry.map_err(|e| format!("failed to scan skill dir entry: {e}"))?;
+        let path = entry.path();
+        if path.is_dir() {
+            child_dirs.push(path);
+        }
+    }
+
+    if child_dirs.len() == 1 && child_dirs[0].join("SKILL.md").exists() {
+        return Ok(child_dirs.remove(0));
+    }
+
+    Err(String::from(
+        "skill artifact extracted successfully but SKILL.md was not found",
+    ))
+}
+
+fn list_managed_skills_internal(app: &AppHandle) -> Result<Vec<ManagedSkillInstallRecord>, String> {
+    let skills_dir = openclaw_managed_skills_dir(app)?;
+    let mut items = Vec::new();
+    for entry in fs::read_dir(&skills_dir).map_err(|e| format!("failed to read managed skills dir: {e}"))? {
+        let entry = entry.map_err(|e| format!("failed to read managed skill entry: {e}"))?;
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let Some(receipt) = load_managed_skill_receipt(&path) else {
+            continue;
+        };
+        items.push(ManagedSkillInstallRecord {
+            slug: receipt.slug,
+            version: receipt.version,
+            source: receipt.source,
+            installed_at: receipt.installed_at,
+            path: path.to_string_lossy().to_string(),
+        });
+    }
+    items.sort_by(|left, right| left.slug.cmp(&right.slug));
+    Ok(items)
+}
+
+fn install_managed_skill_internal(
+    app: &AppHandle,
+    input: ManagedSkillInstallInput,
+) -> Result<ManagedSkillInstallRecord, String> {
+    let slug = input.slug.trim().to_string();
+    if slug.is_empty() {
+        return Err(String::from("skill slug is required"));
+    }
+    let version = input.version.trim().to_string();
+    if version.is_empty() {
+        return Err(String::from("skill version is required"));
+    }
+    let artifact_url = input.artifact_url.trim().to_string();
+    if artifact_url.is_empty() {
+        return Err(String::from("skill artifact_url is required"));
+    }
+
+    let archive_format = managed_skill_archive_format(&input)?;
+    let skills_dir = openclaw_managed_skills_dir(app)?;
+    let downloads_dir = app_data_base_dir(app)?.join("skill-downloads");
+    fs::create_dir_all(&downloads_dir)
+        .map_err(|e| format!("failed to create skill downloads dir: {e}"))?;
+    let archive_ext = if archive_format == "zip" { "zip" } else { "tar.gz" };
+    let archive_path = downloads_dir.join(format!("{}-{}.{}", slug, version, archive_ext));
+    let staging_dir = skills_dir.join(format!("{}.partial", slug));
+    let final_dir = skills_dir.join(&slug);
+
+    if archive_path.exists() {
+        fs::remove_file(&archive_path)
+            .map_err(|e| format!("failed to clear previous skill archive: {e}"))?;
+    }
+    if staging_dir.exists() {
+        fs::remove_dir_all(&staging_dir)
+            .map_err(|e| format!("failed to clear previous skill staging dir: {e}"))?;
+    }
+    if final_dir.exists() {
+        fs::remove_dir_all(&final_dir)
+            .map_err(|e| format!("failed to clear previous managed skill dir: {e}"))?;
+    }
+
+    fs::create_dir_all(&staging_dir)
+        .map_err(|e| format!("failed to create skill staging dir: {e}"))?;
+    download_file_with_optional_sha256(app, &artifact_url, &archive_path, input.artifact_sha256.clone())?;
+
+    if archive_format == "zip" {
+        extract_zip_archive(&archive_path, &staging_dir)?;
+    } else {
+        extract_tar_gz_archive(&archive_path, &staging_dir)?;
+    }
+
+    let normalized_root = normalize_skill_root(&staging_dir)?;
+    if normalized_root == staging_dir {
+        fs::rename(&staging_dir, &final_dir)
+            .map_err(|e| format!("failed to activate managed skill: {e}"))?;
+    } else {
+        fs::rename(&normalized_root, &final_dir)
+            .map_err(|e| format!("failed to activate managed skill: {e}"))?;
+        if staging_dir.exists() {
+            let _ = fs::remove_dir_all(&staging_dir);
+        }
+    }
+
+    let receipt = ManagedSkillInstallReceipt {
+        slug: slug.clone(),
+        version: version.clone(),
+        source: String::from("cloud"),
+        installed_at: timestamp_string(),
+        artifact_url: Some(artifact_url),
+        artifact_sha256: input.artifact_sha256.clone(),
+    };
+    write_managed_skill_receipt(&final_dir, &receipt)?;
+
+    Ok(ManagedSkillInstallRecord {
+        slug,
+        version,
+        source: String::from("cloud"),
+        installed_at: receipt.installed_at,
+        path: final_dir.to_string_lossy().to_string(),
+    })
+}
+
+fn remove_managed_skill_internal(app: &AppHandle, slug: &str) -> Result<bool, String> {
+    let normalized = slug.trim();
+    if normalized.is_empty() {
+        return Err(String::from("skill slug is required"));
+    }
+    let target = openclaw_managed_skills_dir(app)?.join(normalized);
+    if !target.exists() {
+        return Ok(false);
+    }
+    fs::remove_dir_all(&target).map_err(|e| format!("failed to remove managed skill: {e}"))?;
+    Ok(true)
+}
+
 fn resource_extra_ca_certs_path(app: &AppHandle) -> PathBuf {
     if let Ok(resource_dir) = app.path().resource_dir() {
         let p = resource_dir
@@ -466,6 +933,31 @@ fn runtime_downloads_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
+fn emit_runtime_install_progress(
+    app: &AppHandle,
+    phase: &str,
+    progress: u8,
+    label: &str,
+    detail: &str,
+) {
+    let payload = RuntimeInstallProgress {
+        phase: String::from(phase),
+        progress,
+        label: String::from(label),
+        detail: String::from(detail),
+    };
+    let _ = app.emit("runtime-install-progress", payload);
+}
+
+fn map_download_progress(completed: u64, total: u64) -> u8 {
+    if total == 0 {
+        return 10;
+    }
+    let ratio = (completed as f64 / total as f64).clamp(0.0, 1.0);
+    let progress = 10.0 + ratio * 48.0;
+    progress.round() as u8
+}
+
 fn local_artifact_path(app: &AppHandle, value: &str) -> Option<PathBuf> {
     if let Some(rest) = value.strip_prefix("file://") {
         return Some(PathBuf::from(rest));
@@ -485,6 +977,13 @@ fn download_runtime_archive(
     archive_path: &Path,
     expected_sha256: Option<String>,
 ) -> Result<(), String> {
+    emit_runtime_install_progress(
+        app,
+        "download",
+        10,
+        "正在下载核心组件",
+        "拉取首次启动所需的本地运行时组件。",
+    );
     if let Some(local_path) = local_artifact_path(app, url) {
         let mut input = File::open(&local_path)
             .map_err(|e| format!("failed to open local runtime archive {}: {e}", local_path.to_string_lossy()))?;
@@ -492,6 +991,9 @@ fn download_runtime_archive(
             File::create(archive_path).map_err(|e| format!("failed to create runtime archive file: {e}"))?;
         let mut hasher = Sha256::new();
         let mut buffer = [0_u8; 16 * 1024];
+        let total_bytes = input.metadata().ok().map(|meta| meta.len()).unwrap_or(0);
+        let mut copied_bytes = 0_u64;
+        let mut last_progress = 10_u8;
 
         loop {
             let read = input
@@ -500,12 +1002,31 @@ fn download_runtime_archive(
             if read == 0 {
                 break;
             }
+            copied_bytes += read as u64;
             hasher.update(&buffer[..read]);
             output
                 .write_all(&buffer[..read])
                 .map_err(|e| format!("failed to write runtime archive file: {e}"))?;
+            let progress = map_download_progress(copied_bytes, total_bytes);
+            if progress > last_progress {
+                last_progress = progress;
+                emit_runtime_install_progress(
+                    app,
+                    "download",
+                    progress,
+                    "正在下载核心组件",
+                    "正在复制本地运行时包并同步安装进度。",
+                );
+            }
         }
 
+        emit_runtime_install_progress(
+            app,
+            "verify",
+            62,
+            "正在校验文件完整性",
+            "核对运行时包摘要并检查文件完整性。",
+        );
         if let Some(expected) = clean_optional(expected_sha256) {
             let actual = format!("{:x}", hasher.finalize());
             if actual != expected.to_ascii_lowercase() {
@@ -532,6 +1053,9 @@ fn download_runtime_archive(
         File::create(archive_path).map_err(|e| format!("failed to create runtime archive file: {e}"))?;
     let mut hasher = Sha256::new();
     let mut buffer = [0_u8; 16 * 1024];
+    let total_bytes = response.content_length().unwrap_or(0);
+    let mut downloaded_bytes = 0_u64;
+    let mut last_progress = 10_u8;
 
     loop {
         let read = response
@@ -540,11 +1064,30 @@ fn download_runtime_archive(
         if read == 0 {
             break;
         }
+        downloaded_bytes += read as u64;
         hasher.update(&buffer[..read]);
         file.write_all(&buffer[..read])
             .map_err(|e| format!("failed to write runtime archive file: {e}"))?;
+        let progress = map_download_progress(downloaded_bytes, total_bytes);
+        if progress > last_progress {
+            last_progress = progress;
+            emit_runtime_install_progress(
+                app,
+                "download",
+                progress,
+                "正在下载核心组件",
+                "正在获取运行时组件并写入本地缓存。",
+            );
+        }
     }
 
+    emit_runtime_install_progress(
+        app,
+        "verify",
+        62,
+        "正在校验文件完整性",
+        "核对运行时包摘要并检查文件完整性。",
+    );
     if let Some(expected) = clean_optional(expected_sha256) {
         let actual = format!("{:x}", hasher.finalize());
         if actual != expected.to_ascii_lowercase() {
@@ -654,6 +1197,13 @@ fn ensure_runtime_permissions(root: &Path, config: &RuntimeBootstrapConfig) -> R
 }
 
 fn install_runtime_internal(app: &AppHandle) -> Result<PathBuf, String> {
+    emit_runtime_install_progress(
+        app,
+        "prepare",
+        4,
+        "正在准备安装组件",
+        "检查运行时版本、清理旧的临时目录并准备安装路径。",
+    );
     let config = load_runtime_bootstrap_config(app)?;
     let artifact_url = clean_optional(config.artifact_url.clone())
         .ok_or_else(|| String::from("openclaw runtime download URL is not configured"))?;
@@ -662,6 +1212,13 @@ fn install_runtime_internal(app: &AppHandle) -> Result<PathBuf, String> {
     let final_dir = installed_runtime_dir(app, &config)?;
 
     if installed_runtime_matches(&final_dir, &config) {
+        emit_runtime_install_progress(
+            app,
+            "complete",
+            100,
+            "iClaw 已就绪",
+            "运行环境已存在，无需重复安装。",
+        );
         return Ok(final_dir);
     }
 
@@ -693,12 +1250,26 @@ fn install_runtime_internal(app: &AppHandle) -> Result<PathBuf, String> {
         config.artifact_sha256.clone(),
     )?;
 
+    emit_runtime_install_progress(
+        app,
+        "extract",
+        74,
+        "正在部署本地运行环境",
+        "展开运行时文件并准备写入最终目录。",
+    );
     if artifact_format == "zip" {
         extract_zip_archive(&archive_path, &staging_dir)?;
     } else {
         extract_tar_gz_archive(&archive_path, &staging_dir)?;
     }
 
+    emit_runtime_install_progress(
+        app,
+        "finalize",
+        88,
+        "正在整理本地运行环境",
+        "校准目录结构、清理临时文件并设置运行权限。",
+    );
     let normalized_root = normalize_runtime_root(&staging_dir, &config)?;
     if normalized_root == staging_dir {
         fs::rename(&staging_dir, &final_dir)
@@ -719,7 +1290,22 @@ fn install_runtime_internal(app: &AppHandle) -> Result<PathBuf, String> {
         ));
     }
 
+    emit_runtime_install_progress(
+        app,
+        "finalize",
+        96,
+        "正在完成最后配置",
+        "写入安装回执并校验启动器是否可用。",
+    );
     write_runtime_install_receipt(&final_dir, &config)?;
+
+    emit_runtime_install_progress(
+        app,
+        "complete",
+        100,
+        "iClaw 已就绪",
+        "本地运行环境部署完成，准备启动服务。",
+    );
 
     Ok(final_dir)
 }
@@ -1374,6 +1960,29 @@ fn diagnose_runtime(app: AppHandle) -> Result<RuntimeDiagnosis, String> {
     })
 }
 
+#[tauri::command]
+fn load_bundled_skills_catalog(app: AppHandle) -> Result<Vec<BundledSkillCatalogItem>, String> {
+    load_bundled_skills_catalog_internal(&app)
+}
+
+#[tauri::command]
+fn list_managed_skills(app: AppHandle) -> Result<Vec<ManagedSkillInstallRecord>, String> {
+    list_managed_skills_internal(&app)
+}
+
+#[tauri::command]
+fn install_managed_skill(
+    app: AppHandle,
+    input: ManagedSkillInstallInput,
+) -> Result<ManagedSkillInstallRecord, String> {
+    install_managed_skill_internal(&app, input)
+}
+
+#[tauri::command]
+fn remove_managed_skill(app: AppHandle, slug: String) -> Result<bool, String> {
+    remove_managed_skill_internal(&app, &slug)
+}
+
 fn openclaw_workspace_dir(app: &AppHandle) -> PathBuf {
     if let Ok(home) = app.path().home_dir() {
         return home.join(".openclaw").join("workspace");
@@ -1607,6 +2216,10 @@ fn main() {
             save_runtime_config,
             install_runtime,
             diagnose_runtime,
+            load_bundled_skills_catalog,
+            list_managed_skills,
+            install_managed_skill,
+            remove_managed_skill,
             load_iclaw_workspace_files,
             reset_iclaw_workspace_to_defaults,
             apply_iclaw_workspace_backup,

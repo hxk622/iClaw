@@ -29,5 +29,36 @@ export const BRAND = {
       "primaryHover": "#b89850",
       "onPrimary": "#ffffff"
     }
+  },
+  "storage": {
+    "namespace": "iclaw"
+  },
+  "endpoints": {
+    "authBaseUrl": ""
+  },
+  "oauth": {
+    "wechat": {
+      "appId": "",
+      "redirectUri": ""
+    },
+    "google": {
+      "clientId": "",
+      "redirectUri": ""
+    }
+  },
+  "website": {
+    "homeTitle": "iClaw 官网",
+    "metaDescription": "iClaw 官网，面向普通用户的本地 AI 客户端。",
+    "brandLabel": "iClaw",
+    "kicker": "Official Website",
+    "heroTitlePre": "让AI真正像软件一样",
+    "heroTitleMain": "装上就能用！",
+    "heroDescription": "iClaw 面向普通用户设计。少一点配置，多一点结果。打开、提问、执行、拿答案。",
+    "topCtaLabel": "下载",
+    "scrollLabel": "向下下载",
+    "downloadTitle": "下载 iClaw"
+  },
+  "distribution": {
+    "artifactBaseName": "iClaw"
   }
 } as const;

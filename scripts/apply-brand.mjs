@@ -3,25 +3,26 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { loadBrandProfile, resolveBrandId } from './lib/brand-profile.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const desktopDir = path.join(rootDir, 'apps', 'desktop');
+const homeDir = path.join(rootDir, 'home');
 const tauriDir = path.join(desktopDir, 'src-tauri');
 const outputBrandDir = path.join(desktopDir, 'public', 'brand');
 const outputPublicDir = path.join(desktopDir, 'public');
 const outputIconsDir = path.join(tauriDir, 'icons-generated');
 const legacyInstallerAssetPath = path.join(desktopDir, 'src', 'app', 'assets', 'installer-lobster.png');
-
-const brandId = process.argv[2] || process.env.ICLAW_BRAND || 'iclaw';
-const brandDir = path.join(rootDir, 'brands', brandId);
-const brandConfigPath = path.join(brandDir, 'brand.json');
+const homePublicBrandDir = path.join(homeDir, 'public', 'brand');
 const tauriTemplatePath = path.join(tauriDir, 'tauri.conf.json');
 const tauriGeneratedPath = path.join(tauriDir, 'tauri.generated.conf.json');
 const brandGeneratedTsPath = path.join(desktopDir, 'src', 'app', 'lib', 'brand.generated.ts');
 const brandGeneratedJsonPath = path.join(tauriDir, 'brand.generated.json');
+const homeBrandGeneratedJsPath = path.join(homeDir, 'brand.generated.js');
+const rootPackageJsonPath = path.join(rootDir, 'package.json');
 
-function resolveBrandPath(rawPath) {
+function resolveBrandPath(brandDir, rawPath) {
   return path.resolve(brandDir, rawPath);
 }
 
@@ -37,6 +38,14 @@ async function copyFile(sourcePath, targetPath) {
   await ensureFile(sourcePath, path.basename(targetPath));
   await fs.mkdir(path.dirname(targetPath), { recursive: true });
   await fs.copyFile(sourcePath, targetPath);
+}
+
+async function copyOptionalFile(sourcePath, targetPath) {
+  if (!sourcePath) {
+    await fs.rm(targetPath, { force: true });
+    return;
+  }
+  await copyFile(sourcePath, targetPath);
 }
 
 async function copyDirectory(sourcePath, targetPath) {
@@ -69,24 +78,70 @@ function buildBrandTs(brand) {
         logoAlt: `${brand.displayName} logo`,
       },
       theme: brand.theme,
+      storage: {
+        namespace: brand.storage.namespace,
+      },
+      endpoints: brand.endpoints,
+      oauth: brand.oauth,
+      website: brand.website,
+      distribution: {
+        artifactBaseName: brand.distribution.artifactBaseName,
+      },
     },
     null,
     2,
   )} as const;\n`;
 }
 
-async function main() {
-  const raw = await fs.readFile(brandConfigPath, 'utf8');
-  const brand = JSON.parse(raw);
+function buildHomeBrandJs(brand, appVersion) {
+  return `export const HOME_BRAND = ${JSON.stringify(
+    {
+      brandId: brand.brandId,
+      displayName: brand.displayName,
+      website: brand.website,
+      assets: {
+        faviconPngSrc: '/brand/favicon.png',
+        appleTouchIconSrc: '/brand/apple-touch-icon.png',
+        logoSrc: '/brand/logo.png',
+        heroArtSrc: brand.assets.homeHeroArt ? '/brand/hero-art.svg' : '/hero-art.svg',
+        heroLayer1Src: brand.assets.homeHeroLayer1 ? '/brand/hero-layer-1.svg' : '/hero-layer-1.svg',
+        heroLayer2Src: brand.assets.homeHeroLayer2 ? '/brand/hero-layer-2.svg' : '/hero-layer-2.svg',
+        heroPhotoSrc: brand.assets.homeHeroPhoto ? '/brand/hero-photo.jpg' : '/hero-photo.jpg',
+        logoAlt: `${brand.displayName} logo`,
+      },
+      release: {
+        version: appVersion,
+        artifactBaseName: brand.distribution.artifactBaseName,
+      },
+      distribution: brand.distribution,
+    },
+    null,
+    2,
+  )};\n`;
+}
 
-  const faviconIco = resolveBrandPath(brand.assets.faviconIco);
-  const faviconPng = resolveBrandPath(brand.assets.faviconPng);
-  const appleTouchIcon = resolveBrandPath(brand.assets.appleTouchIcon || brand.assets.faviconPng);
-  const installerHero = resolveBrandPath(brand.assets.installerHero);
-  const tauriIconsDir = resolveBrandPath(brand.assets.tauriIconsDir);
+async function main() {
+  const brandId = resolveBrandId(process.argv[2]);
+  const { brandDir, profile: brand } = await loadBrandProfile({ rootDir, brandId });
+  const rootPackageJson = JSON.parse(await fs.readFile(rootPackageJsonPath, 'utf8'));
+  const appVersion = typeof rootPackageJson.version === 'string' ? rootPackageJson.version : '0.0.0';
+
+  const faviconIco = resolveBrandPath(brandDir, brand.assets.faviconIco);
+  const faviconPng = resolveBrandPath(brandDir, brand.assets.faviconPng);
+  const appleTouchIcon = resolveBrandPath(brandDir, brand.assets.appleTouchIcon || brand.assets.faviconPng);
+  const installerHero = resolveBrandPath(brandDir, brand.assets.installerHero);
+  const tauriIconsDir = resolveBrandPath(brandDir, brand.assets.tauriIconsDir);
+  const homeLogo = brand.assets.homeLogo
+    ? resolveBrandPath(brandDir, brand.assets.homeLogo)
+    : resolveBrandPath(brandDir, brand.assets.faviconPng);
+  const homeHeroArt = brand.assets.homeHeroArt ? resolveBrandPath(brandDir, brand.assets.homeHeroArt) : null;
+  const homeHeroLayer1 = brand.assets.homeHeroLayer1 ? resolveBrandPath(brandDir, brand.assets.homeHeroLayer1) : null;
+  const homeHeroLayer2 = brand.assets.homeHeroLayer2 ? resolveBrandPath(brandDir, brand.assets.homeHeroLayer2) : null;
+  const homeHeroPhoto = brand.assets.homeHeroPhoto ? resolveBrandPath(brandDir, brand.assets.homeHeroPhoto) : null;
 
   await fs.mkdir(outputBrandDir, { recursive: true });
   await fs.mkdir(outputPublicDir, { recursive: true });
+  await fs.mkdir(homePublicBrandDir, { recursive: true });
   await copyFile(faviconIco, path.join(outputBrandDir, 'favicon.ico'));
   await copyFile(faviconPng, path.join(outputBrandDir, 'favicon.png'));
   await copyFile(appleTouchIcon, path.join(outputBrandDir, 'apple-touch-icon.png'));
@@ -96,6 +151,13 @@ async function main() {
   await copyFile(appleTouchIcon, path.join(outputPublicDir, 'apple-touch-icon.png'));
   await copyFile(installerHero, legacyInstallerAssetPath);
   await copyDirectory(tauriIconsDir, outputIconsDir);
+  await copyFile(faviconPng, path.join(homePublicBrandDir, 'favicon.png'));
+  await copyFile(appleTouchIcon, path.join(homePublicBrandDir, 'apple-touch-icon.png'));
+  await copyFile(homeLogo, path.join(homePublicBrandDir, 'logo.png'));
+  await copyOptionalFile(homeHeroArt, path.join(homePublicBrandDir, 'hero-art.svg'));
+  await copyOptionalFile(homeHeroLayer1, path.join(homePublicBrandDir, 'hero-layer-1.svg'));
+  await copyOptionalFile(homeHeroLayer2, path.join(homePublicBrandDir, 'hero-layer-2.svg'));
+  await copyOptionalFile(homeHeroPhoto, path.join(homePublicBrandDir, 'hero-photo.jpg'));
 
   const tauriConfig = JSON.parse(await fs.readFile(tauriTemplatePath, 'utf8'));
   tauriConfig.productName = brand.productName;
@@ -121,6 +183,8 @@ async function main() {
         productName: brand.productName,
         bundleIdentifier: brand.bundleIdentifier,
         authService: brand.authService,
+        artifactBaseName: brand.distribution.artifactBaseName,
+        storageNamespace: brand.storage.namespace,
       },
       null,
       2,
@@ -128,6 +192,7 @@ async function main() {
     'utf8',
   );
   await fs.writeFile(brandGeneratedTsPath, buildBrandTs(brand), 'utf8');
+  await fs.writeFile(homeBrandGeneratedJsPath, buildHomeBrandJs(brand, appVersion), 'utf8');
 
   process.stdout.write(`[brand] applied ${brand.brandId}\n`);
 }

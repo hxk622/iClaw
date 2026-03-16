@@ -19,6 +19,8 @@ import { UserProfile } from '@/app/components/settings/UserProfile';
 import { SoulPersona } from '@/app/components/settings/SoulPersona';
 import { ChannelPreference } from '@/app/components/settings/ChannelPreference';
 import { SafetyDefaults } from '@/app/components/settings/SafetyDefaults';
+import { Button } from '@/app/components/ui/Button';
+import { cn } from '@/app/lib/cn';
 
 interface SettingsPanelProps {
   onClose: () => void;
@@ -109,19 +111,20 @@ export function SettingsPanel({ onClose, onSave }: SettingsPanelProps) {
             const Icon = item.icon;
             const active = item.key === activeSection;
             return (
-              <button
+              <Button
                 key={item.key}
                 onClick={() => setActiveSection(item.key)}
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all ${
-                  active
-                    ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)]'
-                    : 'text-[var(--text-primary)] hover:translate-x-[2px] hover:bg-[var(--bg-hover)]'
-                }`}
-                style={{ transitionTimingFunction: 'var(--motion-spring)' }}
+                variant={active ? 'primary' : 'ghost'}
+                size="sm"
+                block
+                className={cn(
+                  'justify-start rounded-lg px-3 py-2 text-sm',
+                  active ? 'hover:translate-y-0 active:scale-[0.99]' : 'text-[var(--text-primary)] hover:translate-x-[2px]',
+                )}
               >
                 <Icon className="h-4 w-4" />
                 {item.label}
-              </button>
+              </Button>
             );
           })}
         </nav>
@@ -129,19 +132,23 @@ export function SettingsPanel({ onClose, onSave }: SettingsPanelProps) {
 
       <div className="flex flex-1 flex-col overflow-hidden">
         <div className="flex items-center justify-between border-b border-[var(--border-default)] px-6 py-3">
-          <button
+          <Button
             onClick={onClose}
-            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            variant="ghost"
+            size="sm"
+            className="rounded-md px-2 py-1 text-sm text-[var(--text-secondary)]"
           >
             <ChevronLeft className="h-4 w-4" />
             返回
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={onClose}
-            className="rounded-md p-1 text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 rounded-md p-0 text-[var(--text-secondary)]"
           >
             <X className="h-5 w-5" />
-          </button>
+          </Button>
         </div>
 
         <main className="flex-1 overflow-y-auto">{content}</main>
@@ -158,28 +165,24 @@ export function SettingsPanel({ onClose, onSave }: SettingsPanelProps) {
                     : '当前页面无未保存更改'}
             </div>
             <div className="flex items-center gap-3">
-              <button
+              <Button
                 onClick={handleReset}
                 disabled={!hasUnsavedChanges || isSaving}
-                className="rounded-lg border border-[var(--border-default)] px-4 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:border-[color:rgba(148,163,184,0.35)] disabled:bg-[color:rgba(148,163,184,0.08)] disabled:text-[color:rgba(100,116,139,0.72)] disabled:hover:bg-[color:rgba(148,163,184,0.08)]"
+                variant="secondary"
+                size="sm"
+                className="rounded-lg text-sm text-[var(--text-secondary)]"
               >
                 重置
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleSave}
                 disabled={!canSave}
-                className="rounded-lg px-4 py-2 text-sm transition-colors disabled:cursor-not-allowed disabled:border disabled:border-[color:rgba(148,163,184,0.3)] disabled:bg-[color:rgba(148,163,184,0.12)] disabled:text-[color:rgba(100,116,139,0.78)]"
-                style={
-                  canSave
-                    ? {
-                        backgroundColor: 'var(--brand-primary)',
-                        color: 'var(--brand-on-primary)',
-                      }
-                    : undefined
-                }
+                variant="primary"
+                size="sm"
+                className="rounded-lg text-sm"
               >
                 {isSaving ? '保存中...' : saveState === 'saved' ? '已保存' : '保存'}
-              </button>
+              </Button>
             </div>
           </div>
           {saveMessage && (

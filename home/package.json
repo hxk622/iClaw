@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node ../scripts/apply-brand.mjs",
     "dev": "vite --host 0.0.0.0 --port 1477",
+    "prebuild": "node ../scripts/apply-brand.mjs",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0 --port 1478"
   },

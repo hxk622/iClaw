@@ -1,3 +1,5 @@
+import { BRAND } from './brand';
+
 export type OAuthProvider = 'wechat' | 'google';
 
 function getWindowOrigin(): string {
@@ -12,7 +14,9 @@ export function getOAuthRedirectUri(provider: OAuthProvider): string {
     provider === 'wechat'
       ? (import.meta.env.VITE_WECHAT_OAUTH_REDIRECT_URI as string | undefined)
       : (import.meta.env.VITE_GOOGLE_OAUTH_REDIRECT_URI as string | undefined);
-  const normalized = override?.trim();
+  const brandedOverride =
+    provider === 'wechat' ? BRAND.oauth.wechat.redirectUri : BRAND.oauth.google.redirectUri;
+  const normalized = override?.trim() || brandedOverride?.trim();
   if (normalized) {
     return normalized;
   }
@@ -20,7 +24,7 @@ export function getOAuthRedirectUri(provider: OAuthProvider): string {
 }
 
 export function getWeChatOAuthUrl(): string {
-  const appId = (import.meta.env.VITE_WECHAT_APP_ID as string | undefined)?.trim();
+  const appId = (import.meta.env.VITE_WECHAT_APP_ID as string | undefined)?.trim() || BRAND.oauth.wechat.appId;
   if (!appId) {
     return '';
   }
@@ -31,7 +35,8 @@ export function getWeChatOAuthUrl(): string {
 }
 
 export function getGoogleOAuthUrl(): string {
-  const clientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim();
+  const clientId =
+    (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim() || BRAND.oauth.google.clientId;
   if (!clientId) {
     return '';
   }

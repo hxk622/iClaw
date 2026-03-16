@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --watch --experimental-strip-types src/server.ts",
+    "dev": "node --watch-path=src --experimental-strip-types src/server.ts",
     "start": "node --experimental-strip-types src/server.ts",
     "check": "tsc --noEmit",
     "sync:clawhub:top": "node --experimental-strip-types scripts/sync-clawhub-top-skills.ts"

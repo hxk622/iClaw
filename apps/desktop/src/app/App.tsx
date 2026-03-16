@@ -726,6 +726,18 @@ export default function App() {
     );
   }
 
+  if (!authBootstrapReady) {
+    return (
+      <div className="h-screen overflow-hidden bg-[var(--bg-page)]">
+        <div className="flex h-full items-center justify-center px-6">
+          <div className="rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-card)] px-5 py-4 text-[13px] text-[var(--text-secondary)] shadow-[var(--shadow-sm)]">
+            正在恢复登录状态...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <SettingsProvider>
       <div className="relative h-screen overflow-hidden">
@@ -744,20 +756,22 @@ export default function App() {
           authModalOpen={authModalOpen}
           onRequestAuth={openAuthModal}
         />
-        <AuthPanel
-          open={authModalOpen}
-          initialMode={authModalMode}
-          loading={authLoading}
-          error={authError}
-          socialLoadingProvider={socialLoadingProvider}
-          onClose={() => {
-            setAuthModalOpen(false);
-            setPostAuthView(null);
-          }}
-          onLogin={handleLogin}
-          onRegister={handleRegister}
-          onSocialLogin={handleSocialLogin}
-        />
+        {authModalOpen ? (
+          <AuthPanel
+            open={authModalOpen}
+            initialMode={authModalMode}
+            loading={authLoading}
+            error={authError}
+            socialLoadingProvider={socialLoadingProvider}
+            onClose={() => {
+              setAuthModalOpen(false);
+              setPostAuthView(null);
+            }}
+            onLogin={handleLogin}
+            onRegister={handleRegister}
+            onSocialLogin={handleSocialLogin}
+          />
+        ) : null}
       </div>
     </SettingsProvider>
   );

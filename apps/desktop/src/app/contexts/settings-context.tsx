@@ -4,6 +4,7 @@ import {
   onIclawWorkspaceUpdated,
   type IclawWorkspaceFiles,
 } from '@/app/lib/iclaw-settings';
+import { SETTINGS_STORAGE_KEY } from '@/app/lib/storage';
 import { applyThemeMode, persistThemeMode, readStoredThemeMode, type ThemeMode } from '@/app/lib/theme';
 
 export type ConfigStatus = 'not-configured' | 'using-default' | 'customized';
@@ -92,7 +93,6 @@ type SettingsContextType = {
   resetSettings: (section: PersistableSettingsSection) => void;
 };
 
-const LOCAL_STORAGE_KEY = 'iclaw-settings';
 const emptyDirtySections = (): Record<PersistableSettingsSection, boolean> => ({
   appearance: false,
   general: false,
@@ -161,7 +161,7 @@ type PersistedSettings = Pick<
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 function readPersistedSettings(): PersistedSettings {
-  const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+  const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
   const storedTheme = readStoredThemeMode();
   if (!saved) {
     return {
@@ -417,7 +417,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
                 : prev.configStatuses.safetyDefaults,
           },
         };
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(next));
+        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next));
         return next;
       });
     }

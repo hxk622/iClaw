@@ -1,52 +1,93 @@
 import './styles.css';
+import { HOME_BRAND } from './brand.generated.js';
 
 const ENV_NAME = import.meta.env.PROD ? 'prod' : 'dev';
 const ENV_LABEL = ENV_NAME === 'prod' ? 'PROD' : 'DEV';
 
-const DOWNLOADS = {
-  dev: [
+function normalizeBaseUrl(value) {
+  return typeof value === 'string' ? value.trim().replace(/\/+$/, '') : '';
+}
+
+function buildDownloadHref(arch) {
+  const baseUrl = normalizeBaseUrl(HOME_BRAND.distribution.downloads?.[ENV_NAME]?.publicBaseUrl);
+  if (!baseUrl) {
+    return '';
+  }
+  return `${baseUrl}/${HOME_BRAND.release.artifactBaseName}_${HOME_BRAND.release.version}_${arch}_${ENV_NAME}.dmg`;
+}
+
+function buildDownloads() {
+  return [
     {
-      title: 'Mac Apple Silicon (dev)',
-      status: 'ready',
-      href: 'http://127.0.0.1:9000/iclaw-dev/iClaw_1.0.0_aarch64_dev.dmg',
-      note: 'M 系列芯片 · 开发版',
+      title: ENV_NAME === 'prod' ? 'Mac Apple Silicon' : 'Mac Apple Silicon (dev)',
+      href: buildDownloadHref('aarch64'),
+      note: ENV_NAME === 'prod' ? 'M 系列芯片 · 正式版' : 'M 系列芯片 · 开发版',
       icon: '⬢',
       tone: 'cyan',
     },
     {
-      title: 'Mac Intel (dev)',
-      status: 'ready',
-      href: 'http://127.0.0.1:9000/iclaw-dev/iClaw_1.0.0_x64_dev.dmg',
-      note: 'Intel 芯片 · 开发版',
+      title: ENV_NAME === 'prod' ? 'Mac Intel' : 'Mac Intel (dev)',
+      href: buildDownloadHref('x64'),
+      note: ENV_NAME === 'prod' ? 'Intel 芯片 · 正式版' : 'Intel 芯片 · 开发版',
       icon: '◆',
       tone: 'violet',
     },
-    { title: 'Windows', status: 'soon', note: '敬请期待', icon: '▣', tone: 'amber' },
-    { title: 'iOS', status: 'soon', note: '敬请期待', icon: '◉', tone: 'cyan' },
-    { title: 'Android', status: 'soon', note: '敬请期待', icon: '△', tone: 'violet' },
-  ],
-  prod: [
-    {
-      title: 'Mac Apple Silicon',
-      status: 'ready',
-      href: 'https://iclaw.aiyuanxi.com/downloads/iClaw_1.0.0_aarch64_prod.dmg',
-      note: 'M 系列芯片 · 正式版',
-      icon: '⬢',
-      tone: 'cyan',
-    },
-    {
-      title: 'Mac Intel',
-      status: 'ready',
-      href: 'https://iclaw.aiyuanxi.com/downloads/iClaw_1.0.0_x64_prod.dmg',
-      note: 'Intel 芯片 · 正式版',
-      icon: '◆',
-      tone: 'violet',
-    },
-    { title: 'Windows', status: 'soon', note: '敬请期待', icon: '▣', tone: 'amber' },
-    { title: 'iOS', status: 'soon', note: '敬请期待', icon: '◉', tone: 'cyan' },
-    { title: 'Android', status: 'soon', note: '敬请期待', icon: '△', tone: 'violet' },
-  ],
-};
+    { title: 'Windows', href: '', note: '敬请期待', icon: '▣', tone: 'amber' },
+    { title: 'iOS', href: '', note: '敬请期待', icon: '◉', tone: 'cyan' },
+    { title: 'Android', href: '', note: '敬请期待', icon: '△', tone: 'violet' },
+  ].map((item) => ({
+    ...item,
+    status: item.href ? 'ready' : 'soon',
+  }));
+}
+
+function setText(id, value) {
+  const element = document.getElementById(id);
+  if (element) {
+    element.textContent = value;
+  }
+}
+
+function setImage(id, src, alt) {
+  const element = document.getElementById(id);
+  if (element instanceof HTMLImageElement) {
+    element.src = src;
+    if (alt) {
+      element.alt = alt;
+    }
+  }
+}
+
+document.title = HOME_BRAND.website.homeTitle;
+
+const descriptionMeta = document.querySelector('meta[name="description"]');
+if (descriptionMeta) {
+  descriptionMeta.setAttribute('content', HOME_BRAND.website.metaDescription);
+}
+
+const favicon = document.getElementById('site-favicon');
+if (favicon instanceof HTMLLinkElement) {
+  favicon.href = HOME_BRAND.assets.faviconPngSrc;
+}
+
+const appleTouchIcon = document.getElementById('site-apple-touch-icon');
+if (appleTouchIcon instanceof HTMLLinkElement) {
+  appleTouchIcon.href = HOME_BRAND.assets.appleTouchIconSrc;
+}
+
+setText('brand-label', HOME_BRAND.website.brandLabel);
+setText('top-cta', HOME_BRAND.website.topCtaLabel);
+setText('hero-kicker', HOME_BRAND.website.kicker);
+setText('hero-title-pre', HOME_BRAND.website.heroTitlePre);
+setText('hero-title-main', HOME_BRAND.website.heroTitleMain);
+setText('hero-description', HOME_BRAND.website.heroDescription);
+setText('scroll-label', HOME_BRAND.website.scrollLabel);
+setText('downloads-title', HOME_BRAND.website.downloadTitle);
+
+setImage('brand-logo', HOME_BRAND.assets.logoSrc, HOME_BRAND.assets.logoAlt);
+setImage('hero-art', HOME_BRAND.assets.heroArtSrc, `${HOME_BRAND.displayName} hero artwork`);
+setImage('hero-layer-1', HOME_BRAND.assets.heroLayer1Src, `${HOME_BRAND.displayName} visual layer one`);
+setImage('hero-photo', HOME_BRAND.assets.heroPhotoSrc, `${HOME_BRAND.displayName} product visual`);
 
 const envPill = document.querySelector('#env-pill');
 const grid = document.querySelector('#downloads-grid');
@@ -57,7 +98,7 @@ if (!envPill || !grid) {
 
 envPill.textContent = `当前环境：${ENV_LABEL}`;
 
-for (const item of DOWNLOADS[ENV_NAME]) {
+for (const item of buildDownloads()) {
   const card = document.createElement('article');
   card.className = `download-card tone-${item.tone}`;
 
@@ -91,7 +132,6 @@ for (const item of DOWNLOADS[ENV_NAME]) {
 
 const downloadCards = Array.from(document.querySelectorAll('.download-card'));
 
-// Spring-like card hover motion.
 for (const card of downloadCards) {
   let tx = 0;
   let ty = 0;
@@ -130,7 +170,6 @@ for (const card of downloadCards) {
   });
 }
 
-// Enter animation when cards appear in viewport.
 const io = new IntersectionObserver(
   (entries) => {
     for (const entry of entries) {
@@ -148,7 +187,6 @@ downloadCards.forEach((card, idx) => {
   io.observe(card);
 });
 
-// Spring-like pointer parallax for hero layers.
 const hero = document.querySelector('.hero');
 const layers = Array.from(document.querySelectorAll('.spring-layer'));
 const creature = document.querySelector('.float-photo');
@@ -218,18 +256,4 @@ if (hero && layers.length > 0) {
     targetY = 0;
     queue();
   });
-
-  // Random living-like movement for the right-side photo.
-  if (creature) {
-    const reseedLifeMotion = () => {
-      lifeTargetX = (Math.random() - 0.5) * 10;
-      lifeTargetY = (Math.random() - 0.5) * 14;
-      lifeTargetR = (Math.random() - 0.5) * 2.6;
-      lifeTargetS = Math.random() * 0.025 - 0.008;
-      queue();
-      const next = 700 + Math.random() * 1300;
-      window.setTimeout(reseedLifeMotion, next);
-    };
-    reseedLifeMotion();
-  }
 }

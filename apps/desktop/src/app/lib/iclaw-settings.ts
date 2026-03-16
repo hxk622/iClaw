@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { SettingsState } from '@/app/contexts/settings-context';
 import { isTauriRuntime } from '@/app/lib/tauri-sidecar';
+import { SETTINGS_STORAGE_KEY, WORKSPACE_UPDATED_EVENT } from '@/app/lib/storage';
 
 export interface IclawWorkspaceFiles {
   workspace_dir: string;
@@ -20,7 +21,6 @@ export interface IclawWorkspaceBackupPayload {
 
 export type WorkspaceMarkdownSection = 'identity' | 'user-profile' | 'soul-persona';
 
-const WORKSPACE_UPDATED_EVENT = 'iclaw-workspace-updated';
 const WORKSPACE_DEV_ENDPOINT = '/__iclaw/workspace-files';
 
 export function notifyIclawWorkspaceUpdated(): void {
@@ -103,7 +103,7 @@ export async function saveIclawWorkspaceSection(
 
 export async function saveIclawSettingsAndApply(settings: SettingsState): Promise<boolean> {
   if (!isTauriRuntime()) {
-    localStorage.setItem('iclaw-settings', JSON.stringify(settings));
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
     try {
       const response = await fetch(WORKSPACE_DEV_ENDPOINT, {
         method: 'POST',

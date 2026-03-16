@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 MODE="${1:-dev}"
+HOME_NGINX_PATH_DEFAULT="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" distribution.home.nginxPath | tail -n1)"
 
 if [[ "$MODE" == "dev" ]]; then
   echo "Starting home in dev mode (Vite)..."
@@ -13,7 +14,7 @@ fi
 if [[ "$MODE" == "prod" ]]; then
   : "${ICLAW_NGINX_HOST:=113.44.132.75}"
   : "${ICLAW_NGINX_USER:=root}"
-  : "${ICLAW_NGINX_PATH:=/var/www/iclaw-home}"
+  : "${ICLAW_NGINX_PATH:=$HOME_NGINX_PATH_DEFAULT}"
 
   cd "$ROOT_DIR"
   pnpm build:home

@@ -1,285 +1,240 @@
-import {
-  AlertTriangle,
-  CheckCircle2,
-  ChevronRight,
-  HardDriveDownload,
-  LoaderCircle,
-  PackageCheck,
-  PlayCircle,
-  SearchCheck,
-} from 'lucide-react';
-import type { RuntimeDiagnosis } from '../lib/tauri-runtime-config';
-
-export type SetupStage = 'inspect' | 'download' | 'extract' | 'launch' | 'failed';
+import { AlertTriangle, RefreshCcw } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import lobsterImage from '@/app/assets/installer-lobster.png';
+import { getResolvedThemeFromDom, THEME_CHANGE_EVENT, type ResolvedTheme } from '@/app/lib/theme';
 
 interface FirstRunSetupPanelProps {
-  diagnosis: RuntimeDiagnosis | null;
-  stage: SetupStage;
-  stageTitle: string;
-  stageDescription: string;
-  loading: boolean;
-  installing: boolean;
-  installError: string | null;
-  launchError: string | null;
-  onRecheck: () => Promise<void>;
-  onInstall: () => Promise<void>;
+  state: 'loading' | 'error';
+  title: string;
+  subtitle: string;
+  progress: number;
+  stepLabel: string;
+  stepDetail: string;
+  errorMessage: string | null;
+  onRetry: () => Promise<void>;
 }
 
-type StepDefinition = {
-  key: Exclude<SetupStage, 'failed'>;
-  label: string;
-  detail: string;
-  icon: typeof SearchCheck;
-};
+const PARTICLES = Array.from({ length: 16 }, (_, index) => ({
+  id: index,
+  left: `${8 + ((index * 17) % 84)}%`,
+  top: `${10 + ((index * 23) % 76)}%`,
+  delay: `${(index % 5) * 0.7}s`,
+  duration: `${3.6 + (index % 4) * 0.65}s`,
+}));
 
-const STEPS: StepDefinition[] = [
-  {
-    key: 'inspect',
-    label: '检查环境',
-    detail: '确认核心组件、资源目录和配置文件是否齐全。',
-    icon: SearchCheck,
-  },
-  {
-    key: 'download',
-    label: '下载组件',
-    detail: '拉取首次运行所需的本地核心组件。',
-    icon: HardDriveDownload,
-  },
-  {
-    key: 'extract',
-    label: '校验部署',
-    detail: '校验完整性并展开到本地运行目录。',
-    icon: PackageCheck,
-  },
-  {
-    key: 'launch',
-    label: '启动服务',
-    detail: '拉起本地服务并执行健康检查。',
-    icon: PlayCircle,
-  },
-];
-
-const STAGE_PROGRESS: Record<Exclude<SetupStage, 'failed'>, number> = {
-  inspect: 18,
-  download: 46,
-  extract: 72,
-  launch: 92,
-};
-
-function stepStatus(
-  step: Exclude<SetupStage, 'failed'>,
-  stage: SetupStage,
-): 'done' | 'active' | 'pending' {
-  if (stage === 'failed') {
-    return 'pending';
-  }
-
-  const currentIndex = STEPS.findIndex((item) => item.key === stage);
-  const stepIndex = STEPS.findIndex((item) => item.key === step);
-  if (stepIndex < currentIndex) return 'done';
-  if (stepIndex === currentIndex) return 'active';
-  return 'pending';
-}
-
-function statusTone(status: 'done' | 'active' | 'pending') {
-  if (status === 'done') {
+function panelThemeClasses(theme: ResolvedTheme, hasError: boolean) {
+  if (theme === 'dark') {
     return {
-      border: 'border-emerald-200 bg-emerald-50/80',
-      badge: 'border-emerald-300 bg-emerald-100 text-emerald-700',
-      text: 'text-emerald-900',
-      detail: 'text-emerald-700',
+      page: 'bg-[#040507] text-white',
+      gradient:
+        'bg-[radial-gradient(circle_at_top,_rgba(255,117,54,0.16),transparent_28%),radial-gradient(circle_at_bottom,_rgba(12,23,44,0.55),transparent_40%),linear-gradient(180deg,#0f1014_0%,#06070a_58%,#010102_100%)]',
+      title: 'text-white',
+      subtitle: 'text-[#98a0af]',
+      card: 'border-white/10 bg-white/[0.04] shadow-[0_32px_120px_rgba(0,0,0,0.42)]',
+      ringBase: 'border-white/12',
+      meta: hasError ? 'text-[#ff8d87]' : 'text-[#f7b47d]',
+      track: 'bg-white/8',
+      info: 'text-[#a9b0be]',
+      detail: 'text-[#7d8595]',
+      stepCard: hasError ? 'border-[#6a211f] bg-[#210c0c]/80' : 'border-white/10 bg-black/25',
+      errorBox: 'border-[#6a211f] bg-[#180909]/86 text-[#ffd4d0]',
+      retry:
+        'bg-[linear-gradient(135deg,#ff7a45_0%,#ff9950_100%)] text-white hover:brightness-105',
+      particle: hasError ? 'bg-[#ff6a5f]/30' : 'bg-[#ff8c42]/22',
+      scan: hasError ? 'via-[#ff6a5f]/35' : 'via-[#ff8c42]/28',
+      glow: hasError ? 'bg-[#ff584d]/25' : 'bg-[#ff8c42]/18',
+      percentage: hasError ? 'text-[#ff6a5f]' : 'text-[#ffb16d]',
     };
   }
-  if (status === 'active') {
-    return {
-      border: 'border-[#161616] bg-white shadow-[0_20px_60px_rgba(0,0,0,0.08)]',
-      badge: 'border-[#161616] bg-[#161616] text-white',
-      text: 'text-[#111111]',
-      detail: 'text-[#5f5f5f]',
-    };
-  }
+
   return {
-    border: 'border-[#ece7de] bg-[#fbf8f1]',
-    badge: 'border-[#ddd5c7] bg-[#f4efe5] text-[#7e7464]',
-    text: 'text-[#746a5c]',
-    detail: 'text-[#9c9387]',
+    page: 'bg-[#fcfbf8] text-[#1d1b17]',
+    gradient:
+      'bg-[radial-gradient(circle_at_top,_rgba(255,147,81,0.22),transparent_26%),radial-gradient(circle_at_bottom,_rgba(255,236,214,0.9),transparent_44%),linear-gradient(180deg,#fffdf9_0%,#fff8f0_50%,#f6efe5_100%)]',
+    title: 'text-[#171513]',
+    subtitle: 'text-[#736a5d]',
+    card: 'border-[#eadbc8] bg-white/78 shadow-[0_32px_120px_rgba(170,122,61,0.14)]',
+    ringBase: 'border-[#ecdac4]',
+    meta: hasError ? 'text-[#c6493f]' : 'text-[#cf6b33]',
+    track: 'bg-[#f0e5d8]',
+    info: 'text-[#4a433a]',
+    detail: 'text-[#7d7164]',
+    stepCard: hasError ? 'border-[#f0c4be] bg-[#fff3f1]' : 'border-[#eadbc8] bg-white/76',
+    errorBox: 'border-[#efc4bf] bg-[#fff4f2] text-[#7d2f2a]',
+    retry:
+      'bg-[linear-gradient(135deg,#ff7b48_0%,#ff9d56_100%)] text-white hover:brightness-105',
+    particle: hasError ? 'bg-[#ef5b4f]/22' : 'bg-[#ff9757]/28',
+    scan: hasError ? 'via-[#ef5b4f]/28' : 'via-[#ff9757]/28',
+    glow: hasError ? 'bg-[#ff7b70]/22' : 'bg-[#ffa163]/24',
+    percentage: hasError ? 'text-[#d94c42]' : 'text-[#d36c32]',
   };
 }
 
 export function FirstRunSetupPanel({
-  diagnosis,
-  stage,
-  stageTitle,
-  stageDescription,
-  loading,
-  installing,
-  installError,
-  launchError,
-  onRecheck,
-  onInstall,
+  state,
+  title,
+  subtitle,
+  progress,
+  stepLabel,
+  stepDetail,
+  errorMessage,
+  onRetry,
 }: FirstRunSetupPanelProps) {
-  const errorMessage = installError || launchError;
-  const progress = stage === 'failed' ? 92 : STAGE_PROGRESS[stage];
+  const [theme, setTheme] = useState<ResolvedTheme>(() => getResolvedThemeFromDom());
+  const clampedProgress = Math.max(0, Math.min(100, Math.round(progress)));
+  const hasError = state === 'error';
+  const palette = useMemo(() => panelThemeClasses(theme, hasError), [theme, hasError]);
+
+  useEffect(() => {
+    const handleThemeChange = () => {
+      setTheme(getResolvedThemeFromDom());
+    };
+    window.addEventListener(THEME_CHANGE_EVENT, handleThemeChange);
+    return () => {
+      window.removeEventListener(THEME_CHANGE_EVENT, handleThemeChange);
+    };
+  }, []);
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#f6f1e8] px-4 py-8">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.85),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(245,223,187,0.5),_transparent_28%),linear-gradient(135deg,_#f9f4ea_0%,_#f2eadf_44%,_#efe6db_100%)]" />
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[220px] bg-[linear-gradient(180deg,rgba(17,17,17,0.08),transparent)]" />
+    <div className={`relative flex min-h-screen items-center justify-center overflow-hidden px-6 py-10 ${palette.page}`}>
+      <div className={`pointer-events-none absolute inset-0 ${palette.gradient}`} />
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        {PARTICLES.map((particle) => (
+          <span
+            key={particle.id}
+            className={`absolute h-1.5 w-1.5 rounded-full ${palette.particle}`}
+            style={{
+              left: particle.left,
+              top: particle.top,
+              animation: `installer-particle-float ${particle.duration} ease-in-out ${particle.delay} infinite`,
+            }}
+          />
+        ))}
+      </div>
+      <div
+        className={`pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent ${palette.scan} to-transparent`}
+        style={{ animation: 'installer-scan-line 4.6s linear infinite' }}
+      />
 
-      <div className="relative w-full max-w-[980px] overflow-hidden rounded-[32px] border border-[#d9cfbf] bg-[rgba(255,252,246,0.88)] shadow-[0_24px_80px_rgba(97,75,39,0.16)] backdrop-blur-xl">
-        <div className="grid gap-0 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="border-b border-[#e6dccb] px-6 py-6 lg:border-r lg:border-b-0 lg:px-8 lg:py-8">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="font-mono text-[11px] uppercase tracking-[0.28em] text-[#9e907b]">
-                  Initial Session
-                </div>
-                <h1 className="mt-3 text-[28px] font-semibold tracking-[-0.04em] text-[#171411]">
-                  启动准备
-                </h1>
-              </div>
-              <div className="rounded-full border border-[#d8ccba] bg-white/80 px-3 py-1 font-mono text-[11px] text-[#8f816f]">
-                STEP {stage === 'failed' ? 'ERR' : progress}
-              </div>
-            </div>
-
-            <div className="mt-8 overflow-hidden rounded-full bg-[#e7dece]">
-              <div
-                className={`h-2 rounded-full bg-[linear-gradient(90deg,#1a1a1a_0%,#826a46_58%,#d9b37a_100%)] transition-all duration-700 ${
-                  stage !== 'failed' ? 'animate-pulse' : ''
-                }`}
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-
-            <div className="mt-5 flex items-start gap-3">
-              {stage === 'failed' ? (
-                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[#b64d38]" />
-              ) : (
-                <LoaderCircle className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-[#7a6341]" />
-              )}
-              <div>
-                <div className="text-[18px] font-semibold tracking-[-0.02em] text-[#1d1915]">{stageTitle}</div>
-                <p className="mt-1 max-w-[520px] text-[14px] leading-6 text-[#6f6458]">{stageDescription}</p>
-                <p className="mt-3 text-[11px] uppercase tracking-[0.2em] text-[#a3947f]">
-                  阶段进度，不展示伪精确下载百分比
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-8 grid gap-3">
-              {STEPS.map((step, index) => {
-                const status = stage === 'failed' && errorMessage
-                  ? index < 3 && diagnosis?.runtime_found
-                    ? 'done'
-                    : stepStatus(step.key, stage)
-                  : stepStatus(step.key, stage);
-                const tone = statusTone(status);
-                const Icon = step.icon;
-                return (
-                  <div
-                    key={step.key}
-                    className={`rounded-[22px] border px-4 py-4 transition-all duration-300 ${tone.border}`}
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className={`mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl border ${tone.badge}`}>
-                        {status === 'done' ? <CheckCircle2 className="h-4 w-4" /> : <Icon className={`h-4 w-4 ${status === 'active' ? 'animate-pulse' : ''}`} />}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-[15px] font-medium ${tone.text}`}>{step.label}</span>
-                          {status === 'active' && (
-                            <span className="rounded-full bg-[#f4ede3] px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-[#7b6b55]">
-                              Active
-                            </span>
-                          )}
-                        </div>
-                        <p className={`mt-1 text-[13px] leading-5 ${tone.detail}`}>{step.detail}</p>
-                      </div>
-                      <ChevronRight className={`mt-1 h-4 w-4 shrink-0 ${status === 'active' ? 'text-[#1a1a1a]' : 'text-[#b1a592]'}`} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+      <div className={`relative w-full max-w-[780px] overflow-hidden rounded-[36px] border px-8 py-10 backdrop-blur-2xl md:px-12 md:py-12 ${palette.card}`}>
+        <div className="text-center">
+          <div className={`text-[11px] uppercase tracking-[0.34em] ${palette.meta}`}>
+            Installation Sequence
           </div>
+          <h1 className={`mt-4 text-[36px] font-semibold tracking-[-0.06em] md:text-[42px] ${palette.title}`}>{title}</h1>
+          <p className={`mx-auto mt-3 max-w-[420px] text-sm leading-7 md:text-[15px] ${palette.subtitle}`}>{subtitle}</p>
+        </div>
 
-          <div className="px-6 py-6 lg:px-8 lg:py-8">
-            <div className="rounded-[28px] border border-[#dfd3c2] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(247,241,232,0.94))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]">
-              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#9f907a]">Status</div>
-              <div className="mt-4 space-y-3 text-[13px] text-[#5f564d]">
-                <div className="flex items-center justify-between rounded-2xl bg-white/70 px-4 py-3">
-                  <span>核心组件</span>
-                  <span className={diagnosis?.runtime_found ? 'text-emerald-700' : 'text-[#9f927e]'}>
-                    {diagnosis?.runtime_found ? '已就绪' : diagnosis?.runtime_installable ? '待部署' : '缺失'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between rounded-2xl bg-white/70 px-4 py-3">
-                  <span>技能目录</span>
-                  <span className={diagnosis?.skills_dir_ready ? 'text-emerald-700' : 'text-[#9f927e]'}>
-                    {diagnosis?.skills_dir_ready ? '已同步' : '待检查'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between rounded-2xl bg-white/70 px-4 py-3">
-                  <span>本地配置</span>
-                  <span className={diagnosis?.mcp_config_ready ? 'text-emerald-700' : 'text-[#9f927e]'}>
-                    {diagnosis?.mcp_config_ready ? '已加载' : '待检查'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between rounded-2xl bg-white/70 px-4 py-3">
-                  <span>模型密钥</span>
-                  <span className={diagnosis?.api_key_configured ? 'text-emerald-700' : 'text-[#9f927e]'}>
-                    {diagnosis?.api_key_configured ? '已配置' : '未配置'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {(diagnosis || errorMessage) && (
-              <div className="mt-4 rounded-[26px] border border-[#e0d6c8] bg-[#fffdfa] p-5">
-                <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#9f907a]">Diagnostics</div>
-
-                {errorMessage && (
-                  <div className="mt-4 rounded-2xl border border-[#efc6bc] bg-[#fff2ef] px-4 py-3 text-[13px] leading-6 text-[#a5432f]">
-                    {errorMessage}
-                  </div>
-                )}
-
-                {diagnosis && (
-                  <div className="mt-4 space-y-2 font-mono text-[11px] leading-5 text-[#6e665d]">
-                    <div>source: {diagnosis.runtime_source || '-'}</div>
-                    <div>version: {diagnosis.runtime_version || '-'}</div>
-                    <div>path: {diagnosis.runtime_path || '-'}</div>
-                    <div>skills: {diagnosis.skills_dir}</div>
-                    <div>config: {diagnosis.mcp_config}</div>
-                    <div>work: {diagnosis.work_dir}</div>
-                    <div>logs: {diagnosis.log_dir}</div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="mt-5 flex flex-wrap gap-3">
-              <button
-                onClick={() => void onRecheck()}
-                disabled={loading || installing}
-                className="rounded-full bg-[#171411] px-5 py-2.5 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
-                {errorMessage ? '重新尝试' : '重新检查'}
-              </button>
-
-              {diagnosis?.runtime_installable && !diagnosis.runtime_found && !installing && (
-                <button
-                  onClick={() => void onInstall()}
-                  disabled={loading || installing}
-                  className="rounded-full border border-[#d9ccbb] bg-white/90 px-5 py-2.5 text-[13px] font-medium text-[#5c5246] transition-colors hover:bg-[#faf5ee] disabled:opacity-50"
-                >
-                  手动准备组件
-                </button>
-              )}
-            </div>
+        <div className="relative mx-auto mt-10 h-[300px] w-[300px] md:h-[340px] md:w-[340px]">
+          <div
+            className={`absolute inset-[12%] rounded-full blur-3xl ${palette.glow}`}
+            style={{ animation: hasError ? 'installer-glow 1.8s ease-in-out infinite' : 'installer-glow 3.2s ease-in-out infinite' }}
+          />
+          {!hasError && (
+            <>
+              <div
+                className={`absolute inset-[6%] rounded-full border ${palette.ringBase}`}
+                style={{ animation: 'installer-ripple 3s ease-out infinite' }}
+              />
+              <div
+                className={`absolute inset-[10%] rounded-full border ${palette.ringBase}`}
+                style={{ animation: 'installer-ripple 3s ease-out 1.2s infinite' }}
+              />
+            </>
+          )}
+          <svg className="absolute inset-0 -rotate-90" viewBox="0 0 340 340" aria-hidden="true">
+            <circle cx="170" cy="170" r="156" className={palette.track} fill="none" strokeWidth="4" />
+            <circle
+              cx="170"
+              cy="170"
+              r="156"
+              fill="none"
+              stroke="url(#installer-progress-gradient)"
+              strokeLinecap="round"
+              strokeWidth="6"
+              strokeDasharray={980.1769079201}
+              strokeDashoffset={980.1769079201 * (1 - clampedProgress / 100)}
+              style={{ transition: 'stroke-dashoffset 320ms ease-out', filter: 'drop-shadow(0 0 8px rgba(255,145,82,0.42))' }}
+            />
+            <defs>
+              <linearGradient id="installer-progress-gradient" x1="0%" x2="100%" y1="0%" y2="0%">
+                <stop offset="0%" stopColor={hasError ? '#ff655b' : '#ff7d47'} />
+                <stop offset="100%" stopColor={hasError ? '#d83a3a' : '#ffb05b'} />
+              </linearGradient>
+            </defs>
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <img
+              src={lobsterImage}
+              alt="iClaw lobster"
+              className="relative z-10 h-[240px] w-[240px] object-contain md:h-[270px] md:w-[270px]"
+              style={{ animation: hasError ? 'installer-wobble 1.6s ease-in-out infinite' : 'installer-float 3.6s ease-in-out infinite' }}
+            />
           </div>
         </div>
+
+        <div className="mx-auto mt-4 max-w-[560px] text-center">
+          <div className={`text-[18px] font-medium tracking-[-0.03em] ${palette.info}`}>{stepLabel}</div>
+          <div className={`mt-2 text-sm leading-7 ${palette.detail}`}>{stepDetail}</div>
+        </div>
+
+        <div className="mx-auto mt-8 max-w-[560px]">
+          <div className={`relative h-2 overflow-hidden rounded-full ${palette.track}`}>
+            {!hasError && (
+              <div
+                className="absolute inset-y-0 w-24 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.5),transparent)]"
+                style={{
+                  left: `${Math.max(0, clampedProgress - 8)}%`,
+                  animation: 'installer-progress-shimmer 1.8s ease-in-out infinite',
+                }}
+              />
+            )}
+            <div
+              className="absolute inset-y-0 left-0 rounded-full"
+              style={{
+                width: `${clampedProgress}%`,
+                transition: 'width 260ms ease-out',
+                background: hasError
+                  ? 'linear-gradient(90deg, #ff665d 0%, #de3d3d 100%)'
+                  : 'linear-gradient(90deg, #ff7d47 0%, #ffb05b 100%)',
+                boxShadow: hasError
+                  ? '0 0 16px rgba(255, 102, 93, 0.42)'
+                  : '0 0 16px rgba(255, 143, 73, 0.42)',
+              }}
+            />
+          </div>
+          <div className="mt-3 flex items-center justify-between">
+            <div className={`text-[11px] uppercase tracking-[0.26em] ${palette.detail}`}>
+              {hasError ? 'Installation Failed' : 'Installation Progress'}
+            </div>
+            <div className={`text-[18px] font-medium tabular-nums tracking-[0.12em] ${palette.percentage}`}>{clampedProgress}%</div>
+          </div>
+        </div>
+
+        {hasError && (
+          <div className="mx-auto mt-8 max-w-[560px] space-y-4">
+            <div className={`rounded-[24px] border px-5 py-5 ${palette.stepCard}`}>
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-full bg-[rgba(255,101,91,0.12)] text-[#ff6a5f]">
+                  <AlertTriangle className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className={`text-sm font-medium ${palette.info}`}>安装过程中断</div>
+                  <div className={`mt-2 whitespace-pre-wrap break-words text-sm leading-7 ${palette.detail}`}>
+                    {errorMessage}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => void onRetry()}
+              className={`inline-flex w-full items-center justify-center gap-2 rounded-[18px] px-4 py-3 text-sm font-medium transition duration-[var(--motion-panel)] ${palette.retry}`}
+            >
+              <RefreshCcw className="h-4 w-4" />
+              重新尝试
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -5,8 +5,10 @@ iClaw 下载站（首版）。
 ## 本地开发
 
 ```bash
-pnpm dev:home
+ICLAW_BRAND=iclaw pnpm dev:home
+ICLAW_BRAND=licaiclaw pnpm dev:home
 # 或
+pnpm dev:home
 bash scripts/deploy-home.sh dev
 ```
 
@@ -15,6 +17,8 @@ bash scripts/deploy-home.sh dev
 ## 构建
 
 ```bash
+ICLAW_BRAND=licaiclaw pnpm build:home
+# 或
 pnpm build:home
 ```
 

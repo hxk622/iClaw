@@ -6,6 +6,11 @@ source "$ROOT_DIR/scripts/lib/openclaw-package.sh"
 
 ENV_NAME="${1:-prod}"
 RUNTIME_CONFIG_PATH="$(openclaw_runtime_bootstrap_config_path "$ROOT_DIR")"
+RUNTIME_PREFIX_DEFAULT="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" runtimeDistribution.minioPrefix | tail -n1)"
+RUNTIME_DEV_BUCKET_DEFAULT="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" runtimeDistribution.dev.bucket | tail -n1)"
+RUNTIME_PROD_BUCKET_DEFAULT="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" runtimeDistribution.prod.bucket | tail -n1)"
+RUNTIME_DEV_BASE_URL_DEFAULT="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" runtimeDistribution.dev.publicBaseUrl | tail -n1)"
+RUNTIME_PROD_BASE_URL_DEFAULT="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" runtimeDistribution.prod.publicBaseUrl | tail -n1)"
 
 if [[ ! -f "$RUNTIME_CONFIG_PATH" ]]; then
   echo "Missing runtime config: $RUNTIME_CONFIG_PATH" >&2
@@ -59,13 +64,13 @@ runtime_public_url_for() {
 case "$ENV_NAME" in
   dev)
     : "${ICLAW_RUNTIME_MINIO_ALIAS:=${ICLAW_MINIO_DEV_ALIAS:-local}}"
-    : "${ICLAW_RUNTIME_MINIO_BUCKET:=${ICLAW_MINIO_DEV_BUCKET:-iclaw-dev}}"
-    : "${ICLAW_RUNTIME_PUBLIC_BASE_URL:=http://127.0.0.1:9000/$ICLAW_RUNTIME_MINIO_BUCKET}"
+    : "${ICLAW_RUNTIME_MINIO_BUCKET:=${ICLAW_MINIO_DEV_BUCKET:-$RUNTIME_DEV_BUCKET_DEFAULT}}"
+    : "${ICLAW_RUNTIME_PUBLIC_BASE_URL:=${RUNTIME_DEV_BASE_URL_DEFAULT:-http://127.0.0.1:9000/$ICLAW_RUNTIME_MINIO_BUCKET}}"
     ;;
   prod)
     : "${ICLAW_RUNTIME_MINIO_ALIAS:=${ICLAW_MINIO_PROD_ALIAS:-remoteprod}}"
-    : "${ICLAW_RUNTIME_MINIO_BUCKET:=${ICLAW_MINIO_PROD_BUCKET:-iclaw-prod}}"
-    : "${ICLAW_RUNTIME_PUBLIC_BASE_URL:=https://iclaw.aiyuanxi.com/downloads}"
+    : "${ICLAW_RUNTIME_MINIO_BUCKET:=${ICLAW_MINIO_PROD_BUCKET:-$RUNTIME_PROD_BUCKET_DEFAULT}}"
+    : "${ICLAW_RUNTIME_PUBLIC_BASE_URL:=${RUNTIME_PROD_BASE_URL_DEFAULT:-}}"
     ;;
   *)
     echo "Unknown env: $ENV_NAME (use dev or prod)" >&2
@@ -73,7 +78,12 @@ case "$ENV_NAME" in
     ;;
 esac
 
-: "${ICLAW_RUNTIME_MINIO_PREFIX:=runtime}"
+: "${ICLAW_RUNTIME_MINIO_PREFIX:=$RUNTIME_PREFIX_DEFAULT}"
+
+if [[ -z "${ICLAW_RUNTIME_PUBLIC_BASE_URL:-}" ]]; then
+  echo "ICLAW_RUNTIME_PUBLIC_BASE_URL is required for brand $(node "$ROOT_DIR/scripts/read-brand-value.mjs" brandId | tail -n1) env $ENV_NAME" >&2
+  exit 1
+fi
 
 if ! command -v mc >/dev/null 2>&1; then
   echo "mc not found in PATH" >&2

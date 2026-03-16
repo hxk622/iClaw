@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 
 export interface RuntimeConfig {
   openai_api_key?: string | null;
@@ -25,6 +26,13 @@ export interface RuntimeDiagnosis {
   cache_dir: string;
 }
 
+export interface RuntimeInstallProgress {
+  phase: string;
+  progress: number;
+  label: string;
+  detail: string;
+}
+
 function isTauriRuntime(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
@@ -47,4 +55,16 @@ export async function installRuntime(): Promise<boolean> {
 export async function diagnoseRuntime(): Promise<RuntimeDiagnosis | null> {
   if (!isTauriRuntime()) return null;
   return invoke<RuntimeDiagnosis>('diagnose_runtime');
+}
+
+export async function listenRuntimeInstallProgress(
+  handler: (payload: RuntimeInstallProgress) => void,
+): Promise<() => void> {
+  if (!isTauriRuntime()) return () => {};
+  const unlisten = await listen<RuntimeInstallProgress>('runtime-install-progress', (event) => {
+    handler(event.payload);
+  });
+  return () => {
+    void unlisten();
+  };
 }

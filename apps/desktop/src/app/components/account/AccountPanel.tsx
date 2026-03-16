@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Camera, ChevronLeft, CreditCard, KeyRound, Link2, Loader2, Trash2, Unplug, Wallet } from 'lucide-react';
 import { IClawClient } from '@iclaw/sdk';
+import { Button } from '@/app/components/ui/Button';
 
 type AuthUser = {
   id?: string;
@@ -250,13 +251,15 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-3">
-          <button
+          <Button
             onClick={onClose}
-            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            variant="ghost"
+            size="sm"
+            className="rounded-md px-2 py-1 text-sm text-[var(--text-secondary)]"
           >
             <ChevronLeft className="h-4 w-4" />
             返回对话
-          </button>
+          </Button>
           <div className="text-sm text-[var(--text-secondary)]">个人中心</div>
         </div>
 
@@ -290,21 +293,25 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
                       className="hidden"
                       onChange={(event) => void handleSelectAvatar(event)}
                     />
-                    <button
+                    <Button
                       onClick={() => avatarInputRef.current?.click()}
-                      className="inline-flex items-center gap-2 rounded-2xl border border-[var(--border-default)] px-4 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+                      variant="secondary"
+                      size="sm"
+                      className="rounded-2xl text-sm"
                     >
                       <Camera className="h-4 w-4" />
                       更换头像
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       onClick={handleRemoveAvatar}
                       disabled={!avatarPreview && !user?.avatar_url}
-                      className="inline-flex items-center gap-2 rounded-2xl border border-[var(--border-default)] px-4 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] disabled:opacity-40"
+                      variant="secondary"
+                      size="sm"
+                      className="rounded-2xl text-sm text-[var(--text-secondary)]"
                     >
                       <Trash2 className="h-4 w-4" />
                       移除
-                    </button>
+                    </Button>
                   </div>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
@@ -337,13 +344,15 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
                   </label>
                 </div>
                 <div className="mt-4 flex items-center gap-3">
-                  <button
+                  <Button
                     onClick={() => void handleSaveProfile()}
                     disabled={savingProfile}
-                    className="rounded-2xl bg-[var(--brand-primary)] px-4 py-2 text-sm text-[var(--brand-on-primary)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
+                    variant="primary"
+                    size="sm"
+                    className="rounded-2xl text-sm"
                   >
                     {savingProfile ? '保存中...' : '保存资料'}
-                  </button>
+                  </Button>
                   {profileMessage ? <span className="text-sm text-[var(--text-secondary)]">{profileMessage}</span> : null}
                 </div>
               </div>
@@ -382,13 +391,15 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
                   </label>
                 </div>
                 <div className="mt-4 flex items-center gap-3">
-                  <button
+                  <Button
                     onClick={() => void handleChangePassword()}
                     disabled={changingPassword}
-                    className="rounded-2xl border border-[var(--border-default)] px-4 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-hover)] disabled:opacity-50"
+                    variant="secondary"
+                    size="sm"
+                    className="rounded-2xl text-sm"
                   >
                     {changingPassword ? '更新中...' : '更新密码'}
-                  </button>
+                  </Button>
                   {passwordMessage ? <span className="text-sm text-[var(--text-secondary)]">{passwordMessage}</span> : null}
                 </div>
               </div>
@@ -432,14 +443,16 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
                             <div className="mt-1 text-xs text-[var(--text-secondary)]">{formatDate(item.created_at)}</div>
                           </div>
                           {(item.provider === 'wechat' || item.provider === 'google') ? (
-                            <button
+                            <Button
                               onClick={() => void handleUnlink(item.provider as 'wechat' | 'google')}
                               disabled={unlinkingProvider === item.provider}
-                              className="inline-flex items-center gap-1 rounded-xl border border-[var(--border-default)] px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] disabled:opacity-50"
+                              variant="secondary"
+                              size="sm"
+                              className="rounded-xl px-3 py-1.5 text-xs text-[var(--text-secondary)]"
                             >
                               {unlinkingProvider === item.provider ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Unplug className="h-3.5 w-3.5" />}
                               解绑
-                            </button>
+                            </Button>
                           ) : null}
                         </div>
                       </div>

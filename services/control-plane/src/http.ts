@@ -24,23 +24,19 @@ type Route = {
   handler: RouteHandler;
 };
 
-const ALLOWED_ORIGINS = new Set([
-  'http://127.0.0.1:1520',
-  'http://localhost:1520',
-  'https://tauri.localhost',
-  'http://tauri.localhost',
-  'tauri://localhost',
-]);
+type JsonServerOptions = {
+  allowedOrigins?: string[];
+};
 
-function resolveCorsOrigin(origin: string | undefined): string | null {
+function resolveCorsOrigin(origin: string | undefined, allowedOrigins: Set<string>): string | null {
   if (!origin) return null;
-  return ALLOWED_ORIGINS.has(origin) ? origin : null;
+  return allowedOrigins.has(origin) ? origin : null;
 }
 
-function applyCorsHeaders(request: IncomingMessage, response: ServerResponse): void {
+function applyCorsHeaders(request: IncomingMessage, response: ServerResponse, allowedOrigins: Set<string>): void {
   const originHeader = request.headers.origin;
   const origin = Array.isArray(originHeader) ? originHeader[0] : originHeader;
-  const allowOrigin = resolveCorsOrigin(origin);
+  const allowOrigin = resolveCorsOrigin(origin, allowedOrigins);
   if (!allowOrigin) return;
 
   response.setHeader('Access-Control-Allow-Origin', allowOrigin);
@@ -97,11 +93,12 @@ async function readBody(request: IncomingMessage): Promise<unknown> {
   }
 }
 
-export function createJsonServer(routes: Route[]) {
+export function createJsonServer(routes: Route[], options: JsonServerOptions = {}) {
+  const allowedOrigins = new Set((options.allowedOrigins || []).map((entry) => entry.trim()).filter(Boolean));
   return createServer(async (request, response) => {
     const requestId = randomUUID();
     response.setHeader('x-request-id', requestId);
-    applyCorsHeaders(request, response);
+    applyCorsHeaders(request, response, allowedOrigins);
 
     if (request.method === 'OPTIONS') {
       response.statusCode = 204;

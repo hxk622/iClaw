@@ -1,10 +1,11 @@
-import { ChevronRight, MessageSquare, Shield, Sparkles, User, UserCircle } from 'lucide-react';
+import { ChevronRight, MessageSquare, Palette, Shield, Sparkles, User, UserCircle } from 'lucide-react';
 import { type ComponentType } from 'react';
 import { useSettings } from '@/app/contexts/settings-context';
 import { StatusBadge } from '@/app/components/settings/ui/StatusBadge';
 
 export type SettingsSection =
   | 'overview'
+  | 'appearance'
   | 'general'
   | 'identity'
   | 'user-profile'
@@ -25,10 +26,18 @@ const cards: Array<{
   section: SettingsSection;
 }> = [
   {
+    key: 'appearance',
+    statusKey: 'appearance',
+    title: '风格',
+    description: '切换浅色、深色或跟随系统外观',
+    icon: Palette,
+    section: 'appearance',
+  },
+  {
     key: 'general',
     statusKey: 'general',
     title: '通用',
-    description: '主题、语言与全局行为设置',
+    description: '语言、启动行为与全局偏好设置',
     icon: UserCircle,
     section: 'general',
   },
