@@ -148,7 +148,7 @@ export interface SkillCatalogEntryData {
   skill_type: string | null;
   publisher: string;
   distribution: 'bundled' | 'cloud';
-  source: 'bundled' | 'cloud';
+  source: 'bundled' | 'cloud' | 'private';
   tags: string[];
   latest_release: SkillCatalogReleaseData | null;
 }
@@ -177,9 +177,28 @@ interface UpsertAdminSkillCatalogInput {
 export interface UserSkillLibraryItemData {
   slug: string;
   version: string;
+  source: 'cloud' | 'private';
   enabled: boolean;
   installed_at: string;
   updated_at: string;
+}
+
+interface ImportPrivateSkillInput {
+  token: string;
+  slug: string;
+  name: string;
+  description: string;
+  market?: string | null;
+  category?: string | null;
+  skillType?: string | null;
+  publisher?: string;
+  tags?: string[];
+  sourceKind: 'github' | 'local';
+  sourceUrl?: string | null;
+  version: string;
+  artifactFormat: 'tar.gz' | 'zip';
+  artifactSha256?: string | null;
+  artifactBase64: string;
 }
 
 type BrowserDeviceIdentity = {
@@ -800,6 +819,19 @@ export class IClawClient {
     return json.data.items;
   }
 
+  async listPersonalSkillsCatalog(token: string): Promise<SkillCatalogEntryData[]> {
+    const res = await this.fetchAuth('/skills/catalog/personal', {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: {items: SkillCatalogEntryData[]}};
+    return json.data.items;
+  }
+
   async listAdminSkillsCatalog(token: string): Promise<AdminSkillCatalogEntryData[]> {
     const res = await this.fetchAuth('/admin/skills/catalog', {
       method: 'GET',
@@ -882,6 +914,36 @@ export class IClawClient {
     });
     if (!res.ok) throw await parseError(res);
     const json = (await res.json()) as {data: UserSkillLibraryItemData};
+    return json.data;
+  }
+
+  async importPrivateSkill(input: ImportPrivateSkillInput): Promise<SkillCatalogEntryData> {
+    const res = await this.fetchAuth('/skills/library/import', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${input.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        slug: input.slug,
+        name: input.name,
+        description: input.description,
+        market: input.market,
+        category: input.category,
+        skill_type: input.skillType,
+        publisher: input.publisher,
+        tags: input.tags,
+        source_kind: input.sourceKind,
+        source_url: input.sourceUrl,
+        version: input.version,
+        artifact_format: input.artifactFormat,
+        artifact_sha256: input.artifactSha256,
+        artifact_base64: input.artifactBase64,
+      }),
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: SkillCatalogEntryData};
     return json.data;
   }
 

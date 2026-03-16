@@ -139,6 +139,9 @@ export type WorkspaceBackupView = WorkspaceBackupInput & {
 };
 
 export type SkillDistribution = 'bundled' | 'cloud';
+export type SkillSource = 'bundled' | 'cloud' | 'private';
+export type UserSkillLibrarySource = 'cloud' | 'private';
+export type UserPrivateSkillSourceKind = 'github' | 'local';
 
 export type SkillCatalogRecord = {
   slug: string;
@@ -175,6 +178,7 @@ export type UserSkillLibraryRecord = {
   userId: string;
   slug: string;
   version: string;
+  source: UserSkillLibrarySource;
   enabled: boolean;
   installedAt: string;
   updatedAt: string;
@@ -199,7 +203,7 @@ export type SkillCatalogEntryView = {
   skill_type: string | null;
   publisher: string;
   distribution: SkillDistribution;
-  source: SkillDistribution;
+  source: SkillSource;
   tags: string[];
   latest_release: SkillCatalogReleaseView | null;
 };
@@ -207,9 +211,30 @@ export type SkillCatalogEntryView = {
 export type UserSkillLibraryItemView = {
   slug: string;
   version: string;
+  source: UserSkillLibrarySource;
   enabled: boolean;
   installed_at: string;
   updated_at: string;
+};
+
+export type UserPrivateSkillRecord = {
+  userId: string;
+  slug: string;
+  name: string;
+  description: string;
+  market: string | null;
+  category: string | null;
+  skillType: string | null;
+  publisher: string;
+  tags: string[];
+  sourceKind: UserPrivateSkillSourceKind;
+  sourceUrl: string | null;
+  version: string;
+  artifactFormat: 'tar.gz' | 'zip';
+  artifactKey: string;
+  artifactSha256: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type AdminSkillCatalogEntryView = SkillCatalogEntryView & {
@@ -272,6 +297,23 @@ export type UsageEventInput = {
 export type InstallSkillInput = {
   slug?: string;
   version?: string;
+};
+
+export type ImportUserPrivateSkillInput = {
+  slug?: string;
+  name?: string;
+  description?: string;
+  market?: string | null;
+  category?: string | null;
+  skill_type?: string | null;
+  publisher?: string;
+  tags?: string[];
+  source_kind?: UserPrivateSkillSourceKind;
+  source_url?: string | null;
+  version?: string;
+  artifact_format?: 'tar.gz' | 'zip';
+  artifact_sha256?: string | null;
+  artifact_base64?: string;
 };
 
 export type UpdateSkillLibraryItemInput = {

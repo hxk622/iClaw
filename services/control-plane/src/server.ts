@@ -4,10 +4,12 @@ import {dirname, resolve, sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 import { downloadAvatar } from './avatar-storage.ts';
+import {downloadPrivateSkillArtifact} from './skill-storage.ts';
 import {CachedControlPlaneStore} from './cached-store.ts';
 import {config} from './config.ts';
 import type {
   ChangePasswordInput,
+  ImportUserPrivateSkillInput,
   InstallSkillInput,
   LoginInput,
   RegisterInput,
@@ -223,6 +225,12 @@ const server = createJsonServer([
   },
   {
     method: 'GET',
+    path: '/skills/catalog/personal',
+    handler: ({headers}: HandlerContext) =>
+      service.listPersonalSkillCatalog(requireBearerToken(headers), resolvePublicBaseUrl(headers)),
+  },
+  {
+    method: 'GET',
     path: '/admin/skills/catalog',
     handler: ({headers}: HandlerContext) =>
       service.listAdminSkillCatalog(requireBearerToken(headers), resolvePublicBaseUrl(headers)),
@@ -258,6 +266,16 @@ const server = createJsonServer([
       service.installSkill(requireBearerToken(headers), (body || {}) as InstallSkillInput),
   },
   {
+    method: 'POST',
+    path: '/skills/library/import',
+    handler: ({headers, body}: HandlerContext) =>
+      service.importPrivateSkill(
+        requireBearerToken(headers),
+        (body || {}) as ImportUserPrivateSkillInput,
+        resolvePublicBaseUrl(headers),
+      ),
+  },
+  {
     method: 'PUT',
     path: '/skills/library/state',
     handler: ({headers, body}: HandlerContext) =>
@@ -291,6 +309,25 @@ const server = createJsonServer([
           'Content-Length': String(archive.length),
           'Cache-Control': 'public, max-age=300',
           'Content-Disposition': `attachment; filename="${release.slug}-${release.version}.tar.gz"`,
+        },
+      });
+    },
+  },
+  {
+    method: 'GET',
+    path: '/skills/private-artifact',
+    handler: async ({headers, url}: HandlerContext) => {
+      const slug = (url.searchParams.get('slug') || '').trim();
+      const version = (url.searchParams.get('version') || '').trim() || undefined;
+      const skill = await service.getPrivateSkillArtifactRecord(requireBearerToken(headers), slug, version);
+      const artifact = await downloadPrivateSkillArtifact(skill.artifactKey);
+      const ext = skill.artifactFormat === 'zip' ? 'zip' : 'tar.gz';
+      return createRawResponse(artifact.buffer, {
+        headers: {
+          'Content-Type': artifact.contentType,
+          'Content-Length': String(artifact.buffer.length),
+          'Cache-Control': 'private, max-age=300',
+          'Content-Disposition': `attachment; filename="${skill.slug}-${skill.version}.${ext}"`,
         },
       });
     },

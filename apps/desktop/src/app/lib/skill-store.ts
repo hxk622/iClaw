@@ -30,6 +30,7 @@ type ManagedSkillInstallInput = {
   artifact_url: string;
   artifact_sha256?: string | null;
   artifact_format?: string | null;
+  source?: 'cloud' | 'private';
 };
 
 type ManagedSkillInstallRecord = {
@@ -38,6 +39,24 @@ type ManagedSkillInstallRecord = {
   source: string;
   installed_at: string;
   path: string;
+};
+
+type ImportGithubSkillInput = {
+  auth_base_url: string;
+  access_token: string;
+  repo_url: string;
+};
+
+type ImportLocalSkillInput = {
+  auth_base_url: string;
+  access_token: string;
+};
+
+export type ImportedSkillResult = {
+  slug: string;
+  version: string;
+  name: string;
+  source: 'private';
 };
 
 export type SkillMarketLabel = 'A股' | '美股' | '通用' | '全球';
@@ -59,7 +78,7 @@ export type SkillStoreItem = {
   description: string;
   tags: string[];
   visibility: string;
-  source: 'bundled' | 'cloud';
+  source: 'bundled' | 'cloud' | 'private';
   market: SkillMarketLabel;
   skillType: SkillTypeLabel;
   categoryId: SkillStoreCategoryId;
@@ -249,7 +268,7 @@ function normalizeCloudSkill(
     description: item.description,
     tags: item.tags,
     visibility: item.visibility || 'showcase',
-    source: 'cloud',
+    source: item.source,
     market,
     skillType: inferSkillType(item),
     categoryId,
@@ -259,7 +278,7 @@ function normalizeCloudSkill(
     userInstalled,
     localInstalled,
     enabled,
-    sourceLabel: '云端技能',
+    sourceLabel: item.source === 'private' ? '我的导入' : '云端技能',
     publisher: item.publisher,
     latestRelease: item.latest_release,
   };
@@ -350,7 +369,9 @@ export async function loadSkillStoreCatalog(input: {
 }): Promise<SkillStoreItem[]> {
   const [bundledItems, cloudCatalog, libraryItems, localManagedItems] = await Promise.all([
     loadBundledSkillCatalog(),
-    input.client.listSkillsCatalog().catch(() => []),
+    input.accessToken
+      ? input.client.listPersonalSkillsCatalog(input.accessToken).catch(() => input.client.listSkillsCatalog().catch(() => []))
+      : input.client.listSkillsCatalog().catch(() => []),
     input.accessToken ? input.client.getSkillLibrary(input.accessToken).catch(() => []) : Promise.resolve([]),
     listManagedSkills().catch(() => []),
   ]);
@@ -453,7 +474,7 @@ export async function installSkillFromStore(input: {
   accessToken: string | null;
   item: SkillStoreItem;
 }): Promise<void> {
-  if (input.item.source !== 'cloud') {
+  if (input.item.source !== 'cloud' && input.item.source !== 'private') {
     return;
   }
   if (!input.accessToken) {
@@ -477,6 +498,7 @@ export async function installSkillFromStore(input: {
     artifact_url: release.artifact_url,
     artifact_sha256: release.artifact_sha256,
     artifact_format: release.artifact_format,
+    source: input.item.source === 'private' ? 'private' : 'cloud',
   });
 }
 
@@ -490,7 +512,7 @@ export async function syncManagedSkills(input: {
 
   try {
     const [catalog, library, localManagedItems] = await Promise.all([
-      input.client.listSkillsCatalog(),
+      input.client.listPersonalSkillsCatalog(input.accessToken),
       input.client.getSkillLibrary(input.accessToken),
       listManagedSkills(),
     ]);
@@ -520,6 +542,7 @@ export async function syncManagedSkills(input: {
         artifact_url: release.artifact_url,
         artifact_sha256: release.artifact_sha256,
         artifact_format: release.artifact_format,
+        source: libraryItem.source,
       });
       changed = true;
     }
@@ -541,4 +564,48 @@ export async function syncManagedSkills(input: {
     emitWindowEvent(SKILL_STORE_SYNC_ERROR_EVENT, '下载安装失败');
     throw new Error('下载安装失败');
   }
+}
+
+export async function importSkillFromGithub(input: {
+  authBaseUrl: string;
+  accessToken: string | null;
+  repoUrl: string;
+}): Promise<ImportedSkillResult | null> {
+  if (!isTauriRuntime()) {
+    throw new Error('DESKTOP_ONLY');
+  }
+  if (!input.accessToken) {
+    throw new Error('AUTH_REQUIRED');
+  }
+  const result = await invoke<ImportedSkillResult>('import_github_skill', {
+    input: {
+      auth_base_url: input.authBaseUrl,
+      access_token: input.accessToken,
+      repo_url: input.repoUrl,
+    } satisfies ImportGithubSkillInput,
+  });
+  emitWindowEvent(SKILL_STORE_UPDATED_EVENT);
+  return result;
+}
+
+export async function importSkillFromLocalDirectory(input: {
+  authBaseUrl: string;
+  accessToken: string | null;
+}): Promise<ImportedSkillResult | null> {
+  if (!isTauriRuntime()) {
+    throw new Error('DESKTOP_ONLY');
+  }
+  if (!input.accessToken) {
+    throw new Error('AUTH_REQUIRED');
+  }
+  const result = await invoke<ImportedSkillResult | null>('import_local_skill', {
+    input: {
+      auth_base_url: input.authBaseUrl,
+      access_token: input.accessToken,
+    } satisfies ImportLocalSkillInput,
+  });
+  if (result) {
+    emitWindowEvent(SKILL_STORE_UPDATED_EVENT);
+  }
+  return result;
 }

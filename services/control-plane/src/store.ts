@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type {
   CreateUserInput,
   CreditLedgerRecord,
+  ImportUserPrivateSkillInput,
   InstallSkillInput,
   OAuthAccountRecord,
   OAuthProvider,
@@ -14,6 +15,7 @@ import type {
   UpsertSkillCatalogEntryInput,
   UsageEventInput,
   UsageEventResult,
+  UserPrivateSkillRecord,
   UserRole,
   UserSkillLibraryRecord,
   UpdateSkillLibraryItemInput,
@@ -70,8 +72,17 @@ export interface ControlPlaneStore {
   upsertSkillCatalogEntry(input: Required<UpsertSkillCatalogEntryInput>): Promise<SkillCatalogEntryRecord>;
   deleteSkillCatalogEntry(slug: string): Promise<boolean>;
   getSkillRelease(slug: string, version?: string): Promise<SkillReleaseRecord | null>;
+  listUserPrivateSkills(userId: string): Promise<UserPrivateSkillRecord[]>;
+  getUserPrivateSkill(userId: string, slug: string): Promise<UserPrivateSkillRecord | null>;
+  upsertUserPrivateSkill(
+    userId: string,
+    input: Omit<Required<ImportUserPrivateSkillInput>, 'artifact_base64'> & {artifactKey: string},
+  ): Promise<UserPrivateSkillRecord>;
   listUserSkillLibrary(userId: string): Promise<UserSkillLibraryRecord[]>;
-  installUserSkill(userId: string, input: Required<InstallSkillInput>): Promise<UserSkillLibraryRecord>;
+  installUserSkill(
+    userId: string,
+    input: Required<InstallSkillInput> & {source?: 'cloud' | 'private'},
+  ): Promise<UserSkillLibraryRecord>;
   updateUserSkill(userId: string, input: Required<UpdateSkillLibraryItemInput>): Promise<UserSkillLibraryRecord | null>;
   removeUserSkill(userId: string, slug: string): Promise<boolean>;
 }
@@ -93,6 +104,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   private readonly workspaceBackupsByUserId = new Map<string, WorkspaceBackupRecord>();
   private readonly skillCatalog = new Map<string, SkillCatalogEntryRecord>();
   private readonly userSkillLibrary = new Map<string, UserSkillLibraryRecord>();
+  private readonly userPrivateSkills = new Map<string, UserPrivateSkillRecord>();
 
   constructor() {
     const now = new Date().toISOString();
@@ -478,11 +490,52 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     return entry.latestRelease;
   }
 
+  async listUserPrivateSkills(userId: string): Promise<UserPrivateSkillRecord[]> {
+    return Array.from(this.userPrivateSkills.values()).filter((item) => item.userId === userId);
+  }
+
+  async getUserPrivateSkill(userId: string, slug: string): Promise<UserPrivateSkillRecord | null> {
+    return this.userPrivateSkills.get(`${userId}:${slug}`) || null;
+  }
+
+  async upsertUserPrivateSkill(
+    userId: string,
+    input: Omit<Required<ImportUserPrivateSkillInput>, 'artifact_base64'> & {artifactKey: string},
+  ): Promise<UserPrivateSkillRecord> {
+    const now = new Date().toISOString();
+    const key = `${userId}:${input.slug}`;
+    const existing = this.userPrivateSkills.get(key);
+    const record: UserPrivateSkillRecord = {
+      userId,
+      slug: input.slug,
+      name: input.name,
+      description: input.description,
+      market: input.market,
+      category: input.category,
+      skillType: input.skill_type,
+      publisher: input.publisher,
+      tags: input.tags,
+      sourceKind: input.source_kind,
+      sourceUrl: input.source_url,
+      version: input.version,
+      artifactFormat: input.artifact_format,
+      artifactKey: input.artifactKey,
+      artifactSha256: input.artifact_sha256,
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+    };
+    this.userPrivateSkills.set(key, record);
+    return record;
+  }
+
   async listUserSkillLibrary(userId: string): Promise<UserSkillLibraryRecord[]> {
     return Array.from(this.userSkillLibrary.values()).filter((item) => item.userId === userId);
   }
 
-  async installUserSkill(userId: string, input: Required<InstallSkillInput>): Promise<UserSkillLibraryRecord> {
+  async installUserSkill(
+    userId: string,
+    input: Required<InstallSkillInput> & {source?: 'cloud' | 'private'},
+  ): Promise<UserSkillLibraryRecord> {
     const now = new Date().toISOString();
     const key = `${userId}:${input.slug}`;
     const existing = this.userSkillLibrary.get(key);
@@ -490,6 +543,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       userId,
       slug: input.slug,
       version: input.version,
+      source: input.source || existing?.source || 'cloud',
       enabled: true,
       installedAt: existing?.installedAt || now,
       updatedAt: now,

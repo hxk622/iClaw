@@ -136,7 +136,7 @@ export function SkillStoreDetailSheet({
             <div className="rounded-[24px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.05)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
               <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">安装方式</div>
               <div className="mt-2 text-[15px] font-medium text-[var(--text-primary)]">
-                {skill.source === 'bundled' ? '随应用内置' : '云端安装到账号'}
+                {skill.source === 'bundled' ? '随应用内置' : skill.source === 'private' ? '私有导入到账号' : '云端安装到账号'}
               </div>
               <p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">
                 {skill.source === 'bundled' ? '无需操作，应用默认可见。' : '安装后会参与跨设备恢复。'}
@@ -163,7 +163,9 @@ export function SkillStoreDetailSheet({
             <div className="text-[13px] text-[var(--text-secondary)]">
               {skill.source === 'bundled'
                 ? '系统预置能力会随应用一起存在。'
-                : '云端技能安装后，会由本地 runtime 接管下载与恢复。'}
+                : skill.source === 'private'
+                  ? '私有导入技能会进入你的账号，并在其他电脑上自动恢复。'
+                  : '云端技能安装后，会由本地 runtime 接管下载与恢复。'}
             </div>
             <div className="flex items-center gap-3">
               <Button variant="secondary" size="md" onClick={onClose}>

@@ -5,6 +5,7 @@ import {Pool, type PoolClient} from 'pg';
 import type {
   CreateUserInput,
   CreditLedgerRecord,
+  ImportUserPrivateSkillInput,
   InstallSkillInput,
   OAuthAccountRecord,
   OAuthProvider,
@@ -17,6 +18,7 @@ import type {
   UpsertSkillCatalogEntryInput,
   UsageEventInput,
   UsageEventResult,
+  UserPrivateSkillRecord,
   UserRole,
   UserSkillLibraryRecord,
   UpdateSkillLibraryItemInput,
@@ -122,9 +124,30 @@ type SkillReleaseRow = {
 type UserSkillLibraryRow = {
   user_id: string;
   skill_slug: string;
+  source: 'cloud' | 'private';
   installed_version: string;
   enabled: boolean;
   installed_at: Date;
+  updated_at: Date;
+};
+
+type UserPrivateSkillRow = {
+  user_id: string;
+  slug: string;
+  name: string;
+  description: string;
+  market: string | null;
+  category: string | null;
+  skill_type: string | null;
+  publisher: string;
+  tags: unknown;
+  source_kind: 'github' | 'local';
+  source_url: string | null;
+  version: string;
+  artifact_format: 'tar.gz' | 'zip';
+  artifact_key: string;
+  artifact_sha256: string | null;
+  created_at: Date;
   updated_at: Date;
 };
 
@@ -212,8 +235,31 @@ function mapUserSkillLibraryRow(row: UserSkillLibraryRow): UserSkillLibraryRecor
     userId: row.user_id,
     slug: row.skill_slug,
     version: row.installed_version,
+    source: row.source,
     enabled: row.enabled,
     installedAt: row.installed_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapUserPrivateSkillRow(row: UserPrivateSkillRow): UserPrivateSkillRecord {
+  return {
+    userId: row.user_id,
+    slug: row.slug,
+    name: row.name,
+    description: row.description,
+    market: row.market,
+    category: row.category,
+    skillType: row.skill_type,
+    publisher: row.publisher,
+    tags: parseSkillTags(row.tags),
+    sourceKind: row.source_kind,
+    sourceUrl: row.source_url,
+    version: row.version,
+    artifactFormat: row.artifact_format,
+    artifactKey: row.artifact_key,
+    artifactSha256: row.artifact_sha256,
+    createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
 }
@@ -1123,10 +1169,152 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     return result.rows[0] ? mapSkillReleaseRow(result.rows[0]) : null;
   }
 
+  async listUserPrivateSkills(userId: string): Promise<UserPrivateSkillRecord[]> {
+    const result = await this.pool.query<UserPrivateSkillRow>(
+      `
+        select
+          user_id,
+          slug,
+          name,
+          description,
+          market,
+          category,
+          skill_type,
+          publisher,
+          tags,
+          source_kind,
+          source_url,
+          version,
+          artifact_format,
+          artifact_key,
+          artifact_sha256,
+          created_at,
+          updated_at
+        from user_private_skills
+        where user_id = $1
+        order by updated_at desc, created_at desc
+      `,
+      [userId],
+    );
+    return result.rows.map(mapUserPrivateSkillRow);
+  }
+
+  async getUserPrivateSkill(userId: string, slug: string): Promise<UserPrivateSkillRecord | null> {
+    const result = await this.pool.query<UserPrivateSkillRow>(
+      `
+        select
+          user_id,
+          slug,
+          name,
+          description,
+          market,
+          category,
+          skill_type,
+          publisher,
+          tags,
+          source_kind,
+          source_url,
+          version,
+          artifact_format,
+          artifact_key,
+          artifact_sha256,
+          created_at,
+          updated_at
+        from user_private_skills
+        where user_id = $1 and slug = $2
+        limit 1
+      `,
+      [userId, slug],
+    );
+    return result.rows[0] ? mapUserPrivateSkillRow(result.rows[0]) : null;
+  }
+
+  async upsertUserPrivateSkill(
+    userId: string,
+    input: Omit<Required<ImportUserPrivateSkillInput>, 'artifact_base64'> & {artifactKey: string},
+  ): Promise<UserPrivateSkillRecord> {
+    const result = await this.pool.query<UserPrivateSkillRow>(
+      `
+        insert into user_private_skills (
+          user_id,
+          slug,
+          name,
+          description,
+          market,
+          category,
+          skill_type,
+          publisher,
+          tags,
+          source_kind,
+          source_url,
+          version,
+          artifact_format,
+          artifact_key,
+          artifact_sha256,
+          created_at,
+          updated_at
+        )
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, now(), now())
+        on conflict (user_id, slug)
+        do update set
+          name = excluded.name,
+          description = excluded.description,
+          market = excluded.market,
+          category = excluded.category,
+          skill_type = excluded.skill_type,
+          publisher = excluded.publisher,
+          tags = excluded.tags,
+          source_kind = excluded.source_kind,
+          source_url = excluded.source_url,
+          version = excluded.version,
+          artifact_format = excluded.artifact_format,
+          artifact_key = excluded.artifact_key,
+          artifact_sha256 = excluded.artifact_sha256,
+          updated_at = now()
+        returning
+          user_id,
+          slug,
+          name,
+          description,
+          market,
+          category,
+          skill_type,
+          publisher,
+          tags,
+          source_kind,
+          source_url,
+          version,
+          artifact_format,
+          artifact_key,
+          artifact_sha256,
+          created_at,
+          updated_at
+      `,
+      [
+        userId,
+        input.slug,
+        input.name,
+        input.description,
+        input.market,
+        input.category,
+        input.skill_type,
+        input.publisher,
+        JSON.stringify(input.tags),
+        input.source_kind,
+        input.source_url,
+        input.version,
+        input.artifact_format,
+        input.artifactKey,
+        input.artifact_sha256,
+      ],
+    );
+    return mapUserPrivateSkillRow(result.rows[0]);
+  }
+
   async listUserSkillLibrary(userId: string): Promise<UserSkillLibraryRecord[]> {
     const result = await this.pool.query<UserSkillLibraryRow>(
       `
-        select user_id, skill_slug, installed_version, enabled, installed_at, updated_at
+        select user_id, skill_slug, source, installed_version, enabled, installed_at, updated_at
         from user_skill_library
         where user_id = $1
         order by installed_at desc
@@ -1136,26 +1324,31 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     return result.rows.map(mapUserSkillLibraryRow);
   }
 
-  async installUserSkill(userId: string, input: Required<InstallSkillInput>): Promise<UserSkillLibraryRecord> {
+  async installUserSkill(
+    userId: string,
+    input: Required<InstallSkillInput> & {source?: 'cloud' | 'private'},
+  ): Promise<UserSkillLibraryRecord> {
     const result = await this.pool.query<UserSkillLibraryRow>(
       `
         insert into user_skill_library (
           user_id,
           skill_slug,
+          source,
           installed_version,
           enabled,
           installed_at,
           updated_at
         )
-        values ($1, $2, $3, true, now(), now())
+        values ($1, $2, $3, $4, true, now(), now())
         on conflict (user_id, skill_slug)
         do update set
+          source = excluded.source,
           installed_version = excluded.installed_version,
           enabled = true,
           updated_at = now()
-        returning user_id, skill_slug, installed_version, enabled, installed_at, updated_at
+        returning user_id, skill_slug, source, installed_version, enabled, installed_at, updated_at
       `,
-      [userId, input.slug, input.version],
+      [userId, input.slug, input.source || 'cloud', input.version],
     );
     return mapUserSkillLibraryRow(result.rows[0]);
   }
@@ -1169,7 +1362,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         update user_skill_library
         set enabled = $3, updated_at = now()
         where user_id = $1 and skill_slug = $2
-        returning user_id, skill_slug, installed_version, enabled, installed_at, updated_at
+        returning user_id, skill_slug, source, installed_version, enabled, installed_at, updated_at
       `,
       [userId, input.slug, input.enabled],
     );

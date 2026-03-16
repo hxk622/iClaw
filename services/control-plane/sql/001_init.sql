@@ -156,15 +156,52 @@ create table if not exists skill_releases (
   primary key (skill_slug, version)
 );
 
+create table if not exists user_private_skills (
+  user_id uuid not null references users(id) on delete cascade,
+  slug text not null,
+  name text not null,
+  description text not null,
+  market text,
+  category text,
+  skill_type text,
+  publisher text not null default '个人导入',
+  tags jsonb not null default '[]'::jsonb,
+  source_kind text not null,
+  source_url text,
+  version text not null,
+  artifact_format text not null,
+  artifact_key text not null,
+  artifact_sha256 text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, slug)
+);
+
 create table if not exists user_skill_library (
   user_id uuid not null references users(id) on delete cascade,
-  skill_slug text not null references skill_catalog_entries(slug) on delete cascade,
+  skill_slug text not null,
+  source text not null default 'cloud',
   installed_version text not null,
   enabled boolean not null default true,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   primary key (user_id, skill_slug)
 );
+
+alter table user_skill_library add column if not exists source text not null default 'cloud';
+
+do $$
+begin
+  if exists (
+    select 1
+    from pg_constraint
+    where conname = 'user_skill_library_skill_slug_fkey'
+  ) then
+    alter table user_skill_library drop constraint user_skill_library_skill_slug_fkey;
+  end if;
+exception
+  when undefined_object then null;
+end $$;
 
 insert into skill_catalog_entries (
   slug,

@@ -1,6 +1,7 @@
 import type {
   CreateUserInput,
   CreditLedgerRecord,
+  ImportUserPrivateSkillInput,
   InstallSkillInput,
   OAuthAccountRecord,
   OAuthProvider,
@@ -12,6 +13,7 @@ import type {
   UpsertSkillCatalogEntryInput,
   UsageEventInput,
   UsageEventResult,
+  UserPrivateSkillRecord,
   UserRole,
   UserSkillLibraryRecord,
   UpdateSkillLibraryItemInput,
@@ -316,13 +318,43 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     );
   }
 
+  async listUserPrivateSkills(userId: string): Promise<UserPrivateSkillRecord[]> {
+    return this.getOrLoadValue(this.userPrivateSkillsKey(userId), USER_SKILL_LIBRARY_CACHE_TTL_SECONDS, () =>
+      this.base.listUserPrivateSkills(userId),
+    );
+  }
+
+  async getUserPrivateSkill(userId: string, slug: string): Promise<UserPrivateSkillRecord | null> {
+    return this.getOrLoad(
+      this.userPrivateSkillKey(userId, slug),
+      USER_SKILL_LIBRARY_CACHE_TTL_SECONDS,
+      () => this.base.getUserPrivateSkill(userId, slug),
+    );
+  }
+
+  async upsertUserPrivateSkill(
+    userId: string,
+    input: Omit<Required<ImportUserPrivateSkillInput>, 'artifact_base64'> & {artifactKey: string},
+  ): Promise<UserPrivateSkillRecord> {
+    const record = await this.base.upsertUserPrivateSkill(userId, input);
+    await this.cache.delete(
+      this.userPrivateSkillsKey(userId),
+      this.userPrivateSkillKey(userId, input.slug),
+      this.userSkillLibraryKey(userId),
+    );
+    return record;
+  }
+
   async listUserSkillLibrary(userId: string): Promise<UserSkillLibraryRecord[]> {
     return this.getOrLoadValue(this.userSkillLibraryKey(userId), USER_SKILL_LIBRARY_CACHE_TTL_SECONDS, () =>
       this.base.listUserSkillLibrary(userId),
     );
   }
 
-  async installUserSkill(userId: string, input: Required<InstallSkillInput>): Promise<UserSkillLibraryRecord> {
+  async installUserSkill(
+    userId: string,
+    input: Required<InstallSkillInput> & {source?: 'cloud' | 'private'},
+  ): Promise<UserSkillLibraryRecord> {
     const record = await this.base.installUserSkill(userId, input);
     await this.cache.delete(this.userSkillLibraryKey(userId));
     return record;
@@ -438,6 +470,14 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
 
   private userSkillLibraryKey(userId: string): string {
     return `skills:library:${userId}`;
+  }
+
+  private userPrivateSkillsKey(userId: string): string {
+    return `skills:private:${userId}`;
+  }
+
+  private userPrivateSkillKey(userId: string, slug: string): string {
+    return `skills:private:${userId}:${slug}`;
   }
 
   private oauthUserKey(provider: OAuthProvider, providerId: string): string {

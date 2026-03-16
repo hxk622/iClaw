@@ -1,6 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use base64::Engine;
 use flate2::read::GzDecoder;
+use flate2::write::GzEncoder;
+use flate2::Compression;
 use keyring::Entry;
 use rand::rngs::OsRng;
 use rand::RngCore;
@@ -10,8 +13,8 @@ use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::env;
 use std::fs::{self, File};
-use std::net::TcpListener;
 use std::io::{Read, Write};
+use std::net::TcpListener;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -21,6 +24,8 @@ use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager, State};
 use zip::ZipArchive;
+
+use rfd::FileDialog;
 
 struct SidecarState {
     child: Mutex<Option<Child>>,
@@ -122,6 +127,7 @@ struct ManagedSkillInstallInput {
     artifact_url: String,
     artifact_sha256: Option<String>,
     artifact_format: Option<String>,
+    source: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -141,6 +147,78 @@ struct ManagedSkillInstallRecord {
     source: String,
     installed_at: String,
     path: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct ImportGithubSkillInput {
+    auth_base_url: String,
+    access_token: String,
+    repo_url: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct ImportLocalSkillInput {
+    auth_base_url: String,
+    access_token: String,
+}
+
+#[derive(Serialize)]
+struct ImportedSkillRecord {
+    slug: String,
+    version: String,
+    name: String,
+    source: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct ImportableSkillMetadata {
+    slug: String,
+    name: String,
+    description: String,
+    market: Option<String>,
+    category: Option<String>,
+    skill_type: Option<String>,
+    publisher: String,
+    tags: Vec<String>,
+    version: String,
+}
+
+#[derive(Serialize)]
+struct PrivateSkillImportRequest {
+    slug: String,
+    name: String,
+    description: String,
+    market: Option<String>,
+    category: Option<String>,
+    skill_type: Option<String>,
+    publisher: String,
+    tags: Vec<String>,
+    source_kind: String,
+    source_url: Option<String>,
+    version: String,
+    artifact_format: String,
+    artifact_sha256: Option<String>,
+    artifact_base64: String,
+}
+
+#[derive(Deserialize)]
+struct ControlPlaneEnvelope<T> {
+    data: T,
+}
+
+#[derive(Deserialize)]
+struct ImportedSkillCatalogRelease {
+    version: String,
+    artifact_url: Option<String>,
+    artifact_format: String,
+    artifact_sha256: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ImportedSkillCatalogEntry {
+    slug: String,
+    name: String,
+    latest_release: Option<ImportedSkillCatalogRelease>,
 }
 
 #[derive(Serialize, Clone)]
@@ -555,6 +633,156 @@ fn parse_skill_tags(value: Option<String>) -> Vec<String> {
         .collect()
 }
 
+fn generated_import_version() -> String {
+    match SystemTime::now().duration_since(UNIX_EPOCH) {
+        Ok(duration) => format!("import-{}", duration.as_secs()),
+        Err(_) => String::from("import-current"),
+    }
+}
+
+fn discover_skill_root(root: &Path) -> Result<PathBuf, String> {
+    if root.join("SKILL.md").exists() {
+        return Ok(root.to_path_buf());
+    }
+
+    let mut direct_children = Vec::new();
+    for entry in fs::read_dir(root).map_err(|e| format!("failed to scan selected directory: {e}"))? {
+        let entry = entry.map_err(|e| format!("failed to read selected directory entry: {e}"))?;
+        let path = entry.path();
+        if path.is_dir() {
+            if path.join("SKILL.md").exists() {
+                direct_children.push(path);
+            } else {
+                for nested in fs::read_dir(&path)
+                    .map_err(|e| format!("failed to scan nested skill directory: {e}"))?
+                {
+                    let nested =
+                        nested.map_err(|e| format!("failed to read nested skill directory entry: {e}"))?;
+                    let nested_path = nested.path();
+                    if nested_path.is_dir() && nested_path.join("SKILL.md").exists() {
+                        direct_children.push(nested_path);
+                    }
+                }
+            }
+        }
+    }
+
+    if direct_children.len() == 1 {
+        return Ok(direct_children.remove(0));
+    }
+
+    Err(String::from(
+        "没有找到唯一的技能目录，请选择包含 SKILL.md 的技能目录",
+    ))
+}
+
+fn load_importable_skill_metadata(skill_root: &Path, publisher_fallback: Option<String>) -> Result<ImportableSkillMetadata, String> {
+    let skill_md_path = skill_root.join("SKILL.md");
+    let raw = fs::read_to_string(&skill_md_path)
+        .map_err(|e| format!("failed to read {}: {e}", skill_md_path.to_string_lossy()))?;
+    let frontmatter = parse_skill_frontmatter(&raw);
+    let fallback_slug = skill_root
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("imported-skill")
+        .to_string();
+    let slug = frontmatter_value(&frontmatter, "slug").unwrap_or(fallback_slug);
+    let name = frontmatter_value(&frontmatter, "name").unwrap_or_else(|| slug.clone());
+    let description = frontmatter_value(&frontmatter, "description")
+        .unwrap_or_else(|| String::from("用户导入的技能"));
+    let publisher = frontmatter_value(&frontmatter, "publisher")
+        .or(publisher_fallback)
+        .unwrap_or_else(|| String::from("个人导入"));
+    let version = frontmatter_value(&frontmatter, "version").unwrap_or_else(generated_import_version);
+
+    Ok(ImportableSkillMetadata {
+        slug,
+        name,
+        description,
+        market: frontmatter_value(&frontmatter, "market"),
+        category: frontmatter_value(&frontmatter, "category"),
+        skill_type: frontmatter_value(&frontmatter, "skill_type"),
+        publisher,
+        tags: parse_skill_tags(frontmatter_value(&frontmatter, "tags")),
+        version,
+    })
+}
+
+fn append_directory_to_tar(
+    builder: &mut tar::Builder<GzEncoder<Vec<u8>>>,
+    source_dir: &Path,
+    archive_root: &Path,
+) -> Result<(), String> {
+    for entry in fs::read_dir(source_dir).map_err(|e| format!("failed to read skill directory: {e}"))? {
+        let entry = entry.map_err(|e| format!("failed to read skill directory entry: {e}"))?;
+        let path = entry.path();
+        let name = archive_root.join(entry.file_name());
+        if path.is_dir() {
+            builder
+                .append_dir(&name, &path)
+                .map_err(|e| format!("failed to append skill directory: {e}"))?;
+            append_directory_to_tar(builder, &path, &name)?;
+            continue;
+        }
+        let mut file = File::open(&path)
+            .map_err(|e| format!("failed to open skill file {}: {e}", path.to_string_lossy()))?;
+        builder
+            .append_file(&name, &mut file)
+            .map_err(|e| format!("failed to append skill file {}: {e}", path.to_string_lossy()))?;
+    }
+    Ok(())
+}
+
+fn package_skill_directory(skill_root: &Path, slug: &str) -> Result<Vec<u8>, String> {
+    let encoder = GzEncoder::new(Vec::new(), Compression::default());
+    let mut builder = tar::Builder::new(encoder);
+    append_directory_to_tar(&mut builder, skill_root, Path::new(slug))?;
+    let encoder = builder
+        .into_inner()
+        .map_err(|e| format!("failed to finalize skill archive: {e}"))?;
+    encoder
+        .finish()
+        .map_err(|e| format!("failed to compress skill archive: {e}"))
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    format!("{:x}", hasher.finalize())
+}
+
+fn extract_github_owner(repo_url: &str) -> Option<String> {
+    let trimmed = repo_url.trim().trim_end_matches('/');
+    let without_scheme = trimmed
+        .strip_prefix("https://")
+        .or_else(|| trimmed.strip_prefix("http://"))
+        .unwrap_or(trimmed);
+    let parts: Vec<&str> = without_scheme.split('/').collect();
+    if parts.len() >= 3 && parts[0].eq_ignore_ascii_case("github.com") {
+        Some(parts[1].to_string())
+    } else {
+        None
+    }
+}
+
+fn github_zipball_url(repo_url: &str) -> Result<String, String> {
+    let trimmed = repo_url.trim().trim_end_matches('/');
+    let without_scheme = trimmed
+        .strip_prefix("https://")
+        .or_else(|| trimmed.strip_prefix("http://"))
+        .unwrap_or(trimmed);
+    let parts: Vec<&str> = without_scheme.split('/').collect();
+    if parts.len() < 3 || !parts[0].eq_ignore_ascii_case("github.com") {
+        return Err(String::from("请提供公开 GitHub 仓库链接"));
+    }
+    let owner = parts[1].trim();
+    let repo = parts[2].trim();
+    if owner.is_empty() || repo.is_empty() {
+        return Err(String::from("GitHub 仓库链接不完整"));
+    }
+    Ok(format!("https://api.github.com/repos/{owner}/{repo}/zipball"))
+}
+
 fn load_bundled_skills_catalog_internal(app: &AppHandle) -> Result<Vec<BundledSkillCatalogItem>, String> {
     let skills_dir = resource_skills_dir(app);
     if !skills_dir.exists() {
@@ -702,6 +930,7 @@ fn download_file_with_optional_sha256(
     let client = Client::builder()
         .connect_timeout(Duration::from_secs(20))
         .timeout(Duration::from_secs(1800))
+        .user_agent("iClaw Desktop Downloader")
         .build()
         .map_err(|e| format!("failed to build skill downloader: {e}"))?;
     let mut response = client
@@ -850,7 +1079,10 @@ fn install_managed_skill_internal(
     let receipt = ManagedSkillInstallReceipt {
         slug: slug.clone(),
         version: version.clone(),
-        source: String::from("cloud"),
+        source: input
+            .source
+            .clone()
+            .unwrap_or_else(|| String::from("cloud")),
         installed_at: timestamp_string(),
         artifact_url: Some(artifact_url),
         artifact_sha256: input.artifact_sha256.clone(),
@@ -860,7 +1092,7 @@ fn install_managed_skill_internal(
     Ok(ManagedSkillInstallRecord {
         slug,
         version,
-        source: String::from("cloud"),
+        source: receipt.source,
         installed_at: receipt.installed_at,
         path: final_dir.to_string_lossy().to_string(),
     })
@@ -877,6 +1109,169 @@ fn remove_managed_skill_internal(app: &AppHandle, slug: &str) -> Result<bool, St
     }
     fs::remove_dir_all(&target).map_err(|e| format!("failed to remove managed skill: {e}"))?;
     Ok(true)
+}
+
+fn import_client() -> Result<Client, String> {
+    Client::builder()
+        .connect_timeout(Duration::from_secs(20))
+        .timeout(Duration::from_secs(1800))
+        .user_agent("iClaw Desktop Skill Importer")
+        .build()
+        .map_err(|e| format!("failed to build import http client: {e}"))
+}
+
+fn upload_private_skill(
+    auth_base_url: &str,
+    access_token: &str,
+    metadata: &ImportableSkillMetadata,
+    source_kind: &str,
+    source_url: Option<String>,
+    archive_bytes: Vec<u8>,
+) -> Result<ImportedSkillCatalogEntry, String> {
+    let client = import_client()?;
+    let endpoint = format!(
+        "{}/skills/library/import",
+        auth_base_url.trim_end_matches('/')
+    );
+    let sha256 = sha256_hex(&archive_bytes);
+    let payload = PrivateSkillImportRequest {
+        slug: metadata.slug.clone(),
+        name: metadata.name.clone(),
+        description: metadata.description.clone(),
+        market: metadata.market.clone(),
+        category: metadata.category.clone(),
+        skill_type: metadata.skill_type.clone(),
+        publisher: metadata.publisher.clone(),
+        tags: metadata.tags.clone(),
+        source_kind: source_kind.to_string(),
+        source_url,
+        version: metadata.version.clone(),
+        artifact_format: String::from("tar.gz"),
+        artifact_sha256: Some(sha256),
+        artifact_base64: base64::engine::general_purpose::STANDARD.encode(archive_bytes),
+    };
+    let response = client
+        .post(endpoint)
+        .bearer_auth(access_token.trim())
+        .json(&payload)
+        .send()
+        .and_then(|resp| resp.error_for_status())
+        .map_err(|e| format!("failed to upload imported skill: {e}"))?;
+    response
+        .json::<ControlPlaneEnvelope<ImportedSkillCatalogEntry>>()
+        .map(|value| value.data)
+        .map_err(|e| format!("failed to parse imported skill response: {e}"))
+}
+
+fn install_imported_skill_from_catalog(
+    app: &AppHandle,
+    entry: ImportedSkillCatalogEntry,
+) -> Result<ImportedSkillRecord, String> {
+    let release = entry
+        .latest_release
+        .ok_or_else(|| String::from("control-plane did not return imported skill release"))?;
+    let artifact_url = release
+        .artifact_url
+        .ok_or_else(|| String::from("control-plane did not return imported skill artifact url"))?;
+    install_managed_skill_internal(
+        app,
+        ManagedSkillInstallInput {
+            slug: entry.slug.clone(),
+            version: release.version.clone(),
+            artifact_url,
+            artifact_sha256: release.artifact_sha256,
+            artifact_format: Some(release.artifact_format),
+            source: Some(String::from("private")),
+        },
+    )?;
+    Ok(ImportedSkillRecord {
+        slug: entry.slug,
+        version: release.version,
+        name: entry.name,
+        source: String::from("private"),
+    })
+}
+
+fn import_skill_from_directory(
+    app: &AppHandle,
+    skill_root: &Path,
+    auth_base_url: &str,
+    access_token: &str,
+    source_kind: &str,
+    source_url: Option<String>,
+    publisher_fallback: Option<String>,
+) -> Result<ImportedSkillRecord, String> {
+    let metadata = load_importable_skill_metadata(skill_root, publisher_fallback)?;
+    let archive = package_skill_directory(skill_root, &metadata.slug)?;
+    let entry = upload_private_skill(
+        auth_base_url,
+        access_token,
+        &metadata,
+        source_kind,
+        source_url,
+        archive,
+    )?;
+    install_imported_skill_from_catalog(app, entry)
+}
+
+fn import_github_skill_internal(
+    app: &AppHandle,
+    input: ImportGithubSkillInput,
+) -> Result<ImportedSkillRecord, String> {
+    let repo_url = input.repo_url.trim();
+    if repo_url.is_empty() {
+        return Err(String::from("GitHub 仓库链接不能为空"));
+    }
+    let zipball_url = github_zipball_url(repo_url)?;
+    let downloads_dir = app_data_base_dir(app)?.join("skill-imports");
+    fs::create_dir_all(&downloads_dir)
+        .map_err(|e| format!("failed to create skill imports dir: {e}"))?;
+    let archive_path = downloads_dir.join(format!("github-import-{}.zip", timestamp_string()));
+    let staging_dir = downloads_dir.join(format!("github-import-{}.partial", timestamp_string()));
+    if archive_path.exists() {
+        let _ = fs::remove_file(&archive_path);
+    }
+    if staging_dir.exists() {
+        let _ = fs::remove_dir_all(&staging_dir);
+    }
+    fs::create_dir_all(&staging_dir)
+        .map_err(|e| format!("failed to create github import staging dir: {e}"))?;
+    download_file_with_optional_sha256(app, &zipball_url, &archive_path, None)?;
+    extract_zip_archive(&archive_path, &staging_dir)?;
+    let skill_root = discover_skill_root(&staging_dir)?;
+    let result = import_skill_from_directory(
+        app,
+        &skill_root,
+        &input.auth_base_url,
+        &input.access_token,
+        "github",
+        Some(repo_url.to_string()),
+        extract_github_owner(repo_url),
+    );
+    let _ = fs::remove_file(&archive_path);
+    let _ = fs::remove_dir_all(&staging_dir);
+    result
+}
+
+fn import_local_skill_internal(
+    app: &AppHandle,
+    input: ImportLocalSkillInput,
+) -> Result<Option<ImportedSkillRecord>, String> {
+    let selected = FileDialog::new().set_title("选择技能目录").pick_folder();
+    let Some(selected_dir) = selected else {
+        return Ok(None);
+    };
+    let skill_root = discover_skill_root(&selected_dir)?;
+    let result = import_skill_from_directory(
+        app,
+        &skill_root,
+        &input.auth_base_url,
+        &input.access_token,
+        "local",
+        Some(selected_dir.to_string_lossy().to_string()),
+        None,
+    )?;
+    Ok(Some(result))
 }
 
 fn resource_extra_ca_certs_path(app: &AppHandle) -> PathBuf {
@@ -1983,6 +2378,22 @@ fn remove_managed_skill(app: AppHandle, slug: String) -> Result<bool, String> {
     remove_managed_skill_internal(&app, &slug)
 }
 
+#[tauri::command]
+fn import_github_skill(
+    app: AppHandle,
+    input: ImportGithubSkillInput,
+) -> Result<ImportedSkillRecord, String> {
+    import_github_skill_internal(&app, input)
+}
+
+#[tauri::command]
+fn import_local_skill(
+    app: AppHandle,
+    input: ImportLocalSkillInput,
+) -> Result<Option<ImportedSkillRecord>, String> {
+    import_local_skill_internal(&app, input)
+}
+
 fn openclaw_workspace_dir(app: &AppHandle) -> PathBuf {
     if let Ok(home) = app.path().home_dir() {
         return home.join(".openclaw").join("workspace");
@@ -2220,6 +2631,8 @@ fn main() {
             list_managed_skills,
             install_managed_skill,
             remove_managed_skill,
+            import_github_skill,
+            import_local_skill,
             load_iclaw_workspace_files,
             reset_iclaw_workspace_to_defaults,
             apply_iclaw_workspace_backup,

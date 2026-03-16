@@ -10,12 +10,15 @@ import {
   Search,
   Settings2,
   Sparkles,
+  Upload,
 } from 'lucide-react';
 import {
   type AdminSkillStoreItem,
   type SkillStoreCategoryId,
   type SkillStoreItem,
   deleteAdminSkillStoreEntry,
+  importSkillFromGithub,
+  importSkillFromLocalDirectory,
   installSkillFromStore,
   loadAdminSkillStoreCatalog,
   loadSkillStoreCatalog,
@@ -28,6 +31,7 @@ import { PressableCard } from '@/app/components/ui/PressableCard';
 import { cn } from '@/app/lib/cn';
 import { SkillStoreAdminSheet } from './SkillStoreAdminSheet';
 import { SkillStoreDetailSheet } from './SkillStoreDetailSheet';
+import { SkillStoreImportSheet } from './SkillStoreImportSheet';
 import { SkillGlyph, SummaryGlyph, LayoutGrid, LineChart, ShieldCheck, skillTagClassName } from './SkillStoreVisuals';
 
 const storeTabs = [
@@ -135,7 +139,7 @@ function SkillCard({
     status === 'error' ? 'danger' : status === 'installed' ? 'success' : 'primary';
   const cardActionable = !adminMode && Boolean(onOpenDetail);
   const adminSkill = adminMode ? (skill as AdminSkillStoreItem) : null;
-  const showInstallCta = skill.source === 'cloud';
+  const showInstallCta = skill.source !== 'bundled';
 
   return (
     <PressableCard
@@ -252,7 +256,9 @@ function SkillCard({
             </Chip>
           ))}
         </div>
-        <span>{compactFooter ? '点击查看详情' : isBundled ? '系统预置 · 点击查看详情' : '云端安装 · 点击查看详情'}</span>
+        <span>
+          {compactFooter ? '点击查看详情' : isBundled ? '系统预置 · 点击查看详情' : skill.source === 'private' ? '私有导入 · 点击查看详情' : '云端安装 · 点击查看详情'}
+        </span>
       </div>
     </PressableCard>
   );
@@ -279,12 +285,14 @@ function EmptyState({
 export function SkillStoreView({
   client,
   accessToken,
+  authBaseUrl,
   authenticated,
   currentUser,
   onRequestAuth,
 }: {
   client: IClawClient;
   accessToken: string | null;
+  authBaseUrl: string;
   authenticated: boolean;
   currentUser: {
     role?: 'user' | 'admin' | 'super_admin' | null;
@@ -307,6 +315,11 @@ export function SkillStoreView({
   const [adminSaving, setAdminSaving] = useState(false);
   const [adminDeleting, setAdminDeleting] = useState(false);
   const [adminError, setAdminError] = useState<string | null>(null);
+  const [importSheetOpen, setImportSheetOpen] = useState(false);
+  const [githubImportUrl, setGithubImportUrl] = useState('');
+  const [githubImportLoading, setGithubImportLoading] = useState(false);
+  const [localImportLoading, setLocalImportLoading] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
   const adminRoleKnown = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
   const shouldProbeAdminAccess = Boolean(accessToken) && !adminRoleKnown && currentUser?.role == null;
   const isAdmin = adminRoleKnown || adminCapable;
@@ -489,6 +502,69 @@ export function SkillStoreView({
     }
   };
 
+  const handleOpenImport = () => {
+    if (!authenticated || !accessToken) {
+      onRequestAuth('login');
+      return;
+    }
+    setImportError(null);
+    setImportSheetOpen(true);
+  };
+
+  const handleGithubImport = async () => {
+    if (!accessToken) {
+      onRequestAuth('login');
+      return;
+    }
+    setGithubImportLoading(true);
+    setImportError(null);
+    try {
+      await importSkillFromGithub({
+        authBaseUrl,
+        accessToken,
+        repoUrl: githubImportUrl,
+      });
+      setImportSheetOpen(false);
+      setGithubImportUrl('');
+      await refreshCatalog({ preferAdmin: adminMode });
+      setActiveTab('myskills');
+    } catch (nextError) {
+      const message =
+        nextError instanceof Error && nextError.message === 'AUTH_REQUIRED'
+          ? '需要登录后才能导入技能'
+          : nextError instanceof Error
+            ? nextError.message
+            : '导入失败';
+      setImportError(message);
+    } finally {
+      setGithubImportLoading(false);
+    }
+  };
+
+  const handleLocalImport = async () => {
+    if (!accessToken) {
+      onRequestAuth('login');
+      return;
+    }
+    setLocalImportLoading(true);
+    setImportError(null);
+    try {
+      const result = await importSkillFromLocalDirectory({
+        authBaseUrl,
+        accessToken,
+      });
+      if (result) {
+        setImportSheetOpen(false);
+        await refreshCatalog({ preferAdmin: adminMode });
+        setActiveTab('myskills');
+      }
+    } catch (nextError) {
+      setImportError(nextError instanceof Error ? nextError.message : '导入失败');
+    } finally {
+      setLocalImportLoading(false);
+    }
+  };
+
   const visibleSkills = adminMode ? adminSkills : skills;
 
   const filteredSkills = useMemo(() => {
@@ -566,6 +642,10 @@ export function SkillStoreView({
                 />
               </label>
               <div className="flex items-center justify-end gap-3">
+                <Button onClick={handleOpenImport} variant="secondary" size="md">
+                  <Upload className="h-4 w-4" />
+                  导入技能
+                </Button>
                 {isAdmin ? (
                   <Button
                     onClick={() => {
@@ -796,6 +876,23 @@ export function SkillStoreView({
         }}
         onSave={handleAdminSave}
         onDelete={handleAdminDelete}
+      />
+      <SkillStoreImportSheet
+        open={importSheetOpen}
+        githubUrl={githubImportUrl}
+        githubLoading={githubImportLoading}
+        localLoading={localImportLoading}
+        error={importError}
+        onGithubUrlChange={setGithubImportUrl}
+        onImportGithub={() => void handleGithubImport()}
+        onImportLocal={() => void handleLocalImport()}
+        onClose={() => {
+          if (githubImportLoading || localImportLoading) {
+            return;
+          }
+          setImportSheetOpen(false);
+          setImportError(null);
+        }}
       />
     </section>
   );

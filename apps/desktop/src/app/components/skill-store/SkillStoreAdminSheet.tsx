@@ -28,7 +28,7 @@ function toFormState(skill: AdminSkillStoreItem): EditableSkillForm {
     skillType: skill.skillType,
     publisher: skill.publisher,
     visibility: skill.visibility === 'internal' ? 'internal' : 'showcase',
-    distribution: skill.source,
+    distribution: skill.source === 'bundled' ? 'bundled' : 'cloud',
     active: skill.active,
     tagsText: skill.tags.join(', '),
   };

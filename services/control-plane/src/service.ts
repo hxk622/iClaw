@@ -3,12 +3,14 @@ import type {AuthTokens} from '@iclaw/shared';
 import { deleteAvatarByKey, deleteOldAvatars, extractAvatarKey, uploadAvatar } from './avatar-storage.ts';
 import {config} from './config.ts';
 import {randomBytes} from 'node:crypto';
+import {uploadPrivateSkillArtifact} from './skill-storage.ts';
 
 import type {
   AdminSkillCatalogEntryView,
   ChangePasswordInput,
   CreditBalanceView,
   CreditLedgerItemView,
+  ImportUserPrivateSkillInput,
   InstallSkillInput,
   LoginInput,
   OAuthProvider,
@@ -16,6 +18,7 @@ import type {
   RegisterInput,
   RunAuthorizeInput,
   RunGrantView,
+  SkillSource,
   SkillCatalogEntryRecord,
   SkillCatalogEntryView,
   SkillCatalogReleaseView,
@@ -25,9 +28,11 @@ import type {
   UpdateProfileInput,
   UsageEventInput,
   UsageEventResult,
+  UserPrivateSkillRecord,
   UserRecord,
   UserRole,
   UserSkillLibraryItemView,
+  UserSkillLibrarySource,
   WorkspaceBackupInput,
   WorkspaceBackupView,
 } from './domain.ts';
@@ -247,7 +252,11 @@ function toSkillCatalogReleaseView(record: SkillReleaseRecord | null, baseUrl?: 
   };
 }
 
-function toSkillCatalogEntryView(record: SkillCatalogEntryRecord, baseUrl?: string): SkillCatalogEntryView {
+function toSkillCatalogEntryView(
+  record: SkillCatalogEntryRecord,
+  baseUrl?: string,
+  source: SkillSource = record.distribution,
+): SkillCatalogEntryView {
   return {
     slug: record.slug,
     name: record.name,
@@ -258,7 +267,7 @@ function toSkillCatalogEntryView(record: SkillCatalogEntryRecord, baseUrl?: stri
     skill_type: record.skillType,
     publisher: record.publisher,
     distribution: record.distribution,
-    source: record.distribution,
+    source,
     tags: record.tags,
     latest_release: toSkillCatalogReleaseView(record.latestRelease, baseUrl),
   };
@@ -267,6 +276,7 @@ function toSkillCatalogEntryView(record: SkillCatalogEntryRecord, baseUrl?: stri
 function toUserSkillLibraryItemView(record: {
   slug: string;
   version: string;
+  source?: UserSkillLibrarySource;
   enabled: boolean;
   installedAt: string;
   updatedAt: string;
@@ -274,6 +284,7 @@ function toUserSkillLibraryItemView(record: {
   return {
     slug: record.slug,
     version: record.version,
+    source: record.source || 'cloud',
     enabled: record.enabled,
     installed_at: record.installedAt,
     updated_at: record.updatedAt,
@@ -304,6 +315,63 @@ function parseAvatarDataBase64(input: string, contentType: string): Buffer {
   }
 
   return Buffer.from(trimmed, 'base64');
+}
+
+function parseRequiredBase64(input: unknown, field: string): Buffer {
+  if (typeof input !== 'string') {
+    throw new HttpError(400, 'BAD_REQUEST', `${field} must be a base64 string`);
+  }
+  const trimmed = input.trim();
+  if (!trimmed) {
+    throw new HttpError(400, 'BAD_REQUEST', `${field} is required`);
+  }
+  try {
+    return Buffer.from(trimmed, 'base64');
+  } catch {
+    throw new HttpError(400, 'BAD_REQUEST', `${field} must be valid base64`);
+  }
+}
+
+function normalizePrivateSkillSourceKind(value: unknown): 'github' | 'local' {
+  if (value === 'github' || value === 'local') {
+    return value;
+  }
+  throw new HttpError(400, 'BAD_REQUEST', 'source_kind must be github or local');
+}
+
+function normalizeArtifactFormat(value: unknown): 'tar.gz' | 'zip' {
+  if (value === 'tar.gz' || value === 'zip') {
+    return value;
+  }
+  throw new HttpError(400, 'BAD_REQUEST', 'artifact_format must be tar.gz or zip');
+}
+
+function toPrivateSkillCatalogEntryView(record: UserPrivateSkillRecord, baseUrl?: string): SkillCatalogEntryView {
+  const origin = (baseUrl || '').trim().replace(/\/$/, '');
+  const artifactUrl = origin
+    ? `${origin}/skills/private-artifact?slug=${encodeURIComponent(record.slug)}&version=${encodeURIComponent(record.version)}`
+    : null;
+  return {
+    slug: record.slug,
+    name: record.name,
+    description: record.description,
+    visibility: 'showcase',
+    market: record.market,
+    category: record.category,
+    skill_type: record.skillType,
+    publisher: record.publisher,
+    distribution: 'cloud',
+    source: 'private',
+    tags: record.tags,
+    latest_release: {
+      version: record.version,
+      artifact_url: artifactUrl,
+      artifact_path: null,
+      artifact_format: record.artifactFormat,
+      artifact_sha256: record.artifactSha256,
+      published_at: record.updatedAt,
+    },
+  };
 }
 
 export class ControlPlaneService {
@@ -593,6 +661,26 @@ export class ControlPlaneService {
     };
   }
 
+  async listPersonalSkillCatalog(accessToken: string, baseUrl?: string): Promise<{items: SkillCatalogEntryView[]}> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const [catalogItems, privateItems] = await Promise.all([
+      this.store.listSkillCatalog(),
+      this.store.listUserPrivateSkills(user.id),
+    ]);
+
+    const merged = new Map<string, SkillCatalogEntryView>();
+    for (const item of catalogItems) {
+      merged.set(item.slug, toSkillCatalogEntryView(item, baseUrl));
+    }
+    for (const item of privateItems) {
+      merged.set(item.slug, toPrivateSkillCatalogEntryView(item, baseUrl));
+    }
+
+    return {
+      items: Array.from(merged.values()).sort((left, right) => left.name.localeCompare(right.name, 'zh-CN')),
+    };
+  }
+
   async listAdminSkillCatalog(
     accessToken: string,
     baseUrl?: string,
@@ -713,8 +801,82 @@ export class ControlPlaneService {
     const record = await this.store.installUserSkill(user.id, {
       slug,
       version: release.version,
+      source: 'cloud',
     });
     return toUserSkillLibraryItemView(record);
+  }
+
+  async importPrivateSkill(
+    accessToken: string,
+    input: ImportUserPrivateSkillInput,
+    baseUrl?: string,
+  ): Promise<SkillCatalogEntryView> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const slug = normalizeSkillSlug(input.slug);
+    const name = (normalizeOptionalCatalogString(input.name, 'name') || '').trim();
+    const description = (normalizeOptionalCatalogString(input.description, 'description') || '').trim();
+    const publisher = (
+      normalizeOptionalCatalogString(input.publisher, 'publisher', {trimToNull: true}) || '个人导入'
+    ).trim();
+    const version = normalizeOptionalSkillVersion(input.version);
+    const sourceKind = normalizePrivateSkillSourceKind(input.source_kind);
+    const artifactFormat = normalizeArtifactFormat(input.artifact_format);
+    const artifact = parseRequiredBase64(input.artifact_base64, 'artifact_base64');
+    const tags = normalizeSkillTags(input.tags);
+    const market = normalizeOptionalCatalogString(input.market, 'market', {allowNull: true, trimToNull: true}) ?? null;
+    const category =
+      normalizeOptionalCatalogString(input.category, 'category', {allowNull: true, trimToNull: true}) ?? null;
+    const skillType =
+      normalizeOptionalCatalogString(input.skill_type, 'skill_type', {allowNull: true, trimToNull: true}) ?? null;
+    const sourceUrl =
+      normalizeOptionalCatalogString(input.source_url, 'source_url', {allowNull: true, trimToNull: true}) ?? null;
+    const artifactSha256 =
+      normalizeOptionalCatalogString(input.artifact_sha256, 'artifact_sha256', {allowNull: true, trimToNull: true}) ?? null;
+
+    if (!name) {
+      throw new HttpError(400, 'BAD_REQUEST', 'name is required');
+    }
+    if (!description) {
+      throw new HttpError(400, 'BAD_REQUEST', 'description is required');
+    }
+    if (!version) {
+      throw new HttpError(400, 'BAD_REQUEST', 'version is required');
+    }
+
+    const publicConflict = await this.store.getSkillCatalogEntry(slug);
+    if (publicConflict) {
+      throw new HttpError(409, 'CONFLICT', 'skill slug is already used by catalog');
+    }
+
+    const artifactUpload = await uploadPrivateSkillArtifact({
+      userId: user.id,
+      slug,
+      version,
+      artifactFormat,
+      artifact,
+    });
+    const record = await this.store.upsertUserPrivateSkill(user.id, {
+      slug,
+      name,
+      description,
+      market,
+      category,
+      skill_type: skillType,
+      publisher,
+      tags,
+      source_kind: sourceKind,
+      source_url: sourceUrl,
+      version,
+      artifact_format: artifactFormat,
+      artifact_sha256: artifactSha256,
+      artifactKey: artifactUpload.key,
+    });
+    await this.store.installUserSkill(user.id, {
+      slug,
+      version,
+      source: 'private',
+    });
+    return toPrivateSkillCatalogEntryView(record, baseUrl);
   }
 
   async updateSkillLibraryItem(
@@ -757,6 +919,20 @@ export class ControlPlaneService {
     }
 
     return release;
+  }
+
+  async getPrivateSkillArtifactRecord(accessToken: string, slugInput: string, versionInput?: string): Promise<UserPrivateSkillRecord> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const slug = normalizeSkillSlug(slugInput);
+    const version = normalizeOptionalSkillVersion(versionInput);
+    const skill = await this.store.getUserPrivateSkill(user.id, slug);
+    if (!skill) {
+      throw new HttpError(404, 'NOT_FOUND', 'private skill not found');
+    }
+    if (version && skill.version !== version) {
+      throw new HttpError(404, 'NOT_FOUND', 'private skill release not found');
+    }
+    return skill;
   }
 
   async authorizeRun(accessToken: string, input: RunAuthorizeInput): Promise<RunGrantView> {

@@ -880,6 +880,7 @@ function AuthedView({
         <SkillStoreView
           client={client}
           accessToken={accessToken}
+          authBaseUrl={AUTH_BASE_URL}
           authenticated={authenticated}
           currentUser={currentUser}
           onRequestAuth={onRequestAuth}
