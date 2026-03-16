@@ -335,8 +335,8 @@ export function OpenClawCronSurface({
       : '缺少本地网关凭据，当前无法连接 OpenClaw。';
 
   return (
-    <div className="openclaw-chat-surface openclaw-cron-surface">
-      <div className="openclaw-chat-surface-shell openclaw-cron-surface-shell">
+    <div className="openclaw-chat-surface openclaw-cron-surface h-full min-w-0 flex-1 overflow-hidden">
+      <div className="openclaw-chat-surface-shell openclaw-cron-surface-shell h-full min-w-0 flex-1 overflow-hidden">
         {showBootMask ? (
           <div className="iclaw-chat-boot-mask" aria-hidden="true">
             <span className="iclaw-chat-boot-mask__sr-only">正在恢复定时任务</span>

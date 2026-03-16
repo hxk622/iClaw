@@ -260,6 +260,55 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  select:not([multiple]):not([size]) {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    min-height: 44px;
+    width: 100%;
+    border: 1px solid var(--border-default);
+    border-radius: 14px;
+    background-color: var(--bg-card);
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--text-secondary) 50%),
+      linear-gradient(135deg, var(--text-secondary) 50%, transparent 50%);
+    background-position:
+      calc(100% - 20px) calc(50% - 1px),
+      calc(100% - 14px) calc(50% - 1px);
+    background-size: 6px 6px, 6px 6px;
+    background-repeat: no-repeat;
+    color: var(--text-primary);
+    padding: 0 40px 0 14px;
+    font-size: 14px;
+    line-height: 1.4;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    transition:
+      border-color var(--motion-micro) ease,
+      box-shadow var(--motion-micro) ease,
+      background-color var(--motion-micro) ease,
+      color var(--motion-micro) ease;
+    cursor: pointer;
+  }
+
+  select:not([multiple]):not([size]):hover {
+    border-color: var(--border-strong);
+    background-color: var(--bg-elevated);
+  }
+
+  select:not([multiple]):not([size]):focus,
+  select:not([multiple]):not([size]):focus-visible {
+    border-color: var(--brand-primary);
+    outline: none;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand-primary) 14%, transparent);
+  }
+
+  select:not([multiple]):not([size]):disabled {
+    cursor: not-allowed;
+    color: var(--text-muted);
+    background-color: var(--bg-hover);
+    opacity: 0.72;
+  }
 }
 
 @keyframes installer-float {
