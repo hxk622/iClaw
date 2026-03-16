@@ -193,3 +193,30 @@ iClaw 版本统一使用 SemVer + build metadata：
 bash scripts/version.sh 1.0.0
 bash scripts/version.sh 1.0.0 202603091514
 ```
+
+## Desktop Release Manifests
+
+桌面端发布现在会为每个 channel 生成一组 latest manifest，位置在 `dist/releases/`：
+
+- `latest-dev.json`
+- `latest-dev-darwin-aarch64.json`
+- `latest-dev-darwin-x64.json`
+- `latest-prod.json`
+- `latest-prod-darwin-aarch64.json`
+- `latest-prod-darwin-x64.json`
+
+manifest 内容包含：
+
+- 当前桌面应用版本号
+- base version / build id
+- channel、platform、arch
+- 安装包文件名、公开下载地址、文件大小、SHA-256
+
+生成命令：
+
+```bash
+node scripts/generate-desktop-release-manifests.mjs --channel dev
+node scripts/generate-desktop-release-manifests.mjs --channel prod
+```
+
+上传安装包时，`bash scripts/publish-downloads.sh <dev|prod>` 会把对应的 manifest 一起上传到 MinIO。

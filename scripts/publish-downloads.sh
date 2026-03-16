@@ -19,6 +19,8 @@ if ! [[ "$KEEP_VERSIONS" =~ ^[0-9]+$ ]] || [[ "$KEEP_VERSIONS" -lt 1 ]]; then
   exit 1
 fi
 
+node "$ROOT_DIR/scripts/generate-desktop-release-manifests.mjs" --channel "$ENV_NAME"
+
 local_prune() {
   local channel="$1"
   local arch="$2"
@@ -92,7 +94,14 @@ if [[ "$ENV_NAME" == "dev" ]]; then
     echo "No dev DMGs found for brand artifact prefix: $ARTIFACT_BASE_NAME" >&2
     exit 1
   fi
-  mc cp "${dev_files[@]}" "$ICLAW_MINIO_DEV_ALIAS/$ICLAW_MINIO_DEV_BUCKET/"
+  shopt -s nullglob
+  dev_manifests=("$RELEASE_DIR"/latest-dev*.json)
+  shopt -u nullglob
+  if [[ ${#dev_manifests[@]} -eq 0 ]]; then
+    echo "No dev desktop release manifests found under: $RELEASE_DIR" >&2
+    exit 1
+  fi
+  mc cp "${dev_files[@]}" "${dev_manifests[@]}" "$ICLAW_MINIO_DEV_ALIAS/$ICLAW_MINIO_DEV_BUCKET/"
   mc anonymous set download "$ICLAW_MINIO_DEV_ALIAS/$ICLAW_MINIO_DEV_BUCKET"
 
   for arch in aarch64 x64; do
@@ -114,7 +123,14 @@ elif [[ "$ENV_NAME" == "prod" ]]; then
     echo "No prod DMGs found for brand artifact prefix: $ARTIFACT_BASE_NAME" >&2
     exit 1
   fi
-  mc cp "${prod_files[@]}" "$ICLAW_MINIO_PROD_ALIAS/$ICLAW_MINIO_PROD_BUCKET/"
+  shopt -s nullglob
+  prod_manifests=("$RELEASE_DIR"/latest-prod*.json)
+  shopt -u nullglob
+  if [[ ${#prod_manifests[@]} -eq 0 ]]; then
+    echo "No prod desktop release manifests found under: $RELEASE_DIR" >&2
+    exit 1
+  fi
+  mc cp "${prod_files[@]}" "${prod_manifests[@]}" "$ICLAW_MINIO_PROD_ALIAS/$ICLAW_MINIO_PROD_BUCKET/"
   mc anonymous set download "$ICLAW_MINIO_PROD_ALIAS/$ICLAW_MINIO_PROD_BUCKET"
 
   for arch in aarch64 x64; do
