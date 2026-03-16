@@ -1,6 +1,6 @@
 # OpenClaw Wrapper Architecture
 
-更新时间：2026-03-15
+更新时间：2026-03-16
 
 ## 目标
 
@@ -122,6 +122,22 @@
 - 保留 CDP 诊断脚本
 - 在 wrapper 层暴露最小必要调试观测值
 
+7. Cron 产品化外壳
+
+- 默认给普通用户展示“基础模式”，只暴露：
+  - 任务名称
+  - 任务内容
+  - 执行频率
+  - 执行时间
+- 基础模式对应的底层默认值统一由 wrapper 注入：
+  - `payload.kind = "agentTurn"`
+  - `sessionTarget = "isolated"`
+  - `wakeMode = "now"`
+  - `delivery.mode = "announce"`
+  - `delivery.channel = "last"`
+- 复杂调度、原始 cron 表达式、delivery/webhook 等能力继续保留在 OpenClaw 原生高级模式里
+- 基础模式和高级模式都共用同一个 OpenClaw cron engine，不复制第二套调度内核
+
 ### 禁止在 wrapper 做的事情
 
 1. 不直接读写 OpenClaw 内部 chat state：
@@ -146,6 +162,12 @@
 
 - 不重新实现 `send/history/stream/event merge`
 - 不再恢复 `3.8` 那套 ChatWorkspace 作为主 chat 路径
+
+4. 不复制一套自定义 cron kernel
+
+- 不重写 `cron.list / cron.add / cron.update / cron.remove / cron.run` 的协议
+- 不维护第二份任务存储或第二份调度状态
+- 不在 wrapper 层引入脱离 OpenClaw 的“伪 cron 系统”
 
 ## 推荐的 wrapper 分层
 
@@ -194,7 +216,16 @@ type ChatShellAuthState = {
 - loading / disconnected / auth required / gateway failed / diagnostic hint
 - 明确兜底，不允许纯白板
 
-### 5. Diagnostics
+### 5. Product Shell
+
+负责：
+
+- chat 的品牌化容器、输入区外壳、空态和错误态
+- cron 的基础模式任务中心
+- 基础模式与高级模式之间的切换壳层
+- 不改变 OpenClaw chat/cron 核心行为，只改变承载方式和暴露层级
+
+### 6. Diagnostics
 
 负责：
 
@@ -208,6 +239,8 @@ type ChatShellAuthState = {
 
 - [OpenClawChatSurface.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/OpenClawChatSurface.tsx)
   作为 wrapper 入口
+- [OpenClawCronSurface.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/OpenClawCronSurface.tsx)
+  作为 cron wrapper 入口，默认提供基础模式，必要时切回上游高级模式
 - [openclaw-chat-surface.css](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/openclaw-chat-surface.css)
   作为主题/品牌覆盖层
 - [.tmp-tests/cdp-console-debug.mjs](/Users/xingkaihan/Documents/Code/iClaw/.tmp-tests/cdp-console-debug.mjs)
@@ -235,6 +268,12 @@ type ChatShellAuthState = {
 2. 再验证 wrapper 的 auth bridge / theme bridge / diagnostics。
 3. 只在 wrapper 层修复兼容问题。
 4. 若必须改上游 JS，先证明无法通过 wrapper 层解决，再最小化修改并记录原因。
+
+cron 补充要求：
+
+- 默认从基础模式进入，先满足普通用户的常见任务场景
+- 原生高级模式作为兜底能力保留，不在基础模式里重复实现
+- 基础模式新增字段时，优先映射到现有 OpenClaw cron schema，不新增平行协议
 
 补充检查：
 

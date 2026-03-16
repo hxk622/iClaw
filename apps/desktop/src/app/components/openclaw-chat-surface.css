@@ -170,8 +170,15 @@ body {
 }
 
 .openclaw-cron-surface-host {
+  flex: 1 1 auto;
+  min-width: 0;
   height: 100%;
   min-height: 100%;
+  overflow: hidden;
+}
+
+.openclaw-cron-surface-host--hidden {
+  display: none;
 }
 
 .openclaw-cron-surface .cron-summary-strip,
@@ -1038,13 +1045,13 @@ body {
   position: absolute;
   inset: -36px -34px -18px;
   z-index: -1;
-  background:
-    radial-gradient(circle at top, rgba(255, 185, 92, 0.1), transparent 42%),
-    linear-gradient(to top, var(--composer-shell-bg) 42%, transparent 100%);
+  background: transparent;
+  box-shadow: none;
   pointer-events: none;
 }
 
 .iclaw-composer__panel {
+  overflow: hidden;
   border: 1px solid var(--composer-panel-border);
   border-radius: 24px;
   background:
@@ -1072,7 +1079,10 @@ body {
   justify-content: space-between;
   gap: 12px;
   padding: 12px 16px 10px;
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
   border-bottom: 1px solid color-mix(in srgb, var(--composer-panel-border) 60%, transparent);
+  background: color-mix(in srgb, var(--composer-panel-bg) 96%, white 4%);
 }
 
 .iclaw-composer__promo {
@@ -1475,10 +1485,8 @@ body {
 }
 
 :root.dark .iclaw-composer__halo {
-  background:
-    radial-gradient(circle at top left, rgba(81, 160, 255, 0.14), transparent 34%),
-    radial-gradient(circle at top, rgba(129, 210, 255, 0.08), transparent 42%),
-    linear-gradient(to top, var(--composer-shell-bg) 42%, transparent 100%);
+  background: transparent;
+  box-shadow: none;
 }
 
 :root.dark .iclaw-composer__panel {
