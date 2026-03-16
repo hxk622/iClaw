@@ -153,6 +153,96 @@ body {
   backdrop-filter: blur(12px);
 }
 
+.openclaw-cron-surface .content {
+  padding: 0 0 28px;
+}
+
+.openclaw-cron-surface .content-header {
+  justify-content: flex-start;
+}
+
+.openclaw-cron-surface .content-header > div:first-child {
+  text-align: left;
+}
+
+.openclaw-cron-surface .page-meta {
+  display: none;
+}
+
+.openclaw-cron-surface-host {
+  height: 100%;
+  min-height: 100%;
+}
+
+.openclaw-cron-surface .cron-summary-strip,
+.openclaw-cron-surface .cron-workspace,
+.openclaw-cron-surface .content > .callout {
+  width: calc(100% - 40px);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.openclaw-cron-surface .cron-summary-strip {
+  margin-top: 18px;
+}
+
+.openclaw-cron-surface .cron-workspace {
+  margin-top: 16px;
+}
+
+.openclaw-cron-surface .card,
+.openclaw-cron-surface .cron-summary-item,
+.openclaw-cron-surface .cron-form-section {
+  border-color: var(--chat-surface-panel-border);
+  background: color-mix(in srgb, var(--chat-surface-panel) 94%, white 6%);
+  box-shadow: var(--shadow-sm);
+}
+
+.openclaw-cron-surface .cron-summary-item {
+  background: color-mix(in srgb, var(--chat-surface-panel-subtle) 92%, white 8%);
+}
+
+.openclaw-cron-surface .cron-workspace-form {
+  top: 70px;
+  max-height: calc(100vh - 70px - 32px);
+}
+
+.openclaw-cron-surface .field input,
+.openclaw-cron-surface .field select,
+.openclaw-cron-surface .field textarea {
+  background: var(--chat-surface-panel);
+  border-color: var(--chat-surface-panel-border);
+  color: var(--text-primary);
+}
+
+.openclaw-cron-surface .field input::placeholder,
+.openclaw-cron-surface .field textarea::placeholder {
+  color: var(--chat-surface-placeholder);
+}
+
+.openclaw-cron-surface .btn {
+  border-color: var(--chat-surface-panel-border);
+  background: var(--chat-surface-panel);
+  color: var(--text-primary);
+}
+
+.openclaw-cron-surface .btn:hover:not(:disabled) {
+  background: var(--chat-surface-panel-subtle);
+}
+
+.openclaw-cron-surface .btn.btn-primary,
+.openclaw-cron-surface .btn.primary {
+  background: var(--brand-primary);
+  color: var(--brand-on-primary);
+}
+
+.openclaw-cron-surface .muted,
+.openclaw-cron-surface .card-sub,
+.openclaw-cron-surface .cron-help,
+.openclaw-cron-surface .cron-required-legend {
+  color: var(--text-secondary);
+}
+
 .openclaw-chat-surface .content-header > div:first-child {
   text-align: center;
 }
@@ -1387,6 +1477,21 @@ body {
 @media (max-width: 900px) {
   .openclaw-chat-surface .content-header {
     padding-inline: 16px;
+  }
+
+  .openclaw-cron-surface .cron-summary-strip,
+  .openclaw-cron-surface .cron-workspace,
+  .openclaw-cron-surface .content > .callout {
+    width: calc(100% - 32px);
+  }
+
+  .openclaw-cron-surface .cron-workspace {
+    gap: 14px;
+  }
+
+  .openclaw-cron-surface .cron-workspace-form {
+    top: 64px;
+    max-height: none;
   }
 
   .openclaw-chat-surface .page-meta {

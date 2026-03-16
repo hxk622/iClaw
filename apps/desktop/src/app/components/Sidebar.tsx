@@ -22,13 +22,14 @@ import {
 } from '../lib/user-avatar';
 
 type SidebarUser = AppUserAvatarSource;
-type PrimaryView = 'chat' | 'skill-store' | 'im-bots';
+type PrimaryView = 'chat' | 'skill-store' | 'cron' | 'im-bots';
 
 interface SidebarProps {
   user: SidebarUser | null;
   activeView?: PrimaryView;
   authenticated?: boolean;
   onOpenChat?: () => void;
+  onOpenCron?: () => void;
   onOpenSkillStore?: () => void;
   onOpenImBots?: () => void;
   onLogout?: () => void;
@@ -53,6 +54,7 @@ export function Sidebar({
   activeView = 'chat',
   authenticated = false,
   onOpenChat,
+  onOpenCron,
   onOpenSkillStore,
   onOpenImBots,
   onLogout,
@@ -87,7 +89,14 @@ export function Sidebar({
       active: activeView === 'chat',
       onClick: onOpenChat,
     },
-    { key: 'task', label: '定时任务', icon: CheckSquare, iconClass: 'text-emerald-500', dot: true },
+    {
+      key: 'cron',
+      label: '定时任务',
+      icon: CheckSquare,
+      iconClass: 'text-emerald-500',
+      active: activeView === 'cron',
+      onClick: onOpenCron,
+    },
     {
       key: 'skill',
       label: '技能商店',
