@@ -1,5 +1,5 @@
 import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from 'react';
-import { IClawClient } from '@iclaw/sdk';
+import { IClawClient, type DesktopUpdateHint } from '@iclaw/sdk';
 import desktopPackageJson from '../../package.json';
 import { clearAuth, readAuth, writeAuth } from './lib/auth-storage';
 import { getGoogleOAuthUrl, getWeChatOAuthUrl, openOAuthPopup, type OAuthProvider } from './lib/oauth';
@@ -28,6 +28,12 @@ import {
   resetIclawWorkspaceToDefaults,
   saveIclawWorkspaceSection,
 } from './lib/iclaw-settings';
+import {
+  readSkippedDesktopUpdateVersion,
+  resolveDesktopUpdateArtifactUrl,
+  shouldShowDesktopUpdateHint,
+  writeSkippedDesktopUpdateVersion,
+} from './lib/desktop-updates';
 import { syncManagedSkills } from './lib/skill-store';
 
 interface AuthUser {
@@ -153,6 +159,26 @@ export default function App() {
         disableGatewayDeviceIdentity: DISABLE_GATEWAY_DEVICE_IDENTITY,
         desktopAppVersion: DESKTOP_APP_VERSION,
         desktopReleaseChannel: DESKTOP_RELEASE_CHANNEL,
+        onDesktopUpdateHint: (hint) => {
+          if (!hint.updateAvailable) {
+            setDesktopUpdateHint(null);
+            setDesktopUpdateActionState('idle');
+            setDesktopUpdateError(null);
+            return;
+          }
+
+          setDesktopUpdateHint((current) => {
+            if (
+              current?.latestVersion === hint.latestVersion &&
+              current.mandatory === hint.mandatory &&
+              current.manifestUrl === hint.manifestUrl &&
+              current.artifactUrl === hint.artifactUrl
+            ) {
+              return current;
+            }
+            return hint;
+          });
+        },
       }),
     [gatewayAuth.password, gatewayAuth.token],
   );
@@ -193,6 +219,12 @@ export default function App() {
   const [postAuthView, setPostAuthView] = useState<'account' | null>(null);
   const [authBootstrapReady, setAuthBootstrapReady] = useState(false);
   const [guestPromptInitialized, setGuestPromptInitialized] = useState(false);
+  const [desktopUpdateHint, setDesktopUpdateHint] = useState<DesktopUpdateHint | null>(null);
+  const [skippedDesktopUpdateVersion, setSkippedDesktopUpdateVersion] = useState<string | null>(() =>
+    readSkippedDesktopUpdateVersion(),
+  );
+  const [desktopUpdateActionState, setDesktopUpdateActionState] = useState<'idle' | 'loading' | 'opened'>('idle');
+  const [desktopUpdateError, setDesktopUpdateError] = useState<string | null>(null);
 
   const syncWorkspaceForUser = async (token: string): Promise<void> => {
     if (!IS_TAURI_RUNTIME) return;
@@ -723,6 +755,14 @@ export default function App() {
     );
 
   useEffect(() => {
+    if (!desktopUpdateHint) return;
+    if (desktopUpdateHint.latestVersion !== skippedDesktopUpdateVersion) {
+      setDesktopUpdateActionState('idle');
+      setDesktopUpdateError(null);
+    }
+  }, [desktopUpdateHint, skippedDesktopUpdateVersion]);
+
+  useEffect(() => {
     if (!authBootstrapReady || guestPromptInitialized || (IS_TAURI_RUNTIME && shouldShowSetupPanel)) {
       return;
     }
@@ -760,6 +800,36 @@ export default function App() {
     );
   }
 
+  const visibleDesktopUpdateHint = shouldShowDesktopUpdateHint(desktopUpdateHint, skippedDesktopUpdateVersion)
+    ? desktopUpdateHint
+    : null;
+
+  const handleSkipDesktopUpdate = () => {
+    if (!desktopUpdateHint || desktopUpdateHint.mandatory) return;
+    writeSkippedDesktopUpdateVersion(desktopUpdateHint.latestVersion);
+    setSkippedDesktopUpdateVersion(desktopUpdateHint.latestVersion);
+    setDesktopUpdateActionState('idle');
+    setDesktopUpdateError(null);
+  };
+
+  const handleUpgradeDesktopApp = async () => {
+    if (!visibleDesktopUpdateHint) return;
+    setDesktopUpdateActionState('loading');
+    setDesktopUpdateError(null);
+    try {
+      const artifactUrl = await resolveDesktopUpdateArtifactUrl(visibleDesktopUpdateHint);
+      const targetUrl = artifactUrl || visibleDesktopUpdateHint.manifestUrl;
+      if (!targetUrl) {
+        throw new Error('当前更新源未提供下载地址');
+      }
+      window.open(targetUrl, '_blank', 'noopener,noreferrer');
+      setDesktopUpdateActionState('opened');
+    } catch (error) {
+      setDesktopUpdateActionState('idle');
+      setDesktopUpdateError(error instanceof Error ? error.message : '打开更新链接失败');
+    }
+  };
+
   return (
     <SettingsProvider>
       <div className="relative h-screen overflow-hidden">
@@ -777,6 +847,12 @@ export default function App() {
           authenticated={isAuthenticated}
           authModalOpen={authModalOpen}
           onRequestAuth={openAuthModal}
+          desktopUpdateHint={visibleDesktopUpdateHint}
+          desktopUpdateBusy={desktopUpdateActionState === 'loading'}
+          desktopUpdateError={desktopUpdateError}
+          desktopUpdateOpened={desktopUpdateActionState === 'opened'}
+          onUpgradeDesktopApp={handleUpgradeDesktopApp}
+          onSkipDesktopUpdate={handleSkipDesktopUpdate}
         />
         {authModalOpen ? (
           <AuthPanel
@@ -813,6 +889,12 @@ interface AuthedViewProps {
   authenticated: boolean;
   authModalOpen: boolean;
   onRequestAuth: (mode?: 'login' | 'register', nextView?: 'account' | null) => void;
+  desktopUpdateHint: DesktopUpdateHint | null;
+  desktopUpdateBusy: boolean;
+  desktopUpdateError: string | null;
+  desktopUpdateOpened: boolean;
+  onUpgradeDesktopApp: () => void;
+  onSkipDesktopUpdate: () => void;
 }
 
 function AuthedView({
@@ -829,6 +911,12 @@ function AuthedView({
   authenticated,
   authModalOpen,
   onRequestAuth,
+  desktopUpdateHint,
+  desktopUpdateBusy,
+  desktopUpdateError,
+  desktopUpdateOpened,
+  onUpgradeDesktopApp,
+  onSkipDesktopUpdate,
 }: AuthedViewProps) {
   const { buildSectionSaveSnapshot, commitSectionSave } = useSettings();
 
@@ -897,6 +985,12 @@ function AuthedView({
         onOpenLogin={() => onRequestAuth('login')}
         onOpenSettings={() => setOverlayView('settings')}
         onLogout={handleLogout}
+        desktopUpdateHint={desktopUpdateHint}
+        desktopUpdateBusy={desktopUpdateBusy}
+        desktopUpdateError={desktopUpdateError}
+        desktopUpdateOpened={desktopUpdateOpened}
+        onUpgradeDesktopApp={onUpgradeDesktopApp}
+        onSkipDesktopUpdate={onSkipDesktopUpdate}
       />
       {primaryView === 'skill-store' ? (
         <SkillStoreView

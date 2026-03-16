@@ -7,6 +7,7 @@ export const DESKTOP_UPDATE_RESPONSE_HEADERS = [
   'x-iclaw-update-available',
   'x-iclaw-update-mandatory',
   'x-iclaw-update-manifest-url',
+  'x-iclaw-update-artifact-url',
 ] as const;
 
 type DesktopReleaseManifestEntry = {
@@ -46,6 +47,7 @@ export type DesktopUpdateHint = {
   updateAvailable: boolean;
   mandatory: boolean;
   manifestUrl: string | null;
+  artifactUrl: string | null;
 };
 
 type CacheRecord = {
@@ -152,6 +154,7 @@ function buildManifestUrl(baseUrl: string, fileName: string): string | null {
 async function loadTargetManifest(source: DesktopUpdateManifestSource, platform: string, arch: string): Promise<{
   version: string;
   manifestUrl: string | null;
+  artifactUrl: string | null;
 } | null> {
   const fileName = buildTargetManifestName(source.channel, platform, arch);
   const localPath = source.manifestDir ? join(source.manifestDir, fileName) : '';
@@ -163,6 +166,7 @@ async function loadTargetManifest(source: DesktopUpdateManifestSource, platform:
     return {
       version,
       manifestUrl: buildManifestUrl(source.publicBaseUrl, fileName),
+      artifactUrl: trimString(entry?.artifact_url) || null,
     };
   }
 
@@ -175,40 +179,48 @@ async function loadTargetManifest(source: DesktopUpdateManifestSource, platform:
   return {
     version,
     manifestUrl: remoteUrl,
+    artifactUrl: trimString(entry?.artifact_url) || null,
   };
 }
 
 async function loadIndexManifest(source: DesktopUpdateManifestSource): Promise<{
   version: string;
   manifestUrl: string | null;
+  artifactUrl: string | null;
 } | null> {
   const fileName = buildIndexManifestName(source.channel);
   const localPath = source.manifestDir ? join(source.manifestDir, fileName) : '';
   if (localPath && (await fileExists(localPath))) {
     const manifest = await readJsonFile<DesktopReleaseIndexManifest>(localPath);
-    const version = trimString(manifest.version);
+    const entries = Array.isArray(manifest.entries) ? manifest.entries : [];
+    const firstEntry = entries.find(isDesktopReleaseManifestEntry) || null;
+    const version = trimString(manifest.version) || resolveLatestVersionFromEntry(firstEntry);
     if (!version) return null;
     return {
       version,
       manifestUrl: buildManifestUrl(source.publicBaseUrl, fileName),
+      artifactUrl: trimString(firstEntry?.artifact_url) || null,
     };
   }
 
   const remoteUrl = buildManifestUrl(source.publicBaseUrl, fileName);
   if (!remoteUrl) return null;
   const manifest = await fetchJson<DesktopReleaseIndexManifest>(remoteUrl);
-  const version = trimString(manifest.version);
+  const entries = Array.isArray(manifest.entries) ? manifest.entries : [];
+  const firstEntry = entries.find(isDesktopReleaseManifestEntry) || null;
+  const version = trimString(manifest.version) || resolveLatestVersionFromEntry(firstEntry);
   if (!version) return null;
   return {
     version,
     manifestUrl: remoteUrl,
+    artifactUrl: trimString(firstEntry?.artifact_url) || null,
   };
 }
 
 async function resolveLatestVersion(
   source: DesktopUpdateManifestSource,
   request: DesktopUpdateRequest,
-): Promise<{ version: string; manifestUrl: string | null } | null> {
+): Promise<{ version: string; manifestUrl: string | null; artifactUrl: string | null } | null> {
   const platform = normalizePlatform(request.platform);
   const arch = normalizeArch(request.arch);
   if (platform && arch) {
@@ -251,9 +263,10 @@ export async function resolveDesktopUpdateHint(
     ? {
         latestVersion: latest.version,
         updateAvailable: compareVersions(latest.version, appVersion) > 0,
-        mandatory: source.mandatory,
-        manifestUrl: latest.manifestUrl,
-      }
+      mandatory: source.mandatory,
+      manifestUrl: latest.manifestUrl,
+      artifactUrl: latest.artifactUrl,
+    }
     : null;
 
   MANIFEST_CACHE.set(cacheKey, {

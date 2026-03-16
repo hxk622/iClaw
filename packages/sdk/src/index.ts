@@ -19,6 +19,7 @@ export interface DesktopUpdateHint {
   updateAvailable: boolean;
   mandatory: boolean;
   manifestUrl?: string | null;
+  artifactUrl?: string | null;
 }
 
 export interface StreamCallbacks {
@@ -559,11 +560,13 @@ export class IClawClient {
     const updateAvailable = response.headers.get('x-iclaw-update-available') === 'true';
     const mandatory = response.headers.get('x-iclaw-update-mandatory') === 'true';
     const manifestUrl = response.headers.get('x-iclaw-update-manifest-url');
+    const artifactUrl = response.headers.get('x-iclaw-update-artifact-url');
     this.onDesktopUpdateHint({
       latestVersion,
       updateAvailable,
       mandatory,
       manifestUrl: manifestUrl?.trim() || null,
+      artifactUrl: artifactUrl?.trim() || null,
     });
   }
 

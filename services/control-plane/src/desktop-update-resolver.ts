@@ -60,5 +60,8 @@ export async function resolveDesktopUpdateResponseHeaders(
   if (hint.manifestUrl) {
     responseHeaders['x-iclaw-update-manifest-url'] = hint.manifestUrl;
   }
+  if (hint.artifactUrl) {
+    responseHeaders['x-iclaw-update-artifact-url'] = hint.artifactUrl;
+  }
   return responseHeaders;
 }

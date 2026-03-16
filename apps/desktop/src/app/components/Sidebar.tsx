@@ -9,7 +9,9 @@ import {
   Plus,
   TrendingUp,
 } from 'lucide-react';
+import type { DesktopUpdateHint } from '@iclaw/sdk';
 import { AvatarDropdown } from './AvatarDropdown';
+import { DesktopUpdateCard } from './DesktopUpdateCard';
 import { Button } from './ui/Button';
 import { BRAND } from '../lib/brand';
 import {
@@ -34,6 +36,12 @@ interface SidebarProps {
   onOpenAccount?: () => void;
   onOpenLogin?: () => void;
   onOpenSettings?: () => void;
+  desktopUpdateHint?: DesktopUpdateHint | null;
+  desktopUpdateBusy?: boolean;
+  desktopUpdateError?: string | null;
+  desktopUpdateOpened?: boolean;
+  onUpgradeDesktopApp?: () => void;
+  onSkipDesktopUpdate?: () => void;
 }
 
 interface SidebarItem {
@@ -59,6 +67,12 @@ export function Sidebar({
   onOpenAccount,
   onOpenLogin,
   onOpenSettings,
+  desktopUpdateHint = null,
+  desktopUpdateBusy = false,
+  desktopUpdateError = null,
+  desktopUpdateOpened = false,
+  onUpgradeDesktopApp,
+  onSkipDesktopUpdate,
 }: SidebarProps) {
   const isDevChannel = import.meta.env.DEV || import.meta.env.MODE === 'development';
   const brandText = isDevChannel ? BRAND.devSidebarTitle : BRAND.sidebarTitle;
@@ -179,7 +193,20 @@ export function Sidebar({
         {renderGroup('记录', recordItems)}
       </div>
 
-      <div className="relative border-t border-[var(--border-default)] p-3" ref={menuRef}>
+      <div className="border-t border-[var(--border-default)] p-3 pb-0">
+        {desktopUpdateHint ? (
+          <DesktopUpdateCard
+            hint={desktopUpdateHint}
+            busy={desktopUpdateBusy}
+            error={desktopUpdateError}
+            opened={desktopUpdateOpened}
+            onUpgrade={() => onUpgradeDesktopApp?.()}
+            onSkip={desktopUpdateHint.mandatory ? undefined : () => onSkipDesktopUpdate?.()}
+          />
+        ) : null}
+      </div>
+
+      <div className="relative p-3 pt-0" ref={menuRef}>
         <button
           onClick={() => setMenuOpen((v) => !v)}
           className="group flex w-full cursor-pointer items-center gap-3 rounded-xl bg-[var(--bg-elevated)] px-2 py-1.5 text-left transition-all duration-[var(--motion-panel)] hover:translate-x-[2px] hover:scale-[1.01] hover:bg-[var(--bg-hover)] active:scale-[0.992]"

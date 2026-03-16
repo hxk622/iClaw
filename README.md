@@ -238,6 +238,7 @@ control-plane 响应头：
 - `x-iclaw-update-available`
 - `x-iclaw-update-mandatory`
 - `x-iclaw-update-manifest-url`
+- `x-iclaw-update-artifact-url`
 
 服务端优先从本地 `dist/releases/` 读取 manifest，也支持通过环境变量覆盖：
 
