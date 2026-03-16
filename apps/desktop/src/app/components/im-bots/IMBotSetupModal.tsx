@@ -21,6 +21,7 @@ export interface IMPlatformMeta {
   id: IMPlatformId;
   label: string;
   logo: string;
+  logoClassName?: string;
   intro: string;
   difficulty: string;
   eta: string;
@@ -174,7 +175,11 @@ export function IMBotSetupModal({
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-4">
               <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-[20px] border border-[var(--border-default)] bg-white shadow-[0_10px_24px_rgba(15,23,42,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
-                <img src={platform.logo} alt={platform.label} className="h-full w-full object-cover" />
+                <img
+                  src={platform.logo}
+                  alt={platform.label}
+                  className={cn('h-full w-full object-cover', platform.logoClassName)}
+                />
               </div>
               <div>
                 <div className="text-[24px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">
