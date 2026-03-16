@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { CircleHelp, FolderPlus, Globe, LogIn, LogOut, RefreshCw, Settings, UserCircle2 } from 'lucide-react';
+import { CircleHelp, FolderPlus, Globe, Heart, LogIn, LogOut, RefreshCw, Settings, UserCircle2 } from 'lucide-react';
 
 interface AvatarDropdownProps {
   open: boolean;
@@ -100,6 +100,11 @@ export function AvatarDropdown({
       >
         <Settings className={menuIconClass} style={menuIconStyle} />
         <span className={menuLabelClass}>设置</span>
+      </button>
+
+      <button className={menuItemClass} style={menuItemStyle}>
+        <Heart className="h-5 w-5 text-rose-500 transition-transform duration-[var(--motion-panel)] group-hover:scale-110" style={menuIconStyle} />
+        <span className={menuLabelClass}>订阅服务</span>
       </button>
 
       <button className={menuItemClass} style={menuItemStyle}>

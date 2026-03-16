@@ -7,9 +7,7 @@ import {
   Link2,
   MessageSquare,
   Plus,
-  Settings,
   TrendingUp,
-  Heart,
 } from 'lucide-react';
 import { AvatarDropdown } from './AvatarDropdown';
 import { Button } from './ui/Button';
@@ -120,11 +118,6 @@ export function Sidebar({
     { key: 'history', label: '历史对话', icon: History, iconClass: 'text-orange-500' },
   ];
 
-  const serviceItems: SidebarItem[] = [
-    { key: 'sub', label: '订阅服务', icon: Heart, iconClass: 'text-rose-500' },
-    { key: 'setting', label: '系统设置', icon: Settings, iconClass: 'text-[var(--text-secondary)]', onClick: onOpenSettings },
-  ];
-
   const renderGroup = (title: string, items: SidebarItem[]) => (
     <div className="mb-4">
       <div className="mb-2 px-3 text-xs text-[var(--text-muted)]">{title}</div>
@@ -184,7 +177,6 @@ export function Sidebar({
       <div className="flex-1 overflow-y-auto p-2">
         {renderGroup('主体区', mainItems)}
         {renderGroup('记录', recordItems)}
-        {renderGroup('服务', serviceItems)}
       </div>
 
       <div className="relative border-t border-[var(--border-default)] p-3" ref={menuRef}>
