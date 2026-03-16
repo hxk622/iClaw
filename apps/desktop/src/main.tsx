@@ -24,3 +24,21 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
 });
 
 createRoot(document.getElementById('root')!).render(<App />);
+
+if (import.meta.env.DEV) {
+  const existingHost = document.getElementById('agentation-root');
+  const agentationHost = existingHost ?? document.createElement('div');
+
+  if (!existingHost) {
+    agentationHost.id = 'agentation-root';
+    document.body.append(agentationHost);
+  }
+
+  void import('./app/components/DevAgentation')
+    .then(({ mountDevAgentation }) => {
+      mountDevAgentation(agentationHost);
+    })
+    .catch((error) => {
+      console.error('failed to mount agentation in dev', error);
+    });
+}

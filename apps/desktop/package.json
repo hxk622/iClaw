@@ -15,9 +15,9 @@
     "tauri:build": "bash ../../scripts/build-desktop-dmg.sh"
   },
   "dependencies": {
+    "@iclaw/sdk": "workspace:*",
     "@noble/ed25519": "3.0.0",
     "@tauri-apps/api": "^2.8.0",
-    "@iclaw/sdk": "workspace:*",
     "dompurify": "^3.3.2",
     "lit": "^3.3.2",
     "lucide-react": "^0.544.0",
@@ -31,6 +31,7 @@
     "@types/react": "^18.3.24",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.7.0",
+    "agentation": "^2.3.3",
     "tailwindcss": "^4.1.12",
     "typescript": "^5.9.2",
     "vite": "^6.3.5"
