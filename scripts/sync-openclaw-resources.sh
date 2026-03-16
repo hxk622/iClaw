@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SRC_DIR="$ROOT_DIR/services/openclaw/resources"
 SKILLS_SRC_DIR="$ROOT_DIR/skills"
+MCP_PRESET_DIR="$ROOT_DIR/mcp"
 DST_DIR="$ROOT_DIR/apps/desktop/src-tauri/resources"
 
 mkdir -p "$DST_DIR/skills" "$DST_DIR/mcp" "$DST_DIR/config" "$DST_DIR/certs"
@@ -14,9 +15,36 @@ if [[ -d "$SKILLS_SRC_DIR" ]]; then
   rsync -a --delete --exclude ".DS_Store" "$SKILLS_SRC_DIR/" "$DST_DIR/skills/"
 fi
 
-if [[ -f "$SRC_DIR/mcp/mcp.json" ]]; then
+if [[ -f "$SRC_DIR/mcp/mcp.json" || -f "$MCP_PRESET_DIR/mcp.json" ]]; then
   mkdir -p "$DST_DIR/mcp"
-  cp "$SRC_DIR/mcp/mcp.json" "$DST_DIR/mcp/mcp.json"
+  if [[ -f "$SRC_DIR/mcp/mcp.json" && -f "$MCP_PRESET_DIR/mcp.json" ]]; then
+    node - "$SRC_DIR/mcp/mcp.json" "$MCP_PRESET_DIR/mcp.json" "$DST_DIR/mcp/mcp.json" <<'EOF'
+const fs = require('fs');
+
+const [basePath, overlayPath, outputPath] = process.argv.slice(2);
+
+function loadJson(path) {
+  return JSON.parse(fs.readFileSync(path, 'utf8'));
+}
+
+const base = loadJson(basePath);
+const overlay = loadJson(overlayPath);
+const merged = {
+  ...base,
+  ...overlay,
+  mcpServers: {
+    ...(base.mcpServers ?? {}),
+    ...(overlay.mcpServers ?? {}),
+  },
+};
+
+fs.writeFileSync(outputPath, `${JSON.stringify(merged, null, 2)}\n`);
+EOF
+  elif [[ -f "$MCP_PRESET_DIR/mcp.json" ]]; then
+    cp "$MCP_PRESET_DIR/mcp.json" "$DST_DIR/mcp/mcp.json"
+  else
+    cp "$SRC_DIR/mcp/mcp.json" "$DST_DIR/mcp/mcp.json"
+  fi
 fi
 
 if [[ -f "$SRC_DIR/config/runtime-config.json" ]]; then

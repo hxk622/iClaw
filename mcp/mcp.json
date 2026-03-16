@@ -1,0 +1,96 @@
+{
+  "mcpServers": {
+    "alpaca": {
+      "enabled": true,
+      "command": "uvx",
+      "args": ["--from", "alpaca-mcp-server", "alpaca-mcp-server", "serve"],
+      "env": {
+        "UV_NATIVE_TLS": "true",
+        "UV_INDEX_URL": "https://mirrors.aliyun.com/pypi/simple/",
+        "ALPACA_API_KEY": "${ALPACA_API_KEY}",
+        "ALPACA_SECRET_KEY": "${ALPACA_SECRET_KEY}",
+        "ALPACA_PAPER": "true"
+      }
+    },
+    "markitdown": {
+      "enabled": true,
+      "command": "uvx",
+      "args": ["markitdown-mcp"],
+      "env": {
+        "UV_NATIVE_TLS": "true",
+        "UV_INDEX_URL": "https://mirrors.aliyun.com/pypi/simple/"
+      }
+    },
+    "browser": {
+      "command": "node",
+      "args": ["mcp/servers/agent-browser/index.mjs"]
+    },
+    "dbt": {
+      "command": "uvx",
+      "args": ["--from", "dbt-mcp", "dbt-mcp"],
+      "env": {
+        "UV_NATIVE_TLS": "true",
+        "UV_INDEX_URL": "https://mirrors.aliyun.com/pypi/simple/"
+      }
+    },
+    "nano-banana": {
+      "command": "npx",
+      "args": ["-y", "@aeven/nanobanana-mcp@latest"],
+      "env": {
+        "MODEL_API_KEY": "${MODEL_API_KEY}"
+      }
+    },
+    "serper": {
+      "command": "npx",
+      "args": ["-y", "serper-search-scrape-mcp-server"],
+      "env": {
+        "SERPER_API_KEY": "${SERPER_API_KEY}"
+      }
+    },
+    "tavily": {
+      "command": "npx",
+      "args": ["-y", "tavily-mcp@latest"],
+      "env": {
+        "TAVILY_API_KEY": "${TAVILY_API_KEY}"
+      }
+    },
+    "sec-edgar": {
+      "enabled": true,
+      "command": "uvx",
+      "args": ["--from", "sec-edgar-mcp", "sec-edgar-mcp"],
+      "env": {
+        "UV_NATIVE_TLS": "true",
+        "UV_INDEX_URL": "https://mirrors.aliyun.com/pypi/simple/",
+        "SEC_EDGAR_USER_AGENT": "${SEC_EDGAR_USER_AGENT}"
+      }
+    },
+    "yahoo-finance": {
+      "enabled": true,
+      "command": "uvx",
+      "args": ["mcp-yahoo-finance"],
+      "env": {
+        "UV_NATIVE_TLS": "true",
+        "UV_INDEX_URL": "https://mirrors.aliyun.com/pypi/simple/"
+      }
+    },
+    "fmp": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "financial-modeling-prep-mcp-server", "--port", "4010"],
+      "httpUrl": "http://127.0.0.1:4010/mcp",
+      "env": {
+        "FMP_ACCESS_TOKEN": "${FMP_ACCESS_TOKEN}",
+        "FMP_API_KEY": "${FMP_ACCESS_TOKEN}",
+        "PORT": "4010"
+      }
+    },
+    "fingpt": {
+      "command": "uv",
+      "args": ["run", "--native-tls", "--index-url", "https://mirrors.aliyun.com/pypi/simple/", "mcp/servers/fingpt/server.py"],
+      "env": {
+        "FINGPT_API_URL": "${FINGPT_API_URL}",
+        "UV_NATIVE_TLS": "true"
+      }
+    }
+  }
+}

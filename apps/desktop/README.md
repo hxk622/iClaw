@@ -77,7 +77,8 @@ pnpm dev:web
 
 ## 本地能力资源（skills / mcp）
 
-- 源目录（可维护）：`skills`、`services/openclaw/resources/mcp/mcp.json`
+- 源目录（可维护）：`skills`、`services/openclaw/resources/mcp/mcp.json`、`mcp/mcp.json`
+- `services/openclaw/resources/mcp/mcp.json` 是 OpenClaw 默认配置，`mcp/mcp.json` 是 iClaw 预置 overlay；同步时会合并两者，重名 server 以 iClaw overlay 为准。
 - 打包目录（自动同步）：`apps/desktop/src-tauri/resources/skills`、`apps/desktop/src-tauri/resources/mcp/mcp.json`
 - 同步命令：`bash ../../scripts/sync-openclaw-resources.sh`
 
