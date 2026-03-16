@@ -1021,7 +1021,7 @@ export function OpenClawCronSurface({
                     type="button"
                     onClick={() => void loadSnapshot()}
                     disabled={loading || !clientReady}
-                    className="inline-flex h-10 items-center gap-2 rounded-[12px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 text-[14px] text-[var(--text-primary)] transition hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="iclaw-apple-button iclaw-apple-button--secondary"
                   >
                     <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                     刷新
@@ -1030,7 +1030,7 @@ export function OpenClawCronSurface({
                     type="button"
                     onClick={() => openCreate('reminder')}
                     disabled={!clientReady}
-                    className="inline-flex h-10 items-center gap-2 rounded-[12px] bg-[var(--brand-primary)] px-4 text-[14px] font-medium text-[var(--brand-on-primary)] transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="iclaw-apple-button iclaw-apple-button--primary"
                   >
                     <Plus className="h-4 w-4" />
                     新建任务
@@ -1038,7 +1038,7 @@ export function OpenClawCronSurface({
                   <button
                     type="button"
                     onClick={() => setMode('advanced')}
-                    className="inline-flex h-10 items-center gap-2 rounded-[12px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 text-[14px] text-[var(--text-primary)] transition hover:bg-[var(--bg-hover)]"
+                    className="iclaw-apple-button iclaw-apple-button--secondary"
                   >
                     <Settings2 className="h-4 w-4" />
                     高级模式
@@ -1128,7 +1128,7 @@ export function OpenClawCronSurface({
                         key={template.id}
                         type="button"
                         onClick={() => openCreate(template.id)}
-                        className="group rounded-[22px] border border-[var(--border-default)] bg-[var(--bg-card)] p-5 text-left shadow-[var(--shadow-sm)] transition hover:-translate-y-[1px] hover:border-[var(--border-strong)] hover:bg-[var(--bg-elevated)]"
+                        className="iclaw-surface-card-button group p-5 text-left"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className={`inline-flex h-10 w-10 items-center justify-center rounded-[14px] bg-[var(--bg-hover)] ${template.accentClass}`}>
@@ -1168,10 +1168,10 @@ export function OpenClawCronSurface({
                         key={option.key}
                         type="button"
                         onClick={() => setListFilter(option.key as BasicFilter)}
-                        className={`rounded-[10px] px-3 py-1.5 text-[13px] transition ${
+                        className={`iclaw-apple-segment ${
                           listFilter === option.key
-                            ? 'bg-[var(--bg-card)] font-medium text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
-                            : 'text-[var(--text-secondary)]'
+                            ? 'iclaw-apple-segment--active'
+                            : ''
                         }`}
                       >
                         {option.label}
@@ -1200,7 +1200,7 @@ export function OpenClawCronSurface({
                       <button
                         type="button"
                         onClick={() => openCreate('reminder')}
-                        className="mt-5 inline-flex h-10 items-center gap-2 rounded-[12px] bg-[var(--brand-primary)] px-4 text-[14px] font-medium text-[var(--brand-on-primary)] transition hover:opacity-95"
+                        className="iclaw-apple-button iclaw-apple-button--primary mt-5"
                       >
                         <Plus className="h-4 w-4" />
                         创建第一个任务
@@ -1246,7 +1246,7 @@ export function OpenClawCronSurface({
                                 type="button"
                                 onClick={() => handleToggle(job)}
                                 disabled={actionJobId === job.id}
-                                className="inline-flex h-9 items-center justify-center rounded-[10px] border border-[var(--border-default)] px-3 text-[13px] text-[var(--text-primary)] transition hover:bg-[var(--bg-hover)] disabled:opacity-60"
+                                className="iclaw-apple-button iclaw-apple-button--secondary iclaw-apple-button--sm iclaw-apple-button--icon"
                               >
                                 {job.enabled ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
                               </button>
@@ -1284,7 +1284,7 @@ export function OpenClawCronSurface({
                                 type="button"
                                 onClick={() => handleRun(job)}
                                 disabled={actionJobId === job.id}
-                                className="inline-flex h-9 items-center gap-2 rounded-[10px] border border-[var(--border-default)] bg-[var(--bg-card)] px-3 text-[13px] text-[var(--text-primary)] transition hover:bg-[var(--bg-hover)] disabled:opacity-60"
+                                className="iclaw-apple-button iclaw-apple-button--secondary iclaw-apple-button--sm"
                               >
                                 <Play className="h-4 w-4" />
                                 立即执行
@@ -1292,7 +1292,7 @@ export function OpenClawCronSurface({
                               <button
                                 type="button"
                                 onClick={() => openEdit(job)}
-                                className="inline-flex h-9 items-center gap-2 rounded-[10px] border border-[var(--border-default)] bg-[var(--bg-card)] px-3 text-[13px] text-[var(--text-primary)] transition hover:bg-[var(--bg-hover)]"
+                                className="iclaw-apple-button iclaw-apple-button--secondary iclaw-apple-button--sm"
                               >
                                 <PencilLine className="h-4 w-4" />
                                 {isAdvancedOnly ? '高级编辑' : '编辑'}
@@ -1301,7 +1301,7 @@ export function OpenClawCronSurface({
                                 type="button"
                                 onClick={() => handleRemove(job)}
                                 disabled={actionJobId === job.id}
-                                className="inline-flex h-9 items-center gap-2 rounded-[10px] border border-[rgba(239,68,68,0.22)] bg-[rgba(239,68,68,0.06)] px-3 text-[13px] text-red-600 transition hover:bg-[rgba(239,68,68,0.12)] disabled:opacity-60 dark:text-red-300"
+                                className="iclaw-apple-button iclaw-apple-button--danger iclaw-apple-button--sm"
                               >
                                 <Trash2 className="h-4 w-4" />
                                 删除
@@ -1317,8 +1317,8 @@ export function OpenClawCronSurface({
             </div>
 
             {drawerOpen ? (
-              <div className="fixed inset-0 z-40 flex items-end justify-end bg-[rgba(0,0,0,0.18)] p-4 backdrop-blur-[2px]">
-                <div className="w-full max-w-[520px] overflow-hidden rounded-[28px] border border-[var(--border-default)] bg-[var(--bg-card)] shadow-[var(--shadow-modal)]">
+              <div className="iclaw-cron-modal-backdrop">
+                <div className="iclaw-cron-modal">
                   <div className="border-b border-[var(--border-default)] px-5 py-4">
                     <div className="flex items-start justify-between gap-4">
                       <div>
@@ -1332,7 +1332,7 @@ export function OpenClawCronSurface({
                       <button
                         type="button"
                         onClick={() => setDrawerOpen(false)}
-                        className="inline-flex h-9 items-center justify-center rounded-[10px] border border-[var(--border-default)] px-3 text-[13px] text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)]"
+                        className="iclaw-apple-button iclaw-apple-button--secondary iclaw-apple-button--sm"
                       >
                         关闭
                       </button>
@@ -1459,7 +1459,7 @@ export function OpenClawCronSurface({
                         setDrawerOpen(false);
                         setMode('advanced');
                       }}
-                      className="inline-flex h-10 items-center gap-2 rounded-[12px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 text-[14px] text-[var(--text-primary)] transition hover:bg-[var(--bg-hover)]"
+                      className="iclaw-apple-button iclaw-apple-button--secondary"
                     >
                       <Settings2 className="h-4 w-4" />
                       去高级模式
@@ -1468,7 +1468,7 @@ export function OpenClawCronSurface({
                       type="button"
                       onClick={() => void handleSave()}
                       disabled={saving}
-                      className="inline-flex h-10 items-center gap-2 rounded-[12px] bg-[var(--brand-primary)] px-4 text-[14px] font-medium text-[var(--brand-on-primary)] transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="iclaw-apple-button iclaw-apple-button--primary"
                     >
                       {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                       {form.id ? '保存任务' : '创建任务'}
@@ -1511,7 +1511,7 @@ export function OpenClawCronSurface({
             <button
               type="button"
               onClick={() => setMode('basic')}
-              className="pointer-events-auto inline-flex h-10 items-center gap-2 rounded-[12px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 text-[14px] text-[var(--text-primary)] shadow-[var(--shadow-sm)] transition hover:bg-[var(--bg-hover)]"
+              className="pointer-events-auto iclaw-apple-button iclaw-apple-button--secondary"
             >
               <Repeat className="h-4 w-4" />
               返回基础模式
