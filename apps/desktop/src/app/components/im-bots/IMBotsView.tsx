@@ -1,19 +1,30 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ComponentType } from 'react';
 import {
   Activity,
   AlertCircle,
   Bot,
+  BotMessageSquare,
+  Building2,
+  CheckCircle2,
   Clock3,
   Link2,
+  MessageCircle,
   MessageSquare,
   Power,
+  Radio,
   RefreshCw,
+  SendHorizontal,
   Settings2,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
+  TestTube2,
+  Users,
+  X,
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/Button';
+import { Chip } from '@/app/components/ui/Chip';
 import { PressableCard } from '@/app/components/ui/PressableCard';
 import { cn } from '@/app/lib/cn';
 import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
@@ -23,24 +34,114 @@ import qqLogo from '@/app/assets/im-bots/qq.png';
 import wecomLogo from '@/app/assets/im-bots/wecom.png';
 import { IMBotSetupModal, type IMBotDraft, type IMPlatformId, type IMPlatformMeta } from './IMBotSetupModal';
 
-type BotStatus = 'running' | 'warning' | 'draft' | 'paused';
-type SideTab = 'messages' | 'health' | 'alerts';
+type IMBotHealthState =
+  | 'healthy'
+  | 'needs_setup'
+  | 'connectivity_issue'
+  | 'permission_issue'
+  | 'callback_issue'
+  | 'paused';
+type SideTab = 'todo' | 'health' | 'audit';
+type BotTestStatus = 'idle' | 'testing' | 'success';
+type BotAuditTone = 'success' | 'warning' | 'info';
+type BindingScope = 'organization' | 'group' | 'private';
+
+interface AssistantProfile {
+  id: string;
+  name: string;
+  summary: string;
+  scope: string;
+  persona: string;
+}
+
+interface AuditEntry {
+  id: string;
+  title: string;
+  detail: string;
+  time: string;
+  tone: BotAuditTone;
+  createdAt: number;
+}
 
 interface ManagedBot {
   id: string;
   platformId: IMPlatformId;
   name: string;
   company: string;
+  assistantId: string | null;
   assistant: string;
-  status: BotStatus;
+  healthState: IMBotHealthState;
   enabled: boolean;
   lastActive: string;
+  lastTestAt: string | null;
   healthSummary: string;
   triggerMode: string;
   replyFormat: string;
+  bindingScope: BindingScope;
+  offlineReply: string;
+  testStatus: BotTestStatus;
+  lastTestMessage: string;
+  lastTestResponse: string;
+  auditLogs: AuditEntry[];
 }
 
-const platformMetaList: IMPlatformMeta[] = [
+type PlatformCardMeta = IMPlatformMeta & {
+  capabilities: string[];
+};
+
+const assistantProfiles: AssistantProfile[] = [
+  {
+    id: 'knowledge',
+    name: '企业知识助手',
+    summary: '回答制度、流程、项目资料和内部知识库问题。',
+    scope: '适合组织内员工私聊与群聊问答',
+    persona: '稳健、正式、偏知识检索',
+  },
+  {
+    id: 'ops',
+    name: '运维通知助手',
+    summary: '适合系统通知、异常播报和值班流转。',
+    scope: '适合群聊、频道与通知推送',
+    persona: '简短、明确、以结果为先',
+  },
+  {
+    id: 'sales',
+    name: '销售协同助手',
+    summary: '适合客户跟进摘要、纪要整理和内部协同。',
+    scope: '适合外部客户群与销售团队群',
+    persona: '偏业务协同、强调行动项',
+  },
+  {
+    id: 'service',
+    name: '服务台助手',
+    summary: '适合收集问题、给出初步答复并路由人工。',
+    scope: '适合私聊入口与跨部门问答',
+    persona: '友好、耐心、带分流意识',
+  },
+];
+
+const bindingScopeOptions: Array<{ value: BindingScope; label: string; description: string; icon: ComponentType<{ className?: string }> }> = [
+  {
+    value: 'organization',
+    label: '组织统一入口',
+    description: '作为组织级机器人统一服务多个部门与群聊。',
+    icon: Building2,
+  },
+  {
+    value: 'group',
+    label: '指定群聊 / 频道',
+    description: '限制在固定群或频道内服务，更适合试点。',
+    icon: Users,
+  },
+  {
+    value: 'private',
+    label: '私聊助手',
+    description: '只在一对一私聊里响应，适合员工助手。',
+    icon: MessageCircle,
+  },
+];
+
+const platformMetaList: PlatformCardMeta[] = [
   {
     id: 'feishu',
     label: '飞书',
@@ -51,6 +152,7 @@ const platformMetaList: IMPlatformMeta[] = [
     eta: '10 分钟',
     admin: '需要',
     guideUrl: 'https://open.feishu.cn/app',
+    capabilities: ['群聊', '私聊', '组织内'],
     credentialFields: [
       { key: 'app_id', label: 'App ID', placeholder: '请输入飞书 App ID' },
       { key: 'app_secret', label: 'App Secret', placeholder: '请输入飞书 App Secret' },
@@ -76,6 +178,7 @@ const platformMetaList: IMPlatformMeta[] = [
     eta: '12 分钟',
     admin: '需要',
     guideUrl: 'https://open-dev.dingtalk.com/',
+    capabilities: ['群聊', '通知', '组织内'],
     credentialFields: [
       { key: 'client_id', label: 'Client ID / AppKey', placeholder: '请输入钉钉 Client ID' },
       { key: 'client_secret', label: 'Client Secret / AppSecret', placeholder: '请输入钉钉 Client Secret' },
@@ -100,6 +203,7 @@ const platformMetaList: IMPlatformMeta[] = [
     eta: '15 分钟',
     admin: '需要',
     guideUrl: 'https://developer.work.weixin.qq.com/',
+    capabilities: ['组织内', '工作流', '回调'],
     credentialFields: [
       { key: 'corp_id', label: 'Corp ID', placeholder: '请输入企业 ID' },
       { key: 'agent_id', label: 'Agent ID', placeholder: '请输入应用 ID' },
@@ -126,6 +230,7 @@ const platformMetaList: IMPlatformMeta[] = [
     eta: '15 分钟',
     admin: '部分需要',
     guideUrl: 'https://q.qq.com/bot/',
+    capabilities: ['群聊', '频道', '轻量协作'],
     credentialFields: [
       { key: 'app_id', label: 'App ID', placeholder: '请输入 QQ Bot App ID' },
       { key: 'app_secret', label: 'App Secret', placeholder: '请输入 QQ Bot App Secret' },
@@ -147,12 +252,18 @@ const initialBots: ManagedBot[] = [];
 
 export function IMBotsView() {
   const [bots, setBots] = useState<ManagedBot[]>(initialBots);
-  const [activeSideTab, setActiveSideTab] = useState<SideTab>('messages');
+  const [activeSideTab, setActiveSideTab] = useState<SideTab>('todo');
   const [selectedPlatformId, setSelectedPlatformId] = useState<IMPlatformId | null>(null);
+  const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
 
   const selectedPlatform = useMemo(
     () => platformMetaList.find((item) => item.id === selectedPlatformId) ?? null,
     [selectedPlatformId],
+  );
+
+  const selectedBot = useMemo(
+    () => bots.find((item) => item.id === selectedBotId) ?? null,
+    [bots, selectedBotId],
   );
 
   const configuredPlatforms = useMemo(
@@ -161,12 +272,15 @@ export function IMBotsView() {
   );
 
   const runningCount = useMemo(
-    () => bots.filter((item) => item.enabled && item.status === 'running').length,
+    () => bots.filter((item) => item.enabled && item.healthState === 'healthy').length,
     [bots],
   );
 
-  const warningCount = useMemo(
-    () => bots.filter((item) => item.status === 'warning' || item.status === 'paused').length,
+  const actionRequiredCount = useMemo(
+    () =>
+      bots.filter((item) =>
+        ['needs_setup', 'connectivity_issue', 'permission_issue', 'callback_issue'].includes(item.healthState),
+      ).length,
     [bots],
   );
 
@@ -181,14 +295,14 @@ export function IMBotsView() {
       {
         label: '已创建机器人',
         value: String(bots.length),
-        note: bots.length > 0 ? '当前展示的都是已真实创建的机器人实例。' : '当前还没有机器人，先从下方平台卡片开始接入。',
+        note: bots.length > 0 ? '每个机器人都代表一个真实接入实例，可继续做助手绑定与测试。' : '当前还没有机器人，先从下方平台卡片开始接入。',
         icon: Bot,
         tone: 'brand',
       },
       {
         label: '当前运行中',
         value: String(runningCount),
-        note: runningCount > 0 ? '已启用且状态正常的机器人会显示在这里。' : '接入完成并启用后，这里会显示运行中的机器人数量。',
+        note: runningCount > 0 ? '只有已启用且健康状态正常的机器人会计入运行中。' : '绑定默认助手并完成测试后，这里会显示稳定运行中的机器人。',
         icon: Power,
         tone: runningCount > 0 ? 'success' : 'neutral',
       },
@@ -200,33 +314,81 @@ export function IMBotsView() {
         tone: configuredPlatforms.size > 0 ? 'success' : 'neutral',
       },
       {
-        label: '待关注项',
-        value: String(warningCount),
-        note: warningCount > 0 ? '这里会集中显示需要留意的机器人状态。' : '当前没有需要关注的机器人告警。',
+        label: '待处理项',
+        value: String(actionRequiredCount),
+        note: actionRequiredCount > 0 ? '这里集中显示还没完成默认助手绑定或需要排查的机器人。' : '当前没有需要处理的接入问题。',
         icon: AlertCircle,
-        tone: warningCount > 0 ? 'warning' : 'neutral',
+        tone: actionRequiredCount > 0 ? 'warning' : 'neutral',
       },
     ],
-    [bots.length, configuredPlatforms.size, runningCount, warningCount],
+    [actionRequiredCount, bots.length, configuredPlatforms.size, runningCount],
+  );
+
+  const todoItems = useMemo(
+    () =>
+      bots
+        .filter((bot) => bot.healthState !== 'healthy' && bot.healthState !== 'paused')
+        .map((bot) => ({
+          botId: bot.id,
+          botName: bot.name,
+          label: getHealthMeta(bot.healthState).label,
+          detail: getHealthMeta(bot.healthState).description,
+        })),
+    [bots],
+  );
+
+  const healthItems = useMemo(
+    () =>
+      bots.map((bot) => ({
+        botId: bot.id,
+        botName: bot.name,
+        detail: bot.healthSummary,
+        tone: getHealthMeta(bot.healthState).panelTone,
+      })),
+    [bots],
+  );
+
+  const auditItems = useMemo(
+    () =>
+      bots
+        .flatMap((bot) =>
+          bot.auditLogs.map((log) => ({
+            ...log,
+            botId: bot.id,
+            botName: bot.name,
+          })),
+        )
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .slice(0, 8),
+    [bots],
   );
 
   const handleCompleteSetup = (draft: IMBotDraft) => {
     const meta = platformMetaList.find((item) => item.id === draft.platformId);
     if (!meta) return;
 
+    const nextId = `${draft.platformId}-bot`;
+
     setBots((prev) => {
-      const existing = prev.find((item) => item.platformId === draft.platformId);
+      const existing = prev.find((item) => item.id === nextId);
       if (existing) {
         return prev.map((item) =>
-          item.platformId === draft.platformId
+          item.id === nextId
             ? {
                 ...item,
-                status: 'running',
                 enabled: true,
+                healthState: item.assistantId ? 'healthy' : 'needs_setup',
                 lastActive: '刚刚',
-                healthSummary: '接入已更新完成，当前未发现异常。',
+                lastTestAt: '刚刚',
+                healthSummary: item.assistantId
+                  ? '平台接入已更新完成，默认助手保留，最近一次测试通过。'
+                  : '平台接入已更新完成，但还没有绑定默认助手与会话范围。',
                 triggerMode: formatTriggerMode(draft.triggerMode),
                 replyFormat: formatReplyFormat(draft.replyFormat),
+                auditLogs: [
+                  createAuditEntry('success', '平台接入已更新', `${meta.label} 的连接配置已重新保存并通过测试。`),
+                  ...item.auditLogs,
+                ],
               }
             : item,
         );
@@ -235,20 +397,214 @@ export function IMBotsView() {
       return [
         ...prev,
         {
-          id: `${draft.platformId}-bot`,
+          id: nextId,
           platformId: draft.platformId,
           name: `${meta.label}办公助手`,
           company: '待完善',
-          assistant: '默认助手待配置',
-          status: 'running',
+          assistantId: null,
+          assistant: '未绑定默认助手',
+          healthState: 'needs_setup',
           enabled: true,
           lastActive: '刚刚',
-          healthSummary: '接入刚完成，最近一次测试通过。后续可进入详情页继续完善名称、助手和策略。',
+          lastTestAt: '刚刚',
+          healthSummary: '平台连接已建立，但默认助手、会话范围和首条测试消息还没有完成。',
           triggerMode: formatTriggerMode(draft.triggerMode),
           replyFormat: formatReplyFormat(draft.replyFormat),
+          bindingScope: 'organization',
+          offlineReply: '我现在暂时离线，稍后会继续处理你的消息。',
+          testStatus: 'idle',
+          lastTestMessage: '',
+          lastTestResponse: '',
+          auditLogs: [
+            createAuditEntry('warning', '待完成默认助手绑定', '接入成功后，建议先绑定默认助手，再进行第一条测试消息。'),
+            createAuditEntry('success', '平台接入完成', `${meta.label} 连接配置已建立，最近一次接入测试通过。`),
+          ],
         },
       ];
     });
+
+    setSelectedBotId(nextId);
+  };
+
+  const handleUpdateBot = (
+    botId: string,
+    updates: Pick<ManagedBot, 'name' | 'company' | 'assistantId' | 'assistant' | 'bindingScope' | 'offlineReply'>,
+  ) => {
+    setBots((prev) =>
+      prev.map((bot) => {
+        if (bot.id !== botId) return bot;
+        const nextHealthState = bot.enabled
+          ? updates.assistantId
+            ? 'healthy'
+            : 'needs_setup'
+          : 'paused';
+        return {
+          ...bot,
+          ...updates,
+          healthState: nextHealthState,
+          healthSummary:
+            nextHealthState === 'healthy'
+              ? '默认助手与会话范围已完成配置，最近一次连接检查正常。'
+              : nextHealthState === 'paused'
+                ? '机器人已停用，不再接收新消息。'
+                : '连接已建立，但默认助手或会话绑定还没有完成。',
+          lastActive: '刚刚',
+          auditLogs: [
+            createAuditEntry(
+              'info',
+              '机器人配置已更新',
+              updates.assistantId
+                ? `已绑定默认助手“${updates.assistant}”，并更新了基础信息。`
+                : '已更新机器人信息，但默认助手仍未绑定。',
+            ),
+            ...bot.auditLogs,
+          ],
+        };
+      }),
+    );
+  };
+
+  const handleToggleBot = (botId: string) => {
+    setBots((prev) =>
+      prev.map((bot) => {
+        if (bot.id !== botId) return bot;
+        const nextEnabled = !bot.enabled;
+        const nextHealthState = nextEnabled
+          ? bot.assistantId
+            ? 'healthy'
+            : 'needs_setup'
+          : 'paused';
+        return {
+          ...bot,
+          enabled: nextEnabled,
+          healthState: nextHealthState,
+          healthSummary:
+            nextHealthState === 'paused'
+              ? '机器人已停用，不再接收新消息。'
+              : nextHealthState === 'healthy'
+                ? '机器人已启用，最近一次健康检查正常。'
+                : '机器人已启用，但还没有绑定默认助手。',
+          lastActive: '刚刚',
+          auditLogs: [
+            createAuditEntry(
+              nextEnabled ? 'success' : 'info',
+              nextEnabled ? '机器人已启用' : '机器人已停用',
+              nextEnabled ? '该机器人已重新开始接收新消息。' : '该机器人已暂停，后续不会再向 IM 回复消息。',
+            ),
+            ...bot.auditLogs,
+          ],
+        };
+      }),
+    );
+  };
+
+  const handleRunConnectionTest = (botId: string) => {
+    setBots((prev) =>
+      prev.map((bot) =>
+        bot.id === botId
+          ? {
+              ...bot,
+              testStatus: 'testing',
+              auditLogs: [
+                createAuditEntry('info', '开始连接测试', '已触发一次即时连通性检查，正在验证平台链路与回调状态。'),
+                ...bot.auditLogs,
+              ],
+            }
+          : bot,
+      ),
+    );
+
+    window.setTimeout(() => {
+      setBots((prev) =>
+        prev.map((bot) => {
+          if (bot.id !== botId) return bot;
+          const nextHealthState = bot.enabled
+            ? bot.assistantId
+              ? 'healthy'
+              : 'needs_setup'
+            : 'paused';
+          return {
+            ...bot,
+            testStatus: 'success',
+            healthState: nextHealthState,
+            lastTestAt: '刚刚',
+            lastActive: '刚刚',
+            healthSummary:
+              nextHealthState === 'healthy'
+                ? '最近一次连接测试通过，平台链路与默认助手配置都正常。'
+                : nextHealthState === 'paused'
+                  ? '机器人当前处于停用状态，连接测试通过但不会接收新消息。'
+                  : '平台链路测试通过，但默认助手还没有配置完成。',
+            auditLogs: [
+              createAuditEntry(
+                'success',
+                '连接测试通过',
+                nextHealthState === 'healthy'
+                  ? '平台链路、回调配置和默认助手检查均通过。'
+                  : '平台链路测试通过，但仍建议继续完成默认助手绑定。',
+              ),
+              ...bot.auditLogs,
+            ],
+          };
+        }),
+      );
+    }, 1100);
+  };
+
+  const handleSendTestMessage = (botId: string, message: string) => {
+    const trimmed = message.trim();
+    if (!trimmed) return;
+
+    setBots((prev) =>
+      prev.map((bot) => {
+        if (bot.id !== botId) return bot;
+        if (!bot.assistantId) {
+          return {
+            ...bot,
+            lastTestMessage: trimmed,
+            lastTestResponse: '未发送：请先绑定默认助手。',
+            healthState: 'needs_setup',
+            healthSummary: '连接可用，但默认助手尚未绑定，暂时不能做完整对话测试。',
+            auditLogs: [
+              createAuditEntry('warning', '测试消息未发送', '当前还没有绑定默认助手，无法完成完整会话测试。'),
+              ...bot.auditLogs,
+            ],
+          };
+        }
+        return {
+          ...bot,
+          testStatus: 'testing',
+          lastTestMessage: trimmed,
+          auditLogs: [
+            createAuditEntry('info', '发送测试消息', `已从管理台发起一条测试消息：“${trimmed}”`),
+            ...bot.auditLogs,
+          ],
+        };
+      }),
+    );
+
+    window.setTimeout(() => {
+      setBots((prev) =>
+        prev.map((bot) => {
+          if (bot.id !== botId || !bot.assistantId) return bot;
+          return {
+            ...bot,
+            testStatus: 'success',
+            healthState: bot.enabled ? 'healthy' : 'paused',
+            lastTestAt: '刚刚',
+            lastActive: '刚刚',
+            lastTestResponse: `已由${bot.assistant}返回一条测试回复，可继续在真实 IM 会话中验证表现。`,
+            healthSummary: bot.enabled
+              ? '连接与首条测试消息均已通过，可以继续在真实 IM 中灰度验证。'
+              : '机器人已停用，测试回复正常，但当前不会主动接收新消息。',
+            auditLogs: [
+              createAuditEntry('success', '测试消息已返回', `默认助手“${bot.assistant}”已成功处理一条测试消息。`),
+              ...bot.auditLogs,
+            ],
+          };
+        }),
+      );
+    }, 900);
   };
 
   return (
@@ -259,12 +615,22 @@ export function IMBotsView() {
             <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">IM Robot Workspace</div>
             <h1 className="mt-3 text-[32px] font-semibold tracking-[-0.05em] text-[var(--text-primary)]">IM机器人</h1>
             <p className="mt-3 max-w-[760px] text-[14px] leading-7 text-[var(--text-secondary)]">
-              将 OpenClaw 接入企业常用办公 IM，并统一管理机器人状态。这个视图区默认按“已创建机器人 + 平台接入卡片”的产品化路径组织。
+              将 OpenClaw 接入企业常用办公 IM，并统一管理机器人状态。这个视图区现在不只是接入入口，也包含机器人详情、测试与默认助手绑定。
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="secondary" size="sm" leadingIcon={<AlertCircle className="h-4 w-4" />} disabled={warningCount === 0}>
-              查看异常
+            <Button
+              variant="secondary"
+              size="sm"
+              leadingIcon={<AlertCircle className="h-4 w-4" />}
+              disabled={todoItems.length === 0}
+              onClick={() => {
+                if (todoItems[0]) {
+                  setSelectedBotId(todoItems[0].botId);
+                }
+              }}
+            >
+              查看待处理
             </Button>
             <Button
               variant="primary"
@@ -285,16 +651,27 @@ export function IMBotsView() {
 
         <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_340px]">
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4">
               <div>
                 <div className="text-[22px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">已创建的机器人</div>
-                <p className="mt-2 text-[14px] leading-7 text-[var(--text-secondary)]">通常一屏就能看全所有机器人，不需要复杂的后台表格。</p>
+                <p className="mt-2 text-[14px] leading-7 text-[var(--text-secondary)]">
+                  通常一屏就能看全所有机器人。点开详情后，可以继续做默认助手绑定、会话范围、测试和日志查看。
+                </p>
               </div>
             </div>
             {bots.length > 0 ? (
               bots.map((bot) => {
                 const meta = platformMetaList.find((item) => item.id === bot.platformId)!;
-                return <ManagedBotCard key={bot.id} bot={bot} meta={meta} />;
+                return (
+                  <ManagedBotCard
+                    key={bot.id}
+                    bot={bot}
+                    meta={meta}
+                    onOpenDetails={() => setSelectedBotId(bot.id)}
+                    onRunConnectionTest={() => handleRunConnectionTest(bot.id)}
+                    onToggleEnabled={() => handleToggleBot(bot.id)}
+                  />
+                );
               })
             ) : (
               <EmptyBotState onCreate={() => setSelectedPlatformId('feishu')} />
@@ -304,7 +681,10 @@ export function IMBotsView() {
           <ActivityPanel
             activeTab={activeSideTab}
             onTabChange={setActiveSideTab}
-            bots={bots}
+            todoItems={todoItems}
+            healthItems={healthItems}
+            auditItems={auditItems}
+            onOpenBot={(botId) => setSelectedBotId(botId)}
           />
         </div>
 
@@ -323,7 +703,9 @@ export function IMBotsView() {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-[22px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">接入新的平台</div>
-              <p className="mt-2 text-[14px] leading-7 text-[var(--text-secondary)]">点击任一平台卡片，直接弹出步骤式接入模态窗，在当前页面内完成整个流程。</p>
+              <p className="mt-2 text-[14px] leading-7 text-[var(--text-secondary)]">
+                点击任一平台卡片，直接弹出步骤式接入模态窗，在当前页面内完成整个流程。接入完成后，会自动进入机器人详情继续配置。
+              </p>
             </div>
           </div>
 
@@ -345,6 +727,18 @@ export function IMBotsView() {
         open={Boolean(selectedPlatform)}
         onClose={() => setSelectedPlatformId(null)}
         onComplete={handleCompleteSetup}
+      />
+
+      <IMBotDetailSheet
+        open={Boolean(selectedBot)}
+        bot={selectedBot}
+        platform={selectedBot ? platformMetaList.find((item) => item.id === selectedBot.platformId) ?? null : null}
+        assistantOptions={assistantProfiles}
+        onClose={() => setSelectedBotId(null)}
+        onSave={handleUpdateBot}
+        onToggleEnabled={handleToggleBot}
+        onRunConnectionTest={handleRunConnectionTest}
+        onSendTestMessage={handleSendTestMessage}
       />
     </div>
   );
@@ -396,7 +790,7 @@ function EmptyBotState({ onCreate }: { onCreate: () => void }) {
           </div>
           <div className="mt-4 text-[24px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">还没有已创建的机器人</div>
           <p className="mt-3 text-[14px] leading-7 text-[var(--text-secondary)]">
-            这里不再展示 mock 示例。完成任一平台接入后，新的机器人会真实出现在这个区域，后续你可以继续做助手绑定、启停和测试连通。
+            这里不再展示 mock 示例。完成任一平台接入后，新的机器人会真实出现在这个区域，并直接进入详情抽屉继续完成默认助手绑定与测试。
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -409,20 +803,20 @@ function EmptyBotState({ onCreate }: { onCreate: () => void }) {
   );
 }
 
-function ManagedBotCard({ bot, meta }: { bot: ManagedBot; meta: IMPlatformMeta }) {
-  const statusTone = {
-    running: 'border-[rgba(34,197,94,0.18)] bg-[rgba(34,197,94,0.12)] text-[rgb(22,163,74)] dark:text-[#9af0c5]',
-    warning: 'border-[rgba(245,158,11,0.18)] bg-[rgba(245,158,11,0.14)] text-[rgb(217,119,6)] dark:text-[#ffd49a]',
-    draft: 'border-[rgba(148,163,184,0.18)] bg-[rgba(148,163,184,0.12)] text-[var(--text-secondary)]',
-    paused: 'border-[rgba(239,68,68,0.16)] bg-[rgba(239,68,68,0.12)] text-[rgb(220,38,38)] dark:text-[#fecaca]',
-  }[bot.status];
-
-  const statusLabel = {
-    running: '运行中',
-    warning: '异常待关注',
-    draft: '未完成配置',
-    paused: '已停用',
-  }[bot.status];
+function ManagedBotCard({
+  bot,
+  meta,
+  onOpenDetails,
+  onRunConnectionTest,
+  onToggleEnabled,
+}: {
+  bot: ManagedBot;
+  meta: PlatformCardMeta;
+  onOpenDetails: () => void;
+  onRunConnectionTest: () => void;
+  onToggleEnabled: () => void;
+}) {
+  const healthMeta = getHealthMeta(bot.healthState);
 
   return (
     <PressableCard className="border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,247,244,0.90))] px-5 py-4 shadow-[0_18px_34px_rgba(15,23,42,0.06)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(29,29,29,0.96),rgba(17,17,17,0.94))] dark:shadow-[0_22px_38px_rgba(0,0,0,0.30)]">
@@ -434,7 +828,12 @@ function ManagedBotCard({ bot, meta }: { bot: ManagedBot; meta: IMPlatformMeta }
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-[20px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">{bot.name}</h3>
-              <span className={cn('rounded-full border px-3 py-1 text-[12px] font-medium', statusTone)}>{statusLabel}</span>
+              <Chip tone={healthMeta.chipTone} className="px-3 py-1 text-[12px] font-medium">
+                {healthMeta.label}
+              </Chip>
+              <Chip tone="outline" className="px-3 py-1 text-[12px]">
+                {formatBindingScope(bot.bindingScope)}
+              </Chip>
             </div>
             <p className="mt-2 text-[14px] leading-7 text-[var(--text-secondary)]">
               {meta.label} · {bot.company} · 默认助手：{bot.assistant}
@@ -442,14 +841,25 @@ function ManagedBotCard({ bot, meta }: { bot: ManagedBot; meta: IMPlatformMeta }
             <p className="mt-3 max-w-[720px] text-[14px] leading-7 text-[var(--text-secondary)]">{bot.healthSummary}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" leadingIcon={<RefreshCw className="h-4 w-4" />}>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            leadingIcon={<RefreshCw className={cn('h-4 w-4', bot.testStatus === 'testing' && 'animate-spin')} />}
+            onClick={onRunConnectionTest}
+            disabled={bot.testStatus === 'testing'}
+          >
             测试连通
           </Button>
-          <Button variant={bot.enabled ? 'ghost' : 'success'} size="sm" leadingIcon={<Power className="h-4 w-4" />}>
+          <Button
+            variant={bot.enabled ? 'ghost' : 'success'}
+            size="sm"
+            leadingIcon={<Power className="h-4 w-4" />}
+            onClick={onToggleEnabled}
+          >
             {bot.enabled ? '停用' : '启用'}
           </Button>
-          <Button variant="ghost" size="sm" leadingIcon={<Settings2 className="h-4 w-4" />}>
+          <Button variant="ghost" size="sm" leadingIcon={<Settings2 className="h-4 w-4" />} onClick={onOpenDetails}>
             详情
           </Button>
         </div>
@@ -459,7 +869,7 @@ function ManagedBotCard({ bot, meta }: { bot: ManagedBot; meta: IMPlatformMeta }
         <InfoItem label="最近活跃" value={bot.lastActive} icon={Clock3} />
         <InfoItem label="触发方式" value={bot.triggerMode} icon={Sparkles} />
         <InfoItem label="回复格式" value={bot.replyFormat} icon={MessageSquare} />
-        <InfoItem label="状态信号" value={bot.enabled ? '当前已启用' : '当前已停用'} icon={ShieldCheck} />
+        <InfoItem label="最近测试" value={bot.lastTestAt ?? '还未执行'} icon={ShieldCheck} />
       </div>
     </PressableCard>
   );
@@ -488,37 +898,29 @@ function InfoItem({
 function ActivityPanel({
   activeTab,
   onTabChange,
-  bots,
+  todoItems,
+  healthItems,
+  auditItems,
+  onOpenBot,
 }: {
   activeTab: SideTab;
   onTabChange: (tab: SideTab) => void;
-  bots: ManagedBot[];
+  todoItems: Array<{ botId: string; botName: string; label: string; detail: string }>;
+  healthItems: Array<{ botId: string; botName: string; detail: string; tone: 'success' | 'warning' | 'neutral' }>;
+  auditItems: Array<AuditEntry & { botId: string; botName: string }>;
+  onOpenBot: (botId: string) => void;
 }) {
-  const healthItems = bots.map((bot) => ({
-    title: bot.name,
-    detail: bot.healthSummary,
-    tone: (bot.status === 'running' ? 'success' : bot.status === 'warning' ? 'warning' : 'neutral') as 'success' | 'warning' | 'neutral',
-  }));
-
-  const alertItems = bots
-    .filter((bot) => bot.status === 'warning' || bot.status === 'paused')
-    .map((bot) => ({
-      title: bot.name,
-      detail: bot.healthSummary,
-      time: bot.lastActive,
-    }));
-
   const tabs: Array<{ id: SideTab; label: string; icon: ComponentType<{ className?: string }> }> = [
-    { id: 'messages', label: '最近消息', icon: MessageSquare },
+    { id: 'todo', label: '待处理', icon: AlertCircle },
     { id: 'health', label: '连接健康', icon: Activity },
-    { id: 'alerts', label: '告警日志', icon: AlertCircle },
+    { id: 'audit', label: '审计日志', icon: ShieldCheck },
   ];
 
   return (
     <PressableCard className="sticky top-6 overflow-hidden border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(246,247,244,0.92))] shadow-[0_18px_34px_rgba(15,23,42,0.06)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(28,28,28,0.96),rgba(18,18,18,0.94))] dark:shadow-[0_22px_38px_rgba(0,0,0,0.28)]">
       <div className="border-b border-[var(--border-default)] px-5 py-4">
         <div className="text-[15px] font-semibold text-[var(--text-primary)]">机器人活动面板</div>
-        <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">这里只展示真实接入后的状态，不再填充示例消息和伪造日志。</p>
+        <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">这里聚焦真实的待处理项、连接健康和最近审计日志，不再堆示例消息。</p>
       </div>
       <div className="p-5">
         <div className="flex items-center gap-2 rounded-[16px] bg-[var(--bg-hover)] p-1">
@@ -547,25 +949,48 @@ function ActivityPanel({
         </div>
 
         <div className="mt-4 space-y-3">
-          {activeTab === 'messages'
-            ? bots.length > 0
-              ? (
-                <EmptyPanelState
-                  title="最近消息暂未接入展示"
-                  description="后续接通真实消息日志后，这里会显示最新的用户消息和来源平台。"
-                />
-              )
+          {activeTab === 'todo'
+            ? todoItems.length > 0
+              ? todoItems.map((item) => (
+                <button
+                  key={item.botId}
+                  type="button"
+                  onClick={() => onOpenBot(item.botId)}
+                  className={cn(
+                    'w-full cursor-pointer rounded-[18px] border border-[rgba(245,158,11,0.16)] bg-[rgba(245,158,11,0.10)] px-4 py-3 text-left dark:bg-[rgba(245,158,11,0.14)]',
+                    SPRING_PRESSABLE,
+                    INTERACTIVE_FOCUS_RING,
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-[13px] font-medium text-[var(--text-primary)]">{item.botName}</div>
+                    <Chip tone="warning" className="px-2.5 py-1 text-[11px]">
+                      {item.label}
+                    </Chip>
+                  </div>
+                  <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{item.detail}</p>
+                </button>
+              ))
               : (
                 <EmptyPanelState
-                  title="还没有消息动态"
-                  description="先完成任一平台接入，后续这里再接入真实消息和流量表现。"
+                  title="当前没有待处理项"
+                  description="当机器人还没绑定默认助手，或后续出现链路异常时，这里会集中展示要处理的项目。"
                 />
               )
             : null}
           {activeTab === 'health'
             ? healthItems.length > 0
               ? healthItems.map((item) => (
-                <div key={item.title} className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-3 shadow-[var(--shadow-sm)]">
+                <button
+                  key={item.botId}
+                  type="button"
+                  onClick={() => onOpenBot(item.botId)}
+                  className={cn(
+                    'w-full cursor-pointer rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-3 text-left shadow-[var(--shadow-sm)]',
+                    SPRING_PRESSABLE,
+                    INTERACTIVE_FOCUS_RING,
+                  )}
+                >
                   <div className="flex items-center gap-2">
                     <div
                       className={cn(
@@ -577,10 +1002,10 @@ function ActivityPanel({
                             : 'bg-slate-400',
                       )}
                     />
-                    <div className="text-[13px] font-medium text-[var(--text-primary)]">{item.title}</div>
+                    <div className="text-[13px] font-medium text-[var(--text-primary)]">{item.botName}</div>
                   </div>
                   <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{item.detail}</p>
-                </div>
+                </button>
               ))
               : (
                 <EmptyPanelState
@@ -589,19 +1014,35 @@ function ActivityPanel({
                 />
               )
             : null}
-          {activeTab === 'alerts'
-            ? alertItems.length > 0
-              ? alertItems.map((item) => (
-                <div key={item.title} className="rounded-[18px] border border-[rgba(245,158,11,0.16)] bg-[rgba(245,158,11,0.10)] px-4 py-3 dark:bg-[rgba(245,158,11,0.14)]">
-                  <div className="text-[13px] font-medium text-[var(--text-primary)]">{item.title}</div>
-                  <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{item.detail}</p>
-                  <div className="mt-2 text-[12px] text-[var(--text-muted)]">{item.time}</div>
-                </div>
+          {activeTab === 'audit'
+            ? auditItems.length > 0
+              ? auditItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => onOpenBot(item.botId)}
+                  className={cn(
+                    'w-full cursor-pointer rounded-[18px] border px-4 py-3 text-left',
+                    SPRING_PRESSABLE,
+                    INTERACTIVE_FOCUS_RING,
+                    item.tone === 'success'
+                      ? 'border-[rgba(34,197,94,0.16)] bg-[rgba(34,197,94,0.10)] dark:bg-[rgba(34,197,94,0.14)]'
+                      : item.tone === 'warning'
+                        ? 'border-[rgba(245,158,11,0.16)] bg-[rgba(245,158,11,0.10)] dark:bg-[rgba(245,158,11,0.14)]'
+                        : 'border-[var(--border-default)] bg-[var(--bg-card)]',
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-[13px] font-medium text-[var(--text-primary)]">{item.title}</div>
+                    <div className="text-[12px] text-[var(--text-muted)]">{item.time}</div>
+                  </div>
+                  <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{item.botName} · {item.detail}</p>
+                </button>
               ))
               : (
                 <EmptyPanelState
-                  title="当前没有告警日志"
-                  description="当机器人出现异常待关注状态时，这里会集中展示需要处理的项目。"
+                  title="当前没有审计日志"
+                  description="当你进行接入、测试、启停或更新助手绑定后，这里会展示真实操作记录。"
                 />
               )
             : null}
@@ -625,7 +1066,7 @@ function PlatformCard({
   configured,
   onClick,
 }: {
-  platform: IMPlatformMeta;
+  platform: PlatformCardMeta;
   configured: boolean;
   onClick: () => void;
 }) {
@@ -646,6 +1087,13 @@ function PlatformCard({
             已配置
           </span>
         ) : null}
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {platform.capabilities.map((item) => (
+          <Chip key={item} tone="outline" className="px-3 py-1.5 text-[11px]">
+            {item}
+          </Chip>
+        ))}
       </div>
       <div className="mt-4 grid grid-cols-3 gap-3 text-[12px]">
         <MetaPill label="接入难度" value={platform.difficulty} />
@@ -670,10 +1118,444 @@ function MetaPill({ label, value }: { label: string; value: string }) {
   );
 }
 
+function IMBotDetailSheet({
+  open,
+  bot,
+  platform,
+  assistantOptions,
+  onClose,
+  onSave,
+  onToggleEnabled,
+  onRunConnectionTest,
+  onSendTestMessage,
+}: {
+  open: boolean;
+  bot: ManagedBot | null;
+  platform: PlatformCardMeta | null;
+  assistantOptions: AssistantProfile[];
+  onClose: () => void;
+  onSave: (
+    botId: string,
+    updates: Pick<ManagedBot, 'name' | 'company' | 'assistantId' | 'assistant' | 'bindingScope' | 'offlineReply'>,
+  ) => void;
+  onToggleEnabled: (botId: string) => void;
+  onRunConnectionTest: (botId: string) => void;
+  onSendTestMessage: (botId: string, message: string) => void;
+}) {
+  const [draftName, setDraftName] = useState('');
+  const [draftCompany, setDraftCompany] = useState('');
+  const [draftAssistantId, setDraftAssistantId] = useState<string | null>(null);
+  const [draftBindingScope, setDraftBindingScope] = useState<BindingScope>('organization');
+  const [draftOfflineReply, setDraftOfflineReply] = useState('');
+  const [draftTestMessage, setDraftTestMessage] = useState('请给我一句上线自检回复');
+
+  useEffect(() => {
+    if (!bot) return;
+    setDraftName(bot.name);
+    setDraftCompany(bot.company);
+    setDraftAssistantId(bot.assistantId);
+    setDraftBindingScope(bot.bindingScope);
+    setDraftOfflineReply(bot.offlineReply);
+    setDraftTestMessage('请给我一句上线自检回复');
+  }, [bot]);
+
+  if (!open || !bot || !platform) {
+    return null;
+  }
+
+  const healthMeta = getHealthMeta(bot.healthState);
+  const selectedAssistant = assistantOptions.find((item) => item.id === draftAssistantId) ?? null;
+
+  return (
+    <div className="fixed inset-0 z-40 flex justify-end bg-[rgba(20,24,33,0.16)] backdrop-blur-[3px] dark:bg-[rgba(0,0,0,0.34)]" onClick={onClose}>
+      <aside
+        className="flex h-full w-full max-w-[640px] flex-col border-l border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(252,252,251,0.98),rgba(246,247,244,0.96))] shadow-[0_32px_90px_rgba(15,23,42,0.18)] dark:border-l-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(24,24,24,0.98),rgba(12,12,12,0.96))] dark:shadow-[0_30px_90px_rgba(0,0,0,0.44)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="border-b border-[rgba(15,23,42,0.08)] px-6 py-5 dark:border-b-[rgba(255,255,255,0.08)]">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(15,23,42,0.08)] bg-white/70 px-3 py-1 text-[12px] text-[var(--text-secondary)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
+                <span className="shrink-0">
+                  <Settings2 className="h-4 w-4" />
+                </span>
+                机器人详情
+              </div>
+              <div className="mt-4 flex items-start gap-4">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[22px] border border-[var(--border-default)] bg-white shadow-[0_10px_24px_rgba(15,23,42,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
+                  <img src={platform.logo} alt={platform.label} className={cn('h-full w-full object-cover', platform.logoClassName)} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-[24px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">{bot.name}</h2>
+                    <Chip tone={healthMeta.chipTone} className="px-2.5 py-1 text-[11px] font-medium">
+                      {healthMeta.label}
+                    </Chip>
+                  </div>
+                  <p className="mt-2 text-[14px] leading-7 text-[var(--text-secondary)]">
+                    {platform.label} · {bot.company} · 默认助手：{bot.assistant}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <Button variant="ghost" size="sm" className="rounded-full" onClick={onClose} leadingIcon={<X className="h-4 w-4" />}>
+              关闭
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex-1 space-y-6 overflow-y-auto px-6 py-6">
+          <section className="rounded-[28px] border border-[rgba(15,23,42,0.08)] bg-white/78 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-[10px] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:shadow-[0_20px_36px_rgba(0,0,0,0.26)]">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">当前健康状态</div>
+                <div className="mt-2 flex items-center gap-2 text-[18px] font-semibold text-[var(--text-primary)]">
+                  {healthMeta.panelTone === 'warning' ? <ShieldAlert className="h-5 w-5 text-amber-500" /> : <ShieldCheck className="h-5 w-5 text-emerald-500" />}
+                  {healthMeta.label}
+                </div>
+                <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{bot.healthSummary}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  leadingIcon={<RefreshCw className={cn('h-4 w-4', bot.testStatus === 'testing' && 'animate-spin')} />}
+                  onClick={() => onRunConnectionTest(bot.id)}
+                  disabled={bot.testStatus === 'testing'}
+                >
+                  测试连通
+                </Button>
+                <Button
+                  variant={bot.enabled ? 'ghost' : 'success'}
+                  size="sm"
+                  leadingIcon={<Power className="h-4 w-4" />}
+                  onClick={() => onToggleEnabled(bot.id)}
+                >
+                  {bot.enabled ? '停用机器人' : '启用机器人'}
+                </Button>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+              {(['healthy', 'needs_setup', 'connectivity_issue', 'permission_issue', 'callback_issue', 'paused'] as IMBotHealthState[]).map((state) => {
+                const meta = getHealthMeta(state);
+                return (
+                  <div
+                    key={state}
+                    className={cn(
+                      'rounded-[18px] border px-3 py-3',
+                      state === bot.healthState
+                        ? 'border-[var(--brand-primary)] bg-[rgba(59,130,246,0.08)]'
+                        : 'border-[var(--border-default)] bg-[var(--bg-card)]',
+                    )}
+                  >
+                    <div className="text-[13px] font-medium text-[var(--text-primary)]">{meta.label}</div>
+                    <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">{meta.description}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-[24px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.05)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
+              <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">平台</div>
+              <div className="mt-2 text-[15px] font-medium text-[var(--text-primary)]">{platform.label}</div>
+              <p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">已接入能力：{platform.capabilities.join(' / ')}</p>
+            </div>
+            <div className="rounded-[24px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.05)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
+              <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">最近连接测试</div>
+              <div className="mt-2 text-[15px] font-medium text-[var(--text-primary)]">{bot.lastTestAt ?? '还未执行'}</div>
+              <p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">
+                {bot.lastTestAt ? '可以继续在下方测试面板中发送一条消息。' : '建议先执行一次连接测试，确认平台链路是通的。'}
+              </p>
+            </div>
+          </section>
+
+          <section className="rounded-[28px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
+            <div className="flex items-center gap-2">
+              <BotMessageSquare className="h-5 w-5 text-[var(--brand-primary)]" />
+              <div className="text-[16px] font-semibold text-[var(--text-primary)]">基础信息与默认助手</div>
+            </div>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <label className="space-y-2">
+                <div className="text-[13px] font-medium text-[var(--text-primary)]">机器人名称</div>
+                <input
+                  value={draftName}
+                  onChange={(event) => setDraftName(event.target.value)}
+                  className="min-h-[48px] w-full rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 text-[14px] text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]"
+                />
+              </label>
+              <label className="space-y-2">
+                <div className="text-[13px] font-medium text-[var(--text-primary)]">归属团队 / 企业</div>
+                <input
+                  value={draftCompany}
+                  onChange={(event) => setDraftCompany(event.target.value)}
+                  className="min-h-[48px] w-full rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 text-[14px] text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]"
+                />
+              </label>
+            </div>
+
+            <div className="mt-5">
+              <div className="text-[13px] font-medium text-[var(--text-primary)]">默认助手绑定</div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                {assistantOptions.map((assistant) => (
+                  <button
+                    key={assistant.id}
+                    type="button"
+                    onClick={() => setDraftAssistantId(assistant.id)}
+                    className={cn(
+                      'cursor-pointer rounded-[20px] border p-4 text-left',
+                      SPRING_PRESSABLE,
+                      INTERACTIVE_FOCUS_RING,
+                      draftAssistantId === assistant.id
+                        ? 'border-[var(--brand-primary)] bg-[rgba(59,130,246,0.08)] shadow-[0_12px_28px_rgba(59,130,246,0.10)]'
+                        : 'border-[var(--border-default)] bg-[var(--bg-card)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)]',
+                    )}
+                  >
+                    <div className="text-[15px] font-medium text-[var(--text-primary)]">{assistant.name}</div>
+                    <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{assistant.summary}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Chip tone="outline" className="px-2.5 py-1 text-[11px]">
+                        {assistant.scope}
+                      </Chip>
+                      <Chip tone="outline" className="px-2.5 py-1 text-[11px]">
+                        {assistant.persona}
+                      </Chip>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-[28px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
+            <div className="flex items-center gap-2">
+              <Radio className="h-5 w-5 text-[var(--brand-primary)]" />
+              <div className="text-[16px] font-semibold text-[var(--text-primary)]">会话绑定与回复策略</div>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              {bindingScopeOptions.map((option) => {
+                const Icon = option.icon;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setDraftBindingScope(option.value)}
+                    className={cn(
+                      'cursor-pointer rounded-[20px] border p-4 text-left',
+                      SPRING_PRESSABLE,
+                      INTERACTIVE_FOCUS_RING,
+                      draftBindingScope === option.value
+                        ? 'border-[var(--brand-primary)] bg-[rgba(59,130,246,0.08)] shadow-[0_12px_28px_rgba(59,130,246,0.10)]'
+                        : 'border-[var(--border-default)] bg-[var(--bg-card)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)]',
+                    )}
+                  >
+                    <div className="flex items-center gap-2 text-[15px] font-medium text-[var(--text-primary)]">
+                      <Icon className="h-4 w-4" />
+                      {option.label}
+                    </div>
+                    <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{option.description}</p>
+                  </button>
+                );
+              })}
+            </div>
+            <label className="mt-4 block space-y-2">
+              <div className="text-[13px] font-medium text-[var(--text-primary)]">离线自动回复</div>
+              <input
+                value={draftOfflineReply}
+                onChange={(event) => setDraftOfflineReply(event.target.value)}
+                className="min-h-[48px] w-full rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 text-[14px] text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]"
+              />
+            </label>
+          </section>
+
+          <section className="rounded-[28px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
+            <div className="flex items-center gap-2">
+              <TestTube2 className="h-5 w-5 text-[var(--brand-primary)]" />
+              <div className="text-[16px] font-semibold text-[var(--text-primary)]">测试面板</div>
+            </div>
+            <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
+              先做连接测试，再发一条测试消息。这样用户可以在管理台内确认平台链路和默认助手回复都已打通。
+            </p>
+            <div className="mt-4 rounded-[22px] border border-[var(--border-default)] bg-[var(--bg-card)] p-4">
+              <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <label className="space-y-2">
+                  <div className="text-[13px] font-medium text-[var(--text-primary)]">测试消息</div>
+                  <input
+                    value={draftTestMessage}
+                    onChange={(event) => setDraftTestMessage(event.target.value)}
+                    className="min-h-[48px] w-full rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 text-[14px] text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]"
+                  />
+                </label>
+                <div className="flex items-end gap-3">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    leadingIcon={<RefreshCw className={cn('h-4 w-4', bot.testStatus === 'testing' && 'animate-spin')} />}
+                    onClick={() => onRunConnectionTest(bot.id)}
+                    disabled={bot.testStatus === 'testing'}
+                  >
+                    连接测试
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    leadingIcon={<SendHorizontal className="h-4 w-4" />}
+                    onClick={() => onSendTestMessage(bot.id, draftTestMessage)}
+                    disabled={bot.testStatus === 'testing' || !draftTestMessage.trim()}
+                  >
+                    发测试消息
+                  </Button>
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
+                  <div className="text-[12px] uppercase tracking-[0.12em] text-[var(--text-muted)]">最近一次测试消息</div>
+                  <div className="mt-2 text-[14px] text-[var(--text-primary)]">{bot.lastTestMessage || '还没有发送过测试消息'}</div>
+                </div>
+                <div className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
+                  <div className="text-[12px] uppercase tracking-[0.12em] text-[var(--text-muted)]">最近一次测试回复</div>
+                  <div className="mt-2 text-[14px] text-[var(--text-primary)]">{bot.lastTestResponse || '还没有收到测试回复'}</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-[28px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-[var(--brand-primary)]" />
+              <div className="text-[16px] font-semibold text-[var(--text-primary)]">最近审计日志</div>
+            </div>
+            <div className="mt-4 space-y-3">
+              {bot.auditLogs.slice(0, 6).map((item) => (
+                <div
+                  key={item.id}
+                  className={cn(
+                    'rounded-[18px] border px-4 py-3',
+                    item.tone === 'success'
+                      ? 'border-[rgba(34,197,94,0.16)] bg-[rgba(34,197,94,0.10)] dark:bg-[rgba(34,197,94,0.14)]'
+                      : item.tone === 'warning'
+                        ? 'border-[rgba(245,158,11,0.16)] bg-[rgba(245,158,11,0.10)] dark:bg-[rgba(245,158,11,0.14)]'
+                        : 'border-[var(--border-default)] bg-[var(--bg-card)]',
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-[13px] font-medium text-[var(--text-primary)]">{item.title}</div>
+                    <div className="text-[12px] text-[var(--text-muted)]">{item.time}</div>
+                  </div>
+                  <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{item.detail}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        <div className="border-t border-[rgba(15,23,42,0.08)] bg-white/82 px-6 py-5 backdrop-blur-[10px] dark:border-t-[rgba(255,255,255,0.08)] dark:bg-[rgba(12,12,12,0.86)]">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="text-[13px] text-[var(--text-secondary)]">
+              {selectedAssistant
+                ? `当前准备绑定默认助手“${selectedAssistant.name}”。保存后，机器人状态会重新计算。`
+                : '如果不绑定默认助手，机器人会保持“待完成配置”状态。'}
+            </div>
+            <div className="flex items-center gap-3">
+              <Button variant="secondary" size="md" onClick={onClose}>
+                稍后再配
+              </Button>
+              <Button
+                variant="primary"
+                size="md"
+                onClick={() =>
+                  onSave(bot.id, {
+                    name: draftName.trim() || bot.name,
+                    company: draftCompany.trim() || '待完善',
+                    assistantId: draftAssistantId,
+                    assistant: selectedAssistant?.name ?? '未绑定默认助手',
+                    bindingScope: draftBindingScope,
+                    offlineReply: draftOfflineReply.trim() || bot.offlineReply,
+                  })
+                }
+              >
+                保存配置
+              </Button>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function getHealthMeta(state: IMBotHealthState): {
+  label: string;
+  description: string;
+  chipTone: 'success' | 'warning' | 'outline' | 'danger';
+  panelTone: 'success' | 'warning' | 'neutral';
+} {
+  switch (state) {
+    case 'healthy':
+      return {
+        label: '运行正常',
+        description: '连接、默认助手和最近一次测试都已经通过，可以稳定服务。',
+        chipTone: 'success',
+        panelTone: 'success',
+      };
+    case 'needs_setup':
+      return {
+        label: '待完成配置',
+        description: '连接已建立，但默认助手、会话范围或首条测试消息还没完成。',
+        chipTone: 'warning',
+        panelTone: 'warning',
+      };
+    case 'connectivity_issue':
+      return {
+        label: '连接异常',
+        description: '平台网关、长连接或回调链路当前不可用，需要重新检查。',
+        chipTone: 'danger',
+        panelTone: 'warning',
+      };
+    case 'permission_issue':
+      return {
+        label: '权限异常',
+        description: '平台应用权限不足，机器人可能无法收发消息。',
+        chipTone: 'danger',
+        panelTone: 'warning',
+      };
+    case 'callback_issue':
+      return {
+        label: '回调异常',
+        description: '平台回调验证失败，常见于企微或需要 webhook 的平台。',
+        chipTone: 'danger',
+        panelTone: 'warning',
+      };
+    case 'paused':
+      return {
+        label: '已停用',
+        description: '机器人处于暂停状态，不会再接收新消息。',
+        chipTone: 'outline',
+        panelTone: 'neutral',
+      };
+  }
+}
+
+function createAuditEntry(tone: BotAuditTone, title: string, detail: string): AuditEntry {
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    title,
+    detail,
+    time: '刚刚',
+    tone,
+    createdAt: Date.now(),
+  };
+}
+
 function formatTriggerMode(value: IMBotDraft['triggerMode']): string {
   return value === 'mention' ? '@提及时响应' : value === 'keyword' ? '关键词触发' : '全部消息';
 }
 
 function formatReplyFormat(value: IMBotDraft['replyFormat']): string {
   return value === 'card' ? '卡片/富文本' : value === 'markdown' ? 'Markdown' : '纯文本';
+}
+
+function formatBindingScope(value: BindingScope): string {
+  return value === 'organization' ? '组织统一入口' : value === 'group' ? '指定群聊 / 频道' : '私聊助手';
 }
