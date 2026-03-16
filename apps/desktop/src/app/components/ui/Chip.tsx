@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react';
 import { cn } from '@/app/lib/cn';
+import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 
 type ChipTone = 'muted' | 'outline' | 'brand' | 'success' | 'warning' | 'danger';
 
@@ -53,7 +54,11 @@ export function Chip(props: StaticChipProps | ClickableChipProps) {
     active &&
       'border-[rgba(59,130,246,0.18)] bg-[var(--brand-primary)] text-[var(--brand-on-primary)] dark:border-[rgba(201,169,97,0.24)] dark:bg-[var(--brand-primary)] dark:text-[#17120b]',
     props.clickable &&
-      'cursor-pointer transition-[transform,border-color,background-color,color] duration-[180ms] ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] active:scale-[0.985] disabled:cursor-not-allowed disabled:transform-none disabled:opacity-70',
+      cn(
+        'cursor-pointer hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:transform-none disabled:opacity-70 disabled:hover:translate-y-0',
+        SPRING_PRESSABLE,
+        INTERACTIVE_FOCUS_RING,
+      ),
     className,
   );
 

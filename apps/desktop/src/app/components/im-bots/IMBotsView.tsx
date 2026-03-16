@@ -16,6 +16,7 @@ import {
 import { Button } from '@/app/components/ui/Button';
 import { PressableCard } from '@/app/components/ui/PressableCard';
 import { cn } from '@/app/lib/cn';
+import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 import dingtalkLogo from '@/app/assets/im-bots/dingtalk.png';
 import feishuLogo from '@/app/assets/im-bots/feishu.png';
 import qqLogo from '@/app/assets/im-bots/qq.png';
@@ -530,8 +531,12 @@ function ActivityPanel({
                 type="button"
                 onClick={() => onTabChange(tab.id)}
                 className={cn(
-                  'flex flex-1 items-center justify-center gap-1.5 rounded-[12px] px-3 py-2 text-[12px] font-medium transition',
-                  active ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]' : 'text-[var(--text-secondary)]',
+                  'flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-[12px] px-3 py-2 text-[12px] font-medium',
+                  SPRING_PRESSABLE,
+                  INTERACTIVE_FOCUS_RING,
+                  active
+                    ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
+                    : 'text-[var(--text-secondary)] hover:bg-[rgba(255,255,255,0.56)] hover:text-[var(--text-primary)] dark:hover:bg-[rgba(255,255,255,0.05)]',
                 )}
               >
                 <Icon className="h-3.5 w-3.5" />

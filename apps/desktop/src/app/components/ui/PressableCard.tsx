@@ -1,5 +1,6 @@
 import type { HTMLAttributes, KeyboardEvent, ReactNode } from 'react';
 import { cn } from '@/app/lib/cn';
+import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 
 interface PressableCardProps extends HTMLAttributes<HTMLElement> {
   as?: 'article' | 'div' | 'section';
@@ -38,7 +39,11 @@ export function PressableCard({
       className={cn(
         'relative overflow-hidden rounded-[28px] border border-[var(--border-default)] bg-[var(--bg-card)] shadow-[var(--shadow-sm)]',
         interactive
-          ? 'cursor-pointer transition-[transform,box-shadow,border-color,background-color] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-[1px] hover:border-[var(--border-strong)] hover:bg-[var(--bg-elevated)] active:translate-y-0 active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]/40'
+          ? cn(
+              'cursor-pointer hover:border-[var(--border-strong)] hover:bg-[var(--bg-elevated)] hover:shadow-[0_18px_32px_rgba(15,23,42,0.08)] dark:hover:shadow-[0_20px_36px_rgba(0,0,0,0.30)]',
+              SPRING_PRESSABLE,
+              INTERACTIVE_FOCUS_RING,
+            )
           : '',
         className,
       )}

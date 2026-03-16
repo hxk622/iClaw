@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/Button';
 import { cn } from '@/app/lib/cn';
+import { APPLE_FLAT_SURFACE, INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 
 export type IMPlatformId = 'feishu' | 'dingtalk' | 'wecom' | 'qq';
 export type TriggerMode = 'mention' | 'all' | 'keyword';
@@ -193,7 +194,12 @@ export function IMBotSetupModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-[14px] border border-transparent p-2 text-[var(--text-secondary)] transition hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              className={cn(
+                'cursor-pointer rounded-[14px] border border-transparent p-2 text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
+                APPLE_FLAT_SURFACE,
+                SPRING_PRESSABLE,
+                INTERACTIVE_FOCUS_RING,
+              )}
               aria-label="关闭"
             >
               <X className="h-5 w-5" />
@@ -384,9 +390,11 @@ export function IMBotSetupModal({
                         type="button"
                         onClick={() => setTriggerMode(option.value)}
                         className={cn(
-                          'rounded-[22px] border p-4 text-left transition',
+                          'cursor-pointer rounded-[22px] border p-4 text-left',
+                          SPRING_PRESSABLE,
+                          INTERACTIVE_FOCUS_RING,
                           triggerMode === option.value
-                            ? 'border-[var(--brand-primary)] bg-[rgba(59,130,246,0.08)]'
+                            ? 'border-[var(--brand-primary)] bg-[rgba(59,130,246,0.08)] shadow-[0_12px_28px_rgba(59,130,246,0.10)]'
                             : 'border-[var(--border-default)] bg-[var(--bg-card)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)]',
                         )}
                       >
@@ -406,9 +414,11 @@ export function IMBotSetupModal({
                         type="button"
                         onClick={() => setReplyFormat(option.value)}
                         className={cn(
-                          'rounded-[22px] border p-4 text-left transition',
+                          'cursor-pointer rounded-[22px] border p-4 text-left',
+                          SPRING_PRESSABLE,
+                          INTERACTIVE_FOCUS_RING,
                           replyFormat === option.value
-                            ? 'border-[var(--brand-primary)] bg-[rgba(59,130,246,0.08)]'
+                            ? 'border-[var(--brand-primary)] bg-[rgba(59,130,246,0.08)] shadow-[0_12px_28px_rgba(59,130,246,0.10)]'
                             : 'border-[var(--border-default)] bg-[var(--bg-card)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)]',
                         )}
                       >
