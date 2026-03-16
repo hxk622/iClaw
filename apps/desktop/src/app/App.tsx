@@ -1,5 +1,6 @@
 import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from 'react';
 import { IClawClient } from '@iclaw/sdk';
+import desktopPackageJson from '../../package.json';
 import { clearAuth, readAuth, writeAuth } from './lib/auth-storage';
 import { getGoogleOAuthUrl, getWeChatOAuthUrl, openOAuthPopup, type OAuthProvider } from './lib/oauth';
 import { detectPortConflicts, isTauriRuntime, loadGatewayAuth, startSidecar } from './lib/tauri-sidecar';
@@ -90,6 +91,8 @@ const DISABLE_GATEWAY_DEVICE_IDENTITY =
 const CHAT_SESSION_KEY = 'main';
 const IM_BOT_TEST_SESSION_KEY = 'im-bots-test';
 const AUTH_BOOTSTRAP_TIMEOUT_MS = 10_000;
+const DESKTOP_APP_VERSION = desktopPackageJson.version;
+const DESKTOP_RELEASE_CHANNEL: 'dev' | 'prod' = import.meta.env.DEV ? 'dev' : 'prod';
 
 type InstallerViewState = 'loading' | 'error';
 
@@ -148,6 +151,8 @@ export default function App() {
         gatewayPassword: gatewayAuth.password,
         preferGatewayWs: true,
         disableGatewayDeviceIdentity: DISABLE_GATEWAY_DEVICE_IDENTITY,
+        desktopAppVersion: DESKTOP_APP_VERSION,
+        desktopReleaseChannel: DESKTOP_RELEASE_CHANNEL,
       }),
     [gatewayAuth.password, gatewayAuth.token],
   );

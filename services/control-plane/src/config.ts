@@ -101,6 +101,12 @@ function loadBrandDefaults() {
       s3Bucket: `${brandId}-files`,
       redisKeyPrefix: `${brandId}:control-plane`,
       allowedOrigins: LOCAL_ALLOWED_ORIGINS,
+      distribution: {
+        downloads: {
+          devPublicBaseUrl: '',
+          prodPublicBaseUrl: '',
+        },
+      },
       oauth: {
         wechatAppId: '',
         googleClientId: '',
@@ -116,6 +122,12 @@ function loadBrandDefaults() {
       redisKeyPrefix?: string;
       allowedOrigins?: string[];
     };
+    distribution?: {
+      downloads?: {
+        dev?: {publicBaseUrl?: string};
+        prod?: {publicBaseUrl?: string};
+      };
+    };
     oauth?: {
       wechat?: {appId?: string; redirectUri?: string};
       google?: {clientId?: string; redirectUri?: string};
@@ -127,6 +139,12 @@ function loadBrandDefaults() {
     s3Bucket: raw.controlPlane?.s3Bucket?.trim() || `${brandId}-files`,
     redisKeyPrefix: raw.controlPlane?.redisKeyPrefix?.trim() || `${brandId}:control-plane`,
     allowedOrigins: normalizeStringArray(raw.controlPlane?.allowedOrigins, LOCAL_ALLOWED_ORIGINS),
+    distribution: {
+      downloads: {
+        devPublicBaseUrl: raw.distribution?.downloads?.dev?.publicBaseUrl?.trim() || '',
+        prodPublicBaseUrl: raw.distribution?.downloads?.prod?.publicBaseUrl?.trim() || '',
+      },
+    },
     oauth: {
       wechatAppId: raw.oauth?.wechat?.appId?.trim() || '',
       googleClientId: raw.oauth?.google?.clientId?.trim() || '',
@@ -158,6 +176,18 @@ export const config = {
   redisKeyPrefix: process.env.CONTROL_PLANE_REDIS_KEY_PREFIX || brandDefaults.redisKeyPrefix,
   serviceName: process.env.CONTROL_PLANE_SERVICE_NAME || brandDefaults.serviceName,
   allowedOrigins: splitCsvEnv(process.env.CONTROL_PLANE_ALLOWED_ORIGINS, brandDefaults.allowedOrigins),
+  desktopReleaseManifestDir:
+    process.env.DESKTOP_RELEASE_MANIFEST_DIR || resolve(dirname(fileURLToPath(import.meta.url)), '../../../dist/releases'),
+  desktopReleaseManifestBaseUrls: {
+    dev: process.env.DESKTOP_RELEASE_MANIFEST_DEV_BASE_URL || brandDefaults.distribution.downloads.devPublicBaseUrl,
+    prod:
+      process.env.DESKTOP_RELEASE_MANIFEST_PROD_BASE_URL || brandDefaults.distribution.downloads.prodPublicBaseUrl,
+  },
+  desktopReleaseManifestCacheTtlMs: readNumberEnv('DESKTOP_RELEASE_MANIFEST_CACHE_TTL_MS', 60_000),
+  desktopReleaseChannel: (process.env.DESKTOP_RELEASE_CHANNEL || 'prod').trim() || 'prod',
+  desktopUpdateMandatory: ['1', 'true', 'yes', 'on'].includes(
+    (process.env.DESKTOP_UPDATE_MANDATORY || '').trim().toLowerCase(),
+  ),
   wechatAppId: process.env.WECHAT_APP_ID || brandDefaults.oauth.wechatAppId,
   wechatAppSecret: process.env.WECHAT_APP_SECRET || '',
   googleClientId: process.env.GOOGLE_CLIENT_ID || brandDefaults.oauth.googleClientId,

@@ -9,6 +9,16 @@ export interface ClientOptions {
   gatewaySessionKey?: string;
   preferGatewayWs?: boolean;
   disableGatewayDeviceIdentity?: boolean;
+  desktopAppVersion?: string;
+  desktopReleaseChannel?: 'dev' | 'prod';
+  onDesktopUpdateHint?: (hint: DesktopUpdateHint) => void;
+}
+
+export interface DesktopUpdateHint {
+  latestVersion: string;
+  updateAvailable: boolean;
+  mandatory: boolean;
+  manifestUrl?: string | null;
 }
 
 export interface StreamCallbacks {
@@ -497,6 +507,9 @@ export class IClawClient {
   private readonly gatewaySessionKey: string;
   private readonly preferGatewayWs: boolean;
   private readonly disableGatewayDeviceIdentity: boolean;
+  private readonly desktopAppVersion?: string;
+  private readonly desktopReleaseChannel?: 'dev' | 'prod';
+  private readonly onDesktopUpdateHint?: (hint: DesktopUpdateHint) => void;
 
   constructor(options: ClientOptions) {
     this.apiBaseUrl = options.apiBaseUrl.replace(/\/$/, '');
@@ -509,13 +522,25 @@ export class IClawClient {
     this.gatewaySessionKey = options.gatewaySessionKey || 'main';
     this.preferGatewayWs = Boolean(options.preferGatewayWs);
     this.disableGatewayDeviceIdentity = Boolean(options.disableGatewayDeviceIdentity);
+    this.desktopAppVersion = options.desktopAppVersion?.trim() || undefined;
+    this.desktopReleaseChannel = options.desktopReleaseChannel;
+    this.onDesktopUpdateHint = options.onDesktopUpdateHint;
   }
 
   private fetchAuth(path: string, init: RequestInit = {}, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS): Promise<Response> {
-    return fetchWithTimeout(`${this.authBaseUrl}${path}`, init, {
+    const headers = new Headers(init.headers || {});
+    if (this.desktopAppVersion) headers.set('x-iclaw-app-version', this.desktopAppVersion);
+    if (this.desktopReleaseChannel) headers.set('x-iclaw-channel', this.desktopReleaseChannel);
+    return fetchWithTimeout(`${this.authBaseUrl}${path}`, {
+      ...init,
+      headers,
+    }, {
       timeoutMs,
       serviceName: 'control-plane',
       serviceBaseUrl: this.authBaseUrl,
+    }).then((response) => {
+      this.captureDesktopUpdateHint(response);
+      return response;
     });
   }
 
@@ -524,6 +549,21 @@ export class IClawClient {
       timeoutMs,
       serviceName: '本地 API',
       serviceBaseUrl: this.apiBaseUrl,
+    });
+  }
+
+  private captureDesktopUpdateHint(response: Response): void {
+    if (!this.onDesktopUpdateHint) return;
+    const latestVersion = response.headers.get('x-iclaw-latest-version')?.trim() || '';
+    if (!latestVersion) return;
+    const updateAvailable = response.headers.get('x-iclaw-update-available') === 'true';
+    const mandatory = response.headers.get('x-iclaw-update-mandatory') === 'true';
+    const manifestUrl = response.headers.get('x-iclaw-update-manifest-url');
+    this.onDesktopUpdateHint({
+      latestVersion,
+      updateAvailable,
+      mandatory,
+      manifestUrl: manifestUrl?.trim() || null,
     });
   }
 

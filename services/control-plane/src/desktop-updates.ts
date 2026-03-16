@@ -1,0 +1,264 @@
+import { access, readFile } from 'node:fs/promises';
+import { constants as fsConstants } from 'node:fs';
+import { join } from 'node:path';
+
+export const DESKTOP_UPDATE_RESPONSE_HEADERS = [
+  'x-iclaw-latest-version',
+  'x-iclaw-update-available',
+  'x-iclaw-update-mandatory',
+  'x-iclaw-update-manifest-url',
+] as const;
+
+type DesktopReleaseManifestEntry = {
+  platform?: unknown;
+  arch?: unknown;
+  version?: unknown;
+  artifact_url?: unknown;
+};
+
+type DesktopReleaseIndexManifest = {
+  version?: unknown;
+  entries?: unknown;
+};
+
+type DesktopReleaseTargetManifest = {
+  version?: unknown;
+  entry?: unknown;
+};
+
+type DesktopUpdateManifestSource = {
+  channel: string;
+  manifestDir: string;
+  publicBaseUrl: string;
+  cacheTtlMs: number;
+  mandatory: boolean;
+};
+
+export type DesktopUpdateRequest = {
+  appVersion?: string | null;
+  platform?: string | null;
+  arch?: string | null;
+  channel?: string | null;
+};
+
+export type DesktopUpdateHint = {
+  latestVersion: string;
+  updateAvailable: boolean;
+  mandatory: boolean;
+  manifestUrl: string | null;
+};
+
+type CacheRecord = {
+  expiresAt: number;
+  value: DesktopUpdateHint | null;
+};
+
+const MANIFEST_CACHE = new Map<string, CacheRecord>();
+
+function trimString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeChannel(value?: string | null): string {
+  const normalized = trimString(value).toLowerCase();
+  return normalized === 'dev' ? 'dev' : 'prod';
+}
+
+function normalizePlatform(value?: string | null): string {
+  return trimString(value).toLowerCase();
+}
+
+function normalizeArch(value?: string | null): string {
+  const normalized = trimString(value).toLowerCase();
+  if (!normalized) return '';
+  if (normalized === 'arm64') return 'aarch64';
+  if (normalized === 'x86_64' || normalized === 'amd64') return 'x64';
+  return normalized;
+}
+
+function normalizeBaseUrl(value: string): string {
+  return trimString(value).replace(/\/+$/, '');
+}
+
+function parseVersionTriplet(value: string): [number, number, number] | null {
+  const match = value.trim().match(/^(\d+)\.(\d+)\.(\d+)(?:\+[\w.-]+)?$/);
+  if (!match) return null;
+  return [
+    Number.parseInt(match[1], 10),
+    Number.parseInt(match[2], 10),
+    Number.parseInt(match[3], 10),
+  ];
+}
+
+function compareVersions(left: string, right: string): number {
+  const parsedLeft = parseVersionTriplet(left);
+  const parsedRight = parseVersionTriplet(right);
+  if (!parsedLeft || !parsedRight) return 0;
+  for (let index = 0; index < 3; index += 1) {
+    if (parsedLeft[index] > parsedRight[index]) return 1;
+    if (parsedLeft[index] < parsedRight[index]) return -1;
+  }
+  return 0;
+}
+
+function isDesktopReleaseManifestEntry(value: unknown): value is DesktopReleaseManifestEntry {
+  return Boolean(value) && typeof value === 'object';
+}
+
+function resolveLatestVersionFromEntry(entry: DesktopReleaseManifestEntry | null): string {
+  const entryVersion = trimString(entry?.version);
+  return entryVersion;
+}
+
+function buildTargetManifestName(channel: string, platform: string, arch: string): string {
+  return `latest-${channel}-${platform}-${arch}.json`;
+}
+
+function buildIndexManifestName(channel: string): string {
+  return `latest-${channel}.json`;
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath, fsConstants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function readJsonFile<T>(filePath: string): Promise<T> {
+  return JSON.parse(await readFile(filePath, 'utf8')) as T;
+}
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/json',
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`failed to fetch manifest: ${response.status}`);
+  }
+  return (await response.json()) as T;
+}
+
+function buildManifestUrl(baseUrl: string, fileName: string): string | null {
+  const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
+  if (!normalizedBaseUrl) return null;
+  return `${normalizedBaseUrl}/${encodeURIComponent(fileName)}`;
+}
+
+async function loadTargetManifest(source: DesktopUpdateManifestSource, platform: string, arch: string): Promise<{
+  version: string;
+  manifestUrl: string | null;
+} | null> {
+  const fileName = buildTargetManifestName(source.channel, platform, arch);
+  const localPath = source.manifestDir ? join(source.manifestDir, fileName) : '';
+  if (localPath && (await fileExists(localPath))) {
+    const manifest = await readJsonFile<DesktopReleaseTargetManifest>(localPath);
+    const entry = isDesktopReleaseManifestEntry(manifest.entry) ? manifest.entry : null;
+    const version = trimString(manifest.version) || resolveLatestVersionFromEntry(entry);
+    if (!version) return null;
+    return {
+      version,
+      manifestUrl: buildManifestUrl(source.publicBaseUrl, fileName),
+    };
+  }
+
+  const remoteUrl = buildManifestUrl(source.publicBaseUrl, fileName);
+  if (!remoteUrl) return null;
+  const manifest = await fetchJson<DesktopReleaseTargetManifest>(remoteUrl);
+  const entry = isDesktopReleaseManifestEntry(manifest.entry) ? manifest.entry : null;
+  const version = trimString(manifest.version) || resolveLatestVersionFromEntry(entry);
+  if (!version) return null;
+  return {
+    version,
+    manifestUrl: remoteUrl,
+  };
+}
+
+async function loadIndexManifest(source: DesktopUpdateManifestSource): Promise<{
+  version: string;
+  manifestUrl: string | null;
+} | null> {
+  const fileName = buildIndexManifestName(source.channel);
+  const localPath = source.manifestDir ? join(source.manifestDir, fileName) : '';
+  if (localPath && (await fileExists(localPath))) {
+    const manifest = await readJsonFile<DesktopReleaseIndexManifest>(localPath);
+    const version = trimString(manifest.version);
+    if (!version) return null;
+    return {
+      version,
+      manifestUrl: buildManifestUrl(source.publicBaseUrl, fileName),
+    };
+  }
+
+  const remoteUrl = buildManifestUrl(source.publicBaseUrl, fileName);
+  if (!remoteUrl) return null;
+  const manifest = await fetchJson<DesktopReleaseIndexManifest>(remoteUrl);
+  const version = trimString(manifest.version);
+  if (!version) return null;
+  return {
+    version,
+    manifestUrl: remoteUrl,
+  };
+}
+
+async function resolveLatestVersion(
+  source: DesktopUpdateManifestSource,
+  request: DesktopUpdateRequest,
+): Promise<{ version: string; manifestUrl: string | null } | null> {
+  const platform = normalizePlatform(request.platform);
+  const arch = normalizeArch(request.arch);
+  if (platform && arch) {
+    const targetManifest = await loadTargetManifest(source, platform, arch);
+    if (targetManifest) return targetManifest;
+  }
+  return loadIndexManifest(source);
+}
+
+export async function resolveDesktopUpdateHint(
+  source: DesktopUpdateManifestSource,
+  request: DesktopUpdateRequest,
+): Promise<DesktopUpdateHint | null> {
+  const appVersion = trimString(request.appVersion);
+  if (!appVersion) return null;
+
+  const channel = normalizeChannel(request.channel || source.channel);
+  const cacheKey = JSON.stringify({
+    appVersion,
+    platform: normalizePlatform(request.platform),
+    arch: normalizeArch(request.arch),
+    channel,
+    manifestDir: source.manifestDir,
+    publicBaseUrl: source.publicBaseUrl,
+    mandatory: source.mandatory,
+  });
+  const cached = MANIFEST_CACHE.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value;
+  }
+
+  const latest = await resolveLatestVersion(
+    {
+      ...source,
+      channel,
+    },
+    request,
+  );
+  const hint = latest
+    ? {
+        latestVersion: latest.version,
+        updateAvailable: compareVersions(latest.version, appVersion) > 0,
+        mandatory: source.mandatory,
+        manifestUrl: latest.manifestUrl,
+      }
+    : null;
+
+  MANIFEST_CACHE.set(cacheKey, {
+    expiresAt: Date.now() + Math.max(1_000, source.cacheTtlMs),
+    value: hint,
+  });
+  return hint;
+}

@@ -220,3 +220,30 @@ node scripts/generate-desktop-release-manifests.mjs --channel prod
 ```
 
 上传安装包时，`bash scripts/publish-downloads.sh <dev|prod>` 会把对应的 manifest 一起上传到 MinIO。
+
+## Desktop Update Hints
+
+control-plane 现在会基于 desktop release manifest，在常规响应里附带桌面更新 hint。
+
+客户端请求头：
+
+- `x-iclaw-app-version`
+- `x-iclaw-channel`
+- `x-iclaw-platform`（可选）
+- `x-iclaw-arch`（可选）
+
+control-plane 响应头：
+
+- `x-iclaw-latest-version`
+- `x-iclaw-update-available`
+- `x-iclaw-update-mandatory`
+- `x-iclaw-update-manifest-url`
+
+服务端优先从本地 `dist/releases/` 读取 manifest，也支持通过环境变量覆盖：
+
+- `DESKTOP_RELEASE_MANIFEST_DIR`
+- `DESKTOP_RELEASE_MANIFEST_DEV_BASE_URL`
+- `DESKTOP_RELEASE_MANIFEST_PROD_BASE_URL`
+- `DESKTOP_RELEASE_MANIFEST_CACHE_TTL_MS`
+- `DESKTOP_RELEASE_CHANNEL`
+- `DESKTOP_UPDATE_MANDATORY`

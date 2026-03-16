@@ -25,6 +25,11 @@ import {createJsonServer, createRawResponse, type HandlerContext} from './http.t
 import {PgControlPlaneStore} from './pg-store.ts';
 import {createRedisKeyValueCache} from './redis-cache.ts';
 import {ControlPlaneService} from './service.ts';
+import {
+  desktopUpdateAllowedRequestHeaders,
+  desktopUpdateExposedHeaders,
+  resolveDesktopUpdateResponseHeaders,
+} from './desktop-update-resolver.ts';
 import type {ControlPlaneStore} from './store.ts';
 
 if (!config.databaseUrl) {
@@ -346,6 +351,9 @@ const server = createJsonServer([
   },
 ], {
   allowedOrigins: config.allowedOrigins,
+  allowedHeaders: desktopUpdateAllowedRequestHeaders(),
+  exposedHeaders: ['x-request-id', ...desktopUpdateExposedHeaders()],
+  resolveResponseHeaders: ({request}) => resolveDesktopUpdateResponseHeaders(request.headers),
 });
 
 server.listen(config.port, '127.0.0.1', () => {

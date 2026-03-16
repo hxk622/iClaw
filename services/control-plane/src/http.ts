@@ -16,6 +16,12 @@ export type RawResponse = {
   headers?: Record<string, string>;
 };
 
+export type ResponseHeaderResolverContext = {
+  request: IncomingMessage;
+  requestId: string;
+  url: URL;
+};
+
 type RouteHandler<TBody = unknown> = (context: HandlerContext<TBody>) => Promise<unknown | RawResponse> | unknown | RawResponse;
 
 type Route = {
@@ -26,6 +32,11 @@ type Route = {
 
 type JsonServerOptions = {
   allowedOrigins?: string[];
+  allowedHeaders?: string[];
+  exposedHeaders?: string[];
+  resolveResponseHeaders?: (
+    context: ResponseHeaderResolverContext,
+  ) => Promise<Record<string, string> | undefined> | Record<string, string> | undefined;
 };
 
 function resolveCorsOrigin(origin: string | undefined, allowedOrigins: Set<string>): string | null {
@@ -33,7 +44,13 @@ function resolveCorsOrigin(origin: string | undefined, allowedOrigins: Set<strin
   return allowedOrigins.has(origin) ? origin : null;
 }
 
-function applyCorsHeaders(request: IncomingMessage, response: ServerResponse, allowedOrigins: Set<string>): void {
+function applyCorsHeaders(
+  request: IncomingMessage,
+  response: ServerResponse,
+  allowedOrigins: Set<string>,
+  allowedHeaders: string[],
+  exposedHeaders: string[],
+): void {
   const originHeader = request.headers.origin;
   const origin = Array.isArray(originHeader) ? originHeader[0] : originHeader;
   const allowOrigin = resolveCorsOrigin(origin, allowedOrigins);
@@ -42,8 +59,11 @@ function applyCorsHeaders(request: IncomingMessage, response: ServerResponse, al
   response.setHeader('Access-Control-Allow-Origin', allowOrigin);
   response.setHeader('Access-Control-Allow-Credentials', 'true');
   response.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-  response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  response.setHeader('Vary', 'Origin');
+  response.setHeader('Access-Control-Allow-Headers', allowedHeaders.join(', '));
+  if (exposedHeaders.length > 0) {
+    response.setHeader('Access-Control-Expose-Headers', exposedHeaders.join(', '));
+  }
+  response.setHeader('Vary', 'Origin, Access-Control-Request-Headers');
 }
 
 function json(response: ServerResponse, statusCode: number, payload: unknown): void {
@@ -95,10 +115,32 @@ async function readBody(request: IncomingMessage): Promise<unknown> {
 
 export function createJsonServer(routes: Route[], options: JsonServerOptions = {}) {
   const allowedOrigins = new Set((options.allowedOrigins || []).map((entry) => entry.trim()).filter(Boolean));
+  const allowedHeaders = Array.from(
+    new Set((options.allowedHeaders || ['Content-Type', 'Authorization']).map((entry) => entry.trim()).filter(Boolean)),
+  );
+  const exposedHeaders = Array.from(
+    new Set((options.exposedHeaders || ['x-request-id']).map((entry) => entry.trim()).filter(Boolean)),
+  );
   return createServer(async (request, response) => {
     const requestId = randomUUID();
     response.setHeader('x-request-id', requestId);
-    applyCorsHeaders(request, response, allowedOrigins);
+    let url = new URL(request.url || '/', 'http://localhost');
+    applyCorsHeaders(request, response, allowedOrigins, allowedHeaders, exposedHeaders);
+
+    if (options.resolveResponseHeaders) {
+      try {
+        const resolvedHeaders = await options.resolveResponseHeaders({
+          request,
+          requestId,
+          url,
+        });
+        for (const [key, value] of Object.entries(resolvedHeaders || {})) {
+          response.setHeader(key, value);
+        }
+      } catch (error) {
+        console.warn('[control-plane] failed to resolve response headers', error);
+      }
+    }
 
     if (request.method === 'OPTIONS') {
       response.statusCode = 204;
@@ -107,7 +149,6 @@ export function createJsonServer(routes: Route[], options: JsonServerOptions = {
     }
 
     try {
-      const url = new URL(request.url || '/', 'http://localhost');
       const route = routes.find((item) => item.method === request.method && item.path === url.pathname);
       if (!route) {
         throw new HttpError(404, 'NOT_FOUND', 'Route not found');
