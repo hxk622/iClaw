@@ -2068,6 +2068,9 @@ fn upsert_managed_openai_model(
     }
 }
 
+const DEFAULT_MEMORY_LANCEDB_EMBEDDING_MODEL: &str = "text-embedding-3-small";
+const DEFAULT_MEMORY_LANCEDB_API_KEY_PLACEHOLDER: &str = "iclaw-memory-local";
+
 fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Result<PathBuf, String> {
     let runtime_config = load_runtime_config_internal(app)?;
     let config_path = openclaw_config_path(app)?;
@@ -2159,6 +2162,43 @@ fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Resul
         defaults_obj.insert(String::from("maxConcurrent"), json!(4));
         let subagents_obj = ensure_child_object(defaults_obj, "subagents");
         subagents_obj.insert(String::from("maxConcurrent"), json!(8));
+    }
+
+    {
+        let plugins_obj = ensure_child_object(root_obj, "plugins");
+        let slots_obj = ensure_child_object(plugins_obj, "slots");
+        slots_obj.insert(String::from("memory"), json!("memory-lancedb"));
+
+        let entries_obj = ensure_child_object(plugins_obj, "entries");
+        let memory_plugin_obj = ensure_child_object(entries_obj, "memory-lancedb");
+        let config_obj = ensure_child_object(memory_plugin_obj, "config");
+        let embedding_obj = ensure_child_object(config_obj, "embedding");
+
+        if !embedding_obj.contains_key("apiKey") {
+            embedding_obj.insert(
+                String::from("apiKey"),
+                json!(
+                    normalized_api_key
+                        .clone()
+                        .unwrap_or_else(|| String::from(DEFAULT_MEMORY_LANCEDB_API_KEY_PLACEHOLDER))
+                ),
+            );
+        }
+        embedding_obj
+            .entry(String::from("model"))
+            .or_insert_with(|| json!(DEFAULT_MEMORY_LANCEDB_EMBEDDING_MODEL));
+        if let Some(base_url) = normalized_base_url.as_ref() {
+            embedding_obj
+                .entry(String::from("baseUrl"))
+                .or_insert_with(|| json!(base_url));
+        }
+
+        config_obj
+            .entry(String::from("autoRecall"))
+            .or_insert_with(|| json!(true));
+        config_obj
+            .entry(String::from("autoCapture"))
+            .or_insert_with(|| json!(false));
     }
 
     let normalized = serde_json::to_string_pretty(&root)
