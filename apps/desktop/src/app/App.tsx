@@ -17,6 +17,7 @@ import { FirstRunSetupPanel } from './components/FirstRunSetupPanel';
 import { OpenClawChatSurface } from './components/OpenClawChatSurface';
 import { OpenClawCronSurface } from './components/OpenClawCronSurface';
 import { Sidebar } from './components/Sidebar';
+import { DataConnectionsView } from './components/data-connections/DataConnectionsView';
 import { SkillStoreView } from './components/skill-store/SkillStoreView';
 import { IMBotsView } from './components/im-bots/IMBotsView';
 import { SettingsPanel } from './components/settings/SettingsPanel';
@@ -35,6 +36,12 @@ import {
   writeSkippedDesktopUpdateVersion,
 } from './lib/desktop-updates';
 import { syncManagedSkills } from './lib/skill-store';
+import {
+  checkDesktopUpdate,
+  downloadAndInstallDesktopUpdate,
+  listenDesktopUpdateProgress,
+  restartDesktopApp,
+} from './lib/tauri-desktop-updater';
 
 interface AuthUser {
   id?: string;
@@ -99,6 +106,8 @@ const IM_BOT_TEST_SESSION_KEY = 'im-bots-test';
 const AUTH_BOOTSTRAP_TIMEOUT_MS = 10_000;
 const DESKTOP_APP_VERSION = desktopPackageJson.version;
 const DESKTOP_RELEASE_CHANNEL: 'dev' | 'prod' = import.meta.env.DEV ? 'dev' : 'prod';
+const DISPLAY_DESKTOP_APP_VERSION = DESKTOP_APP_VERSION.split('+', 1)[0] || DESKTOP_APP_VERSION;
+type PrimaryView = 'chat' | 'skill-store' | 'cron' | 'im-bots' | 'data-connections';
 
 type InstallerViewState = 'loading' | 'error';
 
@@ -162,8 +171,10 @@ export default function App() {
         onDesktopUpdateHint: (hint) => {
           if (!hint.updateAvailable) {
             setDesktopUpdateHint(null);
-            setDesktopUpdateActionState('idle');
+            setDesktopUpdateActionState((current) => (current === 'ready-to-restart' ? current : 'idle'));
             setDesktopUpdateError(null);
+            setDesktopUpdateProgress(null);
+            setDesktopUpdateDetail(null);
             return;
           }
 
@@ -212,7 +223,7 @@ export default function App() {
   const [runtimeReady, setRuntimeReady] = useState(!isTauriRuntime());
   const [runtimeDiagnosis, setRuntimeDiagnosis] = useState<RuntimeDiagnosis | null>(null);
   const [runtimeInstallProgress, setRuntimeInstallProgress] = useState<RuntimeInstallProgress | null>(null);
-  const [primaryView, setPrimaryView] = useState<'chat' | 'skill-store' | 'cron' | 'im-bots'>('chat');
+  const [primaryView, setPrimaryView] = useState<PrimaryView>('chat');
   const [overlayView, setOverlayView] = useState<'settings' | 'account' | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
@@ -223,8 +234,13 @@ export default function App() {
   const [skippedDesktopUpdateVersion, setSkippedDesktopUpdateVersion] = useState<string | null>(() =>
     readSkippedDesktopUpdateVersion(),
   );
-  const [desktopUpdateActionState, setDesktopUpdateActionState] = useState<'idle' | 'loading' | 'opened'>('idle');
+  const [desktopUpdateActionState, setDesktopUpdateActionState] = useState<
+    'idle' | 'checking' | 'downloading' | 'opened' | 'ready-to-restart'
+  >('idle');
   const [desktopUpdateError, setDesktopUpdateError] = useState<string | null>(null);
+  const [desktopUpdateProgress, setDesktopUpdateProgress] = useState<number | null>(null);
+  const [desktopUpdateDetail, setDesktopUpdateDetail] = useState<string | null>(null);
+  const [desktopUpdateStatusMessage, setDesktopUpdateStatusMessage] = useState<string | null>(null);
 
   const syncWorkspaceForUser = async (token: string): Promise<void> => {
     if (!IS_TAURI_RUNTIME) return;
@@ -276,6 +292,28 @@ export default function App() {
     let detach = () => {};
     void listenRuntimeInstallProgress((payload) => {
       setRuntimeInstallProgress(payload);
+    }).then((unlisten) => {
+      detach = unlisten;
+    });
+
+    return () => {
+      detach();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!IS_TAURI_RUNTIME) return;
+
+    let detach = () => {};
+    void listenDesktopUpdateProgress((payload) => {
+      setDesktopUpdateProgress(payload.progress);
+      setDesktopUpdateDetail(payload.detail);
+      if (payload.phase === 'ready-to-restart') {
+        setDesktopUpdateActionState('ready-to-restart');
+        setDesktopUpdateStatusMessage('新版本已安装，重启应用后生效。');
+        return;
+      }
+      setDesktopUpdateActionState('downloading');
     }).then((unlisten) => {
       detach = unlisten;
     });
@@ -757,10 +795,16 @@ export default function App() {
   useEffect(() => {
     if (!desktopUpdateHint) return;
     if (desktopUpdateHint.latestVersion !== skippedDesktopUpdateVersion) {
-      setDesktopUpdateActionState('idle');
+      if (desktopUpdateActionState !== 'ready-to-restart') {
+        setDesktopUpdateActionState('idle');
+      }
       setDesktopUpdateError(null);
+      if (desktopUpdateActionState !== 'downloading') {
+        setDesktopUpdateProgress(null);
+        setDesktopUpdateDetail(null);
+      }
     }
-  }, [desktopUpdateHint, skippedDesktopUpdateVersion]);
+  }, [desktopUpdateActionState, desktopUpdateHint, skippedDesktopUpdateVersion]);
 
   useEffect(() => {
     if (!authBootstrapReady || guestPromptInitialized || (IS_TAURI_RUNTIME && shouldShowSetupPanel)) {
@@ -803,6 +847,14 @@ export default function App() {
   const visibleDesktopUpdateHint = shouldShowDesktopUpdateHint(desktopUpdateHint, skippedDesktopUpdateVersion)
     ? desktopUpdateHint
     : null;
+  const desktopUpdateCardStatus =
+    desktopUpdateActionState === 'ready-to-restart'
+      ? 'ready-to-restart'
+      : desktopUpdateActionState === 'downloading'
+        ? 'downloading'
+        : desktopUpdateActionState === 'checking'
+          ? 'checking'
+          : 'available';
 
   const handleSkipDesktopUpdate = () => {
     if (!desktopUpdateHint || desktopUpdateHint.mandatory) return;
@@ -810,13 +862,67 @@ export default function App() {
     setSkippedDesktopUpdateVersion(desktopUpdateHint.latestVersion);
     setDesktopUpdateActionState('idle');
     setDesktopUpdateError(null);
+    setDesktopUpdateProgress(null);
+    setDesktopUpdateDetail(null);
+    setDesktopUpdateStatusMessage(`已跳过版本 ${desktopUpdateHint.latestVersion}`);
+  };
+
+  const handleCheckForDesktopUpdates = async () => {
+    setDesktopUpdateError(null);
+    setDesktopUpdateStatusMessage(null);
+    if (desktopUpdateActionState !== 'ready-to-restart') {
+      setDesktopUpdateActionState('checking');
+      setDesktopUpdateProgress(null);
+      setDesktopUpdateDetail('正在检查是否有新版本。');
+    }
+
+    try {
+      const hint = await client.getDesktopUpdateHint({
+        appVersion: DESKTOP_APP_VERSION,
+        channel: DESKTOP_RELEASE_CHANNEL,
+      });
+      if (hint.updateAvailable) {
+        setDesktopUpdateHint(hint);
+        setDesktopUpdateStatusMessage(
+          hint.mandatory
+            ? `发现新版本 ${hint.latestVersion}，当前版本需要强制升级。`
+            : `发现新版本 ${hint.latestVersion}。`,
+        );
+      } else {
+        setDesktopUpdateHint(null);
+        setDesktopUpdateStatusMessage('当前已是最新版本。');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '检查更新失败';
+      setDesktopUpdateError(message);
+      setDesktopUpdateStatusMessage(message);
+    } finally {
+      if (desktopUpdateActionState !== 'ready-to-restart') {
+        setDesktopUpdateActionState('idle');
+      }
+    }
   };
 
   const handleUpgradeDesktopApp = async () => {
     if (!visibleDesktopUpdateHint) return;
-    setDesktopUpdateActionState('loading');
+    setDesktopUpdateActionState('checking');
     setDesktopUpdateError(null);
+    setDesktopUpdateStatusMessage(null);
     try {
+      if (IS_TAURI_RUNTIME) {
+        const updaterCheck = await checkDesktopUpdate({
+          authBaseUrl: AUTH_BASE_URL,
+          channel: DESKTOP_RELEASE_CHANNEL,
+        });
+        if (updaterCheck?.supported && updaterCheck.available) {
+          setDesktopUpdateActionState('downloading');
+          setDesktopUpdateProgress(5);
+          setDesktopUpdateDetail('正在准备下载更新包。');
+          await downloadAndInstallDesktopUpdate();
+          return;
+        }
+      }
+
       const artifactUrl = await resolveDesktopUpdateArtifactUrl(visibleDesktopUpdateHint);
       const targetUrl = artifactUrl || visibleDesktopUpdateHint.manifestUrl;
       if (!targetUrl) {
@@ -824,10 +930,17 @@ export default function App() {
       }
       window.open(targetUrl, '_blank', 'noopener,noreferrer');
       setDesktopUpdateActionState('opened');
+      setDesktopUpdateStatusMessage('已打开更新下载页。');
     } catch (error) {
       setDesktopUpdateActionState('idle');
       setDesktopUpdateError(error instanceof Error ? error.message : '打开更新链接失败');
+      setDesktopUpdateStatusMessage(error instanceof Error ? error.message : '打开更新链接失败');
     }
+  };
+
+  const handleRestartDesktopApp = async () => {
+    if (!IS_TAURI_RUNTIME) return;
+    await restartDesktopApp();
   };
 
   return (
@@ -839,6 +952,7 @@ export default function App() {
           overlayView={overlayView}
           setOverlayView={setOverlayView}
           client={client}
+          imBotClient={imBotClient}
           accessToken={accessToken}
           currentUser={currentUser}
           setCurrentUser={setCurrentUser}
@@ -848,11 +962,24 @@ export default function App() {
           authModalOpen={authModalOpen}
           onRequestAuth={openAuthModal}
           desktopUpdateHint={visibleDesktopUpdateHint}
-          desktopUpdateBusy={desktopUpdateActionState === 'loading'}
+          desktopUpdateBusy={
+            desktopUpdateActionState === 'checking' || desktopUpdateActionState === 'downloading'
+          }
           desktopUpdateError={desktopUpdateError}
           desktopUpdateOpened={desktopUpdateActionState === 'opened'}
+          desktopUpdateStatus={desktopUpdateCardStatus}
+          desktopUpdateProgress={desktopUpdateProgress}
+          desktopUpdateDetail={desktopUpdateDetail}
           onUpgradeDesktopApp={handleUpgradeDesktopApp}
+          onRestartDesktopApp={handleRestartDesktopApp}
           onSkipDesktopUpdate={handleSkipDesktopUpdate}
+          onCheckForDesktopUpdates={handleCheckForDesktopUpdates}
+          desktopUpdateCurrentVersion={DISPLAY_DESKTOP_APP_VERSION}
+          desktopUpdateLatestVersion={desktopUpdateHint?.latestVersion || null}
+          desktopUpdateMandatory={Boolean(desktopUpdateHint?.mandatory)}
+          desktopUpdateChecking={desktopUpdateActionState === 'checking'}
+          desktopUpdateReadyToRestart={desktopUpdateActionState === 'ready-to-restart'}
+          desktopUpdateStatusMessage={desktopUpdateStatusMessage}
         />
         {authModalOpen ? (
           <AuthPanel
@@ -876,11 +1003,12 @@ export default function App() {
 }
 
 interface AuthedViewProps {
-  primaryView: 'chat' | 'skill-store' | 'cron' | 'im-bots';
-  setPrimaryView: Dispatch<SetStateAction<'chat' | 'skill-store' | 'cron' | 'im-bots'>>;
+  primaryView: PrimaryView;
+  setPrimaryView: Dispatch<SetStateAction<PrimaryView>>;
   overlayView: 'settings' | 'account' | null;
   setOverlayView: Dispatch<SetStateAction<'settings' | 'account' | null>>;
   client: IClawClient;
+  imBotClient: IClawClient;
   accessToken: string | null;
   currentUser: AuthUser | null;
   setCurrentUser: Dispatch<SetStateAction<AuthUser | null>>;
@@ -893,8 +1021,19 @@ interface AuthedViewProps {
   desktopUpdateBusy: boolean;
   desktopUpdateError: string | null;
   desktopUpdateOpened: boolean;
+  desktopUpdateStatus: 'available' | 'checking' | 'downloading' | 'ready-to-restart';
+  desktopUpdateProgress: number | null;
+  desktopUpdateDetail: string | null;
   onUpgradeDesktopApp: () => void;
+  onRestartDesktopApp: () => void;
   onSkipDesktopUpdate: () => void;
+  onCheckForDesktopUpdates: () => void;
+  desktopUpdateCurrentVersion: string;
+  desktopUpdateLatestVersion: string | null;
+  desktopUpdateMandatory: boolean;
+  desktopUpdateChecking: boolean;
+  desktopUpdateReadyToRestart: boolean;
+  desktopUpdateStatusMessage: string | null;
 }
 
 function AuthedView({
@@ -903,6 +1042,7 @@ function AuthedView({
   overlayView,
   setOverlayView,
   client,
+  imBotClient,
   accessToken,
   currentUser,
   setCurrentUser,
@@ -915,8 +1055,19 @@ function AuthedView({
   desktopUpdateBusy,
   desktopUpdateError,
   desktopUpdateOpened,
+  desktopUpdateStatus,
+  desktopUpdateProgress,
+  desktopUpdateDetail,
   onUpgradeDesktopApp,
+  onRestartDesktopApp,
   onSkipDesktopUpdate,
+  onCheckForDesktopUpdates,
+  desktopUpdateCurrentVersion,
+  desktopUpdateLatestVersion,
+  desktopUpdateMandatory,
+  desktopUpdateChecking,
+  desktopUpdateReadyToRestart,
+  desktopUpdateStatusMessage,
 }: AuthedViewProps) {
   const { buildSectionSaveSnapshot, commitSectionSave } = useSettings();
 
@@ -974,6 +1125,7 @@ function AuthedView({
         onOpenChat={() => setPrimaryView('chat')}
         onOpenCron={() => setPrimaryView('cron')}
         onOpenSkillStore={() => setPrimaryView('skill-store')}
+        onOpenDataConnections={() => setPrimaryView('data-connections')}
         onOpenImBots={() => setPrimaryView('im-bots')}
         onOpenAccount={() => {
           if (!authenticated) {
@@ -989,7 +1141,11 @@ function AuthedView({
         desktopUpdateBusy={desktopUpdateBusy}
         desktopUpdateError={desktopUpdateError}
         desktopUpdateOpened={desktopUpdateOpened}
+        desktopUpdateStatus={desktopUpdateStatus}
+        desktopUpdateProgress={desktopUpdateProgress}
+        desktopUpdateDetail={desktopUpdateDetail}
         onUpgradeDesktopApp={onUpgradeDesktopApp}
+        onRestartDesktopApp={onRestartDesktopApp}
         onSkipDesktopUpdate={onSkipDesktopUpdate}
       />
       {primaryView === 'skill-store' ? (
@@ -1001,6 +1157,8 @@ function AuthedView({
           currentUser={currentUser}
           onRequestAuth={onRequestAuth}
         />
+      ) : primaryView === 'data-connections' ? (
+        <DataConnectionsView />
       ) : primaryView === 'cron' ? (
         authenticated ? (
           <OpenClawCronSurface
@@ -1083,7 +1241,18 @@ function AuthedView({
         />
       ) : null}
       {overlayView === 'settings' ? (
-        <SettingsPanel onClose={() => setOverlayView(null)} onSave={handleSaveSettings} />
+        <SettingsPanel
+          onClose={() => setOverlayView(null)}
+          onSave={handleSaveSettings}
+          desktopUpdateCurrentVersion={desktopUpdateCurrentVersion}
+          desktopUpdateLatestVersion={desktopUpdateLatestVersion}
+          desktopUpdateMandatory={desktopUpdateMandatory}
+          desktopUpdateChecking={desktopUpdateChecking}
+          desktopUpdateReadyToRestart={desktopUpdateReadyToRestart}
+          desktopUpdateStatusMessage={desktopUpdateStatusMessage}
+          onCheckForDesktopUpdates={onCheckForDesktopUpdates}
+          onRestartDesktopApp={onRestartDesktopApp}
+        />
       ) : null}
     </div>
   );

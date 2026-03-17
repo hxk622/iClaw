@@ -22,7 +22,7 @@ import {
 } from '../lib/user-avatar';
 
 type SidebarUser = AppUserAvatarSource;
-type PrimaryView = 'chat' | 'skill-store' | 'cron' | 'im-bots';
+type PrimaryView = 'chat' | 'skill-store' | 'cron' | 'im-bots' | 'data-connections';
 
 interface SidebarProps {
   user: SidebarUser | null;
@@ -31,6 +31,7 @@ interface SidebarProps {
   onOpenChat?: () => void;
   onOpenCron?: () => void;
   onOpenSkillStore?: () => void;
+  onOpenDataConnections?: () => void;
   onOpenImBots?: () => void;
   onLogout?: () => void;
   onOpenAccount?: () => void;
@@ -40,7 +41,11 @@ interface SidebarProps {
   desktopUpdateBusy?: boolean;
   desktopUpdateError?: string | null;
   desktopUpdateOpened?: boolean;
+  desktopUpdateStatus?: 'available' | 'checking' | 'downloading' | 'ready-to-restart';
+  desktopUpdateProgress?: number | null;
+  desktopUpdateDetail?: string | null;
   onUpgradeDesktopApp?: () => void;
+  onRestartDesktopApp?: () => void;
   onSkipDesktopUpdate?: () => void;
 }
 
@@ -62,6 +67,7 @@ export function Sidebar({
   onOpenChat,
   onOpenCron,
   onOpenSkillStore,
+  onOpenDataConnections,
   onOpenImBots,
   onLogout,
   onOpenAccount,
@@ -71,7 +77,11 @@ export function Sidebar({
   desktopUpdateBusy = false,
   desktopUpdateError = null,
   desktopUpdateOpened = false,
+  desktopUpdateStatus = 'available',
+  desktopUpdateProgress = null,
+  desktopUpdateDetail = null,
   onUpgradeDesktopApp,
+  onRestartDesktopApp,
   onSkipDesktopUpdate,
 }: SidebarProps) {
   const isDevChannel = import.meta.env.DEV || import.meta.env.MODE === 'development';
@@ -117,7 +127,14 @@ export function Sidebar({
       active: activeView === 'skill-store',
       onClick: onOpenSkillStore,
     },
-    { key: 'link', label: '数据连接', icon: Link2, iconClass: 'text-cyan-500' },
+    {
+      key: 'link',
+      label: '数据连接',
+      icon: Link2,
+      iconClass: 'text-cyan-500',
+      active: activeView === 'data-connections',
+      onClick: onOpenDataConnections,
+    },
     {
       key: 'im-bots',
       label: 'IM机器人',
@@ -197,10 +214,14 @@ export function Sidebar({
         {desktopUpdateHint ? (
           <DesktopUpdateCard
             hint={desktopUpdateHint}
+            status={desktopUpdateStatus}
             busy={desktopUpdateBusy}
             error={desktopUpdateError}
             opened={desktopUpdateOpened}
+            progress={desktopUpdateProgress}
+            detail={desktopUpdateDetail}
             onUpgrade={() => onUpgradeDesktopApp?.()}
+            onRestart={() => onRestartDesktopApp?.()}
             onSkip={desktopUpdateHint.mandatory ? undefined : () => onSkipDesktopUpdate?.()}
           />
         ) : null}
