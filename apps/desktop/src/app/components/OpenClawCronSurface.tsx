@@ -1002,17 +1002,17 @@ export function OpenClawCronSurface({
 
         {mode === 'basic' ? (
           <div className="flex h-full min-w-0 flex-1 flex-col overflow-y-auto bg-[var(--bg-page)]">
-            <div className="sticky top-0 z-10 border-b border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-page)_92%,transparent)] px-5 py-4 backdrop-blur-xl">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="sticky top-0 z-10 border-b border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-page)_94%,transparent)] px-5 py-3 backdrop-blur-xl">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div className="min-w-0">
                   <div className="inline-flex items-center gap-2 rounded-full bg-[rgba(59,130,246,0.08)] px-3 py-1 text-[12px] font-medium text-[var(--brand-primary)] dark:bg-[rgba(201,169,97,0.14)]">
                     <Sparkles className="h-3.5 w-3.5" />
                     面向普通用户的基础模式
                   </div>
-                  <h1 className="mt-3 text-[24px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
+                  <h1 className="mt-2 text-[22px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
                     定时任务中心
                   </h1>
-                  <p className="mt-2 max-w-3xl text-[14px] leading-7 text-[var(--text-secondary)]">
+                  <p className="mt-1.5 max-w-[860px] text-[13px] leading-6 text-[var(--text-secondary)]">
                     先用模板快速创建任务，适合提醒、每日总结和每周报告。复杂调度仍然保留在高级模式里。
                   </p>
                 </div>
@@ -1047,7 +1047,7 @@ export function OpenClawCronSurface({
               </div>
             </div>
 
-            <div className="mx-auto flex w-full max-w-[1440px] min-w-0 flex-1 flex-col gap-5 px-5 py-5">
+            <div className="mx-auto flex w-full max-w-[1440px] min-w-0 flex-1 flex-col gap-4 px-5 py-4">
               {notice ? (
                 <div
                   className={`rounded-[16px] border px-4 py-3 text-[14px] ${
@@ -1066,61 +1066,58 @@ export function OpenClawCronSurface({
                 </div>
               ) : null}
 
-              <section className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(320px,0.55fr)]">
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <div className="rounded-[22px] border border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)]">
-                    <div className="text-[12px] uppercase tracking-[0.12em] text-[var(--text-muted)]">已接入任务</div>
-                    <div className="mt-3 text-[30px] font-semibold text-[var(--text-primary)]">
-                      {cronStatus?.jobs ?? jobs.length}
-                    </div>
-                    <div className="mt-2 text-[13px] text-[var(--text-secondary)]">
-                      其中基础模式可编辑 {basicJobs.length} 个
-                    </div>
+              <section className="grid gap-3 lg:grid-cols-4">
+                <div className="rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-card)] p-4 shadow-[var(--shadow-sm)]">
+                  <div className="text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">已接入任务</div>
+                  <div className="mt-2 text-[26px] font-semibold text-[var(--text-primary)]">
+                    {cronStatus?.jobs ?? jobs.length}
                   </div>
-                  <div className="rounded-[22px] border border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)]">
-                    <div className="text-[12px] uppercase tracking-[0.12em] text-[var(--text-muted)]">下次执行</div>
-                    <div className="mt-3 text-[22px] font-semibold text-[var(--text-primary)]">
-                      {formatTimestamp(cronStatus?.nextWakeAtMs)}
-                    </div>
-                    <div className="mt-2 text-[13px] text-[var(--text-secondary)]">
-                      {formatRelative(cronStatus?.nextWakeAtMs ?? null)}
-                    </div>
-                  </div>
-                  <div className="rounded-[22px] border border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)]">
-                    <div className="text-[12px] uppercase tracking-[0.12em] text-[var(--text-muted)]">调度状态</div>
-                    <div className="mt-3 inline-flex items-center rounded-full bg-[rgba(34,197,94,0.12)] px-3 py-1 text-[13px] font-medium text-emerald-600 dark:text-emerald-300">
-                      {cronStatus?.enabled === false ? '调度器关闭' : '调度器正常'}
-                    </div>
-                    <div className="mt-2 text-[13px] text-[var(--text-secondary)]">
-                      基础模式默认会把结果发回当前会话。
-                    </div>
+                  <div className="mt-1.5 text-[12px] text-[var(--text-secondary)]">
+                    基础模式可编辑 {basicJobs.length} 个
                   </div>
                 </div>
-
-                <div className="rounded-[24px] border border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(59,130,246,0.08),transparent)] p-5 shadow-[var(--shadow-sm)] dark:bg-[linear-gradient(180deg,rgba(201,169,97,0.12),transparent)]">
-                  <div className="inline-flex items-center gap-2 text-[12px] uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                    <Sparkles className="h-4 w-4 text-[var(--brand-primary)]" />
+                <div className="rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-card)] p-4 shadow-[var(--shadow-sm)]">
+                  <div className="text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">下次执行</div>
+                  <div className="mt-2 text-[20px] font-semibold text-[var(--text-primary)]">
+                    {formatTimestamp(cronStatus?.nextWakeAtMs)}
+                  </div>
+                  <div className="mt-1.5 text-[12px] text-[var(--text-secondary)]">
+                    {formatRelative(cronStatus?.nextWakeAtMs ?? null)}
+                  </div>
+                </div>
+                <div className="rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-card)] p-4 shadow-[var(--shadow-sm)]">
+                  <div className="text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">调度状态</div>
+                  <div className="mt-2 inline-flex items-center rounded-full bg-[rgba(34,197,94,0.12)] px-3 py-1 text-[12px] font-medium text-emerald-600 dark:text-emerald-300">
+                    {cronStatus?.enabled === false ? '调度器关闭' : '调度器正常'}
+                  </div>
+                  <div className="mt-1.5 text-[12px] text-[var(--text-secondary)]">
+                    结果默认发回当前会话
+                  </div>
+                </div>
+                <div className="rounded-[20px] border border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(59,130,246,0.08),transparent)] p-4 shadow-[var(--shadow-sm)] dark:bg-[linear-gradient(180deg,rgba(201,169,97,0.12),transparent)]">
+                  <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                    <Sparkles className="h-3.5 w-3.5 text-[var(--brand-primary)]" />
                     快速模板
                   </div>
-                  <div className="mt-3 text-[18px] font-semibold text-[var(--text-primary)]">
-                    从最常见的任务开始
+                  <div className="mt-2 text-[16px] font-semibold text-[var(--text-primary)]">
+                    先决定做什么和什么时候做
                   </div>
-                  <div className="mt-2 text-[14px] leading-7 text-[var(--text-secondary)]">
-                    这里先屏蔽复杂字段。你只需要决定“做什么”“什么时候做”，剩下交给底层 cron 引擎。
+                  <div className="mt-1.5 text-[12px] leading-6 text-[var(--text-secondary)]">
+                    复杂字段先隐藏，必要时再切高级模式。
                   </div>
                 </div>
               </section>
 
               <section>
-                <div className="mb-3 flex items-center justify-between">
+                <div className="mb-2.5 flex items-center justify-between">
                   <div>
-                    <div className="text-[18px] font-semibold text-[var(--text-primary)]">快速创建</div>
-                    <div className="mt-1 text-[13px] text-[var(--text-secondary)]">
+                    <div className="text-[17px] font-semibold text-[var(--text-primary)]">快速创建</div>
+                    <div className="mt-1 text-[12px] text-[var(--text-secondary)]">
                       先用模板建立任务，后续再去高级模式补充复杂规则。
                     </div>
                   </div>
                 </div>
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                   {BASIC_TEMPLATES.map((template) => {
                     const Icon = template.icon;
                     return (
@@ -1128,20 +1125,20 @@ export function OpenClawCronSurface({
                         key={template.id}
                         type="button"
                         onClick={() => openCreate(template.id)}
-                        className="iclaw-surface-card-button group p-5 text-left"
+                        className="iclaw-surface-card-button group p-4 text-left"
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <div className={`inline-flex h-10 w-10 items-center justify-center rounded-[14px] bg-[var(--bg-hover)] ${template.accentClass}`}>
-                            <Icon className="h-5 w-5" />
+                          <div className={`inline-flex h-9 w-9 items-center justify-center rounded-[13px] bg-[var(--bg-hover)] ${template.accentClass}`}>
+                            <Icon className="h-4.5 w-4.5" />
                           </div>
                           <span className="rounded-full bg-[var(--bg-hover)] px-2.5 py-1 text-[11px] text-[var(--text-secondary)]">
                             模板
                           </span>
                         </div>
-                        <div className="mt-4 text-[16px] font-semibold text-[var(--text-primary)]">
+                        <div className="mt-3 text-[15px] font-semibold text-[var(--text-primary)]">
                           {template.title}
                         </div>
-                        <div className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
+                        <div className="mt-1.5 text-[12px] leading-5 text-[var(--text-secondary)]">
                           {template.summary}
                         </div>
                       </button>
@@ -1150,11 +1147,11 @@ export function OpenClawCronSurface({
                 </div>
               </section>
 
-              <section className="rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)]">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <section className="rounded-[22px] border border-[var(--border-default)] bg-[var(--bg-card)] p-4 shadow-[var(--shadow-sm)]">
+                <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
                   <div>
-                    <div className="text-[18px] font-semibold text-[var(--text-primary)]">我的任务</div>
-                    <div className="mt-1 text-[13px] text-[var(--text-secondary)]">
+                    <div className="text-[17px] font-semibold text-[var(--text-primary)]">我的任务</div>
+                    <div className="mt-1 text-[12px] text-[var(--text-secondary)]">
                       先展示对普通用户最有用的关键信息：状态、下次执行、最近结果和快捷操作。
                     </div>
                   </div>
@@ -1180,21 +1177,21 @@ export function OpenClawCronSurface({
                   </div>
                 </div>
 
-                <div className="mt-5">
+                <div className="mt-4">
                   {loading ? (
-                    <div className="flex items-center gap-2 rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-hover)] px-4 py-4 text-[14px] text-[var(--text-secondary)]">
+                    <div className="flex items-center gap-2 rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-hover)] px-4 py-3 text-[13px] text-[var(--text-secondary)]">
                       <LoaderCircle className="h-4 w-4 animate-spin" />
                       正在读取定时任务…
                     </div>
                   ) : visibleJobs.length === 0 ? (
-                    <div className="rounded-[20px] border border-dashed border-[var(--border-default)] bg-[var(--bg-hover)] px-6 py-10 text-center">
-                      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[var(--bg-card)] text-[var(--brand-primary)]">
-                        <ListTodo className="h-6 w-6" />
+                    <div className="rounded-[18px] border border-dashed border-[var(--border-default)] bg-[var(--bg-hover)] px-6 py-8 text-center">
+                      <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[var(--bg-card)] text-[var(--brand-primary)]">
+                        <ListTodo className="h-5.5 w-5.5" />
                       </div>
-                      <div className="mt-4 text-[16px] font-semibold text-[var(--text-primary)]">
+                      <div className="mt-3 text-[15px] font-semibold text-[var(--text-primary)]">
                         还没有任务
                       </div>
-                      <div className="mt-2 text-[14px] leading-7 text-[var(--text-secondary)]">
+                      <div className="mt-1.5 text-[13px] leading-6 text-[var(--text-secondary)]">
                         先创建一个提醒或例行总结，看看基础模式是否足够你日常使用。
                       </div>
                       <button
@@ -1207,7 +1204,7 @@ export function OpenClawCronSurface({
                       </button>
                     </div>
                   ) : (
-                    <div className="grid gap-4 xl:grid-cols-2">
+                    <div className="grid gap-3 xl:grid-cols-2">
                       {visibleJobs.map((job) => {
                         const tone = getJobStatusTone(job);
                         const templateMeta = getTemplateMeta(inferTemplateId(job));
@@ -1217,7 +1214,7 @@ export function OpenClawCronSurface({
                         return (
                           <div
                             key={job.id}
-                            className="rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-page)] p-5"
+                            className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-page)] p-4"
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
@@ -1226,7 +1223,7 @@ export function OpenClawCronSurface({
                                     <Icon className="h-4.5 w-4.5" />
                                   </div>
                                   <div className="min-w-0">
-                                    <div className="truncate text-[16px] font-semibold text-[var(--text-primary)]">
+                                    <div className="truncate text-[15px] font-semibold text-[var(--text-primary)]">
                                       {job.name}
                                     </div>
                                     <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -1252,18 +1249,18 @@ export function OpenClawCronSurface({
                               </button>
                             </div>
 
-                            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                              <div className="rounded-[14px] bg-[var(--bg-hover)] px-3 py-2.5">
+                            <div className="mt-3 grid gap-2.5 sm:grid-cols-3">
+                              <div className="rounded-[13px] bg-[var(--bg-hover)] px-3 py-2">
                                 <div className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">执行节奏</div>
                                 <div className="mt-1 text-[13px] text-[var(--text-primary)]">{buildHumanSchedule(job.schedule)}</div>
                               </div>
-                              <div className="rounded-[14px] bg-[var(--bg-hover)] px-3 py-2.5">
+                              <div className="rounded-[13px] bg-[var(--bg-hover)] px-3 py-2">
                                 <div className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">下次执行</div>
                                 <div className="mt-1 text-[13px] text-[var(--text-primary)]">
                                   {formatTimestamp(job.state?.nextRunAtMs ?? null)}
                                 </div>
                               </div>
-                              <div className="rounded-[14px] bg-[var(--bg-hover)] px-3 py-2.5">
+                              <div className="rounded-[13px] bg-[var(--bg-hover)] px-3 py-2">
                                 <div className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">最近结果</div>
                                 <div className="mt-1 text-[13px] text-[var(--text-primary)]">
                                   {job.state?.lastStatus === 'ok'
@@ -1275,11 +1272,11 @@ export function OpenClawCronSurface({
                               </div>
                             </div>
 
-                            <div className="mt-4 rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-card)] px-3 py-3 text-[13px] leading-6 text-[var(--text-secondary)]">
+                            <div className="mt-3 rounded-[13px] border border-[var(--border-default)] bg-[var(--bg-card)] px-3 py-2.5 text-[12px] leading-5 text-[var(--text-secondary)]">
                               {lastState}
                             </div>
 
-                            <div className="mt-4 flex flex-wrap gap-2">
+                            <div className="mt-3 flex flex-wrap gap-2">
                               <button
                                 type="button"
                                 onClick={() => handleRun(job)}
