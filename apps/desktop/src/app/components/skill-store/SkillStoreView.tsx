@@ -52,6 +52,39 @@ const categories: Array<{ id: SkillStoreCategoryId; label: string }> = [
 ];
 
 type ActiveTab = (typeof storeTabs)[number]['id'];
+type SkillInstallFilter = 'all' | 'installed' | 'available';
+
+const installFilters: Array<{ id: SkillInstallFilter; label: string }> = [
+  { id: 'all', label: '全部状态' },
+  { id: 'installed', label: '已安装' },
+  { id: 'available', label: '未安装' },
+];
+
+const tagFilterPriority = [
+  'A股',
+  '美股',
+  '港股',
+  '股票',
+  '基金',
+  '债券',
+  '期货',
+  'Crypto',
+  '加密货币',
+  '财报分析',
+  '估值',
+  '量化',
+  '因子',
+  '技术分析',
+  '组合优化',
+  '风险管理',
+  '宏观',
+  '行业轮动',
+  'ESG',
+  '事件驱动',
+  '数据工具',
+];
+
+const hiddenQuickFilterTags = new Set(['金融', '通用', '技能', '工具包', '研究报告']);
 
 function matchesCategory(skill: SkillStoreItem, categoryId: SkillStoreCategoryId): boolean {
   if (categoryId === 'all') return true;
@@ -59,6 +92,12 @@ function matchesCategory(skill: SkillStoreItem, categoryId: SkillStoreCategoryId
   if (categoryId === 'a-share') return skill.market === 'A股';
   if (categoryId === 'us-stock') return skill.market === '美股';
   return skill.categoryId === categoryId;
+}
+
+function matchesInstallFilter(skill: SkillStoreItem, filter: SkillInstallFilter): boolean {
+  if (filter === 'all') return true;
+  if (filter === 'installed') return skill.installed;
+  return !skill.installed;
 }
 
 function SummaryCard({
@@ -301,6 +340,8 @@ export function SkillStoreView({
 }) {
   const [activeTab, setActiveTab] = useState<ActiveTab>('store');
   const [activeCategory, setActiveCategory] = useState<SkillStoreCategoryId>('all');
+  const [activeInstallFilter, setActiveInstallFilter] = useState<SkillInstallFilter>('all');
+  const [activeTag, setActiveTag] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [skills, setSkills] = useState<SkillStoreItem[]>([]);
   const [adminSkills, setAdminSkills] = useState<AdminSkillStoreItem[]>([]);
@@ -567,6 +608,50 @@ export function SkillStoreView({
 
   const visibleSkills = adminMode ? adminSkills : skills;
 
+  const availableQuickTags = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const skill of visibleSkills) {
+      if (activeTab === 'myskills' && !skill.userInstalled) {
+        continue;
+      }
+      if (
+        !matchesCategory(skill, activeCategory) ||
+        (activeTab === 'store' && !matchesInstallFilter(skill, activeInstallFilter))
+      ) {
+        continue;
+      }
+      for (const tag of skill.tags) {
+        const normalized = tag.trim();
+        if (!normalized || hiddenQuickFilterTags.has(normalized)) {
+          continue;
+        }
+        counts.set(normalized, (counts.get(normalized) || 0) + 1);
+      }
+    }
+
+    const priorityIndex = new Map(tagFilterPriority.map((tag, index) => [tag, index]));
+    return Array.from(counts.entries())
+      .sort((left, right) => {
+        const leftPriority = priorityIndex.get(left[0]) ?? Number.MAX_SAFE_INTEGER;
+        const rightPriority = priorityIndex.get(right[0]) ?? Number.MAX_SAFE_INTEGER;
+        if (leftPriority !== rightPriority) {
+          return leftPriority - rightPriority;
+        }
+        if (right[1] !== left[1]) {
+          return right[1] - left[1];
+        }
+        return left[0].localeCompare(right[0], 'zh-CN');
+      })
+      .slice(0, 16)
+      .map(([tag]) => tag);
+  }, [activeCategory, activeInstallFilter, activeTab, visibleSkills]);
+
+  useEffect(() => {
+    if (activeTag && !availableQuickTags.includes(activeTag)) {
+      setActiveTag(null);
+    }
+  }, [activeTag, availableQuickTags]);
+
   const filteredSkills = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return visibleSkills.filter((skill) => {
@@ -574,6 +659,12 @@ export function SkillStoreView({
         return false;
       }
       if (!matchesCategory(skill, activeCategory)) {
+        return false;
+      }
+      if (activeTab === 'store' && !matchesInstallFilter(skill, activeInstallFilter)) {
+        return false;
+      }
+      if (activeTag && !skill.tags.includes(activeTag)) {
         return false;
       }
       if (!query) {
@@ -585,7 +676,7 @@ export function SkillStoreView({
         .toLowerCase()
         .includes(query);
     });
-  }, [activeCategory, activeTab, searchQuery, visibleSkills]);
+  }, [activeCategory, activeInstallFilter, activeTab, activeTag, searchQuery, visibleSkills]);
 
   const installedCount = useMemo(() => skills.filter((skill) => skill.userInstalled).length, [skills]);
   const researchCount = useMemo(() => visibleSkills.filter((skill) => skill.categoryId === 'research').length, [visibleSkills]);
@@ -758,26 +849,86 @@ export function SkillStoreView({
 
       <div className="flex-1 px-8 py-8">
         {activeTab === 'store' ? (
-          <div className="mb-6 flex gap-2 overflow-x-auto pb-1">
-            {categories.map((category) => {
-              const active = category.id === activeCategory;
-              return (
-                <Chip
-                  key={category.id}
-                  clickable
-                  onClick={() => setActiveCategory(category.id)}
-                  active={active}
-                  tone={active ? 'brand' : 'outline'}
-                  className={cn(
-                    'whitespace-nowrap px-4 py-2 text-[13px] font-medium',
-                    !active &&
-                      'bg-[var(--bg-card)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:text-[rgba(250,250,250,0.72)] dark:hover:border-[rgba(255,255,255,0.16)] dark:hover:bg-[rgba(255,255,255,0.07)] dark:hover:text-[var(--text-primary)]',
-                  )}
-                >
-                  {category.label}
-                </Chip>
-              );
-            })}
+          <div className="mb-6 space-y-3">
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {categories.map((category) => {
+                const active = category.id === activeCategory;
+                return (
+                  <Chip
+                    key={category.id}
+                    clickable
+                    onClick={() => setActiveCategory(category.id)}
+                    active={active}
+                    tone={active ? 'brand' : 'outline'}
+                    className={cn(
+                      'whitespace-nowrap px-4 py-2 text-[13px] font-medium',
+                      !active &&
+                        'bg-[var(--bg-card)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:text-[rgba(250,250,250,0.72)] dark:hover:border-[rgba(255,255,255,0.16)] dark:hover:bg-[rgba(255,255,255,0.07)] dark:hover:text-[var(--text-primary)]',
+                    )}
+                  >
+                    {category.label}
+                  </Chip>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[12px] text-[var(--text-secondary)]">安装状态</span>
+              {installFilters.map((filter) => {
+                const active = filter.id === activeInstallFilter;
+                return (
+                  <Chip
+                    key={filter.id}
+                    clickable
+                    onClick={() => setActiveInstallFilter(filter.id)}
+                    active={active}
+                    tone={active ? 'brand' : 'outline'}
+                    className={cn(
+                      'whitespace-nowrap px-3 py-1.5 text-[12px] font-medium',
+                      !active &&
+                        'bg-[var(--bg-card)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
+                    )}
+                  >
+                    {filter.label}
+                  </Chip>
+                );
+              })}
+            </div>
+
+            {availableQuickTags.length ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[12px] text-[var(--text-secondary)]">热门标签</span>
+                {availableQuickTags.map((tag) => {
+                  const active = tag === activeTag;
+                  return (
+                    <Chip
+                      key={tag}
+                      clickable
+                      onClick={() => setActiveTag((current) => (current === tag ? null : tag))}
+                      active={active}
+                      tone={active ? 'brand' : 'outline'}
+                      className={cn(
+                        'whitespace-nowrap px-3 py-1.5 text-[12px] font-medium',
+                        skillTagClassName(tag),
+                        !active && 'hover:opacity-90',
+                      )}
+                    >
+                      {tag}
+                    </Chip>
+                  );
+                })}
+                {activeTag ? (
+                  <Button
+                    onClick={() => setActiveTag(null)}
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 rounded-full px-3 text-[12px]"
+                  >
+                    清除标签
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         ) : (
           <div className="mb-6 rounded-[26px] border border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(24,24,24,0.96),rgba(16,16,16,0.94))] dark:shadow-[0_20px_36px_rgba(0,0,0,0.26)]">

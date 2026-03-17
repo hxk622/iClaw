@@ -1,7 +1,7 @@
 ---
 name: Document Skills
 slug: document-skills
-visibility: showcase
+visibility: internal
 tags: 通用, 技能编写, 技能维护
 description: Write or update a skill (SKILL.md and supporting files) to match host structure and best practices. Use when user says create skill, write skill, update SKILL.md, /document-skills.
 disable-model-invocation: true

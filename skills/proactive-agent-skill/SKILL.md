@@ -1,7 +1,7 @@
 ---
 name: Proactive Agent
 slug: proactive-agent-skill
-visibility: showcase
+visibility: internal
 tags: 通用, 主动代理, 自动化
 description: "Transform AI agents from task-followers into proactive partners that anticipate needs and continuously improve. Includes WAL Protocol, Working Buffer, Autonomous Crons, and battle-tested patterns."
 homepage: https://lobehub.com/skills/openclaw-skills-proactive-agent

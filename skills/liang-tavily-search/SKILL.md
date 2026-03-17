@@ -1,7 +1,7 @@
 ---
 name: Tavily Search
 slug: liang-tavily-search
-visibility: showcase
+visibility: internal
 tags: 通用, 联网搜索, Tavily
 description: Web search using Tavily's LLM-optimized API. Returns relevant results with content snippets, scores, and metadata.
 homepage: https://tavily.com
