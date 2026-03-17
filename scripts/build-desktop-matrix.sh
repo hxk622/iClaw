@@ -65,6 +65,18 @@ build_one() {
   local out_file="$OUT_DIR/${current_product_name}_${RELEASE_VERSION}_${arch_label}_${channel}.dmg"
   cp "$dmg_path" "$out_file"
   echo "saved: $out_file"
+
+  local updater_dir="$DESKTOP_DIR/src-tauri/target/$target/release/bundle/macos"
+  local updater_archive="$updater_dir/${current_product_name}.app.tar.gz"
+  local updater_signature="${updater_archive}.sig"
+  if [[ -f "$updater_archive" && -f "$updater_signature" ]]; then
+    local updater_out_file="$OUT_DIR/${current_product_name}_${RELEASE_VERSION}_${arch_label}_${channel}.app.tar.gz"
+    local updater_sig_out_file="${updater_out_file}.sig"
+    cp "$updater_archive" "$updater_out_file"
+    cp "$updater_signature" "$updater_sig_out_file"
+    echo "saved: $updater_out_file"
+    echo "saved: $updater_sig_out_file"
+  fi
 }
 
 for target in "${TARGETS[@]}"; do

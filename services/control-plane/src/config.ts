@@ -188,6 +188,7 @@ export const config = {
   desktopUpdateMandatory: ['1', 'true', 'yes', 'on'].includes(
     (process.env.DESKTOP_UPDATE_MANDATORY || '').trim().toLowerCase(),
   ),
+  desktopForceUpdateBelowVersion: (process.env.DESKTOP_FORCE_UPDATE_BELOW_VERSION || '').trim() || '',
   wechatAppId: process.env.WECHAT_APP_ID || brandDefaults.oauth.wechatAppId,
   wechatAppSecret: process.env.WECHAT_APP_SECRET || '',
   googleClientId: process.env.GOOGLE_CLIENT_ID || brandDefaults.oauth.googleClientId,

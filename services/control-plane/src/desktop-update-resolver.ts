@@ -3,8 +3,11 @@ import type { IncomingHttpHeaders } from 'node:http';
 import { config } from './config.ts';
 import {
   DESKTOP_UPDATE_RESPONSE_HEADERS,
+  resolveDesktopUpdaterPayload,
   resolveDesktopUpdateHint,
+  type DesktopUpdaterPayload,
   type DesktopUpdateRequest,
+  type DesktopUpdateHint,
 } from './desktop-updates.ts';
 
 function readHeader(headers: IncomingHttpHeaders, name: string): string {
@@ -37,19 +40,7 @@ export async function resolveDesktopUpdateResponseHeaders(
     arch: readHeader(headers, 'x-iclaw-arch') || null,
     channel: requestedChannel,
   };
-  const hint = await resolveDesktopUpdateHint(
-    {
-      channel: requestedChannel,
-      manifestDir: config.desktopReleaseManifestDir,
-      publicBaseUrl:
-        requestedChannel === 'dev'
-          ? config.desktopReleaseManifestBaseUrls.dev
-          : config.desktopReleaseManifestBaseUrls.prod,
-      cacheTtlMs: config.desktopReleaseManifestCacheTtlMs,
-      mandatory: config.desktopUpdateMandatory,
-    },
-    request,
-  );
+  const hint = await resolveDesktopUpdateHint(buildDesktopUpdateSource(requestedChannel), request);
   if (!hint) return {};
 
   const responseHeaders: Record<string, string> = {
@@ -64,4 +55,30 @@ export async function resolveDesktopUpdateResponseHeaders(
     responseHeaders['x-iclaw-update-artifact-url'] = hint.artifactUrl;
   }
   return responseHeaders;
+}
+
+export function buildDesktopUpdateSource(channel: string) {
+  return {
+    channel,
+    manifestDir: config.desktopReleaseManifestDir,
+    publicBaseUrl:
+      channel === 'dev' ? config.desktopReleaseManifestBaseUrls.dev : config.desktopReleaseManifestBaseUrls.prod,
+    cacheTtlMs: config.desktopReleaseManifestCacheTtlMs,
+    mandatory: config.desktopUpdateMandatory,
+    forceUpdateBelowVersion: config.desktopForceUpdateBelowVersion,
+  };
+}
+
+export async function resolveDesktopUpdateHintPayload(
+  request: DesktopUpdateRequest,
+): Promise<DesktopUpdateHint | null> {
+  const requestedChannel = request.channel || config.desktopReleaseChannel;
+  return resolveDesktopUpdateHint(buildDesktopUpdateSource(requestedChannel), request);
+}
+
+export async function resolveDesktopUpdaterRoutePayload(
+  request: DesktopUpdateRequest,
+): Promise<DesktopUpdaterPayload | null> {
+  const requestedChannel = request.channel || config.desktopReleaseChannel;
+  return resolveDesktopUpdaterPayload(buildDesktopUpdateSource(requestedChannel), request);
 }

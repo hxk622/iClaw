@@ -25,6 +25,14 @@ import { cn } from '@/app/lib/cn';
 interface SettingsPanelProps {
   onClose: () => void;
   onSave: (section: PersistableSettingsSection) => Promise<void>;
+  desktopUpdateCurrentVersion: string;
+  desktopUpdateLatestVersion: string | null;
+  desktopUpdateMandatory: boolean;
+  desktopUpdateChecking: boolean;
+  desktopUpdateReadyToRestart: boolean;
+  desktopUpdateStatusMessage: string | null;
+  onCheckForDesktopUpdates: () => void;
+  onRestartDesktopApp: () => void;
 }
 
 const navItems: Array<{ key: PersistableSettingsSection; label: string; icon: ComponentType<{ className?: string }> }> = [
@@ -37,7 +45,18 @@ const navItems: Array<{ key: PersistableSettingsSection; label: string; icon: Co
   { key: 'safety-defaults', label: '安全策略', icon: Shield },
 ];
 
-export function SettingsPanel({ onClose, onSave }: SettingsPanelProps) {
+export function SettingsPanel({
+  onClose,
+  onSave,
+  desktopUpdateCurrentVersion,
+  desktopUpdateLatestVersion,
+  desktopUpdateMandatory,
+  desktopUpdateChecking,
+  desktopUpdateReadyToRestart,
+  desktopUpdateStatusMessage,
+  onCheckForDesktopUpdates,
+  onRestartDesktopApp,
+}: SettingsPanelProps) {
   const { hasUnsavedChangesForSection, resetSettings } = useSettings();
   const [activeSection, setActiveSection] = useState<PersistableSettingsSection>('general');
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -51,7 +70,18 @@ export function SettingsPanel({ onClose, onSave }: SettingsPanelProps) {
       case 'appearance':
         return <SettingsAppearance />;
       case 'general':
-        return <SettingsGeneral />;
+        return (
+          <SettingsGeneral
+            currentVersion={desktopUpdateCurrentVersion}
+            latestVersion={desktopUpdateLatestVersion}
+            mandatory={desktopUpdateMandatory}
+            checkingForUpdates={desktopUpdateChecking}
+            readyToRestart={desktopUpdateReadyToRestart}
+            statusMessage={desktopUpdateStatusMessage}
+            onCheckForUpdates={onCheckForDesktopUpdates}
+            onRestartToApply={onRestartDesktopApp}
+          />
+        );
       case 'identity':
         return <Identity />;
       case 'user-profile':

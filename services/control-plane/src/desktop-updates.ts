@@ -15,6 +15,8 @@ type DesktopReleaseManifestEntry = {
   arch?: unknown;
   version?: unknown;
   artifact_url?: unknown;
+  published_at?: unknown;
+  updater?: unknown;
 };
 
 type DesktopReleaseIndexManifest = {
@@ -33,6 +35,7 @@ type DesktopUpdateManifestSource = {
   publicBaseUrl: string;
   cacheTtlMs: number;
   mandatory: boolean;
+  forceUpdateBelowVersion?: string | null;
 };
 
 export type DesktopUpdateRequest = {
@@ -48,6 +51,16 @@ export type DesktopUpdateHint = {
   mandatory: boolean;
   manifestUrl: string | null;
   artifactUrl: string | null;
+};
+
+export type DesktopUpdaterPayload = {
+  version: string;
+  url: string;
+  signature: string;
+  notes: string | null;
+  pubDate: string | null;
+  mandatory: boolean;
+  externalDownloadUrl: string | null;
 };
 
 type CacheRecord = {
@@ -67,12 +80,19 @@ function normalizeChannel(value?: string | null): string {
 }
 
 function normalizePlatform(value?: string | null): string {
-  return trimString(value).toLowerCase();
+  const normalized = trimString(value).toLowerCase();
+  if (!normalized) return '';
+  if (normalized.startsWith('darwin')) return 'darwin';
+  if (normalized.startsWith('windows')) return 'windows';
+  if (normalized.startsWith('linux')) return 'linux';
+  return normalized;
 }
 
 function normalizeArch(value?: string | null): string {
   const normalized = trimString(value).toLowerCase();
   if (!normalized) return '';
+  if (normalized.includes('aarch64') || normalized.includes('arm64')) return 'aarch64';
+  if (normalized.includes('x86_64') || normalized.includes('amd64') || normalized.includes('x64')) return 'x64';
   if (normalized === 'arm64') return 'aarch64';
   if (normalized === 'x86_64' || normalized === 'amd64') return 'x64';
   return normalized;
@@ -105,6 +125,30 @@ function compareVersions(left: string, right: string): number {
 
 function isDesktopReleaseManifestEntry(value: unknown): value is DesktopReleaseManifestEntry {
   return Boolean(value) && typeof value === 'object';
+}
+
+function readUpdaterPayload(entry: DesktopReleaseManifestEntry | null): {
+  url: string;
+  signature: string;
+  notes: string | null;
+  pubDate: string | null;
+} | null {
+  if (!entry || !entry.updater || typeof entry.updater !== 'object') return null;
+  const updater = entry.updater as {
+    url?: unknown;
+    signature?: unknown;
+    notes?: unknown;
+    pub_date?: unknown;
+  };
+  const url = trimString(updater.url);
+  const signature = trimString(updater.signature);
+  if (!url || !signature) return null;
+  return {
+    url,
+    signature,
+    notes: trimString(updater.notes) || null,
+    pubDate: trimString(updater.pub_date) || trimString(entry.published_at) || null,
+  };
 }
 
 function resolveLatestVersionFromEntry(entry: DesktopReleaseManifestEntry | null): string {
@@ -155,6 +199,7 @@ async function loadTargetManifest(source: DesktopUpdateManifestSource, platform:
   version: string;
   manifestUrl: string | null;
   artifactUrl: string | null;
+  entry: DesktopReleaseManifestEntry | null;
 } | null> {
   const fileName = buildTargetManifestName(source.channel, platform, arch);
   const localPath = source.manifestDir ? join(source.manifestDir, fileName) : '';
@@ -167,6 +212,7 @@ async function loadTargetManifest(source: DesktopUpdateManifestSource, platform:
       version,
       manifestUrl: buildManifestUrl(source.publicBaseUrl, fileName),
       artifactUrl: trimString(entry?.artifact_url) || null,
+      entry,
     };
   }
 
@@ -180,6 +226,7 @@ async function loadTargetManifest(source: DesktopUpdateManifestSource, platform:
     version,
     manifestUrl: remoteUrl,
     artifactUrl: trimString(entry?.artifact_url) || null,
+    entry,
   };
 }
 
@@ -187,6 +234,7 @@ async function loadIndexManifest(source: DesktopUpdateManifestSource): Promise<{
   version: string;
   manifestUrl: string | null;
   artifactUrl: string | null;
+  entry: DesktopReleaseManifestEntry | null;
 } | null> {
   const fileName = buildIndexManifestName(source.channel);
   const localPath = source.manifestDir ? join(source.manifestDir, fileName) : '';
@@ -200,6 +248,7 @@ async function loadIndexManifest(source: DesktopUpdateManifestSource): Promise<{
       version,
       manifestUrl: buildManifestUrl(source.publicBaseUrl, fileName),
       artifactUrl: trimString(firstEntry?.artifact_url) || null,
+      entry: firstEntry,
     };
   }
 
@@ -214,13 +263,19 @@ async function loadIndexManifest(source: DesktopUpdateManifestSource): Promise<{
     version,
     manifestUrl: remoteUrl,
     artifactUrl: trimString(firstEntry?.artifact_url) || null,
+    entry: firstEntry,
   };
 }
 
 async function resolveLatestVersion(
   source: DesktopUpdateManifestSource,
   request: DesktopUpdateRequest,
-): Promise<{ version: string; manifestUrl: string | null; artifactUrl: string | null } | null> {
+): Promise<{
+  version: string;
+  manifestUrl: string | null;
+  artifactUrl: string | null;
+  entry: DesktopReleaseManifestEntry | null;
+} | null> {
   const platform = normalizePlatform(request.platform);
   const arch = normalizeArch(request.arch);
   if (platform && arch) {
@@ -246,6 +301,7 @@ export async function resolveDesktopUpdateHint(
     manifestDir: source.manifestDir,
     publicBaseUrl: source.publicBaseUrl,
     mandatory: source.mandatory,
+    forceUpdateBelowVersion: trimString(source.forceUpdateBelowVersion),
   });
   const cached = MANIFEST_CACHE.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
@@ -263,10 +319,11 @@ export async function resolveDesktopUpdateHint(
     ? {
         latestVersion: latest.version,
         updateAvailable: compareVersions(latest.version, appVersion) > 0,
-      mandatory: source.mandatory,
-      manifestUrl: latest.manifestUrl,
-      artifactUrl: latest.artifactUrl,
-    }
+        mandatory:
+          compareVersions(latest.version, appVersion) > 0 && (source.mandatory || isForcedUpdate(source, appVersion)),
+        manifestUrl: latest.manifestUrl,
+        artifactUrl: latest.artifactUrl,
+      }
     : null;
 
   MANIFEST_CACHE.set(cacheKey, {
@@ -274,4 +331,54 @@ export async function resolveDesktopUpdateHint(
     value: hint,
   });
   return hint;
+}
+
+function isForcedUpdate(source: DesktopUpdateManifestSource, appVersion: string): boolean {
+  const forceUpdateBelowVersion = trimString(source.forceUpdateBelowVersion);
+  if (!forceUpdateBelowVersion) return false;
+  return compareVersions(appVersion, forceUpdateBelowVersion) < 0;
+}
+
+async function resolveLatestEntry(
+  source: DesktopUpdateManifestSource,
+  request: DesktopUpdateRequest,
+): Promise<{
+  version: string;
+  manifestUrl: string | null;
+  artifactUrl: string | null;
+  entry: DesktopReleaseManifestEntry | null;
+} | null> {
+  const channel = normalizeChannel(request.channel || source.channel);
+  return resolveLatestVersion(
+    {
+      ...source,
+      channel,
+    },
+    request,
+  );
+}
+
+export async function resolveDesktopUpdaterPayload(
+  source: DesktopUpdateManifestSource,
+  request: DesktopUpdateRequest,
+): Promise<DesktopUpdaterPayload | null> {
+  const appVersion = trimString(request.appVersion);
+  if (!appVersion) return null;
+
+  const latest = await resolveLatestEntry(source, request);
+  if (!latest) return null;
+  if (compareVersions(latest.version, appVersion) <= 0) return null;
+
+  const updater = readUpdaterPayload(latest.entry);
+  if (!updater) return null;
+
+  return {
+    version: latest.version,
+    url: updater.url,
+    signature: updater.signature,
+    notes: updater.notes,
+    pubDate: updater.pubDate,
+    mandatory: source.mandatory || isForcedUpdate(source, appVersion),
+    externalDownloadUrl: latest.artifactUrl,
+  };
 }

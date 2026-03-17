@@ -211,6 +211,7 @@ manifest 内容包含：
 - base version / build id
 - channel、platform、arch
 - 安装包文件名、公开下载地址、文件大小、SHA-256
+- 若存在 signed updater bundle，则附带 `updater.url` / `updater.signature`
 
 生成命令：
 
@@ -220,6 +221,8 @@ node scripts/generate-desktop-release-manifests.mjs --channel prod
 ```
 
 上传安装包时，`bash scripts/publish-downloads.sh <dev|prod>` 会把对应的 manifest 一起上传到 MinIO。
+
+如果构建时设置了 `TAURI_SIGNING_PRIVATE_KEY`，桌面端构建会额外生成 updater bundle 和 `.sig`，并自动写入 release manifest。
 
 ## Desktop Update Hints
 
@@ -240,6 +243,14 @@ control-plane 响应头：
 - `x-iclaw-update-manifest-url`
 - `x-iclaw-update-artifact-url`
 
+手动检查接口：
+
+- `GET /desktop/update-hint?current_version=...&channel=...`
+
+Tauri updater 动态接口：
+
+- `GET /desktop/update?current_version=...&target=...&arch=...&channel=...`
+
 服务端优先从本地 `dist/releases/` 读取 manifest，也支持通过环境变量覆盖：
 
 - `DESKTOP_RELEASE_MANIFEST_DIR`
@@ -248,3 +259,5 @@ control-plane 响应头：
 - `DESKTOP_RELEASE_MANIFEST_CACHE_TTL_MS`
 - `DESKTOP_RELEASE_CHANNEL`
 - `DESKTOP_UPDATE_MANDATORY`
+- `DESKTOP_FORCE_UPDATE_BELOW_VERSION`
+- `TAURI_UPDATER_PUBLIC_KEY`

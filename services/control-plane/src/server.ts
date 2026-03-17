@@ -28,7 +28,9 @@ import {ControlPlaneService} from './service.ts';
 import {
   desktopUpdateAllowedRequestHeaders,
   desktopUpdateExposedHeaders,
+  resolveDesktopUpdateHintPayload,
   resolveDesktopUpdateResponseHeaders,
+  resolveDesktopUpdaterRoutePayload,
 } from './desktop-update-resolver.ts';
 import type {ControlPlaneStore} from './store.ts';
 
@@ -94,6 +96,15 @@ function resolveSkillSourceDir(relativePath: string): string {
   return target;
 }
 
+function resolveDesktopUpdateRequest(url: URL) {
+  return {
+    appVersion: (url.searchParams.get('current_version') || '').trim() || null,
+    platform: (url.searchParams.get('target') || '').trim() || null,
+    arch: (url.searchParams.get('arch') || '').trim() || null,
+    channel: (url.searchParams.get('channel') || '').trim() || null,
+  };
+}
+
 function packageSkillArtifact(sourcePath: string): Buffer {
   const relative = sourcePath.trim();
   try {
@@ -118,6 +129,61 @@ const server = createJsonServer([
       storage: store.storageLabel,
       cache: cacheLabel,
     }),
+  },
+  {
+    method: 'GET',
+    path: '/desktop/update-hint',
+    handler: async ({url}: HandlerContext) => {
+      const request = resolveDesktopUpdateRequest(url);
+      if (!request.appVersion) {
+        throw new HttpError(400, 'BAD_REQUEST', 'current_version is required');
+      }
+      const hint = await resolveDesktopUpdateHintPayload(request);
+      return hint || {
+        latestVersion: request.appVersion,
+        updateAvailable: false,
+        mandatory: false,
+        manifestUrl: null,
+        artifactUrl: null,
+      };
+    },
+  },
+  {
+    method: 'GET',
+    path: '/desktop/update',
+    handler: async ({url}: HandlerContext) => {
+      const request = resolveDesktopUpdateRequest(url);
+      if (!request.appVersion) {
+        throw new HttpError(400, 'BAD_REQUEST', 'current_version is required');
+      }
+      const payload = await resolveDesktopUpdaterRoutePayload(request);
+      if (!payload) {
+        return createRawResponse('', {
+          statusCode: 204,
+          headers: {
+            'Cache-Control': 'no-store',
+          },
+        });
+      }
+      return createRawResponse(
+        JSON.stringify({
+          version: payload.version,
+          url: payload.url,
+          signature: payload.signature,
+          notes: payload.notes,
+          pub_date: payload.pubDate,
+          mandatory: payload.mandatory,
+          external_download_url: payload.externalDownloadUrl,
+        }),
+        {
+          statusCode: 200,
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Cache-Control': 'no-store',
+          },
+        },
+      );
+    },
   },
   {
     method: 'GET',

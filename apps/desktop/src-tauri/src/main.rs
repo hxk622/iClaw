@@ -23,12 +23,17 @@ use std::sync::Mutex;
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager, State};
+use tauri_plugin_updater::UpdaterExt;
 use zip::ZipArchive;
 
 use rfd::FileDialog;
 
 struct SidecarState {
     child: Mutex<Option<Child>>,
+}
+
+struct DesktopUpdateState {
+    pending: Mutex<Option<tauri_plugin_updater::Update>>,
 }
 
 const AUTH_SERVICE: &str = match option_env!("ICLAW_AUTH_SERVICE") {
@@ -38,6 +43,7 @@ const AUTH_SERVICE: &str = match option_env!("ICLAW_AUTH_SERVICE") {
 const AUTH_ACCESS_KEY: &str = "access_token";
 const AUTH_REFRESH_KEY: &str = "refresh_token";
 const AUTH_GATEWAY_TOKEN_KEY: &str = "gateway_token";
+const DESKTOP_UPDATER_PUBLIC_KEY: Option<&str> = option_env!("TAURI_UPDATER_PUBLIC_KEY");
 
 #[derive(Serialize, Deserialize, Clone)]
 struct RuntimeConfig {
@@ -82,6 +88,33 @@ struct RuntimeInstallReceipt {
     version: Option<String>,
     artifact_url: Option<String>,
     artifact_sha256: Option<String>,
+}
+
+#[derive(Serialize)]
+struct DesktopUpdateCheckResult {
+    supported: bool,
+    available: bool,
+    version: Option<String>,
+    notes: Option<String>,
+    pub_date: Option<String>,
+    mandatory: bool,
+    external_download_url: Option<String>,
+}
+
+#[derive(Serialize, Clone)]
+struct DesktopUpdateProgress {
+    phase: String,
+    progress: u8,
+    version: Option<String>,
+    downloaded_bytes: Option<u64>,
+    total_bytes: Option<u64>,
+    detail: String,
+}
+
+#[derive(Deserialize)]
+struct DesktopUpdateCommandInput {
+    auth_base_url: String,
+    channel: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -1342,6 +1375,76 @@ fn emit_runtime_install_progress(
         detail: String::from(detail),
     };
     let _ = app.emit("runtime-install-progress", payload);
+}
+
+fn desktop_update_pubkey() -> Option<String> {
+    if let Ok(value) = env::var("TAURI_UPDATER_PUBLIC_KEY") {
+        let trimmed = value.trim();
+        if !trimmed.is_empty() {
+            return Some(String::from(trimmed));
+        }
+    }
+    DESKTOP_UPDATER_PUBLIC_KEY
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(String::from)
+}
+
+fn normalize_desktop_update_channel(value: Option<String>) -> String {
+    let normalized = value.unwrap_or_else(|| String::from("prod"));
+    let trimmed = normalized.trim().to_lowercase();
+    if trimmed == "dev" {
+        String::from("dev")
+    } else {
+        String::from("prod")
+    }
+}
+
+fn desktop_update_endpoint(input: &DesktopUpdateCommandInput) -> Result<String, String> {
+    let base_url = input.auth_base_url.trim().trim_end_matches('/');
+    if base_url.is_empty() {
+        return Err(String::from("desktop updater auth base url is required"));
+    }
+    if !base_url.starts_with("https://") {
+        return Err(String::from("desktop updater requires an https auth base url"));
+    }
+    let channel = normalize_desktop_update_channel(input.channel.clone());
+    Ok(format!(
+        "{base_url}/desktop/update?current_version={{{{current_version}}}}&target={{{{target}}}}&arch={{{{arch}}}}&channel={channel}"
+    ))
+}
+
+fn parse_raw_update_flag(raw_json: &serde_json::Value, key: &str) -> bool {
+    raw_json.get(key).and_then(|value| value.as_bool()).unwrap_or(false)
+}
+
+fn parse_raw_update_string(raw_json: &serde_json::Value, key: &str) -> Option<String> {
+    raw_json
+        .get(key)
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(String::from)
+}
+
+fn emit_desktop_update_progress(
+    app: &AppHandle,
+    phase: &str,
+    progress: u8,
+    version: Option<String>,
+    downloaded_bytes: Option<u64>,
+    total_bytes: Option<u64>,
+    detail: &str,
+) {
+    let payload = DesktopUpdateProgress {
+        phase: String::from(phase),
+        progress,
+        version,
+        downloaded_bytes,
+        total_bytes,
+        detail: String::from(detail),
+    };
+    let _ = app.emit("desktop-update-progress", payload);
 }
 
 fn map_download_progress(completed: u64, total: u64) -> u8 {
@@ -2610,11 +2713,164 @@ fn save_iclaw_workspace_section(
     Ok(true)
 }
 
+#[tauri::command]
+async fn check_desktop_update(
+    app: AppHandle,
+    state: State<'_, DesktopUpdateState>,
+    input: DesktopUpdateCommandInput,
+) -> Result<DesktopUpdateCheckResult, String> {
+    let Some(pubkey) = desktop_update_pubkey() else {
+        return Ok(DesktopUpdateCheckResult {
+            supported: false,
+            available: false,
+            version: None,
+            notes: None,
+            pub_date: None,
+            mandatory: false,
+            external_download_url: None,
+        });
+    };
+
+    let endpoint = match desktop_update_endpoint(&input) {
+        Ok(value) => value,
+        Err(_) => {
+            return Ok(DesktopUpdateCheckResult {
+                supported: false,
+                available: false,
+                version: None,
+                notes: None,
+                pub_date: None,
+                mandatory: false,
+                external_download_url: None,
+            })
+        }
+    };
+
+    let updater = app
+        .updater_builder()
+        .endpoints(vec![endpoint])
+        .map_err(|e| format!("failed to configure desktop updater endpoint: {e}"))?
+        .pubkey(pubkey)
+        .build()
+        .map_err(|e| format!("failed to build desktop updater: {e}"))?;
+
+    let update = updater
+        .check()
+        .await
+        .map_err(|e| format!("failed to check desktop update: {e}"))?;
+
+    let mut pending = state.pending.lock().map_err(|_| String::from("failed to lock desktop update state"))?;
+    if let Some(update) = update {
+        let raw_json = update.raw_json.clone();
+        let result = DesktopUpdateCheckResult {
+            supported: true,
+            available: true,
+            version: Some(update.version.clone()),
+            notes: update.body.clone(),
+            pub_date: update.date.map(|value| value.to_string()),
+            mandatory: parse_raw_update_flag(&raw_json, "mandatory"),
+            external_download_url: parse_raw_update_string(&raw_json, "external_download_url"),
+        };
+        *pending = Some(update);
+        Ok(result)
+    } else {
+        *pending = None;
+        Ok(DesktopUpdateCheckResult {
+            supported: true,
+            available: false,
+            version: None,
+            notes: None,
+            pub_date: None,
+            mandatory: false,
+            external_download_url: None,
+        })
+    }
+}
+
+#[tauri::command]
+async fn download_and_install_desktop_update(
+    app: AppHandle,
+    state: State<'_, DesktopUpdateState>,
+) -> Result<bool, String> {
+    let update = {
+        let mut pending = state.pending.lock().map_err(|_| String::from("failed to lock desktop update state"))?;
+        pending
+            .take()
+            .ok_or_else(|| String::from("no pending desktop update is available"))?
+    };
+    let version = Some(update.version.clone());
+
+    emit_desktop_update_progress(
+        &app,
+        "download-started",
+        4,
+        version.clone(),
+        Some(0),
+        None,
+        "正在下载新版本。",
+    );
+
+    update
+        .download_and_install(
+            |downloaded, total| {
+                let progress = if total > 0 {
+                    let ratio = (downloaded as f64 / total as f64).clamp(0.0, 1.0);
+                    (6.0 + ratio * 82.0).round() as u8
+                } else {
+                    12
+                };
+                emit_desktop_update_progress(
+                    &app,
+                    "downloading",
+                    progress,
+                    version.clone(),
+                    Some(downloaded),
+                    if total > 0 { Some(total) } else { None },
+                    "正在下载更新包。",
+                );
+            },
+            || {
+                emit_desktop_update_progress(
+                    &app,
+                    "installing",
+                    94,
+                    version.clone(),
+                    None,
+                    None,
+                    "更新包已下载完成，正在安装。",
+                );
+            },
+        )
+        .await
+        .map_err(|e| format!("failed to download and install desktop update: {e}"))?;
+
+    emit_desktop_update_progress(
+        &app,
+        "ready-to-restart",
+        100,
+        version,
+        None,
+        None,
+        "更新已安装，重启应用后生效。",
+    );
+
+    Ok(true)
+}
+
+#[tauri::command]
+fn restart_desktop_app(app: AppHandle) {
+    app.restart();
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(SidecarState {
             child: Mutex::new(None),
         })
+        .manage(DesktopUpdateState {
+            pending: Mutex::new(None),
+        })
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             start_sidecar,
             stop_sidecar,
@@ -2637,7 +2893,10 @@ fn main() {
             reset_iclaw_workspace_to_defaults,
             apply_iclaw_workspace_backup,
             save_iclaw_settings_and_apply,
-            save_iclaw_workspace_section
+            save_iclaw_workspace_section,
+            check_desktop_update,
+            download_and_install_desktop_update,
+            restart_desktop_app
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

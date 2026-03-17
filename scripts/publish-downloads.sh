@@ -89,6 +89,7 @@ if [[ "$ENV_NAME" == "dev" ]]; then
   mc mb --ignore-existing "$ICLAW_MINIO_DEV_ALIAS/$ICLAW_MINIO_DEV_BUCKET"
   shopt -s nullglob
   dev_files=("$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_dev.dmg)
+  dev_updater_files=("$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_dev.app.tar.gz "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_dev.app.tar.gz.sig)
   shopt -u nullglob
   if [[ ${#dev_files[@]} -eq 0 ]]; then
     echo "No dev DMGs found for brand artifact prefix: $ARTIFACT_BASE_NAME" >&2
@@ -101,7 +102,7 @@ if [[ "$ENV_NAME" == "dev" ]]; then
     echo "No dev desktop release manifests found under: $RELEASE_DIR" >&2
     exit 1
   fi
-  mc cp "${dev_files[@]}" "${dev_manifests[@]}" "$ICLAW_MINIO_DEV_ALIAS/$ICLAW_MINIO_DEV_BUCKET/"
+  mc cp "${dev_files[@]}" "${dev_updater_files[@]}" "${dev_manifests[@]}" "$ICLAW_MINIO_DEV_ALIAS/$ICLAW_MINIO_DEV_BUCKET/"
   mc anonymous set download "$ICLAW_MINIO_DEV_ALIAS/$ICLAW_MINIO_DEV_BUCKET"
 
   for arch in aarch64 x64; do
@@ -118,6 +119,7 @@ elif [[ "$ENV_NAME" == "prod" ]]; then
   mc mb --ignore-existing "$ICLAW_MINIO_PROD_ALIAS/$ICLAW_MINIO_PROD_BUCKET"
   shopt -s nullglob
   prod_files=("$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.dmg)
+  prod_updater_files=("$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.app.tar.gz "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.app.tar.gz.sig)
   shopt -u nullglob
   if [[ ${#prod_files[@]} -eq 0 ]]; then
     echo "No prod DMGs found for brand artifact prefix: $ARTIFACT_BASE_NAME" >&2
@@ -130,7 +132,7 @@ elif [[ "$ENV_NAME" == "prod" ]]; then
     echo "No prod desktop release manifests found under: $RELEASE_DIR" >&2
     exit 1
   fi
-  mc cp "${prod_files[@]}" "${prod_manifests[@]}" "$ICLAW_MINIO_PROD_ALIAS/$ICLAW_MINIO_PROD_BUCKET/"
+  mc cp "${prod_files[@]}" "${prod_updater_files[@]}" "${prod_manifests[@]}" "$ICLAW_MINIO_PROD_ALIAS/$ICLAW_MINIO_PROD_BUCKET/"
   mc anonymous set download "$ICLAW_MINIO_PROD_ALIAS/$ICLAW_MINIO_PROD_BUCKET"
 
   for arch in aarch64 x64; do

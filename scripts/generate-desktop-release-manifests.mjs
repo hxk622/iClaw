@@ -49,6 +49,21 @@ function buildArtifactUrl(publicBaseUrl, fileName) {
   return `${publicBaseUrl}/${encodeURIComponent(fileName)}`;
 }
 
+function findUpdaterArtifacts(params) {
+  const { artifactBaseName, releaseVersion, arch, channel, files, publicBaseUrl, releaseDir } = params;
+  const archiveName = `${artifactBaseName}_${releaseVersion}_${arch}_${channel}.app.tar.gz`;
+  const signatureName = `${archiveName}.sig`;
+  if (!files.includes(archiveName) || !files.includes(signatureName)) {
+    return null;
+  }
+
+  return {
+    archiveName,
+    signaturePath: path.join(releaseDir, signatureName),
+    url: buildArtifactUrl(publicBaseUrl, archiveName),
+  };
+}
+
 function parseArgs(argv) {
   let brandId = resolveBrandId();
   let channel = '';
@@ -146,6 +161,18 @@ async function collectEntries(params) {
     const filePath = path.join(releaseDir, latest.fileName);
     const stats = await fs.stat(filePath);
     const sha256 = await sha256File(filePath);
+    const updaterArtifacts = findUpdaterArtifacts({
+      artifactBaseName,
+      releaseVersion: latest.releaseVersion,
+      arch: target.arch,
+      channel,
+      files,
+      publicBaseUrl,
+      releaseDir,
+    });
+    const updaterSignature = updaterArtifacts
+      ? trimString(await fs.readFile(updaterArtifacts.signaturePath, 'utf8'))
+      : '';
 
     entries.push({
       platform: target.platform,
@@ -159,6 +186,14 @@ async function collectEntries(params) {
       artifact_size: stats.size,
       artifact_sha256: sha256,
       published_at: stats.mtime.toISOString(),
+      updater:
+        updaterArtifacts?.url && updaterSignature
+          ? {
+              url: updaterArtifacts.url,
+              signature: updaterSignature,
+              pub_date: stats.mtime.toISOString(),
+            }
+          : null,
     });
   }
 

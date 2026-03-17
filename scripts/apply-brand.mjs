@@ -166,6 +166,7 @@ async function main() {
     tauriConfig.app.windows[0].title = brand.productName;
   }
   tauriConfig.bundle = tauriConfig.bundle || {};
+  tauriConfig.bundle.createUpdaterArtifacts = Boolean((process.env.TAURI_SIGNING_PRIVATE_KEY || '').trim());
   tauriConfig.bundle.icon = [
     'icons-generated/32x32.png',
     'icons-generated/128x128.png',

@@ -22,6 +22,13 @@ export interface DesktopUpdateHint {
   artifactUrl?: string | null;
 }
 
+export interface DesktopUpdateHintInput {
+  appVersion?: string;
+  channel?: 'dev' | 'prod';
+  platform?: string;
+  arch?: string;
+}
+
 export interface StreamCallbacks {
   onStart?: (payload: unknown) => void;
   onDelta?: (text: string, payload: unknown) => void;
@@ -591,6 +598,30 @@ export class IClawClient {
       });
     }
     return res.json();
+  }
+
+  async getDesktopUpdateHint(input: DesktopUpdateHintInput = {}): Promise<DesktopUpdateHint> {
+    const params = new URLSearchParams();
+    const appVersion = input.appVersion?.trim() || this.desktopAppVersion;
+    const channel = input.channel || this.desktopReleaseChannel;
+    if (!appVersion) {
+      throw new ApiError({
+        code: 'BAD_REQUEST',
+        message: 'desktop app version is required',
+      });
+    }
+    params.set('current_version', appVersion);
+    if (channel) params.set('channel', channel);
+    if (input.platform?.trim()) params.set('target', input.platform.trim());
+    if (input.arch?.trim()) params.set('arch', input.arch.trim());
+
+    const res = await this.fetchAuth(`/desktop/update-hint?${params.toString()}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as { data: DesktopUpdateHint };
+    return json.data;
   }
 
   async login(input: LoginInput): Promise<{ tokens: AuthTokens; user: unknown }> {
