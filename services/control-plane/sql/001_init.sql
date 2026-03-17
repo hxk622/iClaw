@@ -269,6 +269,71 @@ insert into skill_catalog_entries (
     true
   ),
   (
+    'a-share-low-valuation',
+    'A股低估值股票筛选',
+    '扫描A股低估值机会，筛选基本面稳健但被市场低估的公司。',
+    'showcase',
+    'A股',
+    'research',
+    '扫描器',
+    'iClaw',
+    'cloud',
+    '["A股","低估值","价值投资"]'::jsonb,
+    true
+  ),
+  (
+    'a-share-insider',
+    'A股内部交易分析',
+    '分析董监高与重要股东增减持行为，识别管理层信心信号与潜在机会。',
+    'showcase',
+    'A股',
+    'research',
+    '分析师',
+    'iClaw',
+    'cloud',
+    '["A股","内部人交易","管理层"]'::jsonb,
+    true
+  ),
+  (
+    'a-share-small-cap-growth',
+    'A股小盘成长股筛选',
+    '识别A股被忽视的小市值高成长公司，适合寻找高弹性成长机会。',
+    'showcase',
+    'A股',
+    'research',
+    '扫描器',
+    'iClaw',
+    'cloud',
+    '["A股","小盘成长","高增长"]'::jsonb,
+    true
+  ),
+  (
+    'a-share-tech-valuation',
+    'A股科技股估值分析',
+    '对比分析A股科技公司的估值泡沫与基本面，识别高估与低估标的。',
+    'showcase',
+    'A股',
+    'research',
+    '分析师',
+    'iClaw',
+    'cloud',
+    '["A股","科技估值","估值"]'::jsonb,
+    true
+  ),
+  (
+    'a-share-dividend',
+    'A股高股息策略分析',
+    '评估A股高股息与红利策略的收益可持续性、分红质量与长期回报。',
+    'showcase',
+    'A股',
+    'portfolio',
+    '分析师',
+    'iClaw',
+    'cloud',
+    '["A股","红利","股息"]'::jsonb,
+    true
+  ),
+  (
     'us-esg',
     '美股ESG筛选分析',
     '从ESG角度筛选美股公司，评估可持续发展实践、争议风险与治理质量。',
@@ -319,6 +384,71 @@ insert into skill_catalog_entries (
     'cloud',
     '["美股","数据","工具包"]'::jsonb,
     true
+  ),
+  (
+    'us-low-valuation',
+    '美股低估值股票筛选',
+    '筛选基本面扎实但估值偏低的美股公司，适合价值投资与安全边际场景。',
+    'showcase',
+    '美股',
+    'research',
+    '扫描器',
+    'iClaw',
+    'cloud',
+    '["美股","低估值","价值投资"]'::jsonb,
+    true
+  ),
+  (
+    'us-insider',
+    '美股内部人交易分析',
+    '分析内部人交易模式与表格披露，识别管理层增持与看涨信号。',
+    'showcase',
+    '美股',
+    'research',
+    '分析师',
+    'iClaw',
+    'cloud',
+    '["美股","内部人交易","管理层"]'::jsonb,
+    true
+  ),
+  (
+    'us-small-cap-growth',
+    '美股小盘成长股筛选',
+    '筛选小市值高成长、机构覆盖少但基本面强劲的美股成长机会。',
+    'showcase',
+    '美股',
+    'research',
+    '扫描器',
+    'iClaw',
+    'cloud',
+    '["美股","小盘成长","高增长"]'::jsonb,
+    true
+  ),
+  (
+    'us-tech-valuation',
+    '美股科技股估值分析',
+    '对比头部科技公司增长与估值，区分合理定价与高估泡沫。',
+    'showcase',
+    '美股',
+    'research',
+    '分析师',
+    'iClaw',
+    'cloud',
+    '["美股","科技估值","估值"]'::jsonb,
+    true
+  ),
+  (
+    'us-dividend-aristocrats',
+    '美股股息贵族分析',
+    '分析连续提高分红的美股公司，评估股息可持续性与长期总回报。',
+    'showcase',
+    '美股',
+    'portfolio',
+    '分析师',
+    'iClaw',
+    'cloud',
+    '["美股","股息","红利"]'::jsonb,
+    true
   )
 on conflict (slug) do nothing;
 
@@ -336,11 +466,26 @@ insert into skill_releases (
   ('a-share-factor-screener', '1.0.0', 'tar.gz', null, null, 'A股量化因子筛选器', 'published', now()),
   ('a-share-industry-rotation', '1.0.0', 'tar.gz', null, null, 'A股行业轮动探测器', 'published', now()),
   ('a-share-data-toolkit', '1.0.0', 'tar.gz', null, null, 'A股数据工具包', 'published', now()),
+  ('a-share-low-valuation', '1.0.0', 'tar.gz', null, null, 'A股低估值股票筛选器', 'published', now()),
+  ('a-share-insider', '1.0.0', 'tar.gz', null, null, 'A股内部交易分析师', 'published', now()),
+  ('a-share-small-cap-growth', '1.0.0', 'tar.gz', null, null, 'A股小盘成长股识别器', 'published', now()),
+  ('a-share-tech-valuation', '1.0.0', 'tar.gz', null, null, 'A股科技股估值分析师', 'published', now()),
+  ('a-share-dividend', '1.0.0', 'tar.gz', null, null, 'A股高股息策略分析器', 'published', now()),
   ('us-esg', '1.0.0', 'tar.gz', null, null, '美股ESG筛选器', 'published', now()),
   ('us-factor-screener', '1.0.0', 'tar.gz', null, null, '美股量化因子扫描器', 'published', now()),
   ('us-industry-rotation', '1.0.0', 'tar.gz', null, null, '美股行业轮动探测器', 'published', now()),
-  ('us-data-toolkit', '1.0.0', 'tar.gz', null, null, '美股数据工具包', 'published', now())
+  ('us-data-toolkit', '1.0.0', 'tar.gz', null, null, '美股数据工具包', 'published', now()),
+  ('us-low-valuation', '1.0.0', 'tar.gz', null, null, '美股低估值股票扫描器', 'published', now()),
+  ('us-insider', '1.0.0', 'tar.gz', null, null, '美股内部交易分析师', 'published', now()),
+  ('us-small-cap-growth', '1.0.0', 'tar.gz', null, null, '美股小盘成长股扫描器', 'published', now()),
+  ('us-tech-valuation', '1.0.0', 'tar.gz', null, null, '美股科技股估值分析师', 'published', now()),
+  ('us-dividend-aristocrats', '1.0.0', 'tar.gz', null, null, '美股高股息策略分析器', 'published', now())
 on conflict (skill_slug, version) do nothing;
+
+update skill_catalog_entries
+set active = false,
+    updated_at = now()
+where slug in ('github', 'gog', 'ontology', 'skill-vetter', 'summarize');
 
 create index if not exists idx_device_sessions_user_id on device_sessions(user_id);
 create index if not exists idx_access_tokens_user_id on access_tokens(user_id);

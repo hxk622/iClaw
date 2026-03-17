@@ -109,6 +109,7 @@ type SyncDecision =
 const CLAWHUB_API_BASE = 'https://wry-manatee-359.convex.site/api/v1';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const skillsRoot = path.resolve(repoRoot, 'skills');
+const BLOCKED_CLOUD_SKILL_SLUGS = new Set(['github', 'gog', 'ontology', 'skill-vetter', 'summarize']);
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -328,6 +329,10 @@ function classifySkill(
 
   if (!slug || !name || !description || !latestVersion?.version) {
     return {kind: 'skip', slug: slug || 'unknown', reason: 'missing required fields'};
+  }
+
+  if (BLOCKED_CLOUD_SKILL_SLUGS.has(slug)) {
+    return {kind: 'skip', slug, reason: 'blocked by curated catalog policy'};
   }
 
   if (bundledBySlug.has(slug) || bundledByName.has(normalizeName(name))) {
