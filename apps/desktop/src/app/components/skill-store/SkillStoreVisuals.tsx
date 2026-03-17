@@ -28,19 +28,36 @@ type VisualDescriptor = {
 
 const TAG_TONE_CLASSES = {
   brand:
-    'border-[rgba(201,169,97,0.18)] bg-[rgba(201,169,97,0.10)] text-[rgb(163,116,29)] dark:border-[rgba(201,169,97,0.22)] dark:bg-[rgba(201,169,97,0.14)] dark:text-[#efd69d]',
+    'border-[rgba(201,169,97,0.26)] bg-[linear-gradient(180deg,rgba(255,244,214,0.96),rgba(248,232,181,0.84))] text-[rgb(148,103,18)] shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] dark:border-[rgba(201,169,97,0.28)] dark:bg-[linear-gradient(180deg,rgba(78,59,16,0.92),rgba(52,38,12,0.90))] dark:text-[#f3d99d]',
   emerald:
-    'border-[rgba(34,197,94,0.16)] bg-[rgba(34,197,94,0.10)] text-[rgb(22,128,61)] dark:border-[rgba(111,221,149,0.20)] dark:bg-[rgba(34,197,94,0.18)] dark:text-[#c7f9d7]',
+    'border-[rgba(34,197,94,0.24)] bg-[linear-gradient(180deg,rgba(226,250,235,0.98),rgba(196,245,214,0.84))] text-[rgb(18,118,58)] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:border-[rgba(111,221,149,0.24)] dark:bg-[linear-gradient(180deg,rgba(19,77,45,0.94),rgba(15,55,33,0.90))] dark:text-[#c7f9d7]',
   sky:
-    'border-[rgba(56,189,248,0.16)] bg-[rgba(56,189,248,0.10)] text-[rgb(14,116,144)] dark:border-[rgba(125,211,252,0.20)] dark:bg-[rgba(56,189,248,0.18)] dark:text-[#b7e7ff]',
+    'border-[rgba(56,189,248,0.24)] bg-[linear-gradient(180deg,rgba(231,246,255,0.98),rgba(194,232,255,0.84))] text-[rgb(11,108,147)] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] dark:border-[rgba(125,211,252,0.24)] dark:bg-[linear-gradient(180deg,rgba(18,70,92,0.94),rgba(14,48,64,0.90))] dark:text-[#bfe9ff]',
   amber:
-    'border-[rgba(245,158,11,0.18)] bg-[rgba(245,158,11,0.10)] text-[rgb(180,100,24)] dark:border-[rgba(251,191,36,0.20)] dark:bg-[rgba(245,158,11,0.18)] dark:text-[#f8d48f]',
+    'border-[rgba(245,158,11,0.24)] bg-[linear-gradient(180deg,rgba(255,245,217,0.98),rgba(251,224,162,0.84))] text-[rgb(170,94,18)] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:border-[rgba(251,191,36,0.24)] dark:bg-[linear-gradient(180deg,rgba(86,52,12,0.94),rgba(58,34,10,0.90))] dark:text-[#f7d38f]',
   rose:
-    'border-[rgba(244,63,94,0.16)] bg-[rgba(244,63,94,0.10)] text-[rgb(190,24,93)] dark:border-[rgba(251,113,133,0.20)] dark:bg-[rgba(244,63,94,0.18)] dark:text-[#f6b6c9]',
+    'border-[rgba(244,63,94,0.24)] bg-[linear-gradient(180deg,rgba(255,236,241,0.98),rgba(255,205,219,0.84))] text-[rgb(182,22,87)] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] dark:border-[rgba(251,113,133,0.24)] dark:bg-[linear-gradient(180deg,rgba(90,24,45,0.94),rgba(58,18,31,0.90))] dark:text-[#f8bfd0]',
   violet:
-    'border-[rgba(139,92,246,0.16)] bg-[rgba(139,92,246,0.10)] text-[rgb(109,40,217)] dark:border-[rgba(167,139,250,0.20)] dark:bg-[rgba(139,92,246,0.18)] dark:text-[#d9c9ff]',
+    'border-[rgba(139,92,246,0.24)] bg-[linear-gradient(180deg,rgba(244,239,255,0.98),rgba(224,211,255,0.84))] text-[rgb(101,38,204)] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] dark:border-[rgba(167,139,250,0.24)] dark:bg-[linear-gradient(180deg,rgba(66,40,104,0.94),rgba(40,24,66,0.90))] dark:text-[#dccfff]',
   slate:
-    'border-[rgba(148,163,184,0.16)] bg-[rgba(148,163,184,0.10)] text-[rgb(71,85,105)] dark:border-[rgba(148,163,184,0.20)] dark:bg-[rgba(148,163,184,0.16)] dark:text-[#d7e2ef]',
+    'border-[rgba(148,163,184,0.22)] bg-[linear-gradient(180deg,rgba(246,249,252,0.98),rgba(227,234,242,0.84))] text-[rgb(71,85,105)] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] dark:border-[rgba(148,163,184,0.24)] dark:bg-[linear-gradient(180deg,rgba(55,62,72,0.94),rgba(34,39,46,0.90))] dark:text-[#dde6f0]',
+} as const;
+
+const TAG_SELECTED_CLASSES = {
+  brand:
+    'ring-2 ring-[rgba(201,169,97,0.30)] border-[rgba(201,169,97,0.44)] shadow-[0_10px_24px_rgba(201,169,97,0.20)] dark:ring-[rgba(201,169,97,0.34)] dark:border-[rgba(201,169,97,0.40)]',
+  emerald:
+    'ring-2 ring-[rgba(34,197,94,0.26)] border-[rgba(34,197,94,0.38)] shadow-[0_10px_24px_rgba(34,197,94,0.18)] dark:ring-[rgba(111,221,149,0.28)] dark:border-[rgba(111,221,149,0.30)]',
+  sky:
+    'ring-2 ring-[rgba(56,189,248,0.28)] border-[rgba(56,189,248,0.40)] shadow-[0_10px_24px_rgba(56,189,248,0.18)] dark:ring-[rgba(125,211,252,0.30)] dark:border-[rgba(125,211,252,0.32)]',
+  amber:
+    'ring-2 ring-[rgba(245,158,11,0.28)] border-[rgba(245,158,11,0.40)] shadow-[0_10px_24px_rgba(245,158,11,0.18)] dark:ring-[rgba(251,191,36,0.30)] dark:border-[rgba(251,191,36,0.32)]',
+  rose:
+    'ring-2 ring-[rgba(244,63,94,0.26)] border-[rgba(244,63,94,0.38)] shadow-[0_10px_24px_rgba(244,63,94,0.18)] dark:ring-[rgba(251,113,133,0.28)] dark:border-[rgba(251,113,133,0.30)]',
+  violet:
+    'ring-2 ring-[rgba(139,92,246,0.26)] border-[rgba(139,92,246,0.40)] shadow-[0_10px_24px_rgba(139,92,246,0.18)] dark:ring-[rgba(167,139,250,0.30)] dark:border-[rgba(167,139,250,0.32)]',
+  slate:
+    'ring-2 ring-[rgba(148,163,184,0.24)] border-[rgba(148,163,184,0.34)] shadow-[0_10px_24px_rgba(148,163,184,0.16)] dark:ring-[rgba(148,163,184,0.28)] dark:border-[rgba(148,163,184,0.30)]',
 } as const;
 
 const TONE_STYLES: Record<VisualTone, {wrap: string; glow: string; icon: string}> = {
@@ -179,8 +196,13 @@ function tagTone(tag: string): keyof typeof TAG_TONE_CLASSES {
   return tones[hash % tones.length];
 }
 
-export function skillTagClassName(tag: string): string {
-  return TAG_TONE_CLASSES[tagTone(tag)];
+export function skillTagClassName(tag: string, selected = false): string {
+  const tone = tagTone(tag);
+  return cn(
+    TAG_TONE_CLASSES[tone],
+    selected && 'translate-y-[-1px] text-[var(--text-primary)] dark:text-[var(--text-primary)]',
+    selected && TAG_SELECTED_CLASSES[tone],
+  );
 }
 
 export function SummaryGlyph({

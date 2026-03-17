@@ -290,7 +290,7 @@ function SkillCard({
         <div className="flex flex-wrap items-center gap-2">
           <Chip>{skill.categoryLabel}</Chip>
           {skill.tags.slice(0, compactFooter ? 1 : 2).map((tag) => (
-            <Chip key={tag} tone="outline" className={skillTagClassName(tag)}>
+            <Chip key={tag} tone="outline" className={cn('font-medium', skillTagClassName(tag))}>
               {tag}
             </Chip>
           ))}
@@ -905,12 +905,11 @@ export function SkillStoreView({
                       key={tag}
                       clickable
                       onClick={() => setActiveTag((current) => (current === tag ? null : tag))}
-                      active={active}
-                      tone={active ? 'brand' : 'outline'}
+                      tone="outline"
                       className={cn(
                         'whitespace-nowrap px-3 py-1.5 text-[12px] font-medium',
-                        skillTagClassName(tag),
-                        !active && 'hover:opacity-90',
+                        skillTagClassName(tag, active),
+                        !active && 'hover:-translate-y-[1px] hover:opacity-95',
                       )}
                     >
                       {tag}
