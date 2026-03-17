@@ -60,6 +60,23 @@ const TAG_SELECTED_CLASSES = {
     'ring-2 ring-[rgba(148,163,184,0.24)] border-[rgba(148,163,184,0.34)] shadow-[0_10px_24px_rgba(148,163,184,0.16)] dark:ring-[rgba(148,163,184,0.28)] dark:border-[rgba(148,163,184,0.30)]',
 } as const;
 
+const TAG_FLAT_CLASSES = {
+  brand:
+    'border-[rgba(201,169,97,0.18)] bg-[rgba(201,169,97,0.12)] text-[rgb(148,103,18)] shadow-none dark:border-[rgba(201,169,97,0.18)] dark:bg-[rgba(201,169,97,0.14)] dark:text-[#f3d99d]',
+  emerald:
+    'border-[rgba(34,197,94,0.18)] bg-[rgba(34,197,94,0.12)] text-[rgb(18,118,58)] shadow-none dark:border-[rgba(111,221,149,0.18)] dark:bg-[rgba(34,197,94,0.14)] dark:text-[#c7f9d7]',
+  sky:
+    'border-[rgba(56,189,248,0.18)] bg-[rgba(56,189,248,0.12)] text-[rgb(11,108,147)] shadow-none dark:border-[rgba(125,211,252,0.18)] dark:bg-[rgba(56,189,248,0.14)] dark:text-[#bfe9ff]',
+  amber:
+    'border-[rgba(245,158,11,0.18)] bg-[rgba(245,158,11,0.12)] text-[rgb(170,94,18)] shadow-none dark:border-[rgba(251,191,36,0.18)] dark:bg-[rgba(245,158,11,0.14)] dark:text-[#f7d38f]',
+  rose:
+    'border-[rgba(244,63,94,0.18)] bg-[rgba(244,63,94,0.12)] text-[rgb(182,22,87)] shadow-none dark:border-[rgba(251,113,133,0.18)] dark:bg-[rgba(244,63,94,0.14)] dark:text-[#f8bfd0]',
+  violet:
+    'border-[rgba(139,92,246,0.18)] bg-[rgba(139,92,246,0.12)] text-[rgb(101,38,204)] shadow-none dark:border-[rgba(167,139,250,0.18)] dark:bg-[rgba(139,92,246,0.14)] dark:text-[#dccfff]',
+  slate:
+    'border-[rgba(148,163,184,0.18)] bg-[rgba(148,163,184,0.12)] text-[rgb(71,85,105)] shadow-none dark:border-[rgba(148,163,184,0.18)] dark:bg-[rgba(148,163,184,0.14)] dark:text-[#dde6f0]',
+} as const;
+
 const TONE_STYLES: Record<VisualTone, {wrap: string; glow: string; icon: string}> = {
   brand: {
     wrap: 'border-[rgba(201,169,97,0.24)] bg-[linear-gradient(180deg,rgba(244,234,206,0.9),rgba(255,255,255,0.82))] dark:border-[rgba(201,169,97,0.22)] dark:bg-[linear-gradient(180deg,rgba(60,48,20,0.96),rgba(33,27,16,0.92))]',
@@ -196,10 +213,15 @@ function tagTone(tag: string): keyof typeof TAG_TONE_CLASSES {
   return tones[hash % tones.length];
 }
 
-export function skillTagClassName(tag: string, selected = false): string {
+export function skillTagClassName(
+  tag: string,
+  options?: {selected?: boolean; flat?: boolean},
+): string {
   const tone = tagTone(tag);
+  const selected = options?.selected ?? false;
+  const flat = options?.flat ?? false;
   return cn(
-    TAG_TONE_CLASSES[tone],
+    flat ? TAG_FLAT_CLASSES[tone] : TAG_TONE_CLASSES[tone],
     selected && 'translate-y-[-1px] text-[var(--text-primary)] dark:text-[var(--text-primary)]',
     selected && TAG_SELECTED_CLASSES[tone],
   );

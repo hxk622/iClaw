@@ -908,8 +908,8 @@ export function SkillStoreView({
                       tone="outline"
                       className={cn(
                         'whitespace-nowrap px-3 py-1.5 text-[12px] font-medium',
-                        skillTagClassName(tag, active),
-                        !active && 'hover:-translate-y-[1px] hover:opacity-95',
+                        skillTagClassName(tag, { selected: active, flat: true }),
+                        !active && 'hover:opacity-95',
                       )}
                     >
                       {tag}
