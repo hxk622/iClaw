@@ -7,7 +7,7 @@ use flate2::Compression;
 use keyring::Entry;
 use rand::rngs::OsRng;
 use rand::RngCore;
-use reqwest::blocking::Client;
+use reqwest::{blocking::Client, Url};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -2748,7 +2748,9 @@ async fn check_desktop_update(
 
     let updater = app
         .updater_builder()
-        .endpoints(vec![endpoint])
+        .endpoints(vec![Url::parse(&endpoint).map_err(|e| {
+            format!("failed to parse desktop updater endpoint: {e}")
+        })?])
         .map_err(|e| format!("failed to configure desktop updater endpoint: {e}"))?
         .pubkey(pubkey)
         .build()
@@ -2813,7 +2815,8 @@ async fn download_and_install_desktop_update(
     update
         .download_and_install(
             |downloaded, total| {
-                let progress = if total > 0 {
+                let downloaded = downloaded as u64;
+                let progress = if let Some(total) = total.filter(|value| *value > 0) {
                     let ratio = (downloaded as f64 / total as f64).clamp(0.0, 1.0);
                     (6.0 + ratio * 82.0).round() as u8
                 } else {
@@ -2825,7 +2828,7 @@ async fn download_and_install_desktop_update(
                     progress,
                     version.clone(),
                     Some(downloaded),
-                    if total > 0 { Some(total) } else { None },
+                    total.filter(|value| *value > 0),
                     "正在下载更新包。",
                 );
             },
