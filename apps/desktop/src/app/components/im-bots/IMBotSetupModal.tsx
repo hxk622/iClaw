@@ -171,8 +171,8 @@ export function IMBotSetupModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(9,14,23,0.34)] px-6 py-6 backdrop-blur-[3px]">
-      <div className="relative flex h-full max-h-[860px] w-full max-w-[1040px] flex-col overflow-hidden rounded-[32px] border border-[rgba(15,23,42,0.08)] bg-[var(--bg-page)] shadow-[0_30px_90px_rgba(15,23,42,0.18)] dark:border-[rgba(255,255,255,0.08)] dark:shadow-[0_32px_100px_rgba(0,0,0,0.45)]">
-        <div className="border-b border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(248,248,246,0.84))] px-8 py-6 dark:bg-[linear-gradient(180deg,rgba(28,28,28,0.96),rgba(18,18,18,0.94))]">
+      <div className="relative flex h-full max-h-[820px] w-full max-w-[1024px] flex-col overflow-hidden rounded-[30px] border border-[rgba(15,23,42,0.08)] bg-[var(--bg-page)] shadow-[0_30px_90px_rgba(15,23,42,0.18)] dark:border-[rgba(255,255,255,0.08)] dark:shadow-[0_32px_100px_rgba(0,0,0,0.45)]">
+        <div className="border-b border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(248,248,246,0.84))] px-7 py-5 dark:bg-[linear-gradient(180deg,rgba(28,28,28,0.96),rgba(18,18,18,0.94))]">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-4">
               <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-[20px] border border-[var(--border-default)] bg-white shadow-[0_10px_24px_rgba(15,23,42,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
@@ -183,10 +183,10 @@ export function IMBotSetupModal({
                 />
               </div>
               <div>
-                <div className="text-[24px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">
+                <div className="text-[23px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">
                   接入{platform.label}机器人
                 </div>
-                <p className="mt-2 max-w-[620px] text-[14px] leading-7 text-[var(--text-secondary)]">
+                <p className="mt-2 max-w-[620px] text-[13px] leading-6 text-[var(--text-secondary)]">
                   按步骤完成 {platform.label} 应用配置，并将其连接到 OpenClaw。整个接入流程都在这个模态窗内完成，不离开当前页面。
                 </p>
               </div>
@@ -206,7 +206,7 @@ export function IMBotSetupModal({
             </button>
           </div>
 
-          <div className="mt-6 flex items-center justify-between gap-2">
+          <div className="mt-5 flex items-center justify-between gap-2">
             {stepLabels.map((item, index) => (
               <div key={item.step} className="flex flex-1 items-center gap-2">
                 <div className="flex flex-col items-center">
@@ -244,17 +244,17 @@ export function IMBotSetupModal({
           </div>
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_280px]">
-          <div className="min-h-0 overflow-y-auto px-8 py-8">
+        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_270px]">
+          <div className="min-h-0 overflow-y-auto px-7 py-6">
             {currentStep === 1 ? (
-              <div className="space-y-6">
+              <div className="space-y-5">
                 <div>
                   <div className="text-[20px] font-semibold text-[var(--text-primary)]">先在{platform.label}开放平台创建应用</div>
-                  <p className="mt-2 text-[14px] leading-7 text-[var(--text-secondary)]">
+                  <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
                     当前平台建议按官方标准应用方式接入。你先完成开放平台侧的应用创建，再回到这里继续填写凭据。
                   </p>
                 </div>
-                <div className="rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)]">
+                <div className="rounded-[22px] border border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)]">
                   <div className="text-[13px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">配置步骤</div>
                   <div className="mt-4 space-y-3">
                     {platform.introSteps.map((step, index) => (
@@ -266,24 +266,30 @@ export function IMBotSetupModal({
                       </div>
                     ))}
                   </div>
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-medium text-[var(--text-primary)]">需要先去官方后台完成创建</div>
+                      <div className="mt-1 text-[12px] leading-6 text-[var(--text-secondary)]">
+                        iClaw 不代替第三方应用创建。这一步会在浏览器中打开{platform.label}官方平台。
+                      </div>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      leadingIcon={<ExternalLink className="h-4 w-4" />}
+                      onClick={() => window.open(platform.guideUrl, '_blank', 'noopener,noreferrer')}
+                    >
+                      打开{platform.label}开放平台
+                    </Button>
+                  </div>
                 </div>
-                <div className="rounded-[24px] border border-[rgba(59,130,246,0.12)] bg-[rgba(59,130,246,0.06)] p-5 dark:bg-[rgba(59,130,246,0.10)]">
+                <div className="rounded-[22px] border border-[rgba(59,130,246,0.12)] bg-[rgba(59,130,246,0.06)] p-4 dark:bg-[rgba(59,130,246,0.10)]">
                   <div className="flex items-start gap-3">
                     <Sparkles className="mt-0.5 h-5 w-5 text-[var(--brand-primary)]" />
-                    <div className="text-[14px] leading-7 text-[var(--text-secondary)]">
+                    <div className="text-[13px] leading-6 text-[var(--text-secondary)]">
                       接入完成后，我们会把它作为一个独立的机器人实例管理。用户看到的是机器人名称，系统内部再映射到 OpenClaw 的账号配置。
                     </div>
                   </div>
-                </div>
-                <div>
-                  <Button
-                    variant="primary"
-                    size="md"
-                    leadingIcon={<ExternalLink className="h-4 w-4" />}
-                    onClick={() => window.open(platform.guideUrl, '_blank', 'noopener,noreferrer')}
-                  >
-                    前往{platform.label}开放平台
-                  </Button>
                 </div>
               </div>
             ) : null}
@@ -473,7 +479,7 @@ export function IMBotSetupModal({
             ) : null}
           </div>
 
-          <div className="border-l border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(247,247,244,0.92),rgba(244,244,241,0.98))] px-6 py-8 dark:bg-[linear-gradient(180deg,rgba(22,22,22,0.96),rgba(16,16,16,0.98))]">
+          <div className="border-l border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(247,247,244,0.92),rgba(244,244,241,0.98))] px-5 py-6 dark:bg-[linear-gradient(180deg,rgba(22,22,22,0.96),rgba(16,16,16,0.98))]">
             <div className="text-[13px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">本次接入你将完成</div>
             <div className="mt-4 space-y-3">
               {[
@@ -508,7 +514,7 @@ export function IMBotSetupModal({
           </div>
         </div>
 
-        <div className="flex items-center justify-between border-t border-[var(--border-default)] bg-[var(--bg-card)] px-8 py-5">
+        <div className="flex items-center justify-between border-t border-[var(--border-default)] bg-[var(--bg-card)] px-7 py-4">
           <div className="text-[13px] text-[var(--text-secondary)]">
             {currentStep < 5 ? `步骤 ${currentStep} / 5` : '接入已准备完成'}
           </div>
@@ -525,7 +531,7 @@ export function IMBotSetupModal({
                 (currentStep === 3 && testStatus !== 'success')
               }
             >
-              {currentStep === 5 ? '完成' : currentStep === 4 ? '保存并继续' : '下一步'}
+              {currentStep === 5 ? '完成' : currentStep === 4 ? '保存并继续' : currentStep === 1 ? '我已完成创建' : '下一步'}
             </Button>
           </div>
         </div>

@@ -718,12 +718,12 @@ export function IMBotsView({ client }: { client: IClawClient }) {
 
   return (
     <div className="flex flex-1 overflow-y-auto bg-[var(--bg-page)]">
-      <div className="mx-auto w-full max-w-[1440px] px-8 py-6">
-        <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="mx-auto w-full max-w-[1440px] px-7 py-5">
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">IM Robot Workspace</div>
-            <h1 className="mt-3 text-[32px] font-semibold tracking-[-0.05em] text-[var(--text-primary)]">IM机器人</h1>
-            <p className="mt-3 max-w-[760px] text-[14px] leading-7 text-[var(--text-secondary)]">
+            <h1 className="mt-2.5 text-[30px] font-semibold tracking-[-0.05em] text-[var(--text-primary)]">IM机器人</h1>
+            <p className="mt-2 max-w-[700px] text-[13px] leading-6 text-[var(--text-secondary)]">
               将 OpenClaw 接入企业常用办公 IM，并统一管理机器人状态。这个视图区现在不只是接入入口，也包含机器人详情、测试与默认助手绑定。
             </p>
           </div>
@@ -752,18 +752,18 @@ export function IMBotsView({ client }: { client: IClawClient }) {
           </div>
         </div>
 
-        <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {summaryCards.map((card) => (
             <SummaryCard key={card.label} {...card} />
           ))}
         </div>
 
-        <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_340px]">
-          <div className="space-y-4">
+        <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.78fr)_312px]">
+          <div className="space-y-3">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <div className="text-[22px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">已创建的机器人</div>
-                <p className="mt-2 text-[14px] leading-7 text-[var(--text-secondary)]">
+                <div className="text-[20px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">已创建的机器人</div>
+                <p className="mt-1.5 text-[13px] leading-6 text-[var(--text-secondary)]">
                   通常一屏就能看全所有机器人。点开详情后，可以继续做默认助手绑定、会话范围、测试和日志查看。
                 </p>
               </div>
@@ -797,7 +797,7 @@ export function IMBotsView({ client }: { client: IClawClient }) {
           />
         </div>
 
-        <div className="relative my-8">
+        <div className="relative my-6">
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t border-[var(--border-default)]" />
           </div>
@@ -811,14 +811,14 @@ export function IMBotsView({ client }: { client: IClawClient }) {
         <div>
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-[22px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">接入新的平台</div>
-              <p className="mt-2 text-[14px] leading-7 text-[var(--text-secondary)]">
+              <div className="text-[20px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">接入新的平台</div>
+              <p className="mt-1.5 text-[13px] leading-6 text-[var(--text-secondary)]">
                 点击任一平台卡片，直接弹出步骤式接入模态窗，在当前页面内完成整个流程。接入完成后，会自动进入机器人详情继续配置。
               </p>
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-2">
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {platformMetaList.map((platform) => (
               <PlatformCard
                 key={platform.id}
@@ -875,15 +875,15 @@ function SummaryCard({
   }[tone];
 
   return (
-    <PressableCard className="border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(246,247,244,0.90))] px-4 py-4 shadow-[0_18px_34px_rgba(15,23,42,0.06)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(28,28,28,0.96),rgba(18,18,18,0.94))] dark:shadow-[0_22px_38px_rgba(0,0,0,0.28)]">
+    <PressableCard className="border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(246,247,244,0.90))] px-4 py-3.5 shadow-[0_18px_34px_rgba(15,23,42,0.06)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(28,28,28,0.96),rgba(18,18,18,0.94))] dark:shadow-[0_22px_38px_rgba(0,0,0,0.28)]">
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="text-[12px] uppercase tracking-[0.12em] text-[var(--text-muted)]">{label}</div>
-          <div className="mt-2 text-[28px] font-semibold leading-none tracking-[-0.04em] text-[var(--text-primary)]">{value}</div>
-          <p className="mt-2 text-[12px] leading-6 text-[var(--text-secondary)]">{note}</p>
+          <div className="mt-1.5 text-[26px] font-semibold leading-none tracking-[-0.04em] text-[var(--text-primary)]">{value}</div>
+          <p className="mt-1.5 text-[12px] leading-5 text-[var(--text-secondary)]">{note}</p>
         </div>
-        <div className={cn('flex h-12 w-12 items-center justify-center rounded-[18px]', toneClassName)}>
-          <Icon className="h-5 w-5" />
+        <div className={cn('flex h-11 w-11 items-center justify-center rounded-[16px]', toneClassName)}>
+          <Icon className="h-4.5 w-4.5" />
         </div>
       </div>
     </PressableCard>
@@ -892,14 +892,14 @@ function SummaryCard({
 
 function EmptyBotState({ onCreate }: { onCreate: () => void }) {
   return (
-    <PressableCard className="border-dashed border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(255,255,255,0.84),rgba(247,247,244,0.88))] px-6 py-8 dark:bg-[linear-gradient(180deg,rgba(28,28,28,0.92),rgba(18,18,18,0.92))]">
-      <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+    <PressableCard className="border-dashed border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(255,255,255,0.84),rgba(247,247,244,0.88))] px-6 py-6 dark:bg-[linear-gradient(180deg,rgba(28,28,28,0.92),rgba(18,18,18,0.92))]">
+      <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
         <div className="max-w-[640px]">
-          <div className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-[rgba(59,130,246,0.10)] text-[var(--brand-primary)]">
-            <Bot className="h-7 w-7" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-[rgba(59,130,246,0.10)] text-[var(--brand-primary)]">
+            <Bot className="h-6 w-6" />
           </div>
-          <div className="mt-4 text-[24px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">还没有已创建的机器人</div>
-          <p className="mt-3 text-[14px] leading-7 text-[var(--text-secondary)]">
+          <div className="mt-3 text-[22px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">还没有已创建的机器人</div>
+          <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
             这里不再展示 mock 示例。完成任一平台接入后，新的机器人会真实出现在这个区域，并直接进入详情抽屉继续完成默认助手绑定与测试。
           </p>
         </div>
@@ -929,15 +929,15 @@ function ManagedBotCard({
   const healthMeta = getHealthMeta(bot.healthState);
 
   return (
-    <PressableCard className="border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,247,244,0.90))] px-5 py-4 shadow-[0_18px_34px_rgba(15,23,42,0.06)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(29,29,29,0.96),rgba(17,17,17,0.94))] dark:shadow-[0_22px_38px_rgba(0,0,0,0.30)]">
+    <PressableCard className="border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,247,244,0.90))] px-4 py-3.5 shadow-[0_18px_34px_rgba(15,23,42,0.06)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(29,29,29,0.96),rgba(17,17,17,0.94))] dark:shadow-[0_22px_38px_rgba(0,0,0,0.30)]">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-4">
-          <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[20px] border border-[var(--border-default)] bg-white shadow-[0_10px_24px_rgba(15,23,42,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
+          <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-[18px] border border-[var(--border-default)] bg-white shadow-[0_10px_24px_rgba(15,23,42,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
             <img src={meta.logo} alt={meta.label} className={cn('h-full w-full object-cover', meta.logoClassName)} />
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-[20px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">{bot.name}</h3>
+              <h3 className="text-[18px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">{bot.name}</h3>
               <Chip tone={healthMeta.chipTone} className="px-3 py-1 text-[12px] font-medium">
                 {healthMeta.label}
               </Chip>
@@ -945,10 +945,10 @@ function ManagedBotCard({
                 {formatBindingScope(bot.bindingScope)}
               </Chip>
             </div>
-            <p className="mt-2 text-[14px] leading-7 text-[var(--text-secondary)]">
+            <p className="mt-1.5 text-[13px] leading-6 text-[var(--text-secondary)]">
               {meta.label} · {bot.company} · 默认助手：{bot.assistant}
             </p>
-            <p className="mt-3 max-w-[720px] text-[14px] leading-7 text-[var(--text-secondary)]">{bot.healthSummary}</p>
+            <p className="mt-2 max-w-[720px] text-[13px] leading-6 text-[var(--text-secondary)]">{bot.healthSummary}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -975,7 +975,7 @@ function ManagedBotCard({
         </div>
       </div>
 
-      <div className="mt-5 grid gap-4 border-t border-[var(--border-default)] pt-5 md:grid-cols-4">
+      <div className="mt-4 grid gap-3 border-t border-[var(--border-default)] pt-4 md:grid-cols-4">
         <InfoItem label="最近活跃" value={bot.lastActive} icon={Clock3} />
         <InfoItem label="触发方式" value={bot.triggerMode} icon={Sparkles} />
         <InfoItem label="回复格式" value={bot.replyFormat} icon={MessageSquare} />
@@ -1027,12 +1027,12 @@ function ActivityPanel({
   ];
 
   return (
-    <PressableCard className="sticky top-6 overflow-hidden border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(246,247,244,0.92))] shadow-[0_18px_34px_rgba(15,23,42,0.06)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(28,28,28,0.96),rgba(18,18,18,0.94))] dark:shadow-[0_22px_38px_rgba(0,0,0,0.28)]">
-      <div className="border-b border-[var(--border-default)] px-5 py-4">
+    <PressableCard className="sticky top-5 overflow-hidden border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(246,247,244,0.92))] shadow-[0_18px_34px_rgba(15,23,42,0.06)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(28,28,28,0.96),rgba(18,18,18,0.94))] dark:shadow-[0_22px_38px_rgba(0,0,0,0.28)]">
+      <div className="border-b border-[var(--border-default)] px-4 py-3.5">
         <div className="text-[15px] font-semibold text-[var(--text-primary)]">机器人活动面板</div>
-        <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">这里聚焦真实的待处理项、连接健康和最近审计日志，不再堆示例消息。</p>
+        <p className="mt-1.5 text-[12px] leading-5 text-[var(--text-secondary)]">这里聚焦真实的待处理项、连接健康和最近审计日志。</p>
       </div>
-      <div className="p-5">
+      <div className="p-4">
         <div className="flex items-center gap-2 rounded-[16px] bg-[var(--bg-hover)] p-1">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -1058,7 +1058,7 @@ function ActivityPanel({
           })}
         </div>
 
-        <div className="mt-4 space-y-3">
+        <div className="mt-3 space-y-2.5">
           {activeTab === 'todo'
             ? todoItems.length > 0
               ? todoItems.map((item) => (
@@ -1181,15 +1181,15 @@ function PlatformCard({
   onClick: () => void;
 }) {
   return (
-    <PressableCard interactive onClick={onClick} className="border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,247,244,0.92))] px-5 py-4 shadow-[0_18px_34px_rgba(15,23,42,0.06)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(29,29,29,0.96),rgba(17,17,17,0.94))] dark:shadow-[0_22px_38px_rgba(0,0,0,0.30)]">
+    <PressableCard interactive onClick={onClick} className="border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,247,244,0.92))] px-4 py-3.5 shadow-[0_18px_34px_rgba(15,23,42,0.06)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(29,29,29,0.96),rgba(17,17,17,0.94))] dark:shadow-[0_22px_38px_rgba(0,0,0,0.30)]">
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[18px] border border-[var(--border-default)] bg-white shadow-[0_10px_24px_rgba(15,23,42,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[16px] border border-[var(--border-default)] bg-white shadow-[0_10px_24px_rgba(15,23,42,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
             <img src={platform.logo} alt={platform.label} className={cn('h-full w-full object-cover', platform.logoClassName)} />
           </div>
           <div className="min-w-0">
-            <div className="text-[19px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">{platform.label}</div>
-            <p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">{platform.intro}</p>
+            <div className="text-[17px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">{platform.label}</div>
+            <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">{platform.intro}</p>
           </div>
         </div>
         {configured ? (
@@ -1198,19 +1198,19 @@ function PlatformCard({
           </span>
         ) : null}
       </div>
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-3 flex flex-wrap gap-1.5">
         {platform.capabilities.map((item) => (
-          <Chip key={item} tone="outline" className="px-3 py-1.5 text-[11px]">
+          <Chip key={item} tone="outline" className="px-2.5 py-1 text-[11px]">
             {item}
           </Chip>
         ))}
       </div>
-      <div className="mt-4 grid grid-cols-3 gap-3 text-[12px]">
+      <div className="mt-3 grid grid-cols-3 gap-2.5 text-[12px]">
         <MetaPill label="接入难度" value={platform.difficulty} />
         <MetaPill label="预计耗时" value={platform.eta} />
         <MetaPill label="管理员权限" value={platform.admin} />
       </div>
-      <div className="mt-4">
+      <div className="mt-3">
         <Button variant={configured ? 'secondary' : 'primary'} size="sm" block leadingIcon={<Link2 className="h-4 w-4" />}>
           {configured ? '继续完善配置' : '开始接入'}
         </Button>
