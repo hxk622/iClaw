@@ -12,6 +12,15 @@
         "ALPACA_PAPER": "true"
       }
     },
+    "alphavantage": {
+      "enabled": true,
+      "command": "uvx",
+      "args": ["av-mcp", "HA0U7PHO7KC3O8BK"],
+      "env": {
+        "UV_NATIVE_TLS": "true",
+        "UV_INDEX_URL": "https://mirrors.aliyun.com/pypi/simple/"
+      }
+    },
     "markitdown": {
       "enabled": true,
       "command": "uvx",
@@ -90,6 +99,16 @@
       "env": {
         "FINGPT_API_URL": "${FINGPT_API_URL}",
         "UV_NATIVE_TLS": "true"
+      }
+    },
+    "fred": {
+      "enabled": true,
+      "command": "uvx",
+      "args": ["fred-mcp"],
+      "env": {
+        "FRED_API_KEY": "d7c660fd367ce87971af725b83e10823",
+        "UV_NATIVE_TLS": "true",
+        "UV_INDEX_URL": "https://mirrors.aliyun.com/pypi/simple/"
       }
     }
   }
