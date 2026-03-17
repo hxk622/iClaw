@@ -18,6 +18,7 @@ import { OpenClawChatSurface } from './components/OpenClawChatSurface';
 import { OpenClawCronSurface } from './components/OpenClawCronSurface';
 import { Sidebar } from './components/Sidebar';
 import { DataConnectionsView } from './components/data-connections/DataConnectionsView';
+import { TaskCenterView } from './components/TaskCenterView';
 import { SkillStoreView } from './components/skill-store/SkillStoreView';
 import { IMBotsView } from './components/im-bots/IMBotsView';
 import { SettingsPanel } from './components/settings/SettingsPanel';
@@ -107,7 +108,7 @@ const AUTH_BOOTSTRAP_TIMEOUT_MS = 10_000;
 const DESKTOP_APP_VERSION = desktopPackageJson.version;
 const DESKTOP_RELEASE_CHANNEL: 'dev' | 'prod' = import.meta.env.DEV ? 'dev' : 'prod';
 const DISPLAY_DESKTOP_APP_VERSION = DESKTOP_APP_VERSION.split('+', 1)[0] || DESKTOP_APP_VERSION;
-type PrimaryView = 'chat' | 'skill-store' | 'cron' | 'im-bots' | 'data-connections';
+type PrimaryView = 'chat' | 'skill-store' | 'cron' | 'im-bots' | 'data-connections' | 'task-center';
 
 type InstallerViewState = 'loading' | 'error';
 
@@ -1070,6 +1071,7 @@ function AuthedView({
   desktopUpdateStatusMessage,
 }: AuthedViewProps) {
   const { buildSectionSaveSnapshot, commitSectionSave } = useSettings();
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!accessToken) {
@@ -1121,12 +1123,15 @@ function AuthedView({
       <Sidebar
         user={currentUser}
         activeView={primaryView}
+        selectedTaskId={selectedTaskId}
         authenticated={authenticated}
         onOpenChat={() => setPrimaryView('chat')}
         onOpenCron={() => setPrimaryView('cron')}
         onOpenSkillStore={() => setPrimaryView('skill-store')}
         onOpenDataConnections={() => setPrimaryView('data-connections')}
         onOpenImBots={() => setPrimaryView('im-bots')}
+        onOpenTasks={() => setPrimaryView('task-center')}
+        onSelectTask={setSelectedTaskId}
         onOpenAccount={() => {
           if (!authenticated) {
             onRequestAuth('login', 'account');
@@ -1159,6 +1164,12 @@ function AuthedView({
         />
       ) : primaryView === 'data-connections' ? (
         <DataConnectionsView />
+      ) : primaryView === 'task-center' ? (
+        <TaskCenterView
+          selectedTaskId={selectedTaskId}
+          onSelectTask={setSelectedTaskId}
+          onOpenChat={() => setPrimaryView('chat')}
+        />
       ) : primaryView === 'cron' ? (
         authenticated ? (
           <OpenClawCronSurface

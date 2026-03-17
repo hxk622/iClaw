@@ -8,6 +8,12 @@ import {
   type AppUserAvatarSource,
 } from '../lib/user-avatar';
 import {
+  inferRecentTaskArtifactsFromText,
+  markRecentTaskCompleted,
+  markRecentTaskFailed,
+  startRecentTask,
+} from '../lib/recent-tasks';
+import {
   RichChatComposer,
   type ComposerSendPayload,
   type OpenClawImageAttachment,
@@ -169,6 +175,12 @@ type ArtifactAutoOpenState = {
   lastOpenedToken: string | null;
 };
 
+type ActiveRecentTaskRun = {
+  taskId: string;
+  baselineError: string | null;
+  failureMessage: string | null;
+};
+
 function isVisibleElement(node: Element | null): { visible: boolean; height: number } {
   if (!(node instanceof HTMLElement)) {
     return { visible: false, height: 0 };
@@ -323,6 +335,35 @@ function findLatestArtifactToolCard(host: HTMLElement): HTMLElement | null {
   return null;
 }
 
+function collectLatestArtifactKinds(host: HTMLElement | null): ReturnType<typeof inferRecentTaskArtifactsFromText> {
+  if (!host) {
+    return [];
+  }
+
+  const groups = Array.from(host.querySelectorAll('.chat-group.assistant')).reverse();
+  for (const group of groups) {
+    const cards = Array.from(group.querySelectorAll('.chat-tool-card--clickable')).filter(
+      (node): node is HTMLElement => node instanceof HTMLElement && isLikelyArtifactToolCard(node),
+    );
+    if (cards.length === 0) {
+      continue;
+    }
+
+    const artifacts = new Set<ReturnType<typeof inferRecentTaskArtifactsFromText>[number]>();
+    cards.forEach((card) => {
+      inferRecentTaskArtifactsFromText(buildToolCardSignature(card)).forEach((artifact) => {
+        artifacts.add(artifact);
+      });
+    });
+
+    if (artifacts.size > 0) {
+      return Array.from(artifacts);
+    }
+  }
+
+  return [];
+}
+
 function createReferenceChip(text: string): HTMLSpanElement {
   const chip = document.createElement('span');
   chip.className = 'iclaw-chat-inline-reference';
@@ -362,6 +403,7 @@ export function OpenClawChatSurface({
   });
   const artifactAutoOpenTimerRef = useRef<number | null>(null);
   const artifactAutoOpenBurstTimersRef = useRef<number[]>([]);
+  const activeRecentTaskRunRef = useRef<ActiveRecentTaskRun | null>(null);
   const [status, setStatus] = useState<ChatSurfaceStatus>({
     busy: false,
     connected: false,
@@ -491,6 +533,7 @@ export function OpenClawChatSurface({
       pendingScanCount: 0,
       lastOpenedToken: null,
     };
+    activeRecentTaskRunRef.current = null;
     clearArtifactAutoOpenTimers();
   }, [clearArtifactAutoOpenTimers, sessionKey]);
 
@@ -892,6 +935,14 @@ export function OpenClawChatSurface({
   }, [clearArtifactAutoOpenTimers, status.busy, tryAutoOpenArtifactCard]);
 
   useEffect(() => {
+    if (status.busy || !activeRecentTaskRunRef.current) {
+      return;
+    }
+
+    finalizeRecentTaskRun();
+  }, [finalizeRecentTaskRun, status.busy]);
+
+  useEffect(() => {
     const timer = window.setInterval(() => {
       const app = appRef.current;
       const host = hostRef.current;
@@ -1137,6 +1188,40 @@ export function OpenClawChatSurface({
     return 'OpenClaw 已连接，但聊天线程和输入区都没有渲染出来。更像是当前浏览器实例中的嵌入层兼容问题。';
   })();
 
+  const finalizeRecentTaskRun = useCallback(() => {
+    const activeRun = activeRecentTaskRunRef.current;
+    if (!activeRun) {
+      return;
+    }
+
+    const artifacts = collectLatestArtifactKinds(hostRef.current);
+    if (activeRun.failureMessage) {
+      markRecentTaskFailed({
+        id: activeRun.taskId,
+        artifacts,
+        error: activeRun.failureMessage,
+      });
+    } else {
+      markRecentTaskCompleted({
+        id: activeRun.taskId,
+        artifacts,
+      });
+    }
+
+    activeRecentTaskRunRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    const activeRun = activeRecentTaskRunRef.current;
+    if (!status.busy || !activeRun || !status.lastError) {
+      return;
+    }
+
+    if (status.lastError !== activeRun.baselineError) {
+      activeRun.failureMessage = status.lastError;
+    }
+  }, [status.busy, status.lastError]);
+
   const handleSend = useCallback(async (payload: ComposerSendPayload): Promise<boolean> => {
     const app = appRef.current;
     if (!app?.connected) {
@@ -1146,17 +1231,55 @@ export function OpenClawChatSurface({
       }));
       return false;
     }
-    app.chatMessage = payload.prompt;
-    app.chatAttachments = payload.imageAttachments;
-    await app.handleSendChat();
-    app.scrollToBottom();
-    window.setTimeout(() => app.scrollToBottom({ smooth: true }), 180);
-    window.setTimeout(() => app.scrollToBottom({ smooth: true }), 900);
-    return true;
-  }, []);
+    const task = startRecentTask({
+      prompt: payload.prompt,
+      sessionKey,
+    });
+
+    activeRecentTaskRunRef.current = {
+      taskId: task.id,
+      baselineError: status.lastError,
+      failureMessage: null,
+    };
+
+    try {
+      app.chatMessage = payload.prompt;
+      app.chatAttachments = payload.imageAttachments;
+      await app.handleSendChat();
+      app.scrollToBottom();
+      window.setTimeout(() => app.scrollToBottom({ smooth: true }), 180);
+      window.setTimeout(() => app.scrollToBottom({ smooth: true }), 900);
+      window.setTimeout(() => {
+        const latestApp = appRef.current;
+        if (!activeRecentTaskRunRef.current) {
+          return;
+        }
+        if (!latestApp?.chatSending && !latestApp?.chatRunId) {
+          finalizeRecentTaskRun();
+        }
+      }, 420);
+      return true;
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : '任务发送失败';
+      markRecentTaskFailed({
+        id: task.id,
+        artifacts: collectLatestArtifactKinds(hostRef.current),
+        error: detail,
+      });
+      activeRecentTaskRunRef.current = null;
+      setStatus((current) => ({
+        ...current,
+        lastError: detail,
+      }));
+      return false;
+    }
+  }, [finalizeRecentTaskRun, sessionKey, status.lastError]);
 
   const handleAbort = useCallback(async () => {
     await appRef.current?.handleAbortChat();
+    if (activeRecentTaskRunRef.current) {
+      activeRecentTaskRunRef.current.failureMessage = '任务已中止';
+    }
   }, []);
 
   const handleSelectionAction = useCallback((trailingText: string) => {

@@ -3,7 +3,6 @@ import type { SVGProps } from 'react';
 import {
   Bot,
   CheckSquare,
-  History,
   Link2,
   MessageSquare,
   Plus,
@@ -12,6 +11,7 @@ import {
 import type { DesktopUpdateHint } from '@iclaw/sdk';
 import { AvatarDropdown } from './AvatarDropdown';
 import { DesktopUpdateCard } from './DesktopUpdateCard';
+import { RecentTasksList } from './RecentTasksList';
 import { Button } from './ui/Button';
 import { BRAND } from '../lib/brand';
 import {
@@ -22,17 +22,20 @@ import {
 } from '../lib/user-avatar';
 
 type SidebarUser = AppUserAvatarSource;
-type PrimaryView = 'chat' | 'skill-store' | 'cron' | 'im-bots' | 'data-connections';
+type PrimaryView = 'chat' | 'skill-store' | 'cron' | 'im-bots' | 'data-connections' | 'task-center';
 
 interface SidebarProps {
   user: SidebarUser | null;
   activeView?: PrimaryView;
+  selectedTaskId?: string | null;
   authenticated?: boolean;
   onOpenChat?: () => void;
   onOpenCron?: () => void;
   onOpenSkillStore?: () => void;
   onOpenDataConnections?: () => void;
   onOpenImBots?: () => void;
+  onOpenTasks?: () => void;
+  onSelectTask?: (taskId: string) => void;
   onLogout?: () => void;
   onOpenAccount?: () => void;
   onOpenLogin?: () => void;
@@ -63,12 +66,15 @@ interface SidebarItem {
 export function Sidebar({
   user,
   activeView = 'chat',
+  selectedTaskId = null,
   authenticated = false,
   onOpenChat,
   onOpenCron,
   onOpenSkillStore,
   onOpenDataConnections,
   onOpenImBots,
+  onOpenTasks,
+  onSelectTask,
   onLogout,
   onOpenAccount,
   onOpenLogin,
@@ -145,10 +151,6 @@ export function Sidebar({
     },
   ];
 
-  const recordItems: SidebarItem[] = [
-    { key: 'history', label: '历史对话', icon: History, iconClass: 'text-orange-500' },
-  ];
-
   const renderGroup = (title: string, items: SidebarItem[]) => (
     <div className="mb-4">
       <div className="mb-2 px-3 text-xs text-[var(--text-muted)]">{title}</div>
@@ -186,6 +188,20 @@ export function Sidebar({
     </div>
   );
 
+  const renderRecordGroup = () => (
+    <div className="mb-4">
+      <div className="mb-2 px-3 text-xs text-[var(--text-muted)]">记录</div>
+      <RecentTasksList
+        selectedTaskId={activeView === 'task-center' ? selectedTaskId : null}
+        onOpenAll={onOpenTasks}
+        onSelectTask={(taskId) => {
+          onSelectTask?.(taskId);
+          onOpenTasks?.();
+        }}
+      />
+    </div>
+  );
+
   return (
     <div className="flex h-screen w-[256px] shrink-0 flex-col border-r border-[var(--border-default)] bg-[var(--bg-page)]">
       <div className="flex h-10 items-center gap-3 border-b border-[var(--border-default)] px-4">
@@ -207,7 +223,7 @@ export function Sidebar({
 
       <div className="flex-1 overflow-y-auto p-2">
         {renderGroup('主体区', mainItems)}
-        {renderGroup('记录', recordItems)}
+        {renderRecordGroup()}
       </div>
 
       <div className="border-t border-[var(--border-default)] p-3 pb-0">
