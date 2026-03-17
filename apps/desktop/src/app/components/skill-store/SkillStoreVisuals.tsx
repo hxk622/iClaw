@@ -201,6 +201,10 @@ export function skillVisualLabel(skill: SkillStoreItem): string {
 function tagTone(tag: string): keyof typeof TAG_TONE_CLASSES {
   const text = tag.trim().toLowerCase();
 
+  if (/运营|增长|广告|gtm|获客|营收/.test(text)) return 'amber';
+  if (/自媒体|内容|博客|视频|小红书|社交|分发/.test(text)) return 'rose';
+  if (/超级个体|效率|任务|待办|notion|知识库|定时|日程|日历/.test(text)) return 'violet';
+  if (/办公|文档|word|excel|表格|演示|ppt|ocr|飞书|协同/.test(text)) return 'sky';
   if (/a股|ashare|esg|治理|可持续|研究|财报|估值|基本面/.test(text)) return 'emerald';
   if (/美股|us|search|搜索|检索|数据|api|document/.test(text)) return 'sky';
   if (/组合|风险|策略|量化|交易|portfolio/.test(text)) return 'amber';

@@ -61,6 +61,10 @@ const installFilters: Array<{ id: SkillInstallFilter; label: string }> = [
 ];
 
 const tagFilterPriority = [
+  '运营增长',
+  '自媒体',
+  '超级个体',
+  '办公效率',
   'A股',
   '美股',
   '港股',
