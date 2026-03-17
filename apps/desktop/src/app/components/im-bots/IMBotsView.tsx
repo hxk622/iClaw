@@ -752,11 +752,7 @@ export function IMBotsView({ client }: { client: IClawClient }) {
           </div>
         </div>
 
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {summaryCards.map((card) => (
-            <SummaryCard key={card.label} {...card} />
-          ))}
-        </div>
+        <SummaryBar cards={summaryCards} />
 
         <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.78fr)_312px]">
           <div className="space-y-3">
@@ -854,18 +850,42 @@ export function IMBotsView({ client }: { client: IClawClient }) {
   );
 }
 
-function SummaryCard({
+function SummaryBar({
+  cards,
+}: {
+  cards: Array<{
+    label: string;
+    value: string;
+    note: string;
+    icon: ComponentType<{ className?: string }>;
+    tone: 'brand' | 'success' | 'warning' | 'neutral';
+  }>;
+}) {
+  return (
+    <PressableCard className="mt-4 overflow-hidden border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(246,247,244,0.92))] px-2 py-1.5 shadow-[0_12px_24px_rgba(15,23,42,0.04)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(28,28,28,0.96),rgba(18,18,18,0.94))] dark:shadow-[0_18px_30px_rgba(0,0,0,0.22)]">
+      <div className="grid gap-1 md:grid-cols-2 xl:grid-cols-4">
+        {cards.map((card, index) => (
+          <SummaryBarItem key={card.label} {...card} first={index === 0} />
+        ))}
+      </div>
+    </PressableCard>
+  );
+}
+
+function SummaryBarItem({
   label,
   value,
   note,
   icon: Icon,
   tone,
+  first,
 }: {
   label: string;
   value: string;
   note: string;
   icon: ComponentType<{ className?: string }>;
   tone: 'brand' | 'success' | 'warning' | 'neutral';
+  first: boolean;
 }) {
   const toneClassName = {
     brand: 'bg-[rgba(59,130,246,0.10)] text-[var(--brand-primary)]',
@@ -875,18 +895,23 @@ function SummaryCard({
   }[tone];
 
   return (
-    <PressableCard className="border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(246,247,244,0.90))] px-4 py-3.5 shadow-[0_18px_34px_rgba(15,23,42,0.06)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(28,28,28,0.96),rgba(18,18,18,0.94))] dark:shadow-[0_22px_38px_rgba(0,0,0,0.28)]">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-[12px] uppercase tracking-[0.12em] text-[var(--text-muted)]">{label}</div>
-          <div className="mt-1.5 text-[26px] font-semibold leading-none tracking-[-0.04em] text-[var(--text-primary)]">{value}</div>
-          <p className="mt-1.5 text-[12px] leading-5 text-[var(--text-secondary)]">{note}</p>
-        </div>
-        <div className={cn('flex h-11 w-11 items-center justify-center rounded-[16px]', toneClassName)}>
-          <Icon className="h-4.5 w-4.5" />
-        </div>
+    <div
+      className={cn(
+        'flex min-w-0 items-center gap-3 rounded-[18px] px-3 py-2.5',
+        !first && 'xl:border-l xl:border-[var(--border-default)]',
+      )}
+    >
+      <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px]', toneClassName)}>
+        <Icon className="h-4 w-4" />
       </div>
-    </PressableCard>
+      <div className="min-w-0">
+        <div className="flex items-baseline gap-2">
+          <div className="text-[20px] font-semibold leading-none tracking-[-0.04em] text-[var(--text-primary)]">{value}</div>
+          <div className="text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">{label}</div>
+        </div>
+        <p className="mt-1 line-clamp-1 text-[12px] leading-5 text-[var(--text-secondary)]">{note}</p>
+      </div>
+    </div>
   );
 }
 
@@ -929,29 +954,37 @@ function ManagedBotCard({
   const healthMeta = getHealthMeta(bot.healthState);
 
   return (
-    <PressableCard className="border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,247,244,0.90))] px-4 py-3.5 shadow-[0_18px_34px_rgba(15,23,42,0.06)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(29,29,29,0.96),rgba(17,17,17,0.94))] dark:shadow-[0_22px_38px_rgba(0,0,0,0.30)]">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex min-w-0 items-start gap-4">
-          <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-[18px] border border-[var(--border-default)] bg-white shadow-[0_10px_24px_rgba(15,23,42,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
+    <PressableCard className="border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(246,247,244,0.92))] px-4 py-3 shadow-[0_10px_22px_rgba(15,23,42,0.04)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(29,29,29,0.96),rgba(17,17,17,0.95))] dark:shadow-[0_16px_28px_rgba(0,0,0,0.24)]">
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_auto] xl:items-center">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-[16px] border border-[var(--border-default)] bg-white shadow-[0_8px_18px_rgba(15,23,42,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
             <img src={meta.logo} alt={meta.label} className={cn('h-full w-full object-cover', meta.logoClassName)} />
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-[18px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">{bot.name}</h3>
-              <Chip tone={healthMeta.chipTone} className="px-3 py-1 text-[12px] font-medium">
+              <h3 className="text-[17px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">{bot.name}</h3>
+              <Chip tone={healthMeta.chipTone} className="px-2.5 py-1 text-[11px] font-medium">
                 {healthMeta.label}
               </Chip>
-              <Chip tone="outline" className="px-3 py-1 text-[12px]">
+              <Chip tone="outline" className="px-2.5 py-1 text-[11px]">
                 {formatBindingScope(bot.bindingScope)}
               </Chip>
             </div>
-            <p className="mt-1.5 text-[13px] leading-6 text-[var(--text-secondary)]">
+            <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
               {meta.label} · {bot.company} · 默认助手：{bot.assistant}
             </p>
-            <p className="mt-2 max-w-[720px] text-[13px] leading-6 text-[var(--text-secondary)]">{bot.healthSummary}</p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="min-w-0">
+          <p className="line-clamp-2 text-[12px] leading-5 text-[var(--text-secondary)]">{bot.healthSummary}</p>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5">
+            <InlineMetaItem label="最近活跃" value={bot.lastActive} icon={Clock3} />
+            <InlineMetaItem label="触发" value={bot.triggerMode} icon={Sparkles} />
+            <InlineMetaItem label="回复" value={bot.replyFormat} icon={MessageSquare} />
+            <InlineMetaItem label="测试" value={bot.lastTestAt ?? '还未执行'} icon={ShieldCheck} />
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2 xl:justify-self-end">
           <Button
             variant="secondary"
             size="sm"
@@ -974,18 +1007,11 @@ function ManagedBotCard({
           </Button>
         </div>
       </div>
-
-      <div className="mt-4 grid gap-3 border-t border-[var(--border-default)] pt-4 md:grid-cols-4">
-        <InfoItem label="最近活跃" value={bot.lastActive} icon={Clock3} />
-        <InfoItem label="触发方式" value={bot.triggerMode} icon={Sparkles} />
-        <InfoItem label="回复格式" value={bot.replyFormat} icon={MessageSquare} />
-        <InfoItem label="最近测试" value={bot.lastTestAt ?? '还未执行'} icon={ShieldCheck} />
-      </div>
     </PressableCard>
   );
 }
 
-function InfoItem({
+function InlineMetaItem({
   label,
   value,
   icon: Icon,
@@ -995,12 +1021,10 @@ function InfoItem({
   icon: ComponentType<{ className?: string }>;
 }) {
   return (
-    <div>
-      <div className="mb-2 flex items-center gap-2 text-[12px] uppercase tracking-[0.12em] text-[var(--text-muted)]">
-        <Icon className="h-3.5 w-3.5" />
-        {label}
-      </div>
-      <div className="text-[14px] text-[var(--text-primary)]">{value}</div>
+    <div className="inline-flex items-center gap-1.5 text-[12px] leading-5">
+      <Icon className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+      <span className="text-[var(--text-muted)]">{label}</span>
+      <span className="text-[var(--text-primary)]">{value}</span>
     </div>
   );
 }
