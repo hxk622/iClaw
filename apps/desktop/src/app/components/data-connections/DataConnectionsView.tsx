@@ -63,10 +63,12 @@ function MetricCard({
   note: string;
 }) {
   return (
-    <div className="rounded-[18px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.62)] px-4 py-3 shadow-[0_8px_18px_rgba(15,23,42,0.05)] dark:bg-[rgba(255,255,255,0.03)] dark:shadow-[0_10px_24px_rgba(0,0,0,0.18)]">
+    <div className="rounded-[16px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.58)] px-4 py-3 shadow-[0_6px_16px_rgba(15,23,42,0.04)] dark:bg-[rgba(255,255,255,0.03)] dark:shadow-[0_8px_18px_rgba(0,0,0,0.16)]">
       <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-muted)]">{label}</div>
-      <div className="mt-2 text-[24px] font-semibold tracking-[-0.05em] text-[var(--text-primary)]">{value}</div>
-      <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">{note}</p>
+      <div className="mt-1.5 flex items-end gap-2">
+        <div className="text-[22px] font-semibold tracking-[-0.05em] text-[var(--text-primary)]">{value}</div>
+        <p className="pb-0.5 text-[12px] leading-5 text-[var(--text-secondary)]">{note}</p>
+      </div>
     </div>
   );
 }
@@ -190,34 +192,35 @@ export function DataConnectionsView() {
 
   return (
     <div className={`flex flex-1 overflow-y-auto ${surfaceClassName}`}>
-      <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-5 px-6 py-6 lg:px-8">
-        <section className="rounded-[24px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.72)] p-5 shadow-[0_14px_34px_rgba(15,23,42,0.05)] dark:bg-[rgba(18,18,18,0.82)] dark:shadow-[0_18px_38px_rgba(0,0,0,0.24)]">
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+      <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-4 px-6 py-5 lg:px-8">
+        <section className="rounded-[22px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.72)] p-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)] dark:bg-[rgba(18,18,18,0.82)] dark:shadow-[0_16px_32px_rgba(0,0,0,0.22)]">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_460px]">
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border-default)] bg-[var(--bg-hover)] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">
                 <Sparkles className="h-3.5 w-3.5 text-[var(--brand-primary)]" />
                 Data Connection Matrix
               </div>
-              <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                <div className="min-w-0">
-                  <h1 className="text-[32px] font-semibold tracking-[-0.06em] text-[var(--text-primary)]">数据连接</h1>
-                  <p className="mt-2 max-w-[820px] text-[14px] leading-7 text-[var(--text-secondary)]">
-                    连接多市场金融数据能力，直接覆盖行情、财报、资讯、宏观与加密资产数据。页面本身保持 wrapper-only，不碰
-                    OpenClaw 内部实现。
+              <div className="mt-4 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-4">
+                    <h1 className="text-[30px] font-semibold tracking-[-0.06em] text-[var(--text-primary)]">数据连接</h1>
+                    <div className="flex flex-wrap gap-2">
+                      <div className="inline-flex items-center gap-2 rounded-full bg-[rgba(59,130,246,0.10)] px-3 py-1.5 text-[12px] text-[var(--brand-primary)]">
+                        <Globe2 className="h-4 w-4" />
+                        {DATA_CONNECTION_MARKETS.length - 1} 个市场维度
+                      </div>
+                      <div className="inline-flex items-center gap-2 rounded-full bg-[var(--bg-hover)] px-3 py-1.5 text-[12px] text-[var(--text-secondary)]">
+                        <ShieldCheck className="h-4 w-4 text-[var(--brand-primary)]" />
+                        扁平卡片 + 弹簧反馈
+                      </div>
+                    </div>
+                  </div>
+                  <p className="mt-2 max-w-[840px] text-[13px] leading-6 text-[var(--text-secondary)]">
+                    连接多市场金融数据能力，直接覆盖行情、财报、资讯、宏观与加密资产数据。页面保持 wrapper-only，不碰 OpenClaw 内部实现。
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <div className="inline-flex items-center gap-2 rounded-full bg-[rgba(59,130,246,0.10)] px-3 py-1.5 text-[12px] text-[var(--brand-primary)]">
-                    <Globe2 className="h-4 w-4" />
-                    {DATA_CONNECTION_MARKETS.length - 1} 个市场维度
-                  </div>
-                  <div className="inline-flex items-center gap-2 rounded-full bg-[var(--bg-hover)] px-3 py-1.5 text-[12px] text-[var(--text-secondary)]">
-                    <ShieldCheck className="h-4 w-4 text-[var(--brand-primary)]" />
-                    扁平卡片 + 弹簧反馈
-                  </div>
-                </div>
               </div>
-              <div className="mt-4 rounded-[18px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.58)] p-2 dark:bg-[rgba(255,255,255,0.03)]">
+              <div className="mt-3 rounded-[18px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.58)] p-2 dark:bg-[rgba(255,255,255,0.03)]">
                 <label className="flex items-center gap-3 rounded-[14px] px-3 py-2">
                   <Search className="h-4.5 w-4.5 text-[var(--text-muted)]" />
                   <input
@@ -230,36 +233,38 @@ export function DataConnectionsView() {
                 </label>
               </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+            <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-1 xl:self-start">
               <MetricCard
                 label="已覆盖能力"
                 value={String(DATA_CONNECTION_CAPABILITIES.length)}
-                note="设计稿能力卡已全部结构化。"
+                note="已结构化"
               />
               <MetricCard
                 label="当前筛选"
                 value={String(filteredCapabilities.length)}
-                note={`当前展示 ${filteredCapabilities.length} 项，筛选 ${activeMarketCount} 个市场。`}
+                note={`${activeMarketCount} 个市场`}
               />
               <MetricCard
                 label="投研场景"
                 value={String(DATA_CONNECTION_SCENARIOS.length)}
-                note="研究、跟踪、分析、监控。"
+                note="研究/跟踪/分析"
               />
             </div>
           </div>
         </section>
 
-        <section className="rounded-[20px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.68)] p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)] dark:bg-[rgba(18,18,18,0.76)] dark:shadow-[0_14px_28px_rgba(0,0,0,0.20)]">
-          <div className="grid gap-3 lg:grid-cols-[180px_minmax(0,1fr)] lg:items-center">
-            <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                <Filter className="h-4 w-4 text-[var(--brand-primary)]" />
-                市场筛选
+        <section className="rounded-[18px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.68)] p-3.5 shadow-[0_8px_20px_rgba(15,23,42,0.04)] dark:bg-[rgba(18,18,18,0.76)] dark:shadow-[0_12px_24px_rgba(0,0,0,0.18)]">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex min-w-0 items-start gap-3 xl:max-w-[320px]">
+              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[rgba(245,158,11,0.08)] text-[rgb(217,119,6)] dark:bg-[rgba(245,158,11,0.12)] dark:text-[rgb(252,211,77)]">
+                <Filter className="h-4 w-4" />
               </div>
-              <p className="mt-1 text-[12px] leading-6 text-[var(--text-secondary)]">
-                支持多选；选择“全部”时会清空其他筛选条件。
-              </p>
+              <div className="min-w-0">
+                <div className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">市场筛选</div>
+                <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
+                  支持多选；选择“全部”时会清空其他筛选条件。
+                </p>
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
               {DATA_CONNECTION_MARKETS.map((market) => (
