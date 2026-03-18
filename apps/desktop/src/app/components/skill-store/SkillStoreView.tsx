@@ -1,15 +1,15 @@
-import { type ComponentType, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { IClawClient } from '@iclaw/sdk';
 import {
   AlertCircle,
-  Check,
+  CheckCircle2,
+  Download,
   EyeOff,
-  Globe2,
   Package,
   PencilLine,
+  RefreshCw,
   Search,
-  Settings2,
-  Sparkles,
+  ShieldCheck,
   Upload,
 } from 'lucide-react';
 import {
@@ -32,7 +32,7 @@ import { cn } from '@/app/lib/cn';
 import { SkillStoreAdminSheet } from './SkillStoreAdminSheet';
 import { SkillStoreDetailSheet } from './SkillStoreDetailSheet';
 import { SkillStoreImportSheet } from './SkillStoreImportSheet';
-import { SkillGlyph, SummaryGlyph, LayoutGrid, LineChart, ShieldCheck, skillTagClassName } from './SkillStoreVisuals';
+import { SkillGlyph, skillTagClassName } from './SkillStoreVisuals';
 
 const storeTabs = [
   { id: 'store', label: '技能库' },
@@ -53,6 +53,7 @@ const categories: Array<{ id: SkillStoreCategoryId; label: string }> = [
 
 type ActiveTab = (typeof storeTabs)[number]['id'];
 type SkillInstallFilter = 'all' | 'installed' | 'available';
+type SkillDisplayStatus = 'builtin' | 'installed' | 'available' | 'installing' | 'failed';
 
 const installFilters: Array<{ id: SkillInstallFilter; label: string }> = [
   { id: 'all', label: '全部状态' },
@@ -61,32 +62,21 @@ const installFilters: Array<{ id: SkillInstallFilter; label: string }> = [
 ];
 
 const tagFilterPriority = [
+  'A股',
+  '美股',
+  'ESG',
+  '量化',
+  '因子',
+  '估值',
+  '财报分析',
   '运营增长',
   '自媒体',
   '超级个体',
   '办公效率',
-  'A股',
-  '美股',
-  '港股',
-  '股票',
-  '基金',
-  '债券',
-  '期货',
-  'Crypto',
-  '加密货币',
-  '财报分析',
-  '估值',
-  '量化',
-  '因子',
-  '技术分析',
-  '组合优化',
   '风险管理',
-  '宏观',
   '行业轮动',
-  'ESG',
-  '事件驱动',
   '数据工具',
-];
+] as const;
 
 const hiddenQuickFilterTags = new Set(['金融', '通用', '技能', '工具包', '研究报告']);
 
@@ -100,227 +90,298 @@ function matchesCategory(skill: SkillStoreItem, categoryId: SkillStoreCategoryId
 
 function matchesInstallFilter(skill: SkillStoreItem, filter: SkillInstallFilter): boolean {
   if (filter === 'all') return true;
-  if (filter === 'installed') return skill.installed;
-  return !skill.installed;
+  if (filter === 'installed') return skill.installed || skill.source === 'bundled';
+  return !skill.installed && skill.source !== 'bundled';
 }
 
-function SummaryCard({
+function resolveDisplayStatus(skill: SkillStoreItem, actionLoading: boolean, installFailed: boolean): SkillDisplayStatus {
+  if (installFailed) return 'failed';
+  if (skill.source === 'bundled') return 'builtin';
+  if (skill.installed) return 'installed';
+  if (actionLoading) return 'installing';
+  return 'available';
+}
+
+function formatPublishedAt(value: string | null | undefined): string {
+  if (!value) return '未发布';
+  try {
+    return new Date(value).toLocaleDateString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+  } catch {
+    return value;
+  }
+}
+
+function StatCard({
   label,
   value,
-  note,
   icon,
-  tone,
+  iconWrapClassName,
+  iconClassName,
 }: {
   label: string;
-  value: string;
-  note: string;
-  icon: ComponentType<{className?: string}>;
-  tone: 'brand' | 'emerald' | 'sky' | 'amber' | 'violet';
+  value: number;
+  icon: ReactNode;
+  iconWrapClassName: string;
+  iconClassName: string;
 }) {
   return (
-    <div className="rounded-[24px] border border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,247,244,0.9))] px-4 py-4 shadow-[0_18px_34px_rgba(15,23,42,0.06)] backdrop-blur-[10px] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(28,28,28,0.96),rgba(18,18,18,0.94))] dark:shadow-[0_22px_38px_rgba(0,0,0,0.28)]">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0 pr-3">
-          <div className="text-[11px] uppercase tracking-[0.12em] text-[var(--text-secondary)]">{label}</div>
-          <div className="mt-2 text-[26px] font-semibold leading-none text-[var(--text-primary)]">{value}</div>
-          <p className="mt-2 line-clamp-2 text-[12px] leading-5 text-[var(--text-secondary)]">{note}</p>
+    <div
+      className="rounded-[18px] border border-[rgba(17,24,39,0.08)] bg-[var(--bg-card)] px-4 py-3.5 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]"
+      style={{ boxShadow: 'var(--shadow-sm)' }}
+    >
+      <div className="flex items-center gap-3">
+        <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] border', iconWrapClassName)}>
+          <span className={iconClassName}>{icon}</span>
         </div>
-        <SummaryGlyph icon={icon} tone={tone} className="h-12 w-12 rounded-[18px]" iconClassName="h-5 w-5" />
+        <div className="min-w-0">
+          <div className="mb-0.5 text-[11px] text-[var(--text-muted)]">{label}</div>
+          <div className="text-[20px] font-medium leading-none text-[var(--text-primary)]">{value}</div>
+        </div>
       </div>
     </div>
   );
 }
 
+function SkillStatusBadge({ status }: {status: SkillDisplayStatus}) {
+  if (status === 'builtin') {
+    return (
+      <span className="rounded-md border border-[rgba(201,169,97,0.22)] bg-[rgba(201,169,97,0.12)] px-2 py-0.5 text-[11px] text-[rgb(155,112,39)] dark:border-[rgba(201,169,97,0.20)] dark:bg-[rgba(201,169,97,0.16)] dark:text-[#f1d59c]">
+        默认已安装
+      </span>
+    );
+  }
+  if (status === 'installed') {
+    return (
+      <span className="rounded-md border border-[rgba(34,197,94,0.18)] bg-[rgba(34,197,94,0.10)] px-2 py-0.5 text-[11px] text-[rgb(21,128,61)] dark:border-[rgba(111,221,149,0.20)] dark:bg-[rgba(34,197,94,0.18)] dark:text-[#c7f9d7]">
+        已安装
+      </span>
+    );
+  }
+  if (status === 'failed') {
+    return (
+      <span className="rounded-md border border-[rgba(239,68,68,0.18)] bg-[rgba(239,68,68,0.10)] px-2 py-0.5 text-[11px] text-[rgb(185,28,28)] dark:border-[rgba(248,113,113,0.20)] dark:bg-[rgba(239,68,68,0.18)] dark:text-[#fecaca]">
+        安装失败
+      </span>
+    );
+  }
+  if (status === 'installing') {
+    return (
+      <span className="rounded-md border border-[rgba(201,169,97,0.22)] bg-[rgba(201,169,97,0.12)] px-2 py-0.5 text-[11px] text-[rgb(155,112,39)] dark:border-[rgba(201,169,97,0.20)] dark:bg-[rgba(201,169,97,0.16)] dark:text-[#f1d59c]">
+        安装中
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-md border border-[var(--border-default)] bg-transparent px-2 py-0.5 text-[11px] text-[var(--text-muted)]">
+      未安装
+    </span>
+  );
+}
+
+function SourceBadge({ sourceLabel }: {sourceLabel: string}) {
+  if (sourceLabel === '云端技能') {
+    return (
+      <span className="rounded-md border border-[rgba(74,107,138,0.16)] bg-[rgba(74,107,138,0.10)] px-2 py-0.5 text-[11px] text-[#4A6B8A] dark:border-[rgba(125,168,208,0.18)] dark:bg-[rgba(74,107,138,0.16)] dark:text-[#b7d0e5]">
+        {sourceLabel}
+      </span>
+    );
+  }
+  if (sourceLabel === '我的导入') {
+    return (
+      <span className="rounded-md border border-[rgba(90,117,102,0.16)] bg-[rgba(90,117,102,0.10)] px-2 py-0.5 text-[11px] text-[#5A7566] dark:border-[rgba(122,149,134,0.18)] dark:bg-[rgba(90,117,102,0.16)] dark:text-[#c8ded0]">
+        {sourceLabel}
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-md border border-[var(--border-default)] bg-[var(--bg-hover)] px-2 py-0.5 text-[11px] text-[var(--text-secondary)]">
+      {sourceLabel}
+    </span>
+  );
+}
+
+function FilterButton({
+  active,
+  children,
+  onClick,
+}: {
+  active: boolean;
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'rounded-md border px-3.5 py-1.5 text-[13px] transition-all',
+        active
+          ? 'border-[rgba(201,169,97,0.22)] bg-[rgba(201,169,97,0.12)] font-medium text-[rgb(155,112,39)] dark:border-[rgba(201,169,97,0.20)] dark:bg-[rgba(201,169,97,0.16)] dark:text-[#f1d59c]'
+          : 'border-[var(--border-default)] bg-[var(--bg-card)] text-[var(--text-secondary)] hover:border-[rgba(201,169,97,0.22)] hover:text-[var(--text-primary)] dark:bg-[rgba(255,255,255,0.03)]',
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function ViewModeButton({
+  active,
+  badge,
+  children,
+  onClick,
+}: {
+  active: boolean;
+  badge?: number;
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[14px] font-medium transition-all',
+        active
+          ? 'bg-[var(--text-primary)] text-white dark:bg-[var(--text-primary)] dark:text-[#111]'
+          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
+      )}
+    >
+      <span>{children}</span>
+      {typeof badge === 'number' ? (
+        <span
+          className={cn(
+            'rounded-full px-2 py-0.5 text-[11px]',
+            active
+              ? 'bg-white/18 text-white dark:bg-black/10 dark:text-[#111]'
+              : 'bg-[var(--bg-card)] text-[var(--text-muted)] dark:bg-[rgba(255,255,255,0.05)]',
+          )}
+        >
+          {badge}
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
 function SkillCard({
   skill,
-  actionLoading = false,
-  installFailed = false,
-  compactFooter = false,
-  adminMode = false,
+  adminMode,
+  actionLoading,
+  installFailed,
   onAction,
   onOpenDetail,
   onEdit,
 }: {
   skill: SkillStoreItem;
-  actionLoading?: boolean;
-  installFailed?: boolean;
-  compactFooter?: boolean;
-  adminMode?: boolean;
-  onAction?: (skill: SkillStoreItem) => void;
-  onOpenDetail?: (skill: SkillStoreItem) => void;
-  onEdit?: (skill: SkillStoreItem) => void;
+  adminMode: boolean;
+  actionLoading: boolean;
+  installFailed: boolean;
+  onAction: (skill: SkillStoreItem) => void;
+  onOpenDetail: (skill: SkillStoreItem) => void;
+  onEdit: (skill: SkillStoreItem) => void;
 }) {
-  const isBundled = skill.source === 'bundled';
-  const status = installFailed
-    ? 'error'
-    : isBundled || skill.installed
-      ? 'installed'
-      : actionLoading
-        ? 'installing'
-        : 'available';
-  const badgeLabel =
-    status === 'error'
-      ? '安装失败'
-      : isBundled
-        ? '默认已安装'
-        : status === 'installed'
-          ? '已安装'
-          : status === 'installing'
-            ? '安装中'
-            : '未安装';
-  const badgeTone =
-    status === 'error' ? 'danger' : status === 'installed' ? 'success' : 'brand';
-  const buttonLabel =
-    status === 'error'
+  const status = resolveDisplayStatus(skill, actionLoading, installFailed);
+  const showInstallAction = skill.source !== 'bundled' && !adminMode;
+  const actionLabel =
+    status === 'failed'
       ? '重试安装'
       : status === 'installed'
         ? '已安装'
         : status === 'installing'
           ? '安装中…'
-          : '安装';
-  const buttonVariant =
-    status === 'error' ? 'danger' : status === 'installed' ? 'success' : 'primary';
-  const cardActionable = !adminMode && Boolean(onOpenDetail);
-  const adminSkill = adminMode ? (skill as AdminSkillStoreItem) : null;
-  const showInstallCta = skill.source !== 'bundled';
+          : status === 'builtin'
+            ? '已内置'
+            : '安装';
+  const actionVariant = status === 'failed' ? 'danger' : status === 'installed' || status === 'builtin' ? 'secondary' : 'primary';
+  const actionDisabled = status === 'installed' || status === 'builtin' || status === 'installing';
 
   return (
     <PressableCard
       as="article"
-      interactive={cardActionable}
-      onClick={cardActionable ? () => onOpenDetail?.(skill) : undefined}
+      interactive={!adminMode}
+      onClick={!adminMode ? () => onOpenDetail(skill) : undefined}
       className={cn(
-        'group border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(246,247,244,0.9))] shadow-[0_18px_34px_rgba(15,23,42,0.06)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(29,29,29,0.96),rgba(17,17,17,0.94))] dark:shadow-[0_22px_38px_rgba(0,0,0,0.30)]',
-        !cardActionable && 'cursor-default',
+        'rounded-[18px] border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)]',
+        !adminMode && 'hover:border-[rgba(201,169,97,0.22)] hover:shadow-[var(--shadow-md)]',
       )}
     >
-      <div
-        className="absolute inset-x-0 top-0 h-px opacity-70 dark:opacity-100"
-        style={{
-          background:
-            'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(201,169,97,0.35) 48%, rgba(255,255,255,0) 100%)',
-        }}
-      />
-      <div className="p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-start gap-4">
-            <SkillGlyph skill={skill} className="h-12 w-12 shrink-0 rounded-[18px]" iconClassName="h-5 w-5" />
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="line-clamp-2 text-[15px] font-medium leading-6 text-[var(--text-primary)]">
-                  {skill.name}
-                </h3>
-                <Chip tone={badgeTone} className="px-2 py-0.5 text-[11px] font-medium">
-                  {status === 'installed' ? (
-                    <Check className="h-3 w-3" />
-                  ) : status === 'error' ? (
-                    <AlertCircle className="h-3 w-3" />
-                  ) : (
-                    <Sparkles className="h-3 w-3" />
-                  )}
-                  {badgeLabel}
-                </Chip>
-              </div>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-[var(--text-secondary)]">
-                <Chip>{skill.market}</Chip>
-                <span className="text-[var(--text-secondary)]">{skill.skillType}</span>
-                <span className="inline-flex items-center gap-1">
-                  <ShieldCheck className="h-3.5 w-3.5 text-[var(--brand-primary)]" />
-                  {skill.sourceLabel}
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {adminMode ? (
-              <Button
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onEdit?.(skill);
-                }}
-                variant="ghost"
-                size="sm"
-                className="shrink-0"
-                leadingIcon={<PencilLine className="h-3.5 w-3.5" />}
-              >
-                编辑
-              </Button>
-            ) : null}
-            {showInstallCta ? (
-              <Button
-                disabled={isBundled || skill.installed || actionLoading}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onAction?.(skill);
-                }}
-                variant={buttonVariant}
-                size="sm"
-                className="shrink-0 disabled:opacity-100"
-              >
-                {buttonLabel}
-              </Button>
-            ) : (
-              <Button
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onOpenDetail?.(skill);
-                }}
-                variant="success"
-                size="sm"
-                className="shrink-0"
-              >
-                已内置
-              </Button>
-            )}
-          </div>
+      <div className="mb-3 flex items-start gap-3">
+        <SkillGlyph skill={skill} className="h-11 w-11 rounded-[14px]" iconClassName="h-5 w-5" />
+        <div className="min-w-0 flex-1">
+          <h3 className="line-clamp-1 text-[15px] font-medium leading-snug text-[var(--text-primary)]">{skill.name}</h3>
+          <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-[var(--text-secondary)]">{skill.description}</p>
         </div>
-
-        <p className="mt-4 line-clamp-3 text-[14px] leading-6 text-[var(--text-secondary)]">{skill.description}</p>
-
-        {adminSkill ? (
-          <div className="mt-4 flex flex-wrap items-center gap-2 text-[12px]">
-            <Chip tone={adminSkill.active ? 'success' : 'warning'}>
-              {adminSkill.active ? '启用中' : '已停用'}
-            </Chip>
-            <Chip tone={adminSkill.visibility === 'showcase' ? 'brand' : 'warning'}>
-              {adminSkill.visibility === 'showcase' ? '商店展示' : '后台隐藏'}
-            </Chip>
-            <Chip tone="outline">{adminSkill.source === 'bundled' ? 'bundled' : 'cloud'}</Chip>
-          </div>
-        ) : null}
       </div>
 
-      <div className="flex items-center justify-between gap-3 border-t border-[var(--border-default)] px-5 py-4 text-[12px] text-[var(--text-secondary)] dark:border-t-[rgba(255,255,255,0.08)]">
+      <div className="mb-4 flex flex-wrap gap-1.5">
+        {skill.tags.slice(0, 3).map((tag) => (
+          <span key={tag} className={cn('rounded px-2 py-0.5 text-[11px]', skillTagClassName(tag, { flat: true }))}>
+            {tag}
+          </span>
+        ))}
+      </div>
+
+      <div className="flex items-center justify-between border-t border-[var(--border-default)] pt-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Chip>{skill.categoryLabel}</Chip>
-          {skill.tags.slice(0, compactFooter ? 1 : 2).map((tag) => (
-            <Chip key={tag} tone="outline" className={cn('font-medium', skillTagClassName(tag))}>
-              {tag}
-            </Chip>
-          ))}
+          <SourceBadge sourceLabel={adminMode && skill.source === 'bundled' ? '系统预置' : skill.sourceLabel} />
+          <SkillStatusBadge status={status} />
         </div>
-        <span>
-          {compactFooter ? '点击查看详情' : isBundled ? '系统预置 · 点击查看详情' : skill.source === 'private' ? '私有导入 · 点击查看详情' : '云端安装 · 点击查看详情'}
-        </span>
+
+        {adminMode ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="rounded-md px-3 py-1.5 text-[13px] font-normal shadow-none"
+            leadingIcon={<PencilLine className="h-3.5 w-3.5" />}
+            onClick={(event) => {
+              event.stopPropagation();
+              onEdit(skill);
+            }}
+          >
+            编辑
+          </Button>
+        ) : (
+          <Button
+            variant={actionVariant}
+            size="sm"
+            disabled={actionDisabled}
+            className={cn(
+              'rounded-md px-4 py-1.5 text-[13px] font-normal shadow-none',
+              status === 'available' &&
+                'border-[var(--text-primary)] bg-[var(--text-primary)] text-white hover:border-[rgb(155,112,39)] hover:bg-[rgb(155,112,39)] dark:text-[#111]',
+              (status === 'installed' || status === 'builtin') &&
+                'border-[var(--border-default)] bg-[var(--bg-secondary)] text-[var(--text-muted)]',
+            )}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (showInstallAction) {
+                onAction(skill);
+              } else {
+                onOpenDetail(skill);
+              }
+            }}
+          >
+            {actionLabel}
+          </Button>
+        )}
       </div>
     </PressableCard>
   );
 }
 
-function EmptyState({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
+function EmptyState({ title, description }: {title: string; description: string}) {
   return (
-    <div className="rounded-[32px] border border-dashed border-[var(--border-strong)] bg-[var(--bg-card)] px-8 py-20 text-center dark:border-[rgba(255,255,255,0.12)] dark:bg-[linear-gradient(180deg,rgba(24,24,24,0.96),rgba(16,16,16,0.94))]">
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[22px] bg-[var(--bg-hover)] text-[var(--text-muted)] dark:bg-[rgba(255,255,255,0.05)] dark:text-[var(--text-secondary)]">
-        <Search className="h-6 w-6" />
+    <div className="py-16 text-center">
+      <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl border border-[var(--border-default)] bg-[var(--bg-secondary)]">
+        <Package className="h-7 w-7 text-[var(--text-muted)]" />
       </div>
-      <h3 className="mt-5 text-lg font-medium text-[var(--text-primary)]">{title}</h3>
-      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--text-secondary)]">{description}</p>
+      <div className="mb-1 text-[15px] font-medium text-[var(--text-primary)]">{title}</div>
+      <div className="text-[13px] text-[var(--text-secondary)]">{description}</div>
     </div>
   );
 }
@@ -345,14 +406,14 @@ export function SkillStoreView({
   const [activeTab, setActiveTab] = useState<ActiveTab>('store');
   const [activeCategory, setActiveCategory] = useState<SkillStoreCategoryId>('all');
   const [activeInstallFilter, setActiveInstallFilter] = useState<SkillInstallFilter>('all');
-  const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [activeTags, setActiveTags] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [skills, setSkills] = useState<SkillStoreItem[]>([]);
   const [adminSkills, setAdminSkills] = useState<AdminSkillStoreItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [installingSlug, setInstallingSlug] = useState<string | null>(null);
-  const [installErrorSlug, setInstallErrorSlug] = useState<string | null>(null);
+  const [installErrorSlugs, setInstallErrorSlugs] = useState<string[]>([]);
   const [adminMode, setAdminMode] = useState(false);
   const [adminCapable, setAdminCapable] = useState(false);
   const [selectedSkill, setSelectedSkill] = useState<SkillStoreItem | null>(null);
@@ -365,6 +426,7 @@ export function SkillStoreView({
   const [githubImportLoading, setGithubImportLoading] = useState(false);
   const [localImportLoading, setLocalImportLoading] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+
   const adminRoleKnown = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
   const shouldProbeAdminAccess = Boolean(accessToken) && !adminRoleKnown && currentUser?.role == null;
   const isAdmin = adminRoleKnown || adminCapable;
@@ -436,14 +498,13 @@ export function SkillStoreView({
     () =>
       subscribeSkillStoreEvents(
         () => {
-          void refreshCatalog({ preferAdmin: adminMode })
-            .catch(() => {});
+          void refreshCatalog({ preferAdmin: adminMode }).catch(() => {});
         },
         (message) => {
           setError(message);
         },
       ),
-    [accessToken, adminMode, client, isAdmin, selectedAdminSkill, selectedSkill],
+    [accessToken, adminMode, client, selectedAdminSkill, selectedSkill],
   );
 
   useEffect(() => {
@@ -477,17 +538,16 @@ export function SkillStoreView({
     }
 
     setInstallingSlug(skill.slug);
-    setInstallErrorSlug((current) => (current === skill.slug ? null : current));
     setError(null);
     try {
       await installSkillFromStore({ client, accessToken, item: skill });
-      setInstallErrorSlug(null);
+      setInstallErrorSlugs((current) => current.filter((slug) => slug !== skill.slug));
       await refreshCatalog({ preferAdmin: adminMode });
     } catch (nextError) {
       if (nextError instanceof Error && nextError.message === 'AUTH_REQUIRED') {
         onRequestAuth('login');
       } else {
-        setInstallErrorSlug(skill.slug);
+        setInstallErrorSlugs((current) => (current.includes(skill.slug) ? current : [...current, skill.slug]));
         setError('下载安装失败');
       }
     } finally {
@@ -618,10 +678,10 @@ export function SkillStoreView({
       if (activeTab === 'myskills' && !skill.userInstalled) {
         continue;
       }
-      if (
-        !matchesCategory(skill, activeCategory) ||
-        (activeTab === 'store' && !matchesInstallFilter(skill, activeInstallFilter))
-      ) {
+      if (!matchesCategory(skill, activeCategory)) {
+        continue;
+      }
+      if (activeTab === 'store' && !matchesInstallFilter(skill, activeInstallFilter)) {
         continue;
       }
       for (const tag of skill.tags) {
@@ -633,7 +693,7 @@ export function SkillStoreView({
       }
     }
 
-    const priorityIndex = new Map(tagFilterPriority.map((tag, index) => [tag, index]));
+    const priorityIndex = new Map<string, number>(tagFilterPriority.map((tag, index) => [tag, index]));
     return Array.from(counts.entries())
       .sort((left, right) => {
         const leftPriority = priorityIndex.get(left[0]) ?? Number.MAX_SAFE_INTEGER;
@@ -646,15 +706,17 @@ export function SkillStoreView({
         }
         return left[0].localeCompare(right[0], 'zh-CN');
       })
-      .slice(0, 16)
+      .slice(0, 18)
       .map(([tag]) => tag);
   }, [activeCategory, activeInstallFilter, activeTab, visibleSkills]);
 
   useEffect(() => {
-    if (activeTag && !availableQuickTags.includes(activeTag)) {
-      setActiveTag(null);
+    if (activeTags.length === 0) return;
+    const nextTags = activeTags.filter((tag) => availableQuickTags.includes(tag));
+    if (nextTags.length !== activeTags.length) {
+      setActiveTags(nextTags);
     }
-  }, [activeTag, availableQuickTags]);
+  }, [activeTags, availableQuickTags]);
 
   const filteredSkills = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -668,304 +730,207 @@ export function SkillStoreView({
       if (activeTab === 'store' && !matchesInstallFilter(skill, activeInstallFilter)) {
         return false;
       }
-      if (activeTag && !skill.tags.includes(activeTag)) {
+      if (activeTags.length > 0 && !activeTags.some((tag) => skill.tags.includes(tag))) {
         return false;
       }
       if (!query) {
         return true;
       }
-
       return [skill.name, skill.description, skill.market, skill.skillType, skill.categoryLabel, ...skill.tags]
         .join(' ')
         .toLowerCase()
         .includes(query);
     });
-  }, [activeCategory, activeInstallFilter, activeTab, activeTag, searchQuery, visibleSkills]);
+  }, [activeCategory, activeInstallFilter, activeTab, activeTags, searchQuery, visibleSkills]);
 
-  const installedCount = useMemo(() => skills.filter((skill) => skill.userInstalled).length, [skills]);
-  const researchCount = useMemo(() => visibleSkills.filter((skill) => skill.categoryId === 'research').length, [visibleSkills]);
-  const marketCount = useMemo(
-    () => visibleSkills.filter((skill) => skill.market === 'A股' || skill.market === '美股').length,
-    [visibleSkills],
-  );
-  const hiddenCount = useMemo(
-    () => adminSkills.filter((skill) => skill.visibility !== 'showcase' || !skill.active).length,
-    [adminSkills],
-  );
+  const totalCount = skills.length;
+  const installedCount = skills.filter((skill) => skill.installed || skill.source === 'bundled').length;
+  const builtinCount = skills.filter((skill) => skill.source === 'bundled').length;
+  const failedCount = installErrorSlugs.length;
 
   return (
     <section className="flex min-w-0 flex-1 flex-col overflow-y-auto bg-[var(--bg-page)]">
-      <div className="border-b border-[var(--border-default)] bg-[var(--bg-page)] px-8 pb-6 pt-6">
-        <div
-          className="rounded-[32px] border border-[var(--border-default)] p-6 shadow-[var(--shadow-sm)] dark:border-[rgba(255,255,255,0.08)] dark:shadow-[0_26px_48px_rgba(0,0,0,0.34)]"
-          style={{
-            background:
-              'linear-gradient(135deg, rgba(201,169,97,0.11) 0%, rgba(255,255,255,0) 42%), var(--bg-card)',
-          }}
-        >
-          <div className="flex flex-wrap items-start justify-between gap-5">
-            <div className="max-w-2xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border-default)] bg-[var(--bg-hover)] px-3 py-1 text-[12px] text-[var(--text-secondary)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
-                <LayoutGrid className="h-3.5 w-3.5 text-[var(--brand-primary)]" />
-                Skills / MCP
-                <span
-                  className="rounded-full px-2 py-0.5 text-[11px] font-medium text-[var(--brand-primary)]"
-                  style={{ background: 'rgba(201,169,97,0.14)' }}
-                >
-                  MCP 即将推出
-                </span>
-              </div>
-              <h1 className="mt-4 text-[30px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
-                技能商店
-              </h1>
-              <p className="mt-2 max-w-xl text-[14px] leading-6 text-[var(--text-secondary)]">
-                {adminMode
-                  ? '当前是超管管理视图。你可以直接编辑技能目录元数据，并立刻同步到 control-plane。'
-                  : '统一查看系统预置能力与云端技能。登录后安装过的技能会自动同步到当前设备。'}
+      <div className="mx-auto w-full max-w-[1400px] px-8 py-8">
+        <div className="mb-8">
+          <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h1 className="mb-2 text-[28px] font-medium tracking-tight text-[var(--text-primary)]">技能商店</h1>
+              <p className="text-[14px] leading-relaxed text-[var(--text-secondary)]">
+                统一查看系统预置能力与云端技能，安装后可自动同步到设备
               </p>
             </div>
 
-            <div className="flex w-full max-w-[520px] flex-col gap-3 sm:w-auto">
-              <label className="relative block">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-[var(--text-muted)] dark:text-[var(--text-secondary)]" />
-                <input
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="搜索技能名称、市场或用途"
-                  className="w-full rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-page)] py-3 pl-11 pr-4 text-[14px] text-[var(--text-primary)] outline-none transition-all placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)] focus:ring-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:placeholder:text-[rgba(250,250,250,0.34)]"
-                  style={{ ['--tw-ring-color' as string]: 'rgba(201,169,97,0.14)' }}
-                />
-              </label>
-              <div className="flex items-center justify-end gap-3">
-                <Button onClick={handleOpenImport} variant="secondary" size="md">
-                  <Upload className="h-4 w-4" />
-                  导入技能
-                </Button>
-                {isAdmin ? (
-                  <Button
-                    onClick={() => {
-                      setAdminMode((current) => {
-                        const next = !current;
-                        if (!next) {
-                          setSelectedAdminSkill(null);
-                          setAdminError(null);
-                        } else {
-                          setActiveTab('store');
-                          void refreshCatalog({ preferAdmin: true }).catch(() => {
-                            setError('技能目录读取失败');
-                          });
-                        }
-                        return next;
-                      });
-                    }}
-                    variant={adminMode ? 'primary' : 'secondary'}
-                    size="md"
-                  >
-                    <ShieldCheck className="h-4 w-4" />
-                    {adminMode ? '退出超管模式' : '进入超管模式'}
-                  </Button>
-                ) : null}
-                <Button
-                  onClick={() => {
-                    void refreshCatalog({ preferAdmin: adminMode })
-                      .catch(() => {
-                        setError('下载安装失败');
-                      });
-                  }}
-                  variant="primary"
-                  size="md"
-                >
-                  <Package className="h-4 w-4" />
-                  刷新技能
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-3 md:grid-cols-3">
-            <SummaryCard
-              label="我的技能"
-              value={`${installedCount}`}
-              note="这里只统计你亲手安装到账号里的云端技能，不包含系统预置。"
-              icon={Sparkles}
-              tone="brand"
-            />
-            <SummaryCard
-              label="研究分析"
-              value={`${researchCount}`}
-              note="研究、估值、财报、技术面等投研向能力可以统一管理与安装。"
-              icon={LineChart}
-              tone="emerald"
-            />
-            <SummaryCard
-              label={adminMode ? '待整理' : '市场覆盖'}
-              value={`${adminMode ? hiddenCount : marketCount}`}
-              note={
-                adminMode
-                  ? '隐藏或停用的技能也会被纳入超管视图，方便你直接清理和修正。'
-                  : 'A股与美股相关技能会优先归类到市场标签中，便于检索。'
-              }
-              icon={adminMode ? EyeOff : Globe2}
-              tone={adminMode ? 'violet' : 'sky'}
-            />
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center gap-2 text-[12px] text-[var(--text-secondary)]">
-            <span className="mr-1">状态颜色：</span>
-            <Chip tone="brand">未安装</Chip>
-            <Chip tone="success">已安装</Chip>
-            <Chip tone="danger">安装失败</Chip>
-          </div>
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-1 rounded-full border border-[var(--border-default)] bg-[var(--bg-card)] p-1 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
-            {storeTabs.map((tab) => {
-              const active = tab.id === activeTab;
-              return (
-                <Chip
-                  key={tab.id}
-                  clickable
-                  onClick={() => setActiveTab(tab.id)}
-                  active={active}
-                  className={cn(
-                    'px-4 py-2 text-[14px] font-medium',
-                    !active && 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
-                  )}
-                >
-                  {tab.label}
-                  {tab.id === 'myskills' ? (
-                    <span className="ml-2 rounded-full bg-[rgba(15,23,42,0.06)] px-2 py-0.5 text-[12px] text-[var(--text-secondary)] dark:bg-[rgba(255,255,255,0.10)] dark:text-[rgba(250,250,250,0.82)]">
-                      {installedCount}
-                    </span>
-                  ) : null}
-                </Chip>
-              );
-            })}
-          </div>
-
-          <div className="flex items-center gap-2 rounded-full border border-[var(--border-default)] bg-[var(--bg-card)] px-3 py-2 text-[12px] text-[var(--text-secondary)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
-            <Settings2 className="h-3.5 w-3.5" />
-            {adminMode ? '超管目录管理已开启' : 'bundled + cloud 已接入'}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1 px-8 py-8">
-        {activeTab === 'store' ? (
-          <div className="mb-6 space-y-3">
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {categories.map((category) => {
-                const active = category.id === activeCategory;
-                return (
-                  <Chip
-                    key={category.id}
-                    clickable
-                    onClick={() => setActiveCategory(category.id)}
-                    active={active}
-                    tone={active ? 'brand' : 'outline'}
-                    className={cn(
-                      'whitespace-nowrap px-4 py-2 text-[13px] font-medium',
-                      !active &&
-                        'bg-[var(--bg-card)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:text-[rgba(250,250,250,0.72)] dark:hover:border-[rgba(255,255,255,0.16)] dark:hover:bg-[rgba(255,255,255,0.07)] dark:hover:text-[var(--text-primary)]',
-                    )}
-                  >
-                    {category.label}
-                  </Chip>
-                );
-              })}
-            </div>
-
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[12px] text-[var(--text-secondary)]">安装状态</span>
-              {installFilters.map((filter) => {
-                const active = filter.id === activeInstallFilter;
-                return (
-                  <Chip
-                    key={filter.id}
-                    clickable
-                    onClick={() => setActiveInstallFilter(filter.id)}
-                    active={active}
-                    tone={active ? 'brand' : 'outline'}
-                    className={cn(
-                      'whitespace-nowrap px-3 py-1.5 text-[12px] font-medium',
-                      !active &&
-                        'bg-[var(--bg-card)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
-                    )}
-                  >
-                    {filter.label}
-                  </Chip>
-                );
-              })}
+              <Button variant="secondary" size="sm" className="rounded-lg px-3.5 py-2 text-[13px]" onClick={handleOpenImport} leadingIcon={<Upload className="h-3.5 w-3.5" />}>
+                导入技能
+              </Button>
+              {isAdmin ? (
+                <Button
+                  variant={adminMode ? 'primary' : 'secondary'}
+                  size="sm"
+                  className="rounded-lg px-3.5 py-2 text-[13px]"
+                  onClick={() => {
+                    setAdminMode((current) => {
+                      const next = !current;
+                      if (!next) {
+                        setSelectedAdminSkill(null);
+                        setAdminError(null);
+                      } else {
+                        setActiveTab('store');
+                        void refreshCatalog({ preferAdmin: true }).catch(() => {
+                          setError('技能目录读取失败');
+                        });
+                      }
+                      return next;
+                    });
+                  }}
+                  leadingIcon={<ShieldCheck className="h-3.5 w-3.5" />}
+                >
+                  {adminMode ? '退出超管模式' : '进入超管模式'}
+                </Button>
+              ) : null}
+              <Button
+                variant="secondary"
+                size="sm"
+                className="rounded-lg px-3.5 py-2 text-[13px]"
+                onClick={() => {
+                  void refreshCatalog({ preferAdmin: adminMode }).catch(() => {
+                    setError('下载安装失败');
+                  });
+                }}
+                leadingIcon={<RefreshCw className="h-3.5 w-3.5" />}
+              >
+                刷新技能
+              </Button>
             </div>
+          </div>
 
-            {availableQuickTags.length ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[12px] text-[var(--text-secondary)]">热门标签</span>
-                {availableQuickTags.map((tag) => {
-                  const active = tag === activeTag;
-                  return (
-                    <Chip
-                      key={tag}
-                      clickable
-                      onClick={() => setActiveTag((current) => (current === tag ? null : tag))}
-                      tone="outline"
-                      className={cn(
-                        'whitespace-nowrap px-3 py-1.5 text-[12px] font-medium',
-                        skillTagClassName(tag, { selected: active, flat: true }),
-                        !active && 'hover:opacity-95',
-                      )}
-                    >
-                      {tag}
-                    </Chip>
-                  );
-                })}
-                {activeTag ? (
-                  <Button
-                    onClick={() => setActiveTag(null)}
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 rounded-full px-3 text-[12px]"
-                  >
-                    清除标签
-                  </Button>
-                ) : null}
-              </div>
+          <div className="mb-5">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[var(--text-muted)]" />
+              <input
+                type="text"
+                placeholder="搜索技能名称或描述..."
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] py-3 pl-11 pr-4 text-[14px] text-[var(--text-primary)] outline-none transition-all placeholder:text-[var(--text-muted)] focus:border-[rgba(201,169,97,0.24)] focus:ring-2 dark:bg-[rgba(255,255,255,0.03)]"
+                style={{ ['--tw-ring-color' as string]: 'rgba(201,169,97,0.12)' }}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+              label="技能总数"
+              value={totalCount}
+              icon={<Package className="h-[18px] w-[18px]" />}
+              iconWrapClassName="border-[rgba(201,169,97,0.20)] bg-[rgba(201,169,97,0.12)]"
+              iconClassName="text-[rgb(155,112,39)] dark:text-[#f1d59c]"
+            />
+            <StatCard
+              label="已安装"
+              value={installedCount}
+              icon={<CheckCircle2 className="h-[18px] w-[18px]" />}
+              iconWrapClassName="border-[rgba(34,197,94,0.18)] bg-[rgba(34,197,94,0.10)]"
+              iconClassName="text-[rgb(21,128,61)] dark:text-[#c7f9d7]"
+            />
+            <StatCard
+              label="系统预置"
+              value={builtinCount}
+              icon={<Download className="h-[18px] w-[18px]" />}
+              iconWrapClassName="border-[rgba(74,107,138,0.18)] bg-[rgba(74,107,138,0.10)]"
+              iconClassName="text-[#4A6B8A] dark:text-[#b7d0e5]"
+            />
+            <StatCard
+              label="安装失败"
+              value={failedCount}
+              icon={<AlertCircle className="h-[18px] w-[18px]" />}
+              iconWrapClassName="border-[rgba(239,68,68,0.18)] bg-[rgba(239,68,68,0.10)]"
+              iconClassName="text-[rgb(185,28,28)] dark:text-[#fecaca]"
+            />
+          </div>
+        </div>
+
+        <div className="mb-6 space-y-5">
+          <div className="flex items-center gap-2 border-b border-[var(--border-default)] pb-4">
+            {storeTabs.map((tab) => (
+              <ViewModeButton
+                key={tab.id}
+                active={activeTab === tab.id}
+                badge={tab.id === 'myskills' ? skills.filter((skill) => skill.userInstalled).length : undefined}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                {tab.label}
+              </ViewModeButton>
+            ))}
+            {adminMode ? (
+              <span className="ml-2 rounded-md border border-[rgba(201,169,97,0.18)] bg-[rgba(201,169,97,0.10)] px-2.5 py-1 text-[11px] text-[rgb(155,112,39)] dark:border-[rgba(201,169,97,0.20)] dark:bg-[rgba(201,169,97,0.16)] dark:text-[#f1d59c]">
+                超管模式
+              </span>
             ) : null}
           </div>
-        ) : (
-          <div className="mb-6 rounded-[26px] border border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(24,24,24,0.96),rgba(16,16,16,0.94))] dark:shadow-[0_20px_36px_rgba(0,0,0,0.26)]">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-                  <SummaryGlyph icon={Sparkles} tone="brand" className="h-7 w-7 rounded-[12px]" iconClassName="h-3.5 w-3.5" />
-                  我的技能
-                </div>
-                <h2 className="mt-2 text-xl font-medium text-[var(--text-primary)]">你已经安装的技能</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
-                  这里只显示你登录后亲手安装的云端技能。系统预置技能会继续留在技能库里，不会混进这里。
-                </p>
-              </div>
-              <div className="rounded-[22px] bg-[var(--bg-hover)] px-4 py-3 text-right dark:bg-[rgba(255,255,255,0.04)]">
-                <div className="text-[12px] uppercase tracking-[0.12em] text-[var(--text-secondary)]">已收纳技能</div>
-                <div className="mt-1 text-[28px] font-semibold text-[var(--text-primary)]">{installedCount}</div>
-              </div>
+
+          <div>
+            <div className="mb-2.5 text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">分类</div>
+            <div className="flex flex-wrap gap-2">
+              {categories.map((category) => (
+                <FilterButton key={category.id} active={activeCategory === category.id} onClick={() => setActiveCategory(category.id)}>
+                  {category.label}
+                </FilterButton>
+              ))}
             </div>
           </div>
-        )}
+
+          {availableQuickTags.length ? (
+            <div>
+              <div className="mb-2.5 text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">标签筛选</div>
+              <div className="flex flex-wrap gap-2">
+                {availableQuickTags.map((tag) => {
+                  const active = activeTags.includes(tag);
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() =>
+                        setActiveTags((current) => (current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]))
+                      }
+                      className={cn('rounded-md border px-3 py-1.5 text-[12px] transition-all', skillTagClassName(tag, { selected: active, flat: true }))}
+                    >
+                      {tag}
+                    </button>
+                  );
+                })}
+                {activeTags.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTags([])}
+                    className="rounded-md border border-[var(--border-default)] bg-[var(--bg-card)] px-3 py-1.5 text-[12px] text-[var(--text-secondary)] transition-all hover:border-[rgba(201,169,97,0.22)] hover:text-[var(--text-primary)]"
+                  >
+                    清除
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          <div>
+            <div className="mb-2.5 text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">安装状态</div>
+            <div className="flex flex-wrap gap-2">
+              {installFilters.map((filter) => (
+                <FilterButton key={filter.id} active={activeInstallFilter === filter.id} onClick={() => setActiveInstallFilter(filter.id)}>
+                  {filter.label}
+                </FilterButton>
+              ))}
+            </div>
+          </div>
+        </div>
 
         {loading ? (
-          <div className="rounded-[32px] border border-[var(--border-default)] bg-[var(--bg-card)] px-8 py-14 text-sm text-[var(--text-secondary)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(24,24,24,0.96),rgba(16,16,16,0.94))]">
-            正在加载技能目录…
+          <div className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-10 text-[14px] text-[var(--text-secondary)]">
+            正在加载技能目录...
           </div>
         ) : error ? (
-          <div
-            className="rounded-[32px] px-6 py-5 text-sm text-[var(--state-error)]"
-            style={{
-              border: '1px solid rgba(239,68,68,0.16)',
-              background: 'rgba(239,68,68,0.08)',
-            }}
-          >
+          <div className="rounded-[18px] border border-[rgba(239,68,68,0.16)] bg-[rgba(239,68,68,0.08)] px-6 py-5 text-sm text-[var(--state-error)]">
             <div className="flex items-start gap-3">
               <AlertCircle className="mt-0.5 h-4.5 w-4.5 shrink-0" />
               <div>
@@ -976,27 +941,23 @@ export function SkillStoreView({
           </div>
         ) : filteredSkills.length === 0 ? (
           <EmptyState
-            title={searchQuery ? '没有匹配的技能' : '当前分类下暂无技能'}
-            description={
-              searchQuery
-                ? `没有找到和“${searchQuery}”相关的技能，试试更换关键词或切换分类。`
-                : '当前视图还没有可展示的技能。'
-            }
+            title={searchQuery ? '未找到匹配的技能' : '当前筛选条件下暂无技能'}
+            description={searchQuery ? '请尝试调整搜索条件或筛选器' : '请尝试切换分类或标签查看其它技能'}
           />
         ) : (
-          <div className="grid gap-5 xl:grid-cols-3 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
             {filteredSkills.map((skill) => (
               <SkillCard
                 key={skill.slug}
                 skill={skill}
-                installFailed={installErrorSlug === skill.slug}
-                compactFooter={activeTab === 'myskills'}
                 adminMode={adminMode}
                 actionLoading={installingSlug === skill.slug}
+                installFailed={installErrorSlugs.includes(skill.slug)}
                 onAction={handleInstall}
                 onOpenDetail={(nextSkill) => {
-                  if (adminMode) return;
-                  setSelectedSkill(nextSkill);
+                  if (!adminMode) {
+                    setSelectedSkill(nextSkill);
+                  }
                 }}
                 onEdit={(nextSkill) => {
                   if (!adminMode) return;
@@ -1015,9 +976,10 @@ export function SkillStoreView({
       <SkillStoreDetailSheet
         skill={selectedSkill}
         actionLoading={selectedSkill ? installingSlug === selectedSkill.slug : false}
-        installFailed={selectedSkill ? installErrorSlug === selectedSkill.slug : false}
+        installFailed={selectedSkill ? installErrorSlugs.includes(selectedSkill.slug) : false}
         onInstall={handleInstall}
         onClose={() => setSelectedSkill(null)}
+        publishedAtFormatter={formatPublishedAt}
       />
       <SkillStoreAdminSheet
         skill={selectedAdminSkill}
