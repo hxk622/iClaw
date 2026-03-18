@@ -654,7 +654,7 @@ export function SkillStoreView({
   const failedCount = installErrorSlugs.length;
 
   return (
-    <section className="flex min-w-0 flex-1 flex-col overflow-y-auto bg-[var(--bg-page)]">
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto bg-[var(--bg-page)]">
       <div className="mx-auto w-full max-w-[1400px] px-8 py-8">
         <div className="mb-8">
           <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
