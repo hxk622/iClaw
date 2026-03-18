@@ -1,17 +1,14 @@
 import {
   ArrowUp,
+  Check,
   ChevronDown,
   Film,
   FileText,
-  Eye,
   Image as ImageIcon,
-  Layers,
   Plus,
   Sparkles,
   Square,
   WandSparkles,
-  Zap,
-  Search,
 } from 'lucide-react';
 import {
   forwardRef,
@@ -21,6 +18,8 @@ import {
   useRef,
   useState,
 } from 'react';
+import { ModelBrandIcon } from './ModelBrandIcon';
+import { findComposerModelOption, type ComposerModelOption } from '../lib/model-catalog';
 
 export type OpenClawImageAttachment = {
   id: string;
@@ -56,6 +55,11 @@ type ComposerTokenMeta = {
 type RichChatComposerProps = {
   connected: boolean;
   busy: boolean;
+  modelOptions: ComposerModelOption[];
+  selectedModelId: string | null;
+  modelsLoading: boolean;
+  modelSwitching: boolean;
+  onModelChange: (modelId: string) => Promise<void> | void;
   onAbort: () => Promise<void> | void;
   onSend: (payload: ComposerSendPayload) => Promise<boolean> | boolean;
 };
@@ -226,13 +230,28 @@ function buildReferenceLabel(text: string): string {
 }
 
 export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatComposerProps>(
-  function RichChatComposer({ connected, busy, onAbort, onSend }, ref) {
+  function RichChatComposer(
+    {
+      connected,
+      busy,
+      modelOptions,
+      selectedModelId,
+      modelsLoading,
+      modelSwitching,
+      onModelChange,
+      onAbort,
+      onSend,
+    },
+    ref,
+  ) {
     const editorRef = useRef<HTMLDivElement | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
+    const modelMenuRef = useRef<HTMLDivElement | null>(null);
     const tokenStoreRef = useRef<Map<string, ComposerTokenMeta>>(new Map());
     const savedRangeRef = useRef<Range | null>(null);
     const [hasContent, setHasContent] = useState(false);
     const [tokenCount, setTokenCount] = useState(0);
+    const [modelMenuOpen, setModelMenuOpen] = useState(false);
 
     const refreshState = useCallback(() => {
       const editor = editorRef.current;
@@ -462,8 +481,64 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       return () => document.removeEventListener('selectionchange', handleSelectionChange);
     }, []);
 
+    useEffect(() => {
+      if (!modelMenuOpen) {
+        return;
+      }
+
+      const handlePointerDown = (event: PointerEvent) => {
+        if (modelMenuRef.current?.contains(event.target as Node)) {
+          return;
+        }
+        setModelMenuOpen(false);
+      };
+
+      const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') {
+          setModelMenuOpen(false);
+        }
+      };
+
+      document.addEventListener('pointerdown', handlePointerDown);
+      document.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.removeEventListener('pointerdown', handlePointerDown);
+        document.removeEventListener('keydown', handleKeyDown);
+      };
+    }, [modelMenuOpen]);
+
+    useEffect(() => {
+      if (!connected) {
+        setModelMenuOpen(false);
+      }
+    }, [connected]);
+
     const submitLabel = busy && !hasContent ? '停止' : '发送';
     const sendState = busy ? 'busy' : hasContent ? 'ready' : 'empty';
+    const selectedModel =
+      findComposerModelOption(modelOptions, selectedModelId) ?? modelOptions[0] ?? null;
+    const modelTriggerLabel = (() => {
+      if (!connected) {
+        return '模型未连接';
+      }
+      if (selectedModel) {
+        return selectedModel.label;
+      }
+      if (modelsLoading) {
+        return '模型加载中';
+      }
+      return '选择模型';
+    })();
+    const modelTriggerDetail = (() => {
+      if (!connected) {
+        return '等待网关连接';
+      }
+      if (selectedModel) {
+        return selectedModel.detail;
+      }
+      return modelsLoading ? '同步可用模型中' : '当前暂无可用模型';
+    })();
+    const modelDisabled = !connected || busy || modelSwitching || modelOptions.length === 0;
 
     return (
       <div className="iclaw-composer">
@@ -588,55 +663,95 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
             </div>
           </div>
 
-          <div className="iclaw-composer__footer" aria-hidden="true">
-            <div className="iclaw-composer__selectors">
-              <button type="button" className="iclaw-composer__selector">
-                <Zap className="h-3.5 w-3.5 iclaw-composer__selector-icon iclaw-composer__selector-icon--cyan" />
-                Agent
-                <ChevronDown className="h-3 w-3" />
-              </button>
-              <button type="button" className="iclaw-composer__selector">
-                <Eye className="h-3.5 w-3.5 iclaw-composer__selector-icon iclaw-composer__selector-icon--blue" />
-                视图
-              </button>
-              <button type="button" className="iclaw-composer__selector">
-                <Layers className="h-3.5 w-3.5 iclaw-composer__selector-icon iclaw-composer__selector-icon--green" />
-                自动
-              </button>
-              <button type="button" className="iclaw-composer__selector">
-                <Search className="h-3.5 w-3.5 iclaw-composer__selector-icon iclaw-composer__selector-icon--orange" />
-                搜索
-              </button>
+          <div className="iclaw-composer__footer">
+            <div className="iclaw-composer__supports">
               <span className="iclaw-composer__support">
-                <ImageIcon className="h-3.5 w-3.5 iclaw-composer__selector-icon iclaw-composer__selector-icon--rose" />
+                <ImageIcon className="h-3.5 w-3.5 iclaw-composer__support-icon iclaw-composer__support-icon--rose" />
                 图片
               </span>
               <span className="iclaw-composer__support">
-                <FileText className="h-3.5 w-3.5 iclaw-composer__selector-icon iclaw-composer__selector-icon--amber" />
+                <FileText className="h-3.5 w-3.5 iclaw-composer__support-icon iclaw-composer__support-icon--amber" />
                 PDF
               </span>
               <span className="iclaw-composer__support">
-                <Film className="h-3.5 w-3.5 iclaw-composer__selector-icon iclaw-composer__selector-icon--violet" />
+                <Film className="h-3.5 w-3.5 iclaw-composer__support-icon iclaw-composer__support-icon--violet" />
                 视频
               </span>
               {tokenCount > 0 ? <span className="iclaw-composer__meta-count">{tokenCount}</span> : null}
             </div>
 
-            <button
-              type="button"
-              className="iclaw-composer__submit"
-              data-state={sendState}
-              disabled={!connected || (!busy && !hasContent)}
-              onClick={() => void (busy ? onAbort() : handleSubmit())}
-              aria-label={submitLabel}
-              title={submitLabel}
-            >
-              {busy ? (
-                <Square className="h-[14px] w-[14px]" fill="currentColor" strokeWidth={0} />
-              ) : (
-                <ArrowUp className="h-[18px] w-[18px]" strokeWidth={2.5} />
-              )}
-            </button>
+            <div className="iclaw-composer__actions">
+              <div ref={modelMenuRef} className="iclaw-composer__model-picker">
+                <button
+                  type="button"
+                  className="iclaw-composer__model-trigger"
+                  disabled={modelDisabled}
+                  aria-haspopup="menu"
+                  aria-expanded={modelMenuOpen}
+                  onClick={() => setModelMenuOpen((current) => !current)}
+                >
+                  <span className="iclaw-composer__model-trigger-main">
+                    <ModelBrandIcon
+                      family={selectedModel?.family ?? 'generic'}
+                      className="iclaw-composer__model-logo"
+                    />
+                    <span className="iclaw-composer__model-copy">
+                      <span className="iclaw-composer__model-label">{modelTriggerLabel}</span>
+                      <span className="iclaw-composer__model-detail">{modelTriggerDetail}</span>
+                    </span>
+                  </span>
+                  <ChevronDown
+                    className="iclaw-composer__model-caret h-3.5 w-3.5"
+                    data-open={modelMenuOpen ? 'true' : 'false'}
+                  />
+                </button>
+
+                {modelMenuOpen ? (
+                  <div className="iclaw-composer__model-menu" role="menu" aria-label="选择模型">
+                    {modelOptions.map((option) => {
+                      const active = option.id === selectedModel?.id;
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={active}
+                          className="iclaw-composer__model-option"
+                          data-active={active ? 'true' : 'false'}
+                          onClick={() => {
+                            setModelMenuOpen(false);
+                            void onModelChange(option.id);
+                          }}
+                        >
+                          <ModelBrandIcon family={option.family} className="iclaw-composer__model-option-logo" />
+                          <span className="iclaw-composer__model-option-copy">
+                            <span className="iclaw-composer__model-option-label">{option.label}</span>
+                            <span className="iclaw-composer__model-option-detail">{option.detail}</span>
+                          </span>
+                          {active ? <Check className="iclaw-composer__model-option-check h-4 w-4" /> : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
+
+              <button
+                type="button"
+                className="iclaw-composer__submit"
+                data-state={sendState}
+                disabled={!connected || (!busy && !hasContent)}
+                onClick={() => void (busy ? onAbort() : handleSubmit())}
+                aria-label={submitLabel}
+                title={submitLabel}
+              >
+                {busy ? (
+                  <Square className="h-[14px] w-[14px]" fill="currentColor" strokeWidth={0} />
+                ) : (
+                  <ArrowUp className="h-[18px] w-[18px]" strokeWidth={2.5} />
+                )}
+              </button>
+            </div>
           </div>
         </div>
 

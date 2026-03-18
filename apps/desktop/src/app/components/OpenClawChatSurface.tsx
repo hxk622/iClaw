@@ -3,6 +3,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import '@openclaw-ui/main.ts';
 import './openclaw-chat-surface.css';
 import {
+  buildComposerModelOptions,
+  type ComposerModelOption,
+  type GatewayModelCatalogEntry,
+} from '../lib/model-catalog';
+import {
   buildGeneratedUserAvatarDataUrl,
   resolveUserAvatarUrl,
   type AppUserAvatarSource,
@@ -179,6 +184,16 @@ type ActiveRecentTaskRun = {
   taskId: string;
   baselineError: string | null;
   failureMessage: string | null;
+};
+
+type GatewaySessionsListResult = {
+  defaults: {
+    model: string | null;
+  };
+  sessions: Array<{
+    key: string;
+    model?: string | null;
+  }>;
 };
 
 function isVisibleElement(node: Element | null): { visible: boolean; height: number } {
@@ -380,6 +395,39 @@ function createReferenceChip(text: string): HTMLSpanElement {
   return chip;
 }
 
+async function loadChatModelSnapshot(
+  app: OpenClawAppElement,
+  targetSessionKey: string,
+): Promise<{
+  options: ComposerModelOption[];
+  selectedModelId: string | null;
+} | null> {
+  const request = app.client?.request;
+  if (!app.connected || typeof request !== 'function') {
+    return null;
+  }
+
+  const [modelsResult, sessionsResult] = await Promise.all([
+    request<{ models?: GatewayModelCatalogEntry[] }>('models.list', {}),
+    request<GatewaySessionsListResult>('sessions.list', {
+      includeGlobal: true,
+      includeUnknown: true,
+      limit: 200,
+    }),
+  ]);
+
+  const options = buildComposerModelOptions(modelsResult?.models ?? []);
+  const sessionModel =
+    sessionsResult?.sessions.find((session) => session.key === targetSessionKey)?.model?.trim() ?? '';
+  const defaultModel = sessionsResult?.defaults?.model?.trim() ?? '';
+  const fallbackModel = options[0]?.id ?? null;
+
+  return {
+    options,
+    selectedModelId: sessionModel || defaultModel || fallbackModel,
+  };
+}
+
 export function OpenClawChatSurface({
   gatewayUrl,
   gatewayToken,
@@ -425,10 +473,15 @@ export function OpenClawChatSurface({
   const [unhandledGatewayError, setUnhandledGatewayError] = useState<UnhandledGatewayError | null>(null);
   const [lastRpcFailure, setLastRpcFailure] = useState<GatewayRpcFailure | null>(null);
   const [selectionMenu, setSelectionMenu] = useState<SelectionMenuState | null>(null);
+  const [modelOptions, setModelOptions] = useState<ComposerModelOption[]>([]);
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelSwitching, setModelSwitching] = useState(false);
   const statusLogRef = useRef<string | null>(null);
   const rpcLogRef = useRef<string | null>(null);
   const unhandledLogRef = useRef<string | null>(null);
   const selectionMenuRef = useRef<HTMLDivElement | null>(null);
+  const modelLoadVersionRef = useRef(0);
 
   const closeSelectionMenu = useCallback(() => {
     setSelectionMenu(null);
@@ -525,6 +578,78 @@ export function OpenClawChatSurface({
     };
   }, []);
 
+  const refreshModelCatalog = useCallback(async (): Promise<boolean> => {
+    const app = appRef.current;
+    if (!app) {
+      return false;
+    }
+
+    const requestVersion = modelLoadVersionRef.current + 1;
+    modelLoadVersionRef.current = requestVersion;
+    setModelsLoading(true);
+
+    try {
+      const snapshot = await loadChatModelSnapshot(app, sessionKey);
+      if (!snapshot || modelLoadVersionRef.current !== requestVersion) {
+        return false;
+      }
+
+      setModelOptions(snapshot.options);
+      setSelectedModelId(snapshot.selectedModelId);
+      return true;
+    } catch (error) {
+      if (modelLoadVersionRef.current === requestVersion) {
+        const message = error instanceof Error ? error.message : '模型列表同步失败';
+        setStatus((current) => ({
+          ...current,
+          lastError: current.lastError ?? message,
+        }));
+      }
+      return false;
+    } finally {
+      if (modelLoadVersionRef.current === requestVersion) {
+        setModelsLoading(false);
+      }
+    }
+  }, [sessionKey]);
+
+  const handleModelChange = useCallback(
+    async (modelId: string) => {
+      const nextModelId = modelId.trim();
+      if (!nextModelId || nextModelId === selectedModelId) {
+        return;
+      }
+
+      const app = appRef.current;
+      const request = app?.client?.request;
+      if (!app?.connected || typeof request !== 'function') {
+        return;
+      }
+
+      const previousModelId = selectedModelId;
+      setModelSwitching(true);
+      setSelectedModelId(nextModelId);
+
+      try {
+        await request('sessions.patch', {
+          key: sessionKey,
+          model: nextModelId,
+        });
+        await refreshModelCatalog();
+      } catch (error) {
+        setSelectedModelId(previousModelId);
+        const message = error instanceof Error ? error.message : '模型切换失败';
+        setStatus((current) => ({
+          ...current,
+          lastError: message,
+        }));
+      } finally {
+        setModelSwitching(false);
+      }
+    },
+    [refreshModelCatalog, selectedModelId, sessionKey],
+  );
+
   useEffect(() => {
     artifactAutoOpenStateRef.current = {
       lastBusy: false,
@@ -535,6 +660,11 @@ export function OpenClawChatSurface({
     };
     activeRecentTaskRunRef.current = null;
     clearArtifactAutoOpenTimers();
+    modelLoadVersionRef.current += 1;
+    setModelOptions([]);
+    setSelectedModelId(null);
+    setModelsLoading(false);
+    setModelSwitching(false);
   }, [clearArtifactAutoOpenTimers, sessionKey]);
 
   useEffect(() => {
@@ -935,14 +1065,6 @@ export function OpenClawChatSurface({
   }, [clearArtifactAutoOpenTimers, status.busy, tryAutoOpenArtifactCard]);
 
   useEffect(() => {
-    if (status.busy || !activeRecentTaskRunRef.current) {
-      return;
-    }
-
-    finalizeRecentTaskRun();
-  }, [finalizeRecentTaskRun, status.busy]);
-
-  useEffect(() => {
     const timer = window.setInterval(() => {
       const app = appRef.current;
       const host = hostRef.current;
@@ -1014,6 +1136,41 @@ export function OpenClawChatSurface({
       timers.forEach((timer) => window.clearTimeout(timer));
     };
   }, [clearArtifactAutoOpenTimers, status.connected]);
+
+  useEffect(() => {
+    if (!status.connected) {
+      modelLoadVersionRef.current += 1;
+      setModelOptions([]);
+      setSelectedModelId(null);
+      setModelsLoading(false);
+      setModelSwitching(false);
+      return;
+    }
+
+    let disposed = false;
+    let attempts = 0;
+    const maxAttempts = 8;
+
+    const syncModels = async () => {
+      if (disposed) {
+        return;
+      }
+
+      const loaded = await refreshModelCatalog();
+      attempts += 1;
+      if (!loaded && attempts < maxAttempts && !disposed) {
+        window.setTimeout(() => {
+          void syncModels();
+        }, 420);
+      }
+    };
+
+    void syncModels();
+
+    return () => {
+      disposed = true;
+    };
+  }, [refreshModelCatalog, status.connected]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -1212,6 +1369,14 @@ export function OpenClawChatSurface({
   }, []);
 
   useEffect(() => {
+    if (status.busy || !activeRecentTaskRunRef.current) {
+      return;
+    }
+
+    finalizeRecentTaskRun();
+  }, [finalizeRecentTaskRun, status.busy]);
+
+  useEffect(() => {
     const activeRun = activeRecentTaskRunRef.current;
     if (!status.busy || !activeRun || !status.lastError) {
       return;
@@ -1380,7 +1545,18 @@ export function OpenClawChatSurface({
         </div>
       ) : null}
 
-      <RichChatComposer ref={composerRef} connected={status.connected} busy={status.busy} onSend={handleSend} onAbort={handleAbort} />
+      <RichChatComposer
+        ref={composerRef}
+        connected={status.connected}
+        busy={status.busy}
+        modelOptions={modelOptions}
+        selectedModelId={selectedModelId}
+        modelsLoading={modelsLoading}
+        modelSwitching={modelSwitching}
+        onModelChange={handleModelChange}
+        onSend={handleSend}
+        onAbort={handleAbort}
+      />
 
       {showRenderDiagnosticsCard ? (
         <div className="iclaw-chat-render-card" role="status" aria-live="polite">
