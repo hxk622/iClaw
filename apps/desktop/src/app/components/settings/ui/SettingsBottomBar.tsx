@@ -46,7 +46,7 @@ export function SettingsBottomBar({
             重置
           </Button>
           <Button
-            variant="ink"
+            variant="primary"
             size="sm"
             leadingIcon={<Save className="h-4 w-4" />}
             disabled={!hasUnsavedChanges || saveState === 'saving'}

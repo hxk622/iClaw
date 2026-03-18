@@ -40,8 +40,8 @@ export function CompactSegmentedControl<T extends string>({
               active
                 ? cn(
                     APPLE_FLAT_SURFACE,
-                    'border border-[var(--border-default)] bg-[var(--bg-card)] text-[var(--text-primary)]',
-                    'dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.06)]',
+                    'border border-[rgba(59,130,246,0.18)] bg-[rgba(59,130,246,0.10)] text-[rgb(29,78,216)] shadow-[0_10px_20px_rgba(59,130,246,0.08)]',
+                    'dark:border-[rgba(201,169,97,0.20)] dark:bg-[rgba(201,169,97,0.16)] dark:text-[#f1d59c] dark:shadow-[0_10px_20px_rgba(0,0,0,0.18)]',
                   )
                 : 'border border-transparent bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
             )}

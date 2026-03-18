@@ -226,7 +226,7 @@ export function skillTagClassName(
   const flat = options?.flat ?? false;
   return cn(
     flat ? TAG_FLAT_CLASSES[tone] : TAG_TONE_CLASSES[tone],
-    selected && 'translate-y-[-1px] text-[var(--text-primary)] dark:text-[var(--text-primary)]',
+    selected && 'translate-y-[-1px]',
     selected && TAG_SELECTED_CLASSES[tone],
   );
 }

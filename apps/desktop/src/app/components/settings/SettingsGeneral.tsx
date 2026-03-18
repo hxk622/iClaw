@@ -147,7 +147,7 @@ export function SettingsGeneral({
               </Button>
 
               {needsUpdate || readyToRestart ? (
-                <Button variant="ink" size="sm" onClick={onRestartToApply}>
+                <Button variant="primary" size="sm" onClick={onRestartToApply}>
                   重启应用
                 </Button>
               ) : null}
