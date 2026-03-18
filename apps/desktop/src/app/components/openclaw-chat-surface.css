@@ -558,6 +558,11 @@ body {
   max-width: min(82%, 100%);
 }
 
+.openclaw-chat-surface .chat-group-footer,
+.openclaw-chat-surface .chat-bubble-actions {
+  display: none !important;
+}
+
 .openclaw-chat-surface .chat-avatar {
   display: inline-flex !important;
   align-items: center;
@@ -625,6 +630,148 @@ body {
   padding: 10px 16px;
   border-radius: 12px;
   background: var(--chat-surface-bubble-user) !important;
+}
+
+.openclaw-chat-surface .iclaw-chat-user-copy,
+.openclaw-chat-surface .iclaw-chat-assistant-toolbar {
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 180ms ease,
+    transform 240ms cubic-bezier(0.22, 1.2, 0.36, 1),
+    box-shadow 240ms cubic-bezier(0.22, 1.2, 0.36, 1);
+}
+
+.openclaw-chat-surface .chat-group.user:hover .iclaw-chat-user-copy,
+.openclaw-chat-surface .chat-group.assistant:hover .iclaw-chat-assistant-toolbar,
+.openclaw-chat-surface .iclaw-chat-user-copy:focus-visible,
+.openclaw-chat-surface .iclaw-chat-assistant-toolbar:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.openclaw-chat-surface .iclaw-chat-user-copy {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  margin-top: 8px;
+  border: 1px solid color-mix(in srgb, var(--chat-surface-panel-border) 72%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--chat-surface-panel) 90%, white 10%);
+  color: var(--text-secondary);
+  transform: translateX(-8px) scale(0.96);
+  cursor: pointer;
+}
+
+.openclaw-chat-surface .chat-group.user:hover .iclaw-chat-user-copy,
+.openclaw-chat-surface .iclaw-chat-user-copy:focus-visible {
+  transform: translateX(0) scale(1);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.openclaw-chat-surface .iclaw-chat-user-copy:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.openclaw-chat-surface .iclaw-chat-user-copy .iclaw-message-action__icon,
+.openclaw-chat-surface .iclaw-chat-assistant-toolbar__btn .iclaw-message-action__icon {
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    opacity 160ms ease,
+    transform 200ms cubic-bezier(0.22, 1.2, 0.36, 1);
+}
+
+.openclaw-chat-surface .iclaw-chat-user-copy .iclaw-message-action__icon svg,
+.openclaw-chat-surface .iclaw-chat-assistant-toolbar__btn .iclaw-message-action__icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.openclaw-chat-surface .iclaw-chat-user-copy .iclaw-message-action__icon--success,
+.openclaw-chat-surface .iclaw-chat-assistant-toolbar__btn .iclaw-message-action__icon--success {
+  opacity: 0;
+  transform: scale(0.72);
+}
+
+.openclaw-chat-surface .iclaw-chat-user-copy[data-state='success'] .iclaw-message-action__icon--idle,
+.openclaw-chat-surface .iclaw-chat-assistant-toolbar__btn[data-state='success'] .iclaw-message-action__icon--idle {
+  opacity: 0;
+  transform: scale(0.72);
+}
+
+.openclaw-chat-surface .iclaw-chat-user-copy[data-state='success'] .iclaw-message-action__icon--success,
+.openclaw-chat-surface .iclaw-chat-assistant-toolbar__btn[data-state='success'] .iclaw-message-action__icon--success {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.openclaw-chat-surface .iclaw-chat-assistant-toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 4px;
+  border: 1px solid color-mix(in srgb, var(--chat-surface-panel-border) 72%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--chat-surface-panel) 92%, white 8%);
+  transform: translateY(6px) scale(0.98);
+}
+
+.openclaw-chat-surface .chat-group.assistant:hover .iclaw-chat-assistant-toolbar,
+.openclaw-chat-surface .iclaw-chat-assistant-toolbar:focus-within {
+  transform: translateY(0) scale(1);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+}
+
+.openclaw-chat-surface .iclaw-chat-assistant-toolbar__btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background 180ms ease,
+    color 180ms ease,
+    transform 240ms cubic-bezier(0.22, 1.2, 0.36, 1);
+}
+
+.openclaw-chat-surface .iclaw-chat-assistant-toolbar__btn > svg {
+  width: 15px;
+  height: 15px;
+}
+
+.openclaw-chat-surface .iclaw-chat-assistant-toolbar__btn:hover:not(:disabled),
+.openclaw-chat-surface .iclaw-chat-assistant-toolbar__btn:focus-visible {
+  background: color-mix(in srgb, var(--chat-surface-panel-subtle) 88%, white 12%);
+  color: var(--text-primary);
+  transform: translateY(-1px) scale(1.04);
+}
+
+.openclaw-chat-surface .iclaw-chat-assistant-toolbar__btn:disabled {
+  opacity: 0.36;
+  cursor: not-allowed;
+}
+
+.openclaw-chat-surface .iclaw-chat-assistant-toolbar__btn[data-active='true'] {
+  background: color-mix(in srgb, var(--brand-primary) 12%, transparent);
+  color: var(--brand-primary);
 }
 
 .openclaw-chat-surface .chat-bubble.chat-reading-indicator {

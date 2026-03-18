@@ -196,6 +196,24 @@ type GatewaySessionsListResult = {
   }>;
 };
 
+const MESSAGE_ACTION_FEEDBACK_MS = 1600;
+const MESSAGE_ACTION_ICONS = {
+  copy:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  check:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.2 4.2L19 7.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  thumbsUp:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 21H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2h2m5-7-1.4 5H18a2 2 0 0 1 2 2l-1 6a2 2 0 0 1-2 1H7V11.5L12 4Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  thumbsDown:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2m-5 7 1.4-5H6a2 2 0 0 1-2-2l1-6a2 2 0 0 1 2-1h10v7.5L12 20Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  refresh:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 2v6h-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 8a8 8 0 1 0 2 5.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  volume:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6.5 9H3v6h3.5L11 19V5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M15 9.5a4 4 0 0 1 0 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M17.8 7a7.2 7.2 0 0 1 0 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  share:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 14 20 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M20 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+} as const;
+
 function isVisibleElement(node: Element | null): { visible: boolean; height: number } {
   if (!(node instanceof HTMLElement)) {
     return { visible: false, height: 0 };
@@ -395,6 +413,96 @@ function createReferenceChip(text: string): HTMLSpanElement {
   return chip;
 }
 
+async function copyTextToClipboard(text: string): Promise<boolean> {
+  if (!text.trim()) {
+    return false;
+  }
+
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', 'true');
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.append(textarea);
+      textarea.select();
+      const copied = document.execCommand('copy');
+      textarea.remove();
+      return copied;
+    } catch {
+      return false;
+    }
+  }
+}
+
+function extractChatGroupText(group: HTMLElement | null): string {
+  if (!group) {
+    return '';
+  }
+
+  const textBlocks = Array.from(group.querySelectorAll('.chat-text'))
+    .map((node) => node.textContent?.replace(/\u00a0/g, ' ').trim() ?? '')
+    .filter(Boolean);
+
+  return textBlocks.join('\n\n').trim();
+}
+
+function findLastRenderableAssistantGroup(host: HTMLElement): HTMLElement | null {
+  const groups = Array.from(host.querySelectorAll('.chat-group.assistant')).filter(
+    (node): node is HTMLElement => node instanceof HTMLElement,
+  );
+
+  for (let index = groups.length - 1; index >= 0; index -= 1) {
+    const group = groups[index];
+    if (group.querySelector('.chat-reading-indicator')) {
+      continue;
+    }
+    if (extractChatGroupText(group) || group.querySelector('.chat-tool-card--clickable, .chat-message-image')) {
+      return group;
+    }
+  }
+
+  return null;
+}
+
+function findPreviousUserGroup(group: HTMLElement): HTMLElement | null {
+  let current = group.previousElementSibling;
+  while (current) {
+    if (current instanceof HTMLElement && current.classList.contains('chat-group') && current.classList.contains('user')) {
+      return current;
+    }
+    current = current.previousElementSibling;
+  }
+  return null;
+}
+
+function setMessageActionFeedback(button: HTMLButtonElement, state: 'idle' | 'success'): void {
+  button.dataset.state = state;
+}
+
+function createMessageActionButton(params: {
+  className: string;
+  title: string;
+  icon: keyof typeof MESSAGE_ACTION_ICONS;
+  successIcon?: keyof typeof MESSAGE_ACTION_ICONS;
+}): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = params.className;
+  button.title = params.title;
+  button.setAttribute('aria-label', params.title);
+  button.dataset.state = 'idle';
+  button.innerHTML = `
+    <span class="iclaw-message-action__icon iclaw-message-action__icon--idle">${MESSAGE_ACTION_ICONS[params.icon]}</span>
+    <span class="iclaw-message-action__icon iclaw-message-action__icon--success">${MESSAGE_ACTION_ICONS[params.successIcon ?? 'check']}</span>
+  `;
+  return button;
+}
+
 async function loadChatModelSnapshot(
   app: OpenClawAppElement,
   targetSessionKey: string,
@@ -482,6 +590,8 @@ export function OpenClawChatSurface({
   const unhandledLogRef = useRef<string | null>(null);
   const selectionMenuRef = useRef<HTMLDivElement | null>(null);
   const modelLoadVersionRef = useRef(0);
+  const messageActionTimersRef = useRef<number[]>([]);
+  const activeSpeechButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const closeSelectionMenu = useCallback(() => {
     setSelectionMenu(null);
@@ -502,6 +612,11 @@ export function OpenClawChatSurface({
     }
     artifactAutoOpenBurstTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     artifactAutoOpenBurstTimersRef.current = [];
+  }, []);
+
+  const clearMessageActionTimers = useCallback(() => {
+    messageActionTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    messageActionTimersRef.current = [];
   }, []);
 
   const tryAutoOpenArtifactCard = useCallback(() => {
@@ -1481,6 +1596,256 @@ export function OpenClawChatSurface({
 
     closeSelectionMenu();
   }, [closeSelectionMenu, selectionMenu]);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) {
+      return;
+    }
+
+    const scheduleButtonReset = (button: HTMLButtonElement) => {
+      const timer = window.setTimeout(() => {
+        if (!button.isConnected) {
+          return;
+        }
+        setMessageActionFeedback(button, 'idle');
+      }, MESSAGE_ACTION_FEEDBACK_MS);
+      messageActionTimersRef.current.push(timer);
+    };
+
+    const handleCopyAction = async (button: HTMLButtonElement, text: string) => {
+      const copied = await copyTextToClipboard(text);
+      if (!copied || !button.isConnected) {
+        return;
+      }
+      setMessageActionFeedback(button, 'success');
+      scheduleButtonReset(button);
+    };
+
+    const handleShareAction = async (button: HTMLButtonElement, text: string) => {
+      try {
+        if (navigator.share) {
+          await navigator.share({ text });
+          if (!button.isConnected) {
+            return;
+          }
+          setMessageActionFeedback(button, 'success');
+          scheduleButtonReset(button);
+          return;
+        }
+      } catch {}
+
+      await handleCopyAction(button, text);
+    };
+
+    const stopSpeech = () => {
+      activeSpeechButtonRef.current?.removeAttribute('data-active');
+      activeSpeechButtonRef.current = null;
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+
+    const handleSpeakAction = (button: HTMLButtonElement, text: string) => {
+      if (!('speechSynthesis' in window) || !text.trim()) {
+        return;
+      }
+
+      const currentButton = activeSpeechButtonRef.current;
+      if (currentButton === button && window.speechSynthesis.speaking) {
+        stopSpeech();
+        return;
+      }
+
+      stopSpeech();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      activeSpeechButtonRef.current = button;
+      button.dataset.active = 'true';
+      utterance.addEventListener('end', () => {
+        if (activeSpeechButtonRef.current === button) {
+          activeSpeechButtonRef.current = null;
+        }
+        if (button.isConnected) {
+          button.removeAttribute('data-active');
+        }
+      });
+      utterance.addEventListener('error', () => {
+        if (activeSpeechButtonRef.current === button) {
+          activeSpeechButtonRef.current = null;
+        }
+        if (button.isConnected) {
+          button.removeAttribute('data-active');
+        }
+      });
+      window.speechSynthesis.speak(utterance);
+    };
+
+    const ensureUserCopyButton = (group: HTMLElement) => {
+      const text = extractChatGroupText(group);
+      let button = group.querySelector(':scope > .iclaw-chat-user-copy') as HTMLButtonElement | null;
+
+      if (!button) {
+        button = createMessageActionButton({
+          className: 'iclaw-chat-user-copy',
+          title: '复制消息',
+          icon: 'copy',
+        });
+        button.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          void handleCopyAction(button!, extractChatGroupText(group));
+        });
+        group.append(button);
+      }
+
+      button.disabled = !text;
+      button.setAttribute('aria-hidden', text ? 'false' : 'true');
+    };
+
+    const ensureAssistantToolbar = (group: HTMLElement) => {
+      const messages = group.querySelector('.chat-group-messages') as HTMLElement | null;
+      if (!messages) {
+        return;
+      }
+
+      const assistantText = extractChatGroupText(group);
+      const promptText = extractChatGroupText(findPreviousUserGroup(group));
+      let toolbar = messages.querySelector(':scope > .iclaw-chat-assistant-toolbar') as HTMLDivElement | null;
+
+      if (!toolbar) {
+        toolbar = document.createElement('div');
+        toolbar.className = 'iclaw-chat-assistant-toolbar';
+        toolbar.innerHTML = `
+          <button type="button" class="iclaw-chat-assistant-toolbar__btn" data-action="like" aria-label="点赞" title="点赞">${MESSAGE_ACTION_ICONS.thumbsUp}</button>
+          <button type="button" class="iclaw-chat-assistant-toolbar__btn" data-action="dislike" aria-label="点踩" title="点踩">${MESSAGE_ACTION_ICONS.thumbsDown}</button>
+          <button type="button" class="iclaw-chat-assistant-toolbar__btn iclaw-chat-assistant-toolbar__btn--copyable" data-action="copy" data-state="idle" aria-label="复制" title="复制">
+            <span class="iclaw-message-action__icon iclaw-message-action__icon--idle">${MESSAGE_ACTION_ICONS.copy}</span>
+            <span class="iclaw-message-action__icon iclaw-message-action__icon--success">${MESSAGE_ACTION_ICONS.check}</span>
+          </button>
+          <button type="button" class="iclaw-chat-assistant-toolbar__btn" data-action="regenerate" aria-label="重新生成" title="重新生成">${MESSAGE_ACTION_ICONS.refresh}</button>
+          <button type="button" class="iclaw-chat-assistant-toolbar__btn" data-action="speak" aria-label="语音朗读" title="语音朗读">${MESSAGE_ACTION_ICONS.volume}</button>
+          <button type="button" class="iclaw-chat-assistant-toolbar__btn iclaw-chat-assistant-toolbar__btn--copyable" data-action="share" data-state="idle" aria-label="分享" title="分享">
+            <span class="iclaw-message-action__icon iclaw-message-action__icon--idle">${MESSAGE_ACTION_ICONS.share}</span>
+            <span class="iclaw-message-action__icon iclaw-message-action__icon--success">${MESSAGE_ACTION_ICONS.check}</span>
+          </button>
+        `;
+
+        toolbar.addEventListener('click', (event) => {
+          const target = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>('[data-action]');
+          if (!target) {
+            return;
+          }
+
+          event.preventDefault();
+          event.stopPropagation();
+          const action = target.dataset.action;
+
+          if (action === 'like' || action === 'dislike') {
+            const opposite = toolbar!.querySelector<HTMLButtonElement>(
+              `[data-action="${action === 'like' ? 'dislike' : 'like'}"]`,
+            );
+            const active = target.dataset.active === 'true';
+            if (active) {
+              target.removeAttribute('data-active');
+            } else {
+              target.dataset.active = 'true';
+              opposite?.removeAttribute('data-active');
+            }
+            return;
+          }
+
+          if (action === 'copy') {
+            void handleCopyAction(target, extractChatGroupText(group));
+            return;
+          }
+
+          if (action === 'share') {
+            void handleShareAction(target, extractChatGroupText(group));
+            return;
+          }
+
+          if (action === 'speak') {
+            handleSpeakAction(target, extractChatGroupText(group));
+            return;
+          }
+
+          if (action === 'regenerate') {
+            if (status.busy) {
+              return;
+            }
+            const nextPrompt = extractChatGroupText(findPreviousUserGroup(group));
+            if (!nextPrompt) {
+              return;
+            }
+            void handleSend({
+              prompt: nextPrompt,
+              imageAttachments: [],
+            });
+          }
+        });
+
+        messages.append(toolbar);
+      }
+
+      const copyButton = toolbar.querySelector<HTMLButtonElement>('[data-action="copy"]');
+      const regenerateButton = toolbar.querySelector<HTMLButtonElement>('[data-action="regenerate"]');
+      const speakButton = toolbar.querySelector<HTMLButtonElement>('[data-action="speak"]');
+      const shareButton = toolbar.querySelector<HTMLButtonElement>('[data-action="share"]');
+
+      if (copyButton) {
+        copyButton.disabled = !assistantText;
+      }
+      if (regenerateButton) {
+        regenerateButton.disabled = status.busy || !promptText;
+      }
+      if (speakButton) {
+        speakButton.disabled = !assistantText || !('speechSynthesis' in window);
+      }
+      if (shareButton) {
+        shareButton.disabled = !assistantText;
+      }
+    };
+
+    const decorateChatGroups = () => {
+      const lastAssistantGroup = findLastRenderableAssistantGroup(host);
+      const groups = Array.from(host.querySelectorAll('.chat-group')).filter(
+        (node): node is HTMLElement => node instanceof HTMLElement,
+      );
+
+      groups.forEach((group) => {
+        if (group.classList.contains('user')) {
+          ensureUserCopyButton(group);
+          return;
+        }
+
+        if (group.classList.contains('assistant')) {
+          const toolbar = group.querySelector('.iclaw-chat-assistant-toolbar');
+          if (group === lastAssistantGroup) {
+            ensureAssistantToolbar(group);
+          } else if (toolbar) {
+            toolbar.remove();
+          }
+        }
+      });
+    };
+
+    decorateChatGroups();
+
+    const observer = new MutationObserver(() => {
+      decorateChatGroups();
+    });
+    observer.observe(host, {
+      childList: true,
+      subtree: true,
+    });
+
+    return () => {
+      observer.disconnect();
+      clearMessageActionTimers();
+      stopSpeech();
+    };
+  }, [clearMessageActionTimers, handleSend, status.busy]);
 
   return (
     <div ref={shellRef} className="openclaw-chat-surface-shell h-full flex-1 overflow-hidden">
