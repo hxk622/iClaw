@@ -23,7 +23,7 @@ import {
 } from '../lib/user-avatar';
 
 type SidebarUser = AppUserAvatarSource;
-type PrimaryView = 'chat' | 'lobster-store' | 'cron' | 'im-bots' | 'data-connections' | 'task-center' | 'memory';
+type PrimaryView = 'chat' | 'skill-store' | 'cron' | 'im-bots' | 'data-connections' | 'task-center' | 'memory';
 
 interface SidebarProps {
   user: SidebarUser | null;
@@ -32,7 +32,7 @@ interface SidebarProps {
   authenticated?: boolean;
   onOpenChat?: () => void;
   onOpenCron?: () => void;
-  onOpenLobsterStore?: () => void;
+  onOpenSkillStore?: () => void;
   onOpenDataConnections?: () => void;
   onOpenImBots?: () => void;
   onOpenMemory?: () => void;
@@ -72,7 +72,7 @@ export function Sidebar({
   authenticated = false,
   onOpenChat,
   onOpenCron,
-  onOpenLobsterStore,
+  onOpenSkillStore,
   onOpenDataConnections,
   onOpenImBots,
   onOpenMemory,
@@ -129,12 +129,12 @@ export function Sidebar({
       onClick: onOpenCron,
     },
     {
-      key: 'lobster-store',
-      label: '龙虾商店',
+      key: 'skill-store',
+      label: '技能商店',
       icon: Store,
-      iconClass: 'text-[var(--lobster-gold)]',
-      active: activeView === 'lobster-store',
-      onClick: onOpenLobsterStore,
+      iconClass: 'text-[var(--brand-primary)]',
+      active: activeView === 'skill-store',
+      onClick: onOpenSkillStore,
     },
     {
       key: 'memory',
