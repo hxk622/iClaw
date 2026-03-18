@@ -18,6 +18,7 @@ import { OpenClawChatSurface } from './components/OpenClawChatSurface';
 import { OpenClawCronSurface } from './components/OpenClawCronSurface';
 import { Sidebar } from './components/Sidebar';
 import { DataConnectionsView } from './components/data-connections/DataConnectionsView';
+import { MemoryView } from './components/memory/MemoryView';
 import { TaskCenterView } from './components/TaskCenterView';
 import { SkillStoreView } from './components/skill-store/SkillStoreView';
 import { IMBotsView } from './components/im-bots/IMBotsView';
@@ -108,7 +109,7 @@ const AUTH_BOOTSTRAP_TIMEOUT_MS = 10_000;
 const DESKTOP_APP_VERSION = desktopPackageJson.version;
 const DESKTOP_RELEASE_CHANNEL: 'dev' | 'prod' = import.meta.env.DEV ? 'dev' : 'prod';
 const DISPLAY_DESKTOP_APP_VERSION = DESKTOP_APP_VERSION.split('+', 1)[0] || DESKTOP_APP_VERSION;
-type PrimaryView = 'chat' | 'skill-store' | 'cron' | 'im-bots' | 'data-connections' | 'task-center';
+type PrimaryView = 'chat' | 'skill-store' | 'cron' | 'im-bots' | 'data-connections' | 'task-center' | 'memory';
 
 type InstallerViewState = 'loading' | 'error';
 
@@ -1130,6 +1131,7 @@ function AuthedView({
         onOpenSkillStore={() => setPrimaryView('skill-store')}
         onOpenDataConnections={() => setPrimaryView('data-connections')}
         onOpenImBots={() => setPrimaryView('im-bots')}
+        onOpenMemory={() => setPrimaryView('memory')}
         onOpenTasks={() => setPrimaryView('task-center')}
         onSelectTask={setSelectedTaskId}
         onOpenAccount={() => {
@@ -1164,6 +1166,8 @@ function AuthedView({
         />
       ) : primaryView === 'data-connections' ? (
         <DataConnectionsView />
+      ) : primaryView === 'memory' ? (
+        <MemoryView />
       ) : primaryView === 'task-center' ? (
         <TaskCenterView
           selectedTaskId={selectedTaskId}

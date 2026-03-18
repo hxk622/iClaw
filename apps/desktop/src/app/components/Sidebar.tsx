@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SVGProps } from 'react';
 import {
+  Brain,
   Bot,
   CheckSquare,
   Link2,
@@ -22,7 +23,7 @@ import {
 } from '../lib/user-avatar';
 
 type SidebarUser = AppUserAvatarSource;
-type PrimaryView = 'chat' | 'skill-store' | 'cron' | 'im-bots' | 'data-connections' | 'task-center';
+type PrimaryView = 'chat' | 'skill-store' | 'cron' | 'im-bots' | 'data-connections' | 'task-center' | 'memory';
 
 interface SidebarProps {
   user: SidebarUser | null;
@@ -34,6 +35,7 @@ interface SidebarProps {
   onOpenSkillStore?: () => void;
   onOpenDataConnections?: () => void;
   onOpenImBots?: () => void;
+  onOpenMemory?: () => void;
   onOpenTasks?: () => void;
   onSelectTask?: (taskId: string) => void;
   onLogout?: () => void;
@@ -73,6 +75,7 @@ export function Sidebar({
   onOpenSkillStore,
   onOpenDataConnections,
   onOpenImBots,
+  onOpenMemory,
   onOpenTasks,
   onSelectTask,
   onLogout,
@@ -132,6 +135,14 @@ export function Sidebar({
       iconClass: 'text-violet-500',
       active: activeView === 'skill-store',
       onClick: onOpenSkillStore,
+    },
+    {
+      key: 'memory',
+      label: '记忆管理',
+      icon: Brain,
+      iconClass: 'text-amber-500',
+      active: activeView === 'memory',
+      onClick: onOpenMemory,
     },
     {
       key: 'link',
