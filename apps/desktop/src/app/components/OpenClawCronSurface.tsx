@@ -1,22 +1,32 @@
 import {
-  AlarmClock,
-  CalendarDays,
-  Clock3,
-  ListTodo,
+  Activity,
+  BarChart3,
+  Bell,
+  CheckCircle2,
+  Clock,
+  FileText,
   LoaderCircle,
+  Pause,
   PencilLine,
   Play,
   Plus,
   Power,
-  PowerOff,
   RefreshCw,
   Repeat,
   Settings2,
   Sparkles,
   Trash2,
+  X,
+  Zap,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import '@openclaw-ui/main.ts';
+import { Button } from '@/app/components/ui/Button';
+import { Chip } from '@/app/components/ui/Chip';
+import { PressableCard } from '@/app/components/ui/PressableCard';
+import { CompactSegmentedControl } from '@/app/components/ui/CompactSegmentedControl';
+import { StatCard } from '@/app/components/ui/StatCard';
+import { cn } from '@/app/lib/cn';
 import './openclaw-chat-surface.css';
 
 type OpenClawTheme = 'system' | 'light' | 'dark';
@@ -166,8 +176,6 @@ type BasicTemplate = {
   id: BasicTemplateId;
   title: string;
   summary: string;
-  accentClass: string;
-  icon: typeof AlarmClock;
   buildDefault: () => Pick<BasicCronFormState, 'name' | 'prompt' | 'frequency'>;
 };
 
@@ -191,8 +199,6 @@ const BASIC_TEMPLATES: BasicTemplate[] = [
     id: 'reminder',
     title: '定时提醒',
     summary: '在指定时间提醒你某件事，适合待办和生活提醒。',
-    accentClass: 'text-amber-500',
-    icon: AlarmClock,
     buildDefault: () => ({
       name: '提醒我一件事',
       prompt: '请在这个时间提醒我：',
@@ -203,8 +209,6 @@ const BASIC_TEMPLATES: BasicTemplate[] = [
     id: 'daily-summary',
     title: '每日总结',
     summary: '每天固定时间生成一份简明总结，适合工作复盘。',
-    accentClass: 'text-sky-500',
-    icon: Clock3,
     buildDefault: () => ({
       name: '每日总结',
       prompt: '请根据今天的上下文生成一份简洁的每日总结，包含已完成事项、待推进事项和风险提醒。',
@@ -215,8 +219,6 @@ const BASIC_TEMPLATES: BasicTemplate[] = [
     id: 'weekly-report',
     title: '每周报告',
     summary: '按周生成周报或周度观察，适合经营复盘和研究汇总。',
-    accentClass: 'text-violet-500',
-    icon: CalendarDays,
     buildDefault: () => ({
       name: '每周报告',
       prompt: '请生成一份本周报告，包含关键进展、主要问题、风险和下周建议。',
@@ -227,8 +229,6 @@ const BASIC_TEMPLATES: BasicTemplate[] = [
     id: 'custom',
     title: '自定义任务',
     summary: '直接定义任务内容，适合监控、例行执行和任意自动化提示。',
-    accentClass: 'text-emerald-500',
-    icon: Sparkles,
     buildDefault: () => ({
       name: '自定义任务',
       prompt: '',
@@ -523,24 +523,34 @@ function buildFormFromJob(job: CronJob): BasicCronFormState | null {
   };
 }
 
-function getJobStatusTone(job: CronJob): {
-  label: string;
-  className: string;
-} {
+function getJobStatusTone(job: CronJob): { label: string; tone: 'muted' | 'brand' | 'danger' | 'success' } {
   if (!job.enabled) {
-    return { label: '已暂停', className: 'bg-[rgba(120,120,120,0.12)] text-[var(--text-secondary)]' };
+    return { label: '已暂停', tone: 'muted' };
   }
   if (job.state?.runningAtMs) {
-    return { label: '执行中', className: 'bg-[rgba(59,130,246,0.12)] text-sky-600 dark:text-sky-300' };
+    return { label: '执行中', tone: 'brand' };
   }
   if (job.state?.lastStatus === 'error') {
-    return { label: '异常', className: 'bg-[rgba(239,68,68,0.12)] text-red-600 dark:text-red-300' };
+    return { label: '异常', tone: 'danger' };
   }
-  return { label: '正常', className: 'bg-[rgba(34,197,94,0.12)] text-emerald-600 dark:text-emerald-300' };
+  return { label: '正常', tone: 'success' };
 }
 
 function getTemplateMeta(templateId: BasicTemplateId): BasicTemplate {
   return BASIC_TEMPLATES.find((item) => item.id === templateId) ?? BASIC_TEMPLATES[0];
+}
+
+function getTemplateIcon(templateId: BasicTemplateId) {
+  if (templateId === 'reminder') {
+    return Bell;
+  }
+  if (templateId === 'daily-summary') {
+    return FileText;
+  }
+  if (templateId === 'weekly-report') {
+    return BarChart3;
+  }
+  return Sparkles;
 }
 
 export function OpenClawCronSurface({
@@ -972,6 +982,20 @@ export function OpenClawCronSurface({
     }
   };
 
+  const previewText =
+    form.name.trim() || form.prompt.trim()
+      ? `${form.name.trim() || '这个任务'}将在${
+          form.frequency === 'once'
+            ? '指定时间'
+            : form.frequency === 'daily'
+              ? '每天'
+              : '每周'
+        } ${form.frequency === 'once' ? form.onceAt.replace('T', ' ') : form.runTime} 自动执行`
+      : '填写名称、内容和执行时间后，这里会实时预览任务安排。';
+
+  const fieldClassName =
+    'w-full rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-hover)] px-4 py-2.5 text-[14px] text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)] focus:bg-[var(--bg-card)]';
+
   return (
     <div className="openclaw-chat-surface openclaw-cron-surface h-full min-w-0 flex-1 overflow-hidden">
       <div className="openclaw-chat-surface-shell openclaw-cron-surface-shell h-full min-w-0 flex-1 overflow-hidden">
@@ -1002,55 +1026,47 @@ export function OpenClawCronSurface({
 
         {mode === 'basic' ? (
           <div className="flex h-full min-w-0 flex-1 flex-col overflow-y-auto bg-[var(--bg-page)]">
-            <div className="sticky top-0 z-10 border-b border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-page)_94%,transparent)] px-5 py-3 backdrop-blur-xl">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <header className="sticky top-0 z-10 border-b border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-page)_94%,transparent)] backdrop-blur-xl">
+              <div className="mx-auto flex max-w-[1400px] items-start justify-between gap-4 px-5 py-3.5">
                 <div className="min-w-0">
-                  <div className="inline-flex items-center gap-2 rounded-full bg-[rgba(59,130,246,0.08)] px-3 py-1 text-[12px] font-medium text-[var(--brand-primary)] dark:bg-[rgba(201,169,97,0.14)]">
-                    <Sparkles className="h-3.5 w-3.5" />
-                    面向普通用户的基础模式
-                  </div>
-                  <h1 className="mt-2 text-[22px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
-                    定时任务中心
-                  </h1>
-                  <p className="mt-1.5 max-w-[860px] text-[13px] leading-6 text-[var(--text-secondary)]">
-                    先用模板快速创建任务，适合提醒、每日总结和每周报告。复杂调度仍然保留在高级模式里。
-                  </p>
+                  <h1 className="text-[20px] font-semibold leading-tight text-[var(--text-primary)]">定时任务中心</h1>
+                  <p className="mt-0.5 text-[12px] text-[var(--text-secondary)]">管理 AI 自动化任务，提升工作效率</p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
+                <div className="flex shrink-0 items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    leadingIcon={<RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />}
                     onClick={() => void loadSnapshot()}
                     disabled={loading || !clientReady}
-                    className="iclaw-apple-button iclaw-apple-button--secondary"
                   >
-                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                     刷新
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    leadingIcon={<Settings2 className="h-4 w-4" />}
+                    onClick={() => setMode('advanced')}
+                  >
+                    高级模式
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    leadingIcon={<Plus className="h-4 w-4" />}
                     onClick={() => openCreate('reminder')}
                     disabled={!clientReady}
-                    className="iclaw-apple-button iclaw-apple-button--primary"
                   >
-                    <Plus className="h-4 w-4" />
                     新建任务
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMode('advanced')}
-                    className="iclaw-apple-button iclaw-apple-button--secondary"
-                  >
-                    <Settings2 className="h-4 w-4" />
-                    高级模式
-                  </button>
+                  </Button>
                 </div>
               </div>
-            </div>
+            </header>
 
-            <div className="mx-auto flex w-full max-w-[1440px] min-w-0 flex-1 flex-col gap-4 px-5 py-4">
+            <div className="mx-auto flex w-full max-w-[1400px] min-w-0 flex-1 flex-col gap-5 px-5 py-5">
               {notice ? (
                 <div
-                  className={`rounded-[16px] border px-4 py-3 text-[14px] ${
+                  className={`rounded-[16px] border px-4 py-3 text-[13px] ${
                     notice.tone === 'success'
                       ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300'
                       : 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300'
@@ -1061,419 +1077,407 @@ export function OpenClawCronSurface({
               ) : null}
 
               {fetchError ? (
-                <div className="rounded-[18px] border border-red-200 bg-red-50 px-4 py-3 text-[14px] text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">
+                <div className="rounded-[18px] border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">
                   {fetchError}
                 </div>
               ) : null}
 
-              <section className="grid gap-3 lg:grid-cols-4">
-                <div className="rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-card)] p-4 shadow-[var(--shadow-sm)]">
-                  <div className="text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">已接入任务</div>
-                  <div className="mt-2 text-[26px] font-semibold text-[var(--text-primary)]">
-                    {cronStatus?.jobs ?? jobs.length}
-                  </div>
-                  <div className="mt-1.5 text-[12px] text-[var(--text-secondary)]">
-                    基础模式可编辑 {basicJobs.length} 个
-                  </div>
-                </div>
-                <div className="rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-card)] p-4 shadow-[var(--shadow-sm)]">
-                  <div className="text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">下次执行</div>
-                  <div className="mt-2 text-[20px] font-semibold text-[var(--text-primary)]">
-                    {formatTimestamp(cronStatus?.nextWakeAtMs)}
-                  </div>
-                  <div className="mt-1.5 text-[12px] text-[var(--text-secondary)]">
-                    {formatRelative(cronStatus?.nextWakeAtMs ?? null)}
-                  </div>
-                </div>
-                <div className="rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-card)] p-4 shadow-[var(--shadow-sm)]">
-                  <div className="text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">调度状态</div>
-                  <div className="mt-2 inline-flex items-center rounded-full bg-[rgba(34,197,94,0.12)] px-3 py-1 text-[12px] font-medium text-emerald-600 dark:text-emerald-300">
-                    {cronStatus?.enabled === false ? '调度器关闭' : '调度器正常'}
-                  </div>
-                  <div className="mt-1.5 text-[12px] text-[var(--text-secondary)]">
-                    结果默认发回当前会话
-                  </div>
-                </div>
-                <div className="rounded-[20px] border border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(59,130,246,0.08),transparent)] p-4 shadow-[var(--shadow-sm)] dark:bg-[linear-gradient(180deg,rgba(201,169,97,0.12),transparent)]">
-                  <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                    <Sparkles className="h-3.5 w-3.5 text-[var(--brand-primary)]" />
-                    快速模板
-                  </div>
-                  <div className="mt-2 text-[16px] font-semibold text-[var(--text-primary)]">
-                    先决定做什么和什么时候做
-                  </div>
-                  <div className="mt-1.5 text-[12px] leading-6 text-[var(--text-secondary)]">
-                    复杂字段先隐藏，必要时再切高级模式。
-                  </div>
-                </div>
+              <section className="grid gap-4 xl:grid-cols-4">
+                <StatCard
+                  icon={<CheckCircle2 className="h-5 w-5" />}
+                  label="已接入任务"
+                  value={cronStatus?.jobs ?? jobs.length}
+                  description={`基础模式可编辑 ${basicJobs.length} 个`}
+                  tone="brand"
+                />
+                <StatCard
+                  icon={<Clock className="h-5 w-5" />}
+                  label="下次执行"
+                  value={formatRelative(cronStatus?.nextWakeAtMs)}
+                  description={formatTimestamp(cronStatus?.nextWakeAtMs)}
+                />
+                <StatCard
+                  icon={<Activity className="h-5 w-5" />}
+                  label="调度状态"
+                  value={cronStatus?.enabled === false ? '已关闭' : '正常'}
+                  description={`运行中 ${jobs.filter((job) => job.enabled).length} 个`}
+                  tone="success"
+                />
+                <StatCard
+                  icon={<Zap className="h-5 w-5" />}
+                  label="快捷入口"
+                  value={visibleJobs.length > 0 ? '立即执行' : '新建任务'}
+                  description={visibleJobs.length > 0 ? '运行最近一个任务' : '使用模板快速开始'}
+                  tone="warning"
+                  onClick={() => {
+                    if (visibleJobs[0]) {
+                      void handleRun(visibleJobs[0]);
+                      return;
+                    }
+                    openCreate('reminder');
+                  }}
+                />
               </section>
 
-              <section>
-                <div className="mb-2.5 flex items-center justify-between">
-                  <div>
-                    <div className="text-[17px] font-semibold text-[var(--text-primary)]">快速创建</div>
-                    <div className="mt-1 text-[12px] text-[var(--text-secondary)]">
-                      先用模板建立任务，后续再去高级模式补充复杂规则。
-                    </div>
+              <section className="grid gap-5 xl:grid-cols-[minmax(320px,360px)_minmax(0,1fr)]">
+                <div>
+                  <div className="mb-4 flex items-center justify-between">
+                    <h2 className="text-[16px] font-semibold text-[var(--text-primary)]">快速创建</h2>
+                    <span className="text-[12px] text-[var(--text-secondary)]">选择模板快速开始</span>
                   </div>
-                </div>
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  {BASIC_TEMPLATES.map((template) => {
-                    const Icon = template.icon;
-                    return (
-                      <button
-                        key={template.id}
-                        type="button"
-                        onClick={() => openCreate(template.id)}
-                        className="iclaw-surface-card-button group p-4 text-left"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className={`inline-flex h-9 w-9 items-center justify-center rounded-[13px] bg-[var(--bg-hover)] ${template.accentClass}`}>
-                            <Icon className="h-4.5 w-4.5" />
+                  <div className="grid gap-4">
+                    {BASIC_TEMPLATES.map((template) => {
+                      const Icon = getTemplateIcon(template.id);
+                      return (
+                        <PressableCard
+                          key={template.id}
+                          interactive
+                          onClick={() => openCreate(template.id)}
+                          className="group rounded-[18px] border-[var(--border-default)] px-4 py-4"
+                        >
+                          <div className="flex items-start gap-3">
+                            <div
+                              className={cn(
+                                'flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] border border-transparent',
+                                template.id === 'reminder' && 'bg-[rgba(59,130,246,0.10)] text-[rgb(37,99,235)] dark:bg-[rgba(59,130,246,0.16)] dark:text-[#93c5fd]',
+                                template.id === 'daily-summary' && 'bg-[rgba(16,185,129,0.10)] text-[rgb(5,150,105)] dark:bg-[rgba(16,185,129,0.16)] dark:text-[#86efac]',
+                                template.id === 'weekly-report' && 'bg-[rgba(245,158,11,0.10)] text-[rgb(180,100,24)] dark:bg-[rgba(245,158,11,0.16)] dark:text-[#fcd34d]',
+                                template.id === 'custom' && 'bg-[rgba(201,169,97,0.10)] text-[rgb(155,112,39)] dark:bg-[rgba(201,169,97,0.16)] dark:text-[#f1d59c]',
+                              )}
+                            >
+                              <Icon className="h-5 w-5" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <h3 className="text-[14px] font-medium text-[var(--text-primary)] transition-colors group-hover:text-[var(--brand-primary)]">
+                                    {template.title}
+                                  </h3>
+                                  <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">{template.summary}</p>
+                                </div>
+                                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--brand-primary)] opacity-0 transition-opacity group-hover:opacity-100" />
+                              </div>
+                            </div>
                           </div>
-                          <span className="rounded-full bg-[var(--bg-hover)] px-2.5 py-1 text-[11px] text-[var(--text-secondary)]">
-                            模板
-                          </span>
-                        </div>
-                        <div className="mt-3 text-[15px] font-semibold text-[var(--text-primary)]">
-                          {template.title}
-                        </div>
-                        <div className="mt-1.5 text-[12px] leading-5 text-[var(--text-secondary)]">
-                          {template.summary}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-
-              <section className="rounded-[22px] border border-[var(--border-default)] bg-[var(--bg-card)] p-4 shadow-[var(--shadow-sm)]">
-                <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <div className="text-[17px] font-semibold text-[var(--text-primary)]">我的任务</div>
-                    <div className="mt-1 text-[12px] text-[var(--text-secondary)]">
-                      先展示对普通用户最有用的关键信息：状态、下次执行、最近结果和快捷操作。
-                    </div>
-                  </div>
-                  <div className="inline-flex rounded-[14px] bg-[var(--bg-hover)] p-1">
-                    {[
-                      { key: 'all', label: '全部' },
-                      { key: 'enabled', label: '进行中' },
-                      { key: 'paused', label: '已暂停' },
-                    ].map((option) => (
-                      <button
-                        key={option.key}
-                        type="button"
-                        onClick={() => setListFilter(option.key as BasicFilter)}
-                        className={`iclaw-apple-segment ${
-                          listFilter === option.key
-                            ? 'iclaw-apple-segment--active'
-                            : ''
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
+                        </PressableCard>
+                      );
+                    })}
                   </div>
                 </div>
 
-                <div className="mt-4">
-                  {loading ? (
-                    <div className="flex items-center gap-2 rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-hover)] px-4 py-3 text-[13px] text-[var(--text-secondary)]">
-                      <LoaderCircle className="h-4 w-4 animate-spin" />
-                      正在读取定时任务…
+                <div className="min-w-0">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-[16px] font-semibold text-[var(--text-primary)]">我的任务</h2>
+                      <p className="mt-0.5 text-[12px] text-[var(--text-secondary)]">高密度列表，悬停显示快捷操作</p>
                     </div>
-                  ) : visibleJobs.length === 0 ? (
-                    <div className="rounded-[18px] border border-dashed border-[var(--border-default)] bg-[var(--bg-hover)] px-6 py-8 text-center">
-                      <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[var(--bg-card)] text-[var(--brand-primary)]">
-                        <ListTodo className="h-5.5 w-5.5" />
+                    <CompactSegmentedControl
+                      options={[
+                        { value: 'all', label: '全部' },
+                        { value: 'enabled', label: '进行中' },
+                        { value: 'paused', label: '已暂停' },
+                      ]}
+                      value={listFilter}
+                      onChange={setListFilter}
+                    />
+                  </div>
+
+                  <div className="rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-card)] p-3 shadow-[var(--shadow-sm)] dark:border-[rgba(255,255,255,0.08)]">
+                    {loading ? (
+                      <div className="flex items-center gap-2 rounded-[16px] px-4 py-8 text-[13px] text-[var(--text-secondary)]">
+                        <LoaderCircle className="h-4 w-4 animate-spin" />
+                        正在读取定时任务…
                       </div>
-                      <div className="mt-3 text-[15px] font-semibold text-[var(--text-primary)]">
-                        还没有任务
+                    ) : visibleJobs.length === 0 ? (
+                      <div className="px-4 py-12 text-center">
+                        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[var(--bg-hover)]">
+                          <Clock className="h-8 w-8 text-[var(--text-muted)]" />
+                        </div>
+                        <div className="mt-4 text-[15px] font-medium text-[var(--text-primary)]">暂无任务</div>
+                        <p className="mt-1 text-[13px] text-[var(--text-secondary)]">点击“新建任务”或选择左侧模板开始</p>
                       </div>
-                      <div className="mt-1.5 text-[13px] leading-6 text-[var(--text-secondary)]">
-                        先创建一个提醒或例行总结，看看基础模式是否足够你日常使用。
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => openCreate('reminder')}
-                        className="iclaw-apple-button iclaw-apple-button--primary mt-5"
-                      >
-                        <Plus className="h-4 w-4" />
-                        创建第一个任务
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="grid gap-3 xl:grid-cols-2">
-                      {visibleJobs.map((job) => {
-                        const tone = getJobStatusTone(job);
-                        const templateMeta = getTemplateMeta(inferTemplateId(job));
-                        const Icon = templateMeta.icon;
-                        const isAdvancedOnly = !isBasicEditableJob(job);
-                        const lastState = job.state?.lastStatus === 'error' ? job.state?.lastError ?? '最近一次执行失败。' : job.state?.lastStatus === 'ok' ? '最近一次执行成功。' : '还没有最近执行记录。';
-                        return (
-                          <div
-                            key={job.id}
-                            className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-page)] p-4"
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <div className={`inline-flex h-9 w-9 items-center justify-center rounded-[12px] bg-[var(--bg-hover)] ${templateMeta.accentClass}`}>
-                                    <Icon className="h-4.5 w-4.5" />
+                    ) : (
+                      <div className="space-y-3">
+                        {visibleJobs.map((job) => {
+                          const tone = getJobStatusTone(job);
+                          const templateId = inferTemplateId(job);
+                          const Icon = getTemplateIcon(templateId);
+                          const isAdvancedOnly = !isBasicEditableJob(job);
+                          const resultTone =
+                            job.state?.lastStatus === 'error'
+                              ? 'danger'
+                              : job.state?.lastStatus === 'ok'
+                                ? 'success'
+                                : 'muted';
+                          const resultText =
+                            job.state?.lastStatus === 'error'
+                              ? '失败'
+                              : job.state?.lastStatus === 'ok'
+                                ? '成功'
+                                : '待执行';
+
+                          return (
+                            <PressableCard
+                              key={job.id}
+                              className="group rounded-[16px] border-[var(--border-default)] px-4 py-3"
+                            >
+                              <div className="flex items-center gap-4">
+                                <div
+                                  className={cn(
+                                    'flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[var(--bg-hover)]',
+                                    templateId === 'reminder' && 'text-[rgb(37,99,235)] dark:text-[#93c5fd]',
+                                    templateId === 'daily-summary' && 'text-[rgb(5,150,105)] dark:text-[#86efac]',
+                                    templateId === 'weekly-report' && 'text-[rgb(180,100,24)] dark:text-[#fcd34d]',
+                                    templateId === 'custom' && 'text-[rgb(155,112,39)] dark:text-[#f1d59c]',
+                                  )}
+                                >
+                                  <Icon className="h-5 w-5" />
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <div className="mb-1.5 flex flex-wrap items-center gap-2.5">
+                                    <h3 className="truncate text-[14px] font-medium text-[var(--text-primary)]">{job.name}</h3>
+                                    <Chip tone={tone.tone}>{tone.label}</Chip>
+                                    <Chip tone="outline">
+                                      {parseSimpleCronSchedule(job.schedule)?.frequency === 'daily'
+                                        ? '每日'
+                                        : parseSimpleCronSchedule(job.schedule)?.frequency === 'weekly'
+                                          ? '每周'
+                                          : parseSimpleCronSchedule(job.schedule)?.frequency === 'once'
+                                            ? '单次'
+                                            : '自定义'}
+                                    </Chip>
+                                    {isAdvancedOnly ? <Chip tone="warning">高级任务</Chip> : null}
                                   </div>
-                                  <div className="min-w-0">
-                                    <div className="truncate text-[15px] font-semibold text-[var(--text-primary)]">
-                                      {job.name}
-                                    </div>
-                                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                                      <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${tone.className}`}>
-                                        {tone.label}
+
+                                  <p className="truncate text-[12px] text-[var(--text-secondary)]">
+                                    {job.payload.kind === 'agentTurn' ? job.payload.message : job.payload.text}
+                                  </p>
+
+                                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[var(--text-secondary)]">
+                                    <span>执行节奏: {buildHumanSchedule(job.schedule)}</span>
+                                    <span>下次执行: {formatTimestamp(job.state?.nextRunAtMs ?? null)}</span>
+                                    <span>
+                                      最近结果:{' '}
+                                      <span
+                                        className={cn(
+                                          resultTone === 'success' && 'text-[rgb(21,128,61)] dark:text-[#86efac]',
+                                          resultTone === 'danger' && 'text-[rgb(185,28,28)] dark:text-[#fecaca]',
+                                          resultTone === 'muted' && 'text-[var(--text-secondary)]',
+                                        )}
+                                      >
+                                        {resultText}
                                       </span>
-                                      {isAdvancedOnly ? (
-                                        <span className="rounded-full bg-[rgba(245,158,11,0.12)] px-2.5 py-1 text-[11px] font-medium text-amber-600 dark:text-amber-300">
-                                          高级任务
-                                        </span>
-                                      ) : null}
-                                    </div>
+                                    </span>
                                   </div>
                                 </div>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleToggle(job)}
-                                disabled={actionJobId === job.id}
-                                className="iclaw-apple-button iclaw-apple-button--secondary iclaw-apple-button--sm iclaw-apple-button--icon"
-                              >
-                                {job.enabled ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
-                              </button>
-                            </div>
 
-                            <div className="mt-3 grid gap-2.5 sm:grid-cols-3">
-                              <div className="rounded-[13px] bg-[var(--bg-hover)] px-3 py-2">
-                                <div className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">执行节奏</div>
-                                <div className="mt-1 text-[13px] text-[var(--text-primary)]">{buildHumanSchedule(job.schedule)}</div>
-                              </div>
-                              <div className="rounded-[13px] bg-[var(--bg-hover)] px-3 py-2">
-                                <div className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">下次执行</div>
-                                <div className="mt-1 text-[13px] text-[var(--text-primary)]">
-                                  {formatTimestamp(job.state?.nextRunAtMs ?? null)}
+                                <div className="flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 rounded-[12px] px-0 py-0"
+                                    onClick={() => void handleRun(job)}
+                                    disabled={actionJobId === job.id}
+                                  >
+                                    <Play className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 rounded-[12px] px-0 py-0"
+                                    onClick={() => openEdit(job)}
+                                  >
+                                    <PencilLine className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 rounded-[12px] px-0 py-0"
+                                    onClick={() => void handleToggle(job)}
+                                    disabled={actionJobId === job.id}
+                                  >
+                                    {job.enabled ? <Pause className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 rounded-[12px] px-0 py-0 text-[rgb(185,28,28)] hover:text-[rgb(185,28,28)]"
+                                    onClick={() => void handleRemove(job)}
+                                    disabled={actionJobId === job.id}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
                                 </div>
                               </div>
-                              <div className="rounded-[13px] bg-[var(--bg-hover)] px-3 py-2">
-                                <div className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">最近结果</div>
-                                <div className="mt-1 text-[13px] text-[var(--text-primary)]">
-                                  {job.state?.lastStatus === 'ok'
-                                    ? '成功'
-                                    : job.state?.lastStatus === 'error'
-                                      ? '失败'
-                                      : '暂无'}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="mt-3 rounded-[13px] border border-[var(--border-default)] bg-[var(--bg-card)] px-3 py-2.5 text-[12px] leading-5 text-[var(--text-secondary)]">
-                              {lastState}
-                            </div>
-
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              <button
-                                type="button"
-                                onClick={() => handleRun(job)}
-                                disabled={actionJobId === job.id}
-                                className="iclaw-apple-button iclaw-apple-button--secondary iclaw-apple-button--sm"
-                              >
-                                <Play className="h-4 w-4" />
-                                立即执行
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => openEdit(job)}
-                                className="iclaw-apple-button iclaw-apple-button--secondary iclaw-apple-button--sm"
-                              >
-                                <PencilLine className="h-4 w-4" />
-                                {isAdvancedOnly ? '高级编辑' : '编辑'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleRemove(job)}
-                                disabled={actionJobId === job.id}
-                                className="iclaw-apple-button iclaw-apple-button--danger iclaw-apple-button--sm"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                删除
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                            </PressableCard>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </section>
-            </div>
 
-            {drawerOpen ? (
-              <div className="iclaw-cron-modal-backdrop">
-                <div className="iclaw-cron-modal">
-                  <div className="border-b border-[var(--border-default)] px-5 py-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <div className="text-[18px] font-semibold text-[var(--text-primary)]">
-                          {form.id ? '编辑任务' : '创建任务'}
+              {drawerOpen ? (
+                <>
+                  <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={() => setDrawerOpen(false)} />
+                  <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="pointer-events-auto w-full max-w-2xl overflow-hidden rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-card)] shadow-[0_24px_64px_rgba(15,23,42,0.18)] dark:border-[rgba(255,255,255,0.08)]">
+                      <div className="flex items-center justify-between border-b border-[var(--border-default)] px-6 py-4 dark:border-[rgba(255,255,255,0.08)]">
+                        <div>
+                          <h2 className="text-[18px] font-semibold text-[var(--text-primary)]">{form.id ? '编辑任务' : '创建新任务'}</h2>
+                          <p className="mt-0.5 text-[13px] text-[var(--text-secondary)]">模板: {getTemplateMeta(form.templateId).title}</p>
                         </div>
-                        <div className="mt-1 text-[13px] text-[var(--text-secondary)]">
-                          基础模式只保留最常用字段。复杂参数可切到高级模式调整。
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-10 w-10 rounded-[14px] px-0 py-0"
+                          onClick={() => setDrawerOpen(false)}
+                        >
+                          <X className="h-5 w-5" />
+                        </Button>
+                      </div>
+
+                      <div className="grid gap-5 p-6">
+                        <label className="grid gap-2">
+                          <span className="text-[13px] font-medium text-[var(--text-primary)]">模板</span>
+                          <select
+                            value={form.templateId}
+                            onChange={(event) => handleTemplateChange(event.target.value as BasicTemplateId)}
+                            className={fieldClassName}
+                          >
+                            {BASIC_TEMPLATES.map((template) => (
+                              <option key={template.id} value={template.id}>
+                                {template.title}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <label className="grid gap-2">
+                          <span className="text-[13px] font-medium text-[var(--text-primary)]">任务名称</span>
+                          <input
+                            type="text"
+                            value={form.name}
+                            onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+                            placeholder="输入任务名称"
+                            className={fieldClassName}
+                          />
+                        </label>
+
+                        <label className="grid gap-2">
+                          <span className="text-[13px] font-medium text-[var(--text-primary)]">任务内容</span>
+                          <textarea
+                            rows={3}
+                            value={form.prompt}
+                            onChange={(event) => setForm((current) => ({ ...current, prompt: event.target.value }))}
+                            placeholder="简要描述任务内容"
+                            className={cn(fieldClassName, 'resize-none py-3')}
+                          />
+                        </label>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <label className="grid gap-2">
+                            <span className="text-[13px] font-medium text-[var(--text-primary)]">执行频率</span>
+                            <select
+                              value={form.frequency}
+                              onChange={(event) =>
+                                setForm((current) => ({
+                                  ...current,
+                                  frequency: event.target.value as BasicFrequency,
+                                }))
+                              }
+                              className={fieldClassName}
+                            >
+                              <option value="once">单次执行</option>
+                              <option value="daily">每天</option>
+                              <option value="weekly">每周</option>
+                            </select>
+                          </label>
+
+                          {form.frequency === 'once' ? (
+                            <label className="grid gap-2">
+                              <span className="text-[13px] font-medium text-[var(--text-primary)]">执行时间</span>
+                              <input
+                                type="datetime-local"
+                                value={form.onceAt}
+                                onChange={(event) =>
+                                  setForm((current) => ({ ...current, onceAt: event.target.value }))
+                                }
+                                className={fieldClassName}
+                              />
+                            </label>
+                          ) : (
+                            <label className="grid gap-2">
+                              <span className="text-[13px] font-medium text-[var(--text-primary)]">执行时间</span>
+                              <input
+                                type="time"
+                                value={form.runTime}
+                                onChange={(event) =>
+                                  setForm((current) => ({ ...current, runTime: event.target.value }))
+                                }
+                                className={fieldClassName}
+                              />
+                            </label>
+                          )}
+                        </div>
+
+                        {form.frequency === 'weekly' ? (
+                          <label className="grid gap-2">
+                            <span className="text-[13px] font-medium text-[var(--text-primary)]">每周几执行</span>
+                            <select
+                              value={form.weekday}
+                              onChange={(event) =>
+                                setForm((current) => ({ ...current, weekday: event.target.value }))
+                              }
+                              className={fieldClassName}
+                            >
+                              {WEEKDAY_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        ) : null}
+
+                        <div className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-hover)] px-4 py-4 dark:border-[rgba(255,255,255,0.08)]">
+                          <div className="text-[13px] font-medium text-[var(--text-primary)]">任务预览</div>
+                          <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{previewText}</p>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setDrawerOpen(false)}
-                        className="iclaw-apple-button iclaw-apple-button--secondary iclaw-apple-button--sm"
-                      >
-                        关闭
-                      </button>
+
+                      <div className="flex items-center justify-end gap-3 border-t border-[var(--border-default)] bg-[var(--bg-hover)] px-6 py-4 dark:border-[rgba(255,255,255,0.08)]">
+                        <Button variant="ghost" size="sm" onClick={() => setDrawerOpen(false)}>
+                          取消
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          leadingIcon={<Settings2 className="h-4 w-4" />}
+                          onClick={() => {
+                            setDrawerOpen(false);
+                            setMode('advanced');
+                          }}
+                        >
+                          高级模式
+                        </Button>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          leadingIcon={saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                          onClick={() => void handleSave()}
+                          disabled={saving}
+                        >
+                          {form.id ? '保存任务' : '创建任务'}
+                        </Button>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="grid gap-4 px-5 py-5">
-                    <label className="grid gap-2">
-                      <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                        模板
-                      </span>
-                      <select
-                        value={form.templateId}
-                        onChange={(event) => handleTemplateChange(event.target.value as BasicTemplateId)}
-                      >
-                        {BASIC_TEMPLATES.map((template) => (
-                          <option key={template.id} value={template.id}>
-                            {template.title}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className="grid gap-2">
-                      <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                        任务名称
-                      </span>
-                      <input
-                        value={form.name}
-                        onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-                        className="h-11 rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 text-[14px] text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]"
-                      />
-                    </label>
-
-                    <label className="grid gap-2">
-                      <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                        任务内容
-                      </span>
-                      <textarea
-                        rows={5}
-                        value={form.prompt}
-                        onChange={(event) => setForm((current) => ({ ...current, prompt: event.target.value }))}
-                        className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-3 text-[14px] leading-6 text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]"
-                        placeholder="例如：请每天晚上 7 点总结今天的工作进展。"
-                      />
-                    </label>
-
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <label className="grid gap-2">
-                        <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                          执行频率
-                        </span>
-                        <select
-                          value={form.frequency}
-                          onChange={(event) =>
-                            setForm((current) => ({
-                              ...current,
-                              frequency: event.target.value as BasicFrequency,
-                            }))
-                          }
-                        >
-                          <option value="once">执行一次</option>
-                          <option value="daily">每天</option>
-                          <option value="weekly">每周</option>
-                        </select>
-                      </label>
-
-                      {form.frequency === 'once' ? (
-                        <label className="grid gap-2">
-                          <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                            执行时间
-                          </span>
-                          <input
-                            type="datetime-local"
-                            value={form.onceAt}
-                            onChange={(event) =>
-                              setForm((current) => ({ ...current, onceAt: event.target.value }))
-                            }
-                            className="h-11 rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 text-[14px] text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]"
-                          />
-                        </label>
-                      ) : (
-                        <label className="grid gap-2">
-                          <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                            执行时刻
-                          </span>
-                          <input
-                            type="time"
-                            value={form.runTime}
-                            onChange={(event) =>
-                              setForm((current) => ({ ...current, runTime: event.target.value }))
-                            }
-                            className="h-11 rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 text-[14px] text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]"
-                          />
-                        </label>
-                      )}
-                    </div>
-
-                    {form.frequency === 'weekly' ? (
-                      <label className="grid gap-2">
-                        <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                          每周几执行
-                        </span>
-                        <select
-                          value={form.weekday}
-                          onChange={(event) =>
-                            setForm((current) => ({ ...current, weekday: event.target.value }))
-                          }
-                        >
-                          {WEEKDAY_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    ) : null}
-                  </div>
-
-                  <div className="flex items-center justify-between gap-3 border-t border-[var(--border-default)] px-5 py-4">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDrawerOpen(false);
-                        setMode('advanced');
-                      }}
-                      className="iclaw-apple-button iclaw-apple-button--secondary"
-                    >
-                      <Settings2 className="h-4 w-4" />
-                      去高级模式
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleSave()}
-                      disabled={saving}
-                      className="iclaw-apple-button iclaw-apple-button--primary"
-                    >
-                      {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                      {form.id ? '保存任务' : '创建任务'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : null}
+                </>
+              ) : null}
+            </div>
           </div>
         ) : null}
 
@@ -1505,14 +1509,15 @@ export function OpenClawCronSurface({
 
         {mode === 'advanced' && status.connected ? (
           <div className="pointer-events-none absolute right-5 top-4 z-20">
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
+              leadingIcon={<Repeat className="h-4 w-4" />}
               onClick={() => setMode('basic')}
-              className="pointer-events-auto iclaw-apple-button iclaw-apple-button--secondary"
+              className="pointer-events-auto"
             >
-              <Repeat className="h-4 w-4" />
               返回基础模式
-            </button>
+            </Button>
           </div>
         ) : null}
       </div>
