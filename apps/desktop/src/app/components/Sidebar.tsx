@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SVGProps } from 'react';
 import {
-  Brain,
   Bot,
+  BookOpen,
   CheckSquare,
   Link2,
   MessageSquare,
@@ -139,7 +139,7 @@ export function Sidebar({
     {
       key: 'memory',
       label: '记忆管理',
-      icon: Brain,
+      icon: BookOpen,
       iconClass: 'text-amber-500',
       active: activeView === 'memory',
       onClick: onOpenMemory,

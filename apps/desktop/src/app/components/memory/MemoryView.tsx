@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, Dispatch, ReactNode, SetStateAction } from 'react';
 import {
-  Brain,
+  BookOpen,
   CheckCircle2,
   Clock3,
   Database,
@@ -586,7 +586,7 @@ export function MemoryView() {
     <div className="flex flex-1 items-center justify-center px-8">
       <div className="max-w-[420px] text-center">
         <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-[rgba(59,130,246,0.10)] text-[var(--brand-primary)]">
-          {hasActiveFilters ? <SearchX className="h-7 w-7" /> : <Brain className="h-7 w-7" />}
+          {hasActiveFilters ? <SearchX className="h-7 w-7" /> : <BookOpen className="h-7 w-7" />}
         </div>
         <div className="text-[20px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">
           {hasActiveFilters ? '没有找到匹配的记忆' : '还没有可展示的记忆'}
@@ -635,7 +635,7 @@ export function MemoryView() {
                 <FileUp className="h-[18px] w-[18px]" strokeWidth={1.5} />
               </HeaderIconButton>
               <HeaderPrimaryButton onClick={handleCreateMemory} disabled={mutating}>
-                <Brain className="h-[18px] w-[18px]" strokeWidth={1.5} />
+                <Plus className="h-[18px] w-[18px]" strokeWidth={1.5} />
                 <span className="text-sm">新建记忆</span>
               </HeaderPrimaryButton>
             </div>
@@ -816,95 +816,97 @@ export function MemoryView() {
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto">
-          <div className="border-b border-[var(--border-default)] px-8 py-4">
-            <div className="flex items-center justify-between">
-              <div className="text-[13px] text-[var(--text-secondary)]">
-                当前显示 <span className="font-medium text-[var(--text-primary)]">{filteredEntries.length}</span> / {statusSummary.total} 条记忆
-              </div>
-              <div className="inline-flex items-center gap-1.5 rounded-full bg-[#f5f5f7] px-3 py-1 text-xs text-[#6e6e73] dark:bg-[rgba(255,255,255,0.06)] dark:text-[var(--text-secondary)]">
-                <Filter className="h-3.5 w-3.5" />
-                标签与来源已进入筛选
+          <div className="flex min-h-full flex-col">
+            <div className="border-b border-[var(--border-default)] px-8 py-4">
+              <div className="flex items-center justify-between">
+                <div className="text-[13px] text-[var(--text-secondary)]">
+                  当前显示 <span className="font-medium text-[var(--text-primary)]">{filteredEntries.length}</span> / {statusSummary.total} 条记忆
+                </div>
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-[#f5f5f7] px-3 py-1 text-xs text-[#6e6e73] dark:bg-[rgba(255,255,255,0.06)] dark:text-[var(--text-secondary)]">
+                  <Filter className="h-3.5 w-3.5" />
+                  标签与来源已进入筛选
+                </div>
               </div>
             </div>
-          </div>
 
-          {loading ? (
-            <div className="flex flex-1 items-center justify-center px-8 py-16">
-              <div className="text-center text-[13px] text-[var(--text-secondary)]">正在读取真实记忆…</div>
-            </div>
-          ) : filteredEntries.length === 0 ? (
-            emptyState
-          ) : (
-            <div className="divide-y divide-[var(--border-default)]">
-              {filteredEntries.map((entry) => {
-                const selected = entry.id === selectedId;
-                return (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    onClick={() => setSelectedId(entry.id)}
-                    className={cn(
-                      'w-full cursor-pointer px-8 py-5 text-left transition-all duration-[var(--motion-panel)] hover:bg-[rgba(15,23,42,0.03)] dark:hover:bg-[rgba(255,255,255,0.03)]',
-                      selected && 'bg-[rgba(15,23,42,0.04)] dark:bg-[rgba(255,255,255,0.05)]',
-                    )}
-                    style={{ transitionTimingFunction: 'var(--motion-spring)' }}
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-2 flex flex-wrap items-center gap-2">
-                          <p className="text-[15px] font-medium text-[var(--text-primary)]">{entry.summary}</p>
-                        </div>
-                        <div className="mb-2 flex flex-wrap items-center gap-2">
-                          <MetaBadge className={DOMAIN_SURFACE[entry.domain]}>{entry.domain}</MetaBadge>
-                          <MetaBadge className={TYPE_SURFACE[entry.type]}>{entry.type}</MetaBadge>
-                          {entry.tags.slice(0, 3).map((tag) => (
-                            <MetaBadge key={tag} className="bg-[#f0f0f5] text-[#6e6e73] dark:bg-[rgba(255,255,255,0.06)] dark:text-[var(--text-secondary)]">
-                              {tag}
-                            </MetaBadge>
-                          ))}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3 text-[12px] text-[var(--text-muted)]">
-                          <div className="flex items-center gap-1.5">
-                            <CheckCircle2 className={cn('h-3.5 w-3.5', entry.status === '已确认' ? 'text-[rgb(21,128,61)]' : 'text-[rgb(180,100,24)]')} />
-                            <span>{entry.status}</span>
+            {loading ? (
+              <div className="flex flex-1 items-center justify-center px-8 py-16">
+                <div className="text-center text-[13px] text-[var(--text-secondary)]">正在读取真实记忆…</div>
+              </div>
+            ) : filteredEntries.length === 0 ? (
+              emptyState
+            ) : (
+              <div className="divide-y divide-[var(--border-default)]">
+                {filteredEntries.map((entry) => {
+                  const selected = entry.id === selectedId;
+                  return (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      onClick={() => setSelectedId(entry.id)}
+                      className={cn(
+                        'w-full cursor-pointer px-8 py-5 text-left transition-all duration-[var(--motion-panel)] hover:bg-[rgba(15,23,42,0.03)] dark:hover:bg-[rgba(255,255,255,0.03)]',
+                        selected && 'bg-[rgba(15,23,42,0.04)] dark:bg-[rgba(255,255,255,0.05)]',
+                      )}
+                      style={{ transitionTimingFunction: 'var(--motion-spring)' }}
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="min-w-0 flex-1">
+                          <div className="mb-2 flex flex-wrap items-center gap-2">
+                            <p className="text-[15px] font-medium text-[var(--text-primary)]">{entry.summary}</p>
                           </div>
-                          <span>•</span>
-                          <span>{entry.sourceType}</span>
-                          {entry.lastRecalledAt ? (
-                            <>
-                              <span>•</span>
-                              <span>召回: {entry.lastRecalledAt}</span>
-                            </>
+                          <div className="mb-2 flex flex-wrap items-center gap-2">
+                            <MetaBadge className={DOMAIN_SURFACE[entry.domain]}>{entry.domain}</MetaBadge>
+                            <MetaBadge className={TYPE_SURFACE[entry.type]}>{entry.type}</MetaBadge>
+                            {entry.tags.slice(0, 3).map((tag) => (
+                              <MetaBadge key={tag} className="bg-[#f0f0f5] text-[#6e6e73] dark:bg-[rgba(255,255,255,0.06)] dark:text-[var(--text-secondary)]">
+                                {tag}
+                              </MetaBadge>
+                            ))}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-3 text-[12px] text-[var(--text-muted)]">
+                            <div className="flex items-center gap-1.5">
+                              <CheckCircle2 className={cn('h-3.5 w-3.5', entry.status === '已确认' ? 'text-[rgb(21,128,61)]' : 'text-[rgb(180,100,24)]')} />
+                              <span>{entry.status}</span>
+                            </div>
+                            <span>•</span>
+                            <span>{entry.sourceType}</span>
+                            {entry.lastRecalledAt ? (
+                              <>
+                                <span>•</span>
+                                <span>召回: {entry.lastRecalledAt}</span>
+                              </>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="flex min-w-[120px] flex-col items-end gap-2">
+                          <MetaBadge
+                            className={
+                              entry.importance === '高'
+                                ? 'bg-[#fff3e0] text-[#e65100]'
+                                : entry.importance === '中'
+                                  ? 'bg-[#fff8e1] text-[#f57f17]'
+                                  : 'bg-[#f5f5f5] text-[#616161]'
+                            }
+                          >
+                            {entry.importance}重要性
+                          </MetaBadge>
+                          <div className="flex items-center gap-1.5 text-[12px] text-[var(--text-muted)]">
+                            <Clock3 className="h-3.5 w-3.5" />
+                            <span>{entry.createdAt}</span>
+                          </div>
+                          {entry.recallCount > 0 ? (
+                            <div className="text-[12px] text-[var(--brand-primary)]">{entry.recallCount} 次召回</div>
                           ) : null}
                         </div>
                       </div>
-
-                      <div className="flex min-w-[120px] flex-col items-end gap-2">
-                        <MetaBadge
-                          className={
-                            entry.importance === '高'
-                              ? 'bg-[#fff3e0] text-[#e65100]'
-                              : entry.importance === '中'
-                                ? 'bg-[#fff8e1] text-[#f57f17]'
-                                : 'bg-[#f5f5f5] text-[#616161]'
-                          }
-                        >
-                          {entry.importance}重要性
-                        </MetaBadge>
-                        <div className="flex items-center gap-1.5 text-[12px] text-[var(--text-muted)]">
-                          <Clock3 className="h-3.5 w-3.5" />
-                          <span>{entry.createdAt}</span>
-                        </div>
-                        {entry.recallCount > 0 ? (
-                          <div className="text-[12px] text-[var(--brand-primary)]">{entry.recallCount} 次召回</div>
-                        ) : null}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1174,7 +1176,7 @@ function MemoryInspector({
       <div className="flex h-full items-center justify-center px-8">
         <div className="text-center">
           <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--bg-hover)] text-[var(--text-secondary)]">
-            <Brain className="h-7 w-7" />
+            <BookOpen className="h-7 w-7" />
           </div>
           <p className="text-[14px] text-[var(--text-secondary)]">选择一条记忆查看详情</p>
         </div>
