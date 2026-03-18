@@ -2,6 +2,10 @@
 
 本规范先落在桌面端的 `IM机器人` 视图区，同时作为后续桌面 UI 的默认交互基线。
 
+配套视觉规范位于：
+
+- [desktop-visual-design-system.md](/Users/xingkaihan/Documents/Code/iClaw/docs/desktop-visual-design-system.md)
+
 ## 目标
 
 - 所有鼠标悬停后显示小手的区域，都要有统一的弹簧反馈。
