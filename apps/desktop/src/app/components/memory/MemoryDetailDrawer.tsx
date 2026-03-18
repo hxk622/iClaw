@@ -451,7 +451,8 @@ function Badge({
   );
 }
 
-function buildRecallRecords(entry: MemoryEntry) {
+function buildRecallRecords(entry: MemoryEntry | null) {
+  if (!entry) return [];
   if (!entry.lastRecalledAt) return [];
 
   const suffix = entry.recallCount > 1 ? `累计已被召回 ${entry.recallCount} 次。` : '最近一次被系统召回。';
