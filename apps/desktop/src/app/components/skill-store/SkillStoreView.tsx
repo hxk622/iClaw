@@ -29,6 +29,7 @@ import { Button } from '@/app/components/ui/Button';
 import { Chip } from '@/app/components/ui/Chip';
 import { PressableCard } from '@/app/components/ui/PressableCard';
 import { cn } from '@/app/lib/cn';
+import { APPLE_FLAT_SURFACE, INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 import { SkillStoreAdminSheet } from './SkillStoreAdminSheet';
 import { SkillStoreDetailSheet } from './SkillStoreDetailSheet';
 import { SkillStoreImportSheet } from './SkillStoreImportSheet';
@@ -218,7 +219,10 @@ function FilterButton({
       type="button"
       onClick={onClick}
       className={cn(
-        'rounded-md border px-3.5 py-1.5 text-[13px] transition-all',
+        'cursor-pointer rounded-md border px-3.5 py-1.5 text-[13px] transition-all',
+        APPLE_FLAT_SURFACE,
+        SPRING_PRESSABLE,
+        INTERACTIVE_FOCUS_RING,
         active
           ? 'border-[rgba(201,169,97,0.22)] bg-[rgba(201,169,97,0.12)] font-medium text-[rgb(155,112,39)] dark:border-[rgba(201,169,97,0.20)] dark:bg-[rgba(201,169,97,0.16)] dark:text-[#f1d59c]'
           : 'border-[var(--border-default)] bg-[var(--bg-card)] text-[var(--text-secondary)] hover:border-[rgba(201,169,97,0.22)] hover:text-[var(--text-primary)] dark:bg-[rgba(255,255,255,0.03)]',
@@ -245,10 +249,13 @@ function ViewModeButton({
       type="button"
       onClick={onClick}
       className={cn(
-        'inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[14px] font-medium transition-all',
+        'inline-flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-2 text-[14px] font-medium transition-all',
+        APPLE_FLAT_SURFACE,
+        SPRING_PRESSABLE,
+        INTERACTIVE_FOCUS_RING,
         active
-          ? 'bg-[var(--text-primary)] text-white dark:bg-[var(--text-primary)] dark:text-[#111]'
-          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
+          ? 'border-[rgba(201,169,97,0.24)] bg-[rgba(201,169,97,0.12)] text-[rgb(155,112,39)] dark:border-[rgba(201,169,97,0.20)] dark:bg-[rgba(201,169,97,0.16)] dark:text-[#f1d59c]'
+          : 'border-transparent bg-transparent text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
       )}
     >
       <span>{children}</span>
@@ -257,7 +264,7 @@ function ViewModeButton({
           className={cn(
             'rounded-full px-2 py-0.5 text-[11px]',
             active
-              ? 'bg-white/18 text-white dark:bg-black/10 dark:text-[#111]'
+              ? 'bg-[rgba(201,169,97,0.18)] text-[rgb(155,112,39)] dark:bg-[rgba(201,169,97,0.24)] dark:text-[#f1d59c]'
               : 'bg-[var(--bg-card)] text-[var(--text-muted)] dark:bg-[rgba(255,255,255,0.05)]',
           )}
         >
@@ -352,8 +359,6 @@ function SkillCard({
             disabled={actionDisabled}
             className={cn(
               'rounded-md px-4 py-1.5 text-[13px] font-normal shadow-none',
-              status === 'available' &&
-                'border-[var(--text-primary)] bg-[var(--text-primary)] text-white hover:border-[rgb(155,112,39)] hover:bg-[rgb(155,112,39)] dark:text-[#111]',
               (status === 'installed' || status === 'builtin') &&
                 'border-[var(--border-default)] bg-[var(--bg-secondary)] text-[var(--text-muted)]',
             )}
@@ -894,7 +899,12 @@ export function SkillStoreView({
                       onClick={() =>
                         setActiveTags((current) => (current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]))
                       }
-                      className={cn('rounded-md border px-3 py-1.5 text-[12px] transition-all', skillTagClassName(tag, { selected: active, flat: true }))}
+                      className={cn(
+                        'cursor-pointer rounded-md border px-3 py-1.5 text-[12px] transition-all',
+                        SPRING_PRESSABLE,
+                        INTERACTIVE_FOCUS_RING,
+                        skillTagClassName(tag, { selected: active, flat: true }),
+                      )}
                     >
                       {tag}
                     </button>
@@ -904,7 +914,12 @@ export function SkillStoreView({
                   <button
                     type="button"
                     onClick={() => setActiveTags([])}
-                    className="rounded-md border border-[var(--border-default)] bg-[var(--bg-card)] px-3 py-1.5 text-[12px] text-[var(--text-secondary)] transition-all hover:border-[rgba(201,169,97,0.22)] hover:text-[var(--text-primary)]"
+                    className={cn(
+                      'cursor-pointer rounded-md border border-[var(--border-default)] bg-[var(--bg-card)] px-3 py-1.5 text-[12px] text-[var(--text-secondary)] transition-all hover:border-[rgba(201,169,97,0.22)] hover:text-[var(--text-primary)]',
+                      APPLE_FLAT_SURFACE,
+                      SPRING_PRESSABLE,
+                      INTERACTIVE_FOCUS_RING,
+                    )}
                   >
                     清除
                   </button>
