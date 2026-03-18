@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import type { SVGProps } from 'react';
 import {
   Bot,
+  Blocks,
   BookOpen,
   CheckSquare,
   Link2,
   MessageSquare,
   Plus,
-  Store,
 } from 'lucide-react';
 import type { DesktopUpdateHint } from '@iclaw/sdk';
 import { AvatarDropdown } from './AvatarDropdown';
@@ -23,7 +23,22 @@ import {
 } from '../lib/user-avatar';
 
 type SidebarUser = AppUserAvatarSource;
-type PrimaryView = 'chat' | 'skill-store' | 'cron' | 'im-bots' | 'data-connections' | 'task-center' | 'memory';
+type PrimaryView = 'chat' | 'lobster-store' | 'skill-store' | 'cron' | 'im-bots' | 'data-connections' | 'task-center' | 'memory';
+
+function LobsterStoreIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M12 7.2c2.8 0 5.1 2.2 5.1 5v1.7c0 2.1-1.2 4-3.1 4.9l-2 1-2-1A5.49 5.49 0 0 1 6.9 13.9v-1.7c0-2.8 2.3-5 5.1-5Z" />
+      <path d="M9.2 6.1 7.5 4.4" />
+      <path d="m14.8 6.1 1.7-1.7" />
+      <path d="M8.4 12.3 6 10.9" />
+      <path d="m15.6 12.3 2.4-1.4" />
+      <path d="M10.1 10.8v2.4" />
+      <path d="M13.9 10.8v2.4" />
+      <path d="M10.6 16.7h2.8" />
+    </svg>
+  );
+}
 
 interface SidebarProps {
   user: SidebarUser | null;
@@ -32,6 +47,7 @@ interface SidebarProps {
   authenticated?: boolean;
   onOpenChat?: () => void;
   onOpenCron?: () => void;
+  onOpenLobsterStore?: () => void;
   onOpenSkillStore?: () => void;
   onOpenDataConnections?: () => void;
   onOpenImBots?: () => void;
@@ -59,6 +75,7 @@ interface SidebarItem {
   label: string;
   icon: React.ComponentType<SVGProps<SVGSVGElement>>;
   iconClass: string;
+  iconWrapClass?: string;
   badge?: string;
   dot?: boolean;
   active?: boolean;
@@ -72,6 +89,7 @@ export function Sidebar({
   authenticated = false,
   onOpenChat,
   onOpenCron,
+  onOpenLobsterStore,
   onOpenSkillStore,
   onOpenDataConnections,
   onOpenImBots,
@@ -129,9 +147,18 @@ export function Sidebar({
       onClick: onOpenCron,
     },
     {
+      key: 'lobster-store',
+      label: '龙虾商店',
+      icon: LobsterStoreIcon,
+      iconClass: 'text-[var(--lobster-gold)]',
+      iconWrapClass: 'rounded-[10px] border border-transparent bg-transparent',
+      active: activeView === 'lobster-store',
+      onClick: onOpenLobsterStore,
+    },
+    {
       key: 'skill-store',
       label: '技能商店',
-      icon: Store,
+      icon: Blocks,
       iconClass: 'text-[var(--brand-primary)]',
       active: activeView === 'skill-store',
       onClick: onOpenSkillStore,
@@ -180,10 +207,32 @@ export function Sidebar({
               transformOrigin: 'left center',
             }}
           >
-            <item.icon
-              className={`h-5 w-5 transition-transform duration-[var(--motion-panel)] ${item.active ? 'scale-110' : 'group-hover:scale-110'} ${item.iconClass}`}
-              style={{ transitionTimingFunction: 'var(--motion-spring)' }}
-            />
+            {item.iconWrapClass ? (
+              <span
+                className={`transition-all duration-[var(--motion-panel)] ${
+                  item.active
+                    ? 'border-[rgba(168,140,93,0.22)] bg-[rgba(168,140,93,0.12)] shadow-[0_6px_14px_rgba(168,140,93,0.10)]'
+                    : 'group-hover:border-[rgba(168,140,93,0.18)] group-hover:bg-[rgba(168,140,93,0.08)]'
+                } ${item.iconWrapClass}`}
+                style={{ transitionTimingFunction: 'var(--motion-spring)' }}
+                aria-hidden="true"
+              >
+                <item.icon
+                  className={`h-5 w-5 transition-transform duration-[var(--motion-panel)] ${
+                    item.active ? 'scale-110' : 'group-hover:scale-105'
+                  } ${item.iconClass}`}
+                  style={{
+                    transitionTimingFunction: 'var(--motion-spring)',
+                    opacity: item.active ? 1 : 0.9,
+                  }}
+                />
+              </span>
+            ) : (
+              <item.icon
+                className={`h-5 w-5 transition-transform duration-[var(--motion-panel)] ${item.active ? 'scale-110' : 'group-hover:scale-110'} ${item.iconClass}`}
+                style={{ transitionTimingFunction: 'var(--motion-spring)' }}
+              />
+            )}
             <span className={`flex-1 text-[14px] text-[var(--text-primary)] transition-transform duration-[var(--motion-panel)] ${item.active ? 'translate-x-[1px] font-medium' : 'group-hover:translate-x-[1px]'}`}>
               {item.label}
             </span>
