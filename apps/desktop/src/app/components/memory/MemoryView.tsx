@@ -11,6 +11,7 @@ import {
   GitMerge,
   History,
   PencilLine,
+  Plus,
   RefreshCw,
   Search,
   SearchX,
