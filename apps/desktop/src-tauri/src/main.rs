@@ -586,6 +586,108 @@ fn resource_mcp_config_path(app: &AppHandle) -> PathBuf {
         .join("mcp.json")
 }
 
+fn resource_servers_dir(app: &AppHandle) -> PathBuf {
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let p = resource_dir.join("resources").join("servers");
+        if p.exists() {
+            return p;
+        }
+    }
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("resources")
+        .join("servers")
+}
+
+fn replace_iclaw_servers_dir_placeholders(
+    value: &mut serde_json::Value,
+    servers_dir: &str,
+) {
+    match value {
+        serde_json::Value::String(raw) => {
+            if raw.contains("__ICLAW_SERVERS_DIR__") {
+                *raw = raw.replace("__ICLAW_SERVERS_DIR__", servers_dir);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                replace_iclaw_servers_dir_placeholders(item, servers_dir);
+            }
+        }
+        serde_json::Value::Object(map) => {
+            for item in map.values_mut() {
+                replace_iclaw_servers_dir_placeholders(item, servers_dir);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn expand_env_placeholders(raw: &str) -> String {
+    let mut out = String::with_capacity(raw.len());
+    let mut cursor = 0usize;
+
+    while let Some(relative_start) = raw[cursor..].find("${") {
+        let start = cursor + relative_start;
+        out.push_str(&raw[cursor..start]);
+        let key_start = start + 2;
+        let Some(relative_end) = raw[key_start..].find('}') else {
+            out.push_str(&raw[start..]);
+            return out;
+        };
+        let end = key_start + relative_end;
+        let key = &raw[key_start..end];
+        match env::var(key) {
+            Ok(value) => out.push_str(&value),
+            Err(_) => out.push_str(&raw[start..=end]),
+        }
+        cursor = end + 1;
+    }
+
+    out.push_str(&raw[cursor..]);
+    out
+}
+
+fn replace_env_placeholders(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::String(raw) => {
+            if raw.contains("${") {
+                *raw = expand_env_placeholders(raw);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                replace_env_placeholders(item);
+            }
+        }
+        serde_json::Value::Object(map) => {
+            for item in map.values_mut() {
+                replace_env_placeholders(item);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn prepare_runtime_mcp_config(app: &AppHandle, cache_dir: &str) -> Result<PathBuf, String> {
+    let source_path = resource_mcp_config_path(app);
+    let raw =
+        fs::read_to_string(&source_path).map_err(|e| format!("failed to read mcp config: {e}"))?;
+    let mut parsed = serde_json::from_str::<serde_json::Value>(&raw)
+        .map_err(|e| format!("failed to parse mcp config: {e}"))?;
+
+    let servers_dir = resource_servers_dir(app);
+    let servers_dir_str = servers_dir.to_string_lossy().to_string();
+    replace_iclaw_servers_dir_placeholders(&mut parsed, &servers_dir_str);
+    replace_env_placeholders(&mut parsed);
+
+    let resolved = serde_json::to_string_pretty(&parsed)
+        .map_err(|e| format!("failed to serialize resolved mcp config: {e}"))?;
+    let resolved_path = Path::new(cache_dir).join("resolved-mcp.json");
+    fs::write(&resolved_path, format!("{resolved}\n"))
+        .map_err(|e| format!("failed to write resolved mcp config: {e}"))?;
+    Ok(resolved_path)
+}
+
 fn parse_skill_frontmatter(raw: &str) -> Vec<(String, String)> {
     let mut lines = raw.lines();
     if lines.next() != Some("---") {
@@ -2297,12 +2399,16 @@ fn start_sidecar(
     let config = load_runtime_config_internal(&app)?;
     let paths = ensure_runtime_dirs(&app)?;
     let skills_dir = resource_skills_dir(&app);
-    let mcp_config = resource_mcp_config_path(&app);
+    let mcp_config = prepare_runtime_mcp_config(&app, &paths.cache_dir)?;
     let extra_ca_certs = resource_extra_ca_certs_path(&app);
 
     let mut command = Command::new(&runtime.program);
     if let Some(working_dir) = runtime.working_dir.as_ref() {
         command.current_dir(working_dir);
+        command.env(
+            "ICLAW_OPENCLAW_RUNTIME_ROOT",
+            working_dir.to_string_lossy().to_string(),
+        );
     }
     command.args(&runtime.args_prefix);
     command.args(args);

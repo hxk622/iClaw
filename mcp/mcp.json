@@ -32,7 +32,7 @@
     },
     "browser": {
       "command": "node",
-      "args": ["mcp/servers/agent-browser/index.mjs"]
+      "args": ["__ICLAW_SERVERS_DIR__/agent-browser/index.mjs"]
     },
     "dbt": {
       "command": "uvx",
@@ -95,7 +95,7 @@
     },
     "fingpt": {
       "command": "uv",
-      "args": ["run", "--native-tls", "--index-url", "https://mirrors.aliyun.com/pypi/simple/", "mcp/servers/fingpt/server.py"],
+      "args": ["run", "--native-tls", "--index-url", "https://mirrors.aliyun.com/pypi/simple/", "__ICLAW_SERVERS_DIR__/fingpt/server.py"],
       "env": {
         "FINGPT_API_URL": "${FINGPT_API_URL}",
         "UV_NATIVE_TLS": "true"

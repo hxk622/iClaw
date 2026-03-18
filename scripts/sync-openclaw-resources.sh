@@ -5,14 +5,21 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SRC_DIR="$ROOT_DIR/services/openclaw/resources"
 SKILLS_SRC_DIR="$ROOT_DIR/skills"
 MCP_PRESET_DIR="$ROOT_DIR/mcp"
+SERVERS_SRC_DIR="$ROOT_DIR/servers"
 DST_DIR="$ROOT_DIR/apps/desktop/src-tauri/resources"
 
-mkdir -p "$DST_DIR/skills" "$DST_DIR/mcp" "$DST_DIR/config" "$DST_DIR/certs"
+mkdir -p "$DST_DIR/skills" "$DST_DIR/mcp" "$DST_DIR/config" "$DST_DIR/certs" "$DST_DIR/servers"
 
 if [[ -d "$SKILLS_SRC_DIR" ]]; then
   rm -rf "$DST_DIR/skills"
   mkdir -p "$DST_DIR/skills"
   rsync -a --delete --exclude ".DS_Store" "$SKILLS_SRC_DIR/" "$DST_DIR/skills/"
+fi
+
+if [[ -d "$SERVERS_SRC_DIR" ]]; then
+  rm -rf "$DST_DIR/servers"
+  mkdir -p "$DST_DIR/servers"
+  rsync -a --delete --exclude ".DS_Store" "$SERVERS_SRC_DIR/" "$DST_DIR/servers/"
 fi
 
 if [[ -f "$SRC_DIR/mcp/mcp.json" || -f "$MCP_PRESET_DIR/mcp.json" ]]; then

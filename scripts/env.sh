@@ -33,6 +33,8 @@ fi
 
 SOURCE_FILE="$ROOT_DIR/.env.$TARGET_ENV"
 TARGET_FILE="$ROOT_DIR/.env"
+COMMON_OVERRIDE_FILE="$ROOT_DIR/.env.local"
+ENV_OVERRIDE_FILE="$ROOT_DIR/.env.$TARGET_ENV.local"
 
 if [[ ! -f "$SOURCE_FILE" ]]; then
   echo "[env] Source file not found: $SOURCE_FILE" >&2
@@ -40,4 +42,12 @@ if [[ ! -f "$SOURCE_FILE" ]]; then
 fi
 
 cp "$SOURCE_FILE" "$TARGET_FILE"
+if [[ -f "$COMMON_OVERRIDE_FILE" ]]; then
+  printf '\n# merged from %s\n' "$(basename "$COMMON_OVERRIDE_FILE")" >>"$TARGET_FILE"
+  cat "$COMMON_OVERRIDE_FILE" >>"$TARGET_FILE"
+fi
+if [[ -f "$ENV_OVERRIDE_FILE" ]]; then
+  printf '\n# merged from %s\n' "$(basename "$ENV_OVERRIDE_FILE")" >>"$TARGET_FILE"
+  cat "$ENV_OVERRIDE_FILE" >>"$TARGET_FILE"
+fi
 echo "[env] Applied $SOURCE_FILE -> $TARGET_FILE"
