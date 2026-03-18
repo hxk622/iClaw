@@ -1205,15 +1205,28 @@ function PlatformCard({
   onClick: () => void;
 }) {
   return (
-    <PressableCard interactive onClick={onClick} className="border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,247,244,0.92))] px-4 py-3.5 shadow-[0_18px_34px_rgba(15,23,42,0.06)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(29,29,29,0.96),rgba(17,17,17,0.94))] dark:shadow-[0_22px_38px_rgba(0,0,0,0.30)]">
-      <div className="flex items-start justify-between gap-4">
+    <PressableCard
+      interactive
+      onClick={onClick}
+      className="flex h-full flex-col border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,247,244,0.92))] px-4 py-3.5 shadow-[0_18px_34px_rgba(15,23,42,0.06)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(29,29,29,0.96),rgba(17,17,17,0.94))] dark:shadow-[0_22px_38px_rgba(0,0,0,0.30)]"
+    >
+      <div className="flex min-h-[64px] items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-4">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[16px] border border-[var(--border-default)] bg-white shadow-[0_10px_24px_rgba(15,23,42,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
             <img src={platform.logo} alt={platform.label} className={cn('h-full w-full object-cover', platform.logoClassName)} />
           </div>
-          <div className="min-w-0 min-h-[58px]">
+          <div className="min-w-0">
             <div className="text-[17px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">{platform.label}</div>
-            <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-[var(--text-secondary)]">{platform.intro}</p>
+            <p
+              className="mt-1 h-[40px] overflow-hidden text-[12px] leading-5 text-[var(--text-secondary)]"
+              style={{
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+              }}
+            >
+              {platform.intro}
+            </p>
           </div>
         </div>
         {configured ? (
@@ -1234,7 +1247,7 @@ function PlatformCard({
         <MetaPill label="预计耗时" value={platform.eta} />
         <MetaPill label="管理员权限" value={platform.admin} />
       </div>
-      <div className="mt-3">
+      <div className="mt-auto pt-3">
         <Button variant={configured ? 'secondary' : 'primary'} size="sm" block leadingIcon={<Link2 className="h-4 w-4" />}>
           {configured ? '继续完善配置' : '开始接入'}
         </Button>
