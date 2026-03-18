@@ -321,7 +321,9 @@ export function Sidebar({
           </div>
           <div className="min-w-0 flex-1">
             <div className="truncate text-[13px] text-[var(--text-primary)]">{resolveUserName(user)}</div>
-            <div className="text-[11px] text-[var(--text-muted)]">{authenticated ? 'v0 preview' : '点击登录解锁完整功能'}</div>
+            {!authenticated ? (
+              <div className="text-[11px] text-[var(--text-muted)]">点击登录解锁完整功能</div>
+            ) : null}
           </div>
         </button>
 
