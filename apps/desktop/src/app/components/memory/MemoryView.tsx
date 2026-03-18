@@ -15,16 +15,11 @@ import {
   Search,
   SearchX,
   ShieldCheck,
-  Sparkles,
   Tag,
   Trash2,
-  TriangleAlert,
   WandSparkles,
   X,
 } from 'lucide-react';
-import { Button } from '../ui/Button';
-import { Chip } from '../ui/Chip';
-import { PressableCard } from '../ui/PressableCard';
 import { cn } from '@/app/lib/cn';
 
 type MemoryDomain = '财经' | '产品' | '个人' | '项目' | '研究' | '其他';
@@ -32,7 +27,6 @@ type MemoryType = '偏好' | '事实' | '决策' | '实体' | '其他';
 type MemoryImportance = '高' | '中' | '低';
 type MemorySourceType = '手动创建' | '自动捕获' | '导入' | '对话沉淀';
 type MemoryStatus = '已确认' | '待检查';
-type Tone = 'muted' | 'outline' | 'brand' | 'success' | 'warning' | 'danger';
 
 type MemoryEntry = {
   id: string;
@@ -264,28 +258,21 @@ const INITIAL_MEMORIES: MemoryEntry[] = [
   },
 ];
 
-const DOMAIN_TONE: Record<MemoryDomain, Tone> = {
-  财经: 'success',
-  产品: 'brand',
-  个人: 'warning',
-  项目: 'outline',
-  研究: 'danger',
-  其他: 'muted',
+const DOMAIN_SURFACE: Record<MemoryDomain, string> = {
+  财经: 'bg-[#e8f5e9] text-[#2e7d32]',
+  产品: 'bg-[#e3f2fd] text-[#1565c0]',
+  个人: 'bg-[#fce4ec] text-[#c2185b]',
+  项目: 'bg-[#fff3e0] text-[#e65100]',
+  研究: 'bg-[#f3e5f5] text-[#6a1b9a]',
+  其他: 'bg-[#f5f5f5] text-[#616161]',
 };
 
-const TYPE_TONE: Record<MemoryType, Tone> = {
-  偏好: 'brand',
-  事实: 'success',
-  决策: 'warning',
-  实体: 'outline',
-  其他: 'muted',
-};
-
-const SOURCE_TONE: Record<MemorySourceType, Tone> = {
-  手动创建: 'outline',
-  自动捕获: 'warning',
-  导入: 'muted',
-  对话沉淀: 'brand',
+const TYPE_SURFACE: Record<MemoryType, string> = {
+  偏好: 'bg-[#e8eaf6] text-[#3f51b5]',
+  事实: 'bg-[#e0f2f1] text-[#00796b]',
+  决策: 'bg-[#fff8e1] text-[#f57f17]',
+  实体: 'bg-[#fbe9e7] text-[#d84315]',
+  其他: 'bg-[#f5f5f5] text-[#616161]',
 };
 
 function toggleValue<T>(current: T[], value: T) {
@@ -395,7 +382,7 @@ function normalizeImportedEntry(value: unknown): MemoryEntry | null {
 
 export function MemoryView() {
   const [entries, setEntries] = useState<MemoryEntry[]>(INITIAL_MEMORIES);
-  const [selectedId, setSelectedId] = useState<string | null>(INITIAL_MEMORIES[0]?.id ?? null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<MemoryFilters>(EMPTY_FILTERS);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -441,8 +428,8 @@ export function MemoryView() {
       setSelectedId(null);
       return;
     }
-    if (!selectedId || !filteredEntries.some((entry) => entry.id === selectedId)) {
-      setSelectedId(filteredEntries[0].id);
+    if (selectedId && !filteredEntries.some((entry) => entry.id === selectedId)) {
+      setSelectedId(null);
     }
   }, [filteredEntries, selectedId]);
 
@@ -660,11 +647,17 @@ export function MemoryView() {
   const handleForgetSelected = () => {
     if (!selectedEntry) return;
     setEntries((current) => current.map((entry) => (entry.id === selectedEntry.id ? { ...entry, active: false } : entry)));
+    setSelectedId(null);
+    setEditingId(null);
+    setDraft(null);
   };
 
   const handleDeleteSelected = () => {
     if (!selectedEntry) return;
     setEntries((current) => current.filter((entry) => entry.id !== selectedEntry.id));
+    setSelectedId(null);
+    setEditingId(null);
+    setDraft(null);
   };
 
   const handleMarkConfirmed = () => {
@@ -692,12 +685,14 @@ export function MemoryView() {
         </p>
         {hasActiveFilters ? (
           <div className="mt-5">
-            <Button variant="secondary" onClick={() => {
-              setSearchQuery('');
-              setFilters(EMPTY_FILTERS);
-            }}>
+            <DrawerSecondaryButton
+              onClick={() => {
+                setSearchQuery('');
+                setFilters(EMPTY_FILTERS);
+              }}
+            >
               清除全部筛选
-            </Button>
+            </DrawerSecondaryButton>
           </div>
         ) : null}
       </div>
@@ -705,101 +700,41 @@ export function MemoryView() {
   );
 
   return (
-    <div className="flex flex-1 overflow-hidden bg-[var(--bg-page)]">
+    <div className="relative flex flex-1 overflow-hidden bg-[var(--bg-page)]">
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="border-b border-[var(--border-default)] bg-[rgba(255,255,255,0.72)] px-8 pb-5 pt-8 backdrop-blur dark:bg-[rgba(10,10,10,0.72)]">
-          <div className="flex flex-col gap-5">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-              <div className="min-w-0">
-                <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-                  <Sparkles className="h-3.5 w-3.5 text-[var(--brand-primary)]" />
-                  Memory Control
-                </div>
-                <h1 className="mt-4 text-[30px] font-semibold tracking-[-0.06em] text-[var(--text-primary)]">记忆管理</h1>
-                <p className="mt-2 max-w-[760px] text-[14px] leading-7 text-[var(--text-secondary)]">
-                  以标签、领域和来源管理 AI 的长期记忆。这里不是文件夹笔记区，而是让“AI 记住了什么”变得透明、可检查、可纠正的控制台。
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  leadingIcon={<RefreshCw className="h-4 w-4" />}
-                  onClick={handleRefreshIndex}
-                >
-                  刷新索引
-                </Button>
-                <Button variant="ghost" size="sm" leadingIcon={<Download className="h-4 w-4" />} onClick={handleExport}>
-                  导出
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  leadingIcon={<FileUp className="h-4 w-4" />}
-                  onClick={handleImportClick}
-                >
-                  导入
-                </Button>
-                <Button variant="primary" size="sm" leadingIcon={<Brain className="h-4 w-4" />} onClick={handleCreateMemory}>
-                  新建记忆
-                </Button>
-              </div>
+        <div className="border-b border-[var(--border-default)] bg-[rgba(255,255,255,0.82)] px-8 pb-6 pt-8 backdrop-blur dark:bg-[rgba(10,10,10,0.82)]">
+          <div className="mb-6 flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-[28px] font-medium tracking-[-0.03em] text-[#1d1d1f] dark:text-[var(--text-primary)]">记忆</h1>
+              <p className="mt-1 text-[14px] text-[#6e6e73] dark:text-[var(--text-secondary)]">AI 的长期记忆与标签化管理</p>
             </div>
-
-            <label className="flex items-center gap-3 rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3 shadow-[var(--shadow-sm)]">
-              <Search className="h-4.5 w-4.5 text-[var(--text-muted)]" />
-              <input
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="搜索记忆、偏好、决策、标签、来源……"
-                className="w-full bg-transparent text-[14px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
-              />
-            </label>
-
-            <div className="grid gap-3 lg:grid-cols-5">
-              <StatusMetric
-                icon={Database}
-                label="记忆引擎"
-                value="LanceDB"
-                note={statusSummary.indexHealth}
-              />
-              <StatusMetric
-                icon={WandSparkles}
-                label="召回强度"
-                value={`${statusSummary.totalRecalls} 次`}
-                note={`${statusSummary.recalled} 条记忆近期开启召回`}
-                tone="brand"
-              />
-              <StatusMetric
-                icon={History}
-                label="自动捕获"
-                value={`${statusSummary.autoCaptured} 条`}
-                note="待人工确认"
-                tone="warning"
-              />
-              <StatusMetric
-                icon={ShieldCheck}
-                label="索引健康"
-                value={statusSummary.indexHealth}
-                note="最近同步 2 分钟前"
-              />
-              <StatusMetric
-                icon={TriangleAlert}
-                label="待检查"
-                value={`${statusSummary.pendingReview} 条`}
-                note="优先核验自动捕获"
-                tone={statusSummary.pendingReview > 0 ? 'warning' : 'success'}
-              />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              {topTags.map(([tag, count]) => (
-                <Chip key={tag} tone="outline">
-                  高频标签 · {tag} · {count}
-                </Chip>
-              ))}
+            <div className="flex items-center gap-2">
+              <HeaderIconButton onClick={handleRefreshIndex} label="刷新索引">
+                <RefreshCw className="h-[18px] w-[18px]" strokeWidth={1.5} />
+              </HeaderIconButton>
+              <HeaderIconButton onClick={handleExport} label="导出">
+                <Download className="h-[18px] w-[18px]" strokeWidth={1.5} />
+              </HeaderIconButton>
+              <HeaderIconButton onClick={handleImportClick} label="导入">
+                <FileUp className="h-[18px] w-[18px]" strokeWidth={1.5} />
+              </HeaderIconButton>
+              <HeaderPrimaryButton onClick={handleCreateMemory}>
+                <Brain className="h-[18px] w-[18px]" strokeWidth={1.5} />
+                <span className="text-sm">新建记忆</span>
+              </HeaderPrimaryButton>
             </div>
           </div>
+
+          <label className="relative block max-w-[560px]">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
+            <input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="搜索记忆、标签、来源……"
+              className="w-full rounded-[16px] border border-transparent bg-[var(--bg-hover)] py-3 pl-10 pr-4 text-[14px] text-[var(--text-primary)] outline-none transition-all duration-[var(--motion-panel)] placeholder:text-[var(--text-muted)] focus:border-[rgba(59,130,246,0.22)] focus:bg-[var(--bg-elevated)]"
+              style={{ transitionTimingFunction: 'var(--motion-spring)' }}
+            />
+          </label>
         </div>
 
         <input
@@ -812,256 +747,436 @@ export function MemoryView() {
           }}
         />
 
-        <div className="border-b border-[var(--border-default)] px-8 py-4">
-          <div className="flex flex-col gap-4">
+        <div className="border-b border-[var(--border-default)] bg-[rgba(250,250,250,0.9)] px-8 py-4 text-[12px] dark:bg-[rgba(20,20,20,0.86)]">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+            <div className="flex items-center gap-2">
+              <Database className="h-4 w-4 text-[var(--text-muted)]" />
+              <span className="text-[var(--text-secondary)]">记忆引擎:</span>
+              <span className="text-[var(--text-primary)]">LanceDB</span>
+            </div>
+            <div className="h-4 w-px bg-[var(--border-default)]" />
+            <div className="flex items-center gap-2">
+              <WandSparkles className="h-4 w-4 text-[var(--text-muted)]" />
+              <span className="text-[var(--text-secondary)]">最近召回:</span>
+              <span className="text-[var(--text-primary)]">{statusSummary.totalRecalls} 次</span>
+            </div>
+            <div className="h-4 w-px bg-[var(--border-default)]" />
+            <div className="flex items-center gap-2">
+              <History className="h-4 w-4 text-[var(--text-muted)]" />
+              <span className="text-[var(--text-secondary)]">自动捕获:</span>
+              <span className="text-[var(--text-primary)]">{statusSummary.autoCaptured} 条</span>
+            </div>
+            <div className="h-4 w-px bg-[var(--border-default)]" />
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-[var(--text-muted)]" />
+              <span className="text-[var(--text-secondary)]">索引状态:</span>
+              <span className={cn('text-[var(--text-primary)]', statusSummary.pendingReview > 0 && 'text-[rgb(180,100,24)]')}>
+                {statusSummary.indexHealth}
+              </span>
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <Tag className="h-4 w-4 text-[var(--text-muted)]" />
+              <span className="text-[var(--text-secondary)]">高频:</span>
+              <div className="flex gap-1.5">
+                {topTags.slice(0, 3).map(([tag]) => (
+                  <span key={tag} className="text-[var(--text-primary)]">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-b border-[var(--border-default)] bg-[var(--bg-elevated)] px-8 py-4">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
             <FilterGroup label="领域">
               {DOMAIN_OPTIONS.map((domain) => (
-                <Chip
+                <FilterChip
                   key={domain}
-                  clickable
                   active={filters.domains.includes(domain)}
-                  tone={filters.domains.includes(domain) ? 'brand' : 'outline'}
                   onClick={() => handleToggleFilter('domains', domain)}
                 >
                   {domain}
-                </Chip>
+                </FilterChip>
               ))}
             </FilterGroup>
+            <div className="hidden h-6 w-px bg-[var(--border-default)] xl:block" />
             <FilterGroup label="类型">
               {TYPE_OPTIONS.map((type) => (
-                <Chip
+                <FilterChip
                   key={type}
-                  clickable
                   active={filters.types.includes(type)}
-                  tone={filters.types.includes(type) ? 'brand' : 'outline'}
                   onClick={() => handleToggleFilter('types', type)}
                 >
                   {type}
-                </Chip>
+                </FilterChip>
               ))}
             </FilterGroup>
-            <FilterGroup label="来源">
-              {SOURCE_OPTIONS.map((source) => (
-                <Chip
-                  key={source}
-                  clickable
-                  active={filters.sourceTypes.includes(source)}
-                  tone={filters.sourceTypes.includes(source) ? 'brand' : 'outline'}
-                  onClick={() => handleToggleFilter('sourceTypes', source)}
-                >
-                  {source}
-                </Chip>
-              ))}
-            </FilterGroup>
+            <div className="hidden h-6 w-px bg-[var(--border-default)] xl:block" />
             <FilterGroup label="重要性">
               {IMPORTANCE_OPTIONS.map((importance) => (
-                <Chip
+                <FilterChip
                   key={importance}
-                  clickable
                   active={filters.importance.includes(importance)}
-                  tone={filters.importance.includes(importance) ? 'brand' : 'outline'}
                   onClick={() => handleToggleFilter('importance', importance)}
                 >
                   {importance}
-                </Chip>
+                </FilterChip>
               ))}
             </FilterGroup>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-3">
+            <FilterGroup label="来源">
+              {SOURCE_OPTIONS.map((source) => (
+                <FilterChip
+                  key={source}
+                  active={filters.sourceTypes.includes(source)}
+                  onClick={() => handleToggleFilter('sourceTypes', source)}
+                >
+                  {source}
+                </FilterChip>
+              ))}
+            </FilterGroup>
+            <div className="hidden h-6 w-px bg-[var(--border-default)] xl:block" />
             <FilterGroup label="标签">
-              {availableTags.slice(0, 10).map((tag) => (
-                <Chip
+              {availableTags.slice(0, 6).map((tag) => (
+                <FilterChip
                   key={tag}
-                  clickable
                   active={filters.tags.includes(tag)}
-                  tone={filters.tags.includes(tag) ? 'brand' : 'muted'}
                   onClick={() => handleToggleFilter('tags', tag)}
                 >
                   {tag}
-                </Chip>
+                </FilterChip>
               ))}
             </FilterGroup>
-            <FilterGroup label="召回状态">
+            <div className="ml-auto flex flex-wrap items-center gap-2">
               {RECALL_OPTIONS.map((state) => (
-                <Chip
+                <FilterChip
                   key={state}
-                  clickable
                   active={filters.recalledState.includes(state)}
-                  tone={filters.recalledState.includes(state) ? 'brand' : 'outline'}
                   onClick={() => handleToggleFilter('recalledState', state)}
                 >
                   {state}
-                </Chip>
+                </FilterChip>
               ))}
-              <Chip
-                clickable
+              <FilterChip
                 active={filters.onlyAutoCaptured}
-                tone={filters.onlyAutoCaptured ? 'warning' : 'outline'}
                 onClick={() => setFilters((current) => ({ ...current, onlyAutoCaptured: !current.onlyAutoCaptured }))}
               >
-                仅看自动捕获
-              </Chip>
-              <Chip
-                clickable
+                仅自动捕获
+              </FilterChip>
+              <FilterChip
                 active={filters.onlyHighImportance}
-                tone={filters.onlyHighImportance ? 'danger' : 'outline'}
                 onClick={() => setFilters((current) => ({ ...current, onlyHighImportance: !current.onlyHighImportance }))}
               >
-                仅看高重要性
-              </Chip>
+                仅高重要性
+              </FilterChip>
               {hasActiveFilters ? (
-                <Button variant="ghost" size="sm" leadingIcon={<X className="h-4 w-4" />} onClick={() => {
-                  setFilters(EMPTY_FILTERS);
-                  setSearchQuery('');
-                }}>
-                  清除筛选
-                </Button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilters(EMPTY_FILTERS);
+                    setSearchQuery('');
+                  }}
+                  className="inline-flex cursor-pointer items-center gap-1.5 px-3 py-1.5 text-[12px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  清除
+                </button>
               ) : null}
-            </FilterGroup>
+            </div>
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1">
-          <div className="min-w-0 flex-1 overflow-auto px-6 py-6">
-            <div className="mb-4 flex items-center justify-between px-2">
-              <div>
-                <div className="text-[12px] uppercase tracking-[0.12em] text-[var(--text-muted)]">Memory Feed</div>
-                <div className="mt-1 text-[18px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
-                  当前显示 {filteredEntries.length} / {statusSummary.total} 条记忆
-                </div>
+        <div className="min-h-0 flex-1 overflow-auto">
+          <div className="border-b border-[var(--border-default)] px-8 py-4">
+            <div className="flex items-center justify-between">
+              <div className="text-[13px] text-[var(--text-secondary)]">
+                当前显示 <span className="font-medium text-[var(--text-primary)]">{filteredEntries.length}</span> / {statusSummary.total} 条记忆
               </div>
-              <Chip tone="outline" leadingIcon={<Filter className="h-3.5 w-3.5" />}>
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-[#f5f5f7] px-3 py-1 text-xs text-[#6e6e73] dark:bg-[rgba(255,255,255,0.06)] dark:text-[var(--text-secondary)]">
+                <Filter className="h-3.5 w-3.5" />
                 标签与来源已进入筛选
-              </Chip>
+              </div>
             </div>
+          </div>
 
-            {filteredEntries.length === 0 ? (
-              emptyState
-            ) : (
-              <div className="space-y-3">
-                {filteredEntries.map((entry) => {
-                  const selected = entry.id === selectedId;
-                  return (
-                    <PressableCard
-                      key={entry.id}
-                      interactive
-                      onClick={() => setSelectedId(entry.id)}
-                      className={cn(
-                        'rounded-[24px] border bg-[rgba(255,255,255,0.82)] p-5 dark:bg-[rgba(255,255,255,0.03)]',
-                        selected && 'border-[rgba(59,130,246,0.24)] shadow-[0_20px_34px_rgba(59,130,246,0.08)]',
-                      )}
-                    >
-                      <div className="flex gap-4">
-                        <div className="flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-[16px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
-                              {entry.title}
-                            </h3>
-                            <Chip tone={DOMAIN_TONE[entry.domain]}>{entry.domain}</Chip>
-                            <Chip tone={TYPE_TONE[entry.type]}>{entry.type}</Chip>
-                            <Chip tone={SOURCE_TONE[entry.sourceType]}>{entry.sourceType}</Chip>
-                            <Chip tone={entry.status === '已确认' ? 'success' : 'warning'}>{entry.status}</Chip>
-                          </div>
-                          <p className="mt-2 text-[14px] leading-7 text-[var(--text-secondary)]">{entry.summary}</p>
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {entry.tags.map((tag) => (
-                              <Chip key={tag} tone="muted" leadingIcon={<Tag className="h-3 w-3" />}>
-                                {tag}
-                              </Chip>
-                            ))}
-                          </div>
+          {filteredEntries.length === 0 ? (
+            emptyState
+          ) : (
+            <div className="divide-y divide-[var(--border-default)]">
+              {filteredEntries.map((entry) => {
+                const selected = entry.id === selectedId;
+                return (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    onClick={() => setSelectedId(entry.id)}
+                    className={cn(
+                      'w-full cursor-pointer px-8 py-5 text-left transition-all duration-[var(--motion-panel)] hover:bg-[rgba(15,23,42,0.03)] dark:hover:bg-[rgba(255,255,255,0.03)]',
+                      selected && 'bg-[rgba(15,23,42,0.04)] dark:bg-[rgba(255,255,255,0.05)]',
+                    )}
+                    style={{ transitionTimingFunction: 'var(--motion-spring)' }}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          <p className="text-[15px] font-medium text-[var(--text-primary)]">{entry.summary}</p>
                         </div>
-                        <div className="flex min-w-[200px] flex-col items-end gap-2 text-right">
-                          <div className="text-[12px] text-[var(--text-muted)]">来源</div>
-                          <div className="max-w-[200px] text-[13px] leading-6 text-[var(--text-primary)]">{entry.sourceLabel}</div>
-                          <div className="mt-1 text-[12px] text-[var(--text-muted)]">最近召回</div>
-                          <div className="text-[13px] text-[var(--text-primary)]">
-                            {entry.lastRecalledAt ?? '从未召回'} · {entry.recallCount} 次
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          <MetaBadge className={DOMAIN_SURFACE[entry.domain]}>{entry.domain}</MetaBadge>
+                          <MetaBadge className={TYPE_SURFACE[entry.type]}>{entry.type}</MetaBadge>
+                          {entry.tags.slice(0, 3).map((tag) => (
+                            <MetaBadge key={tag} className="bg-[#f0f0f5] text-[#6e6e73] dark:bg-[rgba(255,255,255,0.06)] dark:text-[var(--text-secondary)]">
+                              {tag}
+                            </MetaBadge>
+                          ))}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3 text-[12px] text-[var(--text-muted)]">
+                          <div className="flex items-center gap-1.5">
+                            <CheckCircle2 className={cn('h-3.5 w-3.5', entry.status === '已确认' ? 'text-[rgb(21,128,61)]' : 'text-[rgb(180,100,24)]')} />
+                            <span>{entry.status}</span>
                           </div>
-                          <div className="text-[12px] text-[var(--text-secondary)]">
-                            {entry.importance}重要性 · {entry.indexHealth}
-                          </div>
+                          <span>•</span>
+                          <span>{entry.sourceType}</span>
+                          {entry.lastRecalledAt ? (
+                            <>
+                              <span>•</span>
+                              <span>召回: {entry.lastRecalledAt}</span>
+                            </>
+                          ) : null}
                         </div>
                       </div>
-                    </PressableCard>
-                  );
-                })}
-              </div>
-            )}
-          </div>
 
-          <div className="w-[400px] shrink-0 border-l border-[var(--border-default)] bg-[rgba(255,255,255,0.72)] px-6 py-6 backdrop-blur dark:bg-[rgba(12,12,12,0.72)]">
-            {selectedEntry ? (
-              <MemoryInspector
-                entry={selectedEntry}
-                relatedEntries={relatedEntries}
-                editing={editingId === selectedEntry.id}
-                draft={draft}
-                tagInput={tagInput}
-                setTagInput={setTagInput}
-                onDraftChange={setDraft}
-                onStartEdit={() => handleStartEdit(selectedEntry)}
-                onSaveEdit={handleSaveEdit}
-                onCancelEdit={handleCancelEdit}
-                onAddTag={handleAddTagToDraft}
-                onRemoveDraftTag={(tag) => {
-                  if (!draft) return;
-                  setDraft({ ...draft, tags: draft.tags.filter((item) => item !== tag) });
-                }}
-                onMarkConfirmed={handleMarkConfirmed}
-                onMerge={handleMergeSelected}
-                onForget={handleForgetSelected}
-                onDelete={handleDeleteSelected}
-                onSelectRelated={setSelectedId}
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center">
-                <div className="max-w-[240px] text-center">
-                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--bg-hover)] text-[var(--text-secondary)]">
-                    <Brain className="h-6 w-6" />
-                  </div>
-                  <div className="text-[16px] font-semibold text-[var(--text-primary)]">选择一条记忆查看详情</div>
-                  <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
-                    右侧检查器会展示来源、召回、标签和可执行动作。
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
+                      <div className="flex min-w-[120px] flex-col items-end gap-2">
+                        <MetaBadge
+                          className={
+                            entry.importance === '高'
+                              ? 'bg-[#fff3e0] text-[#e65100]'
+                              : entry.importance === '中'
+                                ? 'bg-[#fff8e1] text-[#f57f17]'
+                                : 'bg-[#f5f5f5] text-[#616161]'
+                          }
+                        >
+                          {entry.importance}重要性
+                        </MetaBadge>
+                        <div className="flex items-center gap-1.5 text-[12px] text-[var(--text-muted)]">
+                          <Clock3 className="h-3.5 w-3.5" />
+                          <span>{entry.createdAt}</span>
+                        </div>
+                        {entry.recallCount > 0 ? (
+                          <div className="text-[12px] text-[var(--brand-primary)]">{entry.recallCount} 次召回</div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
+      </div>
+
+      <div
+        className={cn(
+          'absolute inset-0 z-20 bg-[rgba(15,23,42,0.18)] transition-opacity duration-[var(--motion-panel)]',
+          selectedEntry ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0',
+        )}
+        style={{ transitionTimingFunction: 'var(--motion-spring)' }}
+        onClick={() => {
+          setSelectedId(null);
+          setEditingId(null);
+          setDraft(null);
+        }}
+      />
+
+      <div
+        className={cn(
+          'absolute inset-y-0 right-0 z-30 w-[min(624px,calc(100vw-80px))] border-l border-[var(--border-default)] bg-[rgba(250,250,250,0.96)] shadow-[0_24px_60px_rgba(15,23,42,0.12)] backdrop-blur-xl transition-transform duration-[var(--motion-panel)] dark:bg-[rgba(18,18,18,0.96)]',
+          selectedEntry ? 'translate-x-0' : 'translate-x-full',
+        )}
+        style={{ transitionTimingFunction: 'var(--motion-spring)' }}
+      >
+        <MemoryInspector
+          entry={selectedEntry}
+          relatedEntries={relatedEntries}
+          editing={selectedEntry ? editingId === selectedEntry.id : false}
+          draft={draft}
+          tagInput={tagInput}
+          setTagInput={setTagInput}
+          onDraftChange={setDraft}
+          onStartEdit={() => {
+            if (selectedEntry) handleStartEdit(selectedEntry);
+          }}
+          onSaveEdit={handleSaveEdit}
+          onCancelEdit={handleCancelEdit}
+          onAddTag={handleAddTagToDraft}
+          onRemoveDraftTag={(tag) => {
+            if (!draft) return;
+            setDraft({ ...draft, tags: draft.tags.filter((item) => item !== tag) });
+          }}
+          onMarkConfirmed={handleMarkConfirmed}
+          onMerge={handleMergeSelected}
+          onForget={handleForgetSelected}
+          onDelete={handleDeleteSelected}
+          onSelectRelated={setSelectedId}
+          onClose={() => {
+            setSelectedId(null);
+            setEditingId(null);
+            setDraft(null);
+          }}
+        />
       </div>
     </div>
   );
 }
 
-function StatusMetric({
-  icon: Icon,
+function HeaderIconButton({
+  children,
   label,
-  value,
-  note,
-  tone = 'neutral',
+  onClick,
 }: {
-  icon: typeof Database;
+  children: ReactNode;
   label: string;
-  value: string;
-  note: string;
-  tone?: 'neutral' | 'brand' | 'warning' | 'success';
+  onClick: () => void;
 }) {
-  const toneClass =
-    tone === 'brand'
-      ? 'bg-[rgba(59,130,246,0.08)]'
-      : tone === 'warning'
-        ? 'bg-[rgba(245,158,11,0.08)]'
-        : tone === 'success'
-          ? 'bg-[rgba(34,197,94,0.08)]'
-          : 'bg-[var(--bg-elevated)]';
   return (
-    <div className={cn('rounded-[20px] border border-[var(--border-default)] px-4 py-3 shadow-[var(--shadow-sm)]', toneClass)}>
-      <div className="flex items-center gap-2 text-[12px] text-[var(--text-muted)]">
-        <Icon className="h-4 w-4" />
-        {label}
-      </div>
-      <div className="mt-2 text-[18px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">{value}</div>
-      <div className="mt-1 text-[12px] text-[var(--text-secondary)]">{note}</div>
-    </div>
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onClick}
+      className="rounded-lg p-2 text-[#6e6e73] transition-all duration-200 hover:bg-[#f0f0f5] hover:text-[#1d1d1f] dark:text-[var(--text-secondary)] dark:hover:bg-[rgba(255,255,255,0.06)] dark:hover:text-[var(--text-primary)]"
+    >
+      {children}
+    </button>
+  );
+}
+
+function HeaderPrimaryButton({
+  children,
+  onClick,
+}: {
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-2 rounded-lg bg-[#007aff] px-4 py-2 text-white transition-all duration-200 hover:bg-[#0051d5]"
+    >
+      {children}
+    </button>
+  );
+}
+
+function FilterChip({
+  children,
+  active = false,
+  onClick,
+}: {
+  children: ReactNode;
+  active?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'rounded-full px-3 py-1.5 text-xs transition-all duration-200',
+        active ? 'bg-[#007aff] text-white' : 'bg-[#f5f5f7] text-[#6e6e73] hover:bg-[#e8e8ed]',
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function MetaBadge({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className: string;
+}) {
+  return <span className={cn('rounded px-2 py-0.5 text-xs', className)}>{children}</span>;
+}
+
+function DrawerPrimaryButton({
+  children,
+  onClick,
+}: {
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex-1 rounded-lg bg-[#007aff] px-4 py-2.5 text-sm text-white transition-all duration-200 hover:bg-[#0051d5]"
+    >
+      {children}
+    </button>
+  );
+}
+
+function DrawerConfirmButton({
+  children,
+  onClick,
+}: {
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#34c759] px-4 py-2.5 text-sm text-white transition-all duration-200 hover:bg-[#2da84a]"
+    >
+      {children}
+    </button>
+  );
+}
+
+function DrawerSecondaryButton({
+  children,
+  onClick,
+  disabled = false,
+}: {
+  children: ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-[#d1d1d6] bg-white px-4 py-2.5 text-sm text-[#1d1d1f] transition-all duration-200 hover:bg-[#f5f5f7] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[rgba(255,255,255,0.12)] dark:bg-[rgba(255,255,255,0.03)] dark:text-[var(--text-primary)] dark:hover:bg-[rgba(255,255,255,0.06)]"
+    >
+      {children}
+    </button>
+  );
+}
+
+function DrawerDangerButton({
+  children,
+  onClick,
+}: {
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-[#ffd6d6] bg-[#fff5f5] px-4 py-2.5 text-sm text-[#c62828] transition-all duration-200 hover:bg-[#ffecec] dark:border-[rgba(248,113,113,0.18)] dark:bg-[rgba(239,68,68,0.10)] dark:text-[#fecaca] dark:hover:bg-[rgba(239,68,68,0.16)]"
+    >
+      {children}
+    </button>
   );
 }
 
@@ -1073,8 +1188,8 @@ function FilterGroup({
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-2 xl:flex-row xl:items-center">
-      <div className="min-w-[72px] text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">
+    <div className="flex items-center gap-2">
+      <div className="min-w-[28px] text-[12px] text-[var(--text-muted)]">
         {label}
       </div>
       <div className="flex flex-wrap gap-2">{children}</div>
@@ -1100,8 +1215,9 @@ function MemoryInspector({
   onForget,
   onDelete,
   onSelectRelated,
+  onClose,
 }: {
-  entry: MemoryEntry;
+  entry: MemoryEntry | null;
   relatedEntries: MemoryEntry[];
   editing: boolean;
   draft: MemoryEditDraft | null;
@@ -1118,28 +1234,61 @@ function MemoryInspector({
   onForget: () => void;
   onDelete: () => void;
   onSelectRelated: (id: string) => void;
+  onClose: () => void;
 }) {
+  if (!entry) {
+    return (
+      <div className="flex h-full items-center justify-center px-8">
+        <div className="text-center">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--bg-hover)] text-[var(--text-secondary)]">
+            <Brain className="h-7 w-7" />
+          </div>
+          <p className="text-[14px] text-[var(--text-secondary)]">选择一条记忆查看详情</p>
+        </div>
+      </div>
+    );
+  }
+
   const view = editing && draft ? draft : entry;
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between border-b border-[var(--border-default)] px-6 py-4">
         <div>
-          <div className="text-[12px] uppercase tracking-[0.12em] text-[var(--text-muted)]">Inspector</div>
-          <div className="mt-1 text-[22px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">{entry.title}</div>
+          <div className="text-[14px] text-[var(--text-primary)]">记忆详情</div>
+          <div className="mt-1 text-[12px] text-[var(--text-muted)]">点击外部区域或右上角可关闭</div>
         </div>
-        <div className="flex items-center gap-2">
-          <Chip tone={entry.status === '已确认' ? 'success' : 'warning'}>{entry.status}</Chip>
-          {!editing ? (
-            <Button variant="secondary" size="sm" leadingIcon={<PencilLine className="h-4 w-4" />} onClick={onStartEdit}>
-              编辑
-            </Button>
-          ) : null}
-        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-full p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+        >
+          <X className="h-4 w-4" />
+        </button>
       </div>
 
-      <div className="mt-5 flex-1 space-y-5 overflow-auto pr-1">
-        <InspectorSection label="内容">
+      <div className="flex-1 overflow-auto px-6 py-6">
+        <div className="mb-6 flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-[18px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">{entry.title}</h3>
+              <div className="mt-2 flex flex-wrap gap-2">
+              <MetaBadge className={DOMAIN_SURFACE[view.domain]}>{view.domain}</MetaBadge>
+              <MetaBadge className={TYPE_SURFACE[view.type]}>{view.type}</MetaBadge>
+              <MetaBadge className={entry.status === '已确认' ? 'bg-[#e8f5e9] text-[#2e7d32]' : 'bg-[#fff8e1] text-[#f57f17]'}>
+                {entry.status}
+              </MetaBadge>
+            </div>
+          </div>
+          {!editing ? (
+            <DrawerSecondaryButton onClick={onStartEdit}>
+              <PencilLine className="h-4 w-4" />
+              <span>编辑</span>
+            </DrawerSecondaryButton>
+          ) : null}
+        </div>
+
+        <div className="space-y-6">
+          <InspectorSection label="内容">
           {editing && draft ? (
             <div className="space-y-3">
               <input
@@ -1156,136 +1305,127 @@ function MemoryInspector({
           ) : (
             <p className="text-[14px] leading-7 text-[var(--text-primary)]">{entry.content}</p>
           )}
-        </InspectorSection>
+          </InspectorSection>
 
-        <InspectorSection label="标签与分类">
-          <div className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-              <Chip tone={DOMAIN_TONE[view.domain]}>{view.domain}</Chip>
-              <Chip tone={TYPE_TONE[view.type]}>{view.type}</Chip>
-              <Chip tone={view.importance === '高' ? 'danger' : view.importance === '中' ? 'warning' : 'outline'}>
-                {view.importance}重要性
-              </Chip>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {view.tags.map((tag) => (
-                <Chip key={tag} tone="muted">
-                  {tag}
-                  {editing ? (
-                    <button type="button" className="ml-1 cursor-pointer text-[var(--text-muted)]" onClick={() => onRemoveDraftTag(tag)}>
-                      ×
-                    </button>
-                  ) : null}
-                </Chip>
-              ))}
-            </div>
-            {editing && draft ? (
-              <div className="flex gap-2">
-                <input
-                  value={tagInput}
-                  onChange={(event) => setTagInput(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      onAddTag();
-                    }
-                  }}
+          <InspectorSection label="标签与分类">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <MetaBadge className={view.importance === '高' ? 'bg-[#fff3e0] text-[#e65100]' : view.importance === '中' ? 'bg-[#fff8e1] text-[#f57f17]' : 'bg-[#f5f5f5] text-[#616161]'}>
+                  {view.importance}重要性
+                </MetaBadge>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {view.tags.map((tag) => (
+                  <MetaBadge key={tag} className="bg-[#f0f0f5] text-[#6e6e73] dark:bg-[rgba(255,255,255,0.06)] dark:text-[var(--text-secondary)]">
+                    {tag}
+                    {editing ? (
+                      <button type="button" className="ml-1 cursor-pointer text-[var(--text-muted)]" onClick={() => onRemoveDraftTag(tag)}>
+                        ×
+                      </button>
+                    ) : null}
+                  </MetaBadge>
+                ))}
+              </div>
+              {editing && draft ? (
+                <div className="flex gap-2">
+                  <input
+                    value={tagInput}
+                    onChange={(event) => setTagInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        onAddTag();
+                      }
+                    }}
                   placeholder="新增标签"
                   className="flex-1 rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none"
                 />
-                <Button variant="secondary" size="sm" onClick={onAddTag}>
-                  添加
-                </Button>
+                <DrawerSecondaryButton onClick={onAddTag}>添加</DrawerSecondaryButton>
               </div>
             ) : null}
-            {editing && draft ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <SelectField label="领域" value={draft.domain} options={DOMAIN_OPTIONS} onChange={(value) => onDraftChange((current) => (current ? { ...current, domain: value as MemoryDomain } : current))} />
-                <SelectField label="类型" value={draft.type} options={TYPE_OPTIONS} onChange={(value) => onDraftChange((current) => (current ? { ...current, type: value as MemoryType } : current))} />
-                <SelectField label="重要性" value={draft.importance} options={IMPORTANCE_OPTIONS} onChange={(value) => onDraftChange((current) => (current ? { ...current, importance: value as MemoryImportance } : current))} />
-                <SelectField label="状态" value={draft.status} options={['已确认', '待检查']} onChange={(value) => onDraftChange((current) => (current ? { ...current, status: value as MemoryStatus } : current))} />
-              </div>
-            ) : null}
-          </div>
-        </InspectorSection>
+              {editing && draft ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <SelectField label="领域" value={draft.domain} options={DOMAIN_OPTIONS} onChange={(value) => onDraftChange((current) => (current ? { ...current, domain: value as MemoryDomain } : current))} />
+                  <SelectField label="类型" value={draft.type} options={TYPE_OPTIONS} onChange={(value) => onDraftChange((current) => (current ? { ...current, type: value as MemoryType } : current))} />
+                  <SelectField label="重要性" value={draft.importance} options={IMPORTANCE_OPTIONS} onChange={(value) => onDraftChange((current) => (current ? { ...current, importance: value as MemoryImportance } : current))} />
+                  <SelectField label="状态" value={draft.status} options={['已确认', '待检查']} onChange={(value) => onDraftChange((current) => (current ? { ...current, status: value as MemoryStatus } : current))} />
+                </div>
+              ) : null}
+            </div>
+          </InspectorSection>
 
-        <InspectorSection label="来源与召回">
-          <div className="space-y-3 text-[13px] text-[var(--text-secondary)]">
-            <InfoRow label="来源类型" value={entry.sourceType} />
-            <InfoRow label="来源说明" value={editing && draft ? draft.sourceLabel : entry.sourceLabel} />
-            <InfoRow label="创建时间" value={entry.createdAt} />
-            <InfoRow label="更新时间" value={entry.updatedAt} />
-            <InfoRow label="最近召回" value={entry.lastRecalledAt ?? '从未召回'} />
-            <InfoRow label="召回次数" value={`${entry.recallCount} 次`} />
-            <InfoRow label="捕获置信度" value={`${Math.round(entry.captureConfidence * 100)}%`} />
-            <InfoRow label="索引状态" value={entry.indexHealth} />
-            {editing && draft ? (
-              <input
-                value={draft.sourceLabel}
-                onChange={(event) => onDraftChange((current) => (current ? { ...current, sourceLabel: event.target.value } : current))}
-                className="w-full rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none"
-              />
-            ) : null}
-          </div>
-        </InspectorSection>
+          <InspectorSection label="来源与召回">
+            <div className="space-y-3 text-[13px] text-[var(--text-secondary)]">
+              <InfoRow label="来源类型" value={entry.sourceType} />
+              <InfoRow label="来源说明" value={editing && draft ? draft.sourceLabel : entry.sourceLabel} />
+              <InfoRow label="创建时间" value={entry.createdAt} />
+              <InfoRow label="更新时间" value={entry.updatedAt} />
+              <InfoRow label="最近召回" value={entry.lastRecalledAt ?? '从未召回'} />
+              <InfoRow label="召回次数" value={`${entry.recallCount} 次`} />
+              <InfoRow label="捕获置信度" value={`${Math.round(entry.captureConfidence * 100)}%`} />
+              <InfoRow label="索引状态" value={entry.indexHealth} />
+              {editing && draft ? (
+                <input
+                  value={draft.sourceLabel}
+                  onChange={(event) => onDraftChange((current) => (current ? { ...current, sourceLabel: event.target.value } : current))}
+                  className="w-full rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none"
+                />
+              ) : null}
+            </div>
+          </InspectorSection>
 
-        <InspectorSection label="相关记忆">
-          <div className="space-y-2">
-            {relatedEntries.length > 0 ? (
-              relatedEntries.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => onSelectRelated(item.id)}
-                  className="w-full cursor-pointer rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-3 text-left transition-all duration-[var(--motion-panel)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)]"
-                  style={{ transitionTimingFunction: 'var(--motion-spring)' }}
-                >
-                  <div className="text-[13px] font-medium text-[var(--text-primary)]">{item.title}</div>
-                  <div className="mt-1 text-[12px] leading-6 text-[var(--text-secondary)]">{item.summary}</div>
-                </button>
-              ))
-            ) : (
-              <div className="rounded-[16px] border border-dashed border-[var(--border-default)] px-3 py-4 text-[12px] text-[var(--text-secondary)]">
-                当前没有足够接近的候选记忆。
-              </div>
-            )}
-          </div>
-        </InspectorSection>
+          <InspectorSection label="相关记忆">
+            <div className="space-y-2">
+              {relatedEntries.length > 0 ? (
+                relatedEntries.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => onSelectRelated(item.id)}
+                    className="w-full cursor-pointer rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-3 text-left transition-all duration-[var(--motion-panel)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)]"
+                    style={{ transitionTimingFunction: 'var(--motion-spring)' }}
+                  >
+                    <div className="text-[13px] font-medium text-[var(--text-primary)]">{item.title}</div>
+                    <div className="mt-1 text-[12px] leading-6 text-[var(--text-secondary)]">{item.summary}</div>
+                  </button>
+                ))
+              ) : (
+                <div className="rounded-[16px] border border-dashed border-[var(--border-default)] px-3 py-4 text-[12px] text-[var(--text-secondary)]">
+                  当前没有足够接近的候选记忆。
+                </div>
+              )}
+            </div>
+          </InspectorSection>
+        </div>
       </div>
 
-      <div className="mt-5 space-y-2 border-t border-[var(--border-default)] pt-5">
+      <div className="space-y-2 border-t border-[var(--border-default)] px-6 py-4">
         {editing ? (
           <div className="flex gap-2">
-            <Button variant="primary" block onClick={onSaveEdit}>
-              保存修改
-            </Button>
-            <Button variant="secondary" block onClick={onCancelEdit}>
-              取消
-            </Button>
+            <DrawerPrimaryButton onClick={onSaveEdit}>保存修改</DrawerPrimaryButton>
+            <DrawerSecondaryButton onClick={onCancelEdit}>取消</DrawerSecondaryButton>
           </div>
         ) : (
           <>
             <div className="flex gap-2">
-              <Button variant="secondary" block leadingIcon={<CheckCircle2 className="h-4 w-4" />} onClick={onMarkConfirmed}>
-                标记为已确认
-              </Button>
-              <Button
-                variant="secondary"
-                block
-                leadingIcon={<GitMerge className="h-4 w-4" />}
-                onClick={onMerge}
-                disabled={relatedEntries.length === 0}
-              >
-                合并建议
-              </Button>
+              <DrawerConfirmButton onClick={onMarkConfirmed}>
+                <CheckCircle2 className="h-4 w-4" />
+                <span>标记为已确认</span>
+              </DrawerConfirmButton>
+              <DrawerSecondaryButton onClick={onMerge} disabled={relatedEntries.length === 0}>
+                <GitMerge className="h-4 w-4" />
+                <span>合并</span>
+              </DrawerSecondaryButton>
             </div>
             <div className="flex gap-2">
-              <Button variant="ghost" block leadingIcon={<Clock3 className="h-4 w-4" />} onClick={onForget}>
-                忘记
-              </Button>
-              <Button variant="danger" block leadingIcon={<Trash2 className="h-4 w-4" />} onClick={onDelete}>
-                删除
-              </Button>
+              <DrawerSecondaryButton onClick={onForget}>
+                <Clock3 className="h-4 w-4" />
+                <span>忘记</span>
+              </DrawerSecondaryButton>
+              <DrawerDangerButton onClick={onDelete}>
+                <Trash2 className="h-4 w-4" />
+                <span>删除</span>
+              </DrawerDangerButton>
             </div>
           </>
         )}
@@ -1303,7 +1443,7 @@ function InspectorSection({
 }) {
   return (
     <section>
-      <div className="mb-2 text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">{label}</div>
+      <div className="mb-2 text-[12px] text-[var(--text-muted)]">{label}</div>
       {children}
     </section>
   );
