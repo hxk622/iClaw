@@ -1211,9 +1211,9 @@ function PlatformCard({
           <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[16px] border border-[var(--border-default)] bg-white shadow-[0_10px_24px_rgba(15,23,42,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
             <img src={platform.logo} alt={platform.label} className={cn('h-full w-full object-cover', platform.logoClassName)} />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 min-h-[58px]">
             <div className="text-[17px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">{platform.label}</div>
-            <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">{platform.intro}</p>
+            <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-[var(--text-secondary)]">{platform.intro}</p>
           </div>
         </div>
         {configured ? (
