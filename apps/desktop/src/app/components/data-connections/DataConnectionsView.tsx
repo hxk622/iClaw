@@ -111,18 +111,16 @@ function SearchBar({
   setSearchQuery: React.Dispatch<React.SetStateAction<string>>;
 }) {
   return (
-    <div className="rounded-[16px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.58)] p-2 dark:bg-[rgba(255,255,255,0.03)]">
-      <label className="flex items-center gap-3 rounded-[14px] px-3 py-2">
-        <Search className="h-4.5 w-4.5 text-[var(--text-muted)]" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder='搜索能力，例如“实时行情”或“财务报表”'
-          className="w-full bg-transparent text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
-        />
-      </label>
-    </div>
+    <label className="flex items-center gap-3 rounded-[16px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.58)] px-4 py-3 dark:bg-[rgba(255,255,255,0.03)]">
+      <Search className="h-4.5 w-4.5 text-[var(--text-muted)]" />
+      <input
+        type="text"
+        value={searchQuery}
+        onChange={(event) => setSearchQuery(event.target.value)}
+        placeholder='搜索能力，例如“实时行情”或“财务报表”'
+        className="w-full bg-transparent text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+      />
+    </label>
   );
 }
 
