@@ -8,7 +8,7 @@ export function Identity() {
   return (
     <div className="mx-auto max-w-5xl p-8">
       <div className="mb-8">
-        <h1 className="mb-2 text-2xl text-[var(--text-primary)]">IDENTITY.md</h1>
+        <h1 className="mb-2 text-2xl text-[var(--text-primary)]">身份设置Identity.md</h1>
         <p className="text-[var(--text-secondary)]">
           直接编辑当前工作区中的身份文件。OpenClaw 会从同一份本地文件读取。
         </p>

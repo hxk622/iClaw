@@ -1,16 +1,14 @@
-import { ChevronRight, MessageSquare, Palette, Shield, Sparkles, User, UserCircle } from 'lucide-react';
+import { ChevronRight, Shield, Sparkles, User, UserCircle } from 'lucide-react';
 import { type ComponentType } from 'react';
 import { useSettings } from '@/app/contexts/settings-context';
 import { StatusBadge } from '@/app/components/settings/ui/StatusBadge';
 
 export type SettingsSection =
   | 'overview'
-  | 'appearance'
   | 'general'
   | 'identity'
   | 'user-profile'
   | 'soul-persona'
-  | 'channel-preference'
   | 'safety-defaults';
 
 interface SettingsOverviewProps {
@@ -26,25 +24,17 @@ const cards: Array<{
   section: SettingsSection;
 }> = [
   {
-    key: 'appearance',
-    statusKey: 'appearance',
-    title: '风格',
-    description: '切换浅色、深色或跟随系统外观',
-    icon: Palette,
-    section: 'appearance',
-  },
-  {
     key: 'general',
     statusKey: 'general',
     title: '通用',
-    description: '语言、启动行为与全局偏好设置',
+    description: '外观模式、工作区映射与桌面更新',
     icon: UserCircle,
     section: 'general',
   },
   {
     key: 'identity',
     statusKey: 'identity',
-    title: 'IDENTITY.md',
+    title: '身份设置Identity.md',
     description: '编辑助手身份与长期自我定位文件',
     icon: UserCircle,
     section: 'identity',
@@ -52,7 +42,7 @@ const cards: Array<{
   {
     key: 'userProfile',
     statusKey: 'userProfile',
-    title: 'USER.md',
+    title: '用户画像User.md',
     description: '编辑当前用户画像、协作偏好与隐私边界',
     icon: User,
     section: 'user-profile',
@@ -60,18 +50,10 @@ const cards: Array<{
   {
     key: 'soulPersona',
     statusKey: 'soulPersona',
-    title: 'SOUL.md',
+    title: '人格配置Soul.md',
     description: '编辑行为边界、风险姿态与风格约束',
     icon: Sparkles,
     section: 'soul-persona',
-  },
-  {
-    key: 'channelPreference',
-    statusKey: 'channelPreference',
-    title: '渠道偏好',
-    description: '选择默认渠道和通知策略',
-    icon: MessageSquare,
-    section: 'channel-preference',
   },
   {
     key: 'safetyDefaults',

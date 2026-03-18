@@ -9,7 +9,7 @@ export function SoulPersona() {
     <div className="mx-auto max-w-5xl p-8">
       <div className="mb-8">
         <div className="mb-2 flex items-center justify-between">
-          <h1 className="text-2xl text-[var(--text-primary)]">SOUL.md</h1>
+          <h1 className="text-2xl text-[var(--text-primary)]">人格配置Soul.md</h1>
           <span className="rounded-full bg-[var(--bg-hover)] px-3 py-1 text-sm text-[var(--state-info)]">
             私密文件
           </span>

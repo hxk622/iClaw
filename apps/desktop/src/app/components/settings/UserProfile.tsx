@@ -8,7 +8,7 @@ export function UserProfile() {
   return (
     <div className="mx-auto max-w-5xl p-8">
       <div className="mb-8">
-        <h1 className="mb-2 text-2xl text-[var(--text-primary)]">USER.md</h1>
+        <h1 className="mb-2 text-2xl text-[var(--text-primary)]">用户画像User.md</h1>
         <p className="text-[var(--text-secondary)]">
           当前登录用户的本地画像文件。设置页和 OpenClaw 读取的是同一份内容。
         </p>
