@@ -7,6 +7,7 @@ import {
   Bot,
   BotMessageSquare,
   Building2,
+  ChevronRight,
   CheckCircle2,
   Clock3,
   Link2,
@@ -298,28 +299,34 @@ export function IMBotsView({ client }: { client: IClawClient }) {
       {
         label: '已创建机器人',
         value: String(bots.length),
-        note: bots.length > 0 ? '每个机器人都代表一个真实接入实例，可继续做助手绑定与测试。' : '当前还没有机器人，先从下方平台卡片开始接入。',
+        note: bots.length > 0 ? '总机器人数量' : '当前还没有机器人',
         icon: Bot,
         tone: 'brand',
       },
       {
         label: '当前运行中',
         value: String(runningCount),
-        note: runningCount > 0 ? '只有已启用且健康状态正常的机器人会计入运行中。' : '绑定默认助手并完成测试后，这里会显示稳定运行中的机器人。',
+        note: runningCount > 0 ? '正常响应服务' : '暂无运行中机器人',
         icon: Power,
         tone: runningCount > 0 ? 'success' : 'neutral',
       },
       {
         label: '已接入平台',
         value: String(configuredPlatforms.size),
-        note: configuredPlatforms.size > 0 ? '平台与机器人实例会按真实配置关系自动归类。' : '目前还没有任何平台完成接入。',
+        note:
+          configuredPlatforms.size > 0
+            ? Array.from(configuredPlatforms)
+                .map((id) => platformMetaList.find((item) => item.id === id)?.label)
+                .filter(Boolean)
+                .join('、')
+            : '暂无已接入平台',
         icon: Link2,
         tone: configuredPlatforms.size > 0 ? 'success' : 'neutral',
       },
       {
         label: '待处理项',
         value: String(actionRequiredCount),
-        note: actionRequiredCount > 0 ? '这里集中显示还没完成默认助手绑定或需要排查的机器人。' : '当前没有需要处理的接入问题。',
+        note: actionRequiredCount > 0 ? '需要您关注' : '当前无需处理',
         icon: AlertCircle,
         tone: actionRequiredCount > 0 ? 'warning' : 'neutral',
       },
@@ -718,12 +725,11 @@ export function IMBotsView({ client }: { client: IClawClient }) {
 
   return (
     <div className="flex flex-1 overflow-y-auto bg-[var(--bg-page)]">
-      <div className="mx-auto w-full max-w-[1440px] px-7 py-5">
-        <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="mx-auto w-full max-w-[1440px] px-8 py-8">
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">IM Robot Workspace</div>
-            <h1 className="mt-2.5 text-[30px] font-semibold tracking-[-0.05em] text-[var(--text-primary)]">IM机器人</h1>
-            <p className="mt-2 max-w-[700px] text-[13px] leading-6 text-[var(--text-secondary)]">
+            <h1 className="text-[var(--text-primary)]">IM机器人</h1>
+            <p className="mt-2 max-w-[720px] text-[14px] leading-7 text-[var(--text-secondary)]">
               将 OpenClaw 接入企业常用办公 IM，并统一管理机器人状态。这个视图区现在不只是接入入口，也包含机器人详情、测试与默认助手绑定。
             </p>
           </div>
@@ -754,15 +760,11 @@ export function IMBotsView({ client }: { client: IClawClient }) {
 
         <SummaryBar cards={summaryCards} />
 
-        <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.78fr)_312px]">
+        <div className="mb-8 mt-6 grid grid-cols-[minmax(0,1fr)_320px] gap-6">
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-4">
-              <div>
-                <div className="text-[20px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">已创建的机器人</div>
-                <p className="mt-1.5 text-[13px] leading-6 text-[var(--text-secondary)]">
-                  通常一屏就能看全所有机器人。点开详情后，可以继续做默认助手绑定、会话范围、测试和日志查看。
-                </p>
-              </div>
+              <div className="text-[20px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">已创建机器人</div>
+              <span className="text-sm text-[var(--text-secondary)]">{bots.length} 个</span>
             </div>
             {bots.length > 0 ? (
               bots.map((bot) => {
@@ -793,28 +795,17 @@ export function IMBotsView({ client }: { client: IClawClient }) {
           />
         </div>
 
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-[var(--border-default)]" />
-          </div>
-          <div className="relative flex justify-center">
-            <span className="bg-[var(--bg-page)] px-4 text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--text-muted)]">
-              平台接入配置
-            </span>
-          </div>
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between">
+        <div className="mt-12">
+          <div className="mb-5 flex items-center justify-between">
             <div>
-              <div className="text-[20px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">接入新的平台</div>
-              <p className="mt-1.5 text-[13px] leading-6 text-[var(--text-secondary)]">
-                点击任一平台卡片，直接弹出步骤式接入模态窗，在当前页面内完成整个流程。接入完成后，会自动进入机器人详情继续配置。
+              <div className="text-[20px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">平台接入</div>
+              <p className="mt-2 text-[14px] leading-7 text-[var(--text-secondary)]">
+                选择您企业使用的 IM 平台，快速创建并配置机器人
               </p>
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-4 gap-4">
             {platformMetaList.map((platform) => (
               <PlatformCard
                 key={platform.id}
@@ -862,8 +853,8 @@ function SummaryBar({
   }>;
 }) {
   return (
-    <PressableCard className="mt-4 overflow-hidden border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(246,247,244,0.92))] px-2 py-1.5 shadow-[0_12px_24px_rgba(15,23,42,0.04)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(28,28,28,0.96),rgba(18,18,18,0.94))] dark:shadow-[0_18px_30px_rgba(0,0,0,0.22)]">
-      <div className="grid gap-1 md:grid-cols-2 xl:grid-cols-4">
+    <PressableCard className="overflow-hidden rounded-[22px] border-[rgba(15,23,42,0.08)] bg-[var(--bg-card)] px-6 py-4 shadow-[var(--shadow-sm)]">
+      <div className="grid grid-cols-4 gap-4">
         {cards.map((card, index) => (
           <SummaryBarItem key={card.label} {...card} first={index === 0} />
         ))}
@@ -897,19 +888,19 @@ function SummaryBarItem({
   return (
     <div
       className={cn(
-        'flex min-w-0 items-center gap-3 rounded-[18px] px-3 py-2.5',
-        !first && 'xl:border-l xl:border-[var(--border-default)]',
+        'flex min-w-0 items-center gap-3 px-3 py-2',
+        !first && 'border-l border-[var(--border-default)]',
       )}
     >
-      <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px]', toneClassName)}>
+      <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] bg-[var(--bg-page)]', toneClassName)}>
         <Icon className="h-4 w-4" />
       </div>
       <div className="min-w-0">
         <div className="flex items-baseline gap-2">
           <div className="text-[20px] font-semibold leading-none tracking-[-0.04em] text-[var(--text-primary)]">{value}</div>
-          <div className="text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">{label}</div>
+          <div className="text-[11px] text-[var(--text-muted)]">{label}</div>
         </div>
-        <p className="mt-1 line-clamp-1 text-[12px] leading-5 text-[var(--text-secondary)]">{note}</p>
+        <p className="mt-1 text-[12px] leading-snug text-[var(--text-secondary)]">{note}</p>
       </div>
     </div>
   );
@@ -954,77 +945,108 @@ function ManagedBotCard({
   const healthMeta = getHealthMeta(bot.healthState);
 
   return (
-    <PressableCard className="border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(246,247,244,0.92))] px-4 py-3 shadow-[0_10px_22px_rgba(15,23,42,0.04)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(29,29,29,0.96),rgba(17,17,17,0.95))] dark:shadow-[0_16px_28px_rgba(0,0,0,0.24)]">
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_auto] xl:items-center">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-[16px] border border-[var(--border-default)] bg-white shadow-[0_8px_18px_rgba(15,23,42,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
+    <PressableCard className="group relative rounded-[22px] border-[rgba(15,23,42,0.08)] bg-[var(--bg-card)] px-5 py-4 shadow-[var(--shadow-sm)]">
+      <div className="flex items-center gap-4">
+        <div className="flex min-w-[280px] items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-page)] shadow-[0_6px_12px_rgba(15,23,42,0.05)] dark:bg-[rgba(255,255,255,0.04)]">
             <img src={meta.logo} alt={meta.label} className={cn('h-full w-full object-cover', meta.logoClassName)} />
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-[17px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">{bot.name}</h3>
-              <Chip tone={healthMeta.chipTone} className="px-2.5 py-1 text-[11px] font-medium">
+              <h4 className="font-semibold text-[var(--text-primary)]">{bot.name}</h4>
+              <Chip tone={healthMeta.chipTone} className="px-2 py-0.5 text-[11px] font-medium">
                 {healthMeta.label}
               </Chip>
-              <Chip tone="outline" className="px-2.5 py-1 text-[11px]">
+              <Chip tone="outline" className="px-2 py-0.5 text-[11px]">
                 {formatBindingScope(bot.bindingScope)}
               </Chip>
             </div>
-            <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
-              {meta.label} · {bot.company} · 默认助手：{bot.assistant}
-            </p>
           </div>
         </div>
-        <div className="min-w-0">
-          <p className="line-clamp-2 text-[12px] leading-5 text-[var(--text-secondary)]">{bot.healthSummary}</p>
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5">
-            <InlineMetaItem label="最近活跃" value={bot.lastActive} icon={Clock3} />
-            <InlineMetaItem label="触发" value={bot.triggerMode} icon={Sparkles} />
-            <InlineMetaItem label="回复" value={bot.replyFormat} icon={MessageSquare} />
-            <InlineMetaItem label="测试" value={bot.lastTestAt ?? '还未执行'} icon={ShieldCheck} />
-          </div>
+
+        <div className="grid flex-1 grid-cols-4 gap-x-6 text-[12px]">
+          <DetailCell label="平台" value={meta.label} />
+          <DetailCell label="公司" value={bot.company} />
+          <DetailCell label="默认助手" value={bot.assistant} />
+          <DetailCell
+            label="健康摘要"
+            value={
+              bot.healthState === 'healthy'
+                ? '正常运行'
+                : bot.healthState === 'needs_setup'
+                  ? '待完成配置'
+                  : bot.healthState === 'paused'
+                    ? '已停用'
+                    : '需要关注'
+            }
+          />
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2 xl:justify-self-end">
+
+        <div className="flex items-center gap-2">
           <Button
             variant="secondary"
             size="sm"
-            leadingIcon={<RefreshCw className={cn('h-4 w-4', bot.testStatus === 'testing' && 'animate-spin')} />}
+            leadingIcon={<TestTube2 className={cn('h-4 w-4', bot.testStatus === 'testing' && 'animate-spin')} />}
             onClick={onRunConnectionTest}
             disabled={bot.testStatus === 'testing'}
+            className="px-3 py-1.5 text-[12px]"
           >
             测试连通
           </Button>
           <Button
-            variant={bot.enabled ? 'ghost' : 'success'}
+            variant={bot.enabled ? 'success' : 'secondary'}
             size="sm"
-            leadingIcon={<Power className="h-4 w-4" />}
+            leadingIcon={<Power className="h-3.5 w-3.5" />}
             onClick={onToggleEnabled}
+            className="px-3 py-1.5 text-[12px]"
           >
-            {bot.enabled ? '停用' : '启用'}
+            {bot.enabled ? '已启用' : '已停用'}
           </Button>
-          <Button variant="ghost" size="sm" leadingIcon={<Settings2 className="h-4 w-4" />} onClick={onOpenDetails}>
-            详情
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onOpenDetails}
+            className="h-8 w-8 rounded-[10px] px-0 py-0"
+            aria-label={`查看${bot.name}详情`}
+          >
+            <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
       </div>
+
+      <div className="mt-3 flex items-center gap-6 border-t border-[var(--border-default)] pt-3 text-[12px] text-[var(--text-secondary)]">
+        <InlineMetaItem label="最近活跃" value={bot.lastActive} />
+        <InlineMetaItem label="触发方式" value={bot.triggerMode} />
+        <InlineMetaItem label="回复格式" value={bot.replyFormat} />
+        <InlineMetaItem label="最近测试" value={bot.lastTestAt ?? '还未执行'} />
+      </div>
     </PressableCard>
+  );
+}
+
+function DetailCell({ label, value }: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div>
+      <div className="mb-0.5 text-[12px] text-[var(--text-muted)]">{label}</div>
+      <div className="font-medium text-[var(--text-primary)]">{value}</div>
+    </div>
   );
 }
 
 function InlineMetaItem({
   label,
   value,
-  icon: Icon,
 }: {
   label: string;
   value: string;
-  icon: ComponentType<{ className?: string }>;
 }) {
   return (
-    <div className="inline-flex items-center gap-1.5 text-[12px] leading-5">
-      <Icon className="h-3.5 w-3.5 text-[var(--text-muted)]" />
-      <span className="text-[var(--text-muted)]">{label}</span>
-      <span className="text-[var(--text-primary)]">{value}</span>
+    <div className="flex items-center gap-1.5">
+      <span className="opacity-70">{label}:</span>
+      <span className="font-medium text-[var(--text-primary)]">{value}</span>
     </div>
   );
 }
@@ -1051,138 +1073,157 @@ function ActivityPanel({
   ];
 
   return (
-    <PressableCard className="sticky top-5 overflow-hidden border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(246,247,244,0.92))] shadow-[0_18px_34px_rgba(15,23,42,0.06)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(28,28,28,0.96),rgba(18,18,18,0.94))] dark:shadow-[0_22px_38px_rgba(0,0,0,0.28)]">
-      <div className="border-b border-[var(--border-default)] px-4 py-3.5">
-        <div className="text-[15px] font-semibold text-[var(--text-primary)]">机器人活动面板</div>
-        <p className="mt-1.5 text-[12px] leading-5 text-[var(--text-secondary)]">这里聚焦真实的待处理项、连接健康和最近审计日志。</p>
+    <PressableCard className="w-80 overflow-hidden rounded-[22px] border-[rgba(15,23,42,0.08)] bg-[var(--bg-card)] shadow-[var(--shadow-sm)]">
+      <div className="flex border-b border-[var(--border-default)] bg-[var(--bg-page)]/60">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const active = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => onTabChange(tab.id)}
+              className={cn(
+                'flex flex-1 cursor-pointer items-center justify-center gap-1.5 border-b-2 px-3 py-2.5 text-[12px] font-medium',
+                SPRING_PRESSABLE,
+                INTERACTIVE_FOCUS_RING,
+                active
+                  ? 'border-[var(--brand-primary)] bg-[var(--bg-card)] text-[var(--text-primary)]'
+                  : 'border-transparent text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
-      <div className="p-4">
-        <div className="flex items-center gap-2 rounded-[16px] bg-[var(--bg-hover)] p-1">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const active = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => onTabChange(tab.id)}
-                className={cn(
-                  'flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-[12px] px-3 py-2 text-[12px] font-medium',
-                  SPRING_PRESSABLE,
-                  INTERACTIVE_FOCUS_RING,
-                  active
-                    ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
-                    : 'text-[var(--text-secondary)] hover:bg-[rgba(255,255,255,0.56)] hover:text-[var(--text-primary)] dark:hover:bg-[rgba(255,255,255,0.05)]',
-                )}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
 
-        <div className="mt-3 space-y-2.5">
-          {activeTab === 'todo'
-            ? todoItems.length > 0
-              ? todoItems.map((item) => (
-                <button
+      <div className="max-h-[600px] divide-y divide-[var(--border-default)] overflow-y-auto">
+        {activeTab === 'todo'
+          ? todoItems.length > 0
+            ? todoItems.map((item) => (
+                <ActivityListItem
                   key={item.botId}
-                  type="button"
+                  title={item.botName}
+                  description={item.detail}
+                  time={item.label}
+                  severity="high"
                   onClick={() => onOpenBot(item.botId)}
-                  className={cn(
-                    'w-full cursor-pointer rounded-[18px] border border-[rgba(245,158,11,0.16)] bg-[rgba(245,158,11,0.10)] px-4 py-3 text-left dark:bg-[rgba(245,158,11,0.14)]',
-                    SPRING_PRESSABLE,
-                    INTERACTIVE_FOCUS_RING,
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-[13px] font-medium text-[var(--text-primary)]">{item.botName}</div>
-                    <Chip tone="warning" className="px-2.5 py-1 text-[11px]">
-                      {item.label}
-                    </Chip>
-                  </div>
-                  <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{item.detail}</p>
-                </button>
+                />
               ))
-              : (
+            : (
                 <EmptyPanelState
                   title="当前没有待处理项"
                   description="当机器人还没绑定默认助手，或后续出现链路异常时，这里会集中展示要处理的项目。"
                 />
               )
-            : null}
-          {activeTab === 'health'
-            ? healthItems.length > 0
-              ? healthItems.map((item) => (
-                <button
+          : null}
+        {activeTab === 'health'
+          ? healthItems.length > 0
+            ? healthItems.map((item) => (
+                <ActivityListItem
                   key={item.botId}
-                  type="button"
+                  title={item.botName}
+                  description={item.detail}
+                  time={item.tone === 'success' ? '健康' : item.tone === 'warning' ? '需关注' : '一般'}
+                  severity={item.tone === 'success' ? 'low' : item.tone === 'warning' ? 'medium' : undefined}
                   onClick={() => onOpenBot(item.botId)}
-                  className={cn(
-                    'w-full cursor-pointer rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-3 text-left shadow-[var(--shadow-sm)]',
-                    SPRING_PRESSABLE,
-                    INTERACTIVE_FOCUS_RING,
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={cn(
-                        'h-2.5 w-2.5 rounded-full',
-                        item.tone === 'success'
-                          ? 'bg-emerald-500'
-                          : item.tone === 'warning'
-                            ? 'bg-amber-500'
-                            : 'bg-slate-400',
-                      )}
-                    />
-                    <div className="text-[13px] font-medium text-[var(--text-primary)]">{item.botName}</div>
-                  </div>
-                  <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{item.detail}</p>
-                </button>
+                />
               ))
-              : (
+            : (
                 <EmptyPanelState
                   title="还没有连接健康信息"
                   description="完成平台接入并创建机器人后，这里会显示真实的连接状态和健康摘要。"
                 />
               )
-            : null}
-          {activeTab === 'audit'
-            ? auditItems.length > 0
-              ? auditItems.map((item) => (
-                <button
+          : null}
+        {activeTab === 'audit'
+          ? auditItems.length > 0
+            ? auditItems.map((item) => (
+                <ActivityListItem
                   key={item.id}
-                  type="button"
+                  title={item.title}
+                  description={`${item.botName} · ${item.detail}`}
+                  time={item.time}
+                  severity={item.tone === 'success' ? 'low' : item.tone === 'warning' ? 'medium' : undefined}
                   onClick={() => onOpenBot(item.botId)}
-                  className={cn(
-                    'w-full cursor-pointer rounded-[18px] border px-4 py-3 text-left',
-                    SPRING_PRESSABLE,
-                    INTERACTIVE_FOCUS_RING,
-                    item.tone === 'success'
-                      ? 'border-[rgba(34,197,94,0.16)] bg-[rgba(34,197,94,0.10)] dark:bg-[rgba(34,197,94,0.14)]'
-                      : item.tone === 'warning'
-                        ? 'border-[rgba(245,158,11,0.16)] bg-[rgba(245,158,11,0.10)] dark:bg-[rgba(245,158,11,0.14)]'
-                        : 'border-[var(--border-default)] bg-[var(--bg-card)]',
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-[13px] font-medium text-[var(--text-primary)]">{item.title}</div>
-                    <div className="text-[12px] text-[var(--text-muted)]">{item.time}</div>
-                  </div>
-                  <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{item.botName} · {item.detail}</p>
-                </button>
+                />
               ))
-              : (
+            : (
                 <EmptyPanelState
                   title="当前没有审计日志"
                   description="当你进行接入、测试、启停或更新助手绑定后，这里会展示真实操作记录。"
                 />
               )
-            : null}
-        </div>
+          : null}
+      </div>
+
+      <div className="border-t border-[var(--border-default)] bg-[var(--bg-page)]/40 px-3.5 py-2.5">
+        <button className="w-full text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]">
+          查看全部历史
+        </button>
       </div>
     </PressableCard>
+  );
+}
+
+function ActivityListItem({
+  title,
+  description,
+  time,
+  severity,
+  onClick,
+}: {
+  title: string;
+  description: string;
+  time: string;
+  severity?: 'high' | 'medium' | 'low';
+  onClick: () => void;
+}) {
+  const severityClassName =
+    severity === 'high'
+      ? 'border-[rgba(239,68,68,0.20)]'
+      : severity === 'medium'
+        ? 'border-[rgba(245,158,11,0.20)]'
+        : severity === 'low'
+          ? 'border-[rgba(34,197,94,0.20)]'
+          : 'border-transparent';
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'group w-full cursor-pointer border-l-2 px-3.5 py-3.5 text-left transition-colors hover:bg-[var(--bg-page)]/50',
+        SPRING_PRESSABLE,
+        INTERACTIVE_FOCUS_RING,
+        severityClassName,
+      )}
+    >
+      <div className="flex items-start gap-2">
+        {severity ? (
+          <div
+            className={cn(
+              'mt-1.5 h-1.5 w-1.5 rounded-full',
+              severity === 'high'
+                ? 'bg-[rgb(220,38,38)]'
+                : severity === 'medium'
+                  ? 'bg-[rgb(217,119,6)]'
+                  : 'bg-[rgb(22,163,74)]',
+            )}
+          />
+        ) : null}
+        <div className="min-w-0 flex-1">
+          <h5 className="mb-1 text-[14px] font-medium leading-snug text-[var(--text-primary)]">{title}</h5>
+          <p className="mb-2 text-[12px] leading-5 text-[var(--text-secondary)]">{description}</p>
+          <div className="flex items-center gap-1 text-[12px] text-[var(--text-muted)]">
+            <Clock3 className="h-3 w-3" />
+            <span>{time}</span>
+          </div>
+        </div>
+      </div>
+    </button>
   );
 }
 
