@@ -32,6 +32,16 @@ export type ComposerSendPayload = {
   imageAttachments: OpenClawImageAttachment[];
 };
 
+export type ComposerDraftAttachment = {
+  type: 'image' | 'pdf' | 'video' | 'file';
+};
+
+export type ComposerDraftPayload = {
+  prompt: string;
+  hasContent: boolean;
+  attachments: ComposerDraftAttachment[];
+};
+
 export type RichChatComposerHandle = {
   focus: () => void;
   insertReference: (
@@ -62,6 +72,13 @@ type RichChatComposerProps = {
   onModelChange: (modelId: string) => Promise<void> | void;
   onAbort: () => Promise<void> | void;
   onSend: (payload: ComposerSendPayload) => Promise<boolean> | boolean;
+  onDraftChange?: (payload: ComposerDraftPayload) => void;
+  creditEstimate?: {
+    loading: boolean;
+    low: number | null;
+    high: number | null;
+    error?: string | null;
+  } | null;
 };
 
 const SUPPORTED_ATTACHMENT_TYPES = ['image/', 'video/', 'application/pdf'];
@@ -128,6 +145,13 @@ function buildTokenBadge(token: ComposerTokenMeta): string {
   return '附';
 }
 
+function resolveDraftAttachmentType(token: ComposerTokenMeta): ComposerDraftAttachment['type'] {
+  if (isImageAttachment(token.mimeType)) return 'image';
+  if (isPdfAttachment(token.mimeType)) return 'pdf';
+  if (isVideoAttachment(token.mimeType)) return 'video';
+  return 'file';
+}
+
 function createTokenElement(token: ComposerTokenMeta): HTMLSpanElement {
   const element = document.createElement('span');
   element.className = 'iclaw-inline-token';
@@ -173,8 +197,9 @@ function createRangeAtEnd(root: HTMLElement): Range {
 function serializeEditor(
   root: HTMLDivElement,
   tokenStore: Map<string, ComposerTokenMeta>,
-): ComposerSendPayload & { hasContent: boolean } {
+): ComposerSendPayload & ComposerDraftPayload {
   const imageAttachments: OpenClawImageAttachment[] = [];
+  const attachments: ComposerDraftAttachment[] = [];
   let prompt = '';
 
   const visit = (node: Node) => {
@@ -200,6 +225,11 @@ function serializeEditor(
           mimeType: token.mimeType ?? 'image/png',
         });
       }
+      if (token.kind === 'attachment') {
+        attachments.push({
+          type: resolveDraftAttachmentType(token),
+        });
+      }
       return;
     }
 
@@ -217,6 +247,7 @@ function serializeEditor(
   return {
     prompt: normalizedPrompt,
     imageAttachments,
+    attachments,
     hasContent: normalizedPrompt.length > 0 || imageAttachments.length > 0,
   };
 }
@@ -241,6 +272,8 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       onModelChange,
       onAbort,
       onSend,
+      onDraftChange,
+      creditEstimate,
     },
     ref,
   ) {
@@ -262,7 +295,12 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       setHasContent(snapshot.hasContent);
       setTokenCount(tokenStoreRef.current.size);
       editor.dataset.empty = snapshot.hasContent ? 'false' : 'true';
-    }, []);
+      onDraftChange?.({
+        prompt: snapshot.prompt,
+        hasContent: snapshot.hasContent,
+        attachments: snapshot.attachments,
+      });
+    }, [onDraftChange]);
 
     const restoreRange = useCallback((): Range | null => {
       const editor = editorRef.current;
@@ -678,6 +716,19 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                 视频
               </span>
               {tokenCount > 0 ? <span className="iclaw-composer__meta-count">{tokenCount}</span> : null}
+              {creditEstimate ? (
+                <span className="iclaw-composer__credit-estimate" data-state={creditEstimate.error ? 'error' : creditEstimate.loading ? 'loading' : 'ready'}>
+                  {creditEstimate.loading
+                    ? '正在估算龙虾币...'
+                    : creditEstimate.error
+                      ? '龙虾币估算暂不可用'
+                      : typeof creditEstimate.low === 'number' && typeof creditEstimate.high === 'number'
+                        ? creditEstimate.low === creditEstimate.high
+                          ? `约 ${creditEstimate.low} 龙虾币`
+                          : `约 ${creditEstimate.low}-${creditEstimate.high} 龙虾币`
+                        : null}
+                </span>
+              ) : null}
             </div>
 
             <div className="iclaw-composer__actions">

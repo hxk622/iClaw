@@ -1895,6 +1895,27 @@ body {
   font-weight: 600;
 }
 
+.iclaw-composer__credit-estimate {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--chat-surface-panel-subtle) 82%, transparent);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.iclaw-composer__credit-estimate[data-state='ready'] {
+  color: var(--text-primary);
+}
+
+.iclaw-composer__credit-estimate[data-state='error'] {
+  color: var(--state-error);
+}
+
 .iclaw-composer__submit {
   width: 36px;
   height: 36px;
@@ -1995,6 +2016,10 @@ body {
 :root.dark .iclaw-composer__model-option-detail,
 :root.dark .iclaw-composer__model-caret {
   color: #b6c2cf;
+}
+
+:root.dark .iclaw-composer__credit-estimate {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 :root.dark .iclaw-composer__add {

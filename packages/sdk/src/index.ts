@@ -147,6 +147,49 @@ export interface UsageEventData {
   balance_after: number;
 }
 
+export interface CreditBalanceData {
+  balance: number;
+  currency: 'credit';
+  currency_display: string;
+  available_balance: number;
+  status: 'active';
+}
+
+export interface CreditLedgerItemData {
+  id: string;
+  event_type: string;
+  delta: number;
+  balance_after: number;
+  created_at: string;
+}
+
+export interface CreditQuoteAttachmentInput {
+  type?: string;
+  chars?: number;
+}
+
+export interface CreditQuoteInput {
+  message?: string;
+  model?: string;
+  historyMessages?: number;
+  hasSearch?: boolean;
+  hasTools?: boolean;
+  attachments?: CreditQuoteAttachmentInput[];
+}
+
+export interface CreditQuoteData {
+  currency: 'credit';
+  currency_display: string;
+  estimated_credits_low: number;
+  estimated_credits_high: number;
+  max_charge_credits: number;
+  estimated_input_tokens: number;
+  estimated_output_tokens: number;
+  balance_after_estimate: number;
+  balance_after_max: number;
+  model: string | null;
+}
+
 export interface SkillCatalogReleaseData {
   version: string;
   artifact_url: string | null;
@@ -797,7 +840,7 @@ export class IClawClient {
     return json.data;
   }
 
-  async creditsMe(token: string): Promise<unknown> {
+  async creditsMe(token: string): Promise<CreditBalanceData> {
     const res = await this.fetchAuth('/credits/me', {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -805,11 +848,11 @@ export class IClawClient {
       credentials: 'include',
     });
     if (!res.ok) throw await parseError(res);
-    const json = (await res.json()) as {data: unknown};
+    const json = (await res.json()) as {data: CreditBalanceData};
     return json.data;
   }
 
-  async creditsLedger(token: string): Promise<unknown> {
+  async creditsLedger(token: string): Promise<{items: CreditLedgerItemData[]}> {
     const res = await this.fetchAuth('/credits/ledger', {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -817,7 +860,29 @@ export class IClawClient {
       credentials: 'include',
     });
     if (!res.ok) throw await parseError(res);
-    const json = (await res.json()) as {data: unknown};
+    const json = (await res.json()) as {data: {items: CreditLedgerItemData[]}};
+    return json.data;
+  }
+
+  async creditsQuote(token: string, input: CreditQuoteInput): Promise<CreditQuoteData> {
+    const res = await this.fetchAuth('/credits/quote', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        message: input.message,
+        model: input.model,
+        history_messages: input.historyMessages,
+        has_search: input.hasSearch,
+        has_tools: input.hasTools,
+        attachments: input.attachments,
+      }),
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: CreditQuoteData};
     return json.data;
   }
 

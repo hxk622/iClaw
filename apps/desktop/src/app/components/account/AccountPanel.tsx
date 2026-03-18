@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Camera, ChevronLeft, CreditCard, KeyRound, Link2, Loader2, Trash2, Unplug, Wallet } from 'lucide-react';
-import { IClawClient } from '@iclaw/sdk';
+import { IClawClient, type CreditBalanceData, type CreditLedgerItemData } from '@iclaw/sdk';
 import { Button } from '@/app/components/ui/Button';
 
 type AuthUser = {
@@ -9,19 +9,6 @@ type AuthUser = {
   name?: string | null;
   email?: string | null;
   avatar_url?: string | null;
-};
-
-type CreditBalance = {
-  balance?: number;
-  currency?: string;
-};
-
-type CreditLedgerItem = {
-  id: string;
-  event_type: string;
-  delta: number;
-  balance_after: number;
-  created_at: string;
 };
 
 type LinkedAccount = {
@@ -57,6 +44,12 @@ function providerLabel(provider: string): string {
   return provider;
 }
 
+function creditEventLabel(eventType: string): string {
+  if (eventType === 'signup_grant') return '注册赠送';
+  if (eventType === 'usage_debit') return '使用扣减';
+  return eventType;
+}
+
 function userInitial(user: AuthUser | null, fallbackName: string): string {
   const source = (fallbackName || user?.name || user?.username || user?.email || 'i').trim();
   return source ? source[0]!.toUpperCase() : 'I';
@@ -90,8 +83,8 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
   const [newPassword, setNewPassword] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
   const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
-  const [credits, setCredits] = useState<CreditBalance | null>(null);
-  const [ledger, setLedger] = useState<CreditLedgerItem[]>([]);
+  const [credits, setCredits] = useState<CreditBalanceData | null>(null);
+  const [ledger, setLedger] = useState<CreditLedgerItemData[]>([]);
   const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
   const [loadingMeta, setLoadingMeta] = useState(true);
   const [metaError, setMetaError] = useState<string | null>(null);
@@ -119,8 +112,8 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
           client.linkedAccounts(token),
         ]);
         if (cancelled) return;
-        setCredits((creditsData as CreditBalance) || null);
-        setLedger((((ledgerData as {items?: CreditLedgerItem[]})?.items) || []).slice(0, 8));
+        setCredits(creditsData || null);
+        setLedger((ledgerData.items || []).slice(0, 8));
         setLinkedAccounts((((linkedData as {items?: LinkedAccount[]})?.items) || []).slice(0, 6));
       } catch (error) {
         if (!cancelled) {
@@ -409,7 +402,7 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
               <div className="rounded-3xl border border-[var(--border-default)] bg-[var(--bg-card)] p-6">
                 <div className="mb-4 flex items-center gap-3">
                   <Wallet className="h-5 w-5 text-[var(--text-secondary)]" />
-                  <h2 className="text-xl text-[var(--text-primary)]">Credit 余额</h2>
+                  <h2 className="text-xl text-[var(--text-primary)]">龙虾币余额</h2>
                 </div>
                 {loadingMeta ? (
                   <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
@@ -420,8 +413,8 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
                   <div className="text-sm text-[var(--state-error)]">{metaError}</div>
                 ) : (
                   <>
-                    <div className="text-4xl text-[var(--text-primary)]">{credits?.balance ?? 0}</div>
-                    <div className="mt-1 text-sm text-[var(--text-secondary)]">{credits?.currency || 'credit'}</div>
+                    <div className="text-4xl text-[var(--text-primary)]">{credits?.available_balance ?? credits?.balance ?? 0}</div>
+                    <div className="mt-1 text-sm text-[var(--text-secondary)]">{credits?.currency_display || '龙虾币'}</div>
                   </>
                 )}
               </div>
@@ -468,18 +461,18 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
                 </div>
                 <div className="space-y-3">
                   {ledger.length === 0 ? (
-                    <div className="text-sm text-[var(--text-secondary)]">还没有 credit 流水。</div>
+                    <div className="text-sm text-[var(--text-secondary)]">还没有龙虾币流水。</div>
                   ) : (
                     ledger.map((item) => (
                       <div key={item.id} className="rounded-2xl bg-[var(--bg-elevated)] px-4 py-3">
                         <div className="flex items-center justify-between gap-3">
-                          <span className="text-sm text-[var(--text-primary)]">{item.event_type}</span>
+                          <span className="text-sm text-[var(--text-primary)]">{creditEventLabel(item.event_type)}</span>
                           <span className={item.delta >= 0 ? 'text-sm text-[var(--state-success)]' : 'text-sm text-[var(--state-error)]'}>
                             {item.delta >= 0 ? `+${item.delta}` : item.delta}
                           </span>
                         </div>
                         <div className="mt-1 flex items-center justify-between text-xs text-[var(--text-secondary)]">
-                          <span>余额 {item.balance_after}</span>
+                          <span>余额 {item.balance_after} 龙虾币</span>
                           <span>{formatDate(item.created_at)}</span>
                         </div>
                       </div>

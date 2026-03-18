@@ -282,6 +282,19 @@ const server = createJsonServer([
     handler: ({headers}: HandlerContext) => service.creditsLedger(requireBearerToken(headers)),
   },
   {
+    method: 'POST',
+    path: '/credits/quote',
+    handler: ({headers, body}: HandlerContext) =>
+      service.creditsQuote(requireBearerToken(headers), (body || {}) as {
+        message?: string;
+        model?: string;
+        history_messages?: number;
+        has_search?: boolean;
+        has_tools?: boolean;
+        attachments?: Array<{type?: string; chars?: number}>;
+      }),
+  },
+  {
     method: 'GET',
     path: '/workspace/backup',
     handler: ({headers}: HandlerContext) => service.getWorkspaceBackup(requireBearerToken(headers)),

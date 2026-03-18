@@ -352,7 +352,7 @@ export function AuthPanel({
                   }}
                   className="mt-1 h-4 w-4 rounded border-[rgba(59,130,246,0.28)] text-[var(--brand-primary)]"
                 />
-                <span>我已阅读并同意 {BRAND.legalName} 的服务协议、隐私说明，以及账号 credit 相关计费规则。</span>
+                <span>我已阅读并同意 {BRAND.legalName} 的服务协议、隐私说明，以及账号龙虾币相关计费规则。</span>
               </label>
             </>
           )}

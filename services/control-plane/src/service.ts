@@ -11,6 +11,8 @@ import type {
   AdminSkillCatalogEntryView,
   ChangePasswordInput,
   CreditBalanceView,
+  CreditQuoteInput,
+  CreditQuoteView,
   CreditLedgerItemView,
   ImportUserPrivateSkillInput,
   InstallAgentInput,
@@ -648,9 +650,12 @@ export class ControlPlaneService {
 
   async creditsMe(accessToken: string): Promise<CreditBalanceView> {
     const user = await this.getUserForAccessToken(accessToken);
+    const balance = await this.store.getCreditBalance(user.id);
     return {
-      balance: await this.store.getCreditBalance(user.id),
+      balance,
       currency: 'credit',
+      currency_display: '龙虾币',
+      available_balance: balance,
       status: 'active',
     };
   }
@@ -665,6 +670,74 @@ export class ControlPlaneService {
         balance_after: item.balanceAfter,
         created_at: item.createdAt,
       })),
+    };
+  }
+
+  async creditsQuote(accessToken: string, input: CreditQuoteInput): Promise<CreditQuoteView> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const message = (input.message || '').trim();
+    const attachments = Array.isArray(input.attachments) ? input.attachments : [];
+    const hasSearch = Boolean(input.has_search);
+    const hasTools = Boolean(input.has_tools);
+    const historyMessages = Math.max(0, Math.min(48, input.history_messages || 0));
+    const normalizedModel = (input.model || '').trim() || null;
+    const balance = await this.store.getCreditBalance(user.id);
+
+    if (!message && attachments.length === 0) {
+      return {
+        currency: 'credit',
+        currency_display: '龙虾币',
+        estimated_credits_low: 0,
+        estimated_credits_high: 0,
+        max_charge_credits: 0,
+        estimated_input_tokens: 0,
+        estimated_output_tokens: 0,
+        balance_after_estimate: balance,
+        balance_after_max: balance,
+        model: normalizedModel,
+      };
+    }
+
+    const estimatedInputTokens = this.estimateQuoteInputTokens({
+      message,
+      historyMessages,
+      attachments,
+      hasSearch,
+      hasTools,
+    });
+    const outputEstimate = this.estimateQuoteOutputTokens({
+      message,
+      historyMessages,
+      attachmentCount: attachments.length,
+      hasSearch,
+      hasTools,
+      model: normalizedModel,
+    });
+    const modelFactor = this.resolveQuoteModelFactor(normalizedModel);
+    const lowCost = Math.max(
+      1,
+      Math.ceil(this.computeCreditCost(estimatedInputTokens, outputEstimate.low) * modelFactor),
+    );
+    const highCost = Math.max(
+      lowCost,
+      Math.ceil(this.computeCreditCost(estimatedInputTokens, outputEstimate.high) * modelFactor),
+    );
+    const maxChargeCredits = Math.max(
+      highCost,
+      Math.ceil(this.computeCreditCost(estimatedInputTokens, outputEstimate.max) * modelFactor),
+    );
+
+    return {
+      currency: 'credit',
+      currency_display: '龙虾币',
+      estimated_credits_low: lowCost,
+      estimated_credits_high: highCost,
+      max_charge_credits: maxChargeCredits,
+      estimated_input_tokens: estimatedInputTokens,
+      estimated_output_tokens: outputEstimate.high,
+      balance_after_estimate: Math.max(0, balance - highCost),
+      balance_after_max: Math.max(0, balance - maxChargeCredits),
+      model: normalizedModel,
     };
   }
 
@@ -1190,6 +1263,105 @@ export class ControlPlaneService {
     const inputCost = Math.ceil((Math.max(0, inputTokens) / 1000) * config.creditCostInputPer1k);
     const outputCost = Math.ceil((Math.max(0, outputTokens) / 1000) * config.creditCostOutputPer1k);
     return Math.max(0, inputCost + outputCost);
+  }
+
+  private estimateQuoteInputTokens(input: {
+    message: string;
+    historyMessages: number;
+    attachments: CreditQuoteInput['attachments'];
+    hasSearch: boolean;
+    hasTools: boolean;
+  }): number {
+    const basePromptTokens = 180;
+    const messageTokens = this.estimateTokensFromText(input.message);
+    const historyTokens = input.historyMessages * 120;
+    const searchTokens = input.hasSearch ? 320 : 0;
+    const toolTokens = input.hasTools ? 220 : 0;
+    const attachmentTokens = (input.attachments || []).reduce((sum, item) => {
+      const chars = Math.max(0, item?.chars || 0);
+      const inferredTextTokens = chars > 0 ? Math.ceil(chars * 0.75) : 0;
+      const type = (item?.type || '').trim().toLowerCase();
+      const typeOverhead =
+        type === 'pdf' ? 700 : type === 'image' ? 220 : type === 'video' ? 480 : type ? 260 : 180;
+      return sum + typeOverhead + inferredTextTokens;
+    }, 0);
+
+    return Math.max(1, basePromptTokens + messageTokens + historyTokens + searchTokens + toolTokens + attachmentTokens);
+  }
+
+  private estimateQuoteOutputTokens(input: {
+    message: string;
+    historyMessages: number;
+    attachmentCount: number;
+    hasSearch: boolean;
+    hasTools: boolean;
+    model: string | null;
+  }): {low: number; high: number; max: number} {
+    const messageTokens = this.estimateTokensFromText(input.message);
+    const modelBias = this.resolveQuoteModelReasoningBias(input.model);
+    const base =
+      180 +
+      Math.round(messageTokens * 0.45) +
+      input.historyMessages * 20 +
+      input.attachmentCount * 90 +
+      (input.hasSearch ? 220 : 0) +
+      (input.hasTools ? 160 : 0) +
+      modelBias;
+
+    const low = Math.max(120, Math.round(base * 0.72));
+    const high = Math.max(low, Math.round(base * 1.2));
+    const max = Math.max(high, Math.round(base * 1.7));
+
+    return {low, high, max};
+  }
+
+  private estimateTokensFromText(text: string): number {
+    const normalized = text.trim();
+    if (!normalized) {
+      return 0;
+    }
+
+    const cjkMatches = normalized.match(/[\u3400-\u9fff]/g) || [];
+    const latinWords = normalized
+      .replace(/[\u3400-\u9fff]/g, ' ')
+      .match(/[A-Za-z0-9_]+/g) || [];
+    const punctuationChars = normalized.replace(/[\u3400-\u9fffA-Za-z0-9_\s]/g, '').length;
+    const whitespaceChars = normalized.match(/\s/g)?.length || 0;
+
+    return Math.max(
+      1,
+      Math.ceil(cjkMatches.length * 1.15 + latinWords.length * 1.25 + punctuationChars * 0.35 + whitespaceChars * 0.08),
+    );
+  }
+
+  private resolveQuoteModelFactor(model: string | null): number {
+    const normalized = (model || '').trim().toLowerCase();
+    if (!normalized) return 1;
+    if (normalized.includes('opus') || normalized.includes('gpt-5') || normalized.includes('o1') || normalized.includes('o3') || normalized.includes('o4')) {
+      return 1.7;
+    }
+    if (normalized.includes('sonnet') || normalized.includes('gemini') || normalized.includes('grok')) {
+      return 1.3;
+    }
+    if (normalized.includes('mini') || normalized.includes('flash') || normalized.includes('haiku') || normalized.includes('nano')) {
+      return 0.8;
+    }
+    return 1;
+  }
+
+  private resolveQuoteModelReasoningBias(model: string | null): number {
+    const normalized = (model || '').trim().toLowerCase();
+    if (!normalized) return 0;
+    if (normalized.includes('opus') || normalized.includes('o1') || normalized.includes('o3') || normalized.includes('o4')) {
+      return 220;
+    }
+    if (normalized.includes('sonnet') || normalized.includes('gpt-5') || normalized.includes('gemini')) {
+      return 120;
+    }
+    if (normalized.includes('mini') || normalized.includes('flash') || normalized.includes('haiku') || normalized.includes('nano')) {
+      return -40;
+    }
+    return 0;
   }
 
   private resolveBootstrapRole(email: string): UserRole | null {

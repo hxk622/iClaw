@@ -56,6 +56,8 @@ export type SessionTokenPair = {
 export type CreditBalanceView = {
   balance: number;
   currency: 'credit';
+  currency_display: '龙虾币';
+  available_balance: number;
   status: 'active';
 };
 
@@ -65,6 +67,33 @@ export type CreditLedgerItemView = {
   delta: number;
   balance_after: number;
   created_at: string;
+};
+
+export type CreditQuoteAttachmentInput = {
+  type?: string;
+  chars?: number;
+};
+
+export type CreditQuoteInput = {
+  message?: string;
+  model?: string;
+  history_messages?: number;
+  has_search?: boolean;
+  has_tools?: boolean;
+  attachments?: CreditQuoteAttachmentInput[];
+};
+
+export type CreditQuoteView = {
+  currency: 'credit';
+  currency_display: '龙虾币';
+  estimated_credits_low: number;
+  estimated_credits_high: number;
+  max_charge_credits: number;
+  estimated_input_tokens: number;
+  estimated_output_tokens: number;
+  balance_after_estimate: number;
+  balance_after_max: number;
+  model: string | null;
 };
 
 export type RunGrantRecord = {

@@ -1,5 +1,6 @@
 import { Copy, MessageCircleQuestionMark, MessageSquarePlus, ScrollText } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { CreditQuoteData, IClawClient } from '@iclaw/sdk';
 import '@openclaw-ui/main.ts';
 import './openclaw-chat-surface.css';
 import {
@@ -20,6 +21,7 @@ import {
 } from '../lib/recent-tasks';
 import {
   RichChatComposer,
+  type ComposerDraftPayload,
   type ComposerSendPayload,
   type OpenClawImageAttachment,
   type RichChatComposerHandle,
@@ -81,6 +83,8 @@ type OpenClawChatSurfaceProps = {
   gatewayPassword?: string;
   sessionKey?: string;
   shellAuthenticated?: boolean;
+  creditClient?: IClawClient;
+  creditToken?: string | null;
   user?: {
     name?: string | null;
     username?: string | null;
@@ -91,6 +95,13 @@ type OpenClawChatSurfaceProps = {
     avatar?: string | null;
     avatarUrl?: string | null;
   } | null;
+};
+
+type ComposerCreditEstimateState = {
+  loading: boolean;
+  low: number | null;
+  high: number | null;
+  error: string | null;
 };
 
 type ChatSurfaceStatus = {
@@ -258,6 +269,13 @@ function shouldResetEmbeddedOpenClawState(gatewayUrl: string): boolean {
   } catch {
     return false;
   }
+}
+
+function estimateHistoryMessagesFromGroups(groupCount: number): number {
+  if (groupCount <= 0) {
+    return 0;
+  }
+  return Math.max(0, Math.min(24, Math.floor(groupCount / 2)));
 }
 
 function clearOpenClawEmbeddedState(gatewayUrl: string): void {
@@ -542,6 +560,8 @@ export function OpenClawChatSurface({
   gatewayPassword,
   sessionKey = 'main',
   shellAuthenticated = false,
+  creditClient,
+  creditToken,
   user,
 }: OpenClawChatSurfaceProps) {
   const shellRef = useRef<HTMLDivElement | null>(null);
@@ -585,6 +605,13 @@ export function OpenClawChatSurface({
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelSwitching, setModelSwitching] = useState(false);
+  const [composerDraft, setComposerDraft] = useState<ComposerDraftPayload | null>(null);
+  const [creditEstimate, setCreditEstimate] = useState<ComposerCreditEstimateState>({
+    loading: false,
+    low: null,
+    high: null,
+    error: null,
+  });
   const statusLogRef = useRef<string | null>(null);
   const rpcLogRef = useRef<string | null>(null);
   const unhandledLogRef = useRef<string | null>(null);
@@ -780,7 +807,77 @@ export function OpenClawChatSurface({
     setSelectedModelId(null);
     setModelsLoading(false);
     setModelSwitching(false);
+    setComposerDraft(null);
+    setCreditEstimate({
+      loading: false,
+      low: null,
+      high: null,
+      error: null,
+    });
   }, [clearArtifactAutoOpenTimers, sessionKey]);
+
+  useEffect(() => {
+    const prompt = composerDraft?.prompt?.trim() || '';
+    const attachmentItems = composerDraft?.attachments || [];
+    if (!creditClient || !creditToken || (!prompt && attachmentItems.length === 0)) {
+      setCreditEstimate({
+        loading: false,
+        low: null,
+        high: null,
+        error: null,
+      });
+      return;
+    }
+
+    let cancelled = false;
+    setCreditEstimate((current) => ({
+      loading: true,
+      low: current.low,
+      high: current.high,
+      error: null,
+    }));
+
+    const timer = window.setTimeout(() => {
+      const historyMessages = estimateHistoryMessagesFromGroups(renderState.groupCount);
+      void creditClient
+        .creditsQuote(creditToken, {
+          message: prompt,
+          model: selectedModelId || undefined,
+          historyMessages,
+          hasTools: true,
+          attachments: attachmentItems.map((item) => ({
+            type: item.type,
+          })),
+        })
+        .then((quote: CreditQuoteData) => {
+          if (cancelled) {
+            return;
+          }
+          setCreditEstimate({
+            loading: false,
+            low: quote.estimated_credits_low,
+            high: quote.estimated_credits_high,
+            error: null,
+          });
+        })
+        .catch((error) => {
+          if (cancelled) {
+            return;
+          }
+          setCreditEstimate({
+            loading: false,
+            low: null,
+            high: null,
+            error: error instanceof Error ? error.message : 'estimate unavailable',
+          });
+        });
+    }, 360);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [composerDraft, creditClient, creditToken, renderState.groupCount, selectedModelId]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -1919,6 +2016,8 @@ export function OpenClawChatSurface({
         modelsLoading={modelsLoading}
         modelSwitching={modelSwitching}
         onModelChange={handleModelChange}
+        onDraftChange={setComposerDraft}
+        creditEstimate={composerDraft?.hasContent ? creditEstimate : null}
         onSend={handleSend}
         onAbort={handleAbort}
       />

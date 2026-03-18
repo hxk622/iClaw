@@ -1,5 +1,5 @@
 import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from 'react';
-import { IClawClient, type DesktopUpdateHint } from '@iclaw/sdk';
+import { IClawClient, type CreditBalanceData, type DesktopUpdateHint } from '@iclaw/sdk';
 import desktopPackageJson from '../../package.json';
 import { clearAuth, readAuth, writeAuth } from './lib/auth-storage';
 import { getGoogleOAuthUrl, getWeChatOAuthUrl, openOAuthPopup, type OAuthProvider } from './lib/oauth';
@@ -13,6 +13,7 @@ import {
 } from './lib/tauri-runtime-config';
 import { AuthPanel } from './components/AuthPanel';
 import { AccountPanel } from './components/account/AccountPanel';
+import { CreditBalancePill } from './components/CreditBalancePill';
 import { FirstRunSetupPanel } from './components/FirstRunSetupPanel';
 import { OpenClawChatSurface } from './components/OpenClawChatSurface';
 import { OpenClawCronSurface } from './components/OpenClawCronSurface';
@@ -1073,6 +1074,8 @@ function AuthedView({
 }: AuthedViewProps) {
   const { buildSectionSaveSnapshot, commitSectionSave } = useSettings();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [creditBalance, setCreditBalance] = useState<CreditBalanceData | null>(null);
+  const [creditBalanceLoading, setCreditBalanceLoading] = useState(false);
 
   useEffect(() => {
     if (!accessToken) {
@@ -1081,6 +1084,43 @@ function AuthedView({
     void syncManagedSkills({ client, accessToken }).catch((error) => {
       console.error('[desktop] failed to sync managed skills', error);
     });
+  }, [accessToken, client]);
+
+  useEffect(() => {
+    if (!accessToken) {
+      setCreditBalance(null);
+      setCreditBalanceLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const loadCreditBalance = async () => {
+      setCreditBalanceLoading(true);
+      try {
+        const next = await client.creditsMe(accessToken);
+        if (!cancelled) {
+          setCreditBalance(next);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('[desktop] failed to load credit balance', error);
+        }
+      } finally {
+        if (!cancelled) {
+          setCreditBalanceLoading(false);
+        }
+      }
+    };
+
+    void loadCreditBalance();
+    const timer = window.setInterval(() => {
+      void loadCreditBalance();
+    }, 60_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
   }, [accessToken, client]);
 
   const handleSaveSettings = async (section: PersistableSettingsSection) => {
@@ -1120,7 +1160,7 @@ function AuthedView({
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[var(--bg-page)]">
+    <div className="relative flex h-screen overflow-hidden bg-[var(--bg-page)]">
       <Sidebar
         user={currentUser}
         activeView={primaryView}
@@ -1218,6 +1258,8 @@ function AuthedView({
           gatewayPassword={gatewayAuth.password}
           sessionKey={CHAT_SESSION_KEY}
           shellAuthenticated={authenticated}
+          creditClient={client}
+          creditToken={accessToken}
           user={currentUser}
         />
       ) : (
@@ -1246,6 +1288,15 @@ function AuthedView({
           </div>
         </div>
       )}
+      {authenticated ? (
+        <div className="pointer-events-none absolute right-5 top-4 z-20">
+          <CreditBalancePill
+            balance={creditBalance?.available_balance ?? creditBalance?.balance ?? null}
+            loading={creditBalanceLoading}
+            onClick={() => setOverlayView('account')}
+          />
+        </div>
+      ) : null}
       {overlayView === 'account' && accessToken ? (
         <AccountPanel
           client={client}
