@@ -1,4 +1,4 @@
-import { AlertCircle, CalendarDays, CheckCircle2, Package, UserRound, X } from 'lucide-react';
+import { CalendarDays, Package, UserRound, X } from 'lucide-react';
 import type { SkillStoreItem } from '@/app/lib/skill-store';
 import { Button } from '@/app/components/ui/Button';
 import { Chip } from '@/app/components/ui/Chip';
@@ -154,7 +154,7 @@ export function SkillStoreDetailSheet({
 
         <div className="flex-1 overflow-y-auto px-6 py-6">
           <div className="mb-6 flex items-start gap-4">
-            <SkillGlyph skill={skill} className="h-16 w-16 rounded-[20px]" iconClassName="h-7 w-7" />
+            <SkillGlyph skill={skill} className="h-16 w-16 rounded-xl" iconClassName="h-7 w-7" />
             <div className="min-w-0 flex-1">
               <h3 className="text-[21px] font-medium leading-tight tracking-[-0.02em] text-[var(--text-primary)]">{skill.name}</h3>
               <div className="mt-2 flex flex-wrap gap-2">
@@ -164,30 +164,13 @@ export function SkillStoreDetailSheet({
                 </Chip>
                 <Chip tone="outline">{skill.categoryLabel}</Chip>
               </div>
+              <p className="mt-3 text-[13px] leading-6 text-[var(--text-secondary)]">{status.note}</p>
             </div>
           </div>
 
           <section className="mb-6">
             <div className="mb-2 text-[11px] uppercase tracking-[0.14em] text-[var(--text-muted)]">技能介绍</div>
             <p className="text-[14px] leading-7 text-[var(--text-secondary)]">{skill.description}</p>
-          </section>
-
-          <section className="mb-6 rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] p-4">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[rgba(201,169,97,0.18)] bg-[rgba(201,169,97,0.12)] text-[rgb(155,112,39)] dark:border-[rgba(201,169,97,0.22)] dark:bg-[rgba(201,169,97,0.16)] dark:text-[#f1d59c]">
-                {status.label === '安装失败' ? (
-                  <AlertCircle className="h-4 w-4" />
-                ) : status.label === '已安装' ? (
-                  <CheckCircle2 className="h-4 w-4" />
-                ) : (
-                  <Package className="h-4 w-4" />
-                )}
-              </div>
-              <div className="min-w-0">
-                <div className="text-[13px] font-medium text-[var(--text-primary)]">当前状态</div>
-                <div className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">{status.note}</div>
-              </div>
-            </div>
           </section>
 
           <section className="mb-6">
@@ -206,7 +189,7 @@ export function SkillStoreDetailSheet({
                 return (
                   <div
                     key={row.label}
-                    className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-3.5 dark:bg-[rgba(255,255,255,0.03)]"
+                    className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3.5 dark:bg-[rgba(255,255,255,0.03)]"
                   >
                     <div className="mb-2 flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">
                       <span className="text-[var(--text-secondary)]">{icon}</span>
@@ -242,21 +225,9 @@ export function SkillStoreDetailSheet({
                   ? '这是你导入到账号中的技能。'
                   : '云端技能安装后会加入“我的技能”。'}
             </div>
-            <div className="flex items-center gap-3">
-              <Button variant="secondary" size="md" className="flex-1" onClick={onClose}>
-                关闭
-              </Button>
-              <Button
-                variant={status.actionVariant}
-                size="md"
-                block
-                className="flex-[1.2]"
-                disabled={status.disabled}
-                onClick={() => onInstall(skill)}
-              >
-                {status.actionLabel}
-              </Button>
-            </div>
+            <Button variant={status.actionVariant} size="md" block disabled={status.disabled} onClick={() => onInstall(skill)}>
+              {status.actionLabel}
+            </Button>
           </div>
         </div>
       </aside>

@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { IClawClient } from '@iclaw/sdk';
 import {
   AlertCircle,
   CheckCircle2,
   Download,
-  EyeOff,
   Package,
   PencilLine,
   RefreshCw,
@@ -26,10 +25,12 @@ import {
   subscribeSkillStoreEvents,
 } from '@/app/lib/skill-store';
 import { Button } from '@/app/components/ui/Button';
-import { Chip } from '@/app/components/ui/Chip';
+import { FilterPill } from '@/app/components/ui/FilterPill';
+import { MetricCard } from '@/app/components/ui/MetricCard';
 import { PressableCard } from '@/app/components/ui/PressableCard';
+import { SegmentedTabs } from '@/app/components/ui/SegmentedTabs';
 import { cn } from '@/app/lib/cn';
-import { APPLE_FLAT_SURFACE, INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
+import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 import { SkillStoreAdminSheet } from './SkillStoreAdminSheet';
 import { SkillStoreDetailSheet } from './SkillStoreDetailSheet';
 import { SkillStoreImportSheet } from './SkillStoreImportSheet';
@@ -116,37 +117,6 @@ function formatPublishedAt(value: string | null | undefined): string {
   }
 }
 
-function StatCard({
-  label,
-  value,
-  icon,
-  iconWrapClassName,
-  iconClassName,
-}: {
-  label: string;
-  value: number;
-  icon: ReactNode;
-  iconWrapClassName: string;
-  iconClassName: string;
-}) {
-  return (
-    <div
-      className="rounded-[18px] border border-[rgba(17,24,39,0.08)] bg-[var(--bg-card)] px-4 py-3.5 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]"
-      style={{ boxShadow: 'var(--shadow-sm)' }}
-    >
-      <div className="flex items-center gap-3">
-        <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] border', iconWrapClassName)}>
-          <span className={iconClassName}>{icon}</span>
-        </div>
-        <div className="min-w-0">
-          <div className="mb-0.5 text-[11px] text-[var(--text-muted)]">{label}</div>
-          <div className="text-[20px] font-medium leading-none text-[var(--text-primary)]">{value}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function SkillStatusBadge({ status }: {status: SkillDisplayStatus}) {
   if (status === 'builtin') {
     return (
@@ -205,76 +175,6 @@ function SourceBadge({ sourceLabel }: {sourceLabel: string}) {
   );
 }
 
-function FilterButton({
-  active,
-  children,
-  onClick,
-}: {
-  active: boolean;
-  children: ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'cursor-pointer rounded-md border px-3.5 py-1.5 text-[13px] transition-all',
-        APPLE_FLAT_SURFACE,
-        SPRING_PRESSABLE,
-        INTERACTIVE_FOCUS_RING,
-        active
-          ? 'border-[rgba(201,169,97,0.22)] bg-[rgba(201,169,97,0.12)] font-medium text-[rgb(155,112,39)] dark:border-[rgba(201,169,97,0.20)] dark:bg-[rgba(201,169,97,0.16)] dark:text-[#f1d59c]'
-          : 'border-[var(--border-default)] bg-[var(--bg-card)] text-[var(--text-secondary)] hover:border-[rgba(201,169,97,0.22)] hover:text-[var(--text-primary)] dark:bg-[rgba(255,255,255,0.03)]',
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-function ViewModeButton({
-  active,
-  badge,
-  children,
-  onClick,
-}: {
-  active: boolean;
-  badge?: number;
-  children: ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'inline-flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-2 text-[14px] font-medium transition-all',
-        APPLE_FLAT_SURFACE,
-        SPRING_PRESSABLE,
-        INTERACTIVE_FOCUS_RING,
-        active
-          ? 'border-[rgba(201,169,97,0.24)] bg-[rgba(201,169,97,0.12)] text-[rgb(155,112,39)] dark:border-[rgba(201,169,97,0.20)] dark:bg-[rgba(201,169,97,0.16)] dark:text-[#f1d59c]'
-          : 'border-transparent bg-transparent text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
-      )}
-    >
-      <span>{children}</span>
-      {typeof badge === 'number' ? (
-        <span
-          className={cn(
-            'rounded-full px-2 py-0.5 text-[11px]',
-            active
-              ? 'bg-[rgba(201,169,97,0.18)] text-[rgb(155,112,39)] dark:bg-[rgba(201,169,97,0.24)] dark:text-[#f1d59c]'
-              : 'bg-[var(--bg-card)] text-[var(--text-muted)] dark:bg-[rgba(255,255,255,0.05)]',
-          )}
-        >
-          {badge}
-        </span>
-      ) : null}
-    </button>
-  );
-}
-
 function SkillCard({
   skill,
   adminMode,
@@ -313,7 +213,7 @@ function SkillCard({
       interactive={!adminMode}
       onClick={!adminMode ? () => onOpenDetail(skill) : undefined}
       className={cn(
-        'rounded-[18px] border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)]',
+        'rounded-lg border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)]',
         !adminMode && 'hover:border-[rgba(201,169,97,0.22)] hover:shadow-[var(--shadow-md)]',
       )}
     >
@@ -382,7 +282,7 @@ function SkillCard({
 function EmptyState({ title, description }: {title: string; description: string}) {
   return (
     <div className="py-16 text-center">
-      <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl border border-[var(--border-default)] bg-[var(--bg-secondary)]">
+      <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-hover)]">
         <Package className="h-7 w-7 text-[var(--text-muted)]" />
       </div>
       <div className="mb-1 text-[15px] font-medium text-[var(--text-primary)]">{title}</div>
@@ -825,28 +725,28 @@ export function SkillStoreView({
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <StatCard
+            <MetricCard
               label="技能总数"
               value={totalCount}
               icon={<Package className="h-[18px] w-[18px]" />}
               iconWrapClassName="border-[rgba(201,169,97,0.20)] bg-[rgba(201,169,97,0.12)]"
               iconClassName="text-[rgb(155,112,39)] dark:text-[#f1d59c]"
             />
-            <StatCard
+            <MetricCard
               label="已安装"
               value={installedCount}
               icon={<CheckCircle2 className="h-[18px] w-[18px]" />}
               iconWrapClassName="border-[rgba(34,197,94,0.18)] bg-[rgba(34,197,94,0.10)]"
               iconClassName="text-[rgb(21,128,61)] dark:text-[#c7f9d7]"
             />
-            <StatCard
+            <MetricCard
               label="系统预置"
               value={builtinCount}
               icon={<Download className="h-[18px] w-[18px]" />}
               iconWrapClassName="border-[rgba(74,107,138,0.18)] bg-[rgba(74,107,138,0.10)]"
               iconClassName="text-[#4A6B8A] dark:text-[#b7d0e5]"
             />
-            <StatCard
+            <MetricCard
               label="安装失败"
               value={failedCount}
               icon={<AlertCircle className="h-[18px] w-[18px]" />}
@@ -858,16 +758,15 @@ export function SkillStoreView({
 
         <div className="mb-6 space-y-5">
           <div className="flex items-center gap-2 border-b border-[var(--border-default)] pb-4">
-            {storeTabs.map((tab) => (
-              <ViewModeButton
-                key={tab.id}
-                active={activeTab === tab.id}
-                badge={tab.id === 'myskills' ? skills.filter((skill) => skill.userInstalled).length : undefined}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                {tab.label}
-              </ViewModeButton>
-            ))}
+            <SegmentedTabs
+              items={storeTabs.map((tab) => ({
+                id: tab.id,
+                label: tab.label,
+                badge: tab.id === 'myskills' ? skills.filter((skill) => skill.userInstalled).length : undefined,
+              }))}
+              activeId={activeTab}
+              onChange={setActiveTab}
+            />
             {adminMode ? (
               <span className="ml-2 rounded-md border border-[rgba(201,169,97,0.18)] bg-[rgba(201,169,97,0.10)] px-2.5 py-1 text-[11px] text-[rgb(155,112,39)] dark:border-[rgba(201,169,97,0.20)] dark:bg-[rgba(201,169,97,0.16)] dark:text-[#f1d59c]">
                 超管模式
@@ -879,9 +778,9 @@ export function SkillStoreView({
             <div className="mb-2.5 text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">分类</div>
             <div className="flex flex-wrap gap-2">
               {categories.map((category) => (
-                <FilterButton key={category.id} active={activeCategory === category.id} onClick={() => setActiveCategory(category.id)}>
+                <FilterPill key={category.id} active={activeCategory === category.id} onClick={() => setActiveCategory(category.id)}>
                   {category.label}
-                </FilterButton>
+                </FilterPill>
               ))}
             </div>
           </div>
@@ -911,18 +810,12 @@ export function SkillStoreView({
                   );
                 })}
                 {activeTags.length > 0 ? (
-                  <button
-                    type="button"
+                  <FilterPill
                     onClick={() => setActiveTags([])}
-                    className={cn(
-                      'cursor-pointer rounded-md border border-[var(--border-default)] bg-[var(--bg-card)] px-3 py-1.5 text-[12px] text-[var(--text-secondary)] transition-all hover:border-[rgba(201,169,97,0.22)] hover:text-[var(--text-primary)]',
-                      APPLE_FLAT_SURFACE,
-                      SPRING_PRESSABLE,
-                      INTERACTIVE_FOCUS_RING,
-                    )}
+                    className="px-3 py-1.5 text-[12px]"
                   >
                     清除
-                  </button>
+                  </FilterPill>
                 ) : null}
               </div>
             </div>
@@ -932,9 +825,9 @@ export function SkillStoreView({
             <div className="mb-2.5 text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">安装状态</div>
             <div className="flex flex-wrap gap-2">
               {installFilters.map((filter) => (
-                <FilterButton key={filter.id} active={activeInstallFilter === filter.id} onClick={() => setActiveInstallFilter(filter.id)}>
+                <FilterPill key={filter.id} active={activeInstallFilter === filter.id} onClick={() => setActiveInstallFilter(filter.id)}>
                   {filter.label}
-                </FilterButton>
+                </FilterPill>
               ))}
             </div>
           </div>
