@@ -1,6 +1,5 @@
 import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from 'react';
 import { IClawClient, type CreditBalanceData, type DesktopUpdateHint } from '@iclaw/sdk';
-import { Coins, Sparkles, TrendingDown, TrendingUp } from 'lucide-react';
 import desktopPackageJson from '../../package.json';
 import { clearAuth, readAuth, writeAuth } from './lib/auth-storage';
 import { getGoogleOAuthUrl, getWeChatOAuthUrl, openOAuthPopup, type OAuthProvider } from './lib/oauth';
@@ -14,6 +13,7 @@ import {
 } from './lib/tauri-runtime-config';
 import { AuthPanel } from './components/AuthPanel';
 import { AccountPanel } from './components/account/AccountPanel';
+import { CreditBalancePill } from './components/CreditBalancePill';
 import { FirstRunSetupPanel } from './components/FirstRunSetupPanel';
 import { OpenClawChatSurface } from './components/OpenClawChatSurface';
 import { OpenClawCronSurface } from './components/OpenClawCronSurface';
@@ -148,30 +148,6 @@ const PRIMARY_VIEW_META: Record<PrimaryView, {title: string; subtitle: string}> 
   },
 };
 
-const HEADER_MARKET_TICKERS = [
-  {
-    symbol: 'SHSZ 300',
-    name: '沪深 300',
-    price: '3,942.18',
-    delta: '+0.86%',
-    tone: 'up' as const,
-  },
-  {
-    symbol: 'NASDAQ 100',
-    name: '纳指 100',
-    price: '20,214.46',
-    delta: '+1.24%',
-    tone: 'up' as const,
-  },
-  {
-    symbol: 'HSTECH',
-    name: '恒生科技',
-    price: '3,487.27',
-    delta: '-0.38%',
-    tone: 'down' as const,
-  },
-];
-
 type InstallerViewState = 'loading' | 'error';
 
 type InstallerViewModel = {
@@ -198,13 +174,6 @@ function formatPortConflictMessage(ports: number[]): string | null {
 
 function normalizeBrandRuntimeText(value: string): string {
   return value.replaceAll('iClaw', BRAND.displayName);
-}
-
-function formatHeaderBalance(value: number | null, loading: boolean): string {
-  if (loading) {
-    return '加载中';
-  }
-  return new Intl.NumberFormat('zh-CN').format(value ?? 0);
 }
 
 export default function App() {
@@ -1106,143 +1075,6 @@ interface AuthedViewProps {
   desktopUpdateStatusMessage: string | null;
 }
 
-function DesktopHeader(props: {
-  currentViewMeta: { title: string; subtitle: string };
-  authenticated: boolean;
-  creditBalance: number | null;
-  creditBalanceLoading: boolean;
-  onOpenAccount: () => void;
-  onOpenSubscription: () => void;
-  onRequestAuth: () => void;
-}) {
-  const actionDisabled = !props.authenticated;
-
-  return (
-    <header className="shrink-0 border-b border-[var(--border-default)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--bg-page)_96%,white_4%),color-mix(in_srgb,var(--bg-page)_90%,white_10%))] px-6 py-4 backdrop-blur-xl">
-      <div className="flex min-h-[84px] flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2.5">
-            {HEADER_MARKET_TICKERS.map((ticker, index) => {
-              const positive = ticker.tone === 'up';
-              return (
-                <div
-                  key={ticker.symbol}
-                  className={`group flex min-w-[146px] items-center gap-3 rounded-[18px] border px-3.5 py-2.5 transition-[transform,border-color,box-shadow] duration-[var(--motion-panel)] hover:-translate-y-[1px] hover:scale-[1.01] ${
-                    positive
-                      ? 'border-[rgba(34,197,94,0.14)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(242,251,245,0.94))] hover:border-[rgba(34,197,94,0.24)] hover:shadow-[0_14px_28px_rgba(34,197,94,0.08)]'
-                      : 'border-[rgba(239,68,68,0.14)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(254,244,244,0.94))] hover:border-[rgba(239,68,68,0.22)] hover:shadow-[0_14px_28px_rgba(239,68,68,0.08)]'
-                  } ${index === 0 ? 'lg:min-w-[158px]' : ''}`}
-                  style={{ transitionTimingFunction: 'var(--motion-spring)' }}
-                >
-                  <div
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border ${
-                      positive
-                        ? 'border-[rgba(34,197,94,0.14)] bg-[rgba(34,197,94,0.08)] text-[#15803d]'
-                        : 'border-[rgba(239,68,68,0.14)] bg-[rgba(239,68,68,0.08)] text-[#dc2626]'
-                    }`}
-                  >
-                    {positive ? <TrendingUp className="h-4.5 w-4.5" /> : <TrendingDown className="h-4.5 w-4.5" />}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
-                      {ticker.symbol}
-                    </div>
-                    <div className="mt-1 flex items-baseline gap-2">
-                      <span className="truncate text-[14px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
-                        {ticker.price}
-                      </span>
-                      <span className={`text-[11px] font-semibold ${positive ? 'text-[#15803d]' : 'text-[#dc2626]'}`}>
-                        {ticker.delta}
-                      </span>
-                    </div>
-                    <div className="mt-0.5 truncate text-[11px] text-[var(--text-secondary)]">{ticker.name}</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="mt-4 flex min-w-0 items-end justify-between gap-4">
-            <div className="min-w-0">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--text-muted)]">
-                Workspace Header
-              </div>
-              <div className="mt-1 truncate text-[22px] font-semibold tracking-[-0.05em] text-[var(--text-primary)]">
-                {props.currentViewMeta.title}
-              </div>
-            </div>
-            <div className="hidden max-w-[420px] truncate text-right text-[12px] text-[var(--text-secondary)] xl:block">
-              {props.currentViewMeta.subtitle}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-3 self-start lg:self-center">
-          <button
-            type="button"
-            disabled={actionDisabled}
-            onClick={actionDisabled ? props.onRequestAuth : props.onOpenSubscription}
-            className={`group inline-flex h-12 items-center gap-3 rounded-[18px] border px-4 transition-[transform,border-color,box-shadow,background-color] duration-[var(--motion-panel)] ${
-              actionDisabled
-                ? 'cursor-pointer border-[var(--border-default)] bg-[rgba(255,255,255,0.72)] text-[var(--text-muted)]'
-                : 'border-[rgba(99,102,241,0.16)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(243,244,255,0.96))] text-[var(--text-primary)] hover:-translate-y-[1px] hover:scale-[1.01] hover:border-[rgba(99,102,241,0.26)] hover:shadow-[0_14px_30px_rgba(99,102,241,0.10)]'
-            }`}
-            style={{ transitionTimingFunction: 'var(--motion-spring)' }}
-          >
-            <span
-              className={`inline-flex h-8 w-8 items-center justify-center rounded-[12px] ${
-                actionDisabled
-                  ? 'border border-[var(--border-default)] bg-[var(--bg-elevated)]'
-                  : 'border border-[rgba(99,102,241,0.14)] bg-[rgba(99,102,241,0.08)] text-[#6366f1]'
-              }`}
-            >
-              <Sparkles className="h-4 w-4" />
-            </span>
-            <span className="min-w-0 text-left">
-              <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
-                订阅
-              </span>
-              <span className="mt-0.5 block text-[13px] font-medium">
-                {props.authenticated ? '订阅服务' : '登录后查看'}
-              </span>
-            </span>
-          </button>
-
-          <button
-            type="button"
-            disabled={actionDisabled}
-            onClick={actionDisabled ? props.onRequestAuth : props.onOpenAccount}
-            className={`group inline-flex h-12 items-center gap-3 rounded-[18px] border px-4 transition-[transform,border-color,box-shadow,background-color] duration-[var(--motion-panel)] ${
-              actionDisabled
-                ? 'cursor-pointer border-[var(--border-default)] bg-[rgba(255,255,255,0.72)] text-[var(--text-muted)]'
-                : 'border-[rgba(217,119,6,0.16)] bg-[linear-gradient(180deg,rgba(255,252,245,0.98),rgba(255,247,237,0.98))] text-[var(--text-primary)] hover:-translate-y-[1px] hover:scale-[1.01] hover:border-[rgba(217,119,6,0.26)] hover:shadow-[0_14px_30px_rgba(217,119,6,0.10)]'
-            }`}
-            style={{ transitionTimingFunction: 'var(--motion-spring)' }}
-          >
-            <span
-              className={`inline-flex h-8 w-8 items-center justify-center rounded-[12px] ${
-                actionDisabled
-                  ? 'border border-[var(--border-default)] bg-[var(--bg-elevated)]'
-                  : 'border border-[rgba(217,119,6,0.14)] bg-[rgba(251,191,36,0.14)] text-[#b45309]'
-              }`}
-            >
-              <Coins className="h-4 w-4" />
-            </span>
-            <span className="min-w-0 text-left">
-              <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
-                龙虾币
-              </span>
-              <span className="mt-0.5 block text-[14px] font-semibold tracking-[-0.03em]">
-                {formatHeaderBalance(props.creditBalance, props.creditBalanceLoading)}
-              </span>
-            </span>
-          </button>
-        </div>
-      </div>
-    </header>
-  );
-}
-
 function AuthedView({
   primaryView,
   setPrimaryView,
@@ -1402,16 +1234,24 @@ function AuthedView({
         onSkipDesktopUpdate={onSkipDesktopUpdate}
       />
       <div className="flex min-w-0 flex-1 flex-col">
-        <DesktopHeader
-          currentViewMeta={currentViewMeta}
-          authenticated={authenticated}
-          creditBalance={creditBalance?.available_balance ?? creditBalance?.balance ?? null}
-          creditBalanceLoading={creditBalanceLoading}
-          onOpenAccount={() => setOverlayView('account')}
-          onOpenSubscription={() => setOverlayView('account')}
-          onRequestAuth={() => onRequestAuth('login')}
-        />
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <header className="flex h-[72px] shrink-0 items-center justify-between border-b border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-page)_94%,white_6%)] px-6">
+          <div className="min-w-0">
+            <div className="truncate text-[18px] font-semibold text-[var(--text-primary)]">
+              {currentViewMeta.title}
+            </div>
+            <div className="mt-1 truncate text-[12px] text-[var(--text-secondary)]">
+              {currentViewMeta.subtitle}
+            </div>
+          </div>
+          {authenticated ? (
+            <CreditBalancePill
+              balance={creditBalance?.available_balance ?? creditBalance?.balance ?? null}
+              loading={creditBalanceLoading}
+              onClick={() => setOverlayView('account')}
+            />
+          ) : <div />}
+        </header>
+        <div className="min-h-0 flex-1">
           {primaryView === 'lobster-store' ? (
             <LobsterStoreView
               client={client}
