@@ -1,7 +1,4 @@
-import type { ReactNode } from 'react';
-import { Activity, AlertTriangle, Database, FolderTree, Hash, ShieldCheck, Sparkles } from 'lucide-react';
-
-import { Chip } from '@/app/components/ui/Chip';
+import { Activity, Clock, Database, Hash, Zap } from 'lucide-react';
 import type { MemoryRuntimeStatus } from '@/app/lib/tauri-memory';
 import type { MemoryStatusSummary } from './model';
 
@@ -10,96 +7,76 @@ function resolveEngineLabel(runtimeStatus: MemoryRuntimeStatus | null) {
   return runtimeStatus.backend === 'builtin' ? 'Builtin' : 'LanceDB';
 }
 
+function resolveLatestSyncLabel(latestUpdatedAt: string | null) {
+  return latestUpdatedAt ?? '暂无同步';
+}
+
 export function MemoryStatusBar({
   runtimeStatus,
   runtimeError,
   statusSummary,
   topTags,
+  latestUpdatedAt,
 }: {
   runtimeStatus: MemoryRuntimeStatus | null;
   runtimeError: string | null;
   statusSummary: MemoryStatusSummary;
   topTags: Array<[string, number]>;
+  latestUpdatedAt: string | null;
 }) {
-  return (
-    <section className="border-b border-[var(--lobster-border)] bg-[var(--lobster-card-bg)] px-8 py-3.5">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-wrap items-center gap-x-5 gap-y-3 text-[12px]">
-        <StatusItem
-          icon={<Database className="h-3.5 w-3.5 text-[var(--lobster-text-muted)]" />}
-          label="记忆引擎"
-          value={resolveEngineLabel(runtimeStatus)}
-        />
-        <Divider />
-        <StatusItem
-          icon={<Activity className="h-3.5 w-3.5 text-[var(--lobster-text-muted)]" />}
-          label="最近召回"
-          value={`${statusSummary.totalRecalls} 次`}
-        />
-        <Divider />
-        <StatusItem
-          icon={<Sparkles className="h-3.5 w-3.5 text-[var(--lobster-text-muted)]" />}
-          label="自动捕获"
-          value={`${statusSummary.autoCaptured} 条`}
-        />
-        <Divider />
-        <StatusItem
-          icon={<FolderTree className="h-3.5 w-3.5 text-[var(--lobster-text-muted)]" />}
-          label="已索引"
-          value={`${statusSummary.indexedFiles} 文件 / ${statusSummary.indexedChunks} 块`}
-        />
-        <Divider />
-        <StatusItem
-          icon={<ShieldCheck className="h-3.5 w-3.5 text-[var(--lobster-text-muted)]" />}
-          label="索引状态"
-          value={statusSummary.indexHealth}
-          valueClassName={
-            statusSummary.indexHealth === '健康' ? 'text-[var(--lobster-success-text)]' : 'text-[#a0765c]'
-          }
-        />
+  const indexTone =
+    statusSummary.indexHealth === '健康' ? 'text-[#5A7860]' : runtimeError ? 'text-[#9A5956]' : 'text-[#A0765C]';
 
-        <div className="ml-auto flex items-center gap-2">
-          <Hash className="h-3.5 w-3.5 text-[var(--lobster-text-muted)]" />
-          <span className="text-[var(--lobster-text-secondary)]">高频标签</span>
-          <div className="flex items-center gap-1.5">
-            {topTags.slice(0, 3).map(([tag]) => (
-              <Chip key={tag} tone="accent" className="rounded-full px-2.5 py-1 text-[11px] font-medium">
-                {tag}
-              </Chip>
-            ))}
+  return (
+    <section className="border-b border-[#ECE7DE] bg-[#FCFBF8] px-8 py-3.5">
+      <div className="mx-auto max-w-[1600px]">
+        <div className="flex items-center justify-between text-[12px]">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <Database size={13} strokeWidth={1.5} className="text-[#9A9288]" />
+              <span className="text-[#6B655D]">引擎:</span>
+              <span className="text-[#1A1A18]">{resolveEngineLabel(runtimeStatus)}</span>
+            </div>
+            <div className="h-3.5 w-px bg-[#DED7CC]" />
+            <div className="flex items-center gap-2">
+              <Activity size={13} strokeWidth={1.5} className="text-[#9A9288]" />
+              <span className="text-[#6B655D]">最近召回:</span>
+              <span className="text-[#1A1A18]">{statusSummary.totalRecalls} 次</span>
+            </div>
+            <div className="h-3.5 w-px bg-[#DED7CC]" />
+            <div className="flex items-center gap-2">
+              <Zap size={13} strokeWidth={1.5} className="text-[#9A9288]" />
+              <span className="text-[#6B655D]">自动捕获:</span>
+              <span className="text-[#1A1A18]">{statusSummary.autoCaptured} 条</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <span className="text-[#6B655D]">索引状态:</span>
+              <span className={indexTone}>{runtimeError ? '异常' : statusSummary.indexHealth}</span>
+            </div>
+            <div className="h-3.5 w-px bg-[#DED7CC]" />
+            <div className="flex items-center gap-2">
+              <Hash size={13} strokeWidth={1.5} className="text-[#9A9288]" />
+              <span className="text-[#6B655D]">高频标签:</span>
+              <div className="flex gap-2">
+                {topTags.slice(0, 3).map(([tag]) => (
+                  <span key={tag} className="rounded bg-[#F8F4ED] px-2 py-0.5 text-[11px] text-[#6B655D]">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Clock size={13} strokeWidth={1.5} className="text-[#9A9288]" />
+            <span className="text-[#6B655D]">最后同步:</span>
+            <span className={runtimeError ? 'text-[#9A5956]' : 'text-[#1A1A18]'}>{resolveLatestSyncLabel(latestUpdatedAt)}</span>
           </div>
         </div>
-
-        {runtimeError ? (
-          <div className="flex w-full items-center gap-2 rounded-[14px] border border-[#eadfd4] bg-[#f5efe8] px-3 py-2 text-[#a0765c]">
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">runtime: {runtimeError}</span>
-          </div>
-        ) : null}
       </div>
     </section>
   );
-}
-
-function StatusItem({
-  icon,
-  label,
-  value,
-  valueClassName,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-  valueClassName?: string;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      {icon}
-      <span className="text-[var(--lobster-text-secondary)]">{label}</span>
-      <span className={valueClassName ?? 'text-[var(--lobster-text-primary)]'}>{value}</span>
-    </div>
-  );
-}
-
-function Divider() {
-  return <div className="h-3.5 w-px bg-[var(--lobster-border)]" />;
 }

@@ -1,13 +1,12 @@
 import type { ReactNode } from 'react';
-import { FolderGit2, Tag, X } from 'lucide-react';
+import { Calendar, Tag as TagIcon, Upload, X } from 'lucide-react';
 
-import { Chip } from '@/app/components/ui/Chip';
-import type { MemoryFilters } from './model';
+import type { MemoryArrayFilterKey, MemoryFilters } from './model';
 import {
   DOMAIN_OPTIONS,
   IMPORTANCE_OPTIONS,
-  RECALL_OPTIONS,
   SOURCE_OPTIONS,
+  TIME_RANGE_OPTIONS,
   TYPE_OPTIONS,
 } from './model';
 
@@ -22,14 +21,14 @@ export function MemoryFilterBar({
   filters: MemoryFilters;
   availableTags: string[];
   hasActiveFilters: boolean;
-  onToggleFilter: <K extends keyof MemoryFilters>(key: K, value: MemoryFilters[K][number]) => void;
+  onToggleFilter: <K extends MemoryArrayFilterKey>(key: K, value: MemoryFilters[K][number]) => void;
   onToggleBoolean: (key: 'onlyAutoCaptured' | 'onlyHighImportance') => void;
   onClear: () => void;
 }) {
   return (
-    <section className="border-b border-[var(--lobster-border)] bg-[var(--lobster-card-bg)] px-8 py-4">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-3.5">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+    <section className="border-b border-[#ECE7DE] bg-[#FCFBF8] px-8 py-5">
+      <div className="mx-auto max-w-[1600px]">
+        <div className="mb-4 flex items-center gap-6">
           <FilterGroup label="领域">
             {DOMAIN_OPTIONS.map((domain) => (
               <FilterChip
@@ -71,8 +70,8 @@ export function MemoryFilterBar({
           </FilterGroup>
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-          <FilterGroup label="来源" leadingIcon={<FolderGit2 className="h-3.5 w-3.5 text-[var(--lobster-text-muted)]" />}>
+        <div className="flex items-center gap-6">
+          <FilterGroup label="来源" leadingIcon={<Upload size={13} strokeWidth={1.5} className="text-[#9A9288]" />}>
             {SOURCE_OPTIONS.map((source) => (
               <FilterChip
                 key={source}
@@ -86,7 +85,21 @@ export function MemoryFilterBar({
 
           <Divider />
 
-          <FilterGroup label="标签" leadingIcon={<Tag className="h-3.5 w-3.5 text-[var(--lobster-text-muted)]" />}>
+          <FilterGroup label="时间" leadingIcon={<Calendar size={13} strokeWidth={1.5} className="text-[#9A9288]" />}>
+            {TIME_RANGE_OPTIONS.map((range) => (
+              <FilterChip
+                key={range}
+                active={filters.timeRange.includes(range)}
+                onClick={() => onToggleFilter('timeRange', range)}
+              >
+                {range}
+              </FilterChip>
+            ))}
+          </FilterGroup>
+
+          <Divider />
+
+          <FilterGroup label="标签" leadingIcon={<TagIcon size={13} strokeWidth={1.5} className="text-[#9A9288]" />}>
             {availableTags.slice(0, 6).map((tag) => (
               <FilterChip key={tag} active={filters.tags.includes(tag)} onClick={() => onToggleFilter('tags', tag)}>
                 {tag}
@@ -94,16 +107,7 @@ export function MemoryFilterBar({
             ))}
           </FilterGroup>
 
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            {RECALL_OPTIONS.map((state) => (
-              <FilterChip
-                key={state}
-                active={filters.recalledState.includes(state)}
-                onClick={() => onToggleFilter('recalledState', state)}
-              >
-                {state}
-              </FilterChip>
-            ))}
+          <div className="ml-auto flex items-center gap-2.5">
             <FilterChip active={filters.onlyAutoCaptured} onClick={() => onToggleBoolean('onlyAutoCaptured')}>
               仅自动捕获
             </FilterChip>
@@ -114,9 +118,9 @@ export function MemoryFilterBar({
               <button
                 type="button"
                 onClick={onClear}
-                className="inline-flex cursor-pointer items-center gap-1.5 rounded-full px-2 py-1 text-[12px] text-[var(--lobster-text-secondary)] transition-colors hover:text-[var(--lobster-text-primary)]"
+                className="inline-flex cursor-pointer items-center gap-1.5 px-3 py-1.5 text-[12px] text-[#6B655D] transition-all duration-200 hover:text-[#1A1A18]"
               >
-                <X className="h-3.5 w-3.5" />
+                <X size={13} strokeWidth={1.5} />
                 清除
               </button>
             ) : null}
@@ -137,12 +141,10 @@ function FilterGroup({
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2.5">
-      <div className="flex min-w-[56px] items-center gap-1.5 text-[12px] text-[var(--lobster-text-muted)]">
-        {leadingIcon}
-        <span>{label}</span>
-      </div>
-      <div className="flex flex-wrap gap-2">{children}</div>
+    <div className="flex items-center gap-2.5">
+      {leadingIcon ? leadingIcon : null}
+      <div className="min-w-[56px] text-[12px] text-[#9A9288]">{label}</div>
+      <div className="flex gap-2">{children}</div>
     </div>
   );
 }
@@ -157,22 +159,20 @@ function FilterChip({
   children: ReactNode;
 }) {
   return (
-    <Chip
-      clickable
-      active={active}
-      tone="outline"
+    <button
+      type="button"
       onClick={onClick}
-      className={
+      className={`cursor-pointer rounded-md px-3 py-1.5 text-[12px] transition-all duration-200 ${
         active
-          ? 'rounded-[10px] border-[var(--lobster-gold-border-strong)] bg-[var(--lobster-gold-soft)] px-3 py-1.5 text-[12px] text-[var(--lobster-text-primary)]'
-          : 'rounded-[10px] border-[var(--lobster-border)] bg-[var(--lobster-card-elevated)] px-3 py-1.5 text-[12px] text-[var(--lobster-text-secondary)] hover:border-[var(--lobster-border-strong)] hover:bg-[var(--lobster-card-bg)]'
-      }
+          ? 'border border-[#A88C5D] bg-[#F8F4ED] text-[#1A1A18]'
+          : 'border border-[#DED7CC] bg-white text-[#6B655D] hover:border-[#A88C5D] hover:bg-[#FCFBF8]'
+      }`}
     >
       {children}
-    </Chip>
+    </button>
   );
 }
 
 function Divider() {
-  return <div className="hidden h-5 w-px bg-[var(--lobster-border)] xl:block" />;
+  return <div className="h-5 w-px bg-[#DED7CC]" />;
 }

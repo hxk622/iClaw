@@ -21,9 +21,12 @@ import {
   deriveRelatedEntries,
   EMPTY_FILTERS,
   formatRecallState,
+  matchesTimeRange,
   normalizeImportedEntry,
+  parseMemoryDate,
   toggleValue,
   todayStamp,
+  type MemoryArrayFilterKey,
   type MemoryEditDraft,
   type MemoryEntry,
   type MemoryFilters,
@@ -98,9 +101,10 @@ export function MemoryView() {
 
       if (filters.domains.length > 0 && !filters.domains.includes(entry.domain)) return false;
       if (filters.types.length > 0 && !filters.types.includes(entry.type)) return false;
-      if (filters.tags.length > 0 && !filters.tags.every((tag) => entry.tags.includes(tag))) return false;
+      if (filters.tags.length > 0 && !filters.tags.some((tag) => entry.tags.includes(tag))) return false;
       if (filters.importance.length > 0 && !filters.importance.includes(entry.importance)) return false;
       if (filters.sourceTypes.length > 0 && !filters.sourceTypes.includes(entry.sourceType)) return false;
+      if (!matchesTimeRange(entry.updatedAt, filters.timeRange)) return false;
       if (filters.recalledState.length > 0 && !filters.recalledState.includes(formatRecallState(entry))) {
         return false;
       }
@@ -137,6 +141,7 @@ export function MemoryView() {
     filters.tags.length > 0 ||
     filters.importance.length > 0 ||
     filters.sourceTypes.length > 0 ||
+    filters.timeRange.length > 0 ||
     filters.recalledState.length > 0 ||
     filters.onlyAutoCaptured ||
     filters.onlyHighImportance;
@@ -172,7 +177,16 @@ export function MemoryView() {
     return [...counts.entries()].sort((left, right) => right[1] - left[1]).slice(0, 5);
   }, [activeEntries]);
 
-  const handleToggleFilter = <K extends keyof MemoryFilters>(key: K, value: MemoryFilters[K][number]) => {
+  const latestUpdatedAt = useMemo(() => {
+    const timestamps = activeEntries
+      .map((entry) => ({ label: entry.updatedAt, value: parseMemoryDate(entry.updatedAt) }))
+      .filter((item): item is { label: string; value: number } => item.value !== null)
+      .sort((left, right) => right.value - left.value);
+
+    return timestamps[0]?.label ?? null;
+  }, [activeEntries]);
+
+  const handleToggleFilter = <K extends MemoryArrayFilterKey>(key: K, value: MemoryFilters[K][number]) => {
     setFilters((current) => ({
       ...current,
       [key]: toggleValue(current[key] as Array<MemoryFilters[K][number]>, value),
@@ -449,8 +463,6 @@ export function MemoryView() {
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <MemoryHeader
-          searchQuery={searchQuery}
-          onSearchQueryChange={setSearchQuery}
           onRefreshIndex={handleRefreshIndex}
           onExport={handleExport}
           onImport={handleImportClick}
@@ -463,6 +475,7 @@ export function MemoryView() {
           runtimeError={runtimeError}
           statusSummary={statusSummary}
           topTags={topTags}
+          latestUpdatedAt={latestUpdatedAt}
         />
         <MemoryFilterBar
           filters={filters}
