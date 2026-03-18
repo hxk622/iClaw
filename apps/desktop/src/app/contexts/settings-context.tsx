@@ -21,6 +21,7 @@ export type IdentityConfig = {
 
 export type GeneralConfig = {
   themeMode: ThemeMode;
+  updateStrategy: 'notify' | 'force';
 };
 
 export type UserProfileConfig = {
@@ -85,6 +86,7 @@ const hasDirtySections = (dirtySections: Record<PersistableSettingsSection, bool
 const defaultSettings: SettingsState = {
   general: {
     themeMode: 'system',
+    updateStrategy: 'notify',
   },
   identity: {
     markdownContent: '',
@@ -98,8 +100,8 @@ const defaultSettings: SettingsState = {
   safetyDefaults: {
     systemRunMode: 'ask',
     dangerousActionConfirmation: true,
-    networkAccessPolicy: '询问',
-    fileAccessScope: '受限',
+    networkAccessPolicy: '适中',
+    fileAccessScope: '仅工作区',
     toolFallbackPolicy: '优雅降级',
   },
   configStatuses: {
@@ -124,7 +126,7 @@ function readPersistedSettings(): PersistedSettings {
   const storedTheme = readStoredThemeMode();
   if (!saved) {
     return {
-      general: { themeMode: storedTheme },
+      general: { themeMode: storedTheme, updateStrategy: defaultSettings.general.updateStrategy },
       safetyDefaults: defaultSettings.safetyDefaults,
       configStatuses: defaultSettings.configStatuses,
     };
@@ -152,7 +154,7 @@ function readPersistedSettings(): PersistedSettings {
     };
   } catch {
     return {
-      general: { themeMode: storedTheme },
+      general: { themeMode: storedTheme, updateStrategy: defaultSettings.general.updateStrategy },
       safetyDefaults: defaultSettings.safetyDefaults,
       configStatuses: defaultSettings.configStatuses,
     };

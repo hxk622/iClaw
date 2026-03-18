@@ -1,21 +1,14 @@
-import { type ComponentType, useEffect, useMemo, useState } from 'react';
-import {
-  Shield,
-  Sparkles,
-  User,
-  UserCircle,
-  ChevronLeft,
-  X,
-  Settings2,
-} from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { X } from 'lucide-react';
 import { type PersistableSettingsSection, useSettings } from '@/app/contexts/settings-context';
-import { BRAND } from '@/app/lib/brand';
 import { SettingsGeneral } from '@/app/components/settings/SettingsGeneral';
 import { Identity } from '@/app/components/settings/Identity';
 import { UserProfile } from '@/app/components/settings/UserProfile';
 import { SoulPersona } from '@/app/components/settings/SoulPersona';
 import { SafetyDefaults } from '@/app/components/settings/SafetyDefaults';
-import { Button } from '@/app/components/ui/Button';
+import { SettingsBottomBar } from '@/app/components/settings/ui/SettingsBottomBar';
+import { SettingsSidebar } from '@/app/components/settings/ui/SettingsSidebar';
+import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 import { cn } from '@/app/lib/cn';
 
 interface SettingsPanelProps {
@@ -30,14 +23,6 @@ interface SettingsPanelProps {
   onCheckForDesktopUpdates: () => void;
   onRestartDesktopApp: () => void;
 }
-
-const navItems: Array<{ key: PersistableSettingsSection; label: string; icon: ComponentType<{ className?: string }> }> = [
-  { key: 'general', label: '通用', icon: Settings2 },
-  { key: 'identity', label: '身份设置Identity.md', icon: UserCircle },
-  { key: 'user-profile', label: '用户画像User.md', icon: User },
-  { key: 'soul-persona', label: '人格配置Soul.md', icon: Sparkles },
-  { key: 'safety-defaults', label: '安全策略', icon: Shield },
-];
 
 export function SettingsPanel({
   onClose,
@@ -56,8 +41,6 @@ export function SettingsPanel({
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const hasUnsavedChanges = hasUnsavedChangesForSection(activeSection);
-  const isSaving = saveState === 'saving';
-  const canSave = hasUnsavedChanges && !isSaving;
 
   const content = useMemo(() => {
     switch (activeSection) {
@@ -83,18 +66,7 @@ export function SettingsPanel({
       case 'safety-defaults':
         return <SafetyDefaults />;
       default:
-        return (
-          <SettingsGeneral
-            currentVersion={desktopUpdateCurrentVersion}
-            latestVersion={desktopUpdateLatestVersion}
-            mandatory={desktopUpdateMandatory}
-            checkingForUpdates={desktopUpdateChecking}
-            readyToRestart={desktopUpdateReadyToRestart}
-            statusMessage={desktopUpdateStatusMessage}
-            onCheckForUpdates={onCheckForDesktopUpdates}
-            onRestartToApply={onRestartDesktopApp}
-          />
-        );
+        return null;
     }
   }, [
     activeSection,
@@ -137,109 +109,39 @@ export function SettingsPanel({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-[rgba(28,24,16,0.24)] px-5 py-5 backdrop-blur-[2px]"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-8 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="flex h-full max-h-[920px] w-full max-w-7xl overflow-hidden rounded-[32px] border border-[var(--border-default)] bg-[var(--bg-page)] shadow-[0_28px_90px_rgba(42,31,10,0.18)]"
+        className="relative flex h-[960px] max-h-[90vh] w-full max-w-[1440px] flex-col overflow-hidden rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-card)] shadow-[0_20px_60px_rgba(0,0,0,0.3),0_0_1px_rgba(0,0,0,0.1)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <aside className="flex w-56 flex-col border-r border-[var(--border-default)] bg-[var(--bg-card)]">
-          <div className="border-b border-[var(--border-default)] p-4">
-            <h1 className="text-lg text-[var(--text-primary)]">{BRAND.displayName} 设置</h1>
-          </div>
+        <button
+          type="button"
+          aria-label="关闭设置"
+          onClick={onClose}
+          className={cn(
+            'absolute right-6 top-6 z-50 flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-card)_80%,transparent)] text-[var(--text-secondary)] cursor-pointer',
+            SPRING_PRESSABLE,
+            INTERACTIVE_FOCUS_RING,
+          )}
+        >
+          <X className="h-4 w-4" />
+        </button>
 
-          <nav className="flex-1 space-y-1 overflow-y-auto p-2">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const active = item.key === activeSection;
-              return (
-                <Button
-                  key={item.key}
-                  onClick={() => setActiveSection(item.key)}
-                  variant={active ? 'primary' : 'ghost'}
-                  size="sm"
-                  block
-                  className={cn(
-                    'justify-start rounded-lg px-3 py-2 text-sm',
-                    active ? 'hover:translate-y-0 active:scale-[0.99]' : 'text-[var(--text-primary)] hover:translate-x-[2px]',
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </Button>
-              );
-            })}
-          </nav>
-        </aside>
+        <div className="flex min-h-0 flex-1">
+          <SettingsSidebar activeSection={activeSection} onSelect={setActiveSection} />
 
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <div className="flex items-center justify-between border-b border-[var(--border-default)] px-6 py-3">
-            <Button
-              onClick={onClose}
-              variant="ghost"
-              size="sm"
-              className="rounded-md px-2 py-1 text-sm text-[var(--text-secondary)]"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              返回
-            </Button>
-            <Button
-              onClick={onClose}
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 rounded-md p-0 text-[var(--text-secondary)]"
-            >
-              <X className="h-5 w-5" />
-            </Button>
-          </div>
-
-          <main className="flex-1 overflow-y-auto">{content}</main>
-
-          <div className="border-t border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-[var(--text-secondary)]">
-                {saveState === 'saved'
-                  ? '当前页面已保存'
-                  : saveState === 'error'
-                    ? '保存失败，请重试'
-                    : hasUnsavedChanges
-                      ? '当前页面有未保存更改'
-                      : '当前页面无未保存更改'}
-              </div>
-              <div className="flex items-center gap-3">
-                <Button
-                  onClick={handleReset}
-                  disabled={!hasUnsavedChanges || isSaving}
-                  variant="secondary"
-                  size="sm"
-                  className="rounded-lg text-sm text-[var(--text-secondary)]"
-                >
-                  重置
-                </Button>
-                <Button
-                  onClick={handleSave}
-                  disabled={!canSave}
-                  variant="primary"
-                  size="sm"
-                  className="rounded-lg text-sm"
-                >
-                  {isSaving ? '保存中...' : saveState === 'saved' ? '已保存' : '保存'}
-                </Button>
-              </div>
-            </div>
-            {saveMessage && (
-              <p
-                className={`mt-2 text-xs ${
-                  saveState === 'error' ? 'text-[var(--state-error)]' : 'text-[var(--text-secondary)]'
-                }`}
-              >
-                {saveMessage}
-              </p>
-            )}
+          <div className="flex min-w-0 flex-1 flex-col">
+            <div className="flex-1 overflow-y-auto px-12 py-8">{content}</div>
           </div>
         </div>
+
+        <SettingsBottomBar
+          hasUnsavedChanges={hasUnsavedChanges}
+          saveState={saveState}
+          saveMessage={saveMessage}
+          onReset={handleReset}
+          onSave={handleSave}
+        />
       </div>
     </div>
   );
