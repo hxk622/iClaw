@@ -22,6 +22,7 @@ import {
   getStatusBadgeClass,
   getTypeBadgeClass,
 } from './model';
+import { Button } from '@/app/components/ui/Button';
 
 export function MemoryDetailDrawer({
   open,
@@ -190,12 +191,14 @@ export function MemoryDetailDrawer({
                       placeholder="新增标签"
                       className="flex-1 rounded-lg border border-[#DED7CC] bg-white px-3 py-2 text-[13px] text-[#1A1A18] outline-none"
                     />
-                    <button
+                    <Button
                       onClick={onAddTag}
-                      className="cursor-pointer rounded-lg border border-[#DED7CC] bg-white px-4 py-2 text-[13px] text-[#1A1A18] transition-all duration-200 hover:border-[#A88C5D] hover:bg-[#FCFBF8]"
+                      variant="secondary"
+                      size="sm"
+                      className="rounded-lg px-4 py-2 text-[13px]"
                     >
                       添加
-                    </button>
+                    </Button>
                   </div>
                 ) : null}
               </DrawerBlock>
@@ -311,75 +314,85 @@ export function MemoryDetailDrawer({
             <div className="space-y-2.5 border-t border-[#ECE7DE] bg-white px-6 py-5">
               {editing ? (
                 <div className="flex gap-2.5">
-                  <button
+                  <Button
                     onClick={onSaveEdit}
                     disabled={busy}
-                    className="flex-1 cursor-pointer rounded-lg bg-[#1A1A18] px-4 py-2.5 text-[13px] text-white shadow-sm transition-all duration-200 hover:bg-[#2D2D2B] disabled:cursor-not-allowed disabled:opacity-60"
+                    variant="primary"
+                    className="flex-1 rounded-lg px-4 py-2.5 text-[13px]"
                   >
                     保存
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={onCancelEdit}
                     disabled={busy}
-                    className="flex-1 cursor-pointer rounded-lg border border-[#DED7CC] bg-white px-4 py-2.5 text-[13px] text-[#1A1A18] transition-all duration-200 hover:border-[#A88C5D] hover:bg-[#FCFBF8] disabled:cursor-not-allowed disabled:opacity-60"
+                    variant="secondary"
+                    className="flex-1 rounded-lg px-4 py-2.5 text-[13px]"
                   >
                     取消
-                  </button>
+                  </Button>
                 </div>
               ) : (
                 <>
                   {entry.status !== '已确认' ? (
-                    <button
+                    <Button
                       onClick={onMarkConfirmed}
                       disabled={busy}
-                      className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#5A7860] px-4 py-2.5 text-[13px] text-white transition-all duration-200 hover:bg-[#4A6850] disabled:cursor-not-allowed disabled:opacity-60"
+                      variant="success"
+                      block
+                      className="rounded-lg px-4 py-2.5 text-[13px]"
+                      leadingIcon={<CheckCircle2 size={15} strokeWidth={1.5} />}
                     >
-                      <CheckCircle2 size={15} strokeWidth={1.5} />
-                      <span>标记为已确认</span>
-                    </button>
+                      标记为已确认
+                    </Button>
                   ) : null}
-                  <button
+                  <Button
                     onClick={onStartEdit}
                     disabled={busy}
-                    className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#1A1A18] px-4 py-2.5 text-[13px] text-white shadow-sm transition-all duration-200 hover:bg-[#2D2D2B] disabled:cursor-not-allowed disabled:opacity-60"
+                    variant="primary"
+                    block
+                    className="rounded-lg px-4 py-2.5 text-[13px]"
+                    leadingIcon={<PencilLine size={15} strokeWidth={1.5} />}
                   >
-                    <PencilLine size={15} strokeWidth={1.5} />
-                    <span>编辑</span>
-                  </button>
+                    编辑
+                  </Button>
                   <div className="flex gap-2.5">
-                    <button
+                    <Button
                       onClick={onStartEdit}
                       disabled={busy}
-                      className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#DED7CC] bg-white px-3 py-2.5 text-[13px] text-[#1A1A18] transition-all duration-200 hover:border-[#A88C5D] hover:bg-[#FCFBF8] disabled:cursor-not-allowed disabled:opacity-60"
+                      variant="secondary"
+                      className="flex-1 rounded-lg px-3 py-2.5 text-[13px]"
+                      leadingIcon={<Tag size={14} strokeWidth={1.5} />}
                     >
-                      <Tag size={14} strokeWidth={1.5} />
-                      <span>重打标签</span>
-                    </button>
-                    <button
+                      重打标签
+                    </Button>
+                    <Button
                       onClick={onMerge}
                       disabled={busy || relatedEntries.length === 0}
-                      className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#DED7CC] bg-white px-3 py-2.5 text-[13px] text-[#1A1A18] transition-all duration-200 hover:border-[#A88C5D] hover:bg-[#FCFBF8] disabled:cursor-not-allowed disabled:opacity-60"
+                      variant="secondary"
+                      className="flex-1 rounded-lg px-3 py-2.5 text-[13px]"
+                      leadingIcon={<GitMerge size={14} strokeWidth={1.5} />}
                     >
-                      <GitMerge size={14} strokeWidth={1.5} />
                       合并
-                    </button>
+                    </Button>
                   </div>
                   <div className="flex gap-2.5">
-                    <button
+                    <Button
                       onClick={onForget}
                       disabled={busy}
-                      className="flex-1 cursor-pointer rounded-lg border border-[#DED7CC] bg-white px-3 py-2.5 text-[13px] text-[#A0765C] transition-all duration-200 hover:bg-[#F5EFE8] disabled:cursor-not-allowed disabled:opacity-60"
+                      variant="secondary"
+                      className="flex-1 rounded-lg px-3 py-2.5 text-[13px] text-[#A0765C] hover:text-[#8a6450]"
                     >
                       归档
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       onClick={onDelete}
                       disabled={busy}
-                      className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#9A5956] bg-white px-3 py-2.5 text-[13px] text-[#9A5956] transition-all duration-200 hover:bg-[#F5EAEA] disabled:cursor-not-allowed disabled:opacity-60"
+                      variant="danger"
+                      className="flex-1 rounded-lg px-3 py-2.5 text-[13px]"
+                      leadingIcon={<Trash2 size={14} strokeWidth={1.5} />}
                     >
-                      <Trash2 size={14} strokeWidth={1.5} />
                       删除
-                    </button>
+                    </Button>
                   </div>
                 </>
               )}

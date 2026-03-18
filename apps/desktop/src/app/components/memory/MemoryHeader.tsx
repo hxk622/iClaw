@@ -1,4 +1,5 @@
 import { Download, FileUp, Plus, RefreshCw } from 'lucide-react';
+import { Button } from '@/app/components/ui/Button';
 
 export function MemoryHeader({
   onRefreshIndex,
@@ -27,38 +28,46 @@ export function MemoryHeader({
           </div>
 
           <div className="flex items-center gap-2.5">
-            <button
+            <Button
               onClick={onRefreshIndex}
               disabled={mutating}
-              className="flex cursor-pointer items-center gap-2 rounded-lg border border-[#DED7CC] bg-white px-4 py-2 text-[13px] text-[#1A1A18] transition-all duration-200 hover:border-[#A88C5D] hover:bg-[#FCFBF8] disabled:cursor-not-allowed disabled:opacity-60"
+              variant="secondary"
+              size="sm"
+              className="rounded-lg px-4 py-2 text-[13px]"
+              leadingIcon={<RefreshCw size={14} strokeWidth={1.5} />}
             >
-              <RefreshCw size={14} strokeWidth={1.5} />
-              <span>刷新索引</span>
-            </button>
-            <button
+              刷新索引
+            </Button>
+            <Button
               onClick={onExport}
               disabled={loading || mutating}
-              className="flex cursor-pointer items-center gap-2 rounded-lg border border-[#DED7CC] bg-white px-4 py-2 text-[13px] text-[#1A1A18] transition-all duration-200 hover:border-[#A88C5D] hover:bg-[#FCFBF8] disabled:cursor-not-allowed disabled:opacity-60"
+              variant="secondary"
+              size="sm"
+              className="rounded-lg px-4 py-2 text-[13px]"
+              leadingIcon={<Download size={14} strokeWidth={1.5} />}
             >
-              <Download size={14} strokeWidth={1.5} />
-              <span>导出</span>
-            </button>
-            <button
+              导出
+            </Button>
+            <Button
               onClick={onImport}
               disabled={mutating}
-              className="flex cursor-pointer items-center gap-2 rounded-lg border border-[#DED7CC] bg-white px-4 py-2 text-[13px] text-[#1A1A18] transition-all duration-200 hover:border-[#A88C5D] hover:bg-[#FCFBF8] disabled:cursor-not-allowed disabled:opacity-60"
+              variant="secondary"
+              size="sm"
+              className="rounded-lg px-4 py-2 text-[13px]"
+              leadingIcon={<FileUp size={14} strokeWidth={1.5} />}
             >
-              <FileUp size={14} strokeWidth={1.5} />
-              <span>导入</span>
-            </button>
-            <button
+              导入
+            </Button>
+            <Button
               onClick={onCreate}
               disabled={mutating}
-              className="flex cursor-pointer items-center gap-2 rounded-lg bg-[#1A1A18] px-4 py-2 text-[13px] text-white shadow-sm transition-all duration-200 hover:bg-[#2D2D2B] disabled:cursor-not-allowed disabled:opacity-60"
+              variant="primary"
+              size="sm"
+              className="rounded-lg px-4 py-2 text-[13px]"
+              leadingIcon={<Plus size={14} strokeWidth={1.5} />}
             >
-              <Plus size={14} strokeWidth={1.5} />
-              <span>新建记忆</span>
-            </button>
+              新建记忆
+            </Button>
           </div>
         </div>
       </div>

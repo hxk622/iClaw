@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Calendar, Tag as TagIcon, Upload, X } from 'lucide-react';
+import { FilterPill } from '@/app/components/ui/FilterPill';
 
 import type { MemoryArrayFilterKey, MemoryFilters } from './model';
 import {
@@ -115,14 +116,13 @@ export function MemoryFilterBar({
               仅高重要性
             </FilterChip>
             {hasActiveFilters ? (
-              <button
-                type="button"
+              <FilterPill
                 onClick={onClear}
-                className="inline-flex cursor-pointer items-center gap-1.5 px-3 py-1.5 text-[12px] text-[#6B655D] transition-all duration-200 hover:text-[#1A1A18]"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px]"
               >
                 <X size={13} strokeWidth={1.5} />
                 清除
-              </button>
+              </FilterPill>
             ) : null}
           </div>
         </div>
@@ -159,17 +159,9 @@ function FilterChip({
   children: ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`cursor-pointer rounded-md px-3 py-1.5 text-[12px] transition-all duration-200 ${
-        active
-          ? 'border border-[#A88C5D] bg-[#F8F4ED] text-[#1A1A18]'
-          : 'border border-[#DED7CC] bg-white text-[#6B655D] hover:border-[#A88C5D] hover:bg-[#FCFBF8]'
-      }`}
-    >
+    <FilterPill active={active} onClick={onClick} className="px-3 py-1.5 text-[12px]">
       {children}
-    </button>
+    </FilterPill>
   );
 }
 

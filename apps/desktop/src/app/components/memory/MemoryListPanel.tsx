@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { AlertCircle, Archive, CheckCircle2, Clock, SearchX, Sparkles, Star } from 'lucide-react';
 import { cn } from '@/app/lib/cn';
+import { Button } from '@/app/components/ui/Button';
 import type { MemoryEntry } from './model';
 import { getDomainBadgeClass, getTypeBadgeClass } from './model';
 
@@ -60,13 +61,14 @@ export function MemoryListPanel({
             runtimeError={runtimeError}
             action={
               hasActiveFilters ? (
-                <button
-                  type="button"
+                <Button
                   onClick={onClearFilters}
-                  className="cursor-pointer rounded-lg bg-[#1A1A18] px-4 py-2.5 text-[13px] text-white shadow-sm transition-all duration-200 hover:bg-[#2D2D2B]"
+                  variant="primary"
+                  size="sm"
+                  className="rounded-lg px-4 py-2.5 text-[13px]"
                 >
                   清除所有筛选
-                </button>
+                </Button>
               ) : null
             }
           />
