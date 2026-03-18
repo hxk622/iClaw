@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react';
 import { cn } from '@/app/lib/cn';
 import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 
-type ChipTone = 'muted' | 'outline' | 'brand' | 'success' | 'warning' | 'danger';
+type ChipTone = 'muted' | 'outline' | 'brand' | 'accent' | 'success' | 'warning' | 'danger';
 
 const CHIP_TONE_CLASSES: Record<ChipTone, string> = {
   muted:
@@ -11,6 +11,8 @@ const CHIP_TONE_CLASSES: Record<ChipTone, string> = {
     'border border-[var(--border-default)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:text-[var(--text-secondary)]',
   brand:
     'border border-[rgba(59,130,246,0.14)] bg-[rgba(59,130,246,0.10)] text-[#2563eb] dark:border-[rgba(201,169,97,0.20)] dark:bg-[rgba(201,169,97,0.16)] dark:text-[#f2d9a4]',
+  accent:
+    'border border-[var(--lobster-gold-border)] bg-[var(--lobster-gold-soft)] text-[var(--lobster-gold-strong)] dark:border-[var(--lobster-gold-border)] dark:bg-[var(--lobster-gold-soft)] dark:text-[var(--lobster-gold-strong)]',
   success:
     'border border-[rgba(34,197,94,0.16)] bg-[rgba(34,197,94,0.10)] text-[rgb(21,128,61)] dark:border-[rgba(111,221,149,0.20)] dark:bg-[rgba(34,197,94,0.18)] dark:text-[#c7f9d7]',
   warning:
