@@ -54,6 +54,59 @@ struct RuntimeConfig {
     clawhub_url: Option<String>,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct DesktopMemoryEntry {
+    id: String,
+    title: String,
+    summary: String,
+    content: String,
+    domain: String,
+    r#type: String,
+    importance: String,
+    source_type: String,
+    source_label: String,
+    tags: Vec<String>,
+    created_at: String,
+    updated_at: String,
+    last_recalled_at: Option<String>,
+    recall_count: u64,
+    capture_confidence: f64,
+    index_health: String,
+    status: String,
+    active: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopMemoryRuntimeStatus {
+    backend: Option<String>,
+    files: u64,
+    chunks: u64,
+    dirty: bool,
+    workspace_dir: Option<String>,
+    memory_dir: String,
+    db_path: Option<String>,
+    provider: Option<String>,
+    model: Option<String>,
+    source_counts: Vec<serde_json::Value>,
+    scan_total_files: Option<u64>,
+    scan_issues: Vec<String>,
+    fts_available: Option<bool>,
+    fts_error: Option<String>,
+    vector_available: Option<bool>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopMemorySnapshot {
+    entries: Vec<DesktopMemoryEntry>,
+    runtime_status: Option<DesktopMemoryRuntimeStatus>,
+    runtime_error: Option<String>,
+    memory_dir: String,
+    archive_dir: String,
+}
+
 #[derive(Serialize)]
 struct IclawWorkspaceFiles {
     workspace_dir: String,
@@ -2682,6 +2735,399 @@ fn write_text(path: &Path, content: &str) -> Result<(), String> {
     fs::write(path, content).map_err(|e| format!("failed to write {}: {e}", path.to_string_lossy()))
 }
 
+fn current_memory_timestamp() -> String {
+    let seconds = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|value| value.as_secs())
+        .unwrap_or(0);
+    format!("{seconds}")
+}
+
+fn desktop_memory_dir(app: &AppHandle) -> PathBuf {
+    openclaw_workspace_dir(app).join("memory")
+}
+
+fn desktop_memory_archive_dir(app: &AppHandle) -> PathBuf {
+    openclaw_workspace_dir(app).join(".iclaw-memory-archive")
+}
+
+fn ensure_desktop_memory_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = desktop_memory_dir(app);
+    fs::create_dir_all(&dir).map_err(|e| format!("failed to create memory dir: {e}"))?;
+    Ok(dir)
+}
+
+fn ensure_desktop_memory_archive_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = desktop_memory_archive_dir(app);
+    fs::create_dir_all(&dir).map_err(|e| format!("failed to create memory archive dir: {e}"))?;
+    Ok(dir)
+}
+
+fn memory_entry_path(app: &AppHandle, id: &str) -> PathBuf {
+    desktop_memory_dir(app).join(format!("{id}.md"))
+}
+
+fn memory_archive_path(app: &AppHandle, id: &str) -> PathBuf {
+    desktop_memory_archive_dir(app).join(format!("{id}.md"))
+}
+
+fn sanitize_memory_scalar(value: &str) -> String {
+    value
+        .replace('\n', " ")
+        .replace('\r', " ")
+        .trim()
+        .to_string()
+}
+
+fn serialize_memory_entry_markdown(entry: &DesktopMemoryEntry) -> String {
+    let tags = entry.tags.join(", ");
+    let last_recalled_at = entry.last_recalled_at.clone().unwrap_or_default();
+    format!(
+        "---\nid: {}\ntitle: {}\ndomain: {}\ntype: {}\nimportance: {}\nsourceType: {}\nsourceLabel: {}\ntags: {}\nstatus: {}\ncreatedAt: {}\nupdatedAt: {}\nlastRecalledAt: {}\nrecallCount: {}\ncaptureConfidence: {}\nindexHealth: {}\nactive: {}\n---\n{}\n",
+        sanitize_memory_scalar(&entry.id),
+        sanitize_memory_scalar(&entry.title),
+        sanitize_memory_scalar(&entry.domain),
+        sanitize_memory_scalar(&entry.r#type),
+        sanitize_memory_scalar(&entry.importance),
+        sanitize_memory_scalar(&entry.source_type),
+        sanitize_memory_scalar(&entry.source_label),
+        sanitize_memory_scalar(&tags),
+        sanitize_memory_scalar(&entry.status),
+        sanitize_memory_scalar(&entry.created_at),
+        sanitize_memory_scalar(&entry.updated_at),
+        sanitize_memory_scalar(&last_recalled_at),
+        entry.recall_count,
+        entry.capture_confidence,
+        sanitize_memory_scalar(&entry.index_health),
+        if entry.active { "true" } else { "false" },
+        entry.content.trim()
+    )
+}
+
+fn parse_memory_meta_map(raw: &str) -> std::collections::BTreeMap<String, String> {
+    let mut map = std::collections::BTreeMap::new();
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if let Some((key, value)) = trimmed.split_once(':') {
+            map.insert(key.trim().to_string(), value.trim().to_string());
+        }
+    }
+    map
+}
+
+fn derive_memory_title(path: &Path, content: &str) -> String {
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if let Some(value) = trimmed.strip_prefix("# ") {
+            return value.trim().to_string();
+        }
+        return trimmed.to_string();
+    }
+    path.file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("未命名记忆")
+        .to_string()
+}
+
+fn derive_memory_summary(content: &str, fallback: &str) -> String {
+    let normalized = content.split_whitespace().collect::<Vec<_>>().join(" ");
+    if normalized.is_empty() {
+        fallback.to_string()
+    } else {
+        normalized.chars().take(58).collect()
+    }
+}
+
+fn parse_memory_entry_from_file(path: &Path) -> Result<DesktopMemoryEntry, String> {
+    let raw = fs::read_to_string(path)
+        .map_err(|e| format!("failed to read memory file {}: {e}", path.to_string_lossy()))?;
+
+    let (meta, content) = if raw.starts_with("---\n") {
+        if let Some(end) = raw[4..].find("\n---\n") {
+            let meta_raw = &raw[4..4 + end];
+            let content_raw = &raw[4 + end + 5..];
+            (parse_memory_meta_map(meta_raw), content_raw.trim().to_string())
+        } else {
+            (std::collections::BTreeMap::new(), raw.trim().to_string())
+        }
+    } else {
+        (std::collections::BTreeMap::new(), raw.trim().to_string())
+    };
+
+    let metadata = fs::metadata(path)
+        .map_err(|e| format!("failed to stat memory file {}: {e}", path.to_string_lossy()))?;
+    let modified_secs = metadata
+        .modified()
+        .ok()
+        .and_then(|value| value.duration_since(UNIX_EPOCH).ok())
+        .map(|value| value.as_secs().to_string())
+        .unwrap_or_else(current_memory_timestamp);
+
+    let title = meta
+        .get("title")
+        .cloned()
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| derive_memory_title(path, &content));
+    let summary = derive_memory_summary(&content, &title);
+    let id = meta
+        .get("id")
+        .cloned()
+        .filter(|value| !value.is_empty())
+        .or_else(|| path.file_stem().and_then(|value| value.to_str()).map(String::from))
+        .unwrap_or_else(|| format!("memory-{}", current_memory_timestamp()));
+
+    let tags = meta
+        .get("tags")
+        .map(|value| {
+            value
+                .split(',')
+                .map(|item| item.trim())
+                .filter(|item| !item.is_empty())
+                .map(String::from)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    let parse_u64 = |key: &str| -> u64 {
+        meta.get(key)
+            .and_then(|value| value.parse::<u64>().ok())
+            .unwrap_or(0)
+    };
+    let parse_f64 = |key: &str, fallback: f64| -> f64 {
+        meta.get(key)
+            .and_then(|value| value.parse::<f64>().ok())
+            .unwrap_or(fallback)
+    };
+    let parse_bool = |key: &str, fallback: bool| -> bool {
+        meta.get(key)
+            .map(|value| matches!(value.as_str(), "true" | "1" | "yes"))
+            .unwrap_or(fallback)
+    };
+
+    Ok(DesktopMemoryEntry {
+        id,
+        title,
+        summary,
+        content,
+        domain: meta.get("domain").cloned().unwrap_or_else(|| String::from("其他")),
+        r#type: meta.get("type").cloned().unwrap_or_else(|| String::from("事实")),
+        importance: meta.get("importance").cloned().unwrap_or_else(|| String::from("中")),
+        source_type: meta
+            .get("sourceType")
+            .cloned()
+            .unwrap_or_else(|| String::from("手动创建")),
+        source_label: meta
+            .get("sourceLabel")
+            .cloned()
+            .unwrap_or_else(|| path.to_string_lossy().to_string()),
+        tags,
+        created_at: meta
+            .get("createdAt")
+            .cloned()
+            .unwrap_or_else(|| modified_secs.clone()),
+        updated_at: meta
+            .get("updatedAt")
+            .cloned()
+            .unwrap_or_else(|| modified_secs.clone()),
+        last_recalled_at: meta
+            .get("lastRecalledAt")
+            .cloned()
+            .filter(|value| !value.is_empty()),
+        recall_count: parse_u64("recallCount"),
+        capture_confidence: parse_f64("captureConfidence", 1.0),
+        index_health: meta
+            .get("indexHealth")
+            .cloned()
+            .unwrap_or_else(|| String::from("待刷新")),
+        status: meta
+            .get("status")
+            .cloned()
+            .unwrap_or_else(|| String::from("已确认")),
+        active: parse_bool("active", true),
+    })
+}
+
+fn collect_memory_markdown_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
+    if !dir.exists() {
+        return Ok(());
+    }
+    for entry in fs::read_dir(dir).map_err(|e| format!("failed to read dir {}: {e}", dir.to_string_lossy()))? {
+        let entry = entry.map_err(|e| format!("failed to read dir entry: {e}"))?;
+        let path = entry.path();
+        let metadata = entry
+            .metadata()
+            .map_err(|e| format!("failed to read entry metadata {}: {e}", path.to_string_lossy()))?;
+        if metadata.is_dir() {
+            collect_memory_markdown_files(&path, files)?;
+            continue;
+        }
+        if path.extension().and_then(|value| value.to_str()) == Some("md") {
+            files.push(path);
+        }
+    }
+    Ok(())
+}
+
+fn load_desktop_memory_entries(app: &AppHandle) -> Result<Vec<DesktopMemoryEntry>, String> {
+    let dir = desktop_memory_dir(app);
+    let mut files = Vec::new();
+    collect_memory_markdown_files(&dir, &mut files)?;
+    let mut entries = files
+        .iter()
+        .filter_map(|path| parse_memory_entry_from_file(path).ok())
+        .filter(|entry| entry.active)
+        .collect::<Vec<_>>();
+    entries.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
+    Ok(entries)
+}
+
+fn configure_memory_runtime_command(command: &mut Command, app: &AppHandle) -> Result<(), String> {
+    let gateway_token = load_or_create_gateway_token()?;
+    ensure_openclaw_workspace_seed(app)?;
+    let openclaw_state_dir = openclaw_state_dir(app)?;
+    let openclaw_config_path = ensure_openclaw_runtime_config(app, &gateway_token)?;
+    let config = load_runtime_config_internal(app)?;
+    let paths = ensure_runtime_dirs(app)?;
+    let skills_dir = resource_skills_dir(app);
+    let mcp_config = prepare_runtime_mcp_config(app, &paths.cache_dir)?;
+    let extra_ca_certs = resource_extra_ca_certs_path(app);
+
+    command.env("OPENCLAW_STATE_DIR", openclaw_state_dir);
+    command.env("OPENCLAW_CONFIG_PATH", openclaw_config_path);
+    command.env("OPENCLAW_WORK_DIR", paths.work_dir);
+    command.env("OPENCLAW_LOG_DIR", paths.log_dir);
+    command.env("OPENCLAW_SKILLS_CACHE_DIR", paths.cache_dir);
+    command.env("OPENCLAW_SKILLS_DIR", skills_dir);
+    command.env("OPENCLAW_MCP_CONFIG", mcp_config);
+    command.env("OPENCLAW_GATEWAY_TOKEN", gateway_token);
+
+    if extra_ca_certs.exists() {
+        command.env("NODE_EXTRA_CA_CERTS", extra_ca_certs);
+    }
+    if let Some(v) = config.openai_api_key {
+        if !v.trim().is_empty() {
+            command.env("OPENAI_API_KEY", v);
+        }
+    }
+    if let Some(v) = config.openai_base_url {
+        let normalized_base_url = normalize_openai_base_url(&v);
+        if !normalized_base_url.is_empty() {
+            command.env("OPENAI_BASE_URL", &normalized_base_url);
+            command.env("OPENAI_API_BASE", normalized_base_url);
+        }
+    }
+    if let Some(v) = config.openai_model {
+        if !v.trim().is_empty() {
+            command.env("OPENAI_MODEL", v);
+        }
+    }
+    if let Some(v) = config.anthropic_api_key {
+        if !v.trim().is_empty() {
+            command.env("ANTHROPIC_API_KEY", v);
+        }
+    }
+    if let Some(v) = config.clawhub_url {
+        if !v.trim().is_empty() {
+            command.env("CLAWHUB_BASE_URL", v);
+        }
+    }
+
+    Ok(())
+}
+
+fn run_memory_cli_json(app: &AppHandle, args: &[&str]) -> Result<serde_json::Value, String> {
+    let output = run_memory_cli(app, args)?;
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    serde_json::from_str(&stdout).map_err(|e| format!("failed to parse memory cli json: {e}"))
+}
+
+fn run_memory_cli(app: &AppHandle, args: &[&str]) -> Result<std::process::Output, String> {
+    let runtime = resolve_runtime_command(app)?;
+    let runtime_root = runtime
+        .display_path
+        .parent()
+        .ok_or_else(|| String::from("failed to resolve runtime root"))?;
+    let node_path = runtime_root.join("bin").join("node");
+    let cli_path = runtime_root.join("openclaw").join("openclaw.mjs");
+
+    let mut command = Command::new(&node_path);
+    command.arg(&cli_path);
+    command.args(args);
+    configure_memory_runtime_command(&mut command, app)?;
+
+    let output = command
+        .output()
+        .map_err(|e| format!("failed to run memory cli: {e}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let detail = if !stderr.is_empty() { stderr } else { stdout };
+        return Err(if detail.is_empty() {
+            String::from("memory cli failed")
+        } else {
+            detail
+        });
+    }
+    Ok(output)
+}
+
+fn load_desktop_memory_runtime_status(app: &AppHandle) -> Result<DesktopMemoryRuntimeStatus, String> {
+    let value = run_memory_cli_json(app, &["memory", "status", "--json"])?;
+    let first = value
+        .as_array()
+        .and_then(|items| items.first())
+        .ok_or_else(|| String::from("memory status returned empty payload"))?;
+    let status = first.get("status").cloned().unwrap_or_else(|| json!({}));
+    let scan = first.get("scan").cloned().unwrap_or_else(|| json!({}));
+
+    Ok(DesktopMemoryRuntimeStatus {
+        backend: status.get("backend").and_then(|value| value.as_str()).map(String::from),
+        files: status.get("files").and_then(|value| value.as_u64()).unwrap_or(0),
+        chunks: status.get("chunks").and_then(|value| value.as_u64()).unwrap_or(0),
+        dirty: status.get("dirty").and_then(|value| value.as_bool()).unwrap_or(false),
+        workspace_dir: status.get("workspaceDir").and_then(|value| value.as_str()).map(String::from),
+        memory_dir: desktop_memory_dir(app).to_string_lossy().to_string(),
+        db_path: status.get("dbPath").and_then(|value| value.as_str()).map(String::from),
+        provider: status.get("provider").and_then(|value| value.as_str()).map(String::from),
+        model: status.get("model").and_then(|value| value.as_str()).map(String::from),
+        source_counts: status
+            .get("sourceCounts")
+            .and_then(|value| value.as_array())
+            .cloned()
+            .unwrap_or_default(),
+        scan_total_files: scan.get("totalFiles").and_then(|value| value.as_u64()),
+        scan_issues: scan
+            .get("issues")
+            .and_then(|value| value.as_array())
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|item| item.as_str().map(String::from))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default(),
+        fts_available: status
+            .get("fts")
+            .and_then(|value| value.get("available"))
+            .and_then(|value| value.as_bool()),
+        fts_error: status
+            .get("fts")
+            .and_then(|value| value.get("error"))
+            .and_then(|value| value.as_str())
+            .map(String::from),
+        vector_available: status
+            .get("vector")
+            .and_then(|value| value.get("available"))
+            .and_then(|value| value.as_bool()),
+    })
+}
+
 fn write_workspace_files(
     workspace_dir: &Path,
     identity_md: &str,
@@ -2856,6 +3302,98 @@ fn save_iclaw_workspace_section(
         _ => return Err(format!("unsupported workspace section: {}", section)),
     };
     write_text(&target_path, &content)?;
+    Ok(true)
+}
+
+#[tauri::command]
+fn load_memory_snapshot(app: AppHandle) -> Result<DesktopMemorySnapshot, String> {
+    ensure_openclaw_workspace_seed(&app)?;
+    let entries = load_desktop_memory_entries(&app)?;
+    let memory_dir = desktop_memory_dir(&app).to_string_lossy().to_string();
+    let archive_dir = desktop_memory_archive_dir(&app).to_string_lossy().to_string();
+    match load_desktop_memory_runtime_status(&app) {
+        Ok(runtime_status) => Ok(DesktopMemorySnapshot {
+            entries,
+            runtime_status: Some(runtime_status),
+            runtime_error: None,
+            memory_dir,
+            archive_dir,
+        }),
+        Err(error) => Ok(DesktopMemorySnapshot {
+            entries,
+            runtime_status: None,
+            runtime_error: Some(error),
+            memory_dir,
+            archive_dir,
+        }),
+    }
+}
+
+#[tauri::command]
+fn save_memory_entry(app: AppHandle, entry: DesktopMemoryEntry) -> Result<DesktopMemoryEntry, String> {
+    ensure_openclaw_workspace_seed(&app)?;
+    ensure_desktop_memory_dir(&app)?;
+    let mut normalized = entry.clone();
+    if normalized.id.trim().is_empty() {
+        normalized.id = format!("memory-{}", current_memory_timestamp());
+    }
+    if normalized.created_at.trim().is_empty() {
+        normalized.created_at = current_memory_timestamp();
+    }
+    if normalized.updated_at.trim().is_empty() {
+        normalized.updated_at = normalized.created_at.clone();
+    }
+    normalized.title = sanitize_memory_scalar(&normalized.title);
+    normalized.summary = derive_memory_summary(&normalized.content, &normalized.title);
+
+    let content = serialize_memory_entry_markdown(&normalized);
+    write_text(&memory_entry_path(&app, &normalized.id), &content)?;
+    Ok(normalized)
+}
+
+#[tauri::command]
+fn delete_memory_entry(app: AppHandle, id: String) -> Result<bool, String> {
+    let active_path = memory_entry_path(&app, &id);
+    let archive_path = memory_archive_path(&app, &id);
+    if active_path.exists() {
+        fs::remove_file(&active_path)
+            .map_err(|e| format!("failed to delete memory file {}: {e}", active_path.to_string_lossy()))?;
+    }
+    if archive_path.exists() {
+        fs::remove_file(&archive_path)
+            .map_err(|e| format!("failed to delete archived memory file {}: {e}", archive_path.to_string_lossy()))?;
+    }
+    Ok(true)
+}
+
+#[tauri::command]
+fn archive_memory_entry(app: AppHandle, id: String) -> Result<bool, String> {
+    ensure_desktop_memory_archive_dir(&app)?;
+    let source_path = memory_entry_path(&app, &id);
+    if !source_path.exists() {
+        return Ok(true);
+    }
+    let target_path = memory_archive_path(&app, &id);
+    fs::rename(&source_path, &target_path).map_err(|e| {
+        format!(
+            "failed to archive memory file {} -> {}: {e}",
+            source_path.to_string_lossy(),
+            target_path.to_string_lossy()
+        )
+    })?;
+    Ok(true)
+}
+
+#[tauri::command]
+fn reindex_memory(app: AppHandle, force: Option<bool>) -> Result<bool, String> {
+    run_memory_cli(
+        &app,
+        if force.unwrap_or(false) {
+            &["memory", "index", "--force"][..]
+        } else {
+            &["memory", "index"][..]
+        },
+    )?;
     Ok(true)
 }
 
@@ -3043,6 +3581,11 @@ fn main() {
             apply_iclaw_workspace_backup,
             save_iclaw_settings_and_apply,
             save_iclaw_workspace_section,
+            load_memory_snapshot,
+            save_memory_entry,
+            delete_memory_entry,
+            archive_memory_entry,
+            reindex_memory,
             check_desktop_update,
             download_and_install_desktop_update,
             restart_desktop_app
