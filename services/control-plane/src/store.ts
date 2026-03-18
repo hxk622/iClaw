@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
 import type {
+  AgentCatalogEntryRecord,
   CreateUserInput,
   CreditLedgerRecord,
   ImportUserPrivateSkillInput,
+  InstallAgentInput,
   InstallSkillInput,
   OAuthAccountRecord,
   OAuthProvider,
@@ -15,6 +17,7 @@ import type {
   UpsertSkillCatalogEntryInput,
   UsageEventInput,
   UsageEventResult,
+  UserAgentLibraryRecord,
   UserPrivateSkillRecord,
   UserRole,
   UserSkillLibraryRecord,
@@ -66,12 +69,17 @@ export interface ControlPlaneStore {
   recordUsageEvent(userId: string, input: Required<UsageEventInput>): Promise<UsageEventResult>;
   getWorkspaceBackup(userId: string): Promise<WorkspaceBackupRecord | null>;
   saveWorkspaceBackup(userId: string, input: WorkspaceBackupInput): Promise<WorkspaceBackupRecord>;
+  listAgentCatalog(): Promise<AgentCatalogEntryRecord[]>;
+  getAgentCatalogEntry(slug: string): Promise<AgentCatalogEntryRecord | null>;
   listSkillCatalog(): Promise<SkillCatalogEntryRecord[]>;
   listSkillCatalogAdmin(): Promise<SkillCatalogEntryRecord[]>;
   getSkillCatalogEntry(slug: string): Promise<SkillCatalogEntryRecord | null>;
   upsertSkillCatalogEntry(input: Required<UpsertSkillCatalogEntryInput>): Promise<SkillCatalogEntryRecord>;
   deleteSkillCatalogEntry(slug: string): Promise<boolean>;
   getSkillRelease(slug: string, version?: string): Promise<SkillReleaseRecord | null>;
+  listUserAgentLibrary(userId: string): Promise<UserAgentLibraryRecord[]>;
+  installUserAgent(userId: string, input: Required<InstallAgentInput>): Promise<UserAgentLibraryRecord>;
+  removeUserAgent(userId: string, slug: string): Promise<boolean>;
   listUserPrivateSkills(userId: string): Promise<UserPrivateSkillRecord[]>;
   getUserPrivateSkill(userId: string, slug: string): Promise<UserPrivateSkillRecord | null>;
   upsertUserPrivateSkill(
@@ -102,6 +110,8 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   private readonly runGrantsById = new Map<string, RunGrantRecord>();
   private readonly usageEventsByEventId = new Map<string, UsageEventResult>();
   private readonly workspaceBackupsByUserId = new Map<string, WorkspaceBackupRecord>();
+  private readonly agentCatalog = new Map<string, AgentCatalogEntryRecord>();
+  private readonly userAgentLibrary = new Map<string, UserAgentLibraryRecord>();
   private readonly skillCatalog = new Map<string, SkillCatalogEntryRecord>();
   private readonly userSkillLibrary = new Map<string, UserSkillLibraryRecord>();
   private readonly userPrivateSkills = new Map<string, UserPrivateSkillRecord>();
@@ -589,6 +599,133 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     for (const entry of cloudSkills) {
       this.skillCatalog.set(entry.slug, entry);
     }
+
+    const cloudAgents: AgentCatalogEntryRecord[] = [
+      {
+        slug: 'stock-expert',
+        name: '股票专家',
+        description: '专业 AI 助手，专注于 A 股公告追踪、全球市场分析和交易复盘，提供数据驱动的投资决策参考。',
+        category: 'finance',
+        publisher: 'iClaw',
+        featured: true,
+        official: true,
+        tags: ['金融', '股票', '研究'],
+        capabilities: ['A 股公告追踪', '全球股票分析', '交易绩效复盘'],
+        useCases: [
+          '没时间看盘时，让我持续追踪 A 股重大事件。',
+          '希望快速获得全球市场技术指标和走势摘要。',
+          '导入交割单后定位交易中的执行问题。',
+        ],
+        sortOrder: 10,
+        active: true,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        slug: 'summary-expert',
+        name: '全能总结专家',
+        description: '将音频、视频、网页链接、文档、文字和图片整理成结构化摘要、重点结论与行动清单。',
+        category: 'productivity',
+        publisher: 'iClaw',
+        featured: true,
+        official: true,
+        tags: ['总结', '效率', '多模态'],
+        capabilities: ['多模态内容摘要', '会议纪要整理', '行动项提炼'],
+        useCases: [
+          '把冗长会议录音整理成纪要和待办。',
+          '快速读懂长文档、网页和视频重点。',
+          '把素材归纳成便于分享的结构化摘要。',
+        ],
+        sortOrder: 20,
+        active: true,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        slug: 'mail-assistant',
+        name: '邮件助手',
+        description: '跨账号智能邮件管家，帮助整理收件箱、草拟回复、提炼待办并减少遗漏。',
+        category: 'productivity',
+        publisher: 'iClaw',
+        featured: false,
+        official: true,
+        tags: ['邮件', '办公', '效率'],
+        capabilities: ['收件箱分诊', '回复草拟与润色', '跟进提醒提取'],
+        useCases: [
+          '批量归类需要回复和可归档的邮件。',
+          '根据历史语气快速生成专业回复。',
+          '从长邮件线程里提炼明确待办和截止时间。',
+        ],
+        sortOrder: 30,
+        active: true,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        slug: 'wechat-writer',
+        name: '微信公众号写作专家',
+        description: '提供选题、标题、结构和长文润色，帮助稳定产出高质量的公众号内容。',
+        category: 'content',
+        publisher: 'iClaw',
+        featured: false,
+        official: true,
+        tags: ['公众号', '写作', '内容'],
+        capabilities: ['选题策划', '标题与结构生成', '成稿改写润色'],
+        useCases: [
+          '围绕热点快速产出公众号选题和提纲。',
+          '把口语素材整理成长文表达。',
+          '优化标题、开头和结尾，提高完读率。',
+        ],
+        sortOrder: 40,
+        active: true,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        slug: 'x-content-operator',
+        name: 'X 平台内容运营专家',
+        description: '一站式 X 平台内容创作与运营助手，支持选题、写推、线程编排与复盘。',
+        category: 'content',
+        publisher: 'iClaw',
+        featured: true,
+        official: true,
+        tags: ['X', '运营', '内容增长'],
+        capabilities: ['热点选题发现', '推文与线程生成', '发布节奏复盘'],
+        useCases: [
+          '持续输出品牌化、专业感强的短内容。',
+          '把长内容拆解成可发布线程。',
+          '复盘哪些内容更容易带来互动和转化。',
+        ],
+        sortOrder: 50,
+        active: true,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        slug: 'cross-border-radar',
+        name: '跨境电商选品雷达',
+        description: '集成多平台数据，辅助竞争分析、选品判断与需求机会发现，适合跨境业务调研。',
+        category: 'commerce',
+        publisher: 'iClaw',
+        featured: false,
+        official: true,
+        tags: ['跨境电商', '选品', '调研'],
+        capabilities: ['平台竞品监控', '选品机会分析', '评论痛点提炼'],
+        useCases: [
+          '比较多个平台的热门品类和价格带。',
+          '从用户评论中提炼产品优化方向。',
+          '快速发现高需求低竞争的选品机会。',
+        ],
+        sortOrder: 60,
+        active: true,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ];
+
+    for (const entry of cloudAgents) {
+      this.agentCatalog.set(entry.slug, entry);
+    }
   }
 
   async getUserByIdentifier(identifier: string): Promise<UserRecord | null> {
@@ -869,6 +1006,16 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     return record;
   }
 
+  async listAgentCatalog(): Promise<AgentCatalogEntryRecord[]> {
+    return Array.from(this.agentCatalog.values())
+      .filter((item) => item.active)
+      .sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, 'zh-CN'));
+  }
+
+  async getAgentCatalogEntry(slug: string): Promise<AgentCatalogEntryRecord | null> {
+    return this.agentCatalog.get(slug) || null;
+  }
+
   async listSkillCatalog(): Promise<SkillCatalogEntryRecord[]> {
     return Array.from(this.skillCatalog.values()).filter((item) => item.distribution === 'cloud' && item.active);
   }
@@ -951,6 +1098,30 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     };
     this.userPrivateSkills.set(key, record);
     return record;
+  }
+
+  async listUserAgentLibrary(userId: string): Promise<UserAgentLibraryRecord[]> {
+    return Array.from(this.userAgentLibrary.values())
+      .filter((item) => item.userId === userId)
+      .sort((left, right) => right.installedAt.localeCompare(left.installedAt));
+  }
+
+  async installUserAgent(userId: string, input: Required<InstallAgentInput>): Promise<UserAgentLibraryRecord> {
+    const now = new Date().toISOString();
+    const key = `${userId}:${input.slug}`;
+    const existing = this.userAgentLibrary.get(key);
+    const record: UserAgentLibraryRecord = {
+      userId,
+      slug: input.slug,
+      installedAt: existing?.installedAt || now,
+      updatedAt: now,
+    };
+    this.userAgentLibrary.set(key, record);
+    return record;
+  }
+
+  async removeUserAgent(userId: string, slug: string): Promise<boolean> {
+    return this.userAgentLibrary.delete(`${userId}:${slug}`);
   }
 
   async listUserSkillLibrary(userId: string): Promise<UserSkillLibraryRecord[]> {

@@ -229,6 +229,36 @@
 - 已安装状态以中性色和墨绿为主，不需要继续高频使用品牌金。
 - 如果有排序、管理、卸载、更新等能力，优先保持专业工具感，而不是“商城感”。
 
+## Token 与组件封装
+
+`龙虾商店` 相关元素不应以页面散写样式实现，必须沉淀到 token 和组件层。
+
+推荐 token 分组：
+
+- `--lobster-page-*`：页面背景与整体容器
+- `--lobster-card-*`：卡片、弹窗、悬停层
+- `--lobster-text-*`：标题、正文、弱信息
+- `--lobster-border-*`：描边与分割线
+- `--lobster-gold-*`：品牌金强调
+- `--lobster-success-*`：已安装 / 安全验证
+- `--lobster-danger-*`：移除 / 风险提示
+- `--lobster-shadow-*`：卡片、头像、按钮、弹窗阴影
+
+推荐组件分层：
+
+- `LobsterStoreTabs`：顶部 `龙虾商店 / 我的龙虾` 分段切换
+- `LobsterAgentCard`：商店列表卡片
+- `LobsterAgentDetailDialog`：详情弹窗
+- `MyLobsterView`：已安装助手列表
+- `LobsterActionButton`：龙虾商店专用按钮语义层
+- `LobsterBadge`：精选、已安装、分类等状态标签
+
+约束：
+
+- 页面级视觉不得直接硬编码颜色，优先引用 token。
+- 业务状态文案不得直接写死在多个页面，优先收敛到组件。
+- 若其他页面复用黑白金语言，应优先复用既有 token / 组件，而不是复制样式。
+
 ## 字体与排版
 
 当前桌面端以 `PingFang SC` 为主。首版可以继续沿用，但排版语气要往“编辑感 + 终端感”调整。

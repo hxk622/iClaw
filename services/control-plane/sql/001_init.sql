@@ -127,6 +127,31 @@ create table if not exists user_workspace_backups (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists agent_catalog_entries (
+  slug text primary key,
+  name text not null,
+  description text not null,
+  category text not null,
+  publisher text not null default 'iClaw',
+  featured boolean not null default false,
+  official boolean not null default true,
+  tags jsonb not null default '[]'::jsonb,
+  capabilities jsonb not null default '[]'::jsonb,
+  use_cases jsonb not null default '[]'::jsonb,
+  sort_order integer not null default 100,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists user_agent_library (
+  user_id uuid not null references users(id) on delete cascade,
+  agent_slug text not null references agent_catalog_entries(slug) on delete cascade,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, agent_slug)
+);
+
 create table if not exists skill_catalog_entries (
   slug text primary key,
   name text not null,
@@ -202,6 +227,119 @@ begin
 exception
   when undefined_object then null;
 end $$;
+
+insert into agent_catalog_entries (
+  slug,
+  name,
+  description,
+  category,
+  publisher,
+  featured,
+  official,
+  tags,
+  capabilities,
+  use_cases,
+  sort_order,
+  active
+) values
+  (
+    'stock-expert',
+    '股票专家',
+    '专业 AI 助手，专注于 A 股公告追踪、全球市场分析和交易复盘，提供数据驱动的投资决策参考。',
+    'finance',
+    'iClaw',
+    true,
+    true,
+    '["金融","股票","研究"]'::jsonb,
+    '["A 股公告追踪","全球股票分析","交易绩效复盘"]'::jsonb,
+    '["没时间看盘时，让我持续追踪 A 股重大事件。","希望快速获得全球市场技术指标和走势摘要。","导入交割单后定位交易中的执行问题。"]'::jsonb,
+    10,
+    true
+  ),
+  (
+    'summary-expert',
+    '全能总结专家',
+    '将音频、视频、网页链接、文档、文字和图片整理成结构化摘要、重点结论与行动清单。',
+    'productivity',
+    'iClaw',
+    true,
+    true,
+    '["总结","效率","多模态"]'::jsonb,
+    '["多模态内容摘要","会议纪要整理","行动项提炼"]'::jsonb,
+    '["把冗长会议录音整理成纪要和待办。","快速读懂长文档、网页和视频重点。","把素材归纳成便于分享的结构化摘要。"]'::jsonb,
+    20,
+    true
+  ),
+  (
+    'mail-assistant',
+    '邮件助手',
+    '跨账号智能邮件管家，帮助整理收件箱、草拟回复、提炼待办并减少遗漏。',
+    'productivity',
+    'iClaw',
+    false,
+    true,
+    '["邮件","办公","效率"]'::jsonb,
+    '["收件箱分诊","回复草拟与润色","跟进提醒提取"]'::jsonb,
+    '["批量归类需要回复和可归档的邮件。","根据历史语气快速生成专业回复。","从长邮件线程里提炼明确待办和截止时间。"]'::jsonb,
+    30,
+    true
+  ),
+  (
+    'wechat-writer',
+    '微信公众号写作专家',
+    '提供选题、标题、结构和长文润色，帮助稳定产出高质量的公众号内容。',
+    'content',
+    'iClaw',
+    false,
+    true,
+    '["公众号","写作","内容"]'::jsonb,
+    '["选题策划","标题与结构生成","成稿改写润色"]'::jsonb,
+    '["围绕热点快速产出公众号选题和提纲。","把口语素材整理成长文表达。","优化标题、开头和结尾，提高完读率。"]'::jsonb,
+    40,
+    true
+  ),
+  (
+    'x-content-operator',
+    'X 平台内容运营专家',
+    '一站式 X 平台内容创作与运营助手，支持选题、写推、线程编排与复盘。',
+    'content',
+    'iClaw',
+    true,
+    true,
+    '["X","运营","内容增长"]'::jsonb,
+    '["热点选题发现","推文与线程生成","发布节奏复盘"]'::jsonb,
+    '["持续输出品牌化、专业感强的短内容。","把长内容拆解成可发布线程。","复盘哪些内容更容易带来互动和转化。"]'::jsonb,
+    50,
+    true
+  ),
+  (
+    'cross-border-radar',
+    '跨境电商选品雷达',
+    '集成多平台数据，辅助竞争分析、选品判断与需求机会发现，适合跨境业务调研。',
+    'commerce',
+    'iClaw',
+    false,
+    true,
+    '["跨境电商","选品","调研"]'::jsonb,
+    '["平台竞品监控","选品机会分析","评论痛点提炼"]'::jsonb,
+    '["比较多个平台的热门品类和价格带。","从用户评论中提炼产品优化方向。","快速发现高需求低竞争的选品机会。"]'::jsonb,
+    60,
+    true
+  )
+on conflict (slug)
+do update set
+  name = excluded.name,
+  description = excluded.description,
+  category = excluded.category,
+  publisher = excluded.publisher,
+  featured = excluded.featured,
+  official = excluded.official,
+  tags = excluded.tags,
+  capabilities = excluded.capabilities,
+  use_cases = excluded.use_cases,
+  sort_order = excluded.sort_order,
+  active = excluded.active,
+  updated_at = now();
 
 insert into skill_catalog_entries (
   slug,
@@ -810,6 +948,10 @@ create index if not exists idx_credit_ledger_user_id_created_at on credit_ledger
 create index if not exists idx_run_grants_user_id_created_at on run_grants(user_id, created_at desc);
 create index if not exists idx_usage_events_user_id_created_at on usage_events(user_id, created_at desc);
 create index if not exists idx_user_workspace_backups_updated_at on user_workspace_backups(updated_at desc);
+create index if not exists idx_agent_catalog_entries_active_sort
+  on agent_catalog_entries(active, sort_order, name);
+create index if not exists idx_user_agent_library_user_id_installed_at
+  on user_agent_library(user_id, installed_at desc);
 create index if not exists idx_skill_catalog_entries_distribution_active
   on skill_catalog_entries(distribution, active, name);
 create index if not exists idx_skill_releases_skill_slug_published_at

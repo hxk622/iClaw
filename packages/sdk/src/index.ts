@@ -201,6 +201,25 @@ export interface UserSkillLibraryItemData {
   updated_at: string;
 }
 
+export interface AgentCatalogEntryData {
+  slug: string;
+  name: string;
+  description: string;
+  category: 'finance' | 'content' | 'productivity' | 'commerce' | 'general';
+  publisher: string;
+  featured: boolean;
+  official: boolean;
+  tags: string[];
+  capabilities: string[];
+  use_cases: string[];
+}
+
+export interface UserAgentLibraryItemData {
+  slug: string;
+  installed_at: string;
+  updated_at: string;
+}
+
 interface ImportPrivateSkillInput {
   token: string;
   slug: string;
@@ -1041,6 +1060,59 @@ export class IClawClient {
 
   async removeSkillFromLibrary(token: string, slug: string): Promise<{removed: boolean}> {
     const res = await this.fetchAuth('/skills/library/uninstall', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({slug}),
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: {removed: boolean}};
+    return json.data;
+  }
+
+  async listAgentsCatalog(): Promise<AgentCatalogEntryData[]> {
+    const res = await this.fetchAuth('/agents/catalog', {
+      method: 'GET',
+      credentials: 'include',
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: {items: AgentCatalogEntryData[]}};
+    return json.data.items;
+  }
+
+  async getAgentLibrary(token: string): Promise<UserAgentLibraryItemData[]> {
+    const res = await this.fetchAuth('/agents/library', {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: {items: UserAgentLibraryItemData[]}};
+    return json.data.items;
+  }
+
+  async installAgent(token: string, slug: string): Promise<UserAgentLibraryItemData> {
+    const res = await this.fetchAuth('/agents/library/install', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({slug}),
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: UserAgentLibraryItemData};
+    return json.data;
+  }
+
+  async removeAgentFromLibrary(token: string, slug: string): Promise<{removed: boolean}> {
+    const res = await this.fetchAuth('/agents/library/uninstall', {
       method: 'POST',
       credentials: 'include',
       headers: {

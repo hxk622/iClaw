@@ -142,6 +142,7 @@ export type SkillDistribution = 'bundled' | 'cloud';
 export type SkillSource = 'bundled' | 'cloud' | 'private';
 export type UserSkillLibrarySource = 'cloud' | 'private';
 export type UserPrivateSkillSourceKind = 'github' | 'local';
+export type AgentCategory = 'finance' | 'content' | 'productivity' | 'commerce' | 'general';
 
 export type SkillCatalogRecord = {
   slug: string;
@@ -215,6 +216,55 @@ export type UserSkillLibraryItemView = {
   enabled: boolean;
   installed_at: string;
   updated_at: string;
+};
+
+export type AgentCatalogRecord = {
+  slug: string;
+  name: string;
+  description: string;
+  category: AgentCategory;
+  publisher: string;
+  featured: boolean;
+  official: boolean;
+  tags: string[];
+  capabilities: string[];
+  useCases: string[];
+  sortOrder: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AgentCatalogEntryRecord = AgentCatalogRecord;
+
+export type AgentCatalogEntryView = {
+  slug: string;
+  name: string;
+  description: string;
+  category: AgentCategory;
+  publisher: string;
+  featured: boolean;
+  official: boolean;
+  tags: string[];
+  capabilities: string[];
+  use_cases: string[];
+};
+
+export type UserAgentLibraryRecord = {
+  userId: string;
+  slug: string;
+  installedAt: string;
+  updatedAt: string;
+};
+
+export type UserAgentLibraryItemView = {
+  slug: string;
+  installed_at: string;
+  updated_at: string;
+};
+
+export type InstallAgentInput = {
+  slug: string;
 };
 
 export type UserPrivateSkillRecord = {

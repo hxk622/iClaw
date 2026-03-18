@@ -6,11 +6,14 @@ import {randomBytes} from 'node:crypto';
 import {uploadPrivateSkillArtifact} from './skill-storage.ts';
 
 import type {
+  AgentCatalogEntryRecord,
+  AgentCatalogEntryView,
   AdminSkillCatalogEntryView,
   ChangePasswordInput,
   CreditBalanceView,
   CreditLedgerItemView,
   ImportUserPrivateSkillInput,
+  InstallAgentInput,
   InstallSkillInput,
   LoginInput,
   OAuthProvider,
@@ -28,6 +31,7 @@ import type {
   UpdateProfileInput,
   UsageEventInput,
   UsageEventResult,
+  UserAgentLibraryItemView,
   UserPrivateSkillRecord,
   UserRecord,
   UserRole,
@@ -296,6 +300,33 @@ function toAdminSkillCatalogEntryView(record: SkillCatalogEntryRecord, baseUrl?:
     ...toSkillCatalogEntryView(record, baseUrl),
     active: record.active,
     created_at: record.createdAt,
+    updated_at: record.updatedAt,
+  };
+}
+
+function toAgentCatalogEntryView(record: AgentCatalogEntryRecord): AgentCatalogEntryView {
+  return {
+    slug: record.slug,
+    name: record.name,
+    description: record.description,
+    category: record.category,
+    publisher: record.publisher,
+    featured: record.featured,
+    official: record.official,
+    tags: record.tags,
+    capabilities: record.capabilities,
+    use_cases: record.useCases,
+  };
+}
+
+function toUserAgentLibraryItemView(record: {
+  slug: string;
+  installedAt: string;
+  updatedAt: string;
+}): UserAgentLibraryItemView {
+  return {
+    slug: record.slug,
+    installed_at: record.installedAt,
     updated_at: record.updatedAt,
   };
 }
@@ -652,6 +683,40 @@ export class ControlPlaneService {
       agents_md: requireWorkspaceMarkdown(input.agents_md, 'agents_md'),
     });
     return toWorkspaceBackupView(backup);
+  }
+
+  async listAgentCatalog(): Promise<{items: AgentCatalogEntryView[]}> {
+    const items = await this.store.listAgentCatalog();
+    return {
+      items: items.map((item) => toAgentCatalogEntryView(item)),
+    };
+  }
+
+  async listUserAgentLibrary(accessToken: string): Promise<{items: UserAgentLibraryItemView[]}> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const items = await this.store.listUserAgentLibrary(user.id);
+    return {
+      items: items.map((item) => toUserAgentLibraryItemView(item)),
+    };
+  }
+
+  async installAgent(accessToken: string, input: InstallAgentInput): Promise<UserAgentLibraryItemView> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const slug = normalizeSkillSlug(input.slug);
+    const entry = await this.store.getAgentCatalogEntry(slug);
+    if (!entry || !entry.active) {
+      throw new HttpError(404, 'NOT_FOUND', 'agent not found');
+    }
+    const record = await this.store.installUserAgent(user.id, {slug});
+    return toUserAgentLibraryItemView(record);
+  }
+
+  async removeAgentFromLibrary(accessToken: string, slugInput: string): Promise<{removed: boolean}> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const slug = normalizeSkillSlug(slugInput);
+    return {
+      removed: await this.store.removeUserAgent(user.id, slug),
+    };
   }
 
   async listSkillCatalog(baseUrl?: string): Promise<{items: SkillCatalogEntryView[]}> {

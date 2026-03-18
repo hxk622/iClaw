@@ -7,7 +7,7 @@ import {
   Link2,
   MessageSquare,
   Plus,
-  TrendingUp,
+  Store,
 } from 'lucide-react';
 import type { DesktopUpdateHint } from '@iclaw/sdk';
 import { AvatarDropdown } from './AvatarDropdown';
@@ -23,7 +23,7 @@ import {
 } from '../lib/user-avatar';
 
 type SidebarUser = AppUserAvatarSource;
-type PrimaryView = 'chat' | 'skill-store' | 'cron' | 'im-bots' | 'data-connections' | 'task-center' | 'memory';
+type PrimaryView = 'chat' | 'lobster-store' | 'cron' | 'im-bots' | 'data-connections' | 'task-center' | 'memory';
 
 interface SidebarProps {
   user: SidebarUser | null;
@@ -32,7 +32,7 @@ interface SidebarProps {
   authenticated?: boolean;
   onOpenChat?: () => void;
   onOpenCron?: () => void;
-  onOpenSkillStore?: () => void;
+  onOpenLobsterStore?: () => void;
   onOpenDataConnections?: () => void;
   onOpenImBots?: () => void;
   onOpenMemory?: () => void;
@@ -72,7 +72,7 @@ export function Sidebar({
   authenticated = false,
   onOpenChat,
   onOpenCron,
-  onOpenSkillStore,
+  onOpenLobsterStore,
   onOpenDataConnections,
   onOpenImBots,
   onOpenMemory,
@@ -129,12 +129,12 @@ export function Sidebar({
       onClick: onOpenCron,
     },
     {
-      key: 'skill',
-      label: '技能商店',
-      icon: TrendingUp,
-      iconClass: 'text-violet-500',
-      active: activeView === 'skill-store',
-      onClick: onOpenSkillStore,
+      key: 'lobster-store',
+      label: '龙虾商店',
+      icon: Store,
+      iconClass: 'text-[var(--lobster-gold)]',
+      active: activeView === 'lobster-store',
+      onClick: onOpenLobsterStore,
     },
     {
       key: 'memory',
@@ -216,8 +216,8 @@ export function Sidebar({
   return (
     <div className="flex h-screen w-[256px] shrink-0 flex-col border-r border-[var(--border-default)] bg-[var(--bg-page)]">
       <div className="flex h-10 items-center gap-3 border-b border-[var(--border-default)] px-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)]">
-          <img src={BRAND.assets.faviconPngSrc} alt={BRAND.assets.logoAlt} className="h-6 w-6 object-cover" />
+        <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)]">
+          <img src={BRAND.assets.faviconPngSrc} alt={BRAND.assets.logoAlt} className="h-full w-full object-cover" />
         </div>
         <div className="min-w-0">
           <div className="truncate text-[14px] font-medium text-[var(--text-primary)]">{brandText}</div>

@@ -1,11 +1,17 @@
 import {randomUUID} from 'node:crypto';
+import {readFile} from 'node:fs/promises';
+import {dirname, resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
 
 import {Pool, type PoolClient} from 'pg';
 
 import type {
+  AgentCatalogEntryRecord,
+  AgentCatalogRecord,
   CreateUserInput,
   CreditLedgerRecord,
   ImportUserPrivateSkillInput,
+  InstallAgentInput,
   InstallSkillInput,
   OAuthAccountRecord,
   OAuthProvider,
@@ -18,6 +24,7 @@ import type {
   UpsertSkillCatalogEntryInput,
   UsageEventInput,
   UsageEventResult,
+  UserAgentLibraryRecord,
   UserPrivateSkillRecord,
   UserRole,
   UserSkillLibraryRecord,
@@ -110,6 +117,23 @@ type SkillCatalogRow = {
   updated_at: Date;
 };
 
+type AgentCatalogRow = {
+  slug: string;
+  name: string;
+  description: string;
+  category: 'finance' | 'content' | 'productivity' | 'commerce' | 'general';
+  publisher: string;
+  featured: boolean;
+  official: boolean;
+  tags: unknown;
+  capabilities: unknown;
+  use_cases: unknown;
+  sort_order: number;
+  active: boolean;
+  created_at: Date;
+  updated_at: Date;
+};
+
 type SkillReleaseRow = {
   skill_slug: string;
   version: string;
@@ -148,6 +172,13 @@ type UserPrivateSkillRow = {
   artifact_key: string;
   artifact_sha256: string | null;
   created_at: Date;
+  updated_at: Date;
+};
+
+type UserAgentLibraryRow = {
+  user_id: string;
+  agent_slug: string;
+  installed_at: Date;
   updated_at: Date;
 };
 
@@ -197,6 +228,30 @@ function mapWorkspaceBackupRow(row: WorkspaceBackupRow): WorkspaceBackupRecord {
 function parseSkillTags(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   return raw.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+}
+
+function parseStringArray(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+}
+
+function mapAgentCatalogRow(row: AgentCatalogRow): AgentCatalogRecord {
+  return {
+    slug: row.slug,
+    name: row.name,
+    description: row.description,
+    category: row.category,
+    publisher: row.publisher,
+    featured: row.featured,
+    official: row.official,
+    tags: parseStringArray(row.tags),
+    capabilities: parseStringArray(row.capabilities),
+    useCases: parseStringArray(row.use_cases),
+    sortOrder: row.sort_order,
+    active: row.active,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
 }
 
 function mapSkillCatalogRow(row: SkillCatalogRow): SkillCatalogRecord {
@@ -262,6 +317,28 @@ function mapUserPrivateSkillRow(row: UserPrivateSkillRow): UserPrivateSkillRecor
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
+}
+
+function mapUserAgentLibraryRow(row: UserAgentLibraryRow): UserAgentLibraryRecord {
+  return {
+    userId: row.user_id,
+    slug: row.agent_slug,
+    installedAt: row.installed_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+const schemaPath = resolve(repoRoot, 'services/control-plane/sql/001_init.sql');
+
+export async function ensureControlPlaneSchema(databaseUrl: string): Promise<void> {
+  const sql = await readFile(schemaPath, 'utf8');
+  const pool = new Pool({connectionString: databaseUrl});
+  try {
+    await pool.query(sql);
+  } finally {
+    await pool.end();
+  }
 }
 
 export class PgControlPlaneStore implements ControlPlaneStore {
@@ -1010,6 +1087,59 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     return mapWorkspaceBackupRow(result.rows[0]);
   }
 
+  async listAgentCatalog(): Promise<AgentCatalogEntryRecord[]> {
+    const result = await this.pool.query<AgentCatalogRow>(
+      `
+        select
+          slug,
+          name,
+          description,
+          category,
+          publisher,
+          featured,
+          official,
+          tags,
+          capabilities,
+          use_cases,
+          sort_order,
+          active,
+          created_at,
+          updated_at
+        from agent_catalog_entries
+        where active = true
+        order by sort_order asc, name asc
+      `,
+    );
+    return result.rows.map(mapAgentCatalogRow);
+  }
+
+  async getAgentCatalogEntry(slug: string): Promise<AgentCatalogEntryRecord | null> {
+    const result = await this.pool.query<AgentCatalogRow>(
+      `
+        select
+          slug,
+          name,
+          description,
+          category,
+          publisher,
+          featured,
+          official,
+          tags,
+          capabilities,
+          use_cases,
+          sort_order,
+          active,
+          created_at,
+          updated_at
+        from agent_catalog_entries
+        where slug = $1
+        limit 1
+      `,
+      [slug],
+    );
+    return result.rows[0] ? mapAgentCatalogRow(result.rows[0]) : null;
+  }
+
   async listSkillCatalog(): Promise<SkillCatalogEntryRecord[]> {
     return this.listSkillCatalogEntries(`
       select
@@ -1309,6 +1439,50 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       ],
     );
     return mapUserPrivateSkillRow(result.rows[0]);
+  }
+
+  async listUserAgentLibrary(userId: string): Promise<UserAgentLibraryRecord[]> {
+    const result = await this.pool.query<UserAgentLibraryRow>(
+      `
+        select user_id, agent_slug, installed_at, updated_at
+        from user_agent_library
+        where user_id = $1
+        order by installed_at desc
+      `,
+      [userId],
+    );
+    return result.rows.map(mapUserAgentLibraryRow);
+  }
+
+  async installUserAgent(userId: string, input: Required<InstallAgentInput>): Promise<UserAgentLibraryRecord> {
+    const result = await this.pool.query<UserAgentLibraryRow>(
+      `
+        insert into user_agent_library (
+          user_id,
+          agent_slug,
+          installed_at,
+          updated_at
+        )
+        values ($1, $2, now(), now())
+        on conflict (user_id, agent_slug)
+        do update set
+          updated_at = now()
+        returning user_id, agent_slug, installed_at, updated_at
+      `,
+      [userId, input.slug],
+    );
+    return mapUserAgentLibraryRow(result.rows[0]);
+  }
+
+  async removeUserAgent(userId: string, slug: string): Promise<boolean> {
+    const result = await this.pool.query(
+      `
+        delete from user_agent_library
+        where user_id = $1 and agent_slug = $2
+      `,
+      [userId, slug],
+    );
+    return (result.rowCount || 0) > 0;
   }
 
   async listUserSkillLibrary(userId: string): Promise<UserSkillLibraryRecord[]> {

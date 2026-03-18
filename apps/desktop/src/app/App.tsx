@@ -18,9 +18,9 @@ import { OpenClawChatSurface } from './components/OpenClawChatSurface';
 import { OpenClawCronSurface } from './components/OpenClawCronSurface';
 import { Sidebar } from './components/Sidebar';
 import { DataConnectionsView } from './components/data-connections/DataConnectionsView';
+import { LobsterStoreView } from './components/lobster-store/LobsterStoreView';
 import { MemoryView } from './components/memory/MemoryView';
 import { TaskCenterView } from './components/TaskCenterView';
-import { SkillStoreView } from './components/skill-store/SkillStoreView';
 import { IMBotsView } from './components/im-bots/IMBotsView';
 import { SettingsPanel } from './components/settings/SettingsPanel';
 import { type PersistableSettingsSection, SettingsProvider, useSettings } from './contexts/settings-context';
@@ -109,7 +109,7 @@ const AUTH_BOOTSTRAP_TIMEOUT_MS = 10_000;
 const DESKTOP_APP_VERSION = desktopPackageJson.version;
 const DESKTOP_RELEASE_CHANNEL: 'dev' | 'prod' = import.meta.env.DEV ? 'dev' : 'prod';
 const DISPLAY_DESKTOP_APP_VERSION = DESKTOP_APP_VERSION.split('+', 1)[0] || DESKTOP_APP_VERSION;
-type PrimaryView = 'chat' | 'skill-store' | 'cron' | 'im-bots' | 'data-connections' | 'task-center' | 'memory';
+type PrimaryView = 'chat' | 'lobster-store' | 'cron' | 'im-bots' | 'data-connections' | 'task-center' | 'memory';
 
 type InstallerViewState = 'loading' | 'error';
 
@@ -1128,7 +1128,7 @@ function AuthedView({
         authenticated={authenticated}
         onOpenChat={() => setPrimaryView('chat')}
         onOpenCron={() => setPrimaryView('cron')}
-        onOpenSkillStore={() => setPrimaryView('skill-store')}
+        onOpenLobsterStore={() => setPrimaryView('lobster-store')}
         onOpenDataConnections={() => setPrimaryView('data-connections')}
         onOpenImBots={() => setPrimaryView('im-bots')}
         onOpenMemory={() => setPrimaryView('memory')}
@@ -1155,11 +1155,10 @@ function AuthedView({
         onRestartDesktopApp={onRestartDesktopApp}
         onSkipDesktopUpdate={onSkipDesktopUpdate}
       />
-      {primaryView === 'skill-store' ? (
-        <SkillStoreView
+      {primaryView === 'lobster-store' ? (
+        <LobsterStoreView
           client={client}
           accessToken={accessToken}
-          authBaseUrl={AUTH_BASE_URL}
           authenticated={authenticated}
           currentUser={currentUser}
           onRequestAuth={onRequestAuth}

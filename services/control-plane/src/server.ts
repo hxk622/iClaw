@@ -10,6 +10,7 @@ import {config} from './config.ts';
 import type {
   ChangePasswordInput,
   ImportUserPrivateSkillInput,
+  InstallAgentInput,
   InstallSkillInput,
   LoginInput,
   RegisterInput,
@@ -22,7 +23,7 @@ import type {
 } from './domain.ts';
 import {HttpError} from './errors.ts';
 import {createJsonServer, createRawResponse, type HandlerContext} from './http.ts';
-import {PgControlPlaneStore} from './pg-store.ts';
+import {ensureControlPlaneSchema, PgControlPlaneStore} from './pg-store.ts';
 import {createRedisKeyValueCache} from './redis-cache.ts';
 import {ControlPlaneService} from './service.ts';
 import {
@@ -37,6 +38,8 @@ import type {ControlPlaneStore} from './store.ts';
 if (!config.databaseUrl) {
   throw new Error('[control-plane] DATABASE_URL is required; in-memory storage has been removed');
 }
+
+await ensureControlPlaneSchema(config.databaseUrl);
 
 let store: ControlPlaneStore = new PgControlPlaneStore(config.databaseUrl);
 let cacheLabel = 'none';
@@ -288,6 +291,28 @@ const server = createJsonServer([
     path: '/workspace/backup',
     handler: ({headers, body}: HandlerContext) =>
       service.saveWorkspaceBackup(requireBearerToken(headers), (body || {}) as WorkspaceBackupInput),
+  },
+  {
+    method: 'GET',
+    path: '/agents/catalog',
+    handler: () => service.listAgentCatalog(),
+  },
+  {
+    method: 'GET',
+    path: '/agents/library',
+    handler: ({headers}: HandlerContext) => service.listUserAgentLibrary(requireBearerToken(headers)),
+  },
+  {
+    method: 'POST',
+    path: '/agents/library/install',
+    handler: ({headers, body}: HandlerContext) =>
+      service.installAgent(requireBearerToken(headers), (body || {}) as InstallAgentInput),
+  },
+  {
+    method: 'POST',
+    path: '/agents/library/uninstall',
+    handler: ({headers, body}: HandlerContext) =>
+      service.removeAgentFromLibrary(requireBearerToken(headers), ((body || {}) as {slug?: string}).slug || ''),
   },
   {
     method: 'GET',

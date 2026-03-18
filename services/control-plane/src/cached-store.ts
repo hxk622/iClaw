@@ -1,7 +1,9 @@
 import type {
+  AgentCatalogEntryRecord,
   CreateUserInput,
   CreditLedgerRecord,
   ImportUserPrivateSkillInput,
+  InstallAgentInput,
   InstallSkillInput,
   OAuthAccountRecord,
   OAuthProvider,
@@ -13,6 +15,7 @@ import type {
   UpsertSkillCatalogEntryInput,
   UsageEventInput,
   UsageEventResult,
+  UserAgentLibraryRecord,
   UserPrivateSkillRecord,
   UserRole,
   UserSkillLibraryRecord,
@@ -29,6 +32,7 @@ const CREDIT_BALANCE_CACHE_TTL_SECONDS = 15;
 const CREDIT_LEDGER_CACHE_TTL_SECONDS = 15;
 const USAGE_EVENT_CACHE_TTL_SECONDS = 24 * 60 * 60;
 const WORKSPACE_BACKUP_CACHE_TTL_SECONDS = 5 * 60;
+const AGENT_CATALOG_CACHE_TTL_SECONDS = 5 * 60;
 const SKILL_CATALOG_CACHE_TTL_SECONDS = 5 * 60;
 const USER_SKILL_LIBRARY_CACHE_TTL_SECONDS = 60;
 
@@ -270,6 +274,18 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     return backup;
   }
 
+  async listAgentCatalog(): Promise<AgentCatalogEntryRecord[]> {
+    return this.getOrLoadValue(this.agentCatalogKey(), AGENT_CATALOG_CACHE_TTL_SECONDS, () =>
+      this.base.listAgentCatalog(),
+    );
+  }
+
+  async getAgentCatalogEntry(slug: string): Promise<AgentCatalogEntryRecord | null> {
+    return this.getOrLoad(this.agentCatalogEntryKey(slug), AGENT_CATALOG_CACHE_TTL_SECONDS, () =>
+      this.base.getAgentCatalogEntry(slug),
+    );
+  }
+
   async listSkillCatalog(): Promise<SkillCatalogEntryRecord[]> {
     return this.getOrLoadValue(this.skillCatalogKey(), SKILL_CATALOG_CACHE_TTL_SECONDS, () =>
       this.base.listSkillCatalog(),
@@ -343,6 +359,26 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
       this.userSkillLibraryKey(userId),
     );
     return record;
+  }
+
+  async listUserAgentLibrary(userId: string): Promise<UserAgentLibraryRecord[]> {
+    return this.getOrLoadValue(this.userAgentLibraryKey(userId), USER_SKILL_LIBRARY_CACHE_TTL_SECONDS, () =>
+      this.base.listUserAgentLibrary(userId),
+    );
+  }
+
+  async installUserAgent(userId: string, input: Required<InstallAgentInput>): Promise<UserAgentLibraryRecord> {
+    const record = await this.base.installUserAgent(userId, input);
+    await this.cache.delete(this.userAgentLibraryKey(userId));
+    return record;
+  }
+
+  async removeUserAgent(userId: string, slug: string): Promise<boolean> {
+    const removed = await this.base.removeUserAgent(userId, slug);
+    if (removed) {
+      await this.cache.delete(this.userAgentLibraryKey(userId));
+    }
+    return removed;
   }
 
   async listUserSkillLibrary(userId: string): Promise<UserSkillLibraryRecord[]> {
@@ -452,6 +488,14 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     return `workspace-backup:${userId}`;
   }
 
+  private agentCatalogKey(): string {
+    return 'agents:catalog';
+  }
+
+  private agentCatalogEntryKey(slug: string): string {
+    return `agents:entry:${slug}`;
+  }
+
   private skillCatalogKey(): string {
     return 'skills:catalog';
   }
@@ -470,6 +514,10 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
 
   private userSkillLibraryKey(userId: string): string {
     return `skills:library:${userId}`;
+  }
+
+  private userAgentLibraryKey(userId: string): string {
+    return `agents:library:${userId}`;
   }
 
   private userPrivateSkillsKey(userId: string): string {
