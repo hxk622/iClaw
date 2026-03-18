@@ -19,6 +19,7 @@ import { OpenClawChatSurface } from './components/OpenClawChatSurface';
 import { OpenClawCronSurface } from './components/OpenClawCronSurface';
 import { Sidebar } from './components/Sidebar';
 import { DataConnectionsView } from './components/data-connections/DataConnectionsView';
+import { LobsterStoreView } from './components/lobster-store/LobsterStoreView';
 import { MemoryView } from './components/memory/MemoryView';
 import { TaskCenterView } from './components/TaskCenterView';
 import { SkillStoreView } from './components/skill-store/SkillStoreView';
@@ -110,7 +111,42 @@ const AUTH_BOOTSTRAP_TIMEOUT_MS = 10_000;
 const DESKTOP_APP_VERSION = desktopPackageJson.version;
 const DESKTOP_RELEASE_CHANNEL: 'dev' | 'prod' = import.meta.env.DEV ? 'dev' : 'prod';
 const DISPLAY_DESKTOP_APP_VERSION = DESKTOP_APP_VERSION.split('+', 1)[0] || DESKTOP_APP_VERSION;
-type PrimaryView = 'chat' | 'skill-store' | 'cron' | 'im-bots' | 'data-connections' | 'task-center' | 'memory';
+type PrimaryView = 'chat' | 'lobster-store' | 'skill-store' | 'cron' | 'im-bots' | 'data-connections' | 'task-center' | 'memory';
+
+const PRIMARY_VIEW_META: Record<PrimaryView, {title: string; subtitle: string}> = {
+  chat: {
+    title: '智能对话',
+    subtitle: '与本地 AI 助手协作，并在发送前看到预计消耗。',
+  },
+  'lobster-store': {
+    title: '龙虾商店',
+    subtitle: '浏览龙虾体系下的精选能力与内容资产。',
+  },
+  'skill-store': {
+    title: '技能商店',
+    subtitle: '发现、安装和管理你的技能能力。',
+  },
+  cron: {
+    title: '定时任务',
+    subtitle: '安排周期性执行，让任务按计划持续运行。',
+  },
+  'im-bots': {
+    title: 'IM 机器人',
+    subtitle: '管理机器人接入与消息测试。',
+  },
+  'data-connections': {
+    title: '数据连接',
+    subtitle: '管理外部数据源与能力连接。',
+  },
+  'task-center': {
+    title: '任务中心',
+    subtitle: '查看最近任务与执行状态。',
+  },
+  memory: {
+    title: '记忆中心',
+    subtitle: '整理长期记忆、筛选和回顾上下文。',
+  },
+};
 
 type InstallerViewState = 'loading' | 'error';
 
@@ -1076,6 +1112,7 @@ function AuthedView({
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [creditBalance, setCreditBalance] = useState<CreditBalanceData | null>(null);
   const [creditBalanceLoading, setCreditBalanceLoading] = useState(false);
+  const currentViewMeta = useMemo(() => PRIMARY_VIEW_META[primaryView], [primaryView]);
 
   useEffect(() => {
     if (!accessToken) {
@@ -1168,6 +1205,7 @@ function AuthedView({
         authenticated={authenticated}
         onOpenChat={() => setPrimaryView('chat')}
         onOpenCron={() => setPrimaryView('cron')}
+        onOpenLobsterStore={() => setPrimaryView('lobster-store')}
         onOpenSkillStore={() => setPrimaryView('skill-store')}
         onOpenDataConnections={() => setPrimaryView('data-connections')}
         onOpenImBots={() => setPrimaryView('im-bots')}
@@ -1195,108 +1233,128 @@ function AuthedView({
         onRestartDesktopApp={onRestartDesktopApp}
         onSkipDesktopUpdate={onSkipDesktopUpdate}
       />
-      {primaryView === 'skill-store' ? (
-        <SkillStoreView
-          client={client}
-          accessToken={accessToken}
-          authBaseUrl={AUTH_BASE_URL}
-          authenticated={authenticated}
-          currentUser={currentUser}
-          onRequestAuth={onRequestAuth}
-        />
-      ) : primaryView === 'data-connections' ? (
-        <DataConnectionsView />
-      ) : primaryView === 'memory' ? (
-        <MemoryView />
-      ) : primaryView === 'task-center' ? (
-        <TaskCenterView
-          selectedTaskId={selectedTaskId}
-          onSelectTask={setSelectedTaskId}
-          onOpenChat={() => setPrimaryView('chat')}
-        />
-      ) : primaryView === 'cron' ? (
-        authenticated ? (
-          <OpenClawCronSurface
-            gatewayUrl={GATEWAY_WS_URL}
-            gatewayToken={gatewayAuth.token}
-            gatewayPassword={gatewayAuth.password}
-            sessionKey={CHAT_SESSION_KEY}
-            shellAuthenticated={authenticated}
-          />
-        ) : (
-          <div className="flex flex-1 items-center justify-center bg-[var(--bg-page)] px-8">
-            <div className="w-full max-w-[560px] rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-6 shadow-[var(--shadow-md)]">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                Cron Shell
-              </div>
-              <div className="mt-3 text-[18px] font-semibold text-[var(--text-primary)]">
-                当前定时任务页未进入可用态
-              </div>
-              <div className="mt-3 text-[14px] leading-7 text-[var(--text-secondary)]">
-                这不是正常空态。当前是 iClaw shell 还没有确认登录，因此没有挂载 OpenClaw cron wrapper。
-              </div>
-              <div className="mt-4 text-[13px] leading-6 text-[var(--text-secondary)]">
-                control-plane 登录：{authenticated ? '已登录' : '未登录'} · gateway 凭据：
-                {(gatewayAuth.token || gatewayAuth.password) ? '已配置' : '缺失'}
-              </div>
-              <button
-                type="button"
-                onClick={() => onRequestAuth('login')}
-                className="mt-5 inline-flex h-10 items-center justify-center rounded-[12px] bg-[var(--brand-primary)] px-4 text-[14px] font-medium text-[var(--brand-on-primary)] transition hover:opacity-95"
-              >
-                打开登录
-              </button>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-[72px] shrink-0 items-center justify-between border-b border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-page)_94%,white_6%)] px-6">
+          <div className="min-w-0">
+            <div className="truncate text-[18px] font-semibold text-[var(--text-primary)]">
+              {currentViewMeta.title}
+            </div>
+            <div className="mt-1 truncate text-[12px] text-[var(--text-secondary)]">
+              {currentViewMeta.subtitle}
             </div>
           </div>
-        )
-      ) : primaryView === 'im-bots' ? (
-        <IMBotsView client={imBotClient} />
-      ) : authenticated ? (
-        <OpenClawChatSurface
-          gatewayUrl={GATEWAY_WS_URL}
-          gatewayToken={gatewayAuth.token}
-          gatewayPassword={gatewayAuth.password}
-          sessionKey={CHAT_SESSION_KEY}
-          shellAuthenticated={authenticated}
-          creditClient={client}
-          creditToken={accessToken}
-          user={currentUser}
-        />
-      ) : (
-        <div className="flex flex-1 items-center justify-center bg-[var(--bg-page)] px-8">
-          <div className="w-full max-w-[560px] rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-6 shadow-[var(--shadow-md)]">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-              Chat Shell
+          {authenticated ? (
+            <CreditBalancePill
+              balance={creditBalance?.available_balance ?? creditBalance?.balance ?? null}
+              loading={creditBalanceLoading}
+              onClick={() => setOverlayView('account')}
+            />
+          ) : <div />}
+        </header>
+        <div className="min-h-0 flex-1">
+          {primaryView === 'lobster-store' ? (
+            <LobsterStoreView
+              client={client}
+              accessToken={accessToken}
+              authenticated={authenticated}
+              currentUser={currentUser}
+              onRequestAuth={onRequestAuth}
+            />
+          ) : primaryView === 'skill-store' ? (
+            <SkillStoreView
+              client={client}
+              accessToken={accessToken}
+              authBaseUrl={AUTH_BASE_URL}
+              authenticated={authenticated}
+              currentUser={currentUser}
+              onRequestAuth={onRequestAuth}
+            />
+          ) : primaryView === 'data-connections' ? (
+            <DataConnectionsView />
+          ) : primaryView === 'memory' ? (
+            <MemoryView />
+          ) : primaryView === 'task-center' ? (
+            <TaskCenterView
+              selectedTaskId={selectedTaskId}
+              onSelectTask={setSelectedTaskId}
+              onOpenChat={() => setPrimaryView('chat')}
+            />
+          ) : primaryView === 'cron' ? (
+            authenticated ? (
+              <OpenClawCronSurface
+                gatewayUrl={GATEWAY_WS_URL}
+                gatewayToken={gatewayAuth.token}
+                gatewayPassword={gatewayAuth.password}
+                sessionKey={CHAT_SESSION_KEY}
+                shellAuthenticated={authenticated}
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center bg-[var(--bg-page)] px-8">
+                <div className="w-full max-w-[560px] rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-6 shadow-[var(--shadow-md)]">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                    Cron Shell
+                  </div>
+                  <div className="mt-3 text-[18px] font-semibold text-[var(--text-primary)]">
+                    当前定时任务页未进入可用态
+                  </div>
+                  <div className="mt-3 text-[14px] leading-7 text-[var(--text-secondary)]">
+                    这不是正常空态。当前是 iClaw shell 还没有确认登录，因此没有挂载 OpenClaw cron wrapper。
+                  </div>
+                  <div className="mt-4 text-[13px] leading-6 text-[var(--text-secondary)]">
+                    control-plane 登录：{authenticated ? '已登录' : '未登录'} · gateway 凭据：
+                    {(gatewayAuth.token || gatewayAuth.password) ? '已配置' : '缺失'}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onRequestAuth('login')}
+                    className="mt-5 inline-flex h-10 items-center justify-center rounded-[12px] bg-[var(--brand-primary)] px-4 text-[14px] font-medium text-[var(--brand-on-primary)] transition hover:opacity-95"
+                  >
+                    打开登录
+                  </button>
+                </div>
+              </div>
+            )
+          ) : primaryView === 'im-bots' ? (
+            <IMBotsView client={imBotClient} />
+          ) : authenticated ? (
+            <OpenClawChatSurface
+              gatewayUrl={GATEWAY_WS_URL}
+              gatewayToken={gatewayAuth.token}
+              gatewayPassword={gatewayAuth.password}
+              sessionKey={CHAT_SESSION_KEY}
+              shellAuthenticated={authenticated}
+              creditClient={client}
+              creditToken={accessToken}
+              user={currentUser}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center bg-[var(--bg-page)] px-8">
+              <div className="w-full max-w-[560px] rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-6 shadow-[var(--shadow-md)]">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                  Chat Shell
+                </div>
+                <div className="mt-3 text-[18px] font-semibold text-[var(--text-primary)]">
+                  当前聊天区未进入可用态
+                </div>
+                <div className="mt-3 text-[14px] leading-7 text-[var(--text-secondary)]">
+                  这不是正常空态。当前是 iClaw shell 还没有确认登录，因此没有挂载 OpenClaw chat wrapper。
+                </div>
+                <div className="mt-4 text-[13px] leading-6 text-[var(--text-secondary)]">
+                  control-plane 登录：{authenticated ? '已登录' : '未登录'} · gateway 凭据：
+                  {(gatewayAuth.token || gatewayAuth.password) ? '已配置' : '缺失'}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onRequestAuth('login')}
+                  className="mt-5 inline-flex h-10 items-center justify-center rounded-[12px] bg-[var(--brand-primary)] px-4 text-[14px] font-medium text-[var(--brand-on-primary)] transition hover:opacity-95"
+                >
+                  打开登录
+                </button>
+              </div>
             </div>
-            <div className="mt-3 text-[18px] font-semibold text-[var(--text-primary)]">
-              当前聊天区未进入可用态
-            </div>
-            <div className="mt-3 text-[14px] leading-7 text-[var(--text-secondary)]">
-              这不是正常空态。当前是 iClaw shell 还没有确认登录，因此没有挂载 OpenClaw chat wrapper。
-            </div>
-            <div className="mt-4 text-[13px] leading-6 text-[var(--text-secondary)]">
-              control-plane 登录：{authenticated ? '已登录' : '未登录'} · gateway 凭据：
-              {(gatewayAuth.token || gatewayAuth.password) ? '已配置' : '缺失'}
-            </div>
-            <button
-              type="button"
-              onClick={() => onRequestAuth('login')}
-              className="mt-5 inline-flex h-10 items-center justify-center rounded-[12px] bg-[var(--brand-primary)] px-4 text-[14px] font-medium text-[var(--brand-on-primary)] transition hover:opacity-95"
-            >
-              打开登录
-            </button>
-          </div>
+          )}
         </div>
-      )}
-      {authenticated ? (
-        <div className="pointer-events-none absolute right-5 top-4 z-20">
-          <CreditBalancePill
-            balance={creditBalance?.available_balance ?? creditBalance?.balance ?? null}
-            loading={creditBalanceLoading}
-            onClick={() => setOverlayView('account')}
-          />
-        </div>
-      ) : null}
+      </div>
       {overlayView === 'account' && accessToken ? (
         <AccountPanel
           client={client}
