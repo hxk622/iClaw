@@ -22,25 +22,16 @@ export function SoulPersona() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] p-6">
-          <FormRow label="Markdown 内容" help="保存后直接覆盖工作区中的 SOUL.md。">
-            <textarea
-              rows={24}
-              value={soulPersona.markdownContent}
-              disabled={isLoading}
-              onChange={(e) => updateSoulPersona({ markdownContent: e.target.value })}
-              className="font-mono text-sm"
-            />
-          </FormRow>
-        </div>
-
-        <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] p-5">
-          <h4 className="mb-3 text-sm text-[var(--text-secondary)]">实时预览</h4>
-          <pre className="max-h-[640px] overflow-auto whitespace-pre-wrap rounded bg-[var(--bg-hover)] p-3 text-xs text-[var(--text-primary)]">
-            {soulPersona.markdownContent}
-          </pre>
-        </div>
+      <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] p-6">
+        <FormRow label="Markdown 内容" help="保存后直接覆盖工作区中的 SOUL.md。">
+          <textarea
+            rows={24}
+            value={soulPersona.markdownContent}
+            disabled={isLoading}
+            onChange={(e) => updateSoulPersona({ markdownContent: e.target.value })}
+            className="font-mono text-sm"
+          />
+        </FormRow>
       </div>
     </div>
   );
