@@ -160,6 +160,8 @@ export function IMBotSetupModal({
     icon: <Info className="h-[13px] w-[13px]" />,
   }));
 
+  const primaryActionLabel = currentStep === 5 ? '完成' : '下一步';
+
   const handleCopy = async (value: string) => {
     try {
       await navigator.clipboard.writeText(value);
@@ -205,7 +207,7 @@ export function IMBotSetupModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(8,12,20,0.36)] px-5 py-5 backdrop-blur-[4px] dark:bg-[rgba(0,0,0,0.48)]">
       <div className="relative flex h-full max-h-[840px] w-full max-w-[1000px] flex-col overflow-hidden rounded-[24px] border border-[#E8E6E3] bg-[#F9F8F6] shadow-[0_8px_40px_rgba(0,0,0,0.12)] dark:border-[#2D2C2A] dark:bg-[#1C1B19] dark:shadow-[0_8px_40px_rgba(0,0,0,0.4)]">
-        <div className="border-b border-[#E8E6E3] px-10 pb-6 pt-8 dark:border-[#2D2C2A]">
+        <div className="border-b border-[#E8E6E3] px-10 pb-5 pt-7 dark:border-[#2D2C2A]">
           <div className="flex items-start justify-between gap-6">
             <div className="flex min-w-0 items-start gap-4">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#E8E6E3] bg-white shadow-sm dark:border-[#2D2C2A] dark:bg-[#242320]">
@@ -220,7 +222,7 @@ export function IMBotSetupModal({
                 <h2 className="text-xl tracking-tight text-[#1A1916] dark:text-[#F5F4F2]">
                   接入{platform.label}机器人
                 </h2>
-                <p className="mt-1 max-w-[620px] text-[13px] leading-relaxed text-[#6B6863] dark:text-[#A39F9A]">
+                <p className="mt-1 max-w-[620px] text-[13px] leading-[1.55] text-[#6B6863] dark:text-[#A39F9A]">
                   按步骤完成应用配置，并将其连接到 OpenClaw
                 </p>
               </div>
@@ -242,7 +244,7 @@ export function IMBotSetupModal({
           </div>
         </div>
 
-        <div className="border-b border-[#E8E6E3] px-10 py-6 dark:border-[#2D2C2A]">
+        <div className="border-b border-[#E8E6E3] px-10 py-5 dark:border-[#2D2C2A]">
           <WizardStepper steps={wizardSteps} />
         </div>
 
@@ -308,7 +310,7 @@ export function IMBotSetupModal({
             ) : null}
 
             {currentStep === 2 ? (
-              <div className="space-y-6">
+              <div className="space-y-5">
                 <div>
                   <h3 className="text-base tracking-tight text-[#1A1916] dark:text-[#F5F4F2]">
                     填写平台凭据
@@ -318,9 +320,9 @@ export function IMBotSetupModal({
                   </p>
                 </div>
 
-                <SurfacePanel className="space-y-5 p-5">
+                <SurfacePanel className="space-y-4 p-4">
                   {platform.credentialFields.map((field) => (
-                    <div key={field.key} className="space-y-2">
+                    <div key={field.key} className="space-y-1.5">
                       <label className="text-[13px] font-medium text-[#1A1916] dark:text-[#F5F4F2]">
                         {field.label}
                       </label>
@@ -331,7 +333,7 @@ export function IMBotSetupModal({
                           readOnly={field.readOnly}
                           placeholder={field.placeholder}
                           className={cn(
-                            'min-h-[48px] flex-1 rounded-[16px] border border-[#E8E6E3] bg-white px-4 text-[14px] text-[#1A1916] outline-none transition placeholder:text-[#A8A39D] focus:border-[#C9B896] focus:ring-2 focus:ring-[#C9B896]/20 dark:border-[#2D2C2A] dark:bg-[#242320] dark:text-[#F5F4F2] dark:placeholder:text-[#726C66] dark:focus:border-[#9D8B6F] dark:focus:ring-[#9D8B6F]/20',
+                            'min-h-[44px] flex-1 rounded-[14px] border border-[#E8E6E3] bg-white px-4 text-[14px] text-[#1A1916] outline-none transition placeholder:text-[#A8A39D] focus:border-[#C9B896] focus:ring-2 focus:ring-[#C9B896]/20 dark:border-[#2D2C2A] dark:bg-[#242320] dark:text-[#F5F4F2] dark:placeholder:text-[#726C66] dark:focus:border-[#9D8B6F] dark:focus:ring-[#9D8B6F]/20',
                             field.readOnly && 'bg-[#F5F4F2] dark:bg-[#1C1B19]',
                           )}
                         />
@@ -347,7 +349,7 @@ export function IMBotSetupModal({
                         ) : null}
                       </div>
                       {field.readOnly ? (
-                        <p className="text-[12px] leading-5 text-[#9B9691] dark:text-[#6B6863]">
+                        <p className="text-[12px] leading-[1.45] text-[#9B9691] dark:text-[#6B6863]">
                           这个地址由系统生成，用来接收平台事件回调。
                         </p>
                       ) : null}
@@ -355,7 +357,7 @@ export function IMBotSetupModal({
                   ))}
                 </SurfacePanel>
 
-                <SurfacePanel tone="subtle" className="p-4">
+                <SurfacePanel tone="subtle" className="p-3.5">
                   <div className="flex items-start gap-3">
                     <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[#9D8B6F] dark:text-[#C9B896]" />
                     <p className="text-[13px] leading-relaxed text-[#3D3A36] dark:text-[#D4D2CE]">
@@ -377,20 +379,28 @@ export function IMBotSetupModal({
                   </p>
                 </div>
 
-                <SurfacePanel className="flex min-h-[340px] items-center justify-center p-8">
+                <SurfacePanel className="relative flex min-h-[340px] items-center justify-center overflow-hidden p-8">
+                  <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_top,rgba(201,184,150,0.16),transparent_68%)] dark:bg-[radial-gradient(circle_at_top,rgba(157,139,111,0.16),transparent_68%)]" />
                   {testStatus === 'testing' ? (
-                    <div className="flex flex-col items-center gap-4 text-center">
-                      <Loader2 className="h-12 w-12 animate-spin text-[#9D8B6F] dark:text-[#C9B896]" />
+                    <div className="relative z-10 flex flex-col items-center gap-4 text-center">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[#E8E6E3] bg-white shadow-sm dark:border-[#2D2C2A] dark:bg-[#242320]">
+                        <Loader2 className="h-8 w-8 animate-spin text-[#9D8B6F] dark:text-[#C9B896]" />
+                      </div>
                       <div className="text-[18px] font-semibold text-[#1A1916] dark:text-[#F5F4F2]">正在验证连接</div>
                       <p className="max-w-[360px] text-[14px] leading-7 text-[#6B6863] dark:text-[#A39F9A]">
                         正在校验平台凭据、消息入口与回调链路，请稍候。
                       </p>
+                      <div className="flex items-center gap-2">
+                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#C9B896] dark:bg-[#9D8B6F]" />
+                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#C9B896]/75 [animation-delay:140ms] dark:bg-[#9D8B6F]/75" />
+                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#C9B896]/50 [animation-delay:280ms] dark:bg-[#9D8B6F]/50" />
+                      </div>
                     </div>
                   ) : null}
 
                   {testStatus === 'success' ? (
-                    <div className="flex flex-col items-center gap-4 text-center">
-                      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#2F5D3E]/12 text-[#2F5D3E] dark:bg-[#3A6B4A]/24 dark:text-[#A8E2BA]">
+                    <div className="relative z-10 flex flex-col items-center gap-4 text-center">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[#2F5D3E]/10 bg-[#2F5D3E]/12 text-[#2F5D3E] shadow-[0_10px_30px_rgba(47,93,62,0.10)] dark:border-[#3A6B4A]/20 dark:bg-[#3A6B4A]/24 dark:text-[#A8E2BA] dark:shadow-[0_12px_32px_rgba(0,0,0,0.24)]">
                         <CheckCircle2 className="h-8 w-8" />
                       </div>
                       <div className="text-[18px] font-semibold text-[#1A1916] dark:text-[#F5F4F2]">
@@ -529,7 +539,7 @@ export function IMBotSetupModal({
           </aside>
         </div>
 
-        <div className="flex items-center justify-between border-t border-[#E8E6E3] px-10 py-6 dark:border-[#2D2C2A]">
+        <div className="flex items-center justify-between border-t border-[#E8E6E3] px-10 py-5 dark:border-[#2D2C2A]">
           <div className="text-[13px] text-[#9B9691] dark:text-[#6B6863]">
             {currentStep < 5 ? `步骤 ${currentStep} / 5` : '接入已准备完成'}
           </div>
@@ -547,7 +557,7 @@ export function IMBotSetupModal({
                 (currentStep === 3 && testStatus !== 'success')
               }
             >
-              {currentStep === 5 ? '完成' : currentStep === 4 ? '保存并继续' : currentStep === 1 ? '我已完成创建' : '下一步'}
+              {primaryActionLabel}
             </Button>
           </div>
         </div>
