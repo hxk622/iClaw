@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronRight, Database, Search, Shield } from 'lucide-react';
+import { Database, Search, Shield } from 'lucide-react';
 import {
   THEME_CHANGE_EVENT,
   getResolvedThemeFromDom,
@@ -271,15 +271,6 @@ function CapabilityCard({
         </div>
       </div>
 
-      <div className="mt-4 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
-        <span className="text-xs font-medium" style={{ color: colors.brandGold }}>
-          查看详情
-        </span>
-        <ChevronRight
-          className="h-4 w-4 transition-transform group-hover:translate-x-1"
-          style={{ color: colors.brandGold }}
-        />
-      </div>
     </div>
   );
 }
