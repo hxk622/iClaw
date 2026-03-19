@@ -2021,7 +2021,7 @@ export function OpenClawChatSurface({
           </div>
         ) : null}
 
-        <div className="relative flex min-h-[720px] min-w-0 flex-1 overflow-hidden rounded-[32px] border border-[var(--chat-surface-panel-border)] bg-[var(--chat-surface-panel)] p-0 shadow-[var(--chat-surface-panel-shadow)]">
+        <div className="relative flex min-h-[720px] min-w-0 flex-1 overflow-hidden rounded-none border-0 bg-transparent p-0 shadow-none">
           <div ref={shellRef} className="openclaw-chat-surface-shell h-full flex-1 overflow-hidden">
             <div ref={hostRef} className="openclaw-chat-surface h-full min-h-0 flex-1 overflow-hidden" />
 

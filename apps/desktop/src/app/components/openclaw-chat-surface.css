@@ -1146,7 +1146,7 @@ body {
   bottom: 18px;
   left: 0;
   z-index: 30;
-  width: calc(100% - 40px);
+  width: calc(100% - 12px);
   margin: 0 auto;
 }
 
