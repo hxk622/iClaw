@@ -83,6 +83,16 @@ type OpenClawAppElement = HTMLElement & {
   chatAttachments: OpenClawImageAttachment[];
   lastError: string | null;
   lastErrorCode?: string | null;
+  eventLog?: Array<{
+    ts: number;
+    event: string;
+    payload?: unknown;
+  }>;
+  eventLogBuffer?: Array<{
+    ts: number;
+    event: string;
+    payload?: unknown;
+  }>;
   hello?: {
     auth?: {
       role?: string;
@@ -243,9 +253,12 @@ type AssistantUsageSettlement = {
 type PendingUsageSettlement = {
   runId: string;
   grantId: string;
+  sessionKey: string;
   startedAt: number;
+  expiresAt: number;
   model: string | null;
   attempts: number;
+  terminalState: 'pending' | 'final' | 'aborted' | 'error';
 };
 
 type GatewaySessionsListResult = {
@@ -259,6 +272,8 @@ type GatewaySessionsListResult = {
 };
 
 const MESSAGE_ACTION_FEEDBACK_MS = 1600;
+const USAGE_SETTLEMENT_RETRY_INTERVAL_MS = 1500;
+const USAGE_SETTLEMENT_MAX_WAIT_MS = 60_000;
 const MESSAGE_ACTION_ICONS = {
   copy:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
@@ -740,6 +755,109 @@ function deriveLatestAssistantUsageSince(
   };
 }
 
+function deriveAssistantUsageFromMessage(message: unknown): AssistantUsageSettlement | null {
+  if (!message || typeof message !== 'object') {
+    return null;
+  }
+
+  const normalized = normalizeMessage(message);
+  const record = message as Record<string, unknown>;
+  const usage = record.usage as Record<string, unknown> | undefined;
+  if (!usage) {
+    return null;
+  }
+
+  const inputTokens = getUsageMetric(usage, ['input', 'inputTokens', 'input_tokens']);
+  const outputTokens = getUsageMetric(usage, ['output', 'outputTokens', 'output_tokens']);
+  if (inputTokens <= 0 && outputTokens <= 0) {
+    return null;
+  }
+
+  return {
+    inputTokens,
+    outputTokens,
+    model:
+      typeof record.model === 'string' && record.model.trim() && record.model !== 'gateway-injected'
+        ? record.model.trim()
+        : null,
+    timestamp: normalized.timestamp || Date.now(),
+  };
+}
+
+type TerminalChatEventMatch = {
+  ts: number;
+  state: 'final' | 'aborted' | 'error';
+  message?: unknown;
+};
+
+function findTerminalChatEventForRun(
+  app: OpenClawAppElement,
+  sessionKey: string,
+  runId: string,
+): TerminalChatEventMatch | null {
+  const entries = Array.isArray(app.eventLogBuffer)
+    ? app.eventLogBuffer
+    : Array.isArray(app.eventLog)
+      ? app.eventLog
+      : [];
+
+  for (const entry of entries) {
+    if (!entry || entry.event !== 'chat' || typeof entry.payload !== 'object' || !entry.payload) {
+      continue;
+    }
+    const payload = entry.payload as Record<string, unknown>;
+    if (payload.runId !== runId) {
+      continue;
+    }
+    if (typeof payload.sessionKey === 'string' && payload.sessionKey !== sessionKey) {
+      continue;
+    }
+    const state = payload.state;
+    if (state !== 'final' && state !== 'aborted' && state !== 'error') {
+      continue;
+    }
+    return {
+      ts: entry.ts,
+      state,
+      message: payload.message,
+    };
+  }
+
+  return null;
+}
+
+function findLatestTerminalChatRunSince(
+  app: OpenClawAppElement,
+  sessionKey: string,
+  startedAt: number,
+): string | null {
+  const entries = Array.isArray(app.eventLogBuffer)
+    ? app.eventLogBuffer
+    : Array.isArray(app.eventLog)
+      ? app.eventLog
+      : [];
+
+  for (const entry of entries) {
+    if (!entry || entry.event !== 'chat' || typeof entry.payload !== 'object' || !entry.payload) {
+      continue;
+    }
+    if (typeof entry.ts === 'number' && entry.ts < startedAt) {
+      break;
+    }
+    const payload = entry.payload as Record<string, unknown>;
+    if (typeof payload.sessionKey === 'string' && payload.sessionKey !== sessionKey) {
+      continue;
+    }
+    const state = payload.state;
+    if (state !== 'final' && state !== 'aborted' && state !== 'error') {
+      continue;
+    }
+    return typeof payload.runId === 'string' ? payload.runId : null;
+  }
+
+  return null;
+}
+
 function createDesktopRunId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -1158,6 +1276,9 @@ export function OpenClawChatSurface({
   );
 
   useEffect(() => {
+    if (pendingUsageSettlementRef.current) {
+      console.warn('[desktop] drop pending credit settlement because session changed', pendingUsageSettlementRef.current);
+    }
     artifactAutoOpenStateRef.current = {
       lastBusy: false,
       runSequence: 0,
@@ -1986,11 +2107,28 @@ export function OpenClawChatSurface({
       return false;
     }
 
-    const usage = deriveLatestAssistantUsageSince(app.chatMessages, pending.startedAt);
+    const terminalEvent = findTerminalChatEventForRun(app, pending.sessionKey, pending.runId);
+    if (terminalEvent) {
+      pending.terminalState = terminalEvent.state;
+    }
+
+    const usage =
+      (terminalEvent?.message ? deriveAssistantUsageFromMessage(terminalEvent.message) : null) ||
+      (findLatestTerminalChatRunSince(app, pending.sessionKey, pending.startedAt) === pending.runId
+        ? deriveLatestAssistantUsageSince(app.chatMessages, pending.startedAt)
+        : null);
+
     if (!usage) {
       pending.attempts += 1;
-      if (pending.attempts >= 5) {
-        console.warn('[desktop] skip credit settlement because assistant usage was not found', pending);
+      if (pending.terminalState === 'error') {
+        console.warn('[desktop] skip credit settlement because run ended with error', pending);
+        clearUsageSettlementTimers();
+        pendingUsageSettlementRef.current = null;
+        return false;
+      }
+      if (Date.now() >= pending.expiresAt) {
+        console.warn('[desktop] skip credit settlement because assistant usage was not found before expiry', pending);
+        clearUsageSettlementTimers();
         pendingUsageSettlementRef.current = null;
       }
       return false;
@@ -2005,6 +2143,7 @@ export function OpenClawChatSurface({
         outputTokens: usage.outputTokens,
         model: usage.model || pending.model || undefined,
       });
+      clearUsageSettlementTimers();
       pendingUsageSettlementRef.current = null;
       await onCreditBalanceRefresh?.();
       return true;
@@ -2015,12 +2154,13 @@ export function OpenClawChatSurface({
         grantId: pending.grantId,
         error,
       });
-      if (pending.attempts >= 5) {
+      if (Date.now() >= pending.expiresAt) {
+        clearUsageSettlementTimers();
         pendingUsageSettlementRef.current = null;
       }
       return false;
     }
-  }, [creditClient, creditToken, onCreditBalanceRefresh]);
+  }, [clearUsageSettlementTimers, creditClient, creditToken, onCreditBalanceRefresh]);
 
   useEffect(() => {
     if (status.busy || !activeRecentTaskRunRef.current) {
@@ -2037,12 +2177,10 @@ export function OpenClawChatSurface({
 
     clearUsageSettlementTimers();
     void attemptPendingUsageSettlement();
-    [140, 420, 900, 1800].forEach((delay) => {
-      const timer = window.setTimeout(() => {
-        void attemptPendingUsageSettlement();
-      }, delay);
-      usageSettlementTimersRef.current.push(timer);
-    });
+    const timer = window.setInterval(() => {
+      void attemptPendingUsageSettlement();
+    }, USAGE_SETTLEMENT_RETRY_INTERVAL_MS);
+    usageSettlementTimersRef.current.push(timer);
 
     return () => {
       clearUsageSettlementTimers();
@@ -2125,9 +2263,12 @@ export function OpenClawChatSurface({
       pendingUsageSettlementRef.current = {
         runId,
         grantId: runGrant.grant_id,
+        sessionKey,
         startedAt,
+        expiresAt: startedAt + USAGE_SETTLEMENT_MAX_WAIT_MS,
         model: selectedModelId,
         attempts: 0,
+        terminalState: 'pending',
       };
 
       await sendAuthorizedChatMessage({
