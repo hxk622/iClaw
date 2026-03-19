@@ -1,22 +1,18 @@
 import type { ReactNode } from 'react';
-import { FileText } from 'lucide-react';
-import { SettingsBadge } from './SettingsBadge';
-import { SettingsCard } from './SettingsCard';
-import { SettingsPageHeader } from './SettingsPageHeader';
+import { SettingsEditorCard } from './SettingsEditorCard';
+import { SettingsFileStatusCard } from './SettingsFileStatusCard';
 
 interface SettingsMarkdownPageProps {
   title: string;
   fileName: string;
   description: string;
   workspacePath: string;
+  syncLabel: string;
   value: string;
   placeholder: string;
-  help: string;
-  badges?: Array<{ label: string; tone: 'gold' | 'green' | 'red' | 'blue' }>;
-  rows?: number;
   onChange: (value: string) => void;
   disabled?: boolean;
-  headerExtra?: ReactNode;
+  children?: ReactNode;
 }
 
 export function SettingsMarkdownPage({
@@ -24,59 +20,36 @@ export function SettingsMarkdownPage({
   fileName,
   description,
   workspacePath,
+  syncLabel,
   value,
   placeholder,
-  help,
-  badges = [],
-  rows = 22,
   onChange,
   disabled = false,
-  headerExtra,
+  children,
 }: SettingsMarkdownPageProps) {
   return (
-    <div className="max-w-4xl space-y-6">
-      <SettingsPageHeader
-        title={title}
-        subtitle={fileName}
-        description={description}
-        trailing={
-          <>
-            {badges.map((badge) => (
-              <SettingsBadge key={badge.label} tone={badge.tone}>
-                {badge.label}
-              </SettingsBadge>
-            ))}
-            {headerExtra}
-          </>
-        }
-      />
+    <div className="max-w-[680px]">
+      <div className="mb-6">
+        <h1 className="mb-2 text-[22px] font-medium tracking-tight text-[var(--text-primary)]">
+          {title} {fileName}
+        </h1>
+        <p className="text-[13px] leading-6 text-[var(--text-secondary)]">{description}</p>
+      </div>
 
-      <SettingsCard>
-        <div className="mb-4 flex items-center gap-3 border-b border-[var(--border-default)] pb-4">
-          <FileText className="h-5 w-5 flex-shrink-0 text-[var(--text-secondary)]" />
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium text-[var(--text-primary)]">当前工作区路径</div>
-            <div className="mt-0.5 break-all font-mono text-sm text-[var(--text-secondary)]">{workspacePath}</div>
-          </div>
-        </div>
+      <div className="mb-6">
+        <SettingsFileStatusCard fileName={fileName} workspacePath={workspacePath} syncLabel={syncLabel} />
+      </div>
 
-        <textarea
+      <div className="mb-6">
+        <SettingsEditorCard
           value={value}
-          disabled={disabled}
-          rows={rows}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={onChange}
           placeholder={placeholder}
-          spellCheck={false}
-          className="h-[480px] w-full resize-none rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-hover)] p-4 font-mono text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--border-strong)] focus:ring-2 focus:ring-[var(--brand-primary)]/18 disabled:cursor-not-allowed"
+          disabled={disabled}
         />
+      </div>
 
-        <div className="mt-4 border-t border-[var(--border-default)] pt-4">
-          <p className="text-xs text-[var(--text-secondary)]">
-            <span className="text-[var(--brand-primary)]">提示：</span>
-            {help}
-          </p>
-        </div>
-      </SettingsCard>
+      {children}
     </div>
   );
 }

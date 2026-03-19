@@ -5,11 +5,12 @@ import type { PersistableSettingsSection } from '@/app/contexts/settings-context
 const navigationItems: Array<{
   key: PersistableSettingsSection;
   label: string;
+  sublabel?: string;
 }> = [
   { key: 'general', label: '通用' },
-  { key: 'identity', label: '身份设置Identity.md' },
-  { key: 'user-profile', label: '用户画像User.md' },
-  { key: 'soul-persona', label: '人格配置Soul.md' },
+  { key: 'identity', label: '身份设置', sublabel: 'Identity.md' },
+  { key: 'user-profile', label: '用户画像', sublabel: 'User.md' },
+  { key: 'soul-persona', label: '人格配置', sublabel: 'Soul.md' },
   { key: 'safety-defaults', label: '安全策略' },
 ];
 
@@ -42,7 +43,12 @@ export function SettingsSidebar({ activeSection, onSelect }: SettingsSidebarProp
                   : 'border-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-card)]/65 hover:text-[var(--text-primary)]',
               )}
             >
-              {item.label}
+              <div className={cn('text-[13px] font-medium', active ? 'text-[var(--brand-primary)]' : 'text-[var(--text-primary)]')}>
+                {item.label}
+              </div>
+              {item.sublabel ? (
+                <div className="mt-0.5 text-[11px] text-[var(--text-muted)]">{item.sublabel}</div>
+              ) : null}
             </button>
           );
         })}

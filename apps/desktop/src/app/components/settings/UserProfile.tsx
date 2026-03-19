@@ -1,5 +1,16 @@
+import { AlertCircle, FileOutput, MessageSquare, Target, TrendingUp, User } from 'lucide-react';
 import { useSettings } from '@/app/contexts/settings-context';
+import { SettingsHelperCard } from '@/app/components/settings/ui/SettingsHelperCard';
 import { SettingsMarkdownPage } from '@/app/components/settings/ui/SettingsMarkdownPage';
+
+const dimensions = [
+  { icon: User, label: '身份背景', desc: '职业、经验、专业领域' },
+  { icon: Target, label: '投资目标', desc: '目标、周期、风险偏好' },
+  { icon: TrendingUp, label: '关注重点', desc: '行业、主题、市场' },
+  { icon: MessageSquare, label: '语气偏好', desc: '专业度、亲和度' },
+  { icon: FileOutput, label: '输出格式', desc: '长度、结构、图表' },
+  { icon: AlertCircle, label: '禁忌项', desc: '避免的内容与表述' },
+];
 
 export function UserProfile() {
   const { settings, updateUserProfile } = useSettings();
@@ -9,17 +20,27 @@ export function UserProfile() {
     <SettingsMarkdownPage
       title="用户画像"
       fileName="User.md"
-      description="定义当前用户画像、协作偏好与隐私边界"
-      workspacePath={`${workspaceDir || '~/Documents/iClaw/workspace'}/USER.md`}
+      description="定义用户背景、投资偏好、风险承受能力、表达习惯与输出要求"
+      workspacePath={`${workspaceDir || '~/Documents/iClaw/workspace'}/User.md`}
+      syncLabel="5分钟前同步"
       value={userProfile.markdownContent}
-      placeholder="在此编辑用户画像..."
-      help="保存后将直接覆盖本地工作区文件"
-      badges={[
-        { label: '本地文件', tone: 'blue' },
-        { label: '已同步', tone: 'green' },
-      ]}
+      placeholder="输入用户画像内容..."
       onChange={(value) => updateUserProfile({ markdownContent: value })}
       disabled={isLoading}
-    />
+    >
+      <div>
+        <div className="mb-3 text-[12px] text-[var(--text-secondary)]">推荐画像维度</div>
+        <div className="grid grid-cols-2 gap-3">
+          {dimensions.map((dimension) => (
+            <SettingsHelperCard
+              key={dimension.label}
+              title={dimension.label}
+              description={dimension.desc}
+              icon={dimension.icon}
+            />
+          ))}
+        </div>
+      </div>
+    </SettingsMarkdownPage>
   );
 }

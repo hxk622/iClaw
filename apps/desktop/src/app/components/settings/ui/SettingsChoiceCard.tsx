@@ -17,6 +17,8 @@ interface SettingsChoiceCardProps {
   titleClassName?: string;
   descriptionClassName?: string;
   selectedIndicator?: ReactNode;
+  selectedIndicatorPlacement?: 'top-right' | 'bottom-right';
+  floatingBadge?: ReactNode;
   onClick: () => void;
 }
 
@@ -34,6 +36,8 @@ export function SettingsChoiceCard({
   titleClassName,
   descriptionClassName,
   selectedIndicator,
+  selectedIndicatorPlacement = 'top-right',
+  floatingBadge,
   onClick,
 }: SettingsChoiceCardProps) {
   return (
@@ -47,8 +51,14 @@ export function SettingsChoiceCard({
         className,
       )}
     >
+      {floatingBadge ? <div className="absolute right-3 top-3">{floatingBadge}</div> : null}
       {selectedIndicator && active ? (
-        <div className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)]">
+        <div
+          className={cn(
+            'absolute flex h-5 w-5 items-center justify-center rounded-full bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)]',
+            selectedIndicatorPlacement === 'top-right' ? 'right-3 top-3' : 'bottom-3 right-3',
+          )}
+        >
           {selectedIndicator}
         </div>
       ) : null}
