@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/Button';
 import { ChecklistPanel } from '@/app/components/ui/ChecklistPanel';
+import { SelectionCard } from '@/app/components/ui/SelectionCard';
 import { SurfacePanel } from '@/app/components/ui/SurfacePanel';
 import { WizardStepper, type WizardStepItem } from '@/app/components/ui/WizardStepper';
 import { cn } from '@/app/lib/cn';
@@ -87,6 +88,9 @@ const completionChecklist = [
 
 const SECTION_LABEL =
   'text-[12px] font-semibold uppercase tracking-[0.14em] text-[#9B9691] dark:text-[#6B6863]';
+const MODAL_INPUT_CLASS =
+  'min-h-[44px] w-full rounded-[14px] border border-[#E8E6E3] bg-white px-4 text-[14px] text-[#1A1916] outline-none transition placeholder:text-[#A8A39D] focus:border-[#C9B896] focus:ring-2 focus:ring-[#C9B896]/20 dark:border-[#2D2C2A] dark:bg-[#242320] dark:text-[#F5F4F2] dark:placeholder:text-[#726C66] dark:focus:border-[#9D8B6F] dark:focus:ring-[#9D8B6F]/20';
+const MODAL_READONLY_INPUT_CLASS = 'bg-[#F5F4F2] dark:bg-[#1C1B19]';
 
 export function IMBotSetupModal({
   platform,
@@ -248,10 +252,10 @@ export function IMBotSetupModal({
           <WizardStepper steps={wizardSteps} />
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_280px] gap-8 p-10">
+        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_280px] gap-7 p-10">
           <div className="min-h-0 overflow-y-auto">
             {currentStep === 1 ? (
-              <div className="space-y-6">
+              <div className="space-y-5">
                 <div>
                   <h3 className="text-base tracking-tight text-[#1A1916] dark:text-[#F5F4F2]">
                     先在{platform.label}开放平台创建应用
@@ -261,7 +265,7 @@ export function IMBotSetupModal({
                   </p>
                 </div>
 
-                <SurfacePanel className="space-y-3 p-5">
+                <SurfacePanel className="space-y-3 p-[18px]">
                   <div className="flex items-center gap-2 text-[13px] font-medium text-[#6b6863] dark:text-[#a39f9a]">
                     <Info className="h-4 w-4" />
                     <span>操作步骤</span>
@@ -279,7 +283,7 @@ export function IMBotSetupModal({
                   </div>
                 </SurfacePanel>
 
-                <SurfacePanel tone="subtle" className="p-5">
+                <SurfacePanel tone="subtle" className="p-[18px]">
                   <div className="flex items-start gap-3">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#C9B896]/20 text-[#9D8B6F] dark:bg-[#9D8B6F]/20 dark:text-[#C9B896]">
                       <ChevronRight className="h-[14px] w-[14px]" />
@@ -291,26 +295,21 @@ export function IMBotSetupModal({
                 </SurfacePanel>
 
                 <div className="pt-2">
-                  <button
-                    type="button"
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     onClick={() => window.open(platform.guideUrl, '_blank', 'noopener,noreferrer')}
-                    className={cn(
-                      'inline-flex items-center gap-2 rounded-lg border border-[#D4D1CC] bg-white px-4 py-2.5 text-[13px] text-[#3D3A36] dark:border-[#3D3A36] dark:bg-[#242320] dark:text-[#D4D2CE]',
-                      APPLE_FLAT_SURFACE,
-                      SPRING_PRESSABLE,
-                      INTERACTIVE_FOCUS_RING,
-                    )}
+                    leadingIcon={<ExternalLink className="h-[14px] w-[14px]" />}
                   >
-                    <ExternalLink className="h-[14px] w-[14px]" />
                     <span>打开{platform.label}开放平台</span>
-                  </button>
+                  </Button>
                   <p className="mt-2 text-[12px] text-[#9B9691] dark:text-[#6B6863]">将在浏览器打开官方后台</p>
                 </div>
               </div>
             ) : null}
 
             {currentStep === 2 ? (
-              <div className="space-y-5">
+              <div className="space-y-[18px]">
                 <div>
                   <h3 className="text-base tracking-tight text-[#1A1916] dark:text-[#F5F4F2]">
                     填写平台凭据
@@ -320,9 +319,9 @@ export function IMBotSetupModal({
                   </p>
                 </div>
 
-                <SurfacePanel className="space-y-4 p-4">
+                <SurfacePanel className="space-y-3.5 p-4">
                   {platform.credentialFields.map((field) => (
-                    <div key={field.key} className="space-y-1.5">
+                    <div key={field.key} className="space-y-1">
                       <label className="text-[13px] font-medium text-[#1A1916] dark:text-[#F5F4F2]">
                         {field.label}
                       </label>
@@ -333,8 +332,9 @@ export function IMBotSetupModal({
                           readOnly={field.readOnly}
                           placeholder={field.placeholder}
                           className={cn(
-                            'min-h-[44px] flex-1 rounded-[14px] border border-[#E8E6E3] bg-white px-4 text-[14px] text-[#1A1916] outline-none transition placeholder:text-[#A8A39D] focus:border-[#C9B896] focus:ring-2 focus:ring-[#C9B896]/20 dark:border-[#2D2C2A] dark:bg-[#242320] dark:text-[#F5F4F2] dark:placeholder:text-[#726C66] dark:focus:border-[#9D8B6F] dark:focus:ring-[#9D8B6F]/20',
-                            field.readOnly && 'bg-[#F5F4F2] dark:bg-[#1C1B19]',
+                            'flex-1',
+                            MODAL_INPUT_CLASS,
+                            field.readOnly && MODAL_READONLY_INPUT_CLASS,
                           )}
                         />
                         {field.readOnly ? (
@@ -369,7 +369,7 @@ export function IMBotSetupModal({
             ) : null}
 
             {currentStep === 3 ? (
-              <div className="space-y-6">
+              <div className="space-y-5">
                 <div>
                   <h3 className="text-base tracking-tight text-[#1A1916] dark:text-[#F5F4F2]">
                     测试连接
@@ -379,7 +379,7 @@ export function IMBotSetupModal({
                   </p>
                 </div>
 
-                <SurfacePanel className="flex min-h-[340px] items-center justify-center p-8">
+                <SurfacePanel className="flex min-h-[320px] items-center justify-center p-8">
                   {testStatus === 'testing' ? (
                     <div className="flex flex-col items-center gap-4 text-center">
                       <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[#E8E6E3] bg-white shadow-sm dark:border-[#2D2C2A] dark:bg-[#242320]">
@@ -425,7 +425,7 @@ export function IMBotSetupModal({
             ) : null}
 
             {currentStep === 4 ? (
-              <div className="space-y-7">
+              <div className="space-y-5">
                 <div>
                   <h3 className="text-base tracking-tight text-[#1A1916] dark:text-[#F5F4F2]">
                     配置机器人行为
@@ -435,61 +435,49 @@ export function IMBotSetupModal({
                   </p>
                 </div>
 
-                <section className="space-y-3">
+                <section className="space-y-2.5">
                   <div className={SECTION_LABEL}>触发方式</div>
                   <div className="grid gap-3 md:grid-cols-3">
                     {triggerModeOptions.map((option) => (
-                      <button
+                      <SelectionCard
+                        as="button"
                         key={option.value}
-                        type="button"
                         onClick={() => setTriggerMode(option.value)}
-                        className={cn(
-                          'rounded-xl border p-4 text-left',
-                          SPRING_PRESSABLE,
-                          INTERACTIVE_FOCUS_RING,
-                          triggerMode === option.value
-                            ? 'border-[#C9B896] bg-[#C9B896]/10 dark:border-[#9D8B6F] dark:bg-[#9D8B6F]/14'
-                            : 'border-[#E8E6E3] bg-white hover:border-[#C9B896] dark:border-[#2D2C2A] dark:bg-[#242320] dark:hover:border-[#9D8B6F]',
-                        )}
+                        selected={triggerMode === option.value}
+                        className="rounded-xl"
                       >
                         <div className="text-[15px] font-medium text-[#1A1916] dark:text-[#F5F4F2]">{option.label}</div>
                         <div className="mt-2 text-[13px] leading-6 text-[#6B6863] dark:text-[#A39F9A]">{option.description}</div>
-                      </button>
+                      </SelectionCard>
                     ))}
                   </div>
                 </section>
 
-                <section className="space-y-3">
+                <section className="space-y-2.5">
                   <div className={SECTION_LABEL}>回复格式</div>
                   <div className="grid gap-3 md:grid-cols-3">
                     {replyFormatOptions.map((option) => (
-                      <button
+                      <SelectionCard
+                        as="button"
                         key={option.value}
-                        type="button"
                         onClick={() => setReplyFormat(option.value)}
-                        className={cn(
-                          'rounded-xl border p-4 text-left',
-                          SPRING_PRESSABLE,
-                          INTERACTIVE_FOCUS_RING,
-                          replyFormat === option.value
-                            ? 'border-[#C9B896] bg-[#C9B896]/10 dark:border-[#9D8B6F] dark:bg-[#9D8B6F]/14'
-                            : 'border-[#E8E6E3] bg-white hover:border-[#C9B896] dark:border-[#2D2C2A] dark:bg-[#242320] dark:hover:border-[#9D8B6F]',
-                        )}
+                        selected={replyFormat === option.value}
+                        className="rounded-xl"
                       >
                         <div className="text-[15px] font-medium text-[#1A1916] dark:text-[#F5F4F2]">{option.label}</div>
                         <div className="mt-2 text-[13px] leading-6 text-[#6B6863] dark:text-[#A39F9A]">{option.description}</div>
-                      </button>
+                      </SelectionCard>
                     ))}
                   </div>
                 </section>
 
-                <section className="grid gap-4 md:grid-cols-2">
+                <section className="grid gap-3.5 md:grid-cols-2">
                   <div className="space-y-2">
                     <label className="text-[13px] font-medium text-[#1a1916] dark:text-[#f5f4f2]">关键词触发示例</label>
                     <input
                       value={keywordDraft}
                       onChange={(event) => setKeywordDraft(event.target.value)}
-                      className="min-h-[48px] w-full rounded-[16px] border border-[#E8E6E3] bg-white px-4 text-[14px] text-[#1A1916] outline-none transition focus:border-[#C9B896] focus:ring-2 focus:ring-[#C9B896]/20 dark:border-[#2D2C2A] dark:bg-[#242320] dark:text-[#F5F4F2] dark:focus:border-[#9D8B6F] dark:focus:ring-[#9D8B6F]/20"
+                      className={MODAL_INPUT_CLASS}
                     />
                   </div>
                   <div className="space-y-2">
@@ -497,7 +485,7 @@ export function IMBotSetupModal({
                     <input
                       value={offlineReply}
                       onChange={(event) => setOfflineReply(event.target.value)}
-                      className="min-h-[48px] w-full rounded-[16px] border border-[#E8E6E3] bg-white px-4 text-[14px] text-[#1A1916] outline-none transition focus:border-[#C9B896] focus:ring-2 focus:ring-[#C9B896]/20 dark:border-[#2D2C2A] dark:bg-[#242320] dark:text-[#F5F4F2] dark:focus:border-[#9D8B6F] dark:focus:ring-[#9D8B6F]/20"
+                      className={MODAL_INPUT_CLASS}
                     />
                   </div>
                 </section>
@@ -505,7 +493,7 @@ export function IMBotSetupModal({
             ) : null}
 
             {currentStep === 5 ? (
-              <div className="flex min-h-[440px] flex-col items-center justify-center text-center">
+              <div className="flex min-h-[420px] flex-col items-center justify-center text-center">
                 <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#2F5D3E]/12 text-[#2F5D3E] dark:bg-[#3A6B4A]/24 dark:text-[#A8E2BA]">
                   <CheckCircle2 className="h-10 w-10" />
                 </div>
@@ -516,10 +504,10 @@ export function IMBotSetupModal({
                   这个机器人现在会出现在 IM机器人视图区的已创建列表里。接下来你可以进入详情页继续绑定默认助手、会话策略和消息模板。
                 </p>
                 <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-                  <span className="rounded-full bg-white px-3 py-1 text-[12px] text-[#6B6863] dark:bg-[#242320] dark:text-[#A39F9A]">
+                  <span className="rounded-full border border-[#E8E6E3] bg-white px-3 py-1 text-[12px] text-[#6B6863] dark:border-[#2D2C2A] dark:bg-[#242320] dark:text-[#A39F9A]">
                     触发方式：{triggerModeOptions.find((item) => item.value === triggerMode)?.label}
                   </span>
-                  <span className="rounded-full bg-white px-3 py-1 text-[12px] text-[#6B6863] dark:bg-[#242320] dark:text-[#A39F9A]">
+                  <span className="rounded-full border border-[#E8E6E3] bg-white px-3 py-1 text-[12px] text-[#6B6863] dark:border-[#2D2C2A] dark:bg-[#242320] dark:text-[#A39F9A]">
                     回复格式：{replyFormatOptions.find((item) => item.value === replyFormat)?.label}
                   </span>
                 </div>
@@ -527,13 +515,13 @@ export function IMBotSetupModal({
             ) : null}
           </div>
 
-          <aside className="min-h-0 overflow-y-auto space-y-6">
+          <aside className="min-h-0 space-y-5 overflow-y-auto">
             <ChecklistPanel title="本次接入你将完成" items={completionItems} variant="progress" />
             <ChecklistPanel title="平台提示" items={tipItems} variant="tips" />
           </aside>
         </div>
 
-        <div className="flex items-center justify-between border-t border-[#E8E6E3] px-10 py-6 dark:border-[#2D2C2A]">
+        <div className="flex items-center justify-between border-t border-[#E8E6E3] px-10 py-5 dark:border-[#2D2C2A]">
           <div className="text-[13px] text-[#9B9691] dark:text-[#6B6863]">
             {currentStep < 5 ? `步骤 ${currentStep} / 5` : '接入已准备完成'}
           </div>

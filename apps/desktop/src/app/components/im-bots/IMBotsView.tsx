@@ -155,7 +155,7 @@ const platformMetaList: PlatformCardMeta[] = [
     id: 'feishu',
     label: '飞书',
     logo: feishuLogo,
-    logoClassName: 'scale-[1.3]',
+    logoClassName: 'scale-[1.55]',
     intro: '适合企业群聊、私聊与组织内 AI 助手。',
     difficulty: '中',
     eta: '10 分钟',
@@ -765,11 +765,11 @@ export function IMBotsView({ client }: { client: IClawClient }) {
 
         <SummaryBar cards={summaryCards} />
 
-        <div className="mb-8 mt-6 grid grid-cols-[minmax(0,1fr)_320px] gap-6">
-          <div className="space-y-3">
+        <div className="mb-8 mt-6 grid grid-cols-[minmax(0,1fr)_308px] gap-5">
+          <div className="space-y-2.5">
             <div className="flex items-center justify-between gap-4">
-              <div className="text-[20px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">已创建机器人</div>
-              <span className="text-sm text-[var(--text-secondary)]">{bots.length} 个</span>
+              <div className="text-[18px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">已创建机器人</div>
+              <span className="text-[13px] text-[var(--text-secondary)]">{bots.length} 个</span>
             </div>
             {bots.length > 0 ? (
               bots.map((bot) => {
@@ -800,17 +800,17 @@ export function IMBotsView({ client }: { client: IClawClient }) {
           />
         </div>
 
-        <div className="mt-12">
+        <div className="mt-10">
           <div className="mb-5 flex items-center justify-between">
             <div>
-              <div className="text-[20px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">平台接入</div>
-              <p className="mt-2 text-[14px] leading-7 text-[var(--text-secondary)]">
+              <div className="text-[18px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">平台接入</div>
+              <p className="mt-1.5 text-[13px] leading-6 text-[var(--text-secondary)]">
                 选择您企业使用的 IM 平台，快速创建并配置机器人
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-4 gap-3">
             {platformMetaList.map((platform) => (
               <PlatformCard
                 key={platform.id}
@@ -858,8 +858,8 @@ function SummaryBar({
   }>;
 }) {
   return (
-    <PressableCard className="overflow-hidden rounded-[22px] border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-4 shadow-[var(--pressable-card-rest-shadow)]">
-      <div className="grid grid-cols-4 gap-4">
+    <PressableCard className="overflow-hidden rounded-[18px] border-[var(--border-default)] bg-[var(--bg-card)] px-3 py-2.5 shadow-[var(--pressable-card-rest-shadow)]">
+      <div className="grid grid-cols-4 gap-1">
         {cards.map((card, index) => (
           <SummaryBarItem key={card.label} {...card} first={index === 0} />
         ))}
@@ -917,15 +917,15 @@ function ManagedBotCard({
   const healthMeta = getHealthMeta(bot.healthState);
 
   return (
-    <PressableCard className="group relative rounded-[22px] border-[var(--border-default)] bg-[var(--bg-card)] px-5 py-4 shadow-[var(--pressable-card-rest-shadow)]">
-      <div className="flex items-center gap-4">
-        <div className="flex min-w-[280px] items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-page)] shadow-[0_6px_12px_rgba(15,23,42,0.05)] dark:bg-[rgba(255,255,255,0.04)]">
+    <PressableCard className="group relative rounded-[20px] border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-3.5 shadow-[var(--pressable-card-rest-shadow)]">
+      <div className="flex items-center gap-3.5">
+        <div className="flex min-w-[248px] items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-[12px] border border-[var(--border-default)] bg-[var(--bg-page)] shadow-[var(--pressable-card-rest-shadow)] dark:bg-[rgba(255,255,255,0.04)]">
             <img src={meta.logo} alt={meta.label} className={cn('h-full w-full object-cover', meta.logoClassName)} />
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h4 className="font-semibold text-[var(--text-primary)]">{bot.name}</h4>
+              <h4 className="text-[15px] font-semibold text-[var(--text-primary)]">{bot.name}</h4>
               <Chip tone={healthMeta.chipTone} className="px-2 py-0.5 text-[11px] font-medium">
                 {healthMeta.label}
               </Chip>
@@ -936,7 +936,7 @@ function ManagedBotCard({
           </div>
         </div>
 
-        <div className="grid flex-1 grid-cols-4 gap-x-6 text-[12px]">
+        <div className="grid flex-1 grid-cols-4 gap-x-4 text-[12px]">
           <DetailCell label="平台" value={meta.label} />
           <DetailCell label="公司" value={bot.company} />
           <DetailCell label="默认助手" value={bot.assistant} />
@@ -986,7 +986,7 @@ function ManagedBotCard({
         </div>
       </div>
 
-      <div className="mt-3 flex items-center gap-6 border-t border-[var(--border-default)] pt-3 text-[12px] text-[var(--text-secondary)]">
+      <div className="mt-2.5 flex items-center gap-5 border-t border-[var(--border-default)] pt-2.5 text-[12px] text-[var(--text-secondary)]">
         <InlineMetaItem label="最近活跃" value={bot.lastActive} />
         <InlineMetaItem label="触发方式" value={bot.triggerMode} />
         <InlineMetaItem label="回复格式" value={bot.replyFormat} />
@@ -1045,33 +1045,35 @@ function ActivityPanel({
   ];
 
   return (
-    <PressableCard className="w-80 overflow-hidden rounded-[22px] border-[rgba(15,23,42,0.08)] bg-[var(--bg-card)] shadow-[var(--shadow-sm)]">
-      <div className="flex border-b border-[var(--border-default)] bg-[var(--bg-page)]/60">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          const active = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => onTabChange(tab.id)}
-              className={cn(
-                'flex flex-1 cursor-pointer items-center justify-center gap-1.5 border-b-2 px-3 py-2.5 text-[12px] font-medium',
-                SPRING_PRESSABLE,
-                INTERACTIVE_FOCUS_RING,
-                active
-                  ? 'border-[var(--brand-primary)] bg-[var(--bg-card)] text-[var(--text-primary)]'
-                  : 'border-transparent text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
-              )}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {tab.label}
-            </button>
-          );
-        })}
+    <PressableCard className="w-[308px] overflow-hidden rounded-[22px] border-[var(--border-default)] bg-[var(--bg-card)] shadow-[var(--pressable-card-rest-shadow)]">
+      <div className="border-b border-[var(--border-default)] px-3.5 py-3">
+        <div className="grid grid-cols-3 gap-1 rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-hover)] p-1">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => onTabChange(tab.id)}
+                className={cn(
+                  'flex cursor-pointer items-center justify-center gap-1.5 rounded-[12px] px-2.5 py-2 text-[12px] font-medium',
+                  SPRING_PRESSABLE,
+                  INTERACTIVE_FOCUS_RING,
+                  active
+                    ? 'border border-[var(--button-primary-border)] bg-[var(--bg-card)] text-[var(--text-primary)] shadow-[var(--button-secondary-shadow)]'
+                    : 'border border-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-card)] hover:text-[var(--text-primary)]',
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <div className="max-h-[600px] divide-y divide-[var(--border-default)] overflow-y-auto">
+      <div className="max-h-[600px] overflow-y-auto px-3.5 py-3">
         {activeTab === 'todo'
           ? todoItems.length > 0
             ? todoItems.map((item) => (
@@ -1088,6 +1090,7 @@ function ActivityPanel({
                 <EmptyPanelState
                   title="当前没有待处理项"
                   description="当机器人还没绑定默认助手，或后续出现链路异常时，这里会集中展示要处理的项目。"
+                  className="border-none bg-transparent px-1 py-2"
                 />
               )
           : null}
@@ -1107,6 +1110,7 @@ function ActivityPanel({
                 <EmptyPanelState
                   title="还没有连接健康信息"
                   description="完成平台接入并创建机器人后，这里会显示真实的连接状态和健康摘要。"
+                  className="border-none bg-transparent px-1 py-2"
                 />
               )
           : null}
@@ -1126,13 +1130,21 @@ function ActivityPanel({
                 <EmptyPanelState
                   title="当前没有审计日志"
                   description="当你进行接入、测试、启停或更新助手绑定后，这里会展示真实操作记录。"
+                  className="border-none bg-transparent px-1 py-2"
                 />
               )
           : null}
       </div>
 
-      <div className="border-t border-[var(--border-default)] bg-[var(--bg-page)]/40 px-3.5 py-2.5">
-        <button className="w-full text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]">
+      <div className="border-t border-[var(--border-default)] px-3.5 py-3">
+        <button
+          type="button"
+          className={cn(
+            'w-full rounded-[12px] px-3 py-2 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
+            SPRING_PRESSABLE,
+            INTERACTIVE_FOCUS_RING,
+          )}
+        >
           查看全部历史
         </button>
       </div>
@@ -1167,7 +1179,7 @@ function ActivityListItem({
       type="button"
       onClick={onClick}
       className={cn(
-        'group w-full cursor-pointer border-l-2 px-3.5 py-3.5 text-left transition-colors hover:bg-[var(--bg-page)]/50',
+        'group mb-2 w-full cursor-pointer rounded-[14px] border border-[var(--border-default)] border-l-2 bg-[var(--bg-elevated)] px-3 py-3 text-left transition-colors hover:border-[var(--border-strong)] hover:bg-[var(--bg-page)]/50 last:mb-0',
         SPRING_PRESSABLE,
         INTERACTIVE_FOCUS_RING,
         severityClassName,
@@ -1199,8 +1211,8 @@ function ActivityListItem({
   );
 }
 
-function EmptyPanelState({ title, description }: { title: string; description: string }) {
-  return <EmptyStatePanel compact title={title} description={description} />;
+function EmptyPanelState({ title, description, className }: { title: string; description: string; className?: string }) {
+  return <EmptyStatePanel compact title={title} description={description} className={className} />;
 }
 
 function PlatformCard({
@@ -1222,9 +1234,9 @@ function PlatformCard({
       description={platform.intro}
       badge={
         configured ? (
-          <span className="rounded-full border border-[rgba(34,197,94,0.18)] bg-[rgba(34,197,94,0.12)] px-3 py-1 text-[12px] font-medium text-[rgb(22,163,74)] dark:text-[#9af0c5]">
+          <Chip tone="success" className="px-2.5 py-1 text-[11px] font-medium">
             已配置
-          </span>
+          </Chip>
         ) : null
       }
       footer={
@@ -1251,8 +1263,8 @@ function PlatformCard({
 
 function MetaPill({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[16px] bg-[var(--bg-hover)] px-3 py-2">
-      <div className="text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">{label}</div>
+    <div className="min-h-[58px] rounded-[14px] border border-[var(--border-subtle)] bg-[var(--bg-hover)] px-3 py-2">
+      <div className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">{label}</div>
       <div className="mt-1 text-[13px] font-medium text-[var(--text-primary)]">{value}</div>
     </div>
   );

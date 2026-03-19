@@ -30,25 +30,25 @@ export function SummaryMetricItem({
   return (
     <div
       className={cn(
-        'flex min-w-0 items-center gap-3 px-3 py-2',
+        'flex min-w-0 items-center gap-2.5 px-2.5 py-1.5',
         !first && 'border-l border-[var(--border-default)]',
         className,
       )}
     >
       <div
         className={cn(
-          'flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] bg-[var(--bg-page)]',
+          'flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[var(--bg-page)]',
           TONE_CLASSES[tone],
         )}
       >
-        <Icon className="h-4 w-4" />
+        <Icon className="h-3.5 w-3.5" />
       </div>
       <div className="min-w-0">
         <div className="flex items-baseline gap-2">
-          <div className="text-[20px] font-semibold leading-none tracking-[-0.04em] text-[var(--text-primary)]">{value}</div>
-          <div className="text-[11px] text-[var(--text-muted)]">{label}</div>
+          <div className="text-[18px] font-semibold leading-none tracking-[-0.04em] text-[var(--text-primary)]">{value}</div>
+          <div className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">{label}</div>
         </div>
-        <p className="mt-1 text-[12px] leading-snug text-[var(--text-secondary)]">{note}</p>
+        <p className="mt-1 text-[11px] leading-snug text-[var(--text-secondary)]">{note}</p>
       </div>
     </div>
   );
