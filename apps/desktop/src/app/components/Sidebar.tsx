@@ -8,6 +8,7 @@ import {
   Link2,
   MessageSquare,
   Plus,
+  Shield,
 } from 'lucide-react';
 import type { DesktopUpdateHint } from '@iclaw/sdk';
 import { AvatarDropdown } from './AvatarDropdown';
@@ -23,19 +24,25 @@ import {
 } from '../lib/user-avatar';
 
 type SidebarUser = AppUserAvatarSource;
-type PrimaryView = 'chat' | 'lobster-store' | 'skill-store' | 'cron' | 'im-bots' | 'data-connections' | 'task-center' | 'memory';
+type PrimaryView =
+  | 'chat'
+  | 'lobster-store'
+  | 'skill-store'
+  | 'cron'
+  | 'im-bots'
+  | 'data-connections'
+  | 'task-center'
+  | 'memory'
+  | 'security';
 
-function LobsterStoreIcon(props: SVGProps<SVGSVGElement>) {
+function AssistantStoreIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M12 7.2c2.8 0 5.1 2.2 5.1 5v1.7c0 2.1-1.2 4-3.1 4.9l-2 1-2-1A5.49 5.49 0 0 1 6.9 13.9v-1.7c0-2.8 2.3-5 5.1-5Z" />
-      <path d="M9.2 6.1 7.5 4.4" />
-      <path d="m14.8 6.1 1.7-1.7" />
-      <path d="M8.4 12.3 6 10.9" />
-      <path d="m15.6 12.3 2.4-1.4" />
-      <path d="M10.1 10.8v2.4" />
-      <path d="M13.9 10.8v2.4" />
-      <path d="M10.6 16.7h2.8" />
+      <path d="M12 12.2a3.1 3.1 0 1 0 0-6.2 3.1 3.1 0 0 0 0 6.2Z" />
+      <path d="M6.8 18.1c.8-2.4 2.8-3.6 5.2-3.6s4.4 1.2 5.2 3.6" />
+      <path d="M17.8 5.2h2.6" />
+      <path d="M19.1 3.9v2.6" />
+      <path d="m16.8 7.5.9.9" />
     </svg>
   );
 }
@@ -50,6 +57,7 @@ interface SidebarProps {
   onOpenLobsterStore?: () => void;
   onOpenSkillStore?: () => void;
   onOpenDataConnections?: () => void;
+  onOpenSecurity?: () => void;
   onOpenImBots?: () => void;
   onOpenMemory?: () => void;
   onOpenTasks?: () => void;
@@ -92,6 +100,7 @@ export function Sidebar({
   onOpenLobsterStore,
   onOpenSkillStore,
   onOpenDataConnections,
+  onOpenSecurity,
   onOpenImBots,
   onOpenMemory,
   onOpenTasks,
@@ -149,7 +158,7 @@ export function Sidebar({
     {
       key: 'lobster-store',
       label: '龙虾商店',
-      icon: LobsterStoreIcon,
+      icon: AssistantStoreIcon,
       iconClass: 'text-[var(--text-secondary)]',
       iconWrapClass: 'rounded-[10px] border border-transparent bg-transparent',
       active: activeView === 'lobster-store',
@@ -178,6 +187,14 @@ export function Sidebar({
       iconClass: 'text-[var(--text-secondary)]',
       active: activeView === 'data-connections',
       onClick: onOpenDataConnections,
+    },
+    {
+      key: 'security',
+      label: '安全防护',
+      icon: Shield,
+      iconClass: 'text-[var(--text-secondary)]',
+      active: activeView === 'security',
+      onClick: onOpenSecurity,
     },
     {
       key: 'im-bots',

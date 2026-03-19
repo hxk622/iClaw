@@ -24,6 +24,7 @@ import { MemoryView } from './components/memory/MemoryView';
 import { TaskCenterView } from './components/TaskCenterView';
 import { SkillStoreView } from './components/skill-store/SkillStoreView';
 import { IMBotsView } from './components/im-bots/IMBotsView';
+import { SecurityCenterView } from './components/security-center/SecurityCenterView';
 import { SettingsPanel } from './components/settings/SettingsPanel';
 import { type PersistableSettingsSection, SettingsProvider, useSettings } from './contexts/settings-context';
 import { BRAND } from './lib/brand';
@@ -111,7 +112,16 @@ const AUTH_BOOTSTRAP_TIMEOUT_MS = 10_000;
 const DESKTOP_APP_VERSION = desktopPackageJson.version;
 const DESKTOP_RELEASE_CHANNEL: 'dev' | 'prod' = import.meta.env.DEV ? 'dev' : 'prod';
 const DISPLAY_DESKTOP_APP_VERSION = DESKTOP_APP_VERSION.split('+', 1)[0] || DESKTOP_APP_VERSION;
-type PrimaryView = 'chat' | 'lobster-store' | 'skill-store' | 'cron' | 'im-bots' | 'data-connections' | 'task-center' | 'memory';
+type PrimaryView =
+  | 'chat'
+  | 'lobster-store'
+  | 'skill-store'
+  | 'cron'
+  | 'im-bots'
+  | 'data-connections'
+  | 'task-center'
+  | 'memory'
+  | 'security';
 
 type InstallerViewState = 'loading' | 'error';
 
@@ -1180,6 +1190,7 @@ function AuthedView({
         onOpenLobsterStore={() => setPrimaryView('lobster-store')}
         onOpenSkillStore={() => setPrimaryView('skill-store')}
         onOpenDataConnections={() => setPrimaryView('data-connections')}
+        onOpenSecurity={() => setPrimaryView('security')}
         onOpenImBots={() => setPrimaryView('im-bots')}
         onOpenMemory={() => setPrimaryView('memory')}
         onOpenTasks={() => setPrimaryView('task-center')}
@@ -1235,6 +1246,8 @@ function AuthedView({
             />
           ) : primaryView === 'data-connections' ? (
             <DataConnectionsView />
+          ) : primaryView === 'security' ? (
+            <SecurityCenterView />
           ) : primaryView === 'memory' ? (
             <MemoryView />
           ) : primaryView === 'task-center' ? (
