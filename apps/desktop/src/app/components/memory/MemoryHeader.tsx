@@ -19,13 +19,12 @@ export function MemoryHeader({
 }) {
   return (
     <PageHeader
-      eyebrow="Memory"
       title="记忆管理"
       description="AI 的长期记忆与标签化管理"
-      className="gap-3"
-      eyebrowClassName="text-[var(--text-muted)]"
-      titleClassName="text-[var(--text-primary)]"
-      descriptionClassName="text-[var(--text-secondary)]"
+      className="gap-2.5"
+      contentClassName="space-y-1"
+      titleClassName="mt-0 text-[24px] font-semibold tracking-[-0.045em] text-[var(--text-primary)]"
+      descriptionClassName="mt-0 text-[12px] leading-5 text-[var(--text-secondary)]"
       actionsClassName="gap-2"
       actions={
         <>
@@ -34,7 +33,7 @@ export function MemoryHeader({
             disabled={mutating}
             variant="secondary"
             size="sm"
-            className="px-4 py-2 text-[13px]"
+            className="px-3.5 py-1.5 text-[12px]"
             leadingIcon={<RefreshCw size={14} strokeWidth={1.5} />}
           >
             刷新索引
@@ -44,7 +43,7 @@ export function MemoryHeader({
             disabled={loading || mutating}
             variant="secondary"
             size="sm"
-            className="px-4 py-2 text-[13px]"
+            className="px-3.5 py-1.5 text-[12px]"
             leadingIcon={<Download size={14} strokeWidth={1.5} />}
           >
             导出
@@ -54,7 +53,7 @@ export function MemoryHeader({
             disabled={mutating}
             variant="secondary"
             size="sm"
-            className="px-4 py-2 text-[13px]"
+            className="px-3.5 py-1.5 text-[12px]"
             leadingIcon={<FileUp size={14} strokeWidth={1.5} />}
           >
             导入
@@ -64,7 +63,7 @@ export function MemoryHeader({
             disabled={mutating}
             variant="primary"
             size="sm"
-            className="px-4 py-2 text-[13px]"
+            className="px-3.5 py-1.5 text-[12px]"
             leadingIcon={<Plus size={14} strokeWidth={1.5} />}
           >
             新建记忆

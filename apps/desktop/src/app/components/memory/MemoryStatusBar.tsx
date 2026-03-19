@@ -1,7 +1,6 @@
-import { Activity, CheckCircle2, Clock3, Database, Hash, Sparkles, TriangleAlert, Zap } from 'lucide-react';
+import { Activity, CheckCircle2, Clock3, Database, Hash, TriangleAlert, Zap } from 'lucide-react';
 import type { MemoryRuntimeStatus } from '@/app/lib/tauri-memory';
 import { Chip } from '@/app/components/ui/Chip';
-import { StatCard } from '@/app/components/ui/StatCard';
 import { SummaryMetricItem } from '@/app/components/ui/SummaryMetricItem';
 import { SurfacePanel } from '@/app/components/ui/SurfacePanel';
 import type { MemoryStatusSummary } from './model';
@@ -28,106 +27,76 @@ export function MemoryStatusBar({
   topTags: Array<[string, number]>;
   latestUpdatedAt: string | null;
 }) {
-  const indexTone = statusSummary.indexHealth === '健康' ? 'success' : runtimeError ? 'danger' : 'warning';
+  const indexTone = statusSummary.indexHealth === '健康' ? 'success' : runtimeError ? 'danger' : 'accent';
 
   return (
-    <SurfacePanel className="overflow-hidden rounded-[24px] border-[var(--border-default)] bg-[var(--bg-card)]">
-      <div className="grid gap-3 border-b border-[var(--border-default)] p-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          icon={<Database className="h-4 w-4" />}
-          label="记忆总量"
-          value={statusSummary.total}
-          description={`${statusSummary.indexedFiles} 个文件已被索引`}
+    <SurfacePanel className="rounded-[20px] border-[var(--border-default)] bg-[var(--bg-card)]">
+      <div className="grid gap-1 border-b border-[var(--border-default)] px-3 py-2 md:grid-cols-4">
+        <SummaryMetricItem
+          label="总量"
+          value={`${statusSummary.total}`}
+          note={`${statusSummary.indexedFiles} 文件已索引`}
+          icon={Database}
           tone="brand"
+          first
+          className="px-1.5 py-1"
         />
-        <StatCard
-          icon={<Zap className="h-4 w-4" />}
+        <SummaryMetricItem
           label="自动捕获"
-          value={statusSummary.autoCaptured}
-          description="系统自动沉淀的长期记忆"
+          value={`${statusSummary.autoCaptured}`}
+          note="自动沉淀"
+          icon={Zap}
           tone="success"
+          className="px-1.5 py-1"
         />
-        <StatCard
-          icon={<Activity className="h-4 w-4" />}
+        <SummaryMetricItem
           label="累计召回"
-          value={statusSummary.totalRecalls}
-          description={`${statusSummary.recalled} 条记忆至少被使用过一次`}
-          tone="default"
+          value={`${statusSummary.totalRecalls}`}
+          note={`${statusSummary.recalled} 条已用过`}
+          icon={Activity}
+          tone="neutral"
+          className="px-1.5 py-1"
         />
-        <StatCard
-          icon={<Sparkles className="h-4 w-4" />}
+        <SummaryMetricItem
           label="待检查"
-          value={statusSummary.pendingReview}
-          description={runtimeError ? '当前存在索引异常，请优先处理' : '等待人工确认或整理'}
-          tone={runtimeError ? 'warning' : 'default'}
+          value={`${statusSummary.pendingReview}`}
+          note={runtimeError ? '索引异常' : '等待确认'}
+          icon={runtimeError ? TriangleAlert : CheckCircle2}
+          tone={runtimeError ? 'warning' : 'neutral'}
+          className="px-1.5 py-1"
         />
       </div>
 
-      <div className="flex flex-col gap-3 p-4">
-        <div className="flex flex-wrap items-center gap-2 rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-hover)] px-3 py-2.5">
-          <Chip tone="outline" className="rounded-full px-3 py-1 text-[12px]">
-            引擎 · {resolveEngineLabel(runtimeStatus)}
-          </Chip>
-          <Chip tone={indexTone} className="rounded-full px-3 py-1 text-[12px]">
-            {runtimeError ? '索引异常' : `索引 ${statusSummary.indexHealth}`}
-          </Chip>
-          <Chip tone="outline" className="rounded-full px-3 py-1 text-[12px]">
-            分块 {statusSummary.indexedChunks}
-          </Chip>
-          <Chip tone="outline" className="rounded-full px-3 py-1 text-[12px]">
-            最后同步 {resolveLatestSyncLabel(latestUpdatedAt)}
-          </Chip>
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+        <Chip tone="outline" className="rounded-full px-2.5 py-1 text-[11px]">
+          引擎 · {resolveEngineLabel(runtimeStatus)}
+        </Chip>
+        <Chip tone={indexTone} className="rounded-full px-2.5 py-1 text-[11px]">
+          {runtimeError ? '索引异常' : `索引 ${statusSummary.indexHealth}`}
+        </Chip>
+        <Chip tone="outline" className="rounded-full px-2.5 py-1 text-[11px]">
+          分块 {statusSummary.indexedChunks}
+        </Chip>
+        <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)]">
+          <Clock3 className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+          <span>{resolveLatestSyncLabel(latestUpdatedAt)}</span>
         </div>
 
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-          <div className="flex flex-wrap rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-2 py-1.5">
-            <SummaryMetricItem
-              label="召回覆盖"
-              value={`${statusSummary.recalled}`}
-              note="被调用过的记忆条目"
-              icon={Activity}
-              tone="brand"
-              first
-              className="flex-1"
-            />
-            <SummaryMetricItem
-              label="索引文件"
-              value={`${statusSummary.indexedFiles}`}
-              note="当前参与向量索引的文件数"
-              icon={Database}
-              tone="neutral"
-              className="flex-1"
-            />
-            <SummaryMetricItem
-              label="状态"
-              value={runtimeError ? '异常' : statusSummary.indexHealth}
-              note={runtimeError ?? '索引与本地文件状态正常'}
-              icon={runtimeError ? TriangleAlert : CheckCircle2}
-              tone={runtimeError ? 'warning' : 'success'}
-              className="flex-1"
-            />
+        <div className="ml-auto flex min-w-0 items-center gap-2">
+          <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
+            <Hash className="h-3.5 w-3.5" />
+            高频标签
           </div>
-
-          <div className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
-            <div className="flex items-center gap-2 text-[12px] font-medium text-[var(--text-primary)]">
-              <Hash className="h-3.5 w-3.5 text-[var(--text-muted)]" />
-              高频标签
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {topTags.length > 0 ? (
-                topTags.slice(0, 6).map(([tag, count]) => (
-                  <Chip key={tag} tone="accent" className="rounded-full px-3 py-1 text-[12px]">
-                    {tag} · {count}
-                  </Chip>
-                ))
-              ) : (
-                <span className="text-[12px] text-[var(--text-muted)]">暂无高频标签</span>
-              )}
-            </div>
-            <div className="mt-3 flex items-center gap-2 text-[12px] text-[var(--text-secondary)]">
-              <Clock3 className="h-3.5 w-3.5 text-[var(--text-muted)]" />
-              最近同步时间：{resolveLatestSyncLabel(latestUpdatedAt)}
-            </div>
+          <div className="flex min-w-0 flex-wrap gap-1.5">
+            {topTags.length > 0 ? (
+              topTags.slice(0, 4).map(([tag, count]) => (
+                <Chip key={tag} tone="accent" className="rounded-full px-2.5 py-1 text-[11px]">
+                  {tag} · {count}
+                </Chip>
+              ))
+            ) : (
+              <span className="text-[11px] text-[var(--text-muted)]">暂无标签</span>
+            )}
           </div>
         </div>
       </div>

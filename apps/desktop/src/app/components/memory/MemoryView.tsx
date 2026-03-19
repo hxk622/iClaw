@@ -464,7 +464,7 @@ export function MemoryView() {
 
       <div className="flex min-w-0 flex-1 overflow-hidden">
         <div className="min-w-0 flex-1 overflow-y-auto">
-          <PageContent className="max-w-[1480px] py-7">
+          <PageContent className="max-w-[1480px] py-5">
             <MemoryHeader
               onRefreshIndex={handleRefreshIndex}
               onExport={handleExport}
@@ -474,7 +474,7 @@ export function MemoryView() {
               mutating={mutating}
             />
 
-            <div className="mt-5 flex flex-col gap-4">
+            <div className="mt-3.5 flex flex-col gap-3">
               <MemoryStatusBar
                 runtimeStatus={runtimeStatus}
                 runtimeError={runtimeError}
