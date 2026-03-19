@@ -88,9 +88,6 @@ const completionChecklist = [
 const SECTION_LABEL =
   'text-[12px] font-semibold uppercase tracking-[0.14em] text-[#9B9691] dark:text-[#6B6863]';
 
-const FIGMA_PRIMARY_BUTTON =
-  'inline-flex items-center justify-center rounded-lg bg-[#C9B896] px-6 py-2.5 text-[13px] text-[#1A1916] shadow-sm shadow-[#C9B896]/20 transition-all hover:shadow-md active:scale-[0.98] dark:bg-[#9D8B6F] dark:text-[#F5F4F2] dark:shadow-[#9D8B6F]/20 disabled:cursor-not-allowed disabled:opacity-100 disabled:saturate-[0.76] disabled:shadow-none';
-
 export function IMBotSetupModal({
   platform,
   open,
@@ -209,8 +206,8 @@ export function IMBotSetupModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(8,12,20,0.36)] px-5 py-5 backdrop-blur-[4px] dark:bg-[rgba(0,0,0,0.48)]">
-      <div className="relative flex h-full max-h-[840px] w-full max-w-[1000px] flex-col overflow-hidden rounded-[24px] border border-[#E8E6E3] bg-[#F9F8F6] shadow-[0_8px_40px_rgba(0,0,0,0.12)] dark:border-[#2D2C2A] dark:bg-[#1C1B19] dark:shadow-[0_8px_40px_rgba(0,0,0,0.4)]">
-        <div className="border-b border-[#E8E6E3] px-10 pb-5 pt-7 dark:border-[#2D2C2A]">
+      <div className="relative flex h-full max-h-[840px] w-full max-w-[1000px] flex-col overflow-hidden rounded-2xl border border-[#E8E6E3] bg-[#F9F8F6] shadow-[0_8px_40px_rgba(0,0,0,0.12)] dark:border-[#2D2C2A] dark:bg-[#1C1B19] dark:shadow-[0_8px_40px_rgba(0,0,0,0.4)]">
+        <div className="border-b border-[#E8E6E3] px-10 pb-6 pt-8 dark:border-[#2D2C2A]">
           <div className="flex items-start justify-between gap-6">
             <div className="flex min-w-0 items-start gap-4">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#E8E6E3] bg-white shadow-sm dark:border-[#2D2C2A] dark:bg-[#242320]">
@@ -247,7 +244,7 @@ export function IMBotSetupModal({
           </div>
         </div>
 
-        <div className="border-b border-[#E8E6E3] px-10 py-5 dark:border-[#2D2C2A]">
+        <div className="border-b border-[#E8E6E3] px-10 py-6 dark:border-[#2D2C2A]">
           <WizardStepper steps={wizardSteps} />
         </div>
 
@@ -382,10 +379,9 @@ export function IMBotSetupModal({
                   </p>
                 </div>
 
-                <SurfacePanel className="relative flex min-h-[340px] items-center justify-center overflow-hidden p-8">
-                  <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_top,rgba(201,184,150,0.16),transparent_68%)] dark:bg-[radial-gradient(circle_at_top,rgba(157,139,111,0.16),transparent_68%)]" />
+                <SurfacePanel className="flex min-h-[340px] items-center justify-center p-8">
                   {testStatus === 'testing' ? (
-                    <div className="relative z-10 flex flex-col items-center gap-4 text-center">
+                    <div className="flex flex-col items-center gap-4 text-center">
                       <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[#E8E6E3] bg-white shadow-sm dark:border-[#2D2C2A] dark:bg-[#242320]">
                         <Loader2 className="h-8 w-8 animate-spin text-[#9D8B6F] dark:text-[#C9B896]" />
                       </div>
@@ -393,16 +389,11 @@ export function IMBotSetupModal({
                       <p className="max-w-[360px] text-[14px] leading-7 text-[#6B6863] dark:text-[#A39F9A]">
                         正在校验平台凭据、消息入口与回调链路，请稍候。
                       </p>
-                      <div className="flex items-center gap-2">
-                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#C9B896] dark:bg-[#9D8B6F]" />
-                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#C9B896]/75 [animation-delay:140ms] dark:bg-[#9D8B6F]/75" />
-                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#C9B896]/50 [animation-delay:280ms] dark:bg-[#9D8B6F]/50" />
-                      </div>
                     </div>
                   ) : null}
 
                   {testStatus === 'success' ? (
-                    <div className="relative z-10 flex flex-col items-center gap-4 text-center">
+                    <div className="flex flex-col items-center gap-4 text-center">
                       <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[#2F5D3E]/10 bg-[#2F5D3E]/12 text-[#2F5D3E] shadow-[0_10px_30px_rgba(47,93,62,0.10)] dark:border-[#3A6B4A]/20 dark:bg-[#3A6B4A]/24 dark:text-[#A8E2BA] dark:shadow-[0_12px_32px_rgba(0,0,0,0.24)]">
                         <CheckCircle2 className="h-8 w-8" />
                       </div>
@@ -542,7 +533,7 @@ export function IMBotSetupModal({
           </aside>
         </div>
 
-        <div className="flex items-center justify-between border-t border-[#E8E6E3] px-10 py-5 dark:border-[#2D2C2A]">
+        <div className="flex items-center justify-between border-t border-[#E8E6E3] px-10 py-6 dark:border-[#2D2C2A]">
           <div className="text-[13px] text-[#9B9691] dark:text-[#6B6863]">
             {currentStep < 5 ? `步骤 ${currentStep} / 5` : '接入已准备完成'}
           </div>
@@ -551,23 +542,18 @@ export function IMBotSetupModal({
             <Button variant="secondary" size="sm" onClick={handlePrev}>
               {currentStep === 1 ? '取消' : '上一步'}
             </Button>
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              size="sm"
               onClick={handleNext}
               disabled={
                 (currentStep === 2 && !canAdvanceFromCredentials) ||
                 (currentStep === 3 && testStatus !== 'success')
               }
-              className={cn(
-                FIGMA_PRIMARY_BUTTON,
-                APPLE_FLAT_SURFACE,
-                SPRING_PRESSABLE,
-                INTERACTIVE_FOCUS_RING,
-                'cursor-pointer',
-              )}
+              className="rounded-lg px-6 py-2.5"
             >
               {primaryActionLabel}
-            </button>
+            </Button>
           </div>
         </div>
       </div>
