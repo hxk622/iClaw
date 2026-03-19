@@ -382,6 +382,10 @@ body {
   display: none !important;
 }
 
+.openclaw-chat-surface .chat > button {
+  display: none !important;
+}
+
 .openclaw-chat-surface .chat-group.user > button:not(.iclaw-chat-user-copy) {
   display: none !important;
 }
