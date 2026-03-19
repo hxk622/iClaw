@@ -1,5 +1,6 @@
 packages:
-  - 'home'
+  - 'home-web'
+  - 'admin-web'
   - 'apps/*'
   - 'services/*'
   - 'packages/*'

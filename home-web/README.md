@@ -1,12 +1,12 @@
-# iClaw Home
+# iClaw Home Web
 
 iClaw 下载站（首版）。
 
 ## 本地开发
 
 ```bash
-ICLAW_BRAND=iclaw pnpm dev:home
-ICLAW_BRAND=licaiclaw pnpm dev:home
+ICLAW_BRAND=iclaw pnpm dev:home-web
+ICLAW_BRAND=licaiclaw pnpm dev:home-web
 # 或
 pnpm dev:home
 bash scripts/deploy-home.sh dev
@@ -17,12 +17,12 @@ bash scripts/deploy-home.sh dev
 ## 构建
 
 ```bash
-ICLAW_BRAND=licaiclaw pnpm build:home
+ICLAW_BRAND=licaiclaw pnpm build:home-web
 # 或
 pnpm build:home
 ```
 
-构建产物位于 `home/dist`。
+构建产物位于 `home-web/dist`。
 
 ## 发布策略
 
