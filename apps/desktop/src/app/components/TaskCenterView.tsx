@@ -10,6 +10,7 @@ import {
   ListTodo,
   Loader2,
   MessageSquare,
+  Pin,
   Presentation,
   Search,
   Table2,
@@ -136,7 +137,7 @@ export function TaskCenterView({
                 历史任务
               </h1>
               <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                查看最近发起的任务、结果与更新状态
+                查看历史任务、结果与更新状态
               </p>
             </div>
 
@@ -275,6 +276,12 @@ export function TaskCenterView({
                             >
                               {status.label}
                             </Chip>
+                            {task.pinnedAt ? (
+                              <span className="inline-flex items-center gap-1.5 rounded-full border border-[rgba(168,140,93,0.18)] bg-[rgba(168,140,93,0.10)] px-3 py-1 text-xs font-medium text-[var(--brand-primary)]">
+                                <Pin className="h-3.5 w-3.5" />
+                                已置顶
+                              </span>
+                            ) : null}
                           </div>
 
                           <h2 className="mt-3 text-base font-semibold text-[var(--text-primary)]">
@@ -382,13 +389,21 @@ function TaskSummaryPanel({
       </p>
 
       <div className="mt-5">
-        <Chip
-          tone={status.chipTone}
-          leadingIcon={<StatusIcon className={cn('h-3.5 w-3.5', task.status === 'running' ? 'animate-spin' : '')} />}
-          className="px-3 py-1 text-sm font-medium"
-        >
-          {status.label}
-        </Chip>
+        <div className="flex flex-wrap items-center gap-2">
+          <Chip
+            tone={status.chipTone}
+            leadingIcon={<StatusIcon className={cn('h-3.5 w-3.5', task.status === 'running' ? 'animate-spin' : '')} />}
+            className="px-3 py-1 text-sm font-medium"
+          >
+            {status.label}
+          </Chip>
+          {task.pinnedAt ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[rgba(168,140,93,0.18)] bg-[rgba(168,140,93,0.10)] px-3 py-1 text-xs font-medium text-[var(--brand-primary)]">
+              <Pin className="h-3.5 w-3.5" />
+              已置顶
+            </span>
+          ) : null}
+        </div>
       </div>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2">

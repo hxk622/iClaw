@@ -13,6 +13,7 @@ export interface RecentTaskRecord {
   status: RecentTaskStatus;
   createdAt: string;
   updatedAt: string;
+  pinnedAt?: string | null;
   artifacts: RecentTaskArtifact[];
   lastError: string | null;
 }
@@ -88,9 +89,21 @@ function normalizeRecentTask(task: RecentTaskRecord): RecentTaskRecord {
     summary,
     createdAt: task.createdAt || new Date().toISOString(),
     updatedAt: task.updatedAt || task.createdAt || new Date().toISOString(),
+    pinnedAt: typeof task.pinnedAt === 'string' && task.pinnedAt ? task.pinnedAt : null,
     artifacts: dedupeArtifacts(task.artifacts ?? []),
     lastError: task.lastError ?? null,
   };
+}
+
+function compareRecentTasks(a: RecentTaskRecord, b: RecentTaskRecord): number {
+  const aPinned = a.pinnedAt ? new Date(a.pinnedAt).getTime() : 0;
+  const bPinned = b.pinnedAt ? new Date(b.pinnedAt).getTime() : 0;
+
+  if (aPinned !== bPinned) {
+    return bPinned - aPinned;
+  }
+
+  return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
 }
 
 function readTasksFromStorage(): RecentTaskRecord[] {
@@ -110,7 +123,7 @@ function readTasksFromStorage(): RecentTaskRecord[] {
     return parsed
       .filter((item): item is RecentTaskRecord => Boolean(item && typeof item === 'object' && 'id' in item))
       .map((item) => normalizeRecentTask(item))
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      .sort(compareRecentTasks);
   } catch {
     return [];
   }
@@ -127,7 +140,7 @@ function writeTasksToStorage(tasks: RecentTaskRecord[]): void {
       JSON.stringify(
         tasks
           .map((task) => normalizeRecentTask(task))
-          .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+          .sort(compareRecentTasks)
           .slice(0, MAX_PERSISTED_TASKS),
       ),
     );
@@ -188,6 +201,7 @@ export function startRecentTask(input: StartRecentTaskInput): RecentTaskRecord {
     status: 'running',
     createdAt: now,
     updatedAt: now,
+    pinnedAt: null,
     artifacts: [],
     lastError: null,
   };
@@ -226,6 +240,41 @@ export function markRecentTaskFailed(input: FinishRecentTaskInput): void {
         : task,
     ),
   );
+}
+
+export function setRecentTaskPinned(id: string, pinned: boolean): void {
+  updateTaskList((tasks) =>
+    tasks.map((task) =>
+      task.id === id
+        ? {
+            ...task,
+            pinnedAt: pinned ? task.pinnedAt || new Date().toISOString() : null,
+          }
+        : task,
+    ),
+  );
+}
+
+export function renameRecentTask(id: string, title: string): void {
+  const normalizedTitle = collapseText(title);
+  if (!normalizedTitle) {
+    return;
+  }
+
+  updateTaskList((tasks) =>
+    tasks.map((task) =>
+      task.id === id
+        ? {
+            ...task,
+            title: trimText(normalizedTitle, 48),
+          }
+        : task,
+    ),
+  );
+}
+
+export function deleteRecentTask(id: string): void {
+  updateTaskList((tasks) => tasks.filter((task) => task.id !== id));
 }
 
 export function subscribeRecentTasks(listener: () => void): () => void {
