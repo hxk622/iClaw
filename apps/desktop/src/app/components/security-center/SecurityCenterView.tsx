@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { MouseEvent, ReactNode } from 'react';
 import {
   Check,
@@ -9,7 +9,11 @@ import {
   SlidersHorizontal,
   Target,
 } from 'lucide-react';
+import { PageContent, PageHeader, PageSurface } from '@/app/components/ui/PageLayout';
 import { PressableCard } from '@/app/components/ui/PressableCard';
+import { StatCard } from '@/app/components/ui/StatCard';
+import { SurfacePanel } from '@/app/components/ui/SurfacePanel';
+import { SummaryMetricItem } from '@/app/components/ui/SummaryMetricItem';
 import { cn } from '@/app/lib/cn';
 import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 
@@ -33,36 +37,31 @@ const SECURITY_FEATURES: SecurityFeature[] = [
   {
     id: 'prompt-injection',
     title: '提示词注入检测',
-    description:
-      '基于深度语义分析的提示词注入攻击检测，识别隐藏指令、越狱尝试、恶意引导等多种攻击模式。',
+    description: '识别隐藏指令、越狱尝试和恶意引导，降低模型被上下文污染的风险。',
     icon: FileText,
   },
   {
     id: 'audit-log',
     title: '安全审计日志',
-    description:
-      '完整记录所有 AI 交互行为，支持多维度检索与分析，满足合规审计与安全溯源需求。',
+    description: '完整记录关键交互与策略命中情况，方便后续审计与安全追溯。',
     icon: ScrollText,
   },
   {
     id: 'skill-scan',
     title: '技能安全检测',
-    description:
-      '对 AI Bot 加载的技能/插件进行安全扫描，检测权限越界、数据泄露、恶意调用等风险。',
+    description: '对技能加载链路做静态扫描，检查权限越界、敏感信息暴露和危险调用。',
     icon: Puzzle,
   },
   {
     id: 'intent-monitor',
     title: '意图偏离监控',
-    description:
-      '实时分析 AI 响应是否偏离预期行为，检测上下文污染与恶意引导，确保 AI 始终在安全边界内运行。',
+    description: '监控输出与任务目标是否偏离，及时发现异常对话路径和恶意诱导。',
     icon: Target,
   },
   {
     id: 'access-control',
     title: '访问控制策略',
-    description:
-      '灵活配置黑白名单、路径拦截、工具调用限制等访问控制规则，精细化管理 AI Bot 的能力边界。',
+    description: '统一管理黑白名单、路径拦截、工具限制与不同运行环境的安全边界。',
     icon: SlidersHorizontal,
     wide: true,
   },
@@ -85,34 +84,97 @@ export function SecurityCenterView() {
     setEnabledState((current) => ({ ...current, [id]: next }));
   };
 
-  return (
-    <div className="flex min-h-0 flex-1 overflow-auto bg-[var(--bg-page)]">
-      <div className="mx-auto flex w-full max-w-[980px] flex-col px-8 py-8">
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-            <div className="xl:col-span-5">
-              <SecurityHeroCard
-                enabled={enabledState.hero}
-                onToggle={(next) => updateEnabledState('hero', next)}
-              />
-            </div>
+  const enabledFeatureCount = useMemo(
+    () => SECURITY_FEATURES.filter((feature) => enabledState[feature.id]).length,
+    [enabledState],
+  );
+  const disabledFeatureCount = SECURITY_FEATURES.length - enabledFeatureCount;
+  const protectionEnabled = enabledState.hero;
 
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:col-span-7">
-              {SECURITY_FEATURES.slice(0, 2).map((feature) => (
-                <SecurityFeatureCard
-                  key={feature.id}
-                  title={feature.title}
-                  description={feature.description}
-                  icon={feature.icon}
-                  enabled={enabledState[feature.id]}
-                  onToggle={(next) => updateEnabledState(feature.id, next)}
-                />
-              ))}
-            </div>
+  return (
+    <PageSurface as="div">
+      <PageContent>
+        <PageHeader
+          eyebrow="Security Center"
+          title="安全中心"
+          description="统一管理 iClaw 的运行时防护、技能审计和访问控制策略，让安全模块和其它管理页面遵循同一套页面壳与交互规范。"
+        />
+
+        <SurfacePanel tone="subtle" className="mt-5 rounded-[28px] p-2">
+          <div className="flex flex-wrap gap-y-2">
+            <SummaryMetricItem
+              first
+              tone={protectionEnabled ? 'success' : 'warning'}
+              icon={Shield}
+              label="主防线"
+              value={protectionEnabled ? '开启' : '关闭'}
+              note="一键实时防护统一控制整体策略"
+            />
+            <SummaryMetricItem
+              tone="brand"
+              icon={Check}
+              label="启用模块"
+              value={`${enabledFeatureCount}/${SECURITY_FEATURES.length}`}
+              note="核心检测模块状态一眼可见"
+            />
+            <SummaryMetricItem
+              tone={disabledFeatureCount > 0 ? 'warning' : 'neutral'}
+              icon={SlidersHorizontal}
+              label="待关注"
+              value={disabledFeatureCount > 0 ? String(disabledFeatureCount) : '0'}
+              note={disabledFeatureCount > 0 ? '存在关闭中的模块' : '所有模块均处于工作态'}
+            />
+            <SummaryMetricItem
+              tone="neutral"
+              icon={Target}
+              label="策略模式"
+              value="统一"
+              note="安全策略与桌面端页面规范已统一收口"
+            />
+          </div>
+        </SurfacePanel>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            icon={<Shield className="h-5 w-5" />}
+            label="实时防护"
+            value={protectionEnabled ? '保护中' : '未开启'}
+            description={protectionEnabled ? '已覆盖所有 AI 交互入口' : '建议恢复主防线'}
+            tone={protectionEnabled ? 'success' : 'warning'}
+          />
+          <StatCard
+            icon={<FileText className="h-5 w-5" />}
+            label="审计追踪"
+            value={enabledState['audit-log'] ? '已开启' : '已关闭'}
+            description="保留关键交互与命中记录"
+            tone={enabledState['audit-log'] ? 'brand' : 'default'}
+          />
+          <StatCard
+            icon={<Puzzle className="h-5 w-5" />}
+            label="技能扫描"
+            value={enabledState['skill-scan'] ? '已覆盖' : '未覆盖'}
+            description="检查技能导入与执行边界"
+            tone={enabledState['skill-scan'] ? 'success' : 'warning'}
+          />
+          <StatCard
+            icon={<SlidersHorizontal className="h-5 w-5" />}
+            label="访问控制"
+            value={enabledState['access-control'] ? '严格' : '宽松'}
+            description="黑白名单和工具调用边界"
+            tone={enabledState['access-control'] ? 'brand' : 'default'}
+          />
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-12">
+          <div className="xl:col-span-5">
+            <SecurityHeroCard
+              enabled={enabledState.hero}
+              onToggle={(next) => updateEnabledState('hero', next)}
+            />
           </div>
 
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            {SECURITY_FEATURES.slice(2, 4).map((feature) => (
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:col-span-7">
+            {SECURITY_FEATURES.slice(0, 4).map((feature) => (
               <SecurityFeatureCard
                 key={feature.id}
                 title={feature.title}
@@ -122,17 +184,64 @@ export function SecurityCenterView() {
                 onToggle={(next) => updateEnabledState(feature.id, next)}
               />
             ))}
-          </div>
 
-          <SecurityFeatureCard
-            title={SECURITY_FEATURES[4].title}
-            description={SECURITY_FEATURES[4].description}
-            icon={SECURITY_FEATURES[4].icon}
-            enabled={enabledState['access-control']}
-            onToggle={(next) => updateEnabledState('access-control', next)}
-            wide
-          />
+            <SecurityFeatureCard
+              title={SECURITY_FEATURES[4].title}
+              description={SECURITY_FEATURES[4].description}
+              icon={SECURITY_FEATURES[4].icon}
+              enabled={enabledState['access-control']}
+              onToggle={(next) => updateEnabledState('access-control', next)}
+              wide
+            />
+          </div>
         </div>
+
+        <SurfacePanel className="mt-5 rounded-[28px] p-6">
+          <div className="grid gap-5 lg:grid-cols-3">
+            <PolicyBlock
+              title="默认策略"
+              description="所有可交互模块统一走共享 hover、focus 与按钮视觉，不再在业务页分叉实现。"
+              items={['共享按钮与卡片基础件', '危险调用最小权限', '审计日志全链路可追溯']}
+            />
+            <PolicyBlock
+              title="重点防护面"
+              description="当前主要覆盖对话输入、技能执行、配置修改和外部连接等高风险链路。"
+              items={['提示词注入检测', '技能安全扫描', '访问控制边界']}
+            />
+            <PolicyBlock
+              title="上线建议"
+              description="正式环境建议保持主防线与审计日志开启，再按业务场景精细化调整其余策略。"
+              items={['关闭模块需有明确原因', '变更后建议回归测试', '保留最小可追溯信息']}
+            />
+          </div>
+        </SurfacePanel>
+      </PageContent>
+    </PageSurface>
+  );
+}
+
+function PolicyBlock({
+  title,
+  description,
+  items,
+}: {
+  title: string;
+  description: string;
+  items: string[];
+}) {
+  return (
+    <div className="rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-card)] p-5">
+      <h3 className="text-[16px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">{title}</h3>
+      <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{description}</p>
+      <div className="mt-4 space-y-3">
+        {items.map((item) => (
+          <div key={item} className="flex items-center gap-2.5">
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[rgba(74,107,90,0.10)] text-[var(--state-success)]">
+              <Check className="h-3 w-3 stroke-[2.6]" />
+            </span>
+            <span className="text-[13px] text-[var(--text-secondary)]">{item}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -150,9 +259,10 @@ function SecurityHeroCard({
       interactive
       onClick={() => onToggle(!enabled)}
       className={cn(
-        'h-full min-h-[322px] border-[var(--brand-primary)] bg-[var(--bg-elevated)] p-6 shadow-[0_12px_26px_rgba(168,140,93,0.10)] hover:border-[var(--brand-primary-hover)] hover:bg-[var(--bg-elevated)] hover:shadow-[0_18px_34px_rgba(168,140,93,0.14)]',
-        !enabled &&
-          'border-[var(--border-default)] bg-[var(--bg-card)] shadow-[var(--pressable-card-rest-shadow)] hover:border-[var(--border-strong)] hover:shadow-[var(--pressable-card-hover-shadow)]',
+        'h-full min-h-[332px] rounded-[28px] p-6',
+        enabled
+          ? 'border-[var(--chip-brand-border-strong)] bg-[var(--bg-elevated)] shadow-[0_18px_38px_rgba(168,140,93,0.10)]'
+          : 'border-[var(--border-default)] bg-[var(--bg-card)]',
       )}
       aria-label={`${enabled ? '关闭' : '开启'}一键实时防护`}
     >
@@ -167,10 +277,13 @@ function SecurityHeroCard({
             />
           </SecurityIconContainer>
 
-          <div className="min-w-0 flex-1 pt-0.5">
-            <h2 className="text-[17px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-[18px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
               一键实时防护
             </h2>
+            <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
+              将运行时监控、异常识别与默认拦截策略统一切到保护态，适合作为全局默认安全开关。
+            </p>
           </div>
 
           <div className="flex shrink-0 flex-col items-end gap-3">
@@ -179,16 +292,21 @@ function SecurityHeroCard({
           </div>
         </div>
 
-        <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
-          单击开启全面防护模式，实时监控所有 AI Bot 交互，自动拦截可疑请求，零配置即刻生效。
-        </p>
+        <div className="rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-hover)] px-4 py-4">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+            当前策略
+          </div>
+          <div className="mt-3 space-y-3">
+            <SecurityCapabilityItem label="实时流量监控" enabled={enabled} />
+            <SecurityCapabilityItem label="自动威胁识别" enabled={enabled} />
+            <SecurityCapabilityItem label="智能拦截策略" enabled={enabled} />
+          </div>
+        </div>
 
-        <div className="h-px bg-[var(--border-default)]" />
-
-        <div className="mt-auto space-y-3">
-          <SecurityCapabilityItem label="实时流量监控" enabled={enabled} />
-          <SecurityCapabilityItem label="自动威胁识别" enabled={enabled} />
-          <SecurityCapabilityItem label="智能拦截策略" enabled={enabled} />
+        <div className="mt-auto rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-4">
+          <div className="text-[13px] leading-6 text-[var(--text-secondary)]">
+            与其它桌面主页面一样，这里使用统一页框、统一统计条和统一交互反馈，避免安全页继续成为视觉孤岛。
+          </div>
         </div>
       </div>
     </PressableCard>
@@ -215,35 +333,32 @@ function SecurityFeatureCard({
       interactive
       onClick={() => onToggle(!enabled)}
       className={cn(
-        'p-6',
-        wide ? 'min-h-[184px]' : 'min-h-[228px]',
-        !enabled && 'opacity-[0.92]',
+        'rounded-[28px] p-5',
+        wide && 'md:col-span-2',
+        !enabled && 'opacity-[0.94]',
       )}
       aria-label={`${enabled ? '关闭' : '开启'}${title}`}
     >
-      <div className="flex h-full flex-col">
+      <div className="flex h-full flex-col gap-4">
         <div className="flex items-start gap-4">
-          <SecurityIconContainer>
+          <SecurityIconContainer accent={enabled}>
             <Icon
               className={cn(
-                'h-6 w-6 stroke-[1.6]',
-                enabled ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]',
+                'h-5 w-5 stroke-[1.8]',
+                enabled ? 'text-[var(--brand-primary)]' : 'text-[var(--text-muted)]',
               )}
             />
           </SecurityIconContainer>
-
-          <div className="min-w-0 flex-1 pt-0.5">
+          <div className="min-w-0 flex-1">
             <h3 className="text-[16px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
               {title}
             </h3>
+            <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{description}</p>
           </div>
-
           <SecurityToggle checked={enabled} onChange={onToggle} label={`切换${title}`} />
         </div>
 
-        <p className="mt-4 text-[14px] leading-7 text-[var(--text-secondary)]">{description}</p>
-
-        <div className="mt-auto flex justify-end pt-5">
+        <div className="mt-auto flex justify-end">
           <SecurityStatusPill enabled={enabled} />
         </div>
       </div>
@@ -261,10 +376,10 @@ function SecurityIconContainer({
   return (
     <div
       className={cn(
-        'flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] border',
+        'flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] border',
         accent
           ? 'border-[rgba(168,140,93,0.18)] bg-[rgba(168,140,93,0.10)]'
-          : 'border-[rgba(107,101,93,0.08)] bg-[var(--bg-hover)]',
+          : 'border-[var(--border-default)] bg-[var(--bg-hover)]',
       )}
       aria-hidden="true"
     >
@@ -312,19 +427,19 @@ function SecurityCapabilityItem({
     <div className="flex items-center gap-2.5">
       <span
         className={cn(
-          'flex h-4 w-4 shrink-0 items-center justify-center rounded-full',
+          'flex h-5 w-5 shrink-0 items-center justify-center rounded-full',
           enabled ? 'bg-[rgba(74,107,90,0.10)]' : 'bg-[rgba(154,146,136,0.10)]',
         )}
         aria-hidden="true"
       >
         <Check
           className={cn(
-            'h-2.5 w-2.5 stroke-[2.6]',
+            'h-3 w-3 stroke-[2.6]',
             enabled ? 'text-[var(--state-success)]' : 'text-[var(--text-muted)]',
           )}
         />
       </span>
-      <span className="text-[14px] leading-7 text-[var(--text-secondary)]">{label}</span>
+      <span className="text-[13px] text-[var(--text-secondary)]">{label}</span>
     </div>
   );
 }

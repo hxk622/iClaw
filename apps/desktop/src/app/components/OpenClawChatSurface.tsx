@@ -1,8 +1,24 @@
-import { Copy, MessageCircleQuestionMark, MessageSquarePlus, ScrollText } from 'lucide-react';
+import {
+  Activity,
+  Bot,
+  Copy,
+  MessageCircleQuestionMark,
+  MessageSquarePlus,
+  RefreshCw,
+  ScrollText,
+  ShieldCheck,
+  WifiOff,
+} from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CreditQuoteData, IClawClient } from '@iclaw/sdk';
 import '@openclaw-ui/main.ts';
 import './openclaw-chat-surface.css';
+import { Button } from '@/app/components/ui/Button';
+import { Chip } from '@/app/components/ui/Chip';
+import { EmptyStatePanel } from '@/app/components/ui/EmptyStatePanel';
+import { PageContent, PageHeader, PageSurface } from '@/app/components/ui/PageLayout';
+import { SurfacePanel } from '@/app/components/ui/SurfacePanel';
+import { SummaryMetricItem } from '@/app/components/ui/SummaryMetricItem';
 import {
   buildComposerModelOptions,
   type ComposerModelOption,
@@ -82,6 +98,8 @@ type OpenClawChatSurfaceProps = {
   gatewayToken?: string;
   gatewayPassword?: string;
   sessionKey?: string;
+  initialPrompt?: string | null;
+  initialPromptKey?: string | null;
   shellAuthenticated?: boolean;
   creditClient?: IClawClient;
   creditToken?: string | null;
@@ -559,6 +577,8 @@ export function OpenClawChatSurface({
   gatewayToken,
   gatewayPassword,
   sessionKey = 'main',
+  initialPrompt = null,
+  initialPromptKey = null,
   shellAuthenticated = false,
   creditClient,
   creditToken,
@@ -612,6 +632,7 @@ export function OpenClawChatSurface({
     high: null,
     error: null,
   });
+  const consumedInitialPromptKeyRef = useRef<string | null>(null);
   const statusLogRef = useRef<string | null>(null);
   const rpcLogRef = useRef<string | null>(null);
   const unhandledLogRef = useRef<string | null>(null);
@@ -1018,9 +1039,9 @@ export function OpenClawChatSurface({
         return;
       }
 
-      const wrappedRequest = (async (method: string, params?: unknown) => {
+      const wrappedRequest = (async <T = unknown>(method: string, params?: unknown): Promise<T> => {
         try {
-          return await currentRequest.call(client, method, params);
+          return (await currentRequest.call(client, method, params)) as T;
         } catch (error) {
           const detailCode =
             typeof (error as { details?: { code?: unknown } }).details?.code === 'string'
@@ -1054,7 +1075,7 @@ export function OpenClawChatSurface({
           }
           throw error;
         }
-      }) as typeof currentRequest;
+      }) as typeof client.request & { __iclawWrapped?: boolean };
 
       wrappedRequest.__iclawWrapped = true;
       client.request = wrappedRequest;
@@ -1695,6 +1716,18 @@ export function OpenClawChatSurface({
   }, [closeSelectionMenu, selectionMenu]);
 
   useEffect(() => {
+    if (!initialPromptKey || !initialPrompt?.trim()) {
+      return;
+    }
+    if (consumedInitialPromptKeyRef.current === initialPromptKey) {
+      return;
+    }
+    composerRef.current?.replacePrompt(initialPrompt);
+    composerRef.current?.focus();
+    consumedInitialPromptKeyRef.current = initialPromptKey;
+  }, [initialPrompt, initialPromptKey]);
+
+  useEffect(() => {
     const host = hostRef.current;
     if (!host) {
       return;
@@ -1945,153 +1978,263 @@ export function OpenClawChatSurface({
   }, [clearMessageActionTimers, handleSend, status.busy]);
 
   return (
-    <div ref={shellRef} className="openclaw-chat-surface-shell h-full flex-1 overflow-hidden">
-      <div ref={hostRef} className="openclaw-chat-surface h-full min-h-0 flex-1 overflow-hidden" />
+    <PageSurface as="div">
+      <PageContent className="flex min-h-full flex-col">
+        <PageHeader
+          eyebrow="OpenClaw Runtime"
+          title="对话工作台"
+          description="聊天内核继续使用 OpenClaw 原生嵌入层，桌面端只负责统一页面壳、状态摘要和诊断提示，避免聊天页继续游离在设计规范之外。"
+          actions={
+            <>
+              <Chip tone={status.connected ? 'success' : 'warning'}>
+                {status.connected ? '网关已连接' : '等待网关'}
+              </Chip>
+              <Button
+                variant="secondary"
+                size="sm"
+                leadingIcon={
+                  <RefreshCw className={modelsLoading || modelSwitching ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
+                }
+                onClick={() => void refreshModelCatalog()}
+                disabled={!status.connected || modelsLoading || modelSwitching}
+              >
+                同步模型
+              </Button>
+            </>
+          }
+        />
 
-      {showBootMask ? (
-        <div className="iclaw-chat-boot-mask" role="status" aria-live="polite">
-          <span className="iclaw-chat-boot-mask__sr-only">
-            {status.lastError ? '聊天界面恢复失败，正在等待重连' : '正在恢复聊天界面'}
-          </span>
-          <div className="iclaw-chat-skeleton" aria-hidden="true">
-            <div className="iclaw-chat-skeleton__header">
-              <div className="iclaw-chat-skeleton__dot" />
-              <div className="iclaw-chat-skeleton__title" />
-              <div className="iclaw-chat-skeleton__meta" />
-            </div>
-            <div className="iclaw-chat-skeleton__thread">
-              <div className="iclaw-chat-skeleton__group iclaw-chat-skeleton__group--assistant">
-                <div className="iclaw-chat-skeleton__avatar" />
-                <div className="iclaw-chat-skeleton__stack">
-                  <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--wide" />
-                  <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--medium" />
-                  <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--short" />
+        <SurfacePanel tone="subtle" className="mt-5 rounded-[28px] p-2">
+          <div className="flex flex-wrap gap-y-2">
+            <SummaryMetricItem
+              first
+              tone={status.connected ? 'success' : 'warning'}
+              icon={Activity}
+              label="连接"
+              value={status.connected ? '已连接' : '等待中'}
+              note={status.lastError ?? '本地运行时与 OpenClaw 网关连接状态'}
+            />
+            <SummaryMetricItem
+              tone={threadReady ? 'success' : 'warning'}
+              icon={Bot}
+              label="线程"
+              value={threadReady ? '就绪' : '恢复中'}
+              note={
+                renderState.groupCount > 0
+                  ? `已挂载 ${renderState.groupCount} 个消息组`
+                  : '等待聊天线程进入可见态'
+              }
+            />
+            <SummaryMetricItem
+              tone="brand"
+              icon={ShieldCheck}
+              label="认证"
+              value={hasGatewayAuth ? '已配置' : '缺失'}
+              note={`shell ${shellAuthenticated ? '已登录' : '未登录'} / gateway ${hasGatewayAuth ? '已配置' : '未配置'}`}
+            />
+            <SummaryMetricItem
+              tone="neutral"
+              icon={RefreshCw}
+              label="模型"
+              value={selectedModelId ?? '默认模型'}
+              note={modelsLoading ? '正在同步模型目录' : modelOptions.length > 0 ? `可选 ${modelOptions.length} 个` : '等待模型目录返回'}
+            />
+          </div>
+        </SurfacePanel>
+
+        {showRenderDiagnosticsCard ? (
+          <div className="mt-4">
+            <EmptyStatePanel
+              compact
+              title="聊天嵌入层还没有进入稳定可见态"
+              description={renderDiagnosticsMessage}
+              action={
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  leadingIcon={<RefreshCw className="h-4 w-4" />}
+                  onClick={() => appRef.current?.connect()}
+                >
+                  重新连接
+                </Button>
+              }
+            />
+          </div>
+        ) : null}
+
+        {!status.connected && showConnectionCard ? (
+          <div className="mt-4">
+            <EmptyStatePanel
+              compact
+              title={status.lastError ? '聊天网关连接失败' : '正在建立聊天连接'}
+              description={
+                <>
+                  {connectionMessage}
+                  <br />
+                  网关地址：{gatewayUrl}
+                  {secureContextHint ? ` · ${secureContextHint}` : ''}
+                </>
+              }
+              action={
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  leadingIcon={<WifiOff className="h-4 w-4" />}
+                  onClick={() => appRef.current?.connect()}
+                >
+                  重新尝试
+                </Button>
+              }
+            />
+          </div>
+        ) : null}
+
+        <SurfacePanel className="relative mt-5 flex min-h-[720px] min-w-0 flex-1 overflow-hidden rounded-[32px] border-[var(--chat-surface-panel-border)] bg-[var(--chat-surface-panel)] p-0">
+          <div ref={shellRef} className="openclaw-chat-surface-shell h-full flex-1 overflow-hidden">
+            <div ref={hostRef} className="openclaw-chat-surface h-full min-h-0 flex-1 overflow-hidden" />
+
+            {showBootMask ? (
+              <div className="iclaw-chat-boot-mask" role="status" aria-live="polite">
+                <span className="iclaw-chat-boot-mask__sr-only">
+                  {status.lastError ? '聊天界面恢复失败，正在等待重连' : '正在恢复聊天界面'}
+                </span>
+                <div className="iclaw-chat-skeleton" aria-hidden="true">
+                  <div className="iclaw-chat-skeleton__header">
+                    <div className="iclaw-chat-skeleton__dot" />
+                    <div className="iclaw-chat-skeleton__title" />
+                    <div className="iclaw-chat-skeleton__meta" />
+                  </div>
+                  <div className="iclaw-chat-skeleton__thread">
+                    <div className="iclaw-chat-skeleton__group iclaw-chat-skeleton__group--assistant">
+                      <div className="iclaw-chat-skeleton__avatar" />
+                      <div className="iclaw-chat-skeleton__stack">
+                        <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--wide" />
+                        <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--medium" />
+                        <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--short" />
+                      </div>
+                    </div>
+                    <div className="iclaw-chat-skeleton__group iclaw-chat-skeleton__group--user">
+                      <div className="iclaw-chat-skeleton__stack iclaw-chat-skeleton__stack--user">
+                        <div className="iclaw-chat-skeleton__bubble iclaw-chat-skeleton__bubble--long" />
+                        <div className="iclaw-chat-skeleton__bubble iclaw-chat-skeleton__bubble--short" />
+                      </div>
+                      <div className="iclaw-chat-skeleton__avatar iclaw-chat-skeleton__avatar--user" />
+                    </div>
+                    <div className="iclaw-chat-skeleton__group iclaw-chat-skeleton__group--assistant">
+                      <div className="iclaw-chat-skeleton__avatar" />
+                      <div className="iclaw-chat-skeleton__stack">
+                        <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--medium" />
+                        <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--wide" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="iclaw-chat-skeleton__composer">
+                    <div className="iclaw-chat-skeleton__composer-line" />
+                    <div className="iclaw-chat-skeleton__composer-actions">
+                      <div className="iclaw-chat-skeleton__composer-chip" />
+                      <div className="iclaw-chat-skeleton__composer-button" />
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="iclaw-chat-skeleton__group iclaw-chat-skeleton__group--user">
-                <div className="iclaw-chat-skeleton__stack iclaw-chat-skeleton__stack--user">
-                  <div className="iclaw-chat-skeleton__bubble iclaw-chat-skeleton__bubble--long" />
-                  <div className="iclaw-chat-skeleton__bubble iclaw-chat-skeleton__bubble--short" />
+            ) : null}
+
+            <RichChatComposer
+              ref={composerRef}
+              connected={status.connected}
+              busy={status.busy}
+              modelOptions={modelOptions}
+              selectedModelId={selectedModelId}
+              modelsLoading={modelsLoading}
+              modelSwitching={modelSwitching}
+              onModelChange={handleModelChange}
+              onDraftChange={setComposerDraft}
+              creditEstimate={composerDraft?.hasContent ? creditEstimate : null}
+              onSend={handleSend}
+              onAbort={handleAbort}
+            />
+
+            {showRenderDiagnosticsCard ? (
+              <div className="iclaw-chat-render-card" role="status" aria-live="polite">
+                <div className="iclaw-chat-state-card__eyebrow">渲染诊断</div>
+                <div className="iclaw-chat-state-card__title">{renderDiagnosticsMessage}</div>
+                <div className="iclaw-chat-state-card__meta">
+                  shell 登录：{shellAuthenticated ? '已登录' : '未登录'} · gateway 认证：
+                  {hasGatewayAuth ? '已配置' : '缺失'}
                 </div>
-                <div className="iclaw-chat-skeleton__avatar iclaw-chat-skeleton__avatar--user" />
-              </div>
-              <div className="iclaw-chat-skeleton__group iclaw-chat-skeleton__group--assistant">
-                <div className="iclaw-chat-skeleton__avatar" />
-                <div className="iclaw-chat-skeleton__stack">
-                  <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--medium" />
-                  <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--wide" />
+                <div className="iclaw-chat-state-card__meta">
+                  gateway 连接：{status.connected ? '已连接' : '未连接'} · 输入区：
+                  {renderState.hasNativeInput ? (renderState.nativeInputVisible ? '可见' : '已挂载但不可见') : '未渲染'} ·
+                  线程：{renderState.hasThread ? (renderState.threadVisible ? '可见' : '已挂载但不可见') : '未渲染'} ·
+                  消息组：{renderState.groupCount}
                 </div>
+                <div className="iclaw-chat-state-card__meta">
+                  网关错误码：{status.lastErrorCode ?? '无'} · 最近未捕获错误码：{unhandledGatewayError?.code ?? '无'} ·
+                  详情码：{unhandledGatewayError?.detailCode ?? '无'}
+                </div>
+                <div className="iclaw-chat-state-card__meta">
+                  最近失败 RPC：{lastRpcFailure?.method ?? '无'} · RPC 错误码：{lastRpcFailure?.code ?? '无'} ·
+                  RPC 详情码：{lastRpcFailure?.detailCode ?? '无'}
+                </div>
+                <div className="iclaw-chat-state-card__meta">
+                  gateway 角色：{authRole ?? '未知'} · scopes：
+                  {authScopes && authScopes.length > 0 ? authScopes.join(', ') : '未知'}
+                </div>
+                <div className="iclaw-chat-state-card__meta">
+                  容器高度：{renderState.hostHeight}px · 输入区高度：{renderState.nativeInputHeight}px · 线程高度：
+                  {renderState.threadHeight}px
+                </div>
+                {unhandledGatewayError ? (
+                  <div className="iclaw-chat-state-card__meta">
+                    最近未捕获错误：{unhandledGatewayError.message}
+                    {unhandledGatewayError.httpStatus != null ? ` · httpStatus=${unhandledGatewayError.httpStatus}` : ''}
+                  </div>
+                ) : null}
+                {lastRpcFailure ? (
+                  <div className="iclaw-chat-state-card__meta">
+                    最近失败 RPC 信息：{lastRpcFailure.message}
+                  </div>
+                ) : null}
               </div>
-            </div>
-            <div className="iclaw-chat-skeleton__composer">
-              <div className="iclaw-chat-skeleton__composer-line" />
-              <div className="iclaw-chat-skeleton__composer-actions">
-                <div className="iclaw-chat-skeleton__composer-chip" />
-                <div className="iclaw-chat-skeleton__composer-button" />
+            ) : null}
+
+            {selectionMenu ? (
+              <div
+                ref={selectionMenuRef}
+                className="iclaw-chat-selection-menu"
+                style={{ left: selectionMenu.x, top: selectionMenu.y }}
+                role="menu"
+                aria-label="选中文本操作"
+              >
+                <button type="button" className="iclaw-chat-selection-menu__item" onClick={() => handleSelectionAction('')}>
+                  <MessageSquarePlus className="iclaw-chat-selection-menu__icon" />
+                  追问
+                </button>
+                <button
+                  type="button"
+                  className="iclaw-chat-selection-menu__item"
+                  onClick={() => handleSelectionAction('请总结这段内容的要点。')}
+                >
+                  <ScrollText className="iclaw-chat-selection-menu__icon" />
+                  总结
+                </button>
+                <button
+                  type="button"
+                  className="iclaw-chat-selection-menu__item"
+                  onClick={() => handleSelectionAction('请用更容易理解的话解释这段内容。')}
+                >
+                  <MessageCircleQuestionMark className="iclaw-chat-selection-menu__icon" />
+                  解释
+                </button>
+                <button type="button" className="iclaw-chat-selection-menu__item" onClick={() => void handleSelectionCopy()}>
+                  <Copy className="iclaw-chat-selection-menu__icon" />
+                  复制
+                </button>
               </div>
-            </div>
+            ) : null}
           </div>
-        </div>
-      ) : null}
-
-      {!status.connected && showConnectionCard ? (
-        <div className="iclaw-chat-state-card" role="status" aria-live="polite">
-          <div className="iclaw-chat-state-card__eyebrow">
-            {status.lastError ? '连接失败' : '正在建立连接'}
-          </div>
-          <div className="iclaw-chat-state-card__title">{connectionMessage}</div>
-          <div className="iclaw-chat-state-card__meta">网关地址：{gatewayUrl}</div>
-          {secureContextHint ? (
-            <div className="iclaw-chat-state-card__meta">{secureContextHint}</div>
-          ) : null}
-        </div>
-      ) : null}
-
-      <RichChatComposer
-        ref={composerRef}
-        connected={status.connected}
-        busy={status.busy}
-        modelOptions={modelOptions}
-        selectedModelId={selectedModelId}
-        modelsLoading={modelsLoading}
-        modelSwitching={modelSwitching}
-        onModelChange={handleModelChange}
-        onDraftChange={setComposerDraft}
-        creditEstimate={composerDraft?.hasContent ? creditEstimate : null}
-        onSend={handleSend}
-        onAbort={handleAbort}
-      />
-
-      {showRenderDiagnosticsCard ? (
-        <div className="iclaw-chat-render-card" role="status" aria-live="polite">
-          <div className="iclaw-chat-state-card__eyebrow">渲染诊断</div>
-          <div className="iclaw-chat-state-card__title">{renderDiagnosticsMessage}</div>
-          <div className="iclaw-chat-state-card__meta">
-            shell 登录：{shellAuthenticated ? '已登录' : '未登录'} · gateway 认证：
-            {hasGatewayAuth ? '已配置' : '缺失'}
-          </div>
-          <div className="iclaw-chat-state-card__meta">
-            gateway 连接：{status.connected ? '已连接' : '未连接'} · 输入区：
-            {renderState.hasNativeInput ? (renderState.nativeInputVisible ? '可见' : '已挂载但不可见') : '未渲染'} ·
-            线程：{renderState.hasThread ? (renderState.threadVisible ? '可见' : '已挂载但不可见') : '未渲染'} ·
-            消息组：{renderState.groupCount}
-          </div>
-          <div className="iclaw-chat-state-card__meta">
-            网关错误码：{status.lastErrorCode ?? '无'} · 最近未捕获错误码：{unhandledGatewayError?.code ?? '无'} ·
-            详情码：{unhandledGatewayError?.detailCode ?? '无'}
-          </div>
-          <div className="iclaw-chat-state-card__meta">
-            最近失败 RPC：{lastRpcFailure?.method ?? '无'} · RPC 错误码：{lastRpcFailure?.code ?? '无'} ·
-            RPC 详情码：{lastRpcFailure?.detailCode ?? '无'}
-          </div>
-          <div className="iclaw-chat-state-card__meta">
-            gateway 角色：{authRole ?? '未知'} · scopes：
-            {authScopes && authScopes.length > 0 ? authScopes.join(', ') : '未知'}
-          </div>
-          <div className="iclaw-chat-state-card__meta">
-            容器高度：{renderState.hostHeight}px · 输入区高度：{renderState.nativeInputHeight}px · 线程高度：
-            {renderState.threadHeight}px
-          </div>
-          {unhandledGatewayError ? (
-            <div className="iclaw-chat-state-card__meta">
-              最近未捕获错误：{unhandledGatewayError.message}
-              {unhandledGatewayError.httpStatus != null ? ` · httpStatus=${unhandledGatewayError.httpStatus}` : ''}
-            </div>
-          ) : null}
-          {lastRpcFailure ? (
-            <div className="iclaw-chat-state-card__meta">
-              最近失败 RPC 信息：{lastRpcFailure.message}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      {selectionMenu ? (
-        <div
-          ref={selectionMenuRef}
-          className="iclaw-chat-selection-menu"
-          style={{ left: selectionMenu.x, top: selectionMenu.y }}
-          role="menu"
-          aria-label="选中文本操作"
-        >
-          <button type="button" className="iclaw-chat-selection-menu__item" onClick={() => handleSelectionAction('')}>
-            <MessageSquarePlus className="iclaw-chat-selection-menu__icon" />
-            追问
-          </button>
-          <button type="button" className="iclaw-chat-selection-menu__item" onClick={() => handleSelectionAction('请总结这段内容的要点。')}>
-            <ScrollText className="iclaw-chat-selection-menu__icon" />
-            总结
-          </button>
-          <button type="button" className="iclaw-chat-selection-menu__item" onClick={() => handleSelectionAction('请用更容易理解的话解释这段内容。')}>
-            <MessageCircleQuestionMark className="iclaw-chat-selection-menu__icon" />
-            解释
-          </button>
-          <button type="button" className="iclaw-chat-selection-menu__item" onClick={() => void handleSelectionCopy()}>
-            <Copy className="iclaw-chat-selection-menu__icon" />
-            复制
-          </button>
-        </div>
-      ) : null}
-    </div>
+        </SurfacePanel>
+      </PageContent>
+    </PageSurface>
   );
 }

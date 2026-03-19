@@ -1,297 +1,143 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Check, Clock3, Database, Search } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import {
-  THEME_CHANGE_EVENT,
-  getResolvedThemeFromDom,
-  type ResolvedTheme,
-} from '@/app/lib/theme';
+  Activity,
+  Check,
+  Clock3,
+  Database,
+  Globe2,
+  Layers3,
+  Search,
+  Sparkles,
+} from 'lucide-react';
 import { Chip } from '@/app/components/ui/Chip';
+import { EmptyStatePanel } from '@/app/components/ui/EmptyStatePanel';
+import { FilterPill } from '@/app/components/ui/FilterPill';
 import { PageContent, PageHeader, PageSurface } from '@/app/components/ui/PageLayout';
+import { PressableCard } from '@/app/components/ui/PressableCard';
+import { StatCard } from '@/app/components/ui/StatCard';
+import { SurfacePanel } from '@/app/components/ui/SurfacePanel';
+import { SummaryMetricItem } from '@/app/components/ui/SummaryMetricItem';
+import { cn } from '@/app/lib/cn';
 import { capabilityGroups, type Capability } from './data-connections-data';
 
-const markets = ['全部', 'A股', '美股', '港股', '期货', '黄金', '加密', '宏观', 'ETF/基金', '外汇'];
-const statusFilters = ['全部', '已支持', '规划中'];
+const STATUS_FILTERS = ['全部', '已支持', '规划中'] as const;
+const PREFERRED_MARKET_ORDER = [
+  'A股',
+  '美股',
+  '港股',
+  '期货',
+  '黄金',
+  '加密',
+  '宏观',
+  'ETF/基金',
+  '外汇',
+  '中国',
+  '美国',
+  '全球',
+  '贵金属',
+  '量化',
+] as const;
 
-type Palette = {
-  pageBg: string;
-  cardBg: string;
-  elevatedBg: string;
-  hoverBg: string;
-  primaryText: string;
-  secondaryText: string;
-  mutedText: string;
-  subtleBorder: string;
-  defaultBorder: string;
-  strongBorder: string;
-  brandGold: string;
-  brandGoldStrong: string;
-  brandGoldSoft: string;
+const MARKET_TONE_CLASS: Record<string, string> = {
+  A股: 'border-[rgba(184,79,79,0.18)] bg-[rgba(184,79,79,0.10)] text-[rgb(160,55,55)] dark:text-[#f3b0b0]',
+  美股: 'border-[rgba(59,130,246,0.18)] bg-[rgba(59,130,246,0.10)] text-[rgb(37,99,235)] dark:text-[#bfd6ff]',
+  港股: 'border-[rgba(20,184,166,0.18)] bg-[rgba(20,184,166,0.10)] text-[rgb(13,148,136)] dark:text-[#a7f3eb]',
+  期货: 'border-[rgba(217,119,6,0.18)] bg-[rgba(217,119,6,0.10)] text-[rgb(180,83,9)] dark:text-[#f7d49e]',
+  黄金: 'border-[rgba(168,140,93,0.22)] bg-[rgba(168,140,93,0.12)] text-[var(--brand-primary)]',
+  加密: 'border-[rgba(34,197,94,0.18)] bg-[rgba(34,197,94,0.10)] text-[rgb(21,128,61)] dark:text-[#bff3cd]',
+  宏观: 'border-[var(--border-default)] bg-[var(--bg-hover)] text-[var(--text-secondary)]',
+  'ETF/基金': 'border-[rgba(99,102,241,0.18)] bg-[rgba(99,102,241,0.10)] text-[rgb(79,70,229)] dark:text-[#c7c9ff]',
+  外汇: 'border-[rgba(14,165,233,0.18)] bg-[rgba(14,165,233,0.10)] text-[rgb(2,132,199)] dark:text-[#bae6fd]',
+  中国: 'border-[rgba(184,79,79,0.18)] bg-[rgba(184,79,79,0.10)] text-[rgb(160,55,55)] dark:text-[#f3b0b0]',
+  美国: 'border-[rgba(59,130,246,0.18)] bg-[rgba(59,130,246,0.10)] text-[rgb(37,99,235)] dark:text-[#bfd6ff]',
+  全球: 'border-[rgba(107,101,93,0.18)] bg-[rgba(107,101,93,0.10)] text-[var(--text-secondary)]',
+  贵金属: 'border-[rgba(168,140,93,0.22)] bg-[rgba(168,140,93,0.12)] text-[var(--brand-primary)]',
+  量化: 'border-[rgba(124,58,237,0.18)] bg-[rgba(124,58,237,0.10)] text-[rgb(109,40,217)] dark:text-[#d8c2ff]',
 };
 
-const marketStyles: Record<string, { light: string; dark: string; lightBg: string; darkBg: string }> = {
-  A股: {
-    light: '#8B3A3A',
-    dark: '#D89090',
-    lightBg: 'rgba(139, 58, 58, 0.08)',
-    darkBg: 'rgba(216, 144, 144, 0.12)',
-  },
-  美股: {
-    light: '#4A6FA5',
-    dark: '#8FA8D0',
-    lightBg: 'rgba(74, 111, 165, 0.08)',
-    darkBg: 'rgba(143, 168, 208, 0.12)',
-  },
-  港股: {
-    light: '#4A8A7F',
-    dark: '#7CB5AB',
-    lightBg: 'rgba(74, 138, 127, 0.08)',
-    darkBg: 'rgba(124, 181, 171, 0.12)',
-  },
-  期货: {
-    light: '#A86F3E',
-    dark: '#D39966',
-    lightBg: 'rgba(168, 111, 62, 0.08)',
-    darkBg: 'rgba(211, 153, 102, 0.12)',
-  },
-  黄金: {
-    light: '#A88C5D',
-    dark: '#C2AA82',
-    lightBg: 'rgba(168, 140, 93, 0.08)',
-    darkBg: 'rgba(194, 170, 130, 0.12)',
-  },
-  加密: {
-    light: '#4A8A6F',
-    dark: '#7CB59C',
-    lightBg: 'rgba(74, 138, 111, 0.08)',
-    darkBg: 'rgba(124, 181, 156, 0.12)',
-  },
-  宏观: {
-    light: '#6B655D',
-    dark: '#B9B0A5',
-    lightBg: 'rgba(107, 101, 93, 0.08)',
-    darkBg: 'rgba(185, 176, 165, 0.12)',
-  },
-  'ETF/基金': {
-    light: '#5A6B9F',
-    dark: '#8B9AC9',
-    lightBg: 'rgba(90, 107, 159, 0.08)',
-    darkBg: 'rgba(139, 154, 201, 0.12)',
-  },
-  外汇: {
-    light: '#4A7A9F',
-    dark: '#7AACD0',
-    lightBg: 'rgba(74, 122, 159, 0.08)',
-    darkBg: 'rgba(122, 172, 208, 0.12)',
-  },
+type CapabilityEntry = Capability & {
+  category: string;
+  categoryDesc: string;
 };
 
-function paletteForTheme(theme: ResolvedTheme): Palette {
-  return theme === 'light'
-    ? {
-        pageBg: '#F7F5F0',
-        cardBg: '#FCFBF8',
-        elevatedBg: '#FFFFFF',
-        hoverBg: '#F1EEE8',
-        primaryText: '#1A1A18',
-        secondaryText: '#6B655D',
-        mutedText: '#9A9288',
-        subtleBorder: '#ECE7DE',
-        defaultBorder: '#DED7CC',
-        strongBorder: '#C8BEAF',
-        brandGold: '#A88C5D',
-        brandGoldStrong: '#8F7751',
-        brandGoldSoft: '#EAE1D0',
-      }
-    : {
-        pageBg: '#11100F',
-        cardBg: '#191715',
-        elevatedBg: '#211E1B',
-        hoverBg: '#26221F',
-        primaryText: '#F2EEE6',
-        secondaryText: '#B9B0A5',
-        mutedText: '#80786E',
-        subtleBorder: '#2A2622',
-        defaultBorder: '#3A342E',
-        strongBorder: '#534A42',
-        brandGold: '#B49A70',
-        brandGoldStrong: '#C2AA82',
-        brandGoldSoft: 'rgba(180,154,112,0.16)',
-      };
+function buildMarketOptions(items: CapabilityEntry[]) {
+  const unique = new Set<string>();
+  items.forEach((item) => {
+    item.markets.forEach((market) => unique.add(market));
+  });
+
+  const ordered = PREFERRED_MARKET_ORDER.filter((market) => unique.has(market));
+  const remaining = Array.from(unique)
+    .filter((market) => !ordered.includes(market as (typeof PREFERRED_MARKET_ORDER)[number]))
+    .sort((left, right) => left.localeCompare(right, 'zh-CN'));
+
+  return ['全部', ...ordered, ...remaining];
 }
 
-function MarketChip({
-  market,
-  selected,
-  onClick,
-  theme,
-  colors,
-}: {
-  market: string;
-  selected: boolean;
-  onClick: () => void;
-  theme: ResolvedTheme;
-  colors: Palette;
-}) {
-  const style = marketStyles[market];
-  const isAll = market === '全部';
-
-  if (isAll || !style) {
-    return (
-      <button
-        onClick={onClick}
-        className="cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-medium transition-all hover:scale-105 active:scale-[0.98]"
-        style={{
-          backgroundColor: selected ? colors.brandGoldSoft : colors.elevatedBg,
-          borderColor: selected ? colors.brandGold : colors.defaultBorder,
-          color: selected ? colors.brandGoldStrong : colors.secondaryText,
-        }}
-      >
-        {market}
-      </button>
-    );
-  }
-
-  const textColor = theme === 'light' ? style.light : style.dark;
-  const bgColor = theme === 'light' ? style.lightBg : style.darkBg;
-
+function CapabilityCard({ capability }: { capability: CapabilityEntry }) {
   return (
-    <button
-      onClick={onClick}
-      className="cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-medium transition-all hover:scale-105 active:scale-[0.98]"
-      style={{
-        backgroundColor: selected ? bgColor : colors.elevatedBg,
-        borderColor: selected ? textColor : colors.defaultBorder,
-        color: selected ? textColor : colors.secondaryText,
-      }}
-    >
-      {market}
-    </button>
-  );
-}
+    <PressableCard className="rounded-[28px] border-[var(--border-default)] p-5">
+      <div className="flex h-full flex-col gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <Chip tone="brand" className="rounded-full px-2.5 py-1 text-[11px] uppercase tracking-[0.1em]">
+              {capability.category}
+            </Chip>
+            <h3 className="mt-3 text-[18px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
+              {capability.title}
+            </h3>
+            <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{capability.subtitle}</p>
+          </div>
+          {capability.status ? (
+            <Chip
+              tone={capability.status === '已支持' ? 'success' : 'warning'}
+              leadingIcon={
+                capability.status === '已支持' ? <Check className="h-3 w-3" /> : <Clock3 className="h-3 w-3" />
+              }
+              className="rounded-full px-2.5 py-1 text-[11px]"
+            >
+              {capability.status}
+            </Chip>
+          ) : null}
+        </div>
 
-function CapabilityCard({
-  capability,
-  theme,
-  colors,
-}: {
-  capability: Capability & { category: string; categoryDesc: string };
-  theme: ResolvedTheme;
-  colors: Palette;
-}) {
-  const [isHovered, setIsHovered] = useState(false);
+        <div className="flex flex-wrap gap-2">
+          {capability.capabilities.map((item) => (
+            <Chip key={item} tone="outline" className="rounded-full px-2.5 py-1 text-[11px]">
+              {item}
+            </Chip>
+          ))}
+        </div>
 
-  return (
-    <div
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className="group cursor-pointer rounded-2xl border p-6 transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1"
-      style={{
-        backgroundColor: colors.cardBg,
-        borderColor: isHovered ? colors.brandGold : colors.subtleBorder,
-        boxShadow: isHovered ? `0 12px 32px -8px ${colors.brandGoldSoft}` : 'none',
-      }}
-    >
-      <div className="mb-4 flex items-center justify-between">
-        <span
-          className="rounded-lg px-3 py-1 text-xs font-semibold uppercase tracking-wider"
-          style={{
-            backgroundColor: colors.brandGoldSoft,
-            color: colors.brandGoldStrong,
-          }}
-        >
-          {capability.category}
-        </span>
-        {capability.status && (
-          <Chip
-            tone={capability.status === '已支持' ? 'success' : 'warning'}
-            leadingIcon={
-              capability.status === '已支持' ? <Check className="h-3 w-3" /> : <Clock3 className="h-3 w-3" />
-            }
-            className="rounded-md px-2.5 py-1 text-xs font-medium"
-          >
-            {capability.status}
-          </Chip>
-        )}
-      </div>
-
-      <h3
-        className="mb-2 text-xl font-semibold tracking-tight"
-        style={{ color: colors.primaryText }}
-      >
-        {capability.title}
-      </h3>
-
-      <p
-        className="mb-5 text-sm leading-relaxed"
-        style={{ color: colors.secondaryText }}
-      >
-        {capability.subtitle}
-      </p>
-
-      <div className="mb-5 flex flex-wrap gap-2">
-        {capability.capabilities.map((cap, index) => (
-          <span
-            key={index}
-            className="rounded-lg border px-3 py-1.5 text-xs font-medium transition-all group-hover:scale-105"
-            style={{
-              backgroundColor: colors.elevatedBg,
-              color: colors.secondaryText,
-              borderColor: colors.defaultBorder,
-            }}
-          >
-            {cap}
-          </span>
-        ))}
-      </div>
-
-      <div className="border-t pt-4" style={{ borderColor: colors.subtleBorder }}>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium" style={{ color: colors.mutedText }}>
-            支持市场:
-          </span>
-          {capability.markets.map((market, index) => {
-            const marketStyle = marketStyles[market];
-            const textColor = marketStyle
-              ? theme === 'light'
-                ? marketStyle.light
-                : marketStyle.dark
-              : colors.primaryText;
-            return (
+        <div className="mt-auto border-t border-[var(--border-default)] pt-4">
+          <div className="text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">覆盖市场</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {capability.markets.map((market) => (
               <span
-                key={index}
-                className="rounded px-2.5 py-1 text-xs font-medium"
-                style={{
-                  backgroundColor: colors.hoverBg,
-                  color: textColor,
-                }}
+                key={market}
+                className={cn(
+                  'inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium leading-none',
+                  MARKET_TONE_CLASS[market] ??
+                    'border-[var(--border-default)] bg-[var(--bg-hover)] text-[var(--text-secondary)]',
+                )}
               >
                 {market}
               </span>
-            );
-          })}
+            ))}
+          </div>
         </div>
       </div>
-
-    </div>
+    </PressableCard>
   );
 }
 
 export function DataConnectionsView() {
-  const [theme, setTheme] = useState<ResolvedTheme>(() => getResolvedThemeFromDom());
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMarkets, setSelectedMarkets] = useState<string[]>(['全部']);
-  const [selectedStatus, setSelectedStatus] = useState('全部');
+  const [selectedStatus, setSelectedStatus] = useState<(typeof STATUS_FILTERS)[number]>('全部');
 
-  useEffect(() => {
-    const handleThemeChange = () => setTheme(getResolvedThemeFromDom());
-    window.addEventListener(THEME_CHANGE_EVENT, handleThemeChange);
-    return () => window.removeEventListener(THEME_CHANGE_EVENT, handleThemeChange);
-  }, []);
-
-  const colors = paletteForTheme(theme);
-
-  const allCapabilities = useMemo(() => {
-    const flattened: Array<Capability & { category: string; categoryDesc: string }> = [];
+  const allCapabilities = useMemo<CapabilityEntry[]>(() => {
+    const flattened: CapabilityEntry[] = [];
     capabilityGroups.forEach((group) => {
       group.items.forEach((item) => {
         flattened.push({
@@ -304,14 +150,18 @@ export function DataConnectionsView() {
     return flattened;
   }, []);
 
+  const marketOptions = useMemo(() => buildMarketOptions(allCapabilities), [allCapabilities]);
+
   const filteredCapabilities = useMemo(
     () =>
       allCapabilities.filter((capability) => {
+        const normalizedQuery = searchQuery.trim().toLowerCase();
         const matchesSearch =
-          searchQuery === '' ||
-          capability.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          capability.subtitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          capability.capabilities.some((item) => item.toLowerCase().includes(searchQuery.toLowerCase()));
+          normalizedQuery.length === 0 ||
+          capability.title.toLowerCase().includes(normalizedQuery) ||
+          capability.subtitle.toLowerCase().includes(normalizedQuery) ||
+          capability.category.toLowerCase().includes(normalizedQuery) ||
+          capability.capabilities.some((item) => item.toLowerCase().includes(normalizedQuery));
 
         const matchesMarket =
           selectedMarkets.includes('全部') ||
@@ -324,176 +174,163 @@ export function DataConnectionsView() {
     [allCapabilities, searchQuery, selectedMarkets, selectedStatus],
   );
 
+  const supportedCount = useMemo(
+    () => allCapabilities.filter((capability) => capability.status === '已支持').length,
+    [allCapabilities],
+  );
+
+  const plannedCount = useMemo(
+    () => allCapabilities.filter((capability) => capability.status === '规划中').length,
+    [allCapabilities],
+  );
+
   const handleMarketToggle = (market: string) => {
     if (market === '全部') {
       setSelectedMarkets(['全部']);
       return;
     }
 
-    let nextSelected = selectedMarkets.filter((item) => item !== '全部');
-    if (nextSelected.includes(market)) {
-      nextSelected = nextSelected.filter((item) => item !== market);
-      if (nextSelected.length === 0) nextSelected = ['全部'];
-    } else {
-      nextSelected = [...nextSelected, market];
+    const current = selectedMarkets.filter((item) => item !== '全部');
+    if (current.includes(market)) {
+      const next = current.filter((item) => item !== market);
+      setSelectedMarkets(next.length > 0 ? next : ['全部']);
+      return;
     }
-    setSelectedMarkets(nextSelected);
+
+    setSelectedMarkets([...current, market]);
   };
 
   return (
-    <PageSurface
-      as="div"
-      className="transition-colors duration-300"
-      style={{ backgroundColor: colors.pageBg }}
-    >
-      <PageContent className="max-w-[1480px]">
-        <div
-          className="mb-8 rounded-2xl border px-10 py-8 transition-colors"
-          style={{
-            backgroundColor: colors.cardBg,
-            borderColor: colors.subtleBorder,
-          }}
-        >
-          <PageHeader
-            className="mb-6"
-            eyebrow="Data Connections"
-            title="数据连接中心"
-            description="iClaw 金融数据能力封装层 · 覆盖全球多市场行情、财报、资讯、宏观与加密资产数据集"
-            eyebrowClassName="text-[11px] font-semibold uppercase tracking-[0.14em]"
-            titleClassName="text-[28px] tracking-[-0.05em]"
-            descriptionClassName="max-w-[820px] text-[13px] leading-6"
-            style={{ ['--text-primary' as string]: colors.primaryText, ['--text-secondary' as string]: colors.secondaryText, ['--text-muted' as string]: colors.mutedText }}
-          />
+    <PageSurface as="div">
+      <PageContent>
+        <PageHeader
+          eyebrow="Data Connections"
+          title="数据连接中心"
+          description="统一管理 iClaw 的金融数据能力封装层，按市场、状态和能力类型快速筛选可用数据接口。"
+        />
 
-          <div className="flex items-center gap-6">
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-semibold" style={{ color: colors.brandGold }}>
-                {allCapabilities.length}
-              </span>
-              <span className="text-sm font-medium" style={{ color: colors.mutedText }}>
-                数据能力
-              </span>
-            </div>
-            <div className="h-8 w-px" style={{ backgroundColor: colors.defaultBorder }} />
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-semibold" style={{ color: colors.brandGold }}>
-                9
-              </span>
-              <span className="text-sm font-medium" style={{ color: colors.mutedText }}>
-                接入市场
-              </span>
-            </div>
-            <div className="h-8 w-px" style={{ backgroundColor: colors.defaultBorder }} />
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-semibold" style={{ color: colors.brandGold }}>
-                {capabilityGroups.length}
-              </span>
-              <span className="text-sm font-medium" style={{ color: colors.mutedText }}>
-                能力类别
-              </span>
-            </div>
+        <SurfacePanel tone="subtle" className="mt-5 rounded-[28px] p-2">
+          <div className="flex flex-wrap gap-y-2">
+            <SummaryMetricItem
+              first
+              tone="brand"
+              icon={Database}
+              label="能力"
+              value={String(allCapabilities.length)}
+              note="统一收口到可复用的数据能力层"
+            />
+            <SummaryMetricItem
+              tone="success"
+              icon={Activity}
+              label="已支持"
+              value={String(supportedCount)}
+              note="当前已经接通并可直接调用"
+            />
+            <SummaryMetricItem
+              tone="neutral"
+              icon={Globe2}
+              label="市场"
+              value={String(marketOptions.length - 1)}
+              note="覆盖股票、宏观、ETF、加密等类型"
+            />
+            <SummaryMetricItem
+              tone={plannedCount > 0 ? 'warning' : 'neutral'}
+              icon={Layers3}
+              label="类别"
+              value={String(capabilityGroups.length)}
+              note={plannedCount > 0 ? `另有 ${plannedCount} 项规划中能力` : '已按业务能力物理归类'}
+            />
           </div>
-        </div>
+        </SurfacePanel>
 
-        <div
-          className="mb-8 rounded-2xl border px-8 py-5"
-          style={{
-            backgroundColor: colors.cardBg,
-            borderColor: colors.subtleBorder,
-          }}
-        >
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="min-w-[320px] flex-1">
+        <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.9fr)]">
+          <SurfacePanel className="rounded-[28px] p-5">
+            <div className="flex flex-col gap-4">
               <div className="relative">
-                <Search
-                  className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2"
-                  style={{ color: colors.mutedText }}
-                />
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
                 <input
                   type="text"
-                  placeholder='搜索能力，例如"实时行情""财务报表""宏观数据"'
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
-                  className="w-full rounded-xl border py-3 pl-12 pr-4 text-sm outline-none transition-all"
-                  style={{
-                    backgroundColor: colors.elevatedBg,
-                    borderColor: colors.defaultBorder,
-                    color: colors.primaryText,
-                    boxShadow: 'none',
-                  }}
-                  onFocus={(event) => {
-                    event.target.style.borderColor = colors.brandGold;
-                    event.target.style.boxShadow = `0 0 0 3px ${colors.brandGoldSoft}`;
-                  }}
-                  onBlur={(event) => {
-                    event.target.style.borderColor = colors.defaultBorder;
-                    event.target.style.boxShadow = 'none';
-                  }}
+                  placeholder='搜索能力，例如“实时行情”、“财务报表”、“经济日历”'
+                  className="h-11 w-full rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-card)] pl-11 pr-4 text-[14px] text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]"
                 />
               </div>
-            </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              {markets.map((market) => (
-                <MarketChip
-                  key={market}
-                  market={market}
-                  selected={selectedMarkets.includes(market)}
-                  onClick={() => handleMarketToggle(market)}
-                  theme={theme}
-                  colors={colors}
-                />
-              ))}
-            </div>
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                  市场过滤
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {marketOptions.map((market) => (
+                    <FilterPill
+                      key={market}
+                      active={selectedMarkets.includes(market)}
+                      onClick={() => handleMarketToggle(market)}
+                    >
+                      {market}
+                    </FilterPill>
+                  ))}
+                </div>
+              </div>
 
-            <div className="flex items-center gap-2">
-              {statusFilters.map((status) => (
-                <button
-                  key={status}
-                  onClick={() => setSelectedStatus(status)}
-                  className="cursor-pointer rounded-lg border px-4 py-2 text-xs font-medium transition-all hover:scale-105 active:scale-[0.98]"
-                  style={{
-                    backgroundColor: selectedStatus === status ? colors.brandGoldSoft : colors.elevatedBg,
-                    borderColor: selectedStatus === status ? colors.brandGold : colors.defaultBorder,
-                    color: selectedStatus === status ? colors.brandGoldStrong : colors.secondaryText,
-                  }}
-                >
-                  {status}
-                </button>
-              ))}
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                  状态过滤
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {STATUS_FILTERS.map((status) => (
+                    <FilterPill
+                      key={status}
+                      active={selectedStatus === status}
+                      onClick={() => setSelectedStatus(status)}
+                    >
+                      {status}
+                    </FilterPill>
+                  ))}
+                </div>
+              </div>
             </div>
+          </SurfacePanel>
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+            <StatCard
+              icon={<Sparkles className="h-5 w-5" />}
+              label="筛选结果"
+              value={filteredCapabilities.length}
+              description={searchQuery.trim() ? `关键词：${searchQuery.trim()}` : '当前显示全部可见能力'}
+              tone="brand"
+            />
+            <StatCard
+              icon={<Globe2 className="h-5 w-5" />}
+              label="激活市场"
+              value={selectedMarkets.includes('全部') ? '全部' : `${selectedMarkets.length} 项`}
+              description={
+                selectedMarkets.includes('全部')
+                  ? '未限制市场范围'
+                  : `当前过滤：${selectedMarkets.join(' / ')}`
+              }
+              tone="default"
+            />
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filteredCapabilities.map((capability, index) => (
-            <CapabilityCard
-              key={`${capability.category}-${capability.title}-${index}`}
-              capability={capability}
-              theme={theme}
-              colors={colors}
+        {filteredCapabilities.length === 0 ? (
+          <div className="mt-5">
+            <EmptyStatePanel
+              icon={<Database className="h-6 w-6" />}
+              title="未找到匹配的数据能力"
+              description="当前筛选条件没有命中结果。可以先清空关键词，或者放宽市场与状态过滤。"
             />
-          ))}
-        </div>
-
-        {filteredCapabilities.length === 0 && (
-          <div
-            className="rounded-2xl border p-16 text-center"
-            style={{
-              backgroundColor: colors.cardBg,
-              borderColor: colors.subtleBorder,
-            }}
-          >
-            <Database className="mx-auto mb-4 h-16 w-16" style={{ color: colors.mutedText }} />
-            <h3
-              className="mb-2 text-lg font-semibold"
-              style={{ color: colors.primaryText }}
-            >
-              未找到匹配的能力
-            </h3>
-            <p className="text-sm" style={{ color: colors.secondaryText }}>
-              请尝试调整搜索条件或筛选器
-            </p>
+          </div>
+        ) : (
+          <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {filteredCapabilities.map((capability) => (
+              <CapabilityCard
+                key={`${capability.category}-${capability.title}`}
+                capability={capability}
+              />
+            ))}
           </div>
         )}
       </PageContent>

@@ -18,6 +18,9 @@ import { IClawHeader } from './components/IClawHeader';
 import { OpenClawChatSurface } from './components/OpenClawChatSurface';
 import { OpenClawCronSurface } from './components/OpenClawCronSurface';
 import { Sidebar } from './components/Sidebar';
+import { Button } from './components/ui/Button';
+import { EmptyStatePanel } from './components/ui/EmptyStatePanel';
+import { PageContent, PageSurface } from './components/ui/PageLayout';
 import { DataConnectionsView } from './components/data-connections/DataConnectionsView';
 import { LobsterStoreView } from './components/lobster-store/LobsterStoreView';
 import { MemoryView } from './components/memory/MemoryView';
@@ -28,6 +31,7 @@ import { SecurityCenterView } from './components/security-center/SecurityCenterV
 import { SettingsPanel } from './components/settings/SettingsPanel';
 import { type PersistableSettingsSection, SettingsProvider, useSettings } from './contexts/settings-context';
 import { BRAND } from './lib/brand';
+import { buildLobsterConversationPrompt, type LobsterAgent } from './lib/lobster-store';
 import {
   applyIclawWorkspaceBackup,
   loadIclawWorkspaceFiles,
@@ -112,6 +116,12 @@ const AUTH_BOOTSTRAP_TIMEOUT_MS = 10_000;
 const DESKTOP_APP_VERSION = desktopPackageJson.version;
 const DESKTOP_RELEASE_CHANNEL: 'dev' | 'prod' = import.meta.env.DEV ? 'dev' : 'prod';
 const DISPLAY_DESKTOP_APP_VERSION = DESKTOP_APP_VERSION.split('+', 1)[0] || DESKTOP_APP_VERSION;
+const DEFAULT_CHAT_ROUTE = {
+  sessionKey: CHAT_SESSION_KEY,
+  initialPrompt: null as string | null,
+  initialPromptKey: null as string | null,
+};
+let activeChatRoute = { ...DEFAULT_CHAT_ROUTE };
 type PrimaryView =
   | 'chat'
   | 'lobster-store'
@@ -134,6 +144,52 @@ type InstallerViewModel = {
   stepDetail: string;
   errorMessage: string | null;
 };
+
+function RuntimeAuthRequiredView({
+  eyebrow,
+  title,
+  description,
+  authenticated,
+  hasGatewayAuth,
+  onLogin,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  authenticated: boolean;
+  hasGatewayAuth: boolean;
+  onLogin: () => void;
+}) {
+  return (
+    <PageSurface as="div">
+      <PageContent className="flex min-h-full items-center">
+        <div className="mx-auto w-full max-w-[760px]">
+          <EmptyStatePanel
+            title={title}
+            description={
+              <>
+                {description}
+                <br />
+                control-plane 登录：{authenticated ? '已登录' : '未登录'} · gateway 凭据：
+                {hasGatewayAuth ? '已配置' : '缺失'}
+              </>
+            }
+            action={
+              <Button variant="primary" size="sm" onClick={onLogin}>
+                打开登录
+              </Button>
+            }
+            compact={false}
+            className="rounded-[32px]"
+          />
+          <div className="mt-3 text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+            {eyebrow}
+          </div>
+        </div>
+      </PageContent>
+    </PageSurface>
+  );
+}
 
 function isLikelyAccessToken(token: string): boolean {
   return token.trim().length >= 16;
@@ -1178,6 +1234,16 @@ function AuthedView({
     setOverlayView('account');
   };
 
+  const handleStartLobsterConversation = (agent: LobsterAgent) => {
+    const seed = `${agent.slug}-${Date.now()}`;
+    activeChatRoute = {
+      sessionKey: `lobster-${seed}`,
+      initialPrompt: buildLobsterConversationPrompt(agent),
+      initialPromptKey: seed,
+    };
+    setPrimaryView('chat');
+  };
+
   return (
     <div className="relative flex h-screen overflow-hidden bg-[var(--bg-page)]">
       <Sidebar
@@ -1233,6 +1299,7 @@ function AuthedView({
               accessToken={accessToken}
               authenticated={authenticated}
               currentUser={currentUser}
+              onStartConversation={handleStartLobsterConversation}
               onRequestAuth={onRequestAuth}
             />
           ) : primaryView === 'skill-store' ? (
@@ -1266,30 +1333,14 @@ function AuthedView({
                 shellAuthenticated={authenticated}
               />
             ) : (
-              <div className="flex h-full items-center justify-center bg-[var(--bg-page)] px-8">
-                <div className="w-full max-w-[560px] rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-6 shadow-[var(--shadow-md)]">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                    Cron Shell
-                  </div>
-                  <div className="mt-3 text-[18px] font-semibold text-[var(--text-primary)]">
-                    当前定时任务页未进入可用态
-                  </div>
-                  <div className="mt-3 text-[14px] leading-7 text-[var(--text-secondary)]">
-                    这不是正常空态。当前是 iClaw shell 还没有确认登录，因此没有挂载 OpenClaw cron wrapper。
-                  </div>
-                  <div className="mt-4 text-[13px] leading-6 text-[var(--text-secondary)]">
-                    control-plane 登录：{authenticated ? '已登录' : '未登录'} · gateway 凭据：
-                    {(gatewayAuth.token || gatewayAuth.password) ? '已配置' : '缺失'}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => onRequestAuth('login')}
-                    className="mt-5 inline-flex h-10 items-center justify-center rounded-[12px] bg-[var(--brand-primary)] px-4 text-[14px] font-medium text-[var(--brand-on-primary)] transition hover:opacity-95"
-                  >
-                    打开登录
-                  </button>
-                </div>
-              </div>
+              <RuntimeAuthRequiredView
+                eyebrow="Cron Shell"
+                title="当前定时任务页还不能挂载运行时"
+                description="这不是正常空态。当前是 iClaw shell 还没有完成登录确认，因此 OpenClaw cron wrapper 暂时不会挂载。"
+                authenticated={authenticated}
+                hasGatewayAuth={Boolean(gatewayAuth.token || gatewayAuth.password)}
+                onLogin={() => onRequestAuth('login')}
+              />
             )
           ) : primaryView === 'im-bots' ? (
             <IMBotsView client={imBotClient} />
@@ -1298,37 +1349,23 @@ function AuthedView({
               gatewayUrl={GATEWAY_WS_URL}
               gatewayToken={gatewayAuth.token}
               gatewayPassword={gatewayAuth.password}
-              sessionKey={CHAT_SESSION_KEY}
+              sessionKey={activeChatRoute.sessionKey}
+              initialPrompt={activeChatRoute.initialPrompt}
+              initialPromptKey={activeChatRoute.initialPromptKey}
               shellAuthenticated={authenticated}
               creditClient={client}
               creditToken={accessToken}
               user={currentUser}
             />
           ) : (
-            <div className="flex h-full items-center justify-center bg-[var(--bg-page)] px-8">
-              <div className="w-full max-w-[560px] rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-6 shadow-[var(--shadow-md)]">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                  Chat Shell
-                </div>
-                <div className="mt-3 text-[18px] font-semibold text-[var(--text-primary)]">
-                  当前聊天区未进入可用态
-                </div>
-                <div className="mt-3 text-[14px] leading-7 text-[var(--text-secondary)]">
-                  这不是正常空态。当前是 iClaw shell 还没有确认登录，因此没有挂载 OpenClaw chat wrapper。
-                </div>
-                <div className="mt-4 text-[13px] leading-6 text-[var(--text-secondary)]">
-                  control-plane 登录：{authenticated ? '已登录' : '未登录'} · gateway 凭据：
-                  {(gatewayAuth.token || gatewayAuth.password) ? '已配置' : '缺失'}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onRequestAuth('login')}
-                  className="mt-5 inline-flex h-10 items-center justify-center rounded-[12px] bg-[var(--brand-primary)] px-4 text-[14px] font-medium text-[var(--brand-on-primary)] transition hover:opacity-95"
-                >
-                  打开登录
-                </button>
-              </div>
-            </div>
+            <RuntimeAuthRequiredView
+              eyebrow="Chat Shell"
+              title="当前聊天区还不能挂载运行时"
+              description="这不是正常空态。当前是 iClaw shell 还没有完成登录确认，因此 OpenClaw chat wrapper 暂时不会挂载。"
+              authenticated={authenticated}
+              hasGatewayAuth={Boolean(gatewayAuth.token || gatewayAuth.password)}
+              onLogin={() => onRequestAuth('login')}
+            />
           )}
         </div>
       </div>
