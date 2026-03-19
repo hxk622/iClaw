@@ -52,27 +52,26 @@ export function StatCard({
       interactive={Boolean(onClick)}
       onClick={onClick}
       className={cn(
-        'rounded-[18px] px-4 py-3.5',
-        APPLE_FLAT_SURFACE,
+        'rounded-[10px] px-3.5 py-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.05)]',
         toneClasses.border,
-        'dark:border-[rgba(255,255,255,0.08)]',
+        'dark:border-[rgba(255,255,255,0.08)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.24)]',
         className,
       )}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-2.5">
         <div
           className={cn(
-            'flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border',
+            'flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border',
             toneClasses.iconWrap,
           )}
         >
           <span className={toneClasses.icon}>{icon}</span>
         </div>
         <div className="min-w-0">
-          <div className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">{label}</div>
-          <div className="mt-1 text-[20px] font-semibold leading-none text-[var(--text-primary)]">{value}</div>
+          <div className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{label}</div>
+          <div className="mt-0.5 text-[18px] font-semibold leading-tight text-[var(--text-primary)]">{value}</div>
           {description ? (
-            <div className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">{description}</div>
+            <div className="mt-0.5 text-[10px] leading-4 text-[var(--text-muted)]">{description}</div>
           ) : null}
         </div>
       </div>

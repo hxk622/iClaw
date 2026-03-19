@@ -237,6 +237,15 @@ const BASIC_TEMPLATES: BasicTemplate[] = [
   },
 ];
 
+const CRON_PRIMARY_BUTTON_CLASS =
+  'border-[#B8895D] bg-[#D4A574] text-white shadow-[0_1px_2px_rgba(15,23,42,0.08)] hover:border-[#A57C57] hover:bg-[#B8895D] hover:text-white hover:shadow-[0_4px_12px_rgba(212,165,116,0.22)] dark:border-[#A07853] dark:bg-[#C99A6E] dark:text-white dark:hover:border-[#8E6948] dark:hover:bg-[#A07853] dark:hover:text-white';
+
+const CRON_SECONDARY_BUTTON_CLASS =
+  'border-[var(--border-default)] bg-[var(--bg-card)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(15,23,42,0.05)] hover:border-[var(--border-strong)] hover:bg-[color-mix(in_srgb,var(--bg-hover)_70%,white_30%)] hover:text-[var(--text-primary)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)] dark:hover:bg-[rgba(255,255,255,0.08)]';
+
+const CRON_GHOST_ICON_BUTTON_CLASS =
+  'h-8 w-8 rounded-[8px] px-0 py-0 text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]';
+
 function isVisibleElement(node: Element | null): { visible: boolean; height: number } {
   if (!(node instanceof HTMLElement)) {
     return { visible: false, height: 0 };
@@ -994,7 +1003,7 @@ export function OpenClawCronSurface({
       : '填写名称、内容和执行时间后，这里会实时预览任务安排。';
 
   const fieldClassName =
-    'w-full rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-hover)] px-4 py-2.5 text-[14px] text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)] focus:bg-[var(--bg-card)]';
+    'w-full rounded-[10px] border border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-hover)_60%,white_40%)] px-4 py-2.5 text-[14px] text-[var(--text-primary)] outline-none transition focus:border-[#D4A574] focus:ring-2 focus:ring-[rgba(212,165,116,0.18)] dark:bg-[rgba(255,255,255,0.04)] dark:focus:border-[#C99A6E] dark:focus:ring-[rgba(201,154,110,0.22)]';
 
   return (
     <div className="openclaw-chat-surface openclaw-cron-surface h-full min-w-0 flex-1 overflow-hidden">
@@ -1036,6 +1045,7 @@ export function OpenClawCronSurface({
                   <Button
                     variant="ghost"
                     size="sm"
+                    className="rounded-[8px]"
                     leadingIcon={<RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />}
                     onClick={() => void loadSnapshot()}
                     disabled={loading || !clientReady}
@@ -1045,6 +1055,7 @@ export function OpenClawCronSurface({
                   <Button
                     variant="secondary"
                     size="sm"
+                    className={`rounded-[8px] ${CRON_SECONDARY_BUTTON_CLASS}`}
                     leadingIcon={<Settings2 className="h-4 w-4" />}
                     onClick={() => setMode('advanced')}
                   >
@@ -1053,6 +1064,7 @@ export function OpenClawCronSurface({
                   <Button
                     variant="primary"
                     size="sm"
+                    className={`rounded-[8px] ${CRON_PRIMARY_BUTTON_CLASS}`}
                     leadingIcon={<Plus className="h-4 w-4" />}
                     onClick={() => openCreate('reminder')}
                     disabled={!clientReady}
@@ -1063,7 +1075,7 @@ export function OpenClawCronSurface({
               </div>
             </header>
 
-            <div className="mx-auto flex w-full max-w-[1400px] min-w-0 flex-1 flex-col gap-5 px-5 py-5">
+            <div className="mx-auto w-full max-w-[1400px] min-w-0 flex-1 px-5 py-5">
               {notice ? (
                 <div
                   className={`rounded-[16px] border px-4 py-3 text-[13px] ${
@@ -1081,51 +1093,50 @@ export function OpenClawCronSurface({
                   {fetchError}
                 </div>
               ) : null}
+              <div className="space-y-5">
+                <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <StatCard
+                    icon={<CheckCircle2 className="h-5 w-5" />}
+                    label="已接入任务"
+                    value={cronStatus?.jobs ?? jobs.length}
+                    description={`基础模式可编辑 ${basicJobs.length} 个`}
+                    tone="brand"
+                  />
+                  <StatCard
+                    icon={<Clock className="h-5 w-5" />}
+                    label="下次执行"
+                    value={formatRelative(cronStatus?.nextWakeAtMs)}
+                    description={jobs.find((job) => job.enabled)?.name ?? formatTimestamp(cronStatus?.nextWakeAtMs)}
+                  />
+                  <StatCard
+                    icon={<Activity className="h-5 w-5" />}
+                    label="调度状态"
+                    value={cronStatus?.enabled === false ? '已关闭' : '正常'}
+                    description={`运行中 ${jobs.filter((job) => job.enabled).length} 个`}
+                    tone="success"
+                  />
+                  <StatCard
+                    icon={<Zap className="h-5 w-5" />}
+                    label="快捷入口"
+                    value={visibleJobs.length > 0 ? '立即执行' : '新建任务'}
+                    description={visibleJobs.length > 0 ? '任意任务' : '使用模板快速开始'}
+                    tone="warning"
+                    onClick={() => {
+                      if (visibleJobs[0]) {
+                        void handleRun(visibleJobs[0]);
+                        return;
+                      }
+                      openCreate('reminder');
+                    }}
+                  />
+                </section>
 
-              <section className="grid gap-4 xl:grid-cols-4">
-                <StatCard
-                  icon={<CheckCircle2 className="h-5 w-5" />}
-                  label="已接入任务"
-                  value={cronStatus?.jobs ?? jobs.length}
-                  description={`基础模式可编辑 ${basicJobs.length} 个`}
-                  tone="brand"
-                />
-                <StatCard
-                  icon={<Clock className="h-5 w-5" />}
-                  label="下次执行"
-                  value={formatRelative(cronStatus?.nextWakeAtMs)}
-                  description={formatTimestamp(cronStatus?.nextWakeAtMs)}
-                />
-                <StatCard
-                  icon={<Activity className="h-5 w-5" />}
-                  label="调度状态"
-                  value={cronStatus?.enabled === false ? '已关闭' : '正常'}
-                  description={`运行中 ${jobs.filter((job) => job.enabled).length} 个`}
-                  tone="success"
-                />
-                <StatCard
-                  icon={<Zap className="h-5 w-5" />}
-                  label="快捷入口"
-                  value={visibleJobs.length > 0 ? '立即执行' : '新建任务'}
-                  description={visibleJobs.length > 0 ? '运行最近一个任务' : '使用模板快速开始'}
-                  tone="warning"
-                  onClick={() => {
-                    if (visibleJobs[0]) {
-                      void handleRun(visibleJobs[0]);
-                      return;
-                    }
-                    openCreate('reminder');
-                  }}
-                />
-              </section>
-
-              <section className="grid gap-5 xl:grid-cols-[minmax(320px,360px)_minmax(0,1fr)]">
-                <div>
+                <section>
                   <div className="mb-4 flex items-center justify-between">
                     <h2 className="text-[16px] font-semibold text-[var(--text-primary)]">快速创建</h2>
-                    <span className="text-[12px] text-[var(--text-secondary)]">选择模板快速开始</span>
+                    <span className="text-[12px] text-[var(--text-muted)]">选择模板快速开始</span>
                   </div>
-                  <div className="grid gap-4">
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                     {BASIC_TEMPLATES.map((template) => {
                       const Icon = getTemplateIcon(template.id);
                       return (
@@ -1133,44 +1144,37 @@ export function OpenClawCronSurface({
                           key={template.id}
                           interactive
                           onClick={() => openCreate(template.id)}
-                          className="group rounded-[18px] border-[var(--border-default)] px-4 py-4"
+                          className="group rounded-[10px] border-[var(--border-default)] px-4 py-4 shadow-[0_1px_2px_rgba(15,23,42,0.05)] hover:shadow-[0_8px_20px_rgba(15,23,42,0.08)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.24)] dark:hover:shadow-[0_10px_24px_rgba(0,0,0,0.32)]"
                         >
                           <div className="flex items-start gap-3">
                             <div
                               className={cn(
-                                'flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] border border-transparent',
-                                template.id === 'reminder' && 'bg-[rgba(59,130,246,0.10)] text-[rgb(37,99,235)] dark:bg-[rgba(59,130,246,0.16)] dark:text-[#93c5fd]',
-                                template.id === 'daily-summary' && 'bg-[rgba(16,185,129,0.10)] text-[rgb(5,150,105)] dark:bg-[rgba(16,185,129,0.16)] dark:text-[#86efac]',
-                                template.id === 'weekly-report' && 'bg-[rgba(245,158,11,0.10)] text-[rgb(180,100,24)] dark:bg-[rgba(245,158,11,0.16)] dark:text-[#fcd34d]',
-                                template.id === 'custom' && 'bg-[rgba(201,169,97,0.10)] text-[rgb(155,112,39)] dark:bg-[rgba(201,169,97,0.16)] dark:text-[#f1d59c]',
+                                'flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px]',
+                                template.id === 'reminder' && 'bg-[rgba(59,130,246,0.12)] text-[rgb(37,99,235)] dark:bg-[rgba(59,130,246,0.18)] dark:text-[#93c5fd]',
+                                template.id === 'daily-summary' && 'bg-[rgba(16,185,129,0.12)] text-[rgb(5,150,105)] dark:bg-[rgba(16,185,129,0.20)] dark:text-[#86efac]',
+                                template.id === 'weekly-report' && 'bg-[rgba(245,158,11,0.14)] text-[rgb(180,100,24)] dark:bg-[rgba(245,158,11,0.20)] dark:text-[#fcd34d]',
+                                template.id === 'custom' && 'bg-[rgba(212,165,116,0.16)] text-[rgb(184,137,93)] dark:bg-[rgba(201,154,110,0.22)] dark:text-[#e8c9a6]',
                               )}
                             >
                               <Icon className="h-5 w-5" />
                             </div>
                             <div className="min-w-0 flex-1">
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <h3 className="text-[14px] font-medium text-[var(--text-primary)] transition-colors group-hover:text-[var(--brand-primary)]">
-                                    {template.title}
-                                  </h3>
-                                  <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">{template.summary}</p>
-                                </div>
-                                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--brand-primary)] opacity-0 transition-opacity group-hover:opacity-100" />
-                              </div>
+                              <h3 className="text-[14px] font-medium text-[var(--text-primary)] transition-colors group-hover:text-[#D4A574] dark:group-hover:text-[#E8C9A6]">
+                                {template.title}
+                              </h3>
+                              <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">{template.summary}</p>
                             </div>
                           </div>
+                          <span className="absolute right-4 top-4 h-1.5 w-1.5 rounded-full bg-[#D4A574] opacity-0 transition-opacity group-hover:opacity-100 dark:bg-[#C99A6E]" />
                         </PressableCard>
                       );
                     })}
                   </div>
-                </div>
+                </section>
 
-                <div className="min-w-0">
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <div>
-                      <h2 className="text-[16px] font-semibold text-[var(--text-primary)]">我的任务</h2>
-                      <p className="mt-0.5 text-[12px] text-[var(--text-secondary)]">高密度列表，悬停显示快捷操作</p>
-                    </div>
+                <section className="min-w-0">
+                  <div className="mb-4 flex items-center justify-between gap-4">
+                    <h2 className="text-[16px] font-semibold text-[var(--text-primary)]">我的任务</h2>
                     <CompactSegmentedControl
                       options={[
                         { value: 'all', label: '全部' },
@@ -1182,157 +1186,172 @@ export function OpenClawCronSurface({
                     />
                   </div>
 
-                  <div className="rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-card)] p-3 shadow-[var(--shadow-sm)] dark:border-[rgba(255,255,255,0.08)]">
-                    {loading ? (
-                      <div className="flex items-center gap-2 rounded-[16px] px-4 py-8 text-[13px] text-[var(--text-secondary)]">
+                  {loading ? (
+                    <div className="rounded-[10px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-8 text-[13px] text-[var(--text-secondary)] shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
+                      <div className="flex items-center gap-2">
                         <LoaderCircle className="h-4 w-4 animate-spin" />
                         正在读取定时任务…
                       </div>
-                    ) : visibleJobs.length === 0 ? (
-                      <div className="px-4 py-12 text-center">
-                        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[var(--bg-hover)]">
-                          <Clock className="h-8 w-8 text-[var(--text-muted)]" />
-                        </div>
-                        <div className="mt-4 text-[15px] font-medium text-[var(--text-primary)]">暂无任务</div>
-                        <p className="mt-1 text-[13px] text-[var(--text-secondary)]">点击“新建任务”或选择左侧模板开始</p>
+                    </div>
+                  ) : visibleJobs.length === 0 ? (
+                    <div className="rounded-[10px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-12 text-center shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
+                      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[var(--bg-hover)]">
+                        <Clock className="h-8 w-8 text-[var(--text-muted)]" />
                       </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {visibleJobs.map((job) => {
-                          const tone = getJobStatusTone(job);
-                          const templateId = inferTemplateId(job);
-                          const Icon = getTemplateIcon(templateId);
-                          const isAdvancedOnly = !isBasicEditableJob(job);
-                          const resultTone =
-                            job.state?.lastStatus === 'error'
-                              ? 'danger'
-                              : job.state?.lastStatus === 'ok'
-                                ? 'success'
-                                : 'muted';
-                          const resultText =
-                            job.state?.lastStatus === 'error'
-                              ? '失败'
-                              : job.state?.lastStatus === 'ok'
-                                ? '成功'
-                                : '待执行';
+                      <div className="mt-4 text-[16px] font-medium text-[var(--text-primary)]">暂无任务</div>
+                      <p className="mt-2 text-[14px] text-[var(--text-secondary)]">点击上方“新建任务”或选择模板开始</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {visibleJobs.map((job) => {
+                        const tone = getJobStatusTone(job);
+                        const templateId = inferTemplateId(job);
+                        const Icon = getTemplateIcon(templateId);
+                        const isAdvancedOnly = !isBasicEditableJob(job);
+                        const resultTone =
+                          job.state?.lastStatus === 'error'
+                            ? 'danger'
+                            : job.state?.lastStatus === 'ok'
+                              ? 'success'
+                              : 'muted';
+                        const resultText =
+                          job.state?.lastStatus === 'error'
+                            ? '失败'
+                            : job.state?.lastStatus === 'ok'
+                              ? '成功'
+                              : '待执行';
+                        const frequencyLabel =
+                          parseSimpleCronSchedule(job.schedule)?.frequency === 'daily'
+                            ? '每日'
+                            : parseSimpleCronSchedule(job.schedule)?.frequency === 'weekly'
+                              ? '每周'
+                              : parseSimpleCronSchedule(job.schedule)?.frequency === 'once'
+                                ? '单次'
+                                : '自定义';
 
-                          return (
-                            <PressableCard
-                              key={job.id}
-                              className="group rounded-[16px] border-[var(--border-default)] px-4 py-3"
-                            >
-                              <div className="flex items-center gap-4">
-                                <div
-                                  className={cn(
-                                    'flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[var(--bg-hover)]',
-                                    templateId === 'reminder' && 'text-[rgb(37,99,235)] dark:text-[#93c5fd]',
-                                    templateId === 'daily-summary' && 'text-[rgb(5,150,105)] dark:text-[#86efac]',
-                                    templateId === 'weekly-report' && 'text-[rgb(180,100,24)] dark:text-[#fcd34d]',
-                                    templateId === 'custom' && 'text-[rgb(155,112,39)] dark:text-[#f1d59c]',
-                                  )}
-                                >
-                                  <Icon className="h-5 w-5" />
-                                </div>
+                        return (
+                          <PressableCard
+                            key={job.id}
+                            className="group rounded-[10px] border-[var(--border-default)] px-3.5 py-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.05)] hover:shadow-[0_8px_20px_rgba(15,23,42,0.08)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.24)] dark:hover:shadow-[0_10px_24px_rgba(0,0,0,0.32)]"
+                          >
+                            <div className="flex items-center gap-4">
+                              <div
+                                className={cn(
+                                  'flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[color-mix(in_srgb,var(--bg-hover)_80%,transparent)]',
+                                  templateId === 'reminder' && 'text-[rgb(37,99,235)] dark:text-[#93c5fd]',
+                                  templateId === 'daily-summary' && 'text-[rgb(5,150,105)] dark:text-[#86efac]',
+                                  templateId === 'weekly-report' && 'text-[rgb(180,100,24)] dark:text-[#fcd34d]',
+                                  templateId === 'custom' && 'text-[rgb(184,137,93)] dark:text-[#e8c9a6]',
+                                )}
+                              >
+                                <Icon className="h-5 w-5" />
+                              </div>
 
-                                <div className="min-w-0 flex-1">
-                                  <div className="mb-1.5 flex flex-wrap items-center gap-2.5">
-                                    <h3 className="truncate text-[14px] font-medium text-[var(--text-primary)]">{job.name}</h3>
-                                    <Chip tone={tone.tone}>{tone.label}</Chip>
-                                    <Chip tone="outline">
-                                      {parseSimpleCronSchedule(job.schedule)?.frequency === 'daily'
-                                        ? '每日'
-                                        : parseSimpleCronSchedule(job.schedule)?.frequency === 'weekly'
-                                          ? '每周'
-                                          : parseSimpleCronSchedule(job.schedule)?.frequency === 'once'
-                                            ? '单次'
-                                            : '自定义'}
+                              <div className="min-w-0 flex-1">
+                                <div className="mb-1.5 flex flex-wrap items-center gap-2.5">
+                                  <h3 className="truncate text-[14px] font-medium text-[var(--text-primary)]">{job.name}</h3>
+                                  <Chip
+                                    tone={tone.tone}
+                                    className="rounded-[6px] px-2 py-0.5 text-[10px] uppercase tracking-[0.08em]"
+                                  >
+                                    {tone.label}
+                                  </Chip>
+                                  <span className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{frequencyLabel}</span>
+                                  {isAdvancedOnly ? (
+                                    <Chip tone="warning" className="rounded-[6px] px-2 py-0.5 text-[10px] uppercase tracking-[0.08em]">
+                                      高级任务
                                     </Chip>
-                                    {isAdvancedOnly ? <Chip tone="warning">高级任务</Chip> : null}
-                                  </div>
-
-                                  <p className="truncate text-[12px] text-[var(--text-secondary)]">
-                                    {job.payload.kind === 'agentTurn' ? job.payload.message : job.payload.text}
-                                  </p>
-
-                                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[var(--text-secondary)]">
-                                    <span>执行节奏: {buildHumanSchedule(job.schedule)}</span>
-                                    <span>下次执行: {formatTimestamp(job.state?.nextRunAtMs ?? null)}</span>
-                                    <span>
-                                      最近结果:{' '}
-                                      <span
-                                        className={cn(
-                                          resultTone === 'success' && 'text-[rgb(21,128,61)] dark:text-[#86efac]',
-                                          resultTone === 'danger' && 'text-[rgb(185,28,28)] dark:text-[#fecaca]',
-                                          resultTone === 'muted' && 'text-[var(--text-secondary)]',
-                                        )}
-                                      >
-                                        {resultText}
-                                      </span>
-                                    </span>
-                                  </div>
+                                  ) : null}
                                 </div>
 
-                                <div className="flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 rounded-[12px] px-0 py-0"
-                                    onClick={() => void handleRun(job)}
-                                    disabled={actionJobId === job.id}
-                                  >
-                                    <Play className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 rounded-[12px] px-0 py-0"
-                                    onClick={() => openEdit(job)}
-                                  >
-                                    <PencilLine className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 rounded-[12px] px-0 py-0"
-                                    onClick={() => void handleToggle(job)}
-                                    disabled={actionJobId === job.id}
-                                  >
-                                    {job.enabled ? <Pause className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 rounded-[12px] px-0 py-0 text-[rgb(185,28,28)] hover:text-[rgb(185,28,28)]"
-                                    onClick={() => void handleRemove(job)}
-                                    disabled={actionJobId === job.id}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
+                                <p className="truncate text-[12px] text-[var(--text-secondary)]">
+                                  {job.payload.kind === 'agentTurn' ? job.payload.message : job.payload.text}
+                                </p>
+
+                                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-[var(--text-muted)]">
+                                  <span className="inline-flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    下次: {formatTimestamp(job.state?.nextRunAtMs ?? null)}
+                                  </span>
+                                  <span className="inline-flex items-center gap-1">
+                                    <Repeat className="h-3 w-3" />
+                                    节奏: {buildHumanSchedule(job.schedule)}
+                                  </span>
+                                  <span>
+                                    结果:{' '}
+                                    <span
+                                      className={cn(
+                                        resultTone === 'success' && 'text-[rgb(21,128,61)] dark:text-[#86efac]',
+                                        resultTone === 'danger' && 'text-[rgb(185,28,28)] dark:text-[#fecaca]',
+                                        resultTone === 'muted' && 'text-[var(--text-muted)]',
+                                      )}
+                                    >
+                                      {resultText}
+                                    </span>
+                                  </span>
                                 </div>
                               </div>
-                            </PressableCard>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </section>
+
+                              <div className="flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className={CRON_GHOST_ICON_BUTTON_CLASS}
+                                  onClick={() => void handleRun(job)}
+                                  disabled={actionJobId === job.id}
+                                >
+                                  <Play className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className={CRON_GHOST_ICON_BUTTON_CLASS}
+                                  onClick={() => openEdit(job)}
+                                >
+                                  <PencilLine className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className={CRON_GHOST_ICON_BUTTON_CLASS}
+                                  onClick={() => void handleToggle(job)}
+                                  disabled={actionJobId === job.id}
+                                >
+                                  {job.enabled ? <Pause className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className={`${CRON_GHOST_ICON_BUTTON_CLASS} text-[rgb(185,28,28)] hover:text-[rgb(185,28,28)]`}
+                                  onClick={() => void handleRemove(job)}
+                                  disabled={actionJobId === job.id}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </div>
+                          </PressableCard>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+              </div>
 
               {drawerOpen ? (
                 <>
                   <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={() => setDrawerOpen(false)} />
                   <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div className="pointer-events-auto w-full max-w-2xl overflow-hidden rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-card)] shadow-[0_24px_64px_rgba(15,23,42,0.18)] dark:border-[rgba(255,255,255,0.08)]">
+                    <div className="pointer-events-auto w-full max-w-2xl overflow-hidden rounded-[12px] border border-[var(--border-default)] bg-[var(--bg-card)] shadow-[0_24px_64px_rgba(15,23,42,0.18)] dark:border-[rgba(255,255,255,0.08)] dark:shadow-[0_28px_70px_rgba(0,0,0,0.42)]">
                       <div className="flex items-center justify-between border-b border-[var(--border-default)] px-6 py-4 dark:border-[rgba(255,255,255,0.08)]">
                         <div>
                           <h2 className="text-[18px] font-semibold text-[var(--text-primary)]">{form.id ? '编辑任务' : '创建新任务'}</h2>
-                          <p className="mt-0.5 text-[13px] text-[var(--text-secondary)]">模板: {getTemplateMeta(form.templateId).title}</p>
+                          <p className="mt-0.5 text-[13px] text-[var(--text-muted)]">模板: {getTemplateMeta(form.templateId).title}</p>
                         </div>
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-10 w-10 rounded-[14px] px-0 py-0"
+                          className="h-9 w-9 rounded-[8px] px-0 py-0 hover:bg-[var(--bg-hover)]"
                           onClick={() => setDrawerOpen(false)}
                         >
                           <X className="h-5 w-5" />
@@ -1341,7 +1360,7 @@ export function OpenClawCronSurface({
 
                       <div className="grid gap-5 p-6">
                         <label className="grid gap-2">
-                          <span className="text-[13px] font-medium text-[var(--text-primary)]">模板</span>
+                          <span className="text-[14px] font-medium text-[var(--text-primary)]">模板</span>
                           <select
                             value={form.templateId}
                             onChange={(event) => handleTemplateChange(event.target.value as BasicTemplateId)}
@@ -1356,7 +1375,7 @@ export function OpenClawCronSurface({
                         </label>
 
                         <label className="grid gap-2">
-                          <span className="text-[13px] font-medium text-[var(--text-primary)]">任务名称</span>
+                          <span className="text-[14px] font-medium text-[var(--text-primary)]">任务名称</span>
                           <input
                             type="text"
                             value={form.name}
@@ -1367,7 +1386,7 @@ export function OpenClawCronSurface({
                         </label>
 
                         <label className="grid gap-2">
-                          <span className="text-[13px] font-medium text-[var(--text-primary)]">任务内容</span>
+                          <span className="text-[14px] font-medium text-[var(--text-primary)]">任务描述</span>
                           <textarea
                             rows={3}
                             value={form.prompt}
@@ -1379,7 +1398,7 @@ export function OpenClawCronSurface({
 
                         <div className="grid grid-cols-2 gap-4">
                           <label className="grid gap-2">
-                            <span className="text-[13px] font-medium text-[var(--text-primary)]">执行频率</span>
+                            <span className="text-[14px] font-medium text-[var(--text-primary)]">执行频率</span>
                             <select
                               value={form.frequency}
                               onChange={(event) =>
@@ -1398,7 +1417,7 @@ export function OpenClawCronSurface({
 
                           {form.frequency === 'once' ? (
                             <label className="grid gap-2">
-                              <span className="text-[13px] font-medium text-[var(--text-primary)]">执行时间</span>
+                              <span className="text-[14px] font-medium text-[var(--text-primary)]">执行时间</span>
                               <input
                                 type="datetime-local"
                                 value={form.onceAt}
@@ -1410,7 +1429,7 @@ export function OpenClawCronSurface({
                             </label>
                           ) : (
                             <label className="grid gap-2">
-                              <span className="text-[13px] font-medium text-[var(--text-primary)]">执行时间</span>
+                              <span className="text-[14px] font-medium text-[var(--text-primary)]">执行时间</span>
                               <input
                                 type="time"
                                 value={form.runTime}
@@ -1425,7 +1444,7 @@ export function OpenClawCronSurface({
 
                         {form.frequency === 'weekly' ? (
                           <label className="grid gap-2">
-                            <span className="text-[13px] font-medium text-[var(--text-primary)]">每周几执行</span>
+                            <span className="text-[14px] font-medium text-[var(--text-primary)]">每周几执行</span>
                             <select
                               value={form.weekday}
                               onChange={(event) =>
@@ -1442,30 +1461,20 @@ export function OpenClawCronSurface({
                           </label>
                         ) : null}
 
-                        <div className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-hover)] px-4 py-4 dark:border-[rgba(255,255,255,0.08)]">
-                          <div className="text-[13px] font-medium text-[var(--text-primary)]">任务预览</div>
-                          <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{previewText}</p>
+                        <div className="rounded-[10px] border border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-hover)_50%,transparent)] px-4 py-4 dark:border-[rgba(255,255,255,0.08)]">
+                          <div className="text-[14px] font-medium text-[var(--text-primary)]">任务预览</div>
+                          <p className="mt-2 text-[14px] text-[var(--text-secondary)]">{previewText}</p>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-end gap-3 border-t border-[var(--border-default)] bg-[var(--bg-hover)] px-6 py-4 dark:border-[rgba(255,255,255,0.08)]">
-                        <Button variant="ghost" size="sm" onClick={() => setDrawerOpen(false)}>
+                      <div className="flex items-center justify-end gap-3 border-t border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-hover)_35%,transparent)] px-6 py-4 dark:border-[rgba(255,255,255,0.08)]">
+                        <Button variant="ghost" size="sm" className="rounded-[8px]" onClick={() => setDrawerOpen(false)}>
                           取消
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          leadingIcon={<Settings2 className="h-4 w-4" />}
-                          onClick={() => {
-                            setDrawerOpen(false);
-                            setMode('advanced');
-                          }}
-                        >
-                          高级模式
                         </Button>
                         <Button
                           variant="primary"
                           size="sm"
+                          className={CRON_PRIMARY_BUTTON_CLASS}
                           leadingIcon={saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                           onClick={() => void handleSave()}
                           disabled={saving}
