@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Activity,
   ArrowRight,
@@ -13,12 +13,12 @@ import {
   LineChart,
   Newspaper,
   Search,
+  Sparkles,
 } from 'lucide-react';
+import { Button } from '@/app/components/ui/Button';
+import { PressableCard } from '@/app/components/ui/PressableCard';
 import { cn } from '@/app/lib/cn';
 import { APPLE_FLAT_SURFACE, INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
-import { Button } from '@/app/components/ui/Button';
-import { FilterPill } from '@/app/components/ui/FilterPill';
-import { PressableCard } from '@/app/components/ui/PressableCard';
 import {
   DATA_CONNECTION_CAPABILITIES,
   DATA_CONNECTION_GROUPS,
@@ -26,7 +26,6 @@ import {
   DATA_CONNECTION_SCENARIOS,
   DATA_CONNECTION_STATUS,
   type DataConnectionCapability,
-  type DataConnectionCapabilityGroup,
   type DataConnectionScenario,
 } from './data-connections-data';
 
@@ -93,23 +92,13 @@ function matchesScenario(capability: DataConnectionCapability, selectedScenario:
   return !selectedScenario || capability.scenarios.includes(selectedScenario as DataConnectionScenario['id']);
 }
 
-function groupIcon(title: string) {
-  switch (title) {
-    case '行情与价格':
-      return LineChart;
-    case '财务与估值':
-      return FileText;
-    case '新闻与披露':
-      return Newspaper;
-    case '宏观与利率':
-      return Landmark;
-    case '加密与另类资产':
-      return Coins;
-    case '量化与筛选':
-      return BarChart3;
-    default:
-      return Globe2;
-  }
+function capabilityIcon(capability: DataConnectionCapability) {
+  if (capability.group === '行情与价格') return LineChart;
+  if (capability.group === '财务与估值') return FileText;
+  if (capability.group === '新闻与披露') return Newspaper;
+  if (capability.group === '宏观与利率') return Landmark;
+  if (capability.group === '加密与另类资产') return Coins;
+  return BarChart3;
 }
 
 function scenarioIcon(id: DataConnectionScenario['id']) {
@@ -121,17 +110,8 @@ function scenarioIcon(id: DataConnectionScenario['id']) {
     case 'quant':
       return BarChart3;
     default:
-      return Globe2;
+      return Sparkles;
   }
-}
-
-function capabilityIcon(capability: DataConnectionCapability) {
-  if (capability.group === '行情与价格') return LineChart;
-  if (capability.group === '新闻与披露') return Newspaper;
-  if (capability.group === '宏观与利率') return Landmark;
-  if (capability.group === '加密与另类资产') return Coins;
-  if (capability.group === '量化与筛选') return BarChart3;
-  return FileText;
 }
 
 function toggleMarketSelection(market: string, current: string[]) {
@@ -156,17 +136,15 @@ function HeaderMetric({
   return (
     <div
       className={cn(
-        'flex min-w-[136px] items-center gap-3 rounded-[16px] border px-3.5 py-2.5 text-left',
-        'border-[var(--border-default)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]',
+        'rounded-[18px] border px-4 py-3',
+        'border-[var(--border-default)] bg-[var(--bg-elevated)]',
         APPLE_FLAT_SURFACE,
       )}
     >
-      <div className="min-w-0">
-        <div className="text-[11px] font-medium tracking-[0.08em] text-[var(--text-muted)]">{label}</div>
-        <div className="mt-1 flex items-baseline gap-2">
-          <span className="text-[19px] font-semibold tracking-[-0.05em] text-[var(--text-primary)]">{value}</span>
-          <span className="text-[11px] text-[var(--text-muted)]">{note}</span>
-        </div>
+      <div className="text-[11px] font-medium tracking-[0.08em] text-[var(--text-muted)]">{label}</div>
+      <div className="mt-1 flex items-end gap-2">
+        <div className="text-[24px] font-semibold tracking-[-0.05em] text-[var(--text-primary)]">{value}</div>
+        <div className="pb-1 text-[11px] text-[var(--text-secondary)]">{note}</div>
       </div>
     </div>
   );
@@ -211,19 +189,71 @@ function FilterChip({
   toneClassName?: string;
 }) {
   return (
-    <FilterPill
-      active={active}
+    <button
+      type="button"
       onClick={onClick}
       className={cn(
-        'rounded-[13px] px-3 py-1.5 text-[12px] font-medium',
-        active && toneClassName,
+        'rounded-[13px] border px-3 py-1.5 text-[12px] font-medium',
+        'border-[var(--border-default)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]',
+        'hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
+        SPRING_PRESSABLE,
+        INTERACTIVE_FOCUS_RING,
+        APPLE_FLAT_SURFACE,
         active &&
-          !toneClassName &&
-          'border-[var(--lobster-gold-border)] bg-[var(--lobster-gold-soft)] text-[var(--lobster-gold-strong)] dark:border-[rgba(201,169,97,0.20)] dark:bg-[rgba(201,169,97,0.16)] dark:text-[#f1d59c]',
+          (toneClassName ||
+            'border-[var(--lobster-gold-border)] bg-[var(--lobster-gold-soft)] text-[var(--lobster-gold-strong)]'),
       )}
     >
       {label}
-    </FilterPill>
+    </button>
+  );
+}
+
+function ScenarioShowcase({
+  scenario,
+  selected,
+  onClick,
+  count,
+}: {
+  scenario: DataConnectionScenario;
+  selected: boolean;
+  onClick: () => void;
+  count: number;
+}) {
+  const Icon = scenarioIcon(scenario.id);
+
+  return (
+    <PressableCard
+      interactive
+      onClick={onClick}
+      className={cn(
+        'rounded-[22px] border p-4 shadow-none',
+        selected
+          ? 'border-[var(--lobster-gold-border)] bg-[var(--lobster-gold-soft)]'
+          : 'bg-[var(--bg-card)]',
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div
+            className={cn(
+              'flex h-11 w-11 items-center justify-center rounded-[16px] border',
+              selected
+                ? 'border-[rgba(168,140,93,0.28)] bg-[rgba(168,140,93,0.18)] text-[var(--lobster-gold-strong)]'
+                : 'border-[var(--border-default)] bg-[var(--bg-hover)] text-[var(--text-secondary)]',
+            )}
+          >
+            <Icon className="h-5 w-5" />
+          </div>
+          <div className="mt-4 text-[15px] font-semibold text-[var(--text-primary)]">{scenario.label}</div>
+          <div className="mt-1 text-[12px] text-[var(--text-secondary)]">{scenario.description}</div>
+          <div className="mt-2 text-[11px] leading-5 text-[var(--text-muted)]">{scenario.summary}</div>
+        </div>
+        <div className="shrink-0 rounded-full border border-[var(--border-default)] bg-[var(--bg-elevated)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)]">
+          {count} 项
+        </div>
+      </div>
+    </PressableCard>
   );
 }
 
@@ -263,118 +293,52 @@ function StatusBadge({ status = '已支持' }: { status?: '已支持' | '规划�
   );
 }
 
-function ScenarioCard({
-  scenario,
-  selected,
-  onClick,
-}: {
-  scenario: DataConnectionScenario;
-  selected: boolean;
-  onClick: () => void;
-}) {
-  const Icon = scenarioIcon(scenario.id);
-
-  return (
-    <PressableCard
-      interactive
-      onClick={onClick}
-      className={cn(
-        'rounded-[20px] border p-3.5 shadow-none',
-        selected
-          ? 'border-[var(--lobster-gold-border)] bg-[var(--lobster-gold-soft)] shadow-[0_14px_28px_rgba(168,140,93,0.12)] dark:shadow-[0_16px_30px_rgba(0,0,0,0.28)]'
-          : 'bg-[var(--bg-card)]',
-      )}
-    >
-      <div className="flex items-start gap-3">
-        <div
-          className={cn(
-            'flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border',
-            selected
-              ? 'border-[rgba(168,140,93,0.28)] bg-[rgba(168,140,93,0.18)] text-[var(--lobster-gold-strong)]'
-              : 'border-[var(--border-default)] bg-[var(--bg-hover)] text-[var(--text-secondary)]',
-          )}
-        >
-          <Icon className="h-4.5 w-4.5" />
-        </div>
-        <div className="min-w-0">
-          <div className={cn('text-[13px] font-semibold', selected ? 'text-[var(--lobster-gold-strong)]' : 'text-[var(--text-primary)]')}>
-            {scenario.label}
-          </div>
-          <div className="mt-0.5 text-[12px] text-[var(--text-secondary)]">{scenario.description}</div>
-          <div className="mt-1.5 text-[11px] leading-5 text-[var(--text-muted)]">{scenario.summary}</div>
-        </div>
-      </div>
-    </PressableCard>
-  );
-}
-
-function SectionCard({
-  group,
-  children,
-}: {
-  group: DataConnectionCapabilityGroup;
-  children: ReactNode;
-}) {
-  const Icon = groupIcon(group.title);
-
-  return (
-    <section className="rounded-[24px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.76)] p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)] dark:bg-[rgba(25,23,21,0.88)] dark:shadow-[0_16px_30px_rgba(0,0,0,0.24)]">
-      <div className="mb-4 flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border border-[rgba(168,140,93,0.18)] bg-[var(--lobster-gold-soft)] text-[var(--lobster-gold-strong)]">
-          <Icon className="h-4.5 w-4.5" />
-        </div>
-        <div className="min-w-0">
-          <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">{group.title}</h2>
-          <p className="mt-1 text-[12px] leading-6 text-[var(--text-secondary)]">{group.description}</p>
-        </div>
-      </div>
-      <div className="space-y-3">{children}</div>
-    </section>
-  );
-}
-
-function CapabilityRow({ capability }: { capability: DataConnectionCapability }) {
+function CapabilityCard({ capability }: { capability: DataConnectionCapability }) {
   const Icon = capabilityIcon(capability);
 
   return (
     <PressableCard
       interactive
       className={cn(
-        'rounded-[20px] border bg-[var(--bg-elevated)] shadow-none',
-        'hover:bg-[var(--bg-elevated)]',
+        'rounded-[24px] border bg-[rgba(255,255,255,0.82)] shadow-[0_12px_24px_rgba(15,23,42,0.05)] dark:bg-[rgba(25,23,21,0.9)] dark:shadow-[0_18px_28px_rgba(0,0,0,0.24)]',
       )}
     >
-      <div className="flex items-start gap-4 p-4">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border border-[rgba(168,140,93,0.18)] bg-[var(--lobster-gold-soft)] text-[var(--lobster-gold-strong)]">
-          <Icon className="h-4.5 w-4.5" />
+      <div className="flex h-full flex-col p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div
+            className={cn(
+              'flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border border-[rgba(168,140,93,0.18)] bg-[var(--lobster-gold-soft)] text-[var(--lobster-gold-strong)]',
+            )}
+          >
+            <Icon className="h-4.5 w-4.5" />
+          </div>
+          <StatusBadge status={capability.status} />
         </div>
 
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-[14px] font-semibold text-[var(--text-primary)]">{capability.title}</h3>
-                <StatusBadge status={capability.status} />
-              </div>
-              <p className="mt-1 text-[12px] leading-6 text-[var(--text-secondary)]">{capability.subtitle}</p>
-            </div>
+        <div className="mt-4 text-[16px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
+          {capability.title}
+        </div>
+        <p className="mt-2 min-h-[48px] text-[12px] leading-6 text-[var(--text-secondary)]">{capability.subtitle}</p>
 
-            <div className="flex items-center gap-2 text-[var(--text-muted)]">
-              <span className="hidden text-[11px] lg:inline">查看详情</span>
-              <ChevronRight className="h-4 w-4" />
-            </div>
-          </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {capability.markets.map((market) => (
+            <MarketTag key={market} market={market} />
+          ))}
+        </div>
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            {capability.markets.map((market) => (
-              <MarketTag key={market} market={market} />
-            ))}
-          </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {capability.capabilities.map((item) => (
+            <CapabilityBadge key={item} label={item} />
+          ))}
+        </div>
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            {capability.capabilities.map((item) => (
-              <CapabilityBadge key={item} label={item} />
-            ))}
+        <div className="mt-auto pt-4">
+          <div className="flex items-center justify-between rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3.5 py-2.5 text-[12px] text-[var(--text-secondary)]">
+            <span>{capability.group}</span>
+            <span className="inline-flex items-center gap-1 font-medium text-[var(--text-primary)]">
+              查看能力
+              <ChevronRight className="h-3.5 w-3.5" />
+            </span>
           </div>
         </div>
       </div>
@@ -410,32 +374,63 @@ export function DataConnectionsView() {
 
   const activeMarketCount = selectedMarkets.includes('全部') ? DATA_CONNECTION_MARKETS.length - 1 : selectedMarkets.length;
 
+  const scenarioCounts = useMemo(
+    () =>
+      DATA_CONNECTION_SCENARIOS.map((scenario) => ({
+        id: scenario.id,
+        count: DATA_CONNECTION_CAPABILITIES.filter((capability) => capability.scenarios.includes(scenario.id)).length,
+      })),
+    [],
+  );
+
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(168,140,93,0.08),transparent_28%),linear-gradient(180deg,var(--bg-page)_0%,var(--bg-page)_100%)]">
-      <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 px-5 py-5 lg:px-8">
-        <section className="rounded-[24px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.78)] px-5 py-4 shadow-[0_12px_28px_rgba(15,23,42,0.04)] dark:bg-[rgba(25,23,21,0.92)] dark:shadow-[0_18px_32px_rgba(0,0,0,0.24)]">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-            <div className="min-w-0 max-w-[760px]">
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(168,140,93,0.10),transparent_24%),linear-gradient(180deg,var(--bg-page)_0%,var(--bg-page)_100%)]">
+      <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-5 px-5 py-5 lg:px-8">
+        <section className="rounded-[28px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.78)] px-5 py-5 shadow-[0_14px_30px_rgba(15,23,42,0.05)] dark:bg-[rgba(25,23,21,0.92)] dark:shadow-[0_20px_34px_rgba(0,0,0,0.24)]">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <div className="min-w-0">
               <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border-default)] bg-[var(--bg-hover)] px-3 py-1 text-[11px] font-medium tracking-[0.08em] text-[var(--text-muted)]">
-                <Globe2 className="h-3.5 w-3.5 text-[var(--lobster-gold-strong)]" />
-                Data Connections
+                <Sparkles className="h-3.5 w-3.5 text-[var(--lobster-gold-strong)]" />
+                Wrapper Data Capability Gallery
               </div>
-              <h1 className="mt-3 text-[30px] font-semibold tracking-[-0.06em] text-[var(--text-primary)]">数据连接</h1>
-              <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
-                封装层数据能力中心，覆盖多市场行情、财报、资讯、宏观、加密与量化数据集，帮助用户快速理解当前 wrapper
-                侧可直接调用的研究能力。
+              <h1 className="mt-3 text-[32px] font-semibold tracking-[-0.06em] text-[var(--text-primary)]">数据连接</h1>
+              <p className="mt-2 max-w-[760px] text-[13px] leading-6 text-[var(--text-secondary)]">
+                这里不是底层供应商清单，而是 iClaw wrapper 已经可以直接调起的金融数据能力画廊。目标是让用户第一眼就知道：行情、财报、资讯、宏观、加密、量化，这里都能接。
               </p>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {['多市场行情', '公司财务', '监管披露', '宏观经济', '加密资产', '量化筛选'].map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center rounded-full border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[12px] text-[var(--text-secondary)]"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
             </div>
 
-            <div className="flex flex-wrap gap-2.5 xl:justify-end">
-              <HeaderMetric label="已覆盖能力" value={String(DATA_CONNECTION_CAPABILITIES.length)} note="结构化接入" />
-              <HeaderMetric label="已接入市场" value={String(DATA_CONNECTION_MARKETS.length - 1)} note="跨市场覆盖" />
+            <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+              <HeaderMetric label="能力总数" value={String(DATA_CONNECTION_CAPABILITIES.length)} note="已结构化" />
+              <HeaderMetric label="当前结果" value={String(filteredCount)} note={`${activeMarketCount} 个市场`} />
               <HeaderMetric label="研究场景" value={String(DATA_CONNECTION_SCENARIOS.length)} note="研究 / 跟踪 / 量化" />
             </div>
           </div>
         </section>
 
-        <section className="rounded-[22px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.72)] p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)] dark:bg-[rgba(25,23,21,0.9)] dark:shadow-[0_16px_28px_rgba(0,0,0,0.22)]">
+        <section className="grid gap-4 xl:grid-cols-3">
+          {DATA_CONNECTION_SCENARIOS.map((scenario) => (
+            <ScenarioShowcase
+              key={scenario.id}
+              scenario={scenario}
+              selected={selectedScenario === scenario.id}
+              onClick={() => setSelectedScenario((current) => (current === scenario.id ? null : scenario.id))}
+              count={scenarioCounts.find((item) => item.id === scenario.id)?.count ?? 0}
+            />
+          ))}
+        </section>
+
+        <section className="rounded-[24px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.72)] p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)] dark:bg-[rgba(25,23,21,0.9)] dark:shadow-[0_16px_28px_rgba(0,0,0,0.22)]">
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
               <SearchField value={searchQuery} onChange={setSearchQuery} />
@@ -475,64 +470,36 @@ export function DataConnectionsView() {
           </div>
         </section>
 
-        <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
-          <aside className="space-y-4 xl:sticky xl:top-0 xl:self-start">
-            <section className="rounded-[22px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.78)] p-4 shadow-[0_10px_22px_rgba(15,23,42,0.04)] dark:bg-[rgba(25,23,21,0.9)] dark:shadow-[0_16px_26px_rgba(0,0,0,0.22)]">
-              <div className="text-[11px] font-medium tracking-[0.08em] text-[var(--text-muted)]">浏览方式</div>
-              <div className="mt-3 space-y-2.5">
-                {DATA_CONNECTION_SCENARIOS.map((scenario) => (
-                  <ScenarioCard
-                    key={scenario.id}
-                    scenario={scenario}
-                    selected={selectedScenario === scenario.id}
-                    onClick={() =>
-                      setSelectedScenario((current) => (current === scenario.id ? null : scenario.id))
-                    }
-                  />
-                ))}
-              </div>
+        <section className="space-y-5">
+          {filteredGroups.length === 0 ? (
+            <section className="rounded-[24px] border border-dashed border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-12 text-center">
+              <div className="text-[18px] font-semibold text-[var(--text-primary)]">没有匹配的数据能力</div>
+              <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
+                可以尝试减少市场筛选、清空场景条件，或改用更宽泛的关键词。
+              </p>
             </section>
-
-            <section className="rounded-[22px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.78)] p-4 shadow-[0_10px_22px_rgba(15,23,42,0.04)] dark:bg-[rgba(25,23,21,0.9)] dark:shadow-[0_16px_26px_rgba(0,0,0,0.22)]">
-              <div className="text-[11px] font-medium tracking-[0.08em] text-[var(--text-muted)]">覆盖范围</div>
-              <div className="mt-3 grid gap-2">
-                <div className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-2.5">
-                  <div className="text-[11px] text-[var(--text-muted)]">当前结果</div>
-                  <div className="mt-1 text-[20px] font-semibold tracking-[-0.05em] text-[var(--text-primary)]">{filteredCount}</div>
+          ) : (
+            filteredGroups.map((group) => (
+              <section key={group.title} className="rounded-[26px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.74)] p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)] dark:bg-[rgba(25,23,21,0.9)] dark:shadow-[0_16px_28px_rgba(0,0,0,0.22)]">
+                <div className="mb-4 flex items-end justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-[18px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">{group.title}</div>
+                    <div className="mt-1 text-[12px] leading-6 text-[var(--text-secondary)]">{group.description}</div>
+                  </div>
+                  <div className="hidden shrink-0 rounded-full border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] lg:inline-flex">
+                    {group.items.length} 项能力
+                  </div>
                 </div>
-                <div className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-2.5">
-                  <div className="text-[11px] text-[var(--text-muted)]">市场筛选</div>
-                  <div className="mt-1 text-[13px] font-medium text-[var(--text-primary)]">{activeMarketCount} 个市场</div>
-                </div>
-              </div>
 
-              <div className="mt-4 flex flex-wrap gap-2">
-                {DATA_CONNECTION_MARKETS.filter((market) => market !== '全部').map((market) => (
-                  <MarketTag key={market} market={market} />
-                ))}
-              </div>
-            </section>
-          </aside>
-
-          <main className="min-w-0 space-y-4">
-            {filteredGroups.length === 0 ? (
-              <section className="rounded-[24px] border border-dashed border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-12 text-center">
-                <div className="text-[18px] font-semibold text-[var(--text-primary)]">没有匹配的数据能力</div>
-                <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
-                  可以尝试减少市场筛选、清空场景条件，或改用更宽泛的关键词。
-                </p>
-              </section>
-            ) : (
-              filteredGroups.map((group) => (
-                <SectionCard key={group.title} group={group}>
+                <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
                   {group.items.map((capability) => (
-                    <CapabilityRow key={capability.title} capability={capability} />
+                    <CapabilityCard key={capability.title} capability={capability} />
                   ))}
-                </SectionCard>
-              ))
-            )}
-          </main>
-        </div>
+                </div>
+              </section>
+            ))
+          )}
+        </section>
       </div>
     </div>
   );
