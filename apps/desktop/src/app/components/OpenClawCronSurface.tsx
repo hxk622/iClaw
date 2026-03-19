@@ -1150,7 +1150,7 @@ export function OpenClawCronSurface({
                             <div
                               className={cn(
                                 'flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px]',
-                                template.id === 'reminder' && 'bg-[rgba(59,130,246,0.12)] text-[rgb(37,99,235)] dark:bg-[rgba(59,130,246,0.18)] dark:text-[#93c5fd]',
+                                template.id === 'reminder' && 'bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)] dark:bg-[var(--chip-brand-bg)] dark:text-[var(--chip-brand-text)]',
                                 template.id === 'daily-summary' && 'bg-[rgba(16,185,129,0.12)] text-[rgb(5,150,105)] dark:bg-[rgba(16,185,129,0.20)] dark:text-[#86efac]',
                                 template.id === 'weekly-report' && 'bg-[rgba(245,158,11,0.14)] text-[rgb(180,100,24)] dark:bg-[rgba(245,158,11,0.20)] dark:text-[#fcd34d]',
                                 template.id === 'custom' && 'bg-[rgba(212,165,116,0.16)] text-[rgb(184,137,93)] dark:bg-[rgba(201,154,110,0.22)] dark:text-[#e8c9a6]',

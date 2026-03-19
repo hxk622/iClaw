@@ -134,7 +134,7 @@ export function Sidebar({
       key: 'chat',
       label: '智能对话',
       icon: MessageSquare,
-      iconClass: 'text-blue-500',
+      iconClass: 'text-[var(--text-secondary)]',
       active: activeView === 'chat',
       onClick: onOpenChat,
     },
@@ -142,7 +142,7 @@ export function Sidebar({
       key: 'cron',
       label: '定时任务',
       icon: CheckSquare,
-      iconClass: 'text-emerald-500',
+      iconClass: 'text-[var(--text-secondary)]',
       active: activeView === 'cron',
       onClick: onOpenCron,
     },
@@ -150,7 +150,7 @@ export function Sidebar({
       key: 'lobster-store',
       label: '龙虾商店',
       icon: LobsterStoreIcon,
-      iconClass: 'text-[var(--lobster-gold)]',
+      iconClass: 'text-[var(--text-secondary)]',
       iconWrapClass: 'rounded-[10px] border border-transparent bg-transparent',
       active: activeView === 'lobster-store',
       onClick: onOpenLobsterStore,
@@ -159,7 +159,7 @@ export function Sidebar({
       key: 'skill-store',
       label: '技能商店',
       icon: Blocks,
-      iconClass: 'text-[var(--brand-primary)]',
+      iconClass: 'text-[var(--text-secondary)]',
       active: activeView === 'skill-store',
       onClick: onOpenSkillStore,
     },
@@ -167,7 +167,7 @@ export function Sidebar({
       key: 'memory',
       label: '记忆管理',
       icon: BookOpen,
-      iconClass: 'text-amber-500',
+      iconClass: 'text-[var(--text-secondary)]',
       active: activeView === 'memory',
       onClick: onOpenMemory,
     },
@@ -175,7 +175,7 @@ export function Sidebar({
       key: 'link',
       label: '数据连接',
       icon: Link2,
-      iconClass: 'text-cyan-500',
+      iconClass: 'text-[var(--text-secondary)]',
       active: activeView === 'data-connections',
       onClick: onOpenDataConnections,
     },
@@ -183,7 +183,7 @@ export function Sidebar({
       key: 'im-bots',
       label: 'IM机器人',
       icon: Bot,
-      iconClass: 'text-emerald-500',
+      iconClass: 'text-[var(--text-secondary)]',
       active: activeView === 'im-bots',
       onClick: onOpenImBots,
     },
@@ -220,7 +220,7 @@ export function Sidebar({
                 <item.icon
                   className={`h-5 w-5 transition-transform duration-[var(--motion-panel)] ${
                     item.active ? 'scale-110' : 'group-hover:scale-105'
-                  } ${item.iconClass}`}
+                  } ${item.active ? 'text-[var(--brand-primary)]' : item.iconClass}`}
                   style={{
                     transitionTimingFunction: 'var(--motion-spring)',
                     opacity: item.active ? 1 : 0.9,
@@ -229,7 +229,7 @@ export function Sidebar({
               </span>
             ) : (
               <item.icon
-                className={`h-5 w-5 transition-transform duration-[var(--motion-panel)] ${item.active ? 'scale-110' : 'group-hover:scale-110'} ${item.iconClass}`}
+                className={`h-5 w-5 transition-transform duration-[var(--motion-panel)] ${item.active ? 'scale-110 text-[var(--brand-primary)]' : `group-hover:scale-110 group-hover:text-[var(--brand-primary)] ${item.iconClass}`}`}
                 style={{ transitionTimingFunction: 'var(--motion-spring)' }}
               />
             )}

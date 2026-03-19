@@ -18,7 +18,7 @@ const statusConfig: Record<
   running: {
     label: '进行中',
     className:
-      'border border-blue-500/18 bg-blue-500/10 text-blue-600 dark:border-blue-400/20 dark:bg-blue-400/10 dark:text-blue-300',
+      'border border-[var(--chip-brand-border)] bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)]',
   },
   completed: {
     label: '已完成',
@@ -113,7 +113,7 @@ export function RecentTasksList({
                 )}
               >
                 {task.artifacts.length > 0 ? (
-                  <div className="absolute bottom-0 left-0 top-0 w-1 rounded-l-[18px] bg-[linear-gradient(180deg,rgba(59,130,246,0.72),rgba(59,130,246,0.08))] dark:bg-[linear-gradient(180deg,rgba(201,169,97,0.86),rgba(201,169,97,0.18))]" />
+                  <div className="absolute bottom-0 left-0 top-0 w-1 rounded-l-[18px] bg-[linear-gradient(180deg,var(--brand-primary),rgba(168,140,93,0.08))] dark:bg-[linear-gradient(180deg,var(--brand-primary),rgba(180,154,112,0.18))]" />
                 ) : null}
 
                 <div className="flex items-start gap-2">

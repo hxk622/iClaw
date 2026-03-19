@@ -81,9 +81,9 @@ function GoogleIcon() {
 function SocialDivider() {
   return (
     <div className="my-5 flex items-center gap-3 text-[11px] uppercase tracking-[0.18em] text-[var(--text-muted)]">
-      <div className="h-px flex-1 bg-[rgba(59,130,246,0.16)]" />
+      <div className="h-px flex-1 bg-[var(--chip-brand-border)]" />
       <span>或使用第三方登录</span>
-      <div className="h-px flex-1 bg-[rgba(59,130,246,0.16)]" />
+      <div className="h-px flex-1 bg-[var(--chip-brand-border)]" />
     </div>
   );
 }
@@ -97,7 +97,7 @@ function InputShell({children}: {children: React.ReactNode}) {
 }
 
 const inputClassName =
-  'h-11 w-full rounded-2xl border border-[rgba(15,23,42,0.09)] bg-[rgba(255,255,255,0.96)] px-3.5 text-[14px] text-[var(--text-primary)] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[rgba(59,130,246,0.4)] focus:ring-4 focus:ring-[rgba(59,130,246,0.12)]';
+  'h-11 w-full rounded-2xl border border-[rgba(15,23,42,0.09)] bg-[rgba(255,255,255,0.96)] px-3.5 text-[14px] text-[var(--text-primary)] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--button-primary-border-hover)] focus:ring-4 focus:ring-[var(--chip-brand-bg)]';
 
 export function AuthPanel({
   open,
@@ -190,7 +190,7 @@ export function AuthPanel({
       >
         <div className="mb-4 flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-[rgba(59,130,246,0.14)] bg-[linear-gradient(180deg,#ffffff,#eff6ff)] shadow-[0_10px_24px_rgba(59,130,246,0.08)]">
+            <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-[var(--chip-brand-border)] bg-[linear-gradient(180deg,#ffffff,#f5efe3)] shadow-[0_10px_24px_rgba(168,140,93,0.10)]">
               <img src={BRAND.assets.faviconPngSrc} alt={BRAND.assets.logoAlt} className="h-8 w-8 object-contain" />
             </div>
             <div>
@@ -201,19 +201,19 @@ export function AuthPanel({
           <button
             type="button"
             aria-label="关闭登录弹窗"
-            className="rounded-full p-2 text-[var(--text-muted)] transition hover:bg-[rgba(59,130,246,0.08)] hover:text-[var(--brand-primary)]"
+            className="rounded-full p-2 text-[var(--text-muted)] transition hover:bg-[var(--chip-brand-bg)] hover:text-[var(--brand-primary)]"
             onClick={onClose}
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="mb-5 flex rounded-2xl border border-[rgba(59,130,246,0.09)] bg-[rgba(59,130,246,0.06)] p-1">
+        <div className="mb-5 flex rounded-2xl border border-[var(--chip-brand-border)] bg-[var(--chip-brand-bg)] p-1">
           <button
             type="button"
             className={`flex-1 rounded-[14px] px-4 py-2.5 text-[13px] font-medium transition ${
               mode === 'login'
-                ? 'bg-[linear-gradient(135deg,var(--brand-primary),#5b9cff)] text-[var(--brand-on-primary)] shadow-[0_10px_22px_rgba(59,130,246,0.24)]'
+                ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)] shadow-[var(--button-primary-shadow-hover)]'
                 : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
             }`}
             onClick={() => {
@@ -227,7 +227,7 @@ export function AuthPanel({
             type="button"
             className={`flex-1 rounded-[14px] px-4 py-2.5 text-[13px] font-medium transition ${
               mode === 'register'
-                ? 'bg-[linear-gradient(135deg,var(--brand-primary),#5b9cff)] text-[var(--brand-on-primary)] shadow-[0_10px_22px_rgba(59,130,246,0.24)]'
+                ? 'bg-[var(--brand-primary)] text-[var(--brand-on-primary)] shadow-[var(--button-primary-shadow-hover)]'
                 : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
             }`}
             onClick={() => {
@@ -297,7 +297,7 @@ export function AuthPanel({
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-[var(--text-muted)] transition hover:bg-[rgba(59,130,246,0.08)] hover:text-[var(--brand-primary)]"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-[var(--text-muted)] transition hover:bg-[var(--chip-brand-bg)] hover:text-[var(--brand-primary)]"
                   onClick={() => setShowPassword((prev) => !prev)}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -342,7 +342,7 @@ export function AuthPanel({
                 </InputShell>
               </label>
 
-              <label className="flex items-start gap-3 rounded-2xl border border-[rgba(59,130,246,0.12)] bg-[rgba(59,130,246,0.05)] px-4 py-3 text-[12px] leading-6 text-[var(--text-secondary)]">
+              <label className="flex items-start gap-3 rounded-2xl border border-[var(--chip-brand-border)] bg-[var(--chip-brand-bg)] px-4 py-3 text-[12px] leading-6 text-[var(--text-secondary)]">
                 <input
                   type="checkbox"
                   checked={agreedToTerms}
@@ -350,7 +350,7 @@ export function AuthPanel({
                     setAgreedToTerms(e.target.checked);
                     setLocalError(null);
                   }}
-                  className="mt-1 h-4 w-4 rounded border-[rgba(59,130,246,0.28)] text-[var(--brand-primary)]"
+                  className="mt-1 h-4 w-4 rounded border-[var(--chip-brand-border-strong)] text-[var(--brand-primary)]"
                 />
                 <span>我已阅读并同意 {BRAND.legalName} 的服务协议、隐私说明，以及账号龙虾币相关计费规则。</span>
               </label>
@@ -368,7 +368,7 @@ export function AuthPanel({
           type="button"
           onClick={() => void submit()}
           disabled={loading || !canSubmit}
-          className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(135deg,var(--brand-primary),#5b9cff)] px-4 text-[14px] font-medium text-white shadow-[0_16px_28px_rgba(59,130,246,0.22)] transition hover:brightness-[1.03] disabled:cursor-not-allowed disabled:opacity-55 disabled:shadow-none"
+          className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-[var(--brand-primary)] px-4 text-[14px] font-medium text-[var(--brand-on-primary)] shadow-[var(--button-primary-shadow-hover)] transition hover:brightness-[1.03] disabled:cursor-not-allowed disabled:opacity-55 disabled:shadow-none"
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           {loading ? '处理中...' : mode === 'login' ? '登录' : '注册'}
@@ -381,7 +381,7 @@ export function AuthPanel({
             type="button"
             disabled={loading || socialLoadingProvider !== null}
             onClick={() => void onSocialLogin('wechat')}
-            className="flex h-11 items-center justify-center gap-2 rounded-2xl border border-[rgba(15,23,42,0.09)] bg-white/95 text-[14px] font-medium text-[var(--text-primary)] transition hover:border-[rgba(59,130,246,0.26)] hover:bg-[rgba(59,130,246,0.03)] disabled:cursor-not-allowed disabled:opacity-55"
+            className="flex h-11 items-center justify-center gap-2 rounded-2xl border border-[rgba(15,23,42,0.09)] bg-white/95 text-[14px] font-medium text-[var(--text-primary)] transition hover:border-[var(--chip-brand-border-strong)] hover:bg-[var(--chip-brand-bg)] disabled:cursor-not-allowed disabled:opacity-55"
           >
             {socialLoadingProvider === 'wechat' ? <Loader2 className="h-4 w-4 animate-spin" /> : <WechatIcon />}
             <span>微信</span>
@@ -390,7 +390,7 @@ export function AuthPanel({
             type="button"
             disabled={loading || socialLoadingProvider !== null}
             onClick={() => void onSocialLogin('google')}
-            className="flex h-11 items-center justify-center gap-2 rounded-2xl border border-[rgba(15,23,42,0.09)] bg-white/95 text-[14px] font-medium text-[var(--text-primary)] transition hover:border-[rgba(59,130,246,0.26)] hover:bg-[rgba(59,130,246,0.03)] disabled:cursor-not-allowed disabled:opacity-55"
+            className="flex h-11 items-center justify-center gap-2 rounded-2xl border border-[rgba(15,23,42,0.09)] bg-white/95 text-[14px] font-medium text-[var(--text-primary)] transition hover:border-[var(--chip-brand-border-strong)] hover:bg-[var(--chip-brand-bg)] disabled:cursor-not-allowed disabled:opacity-55"
           >
             {socialLoadingProvider === 'google' ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon />}
             <span>Google</span>

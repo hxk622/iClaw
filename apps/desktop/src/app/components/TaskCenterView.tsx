@@ -57,9 +57,9 @@ const statusConfig: Record<
     label: '进行中',
     icon: Loader2,
     badgeTone:
-      'border border-blue-500/16 bg-blue-500/10 text-blue-600 dark:border-blue-400/18 dark:bg-blue-400/10 dark:text-blue-300',
+      'border border-[var(--chip-brand-border)] bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)]',
     hintTone:
-      'border border-blue-500/14 bg-blue-500/8 text-blue-700 dark:border-blue-400/16 dark:bg-blue-400/10 dark:text-blue-200',
+      'border border-[var(--chip-brand-border)] bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)]',
     helperText: '任务仍在处理中，完成后会自动更新。',
   },
   completed: {
@@ -130,15 +130,15 @@ export function TaskCenterView({
   };
 
   return (
-    <div className="flex flex-1 overflow-y-auto bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-50 transition-colors dark:from-gray-900 dark:via-gray-900 dark:to-gray-900">
+    <div className="flex flex-1 overflow-y-auto bg-[linear-gradient(135deg,var(--bg-page),color-mix(in_srgb,var(--chip-brand-bg)_35%,var(--bg-page))_50%,var(--bg-page))] transition-colors dark:bg-[linear-gradient(135deg,var(--bg-page),color-mix(in_srgb,var(--chip-brand-bg)_22%,var(--bg-page))_50%,var(--bg-page))]">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-8 py-8">
         <section>
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+              <h1 className="text-3xl font-bold text-[var(--text-primary)]">
                 历史任务
               </h1>
-              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              <p className="mt-2 text-sm text-[var(--text-secondary)]">
                 查看最近发起的任务、结果与更新状态
               </p>
             </div>
@@ -146,7 +146,7 @@ export function TaskCenterView({
             <button
               type="button"
               onClick={onOpenChat}
-              className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-blue-500 px-5 py-2.5 text-sm font-medium text-white transition-[transform,background-color] duration-[var(--motion-panel)] hover:-translate-y-[1px] hover:bg-blue-600 active:scale-[0.985]"
+              className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[var(--brand-primary)] px-5 py-2.5 text-sm font-medium text-[var(--brand-on-primary)] transition-[transform,background-color] duration-[var(--motion-panel)] hover:-translate-y-[1px] hover:bg-[var(--brand-primary-hover)] active:scale-[0.985]"
               style={{ transitionTimingFunction: 'var(--motion-spring)' }}
             >
               <ArrowLeft className="h-4 w-4" />
@@ -181,13 +181,13 @@ export function TaskCenterView({
 
         <section className="space-y-4">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--text-muted)]" />
             <input
               type="text"
               placeholder="搜索任务主题或内容"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-12 pr-4 text-sm text-gray-900 outline-none transition-all placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500/50 dark:border-gray-700/50 dark:bg-gray-800/50 dark:text-gray-100 dark:placeholder:text-gray-500"
+              className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-elevated)] py-3 pl-12 pr-4 text-sm text-[var(--text-primary)] outline-none transition-all placeholder:text-[var(--text-muted)] focus:ring-2 focus:ring-[var(--chip-brand-bg-hover)]"
             />
           </div>
 
@@ -201,8 +201,8 @@ export function TaskCenterView({
                   'inline-flex cursor-pointer items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium',
                   'transition-[transform,box-shadow,border-color,background-color,color] duration-[var(--motion-panel)] hover:-translate-y-[1px] active:scale-[0.985]',
                   item === filter
-                    ? 'border-blue-500 bg-blue-500 text-white shadow-md dark:border-blue-500 dark:bg-blue-500 dark:text-white'
-                    : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300 dark:border-gray-700/50 dark:bg-gray-800/50 dark:text-gray-300 dark:hover:border-blue-500/50',
+                    ? 'border-[var(--button-primary-border-hover)] bg-[var(--brand-primary)] text-[var(--brand-on-primary)] shadow-[var(--button-primary-shadow-hover)]'
+                    : 'border-[var(--border-default)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:border-[var(--chip-brand-border-strong)] hover:bg-[var(--chip-brand-bg)] hover:text-[var(--chip-brand-text)]',
                 )}
                 style={{ transitionTimingFunction: 'var(--motion-spring)' }}
               >
@@ -218,20 +218,20 @@ export function TaskCenterView({
         </section>
 
         {tasks.length === 0 ? (
-          <section className="rounded-2xl border border-gray-200/60 bg-white px-8 py-12 text-center dark:border-gray-700/50 dark:bg-gray-800/50">
+          <section className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-elevated)] px-8 py-12 text-center">
             <div className="mx-auto max-w-[520px]">
-              <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-[18px] bg-blue-50 text-blue-500 dark:bg-blue-950/30 dark:text-blue-400">
+              <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-[18px] bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)]">
                 <MessageSquare className="h-6 w-6" />
               </div>
-              <h2 className="mt-4 text-[22px] font-semibold text-gray-900 dark:text-gray-100">还没有任务记录</h2>
-              <p className="mt-2 text-sm leading-7 text-gray-600 dark:text-gray-400">
+              <h2 className="mt-4 text-[22px] font-semibold text-[var(--text-primary)]">还没有任务记录</h2>
+              <p className="mt-2 text-sm leading-7 text-[var(--text-secondary)]">
                 发起一次真实对话后，这里会自动生成任务记录，并持续更新状态与结果类型。
               </p>
               <div className="mt-5">
                 <button
                   type="button"
                   onClick={onOpenChat}
-                  className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-blue-500 px-5 py-2.5 text-sm font-medium text-white transition-[transform,background-color] duration-[var(--motion-panel)] hover:-translate-y-[1px] hover:bg-blue-600 active:scale-[0.985]"
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[var(--brand-primary)] px-5 py-2.5 text-sm font-medium text-[var(--brand-on-primary)] transition-[transform,background-color] duration-[var(--motion-panel)] hover:-translate-y-[1px] hover:bg-[var(--brand-primary-hover)] active:scale-[0.985]"
                   style={{ transitionTimingFunction: 'var(--motion-spring)' }}
                 >
                   返回智能对话
@@ -243,7 +243,7 @@ export function TaskCenterView({
           <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_400px]">
             <div className="space-y-4">
               {filteredTasks.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-gray-200/60 bg-white px-6 py-9 text-sm text-gray-600 dark:border-gray-700/50 dark:bg-gray-800/50 dark:text-gray-400">
+                <div className="rounded-2xl border border-dashed border-[var(--border-default)] bg-[var(--bg-elevated)] px-6 py-9 text-sm text-[var(--text-secondary)]">
                   未找到匹配的任务，可以换个关键词或状态看看。
                 </div>
               ) : (
@@ -260,8 +260,8 @@ export function TaskCenterView({
                       className={cn(
                         'group rounded-2xl border bg-white p-5 dark:bg-gray-800/50',
                         isSelected
-                          ? 'border-2 border-blue-400 bg-blue-50/50 shadow-md dark:border-blue-500 dark:bg-blue-950/20'
-                          : 'border-gray-200/60 hover:border-gray-300 dark:border-gray-700/50 dark:hover:border-gray-600',
+                          ? 'border-2 border-[var(--button-primary-border-hover)] bg-[var(--chip-brand-bg)] shadow-[var(--button-primary-shadow-hover)]'
+                          : 'border-[var(--border-default)] hover:border-[var(--border-strong)]',
                       )}
                     >
                       <div className="flex items-start justify-between gap-4">
@@ -278,11 +278,11 @@ export function TaskCenterView({
                             </span>
                           </div>
 
-                          <h2 className="mt-3 text-base font-semibold text-gray-900 dark:text-gray-100">
+                          <h2 className="mt-3 text-base font-semibold text-[var(--text-primary)]">
                             {task.title}
                           </h2>
 
-                          <p className="mt-2 line-clamp-2 text-sm text-gray-600 dark:text-gray-400">
+                          <p className="mt-2 line-clamp-2 text-sm text-[var(--text-secondary)]">
                             {task.summary}
                           </p>
 
@@ -293,7 +293,7 @@ export function TaskCenterView({
                                 return (
                                   <span
                                     key={artifact}
-                                    className="inline-flex items-center gap-1.5 rounded-md bg-gray-100 px-2.5 py-1 text-xs text-gray-700 dark:bg-gray-700/50 dark:text-gray-300"
+                                    className="inline-flex items-center gap-1.5 rounded-md bg-[var(--bg-hover)] px-2.5 py-1 text-xs text-[var(--text-secondary)]"
                                   >
                                     <Icon className="h-3.5 w-3.5" />
                                     {RECENT_TASK_ARTIFACT_LABELS[artifact]}
@@ -303,7 +303,7 @@ export function TaskCenterView({
                             </div>
                           ) : null}
 
-                          <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                          <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-[var(--text-muted)]">
                             <span className="inline-flex items-center gap-1.5">
                               <Clock3 className="h-3.5 w-3.5" />
                               {formatRecentTaskRelativeTime(task.updatedAt)}
@@ -323,7 +323,7 @@ export function TaskCenterView({
                               onOpenChat?.();
                             }}
                             className={cn(
-                              'rounded-lg px-3 py-1 text-xs font-medium text-blue-600 transition-[transform,opacity,background-color] duration-[var(--motion-panel)] hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/30',
+                              'rounded-lg px-3 py-1 text-xs font-medium text-[var(--chip-brand-text)] transition-[transform,opacity,background-color] duration-[var(--motion-panel)] hover:bg-[var(--chip-brand-bg)]',
                               'pointer-events-none translate-y-1 opacity-0 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100',
                               isSelected ? 'pointer-events-auto translate-y-0 opacity-100' : '',
                             )}
@@ -341,11 +341,11 @@ export function TaskCenterView({
             </div>
 
             <aside className="xl:sticky xl:top-6 xl:self-start">
-              <div className="rounded-2xl border border-gray-200/60 bg-white p-6 dark:border-gray-700/50 dark:bg-gray-800/50">
+              <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-elevated)] p-6">
                 {selectedTask ? (
                   <TaskSummaryPanel task={selectedTask} onOpenChat={onOpenChat} />
                 ) : (
-                  <div className="flex min-h-[360px] items-center justify-center text-center text-sm leading-7 text-gray-500 dark:text-gray-400">
+                  <div className="flex min-h-[360px] items-center justify-center text-center text-sm leading-7 text-[var(--text-muted)]">
                     选择一条任务记录后，这里会展示更完整的任务摘要。
                   </div>
                 )}
@@ -370,15 +370,15 @@ function TaskSummaryPanel({
 
   return (
     <div className="flex flex-col">
-      <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
+      <div className="text-xs font-medium text-[var(--text-muted)]">
         当前查看
       </div>
 
-      <h3 className="mt-3 text-xl font-semibold text-gray-900 dark:text-gray-100">
+      <h3 className="mt-3 text-xl font-semibold text-[var(--text-primary)]">
         {task.title}
       </h3>
 
-      <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+      <p className="mt-2 text-sm text-[var(--text-secondary)]">
         {task.summary}
       </p>
 
@@ -405,14 +405,14 @@ function TaskSummaryPanel({
 
       {task.artifacts.length > 0 ? (
         <div className="mt-5">
-          <div className="text-xs font-medium text-gray-500 dark:text-gray-400">结果类型</div>
+          <div className="text-xs font-medium text-[var(--text-muted)]">结果类型</div>
           <div className="mt-2 flex flex-wrap gap-2">
             {task.artifacts.map((artifact) => {
               const Icon = artifactIconMap[artifact];
               return (
                 <span
                   key={artifact}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 dark:bg-gray-700/50 dark:text-gray-300"
+                  className="inline-flex items-center gap-1.5 rounded-md bg-[var(--bg-hover)] px-2.5 py-1 text-xs font-medium text-[var(--text-secondary)]"
                 >
                   <Icon className="h-3.5 w-3.5" />
                   {RECENT_TASK_ARTIFACT_LABELS[artifact]}
@@ -431,8 +431,8 @@ function TaskSummaryPanel({
       </div>
 
       <div className="mt-5">
-        <div className="text-xs font-medium text-gray-500 dark:text-gray-400">简短说明</div>
-        <p className="mt-2 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+        <div className="text-xs font-medium text-[var(--text-muted)]">简短说明</div>
+        <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
           {task.summary}
         </p>
       </div>
@@ -441,7 +441,7 @@ function TaskSummaryPanel({
         <button
           type="button"
           onClick={onOpenChat}
-          className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-500 px-6 py-3 text-sm font-medium text-white transition-[transform,background-color] duration-[var(--motion-panel)] hover:-translate-y-[1px] hover:bg-blue-600 active:scale-[0.985]"
+          className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[var(--brand-primary)] px-6 py-3 text-sm font-medium text-[var(--brand-on-primary)] transition-[transform,background-color] duration-[var(--motion-panel)] hover:-translate-y-[1px] hover:bg-[var(--brand-primary-hover)] active:scale-[0.985]"
           style={{ transitionTimingFunction: 'var(--motion-spring)' }}
         >
           返回智能对话
@@ -466,21 +466,21 @@ function MetricCard({
 }) {
   const iconTone =
     tone === 'running'
-      ? 'bg-[rgba(59,130,246,0.14)] text-[rgb(37,99,235)] dark:bg-[rgba(59,130,246,0.18)] dark:text-[rgb(147,197,253)]'
+      ? 'bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)]'
       : tone === 'completed'
         ? 'bg-[rgba(16,185,129,0.14)] text-[rgb(5,150,105)] dark:bg-[rgba(16,185,129,0.18)] dark:text-[rgb(110,231,183)]'
         : 'bg-[rgba(15,23,42,0.08)] text-[rgb(51,65,85)] dark:bg-[rgba(255,255,255,0.08)] dark:text-[rgb(203,213,225)]';
 
   return (
-    <div className="flex cursor-pointer items-center gap-4 rounded-2xl border border-gray-200/60 bg-white px-6 py-5 transition-[transform,box-shadow] duration-[var(--motion-panel)] hover:-translate-y-[1px] hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)] dark:border-gray-700/50 dark:bg-gray-800/50">
+    <div className="flex cursor-pointer items-center gap-4 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-elevated)] px-6 py-5 transition-[transform,box-shadow] duration-[var(--motion-panel)] hover:-translate-y-[1px] hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
       <div className={cn('flex h-11 w-11 items-center justify-center rounded-[16px]', iconTone)}>
         <Icon className={cn('h-5 w-5', tone === 'running' ? 'animate-spin' : '')} />
       </div>
       <div className="min-w-0">
-        <div className="text-sm text-gray-500 dark:text-gray-400">{label}</div>
+        <div className="text-sm text-[var(--text-muted)]">{label}</div>
         <div className="mt-1 flex items-end gap-2">
-          <div className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{value}</div>
-          <div className="pb-1 text-xs text-gray-500 dark:text-gray-400">{note}</div>
+          <div className="text-2xl font-semibold text-[var(--text-primary)]">{value}</div>
+          <div className="pb-1 text-xs text-[var(--text-muted)]">{note}</div>
         </div>
       </div>
     </div>
@@ -489,9 +489,9 @@ function MetricCard({
 
 function SummaryMetaCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-gray-200/60 bg-gray-50 px-4 py-3 dark:border-gray-700/50 dark:bg-gray-900/30">
-      <div className="text-xs font-medium text-gray-500 dark:text-gray-400">{label}</div>
-      <div className="mt-1 text-sm text-gray-900 dark:text-gray-100">{value}</div>
+    <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-hover)] px-4 py-3">
+      <div className="text-xs font-medium text-[var(--text-muted)]">{label}</div>
+      <div className="mt-1 text-sm text-[var(--text-primary)]">{value}</div>
     </div>
   );
 }
