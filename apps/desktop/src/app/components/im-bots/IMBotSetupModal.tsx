@@ -88,6 +88,9 @@ const completionChecklist = [
 const SECTION_LABEL =
   'text-[12px] font-semibold uppercase tracking-[0.14em] text-[#9B9691] dark:text-[#6B6863]';
 
+const FIGMA_PRIMARY_BUTTON =
+  'inline-flex items-center justify-center rounded-lg bg-[#C9B896] px-6 py-2.5 text-[13px] text-[#1A1916] shadow-sm shadow-[#C9B896]/20 transition-all hover:shadow-md active:scale-[0.98] dark:bg-[#9D8B6F] dark:text-[#F5F4F2] dark:shadow-[#9D8B6F]/20 disabled:cursor-not-allowed disabled:opacity-100 disabled:saturate-[0.76] disabled:shadow-none';
+
 export function IMBotSetupModal({
   platform,
   open,
@@ -548,17 +551,23 @@ export function IMBotSetupModal({
             <Button variant="secondary" size="sm" onClick={handlePrev}>
               {currentStep === 1 ? '取消' : '上一步'}
             </Button>
-            <Button
-              variant="primary"
-              size="sm"
+            <button
+              type="button"
               onClick={handleNext}
               disabled={
                 (currentStep === 2 && !canAdvanceFromCredentials) ||
                 (currentStep === 3 && testStatus !== 'success')
               }
+              className={cn(
+                FIGMA_PRIMARY_BUTTON,
+                APPLE_FLAT_SURFACE,
+                SPRING_PRESSABLE,
+                INTERACTIVE_FOCUS_RING,
+                'cursor-pointer',
+              )}
             >
               {primaryActionLabel}
-            </Button>
+            </button>
           </div>
         </div>
       </div>
