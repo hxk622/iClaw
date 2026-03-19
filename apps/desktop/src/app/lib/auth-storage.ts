@@ -3,6 +3,8 @@ import { ACCESS_TOKEN_STORAGE_KEY, REFRESH_TOKEN_STORAGE_KEY } from './storage';
 
 const LEGACY_ACCESS_TOKEN_KEY = 'iclaw_access_token';
 const LEGACY_REFRESH_TOKEN_KEY = 'iclaw_refresh_token';
+const LEGACY_NAMESPACE_ACCESS_TOKEN_KEYS = ['iclaw:auth.access_token'];
+const LEGACY_NAMESPACE_REFRESH_TOKEN_KEYS = ['iclaw:auth.refresh_token'];
 
 export interface StoredAuth {
   accessToken: string;
@@ -11,6 +13,27 @@ export interface StoredAuth {
 
 function isTauriRuntime(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+}
+
+function readLegacyBrowserAuth(): StoredAuth | null {
+  const legacyPairs = LEGACY_NAMESPACE_ACCESS_TOKEN_KEYS.map((accessKey, index) => ({
+    accessKey,
+    refreshKey: LEGACY_NAMESPACE_REFRESH_TOKEN_KEYS[index],
+  }));
+
+  for (const pair of legacyPairs) {
+    const accessToken = localStorage.getItem(pair.accessKey);
+    const refreshToken = localStorage.getItem(pair.refreshKey);
+    if (!accessToken || !refreshToken) {
+      continue;
+    }
+
+    localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, accessToken);
+    localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, refreshToken);
+    return { accessToken, refreshToken };
+  }
+
+  return null;
 }
 
 export async function readAuth(): Promise<StoredAuth | null> {
@@ -33,7 +56,9 @@ export async function readAuth(): Promise<StoredAuth | null> {
     localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY) || localStorage.getItem(LEGACY_ACCESS_TOKEN_KEY);
   const refreshToken =
     localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY) || localStorage.getItem(LEGACY_REFRESH_TOKEN_KEY);
-  if (!accessToken || !refreshToken) return null;
+  if (!accessToken || !refreshToken) {
+    return readLegacyBrowserAuth();
+  }
   return { accessToken, refreshToken };
 }
 
