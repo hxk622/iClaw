@@ -597,6 +597,11 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       return modelsLoading ? '同步可用模型中' : '当前暂无可用模型';
     })();
     const modelDisabled = !connected || busy || modelSwitching || modelOptions.length === 0;
+    const modelSections = [
+      { key: 'advanced', label: '高级', options: modelOptions.filter((option) => option.tier === 'advanced') },
+      { key: 'basic', label: '基础', options: modelOptions.filter((option) => option.tier === 'basic') },
+      { key: 'other', label: '其他', options: modelOptions.filter((option) => option.tier === 'other') },
+    ].filter((section) => section.options.length > 0);
 
     return (
       <div className="iclaw-composer">
@@ -779,30 +784,42 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
 
                 {modelMenuOpen ? (
                   <div className="iclaw-composer__model-menu" role="menu" aria-label="选择模型">
-                    {modelOptions.map((option) => {
-                      const active = option.id === selectedModel?.id;
-                      return (
-                        <button
-                          key={option.id}
-                          type="button"
-                          role="menuitemradio"
-                          aria-checked={active}
-                          className="iclaw-composer__model-option"
-                          data-active={active ? 'true' : 'false'}
-                          onClick={() => {
-                            setModelMenuOpen(false);
-                            void onModelChange(option.id);
-                          }}
-                        >
-                          <ModelBrandIcon family={option.family} className="iclaw-composer__model-option-logo" />
-                          <span className="iclaw-composer__model-option-copy">
-                            <span className="iclaw-composer__model-option-label">{option.label}</span>
-                            <span className="iclaw-composer__model-option-detail">{option.detail}</span>
-                          </span>
-                          {active ? <Check className="iclaw-composer__model-option-check h-4 w-4" /> : null}
-                        </button>
-                      );
-                    })}
+                    <div className="iclaw-composer__model-menu-header">
+                      <span className="iclaw-composer__model-menu-title">选择模型</span>
+                    </div>
+                    {modelSections.map((section) => (
+                      <div key={section.key} className="iclaw-composer__model-section" role="group" aria-label={section.label}>
+                        <div className="iclaw-composer__model-section-title">{section.label}</div>
+                        <div className="iclaw-composer__model-section-body">
+                          {section.options.map((option) => {
+                            const active = option.id === selectedModel?.id;
+                            return (
+                              <button
+                                key={option.id}
+                                type="button"
+                                role="menuitemradio"
+                                aria-checked={active}
+                                className="iclaw-composer__model-option"
+                                data-active={active ? 'true' : 'false'}
+                                onClick={() => {
+                                  setModelMenuOpen(false);
+                                  void onModelChange(option.id);
+                                }}
+                              >
+                                <span className="iclaw-composer__model-option-main">
+                                  <ModelBrandIcon family={option.family} className="iclaw-composer__model-option-logo" />
+                                  <span className="iclaw-composer__model-option-label">{option.label}</span>
+                                </span>
+                                <span className="iclaw-composer__model-option-meta">
+                                  {option.badge ? <span className="iclaw-composer__model-option-badge">{option.badge}</span> : null}
+                                  {active ? <Check className="iclaw-composer__model-option-check h-4 w-4" /> : null}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : null}
               </div>
