@@ -3,6 +3,16 @@ import { AlertTriangle, Eye, EyeOff, Package2, ShieldCheck, Tags, Trash2 } from 
 import type { AdminSkillStoreItem } from '@/app/lib/skill-store';
 import { Button } from '@/app/components/ui/Button';
 import { Chip } from '@/app/components/ui/Chip';
+import { DrawerSection } from '@/app/components/ui/DrawerSection';
+import { InfoTile } from '@/app/components/ui/InfoTile';
+import { SelectionCard } from '@/app/components/ui/SelectionCard';
+
+const SHEET_INPUT_CLASS =
+  'rounded-[15px] border border-[var(--border-default)] bg-[var(--bg-page)] px-4 py-3 text-[14px] text-[var(--text-primary)] outline-none transition-all focus:border-[var(--brand-primary)] focus:ring-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]';
+const SHEET_DISABLED_INPUT_CLASS =
+  'rounded-[15px] border border-[var(--border-default)] bg-[var(--bg-hover)] px-4 py-3 text-[14px] text-[var(--text-secondary)] outline-none dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)] dark:text-[rgba(250,250,250,0.72)]';
+const SHEET_TEXTAREA_CLASS =
+  'rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-page)] px-4 py-3 text-[14px] leading-6 text-[var(--text-primary)] outline-none transition-all focus:border-[var(--brand-primary)] focus:ring-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]';
 
 type EditableSkillForm = {
   slug: string;
@@ -97,24 +107,24 @@ export function SkillStoreAdminSheet({
 
   return (
     <div
-      className="fixed inset-0 z-40 flex justify-end bg-[rgba(17,24,39,0.18)] backdrop-blur-[2px] dark:bg-[rgba(0,0,0,0.34)]"
+      className="fixed inset-0 z-40 flex justify-end bg-[rgba(26,22,18,0.18)] backdrop-blur-[2px] dark:bg-[rgba(0,0,0,0.34)]"
       onClick={onClose}
     >
       <aside
-        className="flex h-full w-full max-w-[520px] flex-col border-l border-[var(--border-default)] bg-[var(--bg-page)] shadow-[0_32px_80px_rgba(15,23,42,0.24)] dark:border-l-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(24,24,24,0.98),rgba(12,12,12,0.96))] dark:shadow-[0_30px_90px_rgba(0,0,0,0.44)]"
+        className="flex h-full w-full max-w-[520px] flex-col border-l border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(252,251,248,0.98),rgba(244,240,233,0.96))] shadow-[0_32px_80px_rgba(26,22,18,0.2)] dark:border-l-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(24,24,24,0.98),rgba(12,12,12,0.96))] dark:shadow-[0_30px_90px_rgba(0,0,0,0.44)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="border-b border-[var(--border-default)] px-6 py-5 dark:border-b-[rgba(255,255,255,0.08)]">
+        <div className="border-b border-[var(--border-default)] px-6 py-[18px] dark:border-b-[rgba(255,255,255,0.08)]">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2 text-[12px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+              <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">
                 <ShieldCheck className="h-4 w-4 text-[var(--brand-primary)]" />
                 超管管理
               </div>
-              <h2 className="mt-2 text-[24px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
+              <h2 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
                 编辑技能
               </h2>
-              <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+              <p className="mt-1.5 text-[13px] leading-6 text-[var(--text-secondary)]">
                 直接修改 catalog 中的展示、分类、标签和启用状态，保存后立刻写入 control-plane。
               </p>
             </div>
@@ -130,8 +140,8 @@ export function SkillStoreAdminSheet({
           </div>
         </div>
 
-        <div className="flex-1 space-y-6 overflow-y-auto px-6 py-6">
-          <section className="rounded-[28px] border border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:shadow-[0_20px_36px_rgba(0,0,0,0.26)]">
+        <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
+          <DrawerSection title="基础信息" icon={<Package2 className="h-5 w-5" />}>
             <div className="grid gap-4">
               <label className="grid gap-2">
                 <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-secondary)]">
@@ -140,7 +150,7 @@ export function SkillStoreAdminSheet({
                 <input
                   value={form.slug}
                   disabled
-                  className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-hover)] px-4 py-3 text-[14px] text-[var(--text-secondary)] outline-none dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)] dark:text-[rgba(250,250,250,0.72)]"
+                  className={SHEET_DISABLED_INPUT_CLASS}
                 />
               </label>
 
@@ -151,7 +161,7 @@ export function SkillStoreAdminSheet({
                 <input
                   value={form.name}
                   onChange={(event) => setForm((current) => (current ? {...current, name: event.target.value} : current))}
-                  className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-page)] px-4 py-3 text-[14px] text-[var(--text-primary)] outline-none transition-all focus:border-[var(--brand-primary)] focus:ring-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]"
+                  className={SHEET_INPUT_CLASS}
                   style={{ ['--tw-ring-color' as string]: 'rgba(201,169,97,0.14)' }}
                 />
               </label>
@@ -166,14 +176,14 @@ export function SkillStoreAdminSheet({
                     setForm((current) => (current ? {...current, description: event.target.value} : current))
                   }
                   rows={4}
-                  className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-page)] px-4 py-3 text-[14px] leading-6 text-[var(--text-primary)] outline-none transition-all focus:border-[var(--brand-primary)] focus:ring-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]"
+                  className={SHEET_TEXTAREA_CLASS}
                   style={{ ['--tw-ring-color' as string]: 'rgba(201,169,97,0.14)' }}
                 />
               </label>
             </div>
-          </section>
+          </DrawerSection>
 
-          <section className="rounded-[28px] border border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:shadow-[0_20px_36px_rgba(0,0,0,0.26)]">
+          <DrawerSection title="分类与发布" icon={<Tags className="h-5 w-5" />}>
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="grid gap-2">
                 <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-secondary)]">
@@ -183,7 +193,7 @@ export function SkillStoreAdminSheet({
                   value={form.market}
                   onChange={(event) => setForm((current) => (current ? {...current, market: event.target.value} : current))}
                   placeholder="A股 / 美股 / 通用"
-                  className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-page)] px-4 py-3 text-[14px] text-[var(--text-primary)] outline-none transition-all placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)] focus:ring-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:placeholder:text-[rgba(250,250,250,0.34)]"
+                  className={`${SHEET_INPUT_CLASS} placeholder:text-[var(--text-muted)] dark:placeholder:text-[rgba(250,250,250,0.34)]`}
                   style={{ ['--tw-ring-color' as string]: 'rgba(201,169,97,0.14)' }}
                 />
               </label>
@@ -197,7 +207,7 @@ export function SkillStoreAdminSheet({
                   onChange={(event) =>
                     setForm((current) => (current ? {...current, category: event.target.value} : current))
                   }
-                  className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-page)] px-4 py-3 text-[14px] text-[var(--text-primary)] outline-none transition-all focus:border-[var(--brand-primary)] focus:ring-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]"
+                  className={SHEET_INPUT_CLASS}
                   style={{ ['--tw-ring-color' as string]: 'rgba(201,169,97,0.14)' }}
                 >
                   <option value="">自动推断</option>
@@ -218,7 +228,7 @@ export function SkillStoreAdminSheet({
                   onChange={(event) =>
                     setForm((current) => (current ? {...current, skillType: event.target.value} : current))
                   }
-                  className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-page)] px-4 py-3 text-[14px] text-[var(--text-primary)] outline-none transition-all focus:border-[var(--brand-primary)] focus:ring-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]"
+                  className={SHEET_INPUT_CLASS}
                   style={{ ['--tw-ring-color' as string]: 'rgba(201,169,97,0.14)' }}
                 >
                   <option value="">自动推断</option>
@@ -238,14 +248,14 @@ export function SkillStoreAdminSheet({
                   onChange={(event) =>
                     setForm((current) => (current ? {...current, publisher: event.target.value} : current))
                   }
-                  className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-page)] px-4 py-3 text-[14px] text-[var(--text-primary)] outline-none transition-all focus:border-[var(--brand-primary)] focus:ring-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]"
+                  className={SHEET_INPUT_CLASS}
                   style={{ ['--tw-ring-color' as string]: 'rgba(201,169,97,0.14)' }}
                 />
               </label>
             </div>
-          </section>
+          </DrawerSection>
 
-          <section className="rounded-[28px] border border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:shadow-[0_20px_36px_rgba(0,0,0,0.26)]">
+          <DrawerSection title="标签与展示状态" icon={<Tags className="h-5 w-5" />}>
             <div className="grid gap-4">
               <label className="grid gap-2">
                 <span className="inline-flex items-center gap-2 text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-secondary)]">
@@ -258,97 +268,74 @@ export function SkillStoreAdminSheet({
                     setForm((current) => (current ? {...current, tagsText: event.target.value} : current))
                   }
                   placeholder="A股, ESG, 筛选"
-                  className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-page)] px-4 py-3 text-[14px] text-[var(--text-primary)] outline-none transition-all placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)] focus:ring-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:placeholder:text-[rgba(250,250,250,0.34)]"
+                  className={`${SHEET_INPUT_CLASS} placeholder:text-[var(--text-muted)] dark:placeholder:text-[rgba(250,250,250,0.34)]`}
                   style={{ ['--tw-ring-color' as string]: 'rgba(201,169,97,0.14)' }}
                 />
               </label>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-hover)] p-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
-                  <div className="flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={form.active}
-                      onChange={(event) =>
-                        setForm((current) => (current ? {...current, active: event.target.checked} : current))
-                      }
-                      className="mt-1 h-4 w-4 accent-[var(--brand-primary)]"
-                    />
-                    <div>
-                      <div className="flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
-                        <Package2 className="h-4 w-4 text-[var(--brand-primary)]" />
-                        启用技能
-                      </div>
-                      <p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">
-                        关闭后仍保留目录记录，但不会在公开技能库中展示。
-                      </p>
-                    </div>
+                <SelectionCard
+                  as="button"
+                  selected={form.active}
+                  onClick={() =>
+                    setForm((current) => (current ? { ...current, active: !current.active } : current))
+                  }
+                >
+                  <div className="flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
+                    <Package2 className="h-4 w-4 text-[var(--brand-primary)]" />
+                    启用技能
                   </div>
-                </label>
+                  <p className="mt-1.5 text-[13px] leading-6 text-[var(--text-secondary)]">
+                    关闭后仍保留目录记录，但不会在公开技能库中展示。
+                  </p>
+                </SelectionCard>
 
-                <label className="rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-hover)] p-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
-                  <div className="flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={form.visibility === 'showcase'}
-                      onChange={(event) =>
-                        setForm((current) =>
-                          current
-                            ? {...current, visibility: event.target.checked ? 'showcase' : 'internal'}
-                            : current,
-                        )
-                      }
-                      className="mt-1 h-4 w-4 accent-[var(--brand-primary)]"
-                    />
-                    <div>
-                      <div className="flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
-                        {form.visibility === 'showcase' ? (
-                          <Eye className="h-4 w-4 text-[var(--brand-primary)]" />
-                        ) : (
-                          <EyeOff className="h-4 w-4 text-[var(--text-secondary)]" />
-                        )}
-                        商店展示
-                      </div>
-                      <p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">
-                        关闭后仅超管后台可见，普通用户技能商店不显示。
-                      </p>
-                    </div>
+                <SelectionCard
+                  as="button"
+                  selected={form.visibility === 'showcase'}
+                  onClick={() =>
+                    setForm((current) =>
+                      current
+                        ? { ...current, visibility: current.visibility === 'showcase' ? 'internal' : 'showcase' }
+                        : current,
+                    )
+                  }
+                >
+                  <div className="flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
+                    {form.visibility === 'showcase' ? (
+                      <Eye className="h-4 w-4 text-[var(--brand-primary)]" />
+                    ) : (
+                      <EyeOff className="h-4 w-4 text-[var(--text-secondary)]" />
+                    )}
+                    商店展示
                   </div>
-                </label>
+                  <p className="mt-1.5 text-[13px] leading-6 text-[var(--text-secondary)]">
+                    关闭后仅超管后台可见，普通用户技能商店不显示。
+                  </p>
+                </SelectionCard>
               </div>
             </div>
-          </section>
+          </DrawerSection>
 
-          <section className="rounded-[28px] border border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:shadow-[0_20px_36px_rgba(0,0,0,0.26)]">
-            <div className="grid gap-3 text-sm text-[var(--text-secondary)]">
-              <div className="flex items-center justify-between gap-4">
-                <span>创建时间</span>
-                <span className="text-[var(--text-primary)]">{formatDate(skill.createdAt)}</span>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <span>最后更新时间</span>
-                <span className="text-[var(--text-primary)]">{formatDate(skill.updatedAt)}</span>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <span>最新版本</span>
-                <span className="text-[var(--text-primary)]">{skill.latestRelease?.version || '未配置'}</span>
-              </div>
+          <DrawerSection title="元信息" icon={<ShieldCheck className="h-5 w-5" />}>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <InfoTile label="创建时间" value={formatDate(skill.createdAt)} />
+              <InfoTile label="最后更新时间" value={formatDate(skill.updatedAt)} />
+              <InfoTile label="最新版本" value={skill.latestRelease?.version || '未配置'} />
             </div>
-          </section>
+          </DrawerSection>
 
           {error ? (
-            <div
-              className="rounded-[22px] px-4 py-3 text-sm text-[var(--state-error)]"
-              style={{
-                border: '1px solid rgba(239,68,68,0.16)',
-                background: 'rgba(239,68,68,0.08)',
-              }}
-            >
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>{error}</span>
-              </div>
-            </div>
+            <InfoTile
+              label="保存错误"
+              value={
+                <span className="inline-flex items-start gap-3">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{error}</span>
+                </span>
+              }
+              tone="warning"
+            />
           ) : null}
         </div>
 

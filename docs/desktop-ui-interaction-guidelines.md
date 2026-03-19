@@ -176,6 +176,9 @@
 
 - [IMBotsView.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/im-bots/IMBotsView.tsx)
 - [IMBotSetupModal.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/im-bots/IMBotSetupModal.tsx)
+- [SkillStoreImportSheet.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/skill-store/SkillStoreImportSheet.tsx)
+- [SkillStoreAdminSheet.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/skill-store/SkillStoreAdminSheet.tsx)
+- [SkillStoreDetailSheet.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/skill-store/SkillStoreDetailSheet.tsx)
 - [Button.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/Button.tsx)
 - [PressableCard.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/PressableCard.tsx)
 - [Chip.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/Chip.tsx)

@@ -2,6 +2,8 @@ import { CalendarDays, Package, UserRound, X } from 'lucide-react';
 import type { SkillStoreItem } from '@/app/lib/skill-store';
 import { Button } from '@/app/components/ui/Button';
 import { Chip } from '@/app/components/ui/Chip';
+import { DrawerSection } from '@/app/components/ui/DrawerSection';
+import { InfoTile } from '@/app/components/ui/InfoTile';
 import { cn } from '@/app/lib/cn';
 import { SkillGlyph, skillTagClassName } from './SkillStoreVisuals';
 
@@ -136,23 +138,19 @@ export function SkillStoreDetailSheet({
   const rows = metadataRows(skill, formatPublishedAt);
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-end bg-[rgba(12,18,28,0.16)] backdrop-blur-[3px] dark:bg-[rgba(0,0,0,0.34)]" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex justify-end bg-[rgba(26,22,18,0.18)] backdrop-blur-[3px] dark:bg-[rgba(0,0,0,0.34)]" onClick={onClose}>
       <aside
-        className="flex h-full w-full max-w-[480px] flex-col border-l border-[var(--border-default)] bg-[var(--bg-card)] shadow-[0_24px_64px_rgba(15,23,42,0.14)] dark:bg-[var(--bg-page)] dark:shadow-[0_24px_72px_rgba(0,0,0,0.34)]"
+        className="flex h-full w-full max-w-[500px] flex-col border-l border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(252,251,248,0.98),rgba(244,240,233,0.96))] shadow-[0_24px_64px_rgba(26,22,18,0.16)] dark:bg-[linear-gradient(180deg,rgba(24,24,24,0.98),rgba(12,12,12,0.96))] dark:shadow-[0_24px_72px_rgba(0,0,0,0.34)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-[var(--border-default)] px-6 py-5">
-          <h2 className="text-[17px] font-medium text-[var(--text-primary)]">技能详情</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-[var(--text-secondary)] transition-all hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-          >
-            <X className="h-[18px] w-[18px]" />
-          </button>
+        <div className="flex items-center justify-between border-b border-[var(--border-default)] px-6 py-[18px]">
+          <h2 className="text-[18px] font-medium text-[var(--text-primary)]">技能详情</h2>
+          <Button variant="ghost" size="sm" className="rounded-full" onClick={onClose} leadingIcon={<X className="h-4 w-4" />}>
+            关闭
+          </Button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
           <div className="mb-6 flex items-start gap-4">
             <SkillGlyph skill={skill} className="h-16 w-16 rounded-xl" iconClassName="h-7 w-7" />
             <div className="min-w-0 flex-1">
@@ -168,13 +166,11 @@ export function SkillStoreDetailSheet({
             </div>
           </div>
 
-          <section className="mb-6">
-            <div className="mb-2 text-[11px] uppercase tracking-[0.14em] text-[var(--text-muted)]">技能介绍</div>
+          <DrawerSection title="技能介绍" icon={<Package className="h-5 w-5" />}>
             <p className="text-[14px] leading-7 text-[var(--text-secondary)]">{skill.description}</p>
-          </section>
+          </DrawerSection>
 
-          <section className="mb-6">
-            <div className="mb-3 text-[11px] uppercase tracking-[0.14em] text-[var(--text-muted)]">元信息</div>
+          <DrawerSection title="元信息" icon={<CalendarDays className="h-5 w-5" />}>
             <div className="grid grid-cols-2 gap-3">
               {rows.map((row) => {
                 const icon =
@@ -187,24 +183,23 @@ export function SkillStoreDetailSheet({
                   );
 
                 return (
-                  <div
+                  <InfoTile
                     key={row.label}
-                    className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3.5 dark:bg-[rgba(255,255,255,0.03)]"
-                  >
-                    <div className="mb-2 flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                      <span className="text-[var(--text-secondary)]">{icon}</span>
-                      {row.label}
-                    </div>
-                    <div className="text-[14px] font-medium text-[var(--text-primary)]">{row.value}</div>
-                  </div>
+                    label={
+                      <span className="inline-flex items-center gap-2">
+                        <span className="text-[var(--text-secondary)]">{icon}</span>
+                        {row.label}
+                      </span>
+                    }
+                    value={row.value}
+                  />
                 );
               })}
             </div>
-          </section>
+          </DrawerSection>
 
           {skill.tags.length > 0 ? (
-            <section>
-              <div className="mb-3 text-[11px] uppercase tracking-[0.14em] text-[var(--text-muted)]">标签</div>
+            <DrawerSection title="标签" icon={<UserRound className="h-5 w-5" />}>
               <div className="flex flex-wrap gap-2">
                 {skill.tags.map((tag) => (
                   <span key={tag} className={cn('rounded-md border px-3 py-1.5 text-[12px] transition-colors', skillTagClassName(tag, { flat: true }))}>
@@ -212,7 +207,7 @@ export function SkillStoreDetailSheet({
                   </span>
                 ))}
               </div>
-            </section>
+            </DrawerSection>
           ) : null}
         </div>
 
