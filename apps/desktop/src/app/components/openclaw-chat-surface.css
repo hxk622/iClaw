@@ -142,6 +142,15 @@ body {
   display: none;
 }
 
+.openclaw-chat-surface button[aria-label='关闭'],
+.openclaw-chat-surface button[aria-label='Close'],
+.openclaw-chat-surface button[title='关闭'],
+.openclaw-chat-surface button[title='Close'],
+.openclaw-chat-surface [data-testid='close'],
+.openclaw-chat-surface [data-testid='close-button'] {
+  display: none !important;
+}
+
 .openclaw-cron-surface .content {
   padding: 0 0 28px;
 }
