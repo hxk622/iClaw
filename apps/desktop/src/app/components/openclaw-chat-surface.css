@@ -139,18 +139,7 @@ body {
 }
 
 .openclaw-chat-surface .content-header {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 54px;
-  margin: 0;
-  padding: 10px 24px 9px;
-  background: var(--chat-surface-header-bg);
-  border-bottom: 1px solid var(--chat-surface-header-border);
-  backdrop-filter: blur(12px);
+  display: none;
 }
 
 .openclaw-cron-surface .content {
