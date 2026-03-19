@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Calendar, Clock3, Search, Tag as TagIcon, Upload, X } from 'lucide-react';
+import { CompactDisclosure } from '@/app/components/ui/CompactDisclosure';
 import { FilterPill } from '@/app/components/ui/FilterPill';
 import { SurfacePanel } from '@/app/components/ui/SurfacePanel';
 
@@ -32,6 +33,19 @@ export function MemoryFilterBar({
   onToggleBoolean: (key: 'onlyAutoCaptured' | 'onlyHighImportance') => void;
   onClear: () => void;
 }) {
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const activeAdvancedCount = useMemo(
+    () =>
+      filters.domains.length +
+      filters.types.length +
+      filters.importance.length +
+      filters.sourceTypes.length +
+      filters.timeRange.length +
+      filters.recalledState.length +
+      filters.tags.length,
+    [filters],
+  );
+
   return (
     <SurfacePanel tone="subtle" className="rounded-[20px] border-[var(--border-default)] p-3">
       <div className="flex flex-col gap-3">
@@ -62,102 +76,113 @@ export function MemoryFilterBar({
           </div>
         </div>
 
-        <div className="flex flex-col gap-2.5 border-t border-[var(--border-default)] pt-2.5">
-          <div className="flex flex-wrap items-start gap-x-5 gap-y-2.5">
-            <InlineFilterGroup label="领域">
-              {DOMAIN_OPTIONS.map((domain) => (
-                <FilterChip
-                  key={domain}
-                  active={filters.domains.includes(domain)}
-                  onClick={() => onToggleFilter('domains', domain)}
+        <div className="border-t border-[var(--border-default)] pt-2.5">
+          <CompactDisclosure
+            title="高级筛选"
+            summary={activeAdvancedCount > 0 ? `已启用 ${activeAdvancedCount} 项条件` : '按领域、标签、时间和召回状态细筛'}
+            open={advancedOpen}
+            onToggle={() => setAdvancedOpen((current) => !current)}
+          />
+
+          {advancedOpen ? (
+            <div className="mt-2.5 flex flex-col gap-2.5">
+              <div className="flex flex-wrap items-start gap-x-5 gap-y-2.5">
+                <InlineFilterGroup label="领域">
+                  {DOMAIN_OPTIONS.map((domain) => (
+                    <FilterChip
+                      key={domain}
+                      active={filters.domains.includes(domain)}
+                      onClick={() => onToggleFilter('domains', domain)}
+                    >
+                      {domain}
+                    </FilterChip>
+                  ))}
+                </InlineFilterGroup>
+
+                <InlineFilterGroup label="类型">
+                  {TYPE_OPTIONS.map((type) => (
+                    <FilterChip key={type} active={filters.types.includes(type)} onClick={() => onToggleFilter('types', type)}>
+                      {type}
+                    </FilterChip>
+                  ))}
+                </InlineFilterGroup>
+
+                <InlineFilterGroup label="重要性">
+                  {IMPORTANCE_OPTIONS.map((importance) => (
+                    <FilterChip
+                      key={importance}
+                      active={filters.importance.includes(importance)}
+                      onClick={() => onToggleFilter('importance', importance)}
+                    >
+                      {importance}
+                    </FilterChip>
+                  ))}
+                </InlineFilterGroup>
+              </div>
+
+              <div className="flex flex-wrap items-start gap-x-5 gap-y-2.5">
+                <InlineFilterGroup
+                  label="来源"
+                  leadingIcon={<Upload size={13} strokeWidth={1.5} className="text-[var(--text-muted)]" />}
                 >
-                  {domain}
-                </FilterChip>
-              ))}
-            </InlineFilterGroup>
+                  {SOURCE_OPTIONS.map((source) => (
+                    <FilterChip
+                      key={source}
+                      active={filters.sourceTypes.includes(source)}
+                      onClick={() => onToggleFilter('sourceTypes', source)}
+                    >
+                      {source}
+                    </FilterChip>
+                  ))}
+                </InlineFilterGroup>
 
-            <InlineFilterGroup label="类型">
-              {TYPE_OPTIONS.map((type) => (
-                <FilterChip key={type} active={filters.types.includes(type)} onClick={() => onToggleFilter('types', type)}>
-                  {type}
-                </FilterChip>
-              ))}
-            </InlineFilterGroup>
-
-            <InlineFilterGroup label="重要性">
-              {IMPORTANCE_OPTIONS.map((importance) => (
-                <FilterChip
-                  key={importance}
-                  active={filters.importance.includes(importance)}
-                  onClick={() => onToggleFilter('importance', importance)}
+                <InlineFilterGroup
+                  label="时间"
+                  leadingIcon={<Calendar size={13} strokeWidth={1.5} className="text-[var(--text-muted)]" />}
                 >
-                  {importance}
-                </FilterChip>
-              ))}
-            </InlineFilterGroup>
-          </div>
+                  {TIME_RANGE_OPTIONS.map((range) => (
+                    <FilterChip
+                      key={range}
+                      active={filters.timeRange.includes(range)}
+                      onClick={() => onToggleFilter('timeRange', range)}
+                    >
+                      {range}
+                    </FilterChip>
+                  ))}
+                </InlineFilterGroup>
 
-          <div className="flex flex-wrap items-start gap-x-5 gap-y-2.5">
-            <InlineFilterGroup
-              label="来源"
-              leadingIcon={<Upload size={13} strokeWidth={1.5} className="text-[var(--text-muted)]" />}
-            >
-              {SOURCE_OPTIONS.map((source) => (
-                <FilterChip
-                  key={source}
-                  active={filters.sourceTypes.includes(source)}
-                  onClick={() => onToggleFilter('sourceTypes', source)}
+                <InlineFilterGroup
+                  label="召回"
+                  leadingIcon={<Clock3 size={13} strokeWidth={1.5} className="text-[var(--text-muted)]" />}
                 >
-                  {source}
-                </FilterChip>
-              ))}
-            </InlineFilterGroup>
+                  {RECALL_OPTIONS.map((state) => (
+                    <FilterChip
+                      key={state}
+                      active={filters.recalledState.includes(state)}
+                      onClick={() => onToggleFilter('recalledState', state)}
+                    >
+                      {state}
+                    </FilterChip>
+                  ))}
+                </InlineFilterGroup>
 
-            <InlineFilterGroup
-              label="时间"
-              leadingIcon={<Calendar size={13} strokeWidth={1.5} className="text-[var(--text-muted)]" />}
-            >
-              {TIME_RANGE_OPTIONS.map((range) => (
-                <FilterChip
-                  key={range}
-                  active={filters.timeRange.includes(range)}
-                  onClick={() => onToggleFilter('timeRange', range)}
+                <InlineFilterGroup
+                  label="标签"
+                  leadingIcon={<TagIcon size={13} strokeWidth={1.5} className="text-[var(--text-muted)]" />}
                 >
-                  {range}
-                </FilterChip>
-              ))}
-            </InlineFilterGroup>
-
-            <InlineFilterGroup
-              label="召回"
-              leadingIcon={<Clock3 size={13} strokeWidth={1.5} className="text-[var(--text-muted)]" />}
-            >
-              {RECALL_OPTIONS.map((state) => (
-                <FilterChip
-                  key={state}
-                  active={filters.recalledState.includes(state)}
-                  onClick={() => onToggleFilter('recalledState', state)}
-                >
-                  {state}
-                </FilterChip>
-              ))}
-            </InlineFilterGroup>
-
-            <InlineFilterGroup
-              label="标签"
-              leadingIcon={<TagIcon size={13} strokeWidth={1.5} className="text-[var(--text-muted)]" />}
-            >
-              {availableTags.length > 0 ? (
-                availableTags.slice(0, 6).map((tag) => (
-                  <FilterChip key={tag} active={filters.tags.includes(tag)} onClick={() => onToggleFilter('tags', tag)}>
-                    {tag}
-                  </FilterChip>
-                ))
-              ) : (
-                <span className="text-[11px] text-[var(--text-muted)]">暂无标签</span>
-              )}
-            </InlineFilterGroup>
-          </div>
+                  {availableTags.length > 0 ? (
+                    availableTags.slice(0, 6).map((tag) => (
+                      <FilterChip key={tag} active={filters.tags.includes(tag)} onClick={() => onToggleFilter('tags', tag)}>
+                        {tag}
+                      </FilterChip>
+                    ))
+                  ) : (
+                    <span className="text-[11px] text-[var(--text-muted)]">暂无标签</span>
+                  )}
+                </InlineFilterGroup>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </SurfacePanel>

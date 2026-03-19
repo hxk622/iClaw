@@ -26,6 +26,7 @@ import {
   subscribeSkillStoreEvents,
 } from '@/app/lib/skill-store';
 import { Button } from '@/app/components/ui/Button';
+import { CompactDisclosure } from '@/app/components/ui/CompactDisclosure';
 import { FilterPill } from '@/app/components/ui/FilterPill';
 import { MetricCard } from '@/app/components/ui/MetricCard';
 import { PageContent, PageHeader, PageSurface } from '@/app/components/ui/PageLayout';
@@ -330,6 +331,7 @@ export function SkillStoreView({
   const [featuredOnly, setFeaturedOnly] = useState(false);
   const [activeTags, setActiveTags] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [skills, setSkills] = useState<SkillStoreItem[]>([]);
   const [adminSkills, setAdminSkills] = useState<AdminSkillStoreItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -677,6 +679,11 @@ export function SkillStoreView({
   const builtinCount = skills.filter((skill) => skill.source === 'bundled').length;
   const featuredCount = skills.filter((skill) => skill.featured).length;
   const failedCount = installErrorSlugs.length;
+  const activeAdvancedFilterCount =
+    (activeCategory === 'all' ? 0 : 1) +
+    (activeInstallFilter === 'all' ? 0 : 1) +
+    (featuredOnly ? 1 : 0) +
+    activeTags.length;
 
   return (
     <PageSurface className="flex-col bg-[var(--bg-page)]">
@@ -790,7 +797,7 @@ export function SkillStoreView({
           </div>
         </div>
 
-        <div className="mb-5 space-y-4">
+        <div className="mb-5 space-y-3">
           <div className="flex items-center gap-2 border-b border-[var(--border-default)] pb-3">
             <SegmentedTabs
               items={storeTabs.map((tab) => ({
@@ -808,69 +815,80 @@ export function SkillStoreView({
             ) : null}
           </div>
 
-          <div>
-            <div className="mb-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">分类与策展</div>
-            <div className="flex flex-wrap gap-1.5">
-              <FilterPill active={featuredOnly} onClick={() => setFeaturedOnly((current) => !current)}>
-                <span className="inline-flex items-center gap-1.5">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  官方精选
-                </span>
-              </FilterPill>
-              {categories.map((category) => (
-                <FilterPill key={category.id} active={activeCategory === category.id} onClick={() => setActiveCategory(category.id)}>
-                  {category.label}
-                </FilterPill>
-              ))}
-            </div>
-          </div>
+          <CompactDisclosure
+            title="高级筛选"
+            summary={activeAdvancedFilterCount > 0 ? `已启用 ${activeAdvancedFilterCount} 项条件` : '按分类、标签和安装状态缩小结果范围'}
+            open={filtersExpanded}
+            onToggle={() => setFiltersExpanded((current) => !current)}
+          />
 
-          {availableQuickTags.length ? (
-            <div>
-              <div className="mb-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">标签筛选</div>
-              <div className="flex flex-wrap gap-1.5">
-                {availableQuickTags.map((tag) => {
-                  const active = activeTags.includes(tag);
-                  return (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() =>
-                        setActiveTags((current) => (current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]))
-                      }
-                      className={cn(
-                        'cursor-pointer rounded-md border px-3 py-1.5 text-[12px] transition-all',
-                        SPRING_PRESSABLE,
-                        INTERACTIVE_FOCUS_RING,
-                        skillTagClassName(tag, { selected: active, flat: true }),
-                      )}
-                    >
-                      {tag}
-                    </button>
-                  );
-                })}
-                {activeTags.length > 0 ? (
-                  <FilterPill
-                    onClick={() => setActiveTags([])}
-                    className="px-3 py-1.5 text-[12px]"
-                  >
-                    清除
+          {filtersExpanded ? (
+            <>
+              <div>
+                <div className="mb-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">分类与策展</div>
+                <div className="flex flex-wrap gap-1.5">
+                  <FilterPill active={featuredOnly} onClick={() => setFeaturedOnly((current) => !current)}>
+                    <span className="inline-flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5" />
+                      官方精选
+                    </span>
                   </FilterPill>
-                ) : null}
+                  {categories.map((category) => (
+                    <FilterPill key={category.id} active={activeCategory === category.id} onClick={() => setActiveCategory(category.id)}>
+                      {category.label}
+                    </FilterPill>
+                  ))}
+                </div>
               </div>
-            </div>
-          ) : null}
 
-          <div>
-            <div className="mb-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">安装状态</div>
-            <div className="flex flex-wrap gap-1.5">
-              {installFilters.map((filter) => (
-                <FilterPill key={filter.id} active={activeInstallFilter === filter.id} onClick={() => setActiveInstallFilter(filter.id)}>
-                  {filter.label}
-                </FilterPill>
-              ))}
-            </div>
-          </div>
+              {availableQuickTags.length ? (
+                <div>
+                  <div className="mb-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">标签筛选</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {availableQuickTags.map((tag) => {
+                      const active = activeTags.includes(tag);
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() =>
+                            setActiveTags((current) => (current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]))
+                          }
+                          className={cn(
+                            'cursor-pointer rounded-md border px-3 py-1.5 text-[12px] transition-all',
+                            SPRING_PRESSABLE,
+                            INTERACTIVE_FOCUS_RING,
+                            skillTagClassName(tag, { selected: active, flat: true }),
+                          )}
+                        >
+                          {tag}
+                        </button>
+                      );
+                    })}
+                    {activeTags.length > 0 ? (
+                      <FilterPill
+                        onClick={() => setActiveTags([])}
+                        className="px-3 py-1.5 text-[12px]"
+                      >
+                        清除
+                      </FilterPill>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+
+              <div>
+                <div className="mb-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">安装状态</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {installFilters.map((filter) => (
+                    <FilterPill key={filter.id} active={activeInstallFilter === filter.id} onClick={() => setActiveInstallFilter(filter.id)}>
+                      {filter.label}
+                    </FilterPill>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : null}
         </div>
 
         {loading ? (

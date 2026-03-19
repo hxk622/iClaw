@@ -10,6 +10,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { Chip } from '@/app/components/ui/Chip';
+import { CompactDisclosure } from '@/app/components/ui/CompactDisclosure';
 import { EmptyStatePanel } from '@/app/components/ui/EmptyStatePanel';
 import { FilterPill } from '@/app/components/ui/FilterPill';
 import { PageContent, PageHeader, PageSurface } from '@/app/components/ui/PageLayout';
@@ -135,6 +136,7 @@ export function DataConnectionsView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMarkets, setSelectedMarkets] = useState<string[]>(['全部']);
   const [selectedStatus, setSelectedStatus] = useState<(typeof STATUS_FILTERS)[number]>('全部');
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
 
   const allCapabilities = useMemo<CapabilityEntry[]>(() => {
     const flattened: CapabilityEntry[] = [];
@@ -183,6 +185,12 @@ export function DataConnectionsView() {
     () => allCapabilities.filter((capability) => capability.status === '规划中').length,
     [allCapabilities],
   );
+
+  const activeFilterCount = useMemo(() => {
+    const marketCount = selectedMarkets.includes('全部') ? 0 : selectedMarkets.length;
+    const statusCount = selectedStatus === '全部' ? 0 : 1;
+    return marketCount + statusCount;
+  }, [selectedMarkets, selectedStatus]);
 
   const handleMarketToggle = (market: string) => {
     if (market === '全部') {
@@ -264,41 +272,52 @@ export function DataConnectionsView() {
                 />
               </div>
 
-              <div>
-                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                  市场过滤
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {marketOptions.map((market) => (
-                    <FilterPill
-                      key={market}
-                      active={selectedMarkets.includes(market)}
-                      onClick={() => handleMarketToggle(market)}
-                      className="px-2.5 py-1 text-[11px]"
-                    >
-                      {market}
-                    </FilterPill>
-                  ))}
-                </div>
-              </div>
+              <CompactDisclosure
+                title="高级筛选"
+                summary={activeFilterCount > 0 ? `已启用 ${activeFilterCount} 项条件` : '按市场与接入状态缩小结果范围'}
+                open={filtersExpanded}
+                onToggle={() => setFiltersExpanded((current) => !current)}
+              />
 
-              <div>
-                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                  状态过滤
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {STATUS_FILTERS.map((status) => (
-                    <FilterPill
-                      key={status}
-                      active={selectedStatus === status}
-                      onClick={() => setSelectedStatus(status)}
-                      className="px-2.5 py-1 text-[11px]"
-                    >
-                      {status}
-                    </FilterPill>
-                  ))}
-                </div>
-              </div>
+              {filtersExpanded ? (
+                <>
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                      市场过滤
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {marketOptions.map((market) => (
+                        <FilterPill
+                          key={market}
+                          active={selectedMarkets.includes(market)}
+                          onClick={() => handleMarketToggle(market)}
+                          className="px-2.5 py-1 text-[11px]"
+                        >
+                          {market}
+                        </FilterPill>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                      状态过滤
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {STATUS_FILTERS.map((status) => (
+                        <FilterPill
+                          key={status}
+                          active={selectedStatus === status}
+                          onClick={() => setSelectedStatus(status)}
+                          className="px-2.5 py-1 text-[11px]"
+                        >
+                          {status}
+                        </FilterPill>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : null}
             </div>
           </SurfacePanel>
 
