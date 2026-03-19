@@ -33,7 +33,7 @@ export function SegmentedTabs<T extends string>({
               SPRING_PRESSABLE,
               INTERACTIVE_FOCUS_RING,
               active
-                ? 'border-[rgba(59,130,246,0.18)] bg-[rgba(59,130,246,0.10)] text-[rgb(29,78,216)] shadow-[0_12px_24px_rgba(59,130,246,0.10)] dark:border-[rgba(201,169,97,0.20)] dark:bg-[rgba(201,169,97,0.16)] dark:text-[#f1d59c] dark:shadow-[0_12px_24px_rgba(0,0,0,0.18)]'
+                ? 'border-[var(--chip-brand-border-strong)] bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)] shadow-[var(--button-secondary-shadow)]'
                 : 'border-transparent bg-transparent text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
             )}
           >
@@ -43,7 +43,7 @@ export function SegmentedTabs<T extends string>({
                 className={cn(
                   'rounded-full px-2 py-0.5 text-[11px]',
                   active
-                    ? 'bg-[rgba(59,130,246,0.14)] text-[rgb(29,78,216)] dark:bg-[rgba(201,169,97,0.24)] dark:text-[#f1d59c]'
+                    ? 'bg-[var(--chip-brand-bg-hover)] text-[var(--chip-brand-text)]'
                     : 'bg-[var(--bg-card)] text-[var(--text-muted)] dark:bg-[rgba(255,255,255,0.05)]',
                 )}
               >

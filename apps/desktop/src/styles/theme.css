@@ -3,19 +3,19 @@
 :root {
   --font-size: 16px;
 
-  --bg-page: #fafafa;
-  --bg-card: #ffffff;
+  --bg-page: #f7f5f0;
+  --bg-card: #fcfbf8;
   --bg-elevated: #ffffff;
-  --bg-hover: #f5f5f5;
+  --bg-hover: #f1eee8;
 
-  --text-primary: #171717;
-  --text-secondary: #525252;
-  --text-muted: #737373;
-  --text-disabled: #a3a3a3;
+  --text-primary: #1a1a18;
+  --text-secondary: #6b655d;
+  --text-muted: #9a9288;
+  --text-disabled: #b3aca2;
 
-  --border-subtle: #f5f5f5;
-  --border-default: #e5e5e5;
-  --border-strong: #d4d4d4;
+  --border-subtle: #ece7de;
+  --border-default: #ded7cc;
+  --border-strong: #c8beaf;
 
   --lobster-page-bg: #f7f5f0;
   --lobster-card-bg: #fcfbf8;
@@ -53,20 +53,46 @@
   --lobster-shadow-avatar: 0 10px 24px rgb(168 140 93 / 0.12);
   --lobster-shadow-tab: 0 8px 18px rgb(26 26 24 / 0.08);
 
-  --brand-primary-light: #3b82f6;
-  --brand-primary-light-hover: #2563eb;
-  --brand-on-primary-light: #ffffff;
-  --brand-primary-dark: #c9a961;
-  --brand-primary-dark-hover: #b89850;
-  --brand-on-primary-dark: #17110a;
+  --brand-primary-light: #a88c5d;
+  --brand-primary-light-hover: #8f7751;
+  --brand-on-primary-light: #1a1a18;
+  --brand-primary-dark: #b49a70;
+  --brand-primary-dark-hover: #c2aa82;
+  --brand-on-primary-dark: #11100f;
   --brand-primary: var(--brand-primary-light);
   --brand-primary-hover: var(--brand-primary-light-hover);
   --brand-on-primary: var(--brand-on-primary-light);
 
-  --state-success: #22c55e;
-  --state-warn: #f59e0b;
-  --state-error: #ef4444;
+  --state-success: #4a6b5a;
+  --state-warn: #c49850;
+  --state-error: #b84f4f;
   --state-info: var(--brand-primary-light);
+
+  --button-primary-bg: var(--brand-primary);
+  --button-primary-bg-hover: var(--brand-primary-hover);
+  --button-primary-border: rgb(168 140 93 / 0.28);
+  --button-primary-border-hover: rgb(143 119 81 / 0.36);
+  --button-primary-text: var(--brand-on-primary);
+  --button-primary-shadow: 0 1px 2px rgb(18 15 11 / 0.08);
+  --button-primary-shadow-hover: 0 8px 18px rgb(168 140 93 / 0.14);
+  --button-secondary-bg: var(--bg-card);
+  --button-secondary-bg-hover: var(--bg-elevated);
+  --button-secondary-border: #d4d1cc;
+  --button-secondary-border-hover: var(--border-strong);
+  --button-secondary-text: #3d3a36;
+  --button-secondary-shadow: 0 1px 2px rgb(18 15 11 / 0.06);
+  --surface-panel-default-bg: var(--bg-elevated);
+  --surface-panel-subtle-bg: var(--bg-hover);
+  --surface-panel-border: #e8e6e3;
+  --surface-panel-border-strong: var(--border-default);
+  --pressable-card-rest-shadow: 0 1px 2px rgb(18 15 11 / 0.05);
+  --pressable-card-hover-shadow: 0 16px 30px rgb(18 15 11 / 0.08);
+  --chip-brand-bg: rgb(168 140 93 / 0.1);
+  --chip-brand-bg-hover: rgb(168 140 93 / 0.14);
+  --chip-brand-border: rgb(168 140 93 / 0.2);
+  --chip-brand-border-strong: rgb(143 119 81 / 0.3);
+  --chip-brand-text: #8f7751;
+  --chip-brand-active-border: rgb(168 140 93 / 0.34);
 
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-dropdown: 0 4px 12px 0 rgb(0 0 0 / 0.08);
@@ -158,19 +184,19 @@
 }
 
 .dark {
-  --bg-page: #0a0a0a;
-  --bg-card: #171717;
-  --bg-elevated: #262626;
-  --bg-hover: #262626;
+  --bg-page: #11100f;
+  --bg-card: #191715;
+  --bg-elevated: #211e1b;
+  --bg-hover: #26221f;
 
-  --text-primary: #fafafa;
-  --text-secondary: #b3b3b3;
-  --text-muted: #7a7a7a;
-  --text-disabled: #5c5c5c;
+  --text-primary: #f2eee6;
+  --text-secondary: #b9b0a5;
+  --text-muted: #80786e;
+  --text-disabled: #6a645d;
 
-  --border-subtle: #262626;
-  --border-default: #404040;
-  --border-strong: #525252;
+  --border-subtle: #2a2622;
+  --border-default: #3a342e;
+  --border-strong: #534a42;
 
   --lobster-page-bg: #11100f;
   --lobster-card-bg: #191715;
@@ -212,10 +238,36 @@
   --brand-primary-hover: var(--brand-primary-dark-hover);
   --brand-on-primary: var(--brand-on-primary-dark);
 
-  --state-success: #22c55e;
-  --state-warn: #f59e0b;
-  --state-error: #ef4444;
+  --state-success: #6b8c7a;
+  --state-warn: #c49850;
+  --state-error: #c46b6b;
   --state-info: var(--brand-primary-dark);
+
+  --button-primary-bg: var(--brand-primary);
+  --button-primary-bg-hover: var(--brand-primary-hover);
+  --button-primary-border: rgb(180 154 112 / 0.32);
+  --button-primary-border-hover: rgb(194 170 130 / 0.4);
+  --button-primary-text: var(--brand-on-primary);
+  --button-primary-shadow: 0 1px 2px rgb(0 0 0 / 0.22);
+  --button-primary-shadow-hover: 0 10px 24px rgb(0 0 0 / 0.28);
+  --button-secondary-bg: #242320;
+  --button-secondary-bg-hover: #2a2825;
+  --button-secondary-border: #3d3a36;
+  --button-secondary-border-hover: #534a42;
+  --button-secondary-text: #d4d2ce;
+  --button-secondary-shadow: 0 1px 2px rgb(0 0 0 / 0.22);
+  --surface-panel-default-bg: #242320;
+  --surface-panel-subtle-bg: #1c1b19;
+  --surface-panel-border: #2d2c2a;
+  --surface-panel-border-strong: var(--border-default);
+  --pressable-card-rest-shadow: 0 1px 2px rgb(0 0 0 / 0.24);
+  --pressable-card-hover-shadow: 0 18px 34px rgb(0 0 0 / 0.28);
+  --chip-brand-bg: rgb(180 154 112 / 0.16);
+  --chip-brand-bg-hover: rgb(180 154 112 / 0.22);
+  --chip-brand-border: rgb(180 154 112 / 0.24);
+  --chip-brand-border-strong: rgb(194 170 130 / 0.34);
+  --chip-brand-text: #e5d2ad;
+  --chip-brand-active-border: rgb(180 154 112 / 0.38);
 
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
   --shadow-dropdown: 0 4px 12px 0 rgb(0 0 0 / 0.4);

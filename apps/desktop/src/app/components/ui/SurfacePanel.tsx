@@ -20,9 +20,9 @@ export function SurfacePanel({
       className={cn(
         'rounded-xl border',
         tone === 'default' &&
-          'border-[#E8E6E3] bg-white dark:border-[#2D2C2A] dark:bg-[#242320]',
+          'border-[var(--surface-panel-border)] bg-[var(--surface-panel-default-bg)]',
         tone === 'subtle' &&
-          'border-[#E8E6E3] bg-[#F5F4F2] dark:border-[#2D2C2A] dark:bg-[#1C1B19]',
+          'border-[var(--surface-panel-border)] bg-[var(--surface-panel-subtle-bg)]',
         className,
       )}
       {...props}

@@ -22,9 +22,9 @@ const TONE_CLASSES: Record<StatCardTone, { border: string; iconWrap: string; ico
     icon: 'text-[rgb(180,100,24)] dark:text-[#f8d48f]',
   },
   brand: {
-    border: 'border-[rgba(201,169,97,0.18)]',
-    iconWrap: 'bg-[rgba(201,169,97,0.10)] border-[rgba(201,169,97,0.14)] dark:bg-[rgba(201,169,97,0.16)]',
-    icon: 'text-[rgb(155,112,39)] dark:text-[#f1d59c]',
+    border: 'border-[var(--chip-brand-border)]',
+    iconWrap: 'bg-[var(--chip-brand-bg)] border-[var(--chip-brand-border)]',
+    icon: 'text-[var(--chip-brand-text)]',
   },
 };
 
@@ -52,9 +52,9 @@ export function StatCard({
       interactive={Boolean(onClick)}
       onClick={onClick}
       className={cn(
-        'rounded-[10px] px-3.5 py-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.05)]',
+        'rounded-[10px] px-3.5 py-3.5 shadow-[var(--pressable-card-rest-shadow)]',
         toneClasses.border,
-        'dark:border-[rgba(255,255,255,0.08)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.24)]',
+        'dark:border-[rgba(255,255,255,0.08)]',
         className,
       )}
     >

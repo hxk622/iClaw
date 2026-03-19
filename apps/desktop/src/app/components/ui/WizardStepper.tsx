@@ -22,10 +22,10 @@ export function WizardStepper({ steps, className }: WizardStepperProps) {
               className={cn(
                 'relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all duration-300',
                 step.status === 'completed' &&
-                  'bg-[#2F5D3E] shadow-sm dark:bg-[#3A6B4A]',
+                  'bg-[var(--state-success)] shadow-[var(--button-secondary-shadow)]',
                 step.status === 'current' &&
-                  'bg-[#C9B896] shadow-md shadow-[#C9B896]/30 dark:bg-[#9D8B6F] dark:shadow-[#9D8B6F]/30',
-                step.status === 'upcoming' && 'bg-[#E8E6E3] dark:bg-[#2D2C2A]',
+                  'bg-[var(--brand-primary)] shadow-[var(--button-primary-shadow-hover)]',
+                step.status === 'upcoming' && 'bg-[var(--surface-panel-border)] dark:bg-[var(--surface-panel-border)]',
               )}
             >
               {step.status === 'completed' ? (
@@ -35,8 +35,8 @@ export function WizardStepper({ steps, className }: WizardStepperProps) {
                   className={cn(
                     'text-[13px] font-medium',
                     step.status === 'current'
-                      ? 'text-[#1A1916] dark:text-[#F5F4F2]'
-                      : 'text-[#9B9691] dark:text-[#514E4A]',
+                      ? 'text-[var(--brand-on-primary)]'
+                      : 'text-[var(--text-muted)] dark:text-[var(--text-disabled)]',
                   )}
                 >
                   {step.id}
@@ -47,10 +47,9 @@ export function WizardStepper({ steps, className }: WizardStepperProps) {
             <span
               className={cn(
                 'whitespace-nowrap text-[13px] transition-colors',
-                step.status === 'current' &&
-                  'font-medium text-[#1A1916] dark:text-[#F5F4F2]',
-                step.status === 'completed' && 'text-[#6B6863] dark:text-[#A39F9A]',
-                step.status === 'upcoming' && 'text-[#9B9691] dark:text-[#6B6863]',
+                step.status === 'current' && 'font-medium text-[var(--text-primary)]',
+                step.status === 'completed' && 'text-[var(--text-secondary)]',
+                step.status === 'upcoming' && 'text-[var(--text-muted)]',
               )}
             >
               {step.label}
@@ -58,7 +57,7 @@ export function WizardStepper({ steps, className }: WizardStepperProps) {
           </div>
 
           {index < steps.length - 1 ? (
-            <div className="mx-3 h-px flex-1 bg-[#E8E6E3] dark:bg-[#2D2C2A]" />
+            <div className="mx-3 h-px flex-1 bg-[var(--surface-panel-border)]" />
           ) : null}
         </div>
       ))}

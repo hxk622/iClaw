@@ -39,8 +39,8 @@ export function CompactSegmentedControl<T extends string>({
               INTERACTIVE_FOCUS_RING,
               active
                 ? cn(
-                    'border border-[var(--border-default)] bg-[var(--bg-card)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(15,23,42,0.05)]',
-                    'dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.08)] dark:text-[var(--text-primary)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.24)]',
+                    'border border-[var(--border-default)] bg-[var(--bg-card)] text-[var(--text-primary)] shadow-[var(--pressable-card-rest-shadow)]',
+                    'dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.08)] dark:text-[var(--text-primary)]',
                   )
                 : 'border border-transparent bg-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]',
             )}

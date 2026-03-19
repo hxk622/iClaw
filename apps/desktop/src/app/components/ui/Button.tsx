@@ -7,9 +7,9 @@ type ButtonSize = 'sm' | 'md';
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary:
-    'border border-transparent bg-[#C9B896] text-[#1A1916] shadow-sm shadow-[#C9B896]/20 hover:bg-[#C9B896] hover:text-[#1A1916] hover:shadow-md hover:shadow-[#C9B896]/24 dark:bg-[#9D8B6F] dark:text-[#F5F4F2] dark:shadow-sm dark:shadow-[#9D8B6F]/20 dark:hover:bg-[#9D8B6F] dark:hover:text-[#F5F4F2] dark:hover:shadow-md dark:hover:shadow-[#9D8B6F]/24',
+    'border border-[var(--button-primary-border)] bg-[var(--button-primary-bg)] text-[var(--button-primary-text)] shadow-[var(--button-primary-shadow)] hover:border-[var(--button-primary-border-hover)] hover:bg-[var(--button-primary-bg-hover)] hover:text-[var(--button-primary-text)] hover:shadow-[var(--button-primary-shadow-hover)]',
   secondary:
-    'border border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,248,248,0.96))] text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(243,244,246,0.98))] hover:text-[var(--text-primary)] hover:shadow-[0_12px_28px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.72)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.04))] dark:text-[var(--text-primary)] dark:hover:border-[rgba(201,169,97,0.18)] dark:hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.06))] dark:hover:shadow-[0_12px_28px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.06)]',
+    'border border-[var(--button-secondary-border)] bg-[var(--button-secondary-bg)] text-[var(--button-secondary-text)] shadow-[var(--button-secondary-shadow)] hover:border-[var(--button-secondary-border-hover)] hover:bg-[var(--button-secondary-bg-hover)] hover:text-[var(--button-secondary-text)]',
   ghost:
     'border border-transparent bg-transparent text-[var(--text-primary)] shadow-none hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] dark:hover:bg-[rgba(255,255,255,0.08)] dark:hover:text-[var(--text-primary)]',
   success:
@@ -52,7 +52,7 @@ export function Button({
       className={cn(
         'inline-flex select-none items-center justify-center gap-2 whitespace-nowrap font-medium',
         block && 'w-full',
-        variant !== 'primary' && APPLE_FLAT_SURFACE,
+        !['primary', 'secondary'].includes(variant) && APPLE_FLAT_SURFACE,
         SPRING_PRESSABLE,
         INTERACTIVE_FOCUS_RING,
         'cursor-pointer',

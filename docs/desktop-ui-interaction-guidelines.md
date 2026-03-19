@@ -29,7 +29,105 @@
 - `primary` 用于主路径动作，例如“开始接入”“新建机器人”“下一步”。
 - `secondary` 用于补充动作，例如“查看异常”“测试连通”“复制”。
 - `ghost` 仅用于低强调操作，不要拿来做主 CTA。
-- 视觉上采用轻边框、浅高光、低厚度阴影，保持平整、干净、接近苹果扁平语义。
+- `primary` 采用 `IM机器人` Figma 的暖金主色体系：
+  - `Light`: `#A88C5D`
+  - `Dark`: `#B49A70`
+- `primary` 的默认结构按 Figma 收敛为：`1px` 暖金边框 + 单层平面填充 + 轻量阴影，不做双层玻璃片或高光浮雕。
+- `secondary` 采用同一套暖白/暖黑平面按钮，不使用蓝色默认 CTA，也不叠双层高光。
+- 按钮默认保持单层、平整、克制，不做明显拟物，不叠“外层按钮 + 内层玻璃片”的双层观感。
+
+当前共享按钮 token 位于 [theme.css](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/styles/theme.css)：
+
+- `--button-primary-bg`
+- `--button-primary-bg-hover`
+- `--button-primary-border`
+- `--button-primary-border-hover`
+- `--button-primary-text`
+- `--button-primary-shadow`
+- `--button-primary-shadow-hover`
+- `--button-secondary-bg`
+- `--button-secondary-bg-hover`
+- `--button-secondary-border`
+- `--button-secondary-border-hover`
+- `--button-secondary-text`
+- `--button-secondary-shadow`
+
+## 颜色系统
+
+- 桌面端默认颜色系统以 `IM机器人` Figma 为基线，不再以蓝白灰 SaaS 视觉为默认方向。
+- 系统主题 token 的单一来源位于：
+  - [theme.css](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/styles/theme.css)
+- 当前默认语义映射如下，后续页面应优先复用，不再自行起新色：
+  - 页面背景 `surface.page`
+    - `Light`: `#F7F5F0`
+    - `Dark`: `#11100F`
+  - 卡片背景 `surface.card`
+    - `Light`: `#FCFBF8`
+    - `Dark`: `#191715`
+  - 浮层背景 `surface.popover`
+    - `Light`: `#FCFBF8`
+    - `Dark`: `#211E1B`
+  - 高层表面 `surface.elevated`
+    - `Light`: `#FFFFFF`
+    - `Dark`: `#211E1B`
+  - 弱化表面 `surface.subtle`
+    - `Light`: `#F1EEE8`
+    - `Dark`: `#26221F`
+  - 主文字 `text.primary`
+    - `Light`: `#1A1A18`
+    - `Dark`: `#F2EEE6`
+  - 次级文字 `text.secondary`
+    - `Light`: `#6B655D`
+    - `Dark`: `#B9B0A5`
+  - 弱化文字 `text.muted`
+    - `Light`: `#9A9288`
+    - `Dark`: `#80786E`
+  - 默认边框 `border.default`
+    - `Light`: `#DED7CC`
+    - `Dark`: `#3A342E`
+  - 强边框 `border.strong`
+    - `Light`: `#C8BEAF`
+    - `Dark`: `#534A42`
+  - 主品牌 `brand.primary`
+    - `Light`: `#A88C5D`
+    - `Dark`: `#B49A70`
+  - 次级品牌 `brand.secondary`
+    - `Light`: `#6B655D`
+    - `Dark`: `#B9B0A5`
+  - 成功态 `state.success`
+    - `Light`: `#4A6B5A`
+    - `Dark`: `#6B8C7A`
+  - 警告态 `state.warning`
+    - `Light`: `#C49850`
+    - `Dark`: `#C49850`
+  - 失败态 `state.destructive`
+    - `Light`: `#B84F4F`
+    - `Dark`: `#C46B6B`
+  - 焦点环 `focus.ring`
+    - `Light`: `#A88C5D`
+    - `Dark`: `#B49A70`
+  - 图表色板 `chart.1-5`
+    - `Light`: `#A88C5D`, `#6B655D`, `#4A6B5A`, `#C49850`, `#B84F4F`
+    - `Dark`: `#B49A70`, `#B9B0A5`, `#6B8C7A`, `#C49850`, `#C46B6B`
+  - Sidebar 色板
+    - `Light`: `sidebar=#FCFBF8`, `sidebarAccent=#F7F5F0`, `sidebarBorder=#DED7CC`
+    - `Dark`: `sidebar=#191715`, `sidebarAccent=#211E1B`, `sidebarBorder=#3A342E`
+
+## 通用组件沉淀
+
+- 下面这些样式不允许在业务页重复手写，必须优先复用通用组件：
+  - [Button.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/Button.tsx)
+  - [PressableCard.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/PressableCard.tsx)
+  - [SurfacePanel.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/SurfacePanel.tsx)
+  - [Chip.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/Chip.tsx)
+  - [SegmentedTabs.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/SegmentedTabs.tsx)
+  - [FilterPill.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/FilterPill.tsx)
+  - [CompactSegmentedControl.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/CompactSegmentedControl.tsx)
+  - [StatCard.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/StatCard.tsx)
+  - [WizardStepper.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/WizardStepper.tsx)
+  - [ChecklistPanel.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/ChecklistPanel.tsx)
+- 如果新页面需要“IM机器人式”的暖灰金卡片、按钮、步骤条、提示侧栏，应先扩展这些基础件，再改业务页。
+- 共享基础件应优先吃系统 token，而不是写死 hex；本轮已把按钮、卡片、面板、标签的主配色切到统一 token。
 
 ## 卡片与列表规范
 
@@ -58,3 +156,7 @@
 - [Button.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/Button.tsx)
 - [PressableCard.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/PressableCard.tsx)
 - [Chip.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/Chip.tsx)
+- [SegmentedTabs.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/SegmentedTabs.tsx)
+- [FilterPill.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/FilterPill.tsx)
+- [CompactSegmentedControl.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/CompactSegmentedControl.tsx)
+- [StatCard.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/StatCard.tsx)

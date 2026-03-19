@@ -37,10 +37,10 @@ export function PressableCard({
       onClick={onClick}
       onKeyDown={handleKeyDown}
       className={cn(
-        'relative overflow-hidden rounded-[28px] border border-[var(--border-default)] bg-[var(--bg-card)] shadow-[var(--shadow-sm)]',
+        'relative overflow-hidden rounded-[28px] border border-[var(--border-default)] bg-[var(--bg-card)] shadow-[var(--pressable-card-rest-shadow)]',
         interactive
           ? cn(
-              'cursor-pointer hover:border-[var(--border-strong)] hover:bg-[var(--bg-elevated)] hover:shadow-[0_18px_32px_rgba(15,23,42,0.08)] dark:hover:shadow-[0_20px_36px_rgba(0,0,0,0.30)]',
+              'cursor-pointer hover:border-[var(--border-strong)] hover:bg-[var(--bg-elevated)] hover:shadow-[var(--pressable-card-hover-shadow)]',
               SPRING_PRESSABLE,
               INTERACTIVE_FOCUS_RING,
             )

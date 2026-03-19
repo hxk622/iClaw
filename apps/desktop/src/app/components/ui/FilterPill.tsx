@@ -21,7 +21,7 @@ export function FilterPill({
         SPRING_PRESSABLE,
         INTERACTIVE_FOCUS_RING,
         active
-          ? 'border-[rgba(59,130,246,0.18)] bg-[rgba(59,130,246,0.10)] font-medium text-[rgb(29,78,216)] shadow-[0_10px_22px_rgba(59,130,246,0.08)] dark:border-[rgba(201,169,97,0.20)] dark:bg-[rgba(201,169,97,0.16)] dark:text-[#f1d59c] dark:shadow-[0_10px_22px_rgba(0,0,0,0.18)]'
+          ? 'border-[var(--chip-brand-border-strong)] bg-[var(--chip-brand-bg)] font-medium text-[var(--chip-brand-text)] shadow-[var(--button-secondary-shadow)]'
           : 'border-[var(--border-default)] bg-[var(--bg-card)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] dark:bg-[rgba(255,255,255,0.03)]',
         className,
       )}

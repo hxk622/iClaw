@@ -10,7 +10,7 @@ const CHIP_TONE_CLASSES: Record<ChipTone, string> = {
   outline:
     'border border-[var(--border-default)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:text-[var(--text-secondary)]',
   brand:
-    'border border-[rgba(59,130,246,0.14)] bg-[rgba(59,130,246,0.10)] text-[#2563eb] dark:border-[rgba(201,169,97,0.20)] dark:bg-[rgba(201,169,97,0.16)] dark:text-[#f2d9a4]',
+    'border border-[var(--chip-brand-border)] bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)] hover:border-[var(--chip-brand-border-strong)] hover:bg-[var(--chip-brand-bg-hover)]',
   accent:
     'border border-[var(--lobster-gold-border)] bg-[var(--lobster-gold-soft)] text-[var(--lobster-gold-strong)] dark:border-[var(--lobster-gold-border)] dark:bg-[var(--lobster-gold-soft)] dark:text-[var(--lobster-gold-strong)]',
   success:
@@ -54,7 +54,7 @@ export function Chip(props: StaticChipProps | ClickableChipProps) {
     BASE_CHIP_CLASS,
     CHIP_TONE_CLASSES[tone],
     active &&
-      'border-[rgba(59,130,246,0.18)] bg-[var(--brand-primary)] text-[var(--brand-on-primary)] dark:border-[rgba(201,169,97,0.24)] dark:bg-[var(--brand-primary)] dark:text-[#17120b]',
+      'border-[var(--chip-brand-active-border)] bg-[var(--brand-primary)] text-[var(--brand-on-primary)]',
     props.clickable &&
       cn(
         'cursor-pointer hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:transform-none disabled:opacity-70 disabled:hover:translate-y-0',
