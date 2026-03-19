@@ -17,6 +17,7 @@ import './openclaw-chat-surface.css';
 import { Button } from '@/app/components/ui/Button';
 import { EmptyStatePanel } from '@/app/components/ui/EmptyStatePanel';
 import { PageSurface } from '@/app/components/ui/PageLayout';
+import { readAppLocale } from '@/app/lib/general-preferences';
 import {
   buildComposerModelOptions,
   type ComposerModelOption,
@@ -352,7 +353,7 @@ function buildSettings(params: {
       agent: true,
       settings: true,
     },
-    locale: 'zh-CN',
+    locale: readAppLocale(),
   };
 }
 
@@ -538,7 +539,7 @@ function getUsageMetric(record: Record<string, unknown>, keys: string[]): number
 }
 
 function formatAssistantFooterTimestamp(timestamp: number): string {
-  return new Date(timestamp).toLocaleTimeString([], {
+  return new Date(timestamp).toLocaleTimeString(readAppLocale(), {
     hour: 'numeric',
     minute: '2-digit',
   });
@@ -556,19 +557,18 @@ function deriveLatestAssistantFooterMeta(messages: unknown[]): AssistantFooterMe
     return null;
   }
 
-  let currentGroup:
-    | {
-        role: string;
-        timestamp: number;
-        messages: unknown[];
-      }
-    | null = null;
-  let latestAssistantGroup:
-    | {
-        timestamp: number;
-        messages: unknown[];
-      }
-    | null = null;
+  type MessageGroup = {
+    role: string;
+    timestamp: number;
+    messages: unknown[];
+  };
+  type AssistantMessageGroup = {
+    timestamp: number;
+    messages: unknown[];
+  };
+
+  let currentGroup: MessageGroup | null = null;
+  let latestAssistantGroup: AssistantMessageGroup | null = null;
 
   const finalizeCurrentGroup = () => {
     if (!currentGroup || currentGroup.role !== 'assistant') {
@@ -604,9 +604,10 @@ function deriveLatestAssistantFooterMeta(messages: unknown[]): AssistantFooterMe
     return null;
   }
 
+  const assistantGroup = latestAssistantGroup as AssistantMessageGroup;
   let inputTokens = 0;
   let outputTokens = 0;
-  latestAssistantGroup.messages.forEach((message) => {
+  assistantGroup.messages.forEach((message: unknown) => {
     const record = message as Record<string, unknown>;
     const usage = record.usage as Record<string, unknown> | undefined;
     if (!usage) {
@@ -618,7 +619,7 @@ function deriveLatestAssistantFooterMeta(messages: unknown[]): AssistantFooterMe
 
   const credits = computeCreditCostFromUsage(inputTokens, outputTokens);
   return {
-    timestampLabel: formatAssistantFooterTimestamp(latestAssistantGroup.timestamp),
+    timestampLabel: formatAssistantFooterTimestamp(assistantGroup.timestamp),
     credits,
     inputTokens,
     outputTokens,

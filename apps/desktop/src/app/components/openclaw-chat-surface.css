@@ -340,6 +340,16 @@ body {
   -ms-overflow-style: none;
 }
 
+:root[data-chat-layout-preset='compact'] .openclaw-chat-surface .chat-thread {
+  width: calc(100% - 24px);
+  padding-top: 18px;
+}
+
+:root[data-chat-layout-preset='column'] .openclaw-chat-surface .chat-thread {
+  width: calc(100% - 72px);
+  max-width: 1280px;
+}
+
 .openclaw-chat-surface .chat-new-messages {
   background: var(--chat-surface-panel-subtle);
   color: var(--chat-surface-muted);
@@ -375,6 +385,40 @@ body {
 .openclaw-chat-surface .chat-group.user .chat-group-messages {
   align-items: flex-end;
   max-width: min(82%, 100%);
+}
+
+:root[data-chat-layout-preset='compact'] .openclaw-chat-surface .chat-group {
+  margin-bottom: 18px;
+}
+
+:root[data-chat-layout-preset='compact'] .openclaw-chat-surface .chat-group.user {
+  margin-bottom: 24px;
+}
+
+:root[data-chat-layout-preset='compact'] .openclaw-chat-surface .chat-group-messages {
+  gap: 8px;
+}
+
+:root[data-chat-layout-preset='compact'] .openclaw-chat-surface .chat-group.user .chat-group-messages {
+  max-width: min(88%, 100%);
+}
+
+:root[data-chat-layout-preset='column'] .openclaw-chat-surface .chat-group-messages {
+  max-width: min(78ch, calc(100% - 52px));
+}
+
+:root[data-chat-layout-preset='column'] .openclaw-chat-surface .chat-group.user .chat-group-messages {
+  max-width: min(62ch, 72%);
+}
+
+:root[data-message-alignment='left'] .openclaw-chat-surface .chat-group.user {
+  flex-direction: row;
+  margin-bottom: 24px;
+}
+
+:root[data-message-alignment='left'] .openclaw-chat-surface .chat-group.user .chat-group-messages {
+  align-items: flex-start;
+  max-width: min(100%, calc(100% - 52px));
 }
 
 .openclaw-chat-surface .chat-group-footer,
@@ -459,6 +503,10 @@ body {
   background: var(--chat-surface-bubble-user) !important;
 }
 
+:root[data-chat-layout-preset='compact'] .openclaw-chat-surface .chat-group.user .chat-bubble {
+  padding: 8px 14px;
+}
+
 .openclaw-chat-surface .iclaw-chat-user-copy,
 .openclaw-chat-surface .iclaw-chat-assistant-toolbar {
   opacity: 0;
@@ -493,6 +541,10 @@ body {
   color: var(--text-secondary);
   transform: translateX(-8px) scale(0.96);
   cursor: pointer;
+}
+
+:root[data-message-alignment='left'] .openclaw-chat-surface .iclaw-chat-user-copy {
+  transform: translateX(8px) scale(0.96);
 }
 
 .openclaw-chat-surface .chat-group.user:hover .iclaw-chat-user-copy,
@@ -740,6 +792,21 @@ body {
   color: var(--text-primary);
   font-size: 14px;
   line-height: 1.9;
+}
+
+:root[data-content-font-size='small'] .openclaw-chat-surface .chat-text {
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+:root[data-content-font-size='large'] .openclaw-chat-surface .chat-text {
+  font-size: 15px;
+  line-height: 1.95;
+}
+
+:root[data-content-font-size='xlarge'] .openclaw-chat-surface .chat-text {
+  font-size: 16px;
+  line-height: 2;
 }
 
 .openclaw-chat-surface .chat-text :where(p, ul, ol, pre, blockquote, table) {

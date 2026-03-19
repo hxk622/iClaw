@@ -1,4 +1,4 @@
-import { RotateCcw, Save } from 'lucide-react';
+import { Check, RotateCcw, Save } from 'lucide-react';
 import { Button } from '@/app/components/ui/Button';
 
 interface SettingsBottomBarProps {
@@ -26,11 +26,15 @@ export function SettingsBottomBar({
           : '当前页面已同步';
 
   return (
-    <div className="border-t border-[var(--border-default)] bg-[var(--bg-card)] px-12 py-4">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-2 text-sm text-[var(--text-secondary)]">
-          {hasUnsavedChanges ? <span className="h-2 w-2 rounded-full bg-[var(--brand-primary)] animate-pulse" /> : null}
-          {hasUnsavedChanges || saveState !== 'idle' ? <span>{indicatorText}</span> : null}
+    <div className="h-[72px] border-t border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-hover)_38%,transparent)] px-10">
+      <div className="flex h-full items-center justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-2 text-[12px] text-[var(--text-secondary)]">
+          {hasUnsavedChanges ? (
+            <span className="h-2 w-2 rounded-full bg-[var(--brand-primary)] animate-pulse" />
+          ) : (
+            <Check className="h-3.5 w-3.5 text-[var(--state-success)]" />
+          )}
+          <span>{indicatorText}</span>
           {saveMessage && saveState !== 'idle' ? <span className="truncate text-xs">{saveMessage}</span> : null}
         </div>
         <div className="flex items-center gap-3">

@@ -1,5 +1,3 @@
-import type { ComponentType } from 'react';
-import { Brain, Settings, Shield, User, Users } from 'lucide-react';
 import { cn } from '@/app/lib/cn';
 import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 import type { PersistableSettingsSection } from '@/app/contexts/settings-context';
@@ -7,14 +5,12 @@ import type { PersistableSettingsSection } from '@/app/contexts/settings-context
 const navigationItems: Array<{
   key: PersistableSettingsSection;
   label: string;
-  sublabel?: string;
-  icon: ComponentType<{ className?: string }>;
 }> = [
-  { key: 'general', label: '通用', icon: Settings },
-  { key: 'identity', label: '身份设置', sublabel: 'Identity.md', icon: User },
-  { key: 'user-profile', label: '用户画像', sublabel: 'User.md', icon: Users },
-  { key: 'soul-persona', label: '人格配置', sublabel: 'Soul.md', icon: Brain },
-  { key: 'safety-defaults', label: '安全策略', icon: Shield },
+  { key: 'general', label: '通用' },
+  { key: 'identity', label: '身份设置Identity.md' },
+  { key: 'user-profile', label: '用户画像User.md' },
+  { key: 'soul-persona', label: '人格配置Soul.md' },
+  { key: 'safety-defaults', label: '安全策略' },
 ];
 
 interface SettingsSidebarProps {
@@ -24,14 +20,13 @@ interface SettingsSidebarProps {
 
 export function SettingsSidebar({ activeSection, onSelect }: SettingsSidebarProps) {
   return (
-    <aside className="flex w-64 flex-col border-r border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-hover)_38%,transparent)]">
-      <div className="border-b border-[var(--border-default)] px-6 py-8">
-        <h2 className="text-lg font-medium tracking-tight text-[var(--text-primary)]">iClaw 设置</h2>
+    <aside className="flex w-[240px] flex-col border-r border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-hover)_38%,transparent)] p-6">
+      <div className="mb-8">
+        <h2 className="text-[15px] font-medium tracking-tight text-[var(--text-primary)]">iClaw 设置</h2>
       </div>
 
-      <nav className="flex-1 space-y-1 px-4 py-6">
+      <nav className="space-y-1">
         {navigationItems.map((item) => {
-          const Icon = item.icon;
           const active = item.key === activeSection;
           return (
             <button
@@ -39,27 +34,15 @@ export function SettingsSidebar({ activeSection, onSelect }: SettingsSidebarProp
               type="button"
               onClick={() => onSelect(item.key)}
               className={cn(
-                'relative w-full rounded-lg px-3 py-2.5 text-left cursor-pointer',
+                'w-full rounded-lg border px-3 py-2.5 text-left text-[13px] transition-colors cursor-pointer',
                 SPRING_PRESSABLE,
                 INTERACTIVE_FOCUS_RING,
-                active ? 'bg-[var(--bg-card)] shadow-[0_2px_8px_rgba(0,0,0,0.06)]' : 'hover:bg-[var(--bg-card)]/50',
+                active
+                  ? 'border-[color:color-mix(in_srgb,var(--brand-primary)_40%,var(--border-default))] bg-[var(--bg-card)] text-[var(--brand-primary)] shadow-[0_2px_10px_rgba(0,0,0,0.06)]'
+                  : 'border-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-card)]/65 hover:text-[var(--text-primary)]',
               )}
             >
-              <div
-                className={cn(
-                  'absolute inset-0 rounded-lg border',
-                  active ? 'border-[var(--brand-primary)]' : 'border-transparent',
-                )}
-              />
-              <div className="relative flex items-center gap-3">
-                <Icon className={cn('h-4 w-4 flex-shrink-0', active ? 'text-[var(--brand-primary)]' : 'text-[var(--text-secondary)]')} />
-                <div className="min-w-0 flex-1">
-                  <div className={cn('text-sm font-medium', active ? 'text-[var(--brand-primary)]' : 'text-[var(--text-primary)]')}>
-                    {item.label}
-                  </div>
-                  {item.sublabel ? <div className="mt-0.5 text-xs text-[var(--text-muted)]">{item.sublabel}</div> : null}
-                </div>
-              </div>
+              {item.label}
             </button>
           );
         })}

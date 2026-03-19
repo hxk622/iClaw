@@ -111,7 +111,7 @@ export function SettingsPanel({
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-8 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="relative flex h-[960px] max-h-[90vh] w-full max-w-[1440px] flex-col overflow-hidden rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-card)] shadow-[0_20px_60px_rgba(0,0,0,0.3),0_0_1px_rgba(0,0,0,0.1)]"
+        className="relative flex h-[720px] w-full max-w-[1200px] max-h-[calc(100vh-64px)] flex-col overflow-hidden rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-card)] shadow-[0_20px_60px_rgba(0,0,0,0.3),0_0_1px_rgba(0,0,0,0.1)]"
         onClick={(event) => event.stopPropagation()}
       >
         <button
@@ -119,7 +119,7 @@ export function SettingsPanel({
           aria-label="关闭设置"
           onClick={onClose}
           className={cn(
-            'absolute right-6 top-6 z-50 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--bg-hover)]/80 text-[var(--text-secondary)] cursor-pointer hover:bg-[var(--bg-hover)]',
+            'absolute right-5 top-5 z-50 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--bg-card)] text-[var(--text-secondary)] cursor-pointer shadow-[0_1px_4px_rgba(0,0,0,0.06)] hover:bg-[var(--bg-hover)]',
             SPRING_PRESSABLE,
             INTERACTIVE_FOCUS_RING,
           )}
@@ -131,7 +131,7 @@ export function SettingsPanel({
           <SettingsSidebar activeSection={activeSection} onSelect={setActiveSection} />
 
           <div className="flex min-w-0 flex-1 flex-col">
-            <div className="flex-1 overflow-y-auto px-12 py-8">{content}</div>
+            <div className="flex-1 overflow-y-auto px-10 py-8">{content}</div>
           </div>
         </div>
 

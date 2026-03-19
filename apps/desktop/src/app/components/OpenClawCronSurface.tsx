@@ -30,6 +30,7 @@ import { PageContent, PageHeader, PageSurface } from '@/app/components/ui/PageLa
 import { SurfacePanel } from '@/app/components/ui/SurfacePanel';
 import { SummaryMetricItem } from '@/app/components/ui/SummaryMetricItem';
 import { cn } from '@/app/lib/cn';
+import { readAppLocale } from '@/app/lib/general-preferences';
 import './openclaw-chat-surface.css';
 
 type OpenClawTheme = 'system' | 'light' | 'dark';
@@ -340,7 +341,7 @@ function buildSettings(params: {
       agent: true,
       settings: true,
     },
-    locale: 'zh-CN',
+    locale: readAppLocale(),
   };
 }
 
@@ -371,7 +372,7 @@ function formatTimestamp(value?: number | null): string {
   if (!value) {
     return '未安排';
   }
-  return new Intl.DateTimeFormat('zh-CN', {
+  return new Intl.DateTimeFormat(readAppLocale(), {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',

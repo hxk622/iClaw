@@ -4,6 +4,14 @@ import {
   onIclawWorkspaceUpdated,
   type IclawWorkspaceFiles,
 } from '@/app/lib/iclaw-settings';
+import {
+  applyGeneralPreferences,
+  DEFAULT_GENERAL_PREFERENCES,
+  type ContentFontSize,
+  type GeneralLanguage,
+  type LayoutPreset,
+  type MessageAlignment,
+} from '@/app/lib/general-preferences';
 import { SETTINGS_STORAGE_KEY } from '@/app/lib/storage';
 import { applyThemeMode, persistThemeMode, readStoredThemeMode, type ThemeMode } from '@/app/lib/theme';
 
@@ -21,6 +29,10 @@ export type IdentityConfig = {
 
 export type GeneralConfig = {
   themeMode: ThemeMode;
+  contentFontSize: ContentFontSize;
+  language: GeneralLanguage;
+  layoutPreset: LayoutPreset;
+  messageAlignment: MessageAlignment;
   updateStrategy: 'notify' | 'force';
 };
 
@@ -86,6 +98,7 @@ const hasDirtySections = (dirtySections: Record<PersistableSettingsSection, bool
 const defaultSettings: SettingsState = {
   general: {
     themeMode: 'system',
+    ...DEFAULT_GENERAL_PREFERENCES,
     updateStrategy: 'notify',
   },
   identity: {
@@ -126,7 +139,7 @@ function readPersistedSettings(): PersistedSettings {
   const storedTheme = readStoredThemeMode();
   if (!saved) {
     return {
-      general: { themeMode: storedTheme, updateStrategy: defaultSettings.general.updateStrategy },
+      general: { ...defaultSettings.general, themeMode: storedTheme },
       safetyDefaults: defaultSettings.safetyDefaults,
       configStatuses: defaultSettings.configStatuses,
     };
@@ -154,7 +167,7 @@ function readPersistedSettings(): PersistedSettings {
     };
   } catch {
     return {
-      general: { themeMode: storedTheme, updateStrategy: defaultSettings.general.updateStrategy },
+      general: { ...defaultSettings.general, themeMode: storedTheme },
       safetyDefaults: defaultSettings.safetyDefaults,
       configStatuses: defaultSettings.configStatuses,
     };
@@ -217,6 +230,15 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     applyThemeMode(settings.general.themeMode);
   }, [settings.general.themeMode]);
+
+  useEffect(() => {
+    applyGeneralPreferences(settings.general);
+  }, [
+    settings.general.contentFontSize,
+    settings.general.language,
+    settings.general.layoutPreset,
+    settings.general.messageAlignment,
+  ]);
 
   useEffect(() => {
     if (settings.general.themeMode !== 'system') {

@@ -1,13 +1,18 @@
-import { FileText, Monitor, Moon, RefreshCw, Sun } from 'lucide-react';
+import { Check, FileText, Monitor, Moon, RefreshCw, Sun } from 'lucide-react';
 import { useSettings } from '@/app/contexts/settings-context';
+import {
+  type ContentFontSize,
+  type GeneralLanguage,
+  type LayoutPreset,
+  type MessageAlignment,
+} from '@/app/lib/general-preferences';
 import { Button } from '@/app/components/ui/Button';
+import { CompactSegmentedControl } from '@/app/components/ui/CompactSegmentedControl';
 import { SettingsBadge } from '@/app/components/settings/ui/SettingsBadge';
 import { SettingsCard } from '@/app/components/settings/ui/SettingsCard';
 import { SettingsChoiceCard } from '@/app/components/settings/ui/SettingsChoiceCard';
-import { SettingsPageHeader } from '@/app/components/settings/ui/SettingsPageHeader';
-import { SettingsSectionHeader } from '@/app/components/settings/ui/SettingsSectionHeader';
-import { SettingsSegmentedControl } from '@/app/components/settings/ui/SettingsSegmentedControl';
 import type { ThemeMode } from '@/app/lib/theme';
+import { cn } from '@/app/lib/cn';
 
 const themeOptions: Array<{
   value: ThemeMode;
@@ -15,9 +20,32 @@ const themeOptions: Array<{
   description: string;
   icon: typeof Sun;
 }> = [
-  { value: 'light', label: '浅色', description: '明亮清晰的界面风格', icon: Sun },
-  { value: 'dark', label: '深色', description: '护眼的暗色主题', icon: Moon },
-  { value: 'system', label: '跟随系统', description: '自动适配系统主题', icon: Monitor },
+  { value: 'light', label: '浅色', description: '明亮清晰的界面', icon: Sun },
+  { value: 'dark', label: '深色', description: '护眼深色主题', icon: Moon },
+  { value: 'system', label: '跟随系统', description: '自动切换主题', icon: Monitor },
+];
+
+const fontSizeOptions: Array<{ value: ContentFontSize; label: string }> = [
+  { value: 'small', label: '小' },
+  { value: 'medium', label: '中' },
+  { value: 'large', label: '大' },
+  { value: 'xlarge', label: '更大' },
+];
+
+const languageOptions: Array<{ value: GeneralLanguage; label: string }> = [
+  { value: 'zh', label: '简体中文' },
+  { value: 'en', label: 'English' },
+];
+
+const layoutPresetOptions: Array<{ value: LayoutPreset; label: string }> = [
+  { value: 'standard', label: '标准' },
+  { value: 'compact', label: '紧凑' },
+  { value: 'column', label: '分栏' },
+];
+
+const messageAlignmentOptions: Array<{ value: MessageAlignment; label: string }> = [
+  { value: 'left', label: '全部左侧' },
+  { value: 'sided', label: '用户右侧 / AI 左侧' },
 ];
 
 interface SettingsGeneralProps {
@@ -46,15 +74,17 @@ export function SettingsGeneral({
   const workspaceRoot = settings.workspaceDir || '~/Documents/iClaw/workspace';
 
   return (
-    <div className="max-w-4xl space-y-8">
-      <SettingsPageHeader
-        title="通用设置"
-        description="配置界面主题、工作区文件和应用更新策略"
-      />
+    <div className="max-w-[680px] space-y-8">
+      <header className="space-y-2">
+        <h1 className="text-[22px] font-medium tracking-tight text-[var(--text-primary)]">通用设置</h1>
+        <p className="text-[13px] leading-6 text-[var(--text-secondary)]">
+          配置界面主题、阅读体验、聊天布局、工作区映射与桌面更新策略
+        </p>
+      </header>
 
       <section className="space-y-4">
-        <SettingsSectionHeader title="界面风格" description="选择您偏好的主题样式" />
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <SectionTitle title="界面风格" />
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           {themeOptions.map((option) => (
             <SettingsChoiceCard
               key={option.value}
@@ -62,36 +92,87 @@ export function SettingsGeneral({
               description={option.description}
               icon={option.icon}
               active={settings.general.themeMode === option.value}
-              badge={settings.general.themeMode === option.value ? '当前选中' : undefined}
-              badgeTone="gold"
               onClick={() => updateGeneral({ themeMode: option.value })}
+              selectedIndicator={<Check className="h-3.5 w-3.5" />}
+              className="min-h-[148px] rounded-[18px] p-4"
+              iconWrapperClassName="mb-3 h-10 w-10 rounded-[12px]"
+              descriptionClassName="leading-5"
             />
           ))}
         </div>
       </section>
 
       <section className="space-y-4">
-        <SettingsSectionHeader title="工作区文件" description="设置页与本地工作区双向同步" />
-        <SettingsCard>
+        <SectionTitle title="内容字号" />
+        <CompactSegmentedControl
+          value={settings.general.contentFontSize}
+          options={fontSizeOptions}
+          onChange={(value) => updateGeneral({ contentFontSize: value })}
+        />
+      </section>
+
+      <section className="space-y-4">
+        <SectionTitle title="语言" />
+        <CompactSegmentedControl
+          value={settings.general.language}
+          options={languageOptions}
+          onChange={(value) => updateGeneral({ language: value })}
+        />
+      </section>
+
+      <section className="space-y-5">
+        <SectionTitle title="聊天布局" />
+
+        <div className="space-y-3">
+          <SubsectionLabel label="布局预设" />
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            {layoutPresetOptions.map((option) => {
+              const active = settings.general.layoutPreset === option.value;
+              return (
+                <SettingsChoiceCard
+                  key={option.value}
+                  title={option.label}
+                  active={active}
+                  onClick={() => updateGeneral({ layoutPreset: option.value })}
+                  illustration={<LayoutPresetPreview preset={option.value} active={active} />}
+                  className="rounded-[16px] px-4 py-3"
+                  iconWrapperClassName="mb-2 h-12 w-full rounded-[10px] border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-hover)_72%,transparent)] p-2"
+                  titleClassName="text-[12px]"
+                />
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <SubsectionLabel label="消息对齐" />
+          <CompactSegmentedControl
+            value={settings.general.messageAlignment}
+            options={messageAlignmentOptions}
+            onChange={(value) => updateGeneral({ messageAlignment: value })}
+          />
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <SectionTitle title="工作区文件" />
+        <SettingsCard className="rounded-[16px] p-5">
           <div className="space-y-4">
-            <div className="flex items-start gap-3 border-b border-[var(--border-default)] pb-4">
-              <FileText className="mt-0.5 h-5 w-5 flex-shrink-0 text-[var(--text-secondary)]" />
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium text-[var(--text-primary)]">当前工作区</div>
-                <div className="mt-1 break-all font-mono text-sm text-[var(--text-secondary)]">{workspaceRoot}</div>
-              </div>
-            </div>
+            <div className="text-[11px] text-[var(--text-muted)]">{workspaceRoot}</div>
 
             <div className="space-y-3">
               {[
-                { name: 'Identity.md', description: '助手身份定义' },
-                { name: 'User.md', description: '用户画像配置' },
-                { name: 'Soul.md', description: '人格与风格' },
+                { name: 'Identity.md', description: '身份信息配置文件' },
+                { name: 'User.md', description: '用户画像配置文件' },
+                { name: 'Soul.md', description: '人格系统配置文件' },
               ].map((file) => (
-                <div key={file.name} className="flex items-center justify-between gap-4 py-2">
-                  <div className="flex-1">
-                    <div className="text-sm font-medium text-[var(--text-primary)]">{file.name}</div>
-                    <div className="text-xs text-[var(--text-secondary)]">{file.description}</div>
+                <div key={file.name} className="flex items-center justify-between gap-4">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <FileText className="h-4 w-4 flex-shrink-0 text-[var(--text-muted)]" />
+                    <div className="min-w-0">
+                      <div className="text-[12px] font-medium text-[var(--text-primary)]">{file.name}</div>
+                      <div className="text-[11px] text-[var(--text-muted)]">{file.description}</div>
+                    </div>
                   </div>
                   <SettingsBadge tone="blue">本地文件</SettingsBadge>
                 </div>
@@ -99,33 +180,31 @@ export function SettingsGeneral({
             </div>
 
             <div className="border-t border-[var(--border-default)] pt-3">
-              <p className="text-xs text-[var(--text-secondary)]">保存后将直接覆盖本地工作区文件</p>
+              <p className="text-[11px] text-[var(--text-secondary)]">保存后将直接覆盖本地工作区文件</p>
             </div>
           </div>
         </SettingsCard>
       </section>
 
       <section className="space-y-4">
-        <SettingsSectionHeader title="桌面更新" description="管理应用版本和更新策略" />
-        <SettingsCard>
+        <SectionTitle title="桌面更新" />
+        <SettingsCard className="rounded-[16px] p-5">
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <VersionMeta label="当前版本" value={currentVersion} />
               <div>
-                <div className="mb-1 text-sm text-[var(--text-secondary)]">当前版本</div>
-                <div className="text-base font-medium text-[var(--text-primary)]">{currentVersion}</div>
-              </div>
-              <div>
-                <div className="mb-1 text-sm text-[var(--text-secondary)]">最新版本</div>
-                <div className="flex items-center gap-2 text-base font-medium text-[var(--text-primary)]">
-                  {latestVersion || '暂未发现更新'}
-                  {needsUpdate ? <SettingsBadge tone="gold">可更新</SettingsBadge> : null}
-                </div>
+                <VersionMeta label="最新版本" value={latestVersion || '暂未发现更新'} />
+                {needsUpdate ? (
+                  <div className="mt-2">
+                    <SettingsBadge tone="gold">可更新</SettingsBadge>
+                  </div>
+                ) : null}
               </div>
             </div>
 
-            <div className="border-t border-[var(--border-default)] pt-4">
-              <div className="mb-3 text-sm font-medium text-[var(--text-primary)]">更新策略</div>
-              <SettingsSegmentedControl
+            <div className="space-y-3">
+              <SubsectionLabel label="更新策略" />
+              <CompactSegmentedControl
                 value={settings.general.updateStrategy}
                 options={[
                   { value: 'notify', label: '常规提醒' },
@@ -135,7 +214,7 @@ export function SettingsGeneral({
               />
             </div>
 
-            <div className="flex items-center justify-between gap-3 border-t border-[var(--border-default)] pt-4">
+            <div className="flex flex-wrap items-center gap-3 pt-1">
               <Button
                 variant="secondary"
                 size="sm"
@@ -153,13 +232,56 @@ export function SettingsGeneral({
               ) : null}
             </div>
 
-            <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--text-secondary)]">
               <span>服务器策略：{mandatory ? '强制更新' : '常规提醒'}</span>
               {statusMessage ? <span>{statusMessage}</span> : null}
             </div>
           </div>
         </SettingsCard>
       </section>
+    </div>
+  );
+}
+
+function SectionTitle({ title }: { title: string }) {
+  return <h2 className="text-[14px] font-medium text-[var(--text-primary)]">{title}</h2>;
+}
+
+function SubsectionLabel({ label }: { label: string }) {
+  return <div className="text-[12px] text-[var(--text-secondary)]">{label}</div>;
+}
+
+function VersionMeta({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="mb-1 text-[12px] text-[var(--text-secondary)]">{label}</div>
+      <div className="text-[15px] font-medium text-[var(--text-primary)]">{value}</div>
+    </div>
+  );
+}
+
+function LayoutPresetPreview({ preset, active }: { preset: LayoutPreset; active: boolean }) {
+  const chromeClassName = active ? 'bg-[var(--brand-primary)]/35' : 'bg-[var(--text-muted)]/30';
+  const panelClassName = active
+    ? 'border-[color:color-mix(in_srgb,var(--brand-primary)_42%,transparent)] bg-[color:color-mix(in_srgb,var(--brand-primary)_14%,var(--bg-card))]'
+    : 'border-[var(--border-default)] bg-[var(--bg-card)]';
+
+  if (preset === 'column') {
+    return (
+      <div className="flex h-full w-full gap-1.5">
+        <div className={cn('h-full flex-1 rounded-[6px] border', panelClassName)} />
+        <div className={cn('h-full w-[36%] rounded-[6px] border', panelClassName)} />
+      </div>
+    );
+  }
+
+  const lineHeightClassName = preset === 'compact' ? 'h-1.5' : 'h-2';
+
+  return (
+    <div className="flex h-full w-full flex-col gap-1.5">
+      <div className={cn('w-2/5 rounded-full', lineHeightClassName, chromeClassName)} />
+      <div className={cn('w-full rounded-[6px] border', preset === 'compact' ? 'h-4' : 'h-5', panelClassName)} />
+      <div className={cn('w-4/5 rounded-full', lineHeightClassName, chromeClassName)} />
     </div>
   );
 }
