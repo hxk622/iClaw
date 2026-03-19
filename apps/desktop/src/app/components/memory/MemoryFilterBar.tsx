@@ -28,9 +28,9 @@ export function MemoryFilterBar({
   onClear: () => void;
 }) {
   return (
-    <section className="border-b border-[#ECE7DE] bg-[#FCFBF8] py-5">
+    <section className="border-b border-[#ECE7DE] bg-[#FCFBF8] py-3.5">
       <PageContent className="max-w-[1480px] py-0">
-        <div className="mb-4 flex items-center gap-6">
+        <div className="mb-3 flex items-center gap-4">
           <FilterGroup label="领域">
             {DOMAIN_OPTIONS.map((domain) => (
               <FilterChip
@@ -72,7 +72,7 @@ export function MemoryFilterBar({
           </FilterGroup>
         </div>
 
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4">
           <FilterGroup label="来源" leadingIcon={<Upload size={13} strokeWidth={1.5} className="text-[#9A9288]" />}>
             {SOURCE_OPTIONS.map((source) => (
               <FilterChip
@@ -109,7 +109,7 @@ export function MemoryFilterBar({
             ))}
           </FilterGroup>
 
-          <div className="ml-auto flex items-center gap-2.5">
+          <div className="ml-auto flex items-center gap-2">
             <FilterChip active={filters.onlyAutoCaptured} onClick={() => onToggleBoolean('onlyAutoCaptured')}>
               仅自动捕获
             </FilterChip>
@@ -142,10 +142,10 @@ function FilterGroup({
   children: ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="flex items-center gap-2">
       {leadingIcon ? leadingIcon : null}
-      <div className="min-w-[56px] text-[12px] text-[#9A9288]">{label}</div>
-      <div className="flex gap-2">{children}</div>
+      <div className="min-w-[52px] text-[11px] text-[#9A9288]">{label}</div>
+      <div className="flex gap-1.5">{children}</div>
     </div>
   );
 }
@@ -160,7 +160,7 @@ function FilterChip({
   children: ReactNode;
 }) {
   return (
-    <FilterPill active={active} onClick={onClick} className="px-3 py-1.5 text-[12px]">
+    <FilterPill active={active} onClick={onClick} className="px-2.5 py-1 text-[11px]">
       {children}
     </FilterPill>
   );

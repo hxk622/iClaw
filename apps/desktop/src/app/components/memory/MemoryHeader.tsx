@@ -18,15 +18,17 @@ export function MemoryHeader({
   mutating?: boolean;
 }) {
   return (
-    <section className="border-b border-[#ECE7DE] pb-6 pt-8">
+    <section className="border-b border-[#ECE7DE] pb-4 pt-6">
       <PageContent className="max-w-[1480px] py-0">
         <PageHeader
           eyebrow="Memory"
           title="记忆管理"
           description="AI 的长期记忆与标签化管理"
+          className="gap-3"
           eyebrowClassName="text-[#9A9288]"
           titleClassName="text-[#1A1A18]"
           descriptionClassName="text-[#6B655D]"
+          actionsClassName="gap-2"
           actions={
             <>
               <Button
