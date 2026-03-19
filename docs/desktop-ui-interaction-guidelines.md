@@ -124,10 +124,30 @@
   - [FilterPill.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/FilterPill.tsx)
   - [CompactSegmentedControl.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/CompactSegmentedControl.tsx)
   - [StatCard.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/StatCard.tsx)
+  - [SummaryMetricItem.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/SummaryMetricItem.tsx)
+  - [EmptyStatePanel.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/EmptyStatePanel.tsx)
+  - [SelectionCard.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/SelectionCard.tsx)
+  - [DrawerSection.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/DrawerSection.tsx)
+  - [PlatformCardShell.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/PlatformCardShell.tsx)
   - [WizardStepper.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/WizardStepper.tsx)
   - [ChecklistPanel.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/ChecklistPanel.tsx)
 - 如果新页面需要“IM机器人式”的暖灰金卡片、按钮、步骤条、提示侧栏，应先扩展这些基础件，再改业务页。
 - 共享基础件应优先吃系统 token，而不是写死 hex；本轮已把按钮、卡片、面板、标签的主配色切到统一 token。
+
+## 页面模式规范
+
+- 状态摘要项必须优先使用 [SummaryMetricItem.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/SummaryMetricItem.tsx)。
+  - 适用场景：顶部摘要条、轻量 KPI 行、单行状态概览。
+- 空状态卡片必须优先使用 [EmptyStatePanel.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/EmptyStatePanel.tsx)。
+  - 适用场景：列表为空、平台未接入、侧栏空审计/空待办。
+- 选中卡片态必须优先使用 [SelectionCard.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/SelectionCard.tsx)。
+  - 适用场景：单选助手卡、绑定范围卡、当前状态块、未来的套餐/模板单选器。
+- 侧边抽屉中的 section 容器必须优先使用 [DrawerSection.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/DrawerSection.tsx)。
+  - 适用场景：详情抽屉、设置抽屉、配置面板里的分区块。
+- 平台接入卡片外壳必须优先使用 [PlatformCardShell.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/PlatformCardShell.tsx)。
+  - 适用场景：飞书/钉钉/企微/QQ 接入卡、未来新增渠道卡、连接入口卡。
+
+这些模式的目标不是“复用 JSX 片段”，而是强制收口页面结构和视觉语义。后续如果要改暖金选中态、空状态层次、平台卡外壳或抽屉 section 结构，应该优先改共享组件，而不是回到业务页里批量搜 className。
 
 ## 卡片与列表规范
 
@@ -160,3 +180,8 @@
 - [FilterPill.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/FilterPill.tsx)
 - [CompactSegmentedControl.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/CompactSegmentedControl.tsx)
 - [StatCard.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/StatCard.tsx)
+- [SummaryMetricItem.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/SummaryMetricItem.tsx)
+- [EmptyStatePanel.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/EmptyStatePanel.tsx)
+- [SelectionCard.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/SelectionCard.tsx)
+- [DrawerSection.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/DrawerSection.tsx)
+- [PlatformCardShell.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/PlatformCardShell.tsx)

@@ -27,7 +27,12 @@ import {
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/Button';
 import { Chip } from '@/app/components/ui/Chip';
+import { DrawerSection } from '@/app/components/ui/DrawerSection';
+import { EmptyStatePanel } from '@/app/components/ui/EmptyStatePanel';
+import { PlatformCardShell } from '@/app/components/ui/PlatformCardShell';
 import { PressableCard } from '@/app/components/ui/PressableCard';
+import { SelectionCard } from '@/app/components/ui/SelectionCard';
+import { SummaryMetricItem } from '@/app/components/ui/SummaryMetricItem';
 import { cn } from '@/app/lib/cn';
 import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 import dingtalkLogo from '@/app/assets/im-bots/dingtalk.png';
@@ -878,54 +883,21 @@ function SummaryBarItem({
   tone: 'brand' | 'success' | 'warning' | 'neutral';
   first: boolean;
 }) {
-  const toneClassName = {
-    brand: 'bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)]',
-    success: 'bg-[rgba(34,197,94,0.12)] text-[rgb(22,163,74)] dark:text-[#9af0c5]',
-    warning: 'bg-[rgba(245,158,11,0.16)] text-[rgb(217,119,6)] dark:text-[#ffd49a]',
-    neutral: 'bg-[var(--bg-hover)] text-[var(--text-secondary)]',
-  }[tone];
-
-  return (
-    <div
-      className={cn(
-        'flex min-w-0 items-center gap-3 px-3 py-2',
-        !first && 'border-l border-[var(--border-default)]',
-      )}
-    >
-      <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] bg-[var(--bg-page)]', toneClassName)}>
-        <Icon className="h-4 w-4" />
-      </div>
-      <div className="min-w-0">
-        <div className="flex items-baseline gap-2">
-          <div className="text-[20px] font-semibold leading-none tracking-[-0.04em] text-[var(--text-primary)]">{value}</div>
-          <div className="text-[11px] text-[var(--text-muted)]">{label}</div>
-        </div>
-        <p className="mt-1 text-[12px] leading-snug text-[var(--text-secondary)]">{note}</p>
-      </div>
-    </div>
-  );
+  return <SummaryMetricItem label={label} value={value} note={note} icon={Icon} tone={tone} first={first} />;
 }
 
 function EmptyBotState({ onCreate }: { onCreate: () => void }) {
   return (
-    <PressableCard className="border-dashed border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(255,255,255,0.84),rgba(247,247,244,0.88))] px-6 py-6 dark:bg-[linear-gradient(180deg,rgba(28,28,28,0.92),rgba(18,18,18,0.92))]">
-      <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-        <div className="max-w-[640px]">
-          <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)]">
-            <Bot className="h-6 w-6" />
-          </div>
-          <div className="mt-3 text-[22px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">还没有已创建的机器人</div>
-          <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
-            这里不再展示 mock 示例。完成任一平台接入后，新的机器人会真实出现在这个区域，并直接进入详情抽屉继续完成默认助手绑定与测试。
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button variant="primary" size="sm" leadingIcon={<Link2 className="h-4 w-4" />} onClick={onCreate}>
-            从飞书开始接入
-          </Button>
-        </div>
-      </div>
-    </PressableCard>
+    <EmptyStatePanel
+      icon={<Bot className="h-6 w-6" />}
+      title="还没有已创建的机器人"
+      description="这里不再展示 mock 示例。完成任一平台接入后，新的机器人会真实出现在这个区域，并直接进入详情抽屉继续完成默认助手绑定与测试。"
+      action={
+        <Button variant="primary" size="sm" leadingIcon={<Link2 className="h-4 w-4" />} onClick={onCreate}>
+          从飞书开始接入
+        </Button>
+      }
+    />
   );
 }
 
@@ -1228,12 +1200,7 @@ function ActivityListItem({
 }
 
 function EmptyPanelState({ title, description }: { title: string; description: string }) {
-  return (
-    <div className="rounded-[18px] border border-dashed border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-5">
-      <div className="text-[13px] font-medium text-[var(--text-primary)]">{title}</div>
-      <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{description}</p>
-    </div>
-  );
+  return <EmptyStatePanel compact title={title} description={description} />;
 }
 
 function PlatformCard({
@@ -1246,37 +1213,27 @@ function PlatformCard({
   onClick: () => void;
 }) {
   return (
-    <PressableCard
-      interactive
+    <PlatformCardShell
       onClick={onClick}
-      className="flex h-full flex-col border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,247,244,0.92))] px-4 py-3.5 shadow-[var(--pressable-card-hover-shadow)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(29,29,29,0.96),rgba(17,17,17,0.94))]"
-    >
-      <div className="flex min-h-[64px] items-start justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[16px] border border-[var(--border-default)] bg-white shadow-[0_10px_24px_rgba(15,23,42,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
-            <img src={platform.logo} alt={platform.label} className={cn('h-full w-full object-cover', platform.logoClassName)} />
-          </div>
-          <div className="min-w-0">
-            <div className="text-[17px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">{platform.label}</div>
-            <p
-              className="mt-1 h-[40px] overflow-hidden text-[12px] leading-5 text-[var(--text-secondary)]"
-              style={{
-                display: '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical',
-              }}
-            >
-              {platform.intro}
-            </p>
-          </div>
-        </div>
-        {configured ? (
+      logo={platform.logo}
+      logoAlt={platform.label}
+      logoClassName={platform.logoClassName}
+      title={platform.label}
+      description={platform.intro}
+      badge={
+        configured ? (
           <span className="rounded-full border border-[rgba(34,197,94,0.18)] bg-[rgba(34,197,94,0.12)] px-3 py-1 text-[12px] font-medium text-[rgb(22,163,74)] dark:text-[#9af0c5]">
             已配置
           </span>
-        ) : null}
-      </div>
-      <div className="mt-3 flex flex-wrap gap-1.5">
+        ) : null
+      }
+      footer={
+        <Button variant={configured ? 'secondary' : 'primary'} size="sm" block leadingIcon={<Link2 className="h-4 w-4" />}>
+          {configured ? '继续完善配置' : '开始接入'}
+        </Button>
+      }
+    >
+      <div className="flex flex-wrap gap-1.5">
         {platform.capabilities.map((item) => (
           <Chip key={item} tone="outline" className="px-2.5 py-1 text-[11px]">
             {item}
@@ -1288,12 +1245,7 @@ function PlatformCard({
         <MetaPill label="预计耗时" value={platform.eta} />
         <MetaPill label="管理员权限" value={platform.admin} />
       </div>
-      <div className="mt-auto pt-3">
-        <Button variant={configured ? 'secondary' : 'primary'} size="sm" block leadingIcon={<Link2 className="h-4 w-4" />}>
-          {configured ? '继续完善配置' : '开始接入'}
-        </Button>
-      </div>
-    </PressableCard>
+    </PlatformCardShell>
   );
 }
 
@@ -1369,7 +1321,6 @@ function IMBotDetailSheet({
         className="flex h-full w-full max-w-[640px] flex-col border-l border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(252,252,251,0.98),rgba(246,247,244,0.96))] shadow-[0_32px_90px_rgba(15,23,42,0.18)] dark:border-l-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(24,24,24,0.98),rgba(12,12,12,0.96))] dark:shadow-[0_30px_90px_rgba(0,0,0,0.44)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="border-b border-[rgba(15,23,42,0.08)] px-6 py-5 dark:border-b-[rgba(255,255,255,0.08)]">
         <div className="border-b border-[var(--border-default)] px-6 py-5 dark:border-b-[rgba(255,255,255,0.08)]">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
@@ -1403,17 +1354,19 @@ function IMBotDetailSheet({
         </div>
 
         <div className="flex-1 space-y-6 overflow-y-auto px-6 py-6">
-          <section className="rounded-[28px] border border-[var(--border-default)] bg-white/78 p-5 shadow-[var(--pressable-card-hover-shadow)] backdrop-blur-[10px] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:shadow-[0_20px_36px_rgba(0,0,0,0.26)]">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">当前健康状态</div>
-                <div className="mt-2 flex items-center gap-2 text-[18px] font-semibold text-[var(--text-primary)]">
-                  {healthMeta.panelTone === 'warning' ? <ShieldAlert className="h-5 w-5 text-amber-500" /> : <ShieldCheck className="h-5 w-5 text-emerald-500" />}
-                  {healthMeta.label}
-                </div>
-                <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{bot.healthSummary}</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
+          <DrawerSection
+            className="bg-white/78 backdrop-blur-[10px] dark:shadow-[0_20px_36px_rgba(0,0,0,0.26)]"
+            title="当前健康状态"
+            icon={
+              healthMeta.panelTone === 'warning' ? (
+                <ShieldAlert className="h-5 w-5 text-amber-500" />
+              ) : (
+                <ShieldCheck className="h-5 w-5 text-emerald-500" />
+              )
+            }
+            description={bot.healthSummary}
+            headerAccessory={
+              <>
                 <Button
                   variant="secondary"
                   size="sm"
@@ -1431,28 +1384,26 @@ function IMBotDetailSheet({
                 >
                   {bot.enabled ? '停用机器人' : '启用机器人'}
                 </Button>
-              </div>
-            </div>
+              </>
+            }
+          >
             <div className="mt-4 grid gap-2 sm:grid-cols-3">
               {(['healthy', 'needs_setup', 'connectivity_issue', 'permission_issue', 'callback_issue', 'paused'] as IMBotHealthState[]).map((state) => {
                 const meta = getHealthMeta(state);
                 return (
-                  <div
+                  <SelectionCard
+                    as="div"
                     key={state}
-                    className={cn(
-                      'rounded-[18px] border px-3 py-3',
-                      state === bot.healthState
-                        ? 'border-[var(--button-primary-border-hover)] bg-[var(--chip-brand-bg)]'
-                        : 'border-[var(--border-default)] bg-[var(--bg-card)]',
-                    )}
+                    selected={state === bot.healthState}
+                    className="rounded-[18px] px-3 py-3"
                   >
                     <div className="text-[13px] font-medium text-[var(--text-primary)]">{meta.label}</div>
                     <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">{meta.description}</p>
-                  </div>
+                  </SelectionCard>
                 );
               })}
             </div>
-          </section>
+          </DrawerSection>
 
           <section className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-[24px] border border-[var(--border-default)] bg-white/76 p-4 shadow-[var(--pressable-card-rest-shadow)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
@@ -1469,11 +1420,7 @@ function IMBotDetailSheet({
             </div>
           </section>
 
-          <section className="rounded-[28px] border border-[var(--border-default)] bg-white/76 p-5 shadow-[var(--pressable-card-hover-shadow)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
-            <div className="flex items-center gap-2">
-              <BotMessageSquare className="h-5 w-5 text-[var(--brand-primary)]" />
-              <div className="text-[16px] font-semibold text-[var(--text-primary)]">基础信息与默认助手</div>
-            </div>
+          <DrawerSection title="基础信息与默认助手" icon={<BotMessageSquare className="h-5 w-5" />}>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <label className="space-y-2">
                 <div className="text-[13px] font-medium text-[var(--text-primary)]">机器人名称</div>
@@ -1497,18 +1444,11 @@ function IMBotDetailSheet({
               <div className="text-[13px] font-medium text-[var(--text-primary)]">默认助手绑定</div>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 {assistantOptions.map((assistant) => (
-                  <button
+                  <SelectionCard
+                    as="button"
                     key={assistant.id}
-                    type="button"
                     onClick={() => setDraftAssistantId(assistant.id)}
-                    className={cn(
-                      'cursor-pointer rounded-[20px] border p-4 text-left',
-                      SPRING_PRESSABLE,
-                      INTERACTIVE_FOCUS_RING,
-                      draftAssistantId === assistant.id
-                        ? 'border-[var(--button-primary-border-hover)] bg-[var(--chip-brand-bg)] shadow-[var(--button-primary-shadow-hover)]'
-                        : 'border-[var(--border-default)] bg-[var(--bg-card)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)]',
-                    )}
+                    selected={draftAssistantId === assistant.id}
                   >
                     <div className="text-[15px] font-medium text-[var(--text-primary)]">{assistant.name}</div>
                     <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{assistant.summary}</p>
@@ -1520,40 +1460,29 @@ function IMBotDetailSheet({
                         {assistant.persona}
                       </Chip>
                     </div>
-                  </button>
+                  </SelectionCard>
                 ))}
               </div>
             </div>
-          </section>
+          </DrawerSection>
 
-          <section className="rounded-[28px] border border-[var(--border-default)] bg-white/76 p-5 shadow-[var(--pressable-card-hover-shadow)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
-            <div className="flex items-center gap-2">
-              <Radio className="h-5 w-5 text-[var(--brand-primary)]" />
-              <div className="text-[16px] font-semibold text-[var(--text-primary)]">会话绑定与回复策略</div>
-            </div>
+          <DrawerSection title="会话绑定与回复策略" icon={<Radio className="h-5 w-5" />}>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               {bindingScopeOptions.map((option) => {
                 const Icon = option.icon;
                 return (
-                  <button
+                  <SelectionCard
+                    as="button"
                     key={option.value}
-                    type="button"
                     onClick={() => setDraftBindingScope(option.value)}
-                    className={cn(
-                      'cursor-pointer rounded-[20px] border p-4 text-left',
-                      SPRING_PRESSABLE,
-                      INTERACTIVE_FOCUS_RING,
-                      draftBindingScope === option.value
-                        ? 'border-[var(--button-primary-border-hover)] bg-[var(--chip-brand-bg)] shadow-[var(--button-primary-shadow-hover)]'
-                        : 'border-[var(--border-default)] bg-[var(--bg-card)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)]',
-                    )}
+                    selected={draftBindingScope === option.value}
                   >
                     <div className="flex items-center gap-2 text-[15px] font-medium text-[var(--text-primary)]">
                       <Icon className="h-4 w-4" />
                       {option.label}
                     </div>
                     <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{option.description}</p>
-                  </button>
+                  </SelectionCard>
                 );
               })}
             </div>
@@ -1565,16 +1494,13 @@ function IMBotDetailSheet({
                 className="min-h-[48px] w-full rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 text-[14px] text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]"
               />
             </label>
-          </section>
+          </DrawerSection>
 
-          <section className="rounded-[28px] border border-[var(--border-default)] bg-white/76 p-5 shadow-[var(--pressable-card-hover-shadow)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5 text-[var(--brand-primary)]" />
-              <div className="text-[16px] font-semibold text-[var(--text-primary)]">消息模板</div>
-            </div>
-            <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
-              这里放默认欢迎语和异常回复语义。当前先作为机器人级模板配置，后续可继续细分到不同平台或群组。
-            </p>
+          <DrawerSection
+            title="消息模板"
+            icon={<MessageSquare className="h-5 w-5" />}
+            description="这里放默认欢迎语和异常回复语义。当前先作为机器人级模板配置，后续可继续细分到不同平台或群组。"
+          >
             <div className="mt-4 grid gap-4">
               <label className="space-y-2">
                 <div className="text-[13px] font-medium text-[var(--text-primary)]">欢迎模板</div>
@@ -1621,16 +1547,13 @@ function IMBotDetailSheet({
                 保存消息模板
               </Button>
             </div>
-          </section>
+          </DrawerSection>
 
-          <section className="rounded-[28px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
-            <div className="flex items-center gap-2">
-              <TestTube2 className="h-5 w-5 text-[var(--brand-primary)]" />
-              <div className="text-[16px] font-semibold text-[var(--text-primary)]">测试面板</div>
-            </div>
-            <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
-              先做连接测试，再发一条测试消息。这样用户可以在管理台内确认平台链路和默认助手回复都已打通。
-            </p>
+          <DrawerSection
+            title="测试面板"
+            icon={<TestTube2 className="h-5 w-5" />}
+            description="先做连接测试，再发一条测试消息。这样用户可以在管理台内确认平台链路和默认助手回复都已打通。"
+          >
             <div className="mt-4 rounded-[22px] border border-[var(--border-default)] bg-[var(--bg-card)] p-4">
               <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
                 <label className="space-y-2">
@@ -1673,13 +1596,9 @@ function IMBotDetailSheet({
                 </div>
               </div>
             </div>
-          </section>
+          </DrawerSection>
 
-          <section className="rounded-[28px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-[var(--brand-primary)]" />
-              <div className="text-[16px] font-semibold text-[var(--text-primary)]">最近审计日志</div>
-            </div>
+          <DrawerSection title="最近审计日志" icon={<ShieldCheck className="h-5 w-5" />}>
             <div className="mt-4 space-y-3">
               {bot.auditLogs.slice(0, 6).map((item) => (
                 <div
@@ -1701,7 +1620,7 @@ function IMBotDetailSheet({
                 </div>
               ))}
             </div>
-          </section>
+          </DrawerSection>
         </div>
 
         <div className="border-t border-[rgba(15,23,42,0.08)] bg-white/82 px-6 py-5 backdrop-blur-[10px] dark:border-t-[rgba(255,255,255,0.08)] dark:bg-[rgba(12,12,12,0.86)]">
