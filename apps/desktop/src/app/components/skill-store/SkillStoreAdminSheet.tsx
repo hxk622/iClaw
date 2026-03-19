@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, Eye, EyeOff, Package2, ShieldCheck, Tags, Trash2 } from 'lucide-react';
+import { AlertTriangle, Eye, EyeOff, Package2, ShieldCheck, Sparkles, Tags, Trash2 } from 'lucide-react';
 import type { AdminSkillStoreItem } from '@/app/lib/skill-store';
 import { Button } from '@/app/components/ui/Button';
 import { Chip } from '@/app/components/ui/Chip';
@@ -18,6 +18,7 @@ type EditableSkillForm = {
   slug: string;
   name: string;
   description: string;
+  featured: boolean;
   market: string;
   category: string;
   skillType: string;
@@ -33,6 +34,7 @@ function toFormState(skill: AdminSkillStoreItem): EditableSkillForm {
     slug: skill.slug,
     name: skill.name,
     description: skill.description,
+    featured: skill.featured,
     market: skill.market === '通用' ? '' : skill.market,
     category: skill.categoryId === 'a-share' || skill.categoryId === 'us-stock' ? '' : skill.categoryId,
     skillType: skill.skillType,
@@ -82,6 +84,7 @@ export function SkillStoreAdminSheet({
     slug: string;
     name: string;
     description: string;
+    featured: boolean;
     market: string | null;
     category: string | null;
     skillType: string | null;
@@ -135,6 +138,7 @@ export function SkillStoreAdminSheet({
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <Chip tone="brand">{skill.source === 'bundled' ? '系统预置' : '云端技能'}</Chip>
+            {skill.featured ? <Chip tone="accent">官方精选</Chip> : null}
             <Chip tone={skill.active ? 'success' : 'outline'}>{skill.active ? '已启用' : '已停用'}</Chip>
             <Chip tone="outline">{skill.visibility === 'showcase' ? '商店展示' : '仅后台可见'}</Chip>
           </div>
@@ -273,7 +277,7 @@ export function SkillStoreAdminSheet({
                 />
               </label>
 
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-3">
                 <SelectionCard
                   as="button"
                   selected={form.active}
@@ -287,6 +291,22 @@ export function SkillStoreAdminSheet({
                   </div>
                   <p className="mt-1.5 text-[13px] leading-6 text-[var(--text-secondary)]">
                     关闭后仍保留目录记录，但不会在公开技能库中展示。
+                  </p>
+                </SelectionCard>
+
+                <SelectionCard
+                  as="button"
+                  selected={form.featured}
+                  onClick={() =>
+                    setForm((current) => (current ? { ...current, featured: !current.featured } : current))
+                  }
+                >
+                  <div className="flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
+                    <Sparkles className="h-4 w-4 text-[var(--brand-primary)]" />
+                    官方精选
+                  </div>
+                  <p className="mt-1.5 text-[13px] leading-6 text-[var(--text-secondary)]">
+                    在卡片和详情页突出展示，并支持用户一键筛选。
                   </p>
                 </SelectionCard>
 
@@ -364,6 +384,7 @@ export function SkillStoreAdminSheet({
                     slug: form.slug.trim(),
                     name: form.name.trim(),
                     description: form.description.trim(),
+                    featured: form.featured,
                     market: form.market.trim() || null,
                     category: form.category.trim() || null,
                     skillType: form.skillType.trim() || null,

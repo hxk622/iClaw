@@ -481,6 +481,7 @@ export function SkillStoreView({
     slug: string;
     name: string;
     description: string;
+    featured: boolean;
     market: string | null;
     category: string | null;
     skillType: string | null;

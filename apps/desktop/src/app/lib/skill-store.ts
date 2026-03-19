@@ -455,6 +455,7 @@ export async function saveAdminSkillStoreEntry(input: {
     slug: string;
     name?: string;
     description?: string;
+    featured?: boolean;
     visibility?: 'showcase' | 'internal';
     market?: string | null;
     category?: string | null;
@@ -470,6 +471,7 @@ export async function saveAdminSkillStoreEntry(input: {
     slug: input.item.slug,
     name: input.item.name,
     description: input.item.description,
+    featured: input.item.featured,
     visibility: input.item.visibility,
     market: input.item.market,
     category: input.item.category,

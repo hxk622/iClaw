@@ -1017,6 +1017,7 @@ export class IClawClient {
         slug: input.slug,
         name: input.name,
         description: input.description,
+        featured: input.featured,
         visibility: input.visibility,
         market: input.market,
         category: input.category,
