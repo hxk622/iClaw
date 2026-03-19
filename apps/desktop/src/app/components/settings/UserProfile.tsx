@@ -37,6 +37,7 @@ export function UserProfile() {
               title={dimension.label}
               description={dimension.desc}
               icon={dimension.icon}
+              tone="neutral"
             />
           ))}
         </div>

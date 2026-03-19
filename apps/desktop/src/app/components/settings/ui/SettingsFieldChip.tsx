@@ -14,7 +14,7 @@ export function SettingsFieldChip({ children, onClick, className }: SettingsFiel
       type="button"
       onClick={onClick}
       className={cn(
-        'rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] px-3 py-1.5 text-[11px] text-[var(--text-secondary)] cursor-pointer hover:border-[color:color-mix(in_srgb,var(--brand-primary)_40%,var(--border-default))] hover:shadow-[0_6px_16px_rgba(0,0,0,0.06)]',
+        'rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] px-3 py-1.5 text-[11px] text-[var(--text-secondary)] cursor-pointer hover:border-[color:color-mix(in_srgb,var(--brand-primary)_40%,var(--border-default))] hover:shadow-[0_6px_14px_rgba(0,0,0,0.05)]',
         SPRING_PRESSABLE,
         INTERACTIVE_FOCUS_RING,
         className,

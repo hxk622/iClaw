@@ -29,7 +29,7 @@ export function SoulPersona() {
         <div className="mb-3 text-[12px] text-[var(--text-secondary)]">人格预设提示</div>
         <div className="grid grid-cols-2 gap-3">
           {presets.map((preset) => (
-            <SettingsHelperCard key={preset.label} title={preset.label} description={preset.desc} />
+            <SettingsHelperCard key={preset.label} title={preset.label} description={preset.desc} tone="accent" />
           ))}
         </div>
       </div>

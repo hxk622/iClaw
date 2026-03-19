@@ -11,11 +11,17 @@ export function CompactSegmentedControl<T extends string>({
   value,
   onChange,
   className,
+  itemClassName,
+  activeItemClassName,
+  inactiveItemClassName,
 }: {
   options: Array<CompactSegmentedOption<T>>;
   value: T;
   onChange: (value: T) => void;
   className?: string;
+  itemClassName?: string;
+  activeItemClassName?: string;
+  inactiveItemClassName?: string;
 }) {
   return (
     <div
@@ -37,12 +43,17 @@ export function CompactSegmentedControl<T extends string>({
               'cursor-pointer',
               SPRING_PRESSABLE,
               INTERACTIVE_FOCUS_RING,
+              itemClassName,
               active
                 ? cn(
                     'border border-[var(--border-default)] bg-[var(--bg-card)] text-[var(--text-primary)] shadow-[var(--pressable-card-rest-shadow)]',
                     'dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.08)] dark:text-[var(--text-primary)]',
+                    activeItemClassName,
                   )
-                : 'border border-transparent bg-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]',
+                : cn(
+                    'border border-transparent bg-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]',
+                    inactiveItemClassName,
+                  ),
             )}
           >
             {option.label}

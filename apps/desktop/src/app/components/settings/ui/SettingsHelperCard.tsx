@@ -7,6 +7,7 @@ interface SettingsHelperCardProps {
   description: string;
   icon?: ComponentType<{ className?: string }>;
   onClick?: () => void;
+  tone?: 'neutral' | 'accent';
 }
 
 export function SettingsHelperCard({
@@ -14,13 +15,17 @@ export function SettingsHelperCard({
   description,
   icon: Icon,
   onClick,
+  tone = 'neutral',
 }: SettingsHelperCardProps) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        'rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] p-3 text-left cursor-pointer hover:border-[color:color-mix(in_srgb,var(--brand-primary)_30%,var(--border-default))] hover:shadow-[0_8px_18px_rgba(0,0,0,0.06)]',
+        'rounded-lg border bg-[var(--bg-card)] p-3 text-left cursor-pointer',
+        tone === 'accent'
+          ? 'border-[var(--border-default)] hover:border-[color:color-mix(in_srgb,var(--brand-primary)_36%,var(--border-default))] hover:shadow-[0_8px_18px_rgba(0,0,0,0.06)]'
+          : 'border-[var(--border-default)] hover:border-[var(--border-strong)] hover:shadow-[0_8px_18px_rgba(0,0,0,0.05)]',
         SPRING_PRESSABLE,
         INTERACTIVE_FOCUS_RING,
       )}

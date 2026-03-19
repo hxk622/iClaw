@@ -60,6 +60,13 @@ const failureLabelMap = {
   优雅降级: '降级处理',
 } as const;
 
+const SETTINGS_SEGMENTED_WRAPPER_CLASS =
+  'rounded-lg border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-hover)_70%,transparent)] p-1 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)]';
+const SETTINGS_SEGMENTED_ITEM_CLASS = 'min-h-0 rounded-md px-6 py-2 text-[12px] font-normal';
+const SETTINGS_SEGMENTED_ACTIVE_CLASS =
+  'border-[var(--border-default)] bg-[var(--bg-card)] text-[var(--text-primary)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.08)]';
+const SETTINGS_SEGMENTED_INACTIVE_CLASS = 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]';
+
 export function SafetyDefaults() {
   const { settings, updateSafetyDefaults } = useSettings();
   const { safetyDefaults } = settings;
@@ -135,6 +142,10 @@ export function SafetyDefaults() {
           value={safetyDefaults.networkAccessPolicy}
           options={networkAccessOptions}
           onChange={(value) => updateSafetyDefaults({ networkAccessPolicy: value })}
+          className={SETTINGS_SEGMENTED_WRAPPER_CLASS}
+          itemClassName={SETTINGS_SEGMENTED_ITEM_CLASS}
+          activeItemClassName={SETTINGS_SEGMENTED_ACTIVE_CLASS}
+          inactiveItemClassName={SETTINGS_SEGMENTED_INACTIVE_CLASS}
         />
       </section>
 
@@ -144,6 +155,10 @@ export function SafetyDefaults() {
           value={safetyDefaults.fileAccessScope}
           options={fileScopeOptions}
           onChange={(value) => updateSafetyDefaults({ fileAccessScope: value })}
+          className={SETTINGS_SEGMENTED_WRAPPER_CLASS}
+          itemClassName={SETTINGS_SEGMENTED_ITEM_CLASS}
+          activeItemClassName={SETTINGS_SEGMENTED_ACTIVE_CLASS}
+          inactiveItemClassName={SETTINGS_SEGMENTED_INACTIVE_CLASS}
         />
       </section>
 
@@ -153,6 +168,10 @@ export function SafetyDefaults() {
           value={safetyDefaults.toolFallbackPolicy}
           options={failureStrategyOptions}
           onChange={(value) => updateSafetyDefaults({ toolFallbackPolicy: value })}
+          className={SETTINGS_SEGMENTED_WRAPPER_CLASS}
+          itemClassName={SETTINGS_SEGMENTED_ITEM_CLASS}
+          activeItemClassName={SETTINGS_SEGMENTED_ACTIVE_CLASS}
+          inactiveItemClassName={SETTINGS_SEGMENTED_INACTIVE_CLASS}
         />
       </section>
 
