@@ -320,12 +320,22 @@ body {
   min-height: 0;
 }
 
+.openclaw-chat-surface .chat-split-container,
+.openclaw-chat-surface .chat-main {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .openclaw-chat-surface .chat-thread {
   width: calc(100% - 40px);
   margin: 0 auto;
   padding: 24px 0 var(--iclaw-thread-bottom-gap);
   border-radius: 0;
   background: transparent;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -1141,7 +1151,7 @@ body {
 .iclaw-composer {
   position: absolute;
   right: 0;
-  bottom: 18px;
+  bottom: 6px;
   left: 0;
   z-index: 30;
   width: calc(100% - 12px);
@@ -1199,6 +1209,7 @@ body {
   z-index: -1;
   background: transparent;
   box-shadow: none;
+  opacity: 0;
   pointer-events: none;
 }
 
