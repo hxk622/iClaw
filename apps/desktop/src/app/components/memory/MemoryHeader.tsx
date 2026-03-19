@@ -1,6 +1,6 @@
 import { Download, FileUp, Plus, RefreshCw } from 'lucide-react';
 import { Button } from '@/app/components/ui/Button';
-import { PageContent, PageHeader } from '@/app/components/ui/PageLayout';
+import { PageHeader } from '@/app/components/ui/PageLayout';
 
 export function MemoryHeader({
   onRefreshIndex,
@@ -18,63 +18,59 @@ export function MemoryHeader({
   mutating?: boolean;
 }) {
   return (
-    <section className="border-b border-[#ECE7DE] pb-4 pt-6">
-      <PageContent className="max-w-[1480px] py-0">
-        <PageHeader
-          eyebrow="Memory"
-          title="记忆管理"
-          description="AI 的长期记忆与标签化管理"
-          className="gap-3"
-          eyebrowClassName="text-[#9A9288]"
-          titleClassName="text-[#1A1A18]"
-          descriptionClassName="text-[#6B655D]"
-          actionsClassName="gap-2"
-          actions={
-            <>
-              <Button
-                onClick={onRefreshIndex}
-                disabled={mutating}
-                variant="secondary"
-                size="sm"
-                className="rounded-lg px-4 py-2 text-[13px]"
-                leadingIcon={<RefreshCw size={14} strokeWidth={1.5} />}
-              >
-                刷新索引
-              </Button>
-              <Button
-                onClick={onExport}
-                disabled={loading || mutating}
-                variant="secondary"
-                size="sm"
-                className="rounded-lg px-4 py-2 text-[13px]"
-                leadingIcon={<Download size={14} strokeWidth={1.5} />}
-              >
-                导出
-              </Button>
-              <Button
-                onClick={onImport}
-                disabled={mutating}
-                variant="secondary"
-                size="sm"
-                className="rounded-lg px-4 py-2 text-[13px]"
-                leadingIcon={<FileUp size={14} strokeWidth={1.5} />}
-              >
-                导入
-              </Button>
-              <Button
-                onClick={onCreate}
-                disabled={mutating}
-                variant="primary"
-                size="sm"
-                className="rounded-lg px-4 py-2 text-[13px]"
-                leadingIcon={<Plus size={14} strokeWidth={1.5} />}
-              >
-                新建记忆
-              </Button>
-            </>
-          }
-        />
-      </PageContent>
-    </section>
+    <PageHeader
+      eyebrow="Memory"
+      title="记忆管理"
+      description="AI 的长期记忆与标签化管理"
+      className="gap-3"
+      eyebrowClassName="text-[var(--text-muted)]"
+      titleClassName="text-[var(--text-primary)]"
+      descriptionClassName="text-[var(--text-secondary)]"
+      actionsClassName="gap-2"
+      actions={
+        <>
+          <Button
+            onClick={onRefreshIndex}
+            disabled={mutating}
+            variant="secondary"
+            size="sm"
+            className="px-4 py-2 text-[13px]"
+            leadingIcon={<RefreshCw size={14} strokeWidth={1.5} />}
+          >
+            刷新索引
+          </Button>
+          <Button
+            onClick={onExport}
+            disabled={loading || mutating}
+            variant="secondary"
+            size="sm"
+            className="px-4 py-2 text-[13px]"
+            leadingIcon={<Download size={14} strokeWidth={1.5} />}
+          >
+            导出
+          </Button>
+          <Button
+            onClick={onImport}
+            disabled={mutating}
+            variant="secondary"
+            size="sm"
+            className="px-4 py-2 text-[13px]"
+            leadingIcon={<FileUp size={14} strokeWidth={1.5} />}
+          >
+            导入
+          </Button>
+          <Button
+            onClick={onCreate}
+            disabled={mutating}
+            variant="primary"
+            size="sm"
+            className="px-4 py-2 text-[13px]"
+            leadingIcon={<Plus size={14} strokeWidth={1.5} />}
+          >
+            新建记忆
+          </Button>
+        </>
+      }
+    />
   );
 }

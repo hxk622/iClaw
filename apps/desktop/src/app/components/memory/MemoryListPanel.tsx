@@ -1,9 +1,18 @@
 import type { ReactNode } from 'react';
-import { AlertCircle, Archive, CheckCircle2, Clock, SearchX, Sparkles, Star } from 'lucide-react';
+import { AlertCircle, Archive, CalendarClock, CheckCircle2, Clock3, FolderTree, SearchX, Sparkles, Star } from 'lucide-react';
 import { cn } from '@/app/lib/cn';
 import { Button } from '@/app/components/ui/Button';
+import { Chip } from '@/app/components/ui/Chip';
+import { EmptyStatePanel } from '@/app/components/ui/EmptyStatePanel';
+import { PressableCard } from '@/app/components/ui/PressableCard';
+import { SurfacePanel } from '@/app/components/ui/SurfacePanel';
 import type { MemoryEntry } from './model';
-import { getDomainBadgeClass, getTypeBadgeClass } from './model';
+import {
+  getDomainBadgeClass,
+  getImportanceBadgeClass,
+  getStatusBadgeClass,
+  getTypeBadgeClass,
+} from './model';
 
 export function MemoryListPanel({
   entries,
@@ -27,17 +36,35 @@ export function MemoryListPanel({
   onClearFilters: () => void;
 }) {
   return (
-    <section className="flex min-h-0 flex-1 flex-col bg-[#F7F5F0]">
-      <div className="border-b border-[#ECE7DE] bg-[#FCFBF8] px-6 py-3">
-        <p className="text-[12px] text-[#6B655D]">
-          当前显示 <span className="text-[#1A1A18]">{entries.length}</span> / <span className="text-[#1A1A18]">{totalCount}</span> 条记忆
-        </p>
+    <SurfacePanel className="overflow-hidden rounded-[24px] border-[var(--border-default)] bg-[var(--bg-card)]">
+      <div className="flex flex-col gap-3 border-b border-[var(--border-default)] px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <div className="text-[15px] font-medium text-[var(--text-primary)]">记忆列表</div>
+          <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
+            当前显示 <span className="text-[var(--text-primary)]">{entries.length}</span> /{' '}
+            <span className="text-[var(--text-primary)]">{totalCount}</span> 条记忆
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {memoryDir ? (
+            <Chip tone="outline" className="rounded-full px-3 py-1 text-[12px]">
+              <FolderTree className="h-3.5 w-3.5" />
+              {memoryDir}
+            </Chip>
+          ) : null}
+          {runtimeError ? (
+            <Chip tone="danger" className="rounded-full px-3 py-1 text-[12px]">
+              <AlertCircle className="h-3.5 w-3.5" />
+              {runtimeError}
+            </Chip>
+          ) : null}
+        </div>
       </div>
 
-      <div className="flex-1 overflow-auto px-6 py-3">
+      <div className="p-4">
         {loading ? (
           <EmptyShell
-            icon={<Sparkles size={48} className="text-[#DED7CC]" strokeWidth={1} />}
+            icon={<Sparkles className="h-5 w-5" strokeWidth={1.5} />}
             title="正在读取真实记忆"
             description="正在从本地桌面工作区加载记忆与索引状态"
           />
@@ -45,9 +72,9 @@ export function MemoryListPanel({
           <EmptyShell
             icon={
               hasActiveFilters ? (
-                <SearchX size={48} className="text-[#DED7CC]" strokeWidth={1} />
+                <SearchX className="h-5 w-5" strokeWidth={1.5} />
               ) : (
-                <Archive size={48} className="text-[#DED7CC]" strokeWidth={1} />
+                <Archive className="h-5 w-5" strokeWidth={1.5} />
               )
             }
             title={hasActiveFilters ? '未找到匹配的记忆' : '暂无记忆'}
@@ -55,83 +82,93 @@ export function MemoryListPanel({
               hasActiveFilters
                 ? '尝试调整搜索关键词或筛选条件'
                 : memoryDir
-                  ? `当前真实记忆目录为 ${memoryDir}`
+                  ? '当前目录已经连接，可继续创建、导入或等待自动沉淀'
                   : '开始创建 AI 的第一条记忆'
             }
-            runtimeError={runtimeError}
             action={
               hasActiveFilters ? (
-                <Button
-                  onClick={onClearFilters}
-                  variant="primary"
-                  size="sm"
-                  className="rounded-lg px-4 py-2.5 text-[13px]"
-                >
+                <Button onClick={onClearFilters} variant="primary" size="sm" className="px-4 py-2.5 text-[13px]">
                   清除所有筛选
                 </Button>
               ) : null
             }
           />
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {entries.map((entry) => {
               const selected = selectedId === entry.id;
               return (
-                <button
+                <PressableCard
                   key={entry.id}
+                  interactive
                   onClick={() => onSelect(entry.id)}
                   className={cn(
-                    'w-full cursor-pointer rounded-lg border px-5 py-4 text-left transition-all duration-200',
+                    'w-full rounded-[20px] border px-5 py-4 text-left shadow-[var(--shadow-sm)]',
                     selected
-                      ? 'border-[#A88C5D] bg-[#F8F4ED] shadow-sm'
-                      : 'border-[#ECE7DE] bg-white hover:-translate-y-0.5 hover:border-[#DED7CC] hover:shadow-sm',
+                      ? 'border-[var(--chip-brand-border-strong)] bg-[var(--chip-brand-bg)]'
+                      : 'border-[var(--border-default)] bg-[var(--bg-elevated)] hover:border-[var(--border-strong)]',
                   )}
                 >
-                  <div className="flex items-start gap-3">
+                  <div className="flex items-start gap-4">
                     <div className="min-w-0 flex-1">
-                      <p className="mb-2.5 line-clamp-2 text-[13px] leading-relaxed text-[#1A1A18]">{entry.summary}</p>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="line-clamp-1 text-[15px] font-medium text-[var(--text-primary)]">{entry.title}</p>
+                          <p className="mt-1.5 line-clamp-2 text-[13px] leading-6 text-[var(--text-secondary)]">{entry.summary}</p>
+                        </div>
+                        {entry.recallCount > 0 ? (
+                          <Chip tone="accent" className="rounded-full px-3 py-1 text-[12px]">
+                            <Sparkles className="h-3.5 w-3.5" />
+                            {entry.recallCount} 次召回
+                          </Chip>
+                        ) : null}
+                      </div>
 
-                      <div className="mb-2.5 flex flex-wrap items-center gap-2">
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
                         <Badge className={getDomainBadgeClass(entry.domain)}>{entry.domain}</Badge>
                         <Badge className={getTypeBadgeClass(entry.type)}>{entry.type}</Badge>
+                        <Badge className={getImportanceBadgeClass(entry.importance)}>{entry.importance} 重要性</Badge>
+                        <Badge className={getStatusBadgeClass(entry.status)}>{entry.status}</Badge>
                         {entry.tags.slice(0, 3).map((tag) => (
-                          <Badge key={tag} className="border-none bg-[#ECE7DE] text-[#6B655D]">
+                          <Chip key={tag} tone="outline" className="rounded-full px-3 py-1 text-[12px]">
                             {tag}
-                          </Badge>
+                          </Chip>
                         ))}
                       </div>
 
-                      <div className="flex items-center gap-2.5 text-[11px] text-[#9A9288]">
-                        {getStatusBadge(entry.status)}
-                        <span>·</span>
-                        <span>{entry.sourceType}</span>
+                      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-[12px] text-[var(--text-muted)]">
+                        <span className="inline-flex items-center gap-1.5">
+                          <Clock3 size={13} strokeWidth={1.6} />
+                          来源：{entry.sourceType}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <CalendarClock size={13} strokeWidth={1.6} />
+                          更新：{entry.updatedAt}
+                        </span>
                         {entry.lastRecalledAt ? (
-                          <>
-                            <span>·</span>
-                            <span>召回: {entry.lastRecalledAt}</span>
-                          </>
+                          <span className="inline-flex items-center gap-1.5">
+                            <CheckCircle2 size={13} strokeWidth={1.6} />
+                            最近召回：{entry.lastRecalledAt}
+                          </span>
                         ) : null}
                       </div>
                     </div>
 
-                    <div className="flex min-w-[100px] flex-col items-end gap-2">
+                    <div className="flex min-w-[108px] flex-col items-end gap-2">
                       <div className="flex items-center gap-1">{getImportanceIcon(entry.importance)}</div>
-                      <div className="flex items-center gap-1.5 text-[11px] text-[#9A9288]">
-                        <Clock size={11} strokeWidth={1.5} />
+                      <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
+                        <Clock3 size={11} strokeWidth={1.5} />
                         <span>{entry.createdAt}</span>
                       </div>
-                      {entry.recallCount > 0 ? (
-                        <div className="text-[11px] text-[#5B7C8D]">{entry.recallCount} 次召回</div>
-                      ) : null}
                     </div>
                   </div>
-                </button>
+                </PressableCard>
               );
             })}
           </div>
         )}
       </div>
-    </section>
+    </SurfacePanel>
   );
 }
 
@@ -139,25 +176,21 @@ function EmptyShell({
   icon,
   title,
   description,
-  runtimeError,
   action,
 }: {
   icon: ReactNode;
   title: string;
   description: string;
-  runtimeError?: string | null;
   action?: ReactNode;
 }) {
   return (
-    <div className="flex min-h-full items-center justify-center bg-[#F7F5F0]">
-      <div className="px-8 text-center">
-        <div className="mx-auto mb-4 flex justify-center">{icon}</div>
-        <p className="mb-1.5 text-[15px] text-[#1A1A18]">{title}</p>
-        <p className="text-[13px] text-[#9A9288]">{description}</p>
-        {runtimeError ? <p className="mt-3 text-[12px] leading-6 text-[#A0765C]">{runtimeError}</p> : null}
-        {action ? <div className="mt-5">{action}</div> : null}
-      </div>
-    </div>
+    <EmptyStatePanel
+      className="min-h-[280px] rounded-[20px] border-[var(--border-default)]"
+      icon={icon}
+      title={title}
+      description={description}
+      action={action}
+    />
   );
 }
 
@@ -168,26 +201,7 @@ function Badge({
   className: string;
   children: ReactNode;
 }) {
-  return (
-    <span className={cn('inline-flex items-center rounded px-2 py-0.5 text-[11px]', className)}>
-      {children}
-    </span>
-  );
-}
-
-function getStatusBadge(status: MemoryEntry['status']) {
-  const config =
-    status === '已确认'
-      ? { icon: CheckCircle2, label: '已确认', color: 'text-[#5A7860]' }
-      : { icon: AlertCircle, label: '待检查', color: 'text-[#A0765C]' };
-  const Icon = config.icon;
-
-  return (
-    <div className={cn('flex items-center gap-1', config.color)}>
-      <Icon size={11} strokeWidth={1.5} />
-      <span className="text-[11px]">{config.label}</span>
-    </div>
-  );
+  return <span className={cn('inline-flex items-center rounded-full border px-3 py-1 text-[12px]', className)}>{children}</span>;
 }
 
 function getImportanceIcon(importance: MemoryEntry['importance']) {

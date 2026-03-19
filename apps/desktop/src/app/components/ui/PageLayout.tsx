@@ -10,7 +10,7 @@ interface PageContentProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
 }
 
-interface PageHeaderProps extends HTMLAttributes<HTMLDivElement> {
+interface PageHeaderProps extends Omit<HTMLAttributes<HTMLDivElement>, 'title'> {
   eyebrow?: ReactNode;
   title: ReactNode;
   description?: ReactNode;

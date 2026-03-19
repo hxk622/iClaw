@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 
+import { PageContent, PageSurface } from '@/app/components/ui/PageLayout';
 import {
   archiveMemoryEntry,
   deleteMemoryEntry as deleteMemoryEntryRecord,
@@ -450,7 +451,7 @@ export function MemoryView() {
   };
 
   return (
-    <div className="relative flex flex-1 overflow-hidden bg-[var(--lobster-page-bg)]">
+    <PageSurface as="div" className="bg-[var(--lobster-page-bg)]">
       <input
         ref={fileInputRef}
         type="file"
@@ -461,65 +462,78 @@ export function MemoryView() {
         }}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <MemoryHeader
-          onRefreshIndex={handleRefreshIndex}
-          onExport={handleExport}
-          onImport={handleImportClick}
-          onCreate={handleCreateMemory}
-          loading={loading}
-          mutating={mutating}
-        />
-        <MemoryStatusBar
-          runtimeStatus={runtimeStatus}
-          runtimeError={runtimeError}
-          statusSummary={statusSummary}
-          topTags={topTags}
-          latestUpdatedAt={latestUpdatedAt}
-        />
-        <MemoryFilterBar
-          filters={filters}
-          availableTags={availableTags}
-          hasActiveFilters={hasActiveFilters}
-          onToggleFilter={handleToggleFilter}
-          onToggleBoolean={handleToggleBooleanFilter}
-          onClear={handleClearFilters}
-        />
-        <MemoryListPanel
-          entries={filteredEntries}
-          totalCount={statusSummary.total}
-          selectedId={selectedId}
-          loading={loading}
-          hasActiveFilters={hasActiveFilters}
-          runtimeError={runtimeError}
-          memoryDir={memoryDir}
-          onSelect={setSelectedId}
-          onClearFilters={handleClearFilters}
+      <div className="flex min-w-0 flex-1 overflow-hidden">
+        <div className="min-w-0 flex-1 overflow-y-auto">
+          <PageContent className="max-w-[1480px] py-7">
+            <MemoryHeader
+              onRefreshIndex={handleRefreshIndex}
+              onExport={handleExport}
+              onImport={handleImportClick}
+              onCreate={handleCreateMemory}
+              loading={loading}
+              mutating={mutating}
+            />
+
+            <div className="mt-5 flex flex-col gap-4">
+              <MemoryStatusBar
+                runtimeStatus={runtimeStatus}
+                runtimeError={runtimeError}
+                statusSummary={statusSummary}
+                topTags={topTags}
+                latestUpdatedAt={latestUpdatedAt}
+              />
+              <MemoryFilterBar
+                searchQuery={searchQuery}
+                filters={filters}
+                availableTags={availableTags}
+                hasActiveFilters={hasActiveFilters}
+                onSearchChange={setSearchQuery}
+                onToggleFilter={handleToggleFilter}
+                onToggleBoolean={handleToggleBooleanFilter}
+                onClear={handleClearFilters}
+              />
+              <MemoryListPanel
+                entries={filteredEntries}
+                totalCount={statusSummary.total}
+                selectedId={selectedId}
+                loading={loading}
+                hasActiveFilters={hasActiveFilters}
+                runtimeError={runtimeError}
+                memoryDir={memoryDir}
+                onSelect={setSelectedId}
+                onClearFilters={handleClearFilters}
+              />
+            </div>
+          </PageContent>
+        </div>
+
+        <MemoryDetailDrawer
+          open={selectedEntry !== null}
+          entry={selectedEntry}
+          relatedEntries={relatedEntries}
+          editing={Boolean(selectedEntry && editingId === selectedEntry.id && draft)}
+          draft={draft}
+          tagInput={tagInput}
+          setTagInput={setTagInput}
+          onDraftChange={setDraft}
+          onStartEdit={handleStartEdit}
+          onSaveEdit={handleSaveEdit}
+          onCancelEdit={handleCancelEdit}
+          onAddTag={handleAddTagToDraft}
+          onRemoveDraftTag={(tag) =>
+            setDraft((current) =>
+              current ? { ...current, tags: current.tags.filter((item) => item !== tag) } : current,
+            )
+          }
+          onMarkConfirmed={handleMarkConfirmed}
+          onMerge={handleMergeSelected}
+          onForget={handleForgetSelected}
+          onDelete={handleDeleteSelected}
+          onSelectRelated={handleSelectRelated}
+          onClose={handleCloseDrawer}
+          busy={mutating}
         />
       </div>
-
-      <MemoryDetailDrawer
-        open={selectedEntry !== null}
-        entry={selectedEntry}
-        relatedEntries={relatedEntries}
-        editing={Boolean(selectedEntry && editingId === selectedEntry.id && draft)}
-        draft={draft}
-        tagInput={tagInput}
-        setTagInput={setTagInput}
-        onDraftChange={setDraft}
-        onStartEdit={handleStartEdit}
-        onSaveEdit={handleSaveEdit}
-        onCancelEdit={handleCancelEdit}
-        onAddTag={handleAddTagToDraft}
-        onRemoveDraftTag={(tag) => setDraft((current) => (current ? { ...current, tags: current.tags.filter((item) => item !== tag) } : current))}
-        onMarkConfirmed={handleMarkConfirmed}
-        onMerge={handleMergeSelected}
-        onForget={handleForgetSelected}
-        onDelete={handleDeleteSelected}
-        onSelectRelated={handleSelectRelated}
-        onClose={handleCloseDrawer}
-        busy={mutating}
-      />
-    </div>
+    </PageSurface>
   );
 }
