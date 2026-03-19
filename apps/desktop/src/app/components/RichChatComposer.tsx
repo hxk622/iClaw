@@ -6,7 +6,9 @@ import {
   FileText,
   Image as ImageIcon,
   Plus,
+  Sparkles,
   Square,
+  WandSparkles,
 } from 'lucide-react';
 import {
   forwardRef,
@@ -600,6 +602,28 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       <div className="iclaw-composer">
         <div className="iclaw-composer__halo" aria-hidden="true" />
         <div className="iclaw-composer__panel">
+          <div className="iclaw-composer__top">
+            <div className="iclaw-composer__promo">
+              <span className="iclaw-composer__promo-icon">
+                <Sparkles className="h-3.5 w-3.5" />
+              </span>
+              <span className="iclaw-composer__promo-text">新能力预告位</span>
+              <button type="button" className="iclaw-composer__promo-cta">
+                试一试
+              </button>
+            </div>
+            <div className="iclaw-composer__top-tools" aria-hidden="true">
+              <button type="button" className="iclaw-composer__top-tool">
+                <WandSparkles className="h-3.5 w-3.5 iclaw-composer__top-tool-icon iclaw-composer__top-tool-icon--violet" />
+                创意增强
+              </button>
+              <button type="button" className="iclaw-composer__top-tool">
+                <Sparkles className="h-3.5 w-3.5 iclaw-composer__top-tool-icon iclaw-composer__top-tool-icon--amber" />
+                新功能
+              </button>
+            </div>
+          </div>
+
           <div className="iclaw-composer__middle">
             <button
               type="button"
@@ -695,6 +719,37 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                 }}
               />
             </div>
+          </div>
+
+          <div className="iclaw-composer__footer">
+            <div className="iclaw-composer__supports">
+              <span className="iclaw-composer__support">
+                <ImageIcon className="h-3.5 w-3.5 iclaw-composer__support-icon iclaw-composer__support-icon--rose" />
+                图片
+              </span>
+              <span className="iclaw-composer__support">
+                <FileText className="h-3.5 w-3.5 iclaw-composer__support-icon iclaw-composer__support-icon--amber" />
+                PDF
+              </span>
+              <span className="iclaw-composer__support">
+                <Film className="h-3.5 w-3.5 iclaw-composer__support-icon iclaw-composer__support-icon--violet" />
+                视频
+              </span>
+              {tokenCount > 0 ? <span className="iclaw-composer__meta-count">{tokenCount}</span> : null}
+              {creditEstimate ? (
+                <span className="iclaw-composer__credit-estimate" data-state={creditEstimate.error ? 'error' : creditEstimate.loading ? 'loading' : 'ready'}>
+                  {creditEstimate.loading
+                    ? '正在估算龙虾币...'
+                    : creditEstimate.error
+                      ? '龙虾币估算暂不可用'
+                      : typeof creditEstimate.low === 'number' && typeof creditEstimate.high === 'number'
+                        ? creditEstimate.low === creditEstimate.high
+                          ? `约 ${creditEstimate.low} 龙虾币`
+                          : `约 ${creditEstimate.low}-${creditEstimate.high} 龙虾币`
+                        : null}
+                </span>
+              ) : null}
+            </div>
 
             <div className="iclaw-composer__actions">
               <div ref={modelMenuRef} className="iclaw-composer__model-picker">
@@ -767,37 +822,6 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   <ArrowUp className="h-[18px] w-[18px]" strokeWidth={2.5} />
                 )}
               </button>
-            </div>
-          </div>
-
-          <div className="iclaw-composer__footer">
-            <div className="iclaw-composer__supports">
-              <span className="iclaw-composer__support">
-                <ImageIcon className="h-3.5 w-3.5 iclaw-composer__support-icon iclaw-composer__support-icon--rose" />
-                图片
-              </span>
-              <span className="iclaw-composer__support">
-                <FileText className="h-3.5 w-3.5 iclaw-composer__support-icon iclaw-composer__support-icon--amber" />
-                PDF
-              </span>
-              <span className="iclaw-composer__support">
-                <Film className="h-3.5 w-3.5 iclaw-composer__support-icon iclaw-composer__support-icon--violet" />
-                视频
-              </span>
-              {tokenCount > 0 ? <span className="iclaw-composer__meta-count">{tokenCount}</span> : null}
-              {creditEstimate ? (
-                <span className="iclaw-composer__credit-estimate" data-state={creditEstimate.error ? 'error' : creditEstimate.loading ? 'loading' : 'ready'}>
-                  {creditEstimate.loading
-                    ? '正在估算龙虾币...'
-                    : creditEstimate.error
-                      ? '龙虾币估算暂不可用'
-                      : typeof creditEstimate.low === 'number' && typeof creditEstimate.high === 'number'
-                        ? creditEstimate.low === creditEstimate.high
-                          ? `约 ${creditEstimate.low} 龙虾币`
-                          : `约 ${creditEstimate.low}-${creditEstimate.high} 龙虾币`
-                        : null}
-                </span>
-              ) : null}
             </div>
           </div>
         </div>
