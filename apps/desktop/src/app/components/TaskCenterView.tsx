@@ -15,8 +15,8 @@ import {
   Table2,
   XCircle,
 } from 'lucide-react';
-import { Button } from '@/app/components/ui/Button';
 import { PressableCard } from '@/app/components/ui/PressableCard';
+import { Chip } from '@/app/components/ui/Chip';
 import { cn } from '@/app/lib/cn';
 import {
   type RecentTaskArtifact,
@@ -48,7 +48,7 @@ const statusConfig: Record<
   {
     label: string;
     icon: typeof CheckCircle2;
-    badgeTone: string;
+    chipTone: 'brand' | 'success' | 'danger';
     hintTone: string;
     helperText: string;
   }
@@ -56,8 +56,7 @@ const statusConfig: Record<
   running: {
     label: '进行中',
     icon: Loader2,
-    badgeTone:
-      'border border-[var(--chip-brand-border)] bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)]',
+    chipTone: 'brand',
     hintTone:
       'border border-[var(--chip-brand-border)] bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)]',
     helperText: '任务仍在处理中，完成后会自动更新。',
@@ -65,8 +64,7 @@ const statusConfig: Record<
   completed: {
     label: '已完成',
     icon: CheckCircle2,
-    badgeTone:
-      'border border-emerald-500/16 bg-emerald-500/10 text-emerald-600 dark:border-emerald-400/18 dark:bg-emerald-400/10 dark:text-emerald-300',
+    chipTone: 'success',
     hintTone:
       'border border-emerald-500/14 bg-emerald-500/8 text-emerald-700 dark:border-emerald-400/16 dark:bg-emerald-400/10 dark:text-emerald-200',
     helperText: '可以继续围绕这条任务补充问题或延展结果。',
@@ -74,8 +72,7 @@ const statusConfig: Record<
   failed: {
     label: '失败',
     icon: XCircle,
-    badgeTone:
-      'border border-red-500/16 bg-red-500/10 text-red-600 dark:border-red-400/18 dark:bg-red-400/10 dark:text-red-300',
+    chipTone: 'danger',
     hintTone:
       'border border-red-500/14 bg-red-500/8 text-red-700 dark:border-red-400/16 dark:bg-red-400/10 dark:text-red-200',
     helperText: '任务未顺利完成，建议回到对话继续处理。',
@@ -267,15 +264,17 @@ export function TaskCenterView({
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span
-                              className={cn(
-                                'inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium',
-                                status.badgeTone,
-                              )}
+                            <Chip
+                              tone={status.chipTone}
+                              leadingIcon={
+                                <StatusIcon
+                                  className={cn('h-3.5 w-3.5', task.status === 'running' ? 'animate-spin' : '')}
+                                />
+                              }
+                              className="px-3 py-1 text-xs font-medium"
                             >
-                              <StatusIcon className={cn('h-3.5 w-3.5', task.status === 'running' ? 'animate-spin' : '')} />
                               {status.label}
-                            </span>
+                            </Chip>
                           </div>
 
                           <h2 className="mt-3 text-base font-semibold text-[var(--text-primary)]">
@@ -382,11 +381,14 @@ function TaskSummaryPanel({
         {task.summary}
       </p>
 
-      <div className="mt-5 inline-flex w-fit items-center gap-2 rounded-full text-sm font-medium">
-        <span className={cn('inline-flex items-center gap-1 rounded-full px-3 py-1', status.badgeTone)}>
-          <StatusIcon className={cn('h-3.5 w-3.5', task.status === 'running' ? 'animate-spin' : '')} />
+      <div className="mt-5">
+        <Chip
+          tone={status.chipTone}
+          leadingIcon={<StatusIcon className={cn('h-3.5 w-3.5', task.status === 'running' ? 'animate-spin' : '')} />}
+          className="px-3 py-1 text-sm font-medium"
+        >
           {status.label}
-        </span>
+        </Chip>
       </div>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2">

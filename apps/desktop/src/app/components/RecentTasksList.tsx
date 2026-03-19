@@ -1,4 +1,5 @@
 import { Clock3, FileText, Globe, Presentation, Table2 } from 'lucide-react';
+import { Chip } from '@/app/components/ui/Chip';
 import { cn } from '@/app/lib/cn';
 import {
   type RecentTaskArtifact,
@@ -13,22 +14,19 @@ const SIDEBAR_TASK_LIMIT = 5;
 
 const statusConfig: Record<
   RecentTaskRecord['status'],
-  { label: string; className: string }
+  { label: string; tone: 'brand' | 'success' | 'danger' }
 > = {
   running: {
     label: '进行中',
-    className:
-      'border border-[var(--chip-brand-border)] bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)]',
+    tone: 'brand',
   },
   completed: {
     label: '已完成',
-    className:
-      'border border-emerald-500/18 bg-emerald-500/10 text-emerald-600 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-300',
+    tone: 'success',
   },
   failed: {
     label: '失败',
-    className:
-      'border border-red-500/18 bg-red-500/10 text-red-600 dark:border-red-400/20 dark:bg-red-400/10 dark:text-red-300',
+    tone: 'danger',
   },
 };
 
@@ -122,14 +120,9 @@ export function RecentTasksList({
                       <div className="line-clamp-2 flex-1 text-[12px] font-medium leading-5 text-[var(--text-primary)]">
                         {task.title}
                       </div>
-                      <span
-                        className={cn(
-                          'shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium',
-                          statusConfig[task.status].className,
-                        )}
-                      >
+                      <Chip tone={statusConfig[task.status].tone} className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium">
                         {statusConfig[task.status].label}
-                      </span>
+                      </Chip>
                     </div>
 
                     <div className="mt-2 line-clamp-2 text-[11px] leading-5 text-[var(--text-secondary)]">

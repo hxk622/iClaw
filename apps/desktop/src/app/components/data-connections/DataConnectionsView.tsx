@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Database, Search, Shield } from 'lucide-react';
+import { Check, Clock3, Database, Search } from 'lucide-react';
 import {
   THEME_CHANGE_EVENT,
   getResolvedThemeFromDom,
   type ResolvedTheme,
 } from '@/app/lib/theme';
+import { Chip } from '@/app/components/ui/Chip';
 import { capabilityGroups, type Capability } from './data-connections-data';
 
 const markets = ['全部', 'A股', '美股', '港股', '期货', '黄金', '加密', '宏观', 'ETF/基金', '外汇'];
@@ -200,16 +201,15 @@ function CapabilityCard({
           {capability.category}
         </span>
         {capability.status && (
-          <span
-            className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium"
-            style={{
-              backgroundColor: colors.hoverBg,
-              color: colors.brandGold,
-            }}
+          <Chip
+            tone={capability.status === '已支持' ? 'success' : 'warning'}
+            leadingIcon={
+              capability.status === '已支持' ? <Check className="h-3 w-3" /> : <Clock3 className="h-3 w-3" />
+            }
+            className="rounded-md px-2.5 py-1 text-xs font-medium"
           >
-            <Shield className="h-3 w-3" />
             {capability.status}
-          </span>
+          </Chip>
         )}
       </div>
 
