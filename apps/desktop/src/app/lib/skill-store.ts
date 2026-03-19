@@ -77,6 +77,7 @@ export type SkillStoreItem = {
   name: string;
   description: string;
   tags: string[];
+  featured: boolean;
   visibility: string;
   source: 'bundled' | 'cloud' | 'private';
   market: SkillMarketLabel;
@@ -106,6 +107,21 @@ const CATEGORY_LABELS: Record<Exclude<SkillStoreCategoryId, 'all' | 'official' |
   report: '报告生成',
   general: '通用工具',
 };
+
+const FEATURED_SKILL_SLUGS = new Set([
+  'A股数据工具包',
+  '美股数据工具包',
+  '加密货币分析师',
+  'A股量化因子筛选器',
+  '美股量化因子扫描器',
+  '股票研究分析师',
+  '财报分析师',
+  '风险管理分析师',
+  '投资备忘录生成器',
+  '金融仪表板生成器',
+  'multi-search-engine',
+  'stock-watcher',
+]);
 
 const SKILL_STORE_UPDATED_EVENT = 'iclaw-skill-store-updated';
 const SKILL_STORE_SYNC_ERROR_EVENT = 'iclaw-skill-store-sync-error';
@@ -220,6 +236,13 @@ function categoryLabel(categoryId: SkillStoreCategoryId, market: SkillMarketLabe
   return CATEGORY_LABELS[categoryId];
 }
 
+function isFeaturedSkill(item: {slug: string; featured?: boolean | null}): boolean {
+  if (typeof item.featured === 'boolean') {
+    return item.featured;
+  }
+  return FEATURED_SKILL_SLUGS.has(item.slug);
+}
+
 function normalizeBundledSkill(item: RawBundledSkillCatalogItem): SkillStoreItem {
   const market = inferMarket(item);
   const inferredCategoryId = inferCategoryId(item);
@@ -231,6 +254,7 @@ function normalizeBundledSkill(item: RawBundledSkillCatalogItem): SkillStoreItem
     name: item.name,
     description: item.description,
     tags: item.tags,
+    featured: isFeaturedSkill(item),
     visibility: item.visibility || 'showcase',
     source: 'bundled',
     market,
@@ -267,6 +291,7 @@ function normalizeCloudSkill(
     name: item.name,
     description: item.description,
     tags: item.tags,
+    featured: isFeaturedSkill(item),
     visibility: item.visibility || 'showcase',
     source: item.source,
     market,

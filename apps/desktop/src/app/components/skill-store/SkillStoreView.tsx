@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  Sparkles,
   Upload,
 } from 'lucide-react';
 import {
@@ -154,6 +155,15 @@ function SkillStatusBadge({ status }: {status: SkillDisplayStatus}) {
   );
 }
 
+function FeaturedBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md border border-[rgba(201,169,97,0.24)] bg-[rgba(201,169,97,0.12)] px-2 py-0.5 text-[11px] text-[rgb(155,112,39)] dark:border-[rgba(201,169,97,0.22)] dark:bg-[rgba(201,169,97,0.16)] dark:text-[#f1d59c]">
+      <Sparkles className="h-3 w-3" />
+      官方精选
+    </span>
+  );
+}
+
 function SourceBadge({ sourceLabel }: {sourceLabel: string}) {
   if (sourceLabel === '云端技能') {
     return (
@@ -215,12 +225,17 @@ function SkillCard({
       onClick={!adminMode ? () => onOpenDetail(skill) : undefined}
       className={cn(
         'rounded-lg border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)]',
+        skill.featured &&
+          'border-[rgba(201,169,97,0.24)] bg-[linear-gradient(180deg,rgba(255,251,242,0.98),rgba(252,251,248,0.96))] dark:bg-[linear-gradient(180deg,rgba(39,31,18,0.42),rgba(24,21,18,0.96))]',
         !adminMode && 'hover:border-[rgba(201,169,97,0.22)] hover:shadow-[var(--shadow-md)]',
       )}
     >
       <div className="mb-3 flex items-start gap-3">
         <SkillGlyph skill={skill} className="h-11 w-11 rounded-[14px]" iconClassName="h-5 w-5" />
         <div className="min-w-0 flex-1">
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            {skill.featured ? <FeaturedBadge /> : null}
+          </div>
           <h3 className="line-clamp-1 text-[15px] font-medium leading-snug text-[var(--text-primary)]">{skill.name}</h3>
           <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-[var(--text-secondary)]">{skill.description}</p>
         </div>
@@ -312,6 +327,7 @@ export function SkillStoreView({
   const [activeTab, setActiveTab] = useState<ActiveTab>('store');
   const [activeCategory, setActiveCategory] = useState<SkillStoreCategoryId>('all');
   const [activeInstallFilter, setActiveInstallFilter] = useState<SkillInstallFilter>('all');
+  const [featuredOnly, setFeaturedOnly] = useState(false);
   const [activeTags, setActiveTags] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [skills, setSkills] = useState<SkillStoreItem[]>([]);
@@ -590,6 +606,9 @@ export function SkillStoreView({
       if (activeTab === 'store' && !matchesInstallFilter(skill, activeInstallFilter)) {
         continue;
       }
+      if (featuredOnly && !skill.featured) {
+        continue;
+      }
       for (const tag of skill.tags) {
         const normalized = tag.trim();
         if (!normalized || hiddenQuickFilterTags.has(normalized)) {
@@ -614,7 +633,7 @@ export function SkillStoreView({
       })
       .slice(0, 18)
       .map(([tag]) => tag);
-  }, [activeCategory, activeInstallFilter, activeTab, visibleSkills]);
+  }, [activeCategory, activeInstallFilter, activeTab, featuredOnly, visibleSkills]);
 
   useEffect(() => {
     if (activeTags.length === 0) return;
@@ -636,6 +655,9 @@ export function SkillStoreView({
       if (activeTab === 'store' && !matchesInstallFilter(skill, activeInstallFilter)) {
         return false;
       }
+      if (featuredOnly && !skill.featured) {
+        return false;
+      }
       if (activeTags.length > 0 && !activeTags.some((tag) => skill.tags.includes(tag))) {
         return false;
       }
@@ -647,11 +669,12 @@ export function SkillStoreView({
         .toLowerCase()
         .includes(query);
     });
-  }, [activeCategory, activeInstallFilter, activeTab, activeTags, searchQuery, visibleSkills]);
+  }, [activeCategory, activeInstallFilter, activeTab, activeTags, featuredOnly, searchQuery, visibleSkills]);
 
   const totalCount = skills.length;
   const installedCount = skills.filter((skill) => skill.installed || skill.source === 'bundled').length;
   const builtinCount = skills.filter((skill) => skill.source === 'bundled').length;
+  const featuredCount = skills.filter((skill) => skill.featured).length;
   const failedCount = installErrorSlugs.length;
 
   return (
@@ -724,7 +747,7 @@ export function SkillStoreView({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
             <MetricCard
               label="技能总数"
               value={totalCount}
@@ -745,6 +768,13 @@ export function SkillStoreView({
               icon={<Download className="h-[18px] w-[18px]" />}
               iconWrapClassName="border-[rgba(74,107,138,0.18)] bg-[rgba(74,107,138,0.10)]"
               iconClassName="text-[#4A6B8A] dark:text-[#b7d0e5]"
+            />
+            <MetricCard
+              label="官方精选"
+              value={featuredCount}
+              icon={<Sparkles className="h-[18px] w-[18px]" />}
+              iconWrapClassName="border-[rgba(201,169,97,0.20)] bg-[rgba(201,169,97,0.12)]"
+              iconClassName="text-[rgb(155,112,39)] dark:text-[#f1d59c]"
             />
             <MetricCard
               label="安装失败"
@@ -775,8 +805,14 @@ export function SkillStoreView({
           </div>
 
           <div>
-            <div className="mb-2.5 text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">分类</div>
+            <div className="mb-2.5 text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">分类与策展</div>
             <div className="flex flex-wrap gap-2">
+              <FilterPill active={featuredOnly} onClick={() => setFeaturedOnly((current) => !current)}>
+                <span className="inline-flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  官方精选
+                </span>
+              </FilterPill>
               {categories.map((category) => (
                 <FilterPill key={category.id} active={activeCategory === category.id} onClick={() => setActiveCategory(category.id)}>
                   {category.label}

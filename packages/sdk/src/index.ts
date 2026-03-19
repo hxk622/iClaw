@@ -203,6 +203,7 @@ export interface SkillCatalogEntryData {
   slug: string;
   name: string;
   description: string;
+  featured?: boolean;
   visibility: 'showcase' | 'internal';
   market: string | null;
   category: string | null;
@@ -225,6 +226,7 @@ interface UpsertAdminSkillCatalogInput {
   slug: string;
   name?: string;
   description?: string;
+  featured?: boolean;
   visibility?: 'showcase' | 'internal';
   market?: string | null;
   category?: string | null;

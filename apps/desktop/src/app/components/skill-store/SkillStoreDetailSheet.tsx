@@ -1,4 +1,4 @@
-import { CalendarDays, Package, UserRound, X } from 'lucide-react';
+import { CalendarDays, Package, Sparkles, UserRound, X } from 'lucide-react';
 import type { SkillStoreItem } from '@/app/lib/skill-store';
 import { Button } from '@/app/components/ui/Button';
 import { Chip } from '@/app/components/ui/Chip';
@@ -156,6 +156,12 @@ export function SkillStoreDetailSheet({
             <div className="min-w-0 flex-1">
               <h3 className="text-[21px] font-medium leading-tight tracking-[-0.02em] text-[var(--text-primary)]">{skill.name}</h3>
               <div className="mt-2 flex flex-wrap gap-2">
+                {skill.featured ? (
+                  <Chip tone="accent">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    官方精选
+                  </Chip>
+                ) : null}
                 <Chip tone={status.tone}>{status.label}</Chip>
                 <Chip tone={skill.source === 'bundled' ? 'brand' : skill.source === 'private' ? 'success' : 'outline'}>
                   {skill.sourceLabel}
