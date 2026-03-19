@@ -29,6 +29,10 @@ import {
   type AppUserAvatarSource,
 } from '../lib/user-avatar';
 import {
+  loadLobsterAgents,
+  type LobsterAgent,
+} from '../lib/lobster-store';
+import {
   inferRecentTaskArtifactsFromText,
   markRecentTaskCompleted,
   markRecentTaskFailed,
@@ -747,6 +751,7 @@ export function OpenClawChatSurface({
     high: null,
     error: null,
   });
+  const [installedLobsterAgents, setInstalledLobsterAgents] = useState<LobsterAgent[]>([]);
   const consumedInitialPromptKeyRef = useRef<string | null>(null);
   const statusLogRef = useRef<string | null>(null);
   const rpcLogRef = useRef<string | null>(null);
@@ -1013,6 +1018,35 @@ export function OpenClawChatSurface({
       window.clearTimeout(timer);
     };
   }, [composerDraft, creditClient, creditToken, renderState.groupCount, selectedModelId]);
+
+  useEffect(() => {
+    if (!creditClient || !creditToken) {
+      setInstalledLobsterAgents([]);
+      return;
+    }
+
+    let cancelled = false;
+    void loadLobsterAgents({
+      client: creditClient,
+      accessToken: creditToken,
+    })
+      .then((agents) => {
+        if (cancelled) {
+          return;
+        }
+        setInstalledLobsterAgents(agents.filter((agent) => agent.installed));
+      })
+      .catch(() => {
+        if (cancelled) {
+          return;
+        }
+        setInstalledLobsterAgents([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [creditClient, creditToken]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -2141,6 +2175,7 @@ export function OpenClawChatSurface({
               ref={composerRef}
               connected={status.connected}
               busy={status.busy}
+              lobsterAgents={installedLobsterAgents}
               modelOptions={modelOptions}
               selectedModelId={selectedModelId}
               modelsLoading={modelsLoading}

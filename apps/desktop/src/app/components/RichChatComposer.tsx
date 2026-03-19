@@ -1,4 +1,5 @@
 import {
+  AtSign,
   ArrowUp,
   Check,
   ChevronDown,
@@ -20,6 +21,7 @@ import {
 } from 'react';
 import { ModelBrandIcon } from './ModelBrandIcon';
 import { findComposerModelOption, type ComposerModelOption } from '../lib/model-catalog';
+import type { LobsterAgent } from '../lib/lobster-store';
 
 export type OpenClawImageAttachment = {
   id: string;
@@ -56,9 +58,11 @@ export type RichChatComposerHandle = {
 
 type ComposerTokenMeta = {
   id: string;
-  kind: 'reference' | 'attachment';
+  kind: 'reference' | 'attachment' | 'agent';
   label: string;
   value: string;
+  slug?: string;
+  avatarSrc?: string;
   mimeType?: string;
   dataUrl?: string | null;
 };
@@ -66,6 +70,7 @@ type ComposerTokenMeta = {
 type RichChatComposerProps = {
   connected: boolean;
   busy: boolean;
+  lobsterAgents: LobsterAgent[];
   modelOptions: ComposerModelOption[];
   selectedModelId: string | null;
   modelsLoading: boolean;
@@ -115,6 +120,9 @@ function readFileAsDataUrl(file: File): Promise<string> {
 }
 
 function buildTokenMarker(token: ComposerTokenMeta): string {
+  if (token.kind === 'agent') {
+    return `@${token.value}`;
+  }
   if (token.kind === 'reference') {
     return `[[引用:${token.value}]]`;
   }
@@ -131,6 +139,7 @@ function buildTokenMarker(token: ComposerTokenMeta): string {
 }
 
 function buildTokenTone(token: ComposerTokenMeta): string {
+  if (token.kind === 'agent') return 'agent';
   if (token.kind === 'reference') return 'reference';
   if (isImageAttachment(token.mimeType)) return 'image';
   if (isPdfAttachment(token.mimeType)) return 'pdf';
@@ -139,6 +148,7 @@ function buildTokenTone(token: ComposerTokenMeta): string {
 }
 
 function buildTokenBadge(token: ComposerTokenMeta): string {
+  if (token.kind === 'agent') return '@';
   if (token.kind === 'reference') return '引';
   if (isImageAttachment(token.mimeType)) return '图';
   if (isPdfAttachment(token.mimeType)) return 'PDF';
@@ -161,22 +171,41 @@ function createTokenElement(token: ComposerTokenMeta): HTMLSpanElement {
   element.dataset.tokenTone = buildTokenTone(token);
   element.contentEditable = 'false';
 
-  const badge = document.createElement('span');
-  badge.className = 'iclaw-inline-token__badge';
-  badge.textContent = buildTokenBadge(token);
+  if (token.kind === 'agent') {
+    const avatar = document.createElement('span');
+    avatar.className = 'iclaw-inline-token__avatar';
 
-  const label = document.createElement('span');
-  label.className = 'iclaw-inline-token__label';
-  label.textContent = token.label;
+    const image = document.createElement('img');
+    image.className = 'iclaw-inline-token__avatar-image';
+    image.src = token.avatarSrc ?? '';
+    image.alt = token.label;
+
+    const label = document.createElement('span');
+    label.className = 'iclaw-inline-token__label';
+    label.textContent = token.label;
+
+    avatar.append(image);
+    element.append(avatar, label);
+  } else {
+    const badge = document.createElement('span');
+    badge.className = 'iclaw-inline-token__badge';
+    badge.textContent = buildTokenBadge(token);
+
+    const label = document.createElement('span');
+    label.className = 'iclaw-inline-token__label';
+    label.textContent = token.label;
+
+    element.append(badge, label);
+  }
 
   const remove = document.createElement('button');
   remove.type = 'button';
   remove.className = 'iclaw-inline-token__remove';
   remove.dataset.tokenRemove = 'true';
-  remove.setAttribute('aria-label', '移除引用块');
+  remove.setAttribute('aria-label', token.kind === 'agent' ? '移除 Agent' : '移除引用块');
   remove.textContent = '×';
 
-  element.append(badge, label, remove);
+  element.append(remove);
   return element;
 }
 
@@ -266,6 +295,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     {
       connected,
       busy,
+      lobsterAgents,
       modelOptions,
       selectedModelId,
       modelsLoading,
@@ -281,11 +311,14 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const editorRef = useRef<HTMLDivElement | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const modelMenuRef = useRef<HTMLDivElement | null>(null);
+    const mentionMenuRef = useRef<HTMLDivElement | null>(null);
     const tokenStoreRef = useRef<Map<string, ComposerTokenMeta>>(new Map());
     const savedRangeRef = useRef<Range | null>(null);
+    const pendingMentionTriggerRef = useRef(false);
     const [hasContent, setHasContent] = useState(false);
     const [tokenCount, setTokenCount] = useState(0);
     const [modelMenuOpen, setModelMenuOpen] = useState(false);
+    const [mentionMenuOpen, setMentionMenuOpen] = useState(false);
 
     const refreshState = useCallback(() => {
       const editor = editorRef.current;
@@ -407,6 +440,11 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       editor.focus();
     }, [restoreRange]);
 
+    const closeMentionMenu = useCallback(() => {
+      setMentionMenuOpen(false);
+      pendingMentionTriggerRef.current = false;
+    }, []);
+
     const replacePrompt = useCallback((text: string) => {
       const editor = editorRef.current;
       if (!editor) {
@@ -471,9 +509,82 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       editor.replaceChildren();
       tokenStoreRef.current.clear();
       savedRangeRef.current = createRangeAtEnd(editor);
+      closeMentionMenu();
       refreshState();
       editor.focus();
-    }, [refreshState]);
+    }, [closeMentionMenu, refreshState]);
+
+    const removeMentionTriggerBeforeCaret = useCallback(() => {
+      const editor = editorRef.current;
+      const range = restoreRange();
+      if (!editor || !range || !range.collapsed) {
+        return;
+      }
+
+      const updateSelection = (node: Text, offset: number) => {
+        const nextRange = document.createRange();
+        nextRange.setStart(node, offset);
+        nextRange.collapse(true);
+        const selection = window.getSelection();
+        if (selection) {
+          selection.removeAllRanges();
+          selection.addRange(nextRange);
+        }
+        savedRangeRef.current = nextRange.cloneRange();
+        refreshState();
+      };
+
+      const container = range.startContainer;
+      const offset = range.startOffset;
+      if (container.nodeType === Node.TEXT_NODE) {
+        const textNode = container as Text;
+        const value = textNode.data;
+        if (offset > 0 && value[offset - 1] === '@') {
+          textNode.deleteData(offset - 1, 1);
+          updateSelection(textNode, offset - 1);
+          return;
+        }
+      }
+
+      if (!(container instanceof HTMLElement)) {
+        return;
+      }
+
+      const previousNode = container.childNodes[offset - 1] ?? null;
+      if (!(previousNode instanceof Text) || !previousNode.data.endsWith('@')) {
+        return;
+      }
+      previousNode.deleteData(previousNode.data.length - 1, 1);
+      updateSelection(previousNode, previousNode.data.length);
+    }, [refreshState, restoreRange]);
+
+    const insertAgentMention = useCallback((agent: LobsterAgent) => {
+      if (pendingMentionTriggerRef.current) {
+        removeMentionTriggerBeforeCaret();
+      }
+
+      const token: ComposerTokenMeta = {
+        id: createComposerId('agent'),
+        kind: 'agent',
+        label: agent.name,
+        value: agent.name,
+        slug: agent.slug,
+        avatarSrc: agent.avatarSrc,
+      };
+      insertTokenAtCaret(token);
+      insertTextAtCaret(' ');
+      closeMentionMenu();
+      focus();
+    }, [closeMentionMenu, focus, insertTextAtCaret, insertTokenAtCaret, removeMentionTriggerBeforeCaret]);
+
+    const openMentionMenu = useCallback((source: 'toolbar' | 'typing') => {
+      if (!connected) {
+        return;
+      }
+      pendingMentionTriggerRef.current = source === 'typing';
+      setModelMenuOpen(false);
+      setMentionMenuOpen(true);
+    }, [connected]);
 
     const processFiles = useCallback(
       async (files: File[]) => {
@@ -540,20 +651,23 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     }, []);
 
     useEffect(() => {
-      if (!modelMenuOpen) {
+      if (!modelMenuOpen && !mentionMenuOpen) {
         return;
       }
 
       const handlePointerDown = (event: PointerEvent) => {
-        if (modelMenuRef.current?.contains(event.target as Node)) {
+        const target = event.target as Node;
+        if (modelMenuRef.current?.contains(target) || mentionMenuRef.current?.contains(target)) {
           return;
         }
         setModelMenuOpen(false);
+        closeMentionMenu();
       };
 
       const handleKeyDown = (event: KeyboardEvent) => {
         if (event.key === 'Escape') {
           setModelMenuOpen(false);
+          closeMentionMenu();
         }
       };
 
@@ -563,13 +677,14 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         document.removeEventListener('pointerdown', handlePointerDown);
         document.removeEventListener('keydown', handleKeyDown);
       };
-    }, [modelMenuOpen]);
+    }, [closeMentionMenu, mentionMenuOpen, modelMenuOpen]);
 
     useEffect(() => {
       if (!connected) {
         setModelMenuOpen(false);
+        closeMentionMenu();
       }
-    }, [connected]);
+    }, [closeMentionMenu, connected]);
 
     const submitLabel = busy && !hasContent ? '停止' : '发送';
     const sendState = busy ? 'busy' : hasContent ? 'ready' : 'empty';
@@ -660,6 +775,11 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                 onInput={() => refreshState()}
                 onKeyDown={(event) => {
                   const nativeEvent = event.nativeEvent as KeyboardEvent;
+                  if (event.key === '@' && !nativeEvent.isComposing && !event.ctrlKey && !event.metaKey && !event.altKey) {
+                    window.requestAnimationFrame(() => {
+                      openMentionMenu('typing');
+                    });
+                  }
                   if (event.key === 'Enter' && !nativeEvent.isComposing && !event.shiftKey) {
                     event.preventDefault();
                     void handleSubmit();
@@ -740,6 +860,55 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                 <Film className="h-3.5 w-3.5 iclaw-composer__support-icon iclaw-composer__support-icon--violet" />
                 视频
               </span>
+              <div ref={mentionMenuRef} className="iclaw-composer__mention-picker">
+                <button
+                  type="button"
+                  className="iclaw-composer__mention-trigger"
+                  disabled={!connected}
+                  aria-haspopup="dialog"
+                  aria-expanded={mentionMenuOpen}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => openMentionMenu('toolbar')}
+                >
+                  <AtSign className="h-3.5 w-3.5" />
+                  Agent
+                </button>
+
+                {mentionMenuOpen ? (
+                  <div className="iclaw-composer__mention-menu" role="dialog" aria-label="选择龙虾 Agent">
+                    <div className="iclaw-composer__mention-menu-header">
+                      <span className="iclaw-composer__mention-menu-title">选择 Agent</span>
+                      <span className="iclaw-composer__mention-menu-subtitle">
+                        {lobsterAgents.length > 0 ? `已安装 ${lobsterAgents.length} 个` : '从我的龙虾中选择'}
+                      </span>
+                    </div>
+                    {lobsterAgents.length > 0 ? (
+                      <div className="iclaw-composer__mention-grid">
+                        {lobsterAgents.map((agent) => (
+                          <button
+                            key={agent.slug}
+                            type="button"
+                            className="iclaw-composer__mention-option"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => insertAgentMention(agent)}
+                          >
+                            <span className="iclaw-composer__mention-avatar">
+                              <img
+                                src={agent.avatarSrc}
+                                alt={agent.name}
+                                className="iclaw-composer__mention-avatar-image"
+                              />
+                            </span>
+                            <span className="iclaw-composer__mention-name">{agent.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="iclaw-composer__mention-empty">还没有已安装的龙虾 Agent</div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
               {tokenCount > 0 ? <span className="iclaw-composer__meta-count">{tokenCount}</span> : null}
               {creditEstimate ? (
                 <span className="iclaw-composer__credit-estimate" data-state={creditEstimate.error ? 'error' : creditEstimate.loading ? 'loading' : 'ready'}>
@@ -764,7 +933,10 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   disabled={modelDisabled}
                   aria-haspopup="menu"
                   aria-expanded={modelMenuOpen}
-                  onClick={() => setModelMenuOpen((current) => !current)}
+                  onClick={() => {
+                    closeMentionMenu();
+                    setModelMenuOpen((current) => !current);
+                  }}
                 >
                   <span className="iclaw-composer__model-trigger-main">
                     <ModelBrandIcon
