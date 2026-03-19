@@ -518,7 +518,10 @@ fn load_runtime_install_receipt(root: &Path) -> Option<RuntimeInstallReceipt> {
     serde_json::from_str::<RuntimeInstallReceipt>(&raw).ok()
 }
 
-fn write_runtime_install_receipt(root: &Path, config: &RuntimeBootstrapConfig) -> Result<(), String> {
+fn write_runtime_install_receipt(
+    root: &Path,
+    config: &RuntimeBootstrapConfig,
+) -> Result<(), String> {
     let receipt = RuntimeInstallReceipt {
         version: clean_optional(config.version.clone()),
         artifact_url: clean_optional(config.artifact_url.clone()),
@@ -537,9 +540,11 @@ fn expected_runtime_sha256(config: &RuntimeBootstrapConfig) -> Option<String> {
 
 fn runtime_layout_complete(root: &Path, config: &RuntimeBootstrapConfig) -> bool {
     let launcher_ok = find_runtime_launcher(root, config).is_some();
-    let node_ok = root.join("bin").join("node").exists() || root.join("bin").join("node.exe").exists();
+    let node_ok =
+        root.join("bin").join("node").exists() || root.join("bin").join("node.exe").exists();
     let openclaw_root = root.join("openclaw");
-    let openclaw_ok = openclaw_root.join("openclaw.mjs").exists() && openclaw_root.join("package.json").exists();
+    let openclaw_ok =
+        openclaw_root.join("openclaw.mjs").exists() && openclaw_root.join("package.json").exists();
     let deps_ok = openclaw_root
         .join("node_modules")
         .join("chalk")
@@ -562,7 +567,8 @@ fn installed_runtime_matches(root: &Path, config: &RuntimeBootstrapConfig) -> bo
         return false;
     };
 
-    clean_optional(receipt.artifact_sha256).map(|value| value.to_ascii_lowercase()) == Some(expected_sha256)
+    clean_optional(receipt.artifact_sha256).map(|value| value.to_ascii_lowercase())
+        == Some(expected_sha256)
 }
 
 fn resolve_runtime_command(app: &AppHandle) -> Result<ResolvedRuntimeCommand, String> {
@@ -651,10 +657,7 @@ fn resource_servers_dir(app: &AppHandle) -> PathBuf {
         .join("servers")
 }
 
-fn replace_iclaw_servers_dir_placeholders(
-    value: &mut serde_json::Value,
-    servers_dir: &str,
-) {
+fn replace_iclaw_servers_dir_placeholders(value: &mut serde_json::Value, servers_dir: &str) {
     match value {
         serde_json::Value::String(raw) => {
             if raw.contains("__ICLAW_SERVERS_DIR__") {
@@ -834,7 +837,9 @@ fn discover_skill_root(root: &Path) -> Result<PathBuf, String> {
     }
 
     let mut direct_children = Vec::new();
-    for entry in fs::read_dir(root).map_err(|e| format!("failed to scan selected directory: {e}"))? {
+    for entry in
+        fs::read_dir(root).map_err(|e| format!("failed to scan selected directory: {e}"))?
+    {
         let entry = entry.map_err(|e| format!("failed to read selected directory entry: {e}"))?;
         let path = entry.path();
         if path.is_dir() {
@@ -844,8 +849,8 @@ fn discover_skill_root(root: &Path) -> Result<PathBuf, String> {
                 for nested in fs::read_dir(&path)
                     .map_err(|e| format!("failed to scan nested skill directory: {e}"))?
                 {
-                    let nested =
-                        nested.map_err(|e| format!("failed to read nested skill directory entry: {e}"))?;
+                    let nested = nested
+                        .map_err(|e| format!("failed to read nested skill directory entry: {e}"))?;
                     let nested_path = nested.path();
                     if nested_path.is_dir() && nested_path.join("SKILL.md").exists() {
                         direct_children.push(nested_path);
@@ -864,7 +869,10 @@ fn discover_skill_root(root: &Path) -> Result<PathBuf, String> {
     ))
 }
 
-fn load_importable_skill_metadata(skill_root: &Path, publisher_fallback: Option<String>) -> Result<ImportableSkillMetadata, String> {
+fn load_importable_skill_metadata(
+    skill_root: &Path,
+    publisher_fallback: Option<String>,
+) -> Result<ImportableSkillMetadata, String> {
     let skill_md_path = skill_root.join("SKILL.md");
     let raw = fs::read_to_string(&skill_md_path)
         .map_err(|e| format!("failed to read {}: {e}", skill_md_path.to_string_lossy()))?;
@@ -881,7 +889,8 @@ fn load_importable_skill_metadata(skill_root: &Path, publisher_fallback: Option<
     let publisher = frontmatter_value(&frontmatter, "publisher")
         .or(publisher_fallback)
         .unwrap_or_else(|| String::from("个人导入"));
-    let version = frontmatter_value(&frontmatter, "version").unwrap_or_else(generated_import_version);
+    let version =
+        frontmatter_value(&frontmatter, "version").unwrap_or_else(generated_import_version);
 
     Ok(ImportableSkillMetadata {
         slug,
@@ -901,7 +910,9 @@ fn append_directory_to_tar(
     source_dir: &Path,
     archive_root: &Path,
 ) -> Result<(), String> {
-    for entry in fs::read_dir(source_dir).map_err(|e| format!("failed to read skill directory: {e}"))? {
+    for entry in
+        fs::read_dir(source_dir).map_err(|e| format!("failed to read skill directory: {e}"))?
+    {
         let entry = entry.map_err(|e| format!("failed to read skill directory entry: {e}"))?;
         let path = entry.path();
         let name = archive_root.join(entry.file_name());
@@ -914,9 +925,12 @@ fn append_directory_to_tar(
         }
         let mut file = File::open(&path)
             .map_err(|e| format!("failed to open skill file {}: {e}", path.to_string_lossy()))?;
-        builder
-            .append_file(&name, &mut file)
-            .map_err(|e| format!("failed to append skill file {}: {e}", path.to_string_lossy()))?;
+        builder.append_file(&name, &mut file).map_err(|e| {
+            format!(
+                "failed to append skill file {}: {e}",
+                path.to_string_lossy()
+            )
+        })?;
     }
     Ok(())
 }
@@ -968,17 +982,22 @@ fn github_zipball_url(repo_url: &str) -> Result<String, String> {
     if owner.is_empty() || repo.is_empty() {
         return Err(String::from("GitHub 仓库链接不完整"));
     }
-    Ok(format!("https://api.github.com/repos/{owner}/{repo}/zipball"))
+    Ok(format!(
+        "https://api.github.com/repos/{owner}/{repo}/zipball"
+    ))
 }
 
-fn load_bundled_skills_catalog_internal(app: &AppHandle) -> Result<Vec<BundledSkillCatalogItem>, String> {
+fn load_bundled_skills_catalog_internal(
+    app: &AppHandle,
+) -> Result<Vec<BundledSkillCatalogItem>, String> {
     let skills_dir = resource_skills_dir(app);
     if !skills_dir.exists() {
         return Ok(Vec::new());
     }
 
     let mut items: Vec<BundledSkillCatalogItem> = Vec::new();
-    let entries = fs::read_dir(&skills_dir).map_err(|e| format!("failed to read skills dir: {e}"))?;
+    let entries =
+        fs::read_dir(&skills_dir).map_err(|e| format!("failed to read skills dir: {e}"))?;
     for entry in entries {
         let entry = entry.map_err(|e| format!("failed to read skills entry: {e}"))?;
         let path = entry.path();
@@ -1063,7 +1082,9 @@ fn managed_skill_archive_format(input: &ManagedSkillInstallInput) -> Result<Stri
         return match format.as_str() {
             "tar.gz" | "tgz" => Ok(String::from("tar.gz")),
             "zip" => Ok(String::from("zip")),
-            _ => Err(format!("unsupported managed skill archive format: {format}")),
+            _ => Err(format!(
+                "unsupported managed skill archive format: {format}"
+            )),
         };
     }
 
@@ -1083,10 +1104,14 @@ fn download_file_with_optional_sha256(
     expected_sha256: Option<String>,
 ) -> Result<(), String> {
     if let Some(local_path) = local_artifact_path(app, url) {
-        let mut input = File::open(&local_path)
-            .map_err(|e| format!("failed to open local skill archive {}: {e}", local_path.to_string_lossy()))?;
-        let mut output =
-            File::create(archive_path).map_err(|e| format!("failed to create skill archive file: {e}"))?;
+        let mut input = File::open(&local_path).map_err(|e| {
+            format!(
+                "failed to open local skill archive {}: {e}",
+                local_path.to_string_lossy()
+            )
+        })?;
+        let mut output = File::create(archive_path)
+            .map_err(|e| format!("failed to create skill archive file: {e}"))?;
         let mut hasher = Sha256::new();
         let mut buffer = [0_u8; 16 * 1024];
 
@@ -1126,8 +1151,8 @@ fn download_file_with_optional_sha256(
         .send()
         .and_then(|resp| resp.error_for_status())
         .map_err(|e| format!("failed to download skill archive: {e}"))?;
-    let mut file =
-        File::create(archive_path).map_err(|e| format!("failed to create skill archive file: {e}"))?;
+    let mut file = File::create(archive_path)
+        .map_err(|e| format!("failed to create skill archive file: {e}"))?;
     let mut hasher = Sha256::new();
     let mut buffer = [0_u8; 16 * 1024];
 
@@ -1161,7 +1186,9 @@ fn normalize_skill_root(extracted_dir: &Path) -> Result<PathBuf, String> {
     }
 
     let mut child_dirs = Vec::new();
-    for entry in fs::read_dir(extracted_dir).map_err(|e| format!("failed to scan skill dir: {e}"))? {
+    for entry in
+        fs::read_dir(extracted_dir).map_err(|e| format!("failed to scan skill dir: {e}"))?
+    {
         let entry = entry.map_err(|e| format!("failed to scan skill dir entry: {e}"))?;
         let path = entry.path();
         if path.is_dir() {
@@ -1181,7 +1208,9 @@ fn normalize_skill_root(extracted_dir: &Path) -> Result<PathBuf, String> {
 fn list_managed_skills_internal(app: &AppHandle) -> Result<Vec<ManagedSkillInstallRecord>, String> {
     let skills_dir = openclaw_managed_skills_dir(app)?;
     let mut items = Vec::new();
-    for entry in fs::read_dir(&skills_dir).map_err(|e| format!("failed to read managed skills dir: {e}"))? {
+    for entry in
+        fs::read_dir(&skills_dir).map_err(|e| format!("failed to read managed skills dir: {e}"))?
+    {
         let entry = entry.map_err(|e| format!("failed to read managed skill entry: {e}"))?;
         let path = entry.path();
         if !path.is_dir() {
@@ -1224,7 +1253,11 @@ fn install_managed_skill_internal(
     let downloads_dir = app_data_base_dir(app)?.join("skill-downloads");
     fs::create_dir_all(&downloads_dir)
         .map_err(|e| format!("failed to create skill downloads dir: {e}"))?;
-    let archive_ext = if archive_format == "zip" { "zip" } else { "tar.gz" };
+    let archive_ext = if archive_format == "zip" {
+        "zip"
+    } else {
+        "tar.gz"
+    };
     let archive_path = downloads_dir.join(format!("{}-{}.{}", slug, version, archive_ext));
     let staging_dir = skills_dir.join(format!("{}.partial", slug));
     let final_dir = skills_dir.join(&slug);
@@ -1244,7 +1277,12 @@ fn install_managed_skill_internal(
 
     fs::create_dir_all(&staging_dir)
         .map_err(|e| format!("failed to create skill staging dir: {e}"))?;
-    download_file_with_optional_sha256(app, &artifact_url, &archive_path, input.artifact_sha256.clone())?;
+    download_file_with_optional_sha256(
+        app,
+        &artifact_url,
+        &archive_path,
+        input.artifact_sha256.clone(),
+    )?;
 
     if archive_format == "zip" {
         extract_zip_archive(&archive_path, &staging_dir)?;
@@ -1561,7 +1599,9 @@ fn desktop_update_endpoint(input: &DesktopUpdateCommandInput) -> Result<String, 
         return Err(String::from("desktop updater auth base url is required"));
     }
     if !base_url.starts_with("https://") {
-        return Err(String::from("desktop updater requires an https auth base url"));
+        return Err(String::from(
+            "desktop updater requires an https auth base url",
+        ));
     }
     let channel = normalize_desktop_update_channel(input.channel.clone());
     Ok(format!(
@@ -1570,7 +1610,10 @@ fn desktop_update_endpoint(input: &DesktopUpdateCommandInput) -> Result<String, 
 }
 
 fn parse_raw_update_flag(raw_json: &serde_json::Value, key: &str) -> bool {
-    raw_json.get(key).and_then(|value| value.as_bool()).unwrap_or(false)
+    raw_json
+        .get(key)
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false)
 }
 
 fn parse_raw_update_string(raw_json: &serde_json::Value, key: &str) -> Option<String> {
@@ -1638,10 +1681,14 @@ fn download_runtime_archive(
         "拉取首次启动所需的本地运行时组件。",
     );
     if let Some(local_path) = local_artifact_path(app, url) {
-        let mut input = File::open(&local_path)
-            .map_err(|e| format!("failed to open local runtime archive {}: {e}", local_path.to_string_lossy()))?;
-        let mut output =
-            File::create(archive_path).map_err(|e| format!("failed to create runtime archive file: {e}"))?;
+        let mut input = File::open(&local_path).map_err(|e| {
+            format!(
+                "failed to open local runtime archive {}: {e}",
+                local_path.to_string_lossy()
+            )
+        })?;
+        let mut output = File::create(archive_path)
+            .map_err(|e| format!("failed to create runtime archive file: {e}"))?;
         let mut hasher = Sha256::new();
         let mut buffer = [0_u8; 16 * 1024];
         let total_bytes = input.metadata().ok().map(|meta| meta.len()).unwrap_or(0);
@@ -1702,8 +1749,8 @@ fn download_runtime_archive(
         .send()
         .and_then(|resp| resp.error_for_status())
         .map_err(|e| format!("failed to download openclaw runtime: {e}"))?;
-    let mut file =
-        File::create(archive_path).map_err(|e| format!("failed to create runtime archive file: {e}"))?;
+    let mut file = File::create(archive_path)
+        .map_err(|e| format!("failed to create runtime archive file: {e}"))?;
     let mut hasher = Sha256::new();
     let mut buffer = [0_u8; 16 * 1024];
     let total_bytes = response.content_length().unwrap_or(0);
@@ -1789,8 +1836,8 @@ fn extract_zip_archive(archive_path: &Path, dest_dir: &Path) -> Result<(), Strin
                 .map_err(|e| format!("failed to create runtime zip parent dir: {e}"))?;
         }
 
-        let mut output =
-            File::create(&output_path).map_err(|e| format!("failed to create runtime file: {e}"))?;
+        let mut output = File::create(&output_path)
+            .map_err(|e| format!("failed to create runtime file: {e}"))?;
         std::io::copy(&mut entry, &mut output)
             .map_err(|e| format!("failed to extract runtime file: {e}"))?;
     }
@@ -1807,7 +1854,9 @@ fn normalize_runtime_root(
     }
 
     let mut child_dirs = Vec::new();
-    for entry in fs::read_dir(extracted_dir).map_err(|e| format!("failed to scan runtime dir: {e}"))? {
+    for entry in
+        fs::read_dir(extracted_dir).map_err(|e| format!("failed to scan runtime dir: {e}"))?
+    {
         let entry = entry.map_err(|e| format!("failed to scan runtime dir entry: {e}"))?;
         let path = entry.path();
         if path.is_dir() {
@@ -1875,8 +1924,13 @@ fn install_runtime_internal(app: &AppHandle) -> Result<PathBuf, String> {
         return Ok(final_dir);
     }
 
-    let archive_ext = if artifact_format == "zip" { "zip" } else { "tar.gz" };
-    let archive_path = runtime_downloads_dir(app)?.join(format!("openclaw-runtime-{version_label}.{archive_ext}"));
+    let archive_ext = if artifact_format == "zip" {
+        "zip"
+    } else {
+        "tar.gz"
+    };
+    let archive_path =
+        runtime_downloads_dir(app)?.join(format!("openclaw-runtime-{version_label}.{archive_ext}"));
     let staging_dir = runtime_install_root(app)?
         .join("versions")
         .join(format!("{version_label}.partial"));
@@ -2043,7 +2097,9 @@ fn inspect_process(pid: u32) -> Option<ListeningProcess> {
         return None;
     }
 
-    let command = String::from_utf8_lossy(&command_output.stdout).trim().to_string();
+    let command = String::from_utf8_lossy(&command_output.stdout)
+        .trim()
+        .to_string();
     if command.is_empty() {
         return None;
     }
@@ -2157,11 +2213,137 @@ fn ensure_child_object<'a>(
     ensure_object_value(value)
 }
 
-fn upsert_managed_openai_model(
+struct ManagedModelDefinition<'a> {
+    id: &'a str,
+    name: &'a str,
+    reasoning: bool,
+    input: &'a [&'a str],
+    context_window: u64,
+    max_tokens: u64,
+}
+
+struct ManagedProviderDefinition {
+    provider_id: &'static str,
+    api: &'static str,
+    base_url: &'static str,
+    auth_header: bool,
+    models: &'static [ManagedModelDefinition<'static>],
+}
+
+const MANAGED_FINANCE_MODEL_PROVIDERS: &[ManagedProviderDefinition] = &[
+    ManagedProviderDefinition {
+        provider_id: "qwen",
+        api: "openai-completions",
+        base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        auth_header: true,
+        models: &[
+            ManagedModelDefinition {
+                id: "qwen3.5-plus",
+                name: "Qwen3.5 Plus",
+                reasoning: true,
+                input: &["text", "image"],
+                context_window: 131_072,
+                max_tokens: 8_192,
+            },
+            ManagedModelDefinition {
+                id: "qwen3-coder-plus",
+                name: "Qwen3 Coder Plus",
+                reasoning: true,
+                input: &["text"],
+                context_window: 262_144,
+                max_tokens: 8_192,
+            },
+            ManagedModelDefinition {
+                id: "qwen3-max",
+                name: "Qwen3 Max",
+                reasoning: true,
+                input: &["text", "image"],
+                context_window: 262_144,
+                max_tokens: 8_192,
+            },
+        ],
+    },
+    ManagedProviderDefinition {
+        provider_id: "minimax",
+        api: "anthropic-messages",
+        base_url: "https://api.minimax.io/anthropic",
+        auth_header: true,
+        models: &[
+            ManagedModelDefinition {
+                id: "MiniMax-M2.7",
+                name: "MiniMax m2.7",
+                reasoning: true,
+                input: &["text"],
+                context_window: 200_000,
+                max_tokens: 8_192,
+            },
+            ManagedModelDefinition {
+                id: "MiniMax-M2.5",
+                name: "MiniMax m2.5",
+                reasoning: true,
+                input: &["text"],
+                context_window: 200_000,
+                max_tokens: 8_192,
+            },
+            ManagedModelDefinition {
+                id: "MiniMax-M2.1",
+                name: "MiniMax m2.1",
+                reasoning: true,
+                input: &["text"],
+                context_window: 128_000,
+                max_tokens: 8_192,
+            },
+        ],
+    },
+    ManagedProviderDefinition {
+        provider_id: "moonshot",
+        api: "openai-completions",
+        base_url: "https://api.moonshot.ai/v1",
+        auth_header: true,
+        models: &[ManagedModelDefinition {
+            id: "kimi-k2.5",
+            name: "Kimi K2.5",
+            reasoning: false,
+            input: &["text", "image"],
+            context_window: 256_000,
+            max_tokens: 8_192,
+        }],
+    },
+    ManagedProviderDefinition {
+        provider_id: "volcengine",
+        api: "openai-completions",
+        base_url: "https://ark.cn-beijing.volces.com/api/v3",
+        auth_header: true,
+        models: &[ManagedModelDefinition {
+            id: "doubao-seed-2.0-code",
+            name: "Doubao Seed-2.0-code",
+            reasoning: true,
+            input: &["text"],
+            context_window: 128_000,
+            max_tokens: 8_192,
+        }],
+    },
+    ManagedProviderDefinition {
+        provider_id: "zai",
+        api: "openai-completions",
+        base_url: "https://api.z.ai/api/paas/v4",
+        auth_header: true,
+        models: &[ManagedModelDefinition {
+            id: "glm-4.7",
+            name: "GLM 4.7",
+            reasoning: true,
+            input: &["text"],
+            context_window: 204_800,
+            max_tokens: 131_072,
+        }],
+    },
+];
+
+fn upsert_managed_provider_model(
     provider: &mut serde_json::Map<String, serde_json::Value>,
-    model_id: &str,
+    model: &ManagedModelDefinition<'_>,
 ) {
-    if model_id.trim().is_empty() {
+    if model.id.trim().is_empty() {
         return;
     }
 
@@ -2180,30 +2362,20 @@ fn upsert_managed_openai_model(
         entry
             .get("id")
             .and_then(|value| value.as_str())
-            .map(|value| value == model_id)
+            .map(|value| value == model.id)
             .unwrap_or(false)
     });
 
     let mut next = if let Some(index) = position {
-        models
-            .get(index)
-            .cloned()
-            .unwrap_or_else(|| json!({}))
+        models.get(index).cloned().unwrap_or_else(|| json!({}))
     } else {
         json!({})
     };
     let next_obj = ensure_object_value(&mut next);
-    next_obj.insert(String::from("id"), json!(model_id));
-    next_obj.insert(
-        String::from("name"),
-        json!(if model_id == "gpt-5.4" {
-            String::from("GPT 5.4")
-        } else {
-            model_id.to_string()
-        }),
-    );
-    next_obj.insert(String::from("reasoning"), json!(true));
-    next_obj.insert(String::from("input"), json!(["text", "image"]));
+    next_obj.insert(String::from("id"), json!(model.id));
+    next_obj.insert(String::from("name"), json!(model.name));
+    next_obj.insert(String::from("reasoning"), json!(model.reasoning));
+    next_obj.insert(String::from("input"), json!(model.input));
     next_obj.insert(
         String::from("cost"),
         json!({
@@ -2213,14 +2385,53 @@ fn upsert_managed_openai_model(
             "cacheWrite": 0
         }),
     );
-    next_obj.insert(String::from("contextWindow"), json!(272000));
-    next_obj.insert(String::from("maxTokens"), json!(128000));
+    next_obj.insert(String::from("contextWindow"), json!(model.context_window));
+    next_obj.insert(String::from("maxTokens"), json!(model.max_tokens));
 
     if let Some(index) = position {
         models[index] = next;
     } else {
         models.push(next);
     }
+}
+
+fn ensure_managed_provider(
+    providers: &mut serde_json::Map<String, serde_json::Value>,
+    definition: &ManagedProviderDefinition,
+) {
+    let provider_obj = ensure_child_object(providers, definition.provider_id);
+    provider_obj.insert(String::from("api"), json!(definition.api));
+    provider_obj.insert(String::from("authHeader"), json!(definition.auth_header));
+    provider_obj.insert(String::from("baseUrl"), json!(definition.base_url));
+    provider_obj
+        .entry(String::from("apiKey"))
+        .or_insert_with(|| json!(""));
+
+    for model in definition.models {
+        upsert_managed_provider_model(provider_obj, model);
+    }
+}
+
+fn upsert_managed_openai_model(
+    provider: &mut serde_json::Map<String, serde_json::Value>,
+    model_id: &str,
+) {
+    if model_id.trim().is_empty() {
+        return;
+    }
+    let definition = ManagedModelDefinition {
+        id: model_id,
+        name: if model_id == "gpt-5.4" {
+            "GPT 5.4"
+        } else {
+            model_id
+        },
+        reasoning: true,
+        input: &["text", "image"],
+        context_window: 272_000,
+        max_tokens: 128_000,
+    };
+    upsert_managed_provider_model(provider, &definition);
 }
 
 const DEFAULT_MEMORY_LANCEDB_EMBEDDING_MODEL: &str = "text-embedding-3-small";
@@ -2230,8 +2441,12 @@ fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Resul
     let runtime_config = load_runtime_config_internal(app)?;
     let config_path = openclaw_config_path(app)?;
     let mut root = if config_path.exists() {
-        let raw = fs::read_to_string(&config_path)
-            .map_err(|e| format!("failed to read openclaw config {}: {e}", config_path.to_string_lossy()))?;
+        let raw = fs::read_to_string(&config_path).map_err(|e| {
+            format!(
+                "failed to read openclaw config {}: {e}",
+                config_path.to_string_lossy()
+            )
+        })?;
         serde_json::from_str::<serde_json::Value>(&raw).map_err(|e| {
             format!(
                 "failed to parse openclaw config {}: {e}",
@@ -2286,6 +2501,10 @@ fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Resul
                 .entry(String::from("models"))
                 .or_insert_with(|| json!([]));
         }
+
+        for provider in MANAGED_FINANCE_MODEL_PROVIDERS {
+            ensure_managed_provider(providers_obj, provider);
+        }
     }
 
     {
@@ -2332,11 +2551,9 @@ fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Resul
         if !embedding_obj.contains_key("apiKey") {
             embedding_obj.insert(
                 String::from("apiKey"),
-                json!(
-                    normalized_api_key
-                        .clone()
-                        .unwrap_or_else(|| String::from(DEFAULT_MEMORY_LANCEDB_API_KEY_PLACEHOLDER))
-                ),
+                json!(normalized_api_key
+                    .clone()
+                    .unwrap_or_else(|| String::from(DEFAULT_MEMORY_LANCEDB_API_KEY_PLACEHOLDER))),
             );
         }
         embedding_obj
@@ -2394,15 +2611,16 @@ fn resource_runtime_config_path(app: &AppHandle) -> PathBuf {
 fn load_runtime_config_internal(app: &AppHandle) -> Result<RuntimeConfig, String> {
     let config_path = runtime_config_path(app)?;
     if config_path.exists() {
-        let raw = fs::read_to_string(&config_path).map_err(|e| format!("failed to read config: {e}"))?;
+        let raw =
+            fs::read_to_string(&config_path).map_err(|e| format!("failed to read config: {e}"))?;
         return serde_json::from_str::<RuntimeConfig>(&raw)
             .map_err(|e| format!("failed to parse config: {e}"));
     }
 
     let default_path = resource_runtime_config_path(app);
     if default_path.exists() {
-        let raw =
-            fs::read_to_string(&default_path).map_err(|e| format!("failed to read default config: {e}"))?;
+        let raw = fs::read_to_string(&default_path)
+            .map_err(|e| format!("failed to read default config: {e}"))?;
         return serde_json::from_str::<RuntimeConfig>(&raw)
             .map_err(|e| format!("failed to parse default config: {e}"));
     }
@@ -2530,7 +2748,9 @@ fn stop_sidecar(state: State<'_, SidecarState>) -> Result<bool, String> {
 fn save_auth_tokens(access_token: String, refresh_token: String) -> Result<bool, String> {
     let access = Entry::new(AUTH_SERVICE, AUTH_ACCESS_KEY).map_err(|e| e.to_string())?;
     let refresh = Entry::new(AUTH_SERVICE, AUTH_REFRESH_KEY).map_err(|e| e.to_string())?;
-    access.set_password(&access_token).map_err(|e| e.to_string())?;
+    access
+        .set_password(&access_token)
+        .map_err(|e| e.to_string())?;
     refresh
         .set_password(&refresh_token)
         .map_err(|e| e.to_string())?;
@@ -2852,7 +3072,10 @@ fn parse_memory_entry_from_file(path: &Path) -> Result<DesktopMemoryEntry, Strin
         if let Some(end) = raw[4..].find("\n---\n") {
             let meta_raw = &raw[4..4 + end];
             let content_raw = &raw[4 + end + 5..];
-            (parse_memory_meta_map(meta_raw), content_raw.trim().to_string())
+            (
+                parse_memory_meta_map(meta_raw),
+                content_raw.trim().to_string(),
+            )
         } else {
             (std::collections::BTreeMap::new(), raw.trim().to_string())
         }
@@ -2879,7 +3102,11 @@ fn parse_memory_entry_from_file(path: &Path) -> Result<DesktopMemoryEntry, Strin
         .get("id")
         .cloned()
         .filter(|value| !value.is_empty())
-        .or_else(|| path.file_stem().and_then(|value| value.to_str()).map(String::from))
+        .or_else(|| {
+            path.file_stem()
+                .and_then(|value| value.to_str())
+                .map(String::from)
+        })
         .unwrap_or_else(|| format!("memory-{}", current_memory_timestamp()));
 
     let tags = meta
@@ -2915,9 +3142,18 @@ fn parse_memory_entry_from_file(path: &Path) -> Result<DesktopMemoryEntry, Strin
         title,
         summary,
         content,
-        domain: meta.get("domain").cloned().unwrap_or_else(|| String::from("其他")),
-        r#type: meta.get("type").cloned().unwrap_or_else(|| String::from("事实")),
-        importance: meta.get("importance").cloned().unwrap_or_else(|| String::from("中")),
+        domain: meta
+            .get("domain")
+            .cloned()
+            .unwrap_or_else(|| String::from("其他")),
+        r#type: meta
+            .get("type")
+            .cloned()
+            .unwrap_or_else(|| String::from("事实")),
+        importance: meta
+            .get("importance")
+            .cloned()
+            .unwrap_or_else(|| String::from("中")),
         source_type: meta
             .get("sourceType")
             .cloned()
@@ -2957,12 +3193,17 @@ fn collect_memory_markdown_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result
     if !dir.exists() {
         return Ok(());
     }
-    for entry in fs::read_dir(dir).map_err(|e| format!("failed to read dir {}: {e}", dir.to_string_lossy()))? {
+    for entry in fs::read_dir(dir)
+        .map_err(|e| format!("failed to read dir {}: {e}", dir.to_string_lossy()))?
+    {
         let entry = entry.map_err(|e| format!("failed to read dir entry: {e}"))?;
         let path = entry.path();
-        let metadata = entry
-            .metadata()
-            .map_err(|e| format!("failed to read entry metadata {}: {e}", path.to_string_lossy()))?;
+        let metadata = entry.metadata().map_err(|e| {
+            format!(
+                "failed to read entry metadata {}: {e}",
+                path.to_string_lossy()
+            )
+        })?;
         if metadata.is_dir() {
             collect_memory_markdown_files(&path, files)?;
             continue;
@@ -3077,7 +3318,9 @@ fn run_memory_cli(app: &AppHandle, args: &[&str]) -> Result<std::process::Output
     Ok(output)
 }
 
-fn load_desktop_memory_runtime_status(app: &AppHandle) -> Result<DesktopMemoryRuntimeStatus, String> {
+fn load_desktop_memory_runtime_status(
+    app: &AppHandle,
+) -> Result<DesktopMemoryRuntimeStatus, String> {
     let value = run_memory_cli_json(app, &["memory", "status", "--json"])?;
     let first = value
         .as_array()
@@ -3087,15 +3330,39 @@ fn load_desktop_memory_runtime_status(app: &AppHandle) -> Result<DesktopMemoryRu
     let scan = first.get("scan").cloned().unwrap_or_else(|| json!({}));
 
     Ok(DesktopMemoryRuntimeStatus {
-        backend: status.get("backend").and_then(|value| value.as_str()).map(String::from),
-        files: status.get("files").and_then(|value| value.as_u64()).unwrap_or(0),
-        chunks: status.get("chunks").and_then(|value| value.as_u64()).unwrap_or(0),
-        dirty: status.get("dirty").and_then(|value| value.as_bool()).unwrap_or(false),
-        workspace_dir: status.get("workspaceDir").and_then(|value| value.as_str()).map(String::from),
+        backend: status
+            .get("backend")
+            .and_then(|value| value.as_str())
+            .map(String::from),
+        files: status
+            .get("files")
+            .and_then(|value| value.as_u64())
+            .unwrap_or(0),
+        chunks: status
+            .get("chunks")
+            .and_then(|value| value.as_u64())
+            .unwrap_or(0),
+        dirty: status
+            .get("dirty")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false),
+        workspace_dir: status
+            .get("workspaceDir")
+            .and_then(|value| value.as_str())
+            .map(String::from),
         memory_dir: desktop_memory_dir(app).to_string_lossy().to_string(),
-        db_path: status.get("dbPath").and_then(|value| value.as_str()).map(String::from),
-        provider: status.get("provider").and_then(|value| value.as_str()).map(String::from),
-        model: status.get("model").and_then(|value| value.as_str()).map(String::from),
+        db_path: status
+            .get("dbPath")
+            .and_then(|value| value.as_str())
+            .map(String::from),
+        provider: status
+            .get("provider")
+            .and_then(|value| value.as_str())
+            .map(String::from),
+        model: status
+            .get("model")
+            .and_then(|value| value.as_str())
+            .map(String::from),
         source_counts: status
             .get("sourceCounts")
             .and_then(|value| value.as_array())
@@ -3135,7 +3402,8 @@ fn write_workspace_files(
     soul_md: &str,
     agents_md: &str,
 ) -> Result<(), String> {
-    fs::create_dir_all(workspace_dir).map_err(|e| format!("failed to create workspace dir: {e}"))?;
+    fs::create_dir_all(workspace_dir)
+        .map_err(|e| format!("failed to create workspace dir: {e}"))?;
     write_text(&workspace_dir.join("IDENTITY.md"), identity_md)?;
     write_text(&workspace_dir.join("USER.md"), user_md)?;
     write_text(&workspace_dir.join("SOUL.md"), soul_md)?;
@@ -3151,7 +3419,8 @@ fn write_workspace_files(
     Ok(())
 }
 
-const DEFAULT_IDENTITY_MD: &str = include_str!("../../../../services/openclaw/resources/IDENTITY.md");
+const DEFAULT_IDENTITY_MD: &str =
+    include_str!("../../../../services/openclaw/resources/IDENTITY.md");
 const DEFAULT_USER_MD: &str = include_str!("../../../../services/openclaw/resources/USER.md");
 const DEFAULT_SOUL_MD: &str = include_str!("../../../../services/openclaw/resources/SOUL.md");
 const DEFAULT_AGENTS_MD: &str = include_str!("../../../../services/openclaw/resources/AGENTS.md");
@@ -3160,7 +3429,8 @@ const DEFAULT_FINANCE_DECISION_FRAMEWORK_MD: &str =
 
 fn ensure_openclaw_workspace_seed(app: &AppHandle) -> Result<(), String> {
     let workspace_dir = openclaw_workspace_dir(app);
-    fs::create_dir_all(&workspace_dir).map_err(|e| format!("failed to create workspace dir: {e}"))?;
+    fs::create_dir_all(&workspace_dir)
+        .map_err(|e| format!("failed to create workspace dir: {e}"))?;
 
     let identity_path = workspace_dir.join("IDENTITY.md");
     let user_path = workspace_dir.join("USER.md");
@@ -3252,9 +3522,21 @@ fn load_iclaw_workspace_files(app: AppHandle) -> Result<IclawWorkspaceFiles, Str
 fn apply_iclaw_settings_files(app: &AppHandle, settings: &serde_json::Value) -> Result<(), String> {
     let workspace_dir = openclaw_workspace_dir(app);
 
-    let identity_md = value_str(settings, &["identity", "markdownContent"], DEFAULT_IDENTITY_MD);
-    let user_md = value_str(settings, &["userProfile", "markdownContent"], DEFAULT_USER_MD);
-    let soul_md = value_str(settings, &["soulPersona", "markdownContent"], DEFAULT_SOUL_MD);
+    let identity_md = value_str(
+        settings,
+        &["identity", "markdownContent"],
+        DEFAULT_IDENTITY_MD,
+    );
+    let user_md = value_str(
+        settings,
+        &["userProfile", "markdownContent"],
+        DEFAULT_USER_MD,
+    );
+    let soul_md = value_str(
+        settings,
+        &["soulPersona", "markdownContent"],
+        DEFAULT_SOUL_MD,
+    );
     let agents_md = String::from(DEFAULT_AGENTS_MD);
     let finance_framework_md = String::from(DEFAULT_FINANCE_DECISION_FRAMEWORK_MD);
     let channel = value_str(settings, &["channelPreference", "defaultChannel"], "web");
@@ -3310,7 +3592,9 @@ fn load_memory_snapshot(app: AppHandle) -> Result<DesktopMemorySnapshot, String>
     ensure_openclaw_workspace_seed(&app)?;
     let entries = load_desktop_memory_entries(&app)?;
     let memory_dir = desktop_memory_dir(&app).to_string_lossy().to_string();
-    let archive_dir = desktop_memory_archive_dir(&app).to_string_lossy().to_string();
+    let archive_dir = desktop_memory_archive_dir(&app)
+        .to_string_lossy()
+        .to_string();
     match load_desktop_memory_runtime_status(&app) {
         Ok(runtime_status) => Ok(DesktopMemorySnapshot {
             entries,
@@ -3330,7 +3614,10 @@ fn load_memory_snapshot(app: AppHandle) -> Result<DesktopMemorySnapshot, String>
 }
 
 #[tauri::command]
-fn save_memory_entry(app: AppHandle, entry: DesktopMemoryEntry) -> Result<DesktopMemoryEntry, String> {
+fn save_memory_entry(
+    app: AppHandle,
+    entry: DesktopMemoryEntry,
+) -> Result<DesktopMemoryEntry, String> {
     ensure_openclaw_workspace_seed(&app)?;
     ensure_desktop_memory_dir(&app)?;
     let mut normalized = entry.clone();
@@ -3356,12 +3643,20 @@ fn delete_memory_entry(app: AppHandle, id: String) -> Result<bool, String> {
     let active_path = memory_entry_path(&app, &id);
     let archive_path = memory_archive_path(&app, &id);
     if active_path.exists() {
-        fs::remove_file(&active_path)
-            .map_err(|e| format!("failed to delete memory file {}: {e}", active_path.to_string_lossy()))?;
+        fs::remove_file(&active_path).map_err(|e| {
+            format!(
+                "failed to delete memory file {}: {e}",
+                active_path.to_string_lossy()
+            )
+        })?;
     }
     if archive_path.exists() {
-        fs::remove_file(&archive_path)
-            .map_err(|e| format!("failed to delete archived memory file {}: {e}", archive_path.to_string_lossy()))?;
+        fs::remove_file(&archive_path).map_err(|e| {
+            format!(
+                "failed to delete archived memory file {}: {e}",
+                archive_path.to_string_lossy()
+            )
+        })?;
     }
     Ok(true)
 }
@@ -3445,7 +3740,10 @@ async fn check_desktop_update(
         .await
         .map_err(|e| format!("failed to check desktop update: {e}"))?;
 
-    let mut pending = state.pending.lock().map_err(|_| String::from("failed to lock desktop update state"))?;
+    let mut pending = state
+        .pending
+        .lock()
+        .map_err(|_| String::from("failed to lock desktop update state"))?;
     if let Some(update) = update {
         let raw_json = update.raw_json.clone();
         let result = DesktopUpdateCheckResult {
@@ -3479,7 +3777,10 @@ async fn download_and_install_desktop_update(
     state: State<'_, DesktopUpdateState>,
 ) -> Result<bool, String> {
     let update = {
-        let mut pending = state.pending.lock().map_err(|_| String::from("failed to lock desktop update state"))?;
+        let mut pending = state
+            .pending
+            .lock()
+            .map_err(|_| String::from("failed to lock desktop update state"))?;
         pending
             .take()
             .ok_or_else(|| String::from("no pending desktop update is available"))?
