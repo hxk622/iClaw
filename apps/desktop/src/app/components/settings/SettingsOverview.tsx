@@ -2,6 +2,7 @@ import { ChevronRight, Shield, Sparkles, User, UserCircle } from 'lucide-react';
 import { type ComponentType } from 'react';
 import { useSettings } from '@/app/contexts/settings-context';
 import { StatusBadge } from '@/app/components/settings/ui/StatusBadge';
+import { APPLE_FLAT_SURFACE, INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 
 export type SettingsSection =
   | 'overview'
@@ -82,7 +83,7 @@ export function SettingsOverview({ onNavigate }: SettingsOverviewProps) {
             <button
               key={card.key}
               onClick={() => onNavigate(card.section)}
-              className="group flex w-full items-center gap-4 rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] p-5 text-left transition-colors hover:border-[var(--border-strong)]"
+              className={`group flex w-full cursor-pointer items-center gap-4 rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] p-5 text-left transition-colors hover:border-[var(--border-strong)] hover:bg-[var(--bg-elevated)] ${APPLE_FLAT_SURFACE} ${SPRING_PRESSABLE} ${INTERACTIVE_FOCUS_RING}`}
             >
               <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--bg-hover)]">
                 <Icon className="h-6 w-6 text-[var(--text-primary)]" />

@@ -17,6 +17,7 @@ import {
 import { cn } from '@/app/lib/cn';
 import { APPLE_FLAT_SURFACE, INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 import { Button } from '@/app/components/ui/Button';
+import { FilterPill } from '@/app/components/ui/FilterPill';
 import { PressableCard } from '@/app/components/ui/PressableCard';
 import {
   DATA_CONNECTION_CAPABILITIES,
@@ -210,21 +211,19 @@ function FilterChip({
   toneClassName?: string;
 }) {
   return (
-    <button
-      type="button"
+    <FilterPill
+      active={active}
       onClick={onClick}
       className={cn(
-        'rounded-[13px] border px-3 py-1.5 text-[12px] font-medium',
-        'border-[var(--border-default)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]',
-        'hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
-        SPRING_PRESSABLE,
-        INTERACTIVE_FOCUS_RING,
-        APPLE_FLAT_SURFACE,
-        active && (toneClassName || 'border-[var(--lobster-gold-border)] bg-[var(--lobster-gold-soft)] text-[var(--lobster-gold-strong)]'),
+        'rounded-[13px] px-3 py-1.5 text-[12px] font-medium',
+        active && toneClassName,
+        active &&
+          !toneClassName &&
+          'border-[var(--lobster-gold-border)] bg-[var(--lobster-gold-soft)] text-[var(--lobster-gold-strong)] dark:border-[rgba(201,169,97,0.20)] dark:bg-[rgba(201,169,97,0.16)] dark:text-[#f1d59c]',
       )}
     >
       {label}
-    </button>
+    </FilterPill>
   );
 }
 
@@ -412,7 +411,7 @@ export function DataConnectionsView() {
   const activeMarketCount = selectedMarkets.includes('全部') ? DATA_CONNECTION_MARKETS.length - 1 : selectedMarkets.length;
 
   return (
-    <div className="flex flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(168,140,93,0.08),transparent_28%),linear-gradient(180deg,var(--bg-page)_0%,var(--bg-page)_100%)]">
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(168,140,93,0.08),transparent_28%),linear-gradient(180deg,var(--bg-page)_0%,var(--bg-page)_100%)]">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 px-5 py-5 lg:px-8">
         <section className="rounded-[24px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.78)] px-5 py-4 shadow-[0_12px_28px_rgba(15,23,42,0.04)] dark:bg-[rgba(25,23,21,0.92)] dark:shadow-[0_18px_32px_rgba(0,0,0,0.24)]">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
