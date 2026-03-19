@@ -1,5 +1,5 @@
 import { Coins, Crown, Minus, TrendingDown, TrendingUp } from 'lucide-react';
-import { SecurityStatusBadge } from '@/app/components/ui/SecurityStatusBadge';
+import { SecurityStatusInline } from '@/app/components/ui/SecurityStatusInline';
 
 type IClawHeaderProps = {
   balance: number | null;
@@ -62,33 +62,32 @@ export function IClawHeader({
   return (
     <header className="border-b border-gray-200/60 bg-gradient-to-b from-white/95 to-gray-50/90 backdrop-blur-sm dark:border-gray-800/40 dark:from-gray-900/95 dark:to-gray-950/90">
       <div className="flex h-11 items-center justify-between gap-4 px-6">
-        <div className="flex min-w-0 items-center gap-4">
-          <SecurityStatusBadge state="protecting" size="md" label="安全防护中" className="shrink-0" />
-          <div className="h-4 w-px shrink-0 bg-gray-200/50 dark:bg-gray-700/40" />
-          <div className="flex min-w-0 items-center gap-5 overflow-hidden">
-            {MARKET_DATA.map((market, index) => (
-              <div key={market.name} className="flex shrink-0 items-center gap-2.5">
-                <span className="text-[11px] font-medium tracking-tight text-gray-500 dark:text-gray-400">
-                  {market.name}
+        <div className="flex min-w-0 items-center gap-5 overflow-hidden">
+          {MARKET_DATA.map((market, index) => (
+            <div key={market.name} className="flex shrink-0 items-center gap-2.5">
+              <span className="text-[11px] font-medium tracking-tight text-gray-500 dark:text-gray-400">
+                {market.name}
+              </span>
+              <span className="text-[13px] font-medium tracking-tight tabular-nums text-gray-900 dark:text-gray-100">
+                {market.value}
+              </span>
+              <div className={`flex items-center gap-0.5 ${getChangeClassName(market.change)}`}>
+                <span className="scale-90">{getTrendIcon(market.change)}</span>
+                <span className="text-[11px] font-medium tracking-tight tabular-nums">
+                  {market.changePercent}
                 </span>
-                <span className="text-[13px] font-medium tracking-tight tabular-nums text-gray-900 dark:text-gray-100">
-                  {market.value}
-                </span>
-                <div className={`flex items-center gap-0.5 ${getChangeClassName(market.change)}`}>
-                  <span className="scale-90">{getTrendIcon(market.change)}</span>
-                  <span className="text-[11px] font-medium tracking-tight tabular-nums">
-                    {market.changePercent}
-                  </span>
-                </div>
-                {index < MARKET_DATA.length - 1 ? (
-                  <div className="ml-2.5 h-3 w-px shrink-0 bg-gray-200/50 dark:bg-gray-700/40" />
-                ) : null}
               </div>
-            ))}
-          </div>
+              {index < MARKET_DATA.length - 1 ? (
+                <div className="ml-2.5 h-3 w-px shrink-0 bg-gray-200/50 dark:bg-gray-700/40" />
+              ) : null}
+            </div>
+          ))}
         </div>
 
         <div className="flex shrink-0 items-center gap-3">
+          <SecurityStatusInline state="protecting" label="安全防护中" className="shrink-0" />
+          <div className="h-4 w-px bg-gray-200/50 dark:bg-gray-700/40" />
+
           <button
             type="button"
             className="group relative flex items-center gap-1.5 rounded px-2.5 py-1 transition-all duration-200 hover:bg-gray-100/50 dark:hover:bg-gray-800/30"
