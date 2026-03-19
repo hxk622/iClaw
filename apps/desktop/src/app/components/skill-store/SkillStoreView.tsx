@@ -680,23 +680,26 @@ export function SkillStoreView({
 
   return (
     <PageSurface className="flex-col bg-[var(--bg-page)]">
-      <PageContent className="max-w-[1480px]">
-        <div className="mb-8">
+      <PageContent className="max-w-[1480px] py-5">
+        <div className="mb-5">
           <PageHeader
-            className="mb-6"
-            eyebrow="Skill Store"
+            className="mb-4 gap-2.5"
             title="技能商店"
             description="统一查看系统预置能力与云端技能，安装后可自动同步到设备"
+            contentClassName="space-y-1"
+            titleClassName="mt-0 text-[24px] font-semibold tracking-[-0.045em]"
+            descriptionClassName="mt-0 text-[12px] leading-5"
+            actionsClassName="gap-2"
             actions={
               <>
-              <Button variant="secondary" size="sm" className="rounded-lg px-3.5 py-2 text-[13px]" onClick={handleOpenImport} leadingIcon={<Upload className="h-3.5 w-3.5" />}>
+              <Button variant="secondary" size="sm" className="rounded-lg px-3.5 py-1.5 text-[12px]" onClick={handleOpenImport} leadingIcon={<Upload className="h-3.5 w-3.5" />}>
                 导入技能
               </Button>
               {isAdmin ? (
                 <Button
                   variant={adminMode ? 'primary' : 'secondary'}
                   size="sm"
-                  className="rounded-lg px-3.5 py-2 text-[13px]"
+                  className="rounded-lg px-3.5 py-1.5 text-[12px]"
                   onClick={() => {
                     setAdminMode((current) => {
                       const next = !current;
@@ -720,7 +723,7 @@ export function SkillStoreView({
               <Button
                 variant="secondary"
                 size="sm"
-                className="rounded-lg px-3.5 py-2 text-[13px]"
+                className="rounded-lg px-3.5 py-1.5 text-[12px]"
                 onClick={() => {
                   void refreshCatalog({ preferAdmin: adminMode }).catch(() => {
                     setError('下载安装失败');
@@ -734,7 +737,7 @@ export function SkillStoreView({
             }
           />
 
-          <div className="mb-5">
+          <div className="mb-4">
             <div className="relative">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[var(--text-muted)]" />
               <input
@@ -742,13 +745,13 @@ export function SkillStoreView({
                 placeholder="搜索技能名称或描述..."
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] py-3 pl-11 pr-4 text-[14px] text-[var(--text-primary)] outline-none transition-all placeholder:text-[var(--text-muted)] focus:border-[rgba(201,169,97,0.24)] focus:ring-2 dark:bg-[rgba(255,255,255,0.03)]"
+                className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] py-2.5 pl-11 pr-4 text-[12px] text-[var(--text-primary)] outline-none transition-all placeholder:text-[var(--text-muted)] focus:border-[rgba(201,169,97,0.24)] focus:ring-2 dark:bg-[rgba(255,255,255,0.03)]"
                 style={{ ['--tw-ring-color' as string]: 'rgba(201,169,97,0.12)' }}
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
             <MetricCard
               label="技能总数"
               value={totalCount}
@@ -787,8 +790,8 @@ export function SkillStoreView({
           </div>
         </div>
 
-        <div className="mb-6 space-y-5">
-          <div className="flex items-center gap-2 border-b border-[var(--border-default)] pb-4">
+        <div className="mb-5 space-y-4">
+          <div className="flex items-center gap-2 border-b border-[var(--border-default)] pb-3">
             <SegmentedTabs
               items={storeTabs.map((tab) => ({
                 id: tab.id,
@@ -806,8 +809,8 @@ export function SkillStoreView({
           </div>
 
           <div>
-            <div className="mb-2.5 text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">分类与策展</div>
-            <div className="flex flex-wrap gap-2">
+            <div className="mb-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">分类与策展</div>
+            <div className="flex flex-wrap gap-1.5">
               <FilterPill active={featuredOnly} onClick={() => setFeaturedOnly((current) => !current)}>
                 <span className="inline-flex items-center gap-1.5">
                   <Sparkles className="h-3.5 w-3.5" />
@@ -824,8 +827,8 @@ export function SkillStoreView({
 
           {availableQuickTags.length ? (
             <div>
-              <div className="mb-2.5 text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">标签筛选</div>
-              <div className="flex flex-wrap gap-2">
+              <div className="mb-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">标签筛选</div>
+              <div className="flex flex-wrap gap-1.5">
                 {availableQuickTags.map((tag) => {
                   const active = activeTags.includes(tag);
                   return (
@@ -859,8 +862,8 @@ export function SkillStoreView({
           ) : null}
 
           <div>
-            <div className="mb-2.5 text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">安装状态</div>
-            <div className="flex flex-wrap gap-2">
+            <div className="mb-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">安装状态</div>
+            <div className="flex flex-wrap gap-1.5">
               {installFilters.map((filter) => (
                 <FilterPill key={filter.id} active={activeInstallFilter === filter.id} onClick={() => setActiveInstallFilter(filter.id)}>
                   {filter.label}

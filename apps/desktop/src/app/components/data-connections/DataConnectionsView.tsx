@@ -202,14 +202,17 @@ export function DataConnectionsView() {
 
   return (
     <PageSurface as="div">
-      <PageContent>
+      <PageContent className="py-5">
         <PageHeader
-          eyebrow="Data Connections"
           title="数据连接中心"
           description="统一管理 iClaw 的金融数据能力封装层，按市场、状态和能力类型快速筛选可用数据接口。"
+          className="gap-2.5"
+          contentClassName="space-y-1"
+          titleClassName="mt-0 text-[24px] font-semibold tracking-[-0.045em]"
+          descriptionClassName="mt-0 text-[12px] leading-5"
         />
 
-        <SurfacePanel tone="subtle" className="mt-5 rounded-[28px] p-2">
+        <SurfacePanel tone="subtle" className="mt-3 rounded-[20px] p-1.5">
           <div className="flex flex-wrap gap-y-2">
             <SummaryMetricItem
               first
@@ -218,6 +221,7 @@ export function DataConnectionsView() {
               label="能力"
               value={String(allCapabilities.length)}
               note="统一收口到可复用的数据能力层"
+              className="px-2 py-1"
             />
             <SummaryMetricItem
               tone="success"
@@ -225,6 +229,7 @@ export function DataConnectionsView() {
               label="已支持"
               value={String(supportedCount)}
               note="当前已经接通并可直接调用"
+              className="px-2 py-1"
             />
             <SummaryMetricItem
               tone="neutral"
@@ -232,6 +237,7 @@ export function DataConnectionsView() {
               label="市场"
               value={String(marketOptions.length - 1)}
               note="覆盖股票、宏观、ETF、加密等类型"
+              className="px-2 py-1"
             />
             <SummaryMetricItem
               tone={plannedCount > 0 ? 'warning' : 'neutral'}
@@ -239,13 +245,14 @@ export function DataConnectionsView() {
               label="类别"
               value={String(capabilityGroups.length)}
               note={plannedCount > 0 ? `另有 ${plannedCount} 项规划中能力` : '已按业务能力物理归类'}
+              className="px-2 py-1"
             />
           </div>
         </SurfacePanel>
 
-        <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.9fr)]">
-          <SurfacePanel className="rounded-[28px] p-5">
-            <div className="flex flex-col gap-4">
+        <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.9fr)]">
+          <SurfacePanel className="rounded-[20px] p-4">
+            <div className="flex flex-col gap-3">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
                 <input
@@ -253,20 +260,21 @@ export function DataConnectionsView() {
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder='搜索能力，例如“实时行情”、“财务报表”、“经济日历”'
-                  className="h-11 w-full rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-card)] pl-11 pr-4 text-[14px] text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]"
+                  className="h-10 w-full rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-card)] pl-11 pr-4 text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]"
                 />
               </div>
 
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
                   市场过滤
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="mt-2 flex flex-wrap gap-1.5">
                   {marketOptions.map((market) => (
                     <FilterPill
                       key={market}
                       active={selectedMarkets.includes(market)}
                       onClick={() => handleMarketToggle(market)}
+                      className="px-2.5 py-1 text-[11px]"
                     >
                       {market}
                     </FilterPill>
@@ -275,15 +283,16 @@ export function DataConnectionsView() {
               </div>
 
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
                   状态过滤
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="mt-2 flex flex-wrap gap-1.5">
                   {STATUS_FILTERS.map((status) => (
                     <FilterPill
                       key={status}
                       active={selectedStatus === status}
                       onClick={() => setSelectedStatus(status)}
+                      className="px-2.5 py-1 text-[11px]"
                     >
                       {status}
                     </FilterPill>
@@ -293,7 +302,7 @@ export function DataConnectionsView() {
             </div>
           </SurfacePanel>
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
             <StatCard
               icon={<Sparkles className="h-5 w-5" />}
               label="筛选结果"

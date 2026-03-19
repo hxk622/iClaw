@@ -95,14 +95,17 @@ export function SecurityCenterView() {
 
   return (
     <PageSurface as="div">
-      <PageContent>
+      <PageContent className="py-5">
         <PageHeader
-          eyebrow="Security Center"
           title="安全中心"
           description="统一管理 iClaw 的运行时防护、技能审计和访问控制策略，让安全模块和其它管理页面遵循同一套页面壳与交互规范。"
+          className="gap-2.5"
+          contentClassName="space-y-1"
+          titleClassName="mt-0 text-[24px] font-semibold tracking-[-0.045em]"
+          descriptionClassName="mt-0 text-[12px] leading-5"
         />
 
-        <SurfacePanel tone="subtle" className="mt-5 rounded-[28px] p-2">
+        <SurfacePanel tone="subtle" className="mt-3 rounded-[20px] p-1.5">
           <div className="flex flex-wrap gap-y-2">
             <SummaryMetricItem
               first
@@ -111,6 +114,7 @@ export function SecurityCenterView() {
               label="主防线"
               value={protectionEnabled ? '开启' : '关闭'}
               note="一键实时防护统一控制整体策略"
+              className="px-2 py-1"
             />
             <SummaryMetricItem
               tone="brand"
@@ -118,6 +122,7 @@ export function SecurityCenterView() {
               label="启用模块"
               value={`${enabledFeatureCount}/${SECURITY_FEATURES.length}`}
               note="核心检测模块状态一眼可见"
+              className="px-2 py-1"
             />
             <SummaryMetricItem
               tone={disabledFeatureCount > 0 ? 'warning' : 'neutral'}
@@ -125,6 +130,7 @@ export function SecurityCenterView() {
               label="待关注"
               value={disabledFeatureCount > 0 ? String(disabledFeatureCount) : '0'}
               note={disabledFeatureCount > 0 ? '存在关闭中的模块' : '所有模块均处于工作态'}
+              className="px-2 py-1"
             />
             <SummaryMetricItem
               tone="neutral"
@@ -132,11 +138,12 @@ export function SecurityCenterView() {
               label="策略模式"
               value="统一"
               note="安全策略与桌面端页面规范已统一收口"
+              className="px-2 py-1"
             />
           </div>
         </SurfacePanel>
 
-        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <StatCard
             icon={<Shield className="h-5 w-5" />}
             label="实时防护"
@@ -172,7 +179,7 @@ export function SecurityCenterView() {
           />
         </div>
 
-        <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-12">
+        <div className="mt-3 grid grid-cols-1 gap-4 xl:grid-cols-12">
           <div className="xl:col-span-5">
             <SecurityHeroCard
               enabled={enabledState.hero}
@@ -180,7 +187,7 @@ export function SecurityCenterView() {
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:col-span-7">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:col-span-7">
             {SECURITY_FEATURES.slice(0, 4).map((feature) => (
               <SecurityFeatureCard
                 key={feature.id}
@@ -203,8 +210,8 @@ export function SecurityCenterView() {
           </div>
         </div>
 
-        <SurfacePanel className="mt-5 rounded-[28px] p-6">
-          <div className="grid gap-5 lg:grid-cols-3">
+        <SurfacePanel className="mt-4 rounded-[24px] p-5">
+          <div className="grid gap-4 lg:grid-cols-3">
             <PolicyBlock
               title="默认策略"
               description="所有可交互模块统一走共享 hover、focus 与按钮视觉，不再在业务页分叉实现。"

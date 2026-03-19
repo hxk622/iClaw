@@ -1004,11 +1004,15 @@ export function OpenClawCronSurface({
 
   return (
     <PageSurface as="div">
-      <PageContent className="flex min-h-full flex-col">
+      <PageContent className="flex min-h-full flex-col py-5">
         <PageHeader
-          eyebrow="Automation"
           title="定时任务中心"
           description="基础模式继续负责高频创建与管理，高级模式保留 OpenClaw 原生面板。两种模式现在统一挂在同一套页面壳和交互规范下。"
+          className="gap-2.5"
+          contentClassName="space-y-1"
+          titleClassName="mt-0 text-[24px] font-semibold tracking-[-0.045em]"
+          descriptionClassName="mt-0 text-[12px] leading-5"
+          actionsClassName="gap-2"
           actions={
             <>
               <Button
@@ -1017,6 +1021,7 @@ export function OpenClawCronSurface({
                 leadingIcon={<RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />}
                 onClick={() => void loadSnapshot()}
                 disabled={loading || !clientReady}
+                className="px-3.5 py-1.5 text-[12px]"
               >
                 刷新
               </Button>
@@ -1025,6 +1030,7 @@ export function OpenClawCronSurface({
                 size="sm"
                 leadingIcon={mode === 'advanced' ? <Repeat className="h-4 w-4" /> : <Settings2 className="h-4 w-4" />}
                 onClick={() => setMode((current) => (current === 'basic' ? 'advanced' : 'basic'))}
+                className="px-3.5 py-1.5 text-[12px]"
               >
                 {mode === 'advanced' ? '返回基础模式' : '高级模式'}
               </Button>
@@ -1034,6 +1040,7 @@ export function OpenClawCronSurface({
                 leadingIcon={<Plus className="h-4 w-4" />}
                 onClick={() => openCreate('reminder')}
                 disabled={!clientReady}
+                className="px-3.5 py-1.5 text-[12px]"
               >
                 新建任务
               </Button>
@@ -1041,7 +1048,7 @@ export function OpenClawCronSurface({
           }
         />
 
-        <SurfacePanel tone="subtle" className="mt-5 rounded-[28px] p-2">
+        <SurfacePanel tone="subtle" className="mt-3 rounded-[20px] p-1.5">
           <div className="flex flex-wrap gap-y-2">
             <SummaryMetricItem
               first
@@ -1050,6 +1057,7 @@ export function OpenClawCronSurface({
               label="调度"
               value={cronStatus?.enabled === false ? '关闭' : '正常'}
               note={`运行中 ${jobs.filter((job) => job.enabled).length} 个任务`}
+              className="px-2 py-1"
             />
             <SummaryMetricItem
               tone="brand"
@@ -1057,6 +1065,7 @@ export function OpenClawCronSurface({
               label="任务"
               value={String(cronStatus?.jobs ?? jobs.length)}
               note={`基础模式可直接编辑 ${basicJobs.length} 个`}
+              className="px-2 py-1"
             />
             <SummaryMetricItem
               tone="neutral"
@@ -1064,6 +1073,7 @@ export function OpenClawCronSurface({
               label="下次执行"
               value={formatRelative(cronStatus?.nextWakeAtMs)}
               note={jobs.find((job) => job.enabled)?.name ?? formatTimestamp(cronStatus?.nextWakeAtMs)}
+              className="px-2 py-1"
             />
             <SummaryMetricItem
               tone="warning"
@@ -1071,6 +1081,7 @@ export function OpenClawCronSurface({
               label="当前模式"
               value={mode === 'advanced' ? '高级' : '基础'}
               note={mode === 'advanced' ? '保留 OpenClaw 原生任务面板' : '适合高频创建和管理'}
+              className="px-2 py-1"
             />
           </div>
         </SurfacePanel>

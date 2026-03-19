@@ -737,12 +737,15 @@ export function IMBotsView({ client }: { client: IClawClient }) {
 
   return (
     <PageSurface as="div" className="bg-[var(--bg-page)]">
-      <PageContent>
+      <PageContent className="py-5">
         <PageHeader
-          className="mb-6"
-          eyebrow="IM Bots"
+          className="mb-4 gap-2.5"
           title="IM机器人"
           description="将 OpenClaw 接入企业常用办公 IM，并统一管理机器人状态。这个视图区现在不只是接入入口，也包含机器人详情、测试与默认助手绑定。"
+          contentClassName="space-y-1"
+          titleClassName="mt-0 text-[24px] font-semibold tracking-[-0.045em]"
+          descriptionClassName="mt-0 text-[12px] leading-5"
+          actionsClassName="gap-2"
           actions={
             <>
             <Button
@@ -750,6 +753,7 @@ export function IMBotsView({ client }: { client: IClawClient }) {
               size="sm"
               leadingIcon={<AlertCircle className="h-4 w-4" />}
               disabled={todoItems.length === 0}
+              className="px-3.5 py-1.5 text-[12px]"
               onClick={() => {
                 if (todoItems[0]) {
                   setSelectedBotId(todoItems[0].botId);
@@ -762,6 +766,7 @@ export function IMBotsView({ client }: { client: IClawClient }) {
               variant="primary"
               size="sm"
               leadingIcon={<Link2 className="h-4 w-4" />}
+              className="px-3.5 py-1.5 text-[12px]"
               onClick={() => setSelectedPlatformId('feishu')}
             >
               新建机器人
@@ -772,7 +777,7 @@ export function IMBotsView({ client }: { client: IClawClient }) {
 
         <SummaryBar cards={summaryCards} />
 
-        <div className="mb-8 mt-6 grid grid-cols-[minmax(0,1fr)_308px] gap-5">
+        <div className="mb-6 mt-4 grid grid-cols-[minmax(0,1fr)_308px] gap-4">
           <div className="space-y-2.5">
             <div className="flex items-center justify-between gap-4">
               <div className="text-[18px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">已创建机器人</div>
@@ -807,17 +812,17 @@ export function IMBotsView({ client }: { client: IClawClient }) {
           />
         </div>
 
-        <div className="mt-10">
-          <div className="mb-5 flex items-center justify-between">
+        <div className="mt-7">
+          <div className="mb-4 flex items-center justify-between">
             <div>
               <div className="text-[18px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">平台接入</div>
-              <p className="mt-1.5 text-[13px] leading-6 text-[var(--text-secondary)]">
+              <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
                 选择您企业使用的 IM 平台，快速创建并配置机器人
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-4 gap-2.5">
             {platformMetaList.map((platform) => (
               <PlatformCard
                 key={platform.id}
@@ -865,10 +870,10 @@ function SummaryBar({
   }>;
 }) {
   return (
-    <PressableCard className="overflow-hidden rounded-[18px] border-[var(--border-default)] bg-[var(--bg-card)] px-3 py-2.5 shadow-[var(--pressable-card-rest-shadow)]">
+    <PressableCard className="overflow-hidden rounded-[18px] border-[var(--border-default)] bg-[var(--bg-card)] px-2.5 py-2 shadow-[var(--pressable-card-rest-shadow)]">
       <div className="grid grid-cols-4 gap-1">
         {cards.map((card, index) => (
-          <SummaryBarItem key={card.label} {...card} first={index === 0} />
+          <SummaryBarItem key={card.label} {...card} first={index === 0} className="px-2 py-1" />
         ))}
       </div>
     </PressableCard>
@@ -882,6 +887,7 @@ function SummaryBarItem({
   icon: Icon,
   tone,
   first,
+  className,
 }: {
   label: string;
   value: string;
@@ -889,8 +895,9 @@ function SummaryBarItem({
   icon: ComponentType<{ className?: string }>;
   tone: 'brand' | 'success' | 'warning' | 'neutral';
   first: boolean;
+  className?: string;
 }) {
-  return <SummaryMetricItem label={label} value={value} note={note} icon={Icon} tone={tone} first={first} />;
+  return <SummaryMetricItem label={label} value={value} note={note} icon={Icon} tone={tone} first={first} className={className} />;
 }
 
 function EmptyBotState({ onCreate }: { onCreate: () => void }) {

@@ -24,12 +24,14 @@ export function LobsterStoreView({
   accessToken,
   authenticated,
   currentUser,
+  onStartConversation,
   onRequestAuth,
 }: {
   client: IClawClient;
   accessToken: string | null;
   authenticated: boolean;
   currentUser: AppUserAvatarSource;
+  onStartConversation: (agent: LobsterAgent) => void;
   onRequestAuth: (mode?: 'login' | 'register', postAuthView?: 'account' | null) => void;
 }) {
   const [activeTab, setActiveTab] = useState<LobsterStoreTab>('shop');
@@ -73,6 +75,10 @@ export function LobsterStoreView({
     }
     return agents.filter((agent) => agent.category === activeFilter);
   }, [activeFilter, agents, featuredAgents]);
+  const shelfAgents = useMemo(
+    () => (activeFilter === 'all' ? filteredAgents.filter((agent) => !agent.featured) : filteredAgents),
+    [activeFilter, filteredAgents],
+  );
 
   const filters: Array<{
     id: 'all' | 'featured' | LobsterStoreCategory;
@@ -133,26 +139,29 @@ export function LobsterStoreView({
 
   return (
     <PageSurface as="div" className="bg-[var(--lobster-page-bg)]">
-      <PageContent className="max-w-[1480px] py-7">
+      <PageContent className="max-w-none px-5 py-5 lg:px-6 2xl:px-8">
         <PageHeader
-          eyebrow="Lobster Store"
+          className="gap-2.5"
           title="龙虾商店"
           description={`你的专属 AI 助手库。精选 Agent 一键装配，即刻开工。${currentUser ? ' 已登录后可将预设助手加入“我的龙虾”。' : ''}`}
-          eyebrowClassName="text-[var(--lobster-gold-strong)]"
-          titleClassName="text-[var(--lobster-text-primary)]"
-          descriptionClassName="text-[var(--lobster-text-secondary)]"
-          actions={<LobsterStoreTabs activeTab={activeTab} installedCount={installedAgents.length} onChange={setActiveTab} />}
+          contentClassName="space-y-1"
+          titleClassName="mt-0 text-[24px] font-semibold tracking-[-0.045em] text-[var(--lobster-text-primary)]"
+          descriptionClassName="mt-0 text-[12px] leading-5 text-[var(--lobster-text-secondary)]"
         />
 
+        <div className="mt-3 border-b border-[var(--lobster-border)] pb-3">
+          <LobsterStoreTabs activeTab={activeTab} installedCount={installedAgents.length} onChange={setActiveTab} />
+        </div>
+
         {error ? (
-          <div className="mt-5 flex items-start gap-3 rounded-[18px] border border-[var(--lobster-danger-border)] bg-[var(--lobster-danger-soft)] px-4 py-3 text-[13px] leading-6 text-[var(--lobster-danger-text)]">
+          <div className="mt-4 flex items-start gap-3 rounded-[18px] border border-[var(--lobster-danger-border)] bg-[var(--lobster-danger-soft)] px-4 py-3 text-[13px] leading-6 text-[var(--lobster-danger-text)]">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <span>{error}</span>
           </div>
         ) : null}
 
         {loading ? (
-          <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
             {Array.from({ length: 6 }).map((_, index) => (
               <div
                 key={index}
@@ -161,8 +170,8 @@ export function LobsterStoreView({
             ))}
           </div>
         ) : activeTab === 'shop' ? (
-          <div className="mt-5">
-            <div className="rounded-[22px] border border-[var(--lobster-border)] bg-[var(--lobster-card-bg)] px-4 py-4">
+          <div className="mt-4">
+            <div className="rounded-[22px] border border-[var(--lobster-border)] bg-[var(--lobster-card-bg)] px-4 py-3.5">
               <div className="flex flex-col gap-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -191,20 +200,59 @@ export function LobsterStoreView({
               </div>
             </div>
 
-            {filteredAgents.length > 0 ? (
-              <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                {filteredAgents.map((agent) => (
-                  <LobsterAgentCard
-                    key={agent.slug}
-                    agent={agent}
-                    installBusy={installBusySlug === agent.slug}
-                    onOpenDetail={(nextAgent) => setDetailSlug(nextAgent.slug)}
-                    onInstall={handleInstall}
-                  />
-                ))}
-              </div>
+            {activeFilter === 'all' && featuredAgents.length > 0 ? (
+              <section className="mt-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[16px] font-semibold text-[var(--lobster-text-primary)]">官方精选</div>
+                    <div className="mt-1 text-[12px] leading-5 text-[var(--lobster-text-secondary)]">
+                      优先推荐的预设助手，适合直接安装上手。
+                    </div>
+                  </div>
+                  <Chip tone="accent" leadingIcon={<Sparkles className="h-3 w-3" />} className="px-2.5 py-1 text-[11px]">
+                    {featuredAgents.length} 个精选
+                  </Chip>
+                </div>
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
+                  {featuredAgents.map((agent) => (
+                    <LobsterAgentCard
+                      key={`featured-${agent.slug}`}
+                      agent={agent}
+                      installBusy={installBusySlug === agent.slug}
+                      onOpenDetail={(nextAgent) => setDetailSlug(nextAgent.slug)}
+                      onInstall={handleInstall}
+                    />
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {shelfAgents.length > 0 ? (
+              <section className="mt-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="text-[16px] font-semibold text-[var(--lobster-text-primary)]">
+                    {activeFilter === 'featured'
+                      ? '官方精选'
+                      : activeFilter === 'all'
+                        ? '全部助手'
+                        : filters.find((filter) => filter.id === activeFilter)?.label || '助手列表'}
+                  </div>
+                  <div className="text-[12px] text-[var(--lobster-text-muted)]">{shelfAgents.length} 个结果</div>
+                </div>
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
+                  {shelfAgents.map((agent) => (
+                    <LobsterAgentCard
+                      key={agent.slug}
+                      agent={agent}
+                      installBusy={installBusySlug === agent.slug}
+                      onOpenDetail={(nextAgent) => setDetailSlug(nextAgent.slug)}
+                      onInstall={handleInstall}
+                    />
+                  ))}
+                </div>
+              </section>
             ) : (
-              <div className="mt-5 flex min-h-[220px] items-center justify-center rounded-[24px] border border-dashed border-[var(--lobster-border)] bg-[var(--lobster-card-bg)] px-6 text-center">
+              <div className="mt-4 flex min-h-[220px] items-center justify-center rounded-[24px] border border-dashed border-[var(--lobster-border)] bg-[var(--lobster-card-bg)] px-6 text-center">
                 <div>
                   <div className="text-[16px] font-medium text-[var(--lobster-text-primary)]">当前筛选下暂无助手</div>
                   <div className="mt-2 text-[13px] leading-6 text-[var(--lobster-text-secondary)]">
@@ -215,11 +263,12 @@ export function LobsterStoreView({
             )}
           </div>
         ) : (
-          <div className="mt-5">
+          <div className="mt-4">
             <MyLobsterView
               agents={installedAgents}
               removeBusySlug={removeBusySlug}
               onOpenDetail={(nextAgent) => setDetailSlug(nextAgent.slug)}
+              onStartConversation={onStartConversation}
               onRemove={handleRemove}
             />
           </div>
