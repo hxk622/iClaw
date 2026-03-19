@@ -17,4 +17,4 @@ username: admin
 password: admin
 ```
 
-This is a frontend-only seed. Production auth should move to the control-plane with tenant-aware RBAC and audit logs.
+This app now uses the control-plane auth and OEM APIs. The bootstrap `admin / admin` account is auto-created by the control-plane on startup unless disabled by env.

@@ -3,31 +3,80 @@ import { HOME_BRAND } from './brand.generated.js';
 
 const ENV_NAME = import.meta.env.PROD ? 'prod' : 'dev';
 const ENV_LABEL = ENV_NAME === 'prod' ? 'PROD' : 'DEV';
+const CONTROL_PLANE_BASE_URL = ((import.meta.env.VITE_AUTH_BASE_URL || 'http://127.0.0.1:2130') + '')
+  .trim()
+  .replace(/\/+$/, '');
+
+function asObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function deepMerge(...items) {
+  const result = {};
+  for (const item of items) {
+    const source = asObject(item);
+    for (const [key, value] of Object.entries(source)) {
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        result[key] = deepMerge(result[key], value);
+      } else {
+        result[key] = value;
+      }
+    }
+  }
+  return result;
+}
+
+function mergeRuntimeBrand(base, payload) {
+  if (!payload || !payload.config) {
+    return base;
+  }
+
+  const surfaceConfig = asObject(payload.surfaceConfig);
+  return {
+    ...base,
+    displayName: payload.brand?.displayName || base.displayName,
+    website: {
+      ...base.website,
+      ...asObject(payload.config.website),
+      ...asObject(surfaceConfig.website),
+    },
+    assets: {
+      ...base.assets,
+      ...asObject(payload.config.assets),
+      ...asObject(surfaceConfig.assets),
+    },
+    distribution: deepMerge(base.distribution, asObject(payload.config.distribution), asObject(surfaceConfig.distribution)),
+    release: {
+      ...base.release,
+      publishedVersion: payload.publishedVersion || base.release.publishedVersion || 0,
+    },
+  };
+}
 
 function normalizeBaseUrl(value) {
   return typeof value === 'string' ? value.trim().replace(/\/+$/, '') : '';
 }
 
-function buildDownloadHref(arch) {
-  const baseUrl = normalizeBaseUrl(HOME_BRAND.distribution.downloads?.[ENV_NAME]?.publicBaseUrl);
+function buildDownloadHref(runtimeBrand, arch) {
+  const baseUrl = normalizeBaseUrl(runtimeBrand.distribution.downloads?.[ENV_NAME]?.publicBaseUrl);
   if (!baseUrl) {
     return '';
   }
-  return `${baseUrl}/${HOME_BRAND.release.artifactBaseName}_${HOME_BRAND.release.version}_${arch}_${ENV_NAME}.dmg`;
+  return `${baseUrl}/${runtimeBrand.release.artifactBaseName}_${runtimeBrand.release.version}_${arch}_${ENV_NAME}.dmg`;
 }
 
-function buildDownloads() {
+function buildDownloads(runtimeBrand) {
   return [
     {
       title: ENV_NAME === 'prod' ? 'Mac Apple Silicon' : 'Mac Apple Silicon (dev)',
-      href: buildDownloadHref('aarch64'),
+      href: buildDownloadHref(runtimeBrand, 'aarch64'),
       note: ENV_NAME === 'prod' ? 'M 系列芯片 · 正式版' : 'M 系列芯片 · 开发版',
       icon: '⬢',
       tone: 'cyan',
     },
     {
       title: ENV_NAME === 'prod' ? 'Mac Intel' : 'Mac Intel (dev)',
-      href: buildDownloadHref('x64'),
+      href: buildDownloadHref(runtimeBrand, 'x64'),
       note: ENV_NAME === 'prod' ? 'Intel 芯片 · 正式版' : 'Intel 芯片 · 开发版',
       icon: '◆',
       tone: 'violet',
@@ -58,134 +107,162 @@ function setImage(id, src, alt) {
   }
 }
 
-document.title = HOME_BRAND.website.homeTitle;
+function wireDownloadCards(downloadCards) {
+  for (const card of downloadCards) {
+    let tx = 0;
+    let ty = 0;
+    let cx = 0;
+    let cy = 0;
+    let raf = 0;
 
-const descriptionMeta = document.querySelector('meta[name="description"]');
-if (descriptionMeta) {
-  descriptionMeta.setAttribute('content', HOME_BRAND.website.metaDescription);
-}
+    const tick = () => {
+      cx += (tx - cx) * 0.18;
+      cy += (ty - cy) * 0.18;
+      card.style.transform = `translate3d(${cx}px, ${cy}px, 0) scale(1)`;
+      if (Math.abs(tx - cx) > 0.08 || Math.abs(ty - cy) > 0.08) {
+        raf = requestAnimationFrame(tick);
+      } else {
+        raf = 0;
+      }
+    };
 
-const favicon = document.getElementById('site-favicon');
-if (favicon instanceof HTMLLinkElement) {
-  favicon.href = HOME_BRAND.assets.faviconPngSrc;
-}
+    const queue = () => {
+      if (!raf) raf = requestAnimationFrame(tick);
+    };
 
-const appleTouchIcon = document.getElementById('site-apple-touch-icon');
-if (appleTouchIcon instanceof HTMLLinkElement) {
-  appleTouchIcon.href = HOME_BRAND.assets.appleTouchIconSrc;
-}
+    card.addEventListener('pointermove', (event) => {
+      const rect = card.getBoundingClientRect();
+      const nx = (event.clientX - rect.left) / rect.width - 0.5;
+      const ny = (event.clientY - rect.top) / rect.height - 0.5;
+      tx = nx * 10;
+      ty = ny * 7;
+      queue();
+    });
 
-setText('brand-label', HOME_BRAND.website.brandLabel);
-setText('top-cta', HOME_BRAND.website.topCtaLabel);
-setText('hero-kicker', HOME_BRAND.website.kicker);
-setText('hero-title-pre', HOME_BRAND.website.heroTitlePre);
-setText('hero-title-main', HOME_BRAND.website.heroTitleMain);
-setText('hero-description', HOME_BRAND.website.heroDescription);
-setText('scroll-label', HOME_BRAND.website.scrollLabel);
-setText('downloads-title', HOME_BRAND.website.downloadTitle);
-
-setImage('brand-logo', HOME_BRAND.assets.logoSrc, HOME_BRAND.assets.logoAlt);
-setImage('hero-art', HOME_BRAND.assets.heroArtSrc, `${HOME_BRAND.displayName} hero artwork`);
-setImage('hero-layer-1', HOME_BRAND.assets.heroLayer1Src, `${HOME_BRAND.displayName} visual layer one`);
-setImage('hero-photo', HOME_BRAND.assets.heroPhotoSrc, `${HOME_BRAND.displayName} product visual`);
-
-const envPill = document.querySelector('#env-pill');
-const grid = document.querySelector('#downloads-grid');
-
-if (!envPill || !grid) {
-  throw new Error('Download page mount failed');
-}
-
-envPill.textContent = `当前环境：${ENV_LABEL}`;
-
-for (const item of buildDownloads()) {
-  const card = document.createElement('article');
-  card.className = `download-card tone-${item.tone}`;
-
-  const icon = document.createElement('div');
-  icon.className = 'platform-icon';
-  icon.textContent = item.icon;
-
-  const title = document.createElement('h3');
-  title.textContent = item.title;
-
-  const note = document.createElement('p');
-  note.className = 'note';
-  note.textContent = item.note;
-
-  const action = document.createElement(item.status === 'ready' ? 'a' : 'button');
-  action.className = `action ${item.status === 'ready' ? 'ready' : 'soon'}`;
-
-  if (item.status === 'ready') {
-    action.textContent = '立即下载';
-    action.href = item.href;
-    action.target = '_blank';
-    action.rel = 'noreferrer';
-  } else {
-    action.textContent = '敬请期待';
-    action.disabled = true;
+    card.addEventListener('pointerleave', () => {
+      tx = 0;
+      ty = 0;
+      queue();
+    });
   }
 
-  card.append(icon, title, note, action);
-  grid.append(card);
+  const io = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const el = entry.target;
+        el.classList.add('is-visible');
+        io.unobserve(el);
+      }
+    },
+    {threshold: 0.2},
+  );
+
+  downloadCards.forEach((card, idx) => {
+    card.style.transitionDelay = `${idx * 70}ms`;
+    io.observe(card);
+  });
 }
 
-const downloadCards = Array.from(document.querySelectorAll('.download-card'));
+function applyBrand(runtimeBrand) {
+  document.title = runtimeBrand.website.homeTitle;
 
-for (const card of downloadCards) {
-  let tx = 0;
-  let ty = 0;
-  let cx = 0;
-  let cy = 0;
-  let raf = 0;
+  const descriptionMeta = document.querySelector('meta[name="description"]');
+  if (descriptionMeta) {
+    descriptionMeta.setAttribute('content', runtimeBrand.website.metaDescription);
+  }
 
-  const tick = () => {
-    cx += (tx - cx) * 0.18;
-    cy += (ty - cy) * 0.18;
-    card.style.transform = `translate3d(${cx}px, ${cy}px, 0) scale(1)`;
-    if (Math.abs(tx - cx) > 0.08 || Math.abs(ty - cy) > 0.08) {
-      raf = requestAnimationFrame(tick);
+  const favicon = document.getElementById('site-favicon');
+  if (favicon instanceof HTMLLinkElement) {
+    favicon.href = runtimeBrand.assets.faviconPngSrc;
+  }
+
+  const appleTouchIcon = document.getElementById('site-apple-touch-icon');
+  if (appleTouchIcon instanceof HTMLLinkElement) {
+    appleTouchIcon.href = runtimeBrand.assets.appleTouchIconSrc;
+  }
+
+  setText('brand-label', runtimeBrand.website.brandLabel);
+  setText('top-cta', runtimeBrand.website.topCtaLabel);
+  setText('hero-kicker', runtimeBrand.website.kicker);
+  setText('hero-title-pre', runtimeBrand.website.heroTitlePre);
+  setText('hero-title-main', runtimeBrand.website.heroTitleMain);
+  setText('hero-description', runtimeBrand.website.heroDescription);
+  setText('scroll-label', runtimeBrand.website.scrollLabel);
+  setText('downloads-title', runtimeBrand.website.downloadTitle);
+
+  setImage('brand-logo', runtimeBrand.assets.logoSrc, runtimeBrand.assets.logoAlt);
+  setImage('hero-art', runtimeBrand.assets.heroArtSrc, `${runtimeBrand.displayName} hero artwork`);
+  setImage('hero-layer-1', runtimeBrand.assets.heroLayer1Src, `${runtimeBrand.displayName} visual layer one`);
+  setImage('hero-photo', runtimeBrand.assets.heroPhotoSrc, `${runtimeBrand.displayName} product visual`);
+
+  const envPill = document.querySelector('#env-pill');
+  const grid = document.querySelector('#downloads-grid');
+
+  if (!envPill || !grid) {
+    throw new Error('Download page mount failed');
+  }
+
+  envPill.textContent = `当前环境：${ENV_LABEL}`;
+  grid.replaceChildren();
+
+  for (const item of buildDownloads(runtimeBrand)) {
+    const card = document.createElement('article');
+    card.className = `download-card tone-${item.tone}`;
+
+    const icon = document.createElement('div');
+    icon.className = 'platform-icon';
+    icon.textContent = item.icon;
+
+    const title = document.createElement('h3');
+    title.textContent = item.title;
+
+    const note = document.createElement('p');
+    note.className = 'note';
+    note.textContent = item.note;
+
+    const action = document.createElement(item.status === 'ready' ? 'a' : 'button');
+    action.className = `action ${item.status === 'ready' ? 'ready' : 'soon'}`;
+
+    if (item.status === 'ready') {
+      action.textContent = '立即下载';
+      action.href = item.href;
+      action.target = '_blank';
+      action.rel = 'noreferrer';
     } else {
-      raf = 0;
+      action.textContent = '敬请期待';
+      action.disabled = true;
     }
-  };
 
-  const queue = () => {
-    if (!raf) raf = requestAnimationFrame(tick);
-  };
+    card.append(icon, title, note, action);
+    grid.append(card);
+  }
 
-  card.addEventListener('pointermove', (event) => {
-    const rect = card.getBoundingClientRect();
-    const nx = (event.clientX - rect.left) / rect.width - 0.5;
-    const ny = (event.clientY - rect.top) / rect.height - 0.5;
-    tx = nx * 10;
-    ty = ny * 7;
-    queue();
-  });
-
-  card.addEventListener('pointerleave', () => {
-    tx = 0;
-    ty = 0;
-    queue();
-  });
+  wireDownloadCards(Array.from(document.querySelectorAll('.download-card')));
 }
 
-const io = new IntersectionObserver(
-  (entries) => {
-    for (const entry of entries) {
-      if (!entry.isIntersecting) continue;
-      const el = entry.target;
-      el.classList.add('is-visible');
-      io.unobserve(el);
+async function loadPublishedConfig() {
+  try {
+    const response = await fetch(
+      `${CONTROL_PLANE_BASE_URL}/oem/public-config?brand_id=${encodeURIComponent(HOME_BRAND.brandId)}&surface_key=home-web`,
+      {
+        headers: {
+          Accept: 'application/json',
+        },
+      },
+    );
+    if (!response.ok) {
+      return HOME_BRAND;
     }
-  },
-  { threshold: 0.2 },
-);
-
-downloadCards.forEach((card, idx) => {
-  card.style.transitionDelay = `${idx * 70}ms`;
-  io.observe(card);
-});
+    const payload = await response.json();
+    if (!payload?.success) {
+      return HOME_BRAND;
+    }
+    return mergeRuntimeBrand(HOME_BRAND, payload.data);
+  } catch {
+    return HOME_BRAND;
+  }
+}
 
 const hero = document.querySelector('.hero');
 const layers = Array.from(document.querySelectorAll('.spring-layer'));
@@ -257,3 +334,7 @@ if (hero && layers.length > 0) {
     queue();
   });
 }
+
+loadPublishedConfig().then((runtimeBrand) => {
+  applyBrand(runtimeBrand);
+});

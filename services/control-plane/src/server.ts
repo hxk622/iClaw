@@ -5,6 +5,7 @@ import {fileURLToPath} from 'node:url';
 
 import { downloadAvatar } from './avatar-storage.ts';
 import {downloadPrivateSkillArtifact} from './skill-storage.ts';
+import {ensureBootstrapAdmin, ensureSeedOemBrands} from './bootstrap.ts';
 import {CachedControlPlaneStore} from './cached-store.ts';
 import {config} from './config.ts';
 import type {
@@ -23,6 +24,8 @@ import type {
 } from './domain.ts';
 import {HttpError} from './errors.ts';
 import {createJsonServer, createRawResponse, type HandlerContext} from './http.ts';
+import {PgOemStore} from './oem-store.ts';
+import {OemService} from './oem-service.ts';
 import {ensureControlPlaneSchema, PgControlPlaneStore} from './pg-store.ts';
 import {createRedisKeyValueCache} from './redis-cache.ts';
 import {ControlPlaneService} from './service.ts';
@@ -43,6 +46,7 @@ await ensureControlPlaneSchema(config.databaseUrl);
 
 let store: ControlPlaneStore = new PgControlPlaneStore(config.databaseUrl);
 let cacheLabel = 'none';
+const oemStore = new PgOemStore(config.databaseUrl);
 
 if (config.redisUrl) {
   try {
@@ -54,7 +58,11 @@ if (config.redisUrl) {
   }
 }
 
+await ensureBootstrapAdmin(store);
+await ensureSeedOemBrands(oemStore);
+
 const service = new ControlPlaneService(store);
+const oemService = new OemService(oemStore, async (accessToken) => service.me(accessToken));
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const skillsSourceRoot = resolve(process.env.ICLAW_SKILLS_SOURCE_DIR || resolve(repoRoot, 'skills'));
 
@@ -440,6 +448,48 @@ const server = createJsonServer([
         },
       });
     },
+  },
+  {
+    method: 'GET',
+    path: '/admin/oem/brands',
+    handler: ({headers}: HandlerContext) => oemService.listBrands(requireBearerToken(headers)),
+  },
+  {
+    method: 'GET',
+    path: '/admin/oem/brand',
+    handler: ({headers, url}: HandlerContext) =>
+      oemService.getBrand(requireBearerToken(headers), (url.searchParams.get('brand_id') || '').trim()),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/oem/brand',
+    handler: ({headers, body}: HandlerContext) =>
+      oemService.saveBrandDraft(
+        requireBearerToken(headers),
+        (body || {}) as {
+          brand_id?: string;
+          tenant_key?: string;
+          display_name?: string;
+          product_name?: string;
+          status?: 'draft' | 'published' | 'archived';
+          draft_config?: Record<string, unknown>;
+        },
+      ),
+  },
+  {
+    method: 'POST',
+    path: '/admin/oem/brand/publish',
+    handler: ({headers, body}: HandlerContext) =>
+      oemService.publishBrand(requireBearerToken(headers), (body || {}) as {brand_id?: string}),
+  },
+  {
+    method: 'GET',
+    path: '/oem/public-config',
+    handler: ({url}: HandlerContext) =>
+      oemService.getPublicBrandConfig(
+        (url.searchParams.get('brand_id') || '').trim(),
+        (url.searchParams.get('surface_key') || '').trim(),
+      ),
   },
   {
     method: 'POST',

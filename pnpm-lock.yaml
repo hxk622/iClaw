@@ -12,6 +12,12 @@ importers:
         specifier: 6.3.1
         version: 6.3.1
 
+  admin-web:
+    devDependencies:
+      vite:
+        specifier: ^6.4.1
+        version: 6.4.1(@types/node@24.12.0)(jiti@2.6.1)(lightningcss@1.31.1)
+
   apps/desktop:
     dependencies:
       '@iclaw/sdk':
@@ -70,7 +76,7 @@ importers:
         specifier: ^6.3.5
         version: 6.4.1(@types/node@24.12.0)(jiti@2.6.1)(lightningcss@1.31.1)
 
-  home:
+  home-web:
     devDependencies:
       vite:
         specifier: ^6.4.1

@@ -14,6 +14,12 @@ const DEFAULT_RUN_GRANT_CREDIT_LIMIT = 300;
 const DEFAULT_CREDIT_COST_INPUT_PER_1K = 1;
 const DEFAULT_CREDIT_COST_OUTPUT_PER_1K = 2;
 const LOCAL_ALLOWED_ORIGINS = [
+  'http://127.0.0.1:1477',
+  'http://localhost:1477',
+  'http://127.0.0.1:1479',
+  'http://localhost:1479',
+  'http://127.0.0.1:1480',
+  'http://localhost:1480',
   'http://127.0.0.1:1520',
   'http://localhost:1520',
   'https://tauri.localhost',
@@ -138,7 +144,9 @@ function loadBrandDefaults() {
     serviceName: raw.controlPlane?.serviceName?.trim() || `${brandId}-control-plane`,
     s3Bucket: raw.controlPlane?.s3Bucket?.trim() || `${brandId}-files`,
     redisKeyPrefix: raw.controlPlane?.redisKeyPrefix?.trim() || `${brandId}:control-plane`,
-    allowedOrigins: normalizeStringArray(raw.controlPlane?.allowedOrigins, LOCAL_ALLOWED_ORIGINS),
+    allowedOrigins: Array.from(
+      new Set([...LOCAL_ALLOWED_ORIGINS, ...normalizeStringArray(raw.controlPlane?.allowedOrigins, LOCAL_ALLOWED_ORIGINS)]),
+    ),
     distribution: {
       downloads: {
         devPublicBaseUrl: raw.distribution?.downloads?.dev?.publicBaseUrl?.trim() || '',
@@ -209,4 +217,16 @@ export const config = {
   creditCostOutputPer1k: readNumberEnv('CREDIT_COST_OUTPUT_PER_1K', DEFAULT_CREDIT_COST_OUTPUT_PER_1K),
   adminEmails: splitEmailCsvEnv(process.env.CONTROL_PLANE_ADMIN_EMAILS, []),
   superAdminEmails: splitEmailCsvEnv(process.env.CONTROL_PLANE_SUPER_ADMIN_EMAILS, []),
+  bootstrapAdminEnabled: !['0', 'false', 'off', 'no'].includes(
+    (process.env.CONTROL_PLANE_BOOTSTRAP_ADMIN_ENABLED || 'true').trim().toLowerCase(),
+  ),
+  bootstrapAdminUsername: (process.env.CONTROL_PLANE_BOOTSTRAP_ADMIN_USERNAME || 'admin').trim() || 'admin',
+  bootstrapAdminEmail:
+    (process.env.CONTROL_PLANE_BOOTSTRAP_ADMIN_EMAIL || 'admin@iclaw.local').trim().toLowerCase() || 'admin@iclaw.local',
+  bootstrapAdminPassword: (process.env.CONTROL_PLANE_BOOTSTRAP_ADMIN_PASSWORD || 'admin').trim() || 'admin',
+  bootstrapAdminDisplayName:
+    (process.env.CONTROL_PLANE_BOOTSTRAP_ADMIN_DISPLAY_NAME || 'OEM Admin').trim() || 'OEM Admin',
+  bootstrapAdminResetPassword: ['1', 'true', 'on', 'yes'].includes(
+    (process.env.CONTROL_PLANE_BOOTSTRAP_ADMIN_RESET_PASSWORD || '').trim().toLowerCase(),
+  ),
 };

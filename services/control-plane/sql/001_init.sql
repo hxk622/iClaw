@@ -215,6 +215,54 @@ create table if not exists user_skill_library (
 
 alter table user_skill_library add column if not exists source text not null default 'cloud';
 
+create table if not exists oem_brand_profiles (
+  brand_id text primary key,
+  tenant_key text not null,
+  display_name text not null,
+  product_name text not null,
+  status text not null default 'draft',
+  draft_config jsonb not null default '{}'::jsonb,
+  published_config jsonb,
+  published_version integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists oem_brand_versions (
+  id uuid primary key,
+  brand_id text not null references oem_brand_profiles(brand_id) on delete cascade,
+  version_no integer not null,
+  config jsonb not null,
+  created_by uuid references users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  published_at timestamptz not null default now(),
+  unique (brand_id, version_no)
+);
+
+create table if not exists oem_asset_registry (
+  id uuid primary key,
+  brand_id text not null references oem_brand_profiles(brand_id) on delete cascade,
+  asset_key text not null,
+  kind text not null,
+  storage_provider text not null default 'minio',
+  object_key text not null,
+  public_url text,
+  metadata jsonb not null default '{}'::jsonb,
+  created_by uuid references users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (brand_id, asset_key)
+);
+
+create table if not exists oem_audit_events (
+  id uuid primary key,
+  brand_id text not null,
+  action text not null,
+  actor_user_id uuid references users(id) on delete set null,
+  payload jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 do $$
 begin
   if exists (
