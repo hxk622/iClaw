@@ -1907,9 +1907,7 @@ export function OpenClawChatSurface({
     : hasGatewayAuth
       ? '正在连接 OpenClaw 网关…'
       : '缺少本地网关凭据，当前无法连接 OpenClaw。';
-  const threadReady = renderState.hasThread && renderState.threadVisible;
-  const surfaceReady = shellAuthenticated && status.connected && threadReady;
-  const showBootMask = shellAuthenticated && !surfaceReady;
+  const showBootMask = shellAuthenticated && !status.connected;
   const secureContextHint =
     typeof window !== 'undefined' && !window.isSecureContext
       ? '当前页面不是安全上下文，OpenClaw 可能会拒绝设备身份校验。'
