@@ -162,8 +162,8 @@ pnpm publish:openclaw-runtime prod
 
 默认行为：
 
-- `prod` 上传到 `remoteprod/iclaw-prod/runtime/`
-- `artifact_url` 回写为 `https://iclaw.aiyuanxi.com/downloads/runtime/<archive>`
+- `prod` 上传到 `remoteprod/iclaw-prod/runtime/openclaw/<runtime-version>/<archive>`
+- `artifact_url` 回写为 `https://iclaw.aiyuanxi.com/downloads/runtime/openclaw/<runtime-version>/<archive>`
 
 如果需要覆盖，可设置：
 
