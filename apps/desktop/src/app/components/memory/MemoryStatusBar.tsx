@@ -1,5 +1,6 @@
 import { Activity, Clock, Database, Hash, Zap } from 'lucide-react';
 import type { MemoryRuntimeStatus } from '@/app/lib/tauri-memory';
+import { PageContent } from '@/app/components/ui/PageLayout';
 import type { MemoryStatusSummary } from './model';
 
 function resolveEngineLabel(runtimeStatus: MemoryRuntimeStatus | null) {
@@ -28,8 +29,8 @@ export function MemoryStatusBar({
     statusSummary.indexHealth === '健康' ? 'text-[#5A7860]' : runtimeError ? 'text-[#9A5956]' : 'text-[#A0765C]';
 
   return (
-    <section className="border-b border-[#ECE7DE] bg-[#FCFBF8] px-8 py-3.5">
-      <div className="mx-auto max-w-[1600px]">
+    <section className="border-b border-[#ECE7DE] bg-[#FCFBF8] py-3.5">
+      <PageContent className="max-w-[1480px] py-0">
         <div className="flex items-center justify-between text-[12px]">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
@@ -76,7 +77,7 @@ export function MemoryStatusBar({
             <span className={runtimeError ? 'text-[#9A5956]' : 'text-[#1A1A18]'}>{resolveLatestSyncLabel(latestUpdatedAt)}</span>
           </div>
         </div>
-      </div>
+      </PageContent>
     </section>
   );
 }

@@ -1,5 +1,6 @@
 import { Download, FileUp, Plus, RefreshCw } from 'lucide-react';
 import { Button } from '@/app/components/ui/Button';
+import { PageContent, PageHeader } from '@/app/components/ui/PageLayout';
 
 export function MemoryHeader({
   onRefreshIndex,
@@ -17,60 +18,61 @@ export function MemoryHeader({
   mutating?: boolean;
 }) {
   return (
-    <section className="border-b border-[#ECE7DE] px-8 pb-6 pt-8">
-      <div className="mx-auto max-w-[1600px]">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="mb-1.5 text-[28px] leading-tight tracking-tight text-[#1A1A18]" style={{ fontWeight: 500 }}>
-              记忆管理
-            </h1>
-            <p className="text-[13px] leading-relaxed text-[#6B655D]">AI 的长期记忆与标签化管理</p>
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            <Button
-              onClick={onRefreshIndex}
-              disabled={mutating}
-              variant="secondary"
-              size="sm"
-              className="rounded-lg px-4 py-2 text-[13px]"
-              leadingIcon={<RefreshCw size={14} strokeWidth={1.5} />}
-            >
-              刷新索引
-            </Button>
-            <Button
-              onClick={onExport}
-              disabled={loading || mutating}
-              variant="secondary"
-              size="sm"
-              className="rounded-lg px-4 py-2 text-[13px]"
-              leadingIcon={<Download size={14} strokeWidth={1.5} />}
-            >
-              导出
-            </Button>
-            <Button
-              onClick={onImport}
-              disabled={mutating}
-              variant="secondary"
-              size="sm"
-              className="rounded-lg px-4 py-2 text-[13px]"
-              leadingIcon={<FileUp size={14} strokeWidth={1.5} />}
-            >
-              导入
-            </Button>
-            <Button
-              onClick={onCreate}
-              disabled={mutating}
-              variant="primary"
-              size="sm"
-              className="rounded-lg px-4 py-2 text-[13px]"
-              leadingIcon={<Plus size={14} strokeWidth={1.5} />}
-            >
-              新建记忆
-            </Button>
-          </div>
-        </div>
-      </div>
+    <section className="border-b border-[#ECE7DE] pb-6 pt-8">
+      <PageContent className="max-w-[1480px] py-0">
+        <PageHeader
+          eyebrow="Memory"
+          title="记忆管理"
+          description="AI 的长期记忆与标签化管理"
+          eyebrowClassName="text-[#9A9288]"
+          titleClassName="text-[#1A1A18]"
+          descriptionClassName="text-[#6B655D]"
+          actions={
+            <>
+              <Button
+                onClick={onRefreshIndex}
+                disabled={mutating}
+                variant="secondary"
+                size="sm"
+                className="rounded-lg px-4 py-2 text-[13px]"
+                leadingIcon={<RefreshCw size={14} strokeWidth={1.5} />}
+              >
+                刷新索引
+              </Button>
+              <Button
+                onClick={onExport}
+                disabled={loading || mutating}
+                variant="secondary"
+                size="sm"
+                className="rounded-lg px-4 py-2 text-[13px]"
+                leadingIcon={<Download size={14} strokeWidth={1.5} />}
+              >
+                导出
+              </Button>
+              <Button
+                onClick={onImport}
+                disabled={mutating}
+                variant="secondary"
+                size="sm"
+                className="rounded-lg px-4 py-2 text-[13px]"
+                leadingIcon={<FileUp size={14} strokeWidth={1.5} />}
+              >
+                导入
+              </Button>
+              <Button
+                onClick={onCreate}
+                disabled={mutating}
+                variant="primary"
+                size="sm"
+                className="rounded-lg px-4 py-2 text-[13px]"
+                leadingIcon={<Plus size={14} strokeWidth={1.5} />}
+              >
+                新建记忆
+              </Button>
+            </>
+          }
+        />
+      </PageContent>
     </section>
   );
 }

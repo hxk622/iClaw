@@ -27,7 +27,7 @@ import {
 import { Button } from '@/app/components/ui/Button';
 import { FilterPill } from '@/app/components/ui/FilterPill';
 import { MetricCard } from '@/app/components/ui/MetricCard';
-import { PageContent, PageSurface } from '@/app/components/ui/PageLayout';
+import { PageContent, PageHeader, PageSurface } from '@/app/components/ui/PageLayout';
 import { PressableCard } from '@/app/components/ui/PressableCard';
 import { SegmentedTabs } from '@/app/components/ui/SegmentedTabs';
 import { cn } from '@/app/lib/cn';
@@ -658,15 +658,13 @@ export function SkillStoreView({
     <PageSurface className="flex-col bg-[var(--bg-page)]">
       <PageContent className="max-w-[1480px]">
         <div className="mb-8">
-          <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h1 className="mb-2 text-[28px] font-medium tracking-tight text-[var(--text-primary)]">技能商店</h1>
-              <p className="text-[14px] leading-relaxed text-[var(--text-secondary)]">
-                统一查看系统预置能力与云端技能，安装后可自动同步到设备
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
+          <PageHeader
+            className="mb-6"
+            eyebrow="Skill Store"
+            title="技能商店"
+            description="统一查看系统预置能力与云端技能，安装后可自动同步到设备"
+            actions={
+              <>
               <Button variant="secondary" size="sm" className="rounded-lg px-3.5 py-2 text-[13px]" onClick={handleOpenImport} leadingIcon={<Upload className="h-3.5 w-3.5" />}>
                 导入技能
               </Button>
@@ -708,8 +706,9 @@ export function SkillStoreView({
               >
                 刷新技能
               </Button>
-            </div>
-          </div>
+              </>
+            }
+          />
 
           <div className="mb-5">
             <div className="relative">

@@ -6,6 +6,7 @@ import {
   type ResolvedTheme,
 } from '@/app/lib/theme';
 import { Chip } from '@/app/components/ui/Chip';
+import { PageContent, PageHeader, PageSurface } from '@/app/components/ui/PageLayout';
 import { capabilityGroups, type Capability } from './data-connections-data';
 
 const markets = ['全部', 'A股', '美股', '港股', '期货', '黄金', '加密', '宏观', 'ETF/基金', '外汇'];
@@ -340,11 +341,12 @@ export function DataConnectionsView() {
   };
 
   return (
-    <div
-      className="flex min-h-0 min-w-0 flex-1 overflow-y-auto transition-colors duration-300"
+    <PageSurface
+      as="div"
+      className="transition-colors duration-300"
       style={{ backgroundColor: colors.pageBg }}
     >
-      <div className="mx-auto w-full max-w-[1600px] px-8 py-8">
+      <PageContent className="max-w-[1480px]">
         <div
           className="mb-8 rounded-2xl border px-10 py-8 transition-colors"
           style={{
@@ -352,51 +354,44 @@ export function DataConnectionsView() {
             borderColor: colors.subtleBorder,
           }}
         >
-          <div className="flex items-start justify-between gap-6">
-            <div className="flex-1">
-              <h1
-                className="mb-3 text-4xl font-semibold tracking-tight"
-                style={{ color: colors.primaryText }}
-              >
-                数据连接中心
-              </h1>
-              <p
-                className="mb-6 max-w-3xl text-base leading-relaxed"
-                style={{ color: colors.secondaryText }}
-              >
-                iClaw 金融数据能力封装层 · 覆盖全球多市场行情、财报、资讯、宏观与加密资产数据集
-              </p>
+          <PageHeader
+            className="mb-6"
+            eyebrow="Data Connections"
+            title="数据连接中心"
+            description="iClaw 金融数据能力封装层 · 覆盖全球多市场行情、财报、资讯、宏观与加密资产数据集"
+            eyebrowClassName="text-[11px] font-semibold uppercase tracking-[0.14em]"
+            titleClassName="text-[28px] tracking-[-0.05em]"
+            descriptionClassName="max-w-[820px] text-[13px] leading-6"
+            style={{ ['--text-primary' as string]: colors.primaryText, ['--text-secondary' as string]: colors.secondaryText, ['--text-muted' as string]: colors.mutedText }}
+          />
 
-              <div className="flex items-center gap-6">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-semibold" style={{ color: colors.brandGold }}>
-                    {allCapabilities.length}
-                  </span>
-                  <span className="text-sm font-medium" style={{ color: colors.mutedText }}>
-                    数据能力
-                  </span>
-                </div>
-                <div className="h-8 w-px" style={{ backgroundColor: colors.defaultBorder }} />
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-semibold" style={{ color: colors.brandGold }}>
-                    9
-                  </span>
-                  <span className="text-sm font-medium" style={{ color: colors.mutedText }}>
-                    接入市场
-                  </span>
-                </div>
-                <div className="h-8 w-px" style={{ backgroundColor: colors.defaultBorder }} />
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-semibold" style={{ color: colors.brandGold }}>
-                    {capabilityGroups.length}
-                  </span>
-                  <span className="text-sm font-medium" style={{ color: colors.mutedText }}>
-                    能力类别
-                  </span>
-                </div>
-              </div>
+          <div className="flex items-center gap-6">
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-semibold" style={{ color: colors.brandGold }}>
+                {allCapabilities.length}
+              </span>
+              <span className="text-sm font-medium" style={{ color: colors.mutedText }}>
+                数据能力
+              </span>
             </div>
-
+            <div className="h-8 w-px" style={{ backgroundColor: colors.defaultBorder }} />
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-semibold" style={{ color: colors.brandGold }}>
+                9
+              </span>
+              <span className="text-sm font-medium" style={{ color: colors.mutedText }}>
+                接入市场
+              </span>
+            </div>
+            <div className="h-8 w-px" style={{ backgroundColor: colors.defaultBorder }} />
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-semibold" style={{ color: colors.brandGold }}>
+                {capabilityGroups.length}
+              </span>
+              <span className="text-sm font-medium" style={{ color: colors.mutedText }}>
+                能力类别
+              </span>
+            </div>
           </div>
         </div>
 
@@ -501,7 +496,7 @@ export function DataConnectionsView() {
             </p>
           </div>
         )}
-      </div>
-    </div>
+      </PageContent>
+    </PageSurface>
   );
 }

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Calendar, Tag as TagIcon, Upload, X } from 'lucide-react';
 import { FilterPill } from '@/app/components/ui/FilterPill';
+import { PageContent } from '@/app/components/ui/PageLayout';
 
 import type { MemoryArrayFilterKey, MemoryFilters } from './model';
 import {
@@ -27,8 +28,8 @@ export function MemoryFilterBar({
   onClear: () => void;
 }) {
   return (
-    <section className="border-b border-[#ECE7DE] bg-[#FCFBF8] px-8 py-5">
-      <div className="mx-auto max-w-[1600px]">
+    <section className="border-b border-[#ECE7DE] bg-[#FCFBF8] py-5">
+      <PageContent className="max-w-[1480px] py-0">
         <div className="mb-4 flex items-center gap-6">
           <FilterGroup label="领域">
             {DOMAIN_OPTIONS.map((domain) => (
@@ -126,7 +127,7 @@ export function MemoryFilterBar({
             ) : null}
           </div>
         </div>
-      </div>
+      </PageContent>
     </section>
   );
 }

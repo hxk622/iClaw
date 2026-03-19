@@ -30,7 +30,7 @@ import { Chip } from '@/app/components/ui/Chip';
 import { DrawerSection } from '@/app/components/ui/DrawerSection';
 import { EmptyStatePanel } from '@/app/components/ui/EmptyStatePanel';
 import { InfoTile } from '@/app/components/ui/InfoTile';
-import { PageContent, PageSurface } from '@/app/components/ui/PageLayout';
+import { PageContent, PageHeader, PageSurface } from '@/app/components/ui/PageLayout';
 import { PlatformCardShell } from '@/app/components/ui/PlatformCardShell';
 import { PressableCard } from '@/app/components/ui/PressableCard';
 import { SelectionCard } from '@/app/components/ui/SelectionCard';
@@ -738,14 +738,13 @@ export function IMBotsView({ client }: { client: IClawClient }) {
   return (
     <PageSurface as="div" className="bg-[var(--bg-page)]">
       <PageContent>
-        <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-[var(--text-primary)]">IM机器人</h1>
-            <p className="mt-2 max-w-[720px] text-[14px] leading-7 text-[var(--text-secondary)]">
-              将 OpenClaw 接入企业常用办公 IM，并统一管理机器人状态。这个视图区现在不只是接入入口，也包含机器人详情、测试与默认助手绑定。
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
+        <PageHeader
+          className="mb-6"
+          eyebrow="IM Bots"
+          title="IM机器人"
+          description="将 OpenClaw 接入企业常用办公 IM，并统一管理机器人状态。这个视图区现在不只是接入入口，也包含机器人详情、测试与默认助手绑定。"
+          actions={
+            <>
             <Button
               variant="secondary"
               size="sm"
@@ -767,8 +766,9 @@ export function IMBotsView({ client }: { client: IClawClient }) {
             >
               新建机器人
             </Button>
-          </div>
-        </div>
+            </>
+          }
+        />
 
         <SummaryBar cards={summaryCards} />
 
