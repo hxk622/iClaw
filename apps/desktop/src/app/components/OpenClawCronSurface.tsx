@@ -1517,13 +1517,13 @@ export function OpenClawCronSurface({
         ) : null}
 
         {mode === 'advanced' && status.connected ? (
-          <div className="pointer-events-none absolute right-5 top-4 z-20">
+          <div className="pointer-events-none absolute left-1/2 top-4 z-20 -translate-x-1/2">
             <Button
               variant="secondary"
               size="sm"
               leadingIcon={<Repeat className="h-4 w-4" />}
               onClick={() => setMode('basic')}
-              className="pointer-events-auto"
+              className={`pointer-events-auto rounded-[999px] ${CRON_SECONDARY_BUTTON_CLASS}`}
             >
               返回基础模式
             </Button>
