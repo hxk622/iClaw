@@ -56,7 +56,7 @@ export function RecentTasksList({
     <div className="mb-4">
       <div className="mb-2 flex items-center justify-between px-3">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-[var(--text-muted)]">近期任务</span>
+          <span className="text-xs text-[var(--text-muted)]">历史任务</span>
           <span className="rounded-full border border-[var(--border-default)] bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[10px] text-[var(--text-secondary)]">
             {Math.min(visibleTasks.length, SIDEBAR_TASK_LIMIT)}
           </span>
