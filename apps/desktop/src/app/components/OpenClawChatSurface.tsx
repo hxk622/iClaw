@@ -77,6 +77,8 @@ type OpenClawAppElement = HTMLElement & {
   chatSending: boolean;
   chatRunId: string | null;
   chatMessages: unknown[];
+  chatStream: string | null;
+  chatStreamStartedAt: number | null;
   chatMessage: string;
   chatAttachments: OpenClawImageAttachment[];
   lastError: string | null;
@@ -107,6 +109,7 @@ type OpenClawChatSurfaceProps = {
   shellAuthenticated?: boolean;
   creditClient?: IClawClient;
   creditToken?: string | null;
+  onCreditBalanceRefresh?: () => Promise<void> | void;
   user?: {
     name?: string | null;
     username?: string | null;
@@ -124,6 +127,7 @@ type ComposerCreditEstimateState = {
   low: number | null;
   high: number | null;
   error: string | null;
+  estimatedInputTokens: number | null;
 };
 
 type ChatSurfaceStatus = {
@@ -227,6 +231,21 @@ type AssistantFooterMeta = {
   inputTokens: number;
   outputTokens: number;
   tooltip: string | null;
+};
+
+type AssistantUsageSettlement = {
+  inputTokens: number;
+  outputTokens: number;
+  model: string | null;
+  timestamp: number;
+};
+
+type PendingUsageSettlement = {
+  runId: string;
+  grantId: string;
+  startedAt: number;
+  model: string | null;
+  attempts: number;
 };
 
 type GatewaySessionsListResult = {
@@ -635,6 +654,203 @@ function extractChatGroupTimestampLabel(group: HTMLElement): string {
   return group.querySelector('.chat-group-footer .chat-group-timestamp')?.textContent?.trim() ?? '';
 }
 
+function deriveLatestAssistantUsageSince(
+  messages: unknown[],
+  startedAt: number,
+): AssistantUsageSettlement | null {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return null;
+  }
+
+  type MessageGroup = {
+    role: string;
+    timestamp: number;
+    messages: unknown[];
+  };
+
+  let currentGroup: MessageGroup | null = null;
+  let latestAssistantGroup: MessageGroup | null = null;
+
+  const finalizeCurrentGroup = () => {
+    if (!currentGroup || currentGroup.role !== 'assistant' || currentGroup.timestamp < startedAt) {
+      return;
+    }
+    latestAssistantGroup = {
+      role: currentGroup.role,
+      timestamp: currentGroup.timestamp,
+      messages: [...currentGroup.messages],
+    };
+  };
+
+  messages.forEach((message) => {
+    const normalized = normalizeMessage(message);
+    const role = normalizeRoleForGrouping(normalized.role);
+    const timestamp = normalized.timestamp || Date.now();
+
+    if (!currentGroup || currentGroup.role !== role) {
+      finalizeCurrentGroup();
+      currentGroup = {
+        role,
+        timestamp,
+        messages: [message],
+      };
+      return;
+    }
+
+    currentGroup.messages.push(message);
+  });
+
+  finalizeCurrentGroup();
+
+  if (!latestAssistantGroup) {
+    return null;
+  }
+
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let model: string | null = null;
+  let hasUsage = false;
+
+  latestAssistantGroup.messages.forEach((message) => {
+    const record = message as Record<string, unknown>;
+    const usage = record.usage as Record<string, unknown> | undefined;
+    if (usage) {
+      const messageInputTokens = getUsageMetric(usage, ['input', 'inputTokens', 'input_tokens']);
+      const messageOutputTokens = getUsageMetric(usage, ['output', 'outputTokens', 'output_tokens']);
+      if (messageInputTokens > 0 || messageOutputTokens > 0) {
+        hasUsage = true;
+      }
+      inputTokens += messageInputTokens;
+      outputTokens += messageOutputTokens;
+    }
+    if (typeof record.model === 'string' && record.model.trim() && record.model !== 'gateway-injected') {
+      model = record.model.trim();
+    }
+  });
+
+  if (!hasUsage) {
+    return null;
+  }
+
+  return {
+    inputTokens,
+    outputTokens,
+    model,
+    timestamp: latestAssistantGroup.timestamp,
+  };
+}
+
+function createDesktopRunId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `desktop-run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function dataUrlToBase64(dataUrl: string): { content: string; mimeType: string } | null {
+  const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+  if (!match) {
+    return null;
+  }
+  return {
+    mimeType: match[1],
+    content: match[2],
+  };
+}
+
+async function sendAuthorizedChatMessage(params: {
+  app: OpenClawAppElement;
+  sessionKey: string;
+  prompt: string;
+  imageAttachments: OpenClawImageAttachment[];
+  runId: string;
+  startedAt: number;
+}): Promise<void> {
+  const { app, sessionKey, prompt, imageAttachments, runId, startedAt } = params;
+  const request = app.client?.request;
+  if (!app.connected || typeof request !== 'function') {
+    throw new Error('尚未连接到 OpenClaw 网关，请稍后再试。');
+  }
+
+  const message = prompt.trim();
+  const hasAttachments = imageAttachments.length > 0;
+  if (!message && !hasAttachments) {
+    throw new Error('发送内容为空。');
+  }
+
+  const contentBlocks: Array<{ type: string; text?: string; source?: unknown }> = [];
+  if (message) {
+    contentBlocks.push({ type: 'text', text: message });
+  }
+  imageAttachments.forEach((attachment) => {
+    contentBlocks.push({
+      type: 'image',
+      source: {
+        type: 'base64',
+        media_type: attachment.mimeType,
+        data: attachment.dataUrl,
+      },
+    });
+  });
+
+  app.chatMessages = [
+    ...app.chatMessages,
+    {
+      role: 'user',
+      content: contentBlocks,
+      timestamp: startedAt,
+    },
+  ];
+  app.chatMessage = '';
+  app.chatAttachments = [];
+  app.chatSending = true;
+  app.lastError = null;
+  app.chatRunId = runId;
+  app.chatStream = '';
+  app.chatStreamStartedAt = startedAt;
+
+  const apiAttachments = imageAttachments
+    .map((attachment) => {
+      const parsed = dataUrlToBase64(attachment.dataUrl);
+      if (!parsed) {
+        return null;
+      }
+      return {
+        type: 'image',
+        mimeType: parsed.mimeType,
+        content: parsed.content,
+      };
+    })
+    .filter((attachment): attachment is NonNullable<typeof attachment> => attachment !== null);
+
+  try {
+    await request('chat.send', {
+      sessionKey,
+      message,
+      deliver: false,
+      idempotencyKey: runId,
+      attachments: apiAttachments.length > 0 ? apiAttachments : undefined,
+    });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    app.chatRunId = null;
+    app.chatStream = null;
+    app.chatStreamStartedAt = null;
+    app.lastError = detail;
+    app.chatMessages = [
+      ...app.chatMessages,
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: `Error: ${detail}` }],
+        timestamp: Date.now(),
+      },
+    ];
+    throw error;
+  } finally {
+    app.chatSending = false;
+  }
+}
+
 function setMessageActionFeedback(button: HTMLButtonElement, state: 'idle' | 'success'): void {
   button.dataset.state = state;
 }
@@ -701,6 +917,7 @@ export function OpenClawChatSurface({
   shellAuthenticated = false,
   creditClient,
   creditToken,
+  onCreditBalanceRefresh,
   user,
 }: OpenClawChatSurfaceProps) {
   const shellRef = useRef<HTMLDivElement | null>(null);
@@ -718,7 +935,9 @@ export function OpenClawChatSurface({
   });
   const artifactAutoOpenTimerRef = useRef<number | null>(null);
   const artifactAutoOpenBurstTimersRef = useRef<number[]>([]);
+  const usageSettlementTimersRef = useRef<number[]>([]);
   const activeRecentTaskRunRef = useRef<ActiveRecentTaskRun | null>(null);
+  const pendingUsageSettlementRef = useRef<PendingUsageSettlement | null>(null);
   const [status, setStatus] = useState<ChatSurfaceStatus>({
     busy: false,
     connected: false,
@@ -750,6 +969,7 @@ export function OpenClawChatSurface({
     low: null,
     high: null,
     error: null,
+    estimatedInputTokens: null,
   });
   const [installedLobsterAgents, setInstalledLobsterAgents] = useState<LobsterAgent[]>([]);
   const consumedInitialPromptKeyRef = useRef<string | null>(null);
@@ -784,6 +1004,11 @@ export function OpenClawChatSurface({
   const clearMessageActionTimers = useCallback(() => {
     messageActionTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     messageActionTimersRef.current = [];
+  }, []);
+
+  const clearUsageSettlementTimers = useCallback(() => {
+    usageSettlementTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    usageSettlementTimersRef.current = [];
   }, []);
 
   const tryAutoOpenArtifactCard = useCallback(() => {
@@ -941,7 +1166,9 @@ export function OpenClawChatSurface({
       lastOpenedToken: null,
     };
     activeRecentTaskRunRef.current = null;
+    pendingUsageSettlementRef.current = null;
     clearArtifactAutoOpenTimers();
+    clearUsageSettlementTimers();
     modelLoadVersionRef.current += 1;
     setModelOptions([]);
     setSelectedModelId(null);
@@ -953,8 +1180,9 @@ export function OpenClawChatSurface({
       low: null,
       high: null,
       error: null,
+      estimatedInputTokens: null,
     });
-  }, [clearArtifactAutoOpenTimers, sessionKey]);
+  }, [clearArtifactAutoOpenTimers, clearUsageSettlementTimers, sessionKey]);
 
   useEffect(() => {
     const prompt = composerDraft?.prompt?.trim() || '';
@@ -965,6 +1193,7 @@ export function OpenClawChatSurface({
         low: null,
         high: null,
         error: null,
+        estimatedInputTokens: null,
       });
       return;
     }
@@ -975,6 +1204,7 @@ export function OpenClawChatSurface({
       low: current.low,
       high: current.high,
       error: null,
+      estimatedInputTokens: current.estimatedInputTokens,
     }));
 
     const timer = window.setTimeout(() => {
@@ -998,6 +1228,7 @@ export function OpenClawChatSurface({
             low: quote.estimated_credits_low,
             high: quote.estimated_credits_high,
             error: null,
+            estimatedInputTokens: quote.estimated_input_tokens,
           });
         })
         .catch((error) => {
@@ -1009,6 +1240,7 @@ export function OpenClawChatSurface({
             low: null,
             high: null,
             error: error instanceof Error ? error.message : 'estimate unavailable',
+            estimatedInputTokens: null,
           });
         });
     }, 360);
@@ -1749,6 +1981,49 @@ export function OpenClawChatSurface({
     activeRecentTaskRunRef.current = null;
   }, []);
 
+  const attemptPendingUsageSettlement = useCallback(async (): Promise<boolean> => {
+    const pending = pendingUsageSettlementRef.current;
+    const app = appRef.current;
+    if (!pending || !app || !creditClient || !creditToken) {
+      return false;
+    }
+
+    const usage = deriveLatestAssistantUsageSince(app.chatMessages, pending.startedAt);
+    if (!usage) {
+      pending.attempts += 1;
+      if (pending.attempts >= 5) {
+        console.warn('[desktop] skip credit settlement because assistant usage was not found', pending);
+        pendingUsageSettlementRef.current = null;
+      }
+      return false;
+    }
+
+    try {
+      await creditClient.reportUsageEvent({
+        token: creditToken,
+        eventId: pending.runId,
+        grantId: pending.grantId,
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        model: usage.model || pending.model || undefined,
+      });
+      pendingUsageSettlementRef.current = null;
+      await onCreditBalanceRefresh?.();
+      return true;
+    } catch (error) {
+      pending.attempts += 1;
+      console.error('[desktop] failed to report usage event', {
+        runId: pending.runId,
+        grantId: pending.grantId,
+        error,
+      });
+      if (pending.attempts >= 5) {
+        pendingUsageSettlementRef.current = null;
+      }
+      return false;
+    }
+  }, [creditClient, creditToken, onCreditBalanceRefresh]);
+
   useEffect(() => {
     if (status.busy || !activeRecentTaskRunRef.current) {
       return;
@@ -1756,6 +2031,25 @@ export function OpenClawChatSurface({
 
     finalizeRecentTaskRun();
   }, [finalizeRecentTaskRun, status.busy]);
+
+  useEffect(() => {
+    if (status.busy || !pendingUsageSettlementRef.current) {
+      return;
+    }
+
+    clearUsageSettlementTimers();
+    void attemptPendingUsageSettlement();
+    [140, 420, 900, 1800].forEach((delay) => {
+      const timer = window.setTimeout(() => {
+        void attemptPendingUsageSettlement();
+      }, delay);
+      usageSettlementTimersRef.current.push(timer);
+    });
+
+    return () => {
+      clearUsageSettlementTimers();
+    };
+  }, [attemptPendingUsageSettlement, clearUsageSettlementTimers, status.busy]);
 
   useEffect(() => {
     const activeRun = activeRecentTaskRunRef.current;
@@ -1770,13 +2064,33 @@ export function OpenClawChatSurface({
 
   const handleSend = useCallback(async (payload: ComposerSendPayload): Promise<boolean> => {
     const app = appRef.current;
-    if (!app?.connected) {
+    const request = app?.client?.request;
+    if (!app?.connected || typeof request !== 'function') {
       setStatus((current) => ({
         ...current,
         lastError: app?.lastError ?? '尚未连接到 OpenClaw 网关，请稍等或重新进入页面。',
       }));
       return false;
     }
+
+    const normalizedPrompt = payload.prompt.trim();
+    if (normalizedPrompt.startsWith('/') && payload.imageAttachments.length === 0) {
+      try {
+        app.chatMessage = normalizedPrompt;
+        app.chatAttachments = [];
+        await app.handleSendChat();
+        app.scrollToBottom();
+        return true;
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : '任务发送失败';
+        setStatus((current) => ({
+          ...current,
+          lastError: detail,
+        }));
+        return false;
+      }
+    }
+
     const task = startRecentTask({
       prompt: payload.prompt,
       sessionKey,
@@ -1789,9 +2103,43 @@ export function OpenClawChatSurface({
     };
 
     try {
-      app.chatMessage = payload.prompt;
-      app.chatAttachments = payload.imageAttachments;
-      await app.handleSendChat();
+      if (!creditClient || !creditToken) {
+        throw new Error('当前账号龙虾币鉴权尚未就绪，暂时不能发送消息。');
+      }
+
+      clearUsageSettlementTimers();
+      pendingUsageSettlementRef.current = null;
+
+      const runId = createDesktopRunId();
+      const startedAt = Date.now();
+      const fallbackEstimatedInputTokens =
+        Math.max(0, Math.ceil(payload.prompt.trim().length * 0.75)) + payload.imageAttachments.length * 220;
+      const runGrant = await creditClient.authorizeRun({
+        token: creditToken,
+        sessionKey,
+        client: 'desktop',
+        estimatedInputTokens: Math.max(
+          0,
+          creditEstimate.estimatedInputTokens ?? fallbackEstimatedInputTokens,
+        ),
+      });
+
+      pendingUsageSettlementRef.current = {
+        runId,
+        grantId: runGrant.grant_id,
+        startedAt,
+        model: selectedModelId,
+        attempts: 0,
+      };
+
+      await sendAuthorizedChatMessage({
+        app,
+        sessionKey,
+        prompt: payload.prompt,
+        imageAttachments: payload.imageAttachments,
+        runId,
+        startedAt,
+      });
       app.scrollToBottom();
       window.setTimeout(() => app.scrollToBottom({ smooth: true }), 180);
       window.setTimeout(() => app.scrollToBottom({ smooth: true }), 900);
@@ -1806,6 +2154,7 @@ export function OpenClawChatSurface({
       }, 420);
       return true;
     } catch (error) {
+      pendingUsageSettlementRef.current = null;
       const detail = error instanceof Error ? error.message : '任务发送失败';
       markRecentTaskFailed({
         id: task.id,
@@ -1819,7 +2168,17 @@ export function OpenClawChatSurface({
       }));
       return false;
     }
-  }, [finalizeRecentTaskRun, sessionKey, status.lastError]);
+  }, [
+    clearUsageSettlementTimers,
+    collectLatestArtifactKinds,
+    creditClient,
+    creditEstimate.estimatedInputTokens,
+    creditToken,
+    finalizeRecentTaskRun,
+    selectedModelId,
+    sessionKey,
+    status.lastError,
+  ]);
 
   const handleAbort = useCallback(async () => {
     await appRef.current?.handleAbortChat();

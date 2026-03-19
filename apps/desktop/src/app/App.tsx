@@ -1,4 +1,4 @@
-import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from 'react';
+import { type Dispatch, type SetStateAction, useCallback, useEffect, useMemo, useState } from 'react';
 import { IClawClient, type CreditBalanceData, type DesktopUpdateHint } from '@iclaw/sdk';
 import desktopPackageJson from '../../package.json';
 import { clearAuth, readAuth, writeAuth } from './lib/auth-storage';
@@ -1190,6 +1190,24 @@ function AuthedView({
     };
   }, [accessToken, client]);
 
+  const refreshCreditBalance = useCallback(async () => {
+    if (!accessToken) {
+      setCreditBalance(null);
+      setCreditBalanceLoading(false);
+      return;
+    }
+
+    setCreditBalanceLoading(true);
+    try {
+      const next = await client.creditsMe(accessToken);
+      setCreditBalance(next);
+    } catch (error) {
+      console.error('[desktop] failed to refresh credit balance', error);
+    } finally {
+      setCreditBalanceLoading(false);
+    }
+  }, [accessToken, client]);
+
   const handleSaveSettings = async (section: PersistableSettingsSection) => {
     const snapshot = buildSectionSaveSnapshot(section);
     if (section === 'identity' || section === 'user-profile' || section === 'soul-persona') {
@@ -1355,6 +1373,7 @@ function AuthedView({
               shellAuthenticated={authenticated}
               creditClient={client}
               creditToken={accessToken}
+              onCreditBalanceRefresh={refreshCreditBalance}
               user={currentUser}
             />
           ) : (
