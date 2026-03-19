@@ -1206,13 +1206,15 @@ function AuthedView({
         onSkipDesktopUpdate={onSkipDesktopUpdate}
       />
       <div className="flex min-w-0 flex-1 flex-col">
-        <IClawHeader
-          balance={creditBalance?.available_balance ?? creditBalance?.balance ?? null}
-          loading={creditBalanceLoading}
-          authenticated={authenticated}
-          onCreditsClick={handleHeaderAccountAction}
-          onSubscriptionClick={handleHeaderAccountAction}
-        />
+        {primaryView === 'data-connections' ? null : (
+          <IClawHeader
+            balance={creditBalance?.available_balance ?? creditBalance?.balance ?? null}
+            loading={creditBalanceLoading}
+            authenticated={authenticated}
+            onCreditsClick={handleHeaderAccountAction}
+            onSubscriptionClick={handleHeaderAccountAction}
+          />
+        )}
         <div className="min-h-0 flex-1">
           {primaryView === 'lobster-store' ? (
             <LobsterStoreView

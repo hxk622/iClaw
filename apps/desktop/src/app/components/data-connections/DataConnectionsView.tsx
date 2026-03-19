@@ -1,505 +1,538 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { ChevronRight, Database, Moon, Search, Shield, Sun } from 'lucide-react';
 import {
-  Activity,
-  ArrowRight,
-  BarChart3,
-  Check,
-  ChevronRight,
-  Clock3,
-  Coins,
-  FileText,
-  Globe2,
-  Landmark,
-  LineChart,
-  Newspaper,
-  Search,
-  Sparkles,
-} from 'lucide-react';
-import { Button } from '@/app/components/ui/Button';
-import { PressableCard } from '@/app/components/ui/PressableCard';
-import { cn } from '@/app/lib/cn';
-import { APPLE_FLAT_SURFACE, INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
-import {
-  DATA_CONNECTION_CAPABILITIES,
-  DATA_CONNECTION_GROUPS,
-  DATA_CONNECTION_MARKETS,
-  DATA_CONNECTION_SCENARIOS,
-  DATA_CONNECTION_STATUS,
-  type DataConnectionCapability,
-  type DataConnectionScenario,
-} from './data-connections-data';
+  THEME_CHANGE_EVENT,
+  applyThemeMode,
+  getResolvedThemeFromDom,
+  persistThemeMode,
+  type ResolvedTheme,
+} from '@/app/lib/theme';
+import { capabilityGroups, type Capability } from './data-connections-data';
 
-const MARKET_TAG_TONES: Record<string, string> = {
-  A股: 'border-[rgba(170,74,74,0.18)] bg-[rgba(170,74,74,0.08)] text-[#8f4040] dark:border-[rgba(216,144,144,0.24)] dark:bg-[rgba(216,144,144,0.14)] dark:text-[#e2aaaa]',
-  美股: 'border-[rgba(74,111,165,0.18)] bg-[rgba(74,111,165,0.08)] text-[#426693] dark:border-[rgba(143,168,208,0.24)] dark:bg-[rgba(143,168,208,0.14)] dark:text-[#a9bfe4]',
-  港股: 'border-[rgba(74,138,127,0.18)] bg-[rgba(74,138,127,0.08)] text-[#3f786f] dark:border-[rgba(124,181,171,0.24)] dark:bg-[rgba(124,181,171,0.14)] dark:text-[#9bcac1]',
-  期货: 'border-[rgba(168,111,62,0.18)] bg-[rgba(168,111,62,0.08)] text-[#946139] dark:border-[rgba(211,153,102,0.24)] dark:bg-[rgba(211,153,102,0.14)] dark:text-[#deb286]',
-  黄金: 'border-[rgba(168,140,93,0.20)] bg-[rgba(168,140,93,0.08)] text-[#8f7751] dark:border-[rgba(194,170,130,0.26)] dark:bg-[rgba(194,170,130,0.14)] dark:text-[#d7c09a]',
-  贵金属:
-    'border-[rgba(168,140,93,0.20)] bg-[rgba(168,140,93,0.08)] text-[#8f7751] dark:border-[rgba(194,170,130,0.26)] dark:bg-[rgba(194,170,130,0.14)] dark:text-[#d7c09a]',
-  加密: 'border-[rgba(74,138,111,0.18)] bg-[rgba(74,138,111,0.08)] text-[#447b63] dark:border-[rgba(124,181,156,0.24)] dark:bg-[rgba(124,181,156,0.14)] dark:text-[#9ccbb4]',
-  宏观: 'border-[rgba(107,101,93,0.18)] bg-[rgba(107,101,93,0.08)] text-[#6b655d] dark:border-[rgba(185,176,165,0.22)] dark:bg-[rgba(185,176,165,0.12)] dark:text-[#b9b0a5]',
-  'ETF/基金':
-    'border-[rgba(90,107,159,0.18)] bg-[rgba(90,107,159,0.08)] text-[#586993] dark:border-[rgba(139,154,201,0.24)] dark:bg-[rgba(139,154,201,0.14)] dark:text-[#afbbe0]',
-  外汇: 'border-[rgba(74,122,159,0.18)] bg-[rgba(74,122,159,0.08)] text-[#486f8d] dark:border-[rgba(122,172,208,0.24)] dark:bg-[rgba(122,172,208,0.14)] dark:text-[#a3cae4]',
-  中国: 'border-[rgba(170,74,74,0.18)] bg-[rgba(170,74,74,0.08)] text-[#8f4040] dark:border-[rgba(216,144,144,0.24)] dark:bg-[rgba(216,144,144,0.14)] dark:text-[#e2aaaa]',
-  美国: 'border-[rgba(74,111,165,0.18)] bg-[rgba(74,111,165,0.08)] text-[#426693] dark:border-[rgba(143,168,208,0.24)] dark:bg-[rgba(143,168,208,0.14)] dark:text-[#a9bfe4]',
-  全球: 'border-[rgba(105,90,146,0.18)] bg-[rgba(105,90,146,0.08)] text-[#6b5a93] dark:border-[rgba(155,138,201,0.24)] dark:bg-[rgba(155,138,201,0.14)] dark:text-[#c1b2e4]',
-  量化: 'border-[rgba(105,90,146,0.18)] bg-[rgba(105,90,146,0.08)] text-[#6b5a93] dark:border-[rgba(155,138,201,0.24)] dark:bg-[rgba(155,138,201,0.14)] dark:text-[#c1b2e4]',
+const markets = ['全部', 'A股', '美股', '港股', '期货', '黄金', '加密', '宏观', 'ETF/基金', '外汇'];
+const statusFilters = ['全部', '已支持', '规划中'];
+
+type Palette = {
+  pageBg: string;
+  cardBg: string;
+  elevatedBg: string;
+  hoverBg: string;
+  primaryText: string;
+  secondaryText: string;
+  mutedText: string;
+  subtleBorder: string;
+  defaultBorder: string;
+  strongBorder: string;
+  brandGold: string;
+  brandGoldStrong: string;
+  brandGoldSoft: string;
 };
 
-const MARKET_BUTTON_TONES: Record<string, string> = {
-  A股: 'border-[rgba(170,74,74,0.22)] bg-[rgba(170,74,74,0.10)] text-[#8f4040] hover:border-[rgba(170,74,74,0.34)] dark:border-[rgba(216,144,144,0.22)] dark:bg-[rgba(216,144,144,0.12)] dark:text-[#e2aaaa] dark:hover:border-[rgba(216,144,144,0.34)]',
-  美股: 'border-[rgba(74,111,165,0.22)] bg-[rgba(74,111,165,0.10)] text-[#426693] hover:border-[rgba(74,111,165,0.34)] dark:border-[rgba(143,168,208,0.22)] dark:bg-[rgba(143,168,208,0.12)] dark:text-[#a9bfe4] dark:hover:border-[rgba(143,168,208,0.34)]',
-  港股: 'border-[rgba(74,138,127,0.22)] bg-[rgba(74,138,127,0.10)] text-[#3f786f] hover:border-[rgba(74,138,127,0.34)] dark:border-[rgba(124,181,171,0.22)] dark:bg-[rgba(124,181,171,0.12)] dark:text-[#9bcac1] dark:hover:border-[rgba(124,181,171,0.34)]',
-  期货: 'border-[rgba(168,111,62,0.22)] bg-[rgba(168,111,62,0.10)] text-[#946139] hover:border-[rgba(168,111,62,0.34)] dark:border-[rgba(211,153,102,0.22)] dark:bg-[rgba(211,153,102,0.12)] dark:text-[#deb286] dark:hover:border-[rgba(211,153,102,0.34)]',
-  黄金: 'border-[rgba(168,140,93,0.24)] bg-[rgba(168,140,93,0.10)] text-[#8f7751] hover:border-[rgba(168,140,93,0.36)] dark:border-[rgba(194,170,130,0.24)] dark:bg-[rgba(194,170,130,0.14)] dark:text-[#d7c09a] dark:hover:border-[rgba(194,170,130,0.36)]',
-  加密: 'border-[rgba(74,138,111,0.22)] bg-[rgba(74,138,111,0.10)] text-[#447b63] hover:border-[rgba(74,138,111,0.34)] dark:border-[rgba(124,181,156,0.22)] dark:bg-[rgba(124,181,156,0.12)] dark:text-[#9ccbb4] dark:hover:border-[rgba(124,181,156,0.34)]',
-  宏观: 'border-[rgba(107,101,93,0.22)] bg-[rgba(107,101,93,0.10)] text-[#6b655d] hover:border-[rgba(107,101,93,0.34)] dark:border-[rgba(185,176,165,0.22)] dark:bg-[rgba(185,176,165,0.12)] dark:text-[#c5bcaf] dark:hover:border-[rgba(185,176,165,0.34)]',
-  'ETF/基金':
-    'border-[rgba(90,107,159,0.22)] bg-[rgba(90,107,159,0.10)] text-[#586993] hover:border-[rgba(90,107,159,0.34)] dark:border-[rgba(139,154,201,0.22)] dark:bg-[rgba(139,154,201,0.12)] dark:text-[#afbbe0] dark:hover:border-[rgba(139,154,201,0.34)]',
-  外汇: 'border-[rgba(74,122,159,0.22)] bg-[rgba(74,122,159,0.10)] text-[#486f8d] hover:border-[rgba(74,122,159,0.34)] dark:border-[rgba(122,172,208,0.22)] dark:bg-[rgba(122,172,208,0.12)] dark:text-[#a3cae4] dark:hover:border-[rgba(122,172,208,0.34)]',
+const marketStyles: Record<string, { light: string; dark: string; lightBg: string; darkBg: string }> = {
+  A股: {
+    light: '#8B3A3A',
+    dark: '#D89090',
+    lightBg: 'rgba(139, 58, 58, 0.08)',
+    darkBg: 'rgba(216, 144, 144, 0.12)',
+  },
+  美股: {
+    light: '#4A6FA5',
+    dark: '#8FA8D0',
+    lightBg: 'rgba(74, 111, 165, 0.08)',
+    darkBg: 'rgba(143, 168, 208, 0.12)',
+  },
+  港股: {
+    light: '#4A8A7F',
+    dark: '#7CB5AB',
+    lightBg: 'rgba(74, 138, 127, 0.08)',
+    darkBg: 'rgba(124, 181, 171, 0.12)',
+  },
+  期货: {
+    light: '#A86F3E',
+    dark: '#D39966',
+    lightBg: 'rgba(168, 111, 62, 0.08)',
+    darkBg: 'rgba(211, 153, 102, 0.12)',
+  },
+  黄金: {
+    light: '#A88C5D',
+    dark: '#C2AA82',
+    lightBg: 'rgba(168, 140, 93, 0.08)',
+    darkBg: 'rgba(194, 170, 130, 0.12)',
+  },
+  加密: {
+    light: '#4A8A6F',
+    dark: '#7CB59C',
+    lightBg: 'rgba(74, 138, 111, 0.08)',
+    darkBg: 'rgba(124, 181, 156, 0.12)',
+  },
+  宏观: {
+    light: '#6B655D',
+    dark: '#B9B0A5',
+    lightBg: 'rgba(107, 101, 93, 0.08)',
+    darkBg: 'rgba(185, 176, 165, 0.12)',
+  },
+  'ETF/基金': {
+    light: '#5A6B9F',
+    dark: '#8B9AC9',
+    lightBg: 'rgba(90, 107, 159, 0.08)',
+    darkBg: 'rgba(139, 154, 201, 0.12)',
+  },
+  外汇: {
+    light: '#4A7A9F',
+    dark: '#7AACD0',
+    lightBg: 'rgba(74, 122, 159, 0.08)',
+    darkBg: 'rgba(122, 172, 208, 0.12)',
+  },
 };
 
-const STATUS_TONES: Record<'已支持' | '规划中', string> = {
-  已支持:
-    'border-[rgba(46,107,87,0.18)] bg-[rgba(46,107,87,0.10)] text-[#2e6b57] dark:border-[rgba(127,192,169,0.24)] dark:bg-[rgba(127,192,169,0.14)] dark:text-[#9fd3bf]',
-  规划中:
-    'border-[rgba(154,106,34,0.18)] bg-[rgba(154,106,34,0.10)] text-[#9a6a22] dark:border-[rgba(209,174,116,0.24)] dark:bg-[rgba(209,174,116,0.14)] dark:text-[#ddc28f]',
-};
+function paletteForTheme(theme: ResolvedTheme): Palette {
+  return theme === 'light'
+    ? {
+        pageBg: '#F7F5F0',
+        cardBg: '#FCFBF8',
+        elevatedBg: '#FFFFFF',
+        hoverBg: '#F1EEE8',
+        primaryText: '#1A1A18',
+        secondaryText: '#6B655D',
+        mutedText: '#9A9288',
+        subtleBorder: '#ECE7DE',
+        defaultBorder: '#DED7CC',
+        strongBorder: '#C8BEAF',
+        brandGold: '#A88C5D',
+        brandGoldStrong: '#8F7751',
+        brandGoldSoft: '#EAE1D0',
+      }
+    : {
+        pageBg: '#11100F',
+        cardBg: '#191715',
+        elevatedBg: '#211E1B',
+        hoverBg: '#26221F',
+        primaryText: '#F2EEE6',
+        secondaryText: '#B9B0A5',
+        mutedText: '#80786E',
+        subtleBorder: '#2A2622',
+        defaultBorder: '#3A342E',
+        strongBorder: '#534A42',
+        brandGold: '#B49A70',
+        brandGoldStrong: '#C2AA82',
+        brandGoldSoft: 'rgba(180,154,112,0.16)',
+      };
+}
 
-function matchesSearch(capability: DataConnectionCapability, query: string) {
-  if (!query.trim()) return true;
-  const normalized = query.trim().toLowerCase();
+function MarketChip({
+  market,
+  selected,
+  onClick,
+  theme,
+  colors,
+}: {
+  market: string;
+  selected: boolean;
+  onClick: () => void;
+  theme: ResolvedTheme;
+  colors: Palette;
+}) {
+  const style = marketStyles[market];
+  const isAll = market === '全部';
+
+  if (isAll || !style) {
+    return (
+      <button
+        onClick={onClick}
+        className="cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-medium transition-all hover:scale-105 active:scale-[0.98]"
+        style={{
+          backgroundColor: selected ? colors.brandGoldSoft : colors.elevatedBg,
+          borderColor: selected ? colors.brandGold : colors.defaultBorder,
+          color: selected ? colors.brandGoldStrong : colors.secondaryText,
+        }}
+      >
+        {market}
+      </button>
+    );
+  }
+
+  const textColor = theme === 'light' ? style.light : style.dark;
+  const bgColor = theme === 'light' ? style.lightBg : style.darkBg;
+
   return (
-    capability.title.toLowerCase().includes(normalized) ||
-    capability.subtitle.toLowerCase().includes(normalized) ||
-    capability.markets.some((market) => market.toLowerCase().includes(normalized)) ||
-    capability.capabilities.some((item) => item.toLowerCase().includes(normalized))
+    <button
+      onClick={onClick}
+      className="cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-medium transition-all hover:scale-105 active:scale-[0.98]"
+      style={{
+        backgroundColor: selected ? bgColor : colors.elevatedBg,
+        borderColor: selected ? textColor : colors.defaultBorder,
+        color: selected ? textColor : colors.secondaryText,
+      }}
+    >
+      {market}
+    </button>
   );
 }
 
-function matchesMarkets(capability: DataConnectionCapability, selectedMarkets: string[]) {
-  if (selectedMarkets.includes('全部')) return true;
-  return capability.markets.some((market) => selectedMarkets.includes(market));
-}
-
-function matchesStatus(capability: DataConnectionCapability, selectedStatus: string) {
-  return selectedStatus === '全部' || capability.status === selectedStatus;
-}
-
-function matchesScenario(capability: DataConnectionCapability, selectedScenario: string | null) {
-  return !selectedScenario || capability.scenarios.includes(selectedScenario as DataConnectionScenario['id']);
-}
-
-function capabilityIcon(capability: DataConnectionCapability) {
-  if (capability.group === '行情与价格') return LineChart;
-  if (capability.group === '财务与估值') return FileText;
-  if (capability.group === '新闻与披露') return Newspaper;
-  if (capability.group === '宏观与利率') return Landmark;
-  if (capability.group === '加密与另类资产') return Coins;
-  return BarChart3;
-}
-
-function scenarioIcon(id: DataConnectionScenario['id']) {
-  switch (id) {
-    case 'fundamental':
-      return FileText;
-    case 'tracking':
-      return Activity;
-    case 'quant':
-      return BarChart3;
-    default:
-      return Sparkles;
-  }
-}
-
-function toggleMarketSelection(market: string, current: string[]) {
-  if (market === '全部') return ['全部'];
-  const next = current.filter((item) => item !== '全部');
-  if (next.includes(market)) {
-    const reduced = next.filter((item) => item !== market);
-    return reduced.length > 0 ? reduced : ['全部'];
-  }
-  return [...next, market];
-}
-
-function HeaderMetric({
-  label,
-  value,
-  note,
+function CapabilityCard({
+  capability,
+  theme,
+  colors,
 }: {
-  label: string;
-  value: string;
-  note: string;
+  capability: Capability & { category: string; categoryDesc: string };
+  theme: ResolvedTheme;
+  colors: Palette;
 }) {
+  const [isHovered, setIsHovered] = useState(false);
+
   return (
     <div
-      className={cn(
-        'rounded-[18px] border px-4 py-3',
-        'border-[var(--border-default)] bg-[var(--bg-elevated)]',
-        APPLE_FLAT_SURFACE,
-      )}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className="group cursor-pointer rounded-2xl border p-6 transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1"
+      style={{
+        backgroundColor: colors.cardBg,
+        borderColor: isHovered ? colors.brandGold : colors.subtleBorder,
+        boxShadow: isHovered ? `0 12px 32px -8px ${colors.brandGoldSoft}` : 'none',
+      }}
     >
-      <div className="text-[11px] font-medium tracking-[0.08em] text-[var(--text-muted)]">{label}</div>
-      <div className="mt-1 flex items-end gap-2">
-        <div className="text-[24px] font-semibold tracking-[-0.05em] text-[var(--text-primary)]">{value}</div>
-        <div className="pb-1 text-[11px] text-[var(--text-secondary)]">{note}</div>
+      <div className="mb-4 flex items-center justify-between">
+        <span
+          className="rounded-lg px-3 py-1 text-xs font-semibold uppercase tracking-wider"
+          style={{
+            backgroundColor: colors.brandGoldSoft,
+            color: colors.brandGoldStrong,
+          }}
+        >
+          {capability.category}
+        </span>
+        {capability.status && (
+          <span
+            className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium"
+            style={{
+              backgroundColor: colors.hoverBg,
+              color: colors.brandGold,
+            }}
+          >
+            <Shield className="h-3 w-3" />
+            {capability.status}
+          </span>
+        )}
+      </div>
+
+      <h3
+        className="mb-2 text-xl font-semibold tracking-tight"
+        style={{ color: colors.primaryText }}
+      >
+        {capability.title}
+      </h3>
+
+      <p
+        className="mb-5 text-sm leading-relaxed"
+        style={{ color: colors.secondaryText }}
+      >
+        {capability.subtitle}
+      </p>
+
+      <div className="mb-5 flex flex-wrap gap-2">
+        {capability.capabilities.map((cap, index) => (
+          <span
+            key={index}
+            className="rounded-lg border px-3 py-1.5 text-xs font-medium transition-all group-hover:scale-105"
+            style={{
+              backgroundColor: colors.elevatedBg,
+              color: colors.secondaryText,
+              borderColor: colors.defaultBorder,
+            }}
+          >
+            {cap}
+          </span>
+        ))}
+      </div>
+
+      <div className="border-t pt-4" style={{ borderColor: colors.subtleBorder }}>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium" style={{ color: colors.mutedText }}>
+            支持市场:
+          </span>
+          {capability.markets.map((market, index) => {
+            const marketStyle = marketStyles[market];
+            const textColor = marketStyle
+              ? theme === 'light'
+                ? marketStyle.light
+                : marketStyle.dark
+              : colors.primaryText;
+            return (
+              <span
+                key={index}
+                className="rounded px-2.5 py-1 text-xs font-medium"
+                style={{
+                  backgroundColor: colors.hoverBg,
+                  color: textColor,
+                }}
+              >
+                {market}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+        <span className="text-xs font-medium" style={{ color: colors.brandGold }}>
+          查看详情
+        </span>
+        <ChevronRight
+          className="h-4 w-4 transition-transform group-hover:translate-x-1"
+          style={{ color: colors.brandGold }}
+        />
       </div>
     </div>
   );
 }
 
-function SearchField({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label
-      className={cn(
-        'flex min-w-[280px] flex-1 items-center gap-3 rounded-[16px] border px-4 py-3',
-        'border-[var(--border-default)] bg-[var(--bg-elevated)] text-[var(--text-primary)]',
-        APPLE_FLAT_SURFACE,
-        INTERACTIVE_FOCUS_RING,
-      )}
-    >
-      <Search className="h-4.5 w-4.5 shrink-0 text-[var(--text-muted)]" />
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder='搜索能力，例如“实时行情”“财务报表”“宏观数据”'
-        className="min-w-0 flex-1 bg-transparent text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
-      />
-    </label>
-  );
-}
-
-function FilterChip({
-  label,
-  active,
-  onClick,
-  toneClassName,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-  toneClassName?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'rounded-[13px] border px-3 py-1.5 text-[12px] font-medium',
-        'border-[var(--border-default)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]',
-        'hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
-        SPRING_PRESSABLE,
-        INTERACTIVE_FOCUS_RING,
-        APPLE_FLAT_SURFACE,
-        active &&
-          (toneClassName ||
-            'border-[var(--lobster-gold-border)] bg-[var(--lobster-gold-soft)] text-[var(--lobster-gold-strong)]'),
-      )}
-    >
-      {label}
-    </button>
-  );
-}
-
-function ScenarioShowcase({
-  scenario,
-  selected,
-  onClick,
-  count,
-}: {
-  scenario: DataConnectionScenario;
-  selected: boolean;
-  onClick: () => void;
-  count: number;
-}) {
-  const Icon = scenarioIcon(scenario.id);
-
-  return (
-    <PressableCard
-      interactive
-      onClick={onClick}
-      className={cn(
-        'rounded-[22px] border p-4 shadow-none',
-        selected
-          ? 'border-[var(--lobster-gold-border)] bg-[var(--lobster-gold-soft)]'
-          : 'bg-[var(--bg-card)]',
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div
-            className={cn(
-              'flex h-11 w-11 items-center justify-center rounded-[16px] border',
-              selected
-                ? 'border-[rgba(168,140,93,0.28)] bg-[rgba(168,140,93,0.18)] text-[var(--lobster-gold-strong)]'
-                : 'border-[var(--border-default)] bg-[var(--bg-hover)] text-[var(--text-secondary)]',
-            )}
-          >
-            <Icon className="h-5 w-5" />
-          </div>
-          <div className="mt-4 text-[15px] font-semibold text-[var(--text-primary)]">{scenario.label}</div>
-          <div className="mt-1 text-[12px] text-[var(--text-secondary)]">{scenario.description}</div>
-          <div className="mt-2 text-[11px] leading-5 text-[var(--text-muted)]">{scenario.summary}</div>
-        </div>
-        <div className="shrink-0 rounded-full border border-[var(--border-default)] bg-[var(--bg-elevated)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)]">
-          {count} 项
-        </div>
-      </div>
-    </PressableCard>
-  );
-}
-
-function MarketTag({ market }: { market: string }) {
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium leading-none',
-        MARKET_TAG_TONES[market] ||
-          'border-[var(--border-default)] bg-[var(--bg-hover)] text-[var(--text-secondary)]',
-      )}
-    >
-      {market}
-    </span>
-  );
-}
-
-function CapabilityBadge({ label }: { label: string }) {
-  return (
-    <span className="inline-flex items-center rounded-full border border-[var(--border-default)] bg-[var(--bg-hover)] px-2.5 py-1 text-[11px] leading-none text-[var(--text-secondary)]">
-      {label}
-    </span>
-  );
-}
-
-function StatusBadge({ status = '已支持' }: { status?: '已支持' | '规划中' }) {
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium leading-none',
-        STATUS_TONES[status],
-      )}
-    >
-      {status === '已支持' ? <Check className="h-3 w-3" /> : <Clock3 className="h-3 w-3" />}
-      {status}
-    </span>
-  );
-}
-
-function CapabilityCard({ capability }: { capability: DataConnectionCapability }) {
-  const Icon = capabilityIcon(capability);
-
-  return (
-    <PressableCard
-      interactive
-      className={cn(
-        'rounded-[24px] border bg-[rgba(255,255,255,0.82)] shadow-[0_12px_24px_rgba(15,23,42,0.05)] dark:bg-[rgba(25,23,21,0.9)] dark:shadow-[0_18px_28px_rgba(0,0,0,0.24)]',
-      )}
-    >
-      <div className="flex h-full flex-col p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div
-            className={cn(
-              'flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border border-[rgba(168,140,93,0.18)] bg-[var(--lobster-gold-soft)] text-[var(--lobster-gold-strong)]',
-            )}
-          >
-            <Icon className="h-4.5 w-4.5" />
-          </div>
-          <StatusBadge status={capability.status} />
-        </div>
-
-        <div className="mt-4 text-[16px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
-          {capability.title}
-        </div>
-        <p className="mt-2 min-h-[48px] text-[12px] leading-6 text-[var(--text-secondary)]">{capability.subtitle}</p>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          {capability.markets.map((market) => (
-            <MarketTag key={market} market={market} />
-          ))}
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          {capability.capabilities.map((item) => (
-            <CapabilityBadge key={item} label={item} />
-          ))}
-        </div>
-
-        <div className="mt-auto pt-4">
-          <div className="flex items-center justify-between rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3.5 py-2.5 text-[12px] text-[var(--text-secondary)]">
-            <span>{capability.group}</span>
-            <span className="inline-flex items-center gap-1 font-medium text-[var(--text-primary)]">
-              查看能力
-              <ChevronRight className="h-3.5 w-3.5" />
-            </span>
-          </div>
-        </div>
-      </div>
-    </PressableCard>
-  );
-}
-
 export function DataConnectionsView() {
+  const [theme, setTheme] = useState<ResolvedTheme>(() => getResolvedThemeFromDom());
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMarkets, setSelectedMarkets] = useState<string[]>(['全部']);
-  const [selectedStatus, setSelectedStatus] = useState<string>('全部');
-  const [selectedScenario, setSelectedScenario] = useState<DataConnectionScenario['id'] | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState('全部');
 
-  const filteredGroups = useMemo(
+  useEffect(() => {
+    const handleThemeChange = () => setTheme(getResolvedThemeFromDom());
+    window.addEventListener(THEME_CHANGE_EVENT, handleThemeChange);
+    return () => window.removeEventListener(THEME_CHANGE_EVENT, handleThemeChange);
+  }, []);
+
+  const colors = paletteForTheme(theme);
+
+  const allCapabilities = useMemo(() => {
+    const flattened: Array<Capability & { category: string; categoryDesc: string }> = [];
+    capabilityGroups.forEach((group) => {
+      group.items.forEach((item) => {
+        flattened.push({
+          ...item,
+          category: group.title,
+          categoryDesc: group.description,
+        });
+      });
+    });
+    return flattened;
+  }, []);
+
+  const filteredCapabilities = useMemo(
     () =>
-      DATA_CONNECTION_GROUPS.map((group) => ({
-        ...group,
-        items: group.items.filter(
-          (capability) =>
-            matchesSearch(capability, searchQuery) &&
-            matchesMarkets(capability, selectedMarkets) &&
-            matchesStatus(capability, selectedStatus) &&
-            matchesScenario(capability, selectedScenario),
-        ),
-      })).filter((group) => group.items.length > 0),
-    [searchQuery, selectedMarkets, selectedStatus, selectedScenario],
+      allCapabilities.filter((capability) => {
+        const matchesSearch =
+          searchQuery === '' ||
+          capability.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          capability.subtitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          capability.capabilities.some((item) => item.toLowerCase().includes(searchQuery.toLowerCase()));
+
+        const matchesMarket =
+          selectedMarkets.includes('全部') ||
+          capability.markets.some((market) => selectedMarkets.includes(market));
+
+        const matchesStatus = selectedStatus === '全部' || capability.status === selectedStatus;
+
+        return matchesSearch && matchesMarket && matchesStatus;
+      }),
+    [allCapabilities, searchQuery, selectedMarkets, selectedStatus],
   );
 
-  const filteredCount = useMemo(
-    () => filteredGroups.reduce((total, group) => total + group.items.length, 0),
-    [filteredGroups],
-  );
+  const handleMarketToggle = (market: string) => {
+    if (market === '全部') {
+      setSelectedMarkets(['全部']);
+      return;
+    }
 
-  const activeMarketCount = selectedMarkets.includes('全部') ? DATA_CONNECTION_MARKETS.length - 1 : selectedMarkets.length;
+    let nextSelected = selectedMarkets.filter((item) => item !== '全部');
+    if (nextSelected.includes(market)) {
+      nextSelected = nextSelected.filter((item) => item !== market);
+      if (nextSelected.length === 0) nextSelected = ['全部'];
+    } else {
+      nextSelected = [...nextSelected, market];
+    }
+    setSelectedMarkets(nextSelected);
+  };
 
-  const scenarioCounts = useMemo(
-    () =>
-      DATA_CONNECTION_SCENARIOS.map((scenario) => ({
-        id: scenario.id,
-        count: DATA_CONNECTION_CAPABILITIES.filter((capability) => capability.scenarios.includes(scenario.id)).length,
-      })),
-    [],
-  );
+  const handleThemeToggle = () => {
+    const nextMode = theme === 'light' ? 'dark' : 'light';
+    persistThemeMode(nextMode);
+    applyThemeMode(nextMode);
+    setTheme(nextMode);
+  };
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(168,140,93,0.10),transparent_24%),linear-gradient(180deg,var(--bg-page)_0%,var(--bg-page)_100%)]">
-      <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-5 px-5 py-5 lg:px-8">
-        <section className="rounded-[28px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.78)] px-5 py-5 shadow-[0_14px_30px_rgba(15,23,42,0.05)] dark:bg-[rgba(25,23,21,0.92)] dark:shadow-[0_20px_34px_rgba(0,0,0,0.24)]">
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-            <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border-default)] bg-[var(--bg-hover)] px-3 py-1 text-[11px] font-medium tracking-[0.08em] text-[var(--text-muted)]">
-                <Sparkles className="h-3.5 w-3.5 text-[var(--lobster-gold-strong)]" />
-                Wrapper Data Capability Gallery
-              </div>
-              <h1 className="mt-3 text-[32px] font-semibold tracking-[-0.06em] text-[var(--text-primary)]">数据连接</h1>
-              <p className="mt-2 max-w-[760px] text-[13px] leading-6 text-[var(--text-secondary)]">
-                这里不是底层供应商清单，而是 iClaw wrapper 已经可以直接调起的金融数据能力画廊。目标是让用户第一眼就知道：行情、财报、资讯、宏观、加密、量化，这里都能接。
+    <div
+      className="flex min-h-0 min-w-0 flex-1 overflow-y-auto transition-colors duration-300"
+      style={{ backgroundColor: colors.pageBg }}
+    >
+      <div className="mx-auto w-full max-w-[1600px] px-8 py-8">
+        <div
+          className="mb-8 rounded-2xl border px-10 py-8 transition-colors"
+          style={{
+            backgroundColor: colors.cardBg,
+            borderColor: colors.subtleBorder,
+          }}
+        >
+          <div className="flex items-start justify-between gap-6">
+            <div className="flex-1">
+              <h1
+                className="mb-3 text-4xl font-semibold tracking-tight"
+                style={{ color: colors.primaryText }}
+              >
+                数据连接中心
+              </h1>
+              <p
+                className="mb-6 max-w-3xl text-base leading-relaxed"
+                style={{ color: colors.secondaryText }}
+              >
+                iClaw 金融数据能力封装层 · 覆盖全球多市场行情、财报、资讯、宏观与加密资产数据集
               </p>
 
-              <div className="mt-4 flex flex-wrap gap-2">
-                {['多市场行情', '公司财务', '监管披露', '宏观经济', '加密资产', '量化筛选'].map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center rounded-full border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[12px] text-[var(--text-secondary)]"
-                  >
-                    {tag}
+              <div className="flex items-center gap-6">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-semibold" style={{ color: colors.brandGold }}>
+                    {allCapabilities.length}
                   </span>
-                ))}
+                  <span className="text-sm font-medium" style={{ color: colors.mutedText }}>
+                    数据能力
+                  </span>
+                </div>
+                <div className="h-8 w-px" style={{ backgroundColor: colors.defaultBorder }} />
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-semibold" style={{ color: colors.brandGold }}>
+                    9
+                  </span>
+                  <span className="text-sm font-medium" style={{ color: colors.mutedText }}>
+                    接入市场
+                  </span>
+                </div>
+                <div className="h-8 w-px" style={{ backgroundColor: colors.defaultBorder }} />
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-semibold" style={{ color: colors.brandGold }}>
+                    {capabilityGroups.length}
+                  </span>
+                  <span className="text-sm font-medium" style={{ color: colors.mutedText }}>
+                    能力类别
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
-              <HeaderMetric label="能力总数" value={String(DATA_CONNECTION_CAPABILITIES.length)} note="已结构化" />
-              <HeaderMetric label="当前结果" value={String(filteredCount)} note={`${activeMarketCount} 个市场`} />
-              <HeaderMetric label="研究场景" value={String(DATA_CONNECTION_SCENARIOS.length)} note="研究 / 跟踪 / 量化" />
-            </div>
+            <button
+              onClick={handleThemeToggle}
+              className="cursor-pointer rounded-xl border p-3 transition-all hover:scale-105 active:scale-[0.98]"
+              style={{
+                backgroundColor: colors.elevatedBg,
+                borderColor: colors.defaultBorder,
+              }}
+            >
+              {theme === 'light' ? (
+                <Moon className="h-5 w-5" style={{ color: colors.secondaryText }} />
+              ) : (
+                <Sun className="h-5 w-5" style={{ color: colors.secondaryText }} />
+              )}
+            </button>
           </div>
-        </section>
+        </div>
 
-        <section className="grid gap-4 xl:grid-cols-3">
-          {DATA_CONNECTION_SCENARIOS.map((scenario) => (
-            <ScenarioShowcase
-              key={scenario.id}
-              scenario={scenario}
-              selected={selectedScenario === scenario.id}
-              onClick={() => setSelectedScenario((current) => (current === scenario.id ? null : scenario.id))}
-              count={scenarioCounts.find((item) => item.id === scenario.id)?.count ?? 0}
-            />
-          ))}
-        </section>
-
-        <section className="rounded-[24px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.72)] p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)] dark:bg-[rgba(25,23,21,0.9)] dark:shadow-[0_16px_28px_rgba(0,0,0,0.22)]">
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-              <SearchField value={searchQuery} onChange={setSearchQuery} />
-
-              <div className="flex flex-wrap gap-2">
-                {DATA_CONNECTION_STATUS.map((status) => (
-                  <FilterChip
-                    key={status}
-                    label={status}
-                    active={selectedStatus === status}
-                    onClick={() => setSelectedStatus(status)}
-                  />
-                ))}
+        <div
+          className="mb-8 rounded-2xl border px-8 py-5"
+          style={{
+            backgroundColor: colors.cardBg,
+            borderColor: colors.subtleBorder,
+          }}
+        >
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="min-w-[320px] flex-1">
+              <div className="relative">
+                <Search
+                  className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2"
+                  style={{ color: colors.mutedText }}
+                />
+                <input
+                  type="text"
+                  placeholder='搜索能力，例如"实时行情""财务报表""宏观数据"'
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  className="w-full rounded-xl border py-3 pl-12 pr-4 text-sm outline-none transition-all"
+                  style={{
+                    backgroundColor: colors.elevatedBg,
+                    borderColor: colors.defaultBorder,
+                    color: colors.primaryText,
+                    boxShadow: 'none',
+                  }}
+                  onFocus={(event) => {
+                    event.target.style.borderColor = colors.brandGold;
+                    event.target.style.boxShadow = `0 0 0 3px ${colors.brandGoldSoft}`;
+                  }}
+                  onBlur={(event) => {
+                    event.target.style.borderColor = colors.defaultBorder;
+                    event.target.style.boxShadow = 'none';
+                  }}
+                />
               </div>
-
-              <Button
-                variant="secondary"
-                size="sm"
-                className="shrink-0"
-                leadingIcon={<ArrowRight className="h-4 w-4" />}
-              >
-                查看接入规划
-              </Button>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              {DATA_CONNECTION_MARKETS.map((market) => (
-                <FilterChip
+            <div className="flex flex-wrap items-center gap-2">
+              {markets.map((market) => (
+                <MarketChip
                   key={market}
-                  label={market}
-                  active={selectedMarkets.includes(market)}
-                  onClick={() => setSelectedMarkets((current) => toggleMarketSelection(market, current))}
-                  toneClassName={market === '全部' ? undefined : MARKET_BUTTON_TONES[market]}
+                  market={market}
+                  selected={selectedMarkets.includes(market)}
+                  onClick={() => handleMarketToggle(market)}
+                  theme={theme}
+                  colors={colors}
                 />
               ))}
             </div>
+
+            <div className="flex items-center gap-2">
+              {statusFilters.map((status) => (
+                <button
+                  key={status}
+                  onClick={() => setSelectedStatus(status)}
+                  className="cursor-pointer rounded-lg border px-4 py-2 text-xs font-medium transition-all hover:scale-105 active:scale-[0.98]"
+                  style={{
+                    backgroundColor: selectedStatus === status ? colors.brandGoldSoft : colors.elevatedBg,
+                    borderColor: selectedStatus === status ? colors.brandGold : colors.defaultBorder,
+                    color: selectedStatus === status ? colors.brandGoldStrong : colors.secondaryText,
+                  }}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
           </div>
-        </section>
+        </div>
 
-        <section className="space-y-5">
-          {filteredGroups.length === 0 ? (
-            <section className="rounded-[24px] border border-dashed border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-12 text-center">
-              <div className="text-[18px] font-semibold text-[var(--text-primary)]">没有匹配的数据能力</div>
-              <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
-                可以尝试减少市场筛选、清空场景条件，或改用更宽泛的关键词。
-              </p>
-            </section>
-          ) : (
-            filteredGroups.map((group) => (
-              <section key={group.title} className="rounded-[26px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.74)] p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)] dark:bg-[rgba(25,23,21,0.9)] dark:shadow-[0_16px_28px_rgba(0,0,0,0.22)]">
-                <div className="mb-4 flex items-end justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="text-[18px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">{group.title}</div>
-                    <div className="mt-1 text-[12px] leading-6 text-[var(--text-secondary)]">{group.description}</div>
-                  </div>
-                  <div className="hidden shrink-0 rounded-full border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] lg:inline-flex">
-                    {group.items.length} 项能力
-                  </div>
-                </div>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {filteredCapabilities.map((capability, index) => (
+            <CapabilityCard
+              key={`${capability.category}-${capability.title}-${index}`}
+              capability={capability}
+              theme={theme}
+              colors={colors}
+            />
+          ))}
+        </div>
 
-                <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
-                  {group.items.map((capability) => (
-                    <CapabilityCard key={capability.title} capability={capability} />
-                  ))}
-                </div>
-              </section>
-            ))
-          )}
-        </section>
+        {filteredCapabilities.length === 0 && (
+          <div
+            className="rounded-2xl border p-16 text-center"
+            style={{
+              backgroundColor: colors.cardBg,
+              borderColor: colors.subtleBorder,
+            }}
+          >
+            <Database className="mx-auto mb-4 h-16 w-16" style={{ color: colors.mutedText }} />
+            <h3
+              className="mb-2 text-lg font-semibold"
+              style={{ color: colors.primaryText }}
+            >
+              未找到匹配的能力
+            </h3>
+            <p className="text-sm" style={{ color: colors.secondaryText }}>
+              请尝试调整搜索条件或筛选器
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
