@@ -13,8 +13,8 @@ import {
 } from './lib/tauri-runtime-config';
 import { AuthPanel } from './components/AuthPanel';
 import { AccountPanel } from './components/account/AccountPanel';
-import { CreditBalancePill } from './components/CreditBalancePill';
 import { FirstRunSetupPanel } from './components/FirstRunSetupPanel';
+import { IClawHeader } from './components/IClawHeader';
 import { OpenClawChatSurface } from './components/OpenClawChatSurface';
 import { OpenClawCronSurface } from './components/OpenClawCronSurface';
 import { Sidebar } from './components/Sidebar';
@@ -112,41 +112,6 @@ const DESKTOP_APP_VERSION = desktopPackageJson.version;
 const DESKTOP_RELEASE_CHANNEL: 'dev' | 'prod' = import.meta.env.DEV ? 'dev' : 'prod';
 const DISPLAY_DESKTOP_APP_VERSION = DESKTOP_APP_VERSION.split('+', 1)[0] || DESKTOP_APP_VERSION;
 type PrimaryView = 'chat' | 'lobster-store' | 'skill-store' | 'cron' | 'im-bots' | 'data-connections' | 'task-center' | 'memory';
-
-const PRIMARY_VIEW_META: Record<PrimaryView, {title: string; subtitle: string}> = {
-  chat: {
-    title: '智能对话',
-    subtitle: '与本地 AI 助手协作，并在发送前看到预计消耗。',
-  },
-  'lobster-store': {
-    title: '龙虾商店',
-    subtitle: '浏览龙虾体系下的精选能力与内容资产。',
-  },
-  'skill-store': {
-    title: '技能商店',
-    subtitle: '发现、安装和管理你的技能能力。',
-  },
-  cron: {
-    title: '定时任务',
-    subtitle: '安排周期性执行，让任务按计划持续运行。',
-  },
-  'im-bots': {
-    title: 'IM 机器人',
-    subtitle: '管理机器人接入与消息测试。',
-  },
-  'data-connections': {
-    title: '数据连接',
-    subtitle: '管理外部数据源与能力连接。',
-  },
-  'task-center': {
-    title: '任务中心',
-    subtitle: '查看最近任务与执行状态。',
-  },
-  memory: {
-    title: '记忆中心',
-    subtitle: '整理长期记忆、筛选和回顾上下文。',
-  },
-};
 
 type InstallerViewState = 'loading' | 'error';
 
@@ -1112,7 +1077,6 @@ function AuthedView({
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [creditBalance, setCreditBalance] = useState<CreditBalanceData | null>(null);
   const [creditBalanceLoading, setCreditBalanceLoading] = useState(false);
-  const currentViewMeta = useMemo(() => PRIMARY_VIEW_META[primaryView], [primaryView]);
 
   useEffect(() => {
     if (!accessToken) {
@@ -1196,6 +1160,14 @@ function AuthedView({
     }
   };
 
+  const handleHeaderAccountAction = () => {
+    if (!authenticated) {
+      onRequestAuth('login', 'account');
+      return;
+    }
+    setOverlayView('account');
+  };
+
   return (
     <div className="relative flex h-screen overflow-hidden bg-[var(--bg-page)]">
       <Sidebar
@@ -1234,23 +1206,13 @@ function AuthedView({
         onSkipDesktopUpdate={onSkipDesktopUpdate}
       />
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-[72px] shrink-0 items-center justify-between border-b border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-page)_94%,white_6%)] px-6">
-          <div className="min-w-0">
-            <div className="truncate text-[18px] font-semibold text-[var(--text-primary)]">
-              {currentViewMeta.title}
-            </div>
-            <div className="mt-1 truncate text-[12px] text-[var(--text-secondary)]">
-              {currentViewMeta.subtitle}
-            </div>
-          </div>
-          {authenticated ? (
-            <CreditBalancePill
-              balance={creditBalance?.available_balance ?? creditBalance?.balance ?? null}
-              loading={creditBalanceLoading}
-              onClick={() => setOverlayView('account')}
-            />
-          ) : <div />}
-        </header>
+        <IClawHeader
+          balance={creditBalance?.available_balance ?? creditBalance?.balance ?? null}
+          loading={creditBalanceLoading}
+          authenticated={authenticated}
+          onCreditsClick={handleHeaderAccountAction}
+          onSubscriptionClick={handleHeaderAccountAction}
+        />
         <div className="min-h-0 flex-1">
           {primaryView === 'lobster-store' ? (
             <LobsterStoreView
