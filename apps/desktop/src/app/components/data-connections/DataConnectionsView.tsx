@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronRight, Database, Moon, Search, Shield, Sun } from 'lucide-react';
+import { ChevronRight, Database, Search, Shield } from 'lucide-react';
 import {
   THEME_CHANGE_EVENT,
-  applyThemeMode,
   getResolvedThemeFromDom,
-  persistThemeMode,
   type ResolvedTheme,
 } from '@/app/lib/theme';
 import { capabilityGroups, type Capability } from './data-connections-data';
@@ -350,13 +348,6 @@ export function DataConnectionsView() {
     setSelectedMarkets(nextSelected);
   };
 
-  const handleThemeToggle = () => {
-    const nextMode = theme === 'light' ? 'dark' : 'light';
-    persistThemeMode(nextMode);
-    applyThemeMode(nextMode);
-    setTheme(nextMode);
-  };
-
   return (
     <div
       className="flex min-h-0 min-w-0 flex-1 overflow-y-auto transition-colors duration-300"
@@ -415,20 +406,6 @@ export function DataConnectionsView() {
               </div>
             </div>
 
-            <button
-              onClick={handleThemeToggle}
-              className="cursor-pointer rounded-xl border p-3 transition-all hover:scale-105 active:scale-[0.98]"
-              style={{
-                backgroundColor: colors.elevatedBg,
-                borderColor: colors.defaultBorder,
-              }}
-            >
-              {theme === 'light' ? (
-                <Moon className="h-5 w-5" style={{ color: colors.secondaryText }} />
-              ) : (
-                <Sun className="h-5 w-5" style={{ color: colors.secondaryText }} />
-              )}
-            </button>
           </div>
         </div>
 
