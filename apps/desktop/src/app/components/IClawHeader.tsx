@@ -1,4 +1,5 @@
 import { Coins, Crown, Minus, TrendingDown, TrendingUp } from 'lucide-react';
+import { ProtectionSignal } from '@/app/components/ui/ProtectionSignal';
 
 type IClawHeaderProps = {
   balance: number | null;
@@ -90,6 +91,14 @@ export function IClawHeader({
         </div>
 
         <div className="flex shrink-0 items-center gap-3">
+          <div
+            className="inline-flex items-center justify-center rounded-full border border-[var(--lobster-gold-border)] bg-[rgba(234,225,208,0.68)] px-1.5 py-1"
+            title="安全保护中"
+            aria-label="安全保护中"
+          >
+            <ProtectionSignal size="sm" tone="gold" />
+          </div>
+
           <button
             type="button"
             className="group relative flex items-center gap-1.5 rounded px-2.5 py-1 transition-all duration-200 hover:bg-gray-100/50 dark:hover:bg-gray-800/30"

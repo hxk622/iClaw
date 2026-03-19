@@ -1,12 +1,9 @@
 import {
-  Activity,
-  Bot,
   Copy,
   MessageCircleQuestionMark,
   MessageSquarePlus,
   RefreshCw,
   ScrollText,
-  ShieldCheck,
   WifiOff,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -14,11 +11,8 @@ import type { CreditQuoteData, IClawClient } from '@iclaw/sdk';
 import '@openclaw-ui/main.ts';
 import './openclaw-chat-surface.css';
 import { Button } from '@/app/components/ui/Button';
-import { Chip } from '@/app/components/ui/Chip';
 import { EmptyStatePanel } from '@/app/components/ui/EmptyStatePanel';
-import { PageContent, PageHeader, PageSurface } from '@/app/components/ui/PageLayout';
-import { SurfacePanel } from '@/app/components/ui/SurfacePanel';
-import { SummaryMetricItem } from '@/app/components/ui/SummaryMetricItem';
+import { PageSurface } from '@/app/components/ui/PageLayout';
 import {
   buildComposerModelOptions,
   type ComposerModelOption,
@@ -1978,72 +1972,10 @@ export function OpenClawChatSurface({
   }, [clearMessageActionTimers, handleSend, status.busy]);
 
   return (
-    <PageSurface as="div">
-      <PageContent className="flex min-h-full flex-col">
-        <PageHeader
-          eyebrow="OpenClaw Runtime"
-          title="对话工作台"
-          description="聊天内核继续使用 OpenClaw 原生嵌入层，桌面端只负责统一页面壳、状态摘要和诊断提示，避免聊天页继续游离在设计规范之外。"
-          actions={
-            <>
-              <Chip tone={status.connected ? 'success' : 'warning'}>
-                {status.connected ? '网关已连接' : '等待网关'}
-              </Chip>
-              <Button
-                variant="secondary"
-                size="sm"
-                leadingIcon={
-                  <RefreshCw className={modelsLoading || modelSwitching ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
-                }
-                onClick={() => void refreshModelCatalog()}
-                disabled={!status.connected || modelsLoading || modelSwitching}
-              >
-                同步模型
-              </Button>
-            </>
-          }
-        />
-
-        <SurfacePanel tone="subtle" className="mt-5 rounded-[28px] p-2">
-          <div className="flex flex-wrap gap-y-2">
-            <SummaryMetricItem
-              first
-              tone={status.connected ? 'success' : 'warning'}
-              icon={Activity}
-              label="连接"
-              value={status.connected ? '已连接' : '等待中'}
-              note={status.lastError ?? '本地运行时与 OpenClaw 网关连接状态'}
-            />
-            <SummaryMetricItem
-              tone={threadReady ? 'success' : 'warning'}
-              icon={Bot}
-              label="线程"
-              value={threadReady ? '就绪' : '恢复中'}
-              note={
-                renderState.groupCount > 0
-                  ? `已挂载 ${renderState.groupCount} 个消息组`
-                  : '等待聊天线程进入可见态'
-              }
-            />
-            <SummaryMetricItem
-              tone="brand"
-              icon={ShieldCheck}
-              label="认证"
-              value={hasGatewayAuth ? '已配置' : '缺失'}
-              note={`shell ${shellAuthenticated ? '已登录' : '未登录'} / gateway ${hasGatewayAuth ? '已配置' : '未配置'}`}
-            />
-            <SummaryMetricItem
-              tone="neutral"
-              icon={RefreshCw}
-              label="模型"
-              value={selectedModelId ?? '默认模型'}
-              note={modelsLoading ? '正在同步模型目录' : modelOptions.length > 0 ? `可选 ${modelOptions.length} 个` : '等待模型目录返回'}
-            />
-          </div>
-        </SurfacePanel>
-
+    <PageSurface as="div" className="bg-[var(--bg-page)]">
+      <div className="flex min-h-0 flex-1 flex-col px-6 py-5 lg:px-8">
         {showRenderDiagnosticsCard ? (
-          <div className="mt-4">
+          <div className="mb-4">
             <EmptyStatePanel
               compact
               title="聊天嵌入层还没有进入稳定可见态"
@@ -2063,7 +1995,7 @@ export function OpenClawChatSurface({
         ) : null}
 
         {!status.connected && showConnectionCard ? (
-          <div className="mt-4">
+          <div className="mb-4">
             <EmptyStatePanel
               compact
               title={status.lastError ? '聊天网关连接失败' : '正在建立聊天连接'}
@@ -2089,7 +2021,7 @@ export function OpenClawChatSurface({
           </div>
         ) : null}
 
-        <SurfacePanel className="relative mt-5 flex min-h-[720px] min-w-0 flex-1 overflow-hidden rounded-[32px] border-[var(--chat-surface-panel-border)] bg-[var(--chat-surface-panel)] p-0">
+        <div className="relative flex min-h-[720px] min-w-0 flex-1 overflow-hidden rounded-[32px] border border-[var(--chat-surface-panel-border)] bg-[var(--chat-surface-panel)] p-0 shadow-[var(--chat-surface-panel-shadow)]">
           <div ref={shellRef} className="openclaw-chat-surface-shell h-full flex-1 overflow-hidden">
             <div ref={hostRef} className="openclaw-chat-surface h-full min-h-0 flex-1 overflow-hidden" />
 
@@ -2233,8 +2165,8 @@ export function OpenClawChatSurface({
               </div>
             ) : null}
           </div>
-        </SurfacePanel>
-      </PageContent>
+        </div>
+      </div>
     </PageSurface>
   );
 }

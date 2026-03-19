@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import { PageContent, PageHeader, PageSurface } from '@/app/components/ui/PageLayout';
 import { PressableCard } from '@/app/components/ui/PressableCard';
+import { ProtectionSignal } from '@/app/components/ui/ProtectionSignal';
+import { SecurityStatusBadge } from '@/app/components/ui/SecurityStatusBadge';
 import { StatCard } from '@/app/components/ui/StatCard';
 import { SurfacePanel } from '@/app/components/ui/SurfacePanel';
 import { SummaryMetricItem } from '@/app/components/ui/SummaryMetricItem';
@@ -138,14 +140,19 @@ export function SecurityCenterView() {
           <StatCard
             icon={<Shield className="h-5 w-5" />}
             label="实时防护"
-            value={protectionEnabled ? '保护中' : '未开启'}
+            value={
+              <SecurityStatusBadge
+                state={protectionEnabled ? 'protecting' : 'disabled'}
+                label={protectionEnabled ? '保护中' : '未开启'}
+              />
+            }
             description={protectionEnabled ? '已覆盖所有 AI 交互入口' : '建议恢复主防线'}
             tone={protectionEnabled ? 'success' : 'warning'}
           />
           <StatCard
             icon={<FileText className="h-5 w-5" />}
             label="审计追踪"
-            value={enabledState['audit-log'] ? '已开启' : '已关闭'}
+            value={<SecurityStatusBadge state={enabledState['audit-log'] ? 'enabled' : 'disabled'} />}
             description="保留关键交互与命中记录"
             tone={enabledState['audit-log'] ? 'brand' : 'default'}
           />
@@ -269,12 +276,16 @@ function SecurityHeroCard({
       <div className="flex h-full flex-col gap-5">
         <div className="flex items-start gap-4">
           <SecurityIconContainer accent={enabled}>
-            <Shield
-              className={cn(
-                'h-6 w-6 stroke-[1.6]',
-                enabled ? 'text-[var(--brand-primary)]' : 'text-[var(--text-secondary)]',
-              )}
-            />
+            {enabled ? (
+              <ProtectionSignal size="md" tone="gold" />
+            ) : (
+              <Shield
+                className={cn(
+                  'h-6 w-6 stroke-[1.6]',
+                  enabled ? 'text-[var(--brand-primary)]' : 'text-[var(--text-secondary)]',
+                )}
+              />
+            )}
           </SecurityIconContainer>
 
           <div className="min-w-0 flex-1">
@@ -288,7 +299,7 @@ function SecurityHeroCard({
 
           <div className="flex shrink-0 flex-col items-end gap-3">
             <SecurityToggle checked={enabled} onChange={onToggle} label="切换一键实时防护" />
-            <SecurityStatusPill enabled={enabled} protecting />
+            <SecurityStatusBadge state={enabled ? 'protecting' : 'disabled'} />
           </div>
         </div>
 
@@ -359,7 +370,7 @@ function SecurityFeatureCard({
         </div>
 
         <div className="mt-auto flex justify-end">
-          <SecurityStatusPill enabled={enabled} />
+          <SecurityStatusBadge state={enabled ? 'enabled' : 'disabled'} />
         </div>
       </div>
     </PressableCard>
@@ -376,7 +387,7 @@ function SecurityIconContainer({
   return (
     <div
       className={cn(
-        'flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] border',
+        'flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] border overflow-visible',
         accent
           ? 'border-[rgba(168,140,93,0.18)] bg-[rgba(168,140,93,0.10)]'
           : 'border-[var(--border-default)] bg-[var(--bg-hover)]',
@@ -385,34 +396,6 @@ function SecurityIconContainer({
     >
       {children}
     </div>
-  );
-}
-
-function SecurityStatusPill({
-  enabled,
-  protecting = false,
-}: {
-  enabled: boolean;
-  protecting?: boolean;
-}) {
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium leading-none',
-        enabled
-          ? 'border-[rgba(74,107,90,0.16)] bg-[rgba(74,107,90,0.10)] text-[var(--state-success)]'
-          : 'border-[rgba(154,146,136,0.16)] bg-[rgba(154,146,136,0.10)] text-[var(--text-muted)]',
-      )}
-    >
-      <span
-        className={cn(
-          'h-1.5 w-1.5 rounded-full',
-          enabled ? 'bg-[var(--state-success)]' : 'bg-[var(--text-muted)]',
-        )}
-        aria-hidden="true"
-      />
-      {enabled ? (protecting ? '保护中' : '已开启') : '已关闭'}
-    </span>
   );
 }
 
