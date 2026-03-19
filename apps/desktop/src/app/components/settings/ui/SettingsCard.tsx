@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { DrawerSection } from '@/app/components/ui/DrawerSection';
 import { cn } from '@/app/lib/cn';
 
 interface SettingsCardProps {
@@ -9,13 +8,13 @@ interface SettingsCardProps {
 
 export function SettingsCard({ children, className }: SettingsCardProps) {
   return (
-    <DrawerSection
+    <div
       className={cn(
-        'bg-[var(--bg-card)]',
+        'rounded-xl border border-[var(--border-default)] bg-[var(--bg-card)] p-6 shadow-[0_1px_3px_rgba(0,0,0,0.05)]',
         className,
       )}
     >
       {children}
-    </DrawerSection>
+    </div>
   );
 }

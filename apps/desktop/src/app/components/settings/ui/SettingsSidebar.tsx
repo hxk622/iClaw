@@ -24,12 +24,12 @@ interface SettingsSidebarProps {
 
 export function SettingsSidebar({ activeSection, onSelect }: SettingsSidebarProps) {
   return (
-    <aside className="flex w-64 flex-col border-r border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-card)_82%,var(--bg-page))]">
-      <div className="border-b border-[var(--border-default)] px-6 py-7">
+    <aside className="flex w-64 flex-col border-r border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-hover)_38%,transparent)]">
+      <div className="border-b border-[var(--border-default)] px-6 py-8">
         <h2 className="text-lg font-medium tracking-tight text-[var(--text-primary)]">iClaw 设置</h2>
       </div>
 
-      <nav className="flex-1 space-y-1.5 px-4 py-5">
+      <nav className="flex-1 space-y-1 px-4 py-6">
         {navigationItems.map((item) => {
           const Icon = item.icon;
           const active = item.key === activeSection;
@@ -39,15 +39,15 @@ export function SettingsSidebar({ activeSection, onSelect }: SettingsSidebarProp
               type="button"
               onClick={() => onSelect(item.key)}
               className={cn(
-                'relative w-full rounded-[16px] px-3 py-2.5 text-left cursor-pointer',
+                'relative w-full rounded-lg px-3 py-2.5 text-left cursor-pointer',
                 SPRING_PRESSABLE,
                 INTERACTIVE_FOCUS_RING,
-                active ? 'bg-[var(--bg-card)] shadow-[var(--pressable-card-rest-shadow)]' : 'hover:bg-[rgba(255,255,255,0.45)]',
+                active ? 'bg-[var(--bg-card)] shadow-[0_2px_8px_rgba(0,0,0,0.06)]' : 'hover:bg-[var(--bg-card)]/50',
               )}
             >
               <div
                 className={cn(
-                  'absolute inset-0 rounded-[16px] border',
+                  'absolute inset-0 rounded-lg border',
                   active ? 'border-[var(--brand-primary)]' : 'border-transparent',
                 )}
               />

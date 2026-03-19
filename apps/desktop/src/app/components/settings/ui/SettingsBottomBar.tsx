@@ -26,13 +26,11 @@ export function SettingsBottomBar({
           : '当前页面已同步';
 
   return (
-    <div className="border-t border-[var(--border-default)] bg-white/82 px-12 py-[18px] backdrop-blur-[10px] dark:bg-[rgba(12,12,12,0.86)]">
+    <div className="border-t border-[var(--border-default)] bg-[var(--bg-card)] px-12 py-4">
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-2 text-sm text-[var(--text-secondary)]">
-          {hasUnsavedChanges ? (
-            <span className="h-2 w-2 rounded-full bg-[var(--brand-primary)] animate-pulse" />
-          ) : null}
-          <span>{indicatorText}</span>
+          {hasUnsavedChanges ? <span className="h-2 w-2 rounded-full bg-[var(--brand-primary)] animate-pulse" /> : null}
+          {hasUnsavedChanges || saveState !== 'idle' ? <span>{indicatorText}</span> : null}
           {saveMessage && saveState !== 'idle' ? <span className="truncate text-xs">{saveMessage}</span> : null}
         </div>
         <div className="flex items-center gap-3">
@@ -46,11 +44,12 @@ export function SettingsBottomBar({
             重置
           </Button>
           <Button
-            variant="primary"
+            variant="secondary"
             size="sm"
             leadingIcon={<Save className="h-4 w-4" />}
             disabled={!hasUnsavedChanges || saveState === 'saving'}
             onClick={onSave}
+            className="border-[rgba(23,23,23,0.18)] bg-[#171717] text-[#f7f5f0] hover:border-[rgba(17,17,15,0.28)] hover:bg-[#10100f] hover:text-[#fcfbf8] hover:shadow-[0_10px_24px_rgba(18,15,11,0.12)] dark:border-[rgba(23,23,23,0.18)] dark:bg-[#171717] dark:text-[#f2eee6] dark:hover:border-[rgba(17,17,15,0.28)] dark:hover:bg-[#10100f] dark:hover:text-[#fbf8f2] dark:hover:shadow-[0_14px_28px_rgba(0,0,0,0.36)]"
           >
             {saveState === 'saving' ? '保存中...' : '保存更改'}
           </Button>
