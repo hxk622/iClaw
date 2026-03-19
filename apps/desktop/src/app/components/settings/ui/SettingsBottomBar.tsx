@@ -26,7 +26,7 @@ export function SettingsBottomBar({
           : '当前页面已同步';
 
   return (
-    <div className="border-t border-[var(--border-default)] bg-[var(--bg-card)] px-12 py-4">
+    <div className="border-t border-[var(--border-default)] bg-white/82 px-12 py-[18px] backdrop-blur-[10px] dark:bg-[rgba(12,12,12,0.86)]">
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-2 text-sm text-[var(--text-secondary)]">
           {hasUnsavedChanges ? (

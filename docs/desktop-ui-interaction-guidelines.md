@@ -134,6 +134,8 @@
   - [ChecklistPanel.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/ChecklistPanel.tsx)
 - 如果新页面需要“IM机器人式”的暖灰金卡片、按钮、步骤条、提示侧栏，应先扩展这些基础件，再改业务页。
 - 共享基础件应优先吃系统 token，而不是写死 hex；本轮已把按钮、卡片、面板、标签的主配色切到统一 token。
+- 设置类选项卡如果本质是“单选/多选的大卡片”，应优先让 [SettingsChoiceCard.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/settings/ui/SettingsChoiceCard.tsx) 复用 [SelectionCard.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/SelectionCard.tsx) 的选中语义，而不是单独再做一套高亮边框。
+- 设置页中的内容卡如果只是信息/表单分区，应优先让 [SettingsCard.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/settings/ui/SettingsCard.tsx) 复用 [DrawerSection.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/DrawerSection.tsx)。
 
 ## 页面模式规范
 
@@ -179,6 +181,10 @@
 - [SkillStoreImportSheet.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/skill-store/SkillStoreImportSheet.tsx)
 - [SkillStoreAdminSheet.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/skill-store/SkillStoreAdminSheet.tsx)
 - [SkillStoreDetailSheet.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/skill-store/SkillStoreDetailSheet.tsx)
+- [SettingsPanel.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/settings/SettingsPanel.tsx)
+- [SettingsCard.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/settings/ui/SettingsCard.tsx)
+- [SettingsChoiceCard.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/settings/ui/SettingsChoiceCard.tsx)
+- [AccountPanel.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/account/AccountPanel.tsx)
 - [Button.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/Button.tsx)
 - [PressableCard.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/PressableCard.tsx)
 - [Chip.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/Chip.tsx)

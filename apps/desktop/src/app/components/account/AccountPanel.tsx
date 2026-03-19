@@ -2,6 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { Camera, ChevronLeft, CreditCard, KeyRound, Link2, Loader2, Trash2, Unplug, Wallet } from 'lucide-react';
 import { IClawClient, type CreditBalanceData, type CreditLedgerItemData } from '@iclaw/sdk';
 import { Button } from '@/app/components/ui/Button';
+import { DrawerSection } from '@/app/components/ui/DrawerSection';
+import { InfoTile } from '@/app/components/ui/InfoTile';
+
+const ACCOUNT_INPUT_CLASS =
+  'h-11 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-page)] px-4 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]';
+const ACCOUNT_DISABLED_INPUT_CLASS =
+  'h-11 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 text-sm text-[var(--text-secondary)] outline-none';
 
 type AuthUser = {
   id?: string;
@@ -238,12 +245,12 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-[rgba(28,24,16,0.24)] px-5 py-5 backdrop-blur-[2px]" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-[rgba(26,22,18,0.22)] px-5 py-5 backdrop-blur-[2px]" onClick={onClose}>
       <div
-        className="flex h-full max-h-[920px] w-full max-w-7xl flex-col overflow-hidden rounded-[32px] border border-[var(--border-default)] bg-[var(--bg-page)] shadow-[0_28px_90px_rgba(42,31,10,0.18)]"
+        className="flex h-full max-h-[920px] w-full max-w-7xl flex-col overflow-hidden rounded-[32px] border border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(252,251,248,0.98),rgba(244,240,233,0.96))] shadow-[0_28px_90px_rgba(42,31,10,0.18)] dark:bg-[linear-gradient(180deg,rgba(24,24,24,0.98),rgba(12,12,12,0.96))]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-3">
+        <div className="flex items-center justify-between border-b border-[var(--border-default)] bg-white/78 px-6 py-3 backdrop-blur-[10px] dark:bg-[rgba(12,12,12,0.72)]">
           <Button
             onClick={onClose}
             variant="ghost"
@@ -259,12 +266,16 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
         <main className="flex-1 overflow-y-auto px-6 py-6">
           <div className="mx-auto grid max-w-6xl gap-6 xl:grid-cols-[1.15fr_0.85fr]">
             <section className="space-y-6">
-              <div className="rounded-3xl border border-[var(--border-default)] bg-[var(--bg-card)] p-6">
+              <DrawerSection
+                title="账号资料"
+                className="rounded-[28px] bg-[var(--bg-card)]"
+                icon={null}
+              >
                 <div className="mb-5">
                   <div className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Profile</div>
                   <h1 className="mt-2 text-2xl text-[var(--text-primary)]">账号资料</h1>
                 </div>
-                <div className="mb-5 flex flex-col gap-4 rounded-[28px] border border-[var(--border-default)] bg-[var(--bg-elevated)] p-4 md:flex-row md:items-center md:justify-between">
+                <div className="mb-5 flex flex-col gap-4 rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-elevated)] p-4 md:flex-row md:items-center md:justify-between">
                   <div className="flex items-center gap-4">
                     <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-[28px] bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-primary-hover)] text-2xl text-[var(--brand-on-primary)]">
                       {avatarPreview ? (
@@ -313,7 +324,7 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
                     <input
                       disabled
                       value={user?.username || ''}
-                      className="h-11 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 text-sm text-[var(--text-secondary)] outline-none"
+                      className={ACCOUNT_DISABLED_INPUT_CLASS}
                     />
                   </label>
                   <label className="grid gap-1.5">
@@ -321,7 +332,7 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
                     <input
                       disabled
                       value={user?.email || ''}
-                      className="h-11 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 text-sm text-[var(--text-secondary)] outline-none"
+                      className={ACCOUNT_DISABLED_INPUT_CLASS}
                     />
                   </label>
                   <label className="grid gap-1.5 md:col-span-2">
@@ -332,7 +343,7 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
                         setName(e.target.value);
                         setProfileMessage(null);
                       }}
-                      className="h-11 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-page)] px-4 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
+                      className={ACCOUNT_INPUT_CLASS}
                     />
                   </label>
                 </div>
@@ -348,13 +359,9 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
                   </Button>
                   {profileMessage ? <span className="text-sm text-[var(--text-secondary)]">{profileMessage}</span> : null}
                 </div>
-              </div>
+              </DrawerSection>
 
-              <div className="rounded-3xl border border-[var(--border-default)] bg-[var(--bg-card)] p-6">
-                <div className="mb-5 flex items-center gap-3">
-                  <KeyRound className="h-5 w-5 text-[var(--text-secondary)]" />
-                  <h2 className="text-xl text-[var(--text-primary)]">修改密码</h2>
-                </div>
+              <DrawerSection title="修改密码" icon={<KeyRound className="h-5 w-5" />}>
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className="grid gap-1.5">
                     <span className="text-xs uppercase tracking-[0.08em] text-[var(--text-muted)]">当前密码</span>
@@ -366,7 +373,7 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
                         setPasswordMessage(null);
                       }}
                       placeholder="如果当前账号已有密码请填写"
-                      className="h-11 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-page)] px-4 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
+                      className={ACCOUNT_INPUT_CLASS}
                     />
                   </label>
                   <label className="grid gap-1.5">
@@ -379,7 +386,7 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
                         setPasswordMessage(null);
                       }}
                       placeholder="至少 8 个字符"
-                      className="h-11 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-page)] px-4 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
+                      className={ACCOUNT_INPUT_CLASS}
                     />
                   </label>
                 </div>
@@ -395,41 +402,34 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
                   </Button>
                   {passwordMessage ? <span className="text-sm text-[var(--text-secondary)]">{passwordMessage}</span> : null}
                 </div>
-              </div>
+              </DrawerSection>
             </section>
 
             <aside className="space-y-6">
-              <div className="rounded-3xl border border-[var(--border-default)] bg-[var(--bg-card)] p-6">
-                <div className="mb-4 flex items-center gap-3">
-                  <Wallet className="h-5 w-5 text-[var(--text-secondary)]" />
-                  <h2 className="text-xl text-[var(--text-primary)]">龙虾币余额</h2>
-                </div>
+              <DrawerSection title="龙虾币余额" icon={<Wallet className="h-5 w-5" />}>
                 {loadingMeta ? (
                   <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     正在加载账户信息...
                   </div>
                 ) : metaError ? (
-                  <div className="text-sm text-[var(--state-error)]">{metaError}</div>
+                  <InfoTile label="加载失败" value={metaError} tone="warning" />
                 ) : (
-                  <>
-                    <div className="text-4xl text-[var(--text-primary)]">{credits?.available_balance ?? credits?.balance ?? 0}</div>
-                    <div className="mt-1 text-sm text-[var(--text-secondary)]">{credits?.currency_display || '龙虾币'}</div>
-                  </>
+                  <InfoTile
+                    label="可用余额"
+                    value={credits?.available_balance ?? credits?.balance ?? 0}
+                    description={credits?.currency_display || '龙虾币'}
+                  />
                 )}
-              </div>
+              </DrawerSection>
 
-              <div className="rounded-3xl border border-[var(--border-default)] bg-[var(--bg-card)] p-6">
-                <div className="mb-4 flex items-center gap-3">
-                  <Link2 className="h-5 w-5 text-[var(--text-secondary)]" />
-                  <h2 className="text-xl text-[var(--text-primary)]">已绑定登录方式</h2>
-                </div>
+              <DrawerSection title="已绑定登录方式" icon={<Link2 className="h-5 w-5" />}>
                 <div className="space-y-3">
                   {linkedAccounts.length === 0 ? (
-                    <div className="text-sm text-[var(--text-secondary)]">当前只有邮箱密码登录。</div>
+                    <InfoTile label="登录方式" value="当前只有邮箱密码登录。" />
                   ) : (
                     linkedAccounts.map((item) => (
-                      <div key={`${item.provider}:${item.provider_id}`} className="rounded-2xl bg-[var(--bg-elevated)] px-4 py-3">
+                      <div key={`${item.provider}:${item.provider_id}`} className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
                         <div className="flex items-center justify-between gap-3">
                           <div>
                             <div className="text-sm text-[var(--text-primary)]">{providerLabel(item.provider)}</div>
@@ -452,19 +452,15 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
                     ))
                   )}
                 </div>
-              </div>
+              </DrawerSection>
 
-              <div className="rounded-3xl border border-[var(--border-default)] bg-[var(--bg-card)] p-6">
-                <div className="mb-4 flex items-center gap-3">
-                  <CreditCard className="h-5 w-5 text-[var(--text-secondary)]" />
-                  <h2 className="text-xl text-[var(--text-primary)]">最近流水</h2>
-                </div>
+              <DrawerSection title="最近流水" icon={<CreditCard className="h-5 w-5" />}>
                 <div className="space-y-3">
                   {ledger.length === 0 ? (
-                    <div className="text-sm text-[var(--text-secondary)]">还没有龙虾币流水。</div>
+                    <InfoTile label="流水" value="还没有龙虾币流水。" />
                   ) : (
                     ledger.map((item) => (
-                      <div key={item.id} className="rounded-2xl bg-[var(--bg-elevated)] px-4 py-3">
+                      <div key={item.id} className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-sm text-[var(--text-primary)]">{creditEventLabel(item.event_type)}</span>
                           <span className={item.delta >= 0 ? 'text-sm text-[var(--state-success)]' : 'text-sm text-[var(--state-error)]'}>
@@ -479,7 +475,7 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
                     ))
                   )}
                 </div>
-              </div>
+              </DrawerSection>
             </aside>
           </div>
         </main>

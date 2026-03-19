@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { PressableCard } from '@/app/components/ui/PressableCard';
+import { DrawerSection } from '@/app/components/ui/DrawerSection';
 import { cn } from '@/app/lib/cn';
 
 interface SettingsCardProps {
@@ -9,13 +9,13 @@ interface SettingsCardProps {
 
 export function SettingsCard({ children, className }: SettingsCardProps) {
   return (
-    <PressableCard
+    <DrawerSection
       className={cn(
-        'rounded-[20px] border-[var(--border-default)] bg-[var(--bg-card)] p-6 shadow-[0_1px_3px_rgba(15,23,42,0.05)]',
+        'bg-[var(--bg-card)]',
         className,
       )}
     >
       {children}
-    </PressableCard>
+    </DrawerSection>
   );
 }
