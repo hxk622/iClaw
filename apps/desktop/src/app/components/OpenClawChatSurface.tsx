@@ -531,6 +531,16 @@ function extractChatGroupText(group: HTMLElement | null): string {
   return textBlocks.join('\n\n').trim();
 }
 
+function setElementTextIfChanged(node: Node | null, nextText: string): void {
+  if (!node) {
+    return;
+  }
+  if (node.textContent === nextText) {
+    return;
+  }
+  node.textContent = nextText;
+}
+
 function findLastRenderableAssistantGroup(host: HTMLElement): HTMLElement | null {
   const groups = Array.from(host.querySelectorAll('.chat-group.assistant')).filter(
     (node): node is HTMLElement => node instanceof HTMLElement,
@@ -2435,7 +2445,10 @@ export function OpenClawChatSurface({
         footer = document.createElement('div');
         footer.className = 'iclaw-chat-assistant-footer';
         footer.innerHTML = `
-          <div class="iclaw-chat-assistant-meta" data-state="idle"></div>
+          <div class="iclaw-chat-assistant-meta" data-state="idle">
+            <span class="iclaw-chat-assistant-meta__label"></span>
+            <strong class="iclaw-chat-assistant-meta__value"></strong>
+          </div>
           <div class="iclaw-chat-assistant-footer__right">
             <span class="iclaw-chat-assistant-footer__timestamp"></span>
             <div class="iclaw-chat-assistant-toolbar">
@@ -2498,6 +2511,12 @@ export function OpenClawChatSurface({
       }
 
       const metaNode = footer.querySelector(':scope > .iclaw-chat-assistant-meta') as HTMLDivElement | null;
+      const metaLabelNode = metaNode?.querySelector(
+        ':scope > .iclaw-chat-assistant-meta__label',
+      ) as HTMLSpanElement | null;
+      const metaValueNode = metaNode?.querySelector(
+        ':scope > .iclaw-chat-assistant-meta__value',
+      ) as HTMLElement | null;
       const timestampNode = footer.querySelector(
         ':scope > .iclaw-chat-assistant-footer__right > .iclaw-chat-assistant-footer__timestamp',
       ) as HTMLSpanElement | null;
@@ -2510,15 +2529,30 @@ export function OpenClawChatSurface({
 
       if (metaNode) {
         const credits = footerMeta?.credits ?? 0;
-        metaNode.dataset.state = credits > 0 ? 'charged' : 'idle';
-        metaNode.title = footerMeta?.tooltip ?? '';
-        metaNode.innerHTML =
-          credits > 0
-            ? `实际消耗 <strong>${credits}</strong> 龙虾币`
-            : '本次未计费';
+        const nextState = credits > 0 ? 'charged' : 'idle';
+        if (metaNode.dataset.state !== nextState) {
+          metaNode.dataset.state = nextState;
+        }
+        const nextTitle = footerMeta?.tooltip ?? '';
+        if (metaNode.title !== nextTitle) {
+          metaNode.title = nextTitle;
+        }
+        if (credits > 0) {
+          if (metaValueNode?.hasAttribute('hidden')) {
+            metaValueNode.removeAttribute('hidden');
+          }
+          setElementTextIfChanged(metaLabelNode, '实际消耗 ');
+          setElementTextIfChanged(metaValueNode, String(credits));
+        } else {
+          if (metaValueNode && !metaValueNode.hasAttribute('hidden')) {
+            metaValueNode.setAttribute('hidden', 'true');
+          }
+          setElementTextIfChanged(metaLabelNode, '本次未计费');
+          setElementTextIfChanged(metaValueNode, '');
+        }
       }
       if (timestampNode) {
-        timestampNode.textContent = footerMeta?.timestampLabel || fallbackTimestamp;
+        setElementTextIfChanged(timestampNode, footerMeta?.timestampLabel || fallbackTimestamp);
       }
 
       if (copyButton) {
