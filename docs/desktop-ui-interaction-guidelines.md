@@ -130,6 +130,7 @@
   - [SelectionCard.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/SelectionCard.tsx)
   - [DrawerSection.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/DrawerSection.tsx)
   - [PlatformCardShell.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/PlatformCardShell.tsx)
+  - [SecurityStatusBadge.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/SecurityStatusBadge.tsx)
   - [WizardStepper.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/WizardStepper.tsx)
   - [ChecklistPanel.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/ChecklistPanel.tsx)
 - 如果新页面需要“IM机器人式”的暖灰金卡片、按钮、步骤条、提示侧栏，应先扩展这些基础件，再改业务页。
@@ -151,6 +152,8 @@
   - 适用场景：详情抽屉、设置抽屉、配置面板里的分区块。
 - 平台接入卡片外壳必须优先使用 [PlatformCardShell.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/PlatformCardShell.tsx)。
   - 适用场景：飞书/钉钉/企微/QQ 接入卡、未来新增渠道卡、连接入口卡。
+- 安全状态徽标必须优先使用 [SecurityStatusBadge.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/SecurityStatusBadge.tsx)。
+  - 适用场景：header 顶栏安全状态、详情页轻量防护状态、模块开关后的全局保护提示。
 
 这些模式的目标不是“复用 JSX 片段”，而是强制收口页面结构和视觉语义。后续如果要改暖金选中态、空状态层次、平台卡外壳或抽屉 section 结构，应该优先改共享组件，而不是回到业务页里批量搜 className。
 

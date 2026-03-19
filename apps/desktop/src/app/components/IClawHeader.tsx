@@ -1,5 +1,5 @@
 import { Coins, Crown, Minus, TrendingDown, TrendingUp } from 'lucide-react';
-import { ProtectionSignal } from '@/app/components/ui/ProtectionSignal';
+import { SecurityStatusBadge } from '@/app/components/ui/SecurityStatusBadge';
 
 type IClawHeaderProps = {
   balance: number | null;
@@ -62,10 +62,8 @@ export function IClawHeader({
   return (
     <header className="border-b border-gray-200/60 bg-gradient-to-b from-white/95 to-gray-50/90 backdrop-blur-sm dark:border-gray-800/40 dark:from-gray-900/95 dark:to-gray-950/90">
       <div className="flex h-11 items-center justify-between gap-4 px-6">
-        <div className="flex min-w-0 items-center gap-6">
-          <div className="shrink-0 text-[11px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500">
-            iClaw
-          </div>
+        <div className="flex min-w-0 items-center gap-4">
+          <SecurityStatusBadge state="protecting" size="md" label="安全防护中" className="shrink-0" />
           <div className="h-4 w-px shrink-0 bg-gray-200/50 dark:bg-gray-700/40" />
           <div className="flex min-w-0 items-center gap-5 overflow-hidden">
             {MARKET_DATA.map((market, index) => (
@@ -91,14 +89,6 @@ export function IClawHeader({
         </div>
 
         <div className="flex shrink-0 items-center gap-3">
-          <div
-            className="inline-flex items-center justify-center rounded-full border border-[var(--lobster-gold-border)] bg-[rgba(234,225,208,0.68)] px-1.5 py-1"
-            title="安全保护中"
-            aria-label="安全保护中"
-          >
-            <ProtectionSignal size="sm" tone="gold" />
-          </div>
-
           <button
             type="button"
             className="group relative flex items-center gap-1.5 rounded px-2.5 py-1 transition-all duration-200 hover:bg-gray-100/50 dark:hover:bg-gray-800/30"

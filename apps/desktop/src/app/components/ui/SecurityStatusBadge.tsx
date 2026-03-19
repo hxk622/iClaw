@@ -2,6 +2,7 @@ import { cn } from '@/app/lib/cn';
 import { ProtectionSignal } from './ProtectionSignal';
 
 type SecurityStatusBadgeState = 'protecting' | 'enabled' | 'disabled';
+type SecurityStatusBadgeSize = 'sm' | 'md';
 
 const STATE_STYLE: Record<
   SecurityStatusBadgeState,
@@ -34,33 +35,48 @@ const STATE_STYLE: Record<
 export function SecurityStatusBadge({
   state,
   label,
+  size = 'sm',
   className,
 }: {
   state: SecurityStatusBadgeState;
   label?: string;
+  size?: SecurityStatusBadgeSize;
   className?: string;
 }) {
   const style = STATE_STYLE[state];
+  const isMedium = size === 'md';
 
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12px] font-semibold leading-none',
+        isMedium
+          ? 'inline-flex items-center gap-3 rounded-full border px-4 py-2 text-[14px] font-semibold leading-none tracking-tight'
+          : 'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12px] font-semibold leading-none',
         style.shell,
         className,
       )}
     >
       {state === 'protecting' ? (
-        <ProtectionSignal size="xs" tone="gold" className="scale-[0.95]" />
+        <ProtectionSignal
+          size={isMedium ? 'sm' : 'xs'}
+          tone="gold"
+          className={cn(isMedium ? 'scale-100' : 'scale-[0.95]')}
+        />
       ) : (
-        <span className="relative inline-flex h-2.5 w-2.5 shrink-0">
+        <span className={cn('relative inline-flex shrink-0', isMedium ? 'h-3 w-3' : 'h-2.5 w-2.5')}>
           <span
             className={cn(
               'absolute inset-0 rounded-full opacity-60 motion-safe:animate-pulse',
               style.dot,
             )}
           />
-          <span className={cn('relative z-[1] inline-flex h-2.5 w-2.5 rounded-full', style.dot)} />
+          <span
+            className={cn(
+              'relative z-[1] inline-flex rounded-full',
+              isMedium ? 'h-3 w-3' : 'h-2.5 w-2.5',
+              style.dot,
+            )}
+          />
         </span>
       )}
       {label ?? style.defaultLabel}
