@@ -30,6 +30,7 @@ import { Chip } from '@/app/components/ui/Chip';
 import { DrawerSection } from '@/app/components/ui/DrawerSection';
 import { EmptyStatePanel } from '@/app/components/ui/EmptyStatePanel';
 import { InfoTile } from '@/app/components/ui/InfoTile';
+import { PageContent, PageSurface } from '@/app/components/ui/PageLayout';
 import { PlatformCardShell } from '@/app/components/ui/PlatformCardShell';
 import { PressableCard } from '@/app/components/ui/PressableCard';
 import { SelectionCard } from '@/app/components/ui/SelectionCard';
@@ -735,8 +736,8 @@ export function IMBotsView({ client }: { client: IClawClient }) {
   };
 
   return (
-    <div className="flex flex-1 overflow-y-auto bg-[var(--bg-page)]">
-      <div className="mx-auto w-full max-w-[1440px] px-8 py-8">
+    <PageSurface as="div" className="bg-[var(--bg-page)]">
+      <PageContent>
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-[var(--text-primary)]">IM机器人</h1>
@@ -827,7 +828,7 @@ export function IMBotsView({ client }: { client: IClawClient }) {
             ))}
           </div>
         </div>
-      </div>
+      </PageContent>
 
       <IMBotSetupModal
         platform={selectedPlatform}
@@ -848,7 +849,7 @@ export function IMBotsView({ client }: { client: IClawClient }) {
         onRunConnectionTest={handleRunConnectionTest}
         onSendTestMessage={handleSendTestMessage}
       />
-    </div>
+    </PageSurface>
   );
 }
 

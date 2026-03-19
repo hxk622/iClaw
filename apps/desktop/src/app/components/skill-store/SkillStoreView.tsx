@@ -27,6 +27,7 @@ import {
 import { Button } from '@/app/components/ui/Button';
 import { FilterPill } from '@/app/components/ui/FilterPill';
 import { MetricCard } from '@/app/components/ui/MetricCard';
+import { PageContent, PageSurface } from '@/app/components/ui/PageLayout';
 import { PressableCard } from '@/app/components/ui/PressableCard';
 import { SegmentedTabs } from '@/app/components/ui/SegmentedTabs';
 import { cn } from '@/app/lib/cn';
@@ -654,8 +655,8 @@ export function SkillStoreView({
   const failedCount = installErrorSlugs.length;
 
   return (
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto bg-[var(--bg-page)]">
-      <div className="mx-auto w-full max-w-[1400px] px-8 py-8">
+    <PageSurface className="flex-col bg-[var(--bg-page)]">
+      <PageContent className="max-w-[1480px]">
         <div className="mb-8">
           <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -879,7 +880,7 @@ export function SkillStoreView({
             ))}
           </div>
         )}
-      </div>
+      </PageContent>
 
       <SkillStoreDetailSheet
         skill={selectedSkill}
@@ -918,6 +919,6 @@ export function SkillStoreView({
           setImportError(null);
         }}
       />
-    </section>
+    </PageSurface>
   );
 }
