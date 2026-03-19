@@ -76,14 +76,14 @@
   },
   "theme": {
     "light": {
-      "primary": "#0f766e",
-      "primaryHover": "#115e59",
-      "onPrimary": "#ffffff"
+      "primary": "#A88C5D",
+      "primaryHover": "#8F7751",
+      "onPrimary": "#1A1A18"
     },
     "dark": {
-      "primary": "#5eead4",
-      "primaryHover": "#2dd4bf",
-      "onPrimary": "#042f2e"
+      "primary": "#B49A70",
+      "primaryHover": "#C2AA82",
+      "onPrimary": "#11100F"
     }
   },
   "assets": {

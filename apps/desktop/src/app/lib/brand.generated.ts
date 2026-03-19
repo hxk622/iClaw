@@ -20,14 +20,14 @@ export const BRAND = {
   },
   "theme": {
     "light": {
-      "primary": "#3b82f6",
-      "primaryHover": "#2563eb",
-      "onPrimary": "#ffffff"
+      "primary": "#A88C5D",
+      "primaryHover": "#8F7751",
+      "onPrimary": "#1A1A18"
     },
     "dark": {
-      "primary": "#c9a961",
-      "primaryHover": "#b89850",
-      "onPrimary": "#ffffff"
+      "primary": "#B49A70",
+      "primaryHover": "#C2AA82",
+      "onPrimary": "#11100F"
     }
   },
   "storage": {
