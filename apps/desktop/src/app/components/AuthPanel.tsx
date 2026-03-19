@@ -1,5 +1,6 @@
-import {useEffect, useMemo, useState} from 'react';
-import {Eye, EyeOff, Loader2, X} from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Eye, EyeOff, Loader2, X } from 'lucide-react';
+import { Button } from '@/app/components/ui/Button';
 import { BRAND } from '@/app/lib/brand';
 
 interface AuthPanelProps {
@@ -97,7 +98,7 @@ function InputShell({children}: {children: React.ReactNode}) {
 }
 
 const inputClassName =
-  'h-11 w-full rounded-2xl border border-[rgba(15,23,42,0.09)] bg-[rgba(255,255,255,0.96)] px-3.5 text-[14px] text-[var(--text-primary)] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--button-primary-border-hover)] focus:ring-4 focus:ring-[var(--chip-brand-bg)]';
+  'h-11 w-full rounded-2xl border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3.5 text-[14px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--button-primary-border-hover)] focus:ring-4 focus:ring-[var(--chip-brand-bg)]';
 
 export function AuthPanel({
   open,
@@ -179,18 +180,18 @@ export function AuthPanel({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center bg-[rgba(148,163,184,0.18)] px-4 py-8 backdrop-blur-[10px] transition-opacity ${
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-[rgba(26,22,18,0.22)] px-4 py-8 backdrop-blur-[10px] transition-opacity ${
         open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
       }`}
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[540px] rounded-[32px] border border-[rgba(255,255,255,0.75)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,250,255,0.96))] p-5 shadow-[0_32px_90px_rgba(30,41,59,0.16)] backdrop-blur md:p-7"
+        className="w-full max-w-[540px] rounded-[32px] border border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(252,251,248,0.98),rgba(244,240,233,0.96))] p-5 shadow-[0_32px_90px_rgba(26,22,18,0.16)] backdrop-blur dark:bg-[linear-gradient(180deg,rgba(24,24,24,0.98),rgba(12,12,12,0.96))] md:p-7"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-4 flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-[var(--chip-brand-border)] bg-[linear-gradient(180deg,#ffffff,#f5efe3)] shadow-[0_10px_24px_rgba(168,140,93,0.10)]">
+            <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-[var(--chip-brand-border)] bg-[linear-gradient(180deg,#ffffff,#f5efe3)] shadow-[var(--pressable-card-rest-shadow)]">
               <img src={BRAND.assets.faviconPngSrc} alt={BRAND.assets.logoAlt} className="h-8 w-8 object-contain" />
             </div>
             <div>
@@ -359,42 +360,46 @@ export function AuthPanel({
         </div>
 
         {effectiveError ? (
-          <p className="mt-4 rounded-2xl border border-[rgba(239,68,68,0.18)] bg-[rgba(254,242,242,0.96)] px-4 py-3 text-[13px] text-[#b42318]">
+          <p className="mt-4 rounded-2xl border border-[rgba(239,68,68,0.18)] bg-[rgba(239,68,68,0.08)] px-4 py-3 text-[13px] text-[var(--state-error)]">
             {effectiveError}
           </p>
         ) : null}
 
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          size="md"
           onClick={() => void submit()}
           disabled={loading || !canSubmit}
-          className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-[var(--brand-primary)] px-4 text-[14px] font-medium text-[var(--brand-on-primary)] shadow-[var(--button-primary-shadow-hover)] transition hover:brightness-[1.03] disabled:cursor-not-allowed disabled:opacity-55 disabled:shadow-none"
+          block
+          leadingIcon={loading ? <Loader2 className="h-4 w-4 animate-spin" /> : undefined}
+          className="mt-5"
         >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           {loading ? '处理中...' : mode === 'login' ? '登录' : '注册'}
-        </button>
+        </Button>
 
         <SocialDivider />
 
         <div className="grid grid-cols-2 gap-3">
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="md"
+            block
             disabled={loading || socialLoadingProvider !== null}
             onClick={() => void onSocialLogin('wechat')}
-            className="flex h-11 items-center justify-center gap-2 rounded-2xl border border-[rgba(15,23,42,0.09)] bg-white/95 text-[14px] font-medium text-[var(--text-primary)] transition hover:border-[var(--chip-brand-border-strong)] hover:bg-[var(--chip-brand-bg)] disabled:cursor-not-allowed disabled:opacity-55"
+            leadingIcon={socialLoadingProvider === 'wechat' ? <Loader2 className="h-4 w-4 animate-spin" /> : <WechatIcon />}
           >
-            {socialLoadingProvider === 'wechat' ? <Loader2 className="h-4 w-4 animate-spin" /> : <WechatIcon />}
             <span>微信</span>
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="secondary"
+            size="md"
+            block
             disabled={loading || socialLoadingProvider !== null}
             onClick={() => void onSocialLogin('google')}
-            className="flex h-11 items-center justify-center gap-2 rounded-2xl border border-[rgba(15,23,42,0.09)] bg-white/95 text-[14px] font-medium text-[var(--text-primary)] transition hover:border-[var(--chip-brand-border-strong)] hover:bg-[var(--chip-brand-bg)] disabled:cursor-not-allowed disabled:opacity-55"
+            leadingIcon={socialLoadingProvider === 'google' ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon />}
           >
-            {socialLoadingProvider === 'google' ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon />}
             <span>Google</span>
-          </button>
+          </Button>
         </div>
 
         <p className="mt-4 text-center text-[12px] text-[var(--text-secondary)]">

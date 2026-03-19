@@ -1,5 +1,6 @@
 import { AlertTriangle, RefreshCcw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { Button } from '@/app/components/ui/Button';
 import lobsterImage from '@/app/assets/installer-lobster.png';
 import { getResolvedThemeFromDom, THEME_CHANGE_EVENT, type ResolvedTheme } from '@/app/lib/theme';
 
@@ -25,25 +26,23 @@ const PARTICLES = Array.from({ length: 16 }, (_, index) => ({
 function panelThemeClasses(theme: ResolvedTheme, hasError: boolean) {
   if (theme === 'dark') {
     return {
-      page: 'bg-[#040507] text-white',
+      page: 'bg-[#11100f] text-white',
       gradient:
-        'bg-[radial-gradient(circle_at_top,_rgba(255,117,54,0.16),transparent_28%),radial-gradient(circle_at_bottom,_rgba(12,23,44,0.55),transparent_40%),linear-gradient(180deg,#0f1014_0%,#06070a_58%,#010102_100%)]',
+        'bg-[radial-gradient(circle_at_top,_rgba(180,154,112,0.18),transparent_28%),radial-gradient(circle_at_bottom,_rgba(42,31,10,0.22),transparent_40%),linear-gradient(180deg,#171513_0%,#11100f_58%,#090807_100%)]',
       title: 'text-white',
-      subtitle: 'text-[#98a0af]',
-      card: 'border-white/10 bg-white/[0.04] shadow-[0_32px_120px_rgba(0,0,0,0.42)]',
-      ringBase: 'border-white/12',
-      meta: hasError ? 'text-[#ff8d87]' : 'text-[#f7b47d]',
-      track: 'bg-white/8',
-      info: 'text-[#a9b0be]',
-      detail: 'text-[#7d8595]',
-      stepCard: hasError ? 'border-[#6a211f] bg-[#210c0c]/80' : 'border-white/10 bg-black/25',
-      errorBox: 'border-[#6a211f] bg-[#180909]/86 text-[#ffd4d0]',
-      retry:
-        'bg-[linear-gradient(135deg,#ff7a45_0%,#ff9950_100%)] text-white hover:brightness-105',
-      particle: hasError ? 'bg-[#ff6a5f]/30' : 'bg-[#ff8c42]/22',
-      scan: hasError ? 'via-[#ff6a5f]/35' : 'via-[#ff8c42]/28',
-      glow: hasError ? 'bg-[#ff584d]/25' : 'bg-[#ff8c42]/18',
-      percentage: hasError ? 'text-[#ff6a5f]' : 'text-[#ffb16d]',
+      subtitle: 'text-[#b9b0a5]',
+      card: 'border-[var(--border-default)] bg-[rgba(33,30,27,0.78)] shadow-[0_32px_120px_rgba(0,0,0,0.42)]',
+      ringBase: 'border-[rgba(255,255,255,0.10)]',
+      meta: hasError ? 'text-[#c46b6b]' : 'text-[var(--brand-primary)]',
+      track: 'bg-[rgba(255,255,255,0.08)]',
+      info: 'text-[var(--text-primary)]',
+      detail: 'text-[var(--text-secondary)]',
+      stepCard: hasError ? 'border-[rgba(196,107,107,0.28)] bg-[rgba(196,107,107,0.08)]' : 'border-[var(--border-default)] bg-[rgba(0,0,0,0.18)]',
+      errorBox: 'border-[rgba(196,107,107,0.28)] bg-[rgba(196,107,107,0.08)] text-[#ffd4d0]',
+      particle: hasError ? 'bg-[#c46b6b]/26' : 'bg-[var(--brand-primary)]/22',
+      scan: hasError ? 'via-[#c46b6b]/28' : 'via-[var(--brand-primary)]/24',
+      glow: hasError ? 'bg-[#c46b6b]/22' : 'bg-[var(--brand-primary)]/16',
+      percentage: hasError ? 'text-[#c46b6b]' : 'text-[var(--brand-primary)]',
     };
   }
 
@@ -53,20 +52,18 @@ function panelThemeClasses(theme: ResolvedTheme, hasError: boolean) {
       'bg-[radial-gradient(circle_at_top,_rgba(255,147,81,0.22),transparent_26%),radial-gradient(circle_at_bottom,_rgba(255,236,214,0.9),transparent_44%),linear-gradient(180deg,#fffdf9_0%,#fff8f0_50%,#f6efe5_100%)]',
     title: 'text-[#171513]',
     subtitle: 'text-[#736a5d]',
-    card: 'border-[#eadbc8] bg-white/78 shadow-[0_32px_120px_rgba(170,122,61,0.14)]',
-    ringBase: 'border-[#ecdac4]',
-    meta: hasError ? 'text-[#c6493f]' : 'text-[#cf6b33]',
-    track: 'bg-[#f0e5d8]',
-    info: 'text-[#4a433a]',
-    detail: 'text-[#7d7164]',
-    stepCard: hasError ? 'border-[#f0c4be] bg-[#fff3f1]' : 'border-[#eadbc8] bg-white/76',
-    errorBox: 'border-[#efc4bf] bg-[#fff4f2] text-[#7d2f2a]',
-    retry:
-      'bg-[linear-gradient(135deg,#ff7b48_0%,#ff9d56_100%)] text-white hover:brightness-105',
-    particle: hasError ? 'bg-[#ef5b4f]/22' : 'bg-[#ff9757]/28',
-    scan: hasError ? 'via-[#ef5b4f]/28' : 'via-[#ff9757]/28',
-    glow: hasError ? 'bg-[#ff7b70]/22' : 'bg-[#ffa163]/24',
-    percentage: hasError ? 'text-[#d94c42]' : 'text-[#d36c32]',
+    card: 'border-[var(--border-default)] bg-[rgba(255,255,255,0.78)] shadow-[0_32px_120px_rgba(170,122,61,0.14)]',
+    ringBase: 'border-[var(--border-default)]',
+    meta: hasError ? 'text-[var(--state-error)]' : 'text-[var(--brand-primary)]',
+    track: 'bg-[var(--bg-hover)]',
+    info: 'text-[var(--text-primary)]',
+    detail: 'text-[var(--text-secondary)]',
+    stepCard: hasError ? 'border-[rgba(184,79,79,0.22)] bg-[rgba(184,79,79,0.06)]' : 'border-[var(--border-default)] bg-[rgba(255,255,255,0.76)]',
+    errorBox: 'border-[rgba(184,79,79,0.22)] bg-[rgba(184,79,79,0.06)] text-[#7d2f2a]',
+    particle: hasError ? 'bg-[var(--state-error)]/18' : 'bg-[var(--brand-primary)]/22',
+    scan: hasError ? 'via-[var(--state-error)]/24' : 'via-[var(--brand-primary)]/24',
+    glow: hasError ? 'bg-[var(--state-error)]/16' : 'bg-[var(--brand-primary)]/18',
+    percentage: hasError ? 'text-[var(--state-error)]' : 'text-[var(--brand-primary)]',
   };
 }
 
@@ -226,13 +223,15 @@ export function FirstRunSetupPanel({
                 </div>
               </div>
             </div>
-            <button
+            <Button
+              variant="primary"
+              size="md"
+              block
+              leadingIcon={<RefreshCcw className="h-4 w-4" />}
               onClick={() => void onRetry()}
-              className={`inline-flex w-full items-center justify-center gap-2 rounded-[18px] px-4 py-3 text-sm font-medium transition duration-[var(--motion-panel)] ${palette.retry}`}
             >
-              <RefreshCcw className="h-4 w-4" />
               重新尝试
-            </button>
+            </Button>
           </div>
         )}
       </div>

@@ -1,5 +1,6 @@
 import { Download, RefreshCw, RotateCcw, Sparkles } from 'lucide-react';
 import type { DesktopUpdateHint } from '@iclaw/sdk';
+import { Button } from '@/app/components/ui/Button';
 import { cn } from '@/app/lib/cn';
 import { formatDesktopUpdateVersion } from '@/app/lib/desktop-updates';
 
@@ -49,64 +50,66 @@ export function DesktopUpdateCard({
   return (
     <section
       className={cn(
-        'mb-3 overflow-hidden rounded-[18px] border border-[rgba(255,255,255,0.08)] bg-[linear-gradient(180deg,rgba(46,46,53,0.98)_0%,rgba(32,32,38,0.98)_100%)] text-white shadow-[0_18px_36px_rgba(15,23,42,0.24)]',
+        'mb-3 overflow-hidden rounded-[18px] border border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(252,251,248,0.98),rgba(244,240,233,0.96))] text-[var(--text-primary)] shadow-[var(--pressable-card-rest-shadow)] dark:bg-[linear-gradient(180deg,rgba(31,29,27,0.98),rgba(22,20,18,0.96))]',
         'transition-[transform,opacity] duration-[var(--motion-panel)]',
       )}
       style={{ transitionTimingFunction: 'var(--motion-spring)' }}
     >
       <div className="flex items-start gap-3 px-3.5 py-3">
-        <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[linear-gradient(135deg,rgba(248,113,113,0.22)_0%,rgba(251,146,60,0.22)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]">
-          <Sparkles className="h-4.5 w-4.5 text-[#ffb86c]" />
+        <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[var(--chip-brand-bg)] shadow-[var(--pressable-card-rest-shadow)]">
+          <Sparkles className="h-4.5 w-4.5 text-[var(--brand-primary)]" />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-[14px] font-semibold tracking-[0.01em] text-white">{title}</div>
-          <div className="mt-1 text-[12px] text-white/58">版本 {formatDesktopUpdateVersion(hint.latestVersion)}</div>
-          <div className="mt-2 text-[12px] leading-5 text-white/72">{description}</div>
+          <div className="text-[14px] font-semibold tracking-[0.01em] text-[var(--text-primary)]">{title}</div>
+          <div className="mt-1 text-[12px] text-[var(--text-muted)]">版本 {formatDesktopUpdateVersion(hint.latestVersion)}</div>
+          <div className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">{description}</div>
           {typeof progress === 'number' ? (
             <div className="mt-2">
-              <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-                <div className="h-full rounded-full bg-[#ffb86c]" style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} />
+              <div className="h-1.5 overflow-hidden rounded-full bg-[var(--bg-hover)]">
+                <div className="h-full rounded-full bg-[var(--brand-primary)]" style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} />
               </div>
-              <div className="mt-1 text-[11px] text-white/48">{Math.round(progress)}%</div>
+              <div className="mt-1 text-[11px] text-[var(--text-muted)]">{Math.round(progress)}%</div>
             </div>
           ) : null}
-          {opened ? <div className="mt-2 text-[12px] text-emerald-300">已打开下载链接。</div> : null}
-          {error ? <div className="mt-2 text-[12px] text-rose-300">{error}</div> : null}
+          {opened ? <div className="mt-2 text-[12px] text-[var(--state-success)]">已打开下载链接。</div> : null}
+          {error ? <div className="mt-2 text-[12px] text-[var(--state-error)]">{error}</div> : null}
         </div>
       </div>
 
-      <div className="flex items-center justify-end gap-2 border-t border-white/8 bg-[rgba(255,255,255,0.03)] px-3 py-2.5">
+      <div className="flex items-center justify-end gap-2 border-t border-[var(--border-default)] bg-[rgba(255,255,255,0.28)] px-3 py-2.5 dark:bg-[rgba(255,255,255,0.03)]">
         {status === 'available' && !hint.mandatory && onSkip ? (
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={onSkip}
-            className="inline-flex h-8 items-center justify-center rounded-[10px] px-3 text-[12px] font-medium text-white/68 transition hover:bg-white/8 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
             disabled={busy}
           >
             跳过
-          </button>
+          </Button>
         ) : null}
         {status === 'ready-to-restart' && onRestart ? (
-          <button
-            type="button"
+          <Button
+            variant="success"
+            size="sm"
             onClick={onRestart}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[10px] bg-[rgba(255,255,255,0.12)] px-3 text-[12px] font-medium text-white transition hover:bg-[rgba(255,255,255,0.18)]"
+            leadingIcon={<RotateCcw className="h-3.5 w-3.5" />}
           >
-            <RotateCcw className="h-3.5 w-3.5" />
             重启应用
-          </button>
+          </Button>
         ) : (
-          <button
-            type="button"
+          <Button
+            variant="primary"
+            size="sm"
             onClick={onUpgrade}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[10px] bg-[rgba(255,255,255,0.12)] px-3 text-[12px] font-medium text-white transition hover:bg-[rgba(255,255,255,0.18)] disabled:cursor-not-allowed disabled:opacity-60"
             disabled={busy || status === 'checking' || status === 'downloading'}
+            leadingIcon={
+              busy || status === 'checking' || status === 'downloading' ? (
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Download className="h-3.5 w-3.5" />
+              )
+            }
           >
-            {busy || status === 'checking' || status === 'downloading' ? (
-              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Download className="h-3.5 w-3.5" />
-            )}
             {status === 'checking'
               ? '检查中…'
               : status === 'downloading'
@@ -114,7 +117,7 @@ export function DesktopUpdateCard({
                 : hint.mandatory
                   ? '立即升级'
                   : '升级'}
-          </button>
+          </Button>
         )}
       </div>
     </section>
