@@ -125,6 +125,7 @@
   - [CompactSegmentedControl.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/CompactSegmentedControl.tsx)
   - [StatCard.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/StatCard.tsx)
   - [SummaryMetricItem.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/SummaryMetricItem.tsx)
+  - [InfoTile.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/InfoTile.tsx)
   - [EmptyStatePanel.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/EmptyStatePanel.tsx)
   - [SelectionCard.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/SelectionCard.tsx)
   - [DrawerSection.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/DrawerSection.tsx)
@@ -138,6 +139,8 @@
 
 - 状态摘要项必须优先使用 [SummaryMetricItem.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/SummaryMetricItem.tsx)。
   - 适用场景：顶部摘要条、轻量 KPI 行、单行状态概览。
+- 信息摘要小卡必须优先使用 [InfoTile.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/InfoTile.tsx)。
+  - 适用场景：详情抽屉中的平台摘要、最近测试块、模板预览块、测试消息/回复块、轻量审计信息块。
 - 空状态卡片必须优先使用 [EmptyStatePanel.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/EmptyStatePanel.tsx)。
   - 适用场景：列表为空、平台未接入、侧栏空审计/空待办。
 - 选中卡片态必须优先使用 [SelectionCard.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/SelectionCard.tsx)。
@@ -181,6 +184,7 @@
 - [CompactSegmentedControl.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/CompactSegmentedControl.tsx)
 - [StatCard.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/StatCard.tsx)
 - [SummaryMetricItem.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/SummaryMetricItem.tsx)
+- [InfoTile.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/InfoTile.tsx)
 - [EmptyStatePanel.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/EmptyStatePanel.tsx)
 - [SelectionCard.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/SelectionCard.tsx)
 - [DrawerSection.tsx](/Users/xingkaihan/Documents/Code/iClaw/apps/desktop/src/app/components/ui/DrawerSection.tsx)

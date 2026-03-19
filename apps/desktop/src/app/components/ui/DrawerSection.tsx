@@ -18,13 +18,13 @@ export function DrawerSection({
   return (
     <section
       className={cn(
-        'rounded-[28px] border border-[var(--border-default)] bg-white/76 p-5 shadow-[var(--pressable-card-hover-shadow)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]',
+        'rounded-[24px] border border-[var(--border-default)] bg-white/76 p-[18px] shadow-[var(--pressable-card-rest-shadow)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]',
         className,
       )}
       {...props}
     >
       {title || description || icon || headerAccessory ? (
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="mb-[14px] flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             {(icon || title) ? (
               <div className="flex items-center gap-2">

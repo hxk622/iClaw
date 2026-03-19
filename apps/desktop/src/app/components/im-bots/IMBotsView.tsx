@@ -29,6 +29,7 @@ import { Button } from '@/app/components/ui/Button';
 import { Chip } from '@/app/components/ui/Chip';
 import { DrawerSection } from '@/app/components/ui/DrawerSection';
 import { EmptyStatePanel } from '@/app/components/ui/EmptyStatePanel';
+import { InfoTile } from '@/app/components/ui/InfoTile';
 import { PlatformCardShell } from '@/app/components/ui/PlatformCardShell';
 import { PressableCard } from '@/app/components/ui/PressableCard';
 import { SelectionCard } from '@/app/components/ui/SelectionCard';
@@ -97,6 +98,11 @@ interface ManagedBot {
 type PlatformCardMeta = IMPlatformMeta & {
   capabilities: string[];
 };
+
+const DETAIL_INPUT_CLASS =
+  'min-h-[46px] w-full rounded-[15px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 text-[14px] text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]';
+const DETAIL_TEXTAREA_CLASS =
+  'min-h-[108px] w-full rounded-[15px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-3 text-[14px] leading-7 text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]';
 
 const assistantProfiles: AssistantProfile[] = [
   {
@@ -1328,32 +1334,32 @@ function IMBotDetailSheet({
   const selectedAssistant = assistantOptions.find((item) => item.id === draftAssistantId) ?? null;
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-end bg-[rgba(20,24,33,0.16)] backdrop-blur-[3px] dark:bg-[rgba(0,0,0,0.34)]" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex justify-end bg-[rgba(26,22,18,0.18)] backdrop-blur-[3px] dark:bg-[rgba(0,0,0,0.34)]" onClick={onClose}>
       <aside
-        className="flex h-full w-full max-w-[640px] flex-col border-l border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(252,252,251,0.98),rgba(246,247,244,0.96))] shadow-[0_32px_90px_rgba(15,23,42,0.18)] dark:border-l-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(24,24,24,0.98),rgba(12,12,12,0.96))] dark:shadow-[0_30px_90px_rgba(0,0,0,0.44)]"
+        className="flex h-full w-full max-w-[620px] flex-col border-l border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(252,251,248,0.98),rgba(244,240,233,0.96))] shadow-[0_32px_90px_rgba(26,22,18,0.18)] dark:border-l-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(25,23,21,0.98),rgba(17,16,15,0.96))] dark:shadow-[0_30px_90px_rgba(0,0,0,0.44)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="border-b border-[var(--border-default)] px-6 py-5 dark:border-b-[rgba(255,255,255,0.08)]">
+        <div className="border-b border-[var(--border-default)] px-6 py-[18px] dark:border-b-[rgba(255,255,255,0.08)]">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border-default)] bg-white/70 px-3 py-1 text-[12px] text-[var(--text-secondary)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border-default)] bg-white/72 px-3 py-1 text-[11px] text-[var(--text-secondary)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
                 <span className="shrink-0">
-                  <Settings2 className="h-4 w-4" />
+                  <Settings2 className="h-3.5 w-3.5" />
                 </span>
                 机器人详情
               </div>
-              <div className="mt-4 flex items-start gap-4">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[22px] border border-[var(--border-default)] bg-white shadow-[0_10px_24px_rgba(15,23,42,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
+              <div className="mt-3.5 flex items-start gap-3.5">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[18px] border border-[var(--border-default)] bg-white shadow-[var(--pressable-card-rest-shadow)] dark:bg-[rgba(255,255,255,0.04)]">
                   <img src={platform.logo} alt={platform.label} className={cn('h-full w-full object-cover', platform.logoClassName)} />
                 </div>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-[24px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">{bot.name}</h2>
+                    <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">{bot.name}</h2>
                     <Chip tone={healthMeta.chipTone} className="px-2.5 py-1 text-[11px] font-medium">
                       {healthMeta.label}
                     </Chip>
                   </div>
-                  <p className="mt-2 text-[14px] leading-7 text-[var(--text-secondary)]">
+                  <p className="mt-1.5 text-[13px] leading-6 text-[var(--text-secondary)]">
                     {platform.label} · {bot.company} · 默认助手：{bot.assistant}
                   </p>
                 </div>
@@ -1365,7 +1371,7 @@ function IMBotDetailSheet({
           </div>
         </div>
 
-        <div className="flex-1 space-y-6 overflow-y-auto px-6 py-6">
+        <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
           <DrawerSection
             className="bg-white/78 backdrop-blur-[10px] dark:shadow-[0_20px_36px_rgba(0,0,0,0.26)]"
             title="当前健康状态"
@@ -1407,7 +1413,7 @@ function IMBotDetailSheet({
                     as="div"
                     key={state}
                     selected={state === bot.healthState}
-                    className="rounded-[18px] px-3 py-3"
+                    className="rounded-[18px] px-3 py-2.5"
                   >
                     <div className="text-[13px] font-medium text-[var(--text-primary)]">{meta.label}</div>
                     <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">{meta.description}</p>
@@ -1418,18 +1424,19 @@ function IMBotDetailSheet({
           </DrawerSection>
 
           <section className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-[24px] border border-[var(--border-default)] bg-white/76 p-4 shadow-[var(--pressable-card-rest-shadow)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
-              <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">平台</div>
-              <div className="mt-2 text-[15px] font-medium text-[var(--text-primary)]">{platform.label}</div>
-              <p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">已接入能力：{platform.capabilities.join(' / ')}</p>
-            </div>
-            <div className="rounded-[24px] border border-[var(--border-default)] bg-white/76 p-4 shadow-[var(--pressable-card-rest-shadow)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
-              <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">最近连接测试</div>
-              <div className="mt-2 text-[15px] font-medium text-[var(--text-primary)]">{bot.lastTestAt ?? '还未执行'}</div>
-              <p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">
-                {bot.lastTestAt ? '可以继续在下方测试面板中发送一条消息。' : '建议先执行一次连接测试，确认平台链路是通的。'}
-              </p>
-            </div>
+            <InfoTile
+              label="平台"
+              value={platform.label}
+              description={`已接入能力：${platform.capabilities.join(' / ')}`}
+              className="bg-white/76 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]"
+            />
+            <InfoTile
+              label="最近连接测试"
+              value={bot.lastTestAt ?? '还未执行'}
+              description={bot.lastTestAt ? '可以继续在下方测试面板中发送一条消息。' : '建议先执行一次连接测试，确认平台链路是通的。'}
+              tone={bot.lastTestAt ? 'success' : 'warning'}
+              className="dark:border-[rgba(255,255,255,0.08)]"
+            />
           </section>
 
           <DrawerSection title="基础信息与默认助手" icon={<BotMessageSquare className="h-5 w-5" />}>
@@ -1439,7 +1446,7 @@ function IMBotDetailSheet({
                 <input
                   value={draftName}
                   onChange={(event) => setDraftName(event.target.value)}
-                  className="min-h-[48px] w-full rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 text-[14px] text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]"
+                  className={DETAIL_INPUT_CLASS}
                 />
               </label>
               <label className="space-y-2">
@@ -1447,7 +1454,7 @@ function IMBotDetailSheet({
                 <input
                   value={draftCompany}
                   onChange={(event) => setDraftCompany(event.target.value)}
-                  className="min-h-[48px] w-full rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 text-[14px] text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]"
+                  className={DETAIL_INPUT_CLASS}
                 />
               </label>
             </div>
@@ -1503,7 +1510,7 @@ function IMBotDetailSheet({
               <input
                 value={draftOfflineReply}
                 onChange={(event) => setDraftOfflineReply(event.target.value)}
-                className="min-h-[48px] w-full rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 text-[14px] text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]"
+                className={DETAIL_INPUT_CLASS}
               />
             </label>
           </DrawerSection>
@@ -1519,7 +1526,7 @@ function IMBotDetailSheet({
                 <textarea
                   value={draftWelcomeTemplate}
                   onChange={(event) => setDraftWelcomeTemplate(event.target.value)}
-                  className="min-h-[108px] w-full rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-3 text-[14px] leading-7 text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]"
+                  className={DETAIL_TEXTAREA_CLASS}
                 />
               </label>
               <label className="space-y-2">
@@ -1527,23 +1534,21 @@ function IMBotDetailSheet({
                 <textarea
                   value={draftUnavailableTemplate}
                   onChange={(event) => setDraftUnavailableTemplate(event.target.value)}
-                  className="min-h-[108px] w-full rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-3 text-[14px] leading-7 text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]"
+                  className={DETAIL_TEXTAREA_CLASS}
                 />
               </label>
             </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
-                <div className="text-[12px] uppercase tracking-[0.12em] text-[var(--text-muted)]">预览 · 欢迎语</div>
-                <div className="mt-2 text-[14px] leading-7 text-[var(--text-primary)]">
-                  {renderTemplatePreview(draftWelcomeTemplate, selectedAssistant?.name ?? bot.assistant)}
-                </div>
-              </div>
-              <div className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
-                <div className="text-[12px] uppercase tracking-[0.12em] text-[var(--text-muted)]">预览 · 异常提示</div>
-                <div className="mt-2 text-[14px] leading-7 text-[var(--text-primary)]">
-                  {renderTemplatePreview(draftUnavailableTemplate, selectedAssistant?.name ?? bot.assistant)}
-                </div>
-              </div>
+              <InfoTile
+                label="预览 · 欢迎语"
+                value={renderTemplatePreview(draftWelcomeTemplate, selectedAssistant?.name ?? bot.assistant)}
+                className="min-h-[142px]"
+              />
+              <InfoTile
+                label="预览 · 异常提示"
+                value={renderTemplatePreview(draftUnavailableTemplate, selectedAssistant?.name ?? bot.assistant)}
+                className="min-h-[142px]"
+              />
             </div>
             <div className="mt-4 flex justify-end">
               <Button
@@ -1573,7 +1578,7 @@ function IMBotDetailSheet({
                   <input
                     value={draftTestMessage}
                     onChange={(event) => setDraftTestMessage(event.target.value)}
-                    className="min-h-[48px] w-full rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 text-[14px] text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]"
+                    className={DETAIL_INPUT_CLASS}
                   />
                 </label>
                 <div className="flex items-end gap-3">
@@ -1598,14 +1603,17 @@ function IMBotDetailSheet({
                 </div>
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
-                  <div className="text-[12px] uppercase tracking-[0.12em] text-[var(--text-muted)]">最近一次测试消息</div>
-                  <div className="mt-2 text-[14px] text-[var(--text-primary)]">{bot.lastTestMessage || '还没有发送过测试消息'}</div>
-                </div>
-                <div className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
-                  <div className="text-[12px] uppercase tracking-[0.12em] text-[var(--text-muted)]">最近一次测试回复</div>
-                  <div className="mt-2 text-[14px] text-[var(--text-primary)]">{bot.lastTestResponse || '还没有收到测试回复'}</div>
-                </div>
+                <InfoTile
+                  label="最近一次测试消息"
+                  value={bot.lastTestMessage || '还没有发送过测试消息'}
+                  className="min-h-[104px]"
+                />
+                <InfoTile
+                  label="最近一次测试回复"
+                  value={bot.lastTestResponse || '还没有收到测试回复'}
+                  tone={bot.lastTestResponse ? 'success' : 'neutral'}
+                  className="min-h-[104px]"
+                />
               </div>
             </div>
           </DrawerSection>
@@ -1613,29 +1621,19 @@ function IMBotDetailSheet({
           <DrawerSection title="最近审计日志" icon={<ShieldCheck className="h-5 w-5" />}>
             <div className="mt-4 space-y-3">
               {bot.auditLogs.slice(0, 6).map((item) => (
-                <div
+                <InfoTile
                   key={item.id}
-                  className={cn(
-                    'rounded-[18px] border px-4 py-3',
-                    item.tone === 'success'
-                      ? 'border-[rgba(34,197,94,0.16)] bg-[rgba(34,197,94,0.10)] dark:bg-[rgba(34,197,94,0.14)]'
-                      : item.tone === 'warning'
-                        ? 'border-[rgba(245,158,11,0.16)] bg-[rgba(245,158,11,0.10)] dark:bg-[rgba(245,158,11,0.14)]'
-                        : 'border-[var(--border-default)] bg-[var(--bg-card)]',
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-[13px] font-medium text-[var(--text-primary)]">{item.title}</div>
-                    <div className="text-[12px] text-[var(--text-muted)]">{item.time}</div>
-                  </div>
-                  <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{item.detail}</p>
-                </div>
+                  label={item.time}
+                  value={item.title}
+                  description={item.detail}
+                  tone={item.tone === 'success' ? 'success' : item.tone === 'warning' ? 'warning' : 'neutral'}
+                />
               ))}
             </div>
           </DrawerSection>
         </div>
 
-        <div className="border-t border-[rgba(15,23,42,0.08)] bg-white/82 px-6 py-5 backdrop-blur-[10px] dark:border-t-[rgba(255,255,255,0.08)] dark:bg-[rgba(12,12,12,0.86)]">
+        <div className="border-t border-[var(--border-default)] bg-white/82 px-6 py-[18px] backdrop-blur-[10px] dark:border-t-[rgba(255,255,255,0.08)] dark:bg-[rgba(12,12,12,0.86)]">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="text-[13px] text-[var(--text-secondary)]">
               {selectedAssistant
