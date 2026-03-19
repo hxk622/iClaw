@@ -853,7 +853,7 @@ function SummaryBar({
   }>;
 }) {
   return (
-    <PressableCard className="overflow-hidden rounded-[22px] border-[rgba(15,23,42,0.08)] bg-[var(--bg-card)] px-6 py-4 shadow-[var(--shadow-sm)]">
+    <PressableCard className="overflow-hidden rounded-[22px] border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-4 shadow-[var(--pressable-card-rest-shadow)]">
       <div className="grid grid-cols-4 gap-4">
         {cards.map((card, index) => (
           <SummaryBarItem key={card.label} {...card} first={index === 0} />
@@ -879,7 +879,7 @@ function SummaryBarItem({
   first: boolean;
 }) {
   const toneClassName = {
-    brand: 'bg-[rgba(59,130,246,0.10)] text-[var(--brand-primary)]',
+    brand: 'bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)]',
     success: 'bg-[rgba(34,197,94,0.12)] text-[rgb(22,163,74)] dark:text-[#9af0c5]',
     warning: 'bg-[rgba(245,158,11,0.16)] text-[rgb(217,119,6)] dark:text-[#ffd49a]',
     neutral: 'bg-[var(--bg-hover)] text-[var(--text-secondary)]',
@@ -911,7 +911,7 @@ function EmptyBotState({ onCreate }: { onCreate: () => void }) {
     <PressableCard className="border-dashed border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(255,255,255,0.84),rgba(247,247,244,0.88))] px-6 py-6 dark:bg-[linear-gradient(180deg,rgba(28,28,28,0.92),rgba(18,18,18,0.92))]">
       <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
         <div className="max-w-[640px]">
-          <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-[rgba(59,130,246,0.10)] text-[var(--brand-primary)]">
+          <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)]">
             <Bot className="h-6 w-6" />
           </div>
           <div className="mt-3 text-[22px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">还没有已创建的机器人</div>
@@ -945,7 +945,7 @@ function ManagedBotCard({
   const healthMeta = getHealthMeta(bot.healthState);
 
   return (
-    <PressableCard className="group relative rounded-[22px] border-[rgba(15,23,42,0.08)] bg-[var(--bg-card)] px-5 py-4 shadow-[var(--shadow-sm)]">
+    <PressableCard className="group relative rounded-[22px] border-[var(--border-default)] bg-[var(--bg-card)] px-5 py-4 shadow-[var(--pressable-card-rest-shadow)]">
       <div className="flex items-center gap-4">
         <div className="flex min-w-[280px] items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-page)] shadow-[0_6px_12px_rgba(15,23,42,0.05)] dark:bg-[rgba(255,255,255,0.04)]">
@@ -1249,7 +1249,7 @@ function PlatformCard({
     <PressableCard
       interactive
       onClick={onClick}
-      className="flex h-full flex-col border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,247,244,0.92))] px-4 py-3.5 shadow-[0_18px_34px_rgba(15,23,42,0.06)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(29,29,29,0.96),rgba(17,17,17,0.94))] dark:shadow-[0_22px_38px_rgba(0,0,0,0.30)]"
+      className="flex h-full flex-col border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,247,244,0.92))] px-4 py-3.5 shadow-[var(--pressable-card-hover-shadow)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(29,29,29,0.96),rgba(17,17,17,0.94))]"
     >
       <div className="flex min-h-[64px] items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-4">
@@ -1370,9 +1370,10 @@ function IMBotDetailSheet({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="border-b border-[rgba(15,23,42,0.08)] px-6 py-5 dark:border-b-[rgba(255,255,255,0.08)]">
+        <div className="border-b border-[var(--border-default)] px-6 py-5 dark:border-b-[rgba(255,255,255,0.08)]">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(15,23,42,0.08)] bg-white/70 px-3 py-1 text-[12px] text-[var(--text-secondary)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border-default)] bg-white/70 px-3 py-1 text-[12px] text-[var(--text-secondary)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
                 <span className="shrink-0">
                   <Settings2 className="h-4 w-4" />
                 </span>
@@ -1402,7 +1403,7 @@ function IMBotDetailSheet({
         </div>
 
         <div className="flex-1 space-y-6 overflow-y-auto px-6 py-6">
-          <section className="rounded-[28px] border border-[rgba(15,23,42,0.08)] bg-white/78 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-[10px] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:shadow-[0_20px_36px_rgba(0,0,0,0.26)]">
+          <section className="rounded-[28px] border border-[var(--border-default)] bg-white/78 p-5 shadow-[var(--pressable-card-hover-shadow)] backdrop-blur-[10px] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)] dark:shadow-[0_20px_36px_rgba(0,0,0,0.26)]">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">当前健康状态</div>
@@ -1441,7 +1442,7 @@ function IMBotDetailSheet({
                     className={cn(
                       'rounded-[18px] border px-3 py-3',
                       state === bot.healthState
-                        ? 'border-[var(--brand-primary)] bg-[rgba(59,130,246,0.08)]'
+                        ? 'border-[var(--button-primary-border-hover)] bg-[var(--chip-brand-bg)]'
                         : 'border-[var(--border-default)] bg-[var(--bg-card)]',
                     )}
                   >
@@ -1454,12 +1455,12 @@ function IMBotDetailSheet({
           </section>
 
           <section className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-[24px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.05)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
+            <div className="rounded-[24px] border border-[var(--border-default)] bg-white/76 p-4 shadow-[var(--pressable-card-rest-shadow)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
               <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">平台</div>
               <div className="mt-2 text-[15px] font-medium text-[var(--text-primary)]">{platform.label}</div>
               <p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">已接入能力：{platform.capabilities.join(' / ')}</p>
             </div>
-            <div className="rounded-[24px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-4 shadow-[0_14px_30px_rgba(15,23,42,0.05)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
+            <div className="rounded-[24px] border border-[var(--border-default)] bg-white/76 p-4 shadow-[var(--pressable-card-rest-shadow)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
               <div className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">最近连接测试</div>
               <div className="mt-2 text-[15px] font-medium text-[var(--text-primary)]">{bot.lastTestAt ?? '还未执行'}</div>
               <p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">
@@ -1468,7 +1469,7 @@ function IMBotDetailSheet({
             </div>
           </section>
 
-          <section className="rounded-[28px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
+          <section className="rounded-[28px] border border-[var(--border-default)] bg-white/76 p-5 shadow-[var(--pressable-card-hover-shadow)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
             <div className="flex items-center gap-2">
               <BotMessageSquare className="h-5 w-5 text-[var(--brand-primary)]" />
               <div className="text-[16px] font-semibold text-[var(--text-primary)]">基础信息与默认助手</div>
@@ -1505,7 +1506,7 @@ function IMBotDetailSheet({
                       SPRING_PRESSABLE,
                       INTERACTIVE_FOCUS_RING,
                       draftAssistantId === assistant.id
-                        ? 'border-[var(--brand-primary)] bg-[rgba(59,130,246,0.08)] shadow-[0_12px_28px_rgba(59,130,246,0.10)]'
+                        ? 'border-[var(--button-primary-border-hover)] bg-[var(--chip-brand-bg)] shadow-[var(--button-primary-shadow-hover)]'
                         : 'border-[var(--border-default)] bg-[var(--bg-card)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)]',
                     )}
                   >
@@ -1525,7 +1526,7 @@ function IMBotDetailSheet({
             </div>
           </section>
 
-          <section className="rounded-[28px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
+          <section className="rounded-[28px] border border-[var(--border-default)] bg-white/76 p-5 shadow-[var(--pressable-card-hover-shadow)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
             <div className="flex items-center gap-2">
               <Radio className="h-5 w-5 text-[var(--brand-primary)]" />
               <div className="text-[16px] font-semibold text-[var(--text-primary)]">会话绑定与回复策略</div>
@@ -1543,7 +1544,7 @@ function IMBotDetailSheet({
                       SPRING_PRESSABLE,
                       INTERACTIVE_FOCUS_RING,
                       draftBindingScope === option.value
-                        ? 'border-[var(--brand-primary)] bg-[rgba(59,130,246,0.08)] shadow-[0_12px_28px_rgba(59,130,246,0.10)]'
+                        ? 'border-[var(--button-primary-border-hover)] bg-[var(--chip-brand-bg)] shadow-[var(--button-primary-shadow-hover)]'
                         : 'border-[var(--border-default)] bg-[var(--bg-card)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)]',
                     )}
                   >
@@ -1566,7 +1567,7 @@ function IMBotDetailSheet({
             </label>
           </section>
 
-          <section className="rounded-[28px] border border-[rgba(15,23,42,0.08)] bg-white/76 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
+          <section className="rounded-[28px] border border-[var(--border-default)] bg-white/76 p-5 shadow-[var(--pressable-card-hover-shadow)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
             <div className="flex items-center gap-2">
               <MessageSquare className="h-5 w-5 text-[var(--brand-primary)]" />
               <div className="text-[16px] font-semibold text-[var(--text-primary)]">消息模板</div>
