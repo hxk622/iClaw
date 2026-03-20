@@ -158,6 +158,8 @@ type ChatSurfaceRenderState = {
   groupCount: number;
 };
 
+type ChatSurfaceTransitionMode = 'boot' | 'switch';
+
 type UnhandledGatewayError = {
   message: string;
   code: string | null;
@@ -188,6 +190,7 @@ const OPENCLAW_DEVICE_IDENTITY_KEY = 'openclaw-device-identity-v1';
 const CHAT_SELECTION_MENU_WIDTH = 220;
 const CHAT_SELECTION_MENU_HEIGHT = 176;
 const CHAT_SELECTION_MENU_GAP = 12;
+const SESSION_TRANSITION_MIN_DURATION_MS = 260;
 const CREDIT_INPUT_COST_PER_1K = 1;
 const CREDIT_OUTPUT_COST_PER_1K = 2;
 const REFERENCE_MARKER_PATTERN = /\[\[引用:([\s\S]*?)\]\]/g;
@@ -1011,6 +1014,70 @@ async function loadChatModelSnapshot(
   };
 }
 
+function isSessionRenderReady(renderState: ChatSurfaceRenderState): boolean {
+  if (!renderState.hasNativeInput || !renderState.nativeInputVisible) {
+    return false;
+  }
+
+  if (!renderState.hasThread) {
+    return true;
+  }
+
+  return renderState.threadVisible || renderState.groupCount === 0;
+}
+
+function ChatSurfaceSkeletonMask({
+  mode,
+  label,
+}: {
+  mode: ChatSurfaceTransitionMode;
+  label: string;
+}) {
+  return (
+    <div className="iclaw-chat-boot-mask" data-mode={mode} role="status" aria-live="polite">
+      <span className="iclaw-chat-boot-mask__sr-only">{label}</span>
+      <div className="iclaw-chat-skeleton" aria-hidden="true">
+        <div className="iclaw-chat-skeleton__header">
+          <div className="iclaw-chat-skeleton__dot" />
+          <div className="iclaw-chat-skeleton__title" />
+          <div className="iclaw-chat-skeleton__meta" />
+        </div>
+        <div className="iclaw-chat-skeleton__thread">
+          <div className="iclaw-chat-skeleton__group iclaw-chat-skeleton__group--assistant">
+            <div className="iclaw-chat-skeleton__avatar" />
+            <div className="iclaw-chat-skeleton__stack">
+              <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--wide" />
+              <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--medium" />
+              <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--short" />
+            </div>
+          </div>
+          <div className="iclaw-chat-skeleton__group iclaw-chat-skeleton__group--user">
+            <div className="iclaw-chat-skeleton__stack iclaw-chat-skeleton__stack--user">
+              <div className="iclaw-chat-skeleton__bubble iclaw-chat-skeleton__bubble--long" />
+              <div className="iclaw-chat-skeleton__bubble iclaw-chat-skeleton__bubble--short" />
+            </div>
+            <div className="iclaw-chat-skeleton__avatar iclaw-chat-skeleton__avatar--user" />
+          </div>
+          <div className="iclaw-chat-skeleton__group iclaw-chat-skeleton__group--assistant">
+            <div className="iclaw-chat-skeleton__avatar" />
+            <div className="iclaw-chat-skeleton__stack">
+              <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--medium" />
+              <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--wide" />
+            </div>
+          </div>
+        </div>
+        <div className="iclaw-chat-skeleton__composer">
+          <div className="iclaw-chat-skeleton__composer-line" />
+          <div className="iclaw-chat-skeleton__composer-actions">
+            <div className="iclaw-chat-skeleton__composer-chip" />
+            <div className="iclaw-chat-skeleton__composer-button" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function OpenClawChatSurface({
   gatewayUrl,
   gatewayToken,
@@ -1067,6 +1134,7 @@ export function OpenClawChatSurface({
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelSwitching, setModelSwitching] = useState(false);
+  const [sessionTransitionVisible, setSessionTransitionVisible] = useState(false);
   const [composerDraft, setComposerDraft] = useState<ComposerDraftPayload | null>(null);
   const [creditEstimate, setCreditEstimate] = useState<ComposerCreditEstimateState>({
     loading: false,
@@ -1083,6 +1151,10 @@ export function OpenClawChatSurface({
   const selectionMenuRef = useRef<HTMLDivElement | null>(null);
   const modelLoadVersionRef = useRef(0);
   const messageActionTimersRef = useRef<number[]>([]);
+  const previousSessionKeyRef = useRef(sessionKey);
+  const sessionTransitionPendingRef = useRef(false);
+  const sessionTransitionStartedAtRef = useRef(0);
+  const sessionTransitionHideTimerRef = useRef<number | null>(null);
 
   const closeSelectionMenu = useCallback(() => {
     setSelectionMenu(null);
@@ -1113,6 +1185,13 @@ export function OpenClawChatSurface({
   const clearUsageSettlementTimers = useCallback(() => {
     usageSettlementTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     usageSettlementTimersRef.current = [];
+  }, []);
+
+  const clearSessionTransitionTimer = useCallback(() => {
+    if (sessionTransitionHideTimerRef.current != null) {
+      window.clearTimeout(sessionTransitionHideTimerRef.current);
+      sessionTransitionHideTimerRef.current = null;
+    }
   }, []);
 
   const tryAutoOpenArtifactCard = useCallback(() => {
@@ -1262,6 +1341,19 @@ export function OpenClawChatSurface({
   );
 
   useEffect(() => {
+    if (previousSessionKeyRef.current === sessionKey) {
+      return;
+    }
+
+    previousSessionKeyRef.current = sessionKey;
+    sessionTransitionPendingRef.current = true;
+    sessionTransitionStartedAtRef.current = performance.now();
+    clearSessionTransitionTimer();
+    setSessionTransitionVisible(true);
+    closeSelectionMenu();
+  }, [clearSessionTransitionTimer, closeSelectionMenu, sessionKey]);
+
+  useEffect(() => {
     if (pendingUsageSettlementRef.current) {
       console.warn('[desktop] drop pending credit settlement because session changed', pendingUsageSettlementRef.current);
     }
@@ -1277,9 +1369,7 @@ export function OpenClawChatSurface({
     clearArtifactAutoOpenTimers();
     clearUsageSettlementTimers();
     modelLoadVersionRef.current += 1;
-    setModelOptions([]);
-    setSelectedModelId(null);
-    setModelsLoading(false);
+    setModelsLoading(true);
     setModelSwitching(false);
     setComposerDraft(null);
     setCreditEstimate({
@@ -1745,8 +1835,8 @@ export function OpenClawChatSurface({
     const observer = new ResizeObserver(() => {
       updateComposerHeight();
     });
-    const composer = shell.querySelector('.iclaw-composer');
-    const thread = shell.querySelector('.openclaw-chat-surface .chat-thread');
+    const composer = shell.querySelector<HTMLElement>('.iclaw-composer');
+    const thread = shell.querySelector<HTMLElement>('.openclaw-chat-surface .chat-thread');
     if (composer) {
       observer.observe(composer);
     }
@@ -1881,10 +1971,14 @@ export function OpenClawChatSurface({
 
   useEffect(() => {
     if (!status.connected) {
-      modelLoadVersionRef.current += 1;
-      setModelOptions([]);
-      setSelectedModelId(null);
-      setModelsLoading(false);
+      if (sessionTransitionPendingRef.current) {
+        setModelsLoading(true);
+      } else {
+        modelLoadVersionRef.current += 1;
+        setModelOptions([]);
+        setSelectedModelId(null);
+        setModelsLoading(false);
+      }
       setModelSwitching(false);
       return;
     }
@@ -1992,6 +2086,11 @@ export function OpenClawChatSurface({
   }, [closeSelectionMenu, resolveChatSelection, selectionMenu]);
 
   useEffect(() => {
+    if (sessionTransitionVisible && !status.lastError) {
+      setShowConnectionCard(false);
+      return;
+    }
+
     if (status.connected) {
       setShowConnectionCard(false);
       return;
@@ -2007,11 +2106,11 @@ export function OpenClawChatSurface({
     }, 320);
 
     return () => window.clearTimeout(timer);
-  }, [status.connected, status.lastError]);
+  }, [sessionTransitionVisible, status.connected, status.lastError]);
 
   useEffect(() => {
     const threadReady = renderState.hasThread && renderState.threadVisible;
-    if (!shellAuthenticated || !status.connected || threadReady) {
+    if (sessionTransitionVisible || !shellAuthenticated || !status.connected || threadReady) {
       setShowRenderDiagnosticsCard(false);
       return;
     }
@@ -2027,8 +2126,45 @@ export function OpenClawChatSurface({
     renderState.nativeInputVisible,
     renderState.threadVisible,
     shellAuthenticated,
+    sessionTransitionVisible,
     status.connected,
   ]);
+
+  useEffect(() => {
+    if (!sessionTransitionPendingRef.current) {
+      return;
+    }
+
+    const ready =
+      status.connected &&
+      !modelsLoading &&
+      !modelSwitching &&
+      isSessionRenderReady(renderState);
+
+    if (!ready) {
+      return;
+    }
+
+    const elapsed = performance.now() - sessionTransitionStartedAtRef.current;
+    const remaining = Math.max(0, SESSION_TRANSITION_MIN_DURATION_MS - elapsed);
+
+    clearSessionTransitionTimer();
+    sessionTransitionHideTimerRef.current = window.setTimeout(() => {
+      sessionTransitionPendingRef.current = false;
+      sessionTransitionHideTimerRef.current = null;
+      setSessionTransitionVisible(false);
+    }, remaining);
+
+    return clearSessionTransitionTimer;
+  }, [
+    clearSessionTransitionTimer,
+    modelSwitching,
+    modelsLoading,
+    renderState,
+    status.connected,
+  ]);
+
+  useEffect(() => clearSessionTransitionTimer, [clearSessionTransitionTimer]);
 
   const hasGatewayAuth = Boolean((gatewayToken ?? '').trim() || (gatewayPassword ?? '').trim());
   const connectionMessage = status.lastError
@@ -2037,6 +2173,8 @@ export function OpenClawChatSurface({
       ? '正在连接 OpenClaw 网关…'
       : '缺少本地网关凭据，当前无法连接 OpenClaw。';
   const showBootMask = shellAuthenticated && !status.connected;
+  const showSessionTransitionMask = sessionTransitionVisible && !showBootMask;
+  const shellTransitioning = showBootMask || showSessionTransitionMask;
   const secureContextHint =
     typeof window !== 'undefined' && !window.isSecureContext
       ? '当前页面不是安全上下文，OpenClaw 可能会拒绝设备身份校验。'
@@ -2673,59 +2811,32 @@ export function OpenClawChatSurface({
         ) : null}
 
         <div className="relative flex min-h-[720px] min-w-0 flex-1 overflow-hidden rounded-none border-0 bg-transparent p-0 shadow-none">
-          <div ref={shellRef} className="openclaw-chat-surface-shell h-full flex-1 overflow-hidden">
+          <div
+            ref={shellRef}
+            className="openclaw-chat-surface-shell h-full flex-1 overflow-hidden"
+            data-session-transitioning={shellTransitioning ? 'true' : 'false'}
+          >
             <div ref={hostRef} className="openclaw-chat-surface h-full min-h-0 flex-1 overflow-hidden" />
 
             {showBootMask ? (
-              <div className="iclaw-chat-boot-mask" role="status" aria-live="polite">
-                <span className="iclaw-chat-boot-mask__sr-only">
-                  {status.lastError ? '聊天界面恢复失败，正在等待重连' : '正在恢复聊天界面'}
-                </span>
-                <div className="iclaw-chat-skeleton" aria-hidden="true">
-                  <div className="iclaw-chat-skeleton__header">
-                    <div className="iclaw-chat-skeleton__dot" />
-                    <div className="iclaw-chat-skeleton__title" />
-                    <div className="iclaw-chat-skeleton__meta" />
-                  </div>
-                  <div className="iclaw-chat-skeleton__thread">
-                    <div className="iclaw-chat-skeleton__group iclaw-chat-skeleton__group--assistant">
-                      <div className="iclaw-chat-skeleton__avatar" />
-                      <div className="iclaw-chat-skeleton__stack">
-                        <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--wide" />
-                        <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--medium" />
-                        <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--short" />
-                      </div>
-                    </div>
-                    <div className="iclaw-chat-skeleton__group iclaw-chat-skeleton__group--user">
-                      <div className="iclaw-chat-skeleton__stack iclaw-chat-skeleton__stack--user">
-                        <div className="iclaw-chat-skeleton__bubble iclaw-chat-skeleton__bubble--long" />
-                        <div className="iclaw-chat-skeleton__bubble iclaw-chat-skeleton__bubble--short" />
-                      </div>
-                      <div className="iclaw-chat-skeleton__avatar iclaw-chat-skeleton__avatar--user" />
-                    </div>
-                    <div className="iclaw-chat-skeleton__group iclaw-chat-skeleton__group--assistant">
-                      <div className="iclaw-chat-skeleton__avatar" />
-                      <div className="iclaw-chat-skeleton__stack">
-                        <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--medium" />
-                        <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--wide" />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="iclaw-chat-skeleton__composer">
-                    <div className="iclaw-chat-skeleton__composer-line" />
-                    <div className="iclaw-chat-skeleton__composer-actions">
-                      <div className="iclaw-chat-skeleton__composer-chip" />
-                      <div className="iclaw-chat-skeleton__composer-button" />
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <ChatSurfaceSkeletonMask
+                mode="boot"
+                label={status.lastError ? '聊天界面恢复失败，正在等待重连' : '正在恢复聊天界面'}
+              />
+            ) : null}
+
+            {showSessionTransitionMask ? (
+              <ChatSurfaceSkeletonMask
+                mode="switch"
+                label="正在切换对话，正在同步消息与输入状态"
+              />
             ) : null}
 
             <RichChatComposer
               ref={composerRef}
               connected={status.connected}
               busy={status.busy}
+              sessionTransitioning={shellTransitioning}
               lobsterAgents={installedLobsterAgents}
               modelOptions={modelOptions}
               selectedModelId={selectedModelId}

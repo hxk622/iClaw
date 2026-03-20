@@ -69,6 +69,7 @@ type ComposerTokenMeta = {
 type RichChatComposerProps = {
   connected: boolean;
   busy: boolean;
+  sessionTransitioning?: boolean;
   lobsterAgents: LobsterAgent[];
   modelOptions: ComposerModelOption[];
   selectedModelId: string | null;
@@ -332,6 +333,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     {
       connected,
       busy,
+      sessionTransitioning = false,
       lobsterAgents,
       modelOptions,
       selectedModelId,
@@ -737,11 +739,11 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     }, [closeMentionMenu, mentionMenuOpen, modelMenuOpen]);
 
     useEffect(() => {
-      if (!connected) {
+      if (!connected || sessionTransitioning) {
         setModelMenuOpen(false);
         closeMentionMenu();
       }
-    }, [closeMentionMenu, connected]);
+    }, [closeMentionMenu, connected, sessionTransitioning]);
 
     const submitLabel = busy && !hasContent ? '停止' : '发送';
     const sendState = busy ? 'busy' : hasContent ? 'ready' : 'empty';
@@ -768,7 +770,9 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       }
       return modelsLoading ? '同步可用模型中' : '当前暂无可用模型';
     })();
-    const modelDisabled = !connected || busy || modelSwitching || modelOptions.length === 0;
+    const modelVisualLoading = sessionTransitioning || modelsLoading || modelSwitching;
+    const modelDisabled =
+      !connected || busy || sessionTransitioning || modelSwitching || modelOptions.length === 0;
     const modelSections = [
       { key: 'advanced', label: '高级', options: modelOptions.filter((option) => option.tier === 'advanced') },
       { key: 'basic', label: '基础', options: modelOptions.filter((option) => option.tier === 'basic') },
@@ -791,9 +795,12 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const creditEstimateState = creditEstimate?.error ? 'error' : creditEstimate?.loading ? 'loading' : 'ready';
 
     return (
-      <div className="iclaw-composer">
+      <div
+        className="iclaw-composer"
+        data-session-transitioning={sessionTransitioning ? 'true' : 'false'}
+      >
         <div className="iclaw-composer__halo" aria-hidden="true" />
-        <div className="iclaw-composer__panel">
+        <div className="iclaw-composer__panel" data-session-transitioning={sessionTransitioning ? 'true' : 'false'}>
           <div className="iclaw-composer__top">
             <div className="iclaw-composer__context-main">
               <span className="iclaw-composer__context-label">任务上下文</span>
@@ -1034,6 +1041,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   <button
                     type="button"
                     className="iclaw-composer__model-trigger"
+                    data-loading={modelVisualLoading ? 'true' : 'false'}
                     disabled={modelDisabled}
                     aria-haspopup="menu"
                     aria-expanded={modelMenuOpen}
