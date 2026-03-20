@@ -280,9 +280,9 @@ const MESSAGE_ACTION_ICONS = {
   check:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.2 4.2L19 7.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   thumbsUp:
-    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 21H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2h2m5-7-1.4 5H18a2 2 0 0 1 2 2l-1 6a2 2 0 0 1-2 1H7V11.5L12 4Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 21H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2h2m5-7-1.4 5H18a2 2 0 0 1 2 2l-1 6a2 2 0 0 1-2 1H7V11.5L12 4Z" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   thumbsDown:
-    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2m-5 7 1.4-5H6a2 2 0 0 1-2-2l1-6a2 2 0 0 1 2-1h10v7.5L12 20Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2m-5 7 1.4-5H6a2 2 0 0 1-2-2l1-6a2 2 0 0 1 2-1h10v7.5L12 20Z" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   refresh:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 2v6h-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 8a8 8 0 1 0 2 5.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 } as const;

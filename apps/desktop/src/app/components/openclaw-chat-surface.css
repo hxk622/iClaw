@@ -691,8 +691,8 @@ body {
 }
 
 .openclaw-chat-surface .iclaw-chat-assistant-toolbar__btn > svg {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
 }
 
 .openclaw-chat-surface .iclaw-chat-assistant-toolbar__btn:hover:not(:disabled),
