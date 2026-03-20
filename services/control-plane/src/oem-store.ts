@@ -4,11 +4,14 @@ import {Pool, type PoolClient} from 'pg';
 
 import type {
   OemAssetRecord,
+  OemAssetListRecord,
   OemAuditEventRecord,
   OemBrandRecord,
+  OemBrandSummaryRecord,
   OemBrandVersionRecord,
   OemJsonObject,
   SeedOemBrandInput,
+  UpsertOemAssetInput,
   UpsertOemBrandDraftInput,
 } from './oem-domain.ts';
 
@@ -28,9 +31,12 @@ type OemBrandRow = {
 type OemBrandVersionRow = {
   id: string;
   brand_id: string;
+  display_name: string | null;
   version_no: number;
   config: Record<string, unknown> | null;
   created_by: string | null;
+  created_by_name: string | null;
+  created_by_username: string | null;
   created_at: Date;
   published_at: Date;
 };
@@ -38,6 +44,8 @@ type OemBrandVersionRow = {
 type OemAssetRow = {
   id: string;
   brand_id: string;
+  brand_display_name: string | null;
+  brand_product_name: string | null;
   asset_key: string;
   kind: string;
   storage_provider: string;
@@ -52,10 +60,27 @@ type OemAssetRow = {
 type OemAuditRow = {
   id: string;
   brand_id: string;
+  brand_display_name: string | null;
+  brand_product_name: string | null;
   action: string;
   actor_user_id: string | null;
+  actor_name: string | null;
+  actor_username: string | null;
   payload: Record<string, unknown> | null;
   created_at: Date;
+};
+
+type OemBrandSummaryRow = {
+  brand_id: string;
+  tenant_key: string;
+  display_name: string;
+  product_name: string;
+  status: 'draft' | 'published' | 'archived';
+  published_version: number;
+  created_at: Date;
+  updated_at: Date;
+  last_published_at: Date | null;
+  asset_count: string | number;
 };
 
 function asJsonObject(value: unknown): OemJsonObject {
@@ -84,18 +109,23 @@ function mapVersionRow(row: OemBrandVersionRow): OemBrandVersionRecord {
   return {
     id: row.id,
     brandId: row.brand_id,
+    brandDisplayName: row.display_name,
     version: row.version_no,
     config: asJsonObject(row.config),
     createdBy: row.created_by,
+    createdByName: row.created_by_name,
+    createdByUsername: row.created_by_username,
     createdAt: row.created_at.toISOString(),
     publishedAt: row.published_at.toISOString(),
   };
 }
 
-function mapAssetRow(row: OemAssetRow): OemAssetRecord {
+function mapAssetRow(row: OemAssetRow): OemAssetListRecord {
   return {
     id: row.id,
     brandId: row.brand_id,
+    brandDisplayName: row.brand_display_name,
+    brandProductName: row.brand_product_name,
     assetKey: row.asset_key,
     kind: row.kind,
     storageProvider: row.storage_provider,
@@ -112,10 +142,29 @@ function mapAuditRow(row: OemAuditRow): OemAuditEventRecord {
   return {
     id: row.id,
     brandId: row.brand_id,
+    brandDisplayName: row.brand_display_name,
+    brandProductName: row.brand_product_name,
     action: row.action,
     actorUserId: row.actor_user_id,
+    actorName: row.actor_name,
+    actorUsername: row.actor_username,
     payload: asJsonObject(row.payload),
     createdAt: row.created_at.toISOString(),
+  };
+}
+
+function mapBrandSummaryRow(row: OemBrandSummaryRow): OemBrandSummaryRecord {
+  return {
+    brandId: row.brand_id,
+    tenantKey: row.tenant_key,
+    displayName: row.display_name,
+    productName: row.product_name,
+    status: row.status,
+    publishedVersion: row.published_version || 0,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+    lastPublishedAt: row.last_published_at ? row.last_published_at.toISOString() : null,
+    assetCount: Number(row.asset_count || 0),
   };
 }
 
@@ -238,6 +287,38 @@ export class PgOemStore {
     return result.rows.map(mapBrandRow);
   }
 
+  async listBrandSummaries(): Promise<OemBrandSummaryRecord[]> {
+    const result = await this.pool.query<OemBrandSummaryRow>(
+      `
+        select
+          p.brand_id,
+          p.tenant_key,
+          p.display_name,
+          p.product_name,
+          p.status,
+          p.published_version,
+          p.created_at,
+          p.updated_at,
+          max(v.published_at) as last_published_at,
+          count(a.id) as asset_count
+        from oem_brand_profiles p
+        left join oem_brand_versions v on v.brand_id = p.brand_id
+        left join oem_asset_registry a on a.brand_id = p.brand_id
+        group by
+          p.brand_id,
+          p.tenant_key,
+          p.display_name,
+          p.product_name,
+          p.status,
+          p.published_version,
+          p.created_at,
+          p.updated_at
+        order by p.updated_at desc, p.brand_id asc
+      `,
+    );
+    return result.rows.map(mapBrandSummaryRow);
+  }
+
   async getBrand(brandId: string): Promise<OemBrandRecord | null> {
     const result = await this.pool.query<OemBrandRow>(
       `
@@ -288,9 +369,21 @@ export class PgOemStore {
   async listBrandVersions(brandId: string): Promise<OemBrandVersionRecord[]> {
     const result = await this.pool.query<OemBrandVersionRow>(
       `
-        select id, brand_id, version_no, config, created_by, created_at, published_at
-        from oem_brand_versions
-        where brand_id = $1
+        select
+          v.id,
+          v.brand_id,
+          p.display_name,
+          v.version_no,
+          v.config,
+          v.created_by,
+          u.display_name as created_by_name,
+          u.username as created_by_username,
+          v.created_at,
+          v.published_at
+        from oem_brand_versions v
+        join oem_brand_profiles p on p.brand_id = v.brand_id
+        left join users u on u.id = v.created_by
+        where v.brand_id = $1
         order by version_no desc
       `,
       [brandId],
@@ -298,23 +391,54 @@ export class PgOemStore {
     return result.rows.map(mapVersionRow);
   }
 
-  async listBrandAssets(brandId: string): Promise<OemAssetRecord[]> {
+  async listReleases(options: {brandId?: string | null; limit?: number} = {}): Promise<OemBrandVersionRecord[]> {
+    const brandId = options.brandId?.trim() || null;
+    const limit = Math.max(1, Math.min(200, options.limit || 50));
+    const result = await this.pool.query<OemBrandVersionRow>(
+      `
+        select
+          v.id,
+          v.brand_id,
+          p.display_name,
+          v.version_no,
+          v.config,
+          v.created_by,
+          u.display_name as created_by_name,
+          u.username as created_by_username,
+          v.created_at,
+          v.published_at
+        from oem_brand_versions v
+        join oem_brand_profiles p on p.brand_id = v.brand_id
+        left join users u on u.id = v.created_by
+        where ($1::text is null or v.brand_id = $1)
+        order by v.published_at desc, v.version_no desc
+        limit $2
+      `,
+      [brandId, limit],
+    );
+    return result.rows.map(mapVersionRow);
+  }
+
+  async listBrandAssets(brandId: string): Promise<OemAssetListRecord[]> {
     const result = await this.pool.query<OemAssetRow>(
       `
         select
-          id,
-          brand_id,
-          asset_key,
-          kind,
-          storage_provider,
-          object_key,
-          public_url,
-          metadata,
-          created_by,
-          created_at,
-          updated_at
-        from oem_asset_registry
-        where brand_id = $1
+          a.id,
+          a.brand_id,
+          p.display_name as brand_display_name,
+          p.product_name as brand_product_name,
+          a.asset_key,
+          a.kind,
+          a.storage_provider,
+          a.object_key,
+          a.public_url,
+          a.metadata,
+          a.created_by,
+          a.created_at,
+          a.updated_at
+        from oem_asset_registry a
+        join oem_brand_profiles p on p.brand_id = a.brand_id
+        where a.brand_id = $1
         order by asset_key asc
       `,
       [brandId],
@@ -322,16 +446,94 @@ export class PgOemStore {
     return result.rows.map(mapAssetRow);
   }
 
+  async listAssets(options: {brandId?: string | null; kind?: string | null; limit?: number} = {}): Promise<OemAssetListRecord[]> {
+    const brandId = options.brandId?.trim() || null;
+    const kind = options.kind?.trim() || null;
+    const limit = Math.max(1, Math.min(500, options.limit || 200));
+    const result = await this.pool.query<OemAssetRow>(
+      `
+        select
+          a.id,
+          a.brand_id,
+          p.display_name as brand_display_name,
+          p.product_name as brand_product_name,
+          a.asset_key,
+          a.kind,
+          a.storage_provider,
+          a.object_key,
+          a.public_url,
+          a.metadata,
+          a.created_by,
+          a.created_at,
+          a.updated_at
+        from oem_asset_registry a
+        join oem_brand_profiles p on p.brand_id = a.brand_id
+        where ($1::text is null or a.brand_id = $1)
+          and ($2::text is null or a.kind = $2)
+        order by a.updated_at desc, a.asset_key asc
+        limit $3
+      `,
+      [brandId, kind, limit],
+    );
+    return result.rows.map(mapAssetRow);
+  }
+
   async listAuditEvents(brandId: string, limit = 20): Promise<OemAuditEventRecord[]> {
     const result = await this.pool.query<OemAuditRow>(
       `
-        select id, brand_id, action, actor_user_id, payload, created_at
-        from oem_audit_events
-        where brand_id = $1
-        order by created_at desc
+        select
+          e.id,
+          e.brand_id,
+          p.display_name as brand_display_name,
+          p.product_name as brand_product_name,
+          e.action,
+          e.actor_user_id,
+          u.display_name as actor_name,
+          u.username as actor_username,
+          e.payload,
+          e.created_at
+        from oem_audit_events e
+        join oem_brand_profiles p on p.brand_id = e.brand_id
+        left join users u on u.id = e.actor_user_id
+        where e.brand_id = $1
+        order by e.created_at desc
         limit $2
       `,
       [brandId, limit],
+    );
+    return result.rows.map(mapAuditRow);
+  }
+
+  async listAuditFeed(options: {
+    brandId?: string | null;
+    action?: string | null;
+    limit?: number;
+  } = {}): Promise<OemAuditEventRecord[]> {
+    const brandId = options.brandId?.trim() || null;
+    const action = options.action?.trim() || null;
+    const limit = Math.max(1, Math.min(500, options.limit || 200));
+    const result = await this.pool.query<OemAuditRow>(
+      `
+        select
+          e.id,
+          e.brand_id,
+          p.display_name as brand_display_name,
+          p.product_name as brand_product_name,
+          e.action,
+          e.actor_user_id,
+          u.display_name as actor_name,
+          u.username as actor_username,
+          e.payload,
+          e.created_at
+        from oem_audit_events e
+        join oem_brand_profiles p on p.brand_id = e.brand_id
+        left join users u on u.id = e.actor_user_id
+        where ($1::text is null or e.brand_id = $1)
+          and ($2::text is null or e.action = $2)
+        order by e.created_at desc
+        limit $3
+      `,
+      [brandId, action, limit],
     );
     return result.rows.map(mapAuditRow);
   }
@@ -388,10 +590,84 @@ export class PgOemStore {
         displayName: input.displayName,
         productName: input.productName,
         status: input.status,
+        environment: 'draft',
       },
     });
 
     return mapBrandRow(result.rows[0]);
+  }
+
+  async upsertAsset(input: UpsertOemAssetInput): Promise<OemAssetListRecord> {
+    const result = await this.pool.query<OemAssetRow>(
+      `
+        insert into oem_asset_registry (
+          id,
+          brand_id,
+          asset_key,
+          kind,
+          storage_provider,
+          object_key,
+          public_url,
+          metadata,
+          created_by,
+          created_at,
+          updated_at
+        )
+        values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, now(), now())
+        on conflict (brand_id, asset_key) do update
+        set kind = excluded.kind,
+            storage_provider = excluded.storage_provider,
+            object_key = excluded.object_key,
+            public_url = excluded.public_url,
+            metadata = excluded.metadata,
+            updated_at = now()
+        returning
+          id,
+          brand_id,
+          $10::text as brand_display_name,
+          $11::text as brand_product_name,
+          asset_key,
+          kind,
+          storage_provider,
+          object_key,
+          public_url,
+          metadata,
+          created_by,
+          created_at,
+          updated_at
+      `,
+      [
+        randomUUID(),
+        input.brandId,
+        input.assetKey,
+        input.kind,
+        input.storageProvider,
+        input.objectKey,
+        input.publicUrl,
+        JSON.stringify(input.metadata),
+        input.actorUserId,
+        null,
+        null,
+      ],
+    );
+
+    const brand = await this.getBrand(input.brandId);
+    const asset = result.rows[0];
+    asset.brand_display_name = brand?.displayName || null;
+    asset.brand_product_name = brand?.productName || null;
+
+    await this.insertAuditEvent(this.pool, {
+      brandId: input.brandId,
+      action: 'asset_upserted',
+      actorUserId: input.actorUserId,
+      payload: {
+        assetKey: input.assetKey,
+        kind: input.kind,
+        storageProvider: input.storageProvider,
+      },
+    });
+
+    return mapAssetRow(asset);
   }
 
   async publishBrand(brandId: string, actorUserId: string | null): Promise<OemBrandRecord> {
@@ -450,6 +726,72 @@ export class PgOemStore {
         actorUserId,
         payload: {
           version: nextVersion,
+          environment: 'published',
+        },
+      });
+
+      await client.query('commit');
+      return mapBrandRow(result.rows[0]);
+    } catch (error) {
+      await client.query('rollback');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async restoreBrandVersion(brandId: string, version: number, actorUserId: string | null): Promise<OemBrandRecord> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+      const current = await this.getBrandForUpdate(client, brandId);
+      if (!current) {
+        throw new Error('OEM_BRAND_NOT_FOUND');
+      }
+
+      const versionResult = await client.query<{config: Record<string, unknown> | null}>(
+        `
+          select config
+          from oem_brand_versions
+          where brand_id = $1 and version_no = $2
+          limit 1
+        `,
+        [brandId, version],
+      );
+      const versionConfig = versionResult.rows[0]?.config;
+      if (!versionConfig) {
+        throw new Error('OEM_VERSION_NOT_FOUND');
+      }
+
+      const result = await client.query<OemBrandRow>(
+        `
+          update oem_brand_profiles
+          set draft_config = $3::jsonb,
+              status = 'draft',
+              updated_at = now()
+          where brand_id = $1
+          returning
+            brand_id,
+            tenant_key,
+            display_name,
+            product_name,
+            status,
+            draft_config,
+            published_config,
+            published_version,
+            created_at,
+            updated_at
+        `,
+        [brandId, version, JSON.stringify(versionConfig)],
+      );
+
+      await this.insertAuditEvent(client, {
+        brandId,
+        action: 'rollback_prepared',
+        actorUserId,
+        payload: {
+          version,
+          environment: 'draft',
         },
       });
 

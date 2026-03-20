@@ -18,9 +18,12 @@ export type OemBrandRecord = {
 export type OemBrandVersionRecord = {
   id: string;
   brandId: string;
+  brandDisplayName: string | null;
   version: number;
   config: OemJsonObject;
   createdBy: string | null;
+  createdByName: string | null;
+  createdByUsername: string | null;
   createdAt: string;
   publishedAt: string;
 };
@@ -42,10 +45,43 @@ export type OemAssetRecord = {
 export type OemAuditEventRecord = {
   id: string;
   brandId: string;
+  brandDisplayName: string | null;
+  brandProductName: string | null;
   action: string;
   actorUserId: string | null;
+  actorName: string | null;
+  actorUsername: string | null;
   payload: OemJsonObject;
   createdAt: string;
+};
+
+export type OemBrandSummaryRecord = {
+  brandId: string;
+  tenantKey: string;
+  displayName: string;
+  productName: string;
+  status: OemBrandStatus;
+  publishedVersion: number;
+  createdAt: string;
+  updatedAt: string;
+  lastPublishedAt: string | null;
+  assetCount: number;
+};
+
+export type OemAssetListRecord = OemAssetRecord & {
+  brandDisplayName: string | null;
+  brandProductName: string | null;
+};
+
+export type UpsertOemAssetInput = {
+  brandId: string;
+  assetKey: string;
+  kind: string;
+  storageProvider: string;
+  objectKey: string;
+  publicUrl: string | null;
+  metadata: OemJsonObject;
+  actorUserId: string | null;
 };
 
 export type SeedOemBrandInput = {

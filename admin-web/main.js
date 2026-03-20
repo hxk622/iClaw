@@ -2,6 +2,24 @@ import './styles.css';
 
 const API_BASE_URL = ((import.meta.env.VITE_AUTH_BASE_URL || 'http://127.0.0.1:2130') + '').trim().replace(/\/+$/, '');
 const TOKEN_STORAGE_KEY = 'iclaw.admin-web.tokens';
+const NAV_ITEMS = [
+  {id: 'overview', label: '总览', eyebrow: 'Overview'},
+  {id: 'brands', label: '品牌管理', eyebrow: 'Brands'},
+  {id: 'brand-detail', label: '品牌详情', eyebrow: 'Brand Detail'},
+  {id: 'skills-mcp', label: '技能与 MCP', eyebrow: 'Capabilities'},
+  {id: 'assets', label: '资源管理', eyebrow: 'Assets'},
+  {id: 'releases', label: '版本发布', eyebrow: 'Releases'},
+  {id: 'audit-log', label: '审计日志', eyebrow: 'Audit'},
+];
+const SURFACE_LABELS = {
+  desktop: '桌面端',
+  'home-web': 'Web 主页',
+  header: '顶部栏',
+  sidebar: '侧边栏',
+  input: '输入编辑器',
+  'input-composer': '输入编辑器',
+  'skill-store': '技能商店',
+};
 
 const app = document.querySelector('#app');
 
@@ -11,15 +29,38 @@ if (!app) {
 
 const state = {
   busy: false,
+  loading: false,
   error: '',
   notice: '',
   view: 'login',
+  route: 'overview',
   tokens: loadTokens(),
   user: null,
+  dashboard: null,
   brands: [],
   selectedBrandId: '',
   brandDetail: null,
-  editorText: '',
+  brandDraftBuffer: null,
+  brandDetailTab: 'surfaces',
+  capabilities: null,
+  capabilityMode: 'skills',
+  selectedSkillSlug: '',
+  selectedMcpKey: '',
+  assets: [],
+  releases: [],
+  audit: [],
+  filters: {
+    brandQuery: '',
+    brandStatus: 'all',
+    capabilityQuery: '',
+    assetQuery: '',
+    assetBrand: 'all',
+    assetKind: 'all',
+    releaseBrand: 'all',
+    auditBrand: 'all',
+    auditAction: 'all',
+    auditQuery: '',
+  },
 };
 
 function loadTokens() {
@@ -35,9 +76,39 @@ function persistTokens(tokens) {
   state.tokens = tokens;
   if (tokens) {
     localStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(tokens));
-  } else {
-    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    return;
   }
+  localStorage.removeItem(TOKEN_STORAGE_KEY);
+}
+
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function asObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function asStringArray(value) {
+  const seen = new Set();
+  for (const item of asArray(value)) {
+    if (typeof item !== 'string') continue;
+    const normalized = item.trim();
+    if (!normalized) continue;
+    seen.add(normalized);
+  }
+  return Array.from(seen);
+}
+
+function splitLines(value) {
+  return String(value || '')
+    .split(/[\n,]/g)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function escapeHtml(value) {
@@ -47,6 +118,115 @@ function escapeHtml(value) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
+}
+
+function formatDateTime(value) {
+  if (!value) return '未记录';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return escapeHtml(value);
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatRelative(value) {
+  if (!value) return '未记录';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '未记录';
+  const diff = Date.now() - date.getTime();
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  if (diff < hour) {
+    return `${Math.max(1, Math.round(diff / minute))} 分钟前`;
+  }
+  if (diff < day) {
+    return `${Math.max(1, Math.round(diff / hour))} 小时前`;
+  }
+  return `${Math.max(1, Math.round(diff / day))} 天前`;
+}
+
+function titleizeKey(value) {
+  return String(value || '')
+    .split(/[-_]/g)
+    .filter(Boolean)
+    .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function surfaceLabel(key) {
+  return SURFACE_LABELS[key] || titleizeKey(key);
+}
+
+function statusLabel(status) {
+  switch (status) {
+    case 'published':
+      return '已发布';
+    case 'draft':
+      return '草稿';
+    case 'archived':
+      return '已归档';
+    case 'staging':
+      return '预发布';
+    default:
+      return status || '未知';
+  }
+}
+
+function actionLabel(action) {
+  switch (action) {
+    case 'draft_saved':
+      return '保存草稿';
+    case 'published':
+      return '发布版本';
+    case 'rollback_prepared':
+      return '回滚到历史版本';
+    case 'asset_upserted':
+      return '更新品牌资源';
+    default:
+      return titleizeKey(action);
+  }
+}
+
+function statusBadge(status) {
+  return `<span class="status-pill status-pill--${escapeHtml(status || 'default')}">${escapeHtml(statusLabel(status))}</span>`;
+}
+
+function fieldValue(value) {
+  return escapeHtml(value == null ? '' : value);
+}
+
+function metricsFromBrand(brand) {
+  const draftConfig = asObject(brand?.draftConfig);
+  const surfaces = Object.values(asObject(draftConfig.surfaces)).filter((surface) => asObject(surface).enabled !== false);
+  const capabilities = asObject(draftConfig.capabilities);
+  return {
+    surfaces: surfaces.length,
+    skills: asStringArray(capabilities.skills).length,
+    mcpServers: asStringArray(capabilities.mcp_servers).length,
+    pendingChanges: JSON.stringify(brand?.draftConfig || {}) !== JSON.stringify(brand?.publishedConfig || {}),
+  };
+}
+
+function resetBanner() {
+  state.error = '';
+  state.notice = '';
+}
+
+function setError(message) {
+  state.error = message;
+  state.notice = '';
+  render();
+}
+
+function setNotice(message) {
+  state.notice = message;
+  state.error = '';
+  render();
 }
 
 async function parseResponse(response) {
@@ -63,6 +243,7 @@ async function refreshToken() {
   if (!state.tokens?.refresh_token) {
     return false;
   }
+
   const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
     method: 'POST',
     headers: {
@@ -72,6 +253,7 @@ async function refreshToken() {
       refresh_token: state.tokens.refresh_token,
     }),
   });
+
   const tokens = await parseResponse(response);
   persistTokens({
     ...state.tokens,
@@ -102,27 +284,158 @@ async function apiFetch(path, init = {}, options = {}) {
   return parseResponse(response);
 }
 
-function resetBanner() {
-  state.error = '';
-  state.notice = '';
+function buildBrandDraftBuffer(detail) {
+  const brand = detail?.brand || null;
+  const draftConfig = clone(asObject(brand?.draftConfig));
+  const draftTheme = asObject(draftConfig.theme);
+  const lightTheme = asObject(draftTheme.light);
+  const darkTheme = asObject(draftTheme.dark);
+  const capabilities = asObject(draftConfig.capabilities);
+  const surfaceEntries = asObject(draftConfig.surfaces);
+  const orderedSurfaceKeys = Array.from(
+    new Set([
+      'desktop',
+      'home-web',
+      'header',
+      'sidebar',
+      'input',
+      'skill-store',
+      ...Object.keys(surfaceEntries),
+    ]),
+  );
+
+  return {
+    brandId: brand?.brandId || '',
+    displayName: brand?.displayName || '',
+    productName: brand?.productName || '',
+    tenantKey: brand?.tenantKey || '',
+    status: brand?.status || 'draft',
+    advancedJson: JSON.stringify(draftConfig, null, 2),
+    theme: {
+      lightPrimary: lightTheme.primary || '',
+      lightPrimaryHover: lightTheme.primaryHover || '',
+      lightOnPrimary: lightTheme.onPrimary || '',
+      darkPrimary: darkTheme.primary || '',
+      darkPrimaryHover: darkTheme.primaryHover || '',
+      darkOnPrimary: darkTheme.onPrimary || '',
+    },
+    selectedSkills: asStringArray(capabilities.skills),
+    selectedMcp: asStringArray(capabilities.mcp_servers),
+    agentsText: asStringArray(capabilities.agents).join('\n'),
+    menusText: asStringArray(capabilities.menus).join('\n'),
+    surfaces: orderedSurfaceKeys.map((key) => {
+      const surface = asObject(surfaceEntries[key]);
+      return {
+        key,
+        label: surfaceLabel(key),
+        enabled: surface.enabled !== false,
+        json: JSON.stringify(asObject(surface.config), null, 2),
+      };
+    }),
+  };
 }
 
-function setError(message) {
-  state.error = message;
-  state.notice = '';
-  render();
+function ensureBrandDraftBuffer() {
+  if (!state.brandDraftBuffer && state.brandDetail?.brand) {
+    state.brandDraftBuffer = buildBrandDraftBuffer(state.brandDetail);
+  }
+  return state.brandDraftBuffer;
 }
 
-function setNotice(message) {
-  state.notice = message;
-  state.error = '';
-  render();
+function captureBrandEditorBuffer() {
+  const form = document.querySelector('#brand-editor-form');
+  if (!form) {
+    return state.brandDraftBuffer;
+  }
+
+  const data = new FormData(form);
+  const surfaces = Array.from(form.querySelectorAll('.surface-editor')).map((node) => ({
+    key: node.getAttribute('data-surface-key') || '',
+    label: node.getAttribute('data-surface-label') || '',
+    enabled: Boolean(node.querySelector('input[type="checkbox"]')?.checked),
+    json: String(node.querySelector('textarea')?.value || '{}'),
+  }));
+
+  state.brandDraftBuffer = {
+    brandId: String(data.get('brand_id') || ''),
+    displayName: String(data.get('display_name') || ''),
+    productName: String(data.get('product_name') || ''),
+    tenantKey: String(data.get('tenant_key') || ''),
+    status: String(data.get('status') || 'draft'),
+    advancedJson: String(data.get('advanced_json') || '{}'),
+    theme: {
+      lightPrimary: String(data.get('theme_light_primary') || ''),
+      lightPrimaryHover: String(data.get('theme_light_primary_hover') || ''),
+      lightOnPrimary: String(data.get('theme_light_on_primary') || ''),
+      darkPrimary: String(data.get('theme_dark_primary') || ''),
+      darkPrimaryHover: String(data.get('theme_dark_primary_hover') || ''),
+      darkOnPrimary: String(data.get('theme_dark_on_primary') || ''),
+    },
+    selectedSkills: Array.from(form.querySelectorAll('.skill-checkbox:checked')).map((node) => node.value),
+    selectedMcp: Array.from(form.querySelectorAll('.mcp-checkbox:checked')).map((node) => node.value),
+    agentsText: String(data.get('agents_text') || ''),
+    menusText: String(data.get('menus_text') || ''),
+    surfaces,
+  };
+
+  return state.brandDraftBuffer;
+}
+
+function parseJsonText(raw, label) {
+  try {
+    const parsed = JSON.parse(String(raw || '{}'));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error(`${label} 必须是 JSON 对象`);
+    }
+    return parsed;
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : `${label} 不是合法 JSON`);
+  }
+}
+
+function composeDraftConfig(buffer) {
+  const draftConfig = parseJsonText(buffer.advancedJson, '高级配置');
+  const theme = asObject(draftConfig.theme);
+  draftConfig.theme = {
+    ...theme,
+    light: {
+      ...asObject(theme.light),
+      primary: buffer.theme.lightPrimary.trim(),
+      primaryHover: buffer.theme.lightPrimaryHover.trim(),
+      onPrimary: buffer.theme.lightOnPrimary.trim(),
+    },
+    dark: {
+      ...asObject(theme.dark),
+      primary: buffer.theme.darkPrimary.trim(),
+      primaryHover: buffer.theme.darkPrimaryHover.trim(),
+      onPrimary: buffer.theme.darkOnPrimary.trim(),
+    },
+  };
+
+  draftConfig.surfaces = buffer.surfaces.reduce((accumulator, surface) => {
+    accumulator[surface.key] = {
+      enabled: surface.enabled,
+      config: parseJsonText(surface.json, `${surface.label} 配置`),
+    };
+    return accumulator;
+  }, {});
+
+  draftConfig.capabilities = {
+    ...asObject(draftConfig.capabilities),
+    skills: buffer.selectedSkills,
+    mcp_servers: buffer.selectedMcp,
+    agents: splitLines(buffer.agentsText),
+    menus: splitLines(buffer.menusText),
+  };
+
+  return draftConfig;
 }
 
 async function authenticate(identifier, password) {
   state.busy = true;
   resetBanner();
   render();
+
   try {
     const data = await apiFetch(
       '/auth/login',
@@ -138,10 +451,11 @@ async function authenticate(identifier, password) {
     persistTokens(data.tokens);
     state.user = data.user;
     state.view = 'dashboard';
-    await loadBrands();
-    setNotice('Control center ready.');
+    state.route = 'overview';
+    await loadAppData();
+    setNotice('运营控制台已就绪。');
   } catch (error) {
-    setError(error instanceof Error ? error.message : 'Login failed');
+    setError(error instanceof Error ? error.message : '登录失败');
   } finally {
     state.busy = false;
     render();
@@ -158,7 +472,7 @@ async function ensureSession() {
   try {
     state.user = await apiFetch('/auth/me', {method: 'GET'});
     state.view = 'dashboard';
-    await loadBrands();
+    await loadAppData();
   } catch {
     persistTokens(null);
     state.user = null;
@@ -167,102 +481,183 @@ async function ensureSession() {
   }
 }
 
-async function loadBrands() {
-  const data = await apiFetch('/admin/oem/brands', {method: 'GET'});
-  state.brands = Array.isArray(data.items) ? data.items : [];
-  if (!state.selectedBrandId && state.brands[0]) {
-    state.selectedBrandId = state.brands[0].brandId;
+function syncCapabilitySelection() {
+  const skills = state.capabilities?.skills || [];
+  const mcpServers = state.capabilities?.mcp_servers || [];
+  if (!skills.find((item) => item.slug === state.selectedSkillSlug)) {
+    state.selectedSkillSlug = skills[0]?.slug || '';
   }
-  if (state.selectedBrandId) {
-    await loadBrandDetail(state.selectedBrandId);
-  } else {
-    state.brandDetail = null;
-    state.editorText = '';
+  if (!mcpServers.find((item) => item.key === state.selectedMcpKey)) {
+    state.selectedMcpKey = mcpServers[0]?.key || '';
   }
-  render();
 }
 
-async function loadBrandDetail(brandId) {
-  if (!brandId) {
-    return;
-  }
-  state.busy = true;
-  resetBanner();
+async function loadAppData() {
+  state.loading = true;
   render();
+
   try {
-    const data = await apiFetch(`/admin/oem/brand?brand_id=${encodeURIComponent(brandId)}`, {
-      method: 'GET',
-    });
-    state.selectedBrandId = brandId;
-    state.brandDetail = data;
-    state.editorText = JSON.stringify(data.brand.draftConfig, null, 2);
+    const [dashboard, brandsData, capabilities, assetsData, releasesData, auditData] = await Promise.all([
+      apiFetch('/admin/oem/dashboard', {method: 'GET'}),
+      apiFetch('/admin/oem/brands', {method: 'GET'}),
+      apiFetch('/admin/oem/capabilities', {method: 'GET'}),
+      apiFetch('/admin/oem/assets?limit=200', {method: 'GET'}),
+      apiFetch('/admin/oem/releases?limit=200', {method: 'GET'}),
+      apiFetch('/admin/oem/audit?limit=200', {method: 'GET'}),
+    ]);
+
+    state.dashboard = dashboard;
+    state.brands = Array.isArray(brandsData.items) ? brandsData.items : [];
+    state.capabilities = capabilities;
+    state.assets = Array.isArray(assetsData.items) ? assetsData.items : [];
+    state.releases = Array.isArray(releasesData.items) ? releasesData.items : [];
+    state.audit = Array.isArray(auditData.items) ? auditData.items : [];
+
+    if (!state.selectedBrandId || !state.brands.find((brand) => brand.brandId === state.selectedBrandId)) {
+      state.selectedBrandId = state.brands[0]?.brandId || '';
+    }
+
+    syncCapabilitySelection();
+
+    if (state.selectedBrandId) {
+      await loadBrandDetail(state.selectedBrandId, {silent: true, suppressRender: true});
+    } else {
+      state.brandDetail = null;
+      state.brandDraftBuffer = null;
+    }
   } catch (error) {
-    setError(error instanceof Error ? error.message : 'Failed to load brand');
+    setError(error instanceof Error ? error.message : '加载运营数据失败');
   } finally {
-    state.busy = false;
+    state.loading = false;
     render();
   }
 }
 
-async function saveDraft() {
-  const current = state.brandDetail?.brand;
-  if (!current) {
+async function loadBrandDetail(brandId, options = {}) {
+  if (!brandId) {
     return;
   }
 
+  if (!options.silent) {
+    state.busy = true;
+    render();
+  }
+
+  try {
+    const data = await apiFetch(`/admin/oem/brand?brand_id=${encodeURIComponent(brandId)}`, {method: 'GET'});
+    state.selectedBrandId = brandId;
+    state.brandDetail = data;
+    state.brandDraftBuffer = buildBrandDraftBuffer(data);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '品牌详情加载失败');
+  } finally {
+    if (!options.silent) {
+      state.busy = false;
+    }
+    if (!options.suppressRender) {
+      render();
+    }
+  }
+}
+
+async function persistBrandDraft(brandRecord, draftConfig) {
+  return apiFetch('/admin/oem/brand', {
+    method: 'PUT',
+    body: JSON.stringify({
+      brand_id: brandRecord.brandId,
+      tenant_key: brandRecord.tenantKey,
+      display_name: brandRecord.displayName,
+      product_name: brandRecord.productName,
+      status: brandRecord.status,
+      draft_config: draftConfig,
+    }),
+  });
+}
+
+async function saveBrandEditor(form) {
+  const snapshot = captureBrandEditorBuffer();
   let draftConfig;
   try {
-    draftConfig = JSON.parse(state.editorText);
-  } catch {
-    setError('Draft config must be valid JSON.');
+    draftConfig = composeDraftConfig(snapshot);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '品牌配置不是合法 JSON');
     return;
   }
 
   state.busy = true;
   resetBanner();
   render();
+
   try {
     await apiFetch('/admin/oem/brand', {
       method: 'PUT',
       body: JSON.stringify({
-        brand_id: current.brandId,
-        tenant_key: current.tenantKey,
-        display_name: current.displayName,
-        product_name: current.productName,
-        status: current.status,
+        brand_id: snapshot.brandId,
+        tenant_key: snapshot.tenantKey,
+        display_name: snapshot.displayName,
+        product_name: snapshot.productName,
+        status: snapshot.status,
         draft_config: draftConfig,
       }),
     });
-    await loadBrands();
-    setNotice(`Draft saved for ${current.brandId}.`);
+
+    await loadAppData();
+    state.route = 'brand-detail';
+    await loadBrandDetail(snapshot.brandId, {silent: true, suppressRender: true});
+    setNotice(`已保存 ${snapshot.displayName || snapshot.brandId} 的草稿配置。`);
   } catch (error) {
-    setError(error instanceof Error ? error.message : 'Failed to save draft');
+    setError(error instanceof Error ? error.message : '保存品牌草稿失败');
   } finally {
     state.busy = false;
     render();
   }
 }
 
-async function publishBrand() {
-  const current = state.brandDetail?.brand;
-  if (!current) {
-    return;
-  }
-
+async function publishCurrentBrand() {
+  const brandId = state.selectedBrandId;
+  if (!brandId) return;
+  captureBrandEditorBuffer();
   state.busy = true;
   resetBanner();
   render();
+
   try {
     await apiFetch('/admin/oem/brand/publish', {
       method: 'POST',
+      body: JSON.stringify({brand_id: brandId}),
+    });
+    await loadAppData();
+    state.route = 'brand-detail';
+    await loadBrandDetail(brandId, {silent: true, suppressRender: true});
+    setNotice(`已发布 ${brandId}。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '发布失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function rollbackBrand(version) {
+  if (!state.selectedBrandId || !version) return;
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    await apiFetch('/admin/oem/brand/rollback', {
+      method: 'POST',
       body: JSON.stringify({
-        brand_id: current.brandId,
+        brand_id: state.selectedBrandId,
+        version,
       }),
     });
-    await loadBrands();
-    setNotice(`Published ${current.brandId}.`);
+    await loadAppData();
+    state.route = 'brand-detail';
+    await loadBrandDetail(state.selectedBrandId, {silent: true, suppressRender: true});
+    setNotice(`已将 ${state.selectedBrandId} 的草稿回滚到 v${version}。`);
   } catch (error) {
-    setError(error instanceof Error ? error.message : 'Failed to publish brand');
+    setError(error instanceof Error ? error.message : '回滚失败');
   } finally {
     state.busy = false;
     render();
@@ -278,6 +673,7 @@ async function createBrand(formData) {
   state.busy = true;
   resetBanner();
   render();
+
   try {
     await apiFetch('/admin/oem/brand', {
       method: 'PUT',
@@ -289,252 +685,1252 @@ async function createBrand(formData) {
         status: 'draft',
       }),
     });
-    await loadBrands();
-    await loadBrandDetail(brandId);
-    setNotice(`Created brand ${brandId}.`);
+    await loadAppData();
+    state.route = 'brand-detail';
+    await loadBrandDetail(brandId, {silent: true, suppressRender: true});
+    setNotice(`已创建品牌 ${displayName || brandId}。`);
   } catch (error) {
-    setError(error instanceof Error ? error.message : 'Failed to create brand');
+    setError(error instanceof Error ? error.message : '创建品牌失败');
   } finally {
     state.busy = false;
     render();
   }
 }
 
-function renderBrandButtons() {
-  return state.brands
-    .map(
-      (brand) => `
-        <button class="brand-link${brand.brandId === state.selectedBrandId ? ' is-active' : ''}" data-brand-id="${escapeHtml(brand.brandId)}" type="button">
-          <strong>${escapeHtml(brand.displayName)}</strong>
-          <span>${escapeHtml(brand.brandId)} · v${brand.publishedVersion || 0}</span>
-        </button>
-      `,
-    )
-    .join('');
+async function saveAsset(formData) {
+  const brandId = String(formData.get('brand_id') || '').trim();
+  const assetKey = String(formData.get('asset_key') || '').trim();
+  const kind = String(formData.get('kind') || '').trim();
+  const storageProvider = String(formData.get('storage_provider') || 'repo').trim();
+  const objectKey = String(formData.get('object_key') || '').trim();
+  const publicUrl = String(formData.get('public_url') || '').trim();
+  const metadataText = String(formData.get('metadata_json') || '{}').trim();
+
+  let metadata = {};
+  try {
+    metadata = parseJsonText(metadataText, '资源 metadata');
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '资源 metadata 不是合法 JSON');
+    return;
+  }
+
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    await apiFetch('/admin/oem/asset', {
+      method: 'PUT',
+      body: JSON.stringify({
+        brand_id: brandId,
+        asset_key: assetKey,
+        kind,
+        storage_provider: storageProvider,
+        object_key: objectKey,
+        public_url: publicUrl || null,
+        metadata,
+      }),
+    });
+
+    const brandRecord = state.brands.find((item) => item.brandId === brandId);
+    if (brandRecord) {
+      const nextDraft = clone(asObject(brandRecord.draftConfig));
+      nextDraft.assets = {
+        ...asObject(nextDraft.assets),
+        [assetKey]: publicUrl || objectKey,
+      };
+      await persistBrandDraft(brandRecord, nextDraft);
+    }
+
+    await loadAppData();
+    if (brandId) {
+      await loadBrandDetail(brandId, {silent: true, suppressRender: true});
+    }
+    setNotice(`已更新 ${assetKey} 资源绑定。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '资源保存失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
 }
 
-function renderSimpleList(items, renderer) {
-  if (!items.length) {
-    return '<div class="empty-state">Nothing yet.</div>';
+function logout() {
+  persistTokens(null);
+  state.user = null;
+  state.view = 'login';
+  state.route = 'overview';
+  state.dashboard = null;
+  state.brands = [];
+  state.brandDetail = null;
+  state.brandDraftBuffer = null;
+  state.capabilities = null;
+  state.assets = [];
+  state.releases = [];
+  state.audit = [];
+  resetBanner();
+  render();
+}
+
+function renderBanner() {
+  return `
+    <div class="banner-row">
+      <div class="banner banner--error"${state.error ? '' : ' hidden'}>${escapeHtml(state.error)}</div>
+      <div class="banner banner--success"${state.notice ? '' : ' hidden'}>${escapeHtml(state.notice)}</div>
+    </div>
+  `;
+}
+
+function renderSidebar() {
+  return `
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span class="eyebrow">OEM Control Center</span>
+        <strong>运营管理平台</strong>
+        <p>${escapeHtml(state.user?.name || state.user?.username || 'admin')}</p>
+      </div>
+      <nav class="nav-list">
+        ${NAV_ITEMS.map(
+          (item) => `
+            <button class="nav-item${state.route === item.id ? ' is-active' : ''}" type="button" data-action="navigate" data-page="${item.id}">
+              <span>${escapeHtml(item.label)}</span>
+              <small>${escapeHtml(item.eyebrow)}</small>
+            </button>
+          `,
+        ).join('')}
+      </nav>
+      <section class="sidebar-section">
+        <div class="sidebar-section__head">
+          <span class="eyebrow">Brands</span>
+          <button class="text-button" type="button" data-action="navigate" data-page="brands">查看全部</button>
+        </div>
+        <div class="mini-brand-list">
+          ${state.brands.slice(0, 6).map(renderMiniBrandButton).join('')}
+        </div>
+      </section>
+      <div class="sidebar-footer">
+        <div class="sidebar-meta">
+          <span>Control API</span>
+          <strong>${escapeHtml(API_BASE_URL)}</strong>
+        </div>
+        <button class="ghost-button ghost-button--full" type="button" data-action="logout">退出登录</button>
+      </div>
+    </aside>
+  `;
+}
+
+function renderMiniBrandButton(brand) {
+  return `
+    <button
+      class="mini-brand-card${brand.brandId === state.selectedBrandId ? ' is-active' : ''}"
+      type="button"
+      data-action="select-brand"
+      data-brand-id="${escapeHtml(brand.brandId)}"
+    >
+      <strong>${escapeHtml(brand.displayName)}</strong>
+      <span>${escapeHtml(brand.brandId)}</span>
+    </button>
+  `;
+}
+
+function renderHeader(title, description, actions = '') {
+  return `
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">Control Plane</p>
+        <h1>${escapeHtml(title)}</h1>
+        <p class="page-description">${escapeHtml(description)}</p>
+      </div>
+      <div class="page-actions">${actions}</div>
+    </header>
+  `;
+}
+
+function renderOverviewPage() {
+  const stats = state.dashboard?.stats || {};
+  const releases = state.dashboard?.recent_releases || [];
+  const edits = state.dashboard?.recent_edits || [];
+  const activity = state.dashboard?.brand_activity || [];
+
+  return `
+    ${renderHeader(
+      '总览',
+      '用同一套控制平面管理多品牌、多版本、多 Surface 的 OEM 配置。',
+      `
+        <button class="ghost-button" type="button" data-action="refresh-page">刷新数据</button>
+        <button class="solid-button" type="button" data-action="navigate" data-page="brands">创建或管理品牌</button>
+      `,
+    )}
+    <section class="stats-grid">
+      ${[
+        ['品牌总数', stats.brands_total, '已纳入注册表的 OEM 租户'],
+        ['已发布', stats.published_count, '已生成线上快照'],
+        ['草稿中', stats.draft_count, '仍在编辑中的品牌'],
+        ['资源数', stats.assets_count, '品牌资产与分发素材'],
+        ['技能数', stats.skills_count, '控制面可分配技能'],
+        ['MCP 数', stats.mcp_servers_count, '可绑定能力提供方'],
+        ['待发布更改', stats.pending_changes_count, '草稿与线上存在差异'],
+      ]
+        .map(
+          ([label, value, note]) => `
+            <article class="stat-card">
+              <span>${escapeHtml(label)}</span>
+              <strong>${escapeHtml(value ?? 0)}</strong>
+              <p>${escapeHtml(note)}</p>
+            </article>
+          `,
+        )
+        .join('')}
+    </section>
+    <section class="overview-grid">
+      <article class="panel">
+        <div class="panel-head">
+          <h2>最近发布</h2>
+          <button class="text-button" type="button" data-action="navigate" data-page="releases">查看全部</button>
+        </div>
+        <div class="list-stack">
+          ${releases.length
+            ? releases
+                .map(
+                  (item) => `
+                    <div class="list-row list-row--dense">
+                      <div>
+                        <strong>${escapeHtml(item.display_name)}</strong>
+                        <span>v${escapeHtml(item.version)} · ${escapeHtml((item.surfaces || []).join(' / ') || '无 Surface')}</span>
+                      </div>
+                      <div class="row-aside">
+                        <span>${escapeHtml(item.created_by_name || item.created_by_username || 'system')}</span>
+                        <small>${escapeHtml(formatRelative(item.published_at))}</small>
+                      </div>
+                    </div>
+                  `,
+                )
+                .join('')
+            : `<div class="empty-state">当前没有发布记录。</div>`}
+        </div>
+      </article>
+      <article class="panel">
+        <div class="panel-head">
+          <h2>最近编辑</h2>
+          <button class="text-button" type="button" data-action="navigate" data-page="audit-log">查看审计日志</button>
+        </div>
+        <div class="list-stack">
+          ${edits.length
+            ? edits
+                .map(
+                  (item) => `
+                    <div class="list-row list-row--dense">
+                      <div>
+                        <strong>${escapeHtml(item.display_name)}</strong>
+                        <span>${escapeHtml(actionLabel(item.action))} · ${escapeHtml(item.environment || 'control-plane')}</span>
+                      </div>
+                      <div class="row-aside">
+                        <span>${escapeHtml(item.actor_name || item.actor_username || 'system')}</span>
+                        <small>${escapeHtml(formatRelative(item.created_at))}</small>
+                      </div>
+                    </div>
+                  `,
+                )
+                .join('')
+            : `<div class="empty-state">当前没有编辑记录。</div>`}
+        </div>
+      </article>
+    </section>
+    <section class="panel">
+      <div class="panel-head">
+        <h2>品牌活跃度</h2>
+        <button class="text-button" type="button" data-action="navigate" data-page="brands">打开品牌视图</button>
+      </div>
+      <div class="table-shell">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>品牌</th>
+              <th>状态</th>
+              <th>Surface</th>
+              <th>技能</th>
+              <th>MCP</th>
+              <th>资源</th>
+              <th>最近更新时间</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${activity.length
+              ? activity
+                  .map(
+                    (item) => `
+                      <tr>
+                        <td>
+                          <button class="table-link" type="button" data-action="select-brand" data-brand-id="${escapeHtml(item.brand_id)}">
+                            ${escapeHtml(item.display_name)}
+                          </button>
+                        </td>
+                        <td>${statusBadge(item.status)}</td>
+                        <td>${escapeHtml(item.configured_surfaces)}</td>
+                        <td>${escapeHtml(item.enabled_skills)}</td>
+                        <td>${escapeHtml(item.enabled_mcp_servers)}</td>
+                        <td>${escapeHtml(item.asset_count)}</td>
+                        <td>${escapeHtml(formatDateTime(item.updated_at))}</td>
+                      </tr>
+                    `,
+                  )
+                  .join('')
+              : `<tr><td colspan="7"><div class="empty-state">暂无品牌活跃度数据。</div></td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
+function getFilteredBrands() {
+  const query = state.filters.brandQuery.trim().toLowerCase();
+  return state.brands.filter((brand) => {
+    if (state.filters.brandStatus !== 'all' && brand.status !== state.filters.brandStatus) {
+      return false;
+    }
+    if (!query) return true;
+    return [brand.brandId, brand.displayName, brand.productName, brand.tenantKey].some((item) =>
+      String(item || '').toLowerCase().includes(query),
+    );
+  });
+}
+
+function renderBrandsPage() {
+  const brands = getFilteredBrands();
+
+  return `
+    ${renderHeader(
+      '品牌管理',
+      '维护品牌元数据、Surface 覆盖、发布状态和租户配置。',
+      `<button class="ghost-button" type="button" data-action="refresh-page">同步控制面</button>`,
+    )}
+    <section class="panel panel--form">
+      <div class="panel-head">
+        <h2>创建新品牌</h2>
+        <span>首次创建即写入真实 OEM 草稿配置</span>
+      </div>
+      <form class="inline-form" id="create-brand-form">
+        <input class="field-input" name="brand_id" placeholder="brand id" />
+        <input class="field-input" name="display_name" placeholder="显示名称" />
+        <input class="field-input" name="product_name" placeholder="产品名称" />
+        <input class="field-input" name="tenant_key" placeholder="tenant key" />
+        <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>创建品牌</button>
+      </form>
+    </section>
+    <section class="filter-row">
+      <input
+        class="field-input"
+        data-filter-key="brandQuery"
+        placeholder="搜索 brand id / 品牌名 / 租户 key"
+        value="${fieldValue(state.filters.brandQuery)}"
+      />
+      <select class="field-select" data-filter-key="brandStatus">
+        ${['all', 'published', 'draft', 'archived']
+          .map(
+            (item) => `
+              <option value="${item}"${state.filters.brandStatus === item ? ' selected' : ''}>
+                ${item === 'all' ? '全部状态' : statusLabel(item)}
+              </option>
+            `,
+          )
+          .join('')}
+      </select>
+    </section>
+    <section class="brand-grid">
+      ${brands.length
+        ? brands.map(renderBrandCard).join('')
+        : `<div class="empty-state empty-state--panel">没有匹配的品牌。</div>`}
+    </section>
+  `;
+}
+
+function renderBrandCard(brand) {
+  const metrics = metricsFromBrand(brand);
+  return `
+    <article class="brand-card">
+      <div class="brand-card__head">
+        <div>
+          <h2>${escapeHtml(brand.displayName)}</h2>
+          <p>${escapeHtml(brand.productName)}</p>
+        </div>
+        ${statusBadge(brand.status)}
+      </div>
+      <dl class="brand-meta">
+        <div><dt>Brand ID</dt><dd>${escapeHtml(brand.brandId)}</dd></div>
+        <div><dt>Tenant Key</dt><dd>${escapeHtml(brand.tenantKey)}</dd></div>
+        <div><dt>当前版本</dt><dd>v${escapeHtml(brand.publishedVersion || 0)}</dd></div>
+        <div><dt>待发布</dt><dd>${metrics.pendingChanges ? '有变更' : '无差异'}</dd></div>
+      </dl>
+      <div class="metric-chips">
+        <span>${escapeHtml(metrics.surfaces)} 个 Surface</span>
+        <span>${escapeHtml(metrics.skills)} 个技能</span>
+        <span>${escapeHtml(metrics.mcpServers)} 个 MCP</span>
+      </div>
+      <div class="brand-card__footer">
+        <small>${escapeHtml(formatRelative(brand.updatedAt))}</small>
+        <button class="ghost-button" type="button" data-action="select-brand" data-brand-id="${escapeHtml(brand.brandId)}">进入详情</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderBrandDetailPage() {
+  if (!state.brandDetail?.brand) {
+    return `
+      ${renderHeader('品牌详情', '选择品牌后查看真实配置、资源和发布轨迹。')}
+      <div class="empty-state empty-state--panel">当前没有可查看的品牌。</div>
+    `;
   }
-  return items.map(renderer).join('');
+
+  const brand = state.brandDetail.brand;
+  const buffer = ensureBrandDraftBuffer();
+  const versions = state.brandDetail.versions || [];
+  const assets = state.brandDetail.assets || [];
+  const audit = state.brandDetail.audit || [];
+
+  return `
+    ${renderHeader(
+      brand.displayName,
+      `${brand.productName} · 租户 ${brand.tenantKey}`,
+      `
+        ${statusBadge(brand.status)}
+        <button class="ghost-button" type="button" data-action="navigate" data-page="brands">返回品牌列表</button>
+        <button class="solid-button" type="button" data-action="publish-brand"${state.busy ? ' disabled' : ''}>发布当前草稿</button>
+      `,
+    )}
+    <section class="detail-layout">
+      <aside class="detail-rail">
+        <article class="panel">
+          <div class="panel-head">
+            <h2>发布信息</h2>
+            <span>实时来自 PostgreSQL</span>
+          </div>
+          <dl class="brand-meta brand-meta--stacked">
+            <div><dt>Brand ID</dt><dd>${escapeHtml(brand.brandId)}</dd></div>
+            <div><dt>Tenant Key</dt><dd>${escapeHtml(brand.tenantKey)}</dd></div>
+            <div><dt>线上版本</dt><dd>v${escapeHtml(brand.publishedVersion || 0)}</dd></div>
+            <div><dt>更新时间</dt><dd>${escapeHtml(formatDateTime(brand.updatedAt))}</dd></div>
+          </dl>
+        </article>
+        <article class="panel">
+          <div class="panel-head">
+            <h2>版本轨迹</h2>
+            <span>可回滚到任意已发布版本</span>
+          </div>
+          <div class="timeline-stack">
+            ${versions.length
+              ? versions
+                  .map(
+                    (item) => `
+                      <div class="timeline-item">
+                        <div>
+                          <strong>v${escapeHtml(item.version)}</strong>
+                          <small>${escapeHtml(formatDateTime(item.publishedAt))}</small>
+                          <span>${escapeHtml(item.createdByName || item.createdByUsername || 'system')}</span>
+                        </div>
+                        <button class="text-button" type="button" data-action="rollback-brand" data-version="${escapeHtml(item.version)}"${state.busy ? ' disabled' : ''}>
+                          回滚为草稿
+                        </button>
+                      </div>
+                    `,
+                  )
+                  .join('')
+              : `<div class="empty-state">还没有发布记录。</div>`}
+          </div>
+        </article>
+        <article class="panel">
+          <div class="panel-head">
+            <h2>最近审计</h2>
+            <button class="text-button" type="button" data-action="navigate" data-page="audit-log">全部日志</button>
+          </div>
+          <div class="list-stack">
+            ${audit.length
+              ? audit
+                  .slice(0, 6)
+                  .map(
+                    (item) => `
+                      <div class="list-row list-row--dense">
+                        <div>
+                          <strong>${escapeHtml(actionLabel(item.action))}</strong>
+                          <span>${escapeHtml(item.actorName || item.actorUsername || 'system')}</span>
+                        </div>
+                        <small>${escapeHtml(formatRelative(item.createdAt))}</small>
+                      </div>
+                    `,
+                  )
+                  .join('')
+              : `<div class="empty-state">暂无审计记录。</div>`}
+          </div>
+        </article>
+      </aside>
+      <section class="detail-main">
+        <form id="brand-editor-form" class="panel panel--spacious">
+          <input type="hidden" name="brand_id" value="${fieldValue(buffer.brandId)}" />
+          <div class="panel-head panel-head--tight">
+            <div>
+              <h2>品牌草稿编辑器</h2>
+              <span>基础字段、Surface、能力开关和高级 JSON 同时落到真实 draft_config</span>
+            </div>
+            <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>保存草稿</button>
+          </div>
+
+          <section class="form-grid form-grid--three">
+            <label class="field">
+              <span>显示名称</span>
+              <input class="field-input" name="display_name" value="${fieldValue(buffer.displayName)}" />
+            </label>
+            <label class="field">
+              <span>产品名称</span>
+              <input class="field-input" name="product_name" value="${fieldValue(buffer.productName)}" />
+            </label>
+            <label class="field">
+              <span>Tenant Key</span>
+              <input class="field-input" name="tenant_key" value="${fieldValue(buffer.tenantKey)}" />
+            </label>
+            <label class="field">
+              <span>品牌状态</span>
+              <select class="field-select" name="status">
+                ${['draft', 'published', 'archived']
+                  .map(
+                    (item) => `
+                      <option value="${item}"${buffer.status === item ? ' selected' : ''}>${escapeHtml(statusLabel(item))}</option>
+                    `,
+                  )
+                  .join('')}
+              </select>
+            </label>
+          </section>
+
+          <div class="tab-row">
+            ${[
+              ['surfaces', 'Surface 配置'],
+              ['capabilities', '技能与 MCP'],
+              ['assets', '品牌资源'],
+              ['theme', '主题样式'],
+              ['advanced', '高级 JSON'],
+            ]
+              .map(
+                ([id, label]) => `
+                  <button
+                    class="tab-pill${state.brandDetailTab === id ? ' is-active' : ''}"
+                    type="button"
+                    data-action="brand-tab"
+                    data-tab="${id}"
+                  >
+                    ${escapeHtml(label)}
+                  </button>
+                `,
+              )
+              .join('')}
+          </div>
+
+          ${renderBrandEditorBody(buffer, assets)}
+        </form>
+      </section>
+    </section>
+  `;
+}
+
+function renderBrandEditorBody(buffer, assets) {
+  if (state.brandDetailTab === 'surfaces') {
+    return `
+      <section class="surface-grid">
+        ${buffer.surfaces
+          .map(
+            (surface) => `
+              <article class="surface-editor" data-surface-key="${escapeHtml(surface.key)}" data-surface-label="${escapeHtml(surface.label)}">
+                <div class="surface-editor__head">
+                  <div>
+                    <h3>${escapeHtml(surface.label)}</h3>
+                    <p>${escapeHtml(surface.key)}</p>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" name="surface_enabled__${escapeHtml(surface.key)}"${surface.enabled ? ' checked' : ''} />
+                    <span>启用</span>
+                  </label>
+                </div>
+                <textarea class="code-input" name="surface_config__${escapeHtml(surface.key)}">${escapeHtml(surface.json)}</textarea>
+              </article>
+            `,
+          )
+          .join('')}
+      </section>
+    `;
+  }
+
+  if (state.brandDetailTab === 'capabilities') {
+    const skills = state.capabilities?.skills || [];
+    const mcpServers = state.capabilities?.mcp_servers || [];
+    return `
+      <section class="capability-columns">
+        <article class="panel panel--nested">
+          <div class="panel-head">
+            <h3>技能绑定</h3>
+            <span>控制哪些技能对该品牌开放</span>
+          </div>
+          <div class="checkbox-stack">
+            ${skills.length
+              ? skills
+                  .map(
+                    (skill) => `
+                      <label class="checkbox-card">
+                        <input class="skill-checkbox" type="checkbox" value="${escapeHtml(skill.slug)}"${buffer.selectedSkills.includes(skill.slug) ? ' checked' : ''} />
+                        <div>
+                          <strong>${escapeHtml(skill.name)}</strong>
+                          <span>${escapeHtml(skill.category || '未分类')} · ${escapeHtml(skill.publisher || 'iClaw')}</span>
+                        </div>
+                        <small>${escapeHtml(skill.brand_count)} 个品牌</small>
+                      </label>
+                    `,
+                  )
+                  .join('')
+              : `<div class="empty-state">当前没有可用技能。</div>`}
+          </div>
+        </article>
+        <article class="panel panel--nested">
+          <div class="panel-head">
+            <h3>MCP 绑定</h3>
+            <span>从真实 MCP 注册表选择能力提供方</span>
+          </div>
+          <div class="checkbox-stack">
+            ${mcpServers.length
+              ? mcpServers
+                  .map(
+                    (server) => `
+                      <label class="checkbox-card">
+                        <input class="mcp-checkbox" type="checkbox" value="${escapeHtml(server.key)}"${buffer.selectedMcp.includes(server.key) ? ' checked' : ''} />
+                        <div>
+                          <strong>${escapeHtml(server.name)}</strong>
+                          <span>${escapeHtml(server.command || '未声明 command')} · ${escapeHtml(server.env_keys.length)} 个环境变量</span>
+                        </div>
+                        <small>${escapeHtml(server.connected_brand_count)} 个品牌</small>
+                      </label>
+                    `,
+                  )
+                  .join('')
+              : `<div class="empty-state">当前没有 MCP 目录。</div>`}
+          </div>
+          <label class="field">
+            <span>Agents</span>
+            <textarea class="field-textarea" name="agents_text" placeholder="每行一个 agent slug">${escapeHtml(buffer.agentsText)}</textarea>
+          </label>
+          <label class="field">
+            <span>Menus</span>
+            <textarea class="field-textarea" name="menus_text" placeholder="每行一个 menu key">${escapeHtml(buffer.menusText)}</textarea>
+          </label>
+        </article>
+      </section>
+    `;
+  }
+
+  if (state.brandDetailTab === 'assets') {
+    return `
+      <section class="asset-editor-layout">
+        <article class="panel panel--nested">
+          <div class="panel-head">
+            <h3>登记或更新资源</h3>
+            <span>写入资源注册表，并同步回品牌 draft_config.assets</span>
+          </div>
+          <form id="asset-form" class="stack-form">
+            <input type="hidden" name="brand_id" value="${fieldValue(buffer.brandId)}" />
+            <div class="form-grid form-grid--two">
+              <label class="field">
+                <span>Asset Key</span>
+                <input class="field-input" name="asset_key" placeholder="logoMaster / faviconPng" />
+              </label>
+              <label class="field">
+                <span>资源类型</span>
+                <input class="field-input" name="kind" placeholder="logo / hero / screenshot" />
+              </label>
+              <label class="field">
+                <span>存储提供方</span>
+                <input class="field-input" name="storage_provider" value="repo" />
+              </label>
+              <label class="field">
+                <span>对象路径</span>
+                <input class="field-input" name="object_key" placeholder="./assets/logo.png 或 s3://..." />
+              </label>
+              <label class="field field--wide">
+                <span>Public URL</span>
+                <input class="field-input" name="public_url" placeholder="https://..." />
+              </label>
+              <label class="field field--wide">
+                <span>Metadata JSON</span>
+                <textarea class="field-textarea" name="metadata_json">{}</textarea>
+              </label>
+            </div>
+            <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>登记资源</button>
+          </form>
+        </article>
+        <article class="panel panel--nested">
+          <div class="panel-head">
+            <h3>当前品牌资源</h3>
+            <span>来自 oem_asset_registry 的真实记录</span>
+          </div>
+          <div class="list-stack">
+            ${assets.length
+              ? assets
+                  .map(
+                    (item) => `
+                      <div class="list-row">
+                        <div>
+                          <strong>${escapeHtml(item.assetKey)}</strong>
+                          <span>${escapeHtml(item.kind)} · ${escapeHtml(item.objectKey)}</span>
+                        </div>
+                        <div class="row-aside">
+                          <span>${escapeHtml(item.storageProvider)}</span>
+                          <small>${escapeHtml(formatDateTime(item.updatedAt))}</small>
+                        </div>
+                      </div>
+                    `,
+                  )
+                  .join('')
+              : `<div class="empty-state">当前品牌还没有登记资源。</div>`}
+          </div>
+        </article>
+      </section>
+    `;
+  }
+
+  if (state.brandDetailTab === 'theme') {
+    return `
+      <section class="theme-grid">
+        <article class="panel panel--nested">
+          <div class="panel-head">
+            <h3>Light Theme</h3>
+            <span>写入 draft_config.theme.light</span>
+          </div>
+          <div class="form-grid form-grid--two">
+            <label class="field">
+              <span>Primary</span>
+              <input class="field-input" name="theme_light_primary" value="${fieldValue(buffer.theme.lightPrimary)}" />
+            </label>
+            <label class="field">
+              <span>Primary Hover</span>
+              <input class="field-input" name="theme_light_primary_hover" value="${fieldValue(buffer.theme.lightPrimaryHover)}" />
+            </label>
+            <label class="field field--wide">
+              <span>On Primary</span>
+              <input class="field-input" name="theme_light_on_primary" value="${fieldValue(buffer.theme.lightOnPrimary)}" />
+            </label>
+          </div>
+        </article>
+        <article class="panel panel--nested">
+          <div class="panel-head">
+            <h3>Dark Theme</h3>
+            <span>写入 draft_config.theme.dark</span>
+          </div>
+          <div class="form-grid form-grid--two">
+            <label class="field">
+              <span>Primary</span>
+              <input class="field-input" name="theme_dark_primary" value="${fieldValue(buffer.theme.darkPrimary)}" />
+            </label>
+            <label class="field">
+              <span>Primary Hover</span>
+              <input class="field-input" name="theme_dark_primary_hover" value="${fieldValue(buffer.theme.darkPrimaryHover)}" />
+            </label>
+            <label class="field field--wide">
+              <span>On Primary</span>
+              <input class="field-input" name="theme_dark_on_primary" value="${fieldValue(buffer.theme.darkOnPrimary)}" />
+            </label>
+          </div>
+        </article>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="advanced-editor">
+      <label class="field">
+        <span>完整 Draft Config JSON</span>
+        <textarea class="code-input code-input--tall" name="advanced_json">${escapeHtml(buffer.advancedJson)}</textarea>
+      </label>
+    </section>
+  `;
+}
+
+function getFilteredCapabilities() {
+  const query = state.filters.capabilityQuery.trim().toLowerCase();
+  const skills = (state.capabilities?.skills || []).filter((item) => {
+    if (!query) return true;
+    return [item.slug, item.name, item.category, item.publisher].some((value) =>
+      String(value || '').toLowerCase().includes(query),
+    );
+  });
+  const mcpServers = (state.capabilities?.mcp_servers || []).filter((item) => {
+    if (!query) return true;
+    return [item.key, item.name, item.command, item.http_url, ...(item.env_keys || [])].some((value) =>
+      String(value || '').toLowerCase().includes(query),
+    );
+  });
+  return {skills, mcpServers};
+}
+
+function renderSkillsMcpPage() {
+  const {skills, mcpServers} = getFilteredCapabilities();
+  const selectedSkill = skills.find((item) => item.slug === state.selectedSkillSlug) || skills[0] || null;
+  const selectedMcp = mcpServers.find((item) => item.key === state.selectedMcpKey) || mcpServers[0] || null;
+
+  return `
+    ${renderHeader(
+      '技能与 MCP',
+      '查看真实技能目录、品牌绑定范围和 MCP 注册关系。',
+      `<button class="ghost-button" type="button" data-action="refresh-page">刷新目录</button>`,
+    )}
+    <section class="filter-row">
+      <input
+        class="field-input"
+        data-filter-key="capabilityQuery"
+        placeholder="搜索技能、MCP、publisher、命令"
+        value="${fieldValue(state.filters.capabilityQuery)}"
+      />
+      <div class="segmented">
+        <button class="tab-pill${state.capabilityMode === 'skills' ? ' is-active' : ''}" type="button" data-action="capability-mode" data-mode="skills">技能</button>
+        <button class="tab-pill${state.capabilityMode === 'mcp' ? ' is-active' : ''}" type="button" data-action="capability-mode" data-mode="mcp">MCP</button>
+      </div>
+    </section>
+    <section class="capability-layout">
+      <aside class="capability-list">
+        ${
+          state.capabilityMode === 'skills'
+            ? skills.length
+              ? skills
+                  .map(
+                    (item) => `
+                      <button class="capability-card${selectedSkill?.slug === item.slug ? ' is-active' : ''}" type="button" data-action="select-skill" data-skill-slug="${escapeHtml(item.slug)}">
+                        <strong>${escapeHtml(item.name)}</strong>
+                        <span>${escapeHtml(item.category || '未分类')} · ${escapeHtml(item.brand_count)} 个品牌</span>
+                      </button>
+                    `,
+                  )
+                  .join('')
+              : `<div class="empty-state">没有匹配的技能。</div>`
+            : mcpServers.length
+              ? mcpServers
+                  .map(
+                    (item) => `
+                      <button class="capability-card${selectedMcp?.key === item.key ? ' is-active' : ''}" type="button" data-action="select-mcp" data-mcp-key="${escapeHtml(item.key)}">
+                        <strong>${escapeHtml(item.name)}</strong>
+                        <span>${escapeHtml(item.connected_brand_count)} 个品牌 · ${escapeHtml(item.env_keys.length)} 个环境变量</span>
+                      </button>
+                    `,
+                  )
+                  .join('')
+              : `<div class="empty-state">没有匹配的 MCP。</div>`
+        }
+      </aside>
+      <article class="panel panel--spacious">
+        ${
+          state.capabilityMode === 'skills'
+            ? renderSkillDetail(selectedSkill)
+            : renderMcpDetail(selectedMcp)
+        }
+      </article>
+    </section>
+  `;
+}
+
+function renderSkillDetail(skill) {
+  if (!skill) {
+    return `<div class="empty-state">选择一个技能查看详情。</div>`;
+  }
+  return `
+    <div class="panel-head">
+      <div>
+        <h2>${escapeHtml(skill.name)}</h2>
+        <span>${escapeHtml(skill.slug)} · ${escapeHtml(skill.publisher || 'iClaw')}</span>
+      </div>
+      <div class="metric-chips">
+        <span>${escapeHtml(skill.category || '未分类')}</span>
+        <span>${escapeHtml(skill.distribution || 'unknown')}</span>
+        <span>${escapeHtml(skill.latestRelease || '未发布')}</span>
+      </div>
+    </div>
+    <p class="detail-copy">${escapeHtml(skill.description || '暂无描述。')}</p>
+    <section class="panel panel--nested">
+      <div class="panel-head">
+        <h3>品牌覆盖</h3>
+        <span>${escapeHtml(skill.brand_count)} 个品牌已启用</span>
+      </div>
+      <div class="chip-grid">
+        ${(skill.connectedBrands || []).length
+          ? skill.connectedBrands
+              .map(
+                (brand) => `
+                  <button class="chip chip--interactive" type="button" data-action="select-brand" data-brand-id="${escapeHtml(brand.brand_id)}">
+                    ${escapeHtml(brand.display_name)}
+                  </button>
+                `,
+              )
+              .join('')
+          : `<div class="empty-state">当前没有品牌绑定此技能。</div>`}
+      </div>
+    </section>
+  `;
+}
+
+function renderMcpDetail(server) {
+  if (!server) {
+    return `<div class="empty-state">选择一个 MCP 查看详情。</div>`;
+  }
+  return `
+    <div class="panel-head">
+      <div>
+        <h2>${escapeHtml(server.name)}</h2>
+        <span>${escapeHtml(server.key)} · ${escapeHtml(server.command || '未声明 command')}</span>
+      </div>
+      <div class="metric-chips">
+        <span>${escapeHtml(server.connected_brand_count)} 个品牌</span>
+        <span>${server.enabled_by_default ? '默认启用' : '默认关闭'}</span>
+      </div>
+    </div>
+    <section class="meta-columns">
+      <div class="meta-box">
+        <span>Args</span>
+        <strong>${escapeHtml((server.args || []).join(' ') || '无')}</strong>
+      </div>
+      <div class="meta-box">
+        <span>HTTP URL</span>
+        <strong>${escapeHtml(server.http_url || '未声明')}</strong>
+      </div>
+      <div class="meta-box meta-box--wide">
+        <span>环境变量</span>
+        <strong>${escapeHtml((server.env_keys || []).join(', ') || '无')}</strong>
+      </div>
+    </section>
+    <section class="panel panel--nested">
+      <div class="panel-head">
+        <h3>品牌连接图</h3>
+        <span>真实来自各品牌 capabilities.mcp_servers</span>
+      </div>
+      <div class="chip-grid">
+        ${(server.connected_brands || []).length
+          ? server.connected_brands
+              .map(
+                (brand) => `
+                  <button class="chip chip--interactive" type="button" data-action="select-brand" data-brand-id="${escapeHtml(brand.brand_id)}">
+                    ${escapeHtml(brand.display_name)}
+                  </button>
+                `,
+              )
+              .join('')
+          : `<div class="empty-state">当前没有品牌启用该 MCP。</div>`}
+      </div>
+    </section>
+  `;
+}
+
+function getFilteredAssets() {
+  const query = state.filters.assetQuery.trim().toLowerCase();
+  return state.assets.filter((item) => {
+    if (state.filters.assetBrand !== 'all' && item.brandId !== state.filters.assetBrand) {
+      return false;
+    }
+    if (state.filters.assetKind !== 'all' && item.kind !== state.filters.assetKind) {
+      return false;
+    }
+    if (!query) return true;
+    return [item.assetKey, item.kind, item.brandDisplayName, item.objectKey, item.publicUrl].some((value) =>
+      String(value || '').toLowerCase().includes(query),
+    );
+  });
+}
+
+function renderAssetsPage() {
+  const items = getFilteredAssets();
+  const kinds = Array.from(new Set(state.assets.map((item) => item.kind).filter(Boolean))).sort((left, right) =>
+    left.localeCompare(right, 'zh-CN'),
+  );
+
+  return `
+    ${renderHeader(
+      '资源管理',
+      '统一管理品牌素材资源与资源注册表，支持跨品牌筛选和实时登记。',
+      `<button class="ghost-button" type="button" data-action="refresh-page">刷新资源</button>`,
+    )}
+    <section class="filter-row filter-row--dense">
+      <input class="field-input" data-filter-key="assetQuery" placeholder="搜索资源 key / brand / 路径" value="${fieldValue(state.filters.assetQuery)}" />
+      <select class="field-select" data-filter-key="assetBrand">
+        <option value="all">全部品牌</option>
+        ${state.brands
+          .map(
+            (brand) => `
+              <option value="${escapeHtml(brand.brandId)}"${state.filters.assetBrand === brand.brandId ? ' selected' : ''}>${escapeHtml(brand.displayName)}</option>
+            `,
+          )
+          .join('')}
+      </select>
+      <select class="field-select" data-filter-key="assetKind">
+        <option value="all">全部类型</option>
+        ${kinds
+          .map(
+            (kind) => `
+              <option value="${escapeHtml(kind)}"${state.filters.assetKind === kind ? ' selected' : ''}>${escapeHtml(kind)}</option>
+            `,
+          )
+          .join('')}
+      </select>
+    </section>
+    <section class="panel">
+      <div class="panel-head">
+        <h2>资源台账</h2>
+        <span>${escapeHtml(items.length)} 条记录</span>
+      </div>
+      <div class="table-shell">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Asset Key</th>
+              <th>品牌</th>
+              <th>类型</th>
+              <th>存储</th>
+              <th>对象路径</th>
+              <th>更新时间</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.length
+              ? items
+                  .map(
+                    (item) => `
+                      <tr>
+                        <td>${escapeHtml(item.assetKey)}</td>
+                        <td>
+                          <button class="table-link" type="button" data-action="select-brand" data-brand-id="${escapeHtml(item.brandId)}">
+                            ${escapeHtml(item.brandDisplayName || item.brandId)}
+                          </button>
+                        </td>
+                        <td>${escapeHtml(item.kind)}</td>
+                        <td>${escapeHtml(item.storageProvider)}</td>
+                        <td><code>${escapeHtml(item.publicUrl || item.objectKey)}</code></td>
+                        <td>${escapeHtml(formatDateTime(item.updatedAt))}</td>
+                      </tr>
+                    `,
+                  )
+                  .join('')
+              : `<tr><td colspan="6"><div class="empty-state">没有匹配的资源。</div></td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
+function getFilteredReleases() {
+  return state.releases.filter((item) => {
+    if (state.filters.releaseBrand !== 'all' && item.brand_id !== state.filters.releaseBrand) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function renderReleasesPage() {
+  const items = getFilteredReleases();
+  return `
+    ${renderHeader(
+      '版本发布',
+      '查看真实发布快照、影响范围和每个版本带来的 Surface / 技能 / MCP 变更。',
+      `<button class="ghost-button" type="button" data-action="refresh-page">刷新版本</button>`,
+    )}
+    <section class="filter-row">
+      <select class="field-select" data-filter-key="releaseBrand">
+        <option value="all">全部品牌</option>
+        ${state.brands
+          .map(
+            (brand) => `
+              <option value="${escapeHtml(brand.brandId)}"${state.filters.releaseBrand === brand.brandId ? ' selected' : ''}>${escapeHtml(brand.displayName)}</option>
+            `,
+          )
+          .join('')}
+      </select>
+    </section>
+    <section class="timeline">
+      ${items.length
+        ? items
+            .map(
+              (item) => `
+                <article class="timeline-card">
+                  <div class="timeline-card__head">
+                    <div>
+                      <h2>${escapeHtml(item.display_name)}</h2>
+                      <p>v${escapeHtml(item.version)} · ${escapeHtml(formatDateTime(item.published_at))}</p>
+                    </div>
+                    <button class="ghost-button" type="button" data-action="select-brand" data-brand-id="${escapeHtml(item.brand_id)}">打开品牌</button>
+                  </div>
+                  <div class="metric-chips">
+                    ${(item.changed_areas || []).map((area) => `<span>${escapeHtml(area)}</span>`).join('')}
+                  </div>
+                  <div class="release-metrics">
+                    <div><span>Surface</span><strong>${escapeHtml((item.surfaces || []).join(' / ') || '无')}</strong></div>
+                    <div><span>技能数</span><strong>${escapeHtml(item.skill_count)}</strong></div>
+                    <div><span>MCP 数</span><strong>${escapeHtml(item.mcp_count)}</strong></div>
+                    <div><span>发布人</span><strong>${escapeHtml(item.created_by_name || item.created_by_username || 'system')}</strong></div>
+                  </div>
+                </article>
+              `,
+            )
+            .join('')
+        : `<div class="empty-state empty-state--panel">当前没有发布记录。</div>`}
+    </section>
+  `;
+}
+
+function getFilteredAudit() {
+  const query = state.filters.auditQuery.trim().toLowerCase();
+  return state.audit.filter((item) => {
+    if (state.filters.auditBrand !== 'all' && item.brandId !== state.filters.auditBrand) {
+      return false;
+    }
+    if (state.filters.auditAction !== 'all' && item.action !== state.filters.auditAction) {
+      return false;
+    }
+    if (!query) return true;
+    return [item.brandDisplayName, item.action, item.actorName, item.actorUsername, item.environment]
+      .some((value) => String(value || '').toLowerCase().includes(query));
+  });
+}
+
+function renderAuditPage() {
+  const items = getFilteredAudit();
+  const actions = Array.from(new Set(state.audit.map((item) => item.action).filter(Boolean))).sort((left, right) =>
+    left.localeCompare(right, 'zh-CN'),
+  );
+
+  return `
+    ${renderHeader(
+      '审计日志',
+      '按品牌、动作和时间回溯所有真实运营操作。',
+      `<button class="ghost-button" type="button" data-action="refresh-page">刷新审计</button>`,
+    )}
+    <section class="filter-row filter-row--dense">
+      <input class="field-input" data-filter-key="auditQuery" placeholder="搜索品牌 / 动作 / 操作人 / 环境" value="${fieldValue(state.filters.auditQuery)}" />
+      <select class="field-select" data-filter-key="auditBrand">
+        <option value="all">全部品牌</option>
+        ${state.brands
+          .map(
+            (brand) => `
+              <option value="${escapeHtml(brand.brandId)}"${state.filters.auditBrand === brand.brandId ? ' selected' : ''}>${escapeHtml(brand.displayName)}</option>
+            `,
+          )
+          .join('')}
+      </select>
+      <select class="field-select" data-filter-key="auditAction">
+        <option value="all">全部动作</option>
+        ${actions
+          .map(
+            (action) => `
+              <option value="${escapeHtml(action)}"${state.filters.auditAction === action ? ' selected' : ''}>${escapeHtml(actionLabel(action))}</option>
+            `,
+          )
+          .join('')}
+      </select>
+    </section>
+    <section class="panel">
+      <div class="table-shell">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>品牌</th>
+              <th>动作</th>
+              <th>操作人</th>
+              <th>环境</th>
+              <th>时间</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.length
+              ? items
+                  .map(
+                    (item) => `
+                      <tr>
+                        <td>
+                          <button class="table-link" type="button" data-action="select-brand" data-brand-id="${escapeHtml(item.brandId)}">
+                            ${escapeHtml(item.brandDisplayName || item.brandId)}
+                          </button>
+                        </td>
+                        <td>${escapeHtml(actionLabel(item.action))}</td>
+                        <td>${escapeHtml(item.actorName || item.actorUsername || 'system')}</td>
+                        <td>${escapeHtml(item.environment || 'control-plane')}</td>
+                        <td>${escapeHtml(formatDateTime(item.createdAt))}</td>
+                      </tr>
+                    `,
+                  )
+                  .join('')
+              : `<tr><td colspan="5"><div class="empty-state">没有匹配的审计记录。</div></td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
+function renderLoadingPage() {
+  return `
+    <section class="loading-panel">
+      <div class="loading-spinner"></div>
+      <p>控制面数据加载中…</p>
+    </section>
+  `;
 }
 
 function renderLogin() {
   app.innerHTML = `
     <main class="login-shell">
       <section class="login-stage">
-        <p class="eyebrow">OEM operations platform</p>
-        <h1 class="login-title">Operate the OEM system from one place</h1>
-        <p class="login-copy">
-          This build uses the real control-plane auth and OEM APIs. Default bootstrap account: <strong>admin / admin</strong>.
-        </p>
+        <div class="login-copy-group">
+          <p class="eyebrow">OEM operations platform</p>
+          <h1>把品牌、版本、技能与发布放进同一个运营平面</h1>
+          <p class="login-copy">
+            当前后台直连真实 control-plane 接口。默认引导账号：<strong>admin / admin</strong>。
+          </p>
+        </div>
         <form class="login-card" id="login-form">
-          <label class="field-label" for="identifier">Username</label>
-          <input class="field-input" id="identifier" name="identifier" autocomplete="username" value="admin" />
-          <label class="field-label" for="password">Password</label>
-          <input class="field-input" id="password" name="password" type="password" autocomplete="current-password" value="admin" />
-          <div class="banner banner-error"${state.error ? '' : ' hidden'}>${escapeHtml(state.error)}</div>
-          <button class="login-submit" type="submit"${state.busy ? ' disabled' : ''}>
-            ${state.busy ? 'Signing in...' : 'Enter control center'}
+          <label class="field">
+            <span>Username</span>
+            <input class="field-input" name="identifier" autocomplete="username" value="admin" />
+          </label>
+          <label class="field">
+            <span>Password</span>
+            <input class="field-input" name="password" type="password" autocomplete="current-password" value="admin" />
+          </label>
+          <div class="banner banner--error"${state.error ? '' : ' hidden'}>${escapeHtml(state.error)}</div>
+          <button class="solid-button solid-button--full" type="submit"${state.busy ? ' disabled' : ''}>
+            ${state.busy ? '进入中…' : '进入控制台'}
           </button>
         </form>
       </section>
     </main>
   `;
-
-  document.querySelector('#login-form')?.addEventListener('submit', (event) => {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    authenticate(String(formData.get('identifier') || ''), String(formData.get('password') || ''));
-  });
 }
 
 function renderDashboard() {
-  const current = state.brandDetail?.brand || null;
-  const publishedCount = state.brands.filter((item) => item.publishedVersion > 0).length;
-  const draftCount = state.brands.length - publishedCount;
+  const pageContent = state.loading
+    ? renderLoadingPage()
+    : state.route === 'overview'
+      ? renderOverviewPage()
+      : state.route === 'brands'
+        ? renderBrandsPage()
+        : state.route === 'brand-detail'
+          ? renderBrandDetailPage()
+          : state.route === 'skills-mcp'
+            ? renderSkillsMcpPage()
+            : state.route === 'assets'
+              ? renderAssetsPage()
+              : state.route === 'releases'
+                ? renderReleasesPage()
+                : renderAuditPage();
 
   app.innerHTML = `
-    <main class="dashboard-shell">
-      <aside class="sidebar">
-        <div class="sidebar-brand">
-          <span class="sidebar-brand__eyebrow">OEM</span>
-          <strong>Control Center</strong>
-          <p>${escapeHtml(state.user?.name || state.user?.username || 'admin')}</p>
-        </div>
-
-        <section class="sidebar-section">
-          <p class="sidebar-section__title">Brands</p>
-          <div class="brand-list">${renderBrandButtons()}</div>
-        </section>
-
-        <form class="create-card" id="create-brand-form">
-          <p class="sidebar-section__title">New brand</p>
-          <input class="field-input" name="brand_id" placeholder="brand id" />
-          <input class="field-input" name="display_name" placeholder="display name" />
-          <input class="field-input" name="product_name" placeholder="product name" />
-          <input class="field-input" name="tenant_key" placeholder="tenant key (optional)" />
-          <button class="sidebar-submit" type="submit"${state.busy ? ' disabled' : ''}>Create</button>
-        </form>
-      </aside>
-
-      <section class="dashboard-content">
-        <header class="dashboard-hero">
-          <div>
-            <p class="eyebrow">Single source of truth</p>
-            <h1>OEM config is versioned and published from PostgreSQL</h1>
-            <p class="hero-copy">
-              Admin-web edits brand drafts, the control-plane snapshots published versions, and runtime surfaces consume the released config instead of hard-coded branches.
-            </p>
-          </div>
-          <div class="hero-panel">
-            <span class="hero-panel__label">API base</span>
-            <strong>${escapeHtml(API_BASE_URL)}</strong>
-            <p>Use this surface for brands, assets, skills, MCP bindings, and future release policies.</p>
-          </div>
-        </header>
-
-        <section class="stats-grid">
-          <article class="stat-card">
-            <p>Brands</p>
-            <strong>${state.brands.length}</strong>
-            <span>Total OEM tenants in the registry.</span>
-          </article>
-          <article class="stat-card">
-            <p>Published</p>
-            <strong>${publishedCount}</strong>
-            <span>Brands with released config snapshots.</span>
-          </article>
-          <article class="stat-card">
-            <p>Drafting</p>
-            <strong>${draftCount}</strong>
-            <span>Brands still being edited in draft mode.</span>
-          </article>
-        </section>
-
-        <div class="banner banner-error"${state.error ? '' : ' hidden'}>${escapeHtml(state.error)}</div>
-        <div class="banner banner-success"${state.notice ? '' : ' hidden'}>${escapeHtml(state.notice)}</div>
-
-        ${
-          current
-            ? `
-          <section class="editor-grid">
-            <article class="panel panel-meta">
-              <div class="panel-head">
-                <h2>${escapeHtml(current.displayName)}</h2>
-                <span>${escapeHtml(current.brandId)}</span>
-              </div>
-              <div class="meta-grid">
-                <div class="meta-row"><span>Tenant</span><strong>${escapeHtml(current.tenantKey)}</strong></div>
-                <div class="meta-row"><span>Product</span><strong>${escapeHtml(current.productName)}</strong></div>
-                <div class="meta-row"><span>Status</span><strong>${escapeHtml(current.status)}</strong></div>
-                <div class="meta-row"><span>Published version</span><strong>v${current.publishedVersion || 0}</strong></div>
-              </div>
-              <div class="panel-actions">
-                <button class="action-button" id="save-draft-button" type="button"${state.busy ? ' disabled' : ''}>Save draft</button>
-                <button class="action-button action-button--solid" id="publish-brand-button" type="button"${state.busy ? ' disabled' : ''}>Publish</button>
-              </div>
-            </article>
-
-            <article class="panel panel-editor">
-              <div class="panel-head">
-                <h2>Draft JSON</h2>
-                <span>surfaces, skills, MCP, assets</span>
-              </div>
-              <textarea class="json-editor" id="json-editor">${escapeHtml(state.editorText)}</textarea>
-            </article>
-          </section>
-
-          <section class="panel-grid">
-            <article class="panel">
-              <div class="panel-head">
-                <h2>Versions</h2>
-                <span>published snapshots</span>
-              </div>
-              <div class="list-stack">
-                ${renderSimpleList(
-                  state.brandDetail?.versions || [],
-                  (item) => `
-                    <div class="list-row">
-                      <strong>v${item.version}</strong>
-                      <span>${escapeHtml(new Date(item.publishedAt).toLocaleString())}</span>
-                    </div>
-                  `,
-                )}
-              </div>
-            </article>
-
-            <article class="panel">
-              <div class="panel-head">
-                <h2>Assets</h2>
-                <span>metadata rows</span>
-              </div>
-              <div class="list-stack">
-                ${renderSimpleList(
-                  state.brandDetail?.assets || [],
-                  (item) => `
-                    <div class="list-row">
-                      <strong>${escapeHtml(item.assetKey)}</strong>
-                      <span>${escapeHtml(item.storageProvider)} · ${escapeHtml(item.objectKey)}</span>
-                    </div>
-                  `,
-                )}
-              </div>
-            </article>
-
-            <article class="panel panel-wide">
-              <div class="panel-head">
-                <h2>Audit</h2>
-                <span>operator trace</span>
-              </div>
-              <div class="list-stack">
-                ${renderSimpleList(
-                  state.brandDetail?.audit || [],
-                  (item) => `
-                    <div class="list-row">
-                      <strong>${escapeHtml(item.action)}</strong>
-                      <span>${escapeHtml(new Date(item.createdAt).toLocaleString())}</span>
-                    </div>
-                  `,
-                )}
-              </div>
-            </article>
-          </section>
-        `
-            : `
-          <section class="panel panel-empty">
-            <h2>No brands yet</h2>
-            <p>Create the first OEM brand from the sidebar form.</p>
-          </section>
-        `
-        }
+    <main class="shell">
+      ${renderSidebar()}
+      <section class="content">
+        ${renderBanner()}
+        ${pageContent}
       </section>
     </main>
   `;
-
-  document.querySelectorAll('[data-brand-id]').forEach((node) => {
-    node.addEventListener('click', () => {
-      loadBrandDetail(node.getAttribute('data-brand-id') || '');
-    });
-  });
-
-  document.querySelector('#create-brand-form')?.addEventListener('submit', (event) => {
-    event.preventDefault();
-    createBrand(new FormData(event.currentTarget));
-  });
-
-  document.querySelector('#json-editor')?.addEventListener('input', (event) => {
-    state.editorText = event.currentTarget.value;
-  });
-
-  document.querySelector('#save-draft-button')?.addEventListener('click', () => {
-    saveDraft();
-  });
-
-  document.querySelector('#publish-brand-button')?.addEventListener('click', () => {
-    publishBrand();
-  });
 }
 
 function render() {
@@ -544,6 +1940,129 @@ function render() {
   }
   renderLogin();
 }
+
+app.addEventListener('submit', async (event) => {
+  const form = event.target;
+  if (!(form instanceof HTMLFormElement)) {
+    return;
+  }
+
+  event.preventDefault();
+
+  if (form.id === 'login-form') {
+    const data = new FormData(form);
+    await authenticate(String(data.get('identifier') || ''), String(data.get('password') || ''));
+    return;
+  }
+
+  if (form.id === 'create-brand-form') {
+    await createBrand(new FormData(form));
+    return;
+  }
+
+  if (form.id === 'brand-editor-form') {
+    await saveBrandEditor(form);
+    return;
+  }
+
+  if (form.id === 'asset-form') {
+    await saveAsset(new FormData(form));
+  }
+});
+
+app.addEventListener('click', async (event) => {
+  const target = event.target instanceof Element ? event.target.closest('[data-action]') : null;
+  if (!target) {
+    return;
+  }
+
+  const action = target.getAttribute('data-action');
+
+  if (action === 'navigate') {
+    captureBrandEditorBuffer();
+    state.route = target.getAttribute('data-page') || 'overview';
+    render();
+    return;
+  }
+
+  if (action === 'select-brand') {
+    captureBrandEditorBuffer();
+    state.route = 'brand-detail';
+    state.brandDetailTab = 'surfaces';
+    await loadBrandDetail(target.getAttribute('data-brand-id') || '');
+    return;
+  }
+
+  if (action === 'brand-tab') {
+    captureBrandEditorBuffer();
+    state.brandDetailTab = target.getAttribute('data-tab') || 'surfaces';
+    render();
+    return;
+  }
+
+  if (action === 'capability-mode') {
+    state.capabilityMode = target.getAttribute('data-mode') || 'skills';
+    render();
+    return;
+  }
+
+  if (action === 'select-skill') {
+    state.capabilityMode = 'skills';
+    state.selectedSkillSlug = target.getAttribute('data-skill-slug') || '';
+    render();
+    return;
+  }
+
+  if (action === 'select-mcp') {
+    state.capabilityMode = 'mcp';
+    state.selectedMcpKey = target.getAttribute('data-mcp-key') || '';
+    render();
+    return;
+  }
+
+  if (action === 'publish-brand') {
+    await publishCurrentBrand();
+    return;
+  }
+
+  if (action === 'rollback-brand') {
+    const version = Number(target.getAttribute('data-version') || 0);
+    await rollbackBrand(version);
+    return;
+  }
+
+  if (action === 'refresh-page') {
+    await loadAppData();
+    return;
+  }
+
+  if (action === 'logout') {
+    logout();
+  }
+});
+
+function handleFilterInput(target) {
+  const key = target.getAttribute('data-filter-key');
+  if (!key) return;
+  state.filters[key] = target.value;
+  render();
+}
+
+app.addEventListener('input', (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement)) {
+    return;
+  }
+  handleFilterInput(target);
+});
+
+app.addEventListener('change', (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement)) {
+    return;
+  }
+  handleFilterInput(target);
+});
 
 render();
 ensureSession();

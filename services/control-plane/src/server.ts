@@ -62,7 +62,9 @@ await ensureBootstrapAdmin(store);
 await ensureSeedOemBrands(oemStore);
 
 const service = new ControlPlaneService(store);
-const oemService = new OemService(oemStore, async (accessToken) => service.me(accessToken));
+const oemService = new OemService(oemStore, async (accessToken) => service.me(accessToken), {
+  controlStore: store,
+});
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const skillsSourceRoot = resolve(process.env.ICLAW_SKILLS_SOURCE_DIR || resolve(repoRoot, 'skills'));
 
@@ -451,6 +453,11 @@ const server = createJsonServer([
   },
   {
     method: 'GET',
+    path: '/admin/oem/dashboard',
+    handler: ({headers}: HandlerContext) => oemService.getDashboard(requireBearerToken(headers)),
+  },
+  {
+    method: 'GET',
     path: '/admin/oem/brands',
     handler: ({headers}: HandlerContext) => oemService.listBrands(requireBearerToken(headers)),
   },
@@ -481,6 +488,66 @@ const server = createJsonServer([
     path: '/admin/oem/brand/publish',
     handler: ({headers, body}: HandlerContext) =>
       oemService.publishBrand(requireBearerToken(headers), (body || {}) as {brand_id?: string}),
+  },
+  {
+    method: 'POST',
+    path: '/admin/oem/brand/rollback',
+    handler: ({headers, body}: HandlerContext) =>
+      oemService.restoreBrandVersion(
+        requireBearerToken(headers),
+        (body || {}) as {brand_id?: string; version?: number},
+      ),
+  },
+  {
+    method: 'GET',
+    path: '/admin/oem/releases',
+    handler: ({headers, url}: HandlerContext) =>
+      oemService.listReleases(requireBearerToken(headers), {
+        brand_id: (url.searchParams.get('brand_id') || '').trim() || null,
+        limit: url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : null,
+      }),
+  },
+  {
+    method: 'GET',
+    path: '/admin/oem/assets',
+    handler: ({headers, url}: HandlerContext) =>
+      oemService.listAssets(requireBearerToken(headers), {
+        brand_id: (url.searchParams.get('brand_id') || '').trim() || null,
+        kind: (url.searchParams.get('kind') || '').trim() || null,
+        limit: url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : null,
+      }),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/oem/asset',
+    handler: ({headers, body}: HandlerContext) =>
+      oemService.upsertAsset(
+        requireBearerToken(headers),
+        (body || {}) as {
+          brand_id?: string;
+          asset_key?: string;
+          kind?: string;
+          storage_provider?: string;
+          object_key?: string;
+          public_url?: string | null;
+          metadata?: Record<string, unknown>;
+        },
+      ),
+  },
+  {
+    method: 'GET',
+    path: '/admin/oem/audit',
+    handler: ({headers, url}: HandlerContext) =>
+      oemService.listAudit(requireBearerToken(headers), {
+        brand_id: (url.searchParams.get('brand_id') || '').trim() || null,
+        action: (url.searchParams.get('action') || '').trim() || null,
+        limit: url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : null,
+      }),
+  },
+  {
+    method: 'GET',
+    path: '/admin/oem/capabilities',
+    handler: ({headers}: HandlerContext) => oemService.getCapabilities(requireBearerToken(headers)),
   },
   {
     method: 'GET',
