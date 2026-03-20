@@ -1142,6 +1142,7 @@ function AuthedView({
   const { buildSectionSaveSnapshot, commitSectionSave } = useSettings();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [activeChatRoute, setActiveChatRoute] = useState({ ...DEFAULT_CHAT_ROUTE });
+  const [chatSurfaceVersion, setChatSurfaceVersion] = useState(0);
   const [creditBalance, setCreditBalance] = useState<CreditBalanceData | null>(null);
   const [creditBalanceLoading, setCreditBalanceLoading] = useState(false);
 
@@ -1260,6 +1261,7 @@ function AuthedView({
       initialPrompt: buildLobsterConversationPrompt(agent),
       initialPromptKey: seed,
     });
+    setChatSurfaceVersion((current) => current + 1);
     setPrimaryView('chat');
   };
 
@@ -1270,6 +1272,7 @@ function AuthedView({
       initialPrompt: null,
       initialPromptKey: seed,
     });
+    setChatSurfaceVersion((current) => current + 1);
     setPrimaryView('chat');
   };
 
@@ -1285,6 +1288,7 @@ function AuthedView({
       initialPrompt: null,
       initialPromptKey: null,
     });
+    setChatSurfaceVersion((current) => current + 1);
     setPrimaryView('chat');
   };
 
@@ -1392,6 +1396,7 @@ function AuthedView({
             <IMBotsView client={imBotClient} />
           ) : authenticated ? (
             <OpenClawChatSurface
+              key={`${activeChatRoute.sessionKey}:${chatSurfaceVersion}`}
               gatewayUrl={GATEWAY_WS_URL}
               gatewayToken={gatewayAuth.token}
               gatewayPassword={gatewayAuth.password}
