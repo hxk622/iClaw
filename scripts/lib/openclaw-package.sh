@@ -36,13 +36,22 @@ openclaw_default_npm_spec() {
 openclaw_abs_path() {
   local raw="$1"
   if [[ "$raw" == /* ]]; then
-    printf '%s\n' "$raw"
+    if command -v cygpath >/dev/null 2>&1; then
+      cygpath -aw "$raw"
+    else
+      printf '%s\n' "$raw"
+    fi
     return 0
   fi
 
   local dir
   dir="$(cd "$(dirname "$raw")" && pwd)"
-  printf '%s/%s\n' "$dir" "$(basename "$raw")"
+  local joined="$dir/$(basename "$raw")"
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -aw "$joined"
+  else
+    printf '%s\n' "$joined"
+  fi
 }
 
 openclaw_prepare_package_tgz() {
@@ -122,7 +131,12 @@ openclaw_extract_package_tgz() {
   fi
 
   mkdir -p "$dest_dir"
-  rsync -a --delete "$tmp_root/package/" "$dest_dir/"
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete "$tmp_root/package/" "$dest_dir/"
+  else
+    find "$dest_dir" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+    cp -R "$tmp_root/package/." "$dest_dir/"
+  fi
   rm -rf "$tmp_root"
 }
 

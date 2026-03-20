@@ -4,8 +4,8 @@
   "version": "1.0.0+202603091514",
   "identifier": "ai.iclaw.desktop",
   "build": {
-    "beforeDevCommand": "bash ../../scripts/sync-openclaw-resources.sh && pnpm dev --host 0.0.0.0 --port 1520",
-    "beforeBuildCommand": "bash ../../scripts/sync-openclaw-resources.sh && pnpm build",
+    "beforeDevCommand": "node ../../scripts/sync-openclaw-resources.mjs && pnpm dev --host 0.0.0.0 --port 1520",
+    "beforeBuildCommand": "node ../../scripts/sync-openclaw-resources.mjs && pnpm build",
     "devUrl": "http://localhost:1520",
     "frontendDist": "../dist"
   },
@@ -22,6 +22,13 @@
     ],
     "security": {
       "csp": null
+    }
+  },
+  "plugins": {
+    "updater": {
+      "windows": {
+        "installMode": "passive"
+      }
     }
   },
   "bundle": {

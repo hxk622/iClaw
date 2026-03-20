@@ -12,7 +12,7 @@
     "pretauri:dev": "node ../../scripts/apply-brand.mjs",
     "tauri:dev": "tauri dev --config src-tauri/tauri.generated.conf.json",
     "pretauri:build": "node ../../scripts/apply-brand.mjs",
-    "tauri:build": "bash ../../scripts/build-desktop-dmg.sh"
+    "tauri:build": "node ../../scripts/build-desktop-package.mjs"
   },
   "dependencies": {
     "@iclaw/sdk": "workspace:*",

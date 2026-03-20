@@ -50,7 +50,7 @@ build_one() {
   (
     cd "$DESKTOP_DIR"
     NODE_ENV="$node_env" \
-    bash "$ROOT_DIR/scripts/build-desktop-dmg.sh" --target "$target"
+    node "$ROOT_DIR/scripts/build-desktop-package.mjs" --target "$target"
   )
 
   local dmg_dir="$DESKTOP_DIR/src-tauri/target/$target/release/bundle/dmg"

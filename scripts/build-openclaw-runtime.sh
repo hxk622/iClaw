@@ -20,6 +20,17 @@ cleanup() {
 
 trap cleanup EXIT
 
+copy_tree() {
+  local src="$1"
+  local dest="$2"
+  mkdir -p "$dest"
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a "$src/" "$dest/"
+  else
+    cp -R "$src/." "$dest/"
+  fi
+}
+
 infer_target_triple() {
   local os arch
   os="$(uname -s)"
@@ -214,11 +225,11 @@ fi
 if [[ "$BUNDLE_PYTHON" == "1" ]]; then
   if [[ -n "$PYTHON_FRAMEWORK_DIR" && -d "$PYTHON_FRAMEWORK_DIR" ]]; then
     mkdir -p "$STAGE_DIR/python"
-    rsync -a "$PYTHON_FRAMEWORK_DIR/" "$STAGE_DIR/python/$PYTHON_FRAMEWORK_NAME/"
+    copy_tree "$PYTHON_FRAMEWORK_DIR" "$STAGE_DIR/python/$PYTHON_FRAMEWORK_NAME"
     PYTHON_HOME_REL="python/$PYTHON_FRAMEWORK_NAME/Versions/$PYTHON_VERSION"
   else
     mkdir -p "$STAGE_DIR/python"
-    rsync -a "$PYTHON_PREFIX/" "$STAGE_DIR/python/home/"
+    copy_tree "$PYTHON_PREFIX" "$STAGE_DIR/python/home"
     PYTHON_HOME_REL="python/home"
   fi
 
@@ -250,7 +261,11 @@ fi
 
 for path in openclaw.mjs package.json LICENSE README.md assets docs dist extensions skills node_modules; do
   if [[ -e "$SOURCE_DIR/$path" ]]; then
-    rsync -a "$SOURCE_DIR/$path" "$STAGE_DIR/openclaw/"
+    if [[ -d "$SOURCE_DIR/$path" ]]; then
+      copy_tree "$SOURCE_DIR/$path" "$STAGE_DIR/openclaw/$path"
+    else
+      cp "$SOURCE_DIR/$path" "$STAGE_DIR/openclaw/$path"
+    fi
   fi
 done
 

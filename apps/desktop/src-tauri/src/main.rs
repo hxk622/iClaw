@@ -3851,14 +3851,19 @@ fn restart_desktop_app(app: AppHandle) {
 }
 
 fn main() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .manage(SidecarState {
             child: Mutex::new(None),
         })
         .manage(DesktopUpdateState {
             pending: Mutex::new(None),
-        })
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        });
+    let builder = if desktop_update_pubkey().is_some() {
+        builder.plugin(tauri_plugin_updater::Builder::new().build())
+    } else {
+        builder
+    };
+    builder
         .invoke_handler(tauri::generate_handler![
             start_sidecar,
             stop_sidecar,

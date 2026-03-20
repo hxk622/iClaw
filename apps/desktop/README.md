@@ -80,6 +80,6 @@ pnpm dev:web
 - 源目录（可维护）：`skills`、`services/openclaw/resources/mcp/mcp.json`、`mcp/mcp.json`
 - `services/openclaw/resources/mcp/mcp.json` 是 OpenClaw 默认配置，`mcp/mcp.json` 是 iClaw 预置 overlay；同步时会合并两者，重名 server 以 iClaw overlay 为准。
 - 打包目录（自动同步）：`apps/desktop/src-tauri/resources/skills`、`apps/desktop/src-tauri/resources/mcp/mcp.json`
-- 同步命令：`bash ../../scripts/sync-openclaw-resources.sh`
+- 同步命令：`node ../../scripts/sync-openclaw-resources.mjs`
 
-`tauri dev` / `tauri build` 会在 pre-command 自动执行资源同步。
+`tauri dev` / `tauri build` 会在 pre-command 自动执行资源同步。`pnpm tauri:build` 会在 macOS 产出 DMG，在 Windows 产出 NSIS 安装包 `.exe`。

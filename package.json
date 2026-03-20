@@ -29,7 +29,7 @@
     "dev:desktop": "bash scripts/with-env.sh dev pnpm --filter @iclaw/desktop dev --host 0.0.0.0 --port 1520 --strictPort",
     "build:desktop": "bash scripts/with-env.sh ${NODE_ENV:-prod} pnpm --filter @iclaw/desktop build",
     "tauri:dev": "bash scripts/with-env.sh ${NODE_ENV:-dev} pnpm --filter @iclaw/desktop tauri:dev",
-    "tauri:build": "bash scripts/with-env.sh ${NODE_ENV:-prod} pnpm --filter @iclaw/desktop tauri:build"
+    "tauri:build": "bash scripts/with-env.sh ${NODE_ENV:-dev} node scripts/build-desktop-package.mjs"
   },
   "devDependencies": {
     "semver": "6.3.1"
