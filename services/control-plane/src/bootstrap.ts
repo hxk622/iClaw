@@ -7,6 +7,18 @@ import {hashPassword} from './passwords.ts';
 import type {ControlPlaneStore} from './store.ts';
 import type {PgOemStore} from './oem-store.ts';
 
+const DEFAULT_SEED_OEM_BRANDS = ['iclaw', 'licaiclaw'];
+
+function getSeedBrandIds(): Set<string> {
+  const raw = (process.env.CONTROL_PLANE_SEED_OEM_BRANDS || DEFAULT_SEED_OEM_BRANDS.join(',')).trim();
+  return new Set(
+    raw
+      .split(',')
+      .map((entry) => entry.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
 function rolePriority(role: 'user' | 'admin' | 'super_admin'): number {
   switch (role) {
     case 'super_admin':
@@ -54,9 +66,11 @@ export async function ensureSeedOemBrands(oemStore: PgOemStore): Promise<void> {
   const repoRoot = resolve(dirname(currentFile), '../../..');
   const brandsRoot = resolve(repoRoot, 'brands');
   const entries = await readdir(brandsRoot, {withFileTypes: true});
+  const seedBrandIds = getSeedBrandIds();
 
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
+    if (!seedBrandIds.has(entry.name.trim().toLowerCase())) continue;
     const brandPath = resolve(brandsRoot, entry.name, 'brand.json');
     try {
       const raw = JSON.parse(await readFile(brandPath, 'utf8')) as Record<string, unknown>;
