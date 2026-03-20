@@ -92,31 +92,37 @@ const QUICK_QUERY_OPTIONS = [
   {
     id: 'earnings',
     label: '财报解读',
+    tone: 'gold',
     template: '请解读 #标的 最新财报，重点看收入增速、利润率、经营现金流、管理层指引和预期差。',
   },
   {
     id: 'valuation',
     label: '估值分析',
+    tone: 'blue',
     template: '请对 #标的 做估值分析，结合增长、盈利质量、可比公司估值和主要风险给出判断。',
   },
   {
     id: 'compare',
     label: '公司对比',
+    tone: 'green',
     template: '请对比 #标的1 和 #标的2 的商业模式、增长质量、估值水平和关键风险。',
   },
   {
     id: 'sector',
     label: '行业点评',
+    tone: 'amber',
     template: '请从行业格局、政策驱动、盈利周期和估值水平出发，点评 #行业 的当前机会与风险。',
   },
   {
     id: 'market',
     label: '市场复盘',
+    tone: 'rose',
     template: '请复盘今天市场，说明主要指数表现、领涨领跌板块、资金风格和背后驱动。',
   },
   {
     id: 'memo',
     label: '生成纪要',
+    tone: 'slate',
     template: '请基于以下内容生成一份结构化纪要，包含结论、关键数据、风险提示和待跟进事项：',
   },
 ] as const;
@@ -776,7 +782,6 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         <div className="iclaw-composer__panel">
           <div className="iclaw-composer__top">
             <div className="iclaw-composer__context-main">
-              <div className="iclaw-composer__context-title">金融研究上下文</div>
               <div className="iclaw-composer__context-chips">
                 <Chip tone="accent" className="iclaw-composer__context-chip">
                   @{activeAgentLabel}
@@ -901,24 +906,23 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
           </div>
 
           <div className="iclaw-composer__footer">
-            <div className="iclaw-composer__footer-queries">
+            <div className="iclaw-composer__footer-main">
               <span className="iclaw-composer__footer-label">财经快捷</span>
               <div className="iclaw-composer__query-list">
                 {QUICK_QUERY_OPTIONS.map((query) => (
                   <Chip
                     key={query.id}
                     clickable
-                    tone={activeQuickQueryId === query.id ? 'accent' : 'outline'}
+                    tone="outline"
                     className="iclaw-composer__query-chip"
+                    data-query-tone={query.tone}
+                    data-active={activeQuickQueryId === query.id ? 'true' : 'false'}
                     onClick={() => insertQuickQueryTemplate(query)}
                   >
                     {query.label}
                   </Chip>
                 ))}
               </div>
-            </div>
-
-            <div className="iclaw-composer__footer-main">
               <div className="iclaw-composer__supports">
                 <div ref={mentionMenuRef} className="iclaw-composer__mention-picker">
                   <Chip
@@ -932,7 +936,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                     onClick={() => openMentionMenu('toolbar')}
                   >
                     <AtSign className="h-3.5 w-3.5" />
-                    @龙虾专家
+                    龙虾专家
                   </Chip>
 
                   {mentionMenuOpen ? (
