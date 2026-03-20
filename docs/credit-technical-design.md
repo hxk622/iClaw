@@ -1,6 +1,6 @@
 # iClaw Credit 技术设计草案
 
-更新时间：2026-03-18
+更新时间：2026-03-20
 
 ## 1. 目标
 
@@ -22,6 +22,49 @@
 - 所有扣费操作必须幂等
 - 余额字段只是读优化，账本才是权威事实
 - 预估与实扣分离
+
+## 2.1 当前实现基线
+
+截至当前代码实现，已经冻结的最小计费口径如下：
+
+- control plane 为唯一计费权威
+- 客户端不再传入可信 `credit_cost`
+- 服务端根据 `input_tokens` 与 `output_tokens` 计算最终龙虾币消耗
+- 结算结果会同时写入 `usage_events`、`credit_ledger`，并回填到 `run_grants`
+
+当前默认费率：
+
+```text
+输入 1000 tokens = 1 龙虾币
+输出 500 tokens = 1 龙虾币
+```
+
+当前服务端公式：
+
+```text
+charged_credits =
+  ceil(input_tokens / 1000 * CREDIT_COST_INPUT_PER_1K)
+  + ceil(output_tokens / 1000 * CREDIT_COST_OUTPUT_PER_1K)
+```
+
+按当前默认配置，它等价于：
+
+```text
+charged_credits =
+  ceil(input_tokens / 1000)
+  + ceil(output_tokens / 500)
+```
+
+默认配置值：
+
+- `CREDIT_COST_INPUT_PER_1K = 1`
+- `CREDIT_COST_OUTPUT_PER_1K = 2`
+
+设计含义：
+
+- 先明确“输出比输入更贵”的基本原则
+- 先用简单、稳定、可解释的费率跑通账务闭环
+- 后续再演进到 `model_pricing`、`markup_multiplier`、`platform_fee_credits` 等更细粒度模型
 
 ## 3. 核心数据模型
 
