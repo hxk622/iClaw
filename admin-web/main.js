@@ -3,13 +3,13 @@ import './styles.css';
 const API_BASE_URL = ((import.meta.env.VITE_AUTH_BASE_URL || 'http://127.0.0.1:2130') + '').trim().replace(/\/+$/, '');
 const TOKEN_STORAGE_KEY = 'iclaw.admin-web.tokens';
 const NAV_ITEMS = [
-  {id: 'overview', label: '总览', eyebrow: 'Overview'},
-  {id: 'brands', label: '品牌管理', eyebrow: 'Brands'},
-  {id: 'brand-detail', label: '品牌详情', eyebrow: 'Brand Detail'},
-  {id: 'skills-mcp', label: '技能与 MCP', eyebrow: 'Capabilities'},
-  {id: 'assets', label: '资源管理', eyebrow: 'Assets'},
-  {id: 'releases', label: '版本发布', eyebrow: 'Releases'},
-  {id: 'audit-log', label: '审计日志', eyebrow: 'Audit'},
+  {id: 'overview', label: '总览', eyebrow: 'Overview', glyph: 'OV'},
+  {id: 'brands', label: '品牌管理', eyebrow: 'Brands', glyph: 'BR'},
+  {id: 'brand-detail', label: '品牌详情', eyebrow: 'Brand Detail', glyph: 'DT'},
+  {id: 'skills-mcp', label: '技能与 MCP', eyebrow: 'Capabilities', glyph: 'CP'},
+  {id: 'assets', label: '资源管理', eyebrow: 'Assets', glyph: 'AS'},
+  {id: 'releases', label: '版本发布', eyebrow: 'Releases', glyph: 'RL'},
+  {id: 'audit-log', label: '审计日志', eyebrow: 'Audit', glyph: 'AU'},
 ];
 const SURFACE_LABELS = {
   desktop: '桌面端',
@@ -1175,15 +1175,18 @@ function renderSidebar() {
     <aside class="sidebar">
       <div class="sidebar-brand">
         <span class="eyebrow">OEM Control Center</span>
-        <strong>运营管理平台</strong>
-        <p>${escapeHtml(state.user?.name || state.user?.username || 'admin')}</p>
+        <strong class="sidebar-brand__title">运营管理平台</strong>
+        <p class="sidebar-brand__copy">多品牌、多版本、多端配置控制平面</p>
       </div>
       <nav class="nav-list">
         ${NAV_ITEMS.map(
           (item) => `
             <button class="nav-item${state.route === item.id ? ' is-active' : ''}" type="button" data-action="navigate" data-page="${item.id}">
-              <span>${escapeHtml(item.label)}</span>
-              <small>${escapeHtml(item.eyebrow)}</small>
+              <span class="nav-item__icon">${escapeHtml(item.glyph)}</span>
+              <span class="nav-item__body">
+                <span class="nav-item__label">${escapeHtml(item.label)}</span>
+                <small>${escapeHtml(item.eyebrow)}</small>
+              </span>
             </button>
           `,
         ).join('')}
@@ -1199,9 +1202,14 @@ function renderSidebar() {
       </section>
       <div class="sidebar-footer">
         <div class="sidebar-meta">
+          <span>Signed In</span>
+          <strong>${escapeHtml(state.user?.name || state.user?.username || 'admin')}</strong>
+        </div>
+        <div class="sidebar-meta">
           <span>Control API</span>
           <strong>${escapeHtml(API_BASE_URL)}</strong>
         </div>
+        <div class="sidebar-version">v1.0.0 • Mar 2026</div>
         <button class="ghost-button ghost-button--full" type="button" data-action="logout">退出登录</button>
       </div>
     </aside>
@@ -1225,7 +1233,7 @@ function renderMiniBrandButton(brand) {
 function renderHeader(title, description, actions = '') {
   return `
     <header class="page-header">
-      <div>
+      <div class="page-header__copy">
         <p class="eyebrow">Control Plane</p>
         <h1>${escapeHtml(title)}</h1>
         <p class="page-description">${escapeHtml(description)}</p>
@@ -1244,10 +1252,10 @@ function renderOverviewPage() {
   return `
     ${renderHeader(
       '总览',
-      '用同一套控制平面管理多品牌、多版本、多 Surface 的 OEM 配置。',
+      '从统一控制平面管理所有 OEM 品牌、能力、素材与版本发布。',
       `
         <button class="ghost-button" type="button" data-action="refresh-page">刷新数据</button>
-        <button class="solid-button" type="button" data-action="navigate" data-page="brands">创建或管理品牌</button>
+        <button class="solid-button" type="button" data-action="navigate" data-page="brands">创建新品牌</button>
       `,
     )}
     <section class="stats-grid">
@@ -1485,6 +1493,7 @@ function renderBrandDetailPage() {
       `
         ${statusBadge(brand.status)}
         <button class="ghost-button" type="button" data-action="navigate" data-page="brands">返回品牌列表</button>
+        <button class="ghost-button" type="button" data-action="save-brand-draft"${state.busy ? ' disabled' : ''}>保存草稿</button>
         <button class="solid-button" type="button" data-action="publish-brand"${state.busy ? ' disabled' : ''}>发布当前草稿</button>
       `,
     )}
@@ -2575,7 +2584,7 @@ function renderLogin() {
           <p class="eyebrow">OEM operations platform</p>
           <h1>把品牌、版本、技能与发布放进同一个运营平面</h1>
           <p class="login-copy">
-            当前后台直连真实 control-plane 接口。默认引导账号：<strong>admin / admin</strong>。
+            当前后台直连真实 control-plane 接口，按 OEM 运营中心设计稿重构。默认账号：<strong>admin / admin</strong>。
           </p>
         </div>
         <form class="login-card" id="login-form">
@@ -2804,6 +2813,14 @@ app.addEventListener('click', async (event) => {
     const brandId = state.selectedBrandId || '';
     if (window.confirm(`确认发布 ${brandId} 当前草稿？`)) {
       await publishCurrentBrand();
+    }
+    return;
+  }
+
+  if (action === 'save-brand-draft') {
+    const form = document.querySelector('#brand-editor-form');
+    if (form instanceof HTMLFormElement) {
+      await saveBrandEditor(form);
     }
     return;
   }
