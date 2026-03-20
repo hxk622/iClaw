@@ -1,26 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import {
-  ArrowLeft,
-  ArrowRight,
-  CalendarClock,
+  Calendar,
   CheckCircle2,
   Clock3,
   FileText,
-  Globe,
-  ListTodo,
+  ListChecks,
   Loader2,
   MessageSquare,
   Pin,
-  Presentation,
   Search,
-  Table2,
   XCircle,
 } from 'lucide-react';
+import { Button } from '@/app/components/ui/Button';
+import { FilterPill } from '@/app/components/ui/FilterPill';
 import { PressableCard } from '@/app/components/ui/PressableCard';
-import { Chip } from '@/app/components/ui/Chip';
 import { cn } from '@/app/lib/cn';
 import {
-  type RecentTaskArtifact,
   RECENT_TASK_ARTIFACT_LABELS,
   type RecentTaskRecord,
   formatRecentTaskRelativeTime,
@@ -29,62 +25,68 @@ import {
 
 type TaskFilter = 'all' | RecentTaskRecord['status'];
 
-const filterLabelMap: Record<TaskFilter, string> = {
-  all: '全部',
-  running: '进行中',
-  completed: '已完成',
-  failed: '失败',
-};
-
-const artifactIconMap: Record<RecentTaskArtifact, typeof FileText> = {
-  report: FileText,
-  ppt: Presentation,
-  webpage: Globe,
-  pdf: FileText,
-  sheet: Table2,
-};
-
-const statusConfig: Record<
-  RecentTaskRecord['status'],
-  {
-    label: string;
-    icon: typeof CheckCircle2;
-    chipTone: 'brand' | 'success' | 'danger';
-    hintTone: string;
-    helperText: string;
-  }
-> = {
-  running: {
-    label: '进行中',
-    icon: Loader2,
-    chipTone: 'brand',
-    hintTone:
-      'border border-[var(--chip-brand-border)] bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)]',
-    helperText: '任务仍在处理中，完成后会自动更新。',
-  },
-  completed: {
-    label: '已完成',
-    icon: CheckCircle2,
-    chipTone: 'success',
-    hintTone:
-      'border border-emerald-500/14 bg-emerald-500/8 text-emerald-700 dark:border-emerald-400/16 dark:bg-emerald-400/10 dark:text-emerald-200',
-    helperText: '可以继续围绕这条任务补充问题或延展结果。',
-  },
-  failed: {
-    label: '失败',
-    icon: XCircle,
-    chipTone: 'danger',
-    hintTone:
-      'border border-red-500/14 bg-red-500/8 text-red-700 dark:border-red-400/16 dark:bg-red-400/10 dark:text-red-200',
-    helperText: '任务未顺利完成，建议回到对话继续处理。',
-  },
-};
-
 interface TaskCenterViewProps {
   selectedTaskId?: string | null;
   onSelectTask?: (taskId: string) => void;
   onOpenChat?: () => void;
 }
+
+interface TaskViewModel {
+  id: string;
+  title: string;
+  summary: string;
+  status: RecentTaskRecord['status'];
+  isPinned: boolean;
+  resultTypes: string[];
+  lastUpdated: string;
+  createdAt: string;
+  source: string;
+  statusMessage: string;
+}
+
+const FILTER_ITEMS: Array<{ value: TaskFilter; label: string }> = [
+  { value: 'all', label: '全部' },
+  { value: 'running', label: '进行中' },
+  { value: 'completed', label: '已完成' },
+  { value: 'failed', label: '失败' },
+];
+
+const STATUS_META: Record<
+  RecentTaskRecord['status'],
+  {
+    label: string;
+    toneClassName: string;
+    icon: typeof Loader2;
+    iconClassName?: string;
+    messageClassName: string;
+  }
+> = {
+  running: {
+    label: '进行中',
+    toneClassName:
+      'bg-[rgba(168,140,93,0.12)] text-[var(--brand-primary)] dark:bg-[rgba(180,154,112,0.16)]',
+    icon: Loader2,
+    iconClassName: 'animate-spin',
+    messageClassName:
+      'border-[rgba(168,140,93,0.24)] bg-[rgba(168,140,93,0.10)] text-[var(--brand-primary)] dark:border-[rgba(180,154,112,0.30)] dark:bg-[rgba(180,154,112,0.12)]',
+  },
+  completed: {
+    label: '已完成',
+    toneClassName:
+      'bg-[rgba(74,107,90,0.12)] text-[var(--state-success)] dark:bg-[rgba(127,192,169,0.16)]',
+    icon: CheckCircle2,
+    messageClassName:
+      'border-[rgba(74,107,90,0.20)] bg-[rgba(74,107,90,0.08)] text-[var(--state-success)] dark:border-[rgba(127,192,169,0.24)] dark:bg-[rgba(127,192,169,0.10)]',
+  },
+  failed: {
+    label: '失败',
+    toneClassName:
+      'bg-[rgba(184,79,79,0.12)] text-[var(--state-error)] dark:bg-[rgba(196,107,107,0.16)]',
+    icon: XCircle,
+    messageClassName:
+      'border-[rgba(184,79,79,0.22)] bg-[rgba(184,79,79,0.08)] text-[var(--state-error)] dark:border-[rgba(196,107,107,0.26)] dark:bg-[rgba(196,107,107,0.10)]',
+  },
+};
 
 export function TaskCenterView({
   selectedTaskId = null,
@@ -92,435 +94,490 @@ export function TaskCenterView({
   onOpenChat,
 }: TaskCenterViewProps) {
   const tasks = useRecentTasks();
-  const [filter, setFilter] = useState<TaskFilter>('all');
   const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<TaskFilter>('all');
+
+  const mappedTasks = useMemo(() => tasks.map(mapTaskToViewModel), [tasks]);
 
   const filteredTasks = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    return tasks.filter((task) => {
-      const matchesFilter = filter === 'all' ? true : task.status === filter;
+
+    return mappedTasks.filter((task, index) => {
+      const sourceTask = tasks[index];
+      const matchesFilter = filter === 'all' || task.status === filter;
       const matchesQuery =
         normalizedQuery.length === 0
           ? true
-          : `${task.title} ${task.summary} ${task.prompt}`.toLowerCase().includes(normalizedQuery);
+          : `${task.title} ${task.summary} ${sourceTask?.prompt ?? ''}`
+              .toLowerCase()
+              .includes(normalizedQuery);
       return matchesFilter && matchesQuery;
     });
-  }, [filter, query, tasks]);
+  }, [filter, mappedTasks, query, tasks]);
 
   const selectedTask =
     filteredTasks.find((task) => task.id === selectedTaskId) ?? filteredTasks[0] ?? null;
 
   useEffect(() => {
-    if (!selectedTaskId && filteredTasks[0]) {
-      onSelectTask?.(filteredTasks[0].id);
+    if (!filteredTasks.length) {
       return;
     }
 
-    if (selectedTaskId && !filteredTasks.some((task) => task.id === selectedTaskId) && filteredTasks[0]) {
+    if (!selectedTaskId || !filteredTasks.some((task) => task.id === selectedTaskId)) {
       onSelectTask?.(filteredTasks[0].id);
     }
   }, [filteredTasks, onSelectTask, selectedTaskId]);
 
-  const stats = {
-    total: tasks.length,
-    running: tasks.filter((task) => task.status === 'running').length,
-    completed: tasks.filter((task) => task.status === 'completed').length,
-  };
+  const totalTasks = mappedTasks.length;
+  const runningTasks = mappedTasks.filter((task) => task.status === 'running').length;
+  const completedTasks = mappedTasks.filter((task) => task.status === 'completed').length;
+  const hasNoTasks = totalTasks === 0;
+  const hasNoSearchResults =
+    !hasNoTasks && filteredTasks.length === 0 && (query.trim() !== '' || filter !== 'all');
 
   return (
-    <div className="flex flex-1 overflow-y-auto bg-[linear-gradient(135deg,var(--bg-page),color-mix(in_srgb,var(--chip-brand-bg)_35%,var(--bg-page))_50%,var(--bg-page))] transition-colors dark:bg-[linear-gradient(135deg,var(--bg-page),color-mix(in_srgb,var(--chip-brand-bg)_22%,var(--bg-page))_50%,var(--bg-page))]">
-      <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-8 py-8">
-        <section>
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <h1 className="text-3xl font-bold text-[var(--text-primary)]">
-                历史任务
-              </h1>
-              <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                查看历史任务、结果与更新状态
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={onOpenChat}
-              className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[var(--brand-primary)] px-5 py-2.5 text-sm font-medium text-[var(--brand-on-primary)] transition-[transform,background-color] duration-[var(--motion-panel)] hover:-translate-y-[1px] hover:bg-[var(--brand-primary-hover)] active:scale-[0.985]"
-              style={{ transitionTimingFunction: 'var(--motion-spring)' }}
-            >
-              <ArrowLeft className="h-4 w-4" />
-              返回智能对话
-            </button>
-          </div>
-        </section>
-
-        <section className="grid gap-4 md:grid-cols-3">
-            <MetricCard
-              label="任务总数"
-              value={String(stats.total)}
-              note="自动累计"
-              icon={ListTodo}
-              tone="neutral"
-            />
-            <MetricCard
-              label="进行中"
-              value={String(stats.running)}
-              note="实时刷新"
-              icon={Loader2}
-              tone="running"
-            />
-            <MetricCard
-              label="已完成"
-              value={String(stats.completed)}
-              note="可继续衔接"
-              icon={CheckCircle2}
-              tone="completed"
-            />
-        </section>
-
-        <section className="space-y-4">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--text-muted)]" />
-            <input
-              type="text"
-              placeholder="搜索任务主题或内容"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              className="w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-elevated)] py-3 pl-12 pr-4 text-sm text-[var(--text-primary)] outline-none transition-all placeholder:text-[var(--text-muted)] focus:ring-2 focus:ring-[var(--chip-brand-bg-hover)]"
-            />
+    <div className="flex flex-1 overflow-y-auto bg-[var(--bg-page)]">
+      <div className="mx-auto w-full max-w-[1440px] px-8 py-6">
+        <header className="mb-8 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="mb-2 text-[32px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
+              历史任务
+            </h1>
+            <p className="text-[15px] text-[var(--text-secondary)]">
+              查看历史任务、结果与更新状态
+            </p>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            {(Object.keys(filterLabelMap) as TaskFilter[]).map((item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => setFilter(item)}
-                className={cn(
-                  'inline-flex cursor-pointer items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium',
-                  'transition-[transform,box-shadow,border-color,background-color,color] duration-[var(--motion-panel)] hover:-translate-y-[1px] active:scale-[0.985]',
-                  item === filter
-                    ? 'border-[var(--button-primary-border-hover)] bg-[var(--brand-primary)] text-[var(--brand-on-primary)] shadow-[var(--button-primary-shadow-hover)]'
-                    : 'border-[var(--border-default)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:border-[var(--chip-brand-border-strong)] hover:bg-[var(--chip-brand-bg)] hover:text-[var(--chip-brand-text)]',
-                )}
-                style={{ transitionTimingFunction: 'var(--motion-spring)' }}
-              >
-                <span>{filterLabelMap[item]}</span>
-                <span className={cn('text-xs', item === filter ? 'opacity-80' : 'opacity-50')}>
-                  {item === 'all'
-                    ? tasks.length
-                    : tasks.filter((task) => task.status === item).length}
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
+          <Button
+            variant="primary"
+            size="md"
+            leadingIcon={<MessageSquare className="h-4 w-4" />}
+            onClick={onOpenChat}
+            className="shrink-0"
+          >
+            返回智能对话
+          </Button>
+        </header>
 
-        {tasks.length === 0 ? (
-          <section className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-elevated)] px-8 py-12 text-center">
-            <div className="mx-auto max-w-[520px]">
-              <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-[18px] bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)]">
-                <MessageSquare className="h-6 w-6" />
+        {hasNoTasks ? (
+          <section className="flex min-h-[600px] items-center justify-center">
+            <div className="w-full max-w-[460px] rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-card)] p-12 text-center shadow-[var(--pressable-card-rest-shadow)]">
+              <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-[18px] bg-[var(--bg-hover)] text-[var(--text-muted)]">
+                <MessageSquare className="h-8 w-8" />
               </div>
-              <h2 className="mt-4 text-[22px] font-semibold text-[var(--text-primary)]">还没有任务记录</h2>
-              <p className="mt-2 text-sm leading-7 text-[var(--text-secondary)]">
-                发起一次真实对话后，这里会自动生成任务记录，并持续更新状态与结果类型。
+              <h2 className="mb-3 text-[20px] font-semibold text-[var(--text-primary)]">
+                还没有任务记录
+              </h2>
+              <p className="mb-8 text-[15px] leading-7 text-[var(--text-secondary)]">
+                开始与智能助手对话，创建你的第一个任务
               </p>
-              <div className="mt-5">
-                <button
-                  type="button"
+              <div className="flex justify-center">
+                <Button
+                  variant="primary"
+                  size="md"
+                  leadingIcon={<MessageSquare className="h-4 w-4" />}
                   onClick={onOpenChat}
-                  className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[var(--brand-primary)] px-5 py-2.5 text-sm font-medium text-[var(--brand-on-primary)] transition-[transform,background-color] duration-[var(--motion-panel)] hover:-translate-y-[1px] hover:bg-[var(--brand-primary-hover)] active:scale-[0.985]"
-                  style={{ transitionTimingFunction: 'var(--motion-spring)' }}
                 >
                   返回智能对话
-                </button>
+                </Button>
               </div>
             </div>
           </section>
         ) : (
-          <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_400px]">
-            <div className="space-y-4">
-              {filteredTasks.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-[var(--border-default)] bg-[var(--bg-elevated)] px-6 py-9 text-sm text-[var(--text-secondary)]">
-                  未找到匹配的任务，可以换个关键词或状态看看。
-                </div>
-              ) : (
-                filteredTasks.map((task) => {
-                  const status = statusConfig[task.status];
-                  const StatusIcon = status.icon;
-                  const isSelected = selectedTask?.id === task.id;
+          <>
+            <section className="grid grid-cols-3 gap-2">
+              <SummaryCard
+                icon={<ListChecks className="h-4 w-4" />}
+                label="任务总数"
+                value={totalTasks}
+              />
+              <SummaryCard
+                icon={<Clock3 className="h-4 w-4" />}
+                label="进行中"
+                value={runningTasks}
+                tone="running"
+              />
+              <SummaryCard
+                icon={<CheckCircle2 className="h-4 w-4" />}
+                label="已完成"
+                value={completedTasks}
+                tone="completed"
+              />
+            </section>
 
-                  return (
-                    <PressableCard
-                      key={task.id}
-                      interactive
-                      onClick={() => onSelectTask?.(task.id)}
-                      className={cn(
-                        'group rounded-2xl border bg-white p-5 dark:bg-gray-800/50',
-                        isSelected
-                          ? 'border-2 border-[var(--button-primary-border-hover)] bg-[var(--chip-brand-bg)] shadow-[var(--button-primary-shadow-hover)]'
-                          : 'border-[var(--border-default)] hover:border-[var(--border-strong)]',
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Chip
-                              tone={status.chipTone}
-                              leadingIcon={
-                                <StatusIcon
-                                  className={cn('h-3.5 w-3.5', task.status === 'running' ? 'animate-spin' : '')}
-                                />
-                              }
-                              className="px-3 py-1 text-xs font-medium"
-                            >
-                              {status.label}
-                            </Chip>
-                            {task.pinnedAt ? (
-                              <span className="inline-flex items-center gap-1.5 rounded-full border border-[rgba(168,140,93,0.18)] bg-[rgba(168,140,93,0.10)] px-3 py-1 text-xs font-medium text-[var(--brand-primary)]">
-                                <Pin className="h-3.5 w-3.5" />
-                                已置顶
-                              </span>
-                            ) : null}
-                          </div>
-
-                          <h2 className="mt-3 text-base font-semibold text-[var(--text-primary)]">
-                            {task.title}
-                          </h2>
-
-                          <p className="mt-2 line-clamp-2 text-sm text-[var(--text-secondary)]">
-                            {task.summary}
-                          </p>
-
-                          {task.artifacts.length > 0 ? (
-                            <div className="mt-4 flex flex-wrap gap-2">
-                              {task.artifacts.map((artifact) => {
-                                const Icon = artifactIconMap[artifact];
-                                return (
-                                  <span
-                                    key={artifact}
-                                    className="inline-flex items-center gap-1.5 rounded-md bg-[var(--bg-hover)] px-2.5 py-1 text-xs text-[var(--text-secondary)]"
-                                  >
-                                    <Icon className="h-3.5 w-3.5" />
-                                    {RECENT_TASK_ARTIFACT_LABELS[artifact]}
-                                  </span>
-                                );
-                              })}
-                            </div>
-                          ) : null}
-
-                          <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-[var(--text-muted)]">
-                            <span className="inline-flex items-center gap-1.5">
-                              <Clock3 className="h-3.5 w-3.5" />
-                              {formatRecentTaskRelativeTime(task.updatedAt)}
-                            </span>
-                            <span className="inline-flex items-center gap-1.5">
-                              <CalendarClock className="h-3.5 w-3.5" />
-                              {formatAbsoluteDate(task.createdAt)}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="shrink-0">
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onOpenChat?.();
-                            }}
-                            className={cn(
-                              'rounded-lg px-3 py-1 text-xs font-medium text-[var(--chip-brand-text)] transition-[transform,opacity,background-color] duration-[var(--motion-panel)] hover:bg-[var(--chip-brand-bg)]',
-                              'pointer-events-none translate-y-1 opacity-0 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100',
-                              isSelected ? 'pointer-events-auto translate-y-0 opacity-100' : '',
-                            )}
-                            style={{ transitionTimingFunction: 'var(--motion-spring)' }}
-                          >
-                            继续对话
-                            <ArrowRight className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    </PressableCard>
-                  );
-                })
-              )}
-            </div>
-
-            <aside className="xl:sticky xl:top-6 xl:self-start">
-              <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-elevated)] p-6">
-                {selectedTask ? (
-                  <TaskSummaryPanel task={selectedTask} onOpenChat={onOpenChat} />
-                ) : (
-                  <div className="flex min-h-[360px] items-center justify-center text-center text-sm leading-7 text-[var(--text-muted)]">
-                    选择一条任务记录后，这里会展示更完整的任务摘要。
-                  </div>
-                )}
+            <section className="mt-4 flex items-center gap-4">
+              <div className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
+                <input
+                  type="text"
+                  placeholder="搜索任务标题或内容..."
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  className={cn(
+                    'h-11 w-full rounded-[12px] border border-[var(--border-default)] bg-[var(--bg-card)] pl-10 pr-4 text-[14px] text-[var(--text-primary)] outline-none transition-[border-color,box-shadow,background-color]',
+                    'placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)] focus:bg-[var(--bg-elevated)] focus:shadow-[0_0_0_3px_rgba(168,140,93,0.10)] dark:focus:shadow-[0_0_0_3px_rgba(180,154,112,0.14)]',
+                  )}
+                />
               </div>
-            </aside>
-          </section>
+
+              <div className="flex items-center gap-2">
+                {FILTER_ITEMS.map((item) => (
+                  <FilterPill
+                    key={item.value}
+                    active={filter === item.value}
+                    onClick={() => setFilter(item.value)}
+                  >
+                    {item.label}
+                  </FilterPill>
+                ))}
+              </div>
+            </section>
+
+            {hasNoSearchResults ? (
+              <section className="mt-5 rounded-[16px] border-2 border-dashed border-[var(--border-default)] bg-[var(--bg-card)] p-12 text-center">
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--bg-hover)] text-[var(--text-muted)]">
+                  <MessageSquare className="h-5 w-5" />
+                </div>
+                <h2 className="mb-2 text-[18px] font-semibold text-[var(--text-primary)]">
+                  未找到匹配的任务
+                </h2>
+                <p className="text-[14px] text-[var(--text-secondary)]">
+                  尝试调整搜索关键词或筛选条件
+                </p>
+              </section>
+            ) : (
+              <section className="mt-5 flex gap-6">
+                <div className="min-w-0 flex-1">
+                  <div className="space-y-3">
+                    {filteredTasks.map((task) => (
+                      <TaskCard
+                        key={task.id}
+                        task={task}
+                        isSelected={selectedTask?.id === task.id}
+                        onSelect={() => onSelectTask?.(task.id)}
+                        onOpenChat={onOpenChat}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <aside className="w-[400px] shrink-0">
+                  <div className="sticky top-8">
+                    <TaskDetailPanel task={selectedTask} onOpenChat={onOpenChat} />
+                  </div>
+                </aside>
+              </section>
+            )}
+          </>
         )}
       </div>
     </div>
   );
 }
 
-function TaskSummaryPanel({
-  task,
-  onOpenChat,
+function SummaryCard({
+  icon,
+  label,
+  value,
+  tone = 'default',
 }: {
-  task: RecentTaskRecord;
-  onOpenChat?: () => void;
+  icon: ReactNode;
+  label: string;
+  value: number;
+  tone?: 'default' | 'running' | 'completed';
 }) {
-  const status = statusConfig[task.status];
-  const StatusIcon = status.icon;
+  const iconClassName =
+    tone === 'running'
+      ? 'bg-[rgba(168,140,93,0.12)] text-[var(--brand-primary)] dark:bg-[rgba(180,154,112,0.16)]'
+      : tone === 'completed'
+        ? 'bg-[rgba(74,107,90,0.10)] text-[var(--state-success)] dark:bg-[rgba(127,192,169,0.14)]'
+        : 'bg-[var(--bg-hover)] text-[var(--text-secondary)]';
 
   return (
-    <div className="flex flex-col">
-      <div className="text-xs font-medium text-[var(--text-muted)]">
-        当前查看
+    <div className="rounded-[10px] border border-[var(--border-default)] bg-[var(--bg-card)] px-3 py-2.5 shadow-[var(--pressable-card-rest-shadow)]">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px]', iconClassName)}>
+            {icon}
+          </div>
+          <span className="truncate text-[12px] text-[var(--text-secondary)]">{label}</span>
+        </div>
+        <div className="text-[22px] font-semibold leading-none text-[var(--text-primary)]">
+          {value}
+        </div>
       </div>
 
-      <h3 className="mt-3 text-xl font-semibold text-[var(--text-primary)]">
-        {task.title}
-      </h3>
+      {tone === 'running' && value > 0 ? (
+        <div className="mt-1.5 inline-flex items-center gap-1 rounded-[6px] bg-[var(--bg-hover)] px-1.5 py-0.5 text-[10px] text-[var(--brand-primary)]">
+          <span className="h-1 w-1 rounded-full bg-[var(--brand-primary)] animate-pulse" />
+          处理中
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
-      <p className="mt-2 text-sm text-[var(--text-secondary)]">
-        {task.summary}
-      </p>
-
-      <div className="mt-5">
-        <div className="flex flex-wrap items-center gap-2">
-          <Chip
-            tone={status.chipTone}
-            leadingIcon={<StatusIcon className={cn('h-3.5 w-3.5', task.status === 'running' ? 'animate-spin' : '')} />}
-            className="px-3 py-1 text-sm font-medium"
-          >
-            {status.label}
-          </Chip>
-          {task.pinnedAt ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-[rgba(168,140,93,0.18)] bg-[rgba(168,140,93,0.10)] px-3 py-1 text-xs font-medium text-[var(--brand-primary)]">
-              <Pin className="h-3.5 w-3.5" />
+function TaskCard({
+  task,
+  isSelected,
+  onSelect,
+  onOpenChat,
+}: {
+  task: TaskViewModel;
+  isSelected: boolean;
+  onSelect?: () => void;
+  onOpenChat?: () => void;
+}) {
+  return (
+    <PressableCard
+      interactive
+      onClick={onSelect}
+      className={cn(
+        'group rounded-[18px] bg-[var(--bg-card)] p-5',
+        isSelected
+          ? 'border-2 border-[var(--brand-primary)] bg-[var(--bg-elevated)] shadow-[0_4px_12px_rgba(168,140,93,0.15)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.24)]'
+          : 'border border-[var(--border-default)] shadow-[0_1px_2px_rgba(0,0,0,0.02)] hover:shadow-[0_2px_8px_rgba(0,0,0,0.05)]',
+      )}
+      aria-pressed={isSelected}
+    >
+      <div className="min-w-0">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <StatusBadge status={task.status} />
+          {task.isPinned ? (
+            <span className="inline-flex items-center gap-1 rounded-[6px] bg-[var(--bg-hover)] px-2.5 py-1 text-[12px] text-[var(--text-secondary)]">
+              <Pin className="h-3 w-3" />
               已置顶
             </span>
           ) : null}
         </div>
+
+        <h3 className="mb-2 text-[16px] font-semibold text-[var(--text-primary)]">
+          {task.title}
+        </h3>
+
+        <p className="mb-3 line-clamp-2 text-[14px] leading-6 text-[var(--text-secondary)]">
+          {task.summary}
+        </p>
+
+        {task.resultTypes.length > 0 ? (
+          <div className="mb-3 flex flex-wrap gap-2">
+            {task.resultTypes.map((type) => (
+              <span
+                key={type}
+                className="rounded-[6px] border border-[var(--border-default)] bg-[var(--bg-hover)] px-2 py-0.5 text-[12px] text-[var(--text-secondary)]"
+              >
+                {type}
+              </span>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="flex flex-wrap items-center gap-4 text-[12px] text-[var(--text-muted)]">
+          <span className="inline-flex items-center gap-1">
+            <Clock3 className="h-3 w-3" />
+            {task.lastUpdated}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <Calendar className="h-3 w-3" />
+            {task.createdAt}
+          </span>
+        </div>
+
+        <div
+          className={cn(
+            'overflow-hidden transition-[max-height,opacity,margin] duration-[180ms]',
+            isSelected
+              ? 'mt-3 max-h-16 opacity-100'
+              : 'mt-0 max-h-0 opacity-0 group-hover:mt-3 group-hover:max-h-16 group-hover:opacity-100 group-focus-within:mt-3 group-focus-within:max-h-16 group-focus-within:opacity-100',
+          )}
+        >
+          <div className="border-t border-[var(--border-default)] pt-3">
+            <Button
+              variant="secondary"
+              size="sm"
+              leadingIcon={<MessageSquare className="h-3.5 w-3.5" />}
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenChat?.();
+              }}
+            >
+              继续对话
+            </Button>
+          </div>
+        </div>
+      </div>
+    </PressableCard>
+  );
+}
+
+function TaskDetailPanel({
+  task,
+  onOpenChat,
+}: {
+  task: TaskViewModel | null;
+  onOpenChat?: () => void;
+}) {
+  if (!task) {
+    return (
+      <div className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-card)] p-8 text-center shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+        <FileText className="mx-auto mb-4 h-12 w-12 text-[var(--text-muted)]" />
+        <p className="text-[14px] text-[var(--text-secondary)]">选择一个任务查看详情</p>
+      </div>
+    );
+  }
+
+  const meta = STATUS_META[task.status];
+  const StatusIcon = meta.icon;
+
+  return (
+    <div className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-card)] p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <StatusBadge status={task.status} />
+        {task.isPinned ? (
+          <span className="inline-flex items-center gap-1 rounded-[6px] bg-[var(--bg-hover)] px-2.5 py-1 text-[12px] text-[var(--text-secondary)]">
+            <Pin className="h-3 w-3" />
+            已置顶
+          </span>
+        ) : null}
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        <SummaryMetaCard label="最近更新" value={formatRecentTaskRelativeTime(task.updatedAt)} />
-        <SummaryMetaCard label="任务来源" value="智能对话" />
-        <SummaryMetaCard label="创建时间" value={formatAbsoluteDate(task.createdAt)} />
-        <SummaryMetaCard
+      <h2 className="mb-3 text-[18px] font-semibold leading-7 text-[var(--text-primary)]">
+        {task.title}
+      </h2>
+
+      <p className="mb-6 text-[14px] leading-6 text-[var(--text-secondary)]">
+        {task.summary}
+      </p>
+
+      <div className="mb-6 grid grid-cols-2 gap-3">
+        <DetailInfoTile
+          icon={<Clock3 className="h-4 w-4" />}
+          label="最近更新"
+          value={task.lastUpdated}
+        />
+        <DetailInfoTile
+          icon={<MessageSquare className="h-4 w-4" />}
+          label="任务来源"
+          value={task.source}
+        />
+        <DetailInfoTile
+          icon={<Calendar className="h-4 w-4" />}
+          label="创建时间"
+          value={task.createdAt}
+        />
+        <DetailInfoTile
+          icon={<FileText className="h-4 w-4" />}
           label="结果类型"
-          value={
-            task.artifacts.length > 0
-              ? task.artifacts.map((artifact) => RECENT_TASK_ARTIFACT_LABELS[artifact]).join(' / ')
-              : '暂未识别'
-          }
+          value={`${task.resultTypes.length} 个`}
         />
       </div>
 
-      {task.artifacts.length > 0 ? (
-        <div className="mt-5">
-          <div className="text-xs font-medium text-[var(--text-muted)]">结果类型</div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {task.artifacts.map((artifact) => {
-              const Icon = artifactIconMap[artifact];
-              return (
-                <span
-                  key={artifact}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-[var(--bg-hover)] px-2.5 py-1 text-xs font-medium text-[var(--text-secondary)]"
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {RECENT_TASK_ARTIFACT_LABELS[artifact]}
-                </span>
-              );
-            })}
-          </div>
-        </div>
-      ) : null}
-
-      <div className={cn('mt-5 rounded-xl border px-4 py-4 text-sm', status.hintTone)}>
-        <div className="flex items-start gap-3">
-          <StatusIcon className={cn('mt-0.5 h-4 w-4 shrink-0', task.status === 'running' ? 'animate-spin' : '')} />
-          <p>{task.lastError || status.helperText}</p>
+      <div className="mb-6">
+        <div className="mb-2 text-[12px] text-[var(--text-secondary)]">结果类型</div>
+        <div className="flex flex-wrap gap-2">
+          {task.resultTypes.map((type) => (
+            <span
+              key={type}
+              className="rounded-[10px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[14px] text-[var(--text-primary)]"
+            >
+              {type}
+            </span>
+          ))}
         </div>
       </div>
 
-      <div className="mt-5">
-        <div className="text-xs font-medium text-[var(--text-muted)]">简短说明</div>
-        <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
-          {task.summary}
-        </p>
+      <div className={cn('mb-6 rounded-[12px] border p-4', meta.messageClassName)}>
+        <div className="flex items-start gap-2">
+          <StatusIcon className={cn('mt-0.5 h-4 w-4 shrink-0', meta.iconClassName)} />
+          <p className="flex-1 text-[14px] leading-6">{task.statusMessage}</p>
+        </div>
       </div>
 
-      <div className="mt-6">
-        <button
-          type="button"
-          onClick={onOpenChat}
-          className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[var(--brand-primary)] px-6 py-3 text-sm font-medium text-[var(--brand-on-primary)] transition-[transform,background-color] duration-[var(--motion-panel)] hover:-translate-y-[1px] hover:bg-[var(--brand-primary-hover)] active:scale-[0.985]"
-          style={{ transitionTimingFunction: 'var(--motion-spring)' }}
-        >
-          返回智能对话
-        </button>
-      </div>
+      <Button
+        variant="primary"
+        size="md"
+        block
+        leadingIcon={<MessageSquare className="h-4 w-4" />}
+        onClick={onOpenChat}
+      >
+        返回智能对话
+      </Button>
     </div>
   );
 }
 
-function MetricCard({
+function DetailInfoTile({
+  icon,
   label,
   value,
-  note,
-  icon: Icon,
-  tone,
 }: {
+  icon: ReactNode;
   label: string;
   value: string;
-  note: string;
-  icon: typeof ListTodo;
-  tone: 'neutral' | 'running' | 'completed';
 }) {
-  const iconTone =
-    tone === 'running'
-      ? 'bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)]'
-      : tone === 'completed'
-        ? 'bg-[rgba(16,185,129,0.14)] text-[rgb(5,150,105)] dark:bg-[rgba(16,185,129,0.18)] dark:text-[rgb(110,231,183)]'
-        : 'bg-[rgba(15,23,42,0.08)] text-[rgb(51,65,85)] dark:bg-[rgba(255,255,255,0.08)] dark:text-[rgb(203,213,225)]';
-
   return (
-    <div className="flex cursor-pointer items-center gap-4 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-elevated)] px-6 py-5 transition-[transform,box-shadow] duration-[var(--motion-panel)] hover:-translate-y-[1px] hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
-      <div className={cn('flex h-11 w-11 items-center justify-center rounded-[16px]', iconTone)}>
-        <Icon className={cn('h-5 w-5', tone === 'running' ? 'animate-spin' : '')} />
+    <div className="rounded-[12px] border border-[var(--border-default)] bg-[var(--bg-hover)] p-3">
+      <div className="mb-1 flex items-center gap-1.5 text-[12px] text-[var(--text-muted)]">
+        {icon}
+        <span>{label}</span>
       </div>
-      <div className="min-w-0">
-        <div className="text-sm text-[var(--text-muted)]">{label}</div>
-        <div className="mt-1 flex items-end gap-2">
-          <div className="text-2xl font-semibold text-[var(--text-primary)]">{value}</div>
-          <div className="pb-1 text-xs text-[var(--text-muted)]">{note}</div>
-        </div>
-      </div>
+      <div className="text-[14px] font-medium text-[var(--text-primary)]">{value}</div>
     </div>
   );
 }
 
-function SummaryMetaCard({ label, value }: { label: string; value: string }) {
+function StatusBadge({ status }: { status: RecentTaskRecord['status'] }) {
+  const meta = STATUS_META[status];
+
   return (
-    <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-hover)] px-4 py-3">
-      <div className="text-xs font-medium text-[var(--text-muted)]">{label}</div>
-      <div className="mt-1 text-sm text-[var(--text-primary)]">{value}</div>
-    </div>
+    <span className={cn('inline-flex items-center gap-1.5 rounded-[6px] px-2.5 py-1 text-[12px]', meta.toneClassName)}>
+      {status === 'running' ? <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" /> : null}
+      {meta.label}
+    </span>
   );
 }
 
-function formatAbsoluteDate(dateString: string): string {
+function mapTaskToViewModel(task: RecentTaskRecord): TaskViewModel {
+  const resultTypes = task.artifacts.map((artifact) => RECENT_TASK_ARTIFACT_LABELS[artifact]);
+
+  return {
+    id: task.id,
+    title: task.title,
+    summary: task.summary,
+    status: task.status,
+    isPinned: Boolean(task.pinnedAt),
+    resultTypes,
+    lastUpdated: formatRecentTaskRelativeTime(task.updatedAt),
+    createdAt: formatCompactDate(task.createdAt),
+    source: '智能对话',
+    statusMessage: buildStatusMessage(task, resultTypes),
+  };
+}
+
+function buildStatusMessage(task: RecentTaskRecord, resultTypes: string[]): string {
+  if (task.status === 'failed') {
+    return task.lastError || '任务执行失败，可回到对话重试';
+  }
+
+  if (task.status === 'running') {
+    return '任务仍在处理中，完成后会自动更新状态与结果。';
+  }
+
+  if (resultTypes.length > 0) {
+    return `已生成${resultTypes.join('、')}，可以继续围绕结果追问。`;
+  }
+
+  return '任务已完成，可继续围绕该任务对话。';
+}
+
+function formatCompactDate(dateString: string): string {
   const timestamp = new Date(dateString).getTime();
   if (!Number.isFinite(timestamp)) {
     return '刚刚';
   }
 
   return new Intl.DateTimeFormat('zh-CN', {
-    month: 'numeric',
-    day: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
   }).format(new Date(timestamp));
 }
