@@ -101,12 +101,15 @@ export type RunGrantRecord = {
   userId: string;
   sessionKey: string;
   client: string;
+  status: 'issued' | 'settled';
   nonce: string;
   maxInputTokens: number;
   maxOutputTokens: number;
   creditLimit: number;
   expiresAt: string;
+  usedAt: string | null;
   signature: string;
+  billingSummary: RunBillingSummaryRecord | null;
   createdAt: string;
 };
 
@@ -140,9 +143,25 @@ export type UsageEventRecord = {
   createdAt: string;
 };
 
+export type RunBillingSummaryRecord = {
+  grantId: string;
+  eventId: string;
+  sessionKey: string;
+  client: string;
+  status: 'settled';
+  inputTokens: number;
+  outputTokens: number;
+  creditCost: number;
+  provider: string | null;
+  model: string | null;
+  balanceAfter: number;
+  settledAt: string;
+};
+
 export type UsageEventResult = {
   accepted: boolean;
   balanceAfter: number;
+  summary: RunBillingSummaryRecord;
 };
 
 export type WorkspaceBackupRecord = {
@@ -371,6 +390,21 @@ export type UsageEventInput = {
   credit_cost?: number;
   provider?: string;
   model?: string;
+};
+
+export type RunBillingSummaryView = {
+  grant_id: string;
+  event_id: string;
+  session_key: string;
+  client: string;
+  status: 'settled';
+  input_tokens: number;
+  output_tokens: number;
+  credit_cost: number;
+  provider: string | null;
+  model: string | null;
+  balance_after: number;
+  settled_at: string;
 };
 
 export type InstallSkillInput = {

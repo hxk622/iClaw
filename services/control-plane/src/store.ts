@@ -9,6 +9,7 @@ import type {
   InstallSkillInput,
   OAuthAccountRecord,
   OAuthProvider,
+  RunBillingSummaryRecord,
   RunGrantRecord,
   SessionRecord,
   SessionTokenPair,
@@ -55,6 +56,7 @@ export interface ControlPlaneStore {
   getCreditBalance(userId: string): Promise<number>;
   getCreditLedger(userId: string): Promise<CreditLedgerRecord[]>;
   getRunGrantById(grantId: string): Promise<RunGrantRecord | null>;
+  getRunBillingSummary(grantId: string): Promise<RunBillingSummaryRecord | null>;
   createRunGrant(input: {
     userId: string;
     sessionKey: string;
@@ -109,6 +111,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   private readonly creditLedgerByUserId = new Map<string, CreditLedgerRecord[]>();
   private readonly runGrantsById = new Map<string, RunGrantRecord>();
   private readonly usageEventsByEventId = new Map<string, UsageEventResult>();
+  private readonly runBillingSummaryByGrantId = new Map<string, RunBillingSummaryRecord>();
   private readonly workspaceBackupsByUserId = new Map<string, WorkspaceBackupRecord>();
   private readonly agentCatalog = new Map<string, AgentCatalogEntryRecord>();
   private readonly userAgentLibrary = new Map<string, UserAgentLibraryRecord>();
@@ -931,6 +934,10 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     return this.runGrantsById.get(grantId) || null;
   }
 
+  async getRunBillingSummary(grantId: string): Promise<RunBillingSummaryRecord | null> {
+    return this.runBillingSummaryByGrantId.get(grantId) || null;
+  }
+
   async createRunGrant(input: {
     userId: string;
     sessionKey: string;
@@ -947,12 +954,15 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       userId: input.userId,
       sessionKey: input.sessionKey,
       client: input.client,
+      status: 'issued',
       nonce: input.nonce,
       maxInputTokens: input.maxInputTokens,
       maxOutputTokens: input.maxOutputTokens,
       creditLimit: input.creditLimit,
       expiresAt: input.expiresAt,
+      usedAt: null,
       signature: input.signature,
+      billingSummary: null,
       createdAt: new Date().toISOString(),
     };
     this.runGrantsById.set(grant.id, grant);
@@ -978,9 +988,37 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     });
     this.creditLedgerByUserId.set(userId, ledger);
 
+    const grant = input.grant_id ? this.runGrantsById.get(input.grant_id) || null : null;
+    const settledAt = new Date().toISOString();
+    const summary: RunBillingSummaryRecord = {
+      grantId: input.grant_id,
+      eventId: input.event_id,
+      sessionKey: grant?.sessionKey || 'main',
+      client: grant?.client || 'desktop',
+      status: 'settled',
+      inputTokens: Math.max(0, input.input_tokens),
+      outputTokens: Math.max(0, input.output_tokens),
+      creditCost: Math.max(0, input.credit_cost),
+      provider: input.provider || null,
+      model: input.model || null,
+      balanceAfter: nextBalance,
+      settledAt,
+    };
+
+    if (grant) {
+      this.runGrantsById.set(grant.id, {
+        ...grant,
+        status: 'settled',
+        usedAt: settledAt,
+        billingSummary: summary,
+      });
+      this.runBillingSummaryByGrantId.set(grant.id, summary);
+    }
+
     const result: UsageEventResult = {
       accepted: true,
       balanceAfter: nextBalance,
+      summary,
     };
     this.usageEventsByEventId.set(input.event_id, result);
     return result;

@@ -21,6 +21,8 @@ import type {
   OAuthProvider,
   PublicUser,
   RegisterInput,
+  RunBillingSummaryRecord,
+  RunBillingSummaryView,
   RunAuthorizeInput,
   RunGrantView,
   SkillSource,
@@ -79,6 +81,23 @@ function toPublicUser(user: {
     name: user.displayName,
     avatar_url: user.avatarUrl || null,
     role: user.role,
+  };
+}
+
+function toRunBillingSummaryView(summary: RunBillingSummaryRecord): RunBillingSummaryView {
+  return {
+    grant_id: summary.grantId,
+    event_id: summary.eventId,
+    session_key: summary.sessionKey,
+    client: summary.client,
+    status: summary.status,
+    input_tokens: summary.inputTokens,
+    output_tokens: summary.outputTokens,
+    credit_cost: summary.creditCost,
+    provider: summary.provider,
+    model: summary.model,
+    balance_after: summary.balanceAfter,
+    settled_at: summary.settledAt,
   };
 }
 
@@ -1108,7 +1127,11 @@ export class ControlPlaneService {
     };
   }
 
-  async recordUsageEvent(accessToken: string, input: UsageEventInput): Promise<{accepted: boolean; balance_after: number}> {
+  async recordUsageEvent(accessToken: string, input: UsageEventInput): Promise<{
+    accepted: boolean;
+    balance_after: number;
+    billing_summary: RunBillingSummaryView;
+  }> {
     const user = await this.getUserForAccessToken(accessToken);
     const eventId = (input.event_id || '').trim();
     if (!eventId) {
@@ -1155,7 +1178,28 @@ export class ControlPlaneService {
     return {
       accepted: result.accepted,
       balance_after: result.balanceAfter,
+      billing_summary: toRunBillingSummaryView(result.summary),
     };
+  }
+
+  async getRunBillingSummary(accessToken: string, grantIdInput: string): Promise<RunBillingSummaryView> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const grantId = grantIdInput.trim();
+    if (!grantId) {
+      throw new HttpError(400, 'BAD_REQUEST', 'grant_id is required');
+    }
+
+    const grant = await this.store.getRunGrantById(grantId);
+    if (!grant || grant.userId !== user.id) {
+      throw new HttpError(404, 'NOT_FOUND', 'run grant not found');
+    }
+
+    const summary = await this.store.getRunBillingSummary(grantId);
+    if (!summary) {
+      throw new HttpError(404, 'NOT_FOUND', 'run billing summary not found');
+    }
+
+    return toRunBillingSummaryView(summary);
   }
 
   private async getUserForAccessToken(accessToken: string) {

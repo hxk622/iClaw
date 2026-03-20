@@ -142,6 +142,8 @@ usage 结算：
 
 - `usage/events` 现在以服务端按 token 数量计费为准，不再信任客户端传入的 `credit_cost`
 - 必须带有效 `grant_id`
+- `usage/events` 返回服务端 settled billing summary，供前端只做展示
+- `GET /agent/run/billing?grant_id=...` 可按 run grant 查询 billing summary
 
 已实现接口：
 
@@ -153,4 +155,5 @@ usage 结算：
 - `GET /credits/me`
 - `GET /credits/ledger`
 - `POST /agent/run/authorize`
+- `GET /agent/run/billing`
 - `POST /usage/events`

@@ -142,9 +142,25 @@ export interface RunGrantData {
   signature: string;
 }
 
+export interface RunBillingSummaryData {
+  grant_id: string;
+  event_id: string;
+  session_key: string;
+  client: string;
+  status: 'settled';
+  input_tokens: number;
+  output_tokens: number;
+  credit_cost: number;
+  provider: string | null;
+  model: string | null;
+  balance_after: number;
+  settled_at: string;
+}
+
 export interface UsageEventData {
   accepted: boolean;
   balance_after: number;
+  billing_summary: RunBillingSummaryData;
 }
 
 export interface CreditBalanceData {
@@ -910,6 +926,18 @@ export class IClawClient {
     });
     if (!res.ok) throw await parseError(res);
     const json = (await res.json()) as {data: RunGrantData};
+    return json.data;
+  }
+
+  async getRunBillingSummary(token: string, grantId: string): Promise<RunBillingSummaryData> {
+    const res = await this.fetchAuth(`/agent/run/billing?grant_id=${encodeURIComponent(grantId)}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      credentials: 'include',
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: RunBillingSummaryData};
     return json.data;
   }
 

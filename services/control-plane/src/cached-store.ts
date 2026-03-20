@@ -7,6 +7,7 @@ import type {
   InstallSkillInput,
   OAuthAccountRecord,
   OAuthProvider,
+  RunBillingSummaryRecord,
   RunGrantRecord,
   SessionRecord,
   SessionTokenPair,
@@ -231,6 +232,12 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     return this.getOrLoad(this.runGrantKey(grantId), USER_CACHE_TTL_SECONDS, () => this.base.getRunGrantById(grantId));
   }
 
+  async getRunBillingSummary(grantId: string): Promise<RunBillingSummaryRecord | null> {
+    return this.getOrLoad(this.runBillingSummaryKey(grantId), USER_CACHE_TTL_SECONDS, () =>
+      this.base.getRunBillingSummary(grantId),
+    );
+  }
+
   async createRunGrant(input: {
     userId: string;
     sessionKey: string;
@@ -257,7 +264,8 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     const result = await this.base.recordUsageEvent(userId, input);
     await Promise.all([
       this.cache.set(this.usageEventKey(input.event_id), result, USAGE_EVENT_CACHE_TTL_SECONDS),
-      this.cache.delete(this.creditBalanceKey(userId), this.creditLedgerKey(userId)),
+      this.cache.set(this.runBillingSummaryKey(input.grant_id), result.summary, USAGE_EVENT_CACHE_TTL_SECONDS),
+      this.cache.delete(this.creditBalanceKey(userId), this.creditLedgerKey(userId), this.runGrantKey(input.grant_id)),
     ]);
     return result;
   }
@@ -482,6 +490,10 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
 
   private usageEventKey(eventId: string): string {
     return `usage-event:${eventId}`;
+  }
+
+  private runBillingSummaryKey(grantId: string): string {
+    return `run-billing:${grantId}`;
   }
 
   private workspaceBackupKey(userId: string): string {

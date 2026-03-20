@@ -565,6 +565,12 @@ const server = createJsonServer([
       service.authorizeRun(requireBearerToken(headers), (body || {}) as RunAuthorizeInput),
   },
   {
+    method: 'GET',
+    path: '/agent/run/billing',
+    handler: ({headers, url}: HandlerContext) =>
+      service.getRunBillingSummary(requireBearerToken(headers), (url.searchParams.get('grant_id') || '').trim()),
+  },
+  {
     method: 'POST',
     path: '/usage/events',
     handler: ({headers, body}: HandlerContext) =>

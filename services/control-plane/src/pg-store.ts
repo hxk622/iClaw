@@ -15,6 +15,7 @@ import type {
   InstallSkillInput,
   OAuthAccountRecord,
   OAuthProvider,
+  RunBillingSummaryRecord,
   RunGrantRecord,
   SessionRecord,
   SessionTokenPair,
@@ -70,6 +71,12 @@ type CreditLedgerRow = {
 type UsageEventLookupRow = {
   event_id: string;
   credit_cost: string | number;
+  run_grant_id?: string | null;
+  input_tokens?: number;
+  output_tokens?: number;
+  provider?: string | null;
+  model?: string | null;
+  created_at?: Date;
 };
 
 type OAuthAccountRow = {
@@ -82,11 +89,13 @@ type OAuthAccountRow = {
 type RunGrantRow = {
   id: string;
   user_id: string;
+  status: string;
   nonce: string;
   max_input_tokens: number;
   max_output_tokens: number;
   credit_limit: string | number;
   expires_at: Date;
+  used_at: Date | null;
   metadata: Record<string, unknown> | null;
   created_at: Date;
 };
@@ -133,6 +142,83 @@ type AgentCatalogRow = {
   created_at: Date;
   updated_at: Date;
 };
+
+function parseRunBillingSummary(
+  value: unknown,
+  fallback?: {
+    grantId: string;
+    sessionKey: string;
+    client: string;
+  },
+): RunBillingSummaryRecord | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const summary = value as Record<string, unknown>;
+  const grantId =
+    typeof summary.grant_id === 'string'
+      ? summary.grant_id
+      : typeof summary.grantId === 'string'
+        ? summary.grantId
+        : fallback?.grantId || '';
+  const eventId =
+    typeof summary.event_id === 'string'
+      ? summary.event_id
+      : typeof summary.eventId === 'string'
+        ? summary.eventId
+        : '';
+  if (!grantId || !eventId) {
+    return null;
+  }
+
+  return {
+    grantId,
+    eventId,
+    sessionKey:
+      typeof summary.session_key === 'string'
+        ? summary.session_key
+        : typeof summary.sessionKey === 'string'
+          ? summary.sessionKey
+          : fallback?.sessionKey || 'main',
+    client:
+      typeof summary.client === 'string'
+        ? summary.client
+        : fallback?.client || 'desktop',
+    status: 'settled',
+    inputTokens:
+      typeof summary.input_tokens === 'number'
+        ? summary.input_tokens
+        : typeof summary.inputTokens === 'number'
+          ? summary.inputTokens
+          : 0,
+    outputTokens:
+      typeof summary.output_tokens === 'number'
+        ? summary.output_tokens
+        : typeof summary.outputTokens === 'number'
+          ? summary.outputTokens
+          : 0,
+    creditCost:
+      typeof summary.credit_cost === 'number'
+        ? summary.credit_cost
+        : typeof summary.creditCost === 'number'
+          ? summary.creditCost
+          : 0,
+    provider: typeof summary.provider === 'string' ? summary.provider : null,
+    model: typeof summary.model === 'string' ? summary.model : null,
+    balanceAfter:
+      typeof summary.balance_after === 'number'
+        ? summary.balance_after
+        : typeof summary.balanceAfter === 'number'
+          ? summary.balanceAfter
+          : 0,
+    settledAt:
+      typeof summary.settled_at === 'string'
+        ? summary.settled_at
+        : typeof summary.settledAt === 'string'
+          ? summary.settledAt
+          : new Date().toISOString(),
+  };
+}
 
 type SkillReleaseRow = {
   skill_slug: string;
@@ -859,7 +945,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
   async getRunGrantById(grantId: string): Promise<RunGrantRecord | null> {
     const result = await this.pool.query<RunGrantRow>(
       `
-        select id, user_id, nonce, max_input_tokens, max_output_tokens, credit_limit, expires_at, metadata, created_at
+        select id, user_id, status, nonce, max_input_tokens, max_output_tokens, credit_limit, expires_at, used_at, metadata, created_at
         from run_grants
         where id = $1
         limit 1
@@ -877,14 +963,32 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       userId: row.user_id,
       sessionKey: typeof metadata.session_key === 'string' ? metadata.session_key : 'main',
       client: typeof metadata.client === 'string' ? metadata.client : 'desktop',
+      status: row.status === 'settled' ? 'settled' : 'issued',
       nonce: row.nonce,
       maxInputTokens: row.max_input_tokens,
       maxOutputTokens: row.max_output_tokens,
       creditLimit: typeof row.credit_limit === 'string' ? Number.parseInt(row.credit_limit, 10) : row.credit_limit,
       expiresAt: row.expires_at.toISOString(),
+      usedAt: row.used_at ? row.used_at.toISOString() : null,
       signature: typeof metadata.signature === 'string' ? metadata.signature : '',
+      billingSummary: parseRunBillingSummary(
+        typeof metadata.billing_summary === 'object' ? metadata.billing_summary : null,
+        {
+          grantId: row.id,
+          sessionKey: typeof metadata.session_key === 'string' ? metadata.session_key : 'main',
+          client: typeof metadata.client === 'string' ? metadata.client : 'desktop',
+        },
+      ),
       createdAt: row.created_at.toISOString(),
     };
+  }
+
+  async getRunBillingSummary(grantId: string): Promise<RunBillingSummaryRecord | null> {
+    const grant = await this.getRunGrantById(grantId);
+    if (!grant?.billingSummary) {
+      return null;
+    }
+    return grant.billingSummary;
   }
 
   async createRunGrant(input: {
@@ -938,12 +1042,15 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       userId: input.userId,
       sessionKey: input.sessionKey,
       client: input.client,
+      status: 'issued',
       nonce: input.nonce,
       maxInputTokens: input.maxInputTokens,
       maxOutputTokens: input.maxOutputTokens,
       creditLimit: input.creditLimit,
       expiresAt: input.expiresAt,
+      usedAt: null,
       signature: input.signature,
+      billingSummary: null,
       createdAt: createdAt.toISOString(),
     };
   }
@@ -954,21 +1061,63 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     try {
       await client.query('begin');
 
+      const grant = await this.getRunGrantById(input.grant_id);
+      const sessionKey = grant?.sessionKey || 'main';
+      const runClient = grant?.client || 'desktop';
+
       const existing = await client.query<UsageEventLookupRow>(
-        `select event_id, credit_cost from usage_events where event_id = $1 limit 1`,
+        `
+          select event_id, run_grant_id, input_tokens, output_tokens, credit_cost, provider, model, created_at
+          from usage_events
+          where event_id = $1
+          limit 1
+        `,
         [input.event_id],
       );
       if (existing.rows[0]) {
         const balance = await this.lockAndReadBalance(client, userId);
         await client.query('commit');
+        const row = existing.rows[0];
+        const settledAt = row.created_at?.toISOString() || new Date().toISOString();
+        const persistedSummary =
+          grant?.billingSummary && grant.billingSummary.eventId === row.event_id ? grant.billingSummary : null;
         return {
           accepted: true,
           balanceAfter: balance,
+          summary: persistedSummary || {
+            grantId: input.grant_id,
+            eventId: row.event_id,
+            sessionKey,
+            client: runClient,
+            status: 'settled',
+            inputTokens: row.input_tokens || 0,
+            outputTokens: row.output_tokens || 0,
+            creditCost: typeof row.credit_cost === 'string' ? Number.parseInt(row.credit_cost, 10) : row.credit_cost || 0,
+            provider: row.provider || null,
+            model: row.model || null,
+            balanceAfter: balance,
+            settledAt,
+          },
         };
       }
 
       const balance = await this.lockAndReadBalance(client, userId);
       const nextBalance = balance - input.credit_cost;
+      const settledAt = new Date().toISOString();
+      const summary: RunBillingSummaryRecord = {
+        grantId: input.grant_id,
+        eventId: input.event_id,
+        sessionKey,
+        client: runClient,
+        status: 'settled',
+        inputTokens: input.input_tokens,
+        outputTokens: input.output_tokens,
+        creditCost: input.credit_cost,
+        provider: input.provider || null,
+        model: input.model || null,
+        balanceAfter: nextBalance,
+        settledAt,
+      };
 
       await client.query(
         `
@@ -1034,10 +1183,42 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         ],
       );
 
+      await client.query(
+        `
+          update run_grants
+          set
+            status = 'settled',
+            used_at = now(),
+            metadata = coalesce(metadata, '{}'::jsonb) || $2::jsonb
+          where id = $1
+        `,
+        [
+          input.grant_id,
+          JSON.stringify({
+            settled_event_id: input.event_id,
+            billing_summary: {
+              grant_id: summary.grantId,
+              event_id: summary.eventId,
+              session_key: summary.sessionKey,
+              client: summary.client,
+              status: summary.status,
+              input_tokens: summary.inputTokens,
+              output_tokens: summary.outputTokens,
+              credit_cost: summary.creditCost,
+              provider: summary.provider,
+              model: summary.model,
+              balance_after: summary.balanceAfter,
+              settled_at: summary.settledAt,
+            },
+          }),
+        ],
+      );
+
       await client.query('commit');
       return {
         accepted: true,
         balanceAfter: nextBalance,
+        summary,
       };
     } catch (error) {
       await client.query('rollback');
