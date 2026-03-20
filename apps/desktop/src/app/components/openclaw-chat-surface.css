@@ -553,24 +553,6 @@ body {
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
 }
 
-.openclaw-chat-surface .chat-group.iclaw-chat-group--focused-task .chat-group-messages {
-  position: relative;
-}
-
-.openclaw-chat-surface .chat-group.iclaw-chat-group--focused-task .chat-group-messages::after {
-  content: '';
-  position: absolute;
-  inset: -8px -10px;
-  border-radius: 20px;
-  border: 1px solid color-mix(in srgb, var(--brand-primary) 34%, transparent);
-  background: color-mix(in srgb, var(--brand-primary) 8%, transparent);
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--brand-primary) 10%, transparent),
-    0 14px 32px rgba(168, 140, 93, 0.12);
-  pointer-events: none;
-  animation: iclaw-task-focus-pulse 1.6s ease-out 1;
-}
-
 .openclaw-chat-surface .iclaw-chat-user-copy:disabled {
   opacity: 0;
   pointer-events: none;
@@ -1210,21 +1192,6 @@ body {
   }
   to {
     transform: translateX(100%);
-  }
-}
-
-@keyframes iclaw-task-focus-pulse {
-  0% {
-    opacity: 0;
-    transform: scale(0.985);
-  }
-  18% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
   }
 }
 

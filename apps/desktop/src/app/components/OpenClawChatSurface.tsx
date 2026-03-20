@@ -536,10 +536,6 @@ function extractChatGroupText(group: HTMLElement | null): string {
   return textBlocks.join('\n\n').trim();
 }
 
-function normalizeChatMatchText(text: string): string {
-  return text.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
 function setElementTextIfChanged(node: Node | null, nextText: string): void {
   if (!node) {
     return;
@@ -1163,7 +1159,6 @@ export function OpenClawChatSurface({
   const sessionTransitionPendingRef = useRef(false);
   const sessionTransitionStartedAtRef = useRef(0);
   const sessionTransitionHideTimerRef = useRef<number | null>(null);
-  const consumedFocusedTaskIdRef = useRef<string | null>(null);
 
   const closeSelectionMenu = useCallback(() => {
     setSelectionMenu(null);
@@ -1361,10 +1356,6 @@ export function OpenClawChatSurface({
     setSessionTransitionVisible(true);
     closeSelectionMenu();
   }, [clearSessionTransitionTimer, closeSelectionMenu, sessionKey]);
-
-  useEffect(() => {
-    consumedFocusedTaskIdRef.current = null;
-  }, [focusTaskId, sessionKey]);
 
   useEffect(() => {
     if (pendingUsageSettlementRef.current) {
@@ -2734,43 +2725,6 @@ export function OpenClawChatSurface({
           assistantIndex += 1;
         }
       });
-
-      groups.forEach((group) => {
-        group.classList.remove('iclaw-chat-group--focused-task');
-      });
-
-      const normalizedFocusPrompt = normalizeChatMatchText(focusTaskPrompt ?? '');
-      if (
-        !focusTaskId ||
-        !normalizedFocusPrompt ||
-        consumedFocusedTaskIdRef.current === focusTaskId ||
-        !status.connected ||
-        sessionTransitionVisible
-      ) {
-        return;
-      }
-
-      const matchedGroup = [...groups]
-        .reverse()
-        .find(
-          (group) =>
-            group.classList.contains('user') &&
-            normalizeChatMatchText(extractChatGroupText(group)) === normalizedFocusPrompt,
-        );
-
-      if (!matchedGroup) {
-        return;
-      }
-
-      matchedGroup.classList.add('iclaw-chat-group--focused-task');
-      consumedFocusedTaskIdRef.current = focusTaskId;
-      window.requestAnimationFrame(() => {
-        matchedGroup.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center',
-          inline: 'nearest',
-        });
-      });
     };
 
     decorateChatGroups();
@@ -2808,15 +2762,7 @@ export function OpenClawChatSurface({
       document.removeEventListener('pointerdown', handleToolbarOutsidePointerDown, true);
       clearMessageActionTimers();
     };
-  }, [
-    clearMessageActionTimers,
-    focusTaskId,
-    focusTaskPrompt,
-    handleSend,
-    sessionTransitionVisible,
-    status.busy,
-    status.connected,
-  ]);
+  }, [clearMessageActionTimers, handleSend, status.busy]);
 
   return (
     <PageSurface as="div" className="bg-[var(--bg-page)]">
