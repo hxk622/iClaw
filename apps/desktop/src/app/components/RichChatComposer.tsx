@@ -357,6 +357,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const [modelMenuOpen, setModelMenuOpen] = useState(false);
     const [mentionMenuOpen, setMentionMenuOpen] = useState(false);
     const [activeAgentLabel, setActiveAgentLabel] = useState('龙虾专家');
+    const [activeAgentAvatarSrc, setActiveAgentAvatarSrc] = useState<string | null>(null);
     const [activeQuickQueryId, setActiveQuickQueryId] = useState<(typeof QUICK_QUERY_OPTIONS)[number]['id'] | null>(null);
 
     const refreshState = useCallback(() => {
@@ -369,6 +370,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       setTokenCount(tokenStoreRef.current.size);
       const firstAgent = Array.from(tokenStoreRef.current.values()).find((token) => token.kind === 'agent');
       setActiveAgentLabel(firstAgent?.label ?? '龙虾专家');
+      setActiveAgentAvatarSrc(firstAgent?.avatarSrc ?? null);
       editor.dataset.empty = snapshot.hasContent ? 'false' : 'true';
       onDraftChange?.({
         prompt: snapshot.prompt,
@@ -775,6 +777,18 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const activeQuickQuery = QUICK_QUERY_OPTIONS.find((option) => option.id === activeQuickQueryId) ?? null;
     const installedExpertMeta =
       lobsterAgents.length > 0 ? `已安装 ${lobsterAgents.length} 位龙虾专家` : '未安装龙虾专家';
+    const creditEstimateText = creditEstimate
+      ? creditEstimate.loading
+        ? '正在估算龙虾币...'
+        : creditEstimate.error
+          ? '龙虾币估算暂不可用'
+          : typeof creditEstimate.low === 'number' && typeof creditEstimate.high === 'number'
+            ? creditEstimate.low === creditEstimate.high
+              ? `约 ${creditEstimate.low} 龙虾币`
+              : `约 ${creditEstimate.low}-${creditEstimate.high} 龙虾币`
+            : null
+      : null;
+    const creditEstimateState = creditEstimate?.error ? 'error' : creditEstimate?.loading ? 'loading' : 'ready';
 
     return (
       <div className="iclaw-composer">
@@ -782,10 +796,28 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         <div className="iclaw-composer__panel">
           <div className="iclaw-composer__top">
             <div className="iclaw-composer__context-main">
+              <span className="iclaw-composer__context-label">任务上下文</span>
               <div className="iclaw-composer__context-chips">
-                <Chip tone="accent" className="iclaw-composer__context-chip">
-                  @{activeAgentLabel}
-                </Chip>
+                {activeAgentAvatarSrc ? (
+                  <Chip
+                    tone="accent"
+                    className="iclaw-composer__context-chip iclaw-composer__context-chip--avatar"
+                    aria-label={`当前专家：${activeAgentLabel}`}
+                    title={activeAgentLabel}
+                  >
+                    <span className="iclaw-composer__context-avatar">
+                      <img
+                        src={activeAgentAvatarSrc}
+                        alt={activeAgentLabel}
+                        className="iclaw-composer__context-avatar-image"
+                      />
+                    </span>
+                  </Chip>
+                ) : (
+                  <Chip tone="accent" className="iclaw-composer__context-chip">
+                    @龙虾专家
+                  </Chip>
+                )}
                 <Chip tone="brand" className="iclaw-composer__context-chip">
                   {activeQuickQuery?.label ?? '财经问答'}
                 </Chip>
@@ -924,6 +956,13 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                 ))}
               </div>
               <div className="iclaw-composer__supports">
+                <span className="iclaw-composer__credit-slot" aria-live="polite">
+                  {creditEstimateText ? (
+                    <span className="iclaw-composer__credit-estimate" data-state={creditEstimateState}>
+                      {creditEstimateText}
+                    </span>
+                  ) : null}
+                </span>
                 <div ref={mentionMenuRef} className="iclaw-composer__mention-picker">
                   <Chip
                     clickable
@@ -988,19 +1027,6 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   视频
                 </span>
                 {tokenCount > 0 ? <span className="iclaw-composer__meta-count">{tokenCount}</span> : null}
-                {creditEstimate ? (
-                  <span className="iclaw-composer__credit-estimate" data-state={creditEstimate.error ? 'error' : creditEstimate.loading ? 'loading' : 'ready'}>
-                    {creditEstimate.loading
-                      ? '正在估算龙虾币...'
-                      : creditEstimate.error
-                        ? '龙虾币估算暂不可用'
-                        : typeof creditEstimate.low === 'number' && typeof creditEstimate.high === 'number'
-                          ? creditEstimate.low === creditEstimate.high
-                            ? `约 ${creditEstimate.low} 龙虾币`
-                            : `约 ${creditEstimate.low}-${creditEstimate.high} 龙虾币`
-                          : null}
-                  </span>
-                ) : null}
               </div>
 
               <div className="iclaw-composer__actions">
