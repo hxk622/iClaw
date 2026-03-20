@@ -1390,72 +1390,57 @@ body {
   background: color-mix(in srgb, var(--composer-panel-bg) 96%, white 4%);
 }
 
-.iclaw-composer__promo {
-  display: inline-flex;
-  align-items: center;
+.iclaw-composer__context-main {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
   gap: 8px;
-  min-width: 0;
 }
 
-.iclaw-composer__promo-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  background: rgba(245, 158, 11, 0.14);
-  color: #d97706;
-}
-
-.iclaw-composer__promo-text {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--text-secondary);
-  font-size: 12.5px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.iclaw-composer__promo-cta {
-  border: none;
-  background: transparent;
-  color: color-mix(in srgb, var(--brand-primary) 80%, var(--text-primary));
-  font-size: 12.5px;
+.iclaw-composer__context-title {
+  color: var(--text-primary);
+  font-size: 13px;
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
-.iclaw-composer__top-tools {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex: 0 0 auto;
-}
-
-.iclaw-composer__top-tool {
-  display: inline-flex;
-  align-items: center;
+.iclaw-composer__context-chips {
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
-  min-height: 28px;
+  min-width: 0;
+}
+
+.iclaw-composer__context-chip {
+  min-height: 26px;
   padding: 0 10px;
-  border: 1px solid color-mix(in srgb, var(--composer-panel-border) 76%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--chat-surface-panel) 84%, white 16%);
+  font-size: 11.5px;
+}
+
+.iclaw-composer__context-meta {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 132px;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  text-align: right;
+}
+
+.iclaw-composer__context-meta-kicker {
+  color: var(--brand-primary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.iclaw-composer__context-meta-text {
   color: var(--text-secondary);
   font-size: 12px;
-  white-space: nowrap;
-}
-
-.iclaw-composer__top-tool-icon {
-  color: currentColor;
-}
-
-.iclaw-composer__top-tool-icon--violet {
-  color: #8b5cf6;
-}
-
-.iclaw-composer__top-tool-icon--amber {
-  color: #f59e0b;
+  line-height: 1.4;
 }
 
 .iclaw-composer__panel:focus-within {
@@ -1687,12 +1672,47 @@ body {
 
 .iclaw-composer__footer {
   display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 72px;
+  padding: 8px 16px 14px;
+  border-top: 1px solid color-mix(in srgb, var(--composer-panel-border) 54%, transparent);
+}
+
+.iclaw-composer__footer-queries,
+.iclaw-composer__footer-main {
+  display: flex;
+  width: 100%;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 54px;
-  padding: 8px 16px 14px;
-  border-top: 1px solid color-mix(in srgb, var(--composer-panel-border) 54%, transparent);
+}
+
+.iclaw-composer__footer-queries {
+  align-items: flex-start;
+}
+
+.iclaw-composer__footer-label {
+  flex: 0 0 auto;
+  padding-top: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.iclaw-composer__query-list {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.iclaw-composer__query-chip {
+  min-height: 28px;
+  padding: 0 12px;
+  font-size: 12px;
 }
 
 .iclaw-composer__supports {
@@ -1737,36 +1757,10 @@ body {
 }
 
 .iclaw-composer__mention-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   min-height: 28px;
-  padding: 0 12px;
-  border: 1px solid color-mix(in srgb, var(--composer-panel-border) 74%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--chat-surface-panel) 86%, white 14%);
-  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 600;
-  line-height: 1;
-  cursor: pointer;
-  transition:
-    background 180ms ease,
-    border-color 180ms ease,
-    color 180ms ease,
-    transform 240ms cubic-bezier(0.22, 1.2, 0.36, 1),
-    box-shadow 240ms cubic-bezier(0.22, 1.2, 0.36, 1);
-}
-
-.iclaw-composer__mention-trigger:hover:not(:disabled) {
-  transform: translateY(-1px);
-  background: color-mix(in srgb, var(--chat-surface-panel-subtle) 92%, white 8%);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
-}
-
-.iclaw-composer__mention-trigger:disabled {
-  opacity: 0.56;
-  cursor: not-allowed;
+  padding: 0 12px;
 }
 
 .iclaw-composer__mention-menu {
@@ -1831,6 +1825,12 @@ body {
 
 .iclaw-composer__mention-option:hover {
   transform: translateY(-1px);
+}
+
+.iclaw-composer__mention-option:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--bg-page), 0 0 0 4px color-mix(in srgb, var(--brand-primary) 28%, transparent);
+  border-radius: 18px;
 }
 
 .iclaw-composer__mention-avatar {
@@ -2178,16 +2178,14 @@ body {
   border-bottom-color: color-mix(in srgb, var(--composer-panel-border) 72%, transparent);
 }
 
-:root.dark .iclaw-composer__promo-icon {
-  background: rgba(88, 172, 255, 0.14);
-  color: #8dd3ff;
+:root.dark .iclaw-composer__context-meta-kicker {
+  color: #dcc49c;
 }
 
-:root.dark .iclaw-composer__promo-cta {
-  color: #53cdfd;
+:root.dark .iclaw-composer__context-meta-text {
+  color: #b6c2cf;
 }
 
-:root.dark .iclaw-composer__top-tool,
 :root.dark .iclaw-composer__mention-trigger,
 :root.dark .iclaw-composer__model-trigger,
 :root.dark .iclaw-composer__model-option[data-active='true'] {
@@ -2196,7 +2194,6 @@ body {
   color: #d8e4f1;
 }
 
-:root.dark .iclaw-composer__top-tool:hover,
 :root.dark .iclaw-composer__mention-trigger:hover:not(:disabled),
 :root.dark .iclaw-composer__model-trigger:hover:not(:disabled),
 :root.dark .iclaw-composer__model-option:hover {
@@ -2311,6 +2308,12 @@ body {
     align-items: flex-start;
   }
 
+  .iclaw-composer__context-meta {
+    min-width: 0;
+    align-items: flex-start;
+    text-align: left;
+  }
+
   .iclaw-composer__middle {
     gap: 10px;
     padding-inline: 14px;
@@ -2333,6 +2336,12 @@ body {
   }
 
   .iclaw-composer__footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .iclaw-composer__footer-queries,
+  .iclaw-composer__footer-main {
     flex-direction: column;
     align-items: stretch;
   }

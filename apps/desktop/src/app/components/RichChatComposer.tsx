@@ -7,9 +7,7 @@ import {
   FileText,
   Image as ImageIcon,
   Plus,
-  Sparkles,
   Square,
-  WandSparkles,
 } from 'lucide-react';
 import {
   forwardRef,
@@ -22,6 +20,7 @@ import {
 import { ModelBrandIcon } from './ModelBrandIcon';
 import { findComposerModelOption, type ComposerModelOption } from '../lib/model-catalog';
 import type { LobsterAgent } from '../lib/lobster-store';
+import { Chip } from './ui/Chip';
 
 export type OpenClawImageAttachment = {
   id: string;
@@ -88,7 +87,39 @@ type RichChatComposerProps = {
 };
 
 const SUPPORTED_ATTACHMENT_TYPES = ['image/', 'video/', 'application/pdf'];
-const PLACEHOLDER = '输入问题...';
+const PLACEHOLDER = '输入研究问题，@专家，或选择下方财经快捷模板...';
+const QUICK_QUERY_OPTIONS = [
+  {
+    id: 'earnings',
+    label: '财报解读',
+    template: '请解读 #标的 最新财报，重点看收入增速、利润率、经营现金流、管理层指引和预期差。',
+  },
+  {
+    id: 'valuation',
+    label: '估值分析',
+    template: '请对 #标的 做估值分析，结合增长、盈利质量、可比公司估值和主要风险给出判断。',
+  },
+  {
+    id: 'compare',
+    label: '公司对比',
+    template: '请对比 #标的1 和 #标的2 的商业模式、增长质量、估值水平和关键风险。',
+  },
+  {
+    id: 'sector',
+    label: '行业点评',
+    template: '请从行业格局、政策驱动、盈利周期和估值水平出发，点评 #行业 的当前机会与风险。',
+  },
+  {
+    id: 'market',
+    label: '市场复盘',
+    template: '请复盘今天市场，说明主要指数表现、领涨领跌板块、资金风格和背后驱动。',
+  },
+  {
+    id: 'memo',
+    label: '生成纪要',
+    template: '请基于以下内容生成一份结构化纪要，包含结论、关键数据、风险提示和待跟进事项：',
+  },
+] as const;
 
 function createComposerId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -319,6 +350,8 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const [tokenCount, setTokenCount] = useState(0);
     const [modelMenuOpen, setModelMenuOpen] = useState(false);
     const [mentionMenuOpen, setMentionMenuOpen] = useState(false);
+    const [activeAgentLabel, setActiveAgentLabel] = useState('龙虾专家');
+    const [activeQuickQueryId, setActiveQuickQueryId] = useState<(typeof QUICK_QUERY_OPTIONS)[number]['id'] | null>(null);
 
     const refreshState = useCallback(() => {
       const editor = editorRef.current;
@@ -328,6 +361,8 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       const snapshot = serializeEditor(editor, tokenStoreRef.current);
       setHasContent(snapshot.hasContent);
       setTokenCount(tokenStoreRef.current.size);
+      const firstAgent = Array.from(tokenStoreRef.current.values()).find((token) => token.kind === 'agent');
+      setActiveAgentLabel(firstAgent?.label ?? '龙虾专家');
       editor.dataset.empty = snapshot.hasContent ? 'false' : 'true';
       onDraftChange?.({
         prompt: snapshot.prompt,
@@ -509,6 +544,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       editor.replaceChildren();
       tokenStoreRef.current.clear();
       savedRangeRef.current = createRangeAtEnd(editor);
+      setActiveQuickQueryId(null);
       closeMentionMenu();
       refreshState();
       editor.focus();
@@ -585,6 +621,19 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       setModelMenuOpen(false);
       setMentionMenuOpen(true);
     }, [connected]);
+
+    const insertQuickQueryTemplate = useCallback((query: (typeof QUICK_QUERY_OPTIONS)[number]) => {
+      const editor = editorRef.current;
+      if (!editor || !connected) {
+        return;
+      }
+
+      const snapshot = serializeEditor(editor, tokenStoreRef.current);
+      const prefix = snapshot.hasContent ? '\n' : '';
+      insertTextAtCaret(`${prefix}${query.template}`);
+      setActiveQuickQueryId(query.id);
+      focus();
+    }, [connected, focus, insertTextAtCaret]);
 
     const processFiles = useCallback(
       async (files: File[]) => {
@@ -717,30 +766,35 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       { key: 'basic', label: '基础', options: modelOptions.filter((option) => option.tier === 'basic') },
       { key: 'other', label: '其他', options: modelOptions.filter((option) => option.tier === 'other') },
     ].filter((section) => section.options.length > 0);
+    const activeQuickQuery = QUICK_QUERY_OPTIONS.find((option) => option.id === activeQuickQueryId) ?? null;
+    const installedExpertMeta =
+      lobsterAgents.length > 0 ? `已安装 ${lobsterAgents.length} 位龙虾专家` : '未安装龙虾专家';
 
     return (
       <div className="iclaw-composer">
         <div className="iclaw-composer__halo" aria-hidden="true" />
         <div className="iclaw-composer__panel">
           <div className="iclaw-composer__top">
-            <div className="iclaw-composer__promo">
-              <span className="iclaw-composer__promo-icon">
-                <Sparkles className="h-3.5 w-3.5" />
-              </span>
-              <span className="iclaw-composer__promo-text">新能力预告位</span>
-              <button type="button" className="iclaw-composer__promo-cta">
-                试一试
-              </button>
+            <div className="iclaw-composer__context-main">
+              <div className="iclaw-composer__context-title">金融研究上下文</div>
+              <div className="iclaw-composer__context-chips">
+                <Chip tone="accent" className="iclaw-composer__context-chip">
+                  @{activeAgentLabel}
+                </Chip>
+                <Chip tone="brand" className="iclaw-composer__context-chip">
+                  {activeQuickQuery?.label ?? '财经问答'}
+                </Chip>
+                <Chip tone="outline" className="iclaw-composer__context-chip">
+                  财经工作流
+                </Chip>
+                <Chip tone="warning" className="iclaw-composer__context-chip">
+                  仅供研究参考
+                </Chip>
+              </div>
             </div>
-            <div className="iclaw-composer__top-tools" aria-hidden="true">
-              <button type="button" className="iclaw-composer__top-tool">
-                <WandSparkles className="h-3.5 w-3.5 iclaw-composer__top-tool-icon iclaw-composer__top-tool-icon--violet" />
-                创意增强
-              </button>
-              <button type="button" className="iclaw-composer__top-tool">
-                <Sparkles className="h-3.5 w-3.5 iclaw-composer__top-tool-icon iclaw-composer__top-tool-icon--amber" />
-                新功能
-              </button>
+            <div className="iclaw-composer__context-meta">
+              <span className="iclaw-composer__context-meta-kicker">已就绪</span>
+              <span className="iclaw-composer__context-meta-text">{installedExpertMeta}</span>
             </div>
           </div>
 
@@ -847,170 +901,191 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
           </div>
 
           <div className="iclaw-composer__footer">
-            <div className="iclaw-composer__supports">
-              <span className="iclaw-composer__support">
-                <ImageIcon className="h-3.5 w-3.5 iclaw-composer__support-icon iclaw-composer__support-icon--rose" />
-                图片
-              </span>
-              <span className="iclaw-composer__support">
-                <FileText className="h-3.5 w-3.5 iclaw-composer__support-icon iclaw-composer__support-icon--amber" />
-                PDF
-              </span>
-              <span className="iclaw-composer__support">
-                <Film className="h-3.5 w-3.5 iclaw-composer__support-icon iclaw-composer__support-icon--violet" />
-                视频
-              </span>
-              <div ref={mentionMenuRef} className="iclaw-composer__mention-picker">
-                <button
-                  type="button"
-                  className="iclaw-composer__mention-trigger"
-                  disabled={!connected}
-                  aria-haspopup="dialog"
-                  aria-expanded={mentionMenuOpen}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => openMentionMenu('toolbar')}
-                >
-                  <AtSign className="h-3.5 w-3.5" />
-                  Agent
-                </button>
-
-                {mentionMenuOpen ? (
-                  <div className="iclaw-composer__mention-menu" role="dialog" aria-label="选择龙虾 Agent">
-                    <div className="iclaw-composer__mention-menu-header">
-                      <span className="iclaw-composer__mention-menu-title">选择 Agent</span>
-                      <span className="iclaw-composer__mention-menu-subtitle">
-                        {lobsterAgents.length > 0 ? `已安装 ${lobsterAgents.length} 个` : '从我的龙虾中选择'}
-                      </span>
-                    </div>
-                    {lobsterAgents.length > 0 ? (
-                      <div className="iclaw-composer__mention-grid">
-                        {lobsterAgents.map((agent) => (
-                          <button
-                            key={agent.slug}
-                            type="button"
-                            className="iclaw-composer__mention-option"
-                            onMouseDown={(event) => event.preventDefault()}
-                            onClick={() => insertAgentMention(agent)}
-                          >
-                            <span className="iclaw-composer__mention-avatar">
-                              <img
-                                src={agent.avatarSrc}
-                                alt={agent.name}
-                                className="iclaw-composer__mention-avatar-image"
-                              />
-                            </span>
-                            <span className="iclaw-composer__mention-name">{agent.name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="iclaw-composer__mention-empty">还没有已安装的龙虾 Agent</div>
-                    )}
-                  </div>
-                ) : null}
+            <div className="iclaw-composer__footer-queries">
+              <span className="iclaw-composer__footer-label">财经快捷</span>
+              <div className="iclaw-composer__query-list">
+                {QUICK_QUERY_OPTIONS.map((query) => (
+                  <Chip
+                    key={query.id}
+                    clickable
+                    tone={activeQuickQueryId === query.id ? 'accent' : 'outline'}
+                    className="iclaw-composer__query-chip"
+                    onClick={() => insertQuickQueryTemplate(query)}
+                  >
+                    {query.label}
+                  </Chip>
+                ))}
               </div>
-              {tokenCount > 0 ? <span className="iclaw-composer__meta-count">{tokenCount}</span> : null}
-              {creditEstimate ? (
-                <span className="iclaw-composer__credit-estimate" data-state={creditEstimate.error ? 'error' : creditEstimate.loading ? 'loading' : 'ready'}>
-                  {creditEstimate.loading
-                    ? '正在估算龙虾币...'
-                    : creditEstimate.error
-                      ? '龙虾币估算暂不可用'
-                      : typeof creditEstimate.low === 'number' && typeof creditEstimate.high === 'number'
-                        ? creditEstimate.low === creditEstimate.high
-                          ? `约 ${creditEstimate.low} 龙虾币`
-                          : `约 ${creditEstimate.low}-${creditEstimate.high} 龙虾币`
-                        : null}
-                </span>
-              ) : null}
             </div>
 
-            <div className="iclaw-composer__actions">
-              <div ref={modelMenuRef} className="iclaw-composer__model-picker">
-                <button
-                  type="button"
-                  className="iclaw-composer__model-trigger"
-                  disabled={modelDisabled}
-                  aria-haspopup="menu"
-                  aria-expanded={modelMenuOpen}
-                  onClick={() => {
-                    closeMentionMenu();
-                    setModelMenuOpen((current) => !current);
-                  }}
-                >
-                  <span className="iclaw-composer__model-trigger-main">
-                    <ModelBrandIcon
-                      family={selectedModel?.family ?? 'generic'}
-                      className="iclaw-composer__model-logo"
-                    />
-                    <span className="iclaw-composer__model-copy">
-                      <span className="iclaw-composer__model-label">{modelTriggerLabel}</span>
-                      <span className="iclaw-composer__model-detail">{modelTriggerDetail}</span>
-                    </span>
-                  </span>
-                  <ChevronDown
-                    className="iclaw-composer__model-caret h-3.5 w-3.5"
-                    data-open={modelMenuOpen ? 'true' : 'false'}
-                  />
-                </button>
+            <div className="iclaw-composer__footer-main">
+              <div className="iclaw-composer__supports">
+                <div ref={mentionMenuRef} className="iclaw-composer__mention-picker">
+                  <Chip
+                    clickable
+                    tone="accent"
+                    className="iclaw-composer__mention-trigger"
+                    disabled={!connected}
+                    aria-haspopup="dialog"
+                    aria-expanded={mentionMenuOpen}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => openMentionMenu('toolbar')}
+                  >
+                    <AtSign className="h-3.5 w-3.5" />
+                    @龙虾专家
+                  </Chip>
 
-                {modelMenuOpen ? (
-                  <div className="iclaw-composer__model-menu" role="menu" aria-label="选择模型">
-                    <div className="iclaw-composer__model-menu-header">
-                      <span className="iclaw-composer__model-menu-title">选择模型</span>
-                    </div>
-                    {modelSections.map((section) => (
-                      <div key={section.key} className="iclaw-composer__model-section" role="group" aria-label={section.label}>
-                        <div className="iclaw-composer__model-section-title">{section.label}</div>
-                        <div className="iclaw-composer__model-section-body">
-                          {section.options.map((option) => {
-                            const active = option.id === selectedModel?.id;
-                            return (
-                              <button
-                                key={option.id}
-                                type="button"
-                                role="menuitemradio"
-                                aria-checked={active}
-                                className="iclaw-composer__model-option"
-                                data-active={active ? 'true' : 'false'}
-                                onClick={() => {
-                                  setModelMenuOpen(false);
-                                  void onModelChange(option.id);
-                                }}
-                              >
-                                <span className="iclaw-composer__model-option-main">
-                                  <ModelBrandIcon family={option.family} className="iclaw-composer__model-option-logo" />
-                                  <span className="iclaw-composer__model-option-label">{option.label}</span>
-                                </span>
-                                <span className="iclaw-composer__model-option-meta">
-                                  {option.badge ? <span className="iclaw-composer__model-option-badge">{option.badge}</span> : null}
-                                  {active ? <Check className="iclaw-composer__model-option-check h-4 w-4" /> : null}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
+                  {mentionMenuOpen ? (
+                    <div className="iclaw-composer__mention-menu" role="dialog" aria-label="选择龙虾 Agent">
+                      <div className="iclaw-composer__mention-menu-header">
+                        <span className="iclaw-composer__mention-menu-title">选择龙虾专家</span>
+                        <span className="iclaw-composer__mention-menu-subtitle">
+                          {lobsterAgents.length > 0 ? `已安装 ${lobsterAgents.length} 个` : '从我的龙虾中选择'}
+                        </span>
                       </div>
-                    ))}
-                  </div>
+                      {lobsterAgents.length > 0 ? (
+                        <div className="iclaw-composer__mention-grid">
+                          {lobsterAgents.map((agent) => (
+                            <button
+                              key={agent.slug}
+                              type="button"
+                              className="iclaw-composer__mention-option"
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => insertAgentMention(agent)}
+                            >
+                              <span className="iclaw-composer__mention-avatar">
+                                <img
+                                  src={agent.avatarSrc}
+                                  alt={agent.name}
+                                  className="iclaw-composer__mention-avatar-image"
+                                />
+                              </span>
+                              <span className="iclaw-composer__mention-name">{agent.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="iclaw-composer__mention-empty">还没有已安装的龙虾 Agent</div>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+
+                <span className="iclaw-composer__support">
+                  <ImageIcon className="h-3.5 w-3.5 iclaw-composer__support-icon iclaw-composer__support-icon--rose" />
+                  图片
+                </span>
+                <span className="iclaw-composer__support">
+                  <FileText className="h-3.5 w-3.5 iclaw-composer__support-icon iclaw-composer__support-icon--amber" />
+                  PDF
+                </span>
+                <span className="iclaw-composer__support">
+                  <Film className="h-3.5 w-3.5 iclaw-composer__support-icon iclaw-composer__support-icon--violet" />
+                  视频
+                </span>
+                {tokenCount > 0 ? <span className="iclaw-composer__meta-count">{tokenCount}</span> : null}
+                {creditEstimate ? (
+                  <span className="iclaw-composer__credit-estimate" data-state={creditEstimate.error ? 'error' : creditEstimate.loading ? 'loading' : 'ready'}>
+                    {creditEstimate.loading
+                      ? '正在估算龙虾币...'
+                      : creditEstimate.error
+                        ? '龙虾币估算暂不可用'
+                        : typeof creditEstimate.low === 'number' && typeof creditEstimate.high === 'number'
+                          ? creditEstimate.low === creditEstimate.high
+                            ? `约 ${creditEstimate.low} 龙虾币`
+                            : `约 ${creditEstimate.low}-${creditEstimate.high} 龙虾币`
+                          : null}
+                  </span>
                 ) : null}
               </div>
 
-              <button
-                type="button"
-                className="iclaw-composer__submit"
-                data-state={sendState}
-                disabled={!connected || (!busy && !hasContent)}
-                onClick={() => void (busy ? onAbort() : handleSubmit())}
-                aria-label={submitLabel}
-                title={submitLabel}
-              >
-                {busy ? (
-                  <Square className="h-[14px] w-[14px]" fill="currentColor" strokeWidth={0} />
-                ) : (
-                  <ArrowUp className="h-[18px] w-[18px]" strokeWidth={2.5} />
-                )}
-              </button>
+              <div className="iclaw-composer__actions">
+                <div ref={modelMenuRef} className="iclaw-composer__model-picker">
+                  <button
+                    type="button"
+                    className="iclaw-composer__model-trigger"
+                    disabled={modelDisabled}
+                    aria-haspopup="menu"
+                    aria-expanded={modelMenuOpen}
+                    onClick={() => {
+                      closeMentionMenu();
+                      setModelMenuOpen((current) => !current);
+                    }}
+                  >
+                    <span className="iclaw-composer__model-trigger-main">
+                      <ModelBrandIcon
+                        family={selectedModel?.family ?? 'generic'}
+                        className="iclaw-composer__model-logo"
+                      />
+                      <span className="iclaw-composer__model-copy">
+                        <span className="iclaw-composer__model-label">{modelTriggerLabel}</span>
+                        <span className="iclaw-composer__model-detail">{modelTriggerDetail}</span>
+                      </span>
+                    </span>
+                    <ChevronDown
+                      className="iclaw-composer__model-caret h-3.5 w-3.5"
+                      data-open={modelMenuOpen ? 'true' : 'false'}
+                    />
+                  </button>
+
+                  {modelMenuOpen ? (
+                    <div className="iclaw-composer__model-menu" role="menu" aria-label="选择模型">
+                      <div className="iclaw-composer__model-menu-header">
+                        <span className="iclaw-composer__model-menu-title">选择模型</span>
+                      </div>
+                      {modelSections.map((section) => (
+                        <div key={section.key} className="iclaw-composer__model-section" role="group" aria-label={section.label}>
+                          <div className="iclaw-composer__model-section-title">{section.label}</div>
+                          <div className="iclaw-composer__model-section-body">
+                            {section.options.map((option) => {
+                              const active = option.id === selectedModel?.id;
+                              return (
+                                <button
+                                  key={option.id}
+                                  type="button"
+                                  role="menuitemradio"
+                                  aria-checked={active}
+                                  className="iclaw-composer__model-option"
+                                  data-active={active ? 'true' : 'false'}
+                                  onClick={() => {
+                                    setModelMenuOpen(false);
+                                    void onModelChange(option.id);
+                                  }}
+                                >
+                                  <span className="iclaw-composer__model-option-main">
+                                    <ModelBrandIcon family={option.family} className="iclaw-composer__model-option-logo" />
+                                    <span className="iclaw-composer__model-option-label">{option.label}</span>
+                                  </span>
+                                  <span className="iclaw-composer__model-option-meta">
+                                    {option.badge ? <span className="iclaw-composer__model-option-badge">{option.badge}</span> : null}
+                                    {active ? <Check className="iclaw-composer__model-option-check h-4 w-4" /> : null}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+
+                <button
+                  type="button"
+                  className="iclaw-composer__submit"
+                  data-state={sendState}
+                  disabled={!connected || (!busy && !hasContent)}
+                  onClick={() => void (busy ? onAbort() : handleSubmit())}
+                  aria-label={submitLabel}
+                  title={submitLabel}
+                >
+                  {busy ? (
+                    <Square className="h-[14px] w-[14px]" fill="currentColor" strokeWidth={0} />
+                  ) : (
+                    <ArrowUp className="h-[18px] w-[18px]" strokeWidth={2.5} />
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
