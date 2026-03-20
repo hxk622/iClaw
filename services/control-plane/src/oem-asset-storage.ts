@@ -1,5 +1,6 @@
 import {
   CreateBucketCommand,
+  DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
@@ -240,4 +241,24 @@ export async function downloadOemAssetFile(input: {
     }
     throw error;
   }
+}
+
+export async function deleteOemAssetFile(input: {storageProvider: string; objectKey: string}): Promise<void> {
+  const provider = input.storageProvider.trim().toLowerCase();
+  if (provider === 'repo') {
+    return;
+  }
+
+  const trimmedKey = input.objectKey.trim();
+  if (!trimmedKey.startsWith('oem-assets/')) {
+    throw new HttpError(400, 'BAD_REQUEST', 'invalid OEM asset object key');
+  }
+
+  const client = getS3Client();
+  await client.send(
+    new DeleteObjectCommand({
+      Bucket: getBucket(),
+      Key: trimmedKey,
+    }),
+  );
 }

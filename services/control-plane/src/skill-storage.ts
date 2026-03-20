@@ -1,5 +1,6 @@
 import {
   CreateBucketCommand,
+  DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
@@ -125,4 +126,18 @@ export async function downloadPrivateSkillArtifact(key: string): Promise<{buffer
     }
     throw error;
   }
+}
+
+export async function deletePrivateSkillArtifact(key: string): Promise<void> {
+  const trimmedKey = key.trim();
+  if (!trimmedKey.startsWith('skills/private/')) {
+    throw new HttpError(400, 'BAD_REQUEST', 'invalid private skill artifact key');
+  }
+  const client = getS3Client();
+  await client.send(
+    new DeleteObjectCommand({
+      Bucket: getBucket(),
+      Key: trimmedKey,
+    }),
+  );
 }

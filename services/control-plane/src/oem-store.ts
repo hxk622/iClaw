@@ -723,6 +723,45 @@ export class PgOemStore {
     return mapAssetRow(asset);
   }
 
+  async deleteAsset(input: {
+    brandId: string;
+    assetKey: string;
+    actorUserId: string | null;
+    existing?: OemAssetListRecord | null;
+  }): Promise<{removed: boolean}> {
+    const existing = input.existing || (await this.getBrandAsset(input.brandId, input.assetKey));
+    if (!existing) {
+      return {removed: false};
+    }
+
+    const result = await this.pool.query<{id: string}>(
+      `
+        delete from oem_asset_registry
+        where brand_id = $1
+          and asset_key = $2
+        returning id
+      `,
+      [input.brandId, input.assetKey],
+    );
+
+    if ((result.rowCount || 0) === 0) {
+      return {removed: false};
+    }
+
+    await this.insertAuditEvent(this.pool, {
+      brandId: input.brandId,
+      action: 'asset_deleted',
+      actorUserId: input.actorUserId,
+      payload: {
+        assetKey: existing.assetKey,
+        kind: existing.kind,
+        storageProvider: existing.storageProvider,
+      },
+    });
+
+    return {removed: true};
+  }
+
   async publishBrand(brandId: string, actorUserId: string | null): Promise<OemBrandRecord> {
     const client = await this.pool.connect();
     try {

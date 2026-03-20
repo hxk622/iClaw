@@ -1,15 +1,18 @@
-import {readFile} from 'node:fs/promises';
+import {execFile} from 'node:child_process';
+import {readFile, writeFile} from 'node:fs/promises';
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {promisify} from 'node:util';
 
 import type {PublicUser} from './domain.ts';
 import {HttpError} from './errors.ts';
-import {downloadOemAssetFile, uploadOemAssetFile} from './oem-asset-storage.ts';
+import {deleteOemAssetFile, downloadOemAssetFile, uploadOemAssetFile} from './oem-asset-storage.ts';
 import type {PgOemStore} from './oem-store.ts';
 import type {ControlPlaneStore} from './store.ts';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const mcpCatalogPath = resolve(repoRoot, 'mcp/mcp.json');
+const execFileAsync = promisify(execFile);
 
 function normalizeBrandId(value: unknown): string {
   if (typeof value !== 'string') {
@@ -78,6 +81,16 @@ function normalizeOptionalString(value: unknown, field: string): string | null {
   }
   const normalized = value.trim();
   return normalized || null;
+}
+
+function normalizeOptionalBoolean(value: unknown, field: string, fallback: boolean): boolean {
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+  if (typeof value !== 'boolean') {
+    throw new HttpError(400, 'BAD_REQUEST', `${field} must be a boolean`);
+  }
+  return value;
 }
 
 function parseRequiredBase64(value: unknown, field: string): Buffer {
@@ -206,6 +219,76 @@ function upsertAssetValueInDraftConfig(input: {
   return next;
 }
 
+function removeAssetValueInDraftConfig(input: {
+  draftConfig: Record<string, unknown>;
+  assetKey: string;
+}): Record<string, unknown> {
+  const next = cloneObject(input.draftConfig);
+  const assets = {
+    ...asObject(next.assets),
+  };
+  delete assets[input.assetKey];
+  next.assets = assets;
+  return next;
+}
+
+function normalizeMcpKey(value: unknown): string {
+  if (typeof value !== 'string') {
+    throw new HttpError(400, 'BAD_REQUEST', 'key is required');
+  }
+  const normalized = value.trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9-_]{1,62}$/.test(normalized)) {
+    throw new HttpError(400, 'BAD_REQUEST', 'key must use lowercase letters, numbers, hyphen, underscore');
+  }
+  return normalized;
+}
+
+function normalizeEnvRecord(value: unknown): Record<string, string> {
+  if (value === undefined || value === null) {
+    return {};
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new HttpError(400, 'BAD_REQUEST', 'env must be an object');
+  }
+  const output: Record<string, string> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    const normalizedKey = key.trim();
+    if (!normalizedKey) continue;
+    if (typeof raw !== 'string') {
+      throw new HttpError(400, 'BAD_REQUEST', `env.${normalizedKey} must be a string`);
+    }
+    output[normalizedKey] = raw;
+  }
+  return output;
+}
+
+function sanitizeMcpEntryView(key: string, value: unknown) {
+  const entry = asObject(value);
+  const env = normalizeEnvRecord(entry.env);
+  return {
+    key,
+    name: titleizeKey(key),
+    enabled: entry.enabled !== false,
+    type: typeof entry.type === 'string' ? entry.type : null,
+    command: typeof entry.command === 'string' ? entry.command.trim() || null : null,
+    args: asStringArray(entry.args),
+    http_url: typeof entry.httpUrl === 'string' ? entry.httpUrl.trim() || null : null,
+    env,
+    env_keys: Object.keys(env).sort(),
+  };
+}
+
+async function readMcpCatalogDocument(): Promise<{mcpServers: Record<string, unknown>}> {
+  const raw = JSON.parse(await readFile(mcpCatalogPath, 'utf8')) as {mcpServers?: Record<string, unknown>};
+  return {
+    mcpServers: raw.mcpServers && typeof raw.mcpServers === 'object' ? raw.mcpServers : {},
+  };
+}
+
+async function writeMcpCatalogDocument(document: {mcpServers: Record<string, unknown>}): Promise<void> {
+  await writeFile(mcpCatalogPath, `${JSON.stringify(document, null, 2)}\n`, 'utf8');
+}
+
 async function readMcpCatalog(): Promise<
   Array<{
     key: string;
@@ -216,17 +299,16 @@ async function readMcpCatalog(): Promise<
     envKeys: string[];
   }>
 > {
-  const raw = JSON.parse(await readFile(mcpCatalogPath, 'utf8')) as {mcpServers?: Record<string, unknown>};
+  const raw = await readMcpCatalogDocument();
   return Object.entries(raw.mcpServers || {}).map(([key, value]) => {
-    const entry = asObject(value);
-    const env = asObject(entry.env);
+    const entry = sanitizeMcpEntryView(key, value);
     return {
       key,
-      enabledByDefault: entry.enabled !== false,
-      command: typeof entry.command === 'string' ? entry.command : null,
-      args: asStringArray(entry.args),
-      httpUrl: typeof entry.httpUrl === 'string' ? entry.httpUrl : null,
-      envKeys: Object.keys(env).sort(),
+      enabledByDefault: entry.enabled,
+      command: entry.command,
+      args: entry.args,
+      httpUrl: entry.http_url,
+      envKeys: entry.env_keys,
     };
   });
 }
@@ -334,16 +416,6 @@ export class OemService {
   private readonly store: PgOemStore;
   private readonly controlStore: ControlPlaneStore | null;
   private readonly authResolver: (accessToken: string) => Promise<PublicUser>;
-  private mcpCatalogPromise: Promise<
-    Array<{
-      key: string;
-      enabledByDefault: boolean;
-      command: string | null;
-      args: string[];
-      httpUrl: string | null;
-      envKeys: string[];
-    }>
-  > | null = null;
 
   constructor(
     store: PgOemStore,
@@ -569,6 +641,7 @@ export class OemService {
           surfaces: summary.surfaces,
           skill_count: summary.skillCount,
           mcp_count: summary.mcpCount,
+          config: release.config,
         };
       }),
     };
@@ -723,6 +796,70 @@ export class OemService {
     return {asset};
   }
 
+  async deleteAsset(accessToken: string, input: {brand_id?: string; asset_key?: string}) {
+    const actor = await this.requireAdmin(accessToken);
+    const brandId = normalizeBrandId(input.brand_id);
+    const assetKey = normalizeRequiredString(input.asset_key, 'asset_key');
+    const existing = await this.store.getBrandAsset(brandId, assetKey);
+    if (!existing) {
+      return {removed: false};
+    }
+
+    const brand = await this.store.getBrand(brandId);
+    if (!brand) {
+      throw new HttpError(404, 'NOT_FOUND', 'OEM brand not found');
+    }
+
+    const nextDraftConfig = removeAssetValueInDraftConfig({
+      draftConfig: brand.draftConfig,
+      assetKey,
+    });
+
+    const removed = await this.store.deleteAsset({
+      brandId,
+      assetKey,
+      actorUserId: actor.id,
+      existing,
+    });
+
+    if (!removed.removed) {
+      return removed;
+    }
+
+    await this.store.upsertDraft({
+      brandId,
+      tenantKey: brand.tenantKey,
+      displayName: brand.displayName,
+      productName: brand.productName,
+      status: brand.status === 'published' ? 'draft' : brand.status,
+      draftConfig: mergeBrandMetadata({
+        brandId,
+        tenantKey: brand.tenantKey,
+        displayName: brand.displayName,
+        productName: brand.productName,
+        draftConfig: nextDraftConfig,
+      }),
+      actorUserId: actor.id,
+    });
+
+    try {
+      await deleteOemAssetFile({
+        storageProvider: existing.storageProvider,
+        objectKey: existing.objectKey,
+      });
+    } catch (error) {
+      console.warn('[oem-service] failed to delete OEM asset object', {
+        brandId,
+        assetKey,
+        storageProvider: existing.storageProvider,
+        objectKey: existing.objectKey,
+        error,
+      });
+    }
+
+    return {removed: true};
+  }
+
   async getAssetFile(brandIdInput: string, assetKeyInput: string) {
     const brandId = normalizeBrandId(brandIdInput);
     const assetKey = normalizeRequiredString(assetKeyInput, 'asset_key');
@@ -756,6 +893,138 @@ export class OemService {
         environment: deriveAuditEnvironment(item.action, item.payload),
       })),
     };
+  }
+
+  async listMcpCatalog(accessToken: string) {
+    await this.requireAdmin(accessToken);
+    const raw = await readMcpCatalogDocument();
+    return {
+      items: Object.entries(raw.mcpServers)
+        .map(([key, value]) => sanitizeMcpEntryView(key, value))
+        .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN')),
+    };
+  }
+
+  async upsertMcpCatalogEntry(
+    accessToken: string,
+    input: {
+      key?: string;
+      enabled?: boolean;
+      type?: string | null;
+      command?: string | null;
+      args?: string[];
+      http_url?: string | null;
+      env?: Record<string, string>;
+    },
+  ) {
+    await this.requireAdmin(accessToken);
+    const key = normalizeMcpKey(input.key);
+    const raw = await readMcpCatalogDocument();
+    const existing = asObject(raw.mcpServers[key]);
+    const entry = sanitizeMcpEntryView(key, existing);
+    const enabled = normalizeOptionalBoolean(input.enabled, 'enabled', entry.enabled);
+    const type = normalizeOptionalString(input.type, 'type') ?? entry.type;
+    const command = normalizeOptionalString(input.command, 'command') ?? entry.command;
+    const args = input.args === undefined ? entry.args : asStringArray(input.args);
+    const httpUrl = normalizeOptionalString(input.http_url, 'http_url') ?? entry.http_url;
+    const env = input.env === undefined ? entry.env : normalizeEnvRecord(input.env);
+
+    if (!command && !httpUrl) {
+      throw new HttpError(400, 'BAD_REQUEST', 'command or http_url is required');
+    }
+
+    const nextEntry: Record<string, unknown> = {
+      enabled,
+    };
+    if (type) nextEntry.type = type;
+    if (command) nextEntry.command = command;
+    if (args.length) nextEntry.args = args;
+    if (httpUrl) nextEntry.httpUrl = httpUrl;
+    if (Object.keys(env).length > 0) nextEntry.env = env;
+
+    raw.mcpServers[key] = nextEntry;
+    await writeMcpCatalogDocument(raw);
+    return sanitizeMcpEntryView(key, nextEntry);
+  }
+
+  async deleteMcpCatalogEntry(accessToken: string, keyInput: string) {
+    await this.requireAdmin(accessToken);
+    const key = normalizeMcpKey(keyInput);
+    const raw = await readMcpCatalogDocument();
+    if (!raw.mcpServers[key]) {
+      return {removed: false};
+    }
+    delete raw.mcpServers[key];
+    await writeMcpCatalogDocument(raw);
+    return {removed: true};
+  }
+
+  async testMcpCatalogEntry(
+    accessToken: string,
+    input: {
+      key?: string;
+      command?: string | null;
+      http_url?: string | null;
+    },
+  ) {
+    await this.requireAdmin(accessToken);
+    const key = input.key ? normalizeMcpKey(input.key) : null;
+    let command = normalizeOptionalString(input.command, 'command');
+    let httpUrl = normalizeOptionalString(input.http_url, 'http_url');
+
+    if (key && !command && !httpUrl) {
+      const raw = await readMcpCatalogDocument();
+      const existing = raw.mcpServers[key];
+      if (!existing) {
+        throw new HttpError(404, 'NOT_FOUND', 'MCP entry not found');
+      }
+      const entry = sanitizeMcpEntryView(key, existing);
+      command = entry.command;
+      httpUrl = entry.http_url;
+    }
+
+    if (httpUrl) {
+      try {
+        const response = await fetch(httpUrl, {
+          method: 'GET',
+          signal: AbortSignal.timeout(3000),
+        });
+        return {
+          ok: response.ok,
+          mode: 'http',
+          status: response.status,
+          message: response.ok ? `HTTP ${response.status}` : `HTTP ${response.status}`,
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          mode: 'http',
+          status: null,
+          message: error instanceof Error ? error.message : 'HTTP connection failed',
+        };
+      }
+    }
+
+    if (command) {
+      try {
+        const output = await execFileAsync('which', [command], {timeout: 3000});
+        return {
+          ok: true,
+          mode: 'stdio',
+          status: 0,
+          message: String(output.stdout || output.stderr || command).trim() || command,
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          mode: 'stdio',
+          status: null,
+          message: error instanceof Error ? error.message : 'command not found',
+        };
+      }
+    }
+
+    throw new HttpError(400, 'BAD_REQUEST', 'command or http_url is required for testing');
   }
 
   async getCapabilities(accessToken: string) {
@@ -912,9 +1181,6 @@ export class OemService {
   }
 
   private async getMcpCatalog() {
-    if (!this.mcpCatalogPromise) {
-      this.mcpCatalogPromise = readMcpCatalog();
-    }
-    return this.mcpCatalogPromise;
+    return readMcpCatalog();
   }
 }

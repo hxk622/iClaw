@@ -43,9 +43,16 @@ const state = {
   brandDraftBuffer: null,
   brandDetailTab: 'surfaces',
   capabilities: null,
+  skillCatalog: [],
+  personalSkillCatalog: [],
+  skillLibrary: [],
+  mcpCatalog: [],
   capabilityMode: 'skills',
   selectedSkillSlug: '',
   selectedMcpKey: '',
+  selectedReleaseId: '',
+  selectedAuditId: '',
+  mcpTestResult: null,
   assets: [],
   releases: [],
   audit: [],
@@ -200,6 +207,8 @@ function actionLabel(action) {
       return '回滚到历史版本';
     case 'asset_upserted':
       return '更新品牌资源';
+    case 'asset_deleted':
+      return '删除品牌资源';
     default:
       return titleizeKey(action);
   }
@@ -212,6 +221,124 @@ function statusBadge(status) {
 function isImageLike(contentType, url, objectKey) {
   const source = [contentType, url, objectKey].filter(Boolean).join(' ').toLowerCase();
   return ['image/', '.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg', '.ico'].some((token) => source.includes(token));
+}
+
+function buildOemAssetUrl(brandId, assetKey) {
+  return `${API_BASE_URL}/oem/asset/file?brand_id=${encodeURIComponent(brandId)}&asset_key=${encodeURIComponent(assetKey)}`;
+}
+
+function resolveAssetUrl(item) {
+  return item?.publicUrl || buildOemAssetUrl(item?.brandId || '', item?.assetKey || '');
+}
+
+function prettyJson(value) {
+  return JSON.stringify(value || {}, null, 2);
+}
+
+function formatEnvPairs(env) {
+  return Object.entries(asObject(env))
+    .map(([key, value]) => `${key}=${String(value || '')}`)
+    .join('\n');
+}
+
+function parseEnvText(raw) {
+  const env = {};
+  for (const line of String(raw || '')
+    .split('\n')
+    .map((item) => item.trim())
+    .filter(Boolean)) {
+    const index = line.indexOf('=');
+    if (index <= 0) {
+      throw new Error(`环境变量格式错误: ${line}`);
+    }
+    const key = line.slice(0, index).trim();
+    const value = line.slice(index + 1);
+    if (!key) {
+      throw new Error(`环境变量 key 不能为空: ${line}`);
+    }
+    env[key] = value;
+  }
+  return env;
+}
+
+function getSkillLibraryItem(slug) {
+  return state.skillLibrary.find((item) => item.slug === slug) || null;
+}
+
+function getAdminSkillCatalogEntry(slug) {
+  return state.skillCatalog.find((item) => item.slug === slug) || null;
+}
+
+function getPersonalSkillCatalogEntry(slug) {
+  return state.personalSkillCatalog.find((item) => item.slug === slug) || null;
+}
+
+function getMcpCatalogEntry(key) {
+  return state.mcpCatalog.find((item) => item.key === key) || null;
+}
+
+function getMergedSkills() {
+  const merged = new Map();
+  for (const item of state.personalSkillCatalog) {
+    merged.set(item.slug, {
+      slug: item.slug,
+      name: item.name,
+      description: item.description || '',
+      category: item.category || null,
+      publisher: item.publisher || 'iClaw',
+      distribution: item.distribution || item.source || 'unknown',
+      latestRelease: item.latest_release?.version || null,
+      brand_count: 0,
+      connectedBrands: [],
+    });
+  }
+  for (const item of state.capabilities?.skills || []) {
+    merged.set(item.slug, {
+      ...(merged.get(item.slug) || {}),
+      ...item,
+    });
+  }
+  return Array.from(merged.values()).sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
+}
+
+function getMergedMcpServers() {
+  const merged = new Map();
+  for (const item of state.mcpCatalog) {
+    merged.set(item.key, {
+      key: item.key,
+      name: item.name || titleizeKey(item.key),
+      enabled_by_default: item.enabled,
+      command: item.command,
+      args: item.args || [],
+      http_url: item.http_url,
+      env_keys: item.env_keys || Object.keys(asObject(item.env || {})),
+      connected_brands: [],
+      connected_brand_count: 0,
+    });
+  }
+  for (const item of state.capabilities?.mcp_servers || []) {
+    merged.set(item.key, {
+      ...(merged.get(item.key) || {}),
+      ...item,
+    });
+  }
+  return Array.from(merged.values()).sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
+}
+
+function summarizeChangedAreas(currentConfig, compareConfig) {
+  const keys = [
+    ['brand_meta', 'brand_meta'],
+    ['theme', 'theme'],
+    ['assets', 'assets'],
+    ['distribution', 'distribution'],
+    ['endpoints', 'endpoints'],
+    ['oauth', 'oauth'],
+    ['surfaces', 'surfaces'],
+    ['capabilities', 'capabilities'],
+  ];
+  return keys
+    .filter(([key]) => JSON.stringify(asObject(currentConfig?.[key])) !== JSON.stringify(asObject(compareConfig?.[key])))
+    .map(([, label]) => label);
 }
 
 function fieldValue(value) {
@@ -500,8 +627,8 @@ async function ensureSession() {
 }
 
 function syncCapabilitySelection() {
-  const skills = state.capabilities?.skills || [];
-  const mcpServers = state.capabilities?.mcp_servers || [];
+  const skills = getMergedSkills();
+  const mcpServers = getMergedMcpServers();
   if (!skills.find((item) => item.slug === state.selectedSkillSlug)) {
     state.selectedSkillSlug = skills[0]?.slug || '';
   }
@@ -510,18 +637,31 @@ function syncCapabilitySelection() {
   }
 }
 
+function syncSupplementalSelection() {
+  if (!state.releases.find((item) => item.id === state.selectedReleaseId)) {
+    state.selectedReleaseId = state.releases[0]?.id || '';
+  }
+  if (!state.audit.find((item) => item.id === state.selectedAuditId)) {
+    state.selectedAuditId = state.audit[0]?.id || '';
+  }
+}
+
 async function loadAppData() {
   state.loading = true;
   render();
 
   try {
-    const [dashboard, brandsData, capabilities, assetsData, releasesData, auditData] = await Promise.all([
+    const [dashboard, brandsData, capabilities, assetsData, releasesData, auditData, skillCatalogData, personalSkillCatalogData, skillLibraryData, mcpCatalogData] = await Promise.all([
       apiFetch('/admin/oem/dashboard', {method: 'GET'}),
       apiFetch('/admin/oem/brands', {method: 'GET'}),
       apiFetch('/admin/oem/capabilities', {method: 'GET'}),
       apiFetch('/admin/oem/assets?limit=200', {method: 'GET'}),
       apiFetch('/admin/oem/releases?limit=200', {method: 'GET'}),
       apiFetch('/admin/oem/audit?limit=200', {method: 'GET'}),
+      apiFetch('/admin/skills/catalog', {method: 'GET'}),
+      apiFetch('/skills/catalog/personal', {method: 'GET'}),
+      apiFetch('/skills/library', {method: 'GET'}),
+      apiFetch('/admin/mcp/catalog', {method: 'GET'}),
     ]);
 
     state.dashboard = dashboard;
@@ -530,12 +670,17 @@ async function loadAppData() {
     state.assets = Array.isArray(assetsData.items) ? assetsData.items : [];
     state.releases = Array.isArray(releasesData.items) ? releasesData.items : [];
     state.audit = Array.isArray(auditData.items) ? auditData.items : [];
+    state.skillCatalog = Array.isArray(skillCatalogData.items) ? skillCatalogData.items : [];
+    state.personalSkillCatalog = Array.isArray(personalSkillCatalogData.items) ? personalSkillCatalogData.items : [];
+    state.skillLibrary = Array.isArray(skillLibraryData.items) ? skillLibraryData.items : [];
+    state.mcpCatalog = Array.isArray(mcpCatalogData.items) ? mcpCatalogData.items : [];
 
     if (!state.selectedBrandId || !state.brands.find((brand) => brand.brandId === state.selectedBrandId)) {
       state.selectedBrandId = state.brands[0]?.brandId || '';
     }
 
     syncCapabilitySelection();
+    syncSupplementalSelection();
 
     if (state.selectedBrandId) {
       await loadBrandDetail(state.selectedBrandId, {silent: true, suppressRender: true});
@@ -780,6 +925,218 @@ async function saveAsset(formData) {
   }
 }
 
+async function deleteAsset(brandId, assetKey) {
+  if (!brandId || !assetKey) return;
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    await apiFetch(`/admin/oem/asset?brand_id=${encodeURIComponent(brandId)}&asset_key=${encodeURIComponent(assetKey)}`, {
+      method: 'DELETE',
+    });
+    await loadAppData();
+    if (brandId) {
+      await loadBrandDetail(brandId, {silent: true, suppressRender: true});
+    }
+    setNotice(`已删除资源 ${assetKey}。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '资源删除失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function setSkillEnabled(slug, enabled) {
+  if (!slug) return;
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    const installed = getSkillLibraryItem(slug);
+    if (enabled && !installed) {
+      await apiFetch('/skills/library/install', {
+        method: 'POST',
+        body: JSON.stringify({slug}),
+      });
+    } else if (installed) {
+      await apiFetch('/skills/library/state', {
+        method: 'PUT',
+        body: JSON.stringify({slug, enabled}),
+      });
+    }
+    await loadAppData();
+    setNotice(`${slug} 已${enabled ? '启用' : '停用'}。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : `技能${enabled ? '启用' : '停用'}失败`);
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function deleteSkill(slug) {
+  if (!slug) return;
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    const installed = getSkillLibraryItem(slug);
+    const catalog = getAdminSkillCatalogEntry(slug);
+    const personal = getPersonalSkillCatalogEntry(slug);
+    if (installed) {
+      await apiFetch('/skills/library/uninstall', {
+        method: 'POST',
+        body: JSON.stringify({slug}),
+      });
+    }
+    if (personal?.source === 'private') {
+      await apiFetch(`/skills/catalog/personal?slug=${encodeURIComponent(slug)}`, {
+        method: 'DELETE',
+      });
+    } else if (catalog && catalog.distribution !== 'bundled') {
+      await apiFetch(`/admin/skills/catalog?slug=${encodeURIComponent(slug)}`, {
+        method: 'DELETE',
+      });
+    }
+    await loadAppData();
+    setNotice(`已删除技能 ${slug}。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '技能删除失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function importSkill(formData) {
+  const artifact = formData.get('artifact');
+  if (!(artifact instanceof File) || artifact.size === 0) {
+    setError('请选择 skill 包文件');
+    return;
+  }
+
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    const artifactBase64 = await readFileAsBase64(artifact);
+    await apiFetch('/skills/library/import', {
+      method: 'POST',
+      body: JSON.stringify({
+        slug: String(formData.get('slug') || '').trim(),
+        name: String(formData.get('name') || '').trim(),
+        description: String(formData.get('description') || '').trim(),
+        publisher: String(formData.get('publisher') || '').trim() || 'admin-web',
+        category: String(formData.get('category') || '').trim() || null,
+        market: String(formData.get('market') || '').trim() || null,
+        skill_type: String(formData.get('skill_type') || '').trim() || null,
+        version: String(formData.get('version') || '').trim(),
+        artifact_format: artifact.name.endsWith('.zip') ? 'zip' : 'tar.gz',
+        artifact_base64: artifactBase64,
+      }),
+    });
+    await loadAppData();
+    setNotice(`已导入技能 ${String(formData.get('slug') || '').trim()}。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '技能导入失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function saveMcpCatalogEntry(formData) {
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    await apiFetch('/admin/mcp/catalog', {
+      method: 'PUT',
+      body: JSON.stringify({
+        key: String(formData.get('key') || '').trim(),
+        enabled: String(formData.get('enabled') || 'true') === 'true',
+        type: String(formData.get('type') || '').trim() || null,
+        command: String(formData.get('command') || '').trim() || null,
+        args: splitLines(String(formData.get('args_text') || '')),
+        http_url: String(formData.get('http_url') || '').trim() || null,
+        env: parseEnvText(String(formData.get('env_text') || '')),
+      }),
+    });
+    await loadAppData();
+    state.selectedMcpKey = String(formData.get('key') || '').trim();
+    setNotice(`MCP ${state.selectedMcpKey} 已保存。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : 'MCP 保存失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function testMcpCatalogEntry(payload) {
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    state.mcpTestResult = await apiFetch('/admin/mcp/test', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    setNotice(`MCP 测试${state.mcpTestResult.ok ? '通过' : '失败'}。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : 'MCP 测试失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function deleteMcpCatalogEntry(key) {
+  if (!key) return;
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    await apiFetch(`/admin/mcp/catalog?key=${encodeURIComponent(key)}`, {
+      method: 'DELETE',
+    });
+    await loadAppData();
+    state.selectedMcpKey = '';
+    setNotice(`已删除 MCP ${key}。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : 'MCP 删除失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+function toggleBrandCapability(type, value) {
+  const buffer = ensureBrandDraftBuffer();
+  if (!buffer) return;
+  const current = new Set(type === 'skill' ? buffer.selectedSkills : buffer.selectedMcp);
+  if (current.has(value)) {
+    current.delete(value);
+  } else {
+    current.add(value);
+  }
+  if (type === 'skill') {
+    buffer.selectedSkills = Array.from(current);
+  } else {
+    buffer.selectedMcp = Array.from(current);
+  }
+  state.brandDraftBuffer = buffer;
+  render();
+}
+
 function logout() {
   persistTokens(null);
   state.user = null;
@@ -790,6 +1147,13 @@ function logout() {
   state.brandDetail = null;
   state.brandDraftBuffer = null;
   state.capabilities = null;
+  state.skillCatalog = [];
+  state.personalSkillCatalog = [];
+  state.skillLibrary = [];
+  state.mcpCatalog = [];
+  state.selectedReleaseId = '';
+  state.selectedAuditId = '';
+  state.mcpTestResult = null;
   state.assets = [];
   state.releases = [];
   state.audit = [];
@@ -1299,14 +1663,19 @@ function renderBrandEditorBody(buffer, assets) {
               ? skills
                   .map(
                     (skill) => `
-                      <label class="checkbox-card">
-                        <input class="skill-checkbox" type="checkbox" value="${escapeHtml(skill.slug)}"${buffer.selectedSkills.includes(skill.slug) ? ' checked' : ''} />
+                      <article class="checkbox-card checkbox-card--capability">
+                        <input class="skill-checkbox visually-hidden" type="checkbox" value="${escapeHtml(skill.slug)}"${buffer.selectedSkills.includes(skill.slug) ? ' checked' : ''} />
                         <div>
                           <strong>${escapeHtml(skill.name)}</strong>
                           <span>${escapeHtml(skill.category || '未分类')} · ${escapeHtml(skill.publisher || 'iClaw')}</span>
                         </div>
-                        <small>${escapeHtml(skill.brand_count)} 个品牌</small>
-                      </label>
+                        <div class="row-actions">
+                          <small>${escapeHtml(skill.brand_count)} 个品牌</small>
+                          <button class="${buffer.selectedSkills.includes(skill.slug) ? 'ghost-button' : 'solid-button'} control-button" type="button" data-action="toggle-brand-skill" data-skill-slug="${escapeHtml(skill.slug)}">
+                            ${buffer.selectedSkills.includes(skill.slug) ? 'Disable' : 'Enable'}
+                          </button>
+                        </div>
+                      </article>
                     `,
                   )
                   .join('')
@@ -1323,14 +1692,19 @@ function renderBrandEditorBody(buffer, assets) {
               ? mcpServers
                   .map(
                     (server) => `
-                      <label class="checkbox-card">
-                        <input class="mcp-checkbox" type="checkbox" value="${escapeHtml(server.key)}"${buffer.selectedMcp.includes(server.key) ? ' checked' : ''} />
+                      <article class="checkbox-card checkbox-card--capability">
+                        <input class="mcp-checkbox visually-hidden" type="checkbox" value="${escapeHtml(server.key)}"${buffer.selectedMcp.includes(server.key) ? ' checked' : ''} />
                         <div>
                           <strong>${escapeHtml(server.name)}</strong>
                           <span>${escapeHtml(server.command || '未声明 command')} · ${escapeHtml(server.env_keys.length)} 个环境变量</span>
                         </div>
-                        <small>${escapeHtml(server.connected_brand_count)} 个品牌</small>
-                      </label>
+                        <div class="row-actions">
+                          <small>${escapeHtml(server.connected_brand_count)} 个品牌</small>
+                          <button class="${buffer.selectedMcp.includes(server.key) ? 'ghost-button' : 'solid-button'} control-button" type="button" data-action="toggle-brand-mcp" data-mcp-key="${escapeHtml(server.key)}">
+                            ${buffer.selectedMcp.includes(server.key) ? 'Disable' : 'Enable'}
+                          </button>
+                        </div>
+                      </article>
                     `,
                   )
                   .join('')
@@ -1350,19 +1724,46 @@ function renderBrandEditorBody(buffer, assets) {
   }
 
   if (state.brandDetailTab === 'assets') {
+    const assetSlots = [
+      ['logoMaster', 'Logo', 'logo'],
+      ['homeLogo', 'Home Logo', 'logo'],
+      ['faviconPng', 'Favicon PNG', 'favicon'],
+      ['faviconIco', 'Favicon ICO', 'favicon'],
+    ];
     return `
       <section class="asset-editor-layout">
         <article class="panel panel--nested">
           <div class="panel-head">
-            <h3>登记或更新资源</h3>
-            <span>支持二进制上传，也支持手动登记外部资源，并同步回品牌 draft_config.assets</span>
+            <h3>Logo / Favicon 上传器</h3>
+            <span>seed 资源是仓库内置 repo 文件；你在这里上传的新图会真正写入 MinIO / S3，并回填 draft_config.assets</span>
           </div>
           <form id="asset-form" class="stack-form">
             <input type="hidden" name="brand_id" value="${fieldValue(buffer.brandId)}" />
+            <div class="asset-slot-grid">
+              ${assetSlots
+                .map(([assetKey, label, kind]) => {
+                  const current = assets.find((item) => item.assetKey === assetKey) || null;
+                  return `
+                    <article class="asset-slot-card">
+                      <div class="asset-slot-card__head">
+                        <strong>${escapeHtml(label)}</strong>
+                        <small>${escapeHtml(assetKey)}</small>
+                      </div>
+                      ${
+                        current && isImageLike(current.metadata?.content_type, current.publicUrl, current.objectKey)
+                          ? `<img class="asset-thumb asset-thumb--slot" src="${escapeHtml(resolveAssetUrl(current))}" alt="${escapeHtml(assetKey)}" />`
+                          : `<div class="asset-thumb asset-thumb--slot asset-thumb--placeholder">No Asset</div>`
+                      }
+                      <button class="ghost-button control-button" type="button" data-action="fill-asset-preset" data-asset-key="${escapeHtml(assetKey)}" data-asset-kind="${escapeHtml(kind)}">使用此槽位</button>
+                    </article>
+                  `;
+                })
+                .join('')}
+            </div>
             <div class="form-grid form-grid--two">
               <label class="field">
                 <span>Asset Key</span>
-                <input class="field-input" name="asset_key" placeholder="logoMaster / faviconPng" />
+                <input class="field-input" name="asset_key" placeholder="logoMaster / homeLogo / faviconPng" />
               </label>
               <label class="field">
                 <span>资源类型</span>
@@ -1408,17 +1809,18 @@ function renderBrandEditorBody(buffer, assets) {
                           <span>${escapeHtml(item.kind)} · ${escapeHtml(item.objectKey)}</span>
                           ${
                             isImageLike(item.metadata?.content_type, item.publicUrl, item.objectKey)
-                              ? `<div class="asset-thumb-wrap"><img class="asset-thumb" src="${escapeHtml(item.publicUrl || `/oem/asset/file?brand_id=${encodeURIComponent(item.brandId)}&asset_key=${encodeURIComponent(item.assetKey)}`)}" alt="${escapeHtml(item.assetKey)}" /></div>`
+                              ? `<div class="asset-thumb-wrap"><img class="asset-thumb" src="${escapeHtml(resolveAssetUrl(item))}" alt="${escapeHtml(item.assetKey)}" /></div>`
                               : ''
                           }
                         </div>
                         <div class="row-aside">
                           <span>${escapeHtml(item.storageProvider)}</span>
                           ${
-                            item.publicUrl
-                              ? `<a class="text-link" href="${escapeHtml(item.publicUrl)}" target="_blank" rel="noreferrer">打开资源</a>`
+                            item.publicUrl || item.objectKey
+                              ? `<a class="text-link" href="${escapeHtml(resolveAssetUrl(item))}" target="_blank" rel="noreferrer">打开资源</a>`
                               : ''
                           }
+                          <button class="text-button" type="button" data-action="delete-asset" data-brand-id="${escapeHtml(item.brandId)}" data-asset-key="${escapeHtml(item.assetKey)}">删除</button>
                           <small>${escapeHtml(formatDateTime(item.updatedAt))}</small>
                         </div>
                       </div>
@@ -1491,13 +1893,13 @@ function renderBrandEditorBody(buffer, assets) {
 
 function getFilteredCapabilities() {
   const query = state.filters.capabilityQuery.trim().toLowerCase();
-  const skills = (state.capabilities?.skills || []).filter((item) => {
+  const skills = getMergedSkills().filter((item) => {
     if (!query) return true;
     return [item.slug, item.name, item.category, item.publisher].some((value) =>
       String(value || '').toLowerCase().includes(query),
     );
   });
-  const mcpServers = (state.capabilities?.mcp_servers || []).filter((item) => {
+  const mcpServers = getMergedMcpServers().filter((item) => {
     if (!query) return true;
     return [item.key, item.name, item.command, item.http_url, ...(item.env_keys || [])].some((value) =>
       String(value || '').toLowerCase().includes(query),
@@ -1509,7 +1911,7 @@ function getFilteredCapabilities() {
 function renderSkillsMcpPage() {
   const {skills, mcpServers} = getFilteredCapabilities();
   const selectedSkill = skills.find((item) => item.slug === state.selectedSkillSlug) || skills[0] || null;
-  const selectedMcp = mcpServers.find((item) => item.key === state.selectedMcpKey) || mcpServers[0] || null;
+  const selectedMcp = state.selectedMcpKey === '__new__' ? null : mcpServers.find((item) => item.key === state.selectedMcpKey) || mcpServers[0] || null;
 
   return `
     ${renderHeader(
@@ -1558,6 +1960,11 @@ function renderSkillsMcpPage() {
                   .join('')
               : `<div class="empty-state">没有匹配的 MCP。</div>`
         }
+        ${
+          state.capabilityMode === 'mcp'
+            ? `<button class="capability-card${state.selectedMcpKey === '__new__' ? ' is-active' : ''}" type="button" data-action="select-mcp" data-mcp-key="__new__"><strong>新建 MCP</strong><span>新增一个可保存到注册表的配置</span></button>`
+            : ''
+        }
       </aside>
       <article class="panel panel--spacious">
         ${
@@ -1570,10 +1977,64 @@ function renderSkillsMcpPage() {
   `;
 }
 
+function renderSkillImportPanel() {
+  return `
+    <section class="panel panel--nested">
+      <div class="panel-head">
+        <h3>导入私有 Skill</h3>
+        <span>上传 tar.gz / zip 包，导入后会自动安装到当前 admin 账号</span>
+      </div>
+      <form id="skill-import-form" class="form-grid form-grid--two">
+        <label class="field">
+          <span>Slug</span>
+          <input class="field-input" name="slug" placeholder="private-skill-slug" />
+        </label>
+        <label class="field">
+          <span>Name</span>
+          <input class="field-input" name="name" placeholder="Skill Name" />
+        </label>
+        <label class="field field--wide">
+          <span>Description</span>
+          <textarea class="field-textarea" name="description" placeholder="这个 skill 做什么"></textarea>
+        </label>
+        <label class="field">
+          <span>Version</span>
+          <input class="field-input" name="version" placeholder="1.0.0" />
+        </label>
+        <label class="field">
+          <span>Publisher</span>
+          <input class="field-input" name="publisher" value="admin-web" />
+        </label>
+        <label class="field">
+          <span>Category</span>
+          <input class="field-input" name="category" placeholder="research / ops / growth" />
+        </label>
+        <label class="field">
+          <span>Market</span>
+          <input class="field-input" name="market" placeholder="CN / US" />
+        </label>
+        <label class="field">
+          <span>Skill Type</span>
+          <input class="field-input" name="skill_type" placeholder="workflow / tool" />
+        </label>
+        <label class="field field--wide">
+          <span>Artifact</span>
+          <input class="field-input" name="artifact" type="file" accept=".tar.gz,.tgz,.zip,application/gzip,application/zip" />
+        </label>
+        <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>导入 Skill</button>
+      </form>
+    </section>
+  `;
+}
+
 function renderSkillDetail(skill) {
   if (!skill) {
-    return `<div class="empty-state">选择一个技能查看详情。</div>`;
+    return `${renderSkillImportPanel()}<div class="empty-state">选择一个技能查看详情。</div>`;
   }
+  const libraryItem = getSkillLibraryItem(skill.slug);
+  const catalogItem = getAdminSkillCatalogEntry(skill.slug);
+  const personalItem = getPersonalSkillCatalogEntry(skill.slug);
+  const canDelete = personalItem?.source === 'private' || (catalogItem && catalogItem.distribution !== 'bundled');
   return `
     <div class="panel-head">
       <div>
@@ -1584,9 +2045,19 @@ function renderSkillDetail(skill) {
         <span>${escapeHtml(skill.category || '未分类')}</span>
         <span>${escapeHtml(skill.distribution || 'unknown')}</span>
         <span>${escapeHtml(skill.latestRelease || '未发布')}</span>
+        <span>${libraryItem ? '已安装' : '未安装'}</span>
+        <span>${libraryItem ? (libraryItem.enabled ? '已启用' : '已停用') : '未安装'}</span>
       </div>
     </div>
     <p class="detail-copy">${escapeHtml(skill.description || '暂无描述。')}</p>
+    <section class="action-row">
+      ${
+        libraryItem?.enabled
+          ? `<button class="ghost-button" type="button" data-action="skill-disable" data-skill-slug="${escapeHtml(skill.slug)}">Disable</button>`
+          : `<button class="solid-button" type="button" data-action="skill-enable" data-skill-slug="${escapeHtml(skill.slug)}">Enable</button>`
+      }
+      ${canDelete ? `<button class="ghost-button" type="button" data-action="skill-delete" data-skill-slug="${escapeHtml(skill.slug)}">删除 Skill</button>` : ''}
+    </section>
     <section class="panel panel--nested">
       <div class="panel-head">
         <h3>品牌覆盖</h3>
@@ -1607,13 +2078,34 @@ function renderSkillDetail(skill) {
       </div>
     </section>
     ${renderCapabilityBrandMatrix('skill', skill)}
+    ${renderSkillImportPanel()}
   `;
 }
 
 function renderMcpDetail(server) {
   if (!server) {
-    return `<div class="empty-state">选择一个 MCP 查看详情。</div>`;
+    server = {
+      key: '',
+      name: '新建 MCP',
+      command: '',
+      connected_brand_count: 0,
+      enabled_by_default: false,
+      args: [],
+      http_url: '',
+      env_keys: [],
+      connected_brands: [],
+    };
   }
+  const isNew = !server.key;
+  const editable = getMcpCatalogEntry(server.key) || {
+    key: server.key,
+    enabled: server.enabled_by_default,
+    type: null,
+    command: server.command,
+    args: server.args || [],
+    http_url: server.http_url,
+    env: {},
+  };
   return `
     <div class="panel-head">
       <div>
@@ -1625,6 +2117,55 @@ function renderMcpDetail(server) {
         <span>${server.enabled_by_default ? '默认启用' : '默认关闭'}</span>
       </div>
     </div>
+    <form id="mcp-editor-form" class="panel panel--nested">
+      <div class="panel-head">
+        <h3>MCP 配置</h3>
+        <span>真实写入 mcp/mcp.json，支持保存、测试连接、删除</span>
+      </div>
+      <div class="form-grid form-grid--two">
+        <label class="field">
+          <span>Key</span>
+          <input class="field-input" name="key" value="${fieldValue(editable.key)}" />
+        </label>
+        <label class="field">
+          <span>默认状态</span>
+          <select class="field-select" name="enabled">
+            <option value="true"${editable.enabled ? ' selected' : ''}>Enabled</option>
+            <option value="false"${editable.enabled ? '' : ' selected'}>Disabled</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Type</span>
+          <input class="field-input" name="type" value="${fieldValue(editable.type)}" placeholder="stdio / http" />
+        </label>
+        <label class="field">
+          <span>Command</span>
+          <input class="field-input" name="command" value="${fieldValue(editable.command)}" placeholder="uvx / npx / node" />
+        </label>
+        <label class="field field--wide">
+          <span>Args</span>
+          <textarea class="field-textarea" name="args_text" placeholder="每行一个参数">${escapeHtml((editable.args || []).join('\n'))}</textarea>
+        </label>
+        <label class="field field--wide">
+          <span>HTTP URL</span>
+          <input class="field-input" name="http_url" value="${fieldValue(editable.http_url)}" placeholder="http://127.0.0.1:4010/mcp" />
+        </label>
+        <label class="field field--wide">
+          <span>Env</span>
+          <textarea class="field-textarea" name="env_text" placeholder="KEY=value">${escapeHtml(formatEnvPairs(editable.env))}</textarea>
+        </label>
+      </div>
+      <div class="action-row">
+        <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>保存 MCP</button>
+        <button class="ghost-button" type="button" data-action="mcp-test" data-mcp-key="${escapeHtml(server.key)}"${state.busy ? ' disabled' : ''}>测试连接</button>
+        ${isNew ? '' : `<button class="ghost-button" type="button" data-action="mcp-delete" data-mcp-key="${escapeHtml(server.key)}"${state.busy ? ' disabled' : ''}>删除</button>`}
+      </div>
+      ${
+        state.mcpTestResult
+          ? `<div class="banner ${state.mcpTestResult.ok ? 'banner--success' : 'banner--error'}">测试结果: ${escapeHtml(state.mcpTestResult.message || '未返回消息')}</div>`
+          : ''
+      }
+    </form>
     <section class="meta-columns">
       <div class="meta-box">
         <span>Args</span>
@@ -1785,7 +2326,7 @@ function renderAssetsPage() {
                         <td>
                           ${
                             isImageLike(item.metadata?.content_type, item.publicUrl, item.objectKey)
-                              ? `<img class="asset-thumb asset-thumb--table" src="${escapeHtml(item.publicUrl || `/oem/asset/file?brand_id=${encodeURIComponent(item.brandId)}&asset_key=${encodeURIComponent(item.assetKey)}`)}" alt="${escapeHtml(item.assetKey)}" />`
+                              ? `<img class="asset-thumb asset-thumb--table" src="${escapeHtml(resolveAssetUrl(item))}" alt="${escapeHtml(item.assetKey)}" />`
                               : `<span class="asset-thumb asset-thumb--placeholder">${escapeHtml(item.kind.slice(0, 2).toUpperCase())}</span>`
                           }
                         </td>
@@ -1799,8 +2340,8 @@ function renderAssetsPage() {
                         <td>${escapeHtml(item.storageProvider)}</td>
                         <td>
                           ${
-                            item.publicUrl
-                              ? `<a class="text-link" href="${escapeHtml(item.publicUrl)}" target="_blank" rel="noreferrer"><code>${escapeHtml(item.publicUrl)}</code></a>`
+                            item.publicUrl || item.objectKey
+                              ? `<a class="text-link" href="${escapeHtml(resolveAssetUrl(item))}" target="_blank" rel="noreferrer"><code>${escapeHtml(resolveAssetUrl(item))}</code></a>`
                               : `<code>${escapeHtml(item.objectKey)}</code>`
                           }
                         </td>
@@ -1828,6 +2369,9 @@ function getFilteredReleases() {
 
 function renderReleasesPage() {
   const items = getFilteredReleases();
+  const selectedRelease = items.find((item) => item.id === state.selectedReleaseId) || items[0] || null;
+  const selectedBrand = state.brands.find((item) => item.brandId === selectedRelease?.brand_id) || null;
+  const diffAreas = selectedRelease ? summarizeChangedAreas(selectedBrand?.draftConfig, selectedRelease.config) : [];
   return `
     ${renderHeader(
       '版本发布',
@@ -1846,33 +2390,64 @@ function renderReleasesPage() {
           .join('')}
       </select>
     </section>
-    <section class="timeline">
-      ${items.length
-        ? items
-            .map(
-              (item) => `
-                <article class="timeline-card">
-                  <div class="timeline-card__head">
-                    <div>
-                      <h2>${escapeHtml(item.display_name)}</h2>
-                      <p>v${escapeHtml(item.version)} · ${escapeHtml(formatDateTime(item.published_at))}</p>
-                    </div>
-                    <button class="ghost-button" type="button" data-action="select-brand" data-brand-id="${escapeHtml(item.brand_id)}">打开品牌</button>
-                  </div>
-                  <div class="metric-chips">
-                    ${(item.changed_areas || []).map((area) => `<span>${escapeHtml(area)}</span>`).join('')}
-                  </div>
-                  <div class="release-metrics">
-                    <div><span>Surface</span><strong>${escapeHtml((item.surfaces || []).join(' / ') || '无')}</strong></div>
-                    <div><span>技能数</span><strong>${escapeHtml(item.skill_count)}</strong></div>
-                    <div><span>MCP 数</span><strong>${escapeHtml(item.mcp_count)}</strong></div>
-                    <div><span>发布人</span><strong>${escapeHtml(item.created_by_name || item.created_by_username || 'system')}</strong></div>
-                  </div>
-                </article>
-              `,
-            )
-            .join('')
-        : `<div class="empty-state empty-state--panel">当前没有发布记录。</div>`}
+    <section class="capability-layout">
+      <aside class="capability-list">
+        ${items.length
+          ? items
+              .map(
+                (item) => `
+                  <button class="capability-card${selectedRelease?.id === item.id ? ' is-active' : ''}" type="button" data-action="select-release" data-release-id="${escapeHtml(item.id)}">
+                    <strong>${escapeHtml(item.display_name)} · v${escapeHtml(item.version)}</strong>
+                    <span>${escapeHtml(formatDateTime(item.published_at))}</span>
+                  </button>
+                `,
+              )
+              .join('')
+          : `<div class="empty-state">当前没有发布记录。</div>`}
+      </aside>
+      <article class="panel panel--spacious">
+        ${
+          selectedRelease
+            ? `
+              <div class="panel-head">
+                <div>
+                  <h2>${escapeHtml(selectedRelease.display_name)} · v${escapeHtml(selectedRelease.version)}</h2>
+                  <span>${escapeHtml(formatDateTime(selectedRelease.published_at))} · ${escapeHtml(selectedRelease.created_by_name || selectedRelease.created_by_username || 'system')}</span>
+                </div>
+                <button class="ghost-button" type="button" data-action="select-brand" data-brand-id="${escapeHtml(selectedRelease.brand_id)}">打开品牌</button>
+              </div>
+              <div class="metric-chips">
+                ${(selectedRelease.changed_areas || []).map((area) => `<span>${escapeHtml(area)}</span>`).join('')}
+              </div>
+              <div class="release-metrics">
+                <div><span>Surface</span><strong>${escapeHtml((selectedRelease.surfaces || []).join(' / ') || '无')}</strong></div>
+                <div><span>技能数</span><strong>${escapeHtml(selectedRelease.skill_count)}</strong></div>
+                <div><span>MCP 数</span><strong>${escapeHtml(selectedRelease.mcp_count)}</strong></div>
+                <div><span>当前草稿 Diff</span><strong>${escapeHtml(diffAreas.join(' / ') || '无差异')}</strong></div>
+              </div>
+              <section class="panel panel--nested">
+                <div class="panel-head">
+                  <h3>Diff 视图</h3>
+                  <span>对比选中发布版本与当前品牌草稿</span>
+                </div>
+                <div class="metric-chips">
+                  ${diffAreas.length ? diffAreas.map((area) => `<span>${escapeHtml(area)}</span>`).join('') : '<span>无差异</span>'}
+                </div>
+                <div class="diff-grid">
+                  <label class="field">
+                    <span>发布版本 JSON</span>
+                    <textarea class="code-input code-input--tall" readonly>${escapeHtml(prettyJson(selectedRelease.config))}</textarea>
+                  </label>
+                  <label class="field">
+                    <span>当前草稿 JSON</span>
+                    <textarea class="code-input code-input--tall" readonly>${escapeHtml(prettyJson(selectedBrand?.draftConfig || {}))}</textarea>
+                  </label>
+                </div>
+              </section>
+            `
+            : `<div class="empty-state">选择一个发布版本查看详情。</div>`
+        }
+      </article>
     </section>
   `;
 }
@@ -1894,6 +2469,7 @@ function getFilteredAudit() {
 
 function renderAuditPage() {
   const items = getFilteredAudit();
+  const selectedAudit = items.find((item) => item.id === state.selectedAuditId) || items[0] || null;
   const actions = Array.from(new Set(state.audit.map((item) => item.action).filter(Boolean))).sort((left, right) =>
     left.localeCompare(right, 'zh-CN'),
   );
@@ -1927,41 +2503,57 @@ function renderAuditPage() {
           .join('')}
       </select>
     </section>
-    <section class="panel">
-      <div class="table-shell">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>品牌</th>
-              <th>动作</th>
-              <th>操作人</th>
-              <th>环境</th>
-              <th>时间</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${items.length
-              ? items
-                  .map(
-                    (item) => `
-                      <tr>
-                        <td>
-                          <button class="table-link" type="button" data-action="select-brand" data-brand-id="${escapeHtml(item.brandId)}">
-                            ${escapeHtml(item.brandDisplayName || item.brandId)}
-                          </button>
-                        </td>
-                        <td>${escapeHtml(actionLabel(item.action))}</td>
-                        <td>${escapeHtml(item.actorName || item.actorUsername || 'system')}</td>
-                        <td>${escapeHtml(item.environment || 'control-plane')}</td>
-                        <td>${escapeHtml(formatDateTime(item.createdAt))}</td>
-                      </tr>
-                    `,
-                  )
-                  .join('')
-              : `<tr><td colspan="5"><div class="empty-state">没有匹配的审计记录。</div></td></tr>`}
-          </tbody>
-        </table>
-      </div>
+    <section class="capability-layout">
+      <aside class="capability-list">
+        ${items.length
+          ? items
+              .map(
+                (item) => `
+                  <button class="capability-card${selectedAudit?.id === item.id ? ' is-active' : ''}" type="button" data-action="select-audit" data-audit-id="${escapeHtml(item.id)}">
+                    <strong>${escapeHtml(item.brandDisplayName || item.brandId)}</strong>
+                    <span>${escapeHtml(actionLabel(item.action))} · ${escapeHtml(formatDateTime(item.createdAt))}</span>
+                  </button>
+                `,
+              )
+              .join('')
+          : `<div class="empty-state">没有匹配的审计记录。</div>`}
+      </aside>
+      <article class="panel panel--spacious">
+        ${
+          selectedAudit
+            ? `
+              <div class="panel-head">
+                <div>
+                  <h2>${escapeHtml(actionLabel(selectedAudit.action))}</h2>
+                  <span>${escapeHtml(selectedAudit.brandDisplayName || selectedAudit.brandId)} · ${escapeHtml(formatDateTime(selectedAudit.createdAt))}</span>
+                </div>
+                <button class="ghost-button" type="button" data-action="select-brand" data-brand-id="${escapeHtml(selectedAudit.brandId)}">打开品牌</button>
+              </div>
+              <div class="meta-columns">
+                <div class="meta-box">
+                  <span>操作人</span>
+                  <strong>${escapeHtml(selectedAudit.actorName || selectedAudit.actorUsername || 'system')}</strong>
+                </div>
+                <div class="meta-box">
+                  <span>环境</span>
+                  <strong>${escapeHtml(selectedAudit.environment || 'control-plane')}</strong>
+                </div>
+                <div class="meta-box meta-box--wide">
+                  <span>Brand</span>
+                  <strong>${escapeHtml(selectedAudit.brandId)}</strong>
+                </div>
+              </div>
+              <section class="panel panel--nested">
+                <div class="panel-head">
+                  <h3>审计详情</h3>
+                  <span>真实 payload</span>
+                </div>
+                <textarea class="code-input code-input--tall" readonly>${escapeHtml(prettyJson(selectedAudit.payload || {}))}</textarea>
+              </section>
+            `
+            : `<div class="empty-state">选择一条审计记录查看详情。</div>`
+        }
+      </article>
     </section>
   `;
 }
@@ -2067,6 +2659,16 @@ app.addEventListener('submit', async (event) => {
 
   if (form.id === 'asset-form') {
     await saveAsset(new FormData(form));
+    return;
+  }
+
+  if (form.id === 'skill-import-form') {
+    await importSkill(new FormData(form));
+    return;
+  }
+
+  if (form.id === 'mcp-editor-form') {
+    await saveMcpCatalogEntry(new FormData(form));
   }
 });
 
@@ -2116,12 +2718,93 @@ app.addEventListener('click', async (event) => {
   if (action === 'select-mcp') {
     state.capabilityMode = 'mcp';
     state.selectedMcpKey = target.getAttribute('data-mcp-key') || '';
+    state.mcpTestResult = null;
     render();
     return;
   }
 
+  if (action === 'toggle-brand-skill') {
+    toggleBrandCapability('skill', target.getAttribute('data-skill-slug') || '');
+    return;
+  }
+
+  if (action === 'toggle-brand-mcp') {
+    toggleBrandCapability('mcp', target.getAttribute('data-mcp-key') || '');
+    return;
+  }
+
+  if (action === 'skill-enable') {
+    await setSkillEnabled(target.getAttribute('data-skill-slug') || '', true);
+    return;
+  }
+
+  if (action === 'skill-disable') {
+    await setSkillEnabled(target.getAttribute('data-skill-slug') || '', false);
+    return;
+  }
+
+  if (action === 'skill-delete') {
+    const slug = target.getAttribute('data-skill-slug') || '';
+    if (window.confirm(`确认删除技能 ${slug}？`)) {
+      await deleteSkill(slug);
+    }
+    return;
+  }
+
+  if (action === 'mcp-test') {
+    const form = document.querySelector('#mcp-editor-form');
+    if (form instanceof HTMLFormElement) {
+      const data = new FormData(form);
+      await testMcpCatalogEntry({
+        key: String(data.get('key') || '').trim() || target.getAttribute('data-mcp-key') || '',
+        command: String(data.get('command') || '').trim() || null,
+        http_url: String(data.get('http_url') || '').trim() || null,
+      });
+    } else {
+      await testMcpCatalogEntry({
+        key: target.getAttribute('data-mcp-key') || '',
+      });
+    }
+    return;
+  }
+
+  if (action === 'mcp-delete') {
+    const key = target.getAttribute('data-mcp-key') || '';
+    if (window.confirm(`确认删除 MCP ${key}？`)) {
+      await deleteMcpCatalogEntry(key);
+    }
+    return;
+  }
+
+  if (action === 'delete-asset') {
+    const brandId = target.getAttribute('data-brand-id') || '';
+    const assetKey = target.getAttribute('data-asset-key') || '';
+    if (window.confirm(`确认删除资源 ${assetKey}？`)) {
+      await deleteAsset(brandId, assetKey);
+    }
+    return;
+  }
+
+  if (action === 'fill-asset-preset') {
+    const form = document.querySelector('#asset-form');
+    if (form instanceof HTMLFormElement) {
+      const assetKeyInput = form.querySelector('input[name="asset_key"]');
+      const kindInput = form.querySelector('input[name="kind"]');
+      if (assetKeyInput instanceof HTMLInputElement) {
+        assetKeyInput.value = target.getAttribute('data-asset-key') || '';
+      }
+      if (kindInput instanceof HTMLInputElement) {
+        kindInput.value = target.getAttribute('data-asset-kind') || '';
+      }
+    }
+    return;
+  }
+
   if (action === 'publish-brand') {
-    await publishCurrentBrand();
+    const brandId = state.selectedBrandId || '';
+    if (window.confirm(`确认发布 ${brandId} 当前草稿？`)) {
+      await publishCurrentBrand();
+    }
     return;
   }
 
@@ -2133,6 +2816,18 @@ app.addEventListener('click', async (event) => {
 
   if (action === 'refresh-page') {
     await loadAppData();
+    return;
+  }
+
+  if (action === 'select-release') {
+    state.selectedReleaseId = target.getAttribute('data-release-id') || '';
+    render();
+    return;
+  }
+
+  if (action === 'select-audit') {
+    state.selectedAuditId = target.getAttribute('data-audit-id') || '';
+    render();
     return;
   }
 

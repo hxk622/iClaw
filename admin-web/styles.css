@@ -316,7 +316,9 @@ p {
 .tab-row,
 .metric-chips,
 .release-metrics,
-.segmented {
+.segmented,
+.action-row,
+.row-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
@@ -357,7 +359,10 @@ p {
 .capability-layout,
 .asset-editor-layout,
 .theme-grid,
-.capability-columns {
+.capability-columns,
+.diff-grid,
+.asset-slot-grid,
+.chip-grid {
   display: grid;
   gap: 18px;
 }
@@ -383,8 +388,17 @@ p {
 
 .asset-editor-layout,
 .theme-grid,
-.capability-columns {
+.capability-columns,
+.diff-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.asset-slot-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.chip-grid {
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
 }
 
 .panel,
@@ -868,6 +882,10 @@ p {
   gap: 10px;
 }
 
+.action-row {
+  margin: 18px 0;
+}
+
 .timeline-item,
 .list-row {
   padding: 12px 14px;
@@ -882,6 +900,15 @@ p {
 .row-aside {
   align-items: flex-end;
   flex-direction: column;
+}
+
+.row-actions {
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.control-button {
+  min-width: 108px;
 }
 
 .table-shell {
@@ -937,9 +964,39 @@ p {
   line-height: 1.7;
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 code {
   font-family: 'IBM Plex Mono', 'SFMono-Regular', Menlo, monospace;
   font-size: 12px;
+}
+
+.asset-slot-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.asset-slot-card__head {
+  display: grid;
+  gap: 4px;
+}
+
+.asset-slot-card__head small {
+  color: var(--muted);
 }
 
 .asset-thumb-wrap {
@@ -958,6 +1015,11 @@ code {
 .asset-thumb--table {
   width: 52px;
   height: 52px;
+}
+
+.asset-thumb--slot {
+  width: 100%;
+  height: 120px;
 }
 
 .asset-thumb--placeholder {
@@ -993,7 +1055,9 @@ code {
   .form-grid--two,
   .surface-grid,
   .brand-grid,
-  .release-metrics {
+  .release-metrics,
+  .asset-slot-grid,
+  .diff-grid {
     grid-template-columns: 1fr;
   }
 

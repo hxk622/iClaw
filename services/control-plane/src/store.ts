@@ -88,6 +88,7 @@ export interface ControlPlaneStore {
     userId: string,
     input: Omit<Required<ImportUserPrivateSkillInput>, 'artifact_base64'> & {artifactKey: string},
   ): Promise<UserPrivateSkillRecord>;
+  deleteUserPrivateSkill(userId: string, slug: string): Promise<boolean>;
   listUserSkillLibrary(userId: string): Promise<UserSkillLibraryRecord[]>;
   installUserSkill(
     userId: string,
@@ -1136,6 +1137,10 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     };
     this.userPrivateSkills.set(key, record);
     return record;
+  }
+
+  async deleteUserPrivateSkill(userId: string, slug: string): Promise<boolean> {
+    return this.userPrivateSkills.delete(`${userId}:${slug}`);
   }
 
   async listUserAgentLibrary(userId: string): Promise<UserAgentLibraryRecord[]> {

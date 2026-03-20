@@ -369,6 +369,18 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     return record;
   }
 
+  async deleteUserPrivateSkill(userId: string, slug: string): Promise<boolean> {
+    const removed = await this.base.deleteUserPrivateSkill(userId, slug);
+    if (removed) {
+      await this.cache.delete(
+        this.userPrivateSkillsKey(userId),
+        this.userPrivateSkillKey(userId, slug),
+        this.userSkillLibraryKey(userId),
+      );
+    }
+    return removed;
+  }
+
   async listUserAgentLibrary(userId: string): Promise<UserAgentLibraryRecord[]> {
     return this.getOrLoadValue(this.userAgentLibraryKey(userId), USER_SKILL_LIBRARY_CACHE_TTL_SECONDS, () =>
       this.base.listUserAgentLibrary(userId),

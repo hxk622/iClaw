@@ -1622,6 +1622,17 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     return mapUserPrivateSkillRow(result.rows[0]);
   }
 
+  async deleteUserPrivateSkill(userId: string, slug: string): Promise<boolean> {
+    const result = await this.pool.query(
+      `
+        delete from user_private_skills
+        where user_id = $1 and slug = $2
+      `,
+      [userId, slug],
+    );
+    return (result.rowCount || 0) > 0;
+  }
+
   async listUserAgentLibrary(userId: string): Promise<UserAgentLibraryRecord[]> {
     const result = await this.pool.query<UserAgentLibraryRow>(
       `

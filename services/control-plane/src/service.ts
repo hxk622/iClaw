@@ -3,7 +3,7 @@ import type {AuthTokens} from '@iclaw/shared';
 import { deleteAvatarByKey, deleteOldAvatars, extractAvatarKey, uploadAvatar } from './avatar-storage.ts';
 import {config} from './config.ts';
 import {randomBytes} from 'node:crypto';
-import {uploadPrivateSkillArtifact} from './skill-storage.ts';
+import {deletePrivateSkillArtifact, uploadPrivateSkillArtifact} from './skill-storage.ts';
 
 import type {
   AgentCatalogEntryRecord,
@@ -1090,6 +1090,29 @@ export class ControlPlaneService {
       throw new HttpError(404, 'NOT_FOUND', 'private skill release not found');
     }
     return skill;
+  }
+
+  async deletePrivateSkill(accessToken: string, slugInput: string): Promise<{removed: boolean}> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const slug = normalizeSkillSlug(slugInput);
+    const skill = await this.store.getUserPrivateSkill(user.id, slug);
+    if (!skill) {
+      return {removed: false};
+    }
+
+    await this.store.removeUserSkill(user.id, slug);
+    await this.store.deleteUserPrivateSkill(user.id, slug);
+    try {
+      await deletePrivateSkillArtifact(skill.artifactKey);
+    } catch (error) {
+      console.warn('[control-plane] failed to delete private skill artifact', {
+        userId: user.id,
+        slug,
+        artifactKey: skill.artifactKey,
+        error,
+      });
+    }
+    return {removed: true};
   }
 
   async authorizeRun(accessToken: string, input: RunAuthorizeInput): Promise<RunGrantView> {

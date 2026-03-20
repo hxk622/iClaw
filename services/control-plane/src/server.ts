@@ -349,6 +349,12 @@ const server = createJsonServer([
       service.listPersonalSkillCatalog(requireBearerToken(headers), resolvePublicBaseUrl(headers)),
   },
   {
+    method: 'DELETE',
+    path: '/skills/catalog/personal',
+    handler: ({headers, url}: HandlerContext) =>
+      service.deletePrivateSkill(requireBearerToken(headers), (url.searchParams.get('slug') || '').trim()),
+  },
+  {
     method: 'GET',
     path: '/admin/skills/catalog',
     handler: ({headers}: HandlerContext) =>
@@ -557,6 +563,15 @@ const server = createJsonServer([
       ),
   },
   {
+    method: 'DELETE',
+    path: '/admin/oem/asset',
+    handler: ({headers, url}: HandlerContext) =>
+      oemService.deleteAsset(requireBearerToken(headers), {
+        brand_id: (url.searchParams.get('brand_id') || '').trim(),
+        asset_key: (url.searchParams.get('asset_key') || '').trim(),
+      }),
+  },
+  {
     method: 'GET',
     path: '/admin/oem/audit',
     handler: ({headers, url}: HandlerContext) =>
@@ -570,6 +585,47 @@ const server = createJsonServer([
     method: 'GET',
     path: '/admin/oem/capabilities',
     handler: ({headers}: HandlerContext) => oemService.getCapabilities(requireBearerToken(headers)),
+  },
+  {
+    method: 'GET',
+    path: '/admin/mcp/catalog',
+    handler: ({headers}: HandlerContext) => oemService.listMcpCatalog(requireBearerToken(headers)),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/mcp/catalog',
+    handler: ({headers, body}: HandlerContext) =>
+      oemService.upsertMcpCatalogEntry(
+        requireBearerToken(headers),
+        (body || {}) as {
+          key?: string;
+          enabled?: boolean;
+          type?: string | null;
+          command?: string | null;
+          args?: string[];
+          http_url?: string | null;
+          env?: Record<string, string>;
+        },
+      ),
+  },
+  {
+    method: 'DELETE',
+    path: '/admin/mcp/catalog',
+    handler: ({headers, url}: HandlerContext) =>
+      oemService.deleteMcpCatalogEntry(requireBearerToken(headers), (url.searchParams.get('key') || '').trim()),
+  },
+  {
+    method: 'POST',
+    path: '/admin/mcp/test',
+    handler: ({headers, body}: HandlerContext) =>
+      oemService.testMcpCatalogEntry(
+        requireBearerToken(headers),
+        (body || {}) as {
+          key?: string;
+          command?: string | null;
+          http_url?: string | null;
+        },
+      ),
   },
   {
     method: 'GET',
