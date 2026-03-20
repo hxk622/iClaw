@@ -281,13 +281,12 @@ export function Sidebar({
 
   return (
     <div className="flex h-screen w-[256px] shrink-0 flex-col border-r border-[var(--border-default)] bg-[var(--bg-page)]">
-      <div className="flex h-10 items-center gap-3 border-b border-[var(--border-default)] px-4">
-        <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)]">
+      <div className="flex h-14 items-center gap-3 border-b border-[var(--border-default)] px-4">
+        <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-default)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--bg-card)_84%,white_16%),color-mix(in_srgb,var(--bg-page)_90%,white_10%))] shadow-[var(--shadow-sm)]">
           <img src={BRAND.assets.faviconPngSrc} alt={BRAND.assets.logoAlt} className="h-full w-full object-cover" />
         </div>
         <div className="min-w-0">
-          <div className="truncate text-[14px] font-medium text-[var(--text-primary)]">{brandText}</div>
-          <div className="text-[11px] text-[var(--text-muted)]">{BRAND.sidebarSubtitle}</div>
+          <div className="truncate text-[15px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">{brandText}</div>
         </div>
       </div>
 
