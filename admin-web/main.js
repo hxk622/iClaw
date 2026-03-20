@@ -3,13 +3,12 @@ import './styles.css';
 const API_BASE_URL = ((import.meta.env.VITE_AUTH_BASE_URL || 'http://127.0.0.1:2130') + '').trim().replace(/\/+$/, '');
 const TOKEN_STORAGE_KEY = 'iclaw.admin-web.tokens';
 const NAV_ITEMS = [
-  {id: 'overview', label: '总览', eyebrow: 'Overview', glyph: 'OV'},
-  {id: 'brands', label: '品牌管理', eyebrow: 'Brands', glyph: 'BR'},
-  {id: 'brand-detail', label: '品牌详情', eyebrow: 'Brand Detail', glyph: 'DT'},
-  {id: 'skills-mcp', label: '技能与 MCP', eyebrow: 'Capabilities', glyph: 'CP'},
-  {id: 'assets', label: '资源管理', eyebrow: 'Assets', glyph: 'AS'},
-  {id: 'releases', label: '版本发布', eyebrow: 'Releases', glyph: 'RL'},
-  {id: 'audit-log', label: '审计日志', eyebrow: 'Audit', glyph: 'AU'},
+  {id: 'overview', label: '总览', icon: 'layoutGrid'},
+  {id: 'brands', label: '品牌管理', icon: 'layers'},
+  {id: 'skills-mcp', label: '技能与 MCP', icon: 'zap'},
+  {id: 'assets', label: '资源管理', icon: 'image'},
+  {id: 'releases', label: '版本发布', icon: 'rocket'},
+  {id: 'audit-log', label: '审计日志', icon: 'fileText'},
 ];
 const SURFACE_LABELS = {
   desktop: '桌面端',
@@ -56,6 +55,9 @@ const state = {
   assets: [],
   releases: [],
   audit: [],
+  showCreateBrandForm: false,
+  showSkillImportPanel: false,
+  showAssetUploadPanel: false,
   filters: {
     brandQuery: '',
     brandStatus: 'all',
@@ -140,6 +142,47 @@ function escapeHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
+function icon(name, className = '') {
+  const cls = className ? ` class="${escapeHtml(className)}"` : '';
+  const common = `fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"`;
+  const icons = {
+    plus: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M12 5v14"/><path ${common} d="M5 12h14"/></svg>`,
+    search: `<svg viewBox="0 0 24 24"${cls}><circle ${common} cx="11" cy="11" r="7"/><path ${common} d="m20 20-3.5-3.5"/></svg>`,
+    clock: `<svg viewBox="0 0 24 24"${cls}><circle ${common} cx="12" cy="12" r="9"/><path ${common} d="M12 7v5l3 2"/></svg>`,
+    activity: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M3 12h4l2-5 4 10 2-5h6"/></svg>`,
+    rocket: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M5 19c2-2 4-3 7-3 0-3 1-5 3-7 2-2 4-3 7-4-1 3-2 5-4 7-2 2-4 3-7 3-1 3-2 5-3 7-1-1-2-2-3-3Z"/><path ${common} d="M9 15l-4 4"/><path ${common} d="M9 19H5v-4"/></svg>`,
+    trendingUp: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M3 17 10 10l4 4 7-7"/><path ${common} d="M14 7h7v7"/></svg>`,
+    arrowLeft: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M19 12H5"/><path ${common} d="m12 19-7-7 7-7"/></svg>`,
+    save: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M5 5h11l3 3v11H5z"/><path ${common} d="M8 5v5h8"/><path ${common} d="M9 19v-5h6v5"/></svg>`,
+    rotateCcw: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M3 12a9 9 0 1 0 3-6.7"/><path ${common} d="M3 4v5h5"/></svg>`,
+    monitor: `<svg viewBox="0 0 24 24"${cls}><rect ${common} x="3" y="4" width="18" height="12" rx="2"/><path ${common} d="M8 20h8"/><path ${common} d="M12 16v4"/></svg>`,
+    globe: `<svg viewBox="0 0 24 24"${cls}><circle ${common} cx="12" cy="12" r="9"/><path ${common} d="M3 12h18"/><path ${common} d="M12 3a15 15 0 0 1 0 18"/><path ${common} d="M12 3a15 15 0 0 0 0 18"/></svg>`,
+    layout: `<svg viewBox="0 0 24 24"${cls}><rect ${common} x="3" y="4" width="18" height="16" rx="2"/><path ${common} d="M3 10h18"/><path ${common} d="M9 10v10"/></svg>`,
+    sidebar: `<svg viewBox="0 0 24 24"${cls}><rect ${common} x="3" y="4" width="18" height="16" rx="2"/><path ${common} d="M9 4v16"/></svg>`,
+    messageSquare: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M7 18H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4 3z"/></svg>`,
+    store: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M4 9l1-4h14l1 4"/><path ${common} d="M5 9h14v10H5z"/><path ${common} d="M9 13h6"/></svg>`,
+    palette: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M12 3a9 9 0 1 0 0 18h1a2 2 0 0 0 0-4h-1a2 2 0 0 1 0-4 5 5 0 0 0 0-10Z"/><circle ${common} cx="7.5" cy="10.5" r=".5"/><circle ${common} cx="9.5" cy="7.5" r=".5"/><circle ${common} cx="14.5" cy="7.5" r=".5"/></svg>`,
+    image: `<svg viewBox="0 0 24 24"${cls}><rect ${common} x="3" y="5" width="18" height="14" rx="2"/><circle ${common} cx="8.5" cy="10" r="1.5"/><path ${common} d="m21 16-5-5-6 6-3-3-4 4"/></svg>`,
+    zap: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>`,
+    network: `<svg viewBox="0 0 24 24"${cls}><circle ${common} cx="12" cy="5" r="2"/><circle ${common} cx="5" cy="18" r="2"/><circle ${common} cx="19" cy="18" r="2"/><path ${common} d="M12 7v4"/><path ${common} d="M12 11 6.5 16"/><path ${common} d="M12 11 17.5 16"/></svg>`,
+    calendar: `<svg viewBox="0 0 24 24"${cls}><rect ${common} x="3" y="5" width="18" height="16" rx="2"/><path ${common} d="M16 3v4"/><path ${common} d="M8 3v4"/><path ${common} d="M3 10h18"/></svg>`,
+    user: `<svg viewBox="0 0 24 24"${cls}><circle ${common} cx="12" cy="8" r="4"/><path ${common} d="M5 20a7 7 0 0 1 14 0"/></svg>`,
+    package: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path ${common} d="m12 12 8-4.5"/><path ${common} d="m12 12-8-4.5"/><path ${common} d="M12 21v-9"/></svg>`,
+    checkCircle: `<svg viewBox="0 0 24 24"${cls}><circle ${common} cx="12" cy="12" r="9"/><path ${common} d="m8.5 12 2.5 2.5 4.5-5"/></svg>`,
+    filter: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M4 6h16"/><path ${common} d="M7 12h10"/><path ${common} d="M10 18h4"/></svg>`,
+    edit: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M12 20h9"/><path ${common} d="m16.5 3.5 4 4L8 20l-5 1 1-5z"/></svg>`,
+    upload: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M12 16V4"/><path ${common} d="m7 9 5-5 5 5"/><path ${common} d="M4 20h16"/></svg>`,
+    trash: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M3 6h18"/><path ${common} d="M8 6V4h8v2"/><path ${common} d="M6 6l1 14h10l1-14"/><path ${common} d="M10 10v6"/><path ${common} d="M14 10v6"/></svg>`,
+    settings: `<svg viewBox="0 0 24 24"${cls}><circle ${common} cx="12" cy="12" r="3"/><path ${common} d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 1 1-4 0v-.2a1 1 0 0 0-.7-.9 1 1 0 0 0-1.1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 1 1 0-4h.2a1 1 0 0 0 .9-.7 1 1 0 0 0-.2-1.1l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1 1 0 0 0 1.1.2H9a1 1 0 0 0 .6-.9V4a2 2 0 1 1 4 0v.2a1 1 0 0 0 .7.9 1 1 0 0 0 1.1-.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1 1 0 0 0-.2 1.1V9c0 .4.2.7.6.9H20a2 2 0 1 1 0 4h-.2a1 1 0 0 0-.9.7z"/></svg>`,
+    square: `<svg viewBox="0 0 24 24"${cls}><rect ${common} x="5" y="5" width="14" height="14" rx="2"/></svg>`,
+    fileImage: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path ${common} d="M14 3v5h5"/><circle ${common} cx="10" cy="13" r="1.5"/><path ${common} d="m8 19 3-3 2 2 3-3 2 4"/></svg>`,
+    layoutGrid: `<svg viewBox="0 0 24 24"${cls}><rect ${common} x="3" y="3" width="7" height="7" rx="1.5"/><rect ${common} x="14" y="3" width="7" height="7" rx="1.5"/><rect ${common} x="3" y="14" width="7" height="7" rx="1.5"/><rect ${common} x="14" y="14" width="7" height="7" rx="1.5"/></svg>`,
+    layers: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="m12 4 8 4-8 4-8-4z"/><path ${common} d="m4 12 8 4 8-4"/><path ${common} d="m4 16 8 4 8-4"/></svg>`,
+    fileText: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path ${common} d="M14 3v5h5"/><path ${common} d="M9 13h6"/><path ${common} d="M9 17h6"/><path ${common} d="M9 9h2"/></svg>`,
+  };
+  return icons[name] || '';
+}
+
 function formatDateTime(value) {
   if (!value) return '未记录';
   const date = new Date(value);
@@ -212,6 +255,18 @@ function actionLabel(action) {
     default:
       return titleizeKey(action);
   }
+}
+
+function navIsActive(itemId) {
+  if (itemId === 'brands') {
+    return state.route === 'brands' || state.route === 'brand-detail';
+  }
+  return state.route === itemId;
+}
+
+function brandLastPublished(brandDetail) {
+  const publishedAt = brandDetail?.versions?.[0]?.publishedAt || brandDetail?.brand?.updatedAt;
+  return publishedAt ? formatRelative(publishedAt) : '未发布';
 }
 
 function statusBadge(status) {
@@ -494,6 +549,7 @@ function captureBrandEditorBuffer() {
   }
 
   const data = new FormData(form);
+  const existing = clone(state.brandDraftBuffer || ensureBrandDraftBuffer() || {});
   const surfaces = Array.from(form.querySelectorAll('.surface-editor')).map((node) => ({
     key: node.getAttribute('data-surface-key') || '',
     label: node.getAttribute('data-surface-label') || '',
@@ -502,25 +558,48 @@ function captureBrandEditorBuffer() {
   }));
 
   state.brandDraftBuffer = {
-    brandId: String(data.get('brand_id') || ''),
-    displayName: String(data.get('display_name') || ''),
-    productName: String(data.get('product_name') || ''),
-    tenantKey: String(data.get('tenant_key') || ''),
-    status: String(data.get('status') || 'draft'),
-    advancedJson: String(data.get('advanced_json') || '{}'),
+    ...existing,
+    brandId: String(data.get('brand_id') || existing.brandId || ''),
+    displayName: String(data.get('display_name') || existing.displayName || ''),
+    productName: String(data.get('product_name') || existing.productName || ''),
+    tenantKey: String(data.get('tenant_key') || existing.tenantKey || ''),
+    status: String(data.get('status') || existing.status || 'draft'),
+    advancedJson: form.querySelector('[name="advanced_json"]')
+      ? String(data.get('advanced_json') || existing.advancedJson || '{}')
+      : String(existing.advancedJson || '{}'),
     theme: {
-      lightPrimary: String(data.get('theme_light_primary') || ''),
-      lightPrimaryHover: String(data.get('theme_light_primary_hover') || ''),
-      lightOnPrimary: String(data.get('theme_light_on_primary') || ''),
-      darkPrimary: String(data.get('theme_dark_primary') || ''),
-      darkPrimaryHover: String(data.get('theme_dark_primary_hover') || ''),
-      darkOnPrimary: String(data.get('theme_dark_on_primary') || ''),
+      lightPrimary: form.querySelector('[name="theme_light_primary"]')
+        ? String(data.get('theme_light_primary') || existing.theme?.lightPrimary || '')
+        : String(existing.theme?.lightPrimary || ''),
+      lightPrimaryHover: form.querySelector('[name="theme_light_primary_hover"]')
+        ? String(data.get('theme_light_primary_hover') || existing.theme?.lightPrimaryHover || '')
+        : String(existing.theme?.lightPrimaryHover || ''),
+      lightOnPrimary: form.querySelector('[name="theme_light_on_primary"]')
+        ? String(data.get('theme_light_on_primary') || existing.theme?.lightOnPrimary || '')
+        : String(existing.theme?.lightOnPrimary || ''),
+      darkPrimary: form.querySelector('[name="theme_dark_primary"]')
+        ? String(data.get('theme_dark_primary') || existing.theme?.darkPrimary || '')
+        : String(existing.theme?.darkPrimary || ''),
+      darkPrimaryHover: form.querySelector('[name="theme_dark_primary_hover"]')
+        ? String(data.get('theme_dark_primary_hover') || existing.theme?.darkPrimaryHover || '')
+        : String(existing.theme?.darkPrimaryHover || ''),
+      darkOnPrimary: form.querySelector('[name="theme_dark_on_primary"]')
+        ? String(data.get('theme_dark_on_primary') || existing.theme?.darkOnPrimary || '')
+        : String(existing.theme?.darkOnPrimary || ''),
     },
-    selectedSkills: Array.from(form.querySelectorAll('.skill-checkbox:checked')).map((node) => node.value),
-    selectedMcp: Array.from(form.querySelectorAll('.mcp-checkbox:checked')).map((node) => node.value),
-    agentsText: String(data.get('agents_text') || ''),
-    menusText: String(data.get('menus_text') || ''),
-    surfaces,
+    selectedSkills: form.querySelector('.skill-checkbox')
+      ? Array.from(form.querySelectorAll('.skill-checkbox:checked')).map((node) => node.value)
+      : asStringArray(existing.selectedSkills),
+    selectedMcp: form.querySelector('.mcp-checkbox')
+      ? Array.from(form.querySelectorAll('.mcp-checkbox:checked')).map((node) => node.value)
+      : asStringArray(existing.selectedMcp),
+    agentsText: form.querySelector('[name="agents_text"]')
+      ? String(data.get('agents_text') || existing.agentsText || '')
+      : String(existing.agentsText || ''),
+    menusText: form.querySelector('[name="menus_text"]')
+      ? String(data.get('menus_text') || existing.menusText || '')
+      : String(existing.menusText || ''),
+    surfaces: surfaces.length ? surfaces : asArray(existing.surfaces),
   };
 
   return state.brandDraftBuffer;
@@ -849,6 +928,7 @@ async function createBrand(formData) {
       }),
     });
     await loadAppData();
+    state.showCreateBrandForm = false;
     state.route = 'brand-detail';
     await loadBrandDetail(brandId, {silent: true, suppressRender: true});
     setNotice(`已创建品牌 ${displayName || brandId}。`);
@@ -913,6 +993,7 @@ async function saveAsset(formData) {
     }
 
     await loadAppData();
+    state.showAssetUploadPanel = false;
     if (brandId) {
       await loadBrandDetail(brandId, {silent: true, suppressRender: true});
     }
@@ -1041,6 +1122,7 @@ async function importSkill(formData) {
       }),
     });
     await loadAppData();
+    state.showSkillImportPanel = false;
     setNotice(`已导入技能 ${String(formData.get('slug') || '').trim()}。`);
   } catch (error) {
     setError(error instanceof Error ? error.message : '技能导入失败');
@@ -1157,6 +1239,9 @@ function logout() {
   state.assets = [];
   state.releases = [];
   state.audit = [];
+  state.showCreateBrandForm = false;
+  state.showSkillImportPanel = false;
+  state.showAssetUploadPanel = false;
   resetBanner();
   render();
 }
@@ -1174,43 +1259,25 @@ function renderSidebar() {
   return `
     <aside class="sidebar">
       <div class="sidebar-brand">
-        <span class="eyebrow">OEM Control Center</span>
-        <strong class="sidebar-brand__title">运营管理平台</strong>
-        <p class="sidebar-brand__copy">多品牌、多版本、多端配置控制平面</p>
+        <h1 class="sidebar-brand__title">OEM 运营中心</h1>
+        <p class="sidebar-brand__copy">企业运营平台</p>
       </div>
       <nav class="nav-list">
         ${NAV_ITEMS.map(
           (item) => `
-            <button class="nav-item${state.route === item.id ? ' is-active' : ''}" type="button" data-action="navigate" data-page="${item.id}">
-              <span class="nav-item__icon">${escapeHtml(item.glyph)}</span>
-              <span class="nav-item__body">
-                <span class="nav-item__label">${escapeHtml(item.label)}</span>
-                <small>${escapeHtml(item.eyebrow)}</small>
-              </span>
+            <button class="nav-item${navIsActive(item.id) ? ' is-active' : ''}" type="button" data-action="navigate" data-page="${item.id}">
+              ${icon(item.icon, 'nav-item__icon')}
+              <span class="nav-item__label">${escapeHtml(item.label)}</span>
             </button>
           `,
         ).join('')}
       </nav>
-      <section class="sidebar-section">
-        <div class="sidebar-section__head">
-          <span class="eyebrow">Brands</span>
-          <button class="text-button" type="button" data-action="navigate" data-page="brands">查看全部</button>
-        </div>
-        <div class="mini-brand-list">
-          ${state.brands.slice(0, 6).map(renderMiniBrandButton).join('')}
-        </div>
-      </section>
       <div class="sidebar-footer">
-        <div class="sidebar-meta">
-          <span>Signed In</span>
-          <strong>${escapeHtml(state.user?.name || state.user?.username || 'admin')}</strong>
+        <div class="sidebar-footer__meta">
+          <div>${escapeHtml(state.user?.name || state.user?.username || 'admin')}</div>
+          <div>v1.2.4 • 2026年3月</div>
         </div>
-        <div class="sidebar-meta">
-          <span>Control API</span>
-          <strong>${escapeHtml(API_BASE_URL)}</strong>
-        </div>
-        <div class="sidebar-version">v1.0.0 • Mar 2026</div>
-        <button class="ghost-button ghost-button--full" type="button" data-action="logout">退出登录</button>
+        <button class="sidebar-footer__logout" type="button" data-action="logout">退出登录</button>
       </div>
     </aside>
   `;
@@ -1247,136 +1314,110 @@ function renderOverviewPage() {
   const stats = state.dashboard?.stats || {};
   const releases = state.dashboard?.recent_releases || [];
   const edits = state.dashboard?.recent_edits || [];
-  const activity = state.dashboard?.brand_activity || [];
+  const statCards = [
+    ['品牌总数', stats.brands_total, '本月新增品牌', 'trendingUp'],
+    ['已发布', stats.published_count, '运行中', 'checkCircle'],
+    ['草稿', stats.draft_count, '进行中', 'clock'],
+    ['MCP 服务器', stats.mcp_servers_count, '已连接', 'network'],
+    ['技能', stats.skills_count, '可分配能力', 'zap'],
+    ['待发布更改', stats.pending_changes_count, '等待发布', 'rocket'],
+  ];
 
   return `
-    ${renderHeader(
-      '总览',
-      '从统一控制平面管理所有 OEM 品牌、能力、素材与版本发布。',
-      `
-        <button class="ghost-button" type="button" data-action="refresh-page">刷新数据</button>
-        <button class="solid-button" type="button" data-action="navigate" data-page="brands">创建新品牌</button>
-      `,
-    )}
-    <section class="stats-grid">
-      ${[
-        ['品牌总数', stats.brands_total, '已纳入注册表的 OEM 租户'],
-        ['已发布', stats.published_count, '已生成线上快照'],
-        ['草稿中', stats.draft_count, '仍在编辑中的品牌'],
-        ['资源数', stats.assets_count, '品牌资产与分发素材'],
-        ['技能数', stats.skills_count, '控制面可分配技能'],
-        ['MCP 数', stats.mcp_servers_count, '可绑定能力提供方'],
-        ['待发布更改', stats.pending_changes_count, '草稿与线上存在差异'],
-      ]
-        .map(
-          ([label, value, note]) => `
-            <article class="stat-card">
-              <span>${escapeHtml(label)}</span>
-              <strong>${escapeHtml(value ?? 0)}</strong>
-              <p>${escapeHtml(note)}</p>
-            </article>
-          `,
-        )
-        .join('')}
-    </section>
-    <section class="overview-grid">
-      <article class="panel">
-        <div class="panel-head">
-          <h2>最近发布</h2>
-          <button class="text-button" type="button" data-action="navigate" data-page="releases">查看全部</button>
+    <div class="fig-page">
+      <div class="fig-page__header">
+        <div class="fig-page__header-inner">
+          <div>
+            <h1>总览</h1>
+            <p class="fig-page__description">从统一控制平面管理所有 OEM 品牌</p>
+          </div>
+          <button class="solid-button fig-button" type="button" data-action="navigate" data-page="brands">
+            ${icon('plus', 'button-icon')}
+            创建新品牌
+          </button>
         </div>
-        <div class="list-stack">
-          ${releases.length
+      </div>
+      <div class="fig-page__body">
+        <section class="fig-stats-grid">
+          ${statCards
+            .map(
+              ([label, value, note, iconName]) => `
+                <article class="fig-stat-card">
+                  <div class="fig-stat-card__label">${escapeHtml(label)}</div>
+                  <div class="fig-stat-card__value">${escapeHtml(value ?? 0)}</div>
+                  <div class="fig-stat-card__note">
+                    ${icon(iconName, 'fig-inline-icon')}
+                    ${escapeHtml(note)}
+                  </div>
+                </article>
+              `,
+            )
+            .join('')}
+        </section>
+        <section class="fig-two-column">
+          <article class="fig-card">
+            <div class="fig-card__head">
+              <h3>${icon('rocket', 'fig-inline-icon')}最近发布</h3>
+            </div>
+            <div class="fig-list">
+        ${
+          releases.length
             ? releases
                 .map(
                   (item) => `
-                    <div class="list-row list-row--dense">
+                    <div class="fig-list-item">
                       <div>
-                        <strong>${escapeHtml(item.display_name)}</strong>
-                        <span>v${escapeHtml(item.version)} · ${escapeHtml((item.surfaces || []).join(' / ') || '无 Surface')}</span>
+                        <div class="fig-list-item__title">${escapeHtml(item.display_name)}</div>
+                        <div class="fig-list-item__meta">
+                          <span>${escapeHtml(`v${item.version}`)}</span>
+                          <span>•</span>
+                          <span>${icon('clock', 'fig-inline-icon')} ${escapeHtml(formatRelative(item.published_at))}</span>
+                        </div>
                       </div>
-                      <div class="row-aside">
-                        <span>${escapeHtml(item.created_by_name || item.created_by_username || 'system')}</span>
-                        <small>${escapeHtml(formatRelative(item.published_at))}</small>
-                      </div>
+                      ${statusBadge('published')}
                     </div>
                   `,
                 )
                 .join('')
-            : `<div class="empty-state">当前没有发布记录。</div>`}
-        </div>
-      </article>
-      <article class="panel">
-        <div class="panel-head">
-          <h2>最近编辑</h2>
-          <button class="text-button" type="button" data-action="navigate" data-page="audit-log">查看审计日志</button>
-        </div>
-        <div class="list-stack">
-          ${edits.length
-            ? edits
-                .map(
-                  (item) => `
-                    <div class="list-row list-row--dense">
-                      <div>
-                        <strong>${escapeHtml(item.display_name)}</strong>
-                        <span>${escapeHtml(actionLabel(item.action))} · ${escapeHtml(item.environment || 'control-plane')}</span>
-                      </div>
-                      <div class="row-aside">
-                        <span>${escapeHtml(item.actor_name || item.actor_username || 'system')}</span>
-                        <small>${escapeHtml(formatRelative(item.created_at))}</small>
-                      </div>
-                    </div>
-                  `,
-                )
-                .join('')
-            : `<div class="empty-state">当前没有编辑记录。</div>`}
-        </div>
-      </article>
-    </section>
-    <section class="panel">
-      <div class="panel-head">
-        <h2>品牌活跃度</h2>
-        <button class="text-button" type="button" data-action="navigate" data-page="brands">打开品牌视图</button>
+            : `<div class="empty-state">当前没有发布记录。</div>`
+        }
+            </div>
+            <div class="fig-card__footer">
+              <button class="text-button" type="button" data-action="navigate" data-page="releases">查看所有发布</button>
+            </div>
+          </article>
+          <article class="fig-card">
+            <div class="fig-card__head">
+              <h3>${icon('activity', 'fig-inline-icon')}最近编辑</h3>
+            </div>
+            <div class="fig-list">
+              ${edits.length
+                ? edits
+                    .map(
+                      (item) => `
+                        <div class="fig-list-item">
+                          <div>
+                            <div class="fig-list-item__title">${escapeHtml(item.display_name)}</div>
+                            <div class="fig-list-item__body">${escapeHtml(actionLabel(item.action))}</div>
+                            <div class="fig-list-item__meta">
+                              <span>${escapeHtml(item.actor_name || item.actor_username || 'system')}</span>
+                              <span>•</span>
+                              <span>${escapeHtml(formatRelative(item.created_at))}</span>
+                            </div>
+                          </div>
+                        </div>
+                      `,
+                    )
+                    .join('')
+                : `<div class="empty-state">当前没有编辑记录。</div>`}
+            </div>
+            <div class="fig-card__footer">
+              <button class="text-button" type="button" data-action="navigate" data-page="audit-log">查看审计日志</button>
+            </div>
+          </article>
+        </section>
       </div>
-      <div class="table-shell">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>品牌</th>
-              <th>状态</th>
-              <th>Surface</th>
-              <th>技能</th>
-              <th>MCP</th>
-              <th>资源</th>
-              <th>最近更新时间</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${activity.length
-              ? activity
-                  .map(
-                    (item) => `
-                      <tr>
-                        <td>
-                          <button class="table-link" type="button" data-action="select-brand" data-brand-id="${escapeHtml(item.brand_id)}">
-                            ${escapeHtml(item.display_name)}
-                          </button>
-                        </td>
-                        <td>${statusBadge(item.status)}</td>
-                        <td>${escapeHtml(item.configured_surfaces)}</td>
-                        <td>${escapeHtml(item.enabled_skills)}</td>
-                        <td>${escapeHtml(item.enabled_mcp_servers)}</td>
-                        <td>${escapeHtml(item.asset_count)}</td>
-                        <td>${escapeHtml(formatDateTime(item.updated_at))}</td>
-                      </tr>
-                    `,
-                  )
-                  .join('')
-              : `<tr><td colspan="7"><div class="empty-state">暂无品牌活跃度数据。</div></td></tr>`}
-          </tbody>
-        </table>
-      </div>
-    </section>
+    </div>
   `;
 }
 
@@ -1397,86 +1438,126 @@ function renderBrandsPage() {
   const brands = getFilteredBrands();
 
   return `
-    ${renderHeader(
-      '品牌管理',
-      '维护品牌元数据、Surface 覆盖、发布状态和租户配置。',
-      `<button class="ghost-button" type="button" data-action="refresh-page">同步控制面</button>`,
-    )}
-    <section class="panel panel--form">
-      <div class="panel-head">
-        <h2>创建新品牌</h2>
-        <span>首次创建即写入真实 OEM 草稿配置</span>
+    <div class="fig-page">
+      <div class="fig-page__header">
+        <div class="fig-page__header-inner fig-page__header-inner--stack">
+          <div class="fig-page__header-row">
+            <div>
+              <h1>品牌管理</h1>
+              <p class="fig-page__description">管理 OEM 品牌配置、Surface 和部署</p>
+            </div>
+            <button class="solid-button fig-button" type="button" data-action="toggle-create-brand">
+              ${icon('plus', 'button-icon')}
+              创建品牌
+            </button>
+          </div>
+          <div class="fig-toolbar">
+            <label class="fig-search">
+              ${icon('search', 'fig-search__icon')}
+              <input
+                class="field-input fig-search__input"
+                data-filter-key="brandQuery"
+                placeholder="搜索品牌..."
+                value="${fieldValue(state.filters.brandQuery)}"
+              />
+            </label>
+            <select class="field-select fig-filter" data-filter-key="brandStatus">
+              ${['all', 'published', 'draft', 'archived']
+                .map(
+                  (item) => `
+                    <option value="${item}"${state.filters.brandStatus === item ? ' selected' : ''}>
+                      ${item === 'all' ? '所有状态' : statusLabel(item)}
+                    </option>
+                  `,
+                )
+                .join('')}
+            </select>
+          </div>
+        </div>
       </div>
-      <form class="inline-form" id="create-brand-form">
-        <input class="field-input" name="brand_id" placeholder="brand id" />
-        <input class="field-input" name="display_name" placeholder="显示名称" />
-        <input class="field-input" name="product_name" placeholder="产品名称" />
-        <input class="field-input" name="tenant_key" placeholder="tenant key" />
-        <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>创建品牌</button>
-      </form>
-    </section>
-    <section class="filter-row">
-      <input
-        class="field-input"
-        data-filter-key="brandQuery"
-        placeholder="搜索 brand id / 品牌名 / 租户 key"
-        value="${fieldValue(state.filters.brandQuery)}"
-      />
-      <select class="field-select" data-filter-key="brandStatus">
-        ${['all', 'published', 'draft', 'archived']
-          .map(
-            (item) => `
-              <option value="${item}"${state.filters.brandStatus === item ? ' selected' : ''}>
-                ${item === 'all' ? '全部状态' : statusLabel(item)}
-              </option>
-            `,
-          )
-          .join('')}
-      </select>
-    </section>
-    <section class="brand-grid">
-      ${brands.length
-        ? brands.map(renderBrandCard).join('')
-        : `<div class="empty-state empty-state--panel">没有匹配的品牌。</div>`}
-    </section>
+      <div class="fig-page__body">
+        ${
+          state.showCreateBrandForm
+            ? `
+              <section class="fig-card fig-create-panel">
+                <div class="fig-card__head">
+                  <h3>创建新品牌</h3>
+                  <button class="text-button" type="button" data-action="toggle-create-brand">收起</button>
+                </div>
+                <form class="form-grid form-grid--two" id="create-brand-form">
+                  <label class="field">
+                    <span>Brand ID</span>
+                    <input class="field-input" name="brand_id" placeholder="brand-id" />
+                  </label>
+                  <label class="field">
+                    <span>显示名称</span>
+                    <input class="field-input" name="display_name" placeholder="品牌显示名称" />
+                  </label>
+                  <label class="field">
+                    <span>产品名称</span>
+                    <input class="field-input" name="product_name" placeholder="品牌产品名称" />
+                  </label>
+                  <label class="field">
+                    <span>Tenant Key</span>
+                    <input class="field-input" name="tenant_key" placeholder="tenant-key" />
+                  </label>
+                  <div class="fig-form-actions">
+                    <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>创建品牌</button>
+                  </div>
+                </form>
+              </section>
+            `
+            : ''
+        }
+        <section class="fig-brand-grid">
+          ${brands.length
+            ? brands.map(renderBrandCard).join('')
+            : `<div class="empty-state empty-state--panel">没有匹配的品牌。</div>`}
+        </section>
+      </div>
+    </div>
   `;
 }
 
 function renderBrandCard(brand) {
   const metrics = metricsFromBrand(brand);
   return `
-    <article class="brand-card">
-      <div class="brand-card__head">
+    <button class="fig-brand-card" type="button" data-action="select-brand" data-brand-id="${escapeHtml(brand.brandId)}">
+      <div class="fig-brand-card__head">
         <div>
-          <h2>${escapeHtml(brand.displayName)}</h2>
+          <h3>${escapeHtml(brand.displayName)}</h3>
           <p>${escapeHtml(brand.productName)}</p>
         </div>
         ${statusBadge(brand.status)}
       </div>
-      <dl class="brand-meta">
-        <div><dt>Brand ID</dt><dd>${escapeHtml(brand.brandId)}</dd></div>
-        <div><dt>Tenant Key</dt><dd>${escapeHtml(brand.tenantKey)}</dd></div>
-        <div><dt>当前版本</dt><dd>v${escapeHtml(brand.publishedVersion || 0)}</dd></div>
-        <div><dt>待发布</dt><dd>${metrics.pendingChanges ? '有变更' : '无差异'}</dd></div>
-      </dl>
-      <div class="metric-chips">
-        <span>${escapeHtml(metrics.surfaces)} 个 Surface</span>
-        <span>${escapeHtml(metrics.skills)} 个技能</span>
-        <span>${escapeHtml(metrics.mcpServers)} 个 MCP</span>
+      <div class="fig-brand-card__meta">
+        <div><span>租户密钥:</span><code>${escapeHtml(brand.tenantKey)}</code></div>
+        <div><span>版本:</span><code>v${escapeHtml(brand.publishedVersion || 0)}</code></div>
       </div>
-      <div class="brand-card__footer">
-        <small>${escapeHtml(formatRelative(brand.updatedAt))}</small>
-        <button class="ghost-button" type="button" data-action="select-brand" data-brand-id="${escapeHtml(brand.brandId)}">进入详情</button>
+      <div class="fig-brand-card__footer">
+        <span>已配置 ${escapeHtml(metrics.surfaces)} 个 Surface</span>
+        <span>${escapeHtml(metrics.pendingChanges ? '有待发布变更' : formatRelative(brand.updatedAt))}</span>
       </div>
-    </article>
+    </button>
   `;
 }
 
 function renderBrandDetailPage() {
   if (!state.brandDetail?.brand) {
     return `
-      ${renderHeader('品牌详情', '选择品牌后查看真实配置、资源和发布轨迹。')}
-      <div class="empty-state empty-state--panel">当前没有可查看的品牌。</div>
+      <div class="fig-page">
+        <div class="fig-page__header">
+          <div class="fig-page__header-inner">
+            <div>
+              <h1>品牌详情</h1>
+              <p class="fig-page__description">选择品牌后查看真实配置、资源和发布轨迹</p>
+            </div>
+          </div>
+        </div>
+        <div class="fig-page__body">
+          <div class="empty-state empty-state--panel">当前没有可查看的品牌。</div>
+        </div>
+      </div>
     `;
   }
 
@@ -1485,254 +1566,309 @@ function renderBrandDetailPage() {
   const versions = state.brandDetail.versions || [];
   const assets = state.brandDetail.assets || [];
   const audit = state.brandDetail.audit || [];
+  const activeTab = ['surfaces', 'capabilities', 'assets', 'theme'].includes(state.brandDetailTab)
+    ? state.brandDetailTab
+    : 'surfaces';
+  const rollbackTarget = versions[0]?.version || '';
 
   return `
-    ${renderHeader(
-      brand.displayName,
-      `${brand.productName} · 租户 ${brand.tenantKey}`,
-      `
-        ${statusBadge(brand.status)}
-        <button class="ghost-button" type="button" data-action="navigate" data-page="brands">返回品牌列表</button>
-        <button class="ghost-button" type="button" data-action="save-brand-draft"${state.busy ? ' disabled' : ''}>保存草稿</button>
-        <button class="solid-button" type="button" data-action="publish-brand"${state.busy ? ' disabled' : ''}>发布当前草稿</button>
-      `,
-    )}
-    <section class="detail-layout">
-      <aside class="detail-rail">
-        <article class="panel">
-          <div class="panel-head">
-            <h2>发布信息</h2>
-            <span>实时来自 PostgreSQL</span>
-          </div>
-          <dl class="brand-meta brand-meta--stacked">
-            <div><dt>Brand ID</dt><dd>${escapeHtml(brand.brandId)}</dd></div>
-            <div><dt>Tenant Key</dt><dd>${escapeHtml(brand.tenantKey)}</dd></div>
-            <div><dt>线上版本</dt><dd>v${escapeHtml(brand.publishedVersion || 0)}</dd></div>
-            <div><dt>更新时间</dt><dd>${escapeHtml(formatDateTime(brand.updatedAt))}</dd></div>
-          </dl>
-        </article>
-        <article class="panel">
-          <div class="panel-head">
-            <h2>版本轨迹</h2>
-            <span>可回滚到任意已发布版本</span>
-          </div>
-          <div class="timeline-stack">
-            ${versions.length
-              ? versions
-                  .map(
-                    (item) => `
-                      <div class="timeline-item">
-                        <div>
-                          <strong>v${escapeHtml(item.version)}</strong>
-                          <small>${escapeHtml(formatDateTime(item.publishedAt))}</small>
-                          <span>${escapeHtml(item.createdByName || item.createdByUsername || 'system')}</span>
-                        </div>
-                        <button class="text-button" type="button" data-action="rollback-brand" data-version="${escapeHtml(item.version)}"${state.busy ? ' disabled' : ''}>
-                          回滚为草稿
-                        </button>
-                      </div>
-                    `,
-                  )
-                  .join('')
-              : `<div class="empty-state">还没有发布记录。</div>`}
-          </div>
-        </article>
-        <article class="panel">
-          <div class="panel-head">
-            <h2>最近审计</h2>
-            <button class="text-button" type="button" data-action="navigate" data-page="audit-log">全部日志</button>
-          </div>
-          <div class="list-stack">
-            ${audit.length
-              ? audit
-                  .slice(0, 6)
-                  .map(
-                    (item) => `
-                      <div class="list-row list-row--dense">
-                        <div>
-                          <strong>${escapeHtml(actionLabel(item.action))}</strong>
-                          <span>${escapeHtml(item.actorName || item.actorUsername || 'system')}</span>
-                        </div>
-                        <small>${escapeHtml(formatRelative(item.createdAt))}</small>
-                      </div>
-                    `,
-                  )
-                  .join('')
-              : `<div class="empty-state">暂无审计记录。</div>`}
-          </div>
-        </article>
-      </aside>
-      <section class="detail-main">
-        <form id="brand-editor-form" class="panel panel--spacious">
-          <input type="hidden" name="brand_id" value="${fieldValue(buffer.brandId)}" />
-          <div class="panel-head panel-head--tight">
-            <div>
-              <h2>品牌草稿编辑器</h2>
-              <span>基础字段、Surface、能力开关和高级 JSON 同时落到真实 draft_config</span>
+    <div class="fig-brand-detail">
+      <div class="fig-brand-detail__header">
+        <div class="fig-brand-detail__header-inner">
+          <div class="fig-brand-detail__header-main">
+            <button class="fig-icon-button" type="button" data-action="navigate" data-page="brands" aria-label="返回品牌列表">
+              ${icon('arrowLeft', 'fig-icon-button__icon')}
+            </button>
+            <div class="fig-brand-detail__title-wrap">
+              <div class="fig-brand-detail__title-row">
+                <h1>${escapeHtml(brand.displayName)}</h1>
+                ${statusBadge(brand.status)}
+              </div>
+              <p class="fig-brand-detail__subtitle">
+                ${escapeHtml(brand.productName)} • 租户:
+                <code>${escapeHtml(brand.tenantKey)}</code>
+              </p>
             </div>
-            <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>保存草稿</button>
           </div>
-
-          <section class="form-grid form-grid--three">
-            <label class="field">
-              <span>显示名称</span>
-              <input class="field-input" name="display_name" value="${fieldValue(buffer.displayName)}" />
-            </label>
-            <label class="field">
-              <span>产品名称</span>
-              <input class="field-input" name="product_name" value="${fieldValue(buffer.productName)}" />
-            </label>
-            <label class="field">
-              <span>Tenant Key</span>
-              <input class="field-input" name="tenant_key" value="${fieldValue(buffer.tenantKey)}" />
-            </label>
-            <label class="field">
-              <span>品牌状态</span>
-              <select class="field-select" name="status">
-                ${['draft', 'published', 'archived']
-                  .map(
-                    (item) => `
-                      <option value="${item}"${buffer.status === item ? ' selected' : ''}>${escapeHtml(statusLabel(item))}</option>
-                    `,
-                  )
-                  .join('')}
-              </select>
-            </label>
+          <div class="fig-brand-detail__actions">
+            <button class="ghost-button fig-button" type="button" data-action="save-brand-draft"${state.busy ? ' disabled' : ''}>
+              ${icon('save', 'button-icon')}
+              保存草稿
+            </button>
+            <button class="solid-button fig-button" type="button" data-action="publish-brand"${state.busy ? ' disabled' : ''}>
+              ${icon('rocket', 'button-icon')}
+              发布
+            </button>
+            <button class="fig-icon-button" type="button" data-action="rollback-brand" data-version="${escapeHtml(rollbackTarget)}"${rollbackTarget ? '' : ' disabled'} aria-label="回滚为最近发布版本">
+              ${icon('rotateCcw', 'fig-icon-button__icon')}
+            </button>
+          </div>
+        </div>
+        <div class="fig-brand-detail__meta">
+          <div>当前版本: <code>v${escapeHtml(brand.publishedVersion || 0)}</code></div>
+          <div>•</div>
+          <div>最后发布: ${escapeHtml(brandLastPublished(state.brandDetail))}</div>
+          <div>•</div>
+          <div>发布者: ${escapeHtml(versions[0]?.createdByName || versions[0]?.createdByUsername || 'system')}</div>
+        </div>
+      </div>
+      <div class="fig-brand-tabs">
+        ${[
+          ['surfaces', 'Surface 配置', 'monitor'],
+          ['capabilities', '技能与 MCP', 'store'],
+          ['assets', '品牌资源', 'image'],
+          ['theme', '主题样式', 'palette'],
+        ]
+          .map(
+            ([id, label, iconName]) => `
+              <button
+                class="fig-brand-tab${activeTab === id ? ' is-active' : ''}"
+                type="button"
+                data-action="brand-tab"
+                data-tab="${id}"
+              >
+                ${icon(iconName, 'fig-inline-icon')}
+                ${escapeHtml(label)}
+              </button>
+            `,
+          )
+          .join('')}
+      </div>
+      <div class="fig-page__body fig-page__body--brand-detail">
+        <form id="brand-editor-form" class="fig-brand-form">
+          <input type="hidden" name="brand_id" value="${fieldValue(buffer.brandId)}" />
+          <section class="fig-card fig-brand-meta-editor">
+            <div class="fig-card__head">
+              <h3>品牌信息</h3>
+              <span>基础元数据会写入真实草稿配置</span>
+            </div>
+            <div class="form-grid form-grid--three">
+              <label class="field">
+                <span>显示名称</span>
+                <input class="field-input" name="display_name" value="${fieldValue(buffer.displayName)}" />
+              </label>
+              <label class="field">
+                <span>产品名称</span>
+                <input class="field-input" name="product_name" value="${fieldValue(buffer.productName)}" />
+              </label>
+              <label class="field">
+                <span>Tenant Key</span>
+                <input class="field-input" name="tenant_key" value="${fieldValue(buffer.tenantKey)}" />
+              </label>
+              <label class="field">
+                <span>品牌状态</span>
+                <select class="field-select" name="status">
+                  ${['draft', 'published', 'archived']
+                    .map(
+                      (item) => `
+                        <option value="${item}"${buffer.status === item ? ' selected' : ''}>${escapeHtml(statusLabel(item))}</option>
+                      `,
+                    )
+                    .join('')}
+                </select>
+              </label>
+            </div>
           </section>
-
-          <div class="tab-row">
-            ${[
-              ['surfaces', 'Surface 配置'],
-              ['capabilities', '技能与 MCP'],
-              ['assets', '品牌资源'],
-              ['theme', '主题样式'],
-              ['advanced', '高级 JSON'],
-            ]
-              .map(
-                ([id, label]) => `
-                  <button
-                    class="tab-pill${state.brandDetailTab === id ? ' is-active' : ''}"
-                    type="button"
-                    data-action="brand-tab"
-                    data-tab="${id}"
-                  >
-                    ${escapeHtml(label)}
-                  </button>
-                `,
-              )
-              .join('')}
-          </div>
-
-          ${renderBrandEditorBody(buffer, assets)}
+          ${renderBrandEditorBody(buffer, assets, activeTab)}
         </form>
-      </section>
-    </section>
+        <section class="fig-support-grid">
+          <article class="fig-card">
+            <div class="fig-card__head">
+              <h3>版本轨迹</h3>
+              <span>可回滚到任意已发布版本</span>
+            </div>
+            <div class="fig-list">
+              ${versions.length
+                ? versions
+                    .map(
+                      (item) => `
+                        <div class="fig-list-item fig-list-item--spread">
+                          <div>
+                            <div class="fig-list-item__title">v${escapeHtml(item.version)}</div>
+                            <div class="fig-list-item__meta">
+                              <span>${escapeHtml(formatDateTime(item.publishedAt))}</span>
+                              <span>•</span>
+                              <span>${escapeHtml(item.createdByName || item.createdByUsername || 'system')}</span>
+                            </div>
+                          </div>
+                          <button class="text-button" type="button" data-action="rollback-brand" data-version="${escapeHtml(item.version)}"${state.busy ? ' disabled' : ''}>
+                            回滚为草稿
+                          </button>
+                        </div>
+                      `,
+                    )
+                    .join('')
+                : `<div class="empty-state">还没有发布记录。</div>`}
+            </div>
+          </article>
+          <article class="fig-card">
+            <div class="fig-card__head">
+              <h3>最近审计</h3>
+              <button class="text-button" type="button" data-action="navigate" data-page="audit-log">全部日志</button>
+            </div>
+            <div class="fig-list">
+              ${audit.length
+                ? audit
+                    .slice(0, 6)
+                    .map(
+                      (item) => `
+                        <div class="fig-list-item">
+                          <div>
+                            <div class="fig-list-item__title">${escapeHtml(actionLabel(item.action))}</div>
+                            <div class="fig-list-item__meta">
+                              <span>${escapeHtml(item.actorName || item.actorUsername || 'system')}</span>
+                              <span>•</span>
+                              <span>${escapeHtml(formatRelative(item.createdAt))}</span>
+                            </div>
+                          </div>
+                        </div>
+                      `,
+                    )
+                    .join('')
+                : `<div class="empty-state">暂无审计记录。</div>`}
+            </div>
+          </article>
+        </section>
+      </div>
+    </div>
   `;
 }
 
-function renderBrandEditorBody(buffer, assets) {
-  if (state.brandDetailTab === 'surfaces') {
+function renderBrandEditorBody(buffer, assets, activeTab = state.brandDetailTab) {
+  if (activeTab === 'surfaces') {
+    const surfaceIcons = {
+      desktop: 'monitor',
+      'home-web': 'globe',
+      header: 'layout',
+      sidebar: 'sidebar',
+      input: 'messageSquare',
+      'input-composer': 'messageSquare',
+      'skill-store': 'store',
+    };
     return `
-      <section class="surface-grid">
+      <section class="fig-brand-section">
+        <div class="fig-section-heading">
+          <h2>Surface 配置</h2>
+          <p>为不同部署 Surface 配置界面组件</p>
+        </div>
+        <div class="fig-surface-grid">
         ${buffer.surfaces
           .map(
             (surface) => `
-              <article class="surface-editor" data-surface-key="${escapeHtml(surface.key)}" data-surface-label="${escapeHtml(surface.label)}">
-                <div class="surface-editor__head">
-                  <div>
-                    <h3>${escapeHtml(surface.label)}</h3>
-                    <p>${escapeHtml(surface.key)}</p>
-                  </div>
-                  <label class="toggle">
-                    <input type="checkbox" name="surface_enabled__${escapeHtml(surface.key)}"${surface.enabled ? ' checked' : ''} />
-                    <span>启用</span>
-                  </label>
+              <article class="surface-editor fig-surface-card" data-surface-key="${escapeHtml(surface.key)}" data-surface-label="${escapeHtml(surface.label)}">
+                <div class="fig-surface-card__preview">
+                  ${icon(surfaceIcons[surface.key] || 'layout', 'fig-surface-card__preview-icon')}
                 </div>
-                <textarea class="code-input" name="surface_config__${escapeHtml(surface.key)}">${escapeHtml(surface.json)}</textarea>
+                <div class="fig-surface-card__body">
+                  <div class="surface-editor__head fig-surface-card__head">
+                    <div>
+                      <h3>${escapeHtml(surface.label)}</h3>
+                      <p>${surface.enabled ? '已配置' : '未配置'}</p>
+                    </div>
+                    <label class="toggle fig-toggle">
+                      <input type="checkbox" name="surface_enabled__${escapeHtml(surface.key)}"${surface.enabled ? ' checked' : ''} />
+                      <span>${surface.enabled ? '已启用' : '已关闭'}</span>
+                    </label>
+                  </div>
+                  <textarea class="code-input" name="surface_config__${escapeHtml(surface.key)}">${escapeHtml(surface.json)}</textarea>
+                </div>
               </article>
             `,
           )
           .join('')}
+        </div>
       </section>
     `;
   }
 
-  if (state.brandDetailTab === 'capabilities') {
+  if (activeTab === 'capabilities') {
     const skills = state.capabilities?.skills || [];
     const mcpServers = state.capabilities?.mcp_servers || [];
     return `
-      <section class="capability-columns">
-        <article class="panel panel--nested">
-          <div class="panel-head">
-            <h3>技能绑定</h3>
-            <span>控制哪些技能对该品牌开放</span>
-          </div>
-          <div class="checkbox-stack">
-            ${skills.length
-              ? skills
-                  .map(
-                    (skill) => `
-                      <article class="checkbox-card checkbox-card--capability">
-                        <input class="skill-checkbox visually-hidden" type="checkbox" value="${escapeHtml(skill.slug)}"${buffer.selectedSkills.includes(skill.slug) ? ' checked' : ''} />
-                        <div>
-                          <strong>${escapeHtml(skill.name)}</strong>
-                          <span>${escapeHtml(skill.category || '未分类')} · ${escapeHtml(skill.publisher || 'iClaw')}</span>
-                        </div>
-                        <div class="row-actions">
-                          <small>${escapeHtml(skill.brand_count)} 个品牌</small>
+      <section class="fig-brand-section">
+        <div class="fig-section-heading">
+          <h2>技能与 MCP</h2>
+          <p>管理品牌可用技能和模型上下文协议能力提供方</p>
+        </div>
+        <div class="fig-capability-columns">
+          <article class="fig-card fig-card--subtle">
+            <div class="fig-card__head">
+              <h3>已启用技能</h3>
+              <span>此品牌可用的技能</span>
+            </div>
+            <div class="fig-capability-stack">
+              ${skills.length
+                ? skills
+                    .map(
+                      (skill) => `
+                        <article class="checkbox-card checkbox-card--capability fig-capability-item">
+                          <input class="skill-checkbox visually-hidden" type="checkbox" value="${escapeHtml(skill.slug)}"${buffer.selectedSkills.includes(skill.slug) ? ' checked' : ''} />
+                          <div>
+                            <strong>${escapeHtml(skill.name)}</strong>
+                            <span>${escapeHtml(skill.category || '未分类')}</span>
+                          </div>
                           <button class="${buffer.selectedSkills.includes(skill.slug) ? 'ghost-button' : 'solid-button'} control-button" type="button" data-action="toggle-brand-skill" data-skill-slug="${escapeHtml(skill.slug)}">
                             ${buffer.selectedSkills.includes(skill.slug) ? 'Disable' : 'Enable'}
                           </button>
-                        </div>
-                      </article>
-                    `,
-                  )
-                  .join('')
-              : `<div class="empty-state">当前没有可用技能。</div>`}
-          </div>
-        </article>
-        <article class="panel panel--nested">
-          <div class="panel-head">
-            <h3>MCP 绑定</h3>
-            <span>从真实 MCP 注册表选择能力提供方</span>
-          </div>
-          <div class="checkbox-stack">
-            ${mcpServers.length
-              ? mcpServers
-                  .map(
-                    (server) => `
-                      <article class="checkbox-card checkbox-card--capability">
-                        <input class="mcp-checkbox visually-hidden" type="checkbox" value="${escapeHtml(server.key)}"${buffer.selectedMcp.includes(server.key) ? ' checked' : ''} />
-                        <div>
-                          <strong>${escapeHtml(server.name)}</strong>
-                          <span>${escapeHtml(server.command || '未声明 command')} · ${escapeHtml(server.env_keys.length)} 个环境变量</span>
-                        </div>
-                        <div class="row-actions">
-                          <small>${escapeHtml(server.connected_brand_count)} 个品牌</small>
+                        </article>
+                      `,
+                    )
+                    .join('')
+                : `<div class="empty-state">当前没有可用技能。</div>`}
+            </div>
+          </article>
+          <article class="fig-card fig-card--subtle">
+            <div class="fig-card__head">
+              <h3>MCP 服务器</h3>
+              <span>已连接的能力提供方</span>
+            </div>
+            <div class="fig-capability-stack">
+              ${mcpServers.length
+                ? mcpServers
+                    .map(
+                      (server) => `
+                        <article class="checkbox-card checkbox-card--capability fig-capability-item">
+                          <input class="mcp-checkbox visually-hidden" type="checkbox" value="${escapeHtml(server.key)}"${buffer.selectedMcp.includes(server.key) ? ' checked' : ''} />
+                          <div>
+                            <strong>${escapeHtml(server.name)}</strong>
+                            <span>${escapeHtml(server.connected_brand_count)} 个品牌使用</span>
+                          </div>
                           <button class="${buffer.selectedMcp.includes(server.key) ? 'ghost-button' : 'solid-button'} control-button" type="button" data-action="toggle-brand-mcp" data-mcp-key="${escapeHtml(server.key)}">
                             ${buffer.selectedMcp.includes(server.key) ? 'Disable' : 'Enable'}
                           </button>
-                        </div>
-                      </article>
-                    `,
-                  )
-                  .join('')
-              : `<div class="empty-state">当前没有 MCP 目录。</div>`}
-          </div>
-          <label class="field">
-            <span>Agents</span>
-            <textarea class="field-textarea" name="agents_text" placeholder="每行一个 agent slug">${escapeHtml(buffer.agentsText)}</textarea>
-          </label>
-          <label class="field">
-            <span>Menus</span>
-            <textarea class="field-textarea" name="menus_text" placeholder="每行一个 menu key">${escapeHtml(buffer.menusText)}</textarea>
-          </label>
-        </article>
+                        </article>
+                      `,
+                    )
+                    .join('')
+                : `<div class="empty-state">当前没有 MCP 目录。</div>`}
+            </div>
+          </article>
+        </div>
+        <div class="fig-capability-columns fig-capability-columns--bottom">
+          <article class="fig-card fig-card--subtle">
+            <div class="fig-card__head">
+              <h3>Agents</h3>
+              <span>每行一个 agent slug</span>
+            </div>
+            <label class="field">
+              <textarea class="field-textarea" name="agents_text" placeholder="每行一个 agent slug">${escapeHtml(buffer.agentsText)}</textarea>
+            </label>
+          </article>
+          <article class="fig-card fig-card--subtle">
+            <div class="fig-card__head">
+              <h3>Menus</h3>
+              <span>每行一个 menu key</span>
+            </div>
+            <label class="field">
+              <textarea class="field-textarea" name="menus_text" placeholder="每行一个 menu key">${escapeHtml(buffer.menusText)}</textarea>
+            </label>
+          </article>
+        </div>
       </section>
     `;
   }
 
-  if (state.brandDetailTab === 'assets') {
+  if (activeTab === 'assets') {
     const assetSlots = [
       ['logoMaster', 'Logo', 'logo'],
       ['homeLogo', 'Home Logo', 'logo'],
@@ -1740,20 +1876,25 @@ function renderBrandEditorBody(buffer, assets) {
       ['faviconIco', 'Favicon ICO', 'favicon'],
     ];
     return `
-      <section class="asset-editor-layout">
-        <article class="panel panel--nested">
-          <div class="panel-head">
+      <section class="fig-brand-section">
+        <div class="fig-section-heading">
+          <h2>品牌资源</h2>
+          <p>上传和维护 Logo、Favicon 与其它品牌资源</p>
+        </div>
+        <div class="fig-assets-layout">
+          <article class="fig-card fig-card--subtle">
+            <div class="fig-card__head">
             <h3>Logo / Favicon 上传器</h3>
             <span>seed 资源是仓库内置 repo 文件；你在这里上传的新图会真正写入 MinIO / S3，并回填 draft_config.assets</span>
           </div>
           <form id="asset-form" class="stack-form">
             <input type="hidden" name="brand_id" value="${fieldValue(buffer.brandId)}" />
-            <div class="asset-slot-grid">
+            <div class="asset-slot-grid fig-asset-slot-grid">
               ${assetSlots
                 .map(([assetKey, label, kind]) => {
                   const current = assets.find((item) => item.assetKey === assetKey) || null;
                   return `
-                    <article class="asset-slot-card">
+                    <article class="fig-asset-slot-card">
                       <div class="asset-slot-card__head">
                         <strong>${escapeHtml(label)}</strong>
                         <small>${escapeHtml(assetKey)}</small>
@@ -1802,27 +1943,27 @@ function renderBrandEditorBody(buffer, assets) {
             <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>登记资源</button>
           </form>
         </article>
-        <article class="panel panel--nested">
-          <div class="panel-head">
+        <article class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
             <h3>当前品牌资源</h3>
             <span>来自 oem_asset_registry 的真实记录</span>
           </div>
-          <div class="list-stack">
+          <div class="fig-list">
             ${assets.length
               ? assets
                   .map(
                     (item) => `
-                      <div class="list-row">
+                      <div class="fig-list-item fig-list-item--spread">
                         <div>
-                          <strong>${escapeHtml(item.assetKey)}</strong>
-                          <span>${escapeHtml(item.kind)} · ${escapeHtml(item.objectKey)}</span>
+                          <div class="fig-list-item__title">${escapeHtml(item.assetKey)}</div>
+                          <div class="fig-list-item__body">${escapeHtml(item.kind)} · ${escapeHtml(item.objectKey)}</div>
                           ${
                             isImageLike(item.metadata?.content_type, item.publicUrl, item.objectKey)
                               ? `<div class="asset-thumb-wrap"><img class="asset-thumb" src="${escapeHtml(resolveAssetUrl(item))}" alt="${escapeHtml(item.assetKey)}" /></div>`
                               : ''
                           }
                         </div>
-                        <div class="row-aside">
+                        <div class="fig-list-item__actions">
                           <span>${escapeHtml(item.storageProvider)}</span>
                           ${
                             item.publicUrl || item.objectKey
@@ -1839,15 +1980,21 @@ function renderBrandEditorBody(buffer, assets) {
               : `<div class="empty-state">当前品牌还没有登记资源。</div>`}
           </div>
         </article>
+        </div>
       </section>
     `;
   }
 
-  if (state.brandDetailTab === 'theme') {
+  if (activeTab === 'theme') {
     return `
-      <section class="theme-grid">
-        <article class="panel panel--nested">
-          <div class="panel-head">
+      <section class="fig-brand-section">
+        <div class="fig-section-heading">
+          <h2>主题样式</h2>
+          <p>维护 Light / Dark 主题色，并保留完整 JSON 编辑能力</p>
+        </div>
+        <div class="fig-theme-grid">
+          <article class="fig-card fig-card--subtle">
+            <div class="fig-card__head">
             <h3>Light Theme</h3>
             <span>写入 draft_config.theme.light</span>
           </div>
@@ -1866,8 +2013,8 @@ function renderBrandEditorBody(buffer, assets) {
             </label>
           </div>
         </article>
-        <article class="panel panel--nested">
-          <div class="panel-head">
+        <article class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
             <h3>Dark Theme</h3>
             <span>写入 draft_config.theme.dark</span>
           </div>
@@ -1886,14 +2033,23 @@ function renderBrandEditorBody(buffer, assets) {
             </label>
           </div>
         </article>
+        </div>
+        <section class="fig-card">
+          <div class="fig-card__head">
+            <h3>高级 JSON</h3>
+            <span>完整 Draft Config</span>
+          </div>
+          <label class="field">
+            <textarea class="code-input code-input--tall" name="advanced_json">${escapeHtml(buffer.advancedJson)}</textarea>
+          </label>
+        </section>
       </section>
     `;
   }
 
   return `
-    <section class="advanced-editor">
+    <section class="fig-card">
       <label class="field">
-        <span>完整 Draft Config JSON</span>
         <textarea class="code-input code-input--tall" name="advanced_json">${escapeHtml(buffer.advancedJson)}</textarea>
       </label>
     </section>
@@ -1921,75 +2077,102 @@ function renderSkillsMcpPage() {
   const {skills, mcpServers} = getFilteredCapabilities();
   const selectedSkill = skills.find((item) => item.slug === state.selectedSkillSlug) || skills[0] || null;
   const selectedMcp = state.selectedMcpKey === '__new__' ? null : mcpServers.find((item) => item.key === state.selectedMcpKey) || mcpServers[0] || null;
+  const actionButton = state.capabilityMode === 'skills'
+    ? `
+      <button class="solid-button fig-button" type="button" data-action="toggle-skill-import">
+        ${icon('plus', 'button-icon')}
+        添加技能
+      </button>
+    `
+    : `
+      <button class="solid-button fig-button" type="button" data-action="new-mcp">
+        ${icon('plus', 'button-icon')}
+        新增 MCP
+      </button>
+    `;
 
   return `
-    ${renderHeader(
-      '技能与 MCP',
-      '查看真实技能目录、品牌绑定范围和 MCP 注册关系。',
-      `<button class="ghost-button" type="button" data-action="refresh-page">刷新目录</button>`,
-    )}
-    <section class="filter-row">
-      <input
-        class="field-input"
-        data-filter-key="capabilityQuery"
-        placeholder="搜索技能、MCP、publisher、命令"
-        value="${fieldValue(state.filters.capabilityQuery)}"
-      />
-      <div class="segmented">
-        <button class="tab-pill${state.capabilityMode === 'skills' ? ' is-active' : ''}" type="button" data-action="capability-mode" data-mode="skills">技能</button>
-        <button class="tab-pill${state.capabilityMode === 'mcp' ? ' is-active' : ''}" type="button" data-action="capability-mode" data-mode="mcp">MCP</button>
+    <div class="fig-page">
+      <div class="fig-page__header">
+        <div class="fig-page__header-inner">
+          <div>
+            <h1>技能与 MCP</h1>
+            <p class="fig-page__description">管理 AI 技能和模型上下文协议能力提供方</p>
+          </div>
+          ${actionButton}
+        </div>
       </div>
-    </section>
-    <section class="capability-layout">
-      <aside class="capability-list">
-        ${
-          state.capabilityMode === 'skills'
-            ? skills.length
-              ? skills
-                  .map(
-                    (item) => `
-                      <button class="capability-card${selectedSkill?.slug === item.slug ? ' is-active' : ''}" type="button" data-action="select-skill" data-skill-slug="${escapeHtml(item.slug)}">
-                        <strong>${escapeHtml(item.name)}</strong>
-                        <span>${escapeHtml(item.category || '未分类')} · ${escapeHtml(item.brand_count)} 个品牌</span>
-                      </button>
-                    `,
-                  )
-                  .join('')
-              : `<div class="empty-state">没有匹配的技能。</div>`
-            : mcpServers.length
-              ? mcpServers
-                  .map(
-                    (item) => `
-                      <button class="capability-card${selectedMcp?.key === item.key ? ' is-active' : ''}" type="button" data-action="select-mcp" data-mcp-key="${escapeHtml(item.key)}">
-                        <strong>${escapeHtml(item.name)}</strong>
-                        <span>${escapeHtml(item.connected_brand_count)} 个品牌 · ${escapeHtml(item.env_keys.length)} 个环境变量</span>
-                      </button>
-                    `,
-                  )
-                  .join('')
-              : `<div class="empty-state">没有匹配的 MCP。</div>`
-        }
-        ${
-          state.capabilityMode === 'mcp'
-            ? `<button class="capability-card${state.selectedMcpKey === '__new__' ? ' is-active' : ''}" type="button" data-action="select-mcp" data-mcp-key="__new__"><strong>新建 MCP</strong><span>新增一个可保存到注册表的配置</span></button>`
-            : ''
-        }
-      </aside>
-      <article class="panel panel--spacious">
-        ${
-          state.capabilityMode === 'skills'
-            ? renderSkillDetail(selectedSkill)
-            : renderMcpDetail(selectedMcp)
-        }
-      </article>
-    </section>
+      <div class="fig-capability-screen">
+        <aside class="fig-capability-sidebar">
+          <div class="fig-capability-sidebar__toolbar">
+            <label class="fig-search">
+              ${icon('search', 'fig-search__icon')}
+              <input
+                class="field-input fig-search__input"
+                data-filter-key="capabilityQuery"
+                placeholder="${state.capabilityMode === 'skills' ? '搜索技能...' : '搜索 MCP...'}"
+                value="${fieldValue(state.filters.capabilityQuery)}"
+              />
+            </label>
+            <div class="segmented">
+              <button class="tab-pill${state.capabilityMode === 'skills' ? ' is-active' : ''}" type="button" data-action="capability-mode" data-mode="skills">技能</button>
+              <button class="tab-pill${state.capabilityMode === 'mcp' ? ' is-active' : ''}" type="button" data-action="capability-mode" data-mode="mcp">MCP</button>
+            </div>
+          </div>
+          <div class="fig-capability-list">
+            ${
+              state.capabilityMode === 'skills'
+                ? skills.length
+                  ? skills
+                      .map(
+                        (item) => `
+                          <button class="capability-card${selectedSkill?.slug === item.slug ? ' is-active' : ''}" type="button" data-action="select-skill" data-skill-slug="${escapeHtml(item.slug)}">
+                            <strong>${escapeHtml(item.name)}</strong>
+                            <span>${escapeHtml(item.category || '未分类')} • ${escapeHtml(item.brand_count)} 个品牌使用</span>
+                          </button>
+                        `,
+                      )
+                      .join('')
+                  : `<div class="empty-state">没有匹配的技能。</div>`
+                : `
+                    ${
+                      mcpServers.length
+                        ? mcpServers
+                            .map(
+                              (item) => `
+                                <button class="capability-card${selectedMcp?.key === item.key ? ' is-active' : ''}" type="button" data-action="select-mcp" data-mcp-key="${escapeHtml(item.key)}">
+                                  <strong>${escapeHtml(item.name)}</strong>
+                                  <span>${escapeHtml(item.connected_brand_count)} 个品牌 • ${escapeHtml(item.env_keys.length)} 个环境变量</span>
+                                </button>
+                              `,
+                            )
+                            .join('')
+                        : `<div class="empty-state">没有匹配的 MCP。</div>`
+                    }
+                    <button class="capability-card${state.selectedMcpKey === '__new__' ? ' is-active' : ''}" type="button" data-action="select-mcp" data-mcp-key="__new__">
+                      <strong>新建 MCP</strong>
+                      <span>新增一个可保存到注册表的配置</span>
+                    </button>
+                  `
+            }
+          </div>
+        </aside>
+        <section class="fig-capability-detail">
+          ${
+            state.capabilityMode === 'skills'
+              ? renderSkillDetail(selectedSkill)
+              : renderMcpDetail(selectedMcp)
+          }
+        </section>
+      </div>
+    </div>
   `;
 }
 
 function renderSkillImportPanel() {
   return `
-    <section class="panel panel--nested">
-      <div class="panel-head">
+    <section class="fig-card fig-card--subtle">
+      <div class="fig-card__head">
         <h3>导入私有 Skill</h3>
         <span>上传 tar.gz / zip 包，导入后会自动安装到当前 admin 账号</span>
       </div>
@@ -2030,7 +2213,9 @@ function renderSkillImportPanel() {
           <span>Artifact</span>
           <input class="field-input" name="artifact" type="file" accept=".tar.gz,.tgz,.zip,application/gzip,application/zip" />
         </label>
-        <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>导入 Skill</button>
+        <div class="fig-form-actions">
+          <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>导入 Skill</button>
+        </div>
       </form>
     </section>
   `;
@@ -2038,41 +2223,51 @@ function renderSkillImportPanel() {
 
 function renderSkillDetail(skill) {
   if (!skill) {
-    return `${renderSkillImportPanel()}<div class="empty-state">选择一个技能查看详情。</div>`;
+    return `${state.showSkillImportPanel ? renderSkillImportPanel() : ''}<div class="fig-card fig-card--detail-empty"><div class="empty-state">选择一个技能查看详情。</div></div>`;
   }
   const libraryItem = getSkillLibraryItem(skill.slug);
   const catalogItem = getAdminSkillCatalogEntry(skill.slug);
   const personalItem = getPersonalSkillCatalogEntry(skill.slug);
   const canDelete = personalItem?.source === 'private' || (catalogItem && catalogItem.distribution !== 'bundled');
   return `
-    <div class="panel-head">
-      <div>
-        <h2>${escapeHtml(skill.name)}</h2>
-        <span>${escapeHtml(skill.slug)} · ${escapeHtml(skill.publisher || 'iClaw')}</span>
+    <div class="fig-detail-stack">
+      <div class="fig-card">
+        <div class="fig-card__head">
+          <div>
+            <h2>${escapeHtml(skill.name)}</h2>
+            <span>${escapeHtml(skill.slug)} · ${escapeHtml(skill.publisher || 'iClaw')}</span>
+          </div>
+          <button class="${libraryItem?.enabled ? 'ghost-button' : 'solid-button'} control-button" type="button" data-action="${libraryItem?.enabled ? 'skill-disable' : 'skill-enable'}" data-skill-slug="${escapeHtml(skill.slug)}">
+            ${libraryItem?.enabled ? 'Disable' : 'Enable'}
+          </button>
+        </div>
+        <p class="detail-copy">${escapeHtml(skill.description || '暂无描述。')}</p>
+        <div class="fig-meta-cards">
+          <div class="fig-meta-card"><span>分类</span><strong>${escapeHtml(skill.category || '未分类')}</strong></div>
+          <div class="fig-meta-card"><span>来源</span><strong>${escapeHtml(skill.distribution || 'unknown')}</strong></div>
+          <div class="fig-meta-card"><span>使用品牌数</span><strong>${escapeHtml(skill.brand_count)}</strong></div>
+        </div>
+        <div class="action-row">
+          ${canDelete ? `<button class="ghost-button" type="button" data-action="skill-delete" data-skill-slug="${escapeHtml(skill.slug)}">删除 Skill</button>` : ''}
+          <button class="text-button" type="button" data-action="toggle-skill-import">${state.showSkillImportPanel ? '收起导入面板' : '导入私有 Skill'}</button>
+        </div>
       </div>
-      <div class="metric-chips">
-        <span>${escapeHtml(skill.category || '未分类')}</span>
-        <span>${escapeHtml(skill.distribution || 'unknown')}</span>
-        <span>${escapeHtml(skill.latestRelease || '未发布')}</span>
-        <span>${libraryItem ? '已安装' : '未安装'}</span>
-        <span>${libraryItem ? (libraryItem.enabled ? '已启用' : '已停用') : '未安装'}</span>
-      </div>
-    </div>
-    <p class="detail-copy">${escapeHtml(skill.description || '暂无描述。')}</p>
-    <section class="action-row">
-      ${
-        libraryItem?.enabled
-          ? `<button class="ghost-button" type="button" data-action="skill-disable" data-skill-slug="${escapeHtml(skill.slug)}">Disable</button>`
-          : `<button class="solid-button" type="button" data-action="skill-enable" data-skill-slug="${escapeHtml(skill.slug)}">Enable</button>`
-      }
-      ${canDelete ? `<button class="ghost-button" type="button" data-action="skill-delete" data-skill-slug="${escapeHtml(skill.slug)}">删除 Skill</button>` : ''}
-    </section>
-    <section class="panel panel--nested">
-      <div class="panel-head">
-        <h3>品牌覆盖</h3>
-        <span>${escapeHtml(skill.brand_count)} 个品牌已启用</span>
-      </div>
-      <div class="chip-grid">
+      <section class="fig-card fig-card--subtle">
+        <div class="fig-card__head">
+          <h3>${icon('zap', 'fig-inline-icon')}能力</h3>
+        </div>
+        <div class="chip-grid">
+          ${asArray(skill.capabilities).length
+            ? asArray(skill.capabilities).map((cap) => `<span class="chip">${escapeHtml(cap)}</span>`).join('')
+            : `<div class="empty-state">当前没有声明能力标签。</div>`}
+        </div>
+      </section>
+      <section class="fig-card fig-card--subtle">
+        <div class="fig-card__head">
+          <h3>品牌访问权限</h3>
+          <span>${escapeHtml(skill.brand_count)} 个品牌已启用</span>
+        </div>
+        <div class="chip-grid">
         ${(skill.connectedBrands || []).length
           ? skill.connectedBrands
               .map(
@@ -2084,10 +2279,11 @@ function renderSkillDetail(skill) {
               )
               .join('')
           : `<div class="empty-state">当前没有品牌绑定此技能。</div>`}
-      </div>
-    </section>
-    ${renderCapabilityBrandMatrix('skill', skill)}
-    ${renderSkillImportPanel()}
+        </div>
+      </section>
+      ${renderCapabilityBrandMatrix('skill', skill)}
+      ${state.showSkillImportPanel ? renderSkillImportPanel() : ''}
+    </div>
   `;
 }
 
@@ -2116,18 +2312,21 @@ function renderMcpDetail(server) {
     env: {},
   };
   return `
-    <div class="panel-head">
-      <div>
-        <h2>${escapeHtml(server.name)}</h2>
-        <span>${escapeHtml(server.key)} · ${escapeHtml(server.command || '未声明 command')}</span>
+    <div class="fig-detail-stack">
+      <div class="fig-card">
+        <div class="fig-card__head">
+          <div>
+            <h2>${escapeHtml(server.name)}</h2>
+            <span>${escapeHtml(server.key || 'new-mcp')} · ${escapeHtml(server.command || '未声明 command')}</span>
+          </div>
+          <div class="metric-chips">
+            <span>${escapeHtml(server.connected_brand_count)} 个品牌</span>
+            <span>${server.enabled_by_default ? '默认启用' : '默认关闭'}</span>
+          </div>
+        </div>
       </div>
-      <div class="metric-chips">
-        <span>${escapeHtml(server.connected_brand_count)} 个品牌</span>
-        <span>${server.enabled_by_default ? '默认启用' : '默认关闭'}</span>
-      </div>
-    </div>
-    <form id="mcp-editor-form" class="panel panel--nested">
-      <div class="panel-head">
+      <form id="mcp-editor-form" class="fig-card fig-card--subtle">
+      <div class="fig-card__head">
         <h3>MCP 配置</h3>
         <span>真实写入 mcp/mcp.json，支持保存、测试连接、删除</span>
       </div>
@@ -2174,8 +2373,8 @@ function renderMcpDetail(server) {
           ? `<div class="banner ${state.mcpTestResult.ok ? 'banner--success' : 'banner--error'}">测试结果: ${escapeHtml(state.mcpTestResult.message || '未返回消息')}</div>`
           : ''
       }
-    </form>
-    <section class="meta-columns">
+      </form>
+      <section class="meta-columns">
       <div class="meta-box">
         <span>Args</span>
         <strong>${escapeHtml((server.args || []).join(' ') || '无')}</strong>
@@ -2188,9 +2387,9 @@ function renderMcpDetail(server) {
         <span>环境变量</span>
         <strong>${escapeHtml((server.env_keys || []).join(', ') || '无')}</strong>
       </div>
-    </section>
-    <section class="panel panel--nested">
-      <div class="panel-head">
+      </section>
+      <section class="fig-card fig-card--subtle">
+      <div class="fig-card__head">
         <h3>品牌连接图</h3>
         <span>真实来自各品牌 capabilities.mcp_servers</span>
       </div>
@@ -2207,8 +2406,9 @@ function renderMcpDetail(server) {
               .join('')
           : `<div class="empty-state">当前没有品牌启用该 MCP。</div>`}
       </div>
-    </section>
-    ${renderCapabilityBrandMatrix('mcp', server)}
+      </section>
+      ${renderCapabilityBrandMatrix('mcp', server)}
+    </div>
   `;
 }
 
@@ -2218,8 +2418,8 @@ function renderCapabilityBrandMatrix(type, item) {
     (type === 'skill' ? item.connectedBrands : item.connected_brands || []).map((brand) => brand.brand_id),
   );
   return `
-    <section class="panel panel--nested">
-      <div class="panel-head">
+    <section class="fig-card fig-card--subtle">
+      <div class="fig-card__head">
         <h3>${type === 'skill' ? 'Skill / Brand Matrix' : 'MCP / Brand Matrix'}</h3>
         <span>按品牌查看能力开放范围</span>
       </div>
@@ -2278,92 +2478,143 @@ function renderAssetsPage() {
   const kinds = Array.from(new Set(state.assets.map((item) => item.kind).filter(Boolean))).sort((left, right) =>
     left.localeCompare(right, 'zh-CN'),
   );
+  const typeTabs = ['all', ...kinds];
 
   return `
-    ${renderHeader(
-      '资源管理',
-      '统一管理品牌素材资源与资源注册表，支持跨品牌筛选和实时登记。',
-      `<button class="ghost-button" type="button" data-action="refresh-page">刷新资源</button>`,
-    )}
-    <section class="filter-row filter-row--dense">
-      <input class="field-input" data-filter-key="assetQuery" placeholder="搜索资源 key / brand / 路径" value="${fieldValue(state.filters.assetQuery)}" />
-      <select class="field-select" data-filter-key="assetBrand">
-        <option value="all">全部品牌</option>
-        ${state.brands
-          .map(
-            (brand) => `
-              <option value="${escapeHtml(brand.brandId)}"${state.filters.assetBrand === brand.brandId ? ' selected' : ''}>${escapeHtml(brand.displayName)}</option>
-            `,
-          )
-          .join('')}
-      </select>
-      <select class="field-select" data-filter-key="assetKind">
-        <option value="all">全部类型</option>
-        ${kinds
-          .map(
-            (kind) => `
-              <option value="${escapeHtml(kind)}"${state.filters.assetKind === kind ? ' selected' : ''}>${escapeHtml(kind)}</option>
-            `,
-          )
-          .join('')}
-      </select>
-    </section>
-    <section class="panel">
-      <div class="panel-head">
-        <h2>资源台账</h2>
-        <span>${escapeHtml(items.length)} 条记录</span>
+    <div class="fig-page">
+      <div class="fig-page__header">
+        <div class="fig-page__header-inner fig-page__header-inner--stack">
+          <div class="fig-page__header-row">
+            <div>
+              <h1>资源管理</h1>
+              <p class="fig-page__description">品牌资源库，包含 Logo、图标和视觉资源</p>
+            </div>
+            <button class="solid-button fig-button" type="button" data-action="toggle-asset-upload">
+              ${icon('plus', 'button-icon')}
+              上传资源
+            </button>
+          </div>
+          <div class="fig-toolbar">
+            <label class="fig-search">
+              ${icon('search', 'fig-search__icon')}
+              <input class="field-input fig-search__input" data-filter-key="assetQuery" placeholder="搜索资源..." value="${fieldValue(state.filters.assetQuery)}" />
+            </label>
+            <select class="field-select fig-filter" data-filter-key="assetBrand">
+              <option value="all">全部品牌</option>
+              ${state.brands
+                .map(
+                  (brand) => `
+                    <option value="${escapeHtml(brand.brandId)}"${state.filters.assetBrand === brand.brandId ? ' selected' : ''}>${escapeHtml(brand.displayName)}</option>
+                  `,
+                )
+                .join('')}
+            </select>
+          </div>
+        </div>
       </div>
-      <div class="table-shell">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>预览</th>
-              <th>Asset Key</th>
-              <th>品牌</th>
-              <th>类型</th>
-              <th>存储</th>
-              <th>对象路径</th>
-              <th>更新时间</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${items.length
-              ? items
-                  .map(
-                    (item) => `
-                      <tr>
-                        <td>
-                          ${
-                            isImageLike(item.metadata?.content_type, item.publicUrl, item.objectKey)
-                              ? `<img class="asset-thumb asset-thumb--table" src="${escapeHtml(resolveAssetUrl(item))}" alt="${escapeHtml(item.assetKey)}" />`
-                              : `<span class="asset-thumb asset-thumb--placeholder">${escapeHtml(item.kind.slice(0, 2).toUpperCase())}</span>`
-                          }
-                        </td>
-                        <td>${escapeHtml(item.assetKey)}</td>
-                        <td>
-                          <button class="table-link" type="button" data-action="select-brand" data-brand-id="${escapeHtml(item.brandId)}">
-                            ${escapeHtml(item.brandDisplayName || item.brandId)}
-                          </button>
-                        </td>
-                        <td>${escapeHtml(item.kind)}</td>
-                        <td>${escapeHtml(item.storageProvider)}</td>
-                        <td>
+      <div class="fig-page__body">
+        ${
+          state.showAssetUploadPanel
+            ? `
+              <section class="fig-card fig-create-panel">
+                <div class="fig-card__head">
+                  <h3>上传资源</h3>
+                  <button class="text-button" type="button" data-action="toggle-asset-upload">收起</button>
+                </div>
+                <form id="asset-form" class="form-grid form-grid--two">
+                  <label class="field">
+                    <span>Brand ID</span>
+                    <select class="field-select" name="brand_id">
+                      ${state.brands
+                        .map(
+                          (brand) => `
+                            <option value="${escapeHtml(brand.brandId)}"${state.selectedBrandId === brand.brandId ? ' selected' : ''}>${escapeHtml(brand.displayName)}</option>
+                          `,
+                        )
+                        .join('')}
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>Asset Key</span>
+                    <input class="field-input" name="asset_key" placeholder="logoMaster" />
+                  </label>
+                  <label class="field">
+                    <span>类型</span>
+                    <input class="field-input" name="kind" placeholder="logo / hero / screenshot" />
+                  </label>
+                  <label class="field">
+                    <span>上传文件</span>
+                    <input class="field-input" name="file" type="file" />
+                  </label>
+                  <label class="field">
+                    <span>存储提供方</span>
+                    <input class="field-input" name="storage_provider" value="repo" />
+                  </label>
+                  <label class="field">
+                    <span>对象路径</span>
+                    <input class="field-input" name="object_key" placeholder="./assets/logo.png 或 s3://..." />
+                  </label>
+                  <label class="field field--wide">
+                    <span>Public URL</span>
+                    <input class="field-input" name="public_url" placeholder="https://..." />
+                  </label>
+                  <label class="field field--wide">
+                    <span>Metadata JSON</span>
+                    <textarea class="field-textarea" name="metadata_json">{}</textarea>
+                  </label>
+                  <div class="fig-form-actions">
+                    <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>上传并登记</button>
+                  </div>
+                </form>
+              </section>
+            `
+            : ''
+        }
+        <div class="fig-type-tabs">
+          ${typeTabs
+            .map(
+              (kind) => `
+                <button class="fig-type-tab${state.filters.assetKind === kind ? ' is-active' : ''}" type="button" data-action="set-asset-kind" data-kind="${escapeHtml(kind)}">
+                  ${escapeHtml(kind === 'all' ? '全部' : kind)}
+                </button>
+              `,
+            )
+            .join('')}
+        </div>
+        <section class="fig-assets-grid">
+          ${items.length
+            ? items
+                .map(
+                  (item) => `
+                    <article class="fig-asset-card">
+                      <div class="fig-asset-card__preview">
+                        ${
+                          isImageLike(item.metadata?.content_type, item.publicUrl, item.objectKey)
+                            ? `<img class="fig-asset-card__image" src="${escapeHtml(resolveAssetUrl(item))}" alt="${escapeHtml(item.assetKey)}" />`
+                            : `<div class="asset-thumb asset-thumb--placeholder">${escapeHtml((item.kind || 'AS').slice(0, 2).toUpperCase())}</div>`
+                        }
+                      </div>
+                      <div class="fig-asset-card__body">
+                        <div class="fig-asset-card__title">${escapeHtml(item.assetKey)}</div>
+                        <div class="fig-asset-card__meta">${escapeHtml(item.kind)} • ${escapeHtml(item.storageProvider)}</div>
+                        <div class="fig-asset-card__brand">${escapeHtml(item.brandDisplayName || item.brandId)}</div>
+                        <div class="fig-asset-card__actions">
+                          <button class="text-button" type="button" data-action="select-brand" data-brand-id="${escapeHtml(item.brandId)}">打开品牌</button>
                           ${
                             item.publicUrl || item.objectKey
-                              ? `<a class="text-link" href="${escapeHtml(resolveAssetUrl(item))}" target="_blank" rel="noreferrer"><code>${escapeHtml(resolveAssetUrl(item))}</code></a>`
-                              : `<code>${escapeHtml(item.objectKey)}</code>`
+                              ? `<a class="text-link" href="${escapeHtml(resolveAssetUrl(item))}" target="_blank" rel="noreferrer">打开资源</a>`
+                              : ''
                           }
-                        </td>
-                        <td>${escapeHtml(formatDateTime(item.updatedAt))}</td>
-                      </tr>
-                    `,
-                  )
-                  .join('')
-              : `<tr><td colspan="7"><div class="empty-state">没有匹配的资源。</div></td></tr>`}
-          </tbody>
-        </table>
+                        </div>
+                      </div>
+                    </article>
+                  `,
+                )
+                .join('')
+            : `<div class="empty-state empty-state--panel">没有匹配的资源。</div>`}
+        </section>
       </div>
-    </section>
+    </div>
   `;
 }
 
@@ -2382,82 +2633,101 @@ function renderReleasesPage() {
   const selectedBrand = state.brands.find((item) => item.brandId === selectedRelease?.brand_id) || null;
   const diffAreas = selectedRelease ? summarizeChangedAreas(selectedBrand?.draftConfig, selectedRelease.config) : [];
   return `
-    ${renderHeader(
-      '版本发布',
-      '查看真实发布快照、影响范围和每个版本带来的 Surface / 技能 / MCP 变更。',
-      `<button class="ghost-button" type="button" data-action="refresh-page">刷新版本</button>`,
-    )}
-    <section class="filter-row">
-      <select class="field-select" data-filter-key="releaseBrand">
-        <option value="all">全部品牌</option>
-        ${state.brands
-          .map(
-            (brand) => `
-              <option value="${escapeHtml(brand.brandId)}"${state.filters.releaseBrand === brand.brandId ? ' selected' : ''}>${escapeHtml(brand.displayName)}</option>
-            `,
-          )
-          .join('')}
-      </select>
-    </section>
-    <section class="capability-layout">
-      <aside class="capability-list">
-        ${items.length
-          ? items
+    <div class="fig-page">
+      <div class="fig-page__header">
+        <div class="fig-page__header-inner">
+          <div>
+            <h1>版本发布</h1>
+            <p class="fig-page__description">品牌版本时间线和部署历史</p>
+          </div>
+        </div>
+      </div>
+      <div class="fig-page__body">
+        <div class="fig-toolbar">
+          <select class="field-select fig-filter" data-filter-key="releaseBrand">
+            <option value="all">全部品牌</option>
+            ${state.brands
               .map(
-                (item) => `
-                  <button class="capability-card${selectedRelease?.id === item.id ? ' is-active' : ''}" type="button" data-action="select-release" data-release-id="${escapeHtml(item.id)}">
-                    <strong>${escapeHtml(item.display_name)} · v${escapeHtml(item.version)}</strong>
-                    <span>${escapeHtml(formatDateTime(item.published_at))}</span>
-                  </button>
+                (brand) => `
+                  <option value="${escapeHtml(brand.brandId)}"${state.filters.releaseBrand === brand.brandId ? ' selected' : ''}>${escapeHtml(brand.displayName)}</option>
                 `,
               )
-              .join('')
-          : `<div class="empty-state">当前没有发布记录。</div>`}
-      </aside>
-      <article class="panel panel--spacious">
-        ${
-          selectedRelease
-            ? `
-              <div class="panel-head">
-                <div>
-                  <h2>${escapeHtml(selectedRelease.display_name)} · v${escapeHtml(selectedRelease.version)}</h2>
-                  <span>${escapeHtml(formatDateTime(selectedRelease.published_at))} · ${escapeHtml(selectedRelease.created_by_name || selectedRelease.created_by_username || 'system')}</span>
-                </div>
-                <button class="ghost-button" type="button" data-action="select-brand" data-brand-id="${escapeHtml(selectedRelease.brand_id)}">打开品牌</button>
-              </div>
-              <div class="metric-chips">
-                ${(selectedRelease.changed_areas || []).map((area) => `<span>${escapeHtml(area)}</span>`).join('')}
-              </div>
-              <div class="release-metrics">
-                <div><span>Surface</span><strong>${escapeHtml((selectedRelease.surfaces || []).join(' / ') || '无')}</strong></div>
-                <div><span>技能数</span><strong>${escapeHtml(selectedRelease.skill_count)}</strong></div>
-                <div><span>MCP 数</span><strong>${escapeHtml(selectedRelease.mcp_count)}</strong></div>
-                <div><span>当前草稿 Diff</span><strong>${escapeHtml(diffAreas.join(' / ') || '无差异')}</strong></div>
-              </div>
-              <section class="panel panel--nested">
-                <div class="panel-head">
-                  <h3>Diff 视图</h3>
-                  <span>对比选中发布版本与当前品牌草稿</span>
-                </div>
-                <div class="metric-chips">
-                  ${diffAreas.length ? diffAreas.map((area) => `<span>${escapeHtml(area)}</span>`).join('') : '<span>无差异</span>'}
-                </div>
-                <div class="diff-grid">
-                  <label class="field">
-                    <span>发布版本 JSON</span>
-                    <textarea class="code-input code-input--tall" readonly>${escapeHtml(prettyJson(selectedRelease.config))}</textarea>
-                  </label>
-                  <label class="field">
-                    <span>当前草稿 JSON</span>
-                    <textarea class="code-input code-input--tall" readonly>${escapeHtml(prettyJson(selectedBrand?.draftConfig || {}))}</textarea>
-                  </label>
-                </div>
-              </section>
-            `
-            : `<div class="empty-state">选择一个发布版本查看详情。</div>`
-        }
-      </article>
-    </section>
+              .join('')}
+          </select>
+        </div>
+        <div class="fig-release-timeline">
+          ${items.length
+            ? items
+                .map(
+                  (item) => {
+                    const isActive = selectedRelease?.id === item.id;
+                    const releaseBrand = state.brands.find((brand) => brand.brandId === item.brand_id) || null;
+                    const releaseDiffAreas = isActive ? summarizeChangedAreas(releaseBrand?.draftConfig, item.config) : [];
+                    return `
+                      <div class="fig-release-entry${isActive ? ' is-active' : ''}">
+                        <div class="fig-release-entry__dot"></div>
+                        <div class="fig-release-card">
+                          <button class="fig-release-card__summary" type="button" data-action="select-release" data-release-id="${escapeHtml(item.id)}">
+                            <div>
+                              <div class="fig-release-card__title-row">
+                                <h3>${escapeHtml(item.display_name)}</h3>
+                                ${statusBadge('published')}
+                              </div>
+                              <div class="fig-release-card__meta">
+                                <span><code>v${escapeHtml(item.version)}</code></span>
+                                <span>•</span>
+                                <span>${icon('calendar', 'fig-inline-icon')} ${escapeHtml(formatDateTime(item.published_at))}</span>
+                                <span>•</span>
+                                <span>${icon('user', 'fig-inline-icon')} ${escapeHtml(item.created_by_name || item.created_by_username || 'system')}</span>
+                              </div>
+                            </div>
+                          </button>
+                          ${
+                            isActive
+                              ? `
+                                <div class="fig-release-card__detail">
+                                  <div class="metric-chips">
+                                    ${(item.changed_areas || []).length ? item.changed_areas.map((area) => `<span>${escapeHtml(area)}</span>`).join('') : '<span>无变更区域</span>'}
+                                  </div>
+                                  <div class="release-metrics">
+                                    <div><span>Surface</span><strong>${escapeHtml((item.surfaces || []).join(' / ') || '无')}</strong></div>
+                                    <div><span>技能数</span><strong>${escapeHtml(item.skill_count)}</strong></div>
+                                    <div><span>MCP 数</span><strong>${escapeHtml(item.mcp_count)}</strong></div>
+                                    <div><span>当前草稿 Diff</span><strong>${escapeHtml(releaseDiffAreas.join(' / ') || '无差异')}</strong></div>
+                                  </div>
+                                  <div class="fig-release-card__actions">
+                                    <button class="ghost-button" type="button" data-action="select-brand" data-brand-id="${escapeHtml(item.brand_id)}">打开品牌</button>
+                                  </div>
+                                  <section class="fig-card fig-card--subtle">
+                                    <div class="fig-card__head">
+                                      <h3>Diff 视图</h3>
+                                      <span>对比选中发布版本与当前品牌草稿</span>
+                                    </div>
+                                    <div class="diff-grid">
+                                      <label class="field">
+                                        <span>发布版本 JSON</span>
+                                        <textarea class="code-input code-input--tall" readonly>${escapeHtml(prettyJson(item.config))}</textarea>
+                                      </label>
+                                      <label class="field">
+                                        <span>当前草稿 JSON</span>
+                                        <textarea class="code-input code-input--tall" readonly>${escapeHtml(prettyJson(releaseBrand?.draftConfig || {}))}</textarea>
+                                      </label>
+                                    </div>
+                                  </section>
+                                </div>
+                              `
+                              : ''
+                          }
+                        </div>
+                      </div>
+                    `;
+                  },
+                )
+                .join('')
+            : `<div class="empty-state empty-state--panel">当前没有发布记录。</div>`}
+        </div>
+      </div>
+    </div>
   `;
 }
 
@@ -2484,86 +2754,102 @@ function renderAuditPage() {
   );
 
   return `
-    ${renderHeader(
-      '审计日志',
-      '按品牌、动作和时间回溯所有真实运营操作。',
-      `<button class="ghost-button" type="button" data-action="refresh-page">刷新审计</button>`,
-    )}
-    <section class="filter-row filter-row--dense">
-      <input class="field-input" data-filter-key="auditQuery" placeholder="搜索品牌 / 动作 / 操作人 / 环境" value="${fieldValue(state.filters.auditQuery)}" />
-      <select class="field-select" data-filter-key="auditBrand">
-        <option value="all">全部品牌</option>
-        ${state.brands
-          .map(
-            (brand) => `
-              <option value="${escapeHtml(brand.brandId)}"${state.filters.auditBrand === brand.brandId ? ' selected' : ''}>${escapeHtml(brand.displayName)}</option>
-            `,
-          )
-          .join('')}
-      </select>
-      <select class="field-select" data-filter-key="auditAction">
-        <option value="all">全部动作</option>
-        ${actions
-          .map(
-            (action) => `
-              <option value="${escapeHtml(action)}"${state.filters.auditAction === action ? ' selected' : ''}>${escapeHtml(actionLabel(action))}</option>
-            `,
-          )
-          .join('')}
-      </select>
-    </section>
-    <section class="capability-layout">
-      <aside class="capability-list">
-        ${items.length
-          ? items
-              .map(
-                (item) => `
-                  <button class="capability-card${selectedAudit?.id === item.id ? ' is-active' : ''}" type="button" data-action="select-audit" data-audit-id="${escapeHtml(item.id)}">
-                    <strong>${escapeHtml(item.brandDisplayName || item.brandId)}</strong>
-                    <span>${escapeHtml(actionLabel(item.action))} · ${escapeHtml(formatDateTime(item.createdAt))}</span>
-                  </button>
-                `,
-              )
-              .join('')
-          : `<div class="empty-state">没有匹配的审计记录。</div>`}
-      </aside>
-      <article class="panel panel--spacious">
+    <div class="fig-page">
+      <div class="fig-page__header">
+        <div class="fig-page__header-inner fig-page__header-inner--stack">
+          <div>
+            <h1>审计日志</h1>
+            <p class="fig-page__description">平台所有变更的完整操作审计记录</p>
+          </div>
+          <div class="fig-toolbar fig-toolbar--audit">
+            <label class="fig-search">
+              ${icon('search', 'fig-search__icon')}
+              <input class="field-input fig-search__input" data-filter-key="auditQuery" placeholder="搜索审计日志..." value="${fieldValue(state.filters.auditQuery)}" />
+            </label>
+            <select class="field-select fig-filter" data-filter-key="auditBrand">
+              <option value="all">所有品牌</option>
+              ${state.brands
+                .map(
+                  (brand) => `
+                    <option value="${escapeHtml(brand.brandId)}"${state.filters.auditBrand === brand.brandId ? ' selected' : ''}>${escapeHtml(brand.displayName)}</option>
+                  `,
+                )
+                .join('')}
+            </select>
+            <select class="field-select fig-filter" data-filter-key="auditAction">
+              <option value="all">所有操作</option>
+              ${actions
+                .map(
+                  (action) => `
+                    <option value="${escapeHtml(action)}"${state.filters.auditAction === action ? ' selected' : ''}>${escapeHtml(actionLabel(action))}</option>
+                  `,
+                )
+                .join('')}
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="fig-page__body">
+        <section class="fig-card fig-audit-table-card">
+          <div class="fig-audit-table">
+            <div class="fig-audit-table__header">
+              <div>操作</div>
+              <div>品牌</div>
+              <div>操作人</div>
+              <div>环境</div>
+              <div>时间戳</div>
+            </div>
+            <div class="fig-audit-table__body">
+              ${items.length
+                ? items
+                    .map(
+                      (item) => `
+                        <button class="fig-audit-row${selectedAudit?.id === item.id ? ' is-active' : ''}" type="button" data-action="select-audit" data-audit-id="${escapeHtml(item.id)}">
+                          <div>
+                            <div class="fig-audit-row__title">${escapeHtml(actionLabel(item.action))}</div>
+                            <div class="fig-audit-row__detail">${escapeHtml(item.environment || 'control-plane')}</div>
+                          </div>
+                          <div>${escapeHtml(item.brandDisplayName || item.brandId)}</div>
+                          <div>${escapeHtml(item.actorName || item.actorUsername || 'system')}</div>
+                          <div>${escapeHtml(item.environment || 'control-plane')}</div>
+                          <div>${escapeHtml(formatDateTime(item.createdAt))}</div>
+                        </button>
+                      `,
+                    )
+                    .join('')
+                : `<div class="empty-state">没有匹配的审计记录。</div>`}
+            </div>
+          </div>
+        </section>
         ${
           selectedAudit
             ? `
-              <div class="panel-head">
-                <div>
-                  <h2>${escapeHtml(actionLabel(selectedAudit.action))}</h2>
-                  <span>${escapeHtml(selectedAudit.brandDisplayName || selectedAudit.brandId)} · ${escapeHtml(formatDateTime(selectedAudit.createdAt))}</span>
+              <section class="fig-card">
+                <div class="fig-card__head">
+                  <div>
+                    <h3>${escapeHtml(actionLabel(selectedAudit.action))}</h3>
+                    <span>${escapeHtml(selectedAudit.brandDisplayName || selectedAudit.brandId)} · ${escapeHtml(formatDateTime(selectedAudit.createdAt))}</span>
+                  </div>
+                  <button class="ghost-button" type="button" data-action="select-brand" data-brand-id="${escapeHtml(selectedAudit.brandId)}">打开品牌</button>
                 </div>
-                <button class="ghost-button" type="button" data-action="select-brand" data-brand-id="${escapeHtml(selectedAudit.brandId)}">打开品牌</button>
-              </div>
-              <div class="meta-columns">
-                <div class="meta-box">
-                  <span>操作人</span>
-                  <strong>${escapeHtml(selectedAudit.actorName || selectedAudit.actorUsername || 'system')}</strong>
+                <div class="fig-meta-cards">
+                  <div class="fig-meta-card"><span>操作人</span><strong>${escapeHtml(selectedAudit.actorName || selectedAudit.actorUsername || 'system')}</strong></div>
+                  <div class="fig-meta-card"><span>环境</span><strong>${escapeHtml(selectedAudit.environment || 'control-plane')}</strong></div>
+                  <div class="fig-meta-card"><span>Brand</span><strong>${escapeHtml(selectedAudit.brandId)}</strong></div>
                 </div>
-                <div class="meta-box">
-                  <span>环境</span>
-                  <strong>${escapeHtml(selectedAudit.environment || 'control-plane')}</strong>
-                </div>
-                <div class="meta-box meta-box--wide">
-                  <span>Brand</span>
-                  <strong>${escapeHtml(selectedAudit.brandId)}</strong>
-                </div>
-              </div>
-              <section class="panel panel--nested">
-                <div class="panel-head">
-                  <h3>审计详情</h3>
-                  <span>真实 payload</span>
-                </div>
-                <textarea class="code-input code-input--tall" readonly>${escapeHtml(prettyJson(selectedAudit.payload || {}))}</textarea>
+                <section class="fig-card fig-card--subtle">
+                  <div class="fig-card__head">
+                    <h3>审计详情</h3>
+                    <span>真实 payload</span>
+                  </div>
+                  <textarea class="code-input code-input--tall" readonly>${escapeHtml(prettyJson(selectedAudit.payload || {}))}</textarea>
+                </section>
               </section>
             `
-            : `<div class="empty-state">选择一条审计记录查看详情。</div>`
+            : ''
         }
-      </article>
-    </section>
+      </div>
+    </div>
   `;
 }
 
@@ -2692,6 +2978,38 @@ app.addEventListener('click', async (event) => {
   if (action === 'navigate') {
     captureBrandEditorBuffer();
     state.route = target.getAttribute('data-page') || 'overview';
+    render();
+    return;
+  }
+
+  if (action === 'toggle-create-brand') {
+    state.showCreateBrandForm = !state.showCreateBrandForm;
+    render();
+    return;
+  }
+
+  if (action === 'toggle-skill-import') {
+    state.showSkillImportPanel = !state.showSkillImportPanel;
+    render();
+    return;
+  }
+
+  if (action === 'new-mcp') {
+    state.capabilityMode = 'mcp';
+    state.selectedMcpKey = '__new__';
+    state.mcpTestResult = null;
+    render();
+    return;
+  }
+
+  if (action === 'toggle-asset-upload') {
+    state.showAssetUploadPanel = !state.showAssetUploadPanel;
+    render();
+    return;
+  }
+
+  if (action === 'set-asset-kind') {
+    state.filters.assetKind = target.getAttribute('data-kind') || 'all';
     render();
     return;
   }
