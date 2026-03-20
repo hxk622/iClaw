@@ -121,6 +121,8 @@ const DEFAULT_CHAT_ROUTE = {
   sessionKey: CHAT_SESSION_KEY,
   initialPrompt: null as string | null,
   initialPromptKey: null as string | null,
+  focusTaskId: null as string | null,
+  focusTaskPrompt: null as string | null,
 };
 type PrimaryView =
   | 'chat'
@@ -1260,6 +1262,8 @@ function AuthedView({
       sessionKey: `lobster-${seed}`,
       initialPrompt: buildLobsterConversationPrompt(agent),
       initialPromptKey: seed,
+      focusTaskId: null,
+      focusTaskPrompt: null,
     });
     setChatSurfaceVersion((current) => current + 1);
     setPrimaryView('chat');
@@ -1271,6 +1275,8 @@ function AuthedView({
       sessionKey: seed,
       initialPrompt: null,
       initialPromptKey: seed,
+      focusTaskId: null,
+      focusTaskPrompt: null,
     });
     setChatSurfaceVersion((current) => current + 1);
     setPrimaryView('chat');
@@ -1287,6 +1293,8 @@ function AuthedView({
       sessionKey: task.sessionKey,
       initialPrompt: null,
       initialPromptKey: null,
+      focusTaskId: task.id,
+      focusTaskPrompt: task.prompt,
     });
     setChatSurfaceVersion((current) => current + 1);
     setPrimaryView('chat');
@@ -1403,6 +1411,8 @@ function AuthedView({
               sessionKey={activeChatRoute.sessionKey}
               initialPrompt={activeChatRoute.initialPrompt}
               initialPromptKey={activeChatRoute.initialPromptKey}
+              focusTaskId={activeChatRoute.focusTaskId}
+              focusTaskPrompt={activeChatRoute.focusTaskPrompt}
               shellAuthenticated={authenticated}
               creditClient={client}
               creditToken={accessToken}
