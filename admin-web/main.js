@@ -273,6 +273,22 @@ function statusBadge(status) {
   return `<span class="status-pill status-pill--${escapeHtml(status || 'default')}">${escapeHtml(statusLabel(status))}</span>`;
 }
 
+function renderSwitch({checked = false, action = '', attrs = '', label = ''} = {}) {
+  return `
+    <button
+      class="switch${checked ? ' is-checked' : ''}"
+      type="button"
+      role="switch"
+      aria-checked="${checked ? 'true' : 'false'}"
+      data-action="${escapeHtml(action)}"
+      ${attrs}
+    >
+      <span class="switch__track"><span class="switch__thumb"></span></span>
+      ${label ? `<span class="switch__label">${escapeHtml(label)}</span>` : ''}
+    </button>
+  `;
+}
+
 function isImageLike(contentType, url, objectKey) {
   const source = [contentType, url, objectKey].filter(Boolean).join(' ').toLowerCase();
   return ['image/', '.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg', '.ico'].some((token) => source.includes(token));
@@ -1801,15 +1817,18 @@ function renderBrandEditorBody(buffer, assets, activeTab = state.brandDetailTab)
                 ? skills
                     .map(
                       (skill) => `
-                        <article class="checkbox-card checkbox-card--capability fig-capability-item">
+                      <article class="checkbox-card checkbox-card--capability fig-capability-item">
                           <input class="skill-checkbox visually-hidden" type="checkbox" value="${escapeHtml(skill.slug)}"${buffer.selectedSkills.includes(skill.slug) ? ' checked' : ''} />
                           <div>
                             <strong>${escapeHtml(skill.name)}</strong>
                             <span>${escapeHtml(skill.category || '未分类')}</span>
                           </div>
-                          <button class="${buffer.selectedSkills.includes(skill.slug) ? 'ghost-button' : 'solid-button'} control-button" type="button" data-action="toggle-brand-skill" data-skill-slug="${escapeHtml(skill.slug)}">
-                            ${buffer.selectedSkills.includes(skill.slug) ? 'Disable' : 'Enable'}
-                          </button>
+                          ${renderSwitch({
+                            checked: buffer.selectedSkills.includes(skill.slug),
+                            action: 'toggle-brand-skill',
+                            attrs: `data-skill-slug="${escapeHtml(skill.slug)}"`,
+                            label: buffer.selectedSkills.includes(skill.slug) ? '已启用' : '已禁用',
+                          })}
                         </article>
                       `,
                     )
@@ -1827,15 +1846,18 @@ function renderBrandEditorBody(buffer, assets, activeTab = state.brandDetailTab)
                 ? mcpServers
                     .map(
                       (server) => `
-                        <article class="checkbox-card checkbox-card--capability fig-capability-item">
+                      <article class="checkbox-card checkbox-card--capability fig-capability-item">
                           <input class="mcp-checkbox visually-hidden" type="checkbox" value="${escapeHtml(server.key)}"${buffer.selectedMcp.includes(server.key) ? ' checked' : ''} />
                           <div>
                             <strong>${escapeHtml(server.name)}</strong>
                             <span>${escapeHtml(server.connected_brand_count)} 个品牌使用</span>
                           </div>
-                          <button class="${buffer.selectedMcp.includes(server.key) ? 'ghost-button' : 'solid-button'} control-button" type="button" data-action="toggle-brand-mcp" data-mcp-key="${escapeHtml(server.key)}">
-                            ${buffer.selectedMcp.includes(server.key) ? 'Disable' : 'Enable'}
-                          </button>
+                          ${renderSwitch({
+                            checked: buffer.selectedMcp.includes(server.key),
+                            action: 'toggle-brand-mcp',
+                            attrs: `data-mcp-key="${escapeHtml(server.key)}"`,
+                            label: buffer.selectedMcp.includes(server.key) ? '已启用' : '已禁用',
+                          })}
                         </article>
                       `,
                     )
@@ -2237,9 +2259,12 @@ function renderSkillDetail(skill) {
             <h2>${escapeHtml(skill.name)}</h2>
             <span>${escapeHtml(skill.slug)} · ${escapeHtml(skill.publisher || 'iClaw')}</span>
           </div>
-          <button class="${libraryItem?.enabled ? 'ghost-button' : 'solid-button'} control-button" type="button" data-action="${libraryItem?.enabled ? 'skill-disable' : 'skill-enable'}" data-skill-slug="${escapeHtml(skill.slug)}">
-            ${libraryItem?.enabled ? 'Disable' : 'Enable'}
-          </button>
+          ${renderSwitch({
+            checked: Boolean(libraryItem?.enabled),
+            action: 'skill-toggle',
+            attrs: `data-skill-slug="${escapeHtml(skill.slug)}" data-enabled="${libraryItem?.enabled ? 'true' : 'false'}"`,
+            label: libraryItem?.enabled ? '已启用' : '已禁用',
+          })}
         </div>
         <p class="detail-copy">${escapeHtml(skill.description || '暂无描述。')}</p>
         <div class="fig-meta-cards">
@@ -3057,6 +3082,12 @@ app.addEventListener('click', async (event) => {
 
   if (action === 'toggle-brand-mcp') {
     toggleBrandCapability('mcp', target.getAttribute('data-mcp-key') || '');
+    return;
+  }
+
+  if (action === 'skill-toggle') {
+    const enabled = (target.getAttribute('data-enabled') || '') === 'true';
+    await setSkillEnabled(target.getAttribute('data-skill-slug') || '', !enabled);
     return;
   }
 
