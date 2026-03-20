@@ -1700,6 +1700,13 @@ body {
   min-height: 28px;
   padding: 0 12px;
   font-size: 12px;
+  border-color: color-mix(in srgb, var(--composer-panel-border) 70%, transparent);
+  background: color-mix(in srgb, var(--chat-surface-panel-subtle) 88%, white 12%);
+}
+
+.iclaw-composer__query-chip:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--lobster-gold-border-strong) 84%, transparent);
+  background: color-mix(in srgb, var(--lobster-gold-soft) 64%, var(--chat-surface-panel-subtle));
 }
 
 .iclaw-composer__supports {
@@ -2179,6 +2186,16 @@ body {
   border-color: color-mix(in srgb, var(--composer-panel-border) 82%, transparent);
   background: color-mix(in srgb, var(--composer-attach-bg) 88%, transparent);
   color: #d8e4f1;
+}
+
+:root.dark .iclaw-composer__query-chip {
+  border-color: color-mix(in srgb, var(--composer-panel-border) 84%, transparent);
+  background: color-mix(in srgb, var(--composer-attach-bg) 72%, transparent);
+}
+
+:root.dark .iclaw-composer__query-chip:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--lobster-gold-border-strong) 88%, transparent);
+  background: color-mix(in srgb, var(--lobster-gold-soft) 36%, var(--composer-attach-hover));
 }
 
 :root.dark .iclaw-composer__mention-trigger:hover:not(:disabled),
