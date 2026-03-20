@@ -652,13 +652,13 @@ body {
   right: 0;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px;
+  gap: 3px;
+  padding: 3px;
   border: 1px solid color-mix(in srgb, var(--chat-surface-panel-border) 72%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--chat-surface-panel) 94%, white 6%);
   box-shadow:
-    0 10px 24px rgba(15, 23, 42, 0.08),
+    0 8px 20px rgba(15, 23, 42, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.52);
   transform: translateY(calc(-50% + 6px)) scale(0.98);
 }
@@ -667,7 +667,7 @@ body {
 .openclaw-chat-surface .iclaw-chat-assistant-toolbar:focus-within {
   transform: translateY(-50%) scale(1);
   box-shadow:
-    0 14px 30px rgba(15, 23, 42, 0.1),
+    0 12px 24px rgba(15, 23, 42, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.58);
 }
 
@@ -676,8 +676,8 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 24px;
+  height: 24px;
   flex: 0 0 auto;
   border: none;
   border-radius: 999px;
@@ -691,8 +691,8 @@ body {
 }
 
 .openclaw-chat-surface .iclaw-chat-assistant-toolbar__btn > svg {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
 }
 
 .openclaw-chat-surface .iclaw-chat-assistant-toolbar__btn:hover:not(:disabled),

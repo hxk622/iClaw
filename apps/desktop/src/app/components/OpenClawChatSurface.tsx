@@ -280,9 +280,9 @@ const MESSAGE_ACTION_ICONS = {
   check:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.2 4.2L19 7.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   thumbsUp:
-    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 21H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2h2m5-7-1.4 5H18a2 2 0 0 1 2 2l-1 6a2 2 0 0 1-2 1H7V11.5L12 4Z" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.4 10.2v9.1H6.6a2.4 2.4 0 0 1-2.4-2.4v-4.3a2.4 2.4 0 0 1 2.4-2.4h2.8Z" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.4 19.3v-8l3.1-5c.5-.8 1.7-.4 1.7.5v3.4h2.2a2.1 2.1 0 0 1 2 2.5l-.7 4.1a3 3 0 0 1-2.9 2.5h-5.4Z" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   thumbsDown:
-    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2m-5 7 1.4-5H6a2 2 0 0 1-2-2l1-6a2 2 0 0 1 2-1h10v7.5L12 20Z" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.6 4.7v8l-3.1 5c-.5.8-1.7.4-1.7-.5v-3.4H7.6a2.1 2.1 0 0 1-2-2.5l.7-4.1a3 3 0 0 1 2.9-2.5h5.4Z" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.6 13.8v-9.1h2.8a2.4 2.4 0 0 1 2.4 2.4v4.3a2.4 2.4 0 0 1-2.4 2.4h-2.8Z" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   refresh:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 2v6h-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 8a8 8 0 1 0 2 5.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 } as const;
