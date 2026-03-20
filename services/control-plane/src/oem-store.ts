@@ -266,7 +266,10 @@ export class PgOemStore {
     }
   }
 
-  async listBrands(): Promise<OemBrandRecord[]> {
+  async listBrands(options: {query?: string | null; status?: string | null; limit?: number} = {}): Promise<OemBrandRecord[]> {
+    const query = options.query?.trim() || null;
+    const status = options.status?.trim() || null;
+    const limit = Math.max(1, Math.min(500, options.limit || 200));
     const result = await this.pool.query<OemBrandRow>(
       `
         select
@@ -281,13 +284,26 @@ export class PgOemStore {
           created_at,
           updated_at
         from oem_brand_profiles
+        where (
+          $1::text is null
+          or brand_id ilike '%' || $1 || '%'
+          or display_name ilike '%' || $1 || '%'
+          or product_name ilike '%' || $1 || '%'
+          or tenant_key ilike '%' || $1 || '%'
+        )
+          and ($2::text is null or status = $2)
         order by updated_at desc, brand_id asc
+        limit $3
       `,
+      [query, status, limit],
     );
     return result.rows.map(mapBrandRow);
   }
 
-  async listBrandSummaries(): Promise<OemBrandSummaryRecord[]> {
+  async listBrandSummaries(options: {query?: string | null; status?: string | null; limit?: number} = {}): Promise<OemBrandSummaryRecord[]> {
+    const query = options.query?.trim() || null;
+    const status = options.status?.trim() || null;
+    const limit = Math.max(1, Math.min(500, options.limit || 200));
     const result = await this.pool.query<OemBrandSummaryRow>(
       `
         select
@@ -304,6 +320,14 @@ export class PgOemStore {
         from oem_brand_profiles p
         left join oem_brand_versions v on v.brand_id = p.brand_id
         left join oem_asset_registry a on a.brand_id = p.brand_id
+        where (
+          $1::text is null
+          or p.brand_id ilike '%' || $1 || '%'
+          or p.display_name ilike '%' || $1 || '%'
+          or p.product_name ilike '%' || $1 || '%'
+          or p.tenant_key ilike '%' || $1 || '%'
+        )
+          and ($2::text is null or p.status = $2)
         group by
           p.brand_id,
           p.tenant_key,
@@ -314,7 +338,9 @@ export class PgOemStore {
           p.created_at,
           p.updated_at
         order by p.updated_at desc, p.brand_id asc
+        limit $3
       `,
+      [query, status, limit],
     );
     return result.rows.map(mapBrandSummaryRow);
   }
@@ -444,6 +470,33 @@ export class PgOemStore {
       [brandId],
     );
     return result.rows.map(mapAssetRow);
+  }
+
+  async getBrandAsset(brandId: string, assetKey: string): Promise<OemAssetListRecord | null> {
+    const result = await this.pool.query<OemAssetRow>(
+      `
+        select
+          a.id,
+          a.brand_id,
+          p.display_name as brand_display_name,
+          p.product_name as brand_product_name,
+          a.asset_key,
+          a.kind,
+          a.storage_provider,
+          a.object_key,
+          a.public_url,
+          a.metadata,
+          a.created_by,
+          a.created_at,
+          a.updated_at
+        from oem_asset_registry a
+        join oem_brand_profiles p on p.brand_id = a.brand_id
+        where a.brand_id = $1 and a.asset_key = $2
+        limit 1
+      `,
+      [brandId, assetKey],
+    );
+    return result.rows[0] ? mapAssetRow(result.rows[0]) : null;
   }
 
   async listAssets(options: {brandId?: string | null; kind?: string | null; limit?: number} = {}): Promise<OemAssetListRecord[]> {

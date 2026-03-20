@@ -4,6 +4,7 @@ import {fileURLToPath} from 'node:url';
 
 import type {PublicUser} from './domain.ts';
 import {HttpError} from './errors.ts';
+import {downloadOemAssetFile, uploadOemAssetFile} from './oem-asset-storage.ts';
 import type {PgOemStore} from './oem-store.ts';
 import type {ControlPlaneStore} from './store.ts';
 
@@ -77,6 +78,21 @@ function normalizeOptionalString(value: unknown, field: string): string | null {
   }
   const normalized = value.trim();
   return normalized || null;
+}
+
+function parseRequiredBase64(value: unknown, field: string): Buffer {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new HttpError(400, 'BAD_REQUEST', `${field} is required`);
+  }
+  try {
+    const buffer = Buffer.from(value.trim(), 'base64');
+    if (buffer.length === 0) {
+      throw new Error('empty');
+    }
+    return buffer;
+  } catch {
+    throw new HttpError(400, 'BAD_REQUEST', `${field} must be valid base64`);
+  }
 }
 
 function normalizePositiveInteger(value: unknown, field: string): number {
@@ -174,6 +190,20 @@ function summarizeRelease(config: Record<string, unknown>, previousConfig?: Reco
     skillCount: capabilities.skills.length,
     mcpCount: capabilities.mcpServers.length,
   };
+}
+
+function upsertAssetValueInDraftConfig(input: {
+  draftConfig: Record<string, unknown>;
+  assetKey: string;
+  publicUrl: string | null;
+  objectKey: string;
+}): Record<string, unknown> {
+  const next = cloneObject(input.draftConfig);
+  next.assets = {
+    ...asObject(next.assets),
+    [input.assetKey]: input.publicUrl || input.objectKey,
+  };
+  return next;
 }
 
 async function readMcpCatalog(): Promise<
@@ -325,9 +355,13 @@ export class OemService {
     this.controlStore = options?.controlStore || null;
   }
 
-  async listBrands(accessToken: string) {
+  async listBrands(accessToken: string, input: {query?: string | null; status?: string | null; limit?: number | null} = {}) {
     await this.requireAdmin(accessToken);
-    const items = await this.store.listBrands();
+    const items = await this.store.listBrands({
+      query: normalizeOptionalString(input.query, 'query'),
+      status: normalizeOptionalString(input.status, 'status'),
+      limit: input.limit ? normalizePositiveInteger(input.limit, 'limit') : 200,
+    });
     return {items};
   }
 
@@ -589,7 +623,125 @@ export class OemService {
       metadata,
       actorUserId: actor.id,
     });
+    const nextDraftConfig = upsertAssetValueInDraftConfig({
+      draftConfig: existing.draftConfig,
+      assetKey,
+      publicUrl: asset.publicUrl,
+      objectKey: asset.objectKey,
+    });
+    await this.store.upsertDraft({
+      brandId,
+      tenantKey: existing.tenantKey,
+      displayName: existing.displayName,
+      productName: existing.productName,
+      status: existing.status === 'published' ? 'draft' : existing.status,
+      draftConfig: mergeBrandMetadata({
+        brandId,
+        tenantKey: existing.tenantKey,
+        displayName: existing.displayName,
+        productName: existing.productName,
+        draftConfig: nextDraftConfig,
+      }),
+      actorUserId: actor.id,
+    });
     return {asset};
+  }
+
+  async uploadAssetFile(
+    accessToken: string,
+    input: {
+      brand_id?: string;
+      asset_key?: string;
+      kind?: string;
+      content_type?: string;
+      file_name?: string;
+      file_base64?: string;
+      metadata?: Record<string, unknown>;
+    },
+  ) {
+    const actor = await this.requireAdmin(accessToken);
+    const brandId = normalizeBrandId(input.brand_id);
+    const existing = await this.store.getBrand(brandId);
+    if (!existing) {
+      throw new HttpError(404, 'NOT_FOUND', 'OEM brand not found');
+    }
+    const assetKey = normalizeRequiredString(input.asset_key, 'asset_key');
+    const kind = normalizeRequiredString(input.kind, 'kind');
+    const contentType = normalizeRequiredString(input.content_type, 'content_type');
+    const filename = normalizeOptionalString(input.file_name, 'file_name') || `${assetKey}`;
+    const content = parseRequiredBase64(input.file_base64, 'file_base64');
+    const metadata =
+      input.metadata && typeof input.metadata === 'object' && !Array.isArray(input.metadata)
+        ? (input.metadata as Record<string, unknown>)
+        : {};
+
+    const upload = await uploadOemAssetFile({
+      brandId,
+      assetKey,
+      content,
+      contentType,
+      filename,
+    });
+    const asset = await this.store.upsertAsset({
+      brandId,
+      assetKey,
+      kind,
+      storageProvider: upload.storageProvider,
+      objectKey: upload.objectKey,
+      publicUrl: upload.publicUrl,
+      metadata: {
+        ...metadata,
+        content_type: contentType,
+        file_name: filename,
+        byte_size: content.length,
+      },
+      actorUserId: actor.id,
+    });
+
+    const nextDraftConfig = upsertAssetValueInDraftConfig({
+      draftConfig: existing.draftConfig,
+      assetKey,
+      publicUrl: asset.publicUrl,
+      objectKey: asset.objectKey,
+    });
+    await this.store.upsertDraft({
+      brandId,
+      tenantKey: existing.tenantKey,
+      displayName: existing.displayName,
+      productName: existing.productName,
+      status: existing.status === 'published' ? 'draft' : existing.status,
+      draftConfig: mergeBrandMetadata({
+        brandId,
+        tenantKey: existing.tenantKey,
+        displayName: existing.displayName,
+        productName: existing.productName,
+        draftConfig: nextDraftConfig,
+      }),
+      actorUserId: actor.id,
+    });
+
+    return {asset};
+  }
+
+  async getAssetFile(brandIdInput: string, assetKeyInput: string) {
+    const brandId = normalizeBrandId(brandIdInput);
+    const assetKey = normalizeRequiredString(assetKeyInput, 'asset_key');
+    const asset = await this.store.getBrandAsset(brandId, assetKey);
+    if (!asset) {
+      throw new HttpError(404, 'NOT_FOUND', 'OEM asset not found');
+    }
+    const contentType = normalizeOptionalString(asset.metadata.content_type, 'content_type');
+    const file = await downloadOemAssetFile({
+      brandId,
+      assetKey,
+      storageProvider: asset.storageProvider,
+      objectKey: asset.objectKey,
+      contentType,
+    });
+    return {
+      file,
+      asset,
+    };
   }
 
   async listAudit(accessToken: string, input: {brand_id?: string | null; action?: string | null; limit?: number | null}) {

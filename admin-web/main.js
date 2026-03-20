@@ -111,6 +111,19 @@ function splitLines(value) {
     .filter(Boolean);
 }
 
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || '');
+      const base64 = result.includes(',') ? result.slice(result.indexOf(',') + 1) : result;
+      resolve(base64);
+    };
+    reader.onerror = () => reject(reader.error || new Error('文件读取失败'));
+    reader.readAsDataURL(file);
+  });
+}
+
 function escapeHtml(value) {
   return String(value || '')
     .replaceAll('&', '&amp;')
@@ -194,6 +207,11 @@ function actionLabel(action) {
 
 function statusBadge(status) {
   return `<span class="status-pill status-pill--${escapeHtml(status || 'default')}">${escapeHtml(statusLabel(status))}</span>`;
+}
+
+function isImageLike(contentType, url, objectKey) {
+  const source = [contentType, url, objectKey].filter(Boolean).join(' ').toLowerCase();
+  return ['image/', '.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg', '.ico'].some((token) => source.includes(token));
 }
 
 function fieldValue(value) {
@@ -705,6 +723,7 @@ async function saveAsset(formData) {
   const objectKey = String(formData.get('object_key') || '').trim();
   const publicUrl = String(formData.get('public_url') || '').trim();
   const metadataText = String(formData.get('metadata_json') || '{}').trim();
+  const file = formData.get('file');
 
   let metadata = {};
   try {
@@ -719,27 +738,33 @@ async function saveAsset(formData) {
   render();
 
   try {
-    await apiFetch('/admin/oem/asset', {
-      method: 'PUT',
-      body: JSON.stringify({
-        brand_id: brandId,
-        asset_key: assetKey,
-        kind,
-        storage_provider: storageProvider,
-        object_key: objectKey,
-        public_url: publicUrl || null,
-        metadata,
-      }),
-    });
-
-    const brandRecord = state.brands.find((item) => item.brandId === brandId);
-    if (brandRecord) {
-      const nextDraft = clone(asObject(brandRecord.draftConfig));
-      nextDraft.assets = {
-        ...asObject(nextDraft.assets),
-        [assetKey]: publicUrl || objectKey,
-      };
-      await persistBrandDraft(brandRecord, nextDraft);
+    if (file instanceof File && file.size > 0) {
+      const fileBase64 = await readFileAsBase64(file);
+      await apiFetch('/admin/oem/asset/upload', {
+        method: 'POST',
+        body: JSON.stringify({
+          brand_id: brandId,
+          asset_key: assetKey,
+          kind,
+          content_type: file.type || 'application/octet-stream',
+          file_name: file.name,
+          file_base64: fileBase64,
+          metadata,
+        }),
+      });
+    } else {
+      await apiFetch('/admin/oem/asset', {
+        method: 'PUT',
+        body: JSON.stringify({
+          brand_id: brandId,
+          asset_key: assetKey,
+          kind,
+          storage_provider: storageProvider,
+          object_key: objectKey,
+          public_url: publicUrl || null,
+          metadata,
+        }),
+      });
     }
 
     await loadAppData();
@@ -1330,7 +1355,7 @@ function renderBrandEditorBody(buffer, assets) {
         <article class="panel panel--nested">
           <div class="panel-head">
             <h3>登记或更新资源</h3>
-            <span>写入资源注册表，并同步回品牌 draft_config.assets</span>
+            <span>支持二进制上传，也支持手动登记外部资源，并同步回品牌 draft_config.assets</span>
           </div>
           <form id="asset-form" class="stack-form">
             <input type="hidden" name="brand_id" value="${fieldValue(buffer.brandId)}" />
@@ -1346,6 +1371,10 @@ function renderBrandEditorBody(buffer, assets) {
               <label class="field">
                 <span>存储提供方</span>
                 <input class="field-input" name="storage_provider" value="repo" />
+              </label>
+              <label class="field">
+                <span>上传文件</span>
+                <input class="field-input" name="file" type="file" />
               </label>
               <label class="field">
                 <span>对象路径</span>
@@ -1377,9 +1406,19 @@ function renderBrandEditorBody(buffer, assets) {
                         <div>
                           <strong>${escapeHtml(item.assetKey)}</strong>
                           <span>${escapeHtml(item.kind)} · ${escapeHtml(item.objectKey)}</span>
+                          ${
+                            isImageLike(item.metadata?.content_type, item.publicUrl, item.objectKey)
+                              ? `<div class="asset-thumb-wrap"><img class="asset-thumb" src="${escapeHtml(item.publicUrl || `/oem/asset/file?brand_id=${encodeURIComponent(item.brandId)}&asset_key=${encodeURIComponent(item.assetKey)}`)}" alt="${escapeHtml(item.assetKey)}" /></div>`
+                              : ''
+                          }
                         </div>
                         <div class="row-aside">
                           <span>${escapeHtml(item.storageProvider)}</span>
+                          ${
+                            item.publicUrl
+                              ? `<a class="text-link" href="${escapeHtml(item.publicUrl)}" target="_blank" rel="noreferrer">打开资源</a>`
+                              : ''
+                          }
                           <small>${escapeHtml(formatDateTime(item.updatedAt))}</small>
                         </div>
                       </div>
@@ -1567,6 +1606,7 @@ function renderSkillDetail(skill) {
           : `<div class="empty-state">当前没有品牌绑定此技能。</div>`}
       </div>
     </section>
+    ${renderCapabilityBrandMatrix('skill', skill)}
   `;
 }
 
@@ -1616,6 +1656,52 @@ function renderMcpDetail(server) {
               )
               .join('')
           : `<div class="empty-state">当前没有品牌启用该 MCP。</div>`}
+      </div>
+    </section>
+    ${renderCapabilityBrandMatrix('mcp', server)}
+  `;
+}
+
+function renderCapabilityBrandMatrix(type, item) {
+  const brands = state.capabilities?.brands || [];
+  const connectedIds = new Set(
+    (type === 'skill' ? item.connectedBrands : item.connected_brands || []).map((brand) => brand.brand_id),
+  );
+  return `
+    <section class="panel panel--nested">
+      <div class="panel-head">
+        <h3>${type === 'skill' ? 'Skill / Brand Matrix' : 'MCP / Brand Matrix'}</h3>
+        <span>按品牌查看能力开放范围</span>
+      </div>
+      <div class="table-shell">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>品牌</th>
+              <th>状态</th>
+              <th>已连接</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${brands
+              .map(
+                (brand) => `
+                  <tr>
+                    <td>${escapeHtml(brand.displayName)}</td>
+                    <td>${statusBadge(brand.status)}</td>
+                    <td>${connectedIds.has(brand.brandId) ? '是' : '否'}</td>
+                    <td>
+                      <button class="table-link" type="button" data-action="select-brand" data-brand-id="${escapeHtml(brand.brandId)}">
+                        打开品牌
+                      </button>
+                    </td>
+                  </tr>
+                `,
+              )
+              .join('')}
+          </tbody>
+        </table>
       </div>
     </section>
   `;
@@ -1681,6 +1767,7 @@ function renderAssetsPage() {
         <table class="data-table">
           <thead>
             <tr>
+              <th>预览</th>
               <th>Asset Key</th>
               <th>品牌</th>
               <th>类型</th>
@@ -1695,6 +1782,13 @@ function renderAssetsPage() {
                   .map(
                     (item) => `
                       <tr>
+                        <td>
+                          ${
+                            isImageLike(item.metadata?.content_type, item.publicUrl, item.objectKey)
+                              ? `<img class="asset-thumb asset-thumb--table" src="${escapeHtml(item.publicUrl || `/oem/asset/file?brand_id=${encodeURIComponent(item.brandId)}&asset_key=${encodeURIComponent(item.assetKey)}`)}" alt="${escapeHtml(item.assetKey)}" />`
+                              : `<span class="asset-thumb asset-thumb--placeholder">${escapeHtml(item.kind.slice(0, 2).toUpperCase())}</span>`
+                          }
+                        </td>
                         <td>${escapeHtml(item.assetKey)}</td>
                         <td>
                           <button class="table-link" type="button" data-action="select-brand" data-brand-id="${escapeHtml(item.brandId)}">
@@ -1703,13 +1797,19 @@ function renderAssetsPage() {
                         </td>
                         <td>${escapeHtml(item.kind)}</td>
                         <td>${escapeHtml(item.storageProvider)}</td>
-                        <td><code>${escapeHtml(item.publicUrl || item.objectKey)}</code></td>
+                        <td>
+                          ${
+                            item.publicUrl
+                              ? `<a class="text-link" href="${escapeHtml(item.publicUrl)}" target="_blank" rel="noreferrer"><code>${escapeHtml(item.publicUrl)}</code></a>`
+                              : `<code>${escapeHtml(item.objectKey)}</code>`
+                          }
+                        </td>
                         <td>${escapeHtml(formatDateTime(item.updatedAt))}</td>
                       </tr>
                     `,
                   )
                   .join('')
-              : `<tr><td colspan="6"><div class="empty-state">没有匹配的资源。</div></td></tr>`}
+              : `<tr><td colspan="7"><div class="empty-state">没有匹配的资源。</div></td></tr>`}
           </tbody>
         </table>
       </div>

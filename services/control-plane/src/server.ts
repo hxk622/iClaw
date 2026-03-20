@@ -459,7 +459,12 @@ const server = createJsonServer([
   {
     method: 'GET',
     path: '/admin/oem/brands',
-    handler: ({headers}: HandlerContext) => oemService.listBrands(requireBearerToken(headers)),
+    handler: ({headers, url}: HandlerContext) =>
+      oemService.listBrands(requireBearerToken(headers), {
+        query: (url.searchParams.get('query') || '').trim() || null,
+        status: (url.searchParams.get('status') || '').trim() || null,
+        limit: url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : null,
+      }),
   },
   {
     method: 'GET',
@@ -535,6 +540,23 @@ const server = createJsonServer([
       ),
   },
   {
+    method: 'POST',
+    path: '/admin/oem/asset/upload',
+    handler: ({headers, body}: HandlerContext) =>
+      oemService.uploadAssetFile(
+        requireBearerToken(headers),
+        (body || {}) as {
+          brand_id?: string;
+          asset_key?: string;
+          kind?: string;
+          content_type?: string;
+          file_name?: string;
+          file_base64?: string;
+          metadata?: Record<string, unknown>;
+        },
+      ),
+  },
+  {
     method: 'GET',
     path: '/admin/oem/audit',
     handler: ({headers, url}: HandlerContext) =>
@@ -548,6 +570,22 @@ const server = createJsonServer([
     method: 'GET',
     path: '/admin/oem/capabilities',
     handler: ({headers}: HandlerContext) => oemService.getCapabilities(requireBearerToken(headers)),
+  },
+  {
+    method: 'GET',
+    path: '/oem/asset/file',
+    handler: async ({url}: HandlerContext) => {
+      const result = await oemService.getAssetFile(
+        (url.searchParams.get('brand_id') || '').trim(),
+        (url.searchParams.get('asset_key') || '').trim(),
+      );
+      return createRawResponse(result.file.buffer, {
+        headers: {
+          'Content-Type': result.file.contentType,
+          'Cache-Control': 'public, max-age=3600',
+        },
+      });
+    },
   },
   {
     method: 'GET',

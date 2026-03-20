@@ -580,15 +580,26 @@ p {
 }
 
 .text-button,
-.table-link {
+.table-link,
+.text-link {
   padding: 0;
   background: transparent;
   color: var(--olive);
   font-weight: 600;
 }
 
-.table-link {
+.table-link,
+.text-link {
   text-align: left;
+}
+
+.text-link {
+  text-decoration: none;
+}
+
+.text-link:hover,
+.table-link:hover {
+  text-decoration: underline;
 }
 
 .tab-row {
@@ -929,6 +940,31 @@ p {
 code {
   font-family: 'IBM Plex Mono', 'SFMono-Regular', Menlo, monospace;
   font-size: 12px;
+}
+
+.asset-thumb-wrap {
+  margin-top: 10px;
+}
+
+.asset-thumb {
+  width: 92px;
+  height: 92px;
+  object-fit: cover;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(34, 31, 26, 0.04);
+}
+
+.asset-thumb--table {
+  width: 52px;
+  height: 52px;
+}
+
+.asset-thumb--placeholder {
+  display: inline-grid;
+  place-items: center;
+  font-size: 11px;
+  color: var(--muted);
 }
 
 @keyframes spin {
