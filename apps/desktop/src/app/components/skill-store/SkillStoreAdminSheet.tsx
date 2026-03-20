@@ -6,6 +6,7 @@ import { Chip } from '@/app/components/ui/Chip';
 import { DrawerSection } from '@/app/components/ui/DrawerSection';
 import { InfoTile } from '@/app/components/ui/InfoTile';
 import { SelectionCard } from '@/app/components/ui/SelectionCard';
+import { Select } from '@/app/components/ui/Select';
 
 const SHEET_INPUT_CLASS =
   'rounded-[15px] border border-[var(--border-default)] bg-[var(--bg-page)] px-4 py-3 text-[14px] text-[var(--text-primary)] outline-none transition-all focus:border-[var(--brand-primary)] focus:ring-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]';
@@ -206,41 +207,41 @@ export function SkillStoreAdminSheet({
                 <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                   分类
                 </span>
-                <select
+                <Select
                   value={form.category}
-                  onChange={(event) =>
-                    setForm((current) => (current ? {...current, category: event.target.value} : current))
+                  onChange={(value) =>
+                    setForm((current) => (current ? {...current, category: value} : current))
                   }
-                  className={SHEET_INPUT_CLASS}
-                  style={{ ['--tw-ring-color' as string]: 'rgba(201,169,97,0.14)' }}
-                >
-                  <option value="">自动推断</option>
-                  <option value="data">数据工具</option>
-                  <option value="research">研究分析</option>
-                  <option value="portfolio">组合与风险</option>
-                  <option value="report">报告生成</option>
-                  <option value="general">通用工具</option>
-                </select>
+                  options={[
+                    { value: '', label: '自动推断' },
+                    { value: 'data', label: '数据工具' },
+                    { value: 'research', label: '研究分析' },
+                    { value: 'portfolio', label: '组合与风险' },
+                    { value: 'report', label: '报告生成' },
+                    { value: 'general', label: '通用工具' },
+                  ]}
+                  triggerClassName={SHEET_INPUT_CLASS}
+                />
               </label>
 
               <label className="grid gap-2">
                 <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                   技能类型
                 </span>
-                <select
+                <Select
                   value={form.skillType}
-                  onChange={(event) =>
-                    setForm((current) => (current ? {...current, skillType: event.target.value} : current))
+                  onChange={(value) =>
+                    setForm((current) => (current ? {...current, skillType: value} : current))
                   }
-                  className={SHEET_INPUT_CLASS}
-                  style={{ ['--tw-ring-color' as string]: 'rgba(201,169,97,0.14)' }}
-                >
-                  <option value="">自动推断</option>
-                  <option value="工具包">工具包</option>
-                  <option value="分析师">分析师</option>
-                  <option value="生成器">生成器</option>
-                  <option value="扫描器">扫描器</option>
-                </select>
+                  options={[
+                    { value: '', label: '自动推断' },
+                    { value: '工具包', label: '工具包' },
+                    { value: '分析师', label: '分析师' },
+                    { value: '生成器', label: '生成器' },
+                    { value: '扫描器', label: '扫描器' },
+                  ]}
+                  triggerClassName={SHEET_INPUT_CLASS}
+                />
               </label>
 
               <label className="grid gap-2">

@@ -27,6 +27,7 @@ import { PressableCard } from '@/app/components/ui/PressableCard';
 import { CompactSegmentedControl } from '@/app/components/ui/CompactSegmentedControl';
 import { EmptyStatePanel } from '@/app/components/ui/EmptyStatePanel';
 import { PageContent, PageHeader, PageSurface } from '@/app/components/ui/PageLayout';
+import { Select } from '@/app/components/ui/Select';
 import { SurfacePanel } from '@/app/components/ui/SurfacePanel';
 import { SummaryMetricItem } from '@/app/components/ui/SummaryMetricItem';
 import { cn } from '@/app/lib/cn';
@@ -1371,17 +1372,15 @@ export function OpenClawCronSurface({
                     <div className="grid gap-5 p-6">
                       <label className="grid gap-2">
                         <span className="text-[14px] font-medium text-[var(--text-primary)]">模板</span>
-                        <select
+                        <Select
                           value={form.templateId}
-                          onChange={(event) => handleTemplateChange(event.target.value as BasicTemplateId)}
-                          className={fieldClassName}
-                        >
-                          {BASIC_TEMPLATES.map((template) => (
-                            <option key={template.id} value={template.id}>
-                              {template.title}
-                            </option>
-                          ))}
-                        </select>
+                          onChange={(value) => handleTemplateChange(value as BasicTemplateId)}
+                          options={BASIC_TEMPLATES.map((template) => ({
+                            value: template.id,
+                            label: template.title,
+                          }))}
+                          triggerClassName={fieldClassName}
+                        />
                       </label>
 
                       <label className="grid gap-2">
@@ -1409,20 +1408,21 @@ export function OpenClawCronSurface({
                       <div className="grid grid-cols-2 gap-4">
                         <label className="grid gap-2">
                           <span className="text-[14px] font-medium text-[var(--text-primary)]">执行频率</span>
-                          <select
+                          <Select
                             value={form.frequency}
-                            onChange={(event) =>
+                            onChange={(value) =>
                               setForm((current) => ({
                                 ...current,
-                                frequency: event.target.value as BasicFrequency,
+                                frequency: value as BasicFrequency,
                               }))
                             }
-                            className={fieldClassName}
-                          >
-                            <option value="once">单次执行</option>
-                            <option value="daily">每天</option>
-                            <option value="weekly">每周</option>
-                          </select>
+                            options={[
+                              { value: 'once', label: '单次执行' },
+                              { value: 'daily', label: '每天' },
+                              { value: 'weekly', label: '每周' },
+                            ]}
+                            triggerClassName={fieldClassName}
+                          />
                         </label>
 
                         {form.frequency === 'once' ? (
@@ -1455,19 +1455,17 @@ export function OpenClawCronSurface({
                       {form.frequency === 'weekly' ? (
                         <label className="grid gap-2">
                           <span className="text-[14px] font-medium text-[var(--text-primary)]">每周几执行</span>
-                          <select
+                          <Select
                             value={form.weekday}
-                            onChange={(event) =>
-                              setForm((current) => ({ ...current, weekday: event.target.value }))
+                            onChange={(value) =>
+                              setForm((current) => ({ ...current, weekday: value }))
                             }
-                            className={fieldClassName}
-                          >
-                            {WEEKDAY_OPTIONS.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
+                            options={WEEKDAY_OPTIONS.map((option) => ({
+                              value: option.value,
+                              label: option.label,
+                            }))}
+                            triggerClassName={fieldClassName}
+                          />
                         </label>
                       ) : null}
 

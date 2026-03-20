@@ -23,6 +23,7 @@ import {
   getTypeBadgeClass,
 } from './model';
 import { Button } from '@/app/components/ui/Button';
+import { Select } from '@/app/components/ui/Select';
 
 export function MemoryDetailDrawer({
   open,
@@ -435,17 +436,15 @@ function SelectField({
   return (
     <label className="space-y-1">
       <div className="text-[12px] text-[#9A9288]">{label}</div>
-      <select
+      <Select
         value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-lg border border-[#DED7CC] bg-white px-3 py-2 text-[13px] text-[#1A1A18] outline-none"
-      >
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
+        onChange={onChange}
+        options={options.map((option) => ({
+          value: option,
+          label: option,
+        }))}
+        triggerClassName="w-full rounded-lg border border-[#DED7CC] bg-white px-3 py-2 text-[13px] text-[#1A1A18] outline-none shadow-none"
+      />
     </label>
   );
 }
