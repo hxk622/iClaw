@@ -122,7 +122,6 @@ const DEFAULT_CHAT_ROUTE = {
   initialPrompt: null as string | null,
   initialPromptKey: null as string | null,
 };
-let activeChatRoute = { ...DEFAULT_CHAT_ROUTE };
 type PrimaryView =
   | 'chat'
   | 'lobster-store'
@@ -1142,7 +1141,7 @@ function AuthedView({
 }: AuthedViewProps) {
   const { buildSectionSaveSnapshot, commitSectionSave } = useSettings();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [, setChatSurfaceVersion] = useState(0);
+  const [activeChatRoute, setActiveChatRoute] = useState({ ...DEFAULT_CHAT_ROUTE });
   const [creditBalance, setCreditBalance] = useState<CreditBalanceData | null>(null);
   const [creditBalanceLoading, setCreditBalanceLoading] = useState(false);
 
@@ -1256,22 +1255,21 @@ function AuthedView({
 
   const handleStartLobsterConversation = (agent: LobsterAgent) => {
     const seed = `${agent.slug}-${Date.now()}`;
-    activeChatRoute = {
+    setActiveChatRoute({
       sessionKey: `lobster-${seed}`,
       initialPrompt: buildLobsterConversationPrompt(agent),
       initialPromptKey: seed,
-    };
+    });
     setPrimaryView('chat');
   };
 
   const handleStartNewChat = () => {
     const seed = `chat-${Date.now()}`;
-    activeChatRoute = {
+    setActiveChatRoute({
       sessionKey: seed,
       initialPrompt: null,
       initialPromptKey: seed,
-    };
-    setChatSurfaceVersion((current) => current + 1);
+    });
     setPrimaryView('chat');
   };
 
@@ -1282,12 +1280,11 @@ function AuthedView({
       return;
     }
 
-    activeChatRoute = {
+    setActiveChatRoute({
       sessionKey: task.sessionKey,
       initialPrompt: null,
       initialPromptKey: null,
-    };
-    setChatSurfaceVersion((current) => current + 1);
+    });
     setPrimaryView('chat');
   };
 
