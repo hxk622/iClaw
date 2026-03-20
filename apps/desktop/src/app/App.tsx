@@ -1141,6 +1141,7 @@ function AuthedView({
 }: AuthedViewProps) {
   const { buildSectionSaveSnapshot, commitSectionSave } = useSettings();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [chatSurfaceVersion, setChatSurfaceVersion] = useState(0);
   const [creditBalance, setCreditBalance] = useState<CreditBalanceData | null>(null);
   const [creditBalanceLoading, setCreditBalanceLoading] = useState(false);
 
@@ -1262,6 +1263,17 @@ function AuthedView({
     setPrimaryView('chat');
   };
 
+  const handleStartNewChat = () => {
+    const seed = `chat-${Date.now()}`;
+    activeChatRoute = {
+      sessionKey: seed,
+      initialPrompt: null,
+      initialPromptKey: seed,
+    };
+    setChatSurfaceVersion((current) => current + 1);
+    setPrimaryView('chat');
+  };
+
   return (
     <div className="relative flex h-screen overflow-hidden bg-[var(--bg-page)]">
       <Sidebar
@@ -1270,6 +1282,7 @@ function AuthedView({
         selectedTaskId={selectedTaskId}
         authenticated={authenticated}
         onOpenChat={() => setPrimaryView('chat')}
+        onStartNewChat={handleStartNewChat}
         onOpenCron={() => setPrimaryView('cron')}
         onOpenLobsterStore={() => setPrimaryView('lobster-store')}
         onOpenSkillStore={() => setPrimaryView('skill-store')}
@@ -1364,6 +1377,7 @@ function AuthedView({
             <IMBotsView client={imBotClient} />
           ) : authenticated ? (
             <OpenClawChatSurface
+              key={`${activeChatRoute.sessionKey}:${chatSurfaceVersion}`}
               gatewayUrl={GATEWAY_WS_URL}
               gatewayToken={gatewayAuth.token}
               gatewayPassword={gatewayAuth.password}

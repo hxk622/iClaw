@@ -53,6 +53,7 @@ interface SidebarProps {
   selectedTaskId?: string | null;
   authenticated?: boolean;
   onOpenChat?: () => void;
+  onStartNewChat?: () => void;
   onOpenCron?: () => void;
   onOpenLobsterStore?: () => void;
   onOpenSkillStore?: () => void;
@@ -96,6 +97,7 @@ export function Sidebar({
   selectedTaskId = null,
   authenticated = false,
   onOpenChat,
+  onStartNewChat,
   onOpenCron,
   onOpenLobsterStore,
   onOpenSkillStore,
@@ -224,32 +226,33 @@ export function Sidebar({
               transformOrigin: 'left center',
             }}
           >
-            {item.iconWrapClass ? (
-              <span
-                className={`transition-all duration-[var(--motion-panel)] ${
-                  item.active
-                    ? 'border-[rgba(168,140,93,0.22)] bg-[rgba(168,140,93,0.12)] shadow-[0_6px_14px_rgba(168,140,93,0.10)]'
-                    : 'group-hover:border-[rgba(168,140,93,0.18)] group-hover:bg-[rgba(168,140,93,0.08)]'
-                } ${item.iconWrapClass}`}
-                style={{ transitionTimingFunction: 'var(--motion-spring)' }}
-                aria-hidden="true"
-              >
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center" aria-hidden="true">
+              {item.iconWrapClass ? (
+                <span
+                  className={`flex h-6 w-6 items-center justify-center transition-all duration-[var(--motion-panel)] ${
+                    item.active
+                      ? 'border-[rgba(168,140,93,0.22)] bg-[rgba(168,140,93,0.12)] shadow-[0_6px_14px_rgba(168,140,93,0.10)]'
+                      : 'group-hover:border-[rgba(168,140,93,0.18)] group-hover:bg-[rgba(168,140,93,0.08)]'
+                  } ${item.iconWrapClass}`}
+                  style={{ transitionTimingFunction: 'var(--motion-spring)' }}
+                >
+                  <item.icon
+                    className={`h-5 w-5 transition-transform duration-[var(--motion-panel)] ${
+                      item.active ? 'scale-110' : 'group-hover:scale-105'
+                    } ${item.active ? 'text-[var(--brand-primary)]' : item.iconClass}`}
+                    style={{
+                      transitionTimingFunction: 'var(--motion-spring)',
+                      opacity: item.active ? 1 : 0.9,
+                    }}
+                  />
+                </span>
+              ) : (
                 <item.icon
-                  className={`h-5 w-5 transition-transform duration-[var(--motion-panel)] ${
-                    item.active ? 'scale-110' : 'group-hover:scale-105'
-                  } ${item.active ? 'text-[var(--brand-primary)]' : item.iconClass}`}
-                  style={{
-                    transitionTimingFunction: 'var(--motion-spring)',
-                    opacity: item.active ? 1 : 0.9,
-                  }}
+                  className={`h-5 w-5 transition-transform duration-[var(--motion-panel)] ${item.active ? 'scale-110 text-[var(--brand-primary)]' : `group-hover:scale-110 group-hover:text-[var(--brand-primary)] ${item.iconClass}`}`}
+                  style={{ transitionTimingFunction: 'var(--motion-spring)' }}
                 />
-              </span>
-            ) : (
-              <item.icon
-                className={`h-5 w-5 transition-transform duration-[var(--motion-panel)] ${item.active ? 'scale-110 text-[var(--brand-primary)]' : `group-hover:scale-110 group-hover:text-[var(--brand-primary)] ${item.iconClass}`}`}
-                style={{ transitionTimingFunction: 'var(--motion-spring)' }}
-              />
-            )}
+              )}
+            </span>
             <span className={`flex-1 text-[14px] text-[var(--text-primary)] transition-transform duration-[var(--motion-panel)] ${item.active ? 'translate-x-[1px] font-medium' : 'group-hover:translate-x-[1px]'}`}>
               {item.label}
             </span>
@@ -267,7 +270,6 @@ export function Sidebar({
 
   const renderRecordGroup = () => (
     <div className="mb-4">
-      <div className="mb-2 px-3 text-xs text-[var(--text-muted)]">记录</div>
       <RecentTasksList
         selectedTaskId={activeView === 'task-center' ? selectedTaskId : null}
         onOpenAll={onOpenTasks}
@@ -291,8 +293,18 @@ export function Sidebar({
       </div>
 
       <div className="border-b border-[var(--border-default)] p-3">
-        <Button variant="primary" size="md" block className="rounded-xl py-2.5 text-[14px]">
-          <Plus className="h-4 w-4" />
+        <Button
+          variant="secondary"
+          size="sm"
+          block
+          onClick={onStartNewChat}
+          leadingIcon={
+            <span className="inline-flex h-5.5 w-5.5 items-center justify-center rounded-full bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)]">
+              <Plus className="h-3.5 w-3.5" />
+            </span>
+          }
+          className="h-9.5 justify-center rounded-[13px] border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--bg-card)_86%,var(--bg-page))] px-3 text-[13px] font-medium text-[var(--text-primary)] shadow-none hover:border-[var(--chip-brand-border)] hover:bg-[color-mix(in_srgb,var(--chip-brand-bg)_48%,var(--bg-card))] hover:text-[var(--text-primary)]"
+        >
           新建对话
         </Button>
       </div>
