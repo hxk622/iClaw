@@ -280,9 +280,9 @@ const MESSAGE_ACTION_ICONS = {
   check:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.2 4.2L19 7.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   thumbsUp:
-    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.4 10.2v9.1H6.6a2.4 2.4 0 0 1-2.4-2.4v-4.3a2.4 2.4 0 0 1 2.4-2.4h2.8Z" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.4 19.3v-8l3.1-5c.5-.8 1.7-.4 1.7.5v3.4h2.2a2.1 2.1 0 0 1 2 2.5l-.7 4.1a3 3 0 0 1-2.9 2.5h-5.4Z" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.7 10.15v8.95H6.35A2.35 2.35 0 0 1 4 16.75v-4.25a2.35 2.35 0 0 1 2.35-2.35H8.7Z" fill="none" stroke="currentColor" stroke-width="2.35" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.95 19.1v-8.05l3-4.95c.58-.96 2.1-.5 2.1.64v3.18h2.45a2.02 2.02 0 0 1 1.99 2.4l-.72 3.99a3.18 3.18 0 0 1-3.12 2.79h-5.7Z" fill="none" stroke="currentColor" stroke-width="2.35" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   thumbsDown:
-    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.6 4.7v8l-3.1 5c-.5.8-1.7.4-1.7-.5v-3.4H7.6a2.1 2.1 0 0 1-2-2.5l.7-4.1a3 3 0 0 1 2.9-2.5h5.4Z" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.6 13.8v-9.1h2.8a2.4 2.4 0 0 1 2.4 2.4v4.3a2.4 2.4 0 0 1-2.4 2.4h-2.8Z" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.05 4.9v8.05l-3 4.95c-.58.96-2.1.5-2.1-.64v-3.18H5.5a2.02 2.02 0 0 1-1.99-2.4l.72-3.99A3.18 3.18 0 0 1 7.35 4.9h5.7Z" fill="none" stroke="currentColor" stroke-width="2.35" stroke-linecap="round" stroke-linejoin="round"/><path d="M15.3 13.85V4.9h2.35A2.35 2.35 0 0 1 20 7.25v4.25a2.35 2.35 0 0 1-2.35 2.35H15.3Z" fill="none" stroke="currentColor" stroke-width="2.35" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   refresh:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 2v6h-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 8a8 8 0 1 0 2 5.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 } as const;
@@ -541,24 +541,6 @@ function setElementTextIfChanged(node: Node | null, nextText: string): void {
   node.textContent = nextText;
 }
 
-function findLastRenderableAssistantGroup(host: HTMLElement): HTMLElement | null {
-  const groups = Array.from(host.querySelectorAll('.chat-group.assistant')).filter(
-    (node): node is HTMLElement => node instanceof HTMLElement,
-  );
-
-  for (let index = groups.length - 1; index >= 0; index -= 1) {
-    const group = groups[index];
-    if (group.querySelector('.chat-reading-indicator, .chat-bubble.streaming')) {
-      continue;
-    }
-    if (extractChatGroupText(group) || group.querySelector('.chat-tool-card--clickable, .chat-message-image')) {
-      return group;
-    }
-  }
-
-  return null;
-}
-
 function findPreviousUserGroup(group: HTMLElement): HTMLElement | null {
   let current = group.previousElementSibling;
   while (current) {
@@ -600,9 +582,9 @@ function buildAssistantFooterTooltip(inputTokens: number, outputTokens: number, 
   return `输入 ${inputTokens} tokens · 输出 ${outputTokens} tokens · 实际消耗 ${credits} 龙虾币`;
 }
 
-function deriveLatestAssistantFooterMeta(messages: unknown[]): AssistantFooterMeta | null {
+function deriveAssistantFooterMetas(messages: unknown[]): AssistantFooterMeta[] {
   if (!Array.isArray(messages) || messages.length === 0) {
-    return null;
+    return [];
   }
 
   type MessageGroup = {
@@ -610,22 +592,19 @@ function deriveLatestAssistantFooterMeta(messages: unknown[]): AssistantFooterMe
     timestamp: number;
     messages: unknown[];
   };
-  type AssistantMessageGroup = {
-    timestamp: number;
-    messages: unknown[];
-  };
 
   let currentGroup: MessageGroup | null = null;
-  let latestAssistantGroup: AssistantMessageGroup | null = null;
+  const assistantGroups: MessageGroup[] = [];
 
   const finalizeCurrentGroup = () => {
     if (!currentGroup || currentGroup.role !== 'assistant') {
       return;
     }
-    latestAssistantGroup = {
+    assistantGroups.push({
+      role: currentGroup.role,
       timestamp: currentGroup.timestamp,
       messages: [...currentGroup.messages],
-    };
+    });
   };
 
   messages.forEach((message) => {
@@ -648,31 +627,28 @@ function deriveLatestAssistantFooterMeta(messages: unknown[]): AssistantFooterMe
 
   finalizeCurrentGroup();
 
-  if (!latestAssistantGroup) {
-    return null;
-  }
+  return assistantGroups.map((assistantGroup) => {
+    let inputTokens = 0;
+    let outputTokens = 0;
+    assistantGroup.messages.forEach((message: unknown) => {
+      const record = message as Record<string, unknown>;
+      const usage = record.usage as Record<string, unknown> | undefined;
+      if (!usage) {
+        return;
+      }
+      inputTokens += getUsageMetric(usage, ['input', 'inputTokens', 'input_tokens']);
+      outputTokens += getUsageMetric(usage, ['output', 'outputTokens', 'output_tokens']);
+    });
 
-  const assistantGroup = latestAssistantGroup as AssistantMessageGroup;
-  let inputTokens = 0;
-  let outputTokens = 0;
-  assistantGroup.messages.forEach((message: unknown) => {
-    const record = message as Record<string, unknown>;
-    const usage = record.usage as Record<string, unknown> | undefined;
-    if (!usage) {
-      return;
-    }
-    inputTokens += getUsageMetric(usage, ['input', 'inputTokens', 'input_tokens']);
-    outputTokens += getUsageMetric(usage, ['output', 'outputTokens', 'output_tokens']);
+    const credits = computeCreditCostFromUsage(inputTokens, outputTokens);
+    return {
+      timestampLabel: formatAssistantFooterTimestamp(assistantGroup.timestamp),
+      credits,
+      inputTokens,
+      outputTokens,
+      tooltip: buildAssistantFooterTooltip(inputTokens, outputTokens, credits),
+    };
   });
-
-  const credits = computeCreditCostFromUsage(inputTokens, outputTokens);
-  return {
-    timestampLabel: formatAssistantFooterTimestamp(assistantGroup.timestamp),
-    credits,
-    inputTokens,
-    outputTokens,
-    tooltip: buildAssistantFooterTooltip(inputTokens, outputTokens, credits),
-  };
 }
 
 function extractChatGroupTimestampLabel(group: HTMLElement): string {
@@ -1777,10 +1753,32 @@ export function OpenClawChatSurface({
     if (thread) {
       observer.observe(thread);
     }
+
+    const handleComposerWheel = (event: WheelEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.closest(
+          '.iclaw-composer__editor, .iclaw-composer__mention-menu, .iclaw-composer__model-menu',
+        )
+      ) {
+        return;
+      }
+
+      const activeThread = shell.querySelector('.openclaw-chat-surface .chat-thread') as HTMLElement | null;
+      if (!activeThread || activeThread.scrollHeight <= activeThread.clientHeight) {
+        return;
+      }
+
+      activeThread.scrollTop += event.deltaY;
+      event.preventDefault();
+    };
+
+    composer?.addEventListener('wheel', handleComposerWheel, {passive: false});
     window.addEventListener('resize', updateComposerHeight);
 
     return () => {
       observer.disconnect();
+      composer?.removeEventListener('wheel', handleComposerWheel);
       window.removeEventListener('resize', updateComposerHeight);
     };
   }, [status.connected, status.busy]);
@@ -2421,6 +2419,7 @@ export function OpenClawChatSurface({
         button.addEventListener('click', (event) => {
           event.preventDefault();
           event.stopPropagation();
+          button?.blur();
           void handleCopyAction(button!, extractChatGroupText(group));
         });
         group.append(button);
@@ -2484,15 +2483,18 @@ export function OpenClawChatSurface({
               target.dataset.active = 'true';
               opposite?.removeAttribute('data-active');
             }
+            target.blur();
             return;
           }
 
           if (action === 'copy') {
+            target.blur();
             void handleCopyAction(target, extractChatGroupText(group));
             return;
           }
 
           if (action === 'regenerate') {
+            target.blur();
             if (status.busy) {
               return;
             }
@@ -2564,11 +2566,11 @@ export function OpenClawChatSurface({
     };
 
     const decorateChatGroups = () => {
-      const lastAssistantGroup = findLastRenderableAssistantGroup(host);
-      const footerMeta = deriveLatestAssistantFooterMeta(appRef.current?.chatMessages ?? []);
+      const assistantFooterMetas = deriveAssistantFooterMetas(appRef.current?.chatMessages ?? []);
       const groups = Array.from(host.querySelectorAll('.chat-group')).filter(
         (node): node is HTMLElement => node instanceof HTMLElement,
       );
+      let assistantIndex = 0;
 
       groups.forEach((group) => {
         if (group.classList.contains('user')) {
@@ -2577,12 +2579,8 @@ export function OpenClawChatSurface({
         }
 
         if (group.classList.contains('assistant')) {
-          const footer = group.querySelector('.iclaw-chat-assistant-footer');
-          if (group === lastAssistantGroup) {
-            ensureAssistantFooter(group, footerMeta);
-          } else if (footer) {
-            footer.remove();
-          }
+          ensureAssistantFooter(group, assistantFooterMetas[assistantIndex] ?? null);
+          assistantIndex += 1;
         }
       });
     };
@@ -2597,8 +2595,29 @@ export function OpenClawChatSurface({
       subtree: true,
     });
 
+    const handleToolbarOutsidePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (
+        target instanceof HTMLElement &&
+        target.closest('.iclaw-chat-assistant-toolbar, .iclaw-chat-user-copy')
+      ) {
+        return;
+      }
+
+      const activeElement = document.activeElement;
+      if (
+        activeElement instanceof HTMLElement &&
+        activeElement.matches('.iclaw-chat-assistant-toolbar__btn, .iclaw-chat-user-copy')
+      ) {
+        activeElement.blur();
+      }
+    };
+
+    document.addEventListener('pointerdown', handleToolbarOutsidePointerDown, true);
+
     return () => {
       observer.disconnect();
+      document.removeEventListener('pointerdown', handleToolbarOutsidePointerDown, true);
       clearMessageActionTimers();
     };
   }, [clearMessageActionTimers, handleSend, status.busy]);
