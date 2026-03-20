@@ -38,6 +38,7 @@ import {
   resetIclawWorkspaceToDefaults,
   saveIclawWorkspaceSection,
 } from './lib/iclaw-settings';
+import { readRecentTasks } from './lib/recent-tasks';
 import {
   readSkippedDesktopUpdateVersion,
   resolveDesktopUpdateArtifactUrl,
@@ -1274,6 +1275,22 @@ function AuthedView({
     setPrimaryView('chat');
   };
 
+  const handleOpenTaskChat = (taskId: string) => {
+    const task = readRecentTasks().find((item) => item.id === taskId);
+    if (!task?.sessionKey) {
+      setPrimaryView('task-center');
+      return;
+    }
+
+    activeChatRoute = {
+      sessionKey: task.sessionKey,
+      initialPrompt: null,
+      initialPromptKey: null,
+    };
+    setChatSurfaceVersion((current) => current + 1);
+    setPrimaryView('chat');
+  };
+
   return (
     <div className="relative flex h-screen overflow-hidden bg-[var(--bg-page)]">
       <Sidebar
@@ -1292,6 +1309,7 @@ function AuthedView({
         onOpenMemory={() => setPrimaryView('memory')}
         onOpenTasks={() => setPrimaryView('task-center')}
         onSelectTask={setSelectedTaskId}
+        onOpenTaskChat={handleOpenTaskChat}
         onOpenAccount={() => {
           if (!authenticated) {
             onRequestAuth('login', 'account');

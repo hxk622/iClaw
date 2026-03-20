@@ -63,6 +63,7 @@ interface SidebarProps {
   onOpenMemory?: () => void;
   onOpenTasks?: () => void;
   onSelectTask?: (taskId: string) => void;
+  onOpenTaskChat?: (taskId: string) => void;
   onLogout?: () => void;
   onOpenAccount?: () => void;
   onOpenLogin?: () => void;
@@ -107,6 +108,7 @@ export function Sidebar({
   onOpenMemory,
   onOpenTasks,
   onSelectTask,
+  onOpenTaskChat,
   onLogout,
   onOpenAccount,
   onOpenLogin,
@@ -275,6 +277,10 @@ export function Sidebar({
         onOpenAll={onOpenTasks}
         onSelectTask={(taskId) => {
           onSelectTask?.(taskId);
+          if (onOpenTaskChat) {
+            onOpenTaskChat(taskId);
+            return;
+          }
           onOpenTasks?.();
         }}
       />
