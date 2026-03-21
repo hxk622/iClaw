@@ -95,6 +95,56 @@ function normalizeRecentTask(task: RecentTaskRecord): RecentTaskRecord {
   };
 }
 
+function isCustomRecentTaskTitle(task: RecentTaskRecord): boolean {
+  return collapseText(task.title) !== buildRecentTaskTitle(task.prompt);
+}
+
+function mergeRecentTasksBySession(tasks: RecentTaskRecord[]): RecentTaskRecord[] {
+  const groupedBySession = new Map<string, RecentTaskRecord[]>();
+
+  tasks.map((task) => normalizeRecentTask(task)).forEach((task) => {
+    const sessionKey = task.sessionKey || 'main';
+    const group = groupedBySession.get(sessionKey);
+    if (group) {
+      group.push(task);
+      return;
+    }
+    groupedBySession.set(sessionKey, [task]);
+  });
+
+  return Array.from(groupedBySession.values())
+    .map((group) => {
+      const oldest = [...group].sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      )[0];
+      const newest = [...group].sort(compareRecentTasksByUpdatedAt)[0];
+      const latestCustomTitleTask =
+        [...group]
+          .filter(isCustomRecentTaskTitle)
+          .sort(compareRecentTasksByUpdatedAt)[0] ?? null;
+      const pinnedTask =
+        [...group]
+          .filter((task) => Boolean(task.pinnedAt))
+          .sort(compareRecentTasks)[0] ?? null;
+      const canonical = latestCustomTitleTask ?? oldest;
+      const sessionPrompt = oldest.prompt;
+
+      return {
+        ...canonical,
+        prompt: sessionPrompt,
+        title: latestCustomTitleTask?.title || buildRecentTaskTitle(sessionPrompt),
+        summary: buildRecentTaskSummary(sessionPrompt),
+        status: newest.status,
+        createdAt: oldest.createdAt,
+        updatedAt: newest.updatedAt,
+        pinnedAt: pinnedTask?.pinnedAt ?? null,
+        artifacts: dedupeArtifacts(group.flatMap((task) => task.artifacts ?? [])),
+        lastError: newest.lastError ?? null,
+      };
+    })
+    .sort(compareRecentTasks);
+}
+
 function compareRecentTasks(a: RecentTaskRecord, b: RecentTaskRecord): number {
   const aPinned = a.pinnedAt ? new Date(a.pinnedAt).getTime() : 0;
   const bPinned = b.pinnedAt ? new Date(b.pinnedAt).getTime() : 0;
@@ -103,6 +153,10 @@ function compareRecentTasks(a: RecentTaskRecord, b: RecentTaskRecord): number {
     return bPinned - aPinned;
   }
 
+  return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+}
+
+function compareRecentTasksByUpdatedAt(a: RecentTaskRecord, b: RecentTaskRecord): number {
   return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
 }
 
@@ -120,10 +174,9 @@ function readTasksFromStorage(): RecentTaskRecord[] {
     if (!Array.isArray(parsed)) {
       return [];
     }
-    return parsed
-      .filter((item): item is RecentTaskRecord => Boolean(item && typeof item === 'object' && 'id' in item))
-      .map((item) => normalizeRecentTask(item))
-      .sort(compareRecentTasks);
+    return mergeRecentTasksBySession(
+      parsed.filter((item): item is RecentTaskRecord => Boolean(item && typeof item === 'object' && 'id' in item)),
+    );
   } catch {
     return [];
   }
@@ -138,10 +191,7 @@ function writeTasksToStorage(tasks: RecentTaskRecord[]): void {
     storage.setItem(
       RECENT_TASKS_STORAGE_KEY,
       JSON.stringify(
-        tasks
-          .map((task) => normalizeRecentTask(task))
-          .sort(compareRecentTasks)
-          .slice(0, MAX_PERSISTED_TASKS),
+        mergeRecentTasksBySession(tasks).slice(0, MAX_PERSISTED_TASKS),
       ),
     );
     emitRecentTasksUpdated();
@@ -191,23 +241,50 @@ export function readRecentTasks(): RecentTaskRecord[] {
 
 export function startRecentTask(input: StartRecentTaskInput): RecentTaskRecord {
   const now = new Date().toISOString();
-  const task: RecentTaskRecord = {
-    id: createRecentTaskId(),
-    source: 'chat',
-    sessionKey: input.sessionKey || 'main',
-    prompt: collapseText(stripPromptMarkers(input.prompt)) || '基于上传内容发起的任务',
-    title: buildRecentTaskTitle(input.prompt),
-    summary: buildRecentTaskSummary(input.prompt),
-    status: 'running',
-    createdAt: now,
-    updatedAt: now,
-    pinnedAt: null,
-    artifacts: [],
-    lastError: null,
-  };
+  const sessionKey = input.sessionKey || 'main';
+  const prompt = collapseText(stripPromptMarkers(input.prompt)) || '基于上传内容发起的任务';
+  const nextTitle = buildRecentTaskTitle(input.prompt);
+  const nextSummary = buildRecentTaskSummary(input.prompt);
 
-  updateTaskList((tasks) => [task, ...tasks.filter((item) => item.id !== task.id)]);
-  return task;
+  let activeTask: RecentTaskRecord | null = null;
+
+  updateTaskList((tasks) => {
+    const existing = tasks.find((task) => normalizeRecentTask(task).sessionKey === sessionKey) ?? null;
+    if (!existing) {
+      activeTask = {
+        id: createRecentTaskId(),
+        source: 'chat',
+        sessionKey,
+        prompt,
+        title: nextTitle,
+        summary: nextSummary,
+        status: 'running',
+        createdAt: now,
+        updatedAt: now,
+        pinnedAt: null,
+        artifacts: [],
+        lastError: null,
+      };
+      return [activeTask, ...tasks];
+    }
+
+    const normalizedExisting = normalizeRecentTask(existing);
+    activeTask = {
+      ...normalizedExisting,
+      prompt: normalizedExisting.prompt || prompt,
+      title: isCustomRecentTaskTitle(normalizedExisting)
+        ? normalizedExisting.title
+        : normalizedExisting.title || nextTitle,
+      summary: normalizedExisting.summary || nextSummary,
+      status: 'running',
+      updatedAt: now,
+      lastError: null,
+    };
+
+    return [activeTask, ...tasks.filter((task) => task.id !== normalizedExisting.id)];
+  });
+
+  return activeTask!;
 }
 
 export function markRecentTaskCompleted(input: FinishRecentTaskInput): void {
