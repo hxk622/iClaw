@@ -5,8 +5,11 @@ import {
   ChevronDown,
   Film,
   FileText,
+  Globe,
   Image as ImageIcon,
   Plus,
+  SlidersHorizontal,
+  Sparkles,
   Square,
 } from 'lucide-react';
 import {
@@ -19,7 +22,6 @@ import {
 } from 'react';
 import { ModelBrandIcon } from './ModelBrandIcon';
 import { findComposerModelOption, type ComposerModelOption } from '../lib/model-catalog';
-import type { LobsterAgent } from '../lib/lobster-store';
 import { Chip } from './ui/Chip';
 
 export type OpenClawImageAttachment = {
@@ -31,6 +33,17 @@ export type OpenClawImageAttachment = {
 export type ComposerSendPayload = {
   prompt: string;
   imageAttachments: OpenClawImageAttachment[];
+  selectedAgentSlug: string | null;
+  selectedAgentName: string | null;
+  selectedAgentSystemPrompt: string | null;
+  selectedSkillSlug: string | null;
+  selectedSkillName: string | null;
+  selectedMode: string | null;
+  selectedModeLabel: string | null;
+  selectedMarketScope: string | null;
+  selectedMarketScopeLabel: string | null;
+  selectedOutput: string | null;
+  selectedOutputLabel: string | null;
 };
 
 export type ComposerDraftAttachment = {
@@ -55,6 +68,28 @@ export type RichChatComposerHandle = {
   ) => void;
 };
 
+export type ComposerSkillOption = {
+  slug: string;
+  name: string;
+  market: string;
+  skillType: string;
+  categoryLabel: string;
+};
+
+export type ComposerAgentOption = {
+  slug: string;
+  name: string;
+  avatarSrc: string;
+  installed: boolean;
+  systemPrompt?: string | null;
+};
+
+type ComposerStaticOption = {
+  value: string;
+  label: string;
+  detail: string;
+};
+
 type ComposerTokenMeta = {
   id: string;
   kind: 'reference' | 'attachment' | 'agent';
@@ -70,7 +105,8 @@ type RichChatComposerProps = {
   connected: boolean;
   busy: boolean;
   sessionTransitioning?: boolean;
-  lobsterAgents: LobsterAgent[];
+  lobsterAgents: ComposerAgentOption[];
+  skillOptions: ComposerSkillOption[];
   modelOptions: ComposerModelOption[];
   selectedModelId: string | null;
   modelsLoading: boolean;
@@ -85,6 +121,8 @@ type RichChatComposerProps = {
     high: number | null;
     error?: string | null;
   } | null;
+  initialSelectedAgentSlug?: string | null;
+  initialSelectedSkillSlug?: string | null;
 };
 
 const SUPPORTED_ATTACHMENT_TYPES = ['image/', 'video/', 'application/pdf'];
@@ -127,6 +165,27 @@ const QUICK_QUERY_OPTIONS = [
     template: '请基于以下内容生成一份结构化纪要，包含结论、关键数据、风险提示和待跟进事项：',
   },
 ] as const;
+
+const MODE_OPTIONS: ComposerStaticOption[] = [
+  { value: 'quick', label: '快速问答', detail: '更直接地给出结论和判断' },
+  { value: 'deep-research', label: '深度研究', detail: '更完整地展开分析与推演' },
+  { value: 'report', label: '生成报告', detail: '按结构化报告方式组织答案' },
+];
+
+const MARKET_SCOPE_OPTIONS: ComposerStaticOption[] = [
+  { value: 'cn', label: 'A股', detail: '聚焦中国 A 股市场与标的' },
+  { value: 'us', label: '美股', detail: '聚焦美国市场与上市公司' },
+  { value: 'hk', label: '港股', detail: '聚焦港股市场与港股通标的' },
+  { value: 'macro', label: '宏观', detail: '聚焦宏观数据、利率与政策' },
+  { value: 'crypto', label: '加密', detail: '聚焦加密资产与链上市场' },
+];
+
+const OUTPUT_OPTIONS: ComposerStaticOption[] = [
+  { value: 'summary', label: '结论摘要', detail: '优先输出简洁摘要与核心判断' },
+  { value: 'table', label: '表格', detail: '优先使用表格整理关键信息' },
+  { value: 'minutes', label: '纪要', detail: '按纪要结构汇总重点与行动项' },
+  { value: 'report', label: '报告', detail: '输出更完整的研究报告体例' },
+];
 
 function createComposerId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -265,7 +324,12 @@ function createRangeAtEnd(root: HTMLElement): Range {
 function serializeEditor(
   root: HTMLDivElement,
   tokenStore: Map<string, ComposerTokenMeta>,
-): ComposerSendPayload & ComposerDraftPayload {
+): {
+  prompt: string;
+  imageAttachments: OpenClawImageAttachment[];
+  attachments: ComposerDraftAttachment[];
+  hasContent: boolean;
+} {
   const imageAttachments: OpenClawImageAttachment[] = [];
   const attachments: ComposerDraftAttachment[] = [];
   let prompt = '';
@@ -328,6 +392,16 @@ function buildReferenceLabel(text: string): string {
   return `${collapsed.slice(0, 33)}...`;
 }
 
+function findStaticOption(
+  options: ComposerStaticOption[],
+  value: string | null,
+): ComposerStaticOption | null {
+  if (!value) {
+    return null;
+  }
+  return options.find((option) => option.value === value) ?? null;
+}
+
 export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatComposerProps>(
   function RichChatComposer(
     {
@@ -335,6 +409,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       busy,
       sessionTransitioning = false,
       lobsterAgents,
+      skillOptions,
       modelOptions,
       selectedModelId,
       modelsLoading,
@@ -344,6 +419,8 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       onSend,
       onDraftChange,
       creditEstimate,
+      initialSelectedAgentSlug = null,
+      initialSelectedSkillSlug = null,
     },
     ref,
   ) {
@@ -351,6 +428,10 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const modelMenuRef = useRef<HTMLDivElement | null>(null);
     const mentionMenuRef = useRef<HTMLDivElement | null>(null);
+    const skillMenuRef = useRef<HTMLDivElement | null>(null);
+    const modeMenuRef = useRef<HTMLDivElement | null>(null);
+    const marketMenuRef = useRef<HTMLDivElement | null>(null);
+    const outputMenuRef = useRef<HTMLDivElement | null>(null);
     const tokenStoreRef = useRef<Map<string, ComposerTokenMeta>>(new Map());
     const savedRangeRef = useRef<Range | null>(null);
     const pendingMentionTriggerRef = useRef(false);
@@ -358,8 +439,15 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const [tokenCount, setTokenCount] = useState(0);
     const [modelMenuOpen, setModelMenuOpen] = useState(false);
     const [mentionMenuOpen, setMentionMenuOpen] = useState(false);
-    const [activeAgentLabel, setActiveAgentLabel] = useState('龙虾专家');
-    const [activeAgentAvatarSrc, setActiveAgentAvatarSrc] = useState<string | null>(null);
+    const [skillMenuOpen, setSkillMenuOpen] = useState(false);
+    const [modeMenuOpen, setModeMenuOpen] = useState(false);
+    const [marketMenuOpen, setMarketMenuOpen] = useState(false);
+    const [outputMenuOpen, setOutputMenuOpen] = useState(false);
+    const [selectedAgentSlug, setSelectedAgentSlug] = useState<string | null>(null);
+    const [selectedSkillSlug, setSelectedSkillSlug] = useState<string | null>(null);
+    const [selectedMode, setSelectedMode] = useState<string | null>(null);
+    const [selectedMarketScope, setSelectedMarketScope] = useState<string | null>(null);
+    const [selectedOutput, setSelectedOutput] = useState<string | null>(null);
     const [activeQuickQueryId, setActiveQuickQueryId] = useState<(typeof QUICK_QUERY_OPTIONS)[number]['id'] | null>(null);
 
     const refreshState = useCallback(() => {
@@ -370,9 +458,6 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       const snapshot = serializeEditor(editor, tokenStoreRef.current);
       setHasContent(snapshot.hasContent);
       setTokenCount(tokenStoreRef.current.size);
-      const firstAgent = Array.from(tokenStoreRef.current.values()).find((token) => token.kind === 'agent');
-      setActiveAgentLabel(firstAgent?.label ?? '龙虾专家');
-      setActiveAgentAvatarSrc(firstAgent?.avatarSrc ?? null);
       editor.dataset.empty = snapshot.hasContent ? 'false' : 'true';
       onDraftChange?.({
         prompt: snapshot.prompt,
@@ -490,6 +575,22 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       pendingMentionTriggerRef.current = false;
     }, []);
 
+    const closeSkillMenu = useCallback(() => {
+      setSkillMenuOpen(false);
+    }, []);
+
+    const closeModeMenu = useCallback(() => {
+      setModeMenuOpen(false);
+    }, []);
+
+    const closeMarketMenu = useCallback(() => {
+      setMarketMenuOpen(false);
+    }, []);
+
+    const closeOutputMenu = useCallback(() => {
+      setOutputMenuOpen(false);
+    }, []);
+
     const replacePrompt = useCallback((text: string) => {
       const editor = editorRef.current;
       if (!editor) {
@@ -556,9 +657,53 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       savedRangeRef.current = createRangeAtEnd(editor);
       setActiveQuickQueryId(null);
       closeMentionMenu();
+      closeSkillMenu();
+      closeModeMenu();
+      closeMarketMenu();
+      closeOutputMenu();
       refreshState();
       editor.focus();
-    }, [closeMentionMenu, refreshState]);
+    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, refreshState]);
+
+    const removeAgentTokens = useCallback(() => {
+      const editor = editorRef.current;
+      if (!editor) {
+        return false;
+      }
+
+      const agentNodes = Array.from(editor.querySelectorAll<HTMLElement>('[data-token-kind="agent"]'));
+      if (agentNodes.length === 0) {
+        return false;
+      }
+
+      agentNodes.forEach((node) => {
+        const tokenId = node.dataset.tokenId;
+        if (tokenId) {
+          tokenStoreRef.current.delete(tokenId);
+        }
+        node.remove();
+      });
+
+      savedRangeRef.current = createRangeAtEnd(editor);
+      return true;
+    }, []);
+
+    const clearAgentMentions = useCallback(() => {
+      const editor = editorRef.current;
+      if (!editor) {
+        return;
+      }
+
+      setSelectedAgentSlug(null);
+      if (!removeAgentTokens()) {
+        closeMentionMenu();
+        focus();
+        return;
+      }
+      closeMentionMenu();
+      refreshState();
+      focus();
+    }, [closeMentionMenu, focus, refreshState, removeAgentTokens]);
 
     const removeMentionTriggerBeforeCaret = useCallback(() => {
       const editor = editorRef.current;
@@ -604,33 +749,90 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       updateSelection(previousNode, previousNode.data.length);
     }, [refreshState, restoreRange]);
 
-    const insertAgentMention = useCallback((agent: LobsterAgent) => {
+    const insertAgentMention = useCallback((agent: ComposerAgentOption) => {
       if (pendingMentionTriggerRef.current) {
         removeMentionTriggerBeforeCaret();
-      }
+        removeAgentTokens();
 
-      const token: ComposerTokenMeta = {
-        id: createComposerId('agent'),
-        kind: 'agent',
-        label: agent.name,
-        value: agent.name,
-        slug: agent.slug,
-        avatarSrc: agent.avatarSrc,
-      };
-      insertTokenAtCaret(token);
-      insertTextAtCaret(' ');
+        const token: ComposerTokenMeta = {
+          id: createComposerId('agent'),
+          kind: 'agent',
+          label: agent.name,
+          value: agent.name,
+          slug: agent.slug,
+          avatarSrc: agent.avatarSrc,
+        };
+        insertTokenAtCaret(token);
+        insertTextAtCaret(' ');
+      } else {
+        removeAgentTokens();
+      }
+      setSelectedAgentSlug(agent.slug);
       closeMentionMenu();
+      refreshState();
       focus();
-    }, [closeMentionMenu, focus, insertTextAtCaret, insertTokenAtCaret, removeMentionTriggerBeforeCaret]);
+    }, [closeMentionMenu, focus, insertTextAtCaret, insertTokenAtCaret, refreshState, removeAgentTokens, removeMentionTriggerBeforeCaret]);
 
     const openMentionMenu = useCallback((source: 'toolbar' | 'typing') => {
       if (!connected) {
         return;
       }
       pendingMentionTriggerRef.current = source === 'typing';
+      closeSkillMenu();
+      closeModeMenu();
+      closeMarketMenu();
+      closeOutputMenu();
       setModelMenuOpen(false);
       setMentionMenuOpen(true);
-    }, [connected]);
+    }, [closeMarketMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, connected]);
+
+    const openSkillMenu = useCallback(() => {
+      if (!connected) {
+        return;
+      }
+      setModelMenuOpen(false);
+      closeMentionMenu();
+      closeModeMenu();
+      closeMarketMenu();
+      closeOutputMenu();
+      setSkillMenuOpen(true);
+    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, connected]);
+
+    const openModeMenu = useCallback(() => {
+      if (!connected) {
+        return;
+      }
+      setModelMenuOpen(false);
+      closeMentionMenu();
+      closeSkillMenu();
+      closeMarketMenu();
+      closeOutputMenu();
+      setModeMenuOpen(true);
+    }, [closeMarketMenu, closeMentionMenu, closeOutputMenu, closeSkillMenu, connected]);
+
+    const openMarketMenu = useCallback(() => {
+      if (!connected) {
+        return;
+      }
+      setModelMenuOpen(false);
+      closeMentionMenu();
+      closeSkillMenu();
+      closeModeMenu();
+      closeOutputMenu();
+      setMarketMenuOpen(true);
+    }, [closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, connected]);
+
+    const openOutputMenu = useCallback(() => {
+      if (!connected) {
+        return;
+      }
+      setModelMenuOpen(false);
+      closeMentionMenu();
+      closeSkillMenu();
+      closeModeMenu();
+      closeMarketMenu();
+      setOutputMenuOpen(true);
+    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeSkillMenu, connected]);
 
     const insertQuickQueryTemplate = useCallback((query: (typeof QUICK_QUERY_OPTIONS)[number]) => {
       const editor = editorRef.current;
@@ -682,15 +884,55 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       if (!payload.hasContent) {
         return;
       }
-      const accepted = await onSend(payload);
+      const tokenSelectedAgentSlug =
+        Array.from(tokenStoreRef.current.values()).find((token) => token.kind === 'agent')?.slug ?? null;
+      const resolvedAgent =
+        lobsterAgents.find((option) => option.slug === (selectedAgentSlug || tokenSelectedAgentSlug)) ?? null;
+
+      const accepted = await onSend({
+        ...payload,
+        selectedAgentSlug: resolvedAgent?.slug ?? null,
+        selectedAgentName: resolvedAgent?.name ?? null,
+        selectedAgentSystemPrompt: resolvedAgent?.systemPrompt?.trim() || null,
+        selectedSkillSlug,
+        selectedSkillName: skillOptions.find((option) => option.slug === selectedSkillSlug)?.name ?? null,
+        selectedMode,
+        selectedModeLabel: findStaticOption(MODE_OPTIONS, selectedMode)?.label ?? null,
+        selectedMarketScope,
+        selectedMarketScopeLabel: findStaticOption(MARKET_SCOPE_OPTIONS, selectedMarketScope)?.label ?? null,
+        selectedOutput,
+        selectedOutputLabel: findStaticOption(OUTPUT_OPTIONS, selectedOutput)?.label ?? null,
+      });
       if (accepted) {
         clearComposer();
       }
-    }, [busy, clearComposer, connected, hasContent, onAbort, onSend]);
+    }, [
+      busy,
+      clearComposer,
+      connected,
+      hasContent,
+      onAbort,
+      onSend,
+      lobsterAgents,
+      selectedMarketScope,
+      selectedAgentSlug,
+      selectedMode,
+      selectedOutput,
+      selectedSkillSlug,
+      skillOptions,
+    ]);
 
     useEffect(() => {
       refreshState();
     }, [refreshState]);
+
+    useEffect(() => {
+      setSelectedAgentSlug(initialSelectedAgentSlug || null);
+    }, [initialSelectedAgentSlug]);
+
+    useEffect(() => {
+      setSelectedSkillSlug(initialSelectedSkillSlug || null);
+    }, [initialSelectedSkillSlug]);
 
     useEffect(() => {
       const handleSelectionChange = () => {
@@ -710,23 +952,38 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     }, []);
 
     useEffect(() => {
-      if (!modelMenuOpen && !mentionMenuOpen) {
+      if (!modelMenuOpen && !mentionMenuOpen && !skillMenuOpen && !modeMenuOpen && !marketMenuOpen && !outputMenuOpen) {
         return;
       }
 
       const handlePointerDown = (event: PointerEvent) => {
         const target = event.target as Node;
-        if (modelMenuRef.current?.contains(target) || mentionMenuRef.current?.contains(target)) {
+        if (
+          modelMenuRef.current?.contains(target) ||
+          mentionMenuRef.current?.contains(target) ||
+          skillMenuRef.current?.contains(target) ||
+          modeMenuRef.current?.contains(target) ||
+          marketMenuRef.current?.contains(target) ||
+          outputMenuRef.current?.contains(target)
+        ) {
           return;
         }
         setModelMenuOpen(false);
         closeMentionMenu();
+        closeSkillMenu();
+        closeModeMenu();
+        closeMarketMenu();
+        closeOutputMenu();
       };
 
       const handleKeyDown = (event: KeyboardEvent) => {
         if (event.key === 'Escape') {
           setModelMenuOpen(false);
           closeMentionMenu();
+          closeSkillMenu();
+          closeModeMenu();
+          closeMarketMenu();
+          closeOutputMenu();
         }
       };
 
@@ -736,14 +993,30 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         document.removeEventListener('pointerdown', handlePointerDown);
         document.removeEventListener('keydown', handleKeyDown);
       };
-    }, [closeMentionMenu, mentionMenuOpen, modelMenuOpen]);
+    }, [
+      closeMarketMenu,
+      closeMentionMenu,
+      closeModeMenu,
+      closeOutputMenu,
+      closeSkillMenu,
+      marketMenuOpen,
+      mentionMenuOpen,
+      modeMenuOpen,
+      modelMenuOpen,
+      outputMenuOpen,
+      skillMenuOpen,
+    ]);
 
     useEffect(() => {
       if (!connected || sessionTransitioning) {
         setModelMenuOpen(false);
         closeMentionMenu();
+        closeSkillMenu();
+        closeModeMenu();
+        closeMarketMenu();
+        closeOutputMenu();
       }
-    }, [closeMentionMenu, connected, sessionTransitioning]);
+    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, connected, sessionTransitioning]);
 
     const submitLabel = busy && !hasContent ? '停止' : '发送';
     const sendState = busy ? 'busy' : hasContent ? 'ready' : 'empty';
@@ -778,9 +1051,11 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       { key: 'basic', label: '基础', options: modelOptions.filter((option) => option.tier === 'basic') },
       { key: 'other', label: '其他', options: modelOptions.filter((option) => option.tier === 'other') },
     ].filter((section) => section.options.length > 0);
-    const activeQuickQuery = QUICK_QUERY_OPTIONS.find((option) => option.id === activeQuickQueryId) ?? null;
-    const installedExpertMeta =
-      lobsterAgents.length > 0 ? `已安装 ${lobsterAgents.length} 位龙虾专家` : '未安装龙虾专家';
+    const selectedAgent = lobsterAgents.find((option) => option.slug === selectedAgentSlug) ?? null;
+    const selectedSkill = skillOptions.find((option) => option.slug === selectedSkillSlug) ?? null;
+    const selectedModeOption = findStaticOption(MODE_OPTIONS, selectedMode);
+    const selectedMarketScopeOption = findStaticOption(MARKET_SCOPE_OPTIONS, selectedMarketScope);
+    const selectedOutputOption = findStaticOption(OUTPUT_OPTIONS, selectedOutput);
     const creditEstimateText = creditEstimate
       ? creditEstimate.loading
         ? '正在估算龙虾币...'
@@ -793,6 +1068,17 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
             : null
       : null;
     const creditEstimateState = creditEstimate?.error ? 'error' : creditEstimate?.loading ? 'loading' : 'ready';
+    const expertTriggerLabel = selectedAgent?.name ?? 'Auto';
+    const skillTriggerLabel = selectedSkill?.name ?? 'Auto';
+    const modeTriggerLabel = selectedModeOption?.label ?? 'Auto';
+    const marketTriggerLabel = selectedMarketScopeOption?.label ?? 'Auto';
+    const outputTriggerLabel = selectedOutputOption?.label ?? 'Auto';
+    const hasActiveSelections =
+      Boolean(selectedAgent) ||
+      Boolean(selectedSkill) ||
+      Boolean(selectedModeOption) ||
+      Boolean(selectedMarketScopeOption) ||
+      Boolean(selectedOutputOption);
 
     return (
       <div
@@ -802,43 +1088,475 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         <div className="iclaw-composer__halo" aria-hidden="true" />
         <div className="iclaw-composer__panel" data-session-transitioning={sessionTransitioning ? 'true' : 'false'}>
           <div className="iclaw-composer__top">
-            <div className="iclaw-composer__context-main">
-              <span className="iclaw-composer__context-label">任务上下文</span>
-              <div className="iclaw-composer__context-chips">
-                {activeAgentAvatarSrc ? (
-                  <Chip
-                    tone="accent"
-                    className="iclaw-composer__context-chip iclaw-composer__context-chip--avatar"
-                    aria-label={`当前专家：${activeAgentLabel}`}
-                    title={activeAgentLabel}
-                  >
-                    <span className="iclaw-composer__context-avatar">
-                      <img
-                        src={activeAgentAvatarSrc}
-                        alt={activeAgentLabel}
-                        className="iclaw-composer__context-avatar-image"
-                      />
+            <div className="iclaw-composer__selectors">
+              <div
+                ref={mentionMenuRef}
+                className="iclaw-composer__selector"
+              >
+                <button
+                  type="button"
+                  className="iclaw-composer__selector-trigger"
+                  disabled={!connected}
+                  aria-haspopup="dialog"
+                  aria-expanded={mentionMenuOpen}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    if (mentionMenuOpen) {
+                      closeMentionMenu();
+                      return;
+                    }
+                    openMentionMenu('toolbar');
+                  }}
+                  title={selectedAgent ? `当前专家：${selectedAgent.name}，点击选择专家` : '点击选择专家'}
+                >
+                  <span className="iclaw-composer__selector-trigger-main">
+                    <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--expert">
+                      {selectedAgent ? (
+                        <img
+                          src={selectedAgent.avatarSrc}
+                          alt={selectedAgent.name}
+                          className="iclaw-composer__selector-avatar-image"
+                        />
+                      ) : (
+                        <AtSign className="h-3.5 w-3.5" />
+                      )}
                     </span>
-                  </Chip>
-                ) : (
-                  <Chip tone="accent" className="iclaw-composer__context-chip">
-                    @龙虾专家
-                  </Chip>
-                )}
-                <Chip tone="brand" className="iclaw-composer__context-chip">
-                  {activeQuickQuery?.label ?? '财经问答'}
-                </Chip>
-                <Chip tone="outline" className="iclaw-composer__context-chip">
-                  财经工作流
-                </Chip>
-                <Chip tone="warning" className="iclaw-composer__context-chip">
-                  仅供研究参考
-                </Chip>
+                    <span className="iclaw-composer__selector-copy">
+                      <span className="iclaw-composer__selector-label">{expertTriggerLabel}</span>
+                    </span>
+                  </span>
+                  <ChevronDown className="iclaw-composer__selector-caret h-3.5 w-3.5" data-open={mentionMenuOpen ? 'true' : 'false'} />
+                </button>
+
+                {mentionMenuOpen ? (
+                  <div className="iclaw-composer__selector-menu iclaw-composer__selector-menu--expert" role="dialog" aria-label="选择专家">
+                    <div className="iclaw-composer__selector-menu-header">
+                      <span className="iclaw-composer__selector-menu-title">选择专家</span>
+                      <span className="iclaw-composer__selector-menu-subtitle">
+                        {lobsterAgents.length > 0 ? `已安装 ${lobsterAgents.length} 个` : '从我的龙虾中选择'}
+                      </span>
+                    </div>
+                    <div className="iclaw-composer__selector-menu-body">
+                      <button
+                        type="button"
+                        className="iclaw-composer__skill-option"
+                        data-active={selectedAgent ? 'false' : 'true'}
+                        onClick={() => clearAgentMentions()}
+                      >
+                        <span className="iclaw-composer__skill-option-main">
+                          <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--expert iclaw-composer__selector-icon--menu">
+                            <AtSign className="h-3.5 w-3.5" />
+                          </span>
+                          <span className="iclaw-composer__skill-option-copy">
+                            <span className="iclaw-composer__skill-option-label">Auto</span>
+                            <span className="iclaw-composer__skill-option-detail">自动匹配最合适的专家</span>
+                          </span>
+                        </span>
+                        {!selectedAgent ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
+                      </button>
+                      {lobsterAgents.length > 0 ? <div className="iclaw-composer__selector-section-title">已安装专家</div> : null}
+                    </div>
+                    {lobsterAgents.length > 0 ? (
+                      <div className="iclaw-composer__mention-grid">
+                        {lobsterAgents.map((agent) => (
+                          <button
+                            key={agent.slug}
+                            type="button"
+                            className="iclaw-composer__mention-option"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => insertAgentMention(agent)}
+                          >
+                            <span className="iclaw-composer__mention-avatar">
+                              <img
+                                src={agent.avatarSrc}
+                                alt={agent.name}
+                                className="iclaw-composer__mention-avatar-image"
+                              />
+                            </span>
+                            <span className="iclaw-composer__mention-name">{agent.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="iclaw-composer__mention-empty">还没有已安装的龙虾专家</div>
+                    )}
+                  </div>
+                ) : null}
               </div>
-            </div>
-            <div className="iclaw-composer__context-meta">
-              <span className="iclaw-composer__context-meta-kicker">已就绪</span>
-              <span className="iclaw-composer__context-meta-text">{installedExpertMeta}</span>
+
+              <div
+                ref={skillMenuRef}
+                className="iclaw-composer__selector"
+              >
+                <button
+                  type="button"
+                  className="iclaw-composer__selector-trigger"
+                  disabled={!connected}
+                  aria-haspopup="menu"
+                  aria-expanded={skillMenuOpen}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    if (skillMenuOpen) {
+                      closeSkillMenu();
+                      return;
+                    }
+                    openSkillMenu();
+                  }}
+                  title={selectedSkill ? `当前技能：${selectedSkill.name}，点击选择技能` : '点击选择技能'}
+                >
+                  <span className="iclaw-composer__selector-trigger-main">
+                    <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--skill">
+                      <Sparkles className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="iclaw-composer__selector-copy">
+                      <span className="iclaw-composer__selector-label">{skillTriggerLabel}</span>
+                    </span>
+                  </span>
+                  <ChevronDown className="iclaw-composer__selector-caret h-3.5 w-3.5" data-open={skillMenuOpen ? 'true' : 'false'} />
+                </button>
+
+                {skillMenuOpen ? (
+                  <div className="iclaw-composer__selector-menu iclaw-composer__selector-menu--skill" role="menu" aria-label="选择技能">
+                    <div className="iclaw-composer__selector-menu-header">
+                      <span className="iclaw-composer__selector-menu-title">选择技能</span>
+                      <span className="iclaw-composer__selector-menu-subtitle">
+                        {skillOptions.length > 0 ? `可用 ${skillOptions.length} 个` : '当前没有可用技能'}
+                      </span>
+                    </div>
+                    <div className="iclaw-composer__skill-list">
+                      <div className="iclaw-composer__selector-section-title">默认</div>
+                      <button
+                        type="button"
+                        className="iclaw-composer__skill-option"
+                        data-active={selectedSkillSlug ? 'false' : 'true'}
+                        onClick={() => {
+                          setSelectedSkillSlug(null);
+                          closeSkillMenu();
+                        }}
+                      >
+                        <span className="iclaw-composer__skill-option-main">
+                          <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--skill iclaw-composer__selector-icon--menu">
+                            <Sparkles className="h-3.5 w-3.5" />
+                          </span>
+                          <span className="iclaw-composer__skill-option-copy">
+                            <span className="iclaw-composer__skill-option-label">Auto</span>
+                            <span className="iclaw-composer__skill-option-detail">自动匹配最合适的技能</span>
+                          </span>
+                        </span>
+                        {!selectedSkillSlug ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
+                      </button>
+                      {skillOptions.length > 0 ? (
+                        <>
+                          <div className="iclaw-composer__selector-section-title">可用技能</div>
+                          {skillOptions.map((skill) => {
+                          const active = skill.slug === selectedSkillSlug;
+                          return (
+                            <button
+                              key={skill.slug}
+                              type="button"
+                              className="iclaw-composer__skill-option"
+                              data-active={active ? 'true' : 'false'}
+                              onClick={() => {
+                                setSelectedSkillSlug(skill.slug);
+                                closeSkillMenu();
+                              }}
+                            >
+                              <span className="iclaw-composer__skill-option-main">
+                                <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--skill iclaw-composer__selector-icon--menu">
+                                  <Sparkles className="h-3.5 w-3.5" />
+                                </span>
+                                <span className="iclaw-composer__skill-option-copy">
+                                  <span className="iclaw-composer__skill-option-label">{skill.name}</span>
+                                  <span className="iclaw-composer__skill-option-detail">
+                                    {skill.market} · {skill.skillType}
+                                  </span>
+                                </span>
+                              </span>
+                              {active ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
+                            </button>
+                          );
+                          })}
+                        </>
+                      ) : (
+                        <div className="iclaw-composer__mention-empty">还没有可用技能</div>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div
+                ref={modeMenuRef}
+                className="iclaw-composer__selector"
+              >
+                <button
+                  type="button"
+                  className="iclaw-composer__selector-trigger"
+                  disabled={!connected}
+                  aria-haspopup="menu"
+                  aria-expanded={modeMenuOpen}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    if (modeMenuOpen) {
+                      closeModeMenu();
+                      return;
+                    }
+                    openModeMenu();
+                  }}
+                  title={selectedModeOption ? `当前模式：${selectedModeOption.label}，点击选择模式` : '点击选择模式'}
+                >
+                  <span className="iclaw-composer__selector-trigger-main">
+                    <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--mode">
+                      <SlidersHorizontal className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="iclaw-composer__selector-copy">
+                      <span className="iclaw-composer__selector-label">{modeTriggerLabel}</span>
+                    </span>
+                  </span>
+                  <ChevronDown className="iclaw-composer__selector-caret h-3.5 w-3.5" data-open={modeMenuOpen ? 'true' : 'false'} />
+                </button>
+
+                {modeMenuOpen ? (
+                  <div className="iclaw-composer__selector-menu iclaw-composer__selector-menu--compact" role="menu" aria-label="选择模式">
+                    <div className="iclaw-composer__selector-menu-header">
+                      <span className="iclaw-composer__selector-menu-title">选择模式</span>
+                      <span className="iclaw-composer__selector-menu-subtitle">控制回答节奏与深度</span>
+                    </div>
+                    <div className="iclaw-composer__skill-list">
+                      <div className="iclaw-composer__selector-section-title">默认</div>
+                      <button
+                        type="button"
+                        className="iclaw-composer__skill-option"
+                        data-active={selectedMode ? 'false' : 'true'}
+                        onClick={() => {
+                          setSelectedMode(null);
+                          closeModeMenu();
+                        }}
+                      >
+                        <span className="iclaw-composer__skill-option-main">
+                          <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--mode iclaw-composer__selector-icon--menu">
+                            <SlidersHorizontal className="h-3.5 w-3.5" />
+                          </span>
+                          <span className="iclaw-composer__skill-option-copy">
+                            <span className="iclaw-composer__skill-option-label">Auto</span>
+                            <span className="iclaw-composer__skill-option-detail">自动选择最合适的回答路径</span>
+                          </span>
+                        </span>
+                        {!selectedMode ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
+                      </button>
+                      <div className="iclaw-composer__selector-section-title">可选模式</div>
+                      {MODE_OPTIONS.map((option) => {
+                        const active = option.value === selectedMode;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            className="iclaw-composer__skill-option"
+                            data-active={active ? 'true' : 'false'}
+                            onClick={() => {
+                              setSelectedMode(option.value);
+                              closeModeMenu();
+                            }}
+                          >
+                            <span className="iclaw-composer__skill-option-main">
+                              <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--mode iclaw-composer__selector-icon--menu">
+                                <SlidersHorizontal className="h-3.5 w-3.5" />
+                              </span>
+                              <span className="iclaw-composer__skill-option-copy">
+                                <span className="iclaw-composer__skill-option-label">{option.label}</span>
+                                <span className="iclaw-composer__skill-option-detail">{option.detail}</span>
+                              </span>
+                            </span>
+                            {active ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div
+                ref={marketMenuRef}
+                className="iclaw-composer__selector"
+              >
+                <button
+                  type="button"
+                  className="iclaw-composer__selector-trigger"
+                  disabled={!connected}
+                  aria-haspopup="menu"
+                  aria-expanded={marketMenuOpen}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    if (marketMenuOpen) {
+                      closeMarketMenu();
+                      return;
+                    }
+                    openMarketMenu();
+                  }}
+                  title={selectedMarketScopeOption ? `当前市场范围：${selectedMarketScopeOption.label}，点击选择市场范围` : '点击选择市场范围'}
+                >
+                  <span className="iclaw-composer__selector-trigger-main">
+                    <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--market">
+                      <Globe className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="iclaw-composer__selector-copy">
+                      <span className="iclaw-composer__selector-label">{marketTriggerLabel}</span>
+                    </span>
+                  </span>
+                  <ChevronDown className="iclaw-composer__selector-caret h-3.5 w-3.5" data-open={marketMenuOpen ? 'true' : 'false'} />
+                </button>
+
+                {marketMenuOpen ? (
+                  <div className="iclaw-composer__selector-menu iclaw-composer__selector-menu--compact" role="menu" aria-label="选择市场范围">
+                    <div className="iclaw-composer__selector-menu-header">
+                      <span className="iclaw-composer__selector-menu-title">选择市场范围</span>
+                      <span className="iclaw-composer__selector-menu-subtitle">聚焦要覆盖的市场维度</span>
+                    </div>
+                    <div className="iclaw-composer__skill-list">
+                      <div className="iclaw-composer__selector-section-title">默认</div>
+                      <button
+                        type="button"
+                        className="iclaw-composer__skill-option"
+                        data-active={selectedMarketScope ? 'false' : 'true'}
+                        onClick={() => {
+                          setSelectedMarketScope(null);
+                          closeMarketMenu();
+                        }}
+                      >
+                        <span className="iclaw-composer__skill-option-main">
+                          <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--market iclaw-composer__selector-icon--menu">
+                            <Globe className="h-3.5 w-3.5" />
+                          </span>
+                          <span className="iclaw-composer__skill-option-copy">
+                            <span className="iclaw-composer__skill-option-label">Auto</span>
+                            <span className="iclaw-composer__skill-option-detail">自动识别问题对应的市场范围</span>
+                          </span>
+                        </span>
+                        {!selectedMarketScope ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
+                      </button>
+                      <div className="iclaw-composer__selector-section-title">可选范围</div>
+                      {MARKET_SCOPE_OPTIONS.map((option) => {
+                        const active = option.value === selectedMarketScope;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            className="iclaw-composer__skill-option"
+                            data-active={active ? 'true' : 'false'}
+                            onClick={() => {
+                              setSelectedMarketScope(option.value);
+                              closeMarketMenu();
+                            }}
+                          >
+                            <span className="iclaw-composer__skill-option-main">
+                              <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--market iclaw-composer__selector-icon--menu">
+                                <Globe className="h-3.5 w-3.5" />
+                              </span>
+                              <span className="iclaw-composer__skill-option-copy">
+                                <span className="iclaw-composer__skill-option-label">{option.label}</span>
+                                <span className="iclaw-composer__skill-option-detail">{option.detail}</span>
+                              </span>
+                            </span>
+                            {active ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div
+                ref={outputMenuRef}
+                className="iclaw-composer__selector"
+              >
+                <button
+                  type="button"
+                  className="iclaw-composer__selector-trigger"
+                  disabled={!connected}
+                  aria-haspopup="menu"
+                  aria-expanded={outputMenuOpen}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    if (outputMenuOpen) {
+                      closeOutputMenu();
+                      return;
+                    }
+                    openOutputMenu();
+                  }}
+                  title={selectedOutputOption ? `当前输出：${selectedOutputOption.label}，点击选择输出形式` : '点击选择输出形式'}
+                >
+                  <span className="iclaw-composer__selector-trigger-main">
+                    <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--output">
+                      <FileText className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="iclaw-composer__selector-copy">
+                      <span className="iclaw-composer__selector-label">{outputTriggerLabel}</span>
+                    </span>
+                  </span>
+                  <ChevronDown className="iclaw-composer__selector-caret h-3.5 w-3.5" data-open={outputMenuOpen ? 'true' : 'false'} />
+                </button>
+
+                {outputMenuOpen ? (
+                  <div className="iclaw-composer__selector-menu iclaw-composer__selector-menu--compact" role="menu" aria-label="选择输出形式">
+                    <div className="iclaw-composer__selector-menu-header">
+                      <span className="iclaw-composer__selector-menu-title">选择输出</span>
+                      <span className="iclaw-composer__selector-menu-subtitle">控制答案最终呈现方式</span>
+                    </div>
+                    <div className="iclaw-composer__skill-list">
+                      <div className="iclaw-composer__selector-section-title">默认</div>
+                      <button
+                        type="button"
+                        className="iclaw-composer__skill-option"
+                        data-active={selectedOutput ? 'false' : 'true'}
+                        onClick={() => {
+                          setSelectedOutput(null);
+                          closeOutputMenu();
+                        }}
+                      >
+                        <span className="iclaw-composer__skill-option-main">
+                          <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--output iclaw-composer__selector-icon--menu">
+                            <FileText className="h-3.5 w-3.5" />
+                          </span>
+                          <span className="iclaw-composer__skill-option-copy">
+                            <span className="iclaw-composer__skill-option-label">Auto</span>
+                            <span className="iclaw-composer__skill-option-detail">自动选择最合适的输出结构</span>
+                          </span>
+                        </span>
+                        {!selectedOutput ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
+                      </button>
+                      <div className="iclaw-composer__selector-section-title">可选输出</div>
+                      {OUTPUT_OPTIONS.map((option) => {
+                        const active = option.value === selectedOutput;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            className="iclaw-composer__skill-option"
+                            data-active={active ? 'true' : 'false'}
+                            onClick={() => {
+                              setSelectedOutput(option.value);
+                              closeOutputMenu();
+                            }}
+                          >
+                            <span className="iclaw-composer__skill-option-main">
+                              <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--output iclaw-composer__selector-icon--menu">
+                                <FileText className="h-3.5 w-3.5" />
+                              </span>
+                              <span className="iclaw-composer__skill-option-copy">
+                                <span className="iclaw-composer__skill-option-label">{option.label}</span>
+                                <span className="iclaw-composer__skill-option-detail">{option.detail}</span>
+                              </span>
+                            </span>
+                            {active ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
 
@@ -855,7 +1573,104 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
               <Plus className="h-4.5 w-4.5" />
             </button>
 
-            <div className="iclaw-composer__input-shell">
+            <div
+              className="iclaw-composer__input-shell"
+              data-has-active-controls={hasActiveSelections ? 'true' : 'false'}
+            >
+              {hasActiveSelections ? (
+                <div className="iclaw-composer__active-controls" aria-label="当前已选控制项">
+                  {selectedAgent ? (
+                    <button
+                      type="button"
+                      className="iclaw-composer__active-chip"
+                      data-tone="expert"
+                      onClick={() => clearAgentMentions()}
+                      title={`移除专家：${selectedAgent.name}`}
+                    >
+                      <span className="iclaw-composer__active-chip-main">
+                        <span className="iclaw-composer__active-chip-icon iclaw-composer__active-chip-icon--avatar">
+                          <img src={selectedAgent.avatarSrc} alt={selectedAgent.name} className="iclaw-composer__active-chip-avatar" />
+                        </span>
+                        <span className="iclaw-composer__active-chip-text">专家 · {selectedAgent.name}</span>
+                      </span>
+                      <span className="iclaw-composer__active-chip-remove" aria-hidden="true">×</span>
+                    </button>
+                  ) : null}
+
+                  {selectedSkill ? (
+                    <button
+                      type="button"
+                      className="iclaw-composer__active-chip"
+                      data-tone="skill"
+                      onClick={() => setSelectedSkillSlug(null)}
+                      title={`移除 Skill：${selectedSkill.name}`}
+                    >
+                      <span className="iclaw-composer__active-chip-main">
+                        <span className="iclaw-composer__active-chip-icon">
+                          <Sparkles className="h-3.5 w-3.5" />
+                        </span>
+                        <span className="iclaw-composer__active-chip-text">Skill · {selectedSkill.name}</span>
+                      </span>
+                      <span className="iclaw-composer__active-chip-remove" aria-hidden="true">×</span>
+                    </button>
+                  ) : null}
+
+                  {selectedModeOption ? (
+                    <button
+                      type="button"
+                      className="iclaw-composer__active-chip"
+                      data-tone="mode"
+                      onClick={() => setSelectedMode(null)}
+                      title={`移除模式：${selectedModeOption.label}`}
+                    >
+                      <span className="iclaw-composer__active-chip-main">
+                        <span className="iclaw-composer__active-chip-icon">
+                          <SlidersHorizontal className="h-3.5 w-3.5" />
+                        </span>
+                        <span className="iclaw-composer__active-chip-text">模式 · {selectedModeOption.label}</span>
+                      </span>
+                      <span className="iclaw-composer__active-chip-remove" aria-hidden="true">×</span>
+                    </button>
+                  ) : null}
+
+                  {selectedMarketScopeOption ? (
+                    <button
+                      type="button"
+                      className="iclaw-composer__active-chip"
+                      data-tone="market"
+                      onClick={() => setSelectedMarketScope(null)}
+                      title={`移除市场范围：${selectedMarketScopeOption.label}`}
+                    >
+                      <span className="iclaw-composer__active-chip-main">
+                        <span className="iclaw-composer__active-chip-icon">
+                          <Globe className="h-3.5 w-3.5" />
+                        </span>
+                        <span className="iclaw-composer__active-chip-text">市场范围 · {selectedMarketScopeOption.label}</span>
+                      </span>
+                      <span className="iclaw-composer__active-chip-remove" aria-hidden="true">×</span>
+                    </button>
+                  ) : null}
+
+                  {selectedOutputOption ? (
+                    <button
+                      type="button"
+                      className="iclaw-composer__active-chip"
+                      data-tone="output"
+                      onClick={() => setSelectedOutput(null)}
+                      title={`移除输出：${selectedOutputOption.label}`}
+                    >
+                      <span className="iclaw-composer__active-chip-main">
+                        <span className="iclaw-composer__active-chip-icon">
+                          <FileText className="h-3.5 w-3.5" />
+                        </span>
+                        <span className="iclaw-composer__active-chip-text">输出 · {selectedOutputOption.label}</span>
+                      </span>
+                      <span className="iclaw-composer__active-chip-remove" aria-hidden="true">×</span>
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+
               {!hasContent ? (
                 <div className="iclaw-composer__placeholder" aria-hidden="true">
                   {connected ? PLACEHOLDER : '网关未连接，暂时无法发送'}
@@ -970,57 +1785,6 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                     </span>
                   ) : null}
                 </span>
-                <div ref={mentionMenuRef} className="iclaw-composer__mention-picker">
-                  <Chip
-                    clickable
-                    tone="accent"
-                    className="iclaw-composer__mention-trigger"
-                    disabled={!connected}
-                    aria-haspopup="dialog"
-                    aria-expanded={mentionMenuOpen}
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => openMentionMenu('toolbar')}
-                  >
-                    <AtSign className="h-3.5 w-3.5" />
-                    龙虾专家
-                  </Chip>
-
-                  {mentionMenuOpen ? (
-                    <div className="iclaw-composer__mention-menu" role="dialog" aria-label="选择龙虾 Agent">
-                      <div className="iclaw-composer__mention-menu-header">
-                        <span className="iclaw-composer__mention-menu-title">选择龙虾专家</span>
-                        <span className="iclaw-composer__mention-menu-subtitle">
-                          {lobsterAgents.length > 0 ? `已安装 ${lobsterAgents.length} 个` : '从我的龙虾中选择'}
-                        </span>
-                      </div>
-                      {lobsterAgents.length > 0 ? (
-                        <div className="iclaw-composer__mention-grid">
-                          {lobsterAgents.map((agent) => (
-                            <button
-                              key={agent.slug}
-                              type="button"
-                              className="iclaw-composer__mention-option"
-                              onMouseDown={(event) => event.preventDefault()}
-                              onClick={() => insertAgentMention(agent)}
-                            >
-                              <span className="iclaw-composer__mention-avatar">
-                                <img
-                                  src={agent.avatarSrc}
-                                  alt={agent.name}
-                                  className="iclaw-composer__mention-avatar-image"
-                                />
-                              </span>
-                              <span className="iclaw-composer__mention-name">{agent.name}</span>
-                            </button>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="iclaw-composer__mention-empty">还没有已安装的龙虾 Agent</div>
-                      )}
-                    </div>
-                  ) : null}
-                </div>
-
                 <span className="iclaw-composer__support">
                   <ImageIcon className="h-3.5 w-3.5 iclaw-composer__support-icon iclaw-composer__support-icon--rose" />
                   图片
@@ -1046,6 +1810,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                     aria-haspopup="menu"
                     aria-expanded={modelMenuOpen}
                     onClick={() => {
+                      closeSkillMenu();
                       closeMentionMenu();
                       setModelMenuOpen((current) => !current);
                     }}

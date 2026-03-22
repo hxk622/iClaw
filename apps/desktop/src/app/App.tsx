@@ -11,6 +11,7 @@ import {
   type RuntimeDiagnosis,
   type RuntimeInstallProgress,
 } from './lib/tauri-runtime-config';
+import { syncPublishedBrandRuntimeSnapshot } from './lib/oem-runtime';
 import { AuthPanel } from './components/AuthPanel';
 import { AccountPanel } from './components/account/AccountPanel';
 import { FirstRunSetupPanel } from './components/FirstRunSetupPanel';
@@ -22,6 +23,7 @@ import { Button } from './components/ui/Button';
 import { EmptyStatePanel } from './components/ui/EmptyStatePanel';
 import { PageContent, PageSurface } from './components/ui/PageLayout';
 import { DataConnectionsView } from './components/data-connections/DataConnectionsView';
+import { InvestmentExpertsView } from './components/investment-experts/InvestmentExpertsView';
 import { LobsterStoreView } from './components/lobster-store/LobsterStoreView';
 import { MemoryView } from './components/memory/MemoryView';
 import { TaskCenterView } from './components/TaskCenterView';
@@ -31,6 +33,7 @@ import { SecurityCenterView } from './components/security-center/SecurityCenterV
 import { SettingsPanel } from './components/settings/SettingsPanel';
 import { type PersistableSettingsSection, SettingsProvider, useSettings } from './contexts/settings-context';
 import { BRAND } from './lib/brand';
+import { type InvestmentExpert } from '@/app/lib/investment-experts';
 import { buildLobsterConversationPrompt, type LobsterAgent } from './lib/lobster-store';
 import {
   applyIclawWorkspaceBackup,
@@ -121,11 +124,14 @@ const DEFAULT_CHAT_ROUTE = {
   sessionKey: CHAT_SESSION_KEY,
   initialPrompt: null as string | null,
   initialPromptKey: null as string | null,
+  initialAgentSlug: null as string | null,
+  initialSkillSlug: null as string | null,
   focusTaskId: null as string | null,
   focusTaskPrompt: null as string | null,
 };
 type PrimaryView =
   | 'chat'
+  | 'investment-experts'
   | 'lobster-store'
   | 'skill-store'
   | 'cron'
@@ -313,6 +319,7 @@ export default function App() {
   const [desktopUpdateProgress, setDesktopUpdateProgress] = useState<number | null>(null);
   const [desktopUpdateDetail, setDesktopUpdateDetail] = useState<string | null>(null);
   const [desktopUpdateStatusMessage, setDesktopUpdateStatusMessage] = useState<string | null>(null);
+  const [brandRuntimeReady, setBrandRuntimeReady] = useState(!IS_TAURI_RUNTIME);
 
   const syncWorkspaceForUser = async (token: string): Promise<void> => {
     if (!IS_TAURI_RUNTIME) return;
@@ -331,6 +338,24 @@ export default function App() {
     await resetIclawWorkspaceToDefaults();
   };
 
+  const syncBrandRuntimeSnapshot = useCallback(async (): Promise<void> => {
+    if (!IS_TAURI_RUNTIME) {
+      setBrandRuntimeReady(true);
+      return;
+    }
+
+    try {
+      await syncPublishedBrandRuntimeSnapshot({
+        authBaseUrl: AUTH_BASE_URL,
+        brandId: BRAND.brandId,
+      });
+    } catch (error) {
+      console.warn('failed to sync OEM runtime snapshot', error);
+    } finally {
+      setBrandRuntimeReady(true);
+    }
+  }, []);
+
   const retrySetup = async () => {
     if (!runtimeReady) {
       await handleInstallRuntime();
@@ -341,6 +366,8 @@ export default function App() {
     setInitialHealthResolved(false);
     setHealthChecking(true);
     try {
+      setBrandRuntimeReady(false);
+      await syncBrandRuntimeSnapshot();
       await startSidecar(SIDE_CAR_ARGS);
       await client.health();
       setHealthy(true);
@@ -370,6 +397,33 @@ export default function App() {
 
     return () => {
       detach();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!IS_TAURI_RUNTIME) {
+      setBrandRuntimeReady(true);
+      return;
+    }
+
+    let cancelled = false;
+    setBrandRuntimeReady(false);
+
+    void syncPublishedBrandRuntimeSnapshot({
+      authBaseUrl: AUTH_BASE_URL,
+      brandId: BRAND.brandId,
+    })
+      .catch((error) => {
+        console.warn('failed to sync OEM runtime snapshot', error);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setBrandRuntimeReady(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -702,7 +756,7 @@ export default function App() {
   const isAuthenticated = Boolean(accessToken || sessionAuthed);
 
   useEffect(() => {
-    if (isTauriRuntime() && (!runtimeReady || runtimeChecking || runtimeInstalling)) {
+    if (isTauriRuntime() && (!brandRuntimeReady || !runtimeReady || runtimeChecking || runtimeInstalling)) {
       setHealthChecking(false);
       setHealthy(false);
       setInitialHealthResolved(false);
@@ -778,7 +832,7 @@ export default function App() {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [client, runtimeChecking, runtimeInstalling, runtimeReady]);
+  }, [brandRuntimeReady, client, runtimeChecking, runtimeInstalling, runtimeReady]);
   const installerErrorMessage =
     runtimeInstallError ||
     healthError ||
@@ -1262,6 +1316,23 @@ function AuthedView({
       sessionKey: `lobster-${seed}`,
       initialPrompt: buildLobsterConversationPrompt(agent),
       initialPromptKey: seed,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      focusTaskId: null,
+      focusTaskPrompt: null,
+    });
+    setChatSurfaceVersion((current) => current + 1);
+    setPrimaryView('chat');
+  };
+
+  const handleStartInvestmentExpertConversation = (expert: InvestmentExpert) => {
+    const seed = `${expert.slug}-${Date.now()}`;
+    setActiveChatRoute({
+      sessionKey: `investment-expert-${seed}`,
+      initialPrompt: null,
+      initialPromptKey: seed,
+      initialAgentSlug: expert.slug,
+      initialSkillSlug: expert.primarySkillSlug,
       focusTaskId: null,
       focusTaskPrompt: null,
     });
@@ -1275,6 +1346,8 @@ function AuthedView({
       sessionKey: seed,
       initialPrompt: null,
       initialPromptKey: seed,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
       focusTaskId: null,
       focusTaskPrompt: null,
     });
@@ -1293,8 +1366,25 @@ function AuthedView({
       sessionKey: task.sessionKey,
       initialPrompt: null,
       initialPromptKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
       focusTaskId: task.id,
       focusTaskPrompt: task.prompt,
+    });
+    setChatSurfaceVersion((current) => current + 1);
+    setPrimaryView('chat');
+  };
+
+  const handleStartSkillConversation = (skill: { slug: string }) => {
+    const seed = `skill-${skill.slug}-${Date.now()}`;
+    setActiveChatRoute({
+      sessionKey: seed,
+      initialPrompt: null,
+      initialPromptKey: seed,
+      initialAgentSlug: null,
+      initialSkillSlug: skill.slug,
+      focusTaskId: null,
+      focusTaskPrompt: null,
     });
     setChatSurfaceVersion((current) => current + 1);
     setPrimaryView('chat');
@@ -1309,6 +1399,7 @@ function AuthedView({
         authenticated={authenticated}
         onOpenChat={() => setPrimaryView('chat')}
         onStartNewChat={handleStartNewChat}
+        onOpenInvestmentExperts={() => setPrimaryView('investment-experts')}
         onOpenCron={() => setPrimaryView('cron')}
         onOpenLobsterStore={() => setPrimaryView('lobster-store')}
         onOpenSkillStore={() => setPrimaryView('skill-store')}
@@ -1343,7 +1434,7 @@ function AuthedView({
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {primaryView === 'data-connections' ? null : (
           <IClawHeader
-            balance={creditBalance?.available_balance ?? creditBalance?.balance ?? null}
+            balance={creditBalance?.total_available_balance ?? creditBalance?.available_balance ?? creditBalance?.balance ?? null}
             loading={creditBalanceLoading}
             authenticated={authenticated}
             onCreditsClick={handleHeaderAccountAction}
@@ -1351,7 +1442,15 @@ function AuthedView({
           />
         )}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {primaryView === 'lobster-store' ? (
+          {primaryView === 'investment-experts' ? (
+            <InvestmentExpertsView
+              client={client}
+              accessToken={accessToken}
+              authenticated={authenticated}
+              onRequestAuth={onRequestAuth}
+              onStartConversation={handleStartInvestmentExpertConversation}
+            />
+          ) : primaryView === 'lobster-store' ? (
             <LobsterStoreView
               client={client}
               accessToken={accessToken}
@@ -1368,6 +1467,7 @@ function AuthedView({
               authenticated={authenticated}
               currentUser={currentUser}
               onRequestAuth={onRequestAuth}
+              onStartConversation={handleStartSkillConversation}
             />
           ) : primaryView === 'data-connections' ? (
             <DataConnectionsView />
@@ -1411,6 +1511,8 @@ function AuthedView({
               sessionKey={activeChatRoute.sessionKey}
               initialPrompt={activeChatRoute.initialPrompt}
               initialPromptKey={activeChatRoute.initialPromptKey}
+              initialAgentSlug={activeChatRoute.initialAgentSlug}
+              initialSkillSlug={activeChatRoute.initialSkillSlug}
               focusTaskId={activeChatRoute.focusTaskId}
               focusTaskPrompt={activeChatRoute.focusTaskPrompt}
               shellAuthenticated={authenticated}

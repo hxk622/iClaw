@@ -10,7 +10,9 @@ import type {
   AgentCatalogEntryView,
   AdminSkillCatalogEntryView,
   ChangePasswordInput,
+  CreatePaymentOrderInput,
   CreditBalanceView,
+  CreditLedgerRecord,
   CreditQuoteInput,
   CreditQuoteView,
   CreditLedgerItemView,
@@ -19,6 +21,10 @@ import type {
   InstallSkillInput,
   LoginInput,
   OAuthProvider,
+  PaymentOrderRecord,
+  PaymentOrderView,
+  PaymentProvider,
+  PaymentWebhookInput,
   PublicUser,
   RegisterInput,
   RunBillingSummaryRecord,
@@ -28,9 +34,10 @@ import type {
   SkillSource,
   SkillCatalogEntryRecord,
   SkillCatalogEntryView,
-  SkillCatalogReleaseView,
-  SkillReleaseRecord,
+  SkillSyncRunView,
+  SkillSyncSourceView,
   UpsertSkillCatalogEntryInput,
+  UpsertSkillSyncSourceInput,
   UpdateSkillLibraryItemInput,
   UpdateProfileInput,
   UsageEventInput,
@@ -47,8 +54,43 @@ import type {
 import {HttpError} from './errors.ts';
 import {loadOAuthUserProfile} from './oauth.ts';
 import {hashPassword, verifyPassword} from './passwords.ts';
+import {syncSkillsFromSource} from './skill-sync.ts';
 import type {ControlPlaneStore} from './store.ts';
 import {generateOpaqueToken, hashOpaqueToken} from './tokens.ts';
+
+const SUPPORTED_PAYMENT_PROVIDERS = new Set<PaymentProvider>(['mock', 'wechat_qr', 'alipay_qr']);
+const SUPPORTED_PAYMENT_WEBHOOK_STATUSES = new Set<PaymentOrderRecord['status']>([
+  'pending',
+  'paid',
+  'failed',
+  'expired',
+  'refunded',
+]);
+const SKILL_SYNC_RUN_ITEM_LIMIT = 500;
+const SKILL_CATALOG_DEFAULT_LIMIT = 300;
+const SKILL_CATALOG_MAX_LIMIT = 1000;
+
+function normalizeCatalogLimit(limitInput?: number | null): number {
+  if (typeof limitInput !== 'number' || !Number.isFinite(limitInput)) {
+    return SKILL_CATALOG_DEFAULT_LIMIT;
+  }
+  const normalized = Math.floor(limitInput);
+  if (normalized <= 0) {
+    return SKILL_CATALOG_DEFAULT_LIMIT;
+  }
+  return Math.min(normalized, SKILL_CATALOG_MAX_LIMIT);
+}
+
+function normalizeCatalogOffset(offsetInput?: number | null): number {
+  if (typeof offsetInput !== 'number' || !Number.isFinite(offsetInput)) {
+    return 0;
+  }
+  const normalized = Math.floor(offsetInput);
+  if (normalized <= 0) {
+    return 0;
+  }
+  return normalized;
+}
 
 function normalizeIdentifier(value: string, field: string): string {
   const normalized = value.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -101,6 +143,37 @@ function toRunBillingSummaryView(summary: RunBillingSummaryRecord): RunBillingSu
   };
 }
 
+function toCreditLedgerItemView(item: CreditLedgerRecord): CreditLedgerItemView {
+  return {
+    id: item.id,
+    bucket: item.bucket,
+    direction: item.direction,
+    amount: item.amount,
+    reference_type: item.referenceType,
+    reference_id: item.referenceId,
+    event_type: item.eventType,
+    delta: item.delta,
+    balance_after: item.balanceAfter,
+    created_at: item.createdAt,
+  };
+}
+
+function toPaymentOrderView(order: PaymentOrderRecord): PaymentOrderView {
+  return {
+    order_id: order.id,
+    status: order.status,
+    provider: order.provider,
+    package_id: order.packageId,
+    package_name: order.packageName,
+    credits: order.credits,
+    bonus_credits: order.bonusCredits,
+    amount_cny_fen: order.amountCnyFen,
+    payment_url: order.paymentUrl,
+    paid_at: order.paidAt,
+    expires_at: order.expiredAt,
+  };
+}
+
 function rolePriority(role: UserRole): number {
   switch (role) {
     case 'super_admin':
@@ -119,6 +192,29 @@ function makeNonce(): string {
 function makeSignature(input: {userId: string; nonce: string; expiresAt: string}): string {
   return Buffer.from(`${input.userId}:${input.nonce}:${input.expiresAt}`, 'utf8').toString('base64url');
 }
+
+function normalizePaymentProvider(value: string | undefined, fallback: PaymentProvider = 'wechat_qr'): PaymentProvider {
+  const normalized = (value || '').trim();
+  const provider = (normalized || fallback) as PaymentProvider;
+  if (!SUPPORTED_PAYMENT_PROVIDERS.has(provider)) {
+    throw new HttpError(400, 'BAD_REQUEST', 'unsupported payment provider');
+  }
+  return provider;
+}
+
+const TOPUP_PACKAGES = new Map<
+  string,
+  {
+    packageName: string;
+    credits: number;
+    bonusCredits: number;
+    amountCnyFen: number;
+  }
+>([
+  ['topup_1000', {packageName: '1000 龙虾币', credits: 1000, bonusCredits: 100, amountCnyFen: 1000}],
+  ['topup_3000', {packageName: '3000 龙虾币', credits: 3000, bonusCredits: 400, amountCnyFen: 3000}],
+  ['topup_5000', {packageName: '5000 龙虾币', credits: 5000, bonusCredits: 800, amountCnyFen: 5000}],
+]);
 
 function slugifyUsername(value: string): string {
   const base = value
@@ -204,6 +300,25 @@ function normalizeSkillDistribution(value: unknown, fallback?: 'bundled' | 'clou
   throw new HttpError(400, 'BAD_REQUEST', 'distribution must be bundled or cloud');
 }
 
+function normalizeSkillOriginType(
+  value: unknown,
+  fallback: 'bundled' | 'clawhub' | 'github_repo' | 'manual' | 'private' = 'manual',
+): 'bundled' | 'clawhub' | 'github_repo' | 'manual' | 'private' {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+  if (
+    value === 'bundled' ||
+    value === 'clawhub' ||
+    value === 'github_repo' ||
+    value === 'manual' ||
+    value === 'private'
+  ) {
+    return value;
+  }
+  throw new HttpError(400, 'BAD_REQUEST', 'origin_type must be bundled, clawhub, github_repo, manual, or private');
+}
+
 function normalizeOptionalCatalogString(
   value: unknown,
   field: string,
@@ -255,26 +370,65 @@ function normalizeOptionalBoolean(value: unknown, field: string): boolean | unde
   return value;
 }
 
-function toSkillCatalogReleaseView(record: SkillReleaseRecord | null, baseUrl?: string): SkillCatalogReleaseView | null {
-  if (!record) {
-    return null;
+function normalizeJsonObject(value: unknown, field: string, fallback: Record<string, unknown> = {}): Record<string, unknown> {
+  if (value === undefined) {
+    return {...fallback};
   }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new HttpError(400, 'BAD_REQUEST', `${field} must be an object`);
+  }
+  return value as Record<string, unknown>;
+}
 
-  const origin = (baseUrl || '').trim().replace(/\/$/, '');
-  const artifactUrl =
-    record.artifactUrl ||
-    (origin
-      ? `${origin}/skills/artifact?slug=${encodeURIComponent(record.slug)}&version=${encodeURIComponent(record.version)}`
-      : null);
+function readCompactCatalogMetric(metadata: Record<string, unknown>, candidatePaths: string[][]): number | null {
+  for (const path of candidatePaths) {
+    let current: unknown = metadata;
+    for (const segment of path) {
+      if (!current || typeof current !== 'object' || Array.isArray(current)) {
+        current = null;
+        break;
+      }
+      current = (current as Record<string, unknown>)[segment];
+    }
+    if (typeof current === 'number' && Number.isFinite(current) && current >= 0) {
+      return Math.round(current);
+    }
+    if (typeof current === 'string' && /^\d+(\.\d+)?$/.test(current.trim())) {
+      return Math.round(Number(current));
+    }
+  }
+  return null;
+}
 
-  return {
-    version: record.version,
-    artifact_url: artifactUrl,
-    artifact_path: record.artifactSourcePath,
-    artifact_format: record.artifactFormat,
-    artifact_sha256: record.artifactSha256,
-    published_at: record.publishedAt,
-  };
+function compactSkillCatalogMetadata(
+  metadata: Record<string, unknown>,
+  options: {includeSourceKind?: boolean} = {},
+): Record<string, unknown> {
+  const compact: Record<string, unknown> = {};
+  const downloads = readCompactCatalogMetric(metadata, [
+    ['downloads'],
+    ['download_count'],
+    ['downloadCount'],
+    ['install_count'],
+    ['installCount'],
+    ['installs'],
+    ['stats', 'downloads'],
+    ['stats', 'download_count'],
+    ['stats', 'downloadCount'],
+    ['clawhub', 'listing', 'skill', 'stats', 'downloads'],
+    ['clawhub', 'listing', 'skill', 'stats', 'download_count'],
+    ['clawhub', 'listing', 'skill', 'stats', 'downloadCount'],
+    ['clawhub', 'detail', 'skill', 'stats', 'downloads'],
+    ['clawhub', 'detail', 'skill', 'stats', 'download_count'],
+    ['clawhub', 'detail', 'skill', 'stats', 'downloadCount'],
+  ]);
+  if (downloads != null) {
+    compact.stats = {downloads};
+  }
+  if (options.includeSourceKind && typeof metadata.source_kind === 'string' && metadata.source_kind.trim()) {
+    compact.source_kind = metadata.source_kind.trim();
+  }
+  return compact;
 }
 
 function toSkillCatalogEntryView(
@@ -282,6 +436,12 @@ function toSkillCatalogEntryView(
   baseUrl?: string,
   source: SkillSource = record.distribution,
 ): SkillCatalogEntryView {
+  const origin = (baseUrl || '').trim().replace(/\/$/, '');
+  const artifactUrl =
+    record.artifactUrl ||
+    ((record.artifactSourcePath || record.metadata?.github) && origin
+      ? `${origin}/skills/artifact?slug=${encodeURIComponent(record.slug)}`
+      : null);
   return {
     slug: record.slug,
     name: record.name,
@@ -294,7 +454,14 @@ function toSkillCatalogEntryView(
     distribution: record.distribution,
     source,
     tags: record.tags,
-    latest_release: toSkillCatalogReleaseView(record.latestRelease, baseUrl),
+    version: record.version,
+    artifact_url: artifactUrl,
+    artifact_path: record.artifactSourcePath,
+    artifact_format: record.artifactFormat,
+    artifact_sha256: record.artifactSha256,
+    origin_type: record.originType,
+    source_url: record.sourceUrl,
+    metadata: compactSkillCatalogMetadata(record.metadata),
   };
 }
 
@@ -325,6 +492,65 @@ function toAdminSkillCatalogEntryView(record: SkillCatalogEntryRecord, baseUrl?:
   };
 }
 
+function toSkillSyncSourceView(record: {
+  id: string;
+  sourceType: string;
+  sourceKey: string;
+  displayName: string;
+  sourceUrl: string;
+  config: Record<string, unknown>;
+  active: boolean;
+  lastRunAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}): SkillSyncSourceView {
+  return {
+    id: record.id,
+    source_type: record.sourceType as SkillSyncSourceView['source_type'],
+    source_key: record.sourceKey,
+    display_name: record.displayName,
+    source_url: record.sourceUrl,
+    config: record.config,
+    active: record.active,
+    last_run_at: record.lastRunAt,
+    created_at: record.createdAt,
+    updated_at: record.updatedAt,
+  };
+}
+
+function toSkillSyncRunView(record: {
+  id: string;
+  sourceId: string;
+  sourceKey: string;
+  sourceType: string;
+  displayName: string;
+  status: string;
+  summary: Record<string, unknown>;
+  items: Array<{slug: string; name: string; version: string | null; status: string; reason: string | null; sourceUrl: string | null}>;
+  startedAt: string;
+  finishedAt: string | null;
+}): SkillSyncRunView {
+  return {
+    id: record.id,
+    source_id: record.sourceId,
+    source_key: record.sourceKey,
+    source_type: record.sourceType as SkillSyncRunView['source_type'],
+    display_name: record.displayName,
+    status: record.status as SkillSyncRunView['status'],
+    summary: record.summary,
+    items: record.items.map((item) => ({
+      slug: item.slug,
+      name: item.name,
+      version: item.version,
+      status: item.status as SkillSyncRunView['items'][number]['status'],
+      reason: item.reason,
+      source_url: item.sourceUrl,
+    })),
+    started_at: record.startedAt,
+    finished_at: record.finishedAt,
+  };
+}
+
 function toAgentCatalogEntryView(record: AgentCatalogEntryRecord): AgentCatalogEntryView {
   return {
     slug: record.slug,
@@ -337,7 +563,16 @@ function toAgentCatalogEntryView(record: AgentCatalogEntryRecord): AgentCatalogE
     tags: record.tags,
     capabilities: record.capabilities,
     use_cases: record.useCases,
+    metadata: record.metadata,
   };
+}
+
+function readMetadataStringArray(metadata: Record<string, unknown>, key: string): string[] {
+  const value = metadata[key];
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
 }
 
 function toUserAgentLibraryItemView(record: {
@@ -415,14 +650,14 @@ function toPrivateSkillCatalogEntryView(record: UserPrivateSkillRecord, baseUrl?
     distribution: 'cloud',
     source: 'private',
     tags: record.tags,
-    latest_release: {
-      version: record.version,
-      artifact_url: artifactUrl,
-      artifact_path: null,
-      artifact_format: record.artifactFormat,
-      artifact_sha256: record.artifactSha256,
-      published_at: record.updatedAt,
-    },
+    version: record.version,
+    artifact_url: artifactUrl,
+    artifact_path: null,
+    artifact_format: record.artifactFormat,
+    artifact_sha256: record.artifactSha256,
+    origin_type: 'private',
+    source_url: record.sourceUrl,
+    metadata: compactSkillCatalogMetadata({source_kind: record.sourceKind}, {includeSourceKind: true}),
   };
 }
 
@@ -669,12 +904,17 @@ export class ControlPlaneService {
 
   async creditsMe(accessToken: string): Promise<CreditBalanceView> {
     const user = await this.getUserForAccessToken(accessToken);
-    const balance = await this.store.getCreditBalance(user.id);
+    const account = await this.store.getCreditAccount(user.id);
     return {
-      balance,
-      currency: 'credit',
+      daily_free_balance: account.dailyFreeBalance,
+      topup_balance: account.topupBalance,
+      total_available_balance: account.totalAvailableBalance,
+      daily_free_quota: account.dailyFreeQuota,
+      daily_free_expires_at: account.dailyFreeExpiresAt,
+      balance: account.totalAvailableBalance,
+      currency: 'lobster_credit',
       currency_display: '龙虾币',
-      available_balance: balance,
+      available_balance: account.totalAvailableBalance,
       status: 'active',
     };
   }
@@ -682,13 +922,7 @@ export class ControlPlaneService {
   async creditsLedger(accessToken: string): Promise<{items: CreditLedgerItemView[]}> {
     const user = await this.getUserForAccessToken(accessToken);
     return {
-      items: (await this.store.getCreditLedger(user.id)).map((item) => ({
-        id: item.id,
-        event_type: item.eventType,
-        delta: item.delta,
-        balance_after: item.balanceAfter,
-        created_at: item.createdAt,
-      })),
+      items: (await this.store.getCreditLedger(user.id)).map((item) => toCreditLedgerItemView(item)),
     };
   }
 
@@ -700,19 +934,22 @@ export class ControlPlaneService {
     const hasTools = Boolean(input.has_tools);
     const historyMessages = Math.max(0, Math.min(48, input.history_messages || 0));
     const normalizedModel = (input.model || '').trim() || null;
-    const balance = await this.store.getCreditBalance(user.id);
+    const account = await this.store.getCreditAccount(user.id);
 
     if (!message && attachments.length === 0) {
       return {
-        currency: 'credit',
+        currency: 'lobster_credit',
         currency_display: '龙虾币',
         estimated_credits_low: 0,
         estimated_credits_high: 0,
         max_charge_credits: 0,
         estimated_input_tokens: 0,
         estimated_output_tokens: 0,
-        balance_after_estimate: balance,
-        balance_after_max: balance,
+        daily_free_cover_credits: 0,
+        topup_cover_credits: 0,
+        payable_credits: 0,
+        balance_after_estimate: account.totalAvailableBalance,
+        balance_after_max: account.totalAvailableBalance,
         model: normalizedModel,
       };
     }
@@ -747,17 +984,74 @@ export class ControlPlaneService {
     );
 
     return {
-      currency: 'credit',
+      currency: 'lobster_credit',
       currency_display: '龙虾币',
       estimated_credits_low: lowCost,
       estimated_credits_high: highCost,
       max_charge_credits: maxChargeCredits,
       estimated_input_tokens: estimatedInputTokens,
       estimated_output_tokens: outputEstimate.high,
-      balance_after_estimate: Math.max(0, balance - highCost),
-      balance_after_max: Math.max(0, balance - maxChargeCredits),
+      daily_free_cover_credits: Math.min(account.dailyFreeBalance, highCost),
+      topup_cover_credits: Math.min(account.topupBalance, Math.max(0, highCost - account.dailyFreeBalance)),
+      payable_credits: Math.max(0, highCost - account.totalAvailableBalance),
+      balance_after_estimate: Math.max(0, account.totalAvailableBalance - highCost),
+      balance_after_max: Math.max(0, account.totalAvailableBalance - maxChargeCredits),
       model: normalizedModel,
     };
+  }
+
+  async createPaymentOrder(accessToken: string, input: CreatePaymentOrderInput): Promise<PaymentOrderView> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const provider = normalizePaymentProvider(input.provider, 'wechat_qr');
+    const packageId = (input.package_id || '').trim();
+    const packageConfig = TOPUP_PACKAGES.get(packageId);
+    if (!packageConfig) {
+      throw new HttpError(400, 'BAD_REQUEST', 'invalid package_id');
+    }
+    const order = await this.store.createPaymentOrder(user.id, {
+      provider,
+      package_id: packageId,
+      return_url: (input.return_url || '').trim(),
+      ...packageConfig,
+    });
+    return toPaymentOrderView(order);
+  }
+
+  async getPaymentOrder(accessToken: string, orderIdInput: string): Promise<PaymentOrderView> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const orderId = orderIdInput.trim();
+    if (!orderId) {
+      throw new HttpError(400, 'BAD_REQUEST', 'order_id is required');
+    }
+    const order = await this.store.getPaymentOrderById(user.id, orderId);
+    if (!order) {
+      throw new HttpError(404, 'NOT_FOUND', 'payment order not found');
+    }
+    return toPaymentOrderView(order);
+  }
+
+  async applyPaymentWebhook(providerInput: string, input: PaymentWebhookInput): Promise<PaymentOrderView> {
+    const provider = normalizePaymentProvider(providerInput, 'mock');
+    const eventId = (input.event_id || '').trim();
+    const orderId = (input.order_id || '').trim();
+    const status = (input.status || '').trim().toLowerCase();
+    if (!eventId || !orderId || !status) {
+      throw new HttpError(400, 'BAD_REQUEST', 'event_id, order_id and status are required');
+    }
+    if (!SUPPORTED_PAYMENT_WEBHOOK_STATUSES.has(status as PaymentOrderRecord['status'])) {
+      throw new HttpError(400, 'BAD_REQUEST', 'unsupported payment status');
+    }
+    const order = await this.store.applyPaymentWebhook(provider, {
+      event_id: eventId,
+      order_id: orderId,
+      provider_order_id: (input.provider_order_id || '').trim(),
+      status,
+      paid_at: (input.paid_at || '').trim(),
+    });
+    if (!order) {
+      throw new HttpError(404, 'NOT_FOUND', 'payment order not found');
+    }
+    return toPaymentOrderView(order);
   }
 
   async getWorkspaceBackup(accessToken: string): Promise<WorkspaceBackupView | null> {
@@ -799,6 +1093,20 @@ export class ControlPlaneService {
     if (!entry || !entry.active) {
       throw new HttpError(404, 'NOT_FOUND', 'agent not found');
     }
+
+    const relatedSkillSlugs = readMetadataStringArray(entry.metadata, 'skill_slugs');
+    for (const skillSlug of relatedSkillSlugs) {
+      const skillEntry = await this.store.getSkillCatalogEntry(skillSlug);
+      if (!skillEntry || !skillEntry.active) {
+        throw new HttpError(400, 'BAD_REQUEST', `agent skill not found: ${skillSlug}`);
+      }
+      await this.store.installUserSkill(user.id, {
+        slug: skillEntry.slug,
+        version: skillEntry.version,
+        source: 'cloud',
+      });
+    }
+
     const record = await this.store.installUserAgent(user.id, {slug});
     return toUserAgentLibraryItemView(record);
   }
@@ -811,41 +1119,110 @@ export class ControlPlaneService {
     };
   }
 
-  async listSkillCatalog(baseUrl?: string): Promise<{items: SkillCatalogEntryView[]}> {
-    const items = await this.store.listSkillCatalog();
+  async listSkillCatalog(
+    baseUrl?: string,
+    limitInput?: number | null,
+    offsetInput?: number | null,
+  ): Promise<{
+    items: SkillCatalogEntryView[];
+    total: number;
+    limit: number;
+    offset: number;
+    has_more: boolean;
+    next_offset: number | null;
+  }> {
+    const limit = normalizeCatalogLimit(limitInput);
+    const offset = normalizeCatalogOffset(offsetInput);
+    const [items, total] = await Promise.all([
+      this.store.listSkillCatalog(limit, offset),
+      this.store.countSkillCatalog(),
+    ]);
+    const nextOffset = offset + items.length;
     return {
       items: items.map((item) => toSkillCatalogEntryView(item, baseUrl)),
+      total,
+      limit,
+      offset,
+      has_more: nextOffset < total,
+      next_offset: nextOffset < total ? nextOffset : null,
     };
   }
 
-  async listPersonalSkillCatalog(accessToken: string, baseUrl?: string): Promise<{items: SkillCatalogEntryView[]}> {
+  async listPersonalSkillCatalog(
+    accessToken: string,
+    baseUrl?: string,
+    limitInput?: number | null,
+    offsetInput?: number | null,
+  ): Promise<{
+    items: SkillCatalogEntryView[];
+    total: number;
+    limit: number;
+    offset: number;
+    has_more: boolean;
+    next_offset: number | null;
+  }> {
+    const limit = normalizeCatalogLimit(limitInput);
+    const offset = normalizeCatalogOffset(offsetInput);
     const user = await this.getUserForAccessToken(accessToken);
-    const [catalogItems, privateItems] = await Promise.all([
-      this.store.listSkillCatalog(),
+    const [catalogItems, privateItems, totalCloud] = await Promise.all([
+      this.store.listSkillCatalog(limit, offset),
       this.store.listUserPrivateSkills(user.id),
+      this.store.countSkillCatalog(),
     ]);
 
     const merged = new Map<string, SkillCatalogEntryView>();
-    for (const item of catalogItems) {
-      merged.set(item.slug, toSkillCatalogEntryView(item, baseUrl));
+    const privateViews =
+      offset === 0 ? privateItems.map((item) => toPrivateSkillCatalogEntryView(item, baseUrl)) : [];
+
+    for (const item of privateViews) {
+      merged.set(item.slug, item);
     }
-    for (const item of privateItems) {
-      merged.set(item.slug, toPrivateSkillCatalogEntryView(item, baseUrl));
+    for (const item of catalogItems) {
+      if (!merged.has(item.slug)) {
+        merged.set(item.slug, toSkillCatalogEntryView(item, baseUrl));
+      }
     }
 
+    const total = totalCloud + privateItems.length;
+    const nextOffset = offset + catalogItems.length;
     return {
       items: Array.from(merged.values()).sort((left, right) => left.name.localeCompare(right.name, 'zh-CN')),
+      total,
+      limit,
+      offset,
+      has_more: nextOffset < totalCloud,
+      next_offset: nextOffset < totalCloud ? nextOffset : null,
     };
   }
 
   async listAdminSkillCatalog(
     accessToken: string,
     baseUrl?: string,
-  ): Promise<{items: AdminSkillCatalogEntryView[]}> {
+    limitInput?: number | null,
+    offsetInput?: number | null,
+  ): Promise<{
+    items: AdminSkillCatalogEntryView[];
+    total: number;
+    limit: number;
+    offset: number;
+    has_more: boolean;
+    next_offset: number | null;
+  }> {
     await this.requireAdminUser(accessToken);
-    const items = await this.store.listSkillCatalogAdmin();
+    const limit = normalizeCatalogLimit(limitInput);
+    const offset = normalizeCatalogOffset(offsetInput);
+    const [items, total] = await Promise.all([
+      this.store.listSkillCatalogAdmin(limit, offset),
+      this.store.countSkillCatalogAdmin(),
+    ]);
+    const nextOffset = offset + items.length;
     return {
       items: items.map((item) => toAdminSkillCatalogEntryView(item, baseUrl)),
+      total,
+      limit,
+      offset,
+      has_more: nextOffset < total,
+      next_offset: nextOffset < total ? nextOffset : null,
     };
   }
 
@@ -881,10 +1258,34 @@ export class ControlPlaneService {
     const visibility = normalizeSkillVisibility(input.visibility, existing?.visibility || 'showcase');
     const distribution = normalizeSkillDistribution(input.distribution, existing?.distribution || 'cloud');
     const tags = normalizeSkillTags(input.tags, existing?.tags || []);
+    const version = normalizeOptionalSkillVersion(input.version) || existing?.version || '1.0.0';
+    const artifactUrlCandidate = normalizeOptionalCatalogString(input.artifact_url, 'artifact_url', {
+      allowNull: true,
+      trimToNull: true,
+    });
+    const artifactFormat = normalizeArtifactFormat(input.artifact_format ?? existing?.artifactFormat ?? 'tar.gz');
+    const artifactSha256 =
+      normalizeOptionalCatalogString(input.artifact_sha256, 'artifact_sha256', {allowNull: true, trimToNull: true}) ??
+      existing?.artifactSha256 ??
+      null;
+    const artifactSourcePath =
+      normalizeOptionalCatalogString(input.artifact_source_path, 'artifact_source_path', {allowNull: true, trimToNull: true}) ??
+      existing?.artifactSourcePath ??
+      null;
+    const originType = normalizeSkillOriginType(
+      input.origin_type,
+      existing?.originType || (distribution === 'bundled' ? 'bundled' : 'manual'),
+    );
+    const sourceUrl =
+      normalizeOptionalCatalogString(input.source_url, 'source_url', {allowNull: true, trimToNull: true}) ??
+      existing?.sourceUrl ??
+      null;
+    const metadata = normalizeJsonObject(input.metadata, 'metadata', existing?.metadata || {});
     const active = normalizeOptionalBoolean(input.active, 'active') ?? existing?.active ?? true;
     const market = marketCandidate === undefined ? (existing?.market ?? null) : marketCandidate;
     const category = categoryCandidate === undefined ? (existing?.category ?? null) : categoryCandidate;
     const skillType = skillTypeCandidate === undefined ? (existing?.skillType ?? null) : skillTypeCandidate;
+    const artifactUrl = artifactUrlCandidate === undefined ? (existing?.artifactUrl ?? null) : artifactUrlCandidate;
 
     if (!name) {
       throw new HttpError(400, 'BAD_REQUEST', 'name is required');
@@ -911,6 +1312,14 @@ export class ControlPlaneService {
       publisher,
       distribution,
       tags,
+      version,
+      artifact_url: artifactUrl,
+      artifact_format: artifactFormat,
+      artifact_sha256: artifactSha256,
+      artifact_source_path: artifactSourcePath,
+      origin_type: originType,
+      source_url: sourceUrl,
+      metadata,
       active,
     });
 
@@ -932,6 +1341,88 @@ export class ControlPlaneService {
     };
   }
 
+  async listSkillSyncSources(accessToken: string): Promise<{items: SkillSyncSourceView[]}> {
+    await this.requireAdminUser(accessToken);
+    const items = await this.store.listSkillSyncSources();
+    return {items: items.map(toSkillSyncSourceView)};
+  }
+
+  async upsertSkillSyncSource(accessToken: string, input: UpsertSkillSyncSourceInput): Promise<SkillSyncSourceView> {
+    await this.requireAdminUser(accessToken);
+    const sourceType = input.source_type;
+    if (sourceType !== 'clawhub' && sourceType !== 'github_repo') {
+      throw new HttpError(400, 'BAD_REQUEST', 'source_type must be clawhub or github_repo');
+    }
+    const sourceKey = (String(input.source_key || '').trim() || '').toLowerCase();
+    const displayName = String(input.display_name || '').trim();
+    const sourceUrl = String(input.source_url || '').trim();
+    if (!sourceKey || !displayName || !sourceUrl) {
+      throw new HttpError(400, 'BAD_REQUEST', 'source_key, display_name and source_url are required');
+    }
+    const id = String(input.id || '').trim() || randomBytes(8).toString('hex');
+    const record = await this.store.upsertSkillSyncSource({
+      id,
+      source_type: sourceType,
+      source_key: sourceKey,
+      display_name: displayName,
+      source_url: sourceUrl,
+      config: normalizeJsonObject(input.config, 'config'),
+      active: normalizeOptionalBoolean(input.active, 'active') ?? true,
+    });
+    return toSkillSyncSourceView(record);
+  }
+
+  async deleteSkillSyncSource(accessToken: string, idInput: string): Promise<{removed: boolean}> {
+    await this.requireAdminUser(accessToken);
+    const id = String(idInput || '').trim();
+    if (!id) {
+      throw new HttpError(400, 'BAD_REQUEST', 'id is required');
+    }
+    return {removed: await this.store.deleteSkillSyncSource(id)};
+  }
+
+  async listSkillSyncRuns(accessToken: string, limitInput?: number): Promise<{items: SkillSyncRunView[]}> {
+    await this.requireAdminUser(accessToken);
+    const limit = Number.isInteger(limitInput) && Number(limitInput) > 0 ? Number(limitInput) : 20;
+    const items = await this.store.listSkillSyncRuns(limit);
+    return {items: items.map(toSkillSyncRunView)};
+  }
+
+  async runSkillSync(accessToken: string, sourceIdInput: string): Promise<SkillSyncRunView> {
+    await this.requireAdminUser(accessToken);
+    const sourceId = String(sourceIdInput || '').trim();
+    if (!sourceId) {
+      throw new HttpError(400, 'BAD_REQUEST', 'source_id is required');
+    }
+    const source = await this.store.getSkillSyncSource(sourceId);
+    if (!source) {
+      throw new HttpError(404, 'NOT_FOUND', 'sync source not found');
+    }
+    const existingEntries = await this.store.listSkillCatalogAdmin();
+    const execution = await syncSkillsFromSource(source, existingEntries);
+    for (const upsert of execution.upserts) {
+      await this.store.upsertSkillCatalogEntry(upsert);
+    }
+    const storedItems = execution.items.slice(0, SKILL_SYNC_RUN_ITEM_LIMIT);
+    const summary: Record<string, unknown> = {
+      ...execution.summary,
+      stored_item_count: storedItems.length,
+      truncated_item_count: Math.max(0, execution.items.length - storedItems.length),
+    };
+    const run = await this.store.createSkillSyncRun({
+      sourceId: source.id,
+      sourceKey: source.sourceKey,
+      sourceType: source.sourceType,
+      displayName: source.displayName,
+      status: execution.status,
+      summary,
+      items: storedItems,
+      startedAt: typeof summary.started_at === 'string' ? summary.started_at : new Date().toISOString(),
+      finishedAt: typeof summary.finished_at === 'string' ? summary.finished_at : new Date().toISOString(),
+    });
+    return toSkillSyncRunView(run);
+  }
+
   async listUserSkillLibrary(accessToken: string): Promise<{items: UserSkillLibraryItemView[]}> {
     const user = await this.getUserForAccessToken(accessToken);
     const items = await this.store.listUserSkillLibrary(user.id);
@@ -950,14 +1441,13 @@ export class ControlPlaneService {
       throw new HttpError(404, 'NOT_FOUND', 'skill not found');
     }
 
-    const release = await this.store.getSkillRelease(slug, version);
-    if (!release) {
-      throw new HttpError(404, 'NOT_FOUND', 'skill release not found');
+    if (version && version !== entry.version) {
+      throw new HttpError(409, 'CONFLICT', 'skill version has been updated to latest');
     }
 
     const record = await this.store.installUserSkill(user.id, {
       slug,
-      version: release.version,
+      version: entry.version,
       source: 'cloud',
     });
     return toUserSkillLibraryItemView(record);
@@ -1061,7 +1551,7 @@ export class ControlPlaneService {
     };
   }
 
-  async getSkillArtifactRelease(slugInput: string, versionInput?: string): Promise<SkillReleaseRecord> {
+  async getSkillArtifactEntry(slugInput: string, versionInput?: string): Promise<SkillCatalogEntryRecord> {
     const slug = normalizeSkillSlug(slugInput);
     const version = normalizeOptionalSkillVersion(versionInput);
     const catalog = await this.store.listSkillCatalog();
@@ -1069,13 +1559,10 @@ export class ControlPlaneService {
     if (!entry) {
       throw new HttpError(404, 'NOT_FOUND', 'skill not found');
     }
-
-    const release = await this.store.getSkillRelease(slug, version);
-    if (!release) {
-      throw new HttpError(404, 'NOT_FOUND', 'skill release not found');
+    if (version && entry.version !== version) {
+      throw new HttpError(404, 'NOT_FOUND', 'skill version not found');
     }
-
-    return release;
+    return entry;
   }
 
   async getPrivateSkillArtifactRecord(accessToken: string, slugInput: string, versionInput?: string): Promise<UserPrivateSkillRecord> {
@@ -1120,7 +1607,11 @@ export class ControlPlaneService {
     const sessionKey = (input.session_key || 'main').trim() || 'main';
     const client = (input.client || 'desktop').trim() || 'desktop';
     const estimatedInputTokens = Math.max(0, input.estimated_input_tokens || 0);
-    const currentBalance = await this.store.getCreditBalance(user.id);
+    const account = await this.store.getCreditAccount(user.id);
+    const currentBalance = account.totalAvailableBalance;
+    if (currentBalance <= 0) {
+      throw new HttpError(402, 'INSUFFICIENT_CREDITS', 'current balance is insufficient');
+    }
     const nonce = makeNonce();
     const expiresAt = new Date(Date.now() + config.runGrantTtlSeconds * 1000).toISOString();
     const creditLimit = Math.min(currentBalance, config.runGrantCreditLimit);
@@ -1153,6 +1644,8 @@ export class ControlPlaneService {
   async recordUsageEvent(accessToken: string, input: UsageEventInput): Promise<{
     accepted: boolean;
     balance_after: number;
+    debits: Array<{bucket: 'daily_free' | 'topup'; amount: number}>;
+    balance_after_detail: CreditBalanceView;
     billing_summary: RunBillingSummaryView;
   }> {
     const user = await this.getUserForAccessToken(accessToken);
@@ -1183,7 +1676,7 @@ export class ControlPlaneService {
     }
 
     const creditCost = this.computeCreditCost(inputTokens, outputTokens);
-    if (grant.creditLimit > 0 && creditCost > grant.creditLimit) {
+    if (creditCost > grant.creditLimit) {
       throw new HttpError(402, 'CREDIT_LIMIT_EXCEEDED', 'usage exceeded run grant credit limit');
     }
 
@@ -1197,10 +1690,32 @@ export class ControlPlaneService {
       model: (input.model || '').trim(),
     };
 
-    const result: UsageEventResult = await this.store.recordUsageEvent(user.id, usageInput);
+    let result: UsageEventResult;
+    try {
+      result = await this.store.recordUsageEvent(user.id, usageInput);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'INSUFFICIENT_CREDITS') {
+        throw new HttpError(402, 'INSUFFICIENT_CREDITS', 'current balance is insufficient');
+      }
+      throw error;
+    }
+    const balanceAfterView: CreditBalanceView = {
+      daily_free_balance: result.balanceAfter.dailyFreeBalance,
+      topup_balance: result.balanceAfter.topupBalance,
+      total_available_balance: result.balanceAfter.totalAvailableBalance,
+      daily_free_quota: result.balanceAfter.dailyFreeQuota,
+      daily_free_expires_at: result.balanceAfter.dailyFreeExpiresAt,
+      balance: result.balanceAfter.totalAvailableBalance,
+      currency: 'lobster_credit',
+      currency_display: '龙虾币',
+      available_balance: result.balanceAfter.totalAvailableBalance,
+      status: 'active',
+    };
     return {
       accepted: result.accepted,
-      balance_after: result.balanceAfter,
+      balance_after: result.balanceAfter.totalAvailableBalance,
+      debits: result.debits,
+      balance_after_detail: balanceAfterView,
       billing_summary: toRunBillingSummaryView(result.summary),
     };
   }

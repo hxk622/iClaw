@@ -15,12 +15,41 @@ export type UserRecord = {
 
 export type OAuthProvider = 'wechat' | 'google';
 
+export type CreditBucket = 'daily_free' | 'topup';
+export type CreditLedgerDirection = 'grant' | 'consume' | 'topup' | 'refund' | 'expire';
+export type CreditLedgerReferenceType =
+  | 'daily_reset'
+  | 'trial_grant'
+  | 'topup_order'
+  | 'usage_quote'
+  | 'chat_run'
+  | 'agent_run'
+  | 'manual_adjustment';
+
+export type CreditAccountRecord = {
+  userId: string;
+  dailyFreeBalance: number;
+  topupBalance: number;
+  dailyFreeQuota: number;
+  totalAvailableBalance: number;
+  dailyFreeGrantedAt: string;
+  dailyFreeExpiresAt: string;
+  status: 'active';
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type CreditLedgerRecord = {
   id: string;
   userId: string;
-  eventType: 'signup_grant' | 'usage_debit';
-  delta: number;
+  bucket: CreditBucket;
+  direction: CreditLedgerDirection;
+  amount: number;
   balanceAfter: number;
+  referenceType: CreditLedgerReferenceType;
+  referenceId: string | null;
+  eventType: string;
+  delta: number;
   createdAt: string;
 };
 
@@ -54,8 +83,13 @@ export type SessionTokenPair = {
 };
 
 export type CreditBalanceView = {
+  daily_free_balance: number;
+  topup_balance: number;
+  total_available_balance: number;
+  daily_free_quota: number;
+  daily_free_expires_at: string;
   balance: number;
-  currency: 'credit';
+  currency: 'lobster_credit';
   currency_display: '龙虾币';
   available_balance: number;
   status: 'active';
@@ -63,6 +97,11 @@ export type CreditBalanceView = {
 
 export type CreditLedgerItemView = {
   id: string;
+  bucket: CreditBucket;
+  direction: CreditLedgerDirection;
+  amount: number;
+  reference_type: CreditLedgerReferenceType;
+  reference_id: string | null;
   event_type: string;
   delta: number;
   balance_after: number;
@@ -84,13 +123,16 @@ export type CreditQuoteInput = {
 };
 
 export type CreditQuoteView = {
-  currency: 'credit';
+  currency: 'lobster_credit';
   currency_display: '龙虾币';
   estimated_credits_low: number;
   estimated_credits_high: number;
   max_charge_credits: number;
   estimated_input_tokens: number;
   estimated_output_tokens: number;
+  daily_free_cover_credits: number;
+  topup_cover_credits: number;
+  payable_credits: number;
   balance_after_estimate: number;
   balance_after_max: number;
   model: string | null;
@@ -158,10 +200,67 @@ export type RunBillingSummaryRecord = {
   settledAt: string;
 };
 
+export type UsageDebitRecord = {
+  bucket: CreditBucket;
+  amount: number;
+};
+
 export type UsageEventResult = {
   accepted: boolean;
-  balanceAfter: number;
+  balanceAfter: CreditAccountRecord;
+  debits: UsageDebitRecord[];
   summary: RunBillingSummaryRecord;
+};
+
+export type PaymentProvider = 'mock' | 'wechat_qr' | 'alipay_qr';
+export type PaymentOrderStatus = 'created' | 'pending' | 'paid' | 'failed' | 'expired' | 'refunded';
+
+export type PaymentOrderRecord = {
+  id: string;
+  userId: string;
+  provider: PaymentProvider;
+  packageId: string;
+  packageName: string;
+  credits: number;
+  bonusCredits: number;
+  amountCnyFen: number;
+  currency: 'cny';
+  status: PaymentOrderStatus;
+  providerOrderId: string | null;
+  providerPrepayId: string | null;
+  paymentUrl: string | null;
+  paidAt: string | null;
+  expiredAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PaymentOrderView = {
+  order_id: string;
+  status: PaymentOrderStatus;
+  provider: PaymentProvider;
+  package_id: string;
+  package_name: string;
+  credits: number;
+  bonus_credits: number;
+  amount_cny_fen: number;
+  payment_url: string | null;
+  paid_at: string | null;
+  expires_at: string | null;
+};
+
+export type CreatePaymentOrderInput = {
+  provider?: string;
+  package_id?: string;
+  return_url?: string;
+};
+
+export type PaymentWebhookInput = {
+  event_id?: string;
+  order_id?: string;
+  provider_order_id?: string;
+  status?: string;
+  paid_at?: string;
 };
 
 export type WorkspaceBackupRecord = {
@@ -191,6 +290,11 @@ export type SkillSource = 'bundled' | 'cloud' | 'private';
 export type UserSkillLibrarySource = 'cloud' | 'private';
 export type UserPrivateSkillSourceKind = 'github' | 'local';
 export type AgentCategory = 'finance' | 'content' | 'productivity' | 'commerce' | 'general';
+export type SkillArtifactFormat = 'tar.gz' | 'zip';
+export type SkillOriginType = 'bundled' | 'clawhub' | 'github_repo' | 'manual' | 'private';
+export type SkillSyncSourceType = 'clawhub' | 'github_repo';
+export type SkillSyncRunStatus = 'running' | 'succeeded' | 'partial_failed' | 'failed';
+export type SkillSyncItemStatus = 'created' | 'updated' | 'skipped' | 'failed';
 
 export type SkillCatalogRecord = {
   slug: string;
@@ -203,25 +307,20 @@ export type SkillCatalogRecord = {
   publisher: string;
   distribution: SkillDistribution;
   tags: string[];
+  version: string;
+  artifactFormat: SkillArtifactFormat;
+  artifactUrl: string | null;
+  artifactSha256: string | null;
+  artifactSourcePath: string | null;
+  originType: SkillOriginType;
+  sourceUrl: string | null;
+  metadata: Record<string, unknown>;
   active: boolean;
   createdAt: string;
   updatedAt: string;
 };
 
-export type SkillReleaseRecord = {
-  slug: string;
-  version: string;
-  artifactFormat: 'tar.gz' | 'zip';
-  artifactUrl: string | null;
-  artifactSha256: string | null;
-  artifactSourcePath: string | null;
-  publishedAt: string;
-  createdAt: string;
-};
-
-export type SkillCatalogEntryRecord = SkillCatalogRecord & {
-  latestRelease: SkillReleaseRecord | null;
-};
+export type SkillCatalogEntryRecord = SkillCatalogRecord;
 
 export type UserSkillLibraryRecord = {
   userId: string;
@@ -231,15 +330,6 @@ export type UserSkillLibraryRecord = {
   enabled: boolean;
   installedAt: string;
   updatedAt: string;
-};
-
-export type SkillCatalogReleaseView = {
-  version: string;
-  artifact_url: string | null;
-  artifact_path: string | null;
-  artifact_format: 'tar.gz' | 'zip';
-  artifact_sha256: string | null;
-  published_at: string;
 };
 
 export type SkillCatalogEntryView = {
@@ -254,7 +344,14 @@ export type SkillCatalogEntryView = {
   distribution: SkillDistribution;
   source: SkillSource;
   tags: string[];
-  latest_release: SkillCatalogReleaseView | null;
+  version: string;
+  artifact_url: string | null;
+  artifact_path: string | null;
+  artifact_format: SkillArtifactFormat;
+  artifact_sha256: string | null;
+  origin_type: SkillOriginType;
+  source_url: string | null;
+  metadata: Record<string, unknown>;
 };
 
 export type UserSkillLibraryItemView = {
@@ -277,6 +374,7 @@ export type AgentCatalogRecord = {
   tags: string[];
   capabilities: string[];
   useCases: string[];
+  metadata: Record<string, unknown>;
   sortOrder: number;
   active: boolean;
   createdAt: string;
@@ -296,6 +394,7 @@ export type AgentCatalogEntryView = {
   tags: string[];
   capabilities: string[];
   use_cases: string[];
+  metadata: Record<string, unknown>;
 };
 
 export type UserAgentLibraryRecord = {
@@ -339,6 +438,76 @@ export type AdminSkillCatalogEntryView = SkillCatalogEntryView & {
   active: boolean;
   created_at: string;
   updated_at: string;
+};
+
+export type SkillSyncSourceRecord = {
+  id: string;
+  sourceType: SkillSyncSourceType;
+  sourceKey: string;
+  displayName: string;
+  sourceUrl: string;
+  config: Record<string, unknown>;
+  active: boolean;
+  lastRunAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SkillSyncRunItemRecord = {
+  slug: string;
+  name: string;
+  version: string | null;
+  status: SkillSyncItemStatus;
+  reason: string | null;
+  sourceUrl: string | null;
+};
+
+export type SkillSyncRunRecord = {
+  id: string;
+  sourceId: string;
+  sourceKey: string;
+  sourceType: SkillSyncSourceType;
+  displayName: string;
+  status: SkillSyncRunStatus;
+  summary: Record<string, unknown>;
+  items: SkillSyncRunItemRecord[];
+  startedAt: string;
+  finishedAt: string | null;
+};
+
+export type SkillSyncSourceView = {
+  id: string;
+  source_type: SkillSyncSourceType;
+  source_key: string;
+  display_name: string;
+  source_url: string;
+  config: Record<string, unknown>;
+  active: boolean;
+  last_run_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SkillSyncRunItemView = {
+  slug: string;
+  name: string;
+  version: string | null;
+  status: SkillSyncItemStatus;
+  reason: string | null;
+  source_url: string | null;
+};
+
+export type SkillSyncRunView = {
+  id: string;
+  source_id: string;
+  source_key: string;
+  source_type: SkillSyncSourceType;
+  display_name: string;
+  status: SkillSyncRunStatus;
+  summary: Record<string, unknown>;
+  items: SkillSyncRunItemView[];
+  started_at: string;
+  finished_at: string | null;
 };
 
 export type PublicUser = {
@@ -445,5 +614,23 @@ export type UpsertSkillCatalogEntryInput = {
   publisher?: string;
   distribution?: SkillDistribution;
   tags?: string[];
+  version?: string;
+  artifact_url?: string | null;
+  artifact_format?: SkillArtifactFormat;
+  artifact_sha256?: string | null;
+  artifact_source_path?: string | null;
+  origin_type?: SkillOriginType;
+  source_url?: string | null;
+  metadata?: Record<string, unknown>;
+  active?: boolean;
+};
+
+export type UpsertSkillSyncSourceInput = {
+  id?: string;
+  source_type?: SkillSyncSourceType;
+  source_key?: string;
+  display_name?: string;
+  source_url?: string;
+  config?: Record<string, unknown>;
   active?: boolean;
 };

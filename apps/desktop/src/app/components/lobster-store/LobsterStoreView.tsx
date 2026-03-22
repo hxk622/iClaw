@@ -5,6 +5,7 @@ import { AlertCircle, Sparkles } from 'lucide-react';
 import type { AppUserAvatarSource } from '@/app/lib/user-avatar';
 import { Chip } from '@/app/components/ui/Chip';
 import {
+  isLobsterStoreAgent,
   type LobsterAgent,
   type LobsterStoreCategory,
   type LobsterStoreTab,
@@ -48,7 +49,7 @@ export function LobsterStoreView({
     setError(null);
     try {
       const nextAgents = await loadLobsterAgents({ client, accessToken });
-      setAgents(nextAgents);
+      setAgents(nextAgents.filter((agent) => isLobsterStoreAgent(agent)));
     } catch (refreshError) {
       setError(refreshError instanceof Error ? refreshError.message : '加载龙虾商店失败');
     } finally {
@@ -149,7 +150,7 @@ export function LobsterStoreView({
           descriptionClassName="mt-0 text-[12px] leading-5 text-[var(--lobster-text-secondary)]"
         />
 
-        <div className="mt-3 border-b border-[var(--lobster-border)] pb-3">
+        <div className="mt-3">
           <LobsterStoreTabs activeTab={activeTab} installedCount={installedAgents.length} onChange={setActiveTab} />
         </div>
 
@@ -221,6 +222,7 @@ export function LobsterStoreView({
                       installBusy={installBusySlug === agent.slug}
                       onOpenDetail={(nextAgent) => setDetailSlug(nextAgent.slug)}
                       onInstall={handleInstall}
+                      onStartConversation={onStartConversation}
                     />
                   ))}
                 </div>
@@ -247,6 +249,7 @@ export function LobsterStoreView({
                       installBusy={installBusySlug === agent.slug}
                       onOpenDetail={(nextAgent) => setDetailSlug(nextAgent.slug)}
                       onInstall={handleInstall}
+                      onStartConversation={onStartConversation}
                     />
                   ))}
                 </div>
@@ -285,6 +288,7 @@ export function LobsterStoreView({
           }
         }}
         onInstall={handleInstall}
+        onStartConversation={onStartConversation}
       />
     </PageSurface>
   );

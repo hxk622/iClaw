@@ -11,6 +11,8 @@ export interface ClientOptions {
   disableGatewayDeviceIdentity?: boolean;
   desktopAppVersion?: string;
   desktopReleaseChannel?: 'dev' | 'prod';
+  desktopPlatform?: string;
+  desktopArch?: string;
   onDesktopUpdateHint?: (hint: DesktopUpdateHint) => void;
 }
 
@@ -160,12 +162,19 @@ export interface RunBillingSummaryData {
 export interface UsageEventData {
   accepted: boolean;
   balance_after: number;
+  debits?: Array<{bucket: 'daily_free' | 'topup'; amount: number}>;
+  balance_after_detail?: CreditBalanceData;
   billing_summary: RunBillingSummaryData;
 }
 
 export interface CreditBalanceData {
+  daily_free_balance: number;
+  topup_balance: number;
+  total_available_balance: number;
+  daily_free_quota: number;
+  daily_free_expires_at: string;
   balance: number;
-  currency: 'credit';
+  currency: 'lobster_credit';
   currency_display: string;
   available_balance: number;
   status: 'active';
@@ -173,6 +182,11 @@ export interface CreditBalanceData {
 
 export interface CreditLedgerItemData {
   id: string;
+  bucket: 'daily_free' | 'topup';
+  direction: 'grant' | 'consume' | 'topup' | 'refund' | 'expire';
+  amount: number;
+  reference_type: string;
+  reference_id: string | null;
   event_type: string;
   delta: number;
   balance_after: number;
@@ -194,25 +208,49 @@ export interface CreditQuoteInput {
 }
 
 export interface CreditQuoteData {
-  currency: 'credit';
+  currency: 'lobster_credit';
   currency_display: string;
   estimated_credits_low: number;
   estimated_credits_high: number;
   max_charge_credits: number;
   estimated_input_tokens: number;
   estimated_output_tokens: number;
+  daily_free_cover_credits: number;
+  topup_cover_credits: number;
+  payable_credits: number;
   balance_after_estimate: number;
   balance_after_max: number;
   model: string | null;
 }
 
-export interface SkillCatalogReleaseData {
-  version: string;
-  artifact_url: string | null;
-  artifact_path: string | null;
-  artifact_format: 'tar.gz' | 'zip';
-  artifact_sha256: string | null;
-  published_at: string;
+export interface CreatePaymentOrderInput {
+  token: string;
+  provider?: 'mock' | 'wechat_qr' | 'alipay_qr';
+  packageId: string;
+  returnUrl?: string;
+}
+
+export interface PaymentOrderData {
+  order_id: string;
+  status: 'created' | 'pending' | 'paid' | 'failed' | 'expired' | 'refunded';
+  provider: 'mock' | 'wechat_qr' | 'alipay_qr';
+  package_id: string;
+  package_name: string;
+  credits: number;
+  bonus_credits: number;
+  amount_cny_fen: number;
+  payment_url: string | null;
+  paid_at: string | null;
+  expires_at: string | null;
+}
+
+export interface PaymentWebhookInput {
+  provider: 'mock' | 'wechat_qr' | 'alipay_qr';
+  eventId: string;
+  orderId: string;
+  status: string;
+  providerOrderId?: string;
+  paidAt?: string;
 }
 
 export interface SkillCatalogEntryData {
@@ -228,7 +266,23 @@ export interface SkillCatalogEntryData {
   distribution: 'bundled' | 'cloud';
   source: 'bundled' | 'cloud' | 'private';
   tags: string[];
-  latest_release: SkillCatalogReleaseData | null;
+  version: string;
+  artifact_url: string | null;
+  artifact_path: string | null;
+  artifact_format: 'tar.gz' | 'zip';
+  artifact_sha256: string | null;
+  origin_type: 'bundled' | 'clawhub' | 'github_repo' | 'manual' | 'private';
+  source_url: string | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface SkillCatalogPageData<T> {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+  next_offset: number | null;
 }
 
 export interface AdminSkillCatalogEntryData extends SkillCatalogEntryData {
@@ -250,6 +304,60 @@ interface UpsertAdminSkillCatalogInput {
   publisher?: string;
   distribution?: 'bundled' | 'cloud';
   tags?: string[];
+  version?: string;
+  artifactUrl?: string | null;
+  artifactFormat?: 'tar.gz' | 'zip';
+  artifactSha256?: string | null;
+  artifactSourcePath?: string | null;
+  originType?: 'bundled' | 'clawhub' | 'github_repo' | 'manual' | 'private';
+  sourceUrl?: string | null;
+  metadata?: Record<string, unknown>;
+  active?: boolean;
+}
+
+export interface SkillSyncSourceData {
+  id: string;
+  source_type: 'clawhub' | 'github_repo';
+  source_key: string;
+  display_name: string;
+  source_url: string;
+  config: Record<string, unknown>;
+  active: boolean;
+  last_run_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SkillSyncRunItemData {
+  slug: string;
+  name: string;
+  version: string | null;
+  status: 'created' | 'updated' | 'skipped' | 'failed';
+  reason: string | null;
+  source_url: string | null;
+}
+
+export interface SkillSyncRunData {
+  id: string;
+  source_id: string;
+  source_key: string;
+  source_type: 'clawhub' | 'github_repo';
+  display_name: string;
+  status: 'running' | 'succeeded' | 'partial_failed' | 'failed';
+  summary: Record<string, unknown>;
+  items: SkillSyncRunItemData[];
+  started_at: string;
+  finished_at: string | null;
+}
+
+interface UpsertSkillSyncSourceInput {
+  token: string;
+  id?: string;
+  sourceType: 'clawhub' | 'github_repo';
+  sourceKey: string;
+  displayName: string;
+  sourceUrl: string;
+  config?: Record<string, unknown>;
   active?: boolean;
 }
 
@@ -273,6 +381,7 @@ export interface AgentCatalogEntryData {
   tags: string[];
   capabilities: string[];
   use_cases: string[];
+  metadata: Record<string, unknown>;
 }
 
 export interface UserAgentLibraryItemData {
@@ -330,6 +439,56 @@ type GatewayFrame = GatewayEventFrame | GatewayResponseFrame | Record<string, un
 const DEVICE_IDENTITY_STORAGE_KEY = 'iclaw.gateway.device.identity.v1';
 const DEVICE_TOKEN_STORAGE_KEY = 'iclaw.gateway.device.tokens.v1';
 const GATEWAY_CLIENT_ID = 'gateway-client';
+
+function normalizeDesktopPlatform(value: string | null | undefined): string | undefined {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (normalized.startsWith('mac') || normalized.startsWith('darwin')) return 'darwin';
+  if (normalized.startsWith('win')) return 'windows';
+  if (normalized.startsWith('linux')) return 'linux';
+  return normalized;
+}
+
+function normalizeDesktopArch(value: string | null | undefined): string | undefined {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (normalized.includes('aarch64') || normalized.includes('arm64')) return 'aarch64';
+  if (normalized.includes('x86_64') || normalized.includes('amd64') || normalized.includes('x64')) return 'x64';
+  return normalized;
+}
+
+function detectDesktopPlatform(): string | undefined {
+  if (typeof navigator === 'undefined') return undefined;
+  const nav = navigator as Navigator & {
+    userAgentData?: {
+      platform?: string;
+    };
+  };
+  return (
+    normalizeDesktopPlatform(nav.userAgentData?.platform) ||
+    normalizeDesktopPlatform(navigator.platform) ||
+    normalizeDesktopPlatform(navigator.userAgent)
+  );
+}
+
+function detectDesktopArch(): string | undefined {
+  if (typeof navigator === 'undefined') return undefined;
+  const nav = navigator as Navigator & {
+    userAgentData?: {
+      architecture?: string;
+      bitness?: string;
+    };
+  };
+  const ua = navigator.userAgent.toLowerCase();
+  return (
+    normalizeDesktopArch(nav.userAgentData?.architecture) ||
+    (nav.userAgentData?.bitness === '64' && ua.includes('arm') ? 'aarch64' : undefined) ||
+    (ua.includes('arm64') || ua.includes('aarch64') ? 'aarch64' : undefined) ||
+    (ua.includes('x86_64') || ua.includes('win64') || ua.includes('wow64') || ua.includes('amd64') || ua.includes('x64')
+      ? 'x64'
+      : undefined)
+  );
+}
 const GATEWAY_CLIENT_MODE = 'backend';
 const GATEWAY_ROLE = 'operator';
 const GATEWAY_SCOPES = ['operator.read', 'operator.write', 'operator.admin'];
@@ -597,6 +756,8 @@ export class IClawClient {
   private readonly disableGatewayDeviceIdentity: boolean;
   private readonly desktopAppVersion?: string;
   private readonly desktopReleaseChannel?: 'dev' | 'prod';
+  private readonly desktopPlatform?: string;
+  private readonly desktopArch?: string;
   private readonly onDesktopUpdateHint?: (hint: DesktopUpdateHint) => void;
 
   constructor(options: ClientOptions) {
@@ -612,6 +773,8 @@ export class IClawClient {
     this.disableGatewayDeviceIdentity = Boolean(options.disableGatewayDeviceIdentity);
     this.desktopAppVersion = options.desktopAppVersion?.trim() || undefined;
     this.desktopReleaseChannel = options.desktopReleaseChannel;
+    this.desktopPlatform = normalizeDesktopPlatform(options.desktopPlatform) || detectDesktopPlatform();
+    this.desktopArch = normalizeDesktopArch(options.desktopArch) || detectDesktopArch();
     this.onDesktopUpdateHint = options.onDesktopUpdateHint;
   }
 
@@ -619,6 +782,8 @@ export class IClawClient {
     const headers = new Headers(init.headers || {});
     if (this.desktopAppVersion) headers.set('x-iclaw-app-version', this.desktopAppVersion);
     if (this.desktopReleaseChannel) headers.set('x-iclaw-channel', this.desktopReleaseChannel);
+    if (this.desktopPlatform) headers.set('x-iclaw-platform', this.desktopPlatform);
+    if (this.desktopArch) headers.set('x-iclaw-arch', this.desktopArch);
     return fetchWithTimeout(`${this.authBaseUrl}${path}`, {
       ...init,
       headers,
@@ -904,6 +1069,57 @@ export class IClawClient {
     return json.data;
   }
 
+  async createPaymentOrder(input: CreatePaymentOrderInput): Promise<PaymentOrderData> {
+    const res = await this.fetchAuth('/payments/orders', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${input.token}`,
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        provider: input.provider || 'wechat_qr',
+        package_id: input.packageId,
+        return_url: input.returnUrl,
+      }),
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: PaymentOrderData};
+    return json.data;
+  }
+
+  async getPaymentOrder(token: string, orderId: string): Promise<PaymentOrderData> {
+    const res = await this.fetchAuth(`/payments/orders/${encodeURIComponent(orderId)}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      credentials: 'include',
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: PaymentOrderData};
+    return json.data;
+  }
+
+  async applyPaymentWebhook(input: PaymentWebhookInput): Promise<PaymentOrderData> {
+    const res = await this.fetchAuth(`/payments/webhooks/${encodeURIComponent(input.provider)}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        event_id: input.eventId,
+        order_id: input.orderId,
+        provider_order_id: input.providerOrderId,
+        status: input.status,
+        paid_at: input.paidAt,
+      }),
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: PaymentOrderData};
+    return json.data;
+  }
+
   async chatHistory(_input?: ChatHistoryInput): Promise<{messages: unknown[]}> {
     // OpenClaw history endpoint is not implemented in this repo yet.
     // Return an empty payload so desktop auth/chat UI does not crash on load.
@@ -954,7 +1170,6 @@ export class IClawClient {
         grant_id: input.grantId,
         input_tokens: input.inputTokens || 0,
         output_tokens: input.outputTokens || 0,
-        credit_cost: input.creditCost || 0,
         provider: input.provider,
         model: input.model,
       }),
@@ -997,18 +1212,42 @@ export class IClawClient {
     return json.data;
   }
 
-  async listSkillsCatalog(): Promise<SkillCatalogEntryData[]> {
-    const res = await this.fetchAuth('/skills/catalog', {
+  async listSkillsCatalogPage(options?: {limit?: number; offset?: number}): Promise<SkillCatalogPageData<SkillCatalogEntryData>> {
+    const searchParams = new URLSearchParams();
+    if (typeof options?.limit === 'number' && Number.isFinite(options.limit)) {
+      searchParams.set('limit', String(Math.max(1, Math.floor(options.limit))));
+    }
+    if (typeof options?.offset === 'number' && Number.isFinite(options.offset) && options.offset > 0) {
+      searchParams.set('offset', String(Math.max(0, Math.floor(options.offset))));
+    }
+    const query = searchParams.size ? `?${searchParams.toString()}` : '';
+    const res = await this.fetchAuth(`/skills/catalog${query}`, {
       method: 'GET',
       credentials: 'include',
     });
     if (!res.ok) throw await parseError(res);
-    const json = (await res.json()) as {data: {items: SkillCatalogEntryData[]}};
-    return json.data.items;
+    const json = (await res.json()) as {data: SkillCatalogPageData<SkillCatalogEntryData>};
+    return json.data;
   }
 
-  async listPersonalSkillsCatalog(token: string): Promise<SkillCatalogEntryData[]> {
-    const res = await this.fetchAuth('/skills/catalog/personal', {
+  async listSkillsCatalog(options?: {limit?: number; offset?: number}): Promise<SkillCatalogEntryData[]> {
+    const page = await this.listSkillsCatalogPage(options);
+    return page.items;
+  }
+
+  async listPersonalSkillsCatalogPage(
+    token: string,
+    options?: {limit?: number; offset?: number},
+  ): Promise<SkillCatalogPageData<SkillCatalogEntryData>> {
+    const searchParams = new URLSearchParams();
+    if (typeof options?.limit === 'number' && Number.isFinite(options.limit)) {
+      searchParams.set('limit', String(Math.max(1, Math.floor(options.limit))));
+    }
+    if (typeof options?.offset === 'number' && Number.isFinite(options.offset) && options.offset > 0) {
+      searchParams.set('offset', String(Math.max(0, Math.floor(options.offset))));
+    }
+    const query = searchParams.size ? `?${searchParams.toString()}` : '';
+    const res = await this.fetchAuth(`/skills/catalog/personal${query}`, {
       method: 'GET',
       credentials: 'include',
       headers: {
@@ -1016,12 +1255,28 @@ export class IClawClient {
       },
     });
     if (!res.ok) throw await parseError(res);
-    const json = (await res.json()) as {data: {items: SkillCatalogEntryData[]}};
-    return json.data.items;
+    const json = (await res.json()) as {data: SkillCatalogPageData<SkillCatalogEntryData>};
+    return json.data;
   }
 
-  async listAdminSkillsCatalog(token: string): Promise<AdminSkillCatalogEntryData[]> {
-    const res = await this.fetchAuth('/admin/skills/catalog', {
+  async listPersonalSkillsCatalog(token: string, options?: {limit?: number; offset?: number}): Promise<SkillCatalogEntryData[]> {
+    const page = await this.listPersonalSkillsCatalogPage(token, options);
+    return page.items;
+  }
+
+  async listAdminSkillsCatalogPage(
+    token: string,
+    options?: {limit?: number; offset?: number},
+  ): Promise<SkillCatalogPageData<AdminSkillCatalogEntryData>> {
+    const searchParams = new URLSearchParams();
+    if (typeof options?.limit === 'number' && Number.isFinite(options.limit)) {
+      searchParams.set('limit', String(Math.max(1, Math.floor(options.limit))));
+    }
+    if (typeof options?.offset === 'number' && Number.isFinite(options.offset) && options.offset > 0) {
+      searchParams.set('offset', String(Math.max(0, Math.floor(options.offset))));
+    }
+    const query = searchParams.size ? `?${searchParams.toString()}` : '';
+    const res = await this.fetchAuth(`/admin/skills/catalog${query}`, {
       method: 'GET',
       credentials: 'include',
       headers: {
@@ -1029,8 +1284,13 @@ export class IClawClient {
       },
     });
     if (!res.ok) throw await parseError(res);
-    const json = (await res.json()) as {data: {items: AdminSkillCatalogEntryData[]}};
-    return json.data.items;
+    const json = (await res.json()) as {data: SkillCatalogPageData<AdminSkillCatalogEntryData>};
+    return json.data;
+  }
+
+  async listAdminSkillsCatalog(token: string, options?: {limit?: number; offset?: number}): Promise<AdminSkillCatalogEntryData[]> {
+    const page = await this.listAdminSkillsCatalogPage(token, options);
+    return page.items;
   }
 
   async upsertAdminSkillCatalogEntry(input: UpsertAdminSkillCatalogInput): Promise<AdminSkillCatalogEntryData> {
@@ -1053,6 +1313,14 @@ export class IClawClient {
         publisher: input.publisher,
         distribution: input.distribution,
         tags: input.tags,
+        version: input.version,
+        artifact_url: input.artifactUrl,
+        artifact_format: input.artifactFormat,
+        artifact_sha256: input.artifactSha256,
+        artifact_source_path: input.artifactSourcePath,
+        origin_type: input.originType,
+        source_url: input.sourceUrl,
+        metadata: input.metadata,
         active: input.active,
       }),
     });
@@ -1072,6 +1340,85 @@ export class IClawClient {
     });
     if (!res.ok) throw await parseError(res);
     const json = (await res.json()) as {data: {removed: boolean}};
+    return json.data;
+  }
+
+  async listSkillSyncSources(token: string): Promise<SkillSyncSourceData[]> {
+    const res = await this.fetchAuth('/admin/skills/sync/sources', {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: {items: SkillSyncSourceData[]}};
+    return json.data.items;
+  }
+
+  async upsertSkillSyncSource(input: UpsertSkillSyncSourceInput): Promise<SkillSyncSourceData> {
+    const res = await this.fetchAuth('/admin/skills/sync/sources', {
+      method: 'PUT',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${input.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        id: input.id,
+        source_type: input.sourceType,
+        source_key: input.sourceKey,
+        display_name: input.displayName,
+        source_url: input.sourceUrl,
+        config: input.config || {},
+        active: input.active,
+      }),
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: SkillSyncSourceData};
+    return json.data;
+  }
+
+  async deleteSkillSyncSource(token: string, id: string): Promise<{removed: boolean}> {
+    const res = await this.fetchAuth(`/admin/skills/sync/sources?id=${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: {removed: boolean}};
+    return json.data;
+  }
+
+  async listSkillSyncRuns(token: string, limit = 20): Promise<SkillSyncRunData[]> {
+    const res = await this.fetchAuth(`/admin/skills/sync/runs?limit=${encodeURIComponent(String(limit))}`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: {items: SkillSyncRunData[]}};
+    return json.data.items;
+  }
+
+  async runSkillSync(token: string, sourceId: string): Promise<SkillSyncRunData> {
+    const res = await this.fetchAuth('/admin/skills/sync/run', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        source_id: sourceId,
+      }),
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: SkillSyncRunData};
     return json.data;
   }
 

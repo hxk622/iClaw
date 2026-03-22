@@ -5,24 +5,32 @@ import {fileURLToPath} from 'node:url';
 
 import {Pool, type PoolClient} from 'pg';
 
+import {config} from './config.ts';
 import type {
   AgentCatalogEntryRecord,
   AgentCatalogRecord,
+  CreatePaymentOrderInput,
   CreateUserInput,
+  CreditAccountRecord,
   CreditLedgerRecord,
   ImportUserPrivateSkillInput,
   InstallAgentInput,
   InstallSkillInput,
   OAuthAccountRecord,
   OAuthProvider,
+  PaymentOrderRecord,
+  PaymentProvider,
+  PaymentWebhookInput,
   RunBillingSummaryRecord,
   RunGrantRecord,
   SessionRecord,
   SessionTokenPair,
   SkillCatalogEntryRecord,
   SkillCatalogRecord,
-  SkillReleaseRecord,
+  SkillSyncRunRecord,
+  SkillSyncSourceRecord,
   UpsertSkillCatalogEntryInput,
+  UpsertSkillSyncSourceInput,
   UsageEventInput,
   UsageEventResult,
   UserAgentLibraryRecord,
@@ -34,6 +42,7 @@ import type {
   WorkspaceBackupInput,
   WorkspaceBackupRecord,
 } from './domain.ts';
+import {buildPlaceholderPaymentUrl} from './payment-placeholders.ts';
 import type {ControlPlaneStore} from './store.ts';
 
 type UserRow = {
@@ -62,10 +71,42 @@ type SessionRow = {
 type CreditLedgerRow = {
   id: string;
   user_id: string;
-  event_type: string;
-  delta: string | number;
+  bucket: 'daily_free' | 'topup';
+  direction: 'grant' | 'consume' | 'topup' | 'refund' | 'expire';
+  amount: string | number;
   balance_after: string | number;
+  reference_type: string | null;
+  reference_id: string | null;
   created_at: Date;
+};
+
+type CreditAccountRow = {
+  user_id: string;
+  daily_free_balance: string | number;
+  topup_balance: string | number;
+  daily_free_granted_at: Date;
+  daily_free_expires_at: Date;
+  updated_at: Date;
+};
+
+type PaymentOrderRow = {
+  id: string;
+  user_id: string;
+  provider: PaymentProvider;
+  package_id: string;
+  package_name: string;
+  credits: string | number;
+  bonus_credits: string | number;
+  amount_cny_fen: string | number;
+  currency: 'cny';
+  status: PaymentOrderRecord['status'];
+  provider_order_id: string | null;
+  provider_prepay_id: string | null;
+  payment_url: string | null;
+  paid_at: Date | null;
+  expired_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
 };
 
 type UsageEventLookupRow = {
@@ -121,6 +162,14 @@ type SkillCatalogRow = {
   publisher: string;
   distribution: 'bundled' | 'cloud';
   tags: unknown;
+  version: string;
+  artifact_format: 'tar.gz' | 'zip';
+  artifact_url: string | null;
+  artifact_sha256: string | null;
+  artifact_source_path: string | null;
+  origin_type: 'bundled' | 'clawhub' | 'github_repo' | 'manual' | 'private';
+  source_url: string | null;
+  metadata_json: Record<string, unknown> | null;
   active: boolean;
   created_at: Date;
   updated_at: Date;
@@ -137,6 +186,7 @@ type AgentCatalogRow = {
   tags: unknown;
   capabilities: unknown;
   use_cases: unknown;
+  metadata_json: Record<string, unknown> | null;
   sort_order: number;
   active: boolean;
   created_at: Date;
@@ -220,15 +270,30 @@ function parseRunBillingSummary(
   };
 }
 
-type SkillReleaseRow = {
-  skill_slug: string;
-  version: string;
-  artifact_format: 'tar.gz' | 'zip';
-  artifact_url: string | null;
-  artifact_sha256: string | null;
-  artifact_source_path: string | null;
-  published_at: Date;
+type SkillSyncSourceRow = {
+  id: string;
+  source_type: 'clawhub' | 'github_repo';
+  source_key: string;
+  display_name: string;
+  source_url: string;
+  config_json: Record<string, unknown> | null;
+  active: boolean;
+  last_run_at: Date | null;
   created_at: Date;
+  updated_at: Date;
+};
+
+type SkillSyncRunRow = {
+  id: string;
+  source_id: string;
+  source_key: string;
+  source_type: 'clawhub' | 'github_repo';
+  display_name: string;
+  status: SkillSyncRunRecord['status'];
+  summary_json: Record<string, unknown> | null;
+  items_json: unknown;
+  started_at: Date;
+  finished_at: Date | null;
 };
 
 type UserSkillLibraryRow = {
@@ -283,6 +348,66 @@ function mapUserRow(row: UserRow): UserRecord {
   };
 }
 
+function parseDbNumber(value: string | number | null | undefined): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') return Number.parseInt(value, 10) || 0;
+  return 0;
+}
+
+function startOfNextShanghaiDayIso(from = new Date()): string {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const parts = formatter.formatToParts(from);
+  const year = Number(parts.find((item) => item.type === 'year')?.value || '1970');
+  const month = Number(parts.find((item) => item.type === 'month')?.value || '01');
+  const day = Number(parts.find((item) => item.type === 'day')?.value || '01');
+  const nextUtc = Date.UTC(year, month - 1, day, 16, 0, 0, 0) + 24 * 60 * 60 * 1000;
+  return new Date(nextUtc).toISOString();
+}
+
+function mapCreditAccountRow(row: CreditAccountRow, createdAt?: Date): CreditAccountRecord {
+  const dailyFreeBalance = parseDbNumber(row.daily_free_balance);
+  const topupBalance = parseDbNumber(row.topup_balance);
+  return {
+    userId: row.user_id,
+    dailyFreeBalance,
+    topupBalance,
+    dailyFreeQuota: config.dailyFreeCredits,
+    totalAvailableBalance: dailyFreeBalance + topupBalance,
+    dailyFreeGrantedAt: row.daily_free_granted_at.toISOString(),
+    dailyFreeExpiresAt: row.daily_free_expires_at.toISOString(),
+    status: 'active',
+    createdAt: createdAt ? createdAt.toISOString() : row.updated_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapPaymentOrderRow(row: PaymentOrderRow): PaymentOrderRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    provider: row.provider,
+    packageId: row.package_id,
+    packageName: row.package_name,
+    credits: parseDbNumber(row.credits),
+    bonusCredits: parseDbNumber(row.bonus_credits),
+    amountCnyFen: parseDbNumber(row.amount_cny_fen),
+    currency: 'cny',
+    status: row.status,
+    providerOrderId: row.provider_order_id,
+    providerPrepayId: row.provider_prepay_id,
+    paymentUrl: row.payment_url,
+    paidAt: row.paid_at ? row.paid_at.toISOString() : null,
+    expiredAt: row.expired_at ? row.expired_at.toISOString() : null,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
 function mapSessionRow(row: SessionRow): SessionRecord {
   return {
     id: row.session_id,
@@ -321,6 +446,13 @@ function parseStringArray(raw: unknown): string[] {
   return raw.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
 }
 
+function parseJsonObject(raw: unknown): Record<string, unknown> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return {};
+  }
+  return raw as Record<string, unknown>;
+}
+
 function mapAgentCatalogRow(row: AgentCatalogRow): AgentCatalogRecord {
   return {
     slug: row.slug,
@@ -333,6 +465,7 @@ function mapAgentCatalogRow(row: AgentCatalogRow): AgentCatalogRecord {
     tags: parseStringArray(row.tags),
     capabilities: parseStringArray(row.capabilities),
     useCases: parseStringArray(row.use_cases),
+    metadata: parseJsonObject(row.metadata_json),
     sortOrder: row.sort_order,
     active: row.active,
     createdAt: row.created_at.toISOString(),
@@ -352,22 +485,66 @@ function mapSkillCatalogRow(row: SkillCatalogRow): SkillCatalogRecord {
     publisher: row.publisher,
     distribution: row.distribution,
     tags: parseSkillTags(row.tags),
+    version: row.version,
+    artifactFormat: row.artifact_format,
+    artifactUrl: row.artifact_url,
+    artifactSha256: row.artifact_sha256,
+    artifactSourcePath: row.artifact_source_path,
+    originType: row.origin_type,
+    sourceUrl: row.source_url,
+    metadata: parseJsonObject(row.metadata_json),
     active: row.active,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
 }
 
-function mapSkillReleaseRow(row: SkillReleaseRow): SkillReleaseRecord {
+function mapSkillSyncSourceRow(row: SkillSyncSourceRow): SkillSyncSourceRecord {
   return {
-    slug: row.skill_slug,
-    version: row.version,
-    artifactFormat: row.artifact_format,
-    artifactUrl: row.artifact_url,
-    artifactSha256: row.artifact_sha256,
-    artifactSourcePath: row.artifact_source_path,
-    publishedAt: row.published_at.toISOString(),
+    id: row.id,
+    sourceType: row.source_type,
+    sourceKey: row.source_key,
+    displayName: row.display_name,
+    sourceUrl: row.source_url,
+    config: parseJsonObject(row.config_json),
+    active: row.active,
+    lastRunAt: row.last_run_at ? row.last_run_at.toISOString() : null,
     createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapSkillSyncRunItems(raw: unknown): SkillSyncRunRecord['items'] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => {
+      const value = parseJsonObject(item);
+      const slug = typeof value.slug === 'string' ? value.slug : '';
+      const name = typeof value.name === 'string' ? value.name : slug;
+      const version = typeof value.version === 'string' ? value.version : null;
+      const status =
+        value.status === 'created' || value.status === 'updated' || value.status === 'skipped' || value.status === 'failed'
+          ? value.status
+          : 'skipped';
+      const reason = typeof value.reason === 'string' ? value.reason : null;
+      const sourceUrl = typeof value.source_url === 'string' ? value.source_url : typeof value.sourceUrl === 'string' ? value.sourceUrl : null;
+      return slug ? {slug, name, version, status, reason, sourceUrl} : null;
+    })
+    .filter((item): item is SkillSyncRunRecord['items'][number] => Boolean(item));
+}
+
+function mapSkillSyncRunRow(row: SkillSyncRunRow): SkillSyncRunRecord {
+  return {
+    id: row.id,
+    sourceId: row.source_id,
+    sourceKey: row.source_key,
+    sourceType: row.source_type,
+    displayName: row.display_name,
+    status: row.status,
+    summary: parseJsonObject(row.summary_json),
+    items: mapSkillSyncRunItems(row.items_json),
+    startedAt: row.started_at.toISOString(),
+    finishedAt: row.finished_at ? row.finished_at.toISOString() : null,
   };
 }
 
@@ -682,18 +859,54 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       }
       await client.query(
         `
-          insert into credit_accounts (user_id, balance, updated_at)
-          values ($1, $2, $3)
+          insert into credit_accounts (
+            user_id,
+            daily_free_balance,
+            topup_balance,
+            daily_free_granted_at,
+            daily_free_expires_at,
+            updated_at
+          )
+          values ($1, $2, $3, $4, $5, $4)
         `,
-        [userId, input.initialCreditBalance, now],
+        [userId, config.dailyFreeCredits, Math.max(0, input.initialCreditBalance), now, startOfNextShanghaiDayIso(now)],
       );
       await client.query(
         `
-          insert into credit_ledger (id, user_id, event_type, delta, balance_after, created_at)
-          values ($1, $2, 'signup_grant', $3, $3, $4)
+          insert into credit_ledger (
+            id,
+            user_id,
+            bucket,
+            direction,
+            amount,
+            balance_after,
+            reference_type,
+            reference_id,
+            created_at
+          )
+          values ($1, $2, 'daily_free', 'grant', $3, $3, 'daily_reset', $2, $4)
         `,
-        [randomUUID(), userId, input.initialCreditBalance, now],
+        [randomUUID(), userId, config.dailyFreeCredits, now],
       );
+      if (input.initialCreditBalance > 0) {
+        await client.query(
+          `
+            insert into credit_ledger (
+              id,
+              user_id,
+              bucket,
+              direction,
+              amount,
+              balance_after,
+              reference_type,
+              reference_id,
+              created_at
+            )
+            values ($1, $2, 'topup', 'grant', $3, $3, 'trial_grant', $2, $4)
+          `,
+          [randomUUID(), userId, Math.max(0, input.initialCreditBalance), now],
+        );
+      }
       await client.query('commit');
       return {
         id: userId,
@@ -912,19 +1125,89 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     return result.rows[0] ? mapUserRow(result.rows[0]) : null;
   }
 
-  async getCreditBalance(userId: string): Promise<number> {
-    const result = await this.pool.query<{balance: string | number}>(
-      `select balance from credit_accounts where user_id = $1 limit 1`,
+  async getCreditAccount(userId: string): Promise<CreditAccountRecord> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+      const account = await this.lockAndReadAccount(client, userId);
+      if (new Date(account.dailyFreeExpiresAt).getTime() <= Date.now()) {
+        const now = new Date();
+        const nextExpiry = startOfNextShanghaiDayIso(now);
+        await client.query(
+          `
+            update credit_accounts
+            set
+              daily_free_balance = $2,
+              daily_free_granted_at = $3,
+              daily_free_expires_at = $4,
+              updated_at = $3
+            where user_id = $1
+          `,
+          [userId, config.dailyFreeCredits, now, nextExpiry],
+        );
+        await client.query(
+          `
+            insert into credit_ledger (
+              id,
+              user_id,
+              bucket,
+              direction,
+              amount,
+              balance_after,
+              reference_type,
+              reference_id,
+              created_at
+            )
+            values ($1, $2, 'daily_free', 'grant', $3, $3, 'daily_reset', $4, $5)
+          `,
+          [randomUUID(), userId, config.dailyFreeCredits, now.toISOString(), now],
+        );
+      }
+      await client.query('commit');
+    } catch (error) {
+      await client.query('rollback');
+      throw error;
+    } finally {
+      client.release();
+    }
+    const result = await this.pool.query<CreditAccountRow>(
+      `
+        select user_id, daily_free_balance, topup_balance, daily_free_granted_at, daily_free_expires_at, updated_at
+        from credit_accounts
+        where user_id = $1
+        limit 1
+      `,
       [userId],
     );
-    const balance = result.rows[0]?.balance;
-    return typeof balance === 'string' ? Number.parseInt(balance, 10) : balance || 0;
+    const row = result.rows[0];
+    if (!row) {
+      const now = new Date();
+      return {
+        userId,
+        dailyFreeBalance: config.dailyFreeCredits,
+        topupBalance: 0,
+        dailyFreeQuota: config.dailyFreeCredits,
+        totalAvailableBalance: config.dailyFreeCredits,
+        dailyFreeGrantedAt: now.toISOString(),
+        dailyFreeExpiresAt: startOfNextShanghaiDayIso(now),
+        status: 'active',
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      };
+    }
+    return mapCreditAccountRow(row);
+  }
+
+  async getCreditBalance(userId: string): Promise<number> {
+    const account = await this.getCreditAccount(userId);
+    return account.totalAvailableBalance;
   }
 
   async getCreditLedger(userId: string): Promise<CreditLedgerRecord[]> {
+    await this.getCreditAccount(userId);
     const result = await this.pool.query<CreditLedgerRow>(
       `
-        select id, user_id, event_type, delta, balance_after, created_at
+        select id, user_id, bucket, direction, amount, balance_after, reference_type, reference_id, created_at
         from credit_ledger
         where user_id = $1
         order by created_at desc
@@ -934,12 +1217,281 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     return result.rows.map((row) => ({
       id: row.id,
       userId: row.user_id,
-      eventType: row.event_type as 'signup_grant',
-      delta: typeof row.delta === 'string' ? Number.parseInt(row.delta, 10) : row.delta,
-      balanceAfter:
-        typeof row.balance_after === 'string' ? Number.parseInt(row.balance_after, 10) : row.balance_after,
+      bucket: row.bucket,
+      direction: row.direction,
+      amount: parseDbNumber(row.amount),
+      balanceAfter: parseDbNumber(row.balance_after),
+      referenceType: (row.reference_type || 'manual_adjustment') as CreditLedgerRecord['referenceType'],
+      referenceId: row.reference_id || null,
+      eventType:
+        row.direction === 'topup'
+          ? 'topup'
+          : row.direction === 'consume'
+            ? 'usage_debit'
+            : row.reference_type === 'daily_reset'
+              ? 'daily_reset'
+              : 'credit_ledger',
+      delta: parseDbNumber(row.amount),
       createdAt: row.created_at.toISOString(),
     }));
+  }
+
+  async createPaymentOrder(
+    userId: string,
+    input: Required<CreatePaymentOrderInput> & {packageName: string; credits: number; bonusCredits: number; amountCnyFen: number},
+  ): Promise<PaymentOrderRecord> {
+    const now = new Date();
+    const orderId = randomUUID();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    await this.pool.query(
+      `
+        insert into payment_orders (
+          id,
+          user_id,
+          provider,
+          package_id,
+          package_name,
+          credits,
+          bonus_credits,
+          amount_cny_fen,
+          currency,
+          status,
+          payment_url,
+          expired_at,
+          metadata,
+          created_at,
+          updated_at
+        )
+        values ($1, $2, $3, $4, $5, $6, $7, $8, 'cny', 'pending', $9, $10, $11::jsonb, $12, $12)
+      `,
+      [
+        orderId,
+        userId,
+        input.provider,
+        input.package_id,
+        input.packageName,
+        input.credits,
+        input.bonusCredits,
+        input.amountCnyFen,
+        buildPlaceholderPaymentUrl({
+          provider: input.provider as PaymentProvider,
+          orderId,
+          packageName: input.packageName,
+          amountCnyFen: input.amountCnyFen,
+          expiresAt: expiresAt.toISOString(),
+        }),
+        expiresAt,
+        JSON.stringify({return_url: input.return_url || ''}),
+        now,
+      ],
+    );
+    return (await this.getPaymentOrderById(userId, orderId)) as PaymentOrderRecord;
+  }
+
+  async getPaymentOrderById(userId: string, orderId: string): Promise<PaymentOrderRecord | null> {
+    let result = await this.pool.query<PaymentOrderRow>(
+      `
+        select
+          id,
+          user_id,
+          provider,
+          package_id,
+          package_name,
+          credits,
+          bonus_credits,
+          amount_cny_fen,
+          currency,
+          status,
+          provider_order_id,
+          provider_prepay_id,
+          payment_url,
+          paid_at,
+          expired_at,
+          created_at,
+          updated_at
+        from payment_orders
+        where id = $1 and user_id = $2
+        limit 1
+      `,
+      [orderId, userId],
+    );
+    const row = result.rows[0];
+    if (!row) {
+      return null;
+    }
+    if (row.status === 'pending' && row.expired_at && row.expired_at.getTime() <= Date.now()) {
+      result = await this.pool.query<PaymentOrderRow>(
+        `
+          update payment_orders
+          set status = 'expired', updated_at = now()
+          where id = $1 and user_id = $2 and status = 'pending'
+          returning
+            id,
+            user_id,
+            provider,
+            package_id,
+            package_name,
+            credits,
+            bonus_credits,
+            amount_cny_fen,
+            currency,
+            status,
+            provider_order_id,
+            provider_prepay_id,
+            payment_url,
+            paid_at,
+            expired_at,
+            created_at,
+            updated_at
+        `,
+        [orderId, userId],
+      );
+    }
+    return result.rows[0] ? mapPaymentOrderRow(result.rows[0]) : null;
+  }
+
+  async applyPaymentWebhook(provider: PaymentProvider, input: Required<PaymentWebhookInput>): Promise<PaymentOrderRecord | null> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+      const existingWebhook = await client.query<{event_id: string}>(
+        `select event_id from payment_webhook_events where provider = $1 and event_id = $2 limit 1`,
+        [provider, input.event_id],
+      );
+      const orderResult = await client.query<PaymentOrderRow>(
+        `
+          select
+            id,
+            user_id,
+            provider,
+            package_id,
+            package_name,
+            credits,
+            bonus_credits,
+            amount_cny_fen,
+            currency,
+            status,
+            provider_order_id,
+            provider_prepay_id,
+            payment_url,
+            paid_at,
+            expired_at,
+            created_at,
+            updated_at
+          from payment_orders
+          where id = $1 and provider = $2
+          limit 1
+          for update
+        `,
+        [input.order_id, provider],
+      );
+      const orderRow = orderResult.rows[0];
+      if (!orderRow) {
+        await client.query('rollback');
+        return null;
+      }
+      if (existingWebhook.rows[0]) {
+        await client.query('commit');
+        return mapPaymentOrderRow(orderRow);
+      }
+      await client.query(
+        `
+          insert into payment_webhook_events (id, provider, event_id, event_type, order_id, payload, processed_at, process_status, created_at)
+          values ($1, $2, $3, $4, $5, $6::jsonb, now(), 'processed', now())
+        `,
+        [randomUUID(), provider, input.event_id, input.status, input.order_id, JSON.stringify(input)],
+      );
+      if (orderRow.status !== 'paid' && input.status === 'paid') {
+        const creditTotal = parseDbNumber(orderRow.credits) + parseDbNumber(orderRow.bonus_credits);
+        await client.query(
+          `
+            update payment_orders
+            set
+              status = 'paid',
+              provider_order_id = nullif($2, ''),
+              paid_at = coalesce($3::timestamptz, now()),
+              updated_at = now()
+            where id = $1
+          `,
+          [orderRow.id, input.provider_order_id, input.paid_at || null],
+        );
+        const account = await this.lockAndReadAccount(client, orderRow.user_id);
+        const nextTopup = account.topupBalance + creditTotal;
+        await client.query(
+          `
+            update credit_accounts
+            set topup_balance = $2, updated_at = now()
+            where user_id = $1
+          `,
+          [orderRow.user_id, nextTopup],
+        );
+        await client.query(
+          `
+            insert into credit_ledger (
+              id,
+              user_id,
+              bucket,
+              direction,
+              amount,
+              balance_after,
+              reference_type,
+              reference_id,
+              created_at
+            )
+            values ($1, $2, 'topup', 'topup', $3, $4, 'topup_order', $5, now())
+          `,
+          [randomUUID(), orderRow.user_id, creditTotal, nextTopup, orderRow.id],
+        );
+      } else if (
+        orderRow.status !== 'paid' &&
+        (input.status === 'failed' || input.status === 'expired' || input.status === 'refunded' || input.status === 'pending')
+      ) {
+        await client.query(
+          `
+            update payment_orders
+            set
+              status = $2,
+              provider_order_id = coalesce(nullif($3, ''), provider_order_id),
+              updated_at = now()
+            where id = $1
+          `,
+          [orderRow.id, input.status, input.provider_order_id],
+        );
+      }
+      await client.query('commit');
+    } catch (error) {
+      await client.query('rollback');
+      throw error;
+    } finally {
+      client.release();
+    }
+    const result = await this.pool.query<PaymentOrderRow>(
+      `
+        select
+          id,
+          user_id,
+          provider,
+          package_id,
+          package_name,
+          credits,
+          bonus_credits,
+          amount_cny_fen,
+          currency,
+          status,
+          provider_order_id,
+          provider_prepay_id,
+          payment_url,
+          paid_at,
+          expired_at,
+          created_at,
+          updated_at
+        from payment_orders
+        where id = $1
+        limit 1
+      `,
+      [input.order_id],
+    );
+    return result.rows[0] ? mapPaymentOrderRow(result.rows[0]) : null;
   }
 
   async getRunGrantById(grantId: string): Promise<RunGrantRecord | null> {
@@ -1075,7 +1627,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         [input.event_id],
       );
       if (existing.rows[0]) {
-        const balance = await this.lockAndReadBalance(client, userId);
+        const balance = await this.lockAndReadAccount(client, userId);
         await client.query('commit');
         const row = existing.rows[0];
         const settledAt = row.created_at?.toISOString() || new Date().toISOString();
@@ -1084,6 +1636,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         return {
           accepted: true,
           balanceAfter: balance,
+          debits: [],
           summary: persistedSummary || {
             grantId: input.grant_id,
             eventId: row.event_id,
@@ -1092,17 +1645,24 @@ export class PgControlPlaneStore implements ControlPlaneStore {
             status: 'settled',
             inputTokens: row.input_tokens || 0,
             outputTokens: row.output_tokens || 0,
-            creditCost: typeof row.credit_cost === 'string' ? Number.parseInt(row.credit_cost, 10) : row.credit_cost || 0,
+            creditCost: parseDbNumber(row.credit_cost),
             provider: row.provider || null,
             model: row.model || null,
-            balanceAfter: balance,
+            balanceAfter: balance.totalAvailableBalance,
             settledAt,
           },
         };
       }
 
-      const balance = await this.lockAndReadBalance(client, userId);
-      const nextBalance = balance - input.credit_cost;
+      const balance = await this.lockAndReadAccount(client, userId);
+      const dailyDebit = Math.min(balance.dailyFreeBalance, input.credit_cost);
+      const topupDebit = input.credit_cost - dailyDebit;
+      if (topupDebit > balance.topupBalance) {
+        throw new Error('INSUFFICIENT_CREDITS');
+      }
+      const nextDailyFreeBalance = balance.dailyFreeBalance - dailyDebit;
+      const nextTopupBalance = balance.topupBalance - topupDebit;
+      const nextBalance = nextDailyFreeBalance + nextTopupBalance;
       const settledAt = new Date().toISOString();
       const summary: RunBillingSummaryRecord = {
         grantId: input.grant_id,
@@ -1149,39 +1709,82 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       );
 
       await client.query(
-        `update credit_accounts set balance = $2, updated_at = now() where user_id = $1`,
-        [userId, nextBalance],
-      );
-      await client.query(
         `
-          insert into credit_ledger (
-            id,
-            user_id,
-            event_type,
-            delta,
-            balance_after,
-            reference_type,
-            reference_id,
-            metadata,
-            created_at
-          )
-          values ($1, $2, 'usage_debit', $3, $4, 'usage_event', $5, $6::jsonb, now())
+          update credit_accounts
+          set
+            daily_free_balance = $2,
+            topup_balance = $3,
+            updated_at = now()
+          where user_id = $1
         `,
-        [
-          randomUUID(),
-          userId,
-          -input.credit_cost,
-          nextBalance,
-          input.event_id,
-          JSON.stringify({
-            grant_id: input.grant_id,
-            input_tokens: input.input_tokens,
-            output_tokens: input.output_tokens,
-            provider: input.provider,
-            model: input.model,
-          }),
-        ],
+        [userId, nextDailyFreeBalance, nextTopupBalance],
       );
+      if (dailyDebit > 0) {
+        await client.query(
+          `
+            insert into credit_ledger (
+              id,
+              user_id,
+              bucket,
+              direction,
+              amount,
+              balance_after,
+              reference_type,
+              reference_id,
+              metadata,
+              created_at
+            )
+            values ($1, $2, 'daily_free', 'consume', $3, $4, 'chat_run', $5, $6::jsonb, now())
+          `,
+          [
+            randomUUID(),
+            userId,
+            -dailyDebit,
+            nextDailyFreeBalance,
+            input.event_id,
+            JSON.stringify({
+              grant_id: input.grant_id,
+              input_tokens: input.input_tokens,
+              output_tokens: input.output_tokens,
+              provider: input.provider,
+              model: input.model,
+            }),
+          ],
+        );
+      }
+      if (topupDebit > 0) {
+        await client.query(
+          `
+            insert into credit_ledger (
+              id,
+              user_id,
+              bucket,
+              direction,
+              amount,
+              balance_after,
+              reference_type,
+              reference_id,
+              metadata,
+              created_at
+            )
+            values ($1, $2, 'topup', 'consume', $3, $4, 'chat_run', $5, $6::jsonb, now())
+          `,
+          [
+            randomUUID(),
+            userId,
+            -topupDebit,
+            nextTopupBalance,
+            input.event_id,
+            JSON.stringify({
+              grant_id: input.grant_id,
+              input_tokens: input.input_tokens,
+              output_tokens: input.output_tokens,
+              provider: input.provider,
+              model: input.model,
+            }),
+          ],
+        );
+      }
 
       await client.query(
         `
@@ -1217,7 +1820,17 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       await client.query('commit');
       return {
         accepted: true,
-        balanceAfter: nextBalance,
+        balanceAfter: {
+          ...balance,
+          dailyFreeBalance: nextDailyFreeBalance,
+          topupBalance: nextTopupBalance,
+          totalAvailableBalance: nextBalance,
+          updatedAt: settledAt,
+        },
+        debits: [
+          ...(dailyDebit > 0 ? [{bucket: 'daily_free' as const, amount: dailyDebit}] : []),
+          ...(topupDebit > 0 ? [{bucket: 'topup' as const, amount: topupDebit}] : []),
+        ],
         summary,
       };
     } catch (error) {
@@ -1278,14 +1891,15 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           category,
           publisher,
           featured,
-          official,
-          tags,
-          capabilities,
-          use_cases,
-          sort_order,
-          active,
-          created_at,
-          updated_at
+        official,
+        tags,
+        capabilities,
+        use_cases,
+        metadata_json,
+        sort_order,
+        active,
+        created_at,
+        updated_at
         from agent_catalog_entries
         where active = true
         order by sort_order asc, name asc
@@ -1304,14 +1918,15 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           category,
           publisher,
           featured,
-          official,
-          tags,
-          capabilities,
-          use_cases,
-          sort_order,
-          active,
-          created_at,
-          updated_at
+        official,
+        tags,
+        capabilities,
+        use_cases,
+        metadata_json,
+        sort_order,
+        active,
+        created_at,
+        updated_at
         from agent_catalog_entries
         where slug = $1
         limit 1
@@ -1321,7 +1936,9 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     return result.rows[0] ? mapAgentCatalogRow(result.rows[0]) : null;
   }
 
-  async listSkillCatalog(): Promise<SkillCatalogEntryRecord[]> {
+  async listSkillCatalog(limit?: number, offset?: number): Promise<SkillCatalogEntryRecord[]> {
+    const values: unknown[] = [];
+    const paginationSql = this.buildSkillCatalogPaginationClause(values, limit, offset);
     return this.listSkillCatalogEntries(`
       select
         slug,
@@ -1334,16 +1951,56 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         publisher,
         distribution,
         tags,
+        version,
+        artifact_format,
+        artifact_url,
+        artifact_sha256,
+        artifact_source_path,
+        origin_type,
+        source_url,
+        metadata_json,
         active,
         created_at,
         updated_at
       from skill_catalog_entries
       where distribution = 'cloud' and active = true
-      order by name asc
-    `);
+      order by
+        greatest(
+          coalesce(case when metadata_json ->> 'downloads' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json ->> 'downloads')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json ->> 'download_count' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json ->> 'download_count')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json ->> 'downloadCount' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json ->> 'downloadCount')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json ->> 'install_count' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json ->> 'install_count')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json ->> 'installCount' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json ->> 'installCount')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json ->> 'installs' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json ->> 'installs')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json #>> '{stats,downloads}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{stats,downloads}')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json #>> '{stats,download_count}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{stats,download_count}')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json #>> '{stats,downloadCount}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{stats,downloadCount}')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json #>> '{clawhub,listing,skill,stats,downloads}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{clawhub,listing,skill,stats,downloads}')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json #>> '{clawhub,listing,skill,stats,download_count}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{clawhub,listing,skill,stats,download_count}')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json #>> '{clawhub,listing,skill,stats,downloadCount}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{clawhub,listing,skill,stats,downloadCount}')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json #>> '{clawhub,detail,skill,stats,downloads}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{clawhub,detail,skill,stats,downloads}')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json #>> '{clawhub,detail,skill,stats,download_count}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{clawhub,detail,skill,stats,download_count}')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json #>> '{clawhub,detail,skill,stats,downloadCount}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{clawhub,detail,skill,stats,downloadCount}')::numeric)::bigint end, 0)
+        ) desc,
+        name asc
+      ${paginationSql}
+    `, values);
   }
 
-  async listSkillCatalogAdmin(): Promise<SkillCatalogEntryRecord[]> {
+  async countSkillCatalog(): Promise<number> {
+    const result = await this.pool.query<{count: string}>(
+      `
+        select count(*)::text as count
+        from skill_catalog_entries
+        where distribution = 'cloud' and active = true
+      `,
+    );
+    return Number(result.rows[0]?.count || '0');
+  }
+
+  async listSkillCatalogAdmin(limit?: number, offset?: number): Promise<SkillCatalogEntryRecord[]> {
+    const values: unknown[] = [];
+    const paginationSql = this.buildSkillCatalogPaginationClause(values, limit, offset);
     return this.listSkillCatalogEntries(`
       select
         slug,
@@ -1356,12 +2013,31 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         publisher,
         distribution,
         tags,
+        version,
+        artifact_format,
+        artifact_url,
+        artifact_sha256,
+        artifact_source_path,
+        origin_type,
+        source_url,
+        metadata_json,
         active,
         created_at,
         updated_at
       from skill_catalog_entries
       order by name asc
-    `);
+      ${paginationSql}
+    `, values);
+  }
+
+  async countSkillCatalogAdmin(): Promise<number> {
+    const result = await this.pool.query<{count: string}>(
+      `
+        select count(*)::text as count
+        from skill_catalog_entries
+      `,
+    );
+    return Number(result.rows[0]?.count || '0');
   }
 
   async getSkillCatalogEntry(slug: string): Promise<SkillCatalogEntryRecord | null> {
@@ -1378,6 +2054,14 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           publisher,
           distribution,
           tags,
+          version,
+          artifact_format,
+          artifact_url,
+          artifact_sha256,
+          artifact_source_path,
+          origin_type,
+          source_url,
+          metadata_json,
           active,
           created_at,
           updated_at
@@ -1404,11 +2088,19 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           publisher,
           distribution,
           tags,
+          version,
+          artifact_format,
+          artifact_url,
+          artifact_sha256,
+          artifact_source_path,
+          origin_type,
+          source_url,
+          metadata_json,
           active,
           created_at,
           updated_at
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, now(), now())
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12, $13, $14, $15, $16, $17, $18::jsonb, $19, now(), now())
         on conflict (slug)
         do update set
           name = excluded.name,
@@ -1420,6 +2112,14 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           publisher = excluded.publisher,
           distribution = excluded.distribution,
           tags = excluded.tags,
+          version = excluded.version,
+          artifact_format = excluded.artifact_format,
+          artifact_url = excluded.artifact_url,
+          artifact_sha256 = excluded.artifact_sha256,
+          artifact_source_path = excluded.artifact_source_path,
+          origin_type = excluded.origin_type,
+          source_url = excluded.source_url,
+          metadata_json = excluded.metadata_json,
           active = excluded.active,
           updated_at = now()
       `,
@@ -1434,8 +2134,25 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         input.publisher,
         input.distribution,
         JSON.stringify(input.tags),
+        input.version,
+        input.artifact_format,
+        input.artifact_url,
+        input.artifact_sha256,
+        input.artifact_source_path,
+        input.origin_type,
+        input.source_url,
+        JSON.stringify(input.metadata),
         input.active,
       ],
+    );
+    await this.pool.query(
+      `
+        update user_skill_library
+        set installed_version = $2,
+            updated_at = now()
+        where skill_slug = $1 and source = 'cloud'
+      `,
+      [input.slug, input.version],
     );
 
     const record = await this.getSkillCatalogEntry(input.slug);
@@ -1456,28 +2173,187 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     return (result.rowCount || 0) > 0;
   }
 
-  async getSkillRelease(slug: string, version?: string): Promise<SkillReleaseRecord | null> {
-    const result = await this.pool.query<SkillReleaseRow>(
+  async listSkillSyncSources(): Promise<SkillSyncSourceRecord[]> {
+    const result = await this.pool.query<SkillSyncSourceRow>(
       `
         select
-          skill_slug,
-          version,
-          artifact_format,
-          artifact_url,
-          artifact_sha256,
-          artifact_source_path,
-          published_at,
-          created_at
-        from skill_releases
-        where skill_slug = $1
-          and status = 'published'
-          and ($2::text is null or version = $2)
-        order by published_at desc, created_at desc
+          id,
+          source_type,
+          source_key,
+          display_name,
+          source_url,
+          config_json,
+          active,
+          last_run_at,
+          created_at,
+          updated_at
+        from skill_sync_sources
+        order by display_name asc
+      `,
+    );
+    return result.rows.map(mapSkillSyncSourceRow);
+  }
+
+  async getSkillSyncSource(id: string): Promise<SkillSyncSourceRecord | null> {
+    const result = await this.pool.query<SkillSyncSourceRow>(
+      `
+        select
+          id,
+          source_type,
+          source_key,
+          display_name,
+          source_url,
+          config_json,
+          active,
+          last_run_at,
+          created_at,
+          updated_at
+        from skill_sync_sources
+        where id = $1
         limit 1
       `,
-      [slug, version || null],
+      [id],
     );
-    return result.rows[0] ? mapSkillReleaseRow(result.rows[0]) : null;
+    return result.rows[0] ? mapSkillSyncSourceRow(result.rows[0]) : null;
+  }
+
+  async upsertSkillSyncSource(input: Required<UpsertSkillSyncSourceInput>): Promise<SkillSyncSourceRecord> {
+    const result = await this.pool.query<SkillSyncSourceRow>(
+      `
+        insert into skill_sync_sources (
+          id,
+          source_type,
+          source_key,
+          display_name,
+          source_url,
+          config_json,
+          active,
+          created_at,
+          updated_at
+        )
+        values ($1, $2, $3, $4, $5, $6::jsonb, $7, now(), now())
+        on conflict (id)
+        do update set
+          source_type = excluded.source_type,
+          source_key = excluded.source_key,
+          display_name = excluded.display_name,
+          source_url = excluded.source_url,
+          config_json = excluded.config_json,
+          active = excluded.active,
+          updated_at = now()
+        returning
+          id,
+          source_type,
+          source_key,
+          display_name,
+          source_url,
+          config_json,
+          active,
+          last_run_at,
+          created_at,
+          updated_at
+      `,
+      [input.id, input.source_type, input.source_key, input.display_name, input.source_url, JSON.stringify(input.config), input.active],
+    );
+    return mapSkillSyncSourceRow(result.rows[0]);
+  }
+
+  async deleteSkillSyncSource(id: string): Promise<boolean> {
+    const result = await this.pool.query(
+      `
+        delete from skill_sync_sources
+        where id = $1
+      `,
+      [id],
+    );
+    return (result.rowCount || 0) > 0;
+  }
+
+  async listSkillSyncRuns(limit = 20): Promise<SkillSyncRunRecord[]> {
+    const result = await this.pool.query<SkillSyncRunRow>(
+      `
+        select
+          id,
+          source_id,
+          source_key,
+          source_type,
+          display_name,
+          status,
+          summary_json,
+          items_json,
+          started_at,
+          finished_at
+        from skill_sync_runs
+        order by started_at desc
+        limit $1
+      `,
+      [limit],
+    );
+    return result.rows.map(mapSkillSyncRunRow);
+  }
+
+  async createSkillSyncRun(input: {
+    sourceId: string;
+    sourceKey: string;
+    sourceType: SkillSyncSourceRecord['sourceType'];
+    displayName: string;
+    status: SkillSyncRunRecord['status'];
+    summary: Record<string, unknown>;
+    items: SkillSyncRunRecord['items'];
+    startedAt: string;
+    finishedAt?: string | null;
+  }): Promise<SkillSyncRunRecord> {
+    const id = randomUUID();
+    const result = await this.pool.query<SkillSyncRunRow>(
+      `
+        insert into skill_sync_runs (
+          id,
+          source_id,
+          source_key,
+          source_type,
+          display_name,
+          status,
+          summary_json,
+          items_json,
+          started_at,
+          finished_at
+        )
+        values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::timestamptz, $10::timestamptz)
+        returning
+          id,
+          source_id,
+          source_key,
+          source_type,
+          display_name,
+          status,
+          summary_json,
+          items_json,
+          started_at,
+          finished_at
+      `,
+      [
+        id,
+        input.sourceId,
+        input.sourceKey,
+        input.sourceType,
+        input.displayName,
+        input.status,
+        JSON.stringify(input.summary),
+        JSON.stringify(input.items.map((item) => ({...item, source_url: item.sourceUrl}))),
+        input.startedAt,
+        input.finishedAt || null,
+      ],
+    );
+    await this.pool.query(
+      `
+        update skill_sync_sources
+        set last_run_at = $2::timestamptz,
+            updated_at = now()
+        where id = $1
+      `,
+      [input.sourceId, input.finishedAt || input.startedAt],
+    );
+    return mapSkillSyncRunRow(result.rows[0]);
   }
 
   async listUserPrivateSkills(userId: string): Promise<UserPrivateSkillRecord[]> {
@@ -1752,35 +2628,20 @@ export class PgControlPlaneStore implements ControlPlaneStore {
 
   private async listSkillCatalogEntries(query: string, values: unknown[] = []): Promise<SkillCatalogEntryRecord[]> {
     const catalogResult = await this.pool.query<SkillCatalogRow>(query, values);
+    return catalogResult.rows.map(mapSkillCatalogRow);
+  }
 
-    const releasesResult = await this.pool.query<SkillReleaseRow>(
-      `
-        select distinct on (skill_slug)
-          skill_slug,
-          version,
-          artifact_format,
-          artifact_url,
-          artifact_sha256,
-          artifact_source_path,
-          published_at,
-          created_at
-        from skill_releases
-        where status = 'published'
-        order by skill_slug, published_at desc, created_at desc
-      `,
-    );
-
-    const latestReleaseBySlug = new Map(
-      releasesResult.rows.map((row) => [row.skill_slug, mapSkillReleaseRow(row)]),
-    );
-
-    return catalogResult.rows.map((row) => {
-      const base = mapSkillCatalogRow(row);
-      return {
-        ...base,
-        latestRelease: latestReleaseBySlug.get(base.slug) || null,
-      };
-    });
+  private buildSkillCatalogPaginationClause(values: unknown[], limit?: number, offset?: number): string {
+    const clauses: string[] = [];
+    if (typeof limit === 'number' && Number.isFinite(limit) && limit > 0) {
+      values.push(Math.floor(limit));
+      clauses.push(`limit $${values.length}`);
+    }
+    if (typeof offset === 'number' && Number.isFinite(offset) && offset > 0) {
+      values.push(Math.floor(offset));
+      clauses.push(`offset $${values.length}`);
+    }
+    return clauses.length ? `\n${clauses.join('\n')}` : '';
   }
 
   private async insertSession(
@@ -1861,12 +2722,60 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     return result.rows[0] ? mapSessionRow(result.rows[0]) : null;
   }
 
-  private async lockAndReadBalance(client: PoolClient, userId: string): Promise<number> {
-    const result = await client.query<{balance: string | number}>(
-      `select balance from credit_accounts where user_id = $1 for update`,
+  private async lockAndReadAccount(client: PoolClient, userId: string): Promise<CreditAccountRecord> {
+    const result = await client.query<CreditAccountRow>(
+      `
+        select
+          user_id,
+          daily_free_balance,
+          topup_balance,
+          daily_free_granted_at,
+          daily_free_expires_at,
+          updated_at
+        from credit_accounts
+        where user_id = $1
+        for update
+      `,
       [userId],
     );
-    const balance = result.rows[0]?.balance;
-    return typeof balance === 'string' ? Number.parseInt(balance, 10) : balance || 0;
+    const row = result.rows[0];
+    if (!row) {
+      throw new Error('CREDIT_ACCOUNT_NOT_FOUND');
+    }
+    if (new Date(row.daily_free_expires_at).getTime() > Date.now()) {
+      return mapCreditAccountRow(row);
+    }
+    const now = new Date();
+    const refreshed = await client.query<CreditAccountRow>(
+      `
+        update credit_accounts
+        set
+          daily_free_balance = $2,
+          daily_free_granted_at = $3,
+          daily_free_expires_at = $4,
+          updated_at = $3
+        where user_id = $1
+        returning user_id, daily_free_balance, topup_balance, daily_free_granted_at, daily_free_expires_at, updated_at
+      `,
+      [userId, config.dailyFreeCredits, now, startOfNextShanghaiDayIso(now)],
+    );
+    await client.query(
+      `
+        insert into credit_ledger (
+          id,
+          user_id,
+          bucket,
+          direction,
+          amount,
+          balance_after,
+          reference_type,
+          reference_id,
+          created_at
+        )
+        values ($1, $2, 'daily_free', 'grant', $3, $3, 'daily_reset', $4, $5)
+      `,
+      [randomUUID(), userId, config.dailyFreeCredits, now.toISOString(), now],
+    );
+    return mapCreditAccountRow(refreshed.rows[0] || row);
   }
 }

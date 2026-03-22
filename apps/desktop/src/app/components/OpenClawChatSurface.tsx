@@ -28,9 +28,10 @@ import {
   resolveUserAvatarUrl,
   type AppUserAvatarSource,
 } from '../lib/user-avatar';
+import { loadSkillStoreCatalog } from '@/app/lib/skill-store';
 import {
+  isInvestmentExpertAgent,
   loadLobsterAgents,
-  type LobsterAgent,
 } from '../lib/lobster-store';
 import {
   inferRecentTaskArtifactsFromText,
@@ -40,6 +41,8 @@ import {
 } from '../lib/recent-tasks';
 import {
   RichChatComposer,
+  type ComposerAgentOption,
+  type ComposerSkillOption,
   type ComposerDraftPayload,
   type ComposerSendPayload,
   type OpenClawImageAttachment,
@@ -116,6 +119,8 @@ type OpenClawChatSurfaceProps = {
   sessionKey?: string;
   initialPrompt?: string | null;
   initialPromptKey?: string | null;
+  initialAgentSlug?: string | null;
+  initialSkillSlug?: string | null;
   focusTaskId?: string | null;
   focusTaskPrompt?: string | null;
   shellAuthenticated?: boolean;
@@ -176,6 +181,35 @@ type GatewayRpcFailure = {
   detailCode: string | null;
   message: string;
 };
+
+function buildSkillScopedPrompt(payload: ComposerSendPayload): string {
+  const prompt = payload.prompt.trim();
+  const controlLines = [
+    payload.selectedAgentName ? `专家：${payload.selectedAgentName}` : null,
+    payload.selectedSkillName ? `技能：${payload.selectedSkillName}` : null,
+    payload.selectedModeLabel ? `模式：${payload.selectedModeLabel}` : null,
+    payload.selectedMarketScopeLabel ? `市场范围：${payload.selectedMarketScopeLabel}` : null,
+    payload.selectedOutputLabel ? `输出：${payload.selectedOutputLabel}` : null,
+  ].filter((line): line is string => Boolean(line));
+
+  if (controlLines.length === 0) {
+    return prompt;
+  }
+
+  const instructionParts = [
+    payload.selectedAgentSystemPrompt
+      ? `你当前以「${payload.selectedAgentName || '已选专家'}」身份工作。必须遵循以下专家要求：\n${payload.selectedAgentSystemPrompt}`
+      : null,
+    payload.selectedSkillName
+      ? `请以「${payload.selectedSkillName}」这个技能的能力与工作方式优先处理下面这个任务；如果需要，请显式调用对应技能能力，不要忽略这个技能上下文。`
+      : null,
+    payload.selectedModeLabel ? `回答模式请遵循「${payload.selectedModeLabel}」。` : null,
+    payload.selectedMarketScopeLabel ? `分析范围请聚焦「${payload.selectedMarketScopeLabel}」。` : null,
+    payload.selectedOutputLabel ? `输出形式请优先按「${payload.selectedOutputLabel}」呈现。` : null,
+  ].filter((line): line is string => Boolean(line));
+
+  return `${instructionParts.join('\n')}\n\n已选控制项：${controlLines.join('｜')}\n\n用户任务：${prompt}`;
+}
 
 type SelectionMenuState = {
   x: number;
@@ -291,6 +325,15 @@ const MESSAGE_ACTION_ICONS = {
   refresh:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 2v6h-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 8a8 8 0 1 0 2 5.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 } as const;
+
+function readAgentMetadataString(metadata: Record<string, unknown> | undefined, key: string): string | null {
+  const value = metadata?.[key];
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const normalized = value.trim();
+  return normalized || null;
+}
 
 function isVisibleElement(node: Element | null): { visible: boolean; height: number } {
   if (!(node instanceof HTMLElement)) {
@@ -711,13 +754,14 @@ function deriveLatestAssistantUsageSince(
   if (!latestAssistantGroup) {
     return null;
   }
+  const assistantGroup = latestAssistantGroup as MessageGroup;
 
   let inputTokens = 0;
   let outputTokens = 0;
   let model: string | null = null;
   let hasUsage = false;
 
-  latestAssistantGroup.messages.forEach((message) => {
+  assistantGroup.messages.forEach((message: unknown) => {
     const record = message as Record<string, unknown>;
     const usage = record.usage as Record<string, unknown> | undefined;
     if (usage) {
@@ -742,7 +786,7 @@ function deriveLatestAssistantUsageSince(
     inputTokens,
     outputTokens,
     model,
-    timestamp: latestAssistantGroup.timestamp,
+    timestamp: assistantGroup.timestamp,
   };
 }
 
@@ -902,14 +946,6 @@ async function sendAuthorizedChatMessage(params: {
     });
   });
 
-  app.chatMessages = [
-    ...app.chatMessages,
-    {
-      role: 'user',
-      content: contentBlocks,
-      timestamp: startedAt,
-    },
-  ];
   app.chatMessage = '';
   app.chatAttachments = [];
   app.chatSending = true;
@@ -936,7 +972,7 @@ async function sendAuthorizedChatMessage(params: {
     await request('chat.send', {
       sessionKey,
       message,
-      deliver: false,
+      deliver: true,
       idempotencyKey: runId,
       attachments: apiAttachments.length > 0 ? apiAttachments : undefined,
     });
@@ -1087,6 +1123,8 @@ export function OpenClawChatSurface({
   sessionKey = 'main',
   initialPrompt = null,
   initialPromptKey = null,
+  initialAgentSlug = null,
+  initialSkillSlug = null,
   focusTaskId = null,
   focusTaskPrompt = null,
   shellAuthenticated = false,
@@ -1147,7 +1185,8 @@ export function OpenClawChatSurface({
     error: null,
     estimatedInputTokens: null,
   });
-  const [installedLobsterAgents, setInstalledLobsterAgents] = useState<LobsterAgent[]>([]);
+  const [installedLobsterAgents, setInstalledLobsterAgents] = useState<ComposerAgentOption[]>([]);
+  const [skillOptions, setSkillOptions] = useState<ComposerSkillOption[]>([]);
   const consumedInitialPromptKeyRef = useRef<string | null>(null);
   const statusLogRef = useRef<string | null>(null);
   const rpcLogRef = useRef<string | null>(null);
@@ -1455,6 +1494,7 @@ export function OpenClawChatSurface({
   useEffect(() => {
     if (!creditClient || !creditToken) {
       setInstalledLobsterAgents([]);
+      setSkillOptions([]);
       return;
     }
 
@@ -1463,17 +1503,58 @@ export function OpenClawChatSurface({
       client: creditClient,
       accessToken: creditToken,
     })
-      .then((agents) => {
+      .then((lobsterAgents) => {
         if (cancelled) {
           return;
         }
-        setInstalledLobsterAgents(agents.filter((agent) => agent.installed));
+
+        setInstalledLobsterAgents(
+          lobsterAgents
+            .filter((agent) => agent.installed)
+            .map((agent) => ({
+              slug: agent.slug,
+              name: agent.name,
+              avatarSrc: agent.avatarSrc,
+              installed: agent.installed,
+              systemPrompt:
+                readAgentMetadataString(agent.metadata, 'system_prompt') ||
+                (isInvestmentExpertAgent(agent) ? agent.description : null),
+            }))
+            .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN')),
+        );
       })
       .catch(() => {
         if (cancelled) {
           return;
         }
         setInstalledLobsterAgents([]);
+      });
+
+    void loadSkillStoreCatalog({
+      client: creditClient,
+      accessToken: creditToken,
+    })
+      .then((skills) => {
+        if (cancelled) {
+          return;
+        }
+        setSkillOptions(
+          skills
+            .filter((skill) => skill.enabled && (skill.installed || skill.userInstalled || skill.source === 'bundled'))
+            .map((skill) => ({
+              slug: skill.slug,
+              name: skill.name,
+              market: skill.market,
+              skillType: skill.skillType,
+              categoryLabel: skill.categoryLabel,
+            })),
+        );
+      })
+      .catch(() => {
+        if (cancelled) {
+          return;
+        }
+        setSkillOptions([]);
       });
 
     return () => {
@@ -2359,7 +2440,8 @@ export function OpenClawChatSurface({
       return false;
     }
 
-    const normalizedPrompt = payload.prompt.trim();
+    const promptToSend = buildSkillScopedPrompt(payload);
+    const normalizedPrompt = promptToSend.trim();
     if (normalizedPrompt.startsWith('/') && payload.imageAttachments.length === 0) {
       try {
         app.chatMessage = normalizedPrompt;
@@ -2399,7 +2481,7 @@ export function OpenClawChatSurface({
       const runId = createDesktopRunId();
       const startedAt = Date.now();
       const fallbackEstimatedInputTokens =
-        Math.max(0, Math.ceil(payload.prompt.trim().length * 0.75)) + payload.imageAttachments.length * 220;
+        Math.max(0, Math.ceil(normalizedPrompt.length * 0.75)) + payload.imageAttachments.length * 220;
       const runGrant = await creditClient.authorizeRun({
         token: creditToken,
         sessionKey,
@@ -2424,7 +2506,7 @@ export function OpenClawChatSurface({
       await sendAuthorizedChatMessage({
         app,
         sessionKey,
-        prompt: payload.prompt,
+        prompt: normalizedPrompt,
         imageAttachments: payload.imageAttachments,
         runId,
         startedAt,
@@ -2647,6 +2729,17 @@ export function OpenClawChatSurface({
             void handleSend({
               prompt: nextPrompt,
               imageAttachments: [],
+              selectedAgentSlug: null,
+              selectedAgentName: null,
+              selectedAgentSystemPrompt: null,
+              selectedSkillSlug: null,
+              selectedSkillName: null,
+              selectedMode: null,
+              selectedModeLabel: null,
+              selectedMarketScope: null,
+              selectedMarketScopeLabel: null,
+              selectedOutput: null,
+              selectedOutputLabel: null,
             });
           }
         });
@@ -2842,6 +2935,9 @@ export function OpenClawChatSurface({
               busy={status.busy}
               sessionTransitioning={shellTransitioning}
               lobsterAgents={installedLobsterAgents}
+              skillOptions={skillOptions}
+              initialSelectedAgentSlug={initialAgentSlug}
+              initialSelectedSkillSlug={initialSkillSlug}
               modelOptions={modelOptions}
               selectedModelId={selectedModelId}
               modelsLoading={modelsLoading}
