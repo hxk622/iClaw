@@ -1,12 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Clock3, FileText, Globe, MoreHorizontal, PencilLine, Pin, Presentation, Table2, Trash2, X } from 'lucide-react';
+import { Clock3, MessageSquareText, MoreHorizontal, PencilLine, Pin, Trash2, X } from 'lucide-react';
 import { Button } from '@/app/components/ui/Button';
-import { Chip } from '@/app/components/ui/Chip';
 import { cn } from '@/app/lib/cn';
 import {
   deleteRecentTask,
-  type RecentTaskArtifact,
-  RECENT_TASK_ARTIFACT_LABELS,
   renameRecentTask,
   type RecentTaskRecord,
   formatRecentTaskRelativeTime,
@@ -19,28 +16,20 @@ const SIDEBAR_TASK_LIMIT = 5;
 
 const statusConfig: Record<
   RecentTaskRecord['status'],
-  { label: string; tone: 'brand' | 'success' | 'danger' }
+  { label: string; dotClassName: string }
 > = {
   running: {
     label: '进行中',
-    tone: 'brand',
+    dotClassName: 'bg-[var(--brand-primary)]',
   },
   completed: {
     label: '已完成',
-    tone: 'success',
+    dotClassName: 'bg-emerald-500 dark:bg-emerald-400',
   },
   failed: {
     label: '失败',
-    tone: 'danger',
+    dotClassName: 'bg-[var(--state-error)]',
   },
-};
-
-const artifactIconMap: Record<RecentTaskArtifact, typeof FileText> = {
-  report: FileText,
-  ppt: Presentation,
-  webpage: Globe,
-  pdf: FileText,
-  sheet: Table2,
 };
 
 interface RecentTasksListProps {
@@ -167,8 +156,8 @@ export function RecentTasksList({
     <>
       <div className="mb-4">
         <div className="mb-2 flex items-center justify-between px-3">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-[var(--text-muted)]">历史任务</span>
+          <div className="flex h-7 items-center gap-2">
+            <span className="text-xs leading-none text-[var(--text-muted)]">历史任务</span>
             <span className="rounded-full border border-[var(--border-default)] bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[10px] text-[var(--text-secondary)]">
               {Math.min(visibleTasks.length, SIDEBAR_TASK_LIMIT)}
             </span>
@@ -177,7 +166,7 @@ export function RecentTasksList({
             type="button"
             onClick={onOpenAll}
             className={cn(
-              'cursor-pointer rounded-full px-2 py-1 text-[11px] text-[var(--text-muted)]',
+              'h-7 cursor-pointer rounded-full px-2 text-[11px] leading-none text-[var(--text-muted)]',
               'transition-[transform,color,background-color] duration-[var(--motion-panel)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
               SPRING_PRESSABLE,
               INTERACTIVE_FOCUS_RING,
@@ -203,11 +192,12 @@ export function RecentTasksList({
             </button>
           </div>
         ) : (
-          <div className="space-y-2 px-2">
+          <div className="space-y-1 px-2">
             {visibleTasks.map((task) => {
               const isSelected = task.id === selectedTaskId;
               const isMenuOpen = task.id === activeMenuTaskId;
               const isPinned = Boolean(task.pinnedAt);
+              const status = statusConfig[task.status];
 
               return (
                 <div key={task.id} className={cn('group relative', isMenuOpen ? 'z-20' : '')}>
@@ -215,64 +205,41 @@ export function RecentTasksList({
                     type="button"
                     onClick={() => onSelectTask?.(task.id)}
                     className={cn(
-                      'relative w-full cursor-pointer overflow-hidden rounded-[18px] border p-3 pr-12 text-left',
-                      'shadow-[0_8px_20px_rgba(15,23,42,0.05)] dark:shadow-[0_12px_24px_rgba(0,0,0,0.18)]',
+                      'relative flex w-full cursor-pointer items-center gap-3 rounded-[16px] px-3 py-2.5 pr-11 text-left',
+                      'transition-[background-color,border-color,color] duration-[var(--motion-panel)]',
                       SPRING_PRESSABLE,
                       INTERACTIVE_FOCUS_RING,
                       isSelected
-                        ? 'border-[var(--border-strong)] bg-[var(--bg-hover)]'
-                        : 'border-[var(--border-default)] bg-[var(--bg-card)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)]',
+                        ? 'bg-[var(--bg-hover)]'
+                        : 'bg-transparent hover:bg-[var(--bg-hover)]',
                     )}
                   >
-                    {task.artifacts.length > 0 ? (
-                      <div className="absolute bottom-0 left-0 top-0 w-1 rounded-l-[18px] bg-[linear-gradient(180deg,var(--brand-primary),rgba(168,140,93,0.08))] dark:bg-[linear-gradient(180deg,var(--brand-primary),rgba(180,154,112,0.18))]" />
-                    ) : null}
+                    <span
+                      className={cn(
+                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-[var(--text-secondary)]',
+                        isSelected
+                          ? 'border-[rgba(168,140,93,0.20)] bg-[rgba(168,140,93,0.12)] text-[var(--brand-primary)]'
+                          : 'border-[var(--border-default)] bg-[var(--bg-card)]',
+                      )}
+                    >
+                      <MessageSquareText className="h-4 w-4" />
+                    </span>
 
-                    <div className="flex items-start gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start gap-2">
-                          <div className="line-clamp-2 flex-1 text-[12px] font-medium leading-5 text-[var(--text-primary)]">
-                            {task.title}
-                          </div>
-                          <Chip tone={statusConfig[task.status].tone} className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium">
-                            {statusConfig[task.status].label}
-                          </Chip>
-                        </div>
-
-                        <div className="mt-2 line-clamp-2 text-[11px] leading-5 text-[var(--text-secondary)]">
-                          {task.summary}
-                        </div>
-
-                        <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px] text-[var(--text-muted)]">
-                          <span className="inline-flex items-center gap-1">
-                            <Clock3 className="h-3 w-3" />
-                            {formatRecentTaskRelativeTime(task.updatedAt)}
-                          </span>
-                          <span className="truncate">智能对话</span>
-                          {isPinned ? (
-                            <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(168,140,93,0.18)] bg-[rgba(168,140,93,0.10)] px-1.5 py-0.5 text-[var(--brand-primary)]">
-                              <Pin className="h-3 w-3" />
-                              置顶
-                            </span>
-                          ) : null}
-                        </div>
-
-                        {task.artifacts.length > 0 ? (
-                          <div className="mt-2 flex flex-wrap gap-1.5">
-                            {task.artifacts.slice(0, 2).map((artifact) => {
-                              const Icon = artifactIconMap[artifact];
-                              return (
-                                <span
-                                  key={artifact}
-                                  className="inline-flex items-center gap-1 rounded-full border border-[var(--border-default)] bg-[var(--bg-elevated)] px-1.5 py-1 text-[10px] text-[var(--text-secondary)]"
-                                >
-                                  <Icon className="h-3 w-3" />
-                                  {RECENT_TASK_ARTIFACT_LABELS[artifact]}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        ) : null}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', status.dotClassName)} />
+                        <span className="truncate text-[13px] font-medium text-[var(--text-primary)]">
+                          {task.title}
+                        </span>
+                        {isPinned ? <Pin className="h-3.5 w-3.5 shrink-0 text-[var(--brand-primary)]" /> : null}
+                      </div>
+                      <div className="mt-1 flex items-center gap-2 text-[11px] text-[var(--text-muted)]">
+                        <span className="truncate">{status.label}</span>
+                        <span className="h-1 w-1 rounded-full bg-[var(--text-muted)]/40" />
+                        <span className="inline-flex items-center gap-1 truncate">
+                          <Clock3 className="h-3 w-3 shrink-0" />
+                          {formatRecentTaskRelativeTime(task.updatedAt)}
+                        </span>
                       </div>
                     </div>
                   </button>
@@ -292,12 +259,11 @@ export function RecentTasksList({
                         setActiveMenuTaskId((current) => (current === task.id ? null : task.id));
                       }}
                       className={cn(
-                        'flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-transparent bg-[var(--bg-elevated)] text-[var(--text-muted)] shadow-[var(--shadow-sm)]',
+                        'flex h-7.5 w-7.5 cursor-pointer items-center justify-center rounded-full border bg-[color-mix(in_srgb,var(--bg-elevated)_92%,var(--bg-page))] text-[var(--text-muted)] shadow-none',
                         'transition-[transform,opacity,color,background-color,border-color] duration-[var(--motion-panel)]',
-                        'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
                         isMenuOpen
                           ? 'border-[var(--border-default)] opacity-100 text-[var(--text-primary)]'
-                          : 'hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
+                          : 'border-transparent opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
                         SPRING_PRESSABLE,
                         INTERACTIVE_FOCUS_RING,
                       )}

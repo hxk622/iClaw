@@ -33,6 +33,12 @@ export interface RuntimeInstallProgress {
   detail: string;
 }
 
+export interface OemRuntimeSnapshot {
+  brandId: string;
+  publishedVersion: number;
+  config: Record<string, unknown>;
+}
+
 function isTauriRuntime(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
@@ -67,4 +73,9 @@ export async function listenRuntimeInstallProgress(
   return () => {
     void unlisten();
   };
+}
+
+export async function saveOemRuntimeSnapshot(snapshot: OemRuntimeSnapshot): Promise<boolean> {
+  if (!isTauriRuntime()) return false;
+  return invoke<boolean>('save_oem_runtime_snapshot', { snapshot });
 }

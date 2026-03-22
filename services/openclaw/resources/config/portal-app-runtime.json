@@ -1,0 +1,350 @@
+{
+  "app": {
+    "appName": "iclaw",
+    "displayName": "iClaw",
+    "description": "通用 AI 工作台",
+    "status": "active",
+    "defaultLocale": "zh-CN"
+  },
+  "publishedVersion": 1,
+  "config": {
+    "oauth": {
+      "google": {
+        "clientId": "",
+        "redirectUri": ""
+      },
+      "wechat": {
+        "appId": "",
+        "redirectUri": ""
+      }
+    },
+    "theme": {
+      "dark": {
+        "primary": "#B49A70",
+        "onPrimary": "#11100F",
+        "primaryHover": "#C2AA82"
+      },
+      "light": {
+        "primary": "#A88C5D",
+        "onPrimary": "#1A1A18",
+        "primaryHover": "#8F7751"
+      }
+    },
+    "storage": {
+      "namespace": "iclaw"
+    },
+    "website": {
+      "kicker": "Official Website",
+      "homeTitle": "iClaw 官网",
+      "brandLabel": "iClaw",
+      "scrollLabel": "向下下载",
+      "topCtaLabel": "下载",
+      "heroTitlePre": "让AI真正像软件一样",
+      "downloadTitle": "下载 iClaw",
+      "heroTitleMain": "装上就能用！",
+      "heroDescription": "iClaw 面向普通用户设计。少一点配置，多一点结果。打开、提问、执行、拿答案。",
+      "metaDescription": "iClaw 官网，面向普通用户的本地 AI 客户端。"
+    },
+    "endpoints": {
+      "authBaseUrl": ""
+    },
+    "legalName": "iClaw",
+    "authService": "ai.iclaw.desktop",
+    "productName": "iClaw",
+    "controlPlane": {
+      "s3Bucket": "iclaw-files",
+      "serviceName": "iclaw-control-plane",
+      "allowedOrigins": [
+        "http://127.0.0.1:1520",
+        "http://localhost:1520",
+        "https://tauri.localhost",
+        "http://tauri.localhost",
+        "tauri://localhost"
+      ],
+      "redisKeyPrefix": "iclaw:control-plane"
+    },
+    "distribution": {
+      "home": {
+        "nginxPath": "/var/www/iclaw-home"
+      },
+      "downloads": {
+        "dev": {
+          "bucket": "iclaw-dev",
+          "publicBaseUrl": "http://127.0.0.1:9000/iclaw-dev"
+        },
+        "prod": {
+          "bucket": "iclaw-prod",
+          "publicBaseUrl": "https://iclaw.aiyuanxi.com/downloads"
+        }
+      },
+      "artifactBaseName": "iClaw"
+    },
+    "websiteTitle": "iClaw",
+    "sidebarSubtitle": "",
+    "bundleIdentifier": "ai.iclaw.desktop",
+    "runtimeDistribution": {
+      "dev": {
+        "bucket": "iclaw-dev",
+        "publicBaseUrl": "http://127.0.0.1:9000/iclaw-dev"
+      },
+      "prod": {
+        "bucket": "iclaw-prod",
+        "publicBaseUrl": "https://iclaw.aiyuanxi.com/downloads"
+      },
+      "minioPrefix": "runtime"
+    },
+    "brand_meta": {
+      "brand_id": "iclaw",
+      "tenant_key": "iclaw",
+      "display_name": "iClaw",
+      "product_name": "iClaw",
+      "legal_name": "iClaw",
+      "storage_namespace": "iclaw"
+    },
+    "assets": {
+      "appleTouchIcon": {
+        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=appleTouchIcon",
+        "content_type": "image/png",
+        "object_key": "portal-assets/iclaw/appleTouchIcon/1774191472743-a7941002-6149-4d10-b0b6-c14e82d07137.png",
+        "storage_provider": "s3",
+        "metadata": {
+          "sourceType": "preset",
+          "presetFilePath": "assets/iclaw/apple-touch-icon.png"
+        }
+      },
+      "faviconIco": {
+        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=faviconIco",
+        "content_type": "image/x-icon",
+        "object_key": "portal-assets/iclaw/faviconIco/1774191472712-dbff4d88-7ec0-43d1-980b-f7598ab935b8.ico",
+        "storage_provider": "s3",
+        "metadata": {
+          "sourceType": "preset",
+          "presetFilePath": "assets/iclaw/favicon.ico"
+        }
+      },
+      "faviconPng": {
+        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=faviconPng",
+        "content_type": "image/png",
+        "object_key": "portal-assets/iclaw/faviconPng/1774191472724-e3222d3c-840b-478d-892e-3670ac146dd0.png",
+        "storage_provider": "s3",
+        "metadata": {
+          "sourceType": "preset",
+          "presetFilePath": "assets/iclaw/favicon.png"
+        }
+      },
+      "installerHero": {
+        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=installerHero",
+        "content_type": "image/png",
+        "object_key": "portal-assets/iclaw/installerHero/1774191472751-e8651d15-d007-4362-9da1-ab869c72a905.png",
+        "storage_provider": "s3",
+        "metadata": {
+          "sourceType": "preset",
+          "presetFilePath": "assets/iclaw/installer-hero.png"
+        }
+      },
+      "tauriIcon128": {
+        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=tauriIcon128",
+        "content_type": "image/png",
+        "object_key": "portal-assets/iclaw/tauriIcon128/1774191472774-9d44658e-3634-4df5-912a-b5fb172c78ec.png",
+        "storage_provider": "s3",
+        "metadata": {
+          "sourceType": "preset",
+          "presetFilePath": "assets/iclaw/tauri-icons/128x128.png"
+        }
+      },
+      "tauriIcon1282x": {
+        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=tauriIcon1282x",
+        "content_type": "image/png",
+        "object_key": "portal-assets/iclaw/tauriIcon1282x/1774191472809-1bf688fc-6704-4fbb-840a-8b8058b8ffc4.png",
+        "storage_provider": "s3",
+        "metadata": {
+          "sourceType": "preset",
+          "presetFilePath": "assets/iclaw/tauri-icons/128x128@2x.png"
+        }
+      },
+      "tauriIcon32": {
+        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=tauriIcon32",
+        "content_type": "image/png",
+        "object_key": "portal-assets/iclaw/tauriIcon32/1774191472764-498315c0-085d-418a-a626-82bb1caa3f92.png",
+        "storage_provider": "s3",
+        "metadata": {
+          "sourceType": "preset",
+          "presetFilePath": "assets/iclaw/tauri-icons/32x32.png"
+        }
+      },
+      "tauriIconIcns": {
+        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=tauriIconIcns",
+        "content_type": "application/octet-stream",
+        "object_key": "portal-assets/iclaw/tauriIconIcns/1774191472860-5c9cec33-7617-407f-99ac-467dd9a55ffa.icns",
+        "storage_provider": "s3",
+        "metadata": {
+          "sourceType": "preset",
+          "presetFilePath": "assets/iclaw/tauri-icons/icon.icns"
+        }
+      },
+      "tauriIconIco": {
+        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=tauriIconIco",
+        "content_type": "image/x-icon",
+        "object_key": "portal-assets/iclaw/tauriIconIco/1774191472849-a3209a3c-1a3b-4253-a3b9-c58365d31b02.ico",
+        "storage_provider": "s3",
+        "metadata": {
+          "sourceType": "preset",
+          "presetFilePath": "assets/iclaw/tauri-icons/icon.ico"
+        }
+      },
+      "tauriIconPng": {
+        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=tauriIconPng",
+        "content_type": "image/png",
+        "object_key": "portal-assets/iclaw/tauriIconPng/1774191472832-b13c4327-f9d2-4af3-93f8-1d4306cc44e7.png",
+        "storage_provider": "s3",
+        "metadata": {
+          "sourceType": "preset",
+          "presetFilePath": "assets/iclaw/tauri-icons/icon.png"
+        }
+      }
+    },
+    "capabilities": {
+      "skills": [
+        "docx",
+        "xlsx",
+        "pdf",
+        "a-share-data-toolkit",
+        "us-data-toolkit",
+        "a-share-low-valuation",
+        "us-low-valuation"
+      ],
+      "mcp_servers": [
+        "browser",
+        "markitdown",
+        "tavily",
+        "serper",
+        "yahoo-finance"
+      ],
+      "menus": [
+        "workspace",
+        "skills",
+        "mcp",
+        "assets",
+        "models",
+        "settings"
+      ]
+    },
+    "skill_bindings": [
+      {
+        "skill_slug": "docx",
+        "sort_order": 10,
+        "config": {}
+      },
+      {
+        "skill_slug": "xlsx",
+        "sort_order": 20,
+        "config": {}
+      },
+      {
+        "skill_slug": "pdf",
+        "sort_order": 30,
+        "config": {}
+      },
+      {
+        "skill_slug": "a-share-data-toolkit",
+        "sort_order": 40,
+        "config": {}
+      },
+      {
+        "skill_slug": "us-data-toolkit",
+        "sort_order": 50,
+        "config": {}
+      },
+      {
+        "skill_slug": "a-share-low-valuation",
+        "sort_order": 60,
+        "config": {}
+      },
+      {
+        "skill_slug": "us-low-valuation",
+        "sort_order": 70,
+        "config": {}
+      }
+    ],
+    "mcp_bindings": [
+      {
+        "mcp_key": "browser",
+        "sort_order": 10,
+        "config": {}
+      },
+      {
+        "mcp_key": "markitdown",
+        "sort_order": 20,
+        "config": {}
+      },
+      {
+        "mcp_key": "tavily",
+        "sort_order": 30,
+        "config": {}
+      },
+      {
+        "mcp_key": "serper",
+        "sort_order": 40,
+        "config": {}
+      },
+      {
+        "mcp_key": "yahoo-finance",
+        "sort_order": 50,
+        "config": {}
+      }
+    ],
+    "menu_bindings": [
+      {
+        "menu_key": "workspace",
+        "sort_order": 10,
+        "config": {}
+      },
+      {
+        "menu_key": "skills",
+        "sort_order": 20,
+        "config": {}
+      },
+      {
+        "menu_key": "mcp",
+        "sort_order": 30,
+        "config": {}
+      },
+      {
+        "menu_key": "assets",
+        "sort_order": 40,
+        "config": {}
+      },
+      {
+        "menu_key": "models",
+        "sort_order": 50,
+        "config": {}
+      },
+      {
+        "menu_key": "settings",
+        "sort_order": 60,
+        "config": {}
+      }
+    ]
+  },
+  "syncMeta": {
+    "appName": "iclaw",
+    "syncedAt": "2026-03-22T14:58:52.034Z",
+    "copiedSkillDirs": [
+      "docx",
+      "xlsx",
+      "pdf",
+      "A股数据工具包",
+      "美股数据工具包",
+      "A股低估值股票筛选器",
+      "美股低估值股票扫描器"
+    ],
+    "skippedSkillSlugs": [],
+    "enabledMcpKeys": [
+      "browser",
+      "markitdown",
+      "tavily",
+      "serper",
+      "yahoo-finance"
+    ]
+  }
+}

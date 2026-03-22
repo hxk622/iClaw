@@ -115,6 +115,250 @@ function normalizePositiveInteger(value: unknown, field: string): number {
   return value;
 }
 
+type OemModelCatalogEntry = {
+  ref: string;
+  label: string;
+  providerId: string;
+  modelId: string;
+  api: string;
+  baseUrl: string | null;
+  useRuntimeOpenai: boolean;
+  authHeader: boolean;
+  reasoning: boolean;
+  input: string[];
+  contextWindow: number;
+  maxTokens: number;
+};
+
+const OEM_MODEL_CATALOG: OemModelCatalogEntry[] = [
+  {
+    ref: 'openai/gpt-5.4',
+    label: 'GPT 5.4',
+    providerId: 'openai',
+    modelId: 'gpt-5.4',
+    api: 'openai-completions',
+    baseUrl: null,
+    useRuntimeOpenai: true,
+    authHeader: true,
+    reasoning: true,
+    input: ['text', 'image'],
+    contextWindow: 272000,
+    maxTokens: 128000,
+  },
+  {
+    ref: 'openai/qwen3.5-plus',
+    label: 'Qwen3.5 Plus',
+    providerId: 'openai',
+    modelId: 'qwen3.5-plus',
+    api: 'openai-completions',
+    baseUrl: null,
+    useRuntimeOpenai: true,
+    authHeader: true,
+    reasoning: true,
+    input: ['text', 'image'],
+    contextWindow: 131072,
+    maxTokens: 8192,
+  },
+  {
+    ref: 'openai/qwen3-coder-plus',
+    label: 'Qwen3 Coder Plus',
+    providerId: 'openai',
+    modelId: 'qwen3-coder-plus',
+    api: 'openai-completions',
+    baseUrl: null,
+    useRuntimeOpenai: true,
+    authHeader: true,
+    reasoning: true,
+    input: ['text'],
+    contextWindow: 262144,
+    maxTokens: 8192,
+  },
+  {
+    ref: 'openai/qwen3-max',
+    label: 'Qwen3 Max',
+    providerId: 'openai',
+    modelId: 'qwen3-max',
+    api: 'openai-completions',
+    baseUrl: null,
+    useRuntimeOpenai: true,
+    authHeader: true,
+    reasoning: true,
+    input: ['text', 'image'],
+    contextWindow: 262144,
+    maxTokens: 8192,
+  },
+  {
+    ref: 'openai/MiniMax-M2.7',
+    label: 'MiniMax m2.7',
+    providerId: 'openai',
+    modelId: 'MiniMax-M2.7',
+    api: 'openai-completions',
+    baseUrl: null,
+    useRuntimeOpenai: true,
+    authHeader: true,
+    reasoning: true,
+    input: ['text'],
+    contextWindow: 200000,
+    maxTokens: 8192,
+  },
+  {
+    ref: 'openai/MiniMax-M2.5',
+    label: 'MiniMax m2.5',
+    providerId: 'openai',
+    modelId: 'MiniMax-M2.5',
+    api: 'openai-completions',
+    baseUrl: null,
+    useRuntimeOpenai: true,
+    authHeader: true,
+    reasoning: true,
+    input: ['text'],
+    contextWindow: 200000,
+    maxTokens: 8192,
+  },
+  {
+    ref: 'openai/MiniMax-M2.1',
+    label: 'MiniMax m2.1',
+    providerId: 'openai',
+    modelId: 'MiniMax-M2.1',
+    api: 'openai-completions',
+    baseUrl: null,
+    useRuntimeOpenai: true,
+    authHeader: true,
+    reasoning: true,
+    input: ['text'],
+    contextWindow: 128000,
+    maxTokens: 8192,
+  },
+  {
+    ref: 'openai/kimi-k2.5',
+    label: 'Kimi K2.5',
+    providerId: 'openai',
+    modelId: 'kimi-k2.5',
+    api: 'openai-completions',
+    baseUrl: null,
+    useRuntimeOpenai: true,
+    authHeader: true,
+    reasoning: false,
+    input: ['text', 'image'],
+    contextWindow: 256000,
+    maxTokens: 8192,
+  },
+  {
+    ref: 'openai/doubao-seed-2.0-code',
+    label: 'Doubao Seed-2.0-code',
+    providerId: 'openai',
+    modelId: 'doubao-seed-2.0-code',
+    api: 'openai-completions',
+    baseUrl: null,
+    useRuntimeOpenai: true,
+    authHeader: true,
+    reasoning: true,
+    input: ['text'],
+    contextWindow: 128000,
+    maxTokens: 8192,
+  },
+  {
+    ref: 'openai/glm-4.7',
+    label: 'GLM 4.7',
+    providerId: 'openai',
+    modelId: 'glm-4.7',
+    api: 'openai-completions',
+    baseUrl: null,
+    useRuntimeOpenai: true,
+    authHeader: true,
+    reasoning: true,
+    input: ['text'],
+    contextWindow: 204800,
+    maxTokens: 131072,
+  },
+  {
+    ref: 'openai/glm-5',
+    label: 'GLM 5',
+    providerId: 'openai',
+    modelId: 'glm-5',
+    api: 'openai-completions',
+    baseUrl: null,
+    useRuntimeOpenai: true,
+    authHeader: true,
+    reasoning: true,
+    input: ['text'],
+    contextWindow: 202752,
+    maxTokens: 16384,
+  },
+  {
+    ref: 'deepseek/deepseek-v3.2',
+    label: 'DeepSeek V3.2',
+    providerId: 'deepseek',
+    modelId: 'deepseek-v3.2',
+    api: 'openai-completions',
+    baseUrl: 'https://api.deepseek.com/v1',
+    useRuntimeOpenai: false,
+    authHeader: true,
+    reasoning: true,
+    input: ['text'],
+    contextWindow: 128000,
+    maxTokens: 8192,
+  },
+];
+
+function cloneModelCatalogEntry(entry: OemModelCatalogEntry): OemModelCatalogEntry {
+  return {
+    ...entry,
+    input: [...entry.input],
+  };
+}
+
+function getOemModelCatalog(): OemModelCatalogEntry[] {
+  return OEM_MODEL_CATALOG.map(cloneModelCatalogEntry);
+}
+
+function normalizeCapabilityModelEntries(value: unknown): OemModelCatalogEntry[] {
+  const out: OemModelCatalogEntry[] = [];
+  const seen = new Set<string>();
+  for (const item of asArray(value)) {
+    const entry = asObject(item);
+    const ref = normalizeOptionalString(entry.ref, 'capabilities.models.entries[].ref');
+    if (!ref || seen.has(ref)) {
+      continue;
+    }
+    const providerId = normalizeOptionalString(entry.providerId ?? entry.provider_id, 'provider_id');
+    const modelId = normalizeOptionalString(entry.modelId ?? entry.model_id, 'model_id');
+    const api = normalizeOptionalString(entry.api, 'api');
+    if (!providerId || !modelId || !api) {
+      continue;
+    }
+    seen.add(ref);
+    out.push({
+      ref,
+      label: normalizeOptionalString(entry.label, 'label') || modelId,
+      providerId,
+      modelId,
+      api,
+      baseUrl: normalizeOptionalString(entry.baseUrl ?? entry.base_url, 'base_url'),
+      useRuntimeOpenai:
+        entry.useRuntimeOpenai === true ||
+        entry.use_runtime_openai === true ||
+        (providerId === 'openai' && !normalizeOptionalString(entry.baseUrl ?? entry.base_url, 'base_url')),
+      authHeader: entry.authHeader !== false && entry.auth_header !== false,
+      reasoning: entry.reasoning !== false,
+      input: asStringArray(entry.input),
+      contextWindow:
+        typeof entry.contextWindow === 'number'
+          ? entry.contextWindow
+          : typeof entry.context_window === 'number'
+            ? entry.context_window
+            : 0,
+      maxTokens:
+        typeof entry.maxTokens === 'number'
+          ? entry.maxTokens
+          : typeof entry.max_tokens === 'number'
+            ? entry.max_tokens
+            : 0,
+    });
+  }
+  return out;
+}
+
 function countConfiguredSurfaces(config: Record<string, unknown>): number {
   return Object.values(asObject(config.surfaces)).filter((surface) => {
     const entry = asObject(surface);
@@ -127,13 +371,24 @@ function extractCapabilityConfig(config: Record<string, unknown>): {
   mcpServers: string[];
   agents: string[];
   menus: string[];
+  models: {
+    default: string | null;
+    recommended: string[];
+    entries: OemModelCatalogEntry[];
+  };
 } {
   const capabilities = asObject(config.capabilities);
+  const models = asObject(capabilities.models);
   return {
     skills: asStringArray(capabilities.skills),
     mcpServers: asStringArray(capabilities.mcp_servers),
     agents: asStringArray(capabilities.agents),
     menus: asStringArray(capabilities.menus),
+    models: {
+      default: normalizeOptionalString(models.default, 'capabilities.models.default'),
+      recommended: asStringArray(models.recommended),
+      entries: normalizeCapabilityModelEntries(models.entries),
+    },
   };
 }
 
@@ -330,6 +585,7 @@ function buildDefaultDraftConfig(input: {
   displayName: string;
   productName: string;
 }): Record<string, unknown> {
+  const defaultModelEntry = getOemModelCatalog().find((item) => item.ref === 'openai/gpt-5.4') || null;
   return {
     brand_id: input.brandId,
     brand_meta: {
@@ -381,6 +637,11 @@ function buildDefaultDraftConfig(input: {
       mcp_servers: [],
       agents: [],
       menus: [],
+      models: {
+        default: defaultModelEntry?.ref || null,
+        recommended: defaultModelEntry ? [defaultModelEntry.ref] : [],
+        entries: defaultModelEntry ? [defaultModelEntry] : [],
+      },
     },
     assets: {},
     distribution: {},
@@ -1052,7 +1313,7 @@ export class OemService {
         publisher: string;
         distribution: string;
         active: boolean;
-        latestRelease: string | null;
+        version: string | null;
         connectedBrands: Array<{brand_id: string; display_name: string; status: string}>;
       }
     >();
@@ -1066,7 +1327,7 @@ export class OemService {
         publisher: skill.publisher,
         distribution: skill.distribution,
         active: skill.active,
-        latestRelease: skill.latestRelease?.version || null,
+        version: skill.version || null,
         connectedBrands: [],
       });
     }
@@ -1082,7 +1343,7 @@ export class OemService {
             publisher: 'Uncatalogued',
             distribution: 'unknown',
             active: true,
-            latestRelease: null,
+            version: null,
             connectedBrands: [],
           });
         }
@@ -1147,6 +1408,17 @@ export class OemService {
         .sort(
           (left, right) =>
             right.connected_brand_count - left.connected_brand_count || left.name.localeCompare(right.name, 'zh-CN'),
+        ),
+      models: getOemModelCatalog()
+        .map((entry) => ({
+          ...entry,
+          connected_brand_count: brandAssignments.filter((brand) =>
+            brand.capabilities.models.entries.some((item) => item.ref === entry.ref),
+          ).length,
+        }))
+        .sort(
+          (left, right) =>
+            right.connected_brand_count - left.connected_brand_count || left.label.localeCompare(right.label, 'zh-CN'),
         ),
       brands: brandAssignments,
     };

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 1479",
-    "build": "vite build",
+    "build": "vite build --base=./",
     "preview": "vite preview --host 0.0.0.0 --port 1480"
   },
   "devDependencies": {

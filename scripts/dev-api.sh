@@ -12,6 +12,17 @@ EXTRA_CA_CERTS_PATH="${ICLAW_EXTRA_CA_CERTS_PATH:-$ROOT_DIR/services/openclaw/re
 OPENCLAW_VERBOSE="${ICLAW_OPENCLAW_VERBOSE:-1}"
 OPENCLAW_WS_LOG_STYLE="${ICLAW_OPENCLAW_WS_LOG:-compact}"
 OPENCLAW_RAW_STREAM="${ICLAW_OPENCLAW_RAW_STREAM:-0}"
+PORTAL_APP_NAME="${ICLAW_PORTAL_APP_NAME:-}"
+
+if [[ $# -gt 0 ]]; then
+  if [[ "${1:-}" == "--app" ]]; then
+    PORTAL_APP_NAME="${2:-}"
+    shift 2 || true
+  elif [[ "${1:-}" != --* ]]; then
+    PORTAL_APP_NAME="$1"
+    shift || true
+  fi
+fi
 
 read_env_value() {
   local key="$1"
@@ -523,6 +534,10 @@ start_openclaw_foreground() {
 ensure_sidecar_bin
 ensure_macos_runtime_frameworks
 ensure_macos_codesign_if_needed
+if [[ -n "${PORTAL_APP_NAME:-}" ]]; then
+  echo "[api-dev] 同步 portal app 本地运行资源: ${PORTAL_APP_NAME}"
+  node --experimental-strip-types "$ROOT_DIR/services/control-plane/scripts/sync-local-app-runtime.ts" --app "$PORTAL_APP_NAME"
+fi
 bash "$ROOT_DIR/scripts/prepare-openclaw-workspace.sh"
 sync_gateway_token_config
 stop_existing_api

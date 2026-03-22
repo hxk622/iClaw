@@ -5,21 +5,107 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DESKTOP_DIR="$ROOT_DIR/apps/desktop"
 OUT_DIR="$ROOT_DIR/dist/releases"
 APP_VERSION="$(node -p "require('$ROOT_DIR/package.json').version")"
+ARTIFACT_BASE_NAME="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" distribution.artifactBaseName | tail -n1)"
+HOST_PLATFORM="$(node -p "process.platform")"
 timestamp="$(date +%Y%m%d%H%M)"
 RELEASE_VERSION="${1:-${APP_VERSION}.${timestamp}}"
-
-TARGETS=(
-  "aarch64-apple-darwin"
-  "x86_64-apple-darwin"
-)
-
 CHANNELS=("dev" "prod")
+
+case "$HOST_PLATFORM" in
+  darwin)
+    TARGETS=(
+      "aarch64-apple-darwin"
+      "x86_64-apple-darwin"
+    )
+    ;;
+  win32)
+    TARGETS=(
+      "x86_64-pc-windows-msvc"
+      "aarch64-pc-windows-msvc"
+    )
+    ;;
+  *)
+    echo "Unsupported host platform: $HOST_PLATFORM (expected darwin or win32)" >&2
+    exit 1
+    ;;
+esac
+
+if [[ -n "${ICLAW_DESKTOP_TARGETS:-}" ]]; then
+  read -r -a TARGETS <<<"${ICLAW_DESKTOP_TARGETS//,/ }"
+fi
+
+if [[ -n "${ICLAW_DESKTOP_CHANNELS:-}" ]]; then
+  read -r -a CHANNELS <<<"${ICLAW_DESKTOP_CHANNELS//,/ }"
+fi
 
 mkdir -p "$OUT_DIR"
 
 product_name() {
   node -e "const fs=require('fs'); const path=require('path'); const config=JSON.parse(fs.readFileSync(path.join(process.argv[1], 'tauri.generated.conf.json'), 'utf8')); process.stdout.write(config.productName);" \
     "$DESKTOP_DIR/src-tauri"
+}
+
+host_label() {
+  case "$HOST_PLATFORM" in
+    darwin)
+      echo "macOS"
+      ;;
+    win32)
+      echo "Windows"
+      ;;
+  esac
+}
+
+arch_label_for_target() {
+  case "$1" in
+    aarch64-apple-darwin|aarch64-pc-windows-msvc)
+      echo "aarch64"
+      ;;
+    x86_64-apple-darwin|x86_64-pc-windows-msvc)
+      echo "x64"
+      ;;
+    *)
+      echo "Unsupported target architecture: $1" >&2
+      exit 1
+      ;;
+  esac
+}
+
+bundle_dir_for_target() {
+  case "$1" in
+    *-apple-darwin)
+      echo "$DESKTOP_DIR/src-tauri/target/$1/release/bundle"
+      ;;
+    *-pc-windows-msvc)
+      echo "$DESKTOP_DIR/src-tauri/target/$1/release/bundle"
+      ;;
+    *)
+      echo "Unsupported target triple: $1" >&2
+      exit 1
+      ;;
+  esac
+}
+
+find_latest_file() {
+  local dir="$1"
+  local pattern="$2"
+  find "$dir" -maxdepth 1 -type f -name "$pattern" -print | sort | tail -n 1
+}
+
+find_first_matching_file() {
+  local dir="$1"
+  shift
+
+  local pattern
+  for pattern in "$@"; do
+    local matched
+    matched="$(find_latest_file "$dir" "$pattern")"
+    if [[ -n "$matched" ]]; then
+      printf '%s\n' "$matched"
+      return 0
+    fi
+  done
+  return 1
 }
 
 build_one() {
@@ -37,11 +123,7 @@ build_one() {
     exit 1
   fi
 
-  if [[ "$target" == "aarch64-apple-darwin" ]]; then
-    arch_label="aarch64"
-  else
-    arch_label="x64"
-  fi
+  arch_label="$(arch_label_for_target "$target")"
 
   echo "==> building: target=$target channel=$channel"
 
@@ -53,31 +135,92 @@ build_one() {
     node "$ROOT_DIR/scripts/build-desktop-package.mjs" --target "$target"
   )
 
-  local dmg_dir="$DESKTOP_DIR/src-tauri/target/$target/release/bundle/dmg"
-  local current_product_name
-  current_product_name="$(product_name)"
-  local dmg_path="$dmg_dir/${current_product_name}_${APP_VERSION}_${arch_label}.dmg"
-  if [[ ! -f "$dmg_path" ]]; then
-    echo "Expected DMG not found under: $dmg_dir (appVersion=$APP_VERSION arch=$arch_label)" >&2
-    exit 1
+  local bundle_dir
+  bundle_dir="$(bundle_dir_for_target "$target")"
+
+  if [[ "$target" == *-apple-darwin ]]; then
+    local installer_dir="$bundle_dir/dmg"
+    local installer_path="$installer_dir/${ARTIFACT_BASE_NAME}_${APP_VERSION}_${arch_label}.dmg"
+    if [[ ! -f "$installer_path" ]]; then
+      echo "Expected DMG not found under: $installer_dir (artifactBaseName=$ARTIFACT_BASE_NAME appVersion=$APP_VERSION arch=$arch_label)" >&2
+      exit 1
+    fi
+
+    local installer_out="$OUT_DIR/${ARTIFACT_BASE_NAME}_${RELEASE_VERSION}_${arch_label}_${channel}.dmg"
+    cp "$installer_path" "$installer_out"
+    echo "saved: $installer_out"
+
+    local updater_dir="$bundle_dir/macos"
+    local current_product_name
+    current_product_name="$(product_name)"
+    local updater_archive="$updater_dir/${current_product_name}.app.tar.gz"
+    local updater_signature="${updater_archive}.sig"
+    if [[ -f "$updater_archive" && -f "$updater_signature" ]]; then
+      local updater_out="$OUT_DIR/${ARTIFACT_BASE_NAME}_${RELEASE_VERSION}_${arch_label}_${channel}.app.tar.gz"
+      local updater_sig_out="${updater_out}.sig"
+      cp "$updater_archive" "$updater_out"
+      cp "$updater_signature" "$updater_sig_out"
+      echo "saved: $updater_out"
+      echo "saved: $updater_sig_out"
+    fi
+    return
   fi
 
-  local out_file="$OUT_DIR/${current_product_name}_${RELEASE_VERSION}_${arch_label}_${channel}.dmg"
-  cp "$dmg_path" "$out_file"
-  echo "saved: $out_file"
+  if [[ "$target" == *-pc-windows-msvc ]]; then
+    local installer_dir="$bundle_dir/nsis"
+    local installer_path
+    if [[ "$arch_label" == "aarch64" ]]; then
+      installer_path="$(
+        find_first_matching_file \
+          "$installer_dir" \
+          "*${APP_VERSION}*aarch64*.exe" \
+          "*${APP_VERSION}*arm64*.exe"
+      )" || true
+    else
+      installer_path="$(find_first_matching_file "$installer_dir" "*${APP_VERSION}*x64*.exe")" || true
+    fi
+    if [[ -z "$installer_path" ]]; then
+      echo "Expected Windows installer not found under: $installer_dir (appVersion=$APP_VERSION arch=$arch_label)" >&2
+      exit 1
+    fi
 
-  local updater_dir="$DESKTOP_DIR/src-tauri/target/$target/release/bundle/macos"
-  local updater_archive="$updater_dir/${current_product_name}.app.tar.gz"
-  local updater_signature="${updater_archive}.sig"
-  if [[ -f "$updater_archive" && -f "$updater_signature" ]]; then
-    local updater_out_file="$OUT_DIR/${current_product_name}_${RELEASE_VERSION}_${arch_label}_${channel}.app.tar.gz"
-    local updater_sig_out_file="${updater_out_file}.sig"
-    cp "$updater_archive" "$updater_out_file"
-    cp "$updater_signature" "$updater_sig_out_file"
-    echo "saved: $updater_out_file"
-    echo "saved: $updater_sig_out_file"
+    local installer_out="$OUT_DIR/${ARTIFACT_BASE_NAME}_${RELEASE_VERSION}_${arch_label}_${channel}.exe"
+    cp "$installer_path" "$installer_out"
+    echo "saved: $installer_out"
+
+    local updater_archive
+    if [[ "$arch_label" == "aarch64" ]]; then
+      updater_archive="$(
+        find_first_matching_file \
+          "$installer_dir" \
+          "*${APP_VERSION}*aarch64*.nsis.zip" \
+          "*${APP_VERSION}*arm64*.nsis.zip"
+      )" || true
+    else
+      updater_archive="$(find_first_matching_file "$installer_dir" "*${APP_VERSION}*x64*.nsis.zip")" || true
+    fi
+    local updater_signature=""
+    if [[ -n "$updater_archive" ]]; then
+      updater_signature="${updater_archive}.sig"
+    fi
+    if [[ -n "$updater_archive" && -f "$updater_signature" ]]; then
+      local updater_out="$OUT_DIR/${ARTIFACT_BASE_NAME}_${RELEASE_VERSION}_${arch_label}_${channel}.nsis.zip"
+      local updater_sig_out="${updater_out}.sig"
+      cp "$updater_archive" "$updater_out"
+      cp "$updater_signature" "$updater_sig_out"
+      echo "saved: $updater_out"
+      echo "saved: $updater_sig_out"
+    fi
+    return
   fi
+
+  echo "Unsupported target triple: $target" >&2
+  exit 1
 }
+
+echo "Host platform: $(host_label)"
+printf 'Targets: %s\n' "${TARGETS[*]}"
+printf 'Channels: %s\n' "${CHANNELS[*]}"
 
 for target in "${TARGETS[@]}"; do
   for channel in "${CHANNELS[@]}"; do

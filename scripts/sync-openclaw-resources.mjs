@@ -7,7 +7,6 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const resourcesSrcDir = path.join(rootDir, 'services', 'openclaw', 'resources');
-const skillsSrcDir = path.join(rootDir, 'skills');
 const mcpPresetDir = path.join(rootDir, 'mcp');
 const serversSrcDir = path.join(rootDir, 'servers');
 const resourcesDstDir = path.join(rootDir, 'apps', 'desktop', 'src-tauri', 'resources');
@@ -88,12 +87,16 @@ async function main() {
     fs.mkdir(path.join(resourcesDstDir, 'servers'), { recursive: true }),
   ]);
 
-  await copyDirIfPresent(skillsSrcDir, path.join(resourcesDstDir, 'skills'));
+  await copyDirIfPresent(path.join(resourcesSrcDir, 'skills'), path.join(resourcesDstDir, 'skills'));
   await copyDirIfPresent(serversSrcDir, path.join(resourcesDstDir, 'servers'));
   await copyDirIfPresent(path.join(resourcesSrcDir, 'certs'), path.join(resourcesDstDir, 'certs'));
   await copyFileIfPresent(
     path.join(resourcesSrcDir, 'config', 'runtime-config.json'),
     path.join(resourcesDstDir, 'config', 'runtime-config.json'),
+  );
+  await copyFileIfPresent(
+    path.join(resourcesSrcDir, 'config', 'portal-app-runtime.json'),
+    path.join(resourcesDstDir, 'config', 'portal-app-runtime.json'),
   );
   await syncMcpConfig();
 

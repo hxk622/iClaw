@@ -174,6 +174,18 @@ async function main() {
     'icons-generated/icon.icns',
     'icons-generated/icon.ico',
   ];
+  const updaterPubkey = (process.env.TAURI_UPDATER_PUBLIC_KEY || '').trim();
+  if (updaterPubkey) {
+    tauriConfig.plugins = tauriConfig.plugins || {};
+    tauriConfig.plugins.updater = {
+      pubkey: updaterPubkey,
+    };
+  } else if (tauriConfig.plugins && typeof tauriConfig.plugins === 'object') {
+    delete tauriConfig.plugins.updater;
+    if (Object.keys(tauriConfig.plugins).length === 0) {
+      delete tauriConfig.plugins;
+    }
+  }
 
   await fs.writeFile(tauriGeneratedPath, `${JSON.stringify(tauriConfig, null, 2)}\n`, 'utf8');
   await fs.writeFile(

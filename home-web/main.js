@@ -34,7 +34,7 @@ function mergeRuntimeBrand(base, payload) {
   const surfaceConfig = asObject(payload.surfaceConfig);
   return {
     ...base,
-    displayName: payload.brand?.displayName || base.displayName,
+    displayName: payload.brand?.displayName || payload.app?.displayName || base.displayName,
     website: {
       ...base.website,
       ...asObject(payload.config.website),
@@ -244,7 +244,7 @@ function applyBrand(runtimeBrand) {
 async function loadPublishedConfig() {
   try {
     const response = await fetch(
-      `${CONTROL_PLANE_BASE_URL}/oem/public-config?brand_id=${encodeURIComponent(HOME_BRAND.brandId)}&surface_key=home-web`,
+      `${CONTROL_PLANE_BASE_URL}/portal/public-config?app_name=${encodeURIComponent(HOME_BRAND.brandId)}&surface_key=home-web`,
       {
         headers: {
           Accept: 'application/json',

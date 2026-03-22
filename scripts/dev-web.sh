@@ -6,6 +6,7 @@ API_PORT="${ICLAW_API_PORT:-2126}"
 AUTH_PORT="${ICLAW_CONTROL_PLANE_PORT:-2130}"
 WEB_PORT="${ICLAW_WEB_PORT:-1520}"
 WEB_HOST="${ICLAW_WEB_HOST:-127.0.0.1}"
+APP_NAME="${ICLAW_PORTAL_APP_NAME:-${ICLAW_BRAND:-${ICLAW_APP_NAME:-iclaw}}}"
 
 read_env_value() {
   local key="$1"
@@ -28,9 +29,15 @@ stop_existing_web() {
 
 stop_existing_web
 
-echo "[web-dev] Starting frontend on $WEB_HOST:$WEB_PORT"
+echo "[web-dev] Preparing OEM app resources for $APP_NAME"
 cd "$ROOT_DIR"
+node scripts/apply-brand.mjs "$APP_NAME"
+pnpm --filter @iclaw/control-plane sync:local-app-runtime -- --app "$APP_NAME"
+node scripts/sync-openclaw-resources.mjs
+
+echo "[web-dev] Starting frontend on $WEB_HOST:$WEB_PORT"
 VITE_API_BASE_URL="http://127.0.0.1:$API_PORT" \
 VITE_AUTH_BASE_URL="http://127.0.0.1:$AUTH_PORT" \
 VITE_GATEWAY_TOKEN="${VITE_GATEWAY_TOKEN:-${ENV_GATEWAY_TOKEN:-iclaw-local-dev-gateway-token}}" \
+ICLAW_PORTAL_APP_NAME="$APP_NAME" \
 pnpm --filter @iclaw/desktop dev --host "$WEB_HOST" --port "$WEB_PORT" --strictPort

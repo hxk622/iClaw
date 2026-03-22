@@ -8,6 +8,7 @@ export type HandlerContext<TBody = unknown> = {
   requestId: string;
   headers: IncomingMessage['headers'];
   url: URL;
+  params: Record<string, string>;
 };
 
 export type RawResponse = {
@@ -29,6 +30,33 @@ type Route = {
   path: string;
   handler: RouteHandler;
 };
+
+function matchRoutePath(routePath: string, requestPath: string): Record<string, string> | null {
+  if (routePath === requestPath) {
+    return {};
+  }
+
+  const routeParts = routePath.split('/').filter(Boolean);
+  const requestParts = requestPath.split('/').filter(Boolean);
+  if (routeParts.length !== requestParts.length) {
+    return null;
+  }
+
+  const params: Record<string, string> = {};
+  for (let index = 0; index < routeParts.length; index += 1) {
+    const routePart = routeParts[index] || '';
+    const requestPart = requestParts[index] || '';
+    if (routePart.startsWith(':')) {
+      params[routePart.slice(1)] = decodeURIComponent(requestPart);
+      continue;
+    }
+    if (routePart !== requestPart) {
+      return null;
+    }
+  }
+
+  return params;
+}
 
 type JsonServerOptions = {
   allowedOrigins?: string[];
@@ -149,17 +177,23 @@ export function createJsonServer(routes: Route[], options: JsonServerOptions = {
     }
 
     try {
-      const route = routes.find((item) => item.method === request.method && item.path === url.pathname);
-      if (!route) {
+      const matched = routes
+        .map((item) => ({
+          route: item,
+          params: item.method === request.method ? matchRoutePath(item.path, url.pathname) : null,
+        }))
+        .find((entry) => entry.params !== null);
+      if (!matched) {
         throw new HttpError(404, 'NOT_FOUND', 'Route not found');
       }
 
       const body = await readBody(request);
-      const data = await route.handler({
+      const data = await matched.route.handler({
         body,
         requestId,
         headers: request.headers,
         url,
+        params: matched.params || {},
       });
 
       if (isRawResponse(data)) {

@@ -54,6 +54,14 @@ struct RuntimeConfig {
     clawhub_url: Option<String>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+struct OemRuntimeSnapshot {
+    brand_id: String,
+    published_version: u64,
+    config: serde_json::Value,
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct DesktopMemoryEntry {
@@ -293,18 +301,13 @@ struct ControlPlaneEnvelope<T> {
 }
 
 #[derive(Deserialize)]
-struct ImportedSkillCatalogRelease {
+struct ImportedSkillCatalogEntry {
+    slug: String,
+    name: String,
     version: String,
     artifact_url: Option<String>,
     artifact_format: String,
     artifact_sha256: Option<String>,
-}
-
-#[derive(Deserialize)]
-struct ImportedSkillCatalogEntry {
-    slug: String,
-    name: String,
-    latest_release: Option<ImportedSkillCatalogRelease>,
 }
 
 #[derive(Serialize, Clone)]
@@ -1393,26 +1396,23 @@ fn install_imported_skill_from_catalog(
     app: &AppHandle,
     entry: ImportedSkillCatalogEntry,
 ) -> Result<ImportedSkillRecord, String> {
-    let release = entry
-        .latest_release
-        .ok_or_else(|| String::from("control-plane did not return imported skill release"))?;
-    let artifact_url = release
+    let artifact_url = entry
         .artifact_url
         .ok_or_else(|| String::from("control-plane did not return imported skill artifact url"))?;
     install_managed_skill_internal(
         app,
         ManagedSkillInstallInput {
             slug: entry.slug.clone(),
-            version: release.version.clone(),
+            version: entry.version.clone(),
             artifact_url,
-            artifact_sha256: release.artifact_sha256,
-            artifact_format: Some(release.artifact_format),
+            artifact_sha256: entry.artifact_sha256,
+            artifact_format: Some(entry.artifact_format),
             source: Some(String::from("private")),
         },
     )?;
     Ok(ImportedSkillRecord {
         slug: entry.slug,
-        version: release.version,
+        version: entry.version,
         name: entry.name,
         source: String::from("private"),
     })
@@ -2179,6 +2179,17 @@ fn runtime_config_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(base.join("config.json"))
 }
 
+fn oem_runtime_snapshot_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let path = app_data_base_dir(app)?
+        .join("config")
+        .join("oem-runtime-snapshot.json");
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("failed to create OEM runtime snapshot dir: {e}"))?;
+    }
+    Ok(path)
+}
+
 fn openclaw_state_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app_data_base_dir(app)?.join("state");
     fs::create_dir_all(&dir).map_err(|e| format!("failed to create openclaw state dir: {e}"))?;
@@ -2213,6 +2224,53 @@ fn ensure_child_object<'a>(
     ensure_object_value(value)
 }
 
+fn read_json_string(value: Option<&serde_json::Value>) -> Option<String> {
+    value.and_then(|entry| entry.as_str()).map(|raw| raw.trim().to_string())
+}
+
+fn read_json_bool(value: Option<&serde_json::Value>) -> Option<bool> {
+    value.and_then(|entry| entry.as_bool())
+}
+
+fn read_json_u64(value: Option<&serde_json::Value>) -> Option<u64> {
+    value.and_then(|entry| entry.as_u64())
+}
+
+fn read_json_string_array(value: Option<&serde_json::Value>) -> Vec<String> {
+    value
+        .and_then(|entry| entry.as_array())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.as_str())
+                .map(|item| item.trim().to_string())
+                .filter(|item| !item.is_empty())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn load_oem_runtime_snapshot_internal(app: &AppHandle) -> Result<Option<OemRuntimeSnapshot>, String> {
+    let snapshot_path = oem_runtime_snapshot_path(app)?;
+    if !snapshot_path.exists() {
+        return Ok(None);
+    }
+
+    let raw = fs::read_to_string(&snapshot_path).map_err(|e| {
+        format!(
+            "failed to read OEM runtime snapshot {}: {e}",
+            snapshot_path.to_string_lossy()
+        )
+    })?;
+    let snapshot = serde_json::from_str::<OemRuntimeSnapshot>(&raw).map_err(|e| {
+        format!(
+            "failed to parse OEM runtime snapshot {}: {e}",
+            snapshot_path.to_string_lossy()
+        )
+    })?;
+    Ok(Some(snapshot))
+}
+
 struct ManagedModelDefinition<'a> {
     id: &'a str,
     name: &'a str,
@@ -2228,6 +2286,22 @@ struct ManagedProviderDefinition {
     base_url: &'static str,
     auth_header: bool,
     models: &'static [ManagedModelDefinition<'static>],
+}
+
+#[derive(Clone)]
+struct RuntimeManagedModelEntry {
+    model_ref: String,
+    provider_id: String,
+    model_id: String,
+    label: String,
+    api: String,
+    base_url: Option<String>,
+    use_runtime_openai: bool,
+    auth_header: bool,
+    reasoning: bool,
+    input: Vec<String>,
+    context_window: u64,
+    max_tokens: u64,
 }
 
 const MANAGED_FINANCE_MODEL_PROVIDERS: &[ManagedProviderDefinition] = &[
@@ -2339,6 +2413,97 @@ const MANAGED_FINANCE_MODEL_PROVIDERS: &[ManagedProviderDefinition] = &[
     },
 ];
 
+fn extract_oem_runtime_models(
+    snapshot: Option<&OemRuntimeSnapshot>,
+) -> (Vec<RuntimeManagedModelEntry>, Option<String>) {
+    let Some(snapshot) = snapshot else {
+        return (Vec::new(), None);
+    };
+
+    let capabilities = snapshot
+        .config
+        .get("capabilities")
+        .and_then(|value| value.as_object());
+    let models_obj = capabilities
+        .and_then(|value| value.get("models"))
+        .and_then(|value| value.as_object());
+    let default_model = read_json_string(models_obj.and_then(|value| value.get("default")));
+    let entries = models_obj
+        .and_then(|value| value.get("entries"))
+        .and_then(|value| value.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    let mut out = Vec::new();
+    for raw_entry in entries {
+        let Some(entry) = raw_entry.as_object() else {
+            continue;
+        };
+
+        let Some(model_ref) = read_json_string(entry.get("ref")) else {
+            continue;
+        };
+        let provider_from_ref = model_ref
+            .split_once('/')
+            .map(|(provider, _)| provider.trim().to_string())
+            .unwrap_or_default();
+        let model_from_ref = model_ref
+            .rsplit('/')
+            .next()
+            .map(|value| value.trim().to_string())
+            .unwrap_or_default();
+
+        let provider_id = read_json_string(entry.get("providerId"))
+            .or_else(|| read_json_string(entry.get("provider_id")))
+            .unwrap_or(provider_from_ref);
+        let model_id = read_json_string(entry.get("modelId"))
+            .or_else(|| read_json_string(entry.get("model_id")))
+            .unwrap_or(model_from_ref);
+        let api = read_json_string(entry.get("api"))
+            .unwrap_or_else(|| String::from("openai-completions"));
+
+        if provider_id.is_empty() || model_id.is_empty() {
+            continue;
+        }
+
+        let label = read_json_string(entry.get("label")).unwrap_or_else(|| model_id.clone());
+        let base_url = read_json_string(entry.get("baseUrl"))
+            .or_else(|| read_json_string(entry.get("base_url")))
+            .filter(|value| !value.is_empty());
+        let use_runtime_openai = read_json_bool(entry.get("useRuntimeOpenai"))
+            .or_else(|| read_json_bool(entry.get("use_runtime_openai")))
+            .unwrap_or(provider_id == "openai" && base_url.is_none());
+        let auth_header = read_json_bool(entry.get("authHeader"))
+            .or_else(|| read_json_bool(entry.get("auth_header")))
+            .unwrap_or(true);
+        let reasoning = read_json_bool(entry.get("reasoning")).unwrap_or(false);
+        let input = read_json_string_array(entry.get("input"));
+        let context_window = read_json_u64(entry.get("contextWindow"))
+            .or_else(|| read_json_u64(entry.get("context_window")))
+            .unwrap_or(0);
+        let max_tokens = read_json_u64(entry.get("maxTokens"))
+            .or_else(|| read_json_u64(entry.get("max_tokens")))
+            .unwrap_or(0);
+
+        out.push(RuntimeManagedModelEntry {
+            model_ref,
+            provider_id,
+            model_id,
+            label,
+            api,
+            base_url,
+            use_runtime_openai,
+            auth_header,
+            reasoning,
+            input,
+            context_window,
+            max_tokens,
+        });
+    }
+
+    (out, default_model)
+}
+
 fn upsert_managed_provider_model(
     provider: &mut serde_json::Map<String, serde_json::Value>,
     model: &ManagedModelDefinition<'_>,
@@ -2412,6 +2577,32 @@ fn ensure_managed_provider(
     }
 }
 
+fn replace_provider_models_with_runtime_entries(
+    provider: &mut serde_json::Map<String, serde_json::Value>,
+    entries: &[RuntimeManagedModelEntry],
+) {
+    let next_models = entries
+        .iter()
+        .map(|entry| {
+            json!({
+                "id": entry.model_id,
+                "name": entry.label,
+                "reasoning": entry.reasoning,
+                "input": entry.input,
+                "cost": {
+                    "input": 0,
+                    "output": 0,
+                    "cacheRead": 0,
+                    "cacheWrite": 0
+                },
+                "contextWindow": entry.context_window,
+                "maxTokens": entry.max_tokens
+            })
+        })
+        .collect::<Vec<_>>();
+    provider.insert(String::from("models"), serde_json::Value::Array(next_models));
+}
+
 fn upsert_managed_openai_model(
     provider: &mut serde_json::Map<String, serde_json::Value>,
     model_id: &str,
@@ -2470,17 +2661,35 @@ fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Resul
         .filter(|base_url| !base_url.is_empty());
     let normalized_api_key = clean_optional(runtime_config.openai_api_key.clone());
     let normalized_model = clean_optional(runtime_config.openai_model.clone());
-    let model_ref = normalized_model.as_ref().map(|model| {
+    let runtime_model_ref = normalized_model.as_ref().map(|model| {
         if model.contains('/') {
             model.clone()
         } else {
             format!("openai/{model}")
         }
     });
-    let model_id = model_ref
+    let model_id = runtime_model_ref
         .as_deref()
         .and_then(|value| value.rsplit('/').next())
         .map(String::from);
+    let oem_runtime_snapshot = load_oem_runtime_snapshot_internal(app)?;
+    let (oem_model_entries, oem_default_model_ref) =
+        extract_oem_runtime_models(oem_runtime_snapshot.as_ref());
+    let active_model_ref = oem_default_model_ref
+        .clone()
+        .filter(|value| !value.trim().is_empty())
+        .or(runtime_model_ref.clone());
+    let allowlist_model_refs = if oem_model_entries.is_empty() {
+        active_model_ref
+            .clone()
+            .into_iter()
+            .collect::<Vec<_>>()
+    } else {
+        oem_model_entries
+            .iter()
+            .map(|entry| entry.model_ref.clone())
+            .collect::<Vec<_>>()
+    };
 
     {
         let models_root = ensure_child_object(root_obj, "models");
@@ -2494,7 +2703,14 @@ fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Resul
         if let Some(api_key) = normalized_api_key.as_ref() {
             openai_obj.insert(String::from("apiKey"), json!(api_key));
         }
-        if let Some(model_id) = model_id.as_deref() {
+        let openai_runtime_entries = oem_model_entries
+            .iter()
+            .filter(|entry| entry.use_runtime_openai)
+            .cloned()
+            .collect::<Vec<_>>();
+        if !openai_runtime_entries.is_empty() {
+            replace_provider_models_with_runtime_entries(openai_obj, &openai_runtime_entries);
+        } else if let Some(model_id) = model_id.as_deref() {
             upsert_managed_openai_model(openai_obj, model_id);
         } else {
             openai_obj
@@ -2502,29 +2718,62 @@ fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Resul
                 .or_insert_with(|| json!([]));
         }
 
-        for provider in MANAGED_FINANCE_MODEL_PROVIDERS {
-            ensure_managed_provider(providers_obj, provider);
+        if oem_model_entries.is_empty() {
+            for provider in MANAGED_FINANCE_MODEL_PROVIDERS {
+                ensure_managed_provider(providers_obj, provider);
+            }
+        } else {
+            let mut provider_ids = Vec::new();
+            for entry in &oem_model_entries {
+                if provider_ids.contains(&entry.provider_id) {
+                    continue;
+                }
+                provider_ids.push(entry.provider_id.clone());
+            }
+            for provider_id in provider_ids {
+                if provider_id == "openai" {
+                    continue;
+                }
+                let matching_entries = oem_model_entries
+                    .iter()
+                    .filter(|entry| entry.provider_id == provider_id)
+                    .cloned()
+                    .collect::<Vec<_>>();
+                if matching_entries.is_empty() {
+                    continue;
+                }
+                let provider_obj = ensure_child_object(providers_obj, &provider_id);
+                if let Some(first) = matching_entries.first() {
+                    provider_obj.insert(String::from("api"), json!(first.api));
+                    provider_obj.insert(String::from("authHeader"), json!(first.auth_header));
+                    if let Some(base_url) = first.base_url.as_ref() {
+                        provider_obj.insert(String::from("baseUrl"), json!(base_url));
+                    }
+                }
+                provider_obj
+                    .entry(String::from("apiKey"))
+                    .or_insert_with(|| json!(""));
+                replace_provider_models_with_runtime_entries(provider_obj, &matching_entries);
+            }
         }
     }
 
     {
         let agents_obj = ensure_child_object(root_obj, "agents");
         let defaults_obj = ensure_child_object(agents_obj, "defaults");
-        if let Some(model_ref) = model_ref.as_ref() {
+        if let Some(model_ref) = active_model_ref.as_ref() {
             let model_value = defaults_obj
                 .entry(String::from("model"))
                 .or_insert_with(|| json!({}));
             let model_obj = ensure_object_value(model_value);
             model_obj.insert(String::from("primary"), json!(model_ref));
-
-            let models_value = defaults_obj
-                .entry(String::from("models"))
-                .or_insert_with(|| json!({}));
-            let models_obj = ensure_object_value(models_value);
-            models_obj
-                .entry(model_ref.clone())
-                .or_insert_with(|| json!({}));
         }
+        let allowed_models_obj = allowlist_model_refs
+            .iter()
+            .filter(|value| !value.trim().is_empty())
+            .map(|value| (value.clone(), json!({})))
+            .collect::<serde_json::Map<String, serde_json::Value>>();
+        defaults_obj.insert(String::from("models"), serde_json::Value::Object(allowed_models_obj));
         defaults_obj.insert(
             String::from("workspace"),
             json!(openclaw_workspace_dir(app).to_string_lossy().to_string()),
@@ -2826,6 +3075,18 @@ fn save_runtime_config(app: AppHandle, config: RuntimeConfig) -> Result<bool, St
     let raw = serde_json::to_string_pretty(&config)
         .map_err(|e| format!("failed to serialize config: {e}"))?;
     fs::write(&config_path, raw).map_err(|e| format!("failed to write config: {e}"))?;
+    Ok(true)
+}
+
+#[tauri::command]
+fn save_oem_runtime_snapshot(app: AppHandle, snapshot: OemRuntimeSnapshot) -> Result<bool, String> {
+    let snapshot_path = oem_runtime_snapshot_path(&app)?;
+    let raw = serde_json::to_string_pretty(&snapshot)
+        .map_err(|e| format!("failed to serialize OEM runtime snapshot: {e}"))?;
+    fs::write(&snapshot_path, raw)
+        .map_err(|e| format!("failed to write OEM runtime snapshot: {e}"))?;
+    let gateway_token = load_or_create_gateway_token()?;
+    ensure_openclaw_runtime_config(&app, &gateway_token)?;
     Ok(true)
 }
 
@@ -3874,6 +4135,7 @@ fn main() {
             detect_port_conflicts,
             load_runtime_config,
             save_runtime_config,
+            save_oem_runtime_snapshot,
             install_runtime,
             diagnose_runtime,
             load_bundled_skills_catalog,

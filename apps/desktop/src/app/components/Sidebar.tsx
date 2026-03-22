@@ -26,6 +26,7 @@ import {
 type SidebarUser = AppUserAvatarSource;
 type PrimaryView =
   | 'chat'
+  | 'investment-experts'
   | 'lobster-store'
   | 'skill-store'
   | 'cron'
@@ -47,6 +48,27 @@ function AssistantStoreIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+function ExpertAdvisorIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <path d="M12 11.7a3.1 3.1 0 1 0 0-6.2 3.1 3.1 0 0 0 0 6.2Z" />
+      <path d="M6.7 18.4c.9-2.5 3-3.7 5.3-3.7s4.4 1.2 5.3 3.7" />
+      <path d="M17 7.2h3.8" />
+      <path d="M18.9 5.3v3.8" />
+      <path d="M7.2 8.8 5.1 6.7" />
+      <path d="M5.1 8.8 7.2 6.7" />
+    </svg>
+  );
+}
+
 interface SidebarProps {
   user: SidebarUser | null;
   activeView?: PrimaryView;
@@ -54,6 +76,7 @@ interface SidebarProps {
   authenticated?: boolean;
   onOpenChat?: () => void;
   onStartNewChat?: () => void;
+  onOpenInvestmentExperts?: () => void;
   onOpenCron?: () => void;
   onOpenLobsterStore?: () => void;
   onOpenSkillStore?: () => void;
@@ -99,6 +122,7 @@ export function Sidebar({
   authenticated = false,
   onOpenChat,
   onStartNewChat,
+  onOpenInvestmentExperts,
   onOpenCron,
   onOpenLobsterStore,
   onOpenSkillStore,
@@ -158,6 +182,15 @@ export function Sidebar({
       iconClass: 'text-[var(--state-warn)]',
       active: activeView === 'cron',
       onClick: onOpenCron,
+    },
+    {
+      key: 'investment-experts',
+      label: '智能投资专家',
+      icon: ExpertAdvisorIcon,
+      iconClass: 'text-[rgb(113,101,82)]',
+      iconWrapClass: 'rounded-[10px] border border-transparent bg-transparent',
+      active: activeView === 'investment-experts',
+      onClick: onOpenInvestmentExperts,
     },
     {
       key: 'lobster-store',

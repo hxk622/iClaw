@@ -12,8 +12,10 @@ const rootDir = path.resolve(__dirname, '..');
 const defaultReleaseDir = path.join(rootDir, 'dist', 'releases');
 const supportedChannels = new Set(['dev', 'prod']);
 const supportedTargets = [
-  { platform: 'darwin', arch: 'aarch64' },
-  { platform: 'darwin', arch: 'x64' },
+  { platform: 'darwin', arch: 'aarch64', installerExt: 'dmg', updaterExt: 'app.tar.gz' },
+  { platform: 'darwin', arch: 'x64', installerExt: 'dmg', updaterExt: 'app.tar.gz' },
+  { platform: 'windows', arch: 'x64', installerExt: 'exe', updaterExt: 'nsis.zip' },
+  { platform: 'windows', arch: 'aarch64', installerExt: 'exe', updaterExt: 'nsis.zip' },
 ];
 
 function trimString(value) {
@@ -50,8 +52,8 @@ function buildArtifactUrl(publicBaseUrl, fileName) {
 }
 
 function findUpdaterArtifacts(params) {
-  const { artifactBaseName, releaseVersion, arch, channel, files, publicBaseUrl, releaseDir } = params;
-  const archiveName = `${artifactBaseName}_${releaseVersion}_${arch}_${channel}.app.tar.gz`;
+  const { artifactBaseName, releaseVersion, arch, channel, files, publicBaseUrl, releaseDir, updaterExt } = params;
+  const archiveName = `${artifactBaseName}_${releaseVersion}_${arch}_${channel}.${updaterExt}`;
   const signatureName = `${archiveName}.sig`;
   if (!files.includes(archiveName) || !files.includes(signatureName)) {
     return null;
@@ -119,7 +121,7 @@ function resolveCurrentVersion(explicitVersion, packageJson) {
 
 function matchReleaseFile(fileName, artifactBaseName, target, channel) {
   const pattern = new RegExp(
-    `^${escapeRegExp(artifactBaseName)}_(?<releaseVersion>.+)_${escapeRegExp(target.arch)}_${escapeRegExp(channel)}\\.dmg$`,
+    `^${escapeRegExp(artifactBaseName)}_(?<releaseVersion>.+)_${escapeRegExp(target.arch)}_${escapeRegExp(channel)}\\.${escapeRegExp(target.installerExt)}$`,
   );
   const match = fileName.match(pattern);
   if (!match?.groups?.releaseVersion) return null;
@@ -169,6 +171,7 @@ async function collectEntries(params) {
       files,
       publicBaseUrl,
       releaseDir,
+      updaterExt: target.updaterExt,
     });
     const updaterSignature = updaterArtifacts
       ? trimString(await fs.readFile(updaterArtifacts.signaturePath, 'utf8'))

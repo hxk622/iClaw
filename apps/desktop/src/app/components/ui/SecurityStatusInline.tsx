@@ -42,7 +42,7 @@ export function SecurityStatusInline({
   return (
     <div className={cn('inline-flex items-center gap-2.5 leading-none', style.text, className)}>
       {state === 'protecting' ? (
-        <ProtectionSignal size="xs" tone="gold" className="scale-[0.96]" />
+        <ProtectionSignal size="xs" tone="gold" emphasis="strong" className="scale-[1.02]" />
       ) : (
         <span className="relative inline-flex h-2.5 w-2.5 shrink-0">
           <span className={cn('absolute inset-0 rounded-full opacity-60 motion-safe:animate-pulse', style.dot)} />

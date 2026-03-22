@@ -161,6 +161,27 @@ const MODEL_PROFILE_RULES: ModelProfileRule[] = [
     },
   },
   {
+    match: (source) => (source.includes('glm') && source.includes('5')) || source.includes('glm-5'),
+    profile: {
+      label: 'GLM 5',
+      family: 'glm',
+      tier: 'advanced',
+      badge: '1.6x',
+      order: 85,
+    },
+  },
+  {
+    match: (source) =>
+      (source.includes('deepseek') && source.includes('v3.2')) || source.includes('deepseek-v3.2'),
+    profile: {
+      label: 'DeepSeek V3.2',
+      family: 'deepseek',
+      tier: 'advanced',
+      badge: '1x',
+      order: 88,
+    },
+  },
+  {
     match: (source) => source.includes('minimax') && source.includes('m2.1'),
     profile: {
       label: 'MiniMax m2.1',

@@ -17,6 +17,7 @@
     "dev:api": "bash scripts/with-env.sh dev bash scripts/dev-api.sh",
     "dev:web": "bash scripts/with-env.sh dev bash scripts/dev-web.sh",
     "dev:control-plane": "bash scripts/with-env.sh dev env ICLAW_CONTROL_PLANE_DETACH=0 bash scripts/dev-control-plane.sh",
+    "preset:sync:oem": "bash scripts/with-env.sh ${NODE_ENV:-dev} pnpm --filter @iclaw/control-plane preset:sync:oem",
     "dev:home": "pnpm dev:home-web",
     "build:home": "pnpm build:home-web",
     "dev:home-web": "bash scripts/with-env.sh dev pnpm --dir home-web dev",

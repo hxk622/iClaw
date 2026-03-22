@@ -7,6 +7,7 @@ import type {
   OemAssetListRecord,
   OemAuditEventRecord,
   OemBrandRecord,
+  OemBrandStatus,
   OemBrandSummaryRecord,
   OemBrandVersionRecord,
   OemJsonObject,
@@ -366,6 +367,59 @@ export class PgOemStore {
       [brandId],
     );
     return result.rows[0] ? mapBrandRow(result.rows[0]) : null;
+  }
+
+  async syncSeedBrandConfig(input: {
+    brandId: string;
+    tenantKey: string;
+    displayName: string;
+    productName: string;
+    status: OemBrandStatus;
+    draftConfig: OemJsonObject;
+    publishedConfig: OemJsonObject | null;
+    publishedVersion: number;
+  }): Promise<OemBrandRecord> {
+    const result = await this.pool.query<OemBrandRow>(
+      `
+        update oem_brand_profiles
+        set tenant_key = $2,
+            display_name = $3,
+            product_name = $4,
+            status = $5,
+            draft_config = $6::jsonb,
+            published_config = $7::jsonb,
+            published_version = $8,
+            updated_at = now()
+        where brand_id = $1
+        returning
+          brand_id,
+          tenant_key,
+          display_name,
+          product_name,
+          status,
+          draft_config,
+          published_config,
+          published_version,
+          created_at,
+          updated_at
+      `,
+      [
+        input.brandId,
+        input.tenantKey,
+        input.displayName,
+        input.productName,
+        input.status,
+        JSON.stringify(input.draftConfig),
+        JSON.stringify(input.publishedConfig || input.draftConfig),
+        input.publishedVersion,
+      ],
+    );
+
+    if (!result.rows[0]) {
+      throw new Error(`seed brand not found: ${input.brandId}`);
+    }
+
+    return mapBrandRow(result.rows[0]);
   }
 
   async getPublishedBrand(brandId: string): Promise<OemBrandRecord | null> {

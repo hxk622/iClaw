@@ -32,8 +32,8 @@ export function LobsterStoreTabs({
               INTERACTIVE_FOCUS_RING,
               APPLE_FLAT_SURFACE,
               active
-                ? 'border-[var(--lobster-gold-border)] bg-[var(--lobster-gold-soft)] text-[var(--lobster-gold-strong)] shadow-[0_12px_24px_rgba(168,140,93,0.12)]'
-                : 'border-transparent bg-transparent text-[var(--lobster-text-secondary)] hover:border-[var(--lobster-border)] hover:bg-[var(--lobster-surface-hover)] hover:text-[var(--lobster-text-primary)]',
+                ? 'border-[var(--lobster-gold-border)] bg-[var(--lobster-gold-soft)] text-[var(--lobster-gold-strong)] shadow-[0_12px_24px_rgba(168,140,93,0.12)] dark:border-[rgba(194,170,130,0.22)] dark:bg-[rgba(180,154,112,0.14)] dark:text-[#ddc79f] dark:shadow-[0_10px_20px_rgba(0,0,0,0.18)]'
+                : 'border-transparent bg-transparent text-[var(--lobster-text-secondary)] hover:border-[var(--lobster-border)] hover:bg-[var(--lobster-surface-hover)] hover:text-[var(--lobster-text-primary)] dark:hover:border-[rgba(194,170,130,0.14)] dark:hover:bg-[rgba(255,255,255,0.03)]',
             )}
           >
             <span>{tab.label}</span>

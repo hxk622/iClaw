@@ -24,10 +24,19 @@ node "$ROOT_DIR/scripts/generate-desktop-release-manifests.mjs" --channel "$ENV_
 local_prune() {
   local channel="$1"
   local arch="$2"
-  local pattern="${ARTIFACT_BASE_NAME}_*_${arch}_${channel}.dmg"
-
-  local files
-  files="$(cd "$RELEASE_DIR" && ls -1 $pattern 2>/dev/null | sort -V || true)"
+  local patterns=(
+    "${ARTIFACT_BASE_NAME}_*_${arch}_${channel}.dmg"
+    "${ARTIFACT_BASE_NAME}_*_${arch}_${channel}.exe"
+  )
+  local files=""
+  for pattern in "${patterns[@]}"; do
+    local matched
+    matched="$(cd "$RELEASE_DIR" && ls -1 $pattern 2>/dev/null | sort -V || true)"
+    if [[ -n "$matched" ]]; then
+      files+=$'\n'"$matched"
+    fi
+  done
+  files="$(printf '%s\n' "$files" | sed '/^$/d' | sort -V || true)"
   [[ -z "$files" ]] && return 0
 
   local count
@@ -54,7 +63,9 @@ minio_prune() {
   local arch="$4"
 
   local objects
-  objects="$(mc ls "$alias/$bucket" | awk '{print $NF}' | grep -E "^${ARTIFACT_BASE_NAME}_.*_${arch}_${channel}\\.dmg$" | sort -V || true)"
+  objects="$(
+    mc ls "$alias/$bucket" | awk '{print $NF}' | grep -E "^${ARTIFACT_BASE_NAME}_.*_${arch}_${channel}\\.(dmg|exe)$" | sort -V || true
+  )"
   [[ -z "$objects" ]] && return 0
 
   local count
@@ -88,11 +99,19 @@ if [[ "$ENV_NAME" == "dev" ]]; then
 
   mc mb --ignore-existing "$ICLAW_MINIO_DEV_ALIAS/$ICLAW_MINIO_DEV_BUCKET"
   shopt -s nullglob
-  dev_files=("$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_dev.dmg)
-  dev_updater_files=("$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_dev.app.tar.gz "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_dev.app.tar.gz.sig)
+  dev_files=(
+    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_dev.dmg
+    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_dev.exe
+  )
+  dev_updater_files=(
+    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_dev.app.tar.gz
+    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_dev.app.tar.gz.sig
+    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_dev.nsis.zip
+    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_dev.nsis.zip.sig
+  )
   shopt -u nullglob
   if [[ ${#dev_files[@]} -eq 0 ]]; then
-    echo "No dev DMGs found for brand artifact prefix: $ARTIFACT_BASE_NAME" >&2
+    echo "No dev desktop installers found for brand artifact prefix: $ARTIFACT_BASE_NAME" >&2
     exit 1
   fi
   shopt -s nullglob
@@ -118,11 +137,19 @@ elif [[ "$ENV_NAME" == "prod" ]]; then
 
   mc mb --ignore-existing "$ICLAW_MINIO_PROD_ALIAS/$ICLAW_MINIO_PROD_BUCKET"
   shopt -s nullglob
-  prod_files=("$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.dmg)
-  prod_updater_files=("$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.app.tar.gz "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.app.tar.gz.sig)
+  prod_files=(
+    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.dmg
+    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.exe
+  )
+  prod_updater_files=(
+    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.app.tar.gz
+    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.app.tar.gz.sig
+    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.nsis.zip
+    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.nsis.zip.sig
+  )
   shopt -u nullglob
   if [[ ${#prod_files[@]} -eq 0 ]]; then
-    echo "No prod DMGs found for brand artifact prefix: $ARTIFACT_BASE_NAME" >&2
+    echo "No prod desktop installers found for brand artifact prefix: $ARTIFACT_BASE_NAME" >&2
     exit 1
   fi
   shopt -s nullglob

@@ -6,7 +6,8 @@ const DEFAULT_PORT = 2130;
 const DEFAULT_ACCESS_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 7;
 const DEFAULT_REFRESH_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 7;
 const DEFAULT_SESSION_ABSOLUTE_TTL_SECONDS = 60 * 60 * 24 * 30;
-const DEFAULT_CREDIT_BALANCE = 100000;
+const DEFAULT_CREDIT_BALANCE = 0;
+const DEFAULT_DAILY_FREE_CREDITS = 200;
 const DEFAULT_RUN_GRANT_TTL_SECONDS = 5 * 60;
 const DEFAULT_RUN_GRANT_MAX_INPUT_TOKENS = 4000;
 const DEFAULT_RUN_GRANT_MAX_OUTPUT_TOKENS = 8000;
@@ -67,16 +68,6 @@ function loadRootEnvFile(): void {
 
 loadRootEnvFile();
 
-function normalizeStringArray(value: unknown, fallback: string[]): string[] {
-  if (!Array.isArray(value)) {
-    return fallback;
-  }
-  const items = value
-    .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
-    .filter(Boolean);
-  return items.length > 0 ? items : fallback;
-}
-
 function splitCsvEnv(value: string | undefined, fallback: string[]): string[] {
   if (!value) {
     return fallback;
@@ -96,67 +87,25 @@ function splitEmailCsvEnv(value: string | undefined, fallback: string[]): string
 }
 
 function loadBrandDefaults() {
-  const currentFile = fileURLToPath(import.meta.url);
-  const rootDir = resolve(dirname(currentFile), '../../../');
-  const brandId = (process.env.ICLAW_BRAND || 'iclaw').trim() || 'iclaw';
-  const brandPath = resolve(rootDir, `brands/${brandId}/brand.json`);
-
-  if (!existsSync(brandPath)) {
-    return {
-      serviceName: `${brandId}-control-plane`,
-      s3Bucket: `${brandId}-files`,
-      redisKeyPrefix: `${brandId}:control-plane`,
-      allowedOrigins: LOCAL_ALLOWED_ORIGINS,
-      distribution: {
-        downloads: {
-          devPublicBaseUrl: '',
-          prodPublicBaseUrl: '',
-        },
-      },
-      oauth: {
-        wechatAppId: '',
-        googleClientId: '',
-        googleRedirectUri: '',
-      },
-    };
-  }
-
-  const raw = JSON.parse(readFileSync(brandPath, 'utf8')) as {
-    controlPlane?: {
-      serviceName?: string;
-      s3Bucket?: string;
-      redisKeyPrefix?: string;
-      allowedOrigins?: string[];
-    };
-    distribution?: {
-      downloads?: {
-        dev?: {publicBaseUrl?: string};
-        prod?: {publicBaseUrl?: string};
-      };
-    };
-    oauth?: {
-      wechat?: {appId?: string; redirectUri?: string};
-      google?: {clientId?: string; redirectUri?: string};
-    };
-  };
+  const appName =
+    (process.env.ICLAW_PORTAL_APP_NAME || process.env.ICLAW_BRAND || process.env.ICLAW_APP_NAME || 'iclaw').trim() ||
+    'iclaw';
 
   return {
-    serviceName: raw.controlPlane?.serviceName?.trim() || `${brandId}-control-plane`,
-    s3Bucket: raw.controlPlane?.s3Bucket?.trim() || `${brandId}-files`,
-    redisKeyPrefix: raw.controlPlane?.redisKeyPrefix?.trim() || `${brandId}:control-plane`,
-    allowedOrigins: Array.from(
-      new Set([...LOCAL_ALLOWED_ORIGINS, ...normalizeStringArray(raw.controlPlane?.allowedOrigins, LOCAL_ALLOWED_ORIGINS)]),
-    ),
+    serviceName: `${appName}-control-plane`,
+    s3Bucket: `${appName}-files`,
+    redisKeyPrefix: `${appName}:control-plane`,
+    allowedOrigins: LOCAL_ALLOWED_ORIGINS,
     distribution: {
       downloads: {
-        devPublicBaseUrl: raw.distribution?.downloads?.dev?.publicBaseUrl?.trim() || '',
-        prodPublicBaseUrl: raw.distribution?.downloads?.prod?.publicBaseUrl?.trim() || '',
+        devPublicBaseUrl: '',
+        prodPublicBaseUrl: '',
       },
     },
     oauth: {
-      wechatAppId: raw.oauth?.wechat?.appId?.trim() || '',
-      googleClientId: raw.oauth?.google?.clientId?.trim() || '',
-      googleRedirectUri: raw.oauth?.google?.redirectUri?.trim() || '',
+      wechatAppId: '',
+      googleClientId: '',
+      googleRedirectUri: '',
     },
   };
 }
@@ -209,6 +158,7 @@ export const config = {
     DEFAULT_SESSION_ABSOLUTE_TTL_SECONDS,
   ),
   defaultCreditBalance: readNumberEnv('DEFAULT_CREDIT_BALANCE', DEFAULT_CREDIT_BALANCE),
+  dailyFreeCredits: readNumberEnv('DAILY_FREE_CREDITS', DEFAULT_DAILY_FREE_CREDITS),
   runGrantTtlSeconds: readNumberEnv('RUN_GRANT_TTL_SECONDS', DEFAULT_RUN_GRANT_TTL_SECONDS),
   runGrantMaxInputTokens: readNumberEnv('RUN_GRANT_MAX_INPUT_TOKENS', DEFAULT_RUN_GRANT_MAX_INPUT_TOKENS),
   runGrantMaxOutputTokens: readNumberEnv('RUN_GRANT_MAX_OUTPUT_TOKENS', DEFAULT_RUN_GRANT_MAX_OUTPUT_TOKENS),

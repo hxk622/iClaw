@@ -3,9 +3,14 @@ import type { IClawClient } from '@iclaw/sdk';
 import {
   AlertCircle,
   CheckCircle2,
+  CloudDownload,
   Download,
+  History,
+  LoaderCircle,
+  MessageSquare,
   Package,
   PencilLine,
+  Play,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -14,19 +19,28 @@ import {
 } from 'lucide-react';
 import {
   type AdminSkillStoreItem,
+  type AdminSkillStoreCatalogPage,
   type SkillStoreCategoryId,
+  type SkillStoreCatalogPage,
   type SkillStoreItem,
+  type SkillSyncRunItem,
+  type SkillSyncSourceItem,
   deleteAdminSkillStoreEntry,
   importSkillFromGithub,
   importSkillFromLocalDirectory,
   installSkillFromStore,
-  loadAdminSkillStoreCatalog,
-  loadSkillStoreCatalog,
+  loadAdminSkillStoreCatalogPage,
+  loadBundledSkillCatalog,
+  loadSkillSyncRuns,
+  loadSkillSyncSources,
+  loadSkillStoreCatalogPage,
+  readSkillStoreCatalogSnapshot,
+  runSkillSync,
   saveAdminSkillStoreEntry,
   subscribeSkillStoreEvents,
 } from '@/app/lib/skill-store';
 import { Button } from '@/app/components/ui/Button';
-import { CompactDisclosure } from '@/app/components/ui/CompactDisclosure';
+import { Chip } from '@/app/components/ui/Chip';
 import { FilterPill } from '@/app/components/ui/FilterPill';
 import { MetricCard } from '@/app/components/ui/MetricCard';
 import { PageContent, PageHeader, PageSurface } from '@/app/components/ui/PageLayout';
@@ -107,17 +121,34 @@ function resolveDisplayStatus(skill: SkillStoreItem, actionLoading: boolean, ins
   return 'available';
 }
 
-function formatPublishedAt(value: string | null | undefined): string {
-  if (!value) return '未发布';
-  try {
-    return new Date(value).toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    });
-  } catch {
-    return value;
+function formatDownloadCount(value: number | null | undefined): string | null {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    return null;
   }
+  if (value >= 10000) {
+    const compact = value >= 100000 ? Math.round(value / 10000).toString() : (value / 10000).toFixed(1).replace(/\.0$/, '');
+    return `${compact} 万下载`;
+  }
+  return `${value.toLocaleString('zh-CN')} 下载`;
+}
+
+function compareSkillsByPopularity(left: SkillStoreItem, right: SkillStoreItem): number {
+  if (left.featured !== right.featured) {
+    return left.featured ? -1 : 1;
+  }
+
+  const leftDownloads = left.downloadCount ?? -1;
+  const rightDownloads = right.downloadCount ?? -1;
+  if (leftDownloads !== rightDownloads) {
+    return rightDownloads - leftDownloads;
+  }
+
+  if (left.source !== right.source) {
+    if (left.source === 'bundled') return -1;
+    if (right.source === 'bundled') return 1;
+  }
+
+  return left.name.localeCompare(right.name, 'zh-CN');
 }
 
 function SkillStatusBadge({ status }: {status: SkillDisplayStatus}) {
@@ -193,6 +224,7 @@ function SkillCard({
   actionLoading,
   installFailed,
   onAction,
+  onStartConversation,
   onOpenDetail,
   onEdit,
 }: {
@@ -201,31 +233,44 @@ function SkillCard({
   actionLoading: boolean;
   installFailed: boolean;
   onAction: (skill: SkillStoreItem) => void;
+  onStartConversation: (skill: SkillStoreItem) => void;
   onOpenDetail: (skill: SkillStoreItem) => void;
   onEdit: (skill: SkillStoreItem) => void;
 }) {
   const status = resolveDisplayStatus(skill, actionLoading, installFailed);
   const showInstallAction = skill.source !== 'bundled' && !adminMode;
+  const canStartConversation = !actionLoading && !installFailed && (skill.source === 'bundled' || skill.installed);
   const actionLabel =
     status === 'failed'
       ? '重试安装'
-      : status === 'installed'
-        ? '已安装'
+      : canStartConversation
+        ? '对话'
         : status === 'installing'
           ? '安装中…'
           : status === 'builtin'
-            ? '已内置'
+            ? '对话'
             : '安装';
-  const actionVariant = status === 'failed' ? 'danger' : status === 'installed' || status === 'builtin' ? 'secondary' : 'primary';
-  const actionDisabled = status === 'installed' || status === 'builtin' || status === 'installing';
+  const actionVariant = status === 'failed' ? 'danger' : canStartConversation ? 'secondary' : 'primary';
+  const actionDisabled = status === 'installing';
+  const downloadLabel = formatDownloadCount(skill.downloadCount);
 
   return (
     <PressableCard
       as="article"
       interactive={!adminMode}
-      onClick={!adminMode ? () => onOpenDetail(skill) : undefined}
+      onClick={
+        !adminMode
+          ? () => {
+              if (canStartConversation) {
+                onStartConversation(skill);
+                return;
+              }
+              onOpenDetail(skill);
+            }
+          : undefined
+      }
       className={cn(
-        'rounded-lg border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)]',
+        'flex h-full flex-col rounded-lg border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)]',
         skill.featured &&
           'border-[rgba(201,169,97,0.24)] bg-[linear-gradient(180deg,rgba(255,251,242,0.98),rgba(252,251,248,0.96))] dark:bg-[linear-gradient(180deg,rgba(39,31,18,0.42),rgba(24,21,18,0.96))]',
         !adminMode && 'hover:border-[rgba(201,169,97,0.22)] hover:shadow-[var(--shadow-md)]',
@@ -242,55 +287,68 @@ function SkillCard({
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-1.5">
-        {skill.tags.slice(0, 3).map((tag) => (
-          <span key={tag} className={cn('rounded px-2 py-0.5 text-[11px]', skillTagClassName(tag, { flat: true }))}>
-            {tag}
-          </span>
-        ))}
-      </div>
-
-      <div className="flex items-center justify-between border-t border-[var(--border-default)] pt-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <SourceBadge sourceLabel={adminMode && skill.source === 'bundled' ? '系统预置' : skill.sourceLabel} />
-          <SkillStatusBadge status={status} />
+      <div className="mt-auto space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-wrap gap-1.5">
+            {skill.tags.slice(0, 3).map((tag) => (
+              <span key={tag} className={cn('rounded px-2 py-0.5 text-[11px]', skillTagClassName(tag, { flat: true }))}>
+                {tag}
+              </span>
+            ))}
+          </div>
+          {downloadLabel ? (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-hover)] px-2 py-1 text-[11px] text-[var(--text-secondary)]">
+              <Download className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+              {downloadLabel}
+            </span>
+          ) : null}
         </div>
 
-        {adminMode ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="rounded-md px-3 py-1.5 text-[13px] font-normal shadow-none"
-            leadingIcon={<PencilLine className="h-3.5 w-3.5" />}
-            onClick={(event) => {
-              event.stopPropagation();
-              onEdit(skill);
-            }}
-          >
-            编辑
-          </Button>
-        ) : (
-          <Button
-            variant={actionVariant}
-            size="sm"
-            disabled={actionDisabled}
-            className={cn(
-              'rounded-md px-4 py-1.5 text-[13px] font-normal shadow-none',
-              (status === 'installed' || status === 'builtin') &&
-                'border-[var(--border-default)] bg-[var(--bg-secondary)] text-[var(--text-muted)]',
-            )}
-            onClick={(event) => {
-              event.stopPropagation();
-              if (showInstallAction) {
-                onAction(skill);
-              } else {
-                onOpenDetail(skill);
-              }
-            }}
-          >
-            {actionLabel}
-          </Button>
-        )}
+        <div className="flex items-center justify-between border-t border-[var(--border-default)] pt-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <SourceBadge sourceLabel={adminMode && skill.source === 'bundled' ? '系统预置' : skill.sourceLabel} />
+            <SkillStatusBadge status={status} />
+          </div>
+
+          {adminMode ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="rounded-md px-3 py-1.5 text-[13px] font-normal shadow-none"
+              leadingIcon={<PencilLine className="h-3.5 w-3.5" />}
+              onClick={(event) => {
+                event.stopPropagation();
+                onEdit(skill);
+              }}
+            >
+              编辑
+            </Button>
+          ) : (
+            <Button
+              variant={actionVariant}
+              size="sm"
+              disabled={actionDisabled}
+              leadingIcon={canStartConversation ? <MessageSquare className="h-4 w-4" /> : undefined}
+              className={cn(
+                'rounded-md px-4 py-1.5 text-[13px] font-normal shadow-none',
+                (status === 'installed' || status === 'builtin') &&
+                  'border-[var(--border-default)] bg-[var(--bg-secondary)] text-[var(--text-muted)]',
+              )}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (canStartConversation) {
+                  onStartConversation(skill);
+                } else if (showInstallAction) {
+                  onAction(skill);
+                } else {
+                  onOpenDetail(skill);
+                }
+              }}
+            >
+              {actionLabel}
+            </Button>
+          )}
+        </div>
       </div>
     </PressableCard>
   );
@@ -308,6 +366,73 @@ function EmptyState({ title, description }: {title: string; description: string}
   );
 }
 
+function SkillGridSkeleton() {
+  return (
+    <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+      {Array.from({ length: 6 }).map((_, index) => (
+        <div
+          key={index}
+          className="overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)]"
+        >
+          <div className="mb-4 flex items-start gap-3">
+            <div className="h-11 w-11 animate-pulse rounded-[14px] bg-[var(--bg-hover)]" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="h-4 w-28 animate-pulse rounded bg-[var(--bg-hover)]" />
+              <div className="h-3 w-full animate-pulse rounded bg-[var(--bg-hover)]" />
+              <div className="h-3 w-4/5 animate-pulse rounded bg-[var(--bg-hover)]" />
+            </div>
+          </div>
+          <div className="mb-4 flex gap-2">
+            <div className="h-6 w-14 animate-pulse rounded bg-[var(--bg-hover)]" />
+            <div className="h-6 w-16 animate-pulse rounded bg-[var(--bg-hover)]" />
+          </div>
+          <div className="flex items-center justify-between border-t border-[var(--border-default)] pt-3">
+            <div className="h-6 w-24 animate-pulse rounded bg-[var(--bg-hover)]" />
+            <div className="h-8 w-20 animate-pulse rounded bg-[var(--bg-hover)]" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function mergeCatalogItems<T extends {slug: string; name: string}>(current: T[], incoming: T[]): T[] {
+  const merged = new Map<string, T>();
+  for (const item of current) {
+    merged.set(item.slug, item);
+  }
+  for (const item of incoming) {
+    merged.set(item.slug, item);
+  }
+  return Array.from(merged.values()).sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
+}
+
+function formatSyncTimestamp(value: string | null): string {
+  if (!value) return '未运行';
+  try {
+    return new Date(value).toLocaleString('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return value;
+  }
+}
+
+function readSyncSummaryNumber(summary: Record<string, unknown>, key: string): number {
+  const value = summary[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function syncRunTone(status: SkillSyncRunItem['status']): 'success' | 'warning' | 'danger' | 'outline' {
+  if (status === 'succeeded') return 'success';
+  if (status === 'partial_failed') return 'warning';
+  if (status === 'failed') return 'danger';
+  return 'outline';
+}
+
 export function SkillStoreView({
   client,
   accessToken,
@@ -315,6 +440,7 @@ export function SkillStoreView({
   authenticated,
   currentUser,
   onRequestAuth,
+  onStartConversation,
 }: {
   client: IClawClient;
   accessToken: string | null;
@@ -324,17 +450,28 @@ export function SkillStoreView({
     role?: 'user' | 'admin' | 'super_admin' | null;
   } | null;
   onRequestAuth: (mode?: 'login' | 'register', nextView?: 'account' | null) => void;
+  onStartConversation: (skill: SkillStoreItem) => void;
 }) {
+  const [initialCatalogSnapshot] = useState(() => readSkillStoreCatalogSnapshot());
   const [activeTab, setActiveTab] = useState<ActiveTab>('store');
   const [activeCategory, setActiveCategory] = useState<SkillStoreCategoryId>('all');
   const [activeInstallFilter, setActiveInstallFilter] = useState<SkillInstallFilter>('all');
   const [featuredOnly, setFeaturedOnly] = useState(false);
   const [activeTags, setActiveTags] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filtersExpanded, setFiltersExpanded] = useState(false);
-  const [skills, setSkills] = useState<SkillStoreItem[]>([]);
+  const [skills, setSkills] = useState<SkillStoreItem[]>(() => initialCatalogSnapshot?.items ?? []);
   const [adminSkills, setAdminSkills] = useState<AdminSkillStoreItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [catalogTotal, setCatalogTotal] = useState<number>(() => initialCatalogSnapshot?.total ?? 0);
+  const [catalogHasMore, setCatalogHasMore] = useState<boolean>(() => Boolean(initialCatalogSnapshot?.hasMore));
+  const [catalogNextOffset, setCatalogNextOffset] = useState<number | null>(() => initialCatalogSnapshot?.nextOffset ?? null);
+  const [adminTotal, setAdminTotal] = useState(0);
+  const [adminHasMore, setAdminHasMore] = useState(false);
+  const [adminNextOffset, setAdminNextOffset] = useState<number | null>(null);
+  const [prefetchedCatalogPage, setPrefetchedCatalogPage] = useState<SkillStoreCatalogPage | null>(null);
+  const [prefetchedAdminPage, setPrefetchedAdminPage] = useState<AdminSkillStoreCatalogPage | null>(null);
+  const [initialHydrated, setInitialHydrated] = useState(Boolean(initialCatalogSnapshot));
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [installingSlug, setInstallingSlug] = useState<string | null>(null);
   const [installErrorSlugs, setInstallErrorSlugs] = useState<string[]>([]);
@@ -350,59 +487,107 @@ export function SkillStoreView({
   const [githubImportLoading, setGithubImportLoading] = useState(false);
   const [localImportLoading, setLocalImportLoading] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  const [syncSources, setSyncSources] = useState<SkillSyncSourceItem[]>([]);
+  const [syncRuns, setSyncRuns] = useState<SkillSyncRunItem[]>([]);
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [syncBusySourceId, setSyncBusySourceId] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const adminRoleKnown = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
   const shouldProbeAdminAccess = Boolean(accessToken) && !adminRoleKnown && currentUser?.role == null;
   const isAdmin = adminRoleKnown || adminCapable;
 
+  const applyStorePage = (page: SkillStoreCatalogPage, options?: {append?: boolean}) => {
+    setSkills((current) => (options?.append ? mergeCatalogItems(current, page.items) : page.items));
+    setCatalogTotal(page.total);
+    setCatalogHasMore(page.hasMore);
+    setCatalogNextOffset(page.nextOffset);
+    setPrefetchedCatalogPage(null);
+    setInitialHydrated(true);
+  };
+
+  const applyAdminPage = (page: AdminSkillStoreCatalogPage, options?: {append?: boolean}) => {
+    setAdminSkills((current) => (options?.append ? mergeCatalogItems(current, page.items) : page.items));
+    setAdminTotal(page.total);
+    setAdminHasMore(page.hasMore);
+    setAdminNextOffset(page.nextOffset);
+    setPrefetchedAdminPage(null);
+  };
+
   const refreshCatalog = async (options?: {preferAdmin?: boolean}) => {
     const preferAdmin = Boolean(options?.preferAdmin);
-    const catalog = await loadSkillStoreCatalog({ client, accessToken });
-    setSkills(catalog);
-    if (selectedSkill) {
-      setSelectedSkill(catalog.find((item) => item.slug === selectedSkill.slug) || null);
-    }
-    let nextAdminCatalog: AdminSkillStoreItem[] = [];
-    let nextAdminCapable = adminRoleKnown;
-    if (accessToken && (preferAdmin || adminRoleKnown || shouldProbeAdminAccess)) {
-      try {
-        nextAdminCatalog = await loadAdminSkillStoreCatalog({ client, accessToken });
-        nextAdminCapable = true;
-        if (selectedAdminSkill) {
-          setSelectedAdminSkill(nextAdminCatalog.find((item) => item.slug === selectedAdminSkill.slug) || null);
-        }
-      } catch {
-        nextAdminCapable = false;
+    setLoading(true);
+    try {
+      const catalogPromise = loadSkillStoreCatalogPage({ client, accessToken, offset: 0 });
+      const adminCatalogPromise =
+        accessToken && (preferAdmin || adminRoleKnown || shouldProbeAdminAccess)
+          ? loadAdminSkillStoreCatalogPage({ client, accessToken, offset: 0 })
+              .then((page) => ({ page, capable: true }))
+              .catch(() => ({ page: null, capable: false }))
+          : Promise.resolve({ page: null, capable: adminRoleKnown });
+      const [catalogPage, adminResult] = await Promise.all([catalogPromise, adminCatalogPromise]);
+      applyStorePage(catalogPage);
+      if (adminResult.page) {
+        applyAdminPage(adminResult.page);
+      } else {
+        setAdminSkills([]);
+        setAdminTotal(0);
+        setAdminHasMore(false);
+        setAdminNextOffset(null);
+        setPrefetchedAdminPage(null);
       }
+      setAdminCapable(adminResult.capable);
+      setError(null);
+      return { catalog: catalogPage.items, adminCatalog: adminResult.page?.items || [] };
+    } finally {
+      setLoading(false);
     }
-    setAdminSkills(nextAdminCatalog);
-    setAdminCapable(nextAdminCapable);
-    setError(null);
-    return { catalog, adminCatalog: nextAdminCatalog };
   };
 
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
+      if (!initialCatalogSnapshot) {
+        try {
+          const bundledCatalog = await loadBundledSkillCatalog();
+          if (!cancelled) {
+            setSkills((current) => (current.length > 0 ? current : bundledCatalog));
+            setCatalogTotal((current) => (current > 0 ? current : bundledCatalog.length));
+            setInitialHydrated(true);
+          }
+        } catch {
+          // Ignore bundled fallback failures and continue with live fetch.
+        }
+      }
+
       setLoading(true);
       try {
-        const catalogPromise = loadSkillStoreCatalog({ client, accessToken });
+        const catalogPromise = loadSkillStoreCatalogPage({ client, accessToken, offset: 0 });
         const adminCatalogPromise =
           accessToken && (adminRoleKnown || shouldProbeAdminAccess)
-            ? loadAdminSkillStoreCatalog({ client, accessToken })
-                .then((items) => ({ items, capable: true }))
-                .catch(() => ({ items: [] as AdminSkillStoreItem[], capable: false }))
-            : Promise.resolve({ items: [] as AdminSkillStoreItem[], capable: adminRoleKnown });
+            ? loadAdminSkillStoreCatalogPage({ client, accessToken, offset: 0 })
+                .then((page) => ({ page, capable: true }))
+                .catch(() => ({ page: null, capable: false }))
+            : Promise.resolve({ page: null, capable: adminRoleKnown });
         const [catalog, adminResult] = await Promise.all([catalogPromise, adminCatalogPromise]);
         if (!cancelled) {
-          setSkills(catalog);
-          setAdminSkills(adminResult.items);
+          applyStorePage(catalog);
+          if (adminResult.page) {
+            applyAdminPage(adminResult.page);
+          } else {
+            setAdminSkills([]);
+            setAdminTotal(0);
+            setAdminHasMore(false);
+            setAdminNextOffset(null);
+            setPrefetchedAdminPage(null);
+          }
           setAdminCapable(adminResult.capable);
           setError(null);
         }
       } catch (nextError) {
         if (!cancelled) {
+          setInitialHydrated(true);
           setError(nextError instanceof Error ? nextError.message : 'skills catalog unavailable');
         }
       } finally {
@@ -417,6 +602,62 @@ export function SkillStoreView({
       cancelled = true;
     };
   }, [accessToken, adminRoleKnown, client, shouldProbeAdminAccess]);
+
+  useEffect(() => {
+    if (!selectedSkill) return;
+    setSelectedSkill(skills.find((item) => item.slug === selectedSkill.slug) || null);
+  }, [selectedSkill, skills]);
+
+  useEffect(() => {
+    if (!selectedAdminSkill) return;
+    setSelectedAdminSkill(adminSkills.find((item) => item.slug === selectedAdminSkill.slug) || null);
+  }, [adminSkills, selectedAdminSkill]);
+
+  useEffect(() => {
+    if (adminMode || !catalogHasMore || catalogNextOffset == null) {
+      setPrefetchedCatalogPage(null);
+      return;
+    }
+    if (prefetchedCatalogPage?.offset === catalogNextOffset) {
+      return;
+    }
+
+    let cancelled = false;
+    void loadSkillStoreCatalogPage({ client, accessToken, offset: catalogNextOffset })
+      .then((page) => {
+        if (!cancelled && page.offset === catalogNextOffset) {
+          setPrefetchedCatalogPage(page);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, adminMode, catalogHasMore, catalogNextOffset, client, prefetchedCatalogPage?.offset]);
+
+  useEffect(() => {
+    if (!adminMode || !accessToken || !adminHasMore || adminNextOffset == null) {
+      setPrefetchedAdminPage(null);
+      return;
+    }
+    if (prefetchedAdminPage?.offset === adminNextOffset) {
+      return;
+    }
+
+    let cancelled = false;
+    void loadAdminSkillStoreCatalogPage({ client, accessToken, offset: adminNextOffset })
+      .then((page) => {
+        if (!cancelled && page.offset === adminNextOffset) {
+          setPrefetchedAdminPage(page);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, adminHasMore, adminMode, adminNextOffset, client, prefetchedAdminPage?.offset]);
 
   useEffect(
     () =>
@@ -452,6 +693,47 @@ export function SkillStoreView({
     }
   }, [adminMode, selectedAdminSkill]);
 
+  useEffect(() => {
+    if (!adminMode || !isAdmin || !accessToken) {
+      setSyncSources([]);
+      setSyncRuns([]);
+      setSyncBusySourceId(null);
+      setSyncError(null);
+      setSyncLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadSyncData = async () => {
+      setSyncLoading(true);
+      try {
+        const [sources, runs] = await Promise.all([
+          loadSkillSyncSources({ client, accessToken }),
+          loadSkillSyncRuns({ client, accessToken, limit: 12 }),
+        ]);
+        if (!cancelled) {
+          setSyncSources(sources);
+          setSyncRuns(runs);
+          setSyncError(null);
+        }
+      } catch (nextError) {
+        if (!cancelled) {
+          setSyncError(nextError instanceof Error ? nextError.message : '同步记录读取失败');
+        }
+      } finally {
+        if (!cancelled) {
+          setSyncLoading(false);
+        }
+      }
+    };
+
+    void loadSyncData();
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, adminMode, client, isAdmin]);
+
   const handleInstall = async (skill: SkillStoreItem) => {
     if (skill.source !== 'cloud' || skill.installed) {
       return;
@@ -477,6 +759,15 @@ export function SkillStoreView({
     } finally {
       setInstallingSlug(null);
     }
+  };
+
+  const handleStartConversation = (skill: SkillStoreItem) => {
+    if (!authenticated) {
+      onRequestAuth('login');
+      return;
+    }
+    setSelectedSkill(null);
+    onStartConversation(skill);
   };
 
   const handleAdminSave = async (payload: {
@@ -595,6 +886,78 @@ export function SkillStoreView({
     }
   };
 
+  const handleRunSync = async (sourceId: string) => {
+    if (!isAdmin || !accessToken) {
+      setSyncError('需要超管登录');
+      return;
+    }
+
+    setSyncBusySourceId(sourceId);
+    setSyncError(null);
+    try {
+      await runSkillSync({ client, accessToken, sourceId });
+      const [sources, runs] = await Promise.all([
+        loadSkillSyncSources({ client, accessToken }),
+        loadSkillSyncRuns({ client, accessToken, limit: 12 }),
+      ]);
+      await refreshCatalog({ preferAdmin: true });
+      setSyncSources(sources);
+      setSyncRuns(runs);
+      setActiveTab('store');
+    } catch (nextError) {
+      setSyncError(nextError instanceof Error ? nextError.message : '同步执行失败');
+    } finally {
+      setSyncBusySourceId(null);
+    }
+  };
+
+  const handleLoadMore = async () => {
+    if (adminMode) {
+      if (!accessToken || !adminHasMore || adminNextOffset == null || loadingMore) {
+        return;
+      }
+      setLoadingMore(true);
+      setError(null);
+      try {
+        const page =
+          prefetchedAdminPage?.offset === adminNextOffset
+            ? prefetchedAdminPage
+            : await loadAdminSkillStoreCatalogPage({
+                client,
+                accessToken,
+                offset: adminNextOffset,
+              });
+        applyAdminPage(page, { append: true });
+      } catch (nextError) {
+        setError(nextError instanceof Error ? nextError.message : '技能目录读取失败');
+      } finally {
+        setLoadingMore(false);
+      }
+      return;
+    }
+
+    if (!catalogHasMore || catalogNextOffset == null || loadingMore) {
+      return;
+    }
+    setLoadingMore(true);
+    setError(null);
+    try {
+      const page =
+        prefetchedCatalogPage?.offset === catalogNextOffset
+          ? prefetchedCatalogPage
+          : await loadSkillStoreCatalogPage({
+              client,
+              accessToken,
+              offset: catalogNextOffset,
+            });
+      applyStorePage(page, { append: true });
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : '技能目录读取失败');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   const visibleSkills = adminMode ? adminSkills : skills;
 
   const availableQuickTags = useMemo(() => {
@@ -648,42 +1011,39 @@ export function SkillStoreView({
 
   const filteredSkills = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    return visibleSkills.filter((skill) => {
-      if (activeTab === 'myskills' && !skill.userInstalled) {
-        return false;
-      }
-      if (!matchesCategory(skill, activeCategory)) {
-        return false;
-      }
-      if (activeTab === 'store' && !matchesInstallFilter(skill, activeInstallFilter)) {
-        return false;
-      }
-      if (featuredOnly && !skill.featured) {
-        return false;
-      }
-      if (activeTags.length > 0 && !activeTags.some((tag) => skill.tags.includes(tag))) {
-        return false;
-      }
-      if (!query) {
-        return true;
-      }
-      return [skill.name, skill.description, skill.market, skill.skillType, skill.categoryLabel, ...skill.tags]
-        .join(' ')
-        .toLowerCase()
-        .includes(query);
-    });
+    return visibleSkills
+      .filter((skill) => {
+        if (activeTab === 'myskills' && !skill.userInstalled) {
+          return false;
+        }
+        if (!matchesCategory(skill, activeCategory)) {
+          return false;
+        }
+        if (activeTab === 'store' && !matchesInstallFilter(skill, activeInstallFilter)) {
+          return false;
+        }
+        if (featuredOnly && !skill.featured) {
+          return false;
+        }
+        if (activeTags.length > 0 && !activeTags.some((tag) => skill.tags.includes(tag))) {
+          return false;
+        }
+        if (!query) {
+          return true;
+        }
+        return [skill.name, skill.description, skill.market, skill.skillType, skill.categoryLabel, ...skill.tags]
+          .join(' ')
+          .toLowerCase()
+          .includes(query);
+      })
+      .sort(compareSkillsByPopularity);
   }, [activeCategory, activeInstallFilter, activeTab, activeTags, featuredOnly, searchQuery, visibleSkills]);
 
-  const totalCount = skills.length;
+  const totalCount = Math.max(catalogTotal, skills.length);
   const installedCount = skills.filter((skill) => skill.installed || skill.source === 'bundled').length;
   const builtinCount = skills.filter((skill) => skill.source === 'bundled').length;
   const featuredCount = skills.filter((skill) => skill.featured).length;
   const failedCount = installErrorSlugs.length;
-  const activeAdvancedFilterCount =
-    (activeCategory === 'all' ? 0 : 1) +
-    (activeInstallFilter === 'all' ? 0 : 1) +
-    (featuredOnly ? 1 : 0) +
-    activeTags.length;
 
   return (
     <PageSurface className="flex-col bg-[var(--bg-page)]">
@@ -795,6 +1155,146 @@ export function SkillStoreView({
               iconClassName="text-[rgb(185,28,28)] dark:text-[#fecaca]"
             />
           </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2 text-[12px] text-[var(--text-secondary)]">
+            <Chip tone="outline">已加载 {visibleSkills.length}</Chip>
+            <Chip tone="outline">{adminMode ? `目录总数 ${adminTotal}` : `目录总数 ${totalCount}`}</Chip>
+            {loading ? (
+              <Chip tone="accent" leadingIcon={<LoaderCircle className="h-3.5 w-3.5 animate-spin" />}>
+                正在刷新云端技能
+              </Chip>
+            ) : null}
+          </div>
+
+          {adminMode ? (
+            <div className="mt-4 rounded-[18px] border border-[rgba(201,169,97,0.18)] bg-[linear-gradient(180deg,rgba(255,251,242,0.98),rgba(252,251,248,0.96))] p-4 shadow-[var(--shadow-sm)] dark:border-[rgba(201,169,97,0.18)] dark:bg-[linear-gradient(180deg,rgba(39,31,18,0.42),rgba(24,21,18,0.96))]">
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                  <div>
+                    <div className="text-[15px] font-medium text-[var(--text-primary)]">云端同步控制台</div>
+                    <div className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
+                      统一查看同步源、最近运行记录，并直接触发 ClawHub / GitHub 来源同步。
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Chip tone="accent" leadingIcon={<CloudDownload className="h-3.5 w-3.5" />}>
+                      来源 {syncSources.length}
+                    </Chip>
+                    <Chip tone="outline" leadingIcon={<History className="h-3.5 w-3.5" />}>
+                      运行 {syncRuns.length}
+                    </Chip>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="rounded-lg px-3.5 py-1.5 text-[12px]"
+                      disabled={syncLoading}
+                      leadingIcon={syncLoading ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                      onClick={async () => {
+                        if (!accessToken) return;
+                        setSyncLoading(true);
+                        setSyncError(null);
+                        try {
+                          const [sources, runs] = await Promise.all([
+                            loadSkillSyncSources({ client, accessToken }),
+                            loadSkillSyncRuns({ client, accessToken, limit: 12 }),
+                          ]);
+                          setSyncSources(sources);
+                          setSyncRuns(runs);
+                        } catch (nextError) {
+                          setSyncError(nextError instanceof Error ? nextError.message : '同步记录读取失败');
+                        } finally {
+                          setSyncLoading(false);
+                        }
+                      }}
+                    >
+                      刷新记录
+                    </Button>
+                  </div>
+                </div>
+
+                {syncError ? (
+                  <div className="rounded-[14px] border border-[rgba(239,68,68,0.16)] bg-[rgba(239,68,68,0.08)] px-4 py-3 text-[12px] leading-5 text-[var(--state-error)]">
+                    {syncError}
+                  </div>
+                ) : null}
+
+                <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+                  <div className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-card)] p-4 dark:bg-[rgba(255,255,255,0.03)]">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="text-[13px] font-medium text-[var(--text-primary)]">同步来源</div>
+                      {syncLoading ? <LoaderCircle className="h-4 w-4 animate-spin text-[var(--text-muted)]" /> : null}
+                    </div>
+                    <div className="space-y-3">
+                      {syncSources.length === 0 ? (
+                        <div className="text-[12px] leading-5 text-[var(--text-secondary)]">暂无同步来源</div>
+                      ) : (
+                        syncSources.map((source) => {
+                          const configLimit = typeof source.config.limit === 'number' ? source.config.limit : null;
+                          const isFullSync = configLimit === 0;
+                          return (
+                            <div key={source.id} className="rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
+                              <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <div className="text-[13px] font-medium text-[var(--text-primary)]">{source.display_name}</div>
+                                    <Chip tone={source.active ? 'success' : 'outline'}>{source.active ? '启用中' : '已停用'}</Chip>
+                                    <Chip tone={isFullSync ? 'accent' : 'outline'}>{isFullSync ? '全量同步' : `限制 ${configLimit ?? '-'}`}</Chip>
+                                  </div>
+                                  <div className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
+                                    {source.source_url} · 最近运行 {formatSyncTimestamp(source.last_run_at)}
+                                  </div>
+                                </div>
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  disabled={syncBusySourceId === source.id}
+                                  className="rounded-lg px-3.5 py-1.5 text-[12px]"
+                                  leadingIcon={
+                                    syncBusySourceId === source.id ? (
+                                      <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      <Play className="h-3.5 w-3.5" />
+                                    )
+                                  }
+                                  onClick={() => void handleRunSync(source.id)}
+                                >
+                                  {syncBusySourceId === source.id ? '同步中...' : '立即同步'}
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[16px] border border-[var(--border-default)] bg-[var(--bg-card)] p-4 dark:bg-[rgba(255,255,255,0.03)]">
+                    <div className="mb-3 text-[13px] font-medium text-[var(--text-primary)]">最近运行</div>
+                    <div className="space-y-3">
+                      {syncRuns.length === 0 ? (
+                        <div className="text-[12px] leading-5 text-[var(--text-secondary)]">还没有同步记录</div>
+                      ) : (
+                        syncRuns.slice(0, 6).map((run) => (
+                          <div key={run.id} className="rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="text-[13px] font-medium text-[var(--text-primary)]">{run.display_name}</div>
+                              <Chip tone={syncRunTone(run.status)}>{run.status}</Chip>
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-3 text-[12px] leading-5 text-[var(--text-secondary)]">
+                              <span>开始 {formatSyncTimestamp(run.started_at)}</span>
+                              <span>创建 {readSyncSummaryNumber(run.summary, 'created')}</span>
+                              <span>更新 {readSyncSummaryNumber(run.summary, 'updated')}</span>
+                              <span>跳过 {readSyncSummaryNumber(run.summary, 'skipped')}</span>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <div className="mb-5 space-y-3">
@@ -815,68 +1315,58 @@ export function SkillStoreView({
             ) : null}
           </div>
 
-          <CompactDisclosure
-            title="高级筛选"
-            summary={activeAdvancedFilterCount > 0 ? `已启用 ${activeAdvancedFilterCount} 项条件` : '按分类、标签和安装状态缩小结果范围'}
-            open={filtersExpanded}
-            onToggle={() => setFiltersExpanded((current) => !current)}
-          />
-
-          {filtersExpanded ? (
-            <>
-              <div>
-                <div className="mb-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">分类与策展</div>
-                <div className="flex flex-wrap gap-1.5">
-                  <FilterPill active={featuredOnly} onClick={() => setFeaturedOnly((current) => !current)}>
-                    <span className="inline-flex items-center gap-1.5">
-                      <Sparkles className="h-3.5 w-3.5" />
-                      官方精选
-                    </span>
+          <div className="space-y-3">
+            <div>
+              <div className="mb-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">分类与策展</div>
+              <div className="flex flex-wrap gap-1.5">
+                <FilterPill active={featuredOnly} onClick={() => setFeaturedOnly((current) => !current)}>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    官方精选
+                  </span>
+                </FilterPill>
+                {categories.map((category) => (
+                  <FilterPill key={category.id} active={activeCategory === category.id} onClick={() => setActiveCategory(category.id)}>
+                    {category.label}
                   </FilterPill>
-                  {categories.map((category) => (
-                    <FilterPill key={category.id} active={activeCategory === category.id} onClick={() => setActiveCategory(category.id)}>
-                      {category.label}
+                ))}
+              </div>
+            </div>
+
+            {availableQuickTags.length ? (
+              <div>
+                <div className="mb-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">标签筛选</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {availableQuickTags.map((tag) => {
+                    const active = activeTags.includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() =>
+                          setActiveTags((current) => (current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]))
+                        }
+                        className={cn(
+                          'cursor-pointer rounded-md border px-3 py-1.5 text-[12px] transition-all',
+                          SPRING_PRESSABLE,
+                          INTERACTIVE_FOCUS_RING,
+                          skillTagClassName(tag, { selected: active, flat: true }),
+                        )}
+                      >
+                        {tag}
+                      </button>
+                    );
+                  })}
+                  {activeTags.length > 0 ? (
+                    <FilterPill onClick={() => setActiveTags([])} className="px-3 py-1.5 text-[12px]">
+                      清除
                     </FilterPill>
-                  ))}
+                  ) : null}
                 </div>
               </div>
+            ) : null}
 
-              {availableQuickTags.length ? (
-                <div>
-                  <div className="mb-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">标签筛选</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {availableQuickTags.map((tag) => {
-                      const active = activeTags.includes(tag);
-                      return (
-                        <button
-                          key={tag}
-                          type="button"
-                          onClick={() =>
-                            setActiveTags((current) => (current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]))
-                          }
-                          className={cn(
-                            'cursor-pointer rounded-md border px-3 py-1.5 text-[12px] transition-all',
-                            SPRING_PRESSABLE,
-                            INTERACTIVE_FOCUS_RING,
-                            skillTagClassName(tag, { selected: active, flat: true }),
-                          )}
-                        >
-                          {tag}
-                        </button>
-                      );
-                    })}
-                    {activeTags.length > 0 ? (
-                      <FilterPill
-                        onClick={() => setActiveTags([])}
-                        className="px-3 py-1.5 text-[12px]"
-                      >
-                        清除
-                      </FilterPill>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
-
+            {activeTab === 'store' ? (
               <div>
                 <div className="mb-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">安装状态</div>
                 <div className="flex flex-wrap gap-1.5">
@@ -887,15 +1377,11 @@ export function SkillStoreView({
                   ))}
                 </div>
               </div>
-            </>
-          ) : null}
+            ) : null}
+          </div>
         </div>
 
-        {loading ? (
-          <div className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-10 text-[14px] text-[var(--text-secondary)]">
-            正在加载技能目录...
-          </div>
-        ) : error ? (
+        {error ? (
           <div className="rounded-[18px] border border-[rgba(239,68,68,0.16)] bg-[rgba(239,68,68,0.08)] px-6 py-5 text-sm text-[var(--state-error)]">
             <div className="flex items-start gap-3">
               <AlertCircle className="mt-0.5 h-4.5 w-4.5 shrink-0" />
@@ -905,6 +1391,10 @@ export function SkillStoreView({
               </div>
             </div>
           </div>
+        ) : null}
+
+        {!initialHydrated && filteredSkills.length === 0 ? (
+          <SkillGridSkeleton />
         ) : filteredSkills.length === 0 ? (
           <EmptyState
             title={searchQuery ? '未找到匹配的技能' : '当前筛选条件下暂无技能'}
@@ -920,6 +1410,7 @@ export function SkillStoreView({
                 actionLoading={installingSlug === skill.slug}
                 installFailed={installErrorSlugs.includes(skill.slug)}
                 onAction={handleInstall}
+                onStartConversation={handleStartConversation}
                 onOpenDetail={(nextSkill) => {
                   if (!adminMode) {
                     setSelectedSkill(nextSkill);
@@ -937,6 +1428,36 @@ export function SkillStoreView({
             ))}
           </div>
         )}
+
+        {!adminMode && catalogHasMore ? (
+          <div className="mt-6 flex justify-center">
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={loadingMore}
+              className="rounded-lg px-5 py-2 text-[13px]"
+              leadingIcon={loadingMore ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              onClick={() => void handleLoadMore()}
+            >
+              {loadingMore ? '加载中...' : '加载更多'}
+            </Button>
+          </div>
+        ) : null}
+
+        {adminMode && adminHasMore ? (
+          <div className="mt-6 flex justify-center">
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={loadingMore}
+              className="rounded-lg px-5 py-2 text-[13px]"
+              leadingIcon={loadingMore ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              onClick={() => void handleLoadMore()}
+            >
+              {loadingMore ? '加载中...' : '加载更多'}
+            </Button>
+          </div>
+        ) : null}
       </PageContent>
 
       <SkillStoreDetailSheet
@@ -944,8 +1465,8 @@ export function SkillStoreView({
         actionLoading={selectedSkill ? installingSlug === selectedSkill.slug : false}
         installFailed={selectedSkill ? installErrorSlugs.includes(selectedSkill.slug) : false}
         onInstall={handleInstall}
+        onStartConversation={handleStartConversation}
         onClose={() => setSelectedSkill(null)}
-        publishedAtFormatter={formatPublishedAt}
       />
       <SkillStoreAdminSheet
         skill={selectedAdminSkill}

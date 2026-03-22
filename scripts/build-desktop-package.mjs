@@ -20,7 +20,7 @@ const bundledRuntimeDir = path.join(tauriDir, 'resources', 'openclaw-runtime');
 
 function parseArgs(argv) {
   const forwardedArgs = [];
-  let brandId = process.env.ICLAW_BRAND || '';
+  let brandId = process.env.ICLAW_PORTAL_APP_NAME || process.env.ICLAW_BRAND || process.env.ICLAW_APP_NAME || '';
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -166,12 +166,17 @@ async function main() {
   const { brandId, forwardedArgs } = parseArgs(process.argv.slice(2));
   const env = {
     ...process.env,
+    ICLAW_PORTAL_APP_NAME: brandId,
     ICLAW_BRAND: brandId,
   };
   const { tauriBundle, packageDmg } = platformBundleTarget();
   const pnpm = pnpmCommand();
 
   run(process.execPath, [applyBrandScriptPath, brandId], { env });
+  run(pnpm.command, [...pnpm.args, '--filter', '@iclaw/control-plane', 'sync:local-app-runtime', '--', '--app', brandId], {
+    env,
+    shell: pnpm.shell,
+  });
   run(process.execPath, [syncResourcesScriptPath], { env });
   await assertPackagedRuntimeConfig();
   await writeTempTauriConfig();

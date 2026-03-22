@@ -2,26 +2,21 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-BRAND_ID="${1:-${ICLAW_BRAND:-iclaw}}"
-BRAND_DIR="$ROOT_DIR/brands/$BRAND_ID"
-BRAND_CONFIG_PATH="$BRAND_DIR/brand.json"
-
-if [[ ! -f "$BRAND_CONFIG_PATH" ]]; then
-  echo "Missing brand config: $BRAND_CONFIG_PATH"
-  exit 1
-fi
+BRAND_ID="${1:-${ICLAW_PORTAL_APP_NAME:-${ICLAW_BRAND:-iclaw}}}"
+RGBA_HELPER="$ROOT_DIR/scripts/ensure-rgba-png.swift"
 
 BRAND_PATHS="$(
   node --input-type=module -e "
-    import fs from 'node:fs';
     import path from 'node:path';
+    import {loadBrandProfile} from './scripts/lib/brand-profile.mjs';
 
-    const brandDir = process.argv[1];
-    const brand = JSON.parse(fs.readFileSync(path.join(brandDir, 'brand.json'), 'utf8'));
-    const logoMaster = brand.assets.logoMaster || path.join(brand.assets.tauriIconsDir, 'icon.png');
+    const rootDir = process.argv[1];
+    const brandId = process.argv[2];
+    const {brandDir, profile} = await loadBrandProfile({rootDir, brandId});
+    const logoMaster = profile.assets.logoMaster || path.join(profile.assets.tauriIconsDir, 'icon.png');
     console.log(path.resolve(brandDir, logoMaster));
-    console.log(path.resolve(brandDir, brand.assets.tauriIconsDir));
-  " "$BRAND_DIR"
+    console.log(path.resolve(brandDir, profile.assets.tauriIconsDir));
+  " "$ROOT_DIR" "$BRAND_ID"
 )"
 
 SOURCE_LOGO="$(printf '%s\n' "$BRAND_PATHS" | sed -n '1p')"
@@ -38,6 +33,13 @@ cleanup() {
   rm -rf "$TMP_DIR"
 }
 trap cleanup EXIT
+
+normalize_png_rgba() {
+  local input_path="$1"
+  local tmp_output="$TMP_DIR/rgba-$(basename "$input_path")"
+  swift "$RGBA_HELPER" "$input_path" "$tmp_output"
+  mv "$tmp_output" "$input_path"
+}
 
 mkdir -p "$ICONS_DIR"
 mkdir -p "$ICONSET_DIR"
@@ -58,6 +60,20 @@ sips -z 64 64 "$TMP_DIR/master-1024.png" --out "$ICONSET_DIR/icon_32x32@2x.png" 
 sips -z 32 32 "$TMP_DIR/master-1024.png" --out "$ICONSET_DIR/icon_32x32.png" >/dev/null
 sips -z 32 32 "$TMP_DIR/master-1024.png" --out "$ICONSET_DIR/icon_16x16@2x.png" >/dev/null
 sips -z 16 16 "$TMP_DIR/master-1024.png" --out "$ICONSET_DIR/icon_16x16.png" >/dev/null
+
+for icon_png in \
+  "$ICONSET_DIR/icon_16x16.png" \
+  "$ICONSET_DIR/icon_16x16@2x.png" \
+  "$ICONSET_DIR/icon_32x32.png" \
+  "$ICONSET_DIR/icon_32x32@2x.png" \
+  "$ICONSET_DIR/icon_128x128.png" \
+  "$ICONSET_DIR/icon_128x128@2x.png" \
+  "$ICONSET_DIR/icon_256x256.png" \
+  "$ICONSET_DIR/icon_256x256@2x.png" \
+  "$ICONSET_DIR/icon_512x512.png" \
+  "$ICONSET_DIR/icon_512x512@2x.png"; do
+  normalize_png_rgba "$icon_png"
+done
 
 for required in \
   icon_16x16.png \
@@ -96,6 +112,14 @@ cp "$TMP_DIR/master-1024.png" "$ICONS_DIR/icon.png"
 sips -z 32 32 "$TMP_DIR/master-1024.png" --out "$ICONS_DIR/32x32.png" >/dev/null
 sips -z 128 128 "$TMP_DIR/master-1024.png" --out "$ICONS_DIR/128x128.png" >/dev/null
 sips -z 256 256 "$TMP_DIR/master-1024.png" --out "$ICONS_DIR/128x128@2x.png" >/dev/null
+
+for icon_png in \
+  "$ICONS_DIR/icon.png" \
+  "$ICONS_DIR/32x32.png" \
+  "$ICONS_DIR/128x128.png" \
+  "$ICONS_DIR/128x128@2x.png"; do
+  normalize_png_rgba "$icon_png"
+done
 
 # Keep current icon.ico if conversion fails (sips can be flaky on some systems).
 if ! sips -s format ico "$TMP_DIR/master-1024.png" --out "$ICONS_DIR/icon.ico" >/dev/null 2>&1; then

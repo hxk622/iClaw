@@ -5,7 +5,8 @@ const TOKEN_STORAGE_KEY = 'iclaw.admin-web.tokens';
 const NAV_ITEMS = [
   {id: 'overview', label: '总览', icon: 'layoutGrid'},
   {id: 'brands', label: '品牌管理', icon: 'layers'},
-  {id: 'skills-mcp', label: '技能与 MCP', icon: 'zap'},
+  {id: 'skills-mcp', label: '能力中心', icon: 'zap'},
+  {id: 'cloud-skills', label: '云技能', icon: 'store'},
   {id: 'assets', label: '资源管理', icon: 'image'},
   {id: 'releases', label: '版本发布', icon: 'rocket'},
   {id: 'audit-log', label: '审计日志', icon: 'fileText'},
@@ -19,6 +20,15 @@ const SURFACE_LABELS = {
   'input-composer': '输入编辑器',
   'skill-store': '技能商店',
 };
+const DEFAULT_SURFACE_KEYS = ['desktop', 'home-web', 'header', 'sidebar', 'input', 'skill-store'];
+const MENU_LIBRARY = [
+  {key: 'workspace', label: '工作台'},
+  {key: 'skills', label: '技能'},
+  {key: 'mcp', label: 'MCP'},
+  {key: 'assets', label: '资源'},
+  {key: 'models', label: '模型'},
+  {key: 'settings', label: '设置'},
+];
 
 const app = document.querySelector('#app');
 
@@ -37,18 +47,26 @@ const state = {
   user: null,
   dashboard: null,
   brands: [],
+  portalAppDetails: {},
   selectedBrandId: '',
   brandDetail: null,
   brandDraftBuffer: null,
   brandDetailTab: 'surfaces',
   capabilities: null,
   skillCatalog: [],
+  cloudSkillCatalog: [],
   personalSkillCatalog: [],
   skillLibrary: [],
   mcpCatalog: [],
+  modelCatalog: [],
+  skillSyncSources: [],
+  skillSyncRuns: [],
   capabilityMode: 'skills',
   selectedSkillSlug: '',
   selectedMcpKey: '',
+  selectedModelRef: '',
+  selectedCloudSkillSlug: '',
+  selectedSkillSyncSourceId: '',
   selectedReleaseId: '',
   selectedAuditId: '',
   mcpTestResult: null,
@@ -57,11 +75,21 @@ const state = {
   audit: [],
   showCreateBrandForm: false,
   showSkillImportPanel: false,
+  showSkillSyncSourceForm: false,
   showAssetUploadPanel: false,
   filters: {
     brandQuery: '',
     brandStatus: 'all',
     capabilityQuery: '',
+    capabilitySkillStatus: 'all',
+    capabilitySkillCategory: 'all',
+    capabilitySkillBrand: 'all',
+    capabilityMcpStatus: 'all',
+    capabilityMcpTransport: 'all',
+    capabilityMcpBrand: 'all',
+    capabilityModelStatus: 'all',
+    capabilityModelProvider: 'all',
+    capabilityModelBrand: 'all',
     assetQuery: '',
     assetBrand: 'all',
     assetKind: 'all',
@@ -183,6 +211,29 @@ function icon(name, className = '') {
   return icons[name] || '';
 }
 
+function renderAdminLogo(className = '') {
+  const cls = className ? ` ${className}` : '';
+  return `
+    <span class="brand-mark${cls}" aria-hidden="true">
+      <svg class="brand-mark__svg" viewBox="0 0 72 72" fill="none">
+        <defs>
+          <linearGradient id="adminBrandGradient" x1="12" y1="10" x2="60" y2="62" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#7DB0AF" />
+            <stop offset="0.54" stop-color="#B89573" />
+            <stop offset="1" stop-color="#314036" />
+          </linearGradient>
+        </defs>
+        <rect x="6" y="6" width="60" height="60" rx="18" fill="#221f1b" />
+        <rect x="13" y="13" width="46" height="46" rx="14" fill="url(#adminBrandGradient)" opacity="0.2" />
+        <path d="M20 46.5V24.5L36 16l16 8.5v22L36 55l-16-8.5Z" fill="url(#adminBrandGradient)" />
+        <path d="M36 16v39" stroke="#F9F7F3" stroke-opacity="0.88" stroke-width="2.2" stroke-linecap="round" />
+        <path d="M20 24.5 36 33l16-8.5" stroke="#F9F7F3" stroke-opacity="0.82" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+        <path d="M20 46.5 36 38l16 8.5" stroke="#F9F7F3" stroke-opacity="0.64" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </span>
+  `;
+}
+
 function formatDateTime(value) {
   if (!value) return '未记录';
   const date = new Date(value);
@@ -227,6 +278,10 @@ function surfaceLabel(key) {
 
 function statusLabel(status) {
   switch (status) {
+    case 'active':
+      return '已启用';
+    case 'disabled':
+      return '已禁用';
     case 'published':
       return '已发布';
     case 'draft':
@@ -240,8 +295,196 @@ function statusLabel(status) {
   }
 }
 
+function getMenuLabel(menuKey) {
+  return MENU_LIBRARY.find((item) => item.key === menuKey)?.label || titleizeKey(menuKey);
+}
+
+function getAppConfig(source) {
+  return asObject(source?.config || source?.draftConfig);
+}
+
+function getAppBrandMeta(source) {
+  const config = getAppConfig(source);
+  const brandMeta = {
+    ...asObject(config.brand_meta),
+    ...asObject(config.brandMeta),
+  };
+  return {
+    productName: String(
+      brandMeta.productName || brandMeta.product_name || config.productName || config.product_name || '',
+    ).trim(),
+    tenantKey: String(
+      brandMeta.tenantKey || brandMeta.tenant_key || config.tenantKey || config.tenant_key || source?.appName || source?.brandId || '',
+    ).trim(),
+    description: String(brandMeta.description || brandMeta.description_text || config.description || source?.description || '').trim(),
+  };
+}
+
+function mapAppStatusToBrandStatus(status) {
+  return status === 'disabled' ? 'disabled' : 'active';
+}
+
+function mergeMenuBindings(bindings) {
+  const existing = new Map(asArray(bindings).map((item) => [item.menuKey, item]));
+  return MENU_LIBRARY.map((item, index) => ({
+    appName: existing.get(item.key)?.appName || '',
+    menuKey: item.key,
+    enabled: existing.get(item.key)?.enabled ?? true,
+    sortOrder: existing.get(item.key)?.sortOrder ?? (index + 1) * 10,
+    config: asObject(existing.get(item.key)?.config),
+  }));
+}
+
+function adaptPortalDetail(detail) {
+  if (!detail?.app) return null;
+  const meta = getAppBrandMeta(detail.app);
+  const config = clone(getAppConfig(detail.app));
+  return {
+    app: detail.app,
+    brand: {
+      brandId: detail.app.appName,
+      displayName: detail.app.displayName,
+      productName: meta.productName || detail.app.displayName,
+      tenantKey: meta.tenantKey || detail.app.appName,
+      description: meta.description,
+      status: mapAppStatusToBrandStatus(detail.app.status),
+      draftConfig: config,
+      publishedConfig: config,
+      updatedAt: detail.app.updatedAt,
+      publishedVersion: detail.releases?.[0]?.version || 0,
+    },
+    skillBindings: asArray(detail.skillBindings),
+    mcpBindings: asArray(detail.mcpBindings),
+    modelBindings: asArray(detail.modelBindings),
+    menuBindings: mergeMenuBindings(detail.menuBindings),
+    assets: asArray(detail.assets).map((item) => ({
+      ...item,
+      appName: item.appName,
+      brandId: item.appName,
+      brandDisplayName: detail.app.displayName,
+      storageProvider: item.storageProvider || 's3',
+      publicUrl: item.publicUrl || buildPortalAssetUrl(item.appName, item.assetKey),
+      metadata: asObject(item.metadata),
+      updatedAt: item.updatedAt,
+    })),
+    versions: asArray(detail.releases).map((item) => ({
+      id: item.id,
+      brandId: item.appName,
+      brandDisplayName: item.appDisplayName,
+      version: item.version,
+      config: asObject(item.config),
+      createdByName: item.createdByName,
+      createdByUsername: item.createdByUsername,
+      createdAt: item.createdAt,
+      publishedAt: item.publishedAt,
+    })),
+    audit: asArray(detail.audit).map((item) => ({
+      id: item.id,
+      brandId: item.appName,
+      brandDisplayName: item.appDisplayName,
+      action: item.action,
+      actorName: item.actorName,
+      actorUsername: item.actorUsername,
+      createdAt: item.createdAt,
+      environment: 'portal',
+      payload: asObject(item.payload),
+    })),
+  };
+}
+
+function mapPortalAppToBrand(app, detail) {
+  const config = getAppConfig(detail?.app || app);
+  const meta = getAppBrandMeta(detail?.app || app);
+  const surfaces = Object.values(asObject(config.surfaces)).filter((surface) => asObject(surface).enabled !== false);
+  const enabledSkills = asArray(detail?.skillBindings).filter((item) => item?.enabled).length;
+  const enabledMcps = asArray(detail?.mcpBindings).filter((item) => item?.enabled).length;
+  const enabledModels = asArray(detail?.modelBindings).filter((item) => item?.enabled).length;
+  return {
+    brandId: app.appName,
+    displayName: app.displayName,
+    productName: meta.productName || app.displayName,
+    tenantKey: meta.tenantKey || app.appName,
+    status: mapAppStatusToBrandStatus(app.status),
+    updatedAt: app.updatedAt,
+    publishedVersion: 0,
+    draftConfig: clone(config),
+    publishedConfig: clone(config),
+    _surfaceCount: surfaces.length,
+    _skillCount: enabledSkills,
+    _mcpCount: enabledMcps,
+    _modelCount: enabledModels,
+  };
+}
+
+function buildPortalDashboard(apps, skills, mcps, detailsMap) {
+  const detailList = Object.values(detailsMap).map((detail) => adaptPortalDetail(detail)).filter(Boolean);
+  const recentReleases = detailList
+    .flatMap((detail) => detail.versions.map((item) => ({
+      id: item.id,
+      display_name: detail.brand.displayName,
+      version: item.version,
+      published_at: item.publishedAt,
+    })))
+    .sort((left, right) => String(right.published_at).localeCompare(String(left.published_at)))
+    .slice(0, 6);
+  const recentEdits = detailList
+    .flatMap((detail) => detail.audit.map((item) => ({
+      id: item.id,
+      display_name: detail.brand.displayName,
+      action: item.action,
+      actor_name: item.actorName || item.actorUsername || 'admin',
+      created_at: item.createdAt,
+    })))
+    .sort((left, right) => String(right.created_at).localeCompare(String(left.created_at)))
+    .slice(0, 6);
+
+  return {
+    stats: {
+      brands_total: apps.length,
+      published_count: apps.filter((app) => app.status === 'active').length,
+      draft_count: 0,
+      mcp_servers_count: mcps.length,
+      skills_count: skills.length,
+      pending_changes_count: 0,
+    },
+    recent_releases: recentReleases,
+    recent_edits: recentEdits,
+    app_bindings: detailList.length,
+  };
+}
+
+function getPortalSkillConnections(slug) {
+  return state.brands
+    .filter((brand) =>
+      asArray(state.portalAppDetails[brand.brandId]?.skillBindings).some((item) => item.skillSlug === slug && item.enabled),
+    )
+    .map((brand) => ({
+      brand_id: brand.brandId,
+      display_name: brand.displayName,
+    }));
+}
+
+function getPortalMcpConnections(mcpKey) {
+  return state.brands
+    .filter((brand) =>
+      asArray(state.portalAppDetails[brand.brandId]?.mcpBindings).some((item) => item.mcpKey === mcpKey && item.enabled),
+    )
+    .map((brand) => ({
+      brand_id: brand.brandId,
+      display_name: brand.displayName,
+    }));
+}
+
 function actionLabel(action) {
   switch (action) {
+    case 'app_saved':
+      return '保存应用配置';
+    case 'skill_bindings_saved':
+      return '更新 Skill 绑定';
+    case 'mcp_bindings_saved':
+      return '更新 MCP 绑定';
+    case 'menu_bindings_saved':
+      return '更新菜单绑定';
     case 'draft_saved':
       return '保存草稿';
     case 'published':
@@ -298,8 +541,18 @@ function buildOemAssetUrl(brandId, assetKey) {
   return `${API_BASE_URL}/oem/asset/file?brand_id=${encodeURIComponent(brandId)}&asset_key=${encodeURIComponent(assetKey)}`;
 }
 
+function buildPortalAssetUrl(appName, assetKey) {
+  return `${API_BASE_URL}/portal/asset/file?app_name=${encodeURIComponent(appName)}&asset_key=${encodeURIComponent(assetKey)}`;
+}
+
 function resolveAssetUrl(item) {
-  return item?.publicUrl || buildOemAssetUrl(item?.brandId || '', item?.assetKey || '');
+  if (item?.publicUrl) {
+    return item.publicUrl;
+  }
+  if (item?.appName || item?.brandId) {
+    return buildPortalAssetUrl(item?.appName || item?.brandId || '', item?.assetKey || '');
+  }
+  return buildOemAssetUrl(item?.brandId || '', item?.assetKey || '');
 }
 
 function prettyJson(value) {
@@ -340,60 +593,148 @@ function getAdminSkillCatalogEntry(slug) {
   return state.skillCatalog.find((item) => item.slug === slug) || null;
 }
 
+function getCloudSkillCatalogEntry(slug) {
+  return state.cloudSkillCatalog.find((item) => item.slug === slug) || null;
+}
+
 function getPersonalSkillCatalogEntry(slug) {
   return state.personalSkillCatalog.find((item) => item.slug === slug) || null;
 }
 
 function getMcpCatalogEntry(key) {
-  return state.mcpCatalog.find((item) => item.key === key) || null;
+  return state.mcpCatalog.find((item) => item.key === key || item.mcpKey === key) || null;
+}
+
+function getModelCatalogEntry(ref) {
+  return state.modelCatalog.find((item) => item.ref === ref) || null;
 }
 
 function getMergedSkills() {
-  const merged = new Map();
-  for (const item of state.personalSkillCatalog) {
-    merged.set(item.slug, {
-      slug: item.slug,
-      name: item.name,
-      description: item.description || '',
-      category: item.category || null,
-      publisher: item.publisher || 'iClaw',
-      distribution: item.distribution || item.source || 'unknown',
-      latestRelease: item.latest_release?.version || null,
-      brand_count: 0,
-      connectedBrands: [],
-    });
-  }
-  for (const item of state.capabilities?.skills || []) {
-    merged.set(item.slug, {
-      ...(merged.get(item.slug) || {}),
-      ...item,
-    });
-  }
-  return Array.from(merged.values()).sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
+  return state.skillCatalog
+    .map((item) => {
+      const connectedBrands = getPortalSkillConnections(item.slug);
+      return {
+        ...item,
+        distribution: 'cloud',
+        brand_count: connectedBrands.length,
+        connectedBrands,
+      };
+    })
+    .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
 }
 
 function getMergedMcpServers() {
-  const merged = new Map();
-  for (const item of state.mcpCatalog) {
-    merged.set(item.key, {
-      key: item.key,
-      name: item.name || titleizeKey(item.key),
-      enabled_by_default: item.enabled,
-      command: item.command,
-      args: item.args || [],
-      http_url: item.http_url,
-      env_keys: item.env_keys || Object.keys(asObject(item.env || {})),
-      connected_brands: [],
-      connected_brand_count: 0,
+  return state.mcpCatalog
+    .map((item) => {
+      const connectedBrands = getPortalMcpConnections(item.mcpKey);
+      const config = asObject(item.config);
+      const env = asObject(config.env);
+      return {
+        key: item.mcpKey,
+        mcpKey: item.mcpKey,
+        name: item.name || titleizeKey(item.mcpKey),
+        description: item.description || '',
+        enabled_by_default: item.active,
+        command: typeof config.command === 'string' ? config.command : '',
+        args: asArray(config.args).map((arg) => String(arg)),
+        http_url: typeof config.http_url === 'string' ? config.http_url : '',
+        env_keys: Object.keys(env),
+        connected_brands: connectedBrands,
+        connected_brand_count: connectedBrands.length,
+        transport: item.transport,
+        objectKey: item.objectKey,
+        metadata: asObject(item.metadata),
+        config,
+      };
+    })
+    .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
+}
+
+function getPortalModelConnections(ref) {
+  return Object.values(state.portalAppDetails)
+    .filter(Boolean)
+    .flatMap((detail) => {
+      const app = detail?.app;
+      if (!app) return [];
+      return asArray(detail.modelBindings)
+        .filter((item) => item.modelRef === ref && item.enabled)
+        .map(() => ({
+          brand_id: app.appName,
+          display_name: app.displayName,
+          status: app.status,
+        }));
     });
-  }
-  for (const item of state.capabilities?.mcp_servers || []) {
-    merged.set(item.key, {
-      ...(merged.get(item.key) || {}),
-      ...item,
-    });
-  }
-  return Array.from(merged.values()).sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
+}
+
+function getMergedModelCatalog() {
+  return state.modelCatalog
+    .map((item) => {
+      const connectedBrands = getPortalModelConnections(item.ref);
+      return {
+        ...item,
+        input: asStringArray(item.input),
+        connectedBrands,
+        connected_brand_count: connectedBrands.length,
+      };
+    })
+    .sort((left, right) => left.label.localeCompare(right.label, 'zh-CN'));
+}
+
+function getCapabilityFilterOptions() {
+  const skills = getMergedSkills();
+  const mcpServers = getMergedMcpServers();
+  const models = getMergedModelCatalog();
+  const categories = Array.from(
+    new Set(
+      skills
+        .map((item) => String(item.category || '').trim())
+        .filter(Boolean),
+    ),
+  ).sort((left, right) => left.localeCompare(right, 'zh-CN'));
+  const skillBrands = Array.from(
+    new Map(
+      skills
+        .flatMap((item) => asArray(item.connectedBrands))
+        .map((brand) => [brand.brand_id, brand]),
+    ).values(),
+  ).sort((left, right) => String(left.display_name || '').localeCompare(String(right.display_name || ''), 'zh-CN'));
+  const mcpBrands = Array.from(
+    new Map(
+      mcpServers
+        .flatMap((item) => asArray(item.connected_brands))
+        .map((brand) => [brand.brand_id, brand]),
+    ).values(),
+  ).sort((left, right) => String(left.display_name || '').localeCompare(String(right.display_name || ''), 'zh-CN'));
+  const transports = Array.from(
+    new Set(
+      mcpServers
+        .map((item) => String(item.transport || '').trim())
+        .filter(Boolean),
+    ),
+  ).sort((left, right) => left.localeCompare(right, 'zh-CN'));
+  const modelProviders = Array.from(
+    new Set(
+      models
+        .map((item) => String(item.providerId || '').trim())
+        .filter(Boolean),
+    ),
+  ).sort((left, right) => left.localeCompare(right, 'zh-CN'));
+  const modelBrands = Array.from(
+    new Map(
+      models
+        .flatMap((item) => asArray(item.connectedBrands))
+        .map((brand) => [brand.brand_id, brand]),
+    ).values(),
+  ).sort((left, right) => String(left.display_name || '').localeCompare(String(right.display_name || ''), 'zh-CN'));
+
+  return {
+    categories,
+    skillBrands,
+    mcpBrands,
+    transports,
+    modelProviders,
+    modelBrands,
+  };
 }
 
 function summarizeChangedAreas(currentConfig, compareConfig) {
@@ -419,12 +760,12 @@ function fieldValue(value) {
 function metricsFromBrand(brand) {
   const draftConfig = asObject(brand?.draftConfig);
   const surfaces = Object.values(asObject(draftConfig.surfaces)).filter((surface) => asObject(surface).enabled !== false);
-  const capabilities = asObject(draftConfig.capabilities);
   return {
-    surfaces: surfaces.length,
-    skills: asStringArray(capabilities.skills).length,
-    mcpServers: asStringArray(capabilities.mcp_servers).length,
-    pendingChanges: JSON.stringify(brand?.draftConfig || {}) !== JSON.stringify(brand?.publishedConfig || {}),
+    surfaces: brand?._surfaceCount ?? surfaces.length,
+    skills: brand?._skillCount ?? 0,
+    mcpServers: brand?._mcpCount ?? 0,
+    models: brand?._modelCount ?? 0,
+    pendingChanges: false,
   };
 }
 
@@ -507,25 +848,39 @@ function buildBrandDraftBuffer(detail) {
   const lightTheme = asObject(draftTheme.light);
   const darkTheme = asObject(draftTheme.dark);
   const capabilities = asObject(draftConfig.capabilities);
+  const modelConfig = asObject(capabilities.models);
+  const modelBindings = asArray(detail?.modelBindings);
+  const selectedModels = modelBindings
+    .filter((item) => item?.enabled)
+    .map((item) => String(item.modelRef || '').trim())
+    .filter(Boolean);
+  const modelEntries = selectedModels
+    .map((ref) => getModelCatalogEntry(ref) || asObject(modelBindings.find((item) => item.modelRef === ref)?.model))
+    .filter((item) => item && typeof item === 'object');
+  const recommendedModelsFromBindings = modelBindings
+    .filter((item) => item?.enabled && asObject(item.config).recommended === true)
+    .map((item) => String(item.modelRef || '').trim())
+    .filter(Boolean);
+  const defaultModelFromBindings =
+    modelBindings.find((item) => item?.enabled && asObject(item.config).default === true)?.modelRef || '';
   const surfaceEntries = asObject(draftConfig.surfaces);
   const orderedSurfaceKeys = Array.from(
     new Set([
-      'desktop',
-      'home-web',
-      'header',
-      'sidebar',
-      'input',
-      'skill-store',
+      ...DEFAULT_SURFACE_KEYS,
       ...Object.keys(surfaceEntries),
     ]),
   );
+  const selectedMenus = mergeMenuBindings(detail?.menuBindings)
+    .filter((item) => item.enabled)
+    .map((item) => item.menuKey);
+  const meta = getAppBrandMeta(brand);
 
   return {
     brandId: brand?.brandId || '',
     displayName: brand?.displayName || '',
-    productName: brand?.productName || '',
-    tenantKey: brand?.tenantKey || '',
-    status: brand?.status || 'draft',
+    productName: meta.productName || brand?.productName || '',
+    tenantKey: meta.tenantKey || brand?.tenantKey || '',
+    status: brand?.status || 'active',
     advancedJson: JSON.stringify(draftConfig, null, 2),
     theme: {
       lightPrimary: lightTheme.primary || '',
@@ -535,10 +890,18 @@ function buildBrandDraftBuffer(detail) {
       darkPrimaryHover: darkTheme.primaryHover || '',
       darkOnPrimary: darkTheme.onPrimary || '',
     },
-    selectedSkills: asStringArray(capabilities.skills),
-    selectedMcp: asStringArray(capabilities.mcp_servers),
+    selectedSkills: asArray(detail?.skillBindings).filter((item) => item.enabled).map((item) => item.skillSlug),
+    selectedMcp: asArray(detail?.mcpBindings).filter((item) => item.enabled).map((item) => item.mcpKey),
+    selectedMenus,
+    selectedModels,
+    recommendedModels: (recommendedModelsFromBindings.length
+      ? recommendedModelsFromBindings
+      : asStringArray(modelConfig.recommended)
+    ).filter((ref) => selectedModels.includes(ref)),
+    defaultModel: defaultModelFromBindings || (typeof modelConfig.default === 'string' && modelConfig.default.trim()) || selectedModels[0] || '',
+    savedModelEntries: modelEntries.map((item) => clone(asObject(item))),
     agentsText: asStringArray(capabilities.agents).join('\n'),
-    menusText: asStringArray(capabilities.menus).join('\n'),
+    menusText: selectedMenus.join('\n'),
     surfaces: orderedSurfaceKeys.map((key) => {
       const surface = asObject(surfaceEntries[key]);
       return {
@@ -609,6 +972,19 @@ function captureBrandEditorBuffer() {
     selectedMcp: form.querySelector('.mcp-checkbox')
       ? Array.from(form.querySelectorAll('.mcp-checkbox:checked')).map((node) => node.value)
       : asStringArray(existing.selectedMcp),
+    selectedMenus: form.querySelector('.menu-checkbox')
+      ? Array.from(form.querySelectorAll('.menu-checkbox:checked')).map((node) => node.value)
+      : asStringArray(existing.selectedMenus),
+    selectedModels: form.querySelector('.model-checkbox')
+      ? Array.from(form.querySelectorAll('.model-checkbox:checked')).map((node) => node.value)
+      : asStringArray(existing.selectedModels),
+    recommendedModels: form.querySelector('.model-recommended-checkbox')
+      ? Array.from(form.querySelectorAll('.model-recommended-checkbox:checked')).map((node) => node.value)
+      : asStringArray(existing.recommendedModels),
+    defaultModel: form.querySelector('[name="default_model"]')
+      ? String(data.get('default_model') || existing.defaultModel || '')
+      : String(existing.defaultModel || ''),
+    savedModelEntries: asArray(existing.savedModelEntries).map((item) => clone(asObject(item))),
     agentsText: form.querySelector('[name="agents_text"]')
       ? String(data.get('agents_text') || existing.agentsText || '')
       : String(existing.agentsText || ''),
@@ -659,13 +1035,41 @@ function composeDraftConfig(buffer) {
     };
     return accumulator;
   }, {});
-
+  const brandMetaSnake = asObject(draftConfig.brand_meta);
+  const brandMetaCamel = asObject(draftConfig.brandMeta);
+  const nextProductName = buffer.productName.trim();
+  const nextTenantKey = buffer.tenantKey.trim() || buffer.brandId.trim();
+  draftConfig.brand_meta = {
+    ...brandMetaSnake,
+    brand_id: buffer.brandId.trim(),
+    display_name: buffer.displayName.trim(),
+    product_name: nextProductName,
+    tenant_key: nextTenantKey,
+    legal_name: String(brandMetaSnake.legal_name || draftConfig.legalName || draftConfig.legal_name || buffer.displayName.trim()).trim(),
+    storage_namespace: String(brandMetaSnake.storage_namespace || asObject(draftConfig.storage).namespace || nextTenantKey).trim(),
+  };
+  draftConfig.brandMeta = {
+    ...brandMetaCamel,
+    productName: nextProductName,
+    tenantKey: nextTenantKey,
+  };
+  draftConfig.productName = nextProductName;
+  draftConfig.product_name = nextProductName;
+  draftConfig.tenantKey = nextTenantKey;
+  draftConfig.tenant_key = nextTenantKey;
   draftConfig.capabilities = {
     ...asObject(draftConfig.capabilities),
-    skills: buffer.selectedSkills,
-    mcp_servers: buffer.selectedMcp,
-    agents: splitLines(buffer.agentsText),
-    menus: splitLines(buffer.menusText),
+    skills: [...buffer.selectedSkills],
+    mcp_servers: [...buffer.selectedMcp],
+    menus: [...buffer.selectedMenus],
+    models: {
+      default: buffer.defaultModel || null,
+      recommended: buffer.recommendedModels.filter((ref) => buffer.selectedModels.includes(ref)),
+      entries: buffer.selectedModels
+        .map((ref) => getModelCatalogEntry(ref) || asObject(buffer.savedModelEntries.find((item) => asObject(item).ref === ref)))
+        .filter((item) => item && typeof item === 'object')
+        .map((item) => clone(item)),
+    },
   };
 
   return draftConfig;
@@ -724,12 +1128,29 @@ async function ensureSession() {
 function syncCapabilitySelection() {
   const skills = getMergedSkills();
   const mcpServers = getMergedMcpServers();
+  const models = getMergedModelCatalog();
   if (!skills.find((item) => item.slug === state.selectedSkillSlug)) {
     state.selectedSkillSlug = skills[0]?.slug || '';
   }
   if (!mcpServers.find((item) => item.key === state.selectedMcpKey)) {
     state.selectedMcpKey = mcpServers[0]?.key || '';
   }
+  if (!models.find((item) => item.ref === state.selectedModelRef)) {
+    state.selectedModelRef = models[0]?.ref || '';
+  }
+}
+
+function resetCapabilityFilters() {
+  state.filters.capabilityQuery = '';
+  state.filters.capabilitySkillStatus = 'all';
+  state.filters.capabilitySkillCategory = 'all';
+  state.filters.capabilitySkillBrand = 'all';
+  state.filters.capabilityMcpStatus = 'all';
+  state.filters.capabilityMcpTransport = 'all';
+  state.filters.capabilityMcpBrand = 'all';
+  state.filters.capabilityModelStatus = 'all';
+  state.filters.capabilityModelProvider = 'all';
+  state.filters.capabilityModelBrand = 'all';
 }
 
 function syncSupplementalSelection() {
@@ -746,32 +1167,84 @@ async function loadAppData() {
   render();
 
   try {
-    const [dashboard, brandsData, capabilities, assetsData, releasesData, auditData, skillCatalogData, personalSkillCatalogData, skillLibraryData, mcpCatalogData] = await Promise.all([
-      apiFetch('/admin/oem/dashboard', {method: 'GET'}),
-      apiFetch('/admin/oem/brands', {method: 'GET'}),
-      apiFetch('/admin/oem/capabilities', {method: 'GET'}),
-      apiFetch('/admin/oem/assets?limit=200', {method: 'GET'}),
-      apiFetch('/admin/oem/releases?limit=200', {method: 'GET'}),
-      apiFetch('/admin/oem/audit?limit=200', {method: 'GET'}),
+    const [appsData, skillCatalogData, mcpCatalogData, modelCatalogData, cloudSkillCatalogData, skillSyncSourcesData, skillSyncRunsData] = await Promise.all([
+      apiFetch('/admin/portal/apps', {method: 'GET'}),
+      apiFetch('/admin/portal/catalog/skills', {method: 'GET'}),
+      apiFetch('/admin/portal/catalog/mcps', {method: 'GET'}),
+      apiFetch('/admin/portal/catalog/models', {method: 'GET'}),
       apiFetch('/admin/skills/catalog', {method: 'GET'}),
-      apiFetch('/skills/catalog/personal', {method: 'GET'}),
-      apiFetch('/skills/library', {method: 'GET'}),
-      apiFetch('/admin/mcp/catalog', {method: 'GET'}),
+      apiFetch('/admin/skills/sync/sources', {method: 'GET'}),
+      apiFetch('/admin/skills/sync/runs', {method: 'GET'}),
     ]);
+    const apps = Array.isArray(appsData.items) ? appsData.items : [];
+    const details = await Promise.all(
+      apps.map(async (app) => {
+        const detail = await apiFetch(`/admin/portal/apps/${encodeURIComponent(app.appName)}`, {method: 'GET'});
+        return [app.appName, detail];
+      }),
+    );
+    const detailsMap = Object.fromEntries(details);
 
-    state.dashboard = dashboard;
-    state.brands = Array.isArray(brandsData.items) ? brandsData.items : [];
-    state.capabilities = capabilities;
-    state.assets = Array.isArray(assetsData.items) ? assetsData.items : [];
-    state.releases = Array.isArray(releasesData.items) ? releasesData.items : [];
-    state.audit = Array.isArray(auditData.items) ? auditData.items : [];
+    state.portalAppDetails = detailsMap;
     state.skillCatalog = Array.isArray(skillCatalogData.items) ? skillCatalogData.items : [];
-    state.personalSkillCatalog = Array.isArray(personalSkillCatalogData.items) ? personalSkillCatalogData.items : [];
-    state.skillLibrary = Array.isArray(skillLibraryData.items) ? skillLibraryData.items : [];
+    state.cloudSkillCatalog = Array.isArray(cloudSkillCatalogData.items) ? cloudSkillCatalogData.items : [];
     state.mcpCatalog = Array.isArray(mcpCatalogData.items) ? mcpCatalogData.items : [];
+    state.modelCatalog = Array.isArray(modelCatalogData.items) ? modelCatalogData.items : [];
+    state.skillSyncSources = Array.isArray(skillSyncSourcesData.items) ? skillSyncSourcesData.items : [];
+    state.skillSyncRuns = Array.isArray(skillSyncRunsData.items) ? skillSyncRunsData.items : [];
+    state.personalSkillCatalog = [];
+    state.skillLibrary = [];
+    state.brands = apps.map((app) => mapPortalAppToBrand(app, detailsMap[app.appName]));
+    state.dashboard = buildPortalDashboard(apps, state.skillCatalog, state.mcpCatalog, detailsMap);
+    const adaptedDetails = Object.values(detailsMap).map((detail) => adaptPortalDetail(detail)).filter(Boolean);
+    state.capabilities = {
+      brands: state.brands,
+      skills: state.skillCatalog.map((item) => ({
+        ...item,
+        brand_count: getPortalSkillConnections(item.slug).length,
+        connectedBrands: getPortalSkillConnections(item.slug),
+      })),
+      mcp_servers: state.mcpCatalog.map((item) => ({
+        key: item.mcpKey,
+        mcpKey: item.mcpKey,
+        name: item.name,
+        description: item.description,
+        connected_brand_count: getPortalMcpConnections(item.mcpKey).length,
+        connected_brands: getPortalMcpConnections(item.mcpKey),
+        enabled_by_default: item.active,
+        transport: item.transport,
+      })),
+      models: getMergedModelCatalog(),
+    };
+    state.assets = adaptedDetails.flatMap((detail) => detail.assets || []);
+    state.releases = adaptedDetails.flatMap((detail) =>
+      asArray(detail.versions).map((item) => ({
+        id: item.id,
+        brand_id: detail.brand.brandId,
+        display_name: detail.brand.displayName,
+        version: item.version,
+        published_at: item.publishedAt,
+        created_by_name: item.createdByName,
+        created_by_username: item.createdByUsername,
+        changed_areas: ['config', 'skills', 'mcps', 'menus', 'assets'],
+        surfaces: Object.keys(asObject(detail.brand.draftConfig?.surfaces || {})).filter(
+          (key) => asObject(asObject(detail.brand.draftConfig?.surfaces || {})[key]).enabled !== false,
+        ),
+        skill_count: asArray(detail.skillBindings).filter((entry) => entry.enabled).length,
+        mcp_count: asArray(detail.mcpBindings).filter((entry) => entry.enabled).length,
+        config: asObject(item.config),
+      })),
+    );
+    state.audit = adaptedDetails.flatMap((detail) => detail.audit || []);
 
     if (!state.selectedBrandId || !state.brands.find((brand) => brand.brandId === state.selectedBrandId)) {
       state.selectedBrandId = state.brands[0]?.brandId || '';
+    }
+    if (!state.selectedCloudSkillSlug || !state.cloudSkillCatalog.find((item) => item.slug === state.selectedCloudSkillSlug)) {
+      state.selectedCloudSkillSlug = state.cloudSkillCatalog[0]?.slug || '';
+    }
+    if (!state.selectedSkillSyncSourceId || !state.skillSyncSources.find((item) => item.id === state.selectedSkillSyncSourceId)) {
+      state.selectedSkillSyncSourceId = state.skillSyncSources[0]?.id || '';
     }
 
     syncCapabilitySelection();
@@ -802,7 +1275,10 @@ async function loadBrandDetail(brandId, options = {}) {
   }
 
   try {
-    const data = await apiFetch(`/admin/oem/brand?brand_id=${encodeURIComponent(brandId)}`, {method: 'GET'});
+    const detail =
+      state.portalAppDetails[brandId] || (await apiFetch(`/admin/portal/apps/${encodeURIComponent(brandId)}`, {method: 'GET'}));
+    state.portalAppDetails[brandId] = detail;
+    const data = adaptPortalDetail(detail);
     state.selectedBrandId = brandId;
     state.brandDetail = data;
     state.brandDraftBuffer = buildBrandDraftBuffer(data);
@@ -818,20 +1294,6 @@ async function loadBrandDetail(brandId, options = {}) {
   }
 }
 
-async function persistBrandDraft(brandRecord, draftConfig) {
-  return apiFetch('/admin/oem/brand', {
-    method: 'PUT',
-    body: JSON.stringify({
-      brand_id: brandRecord.brandId,
-      tenant_key: brandRecord.tenantKey,
-      display_name: brandRecord.displayName,
-      product_name: brandRecord.productName,
-      status: brandRecord.status,
-      draft_config: draftConfig,
-    }),
-  });
-}
-
 async function saveBrandEditor(form) {
   const snapshot = captureBrandEditorBuffer();
   let draftConfig;
@@ -839,7 +1301,7 @@ async function saveBrandEditor(form) {
     draftConfig = composeDraftConfig(snapshot);
   } catch (error) {
     setError(error instanceof Error ? error.message : '品牌配置不是合法 JSON');
-    return;
+    return false;
   }
 
   state.busy = true;
@@ -847,24 +1309,77 @@ async function saveBrandEditor(form) {
   render();
 
   try {
-    await apiFetch('/admin/oem/brand', {
+    const detail = state.portalAppDetails[snapshot.brandId] || {};
+    const existingSkillBindings = new Map(asArray(detail.skillBindings).map((item) => [item.skillSlug, item]));
+    const existingMcpBindings = new Map(asArray(detail.mcpBindings).map((item) => [item.mcpKey, item]));
+    const existingModelBindings = new Map(asArray(detail.modelBindings).map((item) => [item.modelRef, item]));
+    const existingMenuBindings = new Map(mergeMenuBindings(detail.menuBindings).map((item) => [item.menuKey, item]));
+    await apiFetch(`/admin/portal/apps/${encodeURIComponent(snapshot.brandId)}`, {
       method: 'PUT',
       body: JSON.stringify({
-        brand_id: snapshot.brandId,
-        tenant_key: snapshot.tenantKey,
         display_name: snapshot.displayName,
-        product_name: snapshot.productName,
-        status: snapshot.status,
-        draft_config: draftConfig,
+        status: snapshot.status === 'disabled' ? 'disabled' : 'active',
+        default_locale: 'zh-CN',
+        config: draftConfig,
       }),
     });
+    await Promise.all([
+      apiFetch(`/admin/portal/apps/${encodeURIComponent(snapshot.brandId)}/skills`, {
+        method: 'PUT',
+        body: JSON.stringify(
+          state.skillCatalog.map((item, index) => ({
+            skillSlug: item.slug,
+            enabled: snapshot.selectedSkills.includes(item.slug),
+            sortOrder: (index + 1) * 10,
+            config: asObject(existingSkillBindings.get(item.slug)?.config),
+          })),
+        ),
+      }),
+      apiFetch(`/admin/portal/apps/${encodeURIComponent(snapshot.brandId)}/mcps`, {
+        method: 'PUT',
+        body: JSON.stringify(
+          state.mcpCatalog.map((item, index) => ({
+            mcpKey: item.mcpKey,
+            enabled: snapshot.selectedMcp.includes(item.mcpKey),
+            sortOrder: (index + 1) * 10,
+            config: asObject(existingMcpBindings.get(item.mcpKey)?.config),
+          })),
+        ),
+      }),
+      apiFetch(`/admin/portal/apps/${encodeURIComponent(snapshot.brandId)}/models`, {
+        method: 'PUT',
+        body: JSON.stringify(
+          state.modelCatalog.map((item, index) => ({
+            modelRef: item.ref,
+            enabled: snapshot.selectedModels.includes(item.ref),
+            sortOrder: (index + 1) * 10,
+            recommended: snapshot.recommendedModels.includes(item.ref),
+            default: snapshot.defaultModel === item.ref,
+            config: asObject(existingModelBindings.get(item.ref)?.config),
+          })),
+        ),
+      }),
+      apiFetch(`/admin/portal/apps/${encodeURIComponent(snapshot.brandId)}/menus`, {
+        method: 'PUT',
+        body: JSON.stringify(
+          MENU_LIBRARY.map((item, index) => ({
+            menuKey: item.key,
+            enabled: snapshot.selectedMenus.includes(item.key),
+            sortOrder: (index + 1) * 10,
+            config: asObject(existingMenuBindings.get(item.key)?.config),
+          })),
+        ),
+      }),
+    ]);
 
     await loadAppData();
     state.route = 'brand-detail';
     await loadBrandDetail(snapshot.brandId, {silent: true, suppressRender: true});
-    setNotice(`已保存 ${snapshot.displayName || snapshot.brandId} 的草稿配置。`);
+    setNotice(`已保存 ${snapshot.displayName || snapshot.brandId} 的应用配置。`);
+    return true;
   } catch (error) {
-    setError(error instanceof Error ? error.message : '保存品牌草稿失败');
+    setError(error instanceof Error ? error.message : '保存应用配置失败');
+    return false;
   } finally {
     state.busy = false;
     render();
@@ -874,20 +1389,23 @@ async function saveBrandEditor(form) {
 async function publishCurrentBrand() {
   const brandId = state.selectedBrandId;
   if (!brandId) return;
-  captureBrandEditorBuffer();
+  const form = document.querySelector('#brand-editor-form');
+  if (form instanceof HTMLFormElement) {
+    const saved = await saveBrandEditor(form);
+    if (!saved) return;
+  }
   state.busy = true;
   resetBanner();
   render();
-
   try {
-    await apiFetch('/admin/oem/brand/publish', {
+    await apiFetch(`/admin/portal/apps/${encodeURIComponent(brandId)}/publish`, {
       method: 'POST',
-      body: JSON.stringify({brand_id: brandId}),
+      body: JSON.stringify({}),
     });
     await loadAppData();
     state.route = 'brand-detail';
     await loadBrandDetail(brandId, {silent: true, suppressRender: true});
-    setNotice(`已发布 ${brandId}。`);
+    setNotice(`已发布 ${brandId} 当前快照。`);
   } catch (error) {
     setError(error instanceof Error ? error.message : '发布失败');
   } finally {
@@ -901,21 +1419,17 @@ async function rollbackBrand(version) {
   state.busy = true;
   resetBanner();
   render();
-
   try {
-    await apiFetch('/admin/oem/brand/rollback', {
+    await apiFetch(`/admin/portal/apps/${encodeURIComponent(state.selectedBrandId)}/restore`, {
       method: 'POST',
-      body: JSON.stringify({
-        brand_id: state.selectedBrandId,
-        version,
-      }),
+      body: JSON.stringify({version}),
     });
     await loadAppData();
     state.route = 'brand-detail';
     await loadBrandDetail(state.selectedBrandId, {silent: true, suppressRender: true});
-    setNotice(`已将 ${state.selectedBrandId} 的草稿回滚到 v${version}。`);
+    setNotice(`已将 ${state.selectedBrandId} 恢复到 v${version}。`);
   } catch (error) {
-    setError(error instanceof Error ? error.message : '回滚失败');
+    setError(error instanceof Error ? error.message : '恢复版本失败');
   } finally {
     state.busy = false;
     render();
@@ -933,23 +1447,74 @@ async function createBrand(formData) {
   render();
 
   try {
-    await apiFetch('/admin/oem/brand', {
+    await apiFetch(`/admin/portal/apps/${encodeURIComponent(brandId)}`, {
       method: 'PUT',
       body: JSON.stringify({
-        brand_id: brandId,
-        tenant_key: tenantKey,
         display_name: displayName,
-        product_name: productName,
-        status: 'draft',
+        status: 'active',
+        default_locale: 'zh-CN',
+        config: {
+          productName,
+          product_name: productName,
+          tenantKey,
+          tenant_key: tenantKey,
+          brand_meta: {
+            brand_id: brandId,
+            display_name: displayName || brandId,
+            product_name: productName || displayName || brandId,
+            tenant_key: tenantKey,
+            legal_name: displayName || brandId,
+            storage_namespace: tenantKey,
+          },
+          brandMeta: {
+            productName,
+            tenantKey,
+          },
+          surfaces: DEFAULT_SURFACE_KEYS.reduce((accumulator, key) => {
+            accumulator[key] = {enabled: true, config: {}};
+            return accumulator;
+          }, {}),
+          theme: {
+            light: {},
+            dark: {},
+          },
+        },
       }),
     });
+    await apiFetch(`/admin/portal/apps/${encodeURIComponent(brandId)}/menus`, {
+      method: 'PUT',
+      body: JSON.stringify(
+        MENU_LIBRARY.map((item, index) => ({
+          menuKey: item.key,
+          enabled: true,
+          sortOrder: (index + 1) * 10,
+          config: {},
+        })),
+      ),
+    });
+    const defaultModel = state.modelCatalog.find((item) => item.ref === 'openai/gpt-5.4') || state.modelCatalog[0] || null;
+    if (defaultModel) {
+      await apiFetch(`/admin/portal/apps/${encodeURIComponent(brandId)}/models`, {
+        method: 'PUT',
+        body: JSON.stringify(
+          state.modelCatalog.map((item, index) => ({
+            modelRef: item.ref,
+            enabled: item.ref === defaultModel.ref,
+            sortOrder: (index + 1) * 10,
+            recommended: item.ref === defaultModel.ref,
+            default: item.ref === defaultModel.ref,
+            config: {},
+          })),
+        ),
+      });
+    }
     await loadAppData();
     state.showCreateBrandForm = false;
     state.route = 'brand-detail';
     await loadBrandDetail(brandId, {silent: true, suppressRender: true});
-    setNotice(`已创建品牌 ${displayName || brandId}。`);
+    setNotice(`已创建 OEM 应用 ${displayName || brandId}。`);
   } catch (error) {
-    setError(error instanceof Error ? error.message : '创建品牌失败');
+    setError(error instanceof Error ? error.message : '创建 OEM 应用失败');
   } finally {
     state.busy = false;
     render();
@@ -960,9 +1525,6 @@ async function saveAsset(formData) {
   const brandId = String(formData.get('brand_id') || '').trim();
   const assetKey = String(formData.get('asset_key') || '').trim();
   const kind = String(formData.get('kind') || '').trim();
-  const storageProvider = String(formData.get('storage_provider') || 'repo').trim();
-  const objectKey = String(formData.get('object_key') || '').trim();
-  const publicUrl = String(formData.get('public_url') || '').trim();
   const metadataText = String(formData.get('metadata_json') || '{}').trim();
   const file = formData.get('file');
 
@@ -979,34 +1541,22 @@ async function saveAsset(formData) {
   render();
 
   try {
-    if (file instanceof File && file.size > 0) {
-      const fileBase64 = await readFileAsBase64(file);
-      await apiFetch('/admin/oem/asset/upload', {
-        method: 'POST',
-        body: JSON.stringify({
-          brand_id: brandId,
-          asset_key: assetKey,
-          kind,
-          content_type: file.type || 'application/octet-stream',
-          file_name: file.name,
-          file_base64: fileBase64,
-          metadata,
-        }),
-      });
-    } else {
-      await apiFetch('/admin/oem/asset', {
-        method: 'PUT',
-        body: JSON.stringify({
-          brand_id: brandId,
-          asset_key: assetKey,
-          kind,
-          storage_provider: storageProvider,
-          object_key: objectKey,
-          public_url: publicUrl || null,
-          metadata,
-        }),
-      });
+    if (!(file instanceof File) || file.size === 0) {
+      throw new Error('请选择要上传的资源文件');
     }
+    const fileBase64 = await readFileAsBase64(file);
+    await apiFetch(`/admin/portal/apps/${encodeURIComponent(brandId)}/assets/${encodeURIComponent(assetKey)}/upload`, {
+      method: 'POST',
+      body: JSON.stringify({
+        content_type: file.type || 'application/octet-stream',
+        file_name: file.name,
+        file_base64: fileBase64,
+        metadata: {
+          ...metadata,
+          kind,
+        },
+      }),
+    });
 
     await loadAppData();
     state.showAssetUploadPanel = false;
@@ -1029,7 +1579,7 @@ async function deleteAsset(brandId, assetKey) {
   render();
 
   try {
-    await apiFetch(`/admin/oem/asset?brand_id=${encodeURIComponent(brandId)}&asset_key=${encodeURIComponent(assetKey)}`, {
+    await apiFetch(`/admin/portal/apps/${encodeURIComponent(brandId)}/assets/${encodeURIComponent(assetKey)}`, {
       method: 'DELETE',
     });
     await loadAppData();
@@ -1052,18 +1602,24 @@ async function setSkillEnabled(slug, enabled) {
   render();
 
   try {
-    const installed = getSkillLibraryItem(slug);
-    if (enabled && !installed) {
-      await apiFetch('/skills/library/install', {
-        method: 'POST',
-        body: JSON.stringify({slug}),
-      });
-    } else if (installed) {
-      await apiFetch('/skills/library/state', {
-        method: 'PUT',
-        body: JSON.stringify({slug, enabled}),
-      });
+    const skill = getMergedSkills().find((item) => item.slug === slug);
+    if (!skill) {
+      throw new Error('skill not found');
     }
+    await apiFetch(`/admin/portal/catalog/skills/${encodeURIComponent(slug)}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: skill.name,
+        description: skill.description,
+        category: skill.category || null,
+        publisher: skill.publisher || 'iClaw',
+        visibility: skill.visibility || 'showcase',
+        object_key: skill.objectKey || null,
+        content_sha256: skill.contentSha256 || null,
+        metadata: asObject(skill.metadata),
+        active: enabled,
+      }),
+    });
     await loadAppData();
     setNotice(`${slug} 已${enabled ? '启用' : '停用'}。`);
   } catch (error) {
@@ -1081,24 +1637,9 @@ async function deleteSkill(slug) {
   render();
 
   try {
-    const installed = getSkillLibraryItem(slug);
-    const catalog = getAdminSkillCatalogEntry(slug);
-    const personal = getPersonalSkillCatalogEntry(slug);
-    if (installed) {
-      await apiFetch('/skills/library/uninstall', {
-        method: 'POST',
-        body: JSON.stringify({slug}),
-      });
-    }
-    if (personal?.source === 'private') {
-      await apiFetch(`/skills/catalog/personal?slug=${encodeURIComponent(slug)}`, {
-        method: 'DELETE',
-      });
-    } else if (catalog && catalog.distribution !== 'bundled') {
-      await apiFetch(`/admin/skills/catalog?slug=${encodeURIComponent(slug)}`, {
-        method: 'DELETE',
-      });
-    }
+    await apiFetch(`/admin/portal/catalog/skills/${encodeURIComponent(slug)}`, {
+      method: 'DELETE',
+    });
     await loadAppData();
     setNotice(`已删除技能 ${slug}。`);
   } catch (error) {
@@ -1110,38 +1651,140 @@ async function deleteSkill(slug) {
 }
 
 async function importSkill(formData) {
-  const artifact = formData.get('artifact');
-  if (!(artifact instanceof File) || artifact.size === 0) {
-    setError('请选择 skill 包文件');
-    return;
-  }
-
   state.busy = true;
   resetBanner();
   render();
 
   try {
-    const artifactBase64 = await readFileAsBase64(artifact);
-    await apiFetch('/skills/library/import', {
-      method: 'POST',
-      body: JSON.stringify({
-        slug: String(formData.get('slug') || '').trim(),
-        name: String(formData.get('name') || '').trim(),
-        description: String(formData.get('description') || '').trim(),
-        publisher: String(formData.get('publisher') || '').trim() || 'admin-web',
-        category: String(formData.get('category') || '').trim() || null,
-        market: String(formData.get('market') || '').trim() || null,
-        skill_type: String(formData.get('skill_type') || '').trim() || null,
-        version: String(formData.get('version') || '').trim(),
-        artifact_format: artifact.name.endsWith('.zip') ? 'zip' : 'tar.gz',
-        artifact_base64: artifactBase64,
-      }),
+    const slug = String(formData.get('slug') || '').trim();
+    const artifactFile = formData.get('artifact_file');
+    const body = {
+      name: String(formData.get('name') || '').trim(),
+      description: String(formData.get('description') || '').trim(),
+      publisher: String(formData.get('publisher') || '').trim() || 'admin-web',
+      category: String(formData.get('category') || '').trim() || null,
+      visibility: String(formData.get('visibility') || '').trim() || 'showcase',
+      object_key: String(formData.get('object_key') || '').trim() || null,
+      metadata: parseJsonText(String(formData.get('metadata_json') || '{}').trim() || '{}', 'Skill metadata'),
+      active: String(formData.get('active') || 'true') === 'true',
+    };
+    if (artifactFile instanceof File && artifactFile.size > 0) {
+      body.file_name = artifactFile.name;
+      body.content_type = artifactFile.type || 'application/gzip';
+      body.file_base64 = await readFileAsBase64(artifactFile);
+    }
+    await apiFetch(`/admin/portal/catalog/skills/${encodeURIComponent(slug)}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
     });
     await loadAppData();
     state.showSkillImportPanel = false;
-    setNotice(`已导入技能 ${String(formData.get('slug') || '').trim()}。`);
+    state.selectedSkillSlug = slug;
+    setNotice(`已保存技能 ${slug}。`);
   } catch (error) {
-    setError(error instanceof Error ? error.message : '技能导入失败');
+    setError(error instanceof Error ? error.message : '技能保存失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function setCloudSkillEnabled(slug, enabled) {
+  if (!slug) return;
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    const skill = getCloudSkillCatalogEntry(slug);
+    if (!skill) {
+      throw new Error('cloud skill not found');
+    }
+    await apiFetch('/admin/skills/catalog', {
+      method: 'PUT',
+      body: JSON.stringify({
+        slug: skill.slug,
+        name: skill.name,
+        description: skill.description,
+        visibility: skill.visibility,
+        market: skill.market || null,
+        category: skill.category || null,
+        skill_type: skill.skill_type || null,
+        publisher: skill.publisher,
+        distribution: skill.distribution,
+        tags: skill.tags || [],
+        version: skill.version,
+        artifact_url: skill.artifact_url || null,
+        artifact_format: skill.artifact_format,
+        artifact_sha256: skill.artifact_sha256 || null,
+        artifact_source_path: skill.artifact_path || null,
+        origin_type: skill.origin_type,
+        source_url: skill.source_url || null,
+        metadata: asObject(skill.metadata),
+        active: enabled,
+      }),
+    });
+    await loadAppData();
+    setNotice(`${slug} 已${enabled ? '启用' : '停用'}。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : `云技能${enabled ? '启用' : '停用'}失败`);
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function saveSkillSyncSource(formData) {
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    const id = String(formData.get('id') || '').trim() || undefined;
+    const sourceType = String(formData.get('source_type') || 'github_repo').trim();
+    await apiFetch('/admin/skills/sync/sources', {
+      method: 'PUT',
+      body: JSON.stringify({
+        id,
+        source_type: sourceType,
+        source_key: String(formData.get('source_key') || '').trim(),
+        display_name: String(formData.get('display_name') || '').trim(),
+        source_url: String(formData.get('source_url') || '').trim(),
+        config: parseJsonText(String(formData.get('config_json') || '{}').trim() || '{}', 'Sync source config'),
+        active: String(formData.get('active') || 'true') === 'true',
+      }),
+    });
+    await loadAppData();
+    state.showSkillSyncSourceForm = false;
+    setNotice('已保存同步源。');
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '同步源保存失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function runSkillSync(sourceId) {
+  if (!sourceId) return;
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    const result = await apiFetch('/admin/skills/sync/run', {
+      method: 'POST',
+      body: JSON.stringify({
+        source_id: sourceId,
+      }),
+    });
+    await loadAppData();
+    const summary = asObject(result.summary);
+    setNotice(
+      `同步完成：新增 ${Number(summary.created || 0)}，更新 ${Number(summary.updated || 0)}，跳过 ${Number(summary.skipped || 0)}。`,
+    );
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '技能同步失败');
   } finally {
     state.busy = false;
     render();
@@ -1154,20 +1797,26 @@ async function saveMcpCatalogEntry(formData) {
   render();
 
   try {
-    await apiFetch('/admin/mcp/catalog', {
+    const key = String(formData.get('key') || '').trim();
+    await apiFetch(`/admin/portal/catalog/mcps/${encodeURIComponent(key)}`, {
       method: 'PUT',
       body: JSON.stringify({
-        key: String(formData.get('key') || '').trim(),
-        enabled: String(formData.get('enabled') || 'true') === 'true',
-        type: String(formData.get('type') || '').trim() || null,
-        command: String(formData.get('command') || '').trim() || null,
-        args: splitLines(String(formData.get('args_text') || '')),
-        http_url: String(formData.get('http_url') || '').trim() || null,
-        env: parseEnvText(String(formData.get('env_text') || '')),
+        name: String(formData.get('name') || '').trim(),
+        description: String(formData.get('description') || '').trim(),
+        transport: String(formData.get('transport') || '').trim() || 'config',
+        object_key: String(formData.get('object_key') || '').trim() || null,
+        config: {
+          command: String(formData.get('command') || '').trim() || null,
+          args: splitLines(String(formData.get('args_text') || '')),
+          http_url: String(formData.get('http_url') || '').trim() || null,
+          env: parseEnvText(String(formData.get('env_text') || '')),
+        },
+        metadata: parseJsonText(String(formData.get('metadata_json') || '{}').trim() || '{}', 'MCP metadata'),
+        active: String(formData.get('enabled') || 'true') === 'true',
       }),
     });
     await loadAppData();
-    state.selectedMcpKey = String(formData.get('key') || '').trim();
+    state.selectedMcpKey = key;
     setNotice(`MCP ${state.selectedMcpKey} 已保存。`);
   } catch (error) {
     setError(error instanceof Error ? error.message : 'MCP 保存失败');
@@ -1203,7 +1852,7 @@ async function deleteMcpCatalogEntry(key) {
   render();
 
   try {
-    await apiFetch(`/admin/mcp/catalog?key=${encodeURIComponent(key)}`, {
+    await apiFetch(`/admin/portal/catalog/mcps/${encodeURIComponent(key)}`, {
       method: 'DELETE',
     });
     await loadAppData();
@@ -1217,10 +1866,115 @@ async function deleteMcpCatalogEntry(key) {
   }
 }
 
+async function setModelEnabled(ref, enabled) {
+  if (!ref) return;
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    const model = getModelCatalogEntry(ref);
+    if (!model) {
+      throw new Error('model not found');
+    }
+    await apiFetch('/admin/portal/catalog/models', {
+      method: 'PUT',
+      body: JSON.stringify({
+        ref: model.ref,
+        label: model.label,
+        providerId: model.providerId,
+        modelId: model.modelId,
+        api: model.api,
+        baseUrl: model.baseUrl || null,
+        useRuntimeOpenai: model.useRuntimeOpenai !== false,
+        authHeader: model.authHeader !== false,
+        reasoning: model.reasoning === true,
+        input: asStringArray(model.input),
+        contextWindow: Number(model.contextWindow || 0),
+        maxTokens: Number(model.maxTokens || 0),
+        metadata: asObject(model.metadata),
+        active: enabled,
+      }),
+    });
+    await loadAppData();
+    setNotice(`${ref} 已${enabled ? '启用' : '停用'}。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : `模型${enabled ? '启用' : '停用'}失败`);
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function saveModelCatalogEntry(formData) {
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    const ref = String(formData.get('ref') || '').trim();
+    await apiFetch('/admin/portal/catalog/models', {
+      method: 'PUT',
+      body: JSON.stringify({
+        ref,
+        label: String(formData.get('label') || '').trim(),
+        providerId: String(formData.get('provider_id') || '').trim(),
+        modelId: String(formData.get('model_id') || '').trim(),
+        api: String(formData.get('api') || '').trim() || 'openai-completions',
+        baseUrl: String(formData.get('base_url') || '').trim() || null,
+        useRuntimeOpenai: String(formData.get('use_runtime_openai') || 'true') === 'true',
+        authHeader: String(formData.get('auth_header') || 'true') === 'true',
+        reasoning: String(formData.get('reasoning') || 'false') === 'true',
+        input: splitLines(String(formData.get('input_text') || '')),
+        contextWindow: Number(formData.get('context_window') || 0) || 0,
+        maxTokens: Number(formData.get('max_tokens') || 0) || 0,
+        metadata: parseJsonText(String(formData.get('metadata_json') || '{}').trim() || '{}', 'Model metadata'),
+        active: String(formData.get('enabled') || 'true') === 'true',
+      }),
+    });
+    await loadAppData();
+    state.selectedModelRef = ref;
+    setNotice(`模型 ${ref} 已保存。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '模型保存失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function deleteModelCatalogEntry(ref) {
+  if (!ref) return;
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    await apiFetch(`/admin/portal/catalog/models?ref=${encodeURIComponent(ref)}`, {
+      method: 'DELETE',
+    });
+    await loadAppData();
+    state.selectedModelRef = '';
+    setNotice(`已删除模型 ${ref}。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '模型删除失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
 function toggleBrandCapability(type, value) {
   const buffer = ensureBrandDraftBuffer();
   if (!buffer) return;
-  const current = new Set(type === 'skill' ? buffer.selectedSkills : buffer.selectedMcp);
+  const current =
+    type === 'skill'
+      ? new Set(buffer.selectedSkills)
+      : type === 'mcp'
+        ? new Set(buffer.selectedMcp)
+        : type === 'menu'
+          ? new Set(buffer.selectedMenus)
+        : new Set(buffer.selectedModels);
   if (current.has(value)) {
     current.delete(value);
   } else {
@@ -1228,9 +1982,31 @@ function toggleBrandCapability(type, value) {
   }
   if (type === 'skill') {
     buffer.selectedSkills = Array.from(current);
-  } else {
+  } else if (type === 'mcp') {
     buffer.selectedMcp = Array.from(current);
+  } else if (type === 'menu') {
+    buffer.selectedMenus = Array.from(current);
+  } else {
+    buffer.selectedModels = Array.from(current);
+    buffer.recommendedModels = buffer.recommendedModels.filter((ref) => current.has(ref));
+    if (!buffer.selectedModels.includes(buffer.defaultModel)) {
+      buffer.defaultModel = buffer.selectedModels[0] || '';
+    }
   }
+  state.brandDraftBuffer = buffer;
+  render();
+}
+
+function toggleBrandRecommendedModel(value) {
+  const buffer = ensureBrandDraftBuffer();
+  if (!buffer || !buffer.selectedModels.includes(value)) return;
+  const current = new Set(buffer.recommendedModels);
+  if (current.has(value)) {
+    current.delete(value);
+  } else {
+    current.add(value);
+  }
+  buffer.recommendedModels = Array.from(current);
   state.brandDraftBuffer = buffer;
   render();
 }
@@ -1242,13 +2018,21 @@ function logout() {
   state.route = 'overview';
   state.dashboard = null;
   state.brands = [];
+  state.portalAppDetails = {};
   state.brandDetail = null;
   state.brandDraftBuffer = null;
   state.capabilities = null;
   state.skillCatalog = [];
+  state.cloudSkillCatalog = [];
   state.personalSkillCatalog = [];
   state.skillLibrary = [];
   state.mcpCatalog = [];
+  state.modelCatalog = [];
+  state.skillSyncSources = [];
+  state.skillSyncRuns = [];
+  state.selectedModelRef = '';
+  state.selectedCloudSkillSlug = '';
+  state.selectedSkillSyncSourceId = '';
   state.selectedReleaseId = '';
   state.selectedAuditId = '';
   state.mcpTestResult = null;
@@ -1257,6 +2041,7 @@ function logout() {
   state.audit = [];
   state.showCreateBrandForm = false;
   state.showSkillImportPanel = false;
+  state.showSkillSyncSourceForm = false;
   state.showAssetUploadPanel = false;
   resetBanner();
   render();
@@ -1275,8 +2060,14 @@ function renderSidebar() {
   return `
     <aside class="sidebar">
       <div class="sidebar-brand">
-        <h1 class="sidebar-brand__title">OEM 运营中心</h1>
-        <p class="sidebar-brand__copy">企业运营平台</p>
+        <div class="brand-lockup brand-lockup--sidebar">
+          ${renderAdminLogo('brand-mark--sidebar')}
+          <div class="brand-lockup__copy">
+            <div class="brand-lockup__kicker">iClaw Console</div>
+            <h1 class="sidebar-brand__title">iClaw管理控制台</h1>
+            <p class="sidebar-brand__copy">企业运营平台</p>
+          </div>
+        </div>
       </div>
       <nav class="nav-list">
         ${NAV_ITEMS.map(
@@ -1331,12 +2122,12 @@ function renderOverviewPage() {
   const releases = state.dashboard?.recent_releases || [];
   const edits = state.dashboard?.recent_edits || [];
   const statCards = [
-    ['品牌总数', stats.brands_total, '本月新增品牌', 'trendingUp'],
-    ['已发布', stats.published_count, '运行中', 'checkCircle'],
-    ['草稿', stats.draft_count, '进行中', 'clock'],
-    ['MCP 服务器', stats.mcp_servers_count, '已连接', 'network'],
-    ['技能', stats.skills_count, '可分配能力', 'zap'],
-    ['待发布更改', stats.pending_changes_count, '等待发布', 'rocket'],
+    ['品牌总数', stats.brands_total, 'portal apps', 'trendingUp'],
+    ['已启用', stats.published_count, '运行中', 'checkCircle'],
+    ['已禁用', stats.brands_total - stats.published_count, '已关闭', 'clock'],
+    ['MCP 服务器', stats.mcp_servers_count, '云端目录', 'network'],
+    ['技能', stats.skills_count, '云端目录', 'zap'],
+    ['资源索引', state.assets.length, 'portal assets', 'rocket'],
   ];
 
   return `
@@ -1345,7 +2136,7 @@ function renderOverviewPage() {
         <div class="fig-page__header-inner">
           <div>
             <h1>总览</h1>
-            <p class="fig-page__description">从统一控制平面管理所有 OEM 品牌</p>
+            <p class="fig-page__description">从统一 control-plane 管理所有 OEM 应用、Skill、MCP 与菜单绑定</p>
           </div>
           <button class="solid-button fig-button" type="button" data-action="navigate" data-page="brands">
             ${icon('plus', 'button-icon')}
@@ -1460,7 +2251,7 @@ function renderBrandsPage() {
           <div class="fig-page__header-row">
             <div>
               <h1>品牌管理</h1>
-              <p class="fig-page__description">管理 OEM 品牌配置、Surface 和部署</p>
+              <p class="fig-page__description">管理 OEM 应用配置、Skill 绑定、MCP 绑定和菜单显隐</p>
             </div>
             <button class="solid-button fig-button" type="button" data-action="toggle-create-brand">
               ${icon('plus', 'button-icon')}
@@ -1478,7 +2269,7 @@ function renderBrandsPage() {
               />
             </label>
             <select class="field-select fig-filter" data-filter-key="brandStatus">
-              ${['all', 'published', 'draft', 'archived']
+              ${['all', 'active', 'disabled']
                 .map(
                   (item) => `
                     <option value="${item}"${state.filters.brandStatus === item ? ' selected' : ''}>
@@ -1502,7 +2293,7 @@ function renderBrandsPage() {
                 </div>
                 <form class="form-grid form-grid--two" id="create-brand-form">
                   <label class="field">
-                    <span>Brand ID</span>
+                    <span>App Name</span>
                     <input class="field-input" name="brand_id" placeholder="brand-id" />
                   </label>
                   <label class="field">
@@ -1548,11 +2339,11 @@ function renderBrandCard(brand) {
       </div>
       <div class="fig-brand-card__meta">
         <div><span>租户密钥:</span><code>${escapeHtml(brand.tenantKey)}</code></div>
-        <div><span>版本:</span><code>v${escapeHtml(brand.publishedVersion || 0)}</code></div>
+        <div><span>App:</span><code>${escapeHtml(brand.brandId)}</code></div>
       </div>
       <div class="fig-brand-card__footer">
-        <span>已配置 ${escapeHtml(metrics.surfaces)} 个 Surface</span>
-        <span>${escapeHtml(metrics.pendingChanges ? '有待发布变更' : formatRelative(brand.updatedAt))}</span>
+        <span>${escapeHtml(metrics.surfaces)} 个 Surface / ${escapeHtml(metrics.skills)} 个 Skill / ${escapeHtml(metrics.mcpServers)} 个 MCP</span>
+        <span>${escapeHtml(formatRelative(brand.updatedAt))}</span>
       </div>
     </button>
   `;
@@ -1579,12 +2370,14 @@ function renderBrandDetailPage() {
 
   const brand = state.brandDetail.brand;
   const buffer = ensureBrandDraftBuffer();
-  const versions = state.brandDetail.versions || [];
   const assets = state.brandDetail.assets || [];
+  const versions = state.brandDetail.versions || [];
   const audit = state.brandDetail.audit || [];
   const activeTab = ['surfaces', 'capabilities', 'assets', 'theme'].includes(state.brandDetailTab)
     ? state.brandDetailTab
     : 'surfaces';
+  const app = state.brandDetail.app || null;
+  const metrics = metricsFromBrand(brand);
   const rollbackTarget = versions[0]?.version || '';
 
   return `
@@ -1609,23 +2402,25 @@ function renderBrandDetailPage() {
           <div class="fig-brand-detail__actions">
             <button class="ghost-button fig-button" type="button" data-action="save-brand-draft"${state.busy ? ' disabled' : ''}>
               ${icon('save', 'button-icon')}
-              保存草稿
+              保存配置
             </button>
             <button class="solid-button fig-button" type="button" data-action="publish-brand"${state.busy ? ' disabled' : ''}>
               ${icon('rocket', 'button-icon')}
-              发布
+              发布快照
             </button>
-            <button class="fig-icon-button" type="button" data-action="rollback-brand" data-version="${escapeHtml(rollbackTarget)}"${rollbackTarget ? '' : ' disabled'} aria-label="回滚为最近发布版本">
+            <button class="fig-icon-button" type="button" data-action="rollback-brand" data-version="${escapeHtml(rollbackTarget)}"${rollbackTarget ? '' : ' disabled'} aria-label="恢复到最近发布版本">
               ${icon('rotateCcw', 'fig-icon-button__icon')}
             </button>
           </div>
         </div>
         <div class="fig-brand-detail__meta">
+          <div>App Name: <code>${escapeHtml(brand.brandId)}</code></div>
+          <div>•</div>
+          <div>默认语言: ${escapeHtml(app?.defaultLocale || 'zh-CN')}</div>
+          <div>•</div>
           <div>当前版本: <code>v${escapeHtml(brand.publishedVersion || 0)}</code></div>
           <div>•</div>
-          <div>最后发布: ${escapeHtml(brandLastPublished(state.brandDetail))}</div>
-          <div>•</div>
-          <div>发布者: ${escapeHtml(versions[0]?.createdByName || versions[0]?.createdByUsername || 'system')}</div>
+          <div>最后更新: ${escapeHtml(formatDateTime(app?.updatedAt || brand.updatedAt))}</div>
         </div>
       </div>
       <div class="fig-brand-tabs">
@@ -1672,9 +2467,9 @@ function renderBrandDetailPage() {
                 <input class="field-input" name="tenant_key" value="${fieldValue(buffer.tenantKey)}" />
               </label>
               <label class="field">
-                <span>品牌状态</span>
+                <span>应用状态</span>
                 <select class="field-select" name="status">
-                  ${['draft', 'published', 'archived']
+                  ${['active', 'disabled']
                     .map(
                       (item) => `
                         <option value="${item}"${buffer.status === item ? ' selected' : ''}>${escapeHtml(statusLabel(item))}</option>
@@ -1691,7 +2486,7 @@ function renderBrandDetailPage() {
           <article class="fig-card">
             <div class="fig-card__head">
               <h3>版本轨迹</h3>
-              <span>可回滚到任意已发布版本</span>
+              <span>portal app 的发布快照</span>
             </div>
             <div class="fig-list">
               ${versions.length
@@ -1708,13 +2503,13 @@ function renderBrandDetailPage() {
                             </div>
                           </div>
                           <button class="text-button" type="button" data-action="rollback-brand" data-version="${escapeHtml(item.version)}"${state.busy ? ' disabled' : ''}>
-                            回滚为草稿
+                            恢复
                           </button>
                         </div>
                       `,
                     )
                     .join('')
-                : `<div class="empty-state">还没有发布记录。</div>`}
+                : `<div class="empty-state">还没有发布快照。</div>`}
             </div>
           </article>
           <article class="fig-card">
@@ -1798,13 +2593,14 @@ function renderBrandEditorBody(buffer, assets, activeTab = state.brandDetailTab)
   }
 
   if (activeTab === 'capabilities') {
-    const skills = state.capabilities?.skills || [];
-    const mcpServers = state.capabilities?.mcp_servers || [];
+    const skills = getMergedSkills();
+    const mcpServers = getMergedMcpServers();
+    const models = getMergedModelCatalog();
     return `
       <section class="fig-brand-section">
         <div class="fig-section-heading">
-          <h2>技能与 MCP</h2>
-          <p>管理品牌可用技能和模型上下文协议能力提供方</p>
+          <h2>能力装配</h2>
+          <p>管理 OEM 应用可用的 Skill、MCP、Model 和左侧菜单显隐</p>
         </div>
         <div class="fig-capability-columns">
           <article class="fig-card fig-card--subtle">
@@ -1817,11 +2613,11 @@ function renderBrandEditorBody(buffer, assets, activeTab = state.brandDetailTab)
                 ? skills
                     .map(
                       (skill) => `
-                      <article class="checkbox-card checkbox-card--capability fig-capability-item">
+                        <article class="checkbox-card checkbox-card--capability fig-capability-item">
                           <input class="skill-checkbox visually-hidden" type="checkbox" value="${escapeHtml(skill.slug)}"${buffer.selectedSkills.includes(skill.slug) ? ' checked' : ''} />
                           <div>
                             <strong>${escapeHtml(skill.name)}</strong>
-                            <span>${escapeHtml(skill.category || '未分类')}</span>
+                            <span>${escapeHtml(skill.category || '未分类')} · ${escapeHtml(skill.publisher || 'iClaw')}</span>
                           </div>
                           ${renderSwitch({
                             checked: buffer.selectedSkills.includes(skill.slug),
@@ -1846,11 +2642,11 @@ function renderBrandEditorBody(buffer, assets, activeTab = state.brandDetailTab)
                 ? mcpServers
                     .map(
                       (server) => `
-                      <article class="checkbox-card checkbox-card--capability fig-capability-item">
+                        <article class="checkbox-card checkbox-card--capability fig-capability-item">
                           <input class="mcp-checkbox visually-hidden" type="checkbox" value="${escapeHtml(server.key)}"${buffer.selectedMcp.includes(server.key) ? ' checked' : ''} />
                           <div>
                             <strong>${escapeHtml(server.name)}</strong>
-                            <span>${escapeHtml(server.connected_brand_count)} 个品牌使用</span>
+                            <span>${escapeHtml(server.transport || 'config')} · ${escapeHtml(server.connected_brand_count)} 个品牌使用</span>
                           </div>
                           ${renderSwitch({
                             checked: buffer.selectedMcp.includes(server.key),
@@ -1869,21 +2665,80 @@ function renderBrandEditorBody(buffer, assets, activeTab = state.brandDetailTab)
         <div class="fig-capability-columns fig-capability-columns--bottom">
           <article class="fig-card fig-card--subtle">
             <div class="fig-card__head">
-              <h3>Agents</h3>
-              <span>每行一个 agent slug</span>
+              <h3>模型 Allowlist</h3>
+              <span>按 OEM 应用控制输入框可见模型、推荐模型和默认模型</span>
             </div>
-            <label class="field">
-              <textarea class="field-textarea" name="agents_text" placeholder="每行一个 agent slug">${escapeHtml(buffer.agentsText)}</textarea>
-            </label>
+            <div class="form-grid">
+              <label class="field">
+                <span>默认模型</span>
+                <select class="field-select" name="default_model">
+                  <option value="">请选择默认模型</option>
+                  ${buffer.selectedModels
+                    .map((ref) => {
+                      const model = getModelCatalogEntry(ref);
+                      const label = model?.label || ref;
+                      return `<option value="${escapeHtml(ref)}"${buffer.defaultModel === ref ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+                    })
+                    .join('')}
+                </select>
+              </label>
+            </div>
+            <div class="fig-capability-stack">
+              ${models.length
+                ? models
+                    .map(
+                      (model) => `
+                        <article class="checkbox-card checkbox-card--capability fig-capability-item">
+                          <input class="model-checkbox visually-hidden" type="checkbox" value="${escapeHtml(model.ref)}"${buffer.selectedModels.includes(model.ref) ? ' checked' : ''} />
+                          <div>
+                            <strong>${escapeHtml(model.label)}</strong>
+                            <span>${escapeHtml(model.providerId)} · ${escapeHtml(model.modelId)}</span>
+                          </div>
+                          <div class="metric-chips">
+                            ${renderSwitch({
+                              checked: buffer.recommendedModels.includes(model.ref),
+                              action: 'toggle-brand-model-recommended',
+                              attrs: `data-model-ref="${escapeHtml(model.ref)}"${buffer.selectedModels.includes(model.ref) ? '' : ' disabled'}`,
+                              label: '推荐',
+                            })}
+                            ${renderSwitch({
+                              checked: buffer.selectedModels.includes(model.ref),
+                              action: 'toggle-brand-model',
+                              attrs: `data-model-ref="${escapeHtml(model.ref)}"`,
+                              label: buffer.selectedModels.includes(model.ref) ? '已启用' : '已禁用',
+                            })}
+                          </div>
+                        </article>
+                      `,
+                    )
+                    .join('')
+                : `<div class="empty-state">当前没有模型目录。</div>`}
+            </div>
           </article>
           <article class="fig-card fig-card--subtle">
             <div class="fig-card__head">
-              <h3>Menus</h3>
-              <span>每行一个 menu key</span>
+              <h3>左侧菜单</h3>
+              <span>默认全部启用，可按 OEM 应用单独开关</span>
             </div>
-            <label class="field">
-              <textarea class="field-textarea" name="menus_text" placeholder="每行一个 menu key">${escapeHtml(buffer.menusText)}</textarea>
-            </label>
+            <div class="fig-capability-stack">
+              ${MENU_LIBRARY.map(
+                (item) => `
+                  <article class="checkbox-card checkbox-card--capability fig-capability-item">
+                    <input class="menu-checkbox visually-hidden" type="checkbox" value="${escapeHtml(item.key)}"${buffer.selectedMenus.includes(item.key) ? ' checked' : ''} />
+                    <div>
+                      <strong>${escapeHtml(item.label)}</strong>
+                      <span>${escapeHtml(item.key)}</span>
+                    </div>
+                    ${renderSwitch({
+                      checked: buffer.selectedMenus.includes(item.key),
+                      action: 'toggle-brand-menu',
+                      attrs: `data-menu-key="${escapeHtml(item.key)}"`,
+                      label: buffer.selectedMenus.includes(item.key) ? '已启用' : '已禁用',
+                    })}
+                  </article>
+                `,
+              ).join('')}
+            </div>
           </article>
         </div>
       </section>
@@ -1901,107 +2756,90 @@ function renderBrandEditorBody(buffer, assets, activeTab = state.brandDetailTab)
       <section class="fig-brand-section">
         <div class="fig-section-heading">
           <h2>品牌资源</h2>
-          <p>上传和维护 Logo、Favicon 与其它品牌资源</p>
+          <p>上传和维护 Logo、Favicon 与其它品牌资源，真实写入 MinIO 和 oem_app_assets。</p>
         </div>
         <div class="fig-assets-layout">
           <article class="fig-card fig-card--subtle">
             <div class="fig-card__head">
-            <h3>Logo / Favicon 上传器</h3>
-            <span>seed 资源是仓库内置 repo 文件；你在这里上传的新图会真正写入 MinIO / S3，并回填 draft_config.assets</span>
-          </div>
-          <form id="asset-form" class="stack-form">
-            <input type="hidden" name="brand_id" value="${fieldValue(buffer.brandId)}" />
-            <div class="asset-slot-grid fig-asset-slot-grid">
-              ${assetSlots
-                .map(([assetKey, label, kind]) => {
-                  const current = assets.find((item) => item.assetKey === assetKey) || null;
-                  return `
-                    <article class="fig-asset-slot-card">
-                      <div class="asset-slot-card__head">
-                        <strong>${escapeHtml(label)}</strong>
-                        <small>${escapeHtml(assetKey)}</small>
-                      </div>
-                      ${
-                        current && isImageLike(current.metadata?.content_type, current.publicUrl, current.objectKey)
-                          ? `<img class="asset-thumb asset-thumb--slot" src="${escapeHtml(resolveAssetUrl(current))}" alt="${escapeHtml(assetKey)}" />`
-                          : `<div class="asset-thumb asset-thumb--slot asset-thumb--placeholder">No Asset</div>`
-                      }
-                      <button class="ghost-button control-button" type="button" data-action="fill-asset-preset" data-asset-key="${escapeHtml(assetKey)}" data-asset-kind="${escapeHtml(kind)}">使用此槽位</button>
-                    </article>
-                  `;
-                })
-                .join('')}
+              <h3>Logo / Favicon 上传器</h3>
+              <span>上传的新图会真正写入 MinIO，并为当前 OEM 应用建立资源索引。</span>
             </div>
-            <div class="form-grid form-grid--two">
-              <label class="field">
-                <span>Asset Key</span>
-                <input class="field-input" name="asset_key" placeholder="logoMaster / homeLogo / faviconPng" />
-              </label>
-              <label class="field">
-                <span>资源类型</span>
-                <input class="field-input" name="kind" placeholder="logo / hero / screenshot" />
-              </label>
-              <label class="field">
-                <span>存储提供方</span>
-                <input class="field-input" name="storage_provider" value="repo" />
-              </label>
-              <label class="field">
-                <span>上传文件</span>
-                <input class="field-input" name="file" type="file" />
-              </label>
-              <label class="field">
-                <span>对象路径</span>
-                <input class="field-input" name="object_key" placeholder="./assets/logo.png 或 s3://..." />
-              </label>
-              <label class="field field--wide">
-                <span>Public URL</span>
-                <input class="field-input" name="public_url" placeholder="https://..." />
-              </label>
-              <label class="field field--wide">
-                <span>Metadata JSON</span>
-                <textarea class="field-textarea" name="metadata_json">{}</textarea>
-              </label>
+            <form id="asset-form" class="stack-form">
+              <input type="hidden" name="brand_id" value="${fieldValue(buffer.brandId)}" />
+              <div class="asset-slot-grid fig-asset-slot-grid">
+                ${assetSlots
+                  .map(([assetKey, label, kind]) => {
+                    const current = assets.find((item) => item.assetKey === assetKey) || null;
+                    return `
+                      <article class="fig-asset-slot-card">
+                        <div class="asset-slot-card__head">
+                          <strong>${escapeHtml(label)}</strong>
+                          <small>${escapeHtml(assetKey)}</small>
+                        </div>
+                        ${
+                          current && isImageLike(current.contentType, current.publicUrl, current.objectKey)
+                            ? `<img class="asset-thumb asset-thumb--slot" src="${escapeHtml(resolveAssetUrl(current))}" alt="${escapeHtml(assetKey)}" />`
+                            : `<div class="asset-thumb asset-thumb--slot asset-thumb--placeholder">No Asset</div>`
+                        }
+                        <button class="ghost-button control-button" type="button" data-action="fill-asset-preset" data-asset-key="${escapeHtml(assetKey)}" data-asset-kind="${escapeHtml(kind)}">使用此槽位</button>
+                      </article>
+                    `;
+                  })
+                  .join('')}
+              </div>
+              <div class="form-grid form-grid--two">
+                <label class="field">
+                  <span>Asset Key</span>
+                  <input class="field-input" name="asset_key" placeholder="logoMaster / homeLogo / faviconPng" />
+                </label>
+                <label class="field">
+                  <span>资源类型</span>
+                  <input class="field-input" name="kind" placeholder="logo / favicon / hero" />
+                </label>
+                <label class="field field--wide">
+                  <span>上传文件</span>
+                  <input class="field-input" name="file" type="file" />
+                </label>
+                <label class="field field--wide">
+                  <span>Metadata JSON</span>
+                  <textarea class="field-textarea" name="metadata_json">{}</textarea>
+                </label>
+              </div>
+              <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>上传资源</button>
+            </form>
+          </article>
+          <article class="fig-card fig-card--subtle">
+            <div class="fig-card__head">
+              <h3>当前品牌资源</h3>
+              <span>来自 oem_app_assets 的真实记录</span>
             </div>
-            <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>登记资源</button>
-          </form>
-        </article>
-        <article class="fig-card fig-card--subtle">
-          <div class="fig-card__head">
-            <h3>当前品牌资源</h3>
-            <span>来自 oem_asset_registry 的真实记录</span>
-          </div>
-          <div class="fig-list">
-            ${assets.length
-              ? assets
-                  .map(
-                    (item) => `
-                      <div class="fig-list-item fig-list-item--spread">
-                        <div>
-                          <div class="fig-list-item__title">${escapeHtml(item.assetKey)}</div>
-                          <div class="fig-list-item__body">${escapeHtml(item.kind)} · ${escapeHtml(item.objectKey)}</div>
-                          ${
-                            isImageLike(item.metadata?.content_type, item.publicUrl, item.objectKey)
-                              ? `<div class="asset-thumb-wrap"><img class="asset-thumb" src="${escapeHtml(resolveAssetUrl(item))}" alt="${escapeHtml(item.assetKey)}" /></div>`
-                              : ''
-                          }
+            <div class="fig-list">
+              ${assets.length
+                ? assets
+                    .map(
+                      (item) => `
+                        <div class="fig-list-item fig-list-item--spread">
+                          <div>
+                            <div class="fig-list-item__title">${escapeHtml(item.assetKey)}</div>
+                            <div class="fig-list-item__body">${escapeHtml(item.objectKey || '')}</div>
+                            ${
+                              isImageLike(item.contentType, item.publicUrl, item.objectKey)
+                                ? `<div class="asset-thumb-wrap"><img class="asset-thumb" src="${escapeHtml(resolveAssetUrl(item))}" alt="${escapeHtml(item.assetKey)}" /></div>`
+                                : ''
+                            }
+                          </div>
+                          <div class="fig-list-item__actions">
+                            <span>${escapeHtml(item.storageProvider || 's3')}</span>
+                            <button class="text-button" type="button" data-action="delete-asset" data-brand-id="${escapeHtml(item.brandId)}" data-asset-key="${escapeHtml(item.assetKey)}">删除</button>
+                            <small>${escapeHtml(formatDateTime(item.updatedAt))}</small>
+                          </div>
                         </div>
-                        <div class="fig-list-item__actions">
-                          <span>${escapeHtml(item.storageProvider)}</span>
-                          ${
-                            item.publicUrl || item.objectKey
-                              ? `<a class="text-link" href="${escapeHtml(resolveAssetUrl(item))}" target="_blank" rel="noreferrer">打开资源</a>`
-                              : ''
-                          }
-                          <button class="text-button" type="button" data-action="delete-asset" data-brand-id="${escapeHtml(item.brandId)}" data-asset-key="${escapeHtml(item.assetKey)}">删除</button>
-                          <small>${escapeHtml(formatDateTime(item.updatedAt))}</small>
-                        </div>
-                      </div>
-                    `,
-                  )
-                  .join('')
-              : `<div class="empty-state">当前品牌还没有登记资源。</div>`}
-          </div>
-        </article>
+                      `,
+                    )
+                    .join('')
+                : `<div class="empty-state">当前品牌还没有登记资源。</div>`}
+            </div>
+          </article>
         </div>
       </section>
     `;
@@ -2081,45 +2919,280 @@ function renderBrandEditorBody(buffer, assets, activeTab = state.brandDetailTab)
 function getFilteredCapabilities() {
   const query = state.filters.capabilityQuery.trim().toLowerCase();
   const skills = getMergedSkills().filter((item) => {
+    const skillEnabled = item.active !== false;
+    if (state.filters.capabilitySkillStatus === 'active' && !skillEnabled) return false;
+    if (state.filters.capabilitySkillStatus === 'disabled' && skillEnabled) return false;
+    if (
+      state.filters.capabilitySkillCategory !== 'all' &&
+      String(item.category || '').trim() !== state.filters.capabilitySkillCategory
+    ) {
+      return false;
+    }
+    if (
+      state.filters.capabilitySkillBrand !== 'all' &&
+      !asArray(item.connectedBrands).some((brand) => brand.brand_id === state.filters.capabilitySkillBrand)
+    ) {
+      return false;
+    }
     if (!query) return true;
     return [item.slug, item.name, item.category, item.publisher].some((value) =>
       String(value || '').toLowerCase().includes(query),
     );
   });
   const mcpServers = getMergedMcpServers().filter((item) => {
+    const enabled = item.enabled_by_default !== false;
+    if (state.filters.capabilityMcpStatus === 'active' && !enabled) return false;
+    if (state.filters.capabilityMcpStatus === 'disabled' && enabled) return false;
+    if (
+      state.filters.capabilityMcpTransport !== 'all' &&
+      String(item.transport || '').trim() !== state.filters.capabilityMcpTransport
+    ) {
+      return false;
+    }
+    if (
+      state.filters.capabilityMcpBrand !== 'all' &&
+      !asArray(item.connected_brands).some((brand) => brand.brand_id === state.filters.capabilityMcpBrand)
+    ) {
+      return false;
+    }
     if (!query) return true;
     return [item.key, item.name, item.command, item.http_url, ...(item.env_keys || [])].some((value) =>
       String(value || '').toLowerCase().includes(query),
     );
   });
-  return {skills, mcpServers};
+  const models = getMergedModelCatalog().filter((item) => {
+    const enabled = item.active !== false;
+    if (state.filters.capabilityModelStatus === 'active' && !enabled) return false;
+    if (state.filters.capabilityModelStatus === 'disabled' && enabled) return false;
+    if (
+      state.filters.capabilityModelProvider !== 'all' &&
+      String(item.providerId || '').trim() !== state.filters.capabilityModelProvider
+    ) {
+      return false;
+    }
+    if (
+      state.filters.capabilityModelBrand !== 'all' &&
+      !asArray(item.connectedBrands).some((brand) => brand.brand_id === state.filters.capabilityModelBrand)
+    ) {
+      return false;
+    }
+    if (!query) return true;
+    return [item.ref, item.label, item.providerId, item.modelId, ...(item.input || [])].some((value) =>
+      String(value || '').toLowerCase().includes(query),
+    );
+  });
+  return {skills, mcpServers, models};
 }
 
 function renderSkillsMcpPage() {
-  const {skills, mcpServers} = getFilteredCapabilities();
-  const selectedSkill = skills.find((item) => item.slug === state.selectedSkillSlug) || skills[0] || null;
+  const filterOptions = getCapabilityFilterOptions();
+  const {skills, mcpServers, models} = getFilteredCapabilities();
+  const selectedSkill = state.selectedSkillSlug === '__new__' ? null : skills.find((item) => item.slug === state.selectedSkillSlug) || skills[0] || null;
   const selectedMcp = state.selectedMcpKey === '__new__' ? null : mcpServers.find((item) => item.key === state.selectedMcpKey) || mcpServers[0] || null;
-  const actionButton = state.capabilityMode === 'skills'
-    ? `
-      <button class="solid-button fig-button" type="button" data-action="toggle-skill-import">
-        ${icon('plus', 'button-icon')}
-        添加技能
-      </button>
-    `
-    : `
-      <button class="solid-button fig-button" type="button" data-action="new-mcp">
-        ${icon('plus', 'button-icon')}
-        新增 MCP
-      </button>
-    `;
+  const selectedModel = state.selectedModelRef === '__new__' ? null : models.find((item) => item.ref === state.selectedModelRef) || models[0] || null;
+  const actionButton =
+    state.capabilityMode === 'skills'
+      ? `
+        <button class="solid-button fig-button" type="button" data-action="new-skill">
+          ${icon('plus', 'button-icon')}
+          添加技能
+        </button>
+      `
+      : state.capabilityMode === 'mcp'
+        ? `
+          <button class="solid-button fig-button" type="button" data-action="new-mcp">
+            ${icon('plus', 'button-icon')}
+            新增 MCP
+          </button>
+        `
+        : `
+          <button class="solid-button fig-button" type="button" data-action="new-model">
+            ${icon('plus', 'button-icon')}
+            新增模型
+          </button>
+        `;
+  const pageDescription =
+    state.capabilityMode === 'skills'
+      ? '管理 Skill 主目录和 OEM 开放范围'
+      : state.capabilityMode === 'mcp'
+        ? '管理 MCP 主目录和 OEM 开放范围'
+        : '管理模型主目录、OEM allowlist、推荐和默认模型';
+  const listCountLabel =
+    state.capabilityMode === 'skills'
+      ? `当前显示 ${skills.length} 个技能`
+      : state.capabilityMode === 'mcp'
+        ? `当前显示 ${mcpServers.length} 个 MCP`
+        : `当前显示 ${models.length} 个模型`;
+  const searchPlaceholder =
+    state.capabilityMode === 'skills'
+      ? '搜索技能...'
+      : state.capabilityMode === 'mcp'
+        ? '搜索 MCP...'
+        : '搜索模型...';
+  const filterControls =
+    state.capabilityMode === 'skills'
+      ? `
+        <div class="fig-capability-filter-row">
+          <select class="field-select fig-filter" data-filter-key="capabilitySkillStatus">
+            ${['all', 'active', 'disabled']
+              .map(
+                (item) =>
+                  `<option value="${item}"${state.filters.capabilitySkillStatus === item ? ' selected' : ''}>${escapeHtml(item === 'all' ? '全部状态' : item === 'active' ? '仅启用' : '仅禁用')}</option>`,
+              )
+              .join('')}
+          </select>
+          <select class="field-select fig-filter" data-filter-key="capabilitySkillCategory">
+            <option value="all">全部分类</option>
+            ${filterOptions.categories
+              .map(
+                (item) =>
+                  `<option value="${escapeHtml(item)}"${state.filters.capabilitySkillCategory === item ? ' selected' : ''}>${escapeHtml(item)}</option>`,
+              )
+              .join('')}
+          </select>
+          <select class="field-select fig-filter" data-filter-key="capabilitySkillBrand">
+            <option value="all">全部品牌</option>
+            ${filterOptions.skillBrands
+              .map(
+                (brand) =>
+                  `<option value="${escapeHtml(brand.brand_id)}"${state.filters.capabilitySkillBrand === brand.brand_id ? ' selected' : ''}>${escapeHtml(brand.display_name)}</option>`,
+              )
+              .join('')}
+          </select>
+        </div>
+      `
+      : state.capabilityMode === 'mcp'
+        ? `
+          <div class="fig-capability-filter-row">
+            <select class="field-select fig-filter" data-filter-key="capabilityMcpStatus">
+              ${['all', 'active', 'disabled']
+                .map(
+                  (item) =>
+                    `<option value="${item}"${state.filters.capabilityMcpStatus === item ? ' selected' : ''}>${escapeHtml(item === 'all' ? '全部状态' : item === 'active' ? '仅启用' : '仅禁用')}</option>`,
+                )
+                .join('')}
+            </select>
+            <select class="field-select fig-filter" data-filter-key="capabilityMcpTransport">
+              <option value="all">全部传输</option>
+              ${filterOptions.transports
+                .map(
+                  (item) =>
+                    `<option value="${escapeHtml(item)}"${state.filters.capabilityMcpTransport === item ? ' selected' : ''}>${escapeHtml(item)}</option>`,
+                )
+                .join('')}
+            </select>
+            <select class="field-select fig-filter" data-filter-key="capabilityMcpBrand">
+              <option value="all">全部品牌</option>
+              ${filterOptions.mcpBrands
+                .map(
+                  (brand) =>
+                    `<option value="${escapeHtml(brand.brand_id)}"${state.filters.capabilityMcpBrand === brand.brand_id ? ' selected' : ''}>${escapeHtml(brand.display_name)}</option>`,
+                )
+                .join('')}
+            </select>
+          </div>
+        `
+        : `
+          <div class="fig-capability-filter-row">
+            <select class="field-select fig-filter" data-filter-key="capabilityModelStatus">
+              ${['all', 'active', 'disabled']
+                .map(
+                  (item) =>
+                    `<option value="${item}"${state.filters.capabilityModelStatus === item ? ' selected' : ''}>${escapeHtml(item === 'all' ? '全部状态' : item === 'active' ? '仅启用' : '仅禁用')}</option>`,
+                )
+                .join('')}
+            </select>
+            <select class="field-select fig-filter" data-filter-key="capabilityModelProvider">
+              <option value="all">全部 Provider</option>
+              ${filterOptions.modelProviders
+                .map(
+                  (item) =>
+                    `<option value="${escapeHtml(item)}"${state.filters.capabilityModelProvider === item ? ' selected' : ''}>${escapeHtml(item)}</option>`,
+                )
+                .join('')}
+            </select>
+            <select class="field-select fig-filter" data-filter-key="capabilityModelBrand">
+              <option value="all">全部品牌</option>
+              ${filterOptions.modelBrands
+                .map(
+                  (brand) =>
+                    `<option value="${escapeHtml(brand.brand_id)}"${state.filters.capabilityModelBrand === brand.brand_id ? ' selected' : ''}>${escapeHtml(brand.display_name)}</option>`,
+                )
+                .join('')}
+            </select>
+          </div>
+        `;
+  const listMarkup =
+    state.capabilityMode === 'skills'
+      ? `
+        ${skills.length
+          ? skills
+              .map(
+                (item) => `
+                  <button class="capability-card${selectedSkill?.slug === item.slug ? ' is-active' : ''}" type="button" data-action="select-skill" data-skill-slug="${escapeHtml(item.slug)}">
+                    <strong>${escapeHtml(item.name)}</strong>
+                    <span>${escapeHtml(item.category || '未分类')} • ${escapeHtml(item.brand_count)} 个品牌使用</span>
+                  </button>
+                `,
+              )
+              .join('')
+          : `<div class="empty-state">没有匹配的技能。</div>`}
+        <button class="capability-card${state.selectedSkillSlug === '__new__' ? ' is-active' : ''}" type="button" data-action="select-skill" data-skill-slug="__new__">
+          <strong>新建 Skill</strong>
+          <span>新增一个 cloud skill catalog 记录</span>
+        </button>
+      `
+      : state.capabilityMode === 'mcp'
+        ? `
+          ${mcpServers.length
+            ? mcpServers
+                .map(
+                  (item) => `
+                    <button class="capability-card${selectedMcp?.key === item.key ? ' is-active' : ''}" type="button" data-action="select-mcp" data-mcp-key="${escapeHtml(item.key)}">
+                      <strong>${escapeHtml(item.name)}</strong>
+                      <span>${escapeHtml(item.connected_brand_count)} 个品牌 • ${escapeHtml(item.env_keys.length)} 个环境变量</span>
+                    </button>
+                  `,
+                )
+                .join('')
+            : `<div class="empty-state">没有匹配的 MCP。</div>`}
+          <button class="capability-card${state.selectedMcpKey === '__new__' ? ' is-active' : ''}" type="button" data-action="select-mcp" data-mcp-key="__new__">
+            <strong>新建 MCP</strong>
+            <span>新增一个可保存到注册表的配置</span>
+          </button>
+        `
+        : `
+          ${models.length
+            ? models
+                .map(
+                  (item) => `
+                    <button class="capability-card${selectedModel?.ref === item.ref ? ' is-active' : ''}" type="button" data-action="select-model" data-model-ref="${escapeHtml(item.ref)}">
+                      <strong>${escapeHtml(item.label)}</strong>
+                      <span>${escapeHtml(item.providerId)} • ${escapeHtml(item.connected_brand_count)} 个品牌使用</span>
+                    </button>
+                  `,
+                )
+                .join('')
+            : `<div class="empty-state">没有匹配的模型。</div>`}
+          <button class="capability-card${state.selectedModelRef === '__new__' ? ' is-active' : ''}" type="button" data-action="select-model" data-model-ref="__new__">
+            <strong>新建模型</strong>
+            <span>新增一个 OEM 可装配的模型目录项</span>
+          </button>
+        `;
+  const detailMarkup =
+    state.capabilityMode === 'skills'
+      ? renderSkillDetail(selectedSkill)
+      : state.capabilityMode === 'mcp'
+        ? renderMcpDetail(selectedMcp)
+        : renderModelDetail(selectedModel);
 
   return `
     <div class="fig-page">
       <div class="fig-page__header">
         <div class="fig-page__header-inner">
           <div>
-            <h1>技能与 MCP</h1>
-            <p class="fig-page__description">管理 AI 技能和模型上下文协议能力提供方</p>
+            <h1>能力中心</h1>
+            <p class="fig-page__description">${pageDescription}</p>
           </div>
           ${actionButton}
         </div>
@@ -2132,111 +3205,292 @@ function renderSkillsMcpPage() {
               <input
                 class="field-input fig-search__input"
                 data-filter-key="capabilityQuery"
-                placeholder="${state.capabilityMode === 'skills' ? '搜索技能...' : '搜索 MCP...'}"
+                placeholder="${searchPlaceholder}"
                 value="${fieldValue(state.filters.capabilityQuery)}"
               />
             </label>
             <div class="segmented">
               <button class="tab-pill${state.capabilityMode === 'skills' ? ' is-active' : ''}" type="button" data-action="capability-mode" data-mode="skills">技能</button>
               <button class="tab-pill${state.capabilityMode === 'mcp' ? ' is-active' : ''}" type="button" data-action="capability-mode" data-mode="mcp">MCP</button>
+              <button class="tab-pill${state.capabilityMode === 'models' ? ' is-active' : ''}" type="button" data-action="capability-mode" data-mode="models">模型</button>
+            </div>
+            ${filterControls}
+            <div class="fig-capability-filter-meta">
+              <span>${escapeHtml(listCountLabel)}</span>
+              <button class="text-button" type="button" data-action="capability-filter-reset">重置筛选</button>
             </div>
           </div>
-          <div class="fig-capability-list">
-            ${
-              state.capabilityMode === 'skills'
-                ? skills.length
-                  ? skills
+          <div class="fig-capability-list">${listMarkup}</div>
+        </aside>
+        <section class="fig-capability-detail">${detailMarkup}</section>
+      </div>
+    </div>
+  `;
+}
+
+function renderSkillSyncSourceForm() {
+  const source = state.skillSyncSources.find((item) => item.id === state.selectedSkillSyncSourceId) || null;
+  const editable = source || {
+    id: '',
+    source_type: 'github_repo',
+    source_key: '',
+    display_name: '',
+    source_url: '',
+    config: {},
+    active: true,
+  };
+  return `
+    <section class="fig-card fig-card--subtle">
+      <div class="fig-card__head">
+        <h3>${source ? '编辑同步源' : '新增同步源'}</h3>
+        <span>同步结果会直接灌入 cloud skill 主库，并在 portal 中保留运行记录。</span>
+      </div>
+      <form id="skill-sync-source-form" class="form-grid form-grid--two">
+        <input type="hidden" name="id" value="${fieldValue(editable.id)}" />
+        <label class="field">
+          <span>Source Type</span>
+          <select class="field-select" name="source_type">
+            <option value="clawhub"${editable.source_type === 'clawhub' ? ' selected' : ''}>ClawHub</option>
+            <option value="github_repo"${editable.source_type === 'github_repo' ? ' selected' : ''}>GitHub Repo</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Source Key</span>
+          <input class="field-input" name="source_key" value="${fieldValue(editable.source_key)}" placeholder="github:owner/repo" />
+        </label>
+        <label class="field">
+          <span>Display Name</span>
+          <input class="field-input" name="display_name" value="${fieldValue(editable.display_name)}" placeholder="Claude Code Skills" />
+        </label>
+        <label class="field">
+          <span>Source URL</span>
+          <input class="field-input" name="source_url" value="${fieldValue(editable.source_url)}" placeholder="https://github.com/owner/repo" />
+        </label>
+        <label class="field">
+          <span>状态</span>
+          <select class="field-select" name="active">
+            <option value="true"${editable.active !== false ? ' selected' : ''}>启用</option>
+            <option value="false"${editable.active === false ? ' selected' : ''}>禁用</option>
+          </select>
+        </label>
+        <label class="field field--wide">
+          <span>Config JSON</span>
+          <textarea class="field-textarea" name="config_json">${escapeHtml(prettyJson(editable.config || {}))}</textarea>
+        </label>
+        <div class="fig-form-actions">
+          <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>保存同步源</button>
+        </div>
+      </form>
+    </section>
+  `;
+}
+
+function renderCloudSkillsPage() {
+  const skills = [...state.cloudSkillCatalog].sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
+  const selectedSkill = getCloudSkillCatalogEntry(state.selectedCloudSkillSlug) || skills[0] || null;
+  const selectedSource = state.skillSyncSources.find((item) => item.id === state.selectedSkillSyncSourceId) || state.skillSyncSources[0] || null;
+  const runs = state.skillSyncRuns || [];
+
+  return `
+    <div class="fig-page">
+      <div class="fig-page__header">
+        <div class="fig-page__header-inner">
+          <div>
+            <h1>云技能</h1>
+            <p class="fig-page__description">同步 ClawHub 和 GitHub 来源，直接维护技能商店主库。</p>
+          </div>
+          <div class="action-row">
+            <button class="ghost-button" type="button" data-action="toggle-skill-sync-source-form">${state.showSkillSyncSourceForm ? '收起表单' : '新增同步源'}</button>
+            ${selectedSource ? `<button class="solid-button fig-button" type="button" data-action="run-skill-sync" data-source-id="${escapeHtml(selectedSource.id)}"${state.busy ? ' disabled' : ''}>同步当前来源</button>` : ''}
+          </div>
+        </div>
+      </div>
+      <div class="page-stack">
+        <section class="fig-card">
+          <div class="fig-card__head">
+            <h2>主库概览</h2>
+            <span>技能商店直接读取这里的启用技能</span>
+          </div>
+          <div class="fig-meta-cards">
+            <div class="fig-meta-card"><span>云技能</span><strong>${escapeHtml(skills.length)}</strong></div>
+            <div class="fig-meta-card"><span>同步源</span><strong>${escapeHtml(state.skillSyncSources.length)}</strong></div>
+            <div class="fig-meta-card"><span>同步记录</span><strong>${escapeHtml(runs.length)}</strong></div>
+          </div>
+        </section>
+        ${state.showSkillSyncSourceForm ? renderSkillSyncSourceForm() : ''}
+        <div class="fig-layout">
+          <aside class="fig-sidebar">
+            <section class="fig-card fig-card--subtle">
+              <div class="fig-card__head">
+                <h3>同步源</h3>
+                <span>${escapeHtml(state.skillSyncSources.length)} 个</span>
+              </div>
+              <div class="fig-capability-list">
+                ${state.skillSyncSources.length
+                  ? state.skillSyncSources
                       .map(
                         (item) => `
-                          <button class="capability-card${selectedSkill?.slug === item.slug ? ' is-active' : ''}" type="button" data-action="select-skill" data-skill-slug="${escapeHtml(item.slug)}">
-                            <strong>${escapeHtml(item.name)}</strong>
-                            <span>${escapeHtml(item.category || '未分类')} • ${escapeHtml(item.brand_count)} 个品牌使用</span>
+                          <button class="capability-card${selectedSource?.id === item.id ? ' is-active' : ''}" type="button" data-action="select-skill-sync-source" data-source-id="${escapeHtml(item.id)}">
+                            <strong>${escapeHtml(item.display_name)}</strong>
+                            <span>${escapeHtml(item.source_type)} • ${item.active ? '启用' : '禁用'}</span>
                           </button>
                         `,
                       )
                       .join('')
-                  : `<div class="empty-state">没有匹配的技能。</div>`
-                : `
-                    ${
-                      mcpServers.length
-                        ? mcpServers
+                  : `<div class="empty-state">还没有同步源。</div>`}
+              </div>
+            </section>
+            <section class="fig-card fig-card--subtle">
+              <div class="fig-card__head">
+                <h3>云技能列表</h3>
+                <span>${escapeHtml(skills.length)} 个</span>
+              </div>
+              <div class="fig-capability-list">
+                ${skills.length
+                  ? skills
+                      .map(
+                        (item) => `
+                          <button class="capability-card${selectedSkill?.slug === item.slug ? ' is-active' : ''}" type="button" data-action="select-cloud-skill" data-skill-slug="${escapeHtml(item.slug)}">
+                            <strong>${escapeHtml(item.name)}</strong>
+                            <span>v${escapeHtml(item.version || '0.0.0')} • ${escapeHtml(item.origin_type || 'manual')}</span>
+                          </button>
+                        `,
+                      )
+                      .join('')
+                  : `<div class="empty-state">还没有云技能。</div>`}
+              </div>
+            </section>
+          </aside>
+          <section class="fig-capability-detail">
+            ${selectedSkill
+              ? `
+                <div class="fig-detail-stack">
+                  <div class="fig-card">
+                    <div class="fig-card__head">
+                      <div>
+                        <h2>${escapeHtml(selectedSkill.name)}</h2>
+                        <span>${escapeHtml(selectedSkill.slug)} · v${escapeHtml(selectedSkill.version || '0.0.0')}</span>
+                      </div>
+                      ${renderSwitch({
+                        checked: selectedSkill.active !== false,
+                        action: 'cloud-skill-toggle',
+                        attrs: `data-skill-slug="${escapeHtml(selectedSkill.slug)}" data-enabled="${selectedSkill.active !== false ? 'true' : 'false'}"`,
+                        label: selectedSkill.active !== false ? '已启用' : '已禁用',
+                      })}
+                    </div>
+                    <p class="detail-copy">${escapeHtml(selectedSkill.description || '暂无描述。')}</p>
+                    <div class="fig-meta-cards">
+                      <div class="fig-meta-card"><span>版本</span><strong>v${escapeHtml(selectedSkill.version || '0.0.0')}</strong></div>
+                      <div class="fig-meta-card"><span>来源</span><strong>${escapeHtml(selectedSkill.origin_type || 'manual')}</strong></div>
+                      <div class="fig-meta-card"><span>发布者</span><strong>${escapeHtml(selectedSkill.publisher || '未知')}</strong></div>
+                    </div>
+                    <div class="chip-grid">
+                      ${(selectedSkill.tags || []).length
+                        ? selectedSkill.tags.map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`).join('')
+                        : `<div class="empty-state">暂无标签。</div>`}
+                    </div>
+                    <div class="action-row">
+                      ${selectedSkill.source_url ? `<a class="text-button" href="${escapeHtml(selectedSkill.source_url)}" target="_blank" rel="noreferrer">查看来源</a>` : ''}
+                      ${selectedSkill.artifact_url ? `<a class="text-button" href="${escapeHtml(selectedSkill.artifact_url)}" target="_blank" rel="noreferrer">查看 Artifact</a>` : ''}
+                    </div>
+                  </div>
+                  <section class="fig-card fig-card--subtle">
+                    <div class="fig-card__head">
+                      <h3>同步元数据</h3>
+                      <span>先完整爬取，后续按需消费</span>
+                    </div>
+                    <textarea class="code-input code-input--tall" readonly>${escapeHtml(prettyJson(selectedSkill.metadata || {}))}</textarea>
+                  </section>
+                  <section class="fig-card fig-card--subtle">
+                    <div class="fig-card__head">
+                      <h3>最近同步记录</h3>
+                      <span>${escapeHtml(runs.length)} 条</span>
+                    </div>
+                    <div class="fig-list">
+                      ${runs.length
+                        ? runs
+                            .slice(0, 8)
                             .map(
-                              (item) => `
-                                <button class="capability-card${selectedMcp?.key === item.key ? ' is-active' : ''}" type="button" data-action="select-mcp" data-mcp-key="${escapeHtml(item.key)}">
-                                  <strong>${escapeHtml(item.name)}</strong>
-                                  <span>${escapeHtml(item.connected_brand_count)} 个品牌 • ${escapeHtml(item.env_keys.length)} 个环境变量</span>
-                                </button>
+                              (run) => `
+                                <article class="fig-list-item">
+                                  <div class="fig-list-item__body">
+                                    <div class="fig-list-item__title">${escapeHtml(run.display_name)}</div>
+                                    <div class="fig-list-item__meta">${escapeHtml(run.status)} • ${escapeHtml(formatDateTime(run.finished_at || run.started_at))}</div>
+                                    <div class="fig-list-item__summary">${escapeHtml((run.items || []).slice(0, 3).map((item) => `${item.slug}@${item.version || 'n/a'}:${item.status}`).join(' / ') || '无结果')}</div>
+                                  </div>
+                                </article>
                               `,
                             )
                             .join('')
-                        : `<div class="empty-state">没有匹配的 MCP。</div>`
-                    }
-                    <button class="capability-card${state.selectedMcpKey === '__new__' ? ' is-active' : ''}" type="button" data-action="select-mcp" data-mcp-key="__new__">
-                      <strong>新建 MCP</strong>
-                      <span>新增一个可保存到注册表的配置</span>
-                    </button>
-                  `
-            }
-          </div>
-        </aside>
-        <section class="fig-capability-detail">
-          ${
-            state.capabilityMode === 'skills'
-              ? renderSkillDetail(selectedSkill)
-              : renderMcpDetail(selectedMcp)
-          }
-        </section>
+                        : `<div class="empty-state">还没有同步记录。</div>`}
+                    </div>
+                  </section>
+                </div>
+              `
+              : `<div class="fig-card fig-card--detail-empty"><div class="empty-state">还没有云技能，先新增同步源并执行同步。</div></div>`}
+          </section>
+        </div>
       </div>
     </div>
   `;
 }
 
 function renderSkillImportPanel() {
+  const skill = state.selectedSkillSlug === '__new__'
+    ? null
+    : getMergedSkills().find((item) => item.slug === state.selectedSkillSlug) || null;
   return `
     <section class="fig-card fig-card--subtle">
       <div class="fig-card__head">
-        <h3>导入私有 Skill</h3>
-        <span>上传 tar.gz / zip 包，导入后会自动安装到当前 admin 账号</span>
+        <h3>${skill ? '编辑 Skill Catalog' : '新增 Skill Catalog'}</h3>
+        <span>当前直接写入 portal skill catalog；可选上传 tar.gz / zip artifact 到 MinIO。</span>
       </div>
       <form id="skill-import-form" class="form-grid form-grid--two">
         <label class="field">
           <span>Slug</span>
-          <input class="field-input" name="slug" placeholder="private-skill-slug" />
+          <input class="field-input" name="slug" placeholder="cloud-skill-slug" value="${fieldValue(skill?.slug)}" ${skill ? 'readonly' : ''} />
         </label>
         <label class="field">
           <span>Name</span>
-          <input class="field-input" name="name" placeholder="Skill Name" />
+          <input class="field-input" name="name" placeholder="Skill Name" value="${fieldValue(skill?.name)}" />
         </label>
         <label class="field field--wide">
           <span>Description</span>
-          <textarea class="field-textarea" name="description" placeholder="这个 skill 做什么"></textarea>
-        </label>
-        <label class="field">
-          <span>Version</span>
-          <input class="field-input" name="version" placeholder="1.0.0" />
+          <textarea class="field-textarea" name="description" placeholder="这个 skill 做什么">${escapeHtml(skill?.description || '')}</textarea>
         </label>
         <label class="field">
           <span>Publisher</span>
-          <input class="field-input" name="publisher" value="admin-web" />
+          <input class="field-input" name="publisher" value="${fieldValue(skill?.publisher || 'admin-web')}" />
         </label>
         <label class="field">
           <span>Category</span>
-          <input class="field-input" name="category" placeholder="research / ops / growth" />
+          <input class="field-input" name="category" placeholder="research / ops / growth" value="${fieldValue(skill?.category)}" />
         </label>
         <label class="field">
-          <span>Market</span>
-          <input class="field-input" name="market" placeholder="CN / US" />
+          <span>Visibility</span>
+          <input class="field-input" name="visibility" placeholder="showcase / hidden" value="${fieldValue(skill?.visibility || 'showcase')}" />
         </label>
         <label class="field">
-          <span>Skill Type</span>
-          <input class="field-input" name="skill_type" placeholder="workflow / tool" />
+          <span>Object Key</span>
+          <input class="field-input" name="object_key" placeholder="minio://skills/slug.tar.gz" value="${fieldValue(skill?.objectKey)}" />
+        </label>
+        <label class="field">
+          <span>Artifact 文件</span>
+          <input class="field-input" type="file" name="artifact_file" accept=".tar.gz,.tgz,.zip,application/gzip,application/zip" />
+        </label>
+        <label class="field">
+          <span>状态</span>
+          <select class="field-select" name="active">
+            <option value="true"${skill?.active !== false ? ' selected' : ''}>启用</option>
+            <option value="false"${skill?.active === false ? ' selected' : ''}>禁用</option>
+          </select>
         </label>
         <label class="field field--wide">
-          <span>Artifact</span>
-          <input class="field-input" name="artifact" type="file" accept=".tar.gz,.tgz,.zip,application/gzip,application/zip" />
+          <span>Metadata JSON</span>
+          <textarea class="field-textarea" name="metadata_json">${escapeHtml(prettyJson(skill?.metadata || {}))}</textarea>
         </label>
         <div class="fig-form-actions">
-          <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>导入 Skill</button>
+          <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>保存 Skill</button>
         </div>
       </form>
     </section>
@@ -2245,12 +3499,8 @@ function renderSkillImportPanel() {
 
 function renderSkillDetail(skill) {
   if (!skill) {
-    return `${state.showSkillImportPanel ? renderSkillImportPanel() : ''}<div class="fig-card fig-card--detail-empty"><div class="empty-state">选择一个技能查看详情。</div></div>`;
+    return `${state.showSkillImportPanel ? renderSkillImportPanel() : ''}<div class="fig-card fig-card--detail-empty"><div class="empty-state">选择一个技能查看详情，或新建 cloud skill。</div></div>`;
   }
-  const libraryItem = getSkillLibraryItem(skill.slug);
-  const catalogItem = getAdminSkillCatalogEntry(skill.slug);
-  const personalItem = getPersonalSkillCatalogEntry(skill.slug);
-  const canDelete = personalItem?.source === 'private' || (catalogItem && catalogItem.distribution !== 'bundled');
   return `
     <div class="fig-detail-stack">
       <div class="fig-card">
@@ -2260,33 +3510,23 @@ function renderSkillDetail(skill) {
             <span>${escapeHtml(skill.slug)} · ${escapeHtml(skill.publisher || 'iClaw')}</span>
           </div>
           ${renderSwitch({
-            checked: Boolean(libraryItem?.enabled),
+            checked: skill.active !== false,
             action: 'skill-toggle',
-            attrs: `data-skill-slug="${escapeHtml(skill.slug)}" data-enabled="${libraryItem?.enabled ? 'true' : 'false'}"`,
-            label: libraryItem?.enabled ? '已启用' : '已禁用',
+            attrs: `data-skill-slug="${escapeHtml(skill.slug)}" data-enabled="${skill.active !== false ? 'true' : 'false'}"`,
+            label: skill.active !== false ? '已启用' : '已禁用',
           })}
         </div>
         <p class="detail-copy">${escapeHtml(skill.description || '暂无描述。')}</p>
         <div class="fig-meta-cards">
           <div class="fig-meta-card"><span>分类</span><strong>${escapeHtml(skill.category || '未分类')}</strong></div>
-          <div class="fig-meta-card"><span>来源</span><strong>${escapeHtml(skill.distribution || 'unknown')}</strong></div>
+          <div class="fig-meta-card"><span>来源</span><strong>cloud</strong></div>
           <div class="fig-meta-card"><span>使用品牌数</span><strong>${escapeHtml(skill.brand_count)}</strong></div>
         </div>
         <div class="action-row">
-          ${canDelete ? `<button class="ghost-button" type="button" data-action="skill-delete" data-skill-slug="${escapeHtml(skill.slug)}">删除 Skill</button>` : ''}
-          <button class="text-button" type="button" data-action="toggle-skill-import">${state.showSkillImportPanel ? '收起导入面板' : '导入私有 Skill'}</button>
+          <button class="ghost-button" type="button" data-action="skill-delete" data-skill-slug="${escapeHtml(skill.slug)}">删除 Skill</button>
+          <button class="text-button" type="button" data-action="toggle-skill-import">${state.showSkillImportPanel ? '收起编辑面板' : '编辑 Skill'}</button>
         </div>
       </div>
-      <section class="fig-card fig-card--subtle">
-        <div class="fig-card__head">
-          <h3>${icon('zap', 'fig-inline-icon')}能力</h3>
-        </div>
-        <div class="chip-grid">
-          ${asArray(skill.capabilities).length
-            ? asArray(skill.capabilities).map((cap) => `<span class="chip">${escapeHtml(cap)}</span>`).join('')
-            : `<div class="empty-state">当前没有声明能力标签。</div>`}
-        </div>
-      </section>
       <section class="fig-card fig-card--subtle">
         <div class="fig-card__head">
           <h3>品牌访问权限</h3>
@@ -2317,6 +3557,10 @@ function renderMcpDetail(server) {
     server = {
       key: '',
       name: '新建 MCP',
+      description: '',
+      transport: 'config',
+      metadata: {},
+      config: {},
       command: '',
       connected_brand_count: 0,
       enabled_by_default: false,
@@ -2327,14 +3571,18 @@ function renderMcpDetail(server) {
     };
   }
   const isNew = !server.key;
-  const editable = getMcpCatalogEntry(server.key) || {
+  const editable = {
     key: server.key,
+    name: server.name,
+    description: server.description || '',
     enabled: server.enabled_by_default,
-    type: null,
+    transport: server.transport || 'config',
+    objectKey: server.objectKey || '',
     command: server.command,
     args: server.args || [],
     http_url: server.http_url,
-    env: {},
+    env: asObject(server.config?.env),
+    metadata: asObject(server.metadata),
   };
   return `
     <div class="fig-detail-stack">
@@ -2353,12 +3601,20 @@ function renderMcpDetail(server) {
       <form id="mcp-editor-form" class="fig-card fig-card--subtle">
       <div class="fig-card__head">
         <h3>MCP 配置</h3>
-        <span>真实写入 mcp/mcp.json，支持保存、测试连接、删除</span>
+        <span>真实写入 portal mcp catalog，支持保存、测试连接、删除</span>
       </div>
       <div class="form-grid form-grid--two">
         <label class="field">
           <span>Key</span>
           <input class="field-input" name="key" value="${fieldValue(editable.key)}" />
+        </label>
+        <label class="field">
+          <span>Name</span>
+          <input class="field-input" name="name" value="${fieldValue(editable.name)}" />
+        </label>
+        <label class="field field--wide">
+          <span>Description</span>
+          <textarea class="field-textarea" name="description">${escapeHtml(editable.description)}</textarea>
         </label>
         <label class="field">
           <span>默认状态</span>
@@ -2368,8 +3624,8 @@ function renderMcpDetail(server) {
           </select>
         </label>
         <label class="field">
-          <span>Type</span>
-          <input class="field-input" name="type" value="${fieldValue(editable.type)}" placeholder="stdio / http" />
+          <span>Transport</span>
+          <input class="field-input" name="transport" value="${fieldValue(editable.transport)}" placeholder="stdio / http / config" />
         </label>
         <label class="field">
           <span>Command</span>
@@ -2386,6 +3642,14 @@ function renderMcpDetail(server) {
         <label class="field field--wide">
           <span>Env</span>
           <textarea class="field-textarea" name="env_text" placeholder="KEY=value">${escapeHtml(formatEnvPairs(editable.env))}</textarea>
+        </label>
+        <label class="field">
+          <span>Object Key</span>
+          <input class="field-input" name="object_key" value="${fieldValue(editable.objectKey)}" placeholder="minio://mcps/key.json" />
+        </label>
+        <label class="field field--wide">
+          <span>Metadata JSON</span>
+          <textarea class="field-textarea" name="metadata_json">${escapeHtml(prettyJson(editable.metadata))}</textarea>
         </label>
       </div>
       <div class="action-row">
@@ -2437,15 +3701,164 @@ function renderMcpDetail(server) {
   `;
 }
 
+function renderModelDetail(model) {
+  if (!model) {
+    model = {
+      ref: '',
+      label: '新建模型',
+      providerId: 'openai',
+      modelId: '',
+      api: 'openai-completions',
+      baseUrl: '',
+      useRuntimeOpenai: true,
+      authHeader: true,
+      reasoning: true,
+      input: ['text'],
+      contextWindow: 0,
+      maxTokens: 0,
+      metadata: {},
+      connected_brand_count: 0,
+      connectedBrands: [],
+      active: true,
+    };
+  }
+  const isNew = !model.ref;
+  return `
+    <div class="fig-detail-stack">
+      <div class="fig-card">
+        <div class="fig-card__head">
+          <div>
+            <h2>${escapeHtml(model.label)}</h2>
+            <span>${escapeHtml(model.ref || 'new-model')} · ${escapeHtml(model.providerId || 'provider')}</span>
+          </div>
+          ${!isNew
+            ? renderSwitch({
+                checked: model.active !== false,
+                action: 'model-toggle',
+                attrs: `data-model-ref="${escapeHtml(model.ref)}" data-enabled="${model.active !== false ? 'true' : 'false'}"`,
+                label: model.active !== false ? '已启用' : '已禁用',
+              })
+            : ''}
+        </div>
+        <div class="fig-meta-cards">
+          <div class="fig-meta-card"><span>Provider</span><strong>${escapeHtml(model.providerId || '未设置')}</strong></div>
+          <div class="fig-meta-card"><span>Model ID</span><strong>${escapeHtml(model.modelId || '未设置')}</strong></div>
+          <div class="fig-meta-card"><span>OEM 使用数</span><strong>${escapeHtml(model.connected_brand_count || 0)}</strong></div>
+        </div>
+      </div>
+      <form id="model-editor-form" class="fig-card fig-card--subtle">
+        <div class="fig-card__head">
+          <h3>模型目录</h3>
+          <span>主数据统一维护在 portal model catalog，OEM 侧只做勾选和装配</span>
+        </div>
+        <div class="form-grid form-grid--two">
+          <label class="field">
+            <span>Ref</span>
+            <input class="field-input" name="ref" value="${fieldValue(model.ref)}" placeholder="provider/model" ${isNew ? '' : 'readonly'} />
+          </label>
+          <label class="field">
+            <span>Label</span>
+            <input class="field-input" name="label" value="${fieldValue(model.label)}" placeholder="显示名称" />
+          </label>
+          <label class="field">
+            <span>Provider ID</span>
+            <input class="field-input" name="provider_id" value="${fieldValue(model.providerId)}" placeholder="openai / deepseek" />
+          </label>
+          <label class="field">
+            <span>Model ID</span>
+            <input class="field-input" name="model_id" value="${fieldValue(model.modelId)}" placeholder="gpt-5.4" />
+          </label>
+          <label class="field">
+            <span>API</span>
+            <input class="field-input" name="api" value="${fieldValue(model.api || 'openai-completions')}" placeholder="openai-completions" />
+          </label>
+          <label class="field">
+            <span>Base URL</span>
+            <input class="field-input" name="base_url" value="${fieldValue(model.baseUrl || '')}" placeholder="https://api.example.com/v1" />
+          </label>
+          <label class="field">
+            <span>Use Runtime OpenAI</span>
+            <select class="field-select" name="use_runtime_openai">
+              <option value="true"${model.useRuntimeOpenai !== false ? ' selected' : ''}>true</option>
+              <option value="false"${model.useRuntimeOpenai === false ? ' selected' : ''}>false</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Auth Header</span>
+            <select class="field-select" name="auth_header">
+              <option value="true"${model.authHeader !== false ? ' selected' : ''}>true</option>
+              <option value="false"${model.authHeader === false ? ' selected' : ''}>false</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Reasoning</span>
+            <select class="field-select" name="reasoning">
+              <option value="true"${model.reasoning === true ? ' selected' : ''}>true</option>
+              <option value="false"${model.reasoning === true ? '' : ' selected'}>false</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>状态</span>
+            <select class="field-select" name="enabled">
+              <option value="true"${model.active !== false ? ' selected' : ''}>启用</option>
+              <option value="false"${model.active === false ? ' selected' : ''}>禁用</option>
+            </select>
+          </label>
+          <label class="field field--wide">
+            <span>Input Modalities</span>
+            <textarea class="field-textarea" name="input_text" placeholder="每行一个，如 text / image">${escapeHtml((model.input || []).join('\n'))}</textarea>
+          </label>
+          <label class="field">
+            <span>Context Window</span>
+            <input class="field-input" name="context_window" type="number" min="0" value="${fieldValue(model.contextWindow || 0)}" />
+          </label>
+          <label class="field">
+            <span>Max Tokens</span>
+            <input class="field-input" name="max_tokens" type="number" min="0" value="${fieldValue(model.maxTokens || 0)}" />
+          </label>
+          <label class="field field--wide">
+            <span>Metadata JSON</span>
+            <textarea class="field-textarea" name="metadata_json">${escapeHtml(prettyJson(model.metadata || {}))}</textarea>
+          </label>
+        </div>
+        <div class="action-row">
+          <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>保存模型</button>
+          ${isNew ? '' : `<button class="ghost-button" type="button" data-action="model-delete" data-model-ref="${escapeHtml(model.ref)}"${state.busy ? ' disabled' : ''}>删除模型</button>`}
+        </div>
+      </form>
+      <section class="fig-card fig-card--subtle">
+        <div class="fig-card__head">
+          <h3>品牌访问权限</h3>
+          <span>${escapeHtml(model.connected_brand_count || 0)} 个 OEM 已启用</span>
+        </div>
+        <div class="chip-grid">
+          ${(model.connectedBrands || []).length
+            ? model.connectedBrands
+                .map(
+                  (brand) => `
+                    <button class="chip chip--interactive" type="button" data-action="select-brand" data-brand-id="${escapeHtml(brand.brand_id)}">
+                      ${escapeHtml(brand.display_name)}
+                    </button>
+                  `,
+                )
+                .join('')
+            : `<div class="empty-state">当前没有 OEM 绑定此模型。</div>`}
+        </div>
+      </section>
+      ${renderCapabilityBrandMatrix('model', model)}
+    </div>
+  `;
+}
+
 function renderCapabilityBrandMatrix(type, item) {
   const brands = state.capabilities?.brands || [];
   const connectedIds = new Set(
-    (type === 'skill' ? item.connectedBrands : item.connected_brands || []).map((brand) => brand.brand_id),
+    (type === 'skill' || type === 'model' ? item.connectedBrands : item.connected_brands || []).map((brand) => brand.brand_id),
   );
   return `
     <section class="fig-card fig-card--subtle">
       <div class="fig-card__head">
-        <h3>${type === 'skill' ? 'Skill / Brand Matrix' : 'MCP / Brand Matrix'}</h3>
+        <h3>${type === 'skill' ? 'Skill / Brand Matrix' : type === 'model' ? 'Model / Brand Matrix' : 'MCP / Brand Matrix'}</h3>
         <span>按品牌查看能力开放范围</span>
       </div>
       <div class="table-shell">
@@ -2488,11 +3901,12 @@ function getFilteredAssets() {
     if (state.filters.assetBrand !== 'all' && item.brandId !== state.filters.assetBrand) {
       return false;
     }
-    if (state.filters.assetKind !== 'all' && item.kind !== state.filters.assetKind) {
+    const kind = String(item.metadata?.kind || '').trim();
+    if (state.filters.assetKind !== 'all' && kind !== state.filters.assetKind) {
       return false;
     }
     if (!query) return true;
-    return [item.assetKey, item.kind, item.brandDisplayName, item.objectKey, item.publicUrl].some((value) =>
+    return [item.assetKey, item.brandDisplayName, item.objectKey, item.contentType, kind].some((value) =>
       String(value || '').toLowerCase().includes(query),
     );
   });
@@ -2500,9 +3914,9 @@ function getFilteredAssets() {
 
 function renderAssetsPage() {
   const items = getFilteredAssets();
-  const kinds = Array.from(new Set(state.assets.map((item) => item.kind).filter(Boolean))).sort((left, right) =>
-    left.localeCompare(right, 'zh-CN'),
-  );
+  const kinds = Array.from(
+    new Set(state.assets.map((item) => String(item.metadata?.kind || '').trim()).filter(Boolean)),
+  ).sort((left, right) => left.localeCompare(right, 'zh-CN'));
   const typeTabs = ['all', ...kinds];
 
   return `
@@ -2512,7 +3926,7 @@ function renderAssetsPage() {
           <div class="fig-page__header-row">
             <div>
               <h1>资源管理</h1>
-              <p class="fig-page__description">品牌资源库，包含 Logo、图标和视觉资源</p>
+              <p class="fig-page__description">品牌资源库，真实读写 portal assets 和 MinIO</p>
             </div>
             <button class="solid-button fig-button" type="button" data-action="toggle-asset-upload">
               ${icon('plus', 'button-icon')}
@@ -2548,7 +3962,7 @@ function renderAssetsPage() {
                 </div>
                 <form id="asset-form" class="form-grid form-grid--two">
                   <label class="field">
-                    <span>Brand ID</span>
+                    <span>App</span>
                     <select class="field-select" name="brand_id">
                       ${state.brands
                         .map(
@@ -2565,23 +3979,11 @@ function renderAssetsPage() {
                   </label>
                   <label class="field">
                     <span>类型</span>
-                    <input class="field-input" name="kind" placeholder="logo / hero / screenshot" />
+                    <input class="field-input" name="kind" placeholder="logo / favicon / hero" />
                   </label>
                   <label class="field">
                     <span>上传文件</span>
                     <input class="field-input" name="file" type="file" />
-                  </label>
-                  <label class="field">
-                    <span>存储提供方</span>
-                    <input class="field-input" name="storage_provider" value="repo" />
-                  </label>
-                  <label class="field">
-                    <span>对象路径</span>
-                    <input class="field-input" name="object_key" placeholder="./assets/logo.png 或 s3://..." />
-                  </label>
-                  <label class="field field--wide">
-                    <span>Public URL</span>
-                    <input class="field-input" name="public_url" placeholder="https://..." />
                   </label>
                   <label class="field field--wide">
                     <span>Metadata JSON</span>
@@ -2614,14 +4016,14 @@ function renderAssetsPage() {
                     <article class="fig-asset-card">
                       <div class="fig-asset-card__preview">
                         ${
-                          isImageLike(item.metadata?.content_type, item.publicUrl, item.objectKey)
+                          isImageLike(item.contentType, item.publicUrl, item.objectKey)
                             ? `<img class="fig-asset-card__image" src="${escapeHtml(resolveAssetUrl(item))}" alt="${escapeHtml(item.assetKey)}" />`
-                            : `<div class="asset-thumb asset-thumb--placeholder">${escapeHtml((item.kind || 'AS').slice(0, 2).toUpperCase())}</div>`
+                            : `<div class="asset-thumb asset-thumb--placeholder">${escapeHtml((item.assetKey || 'AS').slice(0, 2).toUpperCase())}</div>`
                         }
                       </div>
                       <div class="fig-asset-card__body">
                         <div class="fig-asset-card__title">${escapeHtml(item.assetKey)}</div>
-                        <div class="fig-asset-card__meta">${escapeHtml(item.kind)} • ${escapeHtml(item.storageProvider)}</div>
+                        <div class="fig-asset-card__meta">${escapeHtml(String(item.metadata?.kind || 'asset'))} • ${escapeHtml(item.storageProvider || 's3')}</div>
                         <div class="fig-asset-card__brand">${escapeHtml(item.brandDisplayName || item.brandId)}</div>
                         <div class="fig-asset-card__actions">
                           <button class="text-button" type="button" data-action="select-brand" data-brand-id="${escapeHtml(item.brandId)}">打开品牌</button>
@@ -2630,6 +4032,7 @@ function renderAssetsPage() {
                               ? `<a class="text-link" href="${escapeHtml(resolveAssetUrl(item))}" target="_blank" rel="noreferrer">打开资源</a>`
                               : ''
                           }
+                          <button class="text-button" type="button" data-action="delete-asset" data-brand-id="${escapeHtml(item.brandId)}" data-asset-key="${escapeHtml(item.assetKey)}">删除</button>
                         </div>
                       </div>
                     </article>
@@ -2663,7 +4066,7 @@ function renderReleasesPage() {
         <div class="fig-page__header-inner">
           <div>
             <h1>版本发布</h1>
-            <p class="fig-page__description">品牌版本时间线和部署历史</p>
+            <p class="fig-page__description">portal app 快照版本时间线和配置差异</p>
           </div>
         </div>
       </div>
@@ -2718,7 +4121,7 @@ function renderReleasesPage() {
                                     <div><span>Surface</span><strong>${escapeHtml((item.surfaces || []).join(' / ') || '无')}</strong></div>
                                     <div><span>技能数</span><strong>${escapeHtml(item.skill_count)}</strong></div>
                                     <div><span>MCP 数</span><strong>${escapeHtml(item.mcp_count)}</strong></div>
-                                    <div><span>当前草稿 Diff</span><strong>${escapeHtml(releaseDiffAreas.join(' / ') || '无差异')}</strong></div>
+                                    <div><span>当前草稿 Diff</span><strong>${escapeHtml(releaseDiffAreas.join(' / ') || diffAreas.join(' / ') || '无差异')}</strong></div>
                                   </div>
                                   <div class="fig-release-card__actions">
                                     <button class="ghost-button" type="button" data-action="select-brand" data-brand-id="${escapeHtml(item.brand_id)}">打开品牌</button>
@@ -2777,14 +4180,13 @@ function renderAuditPage() {
   const actions = Array.from(new Set(state.audit.map((item) => item.action).filter(Boolean))).sort((left, right) =>
     left.localeCompare(right, 'zh-CN'),
   );
-
   return `
     <div class="fig-page">
       <div class="fig-page__header">
         <div class="fig-page__header-inner fig-page__header-inner--stack">
           <div>
             <h1>审计日志</h1>
-            <p class="fig-page__description">平台所有变更的完整操作审计记录</p>
+            <p class="fig-page__description">portal app 的完整操作审计记录</p>
           </div>
           <div class="fig-toolbar fig-toolbar--audit">
             <label class="fig-search">
@@ -2832,11 +4234,11 @@ function renderAuditPage() {
                         <button class="fig-audit-row${selectedAudit?.id === item.id ? ' is-active' : ''}" type="button" data-action="select-audit" data-audit-id="${escapeHtml(item.id)}">
                           <div>
                             <div class="fig-audit-row__title">${escapeHtml(actionLabel(item.action))}</div>
-                            <div class="fig-audit-row__detail">${escapeHtml(item.environment || 'control-plane')}</div>
+                            <div class="fig-audit-row__detail">${escapeHtml(item.environment || 'portal')}</div>
                           </div>
                           <div>${escapeHtml(item.brandDisplayName || item.brandId)}</div>
                           <div>${escapeHtml(item.actorName || item.actorUsername || 'system')}</div>
-                          <div>${escapeHtml(item.environment || 'control-plane')}</div>
+                          <div>${escapeHtml(item.environment || 'portal')}</div>
                           <div>${escapeHtml(formatDateTime(item.createdAt))}</div>
                         </button>
                       `,
@@ -2859,7 +4261,7 @@ function renderAuditPage() {
                 </div>
                 <div class="fig-meta-cards">
                   <div class="fig-meta-card"><span>操作人</span><strong>${escapeHtml(selectedAudit.actorName || selectedAudit.actorUsername || 'system')}</strong></div>
-                  <div class="fig-meta-card"><span>环境</span><strong>${escapeHtml(selectedAudit.environment || 'control-plane')}</strong></div>
+                  <div class="fig-meta-card"><span>环境</span><strong>${escapeHtml(selectedAudit.environment || 'portal')}</strong></div>
                   <div class="fig-meta-card"><span>Brand</span><strong>${escapeHtml(selectedAudit.brandId)}</strong></div>
                 </div>
                 <section class="fig-card fig-card--subtle">
@@ -2892,10 +4294,16 @@ function renderLogin() {
     <main class="login-shell">
       <section class="login-stage">
         <div class="login-copy-group">
-          <p class="eyebrow">OEM operations platform</p>
+          <div class="brand-lockup brand-lockup--login">
+            ${renderAdminLogo('brand-mark--login')}
+            <div class="brand-lockup__copy">
+              <p class="eyebrow">iClaw management console</p>
+              <div class="brand-lockup__title">iClaw管理控制台</div>
+            </div>
+          </div>
           <h1>把品牌、版本、技能与发布放进同一个运营平面</h1>
           <p class="login-copy">
-            当前后台直连真实 control-plane 接口，按 OEM 运营中心设计稿重构。默认账号：<strong>admin / admin</strong>。
+            当前后台直连真实 control-plane 接口，按 iClaw管理控制台设计稿重构。默认账号：<strong>admin / admin</strong>。
           </p>
         </div>
         <form class="login-card" id="login-form">
@@ -2924,13 +4332,15 @@ function renderDashboard() {
       ? renderOverviewPage()
       : state.route === 'brands'
         ? renderBrandsPage()
-        : state.route === 'brand-detail'
-          ? renderBrandDetailPage()
-          : state.route === 'skills-mcp'
-            ? renderSkillsMcpPage()
-            : state.route === 'assets'
-              ? renderAssetsPage()
-              : state.route === 'releases'
+      : state.route === 'brand-detail'
+        ? renderBrandDetailPage()
+        : state.route === 'skills-mcp'
+          ? renderSkillsMcpPage()
+          : state.route === 'cloud-skills'
+            ? renderCloudSkillsPage()
+          : state.route === 'assets'
+            ? renderAssetsPage()
+            : state.route === 'releases'
                 ? renderReleasesPage()
                 : renderAuditPage();
 
@@ -2987,8 +4397,18 @@ app.addEventListener('submit', async (event) => {
     return;
   }
 
+  if (form.id === 'skill-sync-source-form') {
+    await saveSkillSyncSource(new FormData(form));
+    return;
+  }
+
   if (form.id === 'mcp-editor-form') {
     await saveMcpCatalogEntry(new FormData(form));
+    return;
+  }
+
+  if (form.id === 'model-editor-form') {
+    await saveModelCatalogEntry(new FormData(form));
   }
 });
 
@@ -3019,10 +4439,55 @@ app.addEventListener('click', async (event) => {
     return;
   }
 
+  if (action === 'toggle-skill-sync-source-form') {
+    state.showSkillSyncSourceForm = !state.showSkillSyncSourceForm;
+    render();
+    return;
+  }
+
+  if (action === 'select-skill-sync-source') {
+    state.selectedSkillSyncSourceId = target.getAttribute('data-source-id') || '';
+    render();
+    return;
+  }
+
+  if (action === 'run-skill-sync') {
+    await runSkillSync(target.getAttribute('data-source-id') || '');
+    return;
+  }
+
+  if (action === 'select-cloud-skill') {
+    state.selectedCloudSkillSlug = target.getAttribute('data-skill-slug') || '';
+    render();
+    return;
+  }
+
+  if (action === 'cloud-skill-toggle') {
+    const slug = target.getAttribute('data-skill-slug') || '';
+    const enabled = target.getAttribute('data-enabled') === 'true';
+    await setCloudSkillEnabled(slug, !enabled);
+    return;
+  }
+
+  if (action === 'new-skill') {
+    state.capabilityMode = 'skills';
+    state.selectedSkillSlug = '__new__';
+    state.showSkillImportPanel = true;
+    render();
+    return;
+  }
+
   if (action === 'new-mcp') {
     state.capabilityMode = 'mcp';
     state.selectedMcpKey = '__new__';
     state.mcpTestResult = null;
+    render();
+    return;
+  }
+
+  if (action === 'new-model') {
+    state.capabilityMode = 'models';
+    state.selectedModelRef = '__new__';
     render();
     return;
   }
@@ -3060,9 +4525,16 @@ app.addEventListener('click', async (event) => {
     return;
   }
 
+  if (action === 'capability-filter-reset') {
+    resetCapabilityFilters();
+    render();
+    return;
+  }
+
   if (action === 'select-skill') {
     state.capabilityMode = 'skills';
     state.selectedSkillSlug = target.getAttribute('data-skill-slug') || '';
+    state.showSkillImportPanel = state.selectedSkillSlug === '__new__';
     render();
     return;
   }
@@ -3075,6 +4547,13 @@ app.addEventListener('click', async (event) => {
     return;
   }
 
+  if (action === 'select-model') {
+    state.capabilityMode = 'models';
+    state.selectedModelRef = target.getAttribute('data-model-ref') || '';
+    render();
+    return;
+  }
+
   if (action === 'toggle-brand-skill') {
     toggleBrandCapability('skill', target.getAttribute('data-skill-slug') || '');
     return;
@@ -3082,6 +4561,21 @@ app.addEventListener('click', async (event) => {
 
   if (action === 'toggle-brand-mcp') {
     toggleBrandCapability('mcp', target.getAttribute('data-mcp-key') || '');
+    return;
+  }
+
+  if (action === 'toggle-brand-menu') {
+    toggleBrandCapability('menu', target.getAttribute('data-menu-key') || '');
+    return;
+  }
+
+  if (action === 'toggle-brand-model') {
+    toggleBrandCapability('model', target.getAttribute('data-model-ref') || '');
+    return;
+  }
+
+  if (action === 'toggle-brand-model-recommended') {
+    toggleBrandRecommendedModel(target.getAttribute('data-model-ref') || '');
     return;
   }
 
@@ -3130,6 +4624,20 @@ app.addEventListener('click', async (event) => {
     const key = target.getAttribute('data-mcp-key') || '';
     if (window.confirm(`确认删除 MCP ${key}？`)) {
       await deleteMcpCatalogEntry(key);
+    }
+    return;
+  }
+
+  if (action === 'model-toggle') {
+    const enabled = (target.getAttribute('data-enabled') || '') === 'true';
+    await setModelEnabled(target.getAttribute('data-model-ref') || '', !enabled);
+    return;
+  }
+
+  if (action === 'model-delete') {
+    const ref = target.getAttribute('data-model-ref') || '';
+    if (window.confirm(`确认删除模型 ${ref}？`)) {
+      await deleteModelCatalogEntry(ref);
     }
     return;
   }

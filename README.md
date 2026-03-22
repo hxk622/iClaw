@@ -75,7 +75,7 @@ pnpm dev:all
 
 - 前端 Web 调试地址固定为 `127.0.0.1:1520`
 - OAuth 回调页也走前端地址：`http://127.0.0.1:1520/oauth-callback.html`
-- `1420` 只给 control-plane 登录/注册/credit API 使用，不是前端地址
+- `2130` 只给 control-plane 登录/注册/credit API 使用，不是前端地址
 
 ## 新账号体系初始化
 
@@ -115,25 +115,31 @@ pnpm dev:all
 - `logs/openclaw/`
 - 最新日志软链：`logs/openclaw/latest.log`
 
-## Logo Source of Truth
+## OEM Source of Truth
 
-Brand icon generation now follows the profile under `brands/<brand-id>/brand.json`.
+OEM app / skill / MCP / menu / asset 的真实来源已经切到 control-plane portal。
 
-- Brand selection:
-  `node scripts/apply-brand.mjs <brand-id>` or `ICLAW_BRAND=<brand-id>`
-- Default brand:
-  `iclaw`
-- Default icon source:
-  `brands/<brand-id>/assets/tauri-icons/icon.png`
-- Optional override:
-  set `assets.logoMaster` in `brands/<brand-id>/brand.json`
+- App 配置、skill binding、MCP binding、菜单显隐：存 PostgreSQL
+- Logo / favicon / 安装图 / tauri icons：存 MinIO，对应元数据存 PostgreSQL
+- 本地构建与本地调试：通过 control-plane 同步到 `.cache/portal-apps/<app-name>` 和 `services/openclaw/resources/`
+- 仓库里的 `services/control-plane/presets/` 只用于预置 seed，不再是运行时配置源
 
-Generate all app icon derivatives with:
+常用命令：
 
 ```bash
-bash scripts/generate-icons.sh
-ICLAW_BRAND=licaiclaw bash scripts/generate-icons.sh
+pnpm preset:sync:oem
+pnpm dev:control-plane
+pnpm dev:api -- iclaw
+pnpm dev:api -- licaiclaw
+node scripts/apply-brand.mjs iclaw
+ICLAW_PORTAL_APP_NAME=licaiclaw bash scripts/generate-icons.sh
 ```
+
+说明：
+
+- `node scripts/apply-brand.mjs <app-name>` 会先从 control-plane 拉取 app profile 与素材，再生成桌面端 / home-web 所需品牌文件
+- `pnpm dev:api -- <app-name>` 会把该 OEM app 已启用的 skill / MCP 同步到本地 OpenClaw runtime
+- `ICLAW_BRAND` 目前仍兼容，但推荐统一使用 `ICLAW_PORTAL_APP_NAME`
 
 ## OpenClaw Runtime Artifact
 

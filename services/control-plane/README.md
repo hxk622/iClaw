@@ -39,6 +39,7 @@ services/control-plane/
 ```bash
 pnpm install
 pnpm db:init:control-plane
+pnpm preset:sync:oem
 pnpm --filter @iclaw/control-plane dev
 pnpm --filter @iclaw/control-plane check
 ```
@@ -95,15 +96,25 @@ pnpm db:init:control-plane
 - `CREDIT_COST_INPUT_PER_1K`
 - `CREDIT_COST_OUTPUT_PER_1K`
 
-如果设置 `ICLAW_BRAND=<brand-id>`，control-plane 还会从 `brands/<brand-id>/brand.json` 读取这些默认值，环境变量仍然优先：
+默认值不再从 `brands/<brand-id>/brand.json` 读取。当前 control-plane 只使用：
+
+- 环境变量
+- `ICLAW_PORTAL_APP_NAME` / `ICLAW_BRAND` / `ICLAW_APP_NAME` 推导的 app-name 级默认前缀
+
+OEM portal 现在也是 control-plane 的职责范围之一：
+
+- `oem_apps` 保存 OEM app 主配置
+- `oem_skill_catalog` / `oem_mcp_catalog` / `oem_model_catalog` 保存平台能力目录
+- `oem_app_skill_bindings` / `oem_app_mcp_bindings` / `oem_app_model_bindings` / `oem_app_menu_bindings` 保存 OEM app 级 binding
+- `oem_app_assets` 保存 MinIO 资产索引
+- `pnpm preset:sync:oem` 会把 `services/control-plane/presets/core-oem.json` 里的预置 app、skill、MCP、model、menu、asset 同步进数据库和对象存储
+
+在未显式覆盖环境变量时，会按 app-name 推导这些默认值：
 
 - `serviceName`
 - `S3_BUCKET`
 - `CONTROL_PLANE_REDIS_KEY_PREFIX`
-- `CONTROL_PLANE_ALLOWED_ORIGINS`
-- `WECHAT_APP_ID`
-- `GOOGLE_CLIENT_ID`
-- `GOOGLE_REDIRECT_URI`
+- `CONTROL_PLANE_ALLOWED_ORIGINS` 使用本地固定白名单
 
 Redis 是可选的：
 

@@ -1,4 +1,4 @@
-import { CalendarDays, Package, Sparkles, UserRound, X } from 'lucide-react';
+import { CalendarDays, MessageSquare, Package, Sparkles, UserRound, X } from 'lucide-react';
 import type { SkillStoreItem } from '@/app/lib/skill-store';
 import { Button } from '@/app/components/ui/Button';
 import { Chip } from '@/app/components/ui/Chip';
@@ -15,6 +15,10 @@ type StatusMeta = {
   disabled: boolean;
   note: string;
 };
+
+function canStartConversation(skill: SkillStoreItem, input: { actionLoading: boolean; installFailed: boolean }): boolean {
+  return !input.actionLoading && !input.installFailed && (skill.source === 'bundled' || skill.installed);
+}
 
 function resolveStatus(skill: SkillStoreItem, input: { actionLoading: boolean; installFailed: boolean }): StatusMeta {
   if (input.installFailed) {
@@ -43,10 +47,10 @@ function resolveStatus(skill: SkillStoreItem, input: { actionLoading: boolean; i
     return {
       label: '默认已安装',
       tone: 'brand',
-      actionLabel: '已内置',
+      actionLabel: '对话',
       actionVariant: 'secondary',
-      disabled: true,
-      note: '这是系统预置技能，随应用一起提供。',
+      disabled: false,
+      note: '这是系统预置技能，随应用一起提供，可直接开始对话。',
     };
   }
 
@@ -54,10 +58,10 @@ function resolveStatus(skill: SkillStoreItem, input: { actionLoading: boolean; i
     return {
       label: '已安装',
       tone: 'success',
-      actionLabel: '已安装',
+      actionLabel: '对话',
       actionVariant: 'success',
-      disabled: true,
-      note: skill.source === 'private' ? '这是你导入到账号的技能。' : '这个技能已经加入你的账号，可在当前设备使用。',
+      disabled: false,
+      note: skill.source === 'private' ? '这是你导入到账号的技能，可直接开始对话。' : '这个技能已经加入你的账号，可直接开始对话。',
     };
   }
 
@@ -71,15 +75,15 @@ function resolveStatus(skill: SkillStoreItem, input: { actionLoading: boolean; i
   };
 }
 
-function metadataRows(skill: SkillStoreItem, publishedAtFormatter: (value?: string | null) => string) {
+function metadataRows(skill: SkillStoreItem) {
   return [
     {
       label: '最新版本',
-      value: skill.latestRelease?.version || (skill.source === 'bundled' ? 'bundled' : '未发布'),
+      value: skill.version || (skill.source === 'bundled' ? 'bundled' : '未发布'),
     },
     {
-      label: '发布时间',
-      value: publishedAtFormatter(skill.latestRelease?.published_at),
+      label: '来源地址',
+      value: skill.sourceUrl || '未记录',
     },
     {
       label: '分类',
@@ -105,37 +109,23 @@ export function SkillStoreDetailSheet({
   actionLoading,
   installFailed,
   onInstall,
+  onStartConversation,
   onClose,
-  publishedAtFormatter,
 }: {
   skill: SkillStoreItem | null;
   actionLoading: boolean;
   installFailed: boolean;
   onInstall: (skill: SkillStoreItem) => void;
+  onStartConversation: (skill: SkillStoreItem) => void;
   onClose: () => void;
-  publishedAtFormatter?: (value?: string | null) => string;
 }) {
   if (!skill) {
     return null;
   }
 
-  const formatPublishedAt =
-    publishedAtFormatter ||
-    ((value?: string | null) => {
-      if (!value) return '未发布';
-      try {
-        return new Date(value).toLocaleDateString('zh-CN', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-        });
-      } catch {
-        return value;
-      }
-    });
-
   const status = resolveStatus(skill, { actionLoading, installFailed });
-  const rows = metadataRows(skill, formatPublishedAt);
+  const chatReady = canStartConversation(skill, { actionLoading, installFailed });
+  const rows = metadataRows(skill);
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-[rgba(26,22,18,0.18)] backdrop-blur-[3px] dark:bg-[rgba(0,0,0,0.34)]" onClick={onClose}>
@@ -221,12 +211,27 @@ export function SkillStoreDetailSheet({
           <div className="flex flex-col gap-3">
             <div className="text-[13px] leading-6 text-[var(--text-secondary)]">
               {skill.source === 'bundled'
-                ? '系统预置技能默认随应用提供。'
+                ? '系统预置技能默认随应用提供，可直接进入对话。'
                 : skill.source === 'private'
-                  ? '这是你导入到账号中的技能。'
-                  : '云端技能安装后会加入“我的技能”。'}
+                  ? '这是你导入到账号中的技能，可直接进入对话。'
+                  : skill.installed
+                    ? '这个云端技能已经加入“我的技能”，可直接进入对话。'
+                    : '云端技能安装后会加入“我的技能”。'}
             </div>
-            <Button variant={status.actionVariant} size="md" block disabled={status.disabled} onClick={() => onInstall(skill)}>
+            <Button
+              variant={status.actionVariant}
+              size="md"
+              block
+              disabled={status.disabled}
+              leadingIcon={chatReady ? <MessageSquare className="h-4 w-4" /> : undefined}
+              onClick={() => {
+                if (chatReady) {
+                  onStartConversation(skill);
+                  return;
+                }
+                onInstall(skill);
+              }}
+            >
               {status.actionLabel}
             </Button>
           </div>

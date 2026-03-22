@@ -1,0 +1,287 @@
+{
+  "schemaVersion": 1,
+  "apps": [
+    {
+      "appName": "iclaw",
+      "displayName": "iClaw",
+      "description": "通用 AI 工作台",
+      "status": "active",
+      "defaultLocale": "zh-CN",
+      "config": {
+        "productName": "iClaw",
+        "websiteTitle": "iClaw",
+        "sidebarSubtitle": "",
+        "legalName": "iClaw",
+        "bundleIdentifier": "ai.iclaw.desktop",
+        "authService": "ai.iclaw.desktop",
+        "storage": {
+          "namespace": "iclaw"
+        },
+        "endpoints": {
+          "authBaseUrl": ""
+        },
+        "oauth": {
+          "wechat": {
+            "appId": "",
+            "redirectUri": ""
+          },
+          "google": {
+            "clientId": "",
+            "redirectUri": ""
+          }
+        },
+        "website": {
+          "homeTitle": "iClaw 官网",
+          "metaDescription": "iClaw 官网，面向普通用户的本地 AI 客户端。",
+          "brandLabel": "iClaw",
+          "kicker": "Official Website",
+          "heroTitlePre": "让AI真正像软件一样",
+          "heroTitleMain": "装上就能用！",
+          "heroDescription": "iClaw 面向普通用户设计。少一点配置，多一点结果。打开、提问、执行、拿答案。",
+          "topCtaLabel": "下载",
+          "scrollLabel": "向下下载",
+          "downloadTitle": "下载 iClaw"
+        },
+        "distribution": {
+          "artifactBaseName": "iClaw",
+          "downloads": {
+            "dev": {
+              "bucket": "iclaw-dev",
+              "publicBaseUrl": "http://127.0.0.1:9000/iclaw-dev"
+            },
+            "prod": {
+              "bucket": "iclaw-prod",
+              "publicBaseUrl": "https://iclaw.aiyuanxi.com/downloads"
+            }
+          },
+          "home": {
+            "nginxPath": "/var/www/iclaw-home"
+          }
+        },
+        "runtimeDistribution": {
+          "minioPrefix": "runtime",
+          "dev": {
+            "bucket": "iclaw-dev",
+            "publicBaseUrl": "http://127.0.0.1:9000/iclaw-dev"
+          },
+          "prod": {
+            "bucket": "iclaw-prod",
+            "publicBaseUrl": "https://iclaw.aiyuanxi.com/downloads"
+          }
+        },
+        "controlPlane": {
+          "serviceName": "iclaw-control-plane",
+          "s3Bucket": "iclaw-files",
+          "redisKeyPrefix": "iclaw:control-plane",
+          "allowedOrigins": [
+            "http://127.0.0.1:1520",
+            "http://localhost:1520",
+            "https://tauri.localhost",
+            "http://tauri.localhost",
+            "tauri://localhost"
+          ]
+        },
+        "theme": {
+          "light": {
+            "primary": "#A88C5D",
+            "primaryHover": "#8F7751",
+            "onPrimary": "#1A1A18"
+          },
+          "dark": {
+            "primary": "#B49A70",
+            "primaryHover": "#C2AA82",
+            "onPrimary": "#11100F"
+          }
+        }
+      }
+    },
+    {
+      "appName": "licaiclaw",
+      "displayName": "理财客",
+      "description": "金融研究与财富管理工作台",
+      "status": "active",
+      "defaultLocale": "zh-CN",
+      "config": {
+        "productName": "理财客",
+        "websiteTitle": "理财客",
+        "sidebarSubtitle": "",
+        "legalName": "理财客",
+        "bundleIdentifier": "ai.licaiclaw.desktop",
+        "authService": "ai.licaiclaw.desktop",
+        "storage": {
+          "namespace": "licaiclaw"
+        },
+        "endpoints": {
+          "authBaseUrl": ""
+        },
+        "oauth": {
+          "wechat": {
+            "appId": "",
+            "redirectUri": ""
+          },
+          "google": {
+            "clientId": "",
+            "redirectUri": ""
+          }
+        },
+        "website": {
+          "homeTitle": "理财客官网",
+          "metaDescription": "理财客官网，面向财富管理场景的本地 AI 客户端。",
+          "brandLabel": "理财客",
+          "kicker": "Official Website",
+          "heroTitlePre": "把 AI 装进你的财富工作流",
+          "heroTitleMain": "打开就能干活",
+          "heroDescription": "理财客面向财富管理场景设计。少一点配置，多一点交付。",
+          "topCtaLabel": "下载",
+          "scrollLabel": "向下下载",
+          "downloadTitle": "下载理财客"
+        },
+        "distribution": {
+          "artifactBaseName": "LiCaiClaw",
+          "downloads": {
+            "dev": {
+              "bucket": "licaiclaw-dev",
+              "publicBaseUrl": "http://127.0.0.1:9000/licaiclaw-dev"
+            },
+            "prod": {
+              "bucket": "licaiclaw-prod",
+              "publicBaseUrl": ""
+            }
+          },
+          "home": {
+            "nginxPath": "/var/www/licaiclaw-home"
+          }
+        },
+        "runtimeDistribution": {
+          "minioPrefix": "runtime",
+          "dev": {
+            "bucket": "licaiclaw-dev",
+            "publicBaseUrl": "http://127.0.0.1:9000/licaiclaw-dev"
+          },
+          "prod": {
+            "bucket": "licaiclaw-prod",
+            "publicBaseUrl": ""
+          }
+        },
+        "controlPlane": {
+          "serviceName": "licaiclaw-control-plane",
+          "s3Bucket": "licaiclaw-files",
+          "redisKeyPrefix": "licaiclaw:control-plane",
+          "allowedOrigins": [
+            "http://127.0.0.1:1520",
+            "http://localhost:1520",
+            "https://tauri.localhost",
+            "http://tauri.localhost",
+            "tauri://localhost"
+          ]
+        },
+        "theme": {
+          "light": {
+            "primary": "#A88C5D",
+            "primaryHover": "#8F7751",
+            "onPrimary": "#1A1A18"
+          },
+          "dark": {
+            "primary": "#B49A70",
+            "primaryHover": "#C2AA82",
+            "onPrimary": "#11100F"
+          }
+        }
+      }
+    }
+  ],
+  "skills": [
+    {"slug": "docx", "name": "DOCX 文档工具", "description": "创建、编辑和分析 Word 文档，支持修订、批注、格式保留与文本提取。", "category": "report", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/docx/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
+    {"slug": "xlsx", "name": "XLSX 表格工具", "description": "创建、编辑和分析电子表格，支持公式、格式、数据处理与可视化。", "category": "data", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/xlsx/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
+    {"slug": "pdf", "name": "PDF 工具包", "description": "提取文本和表格、合并拆分 PDF、处理表单并生成新的 PDF 文档。", "category": "report", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/pdf/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
+    {"slug": "a-share-data-toolkit", "name": "A股金融数据工具包", "description": "提供A股实时行情、财务指标、董监高增减持和宏观数据抓取能力。", "category": "data", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/a-share-data-toolkit/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
+    {"slug": "us-data-toolkit", "name": "美股金融数据工具包", "description": "提供实时股票数据、SEC 文件、财务计算器和宏观指标抓取能力。", "category": "data", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/us-data-toolkit/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
+    {"slug": "a-share-low-valuation", "name": "A股低估值股票筛选", "description": "扫描A股低估值机会，筛选基本面稳健但被市场低估的公司。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/a-share-low-valuation/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
+    {"slug": "us-low-valuation", "name": "美股低估值股票筛选", "description": "筛选基本面扎实但估值偏低的美股公司，适合价值投资与安全边际场景。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/us-low-valuation/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
+    {"slug": "a-share-dividend", "name": "A股高股息策略分析", "description": "评估A股高股息与红利策略的收益可持续性、分红质量与长期回报。", "category": "portfolio", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/a-share-dividend/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
+    {"slug": "a-share-esg", "name": "A股ESG筛选分析", "description": "从ESG角度筛选A股上市公司，评估可持续发展实践与争议风险。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/a-share-esg/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
+    {"slug": "a-share-factor-screener", "name": "A股量化因子筛选", "description": "使用多因子框架筛选A股，识别价值、动量、质量等因子暴露有利的股票。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/a-share-factor-screener/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
+    {"slug": "a-share-industry-rotation", "name": "A股行业轮动检测", "description": "通过宏观经济指标与经济周期定位，识别未来可能跑赢或跑输的A股行业。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/a-share-industry-rotation/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
+    {"slug": "a-share-insider", "name": "A股内部交易分析", "description": "分析董监高与重要股东增减持行为，识别管理层信心信号与潜在机会。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/a-share-insider/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
+    {"slug": "a-share-small-cap-growth", "name": "A股小盘成长股筛选", "description": "识别A股被忽视的小市值高成长公司，适合寻找高弹性成长机会。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/a-share-small-cap-growth/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
+    {"slug": "a-share-tech-valuation", "name": "A股科技股估值分析", "description": "对比分析A股科技公司的估值泡沫与基本面，识别高估与低估标的。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/a-share-tech-valuation/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
+    {"slug": "us-dividend-aristocrats", "name": "美股股息贵族分析", "description": "分析连续提高分红的美股公司，评估股息可持续性与长期总回报。", "category": "portfolio", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/us-dividend-aristocrats/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
+    {"slug": "us-esg", "name": "美股ESG筛选分析", "description": "从ESG角度筛选美股公司，评估可持续发展实践、争议风险与治理质量。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/us-esg/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
+    {"slug": "us-factor-screener", "name": "美股量化因子筛选", "description": "使用正式因子模型进行系统性多因子股票筛选，识别因子暴露有利的股票。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/us-factor-screener/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
+    {"slug": "us-industry-rotation", "name": "美股行业轮动检测", "description": "通过宏观经济指标和商业周期定位，识别未来可能表现优异或落后的美股行业。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/us-industry-rotation/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
+    {"slug": "us-insider", "name": "美股内部人交易分析", "description": "分析内部人交易模式与表格披露，识别管理层增持与看涨信号。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/us-insider/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
+    {"slug": "us-small-cap-growth", "name": "美股小盘成长股筛选", "description": "筛选小市值高成长、机构覆盖少但基本面强劲的美股成长机会。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/us-small-cap-growth/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
+    {"slug": "us-tech-valuation", "name": "美股科技股估值分析", "description": "对比头部科技公司增长与估值，区分合理定价与高估泡沫。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/us-tech-valuation/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true}
+  ],
+  "mcps": [
+    {"mcpKey": "browser", "name": "Browser", "description": "浏览器自动化与页面抓取", "transport": "config", "config": {"command": "node", "args": ["__ICLAW_SERVERS_DIR__/agent-browser/index.mjs"]}, "metadata": {"sourceType": "preset"}, "active": true},
+    {"mcpKey": "markitdown", "name": "MarkItDown", "description": "文档转换与结构化抽取", "transport": "config", "config": {"command": "uvx", "args": ["markitdown-mcp"]}, "metadata": {"sourceType": "preset"}, "active": true},
+    {"mcpKey": "tavily", "name": "Tavily", "description": "联网搜索与抓取", "transport": "config", "config": {"command": "npx", "args": ["-y", "tavily-mcp@latest"]}, "metadata": {"sourceType": "preset"}, "active": true},
+    {"mcpKey": "serper", "name": "Serper", "description": "联网搜索", "transport": "config", "config": {"command": "npx", "args": ["-y", "serper-search-scrape-mcp-server"]}, "metadata": {"sourceType": "preset"}, "active": true},
+    {"mcpKey": "yahoo-finance", "name": "Yahoo Finance", "description": "金融行情查询", "transport": "config", "config": {"command": "uvx", "args": ["mcp-yahoo-finance"]}, "metadata": {"sourceType": "preset"}, "active": true},
+    {"mcpKey": "alpaca", "name": "Alpaca", "description": "美股交易与行情", "transport": "config", "config": {"command": "uvx"}, "metadata": {"sourceType": "preset"}, "active": true},
+    {"mcpKey": "alphavantage", "name": "Alpha Vantage", "description": "金融数据接口", "transport": "config", "config": {"command": "uvx"}, "metadata": {"sourceType": "preset"}, "active": true},
+    {"mcpKey": "dbt", "name": "dbt", "description": "数据转换与建模", "transport": "config", "config": {"command": "uvx"}, "metadata": {"sourceType": "preset"}, "active": true},
+    {"mcpKey": "fingpt", "name": "FinGPT", "description": "金融推理服务", "transport": "config", "config": {"command": "uv"}, "metadata": {"sourceType": "preset"}, "active": true},
+    {"mcpKey": "fmp", "name": "Financial Modeling Prep", "description": "金融数据与报表", "transport": "config", "config": {"command": "npx"}, "metadata": {"sourceType": "preset"}, "active": true},
+    {"mcpKey": "fred", "name": "FRED", "description": "宏观经济数据", "transport": "config", "config": {"command": "uvx"}, "metadata": {"sourceType": "preset"}, "active": true},
+    {"mcpKey": "nano-banana", "name": "Nano Banana", "description": "图像生成与编辑", "transport": "config", "config": {"command": "npx"}, "metadata": {"sourceType": "preset"}, "active": true},
+    {"mcpKey": "sec-edgar", "name": "SEC Edgar", "description": "SEC 文件检索", "transport": "config", "config": {"command": "uvx"}, "metadata": {"sourceType": "preset"}, "active": true}
+  ],
+  "models": [
+    {"ref": "openai/gpt-5.4", "label": "GPT 5.4", "providerId": "openai", "modelId": "gpt-5.4", "api": "openai-completions", "useRuntimeOpenai": true, "authHeader": true, "reasoning": true, "input": ["text", "image"], "contextWindow": 272000, "maxTokens": 128000, "metadata": {"sourceType": "preset"}, "active": true},
+    {"ref": "openai/qwen3.5-plus", "label": "Qwen3.5 Plus", "providerId": "openai", "modelId": "qwen3.5-plus", "api": "openai-completions", "useRuntimeOpenai": true, "authHeader": true, "reasoning": true, "input": ["text", "image"], "contextWindow": 131072, "maxTokens": 8192, "metadata": {"sourceType": "preset"}, "active": true},
+    {"ref": "openai/qwen3-coder-plus", "label": "Qwen3 Coder Plus", "providerId": "openai", "modelId": "qwen3-coder-plus", "api": "openai-completions", "useRuntimeOpenai": true, "authHeader": true, "reasoning": true, "input": ["text"], "contextWindow": 262144, "maxTokens": 8192, "metadata": {"sourceType": "preset"}, "active": true},
+    {"ref": "openai/qwen3-max", "label": "Qwen3 Max", "providerId": "openai", "modelId": "qwen3-max", "api": "openai-completions", "useRuntimeOpenai": true, "authHeader": true, "reasoning": true, "input": ["text", "image"], "contextWindow": 262144, "maxTokens": 8192, "metadata": {"sourceType": "preset"}, "active": true},
+    {"ref": "openai/MiniMax-M2.7", "label": "MiniMax m2.7", "providerId": "openai", "modelId": "MiniMax-M2.7", "api": "openai-completions", "useRuntimeOpenai": true, "authHeader": true, "reasoning": true, "input": ["text"], "contextWindow": 200000, "maxTokens": 8192, "metadata": {"sourceType": "preset"}, "active": true},
+    {"ref": "openai/MiniMax-M2.5", "label": "MiniMax m2.5", "providerId": "openai", "modelId": "MiniMax-M2.5", "api": "openai-completions", "useRuntimeOpenai": true, "authHeader": true, "reasoning": true, "input": ["text"], "contextWindow": 200000, "maxTokens": 8192, "metadata": {"sourceType": "preset"}, "active": true},
+    {"ref": "openai/MiniMax-M2.1", "label": "MiniMax m2.1", "providerId": "openai", "modelId": "MiniMax-M2.1", "api": "openai-completions", "useRuntimeOpenai": true, "authHeader": true, "reasoning": true, "input": ["text"], "contextWindow": 128000, "maxTokens": 8192, "metadata": {"sourceType": "preset"}, "active": true},
+    {"ref": "openai/kimi-k2.5", "label": "Kimi K2.5", "providerId": "openai", "modelId": "kimi-k2.5", "api": "openai-completions", "useRuntimeOpenai": true, "authHeader": true, "reasoning": false, "input": ["text", "image"], "contextWindow": 256000, "maxTokens": 8192, "metadata": {"sourceType": "preset"}, "active": true},
+    {"ref": "openai/doubao-seed-2.0-code", "label": "Doubao Seed-2.0-code", "providerId": "openai", "modelId": "doubao-seed-2.0-code", "api": "openai-completions", "useRuntimeOpenai": true, "authHeader": true, "reasoning": true, "input": ["text"], "contextWindow": 128000, "maxTokens": 8192, "metadata": {"sourceType": "preset"}, "active": true},
+    {"ref": "openai/glm-4.7", "label": "GLM 4.7", "providerId": "openai", "modelId": "glm-4.7", "api": "openai-completions", "useRuntimeOpenai": true, "authHeader": true, "reasoning": true, "input": ["text"], "contextWindow": 204800, "maxTokens": 131072, "metadata": {"sourceType": "preset"}, "active": true},
+    {"ref": "openai/glm-5", "label": "GLM 5", "providerId": "openai", "modelId": "glm-5", "api": "openai-completions", "useRuntimeOpenai": true, "authHeader": true, "reasoning": true, "input": ["text"], "contextWindow": 202752, "maxTokens": 16384, "metadata": {"sourceType": "preset"}, "active": true},
+    {"ref": "deepseek/deepseek-v3.2", "label": "DeepSeek V3.2", "providerId": "deepseek", "modelId": "deepseek-v3.2", "api": "openai-completions", "baseUrl": "https://api.deepseek.com/v1", "useRuntimeOpenai": false, "authHeader": true, "reasoning": true, "input": ["text"], "contextWindow": 128000, "maxTokens": 8192, "metadata": {"sourceType": "preset"}, "active": true}
+  ],
+  "assets": [
+    {"appName": "iclaw", "assetKey": "faviconIco", "filePath": "assets/iclaw/favicon.ico", "contentType": "image/x-icon"},
+    {"appName": "iclaw", "assetKey": "faviconPng", "filePath": "assets/iclaw/favicon.png", "contentType": "image/png"},
+    {"appName": "iclaw", "assetKey": "appleTouchIcon", "filePath": "assets/iclaw/apple-touch-icon.png", "contentType": "image/png"},
+    {"appName": "iclaw", "assetKey": "installerHero", "filePath": "assets/iclaw/installer-hero.png", "contentType": "image/png"},
+    {"appName": "iclaw", "assetKey": "tauriIcon32", "filePath": "assets/iclaw/tauri-icons/32x32.png", "contentType": "image/png"},
+    {"appName": "iclaw", "assetKey": "tauriIcon128", "filePath": "assets/iclaw/tauri-icons/128x128.png", "contentType": "image/png"},
+    {"appName": "iclaw", "assetKey": "tauriIcon1282x", "filePath": "assets/iclaw/tauri-icons/128x128@2x.png", "contentType": "image/png"},
+    {"appName": "iclaw", "assetKey": "tauriIconPng", "filePath": "assets/iclaw/tauri-icons/icon.png", "contentType": "image/png"},
+    {"appName": "iclaw", "assetKey": "tauriIconIco", "filePath": "assets/iclaw/tauri-icons/icon.ico", "contentType": "image/x-icon"},
+    {"appName": "iclaw", "assetKey": "tauriIconIcns", "filePath": "assets/iclaw/tauri-icons/icon.icns", "contentType": "application/octet-stream"},
+    {"appName": "licaiclaw", "assetKey": "faviconIco", "filePath": "assets/licaiclaw/favicon.ico", "contentType": "image/x-icon"},
+    {"appName": "licaiclaw", "assetKey": "faviconPng", "filePath": "assets/licaiclaw/favicon.png", "contentType": "image/png"},
+    {"appName": "licaiclaw", "assetKey": "appleTouchIcon", "filePath": "assets/licaiclaw/apple-touch-icon.png", "contentType": "image/png"},
+    {"appName": "licaiclaw", "assetKey": "installerHero", "filePath": "assets/licaiclaw/installer-hero.png", "contentType": "image/png"},
+    {"appName": "licaiclaw", "assetKey": "logoMaster", "filePath": "assets/licaiclaw/logo-master.jpg", "contentType": "image/jpeg"},
+    {"appName": "licaiclaw", "assetKey": "homeLogo", "filePath": "assets/licaiclaw/home-logo.jpg", "contentType": "image/jpeg"},
+    {"appName": "licaiclaw", "assetKey": "tauriIcon32", "filePath": "assets/licaiclaw/tauri-icons/32x32.png", "contentType": "image/png"},
+    {"appName": "licaiclaw", "assetKey": "tauriIcon128", "filePath": "assets/licaiclaw/tauri-icons/128x128.png", "contentType": "image/png"},
+    {"appName": "licaiclaw", "assetKey": "tauriIcon1282x", "filePath": "assets/licaiclaw/tauri-icons/128x128@2x.png", "contentType": "image/png"},
+    {"appName": "licaiclaw", "assetKey": "tauriIconPng", "filePath": "assets/licaiclaw/tauri-icons/icon.png", "contentType": "image/png"},
+    {"appName": "licaiclaw", "assetKey": "tauriIconIco", "filePath": "assets/licaiclaw/tauri-icons/icon.ico", "contentType": "image/x-icon"},
+    {"appName": "licaiclaw", "assetKey": "tauriIconIcns", "filePath": "assets/licaiclaw/tauri-icons/icon.icns", "contentType": "application/octet-stream"}
+  ],
+  "bindings": {
+    "skills": [
+      {"appName": "iclaw", "items": [{"skillSlug": "docx", "enabled": true, "sortOrder": 10}, {"skillSlug": "xlsx", "enabled": true, "sortOrder": 20}, {"skillSlug": "pdf", "enabled": true, "sortOrder": 30}, {"skillSlug": "a-share-data-toolkit", "enabled": true, "sortOrder": 40}, {"skillSlug": "us-data-toolkit", "enabled": true, "sortOrder": 50}, {"skillSlug": "a-share-low-valuation", "enabled": true, "sortOrder": 60}, {"skillSlug": "us-low-valuation", "enabled": true, "sortOrder": 70}]},
+      {"appName": "licaiclaw", "items": [{"skillSlug": "a-share-data-toolkit", "enabled": true, "sortOrder": 10}, {"skillSlug": "a-share-dividend", "enabled": true, "sortOrder": 20}, {"skillSlug": "a-share-esg", "enabled": true, "sortOrder": 30}, {"skillSlug": "a-share-factor-screener", "enabled": true, "sortOrder": 40}, {"skillSlug": "a-share-industry-rotation", "enabled": true, "sortOrder": 50}, {"skillSlug": "a-share-insider", "enabled": true, "sortOrder": 60}, {"skillSlug": "a-share-low-valuation", "enabled": true, "sortOrder": 70}, {"skillSlug": "a-share-small-cap-growth", "enabled": true, "sortOrder": 80}, {"skillSlug": "a-share-tech-valuation", "enabled": true, "sortOrder": 90}, {"skillSlug": "us-data-toolkit", "enabled": true, "sortOrder": 100}, {"skillSlug": "us-dividend-aristocrats", "enabled": true, "sortOrder": 110}, {"skillSlug": "us-esg", "enabled": true, "sortOrder": 120}, {"skillSlug": "us-factor-screener", "enabled": true, "sortOrder": 130}, {"skillSlug": "us-industry-rotation", "enabled": true, "sortOrder": 140}, {"skillSlug": "us-insider", "enabled": true, "sortOrder": 150}, {"skillSlug": "us-low-valuation", "enabled": true, "sortOrder": 160}, {"skillSlug": "us-small-cap-growth", "enabled": true, "sortOrder": 170}, {"skillSlug": "us-tech-valuation", "enabled": true, "sortOrder": 180}]}
+    ],
+    "mcps": [
+      {"appName": "iclaw", "items": [{"mcpKey": "browser", "enabled": true, "sortOrder": 10}, {"mcpKey": "markitdown", "enabled": true, "sortOrder": 20}, {"mcpKey": "tavily", "enabled": true, "sortOrder": 30}, {"mcpKey": "serper", "enabled": true, "sortOrder": 40}, {"mcpKey": "yahoo-finance", "enabled": true, "sortOrder": 50}]},
+      {"appName": "licaiclaw", "items": [{"mcpKey": "alpaca", "enabled": true, "sortOrder": 10}, {"mcpKey": "alphavantage", "enabled": true, "sortOrder": 20}, {"mcpKey": "browser", "enabled": true, "sortOrder": 30}, {"mcpKey": "dbt", "enabled": true, "sortOrder": 40}, {"mcpKey": "fingpt", "enabled": true, "sortOrder": 50}, {"mcpKey": "fmp", "enabled": true, "sortOrder": 60}, {"mcpKey": "fred", "enabled": true, "sortOrder": 70}, {"mcpKey": "markitdown", "enabled": true, "sortOrder": 80}, {"mcpKey": "nano-banana", "enabled": true, "sortOrder": 90}, {"mcpKey": "sec-edgar", "enabled": true, "sortOrder": 100}, {"mcpKey": "serper", "enabled": true, "sortOrder": 110}, {"mcpKey": "tavily", "enabled": true, "sortOrder": 120}, {"mcpKey": "yahoo-finance", "enabled": true, "sortOrder": 130}]}
+    ],
+    "models": [
+      {"appName": "iclaw", "items": [{"modelRef": "openai/gpt-5.4", "enabled": true, "sortOrder": 10, "recommended": true, "default": true}, {"modelRef": "openai/qwen3.5-plus", "enabled": true, "sortOrder": 20}, {"modelRef": "openai/qwen3-coder-plus", "enabled": true, "sortOrder": 30}, {"modelRef": "openai/qwen3-max", "enabled": true, "sortOrder": 40}, {"modelRef": "openai/MiniMax-M2.7", "enabled": true, "sortOrder": 50}, {"modelRef": "openai/MiniMax-M2.5", "enabled": true, "sortOrder": 60}, {"modelRef": "openai/MiniMax-M2.1", "enabled": true, "sortOrder": 70}, {"modelRef": "openai/kimi-k2.5", "enabled": true, "sortOrder": 80}, {"modelRef": "openai/doubao-seed-2.0-code", "enabled": true, "sortOrder": 90}, {"modelRef": "openai/glm-4.7", "enabled": true, "sortOrder": 100}, {"modelRef": "openai/glm-5", "enabled": true, "sortOrder": 110, "recommended": true}, {"modelRef": "deepseek/deepseek-v3.2", "enabled": true, "sortOrder": 120, "recommended": true}]},
+      {"appName": "licaiclaw", "items": [{"modelRef": "openai/gpt-5.4", "enabled": true, "sortOrder": 10, "recommended": true, "default": true}, {"modelRef": "openai/qwen3.5-plus", "enabled": true, "sortOrder": 20}, {"modelRef": "openai/qwen3-max", "enabled": true, "sortOrder": 30}, {"modelRef": "openai/glm-5", "enabled": true, "sortOrder": 40, "recommended": true}, {"modelRef": "deepseek/deepseek-v3.2", "enabled": true, "sortOrder": 50, "recommended": true}]}
+    ],
+    "menus": [
+      {"appName": "iclaw", "items": [{"menuKey": "workspace", "enabled": true, "sortOrder": 10}, {"menuKey": "skills", "enabled": true, "sortOrder": 20}, {"menuKey": "mcp", "enabled": true, "sortOrder": 30}, {"menuKey": "assets", "enabled": true, "sortOrder": 40}, {"menuKey": "models", "enabled": true, "sortOrder": 50}, {"menuKey": "settings", "enabled": true, "sortOrder": 60}]},
+      {"appName": "licaiclaw", "items": [{"menuKey": "workspace", "enabled": true, "sortOrder": 10}, {"menuKey": "skills", "enabled": true, "sortOrder": 20}, {"menuKey": "mcp", "enabled": true, "sortOrder": 30}, {"menuKey": "assets", "enabled": true, "sortOrder": 40}, {"menuKey": "models", "enabled": true, "sortOrder": 50}, {"menuKey": "settings", "enabled": true, "sortOrder": 60}]}
+    ]
+  }
+}

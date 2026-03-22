@@ -90,6 +90,10 @@ type ComposerStaticOption = {
   detail: string;
 };
 
+type RecentSelectionBucket = 'agents' | 'skills' | 'modes' | 'markets' | 'outputs';
+
+type RecentSelectionState = Record<RecentSelectionBucket, string[]>;
+
 type ComposerTokenMeta = {
   id: string;
   kind: 'reference' | 'attachment' | 'agent';
@@ -187,6 +191,16 @@ const OUTPUT_OPTIONS: ComposerStaticOption[] = [
   { value: 'report', label: '报告', detail: '输出更完整的研究报告体例' },
 ];
 
+const RECENT_SELECTIONS_STORAGE_KEY = 'iclaw.composer.recent-selections.v1';
+const MAX_RECENT_SELECTIONS = 4;
+const EMPTY_RECENT_SELECTIONS: RecentSelectionState = {
+  agents: [],
+  skills: [],
+  modes: [],
+  markets: [],
+  outputs: [],
+};
+
 function createComposerId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -214,6 +228,72 @@ function readFileAsDataUrl(file: File): Promise<string> {
     reader.addEventListener('error', () => reject(reader.error ?? new Error('failed to read file')));
     reader.readAsDataURL(file);
   });
+}
+
+function getSelectionStorage(): Storage | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeRecentSelectionState(value: unknown): RecentSelectionState {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return EMPTY_RECENT_SELECTIONS;
+  }
+
+  const record = value as Record<string, unknown>;
+  return {
+    agents: Array.isArray(record.agents) ? record.agents.filter((item): item is string => typeof item === 'string').slice(0, MAX_RECENT_SELECTIONS) : [],
+    skills: Array.isArray(record.skills) ? record.skills.filter((item): item is string => typeof item === 'string').slice(0, MAX_RECENT_SELECTIONS) : [],
+    modes: Array.isArray(record.modes) ? record.modes.filter((item): item is string => typeof item === 'string').slice(0, MAX_RECENT_SELECTIONS) : [],
+    markets: Array.isArray(record.markets) ? record.markets.filter((item): item is string => typeof item === 'string').slice(0, MAX_RECENT_SELECTIONS) : [],
+    outputs: Array.isArray(record.outputs) ? record.outputs.filter((item): item is string => typeof item === 'string').slice(0, MAX_RECENT_SELECTIONS) : [],
+  };
+}
+
+function readRecentSelections(): RecentSelectionState {
+  const storage = getSelectionStorage();
+  if (!storage) {
+    return EMPTY_RECENT_SELECTIONS;
+  }
+  try {
+    const raw = storage.getItem(RECENT_SELECTIONS_STORAGE_KEY);
+    if (!raw) {
+      return EMPTY_RECENT_SELECTIONS;
+    }
+    return normalizeRecentSelectionState(JSON.parse(raw));
+  } catch {
+    return EMPTY_RECENT_SELECTIONS;
+  }
+}
+
+function writeRecentSelections(value: RecentSelectionState): void {
+  const storage = getSelectionStorage();
+  if (!storage) {
+    return;
+  }
+  try {
+    storage.setItem(RECENT_SELECTIONS_STORAGE_KEY, JSON.stringify(value));
+  } catch {
+    // Ignore local storage write failures.
+  }
+}
+
+function withRecentSelection(
+  state: RecentSelectionState,
+  bucket: RecentSelectionBucket,
+  value: string,
+): RecentSelectionState {
+  const next = {
+    ...state,
+    [bucket]: [value, ...state[bucket].filter((item) => item !== value)].slice(0, MAX_RECENT_SELECTIONS),
+  };
+  return next;
 }
 
 function buildTokenMarker(token: ComposerTokenMeta): string {
@@ -402,6 +482,28 @@ function findStaticOption(
   return options.find((option) => option.value === value) ?? null;
 }
 
+function groupSkillOptions(skillOptions: ComposerSkillOption[]): Array<{
+  label: string;
+  items: ComposerSkillOption[];
+}> {
+  const grouped = new Map<string, ComposerSkillOption[]>();
+
+  for (const skill of skillOptions) {
+    const key = skill.categoryLabel?.trim() || skill.market?.trim() || '可用技能';
+    const bucket = grouped.get(key);
+    if (bucket) {
+      bucket.push(skill);
+      continue;
+    }
+    grouped.set(key, [skill]);
+  }
+
+  return Array.from(grouped.entries()).map(([label, items]) => ({
+    label,
+    items: [...items].sort((left, right) => left.name.localeCompare(right.name, 'zh-CN')),
+  }));
+}
+
 export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatComposerProps>(
   function RichChatComposer(
     {
@@ -448,6 +550,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const [selectedMode, setSelectedMode] = useState<string | null>(null);
     const [selectedMarketScope, setSelectedMarketScope] = useState<string | null>(null);
     const [selectedOutput, setSelectedOutput] = useState<string | null>(null);
+    const [recentSelections, setRecentSelections] = useState<RecentSelectionState>(EMPTY_RECENT_SELECTIONS);
     const [activeQuickQueryId, setActiveQuickQueryId] = useState<(typeof QUICK_QUERY_OPTIONS)[number]['id'] | null>(null);
 
     const refreshState = useCallback(() => {
@@ -589,6 +692,17 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
 
     const closeOutputMenu = useCallback(() => {
       setOutputMenuOpen(false);
+    }, []);
+
+    const rememberRecentSelection = useCallback((bucket: RecentSelectionBucket, value: string) => {
+      if (!value.trim()) {
+        return;
+      }
+      setRecentSelections((current) => {
+        const next = withRecentSelection(current, bucket, value);
+        writeRecentSelections(next);
+        return next;
+      });
     }, []);
 
     const replacePrompt = useCallback((text: string) => {
@@ -768,10 +882,11 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         removeAgentTokens();
       }
       setSelectedAgentSlug(agent.slug);
+      rememberRecentSelection('agents', agent.slug);
       closeMentionMenu();
       refreshState();
       focus();
-    }, [closeMentionMenu, focus, insertTextAtCaret, insertTokenAtCaret, refreshState, removeAgentTokens, removeMentionTriggerBeforeCaret]);
+    }, [closeMentionMenu, focus, insertTextAtCaret, insertTokenAtCaret, refreshState, rememberRecentSelection, removeAgentTokens, removeMentionTriggerBeforeCaret]);
 
     const openMentionMenu = useCallback((source: 'toolbar' | 'typing') => {
       if (!connected) {
@@ -833,6 +948,38 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       closeMarketMenu();
       setOutputMenuOpen(true);
     }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeSkillMenu, connected]);
+
+    const selectSkill = useCallback((slug: string | null) => {
+      setSelectedSkillSlug(slug);
+      if (slug) {
+        rememberRecentSelection('skills', slug);
+      }
+      closeSkillMenu();
+    }, [closeSkillMenu, rememberRecentSelection]);
+
+    const selectMode = useCallback((value: string | null) => {
+      setSelectedMode(value);
+      if (value) {
+        rememberRecentSelection('modes', value);
+      }
+      closeModeMenu();
+    }, [closeModeMenu, rememberRecentSelection]);
+
+    const selectMarketScope = useCallback((value: string | null) => {
+      setSelectedMarketScope(value);
+      if (value) {
+        rememberRecentSelection('markets', value);
+      }
+      closeMarketMenu();
+    }, [closeMarketMenu, rememberRecentSelection]);
+
+    const selectOutput = useCallback((value: string | null) => {
+      setSelectedOutput(value);
+      if (value) {
+        rememberRecentSelection('outputs', value);
+      }
+      closeOutputMenu();
+    }, [closeOutputMenu, rememberRecentSelection]);
 
     const insertQuickQueryTemplate = useCallback((query: (typeof QUICK_QUERY_OPTIONS)[number]) => {
       const editor = editorRef.current;
@@ -925,6 +1072,10 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     useEffect(() => {
       refreshState();
     }, [refreshState]);
+
+    useEffect(() => {
+      setRecentSelections(readRecentSelections());
+    }, []);
 
     useEffect(() => {
       setSelectedAgentSlug(initialSelectedAgentSlug || null);
@@ -1056,6 +1207,22 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const selectedModeOption = findStaticOption(MODE_OPTIONS, selectedMode);
     const selectedMarketScopeOption = findStaticOption(MARKET_SCOPE_OPTIONS, selectedMarketScope);
     const selectedOutputOption = findStaticOption(OUTPUT_OPTIONS, selectedOutput);
+    const groupedSkills = groupSkillOptions(skillOptions);
+    const recentAgentOptions = recentSelections.agents
+      .map((slug) => lobsterAgents.find((option) => option.slug === slug) ?? null)
+      .filter((option): option is ComposerAgentOption => Boolean(option));
+    const recentSkillOptions = recentSelections.skills
+      .map((slug) => skillOptions.find((option) => option.slug === slug) ?? null)
+      .filter((option): option is ComposerSkillOption => Boolean(option));
+    const recentModeOptions = recentSelections.modes
+      .map((value) => findStaticOption(MODE_OPTIONS, value))
+      .filter((option): option is ComposerStaticOption => Boolean(option));
+    const recentMarketOptions = recentSelections.markets
+      .map((value) => findStaticOption(MARKET_SCOPE_OPTIONS, value))
+      .filter((option): option is ComposerStaticOption => Boolean(option));
+    const recentOutputOptions = recentSelections.outputs
+      .map((value) => findStaticOption(OUTPUT_OPTIONS, value))
+      .filter((option): option is ComposerStaticOption => Boolean(option));
     const creditEstimateText = creditEstimate
       ? creditEstimate.loading
         ? '正在估算龙虾币...'
@@ -1131,9 +1298,13 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                 {mentionMenuOpen ? (
                   <div className="iclaw-composer__selector-menu iclaw-composer__selector-menu--expert" role="dialog" aria-label="选择专家">
                     <div className="iclaw-composer__selector-menu-header">
-                      <span className="iclaw-composer__selector-menu-title">选择专家</span>
-                      <span className="iclaw-composer__selector-menu-subtitle">
-                        {lobsterAgents.length > 0 ? `已安装 ${lobsterAgents.length} 个` : '从我的龙虾中选择'}
+                      <div className="iclaw-composer__selector-menu-header-copy">
+                        <span className="iclaw-composer__selector-menu-kicker">回答路径控制</span>
+                        <span className="iclaw-composer__selector-menu-title">选择专家</span>
+                        <span className="iclaw-composer__selector-menu-subtitle">优先指定由哪位专家接管本次回答</span>
+                      </div>
+                      <span className="iclaw-composer__selector-menu-pill">
+                        {selectedAgent ? '已指定' : 'Auto'}
                       </span>
                     </div>
                     <div className="iclaw-composer__selector-menu-body">
@@ -1154,6 +1325,28 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                         </span>
                         {!selectedAgent ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
                       </button>
+                      {recentAgentOptions.length > 0 ? (
+                        <>
+                          <div className="iclaw-composer__selector-section-title">最近使用</div>
+                          <div className="iclaw-composer__selector-recent-strip">
+                            {recentAgentOptions.map((agent) => (
+                              <button
+                                key={agent.slug}
+                                type="button"
+                                className="iclaw-composer__selector-recent-item"
+                                data-active={selectedAgent?.slug === agent.slug ? 'true' : 'false'}
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => insertAgentMention(agent)}
+                              >
+                                <span className="iclaw-composer__selector-recent-avatar">
+                                  <img src={agent.avatarSrc} alt={agent.name} className="iclaw-composer__selector-recent-avatar-image" />
+                                </span>
+                                <span className="iclaw-composer__selector-recent-text">{agent.name}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      ) : null}
                       {lobsterAgents.length > 0 ? <div className="iclaw-composer__selector-section-title">已安装专家</div> : null}
                     </div>
                     {lobsterAgents.length > 0 ? (
@@ -1218,9 +1411,13 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                 {skillMenuOpen ? (
                   <div className="iclaw-composer__selector-menu iclaw-composer__selector-menu--skill" role="menu" aria-label="选择技能">
                     <div className="iclaw-composer__selector-menu-header">
-                      <span className="iclaw-composer__selector-menu-title">选择技能</span>
-                      <span className="iclaw-composer__selector-menu-subtitle">
-                        {skillOptions.length > 0 ? `可用 ${skillOptions.length} 个` : '当前没有可用技能'}
+                      <div className="iclaw-composer__selector-menu-header-copy">
+                        <span className="iclaw-composer__selector-menu-kicker">回答路径控制</span>
+                        <span className="iclaw-composer__selector-menu-title">选择技能</span>
+                        <span className="iclaw-composer__selector-menu-subtitle">优先启用某个技能的工作方式与工具能力</span>
+                      </div>
+                      <span className="iclaw-composer__selector-menu-pill">
+                        {selectedSkill ? selectedSkill.market : 'Auto'}
                       </span>
                     </div>
                     <div className="iclaw-composer__skill-list">
@@ -1229,10 +1426,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                         type="button"
                         className="iclaw-composer__skill-option"
                         data-active={selectedSkillSlug ? 'false' : 'true'}
-                        onClick={() => {
-                          setSelectedSkillSlug(null);
-                          closeSkillMenu();
-                        }}
+                        onClick={() => selectSkill(null)}
                       >
                         <span className="iclaw-composer__skill-option-main">
                           <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--skill iclaw-composer__selector-icon--menu">
@@ -1247,35 +1441,57 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                       </button>
                       {skillOptions.length > 0 ? (
                         <>
-                          <div className="iclaw-composer__selector-section-title">可用技能</div>
-                          {skillOptions.map((skill) => {
-                          const active = skill.slug === selectedSkillSlug;
-                          return (
-                            <button
-                              key={skill.slug}
-                              type="button"
-                              className="iclaw-composer__skill-option"
-                              data-active={active ? 'true' : 'false'}
-                              onClick={() => {
-                                setSelectedSkillSlug(skill.slug);
-                                closeSkillMenu();
-                              }}
-                            >
-                              <span className="iclaw-composer__skill-option-main">
-                                <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--skill iclaw-composer__selector-icon--menu">
-                                  <Sparkles className="h-3.5 w-3.5" />
-                                </span>
-                                <span className="iclaw-composer__skill-option-copy">
-                                  <span className="iclaw-composer__skill-option-label">{skill.name}</span>
-                                  <span className="iclaw-composer__skill-option-detail">
-                                    {skill.market} · {skill.skillType}
-                                  </span>
-                                </span>
-                              </span>
-                              {active ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
-                            </button>
-                          );
-                          })}
+                          {recentSkillOptions.length > 0 ? (
+                            <>
+                              <div className="iclaw-composer__selector-section-title">最近使用</div>
+                              <div className="iclaw-composer__selector-recent-strip">
+                                {recentSkillOptions.map((skill) => (
+                                  <button
+                                    key={skill.slug}
+                                    type="button"
+                                    className="iclaw-composer__selector-recent-item"
+                                    data-active={selectedSkillSlug === skill.slug ? 'true' : 'false'}
+                                    onClick={() => selectSkill(skill.slug)}
+                                  >
+                                    <span className="iclaw-composer__selector-recent-icon iclaw-composer__selector-recent-icon--skill">
+                                      <Sparkles className="h-3 w-3" />
+                                    </span>
+                                    <span className="iclaw-composer__selector-recent-text">{skill.name}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          ) : null}
+                          {groupedSkills.map((group) => (
+                            <div key={group.label} className="iclaw-composer__selector-section-block">
+                              <div className="iclaw-composer__selector-section-title">{group.label}</div>
+                              {group.items.map((skill) => {
+                                const active = skill.slug === selectedSkillSlug;
+                                return (
+                                  <button
+                                    key={skill.slug}
+                                    type="button"
+                                    className="iclaw-composer__skill-option"
+                                    data-active={active ? 'true' : 'false'}
+                                    onClick={() => selectSkill(skill.slug)}
+                                  >
+                                    <span className="iclaw-composer__skill-option-main">
+                                      <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--skill iclaw-composer__selector-icon--menu">
+                                        <Sparkles className="h-3.5 w-3.5" />
+                                      </span>
+                                      <span className="iclaw-composer__skill-option-copy">
+                                        <span className="iclaw-composer__skill-option-label">{skill.name}</span>
+                                        <span className="iclaw-composer__skill-option-detail">
+                                          {skill.market} · {skill.skillType}
+                                        </span>
+                                      </span>
+                                    </span>
+                                    {active ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ))}
                         </>
                       ) : (
                         <div className="iclaw-composer__mention-empty">还没有可用技能</div>
@@ -1319,8 +1535,12 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                 {modeMenuOpen ? (
                   <div className="iclaw-composer__selector-menu iclaw-composer__selector-menu--compact" role="menu" aria-label="选择模式">
                     <div className="iclaw-composer__selector-menu-header">
-                      <span className="iclaw-composer__selector-menu-title">选择模式</span>
-                      <span className="iclaw-composer__selector-menu-subtitle">控制回答节奏与深度</span>
+                      <div className="iclaw-composer__selector-menu-header-copy">
+                        <span className="iclaw-composer__selector-menu-kicker">回答路径控制</span>
+                        <span className="iclaw-composer__selector-menu-title">选择模式</span>
+                        <span className="iclaw-composer__selector-menu-subtitle">控制分析深度、展开程度与交付节奏</span>
+                      </div>
+                      <span className="iclaw-composer__selector-menu-pill">{selectedModeOption?.label ?? 'Auto'}</span>
                     </div>
                     <div className="iclaw-composer__skill-list">
                       <div className="iclaw-composer__selector-section-title">默认</div>
@@ -1328,10 +1548,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                         type="button"
                         className="iclaw-composer__skill-option"
                         data-active={selectedMode ? 'false' : 'true'}
-                        onClick={() => {
-                          setSelectedMode(null);
-                          closeModeMenu();
-                        }}
+                        onClick={() => selectMode(null)}
                       >
                         <span className="iclaw-composer__skill-option-main">
                           <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--mode iclaw-composer__selector-icon--menu">
@@ -1344,6 +1561,27 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                         </span>
                         {!selectedMode ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
                       </button>
+                      {recentModeOptions.length > 0 ? (
+                        <>
+                          <div className="iclaw-composer__selector-section-title">最近使用</div>
+                          <div className="iclaw-composer__selector-recent-strip">
+                            {recentModeOptions.map((option) => (
+                              <button
+                                key={option.value}
+                                type="button"
+                                className="iclaw-composer__selector-recent-item"
+                                data-active={selectedMode === option.value ? 'true' : 'false'}
+                                onClick={() => selectMode(option.value)}
+                              >
+                                <span className="iclaw-composer__selector-recent-icon iclaw-composer__selector-recent-icon--mode">
+                                  <SlidersHorizontal className="h-3 w-3" />
+                                </span>
+                                <span className="iclaw-composer__selector-recent-text">{option.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      ) : null}
                       <div className="iclaw-composer__selector-section-title">可选模式</div>
                       {MODE_OPTIONS.map((option) => {
                         const active = option.value === selectedMode;
@@ -1353,10 +1591,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                             type="button"
                             className="iclaw-composer__skill-option"
                             data-active={active ? 'true' : 'false'}
-                            onClick={() => {
-                              setSelectedMode(option.value);
-                              closeModeMenu();
-                            }}
+                            onClick={() => selectMode(option.value)}
                           >
                             <span className="iclaw-composer__skill-option-main">
                               <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--mode iclaw-composer__selector-icon--menu">
@@ -1410,8 +1645,12 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                 {marketMenuOpen ? (
                   <div className="iclaw-composer__selector-menu iclaw-composer__selector-menu--compact" role="menu" aria-label="选择市场范围">
                     <div className="iclaw-composer__selector-menu-header">
-                      <span className="iclaw-composer__selector-menu-title">选择市场范围</span>
-                      <span className="iclaw-composer__selector-menu-subtitle">聚焦要覆盖的市场维度</span>
+                      <div className="iclaw-composer__selector-menu-header-copy">
+                        <span className="iclaw-composer__selector-menu-kicker">回答路径控制</span>
+                        <span className="iclaw-composer__selector-menu-title">选择市场范围</span>
+                        <span className="iclaw-composer__selector-menu-subtitle">约束本次分析优先覆盖的市场范围</span>
+                      </div>
+                      <span className="iclaw-composer__selector-menu-pill">{selectedMarketScopeOption?.label ?? 'Auto'}</span>
                     </div>
                     <div className="iclaw-composer__skill-list">
                       <div className="iclaw-composer__selector-section-title">默认</div>
@@ -1419,10 +1658,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                         type="button"
                         className="iclaw-composer__skill-option"
                         data-active={selectedMarketScope ? 'false' : 'true'}
-                        onClick={() => {
-                          setSelectedMarketScope(null);
-                          closeMarketMenu();
-                        }}
+                        onClick={() => selectMarketScope(null)}
                       >
                         <span className="iclaw-composer__skill-option-main">
                           <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--market iclaw-composer__selector-icon--menu">
@@ -1435,6 +1671,27 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                         </span>
                         {!selectedMarketScope ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
                       </button>
+                      {recentMarketOptions.length > 0 ? (
+                        <>
+                          <div className="iclaw-composer__selector-section-title">最近使用</div>
+                          <div className="iclaw-composer__selector-recent-strip">
+                            {recentMarketOptions.map((option) => (
+                              <button
+                                key={option.value}
+                                type="button"
+                                className="iclaw-composer__selector-recent-item"
+                                data-active={selectedMarketScope === option.value ? 'true' : 'false'}
+                                onClick={() => selectMarketScope(option.value)}
+                              >
+                                <span className="iclaw-composer__selector-recent-icon iclaw-composer__selector-recent-icon--market">
+                                  <Globe className="h-3 w-3" />
+                                </span>
+                                <span className="iclaw-composer__selector-recent-text">{option.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      ) : null}
                       <div className="iclaw-composer__selector-section-title">可选范围</div>
                       {MARKET_SCOPE_OPTIONS.map((option) => {
                         const active = option.value === selectedMarketScope;
@@ -1444,10 +1701,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                             type="button"
                             className="iclaw-composer__skill-option"
                             data-active={active ? 'true' : 'false'}
-                            onClick={() => {
-                              setSelectedMarketScope(option.value);
-                              closeMarketMenu();
-                            }}
+                            onClick={() => selectMarketScope(option.value)}
                           >
                             <span className="iclaw-composer__skill-option-main">
                               <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--market iclaw-composer__selector-icon--menu">
@@ -1501,8 +1755,12 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                 {outputMenuOpen ? (
                   <div className="iclaw-composer__selector-menu iclaw-composer__selector-menu--compact" role="menu" aria-label="选择输出形式">
                     <div className="iclaw-composer__selector-menu-header">
-                      <span className="iclaw-composer__selector-menu-title">选择输出</span>
-                      <span className="iclaw-composer__selector-menu-subtitle">控制答案最终呈现方式</span>
+                      <div className="iclaw-composer__selector-menu-header-copy">
+                        <span className="iclaw-composer__selector-menu-kicker">回答路径控制</span>
+                        <span className="iclaw-composer__selector-menu-title">选择输出</span>
+                        <span className="iclaw-composer__selector-menu-subtitle">控制答案的最终结构和呈现方式</span>
+                      </div>
+                      <span className="iclaw-composer__selector-menu-pill">{selectedOutputOption?.label ?? 'Auto'}</span>
                     </div>
                     <div className="iclaw-composer__skill-list">
                       <div className="iclaw-composer__selector-section-title">默认</div>
@@ -1510,10 +1768,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                         type="button"
                         className="iclaw-composer__skill-option"
                         data-active={selectedOutput ? 'false' : 'true'}
-                        onClick={() => {
-                          setSelectedOutput(null);
-                          closeOutputMenu();
-                        }}
+                        onClick={() => selectOutput(null)}
                       >
                         <span className="iclaw-composer__skill-option-main">
                           <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--output iclaw-composer__selector-icon--menu">
@@ -1526,6 +1781,27 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                         </span>
                         {!selectedOutput ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
                       </button>
+                      {recentOutputOptions.length > 0 ? (
+                        <>
+                          <div className="iclaw-composer__selector-section-title">最近使用</div>
+                          <div className="iclaw-composer__selector-recent-strip">
+                            {recentOutputOptions.map((option) => (
+                              <button
+                                key={option.value}
+                                type="button"
+                                className="iclaw-composer__selector-recent-item"
+                                data-active={selectedOutput === option.value ? 'true' : 'false'}
+                                onClick={() => selectOutput(option.value)}
+                              >
+                                <span className="iclaw-composer__selector-recent-icon iclaw-composer__selector-recent-icon--output">
+                                  <FileText className="h-3 w-3" />
+                                </span>
+                                <span className="iclaw-composer__selector-recent-text">{option.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      ) : null}
                       <div className="iclaw-composer__selector-section-title">可选输出</div>
                       {OUTPUT_OPTIONS.map((option) => {
                         const active = option.value === selectedOutput;
@@ -1535,10 +1811,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                             type="button"
                             className="iclaw-composer__skill-option"
                             data-active={active ? 'true' : 'false'}
-                            onClick={() => {
-                              setSelectedOutput(option.value);
-                              closeOutputMenu();
-                            }}
+                            onClick={() => selectOutput(option.value)}
                           >
                             <span className="iclaw-composer__skill-option-main">
                               <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--output iclaw-composer__selector-icon--menu">

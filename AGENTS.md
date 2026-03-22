@@ -10,6 +10,10 @@
 ## Change Guardrails
 
 - Do not change the frontend default port away from `1520` unless the user explicitly requests it.
+- Default to modifying the wrapper/integration layers around OpenClaw, not the OpenClaw kernel itself.
+- Do not directly modify `services/openclaw/runtime/openclaw/` or other OpenClaw core/source files unless the user explicitly approves an OpenClaw kernel change.
+- All OEM capabilities must follow a centralized platform-data + OEM-binding architecture. Store capability definitions in database-backed platform catalogs; OEM apps should only manage applicability, default/recommended selection, ordering, and lightweight composition metadata.
+- Apply the same rule not only to `skill` / `mcp` / `model`, but also to future OEM building blocks such as `sidebar`, `header`, `input`, `home`, menus, asset slots, and other surfaces/components.
 - When adding docs, env examples, login flows, or OAuth config, keep the distinction explicit:
 - frontend origin / callback = `1520`
 - control-plane backend = `1420`

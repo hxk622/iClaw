@@ -5,8 +5,8 @@ iClaw 下载站（首版）。
 ## 本地开发
 
 ```bash
-ICLAW_BRAND=iclaw pnpm dev:home-web
-ICLAW_BRAND=licaiclaw pnpm dev:home-web
+ICLAW_PORTAL_APP_NAME=iclaw pnpm dev:home-web
+ICLAW_PORTAL_APP_NAME=licaiclaw pnpm dev:home-web
 # 或
 pnpm dev:home
 bash scripts/deploy-home.sh dev
@@ -17,12 +17,17 @@ bash scripts/deploy-home.sh dev
 ## 构建
 
 ```bash
-ICLAW_BRAND=licaiclaw pnpm build:home-web
+ICLAW_PORTAL_APP_NAME=licaiclaw pnpm build:home-web
 # 或
 pnpm build:home
 ```
 
 构建产物位于 `home-web/dist`。
+
+说明：
+
+- 品牌资料来自 control-plane portal app，不再从仓库内 `brands/` 目录读取
+- `predev` / `prebuild` 会自动执行 `node ../scripts/apply-brand.mjs`
 
 ## 发布策略
 

@@ -4,16 +4,17 @@ import { cn } from '@/app/lib/cn';
 
 type ProtectionSignalTone = 'gold' | 'success';
 type ProtectionSignalSize = 'xs' | 'sm' | 'md';
+type ProtectionSignalEmphasis = 'default' | 'strong';
 
 const SIZE_CLASSES: Record<
   ProtectionSignalSize,
   { frame: string; core: string; icon: string; inset: string[] }
 > = {
   xs: {
-    frame: 'h-4 w-4',
-    core: 'h-2.5 w-2.5',
-    icon: 'h-1.5 w-1.5',
-    inset: ['inset-0', 'inset-[16%]', 'inset-[30%]'],
+    frame: 'h-5 w-5',
+    core: 'h-3.5 w-3.5',
+    icon: 'h-2.25 w-2.25',
+    inset: ['inset-[10%]', 'inset-0', '-inset-[14%]'],
   },
   sm: {
     frame: 'h-7 w-7',
@@ -62,17 +63,20 @@ export function ProtectionSignal({
   tone = 'gold',
   size = 'sm',
   animated = true,
+  emphasis = 'default',
   icon,
   className,
 }: {
   tone?: ProtectionSignalTone;
   size?: ProtectionSignalSize;
   animated?: boolean;
+  emphasis?: ProtectionSignalEmphasis;
   icon?: ReactNode;
   className?: string;
 }) {
   const sizeClasses = SIZE_CLASSES[size];
   const toneClasses = TONE_CLASSES[tone];
+  const isStrong = emphasis === 'strong';
 
   return (
     <span
@@ -89,12 +93,13 @@ export function ProtectionSignal({
               key={insetClassName}
               className={cn(
                 'pointer-events-none absolute rounded-full border motion-safe:animate-ping',
+                isStrong && 'opacity-90 saturate-[1.04]',
                 insetClassName,
                 toneClasses.ring,
               )}
               style={{
-                animationDuration: '2600ms',
-                animationDelay: `${index * 420}ms`,
+                animationDuration: isStrong ? '2400ms' : '2600ms',
+                animationDelay: `${index * (isStrong ? 360 : 420)}ms`,
               }}
             />
           ))
@@ -102,17 +107,19 @@ export function ProtectionSignal({
       <span
         className={cn(
           'pointer-events-none absolute inset-[18%] rounded-full',
+          isStrong && 'opacity-100 blur-[5px] scale-[1.08] dark:blur-[7px]',
           toneClasses.halo,
         )}
       />
       <span
         className={cn(
           'relative z-[1] inline-flex items-center justify-center rounded-full border',
+          isStrong && 'shadow-[0_0_0_1px_rgba(255,255,255,0.22),0_0_16px_rgba(201,169,97,0.24),0_10px_24px_rgba(168,140,93,0.2)] dark:shadow-[0_0_0_1px_rgba(245,205,118,0.2),0_0_22px_rgba(245,205,118,0.26),0_10px_24px_rgba(0,0,0,0.34)]',
           sizeClasses.core,
           toneClasses.core,
         )}
       >
-        {icon ?? <Shield className={cn('stroke-[2.1]', sizeClasses.icon, toneClasses.icon)} />}
+        {icon ?? <Shield className={cn(isStrong ? 'stroke-[2.45]' : 'stroke-[2.1]', sizeClasses.icon, toneClasses.icon)} />}
       </span>
     </span>
   );

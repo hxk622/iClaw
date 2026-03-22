@@ -1,22 +1,27 @@
 import {execFileSync} from 'node:child_process';
 import {existsSync} from 'node:fs';
+import {mkdtemp, mkdir, readdir, rm, writeFile} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
 import {dirname, resolve, sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 import { downloadAvatar } from './avatar-storage.ts';
 import {downloadPrivateSkillArtifact} from './skill-storage.ts';
-import {ensureBootstrapAdmin, ensureSeedOemBrands} from './bootstrap.ts';
+import {ensureBootstrapAdmin, ensureDefaultSkillSyncSources, ensurePortalPreset} from './bootstrap.ts';
 import {CachedControlPlaneStore} from './cached-store.ts';
 import {config} from './config.ts';
 import type {
   ChangePasswordInput,
+  CreatePaymentOrderInput,
   ImportUserPrivateSkillInput,
   InstallAgentInput,
   InstallSkillInput,
   LoginInput,
+  PaymentWebhookInput,
   RegisterInput,
   RunAuthorizeInput,
   UpsertSkillCatalogEntryInput,
+  UpsertSkillSyncSourceInput,
   UpdateSkillLibraryItemInput,
   UpdateProfileInput,
   UsageEventInput,
@@ -26,6 +31,9 @@ import {HttpError} from './errors.ts';
 import {createJsonServer, createRawResponse, type HandlerContext} from './http.ts';
 import {PgOemStore} from './oem-store.ts';
 import {OemService} from './oem-service.ts';
+import type {UpsertPortalAppInput, UpsertPortalModelInput, UpsertPortalMcpInput, UpsertPortalSkillInput} from './portal-domain.ts';
+import {PgPortalStore} from './portal-store.ts';
+import {PortalService} from './portal-service.ts';
 import {ensureControlPlaneSchema, PgControlPlaneStore} from './pg-store.ts';
 import {createRedisKeyValueCache} from './redis-cache.ts';
 import {ControlPlaneService} from './service.ts';
@@ -47,6 +55,7 @@ await ensureControlPlaneSchema(config.databaseUrl);
 let store: ControlPlaneStore = new PgControlPlaneStore(config.databaseUrl);
 let cacheLabel = 'none';
 const oemStore = new PgOemStore(config.databaseUrl);
+const portalStore = new PgPortalStore(config.databaseUrl);
 
 if (config.redisUrl) {
   try {
@@ -59,12 +68,14 @@ if (config.redisUrl) {
 }
 
 await ensureBootstrapAdmin(store);
-await ensureSeedOemBrands(oemStore);
+await ensureDefaultSkillSyncSources(store);
+await ensurePortalPreset(portalStore);
 
 const service = new ControlPlaneService(store);
 const oemService = new OemService(oemStore, async (accessToken) => service.me(accessToken), {
   controlStore: store,
 });
+const portalService = new PortalService(portalStore, async (accessToken) => service.me(accessToken));
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const skillsSourceRoot = resolve(process.env.ICLAW_SKILLS_SOURCE_DIR || resolve(repoRoot, 'skills'));
 
@@ -128,6 +139,64 @@ function packageSkillArtifact(sourcePath: string): Buffer {
   } catch (error) {
     const detail = error instanceof Error ? error.message : 'failed to package skill artifact';
     throw new HttpError(500, 'INTERNAL_ERROR', detail);
+  }
+}
+
+async function packageGithubSkillArtifact(metadata: Record<string, unknown>): Promise<Buffer> {
+  const github =
+    metadata.github && typeof metadata.github === 'object' && !Array.isArray(metadata.github)
+      ? (metadata.github as Record<string, unknown>)
+      : null;
+  if (!github || typeof github !== 'object' || Array.isArray(github)) {
+    throw new HttpError(404, 'NOT_FOUND', 'github artifact metadata not found');
+  }
+  const owner = typeof github.owner === 'string' ? github.owner : '';
+  const repo = typeof github.repo === 'string' ? github.repo : '';
+  const skillPathRaw = typeof github.skill_path === 'string' ? github.skill_path : '.';
+  const archiveUrl = typeof github.archive_url === 'string' ? github.archive_url : '';
+  if (!owner || !repo || !archiveUrl) {
+    throw new HttpError(404, 'NOT_FOUND', 'github artifact metadata is incomplete');
+  }
+
+  const tempRoot = await mkdtemp(resolve(tmpdir(), 'iclaw-skill-'));
+  try {
+    const archivePath = resolve(tempRoot, 'repo.tar.gz');
+    const extractDir = resolve(tempRoot, 'extract');
+    await mkdir(extractDir, {recursive: true});
+    const response = await fetch(archiveUrl, {
+      headers: {
+        Accept: 'application/octet-stream',
+        'User-Agent': 'iClaw-control-plane-skill-artifact/0.1',
+      },
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      throw new HttpError(502, 'BAD_GATEWAY', `failed to fetch github archive: ${response.status} ${text}`);
+    }
+    await writeFile(archivePath, Buffer.from(await response.arrayBuffer()));
+    execFileSync('tar', ['-xzf', archivePath, '-C', extractDir], {
+      encoding: 'buffer',
+      maxBuffer: 64 * 1024 * 1024,
+    });
+
+    const extractedEntries = await readdir(extractDir, {withFileTypes: true});
+    const rootDir = extractedEntries.find((entry) => entry.isDirectory())?.name || '';
+    const repoRoot = rootDir ? resolve(extractDir, rootDir) : extractDir;
+    const normalizedSkillPath = skillPathRaw === '.' ? '' : skillPathRaw.replace(/^\/+|\/+$/g, '');
+    const skillRoot = normalizedSkillPath ? resolve(repoRoot, normalizedSkillPath) : repoRoot;
+    if (!existsSync(resolve(skillRoot, 'SKILL.md'))) {
+      throw new HttpError(404, 'NOT_FOUND', 'github skill artifact source is incomplete');
+    }
+    return execFileSync('tar', ['-czf', '-', '-C', skillRoot, '.'], {
+      encoding: 'buffer',
+      maxBuffer: 64 * 1024 * 1024,
+    }) as Buffer;
+  } catch (error) {
+    if (error instanceof HttpError) throw error;
+    const detail = error instanceof Error ? error.message : 'failed to package github skill artifact';
+    throw new HttpError(500, 'INTERNAL_ERROR', detail);
+  } finally {
+    await rm(tempRoot, {recursive: true, force: true}).catch(() => undefined);
   }
 }
 
@@ -305,6 +374,24 @@ const server = createJsonServer([
       }),
   },
   {
+    method: 'POST',
+    path: '/payments/orders',
+    handler: ({headers, body}: HandlerContext) =>
+      service.createPaymentOrder(requireBearerToken(headers), (body || {}) as CreatePaymentOrderInput),
+  },
+  {
+    method: 'GET',
+    path: '/payments/orders/:orderId',
+    handler: ({headers, params}: HandlerContext) =>
+      service.getPaymentOrder(requireBearerToken(headers), params.orderId || ''),
+  },
+  {
+    method: 'POST',
+    path: '/payments/webhooks/:provider',
+    handler: ({params, body}: HandlerContext) =>
+      service.applyPaymentWebhook(params.provider || '', (body || {}) as PaymentWebhookInput),
+  },
+  {
     method: 'GET',
     path: '/workspace/backup',
     handler: ({headers}: HandlerContext) => service.getWorkspaceBackup(requireBearerToken(headers)),
@@ -340,13 +427,23 @@ const server = createJsonServer([
   {
     method: 'GET',
     path: '/skills/catalog',
-    handler: ({headers}: HandlerContext) => service.listSkillCatalog(resolvePublicBaseUrl(headers)),
+    handler: ({headers, url}: HandlerContext) =>
+      service.listSkillCatalog(
+        resolvePublicBaseUrl(headers),
+        Number.parseInt(url.searchParams.get('limit') || '', 10),
+        Number.parseInt(url.searchParams.get('offset') || '', 10),
+      ),
   },
   {
     method: 'GET',
     path: '/skills/catalog/personal',
-    handler: ({headers}: HandlerContext) =>
-      service.listPersonalSkillCatalog(requireBearerToken(headers), resolvePublicBaseUrl(headers)),
+    handler: ({headers, url}: HandlerContext) =>
+      service.listPersonalSkillCatalog(
+        requireBearerToken(headers),
+        resolvePublicBaseUrl(headers),
+        Number.parseInt(url.searchParams.get('limit') || '', 10),
+        Number.parseInt(url.searchParams.get('offset') || '', 10),
+      ),
   },
   {
     method: 'DELETE',
@@ -357,8 +454,13 @@ const server = createJsonServer([
   {
     method: 'GET',
     path: '/admin/skills/catalog',
-    handler: ({headers}: HandlerContext) =>
-      service.listAdminSkillCatalog(requireBearerToken(headers), resolvePublicBaseUrl(headers)),
+    handler: ({headers, url}: HandlerContext) =>
+      service.listAdminSkillCatalog(
+        requireBearerToken(headers),
+        resolvePublicBaseUrl(headers),
+        Number.parseInt(url.searchParams.get('limit') || '', 10),
+        Number.parseInt(url.searchParams.get('offset') || '', 10),
+      ),
   },
   {
     method: 'PUT',
@@ -377,6 +479,41 @@ const server = createJsonServer([
       service.deleteAdminSkillCatalogEntry(
         requireBearerToken(headers),
         (url.searchParams.get('slug') || '').trim(),
+      ),
+  },
+  {
+    method: 'GET',
+    path: '/admin/skills/sync/sources',
+    handler: ({headers}: HandlerContext) => service.listSkillSyncSources(requireBearerToken(headers)),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/skills/sync/sources',
+    handler: ({headers, body}: HandlerContext) =>
+      service.upsertSkillSyncSource(requireBearerToken(headers), (body || {}) as UpsertSkillSyncSourceInput),
+  },
+  {
+    method: 'DELETE',
+    path: '/admin/skills/sync/sources',
+    handler: ({headers, url}: HandlerContext) =>
+      service.deleteSkillSyncSource(requireBearerToken(headers), (url.searchParams.get('id') || '').trim()),
+  },
+  {
+    method: 'GET',
+    path: '/admin/skills/sync/runs',
+    handler: ({headers, url}: HandlerContext) =>
+      service.listSkillSyncRuns(
+        requireBearerToken(headers),
+        url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : undefined,
+      ),
+  },
+  {
+    method: 'POST',
+    path: '/admin/skills/sync/run',
+    handler: ({headers, body}: HandlerContext) =>
+      service.runSkillSync(
+        requireBearerToken(headers),
+        (((body || {}) as {source_id?: string}).source_id || '').trim(),
       ),
   },
   {
@@ -420,20 +557,22 @@ const server = createJsonServer([
     handler: async ({url}: HandlerContext) => {
       const slug = (url.searchParams.get('slug') || '').trim();
       const version = (url.searchParams.get('version') || '').trim() || undefined;
-      const release = await service.getSkillArtifactRelease(slug, version);
-      const sourcePath = release.artifactSourcePath;
-      if (!sourcePath) {
+      const entry = await service.getSkillArtifactEntry(slug, version);
+      let archive: Buffer;
+      if (entry.originType === 'bundled' && entry.artifactSourcePath) {
+        resolveSkillSourceDir(entry.artifactSourcePath);
+        archive = packageSkillArtifact(entry.artifactSourcePath);
+      } else if (entry.originType === 'github_repo') {
+        archive = await packageGithubSkillArtifact(entry.metadata);
+      } else {
         throw new HttpError(404, 'NOT_FOUND', 'skill artifact source not configured');
       }
-
-      resolveSkillSourceDir(sourcePath);
-      const archive = packageSkillArtifact(sourcePath);
       return createRawResponse(archive, {
         headers: {
           'Content-Type': 'application/gzip',
           'Content-Length': String(archive.length),
           'Cache-Control': 'public, max-age=300',
-          'Content-Disposition': `attachment; filename="${release.slug}-${release.version}.tar.gz"`,
+          'Content-Disposition': `attachment; filename="${entry.slug}-${entry.version}.tar.gz"`,
         },
       });
     },
@@ -626,6 +765,159 @@ const server = createJsonServer([
           http_url?: string | null;
         },
       ),
+  },
+  {
+    method: 'GET',
+    path: '/admin/portal/apps',
+    handler: ({headers}: HandlerContext) => portalService.listApps(requireBearerToken(headers)),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/portal/apps/:appName',
+    handler: ({headers, params, body}: HandlerContext) =>
+      portalService.upsertApp(requireBearerToken(headers), {
+        ...((body || {}) as Record<string, unknown>),
+        appName: params.appName || '',
+      } as UpsertPortalAppInput),
+  },
+  {
+    method: 'GET',
+    path: '/admin/portal/apps/:appName',
+    handler: ({headers, params}: HandlerContext) => portalService.getApp(requireBearerToken(headers), params.appName || ''),
+  },
+  {
+    method: 'GET',
+    path: '/admin/portal/catalog/skills',
+    handler: ({headers}: HandlerContext) => portalService.listSkills(requireBearerToken(headers)),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/portal/catalog/skills/:slug',
+    handler: ({headers, params, body}: HandlerContext) =>
+      portalService.upsertSkill(requireBearerToken(headers), {
+        ...((body || {}) as Record<string, unknown>),
+        slug: params.slug || '',
+      } as UpsertPortalSkillInput),
+  },
+  {
+    method: 'DELETE',
+    path: '/admin/portal/catalog/skills/:slug',
+    handler: ({headers, params}: HandlerContext) =>
+      portalService.deleteSkill(requireBearerToken(headers), params.slug || ''),
+  },
+  {
+    method: 'GET',
+    path: '/admin/portal/catalog/mcps',
+    handler: ({headers}: HandlerContext) => portalService.listMcps(requireBearerToken(headers)),
+  },
+  {
+    method: 'GET',
+    path: '/admin/portal/catalog/models',
+    handler: ({headers}: HandlerContext) => portalService.listModels(requireBearerToken(headers)),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/portal/catalog/mcps/:mcpKey',
+    handler: ({headers, params, body}: HandlerContext) =>
+      portalService.upsertMcp(requireBearerToken(headers), {
+        ...((body || {}) as Record<string, unknown>),
+        mcpKey: params.mcpKey || '',
+      } as UpsertPortalMcpInput),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/portal/catalog/models',
+    handler: ({headers, body}: HandlerContext) =>
+      portalService.upsertModel(requireBearerToken(headers), (body || {}) as UpsertPortalModelInput),
+  },
+  {
+    method: 'DELETE',
+    path: '/admin/portal/catalog/models',
+    handler: ({headers, url}: HandlerContext) =>
+      portalService.deleteModel(requireBearerToken(headers), (url.searchParams.get('ref') || '').trim()),
+  },
+  {
+    method: 'DELETE',
+    path: '/admin/portal/catalog/mcps/:mcpKey',
+    handler: ({headers, params}: HandlerContext) =>
+      portalService.deleteMcp(requireBearerToken(headers), params.mcpKey || ''),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/portal/apps/:appName/skills',
+    handler: ({headers, params, body}: HandlerContext) =>
+      portalService.replaceAppSkills(requireBearerToken(headers), params.appName || '', (body || []) as never),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/portal/apps/:appName/mcps',
+    handler: ({headers, params, body}: HandlerContext) =>
+      portalService.replaceAppMcps(requireBearerToken(headers), params.appName || '', (body || []) as never),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/portal/apps/:appName/models',
+    handler: ({headers, params, body}: HandlerContext) =>
+      portalService.replaceAppModels(requireBearerToken(headers), params.appName || '', (body || []) as never),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/portal/apps/:appName/menus',
+    handler: ({headers, params, body}: HandlerContext) =>
+      portalService.replaceAppMenus(requireBearerToken(headers), params.appName || '', (body || []) as never),
+  },
+  {
+    method: 'POST',
+    path: '/admin/portal/apps/:appName/publish',
+    handler: ({headers, params}: HandlerContext) =>
+      portalService.publishApp(requireBearerToken(headers), params.appName || ''),
+  },
+  {
+    method: 'POST',
+    path: '/admin/portal/apps/:appName/restore',
+    handler: ({headers, params, body}: HandlerContext) =>
+      portalService.restoreApp(requireBearerToken(headers), params.appName || '', (body || {}) as {version?: number}),
+  },
+  {
+    method: 'POST',
+    path: '/admin/portal/apps/:appName/assets/:assetKey/upload',
+    handler: ({headers, params, body}: HandlerContext) =>
+      portalService.uploadAsset(requireBearerToken(headers), params.appName || '', params.assetKey || '', (body || {}) as {
+        content_type?: string;
+        file_name?: string;
+        file_base64?: string;
+        metadata?: Record<string, unknown>;
+      }),
+  },
+  {
+    method: 'DELETE',
+    path: '/admin/portal/apps/:appName/assets/:assetKey',
+    handler: ({headers, params}: HandlerContext) =>
+      portalService.deleteAsset(requireBearerToken(headers), params.appName || '', params.assetKey || ''),
+  },
+  {
+    method: 'GET',
+    path: '/portal/public-config',
+    handler: ({headers, url}: HandlerContext) =>
+      portalService.getPublicAppConfig((url.searchParams.get('app_name') || '').trim(), resolvePublicBaseUrl(headers), {
+        surfaceKey: (url.searchParams.get('surface_key') || '').trim() || null,
+      }),
+  },
+  {
+    method: 'GET',
+    path: '/portal/asset/file',
+    handler: async ({url}: HandlerContext) => {
+      const result = await portalService.getAssetFile(
+        (url.searchParams.get('app_name') || '').trim(),
+        (url.searchParams.get('asset_key') || '').trim(),
+      );
+      return createRawResponse(result.file.buffer, {
+        headers: {
+          'Content-Type': result.file.contentType,
+          'Cache-Control': 'public, max-age=3600',
+        },
+      });
+    },
   },
   {
     method: 'GET',

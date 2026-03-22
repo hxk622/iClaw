@@ -1,19 +1,26 @@
 import type {
   AgentCatalogEntryRecord,
+  CreatePaymentOrderInput,
   CreateUserInput,
+  CreditAccountRecord,
   CreditLedgerRecord,
   ImportUserPrivateSkillInput,
   InstallAgentInput,
   InstallSkillInput,
   OAuthAccountRecord,
   OAuthProvider,
+  PaymentOrderRecord,
+  PaymentProvider,
+  PaymentWebhookInput,
   RunBillingSummaryRecord,
   RunGrantRecord,
   SessionRecord,
   SessionTokenPair,
   SkillCatalogEntryRecord,
-  SkillReleaseRecord,
+  SkillSyncRunRecord,
+  SkillSyncSourceRecord,
   UpsertSkillCatalogEntryInput,
+  UpsertSkillSyncSourceInput,
   UsageEventInput,
   UsageEventResult,
   UserAgentLibraryRecord,
@@ -35,6 +42,7 @@ const USAGE_EVENT_CACHE_TTL_SECONDS = 24 * 60 * 60;
 const WORKSPACE_BACKUP_CACHE_TTL_SECONDS = 5 * 60;
 const AGENT_CATALOG_CACHE_TTL_SECONDS = 5 * 60;
 const SKILL_CATALOG_CACHE_TTL_SECONDS = 5 * 60;
+const SKILL_CATALOG_PAGE_CACHE_TTL_SECONDS = 60;
 const USER_SKILL_LIBRARY_CACHE_TTL_SECONDS = 60;
 
 function normalizeIdentifier(identifier: string): string {
@@ -139,11 +147,13 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
 
   async createUser(input: CreateUserInput): Promise<UserRecord> {
     const user = await this.base.createUser(input);
+    const account = await this.base.getCreditAccount(user.id);
     await Promise.all([
       this.cache.set(this.userIdKey(user.id), user, USER_CACHE_TTL_SECONDS),
       this.cache.set(this.userIdentifierKey(user.username), user, USER_CACHE_TTL_SECONDS),
       this.cache.set(this.userIdentifierKey(user.email), user, USER_CACHE_TTL_SECONDS),
-      this.cache.set(this.creditBalanceKey(user.id), input.initialCreditBalance, CREDIT_BALANCE_CACHE_TTL_SECONDS),
+      this.cache.set(this.creditBalanceKey(user.id), account.totalAvailableBalance, CREDIT_BALANCE_CACHE_TTL_SECONDS),
+      this.cache.set(this.creditAccountKey(user.id), account, CREDIT_BALANCE_CACHE_TTL_SECONDS),
       this.cache.delete(this.creditLedgerKey(user.id)),
     ]);
     return user;
@@ -216,6 +226,12 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     return this.getOrLoad(this.userIdKey(userId), USER_CACHE_TTL_SECONDS, () => this.base.getUserById(userId));
   }
 
+  async getCreditAccount(userId: string): Promise<CreditAccountRecord> {
+    return this.getOrLoadValue(this.creditAccountKey(userId), CREDIT_BALANCE_CACHE_TTL_SECONDS, () =>
+      this.base.getCreditAccount(userId),
+    );
+  }
+
   async getCreditBalance(userId: string): Promise<number> {
     return this.getOrLoadValue(this.creditBalanceKey(userId), CREDIT_BALANCE_CACHE_TTL_SECONDS, () =>
       this.base.getCreditBalance(userId),
@@ -226,6 +242,38 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     return this.getOrLoadValue(this.creditLedgerKey(userId), CREDIT_LEDGER_CACHE_TTL_SECONDS, () =>
       this.base.getCreditLedger(userId),
     );
+  }
+
+  async createPaymentOrder(
+    userId: string,
+    input: Required<CreatePaymentOrderInput> & {packageName: string; credits: number; bonusCredits: number; amountCnyFen: number},
+  ): Promise<PaymentOrderRecord> {
+    const order = await this.base.createPaymentOrder(userId, input);
+    await this.cache.set(this.paymentOrderKey(order.id), order, CREDIT_BALANCE_CACHE_TTL_SECONDS);
+    return order;
+  }
+
+  async getPaymentOrderById(userId: string, orderId: string): Promise<PaymentOrderRecord | null> {
+    const cached = await this.cache.get<PaymentOrderRecord>(this.paymentOrderKey(orderId));
+    if (cached && cached.userId === userId) {
+      return cached;
+    }
+    const order = await this.base.getPaymentOrderById(userId, orderId);
+    if (order) {
+      await this.cache.set(this.paymentOrderKey(orderId), order, CREDIT_BALANCE_CACHE_TTL_SECONDS);
+    }
+    return order;
+  }
+
+  async applyPaymentWebhook(provider: PaymentProvider, input: Required<PaymentWebhookInput>): Promise<PaymentOrderRecord | null> {
+    const order = await this.base.applyPaymentWebhook(provider, input);
+    if (order) {
+      await Promise.all([
+        this.cache.set(this.paymentOrderKey(order.id), order, CREDIT_BALANCE_CACHE_TTL_SECONDS),
+        this.cache.delete(this.creditBalanceKey(order.userId), this.creditAccountKey(order.userId), this.creditLedgerKey(order.userId)),
+      ]);
+    }
+    return order;
   }
 
   async getRunGrantById(grantId: string): Promise<RunGrantRecord | null> {
@@ -265,7 +313,7 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     await Promise.all([
       this.cache.set(this.usageEventKey(input.event_id), result, USAGE_EVENT_CACHE_TTL_SECONDS),
       this.cache.set(this.runBillingSummaryKey(input.grant_id), result.summary, USAGE_EVENT_CACHE_TTL_SECONDS),
-      this.cache.delete(this.creditBalanceKey(userId), this.creditLedgerKey(userId), this.runGrantKey(input.grant_id)),
+      this.cache.delete(this.creditBalanceKey(userId), this.creditAccountKey(userId), this.creditLedgerKey(userId), this.runGrantKey(input.grant_id)),
     ]);
     return result;
   }
@@ -294,15 +342,41 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     );
   }
 
-  async listSkillCatalog(): Promise<SkillCatalogEntryRecord[]> {
+  async listSkillCatalog(limit?: number, offset?: number): Promise<SkillCatalogEntryRecord[]> {
+    if (typeof limit === 'number' || typeof offset === 'number') {
+      return this.getOrLoadValue(
+        this.skillCatalogPageKey(limit, offset),
+        SKILL_CATALOG_PAGE_CACHE_TTL_SECONDS,
+        () => this.base.listSkillCatalog(limit, offset),
+      );
+    }
     return this.getOrLoadValue(this.skillCatalogKey(), SKILL_CATALOG_CACHE_TTL_SECONDS, () =>
       this.base.listSkillCatalog(),
     );
   }
 
-  async listSkillCatalogAdmin(): Promise<SkillCatalogEntryRecord[]> {
+  async countSkillCatalog(): Promise<number> {
+    return this.getOrLoadValue(this.skillCatalogCountKey(), SKILL_CATALOG_PAGE_CACHE_TTL_SECONDS, () =>
+      this.base.countSkillCatalog(),
+    );
+  }
+
+  async listSkillCatalogAdmin(limit?: number, offset?: number): Promise<SkillCatalogEntryRecord[]> {
+    if (typeof limit === 'number' || typeof offset === 'number') {
+      return this.getOrLoadValue(
+        this.adminSkillCatalogPageKey(limit, offset),
+        SKILL_CATALOG_PAGE_CACHE_TTL_SECONDS,
+        () => this.base.listSkillCatalogAdmin(limit, offset),
+      );
+    }
     return this.getOrLoadValue(this.adminSkillCatalogKey(), SKILL_CATALOG_CACHE_TTL_SECONDS, () =>
       this.base.listSkillCatalogAdmin(),
+    );
+  }
+
+  async countSkillCatalogAdmin(): Promise<number> {
+    return this.getOrLoadValue(this.adminSkillCatalogCountKey(), SKILL_CATALOG_PAGE_CACHE_TTL_SECONDS, () =>
+      this.base.countSkillCatalogAdmin(),
     );
   }
 
@@ -317,8 +391,17 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     await this.cache.delete(
       this.skillCatalogKey(),
       this.adminSkillCatalogKey(),
+      this.skillCatalogCountKey(),
+      this.adminSkillCatalogCountKey(),
+      this.skillCatalogPageKey(60, 0),
+      this.skillCatalogPageKey(60, 60),
+      this.skillCatalogPageKey(300, 0),
+      this.skillCatalogPageKey(1000, 0),
+      this.adminSkillCatalogPageKey(60, 0),
+      this.adminSkillCatalogPageKey(60, 60),
+      this.adminSkillCatalogPageKey(300, 0),
+      this.adminSkillCatalogPageKey(1000, 0),
       this.skillCatalogEntryKey(input.slug),
-      this.skillReleaseKey(input.slug),
     );
     return record;
   }
@@ -329,17 +412,54 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
       await this.cache.delete(
         this.skillCatalogKey(),
         this.adminSkillCatalogKey(),
+        this.skillCatalogCountKey(),
+        this.adminSkillCatalogCountKey(),
+        this.skillCatalogPageKey(60, 0),
+        this.skillCatalogPageKey(60, 60),
+        this.skillCatalogPageKey(300, 0),
+        this.skillCatalogPageKey(1000, 0),
+        this.adminSkillCatalogPageKey(60, 0),
+        this.adminSkillCatalogPageKey(60, 60),
+        this.adminSkillCatalogPageKey(300, 0),
+        this.adminSkillCatalogPageKey(1000, 0),
         this.skillCatalogEntryKey(slug),
-        this.skillReleaseKey(slug),
       );
     }
     return removed;
   }
 
-  async getSkillRelease(slug: string, version?: string): Promise<SkillReleaseRecord | null> {
-    return this.getOrLoad(this.skillReleaseKey(slug, version), USER_CACHE_TTL_SECONDS, () =>
-      this.base.getSkillRelease(slug, version),
-    );
+  async listSkillSyncSources(): Promise<SkillSyncSourceRecord[]> {
+    return this.base.listSkillSyncSources();
+  }
+
+  async getSkillSyncSource(id: string): Promise<SkillSyncSourceRecord | null> {
+    return this.base.getSkillSyncSource(id);
+  }
+
+  async upsertSkillSyncSource(input: Required<UpsertSkillSyncSourceInput>): Promise<SkillSyncSourceRecord> {
+    return this.base.upsertSkillSyncSource(input);
+  }
+
+  async deleteSkillSyncSource(id: string): Promise<boolean> {
+    return this.base.deleteSkillSyncSource(id);
+  }
+
+  async listSkillSyncRuns(limit?: number): Promise<SkillSyncRunRecord[]> {
+    return this.base.listSkillSyncRuns(limit);
+  }
+
+  async createSkillSyncRun(input: {
+    sourceId: string;
+    sourceKey: string;
+    sourceType: SkillSyncSourceRecord['sourceType'];
+    displayName: string;
+    status: SkillSyncRunRecord['status'];
+    summary: Record<string, unknown>;
+    items: SkillSyncRunRecord['items'];
+    startedAt: string;
+    finishedAt?: string | null;
+  }): Promise<SkillSyncRunRecord> {
+    return this.base.createSkillSyncRun(input);
   }
 
   async listUserPrivateSkills(userId: string): Promise<UserPrivateSkillRecord[]> {
@@ -492,8 +612,16 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     return `credit:balance:${userId}`;
   }
 
+  private creditAccountKey(userId: string): string {
+    return `credit:account:${userId}`;
+  }
+
   private creditLedgerKey(userId: string): string {
     return `credit:ledger:${userId}`;
+  }
+
+  private paymentOrderKey(orderId: string): string {
+    return `payment-order:${orderId}`;
   }
 
   private runGrantKey(grantId: string): string {
@@ -524,16 +652,28 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     return 'skills:catalog';
   }
 
+  private skillCatalogCountKey(): string {
+    return 'skills:catalog:count';
+  }
+
+  private skillCatalogPageKey(limit?: number, offset?: number): string {
+    return `skills:catalog:page:${this.normalizePageSegment(limit)}:${this.normalizePageSegment(offset)}`;
+  }
+
   private adminSkillCatalogKey(): string {
     return 'skills:catalog:admin';
   }
 
-  private skillCatalogEntryKey(slug: string): string {
-    return `skills:entry:${slug}`;
+  private adminSkillCatalogCountKey(): string {
+    return 'skills:catalog:admin:count';
   }
 
-  private skillReleaseKey(slug: string, version?: string): string {
-    return `skills:release:${slug}:${version || 'latest'}`;
+  private adminSkillCatalogPageKey(limit?: number, offset?: number): string {
+    return `skills:catalog:admin:page:${this.normalizePageSegment(limit)}:${this.normalizePageSegment(offset)}`;
+  }
+
+  private skillCatalogEntryKey(slug: string): string {
+    return `skills:entry:${slug}`;
   }
 
   private userSkillLibraryKey(userId: string): string {
@@ -558,5 +698,12 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
 
   private oauthAccountsKey(userId: string): string {
     return `user:oauth-accounts:${userId}`;
+  }
+
+  private normalizePageSegment(value?: number): string {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      return 'default';
+    }
+    return String(Math.max(0, Math.floor(value)));
   }
 }

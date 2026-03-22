@@ -3,7 +3,9 @@ import type {
   AdminSkillCatalogEntryData,
   IClawClient,
   SkillCatalogEntryData,
-  SkillCatalogReleaseData,
+  SkillCatalogPageData,
+  SkillSyncRunData,
+  SkillSyncSourceData,
   UserSkillLibraryItemData,
 } from '@iclaw/sdk';
 
@@ -77,6 +79,7 @@ export type SkillStoreItem = {
   name: string;
   description: string;
   tags: string[];
+  downloadCount: number | null;
   featured: boolean;
   visibility: string;
   source: 'bundled' | 'cloud' | 'private';
@@ -91,13 +94,36 @@ export type SkillStoreItem = {
   enabled: boolean;
   sourceLabel: string;
   publisher: string;
-  latestRelease: SkillCatalogReleaseData | null;
+  version: string | null;
+  artifactUrl: string | null;
+  artifactFormat: string | null;
+  artifactSha256: string | null;
+  sourceUrl: string | null;
 };
 
 export type AdminSkillStoreItem = SkillStoreItem & {
   active: boolean;
   createdAt: string;
   updatedAt: string;
+};
+
+export type SkillSyncSourceItem = SkillSyncSourceData;
+export type SkillSyncRunItem = SkillSyncRunData;
+export type SkillStoreCatalogPage = {
+  items: SkillStoreItem[];
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+  nextOffset: number | null;
+};
+export type AdminSkillStoreCatalogPage = {
+  items: AdminSkillStoreItem[];
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+  nextOffset: number | null;
 };
 
 const CATEGORY_LABELS: Record<Exclude<SkillStoreCategoryId, 'all' | 'official' | 'a-share' | 'us-stock'>, string> = {
@@ -125,9 +151,27 @@ const FEATURED_SKILL_SLUGS = new Set([
 
 const SKILL_STORE_UPDATED_EVENT = 'iclaw-skill-store-updated';
 const SKILL_STORE_SYNC_ERROR_EVENT = 'iclaw-skill-store-sync-error';
+const SKILL_STORE_CACHE_KEY = 'iclaw.skill-store.cache.v1';
+const SKILL_STORE_INITIAL_CLOUD_LIMIT = 60;
+const SKILL_STORE_CACHE_TTL_MS = 30 * 60 * 1000;
+
+type SkillStoreCatalogCacheSnapshot = {
+  version: 1;
+  savedAt: number;
+  items: SkillStoreItem[];
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+  nextOffset: number | null;
+};
 
 function isTauriRuntime(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+}
+
+function canUseStorage(): boolean {
+  return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
 }
 
 function emitWindowEvent(name: string, detail?: unknown): void {
@@ -162,6 +206,67 @@ export function subscribeSkillStoreEvents(
 
 function normalizeText(value: string | null | undefined): string {
   return (value || '').trim().toLowerCase();
+}
+
+function parseNonNegativeInteger(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+    return Math.round(value);
+  }
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const normalized = value.trim().replace(/[,_\s]/g, '');
+  if (!normalized || !/^\d+(\.\d+)?$/.test(normalized)) {
+    return null;
+  }
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed) : null;
+}
+
+function readObjectPath(source: unknown, path: string[]): unknown {
+  let current = source;
+  for (const segment of path) {
+    if (!current || typeof current !== 'object' || Array.isArray(current)) {
+      return null;
+    }
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
+}
+
+function readSkillDownloadCount(metadata: Record<string, unknown> | null | undefined): number | null {
+  if (!metadata) {
+    return null;
+  }
+
+  const candidatePaths = [
+    ['downloads'],
+    ['download_count'],
+    ['downloadCount'],
+    ['install_count'],
+    ['installCount'],
+    ['installs'],
+    ['stats', 'downloads'],
+    ['stats', 'download_count'],
+    ['stats', 'downloadCount'],
+    ['clawhub', 'listing', 'skill', 'stats', 'downloads'],
+    ['clawhub', 'listing', 'skill', 'stats', 'download_count'],
+    ['clawhub', 'listing', 'skill', 'stats', 'downloadCount'],
+    ['clawhub', 'detail', 'skill', 'stats', 'downloads'],
+    ['clawhub', 'detail', 'skill', 'stats', 'download_count'],
+    ['clawhub', 'detail', 'skill', 'stats', 'downloadCount'],
+  ];
+
+  for (const path of candidatePaths) {
+    const count = parseNonNegativeInteger(readObjectPath(metadata, path));
+    if (count != null) {
+      return count;
+    }
+  }
+
+  return null;
 }
 
 function inferMarket(item: {
@@ -254,6 +359,7 @@ function normalizeBundledSkill(item: RawBundledSkillCatalogItem): SkillStoreItem
     name: item.name,
     description: item.description,
     tags: item.tags,
+    downloadCount: null,
     featured: isFeaturedSkill(item),
     visibility: item.visibility || 'showcase',
     source: 'bundled',
@@ -268,8 +374,118 @@ function normalizeBundledSkill(item: RawBundledSkillCatalogItem): SkillStoreItem
     enabled: true,
     sourceLabel: '系统预置',
     publisher: item.publisher || 'iClaw',
-    latestRelease: null,
+    version: null,
+    artifactUrl: null,
+    artifactFormat: null,
+    artifactSha256: null,
+    sourceUrl: null,
   };
+}
+
+function sortSkillStoreItems<T extends SkillStoreItem>(items: Iterable<T>): T[] {
+  return Array.from(items).sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
+}
+
+function mergeSkillStoreItems<T extends SkillStoreItem>(...groups: Array<Iterable<T>>): T[] {
+  const merged = new Map<string, T>();
+  for (const group of groups) {
+    for (const item of group) {
+      if (!merged.has(item.slug)) {
+        merged.set(item.slug, item);
+      }
+    }
+  }
+  return sortSkillStoreItems(merged.values());
+}
+
+function toSkillStoreCatalogPage<T extends SkillStoreItem>(input: {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+  nextOffset: number | null;
+}): {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+  nextOffset: number | null;
+} {
+  return {
+    items: sortSkillStoreItems(input.items),
+    total: input.total,
+    limit: input.limit,
+    offset: input.offset,
+    hasMore: input.hasMore,
+    nextOffset: input.nextOffset,
+  };
+}
+
+function toSnapshotSkill(item: SkillStoreItem): SkillStoreItem {
+  if (item.source === 'bundled') {
+    return item;
+  }
+  return {
+    ...item,
+    installed: false,
+    userInstalled: false,
+    localInstalled: false,
+    enabled: false,
+  };
+}
+
+function persistSkillStoreCatalogSnapshot(page: SkillStoreCatalogPage): void {
+  if (!canUseStorage()) {
+    return;
+  }
+  try {
+    const snapshot: SkillStoreCatalogCacheSnapshot = {
+      version: 1,
+      savedAt: Date.now(),
+      items: page.items.filter((item) => item.source !== 'private').map(toSnapshotSkill),
+      total: page.total,
+      limit: page.limit,
+      offset: page.offset,
+      hasMore: page.hasMore,
+      nextOffset: page.nextOffset,
+    };
+    window.localStorage.setItem(SKILL_STORE_CACHE_KEY, JSON.stringify(snapshot));
+  } catch {
+    // Ignore cache write errors and continue with live data.
+  }
+}
+
+export function readSkillStoreCatalogSnapshot(): SkillStoreCatalogPage | null {
+  if (!canUseStorage()) {
+    return null;
+  }
+  try {
+    const raw = window.localStorage.getItem(SKILL_STORE_CACHE_KEY);
+    if (!raw) {
+      return null;
+    }
+    const snapshot = JSON.parse(raw) as Partial<SkillStoreCatalogCacheSnapshot>;
+    if (
+      snapshot.version !== 1 ||
+      !Array.isArray(snapshot.items) ||
+      typeof snapshot.savedAt !== 'number' ||
+      Date.now() - snapshot.savedAt > SKILL_STORE_CACHE_TTL_MS
+    ) {
+      return null;
+    }
+    return {
+      items: snapshot.items as SkillStoreItem[],
+      total: typeof snapshot.total === 'number' ? snapshot.total : snapshot.items.length,
+      limit: typeof snapshot.limit === 'number' ? snapshot.limit : SKILL_STORE_INITIAL_CLOUD_LIMIT,
+      offset: typeof snapshot.offset === 'number' ? snapshot.offset : 0,
+      hasMore: Boolean(snapshot.hasMore),
+      nextOffset: typeof snapshot.nextOffset === 'number' ? snapshot.nextOffset : null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function normalizeCloudSkill(
@@ -291,6 +507,7 @@ function normalizeCloudSkill(
     name: item.name,
     description: item.description,
     tags: item.tags,
+    downloadCount: readSkillDownloadCount(item.metadata),
     featured: isFeaturedSkill(item),
     visibility: item.visibility || 'showcase',
     source: item.source,
@@ -305,7 +522,11 @@ function normalizeCloudSkill(
     enabled,
     sourceLabel: item.source === 'private' ? '我的导入' : '云端技能',
     publisher: item.publisher,
-    latestRelease: item.latest_release,
+    version: item.version,
+    artifactUrl: item.artifact_url,
+    artifactFormat: item.artifact_format,
+    artifactSha256: item.artifact_sha256,
+    sourceUrl: item.source_url,
   };
 }
 
@@ -382,52 +603,85 @@ async function removeManagedSkill(slug: string): Promise<boolean> {
 
 export async function loadBundledSkillCatalog(): Promise<SkillStoreItem[]> {
   const rawItems = await loadBundledSkillCatalogRaw();
-  return rawItems
+  return sortSkillStoreItems(
+    rawItems
     .map(normalizeBundledSkill)
-    .filter((item) => item.visibility === 'showcase')
-    .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
+    .filter((item) => item.visibility === 'showcase'),
+  );
 }
 
-export async function loadSkillStoreCatalog(input: {
+function normalizeCatalogPageMeta<T>(page: SkillCatalogPageData<T>) {
+  return {
+    total: page.total,
+    limit: page.limit,
+    offset: page.offset,
+    hasMore: page.has_more,
+    nextOffset: page.next_offset,
+  };
+}
+
+export async function loadSkillStoreCatalogPage(input: {
   client: IClawClient;
   accessToken: string | null;
-}): Promise<SkillStoreItem[]> {
-  const [bundledItems, cloudCatalog, libraryItems, localManagedItems] = await Promise.all([
-    loadBundledSkillCatalog(),
-    input.accessToken
-      ? input.client.listPersonalSkillsCatalog(input.accessToken).catch(() => input.client.listSkillsCatalog().catch(() => []))
-      : input.client.listSkillsCatalog().catch(() => []),
+  offset?: number;
+  limit?: number;
+}): Promise<SkillStoreCatalogPage> {
+  const offset = Math.max(0, Math.floor(input.offset ?? 0));
+  const limit = Math.max(1, Math.floor(input.limit ?? SKILL_STORE_INITIAL_CLOUD_LIMIT));
+  const includeBundled = offset === 0;
+
+  const [bundledItems, cloudPage, privatePage, libraryItems, localManagedItems] = await Promise.all([
+    includeBundled ? loadBundledSkillCatalog() : Promise.resolve([]),
+    input.client.listSkillsCatalogPage({ limit, offset }),
+    input.accessToken && offset === 0
+      ? input.client.listPersonalSkillsCatalogPage(input.accessToken, { limit: 200, offset: 0 }).catch(() => null)
+      : Promise.resolve(null),
     input.accessToken ? input.client.getSkillLibrary(input.accessToken).catch(() => []) : Promise.resolve([]),
     listManagedSkills().catch(() => []),
   ]);
 
   const libraryBySlug = new Map(libraryItems.map((item) => [item.slug, item]));
   const localBySlug = new Map(localManagedItems.map((item) => [item.slug, item]));
-
-  const cloudItems = cloudCatalog
+  const cloudItems = cloudPage.items
     .map((item) => normalizeCloudSkill(item, libraryBySlug.get(item.slug) || null, localBySlug.get(item.slug) || null))
     .filter((item) => item.visibility === 'showcase');
-  const merged = new Map<string, SkillStoreItem>();
+  const privateItems =
+    privatePage?.items
+      .filter((item) => item.source === 'private')
+      .map((item) => normalizeCloudSkill(item, libraryBySlug.get(item.slug) || null, localBySlug.get(item.slug) || null))
+      .filter((item) => item.visibility === 'showcase') || [];
+  const page = toSkillStoreCatalogPage({
+    items: mergeSkillStoreItems(bundledItems, privateItems, cloudItems),
+    total: bundledItems.length + privateItems.length + cloudPage.total,
+    ...normalizeCatalogPageMeta(cloudPage),
+  });
 
-  for (const item of bundledItems) {
-    merged.set(item.slug, item);
+  if (offset === 0) {
+    persistSkillStoreCatalogSnapshot(page);
   }
-  for (const item of cloudItems) {
-    if (!merged.has(item.slug)) {
-      merged.set(item.slug, item);
-    }
-  }
-
-  return Array.from(merged.values()).sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
+  return page;
 }
 
-export async function loadAdminSkillStoreCatalog(input: {
+export async function loadSkillStoreCatalog(input: {
+  client: IClawClient;
+  accessToken: string | null;
+}): Promise<SkillStoreItem[]> {
+  const page = await loadSkillStoreCatalogPage(input);
+  return page.items;
+}
+
+export async function loadAdminSkillStoreCatalogPage(input: {
   client: IClawClient;
   accessToken: string;
-}): Promise<AdminSkillStoreItem[]> {
-  const [bundledRawItems, adminCatalog, libraryItems, localManagedItems] = await Promise.all([
-    loadBundledSkillCatalogRaw(),
-    input.client.listAdminSkillsCatalog(input.accessToken),
+  offset?: number;
+  limit?: number;
+}): Promise<AdminSkillStoreCatalogPage> {
+  const offset = Math.max(0, Math.floor(input.offset ?? 0));
+  const limit = Math.max(1, Math.floor(input.limit ?? SKILL_STORE_INITIAL_CLOUD_LIMIT));
+  const includeBundled = offset === 0;
+  const [bundledRawItems, adminPage, libraryItems, localManagedItems] = await Promise.all([
+    includeBundled ? loadBundledSkillCatalogRaw() : Promise.resolve([]),
+    input.client.listAdminSkillsCatalogPage(input.accessToken, { limit, offset }),
     input.client.getSkillLibrary(input.accessToken).catch(() => []),
     listManagedSkills().catch(() => []),
   ]);
@@ -436,16 +690,26 @@ export async function loadAdminSkillStoreCatalog(input: {
   const localBySlug = new Map(localManagedItems.map((item) => [item.slug, item]));
   const bundledBySlug = new Map(bundledRawItems.map((item) => [item.slug, item]));
 
-  return adminCatalog
-    .map((item) =>
+  return toSkillStoreCatalogPage({
+    items: adminPage.items.map((item) =>
       normalizeAdminSkill(
         item,
         libraryBySlug.get(item.slug) || null,
         localBySlug.get(item.slug) || null,
         bundledBySlug.get(item.slug) || null,
       ),
-    )
-    .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
+    ),
+    total: adminPage.total,
+    ...normalizeCatalogPageMeta(adminPage),
+  });
+}
+
+export async function loadAdminSkillStoreCatalog(input: {
+  client: IClawClient;
+  accessToken: string;
+}): Promise<AdminSkillStoreItem[]> {
+  const page = await loadAdminSkillStoreCatalogPage(input);
+  return page.items;
 }
 
 export async function saveAdminSkillStoreEntry(input: {
@@ -496,6 +760,31 @@ export async function deleteAdminSkillStoreEntry(input: {
   return result.removed;
 }
 
+export async function loadSkillSyncSources(input: {
+  client: IClawClient;
+  accessToken: string;
+}): Promise<SkillSyncSourceItem[]> {
+  return input.client.listSkillSyncSources(input.accessToken);
+}
+
+export async function loadSkillSyncRuns(input: {
+  client: IClawClient;
+  accessToken: string;
+  limit?: number;
+}): Promise<SkillSyncRunItem[]> {
+  return input.client.listSkillSyncRuns(input.accessToken, input.limit ?? 20);
+}
+
+export async function runSkillSync(input: {
+  client: IClawClient;
+  accessToken: string;
+  sourceId: string;
+}): Promise<SkillSyncRunItem> {
+  const run = await input.client.runSkillSync(input.accessToken, input.sourceId);
+  emitWindowEvent(SKILL_STORE_UPDATED_EVENT);
+  return run;
+}
+
 export async function installSkillFromStore(input: {
   client: IClawClient;
   accessToken: string | null;
@@ -508,23 +797,22 @@ export async function installSkillFromStore(input: {
     throw new Error('AUTH_REQUIRED');
   }
 
-  const release = input.item.latestRelease;
-  if (!release?.artifact_url) {
+  if (!input.item.artifactUrl || !input.item.version) {
     throw new Error('skill artifact unavailable');
   }
 
   const libraryItem = await input.client.installSkill({
     token: input.accessToken,
     slug: input.item.slug,
-    version: release.version,
+    version: input.item.version,
   });
 
   await installManagedSkill({
     slug: input.item.slug,
     version: libraryItem.version,
-    artifact_url: release.artifact_url,
-    artifact_sha256: release.artifact_sha256,
-    artifact_format: release.artifact_format,
+    artifact_url: input.item.artifactUrl,
+    artifact_sha256: input.item.artifactSha256,
+    artifact_format: input.item.artifactFormat,
     source: input.item.source === 'private' ? 'private' : 'cloud',
   });
 }
@@ -554,8 +842,7 @@ export async function syncManagedSkills(input: {
         continue;
       }
       const catalogItem = catalogBySlug.get(libraryItem.slug);
-      const release = catalogItem?.latest_release;
-      if (!catalogItem || !release?.artifact_url) {
+      if (!catalogItem || !catalogItem.artifact_url) {
         continue;
       }
       const localItem = localBySlug.get(libraryItem.slug);
@@ -566,9 +853,9 @@ export async function syncManagedSkills(input: {
       await installManagedSkill({
         slug: libraryItem.slug,
         version: libraryItem.version,
-        artifact_url: release.artifact_url,
-        artifact_sha256: release.artifact_sha256,
-        artifact_format: release.artifact_format,
+        artifact_url: catalogItem.artifact_url,
+        artifact_sha256: catalogItem.artifact_sha256,
+        artifact_format: catalogItem.artifact_format,
         source: libraryItem.source,
       });
       changed = true;

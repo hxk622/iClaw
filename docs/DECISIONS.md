@@ -108,3 +108,19 @@ iClaw/
 
 - 详细的 wrapper 架构、`3.8` 经验复盘、auth bridge / theme bridge / diagnostics 分层，见：
   - [openclaw-wrapper-architecture.md](/Users/xingkaihan/Documents/Code/iClaw/docs/openclaw-wrapper-architecture.md)
+
+## 11. OEM 能力架构冻结
+
+OEM 后续不再按“每个品牌各自维护一份能力定义”的方式扩展。
+
+冻结原则：
+
+- 所有 OEM 能力采用“平台能力中心 + OEM 装配层”架构
+- 平台能力主数据统一存数据库，不以代码常量作为长期权威来源
+- OEM 侧只维护是否适用、默认项、推荐项、排序和少量装配参数
+- `skill / mcp / model` 必须按此模式治理
+- 未来扩展到 `sidebar / header / input / home / menu / asset slot / surface block` 时，也优先遵循同一模式
+
+详细说明见：
+
+- [oem-capability-architecture.md](/Users/xingkaihan/Documents/Code/iClaw/docs/oem-capability-architecture.md)

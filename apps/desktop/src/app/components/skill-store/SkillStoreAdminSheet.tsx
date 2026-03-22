@@ -342,7 +342,7 @@ export function SkillStoreAdminSheet({
             <div className="grid gap-3 sm:grid-cols-3">
               <InfoTile label="创建时间" value={formatDate(skill.createdAt)} />
               <InfoTile label="最后更新时间" value={formatDate(skill.updatedAt)} />
-              <InfoTile label="最新版本" value={skill.latestRelease?.version || '未配置'} />
+              <InfoTile label="最新版本" value={skill.version || '未配置'} />
             </div>
           </DrawerSection>
 

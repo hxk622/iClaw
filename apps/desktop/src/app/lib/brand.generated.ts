@@ -1,12 +1,12 @@
 export const BRAND = {
   "brandId": "iclaw",
-  "productName": "iClaw-理财客",
+  "productName": "iClaw",
   "displayName": "iClaw",
-  "websiteTitle": "iClaw-理财客",
-  "devWebsiteTitle": "iClaw-理财客-dev",
-  "sidebarTitle": "iClaw-理财客",
-  "devSidebarTitle": "iClaw-理财客-dev",
-  "sidebarSubtitle": "LiCaiClaw",
+  "websiteTitle": "iClaw",
+  "devWebsiteTitle": "iClaw-dev",
+  "sidebarTitle": "iClaw",
+  "devSidebarTitle": "iClaw-dev",
+  "sidebarSubtitle": "",
   "legalName": "iClaw",
   "bundleIdentifier": "ai.iclaw.desktop",
   "authService": "ai.iclaw.desktop",
@@ -19,15 +19,15 @@ export const BRAND = {
     "logoAlt": "iClaw logo"
   },
   "theme": {
-    "light": {
-      "primary": "#A88C5D",
-      "primaryHover": "#8F7751",
-      "onPrimary": "#1A1A18"
-    },
     "dark": {
       "primary": "#B49A70",
-      "primaryHover": "#C2AA82",
-      "onPrimary": "#11100F"
+      "onPrimary": "#11100F",
+      "primaryHover": "#C2AA82"
+    },
+    "light": {
+      "primary": "#A88C5D",
+      "onPrimary": "#1A1A18",
+      "primaryHover": "#8F7751"
     }
   },
   "storage": {
