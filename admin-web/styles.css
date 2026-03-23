@@ -1515,9 +1515,36 @@ code {
 }
 
 .sidebar-footer {
+  display: grid;
   padding: 16px;
   border-top: 1px solid var(--sidebar-border);
   gap: 10px;
+}
+
+.sidebar-footer__identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sidebar-footer__avatar {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 1px solid rgba(244, 243, 240, 0.14);
+  background: rgba(244, 243, 240, 0.08);
+}
+
+.sidebar-footer__avatar--fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--sidebar-text);
+  background: linear-gradient(135deg, rgba(140, 199, 208, 0.28), rgba(208, 174, 134, 0.22));
 }
 
 .sidebar-footer__meta {
@@ -1525,6 +1552,12 @@ code {
   gap: 4px;
   font-size: 12px;
   color: rgba(244, 243, 240, 0.42);
+}
+
+.sidebar-footer__meta > div:first-child {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sidebar-text);
 }
 
 .sidebar-footer__logout {

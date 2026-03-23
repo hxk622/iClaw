@@ -272,6 +272,20 @@ function asStringArray(value) {
   return Array.from(seen);
 }
 
+function getUserAvatarUrl(user) {
+  const avatarUrl = String(user?.avatar_url || user?.avatarUrl || '').trim();
+  return avatarUrl || '';
+}
+
+function getUserDisplayName(user) {
+  return String(user?.name || user?.username || 'admin').trim() || 'admin';
+}
+
+function getUserInitials(user) {
+  const label = getUserDisplayName(user);
+  return Array.from(label).slice(0, 1).join('').toUpperCase();
+}
+
 function splitLines(value) {
   return String(value || '')
     .split(/[\n,]/g)
@@ -2551,6 +2565,8 @@ function renderBanner() {
 }
 
 function renderSidebar() {
+  const userName = getUserDisplayName(state.user);
+  const avatarUrl = getUserAvatarUrl(state.user);
   return `
     <aside class="sidebar">
       <div class="sidebar-brand">
@@ -2574,9 +2590,16 @@ function renderSidebar() {
         ).join('')}
       </nav>
       <div class="sidebar-footer">
+        <div class="sidebar-footer__identity">
+          ${
+            avatarUrl
+              ? `<img class="sidebar-footer__avatar" src="${escapeHtml(avatarUrl)}" alt="${escapeHtml(userName)}" />`
+              : `<div class="sidebar-footer__avatar sidebar-footer__avatar--fallback">${escapeHtml(getUserInitials(state.user))}</div>`
+          }
         <div class="sidebar-footer__meta">
-          <div>${escapeHtml(state.user?.name || state.user?.username || 'admin')}</div>
+            <div>${escapeHtml(userName)}</div>
           <div>v1.2.4 • 2026年3月</div>
+        </div>
         </div>
         <button class="sidebar-footer__logout" type="button" data-action="logout">退出登录</button>
       </div>
