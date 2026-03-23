@@ -13,7 +13,6 @@ import {
   Power,
   RefreshCw,
   Repeat,
-  Settings2,
   Sparkles,
   Trash2,
   X,
@@ -825,9 +824,8 @@ export function OpenClawCronSurface({
     if (!nextForm) {
       setNotice({
         tone: 'error',
-        text: '这个任务使用了高级调度配置，建议在高级模式里编辑。',
+        text: '这个任务使用了暂未开放的高级调度配置，当前版本暂不支持编辑。',
       });
-      setMode('advanced');
       return;
     }
     setForm(nextForm);
@@ -1009,7 +1007,7 @@ export function OpenClawCronSurface({
       <PageContent className="flex min-h-full flex-col py-5">
         <PageHeader
           title="定时任务中心"
-          description="基础模式继续负责高频创建与管理，高级模式保留 OpenClaw 原生面板。两种模式现在统一挂在同一套页面壳和交互规范下。"
+          description="当前仅保留基础模式，适合高频创建、查看和管理常用定时任务。"
           className="gap-2.5"
           contentClassName="space-y-1"
           titleClassName="mt-0 text-[24px] font-semibold tracking-[-0.045em]"
@@ -1026,15 +1024,6 @@ export function OpenClawCronSurface({
                 className="px-3.5 py-1.5 text-[12px]"
               >
                 刷新
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                leadingIcon={mode === 'advanced' ? <Repeat className="h-4 w-4" /> : <Settings2 className="h-4 w-4" />}
-                onClick={() => setMode((current) => (current === 'basic' ? 'advanced' : 'basic'))}
-                className="px-3.5 py-1.5 text-[12px]"
-              >
-                {mode === 'advanced' ? '返回基础模式' : '高级模式'}
               </Button>
               <Button
                 variant="primary"
@@ -1081,8 +1070,8 @@ export function OpenClawCronSurface({
               tone="warning"
               icon={Zap}
               label="当前模式"
-              value={mode === 'advanced' ? '高级' : '基础'}
-              note={mode === 'advanced' ? '保留 OpenClaw 原生任务面板' : '适合高频创建和管理'}
+              value="基础"
+              note="高级模式入口暂时隐藏"
               className="px-2 py-1"
             />
           </div>
