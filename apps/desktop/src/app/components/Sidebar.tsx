@@ -17,8 +17,8 @@ import { RecentTasksList } from './RecentTasksList';
 import { Button } from './ui/Button';
 import { BRAND } from '../lib/brand';
 import {
+  buildGeneratedUserAvatarDataUrl,
   resolveUserAvatarUrl,
-  resolveUserInitial,
   resolveUserName,
   type AppUserAvatarSource,
 } from '../lib/user-avatar';
@@ -179,7 +179,12 @@ export function Sidebar({
   const brandText = isDevChannel ? BRAND.devSidebarTitle : BRAND.sidebarTitle;
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const resolvedAvatarUrl = resolveUserAvatarUrl(user);
+  const userAvatarSrc = !avatarLoadFailed && resolvedAvatarUrl
+    ? resolvedAvatarUrl
+    : buildGeneratedUserAvatarDataUrl(user, 'i');
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -192,6 +197,10 @@ export function Sidebar({
     document.addEventListener('mousedown', onClickOutside);
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, [menuOpen]);
+
+  useEffect(() => {
+    setAvatarLoadFailed(false);
+  }, [resolvedAvatarUrl, user?.avatar_url, user?.avatarUrl, user?.avatar, user?.name, user?.username]);
 
   const allMainItems: SidebarItem[] = [
     {
@@ -427,11 +436,16 @@ export function Sidebar({
           }}
         >
           <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[linear-gradient(135deg,#2b2b2b_0%,#4d4d4d_100%)] text-sm font-medium text-white transition-transform duration-[var(--motion-panel)] group-hover:scale-105">
-            {resolveUserAvatarUrl(user) ? (
-              <img src={resolveUserAvatarUrl(user)!} alt="user avatar" className="h-full w-full object-cover" />
-            ) : (
-              resolveUserInitial(user)
-            )}
+            <img
+              src={userAvatarSrc}
+              alt="user avatar"
+              className="h-full w-full object-cover"
+              onError={() => {
+                if (!avatarLoadFailed) {
+                  setAvatarLoadFailed(true);
+                }
+              }}
+            />
           </div>
           <div className="min-w-0 flex-1">
             <div className="truncate text-[13px] text-[var(--text-primary)]">{resolveUserName(user)}</div>
