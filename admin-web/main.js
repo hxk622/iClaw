@@ -1622,9 +1622,9 @@ async function saveBrandEditor(form) {
     await apiFetch(`/admin/portal/apps/${encodeURIComponent(snapshot.brandId)}`, {
       method: 'PUT',
       body: JSON.stringify({
-        display_name: snapshot.displayName,
+        displayName: snapshot.displayName,
         status: snapshot.status === 'disabled' ? 'disabled' : 'active',
-        default_locale: 'zh-CN',
+        defaultLocale: 'zh-CN',
         config: draftConfig,
       }),
     });
@@ -1755,9 +1755,9 @@ async function createBrand(formData) {
     await apiFetch(`/admin/portal/apps/${encodeURIComponent(brandId)}`, {
       method: 'PUT',
       body: JSON.stringify({
-        display_name: displayName,
+        displayName: displayName,
         status: 'active',
-        default_locale: 'zh-CN',
+        defaultLocale: 'zh-CN',
         config: {
           productName,
           product_name: productName,

@@ -175,12 +175,16 @@ export class PortalService {
 
   async upsertApp(accessToken: string, input: UpsertPortalAppInput) {
     const actor = await this.requireAdmin(accessToken);
+    const legacyInput = input as UpsertPortalAppInput & {
+      display_name?: unknown;
+      default_locale?: unknown;
+    };
     return this.store.upsertApp({
       appName: normalizeAppName(input.appName),
-      displayName: normalizeRequiredString(input.displayName, 'display_name'),
+      displayName: normalizeRequiredString(input.displayName ?? legacyInput.display_name, 'display_name'),
       description: normalizeOptionalString(input.description, 'description'),
       status: normalizeStatus(input.status),
-      defaultLocale: normalizeOptionalString(input.defaultLocale, 'default_locale') || 'zh-CN',
+      defaultLocale: normalizeOptionalString(input.defaultLocale ?? legacyInput.default_locale, 'default_locale') || 'zh-CN',
       config: asObject(input.config),
     }, actor.id);
   }
