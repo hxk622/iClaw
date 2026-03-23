@@ -92,6 +92,7 @@ function loadBrandDefaults() {
     'iclaw';
 
   return {
+    appName,
     serviceName: `${appName}-control-plane`,
     s3Bucket: `${appName}-files`,
     redisKeyPrefix: `${appName}:control-plane`,
@@ -122,11 +123,19 @@ function readNumberEnv(name: string, fallback: number): number {
 export const config = {
   port: readNumberEnv('PORT', DEFAULT_PORT),
   databaseUrl: process.env.DATABASE_URL || '',
+  appName: brandDefaults.appName,
   s3Endpoint: process.env.S3_ENDPOINT || 'http://127.0.0.1:9000',
   s3Region: process.env.S3_REGION || 'us-east-1',
   s3AccessKey: process.env.S3_ACCESS_KEY || 'openalpha',
   s3SecretKey: process.env.S3_SECRET_KEY || 'openalpha_dev',
   s3Bucket: process.env.S3_BUCKET || brandDefaults.s3Bucket,
+  userAssetsBucket:
+    process.env.USER_ASSETS_BUCKET || process.env.ICLAW_USER_ASSETS_BUCKET || 'iclaw-user-assets',
+  userAssetsTenantId:
+    process.env.USER_ASSETS_TENANT_ID ||
+    process.env.ICLAW_USER_ASSETS_TENANT_ID ||
+    process.env.APP_NAME ||
+    brandDefaults.appName,
   s3CdnUrl: process.env.S3_CDN_URL || '',
   apiUrl: process.env.API_URL || process.env.APP_URL || '',
   redisUrl: process.env.CONTROL_PLANE_REDIS_URL || process.env.REDIS_URL || '',
