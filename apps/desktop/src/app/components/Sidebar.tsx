@@ -96,6 +96,7 @@ interface SidebarProps {
   user: SidebarUser | null;
   activeView?: PrimaryView;
   enabledMenuKeys?: string[] | null;
+  menuDisplayNames?: Record<string, string> | null;
   selectedTaskId?: string | null;
   authenticated?: boolean;
   onOpenChat?: () => void;
@@ -144,6 +145,7 @@ export function Sidebar({
   user,
   activeView = 'chat',
   enabledMenuKeys = null,
+  menuDisplayNames = null,
   selectedTaskId = null,
   authenticated = false,
   onOpenChat,
@@ -202,10 +204,15 @@ export function Sidebar({
     setAvatarLoadFailed(false);
   }, [resolvedAvatarUrl, user?.avatar_url, user?.avatarUrl, user?.avatar, user?.name, user?.username]);
 
+  const resolveMenuLabel = (key: string, fallback: string) => {
+    const next = String(menuDisplayNames?.[key] || '').trim();
+    return next || fallback;
+  };
+
   const allMainItems: SidebarItem[] = [
     {
       key: 'chat',
-      label: '智能对话',
+      label: resolveMenuLabel('chat', '智能对话'),
       icon: MessageSquare,
       iconClass: 'text-[rgb(73,102,146)]',
       active: activeView === 'chat',
@@ -213,7 +220,7 @@ export function Sidebar({
     },
     {
       key: 'cron',
-      label: '定时任务',
+      label: resolveMenuLabel('cron', '定时任务'),
       icon: CheckSquare,
       iconClass: 'text-[var(--state-warn)]',
       active: activeView === 'cron',
@@ -221,7 +228,7 @@ export function Sidebar({
     },
     {
       key: 'investment-experts',
-      label: '智能投资专家',
+      label: resolveMenuLabel('investment-experts', '智能投资专家'),
       icon: ExpertAdvisorIcon,
       iconClass: 'text-[rgb(113,101,82)]',
       iconWrapClass: 'rounded-[10px] border border-transparent bg-transparent',
@@ -230,7 +237,7 @@ export function Sidebar({
     },
     {
       key: 'lobster-store',
-      label: '龙虾商店',
+      label: resolveMenuLabel('lobster-store', '龙虾商店'),
       icon: AssistantStoreIcon,
       iconClass: 'text-[var(--brand-primary)]',
       iconWrapClass: 'rounded-[10px] border border-transparent bg-transparent',
@@ -239,7 +246,7 @@ export function Sidebar({
     },
     {
       key: 'skill-store',
-      label: '技能商店',
+      label: resolveMenuLabel('skill-store', '技能商店'),
       icon: Blocks,
       iconClass: 'text-[rgb(106,90,144)]',
       active: activeView === 'skill-store',
@@ -247,7 +254,7 @@ export function Sidebar({
     },
     {
       key: 'mcp-store',
-      label: 'MCP商店',
+      label: resolveMenuLabel('mcp-store', 'MCP商店'),
       icon: MCPStoreIcon,
       iconClass: 'text-[rgb(69,96,132)]',
       iconWrapClass: 'rounded-[10px] border border-transparent bg-transparent',
@@ -256,7 +263,7 @@ export function Sidebar({
     },
     {
       key: 'memory',
-      label: '记忆管理',
+      label: resolveMenuLabel('memory', '记忆管理'),
       icon: BookOpen,
       iconClass: 'text-[var(--state-success)]',
       active: activeView === 'memory',
@@ -264,7 +271,7 @@ export function Sidebar({
     },
     {
       key: 'data-connections',
-      label: '数据连接',
+      label: resolveMenuLabel('data-connections', '数据连接'),
       icon: Link2,
       iconClass: 'text-[rgb(49,95,158)]',
       active: activeView === 'data-connections',
@@ -272,7 +279,7 @@ export function Sidebar({
     },
     {
       key: 'im-bots',
-      label: 'IM机器人',
+      label: resolveMenuLabel('im-bots', 'IM机器人'),
       icon: Bot,
       iconClass: 'text-[rgb(151,103,69)]',
       active: activeView === 'im-bots',
@@ -280,7 +287,7 @@ export function Sidebar({
     },
     {
       key: 'security',
-      label: '安全防护',
+      label: resolveMenuLabel('security', '安全防护'),
       icon: Shield,
       iconClass: 'text-[var(--state-success)]',
       active: activeView === 'security',

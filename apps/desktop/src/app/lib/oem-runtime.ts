@@ -173,6 +173,28 @@ export function resolveEnabledMenuKeys(config: Record<string, unknown> | null | 
   return Array.from(visible);
 }
 
+export function resolveMenuDisplayNames(config: Record<string, unknown> | null | undefined): Record<string, string> | null {
+  const root = asObject(config);
+  const menuBindings = asArray(root.menu_bindings);
+  if (!menuBindings.length) {
+    return null;
+  }
+
+  const labels: Record<string, string> = {};
+  for (const entry of menuBindings) {
+    const item = asObject(entry);
+    const config = asObject(item.config);
+    const displayName = String(config.display_name || config.displayName || '').trim();
+    if (!displayName) continue;
+    for (const key of normalizeMenuKeys([String(item.menu_key ?? item.menuKey ?? '').trim()])) {
+      if (!key || labels[key]) continue;
+      labels[key] = displayName;
+    }
+  }
+
+  return Object.keys(labels).length ? labels : null;
+}
+
 export async function syncPublishedBrandRuntimeSnapshot(input: {
   authBaseUrl: string;
   brandId: string;

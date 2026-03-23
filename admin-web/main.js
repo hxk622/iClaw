@@ -476,6 +476,11 @@ function getMenuLabel(menuKey) {
   return MENU_LIBRARY.find((item) => item.key === menuKey)?.label || titleizeKey(menuKey);
 }
 
+function getMenuDisplayNameOverride(source) {
+  const config = asObject(source?.config);
+  return String(config.display_name || config.displayName || '').trim();
+}
+
 function getAppConfig(source) {
   return asObject(source?.config || source?.draftConfig);
 }
@@ -1170,6 +1175,9 @@ function buildBrandDraftBuffer(detail) {
   const selectedMenus = mergeMenuBindings(detail?.menuBindings)
     .filter((item) => item.enabled)
     .map((item) => item.menuKey);
+  const menuDisplayNames = Object.fromEntries(
+    mergeMenuBindings(detail?.menuBindings).map((item) => [item.menuKey, getMenuDisplayNameOverride(item)]),
+  );
   const meta = getAppBrandMeta(brand);
 
   return {
@@ -1190,6 +1198,7 @@ function buildBrandDraftBuffer(detail) {
     selectedSkills: asArray(detail?.skillBindings).filter((item) => item.enabled).map((item) => item.skillSlug),
     selectedMcp: asArray(detail?.mcpBindings).filter((item) => item.enabled).map((item) => item.mcpKey),
     selectedMenus,
+    menuDisplayNames,
     selectedModels,
     recommendedModels: (recommendedModelsFromBindings.length
       ? recommendedModelsFromBindings
@@ -1256,6 +1265,13 @@ function captureBrandEditorBuffer() {
     surfaceMap.set(surface.key, surface);
   });
   const surfaces = Array.from(surfaceMap.values());
+  const menuDisplayNames = {...asObject(existing.menuDisplayNames)};
+  Array.from(form.querySelectorAll('input[name^="menu_display_name__"]')).forEach((input) => {
+    if (!(input instanceof HTMLInputElement)) return;
+    const key = input.name.replace(/^menu_display_name__/, '').trim();
+    if (!key) return;
+    menuDisplayNames[key] = input.value.trim();
+  });
 
   state.brandDraftBuffer = {
     ...existing,
@@ -1293,6 +1309,7 @@ function captureBrandEditorBuffer() {
     selectedSkills: asStringArray(existing.selectedSkills),
     selectedMcp: asStringArray(existing.selectedMcp),
     selectedMenus: asStringArray(existing.selectedMenus),
+    menuDisplayNames,
     selectedModels: asStringArray(existing.selectedModels),
     recommendedModels: asStringArray(existing.recommendedModels),
     defaultModel: form.querySelector('[name="default_model"]')
@@ -1685,7 +1702,10 @@ async function saveBrandEditor(form) {
             menuKey: item.key,
             enabled: snapshot.selectedMenus.includes(item.key),
             sortOrder: (index + 1) * 10,
-            config: asObject(existingMenuBindings.get(item.key)?.config),
+            config: {
+              ...asObject(existingMenuBindings.get(item.key)?.config),
+              display_name: String(asObject(snapshot.menuDisplayNames)[item.key] || '').trim(),
+            },
           })),
         ),
       }),
@@ -2473,7 +2493,7 @@ async function deleteModelCatalogEntry(ref) {
 }
 
 function toggleBrandCapability(type, value) {
-  const buffer = ensureBrandDraftBuffer();
+  const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
   if (!buffer) return;
   const current =
     type === 'skill'
@@ -2506,7 +2526,7 @@ function toggleBrandCapability(type, value) {
 }
 
 function toggleBrandRecommendedModel(value) {
-  const buffer = ensureBrandDraftBuffer();
+  const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
   if (!buffer || !buffer.selectedModels.includes(value)) return;
   const current = new Set(buffer.recommendedModels);
   if (current.has(value)) {
@@ -3154,12 +3174,24 @@ function renderBrandModelAssembly(buffer) {
 
 function renderMenuToggleCard(buffer, item, note) {
   const enabled = buffer.selectedMenus.includes(item.key);
+  const overrideName = String(asObject(buffer.menuDisplayNames)[item.key] || '').trim();
   return `
     <article class="checkbox-card checkbox-card--capability fig-capability-item">
       <input class="menu-checkbox visually-hidden" type="checkbox" value="${escapeHtml(item.key)}"${enabled ? ' checked' : ''} />
-      <div>
-        <strong>${escapeHtml(item.label)}</strong>
-        <span>${escapeHtml(note || item.key)}</span>
+      <div class="fig-capability-item__body">
+        <div>
+          <strong>${escapeHtml(item.label)}</strong>
+          <span>${escapeHtml(`Menu ID: ${item.key}${note ? ` · ${note}` : ''}`)}</span>
+        </div>
+        <label class="field fig-inline-field">
+          <span>显示名称</span>
+          <input
+            class="field-input"
+            name="menu_display_name__${escapeHtml(item.key)}"
+            value="${fieldValue(overrideName)}"
+            placeholder="${escapeHtml(item.label)}"
+          />
+        </label>
       </div>
       ${renderSwitch({
         checked: enabled,
@@ -3184,19 +3216,19 @@ function renderBrandMenusAssembly(buffer) {
         <article class="fig-card fig-card--subtle">
           <div class="fig-card__head">
             <h3>真实业务入口</h3>
-            <span>对应桌面端 sidebar 中的主导航</span>
+            <span>对应桌面端 sidebar 中的主导航，可按 OEM 单独覆盖显示名称</span>
           </div>
           <div class="fig-capability-stack">
-            ${sidebarItems.map((item) => renderMenuToggleCard(buffer, item, `${item.key} · 主导航`)).join('')}
+            ${sidebarItems.map((item) => renderMenuToggleCard(buffer, item, '主导航')).join('')}
           </div>
         </article>
         <article class="fig-card fig-card--subtle">
           <div class="fig-card__head">
             <h3>兼容 / 预留菜单</h3>
-            <span>保留历史 key，避免老品牌或老端配置直接失效</span>
+            <span>保留历史 key，避免老品牌或老端配置直接失效，也支持单独覆盖显示名称</span>
           </div>
           <div class="fig-capability-stack">
-            ${legacyItems.map((item) => renderMenuToggleCard(buffer, item, `${item.key} · 兼容项`)).join('')}
+            ${legacyItems.map((item) => renderMenuToggleCard(buffer, item, '兼容项')).join('')}
           </div>
         </article>
       </div>
@@ -3225,7 +3257,7 @@ function renderBrandModuleAssembly(buffer, surfaceKey) {
                   <span>控制该模块是否在左侧菜单中可见</span>
                 </div>
                 <div class="fig-capability-stack">
-                  ${renderMenuToggleCard(buffer, menuItem, `${menuItem.key} · 业务模块入口`)}
+                  ${renderMenuToggleCard(buffer, menuItem, '业务模块入口')}
                 </div>
                 <div class="fig-card__footer">
                   <span>${enabled ? '当前模块入口已显示在 OEM 菜单中。' : '当前模块入口已隐藏，不会在 OEM 菜单中显示。'}</span>

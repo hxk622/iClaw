@@ -11,7 +11,7 @@ import {
   type RuntimeDiagnosis,
   type RuntimeInstallProgress,
 } from './lib/tauri-runtime-config';
-import { loadBrandRuntimeConfigWithFallback, resolveEnabledMenuKeys } from './lib/oem-runtime';
+import { loadBrandRuntimeConfigWithFallback, resolveEnabledMenuKeys, resolveMenuDisplayNames } from './lib/oem-runtime';
 import { AuthPanel } from './components/AuthPanel';
 import { AccountPanel } from './components/account/AccountPanel';
 import { FirstRunSetupPanel } from './components/FirstRunSetupPanel';
@@ -1220,6 +1220,7 @@ function AuthedView({
   const [creditBalance, setCreditBalance] = useState<CreditBalanceData | null>(null);
   const [creditBalanceLoading, setCreditBalanceLoading] = useState(false);
   const enabledMenuKeys = resolveEnabledMenuKeys(brandShellConfig);
+  const menuDisplayNames = resolveMenuDisplayNames(brandShellConfig);
   const availablePrimaryViews = (enabledMenuKeys
     ? PRIMARY_VIEW_ORDER.filter((view) => enabledMenuKeys.includes(view))
     : PRIMARY_VIEW_ORDER) as PrimaryView[];
@@ -1433,6 +1434,7 @@ function AuthedView({
         user={currentUser}
         activeView={primaryView}
         enabledMenuKeys={enabledMenuKeys}
+        menuDisplayNames={menuDisplayNames}
         selectedTaskId={selectedTaskId}
         authenticated={authenticated}
         onOpenChat={() => setPrimaryView('chat')}

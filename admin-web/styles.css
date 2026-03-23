@@ -2288,8 +2288,21 @@ code {
   align-items: center;
 }
 
+.fig-capability-item__body {
+  flex: 1;
+  min-width: 0;
+}
+
 .fig-capability-item strong {
   font-size: 14px;
+}
+
+.fig-inline-field {
+  margin-top: 10px;
+}
+
+.fig-inline-field span {
+  margin-top: 0;
 }
 
 .fig-capability-actions {
