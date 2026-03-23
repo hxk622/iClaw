@@ -20,7 +20,8 @@ const bundledRuntimeDir = path.join(tauriDir, 'resources', 'openclaw-runtime');
 
 function parseArgs(argv) {
   const forwardedArgs = [];
-  let brandId = process.env.ICLAW_PORTAL_APP_NAME || process.env.ICLAW_BRAND || process.env.ICLAW_APP_NAME || '';
+  let brandId =
+    process.env.APP_NAME || process.env.ICLAW_PORTAL_APP_NAME || process.env.ICLAW_BRAND || process.env.ICLAW_APP_NAME || '';
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];

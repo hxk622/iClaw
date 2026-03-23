@@ -4,6 +4,7 @@ import { CircleHelp, FolderPlus, Globe, Heart, LogIn, LogOut, RefreshCw, Setting
 interface AvatarDropdownProps {
   open: boolean;
   authenticated: boolean;
+  settingsVisible?: boolean;
   onClose: () => void;
   onOpenAccount: () => void;
   onOpenLogin: () => void;
@@ -29,6 +30,7 @@ const menuLabelClass =
 export function AvatarDropdown({
   open,
   authenticated,
+  settingsVisible = true,
   onClose,
   onOpenAccount,
   onOpenLogin,
@@ -90,21 +92,23 @@ export function AvatarDropdown({
         </button>
       )}
 
-      <button
-        className={menuItemClass}
-        style={menuItemStyle}
-        onClick={() => {
-          onClose();
-          onOpenSettings();
-        }}
-      >
-        <Settings className={menuIconClass} style={menuIconStyle} />
-        <span className={menuLabelClass}>设置</span>
-      </button>
+      {settingsVisible ? (
+        <button
+          className={menuItemClass}
+          style={menuItemStyle}
+          onClick={() => {
+            onClose();
+            onOpenSettings();
+          }}
+        >
+          <Settings className={menuIconClass} style={menuIconStyle} />
+          <span className={menuLabelClass}>设置</span>
+        </button>
+      ) : null}
 
       <button className={menuItemClass} style={menuItemStyle}>
         <Heart className="h-5 w-5 text-rose-500 transition-transform duration-[var(--motion-panel)] group-hover:scale-110" style={menuIconStyle} />
-        <span className={menuLabelClass}>订阅服务</span>
+        <span className={menuLabelClass}>充值中心</span>
       </button>
 
       <button className={menuItemClass} style={menuItemStyle}>

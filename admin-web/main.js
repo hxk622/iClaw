@@ -2,15 +2,25 @@ import './styles.css';
 
 const API_BASE_URL = ((import.meta.env.VITE_AUTH_BASE_URL || 'http://127.0.0.1:2130') + '').trim().replace(/\/+$/, '');
 const TOKEN_STORAGE_KEY = 'iclaw.admin-web.tokens';
+const THEME_STORAGE_KEY = 'iclaw.admin-web.theme';
 const NAV_ITEMS = [
   {id: 'overview', label: '总览', icon: 'layoutGrid'},
   {id: 'brands', label: '品牌管理', icon: 'layers'},
-  {id: 'skills-mcp', label: '能力中心', icon: 'zap'},
+  {id: 'agent-center', label: 'Agent中心', icon: 'messageSquare'},
+  {id: 'skill-center', label: 'Skill中心', icon: 'zap'},
+  {id: 'mcp-center', label: 'MCP中心', icon: 'network'},
+  {id: 'model-center', label: '模型中心', icon: 'package'},
   {id: 'cloud-skills', label: '云技能', icon: 'store'},
   {id: 'assets', label: '资源管理', icon: 'image'},
   {id: 'releases', label: '版本发布', icon: 'rocket'},
   {id: 'audit-log', label: '审计日志', icon: 'fileText'},
 ];
+const CAPABILITY_ROUTE_MODE = {
+  'skills-mcp': 'skills',
+  'skill-center': 'skills',
+  'mcp-center': 'mcp',
+  'model-center': 'models',
+};
 const SURFACE_LABELS = {
   desktop: '桌面端',
   'home-web': 'Web 主页',
@@ -19,15 +29,83 @@ const SURFACE_LABELS = {
   input: '输入编辑器',
   'input-composer': '输入编辑器',
   'skill-store': '技能商店',
+  'mcp-store': 'MCP商店',
+  'lobster-store': '龙虾商店',
+  'investment-experts': '智能投资专家',
+  security: '安全中心',
+  memory: '记忆管理',
+  'data-connections': '数据连接',
+  'im-bots': 'IM机器人',
+  'task-center': '任务中心',
 };
-const DEFAULT_SURFACE_KEYS = ['desktop', 'home-web', 'header', 'sidebar', 'input', 'skill-store'];
+const SURFACE_BLUEPRINTS = [
+  {key: 'desktop', label: '桌面端', icon: 'monitor', kind: 'shell'},
+  {key: 'home-web', label: 'Home页', icon: 'globe', kind: 'shell'},
+  {key: 'header', label: 'Header栏', icon: 'layout', kind: 'shell'},
+  {key: 'sidebar', label: '侧边栏', icon: 'sidebar', kind: 'shell'},
+  {key: 'input', label: '输入框', icon: 'messageSquare', kind: 'shell'},
+  {key: 'skill-store', label: '技能商店', icon: 'store', kind: 'module', menuKey: 'skill-store'},
+  {key: 'mcp-store', label: 'MCP商店', icon: 'network', kind: 'module', menuKey: 'mcp-store'},
+  {key: 'lobster-store', label: '龙虾商店', icon: 'package', kind: 'module', menuKey: 'lobster-store'},
+  {key: 'investment-experts', label: '智能投资专家', icon: 'trendingUp', kind: 'module', menuKey: 'investment-experts'},
+  {key: 'security', label: '安全中心', icon: 'shield', kind: 'module', menuKey: 'security'},
+  {key: 'memory', label: '记忆管理', icon: 'fileText', kind: 'module', menuKey: 'memory'},
+  {key: 'data-connections', label: '数据连接', icon: 'network', kind: 'module', menuKey: 'data-connections'},
+  {key: 'im-bots', label: 'IM机器人', icon: 'messageSquare', kind: 'module', menuKey: 'im-bots'},
+  {key: 'task-center', label: '任务中心', icon: 'checkCircle', kind: 'module', menuKey: 'task-center'},
+];
+const DEFAULT_SURFACE_KEYS = SURFACE_BLUEPRINTS.map((item) => item.key);
 const MENU_LIBRARY = [
-  {key: 'workspace', label: '工作台'},
-  {key: 'skills', label: '技能'},
-  {key: 'mcp', label: 'MCP'},
-  {key: 'assets', label: '资源'},
-  {key: 'models', label: '模型'},
-  {key: 'settings', label: '设置'},
+  {key: 'chat', label: '智能对话', category: 'sidebar'},
+  {key: 'cron', label: '定时任务', category: 'sidebar'},
+  {key: 'investment-experts', label: '智能投资专家', category: 'sidebar'},
+  {key: 'lobster-store', label: '龙虾商店', category: 'sidebar'},
+  {key: 'skill-store', label: '技能商店', category: 'sidebar'},
+  {key: 'mcp-store', label: 'MCP商店', category: 'sidebar'},
+  {key: 'memory', label: '记忆管理', category: 'sidebar'},
+  {key: 'data-connections', label: '数据连接', category: 'sidebar'},
+  {key: 'im-bots', label: 'IM机器人', category: 'sidebar'},
+  {key: 'security', label: '安全中心', category: 'sidebar'},
+  {key: 'task-center', label: '任务中心', category: 'sidebar'},
+  {key: 'settings', label: '设置', category: 'sidebar'},
+  {key: 'workspace', label: '工作台', category: 'legacy'},
+  {key: 'skills', label: '技能', category: 'legacy'},
+  {key: 'mcp', label: 'MCP', category: 'legacy'},
+  {key: 'assets', label: '资源', category: 'legacy'},
+  {key: 'models', label: '模型', category: 'legacy'},
+];
+const BRAND_DETAIL_TABS = [
+  {id: 'desktop', label: '桌面端', icon: 'monitor'},
+  {id: 'home-web', label: 'Home页', icon: 'globe'},
+  {id: 'header', label: 'Header栏', icon: 'layout'},
+  {id: 'sidebar', label: '侧边栏', icon: 'sidebar'},
+  {id: 'input', label: '输入框', icon: 'messageSquare'},
+  {id: 'skills', label: '技能', icon: 'zap'},
+  {id: 'mcps', label: 'MCP', icon: 'network'},
+  {id: 'models', label: '模型', icon: 'package'},
+  {id: 'menus', label: '左菜单栏', icon: 'layers'},
+  {id: 'investment-experts', label: '智能投资专家', icon: 'trendingUp'},
+  {id: 'lobster-store', label: '龙虾商店', icon: 'store'},
+  {id: 'skill-store', label: '技能商店', icon: 'store'},
+  {id: 'mcp-store', label: 'MCP商店', icon: 'network'},
+  {id: 'security', label: '安全中心', icon: 'shield'},
+  {id: 'memory', label: '记忆管理', icon: 'fileText'},
+  {id: 'data-connections', label: '数据连接', icon: 'network'},
+  {id: 'im-bots', label: 'IM机器人', icon: 'messageSquare'},
+  {id: 'task-center', label: '任务中心', icon: 'checkCircle'},
+  {id: 'assets', label: '品牌资源', icon: 'image'},
+  {id: 'theme', label: '主题样式', icon: 'palette'},
+];
+const BRAND_DETAIL_TAB_GROUPS = [
+  {id: 'shell', label: 'Shell骨架', icon: 'monitor', tabs: ['desktop', 'home-web', 'header', 'sidebar', 'input']},
+  {id: 'capabilities', label: '能力绑定', icon: 'zap', tabs: ['skills', 'mcps', 'models', 'menus']},
+  {
+    id: 'modules',
+    label: '业务模块',
+    icon: 'store',
+    tabs: ['investment-experts', 'lobster-store', 'skill-store', 'mcp-store', 'security', 'memory', 'data-connections', 'im-bots', 'task-center'],
+  },
+  {id: 'brand', label: '品牌资源', icon: 'image', tabs: ['assets', 'theme']},
 ];
 
 const app = document.querySelector('#app');
@@ -36,7 +114,53 @@ if (!app) {
   throw new Error('admin-web mount failed');
 }
 
+function isThemeMode(value) {
+  return value === 'light' || value === 'dark' || value === 'system';
+}
+
+function readStoredThemeMode() {
+  try {
+    const value = localStorage.getItem(THEME_STORAGE_KEY);
+    return isThemeMode(value) ? value : 'system';
+  } catch {
+    return 'system';
+  }
+}
+
+function resolveThemeMode(mode) {
+  if (mode === 'light' || mode === 'dark') {
+    return mode;
+  }
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function applyThemeMode(mode) {
+  const resolved = resolveThemeMode(mode);
+  document.documentElement.dataset.themeMode = mode;
+  document.documentElement.dataset.resolvedTheme = resolved;
+  return resolved;
+}
+
+function persistThemeMode(mode) {
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, mode);
+  } catch {}
+}
+
+function cycleThemeMode(mode) {
+  if (mode === 'system') return 'light';
+  if (mode === 'light') return 'dark';
+  return 'system';
+}
+
+function themeModeLabel(mode) {
+  if (mode === 'light') return '浅色';
+  if (mode === 'dark') return '深色';
+  return '跟随系统';
+}
+
 const state = {
+  themeMode: readStoredThemeMode(),
   busy: false,
   loading: false,
   error: '',
@@ -51,7 +175,7 @@ const state = {
   selectedBrandId: '',
   brandDetail: null,
   brandDraftBuffer: null,
-  brandDetailTab: 'surfaces',
+  brandDetailTab: 'desktop',
   capabilities: null,
   skillCatalog: [],
   cloudSkillCatalog: [],
@@ -62,6 +186,8 @@ const state = {
   skillSyncSources: [],
   skillSyncRuns: [],
   capabilityMode: 'skills',
+  agentCatalog: [],
+  selectedAgentSlug: '',
   selectedSkillSlug: '',
   selectedMcpKey: '',
   selectedModelRef: '',
@@ -69,17 +195,22 @@ const state = {
   selectedSkillSyncSourceId: '',
   selectedReleaseId: '',
   selectedAuditId: '',
+  selectedDesktopReleaseChannel: 'prod',
   mcpTestResult: null,
   assets: [],
   releases: [],
   audit: [],
   showCreateBrandForm: false,
+  showAgentImportPanel: false,
   showSkillImportPanel: false,
   showSkillSyncSourceForm: false,
   showAssetUploadPanel: false,
   filters: {
     brandQuery: '',
     brandStatus: 'all',
+    agentQuery: '',
+    agentStatus: 'all',
+    agentSurface: 'all',
     capabilityQuery: '',
     capabilitySkillStatus: 'all',
     capabilitySkillCategory: 'all',
@@ -193,6 +324,7 @@ function icon(name, className = '') {
     image: `<svg viewBox="0 0 24 24"${cls}><rect ${common} x="3" y="5" width="18" height="14" rx="2"/><circle ${common} cx="8.5" cy="10" r="1.5"/><path ${common} d="m21 16-5-5-6 6-3-3-4 4"/></svg>`,
     zap: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>`,
     network: `<svg viewBox="0 0 24 24"${cls}><circle ${common} cx="12" cy="5" r="2"/><circle ${common} cx="5" cy="18" r="2"/><circle ${common} cx="19" cy="18" r="2"/><path ${common} d="M12 7v4"/><path ${common} d="M12 11 6.5 16"/><path ${common} d="M12 11 17.5 16"/></svg>`,
+    shield: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M12 3 5 6v5c0 4.7 2.8 7.9 7 10 4.2-2.1 7-5.3 7-10V6z"/><path ${common} d="m9.5 12 1.8 1.8 3.7-3.8"/></svg>`,
     calendar: `<svg viewBox="0 0 24 24"${cls}><rect ${common} x="3" y="5" width="18" height="16" rx="2"/><path ${common} d="M16 3v4"/><path ${common} d="M8 3v4"/><path ${common} d="M3 10h18"/></svg>`,
     user: `<svg viewBox="0 0 24 24"${cls}><circle ${common} cx="12" cy="8" r="4"/><path ${common} d="M5 20a7 7 0 0 1 14 0"/></svg>`,
     package: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path ${common} d="m12 12 8-4.5"/><path ${common} d="m12 12-8-4.5"/><path ${common} d="M12 21v-9"/></svg>`,
@@ -231,6 +363,18 @@ function renderAdminLogo(className = '') {
         <path d="M20 46.5 36 38l16 8.5" stroke="#F9F7F3" stroke-opacity="0.64" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
     </span>
+  `;
+}
+
+function renderThemeToggle() {
+  return `
+    <button class="theme-toggle" type="button" data-action="toggle-theme" aria-label="切换主题">
+      ${icon('palette', 'theme-toggle__icon')}
+      <span class="theme-toggle__meta">
+        <span class="theme-toggle__label">Theme</span>
+        <strong>${themeModeLabel(state.themeMode)}</strong>
+      </span>
+    </button>
   `;
 }
 
@@ -276,6 +420,25 @@ function surfaceLabel(key) {
   return SURFACE_LABELS[key] || titleizeKey(key);
 }
 
+function getSurfaceBlueprint(key) {
+  return SURFACE_BLUEPRINTS.find((item) => item.key === key) || null;
+}
+
+function getBrandDetailTabConfig(tabId) {
+  return BRAND_DETAIL_TABS.find((item) => item.id === tabId) || null;
+}
+
+function getBrandDetailTabGroup(tabId) {
+  return BRAND_DETAIL_TAB_GROUPS.find((group) => group.tabs.includes(tabId)) || BRAND_DETAIL_TAB_GROUPS[0];
+}
+
+function getMenuItemsByCategory(category) {
+  if (!category) {
+    return MENU_LIBRARY;
+  }
+  return MENU_LIBRARY.filter((item) => item.category === category);
+}
+
 function statusLabel(status) {
   switch (status) {
     case 'active':
@@ -301,6 +464,77 @@ function getMenuLabel(menuKey) {
 
 function getAppConfig(source) {
   return asObject(source?.config || source?.draftConfig);
+}
+
+function getDesktopReleaseConfig(source) {
+  const config = getAppConfig(source);
+  const root = asObject(config.desktop_release_admin);
+  const channels = asObject(root.channels);
+  const ensureSnapshot = (value) => {
+    const snapshot = asObject(value);
+    return {
+      version: String(snapshot.version || '').trim(),
+      notes: String(snapshot.notes || '').trim(),
+      publishedAt: String(snapshot.publishedAt || snapshot.published_at || '').trim(),
+      policy: {
+        mandatory: Boolean(asObject(snapshot.policy).mandatory),
+        forceUpdateBelowVersion: String(
+          asObject(snapshot.policy).forceUpdateBelowVersion || asObject(snapshot.policy).force_update_below_version || '',
+        ).trim(),
+        allowCurrentRunToFinish:
+          asObject(snapshot.policy).allowCurrentRunToFinish === undefined &&
+          asObject(snapshot.policy).allow_current_run_to_finish === undefined
+            ? true
+            : Boolean(
+                asObject(snapshot.policy).allowCurrentRunToFinish ?? asObject(snapshot.policy).allow_current_run_to_finish,
+              ),
+        reasonCode: String(asObject(snapshot.policy).reasonCode || asObject(snapshot.policy).reason_code || '').trim(),
+        reasonMessage: String(
+          asObject(snapshot.policy).reasonMessage || asObject(snapshot.policy).reason_message || '',
+        ).trim(),
+      },
+      targets: asArray(snapshot.targets).map((item) => {
+        const target = asObject(item);
+        return {
+          platform: String(target.platform || '').trim(),
+          arch: String(target.arch || '').trim(),
+          installer: asObject(target.installer),
+          updater: asObject(target.updater),
+          signature: asObject(target.signature),
+        };
+      }),
+    };
+  };
+  const ensureChannel = (value) => {
+    const channel = asObject(value);
+    return {
+      draft: ensureSnapshot(channel.draft),
+      published: ensureSnapshot(channel.published),
+    };
+  };
+  return {
+    dev: ensureChannel(channels.dev),
+    prod: ensureChannel(channels.prod),
+  };
+}
+
+function findDesktopReleaseTarget(snapshot, platform, arch) {
+  return asArray(snapshot?.targets).find((item) => item.platform === platform && item.arch === arch) || null;
+}
+
+function formatDesktopTargetLabel(platform, arch) {
+  const platformLabel = platform === 'darwin' ? 'macOS' : platform === 'windows' ? 'Windows' : platform;
+  return `${platformLabel} / ${arch === 'aarch64' ? 'ARM64' : arch === 'x64' ? 'x64' : arch}`;
+}
+
+function inferBinaryContentType(file) {
+  const name = String(file?.name || '').toLowerCase();
+  if (name.endsWith('.dmg')) return 'application/x-apple-diskimage';
+  if (name.endsWith('.exe')) return 'application/vnd.microsoft.portable-executable';
+  if (name.endsWith('.app.tar.gz') || name.endsWith('.tar.gz') || name.endsWith('.tgz')) return 'application/gzip';
+  if (name.endsWith('.nsis.zip') || name.endsWith('.zip')) return 'application/zip';
+  if (name.endsWith('.sig')) return 'text/plain; charset=utf-8';
+  return file?.type || 'application/octet-stream';
 }
 
 function getAppBrandMeta(source) {
@@ -504,7 +738,24 @@ function navIsActive(itemId) {
   if (itemId === 'brands') {
     return state.route === 'brands' || state.route === 'brand-detail';
   }
+  if (CAPABILITY_ROUTE_MODE[itemId]) {
+    return state.route === itemId;
+  }
   return state.route === itemId;
+}
+
+function isCapabilityRoute(route) {
+  return Boolean(CAPABILITY_ROUTE_MODE[route]);
+}
+
+function getCapabilityModeForRoute(route) {
+  return CAPABILITY_ROUTE_MODE[route] || 'skills';
+}
+
+function getCapabilityRouteForMode(mode) {
+  if (mode === 'mcp') return 'mcp-center';
+  if (mode === 'models') return 'model-center';
+  return 'skill-center';
 }
 
 function brandLastPublished(brandDetail) {
@@ -591,6 +842,14 @@ function getSkillLibraryItem(slug) {
 
 function getAdminSkillCatalogEntry(slug) {
   return state.skillCatalog.find((item) => item.slug === slug) || null;
+}
+
+function getAgentCatalogEntry(slug) {
+  return state.agentCatalog.find((item) => item.slug === slug) || null;
+}
+
+function getAgentSurface(agent) {
+  return String(asObject(agent?.metadata).surface || '').trim() || 'general';
 }
 
 function getCloudSkillCatalogEntry(slug) {
@@ -841,6 +1100,30 @@ async function apiFetch(path, init = {}, options = {}) {
   return parseResponse(response);
 }
 
+async function apiUploadBinary(path, file, options = {}) {
+  const headers = new Headers(options.headers || {});
+  if (state.tokens?.access_token) {
+    headers.set('Authorization', `Bearer ${state.tokens.access_token}`);
+  }
+  headers.set('Content-Type', options.contentType || file.type || 'application/octet-stream');
+  headers.set('x-iclaw-file-name', file.name || 'artifact.bin');
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'PUT',
+    headers,
+    body: file,
+  });
+
+  if (response.status === 401 && state.tokens?.refresh_token) {
+    const refreshed = await refreshToken().catch(() => false);
+    if (refreshed) {
+      return apiUploadBinary(path, file, options);
+    }
+  }
+
+  return parseResponse(response);
+}
+
 function buildBrandDraftBuffer(detail) {
   const brand = detail?.brand || null;
   const draftConfig = clone(asObject(brand?.draftConfig));
@@ -921,6 +1204,24 @@ function ensureBrandDraftBuffer() {
   return state.brandDraftBuffer;
 }
 
+function mergeCheckedValues(form, selector, existingValues) {
+  const inputs = Array.from(form.querySelectorAll(selector));
+  const next = new Set(asStringArray(existingValues));
+  if (!inputs.length) {
+    return Array.from(next);
+  }
+  inputs.forEach((node) => {
+    const value = String(node.value || '').trim();
+    if (!value) return;
+    if (node.checked) {
+      next.add(value);
+    } else {
+      next.delete(value);
+    }
+  });
+  return Array.from(next);
+}
+
 function captureBrandEditorBuffer() {
   const form = document.querySelector('#brand-editor-form');
   if (!form) {
@@ -929,12 +1230,18 @@ function captureBrandEditorBuffer() {
 
   const data = new FormData(form);
   const existing = clone(state.brandDraftBuffer || ensureBrandDraftBuffer() || {});
-  const surfaces = Array.from(form.querySelectorAll('.surface-editor')).map((node) => ({
+  const visibleSurfaces = Array.from(form.querySelectorAll('.surface-editor')).map((node) => ({
     key: node.getAttribute('data-surface-key') || '',
     label: node.getAttribute('data-surface-label') || '',
     enabled: Boolean(node.querySelector('input[type="checkbox"]')?.checked),
     json: String(node.querySelector('textarea')?.value || '{}'),
   }));
+  const surfaceMap = new Map(asArray(existing.surfaces).map((item) => [item.key, clone(item)]));
+  visibleSurfaces.forEach((surface) => {
+    if (!surface.key) return;
+    surfaceMap.set(surface.key, surface);
+  });
+  const surfaces = Array.from(surfaceMap.values());
 
   state.brandDraftBuffer = {
     ...existing,
@@ -966,21 +1273,11 @@ function captureBrandEditorBuffer() {
         ? String(data.get('theme_dark_on_primary') || existing.theme?.darkOnPrimary || '')
         : String(existing.theme?.darkOnPrimary || ''),
     },
-    selectedSkills: form.querySelector('.skill-checkbox')
-      ? Array.from(form.querySelectorAll('.skill-checkbox:checked')).map((node) => node.value)
-      : asStringArray(existing.selectedSkills),
-    selectedMcp: form.querySelector('.mcp-checkbox')
-      ? Array.from(form.querySelectorAll('.mcp-checkbox:checked')).map((node) => node.value)
-      : asStringArray(existing.selectedMcp),
-    selectedMenus: form.querySelector('.menu-checkbox')
-      ? Array.from(form.querySelectorAll('.menu-checkbox:checked')).map((node) => node.value)
-      : asStringArray(existing.selectedMenus),
-    selectedModels: form.querySelector('.model-checkbox')
-      ? Array.from(form.querySelectorAll('.model-checkbox:checked')).map((node) => node.value)
-      : asStringArray(existing.selectedModels),
-    recommendedModels: form.querySelector('.model-recommended-checkbox')
-      ? Array.from(form.querySelectorAll('.model-recommended-checkbox:checked')).map((node) => node.value)
-      : asStringArray(existing.recommendedModels),
+    selectedSkills: mergeCheckedValues(form, '.skill-checkbox', existing.selectedSkills),
+    selectedMcp: mergeCheckedValues(form, '.mcp-checkbox', existing.selectedMcp),
+    selectedMenus: mergeCheckedValues(form, '.menu-checkbox', existing.selectedMenus),
+    selectedModels: mergeCheckedValues(form, '.model-checkbox', existing.selectedModels),
+    recommendedModels: mergeCheckedValues(form, '.model-recommended-checkbox', existing.recommendedModels),
     defaultModel: form.querySelector('[name="default_model"]')
       ? String(data.get('default_model') || existing.defaultModel || '')
       : String(existing.defaultModel || ''),
@@ -991,7 +1288,7 @@ function captureBrandEditorBuffer() {
     menusText: form.querySelector('[name="menus_text"]')
       ? String(data.get('menus_text') || existing.menusText || '')
       : String(existing.menusText || ''),
-    surfaces: surfaces.length ? surfaces : asArray(existing.surfaces),
+    surfaces,
   };
 
   return state.brandDraftBuffer;
@@ -1154,6 +1451,9 @@ function resetCapabilityFilters() {
 }
 
 function syncSupplementalSelection() {
+  if (!state.selectedAgentSlug || (!state.agentCatalog.find((item) => item.slug === state.selectedAgentSlug) && state.selectedAgentSlug !== '__new__')) {
+    state.selectedAgentSlug = state.agentCatalog[0]?.slug || '';
+  }
   if (!state.releases.find((item) => item.id === state.selectedReleaseId)) {
     state.selectedReleaseId = state.releases[0]?.id || '';
   }
@@ -1167,8 +1467,9 @@ async function loadAppData() {
   render();
 
   try {
-    const [appsData, skillCatalogData, mcpCatalogData, modelCatalogData, cloudSkillCatalogData, skillSyncSourcesData, skillSyncRunsData] = await Promise.all([
+    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, modelCatalogData, cloudSkillCatalogData, skillSyncSourcesData, skillSyncRunsData] = await Promise.all([
       apiFetch('/admin/portal/apps', {method: 'GET'}),
+      apiFetch('/admin/agents/catalog', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/skills', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/mcps', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/models', {method: 'GET'}),
@@ -1186,6 +1487,7 @@ async function loadAppData() {
     const detailsMap = Object.fromEntries(details);
 
     state.portalAppDetails = detailsMap;
+    state.agentCatalog = Array.isArray(agentCatalogData.items) ? agentCatalogData.items : [];
     state.skillCatalog = Array.isArray(skillCatalogData.items) ? skillCatalogData.items : [];
     state.cloudSkillCatalog = Array.isArray(cloudSkillCatalogData.items) ? cloudSkillCatalogData.items : [];
     state.mcpCatalog = Array.isArray(mcpCatalogData.items) ? mcpCatalogData.items : [];
@@ -1595,6 +1897,99 @@ async function deleteAsset(brandId, assetKey) {
   }
 }
 
+async function uploadDesktopReleaseFiles(formData) {
+  const brandId = String(formData.get('brand_id') || '').trim();
+  const channel = String(formData.get('channel') || 'prod').trim() || 'prod';
+  if (!brandId) {
+    throw new Error('请选择要发布的品牌');
+  }
+
+  const slots = [
+    ['darwin', 'aarch64', 'installer'],
+    ['darwin', 'aarch64', 'updater'],
+    ['darwin', 'aarch64', 'signature'],
+    ['darwin', 'x64', 'installer'],
+    ['darwin', 'x64', 'updater'],
+    ['darwin', 'x64', 'signature'],
+    ['windows', 'x64', 'installer'],
+    ['windows', 'x64', 'updater'],
+    ['windows', 'x64', 'signature'],
+    ['windows', 'aarch64', 'installer'],
+    ['windows', 'aarch64', 'updater'],
+    ['windows', 'aarch64', 'signature'],
+  ];
+  let uploaded = 0;
+
+  for (const [platform, arch, artifactType] of slots) {
+    const fieldName = `desktop_file_${platform}_${arch}_${artifactType}`;
+    const file = formData.get(fieldName);
+    if (!(file instanceof File) || file.size === 0) {
+      continue;
+    }
+    await apiUploadBinary(
+      `/admin/portal/apps/${encodeURIComponent(brandId)}/desktop-release/${encodeURIComponent(channel)}/${encodeURIComponent(platform)}/${encodeURIComponent(arch)}/${encodeURIComponent(artifactType)}`,
+      file,
+      {
+        contentType: inferBinaryContentType(file),
+      },
+    );
+    uploaded += 1;
+  }
+
+  return uploaded;
+}
+
+async function publishDesktopRelease(formData) {
+  const brandId = String(formData.get('brand_id') || '').trim();
+  const channel = String(formData.get('channel') || 'prod').trim() || 'prod';
+  const version = String(formData.get('version') || '').trim();
+  const notes = String(formData.get('notes') || '').trim();
+  const mandatory = formData.get('mandatory') === 'on';
+  const forceUpdateBelowVersion = String(formData.get('force_update_below_version') || '').trim();
+  const allowCurrentRunToFinish = formData.get('allow_current_run_to_finish') === 'on';
+  const reasonMessage = String(formData.get('reason_message') || '').trim();
+
+  if (!brandId) {
+    setError('请选择要发布的品牌');
+    return;
+  }
+  if (!version) {
+    setError('请填写桌面版本号');
+    return;
+  }
+
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    const uploadedCount = await uploadDesktopReleaseFiles(formData);
+    await apiFetch(`/admin/portal/apps/${encodeURIComponent(brandId)}/desktop-release/${encodeURIComponent(channel)}/publish`, {
+      method: 'POST',
+      body: JSON.stringify({
+        version,
+        notes: notes || null,
+        mandatory,
+        force_update_below_version: forceUpdateBelowVersion || null,
+        allow_current_run_to_finish: allowCurrentRunToFinish,
+        reason_code: mandatory ? 'stability_hotfix' : null,
+        reason_message: reasonMessage || null,
+      }),
+    });
+    await loadAppData();
+    setNotice(
+      uploadedCount > 0
+        ? `桌面版本 ${version} 已发布并生效，同时上传了 ${uploadedCount} 个发布文件。`
+        : `桌面版本 ${version} 已发布并生效。`,
+    );
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '桌面发布失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
 async function setSkillEnabled(slug, enabled) {
   if (!slug) return;
   state.busy = true;
@@ -1624,6 +2019,102 @@ async function setSkillEnabled(slug, enabled) {
     setNotice(`${slug} 已${enabled ? '启用' : '停用'}。`);
   } catch (error) {
     setError(error instanceof Error ? error.message : `技能${enabled ? '启用' : '停用'}失败`);
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function setAgentEnabled(slug, enabled) {
+  if (!slug) return;
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    const agent = getAgentCatalogEntry(slug);
+    if (!agent) {
+      throw new Error('agent not found');
+    }
+    await apiFetch('/admin/agents/catalog', {
+      method: 'PUT',
+      body: JSON.stringify({
+        slug: agent.slug,
+        name: agent.name,
+        description: agent.description,
+        category: agent.category,
+        publisher: agent.publisher,
+        featured: agent.featured === true,
+        official: agent.official !== false,
+        tags: agent.tags || [],
+        capabilities: agent.capabilities || [],
+        use_cases: agent.use_cases || [],
+        metadata: asObject(agent.metadata),
+        sort_order: Number(agent.sort_order || 0),
+        active: enabled,
+      }),
+    });
+    await loadAppData();
+    setNotice(`${slug} 已${enabled ? '启用' : '停用'}。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : `Agent${enabled ? '启用' : '停用'}失败`);
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function deleteAgentCatalogEntry(slug) {
+  if (!slug) return;
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    await apiFetch(`/admin/agents/catalog?slug=${encodeURIComponent(slug)}`, {
+      method: 'DELETE',
+    });
+    await loadAppData();
+    setNotice(`已删除 Agent ${slug}。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : 'Agent 删除失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function saveAgentCatalogEntry(formData) {
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    const slug = String(formData.get('slug') || '').trim();
+    await apiFetch('/admin/agents/catalog', {
+      method: 'PUT',
+      body: JSON.stringify({
+        slug,
+        name: String(formData.get('name') || '').trim(),
+        description: String(formData.get('description') || '').trim(),
+        category: String(formData.get('category') || '').trim() || 'general',
+        publisher: String(formData.get('publisher') || '').trim() || 'admin-web',
+        featured: String(formData.get('featured') || 'false') === 'true',
+        official: String(formData.get('official') || 'true') === 'true',
+        tags: splitLines(formData.get('tags_text')),
+        capabilities: splitLines(formData.get('capabilities_text')),
+        use_cases: splitLines(formData.get('use_cases_text')),
+        metadata: parseJsonText(String(formData.get('metadata_json') || '{}').trim() || '{}', 'Agent metadata'),
+        sort_order: Number.parseInt(String(formData.get('sort_order') || '9999').trim() || '9999', 10),
+        active: String(formData.get('active') || 'true') === 'true',
+      }),
+    });
+    await loadAppData();
+    state.selectedAgentSlug = slug;
+    state.showAgentImportPanel = false;
+    setNotice(`已保存 Agent ${slug}。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : 'Agent 保存失败');
   } finally {
     state.busy = false;
     render();
@@ -2117,6 +2608,94 @@ function renderHeader(title, description, actions = '') {
   `;
 }
 
+function renderPageGuide(title, items = [], accent = 'default') {
+  const safeItems = items.filter(Boolean).slice(0, 4);
+  if (!safeItems.length) {
+    return '';
+  }
+  return `
+    <section class="fig-guide fig-guide--${escapeHtml(accent)}">
+      <div class="fig-guide__head">
+        <span class="fig-guide__eyebrow">操作指南</span>
+        <h3>${escapeHtml(title)}</h3>
+      </div>
+      <div class="fig-guide__grid">
+        ${safeItems
+          .map(
+            (item, index) => `
+              <article class="fig-guide__item">
+                <span class="fig-guide__index">${index + 1}</span>
+                <p>${escapeHtml(item)}</p>
+              </article>
+            `,
+          )
+          .join('')}
+      </div>
+    </section>
+  `;
+}
+
+function renderBrandDetailGuide(activeTab) {
+  if (activeTab === 'assets') {
+    return renderPageGuide('品牌资源怎么用', [
+      '先给品牌上传 logo、favicon、home 图等资源，asset key 要和前端约定槽位一致。',
+      '同一页面可以直接预览当前品牌已登记资源，并跳转打开原文件。',
+      '资源保存后若要让客户端吃到最新资源，仍需要保存品牌配置并发布快照。',
+    ], 'brand');
+  }
+  if (activeTab === 'theme') {
+    return renderPageGuide('主题样式怎么改', [
+      '优先在 Light / Dark Theme 中维护主色、hover 色和文字色。',
+      '需要更深度控制时，再用下方高级 JSON 直接编辑完整 draft config。',
+      '保存只会更新草稿，发布快照后品牌端才会切到新主题。',
+    ], 'brand');
+  }
+  if (activeTab === 'skills') {
+    return renderPageGuide('技能装配怎么配', [
+      '技能主数据先在 Skill中心维护，这里只负责给当前 OEM 勾选启用哪些技能。',
+      '当前品牌勾选后会进入该品牌的 capabilities.skills 和 skill bindings。',
+      '保存配置后再发布快照，客户端同步新 snapshot 后技能入口和运行时能力才会更新。',
+    ], 'brand');
+  }
+  if (activeTab === 'mcps') {
+    return renderPageGuide('MCP 装配怎么配', [
+      'MCP 主目录先在 MCP中心维护，这里只做当前 OEM 的启用和关闭。',
+      '每个 OEM 只应启用自己需要的连接器，避免把无关 MCP 暴露给前端和运行时。',
+      '保存配置后再发布快照，客户端同步后才会加载新的 MCP 清单。',
+    ], 'brand');
+  }
+  if (activeTab === 'models') {
+    return renderPageGuide('模型 Allowlist 怎么配', [
+      '模型全集先在 模型中心 维护，这里只做当前 OEM 的可见模型、默认模型和推荐模型。',
+      '勾选的模型就是这个 app 的 allowlist；不勾选，输入框模型选择里就不应该看到。',
+      '保存配置并发布快照后，客户端同步 snapshot，必要时重启 sidecar 才会刷新 models.list。',
+    ], 'brand');
+  }
+  if (activeTab === 'menus') {
+    return renderPageGuide('左菜单栏怎么配', [
+      '这里控制当前 OEM app 的侧边栏菜单显隐，不再和技能、MCP、模型混在一个大 tab 里。',
+      '优先配置真实业务入口，如龙虾商店、智能投资专家、安全中心、数据连接等。',
+      '保存配置并发布快照后，前端才能按品牌显示不同菜单组合。',
+    ], 'brand');
+  }
+  const surfaceBlueprint = getSurfaceBlueprint(activeTab);
+  if (surfaceBlueprint?.kind === 'shell') {
+    return renderPageGuide(`${surfaceBlueprint.label}怎么配`, [
+      `这里单独维护 ${surfaceBlueprint.label} 的 OEM 配置，不再和其他 UI 位混在一个大 Surface tab 里。`,
+      '切换开关控制这个区域是否启用，JSON 区域用于写该区域的装配配置。',
+      '保存配置只更新草稿；发布快照后，该 OEM 才会真正切到这套界面配置。',
+    ], 'brand');
+  }
+  if (surfaceBlueprint?.kind === 'module') {
+    return renderPageGuide(`${surfaceBlueprint.label}怎么配`, [
+      `这里单独维护 ${surfaceBlueprint.label} 这个业务模块，包含入口显隐和模块 surface 配置。`,
+      '如果该模块有侧边栏入口，会单独显示模块入口开关；模块内部再维护自己的 surface JSON。',
+      '保存配置并发布快照后，该 OEM 才会按品牌启用这块模块能力。',
+    ], 'brand');
+  }
+  return '';
+}
+
 function renderOverviewPage() {
   const stats = state.dashboard?.stats || {};
   const releases = state.dashboard?.recent_releases || [];
@@ -2145,6 +2724,11 @@ function renderOverviewPage() {
         </div>
       </div>
       <div class="fig-page__body">
+        ${renderPageGuide('总览页怎么看', [
+          '这里看全局运营面：品牌数、技能数、MCP 数、最近发布和最近编辑。',
+          '要新建一个 OEM 应用，先点右上角“创建新品牌”。',
+          '要排查最近谁改了什么，直接看“最近编辑”或进审计日志。',
+        ], 'overview')}
         <section class="fig-stats-grid">
           ${statCards
             .map(
@@ -2283,6 +2867,11 @@ function renderBrandsPage() {
         </div>
       </div>
       <div class="fig-page__body">
+        ${renderPageGuide('品牌管理怎么用', [
+          '一个品牌就是一个 OEM app，这里负责创建、搜索和进入每个品牌的配置空间。',
+          '进入品牌详情后，分别维护 shell 区域、能力绑定、业务模块、资源和主题。',
+          '改完先保存配置，再发布快照；不发布，客户端不会切到新配置。',
+        ], 'brands')}
         ${
           state.showCreateBrandForm
             ? `
@@ -2349,6 +2938,299 @@ function renderBrandCard(brand) {
   `;
 }
 
+function getBrandSurfaceDraft(buffer, key) {
+  return (
+    asArray(buffer?.surfaces).find((item) => item.key === key) || {
+      key,
+      label: surfaceLabel(key),
+      enabled: true,
+      json: '{}',
+    }
+  );
+}
+
+function renderBrandSurfaceEditor(buffer, surfaceKey, title, description) {
+  const surface = getBrandSurfaceDraft(buffer, surfaceKey);
+  const blueprint = getSurfaceBlueprint(surfaceKey);
+  return `
+    <section class="fig-brand-section">
+      <div class="fig-section-heading">
+        <h2>${escapeHtml(title || surface.label)}</h2>
+        <p>${escapeHtml(description || `维护 ${surface.label} 的 OEM 装配配置`)}</p>
+      </div>
+      <article class="surface-editor fig-surface-card" data-surface-key="${escapeHtml(surface.key)}" data-surface-label="${escapeHtml(surface.label)}">
+        <div class="fig-surface-card__preview">
+          ${icon(blueprint?.icon || 'layout', 'fig-surface-card__preview-icon')}
+        </div>
+        <div class="fig-surface-card__body">
+          <div class="surface-editor__head fig-surface-card__head">
+            <div>
+              <h3>${escapeHtml(surface.label)}</h3>
+              <p>${surface.enabled ? '已启用' : '已关闭'}</p>
+            </div>
+            <label class="toggle fig-toggle">
+              <input type="checkbox" name="surface_enabled__${escapeHtml(surface.key)}"${surface.enabled ? ' checked' : ''} />
+              <span>${surface.enabled ? '已启用' : '已关闭'}</span>
+            </label>
+          </div>
+          <textarea class="code-input code-input--tall" name="surface_config__${escapeHtml(surface.key)}">${escapeHtml(surface.json)}</textarea>
+        </div>
+      </article>
+    </section>
+  `;
+}
+
+function renderBrandSkillsAssembly(buffer) {
+  const skills = getMergedSkills();
+  return `
+    <section class="fig-brand-section">
+      <div class="fig-section-heading">
+        <h2>技能</h2>
+        <p>给当前 OEM 应用勾选可用技能，技能主数据仍由 Skill中心 统一维护。</p>
+      </div>
+      <article class="fig-card fig-card--subtle">
+        <div class="fig-card__head">
+          <h3>技能装配</h3>
+          <span>按品牌控制运行时可用技能</span>
+        </div>
+        <div class="fig-capability-stack">
+          ${skills.length
+            ? skills
+                .map(
+                  (skill) => `
+                    <article class="checkbox-card checkbox-card--capability fig-capability-item">
+                      <input class="skill-checkbox visually-hidden" type="checkbox" value="${escapeHtml(skill.slug)}"${buffer.selectedSkills.includes(skill.slug) ? ' checked' : ''} />
+                      <div>
+                        <strong>${escapeHtml(skill.name)}</strong>
+                        <span>${escapeHtml(skill.category || '未分类')} · ${escapeHtml(skill.publisher || 'iClaw')}</span>
+                      </div>
+                      ${renderSwitch({
+                        checked: buffer.selectedSkills.includes(skill.slug),
+                        action: 'toggle-brand-skill',
+                        attrs: `data-skill-slug="${escapeHtml(skill.slug)}"`,
+                        label: buffer.selectedSkills.includes(skill.slug) ? '已启用' : '已禁用',
+                      })}
+                    </article>
+                  `,
+                )
+                .join('')
+            : `<div class="empty-state">当前没有可用技能。</div>`}
+        </div>
+      </article>
+    </section>
+  `;
+}
+
+function renderBrandMcpAssembly(buffer) {
+  const mcpServers = getMergedMcpServers();
+  return `
+    <section class="fig-brand-section">
+      <div class="fig-section-heading">
+        <h2>MCP</h2>
+        <p>给当前 OEM 应用勾选可用的 MCP 连接器，避免把无关外部能力暴露给前端和 runtime。</p>
+      </div>
+      <article class="fig-card fig-card--subtle">
+        <div class="fig-card__head">
+          <h3>MCP 装配</h3>
+          <span>已连接的能力提供方</span>
+        </div>
+        <div class="fig-capability-stack">
+          ${mcpServers.length
+            ? mcpServers
+                .map(
+                  (server) => `
+                    <article class="checkbox-card checkbox-card--capability fig-capability-item">
+                      <input class="mcp-checkbox visually-hidden" type="checkbox" value="${escapeHtml(server.key)}"${buffer.selectedMcp.includes(server.key) ? ' checked' : ''} />
+                      <div>
+                        <strong>${escapeHtml(server.name)}</strong>
+                        <span>${escapeHtml(server.transport || 'config')} · ${escapeHtml(server.connected_brand_count)} 个品牌使用</span>
+                      </div>
+                      ${renderSwitch({
+                        checked: buffer.selectedMcp.includes(server.key),
+                        action: 'toggle-brand-mcp',
+                        attrs: `data-mcp-key="${escapeHtml(server.key)}"`,
+                        label: buffer.selectedMcp.includes(server.key) ? '已启用' : '已禁用',
+                      })}
+                    </article>
+                  `,
+                )
+                .join('')
+            : `<div class="empty-state">当前没有 MCP 目录。</div>`}
+        </div>
+      </article>
+    </section>
+  `;
+}
+
+function renderBrandModelAssembly(buffer) {
+  const models = getMergedModelCatalog();
+  return `
+    <section class="fig-brand-section">
+      <div class="fig-section-heading">
+        <h2>模型</h2>
+        <p>当前 OEM 应用的模型 allowlist、默认模型和推荐模型都在这里单独配置。</p>
+      </div>
+      <article class="fig-card fig-card--subtle">
+        <div class="fig-card__head">
+          <h3>模型 Allowlist</h3>
+          <span>按 OEM 应用控制输入框可见模型、推荐模型和默认模型</span>
+        </div>
+        <div class="form-grid">
+          <label class="field">
+            <span>默认模型</span>
+            <select class="field-select" name="default_model">
+              <option value="">请选择默认模型</option>
+              ${buffer.selectedModels
+                .map((ref) => {
+                  const model = getModelCatalogEntry(ref);
+                  const label = model?.label || ref;
+                  return `<option value="${escapeHtml(ref)}"${buffer.defaultModel === ref ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+                })
+                .join('')}
+            </select>
+          </label>
+        </div>
+        <div class="fig-capability-stack">
+          ${models.length
+            ? models
+                .map(
+                  (model) => `
+                    <article class="checkbox-card checkbox-card--capability fig-capability-item">
+                      <input class="model-checkbox visually-hidden" type="checkbox" value="${escapeHtml(model.ref)}"${buffer.selectedModels.includes(model.ref) ? ' checked' : ''} />
+                      <div>
+                        <strong>${escapeHtml(model.label)}</strong>
+                        <span>${escapeHtml(model.providerId)} · ${escapeHtml(model.modelId)}</span>
+                      </div>
+                      <div class="metric-chips">
+                        ${renderSwitch({
+                          checked: buffer.recommendedModels.includes(model.ref),
+                          action: 'toggle-brand-model-recommended',
+                          attrs: `data-model-ref="${escapeHtml(model.ref)}"${buffer.selectedModels.includes(model.ref) ? '' : ' disabled'}`,
+                          label: '推荐',
+                        })}
+                        ${renderSwitch({
+                          checked: buffer.selectedModels.includes(model.ref),
+                          action: 'toggle-brand-model',
+                          attrs: `data-model-ref="${escapeHtml(model.ref)}"`,
+                          label: buffer.selectedModels.includes(model.ref) ? '已启用' : '已禁用',
+                        })}
+                      </div>
+                    </article>
+                  `,
+                )
+                .join('')
+            : `<div class="empty-state">当前没有模型目录。</div>`}
+        </div>
+      </article>
+    </section>
+  `;
+}
+
+function renderMenuToggleCard(buffer, item, note) {
+  const enabled = buffer.selectedMenus.includes(item.key);
+  return `
+    <article class="checkbox-card checkbox-card--capability fig-capability-item">
+      <input class="menu-checkbox visually-hidden" type="checkbox" value="${escapeHtml(item.key)}"${enabled ? ' checked' : ''} />
+      <div>
+        <strong>${escapeHtml(item.label)}</strong>
+        <span>${escapeHtml(note || item.key)}</span>
+      </div>
+      ${renderSwitch({
+        checked: enabled,
+        action: 'toggle-brand-menu',
+        attrs: `data-menu-key="${escapeHtml(item.key)}"`,
+        label: enabled ? '已启用' : '已禁用',
+      })}
+    </article>
+  `;
+}
+
+function renderBrandMenusAssembly(buffer) {
+  const sidebarItems = getMenuItemsByCategory('sidebar');
+  const legacyItems = getMenuItemsByCategory('legacy');
+  return `
+    <section class="fig-brand-section">
+      <div class="fig-section-heading">
+        <h2>左菜单栏</h2>
+        <p>左侧菜单单独配置，不再和技能、MCP、模型混在一个 tab 里。优先维护真实业务入口，兼容项单独保留。</p>
+      </div>
+      <div class="fig-capability-columns">
+        <article class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
+            <h3>真实业务入口</h3>
+            <span>对应桌面端 sidebar 中的主导航</span>
+          </div>
+          <div class="fig-capability-stack">
+            ${sidebarItems.map((item) => renderMenuToggleCard(buffer, item, `${item.key} · 主导航`)).join('')}
+          </div>
+        </article>
+        <article class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
+            <h3>兼容 / 预留菜单</h3>
+            <span>保留历史 key，避免老品牌或老端配置直接失效</span>
+          </div>
+          <div class="fig-capability-stack">
+            ${legacyItems.map((item) => renderMenuToggleCard(buffer, item, `${item.key} · 兼容项`)).join('')}
+          </div>
+        </article>
+      </div>
+    </section>
+  `;
+}
+
+function renderBrandModuleAssembly(buffer, surfaceKey) {
+  const blueprint = getSurfaceBlueprint(surfaceKey);
+  const menuItem = MENU_LIBRARY.find((item) => item.key === blueprint?.menuKey) || null;
+  const enabled = menuItem ? buffer.selectedMenus.includes(menuItem.key) : true;
+  const surface = getBrandSurfaceDraft(buffer, surfaceKey);
+  return `
+    <section class="fig-brand-section">
+      <div class="fig-section-heading">
+        <h2>${escapeHtml(blueprint?.label || surfaceLabel(surfaceKey))}</h2>
+        <p>单独维护这个业务模块的入口开关和模块 surface 配置，满足不同 OEM 的积木化装配需求。</p>
+      </div>
+      <div class="fig-capability-columns">
+        ${
+          menuItem
+            ? `
+              <article class="fig-card fig-card--subtle">
+                <div class="fig-card__head">
+                  <h3>模块入口</h3>
+                  <span>控制该模块是否在左侧菜单中可见</span>
+                </div>
+                <div class="fig-capability-stack">
+                  ${renderMenuToggleCard(buffer, menuItem, `${menuItem.key} · 业务模块入口`)}
+                </div>
+                <div class="fig-card__footer">
+                  <span>${enabled ? '当前模块入口已显示在 OEM 菜单中。' : '当前模块入口已隐藏，不会在 OEM 菜单中显示。'}</span>
+                </div>
+              </article>
+            `
+            : ''
+        }
+        <article class="surface-editor fig-surface-card" data-surface-key="${escapeHtml(surface.key)}" data-surface-label="${escapeHtml(surface.label)}">
+          <div class="fig-surface-card__preview">
+            ${icon(blueprint?.icon || 'layout', 'fig-surface-card__preview-icon')}
+          </div>
+          <div class="fig-surface-card__body">
+            <div class="surface-editor__head fig-surface-card__head">
+              <div>
+                <h3>${escapeHtml(surface.label)} Surface</h3>
+                <p>${surface.enabled ? '已启用' : '已关闭'}</p>
+              </div>
+              <label class="toggle fig-toggle">
+                <input type="checkbox" name="surface_enabled__${escapeHtml(surface.key)}"${surface.enabled ? ' checked' : ''} />
+                <span>${surface.enabled ? '已启用' : '已关闭'}</span>
+              </label>
+            </div>
+            <textarea class="code-input code-input--tall" name="surface_config__${escapeHtml(surface.key)}">${escapeHtml(surface.json)}</textarea>
+          </div>
+        </article>
+      </div>
+    </section>
+  `;
+}
+
 function renderBrandDetailPage() {
   if (!state.brandDetail?.brand) {
     return `
@@ -2373,9 +3255,8 @@ function renderBrandDetailPage() {
   const assets = state.brandDetail.assets || [];
   const versions = state.brandDetail.versions || [];
   const audit = state.brandDetail.audit || [];
-  const activeTab = ['surfaces', 'capabilities', 'assets', 'theme'].includes(state.brandDetailTab)
-    ? state.brandDetailTab
-    : 'surfaces';
+  const activeTab = getBrandDetailTabConfig(state.brandDetailTab)?.id || 'desktop';
+  const activeGroup = getBrandDetailTabGroup(activeTab);
   const app = state.brandDetail.app || null;
   const metrics = metricsFromBrand(brand);
   const rollbackTarget = versions[0]?.version || '';
@@ -2423,29 +3304,46 @@ function renderBrandDetailPage() {
           <div>最后更新: ${escapeHtml(formatDateTime(app?.updatedAt || brand.updatedAt))}</div>
         </div>
       </div>
-      <div class="fig-brand-tabs">
-        ${[
-          ['surfaces', 'Surface 配置', 'monitor'],
-          ['capabilities', '技能与 MCP', 'store'],
-          ['assets', '品牌资源', 'image'],
-          ['theme', '主题样式', 'palette'],
-        ]
-          .map(
-            ([id, label, iconName]) => `
-              <button
-                class="fig-brand-tab${activeTab === id ? ' is-active' : ''}"
-                type="button"
-                data-action="brand-tab"
-                data-tab="${id}"
-              >
-                ${icon(iconName, 'fig-inline-icon')}
-                ${escapeHtml(label)}
-              </button>
-            `,
-          )
-          .join('')}
+      <div class="fig-brand-nav">
+        <div class="fig-brand-groups">
+          ${BRAND_DETAIL_TAB_GROUPS
+            .map(
+              ({id, label, icon: iconName}) => `
+                <button
+                  class="fig-brand-group${activeGroup?.id === id ? ' is-active' : ''}"
+                  type="button"
+                  data-action="brand-tab-group"
+                  data-group-id="${id}"
+                >
+                  ${icon(iconName, 'fig-inline-icon')}
+                  ${escapeHtml(label)}
+                </button>
+              `,
+            )
+            .join('')}
+        </div>
+        <div class="fig-brand-tabs">
+          ${activeGroup.tabs
+            .map((tabId) => getBrandDetailTabConfig(tabId))
+            .filter(Boolean)
+            .map(
+              ({id, label, icon: iconName}) => `
+                <button
+                  class="fig-brand-tab${activeTab === id ? ' is-active' : ''}"
+                  type="button"
+                  data-action="brand-tab"
+                  data-tab="${id}"
+                >
+                  ${icon(iconName, 'fig-inline-icon')}
+                  ${escapeHtml(label)}
+                </button>
+              `,
+            )
+            .join('')}
+        </div>
       </div>
       <div class="fig-page__body fig-page__body--brand-detail">
+        ${renderBrandDetailGuide(activeTab)}
         <form id="brand-editor-form" class="fig-brand-form">
           <input type="hidden" name="brand_id" value="${fieldValue(buffer.brandId)}" />
           <section class="fig-card fig-brand-meta-editor">
@@ -2546,203 +3444,44 @@ function renderBrandDetailPage() {
 }
 
 function renderBrandEditorBody(buffer, assets, activeTab = state.brandDetailTab) {
-  if (activeTab === 'surfaces') {
-    const surfaceIcons = {
-      desktop: 'monitor',
-      'home-web': 'globe',
-      header: 'layout',
-      sidebar: 'sidebar',
-      input: 'messageSquare',
-      'input-composer': 'messageSquare',
-      'skill-store': 'store',
-    };
-    return `
-      <section class="fig-brand-section">
-        <div class="fig-section-heading">
-          <h2>Surface 配置</h2>
-          <p>为不同部署 Surface 配置界面组件</p>
-        </div>
-        <div class="fig-surface-grid">
-        ${buffer.surfaces
-          .map(
-            (surface) => `
-              <article class="surface-editor fig-surface-card" data-surface-key="${escapeHtml(surface.key)}" data-surface-label="${escapeHtml(surface.label)}">
-                <div class="fig-surface-card__preview">
-                  ${icon(surfaceIcons[surface.key] || 'layout', 'fig-surface-card__preview-icon')}
-                </div>
-                <div class="fig-surface-card__body">
-                  <div class="surface-editor__head fig-surface-card__head">
-                    <div>
-                      <h3>${escapeHtml(surface.label)}</h3>
-                      <p>${surface.enabled ? '已配置' : '未配置'}</p>
-                    </div>
-                    <label class="toggle fig-toggle">
-                      <input type="checkbox" name="surface_enabled__${escapeHtml(surface.key)}"${surface.enabled ? ' checked' : ''} />
-                      <span>${surface.enabled ? '已启用' : '已关闭'}</span>
-                    </label>
-                  </div>
-                  <textarea class="code-input" name="surface_config__${escapeHtml(surface.key)}">${escapeHtml(surface.json)}</textarea>
-                </div>
-              </article>
-            `,
-          )
-          .join('')}
-        </div>
-      </section>
-    `;
+  if (activeTab === 'desktop') {
+    return renderBrandSurfaceEditor(buffer, 'desktop', '桌面端', '维护桌面端主壳层的 OEM 配置。');
   }
 
-  if (activeTab === 'capabilities') {
-    const skills = getMergedSkills();
-    const mcpServers = getMergedMcpServers();
-    const models = getMergedModelCatalog();
-    return `
-      <section class="fig-brand-section">
-        <div class="fig-section-heading">
-          <h2>能力装配</h2>
-          <p>管理 OEM 应用可用的 Skill、MCP、Model 和左侧菜单显隐</p>
-        </div>
-        <div class="fig-capability-columns">
-          <article class="fig-card fig-card--subtle">
-            <div class="fig-card__head">
-              <h3>已启用技能</h3>
-              <span>此品牌可用的技能</span>
-            </div>
-            <div class="fig-capability-stack">
-              ${skills.length
-                ? skills
-                    .map(
-                      (skill) => `
-                        <article class="checkbox-card checkbox-card--capability fig-capability-item">
-                          <input class="skill-checkbox visually-hidden" type="checkbox" value="${escapeHtml(skill.slug)}"${buffer.selectedSkills.includes(skill.slug) ? ' checked' : ''} />
-                          <div>
-                            <strong>${escapeHtml(skill.name)}</strong>
-                            <span>${escapeHtml(skill.category || '未分类')} · ${escapeHtml(skill.publisher || 'iClaw')}</span>
-                          </div>
-                          ${renderSwitch({
-                            checked: buffer.selectedSkills.includes(skill.slug),
-                            action: 'toggle-brand-skill',
-                            attrs: `data-skill-slug="${escapeHtml(skill.slug)}"`,
-                            label: buffer.selectedSkills.includes(skill.slug) ? '已启用' : '已禁用',
-                          })}
-                        </article>
-                      `,
-                    )
-                    .join('')
-                : `<div class="empty-state">当前没有可用技能。</div>`}
-            </div>
-          </article>
-          <article class="fig-card fig-card--subtle">
-            <div class="fig-card__head">
-              <h3>MCP 服务器</h3>
-              <span>已连接的能力提供方</span>
-            </div>
-            <div class="fig-capability-stack">
-              ${mcpServers.length
-                ? mcpServers
-                    .map(
-                      (server) => `
-                        <article class="checkbox-card checkbox-card--capability fig-capability-item">
-                          <input class="mcp-checkbox visually-hidden" type="checkbox" value="${escapeHtml(server.key)}"${buffer.selectedMcp.includes(server.key) ? ' checked' : ''} />
-                          <div>
-                            <strong>${escapeHtml(server.name)}</strong>
-                            <span>${escapeHtml(server.transport || 'config')} · ${escapeHtml(server.connected_brand_count)} 个品牌使用</span>
-                          </div>
-                          ${renderSwitch({
-                            checked: buffer.selectedMcp.includes(server.key),
-                            action: 'toggle-brand-mcp',
-                            attrs: `data-mcp-key="${escapeHtml(server.key)}"`,
-                            label: buffer.selectedMcp.includes(server.key) ? '已启用' : '已禁用',
-                          })}
-                        </article>
-                      `,
-                    )
-                    .join('')
-                : `<div class="empty-state">当前没有 MCP 目录。</div>`}
-            </div>
-          </article>
-        </div>
-        <div class="fig-capability-columns fig-capability-columns--bottom">
-          <article class="fig-card fig-card--subtle">
-            <div class="fig-card__head">
-              <h3>模型 Allowlist</h3>
-              <span>按 OEM 应用控制输入框可见模型、推荐模型和默认模型</span>
-            </div>
-            <div class="form-grid">
-              <label class="field">
-                <span>默认模型</span>
-                <select class="field-select" name="default_model">
-                  <option value="">请选择默认模型</option>
-                  ${buffer.selectedModels
-                    .map((ref) => {
-                      const model = getModelCatalogEntry(ref);
-                      const label = model?.label || ref;
-                      return `<option value="${escapeHtml(ref)}"${buffer.defaultModel === ref ? ' selected' : ''}>${escapeHtml(label)}</option>`;
-                    })
-                    .join('')}
-                </select>
-              </label>
-            </div>
-            <div class="fig-capability-stack">
-              ${models.length
-                ? models
-                    .map(
-                      (model) => `
-                        <article class="checkbox-card checkbox-card--capability fig-capability-item">
-                          <input class="model-checkbox visually-hidden" type="checkbox" value="${escapeHtml(model.ref)}"${buffer.selectedModels.includes(model.ref) ? ' checked' : ''} />
-                          <div>
-                            <strong>${escapeHtml(model.label)}</strong>
-                            <span>${escapeHtml(model.providerId)} · ${escapeHtml(model.modelId)}</span>
-                          </div>
-                          <div class="metric-chips">
-                            ${renderSwitch({
-                              checked: buffer.recommendedModels.includes(model.ref),
-                              action: 'toggle-brand-model-recommended',
-                              attrs: `data-model-ref="${escapeHtml(model.ref)}"${buffer.selectedModels.includes(model.ref) ? '' : ' disabled'}`,
-                              label: '推荐',
-                            })}
-                            ${renderSwitch({
-                              checked: buffer.selectedModels.includes(model.ref),
-                              action: 'toggle-brand-model',
-                              attrs: `data-model-ref="${escapeHtml(model.ref)}"`,
-                              label: buffer.selectedModels.includes(model.ref) ? '已启用' : '已禁用',
-                            })}
-                          </div>
-                        </article>
-                      `,
-                    )
-                    .join('')
-                : `<div class="empty-state">当前没有模型目录。</div>`}
-            </div>
-          </article>
-          <article class="fig-card fig-card--subtle">
-            <div class="fig-card__head">
-              <h3>左侧菜单</h3>
-              <span>默认全部启用，可按 OEM 应用单独开关</span>
-            </div>
-            <div class="fig-capability-stack">
-              ${MENU_LIBRARY.map(
-                (item) => `
-                  <article class="checkbox-card checkbox-card--capability fig-capability-item">
-                    <input class="menu-checkbox visually-hidden" type="checkbox" value="${escapeHtml(item.key)}"${buffer.selectedMenus.includes(item.key) ? ' checked' : ''} />
-                    <div>
-                      <strong>${escapeHtml(item.label)}</strong>
-                      <span>${escapeHtml(item.key)}</span>
-                    </div>
-                    ${renderSwitch({
-                      checked: buffer.selectedMenus.includes(item.key),
-                      action: 'toggle-brand-menu',
-                      attrs: `data-menu-key="${escapeHtml(item.key)}"`,
-                      label: buffer.selectedMenus.includes(item.key) ? '已启用' : '已禁用',
-                    })}
-                  </article>
-                `,
-              ).join('')}
-            </div>
-          </article>
-        </div>
-      </section>
-    `;
+  if (activeTab === 'home-web') {
+    return renderBrandSurfaceEditor(buffer, 'home-web', 'Home页', '维护官网 / Home 页的 OEM 配置。');
+  }
+
+  if (activeTab === 'header') {
+    return renderBrandSurfaceEditor(buffer, 'header', 'Header栏', '维护顶部栏的品牌视觉、信息架构和交互配置。');
+  }
+
+  if (activeTab === 'sidebar') {
+    return renderBrandSurfaceEditor(buffer, 'sidebar', '侧边栏', '维护侧边栏容器本身的布局、视觉和交互配置。');
+  }
+
+  if (activeTab === 'input') {
+    return renderBrandSurfaceEditor(buffer, 'input', '输入框', '维护输入编辑器区域的品牌化配置，不和模型 allowlist 混放。');
+  }
+
+  if (activeTab === 'skills') {
+    return renderBrandSkillsAssembly(buffer);
+  }
+
+  if (activeTab === 'mcps') {
+    return renderBrandMcpAssembly(buffer);
+  }
+
+  if (activeTab === 'models') {
+    return renderBrandModelAssembly(buffer);
+  }
+
+  if (activeTab === 'menus') {
+    return renderBrandMenusAssembly(buffer);
+  }
+
+  if (getSurfaceBlueprint(activeTab)?.kind === 'module') {
+    return renderBrandModuleAssembly(buffer, activeTab);
   }
 
   if (activeTab === 'assets') {
@@ -3017,6 +3756,8 @@ function renderSkillsMcpPage() {
       : state.capabilityMode === 'mcp'
         ? '管理 MCP 主目录和 OEM 开放范围'
         : '管理模型主目录、OEM allowlist、推荐和默认模型';
+  const pageTitle =
+    state.capabilityMode === 'skills' ? 'Skill中心' : state.capabilityMode === 'mcp' ? 'MCP中心' : '模型中心';
   const listCountLabel =
     state.capabilityMode === 'skills'
       ? `当前显示 ${skills.length} 个技能`
@@ -3191,12 +3932,29 @@ function renderSkillsMcpPage() {
       <div class="fig-page__header">
         <div class="fig-page__header-inner">
           <div>
-            <h1>能力中心</h1>
+            <h1>${pageTitle}</h1>
             <p class="fig-page__description">${pageDescription}</p>
           </div>
           ${actionButton}
         </div>
       </div>
+      ${renderPageGuide(`${pageTitle}怎么用`, state.capabilityMode === 'skills'
+        ? [
+            '这里维护 Skill 主数据，决定有哪些技能可以被 OEM 装配。',
+            '新增或编辑 Skill 后，再去品牌详情的“技能”tab里勾选给哪些品牌开放。',
+            '品牌侧勾选只是绑定关系；Skill 的主信息仍以这里为准。',
+          ]
+        : state.capabilityMode === 'mcp'
+          ? [
+              '这里维护 MCP 主目录，包括 transport、command、args、env 和元数据。',
+              'MCP 建好后，再去品牌详情的“MCP”tab里为指定 OEM 开关启用。',
+              '需要验证连通性时，可先在这里保存，再点“测试连接”。',
+            ]
+          : [
+              '这里维护模型全集，不直接决定某个 OEM 能看到什么。',
+              '每个 OEM 的模型可见性在品牌详情的“模型”tab里单独勾选。',
+              '模型主数据改完后，品牌发布新快照，客户端同步后输入框模型列表才会变化。',
+            ], 'capability')}
       <div class="fig-capability-screen">
         <aside class="fig-capability-sidebar">
           <div class="fig-capability-sidebar__toolbar">
@@ -3223,6 +3981,264 @@ function renderSkillsMcpPage() {
           <div class="fig-capability-list">${listMarkup}</div>
         </aside>
         <section class="fig-capability-detail">${detailMarkup}</section>
+      </div>
+    </div>
+  `;
+}
+
+function getFilteredAgents() {
+  const query = state.filters.agentQuery.trim().toLowerCase();
+  return [...state.agentCatalog]
+    .filter((item) => {
+      if (state.filters.agentStatus === 'active' && item.active === false) {
+        return false;
+      }
+      if (state.filters.agentStatus === 'disabled' && item.active !== false) {
+        return false;
+      }
+      const surface = getAgentSurface(item);
+      if (state.filters.agentSurface !== 'all' && surface !== state.filters.agentSurface) {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
+      return [
+        item.slug,
+        item.name,
+        item.description,
+        item.category,
+        item.publisher,
+        surface,
+        ...(item.tags || []),
+      ].some((value) => String(value || '').toLowerCase().includes(query));
+    })
+    .sort((left, right) => Number(left.sort_order || 0) - Number(right.sort_order || 0) || left.name.localeCompare(right.name, 'zh-CN'));
+}
+
+function renderAgentEditorForm(agent) {
+  const isNew = !agent;
+  const editable = agent || {
+    slug: '',
+    name: '',
+    description: '',
+    category: 'general',
+    publisher: 'iClaw',
+    featured: false,
+    official: true,
+    tags: [],
+    capabilities: [],
+    use_cases: [],
+    metadata: {},
+    sort_order: 9999,
+    active: true,
+  };
+
+  return `
+    <section class="fig-card fig-card--subtle">
+      <div class="fig-card__head">
+        <h3>${isNew ? '新增 Agent Catalog' : '编辑 Agent Catalog'}</h3>
+        <span>这里直接维护数据库中的 agent catalog 主数据。</span>
+      </div>
+      <form id="agent-editor-form" class="form-grid form-grid--two">
+        <label class="field">
+          <span>Slug</span>
+          <input class="field-input" name="slug" value="${fieldValue(editable.slug)}" placeholder="agent-slug" ${isNew ? '' : 'readonly'} />
+        </label>
+        <label class="field">
+          <span>Name</span>
+          <input class="field-input" name="name" value="${fieldValue(editable.name)}" placeholder="Agent 名称" />
+        </label>
+        <label class="field field--wide">
+          <span>Description</span>
+          <textarea class="field-textarea" name="description" placeholder="Agent 做什么">${escapeHtml(editable.description || '')}</textarea>
+        </label>
+        <label class="field">
+          <span>Category</span>
+          <select class="field-select" name="category">
+            ${['finance', 'content', 'productivity', 'commerce', 'general']
+              .map((item) => `<option value="${item}"${editable.category === item ? ' selected' : ''}>${escapeHtml(item)}</option>`)
+              .join('')}
+          </select>
+        </label>
+        <label class="field">
+          <span>Publisher</span>
+          <input class="field-input" name="publisher" value="${fieldValue(editable.publisher || 'iClaw')}" />
+        </label>
+        <label class="field">
+          <span>Sort Order</span>
+          <input class="field-input" name="sort_order" type="number" min="0" value="${fieldValue(editable.sort_order || 9999)}" />
+        </label>
+        <label class="field">
+          <span>状态</span>
+          <select class="field-select" name="active">
+            <option value="true"${editable.active !== false ? ' selected' : ''}>启用</option>
+            <option value="false"${editable.active === false ? ' selected' : ''}>禁用</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Featured</span>
+          <select class="field-select" name="featured">
+            <option value="true"${editable.featured === true ? ' selected' : ''}>true</option>
+            <option value="false"${editable.featured === true ? '' : ' selected'}>false</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Official</span>
+          <select class="field-select" name="official">
+            <option value="true"${editable.official !== false ? ' selected' : ''}>true</option>
+            <option value="false"${editable.official === false ? ' selected' : ''}>false</option>
+          </select>
+        </label>
+        <label class="field field--wide">
+          <span>Tags</span>
+          <textarea class="field-textarea" name="tags_text" placeholder="每行一个 tag">${escapeHtml((editable.tags || []).join('\n'))}</textarea>
+        </label>
+        <label class="field field--wide">
+          <span>Capabilities</span>
+          <textarea class="field-textarea" name="capabilities_text" placeholder="每行一个 capability">${escapeHtml((editable.capabilities || []).join('\n'))}</textarea>
+        </label>
+        <label class="field field--wide">
+          <span>Use Cases</span>
+          <textarea class="field-textarea" name="use_cases_text" placeholder="每行一个 use case">${escapeHtml((editable.use_cases || []).join('\n'))}</textarea>
+        </label>
+        <label class="field field--wide">
+          <span>Metadata JSON</span>
+          <textarea class="field-textarea" name="metadata_json">${escapeHtml(prettyJson(editable.metadata || {}))}</textarea>
+        </label>
+        <div class="fig-form-actions">
+          <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>保存 Agent</button>
+        </div>
+      </form>
+    </section>
+  `;
+}
+
+function renderAgentCenterPage() {
+  const agents = getFilteredAgents();
+  const selectedAgent =
+    state.selectedAgentSlug === '__new__'
+      ? null
+      : getAgentCatalogEntry(state.selectedAgentSlug) || agents[0] || null;
+  const selectedSurface = selectedAgent ? getAgentSurface(selectedAgent) : 'all';
+  const primarySkill = String(asObject(selectedAgent?.metadata).primary_skill_slug || '').trim();
+  const surfaces = Array.from(new Set(state.agentCatalog.map((item) => getAgentSurface(item)).filter(Boolean))).sort((left, right) =>
+    left.localeCompare(right, 'zh-CN'),
+  );
+
+  return `
+    <div class="fig-page">
+      <div class="fig-page__header">
+        <div class="fig-page__header-inner">
+          <div>
+            <h1>Agent中心</h1>
+            <p class="fig-page__description">统一维护龙虾商店、智能投资专家等 agent catalog 主数据。</p>
+          </div>
+          <button class="solid-button fig-button" type="button" data-action="new-agent">
+            ${icon('plus', 'button-icon')}
+            新建 Agent
+          </button>
+        </div>
+      </div>
+      <div class="fig-page__body">
+        ${renderPageGuide('Agent中心怎么用', [
+          '这里维护 agent catalog 主数据，前台龙虾商店和智能投资专家都直接读这里。',
+          'metadata 内保存 surface、primary skill、skill slugs、prompt、MCP preset 等扩展字段。',
+          '保存后会直接写数据库，并同步刷新 control-plane 的 agent catalog 缓存。',
+        ], 'agent')}
+        <div class="fig-capability-screen">
+          <aside class="fig-capability-sidebar">
+            <div class="fig-capability-sidebar__toolbar">
+              <label class="fig-search">
+                ${icon('search', 'fig-search__icon')}
+                <input
+                  class="field-input fig-search__input"
+                  data-filter-key="agentQuery"
+                  placeholder="搜索 agent..."
+                  value="${fieldValue(state.filters.agentQuery)}"
+                />
+              </label>
+              <div class="fig-capability-filter-row">
+                <select class="field-select fig-filter" data-filter-key="agentStatus">
+                  ${['all', 'active', 'disabled']
+                    .map((item) => `<option value="${item}"${state.filters.agentStatus === item ? ' selected' : ''}>${escapeHtml(item === 'all' ? '全部状态' : item === 'active' ? '仅启用' : '仅禁用')}</option>`)
+                    .join('')}
+                </select>
+                <select class="field-select fig-filter" data-filter-key="agentSurface">
+                  <option value="all">全部 Surface</option>
+                  ${surfaces.map((item) => `<option value="${escapeHtml(item)}"${state.filters.agentSurface === item ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('')}
+                </select>
+              </div>
+              <div class="fig-capability-filter-meta">
+                <span>${escapeHtml(`${agents.length} 个 Agent`)}</span>
+                <button class="text-button" type="button" data-action="agent-filter-reset">重置筛选</button>
+              </div>
+            </div>
+            <div class="fig-capability-list">
+              ${agents.length
+                ? agents
+                    .map(
+                      (item) => `
+                        <button class="capability-card${selectedAgent?.slug === item.slug ? ' is-active' : ''}" type="button" data-action="select-agent" data-agent-slug="${escapeHtml(item.slug)}">
+                          <strong>${escapeHtml(item.name)}</strong>
+                          <span>${escapeHtml(getAgentSurface(item))} • ${escapeHtml(item.active === false ? 'disabled' : 'active')}</span>
+                        </button>
+                      `,
+                    )
+                    .join('')
+                : `<div class="empty-state">没有匹配的 Agent。</div>`}
+              <button class="capability-card${state.selectedAgentSlug === '__new__' ? ' is-active' : ''}" type="button" data-action="new-agent">
+                <strong>新建 Agent</strong>
+                <span>新增一个可投放到前台的 agent 目录项</span>
+              </button>
+            </div>
+          </aside>
+          <section class="fig-capability-detail">
+            ${
+              selectedAgent
+                ? `
+                  <div class="fig-detail-stack">
+                    <div class="fig-card">
+                      <div class="fig-card__head">
+                        <div>
+                          <h2>${escapeHtml(selectedAgent.name)}</h2>
+                          <span>${escapeHtml(selectedAgent.slug)} · ${escapeHtml(selectedAgent.publisher || 'iClaw')}</span>
+                        </div>
+                        ${renderSwitch({
+                          checked: selectedAgent.active !== false,
+                          action: 'agent-toggle',
+                          attrs: `data-agent-slug="${escapeHtml(selectedAgent.slug)}" data-enabled="${selectedAgent.active !== false ? 'true' : 'false'}"`,
+                          label: selectedAgent.active !== false ? '已启用' : '已禁用',
+                        })}
+                      </div>
+                      <p class="detail-copy">${escapeHtml(selectedAgent.description || '暂无描述。')}</p>
+                      <div class="fig-meta-cards">
+                        <div class="fig-meta-card"><span>Surface</span><strong>${escapeHtml(selectedSurface)}</strong></div>
+                        <div class="fig-meta-card"><span>Primary Skill</span><strong>${escapeHtml(primarySkill || '未设置')}</strong></div>
+                        <div class="fig-meta-card"><span>Sort Order</span><strong>${escapeHtml(selectedAgent.sort_order || 0)}</strong></div>
+                      </div>
+                      <div class="chip-grid">
+                        ${(selectedAgent.tags || []).length ? selectedAgent.tags.map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`).join('') : `<div class="empty-state">暂无标签。</div>`}
+                      </div>
+                      <div class="action-row">
+                        <button class="text-button" type="button" data-action="toggle-agent-import">${state.showAgentImportPanel ? '收起编辑面板' : '编辑 Agent'}</button>
+                        <button class="ghost-button" type="button" data-action="agent-delete" data-agent-slug="${escapeHtml(selectedAgent.slug)}">删除 Agent</button>
+                      </div>
+                    </div>
+                    ${state.showAgentImportPanel ? renderAgentEditorForm(selectedAgent) : ''}
+                    <section class="fig-card fig-card--subtle">
+                      <div class="fig-card__head">
+                        <h3>Metadata</h3>
+                        <span>真实写入 agent_catalog_entries.metadata_json</span>
+                      </div>
+                      <textarea class="code-input code-input--tall" readonly>${escapeHtml(prettyJson(selectedAgent.metadata || {}))}</textarea>
+                    </section>
+                  </div>
+                `
+                : renderAgentEditorForm(null)
+            }
+          </section>
+        </div>
       </div>
     </div>
   `;
@@ -3306,6 +4322,11 @@ function renderCloudSkillsPage() {
         </div>
       </div>
       <div class="page-stack">
+        ${renderPageGuide('云技能怎么用', [
+          '这里维护技能商店主库，支持从 ClawHub 或 GitHub 同步技能目录。',
+          '先新增同步源，再执行同步，把技能灌入云技能主库。',
+          '云技能入库后，仍需去品牌管理或 Skill 中心决定哪些 OEM 可以使用。',
+        ], 'cloud')}
         <section class="fig-card">
           <div class="fig-card__head">
             <h2>主库概览</h2>
@@ -3952,6 +4973,11 @@ function renderAssetsPage() {
         </div>
       </div>
       <div class="fig-page__body">
+        ${renderPageGuide('资源管理怎么用', [
+          '这里是所有品牌的统一资源库，可上传 logo、favicon、hero 图等素材。',
+          '资源上传时要填写稳定的 asset key，前端按这个 key 取图。',
+          '资源本身入库后，若品牌端要正式切换，通常还需要对应品牌再发布快照。',
+        ], 'assets')}
         ${
           state.showAssetUploadPanel
             ? `
@@ -4060,17 +5086,53 @@ function renderReleasesPage() {
   const selectedRelease = items.find((item) => item.id === state.selectedReleaseId) || items[0] || null;
   const selectedBrand = state.brands.find((item) => item.brandId === selectedRelease?.brand_id) || null;
   const diffAreas = selectedRelease ? summarizeChangedAreas(selectedBrand?.draftConfig, selectedRelease.config) : [];
+  const desktopBrandId = state.filters.releaseBrand !== 'all' ? state.filters.releaseBrand : '';
+  const desktopBrandDetail = desktopBrandId ? state.portalAppDetails[desktopBrandId] || null : null;
+  const desktopReleaseChannel = state.selectedDesktopReleaseChannel === 'dev' ? 'dev' : 'prod';
+  const desktopReleaseConfig = desktopBrandDetail ? getDesktopReleaseConfig(desktopBrandDetail.app) : null;
+  const desktopDraft = desktopReleaseConfig ? desktopReleaseConfig[desktopReleaseChannel].draft : null;
+  const desktopPublished = desktopReleaseConfig ? desktopReleaseConfig[desktopReleaseChannel].published : null;
+  const renderDesktopTargetCard = (platform, arch) => {
+    const target = findDesktopReleaseTarget(desktopDraft, platform, arch);
+    const publishedTarget = findDesktopReleaseTarget(desktopPublished, platform, arch);
+    const fileRow = (label, field, publishedField = null) => `
+      <div class="fig-meta-card">
+        <span>${label}</span>
+        <strong>${escapeHtml(field?.fileName || '未上传')}</strong>
+        ${publishedField?.fileName ? `<div class="text-[11px] text-[var(--text-secondary)]">已生效：${escapeHtml(publishedField.fileName)}</div>` : ''}
+        <input class="field-input" type="file" name="desktop_file_${platform}_${arch}_${label === '安装包' ? 'installer' : label === 'Updater' ? 'updater' : 'signature'}" />
+      </div>
+    `;
+    return `
+      <section class="fig-card fig-card--subtle">
+        <div class="fig-card__head">
+          <h3>${escapeHtml(formatDesktopTargetLabel(platform, arch))}</h3>
+          <span>要求 installer / updater / signature 成套存在</span>
+        </div>
+        <div class="fig-meta-cards">
+          ${fileRow('安装包', target?.installer, publishedTarget?.installer)}
+          ${fileRow('Updater', target?.updater, publishedTarget?.updater)}
+          ${fileRow('Signature', target?.signature, publishedTarget?.signature)}
+        </div>
+      </section>
+    `;
+  };
   return `
     <div class="fig-page">
       <div class="fig-page__header">
         <div class="fig-page__header-inner">
           <div>
             <h1>版本发布</h1>
-            <p class="fig-page__description">portal app 快照版本时间线和配置差异</p>
+            <p class="fig-page__description">桌面安装包发布、强更策略与 portal app 快照版本时间线</p>
           </div>
         </div>
       </div>
       <div class="fig-page__body">
+        ${renderPageGuide('版本发布怎么用', [
+          '先选择品牌，再维护该品牌桌面端的 dmg、exe、updater 和签名文件。',
+          '版本号、强更阈值、说明文案都在这里统一配置并发布生效。',
+          '下方时间线用于回看历史快照和对比当前草稿差异。',
+        ], 'releases')}
         <div class="fig-toolbar">
           <select class="field-select fig-filter" data-filter-key="releaseBrand">
             <option value="all">全部品牌</option>
@@ -4083,6 +5145,86 @@ function renderReleasesPage() {
               .join('')}
           </select>
         </div>
+        <section class="fig-card">
+          <div class="fig-card__head">
+            <div>
+              <h3>桌面发布中心</h3>
+              <span>上传 dmg / exe / updater / sig，并在同一页开启强更策略</span>
+            </div>
+          </div>
+          ${
+            desktopBrandId && desktopBrandDetail
+              ? `
+                <form id="desktop-release-publish-form" class="space-y-4">
+                  <input type="hidden" name="brand_id" value="${escapeHtml(desktopBrandId)}" />
+                  <div class="fig-toolbar">
+                    <label class="field">
+                      <span>发布 Channel</span>
+                      <select class="field-select" name="channel" data-state-key="selectedDesktopReleaseChannel">
+                        <option value="prod"${desktopReleaseChannel === 'prod' ? ' selected' : ''}>prod</option>
+                        <option value="dev"${desktopReleaseChannel === 'dev' ? ' selected' : ''}>dev</option>
+                      </select>
+                    </label>
+                    <label class="field">
+                      <span>版本号</span>
+                      <input class="field-input" name="version" value="${fieldValue(desktopDraft?.version || desktopPublished?.version || '')}" placeholder="例如 1.4.7" />
+                    </label>
+                    <label class="field">
+                      <span>Force Below</span>
+                      <input class="field-input" name="force_update_below_version" value="${fieldValue(desktopDraft?.policy?.forceUpdateBelowVersion || desktopPublished?.policy?.forceUpdateBelowVersion || '')}" placeholder="例如 1.4.6" />
+                    </label>
+                  </div>
+                  <div class="fig-meta-cards">
+                    <div class="fig-meta-card"><span>当前草稿</span><strong>${escapeHtml(desktopDraft?.version || '未配置')}</strong></div>
+                    <div class="fig-meta-card"><span>当前已生效</span><strong>${escapeHtml(desktopPublished?.version || '未发布')}</strong></div>
+                    <div class="fig-meta-card"><span>已生效时间</span><strong>${escapeHtml(formatDateTime(desktopPublished?.publishedAt || ''))}</strong></div>
+                  </div>
+                  <label class="field">
+                    <span>发布说明</span>
+                    <textarea class="field-input" name="notes" rows="3" placeholder="写给更新弹窗 / updater notes 的说明">${fieldValue(desktopDraft?.notes || desktopPublished?.notes || '')}</textarea>
+                  </label>
+                  <div class="fig-meta-cards">
+                    <label class="fig-meta-card">
+                      <span>开启强更</span>
+                      <input type="checkbox" name="mandatory"${desktopDraft?.policy?.mandatory || desktopPublished?.policy?.mandatory ? ' checked' : ''} />
+                    </label>
+                    <label class="fig-meta-card">
+                      <span>允许当前任务跑完</span>
+                      <input type="checkbox" name="allow_current_run_to_finish"${
+                        desktopDraft?.policy?.allowCurrentRunToFinish ?? desktopPublished?.policy?.allowCurrentRunToFinish ?? true
+                          ? ' checked'
+                          : ''
+                      } />
+                    </label>
+                    <div class="fig-meta-card">
+                      <span>策略说明</span>
+                      <strong>${escapeHtml(desktopPublished?.policy?.reasonMessage || '未配置')}</strong>
+                    </div>
+                  </div>
+                  <label class="field">
+                    <span>强更说明文案</span>
+                    <textarea class="field-input" name="reason_message" rows="2" placeholder="例如：当前版本存在已知稳定性问题，请在当前任务完成后升级。">${fieldValue(
+                      desktopDraft?.policy?.reasonMessage || desktopPublished?.policy?.reasonMessage || '',
+                    )}</textarea>
+                  </label>
+                  <div class="space-y-3">
+                    ${renderDesktopTargetCard('darwin', 'aarch64')}
+                    ${renderDesktopTargetCard('darwin', 'x64')}
+                    ${renderDesktopTargetCard('windows', 'x64')}
+                    ${renderDesktopTargetCard('windows', 'aarch64')}
+                  </div>
+                  <div class="fig-release-card__actions">
+                    <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>${state.busy ? '发布中…' : '发布并生效'}</button>
+                  </div>
+                </form>
+              `
+              : `
+                <div class="empty-state empty-state--panel">
+                  先在上方选择一个品牌，再管理该品牌的桌面安装包与强更策略。
+                </div>
+              `
+          }
+        </section>
         <div class="fig-release-timeline">
           ${items.length
             ? items
@@ -4217,6 +5359,11 @@ function renderAuditPage() {
         </div>
       </div>
       <div class="fig-page__body">
+        ${renderPageGuide('审计日志怎么看', [
+          '这里记录 portal app 的关键操作，包括保存草稿、发布、回滚、资源变更等。',
+          '先按品牌、操作类型或关键词筛选，再点具体记录查看 payload。',
+          '发现异常后，可以直接从详情跳回对应品牌继续排查。',
+        ], 'audit')}
         <section class="fig-card fig-audit-table-card">
           <div class="fig-audit-table">
             <div class="fig-audit-table__header">
@@ -4292,6 +5439,7 @@ function renderLoadingPage() {
 function renderLogin() {
   app.innerHTML = `
     <main class="login-shell">
+      ${renderThemeToggle()}
       <section class="login-stage">
         <div class="login-copy-group">
           <div class="brand-lockup brand-lockup--login">
@@ -4332,9 +5480,11 @@ function renderDashboard() {
       ? renderOverviewPage()
       : state.route === 'brands'
         ? renderBrandsPage()
+      : state.route === 'agent-center'
+        ? renderAgentCenterPage()
       : state.route === 'brand-detail'
         ? renderBrandDetailPage()
-        : state.route === 'skills-mcp'
+        : isCapabilityRoute(state.route)
           ? renderSkillsMcpPage()
           : state.route === 'cloud-skills'
             ? renderCloudSkillsPage()
@@ -4346,6 +5496,7 @@ function renderDashboard() {
 
   app.innerHTML = `
     <main class="shell">
+      ${renderThemeToggle()}
       ${renderSidebar()}
       <section class="content">
         ${renderBanner()}
@@ -4392,6 +5543,16 @@ app.addEventListener('submit', async (event) => {
     return;
   }
 
+  if (form.id === 'desktop-release-publish-form') {
+    await publishDesktopRelease(new FormData(form));
+    return;
+  }
+
+  if (form.id === 'agent-editor-form') {
+    await saveAgentCatalogEntry(new FormData(form));
+    return;
+  }
+
   if (form.id === 'skill-import-form') {
     await importSkill(new FormData(form));
     return;
@@ -4420,15 +5581,32 @@ app.addEventListener('click', async (event) => {
 
   const action = target.getAttribute('data-action');
 
+  if (action === 'toggle-theme') {
+    state.themeMode = cycleThemeMode(state.themeMode);
+    persistThemeMode(state.themeMode);
+    applyThemeMode(state.themeMode);
+    render();
+    return;
+  }
+
   if (action === 'navigate') {
     captureBrandEditorBuffer();
     state.route = target.getAttribute('data-page') || 'overview';
+    if (isCapabilityRoute(state.route)) {
+      state.capabilityMode = getCapabilityModeForRoute(state.route);
+    }
     render();
     return;
   }
 
   if (action === 'toggle-create-brand') {
     state.showCreateBrandForm = !state.showCreateBrandForm;
+    render();
+    return;
+  }
+
+  if (action === 'toggle-agent-import') {
+    state.showAgentImportPanel = !state.showAgentImportPanel;
     render();
     return;
   }
@@ -4462,6 +5640,44 @@ app.addEventListener('click', async (event) => {
     return;
   }
 
+  if (action === 'new-agent') {
+    state.route = 'agent-center';
+    state.selectedAgentSlug = '__new__';
+    state.showAgentImportPanel = true;
+    render();
+    return;
+  }
+
+  if (action === 'select-agent') {
+    state.route = 'agent-center';
+    state.selectedAgentSlug = target.getAttribute('data-agent-slug') || '';
+    state.showAgentImportPanel = false;
+    render();
+    return;
+  }
+
+  if (action === 'agent-filter-reset') {
+    state.filters.agentQuery = '';
+    state.filters.agentStatus = 'all';
+    state.filters.agentSurface = 'all';
+    render();
+    return;
+  }
+
+  if (action === 'agent-toggle') {
+    const enabled = target.getAttribute('data-enabled') === 'true';
+    await setAgentEnabled(target.getAttribute('data-agent-slug') || '', !enabled);
+    return;
+  }
+
+  if (action === 'agent-delete') {
+    const slug = target.getAttribute('data-agent-slug') || '';
+    if (window.confirm(`确认删除 Agent ${slug}？`)) {
+      await deleteAgentCatalogEntry(slug);
+    }
+    return;
+  }
+
   if (action === 'cloud-skill-toggle') {
     const slug = target.getAttribute('data-skill-slug') || '';
     const enabled = target.getAttribute('data-enabled') === 'true';
@@ -4471,6 +5687,7 @@ app.addEventListener('click', async (event) => {
 
   if (action === 'new-skill') {
     state.capabilityMode = 'skills';
+    state.route = getCapabilityRouteForMode(state.capabilityMode);
     state.selectedSkillSlug = '__new__';
     state.showSkillImportPanel = true;
     render();
@@ -4479,6 +5696,7 @@ app.addEventListener('click', async (event) => {
 
   if (action === 'new-mcp') {
     state.capabilityMode = 'mcp';
+    state.route = getCapabilityRouteForMode(state.capabilityMode);
     state.selectedMcpKey = '__new__';
     state.mcpTestResult = null;
     render();
@@ -4487,6 +5705,7 @@ app.addEventListener('click', async (event) => {
 
   if (action === 'new-model') {
     state.capabilityMode = 'models';
+    state.route = getCapabilityRouteForMode(state.capabilityMode);
     state.selectedModelRef = '__new__';
     render();
     return;
@@ -4507,20 +5726,30 @@ app.addEventListener('click', async (event) => {
   if (action === 'select-brand') {
     captureBrandEditorBuffer();
     state.route = 'brand-detail';
-    state.brandDetailTab = 'surfaces';
+    state.brandDetailTab = 'desktop';
     await loadBrandDetail(target.getAttribute('data-brand-id') || '');
     return;
   }
 
   if (action === 'brand-tab') {
     captureBrandEditorBuffer();
-    state.brandDetailTab = target.getAttribute('data-tab') || 'surfaces';
+    state.brandDetailTab = target.getAttribute('data-tab') || 'desktop';
+    render();
+    return;
+  }
+
+  if (action === 'brand-tab-group') {
+    captureBrandEditorBuffer();
+    const groupId = target.getAttribute('data-group-id') || '';
+    const group = BRAND_DETAIL_TAB_GROUPS.find((item) => item.id === groupId) || BRAND_DETAIL_TAB_GROUPS[0];
+    state.brandDetailTab = group?.tabs[0] || 'desktop';
     render();
     return;
   }
 
   if (action === 'capability-mode') {
     state.capabilityMode = target.getAttribute('data-mode') || 'skills';
+    state.route = getCapabilityRouteForMode(state.capabilityMode);
     render();
     return;
   }
@@ -4533,6 +5762,7 @@ app.addEventListener('click', async (event) => {
 
   if (action === 'select-skill') {
     state.capabilityMode = 'skills';
+    state.route = getCapabilityRouteForMode(state.capabilityMode);
     state.selectedSkillSlug = target.getAttribute('data-skill-slug') || '';
     state.showSkillImportPanel = state.selectedSkillSlug === '__new__';
     render();
@@ -4541,6 +5771,7 @@ app.addEventListener('click', async (event) => {
 
   if (action === 'select-mcp') {
     state.capabilityMode = 'mcp';
+    state.route = getCapabilityRouteForMode(state.capabilityMode);
     state.selectedMcpKey = target.getAttribute('data-mcp-key') || '';
     state.mcpTestResult = null;
     render();
@@ -4549,6 +5780,7 @@ app.addEventListener('click', async (event) => {
 
   if (action === 'select-model') {
     state.capabilityMode = 'models';
+    state.route = getCapabilityRouteForMode(state.capabilityMode);
     state.selectedModelRef = target.getAttribute('data-model-ref') || '';
     render();
     return;
@@ -4711,6 +5943,12 @@ app.addEventListener('click', async (event) => {
 });
 
 function handleFilterInput(target) {
+  const stateKey = target.getAttribute('data-state-key');
+  if (stateKey === 'selectedDesktopReleaseChannel') {
+    state.selectedDesktopReleaseChannel = target.value === 'dev' ? 'dev' : 'prod';
+    render();
+    return;
+  }
   const key = target.getAttribute('data-filter-key');
   if (!key) return;
   state.filters[key] = target.value;
@@ -4731,6 +5969,14 @@ app.addEventListener('change', (event) => {
     return;
   }
   handleFilterInput(target);
+});
+
+applyThemeMode(state.themeMode);
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if (state.themeMode === 'system') {
+    applyThemeMode('system');
+    render();
+  }
 });
 
 render();

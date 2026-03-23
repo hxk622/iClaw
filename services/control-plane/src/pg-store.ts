@@ -15,7 +15,10 @@ import type {
   CreditLedgerRecord,
   ImportUserPrivateSkillInput,
   InstallAgentInput,
+  InstallMcpInput,
   InstallSkillInput,
+  McpCatalogEntryRecord,
+  McpCatalogRecord,
   OAuthAccountRecord,
   OAuthProvider,
   PaymentOrderRecord,
@@ -29,14 +32,17 @@ import type {
   SkillCatalogRecord,
   SkillSyncRunRecord,
   SkillSyncSourceRecord,
+  UpsertAgentCatalogEntryInput,
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
   UsageEventInput,
   UsageEventResult,
   UserAgentLibraryRecord,
+  UserMcpLibraryRecord,
   UserPrivateSkillRecord,
   UserRole,
   UserSkillLibraryRecord,
+  UpdateMcpLibraryItemInput,
   UpdateSkillLibraryItemInput,
   UserRecord,
   WorkspaceBackupInput,
@@ -175,6 +181,19 @@ type SkillCatalogRow = {
   updated_at: Date;
 };
 
+type McpCatalogRow = {
+  mcp_key: string;
+  name: string;
+  description: string;
+  transport: string;
+  object_key: string | null;
+  config_json: Record<string, unknown> | null;
+  metadata_json: Record<string, unknown> | null;
+  active: boolean;
+  created_at: Date;
+  updated_at: Date;
+};
+
 type AgentCatalogRow = {
   slug: string;
   name: string;
@@ -301,6 +320,15 @@ type UserSkillLibraryRow = {
   skill_slug: string;
   source: 'cloud' | 'private';
   installed_version: string;
+  enabled: boolean;
+  installed_at: Date;
+  updated_at: Date;
+};
+
+type UserMcpLibraryRow = {
+  user_id: string;
+  mcp_key: string;
+  source: 'cloud';
   enabled: boolean;
   installed_at: Date;
   updated_at: Date;
@@ -499,6 +527,21 @@ function mapSkillCatalogRow(row: SkillCatalogRow): SkillCatalogRecord {
   };
 }
 
+function mapMcpCatalogRow(row: McpCatalogRow): McpCatalogRecord {
+  return {
+    mcpKey: row.mcp_key,
+    name: row.name,
+    description: row.description,
+    transport: row.transport,
+    objectKey: row.object_key,
+    config: parseJsonObject(row.config_json),
+    metadata: parseJsonObject(row.metadata_json),
+    active: row.active,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
 function mapSkillSyncSourceRow(row: SkillSyncSourceRow): SkillSyncSourceRecord {
   return {
     id: row.id,
@@ -553,6 +596,17 @@ function mapUserSkillLibraryRow(row: UserSkillLibraryRow): UserSkillLibraryRecor
     userId: row.user_id,
     slug: row.skill_slug,
     version: row.installed_version,
+    source: row.source,
+    enabled: row.enabled,
+    installedAt: row.installed_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapUserMcpLibraryRow(row: UserMcpLibraryRow): UserMcpLibraryRecord {
+  return {
+    userId: row.user_id,
+    mcpKey: row.mcp_key,
     source: row.source,
     enabled: row.enabled,
     installedAt: row.installed_at.toISOString(),
@@ -1908,6 +1962,42 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     return result.rows.map(mapAgentCatalogRow);
   }
 
+  async listAgentCatalogAdmin(): Promise<AgentCatalogEntryRecord[]> {
+    const result = await this.pool.query<AgentCatalogRow>(
+      `
+        select
+          slug,
+          name,
+          description,
+          category,
+          publisher,
+          featured,
+          official,
+          tags,
+          capabilities,
+          use_cases,
+          metadata_json,
+          sort_order,
+          active,
+          created_at,
+          updated_at
+        from agent_catalog_entries
+        order by sort_order asc, name asc
+      `,
+    );
+    return result.rows.map(mapAgentCatalogRow);
+  }
+
+  async countAgentCatalogAdmin(): Promise<number> {
+    const result = await this.pool.query<{count: string}>(
+      `
+        select count(*)::text as count
+        from agent_catalog_entries
+      `,
+    );
+    return Number(result.rows[0]?.count || '0');
+  }
+
   async getAgentCatalogEntry(slug: string): Promise<AgentCatalogEntryRecord | null> {
     const result = await this.pool.query<AgentCatalogRow>(
       `
@@ -1934,6 +2024,78 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       [slug],
     );
     return result.rows[0] ? mapAgentCatalogRow(result.rows[0]) : null;
+  }
+
+  async upsertAgentCatalogEntry(input: Required<UpsertAgentCatalogEntryInput>): Promise<AgentCatalogEntryRecord> {
+    await this.pool.query(
+      `
+        insert into agent_catalog_entries (
+          slug,
+          name,
+          description,
+          category,
+          publisher,
+          featured,
+          official,
+          tags,
+          capabilities,
+          use_cases,
+          metadata_json,
+          sort_order,
+          active,
+          created_at,
+          updated_at
+        )
+        values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb, $12, $13, now(), now())
+        on conflict (slug)
+        do update set
+          name = excluded.name,
+          description = excluded.description,
+          category = excluded.category,
+          publisher = excluded.publisher,
+          featured = excluded.featured,
+          official = excluded.official,
+          tags = excluded.tags,
+          capabilities = excluded.capabilities,
+          use_cases = excluded.use_cases,
+          metadata_json = excluded.metadata_json,
+          sort_order = excluded.sort_order,
+          active = excluded.active,
+          updated_at = now()
+      `,
+      [
+        input.slug,
+        input.name,
+        input.description,
+        input.category,
+        input.publisher,
+        input.featured,
+        input.official,
+        JSON.stringify(input.tags),
+        JSON.stringify(input.capabilities),
+        JSON.stringify(input.use_cases),
+        JSON.stringify(input.metadata),
+        input.sort_order,
+        input.active,
+      ],
+    );
+
+    const record = await this.getAgentCatalogEntry(input.slug);
+    if (!record) {
+      throw new Error('AGENT_UPSERT_FAILED');
+    }
+    return record;
+  }
+
+  async deleteAgentCatalogEntry(slug: string): Promise<boolean> {
+    const result = await this.pool.query(
+      `
+        delete from agent_catalog_entries
+        where slug = $1
+      `,
+      [slug],
+    );
+    return (result.rowCount || 0) > 0;
   }
 
   async listSkillCatalog(limit?: number, offset?: number): Promise<SkillCatalogEntryRecord[]> {
@@ -2171,6 +2333,65 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       [slug],
     );
     return (result.rowCount || 0) > 0;
+  }
+
+  async listMcpCatalog(limit?: number, offset?: number): Promise<McpCatalogEntryRecord[]> {
+    const values: unknown[] = [];
+    const paginationSql = this.buildSkillCatalogPaginationClause(values, limit, offset);
+    return this.listMcpCatalogEntries(
+      `
+        select
+          mcp_key,
+          name,
+          description,
+          transport,
+          object_key,
+          config_json,
+          metadata_json,
+          active,
+          created_at,
+          updated_at
+        from oem_mcp_catalog
+        where active = true
+        order by name asc
+        ${paginationSql}
+      `,
+      values,
+    );
+  }
+
+  async countMcpCatalog(): Promise<number> {
+    const result = await this.pool.query<{count: string}>(
+      `
+        select count(*)::text as count
+        from oem_mcp_catalog
+        where active = true
+      `,
+    );
+    return Number(result.rows[0]?.count || '0');
+  }
+
+  async getMcpCatalogEntry(mcpKey: string): Promise<McpCatalogEntryRecord | null> {
+    const result = await this.listMcpCatalogEntries(
+      `
+        select
+          mcp_key,
+          name,
+          description,
+          transport,
+          object_key,
+          config_json,
+          metadata_json,
+          active,
+          created_at,
+          updated_at
+        from oem_mcp_catalog
+        where mcp_key = $1
+        limit 1
+      `,
+      [mcpKey],
+    );
+    return result[0] || null;
   }
 
   async listSkillSyncSources(): Promise<SkillSyncSourceRecord[]> {
@@ -2566,6 +2787,73 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     return result.rows.map(mapUserSkillLibraryRow);
   }
 
+  async listUserMcpLibrary(userId: string): Promise<UserMcpLibraryRecord[]> {
+    const result = await this.pool.query<UserMcpLibraryRow>(
+      `
+        select user_id, mcp_key, source, enabled, installed_at, updated_at
+        from user_mcp_library
+        where user_id = $1
+        order by installed_at desc
+      `,
+      [userId],
+    );
+    return result.rows.map(mapUserMcpLibraryRow);
+  }
+
+  async installUserMcp(
+    userId: string,
+    input: Required<InstallMcpInput> & {source?: 'cloud'},
+  ): Promise<UserMcpLibraryRecord> {
+    const result = await this.pool.query<UserMcpLibraryRow>(
+      `
+        insert into user_mcp_library (
+          user_id,
+          mcp_key,
+          source,
+          enabled,
+          installed_at,
+          updated_at
+        )
+        values ($1, $2, $3, true, now(), now())
+        on conflict (user_id, mcp_key)
+        do update set
+          source = excluded.source,
+          enabled = true,
+          updated_at = now()
+        returning user_id, mcp_key, source, enabled, installed_at, updated_at
+      `,
+      [userId, input.mcp_key, input.source || 'cloud'],
+    );
+    return mapUserMcpLibraryRow(result.rows[0]);
+  }
+
+  async updateUserMcp(
+    userId: string,
+    input: Required<UpdateMcpLibraryItemInput>,
+  ): Promise<UserMcpLibraryRecord | null> {
+    const result = await this.pool.query<UserMcpLibraryRow>(
+      `
+        update user_mcp_library
+        set enabled = $3, updated_at = now()
+        where user_id = $1 and mcp_key = $2
+        returning user_id, mcp_key, source, enabled, installed_at, updated_at
+      `,
+      [userId, input.mcp_key, input.enabled],
+    );
+    return result.rows[0] ? mapUserMcpLibraryRow(result.rows[0]) : null;
+  }
+
+  async removeUserMcp(userId: string, mcpKey: string): Promise<boolean> {
+    const result = await this.pool.query(
+      `
+        delete from user_mcp_library
+        where user_id = $1 and mcp_key = $2
+      `,
+      [userId, mcpKey],
+    );
+    return (result.rowCount || 0) > 0;
+  }
+
   async installUserSkill(
     userId: string,
     input: Required<InstallSkillInput> & {source?: 'cloud' | 'private'},
@@ -2629,6 +2917,11 @@ export class PgControlPlaneStore implements ControlPlaneStore {
   private async listSkillCatalogEntries(query: string, values: unknown[] = []): Promise<SkillCatalogEntryRecord[]> {
     const catalogResult = await this.pool.query<SkillCatalogRow>(query, values);
     return catalogResult.rows.map(mapSkillCatalogRow);
+  }
+
+  private async listMcpCatalogEntries(query: string, values: unknown[] = []): Promise<McpCatalogEntryRecord[]> {
+    const catalogResult = await this.pool.query<McpCatalogRow>(query, values);
+    return catalogResult.rows.map(mapMcpCatalogRow);
   }
 
   private buildSkillCatalogPaginationClause(values: unknown[], limit?: number, offset?: number): string {

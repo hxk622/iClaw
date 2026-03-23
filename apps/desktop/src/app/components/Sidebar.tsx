@@ -29,6 +29,7 @@ type PrimaryView =
   | 'investment-experts'
   | 'lobster-store'
   | 'skill-store'
+  | 'mcp-store'
   | 'cron'
   | 'im-bots'
   | 'data-connections'
@@ -69,9 +70,32 @@ function ExpertAdvisorIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+function MCPStoreIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <path d="M8.2 7.4h7.6" />
+      <path d="M8.2 12h7.6" />
+      <path d="M8.2 16.6h7.6" />
+      <path d="M5.2 7.4h.01" />
+      <path d="M5.2 12h.01" />
+      <path d="M5.2 16.6h.01" />
+      <path d="M3.8 4.5h16.4a1.3 1.3 0 0 1 1.3 1.3v12.4a1.3 1.3 0 0 1-1.3 1.3H3.8a1.3 1.3 0 0 1-1.3-1.3V5.8a1.3 1.3 0 0 1 1.3-1.3Z" />
+    </svg>
+  );
+}
+
 interface SidebarProps {
   user: SidebarUser | null;
   activeView?: PrimaryView;
+  enabledMenuKeys?: string[] | null;
   selectedTaskId?: string | null;
   authenticated?: boolean;
   onOpenChat?: () => void;
@@ -80,6 +104,7 @@ interface SidebarProps {
   onOpenCron?: () => void;
   onOpenLobsterStore?: () => void;
   onOpenSkillStore?: () => void;
+  onOpenMcpStore?: () => void;
   onOpenDataConnections?: () => void;
   onOpenSecurity?: () => void;
   onOpenImBots?: () => void;
@@ -118,6 +143,7 @@ interface SidebarItem {
 export function Sidebar({
   user,
   activeView = 'chat',
+  enabledMenuKeys = null,
   selectedTaskId = null,
   authenticated = false,
   onOpenChat,
@@ -126,6 +152,7 @@ export function Sidebar({
   onOpenCron,
   onOpenLobsterStore,
   onOpenSkillStore,
+  onOpenMcpStore,
   onOpenDataConnections,
   onOpenSecurity,
   onOpenImBots,
@@ -166,7 +193,7 @@ export function Sidebar({
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, [menuOpen]);
 
-  const mainItems: SidebarItem[] = [
+  const allMainItems: SidebarItem[] = [
     {
       key: 'chat',
       label: '智能对话',
@@ -210,6 +237,15 @@ export function Sidebar({
       onClick: onOpenSkillStore,
     },
     {
+      key: 'mcp-store',
+      label: 'MCP商店',
+      icon: MCPStoreIcon,
+      iconClass: 'text-[rgb(69,96,132)]',
+      iconWrapClass: 'rounded-[10px] border border-transparent bg-transparent',
+      active: activeView === 'mcp-store',
+      onClick: onOpenMcpStore,
+    },
+    {
       key: 'memory',
       label: '记忆管理',
       icon: BookOpen,
@@ -218,7 +254,7 @@ export function Sidebar({
       onClick: onOpenMemory,
     },
     {
-      key: 'link',
+      key: 'data-connections',
       label: '数据连接',
       icon: Link2,
       iconClass: 'text-[rgb(49,95,158)]',
@@ -242,6 +278,15 @@ export function Sidebar({
       onClick: onOpenSecurity,
     },
   ];
+  const mainItems =
+    enabledMenuKeys
+      ? enabledMenuKeys
+          .map((key) => allMainItems.find((item) => item.key === key))
+          .filter((item): item is SidebarItem => Boolean(item))
+      : allMainItems;
+  const chatEnabled = enabledMenuKeys ? enabledMenuKeys.includes('chat') : true;
+  const taskCenterEnabled = enabledMenuKeys ? enabledMenuKeys.includes('task-center') : true;
+  const settingsEnabled = enabledMenuKeys ? enabledMenuKeys.includes('settings') : true;
 
   const renderGroup = (title: string, items: SidebarItem[]) => (
     <div className="mb-4">
@@ -331,26 +376,28 @@ export function Sidebar({
         </div>
       </div>
 
-      <div className="border-b border-[var(--border-default)] p-3">
-        <Button
-          variant="secondary"
-          size="sm"
-          block
-          onClick={onStartNewChat}
-          leadingIcon={
-            <span className="inline-flex h-5.5 w-5.5 items-center justify-center rounded-full bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)]">
-              <Plus className="h-3.5 w-3.5" />
-            </span>
-          }
-          className="h-9.5 justify-center rounded-[13px] border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--bg-card)_86%,var(--bg-page))] px-3 text-[13px] font-medium text-[var(--text-primary)] shadow-none hover:border-[var(--chip-brand-border)] hover:bg-[color-mix(in_srgb,var(--chip-brand-bg)_48%,var(--bg-card))] hover:text-[var(--text-primary)]"
-        >
-          新建对话
-        </Button>
-      </div>
+      {chatEnabled ? (
+        <div className="border-b border-[var(--border-default)] p-3">
+          <Button
+            variant="secondary"
+            size="sm"
+            block
+            onClick={onStartNewChat}
+            leadingIcon={
+              <span className="inline-flex h-5.5 w-5.5 items-center justify-center rounded-full bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)]">
+                <Plus className="h-3.5 w-3.5" />
+              </span>
+            }
+            className="h-9.5 justify-center rounded-[13px] border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--bg-card)_86%,var(--bg-page))] px-3 text-[13px] font-medium text-[var(--text-primary)] shadow-none hover:border-[var(--chip-brand-border)] hover:bg-[color-mix(in_srgb,var(--chip-brand-bg)_48%,var(--bg-card))] hover:text-[var(--text-primary)]"
+          >
+            新建对话
+          </Button>
+        </div>
+      ) : null}
 
       <div className="flex-1 overflow-y-auto p-2">
-        {renderGroup('主体区', mainItems)}
-        {renderRecordGroup()}
+        {mainItems.length > 0 ? renderGroup('主体区', mainItems) : null}
+        {taskCenterEnabled ? renderRecordGroup() : null}
       </div>
 
       <div className="border-t border-[var(--border-default)] p-3 pb-0">
@@ -397,6 +444,7 @@ export function Sidebar({
         <AvatarDropdown
           open={menuOpen}
           authenticated={authenticated}
+          settingsVisible={settingsEnabled}
           onClose={() => setMenuOpen(false)}
           onOpenAccount={() => onOpenAccount?.()}
           onOpenLogin={() => onOpenLogin?.()}

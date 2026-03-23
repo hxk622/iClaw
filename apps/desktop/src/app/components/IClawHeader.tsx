@@ -8,7 +8,7 @@ type IClawHeaderProps = {
   loading?: boolean;
   authenticated: boolean;
   onCreditsClick: () => void;
-  onSubscriptionClick: () => void;
+  onRechargeClick: () => void;
 };
 
 type HeaderMarketQuote = {
@@ -312,7 +312,7 @@ export function IClawHeader({
   loading = false,
   authenticated,
   onCreditsClick,
-  onSubscriptionClick,
+  onRechargeClick,
 }: IClawHeaderProps) {
   const balanceText = formatBalance(balance, authenticated, loading);
   const feed = useHeaderFeed();
@@ -408,12 +408,12 @@ export function IClawHeader({
           <button
             type="button"
             className="group inline-flex h-9 items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--border-default)_82%,transparent)] bg-[color-mix(in_srgb,var(--bg-card)_88%,white_12%)] px-3 shadow-[var(--shadow-sm)] transition-colors duration-200 hover:bg-[color-mix(in_srgb,var(--bg-hover)_94%,white_6%)]"
-            onClick={onSubscriptionClick}
+            onClick={onRechargeClick}
           >
             <span className="inline-flex h-5.5 w-5.5 items-center justify-center rounded-full bg-[rgba(168,140,93,0.14)] text-[var(--brand-primary)]">
               <Crown className="h-3.5 w-3.5" />
             </span>
-            <span className="hidden text-[12px] font-semibold text-[var(--text-primary)] sm:inline">订阅</span>
+            <span className="hidden text-[12px] font-semibold text-[var(--text-primary)] sm:inline">充值中心</span>
           </button>
 
           <div className="hidden items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--chip-brand-bg)_64%,var(--bg-card))] px-2.5 py-1 text-[11px] font-medium text-[var(--chip-brand-text)] xl:inline-flex">

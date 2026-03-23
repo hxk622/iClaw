@@ -124,6 +124,26 @@ OEM app / skill / MCP / menu / asset 的真实来源已经切到 control-plane p
 - 本地构建与本地调试：通过 control-plane 同步到 `.cache/portal-apps/<app-name>` 和 `services/openclaw/resources/`
 - 仓库里的 `services/control-plane/presets/` 只用于预置 seed，不再是运行时配置源
 
+配置分层原则：
+
+- `runtime-bound`
+  - 被 OpenClaw runtime / sidecar 直接依赖的配置
+  - 必须由 control-plane 下发到本地 snapshot / runtime config，再供本地 runtime 消费
+  - 例如 model allowlist、默认模型、推荐模型、MCP runtime config、skill runtime binding
+- `cloud-live`
+  - 不被 OpenClaw runtime 直接消费的展示层 / 运营层配置
+  - 可以由前端实时从云端获取
+  - 例如商店列表、运营文案、非关键 UI 展示内容、menu / sidebar / header / input / home 这类 shell 装配
+
+注意：
+
+- 输入框里的 `models.list` 不直接实时查 control-plane
+- 它最终读取的是本地 sidecar 当前消费的 runtime 配置
+- 因此 model allowlist 明确属于 `runtime-bound`
+- 桌面端会在前端启动阶段尝试同步 OEM snapshot；同时 Rust 会在 sidecar 启动前再兜底同步一次，避免因为前端触发失败而退回单模型
+- 左侧菜单这类 OEM shell 配置默认优先实时读取 `control-plane / portal/public-config`
+- Tauri 会把最近一次成功的 shell 配置写入本地 snapshot，作为云端暂时不可用时的兜底
+
 常用命令：
 
 ```bash

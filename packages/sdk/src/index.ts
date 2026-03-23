@@ -10,6 +10,7 @@ export interface ClientOptions {
   preferGatewayWs?: boolean;
   disableGatewayDeviceIdentity?: boolean;
   desktopAppVersion?: string;
+  desktopAppName?: string;
   desktopReleaseChannel?: 'dev' | 'prod';
   desktopPlatform?: string;
   desktopArch?: string;
@@ -17,14 +18,20 @@ export interface ClientOptions {
 }
 
 export interface DesktopUpdateHint {
+  appName?: string | null;
   latestVersion: string;
   updateAvailable: boolean;
   mandatory: boolean;
+  enforcementState?: 'recommended' | 'required_after_run' | 'required_now';
+  blockNewRuns?: boolean;
+  reasonCode?: string | null;
+  reasonMessage?: string | null;
   manifestUrl?: string | null;
   artifactUrl?: string | null;
 }
 
 export interface DesktopUpdateHintInput {
+  appName?: string;
   appVersion?: string;
   channel?: 'dev' | 'prod';
   platform?: string;
@@ -119,9 +126,20 @@ interface InstallSkillLibraryInput {
   version?: string;
 }
 
+interface InstallMcpLibraryInput {
+  token: string;
+  mcpKey: string;
+}
+
 interface UpdateSkillLibraryInput {
   token: string;
   slug: string;
+  enabled: boolean;
+}
+
+interface UpdateMcpLibraryInput {
+  token: string;
+  mcpKey: string;
   enabled: boolean;
 }
 
@@ -283,6 +301,28 @@ export interface SkillCatalogPageData<T> {
   offset: number;
   has_more: boolean;
   next_offset: number | null;
+}
+
+export interface McpCatalogEntryData {
+  mcp_key: string;
+  name: string;
+  description: string;
+  transport: string;
+  source: 'cloud';
+  default_installed: boolean;
+  object_key: string | null;
+  config: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserMcpLibraryItemData {
+  mcp_key: string;
+  source: 'cloud';
+  enabled: boolean;
+  installed_at: string;
+  updated_at: string;
 }
 
 export interface AdminSkillCatalogEntryData extends SkillCatalogEntryData {
@@ -755,6 +795,7 @@ export class IClawClient {
   private readonly preferGatewayWs: boolean;
   private readonly disableGatewayDeviceIdentity: boolean;
   private readonly desktopAppVersion?: string;
+  private readonly desktopAppName?: string;
   private readonly desktopReleaseChannel?: 'dev' | 'prod';
   private readonly desktopPlatform?: string;
   private readonly desktopArch?: string;
@@ -772,6 +813,7 @@ export class IClawClient {
     this.preferGatewayWs = Boolean(options.preferGatewayWs);
     this.disableGatewayDeviceIdentity = Boolean(options.disableGatewayDeviceIdentity);
     this.desktopAppVersion = options.desktopAppVersion?.trim() || undefined;
+    this.desktopAppName = options.desktopAppName?.trim() || undefined;
     this.desktopReleaseChannel = options.desktopReleaseChannel;
     this.desktopPlatform = normalizeDesktopPlatform(options.desktopPlatform) || detectDesktopPlatform();
     this.desktopArch = normalizeDesktopArch(options.desktopArch) || detectDesktopArch();
@@ -781,6 +823,7 @@ export class IClawClient {
   private fetchAuth(path: string, init: RequestInit = {}, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS): Promise<Response> {
     const headers = new Headers(init.headers || {});
     if (this.desktopAppVersion) headers.set('x-iclaw-app-version', this.desktopAppVersion);
+    if (this.desktopAppName) headers.set('x-iclaw-app-name', this.desktopAppName);
     if (this.desktopReleaseChannel) headers.set('x-iclaw-channel', this.desktopReleaseChannel);
     if (this.desktopPlatform) headers.set('x-iclaw-platform', this.desktopPlatform);
     if (this.desktopArch) headers.set('x-iclaw-arch', this.desktopArch);
@@ -809,14 +852,27 @@ export class IClawClient {
     if (!this.onDesktopUpdateHint) return;
     const latestVersion = response.headers.get('x-iclaw-latest-version')?.trim() || '';
     if (!latestVersion) return;
+    const appName = response.headers.get('x-iclaw-app-name')?.trim() || this.desktopAppName || null;
     const updateAvailable = response.headers.get('x-iclaw-update-available') === 'true';
     const mandatory = response.headers.get('x-iclaw-update-mandatory') === 'true';
+    const enforcementState = response.headers.get('x-iclaw-update-enforcement-state')?.trim() || 'recommended';
+    const blockNewRuns = response.headers.get('x-iclaw-update-block-new-runs') === 'true';
+    const reasonCode = response.headers.get('x-iclaw-update-reason-code')?.trim() || null;
+    const reasonMessage = response.headers.get('x-iclaw-update-reason-message')?.trim() || null;
     const manifestUrl = response.headers.get('x-iclaw-update-manifest-url');
     const artifactUrl = response.headers.get('x-iclaw-update-artifact-url');
     this.onDesktopUpdateHint({
+      appName,
       latestVersion,
       updateAvailable,
       mandatory,
+      enforcementState:
+        enforcementState === 'required_after_run' || enforcementState === 'required_now'
+          ? enforcementState
+          : 'recommended',
+      blockNewRuns,
+      reasonCode,
+      reasonMessage,
       manifestUrl: manifestUrl?.trim() || null,
       artifactUrl: artifactUrl?.trim() || null,
     });
@@ -847,6 +903,7 @@ export class IClawClient {
 
   async getDesktopUpdateHint(input: DesktopUpdateHintInput = {}): Promise<DesktopUpdateHint> {
     const params = new URLSearchParams();
+    const appName = input.appName?.trim() || this.desktopAppName;
     const appVersion = input.appVersion?.trim() || this.desktopAppVersion;
     const channel = input.channel || this.desktopReleaseChannel;
     if (!appVersion) {
@@ -855,6 +912,7 @@ export class IClawClient {
         message: 'desktop app version is required',
       });
     }
+    if (appName) params.set('app_name', appName);
     params.set('current_version', appVersion);
     if (channel) params.set('channel', channel);
     if (input.platform?.trim()) params.set('target', input.platform.trim());
@@ -1235,6 +1293,29 @@ export class IClawClient {
     return page.items;
   }
 
+  async listMcpCatalogPage(options?: {limit?: number; offset?: number}): Promise<SkillCatalogPageData<McpCatalogEntryData>> {
+    const searchParams = new URLSearchParams();
+    if (typeof options?.limit === 'number' && Number.isFinite(options.limit)) {
+      searchParams.set('limit', String(Math.max(1, Math.floor(options.limit))));
+    }
+    if (typeof options?.offset === 'number' && Number.isFinite(options.offset) && options.offset > 0) {
+      searchParams.set('offset', String(Math.max(0, Math.floor(options.offset))));
+    }
+    const query = searchParams.size ? `?${searchParams.toString()}` : '';
+    const res = await this.fetchAuth(`/mcp/catalog${query}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: SkillCatalogPageData<McpCatalogEntryData>};
+    return json.data;
+  }
+
+  async listMcpCatalog(options?: {limit?: number; offset?: number}): Promise<McpCatalogEntryData[]> {
+    const page = await this.listMcpCatalogPage(options);
+    return page.items;
+  }
+
   async listPersonalSkillsCatalogPage(
     token: string,
     options?: {limit?: number; offset?: number},
@@ -1435,6 +1516,19 @@ export class IClawClient {
     return json.data.items;
   }
 
+  async getMcpLibrary(token: string): Promise<UserMcpLibraryItemData[]> {
+    const res = await this.fetchAuth('/mcp/library', {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: {items: UserMcpLibraryItemData[]}};
+    return json.data.items;
+  }
+
   async installSkill(input: InstallSkillLibraryInput): Promise<UserSkillLibraryItemData> {
     const res = await this.fetchAuth('/skills/library/install', {
       method: 'POST',
@@ -1450,6 +1544,23 @@ export class IClawClient {
     });
     if (!res.ok) throw await parseError(res);
     const json = (await res.json()) as {data: UserSkillLibraryItemData};
+    return json.data;
+  }
+
+  async installMcp(input: InstallMcpLibraryInput): Promise<UserMcpLibraryItemData> {
+    const res = await this.fetchAuth('/mcp/library/install', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${input.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        mcp_key: input.mcpKey,
+      }),
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: UserMcpLibraryItemData};
     return json.data;
   }
 
@@ -1501,6 +1612,24 @@ export class IClawClient {
     return json.data;
   }
 
+  async updateMcpLibraryItem(input: UpdateMcpLibraryInput): Promise<UserMcpLibraryItemData> {
+    const res = await this.fetchAuth('/mcp/library/state', {
+      method: 'PUT',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${input.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        mcp_key: input.mcpKey,
+        enabled: input.enabled,
+      }),
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: UserMcpLibraryItemData};
+    return json.data;
+  }
+
   async removeSkillFromLibrary(token: string, slug: string): Promise<{removed: boolean}> {
     const res = await this.fetchAuth('/skills/library/uninstall', {
       method: 'POST',
@@ -1510,6 +1639,21 @@ export class IClawClient {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({slug}),
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: {removed: boolean}};
+    return json.data;
+  }
+
+  async removeMcpFromLibrary(token: string, mcpKey: string): Promise<{removed: boolean}> {
+    const res = await this.fetchAuth('/mcp/library/uninstall', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({mcp_key: mcpKey}),
     });
     if (!res.ok) throw await parseError(res);
     const json = (await res.json()) as {data: {removed: boolean}};

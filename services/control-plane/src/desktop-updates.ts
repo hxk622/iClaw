@@ -3,9 +3,14 @@ import { constants as fsConstants } from 'node:fs';
 import { join } from 'node:path';
 
 export const DESKTOP_UPDATE_RESPONSE_HEADERS = [
+  'x-iclaw-app-name',
   'x-iclaw-latest-version',
   'x-iclaw-update-available',
   'x-iclaw-update-mandatory',
+  'x-iclaw-update-enforcement-state',
+  'x-iclaw-update-block-new-runs',
+  'x-iclaw-update-reason-code',
+  'x-iclaw-update-reason-message',
   'x-iclaw-update-manifest-url',
   'x-iclaw-update-artifact-url',
 ] as const;
@@ -39,6 +44,7 @@ type DesktopUpdateManifestSource = {
 };
 
 export type DesktopUpdateRequest = {
+  appName?: string | null;
   appVersion?: string | null;
   platform?: string | null;
   arch?: string | null;
@@ -46,9 +52,14 @@ export type DesktopUpdateRequest = {
 };
 
 export type DesktopUpdateHint = {
+  appName?: string | null;
   latestVersion: string;
   updateAvailable: boolean;
   mandatory: boolean;
+  enforcementState?: 'recommended' | 'required_after_run' | 'required_now';
+  blockNewRuns?: boolean;
+  reasonCode?: string | null;
+  reasonMessage?: string | null;
   manifestUrl: string | null;
   artifactUrl: string | null;
 };
@@ -60,6 +71,10 @@ export type DesktopUpdaterPayload = {
   notes: string | null;
   pubDate: string | null;
   mandatory: boolean;
+  enforcementState?: 'recommended' | 'required_after_run' | 'required_now';
+  blockNewRuns?: boolean;
+  reasonCode?: string | null;
+  reasonMessage?: string | null;
   externalDownloadUrl: string | null;
 };
 

@@ -11,7 +11,7 @@ import {
   type RuntimeDiagnosis,
   type RuntimeInstallProgress,
 } from './lib/tauri-runtime-config';
-import { syncPublishedBrandRuntimeSnapshot } from './lib/oem-runtime';
+import { loadBrandRuntimeConfigWithFallback, resolveEnabledMenuKeys } from './lib/oem-runtime';
 import { AuthPanel } from './components/AuthPanel';
 import { AccountPanel } from './components/account/AccountPanel';
 import { FirstRunSetupPanel } from './components/FirstRunSetupPanel';
@@ -26,11 +26,13 @@ import { DataConnectionsView } from './components/data-connections/DataConnectio
 import { InvestmentExpertsView } from './components/investment-experts/InvestmentExpertsView';
 import { LobsterStoreView } from './components/lobster-store/LobsterStoreView';
 import { MemoryView } from './components/memory/MemoryView';
+import { MCPStoreView } from './components/mcp-store/MCPStoreView';
 import { TaskCenterView } from './components/TaskCenterView';
 import { SkillStoreView } from './components/skill-store/SkillStoreView';
 import { IMBotsView } from './components/im-bots/IMBotsView';
 import { SecurityCenterView } from './components/security-center/SecurityCenterView';
 import { SettingsPanel } from './components/settings/SettingsPanel';
+import { RechargeCenter } from './components/recharge/RechargeCenter';
 import { type PersistableSettingsSection, SettingsProvider, useSettings } from './contexts/settings-context';
 import { BRAND } from './lib/brand';
 import { type InvestmentExpert } from '@/app/lib/investment-experts';
@@ -134,12 +136,26 @@ type PrimaryView =
   | 'investment-experts'
   | 'lobster-store'
   | 'skill-store'
+  | 'mcp-store'
   | 'cron'
   | 'im-bots'
   | 'data-connections'
   | 'task-center'
   | 'memory'
   | 'security';
+const PRIMARY_VIEW_ORDER: PrimaryView[] = [
+  'chat',
+  'cron',
+  'investment-experts',
+  'lobster-store',
+  'skill-store',
+  'mcp-store',
+  'memory',
+  'data-connections',
+  'im-bots',
+  'security',
+  'task-center',
+];
 
 type InstallerViewState = 'loading' | 'error';
 
@@ -245,6 +261,7 @@ export default function App() {
         preferGatewayWs: true,
         disableGatewayDeviceIdentity: DISABLE_GATEWAY_DEVICE_IDENTITY,
         desktopAppVersion: DESKTOP_APP_VERSION,
+        desktopAppName: BRAND.brandId,
         desktopReleaseChannel: DESKTOP_RELEASE_CHANNEL,
         onDesktopUpdateHint: (hint) => {
           if (!hint.updateAvailable) {
@@ -302,10 +319,10 @@ export default function App() {
   const [runtimeDiagnosis, setRuntimeDiagnosis] = useState<RuntimeDiagnosis | null>(null);
   const [runtimeInstallProgress, setRuntimeInstallProgress] = useState<RuntimeInstallProgress | null>(null);
   const [primaryView, setPrimaryView] = useState<PrimaryView>('chat');
-  const [overlayView, setOverlayView] = useState<'settings' | 'account' | null>(null);
+  const [overlayView, setOverlayView] = useState<'settings' | 'account' | 'recharge' | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
-  const [postAuthView, setPostAuthView] = useState<'account' | null>(null);
+  const [postAuthView, setPostAuthView] = useState<'account' | 'recharge' | null>(null);
   const [authBootstrapReady, setAuthBootstrapReady] = useState(false);
   const [guestPromptInitialized, setGuestPromptInitialized] = useState(false);
   const [desktopUpdateHint, setDesktopUpdateHint] = useState<DesktopUpdateHint | null>(null);
@@ -320,6 +337,7 @@ export default function App() {
   const [desktopUpdateDetail, setDesktopUpdateDetail] = useState<string | null>(null);
   const [desktopUpdateStatusMessage, setDesktopUpdateStatusMessage] = useState<string | null>(null);
   const [brandRuntimeReady, setBrandRuntimeReady] = useState(!IS_TAURI_RUNTIME);
+  const [brandShellConfig, setBrandShellConfig] = useState<Record<string, unknown> | null>(null);
 
   const syncWorkspaceForUser = async (token: string): Promise<void> => {
     if (!IS_TAURI_RUNTIME) return;
@@ -339,20 +357,19 @@ export default function App() {
   };
 
   const syncBrandRuntimeSnapshot = useCallback(async (): Promise<void> => {
-    if (!IS_TAURI_RUNTIME) {
-      setBrandRuntimeReady(true);
-      return;
-    }
-
     try {
-      await syncPublishedBrandRuntimeSnapshot({
+      const runtimeConfig = await loadBrandRuntimeConfigWithFallback({
         authBaseUrl: AUTH_BASE_URL,
         brandId: BRAND.brandId,
       });
+      setBrandShellConfig(runtimeConfig?.config ?? null);
     } catch (error) {
       console.warn('failed to sync OEM runtime snapshot', error);
+      setBrandShellConfig(null);
     } finally {
-      setBrandRuntimeReady(true);
+      if (IS_TAURI_RUNTIME) {
+        setBrandRuntimeReady(true);
+      }
     }
   }, []);
 
@@ -401,23 +418,17 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!IS_TAURI_RUNTIME) {
-      setBrandRuntimeReady(true);
-      return;
+    let cancelled = false;
+    if (IS_TAURI_RUNTIME) {
+      setBrandRuntimeReady(false);
     }
 
-    let cancelled = false;
-    setBrandRuntimeReady(false);
-
-    void syncPublishedBrandRuntimeSnapshot({
-      authBaseUrl: AUTH_BASE_URL,
-      brandId: BRAND.brandId,
-    })
+    void syncBrandRuntimeSnapshot()
       .catch((error) => {
         console.warn('failed to sync OEM runtime snapshot', error);
       })
       .finally(() => {
-        if (!cancelled) {
+        if (!cancelled && IS_TAURI_RUNTIME) {
           setBrandRuntimeReady(true);
         }
       });
@@ -425,7 +436,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [syncBrandRuntimeSnapshot]);
 
   useEffect(() => {
     if (!IS_TAURI_RUNTIME) return;
@@ -746,7 +757,10 @@ export default function App() {
     setAuthModalOpen(true);
   };
 
-  const openAuthModal = (mode: 'login' | 'register' = 'login', nextView: 'account' | null = null) => {
+  const openAuthModal = (
+    mode: 'login' | 'register' = 'login',
+    nextView: 'account' | 'recharge' | null = null,
+  ) => {
     setAuthError(null);
     setAuthModalMode(mode);
     setPostAuthView(nextView);
@@ -1038,6 +1052,7 @@ export default function App() {
       if (IS_TAURI_RUNTIME) {
         const updaterCheck = await checkDesktopUpdate({
           authBaseUrl: AUTH_BASE_URL,
+          appName: BRAND.brandId,
           channel: DESKTOP_RELEASE_CHANNEL,
         });
         if (updaterCheck?.supported && updaterCheck.available) {
@@ -1075,6 +1090,7 @@ export default function App() {
         <AuthedView
           primaryView={primaryView}
           setPrimaryView={setPrimaryView}
+          brandShellConfig={brandShellConfig}
           overlayView={overlayView}
           setOverlayView={setOverlayView}
           client={client}
@@ -1131,8 +1147,9 @@ export default function App() {
 interface AuthedViewProps {
   primaryView: PrimaryView;
   setPrimaryView: Dispatch<SetStateAction<PrimaryView>>;
-  overlayView: 'settings' | 'account' | null;
-  setOverlayView: Dispatch<SetStateAction<'settings' | 'account' | null>>;
+  brandShellConfig: Record<string, unknown> | null;
+  overlayView: 'settings' | 'account' | 'recharge' | null;
+  setOverlayView: Dispatch<SetStateAction<'settings' | 'account' | 'recharge' | null>>;
   client: IClawClient;
   imBotClient: IClawClient;
   accessToken: string | null;
@@ -1142,7 +1159,7 @@ interface AuthedViewProps {
   handleLogout: () => void;
   authenticated: boolean;
   authModalOpen: boolean;
-  onRequestAuth: (mode?: 'login' | 'register', nextView?: 'account' | null) => void;
+  onRequestAuth: (mode?: 'login' | 'register', nextView?: 'account' | 'recharge' | null) => void;
   desktopUpdateHint: DesktopUpdateHint | null;
   desktopUpdateBusy: boolean;
   desktopUpdateError: string | null;
@@ -1165,6 +1182,7 @@ interface AuthedViewProps {
 function AuthedView({
   primaryView,
   setPrimaryView,
+  brandShellConfig,
   overlayView,
   setOverlayView,
   client,
@@ -1201,6 +1219,17 @@ function AuthedView({
   const [chatSurfaceVersion, setChatSurfaceVersion] = useState(0);
   const [creditBalance, setCreditBalance] = useState<CreditBalanceData | null>(null);
   const [creditBalanceLoading, setCreditBalanceLoading] = useState(false);
+  const enabledMenuKeys = resolveEnabledMenuKeys(brandShellConfig);
+  const availablePrimaryViews = (enabledMenuKeys
+    ? PRIMARY_VIEW_ORDER.filter((view) => enabledMenuKeys.includes(view))
+    : PRIMARY_VIEW_ORDER) as PrimaryView[];
+
+  useEffect(() => {
+    if (availablePrimaryViews.includes(primaryView)) {
+      return;
+    }
+    setPrimaryView(availablePrimaryViews[0] || 'chat');
+  }, [availablePrimaryViews, primaryView, setPrimaryView]);
 
   useEffect(() => {
     if (!accessToken) {
@@ -1310,6 +1339,14 @@ function AuthedView({
     setOverlayView('account');
   };
 
+  const handleHeaderRechargeAction = () => {
+    if (!authenticated) {
+      onRequestAuth('login', 'recharge');
+      return;
+    }
+    setOverlayView('recharge');
+  };
+
   const handleStartLobsterConversation = (agent: LobsterAgent) => {
     const seed = `${agent.slug}-${Date.now()}`;
     setActiveChatRoute({
@@ -1395,6 +1432,7 @@ function AuthedView({
       <Sidebar
         user={currentUser}
         activeView={primaryView}
+        enabledMenuKeys={enabledMenuKeys}
         selectedTaskId={selectedTaskId}
         authenticated={authenticated}
         onOpenChat={() => setPrimaryView('chat')}
@@ -1403,6 +1441,7 @@ function AuthedView({
         onOpenCron={() => setPrimaryView('cron')}
         onOpenLobsterStore={() => setPrimaryView('lobster-store')}
         onOpenSkillStore={() => setPrimaryView('skill-store')}
+        onOpenMcpStore={() => setPrimaryView('mcp-store')}
         onOpenDataConnections={() => setPrimaryView('data-connections')}
         onOpenSecurity={() => setPrimaryView('security')}
         onOpenImBots={() => setPrimaryView('im-bots')}
@@ -1438,7 +1477,7 @@ function AuthedView({
             loading={creditBalanceLoading}
             authenticated={authenticated}
             onCreditsClick={handleHeaderAccountAction}
-            onSubscriptionClick={handleHeaderAccountAction}
+            onRechargeClick={handleHeaderRechargeAction}
           />
         )}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -1468,6 +1507,13 @@ function AuthedView({
               currentUser={currentUser}
               onRequestAuth={onRequestAuth}
               onStartConversation={handleStartSkillConversation}
+            />
+          ) : primaryView === 'mcp-store' ? (
+            <MCPStoreView
+              client={client}
+              accessToken={accessToken}
+              authenticated={authenticated}
+              onRequestAuth={onRequestAuth}
             />
           ) : primaryView === 'data-connections' ? (
             <DataConnectionsView />
@@ -1539,8 +1585,12 @@ function AuthedView({
           token={accessToken}
           user={currentUser}
           onClose={() => setOverlayView(null)}
+          onOpenRechargeCenter={() => setOverlayView('recharge')}
           onUserUpdated={(user) => setCurrentUser(user)}
         />
+      ) : null}
+      {overlayView === 'recharge' && accessToken ? (
+        <RechargeCenter client={client} token={accessToken} onClose={() => setOverlayView(null)} />
       ) : null}
       {overlayView === 'settings' ? (
         <SettingsPanel

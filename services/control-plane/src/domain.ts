@@ -288,6 +288,8 @@ export type WorkspaceBackupView = WorkspaceBackupInput & {
 export type SkillDistribution = 'bundled' | 'cloud';
 export type SkillSource = 'bundled' | 'cloud' | 'private';
 export type UserSkillLibrarySource = 'cloud' | 'private';
+export type McpCatalogSource = 'cloud';
+export type UserMcpLibrarySource = 'cloud';
 export type UserPrivateSkillSourceKind = 'github' | 'local';
 export type AgentCategory = 'finance' | 'content' | 'productivity' | 'commerce' | 'general';
 export type SkillArtifactFormat = 'tar.gz' | 'zip';
@@ -363,6 +365,52 @@ export type UserSkillLibraryItemView = {
   updated_at: string;
 };
 
+export type McpCatalogRecord = {
+  mcpKey: string;
+  name: string;
+  description: string;
+  transport: string;
+  objectKey: string | null;
+  config: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type McpCatalogEntryRecord = McpCatalogRecord;
+
+export type McpCatalogEntryView = {
+  mcp_key: string;
+  name: string;
+  description: string;
+  transport: string;
+  source: McpCatalogSource;
+  default_installed: boolean;
+  object_key: string | null;
+  config: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type UserMcpLibraryRecord = {
+  userId: string;
+  mcpKey: string;
+  source: UserMcpLibrarySource;
+  enabled: boolean;
+  installedAt: string;
+  updatedAt: string;
+};
+
+export type UserMcpLibraryItemView = {
+  mcp_key: string;
+  source: UserMcpLibrarySource;
+  enabled: boolean;
+  installed_at: string;
+  updated_at: string;
+};
+
 export type AgentCatalogRecord = {
   slug: string;
   name: string;
@@ -395,6 +443,13 @@ export type AgentCatalogEntryView = {
   capabilities: string[];
   use_cases: string[];
   metadata: Record<string, unknown>;
+};
+
+export type AdminAgentCatalogEntryView = AgentCatalogEntryView & {
+  sort_order: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
 };
 
 export type UserAgentLibraryRecord = {
@@ -581,6 +636,10 @@ export type InstallSkillInput = {
   version?: string;
 };
 
+export type InstallMcpInput = {
+  mcp_key?: string;
+};
+
 export type ImportUserPrivateSkillInput = {
   slug?: string;
   name?: string;
@@ -603,6 +662,11 @@ export type UpdateSkillLibraryItemInput = {
   enabled?: boolean;
 };
 
+export type UpdateMcpLibraryItemInput = {
+  mcp_key?: string;
+  enabled?: boolean;
+};
+
 export type UpsertSkillCatalogEntryInput = {
   slug?: string;
   name?: string;
@@ -622,6 +686,22 @@ export type UpsertSkillCatalogEntryInput = {
   origin_type?: SkillOriginType;
   source_url?: string | null;
   metadata?: Record<string, unknown>;
+  active?: boolean;
+};
+
+export type UpsertAgentCatalogEntryInput = {
+  slug?: string;
+  name?: string;
+  description?: string;
+  category?: AgentCategory;
+  publisher?: string;
+  featured?: boolean;
+  official?: boolean;
+  tags?: string[];
+  capabilities?: string[];
+  use_cases?: string[];
+  metadata?: Record<string, unknown>;
+  sort_order?: number;
   active?: boolean;
 };
 

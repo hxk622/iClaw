@@ -1,4 +1,5 @@
 import type {PortalAppAssetRecord, PortalAppDetail, PortalJsonObject} from './portal-domain.ts';
+import {stripPortalDesktopReleaseConfig} from './portal-desktop-release.ts';
 
 function asObject(value: unknown): PortalJsonObject {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -41,7 +42,7 @@ export function buildPortalPublicConfig(
   surfaceKey: string | null;
   surfaceConfig: PortalJsonObject | null;
 } {
-  const existingConfig = cloneJson(asObject(detail.app.config));
+  const existingConfig = stripPortalDesktopReleaseConfig(cloneJson(asObject(detail.app.config)));
   const existingAssets = asObject(existingConfig.assets);
   const existingCapabilities = asObject(existingConfig.capabilities);
   const existingBrandMeta = {

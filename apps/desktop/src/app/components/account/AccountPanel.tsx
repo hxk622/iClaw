@@ -46,11 +46,14 @@ const RECHARGE_PROVIDERS: Array<{ id: RechargeProvider; label: string; hint: str
   { id: 'alipay_qr', label: '支付宝扫码', hint: '适合偏好银行卡或支付宝余额' },
 ];
 
+const PERSONAL_WECHAT_QR_URL = '/wechat-personal-qr.png';
+
 interface AccountPanelProps {
   client: IClawClient;
   token: string;
   user: AuthUser | null;
   onClose: () => void;
+  onOpenRechargeCenter: () => void;
   onUserUpdated: (user: AuthUser) => void;
 }
 
@@ -125,7 +128,7 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
-export function AccountPanel({ client, token, user, onClose, onUserUpdated }: AccountPanelProps) {
+export function AccountPanel({ client, token, user, onClose, onOpenRechargeCenter, onUserUpdated }: AccountPanelProps) {
   const [name, setName] = useState(user?.name || '');
   const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.avatar_url || null);
   const [avatarDataBase64, setAvatarDataBase64] = useState<string | null>(null);
@@ -205,6 +208,8 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
   const activePackage = activeOrder
     ? TOPUP_PACKAGES.find((item) => item.id === activeOrder.package_id) || selectedPackage
     : selectedPackage;
+  const displayPaymentUrl =
+    activeOrder?.provider === 'wechat_qr' ? PERSONAL_WECHAT_QR_URL : activeOrder?.payment_url || null;
 
   useEffect(() => {
     if (!activeOrder || activeOrder.status === 'paid' || activeOrder.status === 'expired' || activeOrder.status === 'failed' || activeOrder.status === 'refunded') {
@@ -584,6 +589,14 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
                 </div>
                 <div className="mt-4 flex items-center gap-3">
                   <Button
+                    onClick={onOpenRechargeCenter}
+                    variant="primary"
+                    size="sm"
+                    className="rounded-2xl text-sm"
+                  >
+                    充值中心
+                  </Button>
+                  <Button
                     onClick={handleOpenRechargeModal}
                     variant="secondary"
                     size="sm"
@@ -653,12 +666,12 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
         </main>
 
         {rechargeModalOpen ? (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-[rgba(18,17,14,0.38)] px-4 py-6 backdrop-blur-[8px]" onClick={handleCloseRechargeModal}>
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-[rgba(18,17,14,0.38)] px-4 py-6 backdrop-blur-[8px] dark:bg-[rgba(0,0,0,0.52)]" onClick={handleCloseRechargeModal}>
             <div
-              className="grid w-full max-w-5xl gap-0 overflow-hidden rounded-[30px] border border-[rgba(117,96,49,0.18)] bg-[linear-gradient(135deg,rgba(255,252,244,0.98),rgba(246,239,223,0.97))] shadow-[0_36px_120px_rgba(39,29,7,0.26)] lg:grid-cols-[1.02fr_0.98fr]"
+              className="grid w-full max-w-5xl gap-0 overflow-hidden rounded-[30px] border border-[rgba(117,96,49,0.18)] bg-[linear-gradient(135deg,rgba(255,252,244,0.98),rgba(246,239,223,0.97))] shadow-[0_36px_120px_rgba(39,29,7,0.26)] dark:border-[rgba(214,190,151,0.16)] dark:bg-[linear-gradient(135deg,rgba(24,21,18,0.98),rgba(17,15,13,0.98))] dark:shadow-[0_36px_120px_rgba(0,0,0,0.54)] lg:grid-cols-[1.02fr_0.98fr]"
               onClick={(event) => event.stopPropagation()}
             >
-              <section className="border-b border-[rgba(117,96,49,0.14)] px-6 py-6 lg:border-b-0 lg:border-r">
+              <section className="border-b border-[rgba(117,96,49,0.14)] px-6 py-6 dark:border-[rgba(214,190,151,0.1)] lg:border-b-0 lg:border-r">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="text-xs uppercase tracking-[0.24em] text-[var(--text-muted)]">Recharge Console</div>
@@ -682,10 +695,10 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
                           key={item.id}
                           type="button"
                           onClick={() => setSelectedPackageId(item.id)}
-                          className={`rounded-[24px] border px-4 py-4 text-left transition ${
+                          className={`cursor-pointer rounded-[24px] border px-4 py-4 text-left transition ${
                             selected
-                              ? 'border-[rgba(181,141,53,0.44)] bg-[rgba(255,248,231,0.92)] shadow-[0_16px_36px_rgba(126,95,27,0.12)]'
-                              : 'border-[var(--border-default)] bg-[rgba(255,255,255,0.66)] hover:border-[rgba(181,141,53,0.28)]'
+                              ? 'border-[rgba(181,141,53,0.44)] bg-[rgba(255,248,231,0.92)] shadow-[0_16px_36px_rgba(126,95,27,0.12)] dark:border-[rgba(214,190,151,0.32)] dark:bg-[linear-gradient(180deg,rgba(57,43,18,0.76),rgba(30,25,20,0.92))] dark:shadow-[0_16px_36px_rgba(0,0,0,0.28)]'
+                              : 'border-[var(--border-default)] bg-[rgba(255,255,255,0.66)] hover:border-[rgba(181,141,53,0.28)] dark:bg-[rgba(255,255,255,0.03)] dark:hover:border-[rgba(214,190,151,0.2)]'
                           }`}
                         >
                           <div className="flex items-center justify-between gap-3">
@@ -695,7 +708,7 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
                                 {item.credits} 龙虾币 + 赠送 {item.bonusCredits}
                               </div>
                             </div>
-                            <div className="rounded-full bg-[rgba(145,111,32,0.1)] px-2.5 py-1 text-xs text-[rgba(117,86,16,0.92)]">{item.badge}</div>
+                            <div className="rounded-full bg-[rgba(145,111,32,0.1)] px-2.5 py-1 text-xs text-[rgba(117,86,16,0.92)] dark:bg-[rgba(214,190,151,0.12)] dark:text-[#e7cfaa]">{item.badge}</div>
                           </div>
                           <div className="mt-4 flex items-end justify-between gap-3">
                             <div className="text-2xl text-[var(--text-primary)]">{formatCurrencyFen(item.amountCnyFen)}</div>
@@ -717,10 +730,10 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
                           key={item.id}
                           type="button"
                           onClick={() => setSelectedProvider(item.id)}
-                          className={`rounded-[22px] border px-4 py-4 text-left transition ${
+                          className={`cursor-pointer rounded-[22px] border px-4 py-4 text-left transition ${
                             selected
-                              ? 'border-[rgba(30,113,255,0.28)] bg-[rgba(255,255,255,0.92)] shadow-[0_16px_34px_rgba(48,80,135,0.11)]'
-                              : 'border-[var(--border-default)] bg-[rgba(255,255,255,0.62)] hover:border-[rgba(30,113,255,0.16)]'
+                              ? 'border-[rgba(30,113,255,0.28)] bg-[rgba(255,255,255,0.92)] shadow-[0_16px_34px_rgba(48,80,135,0.11)] dark:border-[rgba(90,160,255,0.3)] dark:bg-[rgba(255,255,255,0.06)] dark:shadow-[0_16px_34px_rgba(0,0,0,0.26)]'
+                              : 'border-[var(--border-default)] bg-[rgba(255,255,255,0.62)] hover:border-[rgba(30,113,255,0.16)] dark:bg-[rgba(255,255,255,0.03)] dark:hover:border-[rgba(90,160,255,0.18)]'
                           }`}
                         >
                           <div className="text-sm text-[var(--text-primary)]">{item.label}</div>
@@ -731,7 +744,7 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
                   </div>
                 </div>
 
-                <div className="mt-6 rounded-[24px] border border-[rgba(117,96,49,0.14)] bg-[rgba(255,255,255,0.62)] p-4">
+                <div className="mt-6 rounded-[24px] border border-[rgba(117,96,49,0.14)] bg-[rgba(255,255,255,0.62)] p-4 dark:border-[rgba(214,190,151,0.1)] dark:bg-[rgba(255,255,255,0.03)]">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="text-sm text-[var(--text-primary)]">本次订单</div>
@@ -760,7 +773,7 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
               </section>
 
               <section className="px-6 py-6">
-                <div className="rounded-[28px] border border-[rgba(38,38,33,0.08)] bg-[rgba(255,255,255,0.72)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]">
+                <div className="rounded-[28px] border border-[rgba(38,38,33,0.08)] bg-[rgba(255,255,255,0.72)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="text-xs uppercase tracking-[0.2em] text-[var(--text-muted)]">03 / 扫码支付</div>
@@ -768,14 +781,14 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
                         {activeOrder ? providerLabel(activeOrder.provider) : providerLabel(selectedProvider)}
                       </div>
                     </div>
-                    <div className="rounded-full bg-[rgba(23,23,20,0.06)] px-3 py-1 text-xs text-[var(--text-secondary)]">
+                    <div className="rounded-full bg-[rgba(23,23,20,0.06)] px-3 py-1 text-xs text-[var(--text-secondary)] dark:bg-[rgba(255,255,255,0.06)]">
                       {activeOrder ? paymentStatusLabel(activeOrder.status) : '等待生成'}
                     </div>
                   </div>
 
-                  <div className="mt-5 flex min-h-[320px] items-center justify-center rounded-[28px] border border-dashed border-[rgba(117,96,49,0.18)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(252,247,236,0.92))] p-6">
-                    {activeOrder?.payment_url ? (
-                      <img src={activeOrder.payment_url} alt="payment qr placeholder" className="h-[300px] w-[300px] rounded-[24px] object-cover shadow-[0_18px_50px_rgba(45,33,11,0.12)]" />
+                  <div className="mt-5 flex min-h-[320px] items-center justify-center rounded-[28px] border border-dashed border-[rgba(117,96,49,0.18)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(252,247,236,0.92))] p-6 dark:border-[rgba(214,190,151,0.14)] dark:bg-[linear-gradient(180deg,rgba(31,29,27,0.98),rgba(20,18,16,0.96))]">
+                    {displayPaymentUrl ? (
+                      <img src={displayPaymentUrl} alt="payment qr placeholder" className="h-[300px] w-[300px] rounded-[24px] object-cover shadow-[0_18px_50px_rgba(45,33,11,0.12)]" />
                     ) : (
                       <div className="max-w-[260px] text-center">
                         <div className="text-base text-[var(--text-primary)]">还没有生成二维码</div>
@@ -794,7 +807,7 @@ export function AccountPanel({ client, token, user, onClose, onUserUpdated }: Ac
                     />
                   </div>
 
-                  <div className="mt-5 rounded-[22px] border border-[rgba(38,38,33,0.08)] bg-[rgba(247,242,230,0.72)] px-4 py-4">
+                  <div className="mt-5 rounded-[22px] border border-[rgba(38,38,33,0.08)] bg-[rgba(247,242,230,0.72)] px-4 py-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(180,154,112,0.08)]">
                     <div className="text-sm text-[var(--text-primary)]">联调说明</div>
                     <div className="mt-2 text-xs leading-6 text-[var(--text-secondary)]">
                       当前二维码是本地占位图，用来打通完整充值流程。真实微信/支付宝下单接入后，直接替换二维码来源和 webhook 验签即可。

@@ -69,7 +69,9 @@ async function ensureSyncedBrandProfile(rootDir, brandId) {
   }
 }
 
-export function resolveBrandId(brandId = process.env.ICLAW_PORTAL_APP_NAME || process.env.ICLAW_BRAND || process.env.ICLAW_APP_NAME || '') {
+export function resolveBrandId(
+  brandId = process.env.APP_NAME || process.env.ICLAW_PORTAL_APP_NAME || process.env.ICLAW_BRAND || process.env.ICLAW_APP_NAME || '',
+) {
   const normalized = trimString(brandId);
   return normalized || 'iclaw';
 }

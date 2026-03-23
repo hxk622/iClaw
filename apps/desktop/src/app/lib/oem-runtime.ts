@@ -1,4 +1,10 @@
-import { saveOemRuntimeSnapshot } from './tauri-runtime-config';
+import { loadOemRuntimeSnapshot, saveOemRuntimeSnapshot, syncOemRuntimeSnapshot } from './tauri-runtime-config';
+
+export type BrandRuntimeConfig = {
+  brandId: string;
+  publishedVersion: number;
+  config: Record<string, unknown>;
+};
 
 type PublicBrandConfigResponse = {
   success?: boolean;
@@ -19,14 +25,56 @@ function joinUrl(baseUrl: string, path: string): string {
   return `${baseUrl.replace(/\/+$/, '')}${path}`;
 }
 
-export async function syncPublishedBrandRuntimeSnapshot(input: {
+function isTauriRuntime(): boolean {
+  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+}
+
+function asObject(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+  return value as Record<string, unknown>;
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function asStringArray(value: unknown): string[] {
+  const seen = new Set<string>();
+  for (const item of asArray(value)) {
+    if (typeof item !== 'string') continue;
+    const normalized = item.trim();
+    if (!normalized) continue;
+    seen.add(normalized);
+  }
+  return Array.from(seen);
+}
+
+function normalizeBrandRuntimeConfig(
+  data: PublicBrandConfigResponse['data'],
+  fallbackBrandId: string,
+): BrandRuntimeConfig | null {
+  if (!data?.config || typeof data.config !== 'object' || Array.isArray(data.config)) {
+    return null;
+  }
+
+  return {
+    brandId: String(data.brand?.brandId || data.app?.appName || fallbackBrandId).trim() || fallbackBrandId,
+    publishedVersion:
+      typeof data.publishedVersion === 'number' && Number.isFinite(data.publishedVersion) ? data.publishedVersion : 0,
+    config: data.config,
+  };
+}
+
+export async function loadPublishedBrandRuntimeConfig(input: {
   authBaseUrl: string;
   brandId: string;
-}): Promise<boolean> {
+}): Promise<BrandRuntimeConfig> {
   const brandId = input.brandId.trim();
   const authBaseUrl = input.authBaseUrl.trim();
   if (!brandId || !authBaseUrl) {
-    return false;
+    throw new Error('brand runtime config requires authBaseUrl and brandId');
   }
 
   const controller = new AbortController();
@@ -41,26 +89,88 @@ export async function syncPublishedBrandRuntimeSnapshot(input: {
       },
     );
     const payload = (await response.json().catch(() => ({}))) as PublicBrandConfigResponse;
-    const data = payload?.data;
-    if (
-      !response.ok ||
-      !payload?.success ||
-      !data?.config ||
-      typeof data.config !== 'object' ||
-      Array.isArray(data.config)
-    ) {
+    const normalized = normalizeBrandRuntimeConfig(payload?.data, brandId);
+    if (!response.ok || !payload?.success || !normalized) {
       throw new Error(`failed to load OEM runtime config (${response.status})`);
     }
-
-    return saveOemRuntimeSnapshot({
-      brandId: String(data.brand?.brandId || data.app?.appName || brandId),
-      publishedVersion:
-        typeof data.publishedVersion === 'number' && Number.isFinite(data.publishedVersion)
-          ? data.publishedVersion
-          : 0,
-      config: data.config,
-    });
+    return normalized;
   } finally {
     window.clearTimeout(timeout);
+  }
+}
+
+export async function loadBrandRuntimeConfigWithFallback(input: {
+  authBaseUrl: string;
+  brandId: string;
+}): Promise<BrandRuntimeConfig | null> {
+  try {
+    const runtimeConfig = await loadPublishedBrandRuntimeConfig(input);
+    if (isTauriRuntime()) {
+      await saveOemRuntimeSnapshot(runtimeConfig).catch(() => false);
+    }
+    return runtimeConfig;
+  } catch (error) {
+    if (!isTauriRuntime()) {
+      throw error;
+    }
+    return loadOemRuntimeSnapshot();
+  }
+}
+
+export function resolveEnabledMenuKeys(config: Record<string, unknown> | null | undefined): string[] | null {
+  const root = asObject(config);
+  const menuBindings = asArray(root.menu_bindings);
+  const capabilityMenus = asStringArray(asObject(root.capabilities).menus);
+  if (!menuBindings.length && !capabilityMenus.length) {
+    return null;
+  }
+
+  const surfaces = asObject(root.surfaces);
+  const orderedFromBindings = menuBindings
+    .filter((item) => asObject(item).enabled !== false)
+    .sort((left, right) => {
+      const leftOrder = Number(asObject(left).sort_order ?? asObject(left).sortOrder ?? 100);
+      const rightOrder = Number(asObject(right).sort_order ?? asObject(right).sortOrder ?? 100);
+      return leftOrder - rightOrder;
+    })
+    .map((item) => String(asObject(item).menu_key ?? asObject(item).menuKey ?? '').trim())
+    .filter(Boolean);
+  const keys = orderedFromBindings.length ? orderedFromBindings : capabilityMenus;
+  const visible = new Set<string>();
+
+  for (const key of keys) {
+    const surface = asObject(surfaces[key]);
+    if (Object.keys(surface).length > 0 && surface.enabled === false) {
+      continue;
+    }
+    visible.add(key);
+  }
+
+  return Array.from(visible);
+}
+
+export async function syncPublishedBrandRuntimeSnapshot(input: {
+  authBaseUrl: string;
+  brandId: string;
+}): Promise<boolean> {
+  const brandId = input.brandId.trim();
+  const authBaseUrl = input.authBaseUrl.trim();
+  if (!brandId || !authBaseUrl) {
+    return false;
+  }
+
+  if (isTauriRuntime()) {
+    return syncOemRuntimeSnapshot({ authBaseUrl, brandId });
+  }
+
+  try {
+    const runtimeConfig = await loadPublishedBrandRuntimeConfig({ authBaseUrl, brandId });
+    return saveOemRuntimeSnapshot({
+      brandId: runtimeConfig.brandId,
+      publishedVersion: runtimeConfig.publishedVersion,
+      config: runtimeConfig.config,
+    });
+  } catch {
+    return false;
   }
 }

@@ -1,9 +1,26 @@
 import type {PublicUser} from './domain.ts';
 import {HttpError} from './errors.ts';
+import {
+  deletePortalDesktopReleaseFile,
+  downloadPortalDesktopReleaseFile,
+  uploadPortalDesktopReleaseFile,
+} from './portal-desktop-release-storage.ts';
+import {
+  buildPortalDesktopReleaseManifestPayload,
+  normalizeDesktopReleaseArch,
+  normalizeDesktopReleaseChannel,
+  normalizeDesktopReleasePlatform,
+  readPortalDesktopReleaseConfig,
+  resolvePortalDesktopReleaseDownloadFile,
+  upsertPortalDesktopReleaseTarget,
+  validatePortalDesktopReleaseVersion,
+  writePortalDesktopReleaseConfig,
+} from './portal-desktop-release.ts';
 import {deletePortalAssetFile, downloadPortalAssetFile, uploadPortalAssetFile} from './portal-asset-storage.ts';
 import {deletePortalSkillArtifact, uploadPortalSkillArtifact} from './portal-skill-storage.ts';
 import type {
   PortalAppDetail,
+  PortalAppRecord,
   PortalAppStatus,
   PortalJsonObject,
   ReplacePortalAppModelBindingsInput,
@@ -38,6 +55,10 @@ function asObject(value: unknown): PortalJsonObject {
 
 function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
+}
+
+function cloneJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
 }
 
 function normalizeRequiredString(value: unknown, field: string): string {
@@ -119,6 +140,14 @@ function normalizeBindingConfig(value: unknown): PortalJsonObject {
     throw new HttpError(400, 'BAD_REQUEST', 'config must be an object');
   }
   return value as PortalJsonObject;
+}
+
+function normalizeDesktopReleaseArtifactType(value: unknown): 'installer' | 'updater' | 'signature' {
+  const normalized = normalizeRequiredString(value, 'artifact_type').toLowerCase();
+  if (normalized === 'installer' || normalized === 'updater' || normalized === 'signature') {
+    return normalized;
+  }
+  throw new HttpError(400, 'BAD_REQUEST', 'artifact_type must be installer, updater, or signature');
 }
 
 export class PortalService {
@@ -411,6 +440,170 @@ export class PortalService {
     return {asset};
   }
 
+  async uploadDesktopReleaseArtifact(
+    accessToken: string,
+    appNameInput: string,
+    input: {
+      channel?: string | null;
+      platform?: string | null;
+      arch?: string | null;
+      artifactType?: string | null;
+      fileName?: string | null;
+      contentType?: string | null;
+      content: Buffer;
+    },
+  ) {
+    const actor = await this.requireAdmin(accessToken);
+    const detail = await this.getAppDetailOrThrow(appNameInput);
+    const appName = detail.app.appName;
+    const channel = normalizeDesktopReleaseChannel(input.channel);
+    const platform = normalizeDesktopReleasePlatform(input.platform);
+    const arch = normalizeDesktopReleaseArch(input.arch);
+    const artifactType = normalizeDesktopReleaseArtifactType(input.artifactType);
+    if (!platform || !arch) {
+      throw new HttpError(400, 'BAD_REQUEST', 'platform and arch are required');
+    }
+    const fileName = normalizeRequiredString(input.fileName, 'file_name');
+    const contentType = normalizeRequiredString(input.contentType, 'content_type');
+    if (!Buffer.isBuffer(input.content) || input.content.length === 0) {
+      throw new HttpError(400, 'BAD_REQUEST', 'desktop release file content is required');
+    }
+
+    const releaseConfig = readPortalDesktopReleaseConfig(detail.app.config);
+    const channelState = releaseConfig.channels[channel];
+    const nextDraft = cloneJson(channelState.draft);
+    const target = upsertPortalDesktopReleaseTarget(nextDraft.targets, platform, arch);
+    const previousFile =
+      artifactType === 'installer'
+        ? target.installer
+        : artifactType === 'updater'
+          ? target.updater
+          : target.signature;
+
+    const upload = await uploadPortalDesktopReleaseFile({
+      appName,
+      channel,
+      platform,
+      arch,
+      artifactType,
+      fileName,
+      contentType,
+      content: input.content,
+    });
+
+    if (artifactType === 'signature') {
+      const signature = input.content.toString('utf8').trim();
+      if (!signature) {
+        throw new HttpError(400, 'BAD_REQUEST', 'signature file is empty');
+      }
+      target.signature = {
+        ...upload,
+        signature,
+      };
+    } else if (artifactType === 'updater') {
+      target.updater = upload;
+    } else {
+      target.installer = upload;
+    }
+
+    channelState.draft = nextDraft;
+    const nextConfig = writePortalDesktopReleaseConfig(asObject(detail.app.config), releaseConfig);
+    await this.saveAppConfig(detail.app, nextConfig, actor.id);
+
+    if (previousFile?.objectKey && previousFile.objectKey !== upload.objectKey) {
+      await deletePortalDesktopReleaseFile(previousFile.objectKey).catch((error) => {
+        console.warn('[portal-service] failed to delete previous desktop release file', {
+          appName,
+          channel,
+          platform,
+          arch,
+          artifactType,
+          objectKey: previousFile.objectKey,
+          error,
+        });
+      });
+    }
+
+    return {
+      channel,
+      platform,
+      arch,
+      artifactType,
+      file: artifactType === 'signature' ? target.signature : artifactType === 'updater' ? target.updater : target.installer,
+      desktopRelease: releaseConfig,
+    };
+  }
+
+  async publishDesktopRelease(
+    accessToken: string,
+    appNameInput: string,
+    input: {
+      channel?: string | null;
+      version?: string | null;
+      notes?: string | null;
+      mandatory?: boolean;
+      force_update_below_version?: string | null;
+      allow_current_run_to_finish?: boolean;
+      reason_code?: string | null;
+      reason_message?: string | null;
+    },
+  ) {
+    const actor = await this.requireAdmin(accessToken);
+    const detail = await this.getAppDetailOrThrow(appNameInput);
+    const appName = detail.app.appName;
+    const channel = normalizeDesktopReleaseChannel(input.channel);
+    const version = normalizeRequiredString(input.version, 'version');
+    if (!validatePortalDesktopReleaseVersion(version)) {
+      throw new HttpError(400, 'BAD_REQUEST', 'version must use semver triplet like 1.2.3');
+    }
+    const forceUpdateBelowVersion = normalizeOptionalString(input.force_update_below_version, 'force_update_below_version');
+    if (forceUpdateBelowVersion && !validatePortalDesktopReleaseVersion(forceUpdateBelowVersion)) {
+      throw new HttpError(400, 'BAD_REQUEST', 'force_update_below_version must use semver triplet like 1.2.3');
+    }
+
+    const releaseConfig = readPortalDesktopReleaseConfig(detail.app.config);
+    const channelState = releaseConfig.channels[channel];
+    const nextDraft = cloneJson(channelState.draft);
+    const activeTargets = nextDraft.targets.filter((target) => target.installer || target.updater || target.signature);
+    if (activeTargets.length === 0) {
+      throw new HttpError(400, 'BAD_REQUEST', 'at least one desktop release target must be uploaded before publish');
+    }
+    for (const target of activeTargets) {
+      if (!target.installer || !target.updater || !target.signature?.signature) {
+        throw new HttpError(
+          400,
+          'BAD_REQUEST',
+          `desktop release target ${target.platform}/${target.arch} is incomplete; installer, updater, and signature are required`,
+        );
+      }
+    }
+
+    nextDraft.version = version;
+    nextDraft.notes = normalizeOptionalString(input.notes, 'notes');
+    nextDraft.policy = {
+      mandatory: normalizeOptionalBoolean(input.mandatory, 'mandatory', false),
+      forceUpdateBelowVersion,
+      allowCurrentRunToFinish: normalizeOptionalBoolean(
+        input.allow_current_run_to_finish,
+        'allow_current_run_to_finish',
+        true,
+      ),
+      reasonCode: normalizeOptionalString(input.reason_code, 'reason_code'),
+      reasonMessage: normalizeOptionalString(input.reason_message, 'reason_message'),
+    };
+    nextDraft.publishedAt = new Date().toISOString();
+    channelState.draft = nextDraft;
+    channelState.published = cloneJson(nextDraft);
+
+    const nextConfig = writePortalDesktopReleaseConfig(asObject(detail.app.config), releaseConfig);
+    await this.saveAppConfig(detail.app, nextConfig, actor.id);
+    const release = await this.store.publishApp(appName, actor.id);
+    return {
+      release,
+      desktopRelease: releaseConfig,
+    };
+  }
+
   async deleteAsset(accessToken: string, appNameInput: string, assetKeyInput: string) {
     const actor = await this.requireAdmin(accessToken);
     const appName = normalizeAppName(appNameInput);
@@ -453,6 +646,52 @@ export class PortalService {
     return {asset, file};
   }
 
+  async getDesktopReleaseManifest(appNameInput: string, baseUrl: string, input: {
+    channel?: string | null;
+    platform?: string | null;
+    arch?: string | null;
+  }) {
+    const detail = await this.getAppDetailOrThrow(appNameInput);
+    const channel = normalizeDesktopReleaseChannel(input.channel);
+    const platform = normalizeDesktopReleasePlatform(input.platform);
+    const arch = normalizeDesktopReleaseArch(input.arch);
+    const releaseConfig = readPortalDesktopReleaseConfig(detail.app.config);
+    const payload = buildPortalDesktopReleaseManifestPayload({
+      baseUrl,
+      appName: detail.app.appName,
+      channel,
+      snapshot: releaseConfig.channels[channel].published,
+      platform,
+      arch,
+    });
+    if (!payload) {
+      throw new HttpError(404, 'NOT_FOUND', 'desktop release manifest not found');
+    }
+    return payload;
+  }
+
+  async getDesktopReleaseFile(appNameInput: string, input: {
+    channel?: string | null;
+    platform?: string | null;
+    arch?: string | null;
+    artifactType?: string | null;
+  }) {
+    const detail = await this.getAppDetailOrThrow(appNameInput);
+    const fileMeta = resolvePortalDesktopReleaseDownloadFile({
+      appName: detail.app.appName,
+      config: detail.app.config,
+      channel: input.channel,
+      platform: input.platform,
+      arch: input.arch,
+      artifactType: input.artifactType,
+    });
+    if (!fileMeta) {
+      throw new HttpError(404, 'NOT_FOUND', 'desktop release file not found');
+    }
+    const file = await downloadPortalDesktopReleaseFile(fileMeta.objectKey);
+    return {fileMeta, file};
+  }
+
   async publishApp(accessToken: string, appNameInput: string) {
     const actor = await this.requireAdmin(accessToken);
     const appName = normalizeAppName(appNameInput);
@@ -482,6 +721,25 @@ export class PortalService {
       assetUrlResolver: (asset) =>
         asset.publicUrl || `${baseUrl.replace(/\/$/, '')}/portal/asset/file?app_name=${encodeURIComponent(appName)}&asset_key=${encodeURIComponent(asset.assetKey)}`,
     });
+  }
+
+  private async getAppDetailOrThrow(appNameInput: string): Promise<PortalAppDetail> {
+    const detail = await this.store.getAppDetail(normalizeAppName(appNameInput));
+    if (!detail) {
+      throw new HttpError(404, 'NOT_FOUND', 'portal app not found');
+    }
+    return detail;
+  }
+
+  private async saveAppConfig(app: PortalAppRecord, config: PortalJsonObject, actorUserId: string | null) {
+    return this.store.upsertApp({
+      appName: app.appName,
+      displayName: app.displayName,
+      description: app.description,
+      status: app.status,
+      defaultLocale: app.defaultLocale,
+      config,
+    }, actorUserId);
   }
 
   private async requireAdmin(accessToken: string): Promise<PublicUser> {

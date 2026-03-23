@@ -28,7 +28,8 @@ type RouteHandler<TBody = unknown> = (context: HandlerContext<TBody>) => Promise
 type Route = {
   method: string;
   path: string;
-  handler: RouteHandler;
+  bodyType?: 'json' | 'raw';
+  handler: RouteHandler<any>;
 };
 
 function matchRoutePath(routePath: string, requestPath: string): Record<string, string> | null {
@@ -122,7 +123,7 @@ export function createRawResponse(body: Buffer | string, init?: Omit<RawResponse
   };
 }
 
-async function readBody(request: IncomingMessage): Promise<unknown> {
+async function readBody(request: IncomingMessage, bodyType: 'json' | 'raw' = 'json'): Promise<unknown> {
   if (request.method === 'GET' || request.method === 'HEAD') return undefined;
 
   const chunks: Buffer[] = [];
@@ -131,7 +132,11 @@ async function readBody(request: IncomingMessage): Promise<unknown> {
   }
 
   if (chunks.length === 0) return undefined;
-  const raw = Buffer.concat(chunks).toString('utf8');
+  const rawBuffer = Buffer.concat(chunks);
+  if (bodyType === 'raw') {
+    return rawBuffer;
+  }
+  const raw = rawBuffer.toString('utf8');
   if (!raw.trim()) return undefined;
 
   try {
@@ -187,7 +192,7 @@ export function createJsonServer(routes: Route[], options: JsonServerOptions = {
         throw new HttpError(404, 'NOT_FOUND', 'Route not found');
       }
 
-      const body = await readBody(request);
+      const body = await readBody(request, matched.route.bodyType || 'json');
       const data = await matched.route.handler({
         body,
         requestId,

@@ -287,6 +287,16 @@ create table if not exists user_skill_library (
 
 alter table user_skill_library add column if not exists source text not null default 'cloud';
 
+create table if not exists user_mcp_library (
+  user_id uuid not null references users(id) on delete cascade,
+  mcp_key text not null,
+  source text not null default 'cloud',
+  enabled boolean not null default true,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, mcp_key)
+);
+
 create table if not exists oem_brand_profiles (
   brand_id text primary key,
   tenant_key text not null,
@@ -1421,6 +1431,8 @@ create index if not exists idx_skill_sync_runs_source_started_at
   on skill_sync_runs(source_id, started_at desc);
 create index if not exists idx_user_skill_library_user_id_installed_at
   on user_skill_library(user_id, installed_at desc);
+create index if not exists idx_user_mcp_library_user_id_installed_at
+  on user_mcp_library(user_id, installed_at desc);
 create index if not exists idx_oem_app_skill_bindings_app_sort
   on oem_app_skill_bindings(app_name, sort_order, skill_slug);
 create index if not exists idx_oem_app_mcp_bindings_app_sort

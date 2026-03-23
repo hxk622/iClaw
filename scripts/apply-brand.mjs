@@ -196,6 +196,7 @@ async function main() {
         productName: brand.productName,
         bundleIdentifier: brand.bundleIdentifier,
         authService: brand.authService,
+        endpoints: brand.endpoints,
         artifactBaseName: brand.distribution.artifactBaseName,
         storageNamespace: brand.storage.namespace,
       },

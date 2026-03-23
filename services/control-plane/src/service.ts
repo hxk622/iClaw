@@ -6,6 +6,8 @@ import {randomBytes} from 'node:crypto';
 import {deletePrivateSkillArtifact, uploadPrivateSkillArtifact} from './skill-storage.ts';
 
 import type {
+  AdminAgentCatalogEntryView,
+  AgentCategory,
   AgentCatalogEntryRecord,
   AgentCatalogEntryView,
   AdminSkillCatalogEntryView,
@@ -18,8 +20,11 @@ import type {
   CreditLedgerItemView,
   ImportUserPrivateSkillInput,
   InstallAgentInput,
+  InstallMcpInput,
   InstallSkillInput,
   LoginInput,
+  McpCatalogEntryRecord,
+  McpCatalogEntryView,
   OAuthProvider,
   PaymentOrderRecord,
   PaymentOrderView,
@@ -37,17 +42,20 @@ import type {
   SkillSyncRunView,
   SkillSyncSourceView,
   UpsertSkillCatalogEntryInput,
+  UpsertAgentCatalogEntryInput,
   UpsertSkillSyncSourceInput,
   UpdateSkillLibraryItemInput,
   UpdateProfileInput,
   UsageEventInput,
   UsageEventResult,
   UserAgentLibraryItemView,
+  UserMcpLibraryItemView,
   UserPrivateSkillRecord,
   UserRecord,
   UserRole,
   UserSkillLibraryItemView,
   UserSkillLibrarySource,
+  UpdateMcpLibraryItemInput,
   WorkspaceBackupInput,
   WorkspaceBackupView,
 } from './domain.ts';
@@ -262,6 +270,14 @@ function normalizeSkillSlug(value: string | undefined): string {
   const normalized = (value || '').trim();
   if (!normalized) {
     throw new HttpError(400, 'BAD_REQUEST', 'skill slug is required');
+  }
+  return normalized;
+}
+
+function normalizeMcpKey(value: string | undefined): string {
+  const normalized = (value || '').trim();
+  if (!normalized) {
+    throw new HttpError(400, 'BAD_REQUEST', 'mcp key is required');
   }
   return normalized;
 }
@@ -483,6 +499,41 @@ function toUserSkillLibraryItemView(record: {
   };
 }
 
+function toMcpCatalogEntryView(
+  record: McpCatalogEntryRecord,
+  options: {defaultInstalled?: boolean} = {},
+): McpCatalogEntryView {
+  return {
+    mcp_key: record.mcpKey,
+    name: record.name,
+    description: record.description,
+    transport: record.transport,
+    source: 'cloud',
+    default_installed: options.defaultInstalled === true,
+    object_key: record.objectKey,
+    config: record.config,
+    metadata: record.metadata,
+    created_at: record.createdAt,
+    updated_at: record.updatedAt,
+  };
+}
+
+function toUserMcpLibraryItemView(record: {
+  mcpKey: string;
+  source?: 'cloud';
+  enabled: boolean;
+  installedAt: string;
+  updatedAt: string;
+}): UserMcpLibraryItemView {
+  return {
+    mcp_key: record.mcpKey,
+    source: record.source || 'cloud',
+    enabled: record.enabled,
+    installed_at: record.installedAt,
+    updated_at: record.updatedAt,
+  };
+}
+
 function toAdminSkillCatalogEntryView(record: SkillCatalogEntryRecord, baseUrl?: string): AdminSkillCatalogEntryView {
   return {
     ...toSkillCatalogEntryView(record, baseUrl),
@@ -567,12 +618,62 @@ function toAgentCatalogEntryView(record: AgentCatalogEntryRecord): AgentCatalogE
   };
 }
 
+function toAdminAgentCatalogEntryView(record: AgentCatalogEntryRecord): AdminAgentCatalogEntryView {
+  return {
+    ...toAgentCatalogEntryView(record),
+    sort_order: record.sortOrder,
+    active: record.active,
+    created_at: record.createdAt,
+    updated_at: record.updatedAt,
+  };
+}
+
 function readMetadataStringArray(metadata: Record<string, unknown>, key: string): string[] {
   const value = metadata[key];
   if (!Array.isArray(value)) {
     return [];
   }
   return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+}
+
+function normalizeAgentCategory(value: unknown, fallback?: AgentCategory): AgentCategory {
+  const normalized = String(value || fallback || '').trim();
+  if (
+    normalized === 'finance' ||
+    normalized === 'content' ||
+    normalized === 'productivity' ||
+    normalized === 'commerce' ||
+    normalized === 'general'
+  ) {
+    return normalized;
+  }
+  throw new HttpError(400, 'BAD_REQUEST', 'category must be finance, content, productivity, commerce or general');
+}
+
+function normalizeCatalogStringArray(value: unknown, fallback: string[] = []): string[] {
+  const items = Array.isArray(value) ? value : fallback;
+  const seen = new Set<string>();
+  for (const item of items) {
+    if (typeof item !== 'string') {
+      continue;
+    }
+    const normalized = item.trim();
+    if (!normalized) {
+      continue;
+    }
+    seen.add(normalized);
+  }
+  return Array.from(seen);
+}
+
+function normalizeOptionalInteger(value: unknown, field: string): number | undefined {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new HttpError(400, 'BAD_REQUEST', `${field} must be a finite number`);
+  }
+  return Math.floor(value);
 }
 
 function toUserAgentLibraryItemView(record: {
@@ -1078,6 +1179,85 @@ export class ControlPlaneService {
     };
   }
 
+  async listAdminAgentCatalog(
+    accessToken: string,
+  ): Promise<{
+    items: AdminAgentCatalogEntryView[];
+    total: number;
+  }> {
+    await this.requireAdminUser(accessToken);
+    const [items, total] = await Promise.all([
+      this.store.listAgentCatalogAdmin(),
+      this.store.countAgentCatalogAdmin(),
+    ]);
+    return {
+      items: items.map((item) => toAdminAgentCatalogEntryView(item)),
+      total,
+    };
+  }
+
+  async upsertAdminAgentCatalogEntry(
+    accessToken: string,
+    input: UpsertAgentCatalogEntryInput,
+  ): Promise<AdminAgentCatalogEntryView> {
+    await this.requireAdminUser(accessToken);
+    const slug = normalizeSkillSlug(input.slug);
+    const existing = await this.store.getAgentCatalogEntry(slug);
+
+    const nameCandidate = normalizeOptionalCatalogString(input.name, 'name');
+    const descriptionCandidate = normalizeOptionalCatalogString(input.description, 'description');
+    const publisherCandidate = normalizeOptionalCatalogString(input.publisher, 'publisher');
+
+    const name = (nameCandidate === undefined ? (existing?.name ?? '') : (nameCandidate || '')).trim();
+    const description = (descriptionCandidate === undefined ? (existing?.description ?? '') : (descriptionCandidate || '')).trim();
+    const publisher = (publisherCandidate === undefined ? (existing?.publisher ?? '') : (publisherCandidate || '')).trim();
+    const category = normalizeAgentCategory(input.category, existing?.category || 'general');
+    const featured = normalizeOptionalBoolean(input.featured, 'featured') ?? existing?.featured ?? false;
+    const official = normalizeOptionalBoolean(input.official, 'official') ?? existing?.official ?? true;
+    const tags = normalizeCatalogStringArray(input.tags, existing?.tags || []);
+    const capabilities = normalizeCatalogStringArray(input.capabilities, existing?.capabilities || []);
+    const useCases = normalizeCatalogStringArray(input.use_cases, existing?.useCases || []);
+    const metadata = normalizeJsonObject(input.metadata, 'metadata', existing?.metadata || {});
+    const sortOrder = normalizeOptionalInteger(input.sort_order, 'sort_order') ?? existing?.sortOrder ?? 9999;
+    const active = normalizeOptionalBoolean(input.active, 'active') ?? existing?.active ?? true;
+
+    if (!name) {
+      throw new HttpError(400, 'BAD_REQUEST', 'name is required');
+    }
+    if (!description) {
+      throw new HttpError(400, 'BAD_REQUEST', 'description is required');
+    }
+    if (!publisher) {
+      throw new HttpError(400, 'BAD_REQUEST', 'publisher is required');
+    }
+
+    const record = await this.store.upsertAgentCatalogEntry({
+      slug,
+      name,
+      description,
+      category,
+      publisher,
+      featured,
+      official,
+      tags,
+      capabilities,
+      use_cases: useCases,
+      metadata,
+      sort_order: sortOrder,
+      active,
+    });
+
+    return toAdminAgentCatalogEntryView(record);
+  }
+
+  async deleteAdminAgentCatalogEntry(accessToken: string, slugInput: string): Promise<{removed: boolean}> {
+    await this.requireAdminUser(accessToken);
+    const slug = normalizeSkillSlug(slugInput);
+    return {
+      removed: await this.store.deleteAgentCatalogEntry(slug),
+    };
+  }
+
   async listUserAgentLibrary(accessToken: string): Promise<{items: UserAgentLibraryItemView[]}> {
     const user = await this.getUserForAccessToken(accessToken);
     const items = await this.store.listUserAgentLibrary(user.id);
@@ -1140,6 +1320,37 @@ export class ControlPlaneService {
     const nextOffset = offset + items.length;
     return {
       items: items.map((item) => toSkillCatalogEntryView(item, baseUrl)),
+      total,
+      limit,
+      offset,
+      has_more: nextOffset < total,
+      next_offset: nextOffset < total ? nextOffset : null,
+    };
+  }
+
+  async listMcpCatalog(
+    defaultInstalledKeys: Set<string> = new Set(),
+    limitInput?: number | null,
+    offsetInput?: number | null,
+  ): Promise<{
+    items: McpCatalogEntryView[];
+    total: number;
+    limit: number;
+    offset: number;
+    has_more: boolean;
+    next_offset: number | null;
+  }> {
+    const limit = normalizeCatalogLimit(limitInput);
+    const offset = normalizeCatalogOffset(offsetInput);
+    const [items, total] = await Promise.all([
+      this.store.listMcpCatalog(limit, offset),
+      this.store.countMcpCatalog(),
+    ]);
+    const nextOffset = offset + items.length;
+    return {
+      items: items.map((item) =>
+        toMcpCatalogEntryView(item, {defaultInstalled: defaultInstalledKeys.has(item.mcpKey)}),
+      ),
       total,
       limit,
       offset,
@@ -1451,6 +1662,53 @@ export class ControlPlaneService {
       source: 'cloud',
     });
     return toUserSkillLibraryItemView(record);
+  }
+
+  async listUserMcpLibrary(accessToken: string): Promise<{items: UserMcpLibraryItemView[]}> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const items = await this.store.listUserMcpLibrary(user.id);
+    return {
+      items: items.map((item) => toUserMcpLibraryItemView(item)),
+    };
+  }
+
+  async installMcp(accessToken: string, input: InstallMcpInput): Promise<UserMcpLibraryItemView> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const mcpKey = normalizeMcpKey(input.mcp_key);
+    const entry = await this.store.getMcpCatalogEntry(mcpKey);
+    if (!entry || !entry.active) {
+      throw new HttpError(404, 'NOT_FOUND', 'mcp not found');
+    }
+    const record = await this.store.installUserMcp(user.id, {
+      mcp_key: mcpKey,
+      source: 'cloud',
+    });
+    return toUserMcpLibraryItemView(record);
+  }
+
+  async updateMcpLibraryItem(
+    accessToken: string,
+    input: UpdateMcpLibraryItemInput,
+  ): Promise<UserMcpLibraryItemView> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const mcpKey = normalizeMcpKey(input.mcp_key);
+    const enabled = normalizeSkillEnabled(input.enabled);
+    const record = await this.store.updateUserMcp(user.id, {
+      mcp_key: mcpKey,
+      enabled,
+    });
+    if (!record) {
+      throw new HttpError(404, 'NOT_FOUND', 'installed mcp not found');
+    }
+    return toUserMcpLibraryItemView(record);
+  }
+
+  async removeMcp(accessToken: string, mcpKeyInput: string): Promise<{removed: boolean}> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const mcpKey = normalizeMcpKey(mcpKeyInput);
+    return {
+      removed: await this.store.removeUserMcp(user.id, mcpKey),
+    };
   }
 
   async importPrivateSkill(

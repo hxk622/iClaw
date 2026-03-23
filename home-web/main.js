@@ -6,6 +6,50 @@ const ENV_LABEL = ENV_NAME === 'prod' ? 'PROD' : 'DEV';
 const CONTROL_PLANE_BASE_URL = ((import.meta.env.VITE_AUTH_BASE_URL || 'http://127.0.0.1:2130') + '')
   .trim()
   .replace(/\/+$/, '');
+const THEME_STORAGE_KEY = 'iclaw.home-web.theme';
+
+function isThemeMode(value) {
+  return value === 'light' || value === 'dark' || value === 'system';
+}
+
+function readStoredThemeMode() {
+  try {
+    const value = localStorage.getItem(THEME_STORAGE_KEY);
+    return isThemeMode(value) ? value : 'system';
+  } catch {
+    return 'system';
+  }
+}
+
+function resolveThemeMode(mode) {
+  if (mode === 'light' || mode === 'dark') {
+    return mode;
+  }
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function applyThemeMode(mode) {
+  const resolved = resolveThemeMode(mode);
+  document.documentElement.dataset.themeMode = mode;
+  document.documentElement.dataset.resolvedTheme = resolved;
+  const label = document.querySelector('#theme-toggle-text');
+  if (label) {
+    label.textContent = mode === 'light' ? '浅色' : mode === 'dark' ? '深色' : '跟随系统';
+  }
+  return resolved;
+}
+
+function persistThemeMode(mode) {
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, mode);
+  } catch {}
+}
+
+function cycleThemeMode(mode) {
+  if (mode === 'system') return 'light';
+  if (mode === 'light') return 'dark';
+  return 'system';
+}
 
 function asObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -262,6 +306,23 @@ async function loadPublishedConfig() {
   } catch {
     return HOME_BRAND;
   }
+}
+
+let currentThemeMode = readStoredThemeMode();
+applyThemeMode(currentThemeMode);
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if (currentThemeMode === 'system') {
+    applyThemeMode('system');
+  }
+});
+
+const themeToggle = document.querySelector('#theme-toggle');
+if (themeToggle) {
+  themeToggle.addEventListener('click', () => {
+    currentThemeMode = cycleThemeMode(currentThemeMode);
+    persistThemeMode(currentThemeMode);
+    applyThemeMode(currentThemeMode);
+  });
 }
 
 const hero = document.querySelector('.hero');

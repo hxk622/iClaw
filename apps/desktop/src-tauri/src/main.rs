@@ -40,6 +40,15 @@ const AUTH_SERVICE: &str = match option_env!("ICLAW_AUTH_SERVICE") {
     Some(value) => value,
     None => "ai.iclaw.desktop",
 };
+const DESKTOP_BRAND_ID: &str = match option_env!("ICLAW_BRAND_ID") {
+    Some(value) => value,
+    None => "iclaw",
+};
+const DESKTOP_AUTH_BASE_URL: &str = match option_env!("ICLAW_AUTH_BASE_URL") {
+    Some(value) => value,
+    None => "",
+};
+const LOCAL_CONTROL_PLANE_URL: &str = "http://127.0.0.1:2130";
 const AUTH_ACCESS_KEY: &str = "access_token";
 const AUTH_REFRESH_KEY: &str = "refresh_token";
 const AUTH_GATEWAY_TOKEN_KEY: &str = "gateway_token";
@@ -60,6 +69,34 @@ struct OemRuntimeSnapshot {
     brand_id: String,
     published_version: u64,
     config: serde_json::Value,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PublicBrandConfigEnvelope {
+    success: bool,
+    data: Option<PublicBrandConfigData>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PublicBrandConfigData {
+    brand: Option<PublicBrandRef>,
+    app: Option<PublicBrandAppRef>,
+    published_version: Option<u64>,
+    config: Option<serde_json::Value>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PublicBrandRef {
+    brand_id: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PublicBrandAppRef {
+    app_name: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -175,6 +212,7 @@ struct DesktopUpdateProgress {
 #[derive(Deserialize)]
 struct DesktopUpdateCommandInput {
     auth_base_url: String,
+    app_name: Option<String>,
     channel: Option<String>,
 }
 
@@ -212,6 +250,18 @@ struct BundledSkillCatalogItem {
     distribution: Option<String>,
     path: String,
     source: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BundledMcpCatalogItem {
+    mcp_key: String,
+    transport: String,
+    enabled: bool,
+    command: Option<String>,
+    args: Vec<String>,
+    http_url: Option<String>,
+    config: serde_json::Value,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -1051,6 +1101,87 @@ fn load_bundled_skills_catalog_internal(
     Ok(items)
 }
 
+fn infer_bundled_mcp_transport(config: &serde_json::Value) -> String {
+    let explicit = config
+        .get("type")
+        .and_then(|value| value.as_str())
+        .map(|value| value.trim().to_lowercase())
+        .filter(|value| !value.is_empty());
+    if let Some(value) = explicit {
+        return value;
+    }
+    if config.get("httpUrl").and_then(|value| value.as_str()).is_some()
+        || config.get("url").and_then(|value| value.as_str()).is_some()
+    {
+        return String::from("http");
+    }
+    String::from("stdio")
+}
+
+fn load_bundled_mcp_catalog_internal(
+    app: &AppHandle,
+) -> Result<Vec<BundledMcpCatalogItem>, String> {
+    let source_path = resource_mcp_config_path(app);
+    if !source_path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let raw =
+        fs::read_to_string(&source_path).map_err(|e| format!("failed to read mcp config: {e}"))?;
+    let mut parsed = serde_json::from_str::<serde_json::Value>(&raw)
+        .map_err(|e| format!("failed to parse mcp config: {e}"))?;
+
+    let servers_dir = resource_servers_dir(app);
+    let servers_dir_str = servers_dir.to_string_lossy().to_string();
+    replace_iclaw_servers_dir_placeholders(&mut parsed, &servers_dir_str);
+    replace_env_placeholders(&mut parsed);
+
+    let Some(servers) = parsed.get("mcpServers").and_then(|value| value.as_object()) else {
+        return Ok(Vec::new());
+    };
+
+    let mut items = Vec::with_capacity(servers.len());
+    for (mcp_key, config) in servers {
+        let transport = infer_bundled_mcp_transport(config);
+        let enabled = config
+            .get("enabled")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(true);
+        let command = config
+            .get("command")
+            .and_then(|value| value.as_str())
+            .map(|value| value.to_string());
+        let args = config
+            .get("args")
+            .and_then(|value| value.as_array())
+            .map(|values| {
+                values
+                    .iter()
+                    .filter_map(|value| value.as_str().map(|item| item.to_string()))
+                    .collect::<Vec<String>>()
+            })
+            .unwrap_or_default();
+        let http_url = config
+            .get("httpUrl")
+            .and_then(|value| value.as_str())
+            .or_else(|| config.get("url").and_then(|value| value.as_str()))
+            .map(|value| value.to_string());
+
+        items.push(BundledMcpCatalogItem {
+            mcp_key: mcp_key.clone(),
+            transport,
+            enabled,
+            command,
+            args,
+            http_url,
+            config: config.clone(),
+        });
+    }
+
+    items.sort_by(|left, right| left.mcp_key.cmp(&right.mcp_key));
+    Ok(items)
+}
+
 fn openclaw_managed_skills_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let home = app
         .path()
@@ -1604,8 +1735,19 @@ fn desktop_update_endpoint(input: &DesktopUpdateCommandInput) -> Result<String, 
         ));
     }
     let channel = normalize_desktop_update_channel(input.channel.clone());
+    let app_name = input
+        .app_name
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .unwrap_or("");
+    let app_name_query = if app_name.is_empty() {
+        String::new()
+    } else {
+        format!("&app_name={app_name}")
+    };
     Ok(format!(
-        "{base_url}/desktop/update?current_version={{{{current_version}}}}&target={{{{target}}}}&arch={{{{arch}}}}&channel={channel}"
+        "{base_url}/desktop/update?current_version={{{{current_version}}}}&target={{{{target}}}}&arch={{{{arch}}}}&channel={channel}{app_name_query}"
     ))
 }
 
@@ -2248,6 +2390,27 @@ fn read_json_string_array(value: Option<&serde_json::Value>) -> Vec<String> {
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default()
+}
+
+fn resolve_desktop_auth_base_url() -> String {
+    let configured = DESKTOP_AUTH_BASE_URL.trim().trim_end_matches('/');
+    if configured.is_empty() {
+        String::from(LOCAL_CONTROL_PLANE_URL)
+    } else {
+        configured.to_string()
+    }
+}
+
+fn sync_current_brand_runtime_snapshot(app: &AppHandle) -> Result<bool, String> {
+    let brand_id = DESKTOP_BRAND_ID.trim();
+    if brand_id.is_empty() {
+        return Ok(false);
+    }
+    sync_oem_runtime_snapshot(
+        app.clone(),
+        resolve_desktop_auth_base_url(),
+        String::from(brand_id),
+    )
 }
 
 fn load_oem_runtime_snapshot_internal(app: &AppHandle) -> Result<Option<OemRuntimeSnapshot>, String> {
@@ -2912,6 +3075,9 @@ fn start_sidecar(
     }
 
     let runtime = resolve_runtime_command(&app)?;
+    if let Err(error) = sync_current_brand_runtime_snapshot(&app) {
+        eprintln!("failed to sync OEM runtime snapshot before sidecar start: {error}");
+    }
     let gateway_token = load_or_create_gateway_token()?;
     ensure_openclaw_workspace_seed(&app)?;
     let openclaw_state_dir = openclaw_state_dir(&app)?;
@@ -3091,6 +3257,67 @@ fn save_oem_runtime_snapshot(app: AppHandle, snapshot: OemRuntimeSnapshot) -> Re
 }
 
 #[tauri::command]
+fn load_oem_runtime_snapshot(app: AppHandle) -> Result<Option<OemRuntimeSnapshot>, String> {
+    load_oem_runtime_snapshot_internal(&app)
+}
+
+#[tauri::command]
+fn sync_oem_runtime_snapshot(
+    app: AppHandle,
+    auth_base_url: String,
+    brand_id: String,
+) -> Result<bool, String> {
+    let trimmed_brand_id = brand_id.trim();
+    let trimmed_auth_base_url = auth_base_url.trim().trim_end_matches('/');
+    if trimmed_brand_id.is_empty() {
+        return Err(String::from("brand_id is required"));
+    }
+    if trimmed_auth_base_url.is_empty() {
+        return Err(String::from("auth_base_url is required"));
+    }
+
+    let mut url = Url::parse(&format!("{trimmed_auth_base_url}/portal/public-config"))
+        .map_err(|e| format!("failed to parse OEM runtime config url: {e}"))?;
+    url.query_pairs_mut()
+        .append_pair("app_name", trimmed_brand_id);
+
+    let client = Client::builder()
+        .connect_timeout(Duration::from_secs(8))
+        .timeout(Duration::from_secs(8))
+        .build()
+        .map_err(|e| format!("failed to build OEM runtime config client: {e}"))?;
+
+    let response = client
+        .get(url)
+        .send()
+        .map_err(|e| format!("failed to fetch OEM runtime config: {e}"))?;
+    let status = response.status();
+    let envelope = response
+        .json::<PublicBrandConfigEnvelope>()
+        .map_err(|e| format!("failed to parse OEM runtime config response: {e}"))?;
+    let data = envelope
+        .data
+        .ok_or_else(|| format!("OEM runtime config missing data payload ({status})"))?;
+    let config = data
+        .config
+        .ok_or_else(|| format!("OEM runtime config missing config payload ({status})"))?;
+    if !envelope.success {
+        return Err(format!("OEM runtime config returned unsuccessful response ({status})"));
+    }
+
+    let snapshot = OemRuntimeSnapshot {
+        brand_id: data
+            .brand
+            .and_then(|value| value.brand_id)
+            .or_else(|| data.app.and_then(|value| value.app_name))
+            .unwrap_or_else(|| String::from(trimmed_brand_id)),
+        published_version: data.published_version.unwrap_or(0),
+        config,
+    };
+    save_oem_runtime_snapshot(app, snapshot)
+}
+
+#[tauri::command]
 fn install_runtime(app: AppHandle) -> Result<bool, String> {
     install_runtime_internal(&app)?;
     Ok(true)
@@ -3141,6 +3368,11 @@ fn diagnose_runtime(app: AppHandle) -> Result<RuntimeDiagnosis, String> {
 #[tauri::command]
 fn load_bundled_skills_catalog(app: AppHandle) -> Result<Vec<BundledSkillCatalogItem>, String> {
     load_bundled_skills_catalog_internal(&app)
+}
+
+#[tauri::command]
+fn load_bundled_mcp_catalog(app: AppHandle) -> Result<Vec<BundledMcpCatalogItem>, String> {
+    load_bundled_mcp_catalog_internal(&app)
 }
 
 #[tauri::command]
@@ -3490,6 +3722,9 @@ fn load_desktop_memory_entries(app: &AppHandle) -> Result<Vec<DesktopMemoryEntry
 }
 
 fn configure_memory_runtime_command(command: &mut Command, app: &AppHandle) -> Result<(), String> {
+    if let Err(error) = sync_current_brand_runtime_snapshot(app) {
+        eprintln!("failed to sync OEM runtime snapshot before memory runtime command: {error}");
+    }
     let gateway_token = load_or_create_gateway_token()?;
     ensure_openclaw_workspace_seed(app)?;
     let openclaw_state_dir = openclaw_state_dir(app)?;
@@ -4136,9 +4371,12 @@ fn main() {
             load_runtime_config,
             save_runtime_config,
             save_oem_runtime_snapshot,
+            load_oem_runtime_snapshot,
+            sync_oem_runtime_snapshot,
             install_runtime,
             diagnose_runtime,
             load_bundled_skills_catalog,
+            load_bundled_mcp_catalog,
             list_managed_skills,
             install_managed_skill,
             remove_managed_skill,

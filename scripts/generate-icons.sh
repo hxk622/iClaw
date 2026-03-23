@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-BRAND_ID="${1:-${ICLAW_PORTAL_APP_NAME:-${ICLAW_BRAND:-iclaw}}}"
+BRAND_ID="${1:-${APP_NAME:-${ICLAW_PORTAL_APP_NAME:-${ICLAW_BRAND:-iclaw}}}}"
 RGBA_HELPER="$ROOT_DIR/scripts/ensure-rgba-png.swift"
 
 BRAND_PATHS="$(

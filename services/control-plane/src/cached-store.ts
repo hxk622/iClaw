@@ -6,7 +6,9 @@ import type {
   CreditLedgerRecord,
   ImportUserPrivateSkillInput,
   InstallAgentInput,
+  InstallMcpInput,
   InstallSkillInput,
+  McpCatalogEntryRecord,
   OAuthAccountRecord,
   OAuthProvider,
   PaymentOrderRecord,
@@ -19,14 +21,17 @@ import type {
   SkillCatalogEntryRecord,
   SkillSyncRunRecord,
   SkillSyncSourceRecord,
+  UpsertAgentCatalogEntryInput,
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
   UsageEventInput,
   UsageEventResult,
   UserAgentLibraryRecord,
+  UserMcpLibraryRecord,
   UserPrivateSkillRecord,
   UserRole,
   UserSkillLibraryRecord,
+  UpdateMcpLibraryItemInput,
   UpdateSkillLibraryItemInput,
   UserRecord,
   WorkspaceBackupInput,
@@ -44,6 +49,9 @@ const AGENT_CATALOG_CACHE_TTL_SECONDS = 5 * 60;
 const SKILL_CATALOG_CACHE_TTL_SECONDS = 5 * 60;
 const SKILL_CATALOG_PAGE_CACHE_TTL_SECONDS = 60;
 const USER_SKILL_LIBRARY_CACHE_TTL_SECONDS = 60;
+const MCP_CATALOG_CACHE_TTL_SECONDS = 5 * 60;
+const MCP_CATALOG_PAGE_CACHE_TTL_SECONDS = 60;
+const USER_MCP_LIBRARY_CACHE_TTL_SECONDS = 60;
 
 function normalizeIdentifier(identifier: string): string {
   return identifier.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -336,10 +344,46 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     );
   }
 
+  async listAgentCatalogAdmin(): Promise<AgentCatalogEntryRecord[]> {
+    return this.getOrLoadValue(this.adminAgentCatalogKey(), AGENT_CATALOG_CACHE_TTL_SECONDS, () =>
+      this.base.listAgentCatalogAdmin(),
+    );
+  }
+
+  async countAgentCatalogAdmin(): Promise<number> {
+    return this.getOrLoadValue(this.adminAgentCatalogCountKey(), AGENT_CATALOG_CACHE_TTL_SECONDS, () =>
+      this.base.countAgentCatalogAdmin(),
+    );
+  }
+
   async getAgentCatalogEntry(slug: string): Promise<AgentCatalogEntryRecord | null> {
     return this.getOrLoad(this.agentCatalogEntryKey(slug), AGENT_CATALOG_CACHE_TTL_SECONDS, () =>
       this.base.getAgentCatalogEntry(slug),
     );
+  }
+
+  async upsertAgentCatalogEntry(input: Required<UpsertAgentCatalogEntryInput>): Promise<AgentCatalogEntryRecord> {
+    const record = await this.base.upsertAgentCatalogEntry(input);
+    await this.cache.delete(
+      this.agentCatalogKey(),
+      this.adminAgentCatalogKey(),
+      this.adminAgentCatalogCountKey(),
+      this.agentCatalogEntryKey(input.slug),
+    );
+    return record;
+  }
+
+  async deleteAgentCatalogEntry(slug: string): Promise<boolean> {
+    const removed = await this.base.deleteAgentCatalogEntry(slug);
+    if (removed) {
+      await this.cache.delete(
+        this.agentCatalogKey(),
+        this.adminAgentCatalogKey(),
+        this.adminAgentCatalogCountKey(),
+        this.agentCatalogEntryKey(slug),
+      );
+    }
+    return removed;
   }
 
   async listSkillCatalog(limit?: number, offset?: number): Promise<SkillCatalogEntryRecord[]> {
@@ -426,6 +470,29 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
       );
     }
     return removed;
+  }
+
+  async listMcpCatalog(limit?: number, offset?: number): Promise<McpCatalogEntryRecord[]> {
+    if (typeof limit === 'number' || typeof offset === 'number') {
+      return this.getOrLoadValue(
+        this.mcpCatalogPageKey(limit, offset),
+        MCP_CATALOG_PAGE_CACHE_TTL_SECONDS,
+        () => this.base.listMcpCatalog(limit, offset),
+      );
+    }
+    return this.getOrLoadValue(this.mcpCatalogKey(), MCP_CATALOG_CACHE_TTL_SECONDS, () => this.base.listMcpCatalog());
+  }
+
+  async countMcpCatalog(): Promise<number> {
+    return this.getOrLoadValue(this.mcpCatalogCountKey(), MCP_CATALOG_PAGE_CACHE_TTL_SECONDS, () =>
+      this.base.countMcpCatalog(),
+    );
+  }
+
+  async getMcpCatalogEntry(mcpKey: string): Promise<McpCatalogEntryRecord | null> {
+    return this.getOrLoad(this.mcpCatalogEntryKey(mcpKey), MCP_CATALOG_CACHE_TTL_SECONDS, () =>
+      this.base.getMcpCatalogEntry(mcpKey),
+    );
   }
 
   async listSkillSyncSources(): Promise<SkillSyncSourceRecord[]> {
@@ -525,6 +592,38 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     return this.getOrLoadValue(this.userSkillLibraryKey(userId), USER_SKILL_LIBRARY_CACHE_TTL_SECONDS, () =>
       this.base.listUserSkillLibrary(userId),
     );
+  }
+
+  async listUserMcpLibrary(userId: string): Promise<UserMcpLibraryRecord[]> {
+    return this.getOrLoadValue(this.userMcpLibraryKey(userId), USER_MCP_LIBRARY_CACHE_TTL_SECONDS, () =>
+      this.base.listUserMcpLibrary(userId),
+    );
+  }
+
+  async installUserMcp(
+    userId: string,
+    input: Required<InstallMcpInput> & {source?: 'cloud'},
+  ): Promise<UserMcpLibraryRecord> {
+    const record = await this.base.installUserMcp(userId, input);
+    await this.cache.delete(this.userMcpLibraryKey(userId));
+    return record;
+  }
+
+  async updateUserMcp(
+    userId: string,
+    input: Required<UpdateMcpLibraryItemInput>,
+  ): Promise<UserMcpLibraryRecord | null> {
+    const record = await this.base.updateUserMcp(userId, input);
+    await this.cache.delete(this.userMcpLibraryKey(userId));
+    return record;
+  }
+
+  async removeUserMcp(userId: string, mcpKey: string): Promise<boolean> {
+    const removed = await this.base.removeUserMcp(userId, mcpKey);
+    if (removed) {
+      await this.cache.delete(this.userMcpLibraryKey(userId));
+    }
+    return removed;
   }
 
   async installUserSkill(
@@ -644,6 +743,14 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     return 'agents:catalog';
   }
 
+  private adminAgentCatalogKey(): string {
+    return 'agents:catalog:admin';
+  }
+
+  private adminAgentCatalogCountKey(): string {
+    return 'agents:catalog:admin:count';
+  }
+
   private agentCatalogEntryKey(slug: string): string {
     return `agents:entry:${slug}`;
   }
@@ -676,8 +783,28 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     return `skills:entry:${slug}`;
   }
 
+  private mcpCatalogKey(): string {
+    return 'mcp:catalog';
+  }
+
+  private mcpCatalogCountKey(): string {
+    return 'mcp:catalog:count';
+  }
+
+  private mcpCatalogPageKey(limit?: number, offset?: number): string {
+    return `mcp:catalog:page:${this.normalizePageSegment(limit)}:${this.normalizePageSegment(offset)}`;
+  }
+
+  private mcpCatalogEntryKey(mcpKey: string): string {
+    return `mcp:entry:${mcpKey}`;
+  }
+
   private userSkillLibraryKey(userId: string): string {
     return `skills:library:${userId}`;
+  }
+
+  private userMcpLibraryKey(userId: string): string {
+    return `mcp:library:${userId}`;
   }
 
   private userAgentLibraryKey(userId: string): string {

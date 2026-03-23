@@ -26,12 +26,14 @@ function isTauriRuntime(): boolean {
 
 export async function checkDesktopUpdate(input: {
   authBaseUrl: string;
+  appName: string;
   channel: 'dev' | 'prod';
 }): Promise<DesktopUpdateCheckResult | null> {
   if (!isTauriRuntime()) return null;
   return invoke<DesktopUpdateCheckResult>('check_desktop_update', {
     input: {
       authBaseUrl: input.authBaseUrl,
+      appName: input.appName,
       channel: input.channel,
     },
   });

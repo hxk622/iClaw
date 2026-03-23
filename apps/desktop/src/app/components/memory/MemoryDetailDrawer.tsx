@@ -82,26 +82,26 @@ export function MemoryDetailDrawer({
       />
       <aside
         className={cn(
-          'fixed right-0 top-0 z-50 h-full w-[624px] border-l border-[#ECE7DE] bg-[#FCFBF8] transition-transform duration-300 ease-out',
+          'fixed right-0 top-0 z-50 h-full w-[624px] border-l border-[#ECE7DE] bg-[#FCFBF8] transition-transform duration-300 ease-out dark:border-[rgba(255,255,255,0.08)] dark:bg-[#151412]',
           open ? 'translate-x-0' : 'translate-x-full',
         )}
       >
         {!entry || !view ? (
-          <div className="flex h-full items-center justify-center border-l border-[#ECE7DE] bg-[#FCFBF8]">
+          <div className="flex h-full items-center justify-center border-l border-[#ECE7DE] bg-[#FCFBF8] dark:border-[rgba(255,255,255,0.08)] dark:bg-[#151412]">
             <div className="px-8 text-center">
-              <Archive size={48} strokeWidth={1} className="mb-4 text-[#DED7CC]" />
-              <p className="text-[13px] text-[#9A9288]">选择一条记忆查看详情</p>
+              <Archive size={48} strokeWidth={1} className="mb-4 text-[#DED7CC] dark:text-[#4F4A43]" />
+              <p className="text-[13px] text-[#9A9288] dark:text-[#8F887D]">选择一条记忆查看详情</p>
             </div>
           </div>
         ) : (
           <div className="flex h-full flex-col">
-            <div className="flex items-center justify-between border-b border-[#ECE7DE] px-6 py-4">
-              <h3 className="text-[13px] text-[#1A1A18]" style={{ fontWeight: 500 }}>
+            <div className="flex items-center justify-between border-b border-[#ECE7DE] px-6 py-4 dark:border-[rgba(255,255,255,0.08)]">
+              <h3 className="text-[13px] text-[#1A1A18] dark:text-[#F1ECE3]" style={{ fontWeight: 500 }}>
                 记忆详情
               </h3>
               <button
                 onClick={onClose}
-                className="cursor-pointer rounded-md p-1.5 text-[#9A9288] transition-all duration-200 hover:bg-[#F8F4ED] hover:text-[#1A1A18]"
+                className="cursor-pointer rounded-md p-1.5 text-[#9A9288] transition-all duration-200 hover:bg-[#F8F4ED] hover:text-[#1A1A18] dark:text-[#8F887D] dark:hover:bg-[rgba(255,255,255,0.06)] dark:hover:text-[#F1ECE3]"
               >
                 <X size={15} strokeWidth={1.5} />
               </button>
@@ -117,18 +117,18 @@ export function MemoryDetailDrawer({
                         onDraftChange((current) => (current ? { ...current, title: event.target.value } : current))
                       }
                       placeholder="记忆标题"
-                      className="w-full rounded-lg border border-[#DED7CC] bg-white px-4 py-3 text-[13px] text-[#1A1A18] outline-none"
+                      className="w-full rounded-lg border border-[#DED7CC] bg-white px-4 py-3 text-[13px] text-[#1A1A18] outline-none dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)] dark:text-[#F1ECE3]"
                     />
                     <textarea
                       value={draft.content}
                       onChange={(event) =>
                         onDraftChange((current) => (current ? { ...current, content: event.target.value } : current))
                       }
-                      className="min-h-[180px] w-full rounded-lg border border-[#DED7CC] bg-white px-4 py-3 text-[13px] leading-relaxed text-[#1A1A18] outline-none"
+                      className="min-h-[180px] w-full rounded-lg border border-[#DED7CC] bg-white px-4 py-3 text-[13px] leading-relaxed text-[#1A1A18] outline-none dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)] dark:text-[#F1ECE3]"
                     />
                   </div>
                 ) : (
-                  <p className="text-[13px] leading-relaxed text-[#1A1A18]">{entry.content}</p>
+                  <p className="text-[13px] leading-relaxed text-[#1A1A18] dark:text-[#F1ECE3]">{entry.content}</p>
                 )}
               </DrawerBlock>
 
@@ -163,13 +163,13 @@ export function MemoryDetailDrawer({
               <DrawerBlock label="标签">
                 <div className="flex flex-wrap gap-2">
                   {view.tags.map((tag) => (
-                    <Badge key={tag} className="border-none bg-[#ECE7DE] text-[#6B655D]">
+                    <Badge key={tag} className="border-none bg-[#ECE7DE] text-[#6B655D] dark:bg-[rgba(214,190,151,0.12)] dark:text-[#D8CEBF]">
                       {tag}
                       {editing ? (
                         <button
                           type="button"
                           onClick={() => onRemoveDraftTag(tag)}
-                          className="ml-1 cursor-pointer text-[#9A9288]"
+                          className="ml-1 cursor-pointer text-[#9A9288] dark:text-[#9C9388]"
                         >
                           ×
                         </button>
@@ -190,7 +190,7 @@ export function MemoryDetailDrawer({
                         }
                       }}
                       placeholder="新增标签"
-                      className="flex-1 rounded-lg border border-[#DED7CC] bg-white px-3 py-2 text-[13px] text-[#1A1A18] outline-none"
+                      className="flex-1 rounded-lg border border-[#DED7CC] bg-white px-3 py-2 text-[13px] text-[#1A1A18] outline-none dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)] dark:text-[#F1ECE3]"
                     />
                     <Button
                       onClick={onAddTag}
@@ -219,9 +219,9 @@ export function MemoryDetailDrawer({
                 ) : (
                   <div className="flex items-center gap-2">
                     {view.importance === '高' ? (
-                      <Star size={13} fill="#A88C5D" stroke="#A88C5D" strokeWidth={1.5} />
+                      <Star size={13} fill="#A88C5D" stroke="#A88C5D" strokeWidth={1.5} className="dark:fill-[#DDBE82] dark:stroke-[#DDBE82]" />
                     ) : null}
-                    <span className="text-[13px] text-[#1A1A18]">{view.importance}</span>
+                    <span className="text-[13px] text-[#1A1A18] dark:text-[#F1ECE3]">{view.importance}</span>
                     <Badge className={getImportanceBadgeClass(view.importance)}>{view.importance}重要性</Badge>
                   </div>
                 )}
@@ -230,18 +230,18 @@ export function MemoryDetailDrawer({
               <DrawerBlock label="来源与状态">
                 {editing && draft ? (
                   <div className="space-y-3">
-                    <div className="rounded-lg border border-[#ECE7DE] bg-white px-4 py-3">
-                      <div className="mb-1 text-[11px] text-[#9A9288]">来源类型</div>
-                      <div className="text-[13px] text-[#1A1A18]">{entry.sourceType}</div>
+                    <div className="rounded-lg border border-[#ECE7DE] bg-white px-4 py-3 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
+                      <div className="mb-1 text-[11px] text-[#9A9288] dark:text-[#8F887D]">来源类型</div>
+                      <div className="text-[13px] text-[#1A1A18] dark:text-[#F1ECE3]">{entry.sourceType}</div>
                     </div>
                     <label className="block space-y-1">
-                      <div className="text-[12px] text-[#9A9288]">来源说明</div>
+                      <div className="text-[12px] text-[#9A9288] dark:text-[#8F887D]">来源说明</div>
                       <input
                         value={draft.sourceLabel}
                         onChange={(event) =>
                           onDraftChange((current) => (current ? { ...current, sourceLabel: event.target.value } : current))
                         }
-                        className="w-full rounded-lg border border-[#DED7CC] bg-white px-3 py-2 text-[13px] text-[#1A1A18] outline-none"
+                        className="w-full rounded-lg border border-[#DED7CC] bg-white px-3 py-2 text-[13px] text-[#1A1A18] outline-none dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)] dark:text-[#F1ECE3]"
                       />
                     </label>
                     <SelectField
@@ -255,13 +255,13 @@ export function MemoryDetailDrawer({
                   </div>
                 ) : (
                   <div className="space-y-1.5">
-                    <div className="text-[13px] text-[#1A1A18]">{entry.sourceType}</div>
-                    <div className="text-[11px] text-[#6B655D]">状态: {entry.status}</div>
-                    <div className="text-[11px] text-[#6B655D]">来源说明: {entry.sourceLabel}</div>
-                    <div className="text-[11px] text-[#6B655D]">
+                    <div className="text-[13px] text-[#1A1A18] dark:text-[#F1ECE3]">{entry.sourceType}</div>
+                    <div className="text-[11px] text-[#6B655D] dark:text-[#B7AEA2]">状态: {entry.status}</div>
+                    <div className="text-[11px] text-[#6B655D] dark:text-[#B7AEA2]">来源说明: {entry.sourceLabel}</div>
+                    <div className="text-[11px] text-[#6B655D] dark:text-[#B7AEA2]">
                       捕获置信度: {Math.round(entry.captureConfidence * 100)}%
                     </div>
-                    <div className="text-[11px] text-[#6B655D]">
+                    <div className="text-[11px] text-[#6B655D] dark:text-[#B7AEA2]">
                       索引状态: <span className={getIndexHealthClass(entry.indexHealth)}>{entry.indexHealth}</span>
                     </div>
                   </div>
@@ -270,8 +270,8 @@ export function MemoryDetailDrawer({
 
               <DrawerBlock label="时间">
                 <div className="space-y-1.5">
-                  <div className="text-[11px] text-[#6B655D]">创建: {entry.createdAt}</div>
-                  <div className="text-[11px] text-[#6B655D]">更新: {entry.updatedAt}</div>
+                  <div className="text-[11px] text-[#6B655D] dark:text-[#B7AEA2]">创建: {entry.createdAt}</div>
+                  <div className="text-[11px] text-[#6B655D] dark:text-[#B7AEA2]">更新: {entry.updatedAt}</div>
                 </div>
               </DrawerBlock>
 
@@ -279,9 +279,9 @@ export function MemoryDetailDrawer({
                 <DrawerBlock label={`召回记录 (${entry.recallCount} 次)`}>
                   <div className="space-y-2">
                     {recallRecords.map((record) => (
-                      <div key={record.date} className="rounded-lg border border-[#ECE7DE] bg-white p-3.5">
-                        <div className="mb-1 text-[11px] text-[#9A9288]">{record.date}</div>
-                        <div className="text-[12px] text-[#1A1A18]">{record.context}</div>
+                      <div key={record.date} className="rounded-lg border border-[#ECE7DE] bg-white p-3.5 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
+                        <div className="mb-1 text-[11px] text-[#9A9288] dark:text-[#8F887D]">{record.date}</div>
+                        <div className="text-[12px] text-[#1A1A18] dark:text-[#F1ECE3]">{record.context}</div>
                       </div>
                     ))}
                   </div>
@@ -295,16 +295,16 @@ export function MemoryDetailDrawer({
                       <button
                         key={item.id}
                         onClick={() => onSelectRelated(item.id)}
-                        className="w-full cursor-pointer rounded-lg border border-[#ECE7DE] bg-white p-3.5 text-left transition-all duration-200 hover:border-[#DED7CC]"
+                        className="w-full cursor-pointer rounded-lg border border-[#ECE7DE] bg-white p-3.5 text-left transition-all duration-200 hover:border-[#DED7CC] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)] dark:hover:border-[rgba(214,190,151,0.18)]"
                       >
-                        <p className="mb-1.5 line-clamp-2 text-[12px] text-[#1A1A18]">{item.summary}</p>
+                        <p className="mb-1.5 line-clamp-2 text-[12px] text-[#1A1A18] dark:text-[#F1ECE3]">{item.summary}</p>
                         <div className="flex gap-1.5">
                           <Badge className={getDomainBadgeClass(item.domain)}>{item.domain}</Badge>
                         </div>
                       </button>
                     ))
                   ) : (
-                    <div className="rounded-lg border border-dashed border-[#ECE7DE] px-4 py-4 text-[12px] text-[#6B655D]">
+                    <div className="rounded-lg border border-dashed border-[#ECE7DE] px-4 py-4 text-[12px] text-[#6B655D] dark:border-[rgba(255,255,255,0.1)] dark:text-[#B7AEA2]">
                       当前没有足够接近的候选记忆。
                     </div>
                   )}
@@ -312,7 +312,7 @@ export function MemoryDetailDrawer({
               </DrawerBlock>
             </div>
 
-            <div className="space-y-2.5 border-t border-[#ECE7DE] bg-white px-6 py-5">
+            <div className="space-y-2.5 border-t border-[#ECE7DE] bg-white px-6 py-5 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]">
               {editing ? (
                 <div className="flex gap-2.5">
                   <Button
@@ -381,7 +381,7 @@ export function MemoryDetailDrawer({
                       onClick={onForget}
                       disabled={busy}
                       variant="secondary"
-                      className="flex-1 rounded-lg px-3 py-2.5 text-[13px] text-[#A0765C] hover:text-[#8a6450]"
+                      className="flex-1 rounded-lg px-3 py-2.5 text-[13px] text-[#A0765C] hover:text-[#8a6450] dark:text-[#D2B18D] dark:hover:text-[#E7C9A5]"
                     >
                       归档
                     </Button>
@@ -414,7 +414,7 @@ function DrawerBlock({
 }) {
   return (
     <section className="mb-7 last:mb-0">
-      <div className="mb-2.5 text-[11px] uppercase tracking-wide text-[#9A9288]">
+      <div className="mb-2.5 text-[11px] uppercase tracking-wide text-[#9A9288] dark:text-[#8F887D]">
         {label}
       </div>
       {children}
@@ -435,7 +435,7 @@ function SelectField({
 }) {
   return (
     <label className="space-y-1">
-      <div className="text-[12px] text-[#9A9288]">{label}</div>
+      <div className="text-[12px] text-[#9A9288] dark:text-[#8F887D]">{label}</div>
       <Select
         value={value}
         onChange={onChange}
@@ -443,7 +443,7 @@ function SelectField({
           value: option,
           label: option,
         }))}
-        triggerClassName="w-full rounded-lg border border-[#DED7CC] bg-white px-3 py-2 text-[13px] text-[#1A1A18] outline-none shadow-none"
+        triggerClassName="w-full rounded-lg border border-[#DED7CC] bg-white px-3 py-2 text-[13px] text-[#1A1A18] outline-none shadow-none dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)] dark:text-[#F1ECE3]"
       />
     </label>
   );

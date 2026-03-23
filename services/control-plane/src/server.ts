@@ -7,7 +7,7 @@ import {fileURLToPath} from 'node:url';
 
 import { downloadAvatar } from './avatar-storage.ts';
 import {downloadPrivateSkillArtifact} from './skill-storage.ts';
-import {ensureBootstrapAdmin, ensureDefaultSkillSyncSources, ensurePortalPreset} from './bootstrap.ts';
+import {ensureBootstrapAdmin, ensureDefaultCatalogs, ensureDefaultSkillSyncSources, ensurePortalPreset} from './bootstrap.ts';
 import {CachedControlPlaneStore} from './cached-store.ts';
 import {config} from './config.ts';
 import type {
@@ -15,13 +15,16 @@ import type {
   CreatePaymentOrderInput,
   ImportUserPrivateSkillInput,
   InstallAgentInput,
+  InstallMcpInput,
   InstallSkillInput,
   LoginInput,
   PaymentWebhookInput,
   RegisterInput,
   RunAuthorizeInput,
+  UpsertAgentCatalogEntryInput,
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
+  UpdateMcpLibraryItemInput,
   UpdateSkillLibraryItemInput,
   UpdateProfileInput,
   UsageEventInput,
@@ -68,6 +71,7 @@ if (config.redisUrl) {
 }
 
 await ensureBootstrapAdmin(store);
+await ensureDefaultCatalogs(store);
 await ensureDefaultSkillSyncSources(store);
 await ensurePortalPreset(portalStore);
 
@@ -101,6 +105,19 @@ function resolvePublicBaseUrl(headers: Record<string, string | string[] | undefi
   return `${protocol}://${host || `127.0.0.1:${config.port}`}`;
 }
 
+function resolveRequestedAppName(
+  headers: Record<string, string | string[] | undefined>,
+  url?: URL,
+): string | null {
+  const headerValue = headers['x-iclaw-app-name'];
+  const fromHeader = (Array.isArray(headerValue) ? headerValue[0] : headerValue)?.trim().toLowerCase();
+  if (fromHeader) {
+    return fromHeader;
+  }
+  const fromQuery = (url?.searchParams.get('app_name') || '').trim().toLowerCase();
+  return fromQuery || null;
+}
+
 function resolveSkillSourceDir(relativePath: string): string {
   const normalized = relativePath.trim();
   if (!normalized || normalized.includes('..')) {
@@ -122,6 +139,7 @@ function resolveSkillSourceDir(relativePath: string): string {
 
 function resolveDesktopUpdateRequest(url: URL) {
   return {
+    appName: (url.searchParams.get('app_name') || '').trim() || null,
     appVersion: (url.searchParams.get('current_version') || '').trim() || null,
     platform: (url.searchParams.get('target') || '').trim() || null,
     arch: (url.searchParams.get('arch') || '').trim() || null,
@@ -215,16 +233,20 @@ const server = createJsonServer([
   {
     method: 'GET',
     path: '/desktop/update-hint',
-    handler: async ({url}: HandlerContext) => {
+    handler: async ({url, headers}: HandlerContext) => {
       const request = resolveDesktopUpdateRequest(url);
       if (!request.appVersion) {
         throw new HttpError(400, 'BAD_REQUEST', 'current_version is required');
       }
-      const hint = await resolveDesktopUpdateHintPayload(request);
+      const hint = await resolveDesktopUpdateHintPayload(request, portalStore, resolvePublicBaseUrl(headers));
       return hint || {
         latestVersion: request.appVersion,
         updateAvailable: false,
         mandatory: false,
+        enforcementState: 'recommended',
+        blockNewRuns: false,
+        reasonCode: null,
+        reasonMessage: null,
         manifestUrl: null,
         artifactUrl: null,
       };
@@ -233,12 +255,12 @@ const server = createJsonServer([
   {
     method: 'GET',
     path: '/desktop/update',
-    handler: async ({url}: HandlerContext) => {
+    handler: async ({url, headers}: HandlerContext) => {
       const request = resolveDesktopUpdateRequest(url);
       if (!request.appVersion) {
         throw new HttpError(400, 'BAD_REQUEST', 'current_version is required');
       }
-      const payload = await resolveDesktopUpdaterRoutePayload(request);
+      const payload = await resolveDesktopUpdaterRoutePayload(request, portalStore, resolvePublicBaseUrl(headers));
       if (!payload) {
         return createRawResponse('', {
           statusCode: 204,
@@ -255,6 +277,10 @@ const server = createJsonServer([
           notes: payload.notes,
           pub_date: payload.pubDate,
           mandatory: payload.mandatory,
+          enforcement_state: payload.enforcementState,
+          block_new_runs: payload.blockNewRuns,
+          reason_code: payload.reasonCode,
+          reason_message: payload.reasonMessage,
           external_download_url: payload.externalDownloadUrl,
         }),
         {
@@ -436,6 +462,24 @@ const server = createJsonServer([
   },
   {
     method: 'GET',
+    path: '/mcp/catalog',
+    handler: async ({headers, url}: HandlerContext) => {
+      const appName = resolveRequestedAppName(headers, url);
+      const detail = appName ? await portalStore.getAppDetail(appName).catch(() => null) : null;
+      const defaultInstalledKeys = new Set(
+        (detail?.mcpBindings || [])
+          .filter((item) => item.enabled)
+          .map((item) => item.mcpKey),
+      );
+      return service.listMcpCatalog(
+        defaultInstalledKeys,
+        Number.parseInt(url.searchParams.get('limit') || '', 10),
+        Number.parseInt(url.searchParams.get('offset') || '', 10),
+      );
+    },
+  },
+  {
+    method: 'GET',
     path: '/skills/catalog/personal',
     handler: ({headers, url}: HandlerContext) =>
       service.listPersonalSkillCatalog(
@@ -450,6 +494,29 @@ const server = createJsonServer([
     path: '/skills/catalog/personal',
     handler: ({headers, url}: HandlerContext) =>
       service.deletePrivateSkill(requireBearerToken(headers), (url.searchParams.get('slug') || '').trim()),
+  },
+  {
+    method: 'GET',
+    path: '/admin/agents/catalog',
+    handler: ({headers}: HandlerContext) => service.listAdminAgentCatalog(requireBearerToken(headers)),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/agents/catalog',
+    handler: ({headers, body}: HandlerContext) =>
+      service.upsertAdminAgentCatalogEntry(
+        requireBearerToken(headers),
+        (body || {}) as UpsertAgentCatalogEntryInput,
+      ),
+  },
+  {
+    method: 'DELETE',
+    path: '/admin/agents/catalog',
+    handler: ({headers, url}: HandlerContext) =>
+      service.deleteAdminAgentCatalogEntry(
+        requireBearerToken(headers),
+        (url.searchParams.get('slug') || '').trim(),
+      ),
   },
   {
     method: 'GET',
@@ -522,10 +589,21 @@ const server = createJsonServer([
     handler: ({headers}: HandlerContext) => service.listUserSkillLibrary(requireBearerToken(headers)),
   },
   {
+    method: 'GET',
+    path: '/mcp/library',
+    handler: ({headers}: HandlerContext) => service.listUserMcpLibrary(requireBearerToken(headers)),
+  },
+  {
     method: 'POST',
     path: '/skills/library/install',
     handler: ({headers, body}: HandlerContext) =>
       service.installSkill(requireBearerToken(headers), (body || {}) as InstallSkillInput),
+  },
+  {
+    method: 'POST',
+    path: '/mcp/library/install',
+    handler: ({headers, body}: HandlerContext) =>
+      service.installMcp(requireBearerToken(headers), (body || {}) as InstallMcpInput),
   },
   {
     method: 'POST',
@@ -544,11 +622,25 @@ const server = createJsonServer([
       service.updateSkillLibraryItem(requireBearerToken(headers), (body || {}) as UpdateSkillLibraryItemInput),
   },
   {
+    method: 'PUT',
+    path: '/mcp/library/state',
+    handler: ({headers, body}: HandlerContext) =>
+      service.updateMcpLibraryItem(requireBearerToken(headers), (body || {}) as UpdateMcpLibraryItemInput),
+  },
+  {
     method: 'POST',
     path: '/skills/library/uninstall',
     handler: ({headers, body}: HandlerContext) => {
       const data = (body || {}) as {slug?: string};
       return service.removeSkill(requireBearerToken(headers), data.slug || '');
+    },
+  },
+  {
+    method: 'POST',
+    path: '/mcp/library/uninstall',
+    handler: ({headers, body}: HandlerContext) => {
+      const data = (body || {}) as {mcp_key?: string};
+      return service.removeMcp(requireBearerToken(headers), data.mcp_key || '');
     },
   },
   {
@@ -896,12 +988,82 @@ const server = createJsonServer([
       portalService.deleteAsset(requireBearerToken(headers), params.appName || '', params.assetKey || ''),
   },
   {
+    method: 'PUT',
+    path: '/admin/portal/apps/:appName/desktop-release/:channel/:platform/:arch/:artifactType',
+    bodyType: 'raw',
+    handler: ({headers, params, body}: HandlerContext<Buffer>) =>
+      portalService.uploadDesktopReleaseArtifact(requireBearerToken(headers), params.appName || '', {
+        channel: params.channel || '',
+        platform: params.platform || '',
+        arch: params.arch || '',
+        artifactType: params.artifactType || '',
+        fileName: Array.isArray(headers['x-iclaw-file-name']) ? headers['x-iclaw-file-name'][0] : headers['x-iclaw-file-name'],
+        contentType: Array.isArray(headers['content-type']) ? headers['content-type'][0] : headers['content-type'],
+        content: Buffer.isBuffer(body) ? body : Buffer.alloc(0),
+      }),
+  },
+  {
+    method: 'POST',
+    path: '/admin/portal/apps/:appName/desktop-release/:channel/publish',
+    handler: ({headers, params, body}: HandlerContext) =>
+      portalService.publishDesktopRelease(requireBearerToken(headers), params.appName || '', {
+        ...((body || {}) as Record<string, unknown>),
+        channel: params.channel || '',
+      }),
+  },
+  {
     method: 'GET',
     path: '/portal/public-config',
     handler: ({headers, url}: HandlerContext) =>
       portalService.getPublicAppConfig((url.searchParams.get('app_name') || '').trim(), resolvePublicBaseUrl(headers), {
         surfaceKey: (url.searchParams.get('surface_key') || '').trim() || null,
       }),
+  },
+  {
+    method: 'GET',
+    path: '/desktop/release-manifest',
+    handler: async ({headers, url}: HandlerContext) => {
+      const payload = await portalService.getDesktopReleaseManifest(
+        (url.searchParams.get('app_name') || '').trim(),
+        resolvePublicBaseUrl(headers),
+        {
+          channel: (url.searchParams.get('channel') || '').trim() || null,
+          platform: (url.searchParams.get('target') || '').trim() || null,
+          arch: (url.searchParams.get('arch') || '').trim() || null,
+        },
+      );
+      return createRawResponse(JSON.stringify(payload), {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store',
+        },
+      });
+    },
+  },
+  {
+    method: 'GET',
+    path: '/desktop/release-file',
+    handler: async ({url}: HandlerContext) => {
+      const result = await portalService.getDesktopReleaseFile(
+        (url.searchParams.get('app_name') || '').trim(),
+        {
+          channel: (url.searchParams.get('channel') || '').trim() || null,
+          platform: (url.searchParams.get('target') || '').trim() || null,
+          arch: (url.searchParams.get('arch') || '').trim() || null,
+          artifactType: (url.searchParams.get('artifact_type') || '').trim() || null,
+        },
+      );
+      return createRawResponse(result.file.buffer, {
+        statusCode: 200,
+        headers: {
+          'Content-Type': result.file.contentType,
+          'Content-Length': String(result.file.buffer.length),
+          'Content-Disposition': `attachment; filename="${encodeURIComponent(result.fileMeta.fileName)}"`,
+          'Cache-Control': 'no-store',
+        },
+      });
+    },
   },
   {
     method: 'GET',
@@ -966,7 +1128,8 @@ const server = createJsonServer([
   allowedOrigins: config.allowedOrigins,
   allowedHeaders: desktopUpdateAllowedRequestHeaders(),
   exposedHeaders: ['x-request-id', ...desktopUpdateExposedHeaders()],
-  resolveResponseHeaders: ({request}) => resolveDesktopUpdateResponseHeaders(request.headers),
+  resolveResponseHeaders: ({request}) =>
+    resolveDesktopUpdateResponseHeaders(request.headers, portalStore, resolvePublicBaseUrl(request.headers)),
 });
 
 server.listen(config.port, '127.0.0.1', () => {

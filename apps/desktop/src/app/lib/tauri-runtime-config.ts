@@ -79,3 +79,19 @@ export async function saveOemRuntimeSnapshot(snapshot: OemRuntimeSnapshot): Prom
   if (!isTauriRuntime()) return false;
   return invoke<boolean>('save_oem_runtime_snapshot', { snapshot });
 }
+
+export async function loadOemRuntimeSnapshot(): Promise<OemRuntimeSnapshot | null> {
+  if (!isTauriRuntime()) return null;
+  return invoke<OemRuntimeSnapshot | null>('load_oem_runtime_snapshot');
+}
+
+export async function syncOemRuntimeSnapshot(input: {
+  authBaseUrl: string;
+  brandId: string;
+}): Promise<boolean> {
+  if (!isTauriRuntime()) return false;
+  return invoke<boolean>('sync_oem_runtime_snapshot', {
+    authBaseUrl: input.authBaseUrl,
+    brandId: input.brandId,
+  });
+}

@@ -88,7 +88,7 @@ function splitEmailCsvEnv(value: string | undefined, fallback: string[]): string
 
 function loadBrandDefaults() {
   const appName =
-    (process.env.ICLAW_PORTAL_APP_NAME || process.env.ICLAW_BRAND || process.env.ICLAW_APP_NAME || 'iclaw').trim() ||
+    (process.env.APP_NAME || process.env.ICLAW_PORTAL_APP_NAME || process.env.ICLAW_BRAND || process.env.ICLAW_APP_NAME || 'iclaw').trim() ||
     'iclaw';
 
   return {

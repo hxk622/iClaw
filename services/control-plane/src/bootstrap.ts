@@ -3,6 +3,11 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 import {config} from './config.ts';
+import {
+  DEFAULT_AGENT_CATALOG_SEEDS,
+  DEFAULT_CLOUD_SKILL_SEEDS,
+  DEPRECATED_DEFAULT_AGENT_SLUGS,
+} from './catalog-defaults.ts';
 import {hashPassword} from './passwords.ts';
 import type {PortalPresetManifest} from './portal-domain.ts';
 import {syncPortalPresetManifest} from './portal-preset.ts';
@@ -68,4 +73,79 @@ export async function ensurePortalPreset(portalStore: PgPortalStore): Promise<vo
 
 export async function ensureDefaultSkillSyncSources(store: ControlPlaneStore): Promise<void> {
   await store.upsertSkillSyncSource(DEFAULT_CLAWHUB_SYNC_SOURCE);
+}
+
+export async function ensureDefaultCatalogs(store: ControlPlaneStore): Promise<void> {
+  for (const skill of DEFAULT_CLOUD_SKILL_SEEDS) {
+    if (await store.getSkillCatalogEntry(skill.slug)) {
+      continue;
+    }
+    await store.upsertSkillCatalogEntry({
+      slug: skill.slug,
+      name: skill.name,
+      description: skill.description,
+      visibility: 'showcase',
+      market: skill.market,
+      category: skill.category,
+      skill_type: skill.skillType,
+      publisher: skill.publisher || 'iClaw',
+      distribution: skill.artifactSourcePath ? 'bundled' : 'cloud',
+      tags: skill.tags,
+      version: skill.version || '1.0.0',
+      artifact_url: skill.artifactUrl || null,
+      artifact_format: skill.artifactFormat || 'tar.gz',
+      artifact_sha256: null,
+      artifact_source_path: skill.artifactSourcePath || null,
+      origin_type: skill.artifactSourcePath ? 'bundled' : 'clawhub',
+      source_url: skill.artifactUrl || null,
+      metadata: {},
+      active: true,
+    });
+  }
+
+  for (const agent of DEFAULT_AGENT_CATALOG_SEEDS) {
+    if (await store.getAgentCatalogEntry(agent.slug)) {
+      continue;
+    }
+    await store.upsertAgentCatalogEntry({
+      slug: agent.slug,
+      name: agent.name,
+      description: agent.description,
+      category: agent.category,
+      publisher: agent.publisher,
+      featured: agent.featured,
+      official: agent.official,
+      tags: agent.tags,
+      capabilities: agent.capabilities,
+      use_cases: agent.useCases,
+      metadata: agent.metadata,
+      sort_order: agent.sortOrder,
+      active: agent.active,
+    });
+  }
+
+  for (const slug of DEPRECATED_DEFAULT_AGENT_SLUGS) {
+    const existing = await store.getAgentCatalogEntry(slug);
+    if (!existing || existing.active === false) {
+      continue;
+    }
+    await store.upsertAgentCatalogEntry({
+      slug: existing.slug,
+      name: existing.name,
+      description: existing.description,
+      category: existing.category,
+      publisher: existing.publisher,
+      featured: existing.featured,
+      official: existing.official,
+      tags: existing.tags,
+      capabilities: existing.capabilities,
+      use_cases: existing.useCases,
+      metadata: {
+        ...existing.metadata,
+        deprecated: true,
+      },
+      sort_order: existing.sortOrder,
+      active: false,
+    });
+  }
 }

@@ -1,4 +1,4 @@
-import {access, mkdir, rm, writeFile} from 'node:fs/promises';
+import {access, mkdir, readFile, rm, writeFile} from 'node:fs/promises';
 import {dirname, extname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
@@ -63,11 +63,38 @@ function normalizeWebsite(raw: unknown, displayName: string) {
 }
 
 function findAsset(detail: PortalAppDetail, assetKey: string): PortalAppAssetRecord | null {
-  return detail.assets.find((item) => item.assetKey === assetKey) || null;
+  const direct = detail.assets.find((item) => item.assetKey === assetKey) || null;
+  if (direct) {
+    return direct;
+  }
+
+  const publishedConfig = asObject(detail.releases[0]?.config);
+  const assets = asObject(publishedConfig.assets);
+  const raw = asObject(assets[assetKey]);
+  const objectKey = trimString(raw.objectKey || raw.object_key);
+  if (!objectKey) {
+    return null;
+  }
+
+  return {
+    id: `published:${detail.app.appName}:${assetKey}`,
+    appName: detail.app.appName,
+    assetKey,
+    storageProvider: trimString(raw.storageProvider || raw.storage_provider) || 's3',
+    objectKey,
+    publicUrl: trimString(raw.url || raw.publicUrl || raw.public_url) || null,
+    contentType: trimString(raw.contentType || raw.content_type) || null,
+    sha256: null,
+    sizeBytes: null,
+    metadata: asObject(raw.metadata),
+    createdAt: '',
+    updatedAt: '',
+  };
 }
 
 async function writeAssetFile(
   detail: PortalAppDetail,
+  repoRoot: string,
   cacheRoot: string,
   assetKey: string,
   relativePath: string,
@@ -88,12 +115,28 @@ async function writeAssetFile(
     }
     throw error;
   });
-  if (!file) {
-    return null;
-  }
+
   const targetPath = resolve(cacheRoot, relativePath);
   await mkdir(dirname(targetPath), {recursive: true});
-  await writeFile(targetPath, file.buffer);
+
+  if (file) {
+    await writeFile(targetPath, file.buffer);
+    return `./${relativePath}`;
+  }
+
+  const metadata = asObject(asset.metadata);
+  const presetFilePath = trimString(metadata.presetFilePath || metadata.preset_file_path);
+  if (!presetFilePath) {
+    return null;
+  }
+
+  const presetSourcePath = resolve(repoRoot, 'services/control-plane/presets', presetFilePath);
+  const presetBuffer = await readFile(presetSourcePath).catch(() => null);
+  if (!presetBuffer) {
+    return null;
+  }
+
+  await writeFile(targetPath, presetBuffer);
   return `./${relativePath}`;
 }
 
@@ -214,7 +257,7 @@ async function main() {
   }
 
   const rawPositional = process.argv.slice(2).find((item) => !item.startsWith('--')) || '';
-  const appName = trimString(readArg('--app') || process.env.ICLAW_PORTAL_APP_NAME || rawPositional || 'iclaw').toLowerCase();
+  const appName = trimString(readArg('--app') || process.env.APP_NAME || process.env.ICLAW_PORTAL_APP_NAME || rawPositional || 'iclaw').toLowerCase();
   if (!appName) {
     throw new Error('app name is required');
   }
@@ -233,37 +276,40 @@ async function main() {
     await rm(resolve(cacheRoot, 'assets'), {recursive: true, force: true});
     await mkdir(cacheRoot, {recursive: true});
 
-    await writeAssetFile(detail, cacheRoot, 'faviconIco', 'assets/favicon.ico');
-    await writeAssetFile(detail, cacheRoot, 'faviconPng', 'assets/favicon.png');
-    await writeAssetFile(detail, cacheRoot, 'appleTouchIcon', 'assets/apple-touch-icon.png');
-    await writeAssetFile(detail, cacheRoot, 'installerHero', 'assets/installer-hero.png');
+    await writeAssetFile(detail, repoRoot, cacheRoot, 'faviconIco', 'assets/favicon.ico');
+    await writeAssetFile(detail, repoRoot, cacheRoot, 'faviconPng', 'assets/favicon.png');
+    await writeAssetFile(detail, repoRoot, cacheRoot, 'appleTouchIcon', 'assets/apple-touch-icon.png');
+    await writeAssetFile(detail, repoRoot, cacheRoot, 'installerHero', 'assets/installer-hero.png');
     await writeAssetFile(
       detail,
+      repoRoot,
       cacheRoot,
       'logoMaster',
       `assets/logo-master${extname(findAsset(detail, 'logoMaster')?.objectKey || '') || '.png'}`,
     );
     await writeAssetFile(
       detail,
+      repoRoot,
       cacheRoot,
       'homeLogo',
       `assets/home-logo${extname(findAsset(detail, 'homeLogo')?.objectKey || '') || '.png'}`,
     );
-    await writeAssetFile(detail, cacheRoot, 'homeHeroArt', 'assets/hero-art.svg');
-    await writeAssetFile(detail, cacheRoot, 'homeHeroLayer1', 'assets/hero-layer-1.svg');
-    await writeAssetFile(detail, cacheRoot, 'homeHeroLayer2', 'assets/hero-layer-2.svg');
+    await writeAssetFile(detail, repoRoot, cacheRoot, 'homeHeroArt', 'assets/hero-art.svg');
+    await writeAssetFile(detail, repoRoot, cacheRoot, 'homeHeroLayer1', 'assets/hero-layer-1.svg');
+    await writeAssetFile(detail, repoRoot, cacheRoot, 'homeHeroLayer2', 'assets/hero-layer-2.svg');
     await writeAssetFile(
       detail,
+      repoRoot,
       cacheRoot,
       'homeHeroPhoto',
       `assets/hero-photo${extname(findAsset(detail, 'homeHeroPhoto')?.objectKey || '') || '.jpg'}`,
     );
-    await writeAssetFile(detail, cacheRoot, 'tauriIcon32', 'assets/tauri-icons/32x32.png');
-    await writeAssetFile(detail, cacheRoot, 'tauriIcon128', 'assets/tauri-icons/128x128.png');
-    await writeAssetFile(detail, cacheRoot, 'tauriIcon1282x', 'assets/tauri-icons/128x128@2x.png');
-    await writeAssetFile(detail, cacheRoot, 'tauriIconPng', 'assets/tauri-icons/icon.png');
-    await writeAssetFile(detail, cacheRoot, 'tauriIconIco', 'assets/tauri-icons/icon.ico');
-    await writeAssetFile(detail, cacheRoot, 'tauriIconIcns', 'assets/tauri-icons/icon.icns');
+    await writeAssetFile(detail, repoRoot, cacheRoot, 'tauriIcon32', 'assets/tauri-icons/32x32.png');
+    await writeAssetFile(detail, repoRoot, cacheRoot, 'tauriIcon128', 'assets/tauri-icons/128x128.png');
+    await writeAssetFile(detail, repoRoot, cacheRoot, 'tauriIcon1282x', 'assets/tauri-icons/128x128@2x.png');
+    await writeAssetFile(detail, repoRoot, cacheRoot, 'tauriIconPng', 'assets/tauri-icons/icon.png');
+    await writeAssetFile(detail, repoRoot, cacheRoot, 'tauriIconIco', 'assets/tauri-icons/icon.ico');
+    await writeAssetFile(detail, repoRoot, cacheRoot, 'tauriIconIcns', 'assets/tauri-icons/icon.icns');
 
     const cachedAssets = {
       faviconIco: await relativePathIfExists(cacheRoot, 'assets/favicon.ico'),
