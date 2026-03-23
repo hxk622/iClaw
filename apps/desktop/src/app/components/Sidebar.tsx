@@ -5,7 +5,9 @@ import {
   Blocks,
   BookOpen,
   CheckSquare,
+  CheckCircle,
   Link2,
+  Settings,
   MessageSquare,
   Plus,
   Shield,
@@ -16,6 +18,7 @@ import { DesktopUpdateCard } from './DesktopUpdateCard';
 import { RecentTasksList } from './RecentTasksList';
 import { Button } from './ui/Button';
 import { BRAND } from '../lib/brand';
+import type { ResolvedMenuUiConfig } from '../lib/oem-runtime';
 import {
   buildGeneratedUserAvatarDataUrl,
   resolveUserAvatarUrl,
@@ -96,7 +99,7 @@ interface SidebarProps {
   user: SidebarUser | null;
   activeView?: PrimaryView;
   enabledMenuKeys?: string[] | null;
-  menuDisplayNames?: Record<string, string> | null;
+  menuUiConfig?: Record<string, ResolvedMenuUiConfig> | null;
   selectedTaskId?: string | null;
   authenticated?: boolean;
   onOpenChat?: () => void;
@@ -145,7 +148,7 @@ export function Sidebar({
   user,
   activeView = 'chat',
   enabledMenuKeys = null,
-  menuDisplayNames = null,
+  menuUiConfig = null,
   selectedTaskId = null,
   authenticated = false,
   onOpenChat,
@@ -205,94 +208,160 @@ export function Sidebar({
   }, [resolvedAvatarUrl, user?.avatar_url, user?.avatarUrl, user?.avatar, user?.name, user?.username]);
 
   const resolveMenuLabel = (key: string, fallback: string) => {
-    const next = String(menuDisplayNames?.[key] || '').trim();
+    const next = String(menuUiConfig?.[key]?.displayName || '').trim();
     return next || fallback;
   };
 
+  const resolveMenuGroup = (key: string) => String(menuUiConfig?.[key]?.group || '').trim() || '主体区';
+
+  const resolveMenuVisual = (
+    key: string,
+    fallback: Pick<SidebarItem, 'icon' | 'iconClass' | 'iconWrapClass'>,
+  ): Pick<SidebarItem, 'icon' | 'iconClass' | 'iconWrapClass'> => {
+    const iconKey = String(menuUiConfig?.[key]?.iconKey || '').trim();
+    if (!iconKey) return fallback;
+    const presets: Record<string, Pick<SidebarItem, 'icon' | 'iconClass' | 'iconWrapClass'>> = {
+      chat: { icon: MessageSquare, iconClass: 'text-[rgb(73,102,146)]' },
+      cron: { icon: CheckSquare, iconClass: 'text-[var(--state-warn)]' },
+      'investment-experts': {
+        icon: ExpertAdvisorIcon,
+        iconClass: 'text-[rgb(113,101,82)]',
+        iconWrapClass: 'rounded-[10px] border border-transparent bg-transparent',
+      },
+      'lobster-store': {
+        icon: AssistantStoreIcon,
+        iconClass: 'text-[var(--brand-primary)]',
+        iconWrapClass: 'rounded-[10px] border border-transparent bg-transparent',
+      },
+      'skill-store': { icon: Blocks, iconClass: 'text-[rgb(106,90,144)]' },
+      'mcp-store': {
+        icon: MCPStoreIcon,
+        iconClass: 'text-[rgb(69,96,132)]',
+        iconWrapClass: 'rounded-[10px] border border-transparent bg-transparent',
+      },
+      memory: { icon: BookOpen, iconClass: 'text-[var(--state-success)]' },
+      'data-connections': { icon: Link2, iconClass: 'text-[rgb(49,95,158)]' },
+      'im-bots': { icon: Bot, iconClass: 'text-[rgb(151,103,69)]' },
+      security: { icon: Shield, iconClass: 'text-[var(--state-success)]' },
+      settings: { icon: Settings, iconClass: 'text-[var(--text-secondary)]' },
+      'task-center': { icon: CheckCircle, iconClass: 'text-[var(--brand-primary)]' },
+    };
+    return presets[iconKey] || fallback;
+  };
+
   const allMainItems: SidebarItem[] = [
-    {
-      key: 'chat',
-      label: resolveMenuLabel('chat', '智能对话'),
-      icon: MessageSquare,
-      iconClass: 'text-[rgb(73,102,146)]',
-      active: activeView === 'chat',
-      onClick: onOpenChat,
-    },
-    {
-      key: 'cron',
-      label: resolveMenuLabel('cron', '定时任务'),
-      icon: CheckSquare,
-      iconClass: 'text-[var(--state-warn)]',
-      active: activeView === 'cron',
-      onClick: onOpenCron,
-    },
-    {
-      key: 'investment-experts',
-      label: resolveMenuLabel('investment-experts', '智能投资专家'),
-      icon: ExpertAdvisorIcon,
-      iconClass: 'text-[rgb(113,101,82)]',
-      iconWrapClass: 'rounded-[10px] border border-transparent bg-transparent',
-      active: activeView === 'investment-experts',
-      onClick: onOpenInvestmentExperts,
-    },
-    {
-      key: 'lobster-store',
-      label: resolveMenuLabel('lobster-store', '龙虾商店'),
-      icon: AssistantStoreIcon,
-      iconClass: 'text-[var(--brand-primary)]',
-      iconWrapClass: 'rounded-[10px] border border-transparent bg-transparent',
-      active: activeView === 'lobster-store',
-      onClick: onOpenLobsterStore,
-    },
-    {
-      key: 'skill-store',
-      label: resolveMenuLabel('skill-store', '技能商店'),
-      icon: Blocks,
-      iconClass: 'text-[rgb(106,90,144)]',
-      active: activeView === 'skill-store',
-      onClick: onOpenSkillStore,
-    },
-    {
-      key: 'mcp-store',
-      label: resolveMenuLabel('mcp-store', 'MCP商店'),
-      icon: MCPStoreIcon,
-      iconClass: 'text-[rgb(69,96,132)]',
-      iconWrapClass: 'rounded-[10px] border border-transparent bg-transparent',
-      active: activeView === 'mcp-store',
-      onClick: onOpenMcpStore,
-    },
-    {
-      key: 'memory',
-      label: resolveMenuLabel('memory', '记忆管理'),
-      icon: BookOpen,
-      iconClass: 'text-[var(--state-success)]',
-      active: activeView === 'memory',
-      onClick: onOpenMemory,
-    },
-    {
-      key: 'data-connections',
-      label: resolveMenuLabel('data-connections', '数据连接'),
-      icon: Link2,
-      iconClass: 'text-[rgb(49,95,158)]',
-      active: activeView === 'data-connections',
-      onClick: onOpenDataConnections,
-    },
-    {
-      key: 'im-bots',
-      label: resolveMenuLabel('im-bots', 'IM机器人'),
-      icon: Bot,
-      iconClass: 'text-[rgb(151,103,69)]',
-      active: activeView === 'im-bots',
-      onClick: onOpenImBots,
-    },
-    {
-      key: 'security',
-      label: resolveMenuLabel('security', '安全防护'),
-      icon: Shield,
-      iconClass: 'text-[var(--state-success)]',
-      active: activeView === 'security',
-      onClick: onOpenSecurity,
-    },
+    (() => {
+      const visual = resolveMenuVisual('chat', { icon: MessageSquare, iconClass: 'text-[rgb(73,102,146)]' });
+      return {
+        key: 'chat',
+        label: resolveMenuLabel('chat', '智能对话'),
+        ...visual,
+        active: activeView === 'chat',
+        onClick: onOpenChat,
+      };
+    })(),
+    (() => {
+      const visual = resolveMenuVisual('cron', { icon: CheckSquare, iconClass: 'text-[var(--state-warn)]' });
+      return {
+        key: 'cron',
+        label: resolveMenuLabel('cron', '定时任务'),
+        ...visual,
+        active: activeView === 'cron',
+        onClick: onOpenCron,
+      };
+    })(),
+    (() => {
+      const visual = resolveMenuVisual('investment-experts', {
+        icon: ExpertAdvisorIcon,
+        iconClass: 'text-[rgb(113,101,82)]',
+        iconWrapClass: 'rounded-[10px] border border-transparent bg-transparent',
+      });
+      return {
+        key: 'investment-experts',
+        label: resolveMenuLabel('investment-experts', '智能投资专家'),
+        ...visual,
+        active: activeView === 'investment-experts',
+        onClick: onOpenInvestmentExperts,
+      };
+    })(),
+    (() => {
+      const visual = resolveMenuVisual('lobster-store', {
+        icon: AssistantStoreIcon,
+        iconClass: 'text-[var(--brand-primary)]',
+        iconWrapClass: 'rounded-[10px] border border-transparent bg-transparent',
+      });
+      return {
+        key: 'lobster-store',
+        label: resolveMenuLabel('lobster-store', '龙虾商店'),
+        ...visual,
+        active: activeView === 'lobster-store',
+        onClick: onOpenLobsterStore,
+      };
+    })(),
+    (() => {
+      const visual = resolveMenuVisual('skill-store', { icon: Blocks, iconClass: 'text-[rgb(106,90,144)]' });
+      return {
+        key: 'skill-store',
+        label: resolveMenuLabel('skill-store', '技能商店'),
+        ...visual,
+        active: activeView === 'skill-store',
+        onClick: onOpenSkillStore,
+      };
+    })(),
+    (() => {
+      const visual = resolveMenuVisual('mcp-store', {
+        icon: MCPStoreIcon,
+        iconClass: 'text-[rgb(69,96,132)]',
+        iconWrapClass: 'rounded-[10px] border border-transparent bg-transparent',
+      });
+      return {
+        key: 'mcp-store',
+        label: resolveMenuLabel('mcp-store', 'MCP商店'),
+        ...visual,
+        active: activeView === 'mcp-store',
+        onClick: onOpenMcpStore,
+      };
+    })(),
+    (() => {
+      const visual = resolveMenuVisual('memory', { icon: BookOpen, iconClass: 'text-[var(--state-success)]' });
+      return {
+        key: 'memory',
+        label: resolveMenuLabel('memory', '记忆管理'),
+        ...visual,
+        active: activeView === 'memory',
+        onClick: onOpenMemory,
+      };
+    })(),
+    (() => {
+      const visual = resolveMenuVisual('data-connections', { icon: Link2, iconClass: 'text-[rgb(49,95,158)]' });
+      return {
+        key: 'data-connections',
+        label: resolveMenuLabel('data-connections', '数据连接'),
+        ...visual,
+        active: activeView === 'data-connections',
+        onClick: onOpenDataConnections,
+      };
+    })(),
+    (() => {
+      const visual = resolveMenuVisual('im-bots', { icon: Bot, iconClass: 'text-[rgb(151,103,69)]' });
+      return {
+        key: 'im-bots',
+        label: resolveMenuLabel('im-bots', 'IM机器人'),
+        ...visual,
+        active: activeView === 'im-bots',
+        onClick: onOpenImBots,
+      };
+    })(),
+    (() => {
+      const visual = resolveMenuVisual('security', { icon: Shield, iconClass: 'text-[var(--state-success)]' });
+      return {
+        key: 'security',
+        label: resolveMenuLabel('security', '安全防护'),
+        ...visual,
+        active: activeView === 'security',
+        onClick: onOpenSecurity,
+      };
+    })(),
   ];
   const mainItems =
     enabledMenuKeys
@@ -303,6 +372,20 @@ export function Sidebar({
   const chatEnabled = enabledMenuKeys ? enabledMenuKeys.includes('chat') : true;
   const taskCenterEnabled = enabledMenuKeys ? enabledMenuKeys.includes('task-center') : true;
   const settingsEnabled = enabledMenuKeys ? enabledMenuKeys.includes('settings') : true;
+
+  const groupedMainItems = mainItems.reduce(
+    (groups, item) => {
+      const title = resolveMenuGroup(item.key);
+      const bucket = groups.find((entry) => entry.title === title);
+      if (bucket) {
+        bucket.items.push(item);
+      } else {
+        groups.push({ title, items: [item] });
+      }
+      return groups;
+    },
+    [] as Array<{ title: string; items: SidebarItem[] }>,
+  );
 
   const renderGroup = (title: string, items: SidebarItem[]) => (
     <div className="mb-4">
@@ -367,6 +450,7 @@ export function Sidebar({
   const renderRecordGroup = () => (
     <div className="mb-4">
       <RecentTasksList
+        title={resolveMenuLabel('task-center', '历史任务')}
         selectedTaskId={activeView === 'task-center' ? selectedTaskId : null}
         onOpenAll={onOpenTasks}
         onSelectTask={(taskId) => {
@@ -412,7 +496,9 @@ export function Sidebar({
       ) : null}
 
       <div className="flex-1 overflow-y-auto p-2">
-        {mainItems.length > 0 ? renderGroup('主体区', mainItems) : null}
+        {groupedMainItems.map((group) => (
+          <div key={group.title}>{renderGroup(group.title, group.items)}</div>
+        ))}
         {taskCenterEnabled ? renderRecordGroup() : null}
       </div>
 
@@ -466,6 +552,7 @@ export function Sidebar({
           open={menuOpen}
           authenticated={authenticated}
           settingsVisible={settingsEnabled}
+          settingsLabel={resolveMenuLabel('settings', '设置')}
           onClose={() => setMenuOpen(false)}
           onOpenAccount={() => onOpenAccount?.()}
           onOpenLogin={() => onOpenLogin?.()}

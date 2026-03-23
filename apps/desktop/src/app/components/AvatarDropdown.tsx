@@ -5,6 +5,7 @@ interface AvatarDropdownProps {
   open: boolean;
   authenticated: boolean;
   settingsVisible?: boolean;
+  settingsLabel?: string;
   onClose: () => void;
   onOpenAccount: () => void;
   onOpenLogin: () => void;
@@ -31,6 +32,7 @@ export function AvatarDropdown({
   open,
   authenticated,
   settingsVisible = true,
+  settingsLabel = '设置',
   onClose,
   onOpenAccount,
   onOpenLogin,
@@ -102,7 +104,7 @@ export function AvatarDropdown({
           }}
         >
           <Settings className={menuIconClass} style={menuIconStyle} />
-          <span className={menuLabelClass}>设置</span>
+          <span className={menuLabelClass}>{settingsLabel}</span>
         </button>
       ) : null}
 

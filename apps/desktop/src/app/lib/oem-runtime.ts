@@ -6,6 +6,12 @@ export type BrandRuntimeConfig = {
   config: Record<string, unknown>;
 };
 
+export type ResolvedMenuUiConfig = {
+  displayName?: string;
+  group?: string;
+  iconKey?: string;
+};
+
 type PublicBrandConfigResponse = {
   success?: boolean;
   data?: {
@@ -73,6 +79,65 @@ function normalizeMenuKeys(keys: string[]): string[] {
     }
   }
   return normalized;
+}
+
+function resolveEnabledSkillSlugs(root: Record<string, unknown>): Set<string> {
+  const skillBindings = asArray(root.skill_bindings);
+  const bound = skillBindings
+    .filter((item) => asObject(item).enabled !== false)
+    .map((item) => String(asObject(item).skill_slug ?? asObject(item).skillSlug ?? '').trim())
+    .filter(Boolean);
+  const fallback = asStringArray(asObject(root.capabilities).skills);
+  return new Set(bound.length ? bound : fallback);
+}
+
+function resolveEnabledMcpKeys(root: Record<string, unknown>): Set<string> {
+  const mcpBindings = asArray(root.mcp_bindings);
+  const bound = mcpBindings
+    .filter((item) => asObject(item).enabled !== false)
+    .map((item) => String(asObject(item).mcp_key ?? asObject(item).mcpKey ?? '').trim())
+    .filter(Boolean);
+  const fallback = asStringArray(asObject(root.capabilities).mcp_servers);
+  return new Set(bound.length ? bound : fallback);
+}
+
+function resolveEnabledModelRefs(root: Record<string, unknown>): Set<string> {
+  const modelBindings = asArray(root.model_bindings);
+  const bound = modelBindings
+    .filter((item) => asObject(item).enabled !== false)
+    .map((item) => String(asObject(item).model_ref ?? asObject(item).modelRef ?? '').trim())
+    .filter(Boolean);
+  const modelsConfig = asObject(asObject(root.capabilities).models);
+  const fallback = [
+    ...asArray(modelsConfig.entries).map((item) => String(asObject(item).ref ?? '').trim()),
+    ...asStringArray(modelsConfig.recommended),
+    String(modelsConfig.default || '').trim(),
+  ].filter(Boolean);
+  return new Set(bound.length ? bound : fallback);
+}
+
+function matchesMenuRequirements(
+  menuConfig: Record<string, unknown>,
+  availability: {
+    skills: Set<string>;
+    mcps: Set<string>;
+    models: Set<string>;
+  },
+): boolean {
+  const requires = asObject(menuConfig.requires);
+  const skillSlug = String(
+    requires.skill_slug || requires.skillSlug || menuConfig.requires_skill_slug || menuConfig.requiresSkillSlug || '',
+  ).trim();
+  const mcpKey = String(
+    requires.mcp_key || requires.mcpKey || menuConfig.requires_mcp_key || menuConfig.requiresMcpKey || '',
+  ).trim();
+  const modelRef = String(
+    requires.model_ref || requires.modelRef || menuConfig.requires_model_ref || menuConfig.requiresModelRef || '',
+  ).trim();
+  if (skillSlug && !availability.skills.has(skillSlug)) return false;
+  if (mcpKey && !availability.mcps.has(mcpKey)) return false;
+  if (modelRef && !availability.models.has(modelRef)) return false;
+  return true;
 }
 
 function normalizeBrandRuntimeConfig(
@@ -161,8 +226,20 @@ export function resolveEnabledMenuKeys(config: Record<string, unknown> | null | 
     .filter(Boolean);
   const keys = normalizeMenuKeys(orderedFromBindings.length ? orderedFromBindings : capabilityMenus);
   const visible = new Set<string>();
+  const availability = {
+    skills: resolveEnabledSkillSlugs(root),
+    mcps: resolveEnabledMcpKeys(root),
+    models: resolveEnabledModelRefs(root),
+  };
 
   for (const key of keys) {
+    const binding = menuBindings.find((item) => {
+      const entry = asObject(item);
+      return normalizeMenuKeys([String(entry.menu_key ?? entry.menuKey ?? '').trim()]).includes(key);
+    });
+    if (binding && !matchesMenuRequirements(asObject(asObject(binding).config), availability)) {
+      continue;
+    }
     const surface = asObject(surfaces[key]);
     if (Object.keys(surface).length > 0 && surface.enabled === false) {
       continue;
@@ -174,25 +251,42 @@ export function resolveEnabledMenuKeys(config: Record<string, unknown> | null | 
 }
 
 export function resolveMenuDisplayNames(config: Record<string, unknown> | null | undefined): Record<string, string> | null {
+  const resolved = resolveMenuUiConfig(config);
+  if (!resolved) return null;
+  const displayNames = Object.fromEntries(
+    Object.entries(resolved)
+      .map(([key, value]) => [key, String(value.displayName || '').trim()])
+      .filter((entry) => Boolean(entry[1])),
+  );
+  return Object.keys(displayNames).length ? displayNames : null;
+}
+
+export function resolveMenuUiConfig(config: Record<string, unknown> | null | undefined): Record<string, ResolvedMenuUiConfig> | null {
   const root = asObject(config);
   const menuBindings = asArray(root.menu_bindings);
   if (!menuBindings.length) {
     return null;
   }
 
-  const labels: Record<string, string> = {};
+  const entries: Record<string, ResolvedMenuUiConfig> = {};
   for (const entry of menuBindings) {
     const item = asObject(entry);
     const config = asObject(item.config);
     const displayName = String(config.display_name || config.displayName || '').trim();
-    if (!displayName) continue;
+    const group = String(config.group_label || config.groupLabel || config.group || '').trim();
+    const iconKey = String(config.icon_key || config.iconKey || '').trim();
     for (const key of normalizeMenuKeys([String(item.menu_key ?? item.menuKey ?? '').trim()])) {
-      if (!key || labels[key]) continue;
-      labels[key] = displayName;
+      if (!key) continue;
+      entries[key] = {
+        ...(entries[key] || {}),
+        ...(displayName ? {displayName} : {}),
+        ...(group ? {group} : {}),
+        ...(iconKey ? {iconKey} : {}),
+      };
     }
   }
 
-  return Object.keys(labels).length ? labels : null;
+  return Object.keys(entries).length ? entries : null;
 }
 
 export async function syncPublishedBrandRuntimeSnapshot(input: {

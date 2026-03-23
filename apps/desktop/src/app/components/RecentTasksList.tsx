@@ -33,12 +33,14 @@ const statusConfig: Record<
 };
 
 interface RecentTasksListProps {
+  title?: string;
   selectedTaskId?: string | null;
   onSelectTask?: (taskId: string) => void;
   onOpenAll?: () => void;
 }
 
 export function RecentTasksList({
+  title = '历史任务',
   selectedTaskId = null,
   onSelectTask,
   onOpenAll,
@@ -157,7 +159,7 @@ export function RecentTasksList({
       <div className="mb-4">
         <div className="mb-2 flex items-center justify-between px-3">
           <div className="flex h-7 items-center gap-2">
-            <span className="text-xs leading-none text-[var(--text-muted)]">历史任务</span>
+            <span className="text-xs leading-none text-[var(--text-muted)]">{title}</span>
             <span className="rounded-full border border-[var(--border-default)] bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[10px] text-[var(--text-secondary)]">
               {Math.min(visibleTasks.length, SIDEBAR_TASK_LIMIT)}
             </span>

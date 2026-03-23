@@ -74,6 +74,21 @@ const MENU_LIBRARY = [
   {key: 'assets', label: '资源', category: 'legacy'},
   {key: 'models', label: '模型', category: 'legacy'},
 ];
+const MENU_ICON_OPTIONS = [
+  ['', '默认图标'],
+  ['chat', '智能对话'],
+  ['cron', '定时任务'],
+  ['investment-experts', '智能投资专家'],
+  ['lobster-store', '龙虾商店'],
+  ['skill-store', '技能商店'],
+  ['mcp-store', 'MCP商店'],
+  ['memory', '记忆管理'],
+  ['data-connections', '数据连接'],
+  ['im-bots', 'IM机器人'],
+  ['security', '安全中心'],
+  ['settings', '设置'],
+  ['task-center', '任务中心'],
+];
 const BRAND_DETAIL_TABS = [
   {id: 'desktop', label: '桌面端', icon: 'monitor'},
   {id: 'home-web', label: 'Home页', icon: 'globe'},
@@ -326,6 +341,8 @@ function icon(name, className = '') {
     rocket: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M5 19c2-2 4-3 7-3 0-3 1-5 3-7 2-2 4-3 7-4-1 3-2 5-4 7-2 2-4 3-7 3-1 3-2 5-3 7-1-1-2-2-3-3Z"/><path ${common} d="M9 15l-4 4"/><path ${common} d="M9 19H5v-4"/></svg>`,
     trendingUp: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M3 17 10 10l4 4 7-7"/><path ${common} d="M14 7h7v7"/></svg>`,
     arrowLeft: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M19 12H5"/><path ${common} d="m12 19-7-7 7-7"/></svg>`,
+    chevronUp: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="m6 14 6-6 6 6"/></svg>`,
+    chevronDown: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="m6 10 6 6 6-6"/></svg>`,
     save: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M5 5h11l3 3v11H5z"/><path ${common} d="M8 5v5h8"/><path ${common} d="M9 19v-5h6v5"/></svg>`,
     rotateCcw: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M3 12a9 9 0 1 0 3-6.7"/><path ${common} d="M3 4v5h5"/></svg>`,
     monitor: `<svg viewBox="0 0 24 24"${cls}><rect ${common} x="3" y="4" width="18" height="12" rx="2"/><path ${common} d="M8 20h8"/><path ${common} d="M12 16v4"/></svg>`,
@@ -479,6 +496,85 @@ function getMenuLabel(menuKey) {
 function getMenuDisplayNameOverride(source) {
   const config = asObject(source?.config);
   return String(config.display_name || config.displayName || '').trim();
+}
+
+function normalizeMenuDraftConfig(value) {
+  const config = asObject(value);
+  const requires = asObject(config.requires);
+  return {
+    displayName: String(config.display_name || config.displayName || '').trim(),
+    group: String(config.group_label || config.groupLabel || config.group || '').trim(),
+    iconKey: String(config.icon_key || config.iconKey || '').trim(),
+    requiresSkillSlug: String(
+      requires.skill_slug || requires.skillSlug || config.requires_skill_slug || config.requiresSkillSlug || '',
+    ).trim(),
+    requiresMcpKey: String(
+      requires.mcp_key || requires.mcpKey || config.requires_mcp_key || config.requiresMcpKey || '',
+    ).trim(),
+    requiresModelRef: String(
+      requires.model_ref || requires.modelRef || config.requires_model_ref || config.requiresModelRef || '',
+    ).trim(),
+  };
+}
+
+function buildMenuBindingConfig(existingValue, draftValue) {
+  const next = {...asObject(existingValue)};
+  delete next.display_name;
+  delete next.displayName;
+  delete next.group_label;
+  delete next.groupLabel;
+  delete next.group;
+  delete next.icon_key;
+  delete next.iconKey;
+  delete next.requires;
+  delete next.requires_skill_slug;
+  delete next.requiresSkillSlug;
+  delete next.requires_mcp_key;
+  delete next.requiresMcpKey;
+  delete next.requires_model_ref;
+  delete next.requiresModelRef;
+
+  const draft = normalizeMenuDraftConfig(draftValue);
+  if (draft.displayName) next.display_name = draft.displayName;
+  if (draft.group) next.group_label = draft.group;
+  if (draft.iconKey) next.icon_key = draft.iconKey;
+  if (draft.requiresSkillSlug || draft.requiresMcpKey || draft.requiresModelRef) {
+    next.requires = {
+      ...(draft.requiresSkillSlug ? {skill_slug: draft.requiresSkillSlug} : {}),
+      ...(draft.requiresMcpKey ? {mcp_key: draft.requiresMcpKey} : {}),
+      ...(draft.requiresModelRef ? {model_ref: draft.requiresModelRef} : {}),
+    };
+  }
+  return next;
+}
+
+function buildDefaultMenuOrder(bindings) {
+  return mergeMenuBindings(bindings)
+    .slice()
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.menuKey.localeCompare(right.menuKey, 'zh-CN'))
+    .map((item) => item.menuKey);
+}
+
+function buildOrderedMenuList(order) {
+  const known = new Set(MENU_LIBRARY.map((item) => item.key));
+  const list = asStringArray(order).filter((key) => known.has(key));
+  for (const item of MENU_LIBRARY) {
+    if (!list.includes(item.key)) {
+      list.push(item.key);
+    }
+  }
+  return list;
+}
+
+function moveListItem(list, value, direction) {
+  const current = buildOrderedMenuList(list);
+  const index = current.indexOf(value);
+  if (index < 0) return current;
+  const nextIndex = direction === 'up' ? index - 1 : index + 1;
+  if (nextIndex < 0 || nextIndex >= current.length) return current;
+  const [item] = current.splice(index, 1);
+  current.splice(nextIndex, 0, item);
+  return current;
 }
 
 function getAppConfig(source) {
@@ -1175,9 +1271,10 @@ function buildBrandDraftBuffer(detail) {
   const selectedMenus = mergeMenuBindings(detail?.menuBindings)
     .filter((item) => item.enabled)
     .map((item) => item.menuKey);
-  const menuDisplayNames = Object.fromEntries(
-    mergeMenuBindings(detail?.menuBindings).map((item) => [item.menuKey, getMenuDisplayNameOverride(item)]),
+  const menuConfigs = Object.fromEntries(
+    mergeMenuBindings(detail?.menuBindings).map((item) => [item.menuKey, normalizeMenuDraftConfig(item.config)]),
   );
+  const menuOrder = buildDefaultMenuOrder(detail?.menuBindings);
   const meta = getAppBrandMeta(brand);
 
   return {
@@ -1198,7 +1295,8 @@ function buildBrandDraftBuffer(detail) {
     selectedSkills: asArray(detail?.skillBindings).filter((item) => item.enabled).map((item) => item.skillSlug),
     selectedMcp: asArray(detail?.mcpBindings).filter((item) => item.enabled).map((item) => item.mcpKey),
     selectedMenus,
-    menuDisplayNames,
+    menuConfigs,
+    menuOrder,
     selectedModels,
     recommendedModels: (recommendedModelsFromBindings.length
       ? recommendedModelsFromBindings
@@ -1265,13 +1363,36 @@ function captureBrandEditorBuffer() {
     surfaceMap.set(surface.key, surface);
   });
   const surfaces = Array.from(surfaceMap.values());
-  const menuDisplayNames = {...asObject(existing.menuDisplayNames)};
-  Array.from(form.querySelectorAll('input[name^="menu_display_name__"]')).forEach((input) => {
-    if (!(input instanceof HTMLInputElement)) return;
-    const key = input.name.replace(/^menu_display_name__/, '').trim();
-    if (!key) return;
-    menuDisplayNames[key] = input.value.trim();
-  });
+  const menuConfigs = {...asObject(existing.menuConfigs)};
+  for (const item of MENU_LIBRARY) {
+    const key = item.key;
+    menuConfigs[key] = normalizeMenuDraftConfig({
+      ...(asObject(menuConfigs[key])),
+      display_name: form.querySelector(`[name="menu_display_name__${CSS.escape(key)}"]`) instanceof HTMLInputElement
+        ? form.querySelector(`[name="menu_display_name__${CSS.escape(key)}"]`).value
+        : asObject(menuConfigs[key]).displayName,
+      group_label: form.querySelector(`[name="menu_group__${CSS.escape(key)}"]`) instanceof HTMLInputElement
+        ? form.querySelector(`[name="menu_group__${CSS.escape(key)}"]`).value
+        : asObject(menuConfigs[key]).group,
+      icon_key: form.querySelector(`[name="menu_icon__${CSS.escape(key)}"]`) instanceof HTMLSelectElement
+        ? form.querySelector(`[name="menu_icon__${CSS.escape(key)}"]`).value
+        : asObject(menuConfigs[key]).iconKey,
+      requires: {
+        skill_slug:
+          form.querySelector(`[name="menu_requires_skill__${CSS.escape(key)}"]`) instanceof HTMLSelectElement
+            ? form.querySelector(`[name="menu_requires_skill__${CSS.escape(key)}"]`).value
+            : asObject(asObject(menuConfigs[key]).requires).skill_slug,
+        mcp_key:
+          form.querySelector(`[name="menu_requires_mcp__${CSS.escape(key)}"]`) instanceof HTMLSelectElement
+            ? form.querySelector(`[name="menu_requires_mcp__${CSS.escape(key)}"]`).value
+            : asObject(asObject(menuConfigs[key]).requires).mcp_key,
+        model_ref:
+          form.querySelector(`[name="menu_requires_model__${CSS.escape(key)}"]`) instanceof HTMLSelectElement
+            ? form.querySelector(`[name="menu_requires_model__${CSS.escape(key)}"]`).value
+            : asObject(asObject(menuConfigs[key]).requires).model_ref,
+      },
+    });
+  }
 
   state.brandDraftBuffer = {
     ...existing,
@@ -1309,7 +1430,8 @@ function captureBrandEditorBuffer() {
     selectedSkills: asStringArray(existing.selectedSkills),
     selectedMcp: asStringArray(existing.selectedMcp),
     selectedMenus: asStringArray(existing.selectedMenus),
-    menuDisplayNames,
+    menuConfigs,
+    menuOrder: buildOrderedMenuList(existing.menuOrder),
     selectedModels: asStringArray(existing.selectedModels),
     recommendedModels: asStringArray(existing.recommendedModels),
     defaultModel: form.querySelector('[name="default_model"]')
@@ -1698,15 +1820,18 @@ async function saveBrandEditor(form) {
       apiFetch(`/admin/portal/apps/${encodeURIComponent(snapshot.brandId)}/menus`, {
         method: 'PUT',
         body: JSON.stringify(
-          MENU_LIBRARY.map((item, index) => ({
-            menuKey: item.key,
-            enabled: snapshot.selectedMenus.includes(item.key),
-            sortOrder: (index + 1) * 10,
-            config: {
-              ...asObject(existingMenuBindings.get(item.key)?.config),
-              display_name: String(asObject(snapshot.menuDisplayNames)[item.key] || '').trim(),
-            },
-          })),
+          buildOrderedMenuList(snapshot.menuOrder).map((menuKey, index) => {
+            const item = MENU_LIBRARY.find((entry) => entry.key === menuKey) || {key: menuKey};
+            return {
+              menuKey: item.key,
+              enabled: snapshot.selectedMenus.includes(item.key),
+              sortOrder: (index + 1) * 10,
+              config: buildMenuBindingConfig(
+                asObject(existingMenuBindings.get(item.key)?.config),
+                asObject(snapshot.menuConfigs)[item.key],
+              ),
+            };
+          }),
         ),
       }),
     ]);
@@ -2525,6 +2650,14 @@ function toggleBrandCapability(type, value) {
   render();
 }
 
+function moveBrandMenu(value, direction) {
+  const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
+  if (!buffer) return;
+  buffer.menuOrder = moveListItem(buffer.menuOrder, value, direction);
+  state.brandDraftBuffer = buffer;
+  render();
+}
+
 function toggleBrandRecommendedModel(value) {
   const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
   if (!buffer || !buffer.selectedModels.includes(value)) return;
@@ -3172,9 +3305,20 @@ function renderBrandModelAssembly(buffer) {
   `;
 }
 
+function getOrderedMenuItemsByCategory(buffer, category) {
+  const order = buildOrderedMenuList(buffer.menuOrder);
+  return order
+    .map((key) => MENU_LIBRARY.find((item) => item.key === key))
+    .filter((item) => item && item.category === category);
+}
+
 function renderMenuToggleCard(buffer, item, note) {
   const enabled = buffer.selectedMenus.includes(item.key);
-  const overrideName = String(asObject(buffer.menuDisplayNames)[item.key] || '').trim();
+  const index = buildOrderedMenuList(buffer.menuOrder).indexOf(item.key);
+  const menuConfig = normalizeMenuDraftConfig(asObject(asObject(buffer.menuConfigs)[item.key]));
+  const skillOptions = getMergedSkills();
+  const mcpOptions = getMergedMcpServers();
+  const modelOptions = getMergedModelCatalog();
   return `
     <article class="checkbox-card checkbox-card--capability fig-capability-item">
       <input class="menu-checkbox visually-hidden" type="checkbox" value="${escapeHtml(item.key)}"${enabled ? ' checked' : ''} />
@@ -3183,29 +3327,94 @@ function renderMenuToggleCard(buffer, item, note) {
           <strong>${escapeHtml(item.label)}</strong>
           <span>${escapeHtml(`Menu ID: ${item.key}${note ? ` · ${note}` : ''}`)}</span>
         </div>
-        <label class="field fig-inline-field">
-          <span>显示名称</span>
-          <input
-            class="field-input"
-            name="menu_display_name__${escapeHtml(item.key)}"
-            value="${fieldValue(overrideName)}"
-            placeholder="${escapeHtml(item.label)}"
-          />
-        </label>
+        <div class="fig-menu-card__grid">
+          <label class="field fig-inline-field">
+            <span>显示名称</span>
+            <input
+              class="field-input"
+              name="menu_display_name__${escapeHtml(item.key)}"
+              value="${fieldValue(menuConfig.displayName)}"
+              placeholder="${escapeHtml(item.label)}"
+            />
+          </label>
+          <label class="field fig-inline-field">
+            <span>分组</span>
+            <input
+              class="field-input"
+              name="menu_group__${escapeHtml(item.key)}"
+              value="${fieldValue(menuConfig.group)}"
+              placeholder="主体区"
+            />
+          </label>
+          <label class="field fig-inline-field">
+            <span>图标</span>
+            <select class="field-select" name="menu_icon__${escapeHtml(item.key)}">
+              ${MENU_ICON_OPTIONS.map(
+                ([value, label]) =>
+                  `<option value="${escapeHtml(value)}"${menuConfig.iconKey === value ? ' selected' : ''}>${escapeHtml(label)}</option>`,
+              ).join('')}
+            </select>
+          </label>
+          <label class="field fig-inline-field">
+            <span>依赖 Skill</span>
+            <select class="field-select" name="menu_requires_skill__${escapeHtml(item.key)}">
+              <option value="">无</option>
+              ${skillOptions
+                .map(
+                  (skill) =>
+                    `<option value="${escapeHtml(skill.slug)}"${menuConfig.requiresSkillSlug === skill.slug ? ' selected' : ''}>${escapeHtml(skill.name)}</option>`,
+                )
+                .join('')}
+            </select>
+          </label>
+          <label class="field fig-inline-field">
+            <span>依赖 MCP</span>
+            <select class="field-select" name="menu_requires_mcp__${escapeHtml(item.key)}">
+              <option value="">无</option>
+              ${mcpOptions
+                .map(
+                  (server) =>
+                    `<option value="${escapeHtml(server.key)}"${menuConfig.requiresMcpKey === server.key ? ' selected' : ''}>${escapeHtml(server.name)}</option>`,
+                )
+                .join('')}
+            </select>
+          </label>
+          <label class="field fig-inline-field">
+            <span>依赖模型</span>
+            <select class="field-select" name="menu_requires_model__${escapeHtml(item.key)}">
+              <option value="">无</option>
+              ${modelOptions
+                .map(
+                  (model) =>
+                    `<option value="${escapeHtml(model.ref)}"${menuConfig.requiresModelRef === model.ref ? ' selected' : ''}>${escapeHtml(model.label)}</option>`,
+                )
+                .join('')}
+            </select>
+          </label>
+        </div>
       </div>
-      ${renderSwitch({
-        checked: enabled,
-        action: 'toggle-brand-menu',
-        attrs: `data-menu-key="${escapeHtml(item.key)}"`,
-        label: enabled ? '已启用' : '已禁用',
-      })}
+      <div class="fig-capability-actions fig-menu-card__actions">
+        <span class="chip">排序 ${index + 1}</span>
+        <button class="ghost-button fig-icon-button" type="button" data-action="move-brand-menu-up" data-menu-key="${escapeHtml(item.key)}"${index <= 0 ? ' disabled' : ''}>
+          ${icon('chevronUp', 'button-icon')}
+        </button>
+        <button class="ghost-button fig-icon-button" type="button" data-action="move-brand-menu-down" data-menu-key="${escapeHtml(item.key)}"${index < 0 || index >= MENU_LIBRARY.length - 1 ? ' disabled' : ''}>
+          ${icon('chevronDown', 'button-icon')}
+        </button>
+        ${renderSwitch({
+          checked: enabled,
+          action: 'toggle-brand-menu',
+          attrs: `data-menu-key="${escapeHtml(item.key)}"`,
+          label: enabled ? '已启用' : '已禁用',
+        })}
+      </div>
     </article>
   `;
 }
 
 function renderBrandMenusAssembly(buffer) {
-  const sidebarItems = getMenuItemsByCategory('sidebar');
-  const legacyItems = getMenuItemsByCategory('legacy');
+  const sidebarItems = getOrderedMenuItemsByCategory(buffer, 'sidebar');
+  const legacyItems = getOrderedMenuItemsByCategory(buffer, 'legacy');
   return `
     <section class="fig-brand-section">
       <div class="fig-section-heading">
@@ -5856,6 +6065,16 @@ app.addEventListener('click', async (event) => {
 
   if (action === 'toggle-brand-menu') {
     toggleBrandCapability('menu', target.getAttribute('data-menu-key') || '');
+    return;
+  }
+
+  if (action === 'move-brand-menu-up') {
+    moveBrandMenu(target.getAttribute('data-menu-key') || '', 'up');
+    return;
+  }
+
+  if (action === 'move-brand-menu-down') {
+    moveBrandMenu(target.getAttribute('data-menu-key') || '', 'down');
     return;
   }
 

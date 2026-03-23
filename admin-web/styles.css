@@ -2305,6 +2305,25 @@ code {
   margin-top: 0;
 }
 
+.fig-menu-card__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+.fig-menu-card__actions {
+  align-self: flex-start;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.fig-icon-button {
+  width: 36px;
+  min-width: 36px;
+  padding: 0;
+  justify-content: center;
+}
+
 .fig-capability-actions {
   display: flex;
   align-items: center;
