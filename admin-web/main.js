@@ -1273,11 +1273,14 @@ function captureBrandEditorBuffer() {
         ? String(data.get('theme_dark_on_primary') || existing.theme?.darkOnPrimary || '')
         : String(existing.theme?.darkOnPrimary || ''),
     },
-    selectedSkills: mergeCheckedValues(form, '.skill-checkbox', existing.selectedSkills),
-    selectedMcp: mergeCheckedValues(form, '.mcp-checkbox', existing.selectedMcp),
-    selectedMenus: mergeCheckedValues(form, '.menu-checkbox', existing.selectedMenus),
-    selectedModels: mergeCheckedValues(form, '.model-checkbox', existing.selectedModels),
-    recommendedModels: mergeCheckedValues(form, '.model-recommended-checkbox', existing.recommendedModels),
+    // Capability switches are managed through in-memory draft state.
+    // Do not recompute them from hidden checkbox markup during save, otherwise
+    // stale DOM can overwrite the latest toggle state back to old values.
+    selectedSkills: asStringArray(existing.selectedSkills),
+    selectedMcp: asStringArray(existing.selectedMcp),
+    selectedMenus: asStringArray(existing.selectedMenus),
+    selectedModels: asStringArray(existing.selectedModels),
+    recommendedModels: asStringArray(existing.recommendedModels),
     defaultModel: form.querySelector('[name="default_model"]')
       ? String(data.get('default_model') || existing.defaultModel || '')
       : String(existing.defaultModel || ''),
