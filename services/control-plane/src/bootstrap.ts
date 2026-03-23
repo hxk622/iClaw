@@ -15,6 +15,11 @@ import {DEFAULT_CLAWHUB_SYNC_SOURCE} from './skill-sync-defaults.ts';
 import type {PgPortalStore} from './portal-store.ts';
 import type {ControlPlaneStore} from './store.ts';
 
+const LEGACY_DEFAULT_INVESTMENT_CATEGORY_FIXUPS: Record<string, {from: string[]; to: string}> = {
+  'a-share-value-hunter': {from: ['stock'], to: 'value'},
+  'us-value-compass': {from: ['global'], to: 'value'},
+};
+
 function rolePriority(role: 'user' | 'admin' | 'super_admin'): number {
   switch (role) {
     case 'super_admin':
@@ -121,6 +126,42 @@ export async function ensureDefaultCatalogs(store: ControlPlaneStore): Promise<v
       metadata: agent.metadata,
       sort_order: agent.sortOrder,
       active: agent.active,
+    });
+  }
+
+  for (const [slug, fixup] of Object.entries(LEGACY_DEFAULT_INVESTMENT_CATEGORY_FIXUPS)) {
+    const existing = await store.getAgentCatalogEntry(slug);
+    if (!existing || existing.active === false) {
+      continue;
+    }
+
+    const metadata =
+      existing.metadata && typeof existing.metadata === 'object' && !Array.isArray(existing.metadata)
+        ? ({...existing.metadata} as Record<string, unknown>)
+        : {};
+    const surface = typeof metadata.surface === 'string' ? metadata.surface : '';
+    const currentCategory =
+      typeof metadata.investment_category === 'string' ? metadata.investment_category.trim() : '';
+
+    if (surface !== 'investment-experts' || !fixup.from.includes(currentCategory)) {
+      continue;
+    }
+
+    metadata.investment_category = fixup.to;
+    await store.upsertAgentCatalogEntry({
+      slug: existing.slug,
+      name: existing.name,
+      description: existing.description,
+      category: existing.category,
+      publisher: existing.publisher,
+      featured: existing.featured,
+      official: existing.official,
+      tags: existing.tags,
+      capabilities: existing.capabilities,
+      use_cases: existing.useCases,
+      metadata,
+      sort_order: existing.sortOrder,
+      active: existing.active,
     });
   }
 

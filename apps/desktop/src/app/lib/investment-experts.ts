@@ -3,16 +3,17 @@ import type { IClawClient } from '@iclaw/sdk';
 import { isInvestmentExpertAgent, loadLobsterAgents, type LobsterAgent } from './lobster-store';
 
 export type InvestmentExpertCategory =
-  | 'stock'
-  | 'fund'
-  | 'bond'
-  | 'futures'
-  | 'forex'
-  | 'reits'
+  | 'value'
+  | 'income'
+  | 'event'
+  | 'sentiment'
+  | 'signal'
+  | 'growth'
+  | 'technology'
+  | 'portfolio'
   | 'macro'
-  | 'global'
   | 'quant'
-  | 'comprehensive';
+  | 'other';
 
 export type InvestmentExpertFilter = 'all' | InvestmentExpertCategory;
 export type InvestmentExpertTab = 'all' | 'mine';
@@ -57,29 +58,42 @@ export const INVESTMENT_EXPERT_CATEGORIES: Array<{
   color: string;
 }> = [
   {id: 'all', label: '全部', color: '#7b8190'},
-  {id: 'stock', label: '股票类', color: '#2563eb'},
-  {id: 'fund', label: '基金类', color: '#059669'},
-  {id: 'bond', label: '债券类', color: '#dc2626'},
-  {id: 'futures', label: '期货类', color: '#ea580c'},
-  {id: 'forex', label: '外汇类', color: '#7c3aed'},
-  {id: 'reits', label: 'REITs类', color: '#f59e0b'},
-  {id: 'macro', label: '宏观研究', color: '#0891b2'},
-  {id: 'global', label: '全球市场', color: '#4f46e5'},
-  {id: 'quant', label: '量化策略', color: '#db2777'},
-  {id: 'comprehensive', label: '综合全能', color: '#6b7280'},
+  {id: 'value', label: '价值投资', color: '#2563eb'},
+  {id: 'income', label: '红利收益', color: '#059669'},
+  {id: 'quant', label: '量化策略', color: '#7c3aed'},
+  {id: 'macro', label: '宏观轮动', color: '#0891b2'},
+  {id: 'event', label: '事件驱动', color: '#ea580c'},
+  {id: 'sentiment', label: '情绪背离', color: '#db2777'},
+  {id: 'signal', label: '内部信号', color: '#dc2626'},
+  {id: 'growth', label: '成长挖掘', color: '#16a34a'},
+  {id: 'technology', label: '科技估值', color: '#4f46e5'},
+  {id: 'portfolio', label: '组合诊断', color: '#b45309'},
+  {id: 'other', label: '其他', color: '#6b7280'},
 ];
 
 const CATEGORY_LOOKUP: Record<InvestmentExpertCategory, {label: string; color: string}> = {
-  stock: {label: '股票类', color: '#2563eb'},
-  fund: {label: '基金类', color: '#059669'},
-  bond: {label: '债券类', color: '#dc2626'},
-  futures: {label: '期货类', color: '#ea580c'},
-  forex: {label: '外汇类', color: '#7c3aed'},
-  reits: {label: 'REITs类', color: '#f59e0b'},
-  macro: {label: '宏观研究', color: '#0891b2'},
-  global: {label: '全球市场', color: '#4f46e5'},
-  quant: {label: '量化策略', color: '#db2777'},
-  comprehensive: {label: '综合全能', color: '#6b7280'},
+  value: {label: '价值投资', color: '#2563eb'},
+  income: {label: '红利收益', color: '#059669'},
+  event: {label: '事件驱动', color: '#ea580c'},
+  sentiment: {label: '情绪背离', color: '#db2777'},
+  signal: {label: '内部信号', color: '#dc2626'},
+  growth: {label: '成长挖掘', color: '#16a34a'},
+  technology: {label: '科技估值', color: '#4f46e5'},
+  portfolio: {label: '组合诊断', color: '#b45309'},
+  macro: {label: '宏观轮动', color: '#0891b2'},
+  quant: {label: '量化策略', color: '#7c3aed'},
+  other: {label: '其他', color: '#6b7280'},
+};
+
+const LEGACY_CATEGORY_ALIASES: Record<string, InvestmentExpertCategory> = {
+  stock: 'value',
+  fund: 'portfolio',
+  bond: 'income',
+  futures: 'event',
+  forex: 'macro',
+  reits: 'income',
+  global: 'value',
+  comprehensive: 'other',
 };
 
 function readMetadataString(value: unknown): string | null {
@@ -125,7 +139,10 @@ function normalizeCategory(value: string | null): InvestmentExpertCategory {
   if (value && value in CATEGORY_LOOKUP) {
     return value as InvestmentExpertCategory;
   }
-  return 'comprehensive';
+  if (value && value in LEGACY_CATEGORY_ALIASES) {
+    return LEGACY_CATEGORY_ALIASES[value];
+  }
+  return 'other';
 }
 
 function readSkillHighlights(value: unknown): InvestmentExpertSkill[] {
