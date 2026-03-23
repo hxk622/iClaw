@@ -51,6 +51,30 @@ function asStringArray(value: unknown): string[] {
   return Array.from(seen);
 }
 
+const LEGACY_MENU_KEY_MAP: Record<string, string[]> = {
+  workspace: ['chat'],
+  skills: ['skill-store'],
+  mcp: ['mcp-store'],
+  settings: ['settings'],
+  assets: [],
+  models: [],
+};
+
+function normalizeMenuKeys(keys: string[]): string[] {
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+  for (const key of keys) {
+    const mapped = LEGACY_MENU_KEY_MAP[key] ?? [key];
+    for (const nextKey of mapped) {
+      const trimmed = nextKey.trim();
+      if (!trimmed || seen.has(trimmed)) continue;
+      seen.add(trimmed);
+      normalized.push(trimmed);
+    }
+  }
+  return normalized;
+}
+
 function normalizeBrandRuntimeConfig(
   data: PublicBrandConfigResponse['data'],
   fallbackBrandId: string,
@@ -135,7 +159,7 @@ export function resolveEnabledMenuKeys(config: Record<string, unknown> | null | 
     })
     .map((item) => String(asObject(item).menu_key ?? asObject(item).menuKey ?? '').trim())
     .filter(Boolean);
-  const keys = orderedFromBindings.length ? orderedFromBindings : capabilityMenus;
+  const keys = normalizeMenuKeys(orderedFromBindings.length ? orderedFromBindings : capabilityMenus);
   const visible = new Set<string>();
 
   for (const key of keys) {

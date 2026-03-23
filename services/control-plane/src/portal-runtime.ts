@@ -16,6 +16,30 @@ function compareBySortOrder(left: {sortOrder: number}, right: {sortOrder: number
   return left.sortOrder - right.sortOrder;
 }
 
+const LEGACY_MENU_KEY_MAP: Record<string, string[]> = {
+  workspace: ['chat'],
+  skills: ['skill-store'],
+  mcp: ['mcp-store'],
+  settings: ['settings'],
+  assets: [],
+  models: [],
+};
+
+function normalizePortalMenuKeys(keys: string[]): string[] {
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+  for (const key of keys) {
+    const mapped = LEGACY_MENU_KEY_MAP[key] || [key];
+    for (const nextKey of mapped) {
+      const trimmed = nextKey.trim();
+      if (!trimmed || seen.has(trimmed)) continue;
+      seen.add(trimmed);
+      normalized.push(trimmed);
+    }
+  }
+  return normalized;
+}
+
 export function buildPortalPublicConfig(
   detail: PortalAppDetail,
   options: {
@@ -74,11 +98,14 @@ export function buildPortalPublicConfig(
   const menuBindings = detail.menuBindings
     .filter((item) => item.enabled)
     .sort(compareBySortOrder)
-    .map((item) => ({
-      menu_key: item.menuKey,
-      sort_order: item.sortOrder,
-      config: cloneJson(item.config),
-    }));
+    .flatMap((item) =>
+      normalizePortalMenuKeys([item.menuKey]).map((menuKey) => ({
+        menu_key: menuKey,
+        sort_order: item.sortOrder,
+        config: cloneJson(item.config),
+      })),
+    )
+    .filter((item, index, items) => items.findIndex((entry) => entry.menu_key === item.menu_key) === index);
   const modelBindings = detail.modelBindings
     .filter((item) => item.enabled && item.model?.active !== false)
     .sort(compareBySortOrder)
