@@ -563,7 +563,7 @@ function mergeMenuBindings(bindings) {
   return MENU_LIBRARY.map((item, index) => ({
     appName: existing.get(item.key)?.appName || '',
     menuKey: item.key,
-    enabled: existing.get(item.key)?.enabled ?? true,
+    enabled: existing.get(item.key)?.enabled ?? false,
     sortOrder: existing.get(item.key)?.sortOrder ?? (index + 1) * 10,
     config: asObject(existing.get(item.key)?.config),
   }));
