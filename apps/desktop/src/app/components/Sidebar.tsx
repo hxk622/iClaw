@@ -27,18 +27,7 @@ import {
 } from '../lib/user-avatar';
 
 type SidebarUser = AppUserAvatarSource;
-type PrimaryView =
-  | 'chat'
-  | 'investment-experts'
-  | 'lobster-store'
-  | 'skill-store'
-  | 'mcp-store'
-  | 'cron'
-  | 'im-bots'
-  | 'data-connections'
-  | 'task-center'
-  | 'memory'
-  | 'security';
+type PrimaryView = string;
 
 function AssistantStoreIcon(props: SVGProps<SVGSVGElement>) {
   return (
@@ -109,6 +98,7 @@ interface SidebarProps {
   onOpenLobsterStore?: () => void;
   onOpenSkillStore?: () => void;
   onOpenMcpStore?: () => void;
+  onOpenMenu?: (menuKey: string) => void;
   onOpenDataConnections?: () => void;
   onOpenSecurity?: () => void;
   onOpenImBots?: () => void;
@@ -158,6 +148,7 @@ export function Sidebar({
   onOpenLobsterStore,
   onOpenSkillStore,
   onOpenMcpStore,
+  onOpenMenu,
   onOpenDataConnections,
   onOpenSecurity,
   onOpenImBots,
@@ -239,6 +230,10 @@ export function Sidebar({
         iconClass: 'text-[rgb(69,96,132)]',
         iconWrapClass: 'rounded-[10px] border border-transparent bg-transparent',
       },
+      'finance-skills': { icon: Blocks, iconClass: 'text-[rgb(106,90,144)]' },
+      'foundation-skills': { icon: BookOpen, iconClass: 'text-[rgb(84,111,138)]' },
+      'stock-market': { icon: CheckCircle, iconClass: 'text-[rgb(73,102,146)]' },
+      'fund-market': { icon: BookOpen, iconClass: 'text-[rgb(113,101,82)]' },
       memory: { icon: BookOpen, iconClass: 'text-[var(--state-success)]' },
       'data-connections': { icon: Link2, iconClass: 'text-[rgb(49,95,158)]' },
       'im-bots': { icon: Bot, iconClass: 'text-[rgb(151,103,69)]' },
@@ -363,10 +358,22 @@ export function Sidebar({
       };
     })(),
   ];
+  const knownMainItems = new Map(allMainItems.map((item) => [item.key, item]));
+  const buildDynamicMenuItem = (key: string): SidebarItem => {
+    const visual = resolveMenuVisual(key, { icon: Blocks, iconClass: 'text-[var(--text-secondary)]' });
+    return {
+      key,
+      label: resolveMenuLabel(key, key),
+      ...visual,
+      active: activeView === key,
+      onClick: () => onOpenMenu?.(key),
+    };
+  };
   const mainItems =
     enabledMenuKeys
       ? enabledMenuKeys
-          .map((key) => allMainItems.find((item) => item.key === key))
+          .filter((key) => key !== 'settings' && key !== 'task-center')
+          .map((key) => knownMainItems.get(key) || buildDynamicMenuItem(key))
           .filter((item): item is SidebarItem => Boolean(item))
       : allMainItems;
   const chatEnabled = enabledMenuKeys ? enabledMenuKeys.includes('chat') : true;

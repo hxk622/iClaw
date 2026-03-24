@@ -131,18 +131,7 @@ const DEFAULT_CHAT_ROUTE = {
   focusTaskId: null as string | null,
   focusTaskPrompt: null as string | null,
 };
-type PrimaryView =
-  | 'chat'
-  | 'investment-experts'
-  | 'lobster-store'
-  | 'skill-store'
-  | 'mcp-store'
-  | 'cron'
-  | 'im-bots'
-  | 'data-connections'
-  | 'task-center'
-  | 'memory'
-  | 'security';
+type PrimaryView = string;
 const PRIMARY_VIEW_ORDER: PrimaryView[] = [
   'chat',
   'cron',
@@ -156,6 +145,7 @@ const PRIMARY_VIEW_ORDER: PrimaryView[] = [
   'security',
   'task-center',
 ];
+const SUPPORTED_PRIMARY_VIEWS = new Set<PrimaryView>(PRIMARY_VIEW_ORDER);
 
 type InstallerViewState = 'loading' | 'error';
 
@@ -229,6 +219,15 @@ function formatPortConflictMessage(ports: number[]): string | null {
 
 function normalizeBrandRuntimeText(value: string): string {
   return value.replaceAll('iClaw', BRAND.displayName);
+}
+
+function titleizeMenuKey(value: string): string {
+  return value
+    .split('-')
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ');
 }
 
 export default function App() {
@@ -1221,9 +1220,13 @@ function AuthedView({
   const [creditBalanceLoading, setCreditBalanceLoading] = useState(false);
   const enabledMenuKeys = resolveEnabledMenuKeys(brandShellConfig);
   const menuUiConfig = resolveMenuUiConfig(brandShellConfig);
-  const availablePrimaryViews = (enabledMenuKeys
-    ? PRIMARY_VIEW_ORDER.filter((view) => enabledMenuKeys.includes(view))
-    : PRIMARY_VIEW_ORDER) as PrimaryView[];
+  const availablePrimaryViews = (
+    enabledMenuKeys && enabledMenuKeys.length > 0
+      ? enabledMenuKeys.filter((key) => key !== 'settings')
+      : PRIMARY_VIEW_ORDER
+  ) as PrimaryView[];
+  const activeMenuLabel =
+    String(menuUiConfig?.[primaryView]?.displayName || '').trim() || titleizeMenuKey(primaryView) || '模块';
 
   useEffect(() => {
     if (availablePrimaryViews.includes(primaryView)) {
@@ -1444,6 +1447,7 @@ function AuthedView({
         onOpenLobsterStore={() => setPrimaryView('lobster-store')}
         onOpenSkillStore={() => setPrimaryView('skill-store')}
         onOpenMcpStore={() => setPrimaryView('mcp-store')}
+        onOpenMenu={(menuKey) => setPrimaryView(menuKey)}
         onOpenDataConnections={() => setPrimaryView('data-connections')}
         onOpenSecurity={() => setPrimaryView('security')}
         onOpenImBots={() => setPrimaryView('im-bots')}
@@ -1550,6 +1554,31 @@ function AuthedView({
             )
           ) : primaryView === 'im-bots' ? (
             <IMBotsView client={imBotClient} />
+          ) : !SUPPORTED_PRIMARY_VIEWS.has(primaryView) ? (
+            <PageSurface as="div">
+              <PageContent className="flex min-h-full items-center">
+                <div className="mx-auto w-full max-w-[820px]">
+                  <EmptyStatePanel
+                    title={`${activeMenuLabel} 已装配`}
+                    description={
+                      <>
+                        这个左侧菜单已经按照 OEM 配置成功下发并显示。
+                        <br />
+                        当前 Web 端还没有接入对应页面，所以先展示占位页，避免“后台已开启但前端完全不显示”的不一致。
+                        <br />
+                        菜单 Key：{primaryView}
+                      </>
+                    }
+                    action={
+                      <Button variant="primary" size="sm" onClick={() => setPrimaryView('chat')}>
+                        回到智能对话
+                      </Button>
+                    }
+                    className="rounded-[32px]"
+                  />
+                </div>
+              </PageContent>
+            </PageSurface>
           ) : authenticated ? (
             <OpenClawChatSurface
               key={`${activeChatRoute.sessionKey}:${chatSurfaceVersion}`}
