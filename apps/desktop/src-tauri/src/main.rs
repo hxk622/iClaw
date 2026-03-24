@@ -2401,15 +2401,25 @@ fn resolve_desktop_auth_base_url() -> String {
     }
 }
 
+fn resolve_active_oem_brand_id(app: &AppHandle) -> String {
+    if let Ok(Some(snapshot)) = load_oem_runtime_snapshot_internal(app) {
+        let brand_id = snapshot.brand_id.trim();
+        if !brand_id.is_empty() {
+            return String::from(brand_id);
+        }
+    }
+    String::from(DESKTOP_BRAND_ID.trim())
+}
+
 fn sync_current_brand_runtime_snapshot(app: &AppHandle) -> Result<bool, String> {
-    let brand_id = DESKTOP_BRAND_ID.trim();
+    let brand_id = resolve_active_oem_brand_id(app);
     if brand_id.is_empty() {
         return Ok(false);
     }
     sync_oem_runtime_snapshot(
         app.clone(),
         resolve_desktop_auth_base_url(),
-        String::from(brand_id),
+        brand_id,
     )
 }
 
