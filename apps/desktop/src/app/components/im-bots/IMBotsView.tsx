@@ -266,7 +266,7 @@ const platformMetaList: PlatformCardMeta[] = [
 
 const initialBots: ManagedBot[] = [];
 
-export function IMBotsView({ client }: { client: IClawClient }) {
+export function IMBotsView({ title, client }: { title: string; client: IClawClient }) {
   const [bots, setBots] = useState<ManagedBot[]>(initialBots);
   const [activeSideTab, setActiveSideTab] = useState<SideTab>('todo');
   const [selectedPlatformId, setSelectedPlatformId] = useState<IMPlatformId | null>(null);
@@ -740,7 +740,7 @@ export function IMBotsView({ client }: { client: IClawClient }) {
       <PageContent className="py-5">
         <PageHeader
           className="mb-4 gap-2.5"
-          title="IM机器人"
+          title={title}
           description="将 OpenClaw 接入企业常用办公 IM，并统一管理机器人状态。这个视图区现在不只是接入入口，也包含机器人详情、测试与默认助手绑定。"
           contentClassName="space-y-1"
           titleClassName="mt-0 text-[24px] font-semibold tracking-[-0.045em]"

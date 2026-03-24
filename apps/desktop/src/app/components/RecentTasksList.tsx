@@ -33,14 +33,14 @@ const statusConfig: Record<
 };
 
 interface RecentTasksListProps {
-  title?: string;
+  title: string;
   selectedTaskId?: string | null;
   onSelectTask?: (taskId: string) => void;
   onOpenAll?: () => void;
 }
 
 export function RecentTasksList({
-  title = '历史任务',
+  title,
   selectedTaskId = null,
   onSelectTask,
   onOpenAll,

@@ -33,10 +33,14 @@ import {
   type McpStoreIconKey,
   type McpStoreItem,
   installMcpFromStore,
+  loadMcpInstallConfig,
   loadMcpStoreCatalog,
   removeMcpFromLibrary,
+  saveMcpInstallConfig,
   updateMcpEnabledState,
 } from '@/app/lib/mcp-store';
+import type { ExtensionInstallConfigSnapshot } from '@/app/lib/extension-setup';
+import { ExtensionInstallConfigModal } from '@/app/components/extensions/ExtensionInstallConfigModal';
 
 const STORE_TABS = [
   { id: 'library', label: 'MCP库' },
@@ -127,6 +131,19 @@ function SourceBadge({ label }: {label: string}) {
   return <span className={cn('rounded-md border px-2 py-0.5 text-[11px]', className)}>{label}</span>;
 }
 
+function readMetadataString(item: McpStoreItem, key: string): string | null {
+  const value = item.metadata[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function resolveTierLabel(item: McpStoreItem): string {
+  const tier = (readMetadataString(item, 'tier') || '').toLowerCase();
+  if (tier === 'p0') return 'P0 首发';
+  if (tier === 'p1') return 'P1 扩展';
+  if (tier === 'p2') return 'P2 储备';
+  return '长尾目录';
+}
+
 function LibraryCard({
   item,
   busy,
@@ -139,7 +156,16 @@ function LibraryCard({
   onInstall: (item: McpStoreItem) => void;
 }) {
   const Icon = resolveIcon(item.iconKey);
-  const installLabel = item.installState === 'bundled' ? '默认已安装' : item.installed ? '已安装' : '安装';
+  const installLabel =
+    item.installState === 'bundled'
+      ? '默认已安装'
+      : item.installed
+        ? item.setupSchema && item.setupStatus !== 'configured'
+          ? '配置'
+          : '已安装'
+        : item.setupSchema
+          ? '安装并配置'
+          : '安装';
 
   return (
     <PressableCard as="article" interactive className="rounded-[22px] p-5" onClick={() => onDetail(item)}>
@@ -161,6 +187,7 @@ function LibraryCard({
           <SourceBadge label={item.sourceLabel} />
           <ProtocolBadge protocol={item.protocol} />
           {item.requiresApiKey ? <Chip tone="warning">需配置密钥</Chip> : <Chip tone="outline">免密钥</Chip>}
+          {item.setupSchema && item.setupStatus !== 'configured' ? <Chip tone="warning">需配置</Chip> : null}
         </div>
 
         {item.categories.length > 0 ? (
@@ -182,7 +209,7 @@ function LibraryCard({
             <Button
               variant={item.installed ? 'success' : 'primary'}
               size="sm"
-              disabled={busy || item.installState === 'bundled' || item.installed}
+              disabled={busy || item.installState === 'bundled'}
               onClick={() => onInstall(item)}
             >
               {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : installLabel}
@@ -200,12 +227,14 @@ function MineCard({
   onToggle,
   onRemove,
   onDetail,
+  onInstall,
 }: {
   item: McpStoreItem;
   busy: boolean;
   onToggle: (item: McpStoreItem, enabled: boolean) => void;
   onRemove: (item: McpStoreItem) => void;
   onDetail: (item: McpStoreItem) => void;
+  onInstall: (item: McpStoreItem) => void;
 }) {
   const Icon = resolveIcon(item.iconKey);
 
@@ -242,18 +271,24 @@ function MineCard({
             <ProtocolBadge protocol={item.protocol} />
             {item.requiresApiKey ? <Chip tone="warning">需配置密钥</Chip> : <Chip tone="outline">免密钥</Chip>}
             <InstallBadge item={item} />
+            {item.setupSchema && item.setupStatus !== 'configured' ? <Chip tone="warning">需配置</Chip> : null}
           </div>
 
           <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
             <InfoTile label="接入来源" value={item.sourceLabel} />
             <InfoTile label="当前状态" value={item.enabled ? '启用中' : '已停用'} />
-            <InfoTile label="连接入口" value={item.configSummary || '待配置'} />
+            <InfoTile label="配置状态" value={item.setupSchema ? (item.setupStatus === 'configured' ? '已配置' : '待配置') : '无需配置'} />
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-2" onClick={(event) => event.stopPropagation()}>
             <Button variant="ghost" size="sm" onClick={() => onDetail(item)}>
               详情
             </Button>
+            {item.setupSchema ? (
+              <Button variant="ghost" size="sm" disabled={busy} onClick={() => onInstall(item)}>
+                {item.setupStatus === 'configured' ? '重设配置' : '配置'}
+              </Button>
+            ) : null}
             {item.userInstalled ? (
               <Button variant="ghost" size="sm" disabled={busy} leadingIcon={busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} onClick={() => onRemove(item)}>
                 移除
@@ -303,6 +338,7 @@ function DetailSheet({
               <SourceBadge label={item.sourceLabel} />
               <ProtocolBadge protocol={item.protocol} />
               <InstallBadge item={item} />
+              {item.setupSchema && item.setupStatus !== 'configured' ? <Chip tone="warning">需配置</Chip> : null}
             </div>
             <p className="mt-3 break-words text-[13px] leading-6 text-[var(--text-secondary)] [overflow-wrap:anywhere]">{item.description}</p>
           </div>
@@ -314,12 +350,19 @@ function DetailSheet({
             关闭
           </Button>
           {item.userInstalled ? (
-            <Button variant="danger" size="md" block disabled={busy} onClick={() => onRemove(item)}>
-              {busy ? '处理中…' : '移除'}
-            </Button>
+            <>
+              {item.setupSchema ? (
+                <Button variant="primary" size="md" block disabled={busy} onClick={() => onInstall(item)}>
+                  {busy ? '处理中…' : item.setupStatus === 'configured' ? '重设配置' : '补充配置'}
+                </Button>
+              ) : null}
+              <Button variant="danger" size="md" block disabled={busy} onClick={() => onRemove(item)}>
+                {busy ? '处理中…' : '移除'}
+              </Button>
+            </>
           ) : (
-            <Button variant="primary" size="md" block disabled={busy || item.installState === 'bundled' || item.installed} onClick={() => onInstall(item)}>
-              {busy ? '处理中…' : item.installState === 'bundled' ? '默认已安装' : '安装到我的MCP'}
+            <Button variant="primary" size="md" block disabled={busy || item.installState === 'bundled'} onClick={() => onInstall(item)}>
+              {busy ? '处理中…' : item.installed ? '补充配置' : item.setupSchema ? '安装并配置' : '安装到我的MCP'}
             </Button>
           )}
         </div>
@@ -327,10 +370,12 @@ function DetailSheet({
     >
       <div className="space-y-5">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <InfoTile label="协议类型" value={item.protocol} />
-            <InfoTile label="最近更新" value={item.lastUpdated} />
-            <InfoTile label="配置入口" value={item.configSummary || '待配置'} />
-            <InfoTile label="密钥要求" value={item.requiresApiKey ? '需要配置' : '无需配置'} tone={item.requiresApiKey ? 'warning' : 'success'} />
+          <InfoTile label="协议类型" value={item.protocol} />
+          <InfoTile label="最近更新" value={item.lastUpdated} />
+          <InfoTile label="发布方" value={readMetadataString(item, 'publisher') || '平台目录'} />
+          <InfoTile label="平台分层" value={resolveTierLabel(item)} />
+          <InfoTile label="配置入口" value={item.setupSchema ? (item.setupStatus === 'configured' ? '已配置' : '待配置') : item.configSummary || '待配置'} />
+          <InfoTile label="密钥要求" value={item.requiresApiKey ? '需要配置' : '无需配置'} tone={item.requiresApiKey ? 'warning' : 'success'} />
         </div>
 
         {item.categories.length > 0 ? (
@@ -452,11 +497,13 @@ function LoadingGrid() {
 }
 
 export function MCPStoreView({
+  title,
   client,
   accessToken,
   authenticated,
   onRequestAuth,
 }: {
+  title: string;
   client: IClawClient;
   accessToken: string | null;
   authenticated: boolean;
@@ -476,6 +523,11 @@ export function MCPStoreView({
   const [detailKey, setDetailKey] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [addSheetOpen, setAddSheetOpen] = useState(false);
+  const [setupItem, setSetupItem] = useState<McpStoreItem | null>(null);
+  const [setupMode, setSetupMode] = useState<'install' | 'configure'>('install');
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [setupLoading, setSetupLoading] = useState(false);
+  const [setupInitialConfig, setSetupInitialConfig] = useState<ExtensionInstallConfigSnapshot | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -543,6 +595,7 @@ export function MCPStoreView({
         item.name.toLowerCase().includes(normalizedQuery) ||
         item.description.toLowerCase().includes(normalizedQuery) ||
         item.mcpKey.toLowerCase().includes(normalizedQuery) ||
+        (readMetadataString(item, 'publisher') || '').toLowerCase().includes(normalizedQuery) ||
         item.categories.some((category) => category.toLowerCase().includes(normalizedQuery));
       const matchesSource = sourceFilter === '全部' || item.sourceLabel === sourceFilter;
       const matchesProtocol = protocolFilter === '全部协议' || item.protocol === protocolFilter;
@@ -561,6 +614,7 @@ export function MCPStoreView({
         !normalizedQuery ||
         item.name.toLowerCase().includes(normalizedQuery) ||
         item.description.toLowerCase().includes(normalizedQuery) ||
+        (readMetadataString(item, 'publisher') || '').toLowerCase().includes(normalizedQuery) ||
         item.categories.some((category) => category.toLowerCase().includes(normalizedQuery));
       const matchesStatus =
         mineStatus === '全部' ||
@@ -595,23 +649,74 @@ export function MCPStoreView({
     setDetailOpen(true);
   };
 
+  const performInstall = async (
+    item: McpStoreItem,
+    options?: {setupValues?: Record<string, unknown>; secretValues?: Record<string, string>},
+  ) => {
+    setBusyKey(item.mcpKey);
+    try {
+      await installMcpFromStore({
+        client,
+        accessToken,
+        mcpKey: item.mcpKey,
+        setupValues: options?.setupValues,
+        secretValues: options?.secretValues,
+      });
+      await loadData();
+    } catch (installError) {
+      setError(installError instanceof Error ? installError.message : '安装失败');
+      throw installError;
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const openSetupModal = async (item: McpStoreItem, mode: 'install' | 'configure') => {
+    if (!authenticated || !accessToken) {
+      onRequestAuth('login', 'account');
+      return;
+    }
+    setSetupItem(item);
+    setSetupMode(mode);
+    setSetupInitialConfig(null);
+    setSetupOpen(true);
+    if (!item.userInstalled && mode === 'install') {
+      return;
+    }
+    setSetupLoading(true);
+    try {
+      const config = await loadMcpInstallConfig({
+        client,
+        accessToken,
+        mcpKey: item.mcpKey,
+      });
+      setSetupInitialConfig(config);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : '读取配置失败');
+    } finally {
+      setSetupLoading(false);
+    }
+  };
+
   const handleInstall = async (item: McpStoreItem) => {
-    if (item.installState === 'bundled' || item.installed) {
+    if (item.installState === 'bundled') {
       return;
     }
     if (!authenticated || !accessToken) {
       onRequestAuth('login', 'account');
       return;
     }
-    setBusyKey(item.mcpKey);
-    try {
-      await installMcpFromStore({ client, accessToken, mcpKey: item.mcpKey });
-      await loadData();
-    } catch (installError) {
-      setError(installError instanceof Error ? installError.message : '安装失败');
-    } finally {
-      setBusyKey(null);
+    if (item.installed) {
+      if (item.setupSchema) {
+        await openSetupModal(item, 'configure');
+      }
+      return;
     }
+    if (item.setupSchema) {
+      await openSetupModal(item, 'install');
+      return;
+    }
+    await performInstall(item);
   };
 
   const handleToggle = async (item: McpStoreItem, enabled: boolean) => {
@@ -653,11 +758,42 @@ export function MCPStoreView({
     }
   };
 
+  const handleSetupSubmit = async (payload: {
+    setupValues: Record<string, unknown>;
+    secretValues: Record<string, string>;
+  }) => {
+    if (!setupItem || !accessToken) {
+      return;
+    }
+    setSetupLoading(true);
+    try {
+      if (setupMode === 'install') {
+        await performInstall(setupItem, payload);
+      } else {
+        await saveMcpInstallConfig({
+          client,
+          accessToken,
+          mcpKey: setupItem.mcpKey,
+          setupValues: payload.setupValues,
+          secretValues: payload.secretValues,
+        });
+        await loadData();
+      }
+      setSetupOpen(false);
+      setSetupItem(null);
+      setSetupInitialConfig(null);
+    } catch {
+      // The specific error is already surfaced in component state.
+    } finally {
+      setSetupLoading(false);
+    }
+  };
+
   return (
     <PageSurface as="div">
       <PageContent className="max-w-[1540px] px-8 py-8">
         <PageHeader
-          title="MCP商店"
+          title={title}
           description="统一展示 OEM 预置、云端目录和用户安装态。cloud MCP 目录由服务端管理，桌面端只消费目录与状态，不在本地代码里维护清单。"
           actions={
             <>
@@ -793,6 +929,7 @@ export function MCPStoreView({
                       onToggle={handleToggle}
                       onRemove={handleRemove}
                       onDetail={handleOpenDetail}
+                      onInstall={handleInstall}
                     />
                   ))}
                 </div>
@@ -813,6 +950,28 @@ export function MCPStoreView({
         onRemove={handleRemove}
       />
       <AddMcpSheet open={addSheetOpen} onClose={() => setAddSheetOpen(false)} />
+      <ExtensionInstallConfigModal
+        open={setupOpen}
+        title={setupItem ? `${setupMode === 'install' ? '安装' : '配置'} ${setupItem.name}` : '安装配置'}
+        description={
+          setupLoading
+            ? '正在读取已保存配置…'
+            : setupItem?.setupSchema
+              ? '这个 MCP 依赖外部 API Key 或参数。补齐后再安装，后续重新配置不会影响安装记录。'
+              : undefined
+        }
+        schema={setupItem?.setupSchema || null}
+        initialConfig={setupInitialConfig}
+        saving={setupLoading}
+        submitLabel={setupMode === 'install' ? '保存并安装' : '保存配置'}
+        onClose={() => {
+          if (setupLoading) return;
+          setSetupOpen(false);
+          setSetupItem(null);
+          setSetupInitialConfig(null);
+        }}
+        onSubmit={handleSetupSubmit}
+      />
     </PageSurface>
   );
 }

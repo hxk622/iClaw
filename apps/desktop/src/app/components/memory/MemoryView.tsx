@@ -34,7 +34,7 @@ import {
   type MemoryStatusSummary,
 } from './model';
 
-export function MemoryView() {
+export function MemoryView({ title }: { title: string }) {
   const [entries, setEntries] = useState<MemoryEntry[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -466,6 +466,7 @@ export function MemoryView() {
         <div className="min-w-0 flex-1 overflow-y-auto">
           <PageContent className="max-w-[1480px] py-5">
             <MemoryHeader
+              title={title}
               onRefreshIndex={handleRefreshIndex}
               onExport={handleExport}
               onImport={handleImportClick}

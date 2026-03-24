@@ -4,16 +4,18 @@ import { Chip } from '@/app/components/ui/Chip';
 import type { LobsterStoreTab } from '@/app/lib/lobster-store';
 
 export function LobsterStoreTabs({
+  storeLabel,
   activeTab,
   installedCount,
   onChange,
 }: {
+  storeLabel: string;
   activeTab: LobsterStoreTab;
   installedCount: number;
   onChange: (tab: LobsterStoreTab) => void;
 }) {
   const tabs: Array<{ id: LobsterStoreTab; label: string; badge?: number }> = [
-    { id: 'shop', label: '龙虾商店' },
+    { id: 'shop', label: storeLabel },
     { id: 'my-lobster', label: '我的龙虾', badge: installedCount },
   ];
 

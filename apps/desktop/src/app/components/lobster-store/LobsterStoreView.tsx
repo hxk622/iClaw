@@ -41,6 +41,7 @@ function matchesLobsterSearch(agent: LobsterAgent, query: string): boolean {
 }
 
 export function LobsterStoreView({
+  title,
   client,
   accessToken,
   authenticated,
@@ -48,6 +49,7 @@ export function LobsterStoreView({
   onStartConversation,
   onRequestAuth,
 }: {
+  title: string;
   client: IClawClient;
   accessToken: string | null;
   authenticated: boolean;
@@ -211,7 +213,7 @@ export function LobsterStoreView({
       <PageContent className="max-w-none px-5 py-5 lg:px-6 2xl:px-8">
         <PageHeader
           className="gap-2.5"
-          title="龙虾商店"
+          title={title}
           description={`你的专属 AI 助手库。精选 Agent 一键装配，即刻开工。${currentUser ? ' 已登录后可将预设助手加入“我的龙虾”。' : ''}`}
           contentClassName="space-y-1"
           titleClassName="mt-0 text-[24px] font-semibold tracking-[-0.045em] text-[var(--lobster-text-primary)]"
@@ -230,7 +232,12 @@ export function LobsterStoreView({
         />
 
         <div className="mt-3">
-          <LobsterStoreTabs activeTab={activeTab} installedCount={installedAgents.length} onChange={setActiveTab} />
+          <LobsterStoreTabs
+            storeLabel={title}
+            activeTab={activeTab}
+            installedCount={installedAgents.length}
+            onChange={setActiveTab}
+          />
         </div>
 
         {error ? (

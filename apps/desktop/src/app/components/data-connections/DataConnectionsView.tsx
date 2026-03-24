@@ -132,7 +132,7 @@ function CapabilityCard({ capability }: { capability: CapabilityEntry }) {
   );
 }
 
-export function DataConnectionsView() {
+export function DataConnectionsView({ title }: { title: string }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMarkets, setSelectedMarkets] = useState<string[]>(['全部']);
   const [selectedStatus, setSelectedStatus] = useState<(typeof STATUS_FILTERS)[number]>('全部');
@@ -212,7 +212,7 @@ export function DataConnectionsView() {
     <PageSurface as="div">
       <PageContent className="py-5">
         <PageHeader
-          title="数据连接中心"
+          title={title}
           description="统一管理 iClaw 的金融数据能力封装层，按市场、状态和能力类型快速筛选可用数据接口。"
           className="gap-2.5"
           contentClassName="space-y-1"

@@ -1568,6 +1568,7 @@ function AuthedView({
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {primaryView === 'investment-experts' ? (
             <InvestmentExpertsView
+              title={menuUiConfig['investment-experts'].displayName}
               client={client}
               accessToken={accessToken}
               authenticated={authenticated}
@@ -1576,6 +1577,7 @@ function AuthedView({
             />
           ) : primaryView === 'lobster-store' ? (
             <LobsterStoreView
+              title={menuUiConfig['lobster-store'].displayName}
               client={client}
               accessToken={accessToken}
               authenticated={authenticated}
@@ -1599,17 +1601,18 @@ function AuthedView({
             />
           ) : primaryView === 'mcp-store' ? (
             <MCPStoreView
+              title={menuUiConfig['mcp-store'].displayName}
               client={client}
               accessToken={accessToken}
               authenticated={authenticated}
               onRequestAuth={onRequestAuth}
             />
           ) : primaryView === 'data-connections' ? (
-            <DataConnectionsView />
+            <DataConnectionsView title={menuUiConfig['data-connections'].displayName} />
           ) : primaryView === 'security' ? (
-            <SecurityCenterView />
+            <SecurityCenterView title={menuUiConfig.security.displayName} />
           ) : primaryView === 'memory' ? (
-            <MemoryView />
+            <MemoryView title={menuUiConfig.memory.displayName} />
           ) : primaryView === 'task-center' ? (
             <TaskCenterView
               selectedTaskId={selectedTaskId}
@@ -1621,6 +1624,7 @@ function AuthedView({
           ) : primaryView === 'cron' ? (
             authenticated ? (
               <OpenClawCronSurface
+                title={menuUiConfig.cron.displayName}
                 gatewayUrl={GATEWAY_WS_URL}
                 gatewayToken={gatewayAuth.token}
                 gatewayPassword={gatewayAuth.password}
@@ -1638,7 +1642,7 @@ function AuthedView({
               />
             )
           ) : primaryView === 'im-bots' ? (
-            <IMBotsView client={imBotClient} />
+            <IMBotsView title={menuUiConfig['im-bots'].displayName} client={imBotClient} />
           ) : !SUPPORTED_PRIMARY_VIEWS.has(primaryView) ? (
             <PageSurface as="div">
               <PageContent className="flex min-h-full items-center">

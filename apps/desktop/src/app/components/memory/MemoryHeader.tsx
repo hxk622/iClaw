@@ -3,6 +3,7 @@ import { Button } from '@/app/components/ui/Button';
 import { PageHeader } from '@/app/components/ui/PageLayout';
 
 export function MemoryHeader({
+  title,
   onRefreshIndex,
   onExport,
   onImport,
@@ -10,6 +11,7 @@ export function MemoryHeader({
   loading = false,
   mutating = false,
 }: {
+  title: string;
   onRefreshIndex: () => void;
   onExport: () => void;
   onImport: () => void;
@@ -19,7 +21,7 @@ export function MemoryHeader({
 }) {
   return (
     <PageHeader
-      title="记忆管理"
+      title={title}
       description="AI 的长期记忆与标签化管理"
       className="gap-2.5"
       contentClassName="space-y-1"

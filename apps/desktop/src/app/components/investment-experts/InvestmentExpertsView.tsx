@@ -36,12 +36,14 @@ function matchesQuery(expert: InvestmentExpert, query: string): boolean {
 }
 
 export function InvestmentExpertsView({
+  title,
   client,
   accessToken,
   authenticated,
   onRequestAuth,
   onStartConversation,
 }: {
+  title: string;
   client: IClawClient;
   accessToken: string | null;
   authenticated: boolean;
@@ -137,7 +139,7 @@ export function InvestmentExpertsView({
       <PageContent className="max-w-none px-4 py-5 lg:px-5 xl:px-6">
         <PageHeader
           className="gap-3"
-          title="智能投资专家"
+          title={title}
           description="AI智能体 · 专业投资研究与资产配置专家团队"
           contentClassName="space-y-1"
           titleClassName="mt-0 text-[28px] font-semibold tracking-[-0.045em] text-[var(--lobster-text-primary)]"

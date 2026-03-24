@@ -67,6 +67,7 @@ type OpenClawAppElement = HTMLElement & {
 };
 
 type OpenClawCronSurfaceProps = {
+  title: string;
   gatewayUrl: string;
   gatewayToken?: string;
   gatewayPassword?: string;
@@ -561,6 +562,7 @@ function getTemplateIcon(templateId: BasicTemplateId) {
 }
 
 export function OpenClawCronSurface({
+  title,
   gatewayUrl,
   gatewayToken,
   gatewayPassword,
@@ -811,7 +813,7 @@ export function OpenClawCronSurface({
   const connectionMessage = status.lastError
     ? status.lastError
     : hasGatewayAuth
-      ? '正在连接 OpenClaw 定时任务中心…'
+      ? `正在连接 OpenClaw ${title}…`
       : '缺少本地网关凭据，当前无法连接 OpenClaw。';
 
   const openCreate = (templateId: BasicTemplateId) => {
@@ -1006,7 +1008,7 @@ export function OpenClawCronSurface({
     <PageSurface as="div">
       <PageContent className="flex min-h-full flex-col py-5">
         <PageHeader
-          title="定时任务中心"
+          title={title}
           description="当前仅保留基础模式，适合高频创建、查看和管理常用定时任务。"
           className="gap-2.5"
           contentClassName="space-y-1"
@@ -1522,7 +1524,7 @@ export function OpenClawCronSurface({
 
               {showConnectionCard ? (
                 <div className="iclaw-chat-state-card">
-                  <div className="iclaw-chat-state-card__eyebrow">定时任务中心</div>
+                  <div className="iclaw-chat-state-card__eyebrow">{title}</div>
                   <div className="iclaw-chat-state-card__title">
                     {status.connected ? '正在准备定时任务管理界面' : '正在连接 OpenClaw 网关'}
                   </div>

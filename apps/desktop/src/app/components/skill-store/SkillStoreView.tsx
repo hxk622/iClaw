@@ -29,6 +29,7 @@ import {
   importSkillFromGithub,
   importSkillFromLocalDirectory,
   installSkillFromStore,
+  loadExtensionInstallConfig,
   loadAdminSkillStoreCatalogPage,
   loadBundledSkillCatalog,
   loadSkillSyncRuns,
@@ -37,8 +38,10 @@ import {
   readSkillStoreCatalogSnapshot,
   runSkillSync,
   saveAdminSkillStoreEntry,
+  saveExtensionInstallConfig,
   subscribeSkillStoreEvents,
 } from '@/app/lib/skill-store';
+import type { ExtensionInstallConfigSnapshot } from '@/app/lib/extension-setup';
 import { Button } from '@/app/components/ui/Button';
 import { Chip } from '@/app/components/ui/Chip';
 import { FilterPill } from '@/app/components/ui/FilterPill';
@@ -52,6 +55,7 @@ import { SkillStoreAdminSheet } from './SkillStoreAdminSheet';
 import { SkillStoreDetailSheet } from './SkillStoreDetailSheet';
 import { SkillStoreImportSheet } from './SkillStoreImportSheet';
 import { SkillGlyph, skillTagClassName } from './SkillStoreVisuals';
+import { ExtensionInstallConfigModal } from '@/app/components/extensions/ExtensionInstallConfigModal';
 
 export type SkillStoreViewPreset = 'all' | 'finance' | 'foundation';
 
@@ -276,10 +280,14 @@ function SkillCard({
 }) {
   const status = resolveDisplayStatus(skill, actionLoading, installFailed);
   const showInstallAction = skill.source !== 'bundled' && !adminMode;
-  const canStartConversation = !actionLoading && !installFailed && (skill.source === 'bundled' || skill.installed);
+  const needsSetup = skill.setupSchema != null && skill.setupStatus !== 'configured';
+  const canStartConversation =
+    !actionLoading && !installFailed && !needsSetup && (skill.source === 'bundled' || skill.installed);
   const actionLabel =
     status === 'failed'
       ? '重试安装'
+      : needsSetup
+        ? '配置'
       : canStartConversation
         ? '对话'
         : status === 'installing'
@@ -341,6 +349,7 @@ function SkillCard({
           <div className="flex flex-wrap items-center gap-2">
             <SourceBadge sourceLabel={adminMode && skill.source === 'bundled' ? '系统预置' : skill.sourceLabel} />
             <SkillStatusBadge status={status} />
+            {needsSetup ? <Chip tone="warning">需配置</Chip> : null}
           </div>
 
           {adminMode ? (
@@ -475,7 +484,7 @@ export function SkillStoreView({
   onRequestAuth,
   onStartConversation,
   preset = 'all',
-  title = '技能商店',
+  title,
   description = '统一查看系统预置能力与云端技能，安装后可自动同步到设备',
 }: {
   client: IClawClient;
@@ -488,7 +497,7 @@ export function SkillStoreView({
   onRequestAuth: (mode?: 'login' | 'register', nextView?: 'account' | null) => void;
   onStartConversation: (skill: SkillStoreItem) => void;
   preset?: SkillStoreViewPreset;
-  title?: string;
+  title: string;
   description?: string;
 }) {
   const [initialCatalogSnapshot] = useState(() => readSkillStoreCatalogSnapshot());
@@ -531,6 +540,11 @@ export function SkillStoreView({
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncBusySourceId, setSyncBusySourceId] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [setupSkill, setSetupSkill] = useState<SkillStoreItem | null>(null);
+  const [setupModalOpen, setSetupModalOpen] = useState(false);
+  const [setupMode, setSetupMode] = useState<'install' | 'configure'>('install');
+  const [setupInitialConfig, setSetupInitialConfig] = useState<ExtensionInstallConfigSnapshot | null>(null);
+  const [setupLoading, setSetupLoading] = useState(false);
 
   const adminRoleKnown = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
   const shouldProbeAdminAccess = Boolean(accessToken) && !adminRoleKnown && currentUser?.role == null;
@@ -775,19 +789,20 @@ export function SkillStoreView({
     };
   }, [accessToken, adminMode, client, isAdmin]);
 
-  const handleInstall = async (skill: SkillStoreItem) => {
-    if (skill.source !== 'cloud' || skill.installed) {
-      return;
-    }
-    if (!authenticated || !accessToken) {
-      onRequestAuth('login');
-      return;
-    }
-
+  const performInstall = async (
+    skill: SkillStoreItem,
+    options?: {setupValues?: Record<string, unknown>; secretValues?: Record<string, string>},
+  ) => {
     setInstallingSlug(skill.slug);
     setError(null);
     try {
-      await installSkillFromStore({ client, accessToken, item: skill });
+      await installSkillFromStore({
+        client,
+        accessToken,
+        item: skill,
+        setupValues: options?.setupValues,
+        secretValues: options?.secretValues,
+      });
       setInstallErrorSlugs((current) => current.filter((slug) => slug !== skill.slug));
       await refreshCatalog({ preferAdmin: adminMode });
     } catch (nextError) {
@@ -795,11 +810,61 @@ export function SkillStoreView({
         onRequestAuth('login');
       } else {
         setInstallErrorSlugs((current) => (current.includes(skill.slug) ? current : [...current, skill.slug]));
-        setError('下载安装失败');
+        setError(nextError instanceof Error ? nextError.message : '下载安装失败');
+        throw nextError;
       }
     } finally {
       setInstallingSlug(null);
     }
+  };
+
+  const openSetupModal = async (skill: SkillStoreItem, mode: 'install' | 'configure') => {
+    if (!accessToken) {
+      onRequestAuth('login');
+      return;
+    }
+    setSetupSkill(skill);
+    setSetupMode(mode);
+    setSetupInitialConfig(null);
+    setSetupModalOpen(true);
+    if (!skill.userInstalled && mode === 'install') {
+      return;
+    }
+    setSetupLoading(true);
+    try {
+      const config = await loadExtensionInstallConfig({
+        client,
+        accessToken,
+        extensionType: 'skill',
+        extensionKey: skill.slug,
+      });
+      setSetupInitialConfig(config);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : '读取安装配置失败');
+    } finally {
+      setSetupLoading(false);
+    }
+  };
+
+  const handleInstall = async (skill: SkillStoreItem) => {
+    if (skill.source !== 'cloud') {
+      return;
+    }
+    if (!authenticated || !accessToken) {
+      onRequestAuth('login');
+      return;
+    }
+    if (skill.installed) {
+      if (skill.setupSchema) {
+        await openSetupModal(skill, 'configure');
+      }
+      return;
+    }
+    if (skill.setupSchema) {
+      await openSetupModal(skill, 'install');
+      return;
+    }
+    await performInstall(skill);
   };
 
   const handleStartConversation = (skill: SkillStoreItem) => {
@@ -809,6 +874,38 @@ export function SkillStoreView({
     }
     setSelectedSkill(null);
     onStartConversation(skill);
+  };
+
+  const handleSetupSubmit = async (payload: {
+    setupValues: Record<string, unknown>;
+    secretValues: Record<string, string>;
+  }) => {
+    if (!setupSkill || !accessToken) {
+      return;
+    }
+    setSetupLoading(true);
+    try {
+      if (setupMode === 'install') {
+        await performInstall(setupSkill, payload);
+      } else {
+        await saveExtensionInstallConfig({
+          client,
+          accessToken,
+          extensionType: 'skill',
+          extensionKey: setupSkill.slug,
+          setupValues: payload.setupValues,
+          secretValues: payload.secretValues,
+        });
+        await refreshCatalog({ preferAdmin: adminMode });
+      }
+      setSetupModalOpen(false);
+      setSetupSkill(null);
+      setSetupInitialConfig(null);
+    } catch {
+      // Error state is surfaced by performInstall/saveExtensionInstallConfig callers.
+    } finally {
+      setSetupLoading(false);
+    }
   };
 
   const handleAdminSave = async (payload: {
@@ -1543,6 +1640,28 @@ export function SkillStoreView({
           setImportSheetOpen(false);
           setImportError(null);
         }}
+      />
+      <ExtensionInstallConfigModal
+        open={setupModalOpen}
+        title={setupSkill ? `${setupMode === 'install' ? '安装' : '配置'} ${setupSkill.name}` : '安装配置'}
+        description={
+          setupLoading
+            ? '正在读取已保存配置…'
+            : setupSkill?.setupSchema
+              ? '这个技能依赖外部配置或 API Key。补齐后再安装，后续升级会沿用这份配置。'
+              : undefined
+        }
+        schema={setupSkill?.setupSchema || null}
+        initialConfig={setupInitialConfig}
+        saving={setupLoading}
+        submitLabel={setupMode === 'install' ? '保存并安装' : '保存配置'}
+        onClose={() => {
+          if (setupLoading) return;
+          setSetupModalOpen(false);
+          setSetupSkill(null);
+          setSetupInitialConfig(null);
+        }}
+        onSubmit={handleSetupSubmit}
       />
     </PageSurface>
   );

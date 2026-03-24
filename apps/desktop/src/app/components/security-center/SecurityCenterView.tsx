@@ -78,7 +78,7 @@ const INITIAL_SECURITY_STATE: Record<SecurityCardId, boolean> = {
   'access-control': true,
 };
 
-export function SecurityCenterView() {
+export function SecurityCenterView({ title }: { title: string }) {
   const [enabledState, setEnabledState] =
     useState<Record<SecurityCardId, boolean>>(INITIAL_SECURITY_STATE);
 
@@ -97,7 +97,7 @@ export function SecurityCenterView() {
     <PageSurface as="div">
       <PageContent className="py-5">
         <PageHeader
-          title="安全中心"
+          title={title}
           description="统一管理 iClaw 的运行时防护、技能审计和访问控制策略，让安全模块和其它管理页面遵循同一套页面壳与交互规范。"
           className="gap-2.5"
           contentClassName="space-y-1"
