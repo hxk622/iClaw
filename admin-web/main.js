@@ -452,6 +452,19 @@ function getMenuCatalogItems() {
     .filter(Boolean);
 }
 
+function isMenuEnabledByDefault(menu) {
+  const item = normalizeMenuCatalogItem(menu);
+  if (!item) return false;
+  const metadata = asObject(item.metadata);
+  if (metadata.enabled_by_default !== undefined) {
+    return metadata.enabled_by_default === true;
+  }
+  if (metadata.enabledByDefault !== undefined) {
+    return metadata.enabledByDefault === true;
+  }
+  return false;
+}
+
 function getMenuDefinition(menuKey) {
   const normalized = String(menuKey || '').trim();
   const match = getMenuCatalogItems().find((item) => item.key === normalized);
@@ -2002,7 +2015,7 @@ async function createBrand(formData) {
       body: JSON.stringify(
         getMenuCatalogItems().map((item, index) => ({
           menuKey: item.key,
-          enabled: true,
+          enabled: isMenuEnabledByDefault(item),
           sortOrder: (index + 1) * 10,
           config: {},
         })),

@@ -5,6 +5,23 @@ const APPS = (process.env.ICLAW_E2E_APPS || 'iclaw,licaiclaw')
   .split(',')
   .map((item) => item.trim().toLowerCase())
   .filter(Boolean);
+const EXPECTED_PRESET_MENU_KEYS = [
+  'chat',
+  'cron',
+  'skill-store',
+  'lobster-store',
+  'mcp-store',
+  'im-bots',
+  'memory',
+  'security',
+  'task-center',
+  'investment-experts',
+  'data-connections',
+  'finance-skills',
+  'foundation-skills',
+  'stock-market',
+  'fund-market',
+];
 const LEGACY_MENU_KEY_MAP = {
   workspace: ['chat'],
   skills: ['skill-store'],
@@ -225,6 +242,12 @@ async function main() {
   assert(menuItems.length > 0, 'menu catalog is empty');
   const chatMenu = menuItems.find((item) => String(asObject(item).menuKey || asObject(item).menu_key || '').trim() === 'chat');
   assert(chatMenu, 'menu catalog missing chat');
+  for (const menuKey of EXPECTED_PRESET_MENU_KEYS) {
+    assert(
+      menuItems.some((item) => String(asObject(item).menuKey || asObject(item).menu_key || '').trim() === menuKey),
+      `menu catalog missing preset key ${menuKey}`,
+    );
+  }
 
   await api(
     '/admin/portal/catalog/menus/chat',
