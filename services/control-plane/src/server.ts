@@ -623,6 +623,7 @@ const server = createJsonServer([
         resolvePublicBaseUrl(headers),
         Number.parseInt(url.searchParams.get('limit') || '', 10),
         Number.parseInt(url.searchParams.get('offset') || '', 10),
+        (url.searchParams.get('q') || '').trim(),
       ),
   },
   {

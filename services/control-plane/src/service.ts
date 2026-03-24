@@ -1576,6 +1576,7 @@ export class ControlPlaneService {
     baseUrl?: string,
     limitInput?: number | null,
     offsetInput?: number | null,
+    queryInput?: string | null,
   ): Promise<{
     items: AdminSkillCatalogEntryView[];
     total: number;
@@ -1587,9 +1588,10 @@ export class ControlPlaneService {
     await this.requireAdminUser(accessToken);
     const limit = normalizeCatalogLimit(limitInput);
     const offset = normalizeCatalogOffset(offsetInput);
+    const query = typeof queryInput === 'string' ? queryInput.trim() : '';
     const [items, total] = await Promise.all([
-      this.store.listSkillCatalogAdmin(limit, offset),
-      this.store.countSkillCatalogAdmin(),
+      this.store.listSkillCatalogAdmin(limit, offset, query),
+      this.store.countSkillCatalogAdmin(query),
     ]);
     const nextOffset = offset + items.length;
     return {

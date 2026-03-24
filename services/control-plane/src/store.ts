@@ -154,8 +154,8 @@ export interface ControlPlaneStore {
   deleteAgentCatalogEntry(slug: string): Promise<boolean>;
   listSkillCatalog(limit?: number, offset?: number): Promise<SkillCatalogEntryRecord[]>;
   countSkillCatalog(): Promise<number>;
-  listSkillCatalogAdmin(limit?: number, offset?: number): Promise<SkillCatalogEntryRecord[]>;
-  countSkillCatalogAdmin(): Promise<number>;
+  listSkillCatalogAdmin(limit?: number, offset?: number, query?: string): Promise<SkillCatalogEntryRecord[]>;
+  countSkillCatalogAdmin(query?: string): Promise<number>;
   getSkillCatalogEntry(slug: string): Promise<SkillCatalogEntryRecord | null>;
   upsertSkillCatalogEntry(input: Required<UpsertSkillCatalogEntryInput>): Promise<SkillCatalogEntryRecord>;
   deleteSkillCatalogEntry(slug: string): Promise<boolean>;

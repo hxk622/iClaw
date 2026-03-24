@@ -2409,8 +2409,29 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     return Number(result.rows[0]?.count || '0');
   }
 
-  async listSkillCatalogAdmin(limit?: number, offset?: number): Promise<SkillCatalogEntryRecord[]> {
+  async listSkillCatalogAdmin(limit?: number, offset?: number, query?: string): Promise<SkillCatalogEntryRecord[]> {
     const values: unknown[] = [];
+    const whereClauses: string[] = [];
+    const normalizedQuery = typeof query === 'string' ? query.trim() : '';
+    if (normalizedQuery) {
+      values.push(`%${normalizedQuery}%`);
+      const placeholder = `$${values.length}`;
+      whereClauses.push(`
+        (
+          slug ilike ${placeholder}
+          or name ilike ${placeholder}
+          or coalesce(description, '') ilike ${placeholder}
+          or coalesce(category, '') ilike ${placeholder}
+          or coalesce(publisher, '') ilike ${placeholder}
+          or exists (
+            select 1
+            from unnest(tags) as tag
+            where tag ilike ${placeholder}
+          )
+        )
+      `);
+    }
+    const whereSql = whereClauses.length ? `where ${whereClauses.join(' and ')}` : '';
     const paginationSql = this.buildSkillCatalogPaginationClause(values, limit, offset);
     return this.listSkillCatalogEntries(`
       select
@@ -2436,17 +2457,40 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         created_at,
         updated_at
       from skill_catalog_entries
+      ${whereSql}
       order by name asc
       ${paginationSql}
     `, values);
   }
 
-  async countSkillCatalogAdmin(): Promise<number> {
+  async countSkillCatalogAdmin(query?: string): Promise<number> {
+    const values: unknown[] = [];
+    const normalizedQuery = typeof query === 'string' ? query.trim() : '';
+    let whereSql = '';
+    if (normalizedQuery) {
+      values.push(`%${normalizedQuery}%`);
+      const placeholder = `$${values.length}`;
+      whereSql = `
+        where
+          slug ilike ${placeholder}
+          or name ilike ${placeholder}
+          or coalesce(description, '') ilike ${placeholder}
+          or coalesce(category, '') ilike ${placeholder}
+          or coalesce(publisher, '') ilike ${placeholder}
+          or exists (
+            select 1
+            from unnest(tags) as tag
+            where tag ilike ${placeholder}
+          )
+      `;
+    }
     const result = await this.pool.query<{count: string}>(
       `
         select count(*)::text as count
         from skill_catalog_entries
+        ${whereSql}
       `,
+      values,
     );
     return Number(result.rows[0]?.count || '0');
   }

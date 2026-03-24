@@ -440,7 +440,10 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     );
   }
 
-  async listSkillCatalogAdmin(limit?: number, offset?: number): Promise<SkillCatalogEntryRecord[]> {
+  async listSkillCatalogAdmin(limit?: number, offset?: number, query?: string): Promise<SkillCatalogEntryRecord[]> {
+    if (typeof query === 'string' && query.trim()) {
+      return this.base.listSkillCatalogAdmin(limit, offset, query);
+    }
     if (typeof limit === 'number' || typeof offset === 'number') {
       return this.getOrLoadValue(
         this.adminSkillCatalogPageKey(limit, offset),
@@ -453,7 +456,10 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     );
   }
 
-  async countSkillCatalogAdmin(): Promise<number> {
+  async countSkillCatalogAdmin(query?: string): Promise<number> {
+    if (typeof query === 'string' && query.trim()) {
+      return this.base.countSkillCatalogAdmin(query);
+    }
     return this.getOrLoadValue(this.adminSkillCatalogCountKey(), SKILL_CATALOG_PAGE_CACHE_TTL_SECONDS, () =>
       this.base.countSkillCatalogAdmin(),
     );

@@ -91,6 +91,7 @@ const BRAND_DETAIL_TAB_GROUPS = [
   },
   {id: 'brand', label: '品牌资源', icon: 'image', tabs: ['assets', 'theme']},
 ];
+const ADMIN_SKILL_BROWSER_PAGE_SIZE = 100;
 
 const app = document.querySelector('#app');
 
@@ -166,6 +167,25 @@ const state = {
   composerShortcutCatalog: [],
   skillCatalog: [],
   cloudSkillCatalog: [],
+  cloudSkillCatalogMeta: {
+    total: 0,
+    limit: ADMIN_SKILL_BROWSER_PAGE_SIZE,
+    offset: 0,
+    hasMore: false,
+    nextOffset: null,
+    query: '',
+    loading: false,
+  },
+  brandSkillCatalog: [],
+  brandSkillCatalogMeta: {
+    total: 0,
+    limit: ADMIN_SKILL_BROWSER_PAGE_SIZE,
+    offset: 0,
+    hasMore: false,
+    nextOffset: null,
+    query: '',
+    loading: false,
+  },
   personalSkillCatalog: [],
   skillLibrary: [],
   mcpCatalog: [],
@@ -1538,6 +1558,21 @@ function getCloudSkillCatalogEntry(slug) {
   return state.cloudSkillCatalog.find((item) => item.slug === slug) || null;
 }
 
+function getAdminSkillCatalogQueryValue(selector, fallback = '') {
+  const input = document.querySelector(selector);
+  return input instanceof HTMLInputElement ? input.value.trim() : String(fallback || '').trim();
+}
+
+function buildAdminSkillCatalogPath({limit, offset, query}) {
+  const params = new URLSearchParams();
+  params.set('limit', String(limit > 0 ? limit : ADMIN_SKILL_BROWSER_PAGE_SIZE));
+  params.set('offset', String(offset > 0 ? offset : 0));
+  if (query) {
+    params.set('q', query);
+  }
+  return `/admin/skills/catalog?${params.toString()}`;
+}
+
 function getPersonalSkillCatalogEntry(slug) {
   return state.personalSkillCatalog.find((item) => item.slug === slug) || null;
 }
@@ -1804,6 +1839,89 @@ async function apiUploadBinary(path, file, options = {}) {
   }
 
   return parseResponse(response);
+}
+
+async function loadCloudSkillCatalogPage(options = {}) {
+  const previous = state.cloudSkillCatalogMeta || {};
+  const limit = Number.isFinite(options.limit) ? Math.max(1, Number(options.limit)) : Number(previous.limit || ADMIN_SKILL_BROWSER_PAGE_SIZE);
+  const offset = Number.isFinite(options.offset) ? Math.max(0, Number(options.offset)) : Number(previous.offset || 0);
+  const query = typeof options.query === 'string' ? options.query.trim() : String(previous.query || '').trim();
+  state.cloudSkillCatalogMeta = {
+    ...previous,
+    limit,
+    offset,
+    query,
+    loading: true,
+  };
+  if (!options.suppressRender) {
+    render();
+  }
+  try {
+    const data = await apiFetch(buildAdminSkillCatalogPath({limit, offset, query}), {method: 'GET'});
+    state.cloudSkillCatalog = Array.isArray(data.items) ? data.items : [];
+    state.cloudSkillCatalogMeta = {
+      total: Number(data.total || 0),
+      limit: Number(data.limit || limit),
+      offset: Number(data.offset || 0),
+      hasMore: data.has_more === true,
+      nextOffset: Number.isFinite(data.next_offset) ? Number(data.next_offset) : null,
+      query,
+      loading: false,
+    };
+    if (!state.selectedCloudSkillSlug || !state.cloudSkillCatalog.find((item) => item.slug === state.selectedCloudSkillSlug)) {
+      state.selectedCloudSkillSlug = state.cloudSkillCatalog[0]?.slug || '';
+    }
+  } catch (error) {
+    state.cloudSkillCatalogMeta = {
+      ...state.cloudSkillCatalogMeta,
+      loading: false,
+    };
+    setError(error instanceof Error ? error.message : '云技能目录加载失败');
+  } finally {
+    if (!options.suppressRender) {
+      render();
+    }
+  }
+}
+
+async function loadBrandSkillCatalogPage(options = {}) {
+  const previous = state.brandSkillCatalogMeta || {};
+  const limit = Number.isFinite(options.limit) ? Math.max(1, Number(options.limit)) : Number(previous.limit || ADMIN_SKILL_BROWSER_PAGE_SIZE);
+  const offset = Number.isFinite(options.offset) ? Math.max(0, Number(options.offset)) : Number(previous.offset || 0);
+  const query = typeof options.query === 'string' ? options.query.trim() : String(previous.query || '').trim();
+  state.brandSkillCatalogMeta = {
+    ...previous,
+    limit,
+    offset,
+    query,
+    loading: true,
+  };
+  if (!options.suppressRender) {
+    render();
+  }
+  try {
+    const data = await apiFetch(buildAdminSkillCatalogPath({limit, offset, query}), {method: 'GET'});
+    state.brandSkillCatalog = Array.isArray(data.items) ? data.items : [];
+    state.brandSkillCatalogMeta = {
+      total: Number(data.total || 0),
+      limit: Number(data.limit || limit),
+      offset: Number(data.offset || 0),
+      hasMore: data.has_more === true,
+      nextOffset: Number.isFinite(data.next_offset) ? Number(data.next_offset) : null,
+      query,
+      loading: false,
+    };
+  } catch (error) {
+    state.brandSkillCatalogMeta = {
+      ...state.brandSkillCatalogMeta,
+      loading: false,
+    };
+    setError(error instanceof Error ? error.message : 'OEM 技能目录加载失败');
+  } finally {
+    if (!options.suppressRender) {
+      render();
+    }
+  }
 }
 
 function buildBrandDraftBuffer(detail) {
@@ -2342,7 +2460,7 @@ async function loadAppData() {
   render();
 
   try {
-    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, modelCatalogData, menuCatalogData, composerControlCatalogData, composerShortcutCatalogData, cloudSkillCatalogData, skillSyncSourcesData, skillSyncRunsData] = await Promise.all([
+    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, modelCatalogData, menuCatalogData, composerControlCatalogData, composerShortcutCatalogData, skillSyncSourcesData, skillSyncRunsData] = await Promise.all([
       apiFetch('/admin/portal/apps', {method: 'GET'}),
       apiFetch('/admin/agents/catalog', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/skills', {method: 'GET'}),
@@ -2351,7 +2469,6 @@ async function loadAppData() {
       apiFetch('/admin/portal/catalog/menus', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/composer-controls', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/composer-shortcuts', {method: 'GET'}),
-      apiFetch('/admin/skills/catalog', {method: 'GET'}),
       apiFetch('/admin/skills/sync/sources', {method: 'GET'}),
       apiFetch('/admin/skills/sync/runs', {method: 'GET'}),
     ]);
@@ -2367,7 +2484,6 @@ async function loadAppData() {
     state.portalAppDetails = detailsMap;
     state.agentCatalog = Array.isArray(agentCatalogData.items) ? agentCatalogData.items : [];
     state.skillCatalog = Array.isArray(skillCatalogData.items) ? skillCatalogData.items : [];
-    state.cloudSkillCatalog = Array.isArray(cloudSkillCatalogData.items) ? cloudSkillCatalogData.items : [];
     state.mcpCatalog = Array.isArray(mcpCatalogData.items) ? mcpCatalogData.items : [];
     state.modelCatalog = Array.isArray(modelCatalogData.items) ? modelCatalogData.items : [];
     state.menuCatalog = Array.isArray(menuCatalogData.items)
@@ -2383,6 +2499,8 @@ async function loadAppData() {
     state.skillSyncRuns = Array.isArray(skillSyncRunsData.items) ? skillSyncRunsData.items : [];
     state.personalSkillCatalog = [];
     state.skillLibrary = [];
+    state.cloudSkillCatalog = [];
+    state.brandSkillCatalog = [];
     state.brands = apps.map((app) => mapPortalAppToBrand(app, detailsMap[app.appName]));
     state.dashboard = buildPortalDashboard(apps, state.skillCatalog, state.mcpCatalog, detailsMap);
     const adaptedDetails = Object.values(detailsMap).map((detail) => adaptPortalDetail(detail)).filter(Boolean);
@@ -2445,6 +2563,10 @@ async function loadAppData() {
       state.brandDetail = null;
       state.brandDraftBuffer = null;
     }
+    await Promise.all([
+      loadCloudSkillCatalogPage({suppressRender: true, offset: 0}),
+      loadBrandSkillCatalogPage({suppressRender: true, offset: 0}),
+    ]);
   } catch (error) {
     setError(error instanceof Error ? error.message : '加载运营数据失败');
   } finally {
@@ -2526,11 +2648,11 @@ async function saveBrandEditor(form) {
       apiFetch(`/admin/portal/apps/${encodeURIComponent(snapshot.brandId)}/skills`, {
         method: 'PUT',
         body: JSON.stringify(
-          state.skillCatalog.map((item, index) => ({
-            skillSlug: item.slug,
-            enabled: snapshot.selectedSkills.includes(item.slug),
+          snapshot.selectedSkills.map((skillSlug, index) => ({
+            skillSlug,
+            enabled: true,
             sortOrder: (index + 1) * 10,
-            config: asObject(existingSkillBindings.get(item.slug)?.config),
+            config: asObject(existingSkillBindings.get(skillSlug)?.config),
           })),
         ),
       }),
@@ -3530,6 +3652,25 @@ function logout() {
   state.capabilities = null;
   state.skillCatalog = [];
   state.cloudSkillCatalog = [];
+  state.cloudSkillCatalogMeta = {
+    total: 0,
+    limit: ADMIN_SKILL_BROWSER_PAGE_SIZE,
+    offset: 0,
+    hasMore: false,
+    nextOffset: null,
+    query: '',
+    loading: false,
+  };
+  state.brandSkillCatalog = [];
+  state.brandSkillCatalogMeta = {
+    total: 0,
+    limit: ADMIN_SKILL_BROWSER_PAGE_SIZE,
+    offset: 0,
+    hasMore: false,
+    nextOffset: null,
+    query: '',
+    loading: false,
+  };
   state.personalSkillCatalog = [];
   state.skillLibrary = [];
   state.mcpCatalog = [];
@@ -4012,20 +4153,48 @@ function renderBrandSurfaceEditor(buffer, surfaceKey, title, description) {
 }
 
 function renderBrandSkillsAssembly(buffer) {
-  const skills = getMergedSkills();
+  const skills = [...state.brandSkillCatalog];
+  const meta = state.brandSkillCatalogMeta || {};
+  const installedCount = asStringArray(buffer.selectedSkills).length;
+  const managedCount = getPlatformManagedSkillSlugs(state.brandDetail).length;
+  const pageStart = skills.length ? Number(meta.offset || 0) + 1 : 0;
+  const pageEnd = skills.length ? Number(meta.offset || 0) + skills.length : 0;
   return `
     <section class="fig-brand-section">
       <div class="fig-section-heading">
         <h2>技能</h2>
-        <p>给当前 OEM 应用勾选要安装的技能，技能主数据仍由 Skill中心 统一维护。</p>
+        <p>给当前 OEM 应用勾选要安装的技能。这里读取全量 cloud skill 主库，并按分页和搜索管理安装状态。</p>
       </div>
       <article class="fig-card fig-card--subtle">
         <div class="fig-card__head">
           <h3>技能装配</h3>
           <span>按品牌控制要安装哪些技能</span>
         </div>
+        <div class="fig-toolbar">
+          <label class="fig-search fig-search--grow">
+            ${icon('search', 'fig-search__icon')}
+            <input
+              class="field-input fig-search__input"
+              data-brand-skill-query
+              placeholder="搜索 cloud skill slug、名称、分类、发布者..."
+              value="${fieldValue(meta.query || '')}"
+            />
+          </label>
+          <button class="ghost-button" type="button" data-action="brand-skill-search"${meta.loading ? ' disabled' : ''}>搜索</button>
+          <button class="ghost-button" type="button" data-action="brand-skill-clear-search"${meta.loading ? ' disabled' : ''}>清空</button>
+          <button class="ghost-button" type="button" data-action="brand-skill-prev-page"${meta.loading || Number(meta.offset || 0) <= 0 ? ' disabled' : ''}>上一页</button>
+          <button class="ghost-button" type="button" data-action="brand-skill-next-page"${meta.loading || !meta.hasMore ? ' disabled' : ''}>下一页</button>
+        </div>
+        <div class="fig-meta-cards">
+          <div class="fig-meta-card"><span>云技能总数</span><strong>${escapeHtml(meta.total || 0)}</strong></div>
+          <div class="fig-meta-card"><span>当前 OEM 已安装</span><strong>${escapeHtml(installedCount)}</strong></div>
+          <div class="fig-meta-card"><span>平台默认</span><strong>${escapeHtml(managedCount)}</strong></div>
+          <div class="fig-meta-card"><span>当前页</span><strong>${escapeHtml(pageStart && pageEnd ? `${pageStart}-${pageEnd}` : '0')}</strong></div>
+        </div>
         <div class="fig-capability-stack">
-          ${skills.length
+          ${meta.loading
+            ? `<div class="empty-state">正在加载技能目录...</div>`
+            : skills.length
             ? skills
                 .map(
                   (skill) => {
@@ -4052,7 +4221,7 @@ function renderBrandSkillsAssembly(buffer) {
                   },
                 )
                 .join('')
-            : `<div class="empty-state">当前没有可用技能。</div>`}
+            : `<div class="empty-state">没有匹配的技能。</div>`}
         </div>
       </article>
     </section>
@@ -5673,10 +5842,13 @@ function renderSkillSyncSourceForm() {
 }
 
 function renderCloudSkillsPage() {
-  const skills = [...state.cloudSkillCatalog].sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
+  const skills = [...state.cloudSkillCatalog];
+  const meta = state.cloudSkillCatalogMeta || {};
   const selectedSkill = getCloudSkillCatalogEntry(state.selectedCloudSkillSlug) || skills[0] || null;
   const selectedSource = state.skillSyncSources.find((item) => item.id === state.selectedSkillSyncSourceId) || state.skillSyncSources[0] || null;
   const runs = state.skillSyncRuns || [];
+  const pageStart = skills.length ? Number(meta.offset || 0) + 1 : 0;
+  const pageEnd = skills.length ? Number(meta.offset || 0) + skills.length : 0;
 
   return `
     <div class="fig-page">
@@ -5704,9 +5876,10 @@ function renderCloudSkillsPage() {
             <span>技能商店直接读取这里的已上架技能</span>
           </div>
           <div class="fig-meta-cards">
-            <div class="fig-meta-card"><span>云技能</span><strong>${escapeHtml(skills.length)}</strong></div>
+            <div class="fig-meta-card"><span>云技能</span><strong>${escapeHtml(meta.total || 0)}</strong></div>
             <div class="fig-meta-card"><span>同步源</span><strong>${escapeHtml(state.skillSyncSources.length)}</strong></div>
             <div class="fig-meta-card"><span>同步记录</span><strong>${escapeHtml(runs.length)}</strong></div>
+            <div class="fig-meta-card"><span>当前页</span><strong>${escapeHtml(skills.length ? `${pageStart}-${pageEnd}` : '0')}</strong></div>
           </div>
         </section>
         ${state.showSkillSyncSourceForm ? renderSkillSyncSourceForm() : ''}
@@ -5735,10 +5908,27 @@ function renderCloudSkillsPage() {
             <section class="fig-card fig-card--subtle">
               <div class="fig-card__head">
                 <h3>云技能列表</h3>
-                <span>${escapeHtml(skills.length)} 个</span>
+                <span>${escapeHtml(meta.total || 0)} 个</span>
+              </div>
+              <div class="fig-toolbar">
+                <label class="fig-search fig-search--grow">
+                  ${icon('search', 'fig-search__icon')}
+                  <input
+                    class="field-input fig-search__input"
+                    data-cloud-skill-query
+                    placeholder="搜索 slug / 名称 / 分类 / 发布者 / 标签..."
+                    value="${fieldValue(meta.query || '')}"
+                  />
+                </label>
+                <button class="ghost-button" type="button" data-action="search-cloud-skills"${meta.loading ? ' disabled' : ''}>搜索</button>
+                <button class="ghost-button" type="button" data-action="clear-cloud-skills"${meta.loading || !meta.query ? ' disabled' : ''}>清空</button>
+                <button class="ghost-button" type="button" data-action="cloud-skills-prev-page"${meta.loading || Number(meta.offset || 0) <= 0 ? ' disabled' : ''}>上一页</button>
+                <button class="ghost-button" type="button" data-action="cloud-skills-next-page"${meta.loading || meta.hasMore !== true ? ' disabled' : ''}>下一页</button>
               </div>
               <div class="fig-capability-list">
-                ${skills.length
+                ${meta.loading
+                  ? `<div class="empty-state">正在加载云技能目录...</div>`
+                  : skills.length
                   ? skills
                       .map(
                         (item) => `
@@ -5749,7 +5939,7 @@ function renderCloudSkillsPage() {
                         `,
                       )
                       .join('')
-                  : `<div class="empty-state">还没有云技能。</div>`}
+                  : `<div class="empty-state">没有匹配的云技能。</div>`}
               </div>
             </section>
           </aside>
@@ -7001,6 +7191,33 @@ app.addEventListener('click', async (event) => {
     return;
   }
 
+  if (action === 'search-cloud-skills') {
+    await loadCloudSkillCatalogPage({
+      query: getAdminSkillCatalogQueryValue('[data-cloud-skill-query]', state.cloudSkillCatalogMeta.query),
+      offset: 0,
+    });
+    return;
+  }
+
+  if (action === 'clear-cloud-skills') {
+    await loadCloudSkillCatalogPage({query: '', offset: 0});
+    return;
+  }
+
+  if (action === 'cloud-skills-prev-page') {
+    await loadCloudSkillCatalogPage({
+      offset: Math.max(0, Number(state.cloudSkillCatalogMeta.offset || 0) - Number(state.cloudSkillCatalogMeta.limit || ADMIN_SKILL_BROWSER_PAGE_SIZE)),
+    });
+    return;
+  }
+
+  if (action === 'cloud-skills-next-page') {
+    await loadCloudSkillCatalogPage({
+      offset: Number(state.cloudSkillCatalogMeta.nextOffset || Number(state.cloudSkillCatalogMeta.offset || 0) + Number(state.cloudSkillCatalogMeta.limit || ADMIN_SKILL_BROWSER_PAGE_SIZE)),
+    });
+    return;
+  }
+
   if (action === 'new-agent') {
     state.route = 'agent-center';
     state.selectedAgentSlug = '__new__';
@@ -7149,6 +7366,33 @@ app.addEventListener('click', async (event) => {
 
   if (action === 'toggle-brand-skill') {
     toggleBrandCapability('skill', target.getAttribute('data-skill-slug') || '');
+    return;
+  }
+
+  if (action === 'brand-skill-search') {
+    await loadBrandSkillCatalogPage({
+      query: getAdminSkillCatalogQueryValue('[data-brand-skill-query]', state.brandSkillCatalogMeta.query),
+      offset: 0,
+    });
+    return;
+  }
+
+  if (action === 'brand-skill-clear-search') {
+    await loadBrandSkillCatalogPage({query: '', offset: 0});
+    return;
+  }
+
+  if (action === 'brand-skill-prev-page') {
+    await loadBrandSkillCatalogPage({
+      offset: Math.max(0, Number(state.brandSkillCatalogMeta.offset || 0) - Number(state.brandSkillCatalogMeta.limit || ADMIN_SKILL_BROWSER_PAGE_SIZE)),
+    });
+    return;
+  }
+
+  if (action === 'brand-skill-next-page') {
+    await loadBrandSkillCatalogPage({
+      offset: Number(state.brandSkillCatalogMeta.nextOffset || Number(state.brandSkillCatalogMeta.offset || 0) + Number(state.brandSkillCatalogMeta.limit || ADMIN_SKILL_BROWSER_PAGE_SIZE)),
+    });
     return;
   }
 
