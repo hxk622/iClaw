@@ -59,6 +59,7 @@ const SURFACE_BLUEPRINTS = [
   {key: 'task-center', label: '任务中心', icon: 'checkCircle', kind: 'module', menuKey: 'task-center'},
 ];
 const DEFAULT_SURFACE_KEYS = SURFACE_BLUEPRINTS.filter((item) => item.key !== 'welcome').map((item) => item.key);
+const MODULE_SURFACE_KEYS = SURFACE_BLUEPRINTS.filter((item) => item.kind === 'module').map((item) => item.key);
 const BRAND_DETAIL_TABS = [
   {id: 'desktop', label: '桌面端', icon: 'monitor'},
   {id: 'home-web', label: 'Home页', icon: 'globe'},
@@ -70,27 +71,12 @@ const BRAND_DETAIL_TABS = [
   {id: 'mcps', label: 'MCP', icon: 'network'},
   {id: 'models', label: '模型', icon: 'package'},
   {id: 'menus', label: '左菜单栏', icon: 'layers'},
-  {id: 'investment-experts', label: '智能投资专家', icon: 'trendingUp'},
-  {id: 'lobster-store', label: '龙虾商店', icon: 'store'},
-  {id: 'skill-store', label: '技能商店', icon: 'store'},
-  {id: 'mcp-store', label: 'MCP商店', icon: 'network'},
-  {id: 'security', label: '安全中心', icon: 'shield'},
-  {id: 'memory', label: '记忆管理', icon: 'fileText'},
-  {id: 'data-connections', label: '数据连接', icon: 'network'},
-  {id: 'im-bots', label: 'IM机器人', icon: 'messageSquare'},
-  {id: 'task-center', label: '任务中心', icon: 'checkCircle'},
   {id: 'assets', label: '品牌资源', icon: 'image'},
   {id: 'theme', label: '主题样式', icon: 'palette'},
 ];
 const BRAND_DETAIL_TAB_GROUPS = [
   {id: 'shell', label: 'Shell骨架', icon: 'monitor', tabs: ['desktop', 'home-web', 'welcome', 'header', 'sidebar', 'input']},
   {id: 'capabilities', label: '能力绑定', icon: 'zap', tabs: ['skills', 'mcps', 'models', 'menus']},
-  {
-    id: 'modules',
-    label: '业务模块',
-    icon: 'store',
-    tabs: ['investment-experts', 'lobster-store', 'skill-store', 'mcp-store', 'security', 'memory', 'data-connections', 'im-bots', 'task-center'],
-  },
   {id: 'brand', label: '品牌资源', icon: 'image', tabs: ['assets', 'theme']},
 ];
 const ADMIN_SKILL_BROWSER_PAGE_SIZE = 100;
@@ -578,12 +564,24 @@ function getSurfaceBlueprint(key) {
   return SURFACE_BLUEPRINTS.find((item) => item.key === key) || null;
 }
 
+function normalizeBrandDetailTab(tabId) {
+  const normalized = String(tabId || '').trim();
+  if (!normalized) {
+    return 'desktop';
+  }
+  if (MODULE_SURFACE_KEYS.includes(normalized)) {
+    return 'menus';
+  }
+  return getBrandDetailTabConfig(normalized)?.id || 'desktop';
+}
+
 function getBrandDetailTabConfig(tabId) {
-  return BRAND_DETAIL_TABS.find((item) => item.id === tabId) || null;
+  return BRAND_DETAIL_TABS.find((item) => item.id === normalizeBrandDetailTab(tabId)) || null;
 }
 
 function getBrandDetailTabGroup(tabId) {
-  return BRAND_DETAIL_TAB_GROUPS.find((group) => group.tabs.includes(tabId)) || BRAND_DETAIL_TAB_GROUPS[0];
+  const normalized = normalizeBrandDetailTab(tabId);
+  return BRAND_DETAIL_TAB_GROUPS.find((group) => group.tabs.includes(normalized)) || BRAND_DETAIL_TAB_GROUPS[0];
 }
 
 function normalizeMenuCatalogItem(item, index = 0) {
@@ -2694,6 +2692,77 @@ async function markPaymentOrderPaid(orderId, payload) {
   }
 }
 
+async function refundPaymentOrder(orderId, payload) {
+  state.busy = true;
+  resetBanner();
+  render();
+  try {
+    const detail = await apiFetch(`/admin/payments/orders/${encodeURIComponent(orderId)}/refund`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    state.paymentOrderDetails[orderId] = detail;
+    await refreshPaymentOrders(orderId);
+    setNotice('订单已完成退款冲正。');
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '退款冲正失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+function csvEscape(value) {
+  const text = String(value ?? '');
+  if (!/[",\n]/.test(text)) return text;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function exportPaymentOrdersCsv() {
+  const items = getFilteredPaymentOrders();
+  const headers = [
+    'order_id',
+    'status',
+    'provider',
+    'amount_cny_fen',
+    'credits',
+    'bonus_credits',
+    'total_credits',
+    'app_name',
+    'app_version',
+    'release_channel',
+    'platform',
+    'arch',
+    'provider_order_id',
+    'user_id',
+    'username',
+    'user_email',
+    'user_display_name',
+    'created_at',
+    'paid_at',
+    'expires_at',
+    'latest_webhook_at',
+    'webhook_event_count',
+  ];
+  const lines = [
+    headers.join(','),
+    ...items.map((item) =>
+      headers
+        .map((key) => csvEscape(item[key] ?? ''))
+        .join(','),
+    ),
+  ];
+  const blob = new Blob(['\uFEFF' + lines.join('\n')], {type: 'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `payment-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 async function loadAppData() {
   state.loading = true;
   render();
@@ -4087,6 +4156,7 @@ function renderPageGuide(title, items = [], accent = 'default') {
 }
 
 function renderBrandDetailGuide(activeTab) {
+  const normalizedTab = normalizeBrandDetailTab(activeTab);
   if (activeTab === 'welcome') {
     return renderPageGuide('Welcome 页怎么配', [
       '这里配置聊天空状态上的 K2C Welcome 页面，用于粉丝看到的 KOL 专属入口。',
@@ -4129,14 +4199,14 @@ function renderBrandDetailGuide(activeTab) {
       '保存配置并发布快照后，客户端同步 snapshot，必要时重启 sidecar 才会刷新 models.list。',
     ], 'brand');
   }
-  if (activeTab === 'menus') {
+  if (normalizedTab === 'menus') {
     return renderPageGuide('左菜单栏怎么配', [
-      '这里控制当前 OEM app 的侧边栏菜单显隐，不再和技能、MCP、模型混在一个大 tab 里。',
-      '优先配置真实业务入口，如龙虾商店、智能投资专家、安全中心、数据连接等。',
-      '保存配置并发布快照后，前端才能按品牌显示不同菜单组合。',
+      '这里控制当前 OEM app 的真实左菜单，不再把“业务模块”单独拆成另一排 tab。',
+      '左侧决定菜单显隐和排序，右侧同一屏维护 displayName、icon、依赖条件，以及这个菜单对应页面的 surface 配置。',
+      '保存配置并发布快照后，前端才会按品牌显示新的菜单组合和对应页面配置。',
     ], 'brand');
   }
-  const surfaceBlueprint = getSurfaceBlueprint(activeTab);
+  const surfaceBlueprint = getSurfaceBlueprint(normalizedTab);
   if (surfaceBlueprint?.kind === 'shell') {
     return renderPageGuide(`${surfaceBlueprint.label}怎么配`, [
       `这里单独维护 ${surfaceBlueprint.label} 的 OEM 配置，不再和其他 UI 位混在一个大 Surface tab 里。`,
@@ -4438,6 +4508,37 @@ function renderBrandSurfaceEditor(buffer, surfaceKey, title, description) {
   `;
 }
 
+function renderBrandModuleSurfaceInline(buffer, surfaceKey) {
+  const surface = getBrandSurfaceDraft(buffer, surfaceKey);
+  const blueprint = getSurfaceBlueprint(surfaceKey);
+  if (!blueprint || blueprint.kind !== 'module') {
+    return '';
+  }
+  return `
+    <article class="surface-editor fig-surface-card" data-surface-key="${escapeHtml(surface.key)}" data-surface-label="${escapeHtml(surface.label)}">
+      <div class="fig-surface-card__preview">
+        ${icon(blueprint.icon || 'layout', 'fig-surface-card__preview-icon')}
+      </div>
+      <div class="fig-surface-card__body">
+        <div class="surface-editor__head fig-surface-card__head">
+          <div>
+            <h3>${escapeHtml(`${surface.label} 页面配置`)}</h3>
+            <p>${escapeHtml(visibilityStateLabel(surface.enabled))}</p>
+          </div>
+          <label class="toggle fig-toggle">
+            <input type="checkbox" name="surface_enabled__${escapeHtml(surface.key)}"${surface.enabled ? ' checked' : ''} />
+            <span>${visibilityStateLabel(surface.enabled)}</span>
+          </label>
+        </div>
+        <div class="fig-card__section-copy">
+          <p>这里维护这个左菜单对应业务页的 surface 配置。入口和页面不再拆成两排 tab，统一在同一个菜单详情里编辑。</p>
+        </div>
+        <textarea class="code-input code-input--tall" name="surface_config__${escapeHtml(surface.key)}">${escapeHtml(surface.json)}</textarea>
+      </div>
+    </article>
+  `;
+}
+
 function renderBrandSkillsAssembly(buffer) {
   const skills = [...state.brandSkillCatalog];
   const meta = state.brandSkillCatalogMeta || {};
@@ -4693,6 +4794,7 @@ function renderMenuAssemblyDetail(buffer, item, note) {
   const displayName = menuConfig.displayName || item.label;
   const group = menuConfig.group || '主体区';
   const effectiveIconKey = menuConfig.iconKey || item.iconKey || item.key;
+  const moduleSurface = renderBrandModuleSurfaceInline(buffer, item.key);
   const requirementSummary = [
     menuConfig.requiresSkillSlug ? `Skill: ${skillOptions.find((skill) => skill.slug === menuConfig.requiresSkillSlug)?.name || menuConfig.requiresSkillSlug}` : '',
     menuConfig.requiresMcpKey ? `MCP: ${mcpOptions.find((server) => server.key === menuConfig.requiresMcpKey)?.name || menuConfig.requiresMcpKey}` : '',
@@ -4789,6 +4891,7 @@ function renderMenuAssemblyDetail(buffer, item, note) {
           </select>
         </label>
       </div>
+      ${moduleSurface}
     </article>
   `;
 }
@@ -4889,21 +4992,25 @@ function renderMenuToggleCard(buffer, item, note) {
   `;
 }
 
-function renderBrandMenusAssembly(buffer) {
+function renderBrandMenusAssembly(buffer, preferredMenuKey = '') {
   const sidebarItems = getOrderedMenuItemsByCategory(buffer, 'sidebar');
-  const selectedMenuKey = getSelectedBrandMenuKey(buffer, sidebarItems);
+  const preferred = String(preferredMenuKey || '').trim();
+  const selectedMenuKey =
+    preferred && sidebarItems.some((item) => item.key === preferred)
+      ? preferred
+      : getSelectedBrandMenuKey(buffer, sidebarItems);
   const selectedItem = sidebarItems.find((item) => item.key === selectedMenuKey) || sidebarItems[0] || null;
   return `
     <section class="fig-brand-section">
       <div class="fig-section-heading">
         <h2>左菜单栏</h2>
-        <p>这里只维护 OEM 真正暴露给终端用户的左侧入口。历史兼容 key 保留在后端兼容层，不再出现在运营界面。</p>
+        <p>这里就是 OEM 左菜单的唯一配置入口。左侧管显隐和排序，右侧同时维护入口配置和对应业务页的 surface，不再拆成独立“业务模块”tab。</p>
       </div>
       <div class="fig-capability-columns">
         <article class="fig-card fig-card--subtle menu-assembly-list">
           <div class="fig-card__head">
             <h3>OEM 菜单入口</h3>
-            <span>左侧选菜单，右侧做单项配置和预览。</span>
+            <span>左侧选一个真实菜单，右侧直接编辑入口和页面配置。</span>
           </div>
           <div class="menu-assembly-list__stack">
             ${sidebarItems.map((item) => renderMenuAssemblyListCard(buffer, item, '主导航', item.key === selectedMenuKey)).join('')}
@@ -5273,7 +5380,8 @@ function renderBrandDetailPage() {
   const assets = state.brandDetail.assets || [];
   const versions = state.brandDetail.versions || [];
   const audit = state.brandDetail.audit || [];
-  const activeTab = getBrandDetailTabConfig(state.brandDetailTab)?.id || 'desktop';
+  const rawActiveTab = String(state.brandDetailTab || '').trim();
+  const activeTab = getBrandDetailTabConfig(rawActiveTab)?.id || 'desktop';
   const activeGroup = getBrandDetailTabGroup(activeTab);
   const app = state.brandDetail.app || null;
   const metrics = metricsFromBrand(brand);
@@ -5361,7 +5469,7 @@ function renderBrandDetailPage() {
         </div>
       </div>
       <div class="fig-page__body fig-page__body--brand-detail">
-        ${renderBrandDetailGuide(activeTab)}
+        ${renderBrandDetailGuide(rawActiveTab || activeTab)}
         <form id="brand-editor-form" class="fig-brand-form">
           <input type="hidden" name="brand_id" value="${fieldValue(buffer.brandId)}" />
           <section class="fig-card fig-brand-meta-editor">
@@ -5396,7 +5504,7 @@ function renderBrandDetailPage() {
               </label>
             </div>
           </section>
-          ${renderBrandEditorBody(buffer, assets, activeTab)}
+          ${renderBrandEditorBody(buffer, assets, rawActiveTab || activeTab)}
         </form>
         <section class="fig-support-grid">
           <article class="fig-card">
@@ -5462,51 +5570,50 @@ function renderBrandDetailPage() {
 }
 
 function renderBrandEditorBody(buffer, assets, activeTab = state.brandDetailTab) {
-  if (activeTab === 'desktop') {
+  const normalizedTab = normalizeBrandDetailTab(activeTab);
+
+  if (normalizedTab === 'desktop') {
     return renderBrandSurfaceEditor(buffer, 'desktop', '桌面端', '维护桌面端主壳层的 OEM 配置。');
   }
 
-  if (activeTab === 'home-web') {
+  if (normalizedTab === 'home-web') {
     return renderBrandSurfaceEditor(buffer, 'home-web', 'Home页', '维护官网 / Home 页的 OEM 配置。');
   }
 
-  if (activeTab === 'welcome') {
+  if (normalizedTab === 'welcome') {
     return renderBrandWelcomeAssembly(buffer);
   }
 
-  if (activeTab === 'header') {
+  if (normalizedTab === 'header') {
     return renderBrandSurfaceEditor(buffer, 'header', 'Header栏', '维护顶部栏的品牌视觉、信息架构和交互配置。');
   }
 
-  if (activeTab === 'sidebar') {
+  if (normalizedTab === 'sidebar') {
     return renderBrandSurfaceEditor(buffer, 'sidebar', '侧边栏', '维护侧边栏容器本身的布局、视觉和交互配置。');
   }
 
-  if (activeTab === 'input') {
+  if (normalizedTab === 'input') {
     return renderBrandInputAssembly(buffer);
   }
 
-  if (activeTab === 'skills') {
+  if (normalizedTab === 'skills') {
     return renderBrandSkillsAssembly(buffer);
   }
 
-  if (activeTab === 'mcps') {
+  if (normalizedTab === 'mcps') {
     return renderBrandMcpAssembly(buffer);
   }
 
-  if (activeTab === 'models') {
+  if (normalizedTab === 'models') {
     return renderBrandModelAssembly(buffer);
   }
 
-  if (activeTab === 'menus') {
-    return renderBrandMenusAssembly(buffer);
+  if (normalizedTab === 'menus') {
+    const preferredMenuKey = MODULE_SURFACE_KEYS.includes(String(activeTab || '').trim()) ? String(activeTab || '').trim() : '';
+    return renderBrandMenusAssembly(buffer, preferredMenuKey);
   }
 
-  if (getSurfaceBlueprint(activeTab)?.kind === 'module') {
-    return renderBrandModuleAssembly(buffer, activeTab);
-  }
-
-  if (activeTab === 'assets') {
+  if (normalizedTab === 'assets') {
     const assetSlots = [
       ['logoMaster', 'Logo', 'logo'],
       ['homeLogo', 'Home Logo', 'logo'],
@@ -5606,7 +5713,7 @@ function renderBrandEditorBody(buffer, assets, activeTab = state.brandDetailTab)
     `;
   }
 
-  if (activeTab === 'theme') {
+  if (normalizedTab === 'theme') {
     return `
       <section class="fig-brand-section">
         <div class="fig-section-heading">
@@ -7441,6 +7548,7 @@ function renderPaymentsPage() {
             <p class="fig-page__description">查看充值订单、来源 OEM app、到账与 webhook 全链路明细</p>
           </div>
           <div class="fig-toolbar fig-toolbar--audit">
+            <button class="ghost-button" type="button" data-action="export-payment-orders">导出 CSV</button>
             <label class="fig-search">
               ${icon('search', 'fig-search__icon')}
               <input class="field-input fig-search__input" data-filter-key="paymentQuery" placeholder="搜索订单号 / user / app / provider order id..." value="${fieldValue(state.filters.paymentQuery)}" />
@@ -7581,6 +7689,28 @@ function renderPaymentsPage() {
                           </label>
                           <div class="fig-release-card__actions">
                             <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>${state.busy ? '提交中…' : '人工确认到账'}</button>
+                          </div>
+                        </form>
+                      </section>
+                    `
+                    : ''
+                }
+                ${
+                  selectedPaymentOrder.status === 'paid'
+                    ? `
+                      <section class="fig-card fig-card--subtle">
+                        <div class="fig-card__head">
+                          <h3>人工退款/冲正</h3>
+                          <span>仅对未消耗完充值余额的订单开放</span>
+                        </div>
+                        <form id="payment-order-refund-form" class="space-y-4">
+                          <input type="hidden" name="order_id" value="${escapeHtml(selectedPaymentOrder.order_id)}" />
+                          <label class="field">
+                            <span>备注</span>
+                            <textarea class="field-textarea" name="note" rows="3" placeholder="例如：用户重复支付，运营人工退款冲正"></textarea>
+                          </label>
+                          <div class="fig-release-card__actions">
+                            <button class="ghost-button" type="submit"${state.busy ? ' disabled' : ''}>${state.busy ? '处理中…' : '人工退款/冲正'}</button>
                           </div>
                         </form>
                       </section>
@@ -8290,6 +8420,15 @@ app.addEventListener('submit', async (event) => {
       })(),
       note: String(data.get('note') || '').trim(),
     });
+    return;
+  }
+
+  if (form.id === 'payment-order-refund-form') {
+    const data = new FormData(form);
+    const orderId = String(data.get('order_id') || '').trim();
+    await refundPaymentOrder(orderId, {
+      note: String(data.get('note') || '').trim(),
+    });
   }
 });
 
@@ -8482,7 +8621,7 @@ app.addEventListener('click', async (event) => {
 
   if (action === 'brand-tab') {
     captureBrandEditorBuffer();
-    state.brandDetailTab = target.getAttribute('data-tab') || 'desktop';
+    state.brandDetailTab = normalizeBrandDetailTab(target.getAttribute('data-tab') || 'desktop');
     render();
     return;
   }
@@ -8491,7 +8630,7 @@ app.addEventListener('click', async (event) => {
     captureBrandEditorBuffer();
     const groupId = target.getAttribute('data-group-id') || '';
     const group = BRAND_DETAIL_TAB_GROUPS.find((item) => item.id === groupId) || BRAND_DETAIL_TAB_GROUPS[0];
-    state.brandDetailTab = group?.tabs[0] || 'desktop';
+    state.brandDetailTab = normalizeBrandDetailTab(group?.tabs[0] || 'desktop');
     render();
     return;
   }
@@ -8745,6 +8884,11 @@ app.addEventListener('click', async (event) => {
 
   if (action === 'refresh-page') {
     await loadAppData();
+    return;
+  }
+
+  if (action === 'export-payment-orders') {
+    exportPaymentOrdersCsv();
     return;
   }
 
