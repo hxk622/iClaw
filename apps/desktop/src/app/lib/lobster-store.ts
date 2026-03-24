@@ -6,6 +6,8 @@ export type LobsterStoreCategory = AgentCatalogEntryData['category'];
 export type LobsterAgent = AgentCatalogEntryData & {
   avatarSrc: string;
   categoryLabel: string;
+  divisionSlug: string | null;
+  divisionLabel: string | null;
   installed: boolean;
   installedAt: string | null;
 };
@@ -118,6 +120,8 @@ export function hydrateLobsterAgents(
       ...item,
       avatarSrc: resolveAvatar(item),
       categoryLabel: CATEGORY_LABELS[item.category] || CATEGORY_LABELS.general,
+      divisionSlug: readMetadataString(item.metadata, 'agency_division'),
+      divisionLabel: readMetadataString(item.metadata, 'agency_division_label'),
       installed: Boolean(installed),
       installedAt: installed?.installed_at || null,
     };

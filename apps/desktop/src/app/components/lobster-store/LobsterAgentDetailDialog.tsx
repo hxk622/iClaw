@@ -41,6 +41,11 @@ export function LobsterAgentDetailDialog({
               <Chip tone="outline" className="px-2.5 py-1 text-[11px]">
                 {agent.categoryLabel}
               </Chip>
+              {agent.divisionLabel ? (
+                <Chip tone="muted" className="px-2.5 py-1 text-[11px]">
+                  {agent.divisionLabel}
+                </Chip>
+              ) : null}
               {agent.featured ? (
                 <Chip tone="accent" className="px-2.5 py-1 text-[11px]">
                   <Sparkles className="h-3.5 w-3.5" />
@@ -87,6 +92,7 @@ export function LobsterAgentDetailDialog({
       <div className="space-y-5">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <InfoTile label="分类" value={agent.categoryLabel} />
+          <InfoTile label="Division" value={agent.divisionLabel || '未标注'} />
           <InfoTile label="安装状态" value={agent.installed ? '已添加' : '未添加'} tone={agent.installed ? 'success' : 'neutral'} />
         </div>
 

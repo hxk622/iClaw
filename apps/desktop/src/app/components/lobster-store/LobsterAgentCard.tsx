@@ -45,6 +45,11 @@ export function LobsterAgentCard({
             <Chip tone="outline" className="px-2.5 py-1 text-[11px]">
               {agent.categoryLabel}
             </Chip>
+            {agent.divisionLabel ? (
+              <Chip tone="muted" className="px-2.5 py-1 text-[11px]">
+                {agent.divisionLabel}
+              </Chip>
+            ) : null}
             {showFeatured ? (
               <Chip tone="accent" leadingIcon={<Sparkles className="h-3 w-3" />} className="px-2.5 py-1 text-[11px]">
                 官方精选

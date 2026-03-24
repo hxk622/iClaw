@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { IClawClient } from '@iclaw/sdk';
-import { AlertCircle, Sparkles } from 'lucide-react';
+import { AlertCircle, Search, Sparkles } from 'lucide-react';
 
 import type { AppUserAvatarSource } from '@/app/lib/user-avatar';
 import { Chip } from '@/app/components/ui/Chip';
@@ -19,6 +19,26 @@ import { LobsterAgentCard } from './LobsterAgentCard';
 import { LobsterAgentDetailDialog } from './LobsterAgentDetailDialog';
 import { LobsterStoreTabs } from './LobsterStoreTabs';
 import { MyLobsterView } from './MyLobsterView';
+
+function matchesLobsterSearch(agent: LobsterAgent, query: string): boolean {
+  if (!query) {
+    return true;
+  }
+
+  const haystack = [
+    agent.name,
+    agent.description,
+    agent.categoryLabel,
+    agent.divisionLabel || '',
+    ...agent.tags,
+    ...agent.capabilities,
+    ...agent.use_cases,
+  ]
+    .join(' ')
+    .toLowerCase();
+
+  return haystack.includes(query);
+}
 
 export function LobsterStoreView({
   client,
@@ -43,6 +63,8 @@ export function LobsterStoreView({
   const [installBusySlug, setInstallBusySlug] = useState<string | null>(null);
   const [removeBusySlug, setRemoveBusySlug] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<'all' | 'featured' | LobsterStoreCategory>('all');
+  const [activeDivision, setActiveDivision] = useState<'all' | string>('all');
+  const [query, setQuery] = useState('');
 
   const refresh = async () => {
     setLoading(true);
@@ -65,21 +87,66 @@ export function LobsterStoreView({
     () => agents.find((agent) => agent.slug === detailSlug) || null,
     [agents, detailSlug],
   );
-  const installedAgents = useMemo(() => agents.filter((agent) => agent.installed), [agents]);
-  const featuredAgents = useMemo(() => agents.filter((agent) => agent.featured), [agents]);
-  const filteredAgents = useMemo(() => {
+  const normalizedQuery = query.trim().toLowerCase();
+  const installedAgents = useMemo(
+    () => agents.filter((agent) => agent.installed && matchesLobsterSearch(agent, normalizedQuery)),
+    [agents, normalizedQuery],
+  );
+  const categoryScopedAgents = useMemo(() => {
     if (activeFilter === 'all') {
       return agents;
     }
     if (activeFilter === 'featured') {
-      return featuredAgents;
+      return agents.filter((agent) => agent.featured);
     }
     return agents.filter((agent) => agent.category === activeFilter);
-  }, [activeFilter, agents, featuredAgents]);
+  }, [activeFilter, agents]);
+  const divisionOptions = useMemo(() => {
+    const groups = new Map<string, {label: string; count: number}>();
+
+    for (const agent of categoryScopedAgents) {
+      if (!agent.divisionSlug || !agent.divisionLabel) {
+        continue;
+      }
+      const current = groups.get(agent.divisionSlug);
+      if (current) {
+        current.count += 1;
+      } else {
+        groups.set(agent.divisionSlug, {
+          label: agent.divisionLabel,
+          count: 1,
+        });
+      }
+    }
+
+    return [...groups.entries()]
+      .map(([id, meta]) => ({id, label: meta.label, count: meta.count}))
+      .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, 'zh-CN'));
+  }, [categoryScopedAgents]);
+  const divisionScopedAgents = useMemo(() => {
+    if (activeDivision === 'all') {
+      return categoryScopedAgents;
+    }
+    return categoryScopedAgents.filter((agent) => agent.divisionSlug === activeDivision);
+  }, [activeDivision, categoryScopedAgents]);
+  const filteredAgents = useMemo(
+    () => divisionScopedAgents.filter((agent) => matchesLobsterSearch(agent, normalizedQuery)),
+    [divisionScopedAgents, normalizedQuery],
+  );
+  const featuredAgents = useMemo(() => filteredAgents.filter((agent) => agent.featured), [filteredAgents]);
   const shelfAgents = useMemo(
     () => (activeFilter === 'all' ? filteredAgents.filter((agent) => !agent.featured) : filteredAgents),
     [activeFilter, filteredAgents],
   );
+
+  useEffect(() => {
+    if (activeDivision === 'all') {
+      return;
+    }
+    if (!divisionOptions.some((division) => division.id === activeDivision)) {
+      setActiveDivision('all');
+    }
+  }, [activeDivision, divisionOptions]);
 
   const filters: Array<{
     id: 'all' | 'featured' | LobsterStoreCategory;
@@ -89,14 +156,14 @@ export function LobsterStoreView({
   }> = useMemo(
     () => [
       { id: 'all', label: '全部', count: agents.length },
-      { id: 'featured', label: '官方精选', count: featuredAgents.length, featured: true },
+      { id: 'featured', label: '官方精选', count: agents.filter((agent) => agent.featured).length, featured: true },
       { id: 'finance', label: '金融研究', count: agents.filter((agent) => agent.category === 'finance').length },
       { id: 'content', label: '内容与品牌', count: agents.filter((agent) => agent.category === 'content').length },
       { id: 'productivity', label: '协同管理', count: agents.filter((agent) => agent.category === 'productivity').length },
       { id: 'commerce', label: '商业增长', count: agents.filter((agent) => agent.category === 'commerce').length },
       { id: 'general', label: '专业助手', count: agents.filter((agent) => agent.category === 'general').length },
     ],
-    [agents, featuredAgents.length],
+    [agents],
   );
 
   const requireAuthBeforeInstall = () => {
@@ -149,6 +216,17 @@ export function LobsterStoreView({
           contentClassName="space-y-1"
           titleClassName="mt-0 text-[24px] font-semibold tracking-[-0.045em] text-[var(--lobster-text-primary)]"
           descriptionClassName="mt-0 text-[12px] leading-5 text-[var(--lobster-text-secondary)]"
+          actions={
+            <label className="relative block w-full min-w-[260px] max-w-[360px]">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--lobster-text-muted)]" />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="搜索助手、能力、场景、division..."
+                className="h-10 w-full rounded-[12px] border border-[var(--lobster-border)] bg-[var(--lobster-card-elevated)] pl-10 pr-4 text-[13px] text-[var(--lobster-text-primary)] outline-none transition placeholder:text-[var(--lobster-text-muted)] focus:border-[var(--lobster-gold-border-strong)] focus:ring-2 focus:ring-[rgba(168,140,93,0.14)]"
+              />
+            </label>
+          }
         />
 
         <div className="mt-3">
@@ -199,6 +277,31 @@ export function LobsterStoreView({
                     </Chip>
                   ))}
                 </div>
+                {divisionOptions.length > 0 ? (
+                  <div className="flex flex-wrap gap-2 border-t border-[var(--lobster-border)] pt-3">
+                    <Chip
+                      clickable
+                      tone={activeDivision === 'all' ? 'accent' : 'outline'}
+                      className="gap-1.5 px-3 py-1.5 text-[12px] font-medium shadow-none"
+                      onClick={() => setActiveDivision('all')}
+                    >
+                      <span>全部 Division</span>
+                      <span className="text-[11px] opacity-75">{categoryScopedAgents.length}</span>
+                    </Chip>
+                    {divisionOptions.map((division) => (
+                      <Chip
+                        key={division.id}
+                        clickable
+                        tone={activeDivision === division.id ? 'accent' : 'outline'}
+                        className="gap-1.5 px-3 py-1.5 text-[12px] font-medium shadow-none"
+                        onClick={() => setActiveDivision(division.id)}
+                      >
+                        <span>{division.label}</span>
+                        <span className="text-[11px] opacity-75">{division.count}</span>
+                      </Chip>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -260,7 +363,7 @@ export function LobsterStoreView({
                 <div>
                   <div className="text-[16px] font-medium text-[var(--lobster-text-primary)]">当前筛选下暂无助手</div>
                   <div className="mt-2 text-[13px] leading-6 text-[var(--lobster-text-secondary)]">
-                    可以切换其它分类，或先查看官方精选。
+                    可以调整搜索词、division 或分类后再试。
                   </div>
                 </div>
               </div>
