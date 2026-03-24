@@ -91,9 +91,10 @@ export function LobsterStoreView({
       { id: 'all', label: '全部', count: agents.length },
       { id: 'featured', label: '官方精选', count: featuredAgents.length, featured: true },
       { id: 'finance', label: '金融研究', count: agents.filter((agent) => agent.category === 'finance').length },
-      { id: 'content', label: '内容增长', count: agents.filter((agent) => agent.category === 'content').length },
-      { id: 'productivity', label: '效率办公', count: agents.filter((agent) => agent.category === 'productivity').length },
-      { id: 'commerce', label: '跨境电商', count: agents.filter((agent) => agent.category === 'commerce').length },
+      { id: 'content', label: '内容与品牌', count: agents.filter((agent) => agent.category === 'content').length },
+      { id: 'productivity', label: '协同管理', count: agents.filter((agent) => agent.category === 'productivity').length },
+      { id: 'commerce', label: '商业增长', count: agents.filter((agent) => agent.category === 'commerce').length },
+      { id: 'general', label: '专业助手', count: agents.filter((agent) => agent.category === 'general').length },
     ],
     [agents, featuredAgents.length],
   );

@@ -29,10 +29,10 @@ const AVATAR_BY_SLUG: Record<string, string> = {
 
 const CATEGORY_LABELS: Record<LobsterStoreCategory, string> = {
   finance: '金融研究',
-  content: '内容增长',
-  productivity: '效率办公',
-  commerce: '跨境电商',
-  general: '通用助手',
+  content: '内容与品牌',
+  productivity: '协同管理',
+  commerce: '商业增长',
+  general: '专业助手',
 };
 
 function readMetadataString(metadata: Record<string, unknown> | null | undefined, key: string): string | null {
@@ -44,8 +44,63 @@ function readMetadataString(metadata: Record<string, unknown> | null | undefined
   return normalized || null;
 }
 
+function encodeSvg(svg: string): string {
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+function semanticAvatarPalette(category: LobsterStoreCategory): {start: string; end: string; badge: string} {
+  switch (category) {
+    case 'finance':
+      return {start: '#1f2937', end: '#8e7650', badge: '#d6c19a'};
+    case 'content':
+      return {start: '#7c2d12', end: '#d97706', badge: '#fde68a'};
+    case 'productivity':
+      return {start: '#0f172a', end: '#2563eb', badge: '#bfdbfe'};
+    case 'commerce':
+      return {start: '#14532d', end: '#0891b2', badge: '#a7f3d0'};
+    default:
+      return {start: '#1f2937', end: '#475569', badge: '#e2e8f0'};
+  }
+}
+
+function semanticAvatarText(name: string): string {
+  const compact = name.replace(/\s+/g, '');
+  return compact.slice(0, compact.length >= 2 ? 2 : 1) || 'AI';
+}
+
+function buildSemanticAvatar(item: AgentCatalogEntryData): string {
+  const emoji = readMetadataString(item.metadata, 'avatar_emoji');
+  const divisionLabel = readMetadataString(item.metadata, 'agency_division_label') || CATEGORY_LABELS[item.category];
+  const palette = semanticAvatarPalette(item.category);
+  const displayText = emoji || semanticAvatarText(item.name);
+  const badgeText = divisionLabel.slice(0, 4);
+
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" fill="none">
+      <defs>
+        <linearGradient id="bg" x1="20" y1="18" x2="142" y2="144" gradientUnits="userSpaceOnUse">
+          <stop stop-color="${palette.start}" />
+          <stop offset="1" stop-color="${palette.end}" />
+        </linearGradient>
+      </defs>
+      <rect width="160" height="160" rx="40" fill="url(#bg)" />
+      <circle cx="80" cy="72" r="38" fill="rgba(255,255,255,0.12)" />
+      <text x="80" y="88" text-anchor="middle" font-size="${emoji ? 42 : 24}" font-family="Apple Color Emoji, Segoe UI Emoji, PingFang SC, sans-serif" fill="#ffffff">${displayText}</text>
+      <rect x="24" y="116" width="112" height="24" rx="12" fill="rgba(255,255,255,0.14)" />
+      <text x="80" y="132" text-anchor="middle" font-size="11" font-family="Inter, PingFang SC, sans-serif" fill="${palette.badge}">${badgeText}</text>
+    </svg>
+  `;
+
+  return encodeSvg(svg);
+}
+
 function resolveAvatar(item: AgentCatalogEntryData): string {
-  return readMetadataString(item.metadata, 'avatar_url') || AVATAR_BY_SLUG[item.slug] || AVATAR_BY_SLUG['summary-expert'];
+  return (
+    readMetadataString(item.metadata, 'avatar_url') ||
+    AVATAR_BY_SLUG[item.slug] ||
+    buildSemanticAvatar(item) ||
+    AVATAR_BY_SLUG['summary-expert']
+  );
 }
 
 function toLibraryIndex(items: UserAgentLibraryItemData[]): Map<string, UserAgentLibraryItemData> {

@@ -1,4 +1,5 @@
 import type {AgentCatalogEntryRecord, SkillCatalogEntryRecord} from './domain.ts';
+import {AGENCY_AGENTS_CATALOG_SEEDS} from './generated/agency-agents-catalog.ts';
 
 export type DefaultCloudSkillSeed = {
   slug: string;
@@ -745,6 +746,7 @@ export const DEFAULT_AGENT_CATALOG_SEEDS: DefaultAgentCatalogSeed[] = [
     sortOrder: 60,
     active: true,
   },
+  ...AGENCY_AGENTS_CATALOG_SEEDS,
   {
     slug: 'a-share-value-hunter',
     name: 'A股价值投资专家',
