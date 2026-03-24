@@ -1,4 +1,4 @@
-import type {PortalAppAssetRecord, PortalAppDetail, PortalJsonObject} from './portal-domain.ts';
+import type {PortalAppAssetRecord, PortalAppDetail, PortalJsonObject, PortalMenuRecord} from './portal-domain.ts';
 import {stripPortalDesktopReleaseConfig} from './portal-desktop-release.ts';
 
 function asObject(value: unknown): PortalJsonObject {
@@ -44,6 +44,7 @@ export function buildPortalPublicConfig(
   detail: PortalAppDetail,
   options: {
     surfaceKey?: string | null;
+    menuCatalog?: PortalMenuRecord[];
     assetUrlResolver?: (asset: PortalAppAssetRecord) => string | null;
   } = {},
 ): {
@@ -75,6 +76,7 @@ export function buildPortalPublicConfig(
   };
   const existingStorage = asObject(existingConfig.storage);
   const resolveAssetUrl = options.assetUrlResolver || (() => null);
+  const menuCatalog = Array.isArray(options.menuCatalog) ? options.menuCatalog : [];
   const surfaceKey = typeof options.surfaceKey === 'string' ? options.surfaceKey.trim() : '';
   const surfaces = asObject(existingConfig.surfaces);
   const surfaceEntry = surfaceKey ? asObject(surfaces[surfaceKey]) : null;
@@ -166,6 +168,16 @@ export function buildPortalPublicConfig(
       ] as const;
     })
     .filter((entry) => Boolean(entry[1].url || entry[1].object_key));
+  const publicMenuCatalog = menuCatalog
+    .filter((item) => item.active)
+    .map((item) => ({
+      menu_key: item.menuKey,
+      display_name: item.displayName,
+      category: item.category,
+      route_key: item.routeKey,
+      icon_key: item.iconKey,
+      metadata: cloneJson(item.metadata),
+    }));
 
   return {
     brand: {
@@ -219,6 +231,7 @@ export function buildPortalPublicConfig(
         config: cloneJson(item.config),
       })),
       menu_bindings: menuBindings,
+      menu_catalog: publicMenuCatalog,
     },
     surfaceKey: surfaceKey || null,
     surfaceConfig: surfaceEntry ? asObject(surfaceEntry.config) : null,

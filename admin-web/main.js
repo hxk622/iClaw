@@ -55,40 +55,6 @@ const SURFACE_BLUEPRINTS = [
   {key: 'task-center', label: '任务中心', icon: 'checkCircle', kind: 'module', menuKey: 'task-center'},
 ];
 const DEFAULT_SURFACE_KEYS = SURFACE_BLUEPRINTS.map((item) => item.key);
-const MENU_LIBRARY = [
-  {key: 'chat', label: '智能对话', category: 'sidebar'},
-  {key: 'cron', label: '定时任务', category: 'sidebar'},
-  {key: 'investment-experts', label: '智能投资专家', category: 'sidebar'},
-  {key: 'lobster-store', label: '龙虾商店', category: 'sidebar'},
-  {key: 'skill-store', label: '技能商店', category: 'sidebar'},
-  {key: 'mcp-store', label: 'MCP商店', category: 'sidebar'},
-  {key: 'memory', label: '记忆管理', category: 'sidebar'},
-  {key: 'data-connections', label: '数据连接', category: 'sidebar'},
-  {key: 'im-bots', label: 'IM机器人', category: 'sidebar'},
-  {key: 'security', label: '安全中心', category: 'sidebar'},
-  {key: 'task-center', label: '任务中心', category: 'sidebar'},
-  {key: 'settings', label: '设置', category: 'sidebar'},
-  {key: 'workspace', label: '工作台', category: 'legacy'},
-  {key: 'skills', label: '技能', category: 'legacy'},
-  {key: 'mcp', label: 'MCP', category: 'legacy'},
-  {key: 'assets', label: '资源', category: 'legacy'},
-  {key: 'models', label: '模型', category: 'legacy'},
-];
-const MENU_ICON_OPTIONS = [
-  ['', '默认图标'],
-  ['chat', '智能对话'],
-  ['cron', '定时任务'],
-  ['investment-experts', '智能投资专家'],
-  ['lobster-store', '龙虾商店'],
-  ['skill-store', '技能商店'],
-  ['mcp-store', 'MCP商店'],
-  ['memory', '记忆管理'],
-  ['data-connections', '数据连接'],
-  ['im-bots', 'IM机器人'],
-  ['security', '安全中心'],
-  ['settings', '设置'],
-  ['task-center', '任务中心'],
-];
 const BRAND_DETAIL_TABS = [
   {id: 'desktop', label: '桌面端', icon: 'monitor'},
   {id: 'home-web', label: 'Home页', icon: 'globe'},
@@ -192,6 +158,7 @@ const state = {
   brandDraftBuffer: null,
   brandDetailTab: 'desktop',
   capabilities: null,
+  menuCatalog: [],
   skillCatalog: [],
   cloudSkillCatalog: [],
   personalSkillCatalog: [],
@@ -463,11 +430,63 @@ function getBrandDetailTabGroup(tabId) {
   return BRAND_DETAIL_TAB_GROUPS.find((group) => group.tabs.includes(tabId)) || BRAND_DETAIL_TAB_GROUPS[0];
 }
 
-function getMenuItemsByCategory(category) {
-  if (!category) {
-    return MENU_LIBRARY;
+function normalizeMenuCatalogItem(item, index = 0) {
+  const raw = asObject(item);
+  const key = String(raw.menuKey || raw.menu_key || raw.key || '').trim();
+  if (!key) return null;
+  return {
+    key,
+    label: String(raw.displayName || raw.display_name || raw.label || titleizeKey(key)).trim() || titleizeKey(key),
+    category: String(raw.category || '').trim() || 'sidebar',
+    routeKey: String(raw.routeKey || raw.route_key || '').trim(),
+    iconKey: String(raw.iconKey || raw.icon_key || '').trim(),
+    metadata: asObject(raw.metadata),
+    active: raw.active !== false,
+    sortOrder: Number(raw.sortOrder || raw.sort_order || (index + 1) * 10) || (index + 1) * 10,
+  };
+}
+
+function getMenuCatalogItems() {
+  return asArray(state.menuCatalog)
+    .map((item, index) => normalizeMenuCatalogItem(item, index))
+    .filter(Boolean);
+}
+
+function getMenuDefinition(menuKey) {
+  const normalized = String(menuKey || '').trim();
+  const match = getMenuCatalogItems().find((item) => item.key === normalized);
+  if (match) return match;
+  if (!normalized) return null;
+  return {
+    key: normalized,
+    label: titleizeKey(normalized),
+    category: 'legacy',
+    routeKey: '',
+    iconKey: '',
+    metadata: {},
+    active: true,
+    sortOrder: 9999,
+  };
+}
+
+function getMenuIconOptions() {
+  const options = [['', '默认图标']];
+  const seen = new Set(['']);
+  for (const item of getMenuCatalogItems()) {
+    const value = String(item.iconKey || item.key || '').trim();
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    options.push([value, item.label]);
   }
-  return MENU_LIBRARY.filter((item) => item.category === category);
+  return options;
+}
+
+function getMenuItemsByCategory(category) {
+  const menuItems = getMenuCatalogItems();
+  if (!category) {
+    return menuItems;
+  }
+  return menuItems.filter((item) => item.category === category);
 }
 
 function statusLabel(status) {
@@ -490,7 +509,7 @@ function statusLabel(status) {
 }
 
 function getMenuLabel(menuKey) {
-  return MENU_LIBRARY.find((item) => item.key === menuKey)?.label || titleizeKey(menuKey);
+  return getMenuDefinition(menuKey)?.label || titleizeKey(menuKey);
 }
 
 function getMenuDisplayNameOverride(source) {
@@ -556,9 +575,10 @@ function buildDefaultMenuOrder(bindings) {
 }
 
 function buildOrderedMenuList(order) {
-  const known = new Set(MENU_LIBRARY.map((item) => item.key));
+  const catalogItems = getMenuCatalogItems();
+  const known = new Set(catalogItems.map((item) => item.key));
   const list = asStringArray(order).filter((key) => known.has(key));
-  for (const item of MENU_LIBRARY) {
+  for (const item of catalogItems) {
     if (!list.includes(item.key)) {
       list.push(item.key);
     }
@@ -674,14 +694,42 @@ function mapAppStatusToBrandStatus(status) {
 }
 
 function mergeMenuBindings(bindings) {
-  const existing = new Map(asArray(bindings).map((item) => [item.menuKey, item]));
-  return MENU_LIBRARY.map((item, index) => ({
+  const existing = new Map(
+    asArray(bindings).map((item) => {
+      const entry = asObject(item);
+      return [
+        String(entry.menuKey || entry.menu_key || '').trim(),
+        {
+          ...entry,
+          menuKey: String(entry.menuKey || entry.menu_key || '').trim(),
+          appName: String(entry.appName || entry.app_name || '').trim(),
+          enabled: entry.enabled !== false,
+          sortOrder: Number(entry.sortOrder || entry.sort_order || 100) || 100,
+          config: asObject(entry.config || entry.config_json),
+        },
+      ];
+    }),
+  );
+  const catalogItems = getMenuCatalogItems();
+  const merged = catalogItems.map((item, index) => ({
     appName: existing.get(item.key)?.appName || '',
     menuKey: item.key,
     enabled: existing.get(item.key)?.enabled ?? false,
     sortOrder: existing.get(item.key)?.sortOrder ?? (index + 1) * 10,
     config: asObject(existing.get(item.key)?.config),
   }));
+  const known = new Set(catalogItems.map((item) => item.key));
+  const extras = Array.from(existing.values())
+    .filter((item) => item.menuKey && !known.has(item.menuKey))
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.menuKey.localeCompare(right.menuKey, 'zh-CN'))
+    .map((item) => ({
+      appName: item.appName || '',
+      menuKey: item.menuKey,
+      enabled: item.enabled ?? false,
+      sortOrder: item.sortOrder ?? 9999,
+      config: asObject(item.config),
+    }));
+  return [...merged, ...extras];
 }
 
 function adaptPortalDetail(detail) {
@@ -1364,7 +1412,7 @@ function captureBrandEditorBuffer() {
   });
   const surfaces = Array.from(surfaceMap.values());
   const menuConfigs = {...asObject(existing.menuConfigs)};
-  for (const item of MENU_LIBRARY) {
+  for (const item of getMenuCatalogItems()) {
     const key = item.key;
     menuConfigs[key] = normalizeMenuDraftConfig({
       ...(asObject(menuConfigs[key])),
@@ -1623,12 +1671,13 @@ async function loadAppData() {
   render();
 
   try {
-    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, modelCatalogData, cloudSkillCatalogData, skillSyncSourcesData, skillSyncRunsData] = await Promise.all([
+    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, modelCatalogData, menuCatalogData, cloudSkillCatalogData, skillSyncSourcesData, skillSyncRunsData] = await Promise.all([
       apiFetch('/admin/portal/apps', {method: 'GET'}),
       apiFetch('/admin/agents/catalog', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/skills', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/mcps', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/models', {method: 'GET'}),
+      apiFetch('/admin/portal/catalog/menus', {method: 'GET'}),
       apiFetch('/admin/skills/catalog', {method: 'GET'}),
       apiFetch('/admin/skills/sync/sources', {method: 'GET'}),
       apiFetch('/admin/skills/sync/runs', {method: 'GET'}),
@@ -1648,6 +1697,9 @@ async function loadAppData() {
     state.cloudSkillCatalog = Array.isArray(cloudSkillCatalogData.items) ? cloudSkillCatalogData.items : [];
     state.mcpCatalog = Array.isArray(mcpCatalogData.items) ? mcpCatalogData.items : [];
     state.modelCatalog = Array.isArray(modelCatalogData.items) ? modelCatalogData.items : [];
+    state.menuCatalog = Array.isArray(menuCatalogData.items)
+      ? menuCatalogData.items.map((item, index) => normalizeMenuCatalogItem(item, index)).filter(Boolean)
+      : [];
     state.skillSyncSources = Array.isArray(skillSyncSourcesData.items) ? skillSyncSourcesData.items : [];
     state.skillSyncRuns = Array.isArray(skillSyncRunsData.items) ? skillSyncRunsData.items : [];
     state.personalSkillCatalog = [];
@@ -1821,7 +1873,7 @@ async function saveBrandEditor(form) {
         method: 'PUT',
         body: JSON.stringify(
           buildOrderedMenuList(snapshot.menuOrder).map((menuKey, index) => {
-            const item = MENU_LIBRARY.find((entry) => entry.key === menuKey) || {key: menuKey};
+            const item = getMenuDefinition(menuKey) || {key: menuKey};
             return {
               menuKey: item.key,
               enabled: snapshot.selectedMenus.includes(item.key),
@@ -1948,7 +2000,7 @@ async function createBrand(formData) {
     await apiFetch(`/admin/portal/apps/${encodeURIComponent(brandId)}/menus`, {
       method: 'PUT',
       body: JSON.stringify(
-        MENU_LIBRARY.map((item, index) => ({
+        getMenuCatalogItems().map((item, index) => ({
           menuKey: item.key,
           enabled: true,
           sortOrder: (index + 1) * 10,
@@ -3308,7 +3360,7 @@ function renderBrandModelAssembly(buffer) {
 function getOrderedMenuItemsByCategory(buffer, category) {
   const order = buildOrderedMenuList(buffer.menuOrder);
   return order
-    .map((key) => MENU_LIBRARY.find((item) => item.key === key))
+    .map((key) => getMenuDefinition(key))
     .filter((item) => item && item.category === category);
 }
 
@@ -3349,7 +3401,7 @@ function renderMenuToggleCard(buffer, item, note) {
           <label class="field fig-inline-field">
             <span>图标</span>
             <select class="field-select" name="menu_icon__${escapeHtml(item.key)}">
-              ${MENU_ICON_OPTIONS.map(
+              ${getMenuIconOptions().map(
                 ([value, label]) =>
                   `<option value="${escapeHtml(value)}"${menuConfig.iconKey === value ? ' selected' : ''}>${escapeHtml(label)}</option>`,
               ).join('')}
@@ -3398,7 +3450,7 @@ function renderMenuToggleCard(buffer, item, note) {
         <button class="ghost-button fig-icon-button" type="button" data-action="move-brand-menu-up" data-menu-key="${escapeHtml(item.key)}"${index <= 0 ? ' disabled' : ''}>
           ${icon('chevronUp', 'button-icon')}
         </button>
-        <button class="ghost-button fig-icon-button" type="button" data-action="move-brand-menu-down" data-menu-key="${escapeHtml(item.key)}"${index < 0 || index >= MENU_LIBRARY.length - 1 ? ' disabled' : ''}>
+        <button class="ghost-button fig-icon-button" type="button" data-action="move-brand-menu-down" data-menu-key="${escapeHtml(item.key)}"${index < 0 || index >= buildOrderedMenuList(buffer.menuOrder).length - 1 ? ' disabled' : ''}>
           ${icon('chevronDown', 'button-icon')}
         </button>
         ${renderSwitch({
@@ -3447,7 +3499,7 @@ function renderBrandMenusAssembly(buffer) {
 
 function renderBrandModuleAssembly(buffer, surfaceKey) {
   const blueprint = getSurfaceBlueprint(surfaceKey);
-  const menuItem = MENU_LIBRARY.find((item) => item.key === blueprint?.menuKey) || null;
+  const menuItem = getMenuDefinition(blueprint?.menuKey) || null;
   const enabled = menuItem ? buffer.selectedMenus.includes(menuItem.key) : true;
   const surface = getBrandSurfaceDraft(buffer, surfaceKey);
   return `

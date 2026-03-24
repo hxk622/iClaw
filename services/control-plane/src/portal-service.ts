@@ -29,6 +29,7 @@ import type {
   ReplacePortalAppSkillBindingsInput,
   UpsertPortalAppInput,
   UpsertPortalModelInput,
+  UpsertPortalMenuInput,
   UpsertPortalMcpInput,
   UpsertPortalSkillInput,
 } from './portal-domain.ts';
@@ -128,6 +129,14 @@ function normalizeModelRef(value: unknown): string {
   return normalized;
 }
 
+function normalizeMenuKey(value: unknown): string {
+  const normalized = normalizeRequiredString(value, 'menu_key').toLowerCase();
+  if (!/^[a-z0-9][a-z0-9-]{1,62}$/.test(normalized)) {
+    throw new HttpError(400, 'BAD_REQUEST', 'menu_key must be 2-63 chars and use lowercase letters, numbers, hyphen');
+  }
+  return normalized;
+}
+
 function normalizeStatus(value: unknown, fallback: PortalAppStatus = 'active'): PortalAppStatus {
   if (value === undefined || value === null) return fallback;
   if (value === 'active' || value === 'disabled') return value;
@@ -192,6 +201,24 @@ export class PortalService {
   async listSkills(accessToken: string) {
     await this.requireAdmin(accessToken);
     return {items: await this.store.listSkills()};
+  }
+
+  async listMenus(accessToken: string) {
+    await this.requireAdmin(accessToken);
+    return {items: await this.store.listMenus()};
+  }
+
+  async upsertMenu(accessToken: string, input: UpsertPortalMenuInput) {
+    await this.requireAdmin(accessToken);
+    return this.store.upsertMenu({
+      menuKey: normalizeMenuKey(input.menuKey),
+      displayName: normalizeRequiredString(input.displayName, 'display_name'),
+      category: normalizeOptionalString(input.category, 'category'),
+      routeKey: normalizeOptionalString(input.routeKey, 'route_key'),
+      iconKey: normalizeOptionalString(input.iconKey, 'icon_key'),
+      metadata: asObject(input.metadata),
+      active: normalizeOptionalBoolean(input.active, 'active', true),
+    });
   }
 
   async upsertSkill(accessToken: string, input: UpsertPortalSkillInput) {
@@ -720,8 +747,10 @@ export class PortalService {
     if (!detail) {
       throw new HttpError(404, 'NOT_FOUND', 'portal app not found');
     }
+    const menus = await this.store.listMenus();
     return buildPortalPublicConfig(detail, {
       surfaceKey: normalizeOptionalString(input.surfaceKey, 'surface_key'),
+      menuCatalog: menus,
       assetUrlResolver: (asset) =>
         asset.publicUrl || `${baseUrl.replace(/\/$/, '')}/portal/asset/file?app_name=${encodeURIComponent(appName)}&asset_key=${encodeURIComponent(asset.assetKey)}`,
     });

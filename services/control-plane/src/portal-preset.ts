@@ -22,6 +22,7 @@ export async function syncPortalPresetManifest(
     skills: manifest.skills || [],
     mcps: manifest.mcps || [],
     models: manifest.models || [],
+    menus: manifest.menus || [],
     skillBindings: manifest.bindings?.skills || [],
     mcpBindings: manifest.bindings?.mcps || [],
     modelBindings: manifest.bindings?.models || [],

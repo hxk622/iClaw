@@ -34,7 +34,13 @@ import {HttpError} from './errors.ts';
 import {createJsonServer, createRawResponse, type HandlerContext} from './http.ts';
 import {PgOemStore} from './oem-store.ts';
 import {OemService} from './oem-service.ts';
-import type {UpsertPortalAppInput, UpsertPortalModelInput, UpsertPortalMcpInput, UpsertPortalSkillInput} from './portal-domain.ts';
+import type {
+  UpsertPortalAppInput,
+  UpsertPortalMenuInput,
+  UpsertPortalModelInput,
+  UpsertPortalMcpInput,
+  UpsertPortalSkillInput,
+} from './portal-domain.ts';
 import {PgPortalStore} from './portal-store.ts';
 import {PortalService} from './portal-service.ts';
 import {ensureControlPlaneSchema, PgControlPlaneStore} from './pg-store.ts';
@@ -973,6 +979,11 @@ const server = createJsonServer([
     handler: ({headers}: HandlerContext) => portalService.listSkills(requireBearerToken(headers)),
   },
   {
+    method: 'GET',
+    path: '/admin/portal/catalog/menus',
+    handler: ({headers}: HandlerContext) => portalService.listMenus(requireBearerToken(headers)),
+  },
+  {
     method: 'PUT',
     path: '/admin/portal/catalog/skills/:slug',
     handler: ({headers, params, body}: HandlerContext) =>
@@ -980,6 +991,15 @@ const server = createJsonServer([
         ...((body || {}) as Record<string, unknown>),
         slug: params.slug || '',
       } as UpsertPortalSkillInput),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/portal/catalog/menus/:menuKey',
+    handler: ({headers, params, body}: HandlerContext) =>
+      portalService.upsertMenu(requireBearerToken(headers), {
+        ...((body || {}) as Record<string, unknown>),
+        menuKey: params.menuKey || '',
+      } as UpsertPortalMenuInput),
   },
   {
     method: 'DELETE',

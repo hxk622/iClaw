@@ -14,6 +14,7 @@ import type {
   PortalAppSkillBindingRecord,
   PortalJsonObject,
   PortalModelRecord,
+  PortalMenuRecord,
   PortalMcpRecord,
   PortalSkillRecord,
   ReplacePortalAppModelBindingsInput,
@@ -22,6 +23,7 @@ import type {
   ReplacePortalAppSkillBindingsInput,
   UpsertPortalAppInput,
   UpsertPortalModelInput,
+  UpsertPortalMenuInput,
   UpsertPortalMcpInput,
   UpsertPortalSkillInput,
 } from './portal-domain.ts';
@@ -78,6 +80,18 @@ type PortalModelRow = {
   input_json: unknown[] | null;
   context_window: number;
   max_tokens: number;
+  metadata_json: Record<string, unknown> | null;
+  active: boolean;
+  created_at: Date;
+  updated_at: Date;
+};
+
+type PortalMenuRow = {
+  menu_key: string;
+  display_name: string;
+  category: string | null;
+  route_key: string | null;
+  icon_key: string | null;
   metadata_json: Record<string, unknown> | null;
   active: boolean;
   created_at: Date;
@@ -255,6 +269,20 @@ function mapModelRow(row: PortalModelRow): PortalModelRecord {
     input: asStringArray(row.input_json),
     contextWindow: row.context_window || 0,
     maxTokens: row.max_tokens || 0,
+    metadata: asJsonObject(row.metadata_json),
+    active: row.active,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapMenuRow(row: PortalMenuRow): PortalMenuRecord {
+  return {
+    menuKey: row.menu_key,
+    displayName: row.display_name,
+    category: row.category,
+    routeKey: row.route_key,
+    iconKey: row.icon_key,
     metadata: asJsonObject(row.metadata_json),
     active: row.active,
     createdAt: row.created_at.toISOString(),
@@ -978,6 +1006,96 @@ export class PgPortalStore {
     return result.rows.map(mapSkillRow);
   }
 
+  async listMenus(): Promise<PortalMenuRecord[]> {
+    const result = await this.pool.query<PortalMenuRow>(
+      `
+        select
+          menu_key,
+          display_name,
+          category,
+          route_key,
+          icon_key,
+          metadata_json,
+          active,
+          created_at,
+          updated_at
+        from oem_menu_catalog
+        order by category asc nulls last, menu_key asc
+      `,
+    );
+    return result.rows.map(mapMenuRow);
+  }
+
+  async getMenu(menuKey: string): Promise<PortalMenuRecord | null> {
+    const result = await this.pool.query<PortalMenuRow>(
+      `
+        select
+          menu_key,
+          display_name,
+          category,
+          route_key,
+          icon_key,
+          metadata_json,
+          active,
+          created_at,
+          updated_at
+        from oem_menu_catalog
+        where menu_key = $1
+        limit 1
+      `,
+      [menuKey],
+    );
+    return result.rows[0] ? mapMenuRow(result.rows[0]) : null;
+  }
+
+  async upsertMenu(input: UpsertPortalMenuInput): Promise<PortalMenuRecord> {
+    const result = await this.pool.query<PortalMenuRow>(
+      `
+        insert into oem_menu_catalog (
+          menu_key,
+          display_name,
+          category,
+          route_key,
+          icon_key,
+          metadata_json,
+          active,
+          created_at,
+          updated_at
+        )
+        values ($1, $2, $3, $4, $5, $6::jsonb, $7, now(), now())
+        on conflict (menu_key)
+        do update set
+          display_name = excluded.display_name,
+          category = excluded.category,
+          route_key = excluded.route_key,
+          icon_key = excluded.icon_key,
+          metadata_json = excluded.metadata_json,
+          active = excluded.active,
+          updated_at = now()
+        returning
+          menu_key,
+          display_name,
+          category,
+          route_key,
+          icon_key,
+          metadata_json,
+          active,
+          created_at,
+          updated_at
+      `,
+      [
+        input.menuKey,
+        input.displayName,
+        input.category || null,
+        input.routeKey || null,
+        input.iconKey || null,
+        JSON.stringify(input.metadata || {}),
+        input.active ?? true,
+      ],
+    );
+    return mapMenuRow(result.rows[0]);
+  }
+
   async getSkill(slug: string): Promise<PortalSkillRecord | null> {
     const result = await this.pool.query<PortalSkillRow>(
       `
@@ -1385,6 +1503,7 @@ export class PgPortalStore {
     skills: UpsertPortalSkillInput[];
     mcps: UpsertPortalMcpInput[];
     models?: UpsertPortalModelInput[];
+    menus?: UpsertPortalMenuInput[];
     skillBindings: Array<{appName: string; items: ReplacePortalAppSkillBindingsInput}>;
     mcpBindings: Array<{appName: string; items: ReplacePortalAppMcpBindingsInput}>;
     modelBindings?: Array<{appName: string; items: ReplacePortalAppModelBindingsInput}>;
@@ -1567,6 +1686,43 @@ export class PgPortalStore {
             model.maxTokens || 0,
             JSON.stringify(model.metadata || {}),
             model.active ?? true,
+          ],
+        );
+      }
+
+      for (const menu of input.menus || []) {
+        await client.query(
+          `
+            insert into oem_menu_catalog (
+              menu_key,
+              display_name,
+              category,
+              route_key,
+              icon_key,
+              metadata_json,
+              active,
+              created_at,
+              updated_at
+            )
+            values ($1, $2, $3, $4, $5, $6::jsonb, $7, now(), now())
+            on conflict (menu_key)
+            do update set
+              display_name = excluded.display_name,
+              category = excluded.category,
+              route_key = excluded.route_key,
+              icon_key = excluded.icon_key,
+              metadata_json = excluded.metadata_json,
+              active = excluded.active,
+              updated_at = now()
+          `,
+          [
+            menu.menuKey,
+            menu.displayName,
+            menu.category || null,
+            menu.routeKey || null,
+            menu.iconKey || null,
+            JSON.stringify(menu.metadata || {}),
+            menu.active ?? true,
           ],
         );
       }

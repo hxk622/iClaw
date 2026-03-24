@@ -81,6 +81,28 @@ function normalizeMenuKeys(keys: string[]): string[] {
   return normalized;
 }
 
+function resolveMenuCatalogUiDefaults(
+  root: Record<string, unknown>,
+): Record<string, ResolvedMenuUiConfig> {
+  const catalog = asArray(root.menu_catalog);
+  const entries: Record<string, ResolvedMenuUiConfig> = {};
+  for (const entry of catalog) {
+    const item = asObject(entry);
+    const metadata = asObject(item.metadata);
+    const key = String(item.menu_key ?? item.menuKey ?? '').trim();
+    if (!key) continue;
+    const displayName = String(item.display_name || item.displayName || '').trim();
+    const group = String(metadata.group_label || metadata.groupLabel || metadata.group || item.group || '').trim();
+    const iconKey = String(item.icon_key || item.iconKey || '').trim();
+    entries[key] = {
+      ...(displayName ? {displayName} : {}),
+      ...(group ? {group} : {}),
+      ...(iconKey ? {iconKey} : {}),
+    };
+  }
+  return entries;
+}
+
 function resolveEnabledSkillSlugs(root: Record<string, unknown>): Set<string> {
   const skillBindings = asArray(root.skill_bindings);
   const bound = skillBindings
@@ -264,11 +286,11 @@ export function resolveMenuDisplayNames(config: Record<string, unknown> | null |
 export function resolveMenuUiConfig(config: Record<string, unknown> | null | undefined): Record<string, ResolvedMenuUiConfig> | null {
   const root = asObject(config);
   const menuBindings = asArray(root.menu_bindings);
-  if (!menuBindings.length) {
+  const entries: Record<string, ResolvedMenuUiConfig> = resolveMenuCatalogUiDefaults(root);
+  if (!menuBindings.length && Object.keys(entries).length === 0) {
     return null;
   }
 
-  const entries: Record<string, ResolvedMenuUiConfig> = {};
   for (const entry of menuBindings) {
     const item = asObject(entry);
     const config = asObject(item.config);

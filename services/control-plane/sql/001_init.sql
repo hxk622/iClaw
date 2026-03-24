@@ -426,6 +426,18 @@ create table if not exists oem_model_catalog (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists oem_menu_catalog (
+  menu_key text primary key,
+  display_name text not null,
+  category text,
+  route_key text,
+  icon_key text,
+  metadata_json jsonb not null default '{}'::jsonb,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists oem_app_skill_bindings (
   app_name text not null references oem_apps(app_name) on delete cascade,
   skill_slug text not null references oem_skill_catalog(slug) on delete cascade,
@@ -1464,6 +1476,8 @@ create index if not exists idx_oem_app_model_bindings_app_sort
   on oem_app_model_bindings(app_name, sort_order, model_ref);
 create index if not exists idx_oem_app_menu_bindings_app_sort
   on oem_app_menu_bindings(app_name, sort_order, menu_key);
+create index if not exists idx_oem_menu_catalog_category_key
+  on oem_menu_catalog(category, menu_key);
 create index if not exists idx_oem_app_assets_app_updated
   on oem_app_assets(app_name, updated_at desc, asset_key);
 create index if not exists idx_oem_app_releases_app_published

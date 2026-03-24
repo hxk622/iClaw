@@ -60,6 +60,18 @@ export type PortalModelRecord = {
   updatedAt: string;
 };
 
+export type PortalMenuRecord = {
+  menuKey: string;
+  displayName: string;
+  category: string | null;
+  routeKey: string | null;
+  iconKey: string | null;
+  active: boolean;
+  metadata: PortalJsonObject;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type PortalAppSkillBindingRecord = {
   appName: string;
   skillSlug: string;
@@ -205,6 +217,16 @@ export type UpsertPortalModelInput = {
   active?: boolean;
 };
 
+export type UpsertPortalMenuInput = {
+  menuKey: string;
+  displayName: string;
+  category?: string | null;
+  routeKey?: string | null;
+  iconKey?: string | null;
+  metadata?: PortalJsonObject;
+  active?: boolean;
+};
+
 export type ReplacePortalAppSkillBindingsInput = Array<{
   skillSlug: string;
   enabled?: boolean;
@@ -241,6 +263,7 @@ export type PortalPresetManifest = {
   skills: UpsertPortalSkillInput[];
   mcps: UpsertPortalMcpInput[];
   models?: UpsertPortalModelInput[];
+  menus?: UpsertPortalMenuInput[];
   assets?: Array<{
     appName: string;
     assetKey: string;
