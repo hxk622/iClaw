@@ -23,6 +23,8 @@ import type {
   PortalAppRecord,
   PortalAppStatus,
   PortalJsonObject,
+  ReplacePortalAppComposerControlBindingsInput,
+  ReplacePortalAppComposerShortcutBindingsInput,
   ReplacePortalAppModelBindingsInput,
   ReplacePortalAppMcpBindingsInput,
   ReplacePortalAppMenuBindingsInput,
@@ -206,6 +208,16 @@ export class PortalService {
   async listMenus(accessToken: string) {
     await this.requireAdmin(accessToken);
     return {items: await this.store.listMenus()};
+  }
+
+  async listComposerControls(accessToken: string) {
+    await this.requireAdmin(accessToken);
+    return {items: await this.store.listComposerControls()};
+  }
+
+  async listComposerShortcuts(accessToken: string) {
+    await this.requireAdmin(accessToken);
+    return {items: await this.store.listComposerShortcuts()};
   }
 
   async upsertMenu(accessToken: string, input: UpsertPortalMenuInput) {
@@ -417,6 +429,44 @@ export class PortalService {
       };
     });
     return {items: await this.store.replaceAppMenuBindings(appName, items, actor.id)};
+  }
+
+  async replaceAppComposerControls(
+    accessToken: string,
+    appNameInput: string,
+    itemsInput: ReplacePortalAppComposerControlBindingsInput,
+  ) {
+    const actor = await this.requireAdmin(accessToken);
+    const appName = normalizeAppName(appNameInput);
+    const items = asArray(itemsInput).map((item, index) => {
+      const value = asObject(item);
+      return {
+        controlKey: normalizeRequiredString(value.controlKey, 'controlKey'),
+        enabled: normalizeOptionalBoolean(value.enabled, 'enabled', true),
+        sortOrder: normalizeOptionalInteger(value.sortOrder, 'sortOrder', (index + 1) * 10),
+        config: normalizeBindingConfig(value.config),
+      };
+    });
+    return {items: await this.store.replaceAppComposerControlBindings(appName, items, actor.id)};
+  }
+
+  async replaceAppComposerShortcuts(
+    accessToken: string,
+    appNameInput: string,
+    itemsInput: ReplacePortalAppComposerShortcutBindingsInput,
+  ) {
+    const actor = await this.requireAdmin(accessToken);
+    const appName = normalizeAppName(appNameInput);
+    const items = asArray(itemsInput).map((item, index) => {
+      const value = asObject(item);
+      return {
+        shortcutKey: normalizeRequiredString(value.shortcutKey, 'shortcutKey'),
+        enabled: normalizeOptionalBoolean(value.enabled, 'enabled', true),
+        sortOrder: normalizeOptionalInteger(value.sortOrder, 'sortOrder', (index + 1) * 10),
+        config: normalizeBindingConfig(value.config),
+      };
+    });
+    return {items: await this.store.replaceAppComposerShortcutBindings(appName, items, actor.id)};
   }
 
   async uploadAsset(
@@ -747,10 +797,16 @@ export class PortalService {
     if (!detail) {
       throw new HttpError(404, 'NOT_FOUND', 'portal app not found');
     }
-    const menus = await this.store.listMenus();
+    const [menus, composerControls, composerShortcuts] = await Promise.all([
+      this.store.listMenus(),
+      this.store.listComposerControls(),
+      this.store.listComposerShortcuts(),
+    ]);
     return buildPortalPublicConfig(detail, {
       surfaceKey: normalizeOptionalString(input.surfaceKey, 'surface_key'),
       menuCatalog: menus,
+      composerControlCatalog: composerControls,
+      composerShortcutCatalog: composerShortcuts,
       assetUrlResolver: (asset) =>
         asset.publicUrl || `${baseUrl.replace(/\/$/, '')}/portal/asset/file?app_name=${encodeURIComponent(appName)}&asset_key=${encodeURIComponent(asset.assetKey)}`,
     });

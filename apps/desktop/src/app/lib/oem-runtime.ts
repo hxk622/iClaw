@@ -12,6 +12,40 @@ export type ResolvedMenuUiConfig = {
   iconKey?: string;
 };
 
+export type ResolvedComposerControlOption = {
+  value: string;
+  label: string;
+  description: string;
+};
+
+export type ResolvedComposerControlConfig = {
+  controlKey: string;
+  displayName: string;
+  controlType: string;
+  iconKey: string | null;
+  sortOrder: number;
+  options: ResolvedComposerControlOption[];
+  metadata: Record<string, unknown>;
+  config: Record<string, unknown>;
+};
+
+export type ResolvedComposerShortcutConfig = {
+  shortcutKey: string;
+  displayName: string;
+  description: string;
+  template: string;
+  iconKey: string | null;
+  tone: string | null;
+  sortOrder: number;
+  metadata: Record<string, unknown>;
+  config: Record<string, unknown>;
+};
+
+export type ResolvedInputComposerConfig = {
+  topBarControls: ResolvedComposerControlConfig[];
+  footerShortcuts: ResolvedComposerShortcutConfig[];
+};
+
 type PublicBrandConfigResponse = {
   success?: boolean;
   data?: {
@@ -309,6 +343,68 @@ export function resolveMenuUiConfig(config: Record<string, unknown> | null | und
   }
 
   return Object.keys(entries).length ? entries : null;
+}
+
+export function resolveInputComposerConfig(
+  config: Record<string, unknown> | null | undefined,
+): ResolvedInputComposerConfig | null {
+  const root = asObject(config);
+  const inputConfig = asObject(asObject(asObject(root.surfaces).input).config);
+  const topBarControls = asArray(inputConfig.top_bar_controls)
+    .map((item) => {
+      const entry = asObject(item);
+      const controlKey = String(entry.control_key ?? entry.controlKey ?? '').trim();
+      if (!controlKey) return null;
+      return {
+        controlKey,
+        displayName: String(entry.display_name || entry.displayName || '').trim() || controlKey,
+        controlType: String(entry.control_type || entry.controlType || 'static').trim() || 'static',
+        iconKey: String(entry.icon_key || entry.iconKey || '').trim() || null,
+        sortOrder: Number(entry.sort_order || entry.sortOrder || 100) || 100,
+        metadata: asObject(entry.metadata),
+        config: asObject(entry.config),
+        options: asArray(entry.options)
+          .map((option) => {
+            const rawOption = asObject(option);
+            const value = String(rawOption.option_value ?? rawOption.optionValue ?? rawOption.value ?? '').trim();
+            if (!value) return null;
+            return {
+              value,
+              label: String(rawOption.label || value).trim() || value,
+              description: String(rawOption.description || rawOption.detail || '').trim(),
+            };
+          })
+          .filter((option): option is ResolvedComposerControlOption => Boolean(option)),
+      };
+    })
+    .filter((item): item is ResolvedComposerControlConfig => Boolean(item))
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.controlKey.localeCompare(right.controlKey, 'zh-CN'));
+  const footerShortcuts = asArray(inputConfig.footer_shortcuts)
+    .map((item) => {
+      const entry = asObject(item);
+      const shortcutKey = String(entry.shortcut_key ?? entry.shortcutKey ?? '').trim();
+      if (!shortcutKey) return null;
+      return {
+        shortcutKey,
+        displayName: String(entry.display_name || entry.displayName || '').trim() || shortcutKey,
+        description: String(entry.description || '').trim(),
+        template: String(entry.template || entry.template_text || '').trim(),
+        iconKey: String(entry.icon_key || entry.iconKey || '').trim() || null,
+        tone: String(entry.tone || '').trim() || null,
+        sortOrder: Number(entry.sort_order || entry.sortOrder || 100) || 100,
+        metadata: asObject(entry.metadata),
+        config: asObject(entry.config),
+      };
+    })
+    .filter((item): item is ResolvedComposerShortcutConfig => Boolean(item))
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.shortcutKey.localeCompare(right.shortcutKey, 'zh-CN'));
+  if (!topBarControls.length && !footerShortcuts.length) {
+    return null;
+  }
+  return {
+    topBarControls,
+    footerShortcuts,
+  };
 }
 
 export async function syncPublishedBrandRuntimeSnapshot(input: {

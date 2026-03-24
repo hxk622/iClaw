@@ -72,6 +72,43 @@ export type PortalMenuRecord = {
   updatedAt: string;
 };
 
+export type PortalComposerControlOptionRecord = {
+  controlKey: string;
+  optionValue: string;
+  label: string;
+  description: string;
+  sortOrder: number;
+  metadata: PortalJsonObject;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PortalComposerControlRecord = {
+  controlKey: string;
+  displayName: string;
+  controlType: string;
+  iconKey: string | null;
+  metadata: PortalJsonObject;
+  active: boolean;
+  options: PortalComposerControlOptionRecord[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PortalComposerShortcutRecord = {
+  shortcutKey: string;
+  displayName: string;
+  description: string;
+  template: string;
+  iconKey: string | null;
+  tone: string | null;
+  metadata: PortalJsonObject;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type PortalAppSkillBindingRecord = {
   appName: string;
   skillSlug: string;
@@ -100,6 +137,22 @@ export type PortalAppModelBindingRecord = {
 export type PortalAppMenuBindingRecord = {
   appName: string;
   menuKey: string;
+  enabled: boolean;
+  sortOrder: number;
+  config: PortalJsonObject;
+};
+
+export type PortalAppComposerControlBindingRecord = {
+  appName: string;
+  controlKey: string;
+  enabled: boolean;
+  sortOrder: number;
+  config: PortalJsonObject;
+};
+
+export type PortalAppComposerShortcutBindingRecord = {
+  appName: string;
+  shortcutKey: string;
   enabled: boolean;
   sortOrder: number;
   config: PortalJsonObject;
@@ -159,6 +212,8 @@ export type PortalAppDetail = {
   mcpBindings: PortalAppMcpBindingRecord[];
   modelBindings: PortalAppModelBindingRecord[];
   menuBindings: PortalAppMenuBindingRecord[];
+  composerControlBindings: PortalAppComposerControlBindingRecord[];
+  composerShortcutBindings: PortalAppComposerShortcutBindingRecord[];
   assets: PortalAppAssetRecord[];
   releases: PortalAppReleaseRecord[];
   audit: PortalAppAuditRecord[];
@@ -227,6 +282,34 @@ export type UpsertPortalMenuInput = {
   active?: boolean;
 };
 
+export type UpsertPortalComposerControlInput = {
+  controlKey: string;
+  displayName: string;
+  controlType: string;
+  iconKey?: string | null;
+  metadata?: PortalJsonObject;
+  active?: boolean;
+  options?: Array<{
+    optionValue: string;
+    label: string;
+    description?: string | null;
+    sortOrder?: number;
+    metadata?: PortalJsonObject;
+    active?: boolean;
+  }>;
+};
+
+export type UpsertPortalComposerShortcutInput = {
+  shortcutKey: string;
+  displayName: string;
+  description?: string | null;
+  template: string;
+  iconKey?: string | null;
+  tone?: string | null;
+  metadata?: PortalJsonObject;
+  active?: boolean;
+};
+
 export type ReplacePortalAppSkillBindingsInput = Array<{
   skillSlug: string;
   enabled?: boolean;
@@ -257,6 +340,20 @@ export type ReplacePortalAppMenuBindingsInput = Array<{
   config?: PortalJsonObject;
 }>;
 
+export type ReplacePortalAppComposerControlBindingsInput = Array<{
+  controlKey: string;
+  enabled?: boolean;
+  sortOrder?: number;
+  config?: PortalJsonObject;
+}>;
+
+export type ReplacePortalAppComposerShortcutBindingsInput = Array<{
+  shortcutKey: string;
+  enabled?: boolean;
+  sortOrder?: number;
+  config?: PortalJsonObject;
+}>;
+
 export type PortalPresetManifest = {
   schemaVersion: number;
   apps: UpsertPortalAppInput[];
@@ -264,6 +361,8 @@ export type PortalPresetManifest = {
   mcps: UpsertPortalMcpInput[];
   models?: UpsertPortalModelInput[];
   menus?: UpsertPortalMenuInput[];
+  composerControls?: UpsertPortalComposerControlInput[];
+  composerShortcuts?: UpsertPortalComposerShortcutInput[];
   assets?: Array<{
     appName: string;
     assetKey: string;
@@ -276,5 +375,7 @@ export type PortalPresetManifest = {
     mcps: Array<{appName: string; items: ReplacePortalAppMcpBindingsInput}>;
     models?: Array<{appName: string; items: ReplacePortalAppModelBindingsInput}>;
     menus: Array<{appName: string; items: ReplacePortalAppMenuBindingsInput}>;
+    composerControls?: Array<{appName: string; items: ReplacePortalAppComposerControlBindingsInput}>;
+    composerShortcuts?: Array<{appName: string; items: ReplacePortalAppComposerShortcutBindingsInput}>;
   };
 };

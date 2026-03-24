@@ -159,6 +159,8 @@ const state = {
   brandDetailTab: 'desktop',
   capabilities: null,
   menuCatalog: [],
+  composerControlCatalog: [],
+  composerShortcutCatalog: [],
   skillCatalog: [],
   cloudSkillCatalog: [],
   personalSkillCatalog: [],
@@ -498,6 +500,252 @@ function getMenuIconOptions() {
   return options;
 }
 
+function normalizeComposerControlOption(item, index = 0) {
+  const raw = asObject(item);
+  const optionValue = String(raw.optionValue || raw.option_value || raw.value || '').trim();
+  if (!optionValue) return null;
+  return {
+    optionValue,
+    label: String(raw.label || titleizeKey(optionValue)).trim() || titleizeKey(optionValue),
+    description: String(raw.description || raw.detail || '').trim(),
+    sortOrder: Number(raw.sortOrder || raw.sort_order || (index + 1) * 10) || (index + 1) * 10,
+    metadata: asObject(raw.metadata),
+    active: raw.active !== false,
+  };
+}
+
+function normalizeComposerControlCatalogItem(item, index = 0) {
+  const raw = asObject(item);
+  const controlKey = String(raw.controlKey || raw.control_key || '').trim();
+  if (!controlKey) return null;
+  return {
+    controlKey,
+    displayName: String(raw.displayName || raw.display_name || titleizeKey(controlKey)).trim() || titleizeKey(controlKey),
+    controlType: String(raw.controlType || raw.control_type || 'static').trim() || 'static',
+    iconKey: String(raw.iconKey || raw.icon_key || '').trim(),
+    metadata: asObject(raw.metadata),
+    active: raw.active !== false,
+    sortOrder: Number(raw.sortOrder || raw.sort_order || (index + 1) * 10) || (index + 1) * 10,
+    options: asArray(raw.options).map((option, optionIndex) => normalizeComposerControlOption(option, optionIndex)).filter(Boolean),
+  };
+}
+
+function normalizeComposerShortcutCatalogItem(item, index = 0) {
+  const raw = asObject(item);
+  const shortcutKey = String(raw.shortcutKey || raw.shortcut_key || '').trim();
+  if (!shortcutKey) return null;
+  return {
+    shortcutKey,
+    displayName: String(raw.displayName || raw.display_name || titleizeKey(shortcutKey)).trim() || titleizeKey(shortcutKey),
+    description: String(raw.description || '').trim(),
+    template: String(raw.template || raw.template_text || '').trim(),
+    iconKey: String(raw.iconKey || raw.icon_key || '').trim(),
+    tone: String(raw.tone || '').trim(),
+    metadata: asObject(raw.metadata),
+    active: raw.active !== false,
+    sortOrder: Number(raw.sortOrder || raw.sort_order || (index + 1) * 10) || (index + 1) * 10,
+  };
+}
+
+function getComposerControlCatalogItems() {
+  return asArray(state.composerControlCatalog)
+    .map((item, index) => normalizeComposerControlCatalogItem(item, index))
+    .filter(Boolean);
+}
+
+function getComposerShortcutCatalogItems() {
+  return asArray(state.composerShortcutCatalog)
+    .map((item, index) => normalizeComposerShortcutCatalogItem(item, index))
+    .filter(Boolean);
+}
+
+function getComposerControlDefinition(controlKey) {
+  const normalized = String(controlKey || '').trim();
+  const match = getComposerControlCatalogItems().find((item) => item.controlKey === normalized);
+  if (match) return match;
+  if (!normalized) return null;
+  return {
+    controlKey: normalized,
+    displayName: titleizeKey(normalized),
+    controlType: 'static',
+    iconKey: '',
+    metadata: {},
+    active: true,
+    sortOrder: 9999,
+    options: [],
+  };
+}
+
+function getComposerShortcutDefinition(shortcutKey) {
+  const normalized = String(shortcutKey || '').trim();
+  const match = getComposerShortcutCatalogItems().find((item) => item.shortcutKey === normalized);
+  if (match) return match;
+  if (!normalized) return null;
+  return {
+    shortcutKey: normalized,
+    displayName: titleizeKey(normalized),
+    description: '',
+    template: '',
+    iconKey: '',
+    tone: '',
+    metadata: {},
+    active: true,
+    sortOrder: 9999,
+  };
+}
+
+function normalizeComposerControlDraftConfig(value) {
+  const config = asObject(value);
+  return {
+    displayName: String(config.display_name || config.displayName || '').trim(),
+    iconKey: String(config.icon_key || config.iconKey || '').trim(),
+    allowedOptionValues: asStringArray(config.allowed_option_values || config.allowedOptionValues),
+  };
+}
+
+function normalizeComposerShortcutDraftConfig(value) {
+  const config = asObject(value);
+  return {
+    displayName: String(config.display_name || config.displayName || '').trim(),
+    description: String(config.description || config.subtitle || '').trim(),
+    template: String(config.template || config.template_text || '').trim(),
+    iconKey: String(config.icon_key || config.iconKey || '').trim(),
+    tone: String(config.tone || '').trim(),
+  };
+}
+
+function buildComposerControlBindingConfig(existingValue, draftValue) {
+  const next = {...asObject(existingValue)};
+  delete next.display_name;
+  delete next.displayName;
+  delete next.icon_key;
+  delete next.iconKey;
+  delete next.allowed_option_values;
+  delete next.allowedOptionValues;
+  const draft = normalizeComposerControlDraftConfig(draftValue);
+  if (draft.displayName) next.display_name = draft.displayName;
+  if (draft.iconKey) next.icon_key = draft.iconKey;
+  if (draft.allowedOptionValues.length) next.allowed_option_values = draft.allowedOptionValues;
+  return next;
+}
+
+function buildComposerShortcutBindingConfig(existingValue, draftValue) {
+  const next = {...asObject(existingValue)};
+  delete next.display_name;
+  delete next.displayName;
+  delete next.description;
+  delete next.subtitle;
+  delete next.template;
+  delete next.template_text;
+  delete next.icon_key;
+  delete next.iconKey;
+  delete next.tone;
+  const draft = normalizeComposerShortcutDraftConfig(draftValue);
+  if (draft.displayName) next.display_name = draft.displayName;
+  if (draft.description) next.description = draft.description;
+  if (draft.template) next.template = draft.template;
+  if (draft.iconKey) next.icon_key = draft.iconKey;
+  if (draft.tone) next.tone = draft.tone;
+  return next;
+}
+
+function mergeComposerControlBindings(bindings) {
+  const existing = new Map(
+    asArray(bindings).map((item) => {
+      const entry = asObject(item);
+      return [
+        String(entry.controlKey || entry.control_key || '').trim(),
+        {
+          appName: String(entry.appName || entry.app_name || '').trim(),
+          controlKey: String(entry.controlKey || entry.control_key || '').trim(),
+          enabled: entry.enabled !== false,
+          sortOrder: Number(entry.sortOrder || entry.sort_order || 100) || 100,
+          config: asObject(entry.config || entry.config_json),
+        },
+      ];
+    }),
+  );
+  const catalogItems = getComposerControlCatalogItems();
+  const merged = catalogItems.map((item, index) => ({
+    appName: existing.get(item.controlKey)?.appName || '',
+    controlKey: item.controlKey,
+    enabled: existing.get(item.controlKey)?.enabled ?? false,
+    sortOrder: existing.get(item.controlKey)?.sortOrder ?? (index + 1) * 10,
+    config: asObject(existing.get(item.controlKey)?.config),
+  }));
+  const known = new Set(catalogItems.map((item) => item.controlKey));
+  const extras = Array.from(existing.values())
+    .filter((item) => item.controlKey && !known.has(item.controlKey))
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.controlKey.localeCompare(right.controlKey, 'zh-CN'));
+  return [...merged, ...extras];
+}
+
+function mergeComposerShortcutBindings(bindings) {
+  const existing = new Map(
+    asArray(bindings).map((item) => {
+      const entry = asObject(item);
+      return [
+        String(entry.shortcutKey || entry.shortcut_key || '').trim(),
+        {
+          appName: String(entry.appName || entry.app_name || '').trim(),
+          shortcutKey: String(entry.shortcutKey || entry.shortcut_key || '').trim(),
+          enabled: entry.enabled !== false,
+          sortOrder: Number(entry.sortOrder || entry.sort_order || 100) || 100,
+          config: asObject(entry.config || entry.config_json),
+        },
+      ];
+    }),
+  );
+  const catalogItems = getComposerShortcutCatalogItems();
+  const merged = catalogItems.map((item, index) => ({
+    appName: existing.get(item.shortcutKey)?.appName || '',
+    shortcutKey: item.shortcutKey,
+    enabled: existing.get(item.shortcutKey)?.enabled ?? false,
+    sortOrder: existing.get(item.shortcutKey)?.sortOrder ?? (index + 1) * 10,
+    config: asObject(existing.get(item.shortcutKey)?.config),
+  }));
+  const known = new Set(catalogItems.map((item) => item.shortcutKey));
+  const extras = Array.from(existing.values())
+    .filter((item) => item.shortcutKey && !known.has(item.shortcutKey))
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.shortcutKey.localeCompare(right.shortcutKey, 'zh-CN'));
+  return [...merged, ...extras];
+}
+
+function buildOrderedComposerControlList(order) {
+  const catalogItems = getComposerControlCatalogItems();
+  const known = new Set(catalogItems.map((item) => item.controlKey));
+  const list = asStringArray(order).filter((key) => known.has(key));
+  for (const item of catalogItems) {
+    if (!list.includes(item.controlKey)) {
+      list.push(item.controlKey);
+    }
+  }
+  return list;
+}
+
+function buildOrderedComposerShortcutList(order) {
+  const catalogItems = getComposerShortcutCatalogItems();
+  const known = new Set(catalogItems.map((item) => item.shortcutKey));
+  const list = asStringArray(order).filter((key) => known.has(key));
+  for (const item of catalogItems) {
+    if (!list.includes(item.shortcutKey)) {
+      list.push(item.shortcutKey);
+    }
+  }
+  return list;
+}
+
+function moveOrderedItem(list, value, direction, builder) {
+  const current = builder(list);
+  const index = current.indexOf(value);
+  if (index < 0) return current;
+  const nextIndex = direction === 'up' ? index - 1 : index + 1;
+  if (nextIndex < 0 || nextIndex >= current.length) return current;
+  const [item] = current.splice(index, 1);
+  current.splice(nextIndex, 0, item);
+  return current;
+}
+
 function getMenuItemsByCategory(category) {
   const menuItems = getMenuCatalogItems();
   if (!category) {
@@ -792,6 +1040,8 @@ function adaptPortalDetail(detail) {
     mcpBindings: asArray(detail.mcpBindings),
     modelBindings: asArray(detail.modelBindings),
     menuBindings: mergeMenuBindings(detail.menuBindings),
+    composerControlBindings: mergeComposerControlBindings(detail.composerControlBindings),
+    composerShortcutBindings: mergeComposerShortcutBindings(detail.composerShortcutBindings),
     assets: asArray(detail.assets).map((item) => ({
       ...item,
       appName: item.appName,
@@ -920,6 +1170,10 @@ function actionLabel(action) {
       return '更新 MCP 绑定';
     case 'menu_bindings_saved':
       return '更新菜单绑定';
+    case 'composer_control_bindings_saved':
+      return '更新输入控件绑定';
+    case 'composer_shortcut_bindings_saved':
+      return '更新输入快捷方式绑定';
     case 'draft_saved':
       return '保存草稿';
     case 'published':
@@ -1361,6 +1615,32 @@ function buildBrandDraftBuffer(detail) {
     mergeMenuBindings(detail?.menuBindings).map((item) => [item.menuKey, normalizeMenuDraftConfig(item.config)]),
   );
   const menuOrder = buildDefaultMenuOrder(detail?.menuBindings);
+  const selectedComposerControls = mergeComposerControlBindings(detail?.composerControlBindings)
+    .filter((item) => item.enabled)
+    .map((item) => item.controlKey);
+  const composerControlConfigs = Object.fromEntries(
+    mergeComposerControlBindings(detail?.composerControlBindings).map((item) => [
+      item.controlKey,
+      normalizeComposerControlDraftConfig(item.config),
+    ]),
+  );
+  const composerControlOrder = mergeComposerControlBindings(detail?.composerControlBindings)
+    .slice()
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.controlKey.localeCompare(right.controlKey, 'zh-CN'))
+    .map((item) => item.controlKey);
+  const selectedComposerShortcuts = mergeComposerShortcutBindings(detail?.composerShortcutBindings)
+    .filter((item) => item.enabled)
+    .map((item) => item.shortcutKey);
+  const composerShortcutConfigs = Object.fromEntries(
+    mergeComposerShortcutBindings(detail?.composerShortcutBindings).map((item) => [
+      item.shortcutKey,
+      normalizeComposerShortcutDraftConfig(item.config),
+    ]),
+  );
+  const composerShortcutOrder = mergeComposerShortcutBindings(detail?.composerShortcutBindings)
+    .slice()
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.shortcutKey.localeCompare(right.shortcutKey, 'zh-CN'))
+    .map((item) => item.shortcutKey);
   const meta = getAppBrandMeta(brand);
 
   return {
@@ -1383,6 +1663,12 @@ function buildBrandDraftBuffer(detail) {
     selectedMenus,
     menuConfigs,
     menuOrder,
+    selectedComposerControls,
+    composerControlConfigs,
+    composerControlOrder,
+    selectedComposerShortcuts,
+    composerShortcutConfigs,
+    composerShortcutOrder,
     selectedModels,
     recommendedModels: (recommendedModelsFromBindings.length
       ? recommendedModelsFromBindings
@@ -1479,6 +1765,45 @@ function captureBrandEditorBuffer() {
       },
     });
   }
+  const composerControlConfigs = {...asObject(existing.composerControlConfigs)};
+  for (const item of getComposerControlCatalogItems()) {
+    const key = item.controlKey;
+    const displayNameInput = form.querySelector(`[name="composer_control_display_name__${CSS.escape(key)}"]`);
+    const allowedOptionsInput = form.querySelector(`[name="composer_control_allowed_options__${CSS.escape(key)}"]`);
+    composerControlConfigs[key] = normalizeComposerControlDraftConfig({
+      ...(asObject(composerControlConfigs[key])),
+      display_name:
+        displayNameInput instanceof HTMLInputElement
+          ? displayNameInput.value
+          : asObject(composerControlConfigs[key]).displayName,
+      allowed_option_values:
+        allowedOptionsInput instanceof HTMLInputElement
+          ? splitLines(allowedOptionsInput.value)
+          : asObject(composerControlConfigs[key]).allowedOptionValues,
+    });
+  }
+  const composerShortcutConfigs = {...asObject(existing.composerShortcutConfigs)};
+  for (const item of getComposerShortcutCatalogItems()) {
+    const key = item.shortcutKey;
+    const displayNameInput = form.querySelector(`[name="composer_shortcut_display_name__${CSS.escape(key)}"]`);
+    const descriptionInput = form.querySelector(`[name="composer_shortcut_description__${CSS.escape(key)}"]`);
+    const templateInput = form.querySelector(`[name="composer_shortcut_template__${CSS.escape(key)}"]`);
+    composerShortcutConfigs[key] = normalizeComposerShortcutDraftConfig({
+      ...(asObject(composerShortcutConfigs[key])),
+      display_name:
+        displayNameInput instanceof HTMLInputElement
+          ? displayNameInput.value
+          : asObject(composerShortcutConfigs[key]).displayName,
+      description:
+        descriptionInput instanceof HTMLInputElement
+          ? descriptionInput.value
+          : asObject(composerShortcutConfigs[key]).description,
+      template:
+        templateInput instanceof HTMLTextAreaElement
+          ? templateInput.value
+          : asObject(composerShortcutConfigs[key]).template,
+    });
+  }
 
   state.brandDraftBuffer = {
     ...existing,
@@ -1518,6 +1843,12 @@ function captureBrandEditorBuffer() {
     selectedMenus: asStringArray(existing.selectedMenus),
     menuConfigs,
     menuOrder: buildOrderedMenuList(existing.menuOrder),
+    selectedComposerControls: asStringArray(existing.selectedComposerControls),
+    composerControlConfigs,
+    composerControlOrder: buildOrderedComposerControlList(existing.composerControlOrder),
+    selectedComposerShortcuts: asStringArray(existing.selectedComposerShortcuts),
+    composerShortcutConfigs,
+    composerShortcutOrder: buildOrderedComposerShortcutList(existing.composerShortcutOrder),
     selectedModels: asStringArray(existing.selectedModels),
     recommendedModels: asStringArray(existing.recommendedModels),
     defaultModel: form.querySelector('[name="default_model"]')
@@ -1709,13 +2040,15 @@ async function loadAppData() {
   render();
 
   try {
-    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, modelCatalogData, menuCatalogData, cloudSkillCatalogData, skillSyncSourcesData, skillSyncRunsData] = await Promise.all([
+    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, modelCatalogData, menuCatalogData, composerControlCatalogData, composerShortcutCatalogData, cloudSkillCatalogData, skillSyncSourcesData, skillSyncRunsData] = await Promise.all([
       apiFetch('/admin/portal/apps', {method: 'GET'}),
       apiFetch('/admin/agents/catalog', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/skills', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/mcps', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/models', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/menus', {method: 'GET'}),
+      apiFetch('/admin/portal/catalog/composer-controls', {method: 'GET'}),
+      apiFetch('/admin/portal/catalog/composer-shortcuts', {method: 'GET'}),
       apiFetch('/admin/skills/catalog', {method: 'GET'}),
       apiFetch('/admin/skills/sync/sources', {method: 'GET'}),
       apiFetch('/admin/skills/sync/runs', {method: 'GET'}),
@@ -1737,6 +2070,12 @@ async function loadAppData() {
     state.modelCatalog = Array.isArray(modelCatalogData.items) ? modelCatalogData.items : [];
     state.menuCatalog = Array.isArray(menuCatalogData.items)
       ? menuCatalogData.items.map((item, index) => normalizeMenuCatalogItem(item, index)).filter(Boolean)
+      : [];
+    state.composerControlCatalog = Array.isArray(composerControlCatalogData.items)
+      ? composerControlCatalogData.items.map((item, index) => normalizeComposerControlCatalogItem(item, index)).filter(Boolean)
+      : [];
+    state.composerShortcutCatalog = Array.isArray(composerShortcutCatalogData.items)
+      ? composerShortcutCatalogData.items.map((item, index) => normalizeComposerShortcutCatalogItem(item, index)).filter(Boolean)
       : [];
     state.skillSyncSources = Array.isArray(skillSyncSourcesData.items) ? skillSyncSourcesData.items : [];
     state.skillSyncRuns = Array.isArray(skillSyncRunsData.items) ? skillSyncRunsData.items : [];
@@ -1862,6 +2201,12 @@ async function saveBrandEditor(form) {
     const existingMcpBindings = new Map(asArray(detail.mcpBindings).map((item) => [item.mcpKey, item]));
     const existingModelBindings = new Map(asArray(detail.modelBindings).map((item) => [item.modelRef, item]));
     const existingMenuBindings = new Map(mergeMenuBindings(detail.menuBindings).map((item) => [item.menuKey, item]));
+    const existingComposerControlBindings = new Map(
+      mergeComposerControlBindings(detail.composerControlBindings).map((item) => [item.controlKey, item]),
+    );
+    const existingComposerShortcutBindings = new Map(
+      mergeComposerShortcutBindings(detail.composerShortcutBindings).map((item) => [item.shortcutKey, item]),
+    );
     await apiFetch(`/admin/portal/apps/${encodeURIComponent(snapshot.brandId)}`, {
       method: 'PUT',
       body: JSON.stringify({
@@ -1922,6 +2267,34 @@ async function saveBrandEditor(form) {
               ),
             };
           }),
+        ),
+      }),
+      apiFetch(`/admin/portal/apps/${encodeURIComponent(snapshot.brandId)}/composer-controls`, {
+        method: 'PUT',
+        body: JSON.stringify(
+          buildOrderedComposerControlList(snapshot.composerControlOrder).map((controlKey, index) => ({
+            controlKey,
+            enabled: snapshot.selectedComposerControls.includes(controlKey),
+            sortOrder: (index + 1) * 10,
+            config: buildComposerControlBindingConfig(
+              asObject(existingComposerControlBindings.get(controlKey)?.config),
+              asObject(snapshot.composerControlConfigs)[controlKey],
+            ),
+          })),
+        ),
+      }),
+      apiFetch(`/admin/portal/apps/${encodeURIComponent(snapshot.brandId)}/composer-shortcuts`, {
+        method: 'PUT',
+        body: JSON.stringify(
+          buildOrderedComposerShortcutList(snapshot.composerShortcutOrder).map((shortcutKey, index) => ({
+            shortcutKey,
+            enabled: snapshot.selectedComposerShortcuts.includes(shortcutKey),
+            sortOrder: (index + 1) * 10,
+            config: buildComposerShortcutBindingConfig(
+              asObject(existingComposerShortcutBindings.get(shortcutKey)?.config),
+              asObject(snapshot.composerShortcutConfigs)[shortcutKey],
+            ),
+          })),
         ),
       }),
     ]);
@@ -2046,6 +2419,30 @@ async function createBrand(formData) {
         })),
       ),
     });
+    await Promise.all([
+      apiFetch(`/admin/portal/apps/${encodeURIComponent(brandId)}/composer-controls`, {
+        method: 'PUT',
+        body: JSON.stringify(
+          getComposerControlCatalogItems().map((item, index) => ({
+            controlKey: item.controlKey,
+            enabled: item.active !== false,
+            sortOrder: (index + 1) * 10,
+            config: {},
+          })),
+        ),
+      }),
+      apiFetch(`/admin/portal/apps/${encodeURIComponent(brandId)}/composer-shortcuts`, {
+        method: 'PUT',
+        body: JSON.stringify(
+          getComposerShortcutCatalogItems().map((item, index) => ({
+            shortcutKey: item.shortcutKey,
+            enabled: item.active !== false,
+            sortOrder: (index + 1) * 10,
+            config: {},
+          })),
+        ),
+      }),
+    ]);
     const defaultModel = state.modelCatalog.find((item) => item.ref === 'openai/gpt-5.4') || state.modelCatalog[0] || null;
     if (defaultModel) {
       await apiFetch(`/admin/portal/apps/${encodeURIComponent(brandId)}/models`, {
@@ -2744,6 +3141,55 @@ function moveBrandMenu(value, direction) {
   const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
   if (!buffer) return;
   buffer.menuOrder = moveManageableMenuItem(buffer.menuOrder, value, direction);
+  state.brandDraftBuffer = buffer;
+  render();
+}
+
+function toggleBrandComposerControl(controlKey) {
+  const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
+  if (!buffer) return;
+  const current = new Set(asStringArray(buffer.selectedComposerControls));
+  if (current.has(controlKey)) {
+    current.delete(controlKey);
+  } else {
+    current.add(controlKey);
+  }
+  buffer.selectedComposerControls = Array.from(current);
+  state.brandDraftBuffer = buffer;
+  render();
+}
+
+function moveBrandComposerControl(controlKey, direction) {
+  const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
+  if (!buffer) return;
+  buffer.composerControlOrder = moveOrderedItem(buffer.composerControlOrder, controlKey, direction, buildOrderedComposerControlList);
+  state.brandDraftBuffer = buffer;
+  render();
+}
+
+function toggleBrandComposerShortcut(shortcutKey) {
+  const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
+  if (!buffer) return;
+  const current = new Set(asStringArray(buffer.selectedComposerShortcuts));
+  if (current.has(shortcutKey)) {
+    current.delete(shortcutKey);
+  } else {
+    current.add(shortcutKey);
+  }
+  buffer.selectedComposerShortcuts = Array.from(current);
+  state.brandDraftBuffer = buffer;
+  render();
+}
+
+function moveBrandComposerShortcut(shortcutKey, direction) {
+  const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
+  if (!buffer) return;
+  buffer.composerShortcutOrder = moveOrderedItem(
+    buffer.composerShortcutOrder,
+    shortcutKey,
+    direction,
+    buildOrderedComposerShortcutList,
+  );
   state.brandDraftBuffer = buffer;
   render();
 }
@@ -3526,6 +3972,144 @@ function renderBrandMenusAssembly(buffer) {
   `;
 }
 
+function renderComposerControlCard(buffer, item, index, total) {
+  const enabled = asStringArray(buffer.selectedComposerControls).includes(item.controlKey);
+  const config = normalizeComposerControlDraftConfig(asObject(asObject(buffer.composerControlConfigs)[item.controlKey]));
+  const allowedValueMap = new Map(item.options.map((option) => [option.optionValue, option]));
+  const allowedLabel = config.allowedOptionValues
+    .map((value) => allowedValueMap.get(value)?.label || value)
+    .join('、');
+  return `
+    <article class="fig-capability-card fig-menu-card">
+      <div class="fig-capability-main">
+        <div class="fig-capability-copy">
+          <div class="fig-capability-title-row">
+            <h3>${escapeHtml(item.displayName)}</h3>
+            <span class="chip">${escapeHtml(item.controlType)}</span>
+          </div>
+          <p>${escapeHtml(item.controlKey)}</p>
+        </div>
+        <div class="fig-capability-meta">
+          <label class="field fig-inline-field">
+            <span>显示名称</span>
+            <input class="field-input" name="composer_control_display_name__${escapeHtml(item.controlKey)}" value="${fieldValue(config.displayName)}" placeholder="${escapeHtml(item.displayName)}" />
+          </label>
+          ${
+            item.options.length
+              ? `
+                <label class="field fig-inline-field">
+                  <span>允许选项</span>
+                  <input class="field-input" name="composer_control_allowed_options__${escapeHtml(item.controlKey)}" value="${fieldValue(config.allowedOptionValues.join(', '))}" placeholder="${escapeHtml(item.options.map((option) => option.optionValue).join(', '))}" />
+                </label>
+                <div class="fig-capability-inline-note">当前：${escapeHtml(allowedLabel || '全部可选')}</div>
+              `
+              : `<div class="fig-capability-inline-note">动态控件，不做静态选项过滤。</div>`
+          }
+        </div>
+      </div>
+      <div class="fig-capability-actions fig-menu-card__actions">
+        <span class="chip">排序 ${index + 1}</span>
+        <button class="ghost-button fig-icon-button" type="button" data-action="move-brand-composer-control-up" data-control-key="${escapeHtml(item.controlKey)}"${index <= 0 ? ' disabled' : ''}>
+          ${icon('chevronUp', 'button-icon')}
+        </button>
+        <button class="ghost-button fig-icon-button" type="button" data-action="move-brand-composer-control-down" data-control-key="${escapeHtml(item.controlKey)}"${index >= total - 1 ? ' disabled' : ''}>
+          ${icon('chevronDown', 'button-icon')}
+        </button>
+        ${renderSwitch({
+          checked: enabled,
+          action: 'toggle-brand-composer-control',
+          attrs: `data-control-key="${escapeHtml(item.controlKey)}"`,
+          label: enabled ? '已启用' : '已禁用',
+        })}
+      </div>
+    </article>
+  `;
+}
+
+function renderComposerShortcutCard(buffer, item, index, total) {
+  const enabled = asStringArray(buffer.selectedComposerShortcuts).includes(item.shortcutKey);
+  const config = normalizeComposerShortcutDraftConfig(asObject(asObject(buffer.composerShortcutConfigs)[item.shortcutKey]));
+  return `
+    <article class="fig-capability-card fig-menu-card">
+      <div class="fig-capability-main">
+        <div class="fig-capability-copy">
+          <div class="fig-capability-title-row">
+            <h3>${escapeHtml(item.displayName)}</h3>
+            <span class="chip">${escapeHtml(item.tone || 'default')}</span>
+          </div>
+          <p>${escapeHtml(item.shortcutKey)}</p>
+        </div>
+        <div class="fig-capability-meta">
+          <label class="field fig-inline-field">
+            <span>显示名称</span>
+            <input class="field-input" name="composer_shortcut_display_name__${escapeHtml(item.shortcutKey)}" value="${fieldValue(config.displayName)}" placeholder="${escapeHtml(item.displayName)}" />
+          </label>
+          <label class="field fig-inline-field">
+            <span>说明</span>
+            <input class="field-input" name="composer_shortcut_description__${escapeHtml(item.shortcutKey)}" value="${fieldValue(config.description)}" placeholder="${escapeHtml(item.description)}" />
+          </label>
+          <label class="field field--wide">
+            <span>快捷模板</span>
+            <textarea class="field-textarea" name="composer_shortcut_template__${escapeHtml(item.shortcutKey)}">${escapeHtml(config.template || item.template)}</textarea>
+          </label>
+        </div>
+      </div>
+      <div class="fig-capability-actions fig-menu-card__actions">
+        <span class="chip">排序 ${index + 1}</span>
+        <button class="ghost-button fig-icon-button" type="button" data-action="move-brand-composer-shortcut-up" data-shortcut-key="${escapeHtml(item.shortcutKey)}"${index <= 0 ? ' disabled' : ''}>
+          ${icon('chevronUp', 'button-icon')}
+        </button>
+        <button class="ghost-button fig-icon-button" type="button" data-action="move-brand-composer-shortcut-down" data-shortcut-key="${escapeHtml(item.shortcutKey)}"${index >= total - 1 ? ' disabled' : ''}>
+          ${icon('chevronDown', 'button-icon')}
+        </button>
+        ${renderSwitch({
+          checked: enabled,
+          action: 'toggle-brand-composer-shortcut',
+          attrs: `data-shortcut-key="${escapeHtml(item.shortcutKey)}"`,
+          label: enabled ? '已启用' : '已禁用',
+        })}
+      </div>
+    </article>
+  `;
+}
+
+function renderBrandInputAssembly(buffer) {
+  const controls = buildOrderedComposerControlList(buffer.composerControlOrder)
+    .map((controlKey) => getComposerControlDefinition(controlKey))
+    .filter(Boolean);
+  const shortcuts = buildOrderedComposerShortcutList(buffer.composerShortcutOrder)
+    .map((shortcutKey) => getComposerShortcutDefinition(shortcutKey))
+    .filter(Boolean);
+  return `
+    <section class="fig-brand-section">
+      <div class="fig-section-heading">
+        <h2>输入框</h2>
+        <p>第一栏维护顶部快捷选择控件，第三栏维护底部快捷方式；全部走平台目录 + OEM 绑定，不再写死在代码里。</p>
+      </div>
+      <div class="fig-capability-columns">
+        <article class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
+            <h3>第一栏快捷选择框</h3>
+            <span>控制专家、技能、模式、市场、自选股、输出等顶栏控件的显隐、排序与显示文案</span>
+          </div>
+          <div class="fig-capability-stack">
+            ${controls.length ? controls.map((item, index) => renderComposerControlCard(buffer, item, index, controls.length)).join('') : `<div class="empty-state">还没有输入控件目录。</div>`}
+          </div>
+        </article>
+        <article class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
+            <h3>第三栏快捷方式</h3>
+            <span>控制底部快捷 chip 的显隐、排序、名称和模板内容</span>
+          </div>
+          <div class="fig-capability-stack">
+            ${shortcuts.length ? shortcuts.map((item, index) => renderComposerShortcutCard(buffer, item, index, shortcuts.length)).join('') : `<div class="empty-state">还没有快捷方式目录。</div>`}
+          </div>
+        </article>
+      </div>
+    </section>
+  `;
+}
+
 function renderBrandModuleAssembly(buffer, surfaceKey) {
   const blueprint = getSurfaceBlueprint(surfaceKey);
   const menuItem = getMenuDefinition(blueprint?.menuKey) || null;
@@ -3809,7 +4393,7 @@ function renderBrandEditorBody(buffer, assets, activeTab = state.brandDetailTab)
   }
 
   if (activeTab === 'input') {
-    return renderBrandSurfaceEditor(buffer, 'input', '输入框', '维护输入编辑器区域的品牌化配置，不和模型 allowlist 混放。');
+    return renderBrandInputAssembly(buffer);
   }
 
   if (activeTab === 'skills') {
@@ -6156,6 +6740,36 @@ app.addEventListener('click', async (event) => {
 
   if (action === 'move-brand-menu-down') {
     moveBrandMenu(target.getAttribute('data-menu-key') || '', 'down');
+    return;
+  }
+
+  if (action === 'toggle-brand-composer-control') {
+    toggleBrandComposerControl(target.getAttribute('data-control-key') || '');
+    return;
+  }
+
+  if (action === 'move-brand-composer-control-up') {
+    moveBrandComposerControl(target.getAttribute('data-control-key') || '', 'up');
+    return;
+  }
+
+  if (action === 'move-brand-composer-control-down') {
+    moveBrandComposerControl(target.getAttribute('data-control-key') || '', 'down');
+    return;
+  }
+
+  if (action === 'toggle-brand-composer-shortcut') {
+    toggleBrandComposerShortcut(target.getAttribute('data-shortcut-key') || '');
+    return;
+  }
+
+  if (action === 'move-brand-composer-shortcut-up') {
+    moveBrandComposerShortcut(target.getAttribute('data-shortcut-key') || '', 'up');
+    return;
+  }
+
+  if (action === 'move-brand-composer-shortcut-down') {
+    moveBrandComposerShortcut(target.getAttribute('data-shortcut-key') || '', 'down');
     return;
   }
 

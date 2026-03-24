@@ -3,6 +3,8 @@ import {randomUUID} from 'node:crypto';
 import {Pool, type PoolClient} from 'pg';
 
 import type {
+  PortalAppComposerControlBindingRecord,
+  PortalAppComposerShortcutBindingRecord,
   PortalAppAssetRecord,
   PortalAppAuditRecord,
   PortalAppDetail,
@@ -12,16 +14,23 @@ import type {
   PortalAppRecord,
   PortalAppReleaseRecord,
   PortalAppSkillBindingRecord,
+  PortalComposerControlOptionRecord,
+  PortalComposerControlRecord,
+  PortalComposerShortcutRecord,
   PortalJsonObject,
   PortalModelRecord,
   PortalMenuRecord,
   PortalMcpRecord,
   PortalSkillRecord,
+  ReplacePortalAppComposerControlBindingsInput,
+  ReplacePortalAppComposerShortcutBindingsInput,
   ReplacePortalAppModelBindingsInput,
   ReplacePortalAppMcpBindingsInput,
   ReplacePortalAppMenuBindingsInput,
   ReplacePortalAppSkillBindingsInput,
   UpsertPortalAppInput,
+  UpsertPortalComposerControlInput,
+  UpsertPortalComposerShortcutInput,
   UpsertPortalModelInput,
   UpsertPortalMenuInput,
   UpsertPortalMcpInput,
@@ -98,6 +107,42 @@ type PortalMenuRow = {
   updated_at: Date;
 };
 
+type PortalComposerControlRow = {
+  control_key: string;
+  display_name: string;
+  control_type: string;
+  icon_key: string | null;
+  metadata_json: Record<string, unknown> | null;
+  active: boolean;
+  created_at: Date;
+  updated_at: Date;
+};
+
+type PortalComposerControlOptionRow = {
+  control_key: string;
+  option_value: string;
+  label: string;
+  description: string;
+  sort_order: number;
+  metadata_json: Record<string, unknown> | null;
+  active: boolean;
+  created_at: Date;
+  updated_at: Date;
+};
+
+type PortalComposerShortcutRow = {
+  shortcut_key: string;
+  display_name: string;
+  description: string;
+  template_text: string;
+  icon_key: string | null;
+  tone: string | null;
+  metadata_json: Record<string, unknown> | null;
+  active: boolean;
+  created_at: Date;
+  updated_at: Date;
+};
+
 type PortalSkillBindingRow = {
   app_name: string;
   skill_slug: string;
@@ -141,6 +186,22 @@ type PortalModelBindingRow = {
 type PortalMenuBindingRow = {
   app_name: string;
   menu_key: string;
+  enabled: boolean;
+  sort_order: number;
+  config_json: Record<string, unknown> | null;
+};
+
+type PortalComposerControlBindingRow = {
+  app_name: string;
+  control_key: string;
+  enabled: boolean;
+  sort_order: number;
+  config_json: Record<string, unknown> | null;
+};
+
+type PortalComposerShortcutBindingRow = {
+  app_name: string;
+  shortcut_key: string;
   enabled: boolean;
   sort_order: number;
   config_json: Record<string, unknown> | null;
@@ -195,6 +256,8 @@ type PortalAppSnapshotState = {
   mcpBindings: PortalAppMcpBindingRecord[];
   modelBindings: PortalAppModelBindingRecord[];
   menuBindings: PortalAppMenuBindingRecord[];
+  composerControlBindings: PortalAppComposerControlBindingRecord[];
+  composerShortcutBindings: PortalAppComposerShortcutBindingRecord[];
   assets: PortalAppAssetRecord[];
 };
 
@@ -290,6 +353,52 @@ function mapMenuRow(row: PortalMenuRow): PortalMenuRecord {
   };
 }
 
+function mapComposerControlOptionRow(row: PortalComposerControlOptionRow): PortalComposerControlOptionRecord {
+  return {
+    controlKey: row.control_key,
+    optionValue: row.option_value,
+    label: row.label,
+    description: row.description,
+    sortOrder: row.sort_order,
+    metadata: asJsonObject(row.metadata_json),
+    active: row.active,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapComposerControlRow(
+  row: PortalComposerControlRow,
+  options: PortalComposerControlOptionRecord[],
+): PortalComposerControlRecord {
+  return {
+    controlKey: row.control_key,
+    displayName: row.display_name,
+    controlType: row.control_type,
+    iconKey: row.icon_key,
+    metadata: asJsonObject(row.metadata_json),
+    active: row.active,
+    options,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapComposerShortcutRow(row: PortalComposerShortcutRow): PortalComposerShortcutRecord {
+  return {
+    shortcutKey: row.shortcut_key,
+    displayName: row.display_name,
+    description: row.description,
+    template: row.template_text,
+    iconKey: row.icon_key,
+    tone: row.tone,
+    metadata: asJsonObject(row.metadata_json),
+    active: row.active,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
 function mapSkillBindingRow(row: PortalSkillBindingRow): PortalAppSkillBindingRecord {
   return {
     appName: row.app_name,
@@ -347,6 +456,26 @@ function mapMenuBindingRow(row: PortalMenuBindingRow): PortalAppMenuBindingRecor
   return {
     appName: row.app_name,
     menuKey: row.menu_key,
+    enabled: row.enabled,
+    sortOrder: row.sort_order,
+    config: asJsonObject(row.config_json),
+  };
+}
+
+function mapComposerControlBindingRow(row: PortalComposerControlBindingRow): PortalAppComposerControlBindingRecord {
+  return {
+    appName: row.app_name,
+    controlKey: row.control_key,
+    enabled: row.enabled,
+    sortOrder: row.sort_order,
+    config: asJsonObject(row.config_json),
+  };
+}
+
+function mapComposerShortcutBindingRow(row: PortalComposerShortcutBindingRow): PortalAppComposerShortcutBindingRecord {
+  return {
+    appName: row.app_name,
+    shortcutKey: row.shortcut_key,
     enabled: row.enabled,
     sortOrder: row.sort_order,
     config: asJsonObject(row.config_json),
@@ -416,12 +545,14 @@ function buildReleaseSummary(state: PortalAppSnapshotState): PortalJsonObject {
     .filter(([, value]) => asJsonObject(value).enabled !== false)
     .map(([key]) => key);
   return {
-    changedAreas: ['config', 'skills', 'mcps', 'models', 'menus', 'assets'],
+    changedAreas: ['config', 'skills', 'mcps', 'models', 'menus', 'composer', 'assets'],
     surfaces,
     skillCount: state.skillBindings.filter((item) => item.enabled).length,
     mcpCount: state.mcpBindings.filter((item) => item.enabled).length,
     modelCount: state.modelBindings.filter((item) => item.enabled).length,
     menuCount: state.menuBindings.filter((item) => item.enabled).length,
+    composerControlCount: state.composerControlBindings.filter((item) => item.enabled).length,
+    composerShortcutCount: state.composerShortcutBindings.filter((item) => item.enabled).length,
     assetCount: state.assets.length,
   };
 }
@@ -522,6 +653,38 @@ async function listMenuBindings(db: Pool | PoolClient, appName: string): Promise
   return result.rows.map(mapMenuBindingRow);
 }
 
+async function listComposerControlBindings(
+  db: Pool | PoolClient,
+  appName: string,
+): Promise<PortalAppComposerControlBindingRecord[]> {
+  const result = await db.query<PortalComposerControlBindingRow>(
+    `
+      select app_name, control_key, enabled, sort_order, config_json
+      from oem_app_composer_control_bindings
+      where app_name = $1
+      order by sort_order asc, control_key asc
+    `,
+    [appName],
+  );
+  return result.rows.map(mapComposerControlBindingRow);
+}
+
+async function listComposerShortcutBindings(
+  db: Pool | PoolClient,
+  appName: string,
+): Promise<PortalAppComposerShortcutBindingRecord[]> {
+  const result = await db.query<PortalComposerShortcutBindingRow>(
+    `
+      select app_name, shortcut_key, enabled, sort_order, config_json
+      from oem_app_composer_shortcut_bindings
+      where app_name = $1
+      order by sort_order asc, shortcut_key asc
+    `,
+    [appName],
+  );
+  return result.rows.map(mapComposerShortcutBindingRow);
+}
+
 async function listAssetsByApp(db: Pool | PoolClient, appName: string): Promise<PortalAppAssetRecord[]> {
   const result = await db.query<PortalAssetRow>(
     `
@@ -605,11 +768,13 @@ async function listAuditByApp(db: Pool | PoolClient, appName: string, limit: num
 async function readAppSnapshotState(db: Pool | PoolClient, appName: string, forUpdate = false): Promise<PortalAppSnapshotState | null> {
   const appRow = await readAppRow(db, appName, forUpdate);
   if (!appRow) return null;
-  const [skillBindings, mcpBindings, modelBindings, menuBindings, assets] = await Promise.all([
+  const [skillBindings, mcpBindings, modelBindings, menuBindings, composerControlBindings, composerShortcutBindings, assets] = await Promise.all([
     listSkillBindings(db, appName),
     listMcpBindings(db, appName),
     listModelBindings(db, appName),
     listMenuBindings(db, appName),
+    listComposerControlBindings(db, appName),
+    listComposerShortcutBindings(db, appName),
     listAssetsByApp(db, appName),
   ]);
   return {
@@ -618,6 +783,8 @@ async function readAppSnapshotState(db: Pool | PoolClient, appName: string, forU
     mcpBindings,
     modelBindings,
     menuBindings,
+    composerControlBindings,
+    composerShortcutBindings,
     assets,
   };
 }
@@ -817,6 +984,86 @@ async function replaceMenuBindings(
   }
 }
 
+async function replaceComposerControlBindings(
+  db: Pool | PoolClient,
+  appName: string,
+  items: ReplacePortalAppComposerControlBindingsInput,
+): Promise<void> {
+  const keys = items.map((item) => item.controlKey);
+  await db.query(
+    `
+      delete from oem_app_composer_control_bindings
+      where app_name = $1
+        and (
+          cardinality($2::text[]) = 0
+          or control_key <> all($2::text[])
+        )
+    `,
+    [appName, keys],
+  );
+  for (const item of items) {
+    await db.query(
+      `
+        insert into oem_app_composer_control_bindings (
+          app_name,
+          control_key,
+          enabled,
+          sort_order,
+          config_json
+        )
+        values ($1, $2, $3, $4, $5::jsonb)
+        on conflict (app_name, control_key)
+        do update set
+          enabled = excluded.enabled,
+          sort_order = excluded.sort_order,
+          config_json = excluded.config_json,
+          updated_at = now()
+      `,
+      [appName, item.controlKey, item.enabled ?? true, item.sortOrder ?? 100, JSON.stringify(item.config || {})],
+    );
+  }
+}
+
+async function replaceComposerShortcutBindings(
+  db: Pool | PoolClient,
+  appName: string,
+  items: ReplacePortalAppComposerShortcutBindingsInput,
+): Promise<void> {
+  const keys = items.map((item) => item.shortcutKey);
+  await db.query(
+    `
+      delete from oem_app_composer_shortcut_bindings
+      where app_name = $1
+        and (
+          cardinality($2::text[]) = 0
+          or shortcut_key <> all($2::text[])
+        )
+    `,
+    [appName, keys],
+  );
+  for (const item of items) {
+    await db.query(
+      `
+        insert into oem_app_composer_shortcut_bindings (
+          app_name,
+          shortcut_key,
+          enabled,
+          sort_order,
+          config_json
+        )
+        values ($1, $2, $3, $4, $5::jsonb)
+        on conflict (app_name, shortcut_key)
+        do update set
+          enabled = excluded.enabled,
+          sort_order = excluded.sort_order,
+          config_json = excluded.config_json,
+          updated_at = now()
+      `,
+      [appName, item.shortcutKey, item.enabled ?? true, item.sortOrder ?? 100, JSON.stringify(item.config || {})],
+    );
+  }
+}
+
 async function replaceAssets(
   db: Pool | PoolClient,
   appName: string,
@@ -924,6 +1171,8 @@ export class PgPortalStore {
       mcpBindings: state.mcpBindings,
       modelBindings: state.modelBindings,
       menuBindings: state.menuBindings,
+      composerControlBindings: state.composerControlBindings,
+      composerShortcutBindings: state.composerShortcutBindings,
       assets: state.assets,
       releases,
       audit,
@@ -1024,6 +1273,71 @@ export class PgPortalStore {
       `,
     );
     return result.rows.map(mapMenuRow);
+  }
+
+  async listComposerControls(): Promise<PortalComposerControlRecord[]> {
+    const [controlsResult, optionsResult] = await Promise.all([
+      this.pool.query<PortalComposerControlRow>(
+        `
+          select
+            control_key,
+            display_name,
+            control_type,
+            icon_key,
+            metadata_json,
+            active,
+            created_at,
+            updated_at
+          from oem_composer_control_catalog
+          order by control_key asc
+        `,
+      ),
+      this.pool.query<PortalComposerControlOptionRow>(
+        `
+          select
+            control_key,
+            option_value,
+            label,
+            description,
+            sort_order,
+            metadata_json,
+            active,
+            created_at,
+            updated_at
+          from oem_composer_control_option_catalog
+          order by control_key asc, sort_order asc, option_value asc
+        `,
+      ),
+    ]);
+    const optionsByControl = new Map<string, PortalComposerControlOptionRecord[]>();
+    for (const row of optionsResult.rows) {
+      const mapped = mapComposerControlOptionRow(row);
+      const bucket = optionsByControl.get(mapped.controlKey) || [];
+      bucket.push(mapped);
+      optionsByControl.set(mapped.controlKey, bucket);
+    }
+    return controlsResult.rows.map((row) => mapComposerControlRow(row, optionsByControl.get(row.control_key) || []));
+  }
+
+  async listComposerShortcuts(): Promise<PortalComposerShortcutRecord[]> {
+    const result = await this.pool.query<PortalComposerShortcutRow>(
+      `
+        select
+          shortcut_key,
+          display_name,
+          description,
+          template_text,
+          icon_key,
+          tone,
+          metadata_json,
+          active,
+          created_at,
+          updated_at
+        from oem_composer_shortcut_catalog
+        order by shortcut_key asc
+      `,
+    );
+    return result.rows.map(mapComposerShortcutRow);
   }
 
   async getMenu(menuKey: string): Promise<PortalMenuRecord | null> {
@@ -1498,16 +1812,70 @@ export class PgPortalStore {
     return listMenuBindings(this.pool, appName);
   }
 
+  async replaceAppComposerControlBindings(
+    appName: string,
+    items: ReplacePortalAppComposerControlBindingsInput,
+    actorUserId: string | null = null,
+  ): Promise<PortalAppComposerControlBindingRecord[]> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+      await replaceComposerControlBindings(client, appName, items);
+      await insertAuditEvent(client, {
+        appName,
+        action: 'composer_control_bindings_saved',
+        actorUserId,
+        payload: {count: items.length},
+      });
+      await client.query('commit');
+    } catch (error) {
+      await client.query('rollback');
+      throw error;
+    } finally {
+      client.release();
+    }
+    return listComposerControlBindings(this.pool, appName);
+  }
+
+  async replaceAppComposerShortcutBindings(
+    appName: string,
+    items: ReplacePortalAppComposerShortcutBindingsInput,
+    actorUserId: string | null = null,
+  ): Promise<PortalAppComposerShortcutBindingRecord[]> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+      await replaceComposerShortcutBindings(client, appName, items);
+      await insertAuditEvent(client, {
+        appName,
+        action: 'composer_shortcut_bindings_saved',
+        actorUserId,
+        payload: {count: items.length},
+      });
+      await client.query('commit');
+    } catch (error) {
+      await client.query('rollback');
+      throw error;
+    } finally {
+      client.release();
+    }
+    return listComposerShortcutBindings(this.pool, appName);
+  }
+
   async syncPreset(input: {
     apps: UpsertPortalAppInput[];
     skills: UpsertPortalSkillInput[];
     mcps: UpsertPortalMcpInput[];
     models?: UpsertPortalModelInput[];
     menus?: UpsertPortalMenuInput[];
+    composerControls?: UpsertPortalComposerControlInput[];
+    composerShortcuts?: UpsertPortalComposerShortcutInput[];
     skillBindings: Array<{appName: string; items: ReplacePortalAppSkillBindingsInput}>;
     mcpBindings: Array<{appName: string; items: ReplacePortalAppMcpBindingsInput}>;
     modelBindings?: Array<{appName: string; items: ReplacePortalAppModelBindingsInput}>;
     menuBindings: Array<{appName: string; items: ReplacePortalAppMenuBindingsInput}>;
+    composerControlBindings?: Array<{appName: string; items: ReplacePortalAppComposerControlBindingsInput}>;
+    composerShortcutBindings?: Array<{appName: string; items: ReplacePortalAppComposerShortcutBindingsInput}>;
   }): Promise<void> {
     const client = await this.pool.connect();
     try {
@@ -1727,6 +2095,127 @@ export class PgPortalStore {
         );
       }
 
+      for (const control of input.composerControls || []) {
+        await client.query(
+          `
+            insert into oem_composer_control_catalog (
+              control_key,
+              display_name,
+              control_type,
+              icon_key,
+              metadata_json,
+              active,
+              created_at,
+              updated_at
+            )
+            values ($1, $2, $3, $4, $5::jsonb, $6, now(), now())
+            on conflict (control_key)
+            do update set
+              display_name = excluded.display_name,
+              control_type = excluded.control_type,
+              icon_key = excluded.icon_key,
+              metadata_json = excluded.metadata_json,
+              active = excluded.active,
+              updated_at = now()
+          `,
+          [
+            control.controlKey,
+            control.displayName,
+            control.controlType,
+            control.iconKey || null,
+            JSON.stringify(control.metadata || {}),
+            control.active ?? true,
+          ],
+        );
+        const optionValues = (control.options || []).map((item) => item.optionValue);
+        await client.query(
+          `
+            delete from oem_composer_control_option_catalog
+            where control_key = $1
+              and (
+                cardinality($2::text[]) = 0
+                or option_value <> all($2::text[])
+              )
+          `,
+          [control.controlKey, optionValues],
+        );
+        for (const [index, option] of (control.options || []).entries()) {
+          await client.query(
+            `
+              insert into oem_composer_control_option_catalog (
+                control_key,
+                option_value,
+                label,
+                description,
+                sort_order,
+                metadata_json,
+                active,
+                created_at,
+                updated_at
+              )
+              values ($1, $2, $3, $4, $5, $6::jsonb, $7, now(), now())
+              on conflict (control_key, option_value)
+              do update set
+                label = excluded.label,
+                description = excluded.description,
+                sort_order = excluded.sort_order,
+                metadata_json = excluded.metadata_json,
+                active = excluded.active,
+                updated_at = now()
+            `,
+            [
+              control.controlKey,
+              option.optionValue,
+              option.label,
+              option.description || '',
+              option.sortOrder ?? (index + 1) * 10,
+              JSON.stringify(option.metadata || {}),
+              option.active ?? true,
+            ],
+          );
+        }
+      }
+
+      for (const shortcut of input.composerShortcuts || []) {
+        await client.query(
+          `
+            insert into oem_composer_shortcut_catalog (
+              shortcut_key,
+              display_name,
+              description,
+              template_text,
+              icon_key,
+              tone,
+              metadata_json,
+              active,
+              created_at,
+              updated_at
+            )
+            values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, now(), now())
+            on conflict (shortcut_key)
+            do update set
+              display_name = excluded.display_name,
+              description = excluded.description,
+              template_text = excluded.template_text,
+              icon_key = excluded.icon_key,
+              tone = excluded.tone,
+              metadata_json = excluded.metadata_json,
+              active = excluded.active,
+              updated_at = now()
+          `,
+          [
+            shortcut.shortcutKey,
+            shortcut.displayName,
+            shortcut.description || '',
+            shortcut.template,
+            shortcut.iconKey || null,
+            shortcut.tone || null,
+            JSON.stringify(shortcut.metadata || {}),
+            shortcut.active ?? true,
+          ],
+        );
+      }
+
       for (const binding of input.skillBindings) {
         await replaceSkillBindings(client, binding.appName, binding.items);
       }
@@ -1738,6 +2227,12 @@ export class PgPortalStore {
       }
       for (const binding of input.menuBindings) {
         await replaceMenuBindings(client, binding.appName, binding.items);
+      }
+      for (const binding of input.composerControlBindings || []) {
+        await replaceComposerControlBindings(client, binding.appName, binding.items);
+      }
+      for (const binding of input.composerShortcutBindings || []) {
+        await replaceComposerShortcutBindings(client, binding.appName, binding.items);
       }
 
       await client.query('commit');
@@ -2017,6 +2512,16 @@ export class PgPortalStore {
       await replaceMcpBindings(client, appName, (Array.isArray(snapshot.mcpBindings) ? snapshot.mcpBindings : []) as ReplacePortalAppMcpBindingsInput);
       await replaceModelBindings(client, appName, (Array.isArray(snapshot.modelBindings) ? snapshot.modelBindings : []) as ReplacePortalAppModelBindingsInput);
       await replaceMenuBindings(client, appName, (Array.isArray(snapshot.menuBindings) ? snapshot.menuBindings : []) as ReplacePortalAppMenuBindingsInput);
+      await replaceComposerControlBindings(
+        client,
+        appName,
+        (Array.isArray(snapshot.composerControlBindings) ? snapshot.composerControlBindings : []) as ReplacePortalAppComposerControlBindingsInput,
+      );
+      await replaceComposerShortcutBindings(
+        client,
+        appName,
+        (Array.isArray(snapshot.composerShortcutBindings) ? snapshot.composerShortcutBindings : []) as ReplacePortalAppComposerShortcutBindingsInput,
+      );
       await replaceAssets(
         client,
         appName,

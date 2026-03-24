@@ -1,4 +1,11 @@
-import type {PortalAppAssetRecord, PortalAppDetail, PortalJsonObject, PortalMenuRecord} from './portal-domain.ts';
+import type {
+  PortalAppAssetRecord,
+  PortalAppDetail,
+  PortalComposerControlRecord,
+  PortalComposerShortcutRecord,
+  PortalJsonObject,
+  PortalMenuRecord,
+} from './portal-domain.ts';
 import {stripPortalDesktopReleaseConfig} from './portal-desktop-release.ts';
 
 function asObject(value: unknown): PortalJsonObject {
@@ -14,6 +21,21 @@ function cloneJson<T>(value: T): T {
 
 function compareBySortOrder(left: {sortOrder: number}, right: {sortOrder: number}): number {
   return left.sortOrder - right.sortOrder;
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function asStringArray(value: unknown): string[] {
+  const seen = new Set<string>();
+  for (const item of asArray(value)) {
+    if (typeof item !== 'string') continue;
+    const normalized = item.trim();
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+  }
+  return Array.from(seen);
 }
 
 const LEGACY_MENU_KEY_MAP: Record<string, string[]> = {
@@ -45,6 +67,8 @@ export function buildPortalPublicConfig(
   options: {
     surfaceKey?: string | null;
     menuCatalog?: PortalMenuRecord[];
+    composerControlCatalog?: PortalComposerControlRecord[];
+    composerShortcutCatalog?: PortalComposerShortcutRecord[];
     assetUrlResolver?: (asset: PortalAppAssetRecord) => string | null;
   } = {},
 ): {
@@ -77,9 +101,12 @@ export function buildPortalPublicConfig(
   const existingStorage = asObject(existingConfig.storage);
   const resolveAssetUrl = options.assetUrlResolver || (() => null);
   const menuCatalog = Array.isArray(options.menuCatalog) ? options.menuCatalog : [];
+  const composerControlCatalog = Array.isArray(options.composerControlCatalog) ? options.composerControlCatalog : [];
+  const composerShortcutCatalog = Array.isArray(options.composerShortcutCatalog) ? options.composerShortcutCatalog : [];
   const surfaceKey = typeof options.surfaceKey === 'string' ? options.surfaceKey.trim() : '';
   const surfaces = asObject(existingConfig.surfaces);
-  const surfaceEntry = surfaceKey ? asObject(surfaces[surfaceKey]) : null;
+  const inputSurface = asObject(surfaces.input);
+  const inputSurfaceConfig = asObject(inputSurface.config);
 
   const skillBindings = detail.skillBindings
     .filter((item) => item.enabled)
@@ -178,6 +205,73 @@ export function buildPortalPublicConfig(
       icon_key: item.iconKey,
       metadata: cloneJson(item.metadata),
     }));
+  const publicComposerControls = detail.composerControlBindings
+    .filter((item) => item.enabled)
+    .sort(compareBySortOrder)
+    .map((item) => {
+      const catalog = composerControlCatalog.find((entry) => entry.controlKey === item.controlKey && entry.active);
+      if (!catalog) return null;
+      const bindingConfig = asObject(item.config);
+      const allowedOptionValues = asStringArray(bindingConfig.allowed_option_values ?? bindingConfig.allowedOptionValues);
+      const options = catalog.options
+        .filter((entry) => entry.active)
+        .sort((left, right) => left.sortOrder - right.sortOrder || left.optionValue.localeCompare(right.optionValue, 'zh-CN'))
+        .filter((entry) => allowedOptionValues.length === 0 || allowedOptionValues.includes(entry.optionValue))
+        .map((entry) => ({
+          option_value: entry.optionValue,
+          label: entry.label,
+          description: entry.description,
+          sort_order: entry.sortOrder,
+          metadata: cloneJson(entry.metadata),
+        }));
+      return {
+        control_key: catalog.controlKey,
+        display_name: String(bindingConfig.display_name || bindingConfig.displayName || catalog.displayName).trim() || catalog.displayName,
+        control_type: catalog.controlType,
+        icon_key: String(bindingConfig.icon_key || bindingConfig.iconKey || catalog.iconKey || '').trim() || null,
+        sort_order: item.sortOrder,
+        metadata: cloneJson(catalog.metadata),
+        config: cloneJson(bindingConfig),
+        options,
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const publicComposerShortcuts = detail.composerShortcutBindings
+    .filter((item) => item.enabled)
+    .sort(compareBySortOrder)
+    .map((item) => {
+      const catalog = composerShortcutCatalog.find((entry) => entry.shortcutKey === item.shortcutKey && entry.active);
+      if (!catalog) return null;
+      const bindingConfig = asObject(item.config);
+      return {
+        shortcut_key: catalog.shortcutKey,
+        display_name:
+          String(bindingConfig.display_name || bindingConfig.displayName || catalog.displayName).trim() || catalog.displayName,
+        description:
+          String(bindingConfig.description || bindingConfig.subtitle || catalog.description).trim() || catalog.description,
+        template:
+          String(bindingConfig.template || bindingConfig.template_text || catalog.template).trim() || catalog.template,
+        icon_key: String(bindingConfig.icon_key || bindingConfig.iconKey || catalog.iconKey || '').trim() || null,
+        tone: String(bindingConfig.tone || catalog.tone || '').trim() || null,
+        sort_order: item.sortOrder,
+        metadata: cloneJson(catalog.metadata),
+        config: cloneJson(bindingConfig),
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const nextInputSurfaceConfig = {
+    ...inputSurfaceConfig,
+    top_bar_controls: publicComposerControls,
+    footer_shortcuts: publicComposerShortcuts,
+  };
+  const resolvedSurfaces: PortalJsonObject = {
+    ...surfaces,
+    input: {
+      ...inputSurface,
+      config: nextInputSurfaceConfig,
+    },
+  };
+  const surfaceEntry = surfaceKey ? asObject(resolvedSurfaces[surfaceKey]) : null;
 
   return {
     brand: {
@@ -210,6 +304,7 @@ export function buildPortalPublicConfig(
         ...existingAssets,
         ...Object.fromEntries(assetEntries),
       },
+      surfaces: resolvedSurfaces,
       capabilities: {
         ...existingCapabilities,
         skills: skillBindings.map((item) => item.skill_slug),
@@ -232,6 +327,8 @@ export function buildPortalPublicConfig(
       })),
       menu_bindings: menuBindings,
       menu_catalog: publicMenuCatalog,
+      composer_control_bindings: publicComposerControls,
+      composer_shortcut_bindings: publicComposerShortcuts,
     },
     surfaceKey: surfaceKey || null,
     surfaceConfig: surfaceEntry ? asObject(surfaceEntry.config) : null,

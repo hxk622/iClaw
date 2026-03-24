@@ -213,6 +213,88 @@
     {"menuKey": "assets", "displayName": "资源", "category": "legacy", "routeKey": "assets", "iconKey": "", "metadata": {"sourceType": "preset", "enabled_by_default": false}, "active": true},
     {"menuKey": "models", "displayName": "模型", "category": "legacy", "routeKey": "models", "iconKey": "", "metadata": {"sourceType": "preset", "enabled_by_default": false}, "active": true}
   ],
+  "composerControls": [
+    {
+      "controlKey": "expert",
+      "displayName": "选择专家",
+      "controlType": "expert",
+      "iconKey": "expert",
+      "metadata": {"sourceType": "preset"},
+      "active": true
+    },
+    {
+      "controlKey": "skill",
+      "displayName": "选择技能",
+      "controlType": "skill",
+      "iconKey": "skill",
+      "metadata": {"sourceType": "preset"},
+      "active": true
+    },
+    {
+      "controlKey": "mode",
+      "displayName": "选择模式",
+      "controlType": "static",
+      "iconKey": "mode",
+      "metadata": {"sourceType": "preset"},
+      "active": true,
+      "options": [
+        {"optionValue": "quick", "label": "快速问答", "description": "更直接地给出结论和判断", "sortOrder": 10, "metadata": {}, "active": true},
+        {"optionValue": "deep-research", "label": "深度研究", "description": "更完整地展开分析与推演", "sortOrder": 20, "metadata": {}, "active": true},
+        {"optionValue": "report", "label": "生成报告", "description": "按结构化报告方式组织答案", "sortOrder": 30, "metadata": {}, "active": true}
+      ]
+    },
+    {
+      "controlKey": "market-scope",
+      "displayName": "选择市场",
+      "controlType": "static",
+      "iconKey": "market-scope",
+      "metadata": {"sourceType": "preset"},
+      "active": true,
+      "options": [
+        {"optionValue": "cn", "label": "A股", "description": "聚焦中国 A 股市场与标的", "sortOrder": 10, "metadata": {}, "active": true},
+        {"optionValue": "us", "label": "美股", "description": "聚焦美国市场与上市公司", "sortOrder": 20, "metadata": {}, "active": true},
+        {"optionValue": "hk", "label": "港股", "description": "聚焦港股市场与港股通标的", "sortOrder": 30, "metadata": {}, "active": true},
+        {"optionValue": "macro", "label": "宏观", "description": "聚焦宏观数据、利率与政策", "sortOrder": 40, "metadata": {}, "active": true},
+        {"optionValue": "crypto", "label": "加密", "description": "聚焦加密资产与链上市场", "sortOrder": 50, "metadata": {}, "active": true}
+      ]
+    },
+    {
+      "controlKey": "watchlist",
+      "displayName": "自选股",
+      "controlType": "static",
+      "iconKey": "watchlist",
+      "metadata": {"sourceType": "preset"},
+      "active": true,
+      "options": [
+        {"optionValue": "all", "label": "全部自选", "description": "优先围绕整组自选标的理解和回答", "sortOrder": 10, "metadata": {}, "active": true},
+        {"optionValue": "core", "label": "核心关注", "description": "优先围绕长期重点关注的核心标的", "sortOrder": 20, "metadata": {}, "active": true},
+        {"optionValue": "swing", "label": "短线观察", "description": "优先围绕交易观察和短期跟踪标的", "sortOrder": 30, "metadata": {}, "active": true},
+        {"optionValue": "long-term", "label": "长期配置", "description": "优先围绕长期配置与组合持有标的", "sortOrder": 40, "metadata": {}, "active": true}
+      ]
+    },
+    {
+      "controlKey": "output-format",
+      "displayName": "选择输出",
+      "controlType": "static",
+      "iconKey": "output-format",
+      "metadata": {"sourceType": "preset"},
+      "active": true,
+      "options": [
+        {"optionValue": "summary", "label": "结论摘要", "description": "优先输出简洁摘要与核心判断", "sortOrder": 10, "metadata": {}, "active": true},
+        {"optionValue": "table", "label": "表格", "description": "优先使用表格整理关键信息", "sortOrder": 20, "metadata": {}, "active": true},
+        {"optionValue": "minutes", "label": "纪要", "description": "按纪要结构汇总重点与行动项", "sortOrder": 30, "metadata": {}, "active": true},
+        {"optionValue": "report", "label": "报告", "description": "输出更完整的研究报告体例", "sortOrder": 40, "metadata": {}, "active": true}
+      ]
+    }
+  ],
+  "composerShortcuts": [
+    {"shortcutKey": "earnings-analysis", "displayName": "财报解读", "description": "快速发起财报质量和预期差分析", "template": "请解读 #标的 最新财报，重点看收入增速、利润率、经营现金流、管理层指引和预期差。", "iconKey": "earnings-analysis", "tone": "gold", "metadata": {"sourceType": "preset"}, "active": true},
+    {"shortcutKey": "valuation-analysis", "displayName": "估值分析", "description": "快速发起估值与可比公司分析", "template": "请对 #标的 做估值分析，结合增长、盈利质量、可比公司估值和主要风险给出判断。", "iconKey": "valuation-analysis", "tone": "blue", "metadata": {"sourceType": "preset"}, "active": true},
+    {"shortcutKey": "company-compare", "displayName": "公司对比", "description": "快速比较两个公司或标的", "template": "请对比 #标的1 和 #标的2 的商业模式、增长质量、估值水平和关键风险。", "iconKey": "company-compare", "tone": "green", "metadata": {"sourceType": "preset"}, "active": true},
+    {"shortcutKey": "sector-review", "displayName": "行业点评", "description": "快速发起行业机会与风险点评", "template": "请从行业格局、政策驱动、盈利周期和估值水平出发，点评 #行业 的当前机会与风险。", "iconKey": "sector-review", "tone": "amber", "metadata": {"sourceType": "preset"}, "active": true},
+    {"shortcutKey": "market-recap", "displayName": "市场复盘", "description": "快速复盘当日市场与风格变化", "template": "请复盘今天市场，说明主要指数表现、领涨领跌板块、资金风格和背后驱动。", "iconKey": "market-recap", "tone": "rose", "metadata": {"sourceType": "preset"}, "active": true},
+    {"shortcutKey": "fund-analysis", "displayName": "基金分析", "description": "快速发起基金产品分析", "template": "请分析 #基金 的投资范围、持仓风格、业绩表现、回撤风险、基金经理特征和适合的配置场景。", "iconKey": "fund-analysis", "tone": "slate", "metadata": {"sourceType": "preset"}, "active": true}
+  ],
   "skills": [
     {"slug": "docx", "name": "DOCX 文档工具", "description": "创建、编辑和分析 Word 文档，支持修订、批注、格式保留与文本提取。", "category": "report", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/docx/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
     {"slug": "xlsx", "name": "XLSX 表格工具", "description": "创建、编辑和分析电子表格，支持公式、格式、数据处理与可视化。", "category": "data", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/xlsx/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
@@ -303,8 +385,16 @@
       {"appName": "licaiclaw", "items": [{"modelRef": "openai/gpt-5.4", "enabled": true, "sortOrder": 10, "recommended": true, "default": true}, {"modelRef": "openai/qwen3.5-plus", "enabled": true, "sortOrder": 20}, {"modelRef": "openai/qwen3-max", "enabled": true, "sortOrder": 30}, {"modelRef": "openai/glm-5", "enabled": true, "sortOrder": 40, "recommended": true}, {"modelRef": "deepseek/deepseek-v3.2", "enabled": true, "sortOrder": 50, "recommended": true}]}
     ],
     "menus": [
-      {"appName": "iclaw", "items": [{"menuKey": "workspace", "enabled": true, "sortOrder": 10}, {"menuKey": "skills", "enabled": true, "sortOrder": 20}, {"menuKey": "mcp", "enabled": true, "sortOrder": 30}, {"menuKey": "assets", "enabled": true, "sortOrder": 40}, {"menuKey": "models", "enabled": true, "sortOrder": 50}, {"menuKey": "settings", "enabled": true, "sortOrder": 60}]},
-      {"appName": "licaiclaw", "items": [{"menuKey": "workspace", "enabled": true, "sortOrder": 10}, {"menuKey": "skills", "enabled": true, "sortOrder": 20}, {"menuKey": "mcp", "enabled": true, "sortOrder": 30}, {"menuKey": "assets", "enabled": true, "sortOrder": 40}, {"menuKey": "models", "enabled": true, "sortOrder": 50}, {"menuKey": "settings", "enabled": true, "sortOrder": 60}]}
+      {"appName": "iclaw", "items": [{"menuKey": "chat", "enabled": true, "sortOrder": 10}, {"menuKey": "cron", "enabled": true, "sortOrder": 20}, {"menuKey": "skill-store", "enabled": true, "sortOrder": 30}, {"menuKey": "lobster-store", "enabled": true, "sortOrder": 40}, {"menuKey": "mcp-store", "enabled": true, "sortOrder": 50}, {"menuKey": "im-bots", "enabled": true, "sortOrder": 60}, {"menuKey": "memory", "enabled": true, "sortOrder": 70}, {"menuKey": "security", "enabled": true, "sortOrder": 80}, {"menuKey": "task-center", "enabled": true, "sortOrder": 90}, {"menuKey": "investment-experts", "enabled": false, "sortOrder": 100}, {"menuKey": "data-connections", "enabled": false, "sortOrder": 110}, {"menuKey": "finance-skills", "enabled": false, "sortOrder": 120}, {"menuKey": "foundation-skills", "enabled": false, "sortOrder": 130}, {"menuKey": "stock-market", "enabled": false, "sortOrder": 140}, {"menuKey": "fund-market", "enabled": false, "sortOrder": 150}, {"menuKey": "settings", "enabled": false, "sortOrder": 160}]},
+      {"appName": "licaiclaw", "items": [{"menuKey": "chat", "enabled": true, "sortOrder": 10}, {"menuKey": "cron", "enabled": true, "sortOrder": 20}, {"menuKey": "skill-store", "enabled": true, "sortOrder": 30}, {"menuKey": "lobster-store", "enabled": true, "sortOrder": 40}, {"menuKey": "mcp-store", "enabled": true, "sortOrder": 50}, {"menuKey": "im-bots", "enabled": true, "sortOrder": 60}, {"menuKey": "memory", "enabled": true, "sortOrder": 70}, {"menuKey": "security", "enabled": true, "sortOrder": 80}, {"menuKey": "task-center", "enabled": true, "sortOrder": 90}, {"menuKey": "investment-experts", "enabled": false, "sortOrder": 100}, {"menuKey": "data-connections", "enabled": false, "sortOrder": 110}, {"menuKey": "finance-skills", "enabled": false, "sortOrder": 120}, {"menuKey": "foundation-skills", "enabled": false, "sortOrder": 130}, {"menuKey": "stock-market", "enabled": false, "sortOrder": 140}, {"menuKey": "fund-market", "enabled": false, "sortOrder": 150}, {"menuKey": "settings", "enabled": false, "sortOrder": 160}]}
+    ],
+    "composerControls": [
+      {"appName": "iclaw", "items": [{"controlKey": "expert", "enabled": true, "sortOrder": 10}, {"controlKey": "skill", "enabled": true, "sortOrder": 20}, {"controlKey": "mode", "enabled": true, "sortOrder": 30}, {"controlKey": "market-scope", "enabled": true, "sortOrder": 40}, {"controlKey": "watchlist", "enabled": true, "sortOrder": 50}, {"controlKey": "output-format", "enabled": true, "sortOrder": 60}]},
+      {"appName": "licaiclaw", "items": [{"controlKey": "expert", "enabled": true, "sortOrder": 10}, {"controlKey": "skill", "enabled": true, "sortOrder": 20}, {"controlKey": "mode", "enabled": true, "sortOrder": 30}, {"controlKey": "market-scope", "enabled": true, "sortOrder": 40}, {"controlKey": "watchlist", "enabled": true, "sortOrder": 50}, {"controlKey": "output-format", "enabled": true, "sortOrder": 60}]}
+    ],
+    "composerShortcuts": [
+      {"appName": "iclaw", "items": [{"shortcutKey": "earnings-analysis", "enabled": true, "sortOrder": 10}, {"shortcutKey": "valuation-analysis", "enabled": true, "sortOrder": 20}, {"shortcutKey": "company-compare", "enabled": true, "sortOrder": 30}, {"shortcutKey": "sector-review", "enabled": true, "sortOrder": 40}, {"shortcutKey": "market-recap", "enabled": true, "sortOrder": 50}, {"shortcutKey": "fund-analysis", "enabled": true, "sortOrder": 60}]},
+      {"appName": "licaiclaw", "items": [{"shortcutKey": "earnings-analysis", "enabled": true, "sortOrder": 10}, {"shortcutKey": "valuation-analysis", "enabled": true, "sortOrder": 20}, {"shortcutKey": "company-compare", "enabled": true, "sortOrder": 30}, {"shortcutKey": "sector-review", "enabled": true, "sortOrder": 40}, {"shortcutKey": "market-recap", "enabled": true, "sortOrder": 50}, {"shortcutKey": "fund-analysis", "enabled": true, "sortOrder": 60}]}
     ]
   }
 }

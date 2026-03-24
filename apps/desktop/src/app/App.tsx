@@ -11,7 +11,12 @@ import {
   type RuntimeDiagnosis,
   type RuntimeInstallProgress,
 } from './lib/tauri-runtime-config';
-import { loadBrandRuntimeConfigWithFallback, resolveEnabledMenuKeys, resolveMenuUiConfig } from './lib/oem-runtime';
+import {
+  loadBrandRuntimeConfigWithFallback,
+  resolveEnabledMenuKeys,
+  resolveInputComposerConfig,
+  resolveMenuUiConfig,
+} from './lib/oem-runtime';
 import { AuthPanel } from './components/AuthPanel';
 import { AccountPanel } from './components/account/AccountPanel';
 import { FirstRunSetupPanel } from './components/FirstRunSetupPanel';
@@ -1220,6 +1225,7 @@ function AuthedView({
   const [creditBalanceLoading, setCreditBalanceLoading] = useState(false);
   const enabledMenuKeys = resolveEnabledMenuKeys(brandShellConfig);
   const menuUiConfig = resolveMenuUiConfig(brandShellConfig);
+  const inputComposerConfig = resolveInputComposerConfig(brandShellConfig);
   const availablePrimaryViews = (
     enabledMenuKeys && enabledMenuKeys.length > 0
       ? enabledMenuKeys.filter((key) => key !== 'settings')
@@ -1597,6 +1603,7 @@ function AuthedView({
               creditToken={accessToken}
               onCreditBalanceRefresh={refreshCreditBalance}
               user={currentUser}
+              inputComposerConfig={inputComposerConfig}
             />
           ) : (
             <RuntimeAuthRequiredView

@@ -984,6 +984,16 @@ const server = createJsonServer([
     handler: ({headers}: HandlerContext) => portalService.listMenus(requireBearerToken(headers)),
   },
   {
+    method: 'GET',
+    path: '/admin/portal/catalog/composer-controls',
+    handler: ({headers}: HandlerContext) => portalService.listComposerControls(requireBearerToken(headers)),
+  },
+  {
+    method: 'GET',
+    path: '/admin/portal/catalog/composer-shortcuts',
+    handler: ({headers}: HandlerContext) => portalService.listComposerShortcuts(requireBearerToken(headers)),
+  },
+  {
     method: 'PUT',
     path: '/admin/portal/catalog/skills/:slug',
     handler: ({headers, params, body}: HandlerContext) =>
@@ -1067,6 +1077,18 @@ const server = createJsonServer([
     path: '/admin/portal/apps/:appName/menus',
     handler: ({headers, params, body}: HandlerContext) =>
       portalService.replaceAppMenus(requireBearerToken(headers), params.appName || '', (body || []) as never),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/portal/apps/:appName/composer-controls',
+    handler: ({headers, params, body}: HandlerContext) =>
+      portalService.replaceAppComposerControls(requireBearerToken(headers), params.appName || '', (body || []) as never),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/portal/apps/:appName/composer-shortcuts',
+    handler: ({headers, params, body}: HandlerContext) =>
+      portalService.replaceAppComposerShortcuts(requireBearerToken(headers), params.appName || '', (body || []) as never),
   },
   {
     method: 'POST',

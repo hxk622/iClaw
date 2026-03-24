@@ -29,6 +29,7 @@ import {
   resolveUserAvatarUrl,
   type AppUserAvatarSource,
 } from '../lib/user-avatar';
+import type { ResolvedInputComposerConfig } from '../lib/oem-runtime';
 import { loadSkillStoreCatalog } from '@/app/lib/skill-store';
 import {
   isInvestmentExpertAgent,
@@ -138,6 +139,7 @@ type OpenClawChatSurfaceProps = {
     avatar?: string | null;
     avatarUrl?: string | null;
   } | null;
+  inputComposerConfig?: ResolvedInputComposerConfig | null;
 };
 
 type ComposerCreditEstimateState = {
@@ -190,6 +192,7 @@ function buildSkillScopedPrompt(payload: ComposerSendPayload): string {
     payload.selectedSkillName ? `技能：${payload.selectedSkillName}` : null,
     payload.selectedModeLabel ? `模式：${payload.selectedModeLabel}` : null,
     payload.selectedMarketScopeLabel ? `市场范围：${payload.selectedMarketScopeLabel}` : null,
+    payload.selectedWatchlistLabel ? `自选股：${payload.selectedWatchlistLabel}` : null,
     payload.selectedOutputLabel ? `输出：${payload.selectedOutputLabel}` : null,
   ].filter((line): line is string => Boolean(line));
 
@@ -206,6 +209,7 @@ function buildSkillScopedPrompt(payload: ComposerSendPayload): string {
       : null,
     payload.selectedModeLabel ? `回答模式请遵循「${payload.selectedModeLabel}」。` : null,
     payload.selectedMarketScopeLabel ? `分析范围请聚焦「${payload.selectedMarketScopeLabel}」。` : null,
+    payload.selectedWatchlistLabel ? `如果涉及用户关注标的，请优先围绕「${payload.selectedWatchlistLabel}」这组自选股展开分析。` : null,
     payload.selectedOutputLabel ? `输出形式请优先按「${payload.selectedOutputLabel}」呈现。` : null,
   ].filter((line): line is string => Boolean(line));
 
@@ -1133,6 +1137,7 @@ export function OpenClawChatSurface({
   creditToken,
   onCreditBalanceRefresh,
   user,
+  inputComposerConfig = null,
 }: OpenClawChatSurfaceProps) {
   const shellRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -2758,6 +2763,8 @@ export function OpenClawChatSurface({
               selectedModeLabel: null,
               selectedMarketScope: null,
               selectedMarketScopeLabel: null,
+              selectedWatchlist: null,
+              selectedWatchlistLabel: null,
               selectedOutput: null,
               selectedOutputLabel: null,
             });
@@ -2972,6 +2979,7 @@ export function OpenClawChatSurface({
               onModelChange={handleModelChange}
               onDraftChange={setComposerDraft}
               creditEstimate={composerDraft?.hasContent ? creditEstimate : null}
+              composerConfig={inputComposerConfig}
               onSend={handleSend}
               onAbort={handleAbort}
             />

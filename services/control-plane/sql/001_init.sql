@@ -438,6 +438,43 @@ create table if not exists oem_menu_catalog (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists oem_composer_control_catalog (
+  control_key text primary key,
+  display_name text not null,
+  control_type text not null default 'static',
+  icon_key text,
+  metadata_json jsonb not null default '{}'::jsonb,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists oem_composer_control_option_catalog (
+  control_key text not null references oem_composer_control_catalog(control_key) on delete cascade,
+  option_value text not null,
+  label text not null,
+  description text not null default '',
+  sort_order integer not null default 100,
+  metadata_json jsonb not null default '{}'::jsonb,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (control_key, option_value)
+);
+
+create table if not exists oem_composer_shortcut_catalog (
+  shortcut_key text primary key,
+  display_name text not null,
+  description text not null default '',
+  template_text text not null,
+  icon_key text,
+  tone text,
+  metadata_json jsonb not null default '{}'::jsonb,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists oem_app_skill_bindings (
   app_name text not null references oem_apps(app_name) on delete cascade,
   skill_slug text not null references oem_skill_catalog(slug) on delete cascade,
@@ -480,6 +517,28 @@ create table if not exists oem_app_menu_bindings (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   primary key (app_name, menu_key)
+);
+
+create table if not exists oem_app_composer_control_bindings (
+  app_name text not null references oem_apps(app_name) on delete cascade,
+  control_key text not null references oem_composer_control_catalog(control_key) on delete cascade,
+  enabled boolean not null default true,
+  sort_order integer not null default 100,
+  config_json jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (app_name, control_key)
+);
+
+create table if not exists oem_app_composer_shortcut_bindings (
+  app_name text not null references oem_apps(app_name) on delete cascade,
+  shortcut_key text not null references oem_composer_shortcut_catalog(shortcut_key) on delete cascade,
+  enabled boolean not null default true,
+  sort_order integer not null default 100,
+  config_json jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (app_name, shortcut_key)
 );
 
 create table if not exists oem_app_assets (
@@ -1478,6 +1537,16 @@ create index if not exists idx_oem_app_menu_bindings_app_sort
   on oem_app_menu_bindings(app_name, sort_order, menu_key);
 create index if not exists idx_oem_menu_catalog_category_key
   on oem_menu_catalog(category, menu_key);
+create index if not exists idx_oem_composer_control_catalog_type_key
+  on oem_composer_control_catalog(control_type, control_key);
+create index if not exists idx_oem_composer_control_option_catalog_sort
+  on oem_composer_control_option_catalog(control_key, sort_order, option_value);
+create index if not exists idx_oem_composer_shortcut_catalog_sort
+  on oem_composer_shortcut_catalog(shortcut_key);
+create index if not exists idx_oem_app_composer_control_bindings_app_sort
+  on oem_app_composer_control_bindings(app_name, sort_order, control_key);
+create index if not exists idx_oem_app_composer_shortcut_bindings_app_sort
+  on oem_app_composer_shortcut_bindings(app_name, sort_order, shortcut_key);
 create index if not exists idx_oem_app_assets_app_updated
   on oem_app_assets(app_name, updated_at desc, asset_key);
 create index if not exists idx_oem_app_releases_app_published

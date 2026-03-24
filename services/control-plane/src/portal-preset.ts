@@ -23,10 +23,14 @@ export async function syncPortalPresetManifest(
     mcps: manifest.mcps || [],
     models: manifest.models || [],
     menus: manifest.menus || [],
+    composerControls: manifest.composerControls || [],
+    composerShortcuts: manifest.composerShortcuts || [],
     skillBindings: manifest.bindings?.skills || [],
     mcpBindings: manifest.bindings?.mcps || [],
     modelBindings: manifest.bindings?.models || [],
     menuBindings: manifest.bindings?.menus || [],
+    composerControlBindings: manifest.bindings?.composerControls || [],
+    composerShortcutBindings: manifest.bindings?.composerShortcuts || [],
   });
 
   for (const asset of manifest.assets || []) {
