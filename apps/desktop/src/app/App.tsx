@@ -13,9 +13,9 @@ import {
 } from './lib/tauri-runtime-config';
 import {
   loadBrandRuntimeConfigWithFallback,
-  resolveEnabledMenuKeys,
   resolveInputComposerConfig,
-  resolveMenuUiConfig,
+  resolveRequiredEnabledMenuKeys,
+  resolveRequiredMenuUiConfig,
   resolveWelcomePageConfig,
 } from './lib/oem-runtime';
 import { AuthPanel } from './components/AuthPanel';
@@ -231,15 +231,6 @@ function formatPortConflictMessage(ports: number[]): string | null {
 
 function normalizeBrandRuntimeText(value: string): string {
   return value.replaceAll('iClaw', BRAND.displayName);
-}
-
-function titleizeMenuKey(value: string): string {
-  return value
-    .split('-')
-    .map((segment) => segment.trim())
-    .filter(Boolean)
-    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-    .join(' ');
 }
 
 export default function App() {
@@ -1278,17 +1269,16 @@ function AuthedView({
   const [chatSurfaceVersion, setChatSurfaceVersion] = useState(0);
   const [creditBalance, setCreditBalance] = useState<CreditBalanceData | null>(null);
   const [creditBalanceLoading, setCreditBalanceLoading] = useState(false);
-  const enabledMenuKeys = resolveEnabledMenuKeys(brandShellConfig);
-  const menuUiConfig = resolveMenuUiConfig(brandShellConfig);
+  const enabledMenuKeys = resolveRequiredEnabledMenuKeys(brandShellConfig);
+  const menuUiConfig = resolveRequiredMenuUiConfig(brandShellConfig, [...enabledMenuKeys, 'chat', 'task-center']);
   const inputComposerConfig = resolveInputComposerConfig(brandShellConfig);
   const welcomePageConfig = resolveWelcomePageConfig(brandShellConfig);
-  const availablePrimaryViews = (
-    enabledMenuKeys && enabledMenuKeys.length > 0
-      ? enabledMenuKeys.filter((key) => key !== 'settings')
-      : PRIMARY_VIEW_ORDER
-  ) as PrimaryView[];
-  const activeMenuLabel =
-    String(menuUiConfig?.[primaryView]?.displayName || '').trim() || titleizeMenuKey(primaryView) || '模块';
+  const availablePrimaryViews = enabledMenuKeys.filter((key) => key !== 'settings') as PrimaryView[];
+  const activeMenuLabel = menuUiConfig[primaryView]?.displayName;
+  if (!activeMenuLabel) {
+    throw new Error(`Active menu label is missing for "${primaryView}"`);
+  }
+  const chatMenuLabel = menuUiConfig.chat.displayName;
   const skillStoreViewConfig:
     | {
         preset: SkillStoreViewPreset;
@@ -1299,19 +1289,19 @@ function AuthedView({
     primaryView === 'skill-store'
       ? {
           preset: 'all',
-          title: activeMenuLabel || '技能商店',
+          title: activeMenuLabel,
           description: '统一查看系统预置能力与云端技能，安装后可自动同步到设备',
         }
       : primaryView === 'finance-skills'
         ? {
             preset: 'finance',
-            title: activeMenuLabel || '财经技能',
+            title: activeMenuLabel,
             description: '聚合技能商店里的财经、投资、股票与金融分析相关技能，右侧布局与技能商店保持一致。',
           }
         : primaryView === 'foundation-skills'
           ? {
               preset: 'foundation',
-              title: activeMenuLabel || '基础技能',
+              title: activeMenuLabel,
               description: '聚合技能商店里的基础通用技能，展示当前热门前 100 项，右侧布局与技能商店保持一致。',
             }
           : null;
@@ -1550,6 +1540,7 @@ function AuthedView({
           }
           setOverlayView('account');
         }}
+        onOpenRechargeCenter={handleHeaderRechargeAction}
         onOpenLogin={() => onRequestAuth('login')}
         onOpenSettings={() => setOverlayView('settings')}
         onLogout={handleLogout}
@@ -1624,6 +1615,8 @@ function AuthedView({
               selectedTaskId={selectedTaskId}
               onSelectTask={setSelectedTaskId}
               onOpenChat={() => setPrimaryView('chat')}
+              taskCenterLabel={menuUiConfig['task-center'].displayName}
+              chatMenuLabel={chatMenuLabel}
             />
           ) : primaryView === 'cron' ? (
             authenticated ? (
@@ -1663,7 +1656,7 @@ function AuthedView({
                     }
                     action={
                       <Button variant="primary" size="sm" onClick={() => setPrimaryView('chat')}>
-                        回到智能对话
+                        回到{chatMenuLabel}
                       </Button>
                     }
                     className="rounded-[32px]"

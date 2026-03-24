@@ -12,6 +12,12 @@ export type ResolvedMenuUiConfig = {
   iconKey?: string;
 };
 
+export type RequiredResolvedMenuUiConfig = {
+  displayName: string;
+  group: string | null;
+  iconKey: string;
+};
+
 export type ResolvedComposerControlOption = {
   value: string;
   label: string;
@@ -327,6 +333,14 @@ export function resolveEnabledMenuKeys(config: Record<string, unknown> | null | 
   return Array.from(visible);
 }
 
+export function resolveRequiredEnabledMenuKeys(config: Record<string, unknown> | null | undefined): string[] {
+  const resolved = resolveEnabledMenuKeys(config);
+  if (!resolved || resolved.length === 0) {
+    throw new Error('OEM runtime menu bindings are missing or empty');
+  }
+  return resolved;
+}
+
 export function resolveMenuDisplayNames(config: Record<string, unknown> | null | undefined): Record<string, string> | null {
   const resolved = resolveMenuUiConfig(config);
   if (!resolved) return null;
@@ -364,6 +378,43 @@ export function resolveMenuUiConfig(config: Record<string, unknown> | null | und
   }
 
   return Object.keys(entries).length ? entries : null;
+}
+
+export function resolveRequiredMenuUiConfig(
+  config: Record<string, unknown> | null | undefined,
+  requiredMenuKeys: string[],
+): Record<string, RequiredResolvedMenuUiConfig> {
+  const resolved = resolveMenuUiConfig(config);
+  if (!resolved) {
+    throw new Error('OEM runtime menu UI config is missing');
+  }
+
+  const entries: Record<string, RequiredResolvedMenuUiConfig> = {};
+  for (const menuKey of normalizeMenuKeys(requiredMenuKeys)) {
+    const item = resolved[menuKey];
+    if (!item) {
+      throw new Error(`OEM runtime menu config is missing for "${menuKey}"`);
+    }
+
+    const displayName = String(item.displayName || '').trim();
+    if (!displayName) {
+      throw new Error(`OEM runtime menu displayName is missing for "${menuKey}"`);
+    }
+
+    const iconKey = String(item.iconKey || '').trim();
+    if (!iconKey) {
+      throw new Error(`OEM runtime menu iconKey is missing for "${menuKey}"`);
+    }
+
+    const group = String(item.group || '').trim();
+    entries[menuKey] = {
+      displayName,
+      group: group || null,
+      iconKey,
+    };
+  }
+
+  return entries;
 }
 
 export function resolveInputComposerConfig(

@@ -29,6 +29,8 @@ interface TaskCenterViewProps {
   selectedTaskId?: string | null;
   onSelectTask?: (taskId: string) => void;
   onOpenChat?: () => void;
+  taskCenterLabel: string;
+  chatMenuLabel: string;
 }
 
 interface TaskViewModel {
@@ -92,12 +94,14 @@ export function TaskCenterView({
   selectedTaskId = null,
   onSelectTask,
   onOpenChat,
+  taskCenterLabel,
+  chatMenuLabel,
 }: TaskCenterViewProps) {
   const tasks = useRecentTasks();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<TaskFilter>('all');
 
-  const mappedTasks = useMemo(() => tasks.map(mapTaskToViewModel), [tasks]);
+  const mappedTasks = useMemo(() => tasks.map((task) => mapTaskToViewModel(task, chatMenuLabel)), [chatMenuLabel, tasks]);
 
   const filteredTasks = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -141,7 +145,7 @@ export function TaskCenterView({
         <header className="mb-8 flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h1 className="mb-2 text-[32px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
-              历史任务
+              {taskCenterLabel}
             </h1>
             <p className="text-[15px] text-[var(--text-secondary)]">
               查看历史任务、结果与更新状态
@@ -155,7 +159,7 @@ export function TaskCenterView({
             onClick={onOpenChat}
             className="shrink-0"
           >
-            返回智能对话
+            返回{chatMenuLabel}
           </Button>
         </header>
 
@@ -169,7 +173,7 @@ export function TaskCenterView({
                 还没有任务记录
               </h2>
               <p className="mb-8 text-[15px] leading-7 text-[var(--text-secondary)]">
-                开始与智能助手对话，创建你的第一个任务
+                从{chatMenuLabel}发起一次真实对话，创建你的第一个任务
               </p>
               <div className="flex justify-center">
                 <Button
@@ -178,7 +182,7 @@ export function TaskCenterView({
                   leadingIcon={<MessageSquare className="h-4 w-4" />}
                   onClick={onOpenChat}
                 >
-                  返回智能对话
+                  返回{chatMenuLabel}
                 </Button>
               </div>
             </div>
@@ -263,7 +267,7 @@ export function TaskCenterView({
 
                 <aside className="w-[400px] shrink-0">
                   <div className="sticky top-8">
-                    <TaskDetailPanel task={selectedTask} onOpenChat={onOpenChat} />
+                    <TaskDetailPanel task={selectedTask} onOpenChat={onOpenChat} chatMenuLabel={chatMenuLabel} />
                   </div>
                 </aside>
               </section>
@@ -413,9 +417,11 @@ function TaskCard({
 function TaskDetailPanel({
   task,
   onOpenChat,
+  chatMenuLabel,
 }: {
   task: TaskViewModel | null;
   onOpenChat?: () => void;
+  chatMenuLabel: string;
 }) {
   if (!task) {
     return (
@@ -500,7 +506,7 @@ function TaskDetailPanel({
         leadingIcon={<MessageSquare className="h-4 w-4" />}
         onClick={onOpenChat}
       >
-        返回智能对话
+        返回{chatMenuLabel}
       </Button>
     </div>
   );
@@ -537,7 +543,7 @@ function StatusBadge({ status }: { status: RecentTaskRecord['status'] }) {
   );
 }
 
-function mapTaskToViewModel(task: RecentTaskRecord): TaskViewModel {
+function mapTaskToViewModel(task: RecentTaskRecord, chatMenuLabel: string): TaskViewModel {
   const resultTypes = task.artifacts.map((artifact) => RECENT_TASK_ARTIFACT_LABELS[artifact]);
 
   return {
@@ -549,7 +555,7 @@ function mapTaskToViewModel(task: RecentTaskRecord): TaskViewModel {
     resultTypes,
     lastUpdated: formatRecentTaskRelativeTime(task.updatedAt),
     createdAt: formatCompactDate(task.createdAt),
-    source: '智能对话',
+    source: chatMenuLabel,
     statusMessage: buildStatusMessage(task, resultTypes),
   };
 }
