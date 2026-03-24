@@ -74,6 +74,10 @@ interface AuthUser {
   role?: 'user' | 'admin' | 'super_admin' | null;
 }
 
+function isUnauthorizedAuthError(error: unknown): boolean {
+  return Boolean(error && typeof error === 'object' && 'code' in error && error.code === 'UNAUTHORIZED');
+}
+
 function resolveSidecarPort(args: string[]): string {
   for (let i = 0; i < args.length; i += 1) {
     if (args[i] !== '--port') continue;
@@ -596,6 +600,10 @@ export default function App() {
       setAuthBootstrapReady(true);
     };
 
+    const settlePreservedAuth = (token: string, user: AuthUser | null = null) => {
+      settleAuthed(token, user);
+    };
+
     const timeoutId = window.setTimeout(() => {
       settleGuest(false);
     }, AUTH_BOOTSTRAP_TIMEOUT_MS);
@@ -632,7 +640,13 @@ export default function App() {
           }
           settleAuthed(auth.accessToken, user || null);
           return;
-        } catch {}
+        } catch (error) {
+          if (!isUnauthorizedAuthError(error)) {
+            console.warn('[desktop] failed to validate stored access token, keeping session for retry', error);
+            settlePreservedAuth(auth.accessToken, null);
+            return;
+          }
+        }
 
         try {
           const refreshed = await client.refresh(auth.refreshToken);
@@ -648,11 +662,17 @@ export default function App() {
           });
           const user = (await client.me(refreshed.access_token)) as AuthUser;
           settleAuthed(refreshed.access_token, user || null);
-        } catch {
-          settleGuest(true);
+        } catch (error) {
+          if (isUnauthorizedAuthError(error)) {
+            settleGuest(true);
+            return;
+          }
+          console.warn('[desktop] failed to refresh stored session, keeping cached auth for retry', error);
+          settlePreservedAuth(auth.accessToken, null);
         }
-      } catch {
-        settleGuest(true);
+      } catch (error) {
+        console.warn('[desktop] auth bootstrap hit a transient error, preserving stored session', error);
+        settleGuest(false);
       }
     };
 

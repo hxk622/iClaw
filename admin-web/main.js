@@ -276,6 +276,14 @@ function isUnauthorizedError(error) {
   return Boolean(error && typeof error === 'object' && error.code === 'UNAUTHORIZED');
 }
 
+function shouldKeepSessionOnError(error) {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+  const code = String(error.code || '').trim();
+  return Boolean(code) && code !== 'UNAUTHORIZED';
+}
+
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -2446,24 +2454,33 @@ async function authenticate(identifier, password) {
 }
 
 async function ensureSession() {
-  if (!state.tokens?.access_token) {
+  if (!state.tokens?.access_token && !state.tokens?.refresh_token) {
     state.view = 'login';
     render();
     return;
   }
 
   try {
+    if (!state.tokens?.access_token && state.tokens?.refresh_token) {
+      await refreshToken();
+    }
     state.user = await apiFetch('/auth/me', {method: 'GET'});
     state.view = 'dashboard';
     await loadAppData();
   } catch (error) {
-    state.user = null;
     if (isUnauthorizedError(error)) {
+      state.user = null;
       persistTokens(null);
       state.view = 'login';
       render();
       return;
     }
+    if (shouldKeepSessionOnError(error)) {
+      state.view = 'dashboard';
+      setError(error instanceof Error ? `恢复登录态失败：${error.message}` : '恢复登录态失败，请稍后刷新重试');
+      return;
+    }
+    state.user = null;
     state.view = 'login';
     setError(error instanceof Error ? `恢复登录态失败：${error.message}` : '恢复登录态失败，请稍后刷新重试');
   }
