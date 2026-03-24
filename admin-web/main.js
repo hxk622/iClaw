@@ -452,6 +452,10 @@ function getMenuCatalogItems() {
     .filter(Boolean);
 }
 
+function getManageableMenuCatalogItems() {
+  return getMenuCatalogItems().filter((item) => item.category !== 'legacy');
+}
+
 function isMenuEnabledByDefault(menu) {
   const item = normalizeMenuCatalogItem(menu);
   if (!item) return false;
@@ -597,6 +601,27 @@ function buildOrderedMenuList(order) {
     }
   }
   return list;
+}
+
+function buildManageableMenuOrder(order) {
+  const manageableKeys = new Set(getManageableMenuCatalogItems().map((item) => item.key));
+  return buildOrderedMenuList(order).filter((key) => manageableKeys.has(key));
+}
+
+function moveManageableMenuItem(list, value, direction) {
+  const visible = buildManageableMenuOrder(list);
+  const hidden = buildOrderedMenuList(list).filter((key) => !visible.includes(key));
+  const index = visible.indexOf(value);
+  if (index < 0) {
+    return [...visible, ...hidden];
+  }
+  const nextIndex = direction === 'up' ? index - 1 : index + 1;
+  if (nextIndex < 0 || nextIndex >= visible.length) {
+    return [...visible, ...hidden];
+  }
+  const [item] = visible.splice(index, 1);
+  visible.splice(nextIndex, 0, item);
+  return [...visible, ...hidden];
 }
 
 function moveListItem(list, value, direction) {
@@ -2718,7 +2743,7 @@ function toggleBrandCapability(type, value) {
 function moveBrandMenu(value, direction) {
   const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
   if (!buffer) return;
-  buffer.menuOrder = moveListItem(buffer.menuOrder, value, direction);
+  buffer.menuOrder = moveManageableMenuItem(buffer.menuOrder, value, direction);
   state.brandDraftBuffer = buffer;
   render();
 }
@@ -3371,7 +3396,7 @@ function renderBrandModelAssembly(buffer) {
 }
 
 function getOrderedMenuItemsByCategory(buffer, category) {
-  const order = buildOrderedMenuList(buffer.menuOrder);
+  const order = buildManageableMenuOrder(buffer.menuOrder);
   return order
     .map((key) => getMenuDefinition(key))
     .filter((item) => item && item.category === category);
@@ -3379,7 +3404,8 @@ function getOrderedMenuItemsByCategory(buffer, category) {
 
 function renderMenuToggleCard(buffer, item, note) {
   const enabled = buffer.selectedMenus.includes(item.key);
-  const index = buildOrderedMenuList(buffer.menuOrder).indexOf(item.key);
+  const editorOrder = buildManageableMenuOrder(buffer.menuOrder);
+  const index = editorOrder.indexOf(item.key);
   const menuConfig = normalizeMenuDraftConfig(asObject(asObject(buffer.menuConfigs)[item.key]));
   const skillOptions = getMergedSkills();
   const mcpOptions = getMergedMcpServers();
@@ -3463,7 +3489,7 @@ function renderMenuToggleCard(buffer, item, note) {
         <button class="ghost-button fig-icon-button" type="button" data-action="move-brand-menu-up" data-menu-key="${escapeHtml(item.key)}"${index <= 0 ? ' disabled' : ''}>
           ${icon('chevronUp', 'button-icon')}
         </button>
-        <button class="ghost-button fig-icon-button" type="button" data-action="move-brand-menu-down" data-menu-key="${escapeHtml(item.key)}"${index < 0 || index >= buildOrderedMenuList(buffer.menuOrder).length - 1 ? ' disabled' : ''}>
+        <button class="ghost-button fig-icon-button" type="button" data-action="move-brand-menu-down" data-menu-key="${escapeHtml(item.key)}"${index < 0 || index >= editorOrder.length - 1 ? ' disabled' : ''}>
           ${icon('chevronDown', 'button-icon')}
         </button>
         ${renderSwitch({
@@ -3479,30 +3505,20 @@ function renderMenuToggleCard(buffer, item, note) {
 
 function renderBrandMenusAssembly(buffer) {
   const sidebarItems = getOrderedMenuItemsByCategory(buffer, 'sidebar');
-  const legacyItems = getOrderedMenuItemsByCategory(buffer, 'legacy');
   return `
     <section class="fig-brand-section">
       <div class="fig-section-heading">
         <h2>左菜单栏</h2>
-        <p>左侧菜单单独配置，不再和技能、MCP、模型混在一个 tab 里。优先维护真实业务入口，兼容项单独保留。</p>
+        <p>这里只维护 OEM 真正暴露给终端用户的左侧入口。历史兼容 key 保留在后端兼容层，不再出现在运营界面。</p>
       </div>
       <div class="fig-capability-columns">
         <article class="fig-card fig-card--subtle">
           <div class="fig-card__head">
-            <h3>真实业务入口</h3>
-            <span>对应桌面端 sidebar 中的主导航，可按 OEM 单独覆盖显示名称</span>
+            <h3>OEM 菜单入口</h3>
+            <span>对应桌面端 sidebar 主导航，可按 OEM 单独控制显隐、排序和显示名称</span>
           </div>
           <div class="fig-capability-stack">
             ${sidebarItems.map((item) => renderMenuToggleCard(buffer, item, '主导航')).join('')}
-          </div>
-        </article>
-        <article class="fig-card fig-card--subtle">
-          <div class="fig-card__head">
-            <h3>兼容 / 预留菜单</h3>
-            <span>保留历史 key，避免老品牌或老端配置直接失效，也支持单独覆盖显示名称</span>
-          </div>
-          <div class="fig-capability-stack">
-            ${legacyItems.map((item) => renderMenuToggleCard(buffer, item, '兼容项')).join('')}
           </div>
         </article>
       </div>
