@@ -874,6 +874,27 @@ function statusLabel(status) {
   }
 }
 
+function visibilityStateLabel(visible) {
+  return visible ? '已显示' : '已隐藏';
+}
+
+function installStateLabel(installed) {
+  return installed ? '已安装' : '未安装';
+}
+
+function capabilityBindingCountLabel(type, count) {
+  if (type === 'skill' || type === 'mcp') {
+    return `${count} 个品牌已安装`;
+  }
+  return `${count} 个 OEM 已启用`;
+}
+
+function capabilityBindingEmptyLabel(type) {
+  if (type === 'skill') return '当前没有品牌安装此技能。';
+  if (type === 'mcp') return '当前没有品牌安装此 MCP。';
+  return '当前没有 OEM 绑定此模型。';
+}
+
 function getMenuLabel(menuKey) {
   return getMenuDefinition(menuKey)?.label || titleizeKey(menuKey);
 }
@@ -2842,9 +2863,9 @@ async function setSkillEnabled(slug, enabled) {
       }),
     });
     await loadAppData();
-    setNotice(`${slug} 已${enabled ? '启用' : '停用'}。`);
+    setNotice(`${slug} 已${enabled ? '上架' : '下架'}。`);
   } catch (error) {
-    setError(error instanceof Error ? error.message : `技能${enabled ? '启用' : '停用'}失败`);
+    setError(error instanceof Error ? error.message : `技能${enabled ? '上架' : '下架'}失败`);
   } finally {
     state.busy = false;
     render();
@@ -3042,9 +3063,9 @@ async function setCloudSkillEnabled(slug, enabled) {
       }),
     });
     await loadAppData();
-    setNotice(`${slug} 已${enabled ? '启用' : '停用'}。`);
+    setNotice(`${slug} 已${enabled ? '上架' : '下架'}。`);
   } catch (error) {
-    setError(error instanceof Error ? error.message : `云技能${enabled ? '启用' : '停用'}失败`);
+    setError(error instanceof Error ? error.message : `云技能${enabled ? '上架' : '下架'}失败`);
   } finally {
     state.busy = false;
     render();
@@ -3551,15 +3572,15 @@ function renderBrandDetailGuide(activeTab) {
   }
   if (activeTab === 'skills') {
     return renderPageGuide('技能装配怎么配', [
-      '技能主数据先在 Skill中心维护，这里只负责给当前 OEM 勾选启用哪些技能。',
+      '技能主数据先在 Skill中心维护，这里只负责给当前 OEM 勾选安装哪些技能。',
       '当前品牌勾选后会进入该品牌的 capabilities.skills 和 skill bindings。',
       '保存配置后再发布快照，客户端同步新 snapshot 后技能入口和运行时能力才会更新。',
     ], 'brand');
   }
   if (activeTab === 'mcps') {
     return renderPageGuide('MCP 装配怎么配', [
-      'MCP 主目录先在 MCP中心维护，这里只做当前 OEM 的启用和关闭。',
-      '每个 OEM 只应启用自己需要的连接器，避免把无关 MCP 暴露给前端和运行时。',
+      'MCP 主目录先在 MCP中心维护，这里只做当前 OEM 的安装和卸载。',
+      '每个 OEM 只应安装自己需要的连接器，避免把无关 MCP 暴露给前端和运行时。',
       '保存配置后再发布快照，客户端同步后才会加载新的 MCP 清单。',
     ], 'brand');
   }
@@ -3581,7 +3602,7 @@ function renderBrandDetailGuide(activeTab) {
   if (surfaceBlueprint?.kind === 'shell') {
     return renderPageGuide(`${surfaceBlueprint.label}怎么配`, [
       `这里单独维护 ${surfaceBlueprint.label} 的 OEM 配置，不再和其他 UI 位混在一个大 Surface tab 里。`,
-      '切换开关控制这个区域是否启用，JSON 区域用于写该区域的装配配置。',
+      '切换开关控制这个区域是否显示，JSON 区域用于写该区域的装配配置。',
       '保存配置只更新草稿；发布快照后，该 OEM 才会真正切到这套界面配置。',
     ], 'brand');
   }
@@ -3589,7 +3610,7 @@ function renderBrandDetailGuide(activeTab) {
     return renderPageGuide(`${surfaceBlueprint.label}怎么配`, [
       `这里单独维护 ${surfaceBlueprint.label} 这个业务模块，包含入口显隐和模块 surface 配置。`,
       '如果该模块有侧边栏入口，会单独显示模块入口开关；模块内部再维护自己的 surface JSON。',
-      '保存配置并发布快照后，该 OEM 才会按品牌启用这块模块能力。',
+      '保存配置并发布快照后，该 OEM 才会按品牌显示这块模块能力。',
     ], 'brand');
   }
   return '';
@@ -3863,13 +3884,13 @@ function renderBrandSurfaceEditor(buffer, surfaceKey, title, description) {
         </div>
         <div class="fig-surface-card__body">
           <div class="surface-editor__head fig-surface-card__head">
-            <div>
-              <h3>${escapeHtml(surface.label)}</h3>
-              <p>${surface.enabled ? '已启用' : '已关闭'}</p>
-            </div>
+              <div>
+                <h3>${escapeHtml(surface.label)}</h3>
+                <p>${visibilityStateLabel(surface.enabled)}</p>
+              </div>
             <label class="toggle fig-toggle">
               <input type="checkbox" name="surface_enabled__${escapeHtml(surface.key)}"${surface.enabled ? ' checked' : ''} />
-              <span>${surface.enabled ? '已启用' : '已关闭'}</span>
+              <span>${visibilityStateLabel(surface.enabled)}</span>
             </label>
           </div>
           <textarea class="code-input code-input--tall" name="surface_config__${escapeHtml(surface.key)}">${escapeHtml(surface.json)}</textarea>
@@ -3885,12 +3906,12 @@ function renderBrandSkillsAssembly(buffer) {
     <section class="fig-brand-section">
       <div class="fig-section-heading">
         <h2>技能</h2>
-        <p>给当前 OEM 应用勾选可用技能，技能主数据仍由 Skill中心 统一维护。</p>
+        <p>给当前 OEM 应用勾选要安装的技能，技能主数据仍由 Skill中心 统一维护。</p>
       </div>
       <article class="fig-card fig-card--subtle">
         <div class="fig-card__head">
           <h3>技能装配</h3>
-          <span>按品牌控制运行时可用技能</span>
+          <span>按品牌控制要安装哪些技能</span>
         </div>
         <div class="fig-capability-stack">
           ${skills.length
@@ -3907,7 +3928,7 @@ function renderBrandSkillsAssembly(buffer) {
                         checked: buffer.selectedSkills.includes(skill.slug),
                         action: 'toggle-brand-skill',
                         attrs: `data-skill-slug="${escapeHtml(skill.slug)}"`,
-                        label: buffer.selectedSkills.includes(skill.slug) ? '已启用' : '已禁用',
+                        label: installStateLabel(buffer.selectedSkills.includes(skill.slug)),
                       })}
                     </article>
                   `,
@@ -3926,12 +3947,12 @@ function renderBrandMcpAssembly(buffer) {
     <section class="fig-brand-section">
       <div class="fig-section-heading">
         <h2>MCP</h2>
-        <p>给当前 OEM 应用勾选可用的 MCP 连接器，避免把无关外部能力暴露给前端和 runtime。</p>
+        <p>给当前 OEM 应用勾选要安装的 MCP 连接器，避免把无关外部能力暴露给前端和 runtime。</p>
       </div>
       <article class="fig-card fig-card--subtle">
         <div class="fig-card__head">
           <h3>MCP 装配</h3>
-          <span>已连接的能力提供方</span>
+          <span>按品牌控制要安装哪些连接器</span>
         </div>
         <div class="fig-capability-stack">
           ${mcpServers.length
@@ -3948,7 +3969,7 @@ function renderBrandMcpAssembly(buffer) {
                         checked: buffer.selectedMcp.includes(server.key),
                         action: 'toggle-brand-mcp',
                         attrs: `data-mcp-key="${escapeHtml(server.key)}"`,
-                        label: buffer.selectedMcp.includes(server.key) ? '已启用' : '已禁用',
+                        label: installStateLabel(buffer.selectedMcp.includes(server.key)),
                       })}
                     </article>
                   `,
@@ -4126,7 +4147,7 @@ function renderMenuToggleCard(buffer, item, note) {
           checked: enabled,
           action: 'toggle-brand-menu',
           attrs: `data-menu-key="${escapeHtml(item.key)}"`,
-          label: enabled ? '已启用' : '已禁用',
+          label: visibilityStateLabel(enabled),
         })}
       </div>
     </article>
@@ -4203,7 +4224,7 @@ function renderComposerControlCard(buffer, item, index, total) {
           checked: enabled,
           action: 'toggle-brand-composer-control',
           attrs: `data-control-key="${escapeHtml(item.controlKey)}"`,
-          label: enabled ? '已启用' : '已禁用',
+          label: visibilityStateLabel(enabled),
         })}
       </div>
     </article>
@@ -4250,7 +4271,7 @@ function renderComposerShortcutCard(buffer, item, index, total) {
           checked: enabled,
           action: 'toggle-brand-composer-shortcut',
           attrs: `data-shortcut-key="${escapeHtml(item.shortcutKey)}"`,
-          label: enabled ? '已启用' : '已禁用',
+          label: visibilityStateLabel(enabled),
         })}
       </div>
     </article>
@@ -4310,7 +4331,7 @@ function renderBrandWelcomeAssembly(buffer) {
         </div>
         <label class="toggle fig-toggle">
           <input type="checkbox" name="welcome_enabled"${enabled ? ' checked' : ''} />
-          <span>${enabled ? '已启用' : '已关闭'}</span>
+          <span>${visibilityStateLabel(enabled)}</span>
         </label>
       </article>
       <div class="fig-capability-columns">
@@ -4453,11 +4474,11 @@ function renderBrandModuleAssembly(buffer, surfaceKey) {
             <div class="surface-editor__head fig-surface-card__head">
               <div>
                 <h3>${escapeHtml(surface.label)} Surface</h3>
-                <p>${surface.enabled ? '已启用' : '已关闭'}</p>
+                <p>${visibilityStateLabel(surface.enabled)}</p>
               </div>
               <label class="toggle fig-toggle">
                 <input type="checkbox" name="surface_enabled__${escapeHtml(surface.key)}"${surface.enabled ? ' checked' : ''} />
-                <span>${surface.enabled ? '已启用' : '已关闭'}</span>
+                <span>${visibilityStateLabel(surface.enabled)}</span>
               </label>
             </div>
             <textarea class="code-input code-input--tall" name="surface_config__${escapeHtml(surface.key)}">${escapeHtml(surface.json)}</textarea>
@@ -5019,7 +5040,7 @@ function renderSkillsMcpPage() {
             ${['all', 'active', 'disabled']
               .map(
                 (item) =>
-                  `<option value="${item}"${state.filters.capabilitySkillStatus === item ? ' selected' : ''}>${escapeHtml(item === 'all' ? '全部状态' : item === 'active' ? '仅启用' : '仅禁用')}</option>`,
+                  `<option value="${item}"${state.filters.capabilitySkillStatus === item ? ' selected' : ''}>${escapeHtml(item === 'all' ? '全部目录' : item === 'active' ? '仅上架' : '仅下架')}</option>`,
               )
               .join('')}
           </select>
@@ -5050,7 +5071,7 @@ function renderSkillsMcpPage() {
               ${['all', 'active', 'disabled']
                 .map(
                   (item) =>
-                    `<option value="${item}"${state.filters.capabilityMcpStatus === item ? ' selected' : ''}>${escapeHtml(item === 'all' ? '全部状态' : item === 'active' ? '仅启用' : '仅禁用')}</option>`,
+                    `<option value="${item}"${state.filters.capabilityMcpStatus === item ? ' selected' : ''}>${escapeHtml(item === 'all' ? '全部目录' : item === 'active' ? '仅可用' : '仅关闭')}</option>`,
                 )
                 .join('')}
             </select>
@@ -5182,13 +5203,13 @@ function renderSkillsMcpPage() {
       ${renderPageGuide(`${pageTitle}怎么用`, state.capabilityMode === 'skills'
         ? [
             '这里维护 Skill 主数据，决定有哪些技能可以被 OEM 装配。',
-            '新增或编辑 Skill 后，再去品牌详情的“技能”tab里勾选给哪些品牌开放。',
+            '新增或编辑 Skill 后，再去品牌详情的“技能”tab里勾选安装到哪些品牌。',
             '品牌侧勾选只是绑定关系；Skill 的主信息仍以这里为准。',
           ]
         : state.capabilityMode === 'mcp'
           ? [
               '这里维护 MCP 主目录，包括 transport、command、args、env 和元数据。',
-              'MCP 建好后，再去品牌详情的“MCP”tab里为指定 OEM 开关启用。',
+              'MCP 建好后，再去品牌详情的“MCP”tab里为指定 OEM 勾选安装。',
               '需要验证连通性时，可先在这里保存，再点“测试连接”。',
             ]
           : [
@@ -5571,7 +5592,7 @@ function renderCloudSkillsPage() {
         <section class="fig-card">
           <div class="fig-card__head">
             <h2>主库概览</h2>
-            <span>技能商店直接读取这里的启用技能</span>
+            <span>技能商店直接读取这里的已上架技能</span>
           </div>
           <div class="fig-meta-cards">
             <div class="fig-meta-card"><span>云技能</span><strong>${escapeHtml(skills.length)}</strong></div>
@@ -5637,7 +5658,7 @@ function renderCloudSkillsPage() {
                         checked: selectedSkill.active !== false,
                         action: 'cloud-skill-toggle',
                         attrs: `data-skill-slug="${escapeHtml(selectedSkill.slug)}" data-enabled="${selectedSkill.active !== false ? 'true' : 'false'}"`,
-                        label: selectedSkill.active !== false ? '已启用' : '已禁用',
+                        label: selectedSkill.active !== false ? '已上架' : '已下架',
                       })}
                     </div>
                     <p class="detail-copy">${escapeHtml(selectedSkill.description || '暂无描述。')}</p>
@@ -5743,8 +5764,8 @@ function renderSkillImportPanel() {
         <label class="field">
           <span>状态</span>
           <select class="field-select" name="active">
-            <option value="true"${skill?.active !== false ? ' selected' : ''}>启用</option>
-            <option value="false"${skill?.active === false ? ' selected' : ''}>禁用</option>
+            <option value="true"${skill?.active !== false ? ' selected' : ''}>上架</option>
+            <option value="false"${skill?.active === false ? ' selected' : ''}>下架</option>
           </select>
         </label>
         <label class="field field--wide">
@@ -5775,7 +5796,7 @@ function renderSkillDetail(skill) {
             checked: skill.active !== false,
             action: 'skill-toggle',
             attrs: `data-skill-slug="${escapeHtml(skill.slug)}" data-enabled="${skill.active !== false ? 'true' : 'false'}"`,
-            label: skill.active !== false ? '已启用' : '已禁用',
+            label: skill.active !== false ? '已上架' : '已下架',
           })}
         </div>
         <p class="detail-copy">${escapeHtml(skill.description || '暂无描述。')}</p>
@@ -5792,7 +5813,7 @@ function renderSkillDetail(skill) {
       <section class="fig-card fig-card--subtle">
         <div class="fig-card__head">
           <h3>品牌访问权限</h3>
-          <span>${escapeHtml(skill.brand_count)} 个品牌已启用</span>
+          <span>${escapeHtml(capabilityBindingCountLabel('skill', skill.brand_count))}</span>
         </div>
         <div class="chip-grid">
         ${(skill.connectedBrands || []).length
@@ -5805,7 +5826,7 @@ function renderSkillDetail(skill) {
                 `,
               )
               .join('')
-          : `<div class="empty-state">当前没有品牌绑定此技能。</div>`}
+          : `<div class="empty-state">${capabilityBindingEmptyLabel('skill')}</div>`}
         </div>
       </section>
       ${renderCapabilityBrandMatrix('skill', skill)}
@@ -5856,7 +5877,7 @@ function renderMcpDetail(server) {
           </div>
           <div class="metric-chips">
             <span>${escapeHtml(server.connected_brand_count)} 个品牌</span>
-            <span>${server.enabled_by_default ? '默认启用' : '默认关闭'}</span>
+            <span>${server.enabled_by_default ? '目录可用' : '目录关闭'}</span>
           </div>
         </div>
       </div>
@@ -5881,8 +5902,8 @@ function renderMcpDetail(server) {
         <label class="field">
           <span>默认状态</span>
           <select class="field-select" name="enabled">
-            <option value="true"${editable.enabled ? ' selected' : ''}>Enabled</option>
-            <option value="false"${editable.enabled ? '' : ' selected'}>Disabled</option>
+            <option value="true"${editable.enabled ? ' selected' : ''}>可用</option>
+            <option value="false"${editable.enabled ? '' : ' selected'}>关闭</option>
           </select>
         </label>
         <label class="field">
@@ -5955,7 +5976,7 @@ function renderMcpDetail(server) {
                 `,
               )
               .join('')
-          : `<div class="empty-state">当前没有品牌启用该 MCP。</div>`}
+          : `<div class="empty-state">${capabilityBindingEmptyLabel('mcp')}</div>`}
       </div>
       </section>
       ${renderCapabilityBrandMatrix('mcp', server)}
@@ -6129,7 +6150,7 @@ function renderCapabilityBrandMatrix(type, item) {
             <tr>
               <th>品牌</th>
               <th>状态</th>
-              <th>已连接</th>
+              <th>${type === 'skill' || type === 'mcp' ? '已安装' : '已连接'}</th>
               <th>操作</th>
             </tr>
           </thead>
