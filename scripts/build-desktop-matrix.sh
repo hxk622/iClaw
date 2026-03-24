@@ -5,7 +5,6 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DESKTOP_DIR="$ROOT_DIR/apps/desktop"
 OUT_DIR="$ROOT_DIR/dist/releases"
 APP_VERSION="$(node -p "require('$ROOT_DIR/package.json').version")"
-ARTIFACT_BASE_NAME="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" distribution.artifactBaseName | tail -n1)"
 HOST_PLATFORM="$(node -p "process.platform")"
 timestamp="$(date +%Y%m%d%H%M)"
 RELEASE_VERSION="${1:-${APP_VERSION}.${timestamp}}"
@@ -42,6 +41,11 @@ mkdir -p "$OUT_DIR"
 
 product_name() {
   node -e "const fs=require('fs'); const path=require('path'); const config=JSON.parse(fs.readFileSync(path.join(process.argv[1], 'tauri.generated.conf.json'), 'utf8')); process.stdout.write(config.productName);" \
+    "$DESKTOP_DIR/src-tauri"
+}
+
+artifact_base_name() {
+  node -e "const fs=require('fs'); const path=require('path'); const config=JSON.parse(fs.readFileSync(path.join(process.argv[1], 'brand.generated.json'), 'utf8')); process.stdout.write(config.artifactBaseName || config.productName);" \
     "$DESKTOP_DIR/src-tauri"
 }
 
@@ -113,6 +117,7 @@ build_one() {
   local channel="$2"
   local node_env
   local arch_label
+  local current_artifact_base_name
 
   if [[ "$channel" == "dev" ]]; then
     node_env="dev"
@@ -135,18 +140,20 @@ build_one() {
     node "$ROOT_DIR/scripts/build-desktop-package.mjs" --target "$target"
   )
 
+  current_artifact_base_name="$(artifact_base_name)"
+
   local bundle_dir
   bundle_dir="$(bundle_dir_for_target "$target")"
 
   if [[ "$target" == *-apple-darwin ]]; then
     local installer_dir="$bundle_dir/dmg"
-    local installer_path="$installer_dir/${ARTIFACT_BASE_NAME}_${APP_VERSION}_${arch_label}.dmg"
+    local installer_path="$installer_dir/${current_artifact_base_name}_${APP_VERSION}_${arch_label}.dmg"
     if [[ ! -f "$installer_path" ]]; then
-      echo "Expected DMG not found under: $installer_dir (artifactBaseName=$ARTIFACT_BASE_NAME appVersion=$APP_VERSION arch=$arch_label)" >&2
+      echo "Expected DMG not found under: $installer_dir (artifactBaseName=$current_artifact_base_name appVersion=$APP_VERSION arch=$arch_label)" >&2
       exit 1
     fi
 
-    local installer_out="$OUT_DIR/${ARTIFACT_BASE_NAME}_${RELEASE_VERSION}_${arch_label}_${channel}.dmg"
+    local installer_out="$OUT_DIR/${current_artifact_base_name}_${RELEASE_VERSION}_${arch_label}_${channel}.dmg"
     cp "$installer_path" "$installer_out"
     echo "saved: $installer_out"
 
@@ -156,7 +163,7 @@ build_one() {
     local updater_archive="$updater_dir/${current_product_name}.app.tar.gz"
     local updater_signature="${updater_archive}.sig"
     if [[ -f "$updater_archive" && -f "$updater_signature" ]]; then
-      local updater_out="$OUT_DIR/${ARTIFACT_BASE_NAME}_${RELEASE_VERSION}_${arch_label}_${channel}.app.tar.gz"
+      local updater_out="$OUT_DIR/${current_artifact_base_name}_${RELEASE_VERSION}_${arch_label}_${channel}.app.tar.gz"
       local updater_sig_out="${updater_out}.sig"
       cp "$updater_archive" "$updater_out"
       cp "$updater_signature" "$updater_sig_out"
@@ -184,7 +191,7 @@ build_one() {
       exit 1
     fi
 
-    local installer_out="$OUT_DIR/${ARTIFACT_BASE_NAME}_${RELEASE_VERSION}_${arch_label}_${channel}.exe"
+    local installer_out="$OUT_DIR/${current_artifact_base_name}_${RELEASE_VERSION}_${arch_label}_${channel}.exe"
     cp "$installer_path" "$installer_out"
     echo "saved: $installer_out"
 
@@ -204,7 +211,7 @@ build_one() {
       updater_signature="${updater_archive}.sig"
     fi
     if [[ -n "$updater_archive" && -f "$updater_signature" ]]; then
-      local updater_out="$OUT_DIR/${ARTIFACT_BASE_NAME}_${RELEASE_VERSION}_${arch_label}_${channel}.nsis.zip"
+      local updater_out="$OUT_DIR/${current_artifact_base_name}_${RELEASE_VERSION}_${arch_label}_${channel}.nsis.zip"
       local updater_sig_out="${updater_out}.sig"
       cp "$updater_archive" "$updater_out"
       cp "$updater_signature" "$updater_sig_out"

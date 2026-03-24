@@ -395,14 +395,14 @@ export function Sidebar({
   );
 
   const renderGroup = (title: string, items: SidebarItem[]) => (
-    <div className="mb-4">
-      <div className="mb-2 px-3 text-xs text-[var(--text-muted)]">{title}</div>
-      <div className="space-y-1">
+    <div className="mb-3">
+      <div className="mb-1.5 px-3 text-xs text-[var(--text-muted)]">{title}</div>
+      <div className="space-y-0.5">
         {items.map((item) => (
           <button
             key={item.key}
             onClick={() => item.onClick?.()}
-            className={`group flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-left transition-all duration-[var(--motion-panel)] active:scale-[0.992] ${
+            className={`group flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-1.5 text-left transition-all duration-[var(--motion-panel)] active:scale-[0.992] ${
               item.active
                 ? 'bg-[var(--bg-hover)] shadow-[var(--shadow-sm)]'
                 : 'hover:translate-x-[4px] hover:scale-[1.015] hover:bg-[var(--bg-hover)]'
@@ -455,7 +455,7 @@ export function Sidebar({
   );
 
   const renderRecordGroup = () => (
-    <div className="mb-4">
+    <div className="mb-3">
       <RecentTasksList
         title={resolveMenuLabel('task-center', '历史任务')}
         selectedTaskId={activeView === 'task-center' ? selectedTaskId : null}
@@ -502,7 +502,7 @@ export function Sidebar({
         </div>
       ) : null}
 
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className="flex-1 overflow-y-auto px-2 py-1.5">
         {groupedMainItems.map((group) => (
           <div key={group.title}>{renderGroup(group.title, group.items)}</div>
         ))}
