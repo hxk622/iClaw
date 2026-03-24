@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   {id: 'cloud-skills', label: '云技能', icon: 'store'},
   {id: 'assets', label: '资源管理', icon: 'image'},
   {id: 'releases', label: '版本发布', icon: 'rocket'},
+  {id: 'payments', label: '订单中心', icon: 'package'},
   {id: 'audit-log', label: '审计日志', icon: 'fileText'},
 ];
 const CAPABILITY_ROUTE_MODE = {
@@ -159,6 +160,12 @@ function themeModeLabel(mode) {
   return '跟随系统';
 }
 
+const THEME_MODE_OPTIONS = [
+  {value: 'light', label: '浅色', icon: 'sun'},
+  {value: 'dark', label: '深色', icon: 'moon'},
+  {value: 'system', label: '系统', icon: 'monitor'},
+];
+
 const state = {
   themeMode: readStoredThemeMode(),
   busy: false,
@@ -217,11 +224,14 @@ const state = {
   selectedCloudSkillSlug: '',
   selectedSkillSyncSourceId: '',
   selectedReleaseId: '',
+  selectedPaymentOrderId: '',
   selectedAuditId: '',
   selectedDesktopReleaseChannel: 'prod',
   mcpTestResult: null,
   assets: [],
   releases: [],
+  paymentOrders: [],
+  paymentOrderDetails: {},
   audit: [],
   showCreateBrandForm: false,
   showAgentImportPanel: false,
@@ -248,6 +258,10 @@ const state = {
     assetBrand: 'all',
     assetKind: 'all',
     releaseBrand: 'all',
+    paymentStatus: 'all',
+    paymentProvider: 'all',
+    paymentApp: 'all',
+    paymentQuery: '',
     auditBrand: 'all',
     auditAction: 'all',
     auditQuery: '',
@@ -385,6 +399,9 @@ function icon(name, className = '') {
     user: `<svg viewBox="0 0 24 24"${cls}><circle ${common} cx="12" cy="8" r="4"/><path ${common} d="M5 20a7 7 0 0 1 14 0"/></svg>`,
     package: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path ${common} d="m12 12 8-4.5"/><path ${common} d="m12 12-8-4.5"/><path ${common} d="M12 21v-9"/></svg>`,
     checkCircle: `<svg viewBox="0 0 24 24"${cls}><circle ${common} cx="12" cy="12" r="9"/><path ${common} d="m8.5 12 2.5 2.5 4.5-5"/></svg>`,
+    check: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="m5 12 4.2 4.2L19 6.5"/></svg>`,
+    sun: `<svg viewBox="0 0 24 24"${cls}><circle ${common} cx="12" cy="12" r="4"/><path ${common} d="M12 2v2.5"/><path ${common} d="M12 19.5V22"/><path ${common} d="m4.93 4.93 1.77 1.77"/><path ${common} d="m17.3 17.3 1.77 1.77"/><path ${common} d="M2 12h2.5"/><path ${common} d="M19.5 12H22"/><path ${common} d="m4.93 19.07 1.77-1.77"/><path ${common} d="m17.3 6.7 1.77-1.77"/></svg>`,
+    moon: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M21 13.2A8.7 8.7 0 1 1 10.8 3a7 7 0 0 0 10.2 10.2Z"/></svg>`,
     filter: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M4 6h16"/><path ${common} d="M7 12h10"/><path ${common} d="M10 18h4"/></svg>`,
     edit: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M12 20h9"/><path ${common} d="m16.5 3.5 4 4L8 20l-5 1 1-5z"/></svg>`,
     upload: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M12 16V4"/><path ${common} d="m7 9 5-5 5 5"/><path ${common} d="M4 20h16"/></svg>`,
@@ -464,6 +481,36 @@ function renderAdminLogo(className = '') {
   `;
 }
 
+function setThemeMode(mode) {
+  const nextMode = isThemeMode(mode) ? mode : 'system';
+  state.themeMode = nextMode;
+  persistThemeMode(nextMode);
+  applyThemeMode(nextMode);
+}
+
+function renderThemeModeSwitcher(className = '') {
+  return `
+    <div class="theme-switcher${className ? ` ${escapeHtml(className)}` : ''}" role="group" aria-label="主题模式">
+      ${THEME_MODE_OPTIONS.map((item) => {
+        const active = state.themeMode === item.value;
+        return `
+          <button
+            class="theme-switcher__button${active ? ' is-active' : ''}"
+            type="button"
+            data-action="set-theme-mode"
+            data-theme-mode="${escapeHtml(item.value)}"
+            title="${escapeHtml(themeModeLabel(item.value))}"
+            aria-pressed="${active ? 'true' : 'false'}"
+          >
+            ${icon(item.icon, 'theme-switcher__icon')}
+            <span>${escapeHtml(item.label)}</span>
+          </button>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
 function formatDateTime(value) {
   if (!value) return '未记录';
   const date = new Date(value);
@@ -475,6 +522,26 @@ function formatDateTime(value) {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function formatCredits(value) {
+  const amount = Number(value || 0);
+  return `${Number.isFinite(amount) ? amount.toLocaleString('zh-CN') : '0'} 龙虾币`;
+}
+
+function formatFen(value) {
+  const amount = Number(value || 0);
+  const normalized = Number.isFinite(amount) ? amount : 0;
+  return `¥${(normalized / 100).toFixed(2)}`;
+}
+
+function formatDateTimeInputValue(value) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  const pad = (input) => String(input).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function formatRelative(value) {
@@ -990,6 +1057,20 @@ function moveOrderedItem(list, value, direction, builder) {
   return current;
 }
 
+function reorderOrderedItem(list, sourceValue, targetValue, placement, builder) {
+  const current = builder(list);
+  const sourceIndex = current.indexOf(sourceValue);
+  const targetIndex = current.indexOf(targetValue);
+  if (sourceIndex < 0 || targetIndex < 0 || sourceValue === targetValue) {
+    return current;
+  }
+  const [item] = current.splice(sourceIndex, 1);
+  const normalizedTargetIndex = current.indexOf(targetValue);
+  const insertIndex = placement === 'after' ? normalizedTargetIndex + 1 : normalizedTargetIndex;
+  current.splice(insertIndex, 0, item);
+  return current;
+}
+
 function getMenuItemsByCategory(category) {
   const menuItems = getMenuCatalogItems();
   if (!category) {
@@ -1168,6 +1249,21 @@ function moveManageableMenuItem(list, value, direction) {
   }
   const [item] = visible.splice(index, 1);
   visible.splice(nextIndex, 0, item);
+  return [...visible, ...hidden];
+}
+
+function reorderManageableMenuItems(list, sourceValue, targetValue, placement = 'before') {
+  const visible = buildManageableMenuOrder(list);
+  const hidden = buildOrderedMenuList(list).filter((key) => !visible.includes(key));
+  const sourceIndex = visible.indexOf(sourceValue);
+  const targetIndex = visible.indexOf(targetValue);
+  if (sourceIndex < 0 || targetIndex < 0 || sourceValue === targetValue) {
+    return [...visible, ...hidden];
+  }
+  const [item] = visible.splice(sourceIndex, 1);
+  const normalizedTargetIndex = visible.indexOf(targetValue);
+  const insertIndex = placement === 'after' ? normalizedTargetIndex + 1 : normalizedTargetIndex;
+  visible.splice(insertIndex, 0, item);
   return [...visible, ...hidden];
 }
 
@@ -2344,6 +2440,14 @@ function captureBrandEditorBuffer() {
   return state.brandDraftBuffer;
 }
 
+function syncBrandEditorBuffer() {
+  const form = document.querySelector('#brand-editor-form');
+  if (!(form instanceof HTMLFormElement)) {
+    return;
+  }
+  captureBrandEditorBuffer();
+}
+
 function parseJsonText(raw, label) {
   try {
     const parsed = JSON.parse(String(raw || '{}'));
@@ -2521,8 +2625,57 @@ function syncSupplementalSelection() {
   if (!state.releases.find((item) => item.id === state.selectedReleaseId)) {
     state.selectedReleaseId = state.releases[0]?.id || '';
   }
+  if (!state.paymentOrders.find((item) => item.order_id === state.selectedPaymentOrderId)) {
+    state.selectedPaymentOrderId = state.paymentOrders[0]?.order_id || '';
+  }
   if (!state.audit.find((item) => item.id === state.selectedAuditId)) {
     state.selectedAuditId = state.audit[0]?.id || '';
+  }
+}
+
+async function ensurePaymentOrderDetail(orderId) {
+  const normalized = String(orderId || '').trim();
+  if (!normalized) return null;
+  if (state.paymentOrderDetails[normalized]) {
+    return state.paymentOrderDetails[normalized];
+  }
+  const detail = await apiFetch(`/admin/payments/orders/${encodeURIComponent(normalized)}`, {method: 'GET'});
+  state.paymentOrderDetails[normalized] = detail;
+  return detail;
+}
+
+async function refreshPaymentOrders(selectedOrderId = '') {
+  const data = await apiFetch('/admin/payments/orders?limit=200', {method: 'GET'});
+  state.paymentOrders = Array.isArray(data.items) ? data.items : [];
+  if (selectedOrderId) {
+    state.selectedPaymentOrderId = selectedOrderId;
+  }
+  if (!state.paymentOrders.find((item) => item.order_id === state.selectedPaymentOrderId)) {
+    state.selectedPaymentOrderId = state.paymentOrders[0]?.order_id || '';
+  }
+  if (state.selectedPaymentOrderId) {
+    const detail = await apiFetch(`/admin/payments/orders/${encodeURIComponent(state.selectedPaymentOrderId)}`, {method: 'GET'});
+    state.paymentOrderDetails[state.selectedPaymentOrderId] = detail;
+  }
+}
+
+async function markPaymentOrderPaid(orderId, payload) {
+  state.busy = true;
+  resetBanner();
+  render();
+  try {
+    const detail = await apiFetch(`/admin/payments/orders/${encodeURIComponent(orderId)}/mark-paid`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    state.paymentOrderDetails[orderId] = detail;
+    await refreshPaymentOrders(orderId);
+    setNotice('订单已人工确认到账。');
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '人工确认到账失败');
+  } finally {
+    state.busy = false;
+    render();
   }
 }
 
@@ -2531,7 +2684,7 @@ async function loadAppData() {
   render();
 
   try {
-    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, modelCatalogData, menuCatalogData, composerControlCatalogData, composerShortcutCatalogData, skillSyncSourcesData, skillSyncRunsData] = await Promise.all([
+    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, modelCatalogData, menuCatalogData, composerControlCatalogData, composerShortcutCatalogData, skillSyncSourcesData, skillSyncRunsData, paymentOrdersData] = await Promise.all([
       apiFetch('/admin/portal/apps', {method: 'GET'}),
       apiFetch('/admin/agents/catalog', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/skills', {method: 'GET'}),
@@ -2542,6 +2695,7 @@ async function loadAppData() {
       apiFetch('/admin/portal/catalog/composer-shortcuts', {method: 'GET'}),
       apiFetch('/admin/skills/sync/sources', {method: 'GET'}),
       apiFetch('/admin/skills/sync/runs', {method: 'GET'}),
+      apiFetch('/admin/payments/orders?limit=200', {method: 'GET'}),
     ]);
     const apps = Array.isArray(appsData.items) ? appsData.items : [];
     const details = await Promise.all(
@@ -2613,6 +2767,8 @@ async function loadAppData() {
         config: asObject(item.config),
       })),
     );
+    state.paymentOrders = Array.isArray(paymentOrdersData.items) ? paymentOrdersData.items : [];
+    state.paymentOrderDetails = {};
     state.audit = adaptedDetails.flatMap((detail) => detail.audit || []);
 
     if (!state.selectedBrandId || !state.brands.find((brand) => brand.brandId === state.selectedBrandId)) {
@@ -2638,6 +2794,9 @@ async function loadAppData() {
       loadCloudSkillCatalogPage({suppressRender: true, offset: 0}),
       loadBrandSkillCatalogPage({suppressRender: true, offset: 0}),
     ]);
+    if (state.selectedPaymentOrderId) {
+      await ensurePaymentOrderDetail(state.selectedPaymentOrderId);
+    }
   } catch (error) {
     setError(error instanceof Error ? error.message : '加载运营数据失败');
   } finally {
@@ -3648,6 +3807,15 @@ function moveBrandMenu(value, direction) {
   render();
 }
 
+function reorderBrandMenu(sourceValue, targetValue, placement = 'before') {
+  const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
+  if (!buffer) return;
+  buffer.menuOrder = reorderManageableMenuItems(buffer.menuOrder, sourceValue, targetValue, placement);
+  state.brandDraftBuffer = buffer;
+  state.selectedBrandMenuKey = sourceValue;
+  render();
+}
+
 function toggleBrandComposerControl(controlKey) {
   const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
   if (!buffer) return;
@@ -3666,6 +3834,20 @@ function moveBrandComposerControl(controlKey, direction) {
   const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
   if (!buffer) return;
   buffer.composerControlOrder = moveOrderedItem(buffer.composerControlOrder, controlKey, direction, buildOrderedComposerControlList);
+  state.brandDraftBuffer = buffer;
+  render();
+}
+
+function reorderBrandComposerControl(sourceKey, targetKey, placement = 'before') {
+  const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
+  if (!buffer) return;
+  buffer.composerControlOrder = reorderOrderedItem(
+    buffer.composerControlOrder,
+    sourceKey,
+    targetKey,
+    placement,
+    buildOrderedComposerControlList,
+  );
   state.brandDraftBuffer = buffer;
   render();
 }
@@ -3691,6 +3873,20 @@ function moveBrandComposerShortcut(shortcutKey, direction) {
     buffer.composerShortcutOrder,
     shortcutKey,
     direction,
+    buildOrderedComposerShortcutList,
+  );
+  state.brandDraftBuffer = buffer;
+  render();
+}
+
+function reorderBrandComposerShortcut(sourceKey, targetKey, placement = 'before') {
+  const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
+  if (!buffer) return;
+  buffer.composerShortcutOrder = reorderOrderedItem(
+    buffer.composerShortcutOrder,
+    sourceKey,
+    targetKey,
+    placement,
     buildOrderedComposerShortcutList,
   );
   state.brandDraftBuffer = buffer;
@@ -3840,7 +4036,10 @@ function renderHeader(title, description, actions = '') {
         <h1>${escapeHtml(title)}</h1>
         <p class="page-description">${escapeHtml(description)}</p>
       </div>
-      <div class="page-actions">${actions}</div>
+      <div class="page-actions">
+        ${renderThemeModeSwitcher('theme-switcher--header')}
+        ${actions}
+      </div>
     </header>
   `;
 }
@@ -4431,7 +4630,14 @@ function renderMenuAssemblyListCard(buffer, item, note, isActive = false) {
   const group = menuConfig.group || '主体区';
   const effectiveIconKey = menuConfig.iconKey || item.iconKey || item.key;
   return `
-    <button class="menu-assembly-card${isActive ? ' is-active' : ''}" type="button" data-action="select-brand-menu" data-menu-key="${escapeHtml(item.key)}">
+    <button
+      class="menu-assembly-card${isActive ? ' is-active' : ''}"
+      type="button"
+      draggable="true"
+      data-action="select-brand-menu"
+      data-menu-key="${escapeHtml(item.key)}"
+      aria-label="${escapeHtml(`拖动排序或编辑 ${displayName}`)}"
+    >
       <span class="menu-assembly-card__icon">${renderIconPreview(effectiveIconKey, 'menu-assembly-card__svg')}</span>
       <span class="menu-assembly-card__body">
         <span class="menu-assembly-card__title-row">
@@ -4440,6 +4646,14 @@ function renderMenuAssemblyListCard(buffer, item, note, isActive = false) {
         </span>
         <span class="menu-assembly-card__meta">${escapeHtml(`Menu ID: ${item.key}${note ? ` · ${note}` : ''}`)}</span>
         <span class="menu-assembly-card__submeta">${escapeHtml(group)} · ${escapeHtml(visibilityStateLabel(enabled))}</span>
+      </span>
+      <span class="menu-assembly-card__drag" aria-hidden="true">
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
       </span>
     </button>
   `;
@@ -4694,7 +4908,12 @@ function renderComposerControlCard(buffer, item, index, total) {
     .map((value) => allowedValueMap.get(value)?.label || value)
     .join('、');
   return `
-    <article class="fig-capability-card fig-menu-card">
+    <article
+      class="fig-capability-card fig-menu-card sortable-card"
+      draggable="true"
+      data-sortable-kind="composer-control"
+      data-sortable-key="${escapeHtml(item.controlKey)}"
+    >
       <div class="fig-capability-main">
         <div class="fig-capability-copy">
           <div class="fig-capability-title-row">
@@ -4722,6 +4941,14 @@ function renderComposerControlCard(buffer, item, index, total) {
         </div>
       </div>
       <div class="fig-capability-actions fig-menu-card__actions">
+        <span class="sortable-card__drag" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+        </span>
         <span class="chip">排序 ${index + 1}</span>
         <button class="ghost-button fig-icon-button" type="button" data-action="move-brand-composer-control-up" data-control-key="${escapeHtml(item.controlKey)}"${index <= 0 ? ' disabled' : ''}>
           ${icon('chevronUp', 'button-icon')}
@@ -4744,7 +4971,12 @@ function renderComposerShortcutCard(buffer, item, index, total) {
   const enabled = asStringArray(buffer.selectedComposerShortcuts).includes(item.shortcutKey);
   const config = normalizeComposerShortcutDraftConfig(asObject(asObject(buffer.composerShortcutConfigs)[item.shortcutKey]));
   return `
-    <article class="fig-capability-card fig-menu-card">
+    <article
+      class="fig-capability-card fig-menu-card sortable-card"
+      draggable="true"
+      data-sortable-kind="composer-shortcut"
+      data-sortable-key="${escapeHtml(item.shortcutKey)}"
+    >
       <div class="fig-capability-main">
         <div class="fig-capability-copy">
           <div class="fig-capability-title-row">
@@ -4769,6 +5001,14 @@ function renderComposerShortcutCard(buffer, item, index, total) {
         </div>
       </div>
       <div class="fig-capability-actions fig-menu-card__actions">
+        <span class="sortable-card__drag" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+        </span>
         <span class="chip">排序 ${index + 1}</span>
         <button class="ghost-button fig-icon-button" type="button" data-action="move-brand-composer-shortcut-up" data-shortcut-key="${escapeHtml(item.shortcutKey)}"${index <= 0 ? ' disabled' : ''}>
           ${icon('chevronUp', 'button-icon')}
@@ -7104,6 +7344,256 @@ function getFilteredAudit() {
   });
 }
 
+function paymentStatusLabel(status) {
+  const normalized = String(status || '').trim().toLowerCase();
+  if (normalized === 'paid') return '已支付';
+  if (normalized === 'pending' || normalized === 'created') return '待支付';
+  if (normalized === 'failed') return '支付失败';
+  if (normalized === 'expired') return '已过期';
+  if (normalized === 'refunded') return '已退款';
+  return normalized || '未知状态';
+}
+
+function paymentProviderLabel(provider) {
+  const normalized = String(provider || '').trim().toLowerCase();
+  if (normalized === 'wechat_qr') return '微信扫码';
+  if (normalized === 'alipay_qr') return '支付宝扫码';
+  if (normalized === 'mock') return '测试支付';
+  return normalized || '未知渠道';
+}
+
+function getFilteredPaymentOrders() {
+  return state.paymentOrders.filter((item) => {
+    if (state.filters.paymentStatus !== 'all' && item.status !== state.filters.paymentStatus) {
+      return false;
+    }
+    if (state.filters.paymentProvider !== 'all' && item.provider !== state.filters.paymentProvider) {
+      return false;
+    }
+    if (state.filters.paymentApp !== 'all' && (item.app_name || '') !== state.filters.paymentApp) {
+      return false;
+    }
+    const query = String(state.filters.paymentQuery || '').trim().toLowerCase();
+    if (!query) return true;
+    const haystack = [
+      item.order_id,
+      item.user_id,
+      item.username,
+      item.user_email,
+      item.user_display_name,
+      item.package_id,
+      item.package_name,
+      item.provider_order_id,
+      item.app_name,
+    ]
+      .join(' ')
+      .toLowerCase();
+    return haystack.includes(query);
+  });
+}
+
+function renderPaymentsPage() {
+  const items = getFilteredPaymentOrders();
+  const selectedPaymentOrder = items.find((item) => item.order_id === state.selectedPaymentOrderId) || items[0] || null;
+  const selectedPaymentDetail = selectedPaymentOrder ? state.paymentOrderDetails[selectedPaymentOrder.order_id] || null : null;
+  const appNames = Array.from(new Set(state.paymentOrders.map((item) => String(item.app_name || '').trim()).filter(Boolean))).sort((left, right) =>
+    left.localeCompare(right, 'zh-CN'),
+  );
+  const statusOptions = ['pending', 'paid', 'failed', 'expired', 'refunded'];
+  const providerOptions = ['wechat_qr', 'alipay_qr', 'mock'];
+  return `
+    <div class="fig-page">
+      <div class="fig-page__header">
+        <div class="fig-page__header-inner fig-page__header-inner--stack">
+          <div>
+            <h1>订单中心</h1>
+            <p class="fig-page__description">查看充值订单、来源 OEM app、到账与 webhook 全链路明细</p>
+          </div>
+          <div class="fig-toolbar fig-toolbar--audit">
+            <label class="fig-search">
+              ${icon('search', 'fig-search__icon')}
+              <input class="field-input fig-search__input" data-filter-key="paymentQuery" placeholder="搜索订单号 / user / app / provider order id..." value="${fieldValue(state.filters.paymentQuery)}" />
+            </label>
+            <select class="field-select fig-filter" data-filter-key="paymentStatus">
+              <option value="all">所有状态</option>
+              ${statusOptions
+                .map(
+                  (status) => `<option value="${escapeHtml(status)}"${state.filters.paymentStatus === status ? ' selected' : ''}>${escapeHtml(paymentStatusLabel(status))}</option>`,
+                )
+                .join('')}
+            </select>
+            <select class="field-select fig-filter" data-filter-key="paymentProvider">
+              <option value="all">所有渠道</option>
+              ${providerOptions
+                .map(
+                  (provider) => `<option value="${escapeHtml(provider)}"${state.filters.paymentProvider === provider ? ' selected' : ''}>${escapeHtml(paymentProviderLabel(provider))}</option>`,
+                )
+                .join('')}
+            </select>
+            <select class="field-select fig-filter" data-filter-key="paymentApp">
+              <option value="all">所有 OEM App</option>
+              ${appNames
+                .map(
+                  (appName) => `<option value="${escapeHtml(appName)}"${state.filters.paymentApp === appName ? ' selected' : ''}>${escapeHtml(appName)}</option>`,
+                )
+                .join('')}
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="fig-page__body">
+        ${renderPageGuide('订单页怎么用', [
+          '先看左侧列表里的状态、金额、龙虾币、OEM app 和付款渠道，快速定位异常单。',
+          '点开右侧详情后，可以看到 who、userId、provider order id、客户端版本、回调事件与原始 metadata。',
+          '如果后续要接补单、退款、对账，这一页可以直接继续往下长，不需要重做结构。',
+        ], 'payments')}
+        <section class="fig-card fig-audit-table-card">
+          <div class="fig-audit-table">
+            <div class="fig-audit-table__header">
+              <div>订单</div>
+              <div>用户</div>
+              <div>OEM App</div>
+              <div>渠道</div>
+              <div>金额 / 龙虾币</div>
+            </div>
+            <div class="fig-audit-table__body">
+              ${items.length
+                ? items
+                    .map(
+                      (item) => `
+                        <button class="fig-audit-row${selectedPaymentOrder?.order_id === item.order_id ? ' is-active' : ''}" type="button" data-action="select-payment-order" data-order-id="${escapeHtml(item.order_id)}">
+                          <div>
+                            <div class="fig-audit-row__title">${escapeHtml(paymentStatusLabel(item.status))}</div>
+                            <div class="fig-audit-row__detail">${escapeHtml(item.order_id)}</div>
+                          </div>
+                          <div>${escapeHtml(item.user_display_name || item.username || item.user_id)}</div>
+                          <div>${escapeHtml(item.app_name || '未上报')}</div>
+                          <div>${escapeHtml(paymentProviderLabel(item.provider))}</div>
+                          <div>${escapeHtml(`${formatFen(item.amount_cny_fen)} / ${formatCredits(item.total_credits)}`)}</div>
+                        </button>
+                      `,
+                    )
+                    .join('')
+                : `<div class="empty-state">没有匹配的订单。</div>`}
+            </div>
+          </div>
+        </section>
+        ${
+          selectedPaymentOrder
+            ? `
+              <section class="fig-card">
+                <div class="fig-card__head">
+                  <div>
+                    <h3>${escapeHtml(selectedPaymentOrder.order_id)}</h3>
+                    <span>${escapeHtml(paymentStatusLabel(selectedPaymentOrder.status))} · ${escapeHtml(formatDateTime(selectedPaymentOrder.created_at))}</span>
+                  </div>
+                  <button class="ghost-button" type="button" data-action="refresh-page">刷新</button>
+                </div>
+                <div class="fig-meta-cards">
+                  <div class="fig-meta-card"><span>Who</span><strong>${escapeHtml(selectedPaymentOrder.user_display_name || selectedPaymentOrder.username || selectedPaymentOrder.user_id)}</strong></div>
+                  <div class="fig-meta-card"><span>User ID</span><strong>${escapeHtml(selectedPaymentOrder.user_id)}</strong></div>
+                  <div class="fig-meta-card"><span>账号</span><strong>${escapeHtml(selectedPaymentOrder.user_email || selectedPaymentOrder.username || '未记录')}</strong></div>
+                  <div class="fig-meta-card"><span>OEM App</span><strong>${escapeHtml(selectedPaymentOrder.app_name || '未上报')}</strong></div>
+                  <div class="fig-meta-card"><span>支付渠道</span><strong>${escapeHtml(paymentProviderLabel(selectedPaymentOrder.provider))}</strong></div>
+                  <div class="fig-meta-card"><span>金额</span><strong>${escapeHtml(formatFen(selectedPaymentOrder.amount_cny_fen))}</strong></div>
+                  <div class="fig-meta-card"><span>充值额度</span><strong>${escapeHtml(formatCredits(selectedPaymentOrder.total_credits))}</strong></div>
+                  <div class="fig-meta-card"><span>创建时间</span><strong>${escapeHtml(formatDateTime(selectedPaymentOrder.created_at))}</strong></div>
+                  <div class="fig-meta-card"><span>支付时间</span><strong>${escapeHtml(formatDateTime(selectedPaymentOrder.paid_at))}</strong></div>
+                  <div class="fig-meta-card"><span>过期时间</span><strong>${escapeHtml(formatDateTime(selectedPaymentOrder.expires_at))}</strong></div>
+                  <div class="fig-meta-card"><span>Provider Order</span><strong>${escapeHtml(selectedPaymentOrder.provider_order_id || '未记录')}</strong></div>
+                  <div class="fig-meta-card"><span>Webhook 数</span><strong>${escapeHtml(String(selectedPaymentOrder.webhook_event_count || 0))}</strong></div>
+                </div>
+                <section class="fig-card fig-card--subtle">
+                  <div class="fig-card__head">
+                    <h3>订单技术明细</h3>
+                    <span>客户端与渠道侧字段</span>
+                  </div>
+                  <div class="fig-meta-cards">
+                    <div class="fig-meta-card"><span>App Version</span><strong>${escapeHtml(selectedPaymentOrder.app_version || '未上报')}</strong></div>
+                    <div class="fig-meta-card"><span>Release Channel</span><strong>${escapeHtml(selectedPaymentOrder.release_channel || '未上报')}</strong></div>
+                    <div class="fig-meta-card"><span>Platform</span><strong>${escapeHtml(selectedPaymentOrder.platform || '未上报')}</strong></div>
+                    <div class="fig-meta-card"><span>Arch</span><strong>${escapeHtml(selectedPaymentOrder.arch || '未上报')}</strong></div>
+                    <div class="fig-meta-card"><span>Return URL</span><strong>${escapeHtml(selectedPaymentOrder.return_url || '未记录')}</strong></div>
+                    <div class="fig-meta-card"><span>Prepay ID</span><strong>${escapeHtml(selectedPaymentOrder.provider_prepay_id || '未记录')}</strong></div>
+                    <div class="fig-meta-card"><span>Latest Webhook</span><strong>${escapeHtml(formatDateTime(selectedPaymentOrder.latest_webhook_at))}</strong></div>
+                    <div class="fig-meta-card"><span>Updated At</span><strong>${escapeHtml(formatDateTime(selectedPaymentOrder.updated_at))}</strong></div>
+                  </div>
+                </section>
+                <section class="fig-card fig-card--subtle">
+                  <div class="fig-card__head">
+                    <h3>Metadata</h3>
+                    <span>订单原始元数据</span>
+                  </div>
+                  <textarea class="code-input code-input--tall" readonly>${escapeHtml(prettyJson(selectedPaymentDetail?.metadata || selectedPaymentOrder.metadata || {}))}</textarea>
+                </section>
+                ${
+                  selectedPaymentOrder.status !== 'paid'
+                    ? `
+                      <section class="fig-card fig-card--subtle">
+                        <div class="fig-card__head">
+                          <h3>人工确认到账</h3>
+                          <span>后台补单 / 运营补录</span>
+                        </div>
+                        <form id="payment-order-manual-form" class="space-y-4">
+                          <input type="hidden" name="order_id" value="${escapeHtml(selectedPaymentOrder.order_id)}" />
+                          <label class="field">
+                            <span>Provider Order ID</span>
+                            <input class="field-input" name="provider_order_id" value="${fieldValue(selectedPaymentOrder.provider_order_id || '')}" placeholder="渠道侧订单号，可选" />
+                          </label>
+                          <label class="field">
+                            <span>Paid At</span>
+                            <input class="field-input" name="paid_at" type="datetime-local" value="${fieldValue(formatDateTimeInputValue(selectedPaymentOrder.paid_at))}" />
+                          </label>
+                          <label class="field">
+                            <span>备注</span>
+                            <textarea class="field-textarea" name="note" rows="3" placeholder="例如：用户线下已付款，运营人工补单"></textarea>
+                          </label>
+                          <div class="fig-release-card__actions">
+                            <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>${state.busy ? '提交中…' : '人工确认到账'}</button>
+                          </div>
+                        </form>
+                      </section>
+                    `
+                    : ''
+                }
+                <section class="fig-card fig-card--subtle">
+                  <div class="fig-card__head">
+                    <h3>Webhook Events</h3>
+                    <span>支付渠道回调原文</span>
+                  </div>
+                  ${
+                    selectedPaymentDetail?.webhook_events?.length
+                      ? `
+                        <div>
+                          ${selectedPaymentDetail.webhook_events
+                            .map(
+                              (event) => `
+                                <div class="fig-card fig-card--subtle">
+                                  <div class="fig-meta-cards">
+                                    <div class="fig-meta-card"><span>Event ID</span><strong>${escapeHtml(event.event_id)}</strong></div>
+                                    <div class="fig-meta-card"><span>Status</span><strong>${escapeHtml(event.event_type || '未记录')}</strong></div>
+                                    <div class="fig-meta-card"><span>Processed</span><strong>${escapeHtml(event.process_status || 'pending')}</strong></div>
+                                    <div class="fig-meta-card"><span>Created</span><strong>${escapeHtml(formatDateTime(event.created_at))}</strong></div>
+                                  </div>
+                                  <textarea class="code-input code-input--tall" readonly>${escapeHtml(prettyJson(event.payload || {}))}</textarea>
+                                </div>
+                              `,
+                            )
+                            .join('')}
+                        </div>
+                      `
+                      : `<div class="empty-state">暂无 webhook 回调。</div>`
+                  }
+                </section>
+              </section>
+            `
+            : ''
+        }
+      </div>
+    </div>
+  `;
+}
+
 function renderAuditPage() {
   const items = getFilteredAudit();
   const selectedAudit = items.find((item) => item.id === state.selectedAuditId) || items[0] || null;
@@ -7240,6 +7730,7 @@ function renderLogin() {
           <p class="login-copy">
             当前后台直连真实 control-plane 接口，按 iClaw管理控制台设计稿重构。默认账号：<strong>admin / admin</strong>。
           </p>
+          ${renderThemeModeSwitcher('theme-switcher--login')}
         </div>
         <form class="login-card" id="login-form">
           <label class="field">
@@ -7260,6 +7751,399 @@ function renderLogin() {
   `;
 }
 
+let customSelectListenersBound = false;
+let menuAssemblyListenersBound = false;
+let composerSortableListenersBound = false;
+const menuAssemblyDragState = {
+  sourceKey: '',
+  overKey: '',
+  placement: 'before',
+};
+const composerSortableDragState = {
+  kind: '',
+  sourceKey: '',
+  overKey: '',
+  placement: 'before',
+};
+
+function closeCustomSelectMenus(exceptShell = null) {
+  app.querySelectorAll('.field-select-shell.is-open').forEach((node) => {
+    if (!(node instanceof HTMLElement) || node === exceptShell) {
+      return;
+    }
+    node.classList.remove('is-open');
+    const trigger = node.querySelector('.field-select-trigger');
+    if (trigger instanceof HTMLButtonElement) {
+      trigger.setAttribute('aria-expanded', 'false');
+    }
+  });
+}
+
+function clearMenuAssemblyDragIndicators() {
+  app.querySelectorAll('.menu-assembly-card.is-dragging, .menu-assembly-card.is-drop-before, .menu-assembly-card.is-drop-after').forEach((node) => {
+    if (!(node instanceof HTMLElement)) {
+      return;
+    }
+    node.classList.remove('is-dragging', 'is-drop-before', 'is-drop-after');
+  });
+  document.body.classList.remove('is-dragging-menu-assembly');
+}
+
+function resetMenuAssemblyDragState() {
+  menuAssemblyDragState.sourceKey = '';
+  menuAssemblyDragState.overKey = '';
+  menuAssemblyDragState.placement = 'before';
+  clearMenuAssemblyDragIndicators();
+}
+
+function clearComposerSortableDragIndicators() {
+  app.querySelectorAll('.sortable-card.is-dragging, .sortable-card.is-drop-before, .sortable-card.is-drop-after').forEach((node) => {
+    if (!(node instanceof HTMLElement)) {
+      return;
+    }
+    node.classList.remove('is-dragging', 'is-drop-before', 'is-drop-after');
+  });
+  document.body.classList.remove('is-dragging-sortable-card');
+}
+
+function resetComposerSortableDragState() {
+  composerSortableDragState.kind = '';
+  composerSortableDragState.sourceKey = '';
+  composerSortableDragState.overKey = '';
+  composerSortableDragState.placement = 'before';
+  clearComposerSortableDragIndicators();
+}
+
+function applyComposerSortableDropIndicator(targetCard, placement) {
+  clearComposerSortableDragIndicators();
+  document.body.classList.add('is-dragging-sortable-card');
+  app.querySelectorAll('.sortable-card').forEach((node) => {
+    if (!(node instanceof HTMLElement)) {
+      return;
+    }
+    if (node.getAttribute('data-sortable-kind') === composerSortableDragState.kind &&
+        node.getAttribute('data-sortable-key') === composerSortableDragState.sourceKey) {
+      node.classList.add('is-dragging');
+    }
+  });
+  if (!(targetCard instanceof HTMLElement)) {
+    return;
+  }
+  targetCard.classList.add(placement === 'after' ? 'is-drop-after' : 'is-drop-before');
+}
+
+function applyMenuAssemblyDropIndicator(targetCard, placement) {
+  clearMenuAssemblyDragIndicators();
+  document.body.classList.add('is-dragging-menu-assembly');
+  app.querySelectorAll('.menu-assembly-card').forEach((node) => {
+    if (!(node instanceof HTMLElement)) {
+      return;
+    }
+    if (node.getAttribute('data-menu-key') === menuAssemblyDragState.sourceKey) {
+      node.classList.add('is-dragging');
+    }
+  });
+  if (!(targetCard instanceof HTMLElement)) {
+    return;
+  }
+  targetCard.classList.add(placement === 'after' ? 'is-drop-after' : 'is-drop-before');
+}
+
+function syncCustomSelectControl(select) {
+  const shell = select.closest('.field-select-shell');
+  if (!(shell instanceof HTMLElement)) {
+    return;
+  }
+  const trigger = shell.querySelector('.field-select-trigger');
+  const label = shell.querySelector('.field-select-trigger__label');
+  const value = String(select.value || '');
+  const selectedOption = Array.from(select.options).find((option) => option.value === value) || select.options[select.selectedIndex] || null;
+  if (label instanceof HTMLElement) {
+    label.textContent = (selectedOption?.textContent || '').trim() || select.getAttribute('placeholder') || '请选择';
+    label.dataset.placeholder = selectedOption ? 'false' : 'true';
+  }
+  if (trigger instanceof HTMLButtonElement) {
+    trigger.disabled = select.disabled;
+  }
+  shell.classList.toggle('is-disabled', select.disabled);
+  shell.querySelectorAll('.field-select-option').forEach((node) => {
+    if (!(node instanceof HTMLButtonElement)) {
+      return;
+    }
+    const active = (node.getAttribute('data-value') || '') === value;
+    node.classList.toggle('is-active', active);
+    node.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+}
+
+function mountCustomSelect(select) {
+  if (!(select instanceof HTMLSelectElement) || select.dataset.customSelectMounted === 'true') {
+    return;
+  }
+  const shell = document.createElement('div');
+  shell.className = 'field-select-shell';
+  if (select.classList.contains('fig-filter')) {
+    shell.classList.add('fig-filter-shell');
+  }
+
+  select.dataset.customSelectMounted = 'true';
+  select.classList.add('field-select--native-hidden');
+
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
+  trigger.className = 'field-select-trigger';
+  trigger.setAttribute('aria-haspopup', 'listbox');
+  trigger.setAttribute('aria-expanded', 'false');
+  trigger.innerHTML = `
+    <span class="field-select-trigger__copy">
+      <span class="field-select-trigger__label"></span>
+    </span>
+    ${icon('chevronDown', 'field-select-trigger__caret')}
+  `;
+
+  const menu = document.createElement('div');
+  menu.className = 'field-select-menu';
+  menu.setAttribute('role', 'listbox');
+  menu.innerHTML = Array.from(select.options)
+    .map((option) => {
+      const label = (option.textContent || '').trim();
+      return `
+        <button
+          class="field-select-option"
+          type="button"
+          role="option"
+          data-value="${escapeHtml(option.value)}"
+          ${option.disabled ? 'disabled' : ''}
+        >
+          <span class="field-select-option__label">${escapeHtml(label)}</span>
+          ${icon('check', 'field-select-option__check')}
+        </button>
+      `;
+    })
+    .join('');
+
+  select.parentNode?.insertBefore(shell, select);
+  shell.append(select, trigger, menu);
+
+  trigger.addEventListener('click', () => {
+    if (select.disabled) {
+      return;
+    }
+    const willOpen = !shell.classList.contains('is-open');
+    closeCustomSelectMenus(willOpen ? shell : null);
+    shell.classList.toggle('is-open', willOpen);
+    trigger.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+  });
+
+  menu.addEventListener('click', (event) => {
+    const optionButton = event.target instanceof Element ? event.target.closest('.field-select-option') : null;
+    if (!(optionButton instanceof HTMLButtonElement) || optionButton.disabled) {
+      return;
+    }
+    const nextValue = optionButton.getAttribute('data-value') || '';
+    if (select.value !== nextValue) {
+      select.value = nextValue;
+      select.dispatchEvent(new Event('change', {bubbles: true}));
+    }
+    syncCustomSelectControl(select);
+    closeCustomSelectMenus();
+  });
+
+  select.addEventListener('change', () => {
+    syncCustomSelectControl(select);
+  });
+
+  syncCustomSelectControl(select);
+}
+
+function ensureCustomSelectListeners() {
+  if (customSelectListenersBound) {
+    return;
+  }
+  customSelectListenersBound = true;
+
+  document.addEventListener('pointerdown', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element) || !target.closest('.field-select-shell')) {
+      closeCustomSelectMenus();
+    }
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeCustomSelectMenus();
+    }
+  });
+}
+
+function ensureMenuAssemblyListeners() {
+  if (menuAssemblyListenersBound) {
+    return;
+  }
+  menuAssemblyListenersBound = true;
+
+  document.addEventListener('dragstart', (event) => {
+    const target = event.target;
+    const card = target instanceof Element ? target.closest('.menu-assembly-card[data-menu-key]') : null;
+    if (!(card instanceof HTMLElement)) {
+      return;
+    }
+    const menuKey = String(card.getAttribute('data-menu-key') || '').trim();
+    if (!menuKey) {
+      return;
+    }
+    menuAssemblyDragState.sourceKey = menuKey;
+    menuAssemblyDragState.overKey = '';
+    menuAssemblyDragState.placement = 'before';
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', menuKey);
+    }
+    requestAnimationFrame(() => {
+      clearMenuAssemblyDragIndicators();
+      card.classList.add('is-dragging');
+      document.body.classList.add('is-dragging-menu-assembly');
+    });
+  });
+
+  document.addEventListener('dragover', (event) => {
+    if (!menuAssemblyDragState.sourceKey) {
+      return;
+    }
+    const target = event.target;
+    const card = target instanceof Element ? target.closest('.menu-assembly-card[data-menu-key]') : null;
+    if (!(card instanceof HTMLElement)) {
+      return;
+    }
+    const targetKey = String(card.getAttribute('data-menu-key') || '').trim();
+    if (!targetKey || targetKey === menuAssemblyDragState.sourceKey) {
+      return;
+    }
+    event.preventDefault();
+    const rect = card.getBoundingClientRect();
+    const placement = event.clientY >= rect.top + rect.height / 2 ? 'after' : 'before';
+    menuAssemblyDragState.overKey = targetKey;
+    menuAssemblyDragState.placement = placement;
+    applyMenuAssemblyDropIndicator(card, placement);
+  });
+
+  document.addEventListener('drop', (event) => {
+    if (!menuAssemblyDragState.sourceKey) {
+      return;
+    }
+    const target = event.target;
+    const card = target instanceof Element ? target.closest('.menu-assembly-card[data-menu-key]') : null;
+    const sourceKey = menuAssemblyDragState.sourceKey;
+    const targetKey = card instanceof HTMLElement ? String(card.getAttribute('data-menu-key') || '').trim() : '';
+    const placement = menuAssemblyDragState.placement;
+    event.preventDefault();
+    resetMenuAssemblyDragState();
+    if (!targetKey || targetKey === sourceKey) {
+      return;
+    }
+    reorderBrandMenu(sourceKey, targetKey, placement);
+  });
+
+  document.addEventListener('dragend', () => {
+    resetMenuAssemblyDragState();
+  });
+}
+
+function ensureComposerSortableListeners() {
+  if (composerSortableListenersBound) {
+    return;
+  }
+  composerSortableListenersBound = true;
+
+  document.addEventListener('dragstart', (event) => {
+    const target = event.target;
+    const card = target instanceof Element ? target.closest('.sortable-card[data-sortable-kind][data-sortable-key]') : null;
+    if (!(card instanceof HTMLElement)) {
+      return;
+    }
+    const kind = String(card.getAttribute('data-sortable-kind') || '').trim();
+    const key = String(card.getAttribute('data-sortable-key') || '').trim();
+    if (!kind || !key) {
+      return;
+    }
+    composerSortableDragState.kind = kind;
+    composerSortableDragState.sourceKey = key;
+    composerSortableDragState.overKey = '';
+    composerSortableDragState.placement = 'before';
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', `${kind}:${key}`);
+    }
+    requestAnimationFrame(() => {
+      clearComposerSortableDragIndicators();
+      card.classList.add('is-dragging');
+      document.body.classList.add('is-dragging-sortable-card');
+    });
+  });
+
+  document.addEventListener('dragover', (event) => {
+    if (!composerSortableDragState.sourceKey || !composerSortableDragState.kind) {
+      return;
+    }
+    const target = event.target;
+    const card = target instanceof Element ? target.closest('.sortable-card[data-sortable-kind][data-sortable-key]') : null;
+    if (!(card instanceof HTMLElement)) {
+      return;
+    }
+    const kind = String(card.getAttribute('data-sortable-kind') || '').trim();
+    const key = String(card.getAttribute('data-sortable-key') || '').trim();
+    if (!kind || kind !== composerSortableDragState.kind || !key || key === composerSortableDragState.sourceKey) {
+      return;
+    }
+    event.preventDefault();
+    const rect = card.getBoundingClientRect();
+    const placement = event.clientY >= rect.top + rect.height / 2 ? 'after' : 'before';
+    composerSortableDragState.overKey = key;
+    composerSortableDragState.placement = placement;
+    applyComposerSortableDropIndicator(card, placement);
+  });
+
+  document.addEventListener('drop', (event) => {
+    if (!composerSortableDragState.sourceKey || !composerSortableDragState.kind) {
+      return;
+    }
+    const target = event.target;
+    const card = target instanceof Element ? target.closest('.sortable-card[data-sortable-kind][data-sortable-key]') : null;
+    const kind = composerSortableDragState.kind;
+    const sourceKey = composerSortableDragState.sourceKey;
+    const targetKey = card instanceof HTMLElement ? String(card.getAttribute('data-sortable-key') || '').trim() : '';
+    const placement = composerSortableDragState.placement;
+    event.preventDefault();
+    resetComposerSortableDragState();
+    if (!targetKey || targetKey === sourceKey) {
+      return;
+    }
+    if (kind === 'composer-control') {
+      reorderBrandComposerControl(sourceKey, targetKey, placement);
+      return;
+    }
+    if (kind === 'composer-shortcut') {
+      reorderBrandComposerShortcut(sourceKey, targetKey, placement);
+    }
+  });
+
+  document.addEventListener('dragend', () => {
+    resetComposerSortableDragState();
+  });
+}
+
+function enhanceCustomSelects() {
+  ensureCustomSelectListeners();
+  ensureMenuAssemblyListeners();
+  ensureComposerSortableListeners();
+  app.querySelectorAll('select.field-select').forEach((node) => {
+    if (node instanceof HTMLSelectElement) {
+      mountCustomSelect(node);
+      syncCustomSelectControl(node);
+    }
+  });
+}
+
 function renderDashboard() {
   const pageContent = state.loading
     ? renderLoadingPage()
@@ -7274,11 +8158,13 @@ function renderDashboard() {
         : isCapabilityRoute(state.route)
           ? renderSkillsMcpPage()
           : state.route === 'cloud-skills'
-            ? renderCloudSkillsPage()
+          ? renderCloudSkillsPage()
           : state.route === 'assets'
             ? renderAssetsPage()
             : state.route === 'releases'
-                ? renderReleasesPage()
+              ? renderReleasesPage()
+              : state.route === 'payments'
+                ? renderPaymentsPage()
                 : renderAuditPage();
 
   app.innerHTML = `
@@ -7295,9 +8181,10 @@ function renderDashboard() {
 function render() {
   if (state.view === 'dashboard') {
     renderDashboard();
-    return;
+  } else {
+    renderLogin();
   }
-  renderLogin();
+  enhanceCustomSelects();
 }
 
 app.addEventListener('submit', async (event) => {
@@ -7356,6 +8243,22 @@ app.addEventListener('submit', async (event) => {
 
   if (form.id === 'model-editor-form') {
     await saveModelCatalogEntry(new FormData(form));
+    return;
+  }
+
+  if (form.id === 'payment-order-manual-form') {
+    const data = new FormData(form);
+    const orderId = String(data.get('order_id') || '').trim();
+    await markPaymentOrderPaid(orderId, {
+      provider_order_id: String(data.get('provider_order_id') || '').trim(),
+      paid_at: (() => {
+        const raw = String(data.get('paid_at') || '').trim();
+        if (!raw) return '';
+        const date = new Date(raw);
+        return Number.isNaN(date.getTime()) ? raw : date.toISOString();
+      })(),
+      note: String(data.get('note') || '').trim(),
+    });
   }
 });
 
@@ -7367,11 +8270,20 @@ app.addEventListener('click', async (event) => {
 
   const action = target.getAttribute('data-action');
 
+  if (action === 'set-theme-mode') {
+    setThemeMode(target.getAttribute('data-theme-mode') || 'system');
+    render();
+    return;
+  }
+
   if (action === 'navigate') {
     captureBrandEditorBuffer();
     state.route = target.getAttribute('data-page') || 'overview';
     if (isCapabilityRoute(state.route)) {
       state.capabilityMode = getCapabilityModeForRoute(state.route);
+    }
+    if (state.route === 'payments' && state.selectedPaymentOrderId) {
+      await ensurePaymentOrderDetail(state.selectedPaymentOrderId);
     }
     render();
     return;
@@ -7810,6 +8722,15 @@ app.addEventListener('click', async (event) => {
     return;
   }
 
+  if (action === 'select-payment-order') {
+    state.selectedPaymentOrderId = target.getAttribute('data-order-id') || '';
+    if (state.selectedPaymentOrderId) {
+      await ensurePaymentOrderDetail(state.selectedPaymentOrderId);
+    }
+    render();
+    return;
+  }
+
   if (action === 'select-audit') {
     state.selectedAuditId = target.getAttribute('data-audit-id') || '';
     render();
@@ -7839,6 +8760,9 @@ app.addEventListener('input', (event) => {
   if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement)) {
     return;
   }
+  if (target.closest('#brand-editor-form')) {
+    syncBrandEditorBuffer();
+  }
   handleFilterInput(target);
 });
 
@@ -7846,6 +8770,9 @@ app.addEventListener('change', (event) => {
   const target = event.target;
   if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement)) {
     return;
+  }
+  if (target.closest('#brand-editor-form')) {
+    syncBrandEditorBuffer();
   }
   handleFilterInput(target);
 });
