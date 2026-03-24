@@ -39,7 +39,7 @@ const SURFACE_LABELS = {
   memory: '记忆管理',
   'data-connections': '数据连接',
   'im-bots': 'IM机器人',
-  'task-center': '任务中心',
+  'task-center': '历史任务',
 };
 const SURFACE_BLUEPRINTS = [
   {key: 'desktop', label: '桌面端', icon: 'monitor', kind: 'shell'},
@@ -56,7 +56,7 @@ const SURFACE_BLUEPRINTS = [
   {key: 'memory', label: '记忆管理', icon: 'fileText', kind: 'module', menuKey: 'memory'},
   {key: 'data-connections', label: '数据连接', icon: 'network', kind: 'module', menuKey: 'data-connections'},
   {key: 'im-bots', label: 'IM机器人', icon: 'messageSquare', kind: 'module', menuKey: 'im-bots'},
-  {key: 'task-center', label: '任务中心', icon: 'checkCircle', kind: 'module', menuKey: 'task-center'},
+  {key: 'task-center', label: '历史任务', icon: 'checkCircle', kind: 'module', menuKey: 'task-center'},
 ];
 const DEFAULT_SURFACE_KEYS = SURFACE_BLUEPRINTS.filter((item) => item.key !== 'welcome').map((item) => item.key);
 const MODULE_SURFACE_KEYS = SURFACE_BLUEPRINTS.filter((item) => item.kind === 'module').map((item) => item.key);
