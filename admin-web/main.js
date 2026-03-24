@@ -572,11 +572,12 @@ function normalizeBrandDetailTab(tabId) {
   if (MODULE_SURFACE_KEYS.includes(normalized)) {
     return 'menus';
   }
-  return getBrandDetailTabConfig(normalized)?.id || 'desktop';
+  return BRAND_DETAIL_TABS.find((item) => item.id === normalized)?.id || 'desktop';
 }
 
 function getBrandDetailTabConfig(tabId) {
-  return BRAND_DETAIL_TABS.find((item) => item.id === normalizeBrandDetailTab(tabId)) || null;
+  const normalized = normalizeBrandDetailTab(tabId);
+  return BRAND_DETAIL_TABS.find((item) => item.id === normalized) || null;
 }
 
 function getBrandDetailTabGroup(tabId) {
