@@ -17,6 +17,7 @@ import './openclaw-chat-surface.css';
 import { Button } from '@/app/components/ui/Button';
 import { EmptyStatePanel } from '@/app/components/ui/EmptyStatePanel';
 import { PageSurface } from '@/app/components/ui/PageLayout';
+import { K2CWelcomePage } from '@/app/components/K2CWelcomePage';
 import { readAppLocale } from '@/app/lib/general-preferences';
 import {
   buildComposerModelOptions,
@@ -2593,6 +2594,17 @@ export function OpenClawChatSurface({
     closeSelectionMenu();
   }, [closeSelectionMenu, selectionMenu]);
 
+  const handleWelcomeStartChat = useCallback(() => {
+    composerRef.current?.focus();
+  }, []);
+
+  const handleWelcomeFillPrompt = useCallback((prompt: string) => {
+    composerRef.current?.replacePrompt(prompt);
+    window.setTimeout(() => {
+      composerRef.current?.focus();
+    }, 80);
+  }, []);
+
   useEffect(() => {
     if (!initialPromptKey || !initialPrompt?.trim()) {
       return;
@@ -2604,6 +2616,14 @@ export function OpenClawChatSurface({
     composerRef.current?.focus();
     consumedInitialPromptKeyRef.current = initialPromptKey;
   }, [initialPrompt, initialPromptKey]);
+
+  const showWelcomePage =
+    !showRenderDiagnosticsCard &&
+    !showConnectionCard &&
+    !showBootMask &&
+    !showSessionTransitionMask &&
+    !status.busy &&
+    renderState.groupCount === 0;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -2914,6 +2934,13 @@ export function OpenClawChatSurface({
             data-session-transitioning={shellTransitioning ? 'true' : 'false'}
           >
             <div ref={hostRef} className="openclaw-chat-surface h-full min-h-0 flex-1 overflow-hidden" />
+
+            {showWelcomePage ? (
+              <K2CWelcomePage
+                onStartChat={handleWelcomeStartChat}
+                onFillPrompt={handleWelcomeFillPrompt}
+              />
+            ) : null}
 
             {showBootMask ? (
               <ChatSurfaceSkeletonMask
