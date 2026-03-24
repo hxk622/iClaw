@@ -370,18 +370,6 @@ function renderAdminLogo(className = '') {
   `;
 }
 
-function renderThemeToggle() {
-  return `
-    <button class="theme-toggle" type="button" data-action="toggle-theme" aria-label="切换主题">
-      ${icon('palette', 'theme-toggle__icon')}
-      <span class="theme-toggle__meta">
-        <span class="theme-toggle__label">Theme</span>
-        <strong>${themeModeLabel(state.themeMode)}</strong>
-      </span>
-    </button>
-  `;
-}
-
 function formatDateTime(value) {
   if (!value) return '未记录';
   const date = new Date(value);
@@ -6692,7 +6680,6 @@ function renderLoadingPage() {
 function renderLogin() {
   app.innerHTML = `
     <main class="login-shell">
-      ${renderThemeToggle()}
       <section class="login-stage">
         <div class="login-copy-group">
           <div class="brand-lockup brand-lockup--login">
@@ -6749,7 +6736,6 @@ function renderDashboard() {
 
   app.innerHTML = `
     <main class="shell">
-      ${renderThemeToggle()}
       ${renderSidebar()}
       <section class="content">
         ${renderBanner()}
@@ -6833,14 +6819,6 @@ app.addEventListener('click', async (event) => {
   }
 
   const action = target.getAttribute('data-action');
-
-  if (action === 'toggle-theme') {
-    state.themeMode = cycleThemeMode(state.themeMode);
-    persistThemeMode(state.themeMode);
-    applyThemeMode(state.themeMode);
-    render();
-    return;
-  }
 
   if (action === 'navigate') {
     captureBrandEditorBuffer();

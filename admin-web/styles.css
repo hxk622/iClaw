@@ -107,53 +107,6 @@ body {
   background-position: 0 0, 20px 20px, 0 0;
 }
 
-.theme-toggle {
-  position: fixed;
-  right: 18px;
-  top: 18px;
-  z-index: 120;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 10px 14px;
-  background: color-mix(in srgb, var(--card) 82%, transparent);
-  color: var(--ink);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(14px);
-}
-
-.theme-toggle:hover {
-  border-color: var(--line-strong);
-  background: color-mix(in srgb, var(--card) 92%, transparent);
-}
-
-.theme-toggle__icon {
-  width: 18px;
-  height: 18px;
-  color: var(--accent);
-}
-
-.theme-toggle__meta {
-  display: grid;
-  gap: 2px;
-  text-align: left;
-}
-
-.theme-toggle__label {
-  font-size: 10px;
-  line-height: 1;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.theme-toggle strong {
-  font-size: 13px;
-  line-height: 1;
-}
-
 button,
 input,
 select,
