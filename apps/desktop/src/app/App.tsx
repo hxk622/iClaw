@@ -980,9 +980,41 @@ export default function App() {
   if (!authBootstrapReady) {
     return (
       <div className="h-screen overflow-hidden bg-[var(--bg-page)]">
-        <div className="flex h-full items-center justify-center px-6">
-          <div className="rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-card)] px-5 py-4 text-[13px] text-[var(--text-secondary)] shadow-[var(--shadow-sm)]">
-            正在恢复登录状态...
+        <div className="flex h-full items-stretch justify-center px-6 py-6">
+          <div className="iclaw-chat-boot-mask relative w-full max-w-[1180px]" aria-hidden="true">
+            <span className="iclaw-chat-boot-mask__sr-only">正在恢复登录状态</span>
+            <div className="iclaw-chat-skeleton">
+              <div className="iclaw-chat-skeleton__header">
+                <div className="iclaw-chat-skeleton__dot" />
+                <div className="iclaw-chat-skeleton__title" />
+                <div className="iclaw-chat-skeleton__meta" />
+              </div>
+              <div className="iclaw-chat-skeleton__thread">
+                <div className="iclaw-chat-skeleton__group">
+                  <div className="iclaw-chat-skeleton__avatar" />
+                  <div className="iclaw-chat-skeleton__stack">
+                    <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--wide" />
+                    <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--short" />
+                    <div className="iclaw-chat-skeleton__bubble iclaw-chat-skeleton__bubble--long" />
+                  </div>
+                </div>
+                <div className="iclaw-chat-skeleton__group iclaw-chat-skeleton__group--user">
+                  <div className="iclaw-chat-skeleton__stack iclaw-chat-skeleton__stack--user">
+                    <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--medium" />
+                    <div className="iclaw-chat-skeleton__bubble iclaw-chat-skeleton__bubble--short" />
+                  </div>
+                  <div className="iclaw-chat-skeleton__avatar iclaw-chat-skeleton__avatar--user" />
+                </div>
+              </div>
+              <div className="iclaw-chat-skeleton__composer">
+                <div className="iclaw-chat-skeleton__composer-line" />
+                <div className="iclaw-chat-skeleton__composer-actions">
+                  <div className="iclaw-chat-skeleton__composer-chip" />
+                  <div className="iclaw-chat-skeleton__composer-chip" />
+                  <div className="iclaw-chat-skeleton__composer-button" />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

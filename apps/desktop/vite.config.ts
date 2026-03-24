@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-import { loadBrandProfile, resolveBrandId } from '../../scripts/lib/brand-profile.mjs';
+import { loadBrandProfile, resolveBrandId } from '../../scripts/lib/brand-profile-core.mjs';
 
 const desktopNodeModules = path.resolve(__dirname, './node_modules');
 const workspaceDir = path.join(os.homedir(), '.openclaw', 'workspace');
