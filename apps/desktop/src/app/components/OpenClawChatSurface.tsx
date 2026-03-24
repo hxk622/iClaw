@@ -29,7 +29,7 @@ import {
   resolveUserAvatarUrl,
   type AppUserAvatarSource,
 } from '../lib/user-avatar';
-import type { ResolvedInputComposerConfig } from '../lib/oem-runtime';
+import type { ResolvedInputComposerConfig, ResolvedWelcomePageConfig } from '../lib/oem-runtime';
 import { loadSkillStoreCatalog } from '@/app/lib/skill-store';
 import {
   isInvestmentExpertAgent,
@@ -140,6 +140,7 @@ type OpenClawChatSurfaceProps = {
     avatarUrl?: string | null;
   } | null;
   inputComposerConfig?: ResolvedInputComposerConfig | null;
+  welcomePageConfig?: ResolvedWelcomePageConfig | null;
 };
 
 type ComposerCreditEstimateState = {
@@ -1138,6 +1139,7 @@ export function OpenClawChatSurface({
   onCreditBalanceRefresh,
   user,
   inputComposerConfig = null,
+  welcomePageConfig = null,
 }: OpenClawChatSurfaceProps) {
   const shellRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -2628,6 +2630,7 @@ export function OpenClawChatSurface({
     !showBootMask &&
     !showSessionTransitionMask &&
     !status.busy &&
+    welcomePageConfig?.enabled !== false &&
     renderState.groupCount === 0;
 
   useEffect(() => {
@@ -2946,6 +2949,7 @@ export function OpenClawChatSurface({
               <K2CWelcomePage
                 onStartChat={handleWelcomeStartChat}
                 onFillPrompt={handleWelcomeFillPrompt}
+                config={welcomePageConfig}
               />
             ) : null}
 

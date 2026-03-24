@@ -46,6 +46,27 @@ export type ResolvedInputComposerConfig = {
   footerShortcuts: ResolvedComposerShortcutConfig[];
 };
 
+export type ResolvedWelcomeQuickActionConfig = {
+  label: string;
+  prompt: string;
+  iconKey: string | null;
+};
+
+export type ResolvedWelcomePageConfig = {
+  enabled: boolean;
+  kolName: string;
+  expertName: string;
+  slogan: string;
+  avatarUrl: string;
+  primaryColor: string;
+  backgroundImageUrl: string;
+  description: string;
+  expertiseAreas: string[];
+  targetAudience: string;
+  quickActions: ResolvedWelcomeQuickActionConfig[];
+  disclaimer: string;
+};
+
 type PublicBrandConfigResponse = {
   success?: boolean;
   data?: {
@@ -404,6 +425,48 @@ export function resolveInputComposerConfig(
   return {
     topBarControls,
     footerShortcuts,
+  };
+}
+
+export function resolveWelcomePageConfig(
+  config: Record<string, unknown> | null | undefined,
+): ResolvedWelcomePageConfig | null {
+  const root = asObject(config);
+  const welcomeSurface = asObject(asObject(root.surfaces).welcome);
+  if (Object.keys(welcomeSurface).length === 0) {
+    return null;
+  }
+
+  const welcomeConfig = asObject(welcomeSurface.config);
+  const quickActions = asArray(welcomeConfig.quick_actions ?? welcomeConfig.quickActions)
+    .map((item) => {
+      const entry = asObject(item);
+      const label = String(entry.label || entry.display_name || entry.displayName || '').trim();
+      const prompt = String(entry.prompt || entry.template || entry.template_text || '').trim();
+      if (!label && !prompt) return null;
+      return {
+        label,
+        prompt,
+        iconKey: String(entry.icon_key || entry.iconKey || entry.icon || '').trim() || null,
+      };
+    })
+    .filter((item): item is ResolvedWelcomeQuickActionConfig => Boolean(item));
+
+  return {
+    enabled: welcomeSurface.enabled !== false,
+    kolName: String(welcomeConfig.kol_name || welcomeConfig.kolName || '').trim(),
+    expertName: String(welcomeConfig.expert_name || welcomeConfig.expertName || '').trim(),
+    slogan: String(welcomeConfig.slogan || '').trim(),
+    avatarUrl: String(welcomeConfig.avatar_url || welcomeConfig.avatar || welcomeConfig.avatarUrl || '').trim(),
+    primaryColor: String(welcomeConfig.primary_color || welcomeConfig.primaryColor || '').trim(),
+    backgroundImageUrl: String(
+      welcomeConfig.background_image_url || welcomeConfig.backgroundImageUrl || welcomeConfig.backgroundImage || '',
+    ).trim(),
+    description: String(welcomeConfig.description || '').trim(),
+    expertiseAreas: asStringArray(welcomeConfig.expertise_areas || welcomeConfig.expertiseAreas),
+    targetAudience: String(welcomeConfig.target_audience || welcomeConfig.targetAudience || '').trim(),
+    quickActions,
+    disclaimer: String(welcomeConfig.disclaimer || '').trim(),
   };
 }
 

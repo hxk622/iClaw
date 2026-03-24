@@ -2,7 +2,6 @@ import { useState, type CSSProperties } from 'react';
 import {
   ArrowDown,
   ArrowRight,
-  Calculator,
   Lightbulb,
   MessageCircle,
   PieChart,
@@ -13,20 +12,21 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/Button';
+import type { ResolvedWelcomePageConfig } from '@/app/lib/oem-runtime';
 
 type WelcomeQuickAction = {
   label: string;
   prompt: string;
-  icon: LucideIcon;
+  iconKey: string | null;
 };
 
 type WelcomeProfile = {
   kolName: string;
   expertName: string;
   slogan: string;
-  avatar: string;
+  avatarUrl: string;
   primaryColor: string;
-  backgroundImage: string;
+  backgroundImageUrl: string;
   description: string;
   expertiseAreas: string[];
   targetAudience: string;
@@ -38,10 +38,10 @@ const DEFAULT_PROFILE: WelcomeProfile = {
   kolName: '陈雪',
   expertName: '陈雪的投资智囊',
   slogan: '用价值投资思维，陪你穿越市场周期',
-  avatar:
+  avatarUrl:
     'https://images.unsplash.com/photo-1581065178047-8ee15951ede6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBhc2lhbiUyMHdvbWFuJTIwYnVzaW5lc3N8ZW58MXx8fHwxNzc0MjgzMTg0fDA&ixlib=rb-4.1.0&q=80&w=1080',
   primaryColor: '#C4975F',
-  backgroundImage:
+  backgroundImageUrl:
     'https://images.unsplash.com/photo-1760172287483-02d382f63a6f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxlbGVnYW50JTIwYWJzdHJhY3QlMjBnb2xkJTIwZ3JhZGllbnR8ZW58MXx8fHwxNzc0MjgzMTgzfDA&ixlib=rb-4.1.0&q=80&w=1080',
   description:
     '我会用我 10 年的投资框架和市场洞察，帮你理解复杂的金融市场，找到适合你的投资路径。',
@@ -51,27 +51,76 @@ const DEFAULT_PROFILE: WelcomeProfile = {
     {
       label: '市场行情分析',
       prompt: '帮我分析一下当前市场形势，有哪些值得关注的板块和投资机会？',
-      icon: TrendingUp,
+      iconKey: 'TrendingUp',
     },
     {
       label: '投资组合诊断',
       prompt: '帮我分析我的投资组合，看看是否需要调整配置？',
-      icon: PieChart,
+      iconKey: 'PieChart',
     },
     {
       label: '个股深度研究',
       prompt: '我想了解某个公司的投资价值，能帮我做个深度分析吗？',
-      icon: Search,
+      iconKey: 'Search',
     },
     {
       label: '投资策略咨询',
       prompt: '基于当前市场环境，给我一些长期投资的建议。',
-      icon: Lightbulb,
+      iconKey: 'Lightbulb',
     },
   ],
   disclaimer:
     '本智囊提供的所有信息仅供学习参考，不构成投资建议。投资有风险，决策需谨慎。',
 };
+
+const WELCOME_ICON_MAP: Record<string, LucideIcon> = {
+  trendingup: TrendingUp,
+  piechart: PieChart,
+  search: Search,
+  lightbulb: Lightbulb,
+  messagecircle: MessageCircle,
+  sparkles: Sparkles,
+  shieldcheck: ShieldCheck,
+};
+
+function normalizeIconKey(value: string | null | undefined): string {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, '');
+}
+
+function resolveActionIcon(iconKey: string | null | undefined): LucideIcon {
+  return WELCOME_ICON_MAP[normalizeIconKey(iconKey)] || Sparkles;
+}
+
+function resolveWelcomeProfile(config?: ResolvedWelcomePageConfig | null): WelcomeProfile {
+  if (!config) {
+    return DEFAULT_PROFILE;
+  }
+
+  const quickActions = config.quickActions
+    .map((action) => ({
+      label: action.label.trim(),
+      prompt: action.prompt.trim(),
+      iconKey: action.iconKey,
+    }))
+    .filter((action) => action.label && action.prompt);
+
+  return {
+    kolName: config.kolName || DEFAULT_PROFILE.kolName,
+    expertName: config.expertName || DEFAULT_PROFILE.expertName,
+    slogan: config.slogan || DEFAULT_PROFILE.slogan,
+    avatarUrl: config.avatarUrl || DEFAULT_PROFILE.avatarUrl,
+    primaryColor: config.primaryColor || DEFAULT_PROFILE.primaryColor,
+    backgroundImageUrl: config.backgroundImageUrl || DEFAULT_PROFILE.backgroundImageUrl,
+    description: config.description || DEFAULT_PROFILE.description,
+    expertiseAreas: config.expertiseAreas.length ? config.expertiseAreas : DEFAULT_PROFILE.expertiseAreas,
+    targetAudience: config.targetAudience || DEFAULT_PROFILE.targetAudience,
+    quickActions: quickActions.length ? quickActions : DEFAULT_PROFILE.quickActions,
+    disclaimer: config.disclaimer || DEFAULT_PROFILE.disclaimer,
+  };
+}
 
 function buildWelcomeVars(profile: WelcomeProfile): CSSProperties {
   return {
@@ -93,7 +142,7 @@ function AvatarWithFallback({
 }) {
   const [failed, setFailed] = useState(false);
 
-  if (failed) {
+  if (failed || !src.trim()) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-[linear-gradient(135deg,rgba(196,151,95,0.92),rgba(150,116,71,0.96))] text-[28px] font-semibold text-white">
         {fallback}
@@ -107,13 +156,15 @@ function AvatarWithFallback({
 type K2CWelcomePageProps = {
   onStartChat: () => void;
   onFillPrompt: (prompt: string) => void;
+  config?: ResolvedWelcomePageConfig | null;
 };
 
 export function K2CWelcomePage({
   onStartChat,
   onFillPrompt,
+  config,
 }: K2CWelcomePageProps) {
-  const profile = DEFAULT_PROFILE;
+  const profile = resolveWelcomeProfile(config);
 
   return (
     <div
@@ -129,7 +180,7 @@ export function K2CWelcomePage({
             <div
               className="pointer-events-none absolute inset-0 opacity-[0.07]"
               style={{
-                backgroundImage: `url(${profile.backgroundImage})`,
+                backgroundImage: `url(${profile.backgroundImageUrl})`,
                 backgroundPosition: 'center',
                 backgroundSize: 'cover',
               }}
@@ -150,7 +201,11 @@ export function K2CWelcomePage({
                     <div className="relative">
                       <div className="absolute inset-[-12px] rounded-full bg-[radial-gradient(circle,rgba(196,151,95,0.22),transparent_68%)]" />
                       <div className="relative h-[108px] w-[108px] overflow-hidden rounded-full border border-[rgba(255,255,255,0.86)] bg-[var(--chat-surface-panel)] shadow-[0_22px_48px_rgba(196,151,95,0.18)] md:h-[128px] md:w-[128px]">
-                        <AvatarWithFallback src={profile.avatar} alt={profile.kolName} fallback={profile.kolName.slice(0, 1)} />
+                        <AvatarWithFallback
+                          src={profile.avatarUrl}
+                          alt={profile.kolName}
+                          fallback={(profile.kolName || profile.expertName || '龙').slice(0, 1)}
+                        />
                       </div>
                       <div className="absolute bottom-[4px] right-[2px] flex h-8 w-8 items-center justify-center rounded-full border border-white/80 bg-[var(--iclaw-welcome-primary)] text-white shadow-[0_8px_18px_rgba(196,151,95,0.28)]">
                         <ShieldCheck className="h-4 w-4" />
@@ -213,7 +268,7 @@ export function K2CWelcomePage({
                   </div>
                   <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                     {profile.quickActions.map((action) => {
-                      const Icon = action.icon;
+                      const Icon = resolveActionIcon(action.iconKey);
                       return (
                         <button
                           key={action.label}

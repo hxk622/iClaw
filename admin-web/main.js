@@ -24,6 +24,7 @@ const CAPABILITY_ROUTE_MODE = {
 const SURFACE_LABELS = {
   desktop: '桌面端',
   'home-web': 'Web 主页',
+  welcome: 'Welcome页',
   header: '顶部栏',
   sidebar: '侧边栏',
   input: '输入编辑器',
@@ -41,6 +42,7 @@ const SURFACE_LABELS = {
 const SURFACE_BLUEPRINTS = [
   {key: 'desktop', label: '桌面端', icon: 'monitor', kind: 'shell'},
   {key: 'home-web', label: 'Home页', icon: 'globe', kind: 'shell'},
+  {key: 'welcome', label: 'Welcome页', icon: 'sparkles', kind: 'shell'},
   {key: 'header', label: 'Header栏', icon: 'layout', kind: 'shell'},
   {key: 'sidebar', label: '侧边栏', icon: 'sidebar', kind: 'shell'},
   {key: 'input', label: '输入框', icon: 'messageSquare', kind: 'shell'},
@@ -54,10 +56,11 @@ const SURFACE_BLUEPRINTS = [
   {key: 'im-bots', label: 'IM机器人', icon: 'messageSquare', kind: 'module', menuKey: 'im-bots'},
   {key: 'task-center', label: '任务中心', icon: 'checkCircle', kind: 'module', menuKey: 'task-center'},
 ];
-const DEFAULT_SURFACE_KEYS = SURFACE_BLUEPRINTS.map((item) => item.key);
+const DEFAULT_SURFACE_KEYS = SURFACE_BLUEPRINTS.filter((item) => item.key !== 'welcome').map((item) => item.key);
 const BRAND_DETAIL_TABS = [
   {id: 'desktop', label: '桌面端', icon: 'monitor'},
   {id: 'home-web', label: 'Home页', icon: 'globe'},
+  {id: 'welcome', label: 'Welcome页', icon: 'sparkles'},
   {id: 'header', label: 'Header栏', icon: 'layout'},
   {id: 'sidebar', label: '侧边栏', icon: 'sidebar'},
   {id: 'input', label: '输入框', icon: 'messageSquare'},
@@ -78,7 +81,7 @@ const BRAND_DETAIL_TABS = [
   {id: 'theme', label: '主题样式', icon: 'palette'},
 ];
 const BRAND_DETAIL_TAB_GROUPS = [
-  {id: 'shell', label: 'Shell骨架', icon: 'monitor', tabs: ['desktop', 'home-web', 'header', 'sidebar', 'input']},
+  {id: 'shell', label: 'Shell骨架', icon: 'monitor', tabs: ['desktop', 'home-web', 'welcome', 'header', 'sidebar', 'input']},
   {id: 'capabilities', label: '能力绑定', icon: 'zap', tabs: ['skills', 'mcps', 'models', 'menus']},
   {
     id: 'modules',
@@ -321,6 +324,7 @@ function icon(name, className = '') {
     messageSquare: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M7 18H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4 3z"/></svg>`,
     store: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M4 9l1-4h14l1 4"/><path ${common} d="M5 9h14v10H5z"/><path ${common} d="M9 13h6"/></svg>`,
     palette: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M12 3a9 9 0 1 0 0 18h1a2 2 0 0 0 0-4h-1a2 2 0 0 1 0-4 5 5 0 0 0 0-10Z"/><circle ${common} cx="7.5" cy="10.5" r=".5"/><circle ${common} cx="9.5" cy="7.5" r=".5"/><circle ${common} cx="14.5" cy="7.5" r=".5"/></svg>`,
+    sparkles: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="m12 3 1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z"/><path ${common} d="m18.5 14 .8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/><path ${common} d="m5.5 14 .6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6z"/></svg>`,
     image: `<svg viewBox="0 0 24 24"${cls}><rect ${common} x="3" y="5" width="18" height="14" rx="2"/><circle ${common} cx="8.5" cy="10" r="1.5"/><path ${common} d="m21 16-5-5-6 6-3-3-4 4"/></svg>`,
     zap: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>`,
     network: `<svg viewBox="0 0 24 24"${cls}><circle ${common} cx="12" cy="5" r="2"/><circle ${common} cx="5" cy="18" r="2"/><circle ${common} cx="19" cy="18" r="2"/><path ${common} d="M12 7v4"/><path ${common} d="M12 11 6.5 16"/><path ${common} d="M12 11 17.5 16"/></svg>`,
@@ -611,6 +615,115 @@ function normalizeComposerShortcutDraftConfig(value) {
     template: String(config.template || config.template_text || '').trim(),
     iconKey: String(config.icon_key || config.iconKey || '').trim(),
     tone: String(config.tone || '').trim(),
+  };
+}
+
+const DEFAULT_WELCOME_QUICK_ACTIONS = [
+  {
+    label: '市场行情分析',
+    prompt: '帮我分析一下当前市场形势，有哪些值得关注的板块和投资机会？',
+    iconKey: 'TrendingUp',
+  },
+  {
+    label: '投资组合诊断',
+    prompt: '帮我分析我的投资组合，看看是否需要调整配置？',
+    iconKey: 'PieChart',
+  },
+  {
+    label: '个股深度研究',
+    prompt: '我想了解某个公司的投资价值，能帮我做个深度分析吗？',
+    iconKey: 'Search',
+  },
+  {
+    label: '投资策略咨询',
+    prompt: '基于当前市场环境，给我一些长期投资的建议。',
+    iconKey: 'Lightbulb',
+  },
+];
+
+const DEFAULT_WELCOME_SURFACE_CONFIG = {
+  kolName: '陈雪',
+  expertName: '陈雪的投资智囊',
+  slogan: '用价值投资思维，陪你穿越市场周期',
+  avatarUrl:
+    'https://images.unsplash.com/photo-1581065178047-8ee15951ede6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBhc2lhbiUyMHdvbWFuJTIwYnVzaW5lc3N8ZW58MXx8fHwxNzc0MjgzMTg0fDA&ixlib=rb-4.1.0&q=80&w=1080',
+  backgroundImageUrl:
+    'https://images.unsplash.com/photo-1760172287483-02d382f63a6f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxlbGVnYW50JTIwYWJzdHJhY3QlMjBnb2xkJTIwZ3JhZGllbnR8ZW58MXx8fHwxNzc0MjgzMTgzfDA&ixlib=rb-4.1.0&q=80&w=1080',
+  primaryColor: '#C4975F',
+  description: '我会用我 10 年的投资框架和市场洞察，帮你理解复杂的金融市场，找到适合你的投资路径。',
+  expertiseAreas: ['价值投资', '资产配置', '长期持有策略', '市场周期分析'],
+  targetAudience: '希望建立长期投资思维的理性投资者。',
+  disclaimer: '本智囊提供的所有信息仅供学习参考，不构成投资建议。投资有风险，决策需谨慎。',
+  quickActions: DEFAULT_WELCOME_QUICK_ACTIONS,
+};
+
+const WELCOME_ACTION_ICON_OPTIONS = [
+  ['', '默认火花'],
+  ['TrendingUp', 'TrendingUp'],
+  ['PieChart', 'PieChart'],
+  ['Search', 'Search'],
+  ['Lightbulb', 'Lightbulb'],
+  ['MessageCircle', 'MessageCircle'],
+  ['Sparkles', 'Sparkles'],
+  ['ShieldCheck', 'ShieldCheck'],
+];
+
+function normalizeWelcomeQuickAction(value, index = 0) {
+  const raw = asObject(value);
+  return {
+    label: String(raw.label || DEFAULT_WELCOME_QUICK_ACTIONS[index]?.label || '').trim(),
+    prompt: String(raw.prompt || DEFAULT_WELCOME_QUICK_ACTIONS[index]?.prompt || '').trim(),
+    iconKey: String(raw.icon_key || raw.iconKey || raw.icon || DEFAULT_WELCOME_QUICK_ACTIONS[index]?.iconKey || '').trim(),
+  };
+}
+
+function normalizeWelcomeSurfaceConfig(value) {
+  const config = asObject(value);
+  const areas = asStringArray(config.expertise_areas || config.expertiseAreas);
+  const quickActions = asArray(config.quick_actions || config.quickActions)
+    .map((item, index) => normalizeWelcomeQuickAction(item, index))
+    .filter((item) => item.label || item.prompt || item.iconKey);
+
+  return {
+    kolName: String(config.kol_name || config.kolName || DEFAULT_WELCOME_SURFACE_CONFIG.kolName).trim(),
+    expertName: String(config.expert_name || config.expertName || DEFAULT_WELCOME_SURFACE_CONFIG.expertName).trim(),
+    slogan: String(config.slogan || DEFAULT_WELCOME_SURFACE_CONFIG.slogan).trim(),
+    avatarUrl: String(config.avatar_url || config.avatar || config.avatarUrl || DEFAULT_WELCOME_SURFACE_CONFIG.avatarUrl).trim(),
+    backgroundImageUrl: String(
+      config.background_image_url || config.backgroundImageUrl || config.backgroundImage || DEFAULT_WELCOME_SURFACE_CONFIG.backgroundImageUrl,
+    ).trim(),
+    primaryColor: String(config.primary_color || config.primaryColor || DEFAULT_WELCOME_SURFACE_CONFIG.primaryColor).trim(),
+    description: String(config.description || DEFAULT_WELCOME_SURFACE_CONFIG.description).trim(),
+    expertiseAreas: areas.length ? areas : [...DEFAULT_WELCOME_SURFACE_CONFIG.expertiseAreas],
+    targetAudience: String(config.target_audience || config.targetAudience || DEFAULT_WELCOME_SURFACE_CONFIG.targetAudience).trim(),
+    disclaimer: String(config.disclaimer || DEFAULT_WELCOME_SURFACE_CONFIG.disclaimer).trim(),
+    quickActions: Array.from({length: 4}, (_, index) => ({
+      ...normalizeWelcomeQuickAction(DEFAULT_WELCOME_QUICK_ACTIONS[index], index),
+      ...(quickActions[index] || {}),
+    })),
+  };
+}
+
+function buildWelcomeSurfaceConfigFromBuffer(welcome) {
+  const next = normalizeWelcomeSurfaceConfig(welcome);
+  return {
+    kol_name: next.kolName,
+    expert_name: next.expertName,
+    slogan: next.slogan,
+    avatar_url: next.avatarUrl,
+    background_image_url: next.backgroundImageUrl,
+    primary_color: next.primaryColor,
+    description: next.description,
+    expertise_areas: [...next.expertiseAreas],
+    target_audience: next.targetAudience,
+    disclaimer: next.disclaimer,
+    quick_actions: next.quickActions
+      .map((item) => ({
+        label: String(item.label || '').trim(),
+        prompt: String(item.prompt || '').trim(),
+        icon_key: String(item.iconKey || '').trim(),
+      }))
+      .filter((item) => item.label || item.prompt || item.icon_key),
   };
 }
 
@@ -1642,6 +1755,8 @@ function buildBrandDraftBuffer(detail) {
     .sort((left, right) => left.sortOrder - right.sortOrder || left.shortcutKey.localeCompare(right.shortcutKey, 'zh-CN'))
     .map((item) => item.shortcutKey);
   const meta = getAppBrandMeta(brand);
+  const welcomeSurface = asObject(surfaceEntries.welcome);
+  const welcomeConfig = normalizeWelcomeSurfaceConfig(asObject(welcomeSurface.config));
 
   return {
     brandId: brand?.brandId || '',
@@ -1678,6 +1793,10 @@ function buildBrandDraftBuffer(detail) {
     savedModelEntries: modelEntries.map((item) => clone(asObject(item))),
     agentsText: asStringArray(capabilities.agents).join('\n'),
     menusText: selectedMenus.join('\n'),
+    welcome: {
+      enabled: welcomeSurface.enabled !== false,
+      ...welcomeConfig,
+    },
     surfaces: orderedSurfaceKeys.map((key) => {
       const surface = asObject(surfaceEntries[key]);
       return {
@@ -1734,7 +1853,6 @@ function captureBrandEditorBuffer() {
     if (!surface.key) return;
     surfaceMap.set(surface.key, surface);
   });
-  const surfaces = Array.from(surfaceMap.values());
   const menuConfigs = {...asObject(existing.menuConfigs)};
   for (const item of getMenuCatalogItems()) {
     const key = item.key;
@@ -1804,6 +1922,73 @@ function captureBrandEditorBuffer() {
           : asObject(composerShortcutConfigs[key]).template,
     });
   }
+  const welcomeEnabledInput = form.querySelector('[name="welcome_enabled"]');
+  const welcomeQuickActions = Array.from({length: 4}, (_, index) => ({
+    label:
+      form.querySelector(`[name="welcome_quick_action_label__${index}"]`) instanceof HTMLInputElement
+        ? form.querySelector(`[name="welcome_quick_action_label__${index}"]`).value
+        : asArray(existing.welcome?.quickActions)[index]?.label,
+    prompt:
+      form.querySelector(`[name="welcome_quick_action_prompt__${index}"]`) instanceof HTMLTextAreaElement
+        ? form.querySelector(`[name="welcome_quick_action_prompt__${index}"]`).value
+        : asArray(existing.welcome?.quickActions)[index]?.prompt,
+    iconKey:
+      form.querySelector(`[name="welcome_quick_action_icon__${index}"]`) instanceof HTMLSelectElement
+        ? form.querySelector(`[name="welcome_quick_action_icon__${index}"]`).value
+        : asArray(existing.welcome?.quickActions)[index]?.iconKey,
+  }));
+  const welcome = normalizeWelcomeSurfaceConfig({
+    kol_name:
+      form.querySelector('[name="welcome_kol_name"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="welcome_kol_name"]').value
+        : existing.welcome?.kolName,
+    expert_name:
+      form.querySelector('[name="welcome_expert_name"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="welcome_expert_name"]').value
+        : existing.welcome?.expertName,
+    slogan:
+      form.querySelector('[name="welcome_slogan"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="welcome_slogan"]').value
+        : existing.welcome?.slogan,
+    avatar_url:
+      form.querySelector('[name="welcome_avatar_url"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="welcome_avatar_url"]').value
+        : existing.welcome?.avatarUrl,
+    background_image_url:
+      form.querySelector('[name="welcome_background_image_url"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="welcome_background_image_url"]').value
+        : existing.welcome?.backgroundImageUrl,
+    primary_color:
+      form.querySelector('[name="welcome_primary_color"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="welcome_primary_color"]').value
+        : existing.welcome?.primaryColor,
+    description:
+      form.querySelector('[name="welcome_description"]') instanceof HTMLTextAreaElement
+        ? form.querySelector('[name="welcome_description"]').value
+        : existing.welcome?.description,
+    expertise_areas:
+      form.querySelector('[name="welcome_expertise_areas"]') instanceof HTMLTextAreaElement
+        ? splitLines(form.querySelector('[name="welcome_expertise_areas"]').value)
+        : existing.welcome?.expertiseAreas,
+    target_audience:
+      form.querySelector('[name="welcome_target_audience"]') instanceof HTMLTextAreaElement
+        ? form.querySelector('[name="welcome_target_audience"]').value
+        : existing.welcome?.targetAudience,
+    disclaimer:
+      form.querySelector('[name="welcome_disclaimer"]') instanceof HTMLTextAreaElement
+        ? form.querySelector('[name="welcome_disclaimer"]').value
+        : existing.welcome?.disclaimer,
+    quick_actions: welcomeQuickActions,
+  });
+  if (form.querySelector('[name="welcome_enabled"]') || form.querySelector('[name="welcome_kol_name"]')) {
+    surfaceMap.set('welcome', {
+      key: 'welcome',
+      label: surfaceLabel('welcome'),
+      enabled: welcomeEnabledInput instanceof HTMLInputElement ? welcomeEnabledInput.checked : existing.welcome?.enabled !== false,
+      json: JSON.stringify(buildWelcomeSurfaceConfigFromBuffer(welcome), null, 2),
+    });
+  }
+  const surfaces = Array.from(surfaceMap.values());
 
   state.brandDraftBuffer = {
     ...existing,
@@ -1861,6 +2046,10 @@ function captureBrandEditorBuffer() {
     menusText: form.querySelector('[name="menus_text"]')
       ? String(data.get('menus_text') || existing.menusText || '')
       : String(existing.menusText || ''),
+    welcome: {
+      enabled: welcomeEnabledInput instanceof HTMLInputElement ? welcomeEnabledInput.checked : existing.welcome?.enabled !== false,
+      ...welcome,
+    },
     surfaces,
   };
 
@@ -3351,6 +3540,13 @@ function renderPageGuide(title, items = [], accent = 'default') {
 }
 
 function renderBrandDetailGuide(activeTab) {
+  if (activeTab === 'welcome') {
+    return renderPageGuide('Welcome 页怎么配', [
+      '这里配置聊天空状态上的 K2C Welcome 页面，用于粉丝看到的 KOL 专属入口。',
+      '配置会走 OEM runtime 下发到桌面端，只替换欢迎内容区，不替换现有输入框。',
+      '保存后更新草稿，发布快照后对应 OEM 才会切到新的欢迎页内容。',
+    ], 'brand');
+  }
   if (activeTab === 'assets') {
     return renderPageGuide('品牌资源怎么用', [
       '先给品牌上传 logo、favicon、home 图等资源，asset key 要和前端约定槽位一致。',
@@ -4110,6 +4306,127 @@ function renderBrandInputAssembly(buffer) {
   `;
 }
 
+function renderBrandWelcomeAssembly(buffer) {
+  const welcome = normalizeWelcomeSurfaceConfig(buffer.welcome);
+  const enabled = buffer.welcome?.enabled !== false;
+  return `
+    <section class="fig-brand-section">
+      <div class="fig-section-heading">
+        <h2>Welcome页</h2>
+        <p>维护聊天空状态里的 K2C 欢迎内容，服务对象是 KOL 的粉丝，输入框仍复用现有聊天输入区。</p>
+      </div>
+      <article class="fig-card fig-card--subtle">
+        <div class="fig-card__head">
+          <h3>显示开关</h3>
+          <span>关闭后，空会话时不展示 Welcome 内容卡片。</span>
+        </div>
+        <label class="toggle fig-toggle">
+          <input type="checkbox" name="welcome_enabled"${enabled ? ' checked' : ''} />
+          <span>${enabled ? '已启用' : '已关闭'}</span>
+        </label>
+      </article>
+      <div class="fig-capability-columns">
+        <article class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
+            <h3>KOL 信息</h3>
+            <span>配置头像、欢迎语和主视觉颜色。</span>
+          </div>
+          <div class="form-grid">
+            <label class="field">
+              <span>KOL 名称</span>
+              <input class="field-input" name="welcome_kol_name" value="${fieldValue(welcome.kolName)}" />
+            </label>
+            <label class="field">
+              <span>专家名称</span>
+              <input class="field-input" name="welcome_expert_name" value="${fieldValue(welcome.expertName)}" />
+            </label>
+            <label class="field">
+              <span>Slogan</span>
+              <input class="field-input" name="welcome_slogan" value="${fieldValue(welcome.slogan)}" />
+            </label>
+            <label class="field">
+              <span>头像 URL</span>
+              <input class="field-input" name="welcome_avatar_url" value="${fieldValue(welcome.avatarUrl)}" />
+            </label>
+            <label class="field">
+              <span>背景图 URL</span>
+              <input class="field-input" name="welcome_background_image_url" value="${fieldValue(welcome.backgroundImageUrl)}" />
+            </label>
+            <label class="field">
+              <span>主色</span>
+              <input class="field-input" name="welcome_primary_color" value="${fieldValue(welcome.primaryColor)}" placeholder="#C4975F" />
+            </label>
+          </div>
+        </article>
+        <article class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
+            <h3>内容文案</h3>
+            <span>配置擅长领域、适配人群与免责声明。</span>
+          </div>
+          <div class="form-grid">
+            <label class="field">
+              <span>描述文案</span>
+              <textarea class="field-textarea" name="welcome_description" rows="4">${fieldValue(welcome.description)}</textarea>
+            </label>
+            <label class="field">
+              <span>擅长领域</span>
+              <textarea class="field-textarea" name="welcome_expertise_areas" rows="4" placeholder="每行一个领域">${fieldValue(welcome.expertiseAreas.join('\n'))}</textarea>
+            </label>
+            <label class="field">
+              <span>目标人群</span>
+              <textarea class="field-textarea" name="welcome_target_audience" rows="4">${fieldValue(welcome.targetAudience)}</textarea>
+            </label>
+            <label class="field">
+              <span>免责声明</span>
+              <textarea class="field-textarea" name="welcome_disclaimer" rows="4">${fieldValue(welcome.disclaimer)}</textarea>
+            </label>
+          </div>
+        </article>
+      </div>
+      <article class="fig-card fig-card--subtle">
+        <div class="fig-card__head">
+          <h3>快捷问题</h3>
+          <span>点击后只填充 prompt，不会自动发送。</span>
+        </div>
+        <div class="fig-capability-stack">
+          ${welcome.quickActions
+            .map(
+              (item, index) => `
+                <article class="checkbox-card checkbox-card--capability fig-capability-item">
+                  <div class="fig-capability-item__body">
+                    <div>
+                      <strong>快捷问题 ${index + 1}</strong>
+                      <span>配置卡片标题、图标和 prompt 内容。</span>
+                    </div>
+                    <div class="fig-menu-card__grid">
+                      <label class="field fig-inline-field">
+                        <span>标题</span>
+                        <input class="field-input" name="welcome_quick_action_label__${index}" value="${fieldValue(item.label)}" />
+                      </label>
+                      <label class="field fig-inline-field">
+                        <span>图标</span>
+                        <select class="field-select" name="welcome_quick_action_icon__${index}">
+                          ${WELCOME_ACTION_ICON_OPTIONS.map(
+                            ([value, label]) => `<option value="${escapeHtml(value)}"${item.iconKey === value ? ' selected' : ''}>${escapeHtml(label)}</option>`,
+                          ).join('')}
+                        </select>
+                      </label>
+                      <label class="field" style="grid-column: 1 / -1;">
+                        <span>Prompt</span>
+                        <textarea class="field-textarea" name="welcome_quick_action_prompt__${index}" rows="3">${fieldValue(item.prompt)}</textarea>
+                      </label>
+                    </div>
+                  </div>
+                </article>
+              `,
+            )
+            .join('')}
+        </div>
+      </article>
+    </section>
+  `;
+}
+
 function renderBrandModuleAssembly(buffer, surfaceKey) {
   const blueprint = getSurfaceBlueprint(surfaceKey);
   const menuItem = getMenuDefinition(blueprint?.menuKey) || null;
@@ -4382,6 +4699,10 @@ function renderBrandEditorBody(buffer, assets, activeTab = state.brandDetailTab)
 
   if (activeTab === 'home-web') {
     return renderBrandSurfaceEditor(buffer, 'home-web', 'Home页', '维护官网 / Home 页的 OEM 配置。');
+  }
+
+  if (activeTab === 'welcome') {
+    return renderBrandWelcomeAssembly(buffer);
   }
 
   if (activeTab === 'header') {

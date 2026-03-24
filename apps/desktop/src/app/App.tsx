@@ -16,6 +16,7 @@ import {
   resolveEnabledMenuKeys,
   resolveInputComposerConfig,
   resolveMenuUiConfig,
+  resolveWelcomePageConfig,
 } from './lib/oem-runtime';
 import { AuthPanel } from './components/AuthPanel';
 import { AccountPanel } from './components/account/AccountPanel';
@@ -1226,6 +1227,7 @@ function AuthedView({
   const enabledMenuKeys = resolveEnabledMenuKeys(brandShellConfig);
   const menuUiConfig = resolveMenuUiConfig(brandShellConfig);
   const inputComposerConfig = resolveInputComposerConfig(brandShellConfig);
+  const welcomePageConfig = resolveWelcomePageConfig(brandShellConfig);
   const availablePrimaryViews = (
     enabledMenuKeys && enabledMenuKeys.length > 0
       ? enabledMenuKeys.filter((key) => key !== 'settings')
@@ -1604,6 +1606,7 @@ function AuthedView({
               onCreditBalanceRefresh={refreshCreditBalance}
               user={currentUser}
               inputComposerConfig={inputComposerConfig}
+              welcomePageConfig={welcomePageConfig}
             />
           ) : (
             <RuntimeAuthRequiredView
