@@ -200,6 +200,7 @@ sync_gateway_token_config() {
   OPENCLAW_SYNC_OPENAI_MODEL="$RUNTIME_OPENAI_MODEL" \
   OPENCLAW_SYNC_OPENAI_BASE_URL="$RUNTIME_OPENAI_BASE_URL" \
   OPENCLAW_SYNC_OPENAI_API_KEY="$RUNTIME_OPENAI_API_KEY" \
+  OPENCLAW_PORTAL_RUNTIME_CONFIG_PATH="$ROOT_DIR/services/openclaw/resources/config/portal-app-runtime.json" \
   OPENCLAW_SYNC_WORKSPACE_DIR="$OPENCLAW_STATE_DIR/workspace" \
   node <<'EOF'
 const fs = require('fs');
@@ -209,6 +210,7 @@ const nextToken = (process.env.OPENCLAW_SYNC_GATEWAY_TOKEN || '').trim();
 const rawOpenAiModel = (process.env.OPENCLAW_SYNC_OPENAI_MODEL || '').trim();
 const rawOpenAiBaseUrl = (process.env.OPENCLAW_SYNC_OPENAI_BASE_URL || '').trim();
 const rawOpenAiApiKey = (process.env.OPENCLAW_SYNC_OPENAI_API_KEY || '').trim();
+const portalRuntimeConfigPath = (process.env.OPENCLAW_PORTAL_RUNTIME_CONFIG_PATH || '').trim();
 const rawWorkspaceDir = (process.env.OPENCLAW_SYNC_WORKSPACE_DIR || '').trim();
 if (!configPath || !nextToken) process.exit(0);
 
@@ -234,6 +236,30 @@ function ensureObject(parent, key) {
   return parent[key];
 }
 
+function readJsonIfExists(targetPath) {
+  if (!targetPath || !fs.existsSync(targetPath)) {
+    return null;
+  }
+  try {
+    return JSON.parse(fs.readFileSync(targetPath, 'utf8'));
+  } catch (error) {
+    console.error(`[api-dev] failed to parse ${targetPath}: ${String(error)}`);
+    process.exit(1);
+  }
+}
+
+function asObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function asString(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 function upsertManagedOpenAiModel(models, modelId) {
   if (!modelId) return models;
   const index = models.findIndex((entry) => entry && typeof entry === 'object' && entry.id === modelId);
@@ -254,6 +280,54 @@ function upsertManagedOpenAiModel(models, modelId) {
     models.push(next);
   }
   return models;
+}
+
+function replaceProviderModels(entries) {
+  return entries
+    .map((entry) => ({
+      id: entry.modelId,
+      name: entry.label || entry.modelId,
+      reasoning: Boolean(entry.reasoning),
+      input: Array.isArray(entry.input) ? entry.input : [],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: typeof entry.contextWindow === 'number' ? entry.contextWindow : 0,
+      maxTokens: typeof entry.maxTokens === 'number' ? entry.maxTokens : 0,
+    }))
+    .filter((entry) => entry.id);
+}
+
+function loadOemModelConfig() {
+  const portalRuntime = readJsonIfExists(portalRuntimeConfigPath);
+  const rootConfig = asObject(portalRuntime?.config);
+  const capabilities = asObject(rootConfig.capabilities);
+  const models = asObject(capabilities.models);
+  const entries = asArray(models.entries)
+    .map((item) => asObject(item))
+    .map((entry) => {
+      const modelRef = asString(entry.ref);
+      const providerFromRef = modelRef.includes('/') ? modelRef.split('/')[0].trim() : '';
+      const modelFromRef = modelRef.includes('/') ? modelRef.split('/').pop().trim() : modelRef;
+      return {
+        modelRef,
+        providerId: asString(entry.providerId || entry.provider_id) || providerFromRef,
+        modelId: asString(entry.modelId || entry.model_id) || modelFromRef,
+        label: asString(entry.label) || modelFromRef,
+        api: asString(entry.api) || 'openai-completions',
+        baseUrl: asString(entry.baseUrl || entry.base_url),
+        useRuntimeOpenai: Boolean(entry.useRuntimeOpenai ?? entry.use_runtime_openai ?? false),
+        authHeader: entry.authHeader ?? entry.auth_header ?? true,
+        reasoning: Boolean(entry.reasoning),
+        input: asArray(entry.input).filter((item) => typeof item === 'string'),
+        contextWindow: Number(entry.contextWindow ?? entry.context_window ?? 0),
+        maxTokens: Number(entry.maxTokens ?? entry.max_tokens ?? 0),
+      };
+    })
+    .filter((entry) => entry.modelRef && entry.providerId && entry.modelId);
+
+  return {
+    defaultModelRef: asString(models.default),
+    entries,
+  };
 }
 
 function sanitizeLegacySkillEntries(root) {
@@ -302,8 +376,11 @@ gateway.controlUi = controlUi;
 config.gateway = gateway;
 sanitizeLegacySkillEntries(config);
 
-if (rawOpenAiModel) {
-  const modelRef = rawOpenAiModel.includes('/') ? rawOpenAiModel : `openai/${rawOpenAiModel}`;
+const oemModelConfig = loadOemModelConfig();
+const activeModelRef = oemModelConfig.defaultModelRef || (rawOpenAiModel ? (rawOpenAiModel.includes('/') ? rawOpenAiModel : `openai/${rawOpenAiModel}`) : '');
+
+if (activeModelRef) {
+  const modelRef = activeModelRef;
   const modelId = modelRef.split('/').pop() || rawOpenAiModel;
   const agents = ensureObject(config, 'agents');
   const defaults = ensureObject(agents, 'defaults');
@@ -333,7 +410,16 @@ if (rawOpenAiModel) {
       : {}),
     maxConcurrent: 8,
   };
-  defaults.models = models;
+  if (oemModelConfig.entries.length > 0) {
+    defaults.models = Object.fromEntries(
+      oemModelConfig.entries
+        .map((entry) => entry.modelRef)
+        .filter(Boolean)
+        .map((entry) => [entry, {}]),
+    );
+  } else {
+    defaults.models = models;
+  }
   agents.defaults = defaults;
   config.agents = agents;
   const modelsConfig = ensureObject(config, 'models');
@@ -347,11 +433,37 @@ if (rawOpenAiModel) {
   if (rawOpenAiApiKey) {
     openaiProvider.apiKey = rawOpenAiApiKey;
   }
-  openaiProvider.models = upsertManagedOpenAiModel(
-    Array.isArray(openaiProvider.models) ? openaiProvider.models : [],
-    modelId,
-  );
+  const openAiRuntimeEntries = oemModelConfig.entries.filter((entry) => entry.useRuntimeOpenai);
+  if (openAiRuntimeEntries.length > 0) {
+    openaiProvider.models = replaceProviderModels(openAiRuntimeEntries);
+  } else {
+    openaiProvider.models = upsertManagedOpenAiModel(
+      Array.isArray(openaiProvider.models) ? openaiProvider.models : [],
+      modelId,
+    );
+  }
   providers.openai = openaiProvider;
+  const runtimeProviderIds = [...new Set(oemModelConfig.entries.map((entry) => entry.providerId).filter(Boolean))];
+  for (const providerId of runtimeProviderIds) {
+    if (providerId === 'openai') {
+      continue;
+    }
+    const matchingEntries = oemModelConfig.entries.filter((entry) => entry.providerId === providerId);
+    if (!matchingEntries.length) {
+      continue;
+    }
+    const provider = ensureObject(providers, providerId);
+    provider.api = matchingEntries[0].api || 'openai-completions';
+    provider.authHeader = matchingEntries[0].authHeader ?? true;
+    if (matchingEntries[0].baseUrl) {
+      provider.baseUrl = matchingEntries[0].baseUrl;
+    }
+    if (typeof provider.apiKey !== 'string') {
+      provider.apiKey = '';
+    }
+    provider.models = replaceProviderModels(matchingEntries);
+    providers[providerId] = provider;
+  }
   modelsConfig.providers = providers;
   config.models = modelsConfig;
 } else if (rawOpenAiBaseUrl || rawOpenAiApiKey) {
