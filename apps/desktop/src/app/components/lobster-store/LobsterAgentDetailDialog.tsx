@@ -1,6 +1,10 @@
 import { MessageSquare, Plus, ShieldCheck, Sparkles } from 'lucide-react';
 
-import type { LobsterAgent } from '@/app/lib/lobster-store';
+import {
+  isAgencyAgentsImported,
+  resolveLobsterAgentSourceLabel,
+  type LobsterAgent,
+} from '@/app/lib/lobster-store';
 import { AvatarSurface } from '@/app/components/ui/AvatarSurface';
 import { Chip } from '@/app/components/ui/Chip';
 import { DrawerSection } from '@/app/components/ui/DrawerSection';
@@ -27,6 +31,9 @@ export function LobsterAgentDetailDialog({
     return null;
   }
 
+  const sourceLabel = resolveLobsterAgentSourceLabel(agent);
+  const isAgencyAgents = isAgencyAgentsImported(agent);
+
   return (
     <SideDetailSheet
       open={open}
@@ -44,6 +51,11 @@ export function LobsterAgentDetailDialog({
               {agent.divisionLabel ? (
                 <Chip tone="muted" className="px-2.5 py-1 text-[11px]">
                   {agent.divisionLabel}
+                </Chip>
+              ) : null}
+              {sourceLabel ? (
+                <Chip tone={isAgencyAgents ? 'accent' : 'outline'} className="px-2.5 py-1 text-[11px]">
+                  {sourceLabel}
                 </Chip>
               ) : null}
               {agent.featured ? (
@@ -93,6 +105,7 @@ export function LobsterAgentDetailDialog({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <InfoTile label="分类" value={agent.categoryLabel} />
           <InfoTile label="专业分组" value={agent.divisionLabel || '未标注'} />
+          <InfoTile label="来源" value={sourceLabel || '手动维护'} />
           <InfoTile label="安装状态" value={agent.installed ? '已添加' : '未添加'} tone={agent.installed ? 'success' : 'neutral'} />
         </div>
 

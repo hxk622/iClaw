@@ -244,6 +244,7 @@ const state = {
     agentQuery: '',
     agentStatus: 'all',
     agentSurface: 'all',
+    agentSourceRepo: 'all',
     capabilityQuery: '',
     capabilitySkillStatus: 'all',
     capabilitySkillCategory: 'all',
@@ -1702,6 +1703,20 @@ function getAgentCatalogEntry(slug) {
 
 function getAgentSurface(agent) {
   return String(asObject(agent?.metadata).surface || '').trim() || 'general';
+}
+
+function getAgentSourceRepo(agent) {
+  return String(asObject(agent?.metadata).source_repo || '').trim() || 'manual';
+}
+
+function getAgentSourceLabel(sourceRepo) {
+  if (!sourceRepo || sourceRepo === 'manual') {
+    return '手动维护';
+  }
+  if (sourceRepo === 'msitarzewski/agency-agents') {
+    return 'Agency Agents';
+  }
+  return sourceRepo;
 }
 
 function getCloudSkillCatalogEntry(slug) {
@@ -6007,6 +6022,10 @@ function getFilteredAgents() {
       if (state.filters.agentSurface !== 'all' && surface !== state.filters.agentSurface) {
         return false;
       }
+      const sourceRepo = getAgentSourceRepo(item);
+      if (state.filters.agentSourceRepo !== 'all' && sourceRepo !== state.filters.agentSourceRepo) {
+        return false;
+      }
       if (!query) {
         return true;
       }
@@ -6017,6 +6036,7 @@ function getFilteredAgents() {
         item.category,
         item.publisher,
         surface,
+        sourceRepo,
         ...(item.tags || []),
       ].some((value) => String(value || '').toLowerCase().includes(query));
     })
@@ -6128,8 +6148,12 @@ function renderAgentCenterPage() {
       ? null
       : getAgentCatalogEntry(state.selectedAgentSlug) || agents[0] || null;
   const selectedSurface = selectedAgent ? getAgentSurface(selectedAgent) : 'all';
+  const selectedSourceRepo = selectedAgent ? getAgentSourceRepo(selectedAgent) : 'manual';
   const primarySkill = String(asObject(selectedAgent?.metadata).primary_skill_slug || '').trim();
   const surfaces = Array.from(new Set(state.agentCatalog.map((item) => getAgentSurface(item)).filter(Boolean))).sort((left, right) =>
+    left.localeCompare(right, 'zh-CN'),
+  );
+  const sourceRepos = Array.from(new Set(state.agentCatalog.map((item) => getAgentSourceRepo(item)).filter(Boolean))).sort((left, right) =>
     left.localeCompare(right, 'zh-CN'),
   );
 
@@ -6175,6 +6199,12 @@ function renderAgentCenterPage() {
                   <option value="all">全部 Surface</option>
                   ${surfaces.map((item) => `<option value="${escapeHtml(item)}"${state.filters.agentSurface === item ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('')}
                 </select>
+                <select class="field-select fig-filter" data-filter-key="agentSourceRepo">
+                  <option value="all">全部来源仓库</option>
+                  ${sourceRepos
+                    .map((item) => `<option value="${escapeHtml(item)}"${state.filters.agentSourceRepo === item ? ' selected' : ''}>${escapeHtml(getAgentSourceLabel(item))}</option>`)
+                    .join('')}
+                </select>
               </div>
               <div class="fig-capability-filter-meta">
                 <span>${escapeHtml(`${agents.length} 个 Agent`)}</span>
@@ -6188,7 +6218,7 @@ function renderAgentCenterPage() {
                       (item) => `
                         <button class="capability-card${selectedAgent?.slug === item.slug ? ' is-active' : ''}" type="button" data-action="select-agent" data-agent-slug="${escapeHtml(item.slug)}">
                           <strong>${escapeHtml(item.name)}</strong>
-                          <span>${escapeHtml(getAgentSurface(item))} • ${escapeHtml(item.active === false ? 'disabled' : 'active')}</span>
+                          <span>${escapeHtml(getAgentSurface(item))} • ${escapeHtml(item.active === false ? 'disabled' : 'active')} • ${escapeHtml(getAgentSourceLabel(getAgentSourceRepo(item)))}</span>
                         </button>
                       `,
                     )
@@ -6221,6 +6251,7 @@ function renderAgentCenterPage() {
                       <p class="detail-copy">${escapeHtml(selectedAgent.description || '暂无描述。')}</p>
                       <div class="fig-meta-cards">
                         <div class="fig-meta-card"><span>Surface</span><strong>${escapeHtml(selectedSurface)}</strong></div>
+                        <div class="fig-meta-card"><span>来源仓库</span><strong>${escapeHtml(getAgentSourceLabel(selectedSourceRepo))}</strong></div>
                         <div class="fig-meta-card"><span>Primary Skill</span><strong>${escapeHtml(primarySkill || '未设置')}</strong></div>
                         <div class="fig-meta-card"><span>Sort Order</span><strong>${escapeHtml(selectedAgent.sort_order || 0)}</strong></div>
                       </div>
@@ -8377,6 +8408,7 @@ app.addEventListener('click', async (event) => {
     state.filters.agentQuery = '';
     state.filters.agentStatus = 'all';
     state.filters.agentSurface = 'all';
+    state.filters.agentSourceRepo = 'all';
     render();
     return;
   }

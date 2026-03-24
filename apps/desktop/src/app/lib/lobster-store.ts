@@ -50,32 +50,59 @@ function encodeSvg(svg: string): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
-function semanticAvatarPalette(category: LobsterStoreCategory): {start: string; end: string; badge: string} {
+function avatarPalette(category: LobsterStoreCategory): {
+  start: string;
+  end: string;
+  jacket: string;
+  shirt: string;
+  accent: string;
+} {
   switch (category) {
     case 'finance':
-      return {start: '#1f2937', end: '#8e7650', badge: '#d6c19a'};
+      return {start: '#111827', end: '#8e7650', jacket: '#1f2937', shirt: '#f7f2e8', accent: '#cfb07a'};
     case 'content':
-      return {start: '#7c2d12', end: '#d97706', badge: '#fde68a'};
+      return {start: '#7c2d12', end: '#d97706', jacket: '#7c2d12', shirt: '#fff3e8', accent: '#f2c078'};
     case 'productivity':
-      return {start: '#0f172a', end: '#2563eb', badge: '#bfdbfe'};
+      return {start: '#0f172a', end: '#2563eb', jacket: '#1d3557', shirt: '#eef4ff', accent: '#8fb3e8'};
     case 'commerce':
-      return {start: '#14532d', end: '#0891b2', badge: '#a7f3d0'};
+      return {start: '#14532d', end: '#0891b2', jacket: '#14532d', shirt: '#edfdf6', accent: '#8fd0b2'};
     default:
-      return {start: '#1f2937', end: '#475569', badge: '#e2e8f0'};
+      return {start: '#1f2937', end: '#475569', jacket: '#334155', shirt: '#f8fafc', accent: '#cfd7e3'};
   }
 }
 
-function semanticAvatarText(name: string): string {
-  const compact = name.replace(/\s+/g, '');
-  return compact.slice(0, compact.length >= 2 ? 2 : 1) || 'AI';
+function hashString(value: string): number {
+  let hash = 0;
+  for (const char of value) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+  return hash;
 }
 
-function buildSemanticAvatar(item: AgentCatalogEntryData): string {
-  const emoji = readMetadataString(item.metadata, 'avatar_emoji');
-  const divisionLabel = readMetadataString(item.metadata, 'agency_division_label') || CATEGORY_LABELS[item.category];
-  const palette = semanticAvatarPalette(item.category);
-  const displayText = emoji || semanticAvatarText(item.name);
-  const badgeText = divisionLabel.slice(0, 4);
+function pickByHash<T>(seed: number, values: T[]): T {
+  return values[seed % values.length];
+}
+
+function buildPortraitAvatar(item: AgentCatalogEntryData): string {
+  const seed = hashString(`${item.slug}:${item.name}`);
+  const palette = avatarPalette(item.category);
+  const skin = pickByHash(seed, ['#F4C7A1', '#E6B18E', '#D99A73', '#C7865F', '#B8734E']);
+  const hair = pickByHash(seed >> 1, ['#1F2937', '#312E2B', '#5B4636', '#6B4F3A', '#8A5A44']);
+  const hairStyle = seed % 4;
+  const jacketTone = pickByHash(seed >> 2, [palette.jacket, '#2B3445', '#5A4630', '#31473B', '#4A5568']);
+  const shirtTone = pickByHash(seed >> 3, [palette.shirt, '#FFF8F1', '#EEF2F7']);
+  const accentTone = pickByHash(seed >> 4, [palette.accent, '#D6C19A', '#A5B8D8', '#8DBFA7']);
+  const faceX = 80 + ((seed % 5) - 2);
+  const faceY = 66 + (((seed >> 3) % 5) - 2);
+  const eyeY = faceY + 4;
+  const mouthY = faceY + 18;
+
+  const hairMarkup = [
+    `<path d="M42 64C42 39 58 24 80 24C102 24 118 39 118 64C112 51 98 42 80 42C62 42 48 51 42 64Z" fill="${hair}" />`,
+    `<path d="M44 70C44 37 61 21 82 21C101 21 118 36 118 67C111 57 101 52 91 51C83 50 75 45 67 46C56 47 48 56 44 70Z" fill="${hair}" />`,
+    `<path d="M41 68C44 39 60 22 83 22C102 22 117 37 119 62C112 51 97 44 81 44C66 44 50 51 41 68Z" fill="${hair}" /><path d="M109 52C114 58 117 67 116 76C110 70 106 66 101 64Z" fill="${hair}" />`,
+    `<path d="M43 66C45 38 64 23 85 23C101 23 115 35 118 53C111 47 101 45 94 45C86 45 80 39 71 39C58 39 48 48 43 66Z" fill="${hair}" />`,
+  ][hairStyle];
 
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" fill="none">
@@ -84,12 +111,22 @@ function buildSemanticAvatar(item: AgentCatalogEntryData): string {
           <stop stop-color="${palette.start}" />
           <stop offset="1" stop-color="${palette.end}" />
         </linearGradient>
+        <linearGradient id="coat" x1="48" y1="92" x2="116" y2="140" gradientUnits="userSpaceOnUse">
+          <stop stop-color="${jacketTone}" />
+          <stop offset="1" stop-color="${accentTone}" />
+        </linearGradient>
       </defs>
       <rect width="160" height="160" rx="40" fill="url(#bg)" />
-      <circle cx="80" cy="72" r="38" fill="rgba(255,255,255,0.12)" />
-      <text x="80" y="88" text-anchor="middle" font-size="${emoji ? 42 : 24}" font-family="Apple Color Emoji, Segoe UI Emoji, PingFang SC, sans-serif" fill="#ffffff">${displayText}</text>
-      <rect x="24" y="116" width="112" height="24" rx="12" fill="rgba(255,255,255,0.14)" />
-      <text x="80" y="132" text-anchor="middle" font-size="11" font-family="Inter, PingFang SC, sans-serif" fill="${palette.badge}">${badgeText}</text>
+      <circle cx="80" cy="80" r="54" fill="rgba(255,255,255,0.08)" />
+      <path d="M34 142C36 116 53 100 80 100C107 100 124 116 126 142Z" fill="url(#coat)" />
+      <path d="M62 102C66 114 73 122 80 122C87 122 94 114 98 102L88 97H72Z" fill="${shirtTone}" />
+      <circle cx="${faceX}" cy="${faceY}" r="25" fill="${skin}" />
+      ${hairMarkup}
+      <circle cx="${faceX - 9}" cy="${eyeY}" r="2.4" fill="#2B2118" />
+      <circle cx="${faceX + 9}" cy="${eyeY}" r="2.4" fill="#2B2118" />
+      <path d="M${faceX - 8} ${mouthY}C${faceX - 3} ${mouthY + 6} ${faceX + 3} ${mouthY + 6} ${faceX + 8} ${mouthY}" stroke="#8A4F46" stroke-width="2.4" stroke-linecap="round" />
+      <circle cx="122" cy="122" r="11" fill="rgba(255,255,255,0.14)" />
+      <circle cx="122" cy="122" r="4" fill="${accentTone}" />
     </svg>
   `;
 
@@ -100,9 +137,28 @@ function resolveAvatar(item: AgentCatalogEntryData): string {
   return (
     readMetadataString(item.metadata, 'avatar_url') ||
     AVATAR_BY_SLUG[item.slug] ||
-    buildSemanticAvatar(item) ||
+    buildPortraitAvatar(item) ||
     AVATAR_BY_SLUG['summary-expert']
   );
+}
+
+export function resolveLobsterAgentSourceRepo(agent: Pick<AgentCatalogEntryData, 'metadata'>): string | null {
+  return readMetadataString(agent.metadata, 'source_repo');
+}
+
+export function resolveLobsterAgentSourceLabel(agent: Pick<AgentCatalogEntryData, 'metadata'>): string | null {
+  const sourceRepo = resolveLobsterAgentSourceRepo(agent);
+  if (!sourceRepo) {
+    return null;
+  }
+  if (sourceRepo === 'msitarzewski/agency-agents') {
+    return 'Agency Agents';
+  }
+  return sourceRepo;
+}
+
+export function isAgencyAgentsImported(agent: Pick<AgentCatalogEntryData, 'metadata'>): boolean {
+  return resolveLobsterAgentSourceRepo(agent) === 'msitarzewski/agency-agents';
 }
 
 function toLibraryIndex(items: UserAgentLibraryItemData[]): Map<string, UserAgentLibraryItemData> {

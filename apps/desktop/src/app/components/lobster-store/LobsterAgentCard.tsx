@@ -1,6 +1,6 @@
 import { CheckCircle2, Eye, MessageSquare, Plus, Sparkles } from 'lucide-react';
 
-import type { LobsterAgent } from '@/app/lib/lobster-store';
+import { isAgencyAgentsImported, type LobsterAgent, resolveLobsterAgentSourceLabel } from '@/app/lib/lobster-store';
 import { cn } from '@/app/lib/cn';
 import { AvatarSurface } from '@/app/components/ui/AvatarSurface';
 import { Chip } from '@/app/components/ui/Chip';
@@ -21,6 +21,8 @@ export function LobsterAgentCard({
   installBusy?: boolean;
 }) {
   const showFeatured = agent.featured && !agent.installed;
+  const sourceLabel = resolveLobsterAgentSourceLabel(agent);
+  const isAgencyAgents = isAgencyAgentsImported(agent);
 
   return (
     <PressableCard
@@ -48,6 +50,11 @@ export function LobsterAgentCard({
             {agent.divisionLabel ? (
               <Chip tone="muted" className="px-2.5 py-1 text-[11px]">
                 {agent.divisionLabel}
+              </Chip>
+            ) : null}
+            {sourceLabel ? (
+              <Chip tone={isAgencyAgents ? 'accent' : 'outline'} className="px-2.5 py-1 text-[11px]">
+                {sourceLabel}
               </Chip>
             ) : null}
             {showFeatured ? (
