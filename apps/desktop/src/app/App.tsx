@@ -34,7 +34,7 @@ import { LobsterStoreView } from './components/lobster-store/LobsterStoreView';
 import { MemoryView } from './components/memory/MemoryView';
 import { MCPStoreView } from './components/mcp-store/MCPStoreView';
 import { TaskCenterView } from './components/TaskCenterView';
-import { SkillStoreView } from './components/skill-store/SkillStoreView';
+import { SkillStoreView, type SkillStoreViewPreset } from './components/skill-store/SkillStoreView';
 import { IMBotsView } from './components/im-bots/IMBotsView';
 import { SecurityCenterView } from './components/security-center/SecurityCenterView';
 import { SettingsPanel } from './components/settings/SettingsPanel';
@@ -148,6 +148,8 @@ const PRIMARY_VIEW_ORDER: PrimaryView[] = [
   'investment-experts',
   'lobster-store',
   'skill-store',
+  'finance-skills',
+  'foundation-skills',
   'mcp-store',
   'memory',
   'data-connections',
@@ -1287,6 +1289,32 @@ function AuthedView({
   ) as PrimaryView[];
   const activeMenuLabel =
     String(menuUiConfig?.[primaryView]?.displayName || '').trim() || titleizeMenuKey(primaryView) || '模块';
+  const skillStoreViewConfig:
+    | {
+        preset: SkillStoreViewPreset;
+        title: string;
+        description: string;
+      }
+    | null =
+    primaryView === 'skill-store'
+      ? {
+          preset: 'all',
+          title: activeMenuLabel || '技能商店',
+          description: '统一查看系统预置能力与云端技能，安装后可自动同步到设备',
+        }
+      : primaryView === 'finance-skills'
+        ? {
+            preset: 'finance',
+            title: activeMenuLabel || '财经技能',
+            description: '聚合技能商店里的财经、投资、股票与金融分析相关技能，右侧布局与技能商店保持一致。',
+          }
+        : primaryView === 'foundation-skills'
+          ? {
+              preset: 'foundation',
+              title: activeMenuLabel || '基础技能',
+              description: '聚合技能商店里的基础通用技能，展示当前热门前 100 项，右侧布局与技能商店保持一致。',
+            }
+          : null;
 
   useEffect(() => {
     if (availablePrimaryViews.includes(primaryView)) {
@@ -1564,8 +1592,9 @@ function AuthedView({
               onStartConversation={handleStartLobsterConversation}
               onRequestAuth={onRequestAuth}
             />
-          ) : primaryView === 'skill-store' ? (
+          ) : skillStoreViewConfig ? (
             <SkillStoreView
+              key={primaryView}
               client={client}
               accessToken={accessToken}
               authBaseUrl={AUTH_BASE_URL}
@@ -1573,6 +1602,9 @@ function AuthedView({
               currentUser={currentUser}
               onRequestAuth={onRequestAuth}
               onStartConversation={handleStartSkillConversation}
+              preset={skillStoreViewConfig.preset}
+              title={skillStoreViewConfig.title}
+              description={skillStoreViewConfig.description}
             />
           ) : primaryView === 'mcp-store' ? (
             <MCPStoreView
