@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { loadBrandProfile, resolveBrandId } from '../../scripts/lib/brand-profile.mjs';
 
 const desktopNodeModules = path.resolve(__dirname, './node_modules');
 const workspaceDir = path.join(os.homedir(), '.openclaw', 'workspace');
@@ -194,7 +195,7 @@ async function loadBundledSkillsCatalog(): Promise<BundledSkillCatalogItem[]> {
     .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
 }
 
-function workspaceDevPlugin() {
+function workspaceDevPlugin(assistantName: string) {
   return {
     name: 'iclaw-workspace-dev-plugin',
     configureServer(server: { middlewares: { use: (handler: (req: any, res: any, next: () => void) => void) => void } }) {
@@ -209,7 +210,7 @@ function workspaceDevPlugin() {
 
             const payload = {
               basePath: '',
-              assistantName: 'iClaw',
+              assistantName,
               assistantAvatar: null,
               assistantAgentId: null,
               serverVersion: null,
@@ -290,35 +291,49 @@ function workspaceDevPlugin() {
   };
 }
 
-export default defineConfig({
-  envDir: path.resolve(__dirname, '../../'),
-  plugins: [react(), tailwindcss(), workspaceDevPlugin()],
-  resolve: {
-    alias: [
-      { find: '@openclaw-ui', replacement: path.resolve(__dirname, '../../../openclaw/ui/src') },
-      { find: '@', replacement: path.resolve(__dirname, './src') },
-      { find: /^lit$/, replacement: path.resolve(desktopNodeModules, 'lit/index.js') },
-      { find: /^lit\/(.*)$/, replacement: path.resolve(desktopNodeModules, 'lit/$1') },
-      {
-        find: /^dompurify$/,
-        replacement: path.resolve(desktopNodeModules, 'dompurify/dist/purify.es.mjs'),
-      },
-      {
-        find: /^marked$/,
-        replacement: path.resolve(desktopNodeModules, 'marked/lib/marked.esm.js'),
-      },
-      {
-        find: /^@noble\/ed25519$/,
-        replacement: path.resolve(desktopNodeModules, '@noble/ed25519/index.js'),
-      },
-    ],
-  },
-  server: {
-    fs: {
-      allow: [
-        path.resolve(__dirname, '../../'),
-        path.resolve(__dirname, '../../../openclaw'),
+export default defineConfig(async () => {
+  const rootDir = path.resolve(__dirname, '../../');
+  const brandId = resolveBrandId();
+  let assistantName = brandId;
+
+  try {
+    const { profile } = await loadBrandProfile({ rootDir, brandId });
+    assistantName = profile.displayName || profile.websiteTitle || profile.productName || brandId;
+  } catch {
+    assistantName = brandId;
+  }
+
+  return {
+    envDir: rootDir,
+    envPrefix: ['VITE_', 'APP_NAME', 'ICLAW_PORTAL_APP_NAME'],
+    plugins: [react(), tailwindcss(), workspaceDevPlugin(assistantName)],
+    resolve: {
+      alias: [
+        { find: '@openclaw-ui', replacement: path.resolve(__dirname, '../../../openclaw/ui/src') },
+        { find: '@', replacement: path.resolve(__dirname, './src') },
+        { find: /^lit$/, replacement: path.resolve(desktopNodeModules, 'lit/index.js') },
+        { find: /^lit\/(.*)$/, replacement: path.resolve(desktopNodeModules, 'lit/$1') },
+        {
+          find: /^dompurify$/,
+          replacement: path.resolve(desktopNodeModules, 'dompurify/dist/purify.es.mjs'),
+        },
+        {
+          find: /^marked$/,
+          replacement: path.resolve(desktopNodeModules, 'marked/lib/marked.esm.js'),
+        },
+        {
+          find: /^@noble\/ed25519$/,
+          replacement: path.resolve(desktopNodeModules, '@noble/ed25519/index.js'),
+        },
       ],
     },
-  },
+    server: {
+      fs: {
+        allow: [
+          path.resolve(__dirname, '../../'),
+          path.resolve(__dirname, '../../../openclaw'),
+        ],
+      },
+    },
+  };
 });

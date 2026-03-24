@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import fs from 'node:fs/promises';
+import fs from 'node:fs';
+import fsp from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import {spawnSync} from 'node:child_process';
@@ -14,14 +15,13 @@ function trimString(value) {
 
 async function readEnvFileIfPresent(targetPath) {
   try {
-    return await fs.readFile(targetPath, 'utf8');
+    return await fsp.readFile(targetPath, 'utf8');
   } catch {
     return '';
   }
 }
 
-async function ensureRootEnvLoaded(rootDir) {
-  const raw = await readEnvFileIfPresent(path.join(rootDir, '.env'));
+function applyEnvContent(raw) {
   for (const line of raw.split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
@@ -32,6 +32,20 @@ async function ensureRootEnvLoaded(rootDir) {
     if (typeof process.env[key] === 'undefined') {
       process.env[key] = value;
     }
+  }
+}
+
+async function ensureRootEnvLoaded(rootDir) {
+  const raw = await readEnvFileIfPresent(path.join(rootDir, '.env'));
+  applyEnvContent(raw);
+}
+
+function ensureRootEnvLoadedSync(rootDir = defaultRootDir) {
+  try {
+    const raw = fs.readFileSync(path.join(rootDir, '.env'), 'utf8');
+    applyEnvContent(raw);
+  } catch {
+    // Ignore missing .env files; callers still fall back to explicit args/default brand.
   }
 }
 
@@ -70,10 +84,14 @@ async function ensureSyncedBrandProfile(rootDir, brandId) {
 }
 
 export function resolveBrandId(
-  brandId = process.env.APP_NAME || process.env.ICLAW_PORTAL_APP_NAME || process.env.ICLAW_BRAND || process.env.ICLAW_APP_NAME || '',
+  brandId = '',
 ) {
-  const normalized = trimString(brandId);
-  return normalized || 'iclaw';
+  ensureRootEnvLoadedSync(defaultRootDir);
+  const explicitBrandId = trimString(brandId);
+  const envBrandId = trimString(
+    process.env.APP_NAME || process.env.ICLAW_PORTAL_APP_NAME || process.env.ICLAW_BRAND || process.env.ICLAW_APP_NAME || '',
+  );
+  return explicitBrandId || envBrandId || 'iclaw';
 }
 
 export async function loadBrandProfile(options = {}) {
@@ -82,7 +100,7 @@ export async function loadBrandProfile(options = {}) {
   await ensureSyncedBrandProfile(rootDir, brandId);
   const brandDir = cacheRootFor(rootDir, brandId);
   const brandConfigPath = path.join(brandDir, 'profile.json');
-  const profile = JSON.parse(await fs.readFile(brandConfigPath, 'utf8'));
+  const profile = JSON.parse(await fsp.readFile(brandConfigPath, 'utf8'));
   return {
     rootDir,
     brandDir,

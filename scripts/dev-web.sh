@@ -16,6 +16,8 @@ read_env_value() {
 }
 
 ENV_GATEWAY_TOKEN="$(read_env_value VITE_GATEWAY_TOKEN)"
+ENV_APP_NAME="$(read_env_value APP_NAME)"
+APP_NAME="${APP_NAME:-${ENV_APP_NAME:-iclaw}}"
 
 stop_existing_web() {
   local pids=""
