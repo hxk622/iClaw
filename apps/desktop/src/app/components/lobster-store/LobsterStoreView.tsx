@@ -140,6 +140,31 @@ export function LobsterStoreView({
     () => (activeFilter === 'all' ? filteredAgents.filter((agent) => !agent.featured) : filteredAgents),
     [activeFilter, filteredAgents],
   );
+  const groupedShelfAgents = useMemo(() => {
+    if (activeDivision !== 'all') {
+      return [];
+    }
+
+    const groups = new Map<string, {id: string; label: string; agents: LobsterAgent[]}>();
+    for (const agent of shelfAgents) {
+      const label = agent.divisionLabel || agent.categoryLabel;
+      const id = agent.divisionSlug || agent.category;
+      const current = groups.get(id);
+      if (current) {
+        current.agents.push(agent);
+      } else {
+        groups.set(id, {
+          id,
+          label,
+          agents: [agent],
+        });
+      }
+    }
+
+    return [...groups.values()].sort((left, right) =>
+      right.agents.length - left.agents.length || left.label.localeCompare(right.label, 'zh-CN'),
+    );
+  }, [activeDivision, shelfAgents]);
 
   useEffect(() => {
     if (activeDivision === 'all') {
@@ -352,18 +377,48 @@ export function LobsterStoreView({
                   </div>
                   <div className="text-[12px] text-[var(--lobster-text-muted)]">{shelfAgents.length} 个结果</div>
                 </div>
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
-                  {shelfAgents.map((agent) => (
-                    <LobsterAgentCard
-                      key={agent.slug}
-                      agent={agent}
-                      installBusy={installBusySlug === agent.slug}
-                      onOpenDetail={(nextAgent) => setDetailSlug(nextAgent.slug)}
-                      onInstall={handleInstall}
-                      onStartConversation={onStartConversation}
-                    />
-                  ))}
-                </div>
+                {activeDivision === 'all' ? (
+                  <div className="space-y-6">
+                    {groupedShelfAgents.map((group) => (
+                      <section key={group.id}>
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 w-2 rounded-full bg-[var(--lobster-gold)]" />
+                            <div className="text-[15px] font-semibold text-[var(--lobster-text-primary)]">
+                              {group.label}
+                            </div>
+                          </div>
+                          <div className="text-[12px] text-[var(--lobster-text-muted)]">{group.agents.length} 个</div>
+                        </div>
+                        <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
+                          {group.agents.map((agent) => (
+                            <LobsterAgentCard
+                              key={agent.slug}
+                              agent={agent}
+                              installBusy={installBusySlug === agent.slug}
+                              onOpenDetail={(nextAgent) => setDetailSlug(nextAgent.slug)}
+                              onInstall={handleInstall}
+                              onStartConversation={onStartConversation}
+                            />
+                          ))}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
+                    {shelfAgents.map((agent) => (
+                      <LobsterAgentCard
+                        key={agent.slug}
+                        agent={agent}
+                        installBusy={installBusySlug === agent.slug}
+                        onOpenDetail={(nextAgent) => setDetailSlug(nextAgent.slug)}
+                        onInstall={handleInstall}
+                        onStartConversation={onStartConversation}
+                      />
+                    ))}
+                  </div>
+                )}
               </section>
             ) : (
               <div className="mt-4 flex min-h-[220px] items-center justify-center rounded-[24px] border border-dashed border-[var(--lobster-border)] bg-[var(--lobster-card-bg)] px-6 text-center">
