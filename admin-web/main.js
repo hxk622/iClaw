@@ -882,6 +882,35 @@ function installStateLabel(installed) {
   return installed ? '已安装' : '未安装';
 }
 
+function isPlatformManagedSkillBinding(binding) {
+  const config = asObject(binding?.config);
+  return config.locked === true || config.managed_by === 'platform' || config.managedBy === 'platform';
+}
+
+function getPlatformManagedSkillSlugs(detail = state.brandDetail) {
+  const managed = new Set();
+  asArray(detail?.skillBindings).forEach((item) => {
+    const skillSlug = String(item?.skillSlug || '').trim();
+    if (!skillSlug || !isPlatformManagedSkillBinding(item)) return;
+    managed.add(skillSlug);
+  });
+  return Array.from(managed);
+}
+
+function isPlatformManagedSkillSlug(skillSlug, detail = state.brandDetail) {
+  return Boolean(skillSlug) && getPlatformManagedSkillSlugs(detail).includes(skillSlug);
+}
+
+function ensurePlatformManagedSkillSelection(selectedSkills, detail = state.brandDetail) {
+  const next = new Set(asStringArray(selectedSkills));
+  getPlatformManagedSkillSlugs(detail).forEach((skillSlug) => next.add(skillSlug));
+  return Array.from(next);
+}
+
+function getSkillBinding(detail, skillSlug) {
+  return asArray(detail?.skillBindings).find((item) => String(item?.skillSlug || '').trim() === skillSlug) || null;
+}
+
 function capabilityBindingCountLabel(type, count) {
   if (type === 'skill' || type === 'mcp') {
     return `${count} 个品牌已安装`;
@@ -1344,14 +1373,16 @@ function statusBadge(status) {
   return `<span class="status-pill status-pill--${escapeHtml(status || 'default')}">${escapeHtml(statusLabel(status))}</span>`;
 }
 
-function renderSwitch({checked = false, action = '', attrs = '', label = ''} = {}) {
+function renderSwitch({checked = false, action = '', attrs = '', label = '', disabled = false} = {}) {
   return `
     <button
-      class="switch${checked ? ' is-checked' : ''}"
+      class="switch${checked ? ' is-checked' : ''}${disabled ? ' is-disabled' : ''}"
       type="button"
       role="switch"
       aria-checked="${checked ? 'true' : 'false'}"
+      aria-disabled="${disabled ? 'true' : 'false'}"
       data-action="${escapeHtml(action)}"
+      ${disabled ? 'disabled' : ''}
       ${attrs}
     >
       <span class="switch__track"><span class="switch__thumb"></span></span>
@@ -1782,7 +1813,10 @@ function buildBrandDraftBuffer(detail) {
       darkPrimaryHover: darkTheme.primaryHover || '',
       darkOnPrimary: darkTheme.onPrimary || '',
     },
-    selectedSkills: asArray(detail?.skillBindings).filter((item) => item.enabled).map((item) => item.skillSlug),
+    selectedSkills: ensurePlatformManagedSkillSelection(
+      asArray(detail?.skillBindings).filter((item) => item.enabled).map((item) => item.skillSlug),
+      detail,
+    ),
     selectedMcp: asArray(detail?.mcpBindings).filter((item) => item.enabled).map((item) => item.mcpKey),
     selectedMenus,
     menuConfigs,
@@ -2032,7 +2066,7 @@ function captureBrandEditorBuffer() {
     // Capability switches are managed through in-memory draft state.
     // Do not recompute them from hidden checkbox markup during save, otherwise
     // stale DOM can overwrite the latest toggle state back to old values.
-    selectedSkills: asStringArray(existing.selectedSkills),
+    selectedSkills: ensurePlatformManagedSkillSelection(existing.selectedSkills, state.brandDetail),
     selectedMcp: asStringArray(existing.selectedMcp),
     selectedMenus: asStringArray(existing.selectedMenus),
     menuConfigs,
@@ -2381,6 +2415,10 @@ async function loadBrandDetail(brandId, options = {}) {
 
 async function saveBrandEditor(form) {
   const snapshot = captureBrandEditorBuffer();
+  snapshot.selectedSkills = ensurePlatformManagedSkillSelection(
+    snapshot.selectedSkills,
+    state.portalAppDetails[snapshot.brandId] || state.brandDetail,
+  );
   let draftConfig;
   try {
     draftConfig = composeDraftConfig(snapshot);
@@ -3305,6 +3343,9 @@ async function deleteModelCatalogEntry(ref) {
 function toggleBrandCapability(type, value) {
   const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
   if (!buffer) return;
+  if (type === 'skill' && isPlatformManagedSkillSlug(value)) {
+    return;
+  }
   const current =
     type === 'skill'
       ? new Set(buffer.selectedSkills)
@@ -3917,21 +3958,28 @@ function renderBrandSkillsAssembly(buffer) {
           ${skills.length
             ? skills
                 .map(
-                  (skill) => `
-                    <article class="checkbox-card checkbox-card--capability fig-capability-item">
-                      <input class="skill-checkbox visually-hidden" type="checkbox" value="${escapeHtml(skill.slug)}"${buffer.selectedSkills.includes(skill.slug) ? ' checked' : ''} />
-                      <div>
+                  (skill) => {
+                    const binding = getSkillBinding(state.brandDetail, skill.slug);
+                    const platformManaged = isPlatformManagedSkillBinding(binding);
+                    const installed = buffer.selectedSkills.includes(skill.slug);
+                    return `
+                    <article class="checkbox-card checkbox-card--capability fig-capability-item${platformManaged ? ' is-platform-managed' : ''}">
+                      <input class="skill-checkbox visually-hidden" type="checkbox" value="${escapeHtml(skill.slug)}"${installed ? ' checked' : ''} />
+                      <div class="fig-capability-item__body">
                         <strong>${escapeHtml(skill.name)}</strong>
                         <span>${escapeHtml(skill.category || '未分类')} · ${escapeHtml(skill.publisher || 'iClaw')}</span>
+                        ${platformManaged ? '<div class="metric-chips"><span>平台默认</span><span>OEM 不可修改</span></div>' : ''}
                       </div>
                       ${renderSwitch({
-                        checked: buffer.selectedSkills.includes(skill.slug),
+                        checked: installed,
                         action: 'toggle-brand-skill',
                         attrs: `data-skill-slug="${escapeHtml(skill.slug)}"`,
-                        label: installStateLabel(buffer.selectedSkills.includes(skill.slug)),
+                        label: platformManaged ? '平台默认' : installStateLabel(installed),
+                        disabled: platformManaged,
                       })}
                     </article>
-                  `,
+                  `;
+                  },
                 )
                 .join('')
             : `<div class="empty-state">当前没有可用技能。</div>`}

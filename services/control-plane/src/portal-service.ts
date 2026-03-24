@@ -16,10 +16,12 @@ import {
   validatePortalDesktopReleaseVersion,
   writePortalDesktopReleaseConfig,
 } from './portal-desktop-release.ts';
+import {PLATFORM_FORCED_SKILL_SLUGS, isPlatformForcedSkillSlug} from './portal-default-skills.ts';
 import {deletePortalAssetFile, downloadPortalAssetFile, uploadPortalAssetFile} from './portal-asset-storage.ts';
 import {deletePortalSkillArtifact, uploadPortalSkillArtifact} from './portal-skill-storage.ts';
 import type {
   PortalAppDetail,
+  PortalAppSkillBindingRecord,
   PortalAppRecord,
   PortalAppStatus,
   PortalJsonObject,
@@ -161,6 +163,55 @@ function normalizeDesktopReleaseArtifactType(value: unknown): 'installer' | 'upd
   throw new HttpError(400, 'BAD_REQUEST', 'artifact_type must be installer, updater, or signature');
 }
 
+function platformForcedSkillSortOrder(index: number): number {
+  return -1000 + index;
+}
+
+function platformForcedSkillSortOrderForSlug(skillSlug: string): number {
+  return platformForcedSkillSortOrder(PLATFORM_FORCED_SKILL_SLUGS.findIndex((item) => item === skillSlug));
+}
+
+function buildPlatformForcedSkillConfig(config: PortalJsonObject = {}): PortalJsonObject {
+  return {
+    ...config,
+    locked: true,
+    managed_by: 'platform',
+  };
+}
+
+function mergePlatformForcedSkillBindings(
+  appName: string,
+  bindings: PortalAppSkillBindingRecord[],
+): PortalAppSkillBindingRecord[] {
+  const merged = new Map<string, PortalAppSkillBindingRecord>();
+
+  for (const binding of bindings) {
+    const skillSlug = String(binding.skillSlug || '').trim();
+    if (!skillSlug) continue;
+    merged.set(skillSlug, {
+      ...binding,
+      appName: binding.appName || appName,
+      skillSlug,
+      config: cloneJson(asObject(binding.config)),
+    });
+  }
+
+  PLATFORM_FORCED_SKILL_SLUGS.forEach((skillSlug, index) => {
+    const current = merged.get(skillSlug);
+    merged.set(skillSlug, {
+      appName,
+      skillSlug,
+      enabled: true,
+      sortOrder: platformForcedSkillSortOrder(index),
+      config: buildPlatformForcedSkillConfig(asObject(current?.config)),
+    });
+  });
+
+  return Array.from(merged.values()).sort(
+    (left, right) => left.sortOrder - right.sortOrder || left.skillSlug.localeCompare(right.skillSlug, 'zh-CN'),
+  );
+}
+
 export class PortalService {
   private readonly store: PgPortalStore;
   private readonly authResolver: (accessToken: string) => Promise<PublicUser>;
@@ -181,7 +232,7 @@ export class PortalService {
     if (!detail) {
       throw new HttpError(404, 'NOT_FOUND', 'portal app not found');
     }
-    return detail;
+    return this.withPlatformForcedSkills(detail);
   }
 
   async upsertApp(accessToken: string, input: UpsertPortalAppInput) {
@@ -372,15 +423,23 @@ export class PortalService {
   async replaceAppSkills(accessToken: string, appNameInput: string, itemsInput: ReplacePortalAppSkillBindingsInput) {
     const actor = await this.requireAdmin(accessToken);
     const appName = normalizeAppName(appNameInput);
-    const items = asArray(itemsInput).map((item, index) => {
-      const value = asObject(item);
-      return {
-        skillSlug: normalizeRequiredString(value.skillSlug, 'skillSlug'),
-        enabled: normalizeOptionalBoolean(value.enabled, 'enabled', true),
-        sortOrder: normalizeOptionalInteger(value.sortOrder, 'sortOrder', (index + 1) * 10),
-        config: normalizeBindingConfig(value.config),
-      };
-    });
+    const items = mergePlatformForcedSkillBindings(
+      appName,
+      asArray(itemsInput).map((item, index) => {
+        const value = asObject(item);
+        const skillSlug = normalizeRequiredString(value.skillSlug, 'skillSlug');
+        const config = normalizeBindingConfig(value.config);
+        return {
+          appName,
+          skillSlug,
+          enabled: isPlatformForcedSkillSlug(skillSlug) ? true : normalizeOptionalBoolean(value.enabled, 'enabled', true),
+          sortOrder: isPlatformForcedSkillSlug(skillSlug)
+            ? platformForcedSkillSortOrderForSlug(skillSlug)
+            : normalizeOptionalInteger(value.sortOrder, 'sortOrder', (index + 1) * 10),
+          config: isPlatformForcedSkillSlug(skillSlug) ? buildPlatformForcedSkillConfig(config) : config,
+        };
+      }),
+    );
     return {items: await this.store.replaceAppSkillBindings(appName, items, actor.id)};
   }
 
@@ -802,7 +861,7 @@ export class PortalService {
       this.store.listComposerControls(),
       this.store.listComposerShortcuts(),
     ]);
-    return buildPortalPublicConfig(detail, {
+    return buildPortalPublicConfig(this.withPlatformForcedSkills(detail), {
       surfaceKey: normalizeOptionalString(input.surfaceKey, 'surface_key'),
       menuCatalog: menus,
       composerControlCatalog: composerControls,
@@ -818,6 +877,13 @@ export class PortalService {
       throw new HttpError(404, 'NOT_FOUND', 'portal app not found');
     }
     return detail;
+  }
+
+  private withPlatformForcedSkills(detail: PortalAppDetail): PortalAppDetail {
+    return {
+      ...detail,
+      skillBindings: mergePlatformForcedSkillBindings(detail.app.appName, detail.skillBindings),
+    };
   }
 
   private async saveAppConfig(app: PortalAppRecord, config: PortalJsonObject, actorUserId: string | null) {

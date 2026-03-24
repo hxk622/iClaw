@@ -2241,6 +2241,11 @@ code {
   align-items: center;
 }
 
+.fig-capability-item.is-platform-managed {
+  border-color: rgba(90, 138, 143, 0.2);
+  background: linear-gradient(180deg, rgba(233, 244, 245, 0.9), rgba(247, 249, 247, 0.96));
+}
+
 .fig-capability-item__body {
   flex: 1;
   min-width: 0;
@@ -2248,6 +2253,10 @@ code {
 
 .fig-capability-item strong {
   font-size: 14px;
+}
+
+.fig-capability-item__body .metric-chips {
+  margin-top: 8px;
 }
 
 .fig-inline-field {
@@ -3075,6 +3084,16 @@ code {
   background: var(--control-surface-muted);
   border-color: rgba(58, 74, 62, 0.18);
   box-shadow: 0 6px 14px rgba(42, 40, 37, 0.05);
+}
+
+.switch.is-disabled,
+.switch.is-disabled:hover {
+  cursor: not-allowed;
+  opacity: 0.72;
+  background: rgba(255, 253, 249, 0.95);
+  border-color: var(--control-border);
+  box-shadow: 0 4px 10px rgba(42, 40, 37, 0.035);
+  transform: none;
 }
 
 .switch:focus-visible {
