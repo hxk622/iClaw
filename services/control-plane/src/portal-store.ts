@@ -984,6 +984,154 @@ async function replaceMenuBindings(
   }
 }
 
+async function seedSkillBindings(
+  db: Pool | PoolClient,
+  appName: string,
+  items: ReplacePortalAppSkillBindingsInput,
+): Promise<void> {
+  for (const item of items) {
+    await db.query(
+      `
+        insert into oem_app_skill_bindings (
+          app_name,
+          skill_slug,
+          enabled,
+          sort_order,
+          config_json
+        )
+        values ($1, $2, $3, $4, $5::jsonb)
+        on conflict (app_name, skill_slug) do nothing
+      `,
+      [appName, item.skillSlug, item.enabled ?? true, item.sortOrder ?? 100, JSON.stringify(item.config || {})],
+    );
+  }
+}
+
+async function seedMcpBindings(
+  db: Pool | PoolClient,
+  appName: string,
+  items: ReplacePortalAppMcpBindingsInput,
+): Promise<void> {
+  for (const item of items) {
+    await db.query(
+      `
+        insert into oem_app_mcp_bindings (
+          app_name,
+          mcp_key,
+          enabled,
+          sort_order,
+          config_json
+        )
+        values ($1, $2, $3, $4, $5::jsonb)
+        on conflict (app_name, mcp_key) do nothing
+      `,
+      [appName, item.mcpKey, item.enabled ?? true, item.sortOrder ?? 100, JSON.stringify(item.config || {})],
+    );
+  }
+}
+
+async function seedModelBindings(
+  db: Pool | PoolClient,
+  appName: string,
+  items: ReplacePortalAppModelBindingsInput,
+): Promise<void> {
+  for (const item of items) {
+    await db.query(
+      `
+        insert into oem_app_model_bindings (
+          app_name,
+          model_ref,
+          enabled,
+          sort_order,
+          config_json
+        )
+        values ($1, $2, $3, $4, $5::jsonb)
+        on conflict (app_name, model_ref) do nothing
+      `,
+      [
+        appName,
+        item.modelRef,
+        item.enabled ?? true,
+        item.sortOrder ?? 100,
+        JSON.stringify({
+          ...(item.config || {}),
+          recommended: item.recommended === true,
+          default: item.default === true,
+        }),
+      ],
+    );
+  }
+}
+
+async function seedMenuBindings(
+  db: Pool | PoolClient,
+  appName: string,
+  items: ReplacePortalAppMenuBindingsInput,
+): Promise<void> {
+  for (const item of items) {
+    await db.query(
+      `
+        insert into oem_app_menu_bindings (
+          app_name,
+          menu_key,
+          enabled,
+          sort_order,
+          config_json
+        )
+        values ($1, $2, $3, $4, $5::jsonb)
+        on conflict (app_name, menu_key) do nothing
+      `,
+      [appName, item.menuKey, item.enabled ?? true, item.sortOrder ?? 100, JSON.stringify(item.config || {})],
+    );
+  }
+}
+
+async function seedComposerControlBindings(
+  db: Pool | PoolClient,
+  appName: string,
+  items: ReplacePortalAppComposerControlBindingsInput,
+): Promise<void> {
+  for (const item of items) {
+    await db.query(
+      `
+        insert into oem_app_composer_control_bindings (
+          app_name,
+          control_key,
+          enabled,
+          sort_order,
+          config_json
+        )
+        values ($1, $2, $3, $4, $5::jsonb)
+        on conflict (app_name, control_key) do nothing
+      `,
+      [appName, item.controlKey, item.enabled ?? true, item.sortOrder ?? 100, JSON.stringify(item.config || {})],
+    );
+  }
+}
+
+async function seedComposerShortcutBindings(
+  db: Pool | PoolClient,
+  appName: string,
+  items: ReplacePortalAppComposerShortcutBindingsInput,
+): Promise<void> {
+  for (const item of items) {
+    await db.query(
+      `
+        insert into oem_app_composer_shortcut_bindings (
+          app_name,
+          shortcut_key,
+          enabled,
+          sort_order,
+          config_json
+        )
+        values ($1, $2, $3, $4, $5::jsonb)
+        on conflict (app_name, shortcut_key) do nothing
+      `,
+      [appName, item.shortcutKey, item.enabled ?? true, item.sortOrder ?? 100, JSON.stringify(item.config || {})],
+    );
+  }
+}
+
 async function replaceComposerControlBindings(
   db: Pool | PoolClient,
   appName: string,
@@ -1876,42 +2024,70 @@ export class PgPortalStore {
     menuBindings: Array<{appName: string; items: ReplacePortalAppMenuBindingsInput}>;
     composerControlBindings?: Array<{appName: string; items: ReplacePortalAppComposerControlBindingsInput}>;
     composerShortcutBindings?: Array<{appName: string; items: ReplacePortalAppComposerShortcutBindingsInput}>;
+    preserveExistingAppState?: boolean;
   }): Promise<void> {
     const client = await this.pool.connect();
     try {
       await client.query('begin');
       for (const app of input.apps) {
-        await client.query(
-          `
-            insert into oem_apps (
-              app_name,
-              display_name,
-              description,
-              status,
-              default_locale,
-              config_json,
-              created_at,
-              updated_at
-            )
-            values ($1, $2, $3, $4, $5, $6::jsonb, now(), now())
-            on conflict (app_name)
-            do update set
-              display_name = excluded.display_name,
-              description = excluded.description,
-              status = excluded.status,
-              default_locale = excluded.default_locale,
-              config_json = excluded.config_json,
-              updated_at = now()
-          `,
-          [
-            app.appName,
-            app.displayName,
-            app.description || null,
-            app.status || 'active',
-            app.defaultLocale || 'zh-CN',
-            JSON.stringify(app.config || {}),
-          ],
-        );
+        if (input.preserveExistingAppState) {
+          await client.query(
+            `
+              insert into oem_apps (
+                app_name,
+                display_name,
+                description,
+                status,
+                default_locale,
+                config_json,
+                created_at,
+                updated_at
+              )
+              values ($1, $2, $3, $4, $5, $6::jsonb, now(), now())
+              on conflict (app_name) do nothing
+            `,
+            [
+              app.appName,
+              app.displayName,
+              app.description || null,
+              app.status || 'active',
+              app.defaultLocale || 'zh-CN',
+              JSON.stringify(app.config || {}),
+            ],
+          );
+        } else {
+          await client.query(
+            `
+              insert into oem_apps (
+                app_name,
+                display_name,
+                description,
+                status,
+                default_locale,
+                config_json,
+                created_at,
+                updated_at
+              )
+              values ($1, $2, $3, $4, $5, $6::jsonb, now(), now())
+              on conflict (app_name)
+              do update set
+                display_name = excluded.display_name,
+                description = excluded.description,
+                status = excluded.status,
+                default_locale = excluded.default_locale,
+                config_json = excluded.config_json,
+                updated_at = now()
+            `,
+            [
+              app.appName,
+              app.displayName,
+              app.description || null,
+              app.status || 'active',
+              app.defaultLocale || 'zh-CN',
+              JSON.stringify(app.config || {}),
+            ],
+          );
+        }
       }
 
       for (const skill of input.skills) {
@@ -2217,22 +2393,46 @@ export class PgPortalStore {
       }
 
       for (const binding of input.skillBindings) {
-        await replaceSkillBindings(client, binding.appName, binding.items);
+        if (input.preserveExistingAppState) {
+          await seedSkillBindings(client, binding.appName, binding.items);
+        } else {
+          await replaceSkillBindings(client, binding.appName, binding.items);
+        }
       }
       for (const binding of input.mcpBindings) {
-        await replaceMcpBindings(client, binding.appName, binding.items);
+        if (input.preserveExistingAppState) {
+          await seedMcpBindings(client, binding.appName, binding.items);
+        } else {
+          await replaceMcpBindings(client, binding.appName, binding.items);
+        }
       }
       for (const binding of input.modelBindings || []) {
-        await replaceModelBindings(client, binding.appName, binding.items);
+        if (input.preserveExistingAppState) {
+          await seedModelBindings(client, binding.appName, binding.items);
+        } else {
+          await replaceModelBindings(client, binding.appName, binding.items);
+        }
       }
       for (const binding of input.menuBindings) {
-        await replaceMenuBindings(client, binding.appName, binding.items);
+        if (input.preserveExistingAppState) {
+          await seedMenuBindings(client, binding.appName, binding.items);
+        } else {
+          await replaceMenuBindings(client, binding.appName, binding.items);
+        }
       }
       for (const binding of input.composerControlBindings || []) {
-        await replaceComposerControlBindings(client, binding.appName, binding.items);
+        if (input.preserveExistingAppState) {
+          await seedComposerControlBindings(client, binding.appName, binding.items);
+        } else {
+          await replaceComposerControlBindings(client, binding.appName, binding.items);
+        }
       }
       for (const binding of input.composerShortcutBindings || []) {
-        await replaceComposerShortcutBindings(client, binding.appName, binding.items);
+        if (input.preserveExistingAppState) {
+          await seedComposerShortcutBindings(client, binding.appName, binding.items);
+        } else {
+          await replaceComposerShortcutBindings(client, binding.appName, binding.items);
+        }
       }
 
       await client.query('commit');

@@ -73,6 +73,7 @@ export async function ensurePortalPreset(portalStore: PgPortalStore): Promise<vo
 
   await syncPortalPresetManifest(portalStore, raw, {
     manifestDir: dirname(manifestPath),
+    preserveExistingAppState: true,
   });
 }
 

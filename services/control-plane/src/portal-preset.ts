@@ -15,6 +15,7 @@ export async function syncPortalPresetManifest(
   manifest: PortalPresetManifest,
   options: {
     manifestDir: string;
+    preserveExistingAppState?: boolean;
   },
 ): Promise<void> {
   await store.syncPreset({
@@ -31,6 +32,7 @@ export async function syncPortalPresetManifest(
     menuBindings: manifest.bindings?.menus || [],
     composerControlBindings: manifest.bindings?.composerControls || [],
     composerShortcutBindings: manifest.bindings?.composerShortcuts || [],
+    preserveExistingAppState: options.preserveExistingAppState === true,
   });
 
   for (const asset of manifest.assets || []) {

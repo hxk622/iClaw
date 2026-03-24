@@ -20,6 +20,7 @@ async function main() {
 
   const scriptDir = dirname(fileURLToPath(import.meta.url));
   const manifestPath = readArg('--manifest') || resolve(scriptDir, '../presets/core-oem.json');
+  const forceAppState = process.argv.includes('--force-app-state');
   const raw = JSON.parse(await readFile(manifestPath, 'utf8')) as PortalPresetManifest;
   if (raw.schemaVersion !== 1) {
     throw new Error(`Unsupported preset schema version: ${raw.schemaVersion}`);
@@ -29,6 +30,7 @@ async function main() {
   try {
     await syncPortalPresetManifest(store, raw, {
       manifestDir: dirname(manifestPath),
+      preserveExistingAppState: !forceAppState,
     });
   } finally {
     await store.close();
@@ -39,6 +41,7 @@ async function main() {
       {
         ok: true,
         manifestPath,
+        preserveExistingAppState: !forceAppState,
         appCount: raw.apps.length,
         skillCount: raw.skills.length,
         mcpCount: raw.mcps.length,
