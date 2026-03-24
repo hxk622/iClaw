@@ -94,6 +94,14 @@ function resolveActionIcon(iconKey: string | null | undefined): LucideIcon {
   return WELCOME_ICON_MAP[normalizeIconKey(iconKey)] || Sparkles;
 }
 
+function buildPromptPreview(prompt: string): string {
+  const normalized = prompt.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= 34) {
+    return normalized;
+  }
+  return `${normalized.slice(0, 34).trim()}...`;
+}
+
 function resolveWelcomeProfile(config?: ResolvedWelcomePageConfig | null): WelcomeProfile {
   if (!config) {
     return DEFAULT_PROFILE;
@@ -219,15 +227,18 @@ export function K2CWelcomePage({
                     <div className="text-[13px] font-medium tracking-[0.08em] text-[var(--text-muted)] dark:text-[rgba(233,224,210,0.58)]">
                       面向粉丝开放的 K2C 服务入口
                     </div>
+                    <div className="mt-3 flex justify-center">
+                      <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(255,255,255,0.56)] bg-[rgba(255,255,255,0.44)] px-3 py-1 text-[12px] text-[var(--text-secondary)] shadow-[0_10px_24px_rgba(36,28,15,0.04)] dark:border-[rgba(214,190,151,0.14)] dark:bg-[rgba(255,255,255,0.035)] dark:text-[rgba(233,224,210,0.64)]">
+                        <span className="h-1.5 w-1.5 rounded-full bg-[var(--iclaw-welcome-primary)]" />
+                        <span>{profile.kolName} 的专属顾问分身</span>
+                      </div>
+                    </div>
                     <h1 className="mt-3 text-[30px] font-semibold tracking-[-0.05em] text-[var(--text-primary)] dark:text-[rgba(248,245,238,0.96)] md:text-[42px]">
                       {profile.expertName}
                     </h1>
                     <p className="mx-auto mt-4 max-w-[680px] text-[15px] leading-7 text-[var(--text-secondary)] dark:text-[rgba(233,224,210,0.74)] md:text-[18px]">
                       {profile.slogan}
                     </p>
-                    <div className="mt-5 text-[12px] text-[var(--text-muted)] dark:text-[rgba(233,224,210,0.46)]">
-                      由 iClaw 提供技术支持
-                    </div>
                   </div>
                 </div>
 
@@ -268,14 +279,14 @@ export function K2CWelcomePage({
                     <Sparkles className="h-4 w-4 text-[var(--iclaw-welcome-primary)]" />
                     <span>或者先用这些快捷问题开始</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
                     {profile.quickActions.map((action) => {
                       const Icon = resolveActionIcon(action.iconKey);
                       return (
                         <button
                           key={action.label}
                           type="button"
-                          className="group rounded-[22px] border border-[rgba(255,255,255,0.72)] bg-[color:color-mix(in_srgb,var(--chat-surface-panel)_76%,white_24%)] p-4 text-left shadow-[0_10px_28px_rgba(30,24,15,0.04)] transition duration-200 hover:-translate-y-0.5 hover:border-[var(--iclaw-welcome-primary-border)] hover:shadow-[0_16px_34px_rgba(196,151,95,0.14)] dark:border-[rgba(214,190,151,0.12)] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.025))] dark:shadow-[0_16px_34px_rgba(0,0,0,0.18)] dark:hover:border-[rgba(214,190,151,0.26)] dark:hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.035))] dark:hover:shadow-[0_20px_40px_rgba(0,0,0,0.28),0_0_0_1px_rgba(196,151,95,0.08)]"
+                          className="group flex min-h-[170px] flex-col rounded-[22px] border border-[rgba(255,255,255,0.72)] bg-[color:color-mix(in_srgb,var(--chat-surface-panel)_76%,white_24%)] p-4 text-left shadow-[0_10px_28px_rgba(30,24,15,0.04)] transition duration-200 hover:-translate-y-0.5 hover:border-[var(--iclaw-welcome-primary-border)] hover:shadow-[0_16px_34px_rgba(196,151,95,0.14)] dark:border-[rgba(214,190,151,0.12)] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.025))] dark:shadow-[0_16px_34px_rgba(0,0,0,0.18)] dark:hover:border-[rgba(214,190,151,0.26)] dark:hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.035))] dark:hover:shadow-[0_20px_40px_rgba(0,0,0,0.28),0_0_0_1px_rgba(196,151,95,0.08)]"
                           onClick={() => onFillPrompt(action.prompt)}
                         >
                           <div className="flex items-start justify-between gap-3">
@@ -286,6 +297,15 @@ export function K2CWelcomePage({
                           </div>
                           <div className="mt-4 text-[14px] font-medium leading-6 text-[var(--text-primary)] dark:text-[rgba(248,245,238,0.92)]">
                             {action.label}
+                          </div>
+                          <div className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)] dark:text-[rgba(233,224,210,0.62)] [display:-webkit-box] overflow-hidden [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+                            {buildPromptPreview(action.prompt)}
+                          </div>
+                          <div className="mt-auto pt-4">
+                            <div className="inline-flex items-center gap-1.5 rounded-full border border-[rgba(255,255,255,0.6)] bg-[rgba(255,255,255,0.42)] px-2.5 py-1 text-[11px] text-[var(--text-muted)] dark:border-[rgba(214,190,151,0.14)] dark:bg-[rgba(255,255,255,0.035)] dark:text-[rgba(233,224,210,0.5)]">
+                              <Sparkles className="h-3 w-3 text-[var(--iclaw-welcome-primary)]" />
+                              点击填入问题
+                            </div>
                           </div>
                         </button>
                       );
@@ -333,6 +353,13 @@ export function K2CWelcomePage({
                 <div className="mt-5 rounded-[22px] border border-[rgba(255,255,255,0.55)] bg-[color:color-mix(in_srgb,var(--chat-surface-panel)_66%,white_34%)] px-5 py-4 text-[12px] leading-6 text-[var(--text-muted)] backdrop-blur-xl dark:border-[rgba(214,190,151,0.12)] dark:bg-[rgba(255,255,255,0.035)] dark:text-[rgba(233,224,210,0.56)]">
                   <span className="font-semibold text-[var(--text-secondary)] dark:text-[rgba(248,245,238,0.82)]">免责声明：</span>
                   {profile.disclaimer}
+                </div>
+
+                <div className="mt-4 flex items-center justify-center">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(255,255,255,0.5)] bg-[rgba(255,255,255,0.34)] px-3 py-1.5 text-[11px] text-[var(--text-muted)] shadow-[0_10px_24px_rgba(36,28,15,0.04)] dark:border-[rgba(214,190,151,0.12)] dark:bg-[rgba(255,255,255,0.025)] dark:text-[rgba(233,224,210,0.42)]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--iclaw-welcome-primary)] opacity-80" />
+                    <span>Powered by iClaw</span>
+                  </div>
                 </div>
               </div>
             </div>
