@@ -2994,7 +2994,7 @@ code {
 
 .capability-card span,
 .checkbox-card span {
-  margin-top: 4px;
+  margin-top: 0;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.5;
