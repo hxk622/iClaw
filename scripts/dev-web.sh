@@ -6,7 +6,7 @@ API_PORT="${ICLAW_API_PORT:-2126}"
 AUTH_PORT="${ICLAW_CONTROL_PLANE_PORT:-2130}"
 WEB_PORT="${ICLAW_WEB_PORT:-1520}"
 WEB_HOST="${ICLAW_WEB_HOST:-127.0.0.1}"
-APP_NAME="${APP_NAME:-${ICLAW_PORTAL_APP_NAME:-${ICLAW_BRAND:-${ICLAW_APP_NAME:-iclaw}}}}"
+APP_NAME="${APP_NAME:-${ICLAW_PORTAL_APP_NAME:-${ICLAW_BRAND:-${ICLAW_APP_NAME:-}}}}"
 
 read_env_value() {
   local key="$1"
@@ -17,7 +17,12 @@ read_env_value() {
 
 ENV_GATEWAY_TOKEN="$(read_env_value VITE_GATEWAY_TOKEN)"
 ENV_APP_NAME="$(read_env_value APP_NAME)"
-APP_NAME="${APP_NAME:-${ENV_APP_NAME:-iclaw}}"
+APP_NAME="${APP_NAME:-${ENV_APP_NAME:-}}"
+
+if [[ -z "${APP_NAME:-}" ]]; then
+  echo "[web-dev] APP_NAME is required. Set it in .env.dev or pass APP_NAME/ICLAW_PORTAL_APP_NAME." >&2
+  exit 1
+fi
 
 stop_existing_web() {
   local pids=""

@@ -115,7 +115,11 @@ async function main() {
   }
 
   const rawPositional = process.argv.slice(2).find((item) => !item.startsWith('--')) || '';
-  const appName = normalizeAppName(readArg('--app') || process.env.APP_NAME || process.env.ICLAW_PORTAL_APP_NAME || rawPositional || 'iclaw');
+  const resolvedAppName = readArg('--app') || process.env.APP_NAME || process.env.ICLAW_PORTAL_APP_NAME || rawPositional || '';
+  if (!resolvedAppName.trim()) {
+    throw new Error('app name is required; set APP_NAME/ICLAW_PORTAL_APP_NAME or pass --app');
+  }
+  const appName = normalizeAppName(resolvedAppName);
   const scriptDir = dirname(fileURLToPath(import.meta.url));
   const repoRoot = resolve(scriptDir, '../../..');
   const skillsSourceRoot = resolve(repoRoot, 'skills');

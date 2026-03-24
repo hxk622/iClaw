@@ -257,7 +257,7 @@ async function main() {
   }
 
   const rawPositional = process.argv.slice(2).find((item) => !item.startsWith('--')) || '';
-  const appName = trimString(readArg('--app') || process.env.APP_NAME || process.env.ICLAW_PORTAL_APP_NAME || rawPositional || 'iclaw').toLowerCase();
+  const appName = trimString(readArg('--app') || process.env.APP_NAME || process.env.ICLAW_PORTAL_APP_NAME || rawPositional || '').toLowerCase();
   if (!appName) {
     throw new Error('app name is required');
   }

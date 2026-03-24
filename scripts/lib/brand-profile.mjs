@@ -90,7 +90,11 @@ export function resolveBrandId(
   const envBrandId = trimString(
     process.env.APP_NAME || process.env.ICLAW_PORTAL_APP_NAME || process.env.ICLAW_BRAND || process.env.ICLAW_APP_NAME || '',
   );
-  return explicitBrandId || envBrandId || 'iclaw';
+  const resolved = explicitBrandId || envBrandId;
+  if (!resolved) {
+    throw new Error('APP_NAME is required to resolve OEM brand profile');
+  }
+  return resolved;
 }
 
 export async function loadBrandProfile(options = {}) {
