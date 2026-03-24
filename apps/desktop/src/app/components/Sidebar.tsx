@@ -378,7 +378,7 @@ export function Sidebar({
       : allMainItems;
   const chatEnabled = enabledMenuKeys ? enabledMenuKeys.includes('chat') : true;
   const taskCenterEnabled = enabledMenuKeys ? enabledMenuKeys.includes('task-center') : true;
-  const settingsEnabled = enabledMenuKeys ? enabledMenuKeys.includes('settings') : true;
+  const settingsEnabled = true;
 
   const groupedMainItems = mainItems.reduce(
     (groups, item) => {

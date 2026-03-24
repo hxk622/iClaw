@@ -3,6 +3,7 @@ import './styles.css';
 const API_BASE_URL = ((import.meta.env.VITE_AUTH_BASE_URL || 'http://127.0.0.1:2130') + '').trim().replace(/\/+$/, '');
 const TOKEN_STORAGE_KEY = 'iclaw.admin-web.tokens';
 const THEME_STORAGE_KEY = 'iclaw.admin-web.theme';
+const SYSTEM_MANAGED_MENU_KEYS = new Set(['settings']);
 const NAV_ITEMS = [
   {id: 'overview', label: '总览', icon: 'layoutGrid'},
   {id: 'brands', label: '品牌管理', icon: 'layers'},
@@ -513,7 +514,7 @@ function getMenuCatalogItems() {
 }
 
 function getManageableMenuCatalogItems() {
-  return getMenuCatalogItems().filter((item) => item.category !== 'legacy');
+  return getMenuCatalogItems().filter((item) => item.category !== 'legacy' && !SYSTEM_MANAGED_MENU_KEYS.has(item.key));
 }
 
 function isMenuEnabledByDefault(menu) {

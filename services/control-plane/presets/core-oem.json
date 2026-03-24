@@ -206,7 +206,6 @@
     {"menuKey": "foundation-skills", "displayName": "基础技能", "category": "sidebar", "routeKey": "foundation-skills", "iconKey": "foundation-skills", "metadata": {"sourceType": "preset", "enabled_by_default": false}, "active": true},
     {"menuKey": "stock-market", "displayName": "股票市场", "category": "sidebar", "routeKey": "stock-market", "iconKey": "stock-market", "metadata": {"sourceType": "preset", "enabled_by_default": false}, "active": true},
     {"menuKey": "fund-market", "displayName": "基金市场", "category": "sidebar", "routeKey": "fund-market", "iconKey": "fund-market", "metadata": {"sourceType": "preset", "enabled_by_default": false}, "active": true},
-    {"menuKey": "settings", "displayName": "设置", "category": "sidebar", "routeKey": "settings", "iconKey": "settings", "metadata": {"sourceType": "preset", "enabled_by_default": false}, "active": true},
     {"menuKey": "workspace", "displayName": "工作台", "category": "legacy", "routeKey": "chat", "iconKey": "chat", "metadata": {"sourceType": "preset", "enabled_by_default": false}, "active": true},
     {"menuKey": "skills", "displayName": "技能", "category": "legacy", "routeKey": "skill-store", "iconKey": "skill-store", "metadata": {"sourceType": "preset", "enabled_by_default": false}, "active": true},
     {"menuKey": "mcp", "displayName": "MCP", "category": "legacy", "routeKey": "mcp-store", "iconKey": "mcp-store", "metadata": {"sourceType": "preset", "enabled_by_default": false}, "active": true},
@@ -319,19 +318,648 @@
     {"slug": "us-tech-valuation", "name": "美股科技股估值分析", "description": "对比头部科技公司增长与估值，区分合理定价与高估泡沫。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/us-tech-valuation/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true}
   ],
   "mcps": [
-    {"mcpKey": "browser", "name": "Browser", "description": "浏览器自动化与页面抓取", "transport": "config", "config": {"command": "node", "args": ["__ICLAW_SERVERS_DIR__/agent-browser/index.mjs"]}, "metadata": {"sourceType": "preset"}, "active": true},
-    {"mcpKey": "markitdown", "name": "MarkItDown", "description": "文档转换与结构化抽取", "transport": "config", "config": {"command": "uvx", "args": ["markitdown-mcp"]}, "metadata": {"sourceType": "preset"}, "active": true},
-    {"mcpKey": "tavily", "name": "Tavily", "description": "联网搜索与抓取", "transport": "config", "config": {"command": "npx", "args": ["-y", "tavily-mcp@latest"]}, "metadata": {"sourceType": "preset"}, "active": true},
-    {"mcpKey": "serper", "name": "Serper", "description": "联网搜索", "transport": "config", "config": {"command": "npx", "args": ["-y", "serper-search-scrape-mcp-server"]}, "metadata": {"sourceType": "preset"}, "active": true},
-    {"mcpKey": "yahoo-finance", "name": "Yahoo Finance", "description": "金融行情查询", "transport": "config", "config": {"command": "uvx", "args": ["mcp-yahoo-finance"]}, "metadata": {"sourceType": "preset"}, "active": true},
-    {"mcpKey": "alpaca", "name": "Alpaca", "description": "美股交易与行情", "transport": "config", "config": {"command": "uvx"}, "metadata": {"sourceType": "preset"}, "active": true},
-    {"mcpKey": "alphavantage", "name": "Alpha Vantage", "description": "金融数据接口", "transport": "config", "config": {"command": "uvx"}, "metadata": {"sourceType": "preset"}, "active": true},
-    {"mcpKey": "dbt", "name": "dbt", "description": "数据转换与建模", "transport": "config", "config": {"command": "uvx"}, "metadata": {"sourceType": "preset"}, "active": true},
-    {"mcpKey": "fingpt", "name": "FinGPT", "description": "金融推理服务", "transport": "config", "config": {"command": "uv"}, "metadata": {"sourceType": "preset"}, "active": true},
-    {"mcpKey": "fmp", "name": "Financial Modeling Prep", "description": "金融数据与报表", "transport": "config", "config": {"command": "npx"}, "metadata": {"sourceType": "preset"}, "active": true},
-    {"mcpKey": "fred", "name": "FRED", "description": "宏观经济数据", "transport": "config", "config": {"command": "uvx"}, "metadata": {"sourceType": "preset"}, "active": true},
-    {"mcpKey": "nano-banana", "name": "Nano Banana", "description": "图像生成与编辑", "transport": "config", "config": {"command": "npx"}, "metadata": {"sourceType": "preset"}, "active": true},
-    {"mcpKey": "sec-edgar", "name": "SEC Edgar", "description": "SEC 文件检索", "transport": "config", "config": {"command": "uvx"}, "metadata": {"sourceType": "preset"}, "active": true}
+    {
+      "mcpKey": "alpaca",
+      "name": "Alpaca",
+      "description": "美股交易、持仓与实时行情能力。",
+      "transport": "config",
+      "config": {"command": "uvx"},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "官方模板",
+        "official": true,
+        "featured": true,
+        "tier": "p0",
+        "publisher": "Alpaca",
+        "requiresApiKey": true,
+        "channel": "official",
+        "categories": ["金融研究", "交易执行"],
+        "tags": ["broker", "stocks", "trading"],
+        "docsUrl": "https://docs.alpaca.markets/docs/alpaca-mcp-server",
+        "homepageUrl": "https://alpaca.markets/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "alphavantage",
+      "name": "Alpha Vantage",
+      "description": "股票、外汇与宏观时间序列数据接入。",
+      "transport": "config",
+      "config": {"command": "uvx"},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "社区推荐",
+        "community": true,
+        "tier": "p1",
+        "publisher": "Alpha Vantage",
+        "requiresApiKey": true,
+        "channel": "community",
+        "categories": ["金融研究", "市场数据"],
+        "tags": ["stocks", "fx", "time-series"],
+        "homepageUrl": "https://www.alphavantage.co/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "atlassian",
+      "name": "Atlassian",
+      "description": "连接 Jira、Confluence 与团队知识协作工作流。",
+      "transport": "http",
+      "config": {},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "官方模板",
+        "official": true,
+        "featured": true,
+        "tier": "p1",
+        "publisher": "Atlassian",
+        "requiresApiKey": true,
+        "channel": "official",
+        "categories": ["生产力", "项目协作"],
+        "tags": ["jira", "confluence", "teamwork"],
+        "docsUrl": "https://support.atlassian.com/atlassian-rovo-mcp-server/docs/getting-started-with-the-atlassian-remote-mcp-server/",
+        "homepageUrl": "https://www.atlassian.com/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "browser",
+      "name": "Browser",
+      "description": "浏览器自动化、网页操作与页面抓取。",
+      "transport": "config",
+      "config": {"command": "node", "args": ["__ICLAW_SERVERS_DIR__/agent-browser/index.mjs"]},
+      "metadata": {
+        "sourceType": "preset",
+        "featured": true,
+        "tier": "p0",
+        "publisher": "iClaw",
+        "categories": ["生产力", "浏览器自动化"],
+        "tags": ["web", "automation", "crawl"]
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "dbt",
+      "name": "dbt",
+      "description": "数据转换、建模与分析工程链路接入。",
+      "transport": "config",
+      "config": {"command": "uvx"},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "社区推荐",
+        "community": true,
+        "tier": "p1",
+        "publisher": "dbt Labs",
+        "requiresApiKey": false,
+        "channel": "community",
+        "categories": ["开发数据", "数据工程"],
+        "tags": ["analytics", "warehouse", "transformation"],
+        "homepageUrl": "https://www.getdbt.com/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "figma",
+      "name": "Figma",
+      "description": "读取设计稿、变量、组件与设计系统信息。",
+      "transport": "http",
+      "config": {},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "官方模板",
+        "official": true,
+        "featured": true,
+        "tier": "p0",
+        "publisher": "Figma",
+        "requiresApiKey": true,
+        "channel": "official",
+        "categories": ["生产力", "设计协作"],
+        "tags": ["design", "ui", "design-system"],
+        "docsUrl": "https://help.figma.com/hc/en-us/articles/32132100833559-Guide-to-the-Figma-MCP-server",
+        "homepageUrl": "https://www.figma.com/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "fingpt",
+      "name": "FinGPT",
+      "description": "面向金融场景的研究推理与分析能力扩展。",
+      "transport": "config",
+      "config": {"command": "uv"},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "社区推荐",
+        "community": true,
+        "tier": "p1",
+        "publisher": "FinGPT",
+        "requiresApiKey": false,
+        "channel": "community",
+        "categories": ["金融研究", "研究助理"],
+        "tags": ["finance", "research", "llm"]
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "finnhub",
+      "name": "Finnhub",
+      "description": "股票、外汇与新闻数据接入。",
+      "transport": "config",
+      "config": {},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "社区推荐",
+        "community": true,
+        "tier": "p1",
+        "publisher": "Finnhub",
+        "requiresApiKey": true,
+        "channel": "community",
+        "categories": ["金融研究", "市场数据"],
+        "tags": ["news", "stocks", "market-data"],
+        "homepageUrl": "https://finnhub.io/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "fmp",
+      "name": "Financial Modeling Prep",
+      "description": "财务报表、估值指标与公司基本面数据。",
+      "transport": "config",
+      "config": {"command": "npx"},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "社区推荐",
+        "community": true,
+        "tier": "p1",
+        "publisher": "Financial Modeling Prep",
+        "requiresApiKey": true,
+        "channel": "community",
+        "categories": ["金融研究", "基本面数据"],
+        "tags": ["financials", "valuation", "equity"],
+        "homepageUrl": "https://site.financialmodelingprep.com/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "fred",
+      "name": "FRED",
+      "description": "美联储宏观经济、利率与通胀数据接入。",
+      "transport": "config",
+      "config": {"command": "uvx"},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "社区推荐",
+        "community": true,
+        "featured": true,
+        "tier": "p0",
+        "publisher": "Federal Reserve Economic Data",
+        "requiresApiKey": true,
+        "channel": "community",
+        "categories": ["金融研究", "宏观数据"],
+        "tags": ["macro", "rates", "inflation"],
+        "homepageUrl": "https://fred.stlouisfed.org/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "github",
+      "name": "GitHub",
+      "description": "连接仓库、Issue、PR、Actions 与工程协作数据。",
+      "transport": "http",
+      "config": {},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "官方模板",
+        "official": true,
+        "featured": true,
+        "tier": "p0",
+        "publisher": "GitHub",
+        "requiresApiKey": true,
+        "channel": "official",
+        "categories": ["开发数据", "工程协作"],
+        "tags": ["repo", "issue", "pull-request"],
+        "docsUrl": "https://github.com/github/github-mcp-server",
+        "homepageUrl": "https://github.com/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "google-docs",
+      "name": "Google Docs",
+      "description": "文档读取、协作内容整理与知识检索。",
+      "transport": "http",
+      "config": {},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "社区推荐",
+        "community": true,
+        "tier": "p2",
+        "publisher": "Google Workspace",
+        "requiresApiKey": true,
+        "channel": "community",
+        "categories": ["生产力", "文档协作"],
+        "tags": ["docs", "workspace", "knowledge"],
+        "homepageUrl": "https://workspace.google.com/products/docs/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "google-drive",
+      "name": "Google Drive",
+      "description": "云端文件检索、读取与资料归档能力。",
+      "transport": "http",
+      "config": {},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "社区推荐",
+        "community": true,
+        "tier": "p2",
+        "publisher": "Google Workspace",
+        "requiresApiKey": true,
+        "channel": "community",
+        "categories": ["生产力", "文件协作"],
+        "tags": ["drive", "files", "workspace"],
+        "homepageUrl": "https://workspace.google.com/products/drive/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "hubspot",
+      "name": "HubSpot",
+      "description": "CRM、联系人、商机与营销数据协作。",
+      "transport": "http",
+      "config": {},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "社区推荐",
+        "community": true,
+        "tier": "p2",
+        "publisher": "HubSpot",
+        "requiresApiKey": true,
+        "channel": "community",
+        "categories": ["商业运营", "CRM"],
+        "tags": ["crm", "sales", "marketing"],
+        "homepageUrl": "https://www.hubspot.com/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "jupyter",
+      "name": "Jupyter",
+      "description": "Notebook 运行、数据分析与研究实验协作。",
+      "transport": "config",
+      "config": {},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "社区推荐",
+        "community": true,
+        "featured": true,
+        "tier": "p0",
+        "publisher": "Jupyter",
+        "requiresApiKey": false,
+        "channel": "community",
+        "categories": ["开发数据", "研究实验"],
+        "tags": ["notebook", "python", "analysis"],
+        "docsUrl": "https://github.com/datalayer/jupyter-mcp-server",
+        "homepageUrl": "https://jupyter.org/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "lark",
+      "name": "飞书",
+      "description": "文档、消息与组织协作工作流。",
+      "transport": "http",
+      "config": {},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "社区推荐",
+        "community": true,
+        "tier": "p2",
+        "publisher": "Lark / Feishu",
+        "requiresApiKey": true,
+        "channel": "community",
+        "categories": ["生产力", "团队协作"],
+        "tags": ["feishu", "docs", "chat"],
+        "homepageUrl": "https://www.larksuite.com/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "linear",
+      "name": "Linear",
+      "description": "产品需求、Issue 与迭代计划协作。",
+      "transport": "http",
+      "config": {},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "社区推荐",
+        "community": true,
+        "tier": "p2",
+        "publisher": "Linear",
+        "requiresApiKey": true,
+        "channel": "community",
+        "categories": ["生产力", "项目协作"],
+        "tags": ["issue", "planning", "roadmap"],
+        "homepageUrl": "https://linear.app/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "markitdown",
+      "name": "MarkItDown",
+      "description": "文档转换、Markdown 提取与结构化内容抽取。",
+      "transport": "config",
+      "config": {"command": "uvx", "args": ["markitdown-mcp"]},
+      "metadata": {
+        "sourceType": "preset",
+        "featured": true,
+        "tier": "p0",
+        "publisher": "iClaw",
+        "categories": ["生产力", "文档处理"],
+        "tags": ["markdown", "convert", "files"]
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "miro",
+      "name": "Miro",
+      "description": "白板、脑图与协作画布工作流。",
+      "transport": "http",
+      "config": {},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "社区推荐",
+        "community": true,
+        "tier": "p2",
+        "publisher": "Miro",
+        "requiresApiKey": true,
+        "channel": "community",
+        "categories": ["生产力", "协作白板"],
+        "tags": ["whiteboard", "brainstorm", "collaboration"],
+        "homepageUrl": "https://miro.com/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "nano-banana",
+      "name": "Nano Banana",
+      "description": "图像生成与编辑能力接入。",
+      "transport": "config",
+      "config": {"command": "npx"},
+      "metadata": {
+        "sourceType": "preset",
+        "tier": "p1",
+        "publisher": "Nano Banana",
+        "categories": ["生产力", "图像工具"],
+        "tags": ["image", "generation", "editing"]
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "notebooklm",
+      "name": "NotebookLM",
+      "description": "资料归纳、文档问答与知识研究辅助。",
+      "transport": "http",
+      "config": {},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "社区推荐",
+        "community": true,
+        "featured": true,
+        "tier": "p1",
+        "publisher": "Google NotebookLM",
+        "requiresApiKey": true,
+        "channel": "community",
+        "categories": ["生产力", "知识研究"],
+        "tags": ["documents", "knowledge", "research"],
+        "homepageUrl": "https://notebooklm.google.com/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "notion",
+      "name": "Notion",
+      "description": "页面、数据库与知识库内容读写协作。",
+      "transport": "http",
+      "config": {},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "官方模板",
+        "official": true,
+        "featured": true,
+        "tier": "p0",
+        "publisher": "Notion",
+        "requiresApiKey": true,
+        "channel": "official",
+        "categories": ["生产力", "知识库"],
+        "tags": ["notes", "database", "wiki"],
+        "docsUrl": "https://developers.notion.com/docs/mcp",
+        "homepageUrl": "https://www.notion.so/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "polygon",
+      "name": "Polygon",
+      "description": "实时与历史市场行情、期权和新闻数据接入。",
+      "transport": "config",
+      "config": {},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "社区推荐",
+        "community": true,
+        "tier": "p1",
+        "publisher": "Polygon",
+        "requiresApiKey": true,
+        "channel": "community",
+        "categories": ["金融研究", "市场数据"],
+        "tags": ["stocks", "options", "market-data"],
+        "homepageUrl": "https://polygon.io/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "postgres",
+      "name": "Postgres",
+      "description": "查询 Postgres 数据库、Schema 与业务表数据。",
+      "transport": "config",
+      "config": {},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "社区推荐",
+        "community": true,
+        "featured": true,
+        "tier": "p0",
+        "publisher": "PostgreSQL ecosystem",
+        "requiresApiKey": true,
+        "channel": "community",
+        "categories": ["开发数据", "数据库"],
+        "tags": ["postgres", "sql", "schema"],
+        "homepageUrl": "https://www.postgresql.org/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "salesforce",
+      "name": "Salesforce",
+      "description": "企业 CRM、客户与销售流程数据接入。",
+      "transport": "http",
+      "config": {},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "社区推荐",
+        "community": true,
+        "tier": "p2",
+        "publisher": "Salesforce",
+        "requiresApiKey": true,
+        "channel": "community",
+        "categories": ["商业运营", "CRM"],
+        "tags": ["crm", "enterprise", "sales"],
+        "homepageUrl": "https://www.salesforce.com/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "sec-edgar",
+      "name": "SEC Edgar",
+      "description": "SEC 披露、10-K、10-Q、8-K 与持仓文件检索。",
+      "transport": "config",
+      "config": {"command": "uvx"},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "社区推荐",
+        "community": true,
+        "featured": true,
+        "tier": "p0",
+        "publisher": "SEC EDGAR",
+        "requiresApiKey": false,
+        "channel": "community",
+        "categories": ["金融研究", "监管披露"],
+        "tags": ["10-K", "10-Q", "filings"],
+        "homepageUrl": "https://www.sec.gov/edgar"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "serper",
+      "name": "Serper",
+      "description": "联网搜索、结果抓取与检索增强能力。",
+      "transport": "config",
+      "config": {"command": "npx", "args": ["-y", "serper-search-scrape-mcp-server"]},
+      "metadata": {
+        "sourceType": "preset",
+        "tier": "p1",
+        "publisher": "Serper",
+        "requiresApiKey": true,
+        "categories": ["生产力", "搜索"],
+        "tags": ["search", "web", "retrieval"],
+        "homepageUrl": "https://serper.dev/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "slack",
+      "name": "Slack",
+      "description": "频道、消息、线程与组织协作数据接入。",
+      "transport": "http",
+      "config": {},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "官方模板",
+        "official": true,
+        "featured": true,
+        "tier": "p0",
+        "publisher": "Slack",
+        "requiresApiKey": true,
+        "channel": "official",
+        "categories": ["生产力", "团队协作"],
+        "tags": ["chat", "messages", "workspace"],
+        "docsUrl": "https://slack.com/help/articles/48855576908307-Guide-to-the-Slack-MCP-server",
+        "homepageUrl": "https://slack.com/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "stripe",
+      "name": "Stripe",
+      "description": "支付、订阅、客户与账单工作流。",
+      "transport": "http",
+      "config": {},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "官方模板",
+        "official": true,
+        "featured": true,
+        "tier": "p1",
+        "publisher": "Stripe",
+        "requiresApiKey": true,
+        "channel": "official",
+        "categories": ["商业运营", "支付订阅"],
+        "tags": ["payments", "billing", "customers"],
+        "docsUrl": "https://github.com/mcp/com.stripe/mcp",
+        "homepageUrl": "https://stripe.com/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "supabase",
+      "name": "Supabase",
+      "description": "数据库、认证、存储与后端数据工作流。",
+      "transport": "http",
+      "config": {},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "官方模板",
+        "official": true,
+        "featured": true,
+        "tier": "p1",
+        "publisher": "Supabase",
+        "requiresApiKey": true,
+        "channel": "official",
+        "categories": ["开发数据", "后端平台"],
+        "tags": ["database", "auth", "storage"],
+        "docsUrl": "https://supabase.com/docs/guides/getting-started/mcp",
+        "homepageUrl": "https://supabase.com/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "tavily",
+      "name": "Tavily",
+      "description": "联网搜索、网页阅读与研究型抓取。",
+      "transport": "config",
+      "config": {"command": "npx", "args": ["-y", "tavily-mcp@latest"]},
+      "metadata": {
+        "sourceType": "preset",
+        "tier": "p1",
+        "publisher": "Tavily",
+        "requiresApiKey": true,
+        "categories": ["生产力", "搜索"],
+        "tags": ["search", "research", "crawl"],
+        "homepageUrl": "https://tavily.com/"
+      },
+      "active": true
+    },
+    {
+      "mcpKey": "yahoo-finance",
+      "name": "Yahoo Finance",
+      "description": "金融行情、估值与公司基础市场数据。",
+      "transport": "config",
+      "config": {"command": "uvx", "args": ["mcp-yahoo-finance"]},
+      "metadata": {
+        "sourceType": "preset",
+        "sourceLabel": "社区推荐",
+        "community": true,
+        "tier": "p1",
+        "publisher": "Yahoo Finance",
+        "requiresApiKey": false,
+        "channel": "community",
+        "categories": ["金融研究", "市场数据"],
+        "tags": ["quote", "equity", "finance"],
+        "homepageUrl": "https://finance.yahoo.com/"
+      },
+      "active": true
+    }
   ],
   "models": [
     {"ref": "openai/gpt-5.4", "label": "GPT 5.4", "providerId": "openai", "modelId": "gpt-5.4", "api": "openai-completions", "useRuntimeOpenai": true, "authHeader": true, "reasoning": true, "input": ["text", "image"], "contextWindow": 272000, "maxTokens": 128000, "metadata": {"sourceType": "preset"}, "active": true},
@@ -385,8 +1013,8 @@
       {"appName": "licaiclaw", "items": [{"modelRef": "openai/gpt-5.4", "enabled": true, "sortOrder": 10, "recommended": true, "default": true}, {"modelRef": "openai/qwen3.5-plus", "enabled": true, "sortOrder": 20}, {"modelRef": "openai/qwen3-max", "enabled": true, "sortOrder": 30}, {"modelRef": "openai/glm-5", "enabled": true, "sortOrder": 40, "recommended": true}, {"modelRef": "deepseek/deepseek-v3.2", "enabled": true, "sortOrder": 50, "recommended": true}]}
     ],
     "menus": [
-      {"appName": "iclaw", "items": [{"menuKey": "chat", "enabled": true, "sortOrder": 10}, {"menuKey": "cron", "enabled": true, "sortOrder": 20}, {"menuKey": "skill-store", "enabled": true, "sortOrder": 30}, {"menuKey": "lobster-store", "enabled": true, "sortOrder": 40}, {"menuKey": "mcp-store", "enabled": true, "sortOrder": 50}, {"menuKey": "im-bots", "enabled": true, "sortOrder": 60}, {"menuKey": "memory", "enabled": true, "sortOrder": 70}, {"menuKey": "security", "enabled": true, "sortOrder": 80}, {"menuKey": "task-center", "enabled": true, "sortOrder": 90}, {"menuKey": "investment-experts", "enabled": false, "sortOrder": 100}, {"menuKey": "data-connections", "enabled": false, "sortOrder": 110}, {"menuKey": "finance-skills", "enabled": false, "sortOrder": 120}, {"menuKey": "foundation-skills", "enabled": false, "sortOrder": 130}, {"menuKey": "stock-market", "enabled": false, "sortOrder": 140}, {"menuKey": "fund-market", "enabled": false, "sortOrder": 150}, {"menuKey": "settings", "enabled": false, "sortOrder": 160}]},
-      {"appName": "licaiclaw", "items": [{"menuKey": "chat", "enabled": true, "sortOrder": 10}, {"menuKey": "cron", "enabled": true, "sortOrder": 20}, {"menuKey": "skill-store", "enabled": true, "sortOrder": 30}, {"menuKey": "lobster-store", "enabled": true, "sortOrder": 40}, {"menuKey": "mcp-store", "enabled": true, "sortOrder": 50}, {"menuKey": "im-bots", "enabled": true, "sortOrder": 60}, {"menuKey": "memory", "enabled": true, "sortOrder": 70}, {"menuKey": "security", "enabled": true, "sortOrder": 80}, {"menuKey": "task-center", "enabled": true, "sortOrder": 90}, {"menuKey": "investment-experts", "enabled": false, "sortOrder": 100}, {"menuKey": "data-connections", "enabled": false, "sortOrder": 110}, {"menuKey": "finance-skills", "enabled": false, "sortOrder": 120}, {"menuKey": "foundation-skills", "enabled": false, "sortOrder": 130}, {"menuKey": "stock-market", "enabled": false, "sortOrder": 140}, {"menuKey": "fund-market", "enabled": false, "sortOrder": 150}, {"menuKey": "settings", "enabled": false, "sortOrder": 160}]}
+      {"appName": "iclaw", "items": [{"menuKey": "chat", "enabled": true, "sortOrder": 10}, {"menuKey": "cron", "enabled": true, "sortOrder": 20}, {"menuKey": "skill-store", "enabled": true, "sortOrder": 30}, {"menuKey": "lobster-store", "enabled": true, "sortOrder": 40}, {"menuKey": "mcp-store", "enabled": true, "sortOrder": 50}, {"menuKey": "im-bots", "enabled": true, "sortOrder": 60}, {"menuKey": "memory", "enabled": true, "sortOrder": 70}, {"menuKey": "security", "enabled": true, "sortOrder": 80}, {"menuKey": "task-center", "enabled": true, "sortOrder": 90}, {"menuKey": "investment-experts", "enabled": false, "sortOrder": 100}, {"menuKey": "data-connections", "enabled": false, "sortOrder": 110}, {"menuKey": "finance-skills", "enabled": false, "sortOrder": 120}, {"menuKey": "foundation-skills", "enabled": false, "sortOrder": 130}, {"menuKey": "stock-market", "enabled": false, "sortOrder": 140}, {"menuKey": "fund-market", "enabled": false, "sortOrder": 150}]},
+      {"appName": "licaiclaw", "items": [{"menuKey": "chat", "enabled": true, "sortOrder": 10}, {"menuKey": "cron", "enabled": true, "sortOrder": 20}, {"menuKey": "skill-store", "enabled": true, "sortOrder": 30}, {"menuKey": "lobster-store", "enabled": true, "sortOrder": 40}, {"menuKey": "mcp-store", "enabled": true, "sortOrder": 50}, {"menuKey": "im-bots", "enabled": true, "sortOrder": 60}, {"menuKey": "memory", "enabled": true, "sortOrder": 70}, {"menuKey": "security", "enabled": true, "sortOrder": 80}, {"menuKey": "task-center", "enabled": true, "sortOrder": 90}, {"menuKey": "investment-experts", "enabled": false, "sortOrder": 100}, {"menuKey": "data-connections", "enabled": false, "sortOrder": 110}, {"menuKey": "finance-skills", "enabled": false, "sortOrder": 120}, {"menuKey": "foundation-skills", "enabled": false, "sortOrder": 130}, {"menuKey": "stock-market", "enabled": false, "sortOrder": 140}, {"menuKey": "fund-market", "enabled": false, "sortOrder": 150}]}
     ],
     "composerControls": [
       {"appName": "iclaw", "items": [{"controlKey": "expert", "enabled": true, "sortOrder": 10}, {"controlKey": "skill", "enabled": true, "sortOrder": 20}, {"controlKey": "mode", "enabled": true, "sortOrder": 30}, {"controlKey": "market-scope", "enabled": true, "sortOrder": 40}, {"controlKey": "watchlist", "enabled": true, "sortOrder": 50}, {"controlKey": "output-format", "enabled": true, "sortOrder": 60}]},

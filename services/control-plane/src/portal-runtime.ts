@@ -46,6 +46,7 @@ const LEGACY_MENU_KEY_MAP: Record<string, string[]> = {
   assets: [],
   models: [],
 };
+const SYSTEM_MANAGED_MENU_KEYS = new Set(['settings']);
 
 function normalizePortalMenuKeys(keys: string[]): string[] {
   const normalized: string[] = [];
@@ -54,7 +55,7 @@ function normalizePortalMenuKeys(keys: string[]): string[] {
     const mapped = LEGACY_MENU_KEY_MAP[key] || [key];
     for (const nextKey of mapped) {
       const trimmed = nextKey.trim();
-      if (!trimmed || seen.has(trimmed)) continue;
+      if (!trimmed || SYSTEM_MANAGED_MENU_KEYS.has(trimmed) || seen.has(trimmed)) continue;
       seen.add(trimmed);
       normalized.push(trimmed);
     }
@@ -196,7 +197,7 @@ export function buildPortalPublicConfig(
     })
     .filter((entry) => Boolean(entry[1].url || entry[1].object_key));
   const publicMenuCatalog = menuCatalog
-    .filter((item) => item.active)
+    .filter((item) => item.active && !SYSTEM_MANAGED_MENU_KEYS.has(item.menuKey))
     .map((item) => ({
       menu_key: item.menuKey,
       display_name: item.displayName,
