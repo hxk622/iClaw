@@ -92,7 +92,7 @@ export function LobsterAgentDetailDialog({
       <div className="space-y-5">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <InfoTile label="分类" value={agent.categoryLabel} />
-          <InfoTile label="Division" value={agent.divisionLabel || '未标注'} />
+          <InfoTile label="专业分组" value={agent.divisionLabel || '未标注'} />
           <InfoTile label="安装状态" value={agent.installed ? '已添加' : '未添加'} tone={agent.installed ? 'success' : 'neutral'} />
         </div>
 

@@ -222,7 +222,7 @@ export function LobsterStoreView({
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="搜索助手、能力、场景、division..."
+                placeholder="搜索助手、能力、场景、专业分组..."
                 className="h-10 w-full rounded-[12px] border border-[var(--lobster-border)] bg-[var(--lobster-card-elevated)] pl-10 pr-4 text-[13px] text-[var(--lobster-text-primary)] outline-none transition placeholder:text-[var(--lobster-text-muted)] focus:border-[var(--lobster-gold-border-strong)] focus:ring-2 focus:ring-[rgba(168,140,93,0.14)]"
               />
             </label>
@@ -285,7 +285,7 @@ export function LobsterStoreView({
                       className="gap-1.5 px-3 py-1.5 text-[12px] font-medium shadow-none"
                       onClick={() => setActiveDivision('all')}
                     >
-                      <span>全部 Division</span>
+                      <span>全部专业分组</span>
                       <span className="text-[11px] opacity-75">{categoryScopedAgents.length}</span>
                     </Chip>
                     {divisionOptions.map((division) => (
@@ -363,7 +363,7 @@ export function LobsterStoreView({
                 <div>
                   <div className="text-[16px] font-medium text-[var(--lobster-text-primary)]">当前筛选下暂无助手</div>
                   <div className="mt-2 text-[13px] leading-6 text-[var(--lobster-text-secondary)]">
-                    可以调整搜索词、division 或分类后再试。
+                    可以调整搜索词、专业分组或分类后再试。
                   </div>
                 </div>
               </div>
