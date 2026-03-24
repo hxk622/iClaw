@@ -2145,7 +2145,10 @@ function captureBrandEditorBuffer() {
       group_label: form.querySelector(`[name="menu_group__${CSS.escape(key)}"]`) instanceof HTMLInputElement
         ? form.querySelector(`[name="menu_group__${CSS.escape(key)}"]`).value
         : asObject(menuConfigs[key]).group,
-      icon_key: getCheckedInputValue(form, `menu_icon__${key}`) || asObject(menuConfigs[key]).iconKey,
+      icon_key:
+        form.querySelector(`[name="menu_icon__${CSS.escape(key)}"]`) instanceof HTMLSelectElement
+          ? form.querySelector(`[name="menu_icon__${CSS.escape(key)}"]`).value
+          : getCheckedInputValue(form, `menu_icon__${key}`) || asObject(menuConfigs[key]).iconKey,
       requires: {
         skill_slug:
           form.querySelector(`[name="menu_requires_skill__${CSS.escape(key)}"]`) instanceof HTMLSelectElement
@@ -2644,6 +2647,7 @@ async function loadBrandDetail(brandId, options = {}) {
     state.selectedBrandId = brandId;
     state.brandDetail = data;
     state.brandDraftBuffer = buildBrandDraftBuffer(data);
+    state.selectedBrandMenuKey = '';
   } catch (error) {
     setError(error instanceof Error ? error.message : '品牌详情加载失败');
   } finally {
@@ -4391,6 +4395,158 @@ function getOrderedMenuItemsByCategory(buffer, category) {
     .filter((item) => item && item.category === category);
 }
 
+function getSelectedBrandMenuKey(buffer, items) {
+  const available = asArray(items).filter(Boolean);
+  if (!available.length) return '';
+  const current = String(state.selectedBrandMenuKey || '').trim();
+  if (current && available.some((item) => item.key === current)) {
+    return current;
+  }
+  return available[0].key;
+}
+
+function renderMenuAssemblyListCard(buffer, item, note, isActive = false) {
+  const enabled = buffer.selectedMenus.includes(item.key);
+  const editorOrder = buildManageableMenuOrder(buffer.menuOrder);
+  const index = editorOrder.indexOf(item.key);
+  const menuConfig = normalizeMenuDraftConfig(asObject(asObject(buffer.menuConfigs)[item.key]));
+  const displayName = menuConfig.displayName || item.label;
+  const group = menuConfig.group || '主体区';
+  const effectiveIconKey = menuConfig.iconKey || item.iconKey || item.key;
+  return `
+    <button class="menu-assembly-card${isActive ? ' is-active' : ''}" type="button" data-action="select-brand-menu" data-menu-key="${escapeHtml(item.key)}">
+      <span class="menu-assembly-card__icon">${renderIconPreview(effectiveIconKey, 'menu-assembly-card__svg')}</span>
+      <span class="menu-assembly-card__body">
+        <span class="menu-assembly-card__title-row">
+          <strong>${escapeHtml(displayName)}</strong>
+          <span class="menu-assembly-card__order">#${index + 1}</span>
+        </span>
+        <span class="menu-assembly-card__meta">${escapeHtml(`Menu ID: ${item.key}${note ? ` · ${note}` : ''}`)}</span>
+        <span class="menu-assembly-card__submeta">${escapeHtml(group)} · ${escapeHtml(visibilityStateLabel(enabled))}</span>
+      </span>
+    </button>
+  `;
+}
+
+function renderMenuAssemblyDetail(buffer, item, note) {
+  if (!item) {
+    return `
+      <article class="fig-card fig-card--subtle menu-assembly-detail menu-assembly-detail--empty">
+        <div class="empty-state">当前没有可配置的菜单入口。</div>
+      </article>
+    `;
+  }
+  const enabled = buffer.selectedMenus.includes(item.key);
+  const editorOrder = buildManageableMenuOrder(buffer.menuOrder);
+  const index = editorOrder.indexOf(item.key);
+  const menuConfig = normalizeMenuDraftConfig(asObject(asObject(buffer.menuConfigs)[item.key]));
+  const skillOptions = getMergedSkills();
+  const mcpOptions = getMergedMcpServers();
+  const modelOptions = getMergedModelCatalog();
+  const iconOptions = getMenuIconOptions();
+  const displayName = menuConfig.displayName || item.label;
+  const group = menuConfig.group || '主体区';
+  const effectiveIconKey = menuConfig.iconKey || item.iconKey || item.key;
+  const requirementSummary = [
+    menuConfig.requiresSkillSlug ? `Skill: ${skillOptions.find((skill) => skill.slug === menuConfig.requiresSkillSlug)?.name || menuConfig.requiresSkillSlug}` : '',
+    menuConfig.requiresMcpKey ? `MCP: ${mcpOptions.find((server) => server.key === menuConfig.requiresMcpKey)?.name || menuConfig.requiresMcpKey}` : '',
+    menuConfig.requiresModelRef ? `模型: ${modelOptions.find((model) => model.ref === menuConfig.requiresModelRef)?.label || menuConfig.requiresModelRef}` : '',
+  ].filter(Boolean);
+  return `
+    <article class="fig-card fig-card--subtle menu-assembly-detail">
+      <div class="fig-card__head">
+        <div>
+          <h3>${escapeHtml(displayName)}</h3>
+          <span>${escapeHtml(`Menu ID: ${item.key}${note ? ` · ${note}` : ''}`)}</span>
+        </div>
+        <div class="fig-capability-actions fig-menu-detail__actions">
+          <span class="chip">排序 ${index + 1}</span>
+          <button class="ghost-button fig-icon-button" type="button" data-action="move-brand-menu-up" data-menu-key="${escapeHtml(item.key)}"${index <= 0 ? ' disabled' : ''}>
+            ${icon('chevronUp', 'button-icon')}
+          </button>
+          <button class="ghost-button fig-icon-button" type="button" data-action="move-brand-menu-down" data-menu-key="${escapeHtml(item.key)}"${index < 0 || index >= editorOrder.length - 1 ? ' disabled' : ''}>
+            ${icon('chevronDown', 'button-icon')}
+          </button>
+          ${renderSwitch({
+            checked: enabled,
+            action: 'toggle-brand-menu',
+            attrs: `data-menu-key="${escapeHtml(item.key)}"`,
+            label: visibilityStateLabel(enabled),
+          })}
+        </div>
+      </div>
+      <div class="menu-assembly-preview">
+        <div class="menu-assembly-preview__icon">${renderIconPreview(effectiveIconKey, 'menu-assembly-preview__svg')}</div>
+        <div class="menu-assembly-preview__body">
+          <div class="menu-assembly-preview__eyebrow">${escapeHtml(group)}</div>
+          <div class="menu-assembly-preview__title">${escapeHtml(displayName)}</div>
+          <div class="menu-assembly-preview__meta">${escapeHtml(requirementSummary.length ? requirementSummary.join(' · ') : '无依赖约束，直接展示给 OEM 用户。')}</div>
+        </div>
+      </div>
+      <div class="fig-menu-card__grid fig-menu-card__grid--detail">
+        <label class="field fig-inline-field">
+          <span>显示名称</span>
+          <input
+            class="field-input"
+            name="menu_display_name__${escapeHtml(item.key)}"
+            value="${fieldValue(menuConfig.displayName)}"
+            placeholder="${escapeHtml(item.label)}"
+          />
+        </label>
+        <label class="field fig-inline-field">
+          <span>分组</span>
+          <input
+            class="field-input"
+            name="menu_group__${escapeHtml(item.key)}"
+            value="${fieldValue(menuConfig.group)}"
+            placeholder="主体区"
+          />
+        </label>
+        <label class="field fig-inline-field">
+          <span>图标</span>
+          ${renderIconSelector(`menu_icon__${item.key}`, menuConfig.iconKey, iconOptions, '从图标目录中选择')}
+        </label>
+        <label class="field fig-inline-field">
+          <span>依赖 Skill</span>
+          <select class="field-select" name="menu_requires_skill__${escapeHtml(item.key)}">
+            <option value="">无</option>
+            ${skillOptions
+              .map(
+                (skill) =>
+                  `<option value="${escapeHtml(skill.slug)}"${menuConfig.requiresSkillSlug === skill.slug ? ' selected' : ''}>${escapeHtml(skill.name)}</option>`,
+              )
+              .join('')}
+          </select>
+        </label>
+        <label class="field fig-inline-field">
+          <span>依赖 MCP</span>
+          <select class="field-select" name="menu_requires_mcp__${escapeHtml(item.key)}">
+            <option value="">无</option>
+            ${mcpOptions
+              .map(
+                (server) =>
+                  `<option value="${escapeHtml(server.key)}"${menuConfig.requiresMcpKey === server.key ? ' selected' : ''}>${escapeHtml(server.name)}</option>`,
+              )
+              .join('')}
+          </select>
+        </label>
+        <label class="field fig-inline-field">
+          <span>依赖模型</span>
+          <select class="field-select" name="menu_requires_model__${escapeHtml(item.key)}">
+            <option value="">无</option>
+            ${modelOptions
+              .map(
+                (model) =>
+                  `<option value="${escapeHtml(model.ref)}"${menuConfig.requiresModelRef === model.ref ? ' selected' : ''}>${escapeHtml(model.label)}</option>`,
+              )
+              .join('')}
+          </select>
+        </label>
+      </div>
+    </article>
+  `;
+}
+
 function renderMenuToggleCard(buffer, item, note) {
   const enabled = buffer.selectedMenus.includes(item.key);
   const editorOrder = buildManageableMenuOrder(buffer.menuOrder);
@@ -4489,6 +4645,8 @@ function renderMenuToggleCard(buffer, item, note) {
 
 function renderBrandMenusAssembly(buffer) {
   const sidebarItems = getOrderedMenuItemsByCategory(buffer, 'sidebar');
+  const selectedMenuKey = getSelectedBrandMenuKey(buffer, sidebarItems);
+  const selectedItem = sidebarItems.find((item) => item.key === selectedMenuKey) || sidebarItems[0] || null;
   return `
     <section class="fig-brand-section">
       <div class="fig-section-heading">
@@ -4496,15 +4654,16 @@ function renderBrandMenusAssembly(buffer) {
         <p>这里只维护 OEM 真正暴露给终端用户的左侧入口。历史兼容 key 保留在后端兼容层，不再出现在运营界面。</p>
       </div>
       <div class="fig-capability-columns">
-        <article class="fig-card fig-card--subtle">
+        <article class="fig-card fig-card--subtle menu-assembly-list">
           <div class="fig-card__head">
             <h3>OEM 菜单入口</h3>
-            <span>对应桌面端 sidebar 主导航，可按 OEM 单独控制显隐、排序和显示名称</span>
+            <span>左侧选菜单，右侧做单项配置和预览。</span>
           </div>
-          <div class="fig-capability-stack">
-            ${sidebarItems.map((item) => renderMenuToggleCard(buffer, item, '主导航')).join('')}
+          <div class="menu-assembly-list__stack">
+            ${sidebarItems.map((item) => renderMenuAssemblyListCard(buffer, item, '主导航', item.key === selectedMenuKey)).join('')}
           </div>
         </article>
+        ${renderMenuAssemblyDetail(buffer, selectedItem, '主导航')}
       </div>
     </section>
   `;
@@ -7454,6 +7613,13 @@ app.addEventListener('click', async (event) => {
 
   if (action === 'toggle-brand-menu') {
     toggleBrandCapability('menu', target.getAttribute('data-menu-key') || '');
+    return;
+  }
+
+  if (action === 'select-brand-menu') {
+    captureBrandEditorBuffer();
+    state.selectedBrandMenuKey = target.getAttribute('data-menu-key') || '';
+    render();
     return;
   }
 
