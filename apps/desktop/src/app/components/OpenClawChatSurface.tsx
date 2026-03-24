@@ -1,12 +1,13 @@
 import {
   Copy,
+  Image as ImageIcon,
   MessageCircleQuestionMark,
   MessageSquarePlus,
   RefreshCw,
   ScrollText,
   WifiOff,
 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type DragEvent as ReactDragEvent } from 'react';
 import type { CreditQuoteData, IClawClient } from '@iclaw/sdk';
 import '@openclaw-ui/main.ts';
 import {
@@ -315,6 +316,16 @@ type GatewaySessionsListResult = {
     model?: string | null;
   }>;
 };
+
+function hasDraggedFiles(dataTransfer: DataTransfer | null | undefined): boolean {
+  if (!dataTransfer) {
+    return false;
+  }
+  if (dataTransfer.items && dataTransfer.items.length > 0) {
+    return Array.from(dataTransfer.items).some((item) => item.kind === 'file');
+  }
+  return Array.from(dataTransfer.types ?? []).includes('Files');
+}
 
 const MESSAGE_ACTION_FEEDBACK_MS = 1600;
 const USAGE_SETTLEMENT_RETRY_INTERVAL_MS = 1500;
@@ -1147,6 +1158,7 @@ export function OpenClawChatSurface({
   const composerRef = useRef<RichChatComposerHandle | null>(null);
   const reconnectKeyRef = useRef<string | null>(null);
   const initialScrollScheduledRef = useRef(false);
+  const shellDragDepthRef = useRef(0);
   const artifactAutoOpenStateRef = useRef<ArtifactAutoOpenState>({
     lastBusy: false,
     runSequence: 0,
@@ -1182,6 +1194,7 @@ export function OpenClawChatSurface({
   const [selectionMenu, setSelectionMenu] = useState<SelectionMenuState | null>(null);
   const [modelOptions, setModelOptions] = useState<ComposerModelOption[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const [shellDropActive, setShellDropActive] = useState(false);
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelSwitching, setModelSwitching] = useState(false);
   const [sessionTransitionVisible, setSessionTransitionVisible] = useState(false);
@@ -2437,6 +2450,63 @@ export function OpenClawChatSurface({
     }
   }, [status.busy, status.lastError]);
 
+  useEffect(() => {
+    if (status.connected && !shellTransitioning) {
+      return;
+    }
+    shellDragDepthRef.current = 0;
+    setShellDropActive(false);
+  }, [shellTransitioning, status.connected]);
+
+  const resetShellDropState = useCallback(() => {
+    shellDragDepthRef.current = 0;
+    setShellDropActive(false);
+  }, []);
+
+  const handleShellDragEnter = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
+    if (!status.connected || shellTransitioning || !hasDraggedFiles(event.dataTransfer)) {
+      return;
+    }
+    event.preventDefault();
+    shellDragDepthRef.current += 1;
+    setShellDropActive(true);
+  }, [shellTransitioning, status.connected]);
+
+  const handleShellDragOver = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
+    if (!status.connected || shellTransitioning || !hasDraggedFiles(event.dataTransfer)) {
+      return;
+    }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+    if (!shellDropActive) {
+      setShellDropActive(true);
+    }
+  }, [shellDropActive, shellTransitioning, status.connected]);
+
+  const handleShellDragLeave = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
+    if (!hasDraggedFiles(event.dataTransfer)) {
+      return;
+    }
+    event.preventDefault();
+    shellDragDepthRef.current = Math.max(0, shellDragDepthRef.current - 1);
+    if (shellDragDepthRef.current === 0) {
+      setShellDropActive(false);
+    }
+  }, []);
+
+  const handleShellDrop = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
+    if (!status.connected || shellTransitioning || !hasDraggedFiles(event.dataTransfer)) {
+      return;
+    }
+    event.preventDefault();
+    const files = Array.from(event.dataTransfer.files ?? []);
+    resetShellDropState();
+    if (files.length === 0) {
+      return;
+    }
+    void composerRef.current?.addFiles(files);
+  }, [resetShellDropState, shellTransitioning, status.connected]);
+
   const handleSend = useCallback(async (payload: ComposerSendPayload): Promise<boolean> => {
     const app = appRef.current;
     const request = app?.client?.request;
@@ -2937,7 +3007,13 @@ export function OpenClawChatSurface({
           </div>
         ) : null}
 
-        <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-none border-0 bg-transparent p-0 shadow-none">
+        <div
+          className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-none border-0 bg-transparent p-0 shadow-none"
+          onDragEnterCapture={handleShellDragEnter}
+          onDragOverCapture={handleShellDragOver}
+          onDragLeaveCapture={handleShellDragLeave}
+          onDropCapture={handleShellDrop}
+        >
           <div
             ref={shellRef}
             className="openclaw-chat-surface-shell h-full flex-1 overflow-hidden"
@@ -2967,10 +3043,27 @@ export function OpenClawChatSurface({
               />
             ) : null}
 
+            {shellDropActive ? (
+              <div className="pointer-events-none absolute inset-3 z-40 flex items-center justify-center rounded-[30px] border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,rgba(255,255,255,0.48))] bg-[color:color-mix(in_srgb,var(--chat-surface-panel)_72%,rgba(255,255,255,0.28)_28%)] backdrop-blur-[14px] shadow-[0_24px_60px_rgba(26,22,18,0.16)]">
+                <div className="flex max-w-[420px] flex-col items-center gap-3 px-6 text-center">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-[18px] border border-[color:color-mix(in_srgb,var(--brand-primary)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white_88%)] text-[var(--brand-primary)] shadow-[0_14px_30px_rgba(0,0,0,0.08)]">
+                    <ImageIcon className="h-6 w-6" />
+                  </div>
+                  <div className="text-[16px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
+                    松手即可添加附件
+                  </div>
+                  <div className="text-[13px] leading-6 text-[var(--text-secondary)]">
+                    右侧对话区和输入框都支持拖拽添加，当前支持图片、PDF 和视频。
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
             <RichChatComposer
               ref={composerRef}
               connected={status.connected}
               busy={status.busy}
+              dropActive={shellDropActive}
               sessionTransitioning={shellTransitioning}
               lobsterAgents={installedLobsterAgents}
               skillOptions={skillOptions}

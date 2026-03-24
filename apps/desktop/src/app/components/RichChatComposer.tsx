@@ -63,6 +63,7 @@ export type ComposerDraftPayload = {
 export type RichChatComposerHandle = {
   focus: () => void;
   replacePrompt: (text: string) => void;
+  addFiles: (files: File[]) => Promise<number>;
   insertReference: (
     text: string,
     options?: {
@@ -129,6 +130,7 @@ type RichChatComposerProps = {
     high: number | null;
     error?: string | null;
   } | null;
+  dropActive?: boolean;
   initialSelectedAgentSlug?: string | null;
   initialSelectedSkillSlug?: string | null;
   composerConfig?: ResolvedInputComposerConfig | null;
@@ -553,6 +555,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       onSend,
       onDraftChange,
       creditEstimate,
+      dropActive = false,
       initialSelectedAgentSlug = null,
       initialSelectedSkillSlug = null,
       composerConfig = null,
@@ -842,16 +845,6 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       [focus, insertTextAtCaret, insertTokenAtCaret],
     );
 
-    useImperativeHandle(
-      ref,
-      () => ({
-        focus,
-        replacePrompt,
-        insertReference,
-      }),
-      [focus, insertReference, replacePrompt],
-    );
-
     const clearComposer = useCallback(() => {
       const editor = editorRef.current;
       if (!editor) {
@@ -1110,10 +1103,10 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     }, [connected, focus, footerShortcuts, replacePrompt]);
 
     const processFiles = useCallback(
-      async (files: File[]) => {
+      async (files: File[]): Promise<number> => {
         const supportedFiles = files.filter(isSupportedAttachment);
         if (supportedFiles.length === 0) {
-          return;
+          return 0;
         }
 
         for (const file of supportedFiles) {
@@ -1127,8 +1120,21 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
           };
           insertTokenAtCaret(token);
         }
+        focus();
+        return supportedFiles.length;
       },
-      [insertTokenAtCaret],
+      [focus, insertTokenAtCaret],
+    );
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        focus,
+        replacePrompt,
+        addFiles: processFiles,
+        insertReference,
+      }),
+      [focus, insertReference, processFiles, replacePrompt],
     );
 
     const handleSubmit = useCallback(async () => {
@@ -1426,6 +1432,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     return (
       <div
         className="iclaw-composer"
+        data-drop-active={dropActive ? 'true' : 'false'}
         data-session-transitioning={sessionTransitioning ? 'true' : 'false'}
       >
         <div className="iclaw-composer__halo" aria-hidden="true" />
