@@ -1274,10 +1274,12 @@ function AuthedView({
   const inputComposerConfig = resolveInputComposerConfig(brandShellConfig);
   const welcomePageConfig = resolveWelcomePageConfig(brandShellConfig);
   const availablePrimaryViews = enabledMenuKeys.filter((key) => key !== 'settings') as PrimaryView[];
-  const activeMenuLabel = menuUiConfig[primaryView]?.displayName;
-  if (!activeMenuLabel) {
-    throw new Error(`Active menu label is missing for "${primaryView}"`);
-  }
+  const fallbackPrimaryView = availablePrimaryViews[0] || 'chat';
+  const resolvedPrimaryView = availablePrimaryViews.includes(primaryView) ? primaryView : fallbackPrimaryView;
+  const activeMenuLabel =
+    menuUiConfig[resolvedPrimaryView]?.displayName ||
+    menuUiConfig[fallbackPrimaryView]?.displayName ||
+    menuUiConfig.chat.displayName;
   const chatMenuLabel = menuUiConfig.chat.displayName;
   const skillStoreViewConfig:
     | {
@@ -1286,19 +1288,19 @@ function AuthedView({
         description: string;
       }
     | null =
-    primaryView === 'skill-store'
+    resolvedPrimaryView === 'skill-store'
       ? {
           preset: 'all',
           title: activeMenuLabel,
           description: '统一查看系统预置能力与云端技能，安装后可自动同步到设备',
         }
-      : primaryView === 'finance-skills'
+      : resolvedPrimaryView === 'finance-skills'
         ? {
             preset: 'finance',
             title: activeMenuLabel,
             description: '聚合技能商店里的财经、投资、股票与金融分析相关技能，右侧布局与技能商店保持一致。',
           }
-        : primaryView === 'foundation-skills'
+        : resolvedPrimaryView === 'foundation-skills'
           ? {
               preset: 'foundation',
               title: activeMenuLabel,
@@ -1307,11 +1309,11 @@ function AuthedView({
           : null;
 
   useEffect(() => {
-    if (availablePrimaryViews.includes(primaryView)) {
+    if (primaryView === resolvedPrimaryView) {
       return;
     }
-    setPrimaryView(availablePrimaryViews[0] || 'chat');
-  }, [availablePrimaryViews, primaryView, setPrimaryView]);
+    setPrimaryView(resolvedPrimaryView);
+  }, [primaryView, resolvedPrimaryView, setPrimaryView]);
 
   useEffect(() => {
     if (!accessToken) {
@@ -1513,7 +1515,7 @@ function AuthedView({
     <div className="relative flex h-screen overflow-hidden bg-[var(--bg-page)]">
       <Sidebar
         user={currentUser}
-        activeView={primaryView}
+        activeView={resolvedPrimaryView}
         enabledMenuKeys={enabledMenuKeys}
         menuUiConfig={menuUiConfig}
         selectedTaskId={selectedTaskId}
@@ -1556,7 +1558,7 @@ function AuthedView({
         onSkipDesktopUpdate={onSkipDesktopUpdate}
       />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        {primaryView === 'data-connections' ? null : (
+        {resolvedPrimaryView === 'data-connections' ? null : (
           <IClawHeader
             balance={creditBalance?.total_available_balance ?? creditBalance?.available_balance ?? creditBalance?.balance ?? null}
             loading={creditBalanceLoading}
@@ -1566,7 +1568,7 @@ function AuthedView({
           />
         )}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {primaryView === 'investment-experts' ? (
+          {resolvedPrimaryView === 'investment-experts' ? (
             <InvestmentExpertsView
               title={menuUiConfig['investment-experts'].displayName}
               client={client}
@@ -1575,7 +1577,7 @@ function AuthedView({
               onRequestAuth={onRequestAuth}
               onStartConversation={handleStartInvestmentExpertConversation}
             />
-          ) : primaryView === 'lobster-store' ? (
+          ) : resolvedPrimaryView === 'lobster-store' ? (
             <LobsterStoreView
               title={menuUiConfig['lobster-store'].displayName}
               client={client}
@@ -1587,7 +1589,7 @@ function AuthedView({
             />
           ) : skillStoreViewConfig ? (
             <SkillStoreView
-              key={primaryView}
+              key={resolvedPrimaryView}
               client={client}
               accessToken={accessToken}
               authBaseUrl={AUTH_BASE_URL}
@@ -1599,7 +1601,7 @@ function AuthedView({
               title={skillStoreViewConfig.title}
               description={skillStoreViewConfig.description}
             />
-          ) : primaryView === 'mcp-store' ? (
+          ) : resolvedPrimaryView === 'mcp-store' ? (
             <MCPStoreView
               title={menuUiConfig['mcp-store'].displayName}
               client={client}
@@ -1607,13 +1609,13 @@ function AuthedView({
               authenticated={authenticated}
               onRequestAuth={onRequestAuth}
             />
-          ) : primaryView === 'data-connections' ? (
+          ) : resolvedPrimaryView === 'data-connections' ? (
             <DataConnectionsView title={menuUiConfig['data-connections'].displayName} />
-          ) : primaryView === 'security' ? (
+          ) : resolvedPrimaryView === 'security' ? (
             <SecurityCenterView title={menuUiConfig.security.displayName} />
-          ) : primaryView === 'memory' ? (
+          ) : resolvedPrimaryView === 'memory' ? (
             <MemoryView title={menuUiConfig.memory.displayName} />
-          ) : primaryView === 'task-center' ? (
+          ) : resolvedPrimaryView === 'task-center' ? (
             <TaskCenterView
               selectedTaskId={selectedTaskId}
               onSelectTask={setSelectedTaskId}
@@ -1621,7 +1623,7 @@ function AuthedView({
               taskCenterLabel={menuUiConfig['task-center'].displayName}
               chatMenuLabel={chatMenuLabel}
             />
-          ) : primaryView === 'cron' ? (
+          ) : resolvedPrimaryView === 'cron' ? (
             authenticated ? (
               <OpenClawCronSurface
                 title={menuUiConfig.cron.displayName}
@@ -1641,9 +1643,9 @@ function AuthedView({
                 onLogin={() => onRequestAuth('login')}
               />
             )
-          ) : primaryView === 'im-bots' ? (
+          ) : resolvedPrimaryView === 'im-bots' ? (
             <IMBotsView title={menuUiConfig['im-bots'].displayName} client={imBotClient} />
-          ) : !SUPPORTED_PRIMARY_VIEWS.has(primaryView) ? (
+          ) : !SUPPORTED_PRIMARY_VIEWS.has(resolvedPrimaryView) ? (
             <PageSurface as="div">
               <PageContent className="flex min-h-full items-center">
                 <div className="mx-auto w-full max-w-[820px]">
@@ -1655,7 +1657,7 @@ function AuthedView({
                         <br />
                         当前 Web 端还没有接入对应页面，所以先展示占位页，避免“后台已开启但前端完全不显示”的不一致。
                         <br />
-                        菜单 Key：{primaryView}
+                        菜单 Key：{resolvedPrimaryView}
                       </>
                     }
                     action={

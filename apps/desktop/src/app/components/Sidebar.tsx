@@ -251,126 +251,34 @@ export function Sidebar({
     return visual;
   };
 
-  const allMainItems: SidebarItem[] = [
-    (() => {
-      const visual = resolveMenuVisual('chat');
-      return {
-        key: 'chat',
-        label: resolveMenuLabel('chat'),
-        ...visual,
-        active: activeView === 'chat',
-        onClick: onOpenChat,
-      };
-    })(),
-    (() => {
-      const visual = resolveMenuVisual('cron');
-      return {
-        key: 'cron',
-        label: resolveMenuLabel('cron'),
-        ...visual,
-        active: activeView === 'cron',
-        onClick: onOpenCron,
-      };
-    })(),
-    (() => {
-      const visual = resolveMenuVisual('investment-experts');
-      return {
-        key: 'investment-experts',
-        label: resolveMenuLabel('investment-experts'),
-        ...visual,
-        active: activeView === 'investment-experts',
-        onClick: onOpenInvestmentExperts,
-      };
-    })(),
-    (() => {
-      const visual = resolveMenuVisual('lobster-store');
-      return {
-        key: 'lobster-store',
-        label: resolveMenuLabel('lobster-store'),
-        ...visual,
-        active: activeView === 'lobster-store',
-        onClick: onOpenLobsterStore,
-      };
-    })(),
-    (() => {
-      const visual = resolveMenuVisual('skill-store');
-      return {
-        key: 'skill-store',
-        label: resolveMenuLabel('skill-store'),
-        ...visual,
-        active: activeView === 'skill-store',
-        onClick: onOpenSkillStore,
-      };
-    })(),
-    (() => {
-      const visual = resolveMenuVisual('mcp-store');
-      return {
-        key: 'mcp-store',
-        label: resolveMenuLabel('mcp-store'),
-        ...visual,
-        active: activeView === 'mcp-store',
-        onClick: onOpenMcpStore,
-      };
-    })(),
-    (() => {
-      const visual = resolveMenuVisual('memory');
-      return {
-        key: 'memory',
-        label: resolveMenuLabel('memory'),
-        ...visual,
-        active: activeView === 'memory',
-        onClick: onOpenMemory,
-      };
-    })(),
-    (() => {
-      const visual = resolveMenuVisual('data-connections');
-      return {
-        key: 'data-connections',
-        label: resolveMenuLabel('data-connections'),
-        ...visual,
-        active: activeView === 'data-connections',
-        onClick: onOpenDataConnections,
-      };
-    })(),
-    (() => {
-      const visual = resolveMenuVisual('im-bots');
-      return {
-        key: 'im-bots',
-        label: resolveMenuLabel('im-bots'),
-        ...visual,
-        active: activeView === 'im-bots',
-        onClick: onOpenImBots,
-      };
-    })(),
-    (() => {
-      const visual = resolveMenuVisual('security');
-      return {
-        key: 'security',
-        label: resolveMenuLabel('security'),
-        ...visual,
-        active: activeView === 'security',
-        onClick: onOpenSecurity,
-      };
-    })(),
-  ];
-  const knownMainItems = new Map(allMainItems.map((item) => [item.key, item]));
-  const buildDynamicMenuItem = (key: string): SidebarItem => {
+  const knownMenuClickHandlers: Record<string, (() => void) | undefined> = {
+    chat: onOpenChat,
+    cron: onOpenCron,
+    'investment-experts': onOpenInvestmentExperts,
+    'lobster-store': onOpenLobsterStore,
+    'skill-store': onOpenSkillStore,
+    'mcp-store': onOpenMcpStore,
+    memory: onOpenMemory,
+    'data-connections': onOpenDataConnections,
+    'im-bots': onOpenImBots,
+    security: onOpenSecurity,
+  };
+
+  const buildMenuItem = (key: string): SidebarItem => {
     const visual = resolveMenuVisual(key);
     return {
       key,
       label: resolveMenuLabel(key),
       ...visual,
       active: activeView === key,
-      onClick: () => onOpenMenu?.(key),
+      onClick: knownMenuClickHandlers[key] ?? (() => onOpenMenu?.(key)),
     };
   };
-  const mainItems =
-    enabledMenuKeys
-      ? enabledMenuKeys
-          .filter((key) => key !== 'settings' && key !== 'task-center')
-          .map((key) => knownMainItems.get(key) || buildDynamicMenuItem(key))
-          .filter((item): item is SidebarItem => Boolean(item))
-      : allMainItems;
+
+  const configuredMainMenuKeys = (enabledMenuKeys || Object.keys(menuUiConfig)).filter(
+    (key) => key !== 'settings' && key !== 'task-center' && Boolean(menuUiConfig[key]),
+  );
+  const mainItems = configuredMainMenuKeys.map(buildMenuItem);
   const chatEnabled = enabledMenuKeys ? enabledMenuKeys.includes('chat') : true;
   const taskCenterEnabled = enabledMenuKeys ? enabledMenuKeys.includes('task-center') : true;
   const settingsEnabled = true;
