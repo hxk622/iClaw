@@ -1328,6 +1328,38 @@ body {
   transform: translateY(-2px);
 }
 
+.iclaw-chat-drop-chip {
+  --iclaw-chat-drop-chip-color: var(--brand-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--iclaw-chat-drop-chip-color) 24%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--iclaw-chat-drop-chip-color) 12%, rgba(255, 255, 255, 0.92));
+  color: color-mix(in srgb, var(--iclaw-chat-drop-chip-color) 72%, var(--text-primary));
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.iclaw-chat-drop-chip[data-tone='image'] {
+  --iclaw-chat-drop-chip-color: var(--brand-primary);
+}
+
+.iclaw-chat-drop-chip[data-tone='pdf'] {
+  --iclaw-chat-drop-chip-color: var(--warn);
+}
+
+.iclaw-chat-drop-chip[data-tone='video'] {
+  --iclaw-chat-drop-chip-color: var(--info);
+}
+
+.iclaw-chat-drop-chip[data-tone='unsupported'] {
+  --iclaw-chat-drop-chip-color: var(--danger);
+}
+
 .iclaw-composer::after {
   content: '';
   position: absolute;

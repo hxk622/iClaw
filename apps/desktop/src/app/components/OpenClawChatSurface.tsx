@@ -1,5 +1,7 @@
 import {
   Copy,
+  Film,
+  FileText,
   Image as ImageIcon,
   MessageCircleQuestionMark,
   MessageSquarePlus,
@@ -317,6 +319,15 @@ type GatewaySessionsListResult = {
   }>;
 };
 
+type DraggedFileSummary = {
+  totalFiles: number;
+  supportedFiles: number;
+  imageCount: number;
+  pdfCount: number;
+  videoCount: number;
+  unsupportedCount: number;
+};
+
 function hasDraggedFiles(dataTransfer: DataTransfer | null | undefined): boolean {
   if (!dataTransfer) {
     return false;
@@ -325,6 +336,53 @@ function hasDraggedFiles(dataTransfer: DataTransfer | null | undefined): boolean
     return Array.from(dataTransfer.items).some((item) => item.kind === 'file');
   }
   return Array.from(dataTransfer.types ?? []).includes('Files');
+}
+
+function summarizeDraggedFiles(dataTransfer: DataTransfer | null | undefined): DraggedFileSummary {
+  const summary: DraggedFileSummary = {
+    totalFiles: 0,
+    supportedFiles: 0,
+    imageCount: 0,
+    pdfCount: 0,
+    videoCount: 0,
+    unsupportedCount: 0,
+  };
+
+  if (!dataTransfer) {
+    return summary;
+  }
+
+  const items =
+    dataTransfer.items && dataTransfer.items.length > 0
+      ? Array.from(dataTransfer.items).filter((item) => item.kind === 'file')
+      : Array.from(dataTransfer.files ?? []).map((file) => ({
+          kind: 'file',
+          type: file.type,
+        } as DataTransferItem));
+
+  summary.totalFiles = items.length;
+
+  for (const item of items) {
+    const mimeType = String(item.type || '').trim().toLowerCase();
+    if (mimeType.startsWith('image/')) {
+      summary.imageCount += 1;
+      summary.supportedFiles += 1;
+      continue;
+    }
+    if (mimeType === 'application/pdf') {
+      summary.pdfCount += 1;
+      summary.supportedFiles += 1;
+      continue;
+    }
+    if (mimeType.startsWith('video/')) {
+      summary.videoCount += 1;
+      summary.supportedFiles += 1;
+      continue;
+    }
+    summary.unsupportedCount += 1;
+  }
+
+  return summary;
 }
 
 const MESSAGE_ACTION_FEEDBACK_MS = 1600;
@@ -1195,6 +1253,7 @@ export function OpenClawChatSurface({
   const [modelOptions, setModelOptions] = useState<ComposerModelOption[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [shellDropActive, setShellDropActive] = useState(false);
+  const [shellDropSummary, setShellDropSummary] = useState<DraggedFileSummary | null>(null);
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelSwitching, setModelSwitching] = useState(false);
   const [sessionTransitionVisible, setSessionTransitionVisible] = useState(false);
@@ -2456,11 +2515,13 @@ export function OpenClawChatSurface({
     }
     shellDragDepthRef.current = 0;
     setShellDropActive(false);
+    setShellDropSummary(null);
   }, [shellTransitioning, status.connected]);
 
   const resetShellDropState = useCallback(() => {
     shellDragDepthRef.current = 0;
     setShellDropActive(false);
+    setShellDropSummary(null);
   }, []);
 
   const handleShellDragEnter = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
@@ -2470,6 +2531,7 @@ export function OpenClawChatSurface({
     event.preventDefault();
     shellDragDepthRef.current += 1;
     setShellDropActive(true);
+    setShellDropSummary(summarizeDraggedFiles(event.dataTransfer));
   }, [shellTransitioning, status.connected]);
 
   const handleShellDragOver = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
@@ -2481,6 +2543,7 @@ export function OpenClawChatSurface({
     if (!shellDropActive) {
       setShellDropActive(true);
     }
+    setShellDropSummary(summarizeDraggedFiles(event.dataTransfer));
   }, [shellDropActive, shellTransitioning, status.connected]);
 
   const handleShellDragLeave = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
@@ -2491,6 +2554,7 @@ export function OpenClawChatSurface({
     shellDragDepthRef.current = Math.max(0, shellDragDepthRef.current - 1);
     if (shellDragDepthRef.current === 0) {
       setShellDropActive(false);
+      setShellDropSummary(null);
     }
   }, []);
 
@@ -2506,6 +2570,27 @@ export function OpenClawChatSurface({
     }
     void composerRef.current?.addFiles(files);
   }, [resetShellDropState, shellTransitioning, status.connected]);
+
+  const dropSummary = shellDropSummary ?? {
+    totalFiles: 0,
+    supportedFiles: 0,
+    imageCount: 0,
+    pdfCount: 0,
+    videoCount: 0,
+    unsupportedCount: 0,
+  };
+  const dropTitle =
+    dropSummary.supportedFiles > 0
+      ? `松手添加 ${dropSummary.supportedFiles} 个附件`
+      : dropSummary.totalFiles > 0
+        ? `这 ${dropSummary.totalFiles} 个文件暂不支持`
+        : '松手即可添加附件';
+  const dropDescription =
+    dropSummary.totalFiles === 0
+      ? '右侧对话区和输入框都支持拖拽添加，当前支持图片、PDF 和视频。'
+      : dropSummary.unsupportedCount > 0
+        ? `已识别 ${dropSummary.totalFiles} 个文件，其中 ${dropSummary.supportedFiles} 个会加入输入框，${dropSummary.unsupportedCount} 个会被忽略。`
+        : `已识别 ${dropSummary.totalFiles} 个文件，都会直接加入当前输入框。`;
 
   const handleSend = useCallback(async (payload: ComposerSendPayload): Promise<boolean> => {
     const app = appRef.current;
@@ -3050,10 +3135,36 @@ export function OpenClawChatSurface({
                     <ImageIcon className="h-6 w-6" />
                   </div>
                   <div className="text-[16px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
-                    松手即可添加附件
+                    {dropTitle}
                   </div>
                   <div className="text-[13px] leading-6 text-[var(--text-secondary)]">
-                    右侧对话区和输入框都支持拖拽添加，当前支持图片、PDF 和视频。
+                    {dropDescription}
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-2 text-[12px]">
+                    {dropSummary.imageCount > 0 ? (
+                      <span className="iclaw-chat-drop-chip" data-tone="image">
+                        <ImageIcon className="h-3.5 w-3.5" />
+                        图片 {dropSummary.imageCount}
+                      </span>
+                    ) : null}
+                    {dropSummary.pdfCount > 0 ? (
+                      <span className="iclaw-chat-drop-chip" data-tone="pdf">
+                        <FileText className="h-3.5 w-3.5" />
+                        PDF {dropSummary.pdfCount}
+                      </span>
+                    ) : null}
+                    {dropSummary.videoCount > 0 ? (
+                      <span className="iclaw-chat-drop-chip" data-tone="video">
+                        <Film className="h-3.5 w-3.5" />
+                        视频 {dropSummary.videoCount}
+                      </span>
+                    ) : null}
+                    {dropSummary.unsupportedCount > 0 ? (
+                      <span className="iclaw-chat-drop-chip" data-tone="unsupported">
+                        <ScrollText className="h-3.5 w-3.5" />
+                        忽略 {dropSummary.unsupportedCount}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
               </div>
