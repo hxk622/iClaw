@@ -312,6 +312,10 @@ function icon(name, className = '') {
     activity: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M3 12h4l2-5 4 10 2-5h6"/></svg>`,
     rocket: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M5 19c2-2 4-3 7-3 0-3 1-5 3-7 2-2 4-3 7-4-1 3-2 5-4 7-2 2-4 3-7 3-1 3-2 5-3 7-1-1-2-2-3-3Z"/><path ${common} d="M9 15l-4 4"/><path ${common} d="M9 19H5v-4"/></svg>`,
     trendingUp: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M3 17 10 10l4 4 7-7"/><path ${common} d="M14 7h7v7"/></svg>`,
+    pieChart: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M12 3v9h9"/><path ${common} d="M20.5 13A8.5 8.5 0 1 1 11 3.5"/></svg>`,
+    lightbulb: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M9 18h6"/><path ${common} d="M10 22h4"/><path ${common} d="M8 14a6 6 0 1 1 8 0c-.8.8-1.3 1.8-1.5 3h-5c-.2-1.2-.7-2.2-1.5-3z"/></svg>`,
+    messageCircle: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M21 11.5a8.5 8.5 0 1 1-4-7.1A8.4 8.4 0 0 1 21 11.5Z"/><path ${common} d="M8 20l-3 3v-4"/></svg>`,
+    shieldCheck: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M12 3 5 6v5c0 4.7 2.8 7.9 7 10 4.2-2.1 7-5.3 7-10V6z"/><path ${common} d="m9.5 12 1.8 1.8 3.7-3.8"/></svg>`,
     arrowLeft: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M19 12H5"/><path ${common} d="m12 19-7-7 7-7"/></svg>`,
     chevronUp: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="m6 14 6-6 6 6"/></svg>`,
     chevronDown: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="m6 10 6 6 6-6"/></svg>`,
@@ -345,6 +349,48 @@ function icon(name, className = '') {
     fileText: `<svg viewBox="0 0 24 24"${cls}><path ${common} d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path ${common} d="M14 3v5h5"/><path ${common} d="M9 13h6"/><path ${common} d="M9 17h6"/><path ${common} d="M9 9h2"/></svg>`,
   };
   return icons[name] || '';
+}
+
+const ICON_KEY_ALIASES = {
+  '': 'sparkles',
+  chat: 'messageSquare',
+  cron: 'calendar',
+  'skill-store': 'store',
+  'lobster-store': 'package',
+  'mcp-store': 'network',
+  'im-bots': 'messageSquare',
+  memory: 'fileText',
+  security: 'shield',
+  'task-center': 'checkCircle',
+  'investment-experts': 'trendingUp',
+  'data-connections': 'network',
+  'finance-skills': 'zap',
+  'foundation-skills': 'layers',
+  'stock-market': 'trendingUp',
+  'fund-market': 'pieChart',
+  workspace: 'layout',
+  skills: 'zap',
+  mcp: 'network',
+  assets: 'image',
+  models: 'package',
+  TrendingUp: 'trendingUp',
+  PieChart: 'pieChart',
+  Search: 'search',
+  Lightbulb: 'lightbulb',
+  MessageCircle: 'messageCircle',
+  Sparkles: 'sparkles',
+  ShieldCheck: 'shieldCheck',
+};
+
+function resolveIconName(value, fallback = 'sparkles') {
+  const raw = String(value || '').trim();
+  if (!raw) return fallback;
+  return ICON_KEY_ALIASES[raw] || raw;
+}
+
+function renderIconPreview(iconKey, className = '') {
+  const name = resolveIconName(iconKey);
+  return icon(name, className) || icon('square', className);
 }
 
 function renderAdminLogo(className = '') {
@@ -490,6 +536,29 @@ function getMenuIconOptions() {
     options.push([value, item.label]);
   }
   return options;
+}
+
+function renderIconChoiceGroup(name, selectedValue, options) {
+  const currentValue = String(selectedValue || '').trim();
+  return `
+    <div class="icon-choice-group" role="radiogroup" aria-label="${escapeHtml(name)}">
+      ${options
+        .map(([value, label]) => {
+          const normalizedValue = String(value || '').trim();
+          const checked = normalizedValue === currentValue;
+          return `
+            <label class="icon-choice">
+              <input class="visually-hidden" type="radio" name="${escapeHtml(name)}" value="${escapeHtml(normalizedValue)}"${checked ? ' checked' : ''} />
+              <span class="icon-choice__card">
+                <span class="icon-choice__icon">${renderIconPreview(normalizedValue, 'icon-choice__svg')}</span>
+                <span class="icon-choice__label">${escapeHtml(label || normalizedValue || '默认')}</span>
+              </span>
+            </label>
+          `;
+        })
+        .join('')}
+    </div>
+  `;
 }
 
 function normalizeComposerControlOption(item, index = 0) {
@@ -646,14 +715,14 @@ const DEFAULT_WELCOME_SURFACE_CONFIG = {
 };
 
 const WELCOME_ACTION_ICON_OPTIONS = [
-  ['', '默认火花'],
-  ['TrendingUp', 'TrendingUp'],
-  ['PieChart', 'PieChart'],
-  ['Search', 'Search'],
-  ['Lightbulb', 'Lightbulb'],
-  ['MessageCircle', 'MessageCircle'],
-  ['Sparkles', 'Sparkles'],
-  ['ShieldCheck', 'ShieldCheck'],
+  ['', '默认'],
+  ['TrendingUp', '趋势上涨'],
+  ['PieChart', '饼图'],
+  ['Search', '搜索'],
+  ['Lightbulb', '灯泡'],
+  ['MessageCircle', '消息'],
+  ['Sparkles', '火花'],
+  ['ShieldCheck', '盾牌'],
 ];
 
 function normalizeWelcomeQuickAction(value, index = 0) {
@@ -922,6 +991,11 @@ function capabilityBindingEmptyLabel(type) {
   if (type === 'skill') return '当前没有品牌安装此技能。';
   if (type === 'mcp') return '当前没有品牌安装此 MCP。';
   return '当前没有 OEM 绑定此模型。';
+}
+
+function getCheckedInputValue(form, name) {
+  const node = form.querySelector(`[name="${CSS.escape(name)}"]:checked`);
+  return node instanceof HTMLInputElement ? node.value : '';
 }
 
 function getMenuLabel(menuKey) {
@@ -1907,9 +1981,7 @@ function captureBrandEditorBuffer() {
       group_label: form.querySelector(`[name="menu_group__${CSS.escape(key)}"]`) instanceof HTMLInputElement
         ? form.querySelector(`[name="menu_group__${CSS.escape(key)}"]`).value
         : asObject(menuConfigs[key]).group,
-      icon_key: form.querySelector(`[name="menu_icon__${CSS.escape(key)}"]`) instanceof HTMLSelectElement
-        ? form.querySelector(`[name="menu_icon__${CSS.escape(key)}"]`).value
-        : asObject(menuConfigs[key]).iconKey,
+      icon_key: getCheckedInputValue(form, `menu_icon__${key}`) || asObject(menuConfigs[key]).iconKey,
       requires: {
         skill_slug:
           form.querySelector(`[name="menu_requires_skill__${CSS.escape(key)}"]`) instanceof HTMLSelectElement
@@ -1976,9 +2048,7 @@ function captureBrandEditorBuffer() {
         ? form.querySelector(`[name="welcome_quick_action_prompt__${index}"]`).value
         : asArray(existing.welcome?.quickActions)[index]?.prompt,
     iconKey:
-      form.querySelector(`[name="welcome_quick_action_icon__${index}"]`) instanceof HTMLSelectElement
-        ? form.querySelector(`[name="welcome_quick_action_icon__${index}"]`).value
-        : asArray(existing.welcome?.quickActions)[index]?.iconKey,
+      getCheckedInputValue(form, `welcome_quick_action_icon__${index}`) || asArray(existing.welcome?.quickActions)[index]?.iconKey,
   }));
   const welcome = normalizeWelcomeSurfaceConfig({
     kol_name:
@@ -4138,12 +4208,7 @@ function renderMenuToggleCard(buffer, item, note) {
           </label>
           <label class="field fig-inline-field">
             <span>图标</span>
-            <select class="field-select" name="menu_icon__${escapeHtml(item.key)}">
-              ${getMenuIconOptions().map(
-                ([value, label]) =>
-                  `<option value="${escapeHtml(value)}"${menuConfig.iconKey === value ? ' selected' : ''}>${escapeHtml(label)}</option>`,
-              ).join('')}
-            </select>
+            ${renderIconChoiceGroup(`menu_icon__${item.key}`, menuConfig.iconKey, getMenuIconOptions())}
           </label>
           <label class="field fig-inline-field">
             <span>依赖 Skill</span>
@@ -4462,11 +4527,7 @@ function renderBrandWelcomeAssembly(buffer) {
                       </label>
                       <label class="field fig-inline-field">
                         <span>图标</span>
-                        <select class="field-select" name="welcome_quick_action_icon__${index}">
-                          ${WELCOME_ACTION_ICON_OPTIONS.map(
-                            ([value, label]) => `<option value="${escapeHtml(value)}"${item.iconKey === value ? ' selected' : ''}>${escapeHtml(label)}</option>`,
-                          ).join('')}
-                        </select>
+                        ${renderIconChoiceGroup(`welcome_quick_action_icon__${index}`, item.iconKey, WELCOME_ACTION_ICON_OPTIONS)}
                       </label>
                       <label class="field" style="grid-column: 1 / -1;">
                         <span>Prompt</span>

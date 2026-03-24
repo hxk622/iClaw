@@ -2273,6 +2273,69 @@ code {
   gap: 10px 12px;
 }
 
+.icon-choice-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.icon-choice {
+  display: block;
+}
+
+.icon-choice__card {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  min-height: 86px;
+  padding: 12px 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--card) 92%, #fff 8%);
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, background-color 0.18s ease;
+}
+
+.icon-choice__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--highlight-soft) 70%, transparent);
+  color: var(--accent);
+}
+
+.icon-choice__svg {
+  width: 20px;
+  height: 20px;
+}
+
+.icon-choice__label {
+  font-size: 12px;
+  line-height: 1.2;
+  text-align: center;
+  color: var(--muted);
+}
+
+.icon-choice input:checked + .icon-choice__card {
+  border-color: color-mix(in srgb, var(--highlight) 64%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--highlight-soft) 70%, transparent);
+  background: color-mix(in srgb, var(--highlight-soft) 32%, var(--card));
+  transform: translateY(-1px);
+}
+
+.icon-choice input:checked + .icon-choice__card .icon-choice__label {
+  color: var(--ink);
+}
+
+.icon-choice input:focus-visible + .icon-choice__card {
+  border-color: color-mix(in srgb, var(--highlight) 64%, var(--line));
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--highlight-soft) 78%, transparent);
+}
+
 .fig-menu-card__actions {
   align-self: flex-start;
   flex-wrap: wrap;
