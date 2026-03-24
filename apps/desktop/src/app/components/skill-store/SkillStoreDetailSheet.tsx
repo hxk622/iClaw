@@ -1,9 +1,10 @@
-import { CalendarDays, MessageSquare, Package, Sparkles, UserRound, X } from 'lucide-react';
+import { CalendarDays, MessageSquare, Package, Sparkles, UserRound } from 'lucide-react';
 import type { SkillStoreItem } from '@/app/lib/skill-store';
 import { Button } from '@/app/components/ui/Button';
 import { Chip } from '@/app/components/ui/Chip';
 import { DrawerSection } from '@/app/components/ui/DrawerSection';
 import { InfoTile } from '@/app/components/ui/InfoTile';
+import { SideDetailSheet } from '@/app/components/ui/SideDetailSheet';
 import { cn } from '@/app/lib/cn';
 import { SkillGlyph, skillTagClassName } from './SkillStoreVisuals';
 
@@ -83,7 +84,7 @@ function metadataRows(skill: SkillStoreItem) {
     },
     {
       label: '来源地址',
-      value: skill.sourceUrl || '未记录',
+      value: skill.sourceUrl ? <span className="block break-words [overflow-wrap:anywhere]">{skill.sourceUrl}</span> : '未记录',
     },
     {
       label: '分类',
@@ -128,23 +129,15 @@ export function SkillStoreDetailSheet({
   const rows = metadataRows(skill);
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-end bg-[rgba(26,22,18,0.18)] backdrop-blur-[3px] dark:bg-[rgba(0,0,0,0.34)]" onClick={onClose}>
-      <aside
-        className="flex h-full w-full max-w-[500px] flex-col border-l border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(252,251,248,0.98),rgba(244,240,233,0.96))] shadow-[0_24px_64px_rgba(26,22,18,0.16)] dark:bg-[linear-gradient(180deg,rgba(24,24,24,0.98),rgba(12,12,12,0.96))] dark:shadow-[0_24px_72px_rgba(0,0,0,0.34)]"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-[var(--border-default)] px-6 py-[18px]">
-          <h2 className="text-[18px] font-medium text-[var(--text-primary)]">技能详情</h2>
-          <Button variant="ghost" size="sm" className="rounded-full" onClick={onClose} leadingIcon={<X className="h-4 w-4" />}>
-            关闭
-          </Button>
-        </div>
-
-        <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
+    <SideDetailSheet
+      open
+      onClose={onClose}
+      eyebrow="技能详情"
+      title={skill.name}
+      header={
           <div className="mb-6 flex items-start gap-4">
             <SkillGlyph skill={skill} className="h-16 w-16 rounded-xl" iconClassName="h-7 w-7" />
             <div className="min-w-0 flex-1">
-              <h3 className="text-[21px] font-medium leading-tight tracking-[-0.02em] text-[var(--text-primary)]">{skill.name}</h3>
               <div className="mt-2 flex flex-wrap gap-2">
                 {skill.featured ? (
                   <Chip tone="accent">
@@ -161,13 +154,44 @@ export function SkillStoreDetailSheet({
               <p className="mt-3 text-[13px] leading-6 text-[var(--text-secondary)]">{status.note}</p>
             </div>
           </div>
+      }
+      footer={
+        <div className="flex flex-col gap-3">
+          <div className="text-[13px] leading-6 text-[var(--text-secondary)]">
+            {skill.source === 'bundled'
+              ? '系统预置技能默认随应用提供，可直接进入对话。'
+              : skill.source === 'private'
+                ? '这是你导入到账号中的技能，可直接进入对话。'
+                : skill.installed
+                  ? '这个云端技能已经加入“我的技能”，可直接进入对话。'
+                  : '云端技能安装后会加入“我的技能”。'}
+          </div>
+          <Button
+            variant={status.actionVariant}
+            size="md"
+            block
+            disabled={status.disabled}
+            leadingIcon={chatReady ? <MessageSquare className="h-4 w-4" /> : undefined}
+            onClick={() => {
+              if (chatReady) {
+                onStartConversation(skill);
+                return;
+              }
+              onInstall(skill);
+            }}
+          >
+            {status.actionLabel}
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-5">
+        <DrawerSection title="技能介绍" icon={<Package className="h-5 w-5" />}>
+          <p className="break-words text-[14px] leading-7 text-[var(--text-secondary)] [overflow-wrap:anywhere]">{skill.description}</p>
+        </DrawerSection>
 
-          <DrawerSection title="技能介绍" icon={<Package className="h-5 w-5" />}>
-            <p className="text-[14px] leading-7 text-[var(--text-secondary)]">{skill.description}</p>
-          </DrawerSection>
-
-          <DrawerSection title="元信息" icon={<CalendarDays className="h-5 w-5" />}>
-            <div className="grid grid-cols-2 gap-3">
+        <DrawerSection title="元信息" icon={<CalendarDays className="h-5 w-5" />}>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {rows.map((row) => {
                 const icon =
                   row.label === '发布时间' ? (
@@ -191,52 +215,21 @@ export function SkillStoreDetailSheet({
                   />
                 );
               })}
+          </div>
+        </DrawerSection>
+
+        {skill.tags.length > 0 ? (
+          <DrawerSection title="标签" icon={<UserRound className="h-5 w-5" />}>
+            <div className="flex flex-wrap gap-2">
+              {skill.tags.map((tag) => (
+                <span key={tag} className={cn('rounded-md border px-3 py-1.5 text-[12px] transition-colors', skillTagClassName(tag, { flat: true }))}>
+                  {tag}
+                </span>
+              ))}
             </div>
           </DrawerSection>
-
-          {skill.tags.length > 0 ? (
-            <DrawerSection title="标签" icon={<UserRound className="h-5 w-5" />}>
-              <div className="flex flex-wrap gap-2">
-                {skill.tags.map((tag) => (
-                  <span key={tag} className={cn('rounded-md border px-3 py-1.5 text-[12px] transition-colors', skillTagClassName(tag, { flat: true }))}>
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </DrawerSection>
-          ) : null}
-        </div>
-
-        <div className="border-t border-[var(--border-default)] bg-[var(--bg-card)] px-6 py-5 dark:bg-[var(--bg-page)]">
-          <div className="flex flex-col gap-3">
-            <div className="text-[13px] leading-6 text-[var(--text-secondary)]">
-              {skill.source === 'bundled'
-                ? '系统预置技能默认随应用提供，可直接进入对话。'
-                : skill.source === 'private'
-                  ? '这是你导入到账号中的技能，可直接进入对话。'
-                  : skill.installed
-                    ? '这个云端技能已经加入“我的技能”，可直接进入对话。'
-                    : '云端技能安装后会加入“我的技能”。'}
-            </div>
-            <Button
-              variant={status.actionVariant}
-              size="md"
-              block
-              disabled={status.disabled}
-              leadingIcon={chatReady ? <MessageSquare className="h-4 w-4" /> : undefined}
-              onClick={() => {
-                if (chatReady) {
-                  onStartConversation(skill);
-                  return;
-                }
-                onInstall(skill);
-              }}
-            >
-              {status.actionLabel}
-            </Button>
-          </div>
-        </div>
-      </aside>
-    </div>
+        ) : null}
+      </div>
+    </SideDetailSheet>
   );
 }

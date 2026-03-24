@@ -26,6 +26,7 @@ import { InfoTile } from '@/app/components/ui/InfoTile';
 import { MetricCard } from '@/app/components/ui/MetricCard';
 import { PageContent, PageHeader, PageSurface } from '@/app/components/ui/PageLayout';
 import { PressableCard } from '@/app/components/ui/PressableCard';
+import { SideDetailSheet } from '@/app/components/ui/SideDetailSheet';
 import { Switch } from '@/app/components/ui/Switch';
 import { cn } from '@/app/lib/cn';
 import {
@@ -209,7 +210,7 @@ function MineCard({
   const Icon = resolveIcon(item.iconKey);
 
   return (
-    <PressableCard as="article" className="rounded-[22px] p-5">
+    <PressableCard as="article" interactive className="rounded-[22px] p-5" onClick={() => onDetail(item)}>
       <div className="flex gap-4">
         <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px]', iconToneClass(item.tone))}>
           <Icon className="h-5 w-5" />
@@ -226,7 +227,7 @@ function MineCard({
             </div>
 
             {item.canToggle ? (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3" onClick={(event) => event.stopPropagation()}>
                 <div className="text-[12px] text-[var(--text-secondary)]">{item.enabled ? '已启用' : '已停用'}</div>
                 <Switch checked={item.enabled} onChange={(checked) => onToggle(item, checked)} disabled={busy} />
               </div>
@@ -249,7 +250,7 @@ function MineCard({
             <InfoTile label="连接入口" value={item.configSummary || '待配置'} />
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-2">
+          <div className="mt-4 flex flex-wrap items-center gap-2" onClick={(event) => event.stopPropagation()}>
             <Button variant="ghost" size="sm" onClick={() => onDetail(item)}>
               详情
             </Button>
@@ -287,100 +288,87 @@ function DetailSheet({
   const Icon = resolveIcon(item.iconKey);
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-end bg-[rgba(26,22,18,0.18)] backdrop-blur-[3px] dark:bg-[rgba(0,0,0,0.34)]" onClick={onClose}>
-      <aside
-        className="flex h-full w-full max-w-[560px] flex-col border-l border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(252,251,248,0.98),rgba(244,240,233,0.96))] shadow-[0_32px_90px_rgba(26,22,18,0.18)] dark:border-l-[rgba(255,255,255,0.08)] dark:bg-[linear-gradient(180deg,rgba(25,23,21,0.98),rgba(17,16,15,0.96))] dark:shadow-[0_30px_90px_rgba(0,0,0,0.44)]"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="border-b border-[var(--border-default)] px-6 py-[18px] dark:border-b-[rgba(255,255,255,0.08)]">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border-default)] bg-white/72 px-3 py-1 text-[11px] text-[var(--text-secondary)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
-                MCP详情
-              </div>
-              <div className="mt-4 flex items-start gap-4">
-                <div className={cn('flex h-14 w-14 shrink-0 items-center justify-center rounded-[18px]', iconToneClass(item.tone))}>
-                  <Icon className="h-6 w-6" />
-                </div>
-                <div className="min-w-0">
-                  <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">{item.name}</h2>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <SourceBadge label={item.sourceLabel} />
-                    <ProtocolBadge protocol={item.protocol} />
-                    <InstallBadge item={item} />
-                  </div>
-                  <p className="mt-3 text-[13px] leading-6 text-[var(--text-secondary)]">{item.description}</p>
-                </div>
-              </div>
+    <SideDetailSheet
+      open={open}
+      onClose={onClose}
+      eyebrow="MCP详情"
+      title={item.name}
+      header={
+        <div className="flex items-start gap-4">
+          <div className={cn('flex h-14 w-14 shrink-0 items-center justify-center rounded-[18px]', iconToneClass(item.tone))}>
+            <Icon className="h-6 w-6" />
+          </div>
+          <div className="min-w-0">
+            <div className="mt-2 flex flex-wrap gap-2">
+              <SourceBadge label={item.sourceLabel} />
+              <ProtocolBadge protocol={item.protocol} />
+              <InstallBadge item={item} />
             </div>
-            <Button variant="ghost" size="sm" className="rounded-full" onClick={onClose} leadingIcon={<X className="h-4 w-4" />}>
-              关闭
-            </Button>
+            <p className="mt-3 break-words text-[13px] leading-6 text-[var(--text-secondary)] [overflow-wrap:anywhere]">{item.description}</p>
           </div>
         </div>
-
-        <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      }
+      footer={
+        <div className="flex gap-3">
+          <Button variant="secondary" size="md" block onClick={onClose}>
+            关闭
+          </Button>
+          {item.userInstalled ? (
+            <Button variant="danger" size="md" block disabled={busy} onClick={() => onRemove(item)}>
+              {busy ? '处理中…' : '移除'}
+            </Button>
+          ) : (
+            <Button variant="primary" size="md" block disabled={busy || item.installState === 'bundled' || item.installed} onClick={() => onInstall(item)}>
+              {busy ? '处理中…' : item.installState === 'bundled' ? '默认已安装' : '安装到我的MCP'}
+            </Button>
+          )}
+        </div>
+      }
+    >
+      <div className="space-y-5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <InfoTile label="协议类型" value={item.protocol} />
             <InfoTile label="最近更新" value={item.lastUpdated} />
             <InfoTile label="配置入口" value={item.configSummary || '待配置'} />
             <InfoTile label="密钥要求" value={item.requiresApiKey ? '需要配置' : '无需配置'} tone={item.requiresApiKey ? 'warning' : 'success'} />
-          </div>
+        </div>
 
-          {item.categories.length > 0 ? (
-            <div className="rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-elevated)] p-5">
-              <div className="mb-3 flex items-center gap-2 text-[14px] font-medium text-[var(--text-primary)]">
-                <Blocks className="h-4 w-4" />
-                能力标签
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {item.categories.map((category) => (
-                  <Chip key={category} tone="outline">
-                    {category}
-                  </Chip>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
+        {item.categories.length > 0 ? (
           <div className="rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-elevated)] p-5">
             <div className="mb-3 flex items-center gap-2 text-[14px] font-medium text-[var(--text-primary)]">
-              <ShieldCheck className="h-4 w-4" />
-              安全提示
+              <Blocks className="h-4 w-4" />
+              能力标签
             </div>
-            <div className="space-y-3">
-              <InfoTile
-                label="目录来源"
-                value={item.defaultInstalled ? '当前 app 默认绑定，视为已安装' : '来自 control-plane 云端目录'}
-                description="默认安装态由后端按 app 绑定中心化控制，前端只负责展示。"
-              />
-              <InfoTile
-                label="后续出口"
-                value="已预留构建/启动时同步到本地运行时的链路"
-                description="当前这一版先打通目录、安装态和用户库，不在本地代码里维护 cloud catalog。"
-              />
+            <div className="flex flex-wrap gap-2">
+              {item.categories.map((category) => (
+                <Chip key={category} tone="outline">
+                  {category}
+                </Chip>
+              ))}
             </div>
           </div>
-        </div>
+        ) : null}
 
-        <div className="border-t border-[var(--border-default)] px-6 py-4 dark:border-t-[rgba(255,255,255,0.08)]">
-          <div className="flex gap-3">
-            <Button variant="secondary" size="md" block onClick={onClose}>
-              关闭
-            </Button>
-            {item.userInstalled ? (
-              <Button variant="danger" size="md" block disabled={busy} onClick={() => onRemove(item)}>
-                {busy ? '处理中…' : '移除'}
-              </Button>
-            ) : (
-              <Button variant="primary" size="md" block disabled={busy || item.installState === 'bundled' || item.installed} onClick={() => onInstall(item)}>
-                {busy ? '处理中…' : item.installState === 'bundled' ? '默认已安装' : '安装到我的MCP'}
-              </Button>
-            )}
+        <div className="rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-elevated)] p-5">
+          <div className="mb-3 flex items-center gap-2 text-[14px] font-medium text-[var(--text-primary)]">
+            <ShieldCheck className="h-4 w-4" />
+            安全提示
+          </div>
+          <div className="space-y-3">
+            <InfoTile
+              label="目录来源"
+              value={item.defaultInstalled ? '当前 app 默认绑定，视为已安装' : '来自 control-plane 云端目录'}
+              description="默认安装态由后端按 app 绑定中心化控制，前端只负责展示。"
+            />
+            <InfoTile
+              label="后续出口"
+              value="已预留构建/启动时同步到本地运行时的链路"
+              description="当前这一版先打通目录、安装态和用户库，不在本地代码里维护 cloud catalog。"
+            />
           </div>
         </div>
-      </aside>
-    </div>
+      </div>
+    </SideDetailSheet>
   );
 }
 

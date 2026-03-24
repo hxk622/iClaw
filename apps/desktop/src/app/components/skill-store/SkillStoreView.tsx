@@ -261,10 +261,6 @@ function SkillCard({
       onClick={
         !adminMode
           ? () => {
-              if (canStartConversation) {
-                onStartConversation(skill);
-                return;
-              }
               onOpenDetail(skill);
             }
           : undefined

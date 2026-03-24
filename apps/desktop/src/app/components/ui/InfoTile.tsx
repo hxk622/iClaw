@@ -28,15 +28,17 @@ export function InfoTile({
   return (
     <div
       className={cn(
-        'rounded-[18px] border px-4 py-3',
+        'min-w-0 overflow-hidden rounded-[18px] border px-4 py-3',
         TONE_CLASS[tone],
         className,
       )}
     >
       <div className="text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">{label}</div>
-      <div className="mt-2 text-[14px] font-medium text-[var(--text-primary)]">{value}</div>
+      <div className="mt-2 min-w-0 break-words text-[14px] font-medium text-[var(--text-primary)] [overflow-wrap:anywhere]">
+        {value}
+      </div>
       {description ? (
-        <p className="mt-1.5 text-[13px] leading-6 text-[var(--text-secondary)]">{description}</p>
+        <p className="mt-1.5 break-words text-[13px] leading-6 text-[var(--text-secondary)] [overflow-wrap:anywhere]">{description}</p>
       ) : null}
     </div>
   );
