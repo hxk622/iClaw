@@ -274,6 +274,29 @@ create table if not exists user_private_skills (
   primary key (user_id, slug)
 );
 
+create table if not exists user_files (
+  id uuid primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  tenant_id text not null,
+  kind text not null,
+  status text not null default 'active',
+  storage_provider text not null default 'minio',
+  object_key text not null,
+  original_file_name text not null,
+  mime_type text not null,
+  size_bytes bigint not null,
+  sha256 text not null,
+  source text,
+  task_id text,
+  metadata_json jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+
+create index if not exists user_files_user_created_idx on user_files (user_id, created_at desc);
+create index if not exists user_files_user_status_idx on user_files (user_id, status, created_at desc);
+
 create table if not exists user_skill_library (
   user_id uuid not null references users(id) on delete cascade,
   skill_slug text not null,

@@ -105,6 +105,34 @@ function resolvePublicBaseUrl(headers: Record<string, string | string[] | undefi
   return `${protocol}://${host || `127.0.0.1:${config.port}`}`;
 }
 
+async function parseMultipartFormData(
+  body: Buffer,
+  headers: Record<string, string | string[] | undefined>,
+): Promise<FormData> {
+  const contentTypeHeader = headers['content-type'];
+  const contentType = (Array.isArray(contentTypeHeader) ? contentTypeHeader[0] : contentTypeHeader)?.trim() || '';
+  if (!contentType.toLowerCase().startsWith('multipart/form-data')) {
+    throw new HttpError(400, 'BAD_REQUEST', 'Content-Type must be multipart/form-data');
+  }
+  const request = new Request('http://127.0.0.1/upload', {
+    method: 'POST',
+    headers: {
+      'Content-Type': contentType,
+    },
+    body: new Uint8Array(body),
+  });
+  try {
+    return await request.formData();
+  } catch {
+    throw new HttpError(400, 'BAD_REQUEST', 'failed to parse multipart form data');
+  }
+}
+
+function getFormDataString(formData: FormData, key: string): string | null {
+  const value = formData.get(key);
+  return typeof value === 'string' ? value : null;
+}
+
 function resolveRequestedAppName(
   headers: Record<string, string | string[] | undefined>,
   url?: URL,
@@ -427,6 +455,68 @@ const server = createJsonServer([
     path: '/workspace/backup',
     handler: ({headers, body}: HandlerContext) =>
       service.saveWorkspaceBackup(requireBearerToken(headers), (body || {}) as WorkspaceBackupInput),
+  },
+  {
+    method: 'GET',
+    path: '/files',
+    handler: ({headers, url}: HandlerContext) =>
+      service.listUserFiles(
+        requireBearerToken(headers),
+        {
+          kind: (url.searchParams.get('kind') || '').trim() || null,
+          include_deleted: ['1', 'true', 'yes', 'on'].includes(
+            (url.searchParams.get('include_deleted') || '').trim().toLowerCase(),
+          ),
+          limit: url.searchParams.get('limit') ? Number.parseInt(url.searchParams.get('limit') || '', 10) : null,
+        },
+        resolvePublicBaseUrl(headers),
+      ),
+  },
+  {
+    method: 'POST',
+    path: '/files/upload',
+    bodyType: 'raw',
+    handler: async ({headers, body}: HandlerContext<Buffer>) => {
+      const formData = await parseMultipartFormData(Buffer.isBuffer(body) ? body : Buffer.alloc(0), headers);
+      const fileEntry = formData.get('file');
+      if (!(fileEntry instanceof File)) {
+        throw new HttpError(400, 'BAD_REQUEST', 'file is required');
+      }
+      const content = Buffer.from(await fileEntry.arrayBuffer());
+      return service.uploadUserFile(
+        requireBearerToken(headers),
+        {
+          fileName: fileEntry.name || 'file.bin',
+          contentType: fileEntry.type || null,
+          content,
+          kind: getFormDataString(formData, 'kind'),
+          source: getFormDataString(formData, 'source'),
+          task_id: getFormDataString(formData, 'task_id') || getFormDataString(formData, 'taskId'),
+        },
+        resolvePublicBaseUrl(headers),
+      );
+    },
+  },
+  {
+    method: 'GET',
+    path: '/files/:fileId/content',
+    handler: async ({headers, params}: HandlerContext) => {
+      const {record, file} = await service.downloadUserFile(requireBearerToken(headers), params.fileId || '');
+      return createRawResponse(file.buffer, {
+        headers: {
+          'Content-Type': file.contentType,
+          'Content-Length': String(file.buffer.length),
+          'Cache-Control': 'private, max-age=300',
+          'Content-Disposition': `attachment; filename="${encodeURIComponent(record.originalFileName)}"`,
+        },
+      });
+    },
+  },
+  {
+    method: 'DELETE',
+    path: '/files/:fileId',
+    handler: ({headers, params}: HandlerContext) =>
+      service.deleteUserFile(requireBearerToken(headers), params.fileId || '', resolvePublicBaseUrl(headers)),
   },
   {
     method: 'GET',

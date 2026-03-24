@@ -4,6 +4,11 @@ import { deleteAvatarByKey, deleteOldAvatars, extractAvatarKey, uploadAvatar } f
 import {config} from './config.ts';
 import {randomBytes} from 'node:crypto';
 import {deletePrivateSkillArtifact, uploadPrivateSkillArtifact} from './skill-storage.ts';
+import {
+  deleteUserFile as deleteStoredUserFile,
+  downloadUserFile as downloadStoredUserFile,
+  uploadUserFile as storeUserFile,
+} from './user-file-storage.ts';
 
 import type {
   AdminAgentCatalogEntryView,
@@ -49,6 +54,8 @@ import type {
   UsageEventInput,
   UsageEventResult,
   UserAgentLibraryItemView,
+  UserFileRecord,
+  UserFileView,
   UserMcpLibraryItemView,
   UserPrivateSkillRecord,
   UserRecord,
@@ -179,6 +186,25 @@ function toPaymentOrderView(order: PaymentOrderRecord): PaymentOrderView {
     payment_url: order.paymentUrl,
     paid_at: order.paidAt,
     expires_at: order.expiredAt,
+  };
+}
+
+function toUserFileView(record: UserFileRecord, baseUrl: string): UserFileView {
+  return {
+    file_id: record.id,
+    tenant_id: record.tenantId,
+    kind: record.kind,
+    status: record.status,
+    name: record.originalFileName,
+    mime: record.mimeType,
+    size: record.sizeBytes,
+    sha256: record.sha256,
+    source: record.source,
+    task_id: record.taskId,
+    url: `${baseUrl.replace(/\/$/, '')}/files/${encodeURIComponent(record.id)}/content`,
+    created_at: record.createdAt,
+    updated_at: record.updatedAt,
+    deleted_at: record.deletedAt,
   };
 }
 
@@ -676,6 +702,57 @@ function normalizeOptionalInteger(value: unknown, field: string): number | undef
   return Math.floor(value);
 }
 
+function normalizeUserFileKind(value: unknown, fallback = 'generic'): string {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+  if (typeof value !== 'string') {
+    throw new HttpError(400, 'BAD_REQUEST', 'kind must be a string');
+  }
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) {
+    return fallback;
+  }
+  if (!/^[a-z0-9][a-z0-9_-]{0,47}$/.test(normalized)) {
+    throw new HttpError(400, 'BAD_REQUEST', 'kind must match [a-z0-9_-] and be 1-48 chars');
+  }
+  return normalized;
+}
+
+function normalizeUserFileSource(value: unknown): string | null {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  if (typeof value !== 'string') {
+    throw new HttpError(400, 'BAD_REQUEST', 'source must be a string');
+  }
+  const normalized = value.trim();
+  if (!normalized) {
+    return null;
+  }
+  if (normalized.length > 80) {
+    throw new HttpError(400, 'BAD_REQUEST', 'source must be 80 chars or fewer');
+  }
+  return normalized;
+}
+
+function normalizeUserFileTaskId(value: unknown): string | null {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  if (typeof value !== 'string') {
+    throw new HttpError(400, 'BAD_REQUEST', 'task_id must be a string');
+  }
+  const normalized = value.trim();
+  if (!normalized) {
+    return null;
+  }
+  if (normalized.length > 120) {
+    throw new HttpError(400, 'BAD_REQUEST', 'task_id must be 120 chars or fewer');
+  }
+  return normalized;
+}
+
 function toUserAgentLibraryItemView(record: {
   slug: string;
   installedAt: string;
@@ -1170,6 +1247,94 @@ export class ControlPlaneService {
       agents_md: requireWorkspaceMarkdown(input.agents_md, 'agents_md'),
     });
     return toWorkspaceBackupView(backup);
+  }
+
+  async listUserFiles(
+    accessToken: string,
+    input: {kind?: string | null; include_deleted?: boolean; limit?: number | null},
+    baseUrl: string,
+  ): Promise<{items: UserFileView[]}> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const items = await this.store.listUserFiles(user.id, {
+      kind: input.kind ? normalizeUserFileKind(input.kind, '') : null,
+      includeDeleted: Boolean(input.include_deleted),
+      limit: normalizeOptionalInteger(input.limit ?? undefined, 'limit') ?? 100,
+    });
+    return {
+      items: items.map((item) => toUserFileView(item, baseUrl)),
+    };
+  }
+
+  async uploadUserFile(
+    accessToken: string,
+    input: {
+      fileName: string;
+      contentType?: string | null;
+      content: Buffer;
+      kind?: string | null;
+      source?: string | null;
+      task_id?: string | null;
+    },
+    baseUrl: string,
+  ): Promise<UserFileView> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const kind = normalizeUserFileKind(input.kind);
+    const upload = await storeUserFile({
+      userId: user.id,
+      kind,
+      fileName: input.fileName,
+      contentType: input.contentType,
+      content: input.content,
+    });
+    let record: UserFileRecord;
+    try {
+      record = await this.store.createUserFile(user.id, {
+        tenantId: upload.tenantId,
+        kind,
+        storageProvider: 'minio',
+        objectKey: upload.objectKey,
+        originalFileName: upload.originalFileName,
+        mimeType: upload.mimeType,
+        sizeBytes: upload.sizeBytes,
+        sha256: upload.sha256,
+        source: normalizeUserFileSource(input.source),
+        taskId: normalizeUserFileTaskId(input.task_id),
+        metadata: {},
+      });
+    } catch (error) {
+      await deleteStoredUserFile(upload.objectKey).catch(() => undefined);
+      throw error;
+    }
+    return toUserFileView(record, baseUrl);
+  }
+
+  async getUserFileRecord(accessToken: string, fileIdInput: string): Promise<UserFileRecord> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const fileId = normalizeIdentifier(fileIdInput, 'file_id');
+    const record = await this.store.getUserFile(user.id, fileId);
+    if (!record || record.status === 'deleted') {
+      throw new HttpError(404, 'NOT_FOUND', 'file not found');
+    }
+    return record;
+  }
+
+  async downloadUserFile(accessToken: string, fileIdInput: string): Promise<{
+    record: UserFileRecord;
+    file: {buffer: Buffer; contentType: string};
+  }> {
+    const record = await this.getUserFileRecord(accessToken, fileIdInput);
+    const file = await downloadStoredUserFile(record.objectKey);
+    return {record, file};
+  }
+
+  async deleteUserFile(accessToken: string, fileIdInput: string, baseUrl: string): Promise<UserFileView> {
+    const record = await this.getUserFileRecord(accessToken, fileIdInput);
+    await deleteStoredUserFile(record.objectKey);
+    const updated = await this.store.markUserFileDeleted(record.userId, record.id);
+    if (!updated) {
+      throw new HttpError(404, 'NOT_FOUND', 'file not found');
+    }
+    return toUserFileView(updated, baseUrl);
   }
 
   async listAgentCatalog(): Promise<{items: AgentCatalogEntryView[]}> {

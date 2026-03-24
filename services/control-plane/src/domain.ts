@@ -113,6 +113,45 @@ export type CreditQuoteAttachmentInput = {
   chars?: number;
 };
 
+export type UserFileStatus = 'active' | 'deleted';
+
+export type UserFileRecord = {
+  id: string;
+  userId: string;
+  tenantId: string;
+  kind: string;
+  status: UserFileStatus;
+  storageProvider: 'minio';
+  objectKey: string;
+  originalFileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  sha256: string;
+  source: string | null;
+  taskId: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+};
+
+export type UserFileView = {
+  file_id: string;
+  tenant_id: string;
+  kind: string;
+  status: UserFileStatus;
+  name: string;
+  mime: string;
+  size: number;
+  sha256: string;
+  source: string | null;
+  task_id: string | null;
+  url: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
 export type CreditQuoteInput = {
   message?: string;
   model?: string;

@@ -40,6 +40,7 @@ import type {
   UserSkillLibraryRecord,
   UpdateMcpLibraryItemInput,
   UpdateSkillLibraryItemInput,
+  UserFileRecord,
   UserRecord,
   WorkspaceBackupInput,
   WorkspaceBackupRecord,
@@ -123,6 +124,28 @@ export interface ControlPlaneStore {
   recordUsageEvent(userId: string, input: Required<UsageEventInput>): Promise<UsageEventResult>;
   getWorkspaceBackup(userId: string): Promise<WorkspaceBackupRecord | null>;
   saveWorkspaceBackup(userId: string, input: WorkspaceBackupInput): Promise<WorkspaceBackupRecord>;
+  listUserFiles(
+    userId: string,
+    options?: {kind?: string | null; includeDeleted?: boolean; limit?: number | null},
+  ): Promise<UserFileRecord[]>;
+  getUserFile(userId: string, fileId: string): Promise<UserFileRecord | null>;
+  createUserFile(
+    userId: string,
+    input: {
+      tenantId: string;
+      kind: string;
+      storageProvider: 'minio';
+      objectKey: string;
+      originalFileName: string;
+      mimeType: string;
+      sizeBytes: number;
+      sha256: string;
+      source?: string | null;
+      taskId?: string | null;
+      metadata?: Record<string, unknown>;
+    },
+  ): Promise<UserFileRecord>;
+  markUserFileDeleted(userId: string, fileId: string): Promise<UserFileRecord | null>;
   listAgentCatalog(): Promise<AgentCatalogEntryRecord[]>;
   listAgentCatalogAdmin(): Promise<AgentCatalogEntryRecord[]>;
   countAgentCatalogAdmin(): Promise<number>;
@@ -198,6 +221,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   private readonly usageEventsByEventId = new Map<string, UsageEventResult>();
   private readonly runBillingSummaryByGrantId = new Map<string, RunBillingSummaryRecord>();
   private readonly workspaceBackupsByUserId = new Map<string, WorkspaceBackupRecord>();
+  private readonly userFiles = new Map<string, UserFileRecord>();
   private readonly agentCatalog = new Map<string, AgentCatalogEntryRecord>();
   private readonly userAgentLibrary = new Map<string, UserAgentLibraryRecord>();
   private readonly skillCatalog = new Map<string, SkillCatalogEntryRecord>();
@@ -765,6 +789,85 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       updatedAt: now,
     };
     this.workspaceBackupsByUserId.set(userId, record);
+    return record;
+  }
+
+  async listUserFiles(
+    userId: string,
+    options?: {kind?: string | null; includeDeleted?: boolean; limit?: number | null},
+  ): Promise<UserFileRecord[]> {
+    const normalizedKind = options?.kind?.trim() || null;
+    const includeDeleted = Boolean(options?.includeDeleted);
+    const limit = typeof options?.limit === 'number' && Number.isFinite(options.limit) ? Math.max(1, Math.floor(options.limit)) : null;
+    const items = Array.from(this.userFiles.values())
+      .filter((item) => item.userId === userId)
+      .filter((item) => !normalizedKind || item.kind === normalizedKind)
+      .filter((item) => includeDeleted || item.status !== 'deleted')
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    return limit ? items.slice(0, limit) : items;
+  }
+
+  async getUserFile(userId: string, fileId: string): Promise<UserFileRecord | null> {
+    const record = this.userFiles.get(fileId);
+    return record && record.userId === userId ? record : null;
+  }
+
+  async createUserFile(
+    userId: string,
+    input: {
+      tenantId: string;
+      kind: string;
+      storageProvider: 'minio';
+      objectKey: string;
+      originalFileName: string;
+      mimeType: string;
+      sizeBytes: number;
+      sha256: string;
+      source?: string | null;
+      taskId?: string | null;
+      metadata?: Record<string, unknown>;
+    },
+  ): Promise<UserFileRecord> {
+    const now = new Date().toISOString();
+    const record: UserFileRecord = {
+      id: randomUUID(),
+      userId,
+      tenantId: input.tenantId,
+      kind: input.kind,
+      status: 'active',
+      storageProvider: input.storageProvider,
+      objectKey: input.objectKey,
+      originalFileName: input.originalFileName,
+      mimeType: input.mimeType,
+      sizeBytes: input.sizeBytes,
+      sha256: input.sha256,
+      source: input.source?.trim() || null,
+      taskId: input.taskId?.trim() || null,
+      metadata: input.metadata || {},
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: null,
+    };
+    this.userFiles.set(record.id, record);
+    return record;
+  }
+
+  async markUserFileDeleted(userId: string, fileId: string): Promise<UserFileRecord | null> {
+    const current = this.userFiles.get(fileId);
+    if (!current || current.userId !== userId) {
+      return null;
+    }
+    if (current.status === 'deleted') {
+      return current;
+    }
+    const now = new Date().toISOString();
+    const record: UserFileRecord = {
+      ...current,
+      status: 'deleted',
+      updatedAt: now,
+      deletedAt: now,
+    };
+    this.userFiles.set(fileId, record);
     return record;
   }
 

@@ -33,6 +33,7 @@ import type {
   UserSkillLibraryRecord,
   UpdateMcpLibraryItemInput,
   UpdateSkillLibraryItemInput,
+  UserFileRecord,
   UserRecord,
   WorkspaceBackupInput,
   WorkspaceBackupRecord,
@@ -336,6 +337,40 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     const backup = await this.base.saveWorkspaceBackup(userId, input);
     await this.cache.set(this.workspaceBackupKey(userId), backup, WORKSPACE_BACKUP_CACHE_TTL_SECONDS);
     return backup;
+  }
+
+  async listUserFiles(
+    userId: string,
+    options?: {kind?: string | null; includeDeleted?: boolean; limit?: number | null},
+  ): Promise<UserFileRecord[]> {
+    return this.base.listUserFiles(userId, options);
+  }
+
+  async getUserFile(userId: string, fileId: string): Promise<UserFileRecord | null> {
+    return this.base.getUserFile(userId, fileId);
+  }
+
+  async createUserFile(
+    userId: string,
+    input: {
+      tenantId: string;
+      kind: string;
+      storageProvider: 'minio';
+      objectKey: string;
+      originalFileName: string;
+      mimeType: string;
+      sizeBytes: number;
+      sha256: string;
+      source?: string | null;
+      taskId?: string | null;
+      metadata?: Record<string, unknown>;
+    },
+  ): Promise<UserFileRecord> {
+    return this.base.createUserFile(userId, input);
+  }
+
+  async markUserFileDeleted(userId: string, fileId: string): Promise<UserFileRecord | null> {
+    return this.base.markUserFileDeleted(userId, fileId);
   }
 
   async listAgentCatalog(): Promise<AgentCatalogEntryRecord[]> {

@@ -38,6 +38,7 @@ import type {
   UsageEventInput,
   UsageEventResult,
   UserAgentLibraryRecord,
+  UserFileRecord,
   UserMcpLibraryRecord,
   UserPrivateSkillRecord,
   UserRole,
@@ -155,6 +156,26 @@ type WorkspaceBackupRow = {
   agents_md: string;
   created_at: Date;
   updated_at: Date;
+};
+
+type UserFileRow = {
+  id: string;
+  user_id: string;
+  tenant_id: string;
+  kind: string;
+  status: 'active' | 'deleted';
+  storage_provider: 'minio';
+  object_key: string;
+  original_file_name: string;
+  mime_type: string;
+  size_bytes: string | number;
+  sha256: string;
+  source: string | null;
+  task_id: string | null;
+  metadata_json: Record<string, unknown> | null;
+  created_at: Date;
+  updated_at: Date;
+  deleted_at: Date | null;
 };
 
 type SkillCatalogRow = {
@@ -633,6 +654,28 @@ function mapUserPrivateSkillRow(row: UserPrivateSkillRow): UserPrivateSkillRecor
     artifactSha256: row.artifact_sha256,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapUserFileRow(row: UserFileRow): UserFileRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    tenantId: row.tenant_id,
+    kind: row.kind,
+    status: row.status,
+    storageProvider: row.storage_provider,
+    objectKey: row.object_key,
+    originalFileName: row.original_file_name,
+    mimeType: row.mime_type,
+    sizeBytes: Number(row.size_bytes),
+    sha256: row.sha256,
+    source: row.source,
+    taskId: row.task_id,
+    metadata: row.metadata_json || {},
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+    deletedAt: row.deleted_at ? row.deleted_at.toISOString() : null,
   };
 }
 
@@ -1933,6 +1976,212 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       [userId, input.identity_md, input.user_md, input.soul_md, input.agents_md],
     );
     return mapWorkspaceBackupRow(result.rows[0]);
+  }
+
+  async listUserFiles(
+    userId: string,
+    options?: {kind?: string | null; includeDeleted?: boolean; limit?: number | null},
+  ): Promise<UserFileRecord[]> {
+    const values: Array<string | number | boolean> = [userId];
+    const conditions = ['user_id = $1'];
+    if (!options?.includeDeleted) {
+      conditions.push(`status <> 'deleted'`);
+    }
+    if (options?.kind?.trim()) {
+      values.push(options.kind.trim());
+      conditions.push(`kind = $${values.length}`);
+    }
+    const limit =
+      typeof options?.limit === 'number' && Number.isFinite(options.limit) ? Math.max(1, Math.floor(options.limit)) : null;
+    let limitClause = '';
+    if (limit) {
+      values.push(limit);
+      limitClause = `limit $${values.length}`;
+    }
+    const result = await this.pool.query<UserFileRow>(
+      `
+        select
+          id,
+          user_id,
+          tenant_id,
+          kind,
+          status,
+          storage_provider,
+          object_key,
+          original_file_name,
+          mime_type,
+          size_bytes,
+          sha256,
+          source,
+          task_id,
+          metadata_json,
+          created_at,
+          updated_at,
+          deleted_at
+        from user_files
+        where ${conditions.join(' and ')}
+        order by created_at desc
+        ${limitClause}
+      `,
+      values,
+    );
+    return result.rows.map(mapUserFileRow);
+  }
+
+  async getUserFile(userId: string, fileId: string): Promise<UserFileRecord | null> {
+    const result = await this.pool.query<UserFileRow>(
+      `
+        select
+          id,
+          user_id,
+          tenant_id,
+          kind,
+          status,
+          storage_provider,
+          object_key,
+          original_file_name,
+          mime_type,
+          size_bytes,
+          sha256,
+          source,
+          task_id,
+          metadata_json,
+          created_at,
+          updated_at,
+          deleted_at
+        from user_files
+        where user_id = $1 and id = $2
+        limit 1
+      `,
+      [userId, fileId],
+    );
+    return result.rows[0] ? mapUserFileRow(result.rows[0]) : null;
+  }
+
+  async createUserFile(
+    userId: string,
+    input: {
+      tenantId: string;
+      kind: string;
+      storageProvider: 'minio';
+      objectKey: string;
+      originalFileName: string;
+      mimeType: string;
+      sizeBytes: number;
+      sha256: string;
+      source?: string | null;
+      taskId?: string | null;
+      metadata?: Record<string, unknown>;
+    },
+  ): Promise<UserFileRecord> {
+    const fileId = randomUUID();
+    const result = await this.pool.query<UserFileRow>(
+      `
+        insert into user_files (
+          id,
+          user_id,
+          tenant_id,
+          kind,
+          status,
+          storage_provider,
+          object_key,
+          original_file_name,
+          mime_type,
+          size_bytes,
+          sha256,
+          source,
+          task_id,
+          metadata_json,
+          created_at,
+          updated_at
+        )
+        values (
+          $1::uuid,
+          $2::uuid,
+          $3,
+          $4,
+          'active',
+          $5,
+          $6,
+          $7,
+          $8,
+          $9,
+          $10,
+          $11,
+          $12,
+          $13::jsonb,
+          now(),
+          now()
+        )
+        returning
+          id,
+          user_id,
+          tenant_id,
+          kind,
+          status,
+          storage_provider,
+          object_key,
+          original_file_name,
+          mime_type,
+          size_bytes,
+          sha256,
+          source,
+          task_id,
+          metadata_json,
+          created_at,
+          updated_at,
+          deleted_at
+      `,
+      [
+        fileId,
+        userId,
+        input.tenantId,
+        input.kind,
+        input.storageProvider,
+        input.objectKey,
+        input.originalFileName,
+        input.mimeType,
+        input.sizeBytes,
+        input.sha256,
+        input.source || null,
+        input.taskId || null,
+        JSON.stringify(input.metadata || {}),
+      ],
+    );
+    return mapUserFileRow(result.rows[0]);
+  }
+
+  async markUserFileDeleted(userId: string, fileId: string): Promise<UserFileRecord | null> {
+    const result = await this.pool.query<UserFileRow>(
+      `
+        update user_files
+        set
+          status = 'deleted',
+          updated_at = now(),
+          deleted_at = coalesce(deleted_at, now())
+        where user_id = $1 and id = $2
+        returning
+          id,
+          user_id,
+          tenant_id,
+          kind,
+          status,
+          storage_provider,
+          object_key,
+          original_file_name,
+          mime_type,
+          size_bytes,
+          sha256,
+          source,
+          task_id,
+          metadata_json,
+          created_at,
+          updated_at,
+          deleted_at
+      `,
+      [userId, fileId],
+    );
+    return result.rows[0] ? mapUserFileRow(result.rows[0]) : null;
   }
 
   async listAgentCatalog(): Promise<AgentCatalogEntryRecord[]> {

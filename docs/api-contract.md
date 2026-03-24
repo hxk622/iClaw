@@ -412,21 +412,37 @@ data: {"requestId":"r_123","code":"RATE_LIMIT","message":"Too many requests"}
 
 请求：`multipart/form-data`
 - `file`: 二进制文件
-- `taskId`（可选）
+- `kind`（可选，默认 `generic`）
+- `source`（可选）
+- `taskId` / `task_id`（可选）
 
 响应（200）：
 ```json
 {
   "success": true,
   "data": {
-    "fileId": "f_xxx",
+    "file_id": "2aaf7b50-6953-4de5-9ed6-85db72f9cb31",
+    "tenant_id": "licaiclaw",
+    "kind": "chat_attachment",
+    "status": "active",
     "name": "report.pdf",
     "size": 123456,
     "mime": "application/pdf",
-    "url": "..."
+    "sha256": "abc123...",
+    "source": "composer",
+    "task_id": "task_123",
+    "url": "http://127.0.0.1:2130/files/2aaf7b50-6953-4de5-9ed6-85db72f9cb31/content",
+    "created_at": "2026-03-24T02:30:00.000Z",
+    "updated_at": "2026-03-24T02:30:00.000Z",
+    "deleted_at": null
   }
 }
 ```
+
+补充接口：
+- `GET /files`：列出当前用户文件，支持 `kind`、`include_deleted`、`limit`
+- `GET /files/:fileId/content`：下载当前用户文件内容
+- `DELETE /files/:fileId`：删除当前用户文件（记录软删除，对象存储删除）
 
 ---
 
