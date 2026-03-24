@@ -100,6 +100,20 @@ if (!app) {
   throw new Error('admin-web mount failed');
 }
 
+function ensureCanonicalAdminWebOrigin() {
+  try {
+    const url = new URL(window.location.href);
+    if (url.port === '1520' && url.hostname === 'localhost') {
+      url.hostname = '127.0.0.1';
+      window.location.replace(url.toString());
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
+const redirectedToCanonicalOrigin = ensureCanonicalAdminWebOrigin();
+
 function isThemeMode(value) {
   return value === 'light' || value === 'dark' || value === 'system';
 }
@@ -199,6 +213,7 @@ const state = {
   selectedSkillSlug: '',
   selectedMcpKey: '',
   selectedModelRef: '',
+  selectedBrandMenuKey: '',
   selectedCloudSkillSlug: '',
   selectedSkillSyncSourceId: '',
   selectedReleaseId: '',
@@ -255,6 +270,10 @@ function persistTokens(tokens) {
     return;
   }
   localStorage.removeItem(TOKEN_STORAGE_KEY);
+}
+
+function isUnauthorizedError(error) {
+  return Boolean(error && typeof error === 'object' && error.code === 'UNAUTHORIZED');
 }
 
 function clone(value) {
@@ -559,6 +578,12 @@ function getMenuIconOptions() {
   return options;
 }
 
+function getIconOptionLabel(options, value) {
+  const normalized = String(value || '').trim();
+  const match = asArray(options).find(([optionValue]) => String(optionValue || '').trim() === normalized);
+  return match?.[1] || normalized || '默认图标';
+}
+
 function renderIconChoiceGroup(name, selectedValue, options) {
   const currentValue = String(selectedValue || '').trim();
   return `
@@ -578,6 +603,26 @@ function renderIconChoiceGroup(name, selectedValue, options) {
           `;
         })
         .join('')}
+    </div>
+  `;
+}
+
+function renderIconSelector(name, selectedValue, options, selectorLabel = '选择图标') {
+  const currentValue = String(selectedValue || '').trim();
+  return `
+    <div class="icon-selector">
+      <span class="icon-selector__preview">${renderIconPreview(currentValue, 'icon-selector__svg')}</span>
+      <div class="icon-selector__body">
+        <select class="field-select" name="${escapeHtml(name)}">
+          ${options
+            .map(([value, label]) => {
+              const normalizedValue = String(value || '').trim();
+              return `<option value="${escapeHtml(normalizedValue)}"${normalizedValue === currentValue ? ' selected' : ''}>${escapeHtml(label || normalizedValue || '默认图标')}</option>`;
+            })
+            .join('')}
+        </select>
+        <span class="icon-selector__hint">${escapeHtml(selectorLabel)}，当前：${escapeHtml(getIconOptionLabel(options, currentValue))}</span>
+      </div>
     </div>
   `;
 }
@@ -2408,11 +2453,16 @@ async function ensureSession() {
     state.user = await apiFetch('/auth/me', {method: 'GET'});
     state.view = 'dashboard';
     await loadAppData();
-  } catch {
-    persistTokens(null);
+  } catch (error) {
     state.user = null;
+    if (isUnauthorizedError(error)) {
+      persistTokens(null);
+      state.view = 'login';
+      render();
+      return;
+    }
     state.view = 'login';
-    render();
+    setError(error instanceof Error ? `恢复登录态失败：${error.message}` : '恢复登录态失败，请稍后刷新重试');
   }
 }
 
@@ -7625,5 +7675,7 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
   }
 });
 
-render();
-ensureSession();
+if (!redirectedToCanonicalOrigin) {
+  render();
+  ensureSession();
+}
