@@ -6,14 +6,20 @@ import type {
   SkillCatalogPageData,
   SkillSyncRunData,
   SkillSyncSourceData,
+  UserExtensionInstallConfigData,
   UserSkillLibraryItemData,
 } from '@iclaw/sdk';
+import type {
+  ExtensionInstallConfigSnapshot,
+  ExtensionSetupSchema,
+  ExtensionSetupStatus,
+} from './extension-setup';
+import {parseExtensionSetupSchema} from './extension-setup';
 
 export type RawBundledSkillCatalogItem = {
   slug: string;
   name: string;
   description: string;
-  visibility: string | null;
   tags: string[];
   license: string | null;
   homepage: string | null;
@@ -81,7 +87,6 @@ export type SkillStoreItem = {
   tags: string[];
   downloadCount: number | null;
   featured: boolean;
-  visibility: string;
   source: 'bundled' | 'cloud' | 'private';
   market: SkillMarketLabel;
   skillType: SkillTypeLabel;
@@ -99,6 +104,11 @@ export type SkillStoreItem = {
   artifactFormat: string | null;
   artifactSha256: string | null;
   sourceUrl: string | null;
+  metadata: Record<string, unknown>;
+  setupSchema: ExtensionSetupSchema | null;
+  setupStatus: ExtensionSetupStatus;
+  setupSchemaVersion: number | null;
+  setupUpdatedAt: string | null;
 };
 
 export type AdminSkillStoreItem = SkillStoreItem & {
@@ -151,7 +161,7 @@ const FEATURED_SKILL_SLUGS = new Set([
 
 const SKILL_STORE_UPDATED_EVENT = 'iclaw-skill-store-updated';
 const SKILL_STORE_SYNC_ERROR_EVENT = 'iclaw-skill-store-sync-error';
-const SKILL_STORE_CACHE_KEY = 'iclaw.skill-store.cache.v1';
+const SKILL_STORE_CACHE_KEY_PREFIX = 'iclaw.skill-store.cache.v2';
 const SKILL_STORE_INITIAL_CLOUD_LIMIT = 60;
 const SKILL_STORE_CACHE_TTL_MS = 30 * 60 * 1000;
 
@@ -164,6 +174,10 @@ type SkillStoreCatalogCacheSnapshot = {
   offset: number;
   hasMore: boolean;
   nextOffset: number | null;
+};
+
+type SkillStoreCatalogQuery = {
+  tagKeywords?: string[];
 };
 
 function isTauriRuntime(): boolean {
@@ -361,7 +375,6 @@ function normalizeBundledSkill(item: RawBundledSkillCatalogItem): SkillStoreItem
     tags: item.tags,
     downloadCount: null,
     featured: isFeaturedSkill(item),
-    visibility: item.visibility || 'showcase',
     source: 'bundled',
     market,
     skillType: inferSkillType(item),
@@ -379,6 +392,11 @@ function normalizeBundledSkill(item: RawBundledSkillCatalogItem): SkillStoreItem
     artifactFormat: null,
     artifactSha256: null,
     sourceUrl: null,
+    metadata: {},
+    setupSchema: null,
+    setupStatus: 'not_required',
+    setupSchemaVersion: null,
+    setupUpdatedAt: null,
   };
 }
 
@@ -436,7 +454,21 @@ function toSnapshotSkill(item: SkillStoreItem): SkillStoreItem {
   };
 }
 
-function persistSkillStoreCatalogSnapshot(page: SkillStoreCatalogPage): void {
+function normalizeSkillStoreCatalogQuery(query?: SkillStoreCatalogQuery): {tagKeywords: string[]} {
+  return {
+    tagKeywords: Array.from(new Set((query?.tagKeywords || []).map((keyword) => keyword.trim()).filter(Boolean))),
+  };
+}
+
+function skillStoreCatalogCacheKey(query?: SkillStoreCatalogQuery): string {
+  const normalized = normalizeSkillStoreCatalogQuery(query);
+  if (normalized.tagKeywords.length === 0) {
+    return `${SKILL_STORE_CACHE_KEY_PREFIX}:all`;
+  }
+  return `${SKILL_STORE_CACHE_KEY_PREFIX}:tags:${normalized.tagKeywords.join('|').toLowerCase()}`;
+}
+
+function persistSkillStoreCatalogSnapshot(page: SkillStoreCatalogPage, query?: SkillStoreCatalogQuery): void {
   if (!canUseStorage()) {
     return;
   }
@@ -451,18 +483,18 @@ function persistSkillStoreCatalogSnapshot(page: SkillStoreCatalogPage): void {
       hasMore: page.hasMore,
       nextOffset: page.nextOffset,
     };
-    window.localStorage.setItem(SKILL_STORE_CACHE_KEY, JSON.stringify(snapshot));
+    window.localStorage.setItem(skillStoreCatalogCacheKey(query), JSON.stringify(snapshot));
   } catch {
     // Ignore cache write errors and continue with live data.
   }
 }
 
-export function readSkillStoreCatalogSnapshot(): SkillStoreCatalogPage | null {
+export function readSkillStoreCatalogSnapshot(query?: SkillStoreCatalogQuery): SkillStoreCatalogPage | null {
   if (!canUseStorage()) {
     return null;
   }
   try {
-    const raw = window.localStorage.getItem(SKILL_STORE_CACHE_KEY);
+    const raw = window.localStorage.getItem(skillStoreCatalogCacheKey(query));
     if (!raw) {
       return null;
     }
@@ -497,10 +529,12 @@ function normalizeCloudSkill(
   const inferredCategoryId = inferCategoryId(item);
   const categoryId =
     market === 'A股' ? 'a-share' : market === '美股' ? 'us-stock' : inferredCategoryId;
+  const builtin = item.source === 'bundled';
   const userInstalled = Boolean(libraryItem);
-  const localInstalled = Boolean(localItem);
-  const installed = userInstalled || localInstalled;
-  const enabled = libraryItem?.enabled ?? installed;
+  const localInstalled = builtin || Boolean(localItem);
+  const installed = builtin || userInstalled || localInstalled;
+  const enabled = builtin ? true : (libraryItem?.enabled ?? installed);
+  const setupSchema = parseExtensionSetupSchema(item.metadata);
 
   return {
     slug: item.slug,
@@ -509,24 +543,28 @@ function normalizeCloudSkill(
     tags: item.tags,
     downloadCount: readSkillDownloadCount(item.metadata),
     featured: isFeaturedSkill(item),
-    visibility: item.visibility || 'showcase',
     source: item.source,
     market,
     skillType: inferSkillType(item),
     categoryId,
     categoryLabel: categoryLabel(categoryId, market),
-    official: normalizeText(item.publisher) === 'iclaw',
+    official: builtin || normalizeText(item.publisher) === 'iclaw',
     installed,
     userInstalled,
     localInstalled,
     enabled,
-    sourceLabel: item.source === 'private' ? '我的导入' : '云端技能',
+    sourceLabel: item.source === 'private' ? '我的导入' : builtin ? '系统预置' : '云端技能',
     publisher: item.publisher,
     version: item.version,
     artifactUrl: item.artifact_url,
     artifactFormat: item.artifact_format,
     artifactSha256: item.artifact_sha256,
     sourceUrl: item.source_url,
+    metadata: item.metadata || {},
+    setupSchema,
+    setupStatus: libraryItem?.setup_status || (setupSchema ? 'missing' : 'not_required'),
+    setupSchemaVersion: libraryItem?.setup_schema_version ?? setupSchema?.version ?? null,
+    setupUpdatedAt: libraryItem?.setup_updated_at ?? null,
   };
 }
 
@@ -542,7 +580,6 @@ function normalizeAdminSkill(
           ...bundledItem,
           name: item.name,
           description: item.description,
-          visibility: item.visibility,
           tags: item.tags,
           market: item.market,
           category: item.category,
@@ -554,7 +591,6 @@ function normalizeAdminSkill(
 
   return {
     ...normalized,
-    visibility: item.visibility || normalized.visibility,
     source: item.source,
     sourceLabel: item.source === 'bundled' ? '系统预置' : '云端技能',
     active: item.active,
@@ -603,11 +639,7 @@ async function removeManagedSkill(slug: string): Promise<boolean> {
 
 export async function loadBundledSkillCatalog(): Promise<SkillStoreItem[]> {
   const rawItems = await loadBundledSkillCatalogRaw();
-  return sortSkillStoreItems(
-    rawItems
-    .map(normalizeBundledSkill)
-    .filter((item) => item.visibility === 'showcase'),
-  );
+  return sortSkillStoreItems(rawItems.map(normalizeBundledSkill));
 }
 
 function normalizeCatalogPageMeta<T>(page: SkillCatalogPageData<T>) {
@@ -625,14 +657,14 @@ export async function loadSkillStoreCatalogPage(input: {
   accessToken: string | null;
   offset?: number;
   limit?: number;
+  tagKeywords?: string[];
 }): Promise<SkillStoreCatalogPage> {
   const offset = Math.max(0, Math.floor(input.offset ?? 0));
   const limit = Math.max(1, Math.floor(input.limit ?? SKILL_STORE_INITIAL_CLOUD_LIMIT));
-  const includeBundled = offset === 0;
+  const normalizedQuery = normalizeSkillStoreCatalogQuery({tagKeywords: input.tagKeywords});
 
-  const [bundledItems, cloudPage, privatePage, libraryItems, localManagedItems] = await Promise.all([
-    includeBundled ? loadBundledSkillCatalog() : Promise.resolve([]),
-    input.client.listSkillsCatalogPage({ limit, offset }),
+  const [cloudPage, privatePage, libraryItems, localManagedItems] = await Promise.all([
+    input.client.listSkillsCatalogPage({ limit, offset, tagKeywords: normalizedQuery.tagKeywords }),
     input.accessToken && offset === 0
       ? input.client.listPersonalSkillsCatalogPage(input.accessToken, { limit: 200, offset: 0 }).catch(() => null)
       : Promise.resolve(null),
@@ -643,21 +675,19 @@ export async function loadSkillStoreCatalogPage(input: {
   const libraryBySlug = new Map(libraryItems.map((item) => [item.slug, item]));
   const localBySlug = new Map(localManagedItems.map((item) => [item.slug, item]));
   const cloudItems = cloudPage.items
-    .map((item) => normalizeCloudSkill(item, libraryBySlug.get(item.slug) || null, localBySlug.get(item.slug) || null))
-    .filter((item) => item.visibility === 'showcase');
+    .map((item) => normalizeCloudSkill(item, libraryBySlug.get(item.slug) || null, localBySlug.get(item.slug) || null));
   const privateItems =
     privatePage?.items
       .filter((item) => item.source === 'private')
-      .map((item) => normalizeCloudSkill(item, libraryBySlug.get(item.slug) || null, localBySlug.get(item.slug) || null))
-      .filter((item) => item.visibility === 'showcase') || [];
+      .map((item) => normalizeCloudSkill(item, libraryBySlug.get(item.slug) || null, localBySlug.get(item.slug) || null)) || [];
   const page = toSkillStoreCatalogPage({
-    items: mergeSkillStoreItems(bundledItems, privateItems, cloudItems),
-    total: bundledItems.length + privateItems.length + cloudPage.total,
+    items: mergeSkillStoreItems(privateItems, cloudItems),
     ...normalizeCatalogPageMeta(cloudPage),
+    total: privateItems.length + cloudPage.total,
   });
 
   if (offset === 0) {
-    persistSkillStoreCatalogSnapshot(page);
+    persistSkillStoreCatalogSnapshot(page, normalizedQuery);
   }
   return page;
 }
@@ -699,8 +729,8 @@ export async function loadAdminSkillStoreCatalogPage(input: {
         bundledBySlug.get(item.slug) || null,
       ),
     ),
-    total: adminPage.total,
     ...normalizeCatalogPageMeta(adminPage),
+    total: adminPage.total,
   });
 }
 
@@ -720,7 +750,6 @@ export async function saveAdminSkillStoreEntry(input: {
     name?: string;
     description?: string;
     featured?: boolean;
-    visibility?: 'showcase' | 'internal';
     market?: string | null;
     category?: string | null;
     skillType?: string | null;
@@ -736,7 +765,6 @@ export async function saveAdminSkillStoreEntry(input: {
     name: input.item.name,
     description: input.item.description,
     featured: input.item.featured,
-    visibility: input.item.visibility,
     market: input.item.market,
     category: input.item.category,
     skillType: input.item.skillType,
@@ -789,6 +817,8 @@ export async function installSkillFromStore(input: {
   client: IClawClient;
   accessToken: string | null;
   item: SkillStoreItem;
+  setupValues?: Record<string, unknown>;
+  secretValues?: Record<string, string>;
 }): Promise<void> {
   if (input.item.source !== 'cloud' && input.item.source !== 'private') {
     return;
@@ -805,6 +835,8 @@ export async function installSkillFromStore(input: {
     token: input.accessToken,
     slug: input.item.slug,
     version: input.item.version,
+    setupValues: input.setupValues,
+    secretValues: input.secretValues,
   });
 
   await installManagedSkill({
@@ -815,6 +847,53 @@ export async function installSkillFromStore(input: {
     artifact_format: input.item.artifactFormat,
     source: input.item.source === 'private' ? 'private' : 'cloud',
   });
+}
+
+export async function loadExtensionInstallConfig(input: {
+  client: IClawClient;
+  accessToken: string;
+  extensionType: 'skill' | 'mcp';
+  extensionKey: string;
+}): Promise<ExtensionInstallConfigSnapshot | null> {
+  const record = await input.client.getExtensionInstallConfig(
+    input.accessToken,
+    input.extensionType,
+    input.extensionKey,
+  );
+  if (!record) {
+    return null;
+  }
+  return {
+    setupValues: record.config_values || {},
+    configuredSecretKeys: record.configured_secret_keys || [],
+    status: record.status,
+    schemaVersion: record.schema_version,
+    updatedAt: record.updated_at,
+  };
+}
+
+export async function saveExtensionInstallConfig(input: {
+  client: IClawClient;
+  accessToken: string;
+  extensionType: 'skill' | 'mcp';
+  extensionKey: string;
+  setupValues?: Record<string, unknown>;
+  secretValues?: Record<string, string>;
+}): Promise<ExtensionInstallConfigSnapshot> {
+  const record = await input.client.upsertExtensionInstallConfig({
+    token: input.accessToken,
+    extensionType: input.extensionType,
+    extensionKey: input.extensionKey,
+    setupValues: input.setupValues,
+    secretValues: input.secretValues,
+  });
+  return {
+    setupValues: record.config_values || {},
+    configuredSecretKeys: record.configured_secret_keys || [],
+    status: record.status,
+    schemaVersion: record.schema_version,
+    updatedAt: record.updated_at,
+  };
 }
 
 export async function syncManagedSkills(input: {

@@ -1743,7 +1743,7 @@ export function OpenClawChatSurface({
 
       try {
         await request('sessions.patch', {
-          key: sessionKey,
+          key: resolvedModelSessionKey || sessionKey,
           model: nextModelId,
         });
         await refreshModelCatalog();
@@ -1758,7 +1758,7 @@ export function OpenClawChatSurface({
         setModelSwitching(false);
       }
     },
-    [refreshModelCatalog, selectedModelId, sessionKey],
+    [refreshModelCatalog, resolvedModelSessionKey, selectedModelId, sessionKey],
   );
 
   const handleSearchInstruments = useCallback(
@@ -2479,6 +2479,7 @@ export function OpenClawChatSurface({
         modelLoadVersionRef.current += 1;
         setModelOptions([]);
         setSelectedModelId(null);
+        setResolvedModelSessionKey(null);
         setModelsLoading(false);
       }
       setModelSwitching(false);
@@ -2689,6 +2690,11 @@ export function OpenClawChatSurface({
       connected: status.connected,
       lastError: status.lastError,
       lastErrorCode: status.lastErrorCode,
+      selectedModelId,
+      resolvedModelSessionKey,
+      modelOptions: modelOptions.map((option) => option.id),
+      modelsLoading,
+      modelSwitching,
       renderState,
       unhandledGatewayError,
       lastRpcFailure,
@@ -2704,7 +2710,12 @@ export function OpenClawChatSurface({
     gatewayUrl,
     hasGatewayAuth,
     lastRpcFailure,
+    modelOptions,
+    modelsLoading,
+    modelSwitching,
     renderState,
+    resolvedModelSessionKey,
+    selectedModelId,
     shellAuthenticated,
     status.connected,
     status.lastError,

@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto';
 
 import {Pool, type PoolClient} from 'pg';
+import {HttpError} from './errors.ts';
 
 import type {
   PortalAppComposerControlBindingRecord,
@@ -52,9 +53,14 @@ type PortalSkillRow = {
   slug: string;
   name: string;
   description: string;
+  market: string | null;
   category: string | null;
+  skill_type: string | null;
   publisher: string;
-  visibility: string;
+  distribution: string | null;
+  tags: string[] | null;
+  version: string | null;
+  source_url: string | null;
   object_key: string | null;
   content_sha256: string | null;
   metadata_json: Record<string, unknown> | null;
@@ -291,9 +297,14 @@ function mapSkillRow(row: PortalSkillRow): PortalSkillRecord {
     slug: row.slug,
     name: row.name,
     description: row.description,
+    market: row.market,
     category: row.category,
+    skillType: row.skill_type,
     publisher: row.publisher,
-    visibility: row.visibility,
+    distribution: row.distribution,
+    tags: Array.isArray(row.tags) ? row.tags.filter((item) => typeof item === 'string') : [],
+    version: row.version,
+    sourceUrl: row.source_url,
     objectKey: row.object_key,
     contentSha256: row.content_sha256,
     metadata: asJsonObject(row.metadata_json),
@@ -1384,20 +1395,28 @@ export class PgPortalStore {
     const result = await this.pool.query<PortalSkillRow>(
       `
         select
-          slug,
-          name,
-          description,
-          category,
-          publisher,
-          visibility,
-          object_key,
-          content_sha256,
-          metadata_json,
-          active,
-          created_at,
-          updated_at
-        from oem_skill_catalog
-        order by slug asc
+          p.slug,
+          coalesce(c.name, p.name) as name,
+          coalesce(c.description, p.description) as description,
+          c.market,
+          coalesce(c.category, p.category) as category,
+          c.skill_type,
+          coalesce(c.publisher, p.publisher) as publisher,
+          c.distribution,
+          c.tags,
+          c.version,
+          c.source_url,
+          null::text as object_key,
+          null::text as content_sha256,
+          p.metadata_json,
+          p.active,
+          p.created_at,
+          p.updated_at
+        from oem_skill_catalog p
+        left join skill_catalog_entries c
+          on c.slug = p.slug
+         and c.active = true
+        order by coalesce(c.name, p.name) asc, p.slug asc
       `,
     );
     return result.rows.map(mapSkillRow);
@@ -1562,20 +1581,28 @@ export class PgPortalStore {
     const result = await this.pool.query<PortalSkillRow>(
       `
         select
-          slug,
-          name,
-          description,
-          category,
-          publisher,
-          visibility,
-          object_key,
-          content_sha256,
-          metadata_json,
-          active,
-          created_at,
-          updated_at
-        from oem_skill_catalog
-        where slug = $1
+          p.slug,
+          coalesce(c.name, p.name) as name,
+          coalesce(c.description, p.description) as description,
+          c.market,
+          coalesce(c.category, p.category) as category,
+          c.skill_type,
+          coalesce(c.publisher, p.publisher) as publisher,
+          c.distribution,
+          c.tags,
+          c.version,
+          c.source_url,
+          null::text as object_key,
+          null::text as content_sha256,
+          p.metadata_json,
+          p.active,
+          p.created_at,
+          p.updated_at
+        from oem_skill_catalog p
+        left join skill_catalog_entries c
+          on c.slug = p.slug
+         and c.active = true
+        where p.slug = $1
         limit 1
       `,
       [slug],
@@ -1584,7 +1611,32 @@ export class PgPortalStore {
   }
 
   async upsertSkill(input: UpsertPortalSkillInput): Promise<PortalSkillRecord> {
-    const result = await this.pool.query<PortalSkillRow>(
+    const catalog = await this.pool.query<{
+      slug: string;
+      name: string;
+      description: string;
+      category: string | null;
+      publisher: string;
+    }>(
+      `
+        select
+          slug,
+          name,
+          description,
+          category,
+          publisher
+        from skill_catalog_entries
+        where slug = $1
+          and active = true
+        limit 1
+      `,
+      [input.slug],
+    );
+    if (!catalog.rows[0]) {
+      throw new HttpError(404, 'NOT_FOUND', `cloud skill not found: ${input.slug}`);
+    }
+    const cloud = catalog.rows[0];
+    await this.pool.query(
       `
         insert into oem_skill_catalog (
           slug,
@@ -1592,7 +1644,6 @@ export class PgPortalStore {
           description,
           category,
           publisher,
-          visibility,
           object_key,
           content_sha256,
           metadata_json,
@@ -1600,14 +1651,13 @@ export class PgPortalStore {
           created_at,
           updated_at
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, now(), now())
+        values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, now(), now())
         on conflict (slug)
         do update set
           name = excluded.name,
           description = excluded.description,
           category = excluded.category,
           publisher = excluded.publisher,
-          visibility = excluded.visibility,
           object_key = excluded.object_key,
           content_sha256 = excluded.content_sha256,
           metadata_json = excluded.metadata_json,
@@ -1619,7 +1669,6 @@ export class PgPortalStore {
           description,
           category,
           publisher,
-          visibility,
           object_key,
           content_sha256,
           metadata_json,
@@ -1629,18 +1678,21 @@ export class PgPortalStore {
       `,
       [
         input.slug,
-        input.name,
-        input.description,
-        input.category || null,
-        input.publisher,
-        input.visibility || 'showcase',
-        input.objectKey || null,
-        input.contentSha256 || null,
+        cloud.name,
+        cloud.description,
+        cloud.category || null,
+        cloud.publisher,
+        null,
+        null,
         JSON.stringify(input.metadata || {}),
         input.active ?? true,
       ],
     );
-    return mapSkillRow(result.rows[0]);
+    const next = await this.getSkill(input.slug);
+    if (!next) {
+      throw new Error(`platform skill upsert failed: ${input.slug}`);
+    }
+    return next;
   }
 
   async deleteSkill(slug: string): Promise<void> {
@@ -2091,6 +2143,31 @@ export class PgPortalStore {
       }
 
       for (const skill of input.skills) {
+        const catalog = await client.query<{
+          slug: string;
+          name: string;
+          description: string;
+          category: string | null;
+          publisher: string;
+        }>(
+          `
+            select
+              slug,
+              name,
+              description,
+              category,
+              publisher
+            from skill_catalog_entries
+            where slug = $1
+              and active = true
+            limit 1
+          `,
+          [skill.slug],
+        );
+        if (!catalog.rows[0]) {
+          throw new Error(`[portal-preset] preset skill not found in cloud catalog: ${skill.slug}`);
+        }
+        const cloud = catalog.rows[0];
         await client.query(
           `
             insert into oem_skill_catalog (
@@ -2099,7 +2176,6 @@ export class PgPortalStore {
               description,
               category,
               publisher,
-              visibility,
               object_key,
               content_sha256,
               metadata_json,
@@ -2107,14 +2183,13 @@ export class PgPortalStore {
               created_at,
               updated_at
             )
-            values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, now(), now())
+            values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, now(), now())
             on conflict (slug)
             do update set
               name = excluded.name,
               description = excluded.description,
               category = excluded.category,
               publisher = excluded.publisher,
-              visibility = excluded.visibility,
               object_key = excluded.object_key,
               content_sha256 = excluded.content_sha256,
               metadata_json = excluded.metadata_json,
@@ -2122,14 +2197,13 @@ export class PgPortalStore {
               updated_at = now()
           `,
           [
-            skill.slug,
-            skill.name,
-            skill.description,
-            skill.category || null,
-            skill.publisher,
-            skill.visibility || 'showcase',
-            skill.objectKey || null,
-            skill.contentSha256 || null,
+            cloud.slug,
+            cloud.name,
+            cloud.description,
+            cloud.category || null,
+            cloud.publisher,
+            null,
+            null,
             JSON.stringify(skill.metadata || {}),
             skill.active ?? true,
           ],

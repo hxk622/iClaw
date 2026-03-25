@@ -11,6 +11,7 @@ import {
 import {hashPassword} from './passwords.ts';
 import type {PortalPresetManifest} from './portal-domain.ts';
 import {syncPortalPresetManifest} from './portal-preset.ts';
+import {applySkillCatalogVisibilityMode, resolveSkillCatalogVisibilityMode} from './portal-skill-catalog-policy.ts';
 import {DEFAULT_CLAWHUB_SYNC_SOURCE} from './skill-sync-defaults.ts';
 import type {PgPortalStore} from './portal-store.ts';
 import type {ControlPlaneStore} from './store.ts';
@@ -77,6 +78,23 @@ export async function ensurePortalPreset(portalStore: PgPortalStore): Promise<vo
   });
 }
 
+export async function ensurePortalSkillCatalogPolicy(portalStore: PgPortalStore): Promise<void> {
+  const apps = await portalStore.listApps();
+  for (const app of apps) {
+    if (resolveSkillCatalogVisibilityMode(app.config) === 'all_cloud') {
+      continue;
+    }
+    await portalStore.upsertApp({
+      appName: app.appName,
+      displayName: app.displayName,
+      description: app.description,
+      status: app.status,
+      defaultLocale: app.defaultLocale,
+      config: applySkillCatalogVisibilityMode(app.config, 'all_cloud'),
+    });
+  }
+}
+
 export async function ensureDefaultSkillSyncSources(store: ControlPlaneStore): Promise<void> {
   await store.upsertSkillSyncSource(DEFAULT_CLAWHUB_SYNC_SOURCE);
 }
@@ -90,7 +108,6 @@ export async function ensureDefaultCatalogs(store: ControlPlaneStore): Promise<v
       slug: skill.slug,
       name: skill.name,
       description: skill.description,
-      visibility: 'showcase',
       market: skill.market,
       category: skill.category,
       skill_type: skill.skillType,

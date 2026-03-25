@@ -79,19 +79,80 @@ create table if not exists credit_accounts (
   updated_at timestamptz not null default now()
 );
 
+alter table credit_accounts add column if not exists daily_free_balance bigint;
+alter table credit_accounts add column if not exists topup_balance bigint;
+alter table credit_accounts add column if not exists daily_free_granted_at timestamptz;
+alter table credit_accounts add column if not exists daily_free_expires_at timestamptz;
+
+update credit_accounts
+set
+  daily_free_balance = coalesce(daily_free_balance, balance, 0),
+  topup_balance = coalesce(topup_balance, 0),
+  daily_free_granted_at = coalesce(daily_free_granted_at, updated_at, now()),
+  daily_free_expires_at = coalesce(daily_free_expires_at, updated_at, now())
+where
+  daily_free_balance is null
+  or topup_balance is null
+  or daily_free_granted_at is null
+  or daily_free_expires_at is null;
+
+alter table credit_accounts alter column daily_free_balance set default 0;
+alter table credit_accounts alter column topup_balance set default 0;
+alter table credit_accounts alter column daily_free_granted_at set default now();
+alter table credit_accounts alter column daily_free_expires_at set default now();
+alter table credit_accounts alter column updated_at set default now();
+alter table credit_accounts alter column daily_free_balance set not null;
+alter table credit_accounts alter column topup_balance set not null;
+alter table credit_accounts alter column daily_free_granted_at set not null;
+alter table credit_accounts alter column daily_free_expires_at set not null;
+alter table credit_accounts alter column updated_at set not null;
+
 create table if not exists credit_ledger (
   id uuid primary key,
   user_id uuid not null references users(id) on delete cascade,
   bucket text not null,
   direction text not null,
   amount bigint not null,
+  delta bigint not null,
   balance_after bigint not null,
   reference_type text,
   reference_id text,
+  event_type text not null,
   idempotency_key text,
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
+
+alter table credit_ledger add column if not exists bucket text;
+alter table credit_ledger add column if not exists direction text;
+alter table credit_ledger add column if not exists amount bigint;
+alter table credit_ledger add column if not exists idempotency_key text;
+
+update credit_ledger
+set
+  bucket = coalesce(
+    bucket,
+    case
+      when event_type = 'daily_reset' then 'daily_free'
+      when coalesce(delta, 0) >= 0 then 'topup'
+      else 'daily_free'
+    end
+  ),
+  direction = coalesce(
+    direction,
+    case
+      when event_type = 'daily_reset' then 'grant'
+      when event_type = 'topup' then 'topup'
+      when coalesce(delta, 0) >= 0 then 'refund'
+      else 'consume'
+    end
+  ),
+  amount = coalesce(amount, abs(coalesce(delta, 0)))
+where bucket is null or direction is null or amount is null;
+
+alter table credit_ledger alter column bucket set not null;
+alter table credit_ledger alter column direction set not null;
+alter table credit_ledger alter column amount set not null;
 
 create table if not exists run_grants (
   id uuid primary key,
@@ -197,7 +258,6 @@ create table if not exists skill_catalog_entries (
   slug text primary key,
   name text not null,
   description text not null,
-  visibility text not null default 'showcase',
   market text,
   category text,
   skill_type text,
@@ -226,6 +286,7 @@ alter table skill_catalog_entries add column if not exists artifact_source_path 
 alter table skill_catalog_entries add column if not exists origin_type text not null default 'manual';
 alter table skill_catalog_entries add column if not exists source_url text;
 alter table skill_catalog_entries add column if not exists metadata_json jsonb not null default '{}'::jsonb;
+alter table skill_catalog_entries drop column if exists visibility;
 
 create table if not exists skill_sync_sources (
   id text primary key,
@@ -320,6 +381,23 @@ create table if not exists user_mcp_library (
   primary key (user_id, mcp_key)
 );
 
+create table if not exists user_extension_install_configs (
+  user_id uuid not null references users(id) on delete cascade,
+  extension_type text not null,
+  extension_key text not null,
+  schema_version integer,
+  status text not null default 'configured',
+  config_json jsonb not null default '{}'::jsonb,
+  configured_secret_keys jsonb not null default '[]'::jsonb,
+  secret_payload_encrypted text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, extension_type, extension_key)
+);
+
+create index if not exists user_extension_install_configs_user_type_idx
+  on user_extension_install_configs (user_id, extension_type, updated_at desc);
+
 create table if not exists oem_brand_profiles (
   brand_id text primary key,
   tenant_key text not null,
@@ -385,7 +463,6 @@ create table if not exists oem_skill_catalog (
   description text not null,
   category text,
   publisher text not null default 'iClaw',
-  visibility text not null default 'showcase',
   object_key text,
   content_sha256 text,
   metadata_json jsonb not null default '{}'::jsonb,
@@ -393,6 +470,7 @@ create table if not exists oem_skill_catalog (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+alter table oem_skill_catalog drop column if exists visibility;
 
 create table if not exists oem_mcp_catalog (
   mcp_key text primary key,
@@ -437,6 +515,73 @@ create table if not exists oem_menu_catalog (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create table if not exists market_stock_catalog (
+  id text primary key,
+  market text not null,
+  exchange text not null,
+  symbol text not null,
+  company_name text not null,
+  board text,
+  status text not null default 'active',
+  source text not null default 'eastmoney',
+  source_id text,
+  current_price numeric,
+  change_percent numeric,
+  amount numeric,
+  turnover_rate numeric,
+  pe_ttm numeric,
+  open_price numeric,
+  prev_close numeric,
+  total_market_cap numeric,
+  circulating_market_cap numeric,
+  strategy_tags text[] not null default '{}',
+  metadata_json jsonb not null default '{}'::jsonb,
+  imported_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (market, exchange, symbol)
+);
+
+create unique index if not exists idx_market_stock_catalog_source_id
+  on market_stock_catalog(source, source_id)
+  where source_id is not null;
+
+create table if not exists market_fund_catalog (
+  id text primary key,
+  market text not null,
+  exchange text not null,
+  symbol text not null,
+  fund_name text not null,
+  fund_type text,
+  instrument_kind text not null,
+  region text not null,
+  risk_level text,
+  manager_name text,
+  tracking_target text,
+  status text not null default 'active',
+  source text not null default 'eastmoney',
+  source_id text,
+  current_price numeric,
+  nav_price numeric,
+  change_percent numeric,
+  return_1m numeric,
+  return_1y numeric,
+  max_drawdown numeric,
+  scale_amount numeric,
+  fee_rate numeric,
+  amount numeric,
+  turnover_rate numeric,
+  dividend_mode text,
+  strategy_tags text[] not null default '{}',
+  metadata_json jsonb not null default '{}'::jsonb,
+  imported_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (market, exchange, symbol)
+);
+
+create unique index if not exists idx_market_fund_catalog_source_id
+  on market_fund_catalog(source, source_id)
+  where source_id is not null;
 
 create table if not exists oem_composer_control_catalog (
   control_key text primary key,
@@ -518,36 +663,6 @@ create table if not exists oem_app_menu_bindings (
   updated_at timestamptz not null default now(),
   primary key (app_name, menu_key)
 );
-
-create table if not exists market_stock_catalog (
-  id text primary key,
-  market text not null,
-  exchange text not null,
-  symbol text not null,
-  company_name text not null,
-  board text,
-  status text not null default 'active',
-  source text not null default 'eastmoney',
-  source_id text,
-  current_price numeric,
-  change_percent numeric,
-  amount numeric,
-  turnover_rate numeric,
-  pe_ttm numeric,
-  open_price numeric,
-  prev_close numeric,
-  total_market_cap numeric,
-  circulating_market_cap numeric,
-  strategy_tags text[] not null default '{}',
-  metadata_json jsonb not null default '{}'::jsonb,
-  imported_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  unique (market, exchange, symbol)
-);
-
-create unique index if not exists idx_market_stock_catalog_source_id
-  on market_stock_catalog(source, source_id)
-  where source_id is not null;
 
 create table if not exists oem_app_composer_control_bindings (
   app_name text not null references oem_apps(app_name) on delete cascade,
@@ -872,7 +987,6 @@ insert into skill_catalog_entries (
   slug,
   name,
   description,
-  visibility,
   market,
   category,
   skill_type,
@@ -885,7 +999,6 @@ insert into skill_catalog_entries (
     'docx',
     'DOCX 文档工具',
     '创建、编辑和分析 Word 文档，支持修订、批注、格式保留与文本提取。',
-    'showcase',
     '通用',
     'report',
     '工具包',
@@ -898,7 +1011,6 @@ insert into skill_catalog_entries (
     'xlsx',
     'XLSX 表格工具',
     '创建、编辑和分析电子表格，支持公式、格式、数据处理与可视化。',
-    'showcase',
     '通用',
     'data',
     '工具包',
@@ -911,7 +1023,6 @@ insert into skill_catalog_entries (
     'pdf',
     'PDF 工具包',
     '提取文本和表格、合并拆分 PDF、处理表单并生成新的 PDF 文档。',
-    'showcase',
     '通用',
     'report',
     '工具包',
@@ -924,7 +1035,6 @@ insert into skill_catalog_entries (
     'a-share-esg',
     'A股ESG筛选分析',
     '从ESG角度筛选A股上市公司，评估可持续发展实践与争议风险。',
-    'showcase',
     'A股',
     'research',
     '分析师',
@@ -937,7 +1047,6 @@ insert into skill_catalog_entries (
     'a-share-factor-screener',
     'A股量化因子筛选',
     '使用多因子框架筛选A股，识别价值、动量、质量等因子暴露有利的股票。',
-    'showcase',
     'A股',
     'research',
     '扫描器',
@@ -950,7 +1059,6 @@ insert into skill_catalog_entries (
     'a-share-industry-rotation',
     'A股行业轮动检测',
     '通过宏观经济指标与经济周期定位，识别未来可能跑赢或跑输的A股行业。',
-    'showcase',
     'A股',
     'research',
     '扫描器',
@@ -963,7 +1071,6 @@ insert into skill_catalog_entries (
     'a-share-data-toolkit',
     'A股金融数据工具包',
     '提供A股实时行情、财务指标、董监高增减持和宏观数据抓取能力。',
-    'showcase',
     'A股',
     'data',
     '工具包',
@@ -976,7 +1083,6 @@ insert into skill_catalog_entries (
     'a-share-low-valuation',
     'A股低估值股票筛选',
     '扫描A股低估值机会，筛选基本面稳健但被市场低估的公司。',
-    'showcase',
     'A股',
     'research',
     '扫描器',
@@ -989,7 +1095,6 @@ insert into skill_catalog_entries (
     'a-share-insider',
     'A股内部交易分析',
     '分析董监高与重要股东增减持行为，识别管理层信心信号与潜在机会。',
-    'showcase',
     'A股',
     'research',
     '分析师',
@@ -1002,7 +1107,6 @@ insert into skill_catalog_entries (
     'a-share-small-cap-growth',
     'A股小盘成长股筛选',
     '识别A股被忽视的小市值高成长公司，适合寻找高弹性成长机会。',
-    'showcase',
     'A股',
     'research',
     '扫描器',
@@ -1015,7 +1119,6 @@ insert into skill_catalog_entries (
     'a-share-tech-valuation',
     'A股科技股估值分析',
     '对比分析A股科技公司的估值泡沫与基本面，识别高估与低估标的。',
-    'showcase',
     'A股',
     'research',
     '分析师',
@@ -1028,7 +1131,6 @@ insert into skill_catalog_entries (
     'a-share-dividend',
     'A股高股息策略分析',
     '评估A股高股息与红利策略的收益可持续性、分红质量与长期回报。',
-    'showcase',
     'A股',
     'portfolio',
     '分析师',
@@ -1041,7 +1143,6 @@ insert into skill_catalog_entries (
     'us-esg',
     '美股ESG筛选分析',
     '从ESG角度筛选美股公司，评估可持续发展实践、争议风险与治理质量。',
-    'showcase',
     '美股',
     'research',
     '分析师',
@@ -1054,7 +1155,6 @@ insert into skill_catalog_entries (
     'us-factor-screener',
     '美股量化因子筛选',
     '使用正式因子模型进行系统性多因子股票筛选，识别因子暴露有利的股票。',
-    'showcase',
     '美股',
     'research',
     '扫描器',
@@ -1067,7 +1167,6 @@ insert into skill_catalog_entries (
     'us-industry-rotation',
     '美股行业轮动检测',
     '通过宏观经济指标和商业周期定位，识别未来可能表现优异或落后的美股行业。',
-    'showcase',
     '美股',
     'research',
     '扫描器',
@@ -1080,7 +1179,6 @@ insert into skill_catalog_entries (
     'us-data-toolkit',
     '美股金融数据工具包',
     '提供实时股票数据、SEC 文件、财务计算器和宏观指标抓取能力。',
-    'showcase',
     '美股',
     'data',
     '工具包',
@@ -1093,7 +1191,6 @@ insert into skill_catalog_entries (
     'us-low-valuation',
     '美股低估值股票筛选',
     '筛选基本面扎实但估值偏低的美股公司，适合价值投资与安全边际场景。',
-    'showcase',
     '美股',
     'research',
     '扫描器',
@@ -1106,7 +1203,6 @@ insert into skill_catalog_entries (
     'us-insider',
     '美股内部人交易分析',
     '分析内部人交易模式与表格披露，识别管理层增持与看涨信号。',
-    'showcase',
     '美股',
     'research',
     '分析师',
@@ -1119,7 +1215,6 @@ insert into skill_catalog_entries (
     'us-small-cap-growth',
     '美股小盘成长股筛选',
     '筛选小市值高成长、机构覆盖少但基本面强劲的美股成长机会。',
-    'showcase',
     '美股',
     'research',
     '扫描器',
@@ -1132,7 +1227,6 @@ insert into skill_catalog_entries (
     'us-tech-valuation',
     '美股科技股估值分析',
     '对比头部科技公司增长与估值，区分合理定价与高估泡沫。',
-    'showcase',
     '美股',
     'research',
     '分析师',
@@ -1145,7 +1239,6 @@ insert into skill_catalog_entries (
     'us-dividend-aristocrats',
     '美股股息贵族分析',
     '分析连续提高分红的美股公司，评估股息可持续性与长期总回报。',
-    'showcase',
     '美股',
     'portfolio',
     '分析师',
@@ -1196,7 +1289,6 @@ insert into skill_catalog_entries (
   slug,
   name,
   description,
-  visibility,
   market,
   category,
   skill_type,
@@ -1209,7 +1301,6 @@ insert into skill_catalog_entries (
     'admapix',
     'AdMapix',
     '广告素材检索、App 排名、下载收入追踪与市场洞察助手，适合增长运营与竞品研究。',
-    'showcase',
     '通用',
     'data',
     '工具包',
@@ -1222,7 +1313,6 @@ insert into skill_catalog_entries (
     'marketing-strategy-pmm',
     'Marketing Strategy Pmm',
     '围绕定位、GTM、竞品洞察与产品发布制定产品营销策略，适合产品营销与增长规划。',
-    'showcase',
     '通用',
     'general',
     '分析师',
@@ -1235,7 +1325,6 @@ insert into skill_catalog_entries (
     'marketing-demand-acquisition',
     'Marketing Demand Acquisition',
     '设计获客投放、SEO 与渠道增长方案，适合增长运营、需求获取与渠道扩张场景。',
-    'showcase',
     '通用',
     'general',
     '分析师',
@@ -1248,7 +1337,6 @@ insert into skill_catalog_entries (
     'revenue-operations',
     'Revenue Operations',
     '分析销售漏斗、收入预测与 GTM 效率，适合营收运营和销售流程优化。',
-    'showcase',
     '通用',
     'data',
     '分析师',
@@ -1261,7 +1349,6 @@ insert into skill_catalog_entries (
     'x-publisher',
     'X tweet publisher',
     '发布 X/Twitter 文本、图片和视频内容，适合账号运营与社交分发。',
-    'showcase',
     '通用',
     'general',
     '工具包',
@@ -1274,7 +1361,6 @@ insert into skill_catalog_entries (
     'ghost',
     'ghost cms',
     '管理 Ghost CMS 博客文章的创建、更新、删除与列表，适合内容发布与博客运维。',
-    'showcase',
     '通用',
     'report',
     '工具包',
@@ -1287,7 +1373,6 @@ insert into skill_catalog_entries (
     'video-transcript-downloader',
     'Video Transcript Downloader',
     '下载视频、音频、字幕并生成清洗后的 transcript，适合内容二创与素材整理。',
-    'showcase',
     '通用',
     'data',
     '工具包',
@@ -1300,7 +1385,6 @@ insert into skill_catalog_entries (
     'video-summary',
     'Video Summary',
     '总结 B 站、小红书、抖音与 YouTube 视频内容，提炼结构化洞察和重点摘要。',
-    'showcase',
     '通用',
     'report',
     '生成器',
@@ -1313,7 +1397,6 @@ insert into skill_catalog_entries (
     'xiaohongshu-search-summarizer',
     'Xiaohongshu Search Summarizer',
     '搜索小红书关键词，提取笔记、图片与评论并生成总结，适合选题与内容洞察。',
-    'showcase',
     '通用',
     'report',
     '扫描器',
@@ -1326,7 +1409,6 @@ insert into skill_catalog_entries (
     'productivity',
     'Productivity',
     '围绕时间块、目标、项目、习惯和复盘提升个人执行效率，适合超级个体日常工作流。',
-    'showcase',
     '通用',
     'general',
     '分析师',
@@ -1339,7 +1421,6 @@ insert into skill_catalog_entries (
     'notion-sync',
     'Notion Sync',
     '双向同步和管理 Notion 页面与数据库，适合个人知识库与项目协作。',
-    'showcase',
     '通用',
     'data',
     '工具包',
@@ -1352,7 +1433,6 @@ insert into skill_catalog_entries (
     'todo',
     'Todo',
     '管理任务、项目、提醒、承诺与 follow-up，帮助个人形成执行闭环。',
-    'showcase',
     '通用',
     'general',
     '工具包',
@@ -1365,7 +1445,6 @@ insert into skill_catalog_entries (
     'cron',
     'Cron',
     '本地优先的周期计划与重复提醒引擎，适合 recurring task 与定时执行场景。',
-    'showcase',
     '通用',
     'general',
     '工具包',
@@ -1378,7 +1457,6 @@ insert into skill_catalog_entries (
     'temporal-cortex',
     'temporal-cortex',
     '管理 Google、Outlook 与 CalDAV 日历、会议和可用时间，适合个人日程协同。',
-    'showcase',
     '通用',
     'general',
     '工具包',
@@ -1391,7 +1469,6 @@ insert into skill_catalog_entries (
     'word-docx',
     'Word / DOCX',
     '创建、检查和编辑 Word 文档，支持样式、编号、修订、表格与兼容性检查。',
-    'showcase',
     '通用',
     'report',
     '工具包',
@@ -1404,7 +1481,6 @@ insert into skill_catalog_entries (
     'excel-xlsx',
     'Excel / XLSX',
     '创建、检查和编辑 Excel 工作簿，支持公式、格式、数据类型与重算。',
-    'showcase',
     '通用',
     'data',
     '工具包',
@@ -1417,7 +1493,6 @@ insert into skill_catalog_entries (
     'powerpoint-pptx',
     'Powerpoint / PPTX',
     '创建、检查和编辑 PowerPoint 演示文稿，支持模板、布局、备注与图表。',
-    'showcase',
     '通用',
     'report',
     '工具包',
@@ -1430,7 +1505,6 @@ insert into skill_catalog_entries (
     'paddleocr-doc-parsing',
     'PaddleOCR Document Parsing',
     '将复杂 PDF 与文档图片解析为保留结构的 Markdown 和 JSON，适合文档数字化。',
-    'showcase',
     '通用',
     'data',
     '工具包',
@@ -1443,7 +1517,6 @@ insert into skill_catalog_entries (
     'feishu-send-file',
     'feishu-send-file',
     '通过飞书发送附件与文件，适合办公协同、结果交付与自动化通知。',
-    'showcase',
     '通用',
     'general',
     '工具包',
@@ -1455,7 +1528,6 @@ insert into skill_catalog_entries (
 on conflict (slug) do update set
   name = excluded.name,
   description = excluded.description,
-  visibility = excluded.visibility,
   market = excluded.market,
   category = excluded.category,
   skill_type = excluded.skill_type,
@@ -1579,6 +1651,20 @@ create index if not exists idx_market_stock_catalog_turnover_rate
   on market_stock_catalog(turnover_rate desc nulls last);
 create index if not exists idx_market_stock_catalog_strategy_tags
   on market_stock_catalog using gin(strategy_tags);
+create index if not exists idx_market_fund_catalog_market_exchange_symbol
+  on market_fund_catalog(market, exchange, symbol);
+create index if not exists idx_market_fund_catalog_fund_name
+  on market_fund_catalog(fund_name);
+create index if not exists idx_market_fund_catalog_instrument_kind_region
+  on market_fund_catalog(instrument_kind, region);
+create index if not exists idx_market_fund_catalog_return_1y
+  on market_fund_catalog(return_1y desc nulls last);
+create index if not exists idx_market_fund_catalog_change_percent
+  on market_fund_catalog(change_percent desc nulls last);
+create index if not exists idx_market_fund_catalog_scale_amount
+  on market_fund_catalog(scale_amount desc nulls last);
+create index if not exists idx_market_fund_catalog_strategy_tags
+  on market_fund_catalog using gin(strategy_tags);
 create index if not exists idx_oem_composer_control_catalog_type_key
   on oem_composer_control_catalog(control_type, control_key);
 create index if not exists idx_oem_composer_control_option_catalog_sort

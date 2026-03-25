@@ -1,5 +1,6 @@
 import { type MouseEvent as ReactMouseEvent, type RefObject, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, ChevronDown, Tag, X } from 'lucide-react';
+import { flushSync } from 'react-dom';
+import { ArrowLeft, ArrowUpRight, Check, ChevronDown, Tag, X } from 'lucide-react';
 import { type IClawClient, type PaymentOrderData } from '@iclaw/sdk';
 import { cn } from '@/app/lib/cn';
 import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
@@ -17,6 +18,8 @@ type RechargePlan = {
   description: string;
   monthlyPrice: number;
   yearlyPrice: number;
+  monthlyCredits: number;
+  yearlyCredits: number;
   isRecommended: boolean;
   isCurrentPlan: boolean;
   features: string[];
@@ -25,55 +28,86 @@ type RechargePlan = {
 const RECHARGE_PLANS: RechargePlan[] = [
   {
     id: 'free',
-    name: '免费版',
-    nameEn: 'Free',
-    description: '适合个人探索与轻度使用',
+    name: 'Free',
+    nameEn: '',
+    description: '完美适合初步体验和测试。',
     monthlyPrice: 0,
     yearlyPrice: 0,
+    monthlyCredits: 200,
+    yearlyCredits: 200,
     isRecommended: false,
     isCurrentPlan: true,
-    features: ['每日 10 次基础查询', '标准响应速度', '社区支持', '基础功能访问'],
+    features: [
+      '每日额外赠 200 积分，次日重置',
+      '完整的本地设备控制与自动化能力',
+      '解锁所有核心 AI 技能',
+      '跑通您的首个自动化工作流',
+    ],
   },
   {
     id: 'plus',
     name: '高级版',
     nameEn: 'Plus',
-    description: '适合日常深度使用者',
-    monthlyPrice: 49,
-    yearlyPrice: 470,
+    description: '助力您的日常工作流',
+    monthlyPrice: 40,
+    yearlyPrice: 384,
+    monthlyCredits: 8800,
+    yearlyCredits: 105600,
     isRecommended: true,
     isCurrentPlan: false,
-    features: ['每日 200 次查询额度', '优先响应速度', '高级功能解锁', '邮件优先支持', '数据导出功能'],
+    features: [
+      '每月 8,800 积分',
+      '每日额外 200 免费积分，次日重置',
+      '可随时加购积分，按需付费',
+      '构建日常多步工作流',
+      '自动提升个人效率',
+    ],
   },
   {
     id: 'pro',
     name: '专业版',
     nameEn: 'Pro',
-    description: '适合专业团队与创作者',
-    monthlyPrice: 99,
-    yearlyPrice: 950,
+    description: '面向高级用户的深度自动化',
+    monthlyPrice: 80,
+    yearlyPrice: 768,
+    monthlyCredits: 17600,
+    yearlyCredits: 211200,
     isRecommended: false,
     isCurrentPlan: false,
-    features: ['每日 500 次查询额度', '极速响应优先级', '全部高级功能', '专属客户经理', 'API 接口访问'],
+    features: [
+      '每月 17,600 积分',
+      '每日额外 200 免费积分，次日重置',
+      '可随时加购积分，按需付费',
+      '运行复杂批量任务处理',
+      '应对中高频业务自动化需求',
+    ],
   },
   {
     id: 'ultra',
     name: '旗舰版',
     nameEn: 'Ultra',
-    description: '适合企业级深度集成',
-    monthlyPrice: 299,
-    yearlyPrice: 2870,
+    description: '团队规模化的无限自动化能力',
+    monthlyPrice: 200,
+    yearlyPrice: 1920,
+    monthlyCredits: 44000,
+    yearlyCredits: 528000,
     isRecommended: false,
     isCurrentPlan: false,
-    features: ['无限查询额度', '专属服务器资源', '企业级 SLA 保障', '7×24 专属支持', '定制化功能开发'],
+    features: [
+      '每月 44,000 积分',
+      '每日额外 200 免费积分，次日重置',
+      '可随时加购积分，按需付费',
+      '部署 24/7 高负载复杂工作流',
+      '为规模化业务提供无限自动化潜力',
+    ],
   },
 ];
 
 const PLAN_PAYMENT_PACKAGE_MAP: Record<PaidPlanTier, Record<BillingCycle, string>> = {
   // 这里承接充值档位的扫码下单与轮询。
-  plus: { monthly: 'topup_1000', yearly: 'topup_1000' },
-  pro: { monthly: 'topup_3000', yearly: 'topup_3000' },
-  ultra: { monthly: 'topup_5000', yearly: 'topup_5000' },
+  plus: { monthly: 'plan_plus_monthly', yearly: 'plan_plus_yearly' },
+  pro: { monthly: 'plan_pro_monthly', yearly: 'plan_pro_yearly' },
+  ultra: { monthly: 'plan_ultra_monthly', yearly: 'plan_ultra_yearly' },
 };
 
 const PAYMENT_METHOD_META: Record<PaymentMethod, { label: string; accentClassName: string }> = {
@@ -106,7 +140,7 @@ interface RechargeCenterProps {
 
 export function RechargeCenter({ client, token, onClose }: RechargeCenterProps) {
   const [step, setStep] = useState<RechargeStep>('plans');
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>('yearly');
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [selectedPlan, setSelectedPlan] = useState<PaidPlanTier>('plus');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('wechat_qr');
   const [planDropdownOpen, setPlanDropdownOpen] = useState(false);
@@ -200,11 +234,13 @@ export function RechargeCenter({ client, token, onClose }: RechargeCenterProps) 
 
   const openPayment = (planId: PlanTier) => {
     if (planId === 'free') return;
-    setSelectedPlan(toPaidPlan(planId));
-    setPlanDropdownOpen(false);
-    setPaymentMessage(null);
-    setActiveOrder(null);
-    setStep('payment');
+    flushSync(() => {
+      setSelectedPlan(toPaidPlan(planId));
+      setPlanDropdownOpen(false);
+      setPaymentMessage(null);
+      setActiveOrder(null);
+      setStep('payment');
+    });
   };
 
   return (
@@ -228,6 +264,7 @@ export function RechargeCenter({ client, token, onClose }: RechargeCenterProps) 
           currentPlan={currentPlan}
           totalPrice={totalPrice}
           paymentMethod={paymentMethod}
+          displayPaymentUrl={displayPaymentUrl}
           onPaymentMethodChange={setPaymentMethod}
           planDropdownOpen={planDropdownOpen}
           onTogglePlanDropdown={() => setPlanDropdownOpen((current) => !current)}
@@ -268,6 +305,18 @@ function PlansView({
   onClose: () => void;
   onUpgrade: (planId: PlanTier) => void;
 }) {
+  const handlePlanCardClick = (planId: PlanTier) => {
+    if (planId === 'free') {
+      onPlanSelect(planId);
+      return;
+    }
+    if (selectedPlan === planId) {
+      onUpgrade(planId);
+      return;
+    }
+    onPlanSelect(planId);
+  };
+
   return (
     <div
       className="max-h-[calc(100vh-32px)] w-full max-w-[1400px] overflow-auto rounded-[32px] bg-white shadow-xl dark:border dark:border-[#2a3441] dark:bg-[#1a1f28] dark:shadow-2xl"
@@ -285,18 +334,20 @@ function PlansView({
           充值中心
         </h1>
 
-        <div className="flex items-center justify-center gap-3">
-          <CycleButton
-            active={billingCycle === 'monthly'}
-            label="月套餐"
-            onClick={() => onBillingCycleChange('monthly')}
-          />
-          <CycleButton
-            active={billingCycle === 'yearly'}
-            label="年套餐"
-            onClick={() => onBillingCycleChange('yearly')}
-            tagMode={billingCycle}
-          />
+        <div className="flex justify-center">
+          <div className="inline-flex rounded-full border border-[#eceef3] bg-[linear-gradient(180deg,#ffffff_0%,#f5f6f9_100%)] p-1 shadow-[0_14px_30px_rgba(15,23,42,0.06),inset_0_1px_1px_rgba(255,255,255,0.9)] dark:border-[#303847] dark:bg-[linear-gradient(180deg,#232b36_0%,#1c222c_100%)] dark:shadow-[0_18px_34px_rgba(0,0,0,0.24)]">
+            <CycleButton
+              active={billingCycle === 'monthly'}
+              label="月套餐"
+              onClick={() => onBillingCycleChange('monthly')}
+            />
+            <CycleButton
+              active={billingCycle === 'yearly'}
+              label="年套餐"
+              onClick={() => onBillingCycleChange('yearly')}
+              tagMode={billingCycle}
+            />
+          </div>
         </div>
       </div>
 
@@ -310,11 +361,11 @@ function PlansView({
                 role="button"
                 aria-pressed={selected}
                 tabIndex={0}
-                onClick={() => onPlanSelect(plan.id)}
+                onClick={() => handlePlanCardClick(plan.id)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
-                    onPlanSelect(plan.id);
+                    handlePlanCardClick(plan.id);
                   }
                 }}
                 className={cn(
@@ -343,9 +394,8 @@ function PlansView({
 
                 <div className="min-h-[126px] text-center">
                   <h3 className="mb-1 text-[20px] font-bold text-[#1a1a1a] dark:text-[#f0f2f5] md:text-[22px]">
-                    {plan.name}
+                    {plan.nameEn ? `${plan.name} (${plan.nameEn})` : plan.name}
                   </h3>
-                  <p className="mb-4 text-xs text-gray-500">{plan.nameEn}</p>
                   <p className="min-h-[48px] text-sm leading-7 text-gray-600 dark:text-gray-400">{plan.description}</p>
                 </div>
 
@@ -358,7 +408,11 @@ function PlansView({
                     <span className="text-sm text-gray-500">/月</span>
                   </div>
                   {billingCycle === 'yearly' && plan.yearlyPrice > 0 ? (
-                    <p className="mt-1 text-xs text-gray-500">年付 ¥{plan.yearlyPrice}</p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      年付 ¥{plan.yearlyPrice} · 合计 {plan.yearlyCredits.toLocaleString()} 积分
+                    </p>
+                  ) : plan.monthlyPrice > 0 ? (
+                    <p className="mt-1 text-xs text-gray-500">每月到账 {plan.monthlyCredits.toLocaleString()} 积分</p>
                   ) : null}
                 </div>
 
@@ -366,12 +420,13 @@ function PlansView({
                   <button
                     onClick={(event) => {
                       event.stopPropagation();
+                      event.preventDefault();
                       onUpgrade(plan.id);
                     }}
                     disabled={plan.isCurrentPlan}
                     type="button"
                     className={cn(
-                      'mb-8 w-full rounded-[20px] py-3.5 text-base font-semibold',
+                      'mb-8 w-full cursor-pointer rounded-[20px] py-3.5 text-base font-semibold',
                       SPRING_PRESSABLE,
                       plan.isCurrentPlan
                         ? 'cursor-not-allowed bg-gray-100 text-gray-400 dark:bg-[#2a3441] dark:text-gray-600'
@@ -380,7 +435,10 @@ function PlansView({
                           : 'bg-[#111827] !text-white shadow-[0_18px_36px_rgba(17,24,39,0.16)] hover:bg-[#0b1220] hover:!text-white dark:bg-[#0f172a] dark:!text-white dark:hover:bg-[#111c31]',
                     )}
                   >
-                    {plan.isCurrentPlan ? '当前正在使用' : selected ? '立即充值' : '选择此档'}
+                    <span className="inline-flex items-center justify-center gap-1.5">
+                      <span>{plan.isCurrentPlan ? '当前正在使用' : '立即充值'}</span>
+                      {plan.isCurrentPlan ? null : <ArrowUpRight className="h-4 w-4" />}
+                    </span>
                   </button>
 
                   <div>
@@ -419,19 +477,21 @@ function CycleButton({
     <button
       onClick={onClick}
       className={cn(
-        'cursor-pointer rounded-full px-6 py-2.5 font-medium transition-all',
+        'relative inline-flex min-w-[120px] cursor-pointer items-center justify-center rounded-full px-6 py-2.5 font-semibold transition-all',
         active
-          ? 'bg-[#E63946] text-white shadow-lg shadow-red-200 dark:shadow-red-900/30'
-          : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-[#2a3441] dark:text-gray-400 dark:hover:bg-[#363e4d] dark:hover:text-gray-300',
-        tagMode && 'flex items-center gap-2',
+          ? 'bg-[#20283a] text-white shadow-[0_14px_28px_rgba(32,40,58,0.26)] dark:bg-[#101827] dark:shadow-[0_16px_30px_rgba(0,0,0,0.34)]'
+          : 'bg-transparent text-[#7b8190] hover:bg-white hover:text-[#384152] hover:shadow-[0_8px_18px_rgba(15,23,42,0.08)] dark:text-[#a1a9b7] dark:hover:bg-[rgba(255,255,255,0.04)] dark:hover:text-[#eef2f8] dark:hover:shadow-none',
+        tagMode && 'gap-2',
       )}
     >
       <span>{label}</span>
       {tagMode ? (
         <span
           className={cn(
-            'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs',
-            active ? 'bg-white/20 text-white dark:backdrop-blur-sm' : 'bg-[#E63946] text-white',
+            'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold leading-none shadow-[0_8px_18px_rgba(255,91,97,0.24)]',
+            active
+              ? 'bg-[#ff5b61] text-white shadow-[0_10px_20px_rgba(255,91,97,0.28)]'
+              : 'bg-[#ff5b61] text-white',
           )}
         >
           <Tag className="h-3 w-3" />
@@ -447,6 +507,7 @@ function PaymentView({
   currentPlan,
   totalPrice,
   paymentMethod,
+  displayPaymentUrl,
   onPaymentMethodChange,
   planDropdownOpen,
   onTogglePlanDropdown,
@@ -463,6 +524,7 @@ function PaymentView({
   currentPlan: RechargePlan;
   totalPrice: number;
   paymentMethod: PaymentMethod;
+  displayPaymentUrl: string | null;
   onPaymentMethodChange: (method: PaymentMethod) => void;
   planDropdownOpen: boolean;
   onTogglePlanDropdown: () => void;
@@ -509,8 +571,14 @@ function PaymentView({
                 className="flex w-full cursor-pointer items-center justify-between rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-left transition-colors hover:border-[#E63946] dark:border-[#2a3441] dark:bg-[#252d3a]"
               >
                 <div>
-                  <p className="font-semibold text-[#1a1a1a] dark:text-[#f0f2f5]">{currentPlan.name}</p>
-                  <p className="text-xs text-gray-500">{currentPlan.nameEn}</p>
+                  <p className="font-semibold text-[#1a1a1a] dark:text-[#f0f2f5]">
+                    {currentPlan.nameEn ? `${currentPlan.name} (${currentPlan.nameEn})` : currentPlan.name}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {billingCycle === 'monthly'
+                      ? `每月 ${currentPlan.monthlyCredits.toLocaleString()} 积分`
+                      : `每年 ${currentPlan.yearlyCredits.toLocaleString()} 积分`}
+                  </p>
                 </div>
                 <ChevronDown
                   className={cn(
@@ -533,8 +601,10 @@ function PaymentView({
                           planId === currentPlan.id && 'bg-red-50 dark:bg-[#2a1f22]',
                         )}
                       >
-                        <p className="font-semibold text-[#1a1a1a] dark:text-[#f0f2f5]">{plan.name}</p>
-                        <p className="text-xs text-gray-500">{plan.nameEn}</p>
+                        <p className="font-semibold text-[#1a1a1a] dark:text-[#f0f2f5]">
+                          {plan.nameEn ? `${plan.name} (${plan.nameEn})` : plan.name}
+                        </p>
+                        <p className="text-xs text-gray-500">{billingCycle === 'monthly' ? `每月 ${plan.monthlyCredits.toLocaleString()} 积分` : `每年 ${plan.yearlyCredits.toLocaleString()} 积分`}</p>
                       </button>
                     );
                   })}
@@ -549,7 +619,9 @@ function PaymentView({
                 <span className="text-gray-500 dark:text-gray-400">/ {billingCycle === 'monthly' ? '月' : '年'}</span>
               </div>
               {billingCycle === 'yearly' ? (
-                <p className="mt-2 text-sm text-gray-500">平均每月 ¥{Math.round(totalPrice / 12)}</p>
+                <p className="mt-2 text-sm text-gray-500">平均每月 ¥{Math.round(totalPrice / 12)}，合计到账 {currentPlan.yearlyCredits.toLocaleString()} 积分</p>
+              ) : currentPlan.monthlyPrice > 0 ? (
+                <p className="mt-2 text-sm text-gray-500">本次到账 {currentPlan.monthlyCredits.toLocaleString()} 积分</p>
               ) : null}
             </div>
 

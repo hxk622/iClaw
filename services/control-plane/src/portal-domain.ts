@@ -17,9 +17,14 @@ export type PortalSkillRecord = {
   slug: string;
   name: string;
   description: string;
+  market: string | null;
   category: string | null;
+  skillType: string | null;
   publisher: string;
-  visibility: string;
+  distribution: string | null;
+  tags: string[];
+  version: string | null;
+  sourceUrl: string | null;
   objectKey: string | null;
   contentSha256: string | null;
   metadata: PortalJsonObject;
@@ -234,7 +239,6 @@ export type UpsertPortalSkillInput = {
   description: string;
   category?: string | null;
   publisher: string;
-  visibility?: string | null;
   objectKey?: string | null;
   contentSha256?: string | null;
   metadata?: PortalJsonObject;

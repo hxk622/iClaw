@@ -138,6 +138,11 @@ export const config = {
     process.env.APP_NAME ||
     brandDefaults.appName,
   s3CdnUrl: process.env.S3_CDN_URL || '',
+  installSecretKey:
+    process.env.CONTROL_PLANE_INSTALL_SECRET_KEY ||
+    process.env.CONTROL_PLANE_DATA_SECRET ||
+    process.env.S3_SECRET_KEY ||
+    'openalpha_dev',
   apiUrl: process.env.API_URL || process.env.APP_URL || '',
   redisUrl: process.env.CONTROL_PLANE_REDIS_URL || process.env.REDIS_URL || '',
   redisKeyPrefix: process.env.CONTROL_PLANE_REDIS_KEY_PREFIX || brandDefaults.redisKeyPrefix,

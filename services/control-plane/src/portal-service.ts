@@ -18,7 +18,6 @@ import {
 } from './portal-desktop-release.ts';
 import {deletePortalAssetFile, downloadPortalAssetFile, uploadPortalAssetFile} from './portal-asset-storage.ts';
 import {mergePlatformMcpBindings, mergePlatformSkillBindings} from './platform-inheritance.ts';
-import {deletePortalSkillArtifact, uploadPortalSkillArtifact} from './portal-skill-storage.ts';
 import type {
   PortalAppDetail,
   PortalAppRecord,
@@ -237,60 +236,15 @@ export class PortalService {
   async upsertSkill(accessToken: string, input: UpsertPortalSkillInput) {
     await this.requireAdmin(accessToken);
     const slug = normalizeRequiredString(input.slug, 'slug');
-    const existing = await this.store.getSkill(slug);
-    let objectKey = normalizeOptionalString(input.objectKey, 'object_key');
-    let contentSha256 = normalizeOptionalString(input.contentSha256, 'content_sha256');
-    const rawInput = input as Record<string, unknown>;
-    const fileBase64 =
-      normalizeOptionalString(input.fileBase64, 'file_base64') ||
-      normalizeOptionalString(rawInput.file_base64, 'file_base64');
-    const fileName =
-      normalizeOptionalString(input.fileName, 'file_name') ||
-      normalizeOptionalString(rawInput.file_name, 'file_name');
-    const contentType =
-      normalizeOptionalString(input.contentType, 'content_type') ||
-      normalizeOptionalString(rawInput.content_type, 'content_type');
-    let metadata = {
-      ...asObject(existing?.metadata),
-      ...asObject(input.metadata),
-    };
-    if (fileBase64) {
-      const upload = await uploadPortalSkillArtifact({
-        slug,
-        artifact: parseRequiredBase64(fileBase64, 'file_base64'),
-        filename: fileName,
-        contentType,
-      });
-      if (existing?.objectKey && existing.objectKey !== upload.objectKey) {
-        await deletePortalSkillArtifact(existing.objectKey).catch((error) => {
-          console.warn('[portal-service] failed to delete previous portal skill artifact', {
-            slug,
-            objectKey: existing.objectKey,
-            error,
-          });
-        });
-      }
-      objectKey = upload.objectKey;
-      contentSha256 = upload.contentSha256;
-      metadata = {
-        ...metadata,
-        artifact_format: upload.artifactFormat,
-        artifact_size_bytes: upload.sizeBytes,
-      };
-    } else {
-      objectKey = objectKey ?? existing?.objectKey ?? null;
-      contentSha256 = contentSha256 ?? existing?.contentSha256 ?? null;
-    }
     return this.store.upsertSkill({
       slug,
-      name: normalizeRequiredString(input.name, 'name'),
-      description: normalizeRequiredString(input.description, 'description'),
+      name: normalizeOptionalString(input.name, 'name') || slug,
+      description: normalizeOptionalString(input.description, 'description') || slug,
       category: normalizeOptionalString(input.category, 'category'),
-      publisher: normalizeRequiredString(input.publisher, 'publisher'),
-      visibility: normalizeOptionalString(input.visibility, 'visibility') || 'showcase',
-      objectKey,
-      contentSha256,
-      metadata,
+      publisher: normalizeOptionalString(input.publisher, 'publisher') || 'iClaw',
+      objectKey: null,
+      contentSha256: null,
+      metadata: asObject(input.metadata),
       active: normalizeOptionalBoolean(input.active, 'active', true),
     });
   }
@@ -298,17 +252,7 @@ export class PortalService {
   async deleteSkill(accessToken: string, slugInput: string) {
     await this.requireAdmin(accessToken);
     const slug = normalizeRequiredString(slugInput, 'slug');
-    const existing = await this.store.getSkill(slug);
     await this.store.deleteSkill(slug);
-    if (existing?.objectKey) {
-      await deletePortalSkillArtifact(existing.objectKey).catch((error) => {
-        console.warn('[portal-service] failed to delete portal skill artifact', {
-          slug,
-          objectKey: existing.objectKey,
-          error,
-        });
-      });
-    }
     return {slug};
   }
 

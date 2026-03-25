@@ -634,7 +634,6 @@ export function createDefaultCloudSkillCatalogEntries(now: string): SkillCatalog
     slug: seed.slug,
     name: seed.name,
     description: seed.description,
-    visibility: 'showcase',
     market: seed.market,
     category: seed.category,
     skillType: seed.skillType,

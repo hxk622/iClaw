@@ -47,6 +47,7 @@ export function Chip(props: StaticChipProps | ClickableChipProps) {
     leadingIcon,
     className,
     children,
+    clickable,
     ...rest
   } = props;
 
@@ -55,7 +56,7 @@ export function Chip(props: StaticChipProps | ClickableChipProps) {
     CHIP_TONE_CLASSES[tone],
     active &&
       'border-[var(--chip-brand-active-border)] bg-[var(--brand-primary)] text-[var(--brand-on-primary)]',
-    props.clickable &&
+    clickable &&
       cn(
         'cursor-pointer hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:transform-none disabled:opacity-70 disabled:hover:translate-y-0',
         SPRING_PRESSABLE,
@@ -64,7 +65,7 @@ export function Chip(props: StaticChipProps | ClickableChipProps) {
     className,
   );
 
-  if (props.clickable) {
+  if (clickable) {
     const buttonProps = rest as ButtonHTMLAttributes<HTMLButtonElement>;
     return (
       <button type={buttonProps.type || 'button'} className={classes} {...buttonProps}>

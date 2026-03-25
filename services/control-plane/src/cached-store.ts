@@ -1,13 +1,17 @@
 import type {
+  AdminPaymentOrderDetailRecord,
+  AdminPaymentOrderSummaryRecord,
   AgentCatalogEntryRecord,
   CreatePaymentOrderInput,
   CreateUserInput,
   CreditAccountRecord,
   CreditLedgerRecord,
+  ExtensionInstallTarget,
   ImportUserPrivateSkillInput,
   InstallAgentInput,
   InstallMcpInput,
   InstallSkillInput,
+  MarketFundRecord,
   MarketStockRecord,
   McpCatalogEntryRecord,
   OAuthAccountRecord,
@@ -25,9 +29,11 @@ import type {
   UpsertAgentCatalogEntryInput,
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
+  UpsertUserExtensionInstallConfigInput,
   UsageEventInput,
   UsageEventResult,
   UserAgentLibraryRecord,
+  UserExtensionInstallConfigRecord,
   UserMcpLibraryRecord,
   UserPrivateSkillRecord,
   UserRole,
@@ -275,6 +281,54 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     return order;
   }
 
+  async listPaymentOrdersAdmin(input?: {
+    limit?: number | null;
+    status?: string | null;
+    provider?: string | null;
+    appName?: string | null;
+    query?: string | null;
+  }): Promise<AdminPaymentOrderSummaryRecord[]> {
+    return this.base.listPaymentOrdersAdmin(input);
+  }
+
+  async getPaymentOrderAdmin(orderId: string): Promise<AdminPaymentOrderDetailRecord | null> {
+    return this.base.getPaymentOrderAdmin(orderId);
+  }
+
+  async markPaymentOrderPaidAdmin(input: {
+    orderId: string;
+    operatorUserId: string;
+    operatorDisplayName: string;
+    providerOrderId?: string | null;
+    paidAt?: string | null;
+    note?: string | null;
+  }): Promise<AdminPaymentOrderDetailRecord | null> {
+    const detail = await this.base.markPaymentOrderPaidAdmin(input);
+    if (detail) {
+      await Promise.all([
+        this.cache.delete(this.creditBalanceKey(detail.userId), this.creditAccountKey(detail.userId), this.creditLedgerKey(detail.userId)),
+        this.cache.delete(this.paymentOrderKey(detail.id)),
+      ]);
+    }
+    return detail;
+  }
+
+  async refundPaymentOrderAdmin(input: {
+    orderId: string;
+    operatorUserId: string;
+    operatorDisplayName: string;
+    note?: string | null;
+  }): Promise<AdminPaymentOrderDetailRecord | null> {
+    const detail = await this.base.refundPaymentOrderAdmin(input);
+    if (detail) {
+      await Promise.all([
+        this.cache.delete(this.creditBalanceKey(detail.userId), this.creditAccountKey(detail.userId), this.creditLedgerKey(detail.userId)),
+        this.cache.delete(this.paymentOrderKey(detail.id)),
+      ]);
+    }
+    return detail;
+  }
+
   async applyPaymentWebhook(provider: PaymentProvider, input: Required<PaymentWebhookInput>): Promise<PaymentOrderRecord | null> {
     const order = await this.base.applyPaymentWebhook(provider, input);
     if (order) {
@@ -390,6 +444,25 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     return this.base.getMarketStock(stockId);
   }
 
+  async listMarketFunds(input?: {
+    market?: string | null;
+    exchange?: string | null;
+    instrumentKind?: string | null;
+    region?: string | null;
+    riskLevel?: string | null;
+    search?: string | null;
+    tag?: string | null;
+    sort?: string | null;
+    limit?: number | null;
+    offset?: number | null;
+  }): Promise<{items: MarketFundRecord[]; total: number}> {
+    return this.base.listMarketFunds(input);
+  }
+
+  async getMarketFund(fundId: string): Promise<MarketFundRecord | null> {
+    return this.base.getMarketFund(fundId);
+  }
+
   async listAgentCatalog(): Promise<AgentCatalogEntryRecord[]> {
     return this.getOrLoadValue(this.agentCatalogKey(), AGENT_CATALOG_CACHE_TTL_SECONDS, () =>
       this.base.listAgentCatalog(),
@@ -438,7 +511,17 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     return removed;
   }
 
-  async listSkillCatalog(limit?: number, offset?: number): Promise<SkillCatalogEntryRecord[]> {
+  async listSkillCatalog(
+    limit?: number,
+    offset?: number,
+    filters?: {tagKeywords?: string[] | null; extraSkillSlugs?: string[] | null},
+  ): Promise<SkillCatalogEntryRecord[]> {
+    if (
+      (Array.isArray(filters?.tagKeywords) && filters.tagKeywords.some((keyword) => keyword.trim())) ||
+      (Array.isArray(filters?.extraSkillSlugs) && filters.extraSkillSlugs.some((slug) => slug.trim()))
+    ) {
+      return this.base.listSkillCatalog(limit, offset, filters);
+    }
     if (typeof limit === 'number' || typeof offset === 'number') {
       return this.getOrLoadValue(
         this.skillCatalogPageKey(limit, offset),
@@ -451,10 +534,29 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     );
   }
 
-  async countSkillCatalog(): Promise<number> {
+  async countSkillCatalog(filters?: {tagKeywords?: string[] | null; extraSkillSlugs?: string[] | null}): Promise<number> {
+    if (
+      (Array.isArray(filters?.tagKeywords) && filters.tagKeywords.some((keyword) => keyword.trim())) ||
+      (Array.isArray(filters?.extraSkillSlugs) && filters.extraSkillSlugs.some((slug) => slug.trim()))
+    ) {
+      return this.base.countSkillCatalog(filters);
+    }
     return this.getOrLoadValue(this.skillCatalogCountKey(), SKILL_CATALOG_PAGE_CACHE_TTL_SECONDS, () =>
       this.base.countSkillCatalog(),
     );
+  }
+
+  async listSkillCatalogBySlugs(
+    slugs: string[],
+    limit?: number,
+    offset?: number,
+    filters?: {tagKeywords?: string[] | null},
+  ): Promise<SkillCatalogEntryRecord[]> {
+    return this.base.listSkillCatalogBySlugs(slugs, limit, offset, filters);
+  }
+
+  async countSkillCatalogBySlugs(slugs: string[], filters?: {tagKeywords?: string[] | null}): Promise<number> {
+    return this.base.countSkillCatalogBySlugs(slugs, filters);
   }
 
   async listSkillCatalogAdmin(limit?: number, offset?: number, query?: string): Promise<SkillCatalogEntryRecord[]> {
@@ -658,6 +760,67 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     );
   }
 
+  async listUserExtensionInstallConfigs(
+    userId: string,
+    extensionType?: ExtensionInstallTarget,
+  ): Promise<UserExtensionInstallConfigRecord[]> {
+    return this.getOrLoadValue(
+      this.userExtensionInstallConfigsKey(userId, extensionType),
+      USER_MCP_LIBRARY_CACHE_TTL_SECONDS,
+      () => this.base.listUserExtensionInstallConfigs(userId, extensionType),
+    );
+  }
+
+  async getUserExtensionInstallConfig(
+    userId: string,
+    extensionType: ExtensionInstallTarget,
+    extensionKey: string,
+  ): Promise<UserExtensionInstallConfigRecord | null> {
+    return this.getOrLoad(
+      this.userExtensionInstallConfigKey(userId, extensionType, extensionKey),
+      USER_MCP_LIBRARY_CACHE_TTL_SECONDS,
+      () => this.base.getUserExtensionInstallConfig(userId, extensionType, extensionKey),
+    );
+  }
+
+  async upsertUserExtensionInstallConfig(
+    userId: string,
+    input: Required<UpsertUserExtensionInstallConfigInput> & {
+      schema_version: number | null;
+      status: UserExtensionInstallConfigRecord['status'];
+      configured_secret_keys: string[];
+      secret_payload_encrypted?: string | null;
+    },
+  ): Promise<UserExtensionInstallConfigRecord> {
+    const record = await this.base.upsertUserExtensionInstallConfig(userId, input);
+    await this.cache.delete(
+      this.userExtensionInstallConfigsKey(userId),
+      this.userExtensionInstallConfigsKey(userId, input.extension_type),
+      this.userExtensionInstallConfigKey(userId, input.extension_type, input.extension_key),
+      this.userSkillLibraryKey(userId),
+      this.userMcpLibraryKey(userId),
+    );
+    return record;
+  }
+
+  async removeUserExtensionInstallConfig(
+    userId: string,
+    extensionType: ExtensionInstallTarget,
+    extensionKey: string,
+  ): Promise<boolean> {
+    const removed = await this.base.removeUserExtensionInstallConfig(userId, extensionType, extensionKey);
+    if (removed) {
+      await this.cache.delete(
+        this.userExtensionInstallConfigsKey(userId),
+        this.userExtensionInstallConfigsKey(userId, extensionType),
+        this.userExtensionInstallConfigKey(userId, extensionType, extensionKey),
+        this.userSkillLibraryKey(userId),
+        this.userMcpLibraryKey(userId),
+      );
+    }
+    return removed;
+  }
+
   async installUserMcp(
     userId: string,
     input: Required<InstallMcpInput> & {source?: 'cloud'},
@@ -679,7 +842,12 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
   async removeUserMcp(userId: string, mcpKey: string): Promise<boolean> {
     const removed = await this.base.removeUserMcp(userId, mcpKey);
     if (removed) {
-      await this.cache.delete(this.userMcpLibraryKey(userId));
+      await this.cache.delete(
+        this.userMcpLibraryKey(userId),
+        this.userExtensionInstallConfigsKey(userId),
+        this.userExtensionInstallConfigsKey(userId, 'mcp'),
+        this.userExtensionInstallConfigKey(userId, 'mcp', mcpKey),
+      );
     }
     return removed;
   }
@@ -705,7 +873,12 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
   async removeUserSkill(userId: string, slug: string): Promise<boolean> {
     const removed = await this.base.removeUserSkill(userId, slug);
     if (removed) {
-      await this.cache.delete(this.userSkillLibraryKey(userId));
+      await this.cache.delete(
+        this.userSkillLibraryKey(userId),
+        this.userExtensionInstallConfigsKey(userId),
+        this.userExtensionInstallConfigsKey(userId, 'skill'),
+        this.userExtensionInstallConfigKey(userId, 'skill', slug),
+      );
     }
     return removed;
   }
@@ -863,6 +1036,21 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
 
   private userMcpLibraryKey(userId: string): string {
     return `mcp:library:${userId}`;
+  }
+
+  private userExtensionInstallConfigsKey(
+    userId: string,
+    extensionType?: ExtensionInstallTarget,
+  ): string {
+    return extensionType ? `extension-configs:${userId}:${extensionType}` : `extension-configs:${userId}:all`;
+  }
+
+  private userExtensionInstallConfigKey(
+    userId: string,
+    extensionType: ExtensionInstallTarget,
+    extensionKey: string,
+  ): string {
+    return `extension-config:${userId}:${extensionType}:${extensionKey}`;
   }
 
   private userAgentLibraryKey(userId: string): string {

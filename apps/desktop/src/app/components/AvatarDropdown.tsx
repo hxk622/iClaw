@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { CircleHelp, FolderPlus, Globe, Heart, LogIn, LogOut, RefreshCw, Settings, UserCircle2 } from 'lucide-react';
+import { CircleHelp, Crown, FolderPlus, Globe, LogIn, LogOut, RefreshCw, Settings, UserCircle2 } from 'lucide-react';
 
 interface AvatarDropdownProps {
   open: boolean;
@@ -8,6 +8,7 @@ interface AvatarDropdownProps {
   settingsLabel?: string;
   onClose: () => void;
   onOpenAccount: () => void;
+  onOpenRechargeCenter: () => void;
   onOpenLogin: () => void;
   onOpenSettings: () => void;
   onLogout: () => void;
@@ -35,6 +36,7 @@ export function AvatarDropdown({
   settingsLabel = '设置',
   onClose,
   onOpenAccount,
+  onOpenRechargeCenter,
   onOpenLogin,
   onOpenSettings,
   onLogout,
@@ -108,8 +110,15 @@ export function AvatarDropdown({
         </button>
       ) : null}
 
-      <button className={menuItemClass} style={menuItemStyle}>
-        <Heart className="h-5 w-5 text-rose-500 transition-transform duration-[var(--motion-panel)] group-hover:scale-110" style={menuIconStyle} />
+      <button
+        className={menuItemClass}
+        style={menuItemStyle}
+        onClick={() => {
+          onClose();
+          onOpenRechargeCenter();
+        }}
+      >
+        <Crown className={menuIconClass} style={menuIconStyle} />
         <span className={menuLabelClass}>充值中心</span>
       </button>
 

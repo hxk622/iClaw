@@ -73,6 +73,43 @@ export type ResolvedWelcomePageConfig = {
   disclaimer: string;
 };
 
+const DEFAULT_ENABLED_MENU_KEYS = [
+  'chat',
+  'cron',
+  'investment-experts',
+  'stock-market',
+  'fund-market',
+  'lobster-store',
+  'skill-store',
+  'finance-skills',
+  'foundation-skills',
+  'mcp-store',
+  'memory',
+  'data-connections',
+  'im-bots',
+  'security',
+  'task-center',
+] as const;
+
+const DEFAULT_MENU_UI_CONFIG: Record<string, RequiredResolvedMenuUiConfig> = {
+  chat: { displayName: '智能对话', group: '工作台', iconKey: 'chat' },
+  cron: { displayName: '定时任务', group: '工作台', iconKey: 'cron' },
+  'investment-experts': { displayName: '智能投资专家', group: '工作台', iconKey: 'investment-experts' },
+  'stock-market': { displayName: '股票市场', group: '市场', iconKey: 'stock-market' },
+  'fund-market': { displayName: '基金市场', group: '市场', iconKey: 'fund-market' },
+  'lobster-store': { displayName: '龙虾商店', group: '商店', iconKey: 'lobster-store' },
+  'skill-store': { displayName: '技能商店', group: '商店', iconKey: 'skill-store' },
+  'finance-skills': { displayName: '财经技能', group: '商店', iconKey: 'finance-skills' },
+  'foundation-skills': { displayName: '基础技能', group: '商店', iconKey: 'foundation-skills' },
+  'mcp-store': { displayName: 'MCP商店', group: '商店', iconKey: 'mcp-store' },
+  memory: { displayName: '记忆管理', group: '工作台', iconKey: 'memory' },
+  'data-connections': { displayName: '数据连接', group: '工作台', iconKey: 'data-connections' },
+  'im-bots': { displayName: 'IM机器人', group: '工作台', iconKey: 'im-bots' },
+  security: { displayName: '安全防护', group: '工作台', iconKey: 'security' },
+  'task-center': { displayName: '历史任务', group: null, iconKey: 'task-center' },
+  settings: { displayName: '设置', group: null, iconKey: 'settings' },
+};
+
 type PublicBrandConfigResponse = {
   success?: boolean;
   data?: {
@@ -116,6 +153,60 @@ function asStringArray(value: unknown): string[] {
     seen.add(normalized);
   }
   return Array.from(seen);
+}
+
+function resolveComposerControlConfigs(value: unknown): ResolvedComposerControlConfig[] {
+  return asArray(value)
+    .map((item) => {
+      const entry = asObject(item);
+      const controlKey = String(entry.control_key ?? entry.controlKey ?? '').trim();
+      if (!controlKey) return null;
+      return {
+        controlKey,
+        displayName: String(entry.display_name || entry.displayName || '').trim() || controlKey,
+        controlType: String(entry.control_type || entry.controlType || 'static').trim() || 'static',
+        iconKey: String(entry.icon_key || entry.iconKey || '').trim() || null,
+        sortOrder: Number(entry.sort_order || entry.sortOrder || 100) || 100,
+        metadata: asObject(entry.metadata),
+        config: asObject(entry.config),
+        options: asArray(entry.options)
+          .map((option) => {
+            const rawOption = asObject(option);
+            const value = String(rawOption.option_value ?? rawOption.optionValue ?? rawOption.value ?? '').trim();
+            if (!value) return null;
+            return {
+              value,
+              label: String(rawOption.label || value).trim() || value,
+              description: String(rawOption.description || rawOption.detail || '').trim(),
+            };
+          })
+          .filter((option): option is ResolvedComposerControlOption => Boolean(option)),
+      };
+    })
+    .filter((item): item is ResolvedComposerControlConfig => Boolean(item))
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.controlKey.localeCompare(right.controlKey, 'zh-CN'));
+}
+
+function resolveComposerShortcutConfigs(value: unknown): ResolvedComposerShortcutConfig[] {
+  return asArray(value)
+    .map((item) => {
+      const entry = asObject(item);
+      const shortcutKey = String(entry.shortcut_key ?? entry.shortcutKey ?? '').trim();
+      if (!shortcutKey) return null;
+      return {
+        shortcutKey,
+        displayName: String(entry.display_name || entry.displayName || '').trim() || shortcutKey,
+        description: String(entry.description || '').trim(),
+        template: String(entry.template || entry.template_text || '').trim(),
+        iconKey: String(entry.icon_key || entry.iconKey || '').trim() || null,
+        tone: String(entry.tone || '').trim() || null,
+        sortOrder: Number(entry.sort_order || entry.sortOrder || 100) || 100,
+        metadata: asObject(entry.metadata),
+        config: asObject(entry.config),
+      };
+    })
+    .filter((item): item is ResolvedComposerShortcutConfig => Boolean(item))
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.shortcutKey.localeCompare(right.shortcutKey, 'zh-CN'));
 }
 
 const LEGACY_MENU_KEY_MAP: Record<string, string[]> = {
@@ -294,7 +385,7 @@ export function resolveEnabledMenuKeys(config: Record<string, unknown> | null | 
   const menuBindings = asArray(root.menu_bindings);
   const capabilityMenus = asStringArray(asObject(root.capabilities).menus);
   if (!menuBindings.length && !capabilityMenus.length) {
-    return null;
+    return [...DEFAULT_ENABLED_MENU_KEYS];
   }
 
   const surfaces = asObject(root.surfaces);
@@ -336,7 +427,7 @@ export function resolveEnabledMenuKeys(config: Record<string, unknown> | null | 
 export function resolveRequiredEnabledMenuKeys(config: Record<string, unknown> | null | undefined): string[] {
   const resolved = resolveEnabledMenuKeys(config);
   if (!resolved || resolved.length === 0) {
-    throw new Error('OEM runtime menu bindings are missing or empty');
+    return [...DEFAULT_ENABLED_MENU_KEYS];
   }
   return resolved;
 }
@@ -386,12 +477,16 @@ export function resolveRequiredMenuUiConfig(
 ): Record<string, RequiredResolvedMenuUiConfig> {
   const resolved = resolveMenuUiConfig(config);
   if (!resolved) {
-    throw new Error('OEM runtime menu UI config is missing');
+    return Object.fromEntries(
+      normalizeMenuKeys(requiredMenuKeys)
+        .map((menuKey) => [menuKey, DEFAULT_MENU_UI_CONFIG[menuKey]])
+        .filter((entry): entry is [string, RequiredResolvedMenuUiConfig] => Boolean(entry[1])),
+    );
   }
 
   const entries: Record<string, RequiredResolvedMenuUiConfig> = {};
   for (const menuKey of normalizeMenuKeys(requiredMenuKeys)) {
-    const item = resolved[menuKey];
+    const item = resolved[menuKey] ?? DEFAULT_MENU_UI_CONFIG[menuKey];
     if (!item) {
       throw new Error(`OEM runtime menu config is missing for "${menuKey}"`);
     }
@@ -422,54 +517,14 @@ export function resolveInputComposerConfig(
 ): ResolvedInputComposerConfig | null {
   const root = asObject(config);
   const inputConfig = asObject(asObject(asObject(root.surfaces).input).config);
-  const topBarControls = asArray(inputConfig.top_bar_controls)
-    .map((item) => {
-      const entry = asObject(item);
-      const controlKey = String(entry.control_key ?? entry.controlKey ?? '').trim();
-      if (!controlKey) return null;
-      return {
-        controlKey,
-        displayName: String(entry.display_name || entry.displayName || '').trim() || controlKey,
-        controlType: String(entry.control_type || entry.controlType || 'static').trim() || 'static',
-        iconKey: String(entry.icon_key || entry.iconKey || '').trim() || null,
-        sortOrder: Number(entry.sort_order || entry.sortOrder || 100) || 100,
-        metadata: asObject(entry.metadata),
-        config: asObject(entry.config),
-        options: asArray(entry.options)
-          .map((option) => {
-            const rawOption = asObject(option);
-            const value = String(rawOption.option_value ?? rawOption.optionValue ?? rawOption.value ?? '').trim();
-            if (!value) return null;
-            return {
-              value,
-              label: String(rawOption.label || value).trim() || value,
-              description: String(rawOption.description || rawOption.detail || '').trim(),
-            };
-          })
-          .filter((option): option is ResolvedComposerControlOption => Boolean(option)),
-      };
-    })
-    .filter((item): item is ResolvedComposerControlConfig => Boolean(item))
-    .sort((left, right) => left.sortOrder - right.sortOrder || left.controlKey.localeCompare(right.controlKey, 'zh-CN'));
-  const footerShortcuts = asArray(inputConfig.footer_shortcuts)
-    .map((item) => {
-      const entry = asObject(item);
-      const shortcutKey = String(entry.shortcut_key ?? entry.shortcutKey ?? '').trim();
-      if (!shortcutKey) return null;
-      return {
-        shortcutKey,
-        displayName: String(entry.display_name || entry.displayName || '').trim() || shortcutKey,
-        description: String(entry.description || '').trim(),
-        template: String(entry.template || entry.template_text || '').trim(),
-        iconKey: String(entry.icon_key || entry.iconKey || '').trim() || null,
-        tone: String(entry.tone || '').trim() || null,
-        sortOrder: Number(entry.sort_order || entry.sortOrder || 100) || 100,
-        metadata: asObject(entry.metadata),
-        config: asObject(entry.config),
-      };
-    })
-    .filter((item): item is ResolvedComposerShortcutConfig => Boolean(item))
-    .sort((left, right) => left.sortOrder - right.sortOrder || left.shortcutKey.localeCompare(right.shortcutKey, 'zh-CN'));
+  const rootTopBarControls = resolveComposerControlConfigs(root.composer_control_bindings);
+  const rootFooterShortcuts = resolveComposerShortcutConfigs(root.composer_shortcut_bindings);
+  const topBarControls = rootTopBarControls.length
+    ? rootTopBarControls
+    : resolveComposerControlConfigs(inputConfig.top_bar_controls);
+  const footerShortcuts = rootFooterShortcuts.length
+    ? rootFooterShortcuts
+    : resolveComposerShortcutConfigs(inputConfig.footer_shortcuts);
   if (!topBarControls.length && !footerShortcuts.length) {
     return null;
   }

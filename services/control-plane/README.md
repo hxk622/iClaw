@@ -109,6 +109,17 @@ OEM portal 现在也是 control-plane 的职责范围之一：
 - `oem_app_assets` 保存 MinIO 资产索引
 - `pnpm preset:sync:oem` 会把 `services/control-plane/presets/core-oem.json` 里的预置 app、skill、MCP、model、menu、asset 同步进数据库和对象存储
 
+这里的职责边界需要特别明确：
+
+- `oem_mcp_catalog` 保存的是平台级共享 MCP catalog，而不是某个 OEM 私有 MCP 数据
+- `iclaw` / `licaiclaw` 这类 OEM app 只通过 `oem_app_mcp_bindings` 控制：
+  - 是否显示
+  - 是否默认已安装
+  - 是否推荐
+  - 排序和少量展示 metadata
+- MCP 的名称、描述、logo、分类、连接方式、抓取来源等原始内容属于平台级主数据，不能在 OEM binding 中复制出第二份真值
+- 对外返回某个 app 的 MCP 列表时，control-plane 应负责把“平台 catalog + OEM binding”合成为当前 app 视图；前端只负责展示，不负责推断业务真相
+
 在未显式覆盖环境变量时，会按 app-name 推导这些默认值：
 
 - `serviceName`

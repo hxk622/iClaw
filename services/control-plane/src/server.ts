@@ -7,7 +7,13 @@ import {fileURLToPath} from 'node:url';
 
 import { downloadAvatar } from './avatar-storage.ts';
 import {downloadPrivateSkillArtifact} from './skill-storage.ts';
-import {ensureBootstrapAdmin, ensureDefaultCatalogs, ensureDefaultSkillSyncSources, ensurePortalPreset} from './bootstrap.ts';
+import {
+  ensureBootstrapAdmin,
+  ensureDefaultCatalogs,
+  ensureDefaultSkillSyncSources,
+  ensurePortalPreset,
+  ensurePortalSkillCatalogPolicy,
+} from './bootstrap.ts';
 import {CachedControlPlaneStore} from './cached-store.ts';
 import {config} from './config.ts';
 import type {
@@ -24,6 +30,7 @@ import type {
   UpsertAgentCatalogEntryInput,
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
+  UpsertUserExtensionInstallConfigInput,
   UpdateMcpLibraryItemInput,
   UpdateSkillLibraryItemInput,
   UpdateProfileInput,
@@ -43,6 +50,8 @@ import type {
 } from './portal-domain.ts';
 import {PgPortalStore} from './portal-store.ts';
 import {PortalService} from './portal-service.ts';
+import {mergePlatformSkillBindings} from './platform-inheritance.ts';
+import {resolveSkillCatalogVisibilityMode} from './portal-skill-catalog-policy.ts';
 import {ensureControlPlaneSchema, PgControlPlaneStore} from './pg-store.ts';
 import {createRedisKeyValueCache} from './redis-cache.ts';
 import {ControlPlaneService} from './service.ts';
@@ -80,6 +89,7 @@ await ensureBootstrapAdmin(store);
 await ensureDefaultCatalogs(store);
 await ensureDefaultSkillSyncSources(store);
 await ensurePortalPreset(portalStore);
+await ensurePortalSkillCatalogPolicy(portalStore);
 
 const service = new ControlPlaneService(store);
 const oemService = new OemService(oemStore, async (accessToken) => service.me(accessToken), {
@@ -96,6 +106,11 @@ function requireBearerToken(headers: Record<string, string | string[] | undefine
     throw new HttpError(401, 'UNAUTHORIZED', 'missing bearer token');
   }
   return value.slice('Bearer '.length).trim();
+}
+
+function getHeaderValue(headers: Record<string, string | string[] | undefined>, key: string): string {
+  const raw = headers[key];
+  return (Array.isArray(raw) ? raw[0] : raw)?.trim() || '';
 }
 
 function resolvePublicBaseUrl(headers: Record<string, string | string[] | undefined>): string {
@@ -150,6 +165,18 @@ function resolveRequestedAppName(
   }
   const fromQuery = (url?.searchParams.get('app_name') || '').trim().toLowerCase();
   return fromQuery || null;
+}
+
+function resolveSkillCatalogTagKeywords(url: URL): string[] {
+  return Array.from(
+    new Set(
+      url.searchParams
+        .getAll('tag')
+        .flatMap((value) => value.split(','))
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  );
 }
 
 function resolveSkillSourceDir(relativePath: string): string {
@@ -437,7 +464,16 @@ const server = createJsonServer([
     method: 'POST',
     path: '/payments/orders',
     handler: ({headers, body}: HandlerContext) =>
-      service.createPaymentOrder(requireBearerToken(headers), (body || {}) as CreatePaymentOrderInput),
+      service.createPaymentOrder(requireBearerToken(headers), {
+        ...((body || {}) as CreatePaymentOrderInput),
+        app_name: ((body || {}) as CreatePaymentOrderInput).app_name || getHeaderValue(headers, 'x-iclaw-app-name'),
+        app_version: ((body || {}) as CreatePaymentOrderInput).app_version || getHeaderValue(headers, 'x-iclaw-app-version'),
+        release_channel:
+          ((body || {}) as CreatePaymentOrderInput).release_channel || getHeaderValue(headers, 'x-iclaw-channel'),
+        platform: ((body || {}) as CreatePaymentOrderInput).platform || getHeaderValue(headers, 'x-iclaw-platform'),
+        arch: ((body || {}) as CreatePaymentOrderInput).arch || getHeaderValue(headers, 'x-iclaw-arch'),
+        user_agent: ((body || {}) as CreatePaymentOrderInput).user_agent || getHeaderValue(headers, 'user-agent'),
+      }),
   },
   {
     method: 'GET',
@@ -545,6 +581,28 @@ const server = createJsonServer([
   },
   {
     method: 'GET',
+    path: '/market/funds',
+    handler: ({url}: HandlerContext) =>
+      service.listMarketFunds({
+        market: (url.searchParams.get('market') || '').trim() || null,
+        exchange: (url.searchParams.get('exchange') || '').trim() || null,
+        instrumentKind: (url.searchParams.get('instrument_kind') || '').trim() || null,
+        region: (url.searchParams.get('region') || '').trim() || null,
+        riskLevel: (url.searchParams.get('risk_level') || '').trim() || null,
+        search: (url.searchParams.get('search') || '').trim() || null,
+        tag: (url.searchParams.get('tag') || '').trim() || null,
+        sort: (url.searchParams.get('sort') || '').trim() || null,
+        limit: Number.parseInt(url.searchParams.get('limit') || '', 10),
+        offset: Number.parseInt(url.searchParams.get('offset') || '', 10),
+      }),
+  },
+  {
+    method: 'GET',
+    path: '/market/funds/:fundId',
+    handler: ({params}: HandlerContext) => service.getMarketFund(params.fundId || ''),
+  },
+  {
+    method: 'GET',
     path: '/agents/catalog',
     handler: () => service.listAgentCatalog(),
   },
@@ -568,12 +626,32 @@ const server = createJsonServer([
   {
     method: 'GET',
     path: '/skills/catalog',
-    handler: ({headers, url}: HandlerContext) =>
-      service.listSkillCatalog(
-        resolvePublicBaseUrl(headers),
-        Number.parseInt(url.searchParams.get('limit') || '', 10),
-        Number.parseInt(url.searchParams.get('offset') || '', 10),
-      ),
+    handler: async ({headers, url}: HandlerContext) => {
+      const baseUrl = resolvePublicBaseUrl(headers);
+      const limit = Number.parseInt(url.searchParams.get('limit') || '', 10);
+      const offset = Number.parseInt(url.searchParams.get('offset') || '', 10);
+      const tagKeywords = resolveSkillCatalogTagKeywords(url);
+      const appName = resolveRequestedAppName(headers, url);
+      if (!appName) {
+        return service.listSkillCatalog(baseUrl, limit, offset, null, {tagKeywords});
+      }
+
+      const detail = await portalStore.getAppDetail(appName).catch(() => null);
+      if (!detail) {
+        return service.listSkillCatalog(baseUrl, limit, offset, null, {tagKeywords});
+      }
+      const platformSkills = await portalStore.listSkills().catch(() => []);
+      const visibleSkillSlugs = mergePlatformSkillBindings(detail.app.appName, detail.skillBindings, platformSkills)
+        .filter((binding) => binding.enabled)
+        .map((binding) => binding.skillSlug);
+      if (resolveSkillCatalogVisibilityMode(detail.app.config) === 'all_cloud') {
+        return service.listSkillCatalog(baseUrl, limit, offset, null, {
+          tagKeywords,
+          extraSkillSlugs: visibleSkillSlugs,
+        });
+      }
+      return service.listSkillCatalog(baseUrl, limit, offset, visibleSkillSlugs, {tagKeywords});
+    },
   },
   {
     method: 'GET',
@@ -710,6 +788,25 @@ const server = createJsonServer([
     handler: ({headers}: HandlerContext) => service.listUserMcpLibrary(requireBearerToken(headers)),
   },
   {
+    method: 'GET',
+    path: '/extensions/install-config',
+    handler: ({headers, url}: HandlerContext) =>
+      service.getUserExtensionInstallConfig(
+        requireBearerToken(headers),
+        (url.searchParams.get('extension_type') || '').trim(),
+        (url.searchParams.get('extension_key') || '').trim(),
+      ),
+  },
+  {
+    method: 'PUT',
+    path: '/extensions/install-config',
+    handler: ({headers, body}: HandlerContext) =>
+      service.upsertUserExtensionInstallConfig(
+        requireBearerToken(headers),
+        (body || {}) as UpsertUserExtensionInstallConfigInput,
+      ),
+  },
+  {
     method: 'POST',
     path: '/skills/library/install',
     handler: ({headers, body}: HandlerContext) =>
@@ -767,7 +864,7 @@ const server = createJsonServer([
       const version = (url.searchParams.get('version') || '').trim() || undefined;
       const entry = await service.getSkillArtifactEntry(slug, version);
       let archive: Buffer;
-      if (entry.originType === 'bundled' && entry.artifactSourcePath) {
+      if (entry.artifactSourcePath) {
         resolveSkillSourceDir(entry.artifactSourcePath);
         archive = packageSkillArtifact(entry.artifactSourcePath);
       } else if (entry.originType === 'github_repo') {
@@ -978,6 +1075,42 @@ const server = createJsonServer([
     method: 'GET',
     path: '/admin/portal/apps',
     handler: ({headers}: HandlerContext) => portalService.listApps(requireBearerToken(headers)),
+  },
+  {
+    method: 'GET',
+    path: '/admin/payments/orders',
+    handler: ({headers, url}: HandlerContext) =>
+      service.listAdminPaymentOrders(requireBearerToken(headers), {
+        limit: Number(url.searchParams.get('limit') || 200),
+        status: (url.searchParams.get('status') || '').trim() || null,
+        provider: (url.searchParams.get('provider') || '').trim() || null,
+        app_name: (url.searchParams.get('app_name') || '').trim() || null,
+        query: (url.searchParams.get('query') || '').trim() || null,
+      }),
+  },
+  {
+    method: 'GET',
+    path: '/admin/payments/orders/:orderId',
+    handler: ({headers, params}: HandlerContext) =>
+      service.getAdminPaymentOrder(requireBearerToken(headers), params.orderId || ''),
+  },
+  {
+    method: 'POST',
+    path: '/admin/payments/orders/:orderId/mark-paid',
+    handler: ({headers, params, body}: HandlerContext) =>
+      service.markAdminPaymentOrderPaid(requireBearerToken(headers), params.orderId || '', (body || {}) as {
+        provider_order_id?: string;
+        paid_at?: string;
+        note?: string;
+      }),
+  },
+  {
+    method: 'POST',
+    path: '/admin/payments/orders/:orderId/refund',
+    handler: ({headers, params, body}: HandlerContext) =>
+      service.refundAdminPaymentOrder(requireBearerToken(headers), params.orderId || '', (body || {}) as {
+        note?: string;
+      }),
   },
   {
     method: 'PUT',

@@ -206,26 +206,58 @@ test('super admin can update and remove cloud skill catalog entries', async () =
     });
 
     const updated = await service.upsertAdminSkillCatalogEntry(registration.tokens.access_token, {
-      slug: 'a-share-esg',
+      slug: 'custom-cloud-skill',
+      name: 'Custom Cloud Skill',
+      description: 'cloud catalog test entry',
       category: 'screening',
+      publisher: 'Test Publisher',
       tags: ['A股', 'ESG', '精选'],
       active: false,
+      distribution: 'cloud',
     });
     assert.equal(updated.category, 'screening');
     assert.deepEqual(updated.tags, ['A股', 'ESG', '精选']);
     assert.equal(updated.active, false);
 
     const publicCatalog = await service.listSkillCatalog();
-    assert.equal(publicCatalog.items.some((item) => item.slug === 'a-share-esg'), false);
+    assert.equal(publicCatalog.items.some((item) => item.slug === 'custom-cloud-skill'), false);
 
     const adminCatalog = await service.listAdminSkillCatalog(registration.tokens.access_token);
-    const adminEntry = adminCatalog.items.find((item) => item.slug === 'a-share-esg');
+    const adminEntry = adminCatalog.items.find((item) => item.slug === 'custom-cloud-skill');
     assert.ok(adminEntry);
     assert.equal(adminEntry?.active, false);
 
-    const removed = await service.deleteAdminSkillCatalogEntry(registration.tokens.access_token, 'a-share-esg');
+    const removed = await service.deleteAdminSkillCatalogEntry(registration.tokens.access_token, 'custom-cloud-skill');
     assert.equal(removed.removed, true);
     const afterDelete = await service.listAdminSkillCatalog(registration.tokens.access_token);
-    assert.equal(afterDelete.items.some((item) => item.slug === 'a-share-esg'), false);
+    assert.equal(afterDelete.items.some((item) => item.slug === 'custom-cloud-skill'), false);
   });
+});
+
+test('skill catalog supports server-side tag keyword filtering', async () => {
+  const store = new InMemoryControlPlaneStore();
+  const service = new ControlPlaneService(store);
+
+  const financePage = await service.listSkillCatalog(undefined, 200, 0, null, {
+    tagKeywords: ['文档'],
+    extraSkillSlugs: ['docx'],
+  });
+  assert.ok(financePage.total > 0);
+  assert.ok(
+    financePage.items.every((item) =>
+      item.tags.some((tag) => {
+        const normalized = tag.trim().toLowerCase();
+        return normalized.includes('文档');
+      }),
+    ),
+  );
+  assert.ok(financePage.items.some((item) => item.slug === 'docx'));
+
+  const slugFilteredPage = await service.listSkillCatalog(undefined, 200, 0, ['docx', 'xlsx', 'a-share-esg'], {
+    tagKeywords: ['A股'],
+  });
+  assert.deepEqual(
+    slugFilteredPage.items.map((item) => item.slug),
+    ['a-share-esg'],
+  );
 });

@@ -1,6 +1,12 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { IClawClient, McpCatalogEntryData, UserMcpLibraryItemData } from '@iclaw/sdk';
 import bundledMcpConfig from '../../../src-tauri/resources/mcp/mcp.json';
+import type {
+  ExtensionInstallConfigSnapshot,
+  ExtensionSetupSchema,
+  ExtensionSetupStatus,
+} from './extension-setup';
+import {parseExtensionSetupSchema} from './extension-setup';
 
 export type RawBundledMcpCatalogItem = {
   mcp_key: string;
@@ -17,6 +23,7 @@ export type McpStoreSource = 'bundled' | 'cloud';
 export type McpStoreInstallState = 'bundled' | 'installed' | 'available';
 export type McpStoreIconKey = 'browser' | 'search' | 'database' | 'file' | 'finance' | 'dev' | 'automation';
 export type McpStoreTone = 'brand' | 'success' | 'info' | 'warning' | 'neutral';
+type McpStoreTier = 'p0' | 'p1' | 'p2' | 'p3';
 
 export type McpStoreItem = {
   id: string;
@@ -42,6 +49,10 @@ export type McpStoreItem = {
   iconKey: McpStoreIconKey;
   tone: McpStoreTone;
   metadata: Record<string, unknown>;
+  setupSchema: ExtensionSetupSchema | null;
+  setupStatus: ExtensionSetupStatus;
+  setupSchemaVersion: number | null;
+  setupUpdatedAt: string | null;
 };
 
 type RawBundledMcpConfigFile = {
@@ -211,6 +222,27 @@ function inferTone(iconKey: McpStoreIconKey): McpStoreTone {
   }
 }
 
+function parseTier(metadata: Record<string, unknown>): McpStoreTier {
+  const normalized = (readString(metadata.tier) || '').toLowerCase();
+  if (normalized === 'p0' || normalized === 'p1' || normalized === 'p2') {
+    return normalized;
+  }
+  return 'p3';
+}
+
+function tierWeight(tier: McpStoreTier): number {
+  switch (tier) {
+    case 'p0':
+      return 0;
+    case 'p1':
+      return 1;
+    case 'p2':
+      return 2;
+    default:
+      return 3;
+  }
+}
+
 function readCommand(config: Record<string, unknown>, bundled?: RawBundledMcpCatalogItem | null): string | null {
   if (bundled?.command?.trim()) {
     return bundled.command.trim();
@@ -245,6 +277,7 @@ function normalizeStoreItem(input: {
     ...readObject(input.bundled?.config),
   };
   const categories = parseCategories(metadata);
+  const setupSchema = parseExtensionSetupSchema(metadata, config);
   const iconKey = inferIconKey(categories, input.key);
   const command = readCommand(config, input.bundled);
   const httpUrl = readHttpUrl(config, input.bundled);
@@ -278,6 +311,10 @@ function normalizeStoreItem(input: {
     iconKey,
     tone: inferTone(iconKey),
     metadata,
+    setupSchema,
+    setupStatus: input.library?.setup_status || (setupSchema ? 'missing' : 'not_required'),
+    setupSchemaVersion: input.library?.setup_schema_version ?? setupSchema?.version ?? null,
+    setupUpdatedAt: input.library?.setup_updated_at ?? null,
   };
 }
 
@@ -285,12 +322,26 @@ function compareMcpStoreItems(left: McpStoreItem, right: McpStoreItem): number {
   const score = (item: McpStoreItem) => {
     if (item.installState === 'bundled') return 0;
     if (item.installState === 'installed') return 1;
-    if (item.featured) return 2;
-    return 3;
+    return 2;
   };
   const scoreDiff = score(left) - score(right);
   if (scoreDiff !== 0) {
     return scoreDiff;
+  }
+  const leftTier = tierWeight(parseTier(left.metadata));
+  const rightTier = tierWeight(parseTier(right.metadata));
+  if (leftTier !== rightTier) {
+    return leftTier - rightTier;
+  }
+  const leftOfficial = readBoolean(left.metadata.official) === true ? 0 : 1;
+  const rightOfficial = readBoolean(right.metadata.official) === true ? 0 : 1;
+  if (leftOfficial !== rightOfficial) {
+    return leftOfficial - rightOfficial;
+  }
+  const leftFeatured = left.featured ? 0 : 1;
+  const rightFeatured = right.featured ? 0 : 1;
+  if (leftFeatured !== rightFeatured) {
+    return leftFeatured - rightFeatured;
   }
   return left.name.localeCompare(right.name, 'zh-CN');
 }
@@ -355,6 +406,8 @@ export async function installMcpFromStore(input: {
   client: IClawClient;
   accessToken: string | null;
   mcpKey: string;
+  setupValues?: Record<string, unknown>;
+  secretValues?: Record<string, string>;
 }): Promise<UserMcpLibraryItemData> {
   if (!input.accessToken) {
     throw new Error('AUTH_REQUIRED');
@@ -362,7 +415,50 @@ export async function installMcpFromStore(input: {
   return input.client.installMcp({
     token: input.accessToken,
     mcpKey: input.mcpKey,
+    setupValues: input.setupValues,
+    secretValues: input.secretValues,
   });
+}
+
+export async function loadMcpInstallConfig(input: {
+  client: IClawClient;
+  accessToken: string;
+  mcpKey: string;
+}): Promise<ExtensionInstallConfigSnapshot | null> {
+  const record = await input.client.getExtensionInstallConfig(input.accessToken, 'mcp', input.mcpKey);
+  if (!record) {
+    return null;
+  }
+  return {
+    setupValues: record.config_values || {},
+    configuredSecretKeys: record.configured_secret_keys || [],
+    status: record.status,
+    schemaVersion: record.schema_version,
+    updatedAt: record.updated_at,
+  };
+}
+
+export async function saveMcpInstallConfig(input: {
+  client: IClawClient;
+  accessToken: string;
+  mcpKey: string;
+  setupValues?: Record<string, unknown>;
+  secretValues?: Record<string, string>;
+}): Promise<ExtensionInstallConfigSnapshot> {
+  const record = await input.client.upsertExtensionInstallConfig({
+    token: input.accessToken,
+    extensionType: 'mcp',
+    extensionKey: input.mcpKey,
+    setupValues: input.setupValues,
+    secretValues: input.secretValues,
+  });
+  return {
+    setupValues: record.config_values || {},
+    configuredSecretKeys: record.configured_secret_keys || [],
+    status: record.status,
+    schemaVersion: record.schema_version,
+    updatedAt: record.updated_at,
+  };
 }
 
 export async function updateMcpEnabledState(input: {

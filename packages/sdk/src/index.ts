@@ -124,11 +124,15 @@ interface InstallSkillLibraryInput {
   token: string;
   slug: string;
   version?: string;
+  setupValues?: Record<string, unknown>;
+  secretValues?: Record<string, string>;
 }
 
 interface InstallMcpLibraryInput {
   token: string;
   mcpKey: string;
+  setupValues?: Record<string, unknown>;
+  secretValues?: Record<string, string>;
 }
 
 interface UpdateSkillLibraryInput {
@@ -141,6 +145,14 @@ interface UpdateMcpLibraryInput {
   token: string;
   mcpKey: string;
   enabled: boolean;
+}
+
+interface UpsertExtensionInstallConfigInput {
+  token: string;
+  extensionType: 'skill' | 'mcp';
+  extensionKey: string;
+  setupValues?: Record<string, unknown>;
+  secretValues?: Record<string, string>;
 }
 
 export interface WorkspaceBackupData {
@@ -246,6 +258,11 @@ export interface CreatePaymentOrderInput {
   provider?: 'mock' | 'wechat_qr' | 'alipay_qr';
   packageId: string;
   returnUrl?: string;
+  appName?: string;
+  appVersion?: string;
+  releaseChannel?: string;
+  platform?: string;
+  arch?: string;
 }
 
 export interface PaymentOrderData {
@@ -256,8 +273,10 @@ export interface PaymentOrderData {
   package_name: string;
   credits: number;
   bonus_credits: number;
+  total_credits: number;
   amount_cny_fen: number;
   payment_url: string | null;
+  app_name: string | null;
   paid_at: string | null;
   expires_at: string | null;
 }
@@ -276,7 +295,6 @@ export interface SkillCatalogEntryData {
   name: string;
   description: string;
   featured?: boolean;
-  visibility: 'showcase' | 'internal';
   market: string | null;
   category: string | null;
   skill_type: string | null;
@@ -328,6 +346,38 @@ export interface MarketStockData {
   updated_at: string;
 }
 
+export interface MarketFundData {
+  id: string;
+  market: 'cn_fund';
+  exchange: 'sh' | 'sz' | 'otc';
+  symbol: string;
+  fund_name: string;
+  fund_type: string | null;
+  instrument_kind: 'fund' | 'etf' | 'qdii';
+  region: 'A股' | '海外' | '全球';
+  risk_level: '低风险' | '中低风险' | '中风险' | '中高风险' | '高风险' | null;
+  manager_name: string | null;
+  tracking_target: string | null;
+  status: 'active' | 'suspended';
+  source: string;
+  source_id: string | null;
+  current_price: number | null;
+  nav_price: number | null;
+  change_percent: number | null;
+  return_1m: number | null;
+  return_1y: number | null;
+  max_drawdown: number | null;
+  scale_amount: number | null;
+  fee_rate: number | null;
+  amount: number | null;
+  turnover_rate: number | null;
+  dividend_mode: string | null;
+  strategy_tags: string[];
+  metadata: Record<string, unknown>;
+  imported_at: string;
+  updated_at: string;
+}
+
 export interface McpCatalogEntryData {
   mcp_key: string;
   name: string;
@@ -346,7 +396,21 @@ export interface UserMcpLibraryItemData {
   mcp_key: string;
   source: 'cloud';
   enabled: boolean;
+  setup_status: 'not_required' | 'configured' | 'missing';
+  setup_schema_version: number | null;
+  setup_updated_at: string | null;
   installed_at: string;
+  updated_at: string;
+}
+
+export interface UserExtensionInstallConfigData {
+  extension_type: 'skill' | 'mcp';
+  extension_key: string;
+  schema_version: number | null;
+  status: 'not_required' | 'configured' | 'missing';
+  config_values: Record<string, unknown>;
+  configured_secret_keys: string[];
+  created_at: string;
   updated_at: string;
 }
 
@@ -362,7 +426,6 @@ interface UpsertAdminSkillCatalogInput {
   name?: string;
   description?: string;
   featured?: boolean;
-  visibility?: 'showcase' | 'internal';
   market?: string | null;
   category?: string | null;
   skillType?: string | null;
@@ -431,6 +494,9 @@ export interface UserSkillLibraryItemData {
   version: string;
   source: 'cloud' | 'private';
   enabled: boolean;
+  setup_status: 'not_required' | 'configured' | 'missing';
+  setup_schema_version: number | null;
+  setup_updated_at: string | null;
   installed_at: string;
   updated_at: string;
 }
@@ -1164,6 +1230,11 @@ export class IClawClient {
         provider: input.provider || 'wechat_qr',
         package_id: input.packageId,
         return_url: input.returnUrl,
+        app_name: input.appName || this.desktopAppName,
+        app_version: input.appVersion || this.desktopAppVersion,
+        release_channel: input.releaseChannel || this.desktopReleaseChannel,
+        platform: input.platform || this.desktopPlatform,
+        arch: input.arch || this.desktopArch,
       }),
     });
     if (!res.ok) throw await parseError(res);
@@ -1349,13 +1420,85 @@ export class IClawClient {
     return json.data;
   }
 
-  async listSkillsCatalogPage(options?: {limit?: number; offset?: number}): Promise<SkillCatalogPageData<SkillCatalogEntryData>> {
+  async listMarketFundsPage(options?: {
+    market?: string;
+    exchange?: string;
+    instrumentKind?: string;
+    region?: string;
+    riskLevel?: string;
+    search?: string;
+    tag?: string;
+    sort?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<SkillCatalogPageData<MarketFundData>> {
+    const searchParams = new URLSearchParams();
+    if (options?.market?.trim()) searchParams.set('market', options.market.trim());
+    if (options?.exchange?.trim()) searchParams.set('exchange', options.exchange.trim());
+    if (options?.instrumentKind?.trim()) searchParams.set('instrument_kind', options.instrumentKind.trim());
+    if (options?.region?.trim()) searchParams.set('region', options.region.trim());
+    if (options?.riskLevel?.trim()) searchParams.set('risk_level', options.riskLevel.trim());
+    if (options?.search?.trim()) searchParams.set('search', options.search.trim());
+    if (options?.tag?.trim()) searchParams.set('tag', options.tag.trim());
+    if (options?.sort?.trim()) searchParams.set('sort', options.sort.trim());
+    if (typeof options?.limit === 'number' && Number.isFinite(options.limit)) {
+      searchParams.set('limit', String(Math.max(1, Math.floor(options.limit))));
+    }
+    if (typeof options?.offset === 'number' && Number.isFinite(options.offset) && options.offset > 0) {
+      searchParams.set('offset', String(Math.max(0, Math.floor(options.offset))));
+    }
+    const query = searchParams.size ? `?${searchParams.toString()}` : '';
+    const res = await this.fetchAuth(`/market/funds${query}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: SkillCatalogPageData<MarketFundData>};
+    return json.data;
+  }
+
+  async listMarketFunds(options?: {
+    market?: string;
+    exchange?: string;
+    instrumentKind?: string;
+    region?: string;
+    riskLevel?: string;
+    search?: string;
+    tag?: string;
+    sort?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<MarketFundData[]> {
+    const page = await this.listMarketFundsPage(options);
+    return page.items;
+  }
+
+  async getMarketFund(fundId: string): Promise<MarketFundData> {
+    const res = await this.fetchAuth(`/market/funds/${encodeURIComponent(fundId)}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: MarketFundData};
+    return json.data;
+  }
+
+  async listSkillsCatalogPage(options?: {
+    limit?: number;
+    offset?: number;
+    tagKeywords?: string[];
+  }): Promise<SkillCatalogPageData<SkillCatalogEntryData>> {
     const searchParams = new URLSearchParams();
     if (typeof options?.limit === 'number' && Number.isFinite(options.limit)) {
       searchParams.set('limit', String(Math.max(1, Math.floor(options.limit))));
     }
     if (typeof options?.offset === 'number' && Number.isFinite(options.offset) && options.offset > 0) {
       searchParams.set('offset', String(Math.max(0, Math.floor(options.offset))));
+    }
+    if (Array.isArray(options?.tagKeywords)) {
+      for (const keyword of options.tagKeywords.map((item) => item.trim()).filter(Boolean)) {
+        searchParams.append('tag', keyword);
+      }
     }
     const query = searchParams.size ? `?${searchParams.toString()}` : '';
     const res = await this.fetchAuth(`/skills/catalog${query}`, {
@@ -1367,7 +1510,11 @@ export class IClawClient {
     return json.data;
   }
 
-  async listSkillsCatalog(options?: {limit?: number; offset?: number}): Promise<SkillCatalogEntryData[]> {
+  async listSkillsCatalog(options?: {
+    limit?: number;
+    offset?: number;
+    tagKeywords?: string[];
+  }): Promise<SkillCatalogEntryData[]> {
     const page = await this.listSkillsCatalogPage(options);
     return page.items;
   }
@@ -1466,7 +1613,6 @@ export class IClawClient {
         name: input.name,
         description: input.description,
         featured: input.featured,
-        visibility: input.visibility,
         market: input.market,
         category: input.category,
         skill_type: input.skillType,
@@ -1619,6 +1765,8 @@ export class IClawClient {
       body: JSON.stringify({
         slug: input.slug,
         version: input.version,
+        setup_values: input.setupValues,
+        secret_values: input.secretValues,
       }),
     });
     if (!res.ok) throw await parseError(res);
@@ -1636,10 +1784,53 @@ export class IClawClient {
       },
       body: JSON.stringify({
         mcp_key: input.mcpKey,
+        setup_values: input.setupValues,
+        secret_values: input.secretValues,
       }),
     });
     if (!res.ok) throw await parseError(res);
     const json = (await res.json()) as {data: UserMcpLibraryItemData};
+    return json.data;
+  }
+
+  async getExtensionInstallConfig(
+    token: string,
+    extensionType: 'skill' | 'mcp',
+    extensionKey: string,
+  ): Promise<UserExtensionInstallConfigData | null> {
+    const params = new URLSearchParams({
+      extension_type: extensionType,
+      extension_key: extensionKey,
+    });
+    const res = await this.fetchAuth(`/extensions/install-config?${params.toString()}`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: UserExtensionInstallConfigData | null};
+    return json.data;
+  }
+
+  async upsertExtensionInstallConfig(input: UpsertExtensionInstallConfigInput): Promise<UserExtensionInstallConfigData> {
+    const res = await this.fetchAuth('/extensions/install-config', {
+      method: 'PUT',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${input.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        extension_type: input.extensionType,
+        extension_key: input.extensionKey,
+        setup_values: input.setupValues,
+        secret_values: input.secretValues,
+      }),
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: UserExtensionInstallConfigData};
     return json.data;
   }
 

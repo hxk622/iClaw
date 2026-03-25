@@ -40,7 +40,7 @@ import { SecurityCenterView } from './components/security-center/SecurityCenterV
 import { SettingsPanel } from './components/settings/SettingsPanel';
 import { RechargeCenter } from './components/recharge/RechargeCenter';
 import { StockMarketView } from './components/market/StockMarketView';
-import { FundMarketView } from './components/market/FundMarketView';
+import { FundMarketView, type FundMarketResearchTarget } from './components/market/FundMarketView';
 import type { ComposerStockContext } from './components/RichChatComposer';
 import { type PersistableSettingsSection, SettingsProvider, useSettings } from './contexts/settings-context';
 import { BRAND } from './lib/brand';
@@ -1491,6 +1491,30 @@ function AuthedView({
     setPrimaryView('chat');
   };
 
+  const handleStartFundResearchConversation = (fund: FundMarketResearchTarget) => {
+    const seed = `fund-${fund.symbol}-${Date.now()}`;
+    setActiveChatRoute({
+      sessionKey: seed,
+      initialPrompt: null,
+      initialPromptKey: seed,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialStockContext: {
+        id: fund.id,
+        symbol: fund.symbol,
+        companyName: fund.companyName,
+        exchange: fund.exchange,
+        board: fund.board,
+        instrumentKind: fund.instrumentKind,
+        instrumentLabel: fund.instrumentLabel,
+      },
+      focusTaskId: null,
+      focusTaskPrompt: null,
+    });
+    setChatSurfaceVersion((current) => current + 1);
+    setPrimaryView('chat');
+  };
+
   const handleStartNewChat = () => {
     const seed = `chat-${Date.now()}`;
     setActiveChatRoute({
@@ -1629,7 +1653,11 @@ function AuthedView({
               onStartResearch={handleStartStockResearchConversation}
             />
           ) : resolvedPrimaryView === 'fund-market' ? (
-            <FundMarketView title={menuUiConfig['fund-market'].displayName} />
+            <FundMarketView
+              title={menuUiConfig['fund-market'].displayName}
+              client={client}
+              onStartResearch={handleStartFundResearchConversation}
+            />
           ) : resolvedPrimaryView === 'lobster-store' ? (
             <LobsterStoreView
               title={menuUiConfig['lobster-store'].displayName}

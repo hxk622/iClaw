@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Camera, ChevronLeft, CreditCard, KeyRound, Link2, Loader2, Trash2, Unplug, Wallet } from 'lucide-react';
-import { IClawClient, type CreditBalanceData, type CreditLedgerItemData, type PaymentOrderData } from '@iclaw/sdk';
+import { IClawClient, type CreditBalanceData, type CreditLedgerItemData } from '@iclaw/sdk';
 import { Button } from '@/app/components/ui/Button';
 import { DrawerSection } from '@/app/components/ui/DrawerSection';
 import { InfoTile } from '@/app/components/ui/InfoTile';
@@ -23,30 +23,6 @@ type LinkedAccount = {
   provider_id: string;
   created_at: string;
 };
-
-type RechargeProvider = 'wechat_qr' | 'alipay_qr';
-
-type TopupPackage = {
-  id: string;
-  label: string;
-  credits: number;
-  bonusCredits: number;
-  amountCnyFen: number;
-  badge: string;
-};
-
-const TOPUP_PACKAGES: TopupPackage[] = [
-  { id: 'topup_1000', label: '轻量补给', credits: 1000, bonusCredits: 100, amountCnyFen: 1000, badge: '首充友好' },
-  { id: 'topup_3000', label: '高频常用', credits: 3000, bonusCredits: 400, amountCnyFen: 3000, badge: '最常用' },
-  { id: 'topup_5000', label: '工作流加满', credits: 5000, bonusCredits: 800, amountCnyFen: 5000, badge: '额外赠送更多' },
-];
-
-const RECHARGE_PROVIDERS: Array<{ id: RechargeProvider; label: string; hint: string }> = [
-  { id: 'wechat_qr', label: '微信扫码', hint: '适合移动端主用微信的用户' },
-  { id: 'alipay_qr', label: '支付宝扫码', hint: '适合偏好银行卡或支付宝余额' },
-];
-
-const PERSONAL_WECHAT_QR_URL = '/wechat-personal-qr.png';
 
 interface AccountPanelProps {
   client: IClawClient;
@@ -90,29 +66,6 @@ function userInitial(user: AuthUser | null, fallbackName: string): string {
   return source ? source[0]!.toUpperCase() : 'I';
 }
 
-function paymentStatusLabel(status: PaymentOrderData['status']): string {
-  if (status === 'pending') return '等待支付';
-  if (status === 'paid') return '已到账';
-  if (status === 'expired') return '已过期';
-  if (status === 'failed') return '支付失败';
-  if (status === 'refunded') return '已退款';
-  return status;
-}
-
-function formatCurrencyFen(value: number): string {
-  return `￥${(value / 100).toFixed(2)}`;
-}
-
-function formatCountdown(expiresAt: string | null): string {
-  if (!expiresAt) return '--:--';
-  const diff = new Date(expiresAt).getTime() - Date.now();
-  if (diff <= 0) return '00:00';
-  const totalSeconds = Math.floor(diff / 1000);
-  const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
-  const seconds = String(totalSeconds % 60).padStart(2, '0');
-  return `${minutes}:${seconds}`;
-}
-
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -147,13 +100,6 @@ export function AccountPanel({ client, token, user, onClose, onOpenRechargeCente
   const [loadingMeta, setLoadingMeta] = useState(true);
   const [metaError, setMetaError] = useState<string | null>(null);
   const [unlinkingProvider, setUnlinkingProvider] = useState<string | null>(null);
-  const [recharging, setRecharging] = useState(false);
-  const [confirmingRecharge, setConfirmingRecharge] = useState(false);
-  const [rechargeModalOpen, setRechargeModalOpen] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState<RechargeProvider>('wechat_qr');
-  const [selectedPackageId, setSelectedPackageId] = useState<string>(TOPUP_PACKAGES[1]!.id);
-  const [activeOrder, setActiveOrder] = useState<PaymentOrderData | null>(null);
-  const [rechargeMessage, setRechargeMessage] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -203,43 +149,6 @@ export function AccountPanel({ client, token, user, onClose, onOpenRechargeCente
       cancelled = true;
     };
   }, [client, token]);
-
-  const selectedPackage = TOPUP_PACKAGES.find((item) => item.id === selectedPackageId) || TOPUP_PACKAGES[0]!;
-  const activePackage = activeOrder
-    ? TOPUP_PACKAGES.find((item) => item.id === activeOrder.package_id) || selectedPackage
-    : selectedPackage;
-  const displayPaymentUrl =
-    activeOrder?.provider === 'wechat_qr' ? PERSONAL_WECHAT_QR_URL : activeOrder?.payment_url || null;
-
-  useEffect(() => {
-    if (!activeOrder || activeOrder.status === 'paid' || activeOrder.status === 'expired' || activeOrder.status === 'failed' || activeOrder.status === 'refunded') {
-      return;
-    }
-    let cancelled = false;
-    const poll = async () => {
-      try {
-        const nextOrder = await client.getPaymentOrder(token, activeOrder.order_id);
-        if (cancelled) return;
-        setActiveOrder(nextOrder);
-        if (nextOrder.status === 'paid') {
-          setRechargeMessage('充值已到账，余额已刷新。');
-          await refreshMeta(true);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setRechargeMessage(error instanceof Error ? error.message : '订单状态刷新失败');
-        }
-      }
-    };
-    void poll();
-    const timer = window.setInterval(() => {
-      void poll();
-    }, 3000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [activeOrder?.order_id, activeOrder?.status, client, token]);
 
   const handleSaveProfile = async () => {
     const nextName = name.trim();
@@ -345,57 +254,6 @@ export function AccountPanel({ client, token, user, onClose, onOpenRechargeCente
     } finally {
       setUnlinkingProvider(null);
     }
-  };
-
-  const handleCreateRechargeOrder = async () => {
-    setRecharging(true);
-    setRechargeMessage(null);
-    try {
-      const order = await client.createPaymentOrder({
-        token,
-        provider: selectedProvider,
-        packageId: selectedPackage.id,
-        returnUrl: 'iclaw://payments/result',
-      });
-      setActiveOrder(order);
-      setRechargeModalOpen(true);
-    } catch (error) {
-      setRechargeMessage(error instanceof Error ? error.message : '创建充值订单失败');
-    } finally {
-      setRecharging(false);
-    }
-  };
-
-  const handleTestRechargeSuccess = async () => {
-    if (!activeOrder) return;
-    setConfirmingRecharge(true);
-    setRechargeMessage(null);
-    try {
-      const nextOrder = await client.applyPaymentWebhook({
-        provider: activeOrder.provider,
-        eventId: `evt_${Date.now()}`,
-        orderId: activeOrder.order_id,
-        status: 'paid',
-        paidAt: new Date().toISOString(),
-      });
-      setActiveOrder(nextOrder);
-      await refreshMeta(true);
-      setRechargeMessage('测试支付成功，充值余额已到账。');
-    } catch (error) {
-      setRechargeMessage(error instanceof Error ? error.message : '测试入账失败');
-    } finally {
-      setConfirmingRecharge(false);
-    }
-  };
-
-  const handleOpenRechargeModal = () => {
-    setRechargeModalOpen(true);
-    setRechargeMessage(null);
-  };
-
-  const handleCloseRechargeModal = () => {
-    if (confirmingRecharge) return;
-    setRechargeModalOpen(false);
   };
 
   return (
@@ -596,15 +454,7 @@ export function AccountPanel({ client, token, user, onClose, onOpenRechargeCente
                   >
                     充值中心
                   </Button>
-                  <Button
-                    onClick={handleOpenRechargeModal}
-                    variant="secondary"
-                    size="sm"
-                    className="rounded-2xl text-sm"
-                  >
-                    去充值
-                  </Button>
-                  <span className="text-xs text-[var(--text-secondary)]">支持微信扫码和支付宝扫码，当前二维码为联调占位图。</span>
+                  <span className="text-xs text-[var(--text-secondary)]">统一从充值中心进入，支持微信扫码和支付宝扫码。</span>
                 </div>
               </DrawerSection>
 
@@ -665,178 +515,6 @@ export function AccountPanel({ client, token, user, onClose, onOpenRechargeCente
           </div>
         </main>
 
-        {rechargeModalOpen ? (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-[rgba(18,17,14,0.38)] px-4 py-6 backdrop-blur-[8px] dark:bg-[rgba(0,0,0,0.52)]" onClick={handleCloseRechargeModal}>
-            <div
-              className="grid w-full max-w-5xl gap-0 overflow-hidden rounded-[30px] border border-[rgba(117,96,49,0.18)] bg-[linear-gradient(135deg,rgba(255,252,244,0.98),rgba(246,239,223,0.97))] shadow-[0_36px_120px_rgba(39,29,7,0.26)] dark:border-[rgba(214,190,151,0.16)] dark:bg-[linear-gradient(135deg,rgba(24,21,18,0.98),rgba(17,15,13,0.98))] dark:shadow-[0_36px_120px_rgba(0,0,0,0.54)] lg:grid-cols-[1.02fr_0.98fr]"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <section className="border-b border-[rgba(117,96,49,0.14)] px-6 py-6 dark:border-[rgba(214,190,151,0.1)] lg:border-b-0 lg:border-r">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="text-xs uppercase tracking-[0.24em] text-[var(--text-muted)]">Recharge Console</div>
-                    <h2 className="mt-2 text-2xl text-[var(--text-primary)]">扫码充值</h2>
-                    <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-                      先完成正式扫码流程联调。当前二维码为本地占位图，但订单、轮询和到账链路都按真实流程走。
-                    </p>
-                  </div>
-                  <Button onClick={handleCloseRechargeModal} variant="ghost" size="sm" className="rounded-2xl px-3 py-1.5 text-sm text-[var(--text-secondary)]">
-                    关闭
-                  </Button>
-                </div>
-
-                <div className="mt-6">
-                  <div className="text-xs uppercase tracking-[0.2em] text-[var(--text-muted)]">01 / 选择档位</div>
-                  <div className="mt-3 grid gap-3">
-                    {TOPUP_PACKAGES.map((item) => {
-                      const selected = item.id === selectedPackageId;
-                      return (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => setSelectedPackageId(item.id)}
-                          className={`cursor-pointer rounded-[24px] border px-4 py-4 text-left transition ${
-                            selected
-                              ? 'border-[rgba(181,141,53,0.44)] bg-[rgba(255,248,231,0.92)] shadow-[0_16px_36px_rgba(126,95,27,0.12)] dark:border-[rgba(214,190,151,0.32)] dark:bg-[linear-gradient(180deg,rgba(57,43,18,0.76),rgba(30,25,20,0.92))] dark:shadow-[0_16px_36px_rgba(0,0,0,0.28)]'
-                              : 'border-[var(--border-default)] bg-[rgba(255,255,255,0.66)] hover:border-[rgba(181,141,53,0.28)] dark:bg-[rgba(255,255,255,0.03)] dark:hover:border-[rgba(214,190,151,0.2)]'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div>
-                              <div className="text-sm text-[var(--text-primary)]">{item.label}</div>
-                              <div className="mt-1 text-xs text-[var(--text-secondary)]">
-                                {item.credits} 龙虾币 + 赠送 {item.bonusCredits}
-                              </div>
-                            </div>
-                            <div className="rounded-full bg-[rgba(145,111,32,0.1)] px-2.5 py-1 text-xs text-[rgba(117,86,16,0.92)] dark:bg-[rgba(214,190,151,0.12)] dark:text-[#e7cfaa]">{item.badge}</div>
-                          </div>
-                          <div className="mt-4 flex items-end justify-between gap-3">
-                            <div className="text-2xl text-[var(--text-primary)]">{formatCurrencyFen(item.amountCnyFen)}</div>
-                            <div className="text-xs text-[var(--text-secondary)]">到账共 {item.credits + item.bonusCredits}</div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="mt-6">
-                  <div className="text-xs uppercase tracking-[0.2em] text-[var(--text-muted)]">02 / 选择支付方式</div>
-                  <div className="mt-3 grid gap-3 md:grid-cols-2">
-                    {RECHARGE_PROVIDERS.map((item) => {
-                      const selected = item.id === selectedProvider;
-                      return (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => setSelectedProvider(item.id)}
-                          className={`cursor-pointer rounded-[22px] border px-4 py-4 text-left transition ${
-                            selected
-                              ? 'border-[rgba(30,113,255,0.28)] bg-[rgba(255,255,255,0.92)] shadow-[0_16px_34px_rgba(48,80,135,0.11)] dark:border-[rgba(90,160,255,0.3)] dark:bg-[rgba(255,255,255,0.06)] dark:shadow-[0_16px_34px_rgba(0,0,0,0.26)]'
-                              : 'border-[var(--border-default)] bg-[rgba(255,255,255,0.62)] hover:border-[rgba(30,113,255,0.16)] dark:bg-[rgba(255,255,255,0.03)] dark:hover:border-[rgba(90,160,255,0.18)]'
-                          }`}
-                        >
-                          <div className="text-sm text-[var(--text-primary)]">{item.label}</div>
-                          <div className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{item.hint}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="mt-6 rounded-[24px] border border-[rgba(117,96,49,0.14)] bg-[rgba(255,255,255,0.62)] p-4 dark:border-[rgba(214,190,151,0.1)] dark:bg-[rgba(255,255,255,0.03)]">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-sm text-[var(--text-primary)]">本次订单</div>
-                      <div className="mt-1 text-xs text-[var(--text-secondary)]">
-                        {providerLabel(selectedProvider)} · {selectedPackage.label}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xl text-[var(--text-primary)]">{formatCurrencyFen(selectedPackage.amountCnyFen)}</div>
-                      <div className="text-xs text-[var(--text-secondary)]">到账 {selectedPackage.credits + selectedPackage.bonusCredits}</div>
-                    </div>
-                  </div>
-                  <div className="mt-4 flex items-center gap-3">
-                    <Button
-                      onClick={() => void handleCreateRechargeOrder()}
-                      disabled={recharging}
-                      variant="secondary"
-                      size="sm"
-                      className="rounded-2xl px-4 py-2 text-sm"
-                    >
-                      {recharging ? '生成中...' : activeOrder ? '重新生成二维码' : '生成二维码'}
-                    </Button>
-                    <span className="text-xs text-[var(--text-secondary)]">订单有效期 15 分钟，过期后可重新生成。</span>
-                  </div>
-                </div>
-              </section>
-
-              <section className="px-6 py-6">
-                <div className="rounded-[28px] border border-[rgba(38,38,33,0.08)] bg-[rgba(255,255,255,0.72)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-xs uppercase tracking-[0.2em] text-[var(--text-muted)]">03 / 扫码支付</div>
-                      <div className="mt-2 text-lg text-[var(--text-primary)]">
-                        {activeOrder ? providerLabel(activeOrder.provider) : providerLabel(selectedProvider)}
-                      </div>
-                    </div>
-                    <div className="rounded-full bg-[rgba(23,23,20,0.06)] px-3 py-1 text-xs text-[var(--text-secondary)] dark:bg-[rgba(255,255,255,0.06)]">
-                      {activeOrder ? paymentStatusLabel(activeOrder.status) : '等待生成'}
-                    </div>
-                  </div>
-
-                  <div className="mt-5 flex min-h-[320px] items-center justify-center rounded-[28px] border border-dashed border-[rgba(117,96,49,0.18)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(252,247,236,0.92))] p-6 dark:border-[rgba(214,190,151,0.14)] dark:bg-[linear-gradient(180deg,rgba(31,29,27,0.98),rgba(20,18,16,0.96))]">
-                    {displayPaymentUrl ? (
-                      <img src={displayPaymentUrl} alt="payment qr placeholder" className="h-[300px] w-[300px] rounded-[24px] object-cover shadow-[0_18px_50px_rgba(45,33,11,0.12)]" />
-                    ) : (
-                      <div className="max-w-[260px] text-center">
-                        <div className="text-base text-[var(--text-primary)]">还没有生成二维码</div>
-                        <div className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">选好档位和支付方式后，生成一张用于桌面联调的占位二维码。</div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-5 grid gap-3 md:grid-cols-3">
-                    <InfoTile label="当前档位" value={activeOrder?.package_name || activePackage.label} description={`${activePackage.credits} + 赠送 ${activePackage.bonusCredits}`} />
-                    <InfoTile label="支付金额" value={formatCurrencyFen(activeOrder?.amount_cny_fen || activePackage.amountCnyFen)} description="人民币" />
-                    <InfoTile
-                      label="剩余时间"
-                      value={activeOrder ? formatCountdown(activeOrder.expires_at) : '--:--'}
-                      description={activeOrder?.expires_at ? `截止 ${formatDate(activeOrder.expires_at)}` : '生成订单后开始倒计时'}
-                    />
-                  </div>
-
-                  <div className="mt-5 rounded-[22px] border border-[rgba(38,38,33,0.08)] bg-[rgba(247,242,230,0.72)] px-4 py-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(180,154,112,0.08)]">
-                    <div className="text-sm text-[var(--text-primary)]">联调说明</div>
-                    <div className="mt-2 text-xs leading-6 text-[var(--text-secondary)]">
-                      当前二维码是本地占位图，用来打通完整充值流程。真实微信/支付宝下单接入后，直接替换二维码来源和 webhook 验签即可。
-                    </div>
-                    <div className="mt-4 flex flex-wrap items-center gap-3">
-                      <Button
-                        onClick={() => void handleTestRechargeSuccess()}
-                        disabled={!activeOrder || activeOrder.status === 'paid' || confirmingRecharge}
-                        variant="secondary"
-                        size="sm"
-                        className="rounded-2xl px-4 py-2 text-sm"
-                      >
-                        {confirmingRecharge ? '入账中...' : '测试支付成功'}
-                      </Button>
-                      {activeOrder?.status === 'paid' ? (
-                        <span className="text-xs text-[var(--state-success)]">充值完成，可以关闭窗口继续使用。</span>
-                      ) : activeOrder?.status === 'expired' ? (
-                        <span className="text-xs text-[var(--state-error)]">订单已过期，请重新生成二维码。</span>
-                      ) : (
-                        <span className="text-xs text-[var(--text-secondary)]">生成后会自动轮询订单状态。</span>
-                      )}
-                    </div>
-                    {rechargeMessage ? <div className="mt-3 text-xs text-[var(--text-secondary)]">{rechargeMessage}</div> : null}
-                  </div>
-                </div>
-              </section>
-            </div>
-          </div>
-        ) : null}
       </div>
     </div>
   );

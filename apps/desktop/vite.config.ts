@@ -26,7 +26,6 @@ type BundledSkillCatalogItem = {
   slug: string;
   name: string;
   description: string;
-  visibility: string | null;
   tags: string[];
   license: string | null;
   homepage: string | null;
@@ -172,7 +171,6 @@ async function loadBundledSkillsCatalog(): Promise<BundledSkillCatalogItem[]> {
             slug: (frontmatter.slug || entry.name).trim(),
             name,
             description,
-            visibility: frontmatter.visibility?.trim() || null,
             tags: parseTags(frontmatter.tags),
             license: frontmatter.license?.trim() || null,
             homepage: frontmatter.homepage?.trim() || null,

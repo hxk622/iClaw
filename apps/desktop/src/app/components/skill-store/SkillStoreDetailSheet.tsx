@@ -18,7 +18,12 @@ type StatusMeta = {
 };
 
 function canStartConversation(skill: SkillStoreItem, input: { actionLoading: boolean; installFailed: boolean }): boolean {
-  return !input.actionLoading && !input.installFailed && (skill.source === 'bundled' || skill.installed);
+  return (
+    !input.actionLoading &&
+    !input.installFailed &&
+    skill.setupStatus !== 'missing' &&
+    (skill.source === 'bundled' || skill.installed)
+  );
 }
 
 function resolveStatus(skill: SkillStoreItem, input: { actionLoading: boolean; installFailed: boolean }): StatusMeta {
@@ -59,10 +64,15 @@ function resolveStatus(skill: SkillStoreItem, input: { actionLoading: boolean; i
     return {
       label: '已安装',
       tone: 'success',
-      actionLabel: '对话',
-      actionVariant: 'success',
+      actionLabel: skill.setupStatus === 'missing' ? '补充配置' : '对话',
+      actionVariant: skill.setupStatus === 'missing' ? 'primary' : 'success',
       disabled: false,
-      note: skill.source === 'private' ? '这是你导入到账号的技能，可直接开始对话。' : '这个技能已经加入你的账号，可直接开始对话。',
+      note:
+        skill.setupStatus === 'missing'
+          ? '这个技能已安装，但还缺少运行所需配置。先补齐配置，再进入对话。'
+          : skill.source === 'private'
+            ? '这是你导入到账号的技能，可直接开始对话。'
+            : '这个技能已经加入你的账号，可直接开始对话。',
     };
   }
 
@@ -150,6 +160,7 @@ export function SkillStoreDetailSheet({
                   {skill.sourceLabel}
                 </Chip>
                 <Chip tone="outline">{skill.categoryLabel}</Chip>
+                {skill.setupSchema && skill.setupStatus !== 'configured' ? <Chip tone="warning">需配置</Chip> : null}
               </div>
               <p className="mt-3 text-[13px] leading-6 text-[var(--text-secondary)]">{status.note}</p>
             </div>

@@ -6,21 +6,26 @@ import {
   createDefaultCloudSkillCatalogEntries,
 } from './catalog-defaults.ts';
 import type {
+  AdminPaymentOrderDetailRecord,
+  AdminPaymentOrderSummaryRecord,
   AgentCatalogEntryRecord,
   CreatePaymentOrderInput,
   CreateUserInput,
   CreditAccountRecord,
   CreditLedgerRecord,
+  ExtensionInstallTarget,
   ImportUserPrivateSkillInput,
   InstallAgentInput,
   InstallMcpInput,
   InstallSkillInput,
+  MarketFundRecord,
   MarketStockRecord,
   McpCatalogEntryRecord,
   OAuthAccountRecord,
   OAuthProvider,
   PaymentOrderRecord,
   PaymentProvider,
+  PaymentWebhookEventRecord,
   PaymentWebhookInput,
   RunBillingSummaryRecord,
   RunGrantRecord,
@@ -32,9 +37,11 @@ import type {
   UpsertAgentCatalogEntryInput,
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
+  UpsertUserExtensionInstallConfigInput,
   UsageEventInput,
   UsageEventResult,
   UserAgentLibraryRecord,
+  UserExtensionInstallConfigRecord,
   UserMcpLibraryRecord,
   UserPrivateSkillRecord,
   UserRole,
@@ -108,6 +115,28 @@ export interface ControlPlaneStore {
   getCreditLedger(userId: string): Promise<CreditLedgerRecord[]>;
   createPaymentOrder(userId: string, input: Required<CreatePaymentOrderInput> & {packageName: string; credits: number; bonusCredits: number; amountCnyFen: number;}): Promise<PaymentOrderRecord>;
   getPaymentOrderById(userId: string, orderId: string): Promise<PaymentOrderRecord | null>;
+  listPaymentOrdersAdmin(input?: {
+    limit?: number | null;
+    status?: string | null;
+    provider?: string | null;
+    appName?: string | null;
+    query?: string | null;
+  }): Promise<AdminPaymentOrderSummaryRecord[]>;
+  getPaymentOrderAdmin(orderId: string): Promise<AdminPaymentOrderDetailRecord | null>;
+  markPaymentOrderPaidAdmin(input: {
+    orderId: string;
+    operatorUserId: string;
+    operatorDisplayName: string;
+    providerOrderId?: string | null;
+    paidAt?: string | null;
+    note?: string | null;
+  }): Promise<AdminPaymentOrderDetailRecord | null>;
+  refundPaymentOrderAdmin(input: {
+    orderId: string;
+    operatorUserId: string;
+    operatorDisplayName: string;
+    note?: string | null;
+  }): Promise<AdminPaymentOrderDetailRecord | null>;
   applyPaymentWebhook(provider: PaymentProvider, input: Required<PaymentWebhookInput>): Promise<PaymentOrderRecord | null>;
   getRunGrantById(grantId: string): Promise<RunGrantRecord | null>;
   getRunBillingSummary(grantId: string): Promise<RunBillingSummaryRecord | null>;
@@ -157,14 +186,38 @@ export interface ControlPlaneStore {
     offset?: number | null;
   }): Promise<{items: MarketStockRecord[]; total: number}>;
   getMarketStock(stockId: string): Promise<MarketStockRecord | null>;
+  listMarketFunds(input?: {
+    market?: string | null;
+    exchange?: string | null;
+    instrumentKind?: string | null;
+    region?: string | null;
+    riskLevel?: string | null;
+    search?: string | null;
+    tag?: string | null;
+    sort?: string | null;
+    limit?: number | null;
+    offset?: number | null;
+  }): Promise<{items: MarketFundRecord[]; total: number}>;
+  getMarketFund(fundId: string): Promise<MarketFundRecord | null>;
   listAgentCatalog(): Promise<AgentCatalogEntryRecord[]>;
   listAgentCatalogAdmin(): Promise<AgentCatalogEntryRecord[]>;
   countAgentCatalogAdmin(): Promise<number>;
   getAgentCatalogEntry(slug: string): Promise<AgentCatalogEntryRecord | null>;
   upsertAgentCatalogEntry(input: Required<UpsertAgentCatalogEntryInput>): Promise<AgentCatalogEntryRecord>;
   deleteAgentCatalogEntry(slug: string): Promise<boolean>;
-  listSkillCatalog(limit?: number, offset?: number): Promise<SkillCatalogEntryRecord[]>;
-  countSkillCatalog(): Promise<number>;
+  listSkillCatalog(
+    limit?: number,
+    offset?: number,
+    filters?: {tagKeywords?: string[] | null; extraSkillSlugs?: string[] | null},
+  ): Promise<SkillCatalogEntryRecord[]>;
+  countSkillCatalog(filters?: {tagKeywords?: string[] | null; extraSkillSlugs?: string[] | null}): Promise<number>;
+  listSkillCatalogBySlugs(
+    slugs: string[],
+    limit?: number,
+    offset?: number,
+    filters?: {tagKeywords?: string[] | null},
+  ): Promise<SkillCatalogEntryRecord[]>;
+  countSkillCatalogBySlugs(slugs: string[], filters?: {tagKeywords?: string[] | null}): Promise<number>;
   listSkillCatalogAdmin(limit?: number, offset?: number, query?: string): Promise<SkillCatalogEntryRecord[]>;
   countSkillCatalogAdmin(query?: string): Promise<number>;
   getSkillCatalogEntry(slug: string): Promise<SkillCatalogEntryRecord | null>;
@@ -200,6 +253,29 @@ export interface ControlPlaneStore {
   ): Promise<UserPrivateSkillRecord>;
   deleteUserPrivateSkill(userId: string, slug: string): Promise<boolean>;
   listUserMcpLibrary(userId: string): Promise<UserMcpLibraryRecord[]>;
+  listUserExtensionInstallConfigs(
+    userId: string,
+    extensionType?: ExtensionInstallTarget,
+  ): Promise<UserExtensionInstallConfigRecord[]>;
+  getUserExtensionInstallConfig(
+    userId: string,
+    extensionType: ExtensionInstallTarget,
+    extensionKey: string,
+  ): Promise<UserExtensionInstallConfigRecord | null>;
+  upsertUserExtensionInstallConfig(
+    userId: string,
+    input: Required<UpsertUserExtensionInstallConfigInput> & {
+      schema_version: number | null;
+      status: UserExtensionInstallConfigRecord['status'];
+      configured_secret_keys: string[];
+      secret_payload_encrypted?: string | null;
+    },
+  ): Promise<UserExtensionInstallConfigRecord>;
+  removeUserExtensionInstallConfig(
+    userId: string,
+    extensionType: ExtensionInstallTarget,
+    extensionKey: string,
+  ): Promise<boolean>;
   installUserMcp(
     userId: string,
     input: Required<InstallMcpInput> & {source?: 'cloud'},
@@ -228,6 +304,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   private readonly creditAccountsByUserId = new Map<string, CreditAccountRecord>();
   private readonly creditLedgerByUserId = new Map<string, CreditLedgerRecord[]>();
   private readonly paymentOrdersById = new Map<string, PaymentOrderRecord>();
+  private readonly paymentWebhookEventsByOrderId = new Map<string, PaymentWebhookEventRecord[]>();
   private readonly runGrantsById = new Map<string, RunGrantRecord>();
   private readonly usageEventsByEventId = new Map<string, UsageEventResult>();
   private readonly runBillingSummaryByGrantId = new Map<string, RunBillingSummaryRecord>();
@@ -242,6 +319,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   private readonly userMcpLibrary = new Map<string, UserMcpLibraryRecord>();
   private readonly userSkillLibrary = new Map<string, UserSkillLibraryRecord>();
   private readonly userPrivateSkills = new Map<string, UserPrivateSkillRecord>();
+  private readonly userExtensionInstallConfigs = new Map<string, UserExtensionInstallConfigRecord>();
 
   constructor() {
     const now = new Date().toISOString();
@@ -580,6 +658,22 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
         amountCnyFen: input.amountCnyFen,
         expiresAt,
       }),
+      appName: input.app_name || null,
+      appVersion: input.app_version || null,
+      releaseChannel: input.release_channel || null,
+      platform: input.platform || null,
+      arch: input.arch || null,
+      returnUrl: input.return_url || null,
+      userAgent: input.user_agent || null,
+      metadata: {
+        app_name: input.app_name || null,
+        app_version: input.app_version || null,
+        release_channel: input.release_channel || null,
+        platform: input.platform || null,
+        arch: input.arch || null,
+        return_url: input.return_url || null,
+        user_agent: input.user_agent || null,
+      },
       paidAt: null,
       expiredAt: expiresAt,
       createdAt: now,
@@ -599,6 +693,232 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       this.paymentOrdersById.set(order.id, normalized);
     }
     return normalized;
+  }
+
+  async listPaymentOrdersAdmin(input?: {
+    limit?: number | null;
+    status?: string | null;
+    provider?: string | null;
+    appName?: string | null;
+    query?: string | null;
+  }): Promise<AdminPaymentOrderSummaryRecord[]> {
+    const status = (input?.status || '').trim().toLowerCase();
+    const provider = (input?.provider || '').trim().toLowerCase();
+    const appName = (input?.appName || '').trim().toLowerCase();
+    const query = (input?.query || '').trim().toLowerCase();
+    const limit = Math.max(1, Math.min(500, Number(input?.limit || 200) || 200));
+    const items = Array.from(this.paymentOrdersById.values())
+      .map((order) => expirePaymentOrderIfNeeded(order))
+      .filter((order) => {
+        if (status && order.status !== status) return false;
+        if (provider && order.provider !== provider) return false;
+        if (appName && (order.appName || '').trim().toLowerCase() !== appName) return false;
+        if (!query) return true;
+        const user = this.users.get(order.userId);
+        const haystack = [
+          order.id,
+          order.packageId,
+          order.packageName,
+          order.provider,
+          order.providerOrderId || '',
+          order.appName || '',
+          order.userId,
+          user?.username || '',
+          user?.email || '',
+          user?.displayName || '',
+        ]
+          .join(' ')
+          .toLowerCase();
+        return haystack.includes(query);
+      })
+      .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
+      .slice(0, limit)
+      .map((order) => {
+        const user = this.users.get(order.userId);
+        const webhookEvents = this.paymentWebhookEventsByOrderId.get(order.id) || [];
+        return {
+          ...order,
+          username: user?.username || order.userId,
+          userEmail: user?.email || '',
+          userDisplayName: user?.displayName || user?.username || order.userId,
+          webhookEventCount: webhookEvents.length,
+          latestWebhookAt: webhookEvents[0]?.createdAt || null,
+        };
+      });
+    return items;
+  }
+
+  async getPaymentOrderAdmin(orderId: string): Promise<AdminPaymentOrderDetailRecord | null> {
+    const order = this.paymentOrdersById.get(orderId) || null;
+    if (!order) {
+      return null;
+    }
+    const normalized = expirePaymentOrderIfNeeded(order);
+    if (normalized !== order) {
+      this.paymentOrdersById.set(order.id, normalized);
+    }
+    const user = this.users.get(normalized.userId);
+    const webhookEvents = (this.paymentWebhookEventsByOrderId.get(normalized.id) || []).slice();
+    return {
+      ...normalized,
+      username: user?.username || normalized.userId,
+      userEmail: user?.email || '',
+      userDisplayName: user?.displayName || user?.username || normalized.userId,
+      webhookEventCount: webhookEvents.length,
+      latestWebhookAt: webhookEvents[0]?.createdAt || null,
+      webhookEvents,
+    };
+  }
+
+  async markPaymentOrderPaidAdmin(input: {
+    orderId: string;
+    operatorUserId: string;
+    operatorDisplayName: string;
+    providerOrderId?: string | null;
+    paidAt?: string | null;
+    note?: string | null;
+  }): Promise<AdminPaymentOrderDetailRecord | null> {
+    const order = this.paymentOrdersById.get(input.orderId) || null;
+    if (!order) {
+      return null;
+    }
+    if (order.status !== 'paid') {
+      const paidAt = input.paidAt?.trim() || new Date().toISOString();
+      const paidOrder: PaymentOrderRecord = {
+        ...order,
+        status: 'paid',
+        providerOrderId: input.providerOrderId?.trim() || order.providerOrderId,
+        paidAt,
+        updatedAt: new Date().toISOString(),
+      };
+      this.paymentOrdersById.set(order.id, paidOrder);
+      const account = await this.getCreditAccount(order.userId);
+      const creditTotal = paidOrder.credits + paidOrder.bonusCredits;
+      const nextTopup = account.topupBalance + creditTotal;
+      const nextAccount: CreditAccountRecord = {
+        ...account,
+        topupBalance: nextTopup,
+        totalAvailableBalance: account.dailyFreeBalance + nextTopup,
+        updatedAt: paidOrder.updatedAt,
+      };
+      this.creditAccountsByUserId.set(order.userId, nextAccount);
+      const ledger = this.creditLedgerByUserId.get(order.userId) || [];
+      ledger.unshift({
+        id: randomUUID(),
+        userId: order.userId,
+        bucket: 'topup',
+        direction: 'topup',
+        amount: creditTotal,
+        balanceAfter: nextTopup,
+        referenceType: 'topup_order',
+        referenceId: order.id,
+        eventType: 'topup',
+        delta: creditTotal,
+        createdAt: paidOrder.updatedAt,
+      });
+      this.creditLedgerByUserId.set(order.userId, ledger);
+    }
+    const events = this.paymentWebhookEventsByOrderId.get(order.id) || [];
+    events.unshift({
+      id: randomUUID(),
+      provider: order.provider,
+      eventId: `admin_manual_paid_${Date.now()}`,
+      eventType: 'admin_manual_paid',
+      orderId: order.id,
+      payload: {
+        source: 'admin_manual',
+        action: 'mark_paid',
+        operator_user_id: input.operatorUserId,
+        operator_display_name: input.operatorDisplayName,
+        provider_order_id: input.providerOrderId || null,
+        paid_at: input.paidAt || null,
+        note: input.note || null,
+      },
+      signature: null,
+      processedAt: new Date().toISOString(),
+      processStatus: 'processed',
+      createdAt: new Date().toISOString(),
+    });
+    this.paymentWebhookEventsByOrderId.set(order.id, events);
+    return this.getPaymentOrderAdmin(order.id);
+  }
+
+  async refundPaymentOrderAdmin(input: {
+    orderId: string;
+    operatorUserId: string;
+    operatorDisplayName: string;
+    note?: string | null;
+  }): Promise<AdminPaymentOrderDetailRecord | null> {
+    const order = this.paymentOrdersById.get(input.orderId) || null;
+    if (!order) {
+      return null;
+    }
+    if (order.status === 'refunded') {
+      return this.getPaymentOrderAdmin(order.id);
+    }
+    if (order.status !== 'paid') {
+      const error = new Error('payment order is not paid');
+      (error).name = 'INVALID_PAYMENT_ORDER_STATUS';
+      throw error;
+    }
+    const totalCredits = order.credits + order.bonusCredits;
+    const account = await this.getCreditAccount(order.userId);
+    if (account.topupBalance < totalCredits) {
+      const error = new Error('insufficient topup balance for refund');
+      (error).name = 'INSUFFICIENT_TOPUP_BALANCE_FOR_REFUND';
+      throw error;
+    }
+    const refundedOrder: PaymentOrderRecord = {
+      ...order,
+      status: 'refunded',
+      updatedAt: new Date().toISOString(),
+    };
+    this.paymentOrdersById.set(order.id, refundedOrder);
+    const nextTopup = account.topupBalance - totalCredits;
+    const nextAccount: CreditAccountRecord = {
+      ...account,
+      topupBalance: nextTopup,
+      totalAvailableBalance: account.dailyFreeBalance + nextTopup,
+      updatedAt: refundedOrder.updatedAt,
+    };
+    this.creditAccountsByUserId.set(order.userId, nextAccount);
+    const ledger = this.creditLedgerByUserId.get(order.userId) || [];
+    ledger.unshift({
+      id: randomUUID(),
+      userId: order.userId,
+      bucket: 'topup',
+      direction: 'refund',
+      amount: totalCredits,
+      balanceAfter: nextTopup,
+      referenceType: 'topup_order',
+      referenceId: order.id,
+      eventType: 'refund',
+      delta: -totalCredits,
+      createdAt: refundedOrder.updatedAt,
+    });
+    this.creditLedgerByUserId.set(order.userId, ledger);
+    const events = this.paymentWebhookEventsByOrderId.get(order.id) || [];
+    events.unshift({
+      id: randomUUID(),
+      provider: order.provider,
+      eventId: `admin_manual_refund_${Date.now()}`,
+      eventType: 'admin_manual_refund',
+      orderId: order.id,
+      payload: {
+        source: 'admin_manual',
+        action: 'refund',
+        operator_user_id: input.operatorUserId,
+        operator_display_name: input.operatorDisplayName,
+        refunded_credits: totalCredits,
+        note: input.note || null,
+      },
+      signature: null,
+      processedAt: new Date().toISOString(),
+      processStatus: 'processed',
+      createdAt: new Date().toISOString(),
+    });
+    this.paymentWebhookEventsByOrderId.set(order.id, events);
+    return this.getPaymentOrderAdmin(order.id);
   }
 
   async applyPaymentWebhook(provider: PaymentProvider, input: Required<PaymentWebhookInput>): Promise<PaymentOrderRecord | null> {
@@ -621,6 +941,26 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       updatedAt: new Date().toISOString(),
     };
     this.paymentOrdersById.set(order.id, paidOrder);
+    const existingEvents = this.paymentWebhookEventsByOrderId.get(order.id) || [];
+    existingEvents.unshift({
+      id: randomUUID(),
+      provider,
+      eventId: input.event_id,
+      eventType: input.status,
+      orderId: order.id,
+      payload: {
+        event_id: input.event_id,
+        order_id: input.order_id,
+        provider_order_id: input.provider_order_id,
+        status: input.status,
+        paid_at: input.paid_at,
+      },
+      signature: null,
+      processedAt: new Date().toISOString(),
+      processStatus: 'processed',
+      createdAt: new Date().toISOString(),
+    });
+    this.paymentWebhookEventsByOrderId.set(order.id, existingEvents);
     if (paidOrder.status === 'paid') {
       const account = await this.getCreditAccount(order.userId);
       const nextTopup = account.topupBalance + paidOrder.credits + paidOrder.bonusCredits;
@@ -890,6 +1230,14 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     return null;
   }
 
+  async listMarketFunds(): Promise<{items: MarketFundRecord[]; total: number}> {
+    return {items: [], total: 0};
+  }
+
+  async getMarketFund(_fundId: string): Promise<MarketFundRecord | null> {
+    return null;
+  }
+
   async listAgentCatalog(): Promise<AgentCatalogEntryRecord[]> {
     return Array.from(this.agentCatalog.values())
       .filter((item) => item.active)
@@ -938,15 +1286,73 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     return this.agentCatalog.delete(slug);
   }
 
-  async listSkillCatalog(limit?: number, offset?: number): Promise<SkillCatalogEntryRecord[]> {
+  async listSkillCatalog(
+    limit?: number,
+    offset?: number,
+    filters?: {tagKeywords?: string[] | null; extraSkillSlugs?: string[] | null},
+  ): Promise<SkillCatalogEntryRecord[]> {
+    const normalizedKeywords = Array.from(
+      new Set((filters?.tagKeywords || []).map((keyword) => keyword.trim().toLowerCase()).filter(Boolean)),
+    );
+    const extraSlugSet = new Set((filters?.extraSkillSlugs || []).map((slug) => slug.trim()).filter(Boolean));
     const items = Array.from(this.skillCatalog.values())
-      .filter((item) => item.distribution === 'cloud' && item.active)
+      .filter((item) => item.active && (item.distribution === 'cloud' || extraSlugSet.has(item.slug)))
+      .filter((item) => {
+        if (normalizedKeywords.length === 0) return true;
+        return item.tags.some((tag) => {
+          const normalizedTag = tag.trim().toLowerCase();
+          return normalizedKeywords.some((keyword) => normalizedTag.includes(keyword));
+        });
+      })
       .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
     return this.paginateSkillCatalog(items, limit, offset);
   }
 
-  async countSkillCatalog(): Promise<number> {
-    return Array.from(this.skillCatalog.values()).filter((item) => item.distribution === 'cloud' && item.active).length;
+  async countSkillCatalog(filters?: {tagKeywords?: string[] | null; extraSkillSlugs?: string[] | null}): Promise<number> {
+    return (await this.listSkillCatalog(undefined, undefined, filters)).length;
+  }
+
+  async listSkillCatalogBySlugs(
+    slugs: string[],
+    limit?: number,
+    offset?: number,
+    filters?: {tagKeywords?: string[] | null},
+  ): Promise<SkillCatalogEntryRecord[]> {
+    const slugSet = new Set(slugs.map((slug) => slug.trim()).filter(Boolean));
+    const normalizedKeywords = Array.from(
+      new Set((filters?.tagKeywords || []).map((keyword) => keyword.trim().toLowerCase()).filter(Boolean)),
+    );
+    return this.paginateSkillCatalog(
+      Array.from(this.skillCatalog.values())
+        .filter((item) => item.active && slugSet.has(item.slug))
+        .filter((item) => {
+          if (normalizedKeywords.length === 0) return true;
+          return item.tags.some((tag) => {
+            const normalizedTag = tag.trim().toLowerCase();
+            return normalizedKeywords.some((keyword) => normalizedTag.includes(keyword));
+          });
+        })
+        .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN')),
+      limit,
+      offset,
+    );
+  }
+
+  async countSkillCatalogBySlugs(slugs: string[], filters?: {tagKeywords?: string[] | null}): Promise<number> {
+    const slugSet = new Set(slugs.map((slug) => slug.trim()).filter(Boolean));
+    const normalizedKeywords = Array.from(
+      new Set((filters?.tagKeywords || []).map((keyword) => keyword.trim().toLowerCase()).filter(Boolean)),
+    );
+    return Array.from(this.skillCatalog.values())
+      .filter((item) => item.active && slugSet.has(item.slug))
+      .filter((item) => {
+        if (normalizedKeywords.length === 0) return true;
+        return item.tags.some((tag) => {
+          const normalizedTag = tag.trim().toLowerCase();
+          return normalizedKeywords.some((keyword) => normalizedTag.includes(keyword));
+        });
+      })
+      .length;
   }
 
   async listSkillCatalogAdmin(limit?: number, offset?: number): Promise<SkillCatalogEntryRecord[]> {
@@ -969,7 +1375,6 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       slug: input.slug,
       name: input.name,
       description: input.description,
-      visibility: input.visibility,
       market: input.market,
       category: input.category,
       skillType: input.skill_type,
@@ -1168,6 +1573,65 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     return Array.from(this.userMcpLibrary.values()).filter((item) => item.userId === userId);
   }
 
+  async listUserExtensionInstallConfigs(
+    userId: string,
+    extensionType?: ExtensionInstallTarget,
+  ): Promise<UserExtensionInstallConfigRecord[]> {
+    return Array.from(this.userExtensionInstallConfigs.values()).filter(
+      (item) => item.userId === userId && (!extensionType || item.extensionType === extensionType),
+    );
+  }
+
+  async getUserExtensionInstallConfig(
+    userId: string,
+    extensionType: ExtensionInstallTarget,
+    extensionKey: string,
+  ): Promise<UserExtensionInstallConfigRecord | null> {
+    return (
+      this.userExtensionInstallConfigs.get(
+        this.extensionInstallConfigKey(userId, extensionType, extensionKey),
+      ) || null
+    );
+  }
+
+  async upsertUserExtensionInstallConfig(
+    userId: string,
+    input: Required<UpsertUserExtensionInstallConfigInput> & {
+      schema_version: number | null;
+      status: UserExtensionInstallConfigRecord['status'];
+      configured_secret_keys: string[];
+      secret_payload_encrypted?: string | null;
+    },
+  ): Promise<UserExtensionInstallConfigRecord> {
+    const now = new Date().toISOString();
+    const key = this.extensionInstallConfigKey(userId, input.extension_type, input.extension_key);
+    const existing = this.userExtensionInstallConfigs.get(key);
+    const record: UserExtensionInstallConfigRecord = {
+      userId,
+      extensionType: input.extension_type,
+      extensionKey: input.extension_key,
+      schemaVersion: input.schema_version,
+      status: input.status,
+      config: input.setup_values,
+      configuredSecretKeys: input.configured_secret_keys,
+      secretPayloadEncrypted: input.secret_payload_encrypted ?? null,
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+    };
+    this.userExtensionInstallConfigs.set(key, record);
+    return record;
+  }
+
+  async removeUserExtensionInstallConfig(
+    userId: string,
+    extensionType: ExtensionInstallTarget,
+    extensionKey: string,
+  ): Promise<boolean> {
+    return this.userExtensionInstallConfigs.delete(
+      this.extensionInstallConfigKey(userId, extensionType, extensionKey),
+    );
+  }
+
   async installUserMcp(
     userId: string,
     input: Required<InstallMcpInput> & {source?: 'cloud'},
@@ -1204,7 +1668,11 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   }
 
   async removeUserMcp(userId: string, mcpKey: string): Promise<boolean> {
-    return this.userMcpLibrary.delete(`${userId}:${mcpKey}`);
+    const removed = this.userMcpLibrary.delete(`${userId}:${mcpKey}`);
+    if (removed) {
+      this.userExtensionInstallConfigs.delete(this.extensionInstallConfigKey(userId, 'mcp', mcpKey));
+    }
+    return removed;
   }
 
   async installUserSkill(
@@ -1244,11 +1712,23 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   }
 
   async removeUserSkill(userId: string, slug: string): Promise<boolean> {
-    return this.userSkillLibrary.delete(`${userId}:${slug}`);
+    const removed = this.userSkillLibrary.delete(`${userId}:${slug}`);
+    if (removed) {
+      this.userExtensionInstallConfigs.delete(this.extensionInstallConfigKey(userId, 'skill', slug));
+    }
+    return removed;
   }
 
   private oauthKey(provider: OAuthProvider, providerId: string): string {
     return `${provider}:${providerId}`;
+  }
+
+  private extensionInstallConfigKey(
+    userId: string,
+    extensionType: ExtensionInstallTarget,
+    extensionKey: string,
+  ): string {
+    return `${userId}:${extensionType}:${extensionKey}`;
   }
 
   private paginateSkillCatalog<T>(

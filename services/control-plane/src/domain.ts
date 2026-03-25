@@ -268,6 +268,14 @@ export type PaymentOrderRecord = {
   providerOrderId: string | null;
   providerPrepayId: string | null;
   paymentUrl: string | null;
+  appName: string | null;
+  appVersion: string | null;
+  releaseChannel: string | null;
+  platform: string | null;
+  arch: string | null;
+  returnUrl: string | null;
+  userAgent: string | null;
+  metadata: Record<string, unknown>;
   paidAt: string | null;
   expiredAt: string | null;
   createdAt: string;
@@ -282,8 +290,10 @@ export type PaymentOrderView = {
   package_name: string;
   credits: number;
   bonus_credits: number;
+  total_credits: number;
   amount_cny_fen: number;
   payment_url: string | null;
+  app_name: string | null;
   paid_at: string | null;
   expires_at: string | null;
 };
@@ -292,6 +302,12 @@ export type CreatePaymentOrderInput = {
   provider?: string;
   package_id?: string;
   return_url?: string;
+  app_name?: string;
+  app_version?: string;
+  release_channel?: string;
+  platform?: string;
+  arch?: string;
+  user_agent?: string;
 };
 
 export type PaymentWebhookInput = {
@@ -300,6 +316,92 @@ export type PaymentWebhookInput = {
   provider_order_id?: string;
   status?: string;
   paid_at?: string;
+};
+
+export type PaymentWebhookEventRecord = {
+  id: string;
+  provider: PaymentProvider;
+  eventId: string;
+  eventType: string | null;
+  orderId: string | null;
+  payload: Record<string, unknown>;
+  signature: string | null;
+  processedAt: string | null;
+  processStatus: string;
+  createdAt: string;
+};
+
+export type AdminPaymentOrderSummaryRecord = PaymentOrderRecord & {
+  username: string;
+  userEmail: string;
+  userDisplayName: string;
+  webhookEventCount: number;
+  latestWebhookAt: string | null;
+};
+
+export type AdminPaymentOrderDetailRecord = AdminPaymentOrderSummaryRecord & {
+  webhookEvents: PaymentWebhookEventRecord[];
+};
+
+export type AdminPaymentOrderSummaryView = {
+  order_id: string;
+  status: PaymentOrderStatus;
+  provider: PaymentProvider;
+  package_id: string;
+  package_name: string;
+  credits: number;
+  bonus_credits: number;
+  total_credits: number;
+  amount_cny_fen: number;
+  currency: 'cny';
+  payment_url: string | null;
+  app_name: string | null;
+  app_version: string | null;
+  release_channel: string | null;
+  platform: string | null;
+  arch: string | null;
+  return_url: string | null;
+  user_agent: string | null;
+  provider_order_id: string | null;
+  provider_prepay_id: string | null;
+  user_id: string;
+  username: string;
+  user_email: string;
+  user_display_name: string;
+  webhook_event_count: number;
+  latest_webhook_at: string | null;
+  paid_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+  metadata: Record<string, unknown>;
+};
+
+export type PaymentWebhookEventView = {
+  id: string;
+  provider: PaymentProvider;
+  event_id: string;
+  event_type: string | null;
+  order_id: string | null;
+  payload: Record<string, unknown>;
+  signature: string | null;
+  processed_at: string | null;
+  process_status: string;
+  created_at: string;
+};
+
+export type AdminPaymentOrderDetailView = AdminPaymentOrderSummaryView & {
+  webhook_events: PaymentWebhookEventView[];
+};
+
+export type AdminMarkPaymentOrderPaidInput = {
+  provider_order_id?: string;
+  paid_at?: string;
+  note?: string;
+};
+
+export type AdminRefundPaymentOrderInput = {
+  note?: string;
 };
 
 export type WorkspaceBackupRecord = {
@@ -329,6 +431,8 @@ export type SkillSource = 'bundled' | 'cloud' | 'private';
 export type UserSkillLibrarySource = 'cloud' | 'private';
 export type McpCatalogSource = 'cloud';
 export type UserMcpLibrarySource = 'cloud';
+export type ExtensionInstallTarget = 'skill' | 'mcp';
+export type ExtensionSetupStatus = 'not_required' | 'configured' | 'missing';
 export type UserPrivateSkillSourceKind = 'github' | 'local';
 export type AgentCategory = 'finance' | 'content' | 'productivity' | 'commerce' | 'general';
 export type SkillArtifactFormat = 'tar.gz' | 'zip';
@@ -341,7 +445,6 @@ export type SkillCatalogRecord = {
   slug: string;
   name: string;
   description: string;
-  visibility: 'showcase' | 'internal';
   market: string | null;
   category: string | null;
   skillType: string | null;
@@ -377,7 +480,6 @@ export type SkillCatalogEntryView = {
   slug: string;
   name: string;
   description: string;
-  visibility: 'showcase' | 'internal';
   market: string | null;
   category: string | null;
   skill_type: string | null;
@@ -400,6 +502,9 @@ export type UserSkillLibraryItemView = {
   version: string;
   source: UserSkillLibrarySource;
   enabled: boolean;
+  setup_status: ExtensionSetupStatus;
+  setup_schema_version: number | null;
+  setup_updated_at: string | null;
   installed_at: string;
   updated_at: string;
 };
@@ -446,7 +551,34 @@ export type UserMcpLibraryItemView = {
   mcp_key: string;
   source: UserMcpLibrarySource;
   enabled: boolean;
+  setup_status: ExtensionSetupStatus;
+  setup_schema_version: number | null;
+  setup_updated_at: string | null;
   installed_at: string;
+  updated_at: string;
+};
+
+export type UserExtensionInstallConfigRecord = {
+  userId: string;
+  extensionType: ExtensionInstallTarget;
+  extensionKey: string;
+  schemaVersion: number | null;
+  status: ExtensionSetupStatus;
+  config: Record<string, unknown>;
+  configuredSecretKeys: string[];
+  secretPayloadEncrypted: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type UserExtensionInstallConfigView = {
+  extension_type: ExtensionInstallTarget;
+  extension_key: string;
+  schema_version: number | null;
+  status: ExtensionSetupStatus;
+  config_values: Record<string, unknown>;
+  configured_secret_keys: string[];
+  created_at: string;
   updated_at: string;
 };
 
@@ -552,6 +684,75 @@ export type MarketStockView = {
   prev_close: number | null;
   total_market_cap: number | null;
   circulating_market_cap: number | null;
+  strategy_tags: string[];
+  metadata: Record<string, unknown>;
+  imported_at: string;
+  updated_at: string;
+};
+
+export type MarketFundExchange = 'sh' | 'sz' | 'otc';
+export type MarketFundInstrumentKind = 'fund' | 'etf' | 'qdii';
+export type MarketFundRegion = 'A股' | '海外' | '全球';
+export type MarketFundRiskLevel = '低风险' | '中低风险' | '中风险' | '中高风险' | '高风险';
+
+export type MarketFundRecord = {
+  id: string;
+  market: 'cn_fund';
+  exchange: MarketFundExchange;
+  symbol: string;
+  fundName: string;
+  fundType: string | null;
+  instrumentKind: MarketFundInstrumentKind;
+  region: MarketFundRegion;
+  riskLevel: MarketFundRiskLevel | null;
+  managerName: string | null;
+  trackingTarget: string | null;
+  status: 'active' | 'suspended';
+  source: string;
+  sourceId: string | null;
+  currentPrice: number | null;
+  navPrice: number | null;
+  changePercent: number | null;
+  return1m: number | null;
+  return1y: number | null;
+  maxDrawdown: number | null;
+  scaleAmount: number | null;
+  feeRate: number | null;
+  amount: number | null;
+  turnoverRate: number | null;
+  dividendMode: string | null;
+  strategyTags: string[];
+  metadata: Record<string, unknown>;
+  importedAt: string;
+  updatedAt: string;
+};
+
+export type MarketFundView = {
+  id: string;
+  market: 'cn_fund';
+  exchange: MarketFundExchange;
+  symbol: string;
+  fund_name: string;
+  fund_type: string | null;
+  instrument_kind: MarketFundInstrumentKind;
+  region: MarketFundRegion;
+  risk_level: MarketFundRiskLevel | null;
+  manager_name: string | null;
+  tracking_target: string | null;
+  status: 'active' | 'suspended';
+  source: string;
+  source_id: string | null;
+  current_price: number | null;
+  nav_price: number | null;
+  change_percent: number | null;
+  return_1m: number | null;
+  return_1y: number | null;
+  max_drawdown: number | null;
+  scale_amount: number | null;
+  fee_rate: number | null;
+  amount: number | null;
+  turnover_rate: number | null;
+  dividend_mode: string | null;
   strategy_tags: string[];
   metadata: Record<string, unknown>;
   imported_at: string;
@@ -723,10 +924,21 @@ export type RunBillingSummaryView = {
 export type InstallSkillInput = {
   slug?: string;
   version?: string;
+  setup_values?: Record<string, unknown>;
+  secret_values?: Record<string, string>;
 };
 
 export type InstallMcpInput = {
   mcp_key?: string;
+  setup_values?: Record<string, unknown>;
+  secret_values?: Record<string, string>;
+};
+
+export type UpsertUserExtensionInstallConfigInput = {
+  extension_type?: ExtensionInstallTarget;
+  extension_key?: string;
+  setup_values?: Record<string, unknown>;
+  secret_values?: Record<string, string>;
 };
 
 export type ImportUserPrivateSkillInput = {
@@ -760,7 +972,6 @@ export type UpsertSkillCatalogEntryInput = {
   slug?: string;
   name?: string;
   description?: string;
-  visibility?: 'showcase' | 'internal';
   market?: string | null;
   category?: string | null;
   skill_type?: string | null;

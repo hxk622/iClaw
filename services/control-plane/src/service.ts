@@ -2193,6 +2193,7 @@ export class ControlPlaneService {
     limitInput?: number | null,
     offsetInput?: number | null,
     skillSlugsInput?: string[] | null,
+    filtersInput?: {tagKeywords?: string[] | null; extraSkillSlugs?: string[] | null},
   ): Promise<{
     items: SkillCatalogEntryView[];
     total: number;
@@ -2207,9 +2208,21 @@ export class ControlPlaneService {
       Array.isArray(skillSlugsInput)
         ? Array.from(new Set(skillSlugsInput.map((slug) => slug.trim()).filter(Boolean)))
         : null;
+    const tagKeywords =
+      Array.isArray(filtersInput?.tagKeywords)
+        ? Array.from(new Set(filtersInput.tagKeywords.map((keyword) => keyword.trim()).filter(Boolean)))
+        : [];
+    const extraSkillSlugs =
+      Array.isArray(filtersInput?.extraSkillSlugs)
+        ? Array.from(new Set(filtersInput.extraSkillSlugs.map((slug) => slug.trim()).filter(Boolean)))
+        : [];
     const [items, total] = await Promise.all([
-      skillSlugs ? this.store.listSkillCatalogBySlugs(skillSlugs, limit, offset) : this.store.listSkillCatalog(limit, offset),
-      skillSlugs ? this.store.countSkillCatalogBySlugs(skillSlugs) : this.store.countSkillCatalog(),
+      skillSlugs
+        ? this.store.listSkillCatalogBySlugs(skillSlugs, limit, offset, {tagKeywords})
+        : this.store.listSkillCatalog(limit, offset, {tagKeywords, extraSkillSlugs}),
+      skillSlugs
+        ? this.store.countSkillCatalogBySlugs(skillSlugs, {tagKeywords})
+        : this.store.countSkillCatalog({tagKeywords, extraSkillSlugs}),
     ]);
     const nextOffset = offset + items.length;
     return {

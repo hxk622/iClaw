@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, Eye, EyeOff, Package2, ShieldCheck, Sparkles, Tags, Trash2 } from 'lucide-react';
+import { AlertTriangle, Package2, ShieldCheck, Sparkles, Tags, Trash2 } from 'lucide-react';
 import type { AdminSkillStoreItem } from '@/app/lib/skill-store';
 import { Button } from '@/app/components/ui/Button';
 import { Chip } from '@/app/components/ui/Chip';
@@ -24,7 +24,6 @@ type EditableSkillForm = {
   category: string;
   skillType: string;
   publisher: string;
-  visibility: 'showcase' | 'internal';
   distribution: 'bundled' | 'cloud';
   active: boolean;
   tagsText: string;
@@ -40,7 +39,6 @@ function toFormState(skill: AdminSkillStoreItem): EditableSkillForm {
     category: skill.categoryId === 'a-share' || skill.categoryId === 'us-stock' ? '' : skill.categoryId,
     skillType: skill.skillType,
     publisher: skill.publisher,
-    visibility: skill.visibility === 'internal' ? 'internal' : 'showcase',
     distribution: skill.source === 'bundled' ? 'bundled' : 'cloud',
     active: skill.active,
     tagsText: skill.tags.join(', '),
@@ -90,7 +88,6 @@ export function SkillStoreAdminSheet({
     category: string | null;
     skillType: string | null;
     publisher: string;
-    visibility: 'showcase' | 'internal';
     distribution: 'bundled' | 'cloud';
     active: boolean;
     tags: string[];
@@ -141,7 +138,6 @@ export function SkillStoreAdminSheet({
             <Chip tone="brand">{skill.source === 'bundled' ? '系统预置' : '云端技能'}</Chip>
             {skill.featured ? <Chip tone="accent">官方精选</Chip> : null}
             <Chip tone={skill.active ? 'success' : 'outline'}>{skill.active ? '已启用' : '已停用'}</Chip>
-            <Chip tone="outline">{skill.visibility === 'showcase' ? '商店展示' : '仅后台可见'}</Chip>
           </div>
         </div>
 
@@ -260,7 +256,7 @@ export function SkillStoreAdminSheet({
             </div>
           </DrawerSection>
 
-          <DrawerSection title="标签与展示状态" icon={<Tags className="h-5 w-5" />}>
+          <DrawerSection title="标签与状态" icon={<Tags className="h-5 w-5" />}>
             <div className="grid gap-4">
               <label className="grid gap-2">
                 <span className="inline-flex items-center gap-2 text-[12px] font-medium uppercase tracking-[0.12em] text-[var(--text-secondary)]">
@@ -278,7 +274,7 @@ export function SkillStoreAdminSheet({
                 />
               </label>
 
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <SelectionCard
                   as="button"
                   selected={form.active}
@@ -308,30 +304,6 @@ export function SkillStoreAdminSheet({
                   </div>
                   <p className="mt-1.5 text-[13px] leading-6 text-[var(--text-secondary)]">
                     在卡片和详情页突出展示，并支持用户一键筛选。
-                  </p>
-                </SelectionCard>
-
-                <SelectionCard
-                  as="button"
-                  selected={form.visibility === 'showcase'}
-                  onClick={() =>
-                    setForm((current) =>
-                      current
-                        ? { ...current, visibility: current.visibility === 'showcase' ? 'internal' : 'showcase' }
-                        : current,
-                    )
-                  }
-                >
-                  <div className="flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
-                    {form.visibility === 'showcase' ? (
-                      <Eye className="h-4 w-4 text-[var(--brand-primary)]" />
-                    ) : (
-                      <EyeOff className="h-4 w-4 text-[var(--text-secondary)]" />
-                    )}
-                    商店展示
-                  </div>
-                  <p className="mt-1.5 text-[13px] leading-6 text-[var(--text-secondary)]">
-                    关闭后仅超管后台可见，普通用户技能商店不显示。
                   </p>
                 </SelectionCard>
               </div>
@@ -390,7 +362,6 @@ export function SkillStoreAdminSheet({
                     category: form.category.trim() || null,
                     skillType: form.skillType.trim() || null,
                     publisher: form.publisher.trim(),
-                    visibility: form.visibility,
                     distribution: form.distribution,
                     active: form.active,
                     tags: parseTags(form.tagsText),

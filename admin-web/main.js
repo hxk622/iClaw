@@ -762,13 +762,15 @@ function normalizeComposerShortcutCatalogItem(item, index = 0) {
 function getComposerControlCatalogItems() {
   return asArray(state.composerControlCatalog)
     .map((item, index) => normalizeComposerControlCatalogItem(item, index))
-    .filter(Boolean);
+    .filter(Boolean)
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.controlKey.localeCompare(right.controlKey, 'zh-CN'));
 }
 
 function getComposerShortcutCatalogItems() {
   return asArray(state.composerShortcutCatalog)
     .map((item, index) => normalizeComposerShortcutCatalogItem(item, index))
-    .filter(Boolean);
+    .filter(Boolean)
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.shortcutKey.localeCompare(right.shortcutKey, 'zh-CN'));
 }
 
 function getComposerControlDefinition(controlKey) {
@@ -1546,6 +1548,7 @@ function buildPortalDashboard(apps, skills, mcps, detailsMap) {
       brands_total: apps.length,
       published_count: apps.filter((app) => app.status === 'active').length,
       draft_count: 0,
+      cloud_skills_count: Number(state.cloudSkillCatalogMeta?.total || 0),
       mcp_servers_count: mcps.length,
       skills_count: skills.length,
       pending_changes_count: 0,
@@ -1816,7 +1819,7 @@ function getMergedSkills() {
       const connectedBrands = getPortalSkillConnections(item.slug);
       return {
         ...item,
-        distribution: 'cloud',
+        distribution: item.distribution || null,
         brand_count: connectedBrands.length,
         connectedBrands,
       };
@@ -3467,13 +3470,6 @@ async function setSkillEnabled(slug, enabled) {
     await apiFetch(`/admin/portal/catalog/skills/${encodeURIComponent(slug)}`, {
       method: 'PUT',
       body: JSON.stringify({
-        name: skill.name,
-        description: skill.description,
-        category: skill.category || null,
-        publisher: skill.publisher || 'iClaw',
-        visibility: skill.visibility || 'showcase',
-        object_key: skill.objectKey || null,
-        content_sha256: skill.contentSha256 || null,
         metadata: asObject(skill.metadata),
         active: enabled,
       }),
@@ -3629,22 +3625,10 @@ async function importSkill(formData) {
 
   try {
     const slug = String(formData.get('slug') || '').trim();
-    const artifactFile = formData.get('artifact_file');
     const body = {
-      name: String(formData.get('name') || '').trim(),
-      description: String(formData.get('description') || '').trim(),
-      publisher: String(formData.get('publisher') || '').trim() || 'admin-web',
-      category: String(formData.get('category') || '').trim() || null,
-      visibility: String(formData.get('visibility') || '').trim() || 'showcase',
-      object_key: String(formData.get('object_key') || '').trim() || null,
       metadata: parseJsonText(String(formData.get('metadata_json') || '{}').trim() || '{}', 'Skill metadata'),
       active: String(formData.get('active') || 'true') === 'true',
     };
-    if (artifactFile instanceof File && artifactFile.size > 0) {
-      body.file_name = artifactFile.name;
-      body.content_type = artifactFile.type || 'application/gzip';
-      body.file_base64 = await readFileAsBase64(artifactFile);
-    }
     await apiFetch(`/admin/portal/catalog/skills/${encodeURIComponent(slug)}`, {
       method: 'PUT',
       body: JSON.stringify(body),
@@ -3685,24 +3669,10 @@ async function addPlatformSkillFromCloud(formData) {
     await apiFetch(`/admin/portal/catalog/skills/${encodeURIComponent(slug)}`, {
       method: 'PUT',
       body: JSON.stringify({
-        name: String(cloudSkill.name || slug).trim(),
-        description: String(cloudSkill.description || '').trim(),
-        publisher: String(cloudSkill.publisher || 'iClaw').trim() || 'iClaw',
-        category: String(cloudSkill.category || '').trim() || null,
-        visibility: String(cloudSkill.visibility || 'showcase').trim() || 'showcase',
         metadata: {
-          ...asObject(cloudSkill.metadata),
-          sourceType: 'cloud-skill-import',
+          sourceType: 'platform-binding',
           sourceCatalog: 'cloud-skills',
           cloudSkillSlug: slug,
-          cloudSkillVersion: String(cloudSkill.version || '').trim() || null,
-          market: String(cloudSkill.market || '').trim() || null,
-          skillType: String(cloudSkill.skill_type || '').trim() || null,
-          tags: asArray(cloudSkill.tags).map((item) => String(item || '').trim()).filter(Boolean),
-          artifactUrl: String(cloudSkill.artifact_url || '').trim() || null,
-          artifactFormat: String(cloudSkill.artifact_format || '').trim() || null,
-          sourceUrl: String(cloudSkill.source_url || '').trim() || null,
-          originType: String(cloudSkill.origin_type || '').trim() || null,
         },
         active: cloudSkill.active !== false,
       }),
@@ -3736,7 +3706,6 @@ async function setCloudSkillEnabled(slug, enabled) {
         slug: skill.slug,
         name: skill.name,
         description: skill.description,
-        visibility: skill.visibility,
         market: skill.market || null,
         category: skill.category || null,
         skill_type: skill.skill_type || null,
@@ -4423,10 +4392,12 @@ function renderOverviewPage() {
   const stats = state.dashboard?.stats || {};
   const releases = state.dashboard?.recent_releases || [];
   const edits = state.dashboard?.recent_edits || [];
+  const cloudSkillsTotal = Number(state.cloudSkillCatalogMeta?.total || stats.cloud_skills_count || 0);
   const statCards = [
     ['品牌总数', stats.brands_total, 'portal apps', 'trendingUp'],
     ['已启用', stats.published_count, '运行中', 'checkCircle'],
     ['已禁用', stats.brands_total - stats.published_count, '已关闭', 'clock'],
+    ['云技能总库', cloudSkillsTotal, 'cloud catalog', 'store'],
     ['平台级 MCP', stats.mcp_servers_count, '平台预装子集', 'network'],
     ['平台级 Skill', stats.skills_count, '平台预装子集', 'zap'],
     ['资源索引', state.assets.length, 'portal assets', 'rocket'],
@@ -6096,6 +6067,7 @@ function getFilteredCapabilities() {
 function renderSkillsMcpPage() {
   const filterOptions = getCapabilityFilterOptions();
   const {skills, mcpServers, models} = getFilteredCapabilities();
+  const cloudSkillTotal = Number(state.cloudSkillCatalogMeta?.total || 0);
   const selectedSkill = state.selectedSkillSlug === '__new__' ? null : skills.find((item) => item.slug === state.selectedSkillSlug) || skills[0] || null;
   const selectedMcp = state.selectedMcpKey === '__new__' ? null : mcpServers.find((item) => item.key === state.selectedMcpKey) || mcpServers[0] || null;
   const selectedModel = state.selectedModelRef === '__new__' ? null : models.find((item) => item.ref === state.selectedModelRef) || models[0] || null;
@@ -6122,7 +6094,7 @@ function renderSkillsMcpPage() {
         `;
   const pageDescription =
     state.capabilityMode === 'skills'
-      ? '管理平台级 Skill 预装子集，来源于云技能全集'
+      ? `管理平台级 Skill 预装子集；云技能总库当前 ${cloudSkillTotal} 条`
       : state.capabilityMode === 'mcp'
         ? '管理平台级 MCP 预装子集，来源于 MCP 全集'
         : '管理模型主目录、OEM allowlist、推荐和默认模型';
@@ -6130,7 +6102,7 @@ function renderSkillsMcpPage() {
     state.capabilityMode === 'skills' ? '平台级 Skill' : state.capabilityMode === 'mcp' ? '平台级 MCP' : '模型中心';
   const listCountLabel =
     state.capabilityMode === 'skills'
-      ? `当前显示 ${skills.length} 个平台级 Skill`
+      ? `当前显示 ${skills.length} 个平台级 Skill / 云总库 ${cloudSkillTotal}`
       : state.capabilityMode === 'mcp'
         ? `当前显示 ${mcpServers.length} 个平台级 MCP`
         : `当前显示 ${models.length} 个模型`;
@@ -6941,8 +6913,8 @@ function renderSkillImportPanel() {
   return `
     <section class="fig-card fig-card--subtle">
       <div class="fig-card__head">
-        <h3>${skill ? '编辑平台级 Skill 记录' : '新增平台级 Skill 记录'}</h3>
-        <span>这里维护平台级 Skill 子集中的展示元数据；Skill 全集主数据仍以“云技能”为准。</span>
+        <h3>${skill ? '编辑平台级 Skill 绑定' : '新增平台级 Skill 绑定'}</h3>
+        <span>这里只维护平台层绑定信息；名称、描述、版本、标签等主数据都来自云技能总库。</span>
       </div>
       <form id="skill-import-form" class="form-grid form-grid--two">
         <label class="field">
@@ -6950,32 +6922,12 @@ function renderSkillImportPanel() {
           <input class="field-input" name="slug" placeholder="cloud-skill-slug" value="${fieldValue(skill?.slug)}" ${skill ? 'readonly' : ''} />
         </label>
         <label class="field">
-          <span>Name</span>
-          <input class="field-input" name="name" placeholder="Skill Name" value="${fieldValue(skill?.name)}" />
+          <span>来源</span>
+          <input class="field-input" value="${fieldValue(skill?.distribution || 'cloud')}" readonly />
         </label>
         <label class="field field--wide">
-          <span>Description</span>
-          <textarea class="field-textarea" name="description" placeholder="这个 skill 做什么">${escapeHtml(skill?.description || '')}</textarea>
-        </label>
-        <label class="field">
-          <span>Publisher</span>
-          <input class="field-input" name="publisher" value="${fieldValue(skill?.publisher || 'admin-web')}" />
-        </label>
-        <label class="field">
-          <span>Category</span>
-          <input class="field-input" name="category" placeholder="research / ops / growth" value="${fieldValue(skill?.category)}" />
-        </label>
-        <label class="field">
-          <span>Visibility</span>
-          <input class="field-input" name="visibility" placeholder="showcase / hidden" value="${fieldValue(skill?.visibility || 'showcase')}" />
-        </label>
-        <label class="field">
-          <span>Object Key</span>
-          <input class="field-input" name="object_key" placeholder="minio://skills/slug.tar.gz" value="${fieldValue(skill?.objectKey)}" />
-        </label>
-        <label class="field">
-          <span>Artifact 文件</span>
-          <input class="field-input" type="file" name="artifact_file" accept=".tar.gz,.tgz,.zip,application/gzip,application/zip" />
+          <span>云技能说明</span>
+          <textarea class="field-textarea" readonly>${escapeHtml(skill?.description || '')}</textarea>
         </label>
         <label class="field">
           <span>状态</span>
@@ -7019,7 +6971,8 @@ function renderSkillDetail(skill) {
         <p class="detail-copy">${escapeHtml(skill.description || '暂无描述。')}</p>
         <div class="fig-meta-cards">
           <div class="fig-meta-card"><span>分类</span><strong>${escapeHtml(skill.category || '未分类')}</strong></div>
-          <div class="fig-meta-card"><span>来源</span><strong>云技能全集</strong></div>
+          <div class="fig-meta-card"><span>来源</span><strong>${escapeHtml(skill.distribution === 'bundled' ? '云总库 / 预置' : '云总库')}</strong></div>
+          <div class="fig-meta-card"><span>版本</span><strong>${escapeHtml(skill.version || '-')}</strong></div>
           <div class="fig-meta-card"><span>生效 OEM</span><strong>${escapeHtml(skill.brand_count)}</strong></div>
         </div>
         <div class="action-row">

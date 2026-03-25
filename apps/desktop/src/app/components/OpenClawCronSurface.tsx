@@ -29,6 +29,9 @@ import { PageContent, PageHeader, PageSurface } from '@/app/components/ui/PageLa
 import { Select } from '@/app/components/ui/Select';
 import { SurfacePanel } from '@/app/components/ui/SurfacePanel';
 import { SummaryMetricItem } from '@/app/components/ui/SummaryMetricItem';
+import { FinancePresetGallery } from '@/app/components/cron-presets/FinancePresetGallery';
+import { FinancePresetInstallSheet } from '@/app/components/cron-presets/FinancePresetInstallSheet';
+import { FINANCE_CRON_PRESETS, type FinancePresetTaskTemplate } from '@/app/lib/finance-cron-presets';
 import { cn } from '@/app/lib/cn';
 import { readAppLocale } from '@/app/lib/general-preferences';
 import './openclaw-chat-surface.css';
@@ -572,6 +575,7 @@ export function OpenClawCronSurface({
   const hostRef = useRef<HTMLDivElement | null>(null);
   const appRef = useRef<OpenClawAppElement | null>(null);
   const reconnectKeyRef = useRef<string | null>(null);
+  const jobsPanelRef = useRef<HTMLElement | null>(null);
   const [status, setStatus] = useState<CronSurfaceStatus>({
     connected: false,
     lastError: null,
@@ -594,9 +598,11 @@ export function OpenClawCronSurface({
   const [listFilter, setListFilter] = useState<BasicFilter>('all');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [presetSaving, setPresetSaving] = useState(false);
   const [form, setForm] = useState<BasicCronFormState>(() => getDefaultForm());
   const [actionJobId, setActionJobId] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+  const [selectedPresetTask, setSelectedPresetTask] = useState<FinancePresetTaskTemplate | null>(null);
 
   const getClient = (): GatewayClient | null => {
     const client = appRef.current?.client;
@@ -804,6 +810,15 @@ export function OpenClawCronSurface({
   }, [jobs, listFilter]);
 
   const basicJobs = useMemo(() => jobs.filter(isBasicEditableJob), [jobs]);
+  const installedPresetIds = useMemo(() => {
+    const installed = new Set<string>();
+    FINANCE_CRON_PRESETS.forEach((preset) => {
+      if (jobs.some((job) => job.name.startsWith(preset.name))) {
+        installed.add(preset.id);
+      }
+    });
+    return installed;
+  }, [jobs]);
 
   const cronUiReady =
     (renderState.hasSummary && renderState.summaryVisible) ||
@@ -819,6 +834,10 @@ export function OpenClawCronSurface({
   const openCreate = (templateId: BasicTemplateId) => {
     setForm(getDefaultForm(templateId));
     setDrawerOpen(true);
+  };
+
+  const jumpToTasks = () => {
+    jobsPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const openEdit = (job: CronJob) => {
@@ -908,6 +927,56 @@ export function OpenClawCronSurface({
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleInstallPreset = async (input: {
+    task: FinancePresetTaskTemplate;
+    jobName: string;
+    prompt: string;
+    schedule: {
+      kind: 'cron';
+      expr: string;
+    };
+  }) => {
+    const client = getClient();
+    if (!client) {
+      setNotice({ tone: 'error', text: '连接尚未完成，请稍后再试。' });
+      return;
+    }
+
+    setPresetSaving(true);
+    try {
+      await client.request('cron.add', {
+        name: input.jobName,
+        enabled: true,
+        deleteAfterRun: false,
+        schedule: input.schedule,
+        sessionTarget: 'isolated',
+        wakeMode: 'now',
+        payload: {
+          kind: 'agentTurn',
+          message: input.prompt,
+        },
+        delivery: {
+          mode: 'announce',
+          channel: 'last',
+          bestEffort: true,
+        },
+      });
+      setSelectedPresetTask(null);
+      setNotice({ tone: 'success', text: `已安装「${input.task.name}」，你可以在下方“我的任务”继续管理。` });
+      await loadSnapshot();
+      window.setTimeout(() => {
+        jumpToTasks();
+      }, 120);
+    } catch (error) {
+      setNotice({
+        tone: 'error',
+        text: error instanceof Error ? error.message : '安装失败，请稍后再试。',
+      });
+    } finally {
+      setPresetSaving(false);
     }
   };
 
@@ -1133,11 +1202,18 @@ export function OpenClawCronSurface({
 
         {mode === 'basic' ? (
           <div className="mt-5 space-y-5">
+            <FinancePresetGallery
+              installedPresetIds={installedPresetIds}
+              onInstall={setSelectedPresetTask}
+              onJumpToTasks={jumpToTasks}
+              clientReady={clientReady}
+            />
+
             <SurfacePanel className="rounded-[28px] p-5">
               <div className="mb-4 flex items-center justify-between gap-4">
                 <div>
                   <h2 className="text-[18px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">快速创建</h2>
-                  <p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">选择模板直接生成一个基础定时任务。</p>
+                  <p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">没有合适模板时，可以继续用这些通用模板快速创建基础任务。</p>
                 </div>
                 <Chip tone="outline" className="rounded-full px-2.5 py-1 text-[11px]">
                   模板 {BASIC_TEMPLATES.length} 个
@@ -1176,169 +1252,171 @@ export function OpenClawCronSurface({
               </div>
             </SurfacePanel>
 
-            <SurfacePanel className="rounded-[28px] p-5">
-              <div className="mb-4 flex items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-[18px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">我的任务</h2>
-                  <p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">统一查看、运行、编辑和停用你已经创建的任务。</p>
+            <div ref={jobsPanelRef}>
+              <SurfacePanel className="rounded-[28px] p-5">
+                <div className="mb-4 flex items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-[18px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">我的任务</h2>
+                    <p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">统一查看、运行、编辑和停用你已经创建的任务。</p>
+                  </div>
+                  <CompactSegmentedControl
+                    options={[
+                      { value: 'all', label: '全部' },
+                      { value: 'enabled', label: '进行中' },
+                      { value: 'paused', label: '已暂停' },
+                    ]}
+                    value={listFilter}
+                    onChange={setListFilter}
+                  />
                 </div>
-                <CompactSegmentedControl
-                  options={[
-                    { value: 'all', label: '全部' },
-                    { value: 'enabled', label: '进行中' },
-                    { value: 'paused', label: '已暂停' },
-                  ]}
-                  value={listFilter}
-                  onChange={setListFilter}
-                />
-              </div>
 
-              {loading ? (
-                <EmptyStatePanel
-                  compact
-                  title="正在读取定时任务"
-                  description={
-                    <span className="inline-flex items-center gap-2">
-                      <LoaderCircle className="h-4 w-4 animate-spin" />
-                      稍等片刻，正在同步本地运行时中的任务列表。
-                    </span>
-                  }
-                />
-              ) : visibleJobs.length === 0 ? (
-                <EmptyStatePanel
-                  compact
-                  title="暂无任务"
-                  description="点击上方“新建任务”，或者先从模板区快速生成一个任务。"
-                />
-              ) : (
-                <div className="space-y-3">
-                  {visibleJobs.map((job) => {
-                    const tone = getJobStatusTone(job);
-                    const templateId = inferTemplateId(job);
-                    const Icon = getTemplateIcon(templateId);
-                    const isAdvancedOnly = !isBasicEditableJob(job);
-                    const resultTone =
-                      job.state?.lastStatus === 'error'
-                        ? 'danger'
-                        : job.state?.lastStatus === 'ok'
-                          ? 'success'
-                          : 'muted';
-                    const resultText =
-                      job.state?.lastStatus === 'error'
-                        ? '失败'
-                        : job.state?.lastStatus === 'ok'
-                          ? '成功'
-                          : '待执行';
-                    const frequencyLabel =
-                      parseSimpleCronSchedule(job.schedule)?.frequency === 'daily'
-                        ? '每日'
-                        : parseSimpleCronSchedule(job.schedule)?.frequency === 'weekly'
-                          ? '每周'
-                          : parseSimpleCronSchedule(job.schedule)?.frequency === 'once'
-                            ? '单次'
-                            : '自定义';
+                {loading ? (
+                  <EmptyStatePanel
+                    compact
+                    title="正在读取定时任务"
+                    description={
+                      <span className="inline-flex items-center gap-2">
+                        <LoaderCircle className="h-4 w-4 animate-spin" />
+                        稍等片刻，正在同步本地运行时中的任务列表。
+                      </span>
+                    }
+                  />
+                ) : visibleJobs.length === 0 ? (
+                  <EmptyStatePanel
+                    compact
+                    title="暂无任务"
+                    description="点击上方“新建任务”，或者先从模板区快速生成一个任务。"
+                  />
+                ) : (
+                  <div className="space-y-3">
+                    {visibleJobs.map((job) => {
+                      const tone = getJobStatusTone(job);
+                      const templateId = inferTemplateId(job);
+                      const Icon = getTemplateIcon(templateId);
+                      const isAdvancedOnly = !isBasicEditableJob(job);
+                      const resultTone =
+                        job.state?.lastStatus === 'error'
+                          ? 'danger'
+                          : job.state?.lastStatus === 'ok'
+                            ? 'success'
+                            : 'muted';
+                      const resultText =
+                        job.state?.lastStatus === 'error'
+                          ? '失败'
+                          : job.state?.lastStatus === 'ok'
+                            ? '成功'
+                            : '待执行';
+                      const frequencyLabel =
+                        parseSimpleCronSchedule(job.schedule)?.frequency === 'daily'
+                          ? '每日'
+                          : parseSimpleCronSchedule(job.schedule)?.frequency === 'weekly'
+                            ? '每周'
+                            : parseSimpleCronSchedule(job.schedule)?.frequency === 'once'
+                              ? '单次'
+                              : '自定义';
 
-                    return (
-                      <PressableCard key={job.id} className="group rounded-[24px] border-[var(--border-default)] px-4 py-4">
-                        <div className="flex items-center gap-4">
-                          <div
-                            className={cn(
-                              'flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[color-mix(in_srgb,var(--bg-hover)_80%,transparent)]',
-                              templateId === 'reminder' && 'text-[rgb(37,99,235)] dark:text-[#93c5fd]',
-                              templateId === 'daily-summary' && 'text-[rgb(5,150,105)] dark:text-[#86efac]',
-                              templateId === 'weekly-report' && 'text-[rgb(180,100,24)] dark:text-[#fcd34d]',
-                              templateId === 'custom' && 'text-[rgb(184,137,93)] dark:text-[#e8c9a6]',
-                            )}
-                          >
-                            <Icon className="h-5 w-5" />
-                          </div>
+                      return (
+                        <PressableCard key={job.id} className="group rounded-[24px] border-[var(--border-default)] px-4 py-4">
+                          <div className="flex items-center gap-4">
+                            <div
+                              className={cn(
+                                'flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[color-mix(in_srgb,var(--bg-hover)_80%,transparent)]',
+                                templateId === 'reminder' && 'text-[rgb(37,99,235)] dark:text-[#93c5fd]',
+                                templateId === 'daily-summary' && 'text-[rgb(5,150,105)] dark:text-[#86efac]',
+                                templateId === 'weekly-report' && 'text-[rgb(180,100,24)] dark:text-[#fcd34d]',
+                                templateId === 'custom' && 'text-[rgb(184,137,93)] dark:text-[#e8c9a6]',
+                              )}
+                            >
+                              <Icon className="h-5 w-5" />
+                            </div>
 
-                          <div className="min-w-0 flex-1">
-                            <div className="mb-1.5 flex flex-wrap items-center gap-2.5">
-                              <h3 className="truncate text-[14px] font-medium text-[var(--text-primary)]">{job.name}</h3>
-                              <Chip tone={tone.tone} className="rounded-[6px] px-2 py-0.5 text-[10px] uppercase tracking-[0.08em]">
-                                {tone.label}
-                              </Chip>
-                              <span className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{frequencyLabel}</span>
-                              {isAdvancedOnly ? (
-                                <Chip tone="warning" className="rounded-[6px] px-2 py-0.5 text-[10px] uppercase tracking-[0.08em]">
-                                  高级任务
+                            <div className="min-w-0 flex-1">
+                              <div className="mb-1.5 flex flex-wrap items-center gap-2.5">
+                                <h3 className="truncate text-[14px] font-medium text-[var(--text-primary)]">{job.name}</h3>
+                                <Chip tone={tone.tone} className="rounded-[6px] px-2 py-0.5 text-[10px] uppercase tracking-[0.08em]">
+                                  {tone.label}
                                 </Chip>
-                              ) : null}
-                            </div>
+                                <span className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{frequencyLabel}</span>
+                                {isAdvancedOnly ? (
+                                  <Chip tone="warning" className="rounded-[6px] px-2 py-0.5 text-[10px] uppercase tracking-[0.08em]">
+                                    高级任务
+                                  </Chip>
+                                ) : null}
+                              </div>
 
-                            <p className="truncate text-[12px] text-[var(--text-secondary)]">
-                              {job.payload.kind === 'agentTurn' ? job.payload.message : job.payload.text}
-                            </p>
+                              <p className="truncate text-[12px] text-[var(--text-secondary)]">
+                                {job.payload.kind === 'agentTurn' ? job.payload.message : job.payload.text}
+                              </p>
 
-                            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-[var(--text-muted)]">
-                              <span className="inline-flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                下次: {formatTimestamp(job.state?.nextRunAtMs ?? null)}
-                              </span>
-                              <span className="inline-flex items-center gap-1">
-                                <Repeat className="h-3 w-3" />
-                                节奏: {buildHumanSchedule(job.schedule)}
-                              </span>
-                              <span>
-                                结果:{' '}
-                                <span
-                                  className={cn(
-                                    resultTone === 'success' && 'text-[rgb(21,128,61)] dark:text-[#86efac]',
-                                    resultTone === 'danger' && 'text-[rgb(185,28,28)] dark:text-[#fecaca]',
-                                    resultTone === 'muted' && 'text-[var(--text-muted)]',
-                                  )}
-                                >
-                                  {resultText}
+                              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-[var(--text-muted)]">
+                                <span className="inline-flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  下次: {formatTimestamp(job.state?.nextRunAtMs ?? null)}
                                 </span>
-                              </span>
+                                <span className="inline-flex items-center gap-1">
+                                  <Repeat className="h-3 w-3" />
+                                  节奏: {buildHumanSchedule(job.schedule)}
+                                </span>
+                                <span>
+                                  结果:{' '}
+                                  <span
+                                    className={cn(
+                                      resultTone === 'success' && 'text-[rgb(21,128,61)] dark:text-[#86efac]',
+                                      resultTone === 'danger' && 'text-[rgb(185,28,28)] dark:text-[#fecaca]',
+                                      resultTone === 'muted' && 'text-[var(--text-muted)]',
+                                    )}
+                                  >
+                                    {resultText}
+                                  </span>
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className={CRON_GHOST_ICON_BUTTON_CLASS}
+                                onClick={() => void handleRun(job)}
+                                disabled={actionJobId === job.id}
+                              >
+                                <Play className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className={CRON_GHOST_ICON_BUTTON_CLASS}
+                                onClick={() => openEdit(job)}
+                              >
+                                <PencilLine className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className={CRON_GHOST_ICON_BUTTON_CLASS}
+                                onClick={() => void handleToggle(job)}
+                                disabled={actionJobId === job.id}
+                              >
+                                {job.enabled ? <Pause className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className={`${CRON_GHOST_ICON_BUTTON_CLASS} text-[rgb(185,28,28)] hover:text-[rgb(185,28,28)]`}
+                                onClick={() => void handleRemove(job)}
+                                disabled={actionJobId === job.id}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
                             </div>
                           </div>
-
-                          <div className="flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className={CRON_GHOST_ICON_BUTTON_CLASS}
-                              onClick={() => void handleRun(job)}
-                              disabled={actionJobId === job.id}
-                            >
-                              <Play className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className={CRON_GHOST_ICON_BUTTON_CLASS}
-                              onClick={() => openEdit(job)}
-                            >
-                              <PencilLine className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className={CRON_GHOST_ICON_BUTTON_CLASS}
-                              onClick={() => void handleToggle(job)}
-                              disabled={actionJobId === job.id}
-                            >
-                              {job.enabled ? <Pause className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className={`${CRON_GHOST_ICON_BUTTON_CLASS} text-[rgb(185,28,28)] hover:text-[rgb(185,28,28)]`}
-                              onClick={() => void handleRemove(job)}
-                              disabled={actionJobId === job.id}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </div>
-                      </PressableCard>
-                    );
-                  })}
-                </div>
-              )}
-            </SurfacePanel>
+                        </PressableCard>
+                      );
+                    })}
+                  </div>
+                )}
+              </SurfacePanel>
+            </div>
 
             {drawerOpen ? (
               <>
@@ -1484,6 +1562,13 @@ export function OpenClawCronSurface({
                 </div>
               </>
             ) : null}
+
+            <FinancePresetInstallSheet
+              task={selectedPresetTask}
+              saving={presetSaving}
+              onClose={() => setSelectedPresetTask(null)}
+              onInstall={handleInstallPreset}
+            />
           </div>
         ) : null}
 

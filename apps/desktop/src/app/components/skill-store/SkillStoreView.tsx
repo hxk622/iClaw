@@ -87,6 +87,9 @@ const installFilters: Array<{ id: SkillInstallFilter; label: string }> = [
 ];
 
 const tagFilterPriority = [
+  '基础',
+  '基础办公',
+  '办公',
   'A股',
   '美股',
   'ESG',
@@ -104,10 +107,93 @@ const tagFilterPriority = [
 ] as const;
 
 const hiddenQuickFilterTags = new Set(['金融', '通用', '技能', '工具包', '研究报告']);
-const FINANCE_SKILL_REGEX =
-  /(财经|金融|投资|股票|股市|A股|美股|港股|基金|债券|期权|量化|因子|财报|研报|市场|行业|宏观|组合|风控|风险|回撤|估值|交易|加密|币圈|esg)/i;
+const FINANCE_TAG_KEYWORDS = [
+  '财经',
+  '金融',
+  '投资',
+  '股票',
+  '股市',
+  'a股',
+  '美股',
+  '港股',
+  '基金',
+  '债券',
+  '期权',
+  '量化',
+  '因子',
+  '财报',
+  '研报',
+  '研究报告',
+  '市场',
+  '行业',
+  '宏观',
+  '组合',
+  '风控',
+  '风险',
+  '回撤',
+  '估值',
+  '交易',
+  '加密',
+  '币圈',
+  'esg',
+] as const;
+const FOUNDATION_TAG_KEYWORDS = [
+  '基础',
+  '基础办公',
+  '办公',
+  '办公效率',
+  '通用',
+  '文档',
+  '表格',
+  '电子表格',
+  'pdf',
+  'docx',
+  'xlsx',
+  '演示',
+  'ppt',
+  '幻灯片',
+  '搜索',
+  '自动化',
+  '协同',
+  '知识库',
+  '任务管理',
+  '日程',
+  '总结',
+  '内容创作',
+  '视频',
+  'productivity',
+  'automation',
+  'search',
+  'documentation',
+  'document',
+  'documents',
+  'office',
+  'excel',
+  'word',
+  'pptx',
+  'slides',
+  'presentation',
+  'email',
+  'calendar',
+  'workflow',
+  'knowledge',
+  'notes',
+  'markdown',
+  'converter',
+  'file',
+  'files',
+  'spreadsheet',
+  'docs',
+  'deck',
+  'meeting',
+  'meetings',
+  'schedule',
+  'planning',
+  'todo',
+  'base',
+] as const;
+const ALL_SKILL_INITIAL_LIMIT = 120;
 const SPECIALIZED_INITIAL_LIMIT = 300;
-const FOUNDATION_SKILL_LIMIT = 100;
 
 function matchesCategory(skill: SkillStoreItem, categoryId: SkillStoreCategoryId): boolean {
   if (categoryId === 'all') return true;
@@ -161,22 +247,21 @@ function compareSkillsByPopularity(left: SkillStoreItem, right: SkillStoreItem):
   return left.name.localeCompare(right.name, 'zh-CN');
 }
 
+function normalizeSkillTag(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function skillHasTagKeyword(skill: SkillStoreItem, keywords: readonly string[]): boolean {
+  const normalizedTags = skill.tags.map(normalizeSkillTag);
+  return normalizedTags.some((tag) => keywords.some((keyword) => tag.includes(keyword)));
+}
+
 function isFinanceSkill(skill: SkillStoreItem): boolean {
-  if (skill.market === 'A股' || skill.market === '美股') {
-    return true;
-  }
-  const text = [
-    skill.slug,
-    skill.name,
-    skill.description,
-    skill.market,
-    skill.skillType,
-    skill.categoryLabel,
-    skill.categoryId,
-    skill.publisher,
-    ...skill.tags,
-  ].join(' ');
-  return FINANCE_SKILL_REGEX.test(text);
+  return skillHasTagKeyword(skill, FINANCE_TAG_KEYWORDS);
+}
+
+function isFoundationSkill(skill: SkillStoreItem): boolean {
+  return skillHasTagKeyword(skill, FOUNDATION_TAG_KEYWORDS);
 }
 
 function applySkillPreset<T extends SkillStoreItem>(items: T[], preset: SkillStoreViewPreset): T[] {
@@ -187,9 +272,8 @@ function applySkillPreset<T extends SkillStoreItem>(items: T[], preset: SkillSto
     return items.filter(isFinanceSkill);
   }
   return items
-    .filter((skill) => !isFinanceSkill(skill))
-    .sort(compareSkillsByPopularity)
-    .slice(0, FOUNDATION_SKILL_LIMIT);
+    .filter(isFoundationSkill)
+    .sort(compareSkillsByPopularity);
 }
 
 function SkillStatusBadge({ status }: {status: SkillDisplayStatus}) {
@@ -500,7 +584,16 @@ export function SkillStoreView({
   title: string;
   description?: string;
 }) {
-  const [initialCatalogSnapshot] = useState(() => readSkillStoreCatalogSnapshot());
+  const catalogTagKeywords = useMemo(
+    () =>
+      preset === 'finance'
+        ? [...FINANCE_TAG_KEYWORDS]
+        : preset === 'foundation'
+          ? [...FOUNDATION_TAG_KEYWORDS]
+          : [],
+    [preset],
+  );
+  const [initialCatalogSnapshot] = useState(() => readSkillStoreCatalogSnapshot({ tagKeywords: catalogTagKeywords }));
   const [activeTab, setActiveTab] = useState<ActiveTab>('store');
   const [activeCategory, setActiveCategory] = useState<SkillStoreCategoryId>('all');
   const [activeInstallFilter, setActiveInstallFilter] = useState<SkillInstallFilter>('all');
@@ -509,10 +602,10 @@ export function SkillStoreView({
   const [searchQuery, setSearchQuery] = useState('');
   const [skills, setSkills] = useState<SkillStoreItem[]>(() => initialCatalogSnapshot?.items ?? []);
   const [adminSkills, setAdminSkills] = useState<AdminSkillStoreItem[]>([]);
-  const [, setCatalogTotal] = useState<number>(() => initialCatalogSnapshot?.total ?? 0);
+  const [catalogTotal, setCatalogTotal] = useState<number>(() => initialCatalogSnapshot?.total ?? 0);
   const [catalogHasMore, setCatalogHasMore] = useState<boolean>(() => Boolean(initialCatalogSnapshot?.hasMore));
   const [catalogNextOffset, setCatalogNextOffset] = useState<number | null>(() => initialCatalogSnapshot?.nextOffset ?? null);
-  const [, setAdminTotal] = useState(0);
+  const [adminTotal, setAdminTotal] = useState(0);
   const [adminHasMore, setAdminHasMore] = useState(false);
   const [adminNextOffset, setAdminNextOffset] = useState<number | null>(null);
   const [prefetchedCatalogPage, setPrefetchedCatalogPage] = useState<SkillStoreCatalogPage | null>(null);
@@ -549,8 +642,8 @@ export function SkillStoreView({
   const adminRoleKnown = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
   const shouldProbeAdminAccess = Boolean(accessToken) && !adminRoleKnown && currentUser?.role == null;
   const isAdmin = adminRoleKnown || adminCapable;
-  const catalogPageSize = preset === 'all' ? undefined : SPECIALIZED_INITIAL_LIMIT;
-  const allowLoadMore = preset !== 'foundation';
+  const catalogPageSize = preset === 'all' ? ALL_SKILL_INITIAL_LIMIT : SPECIALIZED_INITIAL_LIMIT;
+  const allowLoadMore = true;
 
   const applyStorePage = (page: SkillStoreCatalogPage, options?: {append?: boolean}) => {
     setSkills((current) => (options?.append ? mergeCatalogItems(current, page.items) : page.items));
@@ -573,7 +666,13 @@ export function SkillStoreView({
     const preferAdmin = Boolean(options?.preferAdmin);
     setLoading(true);
     try {
-      const catalogPromise = loadSkillStoreCatalogPage({ client, accessToken, offset: 0, limit: catalogPageSize });
+      const catalogPromise = loadSkillStoreCatalogPage({
+        client,
+        accessToken,
+        offset: 0,
+        limit: catalogPageSize,
+        tagKeywords: catalogTagKeywords,
+      });
       const adminCatalogPromise =
         accessToken && (preferAdmin || adminRoleKnown || shouldProbeAdminAccess)
           ? loadAdminSkillStoreCatalogPage({ client, accessToken, offset: 0, limit: catalogPageSize })
@@ -618,7 +717,13 @@ export function SkillStoreView({
 
       setLoading(true);
       try {
-        const catalogPromise = loadSkillStoreCatalogPage({ client, accessToken, offset: 0, limit: catalogPageSize });
+        const catalogPromise = loadSkillStoreCatalogPage({
+          client,
+          accessToken,
+          offset: 0,
+          limit: catalogPageSize,
+          tagKeywords: catalogTagKeywords,
+        });
         const adminCatalogPromise =
           accessToken && (adminRoleKnown || shouldProbeAdminAccess)
             ? loadAdminSkillStoreCatalogPage({ client, accessToken, offset: 0, limit: catalogPageSize })
@@ -656,7 +761,7 @@ export function SkillStoreView({
     return () => {
       cancelled = true;
     };
-  }, [accessToken, adminRoleKnown, catalogPageSize, client, shouldProbeAdminAccess]);
+  }, [accessToken, adminRoleKnown, catalogPageSize, catalogTagKeywords, client, preset, shouldProbeAdminAccess]);
 
   useEffect(() => {
     if (!selectedSkill) return;
@@ -678,7 +783,13 @@ export function SkillStoreView({
     }
 
     let cancelled = false;
-    void loadSkillStoreCatalogPage({ client, accessToken, offset: catalogNextOffset, limit: catalogPageSize })
+    void loadSkillStoreCatalogPage({
+      client,
+      accessToken,
+      offset: catalogNextOffset,
+      limit: catalogPageSize,
+      tagKeywords: catalogTagKeywords,
+    })
       .then((page) => {
         if (!cancelled && page.offset === catalogNextOffset) {
           setPrefetchedCatalogPage(page);
@@ -689,7 +800,7 @@ export function SkillStoreView({
     return () => {
       cancelled = true;
     };
-  }, [accessToken, adminMode, allowLoadMore, catalogHasMore, catalogNextOffset, catalogPageSize, client, prefetchedCatalogPage?.offset]);
+  }, [accessToken, adminMode, allowLoadMore, catalogHasMore, catalogNextOffset, catalogPageSize, catalogTagKeywords, client, prefetchedCatalogPage?.offset]);
 
   useEffect(() => {
     if (!adminMode || !allowLoadMore || !accessToken || !adminHasMore || adminNextOffset == null) {
@@ -917,7 +1028,6 @@ export function SkillStoreView({
     category: string | null;
     skillType: string | null;
     publisher: string;
-    visibility: 'showcase' | 'internal';
     distribution: 'bundled' | 'cloud';
     active: boolean;
     tags: string[];
@@ -1089,6 +1199,7 @@ export function SkillStoreView({
               accessToken,
               offset: catalogNextOffset,
               limit: catalogPageSize,
+              tagKeywords: catalogTagKeywords,
             });
       applyStorePage(page, { append: true });
     } catch (nextError) {
@@ -1182,7 +1293,10 @@ export function SkillStoreView({
       .sort(compareSkillsByPopularity);
   }, [activeCategory, activeInstallFilter, activeTab, activeTags, featuredOnly, searchQuery, visibleSkills]);
 
-  const totalCount = visibleSkills.length;
+  const loadedCount = visibleSkills.length;
+  const backendTotalCount = adminMode ? adminTotal : catalogTotal;
+  const showBackendTotal = true;
+  const totalCount = showBackendTotal ? backendTotalCount : visibleSkills.length;
   const installedCount = visibleSkills.filter((skill) => skill.installed || skill.source === 'bundled').length;
   const builtinCount = visibleSkills.filter((skill) => skill.source === 'bundled').length;
   const featuredCount = visibleSkills.filter((skill) => skill.featured).length;
@@ -1301,8 +1415,9 @@ export function SkillStoreView({
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-2 text-[12px] text-[var(--text-secondary)]">
-            <Chip tone="outline">已加载 {visibleSkills.length}</Chip>
-            <Chip tone="outline">{adminMode ? `专题总数 ${totalCount}` : `目录总数 ${totalCount}`}</Chip>
+            <Chip tone="outline">已加载 {loadedCount}</Chip>
+            <Chip tone="outline">{adminMode ? `平台视图总数 ${totalCount}` : `目录总数 ${totalCount}`}</Chip>
+            {showBackendTotal ? <Chip tone="outline">当前筛选 {filteredSkills.length}</Chip> : null}
             {loading ? (
               <Chip tone="accent" leadingIcon={<LoaderCircle className="h-3.5 w-3.5 animate-spin" />}>
                 正在刷新云端技能

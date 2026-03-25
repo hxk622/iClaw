@@ -17,6 +17,11 @@
         "storage": {
           "namespace": "iclaw"
         },
+        "capabilities": {
+          "skill_catalog": {
+            "visibility_mode": "all_cloud"
+          }
+        },
         "endpoints": {
           "authBaseUrl": ""
         },
@@ -110,6 +115,11 @@
         "authService": "ai.licaiclaw.desktop",
         "storage": {
           "namespace": "licaiclaw"
+        },
+        "capabilities": {
+          "skill_catalog": {
+            "visibility_mode": "all_cloud"
+          }
         },
         "endpoints": {
           "authBaseUrl": ""
@@ -303,9 +313,9 @@
     {"shortcutKey": "fund-analysis", "displayName": "基金分析", "description": "快速发起基金产品分析", "template": "请分析 #基金 的投资范围、持仓风格、业绩表现、回撤风险、基金经理特征和适合的配置场景。", "iconKey": "fund-analysis", "tone": "slate", "metadata": {"sourceType": "preset"}, "active": true}
   ],
   "skills": [
-    {"slug": "docx", "name": "DOCX 文档工具", "description": "创建、编辑和分析 Word 文档，支持修订、批注、格式保留与文本提取。", "category": "report", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/docx/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
-    {"slug": "xlsx", "name": "XLSX 表格工具", "description": "创建、编辑和分析电子表格，支持公式、格式、数据处理与可视化。", "category": "data", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/xlsx/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
-    {"slug": "pdf", "name": "PDF 工具包", "description": "提取文本和表格、合并拆分 PDF、处理表单并生成新的 PDF 文档。", "category": "report", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/pdf/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true}
+    {"slug": "docx", "name": "DOCX 文档工具", "description": "创建、编辑和分析 Word 文档，支持修订、批注、格式保留与文本提取。", "category": "report", "publisher": "iClaw", "metadata": {"sourceType": "preset"}, "active": true},
+    {"slug": "xlsx", "name": "XLSX 表格工具", "description": "创建、编辑和分析电子表格，支持公式、格式、数据处理与可视化。", "category": "data", "publisher": "iClaw", "metadata": {"sourceType": "preset"}, "active": true},
+    {"slug": "pdf", "name": "PDF 工具包", "description": "提取文本和表格、合并拆分 PDF、处理表单并生成新的 PDF 文档。", "category": "report", "publisher": "iClaw", "metadata": {"sourceType": "preset"}, "active": true}
   ],
   "mcps": [
     {

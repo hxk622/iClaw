@@ -7,16 +7,20 @@ import {Pool, type PoolClient} from 'pg';
 
 import {config} from './config.ts';
 import type {
+  AdminPaymentOrderDetailRecord,
+  AdminPaymentOrderSummaryRecord,
   AgentCatalogEntryRecord,
   AgentCatalogRecord,
   CreatePaymentOrderInput,
   CreateUserInput,
   CreditAccountRecord,
   CreditLedgerRecord,
+  ExtensionInstallTarget,
   ImportUserPrivateSkillInput,
   InstallAgentInput,
   InstallMcpInput,
   InstallSkillInput,
+  MarketFundRecord,
   MarketStockRecord,
   McpCatalogEntryRecord,
   McpCatalogRecord,
@@ -24,6 +28,7 @@ import type {
   OAuthProvider,
   PaymentOrderRecord,
   PaymentProvider,
+  PaymentWebhookEventRecord,
   PaymentWebhookInput,
   RunBillingSummaryRecord,
   RunGrantRecord,
@@ -36,9 +41,11 @@ import type {
   UpsertAgentCatalogEntryInput,
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
+  UpsertUserExtensionInstallConfigInput,
   UsageEventInput,
   UsageEventResult,
   UserAgentLibraryRecord,
+  UserExtensionInstallConfigRecord,
   UserFileRecord,
   UserMcpLibraryRecord,
   UserPrivateSkillRecord,
@@ -85,6 +92,8 @@ type CreditLedgerRow = {
   balance_after: string | number;
   reference_type: string | null;
   reference_id: string | null;
+  event_type: string | null;
+  delta: string | number | null;
   created_at: Date;
 };
 
@@ -111,10 +120,32 @@ type PaymentOrderRow = {
   provider_order_id: string | null;
   provider_prepay_id: string | null;
   payment_url: string | null;
+  metadata: Record<string, unknown> | null;
   paid_at: Date | null;
   expired_at: Date | null;
   created_at: Date;
   updated_at: Date;
+};
+
+type PaymentWebhookEventRow = {
+  id: string;
+  provider: PaymentProvider;
+  event_id: string;
+  event_type: string | null;
+  order_id: string | null;
+  payload: Record<string, unknown> | null;
+  signature: string | null;
+  processed_at: Date | null;
+  process_status: string;
+  created_at: Date;
+};
+
+type AdminPaymentOrderRow = PaymentOrderRow & {
+  username: string;
+  user_email: string;
+  user_display_name: string | null;
+  webhook_event_count: string | number;
+  latest_webhook_at: Date | null;
 };
 
 type UsageEventLookupRow = {
@@ -183,7 +214,6 @@ type SkillCatalogRow = {
   slug: string;
   name: string;
   description: string;
-  visibility: 'showcase' | 'internal';
   market: string | null;
   category: string | null;
   skill_type: string | null;
@@ -253,6 +283,38 @@ type MarketStockRow = {
   prev_close: string | number | null;
   total_market_cap: string | number | null;
   circulating_market_cap: string | number | null;
+  strategy_tags: string[] | null;
+  metadata_json: Record<string, unknown> | null;
+  imported_at: Date;
+  updated_at: Date;
+};
+
+type MarketFundRow = {
+  id: string;
+  market: 'cn_fund';
+  exchange: 'sh' | 'sz' | 'otc';
+  symbol: string;
+  fund_name: string;
+  fund_type: string | null;
+  instrument_kind: 'fund' | 'etf' | 'qdii';
+  region: 'A股' | '海外' | '全球';
+  risk_level: '低风险' | '中低风险' | '中风险' | '中高风险' | '高风险' | null;
+  manager_name: string | null;
+  tracking_target: string | null;
+  status: 'active' | 'suspended';
+  source: string;
+  source_id: string | null;
+  current_price: string | number | null;
+  nav_price: string | number | null;
+  change_percent: string | number | null;
+  return_1m: string | number | null;
+  return_1y: string | number | null;
+  max_drawdown: string | number | null;
+  scale_amount: string | number | null;
+  fee_rate: string | number | null;
+  amount: string | number | null;
+  turnover_rate: string | number | null;
+  dividend_mode: string | null;
   strategy_tags: string[] | null;
   metadata_json: Record<string, unknown> | null;
   imported_at: Date;
@@ -381,6 +443,19 @@ type UserMcpLibraryRow = {
   updated_at: Date;
 };
 
+type UserExtensionInstallConfigRow = {
+  user_id: string;
+  extension_type: ExtensionInstallTarget;
+  extension_key: string;
+  schema_version: number | null;
+  status: UserExtensionInstallConfigRecord['status'];
+  config_json: Record<string, unknown> | null;
+  configured_secret_keys: unknown;
+  secret_payload_encrypted: string | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
 type UserPrivateSkillRow = {
   user_id: string;
   slug: string;
@@ -462,6 +537,7 @@ function mapCreditAccountRow(row: CreditAccountRow, createdAt?: Date): CreditAcc
 }
 
 function mapPaymentOrderRow(row: PaymentOrderRow): PaymentOrderRecord {
+  const metadata = row.metadata || {};
   return {
     id: row.id,
     userId: row.user_id,
@@ -476,10 +552,45 @@ function mapPaymentOrderRow(row: PaymentOrderRow): PaymentOrderRecord {
     providerOrderId: row.provider_order_id,
     providerPrepayId: row.provider_prepay_id,
     paymentUrl: row.payment_url,
+    appName: typeof metadata.app_name === 'string' ? metadata.app_name : null,
+    appVersion: typeof metadata.app_version === 'string' ? metadata.app_version : null,
+    releaseChannel: typeof metadata.release_channel === 'string' ? metadata.release_channel : null,
+    platform: typeof metadata.platform === 'string' ? metadata.platform : null,
+    arch: typeof metadata.arch === 'string' ? metadata.arch : null,
+    returnUrl: typeof metadata.return_url === 'string' ? metadata.return_url : null,
+    userAgent: typeof metadata.user_agent === 'string' ? metadata.user_agent : null,
+    metadata,
     paidAt: row.paid_at ? row.paid_at.toISOString() : null,
     expiredAt: row.expired_at ? row.expired_at.toISOString() : null,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapPaymentWebhookEventRow(row: PaymentWebhookEventRow): PaymentWebhookEventRecord {
+  return {
+    id: row.id,
+    provider: row.provider,
+    eventId: row.event_id,
+    eventType: row.event_type,
+    orderId: row.order_id,
+    payload: row.payload || {},
+    signature: row.signature,
+    processedAt: row.processed_at ? row.processed_at.toISOString() : null,
+    processStatus: row.process_status,
+    createdAt: row.created_at.toISOString(),
+  };
+}
+
+function mapAdminPaymentOrderRow(row: AdminPaymentOrderRow): AdminPaymentOrderSummaryRecord {
+  const order = mapPaymentOrderRow(row);
+  return {
+    ...order,
+    username: row.username,
+    userEmail: row.user_email,
+    userDisplayName: row.user_display_name || row.username,
+    webhookEventCount: parseDbNumber(row.webhook_event_count),
+    latestWebhookAt: row.latest_webhook_at ? row.latest_webhook_at.toISOString() : null,
   };
 }
 
@@ -575,12 +686,45 @@ function mapMarketStockRow(row: MarketStockRow): MarketStockRecord {
   };
 }
 
+function mapMarketFundRow(row: MarketFundRow): MarketFundRecord {
+  return {
+    id: row.id,
+    market: row.market,
+    exchange: row.exchange,
+    symbol: row.symbol,
+    fundName: row.fund_name,
+    fundType: row.fund_type,
+    instrumentKind: row.instrument_kind,
+    region: row.region,
+    riskLevel: row.risk_level,
+    managerName: row.manager_name,
+    trackingTarget: row.tracking_target,
+    status: row.status,
+    source: row.source,
+    sourceId: row.source_id,
+    currentPrice: row.current_price === null ? null : parseDbNumber(row.current_price),
+    navPrice: row.nav_price === null ? null : parseDbNumber(row.nav_price),
+    changePercent: row.change_percent === null ? null : parseDbNumber(row.change_percent),
+    return1m: row.return_1m === null ? null : parseDbNumber(row.return_1m),
+    return1y: row.return_1y === null ? null : parseDbNumber(row.return_1y),
+    maxDrawdown: row.max_drawdown === null ? null : parseDbNumber(row.max_drawdown),
+    scaleAmount: row.scale_amount === null ? null : parseDbNumber(row.scale_amount),
+    feeRate: row.fee_rate === null ? null : parseDbNumber(row.fee_rate),
+    amount: row.amount === null ? null : parseDbNumber(row.amount),
+    turnoverRate: row.turnover_rate === null ? null : parseDbNumber(row.turnover_rate),
+    dividendMode: row.dividend_mode,
+    strategyTags: Array.isArray(row.strategy_tags) ? row.strategy_tags.filter((item) => typeof item === 'string') : [],
+    metadata: parseJsonObject(row.metadata_json),
+    importedAt: row.imported_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
 function mapSkillCatalogRow(row: SkillCatalogRow): SkillCatalogRecord {
   return {
     slug: row.slug,
     name: row.name,
     description: row.description,
-    visibility: row.visibility,
     market: row.market,
     category: row.category,
     skillType: row.skill_type,
@@ -684,6 +828,23 @@ function mapUserMcpLibraryRow(row: UserMcpLibraryRow): UserMcpLibraryRecord {
     source: row.source,
     enabled: row.enabled,
     installedAt: row.installed_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapUserExtensionInstallConfigRow(
+  row: UserExtensionInstallConfigRow,
+): UserExtensionInstallConfigRecord {
+  return {
+    userId: row.user_id,
+    extensionType: row.extension_type,
+    extensionKey: row.extension_key,
+    schemaVersion: row.schema_version,
+    status: row.status,
+    config: parseJsonObject(row.config_json),
+    configuredSecretKeys: parseSkillTags(row.configured_secret_keys),
+    secretPayloadEncrypted: row.secret_payload_encrypted,
+    createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
 }
@@ -1032,11 +1193,13 @@ export class PgControlPlaneStore implements ControlPlaneStore {
             balance_after,
             reference_type,
             reference_id,
+            event_type,
+            delta,
             created_at
           )
-          values ($1, $2, 'daily_free', 'grant', $3, $3, 'daily_reset', $2, $4)
+          values ($1, $2, 'daily_free', 'grant', $3, $3, 'daily_reset', $5, 'daily_reset', $3, $4)
         `,
-        [randomUUID(), userId, config.dailyFreeCredits, now],
+        [randomUUID(), userId, config.dailyFreeCredits, now, userId],
       );
       if (input.initialCreditBalance > 0) {
         await client.query(
@@ -1050,11 +1213,13 @@ export class PgControlPlaneStore implements ControlPlaneStore {
               balance_after,
               reference_type,
               reference_id,
+              event_type,
+              delta,
               created_at
             )
-            values ($1, $2, 'topup', 'grant', $3, $3, 'trial_grant', $2, $4)
+            values ($1, $2, 'topup', 'grant', $3, $3, 'trial_grant', $5, 'signup_grant', $3, $4)
           `,
-          [randomUUID(), userId, Math.max(0, input.initialCreditBalance), now],
+          [randomUUID(), userId, Math.max(0, input.initialCreditBalance), now, userId],
         );
       }
       await client.query('commit');
@@ -1306,9 +1471,11 @@ export class PgControlPlaneStore implements ControlPlaneStore {
               balance_after,
               reference_type,
               reference_id,
+              event_type,
+              delta,
               created_at
             )
-            values ($1, $2, 'daily_free', 'grant', $3, $3, 'daily_reset', $4, $5)
+            values ($1, $2, 'daily_free', 'grant', $3, $3, 'daily_reset', $4, 'daily_reset', $3, $5)
           `,
           [randomUUID(), userId, config.dailyFreeCredits, now.toISOString(), now],
         );
@@ -1357,7 +1524,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     await this.getCreditAccount(userId);
     const result = await this.pool.query<CreditLedgerRow>(
       `
-        select id, user_id, bucket, direction, amount, balance_after, reference_type, reference_id, created_at
+        select id, user_id, bucket, direction, amount, balance_after, reference_type, reference_id, event_type, delta, created_at
         from credit_ledger
         where user_id = $1
         order by created_at desc
@@ -1374,14 +1541,15 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       referenceType: (row.reference_type || 'manual_adjustment') as CreditLedgerRecord['referenceType'],
       referenceId: row.reference_id || null,
       eventType:
-        row.direction === 'topup'
+        row.event_type ||
+        (row.direction === 'topup'
           ? 'topup'
           : row.direction === 'consume'
             ? 'usage_debit'
             : row.reference_type === 'daily_reset'
               ? 'daily_reset'
-              : 'credit_ledger',
-      delta: parseDbNumber(row.amount),
+              : 'credit_ledger'),
+      delta: parseDbNumber(row.delta ?? row.amount),
       createdAt: row.created_at.toISOString(),
     }));
   }
@@ -1431,7 +1599,15 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           expiresAt: expiresAt.toISOString(),
         }),
         expiresAt,
-        JSON.stringify({return_url: input.return_url || ''}),
+        JSON.stringify({
+          app_name: input.app_name || null,
+          app_version: input.app_version || null,
+          release_channel: input.release_channel || null,
+          platform: input.platform || null,
+          arch: input.arch || null,
+          return_url: input.return_url || null,
+          user_agent: input.user_agent || null,
+        }),
         now,
       ],
     );
@@ -1455,6 +1631,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           provider_order_id,
           provider_prepay_id,
           payment_url,
+          metadata,
           paid_at,
           expired_at,
           created_at,
@@ -1489,6 +1666,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
             provider_order_id,
             provider_prepay_id,
             payment_url,
+            metadata,
             paid_at,
             expired_at,
             created_at,
@@ -1498,6 +1676,429 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       );
     }
     return result.rows[0] ? mapPaymentOrderRow(result.rows[0]) : null;
+  }
+
+  async listPaymentOrdersAdmin(input?: {
+    limit?: number | null;
+    status?: string | null;
+    provider?: string | null;
+    appName?: string | null;
+    query?: string | null;
+  }): Promise<AdminPaymentOrderSummaryRecord[]> {
+    const clauses = ['1 = 1'];
+    const params: Array<string | number> = [];
+    const status = String(input?.status || '').trim().toLowerCase();
+    const provider = String(input?.provider || '').trim().toLowerCase();
+    const appName = String(input?.appName || '').trim();
+    const query = String(input?.query || '').trim();
+    const limit = Math.max(1, Math.min(500, Number(input?.limit || 200) || 200));
+
+    if (status) {
+      params.push(status);
+      clauses.push(`p.status = $${params.length}`);
+    }
+    if (provider) {
+      params.push(provider);
+      clauses.push(`p.provider = $${params.length}`);
+    }
+    if (appName) {
+      params.push(appName);
+      clauses.push(`coalesce(p.metadata->>'app_name', '') = $${params.length}`);
+    }
+    if (query) {
+      params.push(`%${query.toLowerCase()}%`);
+      const queryParam = `$${params.length}`;
+      clauses.push(
+        `(
+          lower(p.id) like ${queryParam}
+          or lower(p.package_id) like ${queryParam}
+          or lower(p.package_name) like ${queryParam}
+          or lower(coalesce(p.provider_order_id, '')) like ${queryParam}
+          or lower(coalesce(p.metadata->>'app_name', '')) like ${queryParam}
+          or lower(p.user_id::text) like ${queryParam}
+          or lower(u.username) like ${queryParam}
+          or lower(coalesce(e.email, '')) like ${queryParam}
+          or lower(coalesce(u.display_name, '')) like ${queryParam}
+        )`,
+      );
+    }
+
+    params.push(limit);
+    const result = await this.pool.query<AdminPaymentOrderRow>(
+      `
+        select
+          p.id,
+          p.user_id,
+          p.provider,
+          p.package_id,
+          p.package_name,
+          p.credits,
+          p.bonus_credits,
+          p.amount_cny_fen,
+          p.currency,
+          p.status,
+          p.provider_order_id,
+          p.provider_prepay_id,
+          p.payment_url,
+          p.metadata,
+          p.paid_at,
+          p.expired_at,
+          p.created_at,
+          p.updated_at,
+          u.username,
+          e.email as user_email,
+          u.display_name as user_display_name,
+          count(w.id) as webhook_event_count,
+          max(w.created_at) as latest_webhook_at
+        from payment_orders p
+        join users u on u.id = p.user_id
+        left join user_emails e on e.user_id = u.id and e.is_primary = true
+        left join payment_webhook_events w on w.order_id = p.id
+        where ${clauses.join(' and ')}
+        group by p.id, u.id, e.email
+        order by p.created_at desc
+        limit $${params.length}
+      `,
+      params,
+    );
+    return result.rows.map((row) => mapAdminPaymentOrderRow(row));
+  }
+
+  async getPaymentOrderAdmin(orderId: string): Promise<AdminPaymentOrderDetailRecord | null> {
+    const result = await this.pool.query<AdminPaymentOrderRow>(
+      `
+        select
+          p.id,
+          p.user_id,
+          p.provider,
+          p.package_id,
+          p.package_name,
+          p.credits,
+          p.bonus_credits,
+          p.amount_cny_fen,
+          p.currency,
+          p.status,
+          p.provider_order_id,
+          p.provider_prepay_id,
+          p.payment_url,
+          p.metadata,
+          p.paid_at,
+          p.expired_at,
+          p.created_at,
+          p.updated_at,
+          u.username,
+          e.email as user_email,
+          u.display_name as user_display_name,
+          count(w.id) as webhook_event_count,
+          max(w.created_at) as latest_webhook_at
+        from payment_orders p
+        join users u on u.id = p.user_id
+        left join user_emails e on e.user_id = u.id and e.is_primary = true
+        left join payment_webhook_events w on w.order_id = p.id
+        where p.id = $1
+        group by p.id, u.id, e.email
+        limit 1
+      `,
+      [orderId],
+    );
+    const row = result.rows[0];
+    if (!row) {
+      return null;
+    }
+    const webhookEvents = await this.pool.query<PaymentWebhookEventRow>(
+      `
+        select
+          id,
+          provider,
+          event_id,
+          event_type,
+          order_id,
+          payload,
+          signature,
+          processed_at,
+          process_status,
+          created_at
+        from payment_webhook_events
+        where order_id = $1
+        order by created_at desc
+      `,
+      [orderId],
+    );
+    return {
+      ...mapAdminPaymentOrderRow(row),
+      webhookEvents: webhookEvents.rows.map((event) => mapPaymentWebhookEventRow(event)),
+    };
+  }
+
+  async markPaymentOrderPaidAdmin(input: {
+    orderId: string;
+    operatorUserId: string;
+    operatorDisplayName: string;
+    providerOrderId?: string | null;
+    paidAt?: string | null;
+    note?: string | null;
+  }): Promise<AdminPaymentOrderDetailRecord | null> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+      const orderResult = await client.query<PaymentOrderRow>(
+        `
+          select
+            id,
+            user_id,
+            provider,
+            package_id,
+            package_name,
+            credits,
+            bonus_credits,
+            amount_cny_fen,
+            currency,
+            status,
+            provider_order_id,
+            provider_prepay_id,
+            payment_url,
+            metadata,
+            paid_at,
+            expired_at,
+            created_at,
+            updated_at
+          from payment_orders
+          where id = $1
+          limit 1
+          for update
+        `,
+        [input.orderId],
+      );
+      const orderRow = orderResult.rows[0];
+      if (!orderRow) {
+        await client.query('rollback');
+        return null;
+      }
+
+      const paidAt = input.paidAt?.trim() || new Date().toISOString();
+      if (orderRow.status !== 'paid') {
+        await client.query(
+          `
+            update payment_orders
+            set
+              status = 'paid',
+              provider_order_id = coalesce(nullif($2, ''), provider_order_id),
+              paid_at = coalesce($3::timestamptz, now()),
+              updated_at = now()
+            where id = $1
+          `,
+          [orderRow.id, input.providerOrderId || null, paidAt],
+        );
+
+        const creditTotal = parseDbNumber(orderRow.credits) + parseDbNumber(orderRow.bonus_credits);
+        const account = await this.lockAndReadAccount(client, orderRow.user_id);
+        const nextTopup = account.topupBalance + creditTotal;
+        await client.query(
+          `
+            update credit_accounts
+            set topup_balance = $2, updated_at = now()
+            where user_id = $1
+          `,
+          [orderRow.user_id, nextTopup],
+        );
+        await client.query(
+          `
+            insert into credit_ledger (
+              id,
+              user_id,
+              bucket,
+              direction,
+              amount,
+              balance_after,
+              reference_type,
+              reference_id,
+              event_type,
+              delta,
+              created_at
+            )
+            values ($1, $2, 'topup', 'topup', $3, $4, 'topup_order', $5, 'topup', $3, now())
+          `,
+          [randomUUID(), orderRow.user_id, creditTotal, nextTopup, orderRow.id],
+        );
+      }
+
+      await client.query(
+        `
+          insert into payment_webhook_events (
+            id,
+            provider,
+            event_id,
+            event_type,
+            order_id,
+            payload,
+            processed_at,
+            process_status,
+            created_at
+          )
+          values ($1, $2, $3, $4, $5, $6::jsonb, now(), 'processed', now())
+        `,
+        [
+          randomUUID(),
+          orderRow.provider,
+          `admin_manual_paid_${Date.now()}_${randomUUID().slice(0, 8)}`,
+          'admin_manual_paid',
+          orderRow.id,
+          JSON.stringify({
+            source: 'admin_manual',
+            action: 'mark_paid',
+            operator_user_id: input.operatorUserId,
+            operator_display_name: input.operatorDisplayName,
+            provider_order_id: input.providerOrderId || null,
+            paid_at: paidAt,
+            note: input.note || null,
+          }),
+        ],
+      );
+      await client.query('commit');
+    } catch (error) {
+      await client.query('rollback');
+      throw error;
+    } finally {
+      client.release();
+    }
+    return this.getPaymentOrderAdmin(input.orderId);
+  }
+
+  async refundPaymentOrderAdmin(input: {
+    orderId: string;
+    operatorUserId: string;
+    operatorDisplayName: string;
+    note?: string | null;
+  }): Promise<AdminPaymentOrderDetailRecord | null> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+      const orderResult = await client.query<PaymentOrderRow>(
+        `
+          select
+            id,
+            user_id,
+            provider,
+            package_id,
+            package_name,
+            credits,
+            bonus_credits,
+            amount_cny_fen,
+            currency,
+            status,
+            provider_order_id,
+            provider_prepay_id,
+            payment_url,
+            metadata,
+            paid_at,
+            expired_at,
+            created_at,
+            updated_at
+          from payment_orders
+          where id = $1
+          limit 1
+          for update
+        `,
+        [input.orderId],
+      );
+      const orderRow = orderResult.rows[0];
+      if (!orderRow) {
+        await client.query('rollback');
+        return null;
+      }
+      if (orderRow.status === 'refunded') {
+        await client.query('commit');
+        return this.getPaymentOrderAdmin(input.orderId);
+      }
+      if (orderRow.status !== 'paid') {
+        const error = new Error('payment order is not paid');
+        error.name = 'INVALID_PAYMENT_ORDER_STATUS';
+        throw error;
+      }
+      const creditTotal = parseDbNumber(orderRow.credits) + parseDbNumber(orderRow.bonus_credits);
+      const account = await this.lockAndReadAccount(client, orderRow.user_id);
+      if (account.topupBalance < creditTotal) {
+        const error = new Error('insufficient topup balance for refund');
+        error.name = 'INSUFFICIENT_TOPUP_BALANCE_FOR_REFUND';
+        throw error;
+      }
+      const nextTopup = account.topupBalance - creditTotal;
+      await client.query(
+        `
+          update payment_orders
+          set
+            status = 'refunded',
+            updated_at = now()
+          where id = $1
+        `,
+        [orderRow.id],
+      );
+      await client.query(
+        `
+          update credit_accounts
+          set topup_balance = $2, updated_at = now()
+          where user_id = $1
+        `,
+        [orderRow.user_id, nextTopup],
+      );
+      await client.query(
+        `
+          insert into credit_ledger (
+            id,
+            user_id,
+            bucket,
+            direction,
+            amount,
+            balance_after,
+            reference_type,
+            reference_id,
+            event_type,
+            delta,
+            created_at
+          )
+          values ($1, $2, 'topup', 'refund', $3, $4, 'topup_order', $5, 'refund', $6, now())
+        `,
+        [randomUUID(), orderRow.user_id, creditTotal, nextTopup, orderRow.id, -creditTotal],
+      );
+      await client.query(
+        `
+          insert into payment_webhook_events (
+            id,
+            provider,
+            event_id,
+            event_type,
+            order_id,
+            payload,
+            processed_at,
+            process_status,
+            created_at
+          )
+          values ($1, $2, $3, $4, $5, $6::jsonb, now(), 'processed', now())
+        `,
+        [
+          randomUUID(),
+          orderRow.provider,
+          `admin_manual_refund_${Date.now()}_${randomUUID().slice(0, 8)}`,
+          'admin_manual_refund',
+          orderRow.id,
+          JSON.stringify({
+            source: 'admin_manual',
+            action: 'refund',
+            operator_user_id: input.operatorUserId,
+            operator_display_name: input.operatorDisplayName,
+            refunded_credits: creditTotal,
+            note: input.note || null,
+          }),
+        ],
+      );
+      await client.query('commit');
+    } catch (error) {
+      await client.query('rollback');
+      throw error;
+    } finally {
+      client.release();
+    }
+    return this.getPaymentOrderAdmin(input.orderId);
   }
 
   async applyPaymentWebhook(provider: PaymentProvider, input: Required<PaymentWebhookInput>): Promise<PaymentOrderRecord | null> {
@@ -1524,6 +2125,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
             provider_order_id,
             provider_prepay_id,
             payment_url,
+            metadata,
             paid_at,
             expired_at,
             created_at,
@@ -1586,9 +2188,11 @@ export class PgControlPlaneStore implements ControlPlaneStore {
               balance_after,
               reference_type,
               reference_id,
+              event_type,
+              delta,
               created_at
             )
-            values ($1, $2, 'topup', 'topup', $3, $4, 'topup_order', $5, now())
+            values ($1, $2, 'topup', 'topup', $3, $4, 'topup_order', $5, 'topup', $3, now())
           `,
           [randomUUID(), orderRow.user_id, creditTotal, nextTopup, orderRow.id],
         );
@@ -1631,6 +2235,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           provider_order_id,
           provider_prepay_id,
           payment_url,
+          metadata,
           paid_at,
           expired_at,
           created_at,
@@ -1881,10 +2486,12 @@ export class PgControlPlaneStore implements ControlPlaneStore {
               balance_after,
               reference_type,
               reference_id,
+              event_type,
+              delta,
               metadata,
               created_at
             )
-            values ($1, $2, 'daily_free', 'consume', $3, $4, 'chat_run', $5, $6::jsonb, now())
+            values ($1, $2, 'daily_free', 'consume', $3, $4, 'chat_run', $5, 'usage_debit', $3, $6::jsonb, now())
           `,
           [
             randomUUID(),
@@ -1914,10 +2521,12 @@ export class PgControlPlaneStore implements ControlPlaneStore {
               balance_after,
               reference_type,
               reference_id,
+              event_type,
+              delta,
               metadata,
               created_at
             )
-            values ($1, $2, 'topup', 'consume', $3, $4, 'chat_run', $5, $6::jsonb, now())
+            values ($1, $2, 'topup', 'consume', $3, $4, 'chat_run', $5, 'usage_debit', $3, $6::jsonb, now())
           `,
           [
             randomUUID(),
@@ -2367,6 +2976,166 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     return result.rows[0] ? mapMarketStockRow(result.rows[0]) : null;
   }
 
+  async listMarketFunds(input?: {
+    market?: string | null;
+    exchange?: string | null;
+    instrumentKind?: string | null;
+    region?: string | null;
+    riskLevel?: string | null;
+    search?: string | null;
+    tag?: string | null;
+    sort?: string | null;
+    limit?: number | null;
+    offset?: number | null;
+  }): Promise<{items: MarketFundRecord[]; total: number}> {
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+    const market = typeof input?.market === 'string' ? input.market.trim() : '';
+    const exchange = typeof input?.exchange === 'string' ? input.exchange.trim() : '';
+    const instrumentKind = typeof input?.instrumentKind === 'string' ? input.instrumentKind.trim() : '';
+    const region = typeof input?.region === 'string' ? input.region.trim() : '';
+    const riskLevel = typeof input?.riskLevel === 'string' ? input.riskLevel.trim() : '';
+    const search = typeof input?.search === 'string' ? input.search.trim() : '';
+    const tag = typeof input?.tag === 'string' ? input.tag.trim() : '';
+    const limit = typeof input?.limit === 'number' && Number.isFinite(input.limit) ? Math.max(1, Math.floor(input.limit)) : 100;
+    const offset = typeof input?.offset === 'number' && Number.isFinite(input.offset) ? Math.max(0, Math.floor(input.offset)) : 0;
+
+    if (market) {
+      values.push(market);
+      conditions.push(`market = $${values.length}`);
+    }
+    if (exchange) {
+      values.push(exchange);
+      conditions.push(`exchange = $${values.length}`);
+    }
+    if (instrumentKind) {
+      values.push(instrumentKind);
+      conditions.push(`instrument_kind = $${values.length}`);
+    }
+    if (region) {
+      values.push(region);
+      conditions.push(`region = $${values.length}`);
+    }
+    if (riskLevel) {
+      values.push(riskLevel);
+      conditions.push(`risk_level = $${values.length}`);
+    }
+    if (search) {
+      values.push(`%${search}%`);
+      const placeholder = `$${values.length}`;
+      conditions.push(`(symbol ilike ${placeholder} or fund_name ilike ${placeholder} or coalesce(manager_name, '') ilike ${placeholder} or coalesce(tracking_target, '') ilike ${placeholder})`);
+    }
+    if (tag) {
+      values.push(tag);
+      conditions.push(`strategy_tags @> array[$${values.length}]::text[]`);
+    }
+
+    const whereSql = conditions.length ? `where ${conditions.join(' and ')}` : '';
+    const sortSql = (() => {
+      switch (input?.sort) {
+        case 'scale_desc':
+          return 'scale_amount desc nulls last, return_1y desc nulls last';
+        case 'fee_rate_asc':
+          return 'fee_rate asc nulls last, scale_amount desc nulls last';
+        case 'name_asc':
+          return 'fund_name asc, symbol asc';
+        case 'change_percent_desc':
+          return 'change_percent desc nulls last, amount desc nulls last';
+        case 'return_1y_desc':
+        default:
+          return 'return_1y desc nulls last, scale_amount desc nulls last';
+      }
+    })();
+
+    const selectSql = `
+      select
+        id,
+        market,
+        exchange,
+        symbol,
+        fund_name,
+        fund_type,
+        instrument_kind,
+        region,
+        risk_level,
+        manager_name,
+        tracking_target,
+        status,
+        source,
+        source_id,
+        current_price,
+        nav_price,
+        change_percent,
+        return_1m,
+        return_1y,
+        max_drawdown,
+        scale_amount,
+        fee_rate,
+        amount,
+        turnover_rate,
+        dividend_mode,
+        strategy_tags,
+        metadata_json,
+        imported_at,
+        updated_at
+      from market_fund_catalog
+      ${whereSql}
+    `;
+
+    const totalResult = await this.pool.query<{count: string}>(`select count(*)::text as count from market_fund_catalog ${whereSql}`, values);
+    const pagedValues = [...values, limit, offset];
+    const rowsResult = await this.pool.query<MarketFundRow>(
+      `${selectSql} order by ${sortSql} limit $${pagedValues.length - 1} offset $${pagedValues.length}`,
+      pagedValues,
+    );
+    return {
+      items: rowsResult.rows.map(mapMarketFundRow),
+      total: Number.parseInt(totalResult.rows[0]?.count || '0', 10) || 0,
+    };
+  }
+
+  async getMarketFund(fundId: string): Promise<MarketFundRecord | null> {
+    const result = await this.pool.query<MarketFundRow>(
+      `
+        select
+          id,
+          market,
+          exchange,
+          symbol,
+          fund_name,
+          fund_type,
+          instrument_kind,
+          region,
+          risk_level,
+          manager_name,
+          tracking_target,
+          status,
+          source,
+          source_id,
+          current_price,
+          nav_price,
+          change_percent,
+          return_1m,
+          return_1y,
+          max_drawdown,
+          scale_amount,
+          fee_rate,
+          amount,
+          turnover_rate,
+          dividend_mode,
+          strategy_tags,
+          metadata_json,
+          imported_at,
+          updated_at
+        from market_fund_catalog
+        where id = $1
+        limit 1
+      `,
+      [fundId],
+    );
+    return result.rows[0] ? mapMarketFundRow(result.rows[0]) : null;
+  }
+
   async listAgentCatalog(): Promise<AgentCatalogEntryRecord[]> {
     const result = await this.pool.query<AgentCatalogRow>(
       `
@@ -2530,15 +3299,23 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     return (result.rowCount || 0) > 0;
   }
 
-  async listSkillCatalog(limit?: number, offset?: number): Promise<SkillCatalogEntryRecord[]> {
+  async listSkillCatalog(
+    limit?: number,
+    offset?: number,
+    filters?: {tagKeywords?: string[] | null; extraSkillSlugs?: string[] | null},
+  ): Promise<SkillCatalogEntryRecord[]> {
     const values: unknown[] = [];
+    const whereSql = this.buildSkillCatalogWhereClause(values, {
+      cloudOnly: true,
+      tagKeywords: filters?.tagKeywords || [],
+      extraSkillSlugs: filters?.extraSkillSlugs || [],
+    });
     const paginationSql = this.buildSkillCatalogPaginationClause(values, limit, offset);
     return this.listSkillCatalogEntries(`
       select
         slug,
         name,
         description,
-        visibility,
         market,
         category,
         skill_type,
@@ -2557,37 +3334,92 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         created_at,
         updated_at
       from skill_catalog_entries
-      where distribution = 'cloud' and active = true
-      order by
-        greatest(
-          coalesce(case when metadata_json ->> 'downloads' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json ->> 'downloads')::numeric)::bigint end, 0),
-          coalesce(case when metadata_json ->> 'download_count' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json ->> 'download_count')::numeric)::bigint end, 0),
-          coalesce(case when metadata_json ->> 'downloadCount' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json ->> 'downloadCount')::numeric)::bigint end, 0),
-          coalesce(case when metadata_json ->> 'install_count' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json ->> 'install_count')::numeric)::bigint end, 0),
-          coalesce(case when metadata_json ->> 'installCount' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json ->> 'installCount')::numeric)::bigint end, 0),
-          coalesce(case when metadata_json ->> 'installs' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json ->> 'installs')::numeric)::bigint end, 0),
-          coalesce(case when metadata_json #>> '{stats,downloads}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{stats,downloads}')::numeric)::bigint end, 0),
-          coalesce(case when metadata_json #>> '{stats,download_count}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{stats,download_count}')::numeric)::bigint end, 0),
-          coalesce(case when metadata_json #>> '{stats,downloadCount}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{stats,downloadCount}')::numeric)::bigint end, 0),
-          coalesce(case when metadata_json #>> '{clawhub,listing,skill,stats,downloads}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{clawhub,listing,skill,stats,downloads}')::numeric)::bigint end, 0),
-          coalesce(case when metadata_json #>> '{clawhub,listing,skill,stats,download_count}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{clawhub,listing,skill,stats,download_count}')::numeric)::bigint end, 0),
-          coalesce(case when metadata_json #>> '{clawhub,listing,skill,stats,downloadCount}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{clawhub,listing,skill,stats,downloadCount}')::numeric)::bigint end, 0),
-          coalesce(case when metadata_json #>> '{clawhub,detail,skill,stats,downloads}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{clawhub,detail,skill,stats,downloads}')::numeric)::bigint end, 0),
-          coalesce(case when metadata_json #>> '{clawhub,detail,skill,stats,download_count}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{clawhub,detail,skill,stats,download_count}')::numeric)::bigint end, 0),
-          coalesce(case when metadata_json #>> '{clawhub,detail,skill,stats,downloadCount}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{clawhub,detail,skill,stats,downloadCount}')::numeric)::bigint end, 0)
-        ) desc,
-        name asc
+      ${whereSql}
+      ${this.buildSkillCatalogOrderClause()}
       ${paginationSql}
     `, values);
   }
 
-  async countSkillCatalog(): Promise<number> {
+  async countSkillCatalog(filters?: {tagKeywords?: string[] | null; extraSkillSlugs?: string[] | null}): Promise<number> {
+    const values: unknown[] = [];
+    const whereSql = this.buildSkillCatalogWhereClause(values, {
+      cloudOnly: true,
+      tagKeywords: filters?.tagKeywords || [],
+      extraSkillSlugs: filters?.extraSkillSlugs || [],
+    });
     const result = await this.pool.query<{count: string}>(
       `
         select count(*)::text as count
         from skill_catalog_entries
-        where distribution = 'cloud' and active = true
+        ${whereSql}
       `,
+      values,
+    );
+    return Number(result.rows[0]?.count || '0');
+  }
+
+  async listSkillCatalogBySlugs(
+    slugs: string[],
+    limit?: number,
+    offset?: number,
+    filters?: {tagKeywords?: string[] | null},
+  ): Promise<SkillCatalogEntryRecord[]> {
+    const normalizedSlugs = Array.from(new Set(slugs.map((slug) => slug.trim()).filter(Boolean)));
+    if (normalizedSlugs.length === 0) {
+      return [];
+    }
+    const values: unknown[] = [normalizedSlugs];
+    const whereSql = this.buildSkillCatalogWhereClause(values, {
+      slugPlaceholder: '$1::text[]',
+      tagKeywords: filters?.tagKeywords || [],
+    });
+    const paginationSql = this.buildSkillCatalogPaginationClause(values, limit, offset);
+    return this.listSkillCatalogEntries(`
+      select
+        slug,
+        name,
+        description,
+        market,
+        category,
+        skill_type,
+        publisher,
+        distribution,
+        tags,
+        version,
+        artifact_format,
+        artifact_url,
+        artifact_sha256,
+        artifact_source_path,
+        origin_type,
+        source_url,
+        metadata_json,
+        active,
+        created_at,
+        updated_at
+      from skill_catalog_entries
+      ${whereSql}
+      ${this.buildSkillCatalogOrderClause()}
+      ${paginationSql}
+    `, values);
+  }
+
+  async countSkillCatalogBySlugs(slugs: string[], filters?: {tagKeywords?: string[] | null}): Promise<number> {
+    const normalizedSlugs = Array.from(new Set(slugs.map((slug) => slug.trim()).filter(Boolean)));
+    if (normalizedSlugs.length === 0) {
+      return 0;
+    }
+    const values: unknown[] = [normalizedSlugs];
+    const whereSql = this.buildSkillCatalogWhereClause(values, {
+      slugPlaceholder: '$1::text[]',
+      tagKeywords: filters?.tagKeywords || [],
+    });
+    const result = await this.pool.query<{count: string}>(
+      `
+        select count(*)::text as count
+        from skill_catalog_entries
+        ${whereSql}
+      `,
+      values,
     );
     return Number(result.rows[0]?.count || '0');
   }
@@ -2608,7 +3440,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           or coalesce(publisher, '') ilike ${placeholder}
           or exists (
             select 1
-            from unnest(tags) as tag
+            from jsonb_array_elements_text(coalesce(tags, '[]'::jsonb)) as tag
             where tag ilike ${placeholder}
           )
         )
@@ -2621,7 +3453,6 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         slug,
         name,
         description,
-        visibility,
         market,
         category,
         skill_type,
@@ -2662,7 +3493,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           or coalesce(publisher, '') ilike ${placeholder}
           or exists (
             select 1
-            from unnest(tags) as tag
+            from jsonb_array_elements_text(coalesce(tags, '[]'::jsonb)) as tag
             where tag ilike ${placeholder}
           )
       `;
@@ -2685,7 +3516,6 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           slug,
           name,
           description,
-          visibility,
           market,
           category,
           skill_type,
@@ -2719,7 +3549,6 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           slug,
           name,
           description,
-          visibility,
           market,
           category,
           skill_type,
@@ -2738,12 +3567,11 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           created_at,
           updated_at
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12, $13, $14, $15, $16, $17, $18::jsonb, $19, now(), now())
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17::jsonb, $18, now(), now())
         on conflict (slug)
         do update set
           name = excluded.name,
           description = excluded.description,
-          visibility = excluded.visibility,
           market = excluded.market,
           category = excluded.category,
           skill_type = excluded.skill_type,
@@ -2765,7 +3593,6 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         input.slug,
         input.name,
         input.description,
-        input.visibility,
         input.market,
         input.category,
         input.skill_type,
@@ -3276,6 +4103,138 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     return result.rows.map(mapUserMcpLibraryRow);
   }
 
+  async listUserExtensionInstallConfigs(
+    userId: string,
+    extensionType?: ExtensionInstallTarget,
+  ): Promise<UserExtensionInstallConfigRecord[]> {
+    const values: unknown[] = [userId];
+    let whereSql = 'where user_id = $1';
+    if (extensionType) {
+      values.push(extensionType);
+      whereSql += ` and extension_type = $${values.length}`;
+    }
+    const result = await this.pool.query<UserExtensionInstallConfigRow>(
+      `
+        select
+          user_id,
+          extension_type,
+          extension_key,
+          schema_version,
+          status,
+          config_json,
+          configured_secret_keys,
+          secret_payload_encrypted,
+          created_at,
+          updated_at
+        from user_extension_install_configs
+        ${whereSql}
+        order by extension_type asc, extension_key asc
+      `,
+      values,
+    );
+    return result.rows.map(mapUserExtensionInstallConfigRow);
+  }
+
+  async getUserExtensionInstallConfig(
+    userId: string,
+    extensionType: ExtensionInstallTarget,
+    extensionKey: string,
+  ): Promise<UserExtensionInstallConfigRecord | null> {
+    const result = await this.pool.query<UserExtensionInstallConfigRow>(
+      `
+        select
+          user_id,
+          extension_type,
+          extension_key,
+          schema_version,
+          status,
+          config_json,
+          configured_secret_keys,
+          secret_payload_encrypted,
+          created_at,
+          updated_at
+        from user_extension_install_configs
+        where user_id = $1 and extension_type = $2 and extension_key = $3
+        limit 1
+      `,
+      [userId, extensionType, extensionKey],
+    );
+    return result.rows[0] ? mapUserExtensionInstallConfigRow(result.rows[0]) : null;
+  }
+
+  async upsertUserExtensionInstallConfig(
+    userId: string,
+    input: Required<UpsertUserExtensionInstallConfigInput> & {
+      schema_version: number | null;
+      status: UserExtensionInstallConfigRecord['status'];
+      configured_secret_keys: string[];
+      secret_payload_encrypted?: string | null;
+    },
+  ): Promise<UserExtensionInstallConfigRecord> {
+    const result = await this.pool.query<UserExtensionInstallConfigRow>(
+      `
+        insert into user_extension_install_configs (
+          user_id,
+          extension_type,
+          extension_key,
+          schema_version,
+          status,
+          config_json,
+          configured_secret_keys,
+          secret_payload_encrypted,
+          created_at,
+          updated_at
+        )
+        values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, now(), now())
+        on conflict (user_id, extension_type, extension_key)
+        do update set
+          schema_version = excluded.schema_version,
+          status = excluded.status,
+          config_json = excluded.config_json,
+          configured_secret_keys = excluded.configured_secret_keys,
+          secret_payload_encrypted = excluded.secret_payload_encrypted,
+          updated_at = now()
+        returning
+          user_id,
+          extension_type,
+          extension_key,
+          schema_version,
+          status,
+          config_json,
+          configured_secret_keys,
+          secret_payload_encrypted,
+          created_at,
+          updated_at
+      `,
+      [
+        userId,
+        input.extension_type,
+        input.extension_key,
+        input.schema_version,
+        input.status,
+        JSON.stringify(input.setup_values),
+        JSON.stringify(input.configured_secret_keys),
+        input.secret_payload_encrypted ?? null,
+      ],
+    );
+    return mapUserExtensionInstallConfigRow(result.rows[0]);
+  }
+
+  async removeUserExtensionInstallConfig(
+    userId: string,
+    extensionType: ExtensionInstallTarget,
+    extensionKey: string,
+  ): Promise<boolean> {
+    const result = await this.pool.query(
+      `
+        delete from user_extension_install_configs
+        where user_id = $1 and extension_type = $2 and extension_key = $3
+      `,
+      [userId, extensionType, extensionKey],
+    );
+    return (result.rowCount || 0) > 0;
+  }
+
   async installUserMcp(
     userId: string,
     input: Required<InstallMcpInput> & {source?: 'cloud'},
@@ -3320,14 +4279,21 @@ export class PgControlPlaneStore implements ControlPlaneStore {
   }
 
   async removeUserMcp(userId: string, mcpKey: string): Promise<boolean> {
-    const result = await this.pool.query(
+    const libraryResult = await this.pool.query(
       `
         delete from user_mcp_library
         where user_id = $1 and mcp_key = $2
       `,
       [userId, mcpKey],
     );
-    return (result.rowCount || 0) > 0;
+    await this.pool.query(
+      `
+        delete from user_extension_install_configs
+        where user_id = $1 and extension_type = 'mcp' and extension_key = $2
+      `,
+      [userId, mcpKey],
+    );
+    return (libraryResult.rowCount || 0) > 0;
   }
 
   async installUserSkill(
@@ -3376,14 +4342,21 @@ export class PgControlPlaneStore implements ControlPlaneStore {
   }
 
   async removeUserSkill(userId: string, slug: string): Promise<boolean> {
-    const result = await this.pool.query(
+    const libraryResult = await this.pool.query(
       `
         delete from user_skill_library
         where user_id = $1 and skill_slug = $2
       `,
       [userId, slug],
     );
-    return (result.rowCount || 0) > 0;
+    await this.pool.query(
+      `
+        delete from user_extension_install_configs
+        where user_id = $1 and extension_type = 'skill' and extension_key = $2
+      `,
+      [userId, slug],
+    );
+    return (libraryResult.rowCount || 0) > 0;
   }
 
   async close(): Promise<void> {
@@ -3393,6 +4366,76 @@ export class PgControlPlaneStore implements ControlPlaneStore {
   private async listSkillCatalogEntries(query: string, values: unknown[] = []): Promise<SkillCatalogEntryRecord[]> {
     const catalogResult = await this.pool.query<SkillCatalogRow>(query, values);
     return catalogResult.rows.map(mapSkillCatalogRow);
+  }
+
+  private normalizeSkillCatalogTagKeywords(tagKeywords: string[] | null | undefined): string[] {
+    return Array.from(new Set((tagKeywords || []).map((keyword) => keyword.trim().toLowerCase()).filter(Boolean)));
+  }
+
+  private buildSkillCatalogWhereClause(
+    values: unknown[],
+    input: {
+      cloudOnly?: boolean;
+      slugPlaceholder?: string | null;
+      tagKeywords?: string[] | null;
+      extraSkillSlugs?: string[] | null;
+    } = {},
+  ): string {
+    const whereClauses: string[] = ['active = true'];
+    if (input.cloudOnly) {
+      const normalizedExtraSkillSlugs = Array.from(new Set((input.extraSkillSlugs || []).map((slug) => slug.trim()).filter(Boolean)));
+      if (normalizedExtraSkillSlugs.length > 0) {
+        values.push(normalizedExtraSkillSlugs);
+        const placeholder = `$${values.length}::text[]`;
+        whereClauses.push(`(distribution = 'cloud' or slug = any(${placeholder}))`);
+      } else {
+        whereClauses.push(`distribution = 'cloud'`);
+      }
+    }
+    if (input.slugPlaceholder) {
+      whereClauses.push(`slug = any(${input.slugPlaceholder})`);
+    }
+    const normalizedKeywords = this.normalizeSkillCatalogTagKeywords(input.tagKeywords);
+    if (normalizedKeywords.length > 0) {
+      values.push(normalizedKeywords);
+      const placeholder = `$${values.length}::text[]`;
+      whereClauses.push(`
+        exists (
+          select 1
+          from jsonb_array_elements_text(coalesce(tags, '[]'::jsonb)) as tag
+          where exists (
+            select 1
+            from unnest(${placeholder}) as keyword
+            where lower(tag) like '%' || keyword || '%'
+          )
+        )
+      `);
+    }
+    return `where ${whereClauses.join('\n  and ')}`;
+  }
+
+  private buildSkillCatalogOrderClause(): string {
+    return `
+      order by
+        greatest(
+          coalesce(case when metadata_json ->> 'downloads' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json ->> 'downloads')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json ->> 'download_count' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json ->> 'download_count')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json ->> 'downloadCount' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json ->> 'downloadCount')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json ->> 'install_count' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json ->> 'install_count')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json ->> 'installCount' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json ->> 'installCount')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json ->> 'installs' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json ->> 'installs')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json #>> '{stats,downloads}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{stats,downloads}')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json #>> '{stats,download_count}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{stats,download_count}')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json #>> '{stats,downloadCount}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{stats,downloadCount}')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json #>> '{clawhub,listing,skill,stats,downloads}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{clawhub,listing,skill,stats,downloads}')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json #>> '{clawhub,listing,skill,stats,download_count}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{clawhub,listing,skill,stats,download_count}')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json #>> '{clawhub,listing,skill,stats,downloadCount}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{clawhub,listing,skill,stats,downloadCount}')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json #>> '{clawhub,detail,skill,stats,downloads}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{clawhub,detail,skill,stats,downloads}')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json #>> '{clawhub,detail,skill,stats,download_count}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{clawhub,detail,skill,stats,download_count}')::numeric)::bigint end, 0),
+          coalesce(case when metadata_json #>> '{clawhub,detail,skill,stats,downloadCount}' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json #>> '{clawhub,detail,skill,stats,downloadCount}')::numeric)::bigint end, 0)
+        ) desc,
+        name asc
+    `;
   }
 
   private async listMcpCatalogEntries(query: string, values: unknown[] = []): Promise<McpCatalogEntryRecord[]> {
@@ -3539,9 +4582,11 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           balance_after,
           reference_type,
           reference_id,
+          event_type,
+          delta,
           created_at
         )
-        values ($1, $2, 'daily_free', 'grant', $3, $3, 'daily_reset', $4, $5)
+        values ($1, $2, 'daily_free', 'grant', $3, $3, 'daily_reset', $4, 'daily_reset', $3, $5)
       `,
       [randomUUID(), userId, config.dailyFreeCredits, now.toISOString(), now],
     );

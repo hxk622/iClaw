@@ -1,7 +1,14 @@
 ---
 name: frontend-slides
+slug: frontend-slides
 visibility: internal
+tags: 基础, 基础办公, 办公, 演示, PPT, 幻灯片
 description: 创建精美的、富动画效果的 HTML 演示文稿，支持从零开始创建或将 PowerPoint 文件转换为 Web 演示。当用户需要制作演示文稿、将 PPT/PPTX 转为网页、或为演讲/路演制作幻灯片时使用。通过可视化探索帮助非设计师发现自己的审美偏好。
+market: 通用
+category: report
+skill_type: 生成器
+publisher: Platform
+distribution: bundled
 ---
 
 # Frontend Slides Skill

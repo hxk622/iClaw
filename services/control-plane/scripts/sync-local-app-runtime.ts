@@ -5,8 +5,8 @@ import {basename, dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 import {config} from '../src/config.ts';
+import {mergePlatformSkillBindings} from '../src/platform-inheritance.ts';
 import {buildPortalPublicConfig} from '../src/portal-runtime.ts';
-import {downloadPortalSkillArtifact} from '../src/portal-skill-storage.ts';
 import {PgPortalStore} from '../src/portal-store.ts';
 import {PgControlPlaneStore} from '../src/pg-store.ts';
 
@@ -40,17 +40,34 @@ function normalizeAppName(value: string): string {
   return normalized;
 }
 
-function inferArtifactFormat(entry: {objectKey?: string | null; metadata?: Record<string, unknown>}): 'tar.gz' | 'zip' {
+function inferArtifactFormat(entry: {
+  artifactFormat?: string | null;
+  artifactUrl?: string | null;
+  metadata?: Record<string, unknown>;
+}): 'tar.gz' | 'zip' {
+  const explicitFormat = String(entry.artifactFormat || '').trim().toLowerCase();
+  if (explicitFormat === 'zip') {
+    return 'zip';
+  }
   const metadata = asObject(entry.metadata);
   const metadataFormat = String(metadata.artifact_format || metadata.artifactFormat || '').trim().toLowerCase();
   if (metadataFormat === 'zip') {
     return 'zip';
   }
-  const objectKey = String(entry.objectKey || '').trim().toLowerCase();
-  if (objectKey.endsWith('.zip')) {
+  const artifactUrl = String(entry.artifactUrl || '').trim().toLowerCase();
+  if (artifactUrl.endsWith('.zip')) {
     return 'zip';
   }
   return 'tar.gz';
+}
+
+async function downloadSkillArtifact(url: string): Promise<Buffer> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`failed to download skill artifact: ${response.status} ${response.statusText}`);
+  }
+  const arrayBuffer = await response.arrayBuffer();
+  return Buffer.from(arrayBuffer);
 }
 
 async function findSkillRoot(dir: string): Promise<string | null> {
@@ -133,7 +150,7 @@ async function main() {
   const controlStore = new PgControlPlaneStore(config.databaseUrl);
 
   try {
-    const [detail, catalogMcps, portalSkills] = await Promise.all([
+    const [detail, catalogMcps, platformSkills] = await Promise.all([
       portalStore.getAppDetail(appName),
       portalStore.listMcps(),
       portalStore.listSkills(),
@@ -145,37 +162,57 @@ async function main() {
     await rm(runtimeSkillsRoot, {recursive: true, force: true});
     await mkdir(runtimeSkillsRoot, {recursive: true});
 
-    const portalSkillsBySlug = new Map(portalSkills.map((item) => [item.slug, item]));
+    const detailWithPlatformSkills = {
+      ...detail,
+      skillBindings: mergePlatformSkillBindings(
+        appName,
+        detail.skillBindings,
+        platformSkills,
+      ),
+    };
     const copiedSkills: string[] = [];
+    const copiedSkillDirs = new Set<string>();
     const skippedSkills: string[] = [];
-    for (const binding of detail.skillBindings.filter((item) => item.enabled).sort((left, right) => left.sortOrder - right.sortOrder)) {
-      const portalSkill = portalSkillsBySlug.get(binding.skillSlug);
-      let copiedDirName = '';
-      if (portalSkill?.objectKey) {
+    const rememberCopiedSkill = (dirName: string) => {
+      const normalized = dirName.trim();
+      if (!normalized || copiedSkillDirs.has(normalized)) {
+        return;
+      }
+      copiedSkillDirs.add(normalized);
+      copiedSkills.push(normalized);
+    };
+
+    for (const binding of detailWithPlatformSkills.skillBindings.filter((item) => item.enabled).sort((left, right) => left.sortOrder - right.sortOrder)) {
+      const entry = await controlStore.getSkillCatalogEntry(binding.skillSlug);
+      if (!entry || entry.active === false) {
+        skippedSkills.push(binding.skillSlug);
+        continue;
+      }
+      if (entry.artifactUrl) {
         try {
-          const artifact = await downloadPortalSkillArtifact(portalSkill.objectKey);
-          copiedDirName = await extractPortalSkillArtifact({
+          const artifact = await downloadSkillArtifact(entry.artifactUrl);
+          const copiedDirName = await extractPortalSkillArtifact({
             slug: binding.skillSlug,
-            artifact: artifact.buffer,
-            format: inferArtifactFormat(portalSkill),
+            artifact,
+            format: inferArtifactFormat(entry),
             runtimeSkillsRoot,
           });
+          rememberCopiedSkill(copiedDirName);
+          continue;
         } catch (error) {
-          console.warn('[sync-local-app-runtime] failed to extract portal skill artifact, fallback to local source path', {
+          console.warn('[sync-local-app-runtime] failed to download skill artifact, fallback to local source path', {
             slug: binding.skillSlug,
-            objectKey: portalSkill.objectKey,
+            artifactUrl: entry.artifactUrl,
             error: error instanceof Error ? error.message : String(error),
           });
         }
       }
-      if (copiedDirName) {
-        copiedSkills.push(copiedDirName);
-        continue;
-      }
-      const entry = await controlStore.getSkillCatalogEntry(binding.skillSlug);
       const relativeSourcePath = entry?.artifactSourcePath?.trim() || '';
       if (!relativeSourcePath) {
         skippedSkills.push(binding.skillSlug);
+        continue;
+      }
+      if (copiedSkillDirs.has(relativeSourcePath)) {
         continue;
       }
       const sourcePath = resolve(skillsSourceRoot, relativeSourcePath);
@@ -187,7 +224,7 @@ async function main() {
         recursive: true,
         force: true,
       });
-      copiedSkills.push(relativeSourcePath);
+      rememberCopiedSkill(relativeSourcePath);
     }
 
     await writeFile(
@@ -235,7 +272,7 @@ async function main() {
       'utf8',
     );
 
-    const publicConfig = buildPortalPublicConfig(detail, {
+    const publicConfig = buildPortalPublicConfig(detailWithPlatformSkills, {
       assetUrlResolver: (asset) => asset.publicUrl || asset.objectKey || null,
     });
     await mkdir(dirname(runtimeAppConfigPath), {recursive: true});

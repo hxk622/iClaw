@@ -1,6 +1,6 @@
 # OEM 能力架构原则
 
-更新时间：2026-03-23
+更新时间：2026-03-25
 
 ## 1. 目标
 
@@ -187,15 +187,148 @@ OEM 装配层不负责：
 
 ### 5.1 Skill
 
-- Skill 定义统一存 `skill catalog`
-- OEM 只勾选哪些 skill 可用
+- Skill 权威来源必须是云端 `cloud skill catalog`
+- `cloud skill catalog` 是 skill 全集，可达到 `30000+`，不是某个 OEM 或某个本地目录的子集
+- 平台层与 OEM 层都不拥有 skill 主数据，只维护对云端总库的绑定关系
 - OEM 不编辑 skill 定义本身
+
+### 5.1.1 Skill 三层模型
+
+Skill 明确按以下三层治理：
+
+1. `cloud skill` 总库
+2. 平台级 skill 绑定
+3. OEM 级 skill 绑定
+
+定义如下：
+
+- `cloud skill` 总库
+  - 是 skill 的唯一主数据中心
+  - 保存 skill metadata、tag、版本、icon、来源、同步时间、扩展元数据等
+  - ClawHub、GitHub、本地导入目录等都只是它的导入来源，不是长期真值
+- 平台级 skill 绑定
+  - 表示“平台默认安装 / 共享给所有 OEM 的 skill”
+  - 这是共享层，不属于某个单独 OEM
+  - 平台层只维护 `skill slug + enabled + sort_order + binding metadata`
+  - 平台层不再单独上传或维护 skill artifact
+- OEM 级 skill 绑定
+  - 表示“某个 OEM app 额外启用的 skill”
+  - 这是 app 自己的增量层
+
+对某个 OEM app 来说，可见且可安装的 skill 集合计算规则固定为：
+
+`visible_skills(app) = platform_level_skills + oem_level_skills(app)`
+
+这里的 `+` 指按 `skill_key` 去重后的并集，而不是简单拼接。
+
+在工程实现上，OEM 层允许额外配置一个“总库可见性策略”：
+
+- `bindings_only`
+  - 只展示平台级绑定 + OEM 级绑定
+- `all_cloud`
+  - 视为 OEM 层对 cloud 总库开启全量可见
+  - 平台级绑定 / OEM 级绑定仍然存在，但主要承担默认安装、推荐、排序和运营治理职责
+
+因此，`all_cloud` 不是另一套主数据源，而是 OEM 绑定层的一种可见性策略。
+
+### 5.1.2 Skill 商店与菜单视图规则
+
+左侧各技能菜单不是不同数据源，而是同一可见 skill 集合上的不同视图：
+
+- `技能商店`
+  - 展示当前 app 的全部 `visible_skills(app)`
+- `财经技能`
+  - 展示 `visible_skills(app)` 中带财经类 tag 的 skill
+- `基础技能`
+  - 展示 `visible_skills(app)` 中带基础办公 / 基础类 tag 的 skill
+
+因此：
+
+- 菜单分类必须基于 `tag` 等元数据过滤
+- Skill 不再保留 `visibility = internal/showcase` 这类商店显隐字段
+- 不存在“平台强制 skill 名单”这一独立业务概念；如果某个 skill 对所有 OEM 生效，它应当表现为平台级绑定
+
+### 5.1.3 Skill 元数据与版本规则
+
+从外部来源同步 skill 时，原则上应尽量保留原始 metadata，并统一写入云端总库。
+
+至少应支持：
+
+- 名称、简介、作者、来源链接
+- tag / category
+- icon / 封面
+- 版本号
+- 上游原始 metadata
+- 最近同步时间
+
+版本治理原则：
+
+- 版本号用于判断是否需要替换 skill 内容
+- 上游版本变化时，云端总库更新到新版本
+- 平台不维护旧版本运行副本，默认只维护当前版本
+- 用户安装某个 skill 后，如后台已升级到新版本，前台与运行时都应自动切换到当前版本
+
+### 5.1.4 本地目录的角色
+
+`skills/`、`mcp/` 等本地目录只允许作为以下用途：
+
+- 开发态样例
+- 调试态导入源
+- 一次性初始化 / 迁移素材
+
+它们不是长期权威来源，也不应决定：
+
+- 平台 skill 全集
+- admin-web 可见 skill 列表
+- 某个 OEM 最终可见 skill 集合
+
+长期原则是：
+
+- 云端数据库为准
+- 本地目录可被删除
+- runtime / portal / admin-web 都从数据库驱动
 
 ### 5.2 MCP
 
 - MCP 定义统一存 `MCP catalog`
+- MCP 原始内容、元数据、logo、分类、连接方式、抓取结果统一归平台级共享 catalog
 - OEM 只勾选哪些 MCP 可用
 - OEM 不复制 MCP config
+- OEM app 不是 MCP 内容拥有者，只是当前 app 的装配与投影视图
+
+### 5.2.1 MCP 的平台级与 OEM 级边界
+
+为了避免后续实现再次混淆，MCP 明确按下面两层治理：
+
+平台级共享主数据：
+
+- 只有一份平台级 `MCP catalog`
+- 所有 MCP 原始数据进入平台共享总库，而不是进入 `iclaw` / `licaiclaw` 各自私有库
+- 平台级字段包括但不限于：
+  - `mcp_key`
+  - 名称、简介、分类、标签
+  - logo、截图、文档链接、仓库链接、官网链接
+  - transport、安装方式、运行方式、依赖说明
+  - 抓取来源、抓取时间、审核状态、风险标记
+  - 平台级默认展示元数据
+
+OEM 级绑定数据：
+
+- `iclaw` / `licaiclaw` 只维护与平台 MCP 的绑定关系
+- OEM 只控制：
+  - 是否显示
+  - 是否默认已安装
+  - 是否推荐
+  - 排序
+  - 分组、轻量文案、运营位等少量装配信息
+- OEM 不拥有 MCP 原始内容，不单独维护一份 MCP 主数据
+
+实现要求：
+
+- `control-plane` 必须以“平台 catalog + OEM binding”合成当前 app 视图
+- `admin-web` 必须区分“平台中心编辑主数据”和“OEM 装配页编辑绑定”
+- 前端只展示合成结果，不自行推断某个 bundled MCP 是否等于某个 OEM 默认安装结果
+- 如果某个 MCP 是 OEM 默认预置，也应表现为“平台 MCP 被该 OEM 默认绑定”，而不是“这个 MCP 属于该 OEM”
 
 ### 5.3 Model
 
@@ -292,6 +425,20 @@ OEM 的未来重点不只是能力启停，还包括 UI/交互的积木化搭配
 
 平台中心负责“定义能力”，OEM 视图负责“装配能力”。
 
+对 `admin-web` 的具体约束：
+
+- `MCP center` 编辑的是平台级共享 catalog，不带某个 OEM 归属语义
+- OEM app 页面编辑的是 `oem_app_mcp_bindings` 这类绑定，不直接改 MCP 主数据
+- 页面文案、接口命名、表头、操作按钮都要避免把“平台主数据编辑”和“OEM 显隐配置”混成一个概念
+- 任何“默认已安装 / 是否显示 / 排序 / 推荐”都应落在 OEM binding，而不是改写平台 catalog 真值
+
+对 `skill center` 额外增加约束：
+
+- `admin-web` 平台视角必须能看到云端 skill 总库全集，而不是只看到已安装的少量 skill
+- 平台视角允许分页、搜索、筛选，但不应把“未安装”从全集里裁掉
+- 某个 OEM 视角看到的是“平台层 + OEM 层”合成后的可见集合及安装状态
+- `技能商店 / 财经技能 / 基础技能` 三个菜单看到的是同一可见集合的不同 tag 视图
+
 ## 9. 禁止事项
 
 后续实现时，默认禁止以下做法：
@@ -301,6 +448,9 @@ OEM 的未来重点不只是能力启停，还包括 UI/交互的积木化搭配
 - 让 OEM 页面直接编辑平台能力主定义
 - 同一能力在多个地方维护多份真值
 - 前台靠硬编码条件判断拼出不同 OEM 的能力列表
+- 用本地 `skills/` 目录扫描结果长期替代云端 skill 总库
+- 为 skill 继续保留 `visibility`、`internal`、`showcase` 之类历史字段
+- 额外引入“平台强制 skill 名单”来替代平台级 binding
 
 ## 10. 当前落地要求
 

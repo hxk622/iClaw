@@ -125,7 +125,6 @@ type NormalizedSkillCandidate = {
   slug: string;
   name: string;
   description: string;
-  visibility: 'showcase' | 'internal';
   market: string | null;
   category: string | null;
   skill_type: string | null;
@@ -507,7 +506,6 @@ async function loadClawHubCandidates(source: SkillSyncSourceRecord): Promise<Nor
         slug,
         name,
         description,
-        visibility: 'showcase',
         market: inferMarket({name, description, tags}),
         category: inferCategory({name, description, tags}),
         skill_type: inferSkillType({name, description, tags}),
@@ -642,7 +640,6 @@ async function loadGithubCandidates(source: SkillSyncSourceRecord): Promise<Norm
       slug,
       name,
       description,
-      visibility: 'showcase',
       market: typeof frontmatter.market === 'string' ? frontmatter.market.trim() || inferMarket({name, description, tags}) : inferMarket({name, description, tags}),
       category:
         typeof frontmatter.category === 'string' ? frontmatter.category.trim() || inferCategory({name, description, tags}) : inferCategory({name, description, tags}),
@@ -739,7 +736,6 @@ export async function syncSkillsFromSource(
           slug: existing.slug,
           name: candidate.name,
           description: candidate.description,
-          visibility: candidate.visibility,
           market: candidate.market,
           category: candidate.category,
           skillType: candidate.skill_type,
@@ -778,7 +774,6 @@ export async function syncSkillsFromSource(
         slug: candidate.slug,
         name: candidate.name,
         description: candidate.description,
-        visibility: candidate.visibility,
         market: candidate.market,
         category: candidate.category,
         skillType: candidate.skill_type,
