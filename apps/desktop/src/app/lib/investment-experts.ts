@@ -1,6 +1,11 @@
 import type { IClawClient } from '@iclaw/sdk';
 
-import { isInvestmentExpertAgent, loadLobsterAgents, type LobsterAgent } from './lobster-store';
+import {
+  isInvestmentExpertAgent,
+  loadLobsterAgents,
+  resolveLobsterAgentAvatar,
+  type LobsterAgent,
+} from './lobster-store';
 
 export type InvestmentExpertCategory =
   | 'value'
@@ -204,7 +209,9 @@ export function toInvestmentExpert(agent: LobsterAgent): InvestmentExpert | null
     categoryColor: categoryMeta.color,
     description: agent.description,
     tags: [...agent.tags],
-    avatar: readMetadataString(metadata.avatar_url) || agent.avatarSrc,
+    // Investment experts should visually align with the Lobster store avatar system
+    // instead of preserving legacy expert-specific avatar URLs.
+    avatar: resolveLobsterAgentAvatar(agent, {preferMetadataAvatar: false}),
     isOnline: readMetadataBoolean(metadata.is_online) ?? true,
     usageCount: readMetadataNumber(metadata.usage_count) ?? 0,
     taskCount: readMetadataNumber(metadata.task_count) ?? 0,

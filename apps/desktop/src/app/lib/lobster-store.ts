@@ -358,9 +358,15 @@ function buildPortraitAvatar(item: AgentCatalogEntryData): string {
   return encodeSvg(svg);
 }
 
-function resolveAvatar(item: AgentCatalogEntryData): string {
+export function resolveLobsterAgentAvatar(
+  item: AgentCatalogEntryData,
+  options?: {
+    preferMetadataAvatar?: boolean;
+  },
+): string {
+  const preferMetadataAvatar = options?.preferMetadataAvatar !== false;
   return (
-    readMetadataString(item.metadata, 'avatar_url') ||
+    (preferMetadataAvatar ? readMetadataString(item.metadata, 'avatar_url') : null) ||
     AVATAR_BY_SLUG[item.slug] ||
     pickPortraitAvatar(item) ||
     buildPortraitAvatar(item) ||
@@ -400,7 +406,7 @@ export function hydrateLobsterAgents(
     const installed = installedIndex.get(item.slug);
     return {
       ...item,
-      avatarSrc: resolveAvatar(item),
+      avatarSrc: resolveLobsterAgentAvatar(item),
       categoryLabel: CATEGORY_LABELS[item.category] || CATEGORY_LABELS.general,
       divisionSlug: readMetadataString(item.metadata, 'agency_division'),
       divisionLabel: readMetadataString(item.metadata, 'agency_division_label'),
