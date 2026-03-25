@@ -160,7 +160,7 @@ type RichChatComposerProps = {
   initialSelectedAgentSlug?: string | null;
   initialSelectedSkillSlug?: string | null;
   initialSelectedStock?: ComposerStockContext | null;
-  searchStocks?: (query: string) => Promise<ComposerStockOption[]>;
+  searchInstruments?: (query: string) => Promise<ComposerStockOption[]>;
   composerConfig?: ResolvedInputComposerConfig | null;
   onSelectedSkillSlugChange?: (slug: string | null) => void;
 };
@@ -273,6 +273,10 @@ function formatStockContextLabel(stock: ComposerStockContext | null | undefined)
   return `${stock.companyName} ${stock.symbol}`;
 }
 
+function findDefaultTopBarControl(controlKey: string) {
+  return DEFAULT_TOP_BAR_CONTROLS.find((item) => item.controlKey === controlKey) ?? null;
+}
+
 function resolveInstrumentContextTypeLabel(stock: ComposerStockContext | null | undefined): string {
   const explicitLabel = stock?.instrumentLabel?.trim();
   if (explicitLabel) return explicitLabel;
@@ -293,6 +297,18 @@ function formatStockExchangeLabel(exchange: ComposerStockContext['exchange']): s
   if (exchange === 'sz') return '深交所';
   if (exchange === 'otc') return '场外';
   return '北交所';
+}
+
+function formatInstrumentOptionDetail(stock: ComposerStockContext): string {
+  const segments = [
+    resolveInstrumentContextTypeLabel(stock),
+    stock.symbol,
+    formatStockExchangeLabel(stock.exchange),
+  ];
+  if (stock.board) {
+    segments.push(stock.board);
+  }
+  return segments.join(' · ');
 }
 
 function isSupportedAttachment(file: File): boolean {
@@ -421,7 +437,12 @@ function buildTokenTone(token: ComposerTokenMeta): string {
 
 function buildTokenBadge(token: ComposerTokenMeta): string {
   if (token.kind === 'agent') return '@';
-  if (token.kind === 'stock') return '股';
+  if (token.kind === 'stock') {
+    if (token.stockContext?.instrumentKind === 'etf') return 'ETF';
+    if (token.stockContext?.instrumentKind === 'fund') return '基';
+    if (token.stockContext?.instrumentKind === 'qdii') return 'Q';
+    return '股';
+  }
   if (token.kind === 'reference') return '引';
   if (isImageAttachment(token.mimeType)) return '图';
   if (isPdfAttachment(token.mimeType)) return 'PDF';
@@ -628,7 +649,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       initialSelectedAgentSlug = null,
       initialSelectedSkillSlug = null,
       initialSelectedStock = null,
-      searchStocks,
+      searchInstruments,
       composerConfig = null,
       onSelectedSkillSlugChange,
     },
@@ -708,7 +729,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
           metadata: {},
           config: {},
         }));
-    const topBarControlMap = new Map(topBarControls.map((item, index) => [item.controlKey, {item, order: index + 1}]));
+    const topBarControlMap = new Map(topBarControls.map((item) => [item.controlKey, {item, order: item.sortOrder}]));
     const visibleTopBarControlKeys = new Set(topBarControls.map((item) => item.controlKey));
     const modeOptions = (topBarControlMap.get('mode')?.item.options || []).map((option) => ({
       value: option.value,
@@ -1584,9 +1605,9 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     }, [initialSelectedStock]);
 
     useEffect(() => {
-      if (!stockMenuOpen || !connected || !searchStocks) {
+      if (!stockMenuOpen || !connected || !searchInstruments) {
         setStockLoading(false);
-        if (!stockMenuOpen || !searchStocks) {
+        if (!stockMenuOpen || !searchInstruments) {
           setStockResults([]);
         }
         return;
@@ -1598,7 +1619,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       setStockLoading(true);
       setStockError(null);
 
-      void searchStocks(stockQuery.trim())
+      void searchInstruments(stockQuery.trim())
         .then((results) => {
           if (cancelled || stockSearchSeqRef.current !== sequence) {
             return;
@@ -1622,7 +1643,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       return () => {
         cancelled = true;
       };
-    }, [connected, searchStocks, stockMenuOpen, stockQuery]);
+    }, [connected, searchInstruments, stockMenuOpen, stockQuery]);
 
     useEffect(() => {
       if (!visibleTopBarControlKeys.has('mode') || (selectedMode && !findStaticOption(modeOptions, selectedMode))) {
@@ -1833,7 +1854,20 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const skillControl = topBarControlMap.get('skill')?.item || null;
     const modeControl = topBarControlMap.get('mode')?.item || null;
     const marketScopeControl = topBarControlMap.get('market-scope')?.item || null;
-    const stockControl = topBarControlMap.get('stock-context')?.item || null;
+    const stockControl =
+      topBarControlMap.get('stock-context')?.item ||
+      (searchInstruments
+        ? {
+            controlKey: 'stock-context',
+            displayName: findDefaultTopBarControl('stock-context')?.displayName || '选择基金/ETF',
+            controlType: 'stock',
+            iconKey: null,
+            sortOrder: findDefaultTopBarControl('stock-context')?.sortOrder || 50,
+            options: [],
+            metadata: {},
+            config: {},
+          }
+        : null);
     const watchlistControl = topBarControlMap.get('watchlist')?.item || null;
     const outputControl = topBarControlMap.get('output-format')?.item || null;
     const groupedSkills = groupSkillOptions(skillOptions);
@@ -1878,11 +1912,14 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         ? `匹配 ${stockResults.length}`
         : selectedStockContext
           ? selectedInstrumentTypeLabel
-          : 'A股';
+          : '基金/ETF';
     const watchlistTriggerLabel = selectedWatchlistOption?.label ?? watchlistControl?.displayName ?? '选择股票';
     const outputTriggerLabel = selectedOutputOption?.label ?? outputControl?.displayName ?? '输出模版';
-    const stockControlVisible = composerConfig ? visibleTopBarControlKeys.has('stock-context') : true;
-    const stockControlOrder = topBarControlMap.get('stock-context')?.order ?? 50;
+    const stockControlVisible = Boolean(searchInstruments && stockControl);
+    const stockControlOrder =
+      topBarControlMap.get('stock-context')?.order ??
+      findDefaultTopBarControl('stock-context')?.sortOrder ??
+      50;
     const hasActiveSelections =
       (visibleTopBarControlKeys.has('expert') && Boolean(selectedAgent)) ||
       (visibleTopBarControlKeys.has('skill') && Boolean(selectedSkill)) ||
@@ -1977,8 +2014,8 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
               {stockQuery.trim()
                 ? `正在匹配 “#${stockQuery.trim()}”`
                 : selectedStockContext
-                  ? `当前已绑定${selectedInstrumentTypeLabel}，也可以切换成其它 A 股股票`
-                  : '当前支持搜索股票；从市场页进入时会自动带入基金 / ETF 上下文'}
+                  ? `当前已绑定${selectedInstrumentTypeLabel}，也可以切换成其它基金或 ETF`
+                  : '当前支持搜索基金和 ETF；从市场页进入时会自动带入对应标的'}
             </span>
           </div>
           <span className="iclaw-composer__selector-menu-pill">{stockMenuStatusLabel}</span>
@@ -2003,7 +2040,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
             {!selectedStockContext ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
           </button>
           <div className="iclaw-composer__selector-section-title">
-            {stockQuery.trim() ? '搜索结果' : '热门 A 股'}
+            {stockQuery.trim() ? '搜索结果' : '热门基金 / ETF'}
           </div>
           {stockLoading ? (
             <div className="iclaw-composer__mention-empty">正在加载标的列表...</div>
@@ -2027,10 +2064,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                     </span>
                     <span className="iclaw-composer__skill-option-copy">
                       <span className="iclaw-composer__skill-option-label">{stock.companyName}</span>
-                      <span className="iclaw-composer__skill-option-detail">
-                        {stock.symbol} · {formatStockExchangeLabel(stock.exchange)}
-                        {stock.board ? ` · ${stock.board}` : ''}
-                      </span>
+                      <span className="iclaw-composer__skill-option-detail">{formatInstrumentOptionDetail(stock)}</span>
                     </span>
                   </span>
                   {active ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
@@ -2039,7 +2073,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
             })
           ) : (
             <div className="iclaw-composer__mention-empty">
-              {stockQuery.trim() ? '没有找到匹配股票，继续输入代码或公司名试试。' : '暂无可用股票结果'}
+              {stockQuery.trim() ? '没有找到匹配基金或 ETF，继续输入代码或名称试试。' : '暂无可用基金或 ETF'}
             </div>
           )}
         </div>
@@ -3102,6 +3136,10 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                       <div className="iclaw-composer__model-section-body">
                         {modelOptions.map((option) => {
                           const active = option.id === selectedModel?.id;
+                          const commitModelSelection = () => {
+                            setModelMenuOpen(false);
+                            void onModelChange(option.id);
+                          };
                           return (
                             <button
                               key={option.id}
@@ -3111,8 +3149,14 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                               className="iclaw-composer__model-option"
                               data-active={active ? 'true' : 'false'}
                               onClick={() => {
-                                setModelMenuOpen(false);
-                                void onModelChange(option.id);
+                                commitModelSelection();
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key !== 'Enter' && event.key !== ' ') {
+                                  return;
+                                }
+                                event.preventDefault();
+                                commitModelSelection();
                               }}
                             >
                               <span className="iclaw-composer__model-option-main">
