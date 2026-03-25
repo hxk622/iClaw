@@ -10,7 +10,7 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type DragEvent as ReactDragEvent } from 'react';
-import type { CreditQuoteData, IClawClient } from '@iclaw/sdk';
+import type { CreditQuoteData, IClawClient, MarketFundData, RunBillingSummaryData } from '@iclaw/sdk';
 import '@openclaw-ui/main.ts';
 import {
   normalizeMessage,
@@ -62,6 +62,32 @@ declare global {
 }
 
 type OpenClawTheme = 'system' | 'light' | 'dark';
+
+function resolveFundComposerInstrumentLabel(fund: MarketFundData): '基金' | 'ETF' | 'QDII' {
+  if (fund.instrument_kind === 'etf') {
+    return 'ETF';
+  }
+  if (fund.instrument_kind === 'qdii') {
+    return 'QDII';
+  }
+  return '基金';
+}
+
+function resolveFundComposerBoard(fund: MarketFundData): string | null {
+  if (fund.instrument_kind === 'qdii' && fund.exchange !== 'otc') {
+    return 'QDII ETF';
+  }
+  if (fund.instrument_kind === 'etf') {
+    return '场内 ETF';
+  }
+  if (fund.exchange === 'otc') {
+    return '场外公募';
+  }
+  if (fund.exchange === 'sz') {
+    return '场内 LOF';
+  }
+  return '基金';
+}
 
 type OpenClawSettings = {
   gatewayUrl: string;
@@ -199,7 +225,7 @@ function buildSkillScopedPrompt(payload: ComposerSendPayload): string {
     payload.selectedSkillName ? `技能：${payload.selectedSkillName}` : null,
     payload.selectedModeLabel ? `模式：${payload.selectedModeLabel}` : null,
     payload.selectedMarketScopeLabel ? `市场范围：${payload.selectedMarketScopeLabel}` : null,
-    payload.selectedStockContextLabel ? `股票：${payload.selectedStockContextLabel}` : null,
+    payload.selectedStockContextLabel ? `标的：${payload.selectedStockContextLabel}` : null,
     payload.selectedWatchlistLabel ? `自选股：${payload.selectedWatchlistLabel}` : null,
     payload.selectedOutputLabel ? `输出：${payload.selectedOutputLabel}` : null,
   ].filter((line): line is string => Boolean(line));
@@ -217,7 +243,7 @@ function buildSkillScopedPrompt(payload: ComposerSendPayload): string {
       : null,
     payload.selectedModeLabel ? `回答模式请遵循「${payload.selectedModeLabel}」。` : null,
     payload.selectedMarketScopeLabel ? `分析范围请聚焦「${payload.selectedMarketScopeLabel}」。` : null,
-    payload.selectedStockContextLabel ? `本次对话请聚焦股票「${payload.selectedStockContextLabel}」，除非用户明确要求，否则不要扩展到其它标的。` : null,
+    payload.selectedStockContextLabel ? `本次对话请聚焦标的「${payload.selectedStockContextLabel}」，除非用户明确要求，否则不要扩展到其它标的。` : null,
     payload.selectedWatchlistLabel ? `如果涉及用户关注标的，请优先围绕「${payload.selectedWatchlistLabel}」这组自选股展开分析。` : null,
     payload.selectedOutputLabel ? `输出形式请优先按「${payload.selectedOutputLabel}」呈现。` : null,
   ].filter((line): line is string => Boolean(line));
@@ -243,6 +269,9 @@ const CHAT_SELECTION_MENU_GAP = 12;
 const SESSION_TRANSITION_MIN_DURATION_MS = 260;
 const CREDIT_INPUT_COST_PER_1K = 1;
 const CREDIT_OUTPUT_COST_PER_1K = 2;
+const ICLAW_BILLING_SUMMARY_KEY = '__iclawBillingSummary';
+const ICLAW_BILLING_STATE_KEY = '__iclawBillingState';
+const ICLAW_BILLING_RUN_ID_KEY = '__iclawBillingRunId';
 const REFERENCE_MARKER_PATTERN = /\[\[引用:([\s\S]*?)\]\]/g;
 const ARTIFACT_CARD_EXTENSIONS = ['md', 'markdown', 'html', 'htm', 'pdf', 'ppt', 'pptx', 'key', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'tsv'];
 const ARTIFACT_CARD_KEYWORDS = [
@@ -288,9 +317,14 @@ type ActiveRecentTaskRun = {
   failureMessage: string | null;
 };
 
+type AssistantBillingState = 'charged' | 'pending' | 'missing';
+
 type AssistantFooterMeta = {
   timestampLabel: string;
-  credits: number;
+  state: AssistantBillingState;
+  label: string;
+  value: string | null;
+  credits: number | null;
   inputTokens: number;
   outputTokens: number;
   tooltip: string | null;
@@ -332,6 +366,53 @@ type DraggedFileSummary = {
   videoCount: number;
   unsupportedCount: number;
 };
+
+function normalizeGatewaySessionKey(key?: string | null): string {
+  return key?.trim().toLowerCase() ?? '';
+}
+
+function resolveEquivalentGatewaySessionKeys(targetSessionKey: string): Set<string> {
+  const normalized = normalizeGatewaySessionKey(targetSessionKey);
+  const keys = new Set<string>();
+  if (!normalized) {
+    return keys;
+  }
+
+  keys.add(normalized);
+
+  if (normalized === 'main') {
+    keys.add('agent:main:main');
+    return keys;
+  }
+
+  if (!normalized.includes(':')) {
+    keys.add(`agent:${normalized}:main`);
+    return keys;
+  }
+
+  const canonicalMainMatch = normalized.match(/^agent:([^:]+):main$/);
+  if (canonicalMainMatch) {
+    keys.add(canonicalMainMatch[1] ?? normalized);
+  }
+
+  return keys;
+}
+
+function resolveSessionModelFromList(
+  sessionsResult: GatewaySessionsListResult | null | undefined,
+  targetSessionKey: string,
+): string {
+  const aliases = resolveEquivalentGatewaySessionKeys(targetSessionKey);
+  if (aliases.size === 0) {
+    return '';
+  }
+
+  return (
+    sessionsResult?.sessions.find((session) =>
+      aliases.has(normalizeGatewaySessionKey(session.key)),
+    )?.model?.trim() ?? ''
+  );
+}
 
 function hasDraggedFiles(dataTransfer: DataTransfer | null | undefined): boolean {
   if (!dataTransfer) {
@@ -703,35 +784,49 @@ function formatAssistantFooterTimestamp(timestamp: number): string {
   });
 }
 
-function buildAssistantFooterTooltip(inputTokens: number, outputTokens: number, credits: number): string | null {
-  if (inputTokens <= 0 && outputTokens <= 0) {
-    return credits > 0 ? `实际消耗 ${credits} 龙虾币` : null;
-  }
-  return `输入 ${inputTokens} tokens · 输出 ${outputTokens} tokens · 实际消耗 ${credits} 龙虾币`;
+type AssistantMessageGroup = {
+  role: string;
+  timestamp: number;
+  messages: unknown[];
+  runId: string | null;
+};
+
+type ChatMessageGroup = {
+  role: string;
+  timestamp: number;
+  messages: unknown[];
+  runId: string | null;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object';
 }
 
-function deriveAssistantFooterMetas(messages: unknown[]): AssistantFooterMeta[] {
+function readBillingRunId(message: unknown): string | null {
+  if (!isRecord(message)) {
+    return null;
+  }
+  const runId = message[ICLAW_BILLING_RUN_ID_KEY];
+  return typeof runId === 'string' && runId.trim() ? runId.trim() : null;
+}
+
+function collectMessageGroups(messages: unknown[]): ChatMessageGroup[] {
   if (!Array.isArray(messages) || messages.length === 0) {
     return [];
   }
 
-  type MessageGroup = {
-    role: string;
-    timestamp: number;
-    messages: unknown[];
-  };
-
-  let currentGroup: MessageGroup | null = null;
-  const assistantGroups: MessageGroup[] = [];
+  let currentGroup: ChatMessageGroup | null = null;
+  const groups: ChatMessageGroup[] = [];
 
   const finalizeCurrentGroup = () => {
-    if (!currentGroup || currentGroup.role !== 'assistant') {
+    if (!currentGroup) {
       return;
     }
-    assistantGroups.push({
+    groups.push({
       role: currentGroup.role,
       timestamp: currentGroup.timestamp,
       messages: [...currentGroup.messages],
+      runId: currentGroup.runId,
     });
   };
 
@@ -739,6 +834,7 @@ function deriveAssistantFooterMetas(messages: unknown[]): AssistantFooterMeta[] 
     const normalized = normalizeMessage(message);
     const role = normalizeRoleForGrouping(normalized.role);
     const timestamp = normalized.timestamp || Date.now();
+    const runId = readBillingRunId(message);
 
     if (!currentGroup || currentGroup.role !== role) {
       finalizeCurrentGroup();
@@ -746,35 +842,248 @@ function deriveAssistantFooterMetas(messages: unknown[]): AssistantFooterMeta[] 
         role,
         timestamp,
         messages: [message],
+        runId,
       };
       return;
     }
 
     currentGroup.messages.push(message);
+    if (!currentGroup.runId && runId) {
+      currentGroup.runId = runId;
+    }
   });
 
   finalizeCurrentGroup();
 
-  return assistantGroups.map((assistantGroup) => {
+  return groups;
+}
+
+function collectAssistantMessageGroups(messages: unknown[]): AssistantMessageGroup[] {
+  const groups = collectMessageGroups(messages);
+  if (groups.length === 0) {
+    return [];
+  }
+
+  const assistantGroups: AssistantMessageGroup[] = [];
+  let activeRunId: string | null = null;
+
+  groups.forEach((group) => {
+    if (group.role === 'user') {
+      activeRunId = group.runId;
+      return;
+    }
+    if (group.role !== 'assistant') {
+      return;
+    }
+    assistantGroups.push({
+      role: group.role,
+      timestamp: group.timestamp,
+      messages: group.messages,
+      runId: activeRunId,
+    });
+  });
+
+  return assistantGroups;
+}
+
+function findAssistantGroupForRun(
+  messages: unknown[],
+  runId: string | null,
+  startedAt: number,
+): AssistantMessageGroup | null {
+  const assistantGroups = collectAssistantMessageGroups(messages);
+  if (runId) {
+    const matchedGroup = assistantGroups.find((group) => group.runId === runId);
+    if (matchedGroup) {
+      return matchedGroup;
+    }
+  }
+  for (let index = assistantGroups.length - 1; index >= 0; index -= 1) {
+    const group = assistantGroups[index];
+    if (group && group.timestamp >= startedAt) {
+      return group;
+    }
+  }
+  return null;
+}
+
+function readAssistantBillingSummary(message: unknown): RunBillingSummaryData | null {
+  if (!isRecord(message)) {
+    return null;
+  }
+  const summary = message[ICLAW_BILLING_SUMMARY_KEY];
+  return isRecord(summary) ? (summary as RunBillingSummaryData) : null;
+}
+
+function readAssistantBillingState(message: unknown): AssistantBillingState | null {
+  if (!isRecord(message)) {
+    return null;
+  }
+  const state = message[ICLAW_BILLING_STATE_KEY];
+  return state === 'charged' || state === 'pending' || state === 'missing' ? state : null;
+}
+
+function annotateAssistantGroup(
+  messages: unknown[],
+  runId: string | null,
+  startedAt: number,
+  annotation: {
+    billingSummary?: RunBillingSummaryData | null;
+    billingState?: AssistantBillingState | null;
+  },
+): boolean {
+  const assistantGroup = findAssistantGroupForRun(messages, runId, startedAt);
+  if (!assistantGroup) {
+    return false;
+  }
+
+  assistantGroup.messages.forEach((message) => {
+    if (!isRecord(message)) {
+      return;
+    }
+
+    if (annotation.billingSummary === null) {
+      delete message[ICLAW_BILLING_SUMMARY_KEY];
+    } else if (annotation.billingSummary) {
+      message[ICLAW_BILLING_SUMMARY_KEY] = annotation.billingSummary;
+    }
+
+    if (annotation.billingState === null) {
+      delete message[ICLAW_BILLING_STATE_KEY];
+    } else if (annotation.billingState) {
+      message[ICLAW_BILLING_STATE_KEY] = annotation.billingState;
+    }
+  });
+
+  return true;
+}
+
+function buildAssistantFooterTooltip(input: {
+  state: AssistantBillingState;
+  inputTokens: number;
+  outputTokens: number;
+  credits: number | null;
+}): string {
+  const usageDetail =
+    input.inputTokens > 0 || input.outputTokens > 0
+      ? `输入 ${input.inputTokens} tokens · 输出 ${input.outputTokens} tokens`
+      : '当前消息还没有可用的 tokens 明细';
+
+  if (input.state === 'charged') {
+    if ((input.credits ?? 0) <= 0) {
+      return usageDetail;
+    }
+    return `${usageDetail} · 实际消耗 ${input.credits} 龙虾币`;
+  }
+
+  if (input.state === 'pending') {
+    return `${usageDetail} · 后端正在结算本次消耗`;
+  }
+
+  return `${usageDetail} · 结算结果缺失，请排查 usage 回传或结算上报链路`;
+}
+
+function deriveAssistantFooterMetas(
+  messages: unknown[],
+  pendingSettlements: PendingUsageSettlement[],
+): AssistantFooterMeta[] {
+  const assistantGroups = collectAssistantMessageGroups(messages);
+  if (assistantGroups.length === 0) {
+    return [];
+  }
+
+  const pendingAssistantIndexes = new Set<number>();
+  pendingSettlements.forEach((pending) => {
+    if (pending.runId) {
+      const matchedIndex = assistantGroups.findIndex((group) => group.runId === pending.runId);
+      if (matchedIndex >= 0) {
+        pendingAssistantIndexes.add(matchedIndex);
+        return;
+      }
+    }
+    for (let index = assistantGroups.length - 1; index >= 0; index -= 1) {
+      const group = assistantGroups[index];
+      if (group && group.timestamp >= pending.startedAt) {
+        pendingAssistantIndexes.add(index);
+        break;
+      }
+    }
+  });
+
+  return assistantGroups.map((assistantGroup, assistantGroupIndex) => {
     let inputTokens = 0;
     let outputTokens = 0;
+    let billingSummary: RunBillingSummaryData | null = null;
+    let billingState: AssistantBillingState | null = null;
+
     assistantGroup.messages.forEach((message: unknown) => {
       const record = message as Record<string, unknown>;
       const usage = record.usage as Record<string, unknown> | undefined;
       if (!usage) {
+        const messageBillingSummary = readAssistantBillingSummary(message);
+        if (messageBillingSummary) {
+          billingSummary = messageBillingSummary;
+        }
+        const messageBillingState = readAssistantBillingState(message);
+        if (messageBillingState === 'missing' || (!billingState && messageBillingState)) {
+          billingState = messageBillingState;
+        }
         return;
       }
       inputTokens += getUsageMetric(usage, ['input', 'inputTokens', 'input_tokens']);
       outputTokens += getUsageMetric(usage, ['output', 'outputTokens', 'output_tokens']);
+      const messageBillingSummary = readAssistantBillingSummary(message);
+      if (messageBillingSummary) {
+        billingSummary = messageBillingSummary;
+      }
+      const messageBillingState = readAssistantBillingState(message);
+      if (messageBillingState === 'missing' || (!billingState && messageBillingState)) {
+        billingState = messageBillingState;
+      }
     });
 
-    const credits = computeCreditCostFromUsage(inputTokens, outputTokens);
+    if (billingSummary) {
+      inputTokens = Math.max(inputTokens, billingSummary.input_tokens || 0);
+      outputTokens = Math.max(outputTokens, billingSummary.output_tokens || 0);
+      const credits = Math.max(0, billingSummary.credit_cost || 0);
+      return {
+        timestampLabel: formatAssistantFooterTimestamp(assistantGroup.timestamp),
+        state: 'charged',
+        label: '实际消耗 ',
+        value: String(credits),
+        credits,
+        inputTokens,
+        outputTokens,
+        tooltip: buildAssistantFooterTooltip({
+          state: 'charged',
+          inputTokens,
+          outputTokens,
+          credits,
+        }),
+      };
+    }
+
+    const derivedState =
+      billingState === 'missing'
+        ? 'missing'
+        : pendingAssistantIndexes.has(assistantGroupIndex) || billingState === 'pending'
+          ? 'pending'
+          : 'missing';
+
     return {
       timestampLabel: formatAssistantFooterTimestamp(assistantGroup.timestamp),
-      credits,
+      state: derivedState,
+      label: derivedState === 'pending' ? '计费结算中' : '计费数据缺失',
+      value: null,
+      credits: null,
       inputTokens,
       outputTokens,
-      tooltip: buildAssistantFooterTooltip(inputTokens, outputTokens, credits),
+      tooltip: buildAssistantFooterTooltip({
+        state: derivedState,
+        inputTokens,
+        outputTokens,
+        credits: inputTokens > 0 || outputTokens > 0 ? computeCreditCostFromUsage(inputTokens, outputTokens) : null,
+      }),
     };
   });
 }
@@ -783,58 +1092,20 @@ function extractChatGroupTimestampLabel(group: HTMLElement): string {
   return group.querySelector('.chat-group-footer .chat-group-timestamp')?.textContent?.trim() ?? '';
 }
 
+function normalizeChatSenderLabel(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
 function deriveLatestAssistantUsageSince(
   messages: unknown[],
+  runId: string | null,
   startedAt: number,
 ): AssistantUsageSettlement | null {
-  if (!Array.isArray(messages) || messages.length === 0) {
-    return null;
-  }
-
-  type MessageGroup = {
-    role: string;
-    timestamp: number;
-    messages: unknown[];
-  };
-
-  let currentGroup: MessageGroup | null = null;
-  let latestAssistantGroup: MessageGroup | null = null;
-
-  const finalizeCurrentGroup = () => {
-    if (!currentGroup || currentGroup.role !== 'assistant' || currentGroup.timestamp < startedAt) {
-      return;
-    }
-    latestAssistantGroup = {
-      role: currentGroup.role,
-      timestamp: currentGroup.timestamp,
-      messages: [...currentGroup.messages],
-    };
-  };
-
-  messages.forEach((message) => {
-    const normalized = normalizeMessage(message);
-    const role = normalizeRoleForGrouping(normalized.role);
-    const timestamp = normalized.timestamp || Date.now();
-
-    if (!currentGroup || currentGroup.role !== role) {
-      finalizeCurrentGroup();
-      currentGroup = {
-        role,
-        timestamp,
-        messages: [message],
-      };
-      return;
-    }
-
-    currentGroup.messages.push(message);
-  });
-
-  finalizeCurrentGroup();
-
+  const latestAssistantGroup = findAssistantGroupForRun(messages, runId, startedAt);
   if (!latestAssistantGroup) {
     return null;
   }
-  const assistantGroup = latestAssistantGroup as MessageGroup;
+  const assistantGroup = latestAssistantGroup;
 
   let inputTokens = 0;
   let outputTokens = 0;
@@ -1026,6 +1297,16 @@ async function sendAuthorizedChatMessage(params: {
     });
   });
 
+  app.chatMessages = [
+    ...app.chatMessages,
+    {
+      role: 'user',
+      content: contentBlocks,
+      timestamp: startedAt,
+      [ICLAW_BILLING_RUN_ID_KEY]: runId,
+    },
+  ];
+
   app.chatMessage = '';
   app.chatAttachments = [];
   app.chatSending = true;
@@ -1052,7 +1333,7 @@ async function sendAuthorizedChatMessage(params: {
     await request('chat.send', {
       sessionKey,
       message,
-      deliver: true,
+      deliver: false,
       idempotencyKey: runId,
       attachments: apiAttachments.length > 0 ? apiAttachments : undefined,
     });
@@ -1121,8 +1402,7 @@ async function loadChatModelSnapshot(
   ]);
 
   const options = buildComposerModelOptions(modelsResult?.models ?? []);
-  const sessionModel =
-    sessionsResult?.sessions.find((session) => session.key === targetSessionKey)?.model?.trim() ?? '';
+  const sessionModel = resolveSessionModelFromList(sessionsResult, targetSessionKey);
   const defaultModel = sessionsResult?.defaults?.model?.trim() ?? '';
   const fallbackModel = options[0]?.id ?? null;
 
@@ -1235,7 +1515,7 @@ export function OpenClawChatSurface({
   const artifactAutoOpenBurstTimersRef = useRef<number[]>([]);
   const usageSettlementTimersRef = useRef<number[]>([]);
   const activeRecentTaskRunRef = useRef<ActiveRecentTaskRun | null>(null);
-  const pendingUsageSettlementRef = useRef<PendingUsageSettlement | null>(null);
+  const pendingUsageSettlementsRef = useRef<PendingUsageSettlement[]>([]);
   const [status, setStatus] = useState<ChatSurfaceStatus>({
     busy: false,
     connected: false,
@@ -1265,6 +1545,8 @@ export function OpenClawChatSurface({
   const [modelSwitching, setModelSwitching] = useState(false);
   const [sessionTransitionVisible, setSessionTransitionVisible] = useState(false);
   const [composerDraft, setComposerDraft] = useState<ComposerDraftPayload | null>(null);
+  const [assistantFooterVersion, setAssistantFooterVersion] = useState(0);
+  const [pendingSettlementCount, setPendingSettlementCount] = useState(0);
   const [creditEstimate, setCreditEstimate] = useState<ComposerCreditEstimateState>({
     loading: false,
     low: null,
@@ -1470,27 +1752,29 @@ export function OpenClawChatSurface({
     [refreshModelCatalog, selectedModelId, sessionKey],
   );
 
-  const handleSearchStocks = useCallback(
+  const handleSearchInstruments = useCallback(
     async (query: string): Promise<ComposerStockContext[]> => {
       if (!creditClient) {
         return [];
       }
 
       const trimmedQuery = query.trim();
-      const page = await creditClient.listMarketStocksPage({
-        market: 'a_share',
+      const page = await creditClient.listMarketFundsPage({
+        market: 'cn_fund',
         search: trimmedQuery || undefined,
-        sort: trimmedQuery ? 'market_cap_desc' : 'change_percent_desc',
+        sort: trimmedQuery ? 'scale_desc' : 'return_1y_desc',
         limit: 8,
         offset: 0,
       });
 
-      return page.items.map((stock) => ({
-        id: stock.id,
-        symbol: stock.symbol,
-        companyName: stock.company_name,
-        exchange: stock.exchange,
-        board: stock.board,
+      return page.items.map((fund) => ({
+        id: fund.id,
+        symbol: fund.symbol,
+        companyName: fund.fund_name,
+        exchange: fund.exchange,
+        board: resolveFundComposerBoard(fund),
+        instrumentKind: fund.instrument_kind,
+        instrumentLabel: resolveFundComposerInstrumentLabel(fund),
       }));
     },
     [creditClient],
@@ -1510,8 +1794,8 @@ export function OpenClawChatSurface({
   }, [clearSessionTransitionTimer, closeSelectionMenu, sessionKey]);
 
   useEffect(() => {
-    if (pendingUsageSettlementRef.current) {
-      console.warn('[desktop] drop pending credit settlement because session changed', pendingUsageSettlementRef.current);
+    if (pendingUsageSettlementsRef.current.length > 0) {
+      console.warn('[desktop] drop pending credit settlements because session changed', pendingUsageSettlementsRef.current);
     }
     artifactAutoOpenStateRef.current = {
       lastBusy: false,
@@ -1521,13 +1805,15 @@ export function OpenClawChatSurface({
       lastOpenedToken: null,
     };
     activeRecentTaskRunRef.current = null;
-    pendingUsageSettlementRef.current = null;
+    pendingUsageSettlementsRef.current = [];
+    setPendingSettlementCount(0);
     clearArtifactAutoOpenTimers();
     clearUsageSettlementTimers();
     modelLoadVersionRef.current += 1;
     setModelsLoading(true);
     setModelSwitching(false);
     setComposerDraft(null);
+    setAssistantFooterVersion((current) => current + 1);
     setCreditEstimate({
       loading: false,
       low: null,
@@ -2046,7 +2332,7 @@ export function OpenClawChatSurface({
       const target = event.target as HTMLElement | null;
       if (
         target?.closest(
-          '.iclaw-composer__editor, .iclaw-composer__mention-menu, .iclaw-composer__model-menu',
+          '.iclaw-composer__editor, .iclaw-composer__mention-menu, .iclaw-composer__model-menu, .iclaw-composer__selector-menu, .iclaw-composer__floating-menu',
         )
       ) {
         return;
@@ -2445,65 +2731,93 @@ export function OpenClawChatSurface({
   }, []);
 
   const attemptPendingUsageSettlement = useCallback(async (): Promise<boolean> => {
-    const pending = pendingUsageSettlementRef.current;
     const app = appRef.current;
-    if (!pending || !app || !creditClient || !creditToken) {
+    const pendings = pendingUsageSettlementsRef.current;
+    if (pendings.length === 0 || !app || !creditClient || !creditToken) {
       return false;
     }
 
-    const terminalEvent = findTerminalChatEventForRun(app, pending.sessionKey, pending.runId);
-    if (terminalEvent) {
-      pending.terminalState = terminalEvent.state;
+    const remaining: PendingUsageSettlement[] = [];
+    let settledAny = false;
+    let shouldRefreshBalance = false;
+    let shouldRefreshFooter = false;
+
+    for (const pending of pendings) {
+      const terminalEvent = findTerminalChatEventForRun(app, pending.sessionKey, pending.runId);
+      if (terminalEvent) {
+        pending.terminalState = terminalEvent.state;
+      }
+
+      const usage =
+        (terminalEvent?.message ? deriveAssistantUsageFromMessage(terminalEvent.message) : null) ||
+        (findLatestTerminalChatRunSince(app, pending.sessionKey, pending.startedAt) === pending.runId
+          ? deriveLatestAssistantUsageSince(app.chatMessages, pending.runId, pending.startedAt)
+          : null);
+
+      if (!usage) {
+        pending.attempts += 1;
+        if (pending.terminalState === 'error') {
+          console.warn('[desktop] skip credit settlement because run ended with error', pending);
+          continue;
+        }
+        if (Date.now() >= pending.expiresAt) {
+          console.warn('[desktop] mark billing as missing because assistant usage was not found before expiry', pending);
+          annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
+            billingState: 'missing',
+          });
+          shouldRefreshFooter = true;
+          continue;
+        }
+        remaining.push(pending);
+        continue;
+      }
+
+      try {
+        const result = await creditClient.reportUsageEvent({
+          token: creditToken,
+          eventId: pending.runId,
+          grantId: pending.grantId,
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          model: usage.model || pending.model || undefined,
+        });
+        annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
+          billingSummary: result.billing_summary,
+          billingState: 'charged',
+        });
+        settledAny = true;
+        shouldRefreshBalance = true;
+        shouldRefreshFooter = true;
+      } catch (error) {
+        pending.attempts += 1;
+        console.error('[desktop] failed to report usage event', {
+          runId: pending.runId,
+          grantId: pending.grantId,
+          error,
+        });
+        if (Date.now() >= pending.expiresAt) {
+          annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
+            billingState: 'missing',
+          });
+          shouldRefreshFooter = true;
+          continue;
+        }
+        remaining.push(pending);
+      }
     }
 
-    const usage =
-      (terminalEvent?.message ? deriveAssistantUsageFromMessage(terminalEvent.message) : null) ||
-      (findLatestTerminalChatRunSince(app, pending.sessionKey, pending.startedAt) === pending.runId
-        ? deriveLatestAssistantUsageSince(app.chatMessages, pending.startedAt)
-        : null);
-
-    if (!usage) {
-      pending.attempts += 1;
-      if (pending.terminalState === 'error') {
-        console.warn('[desktop] skip credit settlement because run ended with error', pending);
-        clearUsageSettlementTimers();
-        pendingUsageSettlementRef.current = null;
-        return false;
-      }
-      if (Date.now() >= pending.expiresAt) {
-        console.warn('[desktop] skip credit settlement because assistant usage was not found before expiry', pending);
-        clearUsageSettlementTimers();
-        pendingUsageSettlementRef.current = null;
-      }
-      return false;
-    }
-
-    try {
-      await creditClient.reportUsageEvent({
-        token: creditToken,
-        eventId: pending.runId,
-        grantId: pending.grantId,
-        inputTokens: usage.inputTokens,
-        outputTokens: usage.outputTokens,
-        model: usage.model || pending.model || undefined,
-      });
+    pendingUsageSettlementsRef.current = remaining;
+    setPendingSettlementCount(remaining.length);
+    if (remaining.length === 0) {
       clearUsageSettlementTimers();
-      pendingUsageSettlementRef.current = null;
-      await onCreditBalanceRefresh?.();
-      return true;
-    } catch (error) {
-      pending.attempts += 1;
-      console.error('[desktop] failed to report usage event', {
-        runId: pending.runId,
-        grantId: pending.grantId,
-        error,
-      });
-      if (Date.now() >= pending.expiresAt) {
-        clearUsageSettlementTimers();
-        pendingUsageSettlementRef.current = null;
-      }
-      return false;
     }
+    if (shouldRefreshFooter) {
+      setAssistantFooterVersion((current) => current + 1);
+    }
+    if (shouldRefreshBalance) {
+      await onCreditBalanceRefresh?.();
+    }
+    return settledAny;
   }, [clearUsageSettlementTimers, creditClient, creditToken, onCreditBalanceRefresh]);
 
   useEffect(() => {
@@ -2515,7 +2829,7 @@ export function OpenClawChatSurface({
   }, [finalizeRecentTaskRun, status.busy]);
 
   useEffect(() => {
-    if (status.busy || !pendingUsageSettlementRef.current) {
+    if (status.busy || pendingSettlementCount === 0) {
       return;
     }
 
@@ -2529,7 +2843,7 @@ export function OpenClawChatSurface({
     return () => {
       clearUsageSettlementTimers();
     };
-  }, [attemptPendingUsageSettlement, clearUsageSettlementTimers, status.busy]);
+  }, [attemptPendingUsageSettlement, clearUsageSettlementTimers, pendingSettlementCount, status.busy]);
 
   useEffect(() => {
     const activeRun = activeRecentTaskRunRef.current;
@@ -2666,15 +2980,16 @@ export function OpenClawChatSurface({
       failureMessage: null,
     };
 
+    let runId: string | null = null;
+
     try {
       if (!creditClient || !creditToken) {
         throw new Error('当前账号龙虾币鉴权尚未就绪，暂时不能发送消息。');
       }
 
       clearUsageSettlementTimers();
-      pendingUsageSettlementRef.current = null;
 
-      const runId = createDesktopRunId();
+      runId = createDesktopRunId();
       const startedAt = Date.now();
       const fallbackEstimatedInputTokens =
         Math.max(0, Math.ceil(normalizedPrompt.length * 0.75)) + payload.imageAttachments.length * 220;
@@ -2688,16 +3003,20 @@ export function OpenClawChatSurface({
         ),
       });
 
-      pendingUsageSettlementRef.current = {
-        runId,
-        grantId: runGrant.grant_id,
-        sessionKey,
-        startedAt,
-        expiresAt: startedAt + USAGE_SETTLEMENT_MAX_WAIT_MS,
-        model: selectedModelId,
-        attempts: 0,
-        terminalState: 'pending',
-      };
+      pendingUsageSettlementsRef.current = [
+        ...pendingUsageSettlementsRef.current,
+        {
+          runId,
+          grantId: runGrant.grant_id,
+          sessionKey,
+          startedAt,
+          expiresAt: startedAt + USAGE_SETTLEMENT_MAX_WAIT_MS,
+          model: selectedModelId,
+          attempts: 0,
+          terminalState: 'pending',
+        },
+      ];
+      setPendingSettlementCount(pendingUsageSettlementsRef.current.length);
 
       await sendAuthorizedChatMessage({
         app,
@@ -2721,8 +3040,16 @@ export function OpenClawChatSurface({
       }, 420);
       return true;
     } catch (error) {
-      pendingUsageSettlementRef.current = null;
       const detail = error instanceof Error ? error.message : '任务发送失败';
+      if (runId) {
+        pendingUsageSettlementsRef.current = pendingUsageSettlementsRef.current.filter(
+          (pending) => pending.runId !== runId,
+        );
+      }
+      setPendingSettlementCount(pendingUsageSettlementsRef.current.length);
+      if (pendingUsageSettlementsRef.current.length === 0) {
+        clearUsageSettlementTimers();
+      }
       markRecentTaskFailed({
         id: task.id,
         artifacts: collectLatestArtifactKinds(hostRef.current),
@@ -2827,6 +3154,20 @@ export function OpenClawChatSurface({
       return;
     }
 
+    const userSenderLabels = new Set(
+      [
+        'you',
+        'user',
+        user?.name,
+        user?.username,
+        user?.display_name,
+        user?.nickname,
+        user?.email,
+      ]
+        .map((value) => normalizeChatSenderLabel(value))
+        .filter(Boolean),
+    );
+
     const scheduleButtonReset = (button: HTMLButtonElement) => {
       const timer = window.setTimeout(() => {
         if (!button.isConnected) {
@@ -2844,6 +3185,28 @@ export function OpenClawChatSurface({
       }
       setMessageActionFeedback(button, 'success');
       scheduleButtonReset(button);
+    };
+
+    const normalizeUserGroupClass = (group: HTMLElement) => {
+      if (group.classList.contains('user')) {
+        return;
+      }
+
+      const senderName = normalizeChatSenderLabel(
+        group.querySelector('.chat-group-footer .chat-sender-name')?.textContent,
+      );
+      if (!senderName || !userSenderLabels.has(senderName)) {
+        return;
+      }
+
+      group.classList.remove('assistant', 'other', 'tool');
+      group.classList.add('user');
+
+      const avatar = group.querySelector(':scope > .chat-avatar');
+      if (avatar instanceof HTMLElement) {
+        avatar.classList.remove('assistant', 'other', 'tool');
+        avatar.classList.add('user');
+      }
     };
 
     const ensureUserCopyButton = (group: HTMLElement) => {
@@ -2985,8 +3348,7 @@ export function OpenClawChatSurface({
         toolbar?.querySelector<HTMLButtonElement>('[data-action="regenerate"]') ?? null;
 
       if (metaNode) {
-        const credits = footerMeta?.credits ?? 0;
-        const nextState = credits > 0 ? 'charged' : 'idle';
+        const nextState = footerMeta?.state ?? 'missing';
         if (metaNode.dataset.state !== nextState) {
           metaNode.dataset.state = nextState;
         }
@@ -2994,17 +3356,17 @@ export function OpenClawChatSurface({
         if (metaNode.title !== nextTitle) {
           metaNode.title = nextTitle;
         }
-        if (credits > 0) {
+        if (footerMeta?.value) {
           if (metaValueNode?.hasAttribute('hidden')) {
             metaValueNode.removeAttribute('hidden');
           }
-          setElementTextIfChanged(metaLabelNode, '实际消耗 ');
-          setElementTextIfChanged(metaValueNode, String(credits));
+          setElementTextIfChanged(metaLabelNode, footerMeta.label);
+          setElementTextIfChanged(metaValueNode, footerMeta.value);
         } else {
           if (metaValueNode && !metaValueNode.hasAttribute('hidden')) {
             metaValueNode.setAttribute('hidden', 'true');
           }
-          setElementTextIfChanged(metaLabelNode, '本次未计费');
+          setElementTextIfChanged(metaLabelNode, footerMeta?.label ?? '计费数据缺失');
           setElementTextIfChanged(metaValueNode, '');
         }
       }
@@ -3021,13 +3383,18 @@ export function OpenClawChatSurface({
     };
 
     const decorateChatGroups = () => {
-      const assistantFooterMetas = deriveAssistantFooterMetas(appRef.current?.chatMessages ?? []);
+      const assistantFooterMetas = deriveAssistantFooterMetas(
+        appRef.current?.chatMessages ?? [],
+        pendingUsageSettlementsRef.current,
+      );
       const groups = Array.from(host.querySelectorAll('.chat-group')).filter(
         (node): node is HTMLElement => node instanceof HTMLElement,
       );
       let assistantIndex = 0;
 
       groups.forEach((group) => {
+        normalizeUserGroupClass(group);
+
         if (group.classList.contains('user')) {
           ensureUserCopyButton(group);
           return;
@@ -3075,7 +3442,18 @@ export function OpenClawChatSurface({
       document.removeEventListener('pointerdown', handleToolbarOutsidePointerDown, true);
       clearMessageActionTimers();
     };
-  }, [clearMessageActionTimers, handleSend, status.busy]);
+  }, [
+    assistantFooterVersion,
+    clearMessageActionTimers,
+    handleSend,
+    pendingSettlementCount,
+    status.busy,
+    user?.display_name,
+    user?.email,
+    user?.name,
+    user?.nickname,
+    user?.username,
+  ]);
 
   return (
     <PageSurface as="div" className="bg-[var(--bg-page)]">
@@ -3216,7 +3594,7 @@ export function OpenClawChatSurface({
               initialSelectedAgentSlug={initialAgentSlug}
               initialSelectedSkillSlug={initialSkillSlug}
               initialSelectedStock={initialStockContext}
-              searchStocks={handleSearchStocks}
+              searchInstruments={handleSearchInstruments}
               modelOptions={modelOptions}
               selectedModelId={selectedModelId}
               modelsLoading={modelsLoading}

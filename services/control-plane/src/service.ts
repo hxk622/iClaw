@@ -3,6 +3,7 @@ import type {AuthTokens} from '@iclaw/shared';
 import { deleteAvatarByKey, deleteOldAvatars, extractAvatarKey, uploadAvatar } from './avatar-storage.ts';
 import {config} from './config.ts';
 import {randomBytes} from 'node:crypto';
+import {decryptInstallSecretPayload, encryptInstallSecretPayload} from './install-config-secrets.ts';
 import {deletePrivateSkillArtifact, uploadPrivateSkillArtifact} from './skill-storage.ts';
 import {
   deleteUserFile as deleteStoredUserFile,
@@ -11,6 +12,10 @@ import {
 } from './user-file-storage.ts';
 
 import type {
+  AdminRefundPaymentOrderInput,
+  AdminMarkPaymentOrderPaidInput,
+  AdminPaymentOrderDetailView,
+  AdminPaymentOrderSummaryView,
   AdminAgentCatalogEntryView,
   AgentCategory,
   AgentCatalogEntryRecord,
@@ -23,10 +28,14 @@ import type {
   CreditQuoteInput,
   CreditQuoteView,
   CreditLedgerItemView,
+  ExtensionInstallTarget,
+  ExtensionSetupStatus,
   ImportUserPrivateSkillInput,
   InstallAgentInput,
   InstallMcpInput,
   InstallSkillInput,
+  MarketFundRecord,
+  MarketFundView,
   LoginInput,
   MarketStockRecord,
   MarketStockView,
@@ -36,6 +45,8 @@ import type {
   PaymentOrderRecord,
   PaymentOrderView,
   PaymentProvider,
+  PaymentWebhookEventRecord,
+  PaymentWebhookEventView,
   PaymentWebhookInput,
   PublicUser,
   RegisterInput,
@@ -51,11 +62,14 @@ import type {
   UpsertSkillCatalogEntryInput,
   UpsertAgentCatalogEntryInput,
   UpsertSkillSyncSourceInput,
+  UpsertUserExtensionInstallConfigInput,
   UpdateSkillLibraryItemInput,
   UpdateProfileInput,
   UsageEventInput,
   UsageEventResult,
   UserAgentLibraryItemView,
+  UserExtensionInstallConfigRecord,
+  UserExtensionInstallConfigView,
   UserFileRecord,
   UserFileView,
   UserMcpLibraryItemView,
@@ -88,6 +102,8 @@ const SKILL_CATALOG_DEFAULT_LIMIT = 300;
 const SKILL_CATALOG_MAX_LIMIT = 1000;
 const MARKET_STOCK_DEFAULT_LIMIT = 120;
 const MARKET_STOCK_MAX_LIMIT = 500;
+const MARKET_FUND_DEFAULT_LIMIT = 120;
+const MARKET_FUND_MAX_LIMIT = 500;
 
 function normalizeCatalogLimit(limitInput?: number | null): number {
   if (typeof limitInput !== 'number' || !Number.isFinite(limitInput)) {
@@ -120,6 +136,17 @@ function normalizeMarketStockLimit(limitInput?: number | null): number {
     return MARKET_STOCK_DEFAULT_LIMIT;
   }
   return Math.min(normalized, MARKET_STOCK_MAX_LIMIT);
+}
+
+function normalizeMarketFundLimit(limitInput?: number | null): number {
+  if (typeof limitInput !== 'number' || !Number.isFinite(limitInput)) {
+    return MARKET_FUND_DEFAULT_LIMIT;
+  }
+  const normalized = Math.floor(limitInput);
+  if (normalized <= 0) {
+    return MARKET_FUND_DEFAULT_LIMIT;
+  }
+  return Math.min(normalized, MARKET_FUND_MAX_LIMIT);
 }
 
 function normalizeIdentifier(value: string, field: string): string {
@@ -197,10 +224,27 @@ function toPaymentOrderView(order: PaymentOrderRecord): PaymentOrderView {
     package_name: order.packageName,
     credits: order.credits,
     bonus_credits: order.bonusCredits,
+    total_credits: order.credits + order.bonusCredits,
     amount_cny_fen: order.amountCnyFen,
     payment_url: order.paymentUrl,
+    app_name: order.appName,
     paid_at: order.paidAt,
     expires_at: order.expiredAt,
+  };
+}
+
+function toPaymentWebhookEventView(event: PaymentWebhookEventRecord): PaymentWebhookEventView {
+  return {
+    id: event.id,
+    provider: event.provider,
+    event_id: event.eventId,
+    event_type: event.eventType,
+    order_id: event.orderId,
+    payload: event.payload,
+    signature: event.signature,
+    processed_at: event.processedAt,
+    process_status: event.processStatus,
+    created_at: event.createdAt,
   };
 }
 
@@ -228,6 +272,116 @@ function toMarketStockView(record: MarketStockRecord): MarketStockView {
     metadata: record.metadata,
     imported_at: record.importedAt,
     updated_at: record.updatedAt,
+  };
+}
+
+function toMarketFundView(record: MarketFundRecord): MarketFundView {
+  return {
+    id: record.id,
+    market: record.market,
+    exchange: record.exchange,
+    symbol: record.symbol,
+    fund_name: record.fundName,
+    fund_type: record.fundType,
+    instrument_kind: record.instrumentKind,
+    region: record.region,
+    risk_level: record.riskLevel,
+    manager_name: record.managerName,
+    tracking_target: record.trackingTarget,
+    status: record.status,
+    source: record.source,
+    source_id: record.sourceId,
+    current_price: record.currentPrice,
+    nav_price: record.navPrice,
+    change_percent: record.changePercent,
+    return_1m: record.return1m,
+    return_1y: record.return1y,
+    max_drawdown: record.maxDrawdown,
+    scale_amount: record.scaleAmount,
+    fee_rate: record.feeRate,
+    amount: record.amount,
+    turnover_rate: record.turnoverRate,
+    dividend_mode: record.dividendMode,
+    strategy_tags: record.strategyTags,
+    metadata: record.metadata,
+    imported_at: record.importedAt,
+    updated_at: record.updatedAt,
+  };
+}
+
+function toAdminPaymentOrderSummaryView(order: {
+  id: string;
+  status: PaymentOrderRecord['status'];
+  provider: PaymentProvider;
+  packageId: string;
+  packageName: string;
+  credits: number;
+  bonusCredits: number;
+  amountCnyFen: number;
+  currency: 'cny';
+  paymentUrl: string | null;
+  appName: string | null;
+  appVersion: string | null;
+  releaseChannel: string | null;
+  platform: string | null;
+  arch: string | null;
+  returnUrl: string | null;
+  userAgent: string | null;
+  providerOrderId: string | null;
+  providerPrepayId: string | null;
+  userId: string;
+  username: string;
+  userEmail: string;
+  userDisplayName: string;
+  webhookEventCount: number;
+  latestWebhookAt: string | null;
+  paidAt: string | null;
+  expiredAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  metadata: Record<string, unknown>;
+}): AdminPaymentOrderSummaryView {
+  return {
+    order_id: order.id,
+    status: order.status,
+    provider: order.provider,
+    package_id: order.packageId,
+    package_name: order.packageName,
+    credits: order.credits,
+    bonus_credits: order.bonusCredits,
+    total_credits: order.credits + order.bonusCredits,
+    amount_cny_fen: order.amountCnyFen,
+    currency: order.currency,
+    payment_url: order.paymentUrl,
+    app_name: order.appName,
+    app_version: order.appVersion,
+    release_channel: order.releaseChannel,
+    platform: order.platform,
+    arch: order.arch,
+    return_url: order.returnUrl,
+    user_agent: order.userAgent,
+    provider_order_id: order.providerOrderId,
+    provider_prepay_id: order.providerPrepayId,
+    user_id: order.userId,
+    username: order.username,
+    user_email: order.userEmail,
+    user_display_name: order.userDisplayName,
+    webhook_event_count: order.webhookEventCount,
+    latest_webhook_at: order.latestWebhookAt,
+    paid_at: order.paidAt,
+    expires_at: order.expiredAt,
+    created_at: order.createdAt,
+    updated_at: order.updatedAt,
+    metadata: order.metadata,
+  };
+}
+
+function toAdminPaymentOrderDetailView(order: {
+  webhookEvents: PaymentWebhookEventRecord[];
+} & Parameters<typeof toAdminPaymentOrderSummaryView>[0]): AdminPaymentOrderDetailView {
+  return {
+    ...toAdminPaymentOrderSummaryView(order),
+    webhook_events: order.webhookEvents.map((event) => toPaymentWebhookEventView(event)),
   };
 }
 
@@ -290,6 +444,12 @@ const TOPUP_PACKAGES = new Map<
   ['topup_1000', {packageName: '1000 龙虾币', credits: 1000, bonusCredits: 100, amountCnyFen: 1000}],
   ['topup_3000', {packageName: '3000 龙虾币', credits: 3000, bonusCredits: 400, amountCnyFen: 3000}],
   ['topup_5000', {packageName: '5000 龙虾币', credits: 5000, bonusCredits: 800, amountCnyFen: 5000}],
+  ['plan_plus_monthly', {packageName: '高级版（月套餐）', credits: 8800, bonusCredits: 0, amountCnyFen: 4000}],
+  ['plan_plus_yearly', {packageName: '高级版（年套餐）', credits: 105600, bonusCredits: 0, amountCnyFen: 38400}],
+  ['plan_pro_monthly', {packageName: '专业版（月套餐）', credits: 17600, bonusCredits: 0, amountCnyFen: 8000}],
+  ['plan_pro_yearly', {packageName: '专业版（年套餐）', credits: 211200, bonusCredits: 0, amountCnyFen: 76800}],
+  ['plan_ultra_monthly', {packageName: '旗舰版（月套餐）', credits: 44000, bonusCredits: 0, amountCnyFen: 20000}],
+  ['plan_ultra_yearly', {packageName: '旗舰版（年套餐）', credits: 528000, bonusCredits: 0, amountCnyFen: 192000}],
 ]);
 
 function slugifyUsername(value: string): string {
@@ -360,17 +520,6 @@ function normalizeSkillEnabled(value: unknown): boolean {
     throw new HttpError(400, 'BAD_REQUEST', 'enabled must be a boolean');
   }
   return value;
-}
-
-function normalizeSkillVisibility(value: unknown, fallback?: 'showcase' | 'internal'): 'showcase' | 'internal' {
-  if (value === undefined) {
-    if (fallback) return fallback;
-    throw new HttpError(400, 'BAD_REQUEST', 'visibility is required');
-  }
-  if (value === 'showcase' || value === 'internal') {
-    return value;
-  }
-  throw new HttpError(400, 'BAD_REQUEST', 'visibility must be showcase or internal');
 }
 
 function normalizeSkillDistribution(value: unknown, fallback?: 'bundled' | 'cloud'): 'bundled' | 'cloud' {
@@ -464,6 +613,13 @@ function normalizeJsonObject(value: unknown, field: string, fallback: Record<str
   return value as Record<string, unknown>;
 }
 
+function normalizeExtensionInstallTarget(value: unknown): ExtensionInstallTarget {
+  if (value === 'skill' || value === 'mcp') {
+    return value;
+  }
+  throw new HttpError(400, 'BAD_REQUEST', 'extension_type must be skill or mcp');
+}
+
 function readCompactCatalogMetric(metadata: Record<string, unknown>, candidatePaths: string[][]): number | null {
   for (const path of candidatePaths) {
     let current: unknown = metadata;
@@ -509,10 +665,302 @@ function compactSkillCatalogMetadata(
   if (downloads != null) {
     compact.stats = {downloads};
   }
+  for (const key of ['source_label', 'sourceLabel', 'provider', 'requires_api_key', 'requiresApiKey']) {
+    if (metadata[key] !== undefined) {
+      compact[key] = metadata[key];
+    }
+  }
+  if (Array.isArray(metadata.required_env)) {
+    compact.required_env = metadata.required_env;
+  } else if (Array.isArray(metadata.requiredEnv)) {
+    compact.requiredEnv = metadata.requiredEnv;
+  }
+  if (metadata.setup_schema && typeof metadata.setup_schema === 'object') {
+    compact.setup_schema = metadata.setup_schema;
+  } else if (metadata.setupSchema && typeof metadata.setupSchema === 'object') {
+    compact.setupSchema = metadata.setupSchema;
+  }
   if (options.includeSourceKind && typeof metadata.source_kind === 'string' && metadata.source_kind.trim()) {
     compact.source_kind = metadata.source_kind.trim();
   }
   return compact;
+}
+
+type ExtensionSetupFieldType = 'secret' | 'text' | 'textarea' | 'number' | 'select' | 'boolean';
+type ExtensionSetupFieldOption = {
+  label: string;
+  value: string;
+};
+type ExtensionSetupField = {
+  key: string;
+  label: string;
+  type: ExtensionSetupFieldType;
+  required: boolean;
+  placeholder?: string | null;
+  helpText?: string | null;
+  injectAs?: string | null;
+  options?: ExtensionSetupFieldOption[];
+};
+type ExtensionSetupSchema = {
+  version: number;
+  fields: ExtensionSetupField[];
+};
+
+function asObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter(Boolean);
+}
+
+function titleizeSetupFieldKey(value: string): string {
+  return value
+    .split(/[_\-\s]+/)
+    .filter(Boolean)
+    .map((part) => (part.length <= 3 && /^[A-Z0-9]+$/.test(part) ? part : `${part.slice(0, 1).toUpperCase()}${part.slice(1).toLowerCase()}`))
+    .join(' ');
+}
+
+function normalizeExtensionSetupField(value: unknown): ExtensionSetupField | null {
+  const raw = asObject(value);
+  const key = typeof raw.key === 'string' ? raw.key.trim() : '';
+  if (!key) {
+    return null;
+  }
+  const rawType = typeof raw.type === 'string' ? raw.type.trim().toLowerCase() : '';
+  const type: ExtensionSetupFieldType =
+    rawType === 'secret' ||
+    rawType === 'textarea' ||
+    rawType === 'number' ||
+    rawType === 'select' ||
+    rawType === 'boolean'
+      ? rawType
+      : 'text';
+  const options =
+    type === 'select'
+      ? (Array.isArray(raw.options) ? raw.options : [])
+          .map((item) => {
+            const option = asObject(item);
+            const optionValue = typeof option.value === 'string' ? option.value.trim() : '';
+            if (!optionValue) return null;
+            const optionLabel = typeof option.label === 'string' && option.label.trim() ? option.label.trim() : optionValue;
+            return {label: optionLabel, value: optionValue};
+          })
+          .filter((item): item is ExtensionSetupFieldOption => Boolean(item))
+      : undefined;
+  return {
+    key,
+    label: typeof raw.label === 'string' && raw.label.trim() ? raw.label.trim() : titleizeSetupFieldKey(key),
+    type,
+    required: raw.required !== false,
+    placeholder: typeof raw.placeholder === 'string' ? raw.placeholder : null,
+    helpText:
+      typeof raw.help_text === 'string'
+        ? raw.help_text
+        : typeof raw.helpText === 'string'
+          ? raw.helpText
+          : null,
+    injectAs:
+      typeof raw.inject_as === 'string'
+        ? raw.inject_as.trim() || null
+        : typeof raw.injectAs === 'string'
+          ? raw.injectAs.trim() || null
+          : null,
+    options,
+  };
+}
+
+function normalizeExtensionSetupSchema(value: unknown): ExtensionSetupSchema | null {
+  const raw = asObject(value);
+  const fields = (Array.isArray(raw.fields) ? raw.fields : [])
+    .map(normalizeExtensionSetupField)
+    .filter((item): item is ExtensionSetupField => Boolean(item));
+  if (fields.length === 0) {
+    return null;
+  }
+  const version =
+    typeof raw.version === 'number' && Number.isFinite(raw.version) && raw.version > 0
+      ? Math.floor(raw.version)
+      : 1;
+  return {version, fields};
+}
+
+function isLikelySecretEnvKey(value: string): boolean {
+  const normalized = value.trim().toUpperCase();
+  if (!normalized) {
+    return false;
+  }
+  if (normalized.startsWith('UV_') || normalized === 'PORT' || normalized === 'NODE_ENV') {
+    return false;
+  }
+  return ['KEY', 'TOKEN', 'SECRET', 'COOKIE', 'PASSWORD'].some((part) => normalized.includes(part));
+}
+
+function inferExtensionSetupSchema(
+  metadata: Record<string, unknown>,
+  configValues: Record<string, unknown> = {},
+): ExtensionSetupSchema | null {
+  const explicit =
+    normalizeExtensionSetupSchema(metadata.setup_schema) ||
+    normalizeExtensionSetupSchema(metadata.setupSchema) ||
+    normalizeExtensionSetupSchema(configValues.setup_schema) ||
+    normalizeExtensionSetupSchema(configValues.setupSchema);
+  if (explicit) {
+    return explicit;
+  }
+
+  const envKeys = new Set<string>();
+  for (const key of [
+    ...asStringArray(metadata.required_env),
+    ...asStringArray(metadata.requiredEnv),
+    ...asStringArray(configValues.required_env),
+    ...asStringArray(configValues.requiredEnv),
+  ]) {
+    envKeys.add(key);
+  }
+  for (const key of Object.keys(asObject(configValues.env))) {
+    if (isLikelySecretEnvKey(key)) {
+      envKeys.add(key);
+    }
+  }
+
+  if (envKeys.size === 0) {
+    return null;
+  }
+
+  return {
+    version: 1,
+    fields: Array.from(envKeys).map((key) => ({
+      key,
+      label: titleizeSetupFieldKey(key),
+      type: 'secret',
+      required: true,
+      injectAs: key,
+    })),
+  };
+}
+
+function normalizeSetupValueByField(field: ExtensionSetupField, value: unknown): unknown {
+  if (value == null) {
+    return value;
+  }
+  switch (field.type) {
+    case 'boolean':
+      return typeof value === 'boolean' ? value : String(value).trim().toLowerCase() === 'true';
+    case 'number': {
+      const numeric = typeof value === 'number' ? value : Number(String(value).trim());
+      if (!Number.isFinite(numeric)) {
+        throw new HttpError(400, 'BAD_REQUEST', `${field.label} 必须是数字`);
+      }
+      return numeric;
+    }
+    default:
+      return typeof value === 'string' ? value.trim() : String(value).trim();
+  }
+}
+
+function hasRequiredSetupValue(field: ExtensionSetupField, configValues: Record<string, unknown>, secretValues: Record<string, string>): boolean {
+  if (field.type === 'secret') {
+    return Boolean(secretValues[field.key]?.trim());
+  }
+  const value = configValues[field.key];
+  if (typeof value === 'boolean') {
+    return true;
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value);
+  }
+  return typeof value === 'string' ? value.trim().length > 0 : value != null;
+}
+
+function mergeExtensionSetupPayload(
+  schema: ExtensionSetupSchema | null,
+  inputSetupValues: Record<string, unknown> | undefined,
+  inputSecretValues: Record<string, string> | undefined,
+  existingRecord: UserExtensionInstallConfigRecord | null,
+  options: {requireComplete?: boolean} = {},
+): {
+  schemaVersion: number | null;
+  status: ExtensionSetupStatus;
+  setupValues: Record<string, unknown>;
+  secretValues: Record<string, string>;
+  configuredSecretKeys: string[];
+} {
+  if (!schema) {
+    return {
+      schemaVersion: null,
+      status: 'not_required',
+      setupValues: {},
+      secretValues: {},
+      configuredSecretKeys: [],
+    };
+  }
+
+  const existingSecrets = decryptInstallSecretPayload(existingRecord?.secretPayloadEncrypted);
+  const mergedSetupValues: Record<string, unknown> = {...(existingRecord?.config || {})};
+  const mergedSecretValues: Record<string, string> = {...existingSecrets};
+  const normalizedInputSetupValues = asObject(inputSetupValues);
+  const normalizedInputSecretValues = asObject(inputSecretValues) as Record<string, unknown>;
+
+  for (const field of schema.fields) {
+    if (field.type === 'secret') {
+      const nextSecretValue = normalizedInputSecretValues[field.key];
+      if (typeof nextSecretValue === 'string' && nextSecretValue.trim()) {
+        mergedSecretValues[field.key] = nextSecretValue.trim();
+      }
+      continue;
+    }
+    if (field.key in normalizedInputSetupValues) {
+      mergedSetupValues[field.key] = normalizeSetupValueByField(field, normalizedInputSetupValues[field.key]);
+    }
+  }
+
+  const missingRequiredFields = schema.fields.filter(
+    (field) => field.required && !hasRequiredSetupValue(field, mergedSetupValues, mergedSecretValues),
+  );
+  if (options.requireComplete && missingRequiredFields.length > 0) {
+    throw new HttpError(
+      400,
+      'SETUP_REQUIRED',
+      `缺少安装配置：${missingRequiredFields.map((field) => field.label).join('、')}`,
+    );
+  }
+
+  return {
+    schemaVersion: schema.version,
+    status: missingRequiredFields.length > 0 ? 'missing' : 'configured',
+    setupValues: mergedSetupValues,
+    secretValues: mergedSecretValues,
+    configuredSecretKeys: Object.keys(mergedSecretValues).filter((key) => mergedSecretValues[key]?.trim()),
+  };
+}
+
+function resolveExtensionSetupState(
+  schema: ExtensionSetupSchema | null,
+  configRecord: UserExtensionInstallConfigRecord | null,
+): {
+  setupStatus: ExtensionSetupStatus;
+  setupSchemaVersion: number | null;
+  setupUpdatedAt: string | null;
+} {
+  if (!schema) {
+    return {
+      setupStatus: 'not_required',
+      setupSchemaVersion: null,
+      setupUpdatedAt: null,
+    };
+  }
+  return {
+    setupStatus: configRecord?.status || 'missing',
+    setupSchemaVersion: configRecord?.schemaVersion ?? schema.version,
+    setupUpdatedAt: configRecord?.updatedAt ?? null,
+  };
 }
 
 function toSkillCatalogEntryView(
@@ -530,7 +978,6 @@ function toSkillCatalogEntryView(
     slug: record.slug,
     name: record.name,
     description: record.description,
-    visibility: record.visibility,
     market: record.market,
     category: record.category,
     skill_type: record.skillType,
@@ -554,6 +1001,9 @@ function toUserSkillLibraryItemView(record: {
   version: string;
   source?: UserSkillLibrarySource;
   enabled: boolean;
+  setupStatus?: ExtensionSetupStatus;
+  setupSchemaVersion?: number | null;
+  setupUpdatedAt?: string | null;
   installedAt: string;
   updatedAt: string;
 }): UserSkillLibraryItemView {
@@ -562,6 +1012,9 @@ function toUserSkillLibraryItemView(record: {
     version: record.version,
     source: record.source || 'cloud',
     enabled: record.enabled,
+    setup_status: record.setupStatus || 'not_required',
+    setup_schema_version: record.setupSchemaVersion ?? null,
+    setup_updated_at: record.setupUpdatedAt ?? null,
     installed_at: record.installedAt,
     updated_at: record.updatedAt,
   };
@@ -590,6 +1043,9 @@ function toUserMcpLibraryItemView(record: {
   mcpKey: string;
   source?: 'cloud';
   enabled: boolean;
+  setupStatus?: ExtensionSetupStatus;
+  setupSchemaVersion?: number | null;
+  setupUpdatedAt?: string | null;
   installedAt: string;
   updatedAt: string;
 }): UserMcpLibraryItemView {
@@ -597,7 +1053,23 @@ function toUserMcpLibraryItemView(record: {
     mcp_key: record.mcpKey,
     source: record.source || 'cloud',
     enabled: record.enabled,
+    setup_status: record.setupStatus || 'not_required',
+    setup_schema_version: record.setupSchemaVersion ?? null,
+    setup_updated_at: record.setupUpdatedAt ?? null,
     installed_at: record.installedAt,
+    updated_at: record.updatedAt,
+  };
+}
+
+function toUserExtensionInstallConfigView(record: UserExtensionInstallConfigRecord): UserExtensionInstallConfigView {
+  return {
+    extension_type: record.extensionType,
+    extension_key: record.extensionKey,
+    schema_version: record.schemaVersion,
+    status: record.status,
+    config_values: record.config,
+    configured_secret_keys: record.configuredSecretKeys,
+    created_at: record.createdAt,
     updated_at: record.updatedAt,
   };
 }
@@ -862,7 +1334,6 @@ function toPrivateSkillCatalogEntryView(record: UserPrivateSkillRecord, baseUrl?
     slug: record.slug,
     name: record.name,
     description: record.description,
-    visibility: 'showcase',
     market: record.market,
     category: record.category,
     skill_type: record.skillType,
@@ -1189,18 +1660,14 @@ export class ControlPlaneService {
       hasTools,
       model: normalizedModel,
     });
-    const modelFactor = this.resolveQuoteModelFactor(normalizedModel);
-    const lowCost = Math.max(
-      1,
-      Math.ceil(this.computeCreditCost(estimatedInputTokens, outputEstimate.low) * modelFactor),
-    );
+    const lowCost = this.computeBilledCreditCost(estimatedInputTokens, outputEstimate.low, normalizedModel);
     const highCost = Math.max(
       lowCost,
-      Math.ceil(this.computeCreditCost(estimatedInputTokens, outputEstimate.high) * modelFactor),
+      this.computeBilledCreditCost(estimatedInputTokens, outputEstimate.high, normalizedModel),
     );
     const maxChargeCredits = Math.max(
       highCost,
-      Math.ceil(this.computeCreditCost(estimatedInputTokens, outputEstimate.max) * modelFactor),
+      this.computeBilledCreditCost(estimatedInputTokens, outputEstimate.max, normalizedModel),
     );
 
     return {
@@ -1224,6 +1691,12 @@ export class ControlPlaneService {
     const user = await this.getUserForAccessToken(accessToken);
     const provider = normalizePaymentProvider(input.provider, 'wechat_qr');
     const packageId = (input.package_id || '').trim();
+    const appName = (input.app_name || '').trim();
+    const appVersion = (input.app_version || '').trim();
+    const releaseChannel = (input.release_channel || '').trim();
+    const platform = (input.platform || '').trim();
+    const arch = (input.arch || '').trim();
+    const userAgent = (input.user_agent || '').trim();
     const packageConfig = TOPUP_PACKAGES.get(packageId);
     if (!packageConfig) {
       throw new HttpError(400, 'BAD_REQUEST', 'invalid package_id');
@@ -1232,6 +1705,12 @@ export class ControlPlaneService {
       provider,
       package_id: packageId,
       return_url: (input.return_url || '').trim(),
+      app_name: appName,
+      app_version: appVersion,
+      release_channel: releaseChannel,
+      platform,
+      arch,
+      user_agent: userAgent,
       ...packageConfig,
     });
     return toPaymentOrderView(order);
@@ -1272,6 +1751,101 @@ export class ControlPlaneService {
       throw new HttpError(404, 'NOT_FOUND', 'payment order not found');
     }
     return toPaymentOrderView(order);
+  }
+
+  async listAdminPaymentOrders(
+    accessToken: string,
+    input: {
+      limit?: number | null;
+      status?: string | null;
+      provider?: string | null;
+      app_name?: string | null;
+      query?: string | null;
+    },
+  ): Promise<{items: AdminPaymentOrderSummaryView[]}> {
+    await this.requireAdminUser(accessToken);
+    const items = await this.store.listPaymentOrdersAdmin({
+      limit: input.limit,
+      status: input.status,
+      provider: input.provider,
+      appName: input.app_name,
+      query: input.query,
+    });
+    return {
+      items: items.map((item) => toAdminPaymentOrderSummaryView(item)),
+    };
+  }
+
+  async getAdminPaymentOrder(accessToken: string, orderIdInput: string): Promise<AdminPaymentOrderDetailView> {
+    await this.requireAdminUser(accessToken);
+    const orderId = orderIdInput.trim();
+    if (!orderId) {
+      throw new HttpError(400, 'BAD_REQUEST', 'order_id is required');
+    }
+    const item = await this.store.getPaymentOrderAdmin(orderId);
+    if (!item) {
+      throw new HttpError(404, 'NOT_FOUND', 'payment order not found');
+    }
+    return toAdminPaymentOrderDetailView(item);
+  }
+
+  async markAdminPaymentOrderPaid(
+    accessToken: string,
+    orderIdInput: string,
+    input: AdminMarkPaymentOrderPaidInput,
+  ): Promise<AdminPaymentOrderDetailView> {
+    const admin = await this.requireAdminUser(accessToken);
+    const orderId = orderIdInput.trim();
+    if (!orderId) {
+      throw new HttpError(400, 'BAD_REQUEST', 'order_id is required');
+    }
+    const item = await this.store.markPaymentOrderPaidAdmin({
+      orderId,
+      operatorUserId: admin.id,
+      operatorDisplayName: admin.displayName || admin.username,
+      providerOrderId: (input.provider_order_id || '').trim() || null,
+      paidAt: (input.paid_at || '').trim() || null,
+      note: (input.note || '').trim() || null,
+    });
+    if (!item) {
+      throw new HttpError(404, 'NOT_FOUND', 'payment order not found');
+    }
+    return toAdminPaymentOrderDetailView(item);
+  }
+
+  async refundAdminPaymentOrder(
+    accessToken: string,
+    orderIdInput: string,
+    input: AdminRefundPaymentOrderInput,
+  ): Promise<AdminPaymentOrderDetailView> {
+    const admin = await this.requireAdminUser(accessToken);
+    const orderId = orderIdInput.trim();
+    if (!orderId) {
+      throw new HttpError(400, 'BAD_REQUEST', 'order_id is required');
+    }
+    try {
+      const item = await this.store.refundPaymentOrderAdmin({
+        orderId,
+        operatorUserId: admin.id,
+        operatorDisplayName: admin.displayName || admin.username,
+        note: (input.note || '').trim() || null,
+      });
+      if (!item) {
+        throw new HttpError(404, 'NOT_FOUND', 'payment order not found');
+      }
+      return toAdminPaymentOrderDetailView(item);
+    } catch (error) {
+      if (error instanceof HttpError) {
+        throw error;
+      }
+      if (error instanceof Error && error.name === 'INSUFFICIENT_TOPUP_BALANCE_FOR_REFUND') {
+        throw new HttpError(409, 'CONFLICT', 'topup balance is insufficient to refund this order');
+      }
+      if (error instanceof Error && error.name === 'INVALID_PAYMENT_ORDER_STATUS') {
+        throw new HttpError(409, 'CONFLICT', 'only paid orders can be refunded');
+      }
+      throw error;
+    }
   }
 
   async getWorkspaceBackup(accessToken: string): Promise<WorkspaceBackupView | null> {
@@ -1429,6 +2003,62 @@ export class ControlPlaneService {
     return toMarketStockView(record);
   }
 
+  async listMarketFunds(input?: {
+    market?: string | null;
+    exchange?: string | null;
+    instrumentKind?: string | null;
+    region?: string | null;
+    riskLevel?: string | null;
+    search?: string | null;
+    tag?: string | null;
+    sort?: string | null;
+    limit?: number | null;
+    offset?: number | null;
+  }): Promise<{
+    items: MarketFundView[];
+    total: number;
+    limit: number;
+    offset: number;
+    has_more: boolean;
+    next_offset: number | null;
+  }> {
+    const limit = normalizeMarketFundLimit(input?.limit);
+    const offset = normalizeCatalogOffset(input?.offset);
+    const result = await this.store.listMarketFunds({
+      market: typeof input?.market === 'string' ? input.market.trim() || null : null,
+      exchange: typeof input?.exchange === 'string' ? input.exchange.trim() || null : null,
+      instrumentKind: typeof input?.instrumentKind === 'string' ? input.instrumentKind.trim() || null : null,
+      region: typeof input?.region === 'string' ? input.region.trim() || null : null,
+      riskLevel: typeof input?.riskLevel === 'string' ? input.riskLevel.trim() || null : null,
+      search: typeof input?.search === 'string' ? input.search.trim() || null : null,
+      tag: typeof input?.tag === 'string' ? input.tag.trim() || null : null,
+      sort: typeof input?.sort === 'string' ? input.sort.trim() || null : null,
+      limit,
+      offset,
+    });
+    const nextOffset = offset + result.items.length;
+    return {
+      items: result.items.map(toMarketFundView),
+      total: result.total,
+      limit,
+      offset,
+      has_more: nextOffset < result.total,
+      next_offset: nextOffset < result.total ? nextOffset : null,
+    };
+  }
+
+  async getMarketFund(fundId: string): Promise<MarketFundView> {
+    const normalized = fundId.trim();
+    if (!normalized) {
+      throw new HttpError(400, 'BAD_REQUEST', 'fund id is required');
+    }
+    const record = await this.store.getMarketFund(normalized);
+    if (!record) {
+      throw new HttpError(404, 'NOT_FOUND', 'fund not found');
+    }
+    return toMarketFundView(record);
+  }
+
   async listAgentCatalog(): Promise<{items: AgentCatalogEntryView[]}> {
     const items = await this.store.listAgentCatalog();
     return {
@@ -1541,6 +2171,8 @@ export class ControlPlaneService {
         slug: skillEntry.slug,
         version: skillEntry.version,
         source: 'cloud',
+        setup_values: {},
+        secret_values: {},
       });
     }
 
@@ -1560,6 +2192,7 @@ export class ControlPlaneService {
     baseUrl?: string,
     limitInput?: number | null,
     offsetInput?: number | null,
+    skillSlugsInput?: string[] | null,
   ): Promise<{
     items: SkillCatalogEntryView[];
     total: number;
@@ -1570,9 +2203,13 @@ export class ControlPlaneService {
   }> {
     const limit = normalizeCatalogLimit(limitInput);
     const offset = normalizeCatalogOffset(offsetInput);
+    const skillSlugs =
+      Array.isArray(skillSlugsInput)
+        ? Array.from(new Set(skillSlugsInput.map((slug) => slug.trim()).filter(Boolean)))
+        : null;
     const [items, total] = await Promise.all([
-      this.store.listSkillCatalog(limit, offset),
-      this.store.countSkillCatalog(),
+      skillSlugs ? this.store.listSkillCatalogBySlugs(skillSlugs, limit, offset) : this.store.listSkillCatalog(limit, offset),
+      skillSlugs ? this.store.countSkillCatalogBySlugs(skillSlugs) : this.store.countSkillCatalog(),
     ]);
     const nextOffset = offset + items.length;
     return {
@@ -1725,7 +2362,6 @@ export class ControlPlaneService {
     const publisher = (
       publisherCandidate === undefined ? (existing?.publisher ?? '') : (publisherCandidate || '')
     ).trim();
-    const visibility = normalizeSkillVisibility(input.visibility, existing?.visibility || 'showcase');
     const distribution = normalizeSkillDistribution(input.distribution, existing?.distribution || 'cloud');
     const tags = normalizeSkillTags(input.tags, existing?.tags || []);
     const version = normalizeOptionalSkillVersion(input.version) || existing?.version || '1.0.0';
@@ -1775,7 +2411,6 @@ export class ControlPlaneService {
       slug,
       name,
       description,
-      visibility,
       market,
       category,
       skill_type: skillType,
@@ -1893,11 +2528,139 @@ export class ControlPlaneService {
     return toSkillSyncRunView(run);
   }
 
+  private extensionConfigMapKey(extensionType: ExtensionInstallTarget, extensionKey: string): string {
+    return `${extensionType}:${extensionKey}`;
+  }
+
+  private async listExtensionConfigMap(
+    userId: string,
+    extensionType: ExtensionInstallTarget,
+  ): Promise<Map<string, UserExtensionInstallConfigRecord>> {
+    const records = await this.store.listUserExtensionInstallConfigs(userId, extensionType);
+    return new Map(records.map((item) => [this.extensionConfigMapKey(item.extensionType, item.extensionKey), item]));
+  }
+
+  private resolveSkillSetupSchema(entry: SkillCatalogEntryRecord): ExtensionSetupSchema | null {
+    return inferExtensionSetupSchema(entry.metadata);
+  }
+
+  private resolveMcpSetupSchema(entry: McpCatalogEntryRecord): ExtensionSetupSchema | null {
+    return inferExtensionSetupSchema(entry.metadata, entry.config);
+  }
+
+  private async upsertUserExtensionConfig(
+    userId: string,
+    extensionType: ExtensionInstallTarget,
+    extensionKey: string,
+    schema: ExtensionSetupSchema | null,
+    input: {
+      setup_values?: Record<string, unknown>;
+      secret_values?: Record<string, string>;
+    },
+    options: {requireComplete?: boolean} = {},
+  ): Promise<UserExtensionInstallConfigRecord | null> {
+    if (!schema) {
+      await this.store.removeUserExtensionInstallConfig(userId, extensionType, extensionKey);
+      return null;
+    }
+
+    const existing = await this.store.getUserExtensionInstallConfig(userId, extensionType, extensionKey);
+    const merged = mergeExtensionSetupPayload(
+      schema,
+      input.setup_values,
+      input.secret_values,
+      existing,
+      options,
+    );
+    return this.store.upsertUserExtensionInstallConfig(userId, {
+      extension_type: extensionType,
+      extension_key: extensionKey,
+      setup_values: merged.setupValues,
+      secret_values: merged.secretValues,
+      schema_version: merged.schemaVersion,
+      status: merged.status,
+      configured_secret_keys: merged.configuredSecretKeys,
+      secret_payload_encrypted: encryptInstallSecretPayload(merged.secretValues),
+    });
+  }
+
+  async getUserExtensionInstallConfig(
+    accessToken: string,
+    extensionTypeInput: ExtensionInstallTarget | string | undefined,
+    extensionKeyInput: string | undefined,
+  ): Promise<UserExtensionInstallConfigView | null> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const extensionType = normalizeExtensionInstallTarget(extensionTypeInput);
+    const extensionKey = String(extensionKeyInput || '').trim();
+    if (!extensionKey) {
+      throw new HttpError(400, 'BAD_REQUEST', 'extension_key is required');
+    }
+
+    const record = await this.store.getUserExtensionInstallConfig(user.id, extensionType, extensionKey);
+    return record ? toUserExtensionInstallConfigView(record) : null;
+  }
+
+  async upsertUserExtensionInstallConfig(
+    accessToken: string,
+    input: UpsertUserExtensionInstallConfigInput,
+  ): Promise<UserExtensionInstallConfigView> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const extensionType = normalizeExtensionInstallTarget(input.extension_type);
+    const extensionKey = String(input.extension_key || '').trim();
+    if (!extensionKey) {
+      throw new HttpError(400, 'BAD_REQUEST', 'extension_key is required');
+    }
+
+    if (extensionType === 'skill') {
+      const entry = await this.store.getSkillCatalogEntry(normalizeSkillSlug(extensionKey));
+      if (!entry) {
+        throw new HttpError(404, 'NOT_FOUND', 'skill not found');
+      }
+      const record = await this.upsertUserExtensionConfig(user.id, 'skill', entry.slug, this.resolveSkillSetupSchema(entry), input);
+      if (!record) {
+        throw new HttpError(400, 'BAD_REQUEST', 'skill does not require setup');
+      }
+      return toUserExtensionInstallConfigView(record);
+    }
+
+    const entry = await this.store.getMcpCatalogEntry(normalizeMcpKey(extensionKey));
+    if (!entry || !entry.active) {
+      throw new HttpError(404, 'NOT_FOUND', 'mcp not found');
+    }
+    const record = await this.upsertUserExtensionConfig(user.id, 'mcp', entry.mcpKey, this.resolveMcpSetupSchema(entry), input);
+    if (!record) {
+      throw new HttpError(400, 'BAD_REQUEST', 'mcp does not require setup');
+    }
+    return toUserExtensionInstallConfigView(record);
+  }
+
   async listUserSkillLibrary(accessToken: string): Promise<{items: UserSkillLibraryItemView[]}> {
     const user = await this.getUserForAccessToken(accessToken);
-    const items = await this.store.listUserSkillLibrary(user.id);
+    const [items, configs] = await Promise.all([
+      this.store.listUserSkillLibrary(user.id),
+      this.listExtensionConfigMap(user.id, 'skill'),
+    ]);
+    const catalogBySlug = new Map(
+      (
+        await Promise.all(
+          items
+            .filter((item) => item.source === 'cloud')
+            .map(async (item) => [item.slug, await this.store.getSkillCatalogEntry(item.slug)] as const),
+        )
+      ).filter((entry): entry is readonly [string, SkillCatalogEntryRecord] => Boolean(entry[1])),
+    );
     return {
-      items: items.map((item) => toUserSkillLibraryItemView(item)),
+      items: items.map((item) => {
+        const entryConfig = configs.get(this.extensionConfigMapKey('skill', item.slug)) || null;
+        const setupState = resolveExtensionSetupState(
+          catalogBySlug.get(item.slug) ? this.resolveSkillSetupSchema(catalogBySlug.get(item.slug) as SkillCatalogEntryRecord) : null,
+          entryConfig,
+        );
+        return toUserSkillLibraryItemView({
+          ...item,
+          ...setupState,
+        });
+      }),
     };
   }
 
@@ -1905,8 +2668,7 @@ export class ControlPlaneService {
     const user = await this.getUserForAccessToken(accessToken);
     const slug = normalizeSkillSlug(input.slug);
     const version = normalizeOptionalSkillVersion(input.version);
-    const catalog = await this.store.listSkillCatalog();
-    const entry = catalog.find((item) => item.slug === slug);
+    const entry = await this.store.getSkillCatalogEntry(slug);
     if (!entry) {
       throw new HttpError(404, 'NOT_FOUND', 'skill not found');
     }
@@ -1915,19 +2677,50 @@ export class ControlPlaneService {
       throw new HttpError(409, 'CONFLICT', 'skill version has been updated to latest');
     }
 
+    const configRecord = await this.upsertUserExtensionConfig(
+      user.id,
+      'skill',
+      slug,
+      this.resolveSkillSetupSchema(entry),
+      input,
+      {requireComplete: true},
+    );
+
     const record = await this.store.installUserSkill(user.id, {
       slug,
       version: entry.version,
       source: 'cloud',
+      setup_values: {},
+      secret_values: {},
     });
-    return toUserSkillLibraryItemView(record);
+    return toUserSkillLibraryItemView({
+      ...record,
+      ...resolveExtensionSetupState(this.resolveSkillSetupSchema(entry), configRecord),
+    });
   }
 
   async listUserMcpLibrary(accessToken: string): Promise<{items: UserMcpLibraryItemView[]}> {
     const user = await this.getUserForAccessToken(accessToken);
-    const items = await this.store.listUserMcpLibrary(user.id);
+    const [items, configs] = await Promise.all([
+      this.store.listUserMcpLibrary(user.id),
+      this.listExtensionConfigMap(user.id, 'mcp'),
+    ]);
+    const catalogByKey = new Map(
+      (
+        await Promise.all(items.map(async (item) => [item.mcpKey, await this.store.getMcpCatalogEntry(item.mcpKey)] as const))
+      ).filter((entry): entry is readonly [string, McpCatalogEntryRecord] => Boolean(entry[1])),
+    );
     return {
-      items: items.map((item) => toUserMcpLibraryItemView(item)),
+      items: items.map((item) => {
+        const schema = catalogByKey.get(item.mcpKey)
+          ? this.resolveMcpSetupSchema(catalogByKey.get(item.mcpKey) as McpCatalogEntryRecord)
+          : null;
+        const entryConfig = configs.get(this.extensionConfigMapKey('mcp', item.mcpKey)) || null;
+        return toUserMcpLibraryItemView({
+          ...item,
+          ...resolveExtensionSetupState(schema, entryConfig),
+        });
+      }),
     };
   }
 
@@ -1938,11 +2731,24 @@ export class ControlPlaneService {
     if (!entry || !entry.active) {
       throw new HttpError(404, 'NOT_FOUND', 'mcp not found');
     }
+    const configRecord = await this.upsertUserExtensionConfig(
+      user.id,
+      'mcp',
+      mcpKey,
+      this.resolveMcpSetupSchema(entry),
+      input,
+      {requireComplete: true},
+    );
     const record = await this.store.installUserMcp(user.id, {
       mcp_key: mcpKey,
       source: 'cloud',
+      setup_values: {},
+      secret_values: {},
     });
-    return toUserMcpLibraryItemView(record);
+    return toUserMcpLibraryItemView({
+      ...record,
+      ...resolveExtensionSetupState(this.resolveMcpSetupSchema(entry), configRecord),
+    });
   }
 
   async updateMcpLibraryItem(
@@ -1959,7 +2765,12 @@ export class ControlPlaneService {
     if (!record) {
       throw new HttpError(404, 'NOT_FOUND', 'installed mcp not found');
     }
-    return toUserMcpLibraryItemView(record);
+    const entry = await this.store.getMcpCatalogEntry(mcpKey);
+    const configRecord = await this.store.getUserExtensionInstallConfig(user.id, 'mcp', mcpKey);
+    return toUserMcpLibraryItemView({
+      ...record,
+      ...resolveExtensionSetupState(entry ? this.resolveMcpSetupSchema(entry) : null, configRecord),
+    });
   }
 
   async removeMcp(accessToken: string, mcpKeyInput: string): Promise<{removed: boolean}> {
@@ -2039,6 +2850,8 @@ export class ControlPlaneService {
       slug,
       version,
       source: 'private',
+      setup_values: {},
+      secret_values: {},
     });
     return toPrivateSkillCatalogEntryView(record, baseUrl);
   }
@@ -2057,7 +2870,12 @@ export class ControlPlaneService {
     if (!record) {
       throw new HttpError(404, 'NOT_FOUND', 'installed skill not found');
     }
-    return toUserSkillLibraryItemView(record);
+    const entry = await this.store.getSkillCatalogEntry(slug);
+    const configRecord = await this.store.getUserExtensionInstallConfig(user.id, 'skill', slug);
+    return toUserSkillLibraryItemView({
+      ...record,
+      ...resolveExtensionSetupState(entry ? this.resolveSkillSetupSchema(entry) : null, configRecord),
+    });
   }
 
   async removeSkill(accessToken: string, slugInput: string): Promise<{removed: boolean}> {
@@ -2192,7 +3010,8 @@ export class ControlPlaneService {
       throw new HttpError(400, 'OUTPUT_LIMIT_EXCEEDED', 'output token usage exceeded run grant limit');
     }
 
-    const creditCost = this.computeCreditCost(inputTokens, outputTokens);
+    const normalizedModel = (input.model || '').trim();
+    const creditCost = this.computeBilledCreditCost(inputTokens, outputTokens, normalizedModel || null);
     if (creditCost > grant.creditLimit) {
       throw new HttpError(402, 'CREDIT_LIMIT_EXCEEDED', 'usage exceeded run grant credit limit');
     }
@@ -2204,7 +3023,7 @@ export class ControlPlaneService {
       output_tokens: outputTokens,
       credit_cost: creditCost,
       provider: (input.provider || '').trim(),
-      model: (input.model || '').trim(),
+      model: normalizedModel,
     };
 
     let result: UsageEventResult;
@@ -2364,6 +3183,14 @@ export class ControlPlaneService {
     return Math.max(0, inputCost + outputCost);
   }
 
+  private computeBilledCreditCost(inputTokens: number, outputTokens: number, model: string | null): number {
+    const baseCost = this.computeCreditCost(inputTokens, outputTokens);
+    if (baseCost <= 0) {
+      return 0;
+    }
+    return Math.max(1, Math.ceil(baseCost * this.resolveBillingModelFactor(model)));
+  }
+
   private estimateQuoteInputTokens(input: {
     message: string;
     historyMessages: number;
@@ -2433,7 +3260,7 @@ export class ControlPlaneService {
     );
   }
 
-  private resolveQuoteModelFactor(model: string | null): number {
+  private resolveBillingModelFactor(model: string | null): number {
     const normalized = (model || '').trim().toLowerCase();
     if (!normalized) return 1;
     if (normalized.includes('opus') || normalized.includes('gpt-5') || normalized.includes('o1') || normalized.includes('o3') || normalized.includes('o4')) {

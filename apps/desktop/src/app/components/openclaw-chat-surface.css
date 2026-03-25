@@ -621,6 +621,14 @@ body {
   color: var(--text-secondary);
 }
 
+.openclaw-chat-surface .iclaw-chat-assistant-meta[data-state='pending'] {
+  color: color-mix(in srgb, var(--brand-primary) 70%, var(--text-secondary) 30%);
+}
+
+.openclaw-chat-surface .iclaw-chat-assistant-meta[data-state='missing'] {
+  color: color-mix(in srgb, #dc2626 68%, var(--text-secondary) 32%);
+}
+
 .openclaw-chat-surface .iclaw-chat-assistant-footer__right {
   position: relative;
   display: inline-flex;
@@ -1680,6 +1688,7 @@ body {
   min-height: 168px;
   max-height: 296px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   scrollbar-width: none;
 }
 
@@ -1688,6 +1697,7 @@ body {
   min-height: 176px;
   max-height: 304px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   scrollbar-width: none;
 }
 
@@ -1696,6 +1706,7 @@ body {
   min-height: 176px;
   max-height: 304px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   scrollbar-width: none;
 }
 
