@@ -15,13 +15,32 @@ export type LobsterAgent = AgentCatalogEntryData & {
 export type LobsterAgentMetadataValue = string | number | boolean | null | undefined | Record<string, unknown> | unknown[];
 
 const AVATAR_BY_SLUG: Record<string, string> = {
-  'stock-expert': '/agent-avatars/pexels/pro-portrait-01.jpg',
-  'summary-expert': '/agent-avatars/pexels/pro-portrait-02.jpg',
-  'mail-assistant': '/agent-avatars/pexels/pro-portrait-01.jpg',
-  'wechat-writer': '/agent-avatars/pexels/pro-portrait-02.jpg',
-  'x-content-operator': '/agent-avatars/pexels/pro-portrait-03.jpg',
-  'cross-border-radar': '/agent-avatars/pexels/pro-portrait-03.jpg',
+  'stock-expert': '/agent-avatars/pexels/portrait-16.jpg',
+  'summary-expert': '/agent-avatars/pexels/portrait-01.jpg',
+  'mail-assistant': '/agent-avatars/pexels/portrait-02.jpg',
+  'wechat-writer': '/agent-avatars/pexels/portrait-05.jpg',
+  'x-content-operator': '/agent-avatars/pexels/portrait-11.jpg',
+  'cross-border-radar': '/agent-avatars/pexels/portrait-07.jpg',
 };
+
+const PORTRAIT_AVATAR_POOL = [
+  '/agent-avatars/pexels/portrait-01.jpg',
+  '/agent-avatars/pexels/portrait-02.jpg',
+  '/agent-avatars/pexels/portrait-03.jpg',
+  '/agent-avatars/pexels/portrait-04.jpg',
+  '/agent-avatars/pexels/portrait-05.jpg',
+  '/agent-avatars/pexels/portrait-06.jpg',
+  '/agent-avatars/pexels/portrait-07.jpg',
+  '/agent-avatars/pexels/portrait-08.jpg',
+  '/agent-avatars/pexels/portrait-09.jpg',
+  '/agent-avatars/pexels/portrait-10.jpg',
+  '/agent-avatars/pexels/portrait-11.jpg',
+  '/agent-avatars/pexels/portrait-12.jpg',
+  '/agent-avatars/pexels/portrait-13.jpg',
+  '/agent-avatars/pexels/portrait-14.jpg',
+  '/agent-avatars/pexels/portrait-15.jpg',
+  '/agent-avatars/pexels/portrait-16.jpg',
+] as const;
 
 const CATEGORY_LABELS: Record<LobsterStoreCategory, string> = {
   finance: '金融研究',
@@ -75,6 +94,10 @@ function hashString(value: string): number {
 
 function pickByHash<T>(seed: number, values: T[]): T {
   return values[seed % values.length];
+}
+
+function pickPortraitAvatar(item: AgentCatalogEntryData): string {
+  return PORTRAIT_AVATAR_POOL[hashString(`${item.slug}:${item.name}:${item.category}`) % PORTRAIT_AVATAR_POOL.length];
 }
 
 function buildPortraitAvatar(item: AgentCatalogEntryData): string {
@@ -131,6 +154,7 @@ function resolveAvatar(item: AgentCatalogEntryData): string {
   return (
     readMetadataString(item.metadata, 'avatar_url') ||
     AVATAR_BY_SLUG[item.slug] ||
+    pickPortraitAvatar(item) ||
     buildPortraitAvatar(item) ||
     AVATAR_BY_SLUG['summary-expert']
   );
