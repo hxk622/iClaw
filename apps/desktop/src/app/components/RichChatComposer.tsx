@@ -146,6 +146,7 @@ type RichChatComposerProps = {
   initialSelectedSkillSlug?: string | null;
   initialSelectedStock?: ComposerStockContext | null;
   composerConfig?: ResolvedInputComposerConfig | null;
+  onSelectedSkillSlugChange?: (slug: string | null) => void;
 };
 
 const SUPPORTED_ATTACHMENT_TYPES = ['image/', 'video/', 'application/pdf'];
@@ -577,6 +578,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       initialSelectedSkillSlug = null,
       initialSelectedStock = null,
       composerConfig = null,
+      onSelectedSkillSlugChange,
     },
     ref,
   ) {
@@ -1248,6 +1250,10 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     useEffect(() => {
       setSelectedSkillSlug(initialSelectedSkillSlug || null);
     }, [initialSelectedSkillSlug]);
+
+    useEffect(() => {
+      onSelectedSkillSlugChange?.(selectedSkillSlug);
+    }, [onSelectedSkillSlugChange, selectedSkillSlug]);
 
     useEffect(() => {
       setSelectedStockContext(initialSelectedStock || null);

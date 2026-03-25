@@ -1528,6 +1528,18 @@ function AuthedView({
     setPrimaryView('chat');
   };
 
+  const handleActiveChatSkillChange = useCallback((skillSlug: string | null) => {
+    setActiveChatRoute((current) => {
+      if (current.initialSkillSlug === skillSlug) {
+        return current;
+      }
+      return {
+        ...current,
+        initialSkillSlug: skillSlug,
+      };
+    });
+  }, []);
+
   const handleStartSkillConversation = (skill: { slug: string }) => {
     const seed = `skill-${skill.slug}-${Date.now()}`;
     setActiveChatRoute({
@@ -1732,6 +1744,7 @@ function AuthedView({
               user={currentUser}
               inputComposerConfig={inputComposerConfig}
               welcomePageConfig={welcomePageConfig}
+              onInitialSkillSlugChange={handleActiveChatSkillChange}
             />
           ) : (
             <RuntimeAuthRequiredView

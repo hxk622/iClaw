@@ -146,6 +146,7 @@ type OpenClawChatSurfaceProps = {
   } | null;
   inputComposerConfig?: ResolvedInputComposerConfig | null;
   welcomePageConfig?: ResolvedWelcomePageConfig | null;
+  onInitialSkillSlugChange?: (slug: string | null) => void;
 };
 
 type ComposerCreditEstimateState = {
@@ -1214,6 +1215,7 @@ export function OpenClawChatSurface({
   user,
   inputComposerConfig = null,
   welcomePageConfig = null,
+  onInitialSkillSlugChange,
 }: OpenClawChatSurfaceProps) {
   const shellRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -3196,6 +3198,7 @@ export function OpenClawChatSurface({
               onDraftChange={setComposerDraft}
               creditEstimate={composerDraft?.hasContent ? creditEstimate : null}
               composerConfig={inputComposerConfig}
+              onSelectedSkillSlugChange={onInitialSkillSlugChange}
               onSend={handleSend}
               onAbort={handleAbort}
             />
