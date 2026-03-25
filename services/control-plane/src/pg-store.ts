@@ -17,6 +17,7 @@ import type {
   InstallAgentInput,
   InstallMcpInput,
   InstallSkillInput,
+  MarketStockRecord,
   McpCatalogEntryRecord,
   McpCatalogRecord,
   OAuthAccountRecord,
@@ -230,6 +231,31 @@ type AgentCatalogRow = {
   sort_order: number;
   active: boolean;
   created_at: Date;
+  updated_at: Date;
+};
+
+type MarketStockRow = {
+  id: string;
+  market: 'a_share';
+  exchange: 'sh' | 'sz' | 'bj';
+  symbol: string;
+  company_name: string;
+  board: string | null;
+  status: 'active' | 'suspended';
+  source: string;
+  source_id: string | null;
+  current_price: string | number | null;
+  change_percent: string | number | null;
+  amount: string | number | null;
+  turnover_rate: string | number | null;
+  pe_ttm: string | number | null;
+  open_price: string | number | null;
+  prev_close: string | number | null;
+  total_market_cap: string | number | null;
+  circulating_market_cap: string | number | null;
+  strategy_tags: string[] | null;
+  metadata_json: Record<string, unknown> | null;
+  imported_at: Date;
   updated_at: Date;
 };
 
@@ -518,6 +544,33 @@ function mapAgentCatalogRow(row: AgentCatalogRow): AgentCatalogRecord {
     sortOrder: row.sort_order,
     active: row.active,
     createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapMarketStockRow(row: MarketStockRow): MarketStockRecord {
+  return {
+    id: row.id,
+    market: row.market,
+    exchange: row.exchange,
+    symbol: row.symbol,
+    companyName: row.company_name,
+    board: row.board,
+    status: row.status,
+    source: row.source,
+    sourceId: row.source_id,
+    currentPrice: row.current_price === null ? null : parseDbNumber(row.current_price),
+    changePercent: row.change_percent === null ? null : parseDbNumber(row.change_percent),
+    amount: row.amount === null ? null : parseDbNumber(row.amount),
+    turnoverRate: row.turnover_rate === null ? null : parseDbNumber(row.turnover_rate),
+    peTtm: row.pe_ttm === null ? null : parseDbNumber(row.pe_ttm),
+    openPrice: row.open_price === null ? null : parseDbNumber(row.open_price),
+    prevClose: row.prev_close === null ? null : parseDbNumber(row.prev_close),
+    totalMarketCap: row.total_market_cap === null ? null : parseDbNumber(row.total_market_cap),
+    circulatingMarketCap: row.circulating_market_cap === null ? null : parseDbNumber(row.circulating_market_cap),
+    strategyTags: Array.isArray(row.strategy_tags) ? row.strategy_tags.filter((item) => typeof item === 'string') : [],
+    metadata: parseJsonObject(row.metadata_json),
+    importedAt: row.imported_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
 }
@@ -2182,6 +2235,136 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       [userId, fileId],
     );
     return result.rows[0] ? mapUserFileRow(result.rows[0]) : null;
+  }
+
+  async listMarketStocks(input?: {
+    market?: string | null;
+    exchange?: string | null;
+    search?: string | null;
+    tag?: string | null;
+    sort?: string | null;
+    limit?: number | null;
+    offset?: number | null;
+  }): Promise<{items: MarketStockRecord[]; total: number}> {
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+    const market = typeof input?.market === 'string' ? input.market.trim() : '';
+    const exchange = typeof input?.exchange === 'string' ? input.exchange.trim() : '';
+    const search = typeof input?.search === 'string' ? input.search.trim() : '';
+    const tag = typeof input?.tag === 'string' ? input.tag.trim() : '';
+    const limit = typeof input?.limit === 'number' && Number.isFinite(input.limit) ? Math.max(1, Math.floor(input.limit)) : 100;
+    const offset = typeof input?.offset === 'number' && Number.isFinite(input.offset) ? Math.max(0, Math.floor(input.offset)) : 0;
+
+    if (market) {
+      values.push(market);
+      conditions.push(`market = $${values.length}`);
+    }
+    if (exchange) {
+      values.push(exchange);
+      conditions.push(`exchange = $${values.length}`);
+    }
+    if (search) {
+      values.push(`%${search}%`);
+      const placeholder = `$${values.length}`;
+      conditions.push(`(symbol ilike ${placeholder} or company_name ilike ${placeholder})`);
+    }
+    if (tag) {
+      values.push(tag);
+      conditions.push(`strategy_tags @> array[$${values.length}]::text[]`);
+    }
+
+    const whereSql = conditions.length ? `where ${conditions.join(' and ')}` : '';
+    const sortSql = (() => {
+      switch (input?.sort) {
+        case 'pe_ttm_asc':
+          return 'pe_ttm asc nulls last, total_market_cap desc nulls last';
+        case 'market_cap_desc':
+          return 'total_market_cap desc nulls last, amount desc nulls last';
+        case 'turnover_rate_desc':
+          return 'turnover_rate desc nulls last, amount desc nulls last';
+        case 'amount_desc':
+          return 'amount desc nulls last, change_percent desc nulls last';
+        case 'name_asc':
+          return 'company_name asc, symbol asc';
+        case 'change_percent_desc':
+        default:
+          return 'change_percent desc nulls last, amount desc nulls last';
+      }
+    })();
+
+    const selectSql = `
+      select
+        id,
+        market,
+        exchange,
+        symbol,
+        company_name,
+        board,
+        status,
+        source,
+        source_id,
+        current_price,
+        change_percent,
+        amount,
+        turnover_rate,
+        pe_ttm,
+        open_price,
+        prev_close,
+        total_market_cap,
+        circulating_market_cap,
+        strategy_tags,
+        metadata_json,
+        imported_at,
+        updated_at
+      from market_stock_catalog
+      ${whereSql}
+    `;
+
+    const totalResult = await this.pool.query<{count: string}>(`select count(*)::text as count from market_stock_catalog ${whereSql}`, values);
+    const pagedValues = [...values, limit, offset];
+    const rowsResult = await this.pool.query<MarketStockRow>(
+      `${selectSql} order by ${sortSql} limit $${pagedValues.length - 1} offset $${pagedValues.length}`,
+      pagedValues,
+    );
+    return {
+      items: rowsResult.rows.map(mapMarketStockRow),
+      total: Number.parseInt(totalResult.rows[0]?.count || '0', 10) || 0,
+    };
+  }
+
+  async getMarketStock(stockId: string): Promise<MarketStockRecord | null> {
+    const result = await this.pool.query<MarketStockRow>(
+      `
+        select
+          id,
+          market,
+          exchange,
+          symbol,
+          company_name,
+          board,
+          status,
+          source,
+          source_id,
+          current_price,
+          change_percent,
+          amount,
+          turnover_rate,
+          pe_ttm,
+          open_price,
+          prev_close,
+          total_market_cap,
+          circulating_market_cap,
+          strategy_tags,
+          metadata_json,
+          imported_at,
+          updated_at
+        from market_stock_catalog
+        where id = $1
+        limit 1
+      `,
+      [stockId],
+    );
+    return result.rows[0] ? mapMarketStockRow(result.rows[0]) : null;
   }
 
   async listAgentCatalog(): Promise<AgentCatalogEntryRecord[]> {

@@ -28,6 +28,8 @@ import type {
   InstallMcpInput,
   InstallSkillInput,
   LoginInput,
+  MarketStockRecord,
+  MarketStockView,
   McpCatalogEntryRecord,
   McpCatalogEntryView,
   OAuthProvider,
@@ -84,6 +86,8 @@ const SUPPORTED_PAYMENT_WEBHOOK_STATUSES = new Set<PaymentOrderRecord['status']>
 const SKILL_SYNC_RUN_ITEM_LIMIT = 500;
 const SKILL_CATALOG_DEFAULT_LIMIT = 300;
 const SKILL_CATALOG_MAX_LIMIT = 1000;
+const MARKET_STOCK_DEFAULT_LIMIT = 120;
+const MARKET_STOCK_MAX_LIMIT = 500;
 
 function normalizeCatalogLimit(limitInput?: number | null): number {
   if (typeof limitInput !== 'number' || !Number.isFinite(limitInput)) {
@@ -105,6 +109,17 @@ function normalizeCatalogOffset(offsetInput?: number | null): number {
     return 0;
   }
   return normalized;
+}
+
+function normalizeMarketStockLimit(limitInput?: number | null): number {
+  if (typeof limitInput !== 'number' || !Number.isFinite(limitInput)) {
+    return MARKET_STOCK_DEFAULT_LIMIT;
+  }
+  const normalized = Math.floor(limitInput);
+  if (normalized <= 0) {
+    return MARKET_STOCK_DEFAULT_LIMIT;
+  }
+  return Math.min(normalized, MARKET_STOCK_MAX_LIMIT);
 }
 
 function normalizeIdentifier(value: string, field: string): string {
@@ -186,6 +201,33 @@ function toPaymentOrderView(order: PaymentOrderRecord): PaymentOrderView {
     payment_url: order.paymentUrl,
     paid_at: order.paidAt,
     expires_at: order.expiredAt,
+  };
+}
+
+function toMarketStockView(record: MarketStockRecord): MarketStockView {
+  return {
+    id: record.id,
+    market: record.market,
+    exchange: record.exchange,
+    symbol: record.symbol,
+    company_name: record.companyName,
+    board: record.board,
+    status: record.status,
+    source: record.source,
+    source_id: record.sourceId,
+    current_price: record.currentPrice,
+    change_percent: record.changePercent,
+    amount: record.amount,
+    turnover_rate: record.turnoverRate,
+    pe_ttm: record.peTtm,
+    open_price: record.openPrice,
+    prev_close: record.prevClose,
+    total_market_cap: record.totalMarketCap,
+    circulating_market_cap: record.circulatingMarketCap,
+    strategy_tags: record.strategyTags,
+    metadata: record.metadata,
+    imported_at: record.importedAt,
+    updated_at: record.updatedAt,
   };
 }
 
@@ -1335,6 +1377,56 @@ export class ControlPlaneService {
       throw new HttpError(404, 'NOT_FOUND', 'file not found');
     }
     return toUserFileView(updated, baseUrl);
+  }
+
+  async listMarketStocks(input?: {
+    market?: string | null;
+    exchange?: string | null;
+    search?: string | null;
+    tag?: string | null;
+    sort?: string | null;
+    limit?: number | null;
+    offset?: number | null;
+  }): Promise<{
+    items: MarketStockView[];
+    total: number;
+    limit: number;
+    offset: number;
+    has_more: boolean;
+    next_offset: number | null;
+  }> {
+    const limit = normalizeMarketStockLimit(input?.limit);
+    const offset = normalizeCatalogOffset(input?.offset);
+    const result = await this.store.listMarketStocks({
+      market: typeof input?.market === 'string' ? input.market.trim() || null : null,
+      exchange: typeof input?.exchange === 'string' ? input.exchange.trim() || null : null,
+      search: typeof input?.search === 'string' ? input.search.trim() || null : null,
+      tag: typeof input?.tag === 'string' ? input.tag.trim() || null : null,
+      sort: typeof input?.sort === 'string' ? input.sort.trim() || null : null,
+      limit,
+      offset,
+    });
+    const nextOffset = offset + result.items.length;
+    return {
+      items: result.items.map(toMarketStockView),
+      total: result.total,
+      limit,
+      offset,
+      has_more: nextOffset < result.total,
+      next_offset: nextOffset < result.total ? nextOffset : null,
+    };
+  }
+
+  async getMarketStock(stockId: string): Promise<MarketStockView> {
+    const normalized = stockId.trim();
+    if (!normalized) {
+      throw new HttpError(400, 'BAD_REQUEST', 'stock id is required');
+    }
+    const record = await this.store.getMarketStock(normalized);
+    if (!record) {
+      throw new HttpError(404, 'NOT_FOUND', 'stock not found');
+    }
+    return toMarketStockView(record);
   }
 
   async listAgentCatalog(): Promise<{items: AgentCatalogEntryView[]}> {

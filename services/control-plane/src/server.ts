@@ -526,6 +526,25 @@ const server = createJsonServer([
   },
   {
     method: 'GET',
+    path: '/market/stocks',
+    handler: ({url}: HandlerContext) =>
+      service.listMarketStocks({
+        market: (url.searchParams.get('market') || '').trim() || null,
+        exchange: (url.searchParams.get('exchange') || '').trim() || null,
+        search: (url.searchParams.get('search') || '').trim() || null,
+        tag: (url.searchParams.get('tag') || '').trim() || null,
+        sort: (url.searchParams.get('sort') || '').trim() || null,
+        limit: Number.parseInt(url.searchParams.get('limit') || '', 10),
+        offset: Number.parseInt(url.searchParams.get('offset') || '', 10),
+      }),
+  },
+  {
+    method: 'GET',
+    path: '/market/stocks/:stockId',
+    handler: ({params}: HandlerContext) => service.getMarketStock(params.stockId || ''),
+  },
+  {
+    method: 'GET',
     path: '/agents/catalog',
     handler: () => service.listAgentCatalog(),
   },

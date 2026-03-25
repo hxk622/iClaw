@@ -8,6 +8,7 @@ import type {
   InstallAgentInput,
   InstallMcpInput,
   InstallSkillInput,
+  MarketStockRecord,
   McpCatalogEntryRecord,
   OAuthAccountRecord,
   OAuthProvider,
@@ -371,6 +372,22 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
 
   async markUserFileDeleted(userId: string, fileId: string): Promise<UserFileRecord | null> {
     return this.base.markUserFileDeleted(userId, fileId);
+  }
+
+  async listMarketStocks(input?: {
+    market?: string | null;
+    exchange?: string | null;
+    search?: string | null;
+    tag?: string | null;
+    sort?: string | null;
+    limit?: number | null;
+    offset?: number | null;
+  }): Promise<{items: MarketStockRecord[]; total: number}> {
+    return this.base.listMarketStocks(input);
+  }
+
+  async getMarketStock(stockId: string): Promise<MarketStockRecord | null> {
+    return this.base.getMarketStock(stockId);
   }
 
   async listAgentCatalog(): Promise<AgentCatalogEntryRecord[]> {

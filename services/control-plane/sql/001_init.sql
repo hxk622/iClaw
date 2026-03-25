@@ -519,6 +519,36 @@ create table if not exists oem_app_menu_bindings (
   primary key (app_name, menu_key)
 );
 
+create table if not exists market_stock_catalog (
+  id text primary key,
+  market text not null,
+  exchange text not null,
+  symbol text not null,
+  company_name text not null,
+  board text,
+  status text not null default 'active',
+  source text not null default 'eastmoney',
+  source_id text,
+  current_price numeric,
+  change_percent numeric,
+  amount numeric,
+  turnover_rate numeric,
+  pe_ttm numeric,
+  open_price numeric,
+  prev_close numeric,
+  total_market_cap numeric,
+  circulating_market_cap numeric,
+  strategy_tags text[] not null default '{}',
+  metadata_json jsonb not null default '{}'::jsonb,
+  imported_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (market, exchange, symbol)
+);
+
+create unique index if not exists idx_market_stock_catalog_source_id
+  on market_stock_catalog(source, source_id)
+  where source_id is not null;
+
 create table if not exists oem_app_composer_control_bindings (
   app_name text not null references oem_apps(app_name) on delete cascade,
   control_key text not null references oem_composer_control_catalog(control_key) on delete cascade,
@@ -1537,6 +1567,18 @@ create index if not exists idx_oem_app_menu_bindings_app_sort
   on oem_app_menu_bindings(app_name, sort_order, menu_key);
 create index if not exists idx_oem_menu_catalog_category_key
   on oem_menu_catalog(category, menu_key);
+create index if not exists idx_market_stock_catalog_market_exchange_symbol
+  on market_stock_catalog(market, exchange, symbol);
+create index if not exists idx_market_stock_catalog_company_name
+  on market_stock_catalog(company_name);
+create index if not exists idx_market_stock_catalog_total_market_cap
+  on market_stock_catalog(total_market_cap desc nulls last);
+create index if not exists idx_market_stock_catalog_change_percent
+  on market_stock_catalog(change_percent desc nulls last);
+create index if not exists idx_market_stock_catalog_turnover_rate
+  on market_stock_catalog(turnover_rate desc nulls last);
+create index if not exists idx_market_stock_catalog_strategy_tags
+  on market_stock_catalog using gin(strategy_tags);
 create index if not exists idx_oem_composer_control_catalog_type_key
   on oem_composer_control_catalog(control_type, control_key);
 create index if not exists idx_oem_composer_control_option_catalog_sort
