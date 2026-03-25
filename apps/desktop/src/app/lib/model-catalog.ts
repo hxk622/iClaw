@@ -280,7 +280,7 @@ function buildCapabilityDetail(
   profile: ModelPresentationProfile | null,
 ): string {
   if (profile) {
-    const tags = [profile.tier === 'advanced' ? '高级模型' : profile.tier === 'basic' ? '基础模型' : null, profile.badge]
+    const tags = [profile.badge]
       .filter((value): value is string => Boolean(value));
     if (tags.length > 0) {
       return tags.join(' · ');
@@ -312,6 +312,9 @@ export function buildComposerModelOptions(models: GatewayModelCatalogEntry[]): C
   models.forEach((entry) => {
     const id = entry.id?.trim();
     if (!id) {
+      return;
+    }
+    if (detectModelFamily(entry) === 'deepseek') {
       return;
     }
     deduped.set(id, entry);
