@@ -1,6 +1,7 @@
 import {
   AtSign,
   ArrowUp,
+  BarChart3,
   Check,
   ChevronDown,
   Film,
@@ -44,10 +45,20 @@ export type ComposerSendPayload = {
   selectedModeLabel: string | null;
   selectedMarketScope: string | null;
   selectedMarketScopeLabel: string | null;
+  selectedStockContext: ComposerStockContext | null;
+  selectedStockContextLabel: string | null;
   selectedWatchlist: string | null;
   selectedWatchlistLabel: string | null;
   selectedOutput: string | null;
   selectedOutputLabel: string | null;
+};
+
+export type ComposerStockContext = {
+  id: string;
+  symbol: string;
+  companyName: string;
+  exchange: 'sh' | 'sz' | 'bj';
+  board: string | null;
 };
 
 export type ComposerDraftAttachment = {
@@ -133,6 +144,7 @@ type RichChatComposerProps = {
   dropActive?: boolean;
   initialSelectedAgentSlug?: string | null;
   initialSelectedSkillSlug?: string | null;
+  initialSelectedStock?: ComposerStockContext | null;
   composerConfig?: ResolvedInputComposerConfig | null;
 };
 
@@ -236,6 +248,11 @@ const EMPTY_RECENT_SELECTIONS: RecentSelectionState = {
 
 function createComposerId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function formatStockContextLabel(stock: ComposerStockContext | null | undefined): string | null {
+  if (!stock) return null;
+  return `${stock.companyName} ${stock.symbol}`;
 }
 
 function isSupportedAttachment(file: File): boolean {
@@ -558,6 +575,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       dropActive = false,
       initialSelectedAgentSlug = null,
       initialSelectedSkillSlug = null,
+      initialSelectedStock = null,
       composerConfig = null,
     },
     ref,
@@ -587,6 +605,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const [selectedSkillSlug, setSelectedSkillSlug] = useState<string | null>(null);
     const [selectedMode, setSelectedMode] = useState<string | null>(null);
     const [selectedMarketScope, setSelectedMarketScope] = useState<string | null>(null);
+    const [selectedStockContext, setSelectedStockContext] = useState<ComposerStockContext | null>(null);
     const [selectedWatchlist, setSelectedWatchlist] = useState<string | null>(null);
     const [selectedOutput, setSelectedOutput] = useState<string | null>(null);
     const [recentSelections, setRecentSelections] = useState<RecentSelectionState>(EMPTY_RECENT_SELECTIONS);
@@ -1175,6 +1194,8 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
           visibleTopBarControlKeys.has('market-scope')
             ? findStaticOption(marketScopeOptions, selectedMarketScope)?.label ?? null
             : null,
+        selectedStockContext,
+        selectedStockContextLabel: formatStockContextLabel(selectedStockContext),
         selectedWatchlist: visibleTopBarControlKeys.has('watchlist') ? selectedWatchlist : null,
         selectedWatchlistLabel:
           visibleTopBarControlKeys.has('watchlist')
@@ -1201,6 +1222,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       selectedAgentSlug,
       selectedMode,
       selectedOutput,
+      selectedStockContext,
       selectedWatchlist,
       modeOptions,
       marketScopeOptions,
@@ -1226,6 +1248,10 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     useEffect(() => {
       setSelectedSkillSlug(initialSelectedSkillSlug || null);
     }, [initialSelectedSkillSlug]);
+
+    useEffect(() => {
+      setSelectedStockContext(initialSelectedStock || null);
+    }, [initialSelectedStock]);
 
     useEffect(() => {
       if (!visibleTopBarControlKeys.has('mode') || (selectedMode && !findStaticOption(modeOptions, selectedMode))) {
@@ -1376,6 +1402,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const selectedSkill = skillOptions.find((option) => option.slug === selectedSkillSlug) ?? null;
     const selectedModeOption = findStaticOption(modeOptions, selectedMode);
     const selectedMarketScopeOption = findStaticOption(marketScopeOptions, selectedMarketScope);
+    const selectedStockContextLabel = formatStockContextLabel(selectedStockContext);
     const selectedWatchlistOption = findStaticOption(watchlistOptions, selectedWatchlist);
     const selectedOutputOption = findStaticOption(outputOptions, selectedOutput);
     const expertControl = topBarControlMap.get('expert')?.item || null;
@@ -1419,6 +1446,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const skillTriggerLabel = selectedSkill?.name ?? skillControl?.displayName ?? '选择技能';
     const modeTriggerLabel = selectedModeOption?.label ?? modeControl?.displayName ?? '选择模式';
     const marketTriggerLabel = selectedMarketScopeOption?.label ?? marketScopeControl?.displayName ?? '选择市场';
+    const stockTriggerLabel = selectedStockContextLabel ?? '股票';
     const watchlistTriggerLabel = selectedWatchlistOption?.label ?? watchlistControl?.displayName ?? '自选股';
     const outputTriggerLabel = selectedOutputOption?.label ?? outputControl?.displayName ?? '选择输出';
     const hasActiveSelections =
@@ -1426,6 +1454,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       (visibleTopBarControlKeys.has('skill') && Boolean(selectedSkill)) ||
       (visibleTopBarControlKeys.has('mode') && Boolean(selectedModeOption)) ||
       (visibleTopBarControlKeys.has('market-scope') && Boolean(selectedMarketScopeOption)) ||
+      Boolean(selectedStockContext) ||
       (visibleTopBarControlKeys.has('watchlist') && Boolean(selectedWatchlistOption)) ||
       (visibleTopBarControlKeys.has('output-format') && Boolean(selectedOutputOption));
 
@@ -1916,6 +1945,28 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
               </div>
               ) : null}
 
+              {selectedStockContext ? (
+              <div className="iclaw-composer__selector" style={{order: 45}}>
+                <button
+                  type="button"
+                  className="iclaw-composer__selector-trigger"
+                  data-active="true"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => setSelectedStockContext(null)}
+                  title={`当前股票：${stockTriggerLabel}，点击移除`}
+                >
+                  <span className="iclaw-composer__selector-trigger-main">
+                    <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--stock">
+                      <BarChart3 className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="iclaw-composer__selector-copy">
+                      <span className="iclaw-composer__selector-label">{stockTriggerLabel}</span>
+                    </span>
+                  </span>
+                </button>
+              </div>
+              ) : null}
+
               {visibleTopBarControlKeys.has('watchlist') ? (
               <div
                 ref={watchlistMenuRef}
@@ -2230,6 +2281,24 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                           <Globe className="h-3.5 w-3.5" />
                         </span>
                         <span className="iclaw-composer__active-chip-text">市场范围 · {selectedMarketScopeOption.label}</span>
+                      </span>
+                      <span className="iclaw-composer__active-chip-remove" aria-hidden="true">×</span>
+                    </button>
+                  ) : null}
+
+                  {selectedStockContext ? (
+                    <button
+                      type="button"
+                      className="iclaw-composer__active-chip"
+                      data-tone="stock"
+                      onClick={() => setSelectedStockContext(null)}
+                      title={`移除股票：${stockTriggerLabel}`}
+                    >
+                      <span className="iclaw-composer__active-chip-main">
+                        <span className="iclaw-composer__active-chip-icon">
+                          <BarChart3 className="h-3.5 w-3.5" />
+                        </span>
+                        <span className="iclaw-composer__active-chip-text">股票 · {stockTriggerLabel}</span>
                       </span>
                       <span className="iclaw-composer__active-chip-remove" aria-hidden="true">×</span>
                     </button>

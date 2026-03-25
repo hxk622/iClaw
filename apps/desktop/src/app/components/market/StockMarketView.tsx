@@ -56,6 +56,11 @@ function formatCompactNumber(value: number | null | undefined): string {
   return value.toFixed(2);
 }
 
+function formatStockCount(value: number | null | undefined): string | null {
+  if (value === null || value === undefined || !Number.isFinite(value)) return null;
+  return new Intl.NumberFormat('zh-CN').format(value);
+}
+
 function formatPercent(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return '--';
   return `${value.toFixed(2)}%`;
@@ -622,6 +627,7 @@ export function StockMarketView({
   const [sections, setSections] = useState<StockGroupSection[]>([]);
   const [listItems, setListItems] = useState<MarketStockData[]>([]);
   const [total, setTotal] = useState(0);
+  const [exchangeCounts, setExchangeCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedStockId, setSelectedStockId] = useState<string | null>(null);
@@ -629,6 +635,34 @@ export function StockMarketView({
   const [detailLoading, setDetailLoading] = useState(false);
 
   const showingSearchResults = Boolean(exchange || tag || deferredQuery);
+
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all([
+      client.listMarketStocksPage({market: 'a_share', limit: 1, offset: 0}),
+      client.listMarketStocksPage({market: 'a_share', exchange: 'sh', limit: 1, offset: 0}),
+      client.listMarketStocksPage({market: 'a_share', exchange: 'sz', limit: 1, offset: 0}),
+      client.listMarketStocksPage({market: 'a_share', exchange: 'bj', limit: 1, offset: 0}),
+    ])
+      .then(([allPage, shPage, szPage, bjPage]) => {
+        if (cancelled) return;
+        setExchangeCounts({
+          '': allPage.total,
+          sh: shPage.total,
+          sz: szPage.total,
+          bj: bjPage.total,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setExchangeCounts({});
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
 
   useEffect(() => {
     let cancelled = false;
@@ -775,7 +809,10 @@ export function StockMarketView({
                 )}
                 onClick={() => setExchange(item.value)}
               >
-                {item.label}
+                <span>{item.label}</span>
+                {formatStockCount(exchangeCounts[item.value]) ? (
+                  <span className="text-[11px] opacity-80">{formatStockCount(exchangeCounts[item.value])}</span>
+                ) : null}
               </Chip>
             ))}
           </div>

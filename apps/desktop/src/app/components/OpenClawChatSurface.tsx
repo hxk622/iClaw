@@ -50,6 +50,7 @@ import {
   type ComposerSkillOption,
   type ComposerDraftPayload,
   type ComposerSendPayload,
+  type ComposerStockContext,
   type OpenClawImageAttachment,
   type RichChatComposerHandle,
 } from './RichChatComposer';
@@ -126,6 +127,7 @@ type OpenClawChatSurfaceProps = {
   initialPromptKey?: string | null;
   initialAgentSlug?: string | null;
   initialSkillSlug?: string | null;
+  initialStockContext?: ComposerStockContext | null;
   focusTaskId?: string | null;
   focusTaskPrompt?: string | null;
   shellAuthenticated?: boolean;
@@ -196,6 +198,7 @@ function buildSkillScopedPrompt(payload: ComposerSendPayload): string {
     payload.selectedSkillName ? `技能：${payload.selectedSkillName}` : null,
     payload.selectedModeLabel ? `模式：${payload.selectedModeLabel}` : null,
     payload.selectedMarketScopeLabel ? `市场范围：${payload.selectedMarketScopeLabel}` : null,
+    payload.selectedStockContextLabel ? `股票：${payload.selectedStockContextLabel}` : null,
     payload.selectedWatchlistLabel ? `自选股：${payload.selectedWatchlistLabel}` : null,
     payload.selectedOutputLabel ? `输出：${payload.selectedOutputLabel}` : null,
   ].filter((line): line is string => Boolean(line));
@@ -213,6 +216,7 @@ function buildSkillScopedPrompt(payload: ComposerSendPayload): string {
       : null,
     payload.selectedModeLabel ? `回答模式请遵循「${payload.selectedModeLabel}」。` : null,
     payload.selectedMarketScopeLabel ? `分析范围请聚焦「${payload.selectedMarketScopeLabel}」。` : null,
+    payload.selectedStockContextLabel ? `本次对话请聚焦股票「${payload.selectedStockContextLabel}」，除非用户明确要求，否则不要扩展到其它标的。` : null,
     payload.selectedWatchlistLabel ? `如果涉及用户关注标的，请优先围绕「${payload.selectedWatchlistLabel}」这组自选股展开分析。` : null,
     payload.selectedOutputLabel ? `输出形式请优先按「${payload.selectedOutputLabel}」呈现。` : null,
   ].filter((line): line is string => Boolean(line));
@@ -1200,6 +1204,7 @@ export function OpenClawChatSurface({
   initialPromptKey = null,
   initialAgentSlug = null,
   initialSkillSlug = null,
+  initialStockContext = null,
   focusTaskId = null,
   focusTaskPrompt = null,
   shellAuthenticated = false,
@@ -2921,6 +2926,8 @@ export function OpenClawChatSurface({
               selectedModeLabel: null,
               selectedMarketScope: null,
               selectedMarketScopeLabel: null,
+              selectedStockContext: null,
+              selectedStockContextLabel: null,
               selectedWatchlist: null,
               selectedWatchlistLabel: null,
               selectedOutput: null,
@@ -3180,6 +3187,7 @@ export function OpenClawChatSurface({
               skillOptions={skillOptions}
               initialSelectedAgentSlug={initialAgentSlug}
               initialSelectedSkillSlug={initialSkillSlug}
+              initialSelectedStock={initialStockContext}
               modelOptions={modelOptions}
               selectedModelId={selectedModelId}
               modelsLoading={modelsLoading}

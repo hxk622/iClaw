@@ -41,6 +41,7 @@ import { SettingsPanel } from './components/settings/SettingsPanel';
 import { RechargeCenter } from './components/recharge/RechargeCenter';
 import { StockMarketView } from './components/market/StockMarketView';
 import { FundMarketView } from './components/market/FundMarketView';
+import type { ComposerStockContext } from './components/RichChatComposer';
 import { type PersistableSettingsSection, SettingsProvider, useSettings } from './contexts/settings-context';
 import { BRAND } from './lib/brand';
 import { type InvestmentExpert } from '@/app/lib/investment-experts';
@@ -140,6 +141,7 @@ const DEFAULT_CHAT_ROUTE = {
   initialPromptKey: null as string | null,
   initialAgentSlug: null as string | null,
   initialSkillSlug: null as string | null,
+  initialStockContext: null as ComposerStockContext | null,
   focusTaskId: null as string | null,
   focusTaskPrompt: null as string | null,
 };
@@ -1443,6 +1445,7 @@ function AuthedView({
       initialPromptKey: seed,
       initialAgentSlug: null,
       initialSkillSlug: null,
+      initialStockContext: null,
       focusTaskId: null,
       focusTaskPrompt: null,
     });
@@ -1458,6 +1461,7 @@ function AuthedView({
       initialPromptKey: seed,
       initialAgentSlug: expert.slug,
       initialSkillSlug: expert.primarySkillSlug,
+      initialStockContext: null,
       focusTaskId: null,
       focusTaskPrompt: null,
     });
@@ -1467,22 +1471,19 @@ function AuthedView({
 
   const handleStartStockResearchConversation = (stock: MarketStockData) => {
     const seed = `stock-${stock.symbol}-${Date.now()}`;
-    const tags = stock.strategy_tags.length ? `标签：${stock.strategy_tags.join('、')}。` : '';
-    const prompt = [
-      `请帮我做一份 ${stock.company_name}（${stock.symbol}）的 A 股快速研究。`,
-      `交易所：${stock.exchange === 'sh' ? '沪市' : stock.exchange === 'sz' ? '深市' : '北交所'}。`,
-      `最新价：${stock.current_price ?? '--'}，涨跌幅：${stock.change_percent ?? '--'}%。`,
-      `总市值：${stock.total_market_cap ?? '--'}，换手率：${stock.turnover_rate ?? '--'}%。`,
-      `市盈率TTM：${stock.pe_ttm ?? '--'}。`,
-      tags,
-      '请输出：1. 投资逻辑 2. 关键风险 3. 需要继续核实的数据点。',
-    ].join('\n');
     setActiveChatRoute({
       sessionKey: seed,
-      initialPrompt: prompt,
+      initialPrompt: null,
       initialPromptKey: seed,
       initialAgentSlug: null,
       initialSkillSlug: null,
+      initialStockContext: {
+        id: stock.id,
+        symbol: stock.symbol,
+        companyName: stock.company_name,
+        exchange: stock.exchange,
+        board: stock.board,
+      },
       focusTaskId: null,
       focusTaskPrompt: null,
     });
@@ -1498,6 +1499,7 @@ function AuthedView({
       initialPromptKey: seed,
       initialAgentSlug: null,
       initialSkillSlug: null,
+      initialStockContext: null,
       focusTaskId: null,
       focusTaskPrompt: null,
     });
@@ -1518,6 +1520,7 @@ function AuthedView({
       initialPromptKey: null,
       initialAgentSlug: null,
       initialSkillSlug: null,
+      initialStockContext: null,
       focusTaskId: task.id,
       focusTaskPrompt: task.prompt,
     });
@@ -1533,6 +1536,7 @@ function AuthedView({
       initialPromptKey: seed,
       initialAgentSlug: null,
       initialSkillSlug: skill.slug,
+      initialStockContext: null,
       focusTaskId: null,
       focusTaskPrompt: null,
     });
@@ -1718,6 +1722,7 @@ function AuthedView({
               initialPromptKey={activeChatRoute.initialPromptKey}
               initialAgentSlug={activeChatRoute.initialAgentSlug}
               initialSkillSlug={activeChatRoute.initialSkillSlug}
+              initialStockContext={activeChatRoute.initialStockContext}
               focusTaskId={activeChatRoute.focusTaskId}
               focusTaskPrompt={activeChatRoute.focusTaskPrompt}
               shellAuthenticated={authenticated}

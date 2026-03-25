@@ -1507,6 +1507,14 @@ body {
     0 10px 22px rgba(15, 23, 42, 0.08);
 }
 
+.iclaw-composer__selector-trigger[data-active='true'] {
+  border-color: rgba(72, 117, 184, 0.28);
+  background: rgba(72, 117, 184, 0.1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.52),
+    0 10px 22px rgba(15, 23, 42, 0.08);
+}
+
 .iclaw-composer__selector-trigger:disabled {
   opacity: 0.62;
   cursor: not-allowed;
@@ -1548,6 +1556,11 @@ body {
 .iclaw-composer__selector-icon--market {
   background: rgba(63, 137, 120, 0.16);
   color: #2f7f6c;
+}
+
+.iclaw-composer__selector-icon--stock {
+  background: rgba(72, 117, 184, 0.14);
+  color: #335b99;
 }
 
 .iclaw-composer__selector-icon--watchlist {
@@ -1797,6 +1810,10 @@ body {
   color: #2f7f6c;
 }
 
+.iclaw-composer__selector-recent-icon--stock {
+  color: #335b99;
+}
+
 .iclaw-composer__selector-recent-icon--watchlist {
   color: #a06a0d;
 }
@@ -2007,6 +2024,11 @@ body {
 .iclaw-composer__active-chip[data-tone='market'] {
   border-color: rgba(63, 137, 120, 0.28);
   background: rgba(63, 137, 120, 0.1);
+}
+
+.iclaw-composer__active-chip[data-tone='stock'] {
+  border-color: rgba(72, 117, 184, 0.26);
+  background: rgba(72, 117, 184, 0.1);
 }
 
 .iclaw-composer__active-chip[data-tone='watchlist'] {
@@ -2887,6 +2909,11 @@ body {
   color: #bde7db;
 }
 
+:root.dark .iclaw-composer__selector-icon--stock {
+  background: rgba(96, 165, 250, 0.18);
+  color: #cfe0ff;
+}
+
 :root.dark .iclaw-composer__selector-icon--watchlist {
   background: rgba(245, 186, 84, 0.18);
   color: #f4d8a0;
@@ -2915,6 +2942,14 @@ body {
 :root.dark .iclaw-composer__selector-recent-item:hover,
 :root.dark .iclaw-composer__selector-recent-item[data-active='true'] {
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.2);
+}
+
+:root.dark .iclaw-composer__selector-trigger[data-active='true'] {
+  border-color: color-mix(in srgb, var(--composer-panel-border) 88%, rgba(96, 165, 250, 0.42));
+  background: color-mix(in srgb, rgba(96, 165, 250, 0.14) 100%, var(--composer-attach-bg));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 12px 24px rgba(0, 0, 0, 0.22);
 }
 
 :root.dark .iclaw-composer__active-chip {
