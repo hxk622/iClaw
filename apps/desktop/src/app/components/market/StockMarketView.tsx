@@ -447,7 +447,7 @@ function StockDetailDrawer({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-[#6B6B6A] transition-colors hover:bg-[#F0F0EF] dark:text-[#9B9B9A] dark:hover:bg-[#2A2A2A]"
+                className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-[#5C564E] transition-colors hover:bg-[#F0F0EF] dark:text-[#9B9B9A] dark:hover:bg-[#2A2A2A]"
                 aria-label="加入跟踪"
               >
                 <BookmarkPlus className="h-5 w-5" />
@@ -455,7 +455,7 @@ function StockDetailDrawer({
               <button
                 type="button"
                 onClick={onClose}
-                className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-[#6B6B6A] transition-colors hover:bg-[#F0F0EF] dark:text-[#9B9B9A] dark:hover:bg-[#2A2A2A]"
+                className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-[#5C564E] transition-colors hover:bg-[#F0F0EF] dark:text-[#9B9B9A] dark:hover:bg-[#2A2A2A]"
                 aria-label="关闭详情抽屉"
               >
                 <X className="h-5 w-5" />
@@ -559,8 +559,8 @@ function StockDetailDrawer({
           )}
         </div>
 
-        <div className="border-t border-[#E5E5E4] bg-[#252525] px-6 py-4 dark:border-[#3A3A3A] dark:bg-[#252525]">
-          <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8C867E] dark:text-[#8C867E]">AI 研究操作</div>
+        <div className="border-t border-[#E5E5E4] bg-[#F7F3EC] px-6 py-4 dark:border-[#3A3A3A] dark:bg-[#252525]">
+          <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#7B7368] dark:text-[#8C867E]">AI 研究操作</div>
           <div className="space-y-2">
             <MarketActionButton
               className="flex h-11 w-full border-[#446A96] bg-[linear-gradient(180deg,#31557D_0%,#213C5C_100%)] text-white shadow-[0_12px_22px_rgba(8,16,28,0.32)] hover:border-[#5A81AF] hover:bg-[linear-gradient(180deg,#3B628C_0%,#274668_100%)] dark:border-[#4A719D] dark:bg-[linear-gradient(180deg,#355B85_0%,#234160_100%)] dark:text-white dark:hover:border-[#638AB7] dark:hover:bg-[linear-gradient(180deg,#406894_0%,#294A6D_100%)]"
@@ -570,14 +570,14 @@ function StockDetailDrawer({
               查看深度分析
             </MarketActionButton>
             <MarketActionButton
-              className="flex h-11 w-full border-[#4A4640] bg-[#1D1D1D] text-[#F0ECE4] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] hover:border-[#605B54] hover:bg-[#242424] dark:border-[#4A4640] dark:bg-[#1D1D1D] dark:text-[#F0ECE4] dark:hover:border-[#605B54] dark:hover:bg-[#242424]"
+              className="flex h-11 w-full border-[#D6CCBF] bg-white text-[#2F2A24] shadow-[0_8px_18px_rgba(36,30,20,0.06)] hover:border-[#C6B8A5] hover:bg-[#F5EFE6] dark:border-[#4A4640] dark:bg-[#1D1D1D] dark:text-[#F0ECE4] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] dark:hover:border-[#605B54] dark:hover:bg-[#242424]"
               disabled={!stock}
               onClick={() => stock && onStartResearch?.(stock)}
             >
               发起 AI 研究
             </MarketActionButton>
             <MarketActionButton
-              className="flex h-11 w-full border-[#373737] bg-transparent text-[#C8C2B8] hover:border-[#4B4B4B] hover:bg-[#262626] dark:border-[#373737] dark:bg-transparent dark:text-[#C8C2B8] dark:hover:border-[#4B4B4B] dark:hover:bg-[#262626]"
+              className="flex h-11 w-full border-[#D9D0C4] bg-transparent text-[#655C50] hover:border-[#C7B9A8] hover:bg-[#EEE7DE] dark:border-[#373737] dark:bg-transparent dark:text-[#C8C2B8] dark:hover:border-[#4B4B4B] dark:hover:bg-[#262626]"
               onClick={onClose}
             >
               关闭抽屉
