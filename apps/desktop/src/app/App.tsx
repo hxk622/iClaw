@@ -1,5 +1,5 @@
 import { type Dispatch, type SetStateAction, useCallback, useEffect, useMemo, useState } from 'react';
-import { IClawClient, type CreditBalanceData, type DesktopUpdateHint } from '@iclaw/sdk';
+import { IClawClient, type CreditBalanceData, type DesktopUpdateHint, type MarketStockData } from '@iclaw/sdk';
 import desktopPackageJson from '../../package.json';
 import { clearAuth, readAuth, writeAuth } from './lib/auth-storage';
 import { getGoogleOAuthUrl, getWeChatOAuthUrl, openOAuthPopup, type OAuthProvider } from './lib/oauth';
@@ -39,6 +39,8 @@ import { IMBotsView } from './components/im-bots/IMBotsView';
 import { SecurityCenterView } from './components/security-center/SecurityCenterView';
 import { SettingsPanel } from './components/settings/SettingsPanel';
 import { RechargeCenter } from './components/recharge/RechargeCenter';
+import { StockMarketView } from './components/market/StockMarketView';
+import { FundMarketView } from './components/market/FundMarketView';
 import { type PersistableSettingsSection, SettingsProvider, useSettings } from './contexts/settings-context';
 import { BRAND } from './lib/brand';
 import { type InvestmentExpert } from '@/app/lib/investment-experts';
@@ -146,6 +148,8 @@ const PRIMARY_VIEW_ORDER: PrimaryView[] = [
   'chat',
   'cron',
   'investment-experts',
+  'stock-market',
+  'fund-market',
   'lobster-store',
   'skill-store',
   'finance-skills',
@@ -1461,6 +1465,31 @@ function AuthedView({
     setPrimaryView('chat');
   };
 
+  const handleStartStockResearchConversation = (stock: MarketStockData) => {
+    const seed = `stock-${stock.symbol}-${Date.now()}`;
+    const tags = stock.strategy_tags.length ? `标签：${stock.strategy_tags.join('、')}。` : '';
+    const prompt = [
+      `请帮我做一份 ${stock.company_name}（${stock.symbol}）的 A 股快速研究。`,
+      `交易所：${stock.exchange === 'sh' ? '沪市' : stock.exchange === 'sz' ? '深市' : '北交所'}。`,
+      `最新价：${stock.current_price ?? '--'}，涨跌幅：${stock.change_percent ?? '--'}%。`,
+      `总市值：${stock.total_market_cap ?? '--'}，换手率：${stock.turnover_rate ?? '--'}%。`,
+      `市盈率TTM：${stock.pe_ttm ?? '--'}。`,
+      tags,
+      '请输出：1. 投资逻辑 2. 关键风险 3. 需要继续核实的数据点。',
+    ].join('\n');
+    setActiveChatRoute({
+      sessionKey: seed,
+      initialPrompt: prompt,
+      initialPromptKey: seed,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      focusTaskId: null,
+      focusTaskPrompt: null,
+    });
+    setChatSurfaceVersion((current) => current + 1);
+    setPrimaryView('chat');
+  };
+
   const handleStartNewChat = () => {
     const seed = `chat-${Date.now()}`;
     setActiveChatRoute({
@@ -1577,6 +1606,14 @@ function AuthedView({
               onRequestAuth={onRequestAuth}
               onStartConversation={handleStartInvestmentExpertConversation}
             />
+          ) : resolvedPrimaryView === 'stock-market' ? (
+            <StockMarketView
+              title={menuUiConfig['stock-market'].displayName}
+              client={client}
+              onStartResearch={handleStartStockResearchConversation}
+            />
+          ) : resolvedPrimaryView === 'fund-market' ? (
+            <FundMarketView title={menuUiConfig['fund-market'].displayName} />
           ) : resolvedPrimaryView === 'lobster-store' ? (
             <LobsterStoreView
               title={menuUiConfig['lobster-store'].displayName}

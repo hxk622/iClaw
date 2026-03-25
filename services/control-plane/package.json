@@ -10,6 +10,7 @@
     "sync:clawhub:top": "node --experimental-strip-types scripts/sync-clawhub-top-skills.ts",
     "sync:clawhub:all": "node --experimental-strip-types scripts/sync-clawhub-top-skills.ts --limit 0",
     "preset:sync:oem": "node --experimental-strip-types scripts/sync-oem-preset.ts",
+    "import:a-share-stocks": "node --experimental-strip-types scripts/import-a-share-stocks.ts",
     "sync:local-app-runtime": "node --experimental-strip-types scripts/sync-local-app-runtime.ts",
     "sync:local-app-brand-profile": "node --experimental-strip-types scripts/sync-local-app-brand-profile.ts"
   },

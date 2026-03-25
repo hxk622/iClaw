@@ -508,6 +508,56 @@ export type InstallAgentInput = {
   slug: string;
 };
 
+export type MarketStockRecord = {
+  id: string;
+  market: 'a_share';
+  exchange: 'sh' | 'sz' | 'bj';
+  symbol: string;
+  companyName: string;
+  board: string | null;
+  status: 'active' | 'suspended';
+  source: string;
+  sourceId: string | null;
+  currentPrice: number | null;
+  changePercent: number | null;
+  amount: number | null;
+  turnoverRate: number | null;
+  peTtm: number | null;
+  openPrice: number | null;
+  prevClose: number | null;
+  totalMarketCap: number | null;
+  circulatingMarketCap: number | null;
+  strategyTags: string[];
+  metadata: Record<string, unknown>;
+  importedAt: string;
+  updatedAt: string;
+};
+
+export type MarketStockView = {
+  id: string;
+  market: 'a_share';
+  exchange: 'sh' | 'sz' | 'bj';
+  symbol: string;
+  company_name: string;
+  board: string | null;
+  status: 'active' | 'suspended';
+  source: string;
+  source_id: string | null;
+  current_price: number | null;
+  change_percent: number | null;
+  amount: number | null;
+  turnover_rate: number | null;
+  pe_ttm: number | null;
+  open_price: number | null;
+  prev_close: number | null;
+  total_market_cap: number | null;
+  circulating_market_cap: number | null;
+  strategy_tags: string[];
+  metadata: Record<string, unknown>;
+  imported_at: string;
+  updated_at: string;
+};
+
 export type UserPrivateSkillRecord = {
   userId: string;
   slug: string;

@@ -15,18 +15,12 @@ export type LobsterAgent = AgentCatalogEntryData & {
 export type LobsterAgentMetadataValue = string | number | boolean | null | undefined | Record<string, unknown> | unknown[];
 
 const AVATAR_BY_SLUG: Record<string, string> = {
-  'stock-expert':
-    'https://images.unsplash.com/photo-1701463387028-3947648f1337?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBidXNpbmVzcyUyMGF2YXRhciUyMHBvcnRyYWl0fGVufDF8fHx8MTc3MzgzMDgyOHww&ixlib=rb-4.1.0&q=80&w=1080',
-  'summary-expert':
-    'https://images.unsplash.com/photo-1615177393114-bd2917a4f74a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkYXRhJTIwc2NpZW50aXN0JTIwcHJvZmVzc2lvbmFsJTIwaGVhZHNob3R8ZW58MXx8fHwxNzczODMwODMwfDA&ixlib=rb-4.1.0&q=80&w=1080',
-  'mail-assistant':
-    'https://images.unsplash.com/photo-1581065178047-8ee15951ede6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxidXNpbmVzcyUyMHdvbWFuJTIwcHJvZmVzc2lvbmFsJTIwcG9ydHJhaXR8ZW58MXx8fHwxNzczODE2NDUxfDA&ixlib=rb-4.1.0&q=80&w=1080',
-  'wechat-writer':
-    'https://images.unsplash.com/photo-1762968274962-20c12e6e8ecd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtYXJrZXRpbmclMjBleHBlcnQlMjBwcm9mZXNzaW9uYWx8ZW58MXx8fHwxNzczODMwODMwfDA&ixlib=rb-4.1.0&q=80&w=1080',
-  'x-content-operator':
-    'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0ZWNobm9sb2d5JTIwY29uc3VsdGFudCUyMHByb2Zlc3Npb25hbHxlbnwxfHx8fDE3NzM4MzA4Mjl8MA&ixlib=rb-4.1.0&q=80&w=1080',
-  'cross-border-radar':
-    'https://images.unsplash.com/photo-1579540830482-659e7518c895?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmaW5hbmNlJTIwYW5hbHlzdCUyMHByb2Zlc3Npb25hbCUyMHBvcnRyYWl0fGVufDF8fHx8MTc3MzgzMDgyOXww&ixlib=rb-4.1.0&q=80&w=1080',
+  'stock-expert': '/agent-avatars/pexels/pro-portrait-01.jpg',
+  'summary-expert': '/agent-avatars/pexels/pro-portrait-02.jpg',
+  'mail-assistant': '/agent-avatars/pexels/pro-portrait-01.jpg',
+  'wechat-writer': '/agent-avatars/pexels/pro-portrait-02.jpg',
+  'x-content-operator': '/agent-avatars/pexels/pro-portrait-03.jpg',
+  'cross-border-radar': '/agent-avatars/pexels/pro-portrait-03.jpg',
 };
 
 const CATEGORY_LABELS: Record<LobsterStoreCategory, string> = {

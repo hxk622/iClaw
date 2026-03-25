@@ -15,6 +15,7 @@ import type {
   InstallAgentInput,
   InstallMcpInput,
   InstallSkillInput,
+  MarketStockRecord,
   McpCatalogEntryRecord,
   OAuthAccountRecord,
   OAuthProvider,
@@ -146,6 +147,16 @@ export interface ControlPlaneStore {
     },
   ): Promise<UserFileRecord>;
   markUserFileDeleted(userId: string, fileId: string): Promise<UserFileRecord | null>;
+  listMarketStocks(input?: {
+    market?: string | null;
+    exchange?: string | null;
+    search?: string | null;
+    tag?: string | null;
+    sort?: string | null;
+    limit?: number | null;
+    offset?: number | null;
+  }): Promise<{items: MarketStockRecord[]; total: number}>;
+  getMarketStock(stockId: string): Promise<MarketStockRecord | null>;
   listAgentCatalog(): Promise<AgentCatalogEntryRecord[]>;
   listAgentCatalogAdmin(): Promise<AgentCatalogEntryRecord[]>;
   countAgentCatalogAdmin(): Promise<number>;
@@ -869,6 +880,14 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     };
     this.userFiles.set(fileId, record);
     return record;
+  }
+
+  async listMarketStocks(): Promise<{items: MarketStockRecord[]; total: number}> {
+    return {items: [], total: 0};
+  }
+
+  async getMarketStock(_stockId: string): Promise<MarketStockRecord | null> {
+    return null;
   }
 
   async listAgentCatalog(): Promise<AgentCatalogEntryRecord[]> {

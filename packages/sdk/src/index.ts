@@ -303,6 +303,31 @@ export interface SkillCatalogPageData<T> {
   next_offset: number | null;
 }
 
+export interface MarketStockData {
+  id: string;
+  market: 'a_share';
+  exchange: 'sh' | 'sz' | 'bj';
+  symbol: string;
+  company_name: string;
+  board: string | null;
+  status: 'active' | 'suspended';
+  source: string;
+  source_id: string | null;
+  current_price: number | null;
+  change_percent: number | null;
+  amount: number | null;
+  turnover_rate: number | null;
+  pe_ttm: number | null;
+  open_price: number | null;
+  prev_close: number | null;
+  total_market_cap: number | null;
+  circulating_market_cap: number | null;
+  strategy_tags: string[];
+  metadata: Record<string, unknown>;
+  imported_at: string;
+  updated_at: string;
+}
+
 export interface McpCatalogEntryData {
   mcp_key: string;
   name: string;
@@ -1267,6 +1292,60 @@ export class IClawClient {
     });
     if (!res.ok) throw await parseError(res);
     const json = (await res.json()) as {data: WorkspaceBackupData};
+    return json.data;
+  }
+
+  async listMarketStocksPage(options?: {
+    market?: string;
+    exchange?: string;
+    search?: string;
+    tag?: string;
+    sort?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<SkillCatalogPageData<MarketStockData>> {
+    const searchParams = new URLSearchParams();
+    if (options?.market?.trim()) searchParams.set('market', options.market.trim());
+    if (options?.exchange?.trim()) searchParams.set('exchange', options.exchange.trim());
+    if (options?.search?.trim()) searchParams.set('search', options.search.trim());
+    if (options?.tag?.trim()) searchParams.set('tag', options.tag.trim());
+    if (options?.sort?.trim()) searchParams.set('sort', options.sort.trim());
+    if (typeof options?.limit === 'number' && Number.isFinite(options.limit)) {
+      searchParams.set('limit', String(Math.max(1, Math.floor(options.limit))));
+    }
+    if (typeof options?.offset === 'number' && Number.isFinite(options.offset) && options.offset > 0) {
+      searchParams.set('offset', String(Math.max(0, Math.floor(options.offset))));
+    }
+    const query = searchParams.size ? `?${searchParams.toString()}` : '';
+    const res = await this.fetchAuth(`/market/stocks${query}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: SkillCatalogPageData<MarketStockData>};
+    return json.data;
+  }
+
+  async listMarketStocks(options?: {
+    market?: string;
+    exchange?: string;
+    search?: string;
+    tag?: string;
+    sort?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<MarketStockData[]> {
+    const page = await this.listMarketStocksPage(options);
+    return page.items;
+  }
+
+  async getMarketStock(stockId: string): Promise<MarketStockData> {
+    const res = await this.fetchAuth(`/market/stocks/${encodeURIComponent(stockId)}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: MarketStockData};
     return json.data;
   }
 
