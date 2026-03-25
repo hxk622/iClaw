@@ -42,6 +42,25 @@ const PORTRAIT_AVATAR_POOL = [
   '/agent-avatars/pexels/portrait-16.jpg',
 ] as const;
 
+const PORTRAIT_PROFILES = [
+  {src: '/agent-avatars/pexels/portrait-01.jpg', roles: ['formal', 'advisor', 'finance']},
+  {src: '/agent-avatars/pexels/portrait-02.jpg', roles: ['operator', 'advisor', 'support']},
+  {src: '/agent-avatars/pexels/portrait-03.jpg', roles: ['creative', 'commerce', 'brand']},
+  {src: '/agent-avatars/pexels/portrait-04.jpg', roles: ['finance', 'advisor', 'formal']},
+  {src: '/agent-avatars/pexels/portrait-05.jpg', roles: ['commerce', 'operator', 'product']},
+  {src: '/agent-avatars/pexels/portrait-06.jpg', roles: ['support', 'operator', 'creative']},
+  {src: '/agent-avatars/pexels/portrait-07.jpg', roles: ['formal', 'finance', 'leadership']},
+  {src: '/agent-avatars/pexels/portrait-08.jpg', roles: ['operator', 'technical', 'product']},
+  {src: '/agent-avatars/pexels/portrait-09.jpg', roles: ['formal', 'leadership', 'commerce']},
+  {src: '/agent-avatars/pexels/portrait-10.jpg', roles: ['technical', 'finance', 'operator']},
+  {src: '/agent-avatars/pexels/portrait-11.jpg', roles: ['senior', 'formal', 'advisor']},
+  {src: '/agent-avatars/pexels/portrait-12.jpg', roles: ['advisor', 'creative', 'general']},
+  {src: '/agent-avatars/pexels/portrait-13.jpg', roles: ['commerce', 'creative', 'brand']},
+  {src: '/agent-avatars/pexels/portrait-14.jpg', roles: ['general', 'operator', 'support']},
+  {src: '/agent-avatars/pexels/portrait-15.jpg', roles: ['leadership', 'technical', 'finance']},
+  {src: '/agent-avatars/pexels/portrait-16.jpg', roles: ['formal', 'finance', 'leadership']},
+] as const;
+
 const CATEGORY_LABELS: Record<LobsterStoreCategory, string> = {
   finance: '金融研究',
   content: '内容与品牌',
@@ -96,8 +115,97 @@ function pickByHash<T>(seed: number, values: T[]): T {
   return values[seed % values.length];
 }
 
+function readAvatarSignalText(item: AgentCatalogEntryData): string {
+  const description = String(item.description || '').trim();
+  const division = readMetadataString(item.metadata, 'agency_division') || '';
+  const divisionLabel = readMetadataString(item.metadata, 'agency_division_label') || '';
+  return [
+    item.slug,
+    item.name,
+    description,
+    item.category,
+    division,
+    divisionLabel,
+    ...(item.tags || []),
+  ]
+    .join(' ')
+    .toLowerCase();
+}
+
+function inferPortraitRoles(item: AgentCatalogEntryData): string[] {
+  const text = readAvatarSignalText(item);
+  const roles = new Set<string>();
+
+  if (
+    /(finance|stock|invest|trading|risk|quant|research|analyst|market|portfolio|compliance|legal|wealth|fund|证券|股票|金融|投资|交易|风控|量化|研究|分析|基金|财富|法务|合规)/.test(
+      text,
+    )
+  ) {
+    roles.add('finance');
+    roles.add('formal');
+  }
+
+  if (/(engineering|backend|frontend|fullstack|devops|security|database|data|ai | ai$|ml|cloud|sre|architect|code|开发|工程|架构|数据|安全|后端|前端|云|数据库|算法)/.test(text)) {
+    roles.add('technical');
+  }
+
+  if (/(marketing|brand|content|copy|social|media|growth|design|visual|ux|ui|creative|story|营销|品牌|内容|增长|设计|视觉|文案|社媒|叙事)/.test(text)) {
+    roles.add('creative');
+    roles.add('brand');
+  }
+
+  if (/(sales|business development|commerce|customer|support|assistant|operation|ops|project|product|manager|销售|商务|客服|支持|助理|运营|项目|产品|管理)/.test(text)) {
+    roles.add('operator');
+  }
+
+  if (/(anthropology|history|geography|psychology|academic|teacher|researcher|historian|advisor|学家|研究员|顾问|学术|心理)/.test(text)) {
+    roles.add('advisor');
+  }
+
+  if (/(lead|leader|executive|ceo|founder|strategy|director|高管|总监|负责人|策略|领导)/.test(text)) {
+    roles.add('leadership');
+    roles.add('formal');
+  }
+
+  if (/(senior|资深|专家|顾问)/.test(text)) {
+    roles.add('senior');
+  }
+
+  if (/(support|assistant|helper|customer|客服|支持|助理)/.test(text)) {
+    roles.add('support');
+  }
+
+  if (/(product|project|manager|coordination|协同|项目|产品|管理)/.test(text)) {
+    roles.add('product');
+  }
+
+  if (/(commerce|sales|growth|marketing|business|商业|增长|营销|销售)/.test(text)) {
+    roles.add('commerce');
+  }
+
+  if (roles.size === 0) {
+    if (item.category === 'finance') {
+      roles.add('finance');
+      roles.add('formal');
+    } else if (item.category === 'content') {
+      roles.add('creative');
+    } else if (item.category === 'productivity') {
+      roles.add('operator');
+    } else if (item.category === 'commerce') {
+      roles.add('commerce');
+    } else {
+      roles.add('general');
+    }
+  }
+
+  return [...roles];
+}
+
 function pickPortraitAvatar(item: AgentCatalogEntryData): string {
-  return PORTRAIT_AVATAR_POOL[hashString(`${item.slug}:${item.name}:${item.category}`) % PORTRAIT_AVATAR_POOL.length];
+  const roles = inferPortraitRoles(item);
+  const candidates = PORTRAIT_PROFILES.filter((profile) => profile.roles.some((role) => roles.includes(role))).map((profile) => profile.src);
+  const pool = candidates.length ? candidates : [...PORTRAIT_AVATAR_POOL];
+  return pool[hashString(`${item.slug}:${item.name}:${roles.join('|')}`) % pool.length];
 }
 
 function buildPortraitAvatar(item: AgentCatalogEntryData): string {
