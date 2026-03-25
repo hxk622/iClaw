@@ -189,9 +189,9 @@ function MarketActionButton({
     <button
       type={props.type || 'button'}
       className={cn(
-        'inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[12px] border px-3 py-2 text-[12px] font-medium transition-all duration-200',
+        'inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[12px] border px-3 py-2 text-[12px] font-semibold tracking-[0.01em] transition-all duration-200',
         'focus:outline-none focus:ring-2 focus:ring-[#4E6E94]/30',
-        'disabled:cursor-not-allowed disabled:opacity-50',
+        'disabled:cursor-not-allowed disabled:opacity-45 disabled:saturate-75',
         className,
       )}
       {...props}
@@ -476,22 +476,22 @@ function StockDetailDrawer({
               <section>
                 <h3 className="mb-3 text-[13px] font-medium text-[#1A1A1A] dark:text-[#F7F7F5]">概览</h3>
                 <div className="rounded-lg bg-[#F9F8F6] p-4 dark:bg-[#1A1A1A]">
-                  <p className="text-[14px] leading-7 text-[#4A4A49] dark:text-[#B0B0AF]">{buildCardSummary(stock)}</p>
+                  <p className="text-[14px] leading-7 text-[#3F3A34] dark:text-[#C7C2BA]">{buildCardSummary(stock)}</p>
                   <div className="mt-4 grid grid-cols-2 gap-3">
                     <div>
-                      <span className="text-[11px] text-[#9B9B9A] dark:text-[#6B6B6A]">总市值</span>
+                      <span className="text-[11px] text-[#8A847C] dark:text-[#807B75]">总市值</span>
                       <p className="mt-1 text-[14px] text-[#2A2A2A] dark:text-[#E5E5E4]">{formatCompactNumber(stock.total_market_cap)}</p>
                     </div>
                     <div>
-                      <span className="text-[11px] text-[#9B9B9A] dark:text-[#6B6B6A]">流通市值</span>
+                      <span className="text-[11px] text-[#8A847C] dark:text-[#807B75]">流通市值</span>
                       <p className="mt-1 text-[14px] text-[#2A2A2A] dark:text-[#E5E5E4]">{formatCompactNumber(stock.circulating_market_cap)}</p>
                     </div>
                     <div>
-                      <span className="text-[11px] text-[#9B9B9A] dark:text-[#6B6B6A]">市盈率 TTM</span>
+                      <span className="text-[11px] text-[#8A847C] dark:text-[#807B75]">市盈率 TTM</span>
                       <p className="mt-1 text-[14px] text-[#2A2A2A] dark:text-[#E5E5E4]">{formatPe(stock.pe_ttm)}</p>
                     </div>
                     <div>
-                      <span className="text-[11px] text-[#9B9B9A] dark:text-[#6B6B6A]">更新时间</span>
+                      <span className="text-[11px] text-[#8A847C] dark:text-[#807B75]">更新时间</span>
                       <p className="mt-1 text-[14px] text-[#2A2A2A] dark:text-[#E5E5E4]">{formatDatetime(stock.updated_at)}</p>
                     </div>
                   </div>
@@ -510,7 +510,7 @@ function StockDetailDrawer({
                     {label: '研究标签', value: `${stock.strategy_tags.length} 个`, accent: 'text-[#2A2A2A] dark:text-[#E5E5E4]'},
                   ].map((item) => (
                     <div key={item.label} className="rounded-lg bg-[#F9F8F6] p-3 dark:bg-[#1A1A1A]">
-                      <span className="text-[11px] text-[#9B9B9A] dark:text-[#6B6B6A]">{item.label}</span>
+                      <span className="text-[11px] text-[#8A847C] dark:text-[#807B75]">{item.label}</span>
                       <p className={cn('mt-1 text-[18px] font-medium', item.accent)}>{item.value}</p>
                     </div>
                   ))}
@@ -559,24 +559,25 @@ function StockDetailDrawer({
           )}
         </div>
 
-        <div className="border-t border-[#E5E5E4] px-6 py-4 dark:border-[#3A3A3A]">
+        <div className="border-t border-[#E5E5E4] bg-[#252525] px-6 py-4 dark:border-[#3A3A3A] dark:bg-[#252525]">
+          <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8C867E] dark:text-[#8C867E]">AI 研究操作</div>
           <div className="space-y-2">
             <MarketActionButton
-              className="flex h-11 w-full border-[#38577C] bg-[#F3EDE3] text-[#1E2F45] shadow-[0_10px_20px_rgba(7,10,16,0.18)] hover:bg-[#E8DED0] dark:border-[#D0C3AE] dark:bg-[#EEE7DC] dark:text-[#1F2B3A] dark:hover:bg-[#E2D6C4]"
+              className="flex h-11 w-full border-[#446A96] bg-[linear-gradient(180deg,#31557D_0%,#213C5C_100%)] text-white shadow-[0_12px_22px_rgba(8,16,28,0.32)] hover:border-[#5A81AF] hover:bg-[linear-gradient(180deg,#3B628C_0%,#274668_100%)] dark:border-[#4A719D] dark:bg-[linear-gradient(180deg,#355B85_0%,#234160_100%)] dark:text-white dark:hover:border-[#638AB7] dark:hover:bg-[linear-gradient(180deg,#406894_0%,#294A6D_100%)]"
               disabled={!stock}
               onClick={() => stock && onStartResearch?.(stock)}
             >
               查看深度分析
             </MarketActionButton>
             <MarketActionButton
-              className="flex h-11 w-full border-[#3A3A3A] bg-transparent text-[#D5D1CA] hover:bg-[#2B2B2B] dark:border-[#434343] dark:bg-transparent dark:text-[#D8D4CD] dark:hover:bg-[#2B2B2B]"
+              className="flex h-11 w-full border-[#4A4640] bg-[#1D1D1D] text-[#F0ECE4] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] hover:border-[#605B54] hover:bg-[#242424] dark:border-[#4A4640] dark:bg-[#1D1D1D] dark:text-[#F0ECE4] dark:hover:border-[#605B54] dark:hover:bg-[#242424]"
               disabled={!stock}
               onClick={() => stock && onStartResearch?.(stock)}
             >
               发起 AI 研究
             </MarketActionButton>
             <MarketActionButton
-              className="flex h-11 w-full border-[#323232] bg-transparent text-[#9D9890] hover:bg-[#262626] dark:border-[#3B3B3B] dark:bg-transparent dark:text-[#AAA49B] dark:hover:bg-[#262626]"
+              className="flex h-11 w-full border-[#373737] bg-transparent text-[#C8C2B8] hover:border-[#4B4B4B] hover:bg-[#262626] dark:border-[#373737] dark:bg-transparent dark:text-[#C8C2B8] dark:hover:border-[#4B4B4B] dark:hover:bg-[#262626]"
               onClick={onClose}
             >
               关闭抽屉
