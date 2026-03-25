@@ -1681,6 +1681,26 @@ function getAgentAvatarPresetValue(avatarUrl) {
   return avatarUrl ? '__custom__' : '';
 }
 
+function getPreferredAgentAvatarAppName() {
+  const iclawBrand = state.brands.find((item) => item.brandId === 'iclaw');
+  if (iclawBrand?.brandId) {
+    return iclawBrand.brandId;
+  }
+  if (state.selectedBrandId) {
+    return state.selectedBrandId;
+  }
+  return state.brands[0]?.brandId || '';
+}
+
+function slugifyFilename(value, fallback = 'agent-avatar') {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return normalized || fallback;
+}
+
 function formatEnvPairs(env) {
   return Object.entries(asObject(env))
     .map(([key, value]) => `${key}=${String(value || '')}`)
@@ -6294,6 +6314,16 @@ function renderAgentEditorForm(agent) {
             data-agent-avatar-url="true"
           />
         </label>
+        <label class="field">
+          <span>本地上传头像</span>
+          <input
+            class="field-input"
+            type="file"
+            accept="image/*"
+            data-agent-avatar-file="true"
+          />
+          <small style="display:block;margin-top:8px;color:var(--text-secondary);">选择图片后会自动上传到公共资源，并回填到头像 URL。</small>
+        </label>
         <div class="field">
           <span>头像预览</span>
           <div style="display:flex;align-items:center;gap:12px;min-height:72px;">
@@ -6308,6 +6338,7 @@ function renderAgentEditorForm(agent) {
               留空时前台会走自动头像池分配。选择预设会自动写入 URL。
             </div>
           </div>
+          <div data-agent-avatar-upload-status="true" style="margin-top:8px;font-size:12px;line-height:1.6;color:var(--text-secondary);"></div>
         </div>
         <label class="field field--wide">
           <span>Tags</span>
@@ -9058,6 +9089,78 @@ function syncAgentAvatarEditor(form) {
   }
 }
 
+function setAgentAvatarUploadStatus(form, message, tone = 'muted') {
+  const status = form.querySelector('[data-agent-avatar-upload-status="true"]');
+  if (!(status instanceof HTMLElement)) {
+    return;
+  }
+  const color =
+    tone === 'error'
+      ? 'var(--danger-strong, #d35b5b)'
+      : tone === 'success'
+        ? 'var(--success-strong, #4ea46e)'
+        : 'var(--text-secondary)';
+  status.textContent = message || '';
+  status.style.color = color;
+}
+
+async function uploadAgentAvatarFile(form, file) {
+  if (!(form instanceof HTMLFormElement) || !(file instanceof File) || file.size === 0) {
+    return;
+  }
+  const appName = getPreferredAgentAvatarAppName();
+  if (!appName) {
+    setAgentAvatarUploadStatus(form, '没有可用的上传目标应用，请先确认品牌数据已加载。', 'error');
+    return;
+  }
+
+  const slugInput = form.querySelector('input[name="slug"]');
+  const avatarUrlInput = form.querySelector('[data-agent-avatar-url="true"]');
+  const fileInput = form.querySelector('[data-agent-avatar-file="true"]');
+  if (!(slugInput instanceof HTMLInputElement) || !(avatarUrlInput instanceof HTMLInputElement)) {
+    setAgentAvatarUploadStatus(form, '头像上传表单缺少必要字段。', 'error');
+    return;
+  }
+
+  const slug = slugInput.value.trim() || 'draft-agent';
+  const rawFileName = String(file.name || slug).trim();
+  const fileStem = rawFileName.replace(/\.[a-z0-9]+$/i, '') || slug;
+  const extensionFromType = String(file.type || '').toLowerCase().includes('png')
+    ? 'png'
+    : String(file.type || '').toLowerCase().includes('webp')
+      ? 'webp'
+      : 'jpg';
+  const assetKey = `agent-avatar-${slugifyFilename(slug)}-${Date.now()}`;
+
+  try {
+    setAgentAvatarUploadStatus(form, '头像上传中...');
+    const fileBase64 = await readFileAsBase64(file);
+    const response = await apiFetch(`/admin/portal/apps/${encodeURIComponent(appName)}/assets/${encodeURIComponent(assetKey)}/upload`, {
+      method: 'POST',
+      body: JSON.stringify({
+        content_type: file.type || 'image/jpeg',
+        file_name: `${slugifyFilename(fileStem, slugifyFilename(slug))}.${extensionFromType}`,
+        file_base64: fileBase64,
+        metadata: {
+          kind: 'agent-avatar',
+          scope: 'agent-center',
+          agent_slug: slug,
+        },
+      }),
+    });
+    const uploadedAsset = response?.asset || {};
+    const nextUrl = String(uploadedAsset.publicUrl || buildPortalAssetUrl(appName, assetKey)).trim();
+    avatarUrlInput.value = nextUrl;
+    syncAgentAvatarEditor(form);
+    if (fileInput instanceof HTMLInputElement) {
+      fileInput.value = '';
+    }
+    setAgentAvatarUploadStatus(form, '头像已上传，保存 Agent 后前台会生效。', 'success');
+  } catch (error) {
+    setAgentAvatarUploadStatus(form, error instanceof Error ? error.message : '头像上传失败', 'error');
+  }
+}
+
 app.addEventListener('input', (event) => {
   const target = event.target;
   if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement)) {
@@ -9084,6 +9187,12 @@ app.addEventListener('change', (event) => {
   const agentEditorForm = target.closest('#agent-editor-form');
   if (agentEditorForm) {
     syncAgentAvatarEditor(agentEditorForm);
+    if (target instanceof HTMLInputElement && target.matches('[data-agent-avatar-file="true"]')) {
+      const file = target.files?.[0];
+      if (file) {
+        void uploadAgentAvatarFile(agentEditorForm, file);
+      }
+    }
   }
   handleFilterInput(target);
 });
