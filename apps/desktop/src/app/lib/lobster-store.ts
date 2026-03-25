@@ -43,23 +43,55 @@ const PORTRAIT_AVATAR_POOL = [
 ] as const;
 
 const PORTRAIT_PROFILES = [
-  {src: '/agent-avatars/pexels/portrait-01.jpg', roles: ['formal', 'advisor', 'finance']},
-  {src: '/agent-avatars/pexels/portrait-02.jpg', roles: ['operator', 'advisor', 'support']},
-  {src: '/agent-avatars/pexels/portrait-03.jpg', roles: ['creative', 'commerce', 'brand']},
-  {src: '/agent-avatars/pexels/portrait-04.jpg', roles: ['finance', 'advisor', 'formal']},
-  {src: '/agent-avatars/pexels/portrait-05.jpg', roles: ['commerce', 'operator', 'product']},
-  {src: '/agent-avatars/pexels/portrait-06.jpg', roles: ['support', 'operator', 'creative']},
-  {src: '/agent-avatars/pexels/portrait-07.jpg', roles: ['formal', 'finance', 'leadership']},
-  {src: '/agent-avatars/pexels/portrait-08.jpg', roles: ['operator', 'technical', 'product']},
-  {src: '/agent-avatars/pexels/portrait-09.jpg', roles: ['formal', 'leadership', 'commerce']},
-  {src: '/agent-avatars/pexels/portrait-10.jpg', roles: ['technical', 'finance', 'operator']},
-  {src: '/agent-avatars/pexels/portrait-11.jpg', roles: ['senior', 'formal', 'advisor']},
-  {src: '/agent-avatars/pexels/portrait-12.jpg', roles: ['advisor', 'creative', 'general']},
-  {src: '/agent-avatars/pexels/portrait-13.jpg', roles: ['commerce', 'creative', 'brand']},
-  {src: '/agent-avatars/pexels/portrait-14.jpg', roles: ['general', 'operator', 'support']},
-  {src: '/agent-avatars/pexels/portrait-15.jpg', roles: ['leadership', 'technical', 'finance']},
-  {src: '/agent-avatars/pexels/portrait-16.jpg', roles: ['formal', 'finance', 'leadership']},
+  {src: '/agent-avatars/pexels/portrait-01.jpg', roles: ['formal', 'advisor', 'finance', 'legal', 'academic']},
+  {src: '/agent-avatars/pexels/portrait-02.jpg', roles: ['operator', 'advisor', 'support', 'customer', 'assistant']},
+  {src: '/agent-avatars/pexels/portrait-03.jpg', roles: ['creative', 'commerce', 'brand', 'marketing', 'design']},
+  {src: '/agent-avatars/pexels/portrait-04.jpg', roles: ['finance', 'advisor', 'formal', 'research', 'academic']},
+  {src: '/agent-avatars/pexels/portrait-05.jpg', roles: ['commerce', 'operator', 'product', 'sales', 'marketing']},
+  {src: '/agent-avatars/pexels/portrait-06.jpg', roles: ['support', 'operator', 'creative', 'customer', 'assistant']},
+  {src: '/agent-avatars/pexels/portrait-07.jpg', roles: ['formal', 'finance', 'leadership', 'legal', 'strategy']},
+  {src: '/agent-avatars/pexels/portrait-08.jpg', roles: ['operator', 'technical', 'product', 'project', 'engineering']},
+  {src: '/agent-avatars/pexels/portrait-09.jpg', roles: ['formal', 'leadership', 'commerce', 'strategy', 'sales']},
+  {src: '/agent-avatars/pexels/portrait-10.jpg', roles: ['technical', 'finance', 'operator', 'engineering', 'data']},
+  {src: '/agent-avatars/pexels/portrait-11.jpg', roles: ['senior', 'formal', 'advisor', 'legal', 'academic']},
+  {src: '/agent-avatars/pexels/portrait-12.jpg', roles: ['advisor', 'creative', 'general', 'academic', 'coach']},
+  {src: '/agent-avatars/pexels/portrait-13.jpg', roles: ['commerce', 'creative', 'brand', 'marketing', 'content']},
+  {src: '/agent-avatars/pexels/portrait-14.jpg', roles: ['general', 'operator', 'support', 'customer', 'project']},
+  {src: '/agent-avatars/pexels/portrait-15.jpg', roles: ['leadership', 'technical', 'finance', 'engineering', 'strategy']},
+  {src: '/agent-avatars/pexels/portrait-16.jpg', roles: ['formal', 'finance', 'leadership', 'trading', 'executive']},
 ] as const;
+
+const ROLE_WEIGHTS: Record<string, number> = {
+  finance: 4,
+  formal: 3,
+  leadership: 4,
+  technical: 4,
+  engineering: 4,
+  creative: 4,
+  brand: 3,
+  marketing: 3,
+  design: 4,
+  operator: 3,
+  support: 3,
+  customer: 3,
+  assistant: 2,
+  advisor: 3,
+  academic: 4,
+  research: 3,
+  legal: 4,
+  commerce: 3,
+  sales: 3,
+  product: 3,
+  project: 3,
+  strategy: 4,
+  trading: 4,
+  data: 3,
+  executive: 4,
+  senior: 2,
+  content: 3,
+  coach: 2,
+  general: 1,
+};
 
 const CATEGORY_LABELS: Record<LobsterStoreCategory, string> = {
   finance: '金融研究',
@@ -137,7 +169,7 @@ function inferPortraitRoles(item: AgentCatalogEntryData): string[] {
   const roles = new Set<string>();
 
   if (
-    /(finance|stock|invest|trading|risk|quant|research|analyst|market|portfolio|compliance|legal|wealth|fund|证券|股票|金融|投资|交易|风控|量化|研究|分析|基金|财富|法务|合规)/.test(
+    /(finance|stock|invest|trading|risk|quant|research|analyst|market|portfolio|compliance|legal|wealth|fund|audit|securit(?:y|ies)|证券|股票|金融|投资|交易|风控|量化|研究|分析|基金|财富|法务|合规|审计)/.test(
       text,
     )
   ) {
@@ -145,42 +177,84 @@ function inferPortraitRoles(item: AgentCatalogEntryData): string[] {
     roles.add('formal');
   }
 
-  if (/(engineering|backend|frontend|fullstack|devops|security|database|data|ai | ai$|ml|cloud|sre|architect|code|开发|工程|架构|数据|安全|后端|前端|云|数据库|算法)/.test(text)) {
+  if (/(engineering|backend|frontend|fullstack|devops|security|database|data|ai | ai$|ml|cloud|sre|architect|code|solidity|firmware|developer|programmer|开发|工程|架构|数据|安全|后端|前端|云|数据库|算法|程序|脚本)/.test(text)) {
     roles.add('technical');
+    roles.add('engineering');
   }
 
-  if (/(marketing|brand|content|copy|social|media|growth|design|visual|ux|ui|creative|story|营销|品牌|内容|增长|设计|视觉|文案|社媒|叙事)/.test(text)) {
+  if (/(marketing|brand|content|copy|social|media|growth|design|visual|ux|ui|creative|story|seo|creative|广告|营销|品牌|内容|增长|设计|视觉|文案|社媒|叙事|创意|美术)/.test(text)) {
     roles.add('creative');
     roles.add('brand');
+    roles.add('design');
   }
 
-  if (/(sales|business development|commerce|customer|support|assistant|operation|ops|project|product|manager|销售|商务|客服|支持|助理|运营|项目|产品|管理)/.test(text)) {
+  if (/(sales|business development|commerce|customer|support|assistant|operation|ops|project|product|manager|coordinator|销售|商务|客服|支持|助理|运营|项目|产品|管理|协调)/.test(text)) {
     roles.add('operator');
   }
 
-  if (/(anthropology|history|geography|psychology|academic|teacher|researcher|historian|advisor|学家|研究员|顾问|学术|心理)/.test(text)) {
+  if (/(anthropology|history|geography|psychology|academic|teacher|researcher|historian|advisor|professor|coach|mentor|学家|研究员|顾问|学术|心理|教授|导师|教练)/.test(text)) {
     roles.add('advisor');
+    roles.add('academic');
   }
 
-  if (/(lead|leader|executive|ceo|founder|strategy|director|高管|总监|负责人|策略|领导)/.test(text)) {
+  if (/(lead|leader|executive|ceo|founder|strategy|director|principal|head|高管|总监|负责人|策略|领导|主管|总裁)/.test(text)) {
     roles.add('leadership');
     roles.add('formal');
+    roles.add('executive');
   }
 
   if (/(senior|资深|专家|顾问)/.test(text)) {
     roles.add('senior');
   }
 
-  if (/(support|assistant|helper|customer|客服|支持|助理)/.test(text)) {
+  if (/(support|assistant|helper|customer|service|客服|支持|助理|服务)/.test(text)) {
     roles.add('support');
+    roles.add('customer');
+    roles.add('assistant');
   }
 
-  if (/(product|project|manager|coordination|协同|项目|产品|管理)/.test(text)) {
+  if (/(product|project|manager|coordination|owner|scrum|协同|项目|产品|管理)/.test(text)) {
     roles.add('product');
+    roles.add('project');
   }
 
   if (/(commerce|sales|growth|marketing|business|商业|增长|营销|销售)/.test(text)) {
     roles.add('commerce');
+    roles.add('sales');
+    roles.add('marketing');
+  }
+
+  if (/(content|writer|copy|narrative|story|文案|写作|内容|叙事)/.test(text)) {
+    roles.add('content');
+  }
+
+  if (/(lawyer|legal|compliance|audit|法务|律师|合规|审计)/.test(text)) {
+    roles.add('legal');
+    roles.add('formal');
+  }
+
+  if (/(strategy|trading|portfolio|allocator|macro|交易员|策略|组合|宏观)/.test(text)) {
+    roles.add('strategy');
+    roles.add('trading');
+  }
+
+  if (/(data|analytics|analyst|quant|bi|database|数据|分析师|量化|数据库)/.test(text)) {
+    roles.add('data');
+  }
+
+  if (/(game|unity|unreal|godot|roblox|blender|游戏|关卡|技术美术)/.test(text)) {
+    roles.add('creative');
+    roles.add('technical');
+    roles.add('design');
+  }
+
+  if (/(doctor|medical|health|wellness|therapy|医生|医疗|健康|治疗)/.test(text)) {
+    roles.add('advisor');
+    roles.add('formal');
+  }
+
+  if (/(psychology|心理|coach|mentor|教练|导师)/.test(text)) {
+    roles.add('coach');
   }
 
   if (roles.size === 0) {
@@ -203,7 +277,33 @@ function inferPortraitRoles(item: AgentCatalogEntryData): string[] {
 
 function pickPortraitAvatar(item: AgentCatalogEntryData): string {
   const roles = inferPortraitRoles(item);
-  const candidates = PORTRAIT_PROFILES.filter((profile) => profile.roles.some((role) => roles.includes(role))).map((profile) => profile.src);
+  let bestScore = 0;
+  const candidates: string[] = [];
+
+  for (const profile of PORTRAIT_PROFILES) {
+    const score = profile.roles.reduce((total, role) => {
+      if (!roles.includes(role)) {
+        return total;
+      }
+      return total + (ROLE_WEIGHTS[role] || 1);
+    }, 0);
+
+    if (score <= 0) {
+      continue;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      candidates.length = 0;
+      candidates.push(profile.src);
+      continue;
+    }
+
+    if (score === bestScore) {
+      candidates.push(profile.src);
+    }
+  }
+
   const pool = candidates.length ? candidates : [...PORTRAIT_AVATAR_POOL];
   return pool[hashString(`${item.slug}:${item.name}:${roles.join('|')}`) % pool.length];
 }
