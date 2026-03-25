@@ -3591,6 +3591,17 @@ async function saveAgentCatalogEntry(formData) {
   }
 }
 
+function canAutoSaveAgentForm(form) {
+  if (!(form instanceof HTMLFormElement)) {
+    return false;
+  }
+  const slugInput = form.querySelector('input[name="slug"]');
+  const nameInput = form.querySelector('input[name="name"]');
+  const slug = slugInput instanceof HTMLInputElement ? slugInput.value.trim() : '';
+  const name = nameInput instanceof HTMLInputElement ? nameInput.value.trim() : '';
+  return Boolean(slug && name);
+}
+
 async function deleteSkill(slug) {
   if (!slug) return;
   state.busy = true;
@@ -6475,7 +6486,7 @@ function renderAgentEditorForm(agent) {
             accept="image/*"
             data-agent-avatar-file="true"
           />
-          <small style="display:block;margin-top:8px;color:var(--text-secondary);">选择图片后会自动上传到公共资源，并回填到头像 URL。</small>
+          <small style="display:block;margin-top:8px;color:var(--text-secondary);">选择图片后会自动上传；若当前 Agent 已填好 slug 和名称，会继续自动保存。</small>
         </label>
         <div class="field">
           <span>头像预览</span>
@@ -9393,7 +9404,12 @@ async function uploadAgentAvatarFile(form, file) {
     if (fileInput instanceof HTMLInputElement) {
       fileInput.value = '';
     }
-    setAgentAvatarUploadStatus(form, '头像已上传，保存 Agent 后前台会生效。', 'success');
+    if (canAutoSaveAgentForm(form)) {
+      setAgentAvatarUploadStatus(form, '头像已上传，正在自动保存 Agent...', 'success');
+      await saveAgentCatalogEntry(new FormData(form));
+      return;
+    }
+    setAgentAvatarUploadStatus(form, '头像已上传，请先补全 slug 和名称后再保存 Agent。', 'success');
   } catch (error) {
     setAgentAvatarUploadStatus(form, error instanceof Error ? error.message : '头像上传失败', 'error');
   }
