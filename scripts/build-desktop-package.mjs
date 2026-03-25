@@ -13,6 +13,7 @@ const tauriDir = path.join(desktopDir, 'src-tauri');
 const generatedConfigPath = path.join(tauriDir, 'tauri.generated.conf.json');
 const tempConfigPath = path.join(tauriDir, 'tauri.build.local.json');
 const applyBrandScriptPath = path.join(rootDir, 'scripts', 'apply-brand.mjs');
+const brandStateScriptPath = path.join(rootDir, 'scripts', 'brand-generated-state.mjs');
 const syncResourcesScriptPath = path.join(rootDir, 'scripts', 'sync-openclaw-resources.mjs');
 const packageDmgScriptPath = path.join(rootDir, 'scripts', 'package-desktop-dmg.sh');
 const runtimeBootstrapConfigPath = path.join(tauriDir, 'resources', 'config', 'openclaw-runtime.json');
@@ -165,6 +166,7 @@ async function assertPackagedRuntimeConfig() {
 
 async function main() {
   const { brandId, forwardedArgs } = parseArgs(process.argv.slice(2));
+  const snapshotKey = 'desktop-package-build';
   const env = {
     ...process.env,
     ICLAW_PORTAL_APP_NAME: brandId,
@@ -173,16 +175,17 @@ async function main() {
   const { tauriBundle, packageDmg } = platformBundleTarget();
   const pnpm = pnpmCommand();
 
-  run(process.execPath, [applyBrandScriptPath, brandId], { env });
-  run(pnpm.command, [...pnpm.args, '--filter', '@iclaw/control-plane', 'sync:local-app-runtime', '--', '--app', brandId], {
-    env,
-    shell: pnpm.shell,
-  });
-  run(process.execPath, [syncResourcesScriptPath], { env });
-  await assertPackagedRuntimeConfig();
-  await writeTempTauriConfig();
-
+  run(process.execPath, [brandStateScriptPath, 'snapshot', snapshotKey], {env});
   try {
+    run(process.execPath, [applyBrandScriptPath, brandId], { env });
+    run(pnpm.command, [...pnpm.args, '--filter', '@iclaw/control-plane', 'sync:local-app-runtime', '--', '--app', brandId], {
+      env,
+      shell: pnpm.shell,
+    });
+    run(process.execPath, [syncResourcesScriptPath], { env });
+    await assertPackagedRuntimeConfig();
+    await writeTempTauriConfig();
+
     run(pnpm.command, [...pnpm.args, '--dir', desktopDir, 'build'], { env, shell: pnpm.shell });
     const tauri = tauriBinaryPath();
     run(tauri.command, ['build', '--config', tempConfigPath, '--bundles', tauriBundle, ...forwardedArgs], {
@@ -196,6 +199,7 @@ async function main() {
     }
   } finally {
     await fs.rm(tempConfigPath, { force: true });
+    run(process.execPath, [brandStateScriptPath, 'restore', snapshotKey], {env});
   }
 }
 

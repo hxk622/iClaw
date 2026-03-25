@@ -6,13 +6,15 @@
   "scripts": {
     "predev": "node ../../scripts/apply-brand.mjs",
     "dev": "vite",
-    "prebuild": "node ../../scripts/apply-brand.mjs",
+    "prebuild": "node ../../scripts/brand-generated-state.mjs snapshot desktop-build && node ../../scripts/apply-brand.mjs",
     "build": "vite build",
+    "postbuild": "node ../../scripts/brand-generated-state.mjs restore desktop-build",
     "preview": "vite preview",
     "pretauri:dev": "node ../../scripts/apply-brand.mjs",
     "tauri:dev": "tauri dev --config src-tauri/tauri.generated.conf.json",
-    "pretauri:build": "node ../../scripts/apply-brand.mjs",
-    "tauri:build": "node ../../scripts/build-desktop-package.mjs"
+    "pretauri:build": "node ../../scripts/brand-generated-state.mjs snapshot desktop-tauri-build && node ../../scripts/apply-brand.mjs",
+    "tauri:build": "node ../../scripts/build-desktop-package.mjs",
+    "posttauri:build": "node ../../scripts/brand-generated-state.mjs restore desktop-tauri-build"
   },
   "dependencies": {
     "@iclaw/sdk": "workspace:*",
