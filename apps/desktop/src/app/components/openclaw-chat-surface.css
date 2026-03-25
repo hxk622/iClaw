@@ -932,6 +932,7 @@ body {
 }
 
 .openclaw-chat-surface .update-banner {
+  display: none !important;
   width: calc(100% - 40px);
   margin-inline: auto;
 }
