@@ -1477,6 +1477,8 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                 <button
                   type="button"
                   className="iclaw-composer__selector-trigger"
+                  data-tone="expert"
+                  data-active={selectedAgent ? 'true' : 'false'}
                   disabled={!connected}
                   aria-haspopup="dialog"
                   aria-expanded={mentionMenuOpen}
@@ -1601,6 +1603,8 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                 <button
                   type="button"
                   className="iclaw-composer__selector-trigger"
+                  data-tone="skill"
+                  data-active={selectedSkill ? 'true' : 'false'}
                   disabled={!connected}
                   aria-haspopup="menu"
                   aria-expanded={skillMenuOpen}
@@ -1728,6 +1732,8 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                 <button
                   type="button"
                   className="iclaw-composer__selector-trigger"
+                  data-tone="mode"
+                  data-active={selectedModeOption ? 'true' : 'false'}
                   disabled={!connected}
                   aria-haspopup="menu"
                   aria-expanded={modeMenuOpen}
@@ -1841,6 +1847,8 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                 <button
                   type="button"
                   className="iclaw-composer__selector-trigger"
+                  data-tone="market"
+                  data-active={selectedMarketScopeOption ? 'true' : 'false'}
                   disabled={!connected}
                   aria-haspopup="menu"
                   aria-expanded={marketMenuOpen}
@@ -1950,6 +1958,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                 <button
                   type="button"
                   className="iclaw-composer__selector-trigger"
+                  data-tone="stock"
                   data-active="true"
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => setSelectedStockContext(null)}
@@ -1976,6 +1985,8 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                 <button
                   type="button"
                   className="iclaw-composer__selector-trigger"
+                  data-tone="watchlist"
+                  data-active={selectedWatchlistOption ? 'true' : 'false'}
                   disabled={!connected}
                   aria-haspopup="menu"
                   aria-expanded={watchlistMenuOpen}
@@ -2089,6 +2100,8 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                 <button
                   type="button"
                   className="iclaw-composer__selector-trigger"
+                  data-tone="output"
+                  data-active={selectedOutputOption ? 'true' : 'false'}
                   disabled={!connected}
                   aria-haspopup="menu"
                   aria-expanded={outputMenuOpen}
