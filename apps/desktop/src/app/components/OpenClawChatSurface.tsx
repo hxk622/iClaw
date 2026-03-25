@@ -1386,6 +1386,7 @@ async function loadChatModelSnapshot(
 ): Promise<{
   options: ComposerModelOption[];
   selectedModelId: string | null;
+  resolvedSessionKey: string | null;
 } | null> {
   const request = app.client?.request;
   if (!app.connected || typeof request !== 'function') {
@@ -1402,13 +1403,19 @@ async function loadChatModelSnapshot(
   ]);
 
   const options = buildComposerModelOptions(modelsResult?.models ?? []);
-  const sessionModel = resolveSessionModelFromList(sessionsResult, targetSessionKey);
+  const aliases = resolveEquivalentGatewaySessionKeys(targetSessionKey);
+  const matchedSession =
+    sessionsResult?.sessions.find((session) =>
+      aliases.has(normalizeGatewaySessionKey(session.key)),
+    ) ?? null;
+  const sessionModel = matchedSession?.model?.trim() ?? '';
   const defaultModel = sessionsResult?.defaults?.model?.trim() ?? '';
   const fallbackModel = options[0]?.id ?? null;
 
   return {
     options,
     selectedModelId: sessionModel || defaultModel || fallbackModel,
+    resolvedSessionKey: matchedSession?.key?.trim() ?? null,
   };
 }
 
@@ -1539,6 +1546,7 @@ export function OpenClawChatSurface({
   const [selectionMenu, setSelectionMenu] = useState<SelectionMenuState | null>(null);
   const [modelOptions, setModelOptions] = useState<ComposerModelOption[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const [resolvedModelSessionKey, setResolvedModelSessionKey] = useState<string | null>(null);
   const [shellDropActive, setShellDropActive] = useState(false);
   const [shellDropSummary, setShellDropSummary] = useState<DraggedFileSummary | null>(null);
   const [modelsLoading, setModelsLoading] = useState(false);
@@ -1698,6 +1706,7 @@ export function OpenClawChatSurface({
 
       setModelOptions(snapshot.options);
       setSelectedModelId(snapshot.selectedModelId);
+      setResolvedModelSessionKey(snapshot.resolvedSessionKey);
       return true;
     } catch (error) {
       if (modelLoadVersionRef.current === requestVersion) {
@@ -2332,10 +2341,19 @@ export function OpenClawChatSurface({
       const target = event.target as HTMLElement | null;
       if (
         target?.closest(
-          '.iclaw-composer__editor, .iclaw-composer__mention-menu, .iclaw-composer__model-menu, .iclaw-composer__selector-menu, .iclaw-composer__floating-menu',
+          '.iclaw-composer__mention-menu, .iclaw-composer__model-menu, .iclaw-composer__selector-menu, .iclaw-composer__floating-menu',
         )
       ) {
         return;
+      }
+
+      const editor = target?.closest('.iclaw-composer__editor') as HTMLElement | null;
+      if (editor && editor.scrollHeight > editor.clientHeight) {
+        const nextScrollTop = editor.scrollTop + event.deltaY;
+        const maxScrollTop = editor.scrollHeight - editor.clientHeight;
+        if (nextScrollTop > 0 && nextScrollTop < maxScrollTop) {
+          return;
+        }
       }
 
       const activeThread = shell.querySelector('.openclaw-chat-surface .chat-thread') as HTMLElement | null;
