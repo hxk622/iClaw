@@ -30,6 +30,23 @@ type StockGroupSection = {
   items: MarketStockData[];
 };
 
+function normalizeStockMarketErrorMessage(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return '股票市场加载失败，请稍后重试。';
+  }
+  const message = error.message.trim();
+  if (!message) {
+    return '股票市场加载失败，请稍后重试。';
+  }
+  if (/route not found/i.test(message)) {
+    return '股票市场接口尚未在当前 control-plane 进程生效，正在命中旧服务。请刷新运行中的本地服务。';
+  }
+  if (/failed to fetch|networkerror|fetch failed/i.test(message)) {
+    return '无法连接股票市场服务，请确认本地 control-plane 已启动。';
+  }
+  return message;
+}
+
 function formatCompactNumber(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return '--';
   const abs = Math.abs(value);
@@ -75,6 +92,30 @@ function EmptyPanel({title, description}: {title: string; description: string}) 
     <div className="rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-6 py-10 text-center">
       <div className="text-[18px] font-semibold text-[var(--text-primary)]">{title}</div>
       <div className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{description}</div>
+    </div>
+  );
+}
+
+function StatusPanel({
+  title,
+  description,
+  tone = 'neutral',
+}: {
+  title: string;
+  description: string;
+  tone?: 'neutral' | 'danger';
+}) {
+  return (
+    <div
+      className={cn(
+        'rounded-[24px] border px-6 py-10 text-center',
+        tone === 'danger'
+          ? 'border-[rgba(239,68,68,0.16)] bg-[rgba(62,20,20,0.42)]'
+          : 'border border-[var(--border-default)] bg-[var(--bg-elevated)]',
+      )}
+    >
+      <div className={cn('text-[18px] font-semibold', tone === 'danger' ? 'text-[rgb(248,113,113)]' : 'text-[var(--text-primary)]')}>{title}</div>
+      <div className={cn('mt-2 text-[13px] leading-6', tone === 'danger' ? 'text-[rgba(254,226,226,0.82)]' : 'text-[var(--text-secondary)]')}>{description}</div>
     </div>
   );
 }
@@ -309,7 +350,7 @@ export function StockMarketView({
         })
         .catch((loadError) => {
           if (cancelled) return;
-          setError(loadError instanceof Error ? loadError.message : '加载股票列表失败');
+          setError(normalizeStockMarketErrorMessage(loadError));
           setListItems([]);
           setSections([]);
           setTotal(0);
@@ -347,7 +388,7 @@ export function StockMarketView({
       })
       .catch((loadError) => {
         if (cancelled) return;
-        setError(loadError instanceof Error ? loadError.message : '加载股票分组失败');
+        setError(normalizeStockMarketErrorMessage(loadError));
         setSections([]);
         setTotal(0);
       })
@@ -388,22 +429,23 @@ export function StockMarketView({
       <PageContent className="max-w-none px-5 py-5 lg:px-6 xl:px-7">
         <PageHeader
           title={title}
-          description="A股全量快照已接入。这里优先展示可筛、可比、可研究的候选池，而不是简单的行情列表。"
+          description="按策略篮子组织的 A 股研究工作台。支持筛选、检索、详情抽屉和 AI 研究接力。"
+          actionsClassName="w-full xl:w-auto"
           actions={
-            <div className="flex min-w-[320px] flex-1 items-center gap-3 xl:max-w-[480px]">
+            <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_176px] gap-3 xl:w-[560px] xl:max-w-[560px]">
               <label className="relative flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
                 <input
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder="搜索股票名称 / 代码"
-                  className="h-11 w-full rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-elevated)] pl-10 pr-4 text-[13px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[rgba(42,74,111,0.42)] focus:ring-2 focus:ring-[rgba(42,74,111,0.12)]"
+                  className="h-12 w-full rounded-[16px] border border-[rgba(255,255,255,0.08)] bg-[rgba(24,22,20,0.96)] pl-10 pr-4 text-[13px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[rgba(210,176,106,0.42)] focus:ring-2 focus:ring-[rgba(210,176,106,0.12)]"
                 />
               </label>
               <select
                 value={sortBy}
                 onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
-                className="h-11 rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 text-[13px] text-[var(--text-primary)] outline-none"
+                className="h-12 rounded-[16px] border border-[rgba(255,255,255,0.08)] bg-[rgba(24,22,20,0.96)] px-4 text-[13px] text-[var(--text-primary)] outline-none"
               >
                 <option value="change_percent_desc">排序: 涨跌幅</option>
                 <option value="market_cap_desc">排序: 总市值</option>
@@ -414,27 +456,37 @@ export function StockMarketView({
           }
         />
 
-        <div className="mt-5 rounded-[20px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.74)] p-4 shadow-[0_16px_40px_rgba(15,23,42,0.05)] backdrop-blur-[10px]">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="mt-5 rounded-[24px] border border-[rgba(255,255,255,0.06)] bg-[rgba(24,22,20,0.94)] p-5 shadow-[0_18px_44px_rgba(0,0,0,0.18)]">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">交易所</div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             {EXCHANGE_TABS.map((item) => (
               <Chip
                 key={item.label}
                 clickable
                 active={exchange === item.value}
-                tone={exchange === item.value ? 'brand' : 'outline'}
+                tone={exchange === item.value ? 'accent' : 'outline'}
+                className={cn(
+                  'px-3 py-2 text-[12px]',
+                  exchange === item.value ? '' : 'border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)] text-[var(--text-secondary)]',
+                )}
                 onClick={() => setExchange(item.value)}
               >
                 {item.label}
               </Chip>
             ))}
           </div>
+          <div className="mt-5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">策略篮子</div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {FILTER_TAGS.map((item) => (
               <Chip
                 key={item}
                 clickable
                 active={tag === item}
-                tone={tag === item ? 'accent' : 'outline'}
+                tone={tag === item ? 'brand' : 'outline'}
+                className={cn(
+                  'px-3 py-2 text-[12px]',
+                  tag === item ? '' : 'border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)] text-[var(--text-secondary)]',
+                )}
                 onClick={() => setTag((current) => (current === item ? '' : item))}
               >
                 {item}
@@ -443,17 +495,19 @@ export function StockMarketView({
           </div>
         </div>
 
-        {error ? (
-          <div className="mt-4 rounded-[18px] border border-[rgba(239,68,68,0.16)] bg-[rgba(239,68,68,0.08)] px-4 py-3 text-[13px] text-[rgb(185,28,28)]">
-            {error}
-          </div>
-        ) : null}
-
         {loading ? (
           <div className="mt-6 space-y-4">
             {Array.from({length: 5}).map((_, index) => (
               <div key={index} className="h-[98px] animate-pulse rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)]" />
             ))}
+          </div>
+        ) : error ? (
+          <div className="mt-6">
+            <StatusPanel
+              title="股票市场暂时不可用"
+              description={error}
+              tone="danger"
+            />
           </div>
         ) : showingSearchResults ? (
           <div className="mt-6 space-y-4">
