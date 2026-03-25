@@ -39,6 +39,33 @@ stop_existing_web
 echo "[web-dev] Preparing OEM app resources for $APP_NAME"
 cd "$ROOT_DIR"
 node scripts/apply-brand.mjs "$APP_NAME"
+APP_NAME="$APP_NAME" node - <<'EOF'
+const fs = require('fs');
+const path = require('path');
+
+const rootDir = process.cwd();
+const expectedBrandId = String(process.env.APP_NAME || process.env.ICLAW_PORTAL_APP_NAME || '').trim();
+const generatedBrandPath = path.join(rootDir, 'apps', 'desktop', 'src-tauri', 'brand.generated.json');
+const generatedBrandTsPath = path.join(rootDir, 'apps', 'desktop', 'src', 'app', 'lib', 'brand.generated.ts');
+const generatedBrand = JSON.parse(fs.readFileSync(generatedBrandPath, 'utf8'));
+const actualBrandId = String(generatedBrand.brandId || '').trim();
+const generatedBrandTs = fs.readFileSync(generatedBrandTsPath, 'utf8');
+const actualBrandTsId = String(/"brandId":\s*"([^"]+)"/.exec(generatedBrandTs)?.[1] || '').trim();
+
+if (!expectedBrandId) {
+  throw new Error('APP_NAME is required to validate generated brand files');
+}
+
+if (actualBrandId !== expectedBrandId) {
+  throw new Error(`brand generation mismatch: expected ${expectedBrandId}, got ${actualBrandId}`);
+}
+
+if (actualBrandTsId !== expectedBrandId) {
+  throw new Error(`brand ts generation mismatch: expected ${expectedBrandId}, got ${actualBrandTsId || 'unknown'}`);
+}
+
+process.stdout.write(`[web-dev] Verified generated brand: ${actualBrandId}\n`);
+EOF
 pnpm --filter @iclaw/control-plane sync:local-app-runtime -- --app "$APP_NAME"
 node scripts/sync-openclaw-resources.mjs
 
