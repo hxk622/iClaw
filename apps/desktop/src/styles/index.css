@@ -14,3 +14,21 @@ body {
   color: var(--text-primary);
   font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
 }
+
+:where(
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  [role='tab']:not([aria-disabled='true']),
+  a[href],
+  summary:not([aria-disabled='true'])
+) {
+  cursor: pointer;
+}
+
+:where(
+  button:disabled,
+  [role='button'][aria-disabled='true'],
+  [role='tab'][aria-disabled='true']
+) {
+  cursor: not-allowed;
+}

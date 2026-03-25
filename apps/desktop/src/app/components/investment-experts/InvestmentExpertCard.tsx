@@ -3,6 +3,7 @@ import { Flame, Plus, Sparkles, Users } from 'lucide-react';
 import { cn } from '@/app/lib/cn';
 import { ConversationActionButton } from '@/app/components/ui/ConversationActionButton';
 import type { InvestmentExpert } from '@/app/lib/investment-experts';
+import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 
 type InvestmentExpertCardMode = 'shop' | 'mine';
 
@@ -70,8 +71,9 @@ export function InvestmentExpertCard({
       tabIndex={0}
       className={cn(
         'group relative flex min-h-[316px] cursor-pointer flex-col rounded-[18px] border border-[var(--lobster-border)] bg-[var(--lobster-card-elevated)] p-5 transition-all duration-300',
-        'hover:-translate-y-1 hover:border-[var(--lobster-gold-border-strong)] hover:shadow-[0_14px_30px_rgba(18,15,11,0.08)]',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(168,140,93,0.25)]',
+        SPRING_PRESSABLE,
+        INTERACTIVE_FOCUS_RING,
+        'hover:border-[var(--lobster-gold-border-strong)] hover:shadow-[0_14px_30px_rgba(18,15,11,0.08)]',
       )}
     >
       {badge ? (
@@ -162,7 +164,9 @@ export function InvestmentExpertCard({
               onInstall(expert);
             }}
             className={cn(
-              'inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[10px] px-3 text-[13px] font-semibold transition',
+              'inline-flex h-10 w-full cursor-pointer items-center justify-center gap-1.5 rounded-[10px] px-3 text-[13px] font-semibold transition',
+              SPRING_PRESSABLE,
+              INTERACTIVE_FOCUS_RING,
               'border border-[rgba(168,140,93,0.42)] bg-[linear-gradient(180deg,#ccb27b_0%,#b49154_100%)] text-[#120e09] shadow-[0_10px_22px_rgba(168,140,93,0.20)] hover:border-[rgba(168,140,93,0.55)] hover:bg-[linear-gradient(180deg,#d1b884_0%,#bc9a5f_100%)] disabled:cursor-not-allowed disabled:opacity-70',
             )}
           >

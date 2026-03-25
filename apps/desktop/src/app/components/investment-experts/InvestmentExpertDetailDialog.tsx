@@ -4,6 +4,7 @@ import { CheckCircle, Star, UserPlus, Users, X } from 'lucide-react';
 import { cn } from '@/app/lib/cn';
 import { ConversationActionButton } from '@/app/components/ui/ConversationActionButton';
 import type { InvestmentExpert } from '@/app/lib/investment-experts';
+import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 
 function StatusPill({
   installed,
@@ -62,7 +63,7 @@ export function InvestmentExpertDetailDialog({
         type="button"
         aria-label="关闭弹窗"
         onClick={() => onOpenChange(false)}
-        className="absolute inset-0 h-full w-full bg-[rgba(15,11,7,0.58)] backdrop-blur-[3px]"
+        className="absolute inset-0 h-full w-full cursor-pointer bg-[rgba(15,11,7,0.58)] backdrop-blur-[3px]"
       />
 
       <div className="absolute left-1/2 top-1/2 z-10 max-h-[86vh] w-[min(920px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[20px] border border-[var(--lobster-border)] bg-[var(--lobster-card-elevated)] shadow-[var(--lobster-shadow-modal)]">
@@ -123,7 +124,11 @@ export function InvestmentExpertDetailDialog({
             type="button"
             aria-label="关闭"
             onClick={() => onOpenChange(false)}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--lobster-border)] text-[var(--lobster-text-muted)] transition hover:bg-[var(--lobster-muted-bg)] hover:text-[var(--lobster-text-primary)]"
+            className={cn(
+              'inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-[var(--lobster-border)] text-[var(--lobster-text-muted)] transition hover:bg-[var(--lobster-muted-bg)] hover:text-[var(--lobster-text-primary)]',
+              SPRING_PRESSABLE,
+              INTERACTIVE_FOCUS_RING,
+            )}
           >
             <X className="h-5 w-5" />
           </button>
@@ -207,7 +212,9 @@ export function InvestmentExpertDetailDialog({
               disabled={installBusy}
               onClick={() => onInstall(expert)}
               className={cn(
-                'flex-1 rounded-[12px] px-5 py-3 text-[14px] font-semibold transition',
+                'flex-1 cursor-pointer rounded-[12px] px-5 py-3 text-[14px] font-semibold transition',
+                SPRING_PRESSABLE,
+                INTERACTIVE_FOCUS_RING,
                 'border border-[rgba(168,140,93,0.42)] bg-[linear-gradient(180deg,#ccb27b_0%,#b49154_100%)] text-[#120e09] shadow-[0_10px_22px_rgba(168,140,93,0.20)] hover:border-[rgba(168,140,93,0.55)] hover:bg-[linear-gradient(180deg,#d1b884_0%,#bc9a5f_100%)] disabled:cursor-not-allowed disabled:opacity-70',
               )}
             >
@@ -221,7 +228,11 @@ export function InvestmentExpertDetailDialog({
           <button
             type="button"
             onClick={() => onOpenChange(false)}
-            className="min-w-[140px] rounded-[12px] border border-[var(--lobster-border)] px-5 py-3 text-[14px] font-semibold text-[var(--lobster-text-primary)] transition hover:bg-[var(--lobster-muted-bg)]"
+            className={cn(
+              'min-w-[140px] cursor-pointer rounded-[12px] border border-[var(--lobster-border)] px-5 py-3 text-[14px] font-semibold text-[var(--lobster-text-primary)] transition hover:bg-[var(--lobster-muted-bg)]',
+              SPRING_PRESSABLE,
+              INTERACTIVE_FOCUS_RING,
+            )}
           >
             关闭
           </button>

@@ -16,6 +16,7 @@ import { installLobsterAgent, loadLobsterAgents } from '@/app/lib/lobster-store'
 import { InvestmentExpertCard } from './InvestmentExpertCard';
 import { InvestmentExpertDetailDialog } from './InvestmentExpertDetailDialog';
 import { MyInvestmentExpertsView } from './MyInvestmentExpertsView';
+import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 
 function matchesQuery(expert: InvestmentExpert, query: string): boolean {
   if (!query) {
@@ -177,7 +178,9 @@ export function InvestmentExpertsView({
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
-                    'relative inline-flex items-center gap-2 pb-3 text-[15px] font-semibold transition',
+                    'relative inline-flex items-center gap-2 pb-3 text-[15px] font-semibold transition cursor-pointer',
+                    SPRING_PRESSABLE,
+                    INTERACTIVE_FOCUS_RING,
                     active
                       ? 'text-[var(--lobster-text-primary)]'
                       : 'text-[var(--lobster-text-muted)] hover:text-[var(--lobster-text-primary)]',
@@ -207,7 +210,9 @@ export function InvestmentExpertsView({
                 type="button"
                 onClick={() => setActiveFilter(category.id)}
                 className={cn(
-                  'inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-[12px] font-medium transition',
+                  'inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-[12px] font-medium transition cursor-pointer',
+                  SPRING_PRESSABLE,
+                  INTERACTIVE_FOCUS_RING,
                   active
                     ? 'bg-[linear-gradient(180deg,#ccb27b_0%,#b49154_100%)] text-[#120e09] shadow-[0_8px_20px_rgba(168,140,93,0.16)]'
                     : 'bg-[var(--lobster-muted-bg)] text-[var(--lobster-text-primary)] hover:bg-[color:color-mix(in_srgb,var(--lobster-muted-bg)_82%,white)]',
