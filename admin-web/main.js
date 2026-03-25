@@ -2162,6 +2162,7 @@ function buildBrandDraftBuffer(detail) {
     status: brand?.status || 'active',
     advancedJson: JSON.stringify(draftConfig, null, 2),
     theme: {
+      defaultMode: isThemeMode(draftTheme.defaultMode || draftTheme.default_mode) ? (draftTheme.defaultMode || draftTheme.default_mode) : 'dark',
       lightPrimary: lightTheme.primary || '',
       lightPrimaryHover: lightTheme.primaryHover || '',
       lightOnPrimary: lightTheme.onPrimary || '',
@@ -2399,6 +2400,9 @@ function captureBrandEditorBuffer() {
       ? String(data.get('advanced_json') || existing.advancedJson || '{}')
       : String(existing.advancedJson || '{}'),
     theme: {
+      defaultMode: form.querySelector('[name="theme_default_mode"]')
+        ? String(data.get('theme_default_mode') || existing.theme?.defaultMode || 'dark')
+        : String(existing.theme?.defaultMode || 'dark'),
       lightPrimary: form.querySelector('[name="theme_light_primary"]')
         ? String(data.get('theme_light_primary') || existing.theme?.lightPrimary || '')
         : String(existing.theme?.lightPrimary || ''),
@@ -2479,6 +2483,8 @@ function composeDraftConfig(buffer) {
   const theme = asObject(draftConfig.theme);
   draftConfig.theme = {
     ...theme,
+    defaultMode: isThemeMode(buffer.theme.defaultMode) ? buffer.theme.defaultMode : 'dark',
+    default_mode: isThemeMode(buffer.theme.defaultMode) ? buffer.theme.defaultMode : 'dark',
     light: {
       ...asObject(theme.light),
       primary: buffer.theme.lightPrimary.trim(),
@@ -5722,6 +5728,22 @@ function renderBrandEditorBody(buffer, assets, activeTab = state.brandDetailTab)
           <p>维护 Light / Dark 主题色，并保留完整 JSON 编辑能力</p>
         </div>
         <div class="fig-theme-grid">
+          <article class="fig-card fig-card--subtle">
+            <div class="fig-card__head">
+              <h3>默认主题模式</h3>
+              <span>写入 draft_config.theme.defaultMode</span>
+            </div>
+            <div class="form-grid">
+              <label class="field">
+                <span>Default Theme</span>
+                <select class="field-select" name="theme_default_mode">
+                  ${THEME_MODE_OPTIONS.map((option) => `
+                    <option value="${escapeHtml(option.value)}"${buffer.theme.defaultMode === option.value ? ' selected' : ''}>${escapeHtml(option.label)}</option>
+                  `).join('')}
+                </select>
+              </label>
+            </div>
+          </article>
           <article class="fig-card fig-card--subtle">
             <div class="fig-card__head">
             <h3>Light Theme</h3>

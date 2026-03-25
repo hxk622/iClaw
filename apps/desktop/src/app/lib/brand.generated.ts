@@ -4,6 +4,7 @@ export const BRAND = {
   "displayName": "理财客",
   "websiteTitle": "理财客",
   "devWebsiteTitle": "理财客-dev",
+  "defaultThemeMode": "dark",
   "sidebarTitle": "理财客",
   "devSidebarTitle": "理财客-dev",
   "sidebarSubtitle": "",

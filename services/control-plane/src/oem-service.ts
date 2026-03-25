@@ -647,7 +647,9 @@ function buildDefaultDraftConfig(input: {
     distribution: {},
     endpoints: {},
     oauth: {},
-    theme: {},
+    theme: {
+      defaultMode: 'dark',
+    },
   };
 }
 

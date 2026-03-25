@@ -15,9 +15,9 @@ function isThemeMode(value) {
 function readStoredThemeMode() {
   try {
     const value = localStorage.getItem(THEME_STORAGE_KEY);
-    return isThemeMode(value) ? value : 'system';
+    return isThemeMode(value) ? value : (isThemeMode(HOME_BRAND.defaultThemeMode) ? HOME_BRAND.defaultThemeMode : 'dark');
   } catch {
-    return 'system';
+    return isThemeMode(HOME_BRAND.defaultThemeMode) ? HOME_BRAND.defaultThemeMode : 'dark';
   }
 }
 

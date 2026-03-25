@@ -175,6 +175,7 @@ function buildProfile(detail: PortalAppDetail, cachedAssets: Record<string, stri
     productName,
     displayName: detail.app.displayName,
     websiteTitle: trimString(appConfig.websiteTitle || appConfig.website_title) || productName,
+    defaultThemeMode: trimString(asObject(appConfig.theme).defaultMode || asObject(appConfig.theme).default_mode) || 'dark',
     sidebarSubtitle: trimString(appConfig.sidebarSubtitle || appConfig.sidebar_subtitle),
     legalName: trimString(appConfig.legalName || appConfig.legal_name || brandMeta.legal_name) || detail.app.displayName,
     bundleIdentifier: trimString(appConfig.bundleIdentifier || appConfig.bundle_identifier),

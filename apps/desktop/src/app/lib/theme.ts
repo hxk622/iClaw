@@ -1,6 +1,7 @@
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type ResolvedTheme = 'light' | 'dark';
 
+import { BRAND } from './brand';
 import { THEME_CHANGE_EVENT, THEME_STORAGE_KEY } from './storage';
 
 export { THEME_CHANGE_EVENT, THEME_STORAGE_KEY };
@@ -9,12 +10,23 @@ function isThemeMode(value: string | null): value is ThemeMode {
   return value === 'light' || value === 'dark' || value === 'system';
 }
 
+export function getBrandDefaultThemeMode(): ThemeMode {
+  return isThemeMode(BRAND.defaultThemeMode ?? null) ? BRAND.defaultThemeMode : 'dark';
+}
+
+export function hasExplicitStoredThemeMode(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  return isThemeMode(window.localStorage.getItem(THEME_STORAGE_KEY));
+}
+
 export function readStoredThemeMode(): ThemeMode {
   if (typeof window === 'undefined') {
-    return 'system';
+    return getBrandDefaultThemeMode();
   }
   const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
-  return isThemeMode(saved) ? saved : 'system';
+  return isThemeMode(saved) ? saved : getBrandDefaultThemeMode();
 }
 
 export function resolveThemeMode(mode: ThemeMode): ResolvedTheme {

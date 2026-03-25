@@ -63,6 +63,7 @@ function buildBrandTs(brand) {
       displayName: brand.displayName,
       websiteTitle: brand.websiteTitle,
       devWebsiteTitle: `${brand.websiteTitle}-dev`,
+      defaultThemeMode: brand.defaultThemeMode || 'dark',
       sidebarTitle: brand.productName,
       devSidebarTitle: `${brand.productName}-dev`,
       sidebarSubtitle: brand.sidebarSubtitle,
@@ -98,6 +99,7 @@ function buildHomeBrandJs(brand, appVersion) {
     {
       brandId: brand.brandId,
       displayName: brand.displayName,
+      defaultThemeMode: brand.defaultThemeMode || 'dark',
       website: brand.website,
       assets: {
         faviconPngSrc: '/brand/favicon.png',
