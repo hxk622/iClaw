@@ -1,6 +1,6 @@
 import {useDeferredValue, useEffect, useState} from 'react';
 import type {IClawClient, MarketStockData} from '@iclaw/sdk';
-import {Search, TrendingDown, TrendingUp, X} from 'lucide-react';
+import {BookmarkPlus, MessageSquare, Search, TrendingDown, TrendingUp, X} from 'lucide-react';
 
 import {PageContent, PageHeader, PageSurface} from '@/app/components/ui/PageLayout';
 import {Button} from '@/app/components/ui/Button';
@@ -58,10 +58,27 @@ function formatCompactNumber(value: number | null | undefined): string {
 
 function formatPercent(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return '--';
+  return `${value.toFixed(2)}%`;
+}
+
+function formatSignedPercent(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return '--';
   return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 }
 
 function formatPrice(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return '--';
+  return value.toFixed(2);
+}
+
+function formatDatetime(value: string | null | undefined): string {
+  if (!value) return '--';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '--';
+  return date.toLocaleString('zh-CN', {hour12: false});
+}
+
+function formatPe(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return '--';
   return value.toFixed(2);
 }
@@ -72,19 +89,61 @@ function exchangeLabel(exchange: MarketStockData['exchange']): string {
   return '北交所';
 }
 
-function buildSummary(stock: MarketStockData): string {
-  const parts: string[] = [];
-  if (stock.board) parts.push(stock.board);
-  if (typeof stock.pe_ttm === 'number' && Number.isFinite(stock.pe_ttm) && stock.pe_ttm > 0) {
-    parts.push(`PE ${stock.pe_ttm.toFixed(1)}`);
-  }
-  if (typeof stock.turnover_rate === 'number' && Number.isFinite(stock.turnover_rate)) {
-    parts.push(`换手 ${stock.turnover_rate.toFixed(2)}%`);
-  }
+function companyMonogram(name: string): string {
+  const compact = name.replace(/\s+/g, '');
+  return compact.slice(0, Math.min(2, compact.length)) || '--';
+}
+
+function buildCardSummary(stock: MarketStockData): string {
+  const segments: string[] = [];
+  if (stock.board) segments.push(`${stock.board}跟踪标的`);
+  if (stock.strategy_tags.length > 0) segments.push(`命中 ${stock.strategy_tags.slice(0, 2).join(' / ')} 策略篮子`);
   if (typeof stock.total_market_cap === 'number' && Number.isFinite(stock.total_market_cap)) {
-    parts.push(`总市值 ${formatCompactNumber(stock.total_market_cap)}`);
+    segments.push(`总市值 ${formatCompactNumber(stock.total_market_cap)}`);
   }
-  return parts.join(' · ') || 'A股全量快照标的';
+  return segments.join('，') || 'A股全量快照标的';
+}
+
+function buildInvestmentLogic(stock: MarketStockData): string[] {
+  const points: string[] = [];
+
+  if (stock.strategy_tags.includes('低估值') || (typeof stock.pe_ttm === 'number' && stock.pe_ttm > 0 && stock.pe_ttm < 20)) {
+    points.push('估值处于相对克制区间，可以继续核验盈利兑现能力和安全边际。');
+  }
+  if (stock.strategy_tags.includes('高换手') || (typeof stock.turnover_rate === 'number' && stock.turnover_rate >= 5)) {
+    points.push('交易活跃度较高，资金关注度强，更适合放入事件和催化跟踪池。');
+  }
+  if (stock.strategy_tags.includes('强势异动') || (typeof stock.change_percent === 'number' && Math.abs(stock.change_percent) >= 7)) {
+    points.push('短线波动已经放大，说明价格发现正在加速，需要结合消息面判断持续性。');
+  }
+  if (stock.board && /科创板|创业板/.test(stock.board)) {
+    points.push(`${stock.board}属性明显，景气度、政策窗口和风险偏好会直接影响估值弹性。`);
+  }
+  if (points.length === 0) {
+    points.push('当前更适合作为基础覆盖标的，先从行业位置、盈利质量和估值中枢建立跟踪框架。');
+  }
+  return points.slice(0, 3);
+}
+
+function buildRiskAlerts(stock: MarketStockData): string[] {
+  const risks: string[] = [];
+
+  if (stock.status === 'suspended') {
+    risks.push('当前标的存在停牌或无实时报价情况，流动性与价格连续性需要单独核验。');
+  }
+  if (typeof stock.pe_ttm === 'number' && stock.pe_ttm <= 0) {
+    risks.push('TTM 市盈率为负，说明利润端仍不稳定，不能只靠估值倍数下结论。');
+  }
+  if (typeof stock.turnover_rate === 'number' && stock.turnover_rate >= 10) {
+    risks.push('换手率偏高，短线筹码博弈明显，价格波动可能大于基本面变化。');
+  }
+  if (typeof stock.total_market_cap === 'number' && stock.total_market_cap > 0 && stock.total_market_cap <= 50_0000_0000) {
+    risks.push('市值体量偏中小盘，弹性更大，但流动性和回撤风险也会更集中。');
+  }
+  if (risks.length === 0) {
+    risks.push('建议继续核验行业景气、财务质量和事件催化，避免单日行情驱动下的误判。');
+  }
+  return risks.slice(0, 3);
 }
 
 function EmptyPanel({title, description}: {title: string; description: string}) {
@@ -120,60 +179,141 @@ function StatusPanel({
   );
 }
 
-function StockRow({
+function StockCard({
   stock,
   active,
   onClick,
+  onStartResearch,
 }: {
   stock: MarketStockData;
   active: boolean;
   onClick: () => void;
+  onStartResearch?: (stock: MarketStockData) => void;
 }) {
-  const positive = (stock.change_percent || 0) >= 0;
+  const positive = (stock.change_percent ?? 0) >= 0;
+  const bottomMetrics = [
+    {label: 'PE', value: formatPe(stock.pe_ttm)},
+    {label: '换手', value: formatPercent(stock.turnover_rate)},
+    {label: '成交额', value: formatCompactNumber(stock.amount)},
+  ].filter((item) => item.value !== '--');
+
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onClick();
+        }
+      }}
       className={cn(
-        'grid w-full grid-cols-[minmax(0,1.6fr)_120px_120px_140px_120px] items-center gap-4 rounded-[18px] border px-4 py-4 text-left transition',
+        'relative flex h-full cursor-pointer flex-col rounded-[18px] border p-4 text-left transition-all duration-200',
+        'bg-white dark:bg-[#1A1A1A]',
         active
-          ? 'border-[rgba(42,74,111,0.26)] bg-[rgba(42,74,111,0.08)] shadow-[0_16px_36px_rgba(17,24,39,0.07)]'
-          : 'border-[var(--border-default)] bg-[var(--bg-elevated)] hover:-translate-y-[1px] hover:border-[rgba(42,74,111,0.18)] hover:bg-[var(--bg-hover)]',
+          ? 'border-[#2A4A6F] bg-[#EAF0F6] shadow-[0_12px_30px_rgba(42,74,111,0.14)] dark:bg-[#1E3A5F]/30 dark:border-[#3A5A8F]'
+          : 'border-[#E5E5E4] hover:border-[#2A4A6F] hover:shadow-[0_12px_28px_rgba(17,24,39,0.08)] dark:border-[#3A3A3A] dark:hover:border-[#3A5A8F]',
       )}
     >
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <div className="truncate text-[15px] font-semibold text-[var(--text-primary)]">{stock.company_name}</div>
-          <Chip tone="outline" className="shrink-0 text-[10px]">{stock.symbol}</Chip>
-          <Chip tone="muted" className="shrink-0 text-[10px]">{exchangeLabel(stock.exchange)}</Chip>
+      <div className="flex items-start gap-3">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-[#18324A] text-[15px] font-semibold tracking-[0.08em] text-white dark:bg-[#243A52]">
+          {companyMonogram(stock.company_name)}
         </div>
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {stock.strategy_tags.slice(0, 3).map((tag) => (
-            <Chip key={tag} tone="outline" className="text-[10px]">{tag}</Chip>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="truncate text-[16px] font-medium text-[#1A1A1A] dark:text-[#F7F7F5]">{stock.company_name}</span>
+                <span className="shrink-0 text-[13px] text-[#6B6B6A] dark:text-[#9B9B9A]">{stock.symbol}</span>
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <span className="rounded bg-[#F0F0EF] px-2 py-0.5 text-[11px] text-[#6B6B6A] dark:bg-[#2A2A2A] dark:text-[#9B9B9A]">
+                  {exchangeLabel(stock.exchange)}
+                </span>
+                <span className="text-[12px] text-[#6B6B6A] dark:text-[#9B9B9A]">{stock.board || 'A股'}</span>
+              </div>
+            </div>
+
+            <div className="shrink-0 text-right">
+              <div className="text-[20px] font-semibold tracking-[-0.04em] text-[#1A1A1A] dark:text-[#F7F7F5]">
+                ¥{formatPrice(stock.current_price)}
+              </div>
+              <div
+                className={cn(
+                  'mt-1 inline-flex items-center justify-end gap-1 text-[13px] font-medium',
+                  positive ? 'text-[#059669] dark:text-[#10B981]' : 'text-[#DC2626] dark:text-[#EF4444]',
+                )}
+              >
+                {positive ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+                <span>{formatSignedPercent(stock.change_percent)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {stock.strategy_tags.slice(0, 4).map((tag) => (
+          <span key={tag} className="rounded bg-[#2A4A6F] px-2 py-0.5 text-[11px] text-white dark:bg-[#304F71]">
+            {tag}
+          </span>
+        ))}
+      </div>
+
+      <p className="mt-3 line-clamp-2 text-[13px] leading-6 text-[#4A4A49] dark:text-[#B0B0AF]">{buildCardSummary(stock)}</p>
+
+      <div className="mt-4 flex items-end justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
+          {bottomMetrics.map((metric) => (
+            <div key={metric.label} className="flex items-center gap-1">
+              <span className="text-[11px] text-[#9B9B9A] dark:text-[#6B6B6A]">{metric.label}</span>
+              <span className="text-[13px] text-[#2A2A2A] dark:text-[#E5E5E4]">{metric.value}</span>
+            </div>
           ))}
         </div>
-        <div className="mt-2 truncate text-[12px] text-[var(--text-secondary)]">{buildSummary(stock)}</div>
+
+        <Button
+          variant="ink"
+          size="sm"
+          className="h-8 rounded-[10px] px-3 text-[12px]"
+          leadingIcon={<MessageSquare className="h-3.5 w-3.5" />}
+          onClick={(event) => {
+            event.stopPropagation();
+            onStartResearch?.(stock);
+          }}
+        >
+          AI 对话
+        </Button>
       </div>
-      <div>
-        <div className="text-[11px] text-[var(--text-muted)]">最新价</div>
-        <div className="mt-1 text-[15px] font-semibold text-[var(--text-primary)]">{formatPrice(stock.current_price)}</div>
-      </div>
-      <div>
-        <div className="text-[11px] text-[var(--text-muted)]">涨跌幅</div>
-        <div className={cn('mt-1 inline-flex items-center gap-1 text-[14px] font-semibold', positive ? 'text-[rgb(21,128,61)]' : 'text-[rgb(185,28,28)]')}>
-          {positive ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-          {formatPercent(stock.change_percent)}
-        </div>
-      </div>
-      <div>
-        <div className="text-[11px] text-[var(--text-muted)]">总市值</div>
-        <div className="mt-1 text-[14px] font-medium text-[var(--text-primary)]">{formatCompactNumber(stock.total_market_cap)}</div>
-      </div>
-      <div>
-        <div className="text-[11px] text-[var(--text-muted)]">换手率</div>
-        <div className="mt-1 text-[14px] font-medium text-[var(--text-primary)]">{formatPercent(stock.turnover_rate)}</div>
-      </div>
-    </button>
+    </div>
+  );
+}
+
+function StockGrid({
+  stocks,
+  selectedStockId,
+  onSelectStock,
+  onStartResearch,
+}: {
+  stocks: MarketStockData[];
+  selectedStockId: string | null;
+  onSelectStock: (stockId: string) => void;
+  onStartResearch?: (stock: MarketStockData) => void;
+}) {
+  return (
+    <div className="grid gap-4 xl:grid-cols-2">
+      {stocks.map((stock) => (
+        <StockCard
+          key={stock.id}
+          stock={stock}
+          active={selectedStockId === stock.id}
+          onClick={() => onSelectStock(stock.id)}
+          onStartResearch={onStartResearch}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -189,115 +329,233 @@ function StockDetailDrawer({
   onStartResearch?: (stock: MarketStockData) => void;
 }) {
   if (!stock && !loading) return null;
-  const positive = ((stock?.change_percent || 0) >= 0);
+
+  const positive = (stock?.change_percent ?? 0) >= 0;
+  const investmentLogic = stock ? buildInvestmentLogic(stock) : [];
+  const riskAlerts = stock ? buildRiskAlerts(stock) : [];
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-20">
-      <div className="absolute inset-0 bg-[rgba(15,23,42,0.18)] backdrop-blur-[2px]" onClick={onClose} />
-      <aside className="pointer-events-auto absolute right-0 top-0 flex h-full w-[min(540px,calc(100vw-180px))] flex-col border-l border-[var(--border-default)] bg-[rgba(250,250,248,0.98)] shadow-[-24px_0_48px_rgba(15,23,42,0.12)]">
-        <div className="flex items-start justify-between border-b border-[var(--border-default)] px-6 py-5">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h2 className="truncate text-[24px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">
-                {loading ? '加载中...' : stock?.company_name}
-              </h2>
-              {stock ? <Chip tone="outline">{stock.symbol}</Chip> : null}
+    <>
+      <div
+        className="fixed inset-0 z-40 cursor-pointer bg-black/20 backdrop-blur-[2px] dark:bg-black/40"
+        onClick={onClose}
+      />
+
+      <aside className="fixed right-0 top-0 bottom-0 z-50 flex w-[560px] max-w-[calc(100vw-20px)] flex-col bg-white shadow-2xl dark:bg-[#252525]">
+        <div className="border-b border-[#E5E5E4] px-6 py-5 dark:border-[#3A3A3A]">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="truncate text-[22px] font-semibold tracking-[-0.04em] text-[#1A1A1A] dark:text-[#F7F7F5]">
+                  {loading ? '加载中...' : stock?.company_name}
+                </h2>
+                {stock ? <span className="text-[15px] text-[#6B6B6A] dark:text-[#9B9B9A]">{stock.symbol}</span> : null}
+                {stock ? (
+                  <span className="rounded bg-[#F0F0EF] px-2 py-0.5 text-[11px] text-[#6B6B6A] dark:bg-[#2A2A2A] dark:text-[#9B9B9A]">
+                    {exchangeLabel(stock.exchange)}
+                  </span>
+                ) : null}
+              </div>
+
+              {stock ? (
+                <>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {stock.board ? (
+                      <span className="rounded bg-[#F0F0EF] px-2 py-0.5 text-[11px] text-[#6B6B6A] dark:bg-[#2A2A2A] dark:text-[#9B9B9A]">
+                        {stock.board}
+                      </span>
+                    ) : null}
+                    {stock.status === 'suspended' ? (
+                      <span className="rounded bg-[#FEF3F2] px-2 py-0.5 text-[11px] text-[#B91C1C] dark:bg-[#3A1A1A] dark:text-[#EF4444]">
+                        停牌/无实时报价
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-4 flex items-end gap-3">
+                    <span className="text-[30px] font-semibold tracking-[-0.05em] text-[#1A1A1A] dark:text-[#F7F7F5]">
+                      ¥{formatPrice(stock.current_price)}
+                    </span>
+                    <span
+                      className={cn(
+                        'mb-1 inline-flex items-center gap-1 text-[15px] font-semibold',
+                        positive ? 'text-[#059669] dark:text-[#10B981]' : 'text-[#DC2626] dark:text-[#EF4444]',
+                      )}
+                    >
+                      {positive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                      {formatSignedPercent(stock.change_percent)}
+                    </span>
+                  </div>
+                </>
+              ) : null}
             </div>
-            {stock ? (
-              <>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <Chip tone="muted">{exchangeLabel(stock.exchange)}</Chip>
-                  {stock.board ? <Chip tone="muted">{stock.board}</Chip> : null}
-                  {stock.status === 'suspended' ? <Chip tone="warning">停牌/无实时报价</Chip> : null}
-                </div>
-                <div className="mt-4 flex items-end gap-3">
-                  <div className="text-[30px] font-semibold tracking-[-0.05em] text-[var(--text-primary)]">
-                    {formatPrice(stock.current_price)}
-                  </div>
-                  <div className={cn('mb-1 inline-flex items-center gap-1 text-[15px] font-semibold', positive ? 'text-[rgb(21,128,61)]' : 'text-[rgb(185,28,28)]')}>
-                    {positive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-                    {formatPercent(stock.change_percent)}
-                  </div>
-                </div>
-              </>
-            ) : null}
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-[#6B6B6A] transition-colors hover:bg-[#F0F0EF] dark:text-[#9B9B9A] dark:hover:bg-[#2A2A2A]"
+                aria-label="加入跟踪"
+              >
+                <BookmarkPlus className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-[#6B6B6A] transition-colors hover:bg-[#F0F0EF] dark:text-[#9B9B9A] dark:hover:bg-[#2A2A2A]"
+                aria-label="关闭详情抽屉"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border-default)] text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            aria-label="关闭详情抽屉"
-          >
-            <X className="h-4.5 w-4.5" />
-          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {loading || !stock ? (
             <div className="space-y-3">
-              {Array.from({length: 4}).map((_, index) => (
-                <div key={index} className="h-20 animate-pulse rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-hover)]" />
+              {Array.from({length: 5}).map((_, index) => (
+                <div key={index} className="h-24 animate-pulse rounded-[18px] bg-[#F9F8F6] dark:bg-[#1A1A1A]" />
               ))}
             </div>
           ) : (
             <div className="space-y-6">
-              <section className="grid grid-cols-2 gap-3">
-                {[
-                  {label: '总市值', value: formatCompactNumber(stock.total_market_cap)},
-                  {label: '流通市值', value: formatCompactNumber(stock.circulating_market_cap)},
-                  {label: '市盈率TTM', value: stock.pe_ttm === null ? '--' : stock.pe_ttm.toFixed(2)},
-                  {label: '换手率', value: formatPercent(stock.turnover_rate)},
-                  {label: '开盘价', value: formatPrice(stock.open_price)},
-                  {label: '昨收价', value: formatPrice(stock.prev_close)},
-                  {label: '成交额', value: formatCompactNumber(stock.amount)},
-                  {label: '更新时间', value: new Date(stock.updated_at).toLocaleString('zh-CN', {hour12: false})},
-                ].map((item) => (
-                  <div key={item.label} className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
-                    <div className="text-[11px] text-[var(--text-muted)]">{item.label}</div>
-                    <div className="mt-2 text-[15px] font-semibold text-[var(--text-primary)]">{item.value}</div>
+              <section>
+                <h3 className="mb-3 text-[13px] font-medium text-[#1A1A1A] dark:text-[#F7F7F5]">概览</h3>
+                <div className="rounded-lg bg-[#F9F8F6] p-4 dark:bg-[#1A1A1A]">
+                  <p className="text-[14px] leading-7 text-[#4A4A49] dark:text-[#B0B0AF]">{buildCardSummary(stock)}</p>
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <div>
+                      <span className="text-[11px] text-[#9B9B9A] dark:text-[#6B6B6A]">总市值</span>
+                      <p className="mt-1 text-[14px] text-[#2A2A2A] dark:text-[#E5E5E4]">{formatCompactNumber(stock.total_market_cap)}</p>
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-[#9B9B9A] dark:text-[#6B6B6A]">流通市值</span>
+                      <p className="mt-1 text-[14px] text-[#2A2A2A] dark:text-[#E5E5E4]">{formatCompactNumber(stock.circulating_market_cap)}</p>
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-[#9B9B9A] dark:text-[#6B6B6A]">市盈率 TTM</span>
+                      <p className="mt-1 text-[14px] text-[#2A2A2A] dark:text-[#E5E5E4]">{formatPe(stock.pe_ttm)}</p>
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-[#9B9B9A] dark:text-[#6B6B6A]">更新时间</span>
+                      <p className="mt-1 text-[14px] text-[#2A2A2A] dark:text-[#E5E5E4]">{formatDatetime(stock.updated_at)}</p>
+                    </div>
                   </div>
-                ))}
-              </section>
-
-              <section className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-4">
-                <div className="text-[14px] font-semibold text-[var(--text-primary)]">研究标签</div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {stock.strategy_tags.length > 0 ? stock.strategy_tags.map((tag) => (
-                    <Chip key={tag} tone="accent">{tag}</Chip>
-                  )) : <div className="text-[12px] text-[var(--text-secondary)]">当前快照还没有命中策略标签</div>}
                 </div>
               </section>
 
-              <section className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-4">
-                <div className="text-[14px] font-semibold text-[var(--text-primary)]">快照解读</div>
-                <div className="mt-3 space-y-2 text-[13px] leading-6 text-[var(--text-secondary)]">
-                  <div>当前标的位于 {exchangeLabel(stock.exchange)}，板块归属 {stock.board || '主板'}。</div>
-                  <div>从交易维度看，涨跌幅 {formatPercent(stock.change_percent)}，成交额 {formatCompactNumber(stock.amount)}，换手率 {formatPercent(stock.turnover_rate)}。</div>
-                  <div>从估值维度看，市盈率 TTM {stock.pe_ttm === null ? '--' : stock.pe_ttm.toFixed(2)}，总市值 {formatCompactNumber(stock.total_market_cap)}。</div>
+              <section>
+                <h3 className="mb-3 text-[13px] font-medium text-[#1A1A1A] dark:text-[#F7F7F5]">关键指标</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    {label: '涨跌幅', value: formatSignedPercent(stock.change_percent), accent: positive ? 'text-[#059669] dark:text-[#10B981]' : 'text-[#DC2626] dark:text-[#EF4444]'},
+                    {label: '换手率', value: formatPercent(stock.turnover_rate), accent: 'text-[#2A2A2A] dark:text-[#E5E5E4]'},
+                    {label: '开盘价', value: `¥${formatPrice(stock.open_price)}`, accent: 'text-[#2A2A2A] dark:text-[#E5E5E4]'},
+                    {label: '昨收价', value: `¥${formatPrice(stock.prev_close)}`, accent: 'text-[#2A2A2A] dark:text-[#E5E5E4]'},
+                    {label: '成交额', value: formatCompactNumber(stock.amount), accent: 'text-[#2A2A2A] dark:text-[#E5E5E4]'},
+                    {label: '研究标签', value: `${stock.strategy_tags.length} 个`, accent: 'text-[#2A2A2A] dark:text-[#E5E5E4]'},
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-lg bg-[#F9F8F6] p-3 dark:bg-[#1A1A1A]">
+                      <span className="text-[11px] text-[#9B9B9A] dark:text-[#6B6B6A]">{item.label}</span>
+                      <p className={cn('mt-1 text-[18px] font-medium', item.accent)}>{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section>
+                <h3 className="mb-3 text-[13px] font-medium text-[#1A1A1A] dark:text-[#F7F7F5]">策略标签</h3>
+                <div className="flex flex-wrap gap-2 rounded-lg bg-[#F9F8F6] p-4 dark:bg-[#1A1A1A]">
+                  {stock.strategy_tags.length > 0 ? (
+                    stock.strategy_tags.map((tag) => (
+                      <span key={tag} className="rounded bg-[#2A4A6F] px-2.5 py-1 text-[12px] text-white dark:bg-[#304F71]">
+                        {tag}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-[13px] text-[#6B6B6A] dark:text-[#9B9B9A]">当前快照还没有命中策略标签。</p>
+                  )}
+                </div>
+              </section>
+
+              <section>
+                <h3 className="mb-3 text-[13px] font-medium text-[#1A1A1A] dark:text-[#F7F7F5]">投资逻辑</h3>
+                <div className="space-y-2">
+                  {investmentLogic.map((item) => (
+                    <div key={item} className="flex items-start gap-2">
+                      <div className="mt-2 h-1.5 w-1.5 rounded-full bg-[#A67C00] dark:bg-[#D4A72C]" />
+                      <p className="flex-1 text-[13px] leading-6 text-[#4A4A49] dark:text-[#B0B0AF]">{item}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section>
+                <h3 className="mb-3 text-[13px] font-medium text-[#1A1A1A] dark:text-[#F7F7F5]">风险提示</h3>
+                <div className="space-y-2">
+                  {riskAlerts.map((item) => (
+                    <div key={item} className="flex items-start gap-2 rounded-lg bg-[#FEF3F2] p-3 dark:bg-[#3A1A1A]">
+                      <span className="mt-0.5 text-[12px] text-[#B91C1C] dark:text-[#EF4444]">•</span>
+                      <p className="flex-1 text-[13px] leading-6 text-[#4A4A49] dark:text-[#B0B0AF]">{item}</p>
+                    </div>
+                  ))}
                 </div>
               </section>
             </div>
           )}
         </div>
 
-        <div className="border-t border-[var(--border-default)] px-6 py-4">
-          <div className="flex gap-3">
+        <div className="border-t border-[#E5E5E4] px-6 py-4 dark:border-[#3A3A3A]">
+          <div className="space-y-2">
             <Button
-              variant="primary"
-              size="sm"
-              className="flex-1"
+              variant="ink"
+              size="md"
+              block
+              className="justify-center"
+              disabled={!stock}
+              onClick={() => stock && onStartResearch?.(stock)}
+            >
+              查看深度分析
+            </Button>
+            <Button
+              variant="secondary"
+              size="md"
+              block
+              className="justify-center border-[#D4D4D3] bg-white text-[#4A4A49] hover:bg-[#F0F0EF] dark:border-[#3A3A3A] dark:bg-[#1A1A1A] dark:text-[#B0B0AF] dark:hover:bg-[#2A2A2A]"
               disabled={!stock}
               onClick={() => stock && onStartResearch?.(stock)}
             >
               发起 AI 研究
             </Button>
-            <Button variant="ghost" size="sm" className="min-w-[112px]" onClick={onClose}>
-              关闭
+            <Button
+              variant="ghost"
+              size="md"
+              block
+              className="justify-center"
+              onClick={onClose}
+            >
+              关闭抽屉
             </Button>
           </div>
         </div>
       </aside>
-    </div>
+    </>
+  );
+}
+
+function SectionSkeleton() {
+  return (
+    <section className="overflow-hidden rounded-xl border border-[#E5E5E4] bg-white dark:border-[#3A3A3A] dark:bg-[#252525]">
+      <div className="border-b border-[#E5E5E4] bg-[#FAFAF8] px-5 py-4 dark:border-[#3A3A3A] dark:bg-[#1A1A1A]">
+        <div className="h-4 w-28 animate-pulse rounded bg-[#E5E5E4] dark:bg-[#2A2A2A]" />
+        <div className="mt-2 h-3 w-40 animate-pulse rounded bg-[#ECECEC] dark:bg-[#232323]" />
+      </div>
+      <div className="grid gap-4 p-5 xl:grid-cols-2">
+        {Array.from({length: 4}).map((_, index) => (
+          <div key={index} className="h-[190px] animate-pulse rounded-[18px] bg-[#F5F4F2] dark:bg-[#1A1A1A]" />
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -445,7 +703,7 @@ export function StockMarketView({
               <select
                 value={sortBy}
                 onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
-                className="h-12 rounded-[16px] border border-[rgba(255,255,255,0.08)] bg-[rgba(24,22,20,0.96)] px-4 text-[13px] text-[var(--text-primary)] outline-none"
+                className="h-12 cursor-pointer rounded-[16px] border border-[rgba(255,255,255,0.08)] bg-[rgba(24,22,20,0.96)] px-4 text-[13px] text-[var(--text-primary)] outline-none"
               >
                 <option value="change_percent_desc">排序: 涨跌幅</option>
                 <option value="market_cap_desc">排序: 总市值</option>
@@ -496,62 +754,63 @@ export function StockMarketView({
         </div>
 
         {loading ? (
-          <div className="mt-6 space-y-4">
-            {Array.from({length: 5}).map((_, index) => (
-              <div key={index} className="h-[98px] animate-pulse rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)]" />
+          <div className="mt-6 space-y-6">
+            {Array.from({length: showingSearchResults ? 1 : 4}).map((_, index) => (
+              <SectionSkeleton key={index} />
             ))}
           </div>
         ) : error ? (
           <div className="mt-6">
-            <StatusPanel
-              title="股票市场暂时不可用"
-              description={error}
-              tone="danger"
-            />
+            <StatusPanel title="股票市场暂时不可用" description={error} tone="danger" />
           </div>
         ) : showingSearchResults ? (
           <div className="mt-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-[18px] font-semibold text-[var(--text-primary)]">筛选结果</div>
-                <div className="mt-1 text-[12px] text-[var(--text-secondary)]">当前命中 {total} 只股票</div>
+            <section className="overflow-hidden rounded-xl border border-[#E5E5E4] bg-white dark:border-[#3A3A3A] dark:bg-[#252525]">
+              <div className="border-b border-[#E5E5E4] bg-[#FAFAF8] px-5 py-4 dark:border-[#3A3A3A] dark:bg-[#1A1A1A]">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[16px] font-medium text-[#1A1A1A] dark:text-[#F7F7F5]">筛选结果</div>
+                    <div className="mt-1 text-[12px] text-[#6B6B6A] dark:text-[#9B9B9A]">当前命中 {total} 只股票</div>
+                  </div>
+                </div>
               </div>
-            </div>
-            {listItems.length === 0 ? (
-              <EmptyPanel title="没有匹配到股票" description="可以清空筛选条件，或者尝试股票代码、简称和更宽泛的关键词。" />
-            ) : (
-              <div className="space-y-3">
-                {listItems.map((stock) => (
-                  <StockRow
-                    key={stock.id}
-                    stock={stock}
-                    active={selectedStockId === stock.id}
-                    onClick={() => setSelectedStockId(stock.id)}
+              <div className="p-5">
+                {listItems.length === 0 ? (
+                  <EmptyPanel title="没有匹配到股票" description="可以清空筛选条件，或者尝试股票代码、简称和更宽泛的关键词。" />
+                ) : (
+                  <StockGrid
+                    stocks={listItems}
+                    selectedStockId={selectedStockId}
+                    onSelectStock={setSelectedStockId}
+                    onStartResearch={onStartResearch}
                   />
-                ))}
+                )}
               </div>
-            )}
+            </section>
           </div>
         ) : (
-          <div className="mt-6 space-y-7">
+          <div className="mt-6 space-y-6">
             {sections.map((section) => (
-              <section key={section.key}>
-                <div className="mb-3 flex items-end justify-between gap-3">
-                  <div>
-                    <div className="text-[18px] font-semibold text-[var(--text-primary)]">{section.key}</div>
-                    <div className="mt-1 text-[12px] text-[var(--text-secondary)]">{section.description}</div>
+              <section
+                key={section.key}
+                className="overflow-hidden rounded-xl border border-[#E5E5E4] bg-white dark:border-[#3A3A3A] dark:bg-[#252525]"
+              >
+                <div className="border-b border-[#E5E5E4] bg-[#FAFAF8] px-5 py-4 dark:border-[#3A3A3A] dark:bg-[#1A1A1A]">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-[16px] font-medium text-[#1A1A1A] dark:text-[#F7F7F5]">{section.key}</div>
+                      <div className="mt-1 text-[12px] text-[#6B6B6A] dark:text-[#9B9B9A]">{section.description}</div>
+                    </div>
+                    <div className="text-[12px] text-[#6B6B6A] dark:text-[#9B9B9A]">{section.items.length} 只</div>
                   </div>
-                  <div className="text-[12px] text-[var(--text-muted)]">{section.items.length} 只</div>
                 </div>
-                <div className="space-y-3">
-                  {section.items.map((stock) => (
-                    <StockRow
-                      key={stock.id}
-                      stock={stock}
-                      active={selectedStockId === stock.id}
-                      onClick={() => setSelectedStockId(stock.id)}
-                    />
-                  ))}
+                <div className="p-5">
+                  <StockGrid
+                    stocks={section.items}
+                    selectedStockId={selectedStockId}
+                    onSelectStock={setSelectedStockId}
+                    onStartResearch={onStartResearch}
+                  />
                 </div>
               </section>
             ))}
