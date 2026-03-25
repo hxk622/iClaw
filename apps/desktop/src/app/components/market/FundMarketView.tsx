@@ -5,6 +5,7 @@ import {PageContent, PageHeader, PageSurface} from '@/app/components/ui/PageLayo
 import {Button} from '@/app/components/ui/Button';
 import {Chip} from '@/app/components/ui/Chip';
 import {cn} from '@/app/lib/cn';
+import {INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE} from '@/app/lib/ui-interactions';
 
 type FundItem = {
   id: string;
@@ -97,7 +98,7 @@ function FundDrawer({fund, onClose}: {fund: FundItem | null; onClose: () => void
   const positive = fund.return1y >= 0;
   return (
     <div className="pointer-events-none absolute inset-0 z-20">
-      <div className="absolute inset-0 bg-[rgba(15,23,42,0.18)] backdrop-blur-[2px]" onClick={onClose} />
+      <div className="absolute inset-0 cursor-pointer bg-[rgba(15,23,42,0.18)] backdrop-blur-[2px]" onClick={onClose} />
       <aside className="pointer-events-auto absolute right-0 top-0 flex h-full w-[min(520px,calc(100vw-180px))] flex-col border-l border-[var(--border-default)] bg-[rgba(250,250,248,0.98)] shadow-[-24px_0_48px_rgba(15,23,42,0.12)]">
         <div className="flex items-start justify-between border-b border-[var(--border-default)] px-6 py-5">
           <div className="min-w-0">
@@ -120,7 +121,11 @@ function FundDrawer({fund, onClose}: {fund: FundItem | null; onClose: () => void
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border-default)] text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            className={cn(
+              'inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-[var(--border-default)] text-[var(--text-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
+              SPRING_PRESSABLE,
+              INTERACTIVE_FOCUS_RING,
+            )}
           >
             <X className="h-4.5 w-4.5" />
           </button>
@@ -205,7 +210,11 @@ export function FundMarketView({title = '基金市场'}: {title?: string}) {
                       key={fund.id}
                       type="button"
                       onClick={() => setSelectedFund(fund)}
-                      className="grid w-full grid-cols-[minmax(0,1.6fr)_120px_120px_140px] items-center gap-4 rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-4 text-left transition hover:-translate-y-[1px] hover:border-[rgba(42,74,111,0.18)] hover:bg-[var(--bg-hover)]"
+                      className={cn(
+                        'grid w-full cursor-pointer grid-cols-[minmax(0,1.6fr)_120px_120px_140px] items-center gap-4 rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-4 text-left transition hover:border-[rgba(42,74,111,0.18)] hover:bg-[var(--bg-hover)]',
+                        SPRING_PRESSABLE,
+                        INTERACTIVE_FOCUS_RING,
+                      )}
                     >
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">

@@ -6,6 +6,7 @@ import {BookmarkPlus, MessageSquare, Search, TrendingDown, TrendingUp, X} from '
 import {PageContent, PageHeader, PageSurface} from '@/app/components/ui/PageLayout';
 import {Chip} from '@/app/components/ui/Chip';
 import {cn} from '@/app/lib/cn';
+import {INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE} from '@/app/lib/ui-interactions';
 
 const EXCHANGE_TABS = [
   {label: '全部A股', value: ''},
@@ -195,7 +196,9 @@ function MarketActionButton({
       type={props.type || 'button'}
       className={cn(
         'inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[12px] border px-3 py-2 text-[12px] font-semibold tracking-[0.01em] transition-all duration-200',
-        'focus:outline-none focus:ring-2 focus:ring-[#4E6E94]/30',
+        SPRING_PRESSABLE,
+        INTERACTIVE_FOCUS_RING,
+        'focus:ring-[#4E6E94]/30',
         'disabled:cursor-not-allowed disabled:opacity-45 disabled:saturate-75',
         className,
       )}
@@ -271,6 +274,8 @@ function StockCard({
       }}
       className={cn(
         'relative flex h-full cursor-pointer flex-col rounded-[18px] border p-4 text-left transition-all duration-200',
+        SPRING_PRESSABLE,
+        INTERACTIVE_FOCUS_RING,
         'bg-white dark:bg-[#1A1A1A]',
         active
           ? 'border-[#2A4A6F] bg-[#EAF0F6] shadow-[0_12px_30px_rgba(42,74,111,0.14)] dark:bg-[#1E3A5F]/30 dark:border-[#3A5A8F]'
