@@ -1,9 +1,9 @@
+import type {ButtonHTMLAttributes, ReactNode} from 'react';
 import {useDeferredValue, useEffect, useState} from 'react';
 import type {IClawClient, MarketStockData} from '@iclaw/sdk';
 import {BookmarkPlus, MessageSquare, Search, TrendingDown, TrendingUp, X} from 'lucide-react';
 
 import {PageContent, PageHeader, PageSurface} from '@/app/components/ui/PageLayout';
-import {Button} from '@/app/components/ui/Button';
 import {Chip} from '@/app/components/ui/Chip';
 import {cn} from '@/app/lib/cn';
 
@@ -146,6 +146,62 @@ function buildRiskAlerts(stock: MarketStockData): string[] {
   return risks.slice(0, 3);
 }
 
+function stockTagClasses(tag: string): string {
+  if (tag === '低估值') {
+    return 'bg-[#5B4614] text-[#F8E7AF] ring-1 ring-inset ring-[#8F6A14] dark:bg-[#6E5414] dark:text-[#F8E1A0] dark:ring-[#B68A1B]';
+  }
+  if (tag === '大盘核心') {
+    return 'bg-[#1E3652] text-[#D6E7FB] ring-1 ring-inset ring-[#35557A] dark:bg-[#27415F] dark:text-[#DDEBFA] dark:ring-[#476B96]';
+  }
+  if (tag === '高换手') {
+    return 'bg-[#4A2E66] text-[#E8D8FF] ring-1 ring-inset ring-[#6A4691] dark:bg-[#5B387C] dark:text-[#EDDEFF] dark:ring-[#8458B0]';
+  }
+  if (tag === '强势异动') {
+    return 'bg-[#612A2D] text-[#FFD8DC] ring-1 ring-inset ring-[#8A4046] dark:bg-[#723238] dark:text-[#FFE1E5] dark:ring-[#A8525A]';
+  }
+  if (tag === '小盘成长') {
+    return 'bg-[#1C4A3C] text-[#CDEFE0] ring-1 ring-inset ring-[#2E6B57] dark:bg-[#205445] dark:text-[#D8F7E8] dark:ring-[#367762]';
+  }
+  if (tag === '高成交额') {
+    return 'bg-[#144A58] text-[#D0F2F8] ring-1 ring-inset ring-[#2B6C7D] dark:bg-[#1A5666] dark:text-[#DCF7FB] dark:ring-[#397E91]';
+  }
+  if (tag === '科创板') {
+    return 'bg-[#243A62] text-[#D8E4FF] ring-1 ring-inset ring-[#3C5C93] dark:bg-[#2B4775] dark:text-[#E0E9FF] dark:ring-[#5272AC]';
+  }
+  if (tag === '创业板') {
+    return 'bg-[#624018] text-[#FFE4BE] ring-1 ring-inset ring-[#8F6127] dark:bg-[#764D1C] dark:text-[#FFE9C9] dark:ring-[#A87432]';
+  }
+  if (tag === '主板') {
+    return 'bg-[#383838] text-[#E7E5E1] ring-1 ring-inset ring-[#575757] dark:bg-[#414141] dark:text-[#F1EEE9] dark:ring-[#676767]';
+  }
+  return 'bg-[#2A4A6F] text-white ring-1 ring-inset ring-[#456A96] dark:bg-[#304F71] dark:text-white dark:ring-[#4B739C]';
+}
+
+function MarketActionButton({
+  children,
+  className,
+  leadingIcon,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  leadingIcon?: ReactNode;
+}) {
+  return (
+    <button
+      type={props.type || 'button'}
+      className={cn(
+        'inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[12px] border px-3 py-2 text-[12px] font-medium transition-all duration-200',
+        'focus:outline-none focus:ring-2 focus:ring-[#4E6E94]/30',
+        'disabled:cursor-not-allowed disabled:opacity-50',
+        className,
+      )}
+      {...props}
+    >
+      {leadingIcon ? <span className="shrink-0">{leadingIcon}</span> : null}
+      <span>{children}</span>
+    </button>
+  );
+}
+
 function EmptyPanel({title, description}: {title: string; description: string}) {
   return (
     <div className="rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-6 py-10 text-center">
@@ -256,7 +312,7 @@ function StockCard({
 
       <div className="mt-3 flex flex-wrap gap-2">
         {stock.strategy_tags.slice(0, 4).map((tag) => (
-          <span key={tag} className="rounded bg-[#2A4A6F] px-2 py-0.5 text-[11px] text-white dark:bg-[#304F71]">
+          <span key={tag} className={cn('rounded px-2 py-0.5 text-[11px]', stockTagClasses(tag))}>
             {tag}
           </span>
         ))}
@@ -274,10 +330,8 @@ function StockCard({
           ))}
         </div>
 
-        <Button
-          variant="ink"
-          size="sm"
-          className="h-8 rounded-[10px] px-3 text-[12px]"
+        <MarketActionButton
+          className="h-8 border-[#38577C] bg-[#1E3A5F] text-white shadow-[0_8px_18px_rgba(18,35,56,0.26)] hover:bg-[#2A4A6F] dark:border-[#4A6D94] dark:bg-[#2A4A6F] dark:text-white dark:hover:bg-[#355883]"
           leadingIcon={<MessageSquare className="h-3.5 w-3.5" />}
           onClick={(event) => {
             event.stopPropagation();
@@ -285,7 +339,7 @@ function StockCard({
           }}
         >
           AI 对话
-        </Button>
+        </MarketActionButton>
       </div>
     </div>
   );
@@ -468,7 +522,7 @@ function StockDetailDrawer({
                 <div className="flex flex-wrap gap-2 rounded-lg bg-[#F9F8F6] p-4 dark:bg-[#1A1A1A]">
                   {stock.strategy_tags.length > 0 ? (
                     stock.strategy_tags.map((tag) => (
-                      <span key={tag} className="rounded bg-[#2A4A6F] px-2.5 py-1 text-[12px] text-white dark:bg-[#304F71]">
+                      <span key={tag} className={cn('rounded px-2.5 py-1 text-[12px]', stockTagClasses(tag))}>
                         {tag}
                       </span>
                     ))
@@ -507,35 +561,26 @@ function StockDetailDrawer({
 
         <div className="border-t border-[#E5E5E4] px-6 py-4 dark:border-[#3A3A3A]">
           <div className="space-y-2">
-            <Button
-              variant="ink"
-              size="md"
-              block
-              className="justify-center"
+            <MarketActionButton
+              className="flex h-11 w-full border-[#38577C] bg-[#F3EDE3] text-[#1E2F45] shadow-[0_10px_20px_rgba(7,10,16,0.18)] hover:bg-[#E8DED0] dark:border-[#D0C3AE] dark:bg-[#EEE7DC] dark:text-[#1F2B3A] dark:hover:bg-[#E2D6C4]"
               disabled={!stock}
               onClick={() => stock && onStartResearch?.(stock)}
             >
               查看深度分析
-            </Button>
-            <Button
-              variant="secondary"
-              size="md"
-              block
-              className="justify-center border-[#D4D4D3] bg-white text-[#4A4A49] hover:bg-[#F0F0EF] dark:border-[#3A3A3A] dark:bg-[#1A1A1A] dark:text-[#B0B0AF] dark:hover:bg-[#2A2A2A]"
+            </MarketActionButton>
+            <MarketActionButton
+              className="flex h-11 w-full border-[#3A3A3A] bg-transparent text-[#D5D1CA] hover:bg-[#2B2B2B] dark:border-[#434343] dark:bg-transparent dark:text-[#D8D4CD] dark:hover:bg-[#2B2B2B]"
               disabled={!stock}
               onClick={() => stock && onStartResearch?.(stock)}
             >
               发起 AI 研究
-            </Button>
-            <Button
-              variant="ghost"
-              size="md"
-              block
-              className="justify-center"
+            </MarketActionButton>
+            <MarketActionButton
+              className="flex h-11 w-full border-[#323232] bg-transparent text-[#9D9890] hover:bg-[#262626] dark:border-[#3B3B3B] dark:bg-transparent dark:text-[#AAA49B] dark:hover:bg-[#262626]"
               onClick={onClose}
             >
               关闭抽屉
-            </Button>
+            </MarketActionButton>
           </div>
         </div>
       </aside>
