@@ -94,7 +94,7 @@ const DEFAULT_ENABLED_MENU_KEYS = [
 const DEFAULT_MENU_UI_CONFIG: Record<string, RequiredResolvedMenuUiConfig> = {
   chat: { displayName: '智能对话', group: '工作台', iconKey: 'chat' },
   cron: { displayName: '定时任务', group: '工作台', iconKey: 'cron' },
-  'investment-experts': { displayName: '智能投资专家', group: '工作台', iconKey: 'investment-experts' },
+  'investment-experts': { displayName: '智能投资专家', group: '商店', iconKey: 'investment-experts' },
   'stock-market': { displayName: '股票市场', group: '市场', iconKey: 'stock-market' },
   'fund-market': { displayName: '基金市场', group: '市场', iconKey: 'fund-market' },
   'lobster-store': { displayName: '龙虾商店', group: '商店', iconKey: 'lobster-store' },

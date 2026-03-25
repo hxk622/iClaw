@@ -281,7 +281,14 @@ export function Sidebar({
 
   const renderGroup = (title: string | null, items: SidebarItem[]) => (
     <div className="mb-3">
-      {title ? <div className="mb-1.5 px-3 text-xs text-[var(--text-muted)]">{title}</div> : null}
+      {title ? (
+        <div className="mb-2 px-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold tracking-[0.12em] text-[var(--text-muted)]">{title}</span>
+            <span className="h-px flex-1 bg-[color-mix(in_srgb,var(--border-default)_78%,transparent)]" />
+          </div>
+        </div>
+      ) : null}
       <div className="space-y-0.5">
         {items.map((item) => (
           <button
