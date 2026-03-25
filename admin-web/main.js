@@ -80,6 +80,13 @@ const BRAND_DETAIL_TAB_GROUPS = [
   {id: 'brand', label: '品牌资源', icon: 'image', tabs: ['assets', 'theme']},
 ];
 const ADMIN_SKILL_BROWSER_PAGE_SIZE = 100;
+const AGENT_AVATAR_PRESET_OPTIONS = Array.from({length: 16}, (_, index) => {
+  const number = String(index + 1).padStart(2, '0');
+  return {
+    value: `/agent-avatars/pexels/portrait-${number}.jpg`,
+    label: `职业头像 ${number}`,
+  };
+});
 
 const app = document.querySelector('#app');
 
@@ -1660,6 +1667,18 @@ function resolveAssetUrl(item) {
 
 function prettyJson(value) {
   return JSON.stringify(value || {}, null, 2);
+}
+
+function getAgentEditableAvatarUrl(agent) {
+  return String(asObject(agent?.metadata).avatar_url || '').trim();
+}
+
+function getAgentAvatarPresetValue(avatarUrl) {
+  const matched = AGENT_AVATAR_PRESET_OPTIONS.find((item) => item.value === avatarUrl);
+  if (matched) {
+    return matched.value;
+  }
+  return avatarUrl ? '__custom__' : '';
 }
 
 function formatEnvPairs(env) {
@@ -3490,6 +3509,13 @@ async function saveAgentCatalogEntry(formData) {
 
   try {
     const slug = String(formData.get('slug') || '').trim();
+    const metadata = asObject(parseJsonText(String(formData.get('metadata_json') || '{}').trim() || '{}', 'Agent metadata'));
+    const avatarUrl = String(formData.get('avatar_url') || '').trim();
+    if (avatarUrl) {
+      metadata.avatar_url = avatarUrl;
+    } else {
+      delete metadata.avatar_url;
+    }
     await apiFetch('/admin/agents/catalog', {
       method: 'PUT',
       body: JSON.stringify({
@@ -3503,7 +3529,7 @@ async function saveAgentCatalogEntry(formData) {
         tags: splitLines(formData.get('tags_text')),
         capabilities: splitLines(formData.get('capabilities_text')),
         use_cases: splitLines(formData.get('use_cases_text')),
-        metadata: parseJsonText(String(formData.get('metadata_json') || '{}').trim() || '{}', 'Agent metadata'),
+        metadata,
         sort_order: Number.parseInt(String(formData.get('sort_order') || '9999').trim() || '9999', 10),
         active: String(formData.get('active') || 'true') === 'true',
       }),
@@ -6190,6 +6216,9 @@ function renderAgentEditorForm(agent) {
     sort_order: 9999,
     active: true,
   };
+  const avatarUrl = getAgentEditableAvatarUrl(editable);
+  const avatarPresetValue = getAgentAvatarPresetValue(avatarUrl);
+  const avatarPreviewUrl = avatarUrl || '';
 
   return `
     <section class="fig-card fig-card--subtle">
@@ -6247,6 +6276,39 @@ function renderAgentEditorForm(agent) {
             <option value="false"${editable.official === false ? ' selected' : ''}>false</option>
           </select>
         </label>
+        <label class="field">
+          <span>头像预设</span>
+          <select class="field-select" name="avatar_preset" data-agent-avatar-preset="true">
+            <option value=""${avatarPresetValue === '' ? ' selected' : ''}>自动分配</option>
+            ${AGENT_AVATAR_PRESET_OPTIONS.map((item) => `<option value="${escapeHtml(item.value)}"${avatarPresetValue === item.value ? ' selected' : ''}>${escapeHtml(item.label)}</option>`).join('')}
+            <option value="__custom__"${avatarPresetValue === '__custom__' ? ' selected' : ''}>自定义 URL</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>头像 URL</span>
+          <input
+            class="field-input"
+            name="avatar_url"
+            value="${fieldValue(avatarUrl)}"
+            placeholder="/agent-avatars/pexels/portrait-01.jpg"
+            data-agent-avatar-url="true"
+          />
+        </label>
+        <div class="field">
+          <span>头像预览</span>
+          <div style="display:flex;align-items:center;gap:12px;min-height:72px;">
+            <div style="width:56px;height:56px;border-radius:999px;overflow:hidden;border:1px solid rgba(212,183,120,0.28);background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              ${
+                avatarPreviewUrl
+                  ? `<img src="${escapeHtml(avatarPreviewUrl)}" alt="avatar preview" data-agent-avatar-preview="true" style="width:100%;height:100%;object-fit:cover;" />`
+                  : `<span data-agent-avatar-empty="true" style="font-size:12px;color:var(--text-secondary);">自动</span><img src="" alt="avatar preview" data-agent-avatar-preview="true" style="display:none;width:100%;height:100%;object-fit:cover;" />`
+              }
+            </div>
+            <div style="font-size:12px;line-height:1.6;color:var(--text-secondary);">
+              留空时前台会走自动头像池分配。选择预设会自动写入 URL。
+            </div>
+          </div>
+        </div>
         <label class="field field--wide">
           <span>Tags</span>
           <textarea class="field-textarea" name="tags_text" placeholder="每行一个 tag">${escapeHtml((editable.tags || []).join('\n'))}</textarea>
@@ -8954,6 +9016,48 @@ function handleFilterInput(target) {
   render();
 }
 
+function syncAgentAvatarEditor(form) {
+  if (!(form instanceof HTMLFormElement) || form.id !== 'agent-editor-form') {
+    return;
+  }
+  const preset = form.querySelector('[data-agent-avatar-preset="true"]');
+  const input = form.querySelector('[data-agent-avatar-url="true"]');
+  const preview = form.querySelector('[data-agent-avatar-preview="true"]');
+  const empty = form.querySelector('[data-agent-avatar-empty="true"]');
+  if (!(preset instanceof HTMLSelectElement) || !(input instanceof HTMLInputElement) || !(preview instanceof HTMLImageElement)) {
+    return;
+  }
+
+  if (document.activeElement === preset) {
+    if (preset.value === '__custom__') {
+      if (AGENT_AVATAR_PRESET_OPTIONS.some((item) => item.value === input.value.trim())) {
+        input.value = '';
+      }
+    } else {
+      input.value = preset.value;
+    }
+  } else {
+    const normalized = input.value.trim();
+    const matchedPreset = AGENT_AVATAR_PRESET_OPTIONS.find((item) => item.value === normalized);
+    preset.value = matchedPreset ? matchedPreset.value : normalized ? '__custom__' : '';
+  }
+
+  const nextUrl = input.value.trim();
+  if (nextUrl) {
+    preview.src = nextUrl;
+    preview.style.display = 'block';
+    if (empty instanceof HTMLElement) {
+      empty.style.display = 'none';
+    }
+  } else {
+    preview.removeAttribute('src');
+    preview.style.display = 'none';
+    if (empty instanceof HTMLElement) {
+      empty.style.display = 'inline';
+    }
+  }
+}
+
 app.addEventListener('input', (event) => {
   const target = event.target;
   if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement)) {
@@ -8961,6 +9065,10 @@ app.addEventListener('input', (event) => {
   }
   if (target.closest('#brand-editor-form')) {
     syncBrandEditorBuffer();
+  }
+  const agentEditorForm = target.closest('#agent-editor-form');
+  if (agentEditorForm) {
+    syncAgentAvatarEditor(agentEditorForm);
   }
   handleFilterInput(target);
 });
@@ -8972,6 +9080,10 @@ app.addEventListener('change', (event) => {
   }
   if (target.closest('#brand-editor-form')) {
     syncBrandEditorBuffer();
+  }
+  const agentEditorForm = target.closest('#agent-editor-form');
+  if (agentEditorForm) {
+    syncAgentAvatarEditor(agentEditorForm);
   }
   handleFilterInput(target);
 });
