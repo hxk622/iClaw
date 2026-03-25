@@ -1665,6 +1665,16 @@ body {
   overflow: hidden;
 }
 
+.iclaw-composer__floating-menu {
+  position: absolute;
+  z-index: 46;
+  pointer-events: auto;
+}
+
+.iclaw-composer__floating-menu > .iclaw-composer__selector-menu {
+  position: static;
+}
+
 .iclaw-composer__selector-menu--expert {
   width: min(300px, calc(100vw - 72px));
   min-height: 168px;

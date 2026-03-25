@@ -53,15 +53,20 @@ export type ComposerSendPayload = {
   selectedOutputLabel: string | null;
 };
 
-export type ComposerStockContext = {
+export type ComposerInstrumentKind = 'stock' | 'fund' | 'etf' | 'qdii';
+
+export type ComposerInstrumentContext = {
   id: string;
   symbol: string;
   companyName: string;
-  exchange: 'sh' | 'sz' | 'bj';
+  exchange: 'sh' | 'sz' | 'bj' | 'otc';
   board: string | null;
+  instrumentKind?: ComposerInstrumentKind;
+  instrumentLabel?: string | null;
 };
 
-export type ComposerStockOption = ComposerStockContext;
+export type ComposerStockContext = ComposerInstrumentContext;
+export type ComposerStockOption = ComposerInstrumentContext;
 
 export type ComposerDraftAttachment = {
   type: 'image' | 'pdf' | 'video' | 'file';
@@ -111,6 +116,13 @@ type ComposerStaticOption = {
 type RecentSelectionBucket = 'agents' | 'skills' | 'modes' | 'markets' | 'watchlists' | 'outputs';
 
 type RecentSelectionState = Record<RecentSelectionBucket, string[]>;
+
+type ComposerMenuSource = 'toolbar' | 'typing';
+
+type ComposerFloatingMenuPosition = {
+  left: number;
+  top: number;
+};
 
 type ComposerTokenMeta = {
   id: string;
@@ -227,8 +239,9 @@ const DEFAULT_TOP_BAR_CONTROLS = [
   { controlKey: 'skill', displayName: '选择技能', controlType: 'skill', sortOrder: 20, options: [] },
   { controlKey: 'mode', displayName: '选择模式', controlType: 'static', sortOrder: 30, options: MODE_OPTIONS },
   { controlKey: 'market-scope', displayName: '选择市场', controlType: 'static', sortOrder: 40, options: MARKET_SCOPE_OPTIONS },
-  { controlKey: 'watchlist', displayName: '自选股', controlType: 'static', sortOrder: 50, options: WATCHLIST_OPTIONS },
-  { controlKey: 'output-format', displayName: '选择输出', controlType: 'static', sortOrder: 60, options: OUTPUT_OPTIONS },
+  { controlKey: 'stock-context', displayName: '选择基金/ETF', controlType: 'stock', sortOrder: 50, options: [] },
+  { controlKey: 'watchlist', displayName: '选择股票', controlType: 'static', sortOrder: 60, options: WATCHLIST_OPTIONS },
+  { controlKey: 'output-format', displayName: '输出模版', controlType: 'static', sortOrder: 70, options: OUTPUT_OPTIONS },
 ] as const;
 
 const DEFAULT_FOOTER_SHORTCUTS = QUICK_QUERY_OPTIONS.map((item, index) => ({
@@ -260,9 +273,25 @@ function formatStockContextLabel(stock: ComposerStockContext | null | undefined)
   return `${stock.companyName} ${stock.symbol}`;
 }
 
+function resolveInstrumentContextTypeLabel(stock: ComposerStockContext | null | undefined): string {
+  const explicitLabel = stock?.instrumentLabel?.trim();
+  if (explicitLabel) return explicitLabel;
+  switch (stock?.instrumentKind) {
+    case 'etf':
+      return 'ETF';
+    case 'qdii':
+      return 'QDII';
+    case 'fund':
+      return '基金';
+    default:
+      return '股票';
+  }
+}
+
 function formatStockExchangeLabel(exchange: ComposerStockContext['exchange']): string {
   if (exchange === 'sh') return '上交所';
   if (exchange === 'sz') return '深交所';
+  if (exchange === 'otc') return '场外';
   return '北交所';
 }
 
@@ -606,10 +635,13 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     ref,
   ) {
     const editorRef = useRef<HTMLDivElement | null>(null);
+    const inputShellRef = useRef<HTMLDivElement | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const modelMenuRef = useRef<HTMLDivElement | null>(null);
-    const mentionMenuRef = useRef<HTMLDivElement | null>(null);
-    const stockMenuRef = useRef<HTMLDivElement | null>(null);
+    const mentionToolbarRef = useRef<HTMLDivElement | null>(null);
+    const mentionFloatingMenuRef = useRef<HTMLDivElement | null>(null);
+    const stockToolbarRef = useRef<HTMLDivElement | null>(null);
+    const stockFloatingMenuRef = useRef<HTMLDivElement | null>(null);
     const skillMenuRef = useRef<HTMLDivElement | null>(null);
     const modeMenuRef = useRef<HTMLDivElement | null>(null);
     const marketMenuRef = useRef<HTMLDivElement | null>(null);
@@ -624,7 +656,11 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const [tokenCount, setTokenCount] = useState(0);
     const [modelMenuOpen, setModelMenuOpen] = useState(false);
     const [mentionMenuOpen, setMentionMenuOpen] = useState(false);
+    const [mentionMenuSource, setMentionMenuSource] = useState<ComposerMenuSource | null>(null);
+    const [mentionMenuPosition, setMentionMenuPosition] = useState<ComposerFloatingMenuPosition | null>(null);
     const [stockMenuOpen, setStockMenuOpen] = useState(false);
+    const [stockMenuSource, setStockMenuSource] = useState<ComposerMenuSource | null>(null);
+    const [stockMenuPosition, setStockMenuPosition] = useState<ComposerFloatingMenuPosition | null>(null);
     const [skillMenuOpen, setSkillMenuOpen] = useState(false);
     const [modeMenuOpen, setModeMenuOpen] = useState(false);
     const [marketMenuOpen, setMarketMenuOpen] = useState(false);
@@ -815,6 +851,74 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       editor.focus();
     }, [restoreRange]);
 
+    const getCaretClientRect = useCallback((): DOMRect | null => {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) {
+        return null;
+      }
+      const range = selection.getRangeAt(0).cloneRange();
+      range.collapse(true);
+      const rects = range.getClientRects();
+      if (rects.length > 0) {
+        return rects[rects.length - 1];
+      }
+      const fallbackRect = range.getBoundingClientRect();
+      if (
+        fallbackRect.width > 0 ||
+        fallbackRect.height > 0 ||
+        fallbackRect.left > 0 ||
+        fallbackRect.top > 0
+      ) {
+        return fallbackRect;
+      }
+      if (range.startContainer instanceof Element) {
+        return range.startContainer.getBoundingClientRect();
+      }
+      return range.startContainer.parentElement?.getBoundingClientRect() ?? null;
+    }, []);
+
+    const computeFloatingMenuPosition = useCallback(
+      (kind: 'mention' | 'stock'): ComposerFloatingMenuPosition | null => {
+        const shellRect = inputShellRef.current?.getBoundingClientRect();
+        const caretRect = getCaretClientRect();
+        if (!shellRect || !caretRect) {
+          return null;
+        }
+
+        const estimatedWidth = kind === 'mention' ? 300 : 264;
+        const estimatedHeight = kind === 'mention' ? 296 : 304;
+        const horizontalInset = 8;
+        const verticalGap = 12;
+        const minLeft = horizontalInset;
+        const maxLeft = Math.max(minLeft, shellRect.width - estimatedWidth - horizontalInset);
+        const centeredLeft = caretRect.left - shellRect.left - estimatedWidth / 2;
+        const left = Math.min(maxLeft, Math.max(minLeft, centeredLeft));
+        const topAbove = caretRect.top - shellRect.top - estimatedHeight - verticalGap;
+        const topBelow = caretRect.bottom - shellRect.top + verticalGap;
+        const canPlaceAbove = topAbove >= 4;
+        const top = canPlaceAbove
+          ? topAbove
+          : Math.min(Math.max(4, shellRect.height - estimatedHeight - 4), topBelow);
+
+        return {left, top: Math.max(4, top)};
+      },
+      [getCaretClientRect],
+    );
+
+    const syncMentionMenuPosition = useCallback(() => {
+      const nextPosition = computeFloatingMenuPosition('mention');
+      if (nextPosition) {
+        setMentionMenuPosition(nextPosition);
+      }
+    }, [computeFloatingMenuPosition]);
+
+    const syncStockMenuPosition = useCallback(() => {
+      const nextPosition = computeFloatingMenuPosition('stock');
+      if (nextPosition) {
+        setStockMenuPosition(nextPosition);
+      }
+    }, [computeFloatingMenuPosition]);
+
     const getTextNodeBeforeCaret = useCallback((): {node: Text; offset: number} | null => {
       const editor = editorRef.current;
       const selection = window.getSelection();
@@ -883,11 +987,15 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
 
     const closeMentionMenu = useCallback(() => {
       setMentionMenuOpen(false);
+      setMentionMenuSource(null);
+      setMentionMenuPosition(null);
       pendingMentionTriggerRef.current = false;
     }, []);
 
     const closeStockMenu = useCallback(() => {
       setStockMenuOpen(false);
+      setStockMenuSource(null);
+      setStockMenuPosition(null);
       setStockQuery('');
       setStockError(null);
       pendingStockTriggerRef.current = false;
@@ -1176,11 +1284,12 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       focus();
     }, [closeStockMenu, focus, insertTextAtCaret, insertTokenAtCaret, refreshState, removeStockTokens, removeStockTriggerBeforeCaret]);
 
-    const openMentionMenu = useCallback((source: 'toolbar' | 'typing') => {
+    const openMentionMenu = useCallback((source: ComposerMenuSource) => {
       if (!connected) {
         return;
       }
       pendingMentionTriggerRef.current = source === 'typing';
+      setMentionMenuSource(source);
       closeStockMenu();
       closeSkillMenu();
       closeModeMenu();
@@ -1189,13 +1298,19 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       closeOutputMenu();
       setModelMenuOpen(false);
       setMentionMenuOpen(true);
-    }, [closeMarketMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, connected]);
+      if (source === 'typing') {
+        window.requestAnimationFrame(() => {
+          syncMentionMenuPosition();
+        });
+      }
+    }, [closeMarketMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, connected, syncMentionMenuPosition]);
 
-    const openStockMenu = useCallback((source: 'toolbar' | 'typing') => {
+    const openStockMenu = useCallback((source: ComposerMenuSource) => {
       if (!connected) {
         return;
       }
       pendingStockTriggerRef.current = source === 'typing';
+      setStockMenuSource(source);
       setStockQuery(source === 'typing' ? findTriggerMatchBeforeCaret('#')?.query ?? '' : '');
       setModelMenuOpen(false);
       closeMentionMenu();
@@ -1205,7 +1320,12 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       closeWatchlistMenu();
       closeOutputMenu();
       setStockMenuOpen(true);
-    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeWatchlistMenu, connected, findTriggerMatchBeforeCaret]);
+      if (source === 'typing') {
+        window.requestAnimationFrame(() => {
+          syncStockMenuPosition();
+        });
+      }
+    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeWatchlistMenu, connected, findTriggerMatchBeforeCaret, syncStockMenuPosition]);
 
     const openSkillMenu = useCallback(() => {
       if (!connected) {
@@ -1490,7 +1610,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
             return;
           }
           setStockResults([]);
-          setStockError('股票列表暂时不可用');
+          setStockError('标的列表暂时不可用');
         })
         .finally(() => {
           if (cancelled || stockSearchSeqRef.current !== sequence) {
@@ -1541,6 +1661,14 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         const range = selection.getRangeAt(0);
         if (editor.contains(range.startContainer) && editor.contains(range.endContainer)) {
           savedRangeRef.current = range.cloneRange();
+          if (mentionMenuOpen && mentionMenuSource === 'typing') {
+            const mentionMatch = findTriggerMatchBeforeCaret('@');
+            if (!mentionMatch) {
+              closeMentionMenu();
+            } else {
+              syncMentionMenuPosition();
+            }
+          }
           if (stockMenuOpen && pendingStockTriggerRef.current) {
             const match = findTriggerMatchBeforeCaret('#');
             if (!match) {
@@ -1550,13 +1678,14 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
             if (match.query !== stockQuery) {
               setStockQuery(match.query);
             }
+            syncStockMenuPosition();
           }
         }
       };
 
       document.addEventListener('selectionchange', handleSelectionChange);
       return () => document.removeEventListener('selectionchange', handleSelectionChange);
-    }, [closeStockMenu, findTriggerMatchBeforeCaret, stockMenuOpen, stockQuery]);
+    }, [closeMentionMenu, closeStockMenu, findTriggerMatchBeforeCaret, mentionMenuOpen, mentionMenuSource, stockMenuOpen, stockQuery, syncMentionMenuPosition, syncStockMenuPosition]);
 
     useEffect(() => {
       if (!modelMenuOpen && !mentionMenuOpen && !stockMenuOpen && !skillMenuOpen && !modeMenuOpen && !marketMenuOpen && !watchlistMenuOpen && !outputMenuOpen) {
@@ -1567,8 +1696,10 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         const target = event.target as Node;
         if (
           modelMenuRef.current?.contains(target) ||
-          mentionMenuRef.current?.contains(target) ||
-          stockMenuRef.current?.contains(target) ||
+          mentionToolbarRef.current?.contains(target) ||
+          mentionFloatingMenuRef.current?.contains(target) ||
+          stockToolbarRef.current?.contains(target) ||
+          stockFloatingMenuRef.current?.contains(target) ||
           skillMenuRef.current?.contains(target) ||
           modeMenuRef.current?.contains(target) ||
           marketMenuRef.current?.contains(target) ||
@@ -1637,6 +1768,31 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       }
     }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, connected, sessionTransitioning]);
 
+    useEffect(() => {
+      if (
+        !(mentionMenuOpen && mentionMenuSource === 'typing') &&
+        !(stockMenuOpen && stockMenuSource === 'typing')
+      ) {
+        return;
+      }
+
+      const handleViewportChange = () => {
+        if (mentionMenuOpen && mentionMenuSource === 'typing') {
+          syncMentionMenuPosition();
+        }
+        if (stockMenuOpen && stockMenuSource === 'typing') {
+          syncStockMenuPosition();
+        }
+      };
+
+      window.addEventListener('resize', handleViewportChange);
+      window.addEventListener('scroll', handleViewportChange, true);
+      return () => {
+        window.removeEventListener('resize', handleViewportChange);
+        window.removeEventListener('scroll', handleViewportChange, true);
+      };
+    }, [mentionMenuOpen, mentionMenuSource, stockMenuOpen, stockMenuSource, syncMentionMenuPosition, syncStockMenuPosition]);
+
     const submitLabel = busy && !hasContent ? '停止' : '发送';
     const sendState = busy ? 'busy' : hasContent ? 'ready' : 'empty';
     const selectedModel =
@@ -1670,12 +1826,14 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const selectedModeOption = findStaticOption(modeOptions, selectedMode);
     const selectedMarketScopeOption = findStaticOption(marketScopeOptions, selectedMarketScope);
     const selectedStockContextLabel = formatStockContextLabel(selectedStockContext);
+    const selectedInstrumentTypeLabel = resolveInstrumentContextTypeLabel(selectedStockContext);
     const selectedWatchlistOption = findStaticOption(watchlistOptions, selectedWatchlist);
     const selectedOutputOption = findStaticOption(outputOptions, selectedOutput);
     const expertControl = topBarControlMap.get('expert')?.item || null;
     const skillControl = topBarControlMap.get('skill')?.item || null;
     const modeControl = topBarControlMap.get('mode')?.item || null;
     const marketScopeControl = topBarControlMap.get('market-scope')?.item || null;
+    const stockControl = topBarControlMap.get('stock-context')?.item || null;
     const watchlistControl = topBarControlMap.get('watchlist')?.item || null;
     const outputControl = topBarControlMap.get('output-format')?.item || null;
     const groupedSkills = groupSkillOptions(skillOptions);
@@ -1713,16 +1871,18 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const skillTriggerLabel = selectedSkill?.name ?? skillControl?.displayName ?? '选择技能';
     const modeTriggerLabel = selectedModeOption?.label ?? modeControl?.displayName ?? '选择模式';
     const marketTriggerLabel = selectedMarketScopeOption?.label ?? marketScopeControl?.displayName ?? '选择市场';
-    const stockTriggerLabel = selectedStockContextLabel ?? '股票';
+    const stockTriggerLabel = selectedStockContextLabel ?? stockControl?.displayName ?? '选择基金/ETF';
     const stockMenuStatusLabel = stockLoading
       ? '搜索中'
       : stockQuery.trim()
         ? `匹配 ${stockResults.length}`
         : selectedStockContext
-          ? '已选中'
-          : '热门';
-    const watchlistTriggerLabel = selectedWatchlistOption?.label ?? watchlistControl?.displayName ?? '自选股';
-    const outputTriggerLabel = selectedOutputOption?.label ?? outputControl?.displayName ?? '选择输出';
+          ? selectedInstrumentTypeLabel
+          : 'A股';
+    const watchlistTriggerLabel = selectedWatchlistOption?.label ?? watchlistControl?.displayName ?? '选择股票';
+    const outputTriggerLabel = selectedOutputOption?.label ?? outputControl?.displayName ?? '输出模版';
+    const stockControlVisible = composerConfig ? visibleTopBarControlKeys.has('stock-context') : true;
+    const stockControlOrder = topBarControlMap.get('stock-context')?.order ?? 50;
     const hasActiveSelections =
       (visibleTopBarControlKeys.has('expert') && Boolean(selectedAgent)) ||
       (visibleTopBarControlKeys.has('skill') && Boolean(selectedSkill)) ||
@@ -1731,6 +1891,160 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       Boolean(selectedStockContext) ||
       (visibleTopBarControlKeys.has('watchlist') && Boolean(selectedWatchlistOption)) ||
       (visibleTopBarControlKeys.has('output-format') && Boolean(selectedOutputOption));
+
+    const mentionMenuPanel = (
+      <div className="iclaw-composer__selector-menu iclaw-composer__selector-menu--expert" role="dialog" aria-label="选择专家">
+        <div className="iclaw-composer__selector-menu-header">
+          <div className="iclaw-composer__selector-menu-header-copy">
+            <span className="iclaw-composer__selector-menu-kicker">回答路径控制</span>
+            <span className="iclaw-composer__selector-menu-title">{expertControl?.displayName || '选择专家'}</span>
+            <span className="iclaw-composer__selector-menu-subtitle">优先指定由哪位专家接管本次回答</span>
+          </div>
+          <span className="iclaw-composer__selector-menu-pill">{selectedAgent ? '已指定' : '默认'}</span>
+        </div>
+        <div className="iclaw-composer__selector-menu-body">
+          <button
+            type="button"
+            className="iclaw-composer__skill-option"
+            data-active={selectedAgent ? 'false' : 'true'}
+            onClick={() => clearAgentMentions()}
+          >
+            <span className="iclaw-composer__skill-option-main">
+              <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--expert iclaw-composer__selector-icon--menu">
+                <AtSign className="h-3.5 w-3.5" />
+              </span>
+              <span className="iclaw-composer__skill-option-copy">
+                <span className="iclaw-composer__skill-option-label">默认专家</span>
+                <span className="iclaw-composer__skill-option-detail">系统自动匹配最合适的专家</span>
+              </span>
+            </span>
+            {!selectedAgent ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
+          </button>
+          {recentAgentOptions.length > 0 ? (
+            <>
+              <div className="iclaw-composer__selector-section-title">最近使用</div>
+              <div className="iclaw-composer__selector-recent-strip">
+                {recentAgentOptions.map((agent) => (
+                  <button
+                    key={agent.slug}
+                    type="button"
+                    className="iclaw-composer__selector-recent-item"
+                    data-active={selectedAgent?.slug === agent.slug ? 'true' : 'false'}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => insertAgentMention(agent)}
+                  >
+                    <span className="iclaw-composer__selector-recent-avatar">
+                      <img src={agent.avatarSrc} alt={agent.name} className="iclaw-composer__selector-recent-avatar-image" />
+                    </span>
+                    <span className="iclaw-composer__selector-recent-text">{agent.name}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : null}
+          {lobsterAgents.length > 0 ? <div className="iclaw-composer__selector-section-title">已安装专家</div> : null}
+        </div>
+        {lobsterAgents.length > 0 ? (
+          <div className="iclaw-composer__mention-grid">
+            {lobsterAgents.map((agent) => (
+              <button
+                key={agent.slug}
+                type="button"
+                className="iclaw-composer__mention-option"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => insertAgentMention(agent)}
+              >
+                <span className="iclaw-composer__mention-avatar">
+                  <img src={agent.avatarSrc} alt={agent.name} className="iclaw-composer__mention-avatar-image" />
+                </span>
+                <span className="iclaw-composer__mention-name">{agent.name}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="iclaw-composer__mention-empty">还没有已安装的龙虾专家</div>
+        )}
+      </div>
+    );
+
+    const stockMenuPanel = (
+      <div className="iclaw-composer__selector-menu iclaw-composer__selector-menu--compact" role="menu" aria-label="选择基金或 ETF">
+        <div className="iclaw-composer__selector-menu-header">
+          <div className="iclaw-composer__selector-menu-header-copy">
+            <span className="iclaw-composer__selector-menu-kicker">标的上下文</span>
+            <span className="iclaw-composer__selector-menu-title">{stockControl?.displayName || '选择基金/ETF'}</span>
+            <span className="iclaw-composer__selector-menu-subtitle">
+              {stockQuery.trim()
+                ? `正在匹配 “#${stockQuery.trim()}”`
+                : selectedStockContext
+                  ? `当前已绑定${selectedInstrumentTypeLabel}，也可以切换成其它 A 股股票`
+                  : '当前支持搜索股票；从市场页进入时会自动带入基金 / ETF 上下文'}
+            </span>
+          </div>
+          <span className="iclaw-composer__selector-menu-pill">{stockMenuStatusLabel}</span>
+        </div>
+        <div className="iclaw-composer__skill-list">
+          <div className="iclaw-composer__selector-section-title">默认</div>
+          <button
+            type="button"
+            className="iclaw-composer__skill-option"
+            data-active={selectedStockContext ? 'false' : 'true'}
+            onClick={() => clearStockSelection()}
+          >
+            <span className="iclaw-composer__skill-option-main">
+              <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--stock iclaw-composer__selector-icon--menu">
+                <BarChart3 className="h-3.5 w-3.5" />
+              </span>
+              <span className="iclaw-composer__skill-option-copy">
+                <span className="iclaw-composer__skill-option-label">默认标的</span>
+                <span className="iclaw-composer__skill-option-detail">不绑定单一标的上下文</span>
+              </span>
+            </span>
+            {!selectedStockContext ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
+          </button>
+          <div className="iclaw-composer__selector-section-title">
+            {stockQuery.trim() ? '搜索结果' : '热门 A 股'}
+          </div>
+          {stockLoading ? (
+            <div className="iclaw-composer__mention-empty">正在加载标的列表...</div>
+          ) : stockError ? (
+            <div className="iclaw-composer__mention-empty">{stockError}</div>
+          ) : stockResults.length > 0 ? (
+            stockResults.map((stock) => {
+              const active = selectedStockContext?.id === stock.id;
+              return (
+                <button
+                  key={stock.id}
+                  type="button"
+                  className="iclaw-composer__skill-option"
+                  data-active={active ? 'true' : 'false'}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => insertStockMention(stock)}
+                >
+                  <span className="iclaw-composer__skill-option-main">
+                    <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--stock iclaw-composer__selector-icon--menu">
+                      <BarChart3 className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="iclaw-composer__skill-option-copy">
+                      <span className="iclaw-composer__skill-option-label">{stock.companyName}</span>
+                      <span className="iclaw-composer__skill-option-detail">
+                        {stock.symbol} · {formatStockExchangeLabel(stock.exchange)}
+                        {stock.board ? ` · ${stock.board}` : ''}
+                      </span>
+                    </span>
+                  </span>
+                  {active ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
+                </button>
+              );
+            })
+          ) : (
+            <div className="iclaw-composer__mention-empty">
+              {stockQuery.trim() ? '没有找到匹配股票，继续输入代码或公司名试试。' : '暂无可用股票结果'}
+            </div>
+          )}
+        </div>
+      </div>
+    );
 
     return (
       <div
@@ -1744,7 +2058,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
             <div className="iclaw-composer__selectors">
               {visibleTopBarControlKeys.has('expert') ? (
               <div
-                ref={mentionMenuRef}
+                ref={mentionToolbarRef}
                 className="iclaw-composer__selector"
                 style={{order: topBarControlMap.get('expert')?.order}}
               >
@@ -1758,7 +2072,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   aria-expanded={mentionMenuOpen}
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => {
-                    if (mentionMenuOpen) {
+                    if (mentionMenuOpen && mentionMenuSource === 'toolbar') {
                       closeMentionMenu();
                       return;
                     }
@@ -1782,89 +2096,10 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                       <span className="iclaw-composer__selector-label">{expertTriggerLabel}</span>
                     </span>
                   </span>
-                  <ChevronDown className="iclaw-composer__selector-caret h-3.5 w-3.5" data-open={mentionMenuOpen ? 'true' : 'false'} />
+                  <ChevronDown className="iclaw-composer__selector-caret h-3.5 w-3.5" data-open={mentionMenuOpen && mentionMenuSource === 'toolbar' ? 'true' : 'false'} />
                 </button>
 
-                {mentionMenuOpen ? (
-                  <div className="iclaw-composer__selector-menu iclaw-composer__selector-menu--expert" role="dialog" aria-label="选择专家">
-                    <div className="iclaw-composer__selector-menu-header">
-                      <div className="iclaw-composer__selector-menu-header-copy">
-                        <span className="iclaw-composer__selector-menu-kicker">回答路径控制</span>
-                        <span className="iclaw-composer__selector-menu-title">{expertControl?.displayName || '选择专家'}</span>
-                        <span className="iclaw-composer__selector-menu-subtitle">优先指定由哪位专家接管本次回答</span>
-                      </div>
-                      <span className="iclaw-composer__selector-menu-pill">
-                        {selectedAgent ? '已指定' : '默认'}
-                      </span>
-                    </div>
-                    <div className="iclaw-composer__selector-menu-body">
-                      <button
-                        type="button"
-                        className="iclaw-composer__skill-option"
-                        data-active={selectedAgent ? 'false' : 'true'}
-                        onClick={() => clearAgentMentions()}
-                      >
-                        <span className="iclaw-composer__skill-option-main">
-                          <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--expert iclaw-composer__selector-icon--menu">
-                            <AtSign className="h-3.5 w-3.5" />
-                          </span>
-                          <span className="iclaw-composer__skill-option-copy">
-                            <span className="iclaw-composer__skill-option-label">默认专家</span>
-                            <span className="iclaw-composer__skill-option-detail">系统自动匹配最合适的专家</span>
-                          </span>
-                        </span>
-                        {!selectedAgent ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
-                      </button>
-                      {recentAgentOptions.length > 0 ? (
-                        <>
-                          <div className="iclaw-composer__selector-section-title">最近使用</div>
-                          <div className="iclaw-composer__selector-recent-strip">
-                            {recentAgentOptions.map((agent) => (
-                              <button
-                                key={agent.slug}
-                                type="button"
-                                className="iclaw-composer__selector-recent-item"
-                                data-active={selectedAgent?.slug === agent.slug ? 'true' : 'false'}
-                                onMouseDown={(event) => event.preventDefault()}
-                                onClick={() => insertAgentMention(agent)}
-                              >
-                                <span className="iclaw-composer__selector-recent-avatar">
-                                  <img src={agent.avatarSrc} alt={agent.name} className="iclaw-composer__selector-recent-avatar-image" />
-                                </span>
-                                <span className="iclaw-composer__selector-recent-text">{agent.name}</span>
-                              </button>
-                            ))}
-                          </div>
-                        </>
-                      ) : null}
-                      {lobsterAgents.length > 0 ? <div className="iclaw-composer__selector-section-title">已安装专家</div> : null}
-                    </div>
-                    {lobsterAgents.length > 0 ? (
-                      <div className="iclaw-composer__mention-grid">
-                        {lobsterAgents.map((agent) => (
-                          <button
-                            key={agent.slug}
-                            type="button"
-                            className="iclaw-composer__mention-option"
-                            onMouseDown={(event) => event.preventDefault()}
-                            onClick={() => insertAgentMention(agent)}
-                          >
-                            <span className="iclaw-composer__mention-avatar">
-                              <img
-                                src={agent.avatarSrc}
-                                alt={agent.name}
-                                className="iclaw-composer__mention-avatar-image"
-                              />
-                            </span>
-                            <span className="iclaw-composer__mention-name">{agent.name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="iclaw-composer__mention-empty">还没有已安装的龙虾专家</div>
-                    )}
-                  </div>
-                ) : null}
+                {mentionMenuOpen && mentionMenuSource === 'toolbar' ? mentionMenuPanel : null}
               </div>
               ) : null}
 
@@ -2227,10 +2462,11 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
               </div>
               ) : null}
 
+              {stockControlVisible ? (
               <div
-                ref={stockMenuRef}
+                ref={stockToolbarRef}
                 className="iclaw-composer__selector"
-                style={{order: 45}}
+                style={{order: stockControlOrder}}
               >
                 <button
                   type="button"
@@ -2242,13 +2478,13 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   aria-expanded={stockMenuOpen}
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => {
-                    if (stockMenuOpen) {
+                    if (stockMenuOpen && stockMenuSource === 'toolbar') {
                       closeStockMenu();
                       return;
                     }
                     openStockMenu('toolbar');
                   }}
-                  title={selectedStockContext ? `当前股票：${stockTriggerLabel}，点击切换股票` : '选择股票'}
+                  title={selectedStockContext ? `当前标的：${stockTriggerLabel}，点击切换标的` : `${stockControl?.displayName || '选择基金/ETF'}`}
                 >
                   <span className="iclaw-composer__selector-trigger-main">
                     <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--stock">
@@ -2258,86 +2494,12 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                       <span className="iclaw-composer__selector-label">{stockTriggerLabel}</span>
                     </span>
                   </span>
-                  <ChevronDown className="iclaw-composer__selector-caret h-3.5 w-3.5" data-open={stockMenuOpen ? 'true' : 'false'} />
+                  <ChevronDown className="iclaw-composer__selector-caret h-3.5 w-3.5" data-open={stockMenuOpen && stockMenuSource === 'toolbar' ? 'true' : 'false'} />
                 </button>
 
-                {stockMenuOpen ? (
-                  <div className="iclaw-composer__selector-menu iclaw-composer__selector-menu--compact" role="menu" aria-label="选择股票">
-                    <div className="iclaw-composer__selector-menu-header">
-                      <div className="iclaw-composer__selector-menu-header-copy">
-                        <span className="iclaw-composer__selector-menu-kicker">股票上下文</span>
-                        <span className="iclaw-composer__selector-menu-title">选择股票</span>
-                        <span className="iclaw-composer__selector-menu-subtitle">
-                          {stockQuery.trim()
-                            ? `正在匹配 “#${stockQuery.trim()}”`
-                            : '输入 #股票代码 或 #公司名，选中后会插入到当前光标位置'}
-                        </span>
-                      </div>
-                      <span className="iclaw-composer__selector-menu-pill">{stockMenuStatusLabel}</span>
-                    </div>
-                    <div className="iclaw-composer__skill-list">
-                      <div className="iclaw-composer__selector-section-title">默认</div>
-                      <button
-                        type="button"
-                        className="iclaw-composer__skill-option"
-                        data-active={selectedStockContext ? 'false' : 'true'}
-                        onClick={() => clearStockSelection()}
-                      >
-                        <span className="iclaw-composer__skill-option-main">
-                          <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--stock iclaw-composer__selector-icon--menu">
-                            <BarChart3 className="h-3.5 w-3.5" />
-                          </span>
-                          <span className="iclaw-composer__skill-option-copy">
-                            <span className="iclaw-composer__skill-option-label">默认股票</span>
-                            <span className="iclaw-composer__skill-option-detail">不绑定单一股票上下文</span>
-                          </span>
-                        </span>
-                        {!selectedStockContext ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
-                      </button>
-                      <div className="iclaw-composer__selector-section-title">
-                        {stockQuery.trim() ? '搜索结果' : '热门股票'}
-                      </div>
-                      {stockLoading ? (
-                        <div className="iclaw-composer__mention-empty">正在加载股票列表...</div>
-                      ) : stockError ? (
-                        <div className="iclaw-composer__mention-empty">{stockError}</div>
-                      ) : stockResults.length > 0 ? (
-                        stockResults.map((stock) => {
-                          const active = selectedStockContext?.id === stock.id;
-                          return (
-                            <button
-                              key={stock.id}
-                              type="button"
-                              className="iclaw-composer__skill-option"
-                              data-active={active ? 'true' : 'false'}
-                              onMouseDown={(event) => event.preventDefault()}
-                              onClick={() => insertStockMention(stock)}
-                            >
-                              <span className="iclaw-composer__skill-option-main">
-                                <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--stock iclaw-composer__selector-icon--menu">
-                                  <BarChart3 className="h-3.5 w-3.5" />
-                                </span>
-                                <span className="iclaw-composer__skill-option-copy">
-                                  <span className="iclaw-composer__skill-option-label">{stock.companyName}</span>
-                                  <span className="iclaw-composer__skill-option-detail">
-                                    {stock.symbol} · {formatStockExchangeLabel(stock.exchange)}
-                                    {stock.board ? ` · ${stock.board}` : ''}
-                                  </span>
-                                </span>
-                              </span>
-                              {active ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
-                            </button>
-                          );
-                        })
-                      ) : (
-                        <div className="iclaw-composer__mention-empty">
-                          {stockQuery.trim() ? '没有找到匹配股票，继续输入代码或公司名试试。' : '暂无可用股票结果'}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ) : null}
+                {stockMenuOpen && stockMenuSource === 'toolbar' ? stockMenuPanel : null}
               </div>
+              ) : null}
 
               {visibleTopBarControlKeys.has('watchlist') ? (
               <div
@@ -2361,7 +2523,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                     }
                     openWatchlistMenu();
                   }}
-                  title={selectedWatchlistOption ? `当前自选股：${selectedWatchlistOption.label}，点击${watchlistControl?.displayName || '自选股'}` : `点击${watchlistControl?.displayName || '自选股'}`}
+                  title={selectedWatchlistOption ? `当前股票：${selectedWatchlistOption.label}，点击${watchlistControl?.displayName || '选择股票'}` : `点击${watchlistControl?.displayName || '选择股票'}`}
                 >
                   <span className="iclaw-composer__selector-trigger-main">
                     <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--watchlist">
@@ -2375,11 +2537,11 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                 </button>
 
                 {watchlistMenuOpen ? (
-                  <div className="iclaw-composer__selector-menu iclaw-composer__selector-menu--compact" role="menu" aria-label="选择自选股">
+                  <div className="iclaw-composer__selector-menu iclaw-composer__selector-menu--compact" role="menu" aria-label="选择股票">
                     <div className="iclaw-composer__selector-menu-header">
                       <div className="iclaw-composer__selector-menu-header-copy">
                         <span className="iclaw-composer__selector-menu-kicker">回答路径控制</span>
-                        <span className="iclaw-composer__selector-menu-title">{watchlistControl?.displayName || '自选股'}</span>
+                        <span className="iclaw-composer__selector-menu-title">{watchlistControl?.displayName || '选择股票'}</span>
                         <span className="iclaw-composer__selector-menu-subtitle">约束本次回答优先围绕哪组自选标的展开</span>
                       </div>
                       <span className="iclaw-composer__selector-menu-pill">{selectedWatchlistOption?.label ?? '默认'}</span>
@@ -2397,7 +2559,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                             <Star className="h-3.5 w-3.5" />
                           </span>
                           <span className="iclaw-composer__skill-option-copy">
-                            <span className="iclaw-composer__skill-option-label">默认自选股</span>
+                            <span className="iclaw-composer__skill-option-label">默认股票</span>
                             <span className="iclaw-composer__skill-option-detail">系统自动判断是否需要结合你的自选股上下文</span>
                           </span>
                         </span>
@@ -2476,7 +2638,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                     }
                     openOutputMenu();
                   }}
-                  title={selectedOutputOption ? `当前输出：${selectedOutputOption.label}，点击${outputControl?.displayName || '选择输出'}` : `点击${outputControl?.displayName || '选择输出'}`}
+                  title={selectedOutputOption ? `当前输出模版：${selectedOutputOption.label}，点击${outputControl?.displayName || '输出模版'}` : `点击${outputControl?.displayName || '输出模版'}`}
                 >
                   <span className="iclaw-composer__selector-trigger-main">
                     <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--output">
@@ -2490,11 +2652,11 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                 </button>
 
                 {outputMenuOpen ? (
-                  <div className="iclaw-composer__selector-menu iclaw-composer__selector-menu--compact" role="menu" aria-label="选择输出形式">
+                  <div className="iclaw-composer__selector-menu iclaw-composer__selector-menu--compact" role="menu" aria-label="选择输出模版">
                     <div className="iclaw-composer__selector-menu-header">
                       <div className="iclaw-composer__selector-menu-header-copy">
                         <span className="iclaw-composer__selector-menu-kicker">回答路径控制</span>
-                        <span className="iclaw-composer__selector-menu-title">{outputControl?.displayName || '选择输出'}</span>
+                        <span className="iclaw-composer__selector-menu-title">{outputControl?.displayName || '输出模版'}</span>
                         <span className="iclaw-composer__selector-menu-subtitle">控制答案的最终结构和呈现方式</span>
                       </div>
                       <span className="iclaw-composer__selector-menu-pill">{selectedOutputOption?.label ?? '默认'}</span>
@@ -2585,6 +2747,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
             </button>
 
             <div
+              ref={inputShellRef}
               className="iclaw-composer__input-shell"
               data-has-active-controls={hasActiveSelections ? 'true' : 'false'}
             >
@@ -2668,13 +2831,13 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                       className="iclaw-composer__active-chip"
                       data-tone="stock"
                       onClick={() => clearStockSelection()}
-                      title={`移除股票：${stockTriggerLabel}`}
+                      title={`移除标的：${stockTriggerLabel}`}
                     >
                       <span className="iclaw-composer__active-chip-main">
                         <span className="iclaw-composer__active-chip-icon">
                           <BarChart3 className="h-3.5 w-3.5" />
                         </span>
-                        <span className="iclaw-composer__active-chip-text">股票 · {stockTriggerLabel}</span>
+                        <span className="iclaw-composer__active-chip-text">标的 · {stockTriggerLabel}</span>
                       </span>
                       <span className="iclaw-composer__active-chip-remove" aria-hidden="true">×</span>
                     </button>
@@ -2718,6 +2881,26 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                 </div>
               ) : null}
 
+              {mentionMenuOpen && mentionMenuSource === 'typing' && mentionMenuPosition ? (
+                <div
+                  ref={mentionFloatingMenuRef}
+                  className="iclaw-composer__floating-menu"
+                  style={{left: mentionMenuPosition.left, top: mentionMenuPosition.top}}
+                >
+                  {mentionMenuPanel}
+                </div>
+              ) : null}
+
+              {stockMenuOpen && stockMenuSource === 'typing' && stockMenuPosition ? (
+                <div
+                  ref={stockFloatingMenuRef}
+                  className="iclaw-composer__floating-menu"
+                  style={{left: stockMenuPosition.left, top: stockMenuPosition.top}}
+                >
+                  {stockMenuPanel}
+                </div>
+              ) : null}
+
               {!hasContent ? (
                 <div className="iclaw-composer__placeholder" aria-hidden="true">
                   {connected ? PLACEHOLDER : '网关未连接，暂时无法发送'}
@@ -2734,16 +2917,24 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                 data-empty="true"
                 onInput={() => {
                   refreshState();
-                  if (!stockMenuOpen || !pendingStockTriggerRef.current) {
-                    return;
+                  if (mentionMenuOpen && mentionMenuSource === 'typing' && pendingMentionTriggerRef.current) {
+                    const mentionMatch = findTriggerMatchBeforeCaret('@');
+                    if (!mentionMatch) {
+                      closeMentionMenu();
+                    } else {
+                      syncMentionMenuPosition();
+                    }
                   }
-                  const match = findTriggerMatchBeforeCaret('#');
-                  if (!match) {
-                    closeStockMenu();
-                    return;
-                  }
-                  if (match.query !== stockQuery) {
-                    setStockQuery(match.query);
+                  if (stockMenuOpen && pendingStockTriggerRef.current) {
+                    const match = findTriggerMatchBeforeCaret('#');
+                    if (!match) {
+                      closeStockMenu();
+                      return;
+                    }
+                    if (match.query !== stockQuery) {
+                      setStockQuery(match.query);
+                    }
+                    syncStockMenuPosition();
                   }
                 }}
                 onKeyDown={(event) => {
