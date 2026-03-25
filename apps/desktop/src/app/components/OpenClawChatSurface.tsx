@@ -1470,6 +1470,32 @@ export function OpenClawChatSurface({
     [refreshModelCatalog, selectedModelId, sessionKey],
   );
 
+  const handleSearchStocks = useCallback(
+    async (query: string): Promise<ComposerStockContext[]> => {
+      if (!creditClient) {
+        return [];
+      }
+
+      const trimmedQuery = query.trim();
+      const page = await creditClient.listMarketStocksPage({
+        market: 'a_share',
+        search: trimmedQuery || undefined,
+        sort: trimmedQuery ? 'market_cap_desc' : 'change_percent_desc',
+        limit: 8,
+        offset: 0,
+      });
+
+      return page.items.map((stock) => ({
+        id: stock.id,
+        symbol: stock.symbol,
+        companyName: stock.company_name,
+        exchange: stock.exchange,
+        board: stock.board,
+      }));
+    },
+    [creditClient],
+  );
+
   useEffect(() => {
     if (previousSessionKeyRef.current === sessionKey) {
       return;
@@ -3190,6 +3216,7 @@ export function OpenClawChatSurface({
               initialSelectedAgentSlug={initialAgentSlug}
               initialSelectedSkillSlug={initialSkillSlug}
               initialSelectedStock={initialStockContext}
+              searchStocks={handleSearchStocks}
               modelOptions={modelOptions}
               selectedModelId={selectedModelId}
               modelsLoading={modelsLoading}

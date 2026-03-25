@@ -2259,6 +2259,12 @@ body {
   color: var(--text-primary);
 }
 
+.iclaw-inline-token[data-token-tone='stock'] {
+  border-color: rgba(72, 117, 184, 0.28);
+  background: rgba(72, 117, 184, 0.12);
+  color: #244a84;
+}
+
 .iclaw-inline-token[data-token-tone='image'] {
   border-color: var(--composer-image-border);
   background: var(--composer-image-bg);
@@ -3260,6 +3266,12 @@ body {
 :root.dark .iclaw-inline-token[data-token-tone='agent'] {
   border-color: rgba(141, 208, 255, 0.18);
   background: rgba(141, 208, 255, 0.12);
+  color: #eef4fb;
+}
+
+:root.dark .iclaw-inline-token[data-token-tone='stock'] {
+  border-color: rgba(141, 208, 255, 0.22);
+  background: rgba(141, 208, 255, 0.14);
   color: #eef4fb;
 }
 

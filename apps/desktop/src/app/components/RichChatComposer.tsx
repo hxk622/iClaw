@@ -61,6 +61,8 @@ export type ComposerStockContext = {
   board: string | null;
 };
 
+export type ComposerStockOption = ComposerStockContext;
+
 export type ComposerDraftAttachment = {
   type: 'image' | 'pdf' | 'video' | 'file';
 };
@@ -112,13 +114,14 @@ type RecentSelectionState = Record<RecentSelectionBucket, string[]>;
 
 type ComposerTokenMeta = {
   id: string;
-  kind: 'reference' | 'attachment' | 'agent';
+  kind: 'reference' | 'attachment' | 'agent' | 'stock';
   label: string;
   value: string;
   slug?: string;
   avatarSrc?: string;
   mimeType?: string;
   dataUrl?: string | null;
+  stockContext?: ComposerStockContext | null;
 };
 
 type RichChatComposerProps = {
@@ -145,6 +148,7 @@ type RichChatComposerProps = {
   initialSelectedAgentSlug?: string | null;
   initialSelectedSkillSlug?: string | null;
   initialSelectedStock?: ComposerStockContext | null;
+  searchStocks?: (query: string) => Promise<ComposerStockOption[]>;
   composerConfig?: ResolvedInputComposerConfig | null;
   onSelectedSkillSlugChange?: (slug: string | null) => void;
 };
@@ -256,6 +260,12 @@ function formatStockContextLabel(stock: ComposerStockContext | null | undefined)
   return `${stock.companyName} ${stock.symbol}`;
 }
 
+function formatStockExchangeLabel(exchange: ComposerStockContext['exchange']): string {
+  if (exchange === 'sh') return '上交所';
+  if (exchange === 'sz') return '深交所';
+  return '北交所';
+}
+
 function isSupportedAttachment(file: File): boolean {
   return SUPPORTED_ATTACHMENT_TYPES.some((type) => file.type.startsWith(type));
 }
@@ -352,6 +362,9 @@ function buildTokenMarker(token: ComposerTokenMeta): string {
   if (token.kind === 'agent') {
     return `@${token.value}`;
   }
+  if (token.kind === 'stock') {
+    return `#${token.value}`;
+  }
   if (token.kind === 'reference') {
     return `[[引用:${token.value}]]`;
   }
@@ -369,6 +382,7 @@ function buildTokenMarker(token: ComposerTokenMeta): string {
 
 function buildTokenTone(token: ComposerTokenMeta): string {
   if (token.kind === 'agent') return 'agent';
+  if (token.kind === 'stock') return 'stock';
   if (token.kind === 'reference') return 'reference';
   if (isImageAttachment(token.mimeType)) return 'image';
   if (isPdfAttachment(token.mimeType)) return 'pdf';
@@ -378,6 +392,7 @@ function buildTokenTone(token: ComposerTokenMeta): string {
 
 function buildTokenBadge(token: ComposerTokenMeta): string {
   if (token.kind === 'agent') return '@';
+  if (token.kind === 'stock') return '股';
   if (token.kind === 'reference') return '引';
   if (isImageAttachment(token.mimeType)) return '图';
   if (isPdfAttachment(token.mimeType)) return 'PDF';
@@ -431,7 +446,14 @@ function createTokenElement(token: ComposerTokenMeta): HTMLSpanElement {
   remove.type = 'button';
   remove.className = 'iclaw-inline-token__remove';
   remove.dataset.tokenRemove = 'true';
-  remove.setAttribute('aria-label', token.kind === 'agent' ? '移除 Agent' : '移除引用块');
+  remove.setAttribute(
+    'aria-label',
+    token.kind === 'agent'
+      ? '移除 Agent'
+      : token.kind === 'stock'
+        ? '移除股票'
+        : '移除引用块',
+  );
   remove.textContent = '×';
 
   element.append(remove);
@@ -577,6 +599,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       initialSelectedAgentSlug = null,
       initialSelectedSkillSlug = null,
       initialSelectedStock = null,
+      searchStocks,
       composerConfig = null,
       onSelectedSkillSlugChange,
     },
@@ -586,6 +609,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const modelMenuRef = useRef<HTMLDivElement | null>(null);
     const mentionMenuRef = useRef<HTMLDivElement | null>(null);
+    const stockMenuRef = useRef<HTMLDivElement | null>(null);
     const skillMenuRef = useRef<HTMLDivElement | null>(null);
     const modeMenuRef = useRef<HTMLDivElement | null>(null);
     const marketMenuRef = useRef<HTMLDivElement | null>(null);
@@ -594,10 +618,13 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const tokenStoreRef = useRef<Map<string, ComposerTokenMeta>>(new Map());
     const savedRangeRef = useRef<Range | null>(null);
     const pendingMentionTriggerRef = useRef(false);
+    const pendingStockTriggerRef = useRef(false);
+    const stockSearchSeqRef = useRef(0);
     const [hasContent, setHasContent] = useState(false);
     const [tokenCount, setTokenCount] = useState(0);
     const [modelMenuOpen, setModelMenuOpen] = useState(false);
     const [mentionMenuOpen, setMentionMenuOpen] = useState(false);
+    const [stockMenuOpen, setStockMenuOpen] = useState(false);
     const [skillMenuOpen, setSkillMenuOpen] = useState(false);
     const [modeMenuOpen, setModeMenuOpen] = useState(false);
     const [marketMenuOpen, setMarketMenuOpen] = useState(false);
@@ -610,6 +637,10 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const [selectedStockContext, setSelectedStockContext] = useState<ComposerStockContext | null>(null);
     const [selectedWatchlist, setSelectedWatchlist] = useState<string | null>(null);
     const [selectedOutput, setSelectedOutput] = useState<string | null>(null);
+    const [stockQuery, setStockQuery] = useState('');
+    const [stockResults, setStockResults] = useState<ComposerStockOption[]>([]);
+    const [stockLoading, setStockLoading] = useState(false);
+    const [stockError, setStockError] = useState<string | null>(null);
     const [recentSelections, setRecentSelections] = useState<RecentSelectionState>(EMPTY_RECENT_SELECTIONS);
     const [activeQuickQueryId, setActiveQuickQueryId] = useState<string | null>(null);
     const topBarControls = composerConfig
@@ -784,9 +815,82 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       editor.focus();
     }, [restoreRange]);
 
+    const getTextNodeBeforeCaret = useCallback((): {node: Text; offset: number} | null => {
+      const editor = editorRef.current;
+      const selection = window.getSelection();
+      const liveRange =
+        selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : savedRangeRef.current;
+      const range =
+        liveRange && editor?.contains(liveRange.startContainer) && editor.contains(liveRange.endContainer)
+          ? liveRange.cloneRange()
+          : savedRangeRef.current?.cloneRange() ?? null;
+      if (!editor || !range || !range.collapsed) {
+        return null;
+      }
+
+      const walker = document.createTreeWalker(
+        editor,
+        NodeFilter.SHOW_TEXT,
+        {
+          acceptNode(node) {
+            return node.parentElement?.closest('[data-token-id]')
+              ? NodeFilter.FILTER_REJECT
+              : NodeFilter.FILTER_ACCEPT;
+          },
+        },
+      );
+
+      let fallback: {node: Text; offset: number} | null = null;
+      let currentNode = walker.nextNode();
+      while (currentNode) {
+        const textNode = currentNode as Text;
+        const nodeRange = document.createRange();
+        nodeRange.selectNodeContents(textNode);
+        if (range.startContainer === textNode) {
+          return {node: textNode, offset: Math.min(range.startOffset, textNode.data.length)};
+        }
+        if (range.compareBoundaryPoints(Range.START_TO_END, nodeRange) >= 0) {
+          fallback = {node: textNode, offset: textNode.data.length};
+          currentNode = walker.nextNode();
+          continue;
+        }
+        break;
+      }
+      return fallback;
+    }, []);
+
+    const findTriggerMatchBeforeCaret = useCallback((trigger: '@' | '#') => {
+      const textCursor = getTextNodeBeforeCaret();
+      if (!textCursor) {
+        return null;
+      }
+      const beforeCaret = textCursor.node.data.slice(0, textCursor.offset);
+      const triggerIndex = beforeCaret.lastIndexOf(trigger);
+      if (triggerIndex < 0) {
+        return null;
+      }
+      const query = beforeCaret.slice(triggerIndex + 1);
+      if (/[\s]/.test(query)) {
+        return null;
+      }
+      return {
+        node: textCursor.node,
+        start: triggerIndex,
+        end: textCursor.offset,
+        query,
+      };
+    }, [getTextNodeBeforeCaret]);
+
     const closeMentionMenu = useCallback(() => {
       setMentionMenuOpen(false);
       pendingMentionTriggerRef.current = false;
+    }, []);
+
+    const closeStockMenu = useCallback(() => {
+      setStockMenuOpen(false);
+      setStockQuery('');
+      setStockError(null);
+      pendingStockTriggerRef.current = false;
     }, []);
 
     const closeSkillMenu = useCallback(() => {
@@ -876,6 +980,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       savedRangeRef.current = createRangeAtEnd(editor);
       setActiveQuickQueryId(null);
       closeMentionMenu();
+      closeStockMenu();
       closeSkillMenu();
       closeModeMenu();
       closeMarketMenu();
@@ -883,7 +988,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       closeOutputMenu();
       refreshState();
       editor.focus();
-    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeWatchlistMenu, refreshState]);
+    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, refreshState]);
 
     const removeAgentTokens = useCallback(() => {
       const editor = editorRef.current;
@@ -897,6 +1002,29 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       }
 
       agentNodes.forEach((node) => {
+        const tokenId = node.dataset.tokenId;
+        if (tokenId) {
+          tokenStoreRef.current.delete(tokenId);
+        }
+        node.remove();
+      });
+
+      savedRangeRef.current = createRangeAtEnd(editor);
+      return true;
+    }, []);
+
+    const removeStockTokens = useCallback(() => {
+      const editor = editorRef.current;
+      if (!editor) {
+        return false;
+      }
+
+      const stockNodes = Array.from(editor.querySelectorAll<HTMLElement>('[data-token-kind="stock"]'));
+      if (stockNodes.length === 0) {
+        return false;
+      }
+
+      stockNodes.forEach((node) => {
         const tokenId = node.dataset.tokenId;
         if (tokenId) {
           tokenStoreRef.current.delete(tokenId);
@@ -924,6 +1052,16 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       refreshState();
       focus();
     }, [closeMentionMenu, focus, refreshState, removeAgentTokens]);
+
+    const clearStockSelection = useCallback(() => {
+      setSelectedStockContext(null);
+      const removed = removeStockTokens();
+      closeStockMenu();
+      if (removed) {
+        refreshState();
+      }
+      focus();
+    }, [closeStockMenu, focus, refreshState, removeStockTokens]);
 
     const removeMentionTriggerBeforeCaret = useCallback(() => {
       const editor = editorRef.current;
@@ -994,11 +1132,56 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       focus();
     }, [closeMentionMenu, focus, insertTextAtCaret, insertTokenAtCaret, refreshState, rememberRecentSelection, removeAgentTokens, removeMentionTriggerBeforeCaret]);
 
+    const removeStockTriggerBeforeCaret = useCallback(() => {
+      const match = findTriggerMatchBeforeCaret('#');
+      if (!match) {
+        return;
+      }
+
+      match.node.deleteData(match.start, match.end - match.start);
+      const nextRange = document.createRange();
+      nextRange.setStart(match.node, match.start);
+      nextRange.collapse(true);
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+        selection.addRange(nextRange);
+      }
+      savedRangeRef.current = nextRange.cloneRange();
+      refreshState();
+    }, [findTriggerMatchBeforeCaret, refreshState]);
+
+    const insertStockMention = useCallback((stock: ComposerStockOption) => {
+      if (pendingStockTriggerRef.current) {
+        removeStockTriggerBeforeCaret();
+      }
+      const preservedRange = savedRangeRef.current?.cloneRange() ?? null;
+      removeStockTokens();
+      if (preservedRange) {
+        savedRangeRef.current = preservedRange;
+      }
+
+      const token: ComposerTokenMeta = {
+        id: createComposerId('stock'),
+        kind: 'stock',
+        label: `${stock.companyName} ${stock.symbol}`,
+        value: stock.symbol,
+        stockContext: stock,
+      };
+      insertTokenAtCaret(token);
+      insertTextAtCaret(' ');
+      setSelectedStockContext(stock);
+      closeStockMenu();
+      refreshState();
+      focus();
+    }, [closeStockMenu, focus, insertTextAtCaret, insertTokenAtCaret, refreshState, removeStockTokens, removeStockTriggerBeforeCaret]);
+
     const openMentionMenu = useCallback((source: 'toolbar' | 'typing') => {
       if (!connected) {
         return;
       }
       pendingMentionTriggerRef.current = source === 'typing';
+      closeStockMenu();
       closeSkillMenu();
       closeModeMenu();
       closeMarketMenu();
@@ -1006,7 +1189,23 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       closeOutputMenu();
       setModelMenuOpen(false);
       setMentionMenuOpen(true);
-    }, [closeMarketMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeWatchlistMenu, connected]);
+    }, [closeMarketMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, connected]);
+
+    const openStockMenu = useCallback((source: 'toolbar' | 'typing') => {
+      if (!connected) {
+        return;
+      }
+      pendingStockTriggerRef.current = source === 'typing';
+      setStockQuery(source === 'typing' ? findTriggerMatchBeforeCaret('#')?.query ?? '' : '');
+      setModelMenuOpen(false);
+      closeMentionMenu();
+      closeSkillMenu();
+      closeModeMenu();
+      closeMarketMenu();
+      closeWatchlistMenu();
+      closeOutputMenu();
+      setStockMenuOpen(true);
+    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeWatchlistMenu, connected, findTriggerMatchBeforeCaret]);
 
     const openSkillMenu = useCallback(() => {
       if (!connected) {
@@ -1014,12 +1213,13 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       }
       setModelMenuOpen(false);
       closeMentionMenu();
+      closeStockMenu();
       closeModeMenu();
       closeMarketMenu();
       closeWatchlistMenu();
       closeOutputMenu();
       setSkillMenuOpen(true);
-    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeWatchlistMenu, connected]);
+    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeStockMenu, closeWatchlistMenu, connected]);
 
     const openModeMenu = useCallback(() => {
       if (!connected) {
@@ -1028,11 +1228,12 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       setModelMenuOpen(false);
       closeMentionMenu();
       closeSkillMenu();
+      closeStockMenu();
       closeMarketMenu();
       closeWatchlistMenu();
       closeOutputMenu();
       setModeMenuOpen(true);
-    }, [closeMarketMenu, closeMentionMenu, closeOutputMenu, closeSkillMenu, closeWatchlistMenu, connected]);
+    }, [closeMarketMenu, closeMentionMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, connected]);
 
     const openMarketMenu = useCallback(() => {
       if (!connected) {
@@ -1042,10 +1243,11 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       closeMentionMenu();
       closeSkillMenu();
       closeModeMenu();
+      closeStockMenu();
       closeWatchlistMenu();
       closeOutputMenu();
       setMarketMenuOpen(true);
-    }, [closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeWatchlistMenu, connected]);
+    }, [closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, connected]);
 
     const openWatchlistMenu = useCallback(() => {
       if (!connected) {
@@ -1056,9 +1258,10 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       closeSkillMenu();
       closeModeMenu();
       closeMarketMenu();
+      closeStockMenu();
       closeOutputMenu();
       setWatchlistMenuOpen(true);
-    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, connected]);
+    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, connected]);
 
     const openOutputMenu = useCallback(() => {
       if (!connected) {
@@ -1070,8 +1273,9 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       closeModeMenu();
       closeMarketMenu();
       closeWatchlistMenu();
+      closeStockMenu();
       setOutputMenuOpen(true);
-    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeSkillMenu, closeWatchlistMenu, connected]);
+    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, connected]);
 
     const selectSkill = useCallback((slug: string | null) => {
       setSelectedSkillSlug(slug);
@@ -1260,6 +1464,47 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     }, [initialSelectedStock]);
 
     useEffect(() => {
+      if (!stockMenuOpen || !connected || !searchStocks) {
+        setStockLoading(false);
+        if (!stockMenuOpen || !searchStocks) {
+          setStockResults([]);
+        }
+        return;
+      }
+
+      let cancelled = false;
+      const sequence = stockSearchSeqRef.current + 1;
+      stockSearchSeqRef.current = sequence;
+      setStockLoading(true);
+      setStockError(null);
+
+      void searchStocks(stockQuery.trim())
+        .then((results) => {
+          if (cancelled || stockSearchSeqRef.current !== sequence) {
+            return;
+          }
+          setStockResults(results);
+        })
+        .catch(() => {
+          if (cancelled || stockSearchSeqRef.current !== sequence) {
+            return;
+          }
+          setStockResults([]);
+          setStockError('股票列表暂时不可用');
+        })
+        .finally(() => {
+          if (cancelled || stockSearchSeqRef.current !== sequence) {
+            return;
+          }
+          setStockLoading(false);
+        });
+
+      return () => {
+        cancelled = true;
+      };
+    }, [connected, searchStocks, stockMenuOpen, stockQuery]);
+
+    useEffect(() => {
       if (!visibleTopBarControlKeys.has('mode') || (selectedMode && !findStaticOption(modeOptions, selectedMode))) {
         setSelectedMode(null);
       }
@@ -1296,15 +1541,25 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         const range = selection.getRangeAt(0);
         if (editor.contains(range.startContainer) && editor.contains(range.endContainer)) {
           savedRangeRef.current = range.cloneRange();
+          if (stockMenuOpen && pendingStockTriggerRef.current) {
+            const match = findTriggerMatchBeforeCaret('#');
+            if (!match) {
+              closeStockMenu();
+              return;
+            }
+            if (match.query !== stockQuery) {
+              setStockQuery(match.query);
+            }
+          }
         }
       };
 
       document.addEventListener('selectionchange', handleSelectionChange);
       return () => document.removeEventListener('selectionchange', handleSelectionChange);
-    }, []);
+    }, [closeStockMenu, findTriggerMatchBeforeCaret, stockMenuOpen, stockQuery]);
 
     useEffect(() => {
-      if (!modelMenuOpen && !mentionMenuOpen && !skillMenuOpen && !modeMenuOpen && !marketMenuOpen && !watchlistMenuOpen && !outputMenuOpen) {
+      if (!modelMenuOpen && !mentionMenuOpen && !stockMenuOpen && !skillMenuOpen && !modeMenuOpen && !marketMenuOpen && !watchlistMenuOpen && !outputMenuOpen) {
         return;
       }
 
@@ -1313,6 +1568,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         if (
           modelMenuRef.current?.contains(target) ||
           mentionMenuRef.current?.contains(target) ||
+          stockMenuRef.current?.contains(target) ||
           skillMenuRef.current?.contains(target) ||
           modeMenuRef.current?.contains(target) ||
           marketMenuRef.current?.contains(target) ||
@@ -1323,6 +1579,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         }
         setModelMenuOpen(false);
         closeMentionMenu();
+        closeStockMenu();
         closeSkillMenu();
         closeModeMenu();
         closeMarketMenu();
@@ -1334,6 +1591,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         if (event.key === 'Escape') {
           setModelMenuOpen(false);
           closeMentionMenu();
+          closeStockMenu();
           closeSkillMenu();
           closeModeMenu();
           closeMarketMenu();
@@ -1354,6 +1612,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       closeModeMenu,
       closeOutputMenu,
       closeSkillMenu,
+      closeStockMenu,
       closeWatchlistMenu,
       marketMenuOpen,
       mentionMenuOpen,
@@ -1361,6 +1620,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       modelMenuOpen,
       outputMenuOpen,
       skillMenuOpen,
+      stockMenuOpen,
       watchlistMenuOpen,
     ]);
 
@@ -1368,13 +1628,14 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       if (!connected || sessionTransitioning) {
         setModelMenuOpen(false);
         closeMentionMenu();
+        closeStockMenu();
         closeSkillMenu();
         closeModeMenu();
         closeMarketMenu();
         closeWatchlistMenu();
         closeOutputMenu();
       }
-    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeWatchlistMenu, connected, sessionTransitioning]);
+    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, connected, sessionTransitioning]);
 
     const submitLabel = busy && !hasContent ? '停止' : '发送';
     const sendState = busy ? 'busy' : hasContent ? 'ready' : 'empty';
@@ -1453,6 +1714,13 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const modeTriggerLabel = selectedModeOption?.label ?? modeControl?.displayName ?? '选择模式';
     const marketTriggerLabel = selectedMarketScopeOption?.label ?? marketScopeControl?.displayName ?? '选择市场';
     const stockTriggerLabel = selectedStockContextLabel ?? '股票';
+    const stockMenuStatusLabel = stockLoading
+      ? '搜索中'
+      : stockQuery.trim()
+        ? `匹配 ${stockResults.length}`
+        : selectedStockContext
+          ? '已选中'
+          : '热门';
     const watchlistTriggerLabel = selectedWatchlistOption?.label ?? watchlistControl?.displayName ?? '自选股';
     const outputTriggerLabel = selectedOutputOption?.label ?? outputControl?.displayName ?? '选择输出';
     const hasActiveSelections =
@@ -1959,16 +2227,28 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
               </div>
               ) : null}
 
-              {selectedStockContext ? (
-              <div className="iclaw-composer__selector" style={{order: 45}}>
+              <div
+                ref={stockMenuRef}
+                className="iclaw-composer__selector"
+                style={{order: 45}}
+              >
                 <button
                   type="button"
                   className="iclaw-composer__selector-trigger"
                   data-tone="stock"
-                  data-active="true"
+                  data-active={selectedStockContext ? 'true' : 'false'}
+                  disabled={!connected}
+                  aria-haspopup="menu"
+                  aria-expanded={stockMenuOpen}
                   onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => setSelectedStockContext(null)}
-                  title={`当前股票：${stockTriggerLabel}，点击移除`}
+                  onClick={() => {
+                    if (stockMenuOpen) {
+                      closeStockMenu();
+                      return;
+                    }
+                    openStockMenu('toolbar');
+                  }}
+                  title={selectedStockContext ? `当前股票：${stockTriggerLabel}，点击切换股票` : '选择股票'}
                 >
                   <span className="iclaw-composer__selector-trigger-main">
                     <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--stock">
@@ -1978,9 +2258,86 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                       <span className="iclaw-composer__selector-label">{stockTriggerLabel}</span>
                     </span>
                   </span>
+                  <ChevronDown className="iclaw-composer__selector-caret h-3.5 w-3.5" data-open={stockMenuOpen ? 'true' : 'false'} />
                 </button>
+
+                {stockMenuOpen ? (
+                  <div className="iclaw-composer__selector-menu iclaw-composer__selector-menu--compact" role="menu" aria-label="选择股票">
+                    <div className="iclaw-composer__selector-menu-header">
+                      <div className="iclaw-composer__selector-menu-header-copy">
+                        <span className="iclaw-composer__selector-menu-kicker">股票上下文</span>
+                        <span className="iclaw-composer__selector-menu-title">选择股票</span>
+                        <span className="iclaw-composer__selector-menu-subtitle">
+                          {stockQuery.trim()
+                            ? `正在匹配 “#${stockQuery.trim()}”`
+                            : '输入 #股票代码 或 #公司名，选中后会插入到当前光标位置'}
+                        </span>
+                      </div>
+                      <span className="iclaw-composer__selector-menu-pill">{stockMenuStatusLabel}</span>
+                    </div>
+                    <div className="iclaw-composer__skill-list">
+                      <div className="iclaw-composer__selector-section-title">默认</div>
+                      <button
+                        type="button"
+                        className="iclaw-composer__skill-option"
+                        data-active={selectedStockContext ? 'false' : 'true'}
+                        onClick={() => clearStockSelection()}
+                      >
+                        <span className="iclaw-composer__skill-option-main">
+                          <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--stock iclaw-composer__selector-icon--menu">
+                            <BarChart3 className="h-3.5 w-3.5" />
+                          </span>
+                          <span className="iclaw-composer__skill-option-copy">
+                            <span className="iclaw-composer__skill-option-label">默认股票</span>
+                            <span className="iclaw-composer__skill-option-detail">不绑定单一股票上下文</span>
+                          </span>
+                        </span>
+                        {!selectedStockContext ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
+                      </button>
+                      <div className="iclaw-composer__selector-section-title">
+                        {stockQuery.trim() ? '搜索结果' : '热门股票'}
+                      </div>
+                      {stockLoading ? (
+                        <div className="iclaw-composer__mention-empty">正在加载股票列表...</div>
+                      ) : stockError ? (
+                        <div className="iclaw-composer__mention-empty">{stockError}</div>
+                      ) : stockResults.length > 0 ? (
+                        stockResults.map((stock) => {
+                          const active = selectedStockContext?.id === stock.id;
+                          return (
+                            <button
+                              key={stock.id}
+                              type="button"
+                              className="iclaw-composer__skill-option"
+                              data-active={active ? 'true' : 'false'}
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => insertStockMention(stock)}
+                            >
+                              <span className="iclaw-composer__skill-option-main">
+                                <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--stock iclaw-composer__selector-icon--menu">
+                                  <BarChart3 className="h-3.5 w-3.5" />
+                                </span>
+                                <span className="iclaw-composer__skill-option-copy">
+                                  <span className="iclaw-composer__skill-option-label">{stock.companyName}</span>
+                                  <span className="iclaw-composer__skill-option-detail">
+                                    {stock.symbol} · {formatStockExchangeLabel(stock.exchange)}
+                                    {stock.board ? ` · ${stock.board}` : ''}
+                                  </span>
+                                </span>
+                              </span>
+                              {active ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <div className="iclaw-composer__mention-empty">
+                          {stockQuery.trim() ? '没有找到匹配股票，继续输入代码或公司名试试。' : '暂无可用股票结果'}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
               </div>
-              ) : null}
 
               {visibleTopBarControlKeys.has('watchlist') ? (
               <div
@@ -2310,7 +2667,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                       type="button"
                       className="iclaw-composer__active-chip"
                       data-tone="stock"
-                      onClick={() => setSelectedStockContext(null)}
+                      onClick={() => clearStockSelection()}
                       title={`移除股票：${stockTriggerLabel}`}
                     >
                       <span className="iclaw-composer__active-chip-main">
@@ -2375,12 +2732,30 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                 aria-multiline="true"
                 aria-label="聊天输入框"
                 data-empty="true"
-                onInput={() => refreshState()}
+                onInput={() => {
+                  refreshState();
+                  if (!stockMenuOpen || !pendingStockTriggerRef.current) {
+                    return;
+                  }
+                  const match = findTriggerMatchBeforeCaret('#');
+                  if (!match) {
+                    closeStockMenu();
+                    return;
+                  }
+                  if (match.query !== stockQuery) {
+                    setStockQuery(match.query);
+                  }
+                }}
                 onKeyDown={(event) => {
                   const nativeEvent = event.nativeEvent as KeyboardEvent;
                   if (event.key === '@' && !nativeEvent.isComposing && !event.ctrlKey && !event.metaKey && !event.altKey) {
                     window.requestAnimationFrame(() => {
                       openMentionMenu('typing');
+                    });
+                  }
+                  if (event.key === '#' && !nativeEvent.isComposing && !event.ctrlKey && !event.metaKey && !event.altKey) {
+                    window.requestAnimationFrame(() => {
+                      openStockMenu('typing');
                     });
                   }
                   if (event.key === 'Enter' && !nativeEvent.isComposing && !event.shiftKey) {
@@ -2440,8 +2815,15 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   if (!tokenNode || !tokenId) {
                     return;
                   }
+                  const token = tokenStoreRef.current.get(tokenId) ?? null;
                   tokenNode.remove();
                   tokenStoreRef.current.delete(tokenId);
+                  if (token?.kind === 'stock') {
+                    setSelectedStockContext(null);
+                  }
+                  if (token?.kind === 'agent') {
+                    setSelectedAgentSlug(null);
+                  }
                   refreshState();
                   editorRef.current?.focus();
                 }}
