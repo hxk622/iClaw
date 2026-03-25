@@ -8,8 +8,8 @@ const NAV_ITEMS = [
   {id: 'overview', label: '总览', icon: 'layoutGrid'},
   {id: 'brands', label: '品牌管理', icon: 'layers'},
   {id: 'agent-center', label: 'Agent中心', icon: 'messageSquare'},
-  {id: 'skill-center', label: 'Skill中心', icon: 'zap'},
-  {id: 'mcp-center', label: 'MCP中心', icon: 'network'},
+  {id: 'skill-center', label: '平台级 Skill', icon: 'zap'},
+  {id: 'mcp-center', label: '平台级 MCP', icon: 'network'},
   {id: 'model-center', label: '模型中心', icon: 'package'},
   {id: 'cloud-skills', label: '云技能', icon: 'store'},
   {id: 'assets', label: '资源管理', icon: 'image'},
@@ -204,6 +204,7 @@ const state = {
   personalSkillCatalog: [],
   skillLibrary: [],
   mcpCatalog: [],
+  mcpRegistryCatalog: [],
   modelCatalog: [],
   skillSyncSources: [],
   skillSyncRuns: [],
@@ -229,6 +230,8 @@ const state = {
   showCreateBrandForm: false,
   showAgentImportPanel: false,
   showSkillImportPanel: false,
+  showPlatformSkillAddPanel: false,
+  showPlatformMcpAddPanel: false,
   showSkillSyncSourceForm: false,
   showAssetUploadPanel: false,
   filters: {
@@ -1113,33 +1116,46 @@ function installStateLabel(installed) {
   return installed ? '已安装' : '未安装';
 }
 
-function isPlatformManagedSkillBinding(binding) {
-  const config = asObject(binding?.config);
-  return config.locked === true || config.managed_by === 'platform' || config.managedBy === 'platform';
+function getPlatformManagedSkillSlugs() {
+  return state.skillCatalog
+    .filter((item) => item?.active !== false)
+    .map((item) => String(item?.slug || '').trim())
+    .filter(Boolean);
 }
 
-function getPlatformManagedSkillSlugs(detail = state.brandDetail) {
-  const managed = new Set();
-  asArray(detail?.skillBindings).forEach((item) => {
-    const skillSlug = String(item?.skillSlug || '').trim();
-    if (!skillSlug || !isPlatformManagedSkillBinding(item)) return;
-    managed.add(skillSlug);
-  });
-  return Array.from(managed);
+function getPlatformManagedMcpKeys() {
+  return state.mcpCatalog
+    .filter((item) => item?.active !== false)
+    .map((item) => String(item?.mcpKey || item?.key || '').trim())
+    .filter(Boolean);
 }
 
-function isPlatformManagedSkillSlug(skillSlug, detail = state.brandDetail) {
-  return Boolean(skillSlug) && getPlatformManagedSkillSlugs(detail).includes(skillSlug);
+function isPlatformManagedSkillSlug(skillSlug) {
+  return Boolean(skillSlug) && getPlatformManagedSkillSlugs().includes(skillSlug);
 }
 
-function ensurePlatformManagedSkillSelection(selectedSkills, detail = state.brandDetail) {
+function isPlatformManagedMcpKey(mcpKey) {
+  return Boolean(mcpKey) && getPlatformManagedMcpKeys().includes(mcpKey);
+}
+
+function ensureEffectiveSkillSelection(selectedSkills) {
   const next = new Set(asStringArray(selectedSkills));
-  getPlatformManagedSkillSlugs(detail).forEach((skillSlug) => next.add(skillSlug));
+  getPlatformManagedSkillSlugs().forEach((skillSlug) => next.add(skillSlug));
+  return Array.from(next);
+}
+
+function ensureEffectiveMcpSelection(selectedMcp) {
+  const next = new Set(asStringArray(selectedMcp));
+  getPlatformManagedMcpKeys().forEach((mcpKey) => next.add(mcpKey));
   return Array.from(next);
 }
 
 function getSkillBinding(detail, skillSlug) {
   return asArray(detail?.skillBindings).find((item) => String(item?.skillSlug || '').trim() === skillSlug) || null;
+}
+
+function getMcpBinding(detail, mcpKey) {
+  return asArray(detail?.mcpBindings).find((item) => String(item?.mcpKey || '').trim() === mcpKey) || null;
 }
 
 function capabilityBindingCountLabel(type, count) {
@@ -1543,6 +1559,7 @@ function buildPortalDashboard(apps, skills, mcps, detailsMap) {
 function getPortalSkillConnections(slug) {
   return state.brands
     .filter((brand) =>
+      isPlatformManagedSkillSlug(slug) ||
       asArray(state.portalAppDetails[brand.brandId]?.skillBindings).some((item) => item.skillSlug === slug && item.enabled),
     )
     .map((brand) => ({
@@ -1554,6 +1571,7 @@ function getPortalSkillConnections(slug) {
 function getPortalMcpConnections(mcpKey) {
   return state.brands
     .filter((brand) =>
+      isPlatformManagedMcpKey(mcpKey) ||
       asArray(state.portalAppDetails[brand.brandId]?.mcpBindings).some((item) => item.mcpKey === mcpKey && item.enabled),
     )
     .map((brand) => ({
@@ -1782,6 +1800,10 @@ function getPersonalSkillCatalogEntry(slug) {
 
 function getMcpCatalogEntry(key) {
   return state.mcpCatalog.find((item) => item.key === key || item.mcpKey === key) || null;
+}
+
+function getMcpRegistryEntry(key) {
+  return state.mcpRegistryCatalog.find((item) => item.key === key || item.mcpKey === key) || null;
 }
 
 function getModelCatalogEntry(ref) {
@@ -2209,11 +2231,12 @@ function buildBrandDraftBuffer(detail) {
       darkPrimaryHover: darkTheme.primaryHover || '',
       darkOnPrimary: darkTheme.onPrimary || '',
     },
-    selectedSkills: ensurePlatformManagedSkillSelection(
+    selectedSkills: ensureEffectiveSkillSelection(
       asArray(detail?.skillBindings).filter((item) => item.enabled).map((item) => item.skillSlug),
-      detail,
     ),
-    selectedMcp: asArray(detail?.mcpBindings).filter((item) => item.enabled).map((item) => item.mcpKey),
+    selectedMcp: ensureEffectiveMcpSelection(
+      asArray(detail?.mcpBindings).filter((item) => item.enabled).map((item) => item.mcpKey),
+    ),
     selectedMenus,
     menuConfigs,
     menuOrder,
@@ -2464,8 +2487,8 @@ function captureBrandEditorBuffer() {
     // Capability switches are managed through in-memory draft state.
     // Do not recompute them from hidden checkbox markup during save, otherwise
     // stale DOM can overwrite the latest toggle state back to old values.
-    selectedSkills: ensurePlatformManagedSkillSelection(existing.selectedSkills, state.brandDetail),
-    selectedMcp: asStringArray(existing.selectedMcp),
+    selectedSkills: ensureEffectiveSkillSelection(existing.selectedSkills),
+    selectedMcp: ensureEffectiveMcpSelection(existing.selectedMcp),
     selectedMenus: asStringArray(existing.selectedMenus),
     menuConfigs,
     menuOrder: buildOrderedMenuList(existing.menuOrder),
@@ -2814,11 +2837,12 @@ async function loadAppData() {
   render();
 
   try {
-    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, modelCatalogData, menuCatalogData, composerControlCatalogData, composerShortcutCatalogData, skillSyncSourcesData, skillSyncRunsData, paymentOrdersData] = await Promise.all([
+    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, mcpRegistryData, modelCatalogData, menuCatalogData, composerControlCatalogData, composerShortcutCatalogData, skillSyncSourcesData, skillSyncRunsData, paymentOrdersData] = await Promise.all([
       apiFetch('/admin/portal/apps', {method: 'GET'}),
       apiFetch('/admin/agents/catalog', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/skills', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/mcps', {method: 'GET'}),
+      apiFetch('/admin/mcp/catalog', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/models', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/menus', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/composer-controls', {method: 'GET'}),
@@ -2840,6 +2864,7 @@ async function loadAppData() {
     state.agentCatalog = Array.isArray(agentCatalogData.items) ? agentCatalogData.items : [];
     state.skillCatalog = Array.isArray(skillCatalogData.items) ? skillCatalogData.items : [];
     state.mcpCatalog = Array.isArray(mcpCatalogData.items) ? mcpCatalogData.items : [];
+    state.mcpRegistryCatalog = Array.isArray(mcpRegistryData.items) ? mcpRegistryData.items : [];
     state.modelCatalog = Array.isArray(modelCatalogData.items) ? modelCatalogData.items : [];
     state.menuCatalog = Array.isArray(menuCatalogData.items)
       ? menuCatalogData.items.map((item, index) => normalizeMenuCatalogItem(item, index)).filter(Boolean)
@@ -2968,10 +2993,8 @@ async function loadBrandDetail(brandId, options = {}) {
 
 async function saveBrandEditor(form) {
   const snapshot = captureBrandEditorBuffer();
-  snapshot.selectedSkills = ensurePlatformManagedSkillSelection(
-    snapshot.selectedSkills,
-    state.portalAppDetails[snapshot.brandId] || state.brandDetail,
-  );
+  snapshot.selectedSkills = ensureEffectiveSkillSelection(snapshot.selectedSkills);
+  snapshot.selectedMcp = ensureEffectiveMcpSelection(snapshot.selectedMcp);
   let draftConfig;
   try {
     draftConfig = composeDraftConfig(snapshot);
@@ -2996,6 +3019,8 @@ async function saveBrandEditor(form) {
     const existingComposerShortcutBindings = new Map(
       mergeComposerShortcutBindings(detail.composerShortcutBindings).map((item) => [item.shortcutKey, item]),
     );
+    const oemSelectedSkills = snapshot.selectedSkills.filter((skillSlug) => !isPlatformManagedSkillSlug(skillSlug));
+    const oemSelectedMcp = snapshot.selectedMcp.filter((mcpKey) => !isPlatformManagedMcpKey(mcpKey));
     await apiFetch(`/admin/portal/apps/${encodeURIComponent(snapshot.brandId)}`, {
       method: 'PUT',
       body: JSON.stringify({
@@ -3009,7 +3034,7 @@ async function saveBrandEditor(form) {
       apiFetch(`/admin/portal/apps/${encodeURIComponent(snapshot.brandId)}/skills`, {
         method: 'PUT',
         body: JSON.stringify(
-          snapshot.selectedSkills.map((skillSlug, index) => ({
+          oemSelectedSkills.map((skillSlug, index) => ({
             skillSlug,
             enabled: true,
             sortOrder: (index + 1) * 10,
@@ -3020,11 +3045,11 @@ async function saveBrandEditor(form) {
       apiFetch(`/admin/portal/apps/${encodeURIComponent(snapshot.brandId)}/mcps`, {
         method: 'PUT',
         body: JSON.stringify(
-          state.mcpCatalog.map((item, index) => ({
-            mcpKey: item.mcpKey,
-            enabled: snapshot.selectedMcp.includes(item.mcpKey),
+          oemSelectedMcp.map((mcpKey, index) => ({
+            mcpKey,
+            enabled: true,
             sortOrder: (index + 1) * 10,
-            config: asObject(existingMcpBindings.get(item.mcpKey)?.config),
+            config: asObject(existingMcpBindings.get(mcpKey)?.config),
           })),
         ),
       }),
@@ -3454,9 +3479,9 @@ async function setSkillEnabled(slug, enabled) {
       }),
     });
     await loadAppData();
-    setNotice(`${slug} 已${enabled ? '上架' : '下架'}。`);
+    setNotice(`平台级 Skill ${slug} 已${enabled ? '启用' : '停用'}。`);
   } catch (error) {
-    setError(error instanceof Error ? error.message : `技能${enabled ? '上架' : '下架'}失败`);
+    setError(error instanceof Error ? error.message : `平台级 Skill ${enabled ? '启用' : '停用'}失败`);
   } finally {
     state.busy = false;
     render();
@@ -3577,9 +3602,9 @@ async function deleteSkill(slug) {
       method: 'DELETE',
     });
     await loadAppData();
-    setNotice(`已删除技能 ${slug}。`);
+    setNotice(`已将 ${slug} 移出平台级 Skill。`);
   } catch (error) {
-    setError(error instanceof Error ? error.message : '技能删除失败');
+    setError(error instanceof Error ? error.message : '移出平台级 Skill 失败');
   } finally {
     state.busy = false;
     render();
@@ -3625,6 +3650,64 @@ async function importSkill(formData) {
   }
 }
 
+async function addPlatformSkillFromCloud(formData) {
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    const slug = String(formData.get('slug') || '').trim();
+    if (!slug) {
+      throw new Error('请填写 cloud skill slug');
+    }
+    let cloudSkill =
+      state.cloudSkillCatalog.find((item) => item.slug === slug) ||
+      state.brandSkillCatalog.find((item) => item.slug === slug) ||
+      null;
+    if (!cloudSkill) {
+      const data = await apiFetch(buildAdminSkillCatalogPath({limit: ADMIN_SKILL_BROWSER_PAGE_SIZE, offset: 0, query: slug}), {method: 'GET'});
+      cloudSkill = asArray(data.items).find((item) => String(item?.slug || '').trim() === slug) || null;
+    }
+    if (!cloudSkill) {
+      throw new Error(`云技能中未找到 ${slug}`);
+    }
+    await apiFetch(`/admin/portal/catalog/skills/${encodeURIComponent(slug)}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: String(cloudSkill.name || slug).trim(),
+        description: String(cloudSkill.description || '').trim(),
+        publisher: String(cloudSkill.publisher || 'iClaw').trim() || 'iClaw',
+        category: String(cloudSkill.category || '').trim() || null,
+        visibility: String(cloudSkill.visibility || 'showcase').trim() || 'showcase',
+        metadata: {
+          ...asObject(cloudSkill.metadata),
+          sourceType: 'cloud-skill-import',
+          sourceCatalog: 'cloud-skills',
+          cloudSkillSlug: slug,
+          cloudSkillVersion: String(cloudSkill.version || '').trim() || null,
+          market: String(cloudSkill.market || '').trim() || null,
+          skillType: String(cloudSkill.skill_type || '').trim() || null,
+          tags: asArray(cloudSkill.tags).map((item) => String(item || '').trim()).filter(Boolean),
+          artifactUrl: String(cloudSkill.artifact_url || '').trim() || null,
+          artifactFormat: String(cloudSkill.artifact_format || '').trim() || null,
+          sourceUrl: String(cloudSkill.source_url || '').trim() || null,
+          originType: String(cloudSkill.origin_type || '').trim() || null,
+        },
+        active: cloudSkill.active !== false,
+      }),
+    });
+    await loadAppData();
+    state.selectedSkillSlug = slug;
+    state.showPlatformSkillAddPanel = false;
+    setNotice(`已将云技能 ${slug} 加入平台级 Skill。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '加入平台级 Skill 失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
 async function setCloudSkillEnabled(slug, enabled) {
   if (!slug) return;
   state.busy = true;
@@ -3664,6 +3747,54 @@ async function setCloudSkillEnabled(slug, enabled) {
     setNotice(`${slug} 已${enabled ? '上架' : '下架'}。`);
   } catch (error) {
     setError(error instanceof Error ? error.message : `云技能${enabled ? '上架' : '下架'}失败`);
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function addPlatformMcpFromRegistry(formData) {
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    const key = String(formData.get('key') || '').trim();
+    if (!key) {
+      throw new Error('请填写 MCP key');
+    }
+    const registryEntry = getMcpRegistryEntry(key);
+    if (!registryEntry) {
+      throw new Error(`MCP 全集中未找到 ${key}`);
+    }
+    const config = asObject(registryEntry.config);
+    await apiFetch(`/admin/portal/catalog/mcps/${encodeURIComponent(key)}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: String(registryEntry.name || key).trim(),
+        description: String(registryEntry.description || '').trim(),
+        transport: String(registryEntry.transport || registryEntry.type || 'config').trim() || 'config',
+        config: {
+          command: String(registryEntry.command || config.command || '').trim() || null,
+          args: asArray(registryEntry.args || config.args).map((item) => String(item || '').trim()).filter(Boolean),
+          http_url: String(registryEntry.http_url || registryEntry.httpUrl || config.http_url || config.httpUrl || '').trim() || null,
+          env: asObject(registryEntry.env || config.env),
+        },
+        metadata: {
+          ...asObject(registryEntry.metadata),
+          sourceType: 'mcp-registry-import',
+          sourceCatalog: 'mcp-registry',
+          registryKey: key,
+        },
+        active: registryEntry.enabled !== false,
+      }),
+    });
+    await loadAppData();
+    state.selectedMcpKey = key;
+    state.showPlatformMcpAddPanel = false;
+    setNotice(`已将 MCP ${key} 加入平台级 MCP。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '加入平台级 MCP 失败');
   } finally {
     state.busy = false;
     render();
@@ -3753,7 +3884,7 @@ async function saveMcpCatalogEntry(formData) {
     });
     await loadAppData();
     state.selectedMcpKey = key;
-    setNotice(`MCP ${state.selectedMcpKey} 已保存。`);
+    setNotice(`平台级 MCP ${state.selectedMcpKey} 已保存。`);
   } catch (error) {
     setError(error instanceof Error ? error.message : 'MCP 保存失败');
   } finally {
@@ -3793,7 +3924,7 @@ async function deleteMcpCatalogEntry(key) {
     });
     await loadAppData();
     state.selectedMcpKey = '';
-    setNotice(`已删除 MCP ${key}。`);
+    setNotice(`已将 ${key} 移出平台级 MCP。`);
   } catch (error) {
     setError(error instanceof Error ? error.message : 'MCP 删除失败');
   } finally {
@@ -4233,15 +4364,15 @@ function renderBrandDetailGuide(activeTab) {
   }
   if (activeTab === 'skills') {
     return renderPageGuide('技能装配怎么配', [
-      '技能主数据先在 Skill中心维护，这里只负责给当前 OEM 勾选安装哪些技能。',
-      '当前品牌勾选后会进入该品牌的 capabilities.skills 和 skill bindings。',
+      '技能全集先在“云技能”维护，平台通用预装子集在“平台级 Skill”维护。',
+      '当前页面只负责当前 OEM 的增量预装；平台级 Skill 会自动继承并锁定。',
       '保存配置后再发布快照，客户端同步新 snapshot 后技能入口和运行时能力才会更新。',
     ], 'brand');
   }
   if (activeTab === 'mcps') {
     return renderPageGuide('MCP 装配怎么配', [
-      'MCP 主目录先在 MCP中心维护，这里只做当前 OEM 的安装和卸载。',
-      '每个 OEM 只应安装自己需要的连接器，避免把无关 MCP 暴露给前端和运行时。',
+      'MCP 全集先在注册表里维护，平台通用预装子集在“平台级 MCP”维护。',
+      '当前页面只负责当前 OEM 的增量装配；平台级 MCP 会自动继承并锁定。',
       '保存配置后再发布快照，客户端同步后才会加载新的 MCP 清单。',
     ], 'brand');
   }
@@ -4285,8 +4416,8 @@ function renderOverviewPage() {
     ['品牌总数', stats.brands_total, 'portal apps', 'trendingUp'],
     ['已启用', stats.published_count, '运行中', 'checkCircle'],
     ['已禁用', stats.brands_total - stats.published_count, '已关闭', 'clock'],
-    ['MCP 服务器', stats.mcp_servers_count, '云端目录', 'network'],
-    ['技能', stats.skills_count, '云端目录', 'zap'],
+    ['平台级 MCP', stats.mcp_servers_count, '平台预装子集', 'network'],
+    ['平台级 Skill', stats.skills_count, '平台预装子集', 'zap'],
     ['资源索引', state.assets.length, 'portal assets', 'rocket'],
   ];
 
@@ -4595,20 +4726,21 @@ function renderBrandModuleSurfaceInline(buffer, surfaceKey) {
 function renderBrandSkillsAssembly(buffer) {
   const skills = [...state.brandSkillCatalog];
   const meta = state.brandSkillCatalogMeta || {};
-  const installedCount = asStringArray(buffer.selectedSkills).length;
-  const managedCount = getPlatformManagedSkillSlugs(state.brandDetail).length;
+  const installedCount = ensureEffectiveSkillSelection(buffer.selectedSkills).length;
+  const managedCount = getPlatformManagedSkillSlugs().length;
+  const oemInstalledCount = ensureEffectiveSkillSelection(buffer.selectedSkills).filter((skillSlug) => !isPlatformManagedSkillSlug(skillSlug)).length;
   const pageStart = skills.length ? Number(meta.offset || 0) + 1 : 0;
   const pageEnd = skills.length ? Number(meta.offset || 0) + skills.length : 0;
   return `
     <section class="fig-brand-section">
       <div class="fig-section-heading">
         <h2>技能</h2>
-        <p>给当前 OEM 应用勾选要安装的技能。这里读取全量 cloud skill 主库，并按分页和搜索管理安装状态。</p>
+        <p>这里是 OEM 级增量预装层。页面读取云技能全集，但平台级 Skill 会自动继承并锁定，OEM 只负责额外加装自己的那部分。</p>
       </div>
       <article class="fig-card fig-card--subtle">
         <div class="fig-card__head">
-          <h3>技能装配</h3>
-          <span>按品牌控制要安装哪些技能</span>
+          <h3>OEM Skill 装配</h3>
+          <span>平台级 Skill 自动继承，当前页面只做 OEM 增量安装</span>
         </div>
         <div class="fig-toolbar">
           <label class="fig-search fig-search--grow">
@@ -4627,8 +4759,9 @@ function renderBrandSkillsAssembly(buffer) {
         </div>
         <div class="fig-meta-cards">
           <div class="fig-meta-card"><span>云技能总数</span><strong>${escapeHtml(meta.total || 0)}</strong></div>
-          <div class="fig-meta-card"><span>当前 OEM 已安装</span><strong>${escapeHtml(installedCount)}</strong></div>
-          <div class="fig-meta-card"><span>平台默认</span><strong>${escapeHtml(managedCount)}</strong></div>
+          <div class="fig-meta-card"><span>生效总数</span><strong>${escapeHtml(installedCount)}</strong></div>
+          <div class="fig-meta-card"><span>OEM 增量</span><strong>${escapeHtml(oemInstalledCount)}</strong></div>
+          <div class="fig-meta-card"><span>平台继承</span><strong>${escapeHtml(managedCount)}</strong></div>
           <div class="fig-meta-card"><span>当前页</span><strong>${escapeHtml(pageStart && pageEnd ? `${pageStart}-${pageEnd}` : '0')}</strong></div>
         </div>
         <div class="fig-capability-stack">
@@ -4638,22 +4771,21 @@ function renderBrandSkillsAssembly(buffer) {
             ? skills
                 .map(
                   (skill) => {
-                    const binding = getSkillBinding(state.brandDetail, skill.slug);
-                    const platformManaged = isPlatformManagedSkillBinding(binding);
-                    const installed = buffer.selectedSkills.includes(skill.slug);
+                    const platformManaged = isPlatformManagedSkillSlug(skill.slug);
+                    const installed = ensureEffectiveSkillSelection(buffer.selectedSkills).includes(skill.slug);
                     return `
                     <article class="checkbox-card checkbox-card--capability fig-capability-item${platformManaged ? ' is-platform-managed' : ''}">
                       <input class="skill-checkbox visually-hidden" type="checkbox" value="${escapeHtml(skill.slug)}"${installed ? ' checked' : ''} />
                       <div class="fig-capability-item__body">
                         <strong>${escapeHtml(skill.name)}</strong>
                         <span>${escapeHtml(skill.category || '未分类')} · ${escapeHtml(skill.publisher || 'iClaw')}</span>
-                        ${platformManaged ? '<div class="metric-chips"><span>平台默认</span><span>OEM 不可修改</span></div>' : ''}
+                        ${platformManaged ? '<div class="metric-chips"><span>平台级 Skill</span><span>OEM 不可修改</span></div>' : ''}
                       </div>
                       ${renderSwitch({
                         checked: installed,
                         action: 'toggle-brand-skill',
                         attrs: `data-skill-slug="${escapeHtml(skill.slug)}"`,
-                        label: platformManaged ? '平台默认' : installStateLabel(installed),
+                        label: platformManaged ? '平台继承' : installStateLabel(installed),
                         disabled: platformManaged,
                       })}
                     </article>
@@ -4669,37 +4801,66 @@ function renderBrandSkillsAssembly(buffer) {
 }
 
 function renderBrandMcpAssembly(buffer) {
-  const mcpServers = getMergedMcpServers();
+  const mcpServers = [...state.mcpRegistryCatalog]
+    .map((item) => {
+      const key = String(item.key || item.mcpKey || '').trim();
+      const config = asObject(item.config);
+      const env = asObject(config.env);
+      return {
+        key,
+        name: item.name || titleizeKey(key),
+        description: item.description || '',
+        transport: item.transport || 'config',
+        envKeys: Object.keys(env),
+      };
+    })
+    .filter((item) => item.key)
+    .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
+  const effectiveSelectedMcp = ensureEffectiveMcpSelection(buffer.selectedMcp);
+  const platformManagedCount = getPlatformManagedMcpKeys().length;
+  const oemInstalledCount = effectiveSelectedMcp.filter((mcpKey) => !isPlatformManagedMcpKey(mcpKey)).length;
   return `
     <section class="fig-brand-section">
       <div class="fig-section-heading">
         <h2>MCP</h2>
-        <p>给当前 OEM 应用勾选要安装的 MCP 连接器，避免把无关外部能力暴露给前端和 runtime。</p>
+        <p>这里是 OEM 级 MCP 增量装配层。平台级 MCP 自动继承并锁定，当前页面只负责从 MCP 全集里给这个 OEM 追加能力。</p>
       </div>
       <article class="fig-card fig-card--subtle">
         <div class="fig-card__head">
-          <h3>MCP 装配</h3>
-          <span>按品牌控制要安装哪些连接器</span>
+          <h3>OEM MCP 装配</h3>
+          <span>平台级 MCP 自动继承，当前页面只做 OEM 增量安装</span>
+        </div>
+        <div class="fig-meta-cards">
+          <div class="fig-meta-card"><span>MCP 全集</span><strong>${escapeHtml(mcpServers.length)}</strong></div>
+          <div class="fig-meta-card"><span>生效总数</span><strong>${escapeHtml(effectiveSelectedMcp.length)}</strong></div>
+          <div class="fig-meta-card"><span>OEM 增量</span><strong>${escapeHtml(oemInstalledCount)}</strong></div>
+          <div class="fig-meta-card"><span>平台继承</span><strong>${escapeHtml(platformManagedCount)}</strong></div>
         </div>
         <div class="fig-capability-stack">
           ${mcpServers.length
             ? mcpServers
                 .map(
-                  (server) => `
-                    <article class="checkbox-card checkbox-card--capability fig-capability-item">
-                      <input class="mcp-checkbox visually-hidden" type="checkbox" value="${escapeHtml(server.key)}"${buffer.selectedMcp.includes(server.key) ? ' checked' : ''} />
+                  (server) => {
+                    const platformManaged = isPlatformManagedMcpKey(server.key);
+                    const installed = effectiveSelectedMcp.includes(server.key);
+                    return `
+                    <article class="checkbox-card checkbox-card--capability fig-capability-item${platformManaged ? ' is-platform-managed' : ''}">
+                      <input class="mcp-checkbox visually-hidden" type="checkbox" value="${escapeHtml(server.key)}"${installed ? ' checked' : ''} />
                       <div>
                         <strong>${escapeHtml(server.name)}</strong>
-                        <span>${escapeHtml(server.transport || 'config')} · ${escapeHtml(server.connected_brand_count)} 个品牌使用</span>
+                        <span>${escapeHtml(server.transport || 'config')} · ${escapeHtml(server.envKeys.length)} 个环境变量</span>
+                        ${platformManaged ? '<div class="metric-chips"><span>平台级 MCP</span><span>OEM 不可修改</span></div>' : ''}
                       </div>
                       ${renderSwitch({
-                        checked: buffer.selectedMcp.includes(server.key),
+                        checked: installed,
                         action: 'toggle-brand-mcp',
                         attrs: `data-mcp-key="${escapeHtml(server.key)}"`,
-                        label: installStateLabel(buffer.selectedMcp.includes(server.key)),
+                        label: platformManaged ? '平台继承' : installStateLabel(installed),
+                        disabled: platformManaged,
                       })}
                     </article>
-                  `,
+                  `;
+                  },
                 )
                 .join('')
             : `<div class="empty-state">当前没有 MCP 目录。</div>`}
@@ -5932,14 +6093,14 @@ function renderSkillsMcpPage() {
       ? `
         <button class="solid-button fig-button" type="button" data-action="new-skill">
           ${icon('plus', 'button-icon')}
-          添加技能
+          从云技能加入
         </button>
       `
       : state.capabilityMode === 'mcp'
         ? `
           <button class="solid-button fig-button" type="button" data-action="new-mcp">
             ${icon('plus', 'button-icon')}
-            新增 MCP
+            从 MCP 全集加入
           </button>
         `
         : `
@@ -5950,23 +6111,23 @@ function renderSkillsMcpPage() {
         `;
   const pageDescription =
     state.capabilityMode === 'skills'
-      ? '管理 Skill 主目录和 OEM 开放范围'
+      ? '管理平台级 Skill 预装子集，来源于云技能全集'
       : state.capabilityMode === 'mcp'
-        ? '管理 MCP 主目录和 OEM 开放范围'
+        ? '管理平台级 MCP 预装子集，来源于 MCP 全集'
         : '管理模型主目录、OEM allowlist、推荐和默认模型';
   const pageTitle =
-    state.capabilityMode === 'skills' ? 'Skill中心' : state.capabilityMode === 'mcp' ? 'MCP中心' : '模型中心';
+    state.capabilityMode === 'skills' ? '平台级 Skill' : state.capabilityMode === 'mcp' ? '平台级 MCP' : '模型中心';
   const listCountLabel =
     state.capabilityMode === 'skills'
-      ? `当前显示 ${skills.length} 个技能`
+      ? `当前显示 ${skills.length} 个平台级 Skill`
       : state.capabilityMode === 'mcp'
-        ? `当前显示 ${mcpServers.length} 个 MCP`
+        ? `当前显示 ${mcpServers.length} 个平台级 MCP`
         : `当前显示 ${models.length} 个模型`;
   const searchPlaceholder =
     state.capabilityMode === 'skills'
-      ? '搜索技能...'
+      ? '搜索平台级 Skill...'
       : state.capabilityMode === 'mcp'
-        ? '搜索 MCP...'
+        ? '搜索平台级 MCP...'
         : '搜索模型...';
   const filterControls =
     state.capabilityMode === 'skills'
@@ -6070,16 +6231,12 @@ function renderSkillsMcpPage() {
                 (item) => `
                   <button class="capability-card${selectedSkill?.slug === item.slug ? ' is-active' : ''}" type="button" data-action="select-skill" data-skill-slug="${escapeHtml(item.slug)}">
                     <strong>${escapeHtml(item.name)}</strong>
-                    <span>${escapeHtml(item.category || '未分类')} • ${escapeHtml(item.brand_count)} 个品牌使用</span>
+                    <span>${escapeHtml(item.category || '未分类')} • ${escapeHtml(item.brand_count)} 个 OEM 生效</span>
                   </button>
                 `,
               )
               .join('')
-          : `<div class="empty-state">没有匹配的技能。</div>`}
-        <button class="capability-card${state.selectedSkillSlug === '__new__' ? ' is-active' : ''}" type="button" data-action="select-skill" data-skill-slug="__new__">
-          <strong>新建 Skill</strong>
-          <span>新增一个 cloud skill catalog 记录</span>
-        </button>
+          : `<div class="empty-state">还没有平台级 Skill，先从云技能全集加入。</div>`}
       `
       : state.capabilityMode === 'mcp'
         ? `
@@ -6089,16 +6246,12 @@ function renderSkillsMcpPage() {
                   (item) => `
                     <button class="capability-card${selectedMcp?.key === item.key ? ' is-active' : ''}" type="button" data-action="select-mcp" data-mcp-key="${escapeHtml(item.key)}">
                       <strong>${escapeHtml(item.name)}</strong>
-                      <span>${escapeHtml(item.connected_brand_count)} 个品牌 • ${escapeHtml(item.env_keys.length)} 个环境变量</span>
+                      <span>${escapeHtml(item.connected_brand_count)} 个 OEM 生效 • ${escapeHtml(item.env_keys.length)} 个环境变量</span>
                     </button>
                   `,
                 )
                 .join('')
-            : `<div class="empty-state">没有匹配的 MCP。</div>`}
-          <button class="capability-card${state.selectedMcpKey === '__new__' ? ' is-active' : ''}" type="button" data-action="select-mcp" data-mcp-key="__new__">
-            <strong>新建 MCP</strong>
-            <span>新增一个可保存到注册表的配置</span>
-          </button>
+            : `<div class="empty-state">还没有平台级 MCP，先从 MCP 全集加入。</div>`}
         `
         : `
           ${models.length
@@ -6138,15 +6291,15 @@ function renderSkillsMcpPage() {
       </div>
       ${renderPageGuide(`${pageTitle}怎么用`, state.capabilityMode === 'skills'
         ? [
-            '这里维护 Skill 主数据，决定有哪些技能可以被 OEM 装配。',
-            '新增或编辑 Skill 后，再去品牌详情的“技能”tab里勾选安装到哪些品牌。',
-            '品牌侧勾选只是绑定关系；Skill 的主信息仍以这里为准。',
+            '这里不是云技能全集，而是“平台内建预装 Skill 子集”。',
+            '点击“从云技能加入”后，会把云技能中的某个 skill 纳入平台级 Skill，并自动继承到所有 OEM。',
+            '品牌详情里的“技能”页只做 OEM 增量预装，不重复管理平台级 Skill。',
           ]
         : state.capabilityMode === 'mcp'
           ? [
-              '这里维护 MCP 主目录，包括 transport、command、args、env 和元数据。',
-              'MCP 建好后，再去品牌详情的“MCP”tab里为指定 OEM 勾选安装。',
-              '需要验证连通性时，可先在这里保存，再点“测试连接”。',
+              '这里不是 MCP 全集，而是“平台内建预装 MCP 子集”。',
+              '点击“从 MCP 全集加入”后，会把注册表中的某个 MCP 纳入平台级 MCP，并自动继承到所有 OEM。',
+              '品牌详情里的“MCP”页只做 OEM 增量装配，不重复管理平台级 MCP。',
             ]
           : [
               '这里维护模型全集，不直接决定某个 OEM 能看到什么。',
@@ -6589,7 +6742,7 @@ function renderCloudSkillsPage() {
         ${renderPageGuide('云技能怎么用', [
           '这里维护技能商店主库，支持从 ClawHub 或 GitHub 同步技能目录。',
           '先新增同步源，再执行同步，把技能灌入云技能主库。',
-          '云技能入库后，仍需去品牌管理或 Skill 中心决定哪些 OEM 可以使用。',
+          '云技能入库后，可先加入“平台级 Skill”成为平台预装子集，或直接去品牌管理做 OEM 增量装配。',
         ], 'cloud')}
         <section class="fig-card">
           <div class="fig-card__head">
@@ -6738,6 +6891,38 @@ function renderCloudSkillsPage() {
   `;
 }
 
+function renderPlatformSkillAddPanel() {
+  const knownCloudSkills = [...state.cloudSkillCatalog]
+    .sort((left, right) => String(left.name || '').localeCompare(String(right.name || ''), 'zh-CN'))
+    .slice(0, 80);
+  return `
+    <section class="fig-card fig-card--subtle">
+      <div class="fig-card__head">
+        <h3>从云技能加入平台级 Skill</h3>
+        <span>平台级 Skill 只是一层平台预装子集，真实全集在“云技能”。</span>
+      </div>
+      <form id="platform-skill-add-form" class="form-grid form-grid--two">
+        <label class="field">
+          <span>Cloud Skill Slug</span>
+          <input class="field-input" name="slug" list="platform-skill-cloud-options" placeholder="输入云技能 slug" />
+          <datalist id="platform-skill-cloud-options">
+            ${knownCloudSkills.map((item) => `<option value="${escapeHtml(item.slug)}">${escapeHtml(item.name)}</option>`).join('')}
+          </datalist>
+        </label>
+        <div class="field">
+          <span>说明</span>
+          <small style="display:block;line-height:1.7;color:var(--text-secondary);">
+            输入云技能 slug 后保存，系统会从云技能全集读取该 skill，并把它加入平台级 Skill 子集。
+          </small>
+        </div>
+        <div class="fig-form-actions">
+          <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>加入平台级 Skill</button>
+        </div>
+      </form>
+    </section>
+  `;
+}
+
 function renderSkillImportPanel() {
   const skill = state.selectedSkillSlug === '__new__'
     ? null
@@ -6745,8 +6930,8 @@ function renderSkillImportPanel() {
   return `
     <section class="fig-card fig-card--subtle">
       <div class="fig-card__head">
-        <h3>${skill ? '编辑 Skill Catalog' : '新增 Skill Catalog'}</h3>
-        <span>当前直接写入 portal skill catalog；可选上传 tar.gz / zip artifact 到 MinIO。</span>
+        <h3>${skill ? '编辑平台级 Skill 记录' : '新增平台级 Skill 记录'}</h3>
+        <span>这里维护平台级 Skill 子集中的展示元数据；Skill 全集主数据仍以“云技能”为准。</span>
       </div>
       <form id="skill-import-form" class="form-grid form-grid--two">
         <label class="field">
@@ -6802,15 +6987,16 @@ function renderSkillImportPanel() {
 
 function renderSkillDetail(skill) {
   if (!skill) {
-    return `${state.showSkillImportPanel ? renderSkillImportPanel() : ''}<div class="fig-card fig-card--detail-empty"><div class="empty-state">选择一个技能查看详情，或新建 cloud skill。</div></div>`;
+    return `${state.showPlatformSkillAddPanel ? renderPlatformSkillAddPanel() : ''}${state.showSkillImportPanel ? renderSkillImportPanel() : ''}<div class="fig-card fig-card--detail-empty"><div class="empty-state">选择一个平台级 Skill 查看详情，或先从云技能全集加入。</div></div>`;
   }
   return `
     <div class="fig-detail-stack">
+      ${state.showPlatformSkillAddPanel ? renderPlatformSkillAddPanel() : ''}
       <div class="fig-card">
         <div class="fig-card__head">
           <div>
             <h2>${escapeHtml(skill.name)}</h2>
-            <span>${escapeHtml(skill.slug)} · ${escapeHtml(skill.publisher || 'iClaw')}</span>
+            <span>${escapeHtml(skill.slug)} · ${escapeHtml(skill.publisher || 'iClaw')} · 平台级 Skill</span>
           </div>
           ${renderSwitch({
             checked: skill.active !== false,
@@ -6822,12 +7008,12 @@ function renderSkillDetail(skill) {
         <p class="detail-copy">${escapeHtml(skill.description || '暂无描述。')}</p>
         <div class="fig-meta-cards">
           <div class="fig-meta-card"><span>分类</span><strong>${escapeHtml(skill.category || '未分类')}</strong></div>
-          <div class="fig-meta-card"><span>来源</span><strong>cloud</strong></div>
-          <div class="fig-meta-card"><span>使用品牌数</span><strong>${escapeHtml(skill.brand_count)}</strong></div>
+          <div class="fig-meta-card"><span>来源</span><strong>云技能全集</strong></div>
+          <div class="fig-meta-card"><span>生效 OEM</span><strong>${escapeHtml(skill.brand_count)}</strong></div>
         </div>
         <div class="action-row">
-          <button class="ghost-button" type="button" data-action="skill-delete" data-skill-slug="${escapeHtml(skill.slug)}">删除 Skill</button>
-          <button class="text-button" type="button" data-action="toggle-skill-import">${state.showSkillImportPanel ? '收起编辑面板' : '编辑 Skill'}</button>
+          <button class="ghost-button" type="button" data-action="skill-delete" data-skill-slug="${escapeHtml(skill.slug)}">移出平台级 Skill</button>
+          <button class="text-button" type="button" data-action="toggle-skill-import">${state.showSkillImportPanel ? '收起编辑面板' : '编辑平台级记录'}</button>
         </div>
       </div>
       <section class="fig-card fig-card--subtle">
@@ -6855,23 +7041,51 @@ function renderSkillDetail(skill) {
   `;
 }
 
+function renderPlatformMcpAddPanel() {
+  const knownMcps = [...state.mcpRegistryCatalog]
+    .map((item) => ({
+      key: String(item.key || item.mcpKey || '').trim(),
+      name: String(item.name || '').trim(),
+    }))
+    .filter((item) => item.key)
+    .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'))
+    .slice(0, 120);
+  return `
+    <section class="fig-card fig-card--subtle">
+      <div class="fig-card__head">
+        <h3>从 MCP 全集加入平台级 MCP</h3>
+        <span>平台级 MCP 是平台预装子集，真实全集来自 MCP 注册表。</span>
+      </div>
+      <form id="platform-mcp-add-form" class="form-grid form-grid--two">
+        <label class="field">
+          <span>MCP Key</span>
+          <input class="field-input" name="key" list="platform-mcp-registry-options" placeholder="输入 MCP key" />
+          <datalist id="platform-mcp-registry-options">
+            ${knownMcps.map((item) => `<option value="${escapeHtml(item.key)}">${escapeHtml(item.name)}</option>`).join('')}
+          </datalist>
+        </label>
+        <div class="field">
+          <span>说明</span>
+          <small style="display:block;line-height:1.7;color:var(--text-secondary);">
+            输入 MCP key 后保存，系统会从 MCP 全集读取该记录，并把它加入平台级 MCP 子集。
+          </small>
+        </div>
+        <div class="fig-form-actions">
+          <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>加入平台级 MCP</button>
+        </div>
+      </form>
+    </section>
+  `;
+}
+
 function renderMcpDetail(server) {
   if (!server) {
-    server = {
-      key: '',
-      name: '新建 MCP',
-      description: '',
-      transport: 'config',
-      metadata: {},
-      config: {},
-      command: '',
-      connected_brand_count: 0,
-      enabled_by_default: false,
-      args: [],
-      http_url: '',
-      env_keys: [],
-      connected_brands: [],
-    };
+    return `
+      <div class="fig-detail-stack">
+        ${state.showPlatformMcpAddPanel ? renderPlatformMcpAddPanel() : ''}
+        <div class="fig-card fig-card--detail-empty"><div class="empty-state">选择一个平台级 MCP 查看详情，或先从 MCP 全集加入。</div></div>
+      </div>
+    `;
   }
   const isNew = !server.key;
   const editable = {
@@ -6889,14 +7103,15 @@ function renderMcpDetail(server) {
   };
   return `
     <div class="fig-detail-stack">
+      ${state.showPlatformMcpAddPanel ? renderPlatformMcpAddPanel() : ''}
       <div class="fig-card">
         <div class="fig-card__head">
           <div>
             <h2>${escapeHtml(server.name)}</h2>
-            <span>${escapeHtml(server.key || 'new-mcp')} · ${escapeHtml(server.command || '未声明 command')}</span>
+            <span>${escapeHtml(server.key || 'new-mcp')} · ${escapeHtml(server.command || '未声明 command')} · 平台级 MCP</span>
           </div>
           <div class="metric-chips">
-            <span>${escapeHtml(server.connected_brand_count)} 个品牌</span>
+            <span>${escapeHtml(server.connected_brand_count)} 个 OEM 生效</span>
             <span>${server.enabled_by_default ? '目录可用' : '目录关闭'}</span>
           </div>
         </div>
@@ -6904,7 +7119,7 @@ function renderMcpDetail(server) {
       <form id="mcp-editor-form" class="fig-card fig-card--subtle">
       <div class="fig-card__head">
         <h3>MCP 配置</h3>
-        <span>真实写入 portal mcp catalog，支持保存、测试连接、删除</span>
+        <span>这里维护平台级 MCP 子集中的展示与运行配置；MCP 全集主数据仍以注册表为准。</span>
       </div>
       <div class="form-grid form-grid--two">
         <label class="field">
@@ -6958,7 +7173,7 @@ function renderMcpDetail(server) {
       <div class="action-row">
         <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>保存 MCP</button>
         <button class="ghost-button" type="button" data-action="mcp-test" data-mcp-key="${escapeHtml(server.key)}"${state.busy ? ' disabled' : ''}>测试连接</button>
-        ${isNew ? '' : `<button class="ghost-button" type="button" data-action="mcp-delete" data-mcp-key="${escapeHtml(server.key)}"${state.busy ? ' disabled' : ''}>删除</button>`}
+        ${isNew ? '' : `<button class="ghost-button" type="button" data-action="mcp-delete" data-mcp-key="${escapeHtml(server.key)}"${state.busy ? ' disabled' : ''}>移出平台级 MCP</button>`}
       </div>
       ${
         state.mcpTestResult
@@ -8508,8 +8723,18 @@ app.addEventListener('submit', async (event) => {
     return;
   }
 
+  if (form.id === 'platform-skill-add-form') {
+    await addPlatformSkillFromCloud(new FormData(form));
+    return;
+  }
+
   if (form.id === 'skill-sync-source-form') {
     await saveSkillSyncSource(new FormData(form));
+    return;
+  }
+
+  if (form.id === 'platform-mcp-add-form') {
+    await addPlatformMcpFromRegistry(new FormData(form));
     return;
   }
 
@@ -8589,6 +8814,18 @@ app.addEventListener('click', async (event) => {
 
   if (action === 'toggle-skill-import') {
     state.showSkillImportPanel = !state.showSkillImportPanel;
+    render();
+    return;
+  }
+
+  if (action === 'toggle-platform-skill-add') {
+    state.showPlatformSkillAddPanel = !state.showPlatformSkillAddPanel;
+    render();
+    return;
+  }
+
+  if (action === 'toggle-platform-mcp-add') {
+    state.showPlatformMcpAddPanel = !state.showPlatformMcpAddPanel;
     render();
     return;
   }
@@ -8692,8 +8929,7 @@ app.addEventListener('click', async (event) => {
   if (action === 'new-skill') {
     state.capabilityMode = 'skills';
     state.route = getCapabilityRouteForMode(state.capabilityMode);
-    state.selectedSkillSlug = '__new__';
-    state.showSkillImportPanel = true;
+    state.showPlatformSkillAddPanel = !state.showPlatformSkillAddPanel;
     render();
     return;
   }
@@ -8701,7 +8937,7 @@ app.addEventListener('click', async (event) => {
   if (action === 'new-mcp') {
     state.capabilityMode = 'mcp';
     state.route = getCapabilityRouteForMode(state.capabilityMode);
-    state.selectedMcpKey = '__new__';
+    state.showPlatformMcpAddPanel = !state.showPlatformMcpAddPanel;
     state.mcpTestResult = null;
     render();
     return;
@@ -8768,7 +9004,8 @@ app.addEventListener('click', async (event) => {
     state.capabilityMode = 'skills';
     state.route = getCapabilityRouteForMode(state.capabilityMode);
     state.selectedSkillSlug = target.getAttribute('data-skill-slug') || '';
-    state.showSkillImportPanel = state.selectedSkillSlug === '__new__';
+    state.showSkillImportPanel = false;
+    state.showPlatformSkillAddPanel = false;
     render();
     return;
   }
@@ -8777,6 +9014,7 @@ app.addEventListener('click', async (event) => {
     state.capabilityMode = 'mcp';
     state.route = getCapabilityRouteForMode(state.capabilityMode);
     state.selectedMcpKey = target.getAttribute('data-mcp-key') || '';
+    state.showPlatformMcpAddPanel = false;
     state.mcpTestResult = null;
     render();
     return;

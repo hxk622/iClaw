@@ -258,8 +258,16 @@
       ]
     },
     {
+      "controlKey": "stock-context",
+      "displayName": "选择基金/ETF",
+      "controlType": "stock",
+      "iconKey": "stock-context",
+      "metadata": {"sourceType": "preset"},
+      "active": true
+    },
+    {
       "controlKey": "watchlist",
-      "displayName": "自选股",
+      "displayName": "选择股票",
       "controlType": "static",
       "iconKey": "watchlist",
       "metadata": {"sourceType": "preset"},
@@ -273,7 +281,7 @@
     },
     {
       "controlKey": "output-format",
-      "displayName": "选择输出",
+      "displayName": "输出模版",
       "controlType": "static",
       "iconKey": "output-format",
       "metadata": {"sourceType": "preset"},
@@ -297,25 +305,7 @@
   "skills": [
     {"slug": "docx", "name": "DOCX 文档工具", "description": "创建、编辑和分析 Word 文档，支持修订、批注、格式保留与文本提取。", "category": "report", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/docx/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
     {"slug": "xlsx", "name": "XLSX 表格工具", "description": "创建、编辑和分析电子表格，支持公式、格式、数据处理与可视化。", "category": "data", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/xlsx/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
-    {"slug": "pdf", "name": "PDF 工具包", "description": "提取文本和表格、合并拆分 PDF、处理表单并生成新的 PDF 文档。", "category": "report", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/pdf/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
-    {"slug": "a-share-data-toolkit", "name": "A股金融数据工具包", "description": "提供A股实时行情、财务指标、董监高增减持和宏观数据抓取能力。", "category": "data", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/a-share-data-toolkit/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
-    {"slug": "us-data-toolkit", "name": "美股金融数据工具包", "description": "提供实时股票数据、SEC 文件、财务计算器和宏观指标抓取能力。", "category": "data", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/us-data-toolkit/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
-    {"slug": "a-share-low-valuation", "name": "A股低估值股票筛选", "description": "扫描A股低估值机会，筛选基本面稳健但被市场低估的公司。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/a-share-low-valuation/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
-    {"slug": "us-low-valuation", "name": "美股低估值股票筛选", "description": "筛选基本面扎实但估值偏低的美股公司，适合价值投资与安全边际场景。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/us-low-valuation/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
-    {"slug": "a-share-dividend", "name": "A股高股息策略分析", "description": "评估A股高股息与红利策略的收益可持续性、分红质量与长期回报。", "category": "portfolio", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/a-share-dividend/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
-    {"slug": "a-share-esg", "name": "A股ESG筛选分析", "description": "从ESG角度筛选A股上市公司，评估可持续发展实践与争议风险。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/a-share-esg/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
-    {"slug": "a-share-factor-screener", "name": "A股量化因子筛选", "description": "使用多因子框架筛选A股，识别价值、动量、质量等因子暴露有利的股票。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/a-share-factor-screener/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
-    {"slug": "a-share-industry-rotation", "name": "A股行业轮动检测", "description": "通过宏观经济指标与经济周期定位，识别未来可能跑赢或跑输的A股行业。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/a-share-industry-rotation/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
-    {"slug": "a-share-insider", "name": "A股内部交易分析", "description": "分析董监高与重要股东增减持行为，识别管理层信心信号与潜在机会。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/a-share-insider/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
-    {"slug": "a-share-small-cap-growth", "name": "A股小盘成长股筛选", "description": "识别A股被忽视的小市值高成长公司，适合寻找高弹性成长机会。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/a-share-small-cap-growth/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
-    {"slug": "a-share-tech-valuation", "name": "A股科技股估值分析", "description": "对比分析A股科技公司的估值泡沫与基本面，识别高估与低估标的。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/a-share-tech-valuation/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
-    {"slug": "us-dividend-aristocrats", "name": "美股股息贵族分析", "description": "分析连续提高分红的美股公司，评估股息可持续性与长期总回报。", "category": "portfolio", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/us-dividend-aristocrats/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
-    {"slug": "us-esg", "name": "美股ESG筛选分析", "description": "从ESG角度筛选美股公司，评估可持续发展实践、争议风险与治理质量。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/us-esg/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
-    {"slug": "us-factor-screener", "name": "美股量化因子筛选", "description": "使用正式因子模型进行系统性多因子股票筛选，识别因子暴露有利的股票。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/us-factor-screener/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
-    {"slug": "us-industry-rotation", "name": "美股行业轮动检测", "description": "通过宏观经济指标和商业周期定位，识别未来可能表现优异或落后的美股行业。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/us-industry-rotation/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
-    {"slug": "us-insider", "name": "美股内部人交易分析", "description": "分析内部人交易模式与表格披露，识别管理层增持与看涨信号。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/us-insider/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
-    {"slug": "us-small-cap-growth", "name": "美股小盘成长股筛选", "description": "筛选小市值高成长、机构覆盖少但基本面强劲的美股成长机会。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/us-small-cap-growth/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true},
-    {"slug": "us-tech-valuation", "name": "美股科技股估值分析", "description": "对比头部科技公司增长与估值，区分合理定价与高估泡沫。", "category": "research", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/us-tech-valuation/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true}
+    {"slug": "pdf", "name": "PDF 工具包", "description": "提取文本和表格、合并拆分 PDF、处理表单并生成新的 PDF 文档。", "category": "report", "publisher": "iClaw", "visibility": "showcase", "objectKey": "skills/pdf/current/artifact.tar.gz", "metadata": {"sourceType": "preset"}, "active": true}
   ],
   "mcps": [
     {
@@ -1001,7 +991,7 @@
   ],
   "bindings": {
     "skills": [
-      {"appName": "iclaw", "items": [{"skillSlug": "docx", "enabled": true, "sortOrder": 10}, {"skillSlug": "xlsx", "enabled": true, "sortOrder": 20}, {"skillSlug": "pdf", "enabled": true, "sortOrder": 30}, {"skillSlug": "a-share-data-toolkit", "enabled": true, "sortOrder": 40}, {"skillSlug": "us-data-toolkit", "enabled": true, "sortOrder": 50}, {"skillSlug": "a-share-low-valuation", "enabled": true, "sortOrder": 60}, {"skillSlug": "us-low-valuation", "enabled": true, "sortOrder": 70}]},
+      {"appName": "iclaw", "items": []},
       {"appName": "licaiclaw", "items": [{"skillSlug": "a-share-data-toolkit", "enabled": true, "sortOrder": 10}, {"skillSlug": "a-share-dividend", "enabled": true, "sortOrder": 20}, {"skillSlug": "a-share-esg", "enabled": true, "sortOrder": 30}, {"skillSlug": "a-share-factor-screener", "enabled": true, "sortOrder": 40}, {"skillSlug": "a-share-industry-rotation", "enabled": true, "sortOrder": 50}, {"skillSlug": "a-share-insider", "enabled": true, "sortOrder": 60}, {"skillSlug": "a-share-low-valuation", "enabled": true, "sortOrder": 70}, {"skillSlug": "a-share-small-cap-growth", "enabled": true, "sortOrder": 80}, {"skillSlug": "a-share-tech-valuation", "enabled": true, "sortOrder": 90}, {"skillSlug": "us-data-toolkit", "enabled": true, "sortOrder": 100}, {"skillSlug": "us-dividend-aristocrats", "enabled": true, "sortOrder": 110}, {"skillSlug": "us-esg", "enabled": true, "sortOrder": 120}, {"skillSlug": "us-factor-screener", "enabled": true, "sortOrder": 130}, {"skillSlug": "us-industry-rotation", "enabled": true, "sortOrder": 140}, {"skillSlug": "us-insider", "enabled": true, "sortOrder": 150}, {"skillSlug": "us-low-valuation", "enabled": true, "sortOrder": 160}, {"skillSlug": "us-small-cap-growth", "enabled": true, "sortOrder": 170}, {"skillSlug": "us-tech-valuation", "enabled": true, "sortOrder": 180}]}
     ],
     "mcps": [
@@ -1017,8 +1007,8 @@
       {"appName": "licaiclaw", "items": [{"menuKey": "chat", "enabled": true, "sortOrder": 10}, {"menuKey": "cron", "enabled": true, "sortOrder": 20}, {"menuKey": "skill-store", "enabled": true, "sortOrder": 30}, {"menuKey": "lobster-store", "enabled": true, "sortOrder": 40}, {"menuKey": "mcp-store", "enabled": true, "sortOrder": 50}, {"menuKey": "im-bots", "enabled": true, "sortOrder": 60}, {"menuKey": "memory", "enabled": true, "sortOrder": 70}, {"menuKey": "security", "enabled": true, "sortOrder": 80}, {"menuKey": "task-center", "enabled": true, "sortOrder": 90}, {"menuKey": "investment-experts", "enabled": false, "sortOrder": 100}, {"menuKey": "data-connections", "enabled": false, "sortOrder": 110}, {"menuKey": "finance-skills", "enabled": false, "sortOrder": 120}, {"menuKey": "foundation-skills", "enabled": false, "sortOrder": 130}, {"menuKey": "stock-market", "enabled": true, "sortOrder": 140}, {"menuKey": "fund-market", "enabled": true, "sortOrder": 150}]}
     ],
     "composerControls": [
-      {"appName": "iclaw", "items": [{"controlKey": "expert", "enabled": true, "sortOrder": 10}, {"controlKey": "skill", "enabled": true, "sortOrder": 20}, {"controlKey": "mode", "enabled": true, "sortOrder": 30}, {"controlKey": "market-scope", "enabled": true, "sortOrder": 40}, {"controlKey": "watchlist", "enabled": true, "sortOrder": 50}, {"controlKey": "output-format", "enabled": true, "sortOrder": 60}]},
-      {"appName": "licaiclaw", "items": [{"controlKey": "expert", "enabled": true, "sortOrder": 10}, {"controlKey": "skill", "enabled": true, "sortOrder": 20}, {"controlKey": "mode", "enabled": true, "sortOrder": 30}, {"controlKey": "market-scope", "enabled": true, "sortOrder": 40}, {"controlKey": "watchlist", "enabled": true, "sortOrder": 50}, {"controlKey": "output-format", "enabled": true, "sortOrder": 60}]}
+      {"appName": "iclaw", "items": [{"controlKey": "expert", "enabled": true, "sortOrder": 10}, {"controlKey": "skill", "enabled": true, "sortOrder": 20}, {"controlKey": "mode", "enabled": true, "sortOrder": 30}, {"controlKey": "market-scope", "enabled": true, "sortOrder": 40}, {"controlKey": "stock-context", "enabled": true, "sortOrder": 50}, {"controlKey": "watchlist", "enabled": true, "sortOrder": 60}, {"controlKey": "output-format", "enabled": true, "sortOrder": 70}]},
+      {"appName": "licaiclaw", "items": [{"controlKey": "expert", "enabled": true, "sortOrder": 10}, {"controlKey": "skill", "enabled": true, "sortOrder": 20}, {"controlKey": "mode", "enabled": true, "sortOrder": 30}, {"controlKey": "market-scope", "enabled": true, "sortOrder": 40}, {"controlKey": "stock-context", "enabled": true, "sortOrder": 50}, {"controlKey": "watchlist", "enabled": true, "sortOrder": 60}, {"controlKey": "output-format", "enabled": true, "sortOrder": 70}]}
     ],
     "composerShortcuts": [
       {"appName": "iclaw", "items": [{"shortcutKey": "earnings-analysis", "enabled": true, "sortOrder": 10}, {"shortcutKey": "valuation-analysis", "enabled": true, "sortOrder": 20}, {"shortcutKey": "company-compare", "enabled": true, "sortOrder": 30}, {"shortcutKey": "sector-review", "enabled": true, "sortOrder": 40}, {"shortcutKey": "market-recap", "enabled": true, "sortOrder": 50}, {"shortcutKey": "fund-analysis", "enabled": true, "sortOrder": 60}]},
