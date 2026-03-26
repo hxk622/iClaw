@@ -1282,39 +1282,6 @@ async function sendAuthorizedChatMessage(params: {
     throw new Error('发送内容为空。');
   }
 
-  const contentBlocks: Array<{ type: string; text?: string; source?: unknown }> = [];
-  if (message) {
-    contentBlocks.push({ type: 'text', text: message });
-  }
-  imageAttachments.forEach((attachment) => {
-    contentBlocks.push({
-      type: 'image',
-      source: {
-        type: 'base64',
-        media_type: attachment.mimeType,
-        data: attachment.dataUrl,
-      },
-    });
-  });
-
-  app.chatMessages = [
-    ...app.chatMessages,
-    {
-      role: 'user',
-      content: contentBlocks,
-      timestamp: startedAt,
-      [ICLAW_BILLING_RUN_ID_KEY]: runId,
-    },
-  ];
-
-  app.chatMessage = '';
-  app.chatAttachments = [];
-  app.chatSending = true;
-  app.lastError = null;
-  app.chatRunId = runId;
-  app.chatStream = '';
-  app.chatStreamStartedAt = startedAt;
-
   const apiAttachments = imageAttachments
     .map((attachment) => {
       const parsed = dataUrlToBase64(attachment.dataUrl);
@@ -1355,6 +1322,68 @@ async function sendAuthorizedChatMessage(params: {
   } finally {
     app.chatSending = false;
   }
+}
+
+function stageOutgoingChatMessage(params: {
+  app: OpenClawAppElement;
+  prompt: string;
+  imageAttachments: OpenClawImageAttachment[];
+  runId: string;
+  startedAt: number;
+}): void {
+  const { app, prompt, imageAttachments, runId, startedAt } = params;
+  const message = prompt.trim();
+  const contentBlocks: Array<{ type: string; text?: string; source?: unknown }> = [];
+  if (message) {
+    contentBlocks.push({ type: 'text', text: message });
+  }
+  imageAttachments.forEach((attachment) => {
+    contentBlocks.push({
+      type: 'image',
+      source: {
+        type: 'base64',
+        media_type: attachment.mimeType,
+        data: attachment.dataUrl,
+      },
+    });
+  });
+
+  app.chatMessages = [
+    ...app.chatMessages,
+    {
+      role: 'user',
+      content: contentBlocks,
+      timestamp: startedAt,
+      [ICLAW_BILLING_RUN_ID_KEY]: runId,
+    },
+  ];
+  app.chatMessage = '';
+  app.chatAttachments = [];
+  app.chatSending = true;
+  app.lastError = null;
+  app.chatRunId = runId;
+  app.chatStream = '';
+  app.chatStreamStartedAt = startedAt;
+}
+
+function markOutgoingChatFailed(params: {
+  app: OpenClawAppElement;
+  detail: string;
+}): void {
+  const { app, detail } = params;
+  app.chatSending = false;
+  app.chatRunId = null;
+  app.chatStream = null;
+  app.chatStreamStartedAt = null;
+  app.lastError = detail;
+  app.chatMessages = [
+    ...app.chatMessages,
+    {
+      role: 'assistant',
+      content: [{ type: 'text', text: `Error: ${detail}` }],
+      timestamp: Date.now(),
+    },
+  ];
 }
 
 function setMessageActionFeedback(button: HTMLButtonElement, state: 'idle' | 'success'): void {
@@ -3010,6 +3039,8 @@ export function OpenClawChatSurface({
     };
 
     let runId: string | null = null;
+    let stagedLocalEcho = false;
+    let handoffStarted = false;
 
     try {
       if (!creditClient || !creditToken) {
@@ -3020,6 +3051,16 @@ export function OpenClawChatSurface({
 
       runId = createDesktopRunId();
       const startedAt = Date.now();
+      stageOutgoingChatMessage({
+        app,
+        prompt: normalizedPrompt,
+        imageAttachments: payload.imageAttachments,
+        runId,
+        startedAt,
+      });
+      stagedLocalEcho = true;
+      app.scrollToBottom();
+
       const fallbackEstimatedInputTokens =
         Math.max(0, Math.ceil(normalizedPrompt.length * 0.75)) + payload.imageAttachments.length * 220;
       const runGrant = await creditClient.authorizeRun({
@@ -3047,6 +3088,7 @@ export function OpenClawChatSurface({
       ];
       setPendingSettlementCount(pendingUsageSettlementsRef.current.length);
 
+      handoffStarted = true;
       await sendAuthorizedChatMessage({
         app,
         sessionKey,
@@ -3074,6 +3116,9 @@ export function OpenClawChatSurface({
         pendingUsageSettlementsRef.current = pendingUsageSettlementsRef.current.filter(
           (pending) => pending.runId !== runId,
         );
+      }
+      if (stagedLocalEcho && !handoffStarted) {
+        markOutgoingChatFailed({ app, detail });
       }
       setPendingSettlementCount(pendingUsageSettlementsRef.current.length);
       if (pendingUsageSettlementsRef.current.length === 0) {

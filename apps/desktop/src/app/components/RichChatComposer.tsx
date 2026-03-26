@@ -700,6 +700,9 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const [stockError, setStockError] = useState<string | null>(null);
     const [recentSelections, setRecentSelections] = useState<RecentSelectionState>(EMPTY_RECENT_SELECTIONS);
     const [activeQuickQueryId, setActiveQuickQueryId] = useState<string | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const submitInFlightRef = useRef(false);
+    const audioContextRef = useRef<AudioContext | null>(null);
     const topBarControls = composerConfig
       ? composerConfig.topBarControls
       : DEFAULT_TOP_BAR_CONTROLS.map((item) => ({
@@ -1503,7 +1506,54 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       [focus, insertReference, processFiles, replacePrompt],
     );
 
+    const playSendWhoosh = useCallback(() => {
+      if (typeof window === 'undefined') {
+        return;
+      }
+      const AudioContextCtor =
+        window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextCtor) {
+        return;
+      }
+
+      try {
+        const context = audioContextRef.current ?? new AudioContextCtor();
+        audioContextRef.current = context;
+        if (context.state === 'suspended') {
+          void context.resume();
+        }
+
+        const now = context.currentTime;
+        const gain = context.createGain();
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.085, now + 0.012);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+        gain.connect(context.destination);
+
+        const lead = context.createOscillator();
+        lead.type = 'triangle';
+        lead.frequency.setValueAtTime(1480, now);
+        lead.frequency.exponentialRampToValueAtTime(620, now + 0.18);
+        lead.connect(gain);
+        lead.start(now);
+        lead.stop(now + 0.22);
+
+        const tail = context.createOscillator();
+        tail.type = 'sine';
+        tail.frequency.setValueAtTime(920, now + 0.01);
+        tail.frequency.exponentialRampToValueAtTime(320, now + 0.2);
+        tail.connect(gain);
+        tail.start(now + 0.01);
+        tail.stop(now + 0.22);
+      } catch {
+        // Ignore audio failures; send should still proceed.
+      }
+    }, []);
+
     const handleSubmit = useCallback(async () => {
+      if (submitInFlightRef.current) {
+        return;
+      }
       if (busy && !hasContent) {
         await onAbort();
         return;
@@ -1522,40 +1572,47 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         Array.from(tokenStoreRef.current.values()).find((token) => token.kind === 'agent')?.slug ?? null;
       const resolvedAgent =
         lobsterAgents.find((option) => option.slug === (selectedAgentSlug || tokenSelectedAgentSlug)) ?? null;
-
-      const accepted = await onSend({
-        ...payload,
-        selectedAgentSlug: resolvedAgent?.slug ?? null,
-        selectedAgentName: resolvedAgent?.name ?? null,
-        selectedAgentSystemPrompt: resolvedAgent?.systemPrompt?.trim() || null,
-        selectedSkillSlug: visibleTopBarControlKeys.has('skill') ? selectedSkillSlug : null,
-        selectedSkillName:
-          visibleTopBarControlKeys.has('skill')
-            ? skillOptions.find((option) => option.slug === selectedSkillSlug)?.name ?? null
-            : null,
-        selectedMode: visibleTopBarControlKeys.has('mode') ? selectedMode : null,
-        selectedModeLabel:
-          visibleTopBarControlKeys.has('mode') ? findStaticOption(modeOptions, selectedMode)?.label ?? null : null,
-        selectedMarketScope: visibleTopBarControlKeys.has('market-scope') ? selectedMarketScope : null,
-        selectedMarketScopeLabel:
-          visibleTopBarControlKeys.has('market-scope')
-            ? findStaticOption(marketScopeOptions, selectedMarketScope)?.label ?? null
-            : null,
-        selectedStockContext,
-        selectedStockContextLabel: formatStockContextLabel(selectedStockContext),
-        selectedWatchlist: visibleTopBarControlKeys.has('watchlist') ? selectedWatchlist : null,
-        selectedWatchlistLabel:
-          visibleTopBarControlKeys.has('watchlist')
-            ? findStaticOption(watchlistOptions, selectedWatchlist)?.label ?? null
-            : null,
-        selectedOutput: visibleTopBarControlKeys.has('output-format') ? selectedOutput : null,
-        selectedOutputLabel:
-          visibleTopBarControlKeys.has('output-format')
-            ? findStaticOption(outputOptions, selectedOutput)?.label ?? null
-            : null,
-      });
-      if (accepted) {
-        clearComposer();
+      submitInFlightRef.current = true;
+      setIsSubmitting(true);
+      playSendWhoosh();
+      try {
+        const accepted = await onSend({
+          ...payload,
+          selectedAgentSlug: resolvedAgent?.slug ?? null,
+          selectedAgentName: resolvedAgent?.name ?? null,
+          selectedAgentSystemPrompt: resolvedAgent?.systemPrompt?.trim() || null,
+          selectedSkillSlug: visibleTopBarControlKeys.has('skill') ? selectedSkillSlug : null,
+          selectedSkillName:
+            visibleTopBarControlKeys.has('skill')
+              ? skillOptions.find((option) => option.slug === selectedSkillSlug)?.name ?? null
+              : null,
+          selectedMode: visibleTopBarControlKeys.has('mode') ? selectedMode : null,
+          selectedModeLabel:
+            visibleTopBarControlKeys.has('mode') ? findStaticOption(modeOptions, selectedMode)?.label ?? null : null,
+          selectedMarketScope: visibleTopBarControlKeys.has('market-scope') ? selectedMarketScope : null,
+          selectedMarketScopeLabel:
+            visibleTopBarControlKeys.has('market-scope')
+              ? findStaticOption(marketScopeOptions, selectedMarketScope)?.label ?? null
+              : null,
+          selectedStockContext,
+          selectedStockContextLabel: formatStockContextLabel(selectedStockContext),
+          selectedWatchlist: visibleTopBarControlKeys.has('watchlist') ? selectedWatchlist : null,
+          selectedWatchlistLabel:
+            visibleTopBarControlKeys.has('watchlist')
+              ? findStaticOption(watchlistOptions, selectedWatchlist)?.label ?? null
+              : null,
+          selectedOutput: visibleTopBarControlKeys.has('output-format') ? selectedOutput : null,
+          selectedOutputLabel:
+            visibleTopBarControlKeys.has('output-format')
+              ? findStaticOption(outputOptions, selectedOutput)?.label ?? null
+              : null,
+        });
+        if (accepted) {
+          clearComposer();
+        }
+      } finally {
+        submitInFlightRef.current = false;
+        setIsSubmitting(false);
       }
     }, [
       busy,
@@ -1578,6 +1635,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       skillOptions,
       visibleTopBarControlKeys,
       watchlistOptions,
+      playSendWhoosh,
     ]);
 
     useEffect(() => {
@@ -1814,8 +1872,9 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       };
     }, [mentionMenuOpen, mentionMenuSource, stockMenuOpen, stockMenuSource, syncMentionMenuPosition, syncStockMenuPosition]);
 
-    const submitLabel = busy && !hasContent ? '停止' : '发送';
-    const sendState = busy ? 'busy' : hasContent ? 'ready' : 'empty';
+    const composerBusy = busy || isSubmitting;
+    const submitLabel = composerBusy && !hasContent ? '停止' : '发送';
+    const sendState = composerBusy ? 'busy' : hasContent ? 'ready' : 'empty';
     const selectedModel =
       findComposerModelOption(modelOptions, selectedModelId) ?? modelOptions[0] ?? null;
     const modelTriggerLabel = (() => {
@@ -1841,7 +1900,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     })();
     const modelVisualLoading = sessionTransitioning || modelsLoading || modelSwitching;
     const modelDisabled =
-      !connected || busy || sessionTransitioning || modelSwitching || modelOptions.length === 0;
+      !connected || composerBusy || sessionTransitioning || modelSwitching || modelOptions.length === 0;
     const selectedAgent = lobsterAgents.find((option) => option.slug === selectedAgentSlug) ?? null;
     const selectedSkill = skillOptions.find((option) => option.slug === selectedSkillSlug) ?? null;
     const selectedModeOption = findStaticOption(modeOptions, selectedMode);
@@ -3192,12 +3251,12 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   type="button"
                   className="iclaw-composer__submit"
                   data-state={sendState}
-                  disabled={!connected || (!busy && !hasContent)}
-                  onClick={() => void (busy ? onAbort() : handleSubmit())}
+                  disabled={!connected || (!composerBusy && !hasContent)}
+                  onClick={() => void (composerBusy && !hasContent ? onAbort() : handleSubmit())}
                   aria-label={submitLabel}
                   title={submitLabel}
                 >
-                  {busy ? (
+                  {composerBusy ? (
                     <Square className="h-[14px] w-[14px]" fill="currentColor" strokeWidth={0} />
                   ) : (
                     <ArrowUp className="h-[18px] w-[18px]" strokeWidth={2.5} />
