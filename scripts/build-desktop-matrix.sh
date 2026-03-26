@@ -147,7 +147,12 @@ build_one() {
 
   if [[ "$target" == *-apple-darwin ]]; then
     local installer_dir="$bundle_dir/dmg"
-    local installer_path="$installer_dir/${current_artifact_base_name}_${APP_VERSION}_${arch_label}.dmg"
+    local installer_path
+    if [[ "$channel" == "dev" || "$channel" == "prod" ]]; then
+      installer_path="$installer_dir/${current_artifact_base_name}_${APP_VERSION}_${arch_label}_${channel}.dmg"
+    else
+      installer_path="$installer_dir/${current_artifact_base_name}_${APP_VERSION}_${arch_label}.dmg"
+    fi
     if [[ ! -f "$installer_path" ]]; then
       echo "Expected DMG not found under: $installer_dir (artifactBaseName=$current_artifact_base_name appVersion=$APP_VERSION arch=$arch_label)" >&2
       exit 1

@@ -4,6 +4,9 @@ import { applyBrandTheme, BRAND } from './app/lib/brand';
 import { applyThemeMode, readStoredThemeMode } from './app/lib/theme';
 import './styles/index.css';
 
+const IS_TAURI_RUNTIME = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+const SHOW_DEV_BRANDING = !IS_TAURI_RUNTIME && import.meta.env.DEV;
+
 if (
   window.location.protocol.startsWith('http') &&
   window.location.hostname === 'localhost' &&
@@ -15,7 +18,7 @@ if (
 }
 
 applyBrandTheme();
-document.title = import.meta.env.DEV ? BRAND.devWebsiteTitle : BRAND.websiteTitle;
+document.title = SHOW_DEV_BRANDING ? BRAND.devWebsiteTitle : BRAND.websiteTitle;
 applyThemeMode(readStoredThemeMode());
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
   if (readStoredThemeMode() === 'system') {
@@ -25,7 +28,7 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
 
 createRoot(document.getElementById('root')!).render(<App />);
 
-if (import.meta.env.DEV) {
+if (SHOW_DEV_BRANDING) {
   const existingHost = document.getElementById('agentation-root');
   const agentationHost = existingHost ?? document.createElement('div');
 

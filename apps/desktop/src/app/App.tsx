@@ -122,8 +122,10 @@ const GATEWAY_WS_URL =
   IS_TAURI_RUNTIME
     ? DEFAULT_GATEWAY_WS_URL
     : (import.meta.env.VITE_GATEWAY_WS_URL as string) || DEFAULT_GATEWAY_WS_URL;
-const GATEWAY_TOKEN = (import.meta.env.VITE_GATEWAY_TOKEN as string) || undefined;
-const GATEWAY_PASSWORD = (import.meta.env.VITE_GATEWAY_PASSWORD as string) || undefined;
+const GATEWAY_TOKEN =
+  IS_TAURI_RUNTIME ? undefined : (import.meta.env.VITE_GATEWAY_TOKEN as string) || undefined;
+const GATEWAY_PASSWORD =
+  IS_TAURI_RUNTIME ? undefined : (import.meta.env.VITE_GATEWAY_PASSWORD as string) || undefined;
 const DISABLE_GATEWAY_DEVICE_IDENTITY =
   IS_TAURI_RUNTIME ||
   (typeof window !== 'undefined' &&

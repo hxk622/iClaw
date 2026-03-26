@@ -118,7 +118,6 @@ if [[ -n "$channel_suffix" ]]; then
 else
   dmg_name="${artifact_base_name}_${app_version}_$(arch_label "$target").dmg"
 fi
-dmg_name="${artifact_base_name}_${app_version}_$(arch_label "$target").dmg"
 dmg_path="$dmg_dir/$dmg_name"
 rm -f "$dmg_path"
 

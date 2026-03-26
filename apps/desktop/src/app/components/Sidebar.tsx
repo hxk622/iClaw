@@ -154,7 +154,8 @@ export function Sidebar({
   onRestartDesktopApp,
   onSkipDesktopUpdate,
 }: SidebarProps) {
-  const isDevChannel = import.meta.env.DEV || import.meta.env.MODE === 'development';
+  const isDevChannel =
+    !('__TAURI_INTERNALS__' in window) && (import.meta.env.DEV || import.meta.env.MODE === 'development');
   const brandText = isDevChannel ? BRAND.devSidebarTitle : BRAND.sidebarTitle;
 
   const [menuOpen, setMenuOpen] = useState(false);

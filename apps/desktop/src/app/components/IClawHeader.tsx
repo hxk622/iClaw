@@ -50,13 +50,13 @@ const FALLBACK_QUOTES: HeaderMarketQuote[] = [
 const FALLBACK_HEADLINES: HeaderHeadline[] = [
   {
     id: 'fallback-1',
-    title: '将顶部市场区升级为真实行情后，可扩展到指数、商品、加密与市场快讯。',
-    source: 'Header Feed',
+    title: '顶部市场区支持接入真实行情、快讯与指数数据，当前展示为默认占位信息。',
+    source: '市场概览',
   },
   {
     id: 'fallback-2',
-    title: '建议后续用统一行情聚合层输出 quotes 和 headlines，前端不感知底层 provider。',
-    source: 'Product',
+    title: '接入统一行情聚合层后，这里会自动切换为实时市场摘要。',
+    source: '系统提示',
   },
 ];
 
@@ -339,9 +339,9 @@ export function IClawHeader({
   const activeHeadline = feed.headlines[headlineIndex] ?? null;
   const updatedLabel = useMemo(() => {
     if (!feed.updatedAt) {
-      return feed.live ? '实时数据' : '演示数据';
+      return feed.live ? '实时数据' : '市场概览';
     }
-    return `${feed.live ? '实时更新' : '演示数据'} · ${new Intl.DateTimeFormat('zh-CN', {
+    return `${feed.live ? '实时更新' : '市场概览'} · ${new Intl.DateTimeFormat('zh-CN', {
       hour: '2-digit',
       minute: '2-digit',
     }).format(feed.updatedAt)}`;
