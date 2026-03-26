@@ -123,7 +123,13 @@ if [[ "$ENV_NAME" == "dev" ]]; then
     echo "No dev desktop release manifests found under: $RELEASE_DIR" >&2
     exit 1
   fi
-  mc cp "${dev_files[@]}" "${dev_updater_files[@]}" "${dev_manifests[@]}" "$ICLAW_MINIO_DEV_ALIAS/$ICLAW_MINIO_DEV_BUCKET/"
+  dev_uploads=()
+  dev_uploads+=("${dev_files[@]}")
+  if [[ ${#dev_updater_files[@]} -gt 0 ]]; then
+    dev_uploads+=("${dev_updater_files[@]}")
+  fi
+  dev_uploads+=("${dev_manifests[@]}")
+  mc cp "${dev_uploads[@]}" "$ICLAW_MINIO_DEV_ALIAS/$ICLAW_MINIO_DEV_BUCKET/"
   mc anonymous set download "$ICLAW_MINIO_DEV_ALIAS/$ICLAW_MINIO_DEV_BUCKET"
 
   for arch in aarch64 x64; do
@@ -163,7 +169,13 @@ elif [[ "$ENV_NAME" == "prod" ]]; then
     echo "No prod desktop release manifests found under: $RELEASE_DIR" >&2
     exit 1
   fi
-  mc cp "${prod_files[@]}" "${prod_updater_files[@]}" "${prod_manifests[@]}" "$ICLAW_MINIO_PROD_ALIAS/$ICLAW_MINIO_PROD_BUCKET/"
+  prod_uploads=()
+  prod_uploads+=("${prod_files[@]}")
+  if [[ ${#prod_updater_files[@]} -gt 0 ]]; then
+    prod_uploads+=("${prod_updater_files[@]}")
+  fi
+  prod_uploads+=("${prod_manifests[@]}")
+  mc cp "${prod_uploads[@]}" "$ICLAW_MINIO_PROD_ALIAS/$ICLAW_MINIO_PROD_BUCKET/"
   mc anonymous set download "$ICLAW_MINIO_PROD_ALIAS/$ICLAW_MINIO_PROD_BUCKET"
 
   for arch in aarch64 x64; do
