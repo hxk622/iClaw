@@ -81,16 +81,15 @@ export function readPreferredEnvValueFor(rootDir, envName, key) {
   return '';
 }
 
-export function resolvePortalSourceEnv(rootDir) {
-  const pick = (key, envKey = key) =>
-    trimString(process.env[envKey]) || readPreferredEnvValueFor(rootDir, 'dev', key) || readPreferredEnvValue(rootDir, key);
+export function resolvePackagingSourceEnv(rootDir) {
+  const pick = (key) => trimString(process.env[key]) || readPreferredEnvValue(rootDir, key);
 
   return {
-    DATABASE_URL: pick('DATABASE_URL', 'ICLAW_SOURCE_DATABASE_URL'),
-    CONTROL_PLANE_REDIS_URL: pick('CONTROL_PLANE_REDIS_URL', 'ICLAW_SOURCE_CONTROL_PLANE_REDIS_URL'),
-    S3_ENDPOINT: pick('S3_ENDPOINT', 'ICLAW_SOURCE_S3_ENDPOINT'),
-    S3_ACCESS_KEY: pick('S3_ACCESS_KEY', 'ICLAW_SOURCE_S3_ACCESS_KEY'),
-    S3_SECRET_KEY: pick('S3_SECRET_KEY', 'ICLAW_SOURCE_S3_SECRET_KEY'),
+    DATABASE_URL: pick('ICLAW_PACKAGE_SOURCE_DATABASE_URL'),
+    CONTROL_PLANE_REDIS_URL: pick('ICLAW_PACKAGE_SOURCE_CONTROL_PLANE_REDIS_URL'),
+    S3_ENDPOINT: pick('ICLAW_PACKAGE_SOURCE_S3_ENDPOINT'),
+    S3_ACCESS_KEY: pick('ICLAW_PACKAGE_SOURCE_S3_ACCESS_KEY'),
+    S3_SECRET_KEY: pick('ICLAW_PACKAGE_SOURCE_S3_SECRET_KEY'),
   };
 }
 

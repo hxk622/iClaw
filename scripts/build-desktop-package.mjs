@@ -5,7 +5,7 @@ import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { resolveBrandId } from './lib/brand-profile.mjs';
-import { resolvePortalSourceEnv } from './lib/app-env.mjs';
+import { resolvePackagingSourceEnv } from './lib/app-env.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -201,12 +201,23 @@ async function validateMacosProdBundle({ target, channel }) {
 }
 
 function syncLocalAppRuntime({ pnpm, env, brandId, channel }) {
-  const args = [...pnpm.args, '--filter', '@iclaw/control-plane', 'sync:local-app-runtime', '--', '--app', brandId];
-  const result = spawnSync(pnpm.command, args, {
+  const args = [
+    path.join(rootDir, 'scripts', 'with-packaging-source-env.mjs'),
+    '--',
+    pnpm.command,
+    ...pnpm.args,
+    '--filter',
+    '@iclaw/control-plane',
+    'sync:local-app-runtime',
+    '--',
+    '--app',
+    brandId,
+  ];
+  const result = spawnSync(process.execPath, args, {
     stdio: 'pipe',
     cwd: rootDir,
     env,
-    shell: pnpm.shell ?? false,
+    shell: false,
     encoding: 'utf8',
   });
 
@@ -294,12 +305,13 @@ async function assertPackagedRuntimeConfig() {
 async function main() {
   const { brandId, target, forwardedArgs } = parseArgs(process.argv.slice(2));
   const snapshotKey = 'desktop-package-build';
-  const sourceEnv = resolvePortalSourceEnv(rootDir);
+  const packagingSourceEnv = resolvePackagingSourceEnv(rootDir);
   const env = {
     ...process.env,
-    ...sourceEnv,
+    ...packagingSourceEnv,
     ICLAW_PORTAL_APP_NAME: brandId,
     ICLAW_BRAND: brandId,
+    ICLAW_USE_PACKAGING_SOURCE_ENV: '1',
   };
   const channel = normalizeChannel(env.ICLAW_ENV_NAME || env.NODE_ENV);
   const { tauriBundle, packageDmg } = platformBundleTarget();

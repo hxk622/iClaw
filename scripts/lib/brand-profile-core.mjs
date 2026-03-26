@@ -1,4 +1,3 @@
-import fsp from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import {spawnSync} from 'node:child_process';
@@ -18,18 +17,35 @@ function cacheRootFor(rootDir, brandId) {
 
 async function ensureSyncedBrandProfile(rootDir, brandId) {
   const envName = resolveSelectedEnvName() || normalizeEnvName(process.env.NODE_ENV || '') || 'dev';
+  const usePackagingSourceEnv = /^(1|true|yes)$/i.test(String(process.env.ICLAW_USE_PACKAGING_SOURCE_ENV || '').trim());
+  const syncCommand = usePackagingSourceEnv
+    ? [
+        'node',
+        path.join(rootDir, 'scripts', 'with-packaging-source-env.mjs'),
+        '--',
+        'pnpm',
+        '--filter',
+        '@iclaw/control-plane',
+        'sync:local-app-brand-profile',
+        '--',
+        '--app',
+        brandId,
+      ]
+    : [
+        'pnpm',
+        '--filter',
+        '@iclaw/control-plane',
+        'sync:local-app-brand-profile',
+        '--',
+        '--app',
+        brandId,
+      ];
   const result = spawnSync(
     'bash',
     [
       path.join(rootDir, 'scripts', 'with-env.sh'),
       envName,
-      'pnpm',
-      '--filter',
-      '@iclaw/control-plane',
-      'sync:local-app-brand-profile',
-      '--',
-      '--app',
-      brandId,
+      ...syncCommand,
     ],
     {
       cwd: rootDir,
@@ -41,16 +57,7 @@ async function ensureSyncedBrandProfile(rootDir, brandId) {
   );
 
   if (result.status !== 0) {
-    const cacheProfilePath = path.join(cacheRootFor(rootDir, brandId), 'profile.json');
-    try {
-      await fsp.access(cacheProfilePath);
-      process.stderr.write(
-        `[brand-profile] sync failed for ${brandId}, using cached profile at ${cacheProfilePath}\n`,
-      );
-      return;
-    } catch {
-      throw new Error(result.stderr?.trim() || result.stdout?.trim() || `failed to sync portal app profile: ${brandId}`);
-    }
+    throw new Error(result.stderr?.trim() || result.stdout?.trim() || `failed to sync portal app profile: ${brandId}`);
   }
 }
 

@@ -3,7 +3,7 @@ import path from 'node:path';
 import process from 'node:process';
 import {spawnSync} from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { normalizeEnvName, resolveConfiguredAppName, resolvePortalSourceEnv, resolveSelectedEnvName } from './app-env.mjs';
+import { normalizeEnvName, resolveConfiguredAppName, resolveSelectedEnvName } from './app-env.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const defaultRootDir = path.resolve(__dirname, '..', '..');
@@ -18,26 +18,39 @@ function cacheRootFor(rootDir, brandId) {
 
 async function ensureSyncedBrandProfile(rootDir, brandId) {
   const envName = resolveSelectedEnvName() || normalizeEnvName(process.env.NODE_ENV || '') || 'dev';
-  const sourceEnv = resolvePortalSourceEnv(rootDir);
+  const usePackagingSourceEnv = /^(1|true|yes)$/i.test(String(process.env.ICLAW_USE_PACKAGING_SOURCE_ENV || '').trim());
+  const syncCommand = usePackagingSourceEnv
+    ? [
+        'node',
+        path.join(rootDir, 'scripts', 'with-packaging-source-env.mjs'),
+        '--',
+        'pnpm',
+        '--filter',
+        '@iclaw/control-plane',
+        'sync:local-app-brand-profile',
+        '--',
+        '--app',
+        brandId,
+      ]
+    : [
+        'pnpm',
+        '--filter',
+        '@iclaw/control-plane',
+        'sync:local-app-brand-profile',
+        '--',
+        '--app',
+        brandId,
+      ];
   const result = spawnSync(
     'bash',
     [
       path.join(rootDir, 'scripts', 'with-env.sh'),
       envName,
-      'pnpm',
-      '--filter',
-      '@iclaw/control-plane',
-      'sync:local-app-brand-profile',
-      '--',
-      '--app',
-      brandId,
+      ...syncCommand,
     ],
     {
       cwd: rootDir,
-      env: {
-        ...process.env,
-        ...sourceEnv,
-      },
+      env: { ...process.env },
       encoding: 'utf8',
     },
   );
