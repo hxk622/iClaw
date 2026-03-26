@@ -78,6 +78,19 @@ export type ComposerDraftPayload = {
   attachments: ComposerDraftAttachment[];
 };
 
+type ComposerDraftSnapshot = {
+  nodes: Node[];
+  tokens: ComposerTokenMeta[];
+  selectedAgentSlug: string | null;
+  selectedSkillSlug: string | null;
+  selectedMode: string | null;
+  selectedMarketScope: string | null;
+  selectedStockContext: ComposerStockContext | null;
+  selectedWatchlist: string | null;
+  selectedOutput: string | null;
+  activeQuickQueryId: string | null;
+};
+
 export type RichChatComposerHandle = {
   focus: () => void;
   replacePrompt: (text: string) => void;
@@ -1122,6 +1135,72 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       editor.focus();
     }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, refreshState]);
 
+    const captureDraftSnapshot = useCallback((): ComposerDraftSnapshot | null => {
+      const editor = editorRef.current;
+      if (!editor) {
+        return null;
+      }
+
+      return {
+        nodes: Array.from(editor.childNodes).map((node) => node.cloneNode(true)),
+        tokens: Array.from(tokenStoreRef.current.values()),
+        selectedAgentSlug,
+        selectedSkillSlug,
+        selectedMode,
+        selectedMarketScope,
+        selectedStockContext,
+        selectedWatchlist,
+        selectedOutput,
+        activeQuickQueryId,
+      };
+    }, [
+      activeQuickQueryId,
+      selectedAgentSlug,
+      selectedMarketScope,
+      selectedMode,
+      selectedOutput,
+      selectedSkillSlug,
+      selectedStockContext,
+      selectedWatchlist,
+    ]);
+
+    const restoreDraftSnapshot = useCallback((snapshot: ComposerDraftSnapshot | null) => {
+      const editor = editorRef.current;
+      if (!editor || !snapshot) {
+        return;
+      }
+
+      editor.replaceChildren(...snapshot.nodes.map((node) => node.cloneNode(true)));
+      tokenStoreRef.current = new Map(snapshot.tokens.map((token) => [token.id, token]));
+      savedRangeRef.current = createRangeAtEnd(editor);
+      setSelectedAgentSlug(snapshot.selectedAgentSlug);
+      setSelectedSkillSlug(snapshot.selectedSkillSlug);
+      setSelectedMode(snapshot.selectedMode);
+      setSelectedMarketScope(snapshot.selectedMarketScope);
+      setSelectedStockContext(snapshot.selectedStockContext);
+      setSelectedWatchlist(snapshot.selectedWatchlist);
+      setSelectedOutput(snapshot.selectedOutput);
+      setActiveQuickQueryId(snapshot.activeQuickQueryId);
+      closeMentionMenu();
+      closeStockMenu();
+      closeSkillMenu();
+      closeModeMenu();
+      closeMarketMenu();
+      closeWatchlistMenu();
+      closeOutputMenu();
+      refreshState();
+      editor.focus();
+    }, [
+      closeMarketMenu,
+      closeMentionMenu,
+      closeModeMenu,
+      closeOutputMenu,
+      closeSkillMenu,
+      closeStockMenu,
+      closeWatchlistMenu,
+      refreshState,
+    ]);
+
     const removeAgentTokens = useCallback(() => {
       const editor = editorRef.current;
       if (!editor) {
@@ -1572,7 +1651,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         Array.from(tokenStoreRef.current.values()).find((token) => token.kind === 'agent')?.slug ?? null;
       const resolvedAgent =
         lobsterAgents.find((option) => option.slug === (selectedAgentSlug || tokenSelectedAgentSlug)) ?? null;
-      const draftPrompt = payload.prompt;
+      const draftSnapshot = captureDraftSnapshot();
       submitInFlightRef.current = true;
       setIsSubmitting(true);
       playSendWhoosh();
@@ -1610,7 +1689,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
               : null,
         });
         if (!accepted) {
-          replacePrompt(draftPrompt);
+          restoreDraftSnapshot(draftSnapshot);
         }
       } finally {
         submitInFlightRef.current = false;
@@ -1618,6 +1697,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       }
     }, [
       busy,
+      captureDraftSnapshot,
       clearComposer,
       connected,
       hasContent,
@@ -1633,7 +1713,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       modeOptions,
       marketScopeOptions,
       outputOptions,
-      replacePrompt,
+      restoreDraftSnapshot,
       selectedSkillSlug,
       skillOptions,
       visibleTopBarControlKeys,
