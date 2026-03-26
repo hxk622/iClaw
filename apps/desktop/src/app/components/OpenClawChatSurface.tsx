@@ -1011,6 +1011,7 @@ function buildAssistantFooterTooltip(input: {
 function deriveAssistantFooterMetas(
   messages: unknown[],
   pendingSettlements: PendingUsageSettlement[],
+  app: OpenClawAppElement | null,
   isBusy: boolean,
 ): Array<AssistantFooterMeta | null> {
   const assistantGroups = collectAssistantMessageGroups(messages);
@@ -1019,10 +1020,25 @@ function deriveAssistantFooterMetas(
   }
 
   const pendingAssistantIndexes = new Set<number>();
+  const optimisticUsageByAssistantIndex = new Map<number, AssistantUsageSettlement>();
   pendingSettlements.forEach((pending) => {
+    const terminalEvent = app ? findTerminalChatEventForRun(app, pending.sessionKey, pending.runId) : null;
+    const optimisticUsage =
+      app
+        ? (terminalEvent?.message
+            ? deriveAssistantUsageFromMessage(terminalEvent.message)
+            : null) ||
+          (findLatestTerminalChatRunSince(app, pending.sessionKey, pending.startedAt) === pending.runId
+            ? deriveLatestAssistantUsageSince(messages, pending.runId, pending.startedAt)
+            : null)
+        : null;
+
     if (pending.runId) {
       const matchedIndex = assistantGroups.findIndex((group) => group.runId === pending.runId);
       if (matchedIndex >= 0) {
+        if (optimisticUsage) {
+          optimisticUsageByAssistantIndex.set(matchedIndex, optimisticUsage);
+        }
         pendingAssistantIndexes.add(matchedIndex);
         return;
       }
@@ -1030,6 +1046,9 @@ function deriveAssistantFooterMetas(
     for (let index = assistantGroups.length - 1; index >= 0; index -= 1) {
       const group = assistantGroups[index];
       if (group && group.timestamp >= pending.startedAt) {
+        if (optimisticUsage) {
+          optimisticUsageByAssistantIndex.set(index, optimisticUsage);
+        }
         pendingAssistantIndexes.add(index);
         break;
       }
@@ -1044,6 +1063,7 @@ function deriveAssistantFooterMetas(
     let model: string | null = null;
     let billingSummary: RunBillingSummaryData | null = null;
     let billingState: AssistantBillingState | null = null;
+    const optimisticUsage = optimisticUsageByAssistantIndex.get(assistantGroupIndex) ?? null;
 
     assistantGroup.messages.forEach((message: unknown) => {
       const record = message as Record<string, unknown>;
@@ -1097,6 +1117,12 @@ function deriveAssistantFooterMetas(
 
     if (isBusy && assistantGroupIndex === latestAssistantGroupIndex) {
       return null;
+    }
+
+    if ((inputTokens <= 0 && outputTokens <= 0) && optimisticUsage) {
+      inputTokens = optimisticUsage.inputTokens;
+      outputTokens = optimisticUsage.outputTokens;
+      model = model || optimisticUsage.model;
     }
 
     if (inputTokens > 0 || outputTokens > 0) {
@@ -3697,6 +3723,7 @@ export function OpenClawChatSurface({
       const assistantFooterMetas = deriveAssistantFooterMetas(
         appRef.current?.chatMessages ?? [],
         pendingUsageSettlementsRef.current,
+        appRef.current,
         status.busy,
       );
       const groups = Array.from(host.querySelectorAll('.chat-group')).filter(
