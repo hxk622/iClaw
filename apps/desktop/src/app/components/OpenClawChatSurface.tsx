@@ -3450,6 +3450,38 @@ export function OpenClawChatSurface({
       button.setAttribute('aria-hidden', text ? 'false' : 'true');
     };
 
+    const normalizeAssistantTurnGroups = (groups: HTMLElement[]) => {
+      let inAssistantTurn = false;
+
+      groups.forEach((group) => {
+        const isUser = group.classList.contains('user');
+        const isAssistantSide =
+          !isUser &&
+          (group.classList.contains('assistant') ||
+            group.classList.contains('tool') ||
+            group.classList.contains('other'));
+
+        if (isUser) {
+          inAssistantTurn = false;
+          group.classList.remove('iclaw-chat-group--continued');
+          return;
+        }
+
+        if (!isAssistantSide) {
+          group.classList.remove('iclaw-chat-group--continued');
+          return;
+        }
+
+        if (!inAssistantTurn) {
+          group.classList.remove('iclaw-chat-group--continued');
+          inAssistantTurn = true;
+          return;
+        }
+
+        group.classList.add('iclaw-chat-group--continued');
+      });
+    };
+
     const ensureAssistantFooter = (group: HTMLElement, footerMeta: AssistantFooterMeta | null) => {
       const messages = group.querySelector('.chat-group-messages') as HTMLElement | null;
       if (!messages) {
@@ -3633,6 +3665,11 @@ export function OpenClawChatSurface({
 
       groups.forEach((group) => {
         normalizeUserGroupClass(group);
+      });
+
+      normalizeAssistantTurnGroups(groups);
+
+      groups.forEach((group) => {
 
         if (group.classList.contains('user')) {
           ensureUserCopyButton(group);
