@@ -3,7 +3,7 @@ import path from 'node:path';
 import process from 'node:process';
 import {spawnSync} from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { normalizeEnvName, resolveConfiguredAppName, resolveSelectedEnvName } from './app-env.mjs';
+import { normalizeEnvName, resolveConfiguredAppName, resolvePortalSourceEnv, resolveSelectedEnvName } from './app-env.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const defaultRootDir = path.resolve(__dirname, '..', '..');
@@ -18,6 +18,7 @@ function cacheRootFor(rootDir, brandId) {
 
 async function ensureSyncedBrandProfile(rootDir, brandId) {
   const envName = resolveSelectedEnvName() || normalizeEnvName(process.env.NODE_ENV || '') || 'dev';
+  const sourceEnv = resolvePortalSourceEnv(rootDir);
   const result = spawnSync(
     'bash',
     [
@@ -35,22 +36,14 @@ async function ensureSyncedBrandProfile(rootDir, brandId) {
       cwd: rootDir,
       env: {
         ...process.env,
+        ...sourceEnv,
       },
       encoding: 'utf8',
     },
   );
 
   if (result.status !== 0) {
-    const cacheProfilePath = path.join(cacheRootFor(rootDir, brandId), 'profile.json');
-    try {
-      await fsp.access(cacheProfilePath);
-      process.stderr.write(
-        `[brand-profile] sync failed for ${brandId}, using cached profile at ${cacheProfilePath}\n`,
-      );
-      return;
-    } catch {
-      throw new Error(result.stderr?.trim() || result.stdout?.trim() || `failed to sync portal app profile: ${brandId}`);
-    }
+    throw new Error(result.stderr?.trim() || result.stdout?.trim() || `failed to sync portal app profile: ${brandId}`);
   }
 }
 

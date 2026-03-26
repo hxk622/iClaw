@@ -12,8 +12,8 @@
     "preset:sync:oem": "node --experimental-strip-types scripts/sync-oem-preset.ts",
     "import:a-share-stocks": "node --experimental-strip-types scripts/import-a-share-stocks.ts",
     "import:cn-funds": "node --experimental-strip-types scripts/import-cn-funds.ts",
-    "sync:local-app-runtime": "node --experimental-strip-types scripts/sync-local-app-runtime.ts",
-    "sync:local-app-brand-profile": "node --experimental-strip-types scripts/sync-local-app-brand-profile.ts"
+    "sync:local-app-runtime": "node ../../scripts/with-portal-source-env.mjs -- node --experimental-strip-types scripts/sync-local-app-runtime.ts",
+    "sync:local-app-brand-profile": "node ../../scripts/with-portal-source-env.mjs -- node --experimental-strip-types scripts/sync-local-app-brand-profile.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1005.0",

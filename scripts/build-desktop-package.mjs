@@ -5,6 +5,7 @@ import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { resolveBrandId } from './lib/brand-profile.mjs';
+import { resolvePortalSourceEnv } from './lib/app-env.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -200,7 +201,6 @@ async function validateMacosProdBundle({ target, channel }) {
 }
 
 function syncLocalAppRuntime({ pnpm, env, brandId, channel }) {
-  const allowFallback = isTruthyEnv(env.ICLAW_ALLOW_RUNTIME_SYNC_FALLBACK);
   const args = [...pnpm.args, '--filter', '@iclaw/control-plane', 'sync:local-app-runtime', '--', '--app', brandId];
   const result = spawnSync(pnpm.command, args, {
     stdio: 'pipe',
@@ -217,22 +217,10 @@ function syncLocalAppRuntime({ pnpm, env, brandId, channel }) {
   }
 
   const details = (result.stderr || result.stdout || '').trim() || `exit ${result.status ?? 'unknown'}`;
-  if (allowFallback) {
-    process.stderr.write(
-      [
-        `[runtime-sync] WARNING: failed to sync local app runtime for ${brandId}.`,
-        '[runtime-sync] Falling back to the current repository resources / cached local snapshot for internal testing only.',
-        `[runtime-sync] channel=${channel || 'unknown'}`,
-        details,
-      ].join('\n') + '\n',
-    );
-    return;
-  }
-
   throw new Error(
     [
       `desktop packaging aborted: failed to sync local app runtime for ${brandId}.`,
-      'Start the local PostgreSQL-backed control-plane data source, or set ICLAW_ALLOW_RUNTIME_SYNC_FALLBACK=1 for internal testing only.',
+      'No fallback is allowed. Fix the configured source PostgreSQL / MinIO environment and rerun the package build.',
       details,
     ].join('\n'),
   );
@@ -306,8 +294,10 @@ async function assertPackagedRuntimeConfig() {
 async function main() {
   const { brandId, target, forwardedArgs } = parseArgs(process.argv.slice(2));
   const snapshotKey = 'desktop-package-build';
+  const sourceEnv = resolvePortalSourceEnv(rootDir);
   const env = {
     ...process.env,
+    ...sourceEnv,
     ICLAW_PORTAL_APP_NAME: brandId,
     ICLAW_BRAND: brandId,
   };
