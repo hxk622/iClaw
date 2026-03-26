@@ -27,6 +27,10 @@ scripts/            # Build/release scripts
 
 See `docs/` for product decisions and contracts.
 
+生产环境主机清单见：
+
+- [prod-infra-inventory.md](/Users/xingkaihan/Documents/Code/iClaw/docs/prod-infra-inventory.md)
+
 ## 环境切换
 
 统一使用根目录环境文件：
