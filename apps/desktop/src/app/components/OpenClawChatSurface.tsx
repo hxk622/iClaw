@@ -3514,7 +3514,9 @@ export function OpenClawChatSurface({
       const footer = group.querySelector(
         '.chat-group-messages > .iclaw-chat-assistant-footer',
       ) as HTMLDivElement | null;
-      footer?.remove();
+      if (footer && !footer.hasAttribute('hidden')) {
+        footer.setAttribute('hidden', 'true');
+      }
     };
 
     const ensureAssistantFooter = (group: HTMLElement, footerMeta: AssistantFooterMeta | null) => {
@@ -3613,6 +3615,10 @@ export function OpenClawChatSurface({
         });
 
         messages.append(footer);
+      }
+
+      if (footer.hasAttribute('hidden')) {
+        footer.removeAttribute('hidden');
       }
 
       const metaNode = footer.querySelector(':scope > .iclaw-chat-assistant-meta') as HTMLDivElement | null;
