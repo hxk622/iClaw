@@ -31,6 +31,12 @@ See `docs/` for product decisions and contracts.
 
 - [prod-infra-inventory.md](/Users/xingkaihan/Documents/Code/iClaw/docs/prod-infra-inventory.md)
 
+默认源环境说明：
+
+- PostgreSQL / MinIO 的默认 source host 为 `39.106.74.65`
+- 当前开发机不再作为默认 PostgreSQL / MinIO 源头
+- 本机 PostgreSQL / MinIO 默认关闭，不依赖开机自启
+
 ## 环境切换
 
 统一使用根目录环境文件：

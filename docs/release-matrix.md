@@ -73,11 +73,12 @@ bash scripts/build-desktop-matrix.sh
 
 ## 下载站部署
 
-- dev：本地 Vite（home）+ 本地 MinIO
+- dev：本地 Vite（home）+ 远端源 MinIO（`39.106.74.65`）
 - prod：Nginx（`113.44.132.75`）+ 火山 MinIO（`115.191.6.179`）
 
 补充：
 
+- 默认 PostgreSQL / MinIO 源环境：`39.106.74.65`
 - 前端 / Nginx / DNS 落点：`113.44.132.75`
 - 后端 / control-plane / PM2：`115.191.6.179`
 - 详细清单见：
