@@ -1603,6 +1603,7 @@ export function OpenClawChatSurface({
   const previousSessionKeyRef = useRef(sessionKey);
   const sessionTransitionPendingRef = useRef(false);
   const sessionTransitionStartedAtRef = useRef(0);
+  const responseUsageEnabledSessionKeyRef = useRef<string | null>(null);
   const sessionTransitionHideTimerRef = useRef<number | null>(null);
 
   const closeSelectionMenu = useCallback(() => {
@@ -2054,6 +2055,43 @@ export function OpenClawChatSurface({
       app.connect();
     }
   }, [gatewayPassword, gatewayToken, gatewayUrl, sessionKey]);
+
+  useEffect(() => {
+    const app = appRef.current;
+    const request = app?.client?.request;
+    if (!app?.connected || typeof request !== 'function') {
+      return;
+    }
+    if (responseUsageEnabledSessionKeyRef.current === sessionKey) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void request('sessions.patch', {
+      key: sessionKey,
+      responseUsage: 'tokens',
+    })
+      .then(() => {
+        if (cancelled) {
+          return;
+        }
+        responseUsageEnabledSessionKeyRef.current = sessionKey;
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        console.warn('[desktop] failed to enable response usage footer for session', {
+          sessionKey,
+          error,
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionKey, status.connected]);
 
   useEffect(() => {
     const onUnhandledRejection = (event: PromiseRejectionEvent) => {
