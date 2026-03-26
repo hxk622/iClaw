@@ -2872,6 +2872,19 @@ fn upsert_managed_openai_model(
 const DEFAULT_MEMORY_LANCEDB_EMBEDDING_MODEL: &str = "text-embedding-3-small";
 const DEFAULT_MEMORY_LANCEDB_API_KEY_PLACEHOLDER: &str = "iclaw-memory-local";
 
+fn base_url_supports_embeddings(base_url: Option<&str>) -> bool {
+    let Some(base_url) = base_url else {
+        return false;
+    };
+
+    let normalized = base_url.trim().to_ascii_lowercase();
+    if normalized.is_empty() {
+        return false;
+    }
+
+    !normalized.contains("fast.vpsairobot.com")
+}
+
 fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Result<PathBuf, String> {
     let runtime_config = load_runtime_config_internal(app)?;
     let config_path = openclaw_config_path(app)?;
@@ -2903,6 +2916,7 @@ fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Resul
     let normalized_base_url = clean_optional(runtime_config.openai_base_url.clone())
         .map(|base_url| normalize_openai_base_url(&base_url))
         .filter(|base_url| !base_url.is_empty());
+    let memory_auto_recall_enabled = base_url_supports_embeddings(normalized_base_url.as_deref());
     let normalized_api_key = clean_optional(runtime_config.openai_api_key.clone());
     let normalized_model = clean_optional(runtime_config.openai_model.clone());
     let runtime_model_ref = normalized_model.as_ref().map(|model| {
@@ -3058,12 +3072,8 @@ fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Resul
                 .or_insert_with(|| json!(base_url));
         }
 
-        config_obj
-            .entry(String::from("autoRecall"))
-            .or_insert_with(|| json!(true));
-        config_obj
-            .entry(String::from("autoCapture"))
-            .or_insert_with(|| json!(false));
+        config_obj.insert(String::from("autoRecall"), json!(memory_auto_recall_enabled));
+        config_obj.insert(String::from("autoCapture"), json!(false));
     }
 
     let normalized = serde_json::to_string_pretty(&root)
