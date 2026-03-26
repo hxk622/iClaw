@@ -23,6 +23,7 @@ function parseArgs(argv) {
   const forwardedArgs = [];
   let brandId =
     process.env.APP_NAME || process.env.ICLAW_PORTAL_APP_NAME || process.env.ICLAW_BRAND || process.env.ICLAW_APP_NAME || '';
+  let target = '';
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -35,11 +36,26 @@ function parseArgs(argv) {
       brandId = arg.slice('--brand='.length);
       continue;
     }
+    if (arg === '--target') {
+      target = argv[index + 1] ?? '';
+      forwardedArgs.push(arg);
+      if (argv[index + 1]) {
+        forwardedArgs.push(argv[index + 1]);
+      }
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith('--target=')) {
+      target = arg.slice('--target='.length);
+      forwardedArgs.push(arg);
+      continue;
+    }
     forwardedArgs.push(arg);
   }
 
   return {
     brandId: resolveBrandId(brandId),
+    target,
     forwardedArgs,
   };
 }
@@ -97,6 +113,129 @@ function platformBundleTarget() {
     return { tauriBundle: 'nsis', packageDmg: false };
   }
   throw new Error(`Unsupported desktop packaging platform: ${process.platform}`);
+}
+
+function normalizeChannel(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (['dev', 'development', 'local'].includes(normalized)) {
+    return 'dev';
+  }
+  if (['prod', 'production', 'release'].includes(normalized)) {
+    return 'prod';
+  }
+  return '';
+}
+
+function isTruthyEnv(value) {
+  return /^(1|true|yes)$/i.test(String(value || '').trim());
+}
+
+async function readGeneratedProductName() {
+  const config = JSON.parse(await fs.readFile(generatedConfigPath, 'utf8'));
+  const productName = typeof config.productName === 'string' ? config.productName.trim() : '';
+  if (!productName) {
+    throw new Error(`desktop packaging aborted: missing productName in ${generatedConfigPath}`);
+  }
+  return productName;
+}
+
+function bundleTargetRoot(target) {
+  const root = path.join(tauriDir, 'target');
+  if (target && target.trim()) {
+    return path.join(root, target.trim(), 'release', 'bundle');
+  }
+  return path.join(root, 'release', 'bundle');
+}
+
+async function validateMacosProdBundle({ target, channel }) {
+  if (process.platform !== 'darwin' || channel !== 'prod') {
+    return;
+  }
+
+  const productName = await readGeneratedProductName();
+  const appBundlePath = path.join(bundleTargetRoot(target), 'macos', `${productName}.app`);
+  const allowUnsignedProd = isTruthyEnv(process.env.ICLAW_ALLOW_UNSIGNED_MACOS_PROD);
+
+  const codesign = spawnSync('codesign', ['--verify', '--deep', '--strict', '--verbose=2', appBundlePath], {
+    cwd: rootDir,
+    encoding: 'utf8',
+  });
+  const spctl = spawnSync('spctl', ['--assess', '--type', 'execute', '--verbose=4', appBundlePath], {
+    cwd: rootDir,
+    encoding: 'utf8',
+  });
+
+  const codesignOk = codesign.status === 0;
+  const spctlOk = spctl.status === 0;
+  if (codesignOk && spctlOk) {
+    process.stdout.write(`[release-check] macOS prod bundle passed signing validation: ${appBundlePath}\n`);
+    return;
+  }
+
+  const details = [
+    `App bundle: ${appBundlePath}`,
+    `codesign: ${codesign.stderr?.trim() || codesign.stdout?.trim() || `exit ${codesign.status ?? 'unknown'}`}`,
+    `spctl: ${spctl.stderr?.trim() || spctl.stdout?.trim() || `exit ${spctl.status ?? 'unknown'}`}`,
+  ].join('\n');
+
+  if (allowUnsignedProd) {
+    process.stderr.write(
+      [
+        '[release-check] WARNING: macOS prod signing validation failed, but ICLAW_ALLOW_UNSIGNED_MACOS_PROD=1 is set.',
+        '[release-check] This build is for internal testing only and must not be uploaded to the public download page.',
+        details,
+      ].join('\n') + '\n',
+    );
+    return;
+  }
+
+  throw new Error(
+    [
+      'desktop packaging aborted: macOS prod bundle failed signing validation.',
+      'Refusing to produce a public prod package without a Gatekeeper-safe app bundle.',
+      'Provide Apple signing/notarization credentials, or set ICLAW_ALLOW_UNSIGNED_MACOS_PROD=1 for internal testing only.',
+      details,
+    ].join('\n'),
+  );
+}
+
+function syncLocalAppRuntime({ pnpm, env, brandId, channel }) {
+  const allowFallback = isTruthyEnv(env.ICLAW_ALLOW_RUNTIME_SYNC_FALLBACK);
+  const args = [...pnpm.args, '--filter', '@iclaw/control-plane', 'sync:local-app-runtime', '--', '--app', brandId];
+  const result = spawnSync(pnpm.command, args, {
+    stdio: 'pipe',
+    cwd: rootDir,
+    env,
+    shell: pnpm.shell ?? false,
+    encoding: 'utf8',
+  });
+
+  if (result.status === 0) {
+    process.stdout.write(result.stdout || '');
+    process.stderr.write(result.stderr || '');
+    return;
+  }
+
+  const details = (result.stderr || result.stdout || '').trim() || `exit ${result.status ?? 'unknown'}`;
+  if (allowFallback) {
+    process.stderr.write(
+      [
+        `[runtime-sync] WARNING: failed to sync local app runtime for ${brandId}.`,
+        '[runtime-sync] Falling back to the current repository resources / cached local snapshot for internal testing only.',
+        `[runtime-sync] channel=${channel || 'unknown'}`,
+        details,
+      ].join('\n') + '\n',
+    );
+    return;
+  }
+
+  throw new Error(
+    [
+      `desktop packaging aborted: failed to sync local app runtime for ${brandId}.`,
+      'Start the local PostgreSQL-backed control-plane data source, or set ICLAW_ALLOW_RUNTIME_SYNC_FALLBACK=1 for internal testing only.',
+      details,
+    ].join('\n'),
+  );
 }
 
 async function writeTempTauriConfig() {
@@ -165,23 +304,21 @@ async function assertPackagedRuntimeConfig() {
 }
 
 async function main() {
-  const { brandId, forwardedArgs } = parseArgs(process.argv.slice(2));
+  const { brandId, target, forwardedArgs } = parseArgs(process.argv.slice(2));
   const snapshotKey = 'desktop-package-build';
   const env = {
     ...process.env,
     ICLAW_PORTAL_APP_NAME: brandId,
     ICLAW_BRAND: brandId,
   };
+  const channel = normalizeChannel(env.ICLAW_ENV_NAME || env.NODE_ENV);
   const { tauriBundle, packageDmg } = platformBundleTarget();
   const pnpm = pnpmCommand();
 
   run(process.execPath, [brandStateScriptPath, 'snapshot', snapshotKey], {env});
   try {
     run(process.execPath, [applyBrandScriptPath, brandId], { env });
-    run(pnpm.command, [...pnpm.args, '--filter', '@iclaw/control-plane', 'sync:local-app-runtime', '--', '--app', brandId], {
-      env,
-      shell: pnpm.shell,
-    });
+    syncLocalAppRuntime({ pnpm, env, brandId, channel });
     run(process.execPath, [syncResourcesScriptPath], { env });
     await assertPackagedRuntimeConfig();
     await writeTempTauriConfig();
@@ -193,6 +330,7 @@ async function main() {
       env,
       shell: tauri.shell,
     });
+    await validateMacosProdBundle({ target, channel });
 
     if (packageDmg) {
       run('bash', [packageDmgScriptPath, ...forwardedArgs], { env });
