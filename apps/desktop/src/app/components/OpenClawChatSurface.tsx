@@ -986,7 +986,8 @@ function buildAssistantFooterTooltip(input: {
 function deriveAssistantFooterMetas(
   messages: unknown[],
   pendingSettlements: PendingUsageSettlement[],
-): AssistantFooterMeta[] {
+  isBusy: boolean,
+): Array<AssistantFooterMeta | null> {
   const assistantGroups = collectAssistantMessageGroups(messages);
   if (assistantGroups.length === 0) {
     return [];
@@ -1009,6 +1010,8 @@ function deriveAssistantFooterMetas(
       }
     }
   });
+
+  const latestAssistantGroupIndex = assistantGroups.length - 1;
 
   return assistantGroups.map((assistantGroup, assistantGroupIndex) => {
     let inputTokens = 0;
@@ -1061,6 +1064,10 @@ function deriveAssistantFooterMetas(
           credits,
         }),
       };
+    }
+
+    if (isBusy && assistantGroupIndex === latestAssistantGroupIndex) {
+      return null;
     }
 
     const derivedState =
@@ -3493,26 +3500,46 @@ export function OpenClawChatSurface({
         toolbar?.querySelector<HTMLButtonElement>('[data-action="regenerate"]') ?? null;
 
       if (metaNode) {
-        const nextState = footerMeta?.state ?? 'missing';
-        if (metaNode.dataset.state !== nextState) {
-          metaNode.dataset.state = nextState;
-        }
-        const nextTitle = footerMeta?.tooltip ?? '';
-        if (metaNode.title !== nextTitle) {
-          metaNode.title = nextTitle;
-        }
-        if (footerMeta?.value) {
-          if (metaValueNode?.hasAttribute('hidden')) {
-            metaValueNode.removeAttribute('hidden');
+        if (!footerMeta) {
+          if (!metaNode.hasAttribute('hidden')) {
+            metaNode.setAttribute('hidden', 'true');
           }
-          setElementTextIfChanged(metaLabelNode, footerMeta.label);
-          setElementTextIfChanged(metaValueNode, footerMeta.value);
-        } else {
+          if (metaNode.dataset.state !== 'idle') {
+            metaNode.dataset.state = 'idle';
+          }
+          if (metaNode.title) {
+            metaNode.title = '';
+          }
+          setElementTextIfChanged(metaLabelNode, '');
           if (metaValueNode && !metaValueNode.hasAttribute('hidden')) {
             metaValueNode.setAttribute('hidden', 'true');
           }
-          setElementTextIfChanged(metaLabelNode, footerMeta?.label ?? '计费数据缺失');
           setElementTextIfChanged(metaValueNode, '');
+        } else {
+          if (metaNode.hasAttribute('hidden')) {
+            metaNode.removeAttribute('hidden');
+          }
+          const nextState = footerMeta.state;
+          if (metaNode.dataset.state !== nextState) {
+            metaNode.dataset.state = nextState;
+          }
+          const nextTitle = footerMeta.tooltip ?? '';
+          if (metaNode.title !== nextTitle) {
+            metaNode.title = nextTitle;
+          }
+          if (footerMeta.value) {
+            if (metaValueNode?.hasAttribute('hidden')) {
+              metaValueNode.removeAttribute('hidden');
+            }
+            setElementTextIfChanged(metaLabelNode, footerMeta.label);
+            setElementTextIfChanged(metaValueNode, footerMeta.value);
+          } else {
+            if (metaValueNode && !metaValueNode.hasAttribute('hidden')) {
+              metaValueNode.setAttribute('hidden', 'true');
+            }
+            setElementTextIfChanged(metaLabelNode, footerMeta.label);
+            setElementTextIfChanged(metaValueNode, '');
+          }
         }
       }
       if (timestampNode) {
@@ -3531,6 +3558,7 @@ export function OpenClawChatSurface({
       const assistantFooterMetas = deriveAssistantFooterMetas(
         appRef.current?.chatMessages ?? [],
         pendingUsageSettlementsRef.current,
+        status.busy,
       );
       const groups = Array.from(host.querySelectorAll('.chat-group')).filter(
         (node): node is HTMLElement => node instanceof HTMLElement,
