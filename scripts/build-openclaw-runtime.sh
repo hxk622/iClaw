@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT_DIR/scripts/lib/openclaw-package.sh"
+source "$ROOT_DIR/scripts/lib/openclaw-launcher.sh"
 
 SOURCE_DIR="${OPENCLAW_SOURCE_DIR:-}"
 OUT_DIR="${OPENCLAW_RUNTIME_OUT_DIR:-$ROOT_DIR/.artifacts/openclaw-runtime}"
@@ -290,17 +291,10 @@ set "ROOT=%~dp0"
 "%ROOT%bin\node.exe" "%ROOT%openclaw\openclaw.mjs" gateway %*
 CMD
 else
-  cat > "$STAGE_DIR/openclaw-runtime" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
-export PATH="$ROOT_DIR/bin${PATH:+:$PATH}"
-if [[ -x "$ROOT_DIR/bin/python3" ]]; then
-  export UV_PYTHON="${UV_PYTHON:-$ROOT_DIR/bin/python3}"
-fi
-exec "$ROOT_DIR/bin/node" "$ROOT_DIR/openclaw/openclaw.mjs" gateway "$@"
-SH
-  chmod +x "$STAGE_DIR/openclaw-runtime"
+  openclaw_write_gateway_launcher \
+    "$STAGE_DIR/openclaw-runtime" \
+    '$(cd "$SCRIPT_DIR" && pwd)/openclaw' \
+    '$(cd "$SCRIPT_DIR" && pwd)/bin/node'
 fi
 
 rm -f "$ARCHIVE_PATH"

@@ -86,6 +86,13 @@ pnpm dev:web
 
 找不到就直接报错，不再回退到本地源码或 mock runtime。
 
+开发环境与桌面包的 sidecar 启动链必须保持同一语义：
+
+- `pnpm dev:api` 使用的本地 launcher
+- 桌面包使用的 `openclaw-runtime` launcher
+
+两者必须由同一套模板生成，并执行同样的 `openclaw.mjs gateway ...` 启动链，避免 dev / prod 之间出现理解漂移。
+
 ## 本地能力资源（skills / mcp）
 
 - 源目录（可维护）：`skills`、`servers`、`services/openclaw/resources/mcp/mcp.json`、`mcp/mcp.json`

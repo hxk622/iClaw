@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT_DIR/scripts/lib/openclaw-package.sh"
+source "$ROOT_DIR/scripts/lib/openclaw-launcher.sh"
 
 SOURCE_DIR="${OPENCLAW_SOURCE_DIR:-}"
 TMP_ROOT=""
@@ -152,17 +153,10 @@ cp "$NODE_BIN" "$NODE_DIR/node"
 chmod +x "$NODE_DIR/node"
 
 SERVER_BIN="$BIN_DIR/openclaw-server"
-cat >"$SERVER_BIN" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-RUNTIME_ROOT="$(cd "$SCRIPT_DIR/../runtime/openclaw" && pwd)"
-NODE_BIN="$(cd "$SCRIPT_DIR/../runtime/node" && pwd)/node"
-
-export OPENCLAW_BUNDLED_PLUGINS_DIR="${OPENCLAW_BUNDLED_PLUGINS_DIR:-$RUNTIME_ROOT/extensions}"
-exec "$NODE_BIN" "$RUNTIME_ROOT/openclaw.mjs" gateway --allow-unconfigured "$@"
-EOF
-chmod +x "$SERVER_BIN"
+openclaw_write_gateway_launcher \
+  "$SERVER_BIN" \
+  '$(cd "$SCRIPT_DIR/../runtime/openclaw" && pwd)' \
+  '$(cd "$SCRIPT_DIR/../runtime/node" && pwd)/node'
 
 DEST_NAME="openclaw-$TARGET_TRIPLE"
 if [[ "$TARGET_TRIPLE" == *"windows"* ]]; then
