@@ -3636,9 +3636,12 @@ async function importSkill(formData) {
       method: 'PUT',
       body: JSON.stringify({
         slug,
-        name: skill.name,
-        description: skill.description,
-        publisher: skill.publisher || 'admin-web',
+        name: String(formData.get('name') || '').trim(),
+        description: String(formData.get('description') || '').trim(),
+        market: String(formData.get('market') || '').trim() || null,
+        category: String(formData.get('category') || '').trim() || null,
+        skill_type: String(formData.get('skill_type') || '').trim() || null,
+        publisher: String(formData.get('publisher') || '').trim() || skill.publisher || 'admin-web',
         tags: splitLines(formData.get('tags_text')),
       }),
     });
@@ -6930,8 +6933,8 @@ function renderSkillImportPanel() {
   return `
     <section class="fig-card fig-card--subtle">
       <div class="fig-card__head">
-        <h3>${skill ? '编辑平台级 Skill 绑定' : '新增平台级 Skill 绑定'}</h3>
-        <span>平台层维护启用状态和 metadata；标签会同步写回云技能总库。</span>
+        <h3>${skill ? '编辑 Skill' : '新增平台级 Skill 绑定'}</h3>
+        <span>主数据直接写入云技能总库；平台层只维护启用状态和 metadata。</span>
       </div>
       <form id="skill-import-form" class="form-grid form-grid--two">
         <label class="field">
@@ -6942,13 +6945,49 @@ function renderSkillImportPanel() {
           <span>来源</span>
           <input class="field-input" value="${fieldValue(skill?.distribution || 'cloud')}" readonly />
         </label>
+        <label class="field">
+          <span>Name</span>
+          <input class="field-input" name="name" value="${fieldValue(skill?.name)}" placeholder="Skill 名称" />
+        </label>
+        <label class="field">
+          <span>Publisher</span>
+          <input class="field-input" name="publisher" value="${fieldValue(skill?.publisher || 'iClaw')}" placeholder="发布者" />
+        </label>
         <label class="field field--wide">
-          <span>云技能说明</span>
-          <textarea class="field-textarea" readonly>${escapeHtml(skill?.description || '')}</textarea>
+          <span>Description</span>
+          <textarea class="field-textarea" name="description" placeholder="Skill 做什么">${escapeHtml(skill?.description || '')}</textarea>
+        </label>
+        <label class="field">
+          <span>Market</span>
+          <input class="field-input" name="market" value="${fieldValue(skill?.market || '')}" placeholder="A股 / 美股 / 通用" />
+        </label>
+        <label class="field">
+          <span>Category</span>
+          <select class="field-select" name="category">
+            ${['', 'data', 'research', 'portfolio', 'report', 'general']
+              .map((item) => `<option value="${item}"${(skill?.category || '') === item ? ' selected' : ''}>${escapeHtml(item || '自动推断')}</option>`)
+              .join('')}
+          </select>
+        </label>
+        <label class="field">
+          <span>Skill Type</span>
+          <select class="field-select" name="skill_type">
+            ${['', '工具包', '分析师', '生成器', '扫描器']
+              .map((item) => `<option value="${item}"${(skill?.skill_type || '') === item ? ' selected' : ''}>${escapeHtml(item || '自动推断')}</option>`)
+              .join('')}
+          </select>
         </label>
         <label class="field field--wide">
           <span>Tags</span>
           <textarea class="field-textarea" name="tags_text" placeholder="每行一个 tag，也支持逗号分隔">${escapeHtml((skill?.tags || []).join('\n'))}</textarea>
+        </label>
+        <label class="field">
+          <span>Version</span>
+          <input class="field-input" value="${fieldValue(skill?.version || '-')}" readonly />
+        </label>
+        <label class="field">
+          <span>Source URL</span>
+          <input class="field-input" value="${fieldValue(skill?.source_url || '')}" readonly />
         </label>
         <label class="field">
           <span>状态</span>
