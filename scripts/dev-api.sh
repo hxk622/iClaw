@@ -98,7 +98,12 @@ OPENCLAW_BIN="$(resolve_openclaw_bin)"
 is_mock_sidecar_bin() {
   local bin_path="$1"
   [[ -f "$bin_path" ]] || return 1
-  rg -q "mock-openclaw|mock\":true" "$bin_path"
+  if command -v rg >/dev/null 2>&1; then
+    rg -q 'mock-openclaw|mock":true' "$bin_path"
+    return $?
+  fi
+
+  grep -E -q 'mock-openclaw|mock":true' "$bin_path"
 }
 
 ensure_sidecar_bin() {
