@@ -2271,7 +2271,7 @@ fn configured_sidecar_port() -> u16 {
 }
 
 fn detect_local_service_port_conflicts() -> Vec<u16> {
-    let mut ports = vec![configured_sidecar_port(), 2128_u16, 2130_u16];
+    let mut ports = vec![configured_sidecar_port()];
     ports.sort_unstable();
     ports.dedup();
     ports.into_iter()
@@ -2280,8 +2280,7 @@ fn detect_local_service_port_conflicts() -> Vec<u16> {
 }
 
 fn listen_port_targets() -> Vec<u16> {
-    let sidecar_port = configured_sidecar_port();
-    let mut ports = vec![sidecar_port, 2128_u16, 2130_u16];
+    let mut ports = vec![configured_sidecar_port()];
     ports.sort_unstable();
     ports.dedup();
     ports
