@@ -79,6 +79,36 @@ function splitCsvEnv(value: string | undefined, fallback: string[]): string[] {
   return items.length > 0 ? items : fallback;
 }
 
+function parseCsvEnv(value: string | undefined): string[] {
+  if (!value) {
+    return [];
+  }
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function mergeUniqueStrings(...groups: string[][]): string[] {
+  const seen = new Set<string>();
+  const merged: string[] = [];
+  for (const group of groups) {
+    for (const entry of group) {
+      const normalized = entry.trim();
+      if (!normalized || seen.has(normalized)) {
+        continue;
+      }
+      seen.add(normalized);
+      merged.push(normalized);
+    }
+  }
+  return merged;
+}
+
+export function resolveAllowedOrigins(controlPlaneAllowedOrigins?: string | undefined): string[] {
+  return mergeUniqueStrings(LOCAL_ALLOWED_ORIGINS, parseCsvEnv(controlPlaneAllowedOrigins));
+}
+
 function splitEmailCsvEnv(value: string | undefined, fallback: string[]): string[] {
   const items = splitCsvEnv(value, fallback)
     .map((entry) => entry.trim().toLowerCase())
@@ -148,7 +178,7 @@ export const config = {
   redisUrl: process.env.CONTROL_PLANE_REDIS_URL || process.env.REDIS_URL || '',
   redisKeyPrefix: process.env.CONTROL_PLANE_REDIS_KEY_PREFIX || brandDefaults.redisKeyPrefix,
   serviceName: process.env.CONTROL_PLANE_SERVICE_NAME || brandDefaults.serviceName,
-  allowedOrigins: splitCsvEnv(process.env.CONTROL_PLANE_ALLOWED_ORIGINS, brandDefaults.allowedOrigins),
+  allowedOrigins: resolveAllowedOrigins(process.env.CONTROL_PLANE_ALLOWED_ORIGINS),
   desktopReleaseManifestDir:
     process.env.DESKTOP_RELEASE_MANIFEST_DIR || resolve(dirname(fileURLToPath(import.meta.url)), '../../../dist/releases'),
   desktopReleaseManifestBaseUrls: {

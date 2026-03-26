@@ -1419,4 +1419,5 @@ const server = createJsonServer([
 
 server.listen(config.port, config.listenHost, () => {
   console.log(`[control-plane] listening on http://${config.listenHost}:${config.port}`);
+  console.log(`[control-plane] allowed origins: ${config.allowedOrigins.join(', ')}`);
 });
