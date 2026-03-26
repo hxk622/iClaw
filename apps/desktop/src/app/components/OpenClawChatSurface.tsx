@@ -761,10 +761,35 @@ function findPreviousUserGroup(group: HTMLElement): HTMLElement | null {
   return null;
 }
 
-function computeCreditCostFromUsage(inputTokens: number, outputTokens: number): number {
+function resolveBillingModelFactor(model: string | null): number {
+  const normalized = (model || '').trim().toLowerCase();
+  if (!normalized) return 1;
+  if (
+    normalized.includes('opus') ||
+    normalized.includes('gpt-5') ||
+    normalized.includes('o1') ||
+    normalized.includes('o3') ||
+    normalized.includes('o4')
+  ) {
+    return 1.7;
+  }
+  if (normalized.includes('sonnet') || normalized.includes('gemini') || normalized.includes('grok')) {
+    return 1.3;
+  }
+  if (normalized.includes('mini') || normalized.includes('flash') || normalized.includes('haiku') || normalized.includes('nano')) {
+    return 0.8;
+  }
+  return 1;
+}
+
+function computeCreditCostFromUsage(inputTokens: number, outputTokens: number, model: string | null = null): number {
   const inputCost = Math.ceil((Math.max(0, inputTokens) / 1000) * CREDIT_INPUT_COST_PER_1K);
   const outputCost = Math.ceil((Math.max(0, outputTokens) / 1000) * CREDIT_OUTPUT_COST_PER_1K);
-  return Math.max(0, inputCost + outputCost);
+  const baseCost = Math.max(0, inputCost + outputCost);
+  if (baseCost <= 0) {
+    return 0;
+  }
+  return Math.max(1, Math.ceil(baseCost * resolveBillingModelFactor(model)));
 }
 
 function getUsageMetric(record: Record<string, unknown>, keys: string[]): number {
@@ -1016,6 +1041,7 @@ function deriveAssistantFooterMetas(
   return assistantGroups.map((assistantGroup, assistantGroupIndex) => {
     let inputTokens = 0;
     let outputTokens = 0;
+    let model: string | null = null;
     let billingSummary: RunBillingSummaryData | null = null;
     let billingState: AssistantBillingState | null = null;
 
@@ -1035,6 +1061,9 @@ function deriveAssistantFooterMetas(
       }
       inputTokens += getUsageMetric(usage, ['input', 'inputTokens', 'input_tokens']);
       outputTokens += getUsageMetric(usage, ['output', 'outputTokens', 'output_tokens']);
+      if (typeof record.model === 'string' && record.model.trim() && record.model !== 'gateway-injected') {
+        model = record.model.trim();
+      }
       const messageBillingSummary = readAssistantBillingSummary(message);
       if (messageBillingSummary) {
         billingSummary = messageBillingSummary;
@@ -1070,6 +1099,25 @@ function deriveAssistantFooterMetas(
       return null;
     }
 
+    if (inputTokens > 0 || outputTokens > 0) {
+      const credits = computeCreditCostFromUsage(inputTokens, outputTokens, model);
+      return {
+        timestampLabel: formatAssistantFooterTimestamp(assistantGroup.timestamp),
+        state: 'charged',
+        label: '实际消耗 ',
+        value: String(credits),
+        credits,
+        inputTokens,
+        outputTokens,
+        tooltip: buildAssistantFooterTooltip({
+          state: 'charged',
+          inputTokens,
+          outputTokens,
+          credits,
+        }),
+      };
+    }
+
     const derivedState =
       billingState === 'missing'
         ? 'missing'
@@ -1085,13 +1133,13 @@ function deriveAssistantFooterMetas(
       credits: null,
       inputTokens,
       outputTokens,
-      tooltip: buildAssistantFooterTooltip({
-        state: derivedState,
-        inputTokens,
-        outputTokens,
-        credits: inputTokens > 0 || outputTokens > 0 ? computeCreditCostFromUsage(inputTokens, outputTokens) : null,
-      }),
-    };
+        tooltip: buildAssistantFooterTooltip({
+          state: derivedState,
+          inputTokens,
+          outputTokens,
+          credits: inputTokens > 0 || outputTokens > 0 ? computeCreditCostFromUsage(inputTokens, outputTokens, model) : null,
+        }),
+      };
   });
 }
 
