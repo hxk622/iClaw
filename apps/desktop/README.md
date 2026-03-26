@@ -47,6 +47,17 @@ pnpm dev:web
 - Tauri 运行时只使用已安装的 OpenClaw runtime，若配置了下载地址，会在应用启动阶段安装。
 - 登录 token 在 Tauri 环境优先写入系统安全存储（macOS Keychain / Windows Credential Manager）。
 - 本地 OpenClaw gateway 使用应用生成并保存在系统安全存储里的共享 token，不再依赖隐式 fallback。
+- 重要：桌面安装包在 Tauri 运行时，禁止依赖 `.env.prod` 中编译进前端 bundle 的 `VITE_GATEWAY_TOKEN` / `VITE_GATEWAY_PASSWORD` 连接本地 gateway；本地 gateway 凭据只能以系统安全存储中的运行时真实值为准。
+
+## Prod 打包注意事项
+
+- `.env.prod` 只用于环境级公共配置，例如 `APP_NAME`、`VITE_AUTH_BASE_URL`、`VITE_API_BASE_URL`
+- 不允许在 `.env.prod` 中写入安装实例级 secret，例如本地 gateway token / password
+- 如果某个已发布安装包误把本地 gateway secret 编译进包，表现通常会是：
+  - `ws://127.0.0.1:2126` 鉴权失败
+  - `gateway token mismatch`
+  - `too many failed authentication attempts (retry later)`
+- 这类问题不能通过线上 control-plane 热修复；必须重新打新的 prod 包，并替换线上下载页中的旧安装包
 
 ## OpenClaw Runtime
 

@@ -71,6 +71,25 @@ iClaw/
 - 默认监听本地回环地址（如 `127.0.0.1`）固定端口（待最终确认）。
 - 首启自动初始化数据目录和日志目录。
 
+## 7.1 本地 Gateway 凭据冻结
+
+针对桌面端本地 OpenClaw gateway 认证，进一步冻结以下原则：
+
+- 本地 gateway token / password 属于“安装实例级本地 secret”，不是环境级配置
+- 安装实例级本地 secret 必须在运行时生成，并保存在系统安全存储：
+  - macOS：Keychain
+  - Windows：Credential Manager
+- 本地 runtime 配置中的 gateway auth 必须与系统安全存储里的同一份 secret 保持一致
+- 桌面安装包在 Tauri 运行时，前端连接本地 `127.0.0.1:2126` 时，必须优先读取系统安全存储中的真实凭据
+- 禁止把本地 gateway token / password 通过 `.env.prod`、`VITE_*`、前端 bundle、安装包静态资源等方式编译进 prod 包
+- `.env.xxx` 只允许承载环境级公共配置，例如：
+  - `APP_NAME`
+  - `VITE_AUTH_BASE_URL`
+  - `VITE_API_BASE_URL`
+  - 品牌 / 发布渠道等非实例级配置
+- control-plane access token / refresh token 与本地 gateway token 必须严格分离，禁止混用
+- 若线上已发布安装包把本地 gateway secret 编译进包，该安装包视为发布缺陷，必须重新打包并替换下载页产物，不能指望后端热修复
+
 ## 8. 自动更新
 
 - v0 启用“检查更新 + 用户确认安装”。
