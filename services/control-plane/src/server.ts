@@ -1417,6 +1417,6 @@ const server = createJsonServer([
     resolveDesktopUpdateResponseHeaders(request.headers, portalStore, resolvePublicBaseUrl(request.headers)),
 });
 
-server.listen(config.port, '127.0.0.1', () => {
-  console.log(`[control-plane] listening on http://127.0.0.1:${config.port}`);
+server.listen(config.port, config.listenHost, () => {
+  console.log(`[control-plane] listening on http://${config.listenHost}:${config.port}`);
 });

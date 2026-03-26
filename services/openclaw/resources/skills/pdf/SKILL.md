@@ -1,8 +1,15 @@
 ---
 name: pdf
+slug: pdf
 visibility: internal
+tags: 基础, 基础办公, 办公, 文档, PDF
 description: 全面的 PDF 操作工具包，用于提取文本和表格、创建新 PDF、合并/拆分文档和处理表单。当需要填写 PDF 表单或以编程方式大规模处理、生成或分析 PDF 文档时使用。
 license: Proprietary. LICENSE.txt has complete terms
+market: 通用
+category: data
+skill_type: 工具包
+publisher: Platform
+distribution: bundled
 ---
 
 # PDF Processing Guide

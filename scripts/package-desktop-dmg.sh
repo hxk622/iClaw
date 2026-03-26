@@ -7,6 +7,7 @@ TAURI_DIR="$DESKTOP_DIR/src-tauri"
 
 target=""
 profile="release"
+channel="${ICLAW_ENV_NAME:-${NODE_ENV:-}}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -87,6 +88,20 @@ arch_label() {
   esac
 }
 
+normalize_channel() {
+  case "${1:-}" in
+    dev|development|local)
+      echo "dev"
+      ;;
+    prod|production|release)
+      echo "prod"
+      ;;
+    *)
+      echo ""
+      ;;
+  esac
+}
+
 mkdir -p "$dmg_dir"
 
 stage_dir="$(mktemp -d "${TMPDIR:-/tmp}/iclaw-dmg-stage.XXXXXX")"
@@ -97,7 +112,12 @@ trap cleanup EXIT
 
 cp -R "$app_bundle_path" "$stage_dir/"
 ln -s /Applications "$stage_dir/Applications"
-
+channel_suffix="$(normalize_channel "$channel")"
+if [[ -n "$channel_suffix" ]]; then
+  dmg_name="${artifact_base_name}_${app_version}_$(arch_label "$target")_${channel_suffix}.dmg"
+else
+  dmg_name="${artifact_base_name}_${app_version}_$(arch_label "$target").dmg"
+fi
 dmg_name="${artifact_base_name}_${app_version}_$(arch_label "$target").dmg"
 dmg_path="$dmg_dir/$dmg_name"
 rm -f "$dmg_path"

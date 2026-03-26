@@ -1,0 +1,6 @@
+marketing/marketing-ai-citation-strategist.md
+marketing/marketing-bilibili-content-strategist.md
+specialized/recruitment-specialist.md
+specialized/specialized-french-consulting-market.md
+specialized/specialized-korean-business-navigator.md
+specialized/supply-chain-strategist.md

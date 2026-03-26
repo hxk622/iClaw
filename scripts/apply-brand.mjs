@@ -23,10 +23,16 @@ const homeWebBrandGeneratedJsPath = path.join(homeWebDir, 'brand.generated.js');
 const rootPackageJsonPath = path.join(rootDir, 'package.json');
 
 function resolveBrandPath(brandDir, rawPath) {
+  if (typeof rawPath !== 'string' || !rawPath.trim()) {
+    return null;
+  }
   return path.resolve(brandDir, rawPath);
 }
 
 async function ensureFile(sourcePath, label) {
+  if (!sourcePath) {
+    throw new Error(`missing ${label}: unresolved source path`);
+  }
   try {
     await fs.access(sourcePath);
   } catch {

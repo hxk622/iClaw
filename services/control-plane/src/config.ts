@@ -123,6 +123,7 @@ function readNumberEnv(name: string, fallback: number): number {
 
 export const config = {
   port: readNumberEnv('PORT', DEFAULT_PORT),
+  listenHost: (process.env.CONTROL_PLANE_HOST || '127.0.0.1').trim() || '127.0.0.1',
   databaseUrl: process.env.DATABASE_URL || '',
   appName: brandDefaults.appName,
   s3Endpoint: process.env.S3_ENDPOINT || 'http://127.0.0.1:9000',

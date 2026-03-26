@@ -1,8 +1,15 @@
 ---
 name: docx
+slug: docx
 visibility: internal
+tags: 基础, 基础办公, 办公, 文档, DOCX
 description: 全面的文档创建、编辑和分析功能，支持修订跟踪、批注、格式保留和文本提取。当需要处理专业文档（.docx 文件）时使用：(1) 创建新文档 (2) 修改或编辑内容 (3) 处理修订跟踪 (4) 添加批注，或任何其他文档任务。
 license: Proprietary. LICENSE.txt has complete terms
+market: 通用
+category: data
+skill_type: 工具包
+publisher: Platform
+distribution: bundled
 ---
 
 # DOCX creation, editing, and analysis

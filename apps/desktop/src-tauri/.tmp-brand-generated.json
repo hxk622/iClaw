@@ -1,0 +1,11 @@
+{
+  "brandId": "licaiclaw",
+  "productName": "理财客",
+  "bundleIdentifier": "ai.licaiclaw.desktop",
+  "authService": "ai.licaiclaw.desktop",
+  "endpoints": {
+    "authBaseUrl": ""
+  },
+  "artifactBaseName": "LiCaiClaw",
+  "storageNamespace": "licaiclaw"
+}

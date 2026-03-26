@@ -1,12 +1,12 @@
 {
   "app": {
-    "appName": "iclaw",
-    "displayName": "iClaw",
-    "description": "通用 AI 工作台",
+    "appName": "licaiclaw",
+    "displayName": "理财客",
+    "description": "金融研究与财富管理工作台",
     "status": "active",
     "defaultLocale": "zh-CN"
   },
-  "publishedVersion": 1,
+  "publishedVersion": 10,
   "config": {
     "oauth": {
       "google": {
@@ -31,29 +31,179 @@
       }
     },
     "storage": {
-      "namespace": "iclaw"
+      "namespace": "licaiclaw"
     },
     "website": {
       "kicker": "Official Website",
-      "homeTitle": "iClaw 官网",
-      "brandLabel": "iClaw",
+      "homeTitle": "理财客官网",
+      "brandLabel": "理财客",
       "scrollLabel": "向下下载",
       "topCtaLabel": "下载",
-      "heroTitlePre": "让AI真正像软件一样",
-      "downloadTitle": "下载 iClaw",
-      "heroTitleMain": "装上就能用！",
-      "heroDescription": "iClaw 面向普通用户设计。少一点配置，多一点结果。打开、提问、执行、拿答案。",
-      "metaDescription": "iClaw 官网，面向普通用户的本地 AI 客户端。"
+      "heroTitlePre": "把 AI 装进你的财富工作流",
+      "downloadTitle": "下载理财客",
+      "heroTitleMain": "打开就能干活",
+      "heroDescription": "理财客面向财富管理场景设计。少一点配置，多一点交付。",
+      "metaDescription": "理财客官网，面向财富管理场景的本地 AI 客户端。"
     },
     "endpoints": {
-      "authBaseUrl": ""
+      "authBaseUrl": "https://caiclaw.aiyuanxi.com"
     },
-    "legalName": "iClaw",
-    "authService": "ai.iclaw.desktop",
-    "productName": "iClaw",
+    "legalName": "理财客",
+    "authService": "ai.licaiclaw.desktop",
+    "productName": "理财客",
+    "capabilities": {
+      "skill_catalog": {
+        "visibility_mode": "all_cloud"
+      },
+      "skills": [
+        "a-share-esg",
+        "a-share-low-valuation",
+        "a-share-insider",
+        "a-share-small-cap-growth",
+        "a-share-tech-valuation",
+        "a-share-industry-rotation",
+        "a-share-factor-screener",
+        "a-share-data-toolkit",
+        "a-share-dividend",
+        "docx",
+        "pdf",
+        "xlsx",
+        "us-esg",
+        "us-low-valuation",
+        "us-insider",
+        "us-small-cap-growth",
+        "us-tech-valuation",
+        "us-dividend-aristocrats",
+        "us-industry-rotation",
+        "us-factor-screener",
+        "us-data-toolkit"
+      ],
+      "mcp_servers": [
+        "alpaca",
+        "alphavantage",
+        "browser",
+        "dbt",
+        "fingpt",
+        "fmp",
+        "fred",
+        "markitdown",
+        "nano-banana",
+        "sec-edgar",
+        "serper",
+        "tavily",
+        "yahoo-finance"
+      ],
+      "menus": [
+        "chat",
+        "investment-experts",
+        "task-center",
+        "data-connections",
+        "finance-skills",
+        "foundation-skills",
+        "stock-market",
+        "fund-market",
+        "cron",
+        "im-bots",
+        "memory",
+        "security"
+      ],
+      "models": {
+        "default": "openai/gpt-5.4",
+        "recommended": [
+          "openai/gpt-5.4",
+          "openai/glm-5",
+          "deepseek/deepseek-v3.2"
+        ],
+        "entries": [
+          {
+            "ref": "openai/gpt-5.4",
+            "label": "GPT 5.4",
+            "providerId": "openai",
+            "modelId": "gpt-5.4",
+            "api": "openai-completions",
+            "baseUrl": null,
+            "useRuntimeOpenai": true,
+            "authHeader": true,
+            "reasoning": true,
+            "input": [
+              "text",
+              "image"
+            ],
+            "contextWindow": 272000,
+            "maxTokens": 128000
+          },
+          {
+            "ref": "openai/qwen3.5-plus",
+            "label": "Qwen3.5 Plus",
+            "providerId": "openai",
+            "modelId": "qwen3.5-plus",
+            "api": "openai-completions",
+            "baseUrl": null,
+            "useRuntimeOpenai": true,
+            "authHeader": true,
+            "reasoning": true,
+            "input": [
+              "text",
+              "image"
+            ],
+            "contextWindow": 131072,
+            "maxTokens": 8192
+          },
+          {
+            "ref": "openai/qwen3-max",
+            "label": "Qwen3 Max",
+            "providerId": "openai",
+            "modelId": "qwen3-max",
+            "api": "openai-completions",
+            "baseUrl": null,
+            "useRuntimeOpenai": true,
+            "authHeader": true,
+            "reasoning": true,
+            "input": [
+              "text",
+              "image"
+            ],
+            "contextWindow": 262144,
+            "maxTokens": 8192
+          },
+          {
+            "ref": "openai/glm-5",
+            "label": "GLM 5",
+            "providerId": "openai",
+            "modelId": "glm-5",
+            "api": "openai-completions",
+            "baseUrl": null,
+            "useRuntimeOpenai": true,
+            "authHeader": true,
+            "reasoning": true,
+            "input": [
+              "text"
+            ],
+            "contextWindow": 202752,
+            "maxTokens": 16384
+          },
+          {
+            "ref": "deepseek/deepseek-v3.2",
+            "label": "DeepSeek V3.2",
+            "providerId": "deepseek",
+            "modelId": "deepseek-v3.2",
+            "api": "openai-completions",
+            "baseUrl": "https://api.deepseek.com/v1",
+            "useRuntimeOpenai": false,
+            "authHeader": true,
+            "reasoning": true,
+            "input": [
+              "text"
+            ],
+            "contextWindow": 128000,
+            "maxTokens": 8192
+          }
+        ]
+      }
+    },
     "controlPlane": {
-      "s3Bucket": "iclaw-files",
-      "serviceName": "iclaw-control-plane",
+      "s3Bucket": "licaiclaw-files",
+      "serviceName": "licaiclaw-control-plane",
       "allowedOrigins": [
         "http://127.0.0.1:1520",
         "http://localhost:1520",
@@ -61,289 +211,619 @@
         "http://tauri.localhost",
         "tauri://localhost"
       ],
-      "redisKeyPrefix": "iclaw:control-plane"
+      "redisKeyPrefix": "licaiclaw:control-plane"
     },
     "distribution": {
       "home": {
-        "nginxPath": "/var/www/iclaw-home"
+        "nginxPath": "/var/www/caiclaw/home"
       },
       "downloads": {
         "dev": {
-          "bucket": "iclaw-dev",
-          "publicBaseUrl": "http://127.0.0.1:9000/iclaw-dev"
+          "bucket": "licaiclaw-dev",
+          "publicBaseUrl": "http://127.0.0.1:9000/licaiclaw-dev"
         },
         "prod": {
-          "bucket": "iclaw-prod",
-          "publicBaseUrl": "https://iclaw.aiyuanxi.com/downloads"
+          "bucket": "licaiclaw-prod",
+          "publicBaseUrl": "https://caiclaw.aiyuanxi.com/downloads"
         }
       },
-      "artifactBaseName": "iClaw"
+      "artifactBaseName": "LiCaiClaw"
     },
-    "websiteTitle": "iClaw",
+    "websiteTitle": "理财客",
     "sidebarSubtitle": "",
-    "bundleIdentifier": "ai.iclaw.desktop",
+    "bundleIdentifier": "ai.licaiclaw.desktop",
     "runtimeDistribution": {
       "dev": {
-        "bucket": "iclaw-dev",
-        "publicBaseUrl": "http://127.0.0.1:9000/iclaw-dev"
+        "bucket": "licaiclaw-dev",
+        "publicBaseUrl": "http://127.0.0.1:9000/licaiclaw-dev"
       },
       "prod": {
-        "bucket": "iclaw-prod",
-        "publicBaseUrl": "https://iclaw.aiyuanxi.com/downloads"
+        "bucket": "licaiclaw-prod",
+        "publicBaseUrl": "https://caiclaw.aiyuanxi.com"
       },
       "minioPrefix": "runtime"
     },
     "brand_meta": {
-      "brand_id": "iclaw",
-      "tenant_key": "iclaw",
-      "display_name": "iClaw",
-      "product_name": "iClaw",
-      "legal_name": "iClaw",
-      "storage_namespace": "iclaw"
+      "brand_id": "licaiclaw",
+      "tenant_key": "licaiclaw",
+      "display_name": "理财客",
+      "product_name": "理财客",
+      "legal_name": "理财客",
+      "storage_namespace": "licaiclaw"
     },
     "assets": {
       "appleTouchIcon": {
-        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=appleTouchIcon",
+        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=appleTouchIcon",
         "content_type": "image/png",
-        "object_key": "portal-assets/iclaw/appleTouchIcon/1774191472743-a7941002-6149-4d10-b0b6-c14e82d07137.png",
+        "object_key": "portal-assets/licaiclaw/appleTouchIcon/1774453775728-7061ec6b-e6e5-49bf-a3e9-c1653b6ed2ad.png",
         "storage_provider": "s3",
         "metadata": {
           "sourceType": "preset",
-          "presetFilePath": "assets/iclaw/apple-touch-icon.png"
+          "presetFilePath": "assets/licaiclaw/apple-touch-icon.png"
         }
       },
       "faviconIco": {
-        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=faviconIco",
+        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=faviconIco",
         "content_type": "image/x-icon",
-        "object_key": "portal-assets/iclaw/faviconIco/1774191472712-dbff4d88-7ec0-43d1-980b-f7598ab935b8.ico",
+        "object_key": "portal-assets/licaiclaw/faviconIco/1774453775716-294f9eb1-7c7a-4052-943e-03a5ecaf9c48.ico",
         "storage_provider": "s3",
         "metadata": {
           "sourceType": "preset",
-          "presetFilePath": "assets/iclaw/favicon.ico"
+          "presetFilePath": "assets/licaiclaw/favicon.ico"
         }
       },
       "faviconPng": {
-        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=faviconPng",
+        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=faviconPng",
         "content_type": "image/png",
-        "object_key": "portal-assets/iclaw/faviconPng/1774191472724-e3222d3c-840b-478d-892e-3670ac146dd0.png",
+        "object_key": "portal-assets/licaiclaw/faviconPng/1774453775721-d45a3492-057a-4eb2-beaf-c253319d8556.png",
         "storage_provider": "s3",
         "metadata": {
           "sourceType": "preset",
-          "presetFilePath": "assets/iclaw/favicon.png"
+          "presetFilePath": "assets/licaiclaw/favicon.png"
+        }
+      },
+      "homeLogo": {
+        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=homeLogo",
+        "content_type": "image/jpeg",
+        "object_key": "portal-assets/licaiclaw/homeLogo/1774453775747-0689821b-e084-4244-90f8-e9aa486a67ff.jpg",
+        "storage_provider": "s3",
+        "metadata": {
+          "sourceType": "preset",
+          "presetFilePath": "assets/licaiclaw/home-logo.jpg"
         }
       },
       "installerHero": {
-        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=installerHero",
+        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=installerHero",
         "content_type": "image/png",
-        "object_key": "portal-assets/iclaw/installerHero/1774191472751-e8651d15-d007-4362-9da1-ab869c72a905.png",
+        "object_key": "portal-assets/licaiclaw/installerHero/1774453775735-776aa62d-3700-408b-9da7-717f84e5ea67.png",
         "storage_provider": "s3",
         "metadata": {
           "sourceType": "preset",
-          "presetFilePath": "assets/iclaw/installer-hero.png"
+          "presetFilePath": "assets/licaiclaw/installer-hero.png"
+        }
+      },
+      "logoMaster": {
+        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=logoMaster",
+        "content_type": "image/jpeg",
+        "object_key": "portal-assets/licaiclaw/logoMaster/1774453775740-f5602a19-1a9b-41d4-be41-47abf628069b.jpg",
+        "storage_provider": "s3",
+        "metadata": {
+          "sourceType": "preset",
+          "presetFilePath": "assets/licaiclaw/logo-master.jpg"
         }
       },
       "tauriIcon128": {
-        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=tauriIcon128",
+        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=tauriIcon128",
         "content_type": "image/png",
-        "object_key": "portal-assets/iclaw/tauriIcon128/1774191472774-9d44658e-3634-4df5-912a-b5fb172c78ec.png",
+        "object_key": "portal-assets/licaiclaw/tauriIcon128/1774453775760-f8b3266d-c4d2-45a8-886a-726445fdd2cc.png",
         "storage_provider": "s3",
         "metadata": {
           "sourceType": "preset",
-          "presetFilePath": "assets/iclaw/tauri-icons/128x128.png"
+          "presetFilePath": "assets/licaiclaw/tauri-icons/128x128.png"
         }
       },
       "tauriIcon1282x": {
-        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=tauriIcon1282x",
+        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=tauriIcon1282x",
         "content_type": "image/png",
-        "object_key": "portal-assets/iclaw/tauriIcon1282x/1774191472809-1bf688fc-6704-4fbb-840a-8b8058b8ffc4.png",
+        "object_key": "portal-assets/licaiclaw/tauriIcon1282x/1774453775766-43f9845e-ca89-43f8-9443-8bd2168c2b5e.png",
         "storage_provider": "s3",
         "metadata": {
           "sourceType": "preset",
-          "presetFilePath": "assets/iclaw/tauri-icons/128x128@2x.png"
+          "presetFilePath": "assets/licaiclaw/tauri-icons/128x128@2x.png"
         }
       },
       "tauriIcon32": {
-        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=tauriIcon32",
+        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=tauriIcon32",
         "content_type": "image/png",
-        "object_key": "portal-assets/iclaw/tauriIcon32/1774191472764-498315c0-085d-418a-a626-82bb1caa3f92.png",
+        "object_key": "portal-assets/licaiclaw/tauriIcon32/1774453775754-04e6bd9d-5bf2-4c61-8c9d-286944fcbc2d.png",
         "storage_provider": "s3",
         "metadata": {
           "sourceType": "preset",
-          "presetFilePath": "assets/iclaw/tauri-icons/32x32.png"
+          "presetFilePath": "assets/licaiclaw/tauri-icons/32x32.png"
         }
       },
       "tauriIconIcns": {
-        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=tauriIconIcns",
+        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=tauriIconIcns",
         "content_type": "application/octet-stream",
-        "object_key": "portal-assets/iclaw/tauriIconIcns/1774191472860-5c9cec33-7617-407f-99ac-467dd9a55ffa.icns",
+        "object_key": "portal-assets/licaiclaw/tauriIconIcns/1774453775791-d50ce59f-fb5e-4bee-a17c-9106df2745bb.icns",
         "storage_provider": "s3",
         "metadata": {
           "sourceType": "preset",
-          "presetFilePath": "assets/iclaw/tauri-icons/icon.icns"
+          "presetFilePath": "assets/licaiclaw/tauri-icons/icon.icns"
         }
       },
       "tauriIconIco": {
-        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=tauriIconIco",
+        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=tauriIconIco",
         "content_type": "image/x-icon",
-        "object_key": "portal-assets/iclaw/tauriIconIco/1774191472849-a3209a3c-1a3b-4253-a3b9-c58365d31b02.ico",
+        "object_key": "portal-assets/licaiclaw/tauriIconIco/1774453775785-cfe80eaf-0452-4cf6-9351-d793e887cec8.ico",
         "storage_provider": "s3",
         "metadata": {
           "sourceType": "preset",
-          "presetFilePath": "assets/iclaw/tauri-icons/icon.ico"
+          "presetFilePath": "assets/licaiclaw/tauri-icons/icon.ico"
         }
       },
       "tauriIconPng": {
-        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=tauriIconPng",
+        "url": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=tauriIconPng",
         "content_type": "image/png",
-        "object_key": "portal-assets/iclaw/tauriIconPng/1774191472832-b13c4327-f9d2-4af3-93f8-1d4306cc44e7.png",
+        "object_key": "portal-assets/licaiclaw/tauriIconPng/1774453775771-a4fa7717-6204-4862-a8ac-5ba5588bddc5.png",
         "storage_provider": "s3",
         "metadata": {
           "sourceType": "preset",
-          "presetFilePath": "assets/iclaw/tauri-icons/icon.png"
+          "presetFilePath": "assets/licaiclaw/tauri-icons/icon.png"
         }
       }
     },
-    "capabilities": {
-      "skills": [
-        "docx",
-        "xlsx",
-        "pdf",
-        "a-share-data-toolkit",
-        "us-data-toolkit",
-        "a-share-low-valuation",
-        "us-low-valuation"
-      ],
-      "mcp_servers": [
-        "browser",
-        "markitdown",
-        "tavily",
-        "serper",
-        "yahoo-finance"
-      ],
-      "menus": [
-        "workspace",
-        "skills",
-        "mcp",
-        "assets",
-        "models",
-        "settings"
-      ]
+    "surfaces": {
+      "input": {
+        "config": {
+          "top_bar_controls": [],
+          "footer_shortcuts": []
+        }
+      }
     },
     "skill_bindings": [
       {
-        "skill_slug": "docx",
+        "skill_slug": "a-share-esg",
         "sort_order": 10,
-        "config": {}
-      },
-      {
-        "skill_slug": "xlsx",
-        "sort_order": 20,
-        "config": {}
-      },
-      {
-        "skill_slug": "pdf",
-        "sort_order": 30,
-        "config": {}
-      },
-      {
-        "skill_slug": "a-share-data-toolkit",
-        "sort_order": 40,
-        "config": {}
-      },
-      {
-        "skill_slug": "us-data-toolkit",
-        "sort_order": 50,
-        "config": {}
+        "config": {
+          "source_layer": "platform",
+          "managed_by": "platform",
+          "locked": true
+        }
       },
       {
         "skill_slug": "a-share-low-valuation",
+        "sort_order": 20,
+        "config": {
+          "source_layer": "platform",
+          "managed_by": "platform",
+          "locked": true
+        }
+      },
+      {
+        "skill_slug": "a-share-insider",
+        "sort_order": 30,
+        "config": {
+          "source_layer": "platform",
+          "managed_by": "platform",
+          "locked": true
+        }
+      },
+      {
+        "skill_slug": "a-share-small-cap-growth",
+        "sort_order": 40,
+        "config": {
+          "source_layer": "platform",
+          "managed_by": "platform",
+          "locked": true
+        }
+      },
+      {
+        "skill_slug": "a-share-tech-valuation",
+        "sort_order": 50,
+        "config": {
+          "source_layer": "platform",
+          "managed_by": "platform",
+          "locked": true
+        }
+      },
+      {
+        "skill_slug": "a-share-industry-rotation",
         "sort_order": 60,
-        "config": {}
+        "config": {
+          "source_layer": "platform",
+          "managed_by": "platform",
+          "locked": true
+        }
+      },
+      {
+        "skill_slug": "a-share-factor-screener",
+        "sort_order": 70,
+        "config": {
+          "source_layer": "platform",
+          "managed_by": "platform",
+          "locked": true
+        }
+      },
+      {
+        "skill_slug": "a-share-data-toolkit",
+        "sort_order": 80,
+        "config": {
+          "source_layer": "platform",
+          "managed_by": "platform",
+          "locked": true
+        }
+      },
+      {
+        "skill_slug": "a-share-dividend",
+        "sort_order": 90,
+        "config": {
+          "source_layer": "platform",
+          "managed_by": "platform",
+          "locked": true
+        }
+      },
+      {
+        "skill_slug": "docx",
+        "sort_order": 100,
+        "config": {
+          "source_layer": "platform",
+          "managed_by": "platform",
+          "locked": true
+        }
+      },
+      {
+        "skill_slug": "pdf",
+        "sort_order": 110,
+        "config": {
+          "source_layer": "platform",
+          "managed_by": "platform",
+          "locked": true
+        }
+      },
+      {
+        "skill_slug": "xlsx",
+        "sort_order": 120,
+        "config": {
+          "source_layer": "platform",
+          "managed_by": "platform",
+          "locked": true
+        }
+      },
+      {
+        "skill_slug": "us-esg",
+        "sort_order": 130,
+        "config": {
+          "source_layer": "platform",
+          "managed_by": "platform",
+          "locked": true
+        }
       },
       {
         "skill_slug": "us-low-valuation",
-        "sort_order": 70,
-        "config": {}
+        "sort_order": 140,
+        "config": {
+          "source_layer": "platform",
+          "managed_by": "platform",
+          "locked": true
+        }
+      },
+      {
+        "skill_slug": "us-insider",
+        "sort_order": 150,
+        "config": {
+          "source_layer": "platform",
+          "managed_by": "platform",
+          "locked": true
+        }
+      },
+      {
+        "skill_slug": "us-small-cap-growth",
+        "sort_order": 160,
+        "config": {
+          "source_layer": "platform",
+          "managed_by": "platform",
+          "locked": true
+        }
+      },
+      {
+        "skill_slug": "us-tech-valuation",
+        "sort_order": 170,
+        "config": {
+          "source_layer": "platform",
+          "managed_by": "platform",
+          "locked": true
+        }
+      },
+      {
+        "skill_slug": "us-dividend-aristocrats",
+        "sort_order": 180,
+        "config": {
+          "source_layer": "platform",
+          "managed_by": "platform",
+          "locked": true
+        }
+      },
+      {
+        "skill_slug": "us-industry-rotation",
+        "sort_order": 190,
+        "config": {
+          "source_layer": "platform",
+          "managed_by": "platform",
+          "locked": true
+        }
+      },
+      {
+        "skill_slug": "us-factor-screener",
+        "sort_order": 200,
+        "config": {
+          "source_layer": "platform",
+          "managed_by": "platform",
+          "locked": true
+        }
+      },
+      {
+        "skill_slug": "us-data-toolkit",
+        "sort_order": 210,
+        "config": {
+          "source_layer": "platform",
+          "managed_by": "platform",
+          "locked": true
+        }
       }
     ],
     "mcp_bindings": [
       {
-        "mcp_key": "browser",
+        "mcp_key": "alpaca",
         "sort_order": 10,
+        "config": {}
+      },
+      {
+        "mcp_key": "alphavantage",
+        "sort_order": 20,
+        "config": {}
+      },
+      {
+        "mcp_key": "browser",
+        "sort_order": 30,
+        "config": {}
+      },
+      {
+        "mcp_key": "dbt",
+        "sort_order": 40,
+        "config": {}
+      },
+      {
+        "mcp_key": "fingpt",
+        "sort_order": 50,
+        "config": {}
+      },
+      {
+        "mcp_key": "fmp",
+        "sort_order": 60,
+        "config": {}
+      },
+      {
+        "mcp_key": "fred",
+        "sort_order": 70,
         "config": {}
       },
       {
         "mcp_key": "markitdown",
-        "sort_order": 20,
+        "sort_order": 80,
         "config": {}
       },
       {
-        "mcp_key": "tavily",
-        "sort_order": 30,
+        "mcp_key": "nano-banana",
+        "sort_order": 90,
+        "config": {}
+      },
+      {
+        "mcp_key": "sec-edgar",
+        "sort_order": 100,
         "config": {}
       },
       {
         "mcp_key": "serper",
-        "sort_order": 40,
+        "sort_order": 110,
+        "config": {}
+      },
+      {
+        "mcp_key": "tavily",
+        "sort_order": 120,
         "config": {}
       },
       {
         "mcp_key": "yahoo-finance",
-        "sort_order": 50,
+        "sort_order": 130,
         "config": {}
+      }
+    ],
+    "model_bindings": [
+      {
+        "model_ref": "openai/gpt-5.4",
+        "sort_order": 10,
+        "recommended": true,
+        "default": true,
+        "config": {
+          "default": true,
+          "recommended": true
+        }
+      },
+      {
+        "model_ref": "openai/qwen3.5-plus",
+        "sort_order": 20,
+        "recommended": false,
+        "default": false,
+        "config": {
+          "default": false,
+          "recommended": false
+        }
+      },
+      {
+        "model_ref": "openai/qwen3-max",
+        "sort_order": 30,
+        "recommended": false,
+        "default": false,
+        "config": {
+          "default": false,
+          "recommended": false
+        }
+      },
+      {
+        "model_ref": "openai/glm-5",
+        "sort_order": 40,
+        "recommended": true,
+        "default": false,
+        "config": {
+          "default": false,
+          "recommended": true
+        }
+      },
+      {
+        "model_ref": "deepseek/deepseek-v3.2",
+        "sort_order": 50,
+        "recommended": true,
+        "default": false,
+        "config": {
+          "default": false,
+          "recommended": true
+        }
       }
     ],
     "menu_bindings": [
       {
-        "menu_key": "workspace",
+        "menu_key": "chat",
         "sort_order": 10,
-        "config": {}
+        "config": {
+          "icon_key": "chat",
+          "requires": {
+            "skill_slug": "a-share-data-toolkit"
+          },
+          "group_label": "工作台",
+          "display_name": "智能投资对话"
+        }
       },
       {
-        "menu_key": "skills",
+        "menu_key": "investment-experts",
         "sort_order": 20,
-        "config": {}
+        "config": {
+          "group_label": "商店"
+        }
       },
       {
-        "menu_key": "mcp",
-        "sort_order": 30,
-        "config": {}
-      },
-      {
-        "menu_key": "assets",
-        "sort_order": 40,
-        "config": {}
-      },
-      {
-        "menu_key": "models",
-        "sort_order": 50,
-        "config": {}
-      },
-      {
-        "menu_key": "settings",
+        "menu_key": "task-center",
         "sort_order": 60,
         "config": {}
+      },
+      {
+        "menu_key": "data-connections",
+        "sort_order": 70,
+        "config": {
+          "group_label": "工作台"
+        }
+      },
+      {
+        "menu_key": "finance-skills",
+        "sort_order": 80,
+        "config": {
+          "group_label": "商店"
+        }
+      },
+      {
+        "menu_key": "foundation-skills",
+        "sort_order": 90,
+        "config": {
+          "group_label": "商店"
+        }
+      },
+      {
+        "menu_key": "stock-market",
+        "sort_order": 100,
+        "config": {
+          "group_label": "市场"
+        }
+      },
+      {
+        "menu_key": "fund-market",
+        "sort_order": 110,
+        "config": {
+          "group_label": "市场"
+        }
+      },
+      {
+        "menu_key": "cron",
+        "sort_order": 120,
+        "config": {
+          "group_label": "工作台"
+        }
+      },
+      {
+        "menu_key": "im-bots",
+        "sort_order": 130,
+        "config": {
+          "group_label": "工作台"
+        }
+      },
+      {
+        "menu_key": "memory",
+        "sort_order": 140,
+        "config": {
+          "group_label": "工作台"
+        }
+      },
+      {
+        "menu_key": "security",
+        "sort_order": 150,
+        "config": {
+          "group_label": "工作台"
+        }
       }
-    ]
+    ],
+    "menu_catalog": [],
+    "composer_control_bindings": [],
+    "composer_shortcut_bindings": []
   },
   "syncMeta": {
-    "appName": "iclaw",
-    "syncedAt": "2026-03-22T14:58:52.034Z",
+    "appName": "licaiclaw",
+    "syncedAt": "2026-03-26T01:24:25.298Z",
     "copiedSkillDirs": [
-      "docx",
-      "xlsx",
-      "pdf",
-      "A股数据工具包",
-      "美股数据工具包",
+      "A股ESG筛选器",
       "A股低估值股票筛选器",
-      "美股低估值股票扫描器"
+      "A股内部交易分析师",
+      "A股小盘成长股识别器",
+      "A股科技股估值分析师",
+      "A股行业轮动探测器",
+      "A股量化因子筛选器",
+      "A股数据工具包",
+      "A股高股息策略分析器",
+      "docx",
+      "pdf",
+      "xlsx",
+      "美股ESG筛选器",
+      "美股低估值股票扫描器",
+      "美股内部交易分析师",
+      "美股小盘成长股扫描器",
+      "美股科技股估值分析师",
+      "美股高股息策略分析器",
+      "美股行业轮动探测器",
+      "美股量化因子扫描器",
+      "美股数据工具包"
     ],
     "skippedSkillSlugs": [],
     "enabledMcpKeys": [
+      "alpaca",
+      "alphavantage",
       "browser",
+      "dbt",
+      "fingpt",
+      "fmp",
+      "fred",
       "markitdown",
-      "tavily",
+      "nano-banana",
+      "sec-edgar",
       "serper",
+      "tavily",
       "yahoo-finance"
     ]
   }

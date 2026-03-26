@@ -1,7 +1,7 @@
 import './styles.css';
 import { HOME_BRAND } from './brand.generated.js';
 
-const ENV_NAME = import.meta.env.PROD ? 'prod' : 'dev';
+const ENV_NAME = (import.meta.env.VITE_BUILD_CHANNEL || (import.meta.env.PROD ? 'prod' : 'dev')).trim().toLowerCase();
 const ENV_LABEL = ENV_NAME === 'prod' ? 'PROD' : 'DEV';
 const CONTROL_PLANE_BASE_URL = ((import.meta.env.VITE_AUTH_BASE_URL || 'http://127.0.0.1:2130') + '')
   .trim()
@@ -106,7 +106,8 @@ function buildDownloadHref(runtimeBrand, arch) {
   if (!baseUrl) {
     return '';
   }
-  return `${baseUrl}/${runtimeBrand.release.artifactBaseName}_${runtimeBrand.release.version}_${arch}_${ENV_NAME}.dmg`;
+  const fileName = `${runtimeBrand.release.artifactBaseName}_${runtimeBrand.release.version}_${arch}_${ENV_NAME}.dmg`;
+  return `${baseUrl}/${encodeURIComponent(fileName)}`;
 }
 
 function buildDownloads(runtimeBrand) {

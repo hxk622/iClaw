@@ -1,8 +1,15 @@
 ---
 name: xlsx
+slug: xlsx
 visibility: internal
+tags: 基础, 基础办公, 办公, 表格, XLSX
 description: 全面的电子表格创建、编辑和分析功能，支持公式、格式、数据分析和可视化。当需要处理电子表格（.xlsx、.xlsm、.csv、.tsv 等）时使用：(1) 创建带公式和格式的新表格 (2) 读取或分析数据 (3) 保留公式修改现有表格 (4) 表格中的数据分析和可视化 (5) 重新计算公式。
 license: Proprietary. LICENSE.txt has complete terms
+market: 通用
+category: data
+skill_type: 工具包
+publisher: Platform
+distribution: bundled
 ---
 
 # Requirements for Outputs

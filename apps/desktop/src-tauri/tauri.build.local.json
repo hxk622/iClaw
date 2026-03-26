@@ -1,0 +1,45 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "理财客",
+  "version": "1.0.0+202603091514",
+  "identifier": "ai.licaiclaw.desktop",
+  "build": {
+    "beforeDevCommand": "node ../../scripts/sync-openclaw-resources.mjs && pnpm dev --host 0.0.0.0 --port 1520",
+    "beforeBuildCommand": "",
+    "devUrl": "http://localhost:1520",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "理财客",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 980,
+        "minHeight": 680,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "dmg",
+      "nsis"
+    ],
+    "resources": [
+      "resources/**/*"
+    ],
+    "icon": [
+      "icons-generated/32x32.png",
+      "icons-generated/128x128.png",
+      "icons-generated/128x128@2x.png",
+      "icons-generated/icon.icns",
+      "icons-generated/icon.ico"
+    ],
+    "createUpdaterArtifacts": false
+  }
+}
