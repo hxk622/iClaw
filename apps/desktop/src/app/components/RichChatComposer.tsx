@@ -1572,9 +1572,11 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         Array.from(tokenStoreRef.current.values()).find((token) => token.kind === 'agent')?.slug ?? null;
       const resolvedAgent =
         lobsterAgents.find((option) => option.slug === (selectedAgentSlug || tokenSelectedAgentSlug)) ?? null;
+      const draftPrompt = payload.prompt;
       submitInFlightRef.current = true;
       setIsSubmitting(true);
       playSendWhoosh();
+      clearComposer();
       try {
         const accepted = await onSend({
           ...payload,
@@ -1607,8 +1609,8 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
               ? findStaticOption(outputOptions, selectedOutput)?.label ?? null
               : null,
         });
-        if (accepted) {
-          clearComposer();
+        if (!accepted) {
+          replacePrompt(draftPrompt);
         }
       } finally {
         submitInFlightRef.current = false;
@@ -1631,6 +1633,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       modeOptions,
       marketScopeOptions,
       outputOptions,
+      replacePrompt,
       selectedSkillSlug,
       skillOptions,
       visibleTopBarControlKeys,
