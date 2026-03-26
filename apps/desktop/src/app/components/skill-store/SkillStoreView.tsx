@@ -1293,10 +1293,9 @@ export function SkillStoreView({
       .sort(compareSkillsByPopularity);
   }, [activeCategory, activeInstallFilter, activeTab, activeTags, featuredOnly, searchQuery, visibleSkills]);
 
-  const loadedCount = visibleSkills.length;
+  const viewSkillCount = visibleSkills.length;
   const backendTotalCount = adminMode ? adminTotal : catalogTotal;
-  const showBackendTotal = true;
-  const totalCount = showBackendTotal ? backendTotalCount : visibleSkills.length;
+  const totalCount = viewSkillCount;
   const installedCount = visibleSkills.filter((skill) => skill.installed || skill.source === 'bundled').length;
   const builtinCount = visibleSkills.filter((skill) => skill.source === 'bundled').length;
   const featuredCount = visibleSkills.filter((skill) => skill.featured).length;
@@ -1378,7 +1377,7 @@ export function SkillStoreView({
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
             <MetricCard
-              label="技能总数"
+              label="视图总数"
               value={totalCount}
               icon={<Package className="h-[18px] w-[18px]" />}
               iconWrapClassName="border-[rgba(201,169,97,0.20)] bg-[rgba(201,169,97,0.12)]"
@@ -1415,9 +1414,9 @@ export function SkillStoreView({
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-2 text-[12px] text-[var(--text-secondary)]">
-            <Chip tone="outline">已加载 {loadedCount}</Chip>
-            <Chip tone="outline">{adminMode ? `平台视图总数 ${totalCount}` : `目录总数 ${totalCount}`}</Chip>
-            {showBackendTotal ? <Chip tone="outline">当前筛选 {filteredSkills.length}</Chip> : null}
+            <Chip tone="outline">当前视图 {viewSkillCount}</Chip>
+            <Chip tone="outline">筛选结果 {filteredSkills.length}</Chip>
+            <Chip tone="outline">{adminMode ? `平台目录 ${backendTotalCount}` : `云端目录 ${backendTotalCount}`}</Chip>
             {loading ? (
               <Chip tone="accent" leadingIcon={<LoaderCircle className="h-3.5 w-3.5 animate-spin" />}>
                 正在刷新云端技能
