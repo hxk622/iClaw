@@ -282,6 +282,72 @@ if (patched > 0) {
 EOF
 }
 
+openclaw_patch_package_runtime_openai_usage() {
+  local source_dir="$1"
+  local dist_dir="$source_dir/dist"
+
+  [[ -d "$dist_dir" ]] || return 0
+
+  SOURCE_DIR_FOR_PATCH="$source_dir" node <<'EOF'
+const fs = require('fs');
+const path = require('path');
+
+const sourceDir = process.env.SOURCE_DIR_FOR_PATCH;
+if (!sourceDir) process.exit(0);
+
+const distDir = path.join(sourceDir, 'dist');
+if (!fs.existsSync(distDir) || !fs.statSync(distDir).isDirectory()) process.exit(0);
+
+const PATCH_MARKER = 'payloadObj.stream_options = { ...(payloadObj.stream_options ?? {}), include_usage: true };';
+
+function collectJavaScriptFiles(dirPath, out) {
+  for (const entry of fs.readdirSync(dirPath, { withFileTypes: true })) {
+    const entryPath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      collectJavaScriptFiles(entryPath, out);
+      continue;
+    }
+    if (entry.isFile() && entry.name.endsWith('.js')) {
+      out.push(entryPath);
+    }
+  }
+}
+
+function patchOpenAiWrapperFile(filePath) {
+  let raw = fs.readFileSync(filePath, 'utf8');
+  if (raw.includes(PATCH_MARKER)) {
+    return false;
+  }
+
+  const anchor = `function createOpenAIDefaultTransportWrapper(baseStreamFn) {\n\tconst underlying = baseStreamFn ?? streamSimple;\n\treturn (model, context, options) => {\n\t\tconst typedOptions = options;\n\t\treturn underlying(model, context, {\n\t\t\t...options,\n\t\t\ttransport: options?.transport ?? "auto",\n\t\t\topenaiWsWarmup: typedOptions?.openaiWsWarmup ?? false\n\t\t});\n\t};\n}`;
+
+  if (!raw.includes(anchor)) {
+    return false;
+  }
+
+  const replacement = `function createOpenAIDefaultTransportWrapper(baseStreamFn) {\n\tconst underlying = baseStreamFn ?? streamSimple;\n\treturn (model, context, options) => {\n\t\tconst typedOptions = options;\n\t\tconst originalOnPayload = options?.onPayload;\n\t\treturn underlying(model, context, {\n\t\t\t...options,\n\t\t\ttransport: options?.transport ?? "auto",\n\t\t\topenaiWsWarmup: typedOptions?.openaiWsWarmup ?? false,\n\t\t\tonPayload: (payload) => {\n\t\t\t\tif (model.api === "openai-completions" && model.provider === "openai" && payload && typeof payload === "object") {\n\t\t\t\t\tconst payloadObj = payload;\n\t\t\t\t\tpayloadObj.stream_options = { ...(payloadObj.stream_options ?? {}), include_usage: true };\n\t\t\t\t}\n\t\t\t\treturn originalOnPayload?.(payload, model);\n\t\t\t}\n\t\t});\n\t};\n}`;
+
+  raw = raw.replace(anchor, replacement);
+  fs.writeFileSync(filePath, raw);
+  return true;
+}
+
+const entries = [];
+collectJavaScriptFiles(distDir, entries);
+let patched = 0;
+for (const filePath of entries) {
+  const name = path.basename(filePath);
+  if (/^(?:reply|auth-profiles)-.*\.js$/.test(name)) {
+    if (patchOpenAiWrapperFile(filePath)) patched += 1;
+  }
+}
+
+if (patched > 0) {
+  process.stderr.write(`[openclaw-runtime] patched OpenAI chat.completions stream_options.include_usage into ${patched} dist files\n`);
+}
+EOF
+}
+
 openclaw_ensure_package_runtime_deps() {
   local source_dir="$1"
 

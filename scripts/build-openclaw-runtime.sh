@@ -135,6 +135,7 @@ else
 fi
 
 openclaw_patch_package_runtime_http_cors "$SOURCE_DIR"
+openclaw_patch_package_runtime_openai_usage "$SOURCE_DIR"
 
 VERSION="$(
   node -e 'const fs=require("fs"); const pkg=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(pkg.version || "0.0.0");' \

@@ -133,6 +133,7 @@ else
 fi
 
 openclaw_patch_package_runtime_http_cors "$SOURCE_DIR"
+openclaw_patch_package_runtime_openai_usage "$SOURCE_DIR"
 
 RUNTIME_DIR="$ROOT_DIR/services/openclaw/runtime/openclaw"
 NODE_DIR="$ROOT_DIR/services/openclaw/runtime/node"
