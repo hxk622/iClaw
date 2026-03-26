@@ -2467,9 +2467,21 @@ export function OpenClawChatSurface({
       return;
     }
 
+    const resolveActiveThread = () => {
+      const threads = Array.from(
+        shell.querySelectorAll<HTMLElement>('.openclaw-chat-surface .chat-thread'),
+      );
+      return (
+        threads.find((thread) => {
+          const rect = thread.getBoundingClientRect();
+          return rect.height > 0 && rect.width > 0;
+        }) ?? null
+      );
+    };
+
     const updateComposerHeight = () => {
       const composer = shell.querySelector('.iclaw-composer') as HTMLElement | null;
-      const thread = shell.querySelector('.openclaw-chat-surface .chat-thread') as HTMLElement | null;
+      const thread = resolveActiveThread();
       const composerHeight = composer?.getBoundingClientRect().height ?? 0;
       const overlap =
         composer && thread
@@ -2484,7 +2496,7 @@ export function OpenClawChatSurface({
       updateComposerHeight();
     });
     const composer = shell.querySelector<HTMLElement>('.iclaw-composer');
-    const thread = shell.querySelector<HTMLElement>('.openclaw-chat-surface .chat-thread');
+    const thread = resolveActiveThread();
     if (composer) {
       observer.observe(composer);
     }
@@ -2511,12 +2523,18 @@ export function OpenClawChatSurface({
         }
       }
 
-      const activeThread = shell.querySelector('.openclaw-chat-surface .chat-thread') as HTMLElement | null;
+      const activeThread = resolveActiveThread();
       if (!activeThread || activeThread.scrollHeight <= activeThread.clientHeight) {
         return;
       }
 
-      activeThread.scrollTop += event.deltaY;
+      const maxScrollTop = activeThread.scrollHeight - activeThread.clientHeight;
+      const nextScrollTop = Math.max(0, Math.min(maxScrollTop, activeThread.scrollTop + event.deltaY));
+      if (Math.abs(nextScrollTop - activeThread.scrollTop) < 1) {
+        return;
+      }
+
+      activeThread.scrollTop = nextScrollTop;
       event.preventDefault();
     };
 
