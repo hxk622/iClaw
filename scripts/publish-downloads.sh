@@ -98,6 +98,8 @@ if [[ "$ENV_NAME" == "dev" ]]; then
   prune_all_local
 
   mc mb --ignore-existing "$ICLAW_MINIO_DEV_ALIAS/$ICLAW_MINIO_DEV_BUCKET"
+  dev_files=()
+  dev_updater_files=()
   shopt -s nullglob
   dev_files=(
     "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_dev.dmg
@@ -136,6 +138,8 @@ elif [[ "$ENV_NAME" == "prod" ]]; then
   prune_all_local
 
   mc mb --ignore-existing "$ICLAW_MINIO_PROD_ALIAS/$ICLAW_MINIO_PROD_BUCKET"
+  prod_files=()
+  prod_updater_files=()
   shopt -s nullglob
   prod_files=(
     "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_prod.dmg
