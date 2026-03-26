@@ -1,2 +1,5 @@
 *
 !.gitignore
+!runtime/
+runtime/*
+!runtime/generate-openclaw-config.mjs
