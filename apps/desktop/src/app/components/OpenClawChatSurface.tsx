@@ -3482,6 +3482,41 @@ export function OpenClawChatSurface({
       });
     };
 
+    const isAssistantSideGroup = (group: HTMLElement) =>
+      !group.classList.contains('user') &&
+      (group.classList.contains('assistant') ||
+        group.classList.contains('tool') ||
+        group.classList.contains('other'));
+
+    const isTerminalAssistantTurnGroup = (groups: HTMLElement[], groupIndex: number) => {
+      const current = groups[groupIndex];
+      if (!current || !isAssistantSideGroup(current)) {
+        return false;
+      }
+
+      for (let index = groupIndex + 1; index < groups.length; index += 1) {
+        const nextGroup = groups[index];
+        if (!nextGroup) {
+          continue;
+        }
+        if (nextGroup.classList.contains('user')) {
+          return true;
+        }
+        if (isAssistantSideGroup(nextGroup)) {
+          return false;
+        }
+      }
+
+      return true;
+    };
+
+    const clearAssistantFooter = (group: HTMLElement) => {
+      const footer = group.querySelector(
+        '.chat-group-messages > .iclaw-chat-assistant-footer',
+      ) as HTMLDivElement | null;
+      footer?.remove();
+    };
+
     const ensureAssistantFooter = (group: HTMLElement, footerMeta: AssistantFooterMeta | null) => {
       const messages = group.querySelector('.chat-group-messages') as HTMLElement | null;
       if (!messages) {
@@ -3669,7 +3704,7 @@ export function OpenClawChatSurface({
 
       normalizeAssistantTurnGroups(groups);
 
-      groups.forEach((group) => {
+      groups.forEach((group, groupIndex) => {
 
         if (group.classList.contains('user')) {
           ensureUserCopyButton(group);
@@ -3677,9 +3712,18 @@ export function OpenClawChatSurface({
         }
 
         if (group.classList.contains('assistant')) {
-          ensureAssistantFooter(group, assistantFooterMetas[assistantIndex] ?? null);
+          const footerMeta = assistantFooterMetas[assistantIndex] ?? null;
+          const shouldShowFooter = isTerminalAssistantTurnGroup(groups, groupIndex);
+          if (shouldShowFooter) {
+            ensureAssistantFooter(group, footerMeta);
+          } else {
+            clearAssistantFooter(group);
+          }
           assistantIndex += 1;
+          return;
         }
+
+        clearAssistantFooter(group);
       });
     };
 
