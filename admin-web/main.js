@@ -3625,6 +3625,23 @@ async function importSkill(formData) {
 
   try {
     const slug = String(formData.get('slug') || '').trim();
+    if (!slug) {
+      throw new Error('请填写 Skill slug');
+    }
+    const skill = getMergedSkills().find((item) => item.slug === slug) || null;
+    if (!skill) {
+      throw new Error(`未找到 Skill ${slug}`);
+    }
+    await apiFetch('/admin/skills/catalog', {
+      method: 'PUT',
+      body: JSON.stringify({
+        slug,
+        name: skill.name,
+        description: skill.description,
+        publisher: skill.publisher || 'admin-web',
+        tags: splitLines(formData.get('tags_text')),
+      }),
+    });
     const body = {
       metadata: parseJsonText(String(formData.get('metadata_json') || '{}').trim() || '{}', 'Skill metadata'),
       active: String(formData.get('active') || 'true') === 'true',
@@ -6914,7 +6931,7 @@ function renderSkillImportPanel() {
     <section class="fig-card fig-card--subtle">
       <div class="fig-card__head">
         <h3>${skill ? '编辑平台级 Skill 绑定' : '新增平台级 Skill 绑定'}</h3>
-        <span>这里只维护平台层绑定信息；名称、描述、版本、标签等主数据都来自云技能总库。</span>
+        <span>平台层维护启用状态和 metadata；标签会同步写回云技能总库。</span>
       </div>
       <form id="skill-import-form" class="form-grid form-grid--two">
         <label class="field">
@@ -6928,6 +6945,10 @@ function renderSkillImportPanel() {
         <label class="field field--wide">
           <span>云技能说明</span>
           <textarea class="field-textarea" readonly>${escapeHtml(skill?.description || '')}</textarea>
+        </label>
+        <label class="field field--wide">
+          <span>Tags</span>
+          <textarea class="field-textarea" name="tags_text" placeholder="每行一个 tag，也支持逗号分隔">${escapeHtml((skill?.tags || []).join('\n'))}</textarea>
         </label>
         <label class="field">
           <span>状态</span>
