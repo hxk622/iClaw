@@ -48,6 +48,10 @@ const DESKTOP_AUTH_BASE_URL: &str = match option_env!("ICLAW_AUTH_BASE_URL") {
     Some(value) => value,
     None => "",
 };
+const DESKTOP_SIDE_CAR_ARGS: &str = match option_env!("VITE_SIDE_CAR_ARGS") {
+    Some(value) => value,
+    None => "--port 2126",
+};
 const LOCAL_CONTROL_PLANE_URL: &str = "http://127.0.0.1:2130";
 const AUTH_ACCESS_KEY: &str = "access_token";
 const AUTH_REFRESH_KEY: &str = "refresh_token";
@@ -2243,15 +2247,44 @@ fn is_loopback_port_occupied(port: u16) -> bool {
     TcpListener::bind(("127.0.0.1", port)).is_err()
 }
 
+fn configured_sidecar_port() -> u16 {
+    let mut saw_port_flag = false;
+    for token in DESKTOP_SIDE_CAR_ARGS.split_whitespace() {
+        if saw_port_flag {
+            if let Ok(port) = token.parse::<u16>() {
+                return port;
+            }
+            saw_port_flag = false;
+            continue;
+        }
+        if token == "--port" {
+            saw_port_flag = true;
+            continue;
+        }
+        if let Some(value) = token.strip_prefix("--port=") {
+            if let Ok(port) = value.parse::<u16>() {
+                return port;
+            }
+        }
+    }
+    2126
+}
+
 fn detect_local_service_port_conflicts() -> Vec<u16> {
-    [2126_u16, 2128_u16, 2130_u16]
-        .into_iter()
+    let mut ports = vec![configured_sidecar_port(), 2128_u16, 2130_u16];
+    ports.sort_unstable();
+    ports.dedup();
+    ports.into_iter()
         .filter(|port| is_loopback_port_occupied(*port))
         .collect()
 }
 
-fn listen_port_targets() -> [u16; 3] {
-    [2126_u16, 2128_u16, 2130_u16]
+fn listen_port_targets() -> Vec<u16> {
+    let sidecar_port = configured_sidecar_port();
+    let mut ports = vec![sidecar_port, 2128_u16, 2130_u16];
+    ports.sort_unstable();
+    ports.dedup();
+    ports
 }
 
 fn port_listener_pids(port: u16) -> Vec<u32> {
