@@ -2067,29 +2067,62 @@ export function OpenClawChatSurface({
     }
 
     let cancelled = false;
+    let retryTimer: number | null = null;
+    let attemptCount = 0;
 
-    void request('sessions.patch', {
-      key: sessionKey,
-      responseUsage: 'tokens',
-    })
-      .then(() => {
-        if (cancelled) {
-          return;
-        }
-        responseUsageEnabledSessionKeyRef.current = sessionKey;
-      })
-      .catch((error) => {
-        if (cancelled) {
-          return;
-        }
-        console.warn('[desktop] failed to enable response usage footer for session', {
-          sessionKey,
-          error,
+    const enableResponseUsage = () => {
+      if (cancelled) {
+        return;
+      }
+      attemptCount += 1;
+
+      Promise.resolve()
+        .then(() =>
+          request('sessions.patch', {
+            key: sessionKey,
+            responseUsage: 'tokens',
+          }),
+        )
+        .then(() => {
+          if (cancelled) {
+            return;
+          }
+          responseUsageEnabledSessionKeyRef.current = sessionKey;
+        })
+        .catch((error) => {
+          if (cancelled) {
+            return;
+          }
+
+          const message =
+            error instanceof Error ? error.message : typeof error === 'string' ? error : String(error);
+          const wsNotReady =
+            message.includes("reading 'ws'") ||
+            message.includes('Gateway websocket closed') ||
+            message.includes('gateway connection closed');
+
+          if (wsNotReady && attemptCount < 6) {
+            retryTimer = window.setTimeout(() => {
+              retryTimer = null;
+              enableResponseUsage();
+            }, 250);
+            return;
+          }
+
+          console.warn('[desktop] failed to enable response usage footer for session', {
+            sessionKey,
+            error,
+          });
         });
-      });
+    };
+
+    enableResponseUsage();
 
     return () => {
       cancelled = true;
+      if (retryTimer != null) {
+        window.clearTimeout(retryTimer);
+      }
     };
   }, [sessionKey, status.connected]);
 
