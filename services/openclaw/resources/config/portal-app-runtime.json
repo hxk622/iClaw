@@ -220,7 +220,7 @@
       "downloads": {
         "dev": {
           "bucket": "licaiclaw-dev",
-          "publicBaseUrl": "http://127.0.0.1:9000/licaiclaw-dev"
+          "publicBaseUrl": "http://39.106.74.65:9000/licaiclaw-dev"
         },
         "prod": {
           "bucket": "licaiclaw-prod",
@@ -235,7 +235,7 @@
     "runtimeDistribution": {
       "dev": {
         "bucket": "licaiclaw-dev",
-        "publicBaseUrl": "http://127.0.0.1:9000/licaiclaw-dev"
+        "publicBaseUrl": "http://39.106.74.65:9000/licaiclaw-dev"
       },
       "prod": {
         "bucket": "licaiclaw-prod",

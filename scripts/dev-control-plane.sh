@@ -8,6 +8,7 @@ LOG_FILE="${ICLAW_CONTROL_PLANE_LOG:-$LOG_DIR/control-plane-$(date +%Y%m%d-%H%M%
 LATEST_LOG="$LOG_DIR/latest.log"
 CONTROL_PLANE_DETACH="${ICLAW_CONTROL_PLANE_DETACH:-1}"
 CONTROL_PLANE_SCRIPT="${ICLAW_CONTROL_PLANE_SCRIPT:-start}"
+CONTROL_PLANE_HEALTH_RETRIES="${ICLAW_CONTROL_PLANE_HEALTH_RETRIES:-240}"
 
 stop_existing_control_plane() {
   local pids=""
@@ -34,7 +35,7 @@ start_control_plane_detached() {
   rm -f /tmp/iclaw-control-plane.pid
 
   local ok=""
-  for _ in {1..40}; do
+  for ((attempt = 1; attempt <= CONTROL_PLANE_HEALTH_RETRIES; attempt += 1)); do
     if env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u all_proxy -u ALL_PROXY \
       curl -sS "http://127.0.0.1:$CONTROL_PORT/health" >/dev/null 2>&1; then
       ok="1"

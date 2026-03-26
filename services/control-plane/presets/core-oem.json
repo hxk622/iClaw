@@ -52,7 +52,7 @@
           "downloads": {
             "dev": {
               "bucket": "iclaw-dev",
-              "publicBaseUrl": "http://127.0.0.1:9000/iclaw-dev"
+              "publicBaseUrl": "http://39.106.74.65:9000/iclaw-dev"
             },
             "prod": {
               "bucket": "iclaw-prod",
@@ -67,7 +67,7 @@
           "minioPrefix": "runtime",
           "dev": {
             "bucket": "iclaw-dev",
-            "publicBaseUrl": "http://127.0.0.1:9000/iclaw-dev"
+            "publicBaseUrl": "http://39.106.74.65:9000/iclaw-dev"
           },
           "prod": {
             "bucket": "iclaw-prod",
@@ -151,7 +151,7 @@
           "downloads": {
             "dev": {
               "bucket": "licaiclaw-dev",
-              "publicBaseUrl": "http://127.0.0.1:9000/licaiclaw-dev"
+              "publicBaseUrl": "http://39.106.74.65:9000/licaiclaw-dev"
             },
             "prod": {
               "bucket": "licaiclaw-prod",
@@ -166,7 +166,7 @@
           "minioPrefix": "runtime",
           "dev": {
             "bucket": "licaiclaw-dev",
-            "publicBaseUrl": "http://127.0.0.1:9000/licaiclaw-dev"
+            "publicBaseUrl": "http://39.106.74.65:9000/licaiclaw-dev"
           },
           "prod": {
             "bucket": "licaiclaw-prod",
