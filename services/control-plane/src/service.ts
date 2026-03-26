@@ -105,6 +105,31 @@ const MARKET_STOCK_MAX_LIMIT = 500;
 const MARKET_FUND_DEFAULT_LIMIT = 120;
 const MARKET_FUND_MAX_LIMIT = 500;
 
+function resolvePublicApiBaseUrl(): string {
+  if (config.apiUrl.trim()) {
+    return config.apiUrl.trim().replace(/\/$/, '');
+  }
+  return `http://127.0.0.1:${config.port}`;
+}
+
+function normalizePersistedAvatarUrl(value?: string | null): string | null {
+  const raw = (value || '').trim();
+  if (!raw) {
+    return null;
+  }
+  const localPrefixes = [
+    'http://127.0.0.1:2130',
+    'http://localhost:2130',
+    'http://127.0.0.1',
+    'http://localhost',
+  ];
+  const matchedPrefix = localPrefixes.find((prefix) => raw.startsWith(prefix));
+  if (!matchedPrefix) {
+    return raw;
+  }
+  return `${resolvePublicApiBaseUrl()}${raw.slice(matchedPrefix.length)}`;
+}
+
 function normalizeCatalogLimit(limitInput?: number | null): number {
   if (typeof limitInput !== 'number' || !Number.isFinite(limitInput)) {
     return SKILL_CATALOG_DEFAULT_LIMIT;
@@ -178,7 +203,7 @@ function toPublicUser(user: {
     username: user.username,
     email: user.email,
     name: user.displayName,
-    avatar_url: user.avatarUrl || null,
+    avatar_url: normalizePersistedAvatarUrl(user.avatarUrl),
     role: user.role,
   };
 }

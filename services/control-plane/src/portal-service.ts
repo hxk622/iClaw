@@ -49,6 +49,25 @@ function rolePriority(role: 'user' | 'admin' | 'super_admin'): number {
   }
 }
 
+function normalizePersistedPortalAssetUrl(rawValue: string | null | undefined, baseUrl: string): string | null {
+  const raw = (rawValue || '').trim();
+  if (!raw) {
+    return null;
+  }
+  const normalizedBase = baseUrl.replace(/\/$/, '');
+  const localPrefixes = [
+    'http://127.0.0.1:2130',
+    'http://localhost:2130',
+    'http://127.0.0.1',
+    'http://localhost',
+  ];
+  const matchedPrefix = localPrefixes.find((prefix) => raw.startsWith(prefix));
+  if (!matchedPrefix) {
+    return raw;
+  }
+  return `${normalizedBase}${raw.slice(matchedPrefix.length)}`;
+}
+
 function asObject(value: unknown): PortalJsonObject {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {};
@@ -760,7 +779,8 @@ export class PortalService {
       composerControlCatalog: composerControls,
       composerShortcutCatalog: composerShortcuts,
       assetUrlResolver: (asset) =>
-        asset.publicUrl || `${baseUrl.replace(/\/$/, '')}/portal/asset/file?app_name=${encodeURIComponent(appName)}&asset_key=${encodeURIComponent(asset.assetKey)}`,
+        normalizePersistedPortalAssetUrl(asset.publicUrl, baseUrl) ||
+        `${baseUrl.replace(/\/$/, '')}/portal/asset/file?app_name=${encodeURIComponent(appName)}&asset_key=${encodeURIComponent(asset.assetKey)}`,
     });
   }
 

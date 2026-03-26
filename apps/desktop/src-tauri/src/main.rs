@@ -22,7 +22,7 @@ use std::process::{Child, Command};
 use std::sync::Mutex;
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, State, WindowEvent};
 use tauri_plugin_updater::UpdaterExt;
 use zip::ZipArchive;
 
@@ -1645,6 +1645,47 @@ fn resource_extra_ca_certs_path(app: &AppHandle) -> PathBuf {
         .join("isrg-root-x1.pem")
 }
 
+fn resource_node_fetch_user_agent_hook_path(app: &AppHandle) -> PathBuf {
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let p = resource_dir
+            .join("resources")
+            .join("runtime")
+            .join("node-fetch-user-agent.cjs");
+        if p.exists() {
+            return p;
+        }
+    }
+
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("resources")
+        .join("runtime")
+        .join("node-fetch-user-agent.cjs")
+}
+
+fn append_node_options_arg(existing: Option<String>, arg: &str) -> String {
+    let trimmed_arg = arg.trim();
+    let current = existing.unwrap_or_default();
+    if trimmed_arg.is_empty() || current.contains(trimmed_arg) {
+        return current;
+    }
+    if current.trim().is_empty() {
+        trimmed_arg.to_string()
+    } else {
+        format!("{current} {trimmed_arg}")
+    }
+}
+
+fn configure_runtime_network_env(command: &mut Command, app: &AppHandle) {
+    let hook_path = resource_node_fetch_user_agent_hook_path(app);
+    if hook_path.exists() {
+        let require_arg = format!("--require={}", hook_path.to_string_lossy());
+        let next_node_options = append_node_options_arg(env::var("NODE_OPTIONS").ok(), &require_arg);
+        if !next_node_options.trim().is_empty() {
+            command.env("NODE_OPTIONS", next_node_options);
+        }
+    }
+}
+
 fn app_data_base_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let p = app
         .path()
@@ -3117,6 +3158,7 @@ fn start_sidecar(
     if extra_ca_certs.exists() {
         command.env("NODE_EXTRA_CA_CERTS", extra_ca_certs);
     }
+    configure_runtime_network_env(&mut command, &app);
 
     if let Some(v) = config.openai_api_key {
         if !v.trim().is_empty() {
@@ -3755,6 +3797,7 @@ fn configure_memory_runtime_command(command: &mut Command, app: &AppHandle) -> R
     if extra_ca_certs.exists() {
         command.env("NODE_EXTRA_CA_CERTS", extra_ca_certs);
     }
+    configure_runtime_network_env(command, app);
     if let Some(v) = config.openai_api_key {
         if !v.trim().is_empty() {
             command.env("OPENAI_API_KEY", v);
@@ -4354,6 +4397,27 @@ fn restart_desktop_app(app: AppHandle) {
     app.restart();
 }
 
+fn apply_initial_window_layout(app: &AppHandle) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+
+    let Ok(Some(monitor)) = window.current_monitor() else {
+        return;
+    };
+
+    let monitor_size = monitor.size();
+    let target_width = ((monitor_size.width as f64) * 0.8).round() as u32;
+    let target_height = ((monitor_size.height as f64) * 0.8).round() as u32;
+    let width = target_width.max(980);
+    let height = target_height.max(680);
+    let pos_x = ((monitor_size.width.saturating_sub(width)) / 2) as i32;
+    let pos_y = ((monitor_size.height.saturating_sub(height)) / 2) as i32;
+
+    let _ = window.set_size(PhysicalSize::new(width, height));
+    let _ = window.set_position(PhysicalPosition::new(pos_x, pos_y));
+}
+
 fn main() {
     let builder = tauri::Builder::default()
         .manage(SidecarState {
@@ -4368,6 +4432,16 @@ fn main() {
         builder
     };
     builder
+        .setup(|app| {
+            apply_initial_window_layout(app.handle());
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.minimize();
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             start_sidecar,
             stop_sidecar,

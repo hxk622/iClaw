@@ -35,7 +35,7 @@ export const BRAND = {
     "namespace": "licaiclaw"
   },
   "endpoints": {
-    "authBaseUrl": ""
+    "authBaseUrl": "https://caiclaw.aiyuanxi.com"
   },
   "oauth": {
     "wechat": {

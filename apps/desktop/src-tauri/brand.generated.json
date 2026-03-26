@@ -4,7 +4,7 @@
   "bundleIdentifier": "ai.licaiclaw.desktop",
   "authService": "ai.licaiclaw.desktop",
   "endpoints": {
-    "authBaseUrl": ""
+    "authBaseUrl": "https://caiclaw.aiyuanxi.com"
   },
   "artifactBaseName": "LiCaiClaw",
   "storageNamespace": "licaiclaw"

@@ -2784,6 +2784,19 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
               ref={inputShellRef}
               className="iclaw-composer__input-shell"
               data-has-active-controls={hasActiveSelections ? 'true' : 'false'}
+              onMouseDown={(event) => {
+                const target = event.target as HTMLElement | null;
+                if (
+                  target?.closest(
+                    'button, a, input, select, textarea, [role="button"], [role="menuitem"], [data-token-remove]',
+                  )
+                ) {
+                  return;
+                }
+                window.requestAnimationFrame(() => {
+                  editorRef.current?.focus();
+                });
+              }}
             >
               {hasActiveSelections ? (
                 <div className="iclaw-composer__active-controls" aria-label="当前已选控制项">
