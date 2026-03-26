@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-: "${ICLAW_SOURCE_HOST:=39.106.74.65}"
+: "${ICLAW_SOURCE_HOST:=47.93.231.197}"
 : "${ICLAW_SOURCE_USER:=root}"
 : "${ICLAW_PROD_HOST:=115.191.6.179}"
 : "${ICLAW_PROD_USER:=root}"

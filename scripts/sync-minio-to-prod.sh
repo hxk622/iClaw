@@ -2,7 +2,7 @@
 set -euo pipefail
 
 : "${ICLAW_SOURCE_MINIO_ALIAS:=source}"
-: "${ICLAW_SOURCE_MINIO_URL:=http://39.106.74.65:9000}"
+: "${ICLAW_SOURCE_MINIO_URL:=http://47.93.231.197:9000}"
 : "${ICLAW_SOURCE_MINIO_ACCESS_KEY:=openalpha}"
 : "${ICLAW_SOURCE_MINIO_SECRET_KEY:=}"
 
