@@ -135,7 +135,8 @@ const CHAT_SESSION_KEY = 'main';
 const IM_BOT_TEST_SESSION_KEY = 'im-bots-test';
 const AUTH_BOOTSTRAP_TIMEOUT_MS = 10_000;
 const DESKTOP_APP_VERSION = desktopPackageJson.version;
-const DESKTOP_RELEASE_CHANNEL: 'dev' | 'prod' = import.meta.env.DEV ? 'dev' : 'prod';
+const DESKTOP_RELEASE_CHANNEL: 'dev' | 'prod' =
+  String(import.meta.env.VITE_BUILD_CHANNEL || '').trim().toLowerCase() === 'dev' ? 'dev' : 'prod';
 const DISPLAY_DESKTOP_APP_VERSION = DESKTOP_APP_VERSION.split('+', 1)[0] || DESKTOP_APP_VERSION;
 const DEFAULT_CHAT_ROUTE = {
   sessionKey: CHAT_SESSION_KEY,
@@ -230,11 +231,12 @@ function isLikelyAccessToken(token: string): boolean {
 }
 
 function formatPortConflictMessage(ports: number[]): string | null {
-  if (ports.length === 0) {
+  const relevantPorts = ports.filter((port) => port === SIDECAR_PORT);
+  if (relevantPorts.length === 0) {
     return null;
   }
-  const joined = ports.join('/');
-  return `检测到本地开发服务正在运行，占用了 ${joined}。请先关闭 pnpm dev:api 或释放这些端口后再启动应用。`;
+  const joined = relevantPorts.join('/');
+  return `检测到本地 OpenClaw API 正在运行，占用了 ${joined}。请先关闭 pnpm dev:api 或释放该端口后再启动应用。`;
 }
 
 function normalizeBrandRuntimeText(value: string): string {

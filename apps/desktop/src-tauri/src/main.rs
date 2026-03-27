@@ -2318,6 +2318,10 @@ fn detect_local_service_port_conflicts() -> Vec<u16> {
         .collect()
 }
 
+fn should_reuse_existing_local_sidecar(occupied_ports: &[u16]) -> bool {
+    occupied_ports.len() == 1 && occupied_ports[0] == configured_sidecar_port()
+}
+
 fn listen_port_targets() -> Vec<u16> {
     let mut ports = vec![configured_sidecar_port()];
     ports.sort_unstable();
@@ -2621,13 +2625,17 @@ fn start_sidecar(
     reclaim_managed_local_service_ports(&app);
     let occupied_ports = detect_local_service_port_conflicts();
     if !occupied_ports.is_empty() {
+        if should_reuse_existing_local_sidecar(&occupied_ports) {
+            return Ok(true);
+        }
+
         let ports = occupied_ports
             .iter()
             .map(|port| port.to_string())
             .collect::<Vec<_>>()
             .join("/");
         return Err(format!(
-            "检测到本地开发服务正在运行，占用了 {ports}。请先关闭 `pnpm dev:api` 或释放这些端口后再启动应用。"
+            "检测到本地 OpenClaw API 正在运行，占用了 {ports}。请先关闭 `pnpm dev:api` 或释放该端口后再启动应用。"
         ));
     }
 

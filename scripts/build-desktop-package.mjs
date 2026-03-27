@@ -20,6 +20,7 @@ const syncResourcesScriptPath = path.join(rootDir, 'scripts', 'sync-openclaw-res
 const packageDmgScriptPath = path.join(rootDir, 'scripts', 'package-desktop-dmg.sh');
 const runtimeBootstrapConfigPath = path.join(tauriDir, 'resources', 'config', 'openclaw-runtime.json');
 const bundledRuntimeDir = path.join(tauriDir, 'resources', 'openclaw-runtime');
+const nsisAutoRunDefinition = '!define MUI_FINISHPAGE_RUN\n!define MUI_FINISHPAGE_RUN_FUNCTION RunMainBinary\n';
 
 function parseArgs(argv) {
   const forwardedArgs = [];
@@ -200,6 +201,91 @@ async function validateMacosProdBundle({ target, channel }) {
   );
 }
 
+function findMakensisPath() {
+  const candidates = process.platform === 'win32'
+    ? [
+        'makensis.exe',
+        path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'NSIS', 'makensis.exe'),
+        path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'NSIS', 'Bin', 'makensis.exe'),
+      ]
+    : ['makensis'];
+
+  for (const candidate of candidates) {
+    const result = spawnSync(candidate, ['/VERSION'], {
+      cwd: rootDir,
+      stdio: 'ignore',
+      shell: false,
+    });
+    if (result.status === 0) {
+      return candidate;
+    }
+  }
+
+  throw new Error('desktop packaging aborted: NSIS compiler not found (makensis)');
+}
+
+async function patchWindowsNsisScript(installerScriptPath) {
+  const raw = await fs.readFile(installerScriptPath);
+  const source = raw.toString('latin1');
+  if (!source.includes(nsisAutoRunDefinition)) {
+    return false;
+  }
+
+  const patched = source.replace(nsisAutoRunDefinition, '');
+  await fs.writeFile(installerScriptPath, Buffer.from(patched, 'latin1'));
+  return true;
+}
+
+async function copyLatestNsisOutput({ target }) {
+  const installerDir = path.join(bundleTargetRoot(target), 'nsis');
+  const entries = await fs.readdir(installerDir, { withFileTypes: true });
+  const installers = [];
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.exe')) {
+      continue;
+    }
+    const fullPath = path.join(installerDir, entry.name);
+    const stat = await fs.stat(fullPath);
+    installers.push({ fullPath, mtimeMs: stat.mtimeMs });
+  }
+
+  installers.sort((left, right) => right.mtimeMs - left.mtimeMs);
+  const latestInstaller = installers[0];
+  if (!latestInstaller) {
+    throw new Error(`desktop packaging aborted: unable to locate bundled NSIS installer under ${installerDir}`);
+  }
+
+  const nsisOutputPath = path.join(
+    tauriDir,
+    'target',
+    'release',
+    'nsis',
+    'x64',
+    'nsis-output.exe',
+  );
+  await fs.copyFile(nsisOutputPath, latestInstaller.fullPath);
+}
+
+async function rebuildWindowsNsisInstaller({ target }) {
+  if (process.platform !== 'win32') {
+    return;
+  }
+
+  const installerScriptPath = path.join(tauriDir, 'target', 'release', 'nsis', 'x64', 'installer.nsi');
+  if (!(await pathExists(installerScriptPath))) {
+    return;
+  }
+
+  const changed = await patchWindowsNsisScript(installerScriptPath);
+  if (!changed) {
+    return;
+  }
+
+  const makensis = findMakensisPath();
+  run(makensis, [installerScriptPath], { cwd: rootDir });
+  await copyLatestNsisOutput({ target });
+}
+
 function syncLocalAppRuntime({ pnpm, env, brandId, channel }) {
   const args = [
     path.join(rootDir, 'scripts', 'with-packaging-source-env.mjs'),
@@ -346,6 +432,7 @@ async function main() {
       env,
       shell: tauri.shell,
     });
+    await rebuildWindowsNsisInstaller({ target });
     await validateMacosProdBundle({ target, channel });
 
     if (packageDmg) {
