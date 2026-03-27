@@ -136,43 +136,6 @@ export function buildPortalPublicConfig(
       })),
     )
     .filter((item, index, items) => items.findIndex((entry) => entry.menu_key === item.menu_key) === index);
-  const modelBindings = detail.modelBindings
-    .filter((item) => item.enabled && item.model?.active !== false)
-    .sort(compareBySortOrder)
-    .map((item) => ({
-      model_ref: item.modelRef,
-      sort_order: item.sortOrder,
-      recommended: asObject(item.config).recommended === true,
-      default: asObject(item.config).default === true,
-      config: cloneJson(item.config),
-      entry: item.model
-        ? {
-            ref: item.model.ref,
-            label: item.model.label,
-            providerId: item.model.providerId,
-            modelId: item.model.modelId,
-            api: item.model.api,
-            baseUrl: item.model.baseUrl,
-            useRuntimeOpenai: item.model.useRuntimeOpenai,
-            authHeader: item.model.authHeader,
-            reasoning: item.model.reasoning,
-            input: cloneJson(item.model.input),
-            contextWindow: item.model.contextWindow,
-            maxTokens: item.model.maxTokens,
-          }
-        : null,
-    }))
-    .filter((item) => item.entry);
-  const modelEntries = modelBindings.map((item) => cloneJson(item.entry));
-  const modelRefs = modelBindings.map((item) => item.model_ref);
-  const existingModelConfig = asObject(existingCapabilities.models);
-  const configuredDefaultModel = String(existingModelConfig.default || '').trim();
-  const defaultModelRef =
-    modelBindings.find((item) => item.default)?.model_ref ||
-    (configuredDefaultModel && modelRefs.includes(configuredDefaultModel) ? configuredDefaultModel : '') ||
-    modelRefs[0] ||
-    null;
-  const recommendedModels = modelBindings.filter((item) => item.recommended).map((item) => item.model_ref);
   const brandId = detail.app.appName;
   const tenantKey =
     String(existingBrandMeta.tenant_key || existingBrandMeta.tenantKey || existingStorage.namespace || brandId).trim() ||
@@ -311,21 +274,9 @@ export function buildPortalPublicConfig(
         skills: skillBindings.map((item) => item.skill_slug),
         mcp_servers: mcpBindings.map((item) => item.mcp_key),
         menus: menuBindings.map((item) => item.menu_key),
-        models: {
-          default: defaultModelRef,
-          recommended: recommendedModels,
-          entries: modelEntries,
-        },
       },
       skill_bindings: skillBindings,
       mcp_bindings: mcpBindings,
-      model_bindings: modelBindings.map((item) => ({
-        model_ref: item.model_ref,
-        sort_order: item.sort_order,
-        recommended: item.recommended,
-        default: item.default,
-        config: cloneJson(item.config),
-      })),
       menu_bindings: menuBindings,
       menu_catalog: publicMenuCatalog,
       composer_control_bindings: publicComposerControls,
