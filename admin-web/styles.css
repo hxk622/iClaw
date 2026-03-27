@@ -410,6 +410,16 @@ code {
   gap: 8px;
 }
 
+.banner-row--toast {
+  position: fixed;
+  top: 20px;
+  right: 24px;
+  z-index: 1200;
+  width: min(520px, calc(100vw - 32px));
+  padding: 0;
+  pointer-events: none;
+}
+
 .banner {
   padding: 12px 14px;
   border: 1px solid var(--line);
@@ -417,6 +427,10 @@ code {
   background: var(--card);
   box-shadow: var(--shadow);
   font-size: 13px;
+}
+
+.banner-row--toast .banner {
+  pointer-events: auto;
 }
 
 .banner[hidden] {
@@ -1835,7 +1849,7 @@ code {
   background: var(--bg);
 }
 
-.banner-row {
+.banner-row:not(.banner-row--toast) {
   padding: 20px 32px 0;
 }
 

@@ -207,6 +207,7 @@ const state = {
   modelCatalog: [],
   modelProviderProfiles: [],
   modelProviderOverrides: {},
+  modelProviderDrafts: {},
   modelLogoPresets: [],
   skillSyncSources: [],
   skillSyncRuns: [],
@@ -1981,6 +1982,65 @@ function setNotice(message) {
   state.notice = message;
   state.error = '';
   render();
+}
+
+function getModelProviderDraftKey(scopeType, scopeKey) {
+  return `${String(scopeType || '').trim()}:${String(scopeKey || '').trim()}`;
+}
+
+function buildModelProviderDraft(input = {}) {
+  const profile = asObject(input.profile);
+  const override = asObject(input.override);
+  return {
+    id: String(profile.id || '').trim(),
+    scopeType: String(input.scopeType || profile.scopeType || '').trim(),
+    scopeKey: String(input.scopeKey || profile.scopeKey || '').trim(),
+    providerMode: String(input.providerMode || override.providerMode || 'inherit_platform').trim() || 'inherit_platform',
+    providerKey: String(profile.providerKey || '').trim(),
+    baseUrl: String(profile.baseUrl || '').trim(),
+    apiKey: String(profile.apiKey || '').trim(),
+    logoPresetKey: String(profile.logoPresetKey || '').trim(),
+    models: asArray(profile.models).map((item) => {
+      const model = asObject(item);
+      return {
+        label: String(model.label || '').trim(),
+        modelId: String(model.modelId || '').trim(),
+        logoPresetKey: String(model.logoPresetKey || '').trim(),
+      };
+    }),
+  };
+}
+
+function captureModelProviderDraft(form) {
+  if (!(form instanceof HTMLFormElement)) {
+    return null;
+  }
+  const formData = new FormData(form);
+  const scopeType = String(formData.get('scope_type') || '').trim();
+  const scopeKey = String(formData.get('scope_key') || '').trim();
+  if (!scopeType || !scopeKey) {
+    return null;
+  }
+  const draft = {
+    id: String(formData.get('profile_id') || '').trim(),
+    scopeType,
+    scopeKey,
+    providerMode: String(formData.get('provider_mode') || 'inherit_platform').trim() || 'inherit_platform',
+    providerKey: String(formData.get('provider_key') || '').trim(),
+    baseUrl: String(formData.get('base_url') || '').trim(),
+    apiKey: String(formData.get('api_key') || '').trim(),
+    logoPresetKey: String(formData.get('logo_preset_key') || '').trim(),
+    models: Array.from(form.querySelectorAll('[data-model-provider-row="true"]')).map((row) => {
+      const getValue = (name) => row.querySelector(`[name="${name}"]`);
+      return {
+        label: String(getValue('model_label')?.value || '').trim(),
+        modelId: String(getValue('model_id')?.value || '').trim(),
+        logoPresetKey: String(getValue('model_logo_preset_key')?.value || '').trim(),
+      };
+    }),
+  };
+  state.modelProviderDrafts[getModelProviderDraftKey(scopeType, scopeKey)] = draft;
+  return draft;
 }
 
 async function parseResponse(response) {
@@ -4096,10 +4156,10 @@ function openModelLogoPicker(form, inputName) {
 }
 
 async function saveModelProviderProfile(form) {
+  captureModelProviderDraft(form);
   const formData = new FormData(form);
   state.busy = true;
   resetBanner();
-  render();
 
   try {
     const scopeType = String(formData.get('scope_type') || '').trim();
@@ -4114,7 +4174,6 @@ async function saveModelProviderProfile(form) {
         .map((row, index) => {
           const getValue = (name) => row.querySelector(`[name="${name}"]`);
           return {
-            modelRef: String(getValue('model_ref')?.value || '').trim(),
             label: String(getValue('model_label')?.value || '').trim(),
             modelId: String(getValue('model_id')?.value || '').trim(),
             logoPresetKey: String(getValue('model_logo_preset_key')?.value || '').trim() || null,
@@ -4127,7 +4186,7 @@ async function saveModelProviderProfile(form) {
             metadata: {},
           };
         })
-        .filter((item) => item.modelRef && item.modelId && item.label);
+        .filter((item) => item.modelId && item.label);
 
       savedProfile = await apiFetch('/admin/portal/model-provider-profiles', {
         method: 'PUT',
@@ -4162,6 +4221,7 @@ async function saveModelProviderProfile(form) {
     }
 
     await loadAppData();
+    delete state.modelProviderDrafts[getModelProviderDraftKey(scopeType, scopeKey)];
     state.selectedModelProviderTab = scopeType === 'platform' ? 'platform' : scopeKey;
     setNotice(`${scopeType === 'platform' ? '平台' : scopeKey} provider 已保存。`);
   } catch (error) {
@@ -4372,8 +4432,9 @@ function logout() {
 }
 
 function renderBanner() {
+  const hasMessage = Boolean(state.error || state.notice);
   return `
-    <div class="banner-row">
+    <div class="banner-row${hasMessage ? ' banner-row--toast' : ''}">
       <div class="banner banner--error"${state.error ? '' : ' hidden'}>${escapeHtml(state.error)}</div>
       <div class="banner banner--success"${state.notice ? '' : ' hidden'}>${escapeHtml(state.notice)}</div>
     </div>
@@ -6263,10 +6324,6 @@ function renderModelProviderRow(item = {}, index = 0) {
       </div>
       <div class="form-grid form-grid--two">
         <label class="field">
-          <span>Model Ref</span>
-          <input class="field-input" name="model_ref" value="${fieldValue(item.modelRef || '')}" placeholder="provider/model 或 openrouter/provider/model" />
-        </label>
-        <label class="field">
           <span>Label</span>
           <input class="field-input" name="model_label" value="${fieldValue(item.label || '')}" placeholder="显示名称" />
         </label>
@@ -6312,7 +6369,9 @@ function renderModelProviderCenterPage() {
     models: [],
   };
   const override = selectedBrand ? state.modelProviderOverrides[selectedBrand.brandId] || null : null;
-  const providerLogoPresetKey = String(profile.logoPresetKey || '');
+  const draftKey = getModelProviderDraftKey(scopeType, scopeKey);
+  const draft = state.modelProviderDrafts[draftKey] || buildModelProviderDraft({profile, override, scopeType, scopeKey});
+  const providerLogoPresetKey = String(draft.logoPresetKey || '');
   const providerLogoPreset = getModelLogoPreset(providerLogoPresetKey);
   const tabs = [
     {key: 'platform', label: '平台'},
@@ -6350,7 +6409,7 @@ function renderModelProviderCenterPage() {
           </div>
         </section>
         <form id="model-provider-form" class="fig-card fig-card--subtle">
-          <input type="hidden" name="profile_id" value="${fieldValue(profile.id || '')}" />
+          <input type="hidden" name="profile_id" value="${fieldValue(draft.id || '')}" />
           <input type="hidden" name="scope_type" value="${fieldValue(scopeType)}" />
           <input type="hidden" name="scope_key" value="${fieldValue(scopeKey)}" />
           <div class="fig-card__head">
@@ -6363,8 +6422,8 @@ function renderModelProviderCenterPage() {
                 <label class="field" style="min-width:220px;">
                   <span>Provider Mode</span>
                   <select class="field-select" name="provider_mode">
-                    <option value="inherit_platform"${override?.providerMode !== 'use_app_profile' ? ' selected' : ''}>继承平台</option>
-                    <option value="use_app_profile"${override?.providerMode === 'use_app_profile' ? ' selected' : ''}>使用 OEM Provider</option>
+                    <option value="inherit_platform"${draft.providerMode !== 'use_app_profile' ? ' selected' : ''}>继承平台</option>
+                    <option value="use_app_profile"${draft.providerMode === 'use_app_profile' ? ' selected' : ''}>使用 OEM Provider</option>
                   </select>
                 </label>
               `
@@ -6373,15 +6432,15 @@ function renderModelProviderCenterPage() {
           <div class="form-grid form-grid--two">
             <label class="field">
               <span>Provider Key</span>
-              <input class="field-input" name="provider_key" value="${fieldValue(profile.providerKey || '')}" placeholder="bailian / siliconflow" />
+              <input class="field-input" name="provider_key" value="${fieldValue(draft.providerKey || '')}" placeholder="bailian / siliconflow" />
             </label>
             <label class="field field--wide">
               <span>Base URL</span>
-              <input class="field-input" name="base_url" value="${fieldValue(profile.baseUrl || '')}" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1" />
+              <input class="field-input" name="base_url" value="${fieldValue(draft.baseUrl || '')}" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1" />
             </label>
             <label class="field field--wide">
               <span>API Key</span>
-              <input class="field-input" name="api_key" value="${fieldValue(profile.apiKey || '')}" placeholder="直接落表保存" />
+              <input class="field-input" name="api_key" value="${fieldValue(draft.apiKey || '')}" placeholder="直接落表保存" />
             </label>
             <label class="field field--wide">
               <span>Provider Logo Preset</span>
@@ -6406,7 +6465,7 @@ function renderModelProviderCenterPage() {
               <button class="ghost-button" type="button" data-action="add-provider-model-row">新增模型</button>
             </div>
             <div data-model-provider-rows="true" class="fig-detail-stack">
-              ${(profile.models || []).length ? profile.models.map((item, index) => renderModelProviderRow(item, index)).join('') : renderModelProviderRow({}, 0)}
+              ${(draft.models || []).length ? draft.models.map((item, index) => renderModelProviderRow(item, index)).join('') : renderModelProviderRow({}, 0)}
             </div>
           </section>
           <div class="fig-form-actions">
@@ -9136,6 +9195,22 @@ app.addEventListener('submit', async (event) => {
     await refundPaymentOrder(orderId, {
       note: String(data.get('note') || '').trim(),
     });
+  }
+});
+
+app.addEventListener('input', (event) => {
+  const target = event.target instanceof HTMLElement ? event.target : null;
+  const form = target?.closest('form');
+  if (form instanceof HTMLFormElement && form.id === 'model-provider-form') {
+    captureModelProviderDraft(form);
+  }
+});
+
+app.addEventListener('change', (event) => {
+  const target = event.target instanceof HTMLElement ? event.target : null;
+  const form = target?.closest('form');
+  if (form instanceof HTMLFormElement && form.id === 'model-provider-form') {
+    captureModelProviderDraft(form);
   }
 });
 

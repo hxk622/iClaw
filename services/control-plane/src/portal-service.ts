@@ -294,6 +294,10 @@ function normalizeModelRef(value: unknown): string {
   return normalized;
 }
 
+function buildProviderModelRef(providerKey: string, modelId: string): string {
+  return normalizeModelRef(`${providerKey}/${modelId}`);
+}
+
 function normalizeMenuKey(value: unknown): string {
   const normalized = normalizeRequiredString(value, 'menu_key').toLowerCase();
   if (!/^[a-z0-9][a-z0-9-]{1,62}$/.test(normalized)) {
@@ -516,11 +520,12 @@ export class PortalService {
   async upsertModelProviderProfile(accessToken: string, input: UpsertPortalModelProviderProfileInput) {
     await this.requireAdmin(accessToken);
     const scopeType = normalizeRequiredProviderScopeType(input.scopeType);
+    const providerKey = normalizeRequiredString(input.providerKey, 'provider_key');
     const profile = await this.store.upsertModelProviderProfile({
       id: normalizeOptionalString(input.id, 'id'),
       scopeType,
       scopeKey: scopeType === 'platform' ? 'platform' : normalizeAppName(input.scopeKey),
-      providerKey: normalizeRequiredString(input.providerKey, 'provider_key'),
+      providerKey,
       providerLabel: normalizeRequiredString(input.providerLabel, 'provider_label'),
       apiProtocol: normalizeRequiredString(input.apiProtocol, 'api_protocol'),
       baseUrl: normalizeRequiredString(input.baseUrl, 'base_url'),
@@ -532,10 +537,12 @@ export class PortalService {
       sortOrder: normalizeOptionalInteger(input.sortOrder, 'sort_order', 100),
       models: asArray(input.models).map((item, index) => {
         const value = asObject(item);
+        const modelId = normalizeRequiredString(value.modelId ?? value.model_id, `models[${index}].model_id`);
+        const explicitModelRef = normalizeOptionalString(value.modelRef ?? value.model_ref, `models[${index}].model_ref`);
         return {
           id: normalizeOptionalString(value.id, `models[${index}].id`),
-          modelRef: normalizeModelRef(value.modelRef ?? value.model_ref),
-          modelId: normalizeRequiredString(value.modelId ?? value.model_id, `models[${index}].model_id`),
+          modelRef: explicitModelRef ? normalizeModelRef(explicitModelRef) : buildProviderModelRef(providerKey, modelId),
+          modelId,
           label: normalizeRequiredString(value.label, `models[${index}].label`),
           logoPresetKey: normalizeOptionalString(value.logoPresetKey ?? value.logo_preset_key, `models[${index}].logo_preset_key`),
           reasoning: normalizeOptionalBoolean(value.reasoning, `models[${index}].reasoning`, false),
