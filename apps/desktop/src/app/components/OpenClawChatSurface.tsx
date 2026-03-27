@@ -24,6 +24,7 @@ import { K2CWelcomePage } from '@/app/components/K2CWelcomePage';
 import { readAppLocale } from '@/app/lib/general-preferences';
 import {
   buildComposerModelOptions,
+  findComposerModelOption,
   type ComposerModelOption,
 } from '../lib/model-catalog';
 import { fetchRuntimeModelCatalog, mapRuntimeModelsToGatewayEntries } from '../lib/runtime-models';
@@ -1560,11 +1561,15 @@ async function loadChatModelSnapshot(
     ) ?? null;
   const sessionModel = matchedSession?.model?.trim() ?? '';
   const defaultModel = sessionsResult?.defaults?.model?.trim() ?? '';
-  const fallbackModel = options[0]?.id ?? null;
+  const resolvedSelection =
+    findComposerModelOption(options, sessionModel)?.id ||
+    findComposerModelOption(options, defaultModel)?.id ||
+    options[0]?.id ||
+    null;
 
   return {
     options,
-    selectedModelId: sessionModel || defaultModel || fallbackModel,
+    selectedModelId: resolvedSelection,
     resolvedSessionKey: matchedSession?.key?.trim() ?? null,
   };
 }

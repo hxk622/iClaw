@@ -361,6 +361,20 @@ export function buildComposerModelOptions(models: GatewayModelCatalogEntry[]): C
     });
 }
 
+export function matchesComposerModelId(optionId: string, modelId: string | null | undefined): boolean {
+  const normalizedOptionId = optionId.trim();
+  const normalizedModelId = modelId?.trim();
+  if (!normalizedOptionId || !normalizedModelId) {
+    return false;
+  }
+  if (normalizedOptionId === normalizedModelId) {
+    return true;
+  }
+  const optionTail = normalizedOptionId.split('/').pop() || normalizedOptionId;
+  const modelTail = normalizedModelId.split('/').pop() || normalizedModelId;
+  return optionTail === modelTail;
+}
+
 export function findComposerModelOption(
   options: ComposerModelOption[],
   modelId: string | null | undefined,
@@ -369,5 +383,5 @@ export function findComposerModelOption(
   if (!normalized) {
     return null;
   }
-  return options.find((option) => option.id === normalized) ?? null;
+  return options.find((option) => matchesComposerModelId(option.id, normalized)) ?? null;
 }
