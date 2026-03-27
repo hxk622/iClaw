@@ -69,14 +69,13 @@ const BRAND_DETAIL_TABS = [
   {id: 'input', label: '输入框', icon: 'messageSquare'},
   {id: 'skills', label: '技能', icon: 'zap'},
   {id: 'mcps', label: 'MCP', icon: 'network'},
-  {id: 'models', label: '模型', icon: 'package'},
   {id: 'menus', label: '左菜单栏', icon: 'layers'},
   {id: 'assets', label: '品牌资源', icon: 'image'},
   {id: 'theme', label: '主题样式', icon: 'palette'},
 ];
 const BRAND_DETAIL_TAB_GROUPS = [
   {id: 'shell', label: 'Shell骨架', icon: 'monitor', tabs: ['desktop', 'home-web', 'welcome', 'header', 'sidebar', 'input']},
-  {id: 'capabilities', label: '能力绑定', icon: 'zap', tabs: ['skills', 'mcps', 'models', 'menus']},
+  {id: 'capabilities', label: '能力绑定', icon: 'zap', tabs: ['skills', 'mcps', 'menus']},
   {id: 'brand', label: '品牌资源', icon: 'image', tabs: ['assets', 'theme']},
 ];
 const ADMIN_SKILL_BROWSER_PAGE_SIZE = 100;
@@ -5962,10 +5961,6 @@ function renderBrandEditorBody(buffer, assets, activeTab = state.brandDetailTab)
     return renderBrandMcpAssembly(buffer);
   }
 
-  if (normalizedTab === 'models') {
-    return renderBrandModelAssembly(buffer);
-  }
-
   if (normalizedTab === 'menus') {
     const preferredMenuKey = MODULE_SURFACE_KEYS.includes(String(activeTab || '').trim()) ? String(activeTab || '').trim() : '';
     return renderBrandMenusAssembly(buffer, preferredMenuKey);
@@ -9530,16 +9525,6 @@ app.addEventListener('click', async (event) => {
 
   if (action === 'move-brand-composer-shortcut-down') {
     moveBrandComposerShortcut(target.getAttribute('data-shortcut-key') || '', 'down');
-    return;
-  }
-
-  if (action === 'toggle-brand-model') {
-    toggleBrandCapability('model', target.getAttribute('data-model-ref') || '');
-    return;
-  }
-
-  if (action === 'toggle-brand-model-recommended') {
-    toggleBrandRecommendedModel(target.getAttribute('data-model-ref') || '');
     return;
   }
 
