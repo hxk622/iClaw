@@ -9,6 +9,7 @@ import {mergePlatformSkillBindings} from '../src/platform-inheritance.ts';
 import {buildPortalPublicConfig} from '../src/portal-runtime.ts';
 import {PgPortalStore} from '../src/portal-store.ts';
 import {PgControlPlaneStore} from '../src/pg-store.ts';
+import type {PortalJsonObject, PortalResolvedRuntimeModelsResult} from '../src/portal-domain.ts';
 
 function readArg(name: string): string | null {
   const index = process.argv.findIndex((item) => item === name);
@@ -21,6 +22,61 @@ function asObject(value: unknown): Record<string, unknown> {
     return {};
   }
   return value as Record<string, unknown>;
+}
+
+function cloneJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function applyResolvedRuntimeModelsToConfig(
+  config: PortalJsonObject,
+  resolved: PortalResolvedRuntimeModelsResult,
+): PortalJsonObject {
+  const nextConfig = cloneJson(config);
+  const capabilities = asObject(nextConfig.capabilities);
+  if (Object.prototype.hasOwnProperty.call(capabilities, 'models')) {
+    delete capabilities.models;
+  }
+  nextConfig.capabilities = capabilities;
+  nextConfig.model_provider = {
+    provider_mode: resolved.providerMode,
+    resolved_scope: resolved.resolvedScope,
+    version: resolved.version,
+    profile: {
+      id: resolved.profile.id,
+      scope_type: resolved.profile.scopeType,
+      scope_key: resolved.profile.scopeKey,
+      provider_key: resolved.profile.providerKey,
+      provider_label: resolved.profile.providerLabel,
+      api_protocol: resolved.profile.apiProtocol,
+      base_url: resolved.profile.baseUrl,
+      auth_mode: resolved.profile.authMode,
+      api_key: resolved.profile.apiKey || '',
+      logo_preset_key: resolved.profile.logoPresetKey,
+      metadata: cloneJson(resolved.profile.metadata),
+      enabled: resolved.profile.enabled,
+      sort_order: resolved.profile.sortOrder,
+      created_at: resolved.profile.createdAt,
+      updated_at: resolved.profile.updatedAt,
+    },
+    models: resolved.models.map((model) => ({
+      id: model.id,
+      model_ref: model.modelRef,
+      model_id: model.modelId,
+      label: model.label,
+      logo_preset_key: model.logoPresetKey,
+      reasoning: model.reasoning,
+      input_modalities: cloneJson(model.inputModalities),
+      context_window: model.contextWindow,
+      max_tokens: model.maxTokens,
+      enabled: model.enabled,
+      sort_order: model.sortOrder,
+      metadata: cloneJson(model.metadata),
+      created_at: model.createdAt,
+      updated_at: model.updatedAt,
+    })),
+  };
+  return nextConfig;
 }
 
 async function pathExists(targetPath: string): Promise<boolean> {
@@ -275,6 +331,10 @@ async function main() {
     const publicConfig = buildPortalPublicConfig(detailWithPlatformSkills, {
       assetUrlResolver: (asset) => asset.publicUrl || asset.objectKey || null,
     });
+    const resolvedRuntimeModels = await portalStore.resolveRuntimeModels(appName);
+    const resolvedConfig = resolvedRuntimeModels
+      ? applyResolvedRuntimeModelsToConfig(publicConfig.config, resolvedRuntimeModels)
+      : publicConfig.config;
     await mkdir(dirname(runtimeAppConfigPath), {recursive: true});
     await writeFile(
       runtimeAppConfigPath,
@@ -282,7 +342,7 @@ async function main() {
         {
           app: publicConfig.app,
           publishedVersion: publicConfig.publishedVersion,
-          config: publicConfig.config,
+          config: resolvedConfig,
           syncMeta: {
             appName,
             syncedAt: new Date().toISOString(),
