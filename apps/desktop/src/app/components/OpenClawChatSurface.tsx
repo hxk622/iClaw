@@ -25,8 +25,8 @@ import { readAppLocale } from '@/app/lib/general-preferences';
 import {
   buildComposerModelOptions,
   type ComposerModelOption,
-  type GatewayModelCatalogEntry,
 } from '../lib/model-catalog';
+import { fetchRuntimeModelCatalog, mapRuntimeModelsToGatewayEntries } from '../lib/runtime-models';
 import {
   buildGeneratedUserAvatarDataUrl,
   resolveUserAvatarUrl,
@@ -148,6 +148,8 @@ type OpenClawChatSurfaceProps = {
   gatewayUrl: string;
   gatewayToken?: string;
   gatewayPassword?: string;
+  authBaseUrl: string;
+  appName: string;
   sessionKey?: string;
   initialPrompt?: string | null;
   initialPromptKey?: string | null;
@@ -1494,6 +1496,10 @@ function createMessageActionButton(params: {
 async function loadChatModelSnapshot(
   app: OpenClawAppElement,
   targetSessionKey: string,
+  input: {
+    authBaseUrl: string;
+    appName: string;
+  },
 ): Promise<{
   options: ComposerModelOption[];
   selectedModelId: string | null;
@@ -1504,8 +1510,8 @@ async function loadChatModelSnapshot(
     return null;
   }
 
-  const [modelsResult, sessionsResult] = await Promise.all([
-    request<{ models?: GatewayModelCatalogEntry[] }>('models.list', {}),
+  const [runtimeCatalog, sessionsResult] = await Promise.all([
+    fetchRuntimeModelCatalog(input),
     request<GatewaySessionsListResult>('sessions.list', {
       includeGlobal: true,
       includeUnknown: true,
@@ -1513,7 +1519,7 @@ async function loadChatModelSnapshot(
     }),
   ]);
 
-  const options = buildComposerModelOptions(modelsResult?.models ?? []);
+  const options = buildComposerModelOptions(mapRuntimeModelsToGatewayEntries(runtimeCatalog));
   const aliases = resolveEquivalentGatewaySessionKeys(targetSessionKey);
   const matchedSession =
     sessionsResult?.sessions.find((session) =>
@@ -1598,6 +1604,8 @@ export function OpenClawChatSurface({
   gatewayUrl,
   gatewayToken,
   gatewayPassword,
+  authBaseUrl,
+  appName,
   sessionKey = 'main',
   initialPrompt = null,
   initialPromptKey = null,
@@ -1811,7 +1819,10 @@ export function OpenClawChatSurface({
     setModelsLoading(true);
 
     try {
-      const snapshot = await loadChatModelSnapshot(app, sessionKey);
+      const snapshot = await loadChatModelSnapshot(app, sessionKey, {
+        authBaseUrl,
+        appName,
+      });
       if (!snapshot || modelLoadVersionRef.current !== requestVersion) {
         return false;
       }
@@ -1834,7 +1845,7 @@ export function OpenClawChatSurface({
         setModelsLoading(false);
       }
     }
-  }, [sessionKey]);
+  }, [appName, authBaseUrl, sessionKey]);
 
   const handleModelChange = useCallback(
     async (modelId: string) => {

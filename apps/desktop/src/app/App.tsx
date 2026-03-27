@@ -1758,6 +1758,8 @@ function AuthedView({
               gatewayUrl={GATEWAY_WS_URL}
               gatewayToken={gatewayAuth.token}
               gatewayPassword={gatewayAuth.password}
+              authBaseUrl={AUTH_BASE_URL}
+              appName={BRAND.brandId}
               sessionKey={activeChatRoute.sessionKey}
               initialPrompt={activeChatRoute.initialPrompt}
               initialPromptKey={activeChatRoute.initialPromptKey}
