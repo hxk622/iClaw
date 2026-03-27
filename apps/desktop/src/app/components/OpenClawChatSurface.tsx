@@ -404,6 +404,35 @@ function resolveEquivalentGatewaySessionKeys(targetSessionKey: string): Set<stri
   return keys;
 }
 
+function buildGatewaySessionPatchTargets(
+  sessionKey: string,
+  resolvedSessionKey?: string | null,
+): string[] {
+  const candidates = [resolvedSessionKey?.trim() || '', sessionKey.trim()];
+  const normalized = new Set<string>();
+  const targets: string[] = [];
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const aliases = resolveEquivalentGatewaySessionKeys(candidate);
+    if (aliases.size === 0) {
+      const key = normalizeGatewaySessionKey(candidate);
+      if (!key || normalized.has(key)) continue;
+      normalized.add(key);
+      targets.push(candidate);
+      continue;
+    }
+    for (const alias of aliases) {
+      const key = normalizeGatewaySessionKey(alias);
+      if (!key || normalized.has(key)) continue;
+      normalized.add(key);
+      targets.push(alias);
+    }
+  }
+
+  return targets;
+}
+
 function resolveSessionModelFromList(
   sessionsResult: GatewaySessionsListResult | null | undefined,
   targetSessionKey: string,
@@ -1685,6 +1714,7 @@ export function OpenClawChatSurface({
     error: null,
     estimatedInputTokens: null,
   });
+  const effectiveGatewaySessionKey = resolvedModelSessionKey || sessionKey;
   const [installedLobsterAgents, setInstalledLobsterAgents] = useState<ComposerAgentOption[]>([]);
   const [skillOptions, setSkillOptions] = useState<ComposerSkillOption[]>([]);
   const consumedInitialPromptKeyRef = useRef<string | null>(null);
@@ -1869,11 +1899,17 @@ export function OpenClawChatSurface({
       setSelectedModelId(nextModelId);
 
       try {
-        await request('sessions.patch', {
-          key: resolvedModelSessionKey || sessionKey,
-          model: nextModelId,
-        });
+        const patchTargets = buildGatewaySessionPatchTargets(sessionKey, resolvedModelSessionKey);
+        await Promise.all(
+          patchTargets.map((key) =>
+            request('sessions.patch', {
+              key,
+              model: nextModelId,
+            }),
+          ),
+        );
         await refreshModelCatalog();
+        setSelectedModelId((current) => current || nextModelId);
       } catch (error) {
         setSelectedModelId(previousModelId);
         const message = error instanceof Error ? error.message : '模型切换失败';
@@ -2187,7 +2223,7 @@ export function OpenClawChatSurface({
     if (!app?.connected || typeof request !== 'function') {
       return;
     }
-    if (responseUsageEnabledSessionKeyRef.current === sessionKey) {
+    if (responseUsageEnabledSessionKeyRef.current === effectiveGatewaySessionKey) {
       return;
     }
 
@@ -2201,18 +2237,23 @@ export function OpenClawChatSurface({
       }
       attemptCount += 1;
 
+      const patchTargets = buildGatewaySessionPatchTargets(sessionKey, resolvedModelSessionKey);
       Promise.resolve()
         .then(() =>
-          request('sessions.patch', {
-            key: sessionKey,
-            responseUsage: 'tokens',
-          }),
+          Promise.all(
+            patchTargets.map((key) =>
+              request('sessions.patch', {
+                key,
+                responseUsage: 'tokens',
+              }),
+            ),
+          ),
         )
         .then(() => {
           if (cancelled) {
             return;
           }
-          responseUsageEnabledSessionKeyRef.current = sessionKey;
+          responseUsageEnabledSessionKeyRef.current = effectiveGatewaySessionKey;
         })
         .catch((error) => {
           if (cancelled) {
@@ -2249,7 +2290,7 @@ export function OpenClawChatSurface({
         window.clearTimeout(retryTimer);
       }
     };
-  }, [sessionKey, status.connected]);
+  }, [effectiveGatewaySessionKey, resolvedModelSessionKey, sessionKey, status.connected]);
 
   useEffect(() => {
     const onUnhandledRejection = (event: PromiseRejectionEvent) => {
@@ -3353,7 +3394,7 @@ export function OpenClawChatSurface({
       handoffStarted = true;
       await sendAuthorizedChatMessage({
         app,
-        sessionKey,
+        sessionKey: effectiveGatewaySessionKey,
         prompt: normalizedPrompt,
         imageAttachments: payload.imageAttachments,
         runId,
@@ -3406,6 +3447,7 @@ export function OpenClawChatSurface({
     creditToken,
     finalizeRecentTaskRun,
     selectedModelId,
+    effectiveGatewaySessionKey,
     sessionKey,
     status.lastError,
   ]);
