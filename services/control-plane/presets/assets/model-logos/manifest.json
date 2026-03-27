@@ -1,0 +1,80 @@
+[
+  {
+    "preset_key": "20250227-194559",
+    "label": "20250227-194559",
+    "asset_path": "services/control-plane/presets/assets/model-logos/20250227-194559.png",
+    "asset_type": "image/png"
+  },
+  {
+    "preset_key": "baai",
+    "label": "BAAI",
+    "asset_path": "services/control-plane/presets/assets/model-logos/BAAI.svg",
+    "asset_type": "image/svg+xml"
+  },
+  {
+    "preset_key": "bytedance",
+    "label": "ByteDance",
+    "asset_path": "services/control-plane/presets/assets/model-logos/ByteDance.svg",
+    "asset_type": "image/svg+xml"
+  },
+  {
+    "preset_key": "deepseek",
+    "label": "DeepSeek",
+    "asset_path": "services/control-plane/presets/assets/model-logos/DeepSeek.svg",
+    "asset_type": "image/svg+xml"
+  },
+  {
+    "preset_key": "stepfun",
+    "label": "Stepfun",
+    "asset_path": "services/control-plane/presets/assets/model-logos/Stepfun.svg",
+    "asset_type": "image/svg+xml"
+  },
+  {
+    "preset_key": "tongyi",
+    "label": "Tongyi",
+    "asset_path": "services/control-plane/presets/assets/model-logos/Tongyi.svg",
+    "asset_type": "image/svg+xml"
+  },
+  {
+    "preset_key": "baidu",
+    "label": "Baidu",
+    "asset_path": "services/control-plane/presets/assets/model-logos/baidu.svg",
+    "asset_type": "image/svg+xml"
+  },
+  {
+    "preset_key": "hunyuan",
+    "label": "Hunyuan",
+    "asset_path": "services/control-plane/presets/assets/model-logos/hunyuan.svg",
+    "asset_type": "image/svg+xml"
+  },
+  {
+    "preset_key": "ling",
+    "label": "ling",
+    "asset_path": "services/control-plane/presets/assets/model-logos/ling.png",
+    "asset_type": "image/png"
+  },
+  {
+    "preset_key": "minimax-color",
+    "label": "MiniMax",
+    "asset_path": "services/control-plane/presets/assets/model-logos/minimax-color.svg",
+    "asset_type": "image/svg+xml"
+  },
+  {
+    "preset_key": "moonshotai-new",
+    "label": "Moonshot AI",
+    "asset_path": "services/control-plane/presets/assets/model-logos/moonshotai_new.png",
+    "asset_type": "image/png"
+  },
+  {
+    "preset_key": "netease-youdao",
+    "label": "NetEase Youdao",
+    "asset_path": "services/control-plane/presets/assets/model-logos/netease-youdao.svg",
+    "asset_type": "image/svg+xml"
+  },
+  {
+    "preset_key": "zhipu",
+    "label": "Zhipu",
+    "asset_path": "services/control-plane/presets/assets/model-logos/zhipu.svg",
+    "asset_type": "image/svg+xml"
+  }
+]
