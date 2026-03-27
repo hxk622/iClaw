@@ -928,7 +928,7 @@ export default function App() {
       return {
         state: 'loading',
         title: `${BRAND.displayName} 正在苏醒`,
-        subtitle: '首次启动需要准备本地运行环境',
+        subtitle: '正在准备本地运行环境',
         progress: 12,
         stepLabel: '正在检查本地环境',
         stepDetail: '确认核心组件、工作区和运行配置是否已准备就绪。',
@@ -946,8 +946,7 @@ export default function App() {
       errorMessage: null,
     };
   })();
-  const shouldShowSetupPanel =
-    !isAuthenticated &&
+  const shouldShowStartupGate =
     IS_TAURI_RUNTIME &&
     (
       runtimeChecking ||
@@ -973,7 +972,7 @@ export default function App() {
   }, [desktopUpdateActionState, desktopUpdateHint, skippedDesktopUpdateVersion]);
 
   useEffect(() => {
-    if (!authBootstrapReady || guestPromptInitialized || (IS_TAURI_RUNTIME && shouldShowSetupPanel)) {
+    if (!authBootstrapReady || guestPromptInitialized || (IS_TAURI_RUNTIME && shouldShowStartupGate)) {
       return;
     }
     setGuestPromptInitialized(true);
@@ -981,9 +980,9 @@ export default function App() {
       setAuthModalMode('login');
       setAuthModalOpen(true);
     }
-  }, [authBootstrapReady, guestPromptInitialized, isAuthenticated, shouldShowSetupPanel]);
+  }, [authBootstrapReady, guestPromptInitialized, isAuthenticated, shouldShowStartupGate]);
 
-  if (shouldShowSetupPanel) {
+  if (shouldShowStartupGate) {
     return (
       <FirstRunSetupPanel
         state={installerView.state}
