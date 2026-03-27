@@ -220,7 +220,7 @@
       "downloads": {
         "dev": {
           "bucket": "licaiclaw-dev",
-          "publicBaseUrl": "http://39.106.74.65:9000/licaiclaw-dev"
+          "publicBaseUrl": "http://127.0.0.1:9000/licaiclaw-dev"
         },
         "prod": {
           "bucket": "licaiclaw-prod",
@@ -235,7 +235,7 @@
     "runtimeDistribution": {
       "dev": {
         "bucket": "licaiclaw-dev",
-        "publicBaseUrl": "http://39.106.74.65:9000/licaiclaw-dev"
+        "publicBaseUrl": "http://127.0.0.1:9000/licaiclaw-dev"
       },
       "prod": {
         "bucket": "licaiclaw-prod",
@@ -255,7 +255,7 @@
       "appleTouchIcon": {
         "url": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=appleTouchIcon",
         "content_type": "image/png",
-        "object_key": "portal-assets/licaiclaw/appleTouchIcon/1774453775728-7061ec6b-e6e5-49bf-a3e9-c1653b6ed2ad.png",
+        "object_key": "portal-assets/licaiclaw/appleTouchIcon/1774540422835-0068ab53-67bf-4ce1-930c-d71842708f47.png",
         "storage_provider": "s3",
         "metadata": {
           "sourceType": "preset",
@@ -265,7 +265,7 @@
       "faviconIco": {
         "url": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=faviconIco",
         "content_type": "image/x-icon",
-        "object_key": "portal-assets/licaiclaw/faviconIco/1774453775716-294f9eb1-7c7a-4052-943e-03a5ecaf9c48.ico",
+        "object_key": "portal-assets/licaiclaw/faviconIco/1774540422681-8cc0c469-3c69-4e8a-8a52-574ed53bfea3.ico",
         "storage_provider": "s3",
         "metadata": {
           "sourceType": "preset",
@@ -275,7 +275,7 @@
       "faviconPng": {
         "url": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=faviconPng",
         "content_type": "image/png",
-        "object_key": "portal-assets/licaiclaw/faviconPng/1774453775721-d45a3492-057a-4eb2-beaf-c253319d8556.png",
+        "object_key": "portal-assets/licaiclaw/faviconPng/1774540422750-a6e95667-ee95-453f-98ae-117ac539e067.png",
         "storage_provider": "s3",
         "metadata": {
           "sourceType": "preset",
@@ -285,7 +285,7 @@
       "homeLogo": {
         "url": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=homeLogo",
         "content_type": "image/jpeg",
-        "object_key": "portal-assets/licaiclaw/homeLogo/1774453775747-0689821b-e084-4244-90f8-e9aa486a67ff.jpg",
+        "object_key": "portal-assets/licaiclaw/homeLogo/1774540423065-4f9e42bb-07da-479d-9491-d617aa84e077.jpg",
         "storage_provider": "s3",
         "metadata": {
           "sourceType": "preset",
@@ -295,7 +295,7 @@
       "installerHero": {
         "url": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=installerHero",
         "content_type": "image/png",
-        "object_key": "portal-assets/licaiclaw/installerHero/1774453775735-776aa62d-3700-408b-9da7-717f84e5ea67.png",
+        "object_key": "portal-assets/licaiclaw/installerHero/1774540422915-c0e04f93-c5d4-4579-b175-5e89cc33c483.png",
         "storage_provider": "s3",
         "metadata": {
           "sourceType": "preset",
@@ -305,7 +305,7 @@
       "logoMaster": {
         "url": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=logoMaster",
         "content_type": "image/jpeg",
-        "object_key": "portal-assets/licaiclaw/logoMaster/1774453775740-f5602a19-1a9b-41d4-be41-47abf628069b.jpg",
+        "object_key": "portal-assets/licaiclaw/logoMaster/1774540422985-d21b12ab-ec22-415e-b690-b9b98d5f50c0.jpg",
         "storage_provider": "s3",
         "metadata": {
           "sourceType": "preset",
@@ -315,7 +315,7 @@
       "tauriIcon128": {
         "url": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=tauriIcon128",
         "content_type": "image/png",
-        "object_key": "portal-assets/licaiclaw/tauriIcon128/1774453775760-f8b3266d-c4d2-45a8-886a-726445fdd2cc.png",
+        "object_key": "portal-assets/licaiclaw/tauriIcon128/1774540423224-e705d30f-f9b6-4238-b352-9a139668ef22.png",
         "storage_provider": "s3",
         "metadata": {
           "sourceType": "preset",
@@ -325,7 +325,7 @@
       "tauriIcon1282x": {
         "url": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=tauriIcon1282x",
         "content_type": "image/png",
-        "object_key": "portal-assets/licaiclaw/tauriIcon1282x/1774453775766-43f9845e-ca89-43f8-9443-8bd2168c2b5e.png",
+        "object_key": "portal-assets/licaiclaw/tauriIcon1282x/1774540423310-710dec7e-60f7-4f58-aeb1-01cdb828b50c.png",
         "storage_provider": "s3",
         "metadata": {
           "sourceType": "preset",
@@ -335,7 +335,7 @@
       "tauriIcon32": {
         "url": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=tauriIcon32",
         "content_type": "image/png",
-        "object_key": "portal-assets/licaiclaw/tauriIcon32/1774453775754-04e6bd9d-5bf2-4c61-8c9d-286944fcbc2d.png",
+        "object_key": "portal-assets/licaiclaw/tauriIcon32/1774540423147-9680a3b0-8a77-4d98-b4fe-917c958e1b0b.png",
         "storage_provider": "s3",
         "metadata": {
           "sourceType": "preset",
@@ -345,7 +345,7 @@
       "tauriIconIcns": {
         "url": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=tauriIconIcns",
         "content_type": "application/octet-stream",
-        "object_key": "portal-assets/licaiclaw/tauriIconIcns/1774453775791-d50ce59f-fb5e-4bee-a17c-9106df2745bb.icns",
+        "object_key": "portal-assets/licaiclaw/tauriIconIcns/1774540423605-e21d2a7d-c20c-4a89-b228-10951c79d27c.icns",
         "storage_provider": "s3",
         "metadata": {
           "sourceType": "preset",
@@ -355,7 +355,7 @@
       "tauriIconIco": {
         "url": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=tauriIconIco",
         "content_type": "image/x-icon",
-        "object_key": "portal-assets/licaiclaw/tauriIconIco/1774453775785-cfe80eaf-0452-4cf6-9351-d793e887cec8.ico",
+        "object_key": "portal-assets/licaiclaw/tauriIconIco/1774540423529-2cbc0c56-607b-47ab-98b8-84cdeffd27fe.ico",
         "storage_provider": "s3",
         "metadata": {
           "sourceType": "preset",
@@ -365,7 +365,7 @@
       "tauriIconPng": {
         "url": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=tauriIconPng",
         "content_type": "image/png",
-        "object_key": "portal-assets/licaiclaw/tauriIconPng/1774453775771-a4fa7717-6204-4862-a8ac-5ba5588bddc5.png",
+        "object_key": "portal-assets/licaiclaw/tauriIconPng/1774540423400-f3d92343-77d8-4abe-a99a-218c6a426bba.png",
         "storage_provider": "s3",
         "metadata": {
           "sourceType": "preset",
@@ -786,7 +786,7 @@
   },
   "syncMeta": {
     "appName": "licaiclaw",
-    "syncedAt": "2026-03-26T01:24:25.298Z",
+    "syncedAt": "2026-03-26T16:07:11.063Z",
     "copiedSkillDirs": [
       "A股ESG筛选器",
       "A股低估值股票筛选器",
