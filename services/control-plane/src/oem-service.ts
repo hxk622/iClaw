@@ -132,20 +132,6 @@ type OemModelCatalogEntry = {
 
 const OEM_MODEL_CATALOG: OemModelCatalogEntry[] = [
   {
-    ref: 'openai/gpt-5.4',
-    label: 'GPT 5.4',
-    providerId: 'openai',
-    modelId: 'gpt-5.4',
-    api: 'openai-completions',
-    baseUrl: null,
-    useRuntimeOpenai: true,
-    authHeader: true,
-    reasoning: true,
-    input: ['text', 'image'],
-    contextWindow: 272000,
-    maxTokens: 128000,
-  },
-  {
     ref: 'openai/qwen3.5-plus',
     label: 'Qwen3.5 Plus',
     providerId: 'openai',
@@ -585,7 +571,7 @@ function buildDefaultDraftConfig(input: {
   displayName: string;
   productName: string;
 }): Record<string, unknown> {
-  const defaultModelEntry = getOemModelCatalog().find((item) => item.ref === 'openai/gpt-5.4') || null;
+  const defaultModelEntry = getOemModelCatalog().find((item) => item.ref === 'openai/qwen3.5-plus') || null;
   return {
     brand_id: input.brandId,
     brand_meta: {

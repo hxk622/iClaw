@@ -7704,7 +7704,7 @@ function renderModelDetail(model) {
           </label>
           <label class="field">
             <span>Model ID</span>
-            <input class="field-input" name="model_id" value="${fieldValue(model.modelId)}" placeholder="gpt-5.4" />
+            <input class="field-input" name="model_id" value="${fieldValue(model.modelId)}" placeholder="qwen3.5-plus" />
           </label>
           <label class="field">
             <span>API</span>
