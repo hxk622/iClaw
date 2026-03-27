@@ -3,6 +3,8 @@ import path from 'node:path';
 
 const DEFAULT_MEMORY_LANCEDB_EMBEDDING_MODEL = 'text-embedding-3-small';
 const DEFAULT_MEMORY_LANCEDB_API_KEY_PLACEHOLDER = 'iclaw-memory-local';
+const DEFAULT_PROVIDER_MODEL_CONTEXT_WINDOW = 131072;
+const DEFAULT_PROVIDER_MODEL_MAX_TOKENS = 8192;
 
 const MANAGED_FINANCE_MODEL_PROVIDERS = [
   {
@@ -68,6 +70,11 @@ function asBool(value, fallback = false) {
 
 function asNumber(value, fallback = 0) {
   return Number.isFinite(value) ? Number(value) : fallback;
+}
+
+function normalizePositiveModelLimit(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 function ensureObject(parent, key) {
@@ -167,8 +174,14 @@ function extractOemModelConfig(snapshot) {
         authHeader: typeof (entry.authHeader ?? entry.auth_header) === 'boolean' ? Boolean(entry.authHeader ?? entry.auth_header) : true,
         reasoning: asBool(entry.reasoning),
         input: asArray(entry.input).filter((item) => typeof item === 'string'),
-        contextWindow: asNumber(entry.contextWindow ?? entry.context_window, 0),
-        maxTokens: asNumber(entry.maxTokens ?? entry.max_tokens, 0),
+        contextWindow: normalizePositiveModelLimit(
+          entry.contextWindow ?? entry.context_window,
+          DEFAULT_PROVIDER_MODEL_CONTEXT_WINDOW,
+        ),
+        maxTokens: normalizePositiveModelLimit(
+          entry.maxTokens ?? entry.max_tokens,
+          DEFAULT_PROVIDER_MODEL_MAX_TOKENS,
+        ),
       };
     })
     .filter((entry) => entry.modelRef && entry.providerId && entry.modelId);
@@ -192,8 +205,14 @@ function extractResolvedProviderConfig(snapshot) {
       label: trimString(entry.label),
       reasoning: asBool(entry.reasoning),
       input: asArray(entry.input_modalities || entry.inputModalities).filter((value) => typeof value === 'string'),
-      contextWindow: Number.isFinite(entry.context_window) ? Number(entry.context_window) : asNumber(entry.contextWindow, 0),
-      maxTokens: Number.isFinite(entry.max_tokens) ? Number(entry.max_tokens) : asNumber(entry.maxTokens, 0),
+      contextWindow: normalizePositiveModelLimit(
+        Number.isFinite(entry.context_window) ? Number(entry.context_window) : entry.contextWindow,
+        DEFAULT_PROVIDER_MODEL_CONTEXT_WINDOW,
+      ),
+      maxTokens: normalizePositiveModelLimit(
+        Number.isFinite(entry.max_tokens) ? Number(entry.max_tokens) : entry.maxTokens,
+        DEFAULT_PROVIDER_MODEL_MAX_TOKENS,
+      ),
       enabled: asBool(entry.enabled, true),
     }))
     .filter((entry) => entry.enabled && entry.modelRef && entry.modelId);
@@ -222,8 +241,8 @@ function upsertManagedProviderModel(provider, model) {
     reasoning: Boolean(model.reasoning),
     input: Array.isArray(model.input) ? model.input : [],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow: asNumber(model.contextWindow, 0),
-    maxTokens: asNumber(model.maxTokens, 0),
+    contextWindow: normalizePositiveModelLimit(model.contextWindow, DEFAULT_PROVIDER_MODEL_CONTEXT_WINDOW),
+    maxTokens: normalizePositiveModelLimit(model.maxTokens, DEFAULT_PROVIDER_MODEL_MAX_TOKENS),
   };
   if (index >= 0) {
     provider.models[index] = next;
@@ -253,8 +272,8 @@ function replaceProviderModels(provider, entries) {
       reasoning: Boolean(entry.reasoning),
       input: Array.isArray(entry.input) ? entry.input : [],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: asNumber(entry.contextWindow, 0),
-      maxTokens: asNumber(entry.maxTokens, 0),
+      contextWindow: normalizePositiveModelLimit(entry.contextWindow, DEFAULT_PROVIDER_MODEL_CONTEXT_WINDOW),
+      maxTokens: normalizePositiveModelLimit(entry.maxTokens, DEFAULT_PROVIDER_MODEL_MAX_TOKENS),
     }))
     .filter((entry) => entry.id);
 }
