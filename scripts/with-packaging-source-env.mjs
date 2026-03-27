@@ -3,7 +3,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { resolvePackagingSourceEnv } from './lib/app-env.mjs';
+import { resolvePackagingOverlayEnv, resolvePackagingSourceEnv } from './lib/app-env.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -16,6 +16,7 @@ if (!commandArgs.length) {
   process.exit(1);
 }
 
+const packagingOverlayEnv = resolvePackagingOverlayEnv(rootDir);
 const packagingSourceEnv = resolvePackagingSourceEnv(rootDir);
 const missing = Object.entries(packagingSourceEnv)
   .filter(([, value]) => !String(value || '').trim())
@@ -35,6 +36,7 @@ const result = spawnSync(command, args, {
   cwd: process.cwd(),
   env: {
     ...process.env,
+    ...packagingOverlayEnv,
     ...packagingSourceEnv,
   },
   shell: process.platform === 'win32',

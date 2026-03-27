@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
-import { readPreferredEnvValue, resolveConfiguredAppName } from './app-env.mjs';
+import { readPreferredEnvValue, readPreferredPackagingEnvValue, resolveConfiguredAppName } from './app-env.mjs';
 
 function trimString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -66,7 +66,11 @@ function resolveProfile(config, profileName) {
 }
 
 function resolveEnvValue(rootDir, key) {
-  return trimString(process.env[key]) || trimString(readPreferredEnvValue(rootDir, key));
+  return (
+    trimString(process.env[key]) ||
+    trimString(readPreferredPackagingEnvValue(rootDir, key)) ||
+    trimString(readPreferredEnvValue(rootDir, key))
+  );
 }
 
 function resolveMappedValue(rootDir, key, value, errors) {

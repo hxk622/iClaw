@@ -59,6 +59,22 @@ function envFileCandidates(rootDir) {
   return envFileCandidatesFor(rootDir, resolveSelectedEnvName());
 }
 
+function packagingEnvFileCandidatesFor(rootDir, envName = '') {
+  const selectedEnv = normalizeEnvName(envName);
+  const candidates = [];
+  if (selectedEnv) {
+    candidates.push(path.join(rootDir, `.env.packaging.${selectedEnv}.local`));
+    candidates.push(path.join(rootDir, `.env.packaging.${selectedEnv}`));
+  }
+  candidates.push(path.join(rootDir, '.env.packaging.local'));
+  candidates.push(path.join(rootDir, '.env.packaging'));
+  return candidates;
+}
+
+function packagingEnvFileCandidates(rootDir) {
+  return packagingEnvFileCandidatesFor(rootDir, resolveSelectedEnvName());
+}
+
 export function readPreferredEnvValue(rootDir, key) {
   for (const filePath of envFileCandidates(rootDir)) {
     const values = readEnvFile(filePath);
@@ -81,8 +97,32 @@ export function readPreferredEnvValueFor(rootDir, envName, key) {
   return '';
 }
 
+export function readPreferredPackagingEnvValue(rootDir, key) {
+  for (const filePath of packagingEnvFileCandidates(rootDir)) {
+    const values = readEnvFile(filePath);
+    const value = trimString(values[key]);
+    if (value) {
+      return value;
+    }
+  }
+  return '';
+}
+
+export function resolvePackagingOverlayEnv(rootDir) {
+  const files = packagingEnvFileCandidates(rootDir);
+  const merged = {};
+  for (let index = files.length - 1; index >= 0; index -= 1) {
+    Object.assign(merged, readEnvFile(files[index]));
+  }
+  return merged;
+}
+
 export function resolvePackagingSourceEnv(rootDir) {
-  const pick = (key) => trimString(process.env[key]) || readPreferredEnvValue(rootDir, key);
+  const pick =
+    (key) =>
+      trimString(process.env[key]) ||
+      readPreferredPackagingEnvValue(rootDir, key) ||
+      readPreferredEnvValue(rootDir, key);
 
   return {
     DATABASE_URL: pick('ICLAW_PACKAGE_SOURCE_DATABASE_URL'),
