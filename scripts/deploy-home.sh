@@ -17,7 +17,7 @@ if [[ "$MODE" == "prod" ]]; then
   : "${ICLAW_NGINX_PATH:=$HOME_NGINX_PATH_DEFAULT}"
 
   cd "$ROOT_DIR"
-  pnpm build:home-web
+  ICLAW_USE_PACKAGING_SOURCE_ENV=1 pnpm build:home-web
 
   echo "Deploying home-web/dist -> ${ICLAW_NGINX_USER}@${ICLAW_NGINX_HOST}:${ICLAW_NGINX_PATH}"
   ssh "${ICLAW_NGINX_USER}@${ICLAW_NGINX_HOST}" "mkdir -p ${ICLAW_NGINX_PATH}"
