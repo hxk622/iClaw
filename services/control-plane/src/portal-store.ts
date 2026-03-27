@@ -2053,11 +2053,12 @@ export class PgPortalStore {
       `,
       [input.scopeType, input.scopeKey, input.providerKey],
     );
-    const profileId = input.id || existing.rows[0]?.id || randomUUID();
+    const existingProfileId = existing.rows[0]?.id || '';
+    const profileId = existingProfileId || input.id || randomUUID();
     const client = await this.pool.connect();
     try {
       await client.query('begin');
-      await client.query<PortalModelProviderProfileRow>(
+      const profileResult = await client.query<{id: string}>(
         `
           insert into model_provider_profiles (
             id,
@@ -2093,6 +2094,7 @@ export class PgPortalStore {
             enabled = excluded.enabled,
             sort_order = excluded.sort_order,
             updated_at = now()
+          returning id
         `,
         [
           profileId,
@@ -2110,9 +2112,10 @@ export class PgPortalStore {
           input.sortOrder ?? 100,
         ],
       );
+      const resolvedProfileId = profileResult.rows[0]?.id || profileId;
 
       if (Array.isArray(input.models)) {
-        await client.query(`delete from model_provider_profile_models where profile_id = $1`, [profileId]);
+        await client.query(`delete from model_provider_profile_models where profile_id = $1`, [resolvedProfileId]);
         for (const item of input.models) {
           await client.query(
             `
@@ -2137,7 +2140,7 @@ export class PgPortalStore {
             `,
             [
               item.id || randomUUID(),
-              profileId,
+              resolvedProfileId,
               item.modelRef,
               item.modelId,
               item.label,
@@ -2160,9 +2163,9 @@ export class PgPortalStore {
     } finally {
       client.release();
     }
-    const next = await this.getModelProviderProfile(profileId);
+    const next = await this.getModelProviderProfile(existingProfileId || input.id || profileId);
     if (!next) {
-      throw new Error(`model provider profile upsert failed: ${profileId}`);
+      throw new Error(`model provider profile upsert failed: ${existingProfileId || input.id || profileId}`);
     }
     return next;
   }
