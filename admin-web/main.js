@@ -4144,25 +4144,19 @@ async function saveModelProviderProfile(form) {
 
     if (shouldSaveProfile) {
       const models = Array.from(form.querySelectorAll('[data-model-provider-row="true"]'))
-        .map((row) => {
+        .map((row, index) => {
           const getValue = (name) => row.querySelector(`[name="${name}"]`);
           return {
             modelRef: String(getValue('model_ref')?.value || '').trim(),
             label: String(getValue('model_label')?.value || '').trim(),
             modelId: String(getValue('model_id')?.value || '').trim(),
             logoPresetKey: String(getValue('model_logo_preset_key')?.value || '').trim() || null,
-            reasoning: String(getValue('model_reasoning')?.value || 'false') === 'true',
-            inputModalities: splitCommaLines(String(getValue('model_input_modalities')?.value || '')),
-            contextWindow: (() => {
-              const raw = String(getValue('model_context_window')?.value || '').trim();
-              return raw ? Number(raw) : null;
-            })(),
-            maxTokens: (() => {
-              const raw = String(getValue('model_max_tokens')?.value || '').trim();
-              return raw ? Number(raw) : null;
-            })(),
-            enabled: String(getValue('model_enabled')?.value || 'true') === 'true',
-            sortOrder: Number(String(getValue('model_sort_order')?.value || '100').trim() || 100),
+            reasoning: false,
+            inputModalities: ['text'],
+            contextWindow: null,
+            maxTokens: null,
+            enabled: true,
+            sortOrder: 100 + index,
             metadata: {},
           };
         })
@@ -4175,15 +4169,15 @@ async function saveModelProviderProfile(form) {
           scopeType,
           scopeKey,
           providerKey,
-          providerLabel: String(formData.get('provider_label') || '').trim(),
-          apiProtocol: String(formData.get('api_protocol') || '').trim() || 'openai-completions',
+          providerLabel: providerKey,
+          apiProtocol: 'openai-completions',
           baseUrl: String(formData.get('base_url') || '').trim(),
-          authMode: String(formData.get('auth_mode') || 'bearer').trim(),
+          authMode: 'bearer',
           apiKey: String(formData.get('api_key') || '').trim(),
           logoPresetKey: String(formData.get('logo_preset_key') || '').trim() || null,
-          metadata: parseJsonText(String(formData.get('metadata_json') || '{}').trim() || '{}', 'Provider metadata'),
-          enabled: String(formData.get('enabled') || 'true') === 'true',
-          sortOrder: Number(String(formData.get('sort_order') || '100').trim() || 100),
+          metadata: {},
+          enabled: true,
+          sortOrder: 100,
           models,
         }),
       });
@@ -6296,7 +6290,8 @@ function renderModelLogoPreview(presetKey, label = 'Logo') {
 }
 
 function renderModelProviderRow(item = {}, index = 0) {
-  const logoPreset = getModelLogoPreset(String(item.logoPresetKey || ''));
+  const logoPresetKey = String(item.logoPresetKey || '');
+  const logoPreset = getModelLogoPreset(logoPresetKey);
   return `
     <div class="fig-card fig-card--subtle" data-model-provider-row="true" style="padding:16px;">
       <div class="fig-card__head">
@@ -6316,47 +6311,21 @@ function renderModelProviderRow(item = {}, index = 0) {
           <span>Model ID</span>
           <input class="field-input" name="model_id" value="${fieldValue(item.modelId || '')}" placeholder="qwen-max" />
         </label>
-        <label class="field">
-          <span>Sort Order</span>
-          <input class="field-input" name="model_sort_order" type="number" min="0" value="${fieldValue(item.sortOrder ?? 100)}" />
-        </label>
-        <label class="field">
-          <span>Reasoning</span>
-          <select class="field-select" name="model_reasoning">
-            <option value="true"${item.reasoning === true ? ' selected' : ''}>true</option>
-            <option value="false"${item.reasoning === true ? '' : ' selected'}>false</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>Enabled</span>
-          <select class="field-select" name="model_enabled">
-            <option value="true"${item.enabled !== false ? ' selected' : ''}>true</option>
-            <option value="false"${item.enabled === false ? ' selected' : ''}>false</option>
-          </select>
-        </label>
-        <label class="field field--wide">
-          <span>Input Modalities</span>
-          <input class="field-input" name="model_input_modalities" value="${fieldValue((item.inputModalities || []).join(', '))}" placeholder="text, image" />
-        </label>
-        <label class="field">
-          <span>Context Window</span>
-          <input class="field-input" name="model_context_window" type="number" min="0" value="${fieldValue(item.contextWindow ?? '')}" />
-        </label>
-        <label class="field">
-          <span>Max Tokens</span>
-          <input class="field-input" name="model_max_tokens" type="number" min="0" value="${fieldValue(item.maxTokens ?? '')}" />
-        </label>
         <label class="field field--wide">
           <span>Logo Preset</span>
-          <input class="field-input" name="model_logo_preset_key" value="${fieldValue(item.logoPresetKey || '')}" placeholder="logo preset key" readonly />
+          <select class="field-select" name="model_logo_preset_key" data-logo-select="true">
+            <option value="">不设置</option>
+            ${(state.modelLogoPresets || [])
+              .map(
+                (preset) =>
+                  `<option value="${escapeHtml(preset.presetKey)}"${logoPresetKey === preset.presetKey ? ' selected' : ''}>${escapeHtml(preset.label)}</option>`,
+              )
+              .join('')}
+          </select>
         </label>
         <div class="field field--wide">
           <span>Logo Preview</span>
           <div data-logo-preview="true">${logoPreset ? renderModelLogoPreview(logoPreset.presetKey, '模型 Logo') : '<div class="empty-state" style="min-height:40px;">模型 Logo 未设置</div>'}</div>
-          <div class="action-row" style="margin-top:8px;">
-            <button class="ghost-button" type="button" data-action="pick-model-logo" data-input-name="model_logo_preset_key">选择 Logo</button>
-            <button class="text-button" type="button" data-action="clear-model-logo" data-input-name="model_logo_preset_key">清空</button>
-          </div>
         </div>
       </div>
     </div>
@@ -6374,19 +6343,14 @@ function renderModelProviderCenterPage() {
     scopeType,
     scopeKey,
     providerKey: '',
-    providerLabel: '',
-    apiProtocol: 'openai-completions',
     baseUrl: '',
     apiKey: '',
-    authMode: 'bearer',
     logoPresetKey: '',
-    metadata: {},
-    enabled: true,
-    sortOrder: 100,
     models: [],
   };
   const override = selectedBrand ? state.modelProviderOverrides[selectedBrand.brandId] || null : null;
-  const providerLogoPreset = getModelLogoPreset(profile.logoPresetKey || '');
+  const providerLogoPresetKey = String(profile.logoPresetKey || '');
+  const providerLogoPreset = getModelLogoPreset(providerLogoPresetKey);
   const tabs = [
     {key: 'platform', label: '平台'},
     ...(state.brands || []).map((brand) => ({key: brand.brandId, label: brand.displayName})),
@@ -6448,20 +6412,6 @@ function renderModelProviderCenterPage() {
               <span>Provider Key</span>
               <input class="field-input" name="provider_key" value="${fieldValue(profile.providerKey || '')}" placeholder="bailian / siliconflow" />
             </label>
-            <label class="field">
-              <span>Provider Label</span>
-              <input class="field-input" name="provider_label" value="${fieldValue(profile.providerLabel || '')}" placeholder="阿里云百炼" />
-            </label>
-            <label class="field">
-              <span>API Protocol</span>
-              <input class="field-input" name="api_protocol" value="${fieldValue(profile.apiProtocol || 'openai-completions')}" placeholder="openai-completions" />
-            </label>
-            <label class="field">
-              <span>Auth Mode</span>
-              <select class="field-select" name="auth_mode">
-                ${['bearer', 'query'].map((item) => `<option value="${item}"${(profile.authMode || 'bearer') === item ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('')}
-              </select>
-            </label>
             <label class="field field--wide">
               <span>Base URL</span>
               <input class="field-input" name="base_url" value="${fieldValue(profile.baseUrl || '')}" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1" />
@@ -6472,31 +6422,20 @@ function renderModelProviderCenterPage() {
             </label>
             <label class="field field--wide">
               <span>Provider Logo Preset</span>
-              <input class="field-input" name="logo_preset_key" value="${fieldValue(profile.logoPresetKey || '')}" placeholder="logo preset key" readonly />
+              <select class="field-select" name="logo_preset_key" data-logo-select="true">
+                <option value="">不设置</option>
+                ${(state.modelLogoPresets || [])
+                  .map(
+                    (preset) =>
+                      `<option value="${escapeHtml(preset.presetKey)}"${providerLogoPresetKey === preset.presetKey ? ' selected' : ''}>${escapeHtml(preset.label)}</option>`,
+                  )
+                  .join('')}
+              </select>
             </label>
             <div class="field field--wide">
               <span>Provider Logo Preview</span>
               <div data-logo-preview="true">${providerLogoPreset ? renderModelLogoPreview(providerLogoPreset.presetKey, 'Provider Logo') : '<div class="empty-state" style="min-height:40px;">Provider Logo 未设置</div>'}</div>
-              <div class="action-row" style="margin-top:8px;">
-                <button class="ghost-button" type="button" data-action="pick-model-logo" data-input-name="logo_preset_key">选择 Logo</button>
-                <button class="text-button" type="button" data-action="clear-model-logo" data-input-name="logo_preset_key">清空</button>
-              </div>
             </div>
-            <label class="field">
-              <span>Enabled</span>
-              <select class="field-select" name="enabled">
-                <option value="true"${profile.enabled !== false ? ' selected' : ''}>true</option>
-                <option value="false"${profile.enabled === false ? ' selected' : ''}>false</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>Sort Order</span>
-              <input class="field-input" name="sort_order" type="number" min="0" value="${fieldValue(profile.sortOrder ?? 100)}" />
-            </label>
-            <label class="field field--wide">
-              <span>Metadata JSON</span>
-              <textarea class="field-textarea" name="metadata_json">${escapeHtml(prettyJson(profile.metadata || {}))}</textarea>
-            </label>
           </div>
           <section class="fig-card fig-card--subtle" style="margin-top:16px;">
             <div class="fig-card__head">
@@ -9945,6 +9884,10 @@ app.addEventListener('change', (event) => {
         void uploadAgentAvatarFile(agentEditorForm, file);
       }
     }
+  }
+  if (target.matches('[data-logo-select="true"]')) {
+    const preview = target.closest('.field')?.nextElementSibling?.querySelector('[data-logo-preview="true"]');
+    renderLogoPreviewInto(preview, target.value);
   }
   handleFilterInput(target);
 });
