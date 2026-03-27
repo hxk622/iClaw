@@ -8,6 +8,7 @@ LOG_DIR="${ICLAW_LOG_DIR:-$ROOT_DIR/logs/openclaw}"
 LOG_FILE="${ICLAW_OPENCLAW_LOG:-$LOG_DIR/openclaw-$(date +%Y%m%d-%H%M%S).log}"
 LATEST_LOG="$LOG_DIR/latest.log"
 RUNTIME_CONFIG_PATH="${ICLAW_RUNTIME_CONFIG_PATH:-$ROOT_DIR/services/openclaw/resources/config/runtime-config.json}"
+PORTAL_RUNTIME_CONFIG_PATH="${ICLAW_PORTAL_RUNTIME_CONFIG_PATH:-$ROOT_DIR/services/openclaw/resources/config/portal-app-runtime.json}"
 EXTRA_CA_CERTS_PATH="${ICLAW_EXTRA_CA_CERTS_PATH:-$ROOT_DIR/services/openclaw/resources/certs/isrg-root-x1.pem}"
 OPENCLAW_VERBOSE="${ICLAW_OPENCLAW_VERBOSE:-1}"
 OPENCLAW_WS_LOG_STYLE="${ICLAW_OPENCLAW_WS_LOG:-compact}"
@@ -26,9 +27,16 @@ fi
 
 read_env_value() {
   local key="$1"
-  local env_file="$ROOT_DIR/.env"
-  [[ -f "$env_file" ]] || return 0
-  sed -n "s/^${key}=//p" "$env_file" | tail -n1
+  local env_file=""
+  for env_file in "$ROOT_DIR/.env" "$ROOT_DIR/.env.dev"; do
+    [[ -f "$env_file" ]] || continue
+    local value
+    value="$(sed -n "s/^${key}=//p" "$env_file" | tail -n1)"
+    if [[ -n "$value" ]]; then
+      printf '%s' "$value"
+      return 0
+    fi
+  done
 }
 
 read_runtime_config_value() {
@@ -52,27 +60,7 @@ PORTAL_APP_NAME="${PORTAL_APP_NAME:-${ENV_APP_NAME:-}}"
 GATEWAY_TOKEN="${OPENCLAW_GATEWAY_TOKEN:-${ENV_GATEWAY_TOKEN:-iclaw-local-dev-gateway-token}}"
 OPENCLAW_STATE_DIR="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}"
 OPENCLAW_CONFIG_PATH="${OPENCLAW_CONFIG_PATH:-$OPENCLAW_STATE_DIR/openclaw.json}"
-RUNTIME_OPENAI_API_KEY="${OPENAI_API_KEY:-$(read_runtime_config_value openai_api_key)}"
-RUNTIME_OPENAI_BASE_URL="${OPENAI_BASE_URL:-${OPENAI_API_BASE:-$(read_runtime_config_value openai_base_url)}}"
-RUNTIME_OPENAI_MODEL="${OPENAI_MODEL:-$(read_runtime_config_value openai_model)}"
 RUNTIME_ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-$(read_runtime_config_value anthropic_api_key)}"
-
-normalize_openai_base_url() {
-  local base_url="${1:-}"
-  base_url="${base_url%"${base_url##*[![:space:]]}"}"
-  base_url="${base_url#"${base_url%%[![:space:]]*}"}"
-  base_url="${base_url%/}"
-  if [[ -z "$base_url" ]]; then
-    return 0
-  fi
-  if [[ "$base_url" == */v1 ]]; then
-    printf '%s' "$base_url"
-  else
-    printf '%s/v1' "$base_url"
-  fi
-}
-
-RUNTIME_OPENAI_BASE_URL="$(normalize_openai_base_url "$RUNTIME_OPENAI_BASE_URL")"
 
 detect_target_triple() {
   rustc -vV 2>/dev/null | sed -n 's/^host: //p'
@@ -204,7 +192,7 @@ sync_gateway_token_config() {
   ICLAW_OPENCLAW_CONFIG_PATH="$OPENCLAW_CONFIG_PATH" \
   ICLAW_OPENCLAW_RUNTIME_CONFIG_PATH="$RUNTIME_CONFIG_PATH" \
   ICLAW_OPENCLAW_GATEWAY_TOKEN="$GATEWAY_TOKEN" \
-  ICLAW_OPENCLAW_PORTAL_RUNTIME_CONFIG_PATH="$ROOT_DIR/services/openclaw/resources/config/portal-app-runtime.json" \
+  ICLAW_OPENCLAW_PORTAL_RUNTIME_CONFIG_PATH="$PORTAL_RUNTIME_CONFIG_PATH" \
   ICLAW_OPENCLAW_WORKSPACE_DIR="$OPENCLAW_STATE_DIR/workspace" \
   ICLAW_OPENCLAW_RUNTIME_MODE="dev" \
   ICLAW_OPENCLAW_ALLOWED_ORIGINS="http://127.0.0.1:1520,http://localhost:1520" \
@@ -285,10 +273,6 @@ start_openclaw_detached() {
   echo "[api-dev] gateway tracing: verbose=$OPENCLAW_VERBOSE ws-log=$OPENCLAW_WS_LOG_STYLE raw-stream=$OPENCLAW_RAW_STREAM"
   OPENCLAW_LOG_DIR="$LOG_DIR" \
   OPENCLAW_GATEWAY_TOKEN="$GATEWAY_TOKEN" \
-  OPENAI_API_KEY="$RUNTIME_OPENAI_API_KEY" \
-  OPENAI_BASE_URL="$RUNTIME_OPENAI_BASE_URL" \
-  OPENAI_API_BASE="$RUNTIME_OPENAI_BASE_URL" \
-  OPENAI_MODEL="$RUNTIME_OPENAI_MODEL" \
   ANTHROPIC_API_KEY="$RUNTIME_ANTHROPIC_API_KEY" \
   NODE_EXTRA_CA_CERTS="$EXTRA_CA_CERTS_PATH" \
   PORT="$API_PORT" \
@@ -345,10 +329,6 @@ start_openclaw_foreground() {
   echo "[api-dev] gateway tracing: verbose=$OPENCLAW_VERBOSE ws-log=$OPENCLAW_WS_LOG_STYLE raw-stream=$OPENCLAW_RAW_STREAM"
   OPENCLAW_LOG_DIR="$LOG_DIR" \
   OPENCLAW_GATEWAY_TOKEN="$GATEWAY_TOKEN" \
-  OPENAI_API_KEY="$RUNTIME_OPENAI_API_KEY" \
-  OPENAI_BASE_URL="$RUNTIME_OPENAI_BASE_URL" \
-  OPENAI_API_BASE="$RUNTIME_OPENAI_BASE_URL" \
-  OPENAI_MODEL="$RUNTIME_OPENAI_MODEL" \
   ANTHROPIC_API_KEY="$RUNTIME_ANTHROPIC_API_KEY" \
   NODE_EXTRA_CA_CERTS="$EXTRA_CA_CERTS_PATH" \
   PORT="$API_PORT" \
