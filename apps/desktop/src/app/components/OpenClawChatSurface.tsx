@@ -474,6 +474,7 @@ function summarizeDraggedFiles(dataTransfer: DataTransfer | null | undefined): D
 const MESSAGE_ACTION_FEEDBACK_MS = 1600;
 const USAGE_SETTLEMENT_RETRY_INTERVAL_MS = 1500;
 const USAGE_SETTLEMENT_MAX_WAIT_MS = 60_000;
+const USAGE_SETTLEMENT_TERMINAL_GRACE_MS = 6_000;
 const MESSAGE_ACTION_ICONS = {
   copy:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
@@ -2976,6 +2977,37 @@ export function OpenClawChatSurface({
         pending.terminalState = terminalEvent.state;
       }
 
+      const tryLoadBillingSummary = async (): Promise<boolean> => {
+        try {
+          const billingSummary = await creditClient.getRunBillingSummary(creditToken, pending.grantId);
+          annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
+            billingSummary,
+            billingState: 'charged',
+          });
+          settledAny = true;
+          shouldRefreshBalance = true;
+          shouldRefreshFooter = true;
+          return true;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (!/not found/i.test(message)) {
+            console.warn('[desktop] failed to load run billing summary', {
+              runId: pending.runId,
+              grantId: pending.grantId,
+              error,
+            });
+          }
+          return false;
+        }
+      };
+
+      if (pending.terminalState !== 'pending') {
+        const resolvedFromSummary = await tryLoadBillingSummary();
+        if (resolvedFromSummary) {
+          continue;
+        }
+      }
+
       const usage =
         (terminalEvent?.message ? deriveAssistantUsageFromMessage(terminalEvent.message) : null) ||
         (findLatestTerminalChatRunSince(app, pending.sessionKey, pending.startedAt) === pending.runId
@@ -2986,6 +3018,20 @@ export function OpenClawChatSurface({
         pending.attempts += 1;
         if (pending.terminalState === 'error') {
           console.warn('[desktop] skip credit settlement because run ended with error', pending);
+          annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
+            billingState: 'missing',
+          });
+          shouldRefreshFooter = true;
+          continue;
+        }
+        if (
+          pending.terminalState !== 'pending' &&
+          Date.now() - pending.startedAt >= USAGE_SETTLEMENT_TERMINAL_GRACE_MS
+        ) {
+          annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
+            billingState: 'missing',
+          });
+          shouldRefreshFooter = true;
           continue;
         }
         if (Date.now() >= pending.expiresAt) {
@@ -3023,6 +3069,9 @@ export function OpenClawChatSurface({
           grantId: pending.grantId,
           error,
         });
+        if (await tryLoadBillingSummary()) {
+          continue;
+        }
         if (Date.now() >= pending.expiresAt) {
           annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
             billingState: 'missing',
