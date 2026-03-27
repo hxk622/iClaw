@@ -25,10 +25,8 @@ function normalizeStoredAuth(input: Partial<StoredAuth> | null | undefined): Sto
 }
 
 function readBrowserAuth(): StoredAuth | null {
-  const accessToken =
-    localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY) || localStorage.getItem(LEGACY_ACCESS_TOKEN_KEY);
-  const refreshToken =
-    localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY) || localStorage.getItem(LEGACY_REFRESH_TOKEN_KEY);
+  const accessToken = localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
+  const refreshToken = localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
   return normalizeStoredAuth({ accessToken: accessToken || '', refreshToken: refreshToken || '' });
 }
 
@@ -45,26 +43,6 @@ function clearBrowserAuth(): void {
 }
 
 function readLegacyBrowserAuth(): StoredAuth | null {
-  const legacyPairs = LEGACY_NAMESPACE_ACCESS_TOKEN_KEYS.map((accessKey, index) => ({
-    accessKey,
-    refreshKey: LEGACY_NAMESPACE_REFRESH_TOKEN_KEYS[index],
-  }));
-
-  for (const pair of legacyPairs) {
-    const accessToken = localStorage.getItem(pair.accessKey);
-    const refreshToken = localStorage.getItem(pair.refreshKey);
-    if (!accessToken || !refreshToken) {
-      continue;
-    }
-
-    const auth = normalizeStoredAuth({ accessToken, refreshToken });
-    if (!auth) {
-      continue;
-    }
-    persistBrowserAuth(auth);
-    return auth;
-  }
-
   return null;
 }
 
