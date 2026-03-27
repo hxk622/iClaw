@@ -10,12 +10,29 @@ CONTROL_PLANE_DETACH="${ICLAW_CONTROL_PLANE_DETACH:-1}"
 CONTROL_PLANE_SCRIPT="${ICLAW_CONTROL_PLANE_SCRIPT:-start}"
 CONTROL_PLANE_HEALTH_RETRIES="${ICLAW_CONTROL_PLANE_HEALTH_RETRIES:-240}"
 
+port_pids_with_netstat() {
+  netstat.exe -ano 2>/dev/null | awk -v port=":$CONTROL_PORT" '
+    index($2, port) && $4 == "LISTENING" { print $5 }
+  ' | tr -d '\r' | sort -u
+}
+
 stop_existing_control_plane() {
   local pids=""
-  pids="$(lsof -ti ":$CONTROL_PORT" || true)"
+  if command -v lsof >/dev/null 2>&1; then
+    pids="$(lsof -ti ":$CONTROL_PORT" || true)"
+  elif command -v netstat.exe >/dev/null 2>&1; then
+    pids="$(port_pids_with_netstat || true)"
+  fi
   if [[ -n "$pids" ]]; then
     echo "[control-plane-dev] 关闭已存在 control-plane (:$CONTROL_PORT): $pids"
-    kill $pids >/dev/null 2>&1 || true
+    if command -v taskkill.exe >/dev/null 2>&1; then
+      while IFS= read -r pid; do
+        [[ -n "$pid" ]] || continue
+        taskkill.exe //PID "$pid" //F >/dev/null 2>&1 || true
+      done <<< "$pids"
+    else
+      kill $pids >/dev/null 2>&1 || true
+    fi
     sleep 0.4
   fi
 }
