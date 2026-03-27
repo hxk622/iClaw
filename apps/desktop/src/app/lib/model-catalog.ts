@@ -2,6 +2,7 @@ export type GatewayModelCatalogEntry = {
   id: string;
   name: string;
   provider: string;
+  logoPresetKey?: string | null;
   contextWindow?: number;
   reasoning?: boolean;
   input?: Array<'text' | 'image'>;
@@ -28,6 +29,7 @@ export type ComposerModelOption = {
   id: string;
   label: string;
   family: ModelFamily;
+  logoPresetKey: string | null;
   detail: string;
   badge: string | null;
   tier: ComposerModelTier;
@@ -328,6 +330,7 @@ export function buildComposerModelOptions(models: GatewayModelCatalogEntry[]): C
         id: entry.id.trim(),
         label: resolveModelLabel(entry),
         family,
+        logoPresetKey: typeof entry.logoPresetKey === 'string' && entry.logoPresetKey.trim() ? entry.logoPresetKey.trim() : null,
         detail: buildCapabilityDetail(entry, presentation),
         badge: presentation?.badge ?? null,
         tier: presentation?.tier ?? 'other',

@@ -22,7 +22,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { ModelBrandIcon } from './ModelBrandIcon';
+import { ComposerModelLogo } from './ComposerModelLogo';
 import { findComposerModelOption, type ComposerModelOption } from '../lib/model-catalog';
 import type { ResolvedInputComposerConfig } from '../lib/oem-runtime';
 import { Chip } from './ui/Chip';
@@ -150,6 +150,7 @@ type ComposerTokenMeta = {
 };
 
 type RichChatComposerProps = {
+  authBaseUrl: string;
   connected: boolean;
   busy: boolean;
   sessionTransitioning?: boolean;
@@ -644,6 +645,7 @@ function groupSkillOptions(skillOptions: ComposerSkillOption[]): Array<{
 export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatComposerProps>(
   function RichChatComposer(
     {
+      authBaseUrl,
       connected,
       busy,
       sessionTransitioning = false,
@@ -3268,8 +3270,10 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                     }}
                   >
                     <span className="iclaw-composer__model-trigger-main">
-                      <ModelBrandIcon
+                      <ComposerModelLogo
+                        authBaseUrl={authBaseUrl}
                         family={selectedModel?.family ?? 'generic'}
+                        logoPresetKey={selectedModel?.logoPresetKey ?? null}
                         className="iclaw-composer__model-logo"
                       />
                       <span className="iclaw-composer__model-copy">
@@ -3315,7 +3319,12 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                               }}
                             >
                               <span className="iclaw-composer__model-option-main">
-                                <ModelBrandIcon family={option.family} className="iclaw-composer__model-option-logo" />
+                                <ComposerModelLogo
+                                  authBaseUrl={authBaseUrl}
+                                  family={option.family}
+                                  logoPresetKey={option.logoPresetKey}
+                                  className="iclaw-composer__model-option-logo"
+                                />
                                 <span className="iclaw-composer__model-option-label">{option.label}</span>
                               </span>
                               <span className="iclaw-composer__model-option-meta">

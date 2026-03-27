@@ -65,6 +65,7 @@ export function mapRuntimeModelsToGatewayEntries(
       id: String(entry.modelRef || entry.modelId || '').trim(),
       name: String(entry.label || entry.modelId || '').trim(),
       provider,
+      logoPresetKey: typeof entry.logoPresetKey === 'string' && entry.logoPresetKey.trim() ? entry.logoPresetKey.trim() : null,
       contextWindow: typeof entry.contextWindow === 'number' ? entry.contextWindow : undefined,
       reasoning: Boolean(entry.reasoning),
       input: Array.isArray(entry.inputModalities)

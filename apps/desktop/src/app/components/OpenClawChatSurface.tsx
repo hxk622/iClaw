@@ -3997,6 +3997,7 @@ export function OpenClawChatSurface({
             ) : null}
 
             <RichChatComposer
+              authBaseUrl={authBaseUrl}
               ref={composerRef}
               connected={status.connected}
               busy={status.busy}
