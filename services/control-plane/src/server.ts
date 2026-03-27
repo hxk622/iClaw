@@ -43,8 +43,10 @@ import {PgOemStore} from './oem-store.ts';
 import {OemService} from './oem-service.ts';
 import type {
   UpsertPortalAppInput,
+  UpsertPortalAppModelRuntimeOverrideInput,
   UpsertPortalMenuInput,
   UpsertPortalModelInput,
+  UpsertPortalModelProviderProfileInput,
   UpsertPortalMcpInput,
   UpsertPortalSkillInput,
 } from './portal-domain.ts';
@@ -62,6 +64,7 @@ import {
   resolveDesktopUpdateResponseHeaders,
   resolveDesktopUpdaterRoutePayload,
 } from './desktop-update-resolver.ts';
+import type {KeyValueCache} from './cache.ts';
 import type {ControlPlaneStore} from './store.ts';
 
 if (!config.databaseUrl) {
@@ -72,6 +75,7 @@ await ensureControlPlaneSchema(config.databaseUrl);
 
 let store: ControlPlaneStore = new PgControlPlaneStore(config.databaseUrl);
 let cacheLabel = 'none';
+let runtimeCache: KeyValueCache | null = null;
 const oemStore = new PgOemStore(config.databaseUrl);
 const portalStore = new PgPortalStore(config.databaseUrl);
 
@@ -80,6 +84,7 @@ if (config.redisUrl) {
     const cache = await createRedisKeyValueCache(config.redisUrl, config.redisKeyPrefix);
     store = new CachedControlPlaneStore(store, cache);
     cacheLabel = cache.label;
+    runtimeCache = cache;
   } catch (error) {
     console.warn('[control-plane] redis unavailable, continuing without cache', error);
   }
@@ -95,7 +100,7 @@ const service = new ControlPlaneService(store);
 const oemService = new OemService(oemStore, async (accessToken) => service.me(accessToken), {
   controlStore: store,
 });
-const portalService = new PortalService(portalStore, async (accessToken) => service.me(accessToken));
+const portalService = new PortalService(portalStore, async (accessToken) => service.me(accessToken), {cache: runtimeCache});
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const skillsSourceRoot = resolve(process.env.ICLAW_SKILLS_SOURCE_DIR || resolve(repoRoot, 'skills'));
 
@@ -1181,6 +1186,15 @@ const server = createJsonServer([
     handler: ({headers}: HandlerContext) => portalService.listModels(requireBearerToken(headers)),
   },
   {
+    method: 'GET',
+    path: '/admin/portal/model-provider-profiles',
+    handler: ({headers, url}: HandlerContext) =>
+      portalService.listModelProviderProfiles(requireBearerToken(headers), {
+        scopeType: (url.searchParams.get('scope_type') || '').trim() || null,
+        scopeKey: (url.searchParams.get('scope_key') || '').trim() || null,
+      }),
+  },
+  {
     method: 'PUT',
     path: '/admin/portal/catalog/mcps/:mcpKey',
     handler: ({headers, params, body}: HandlerContext) =>
@@ -1196,10 +1210,22 @@ const server = createJsonServer([
       portalService.upsertModel(requireBearerToken(headers), (body || {}) as UpsertPortalModelInput),
   },
   {
+    method: 'PUT',
+    path: '/admin/portal/model-provider-profiles',
+    handler: ({headers, body}: HandlerContext) =>
+      portalService.upsertModelProviderProfile(requireBearerToken(headers), (body || {}) as UpsertPortalModelProviderProfileInput),
+  },
+  {
     method: 'DELETE',
     path: '/admin/portal/catalog/models',
     handler: ({headers, url}: HandlerContext) =>
       portalService.deleteModel(requireBearerToken(headers), (url.searchParams.get('ref') || '').trim()),
+  },
+  {
+    method: 'DELETE',
+    path: '/admin/portal/model-provider-profiles',
+    handler: ({headers, url}: HandlerContext) =>
+      portalService.deleteModelProviderProfile(requireBearerToken(headers), (url.searchParams.get('id') || '').trim()),
   },
   {
     method: 'DELETE',
@@ -1224,6 +1250,21 @@ const server = createJsonServer([
     path: '/admin/portal/apps/:appName/models',
     handler: ({headers, params, body}: HandlerContext) =>
       portalService.replaceAppModels(requireBearerToken(headers), params.appName || '', (body || []) as never),
+  },
+  {
+    method: 'GET',
+    path: '/admin/portal/apps/:appName/model-provider-override',
+    handler: ({headers, params}: HandlerContext) =>
+      portalService.getAppModelRuntimeOverride(requireBearerToken(headers), params.appName || ''),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/portal/apps/:appName/model-provider-override',
+    handler: ({headers, params, body}: HandlerContext) =>
+      portalService.upsertAppModelRuntimeOverride(requireBearerToken(headers), {
+        ...((body || {}) as Record<string, unknown>),
+        appName: params.appName || '',
+      } as UpsertPortalAppModelRuntimeOverrideInput),
   },
   {
     method: 'PUT',
@@ -1303,6 +1344,12 @@ const server = createJsonServer([
       portalService.getPublicAppConfig((url.searchParams.get('app_name') || '').trim(), resolvePublicBaseUrl(headers), {
         surfaceKey: (url.searchParams.get('surface_key') || '').trim() || null,
       }),
+  },
+  {
+    method: 'GET',
+    path: '/portal/runtime/models',
+    handler: ({url}: HandlerContext) =>
+      portalService.getResolvedRuntimeModels((url.searchParams.get('app_name') || '').trim()),
   },
   {
     method: 'GET',

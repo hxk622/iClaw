@@ -1,11 +1,5 @@
 [
   {
-    "preset_key": "20250227-194559",
-    "label": "20250227-194559",
-    "asset_path": "services/control-plane/presets/assets/model-logos/20250227-194559.png",
-    "asset_type": "image/png"
-  },
-  {
     "preset_key": "baai",
     "label": "BAAI",
     "asset_path": "services/control-plane/presets/assets/model-logos/BAAI.svg",
@@ -46,12 +40,6 @@
     "label": "Hunyuan",
     "asset_path": "services/control-plane/presets/assets/model-logos/hunyuan.svg",
     "asset_type": "image/svg+xml"
-  },
-  {
-    "preset_key": "ling",
-    "label": "ling",
-    "asset_path": "services/control-plane/presets/assets/model-logos/ling.png",
-    "asset_type": "image/png"
   },
   {
     "preset_key": "minimax-color",

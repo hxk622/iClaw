@@ -65,6 +65,64 @@ export type PortalModelRecord = {
   updatedAt: string;
 };
 
+export type PortalModelProviderScopeType = 'platform' | 'app';
+
+export type PortalAppModelProviderMode = 'inherit_platform' | 'use_app_profile';
+
+export type PortalModelProviderProfileModelRecord = {
+  id: string;
+  profileId: string;
+  modelRef: string;
+  modelId: string;
+  label: string;
+  logoPresetKey: string | null;
+  reasoning: boolean;
+  inputModalities: string[];
+  contextWindow: number | null;
+  maxTokens: number | null;
+  enabled: boolean;
+  sortOrder: number;
+  metadata: PortalJsonObject;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PortalModelProviderProfileRecord = {
+  id: string;
+  scopeType: PortalModelProviderScopeType;
+  scopeKey: string;
+  providerKey: string;
+  providerLabel: string;
+  apiProtocol: string;
+  baseUrl: string;
+  authMode: string;
+  apiKey: string;
+  logoPresetKey: string | null;
+  metadata: PortalJsonObject;
+  enabled: boolean;
+  sortOrder: number;
+  models: PortalModelProviderProfileModelRecord[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PortalAppModelRuntimeOverrideRecord = {
+  appName: string;
+  providerMode: PortalAppModelProviderMode;
+  activeProfileId: string | null;
+  cacheVersion: number;
+  updatedAt: string;
+};
+
+export type PortalResolvedRuntimeModelsResult = {
+  appName: string;
+  providerMode: PortalAppModelProviderMode;
+  resolvedScope: PortalModelProviderScopeType;
+  profile: PortalModelProviderProfileRecord;
+  models: PortalModelProviderProfileModelRecord[];
+  version: number;
+};
+
 export type PortalMenuRecord = {
   menuKey: string;
   displayName: string;
@@ -274,6 +332,43 @@ export type UpsertPortalModelInput = {
   maxTokens?: number;
   metadata?: PortalJsonObject;
   active?: boolean;
+};
+
+export type UpsertPortalModelProviderProfileInput = {
+  id?: string | null;
+  scopeType: PortalModelProviderScopeType;
+  scopeKey: string;
+  providerKey: string;
+  providerLabel: string;
+  apiProtocol: string;
+  baseUrl: string;
+  authMode?: string | null;
+  apiKey: string;
+  logoPresetKey?: string | null;
+  metadata?: PortalJsonObject;
+  enabled?: boolean;
+  sortOrder?: number;
+  models?: Array<{
+    id?: string | null;
+    modelRef: string;
+    modelId: string;
+    label: string;
+    logoPresetKey?: string | null;
+    reasoning?: boolean;
+    inputModalities?: string[];
+    contextWindow?: number | null;
+    maxTokens?: number | null;
+    enabled?: boolean;
+    sortOrder?: number;
+    metadata?: PortalJsonObject;
+  }>;
+};
+
+export type UpsertPortalAppModelRuntimeOverrideInput = {
+  appName: string;
+  providerMode?: PortalAppModelProviderMode;
+  activeProfileId?: string | null;
+  cacheVersion?: number | null;
 };
 
 export type UpsertPortalMenuInput = {

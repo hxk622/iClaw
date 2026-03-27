@@ -18,11 +18,14 @@ import {
 } from './portal-desktop-release.ts';
 import {deletePortalAssetFile, downloadPortalAssetFile, uploadPortalAssetFile} from './portal-asset-storage.ts';
 import {mergePlatformMcpBindings, mergePlatformSkillBindings} from './platform-inheritance.ts';
+import type {KeyValueCache} from './cache.ts';
 import type {
+  PortalAppModelProviderMode,
   PortalAppDetail,
   PortalAppRecord,
   PortalAppStatus,
   PortalJsonObject,
+  PortalModelProviderScopeType,
   ReplacePortalAppComposerControlBindingsInput,
   ReplacePortalAppComposerShortcutBindingsInput,
   ReplacePortalAppModelBindingsInput,
@@ -30,7 +33,9 @@ import type {
   ReplacePortalAppMenuBindingsInput,
   ReplacePortalAppSkillBindingsInput,
   UpsertPortalAppInput,
+  UpsertPortalAppModelRuntimeOverrideInput,
   UpsertPortalModelInput,
+  UpsertPortalModelProviderProfileInput,
   UpsertPortalMenuInput,
   UpsertPortalMcpInput,
   UpsertPortalSkillInput,
@@ -119,6 +124,14 @@ function normalizeOptionalInteger(value: unknown, field: string, fallback: numbe
   return value;
 }
 
+function normalizeNullableInteger(value: unknown, field: string): number | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'number' || !Number.isInteger(value)) {
+    throw new HttpError(400, 'BAD_REQUEST', `${field} must be an integer`);
+  }
+  return value;
+}
+
 function parseRequiredBase64(value: unknown, field: string): Buffer {
   if (typeof value !== 'string' || !value.trim()) {
     throw new HttpError(400, 'BAD_REQUEST', `${field} is required`);
@@ -164,6 +177,38 @@ function normalizeStatus(value: unknown, fallback: PortalAppStatus = 'active'): 
   throw new HttpError(400, 'BAD_REQUEST', 'status must be active or disabled');
 }
 
+function normalizeProviderScopeType(value: unknown): PortalModelProviderScopeType | null {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  if (value === 'platform' || value === 'app') {
+    return value;
+  }
+  throw new HttpError(400, 'BAD_REQUEST', 'scope_type must be platform or app');
+}
+
+function normalizeRequiredProviderScopeType(value: unknown): PortalModelProviderScopeType {
+  const normalized = normalizeProviderScopeType(value);
+  if (!normalized) {
+    throw new HttpError(400, 'BAD_REQUEST', 'scope_type is required');
+  }
+  return normalized;
+}
+
+function normalizeProviderMode(value: unknown): PortalAppModelProviderMode {
+  if (value === undefined || value === null || value === '') {
+    return 'inherit_platform';
+  }
+  if (value === 'inherit_platform' || value === 'use_app_profile') {
+    return value;
+  }
+  throw new HttpError(400, 'BAD_REQUEST', 'provider_mode must be inherit_platform or use_app_profile');
+}
+
+function runtimeModelCacheKey(appName: string): string {
+  return `portal:runtime:models:${appName}`;
+}
+
 function normalizeBindingConfig(value: unknown): PortalJsonObject {
   if (value === undefined || value === null) return {};
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -183,10 +228,12 @@ function normalizeDesktopReleaseArtifactType(value: unknown): 'installer' | 'upd
 export class PortalService {
   private readonly store: PgPortalStore;
   private readonly authResolver: (accessToken: string) => Promise<PublicUser>;
+  private readonly cache: KeyValueCache | null;
 
-  constructor(store: PgPortalStore, authResolver: (accessToken: string) => Promise<PublicUser>) {
+  constructor(store: PgPortalStore, authResolver: (accessToken: string) => Promise<PublicUser>, options?: {cache?: KeyValueCache | null}) {
     this.store = store;
     this.authResolver = authResolver;
+    this.cache = options?.cache || null;
   }
 
   async listApps(accessToken: string) {
@@ -285,6 +332,22 @@ export class PortalService {
     return {items: await this.store.listModels()};
   }
 
+  async listModelProviderProfiles(
+    accessToken: string,
+    input?: {
+      scopeType?: string | null;
+      scopeKey?: string | null;
+    },
+  ) {
+    await this.requireAdmin(accessToken);
+    return {
+      items: await this.store.listModelProviderProfiles(
+        normalizeProviderScopeType(input?.scopeType),
+        normalizeOptionalString(input?.scopeKey, 'scope_key'),
+      ),
+    };
+  }
+
   async upsertMcp(accessToken: string, input: UpsertPortalMcpInput) {
     await this.requireAdmin(accessToken);
     return this.store.upsertMcp({
@@ -317,6 +380,122 @@ export class PortalService {
       metadata: asObject(input.metadata),
       active: normalizeOptionalBoolean(input.active, 'active', true),
     });
+  }
+
+  async upsertModelProviderProfile(accessToken: string, input: UpsertPortalModelProviderProfileInput) {
+    await this.requireAdmin(accessToken);
+    const scopeType = normalizeRequiredProviderScopeType(input.scopeType);
+    const profile = await this.store.upsertModelProviderProfile({
+      id: normalizeOptionalString(input.id, 'id'),
+      scopeType,
+      scopeKey: scopeType === 'platform' ? 'platform' : normalizeAppName(input.scopeKey),
+      providerKey: normalizeRequiredString(input.providerKey, 'provider_key'),
+      providerLabel: normalizeRequiredString(input.providerLabel, 'provider_label'),
+      apiProtocol: normalizeRequiredString(input.apiProtocol, 'api_protocol'),
+      baseUrl: normalizeRequiredString(input.baseUrl, 'base_url'),
+      authMode: normalizeOptionalString(input.authMode, 'auth_mode') || 'bearer',
+      apiKey: normalizeRequiredString(input.apiKey, 'api_key'),
+      logoPresetKey: normalizeOptionalString(input.logoPresetKey, 'logo_preset_key'),
+      metadata: asObject(input.metadata),
+      enabled: normalizeOptionalBoolean(input.enabled, 'enabled', true),
+      sortOrder: normalizeOptionalInteger(input.sortOrder, 'sort_order', 100),
+      models: asArray(input.models).map((item, index) => {
+        const value = asObject(item);
+        return {
+          id: normalizeOptionalString(value.id, `models[${index}].id`),
+          modelRef: normalizeModelRef(value.modelRef ?? value.model_ref),
+          modelId: normalizeRequiredString(value.modelId ?? value.model_id, `models[${index}].model_id`),
+          label: normalizeRequiredString(value.label, `models[${index}].label`),
+          logoPresetKey: normalizeOptionalString(value.logoPresetKey ?? value.logo_preset_key, `models[${index}].logo_preset_key`),
+          reasoning: normalizeOptionalBoolean(value.reasoning, `models[${index}].reasoning`, false),
+          inputModalities: asArray(value.inputModalities ?? value.input_modalities).map((entry) =>
+            normalizeRequiredString(entry, `models[${index}].input_modalities[]`),
+          ),
+          contextWindow: normalizeNullableInteger(value.contextWindow ?? value.context_window, `models[${index}].context_window`),
+          maxTokens: normalizeNullableInteger(value.maxTokens ?? value.max_tokens, `models[${index}].max_tokens`),
+          enabled: normalizeOptionalBoolean(value.enabled, `models[${index}].enabled`, true),
+          sortOrder: normalizeOptionalInteger(value.sortOrder ?? value.sort_order, `models[${index}].sort_order`, 100),
+          metadata: asObject(value.metadata),
+        };
+      }),
+    });
+    await this.invalidateRuntimeModelCachesForScope(profile.scopeType, profile.scopeKey);
+    return profile;
+  }
+
+  async deleteModelProviderProfile(accessToken: string, profileIdInput: string) {
+    await this.requireAdmin(accessToken);
+    const profileId = normalizeRequiredString(profileIdInput, 'id');
+    const existing = await this.store.getModelProviderProfile(profileId);
+    await this.store.deleteModelProviderProfile(profileId);
+    if (existing) {
+      await this.invalidateRuntimeModelCachesForScope(existing.scopeType, existing.scopeKey);
+    }
+    return {id: profileId};
+  }
+
+  async getAppModelRuntimeOverride(accessToken: string, appNameInput: string) {
+    await this.requireAdmin(accessToken);
+    return this.store.getAppModelRuntimeOverride(normalizeAppName(appNameInput));
+  }
+
+  async upsertAppModelRuntimeOverride(accessToken: string, input: UpsertPortalAppModelRuntimeOverrideInput) {
+    await this.requireAdmin(accessToken);
+    const appName = normalizeAppName(input.appName);
+    const providerMode = normalizeProviderMode(input.providerMode);
+    const record = await this.store.upsertAppModelRuntimeOverride({
+      appName,
+      providerMode,
+      activeProfileId: providerMode === 'use_app_profile' ? normalizeOptionalString(input.activeProfileId, 'active_profile_id') : null,
+      cacheVersion: normalizeOptionalInteger(input.cacheVersion, 'cache_version', Date.now()),
+    });
+    await this.invalidateRuntimeModelCache(appName);
+    return record;
+  }
+
+  async getResolvedRuntimeModels(appNameInput: string) {
+    const appName = normalizeAppName(appNameInput);
+    const cacheKey = runtimeModelCacheKey(appName);
+    const cached = await this.cache?.get<{
+      appName: string;
+      providerMode: PortalAppModelProviderMode;
+      resolvedScope: PortalModelProviderScopeType;
+      profile: Record<string, unknown>;
+      models: unknown[];
+      version: number;
+    }>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+    const resolved = await this.store.resolveRuntimeModels(appName);
+    if (!resolved) {
+      throw new HttpError(404, 'NOT_FOUND', 'runtime models not found');
+    }
+    const publicPayload = {
+      appName: resolved.appName,
+      providerMode: resolved.providerMode,
+      resolvedScope: resolved.resolvedScope,
+      profile: {
+        id: resolved.profile.id,
+        scopeType: resolved.profile.scopeType,
+        scopeKey: resolved.profile.scopeKey,
+        providerKey: resolved.profile.providerKey,
+        providerLabel: resolved.profile.providerLabel,
+        apiProtocol: resolved.profile.apiProtocol,
+        baseUrl: resolved.profile.baseUrl,
+        authMode: resolved.profile.authMode,
+        logoPresetKey: resolved.profile.logoPresetKey,
+        metadata: resolved.profile.metadata,
+        enabled: resolved.profile.enabled,
+        sortOrder: resolved.profile.sortOrder,
+        createdAt: resolved.profile.createdAt,
+        updatedAt: resolved.profile.updatedAt,
+      },
+      models: resolved.models,
+      version: resolved.version,
+    };
+    await this.cache?.set(cacheKey, publicPayload, 600);
+    return publicPayload;
   }
 
   async deleteModel(accessToken: string, refInput: string) {
@@ -782,6 +961,28 @@ export class PortalService {
         normalizePersistedPortalAssetUrl(asset.publicUrl, baseUrl) ||
         `${baseUrl.replace(/\/$/, '')}/portal/asset/file?app_name=${encodeURIComponent(appName)}&asset_key=${encodeURIComponent(asset.assetKey)}`,
     });
+  }
+
+  private async invalidateRuntimeModelCache(appName: string): Promise<void> {
+    await this.cache?.delete(runtimeModelCacheKey(appName));
+  }
+
+  private async invalidateRuntimeModelCachesForScope(
+    scopeType: PortalModelProviderScopeType,
+    scopeKey: string,
+  ): Promise<void> {
+    if (scopeType === 'app') {
+      await this.invalidateRuntimeModelCache(scopeKey);
+      return;
+    }
+    await this.invalidateRuntimeModelCache('platform');
+    const apps = await this.store.listApps();
+    for (const app of apps) {
+      const override = await this.store.getAppModelRuntimeOverride(app.appName);
+      if (!override || override.providerMode === 'inherit_platform') {
+        await this.invalidateRuntimeModelCache(app.appName);
+      }
+    }
   }
 
   private async getAppDetailOrThrow(appNameInput: string): Promise<PortalAppDetail> {

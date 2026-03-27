@@ -4,6 +4,8 @@ import {Pool, type PoolClient} from 'pg';
 import {HttpError} from './errors.ts';
 
 import type {
+  PortalAppModelProviderMode,
+  PortalAppModelRuntimeOverrideRecord,
   PortalAppComposerControlBindingRecord,
   PortalAppComposerShortcutBindingRecord,
   PortalAppAssetRecord,
@@ -19,6 +21,10 @@ import type {
   PortalComposerControlRecord,
   PortalComposerShortcutRecord,
   PortalJsonObject,
+  PortalModelProviderProfileModelRecord,
+  PortalModelProviderProfileRecord,
+  PortalModelProviderScopeType,
+  PortalResolvedRuntimeModelsResult,
   PortalModelRecord,
   PortalMenuRecord,
   PortalMcpRecord,
@@ -32,7 +38,9 @@ import type {
   UpsertPortalAppInput,
   UpsertPortalComposerControlInput,
   UpsertPortalComposerShortcutInput,
+  UpsertPortalAppModelRuntimeOverrideInput,
   UpsertPortalModelInput,
+  UpsertPortalModelProviderProfileInput,
   UpsertPortalMenuInput,
   UpsertPortalMcpInput,
   UpsertPortalSkillInput,
@@ -110,6 +118,50 @@ type PortalMenuRow = {
   metadata_json: Record<string, unknown> | null;
   active: boolean;
   created_at: Date;
+  updated_at: Date;
+};
+
+type PortalModelProviderProfileRow = {
+  id: string;
+  scope_type: PortalModelProviderScopeType;
+  scope_key: string;
+  provider_key: string;
+  provider_label: string;
+  api_protocol: string;
+  base_url: string;
+  auth_mode: string;
+  api_key: string;
+  logo_preset_key: string | null;
+  metadata_json: Record<string, unknown> | null;
+  enabled: boolean;
+  sort_order: number;
+  created_at: Date;
+  updated_at: Date;
+};
+
+type PortalModelProviderProfileModelRow = {
+  id: string;
+  profile_id: string;
+  model_ref: string;
+  model_id: string;
+  label: string;
+  logo_preset_key: string | null;
+  reasoning: boolean;
+  input_modalities_json: unknown[] | null;
+  context_window: number | null;
+  max_tokens: number | null;
+  enabled: boolean;
+  sort_order: number;
+  metadata_json: Record<string, unknown> | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+type PortalAppModelRuntimeOverrideRow = {
+  app_name: string;
+  provider_mode: PortalAppModelProviderMode;
+  active_profile_id: string | null;
+  cache_version: string | number;
   updated_at: Date;
 };
 
@@ -346,6 +398,60 @@ function mapModelRow(row: PortalModelRow): PortalModelRecord {
     metadata: asJsonObject(row.metadata_json),
     active: row.active,
     createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapModelProviderProfileModelRow(row: PortalModelProviderProfileModelRow): PortalModelProviderProfileModelRecord {
+  return {
+    id: row.id,
+    profileId: row.profile_id,
+    modelRef: row.model_ref,
+    modelId: row.model_id,
+    label: row.label,
+    logoPresetKey: row.logo_preset_key,
+    reasoning: row.reasoning,
+    inputModalities: asStringArray(row.input_modalities_json),
+    contextWindow: typeof row.context_window === 'number' ? row.context_window : null,
+    maxTokens: typeof row.max_tokens === 'number' ? row.max_tokens : null,
+    enabled: row.enabled,
+    sortOrder: row.sort_order,
+    metadata: asJsonObject(row.metadata_json),
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapModelProviderProfileRow(
+  row: PortalModelProviderProfileRow,
+  models: PortalModelProviderProfileModelRecord[] = [],
+): PortalModelProviderProfileRecord {
+  return {
+    id: row.id,
+    scopeType: row.scope_type,
+    scopeKey: row.scope_key,
+    providerKey: row.provider_key,
+    providerLabel: row.provider_label,
+    apiProtocol: row.api_protocol,
+    baseUrl: row.base_url,
+    authMode: row.auth_mode,
+    apiKey: row.api_key,
+    logoPresetKey: row.logo_preset_key,
+    metadata: asJsonObject(row.metadata_json),
+    enabled: row.enabled,
+    sortOrder: row.sort_order,
+    models,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapAppModelRuntimeOverrideRow(row: PortalAppModelRuntimeOverrideRow): PortalAppModelRuntimeOverrideRecord {
+  return {
+    appName: row.app_name,
+    providerMode: row.provider_mode,
+    activeProfileId: row.active_profile_id,
+    cacheVersion: Number(row.cache_version || 1),
     updatedAt: row.updated_at.toISOString(),
   };
 }
@@ -1854,6 +1960,357 @@ export class PgPortalStore {
 
   async deleteModel(ref: string): Promise<void> {
     await this.pool.query(`delete from oem_model_catalog where ref = $1`, [ref]);
+  }
+
+  async listModelProviderProfiles(
+    scopeType?: PortalModelProviderScopeType | null,
+    scopeKey?: string | null,
+  ): Promise<PortalModelProviderProfileRecord[]> {
+    const values: Array<string> = [];
+    const filters: string[] = [];
+    if (scopeType) {
+      values.push(scopeType);
+      filters.push(`scope_type = $${values.length}`);
+    }
+    if (scopeKey && scopeKey.trim()) {
+      values.push(scopeKey.trim());
+      filters.push(`scope_key = $${values.length}`);
+    }
+    const whereClause = filters.length ? `where ${filters.join(' and ')}` : '';
+    const profilesResult = await this.pool.query<PortalModelProviderProfileRow>(
+      `
+        select
+          id,
+          scope_type,
+          scope_key,
+          provider_key,
+          provider_label,
+          api_protocol,
+          base_url,
+          auth_mode,
+          api_key,
+          logo_preset_key,
+          metadata_json,
+          enabled,
+          sort_order,
+          created_at,
+          updated_at
+        from model_provider_profiles
+        ${whereClause}
+        order by scope_type asc, scope_key asc, sort_order asc, provider_key asc
+      `,
+      values,
+    );
+    if (profilesResult.rows.length === 0) {
+      return [];
+    }
+    const modelsByProfileId = await this.listModelProviderProfileModelsByProfileIds(profilesResult.rows.map((row) => row.id));
+    return profilesResult.rows.map((row) => mapModelProviderProfileRow(row, modelsByProfileId.get(row.id) || []));
+  }
+
+  async getModelProviderProfile(id: string): Promise<PortalModelProviderProfileRecord | null> {
+    const result = await this.pool.query<PortalModelProviderProfileRow>(
+      `
+        select
+          id,
+          scope_type,
+          scope_key,
+          provider_key,
+          provider_label,
+          api_protocol,
+          base_url,
+          auth_mode,
+          api_key,
+          logo_preset_key,
+          metadata_json,
+          enabled,
+          sort_order,
+          created_at,
+          updated_at
+        from model_provider_profiles
+        where id = $1
+        limit 1
+      `,
+      [id],
+    );
+    const row = result.rows[0];
+    if (!row) {
+      return null;
+    }
+    const modelsByProfileId = await this.listModelProviderProfileModelsByProfileIds([id]);
+    return mapModelProviderProfileRow(row, modelsByProfileId.get(id) || []);
+  }
+
+  async upsertModelProviderProfile(input: UpsertPortalModelProviderProfileInput): Promise<PortalModelProviderProfileRecord> {
+    const existing = await this.pool.query<{id: string}>(
+      `
+        select id
+        from model_provider_profiles
+        where scope_type = $1
+          and scope_key = $2
+          and provider_key = $3
+        limit 1
+      `,
+      [input.scopeType, input.scopeKey, input.providerKey],
+    );
+    const profileId = input.id || existing.rows[0]?.id || randomUUID();
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+      await client.query<PortalModelProviderProfileRow>(
+        `
+          insert into model_provider_profiles (
+            id,
+            scope_type,
+            scope_key,
+            provider_key,
+            provider_label,
+            api_protocol,
+            base_url,
+            auth_mode,
+            api_key,
+            logo_preset_key,
+            metadata_json,
+            enabled,
+            sort_order,
+            created_at,
+            updated_at
+          )
+          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, now(), now())
+          on conflict (scope_type, scope_key, provider_key)
+          do update set
+            id = model_provider_profiles.id,
+            scope_type = excluded.scope_type,
+            scope_key = excluded.scope_key,
+            provider_key = excluded.provider_key,
+            provider_label = excluded.provider_label,
+            api_protocol = excluded.api_protocol,
+            base_url = excluded.base_url,
+            auth_mode = excluded.auth_mode,
+            api_key = excluded.api_key,
+            logo_preset_key = excluded.logo_preset_key,
+            metadata_json = excluded.metadata_json,
+            enabled = excluded.enabled,
+            sort_order = excluded.sort_order,
+            updated_at = now()
+        `,
+        [
+          profileId,
+          input.scopeType,
+          input.scopeKey,
+          input.providerKey,
+          input.providerLabel,
+          input.apiProtocol,
+          input.baseUrl,
+          input.authMode || 'bearer',
+          input.apiKey,
+          input.logoPresetKey || null,
+          JSON.stringify(input.metadata || {}),
+          input.enabled ?? true,
+          input.sortOrder ?? 100,
+        ],
+      );
+
+      if (Array.isArray(input.models)) {
+        await client.query(`delete from model_provider_profile_models where profile_id = $1`, [profileId]);
+        for (const item of input.models) {
+          await client.query(
+            `
+              insert into model_provider_profile_models (
+                id,
+                profile_id,
+                model_ref,
+                model_id,
+                label,
+                logo_preset_key,
+                reasoning,
+                input_modalities_json,
+                context_window,
+                max_tokens,
+                enabled,
+                sort_order,
+                metadata_json,
+                created_at,
+                updated_at
+              )
+              values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13::jsonb, now(), now())
+            `,
+            [
+              item.id || randomUUID(),
+              profileId,
+              item.modelRef,
+              item.modelId,
+              item.label,
+              item.logoPresetKey || null,
+              item.reasoning ?? false,
+              JSON.stringify(item.inputModalities || []),
+              item.contextWindow ?? null,
+              item.maxTokens ?? null,
+              item.enabled ?? true,
+              item.sortOrder ?? 100,
+              JSON.stringify(item.metadata || {}),
+            ],
+          );
+        }
+      }
+      await client.query('commit');
+    } catch (error) {
+      await client.query('rollback').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+    const next = await this.getModelProviderProfile(profileId);
+    if (!next) {
+      throw new Error(`model provider profile upsert failed: ${profileId}`);
+    }
+    return next;
+  }
+
+  async deleteModelProviderProfile(id: string): Promise<void> {
+    await this.pool.query(`delete from model_provider_profiles where id = $1`, [id]);
+  }
+
+  async getAppModelRuntimeOverride(appName: string): Promise<PortalAppModelRuntimeOverrideRecord | null> {
+    const result = await this.pool.query<PortalAppModelRuntimeOverrideRow>(
+      `
+        select
+          app_name,
+          provider_mode,
+          active_profile_id,
+          cache_version,
+          updated_at
+        from app_model_runtime_overrides
+        where app_name = $1
+        limit 1
+      `,
+      [appName],
+    );
+    return result.rows[0] ? mapAppModelRuntimeOverrideRow(result.rows[0]) : null;
+  }
+
+  async upsertAppModelRuntimeOverride(
+    input: UpsertPortalAppModelRuntimeOverrideInput,
+  ): Promise<PortalAppModelRuntimeOverrideRecord> {
+    const result = await this.pool.query<PortalAppModelRuntimeOverrideRow>(
+      `
+        insert into app_model_runtime_overrides (
+          app_name,
+          provider_mode,
+          active_profile_id,
+          cache_version,
+          updated_at
+        )
+        values ($1, $2, $3, $4, now())
+        on conflict (app_name)
+        do update set
+          provider_mode = excluded.provider_mode,
+          active_profile_id = excluded.active_profile_id,
+          cache_version = excluded.cache_version,
+          updated_at = now()
+        returning
+          app_name,
+          provider_mode,
+          active_profile_id,
+          cache_version,
+          updated_at
+      `,
+      [
+        input.appName,
+        input.providerMode || 'inherit_platform',
+        input.activeProfileId || null,
+        input.cacheVersion ?? 1,
+      ],
+    );
+    return mapAppModelRuntimeOverrideRow(result.rows[0]);
+  }
+
+  async resolveRuntimeModels(appName: string): Promise<PortalResolvedRuntimeModelsResult | null> {
+    const [apps, override] = await Promise.all([
+      this.listApps(),
+      this.getAppModelRuntimeOverride(appName),
+    ]);
+    if (!apps.some((item) => item.appName === appName)) {
+      return null;
+    }
+    const providerMode = override?.providerMode || 'inherit_platform';
+    let resolvedScope: PortalModelProviderScopeType = 'platform';
+    let profile: PortalModelProviderProfileRecord | null = null;
+
+    if (providerMode === 'use_app_profile' && override?.activeProfileId) {
+      profile = await this.getModelProviderProfile(override.activeProfileId);
+      if (profile?.scopeType === 'app' && profile.scopeKey === appName && profile.enabled) {
+        resolvedScope = 'app';
+      } else {
+        profile = null;
+      }
+    }
+
+    if (!profile) {
+      const platformProfiles = await this.listModelProviderProfiles('platform', 'platform');
+      profile = platformProfiles.find((item) => item.enabled) || null;
+      resolvedScope = 'platform';
+    }
+
+    if (!profile) {
+      return null;
+    }
+
+    const models = profile.models
+      .filter((item) => item.enabled)
+      .sort((left, right) => left.sortOrder - right.sortOrder || left.label.localeCompare(right.label, 'zh-CN'));
+    const versionBase = resolvedScope === 'app' ? override?.cacheVersion ?? 1 : 1;
+    const updatedAtMs = Date.parse(profile.updatedAt) || Date.now();
+
+    return {
+      appName,
+      providerMode,
+      resolvedScope,
+      profile,
+      models,
+      version: Math.max(versionBase, updatedAtMs),
+    };
+  }
+
+  private async listModelProviderProfileModelsByProfileIds(
+    profileIds: string[],
+  ): Promise<Map<string, PortalModelProviderProfileModelRecord[]>> {
+    const normalized = [...new Set(profileIds.map((item) => item.trim()).filter(Boolean))];
+    const grouped = new Map<string, PortalModelProviderProfileModelRecord[]>();
+    if (normalized.length === 0) {
+      return grouped;
+    }
+    const result = await this.pool.query<PortalModelProviderProfileModelRow>(
+      `
+        select
+          id,
+          profile_id,
+          model_ref,
+          model_id,
+          label,
+          logo_preset_key,
+          reasoning,
+          input_modalities_json,
+          context_window,
+          max_tokens,
+          enabled,
+          sort_order,
+          metadata_json,
+          created_at,
+          updated_at
+        from model_provider_profile_models
+        where profile_id = any($1::uuid[])
+        order by sort_order asc, label asc, model_ref asc
+      `,
+      [normalized],
+    );
+    for (const row of result.rows) {
+      const item = mapModelProviderProfileModelRow(row);
+      const bucket = grouped.get(item.profileId) || [];
+      bucket.push(item);
+      grouped.set(item.profileId, bucket);
+    }
+    return grouped;
   }
 
   async upsertMcp(input: UpsertPortalMcpInput): Promise<PortalMcpRecord> {
