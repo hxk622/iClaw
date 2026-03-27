@@ -630,11 +630,17 @@ body {
 }
 
 .openclaw-chat-surface .iclaw-chat-assistant-meta[data-state='pending'] {
-  color: color-mix(in srgb, var(--brand-primary) 70%, var(--text-secondary) 30%);
+  color: var(--chat-surface-muted);
 }
 
 .openclaw-chat-surface .iclaw-chat-assistant-meta[data-state='missing'] {
-  color: color-mix(in srgb, #dc2626 68%, var(--text-secondary) 32%);
+  color: var(--chat-surface-muted);
+}
+
+.openclaw-chat-surface .iclaw-chat-assistant-meta[data-state='pending'] .iclaw-chat-assistant-meta__value,
+.openclaw-chat-surface .iclaw-chat-assistant-meta[data-state='missing'] .iclaw-chat-assistant-meta__value {
+  color: inherit;
+  font-weight: 400;
 }
 
 .openclaw-chat-surface .iclaw-chat-assistant-footer__right {
