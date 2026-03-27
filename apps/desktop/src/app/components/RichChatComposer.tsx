@@ -137,6 +137,8 @@ type ComposerFloatingMenuPosition = {
   top: number;
 };
 
+type ComposerInstrumentMenuKind = 'stock' | 'fund';
+
 type ComposerTokenMeta = {
   id: string;
   kind: 'reference' | 'attachment' | 'agent' | 'stock';
@@ -174,7 +176,8 @@ type RichChatComposerProps = {
   initialSelectedAgentSlug?: string | null;
   initialSelectedSkillSlug?: string | null;
   initialSelectedStock?: ComposerStockContext | null;
-  searchInstruments?: (query: string) => Promise<ComposerStockOption[]>;
+  searchStocks?: (query: string) => Promise<ComposerStockOption[]>;
+  searchFunds?: (query: string) => Promise<ComposerStockOption[]>;
   composerConfig?: ResolvedInputComposerConfig | null;
   onSelectedSkillSlugChange?: (slug: string | null) => void;
 };
@@ -253,9 +256,10 @@ const DEFAULT_TOP_BAR_CONTROLS = [
   { controlKey: 'skill', displayName: '选择技能', controlType: 'skill', sortOrder: 20, options: [] },
   { controlKey: 'mode', displayName: '选择模式', controlType: 'static', sortOrder: 30, options: MODE_OPTIONS },
   { controlKey: 'market-scope', displayName: '选择市场', controlType: 'static', sortOrder: 40, options: MARKET_SCOPE_OPTIONS },
-  { controlKey: 'stock-context', displayName: '选择基金/ETF', controlType: 'stock', sortOrder: 50, options: [] },
-  { controlKey: 'watchlist', displayName: '选择股票', controlType: 'static', sortOrder: 60, options: WATCHLIST_OPTIONS },
-  { controlKey: 'output-format', displayName: '输出模版', controlType: 'static', sortOrder: 70, options: OUTPUT_OPTIONS },
+  { controlKey: 'stock-context', displayName: '选择股票', controlType: 'stock', sortOrder: 50, options: [] },
+  { controlKey: 'fund-context', displayName: '选择基金/ETF', controlType: 'fund', sortOrder: 60, options: [] },
+  { controlKey: 'watchlist', displayName: '选择自选组', controlType: 'static', sortOrder: 70, options: WATCHLIST_OPTIONS },
+  { controlKey: 'output-format', displayName: '输出模版', controlType: 'static', sortOrder: 80, options: OUTPUT_OPTIONS },
 ] as const;
 
 const DEFAULT_FOOTER_SHORTCUTS = QUICK_QUERY_OPTIONS.map((item, index) => ({
@@ -664,7 +668,8 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       initialSelectedAgentSlug = null,
       initialSelectedSkillSlug = null,
       initialSelectedStock = null,
-      searchInstruments,
+      searchStocks,
+      searchFunds,
       composerConfig = null,
       onSelectedSkillSlugChange,
     },
@@ -677,6 +682,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const mentionToolbarRef = useRef<HTMLDivElement | null>(null);
     const mentionFloatingMenuRef = useRef<HTMLDivElement | null>(null);
     const stockToolbarRef = useRef<HTMLDivElement | null>(null);
+    const fundToolbarRef = useRef<HTMLDivElement | null>(null);
     const stockFloatingMenuRef = useRef<HTMLDivElement | null>(null);
     const skillMenuRef = useRef<HTMLDivElement | null>(null);
     const modeMenuRef = useRef<HTMLDivElement | null>(null);
@@ -697,6 +703,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const [stockMenuOpen, setStockMenuOpen] = useState(false);
     const [stockMenuSource, setStockMenuSource] = useState<ComposerMenuSource | null>(null);
     const [stockMenuPosition, setStockMenuPosition] = useState<ComposerFloatingMenuPosition | null>(null);
+    const [stockMenuKind, setStockMenuKind] = useState<ComposerInstrumentMenuKind>('stock');
     const [skillMenuOpen, setSkillMenuOpen] = useState(false);
     const [modeMenuOpen, setModeMenuOpen] = useState(false);
     const [marketMenuOpen, setMarketMenuOpen] = useState(false);
@@ -1035,6 +1042,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       setStockMenuOpen(false);
       setStockMenuSource(null);
       setStockMenuPosition(null);
+      setStockMenuKind('stock');
       setStockQuery('');
       setStockError(null);
       pendingStockTriggerRef.current = false;
@@ -1410,11 +1418,12 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       }
     }, [closeMarketMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, connected, syncMentionMenuPosition]);
 
-    const openStockMenu = useCallback((source: ComposerMenuSource) => {
+    const openStockMenu = useCallback((source: ComposerMenuSource, kind: ComposerInstrumentMenuKind = 'stock') => {
       if (!connected) {
         return;
       }
       pendingStockTriggerRef.current = source === 'typing';
+      setStockMenuKind(kind);
       setStockMenuSource(source);
       setStockQuery(source === 'typing' ? findTriggerMatchBeforeCaret('#')?.query ?? '' : '');
       setModelMenuOpen(false);
@@ -1748,9 +1757,10 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     }, [initialSelectedStock]);
 
     useEffect(() => {
-      if (!stockMenuOpen || !connected || !searchInstruments) {
+      const activeSearch = stockMenuKind === 'stock' ? searchStocks : searchFunds;
+      if (!stockMenuOpen || !connected || !activeSearch) {
         setStockLoading(false);
-        if (!stockMenuOpen || !searchInstruments) {
+        if (!stockMenuOpen || !activeSearch) {
           setStockResults([]);
         }
         return;
@@ -1762,7 +1772,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       setStockLoading(true);
       setStockError(null);
 
-      void searchInstruments(stockQuery.trim())
+      void activeSearch(stockQuery.trim())
         .then((results) => {
           if (cancelled || stockSearchSeqRef.current !== sequence) {
             return;
@@ -1786,7 +1796,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       return () => {
         cancelled = true;
       };
-    }, [connected, searchInstruments, stockMenuOpen, stockQuery]);
+    }, [connected, searchFunds, searchStocks, stockMenuKind, stockMenuOpen, stockQuery]);
 
     useEffect(() => {
       if (!visibleTopBarControlKeys.has('mode') || (selectedMode && !findStaticOption(modeOptions, selectedMode))) {
@@ -1863,6 +1873,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
           mentionToolbarRef.current?.contains(target) ||
           mentionFloatingMenuRef.current?.contains(target) ||
           stockToolbarRef.current?.contains(target) ||
+          fundToolbarRef.current?.contains(target) ||
           stockFloatingMenuRef.current?.contains(target) ||
           skillMenuRef.current?.contains(target) ||
           modeMenuRef.current?.contains(target) ||
@@ -2000,13 +2011,27 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const marketScopeControl = topBarControlMap.get('market-scope')?.item || null;
     const stockControl =
       topBarControlMap.get('stock-context')?.item ||
-      (searchInstruments
+      (searchStocks
         ? {
             controlKey: 'stock-context',
-            displayName: findDefaultTopBarControl('stock-context')?.displayName || '选择基金/ETF',
+            displayName: findDefaultTopBarControl('stock-context')?.displayName || '选择股票',
             controlType: 'stock',
             iconKey: null,
             sortOrder: findDefaultTopBarControl('stock-context')?.sortOrder || 50,
+            options: [],
+            metadata: {},
+            config: {},
+          }
+        : null);
+    const fundControl =
+      topBarControlMap.get('fund-context')?.item ||
+      (searchFunds
+        ? {
+            controlKey: 'fund-context',
+            displayName: findDefaultTopBarControl('fund-context')?.displayName || '选择基金/ETF',
+            controlType: 'fund',
+            iconKey: null,
+            sortOrder: findDefaultTopBarControl('fund-context')?.sortOrder || 60,
             options: [],
             metadata: {},
             config: {},
@@ -2049,21 +2074,41 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const skillTriggerLabel = selectedSkill?.name ?? skillControl?.displayName ?? '选择技能';
     const modeTriggerLabel = selectedModeOption?.label ?? modeControl?.displayName ?? '选择模式';
     const marketTriggerLabel = selectedMarketScopeOption?.label ?? marketScopeControl?.displayName ?? '选择市场';
-    const stockTriggerLabel = selectedStockContextLabel ?? stockControl?.displayName ?? '选择基金/ETF';
+    const selectedContextKind: ComposerInstrumentMenuKind | null =
+      selectedStockContext?.instrumentKind === 'fund' ||
+      selectedStockContext?.instrumentKind === 'etf' ||
+      selectedStockContext?.instrumentKind === 'qdii'
+        ? 'fund'
+        : selectedStockContext
+          ? 'stock'
+          : null;
+    const stockTriggerLabel =
+      selectedContextKind === 'stock' ? selectedStockContextLabel ?? stockControl?.displayName ?? '选择股票' : stockControl?.displayName ?? '选择股票';
+    const fundTriggerLabel =
+      selectedContextKind === 'fund'
+        ? selectedStockContextLabel ?? fundControl?.displayName ?? '选择基金/ETF'
+        : fundControl?.displayName ?? '选择基金/ETF';
     const stockMenuStatusLabel = stockLoading
       ? '搜索中'
       : stockQuery.trim()
         ? `匹配 ${stockResults.length}`
         : selectedStockContext
           ? selectedInstrumentTypeLabel
-          : '基金/ETF';
-    const watchlistTriggerLabel = selectedWatchlistOption?.label ?? watchlistControl?.displayName ?? '选择股票';
+          : stockMenuKind === 'stock'
+            ? '股票'
+            : '基金/ETF';
+    const watchlistTriggerLabel = selectedWatchlistOption?.label ?? watchlistControl?.displayName ?? '选择自选组';
     const outputTriggerLabel = selectedOutputOption?.label ?? outputControl?.displayName ?? '输出模版';
-    const stockControlVisible = Boolean(searchInstruments && stockControl);
+    const stockControlVisible = Boolean(searchStocks && stockControl);
+    const fundControlVisible = Boolean(searchFunds && fundControl);
     const stockControlOrder =
       topBarControlMap.get('stock-context')?.order ??
       findDefaultTopBarControl('stock-context')?.sortOrder ??
       50;
+    const fundControlOrder =
+      topBarControlMap.get('fund-context')?.order ??
+      findDefaultTopBarControl('fund-context')?.sortOrder ??
+      60;
     const hasActiveSelections =
       (visibleTopBarControlKeys.has('expert') && Boolean(selectedAgent)) ||
       (visibleTopBarControlKeys.has('skill') && Boolean(selectedSkill)) ||
@@ -2148,18 +2193,24 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       </div>
     );
 
+    const stockMenuControl = stockMenuKind === 'stock' ? stockControl : fundControl;
+    const stockMenuPanelTitle = stockMenuControl?.displayName || (stockMenuKind === 'stock' ? '选择股票' : '选择基金/ETF');
     const stockMenuPanel = (
-      <div className="iclaw-composer__selector-menu iclaw-composer__selector-menu--compact" role="menu" aria-label="选择基金或 ETF">
+      <div className="iclaw-composer__selector-menu iclaw-composer__selector-menu--compact" role="menu" aria-label={stockMenuPanelTitle}>
         <div className="iclaw-composer__selector-menu-header">
           <div className="iclaw-composer__selector-menu-header-copy">
             <span className="iclaw-composer__selector-menu-kicker">标的上下文</span>
-            <span className="iclaw-composer__selector-menu-title">{stockControl?.displayName || '选择基金/ETF'}</span>
+            <span className="iclaw-composer__selector-menu-title">{stockMenuPanelTitle}</span>
             <span className="iclaw-composer__selector-menu-subtitle">
               {stockQuery.trim()
                 ? `正在匹配 “#${stockQuery.trim()}”`
                 : selectedStockContext
-                  ? `当前已绑定${selectedInstrumentTypeLabel}，也可以切换成其它基金或 ETF`
-                  : '当前支持搜索基金和 ETF；从市场页进入时会自动带入对应标的'}
+                  ? stockMenuKind === 'stock'
+                    ? `当前已绑定${selectedInstrumentTypeLabel}，也可以切换成其它股票`
+                    : `当前已绑定${selectedInstrumentTypeLabel}，也可以切换成其它基金或 ETF`
+                  : stockMenuKind === 'stock'
+                    ? '当前支持搜索股票；从市场页进入时会自动带入对应标的'
+                    : '当前支持搜索基金和 ETF；从市场页进入时会自动带入对应标的'}
             </span>
           </div>
           <span className="iclaw-composer__selector-menu-pill">{stockMenuStatusLabel}</span>
@@ -2184,7 +2235,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
             {!selectedStockContext ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
           </button>
           <div className="iclaw-composer__selector-section-title">
-            {stockQuery.trim() ? '搜索结果' : '热门基金 / ETF'}
+            {stockQuery.trim() ? '搜索结果' : stockMenuKind === 'stock' ? '热门股票' : '热门基金 / ETF'}
           </div>
           {stockLoading ? (
             <div className="iclaw-composer__mention-empty">正在加载标的列表...</div>
@@ -2217,7 +2268,13 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
             })
           ) : (
             <div className="iclaw-composer__mention-empty">
-              {stockQuery.trim() ? '没有找到匹配基金或 ETF，继续输入代码或名称试试。' : '暂无可用基金或 ETF'}
+              {stockQuery.trim()
+                ? stockMenuKind === 'stock'
+                  ? '没有找到匹配股票，继续输入代码或名称试试。'
+                  : '没有找到匹配基金或 ETF，继续输入代码或名称试试。'
+                : stockMenuKind === 'stock'
+                  ? '暂无可用股票'
+                  : '暂无可用基金或 ETF'}
             </div>
           )}
         </div>
@@ -2650,19 +2707,19 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   type="button"
                   className="iclaw-composer__selector-trigger"
                   data-tone="stock"
-                  data-active={selectedStockContext ? 'true' : 'false'}
+                  data-active={selectedContextKind === 'stock' ? 'true' : 'false'}
                   disabled={!connected}
                   aria-haspopup="menu"
-                  aria-expanded={stockMenuOpen}
+                  aria-expanded={stockMenuOpen && stockMenuKind === 'stock'}
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => {
-                    if (stockMenuOpen && stockMenuSource === 'toolbar') {
+                    if (stockMenuOpen && stockMenuSource === 'toolbar' && stockMenuKind === 'stock') {
                       closeStockMenu();
                       return;
                     }
-                    openStockMenu('toolbar');
+                    openStockMenu('toolbar', 'stock');
                   }}
-                  title={selectedStockContext ? `当前标的：${stockTriggerLabel}，点击切换标的` : `${stockControl?.displayName || '选择基金/ETF'}`}
+                  title={selectedContextKind === 'stock' ? `当前股票：${stockTriggerLabel}，点击切换股票` : `${stockControl?.displayName || '选择股票'}`}
                 >
                   <span className="iclaw-composer__selector-trigger-main">
                     <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--stock">
@@ -2672,10 +2729,49 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                       <span className="iclaw-composer__selector-label">{stockTriggerLabel}</span>
                     </span>
                   </span>
-                  <ChevronDown className="iclaw-composer__selector-caret h-3.5 w-3.5" data-open={stockMenuOpen && stockMenuSource === 'toolbar' ? 'true' : 'false'} />
+                  <ChevronDown className="iclaw-composer__selector-caret h-3.5 w-3.5" data-open={stockMenuOpen && stockMenuSource === 'toolbar' && stockMenuKind === 'stock' ? 'true' : 'false'} />
                 </button>
 
-                {stockMenuOpen && stockMenuSource === 'toolbar' ? stockMenuPanel : null}
+                {stockMenuOpen && stockMenuSource === 'toolbar' && stockMenuKind === 'stock' ? stockMenuPanel : null}
+              </div>
+              ) : null}
+
+              {fundControlVisible ? (
+              <div
+                ref={fundToolbarRef}
+                className="iclaw-composer__selector"
+                style={{order: fundControlOrder}}
+              >
+                <button
+                  type="button"
+                  className="iclaw-composer__selector-trigger"
+                  data-tone="stock"
+                  data-active={selectedContextKind === 'fund' ? 'true' : 'false'}
+                  disabled={!connected}
+                  aria-haspopup="menu"
+                  aria-expanded={stockMenuOpen && stockMenuKind === 'fund'}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    if (stockMenuOpen && stockMenuSource === 'toolbar' && stockMenuKind === 'fund') {
+                      closeStockMenu();
+                      return;
+                    }
+                    openStockMenu('toolbar', 'fund');
+                  }}
+                  title={selectedContextKind === 'fund' ? `当前基金：${fundTriggerLabel}，点击切换基金` : `${fundControl?.displayName || '选择基金/ETF'}`}
+                >
+                  <span className="iclaw-composer__selector-trigger-main">
+                    <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--stock">
+                      <BarChart3 className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="iclaw-composer__selector-copy">
+                      <span className="iclaw-composer__selector-label">{fundTriggerLabel}</span>
+                    </span>
+                  </span>
+                  <ChevronDown className="iclaw-composer__selector-caret h-3.5 w-3.5" data-open={stockMenuOpen && stockMenuSource === 'toolbar' && stockMenuKind === 'fund' ? 'true' : 'false'} />
+                </button>
+
+                {stockMenuOpen && stockMenuSource === 'toolbar' && stockMenuKind === 'fund' ? stockMenuPanel : null}
               </div>
               ) : null}
 
@@ -2701,7 +2797,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                     }
                     openWatchlistMenu();
                   }}
-                  title={selectedWatchlistOption ? `当前股票：${selectedWatchlistOption.label}，点击${watchlistControl?.displayName || '选择股票'}` : `点击${watchlistControl?.displayName || '选择股票'}`}
+                  title={selectedWatchlistOption ? `当前自选组：${selectedWatchlistOption.label}，点击${watchlistControl?.displayName || '选择自选组'}` : `点击${watchlistControl?.displayName || '选择自选组'}`}
                 >
                   <span className="iclaw-composer__selector-trigger-main">
                     <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--watchlist">
@@ -2715,11 +2811,11 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                 </button>
 
                 {watchlistMenuOpen ? (
-                  <div className="iclaw-composer__selector-menu iclaw-composer__selector-menu--compact" role="menu" aria-label="选择股票">
+                  <div className="iclaw-composer__selector-menu iclaw-composer__selector-menu--compact" role="menu" aria-label="选择自选组">
                     <div className="iclaw-composer__selector-menu-header">
                       <div className="iclaw-composer__selector-menu-header-copy">
                         <span className="iclaw-composer__selector-menu-kicker">回答路径控制</span>
-                        <span className="iclaw-composer__selector-menu-title">{watchlistControl?.displayName || '选择股票'}</span>
+                        <span className="iclaw-composer__selector-menu-title">{watchlistControl?.displayName || '选择自选组'}</span>
                         <span className="iclaw-composer__selector-menu-subtitle">约束本次回答优先围绕哪组自选标的展开</span>
                       </div>
                       <span className="iclaw-composer__selector-menu-pill">{selectedWatchlistOption?.label ?? '默认'}</span>
@@ -2737,7 +2833,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                             <Star className="h-3.5 w-3.5" />
                           </span>
                           <span className="iclaw-composer__skill-option-copy">
-                            <span className="iclaw-composer__skill-option-label">默认股票</span>
+                            <span className="iclaw-composer__skill-option-label">默认自选组</span>
                             <span className="iclaw-composer__skill-option-detail">系统自动判断是否需要结合你的自选股上下文</span>
                           </span>
                         </span>

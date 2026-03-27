@@ -269,15 +269,23 @@
     },
     {
       "controlKey": "stock-context",
-      "displayName": "选择基金/ETF",
+      "displayName": "选择股票",
       "controlType": "stock",
       "iconKey": "stock-context",
       "metadata": {"sourceType": "preset"},
       "active": true
     },
     {
+      "controlKey": "fund-context",
+      "displayName": "选择基金/ETF",
+      "controlType": "fund",
+      "iconKey": "fund-context",
+      "metadata": {"sourceType": "preset"},
+      "active": true
+    },
+    {
       "controlKey": "watchlist",
-      "displayName": "选择股票",
+      "displayName": "选择自选组",
       "controlType": "static",
       "iconKey": "watchlist",
       "metadata": {"sourceType": "preset"},
@@ -1018,7 +1026,7 @@
     ],
     "composerControls": [
       {"appName": "iclaw", "items": [{"controlKey": "expert", "enabled": true, "sortOrder": 10}, {"controlKey": "skill", "enabled": true, "sortOrder": 20}, {"controlKey": "mode", "enabled": true, "sortOrder": 30}, {"controlKey": "market-scope", "enabled": true, "sortOrder": 40}, {"controlKey": "stock-context", "enabled": true, "sortOrder": 50}, {"controlKey": "watchlist", "enabled": true, "sortOrder": 60}, {"controlKey": "output-format", "enabled": true, "sortOrder": 70}]},
-      {"appName": "licaiclaw", "items": [{"controlKey": "expert", "enabled": true, "sortOrder": 10}, {"controlKey": "skill", "enabled": true, "sortOrder": 20}, {"controlKey": "mode", "enabled": true, "sortOrder": 30}, {"controlKey": "market-scope", "enabled": true, "sortOrder": 40}, {"controlKey": "stock-context", "enabled": true, "sortOrder": 50}, {"controlKey": "watchlist", "enabled": true, "sortOrder": 60}, {"controlKey": "output-format", "enabled": true, "sortOrder": 70}]}
+      {"appName": "licaiclaw", "items": [{"controlKey": "expert", "enabled": true, "sortOrder": 10}, {"controlKey": "skill", "enabled": true, "sortOrder": 20}, {"controlKey": "mode", "enabled": true, "sortOrder": 30}, {"controlKey": "market-scope", "enabled": true, "sortOrder": 40}, {"controlKey": "stock-context", "enabled": true, "sortOrder": 50, "config": {"display_name": "选择股票"}}, {"controlKey": "fund-context", "enabled": true, "sortOrder": 60, "config": {"display_name": "选择基金/ETF"}}, {"controlKey": "watchlist", "enabled": true, "sortOrder": 70, "config": {"display_name": "选择自选组"}}, {"controlKey": "output-format", "enabled": true, "sortOrder": 80}]}
     ],
     "composerShortcuts": [
       {"appName": "iclaw", "items": [{"shortcutKey": "earnings-analysis", "enabled": true, "sortOrder": 10}, {"shortcutKey": "valuation-analysis", "enabled": true, "sortOrder": 20}, {"shortcutKey": "company-compare", "enabled": true, "sortOrder": 30}, {"shortcutKey": "sector-review", "enabled": true, "sortOrder": 40}, {"shortcutKey": "market-recap", "enabled": true, "sortOrder": 50}, {"shortcutKey": "fund-analysis", "enabled": true, "sortOrder": 60}]},

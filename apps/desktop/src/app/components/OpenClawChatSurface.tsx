@@ -10,7 +10,7 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type DragEvent as ReactDragEvent } from 'react';
-import type { CreditQuoteData, IClawClient, MarketFundData, RunBillingSummaryData } from '@iclaw/sdk';
+import type { CreditQuoteData, IClawClient, MarketFundData, MarketStockData, RunBillingSummaryData } from '@iclaw/sdk';
 import '@openclaw-ui/main.ts';
 import {
   normalizeMessage,
@@ -87,6 +87,10 @@ function resolveFundComposerBoard(fund: MarketFundData): string | null {
     return '场内 LOF';
   }
   return '基金';
+}
+
+function resolveStockComposerBoard(stock: MarketStockData): string | null {
+  return typeof stock.board === 'string' && stock.board.trim() ? stock.board.trim() : 'A股';
 }
 
 type OpenClawSettings = {
@@ -1884,7 +1888,35 @@ export function OpenClawChatSurface({
     [refreshModelCatalog, resolvedModelSessionKey, selectedModelId, sessionKey],
   );
 
-  const handleSearchInstruments = useCallback(
+  const handleSearchStocks = useCallback(
+    async (query: string): Promise<ComposerStockContext[]> => {
+      if (!creditClient) {
+        return [];
+      }
+
+      const trimmedQuery = query.trim();
+      const page = await creditClient.listMarketStocksPage({
+        market: 'a_share',
+        search: trimmedQuery || undefined,
+        sort: trimmedQuery ? 'amount_desc' : 'total_market_cap_desc',
+        limit: 8,
+        offset: 0,
+      });
+
+      return page.items.map((stock) => ({
+        id: stock.id,
+        symbol: stock.symbol,
+        companyName: stock.company_name,
+        exchange: stock.exchange,
+        board: resolveStockComposerBoard(stock),
+        instrumentKind: 'stock',
+        instrumentLabel: '股票',
+      }));
+    },
+    [creditClient],
+  );
+
+  const handleSearchFunds = useCallback(
     async (query: string): Promise<ComposerStockContext[]> => {
       if (!creditClient) {
         return [];
@@ -4008,7 +4040,8 @@ export function OpenClawChatSurface({
               initialSelectedAgentSlug={initialAgentSlug}
               initialSelectedSkillSlug={initialSkillSlug}
               initialSelectedStock={initialStockContext}
-              searchInstruments={handleSearchInstruments}
+              searchStocks={handleSearchStocks}
+              searchFunds={handleSearchFunds}
               modelOptions={modelOptions}
               selectedModelId={selectedModelId}
               modelsLoading={modelsLoading}
