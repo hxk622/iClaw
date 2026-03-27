@@ -42,3 +42,4 @@ apps/desktop/src/app/assets/installer-lobster.png
 home-web/brand.generated.js
 home-web/public/brand/
 .tmp-brand-state/
+config/*.local.json

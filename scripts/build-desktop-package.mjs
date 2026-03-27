@@ -5,7 +5,8 @@ import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { resolveBrandId } from './lib/brand-profile.mjs';
-import { resolvePackagingSourceEnv } from './lib/app-env.mjs';
+import { resolveConfiguredAppName, resolvePackagingSourceEnv } from './lib/app-env.mjs';
+import { resolveOemSigningProfile } from './lib/oem-signing.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -22,8 +23,7 @@ const bundledRuntimeDir = path.join(tauriDir, 'resources', 'openclaw-runtime');
 
 function parseArgs(argv) {
   const forwardedArgs = [];
-  let brandId =
-    process.env.APP_NAME || process.env.ICLAW_PORTAL_APP_NAME || process.env.ICLAW_BRAND || process.env.ICLAW_APP_NAME || '';
+  let brandId = resolveConfiguredAppName(rootDir);
   let target = '';
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -306,9 +306,12 @@ async function main() {
   const { brandId, target, forwardedArgs } = parseArgs(process.argv.slice(2));
   const snapshotKey = 'desktop-package-build';
   const packagingSourceEnv = resolvePackagingSourceEnv(rootDir);
+  const signingProfile = await resolveOemSigningProfile({ rootDir, brandId });
   const env = {
     ...process.env,
     ...packagingSourceEnv,
+    ...signingProfile.env,
+    APP_NAME: brandId,
     ICLAW_PORTAL_APP_NAME: brandId,
     ICLAW_BRAND: brandId,
     ICLAW_USE_PACKAGING_SOURCE_ENV: '1',
@@ -319,6 +322,15 @@ async function main() {
 
   run(process.execPath, [brandStateScriptPath, 'snapshot', snapshotKey], {env});
   try {
+    if (signingProfile.profileName) {
+      process.stdout.write(
+        `[desktop-package] Using signing profile "${signingProfile.profileName}" for brand ${brandId}` +
+          `${signingProfile.filePath ? ` (${signingProfile.filePath})` : ''}\n`,
+      );
+    } else {
+      process.stdout.write(`[desktop-package] No OEM signing profile configured for brand ${brandId}; using ambient signing env\n`);
+    }
+
     run(process.execPath, [applyBrandScriptPath, brandId], { env });
     syncLocalAppRuntime({ pnpm, env, brandId, channel });
     run(process.execPath, [syncResourcesScriptPath], { env });
