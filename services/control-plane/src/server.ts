@@ -124,25 +124,26 @@ function loadModelLogoManifest(baseUrl: string) {
   if (!existsSync(modelLogoManifestPath)) {
     return {items: []};
   }
-  const raw = JSON.parse(readFileSync(modelLogoManifestPath, 'utf8')) as {items?: Array<Record<string, unknown>>};
+  const raw = JSON.parse(readFileSync(modelLogoManifestPath, 'utf8')) as {items?: Array<Record<string, unknown>>} | Array<Record<string, unknown>>;
   const normalizedBaseUrl = baseUrl.replace(/\/$/, '');
+  const items = Array.isArray(raw) ? raw : Array.isArray(raw.items) ? raw.items : [];
   return {
-    items: Array.isArray(raw.items)
-      ? raw.items
+    items: items
           .map((item) => {
             const presetKey = String(item.preset_key || item.presetKey || '').trim();
-            const fileName = String(item.file_name || item.fileName || '').trim();
+            const rawAssetPath = String(item.file_name || item.fileName || item.asset_path || item.assetPath || '').trim();
+            const fileName = rawAssetPath ? rawAssetPath.split('/').pop() || '' : '';
             if (!presetKey || !fileName) return null;
             return {
               presetKey,
               label: String(item.label || presetKey).trim() || presetKey,
               fileName,
-              contentType: String(item.content_type || item.contentType || 'image/png').trim() || 'image/png',
+              contentType: String(item.content_type || item.contentType || item.asset_type || item.assetType || 'image/png').trim() || 'image/png',
               url: `${normalizedBaseUrl}/portal/model-logo/file?preset_key=${encodeURIComponent(presetKey)}`,
             };
           })
           .filter((item): item is NonNullable<typeof item> => Boolean(item))
-      : [],
+      ,
   };
 }
 
