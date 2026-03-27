@@ -1,7 +1,7 @@
 import { AlertTriangle, RefreshCcw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/app/components/ui/Button';
-import lobsterImage from '@/app/assets/installer-lobster.png';
+import { BRAND } from '@/app/lib/brand';
 import { getResolvedThemeFromDom, THEME_CHANGE_EVENT, type ResolvedTheme } from '@/app/lib/theme';
 
 interface FirstRunSetupPanelProps {
@@ -81,6 +81,8 @@ export function FirstRunSetupPanel({
   const clampedProgress = Math.max(0, Math.min(100, Math.round(progress)));
   const hasError = state === 'error';
   const palette = useMemo(() => panelThemeClasses(theme, hasError), [theme, hasError]);
+  const installerHeroSrc = BRAND.assets.installerHeroSrc || BRAND.assets.faviconPngSrc;
+  const installerHeroAlt = BRAND.assets.logoAlt || `${BRAND.displayName} logo`;
 
   useEffect(() => {
     const handleThemeChange = () => {
@@ -162,8 +164,8 @@ export function FirstRunSetupPanel({
           </svg>
           <div className="absolute inset-0 flex items-center justify-center">
             <img
-              src={lobsterImage}
-              alt="iClaw lobster"
+              src={installerHeroSrc}
+              alt={installerHeroAlt}
               className="relative z-10 h-[240px] w-[240px] object-contain md:h-[270px] md:w-[270px]"
               style={{ animation: hasError ? 'installer-wobble 1.6s ease-in-out infinite' : 'installer-float 3.6s ease-in-out infinite' }}
             />
