@@ -15,15 +15,23 @@ function cacheRootFor(rootDir, brandId) {
   return path.join(rootDir, '.cache', 'portal-apps', brandId);
 }
 
+function pnpmCommand() {
+  const nodeBinDir = path.dirname(process.execPath);
+  const bundledCorepack = path.join(nodeBinDir, process.platform === 'win32' ? 'corepack.cmd' : 'corepack');
+  return [bundledCorepack, 'pnpm'];
+}
+
 async function ensureSyncedBrandProfile(rootDir, brandId) {
   const envName = resolveSelectedEnvName() || normalizeEnvName(process.env.NODE_ENV || '') || 'dev';
   const usePackagingSourceEnv = /^(1|true|yes)$/i.test(String(process.env.ICLAW_USE_PACKAGING_SOURCE_ENV || '').trim());
+  const [pnpmBin, ...pnpmArgs] = pnpmCommand();
   const syncCommand = usePackagingSourceEnv
     ? [
-        'node',
+        process.execPath,
         path.join(rootDir, 'scripts', 'with-packaging-source-env.mjs'),
         '--',
-        'pnpm',
+        pnpmBin,
+        ...pnpmArgs,
         '--filter',
         '@iclaw/control-plane',
         'sync:local-app-brand-profile',
@@ -32,7 +40,8 @@ async function ensureSyncedBrandProfile(rootDir, brandId) {
         brandId,
       ]
     : [
-        'pnpm',
+        pnpmBin,
+        ...pnpmArgs,
         '--filter',
         '@iclaw/control-plane',
         'sync:local-app-brand-profile',
@@ -41,8 +50,9 @@ async function ensureSyncedBrandProfile(rootDir, brandId) {
         brandId,
       ];
   const result = spawnSync(
-    'bash',
+    process.execPath,
     [
+      path.join(rootDir, 'scripts', 'run-bash.mjs'),
       path.join(rootDir, 'scripts', 'with-env.sh'),
       envName,
       ...syncCommand,
@@ -53,6 +63,7 @@ async function ensureSyncedBrandProfile(rootDir, brandId) {
         ...process.env,
       },
       encoding: 'utf8',
+      shell: false,
     },
   );
 
