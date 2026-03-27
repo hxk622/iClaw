@@ -288,8 +288,8 @@ function normalizeAppName(value: unknown): string {
 
 function normalizeModelRef(value: unknown): string {
   const normalized = normalizeRequiredString(value, 'ref');
-  if (!/^[a-z0-9][a-z0-9._-]{0,62}\/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(normalized)) {
-    throw new HttpError(400, 'BAD_REQUEST', 'ref must use provider/model format');
+  if (!/^[a-z0-9][a-z0-9._-]{0,62}\/[A-Za-z0-9][A-Za-z0-9._:\/-]{0,255}$/.test(normalized)) {
+    throw new HttpError(400, 'BAD_REQUEST', 'ref must use provider/model format with provider prefix');
   }
   return normalized;
 }

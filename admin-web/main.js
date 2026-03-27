@@ -6264,7 +6264,7 @@ function renderModelProviderRow(item = {}, index = 0) {
       <div class="form-grid form-grid--two">
         <label class="field">
           <span>Model Ref</span>
-          <input class="field-input" name="model_ref" value="${fieldValue(item.modelRef || '')}" placeholder="provider/model" />
+          <input class="field-input" name="model_ref" value="${fieldValue(item.modelRef || '')}" placeholder="provider/model 或 openrouter/provider/model" />
         </label>
         <label class="field">
           <span>Label</span>
