@@ -25,6 +25,13 @@
   - 用途：
     - `services/control-plane`
     - PostgreSQL / Redis 相关后端运行环境
+    - 火山 MinIO
+  - MinIO:
+    - Endpoint: `http://115.191.6.179:9000`
+    - Bucket: `licaiclaw-prod`
+    - 当前远端 `mc` 默认 alias：`local`
+    - 下载页实际发布目录：`licaiclaw-prod/downloads/`
+    - `https://caiclaw.aiyuanxi.com/downloads/<file>` 对应桶内 `downloads/<file>`
 
 ## 约束
 
