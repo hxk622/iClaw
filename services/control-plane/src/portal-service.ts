@@ -88,6 +88,137 @@ function cloneJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+function buildResolvedCapabilityModelEntries(resolved: {
+  profile: {
+    providerKey: string;
+    apiProtocol: string;
+    baseUrl: string;
+    logoPresetKey: string | null;
+  };
+  models: Array<{
+    modelRef: string;
+    modelId: string;
+    label: string;
+    reasoning: boolean;
+    inputModalities: string[];
+    contextWindow: number | null;
+    maxTokens: number | null;
+    logoPresetKey: string | null;
+    metadata: PortalJsonObject;
+  }>;
+}) {
+  return resolved.models.map((model) => ({
+    ref: model.modelRef,
+    providerId: resolved.profile.providerKey,
+    modelId: model.modelId,
+    label: model.label,
+    api: resolved.profile.apiProtocol,
+    baseUrl: resolved.profile.baseUrl,
+    useRuntimeOpenai: false,
+    authHeader: true,
+    reasoning: model.reasoning,
+    input: cloneJson(model.inputModalities),
+    contextWindow: model.contextWindow ?? 0,
+    maxTokens: model.maxTokens ?? 0,
+    logoPresetKey: model.logoPresetKey,
+    metadata: cloneJson(model.metadata),
+  }));
+}
+
+function applyResolvedRuntimeModelsToConfig(
+  config: PortalJsonObject,
+  resolved: {
+    providerMode: PortalAppModelProviderMode;
+    resolvedScope: PortalModelProviderScopeType;
+    version: number;
+    profile: {
+      id: string;
+      scopeType: PortalModelProviderScopeType;
+      scopeKey: string;
+      providerKey: string;
+      providerLabel: string;
+      apiProtocol: string;
+      baseUrl: string;
+      authMode: string;
+      apiKey?: string;
+      logoPresetKey: string | null;
+      metadata: PortalJsonObject;
+      enabled: boolean;
+      sortOrder: number;
+      createdAt: string;
+      updatedAt: string;
+    };
+    models: Array<{
+      id: string;
+      modelRef: string;
+      modelId: string;
+      label: string;
+      logoPresetKey: string | null;
+      reasoning: boolean;
+      inputModalities: string[];
+      contextWindow: number | null;
+      maxTokens: number | null;
+      enabled: boolean;
+      sortOrder: number;
+      metadata: PortalJsonObject;
+      createdAt: string;
+      updatedAt: string;
+    }>;
+  },
+  options: {includeSecrets?: boolean} = {},
+): PortalJsonObject {
+  const nextConfig = cloneJson(config);
+  const capabilities = asObject(nextConfig.capabilities);
+  const existingModels = asObject(capabilities.models);
+  const entries = buildResolvedCapabilityModelEntries(resolved);
+  capabilities.models = {
+    ...existingModels,
+    default: entries[0]?.ref || null,
+    recommended: entries.map((item) => item.ref),
+    entries,
+  };
+  nextConfig.capabilities = capabilities;
+  nextConfig.model_provider = {
+    provider_mode: resolved.providerMode,
+    resolved_scope: resolved.resolvedScope,
+    version: resolved.version,
+    profile: {
+      id: resolved.profile.id,
+      scope_type: resolved.profile.scopeType,
+      scope_key: resolved.profile.scopeKey,
+      provider_key: resolved.profile.providerKey,
+      provider_label: resolved.profile.providerLabel,
+      api_protocol: resolved.profile.apiProtocol,
+      base_url: resolved.profile.baseUrl,
+      auth_mode: resolved.profile.authMode,
+      logo_preset_key: resolved.profile.logoPresetKey,
+      metadata: cloneJson(resolved.profile.metadata),
+      enabled: resolved.profile.enabled,
+      sort_order: resolved.profile.sortOrder,
+      created_at: resolved.profile.createdAt,
+      updated_at: resolved.profile.updatedAt,
+      ...(options.includeSecrets ? {api_key: resolved.profile.apiKey || ''} : {}),
+    },
+    models: resolved.models.map((model) => ({
+      id: model.id,
+      model_ref: model.modelRef,
+      model_id: model.modelId,
+      label: model.label,
+      logo_preset_key: model.logoPresetKey,
+      reasoning: model.reasoning,
+      input_modalities: cloneJson(model.inputModalities),
+      context_window: model.contextWindow,
+      max_tokens: model.maxTokens,
+      enabled: model.enabled,
+      sort_order: model.sortOrder,
+      metadata: cloneJson(model.metadata),
+      created_at: model.createdAt,
+      updated_at: model.updatedAt,
+    })),
+  };
+  return nextConfig;
+}
+
 function normalizeRequiredString(value: unknown, field: string): string {
   if (typeof value !== 'string') {
     throw new HttpError(400, 'BAD_REQUEST', `${field} is required`);
@@ -496,6 +627,16 @@ export class PortalService {
     };
     await this.cache?.set(cacheKey, publicPayload, 600);
     return publicPayload;
+  }
+
+  async getPrivateRuntimeConfig(
+    accessToken: string,
+    appNameInput: string,
+    baseUrl: string,
+    input: {surfaceKey?: string | null} = {},
+  ) {
+    await this.authResolver(accessToken);
+    return this.buildResolvedRuntimeConfig(appNameInput, baseUrl, input, {includeSecrets: true});
   }
 
   async deleteModel(accessToken: string, refInput: string) {
@@ -936,6 +1077,15 @@ export class PortalService {
   }
 
   async getPublicAppConfig(appNameInput: string, baseUrl: string, input: {surfaceKey?: string | null} = {}) {
+    return this.buildResolvedRuntimeConfig(appNameInput, baseUrl, input, {includeSecrets: false});
+  }
+
+  private async buildResolvedRuntimeConfig(
+    appNameInput: string,
+    baseUrl: string,
+    input: {surfaceKey?: string | null} = {},
+    options: {includeSecrets?: boolean} = {},
+  ) {
     const appName = normalizeAppName(appNameInput);
     const detail = await this.store.getAppDetail(appName);
     if (!detail) {
@@ -948,7 +1098,7 @@ export class PortalService {
       this.store.listComposerControls(),
       this.store.listComposerShortcuts(),
     ]);
-    return buildPortalPublicConfig({
+    const publicConfig = buildPortalPublicConfig({
       ...detail,
       skillBindings: mergePlatformSkillBindings(detail.app.appName, detail.skillBindings, platformSkills),
       mcpBindings: mergePlatformMcpBindings(detail.app.appName, detail.mcpBindings, platformMcps),
@@ -961,6 +1111,16 @@ export class PortalService {
         normalizePersistedPortalAssetUrl(asset.publicUrl, baseUrl) ||
         `${baseUrl.replace(/\/$/, '')}/portal/asset/file?app_name=${encodeURIComponent(appName)}&asset_key=${encodeURIComponent(asset.assetKey)}`,
     });
+    const resolvedModels = await this.store.resolveRuntimeModels(appName);
+    if (!resolvedModels) {
+      return publicConfig;
+    }
+    return {
+      ...publicConfig,
+      config: applyResolvedRuntimeModelsToConfig(publicConfig.config, resolvedModels, {
+        includeSecrets: options.includeSecrets,
+      }),
+    };
   }
 
   private async invalidateRuntimeModelCache(appName: string): Promise<void> {

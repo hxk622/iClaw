@@ -176,6 +176,38 @@ function extractOemModelConfig(snapshot) {
   return { defaultModelRef, entries };
 }
 
+function extractResolvedProviderConfig(snapshot) {
+  const rootConfig = asObject(snapshot?.config);
+  const modelProvider = asObject(rootConfig.model_provider);
+  const profile = asObject(modelProvider.profile);
+  const providerKey = trimString(profile.provider_key || profile.providerKey);
+  if (!providerKey) {
+    return null;
+  }
+  const models = asArray(modelProvider.models)
+    .map((item) => asObject(item))
+    .map((entry) => ({
+      modelRef: trimString(entry.model_ref || entry.modelRef),
+      modelId: trimString(entry.model_id || entry.modelId),
+      label: trimString(entry.label),
+      reasoning: asBool(entry.reasoning),
+      input: asArray(entry.input_modalities || entry.inputModalities).filter((value) => typeof value === 'string'),
+      contextWindow: Number.isFinite(entry.context_window) ? Number(entry.context_window) : asNumber(entry.contextWindow, 0),
+      maxTokens: Number.isFinite(entry.max_tokens) ? Number(entry.max_tokens) : asNumber(entry.maxTokens, 0),
+      enabled: asBool(entry.enabled, true),
+    }))
+    .filter((entry) => entry.enabled && entry.modelRef && entry.modelId);
+  return {
+    providerKey,
+    providerLabel: trimString(profile.provider_label || profile.providerLabel) || providerKey,
+    apiProtocol: trimString(profile.api_protocol || profile.apiProtocol) || 'openai-completions',
+    baseUrl: trimString(profile.base_url || profile.baseUrl),
+    apiKey: trimString(profile.api_key || profile.apiKey),
+    authMode: trimString(profile.auth_mode || profile.authMode) || 'bearer',
+    models,
+  };
+}
+
 function upsertManagedProviderModel(provider, model) {
   if (!trimString(model.id)) return;
   if (!Array.isArray(provider.models)) {
@@ -262,17 +294,22 @@ function main() {
   const runtimeConfig = asObject(readJsonIfExists(runtimeConfigPath));
   const portalRuntimeSnapshot = loadPortalRuntimeSnapshot();
   const oemModelConfig = extractOemModelConfig(portalRuntimeSnapshot);
+  const resolvedProviderConfig = extractResolvedProviderConfig(portalRuntimeSnapshot);
   const normalizedApiKey = trimString(runtimeConfig.openai_api_key);
   const normalizedBaseUrl = normalizeOpenaiBaseUrl(runtimeConfig.openai_base_url);
   const normalizedModel = trimString(runtimeConfig.openai_model);
   const runtimeModelRef = normalizedModel ? (normalizedModel.includes('/') ? normalizedModel : `openai/${normalizedModel}`) : '';
-  const activeModelRef = oemModelConfig.defaultModelRef || runtimeModelRef;
+  const activeModelRef = oemModelConfig.defaultModelRef || resolvedProviderConfig?.models[0]?.modelRef || runtimeModelRef;
   const activeModelId = activeModelRef ? activeModelRef.split('/').pop() : '';
   const allowlistModelRefs = oemModelConfig.entries.length > 0
     ? oemModelConfig.entries.map((entry) => entry.modelRef).filter(Boolean)
+    : resolvedProviderConfig?.models?.length
+      ? resolvedProviderConfig.models.map((entry) => entry.modelRef).filter(Boolean)
     : (activeModelRef ? [activeModelRef] : []);
   const mergedAllowedOrigins = parseAllowedOrigins(mode, process.env.ICLAW_OPENCLAW_ALLOWED_ORIGINS);
-  const memoryAutoRecallEnabled = baseUrlSupportsEmbeddings(normalizedBaseUrl);
+  const embeddingBaseUrl = normalizeOpenaiBaseUrl(resolvedProviderConfig?.baseUrl || normalizedBaseUrl);
+  const embeddingApiKey = trimString(resolvedProviderConfig?.apiKey || normalizedApiKey);
+  const memoryAutoRecallEnabled = baseUrlSupportsEmbeddings(embeddingBaseUrl);
 
   sanitizeLegacySkillEntries(config);
 
@@ -317,31 +354,53 @@ function main() {
   config.agents = agents;
 
   const modelsConfig = ensureObject(config, 'models');
-  const providers = ensureObject(modelsConfig, 'providers');
-  const openaiProvider = ensureObject(providers, 'openai');
-  openaiProvider.api = 'openai-completions';
-  openaiProvider.authHeader = true;
-  if (normalizedBaseUrl) {
-    openaiProvider.baseUrl = normalizedBaseUrl;
-  }
-  if (normalizedApiKey) {
-    openaiProvider.apiKey = normalizedApiKey;
-  }
-  const openaiRuntimeEntries = oemModelConfig.entries.filter((entry) => entry.useRuntimeOpenai);
-  if (openaiRuntimeEntries.length > 0) {
-    replaceProviderModels(openaiProvider, openaiRuntimeEntries);
-  } else if (activeModelId) {
-    upsertManagedOpenAiModel(openaiProvider, activeModelId);
-  } else if (!Array.isArray(openaiProvider.models)) {
-    openaiProvider.models = [];
-  }
-  providers.openai = openaiProvider;
+  const providers = {};
 
-  if (oemModelConfig.entries.length === 0) {
+  if (resolvedProviderConfig?.providerKey) {
+    const resolvedProvider = {};
+    resolvedProvider.api = resolvedProviderConfig.apiProtocol || 'openai-completions';
+    resolvedProvider.authHeader = resolvedProviderConfig.authMode !== 'query';
+    if (resolvedProviderConfig.baseUrl) {
+      resolvedProvider.baseUrl = resolvedProviderConfig.baseUrl;
+    }
+    if (resolvedProviderConfig.apiKey) {
+      resolvedProvider.apiKey = resolvedProviderConfig.apiKey;
+    }
+    replaceProviderModels(resolvedProvider, resolvedProviderConfig.models.map((entry) => ({
+      modelId: entry.modelId,
+      label: entry.label || entry.modelId,
+      reasoning: entry.reasoning,
+      input: entry.input,
+      contextWindow: entry.contextWindow,
+      maxTokens: entry.maxTokens,
+    })));
+    providers[resolvedProviderConfig.providerKey] = resolvedProvider;
+  } else {
+    const openaiProvider = {};
+    openaiProvider.api = 'openai-completions';
+    openaiProvider.authHeader = true;
+    if (normalizedBaseUrl) {
+      openaiProvider.baseUrl = normalizedBaseUrl;
+    }
+    if (normalizedApiKey) {
+      openaiProvider.apiKey = normalizedApiKey;
+    }
+    const openaiRuntimeEntries = oemModelConfig.entries.filter((entry) => entry.useRuntimeOpenai);
+    if (openaiRuntimeEntries.length > 0) {
+      replaceProviderModels(openaiProvider, openaiRuntimeEntries);
+    } else if (activeModelId) {
+      upsertManagedOpenAiModel(openaiProvider, activeModelId);
+    } else if (!Array.isArray(openaiProvider.models)) {
+      openaiProvider.models = [];
+    }
+    providers.openai = openaiProvider;
+  }
+
+  if (!resolvedProviderConfig && oemModelConfig.entries.length === 0) {
     for (const provider of MANAGED_FINANCE_MODEL_PROVIDERS) {
       ensureManagedProvider(providers, provider);
     }
-  } else {
+  } else if (!resolvedProviderConfig) {
     const providerIds = [...new Set(oemModelConfig.entries.map((entry) => entry.providerId).filter(Boolean))];
     for (const providerId of providerIds) {
       if (providerId === 'openai') continue;
@@ -371,13 +430,13 @@ function main() {
   const memoryPluginConfig = ensureObject(memoryPlugin, 'config');
   const embedding = ensureObject(memoryPluginConfig, 'embedding');
   if (!trimString(embedding.apiKey)) {
-    embedding.apiKey = normalizedApiKey || DEFAULT_MEMORY_LANCEDB_API_KEY_PLACEHOLDER;
+    embedding.apiKey = embeddingApiKey || DEFAULT_MEMORY_LANCEDB_API_KEY_PLACEHOLDER;
   }
   if (!trimString(embedding.model)) {
     embedding.model = DEFAULT_MEMORY_LANCEDB_EMBEDDING_MODEL;
   }
-  if (normalizedBaseUrl) {
-    embedding.baseUrl = normalizedBaseUrl;
+  if (embeddingBaseUrl) {
+    embedding.baseUrl = embeddingBaseUrl;
   }
   memoryPluginConfig.autoRecall = memoryAutoRecallEnabled;
   memoryPluginConfig.autoCapture = false;

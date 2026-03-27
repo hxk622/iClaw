@@ -206,6 +206,9 @@ const state = {
   mcpCatalog: [],
   mcpRegistryCatalog: [],
   modelCatalog: [],
+  modelProviderProfiles: [],
+  modelProviderOverrides: {},
+  modelLogoPresets: [],
   skillSyncSources: [],
   skillSyncRuns: [],
   capabilityMode: 'skills',
@@ -214,6 +217,7 @@ const state = {
   selectedSkillSlug: '',
   selectedMcpKey: '',
   selectedModelRef: '',
+  selectedModelProviderTab: 'platform',
   selectedBrandMenuKey: '',
   selectedCloudSkillSlug: '',
   selectedSkillSyncSourceId: '',
@@ -2840,13 +2844,15 @@ async function loadAppData() {
   render();
 
   try {
-    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, mcpRegistryData, modelCatalogData, menuCatalogData, composerControlCatalogData, composerShortcutCatalogData, skillSyncSourcesData, skillSyncRunsData, paymentOrdersData] = await Promise.all([
+    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, mcpRegistryData, modelCatalogData, modelProviderProfilesData, modelLogoPresetsData, menuCatalogData, composerControlCatalogData, composerShortcutCatalogData, skillSyncSourcesData, skillSyncRunsData, paymentOrdersData] = await Promise.all([
       apiFetch('/admin/portal/apps', {method: 'GET'}),
       apiFetch('/admin/agents/catalog', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/skills', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/mcps', {method: 'GET'}),
       apiFetch('/admin/mcp/catalog', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/models', {method: 'GET'}),
+      apiFetch('/admin/portal/model-provider-profiles', {method: 'GET'}),
+      apiFetch('/admin/portal/model-logo-presets', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/menus', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/composer-controls', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/composer-shortcuts', {method: 'GET'}),
@@ -2861,7 +2867,14 @@ async function loadAppData() {
         return [app.appName, detail];
       }),
     );
+    const overrides = await Promise.all(
+      apps.map(async (app) => {
+        const detail = await apiFetch(`/admin/portal/apps/${encodeURIComponent(app.appName)}/model-provider-override`, {method: 'GET'});
+        return [app.appName, detail || null];
+      }),
+    );
     const detailsMap = Object.fromEntries(details);
+    const overridesMap = Object.fromEntries(overrides);
 
     state.portalAppDetails = detailsMap;
     state.agentCatalog = Array.isArray(agentCatalogData.items) ? agentCatalogData.items : [];
@@ -2869,6 +2882,9 @@ async function loadAppData() {
     state.mcpCatalog = Array.isArray(mcpCatalogData.items) ? mcpCatalogData.items : [];
     state.mcpRegistryCatalog = Array.isArray(mcpRegistryData.items) ? mcpRegistryData.items : [];
     state.modelCatalog = Array.isArray(modelCatalogData.items) ? modelCatalogData.items : [];
+    state.modelProviderProfiles = Array.isArray(modelProviderProfilesData.items) ? modelProviderProfilesData.items : [];
+    state.modelProviderOverrides = overridesMap;
+    state.modelLogoPresets = Array.isArray(modelLogoPresetsData.items) ? modelLogoPresetsData.items : [];
     state.menuCatalog = Array.isArray(menuCatalogData.items)
       ? menuCatalogData.items.map((item, index) => normalizeMenuCatalogItem(item, index)).filter(Boolean)
       : [];
@@ -4025,6 +4041,170 @@ async function deleteModelCatalogEntry(ref) {
     setNotice(`已删除模型 ${ref}。`);
   } catch (error) {
     setError(error instanceof Error ? error.message : '模型删除失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+function buildProviderModelRowNode(values = {}) {
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = renderModelProviderRow(values, document.querySelectorAll('[data-model-provider-row="true"]').length);
+  return wrapper.firstElementChild;
+}
+
+function appendProviderModelRow(values = {}) {
+  const container = document.querySelector('[data-model-provider-rows="true"]');
+  if (!(container instanceof HTMLElement)) {
+    return;
+  }
+  const node = buildProviderModelRowNode(values);
+  if (node) {
+    container.appendChild(node);
+  }
+}
+
+function splitCommaLines(value) {
+  return String(value || '')
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function renderLogoPreviewInto(container, presetKey) {
+  if (!(container instanceof HTMLElement)) return;
+  container.innerHTML = renderModelLogoPreview(presetKey, 'Logo');
+}
+
+function openModelLogoPicker(form, inputName) {
+  const presets = Array.isArray(state.modelLogoPresets) ? state.modelLogoPresets : [];
+  if (!presets.length) {
+    setError('还没有可用的 logo preset');
+    render();
+    return;
+  }
+  const dialog = document.createElement('dialog');
+  dialog.className = 'fig-card';
+  dialog.style.maxWidth = '840px';
+  dialog.style.width = 'min(840px, calc(100vw - 48px))';
+  dialog.innerHTML = `
+    <form method="dialog" style="display:flex;flex-direction:column;gap:16px;">
+      <div class="fig-card__head">
+        <h3>选择 Logo</h3>
+        <button class="ghost-button" value="cancel">关闭</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;max-height:60vh;overflow:auto;">
+        ${presets
+          .map(
+            (item) => `
+              <button class="capability-card" type="button" data-logo-preset-choice="${escapeHtml(item.presetKey)}" style="text-align:left;">
+                <img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.label)}" style="width:40px;height:40px;object-fit:contain;margin-bottom:10px;" />
+                <strong>${escapeHtml(item.label)}</strong>
+                <span>${escapeHtml(item.presetKey)}</span>
+              </button>
+            `,
+          )
+          .join('')}
+      </div>
+    </form>
+  `;
+  document.body.appendChild(dialog);
+  dialog.addEventListener('click', (event) => {
+    const target = event.target instanceof Element ? event.target.closest('[data-logo-preset-choice]') : null;
+    if (!target) return;
+    const presetKey = target.getAttribute('data-logo-preset-choice') || '';
+    const input = form.querySelector(`[name="${inputName}"]`);
+    if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) {
+      input.value = presetKey;
+      const preview = input.closest('.field')?.nextElementSibling?.querySelector('[data-logo-preview="true"]')
+        || input.closest('.field')?.parentElement?.querySelector('[data-logo-preview="true"]');
+      renderLogoPreviewInto(preview, presetKey);
+    }
+    dialog.close();
+  });
+  dialog.addEventListener('close', () => {
+    dialog.remove();
+  });
+  dialog.showModal();
+}
+
+async function saveModelProviderProfile(form) {
+  const formData = new FormData(form);
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    const scopeType = String(formData.get('scope_type') || '').trim();
+    const scopeKey = String(formData.get('scope_key') || '').trim();
+    const providerMode = String(formData.get('provider_mode') || 'inherit_platform').trim();
+    const providerKey = String(formData.get('provider_key') || '').trim();
+    const shouldSaveProfile = scopeType === 'platform' || providerMode === 'use_app_profile' || Boolean(providerKey);
+    let savedProfile = null;
+
+    if (shouldSaveProfile) {
+      const models = Array.from(form.querySelectorAll('[data-model-provider-row="true"]'))
+        .map((row) => {
+          const getValue = (name) => row.querySelector(`[name="${name}"]`);
+          return {
+            modelRef: String(getValue('model_ref')?.value || '').trim(),
+            label: String(getValue('model_label')?.value || '').trim(),
+            modelId: String(getValue('model_id')?.value || '').trim(),
+            logoPresetKey: String(getValue('model_logo_preset_key')?.value || '').trim() || null,
+            reasoning: String(getValue('model_reasoning')?.value || 'false') === 'true',
+            inputModalities: splitCommaLines(String(getValue('model_input_modalities')?.value || '')),
+            contextWindow: (() => {
+              const raw = String(getValue('model_context_window')?.value || '').trim();
+              return raw ? Number(raw) : null;
+            })(),
+            maxTokens: (() => {
+              const raw = String(getValue('model_max_tokens')?.value || '').trim();
+              return raw ? Number(raw) : null;
+            })(),
+            enabled: String(getValue('model_enabled')?.value || 'true') === 'true',
+            sortOrder: Number(String(getValue('model_sort_order')?.value || '100').trim() || 100),
+            metadata: {},
+          };
+        })
+        .filter((item) => item.modelRef && item.modelId && item.label);
+
+      savedProfile = await apiFetch('/admin/portal/model-provider-profiles', {
+        method: 'PUT',
+        body: JSON.stringify({
+          id: String(formData.get('profile_id') || '').trim() || null,
+          scopeType,
+          scopeKey,
+          providerKey,
+          providerLabel: String(formData.get('provider_label') || '').trim(),
+          apiProtocol: String(formData.get('api_protocol') || '').trim() || 'openai-completions',
+          baseUrl: String(formData.get('base_url') || '').trim(),
+          authMode: String(formData.get('auth_mode') || 'bearer').trim(),
+          apiKey: String(formData.get('api_key') || '').trim(),
+          logoPresetKey: String(formData.get('logo_preset_key') || '').trim() || null,
+          metadata: parseJsonText(String(formData.get('metadata_json') || '{}').trim() || '{}', 'Provider metadata'),
+          enabled: String(formData.get('enabled') || 'true') === 'true',
+          sortOrder: Number(String(formData.get('sort_order') || '100').trim() || 100),
+          models,
+        }),
+      });
+    }
+
+    if (scopeType === 'app') {
+      await apiFetch(`/admin/portal/apps/${encodeURIComponent(scopeKey)}/model-provider-override`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          providerMode,
+          activeProfileId: providerMode === 'use_app_profile' ? savedProfile?.id || String(formData.get('profile_id') || '').trim() || null : null,
+          cacheVersion: Date.now(),
+        }),
+      });
+    }
+
+    await loadAppData();
+    state.selectedModelProviderTab = scopeType === 'platform' ? 'platform' : scopeKey;
+    setNotice(`${scopeType === 'platform' ? '平台' : scopeKey} provider 已保存。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : 'Provider 保存失败');
   } finally {
     state.busy = false;
     render();
@@ -6084,7 +6264,262 @@ function getFilteredCapabilities() {
   return {skills, mcpServers, models};
 }
 
+function getModelProviderProfilesByScope(scopeType, scopeKey) {
+  return (state.modelProviderProfiles || [])
+    .filter((item) => item.scopeType === scopeType && item.scopeKey === scopeKey)
+    .sort((left, right) => Number(left.sortOrder || 0) - Number(right.sortOrder || 0));
+}
+
+function getSelectedModelProviderTab() {
+  const appNames = (state.brands || []).map((item) => item.brandId);
+  if (state.selectedModelProviderTab === 'platform') {
+    return 'platform';
+  }
+  return appNames.includes(state.selectedModelProviderTab) ? state.selectedModelProviderTab : 'platform';
+}
+
+function getModelLogoPreset(presetKey) {
+  return (state.modelLogoPresets || []).find((item) => item.presetKey === presetKey) || null;
+}
+
+function renderModelLogoPreview(presetKey, label = 'Logo') {
+  const preset = getModelLogoPreset(presetKey);
+  if (!preset) {
+    return `<div class="empty-state" style="min-height:40px;">${escapeHtml(label)} 未设置</div>`;
+  }
+  return `
+    <div style="display:flex;align-items:center;gap:12px;">
+      <img src="${escapeHtml(preset.url)}" alt="${escapeHtml(preset.label)}" style="width:40px;height:40px;object-fit:contain;border-radius:10px;background:rgba(255,255,255,0.04);padding:6px;border:1px solid rgba(212,183,120,0.18);" />
+      <span>${escapeHtml(preset.label)}</span>
+    </div>
+  `;
+}
+
+function renderModelProviderRow(item = {}, index = 0) {
+  const logoPreset = getModelLogoPreset(String(item.logoPresetKey || ''));
+  return `
+    <div class="fig-card fig-card--subtle" data-model-provider-row="true" style="padding:16px;">
+      <div class="fig-card__head">
+        <h3>模型 ${index + 1}</h3>
+        <button class="ghost-button" type="button" data-action="remove-provider-model-row">删除</button>
+      </div>
+      <div class="form-grid form-grid--two">
+        <label class="field">
+          <span>Model Ref</span>
+          <input class="field-input" name="model_ref" value="${fieldValue(item.modelRef || '')}" placeholder="provider/model" />
+        </label>
+        <label class="field">
+          <span>Label</span>
+          <input class="field-input" name="model_label" value="${fieldValue(item.label || '')}" placeholder="显示名称" />
+        </label>
+        <label class="field">
+          <span>Model ID</span>
+          <input class="field-input" name="model_id" value="${fieldValue(item.modelId || '')}" placeholder="qwen-max" />
+        </label>
+        <label class="field">
+          <span>Sort Order</span>
+          <input class="field-input" name="model_sort_order" type="number" min="0" value="${fieldValue(item.sortOrder ?? 100)}" />
+        </label>
+        <label class="field">
+          <span>Reasoning</span>
+          <select class="field-select" name="model_reasoning">
+            <option value="true"${item.reasoning === true ? ' selected' : ''}>true</option>
+            <option value="false"${item.reasoning === true ? '' : ' selected'}>false</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Enabled</span>
+          <select class="field-select" name="model_enabled">
+            <option value="true"${item.enabled !== false ? ' selected' : ''}>true</option>
+            <option value="false"${item.enabled === false ? ' selected' : ''}>false</option>
+          </select>
+        </label>
+        <label class="field field--wide">
+          <span>Input Modalities</span>
+          <input class="field-input" name="model_input_modalities" value="${fieldValue((item.inputModalities || []).join(', '))}" placeholder="text, image" />
+        </label>
+        <label class="field">
+          <span>Context Window</span>
+          <input class="field-input" name="model_context_window" type="number" min="0" value="${fieldValue(item.contextWindow ?? '')}" />
+        </label>
+        <label class="field">
+          <span>Max Tokens</span>
+          <input class="field-input" name="model_max_tokens" type="number" min="0" value="${fieldValue(item.maxTokens ?? '')}" />
+        </label>
+        <label class="field field--wide">
+          <span>Logo Preset</span>
+          <input class="field-input" name="model_logo_preset_key" value="${fieldValue(item.logoPresetKey || '')}" placeholder="logo preset key" readonly />
+        </label>
+        <div class="field field--wide">
+          <span>Logo Preview</span>
+          <div data-logo-preview="true">${logoPreset ? renderModelLogoPreview(logoPreset.presetKey, '模型 Logo') : '<div class="empty-state" style="min-height:40px;">模型 Logo 未设置</div>'}</div>
+          <div class="action-row" style="margin-top:8px;">
+            <button class="ghost-button" type="button" data-action="pick-model-logo" data-input-name="model_logo_preset_key">选择 Logo</button>
+            <button class="text-button" type="button" data-action="clear-model-logo" data-input-name="model_logo_preset_key">清空</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderModelProviderCenterPage() {
+  const selectedTab = getSelectedModelProviderTab();
+  const selectedBrand = selectedTab === 'platform' ? null : (state.brands || []).find((item) => item.brandId === selectedTab) || null;
+  const scopeType = selectedBrand ? 'app' : 'platform';
+  const scopeKey = selectedBrand ? selectedBrand.brandId : 'platform';
+  const profiles = getModelProviderProfilesByScope(scopeType, scopeKey);
+  const profile = profiles[0] || {
+    id: '',
+    scopeType,
+    scopeKey,
+    providerKey: '',
+    providerLabel: '',
+    apiProtocol: 'openai-completions',
+    baseUrl: '',
+    apiKey: '',
+    authMode: 'bearer',
+    logoPresetKey: '',
+    metadata: {},
+    enabled: true,
+    sortOrder: 100,
+    models: [],
+  };
+  const override = selectedBrand ? state.modelProviderOverrides[selectedBrand.brandId] || null : null;
+  const providerLogoPreset = getModelLogoPreset(profile.logoPresetKey || '');
+  const tabs = [
+    {key: 'platform', label: '平台'},
+    ...(state.brands || []).map((brand) => ({key: brand.brandId, label: brand.displayName})),
+  ];
+
+  return `
+    <div class="fig-page">
+      <div class="fig-page__header">
+        <div class="fig-page__header-inner">
+          <div>
+            <h1>模型中心</h1>
+            <p class="fig-page__description">按 provider layer 配置平台和 OEM 的模型运行时。OEM 未配置时回落平台层；一旦启用 OEM provider，就整套切走 OEM。</p>
+          </div>
+        </div>
+      </div>
+      ${renderPageGuide('模型中心怎么用', [
+        '平台 tab 维护全局 fallback provider。',
+        '每个 OEM tab 都可以选择“继承平台”或“使用 OEM Provider”。',
+        '模型列表、Base URL、API Key、Logo 都在同一个 provider profile 里维护；保存后会同步清理 runtime 缓存。',
+      ], 'capability')}
+      <div class="fig-detail-stack">
+        <section class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
+            <h3>Provider Scope</h3>
+            <span>1 + N Tab</span>
+          </div>
+          <div class="segmented" style="flex-wrap:wrap;">
+            ${tabs
+              .map(
+                (tab) =>
+                  `<button class="tab-pill${selectedTab === tab.key ? ' is-active' : ''}" type="button" data-action="select-model-provider-tab" data-tab-key="${escapeHtml(tab.key)}">${escapeHtml(tab.label)}</button>`,
+              )
+              .join('')}
+          </div>
+        </section>
+        <form id="model-provider-form" class="fig-card fig-card--subtle">
+          <input type="hidden" name="profile_id" value="${fieldValue(profile.id || '')}" />
+          <input type="hidden" name="scope_type" value="${fieldValue(scopeType)}" />
+          <input type="hidden" name="scope_key" value="${fieldValue(scopeKey)}" />
+          <div class="fig-card__head">
+            <div>
+              <h3>${escapeHtml(selectedBrand ? `${selectedBrand.displayName} Provider` : '平台 Fallback Provider')}</h3>
+              <span>${escapeHtml(scopeType === 'platform' ? '所有 OEM 默认继承这里' : '这个 OEM 可以继承平台，或切到自己的 provider')}</span>
+            </div>
+            ${selectedBrand
+              ? `
+                <label class="field" style="min-width:220px;">
+                  <span>Provider Mode</span>
+                  <select class="field-select" name="provider_mode">
+                    <option value="inherit_platform"${override?.providerMode !== 'use_app_profile' ? ' selected' : ''}>继承平台</option>
+                    <option value="use_app_profile"${override?.providerMode === 'use_app_profile' ? ' selected' : ''}>使用 OEM Provider</option>
+                  </select>
+                </label>
+              `
+              : ''}
+          </div>
+          <div class="form-grid form-grid--two">
+            <label class="field">
+              <span>Provider Key</span>
+              <input class="field-input" name="provider_key" value="${fieldValue(profile.providerKey || '')}" placeholder="bailian / siliconflow" />
+            </label>
+            <label class="field">
+              <span>Provider Label</span>
+              <input class="field-input" name="provider_label" value="${fieldValue(profile.providerLabel || '')}" placeholder="阿里云百炼" />
+            </label>
+            <label class="field">
+              <span>API Protocol</span>
+              <input class="field-input" name="api_protocol" value="${fieldValue(profile.apiProtocol || 'openai-completions')}" placeholder="openai-completions" />
+            </label>
+            <label class="field">
+              <span>Auth Mode</span>
+              <select class="field-select" name="auth_mode">
+                ${['bearer', 'query'].map((item) => `<option value="${item}"${(profile.authMode || 'bearer') === item ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('')}
+              </select>
+            </label>
+            <label class="field field--wide">
+              <span>Base URL</span>
+              <input class="field-input" name="base_url" value="${fieldValue(profile.baseUrl || '')}" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1" />
+            </label>
+            <label class="field field--wide">
+              <span>API Key</span>
+              <input class="field-input" name="api_key" value="${fieldValue(profile.apiKey || '')}" placeholder="直接落表保存" />
+            </label>
+            <label class="field field--wide">
+              <span>Provider Logo Preset</span>
+              <input class="field-input" name="logo_preset_key" value="${fieldValue(profile.logoPresetKey || '')}" placeholder="logo preset key" readonly />
+            </label>
+            <div class="field field--wide">
+              <span>Provider Logo Preview</span>
+              <div data-logo-preview="true">${providerLogoPreset ? renderModelLogoPreview(providerLogoPreset.presetKey, 'Provider Logo') : '<div class="empty-state" style="min-height:40px;">Provider Logo 未设置</div>'}</div>
+              <div class="action-row" style="margin-top:8px;">
+                <button class="ghost-button" type="button" data-action="pick-model-logo" data-input-name="logo_preset_key">选择 Logo</button>
+                <button class="text-button" type="button" data-action="clear-model-logo" data-input-name="logo_preset_key">清空</button>
+              </div>
+            </div>
+            <label class="field">
+              <span>Enabled</span>
+              <select class="field-select" name="enabled">
+                <option value="true"${profile.enabled !== false ? ' selected' : ''}>true</option>
+                <option value="false"${profile.enabled === false ? ' selected' : ''}>false</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Sort Order</span>
+              <input class="field-input" name="sort_order" type="number" min="0" value="${fieldValue(profile.sortOrder ?? 100)}" />
+            </label>
+            <label class="field field--wide">
+              <span>Metadata JSON</span>
+              <textarea class="field-textarea" name="metadata_json">${escapeHtml(prettyJson(profile.metadata || {}))}</textarea>
+            </label>
+          </div>
+          <section class="fig-card fig-card--subtle" style="margin-top:16px;">
+            <div class="fig-card__head">
+              <h3>Model List</h3>
+              <button class="ghost-button" type="button" data-action="add-provider-model-row">新增模型</button>
+            </div>
+            <div data-model-provider-rows="true" class="fig-detail-stack">
+              ${(profile.models || []).length ? profile.models.map((item, index) => renderModelProviderRow(item, index)).join('') : renderModelProviderRow({}, 0)}
+            </div>
+          </section>
+          <div class="fig-form-actions">
+            <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>保存 Provider</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
 function renderSkillsMcpPage() {
+  if (state.capabilityMode === 'models') {
+    return renderModelProviderCenterPage();
+  }
   const filterOptions = getCapabilityFilterOptions();
   const {skills, mcpServers, models} = getFilteredCapabilities();
   const cloudSkillTotal = Number(state.cloudSkillCatalogMeta?.total || 0);
@@ -8772,6 +9207,11 @@ app.addEventListener('submit', async (event) => {
     return;
   }
 
+  if (form.id === 'model-provider-form') {
+    await saveModelProviderProfile(form);
+    return;
+  }
+
   if (form.id === 'payment-order-manual-form') {
     const data = new FormData(form);
     const orderId = String(data.get('order_id') || '').trim();
@@ -9018,6 +9458,14 @@ app.addEventListener('click', async (event) => {
     return;
   }
 
+  if (action === 'select-model-provider-tab') {
+    state.capabilityMode = 'models';
+    state.route = getCapabilityRouteForMode(state.capabilityMode);
+    state.selectedModelProviderTab = target.getAttribute('data-tab-key') || 'platform';
+    render();
+    return;
+  }
+
   if (action === 'capability-filter-reset') {
     resetCapabilityFilters();
     render();
@@ -9049,6 +9497,43 @@ app.addEventListener('click', async (event) => {
     state.route = getCapabilityRouteForMode(state.capabilityMode);
     state.selectedModelRef = target.getAttribute('data-model-ref') || '';
     render();
+    return;
+  }
+
+  if (action === 'add-provider-model-row') {
+    appendProviderModelRow({});
+    return;
+  }
+
+  if (action === 'remove-provider-model-row') {
+    const row = target.closest('[data-model-provider-row="true"]');
+    if (row && row.parentElement && row.parentElement.querySelectorAll('[data-model-provider-row="true"]').length > 1) {
+      row.remove();
+    }
+    return;
+  }
+
+  if (action === 'pick-model-logo') {
+    const form = target.closest('form');
+    if (form instanceof HTMLFormElement) {
+      openModelLogoPicker(form, target.getAttribute('data-input-name') || '');
+    }
+    return;
+  }
+
+  if (action === 'clear-model-logo') {
+    const form = target.closest('form');
+    const inputName = target.getAttribute('data-input-name') || '';
+    if (form instanceof HTMLFormElement && inputName) {
+      const input = form.querySelector(`[name="${inputName}"]`);
+      if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) {
+        input.value = '';
+      }
+      const preview = target.closest('.field')?.querySelector('[data-logo-preview="true"]');
+      if (preview instanceof HTMLElement) {
+        preview.innerHTML = '<div class="empty-state" style="min-height:40px;">Logo 未设置</div>';
+      }
+    }
     return;
   }
 

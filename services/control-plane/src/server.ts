@@ -1,5 +1,5 @@
 import {execFileSync} from 'node:child_process';
-import {existsSync} from 'node:fs';
+import {existsSync, readFileSync} from 'node:fs';
 import {mkdtemp, mkdir, readdir, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {dirname, resolve, sep} from 'node:path';
@@ -103,6 +103,8 @@ const oemService = new OemService(oemStore, async (accessToken) => service.me(ac
 const portalService = new PortalService(portalStore, async (accessToken) => service.me(accessToken), {cache: runtimeCache});
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const skillsSourceRoot = resolve(process.env.ICLAW_SKILLS_SOURCE_DIR || resolve(repoRoot, 'skills'));
+const modelLogoAssetRoot = resolve(repoRoot, 'services/control-plane/presets/assets/model-logos');
+const modelLogoManifestPath = resolve(modelLogoAssetRoot, 'manifest.json');
 
 function requireBearerToken(headers: Record<string, string | string[] | undefined>): string {
   const authHeader = headers.authorization;
@@ -116,6 +118,32 @@ function requireBearerToken(headers: Record<string, string | string[] | undefine
 function getHeaderValue(headers: Record<string, string | string[] | undefined>, key: string): string {
   const raw = headers[key];
   return (Array.isArray(raw) ? raw[0] : raw)?.trim() || '';
+}
+
+function loadModelLogoManifest(baseUrl: string) {
+  if (!existsSync(modelLogoManifestPath)) {
+    return {items: []};
+  }
+  const raw = JSON.parse(readFileSync(modelLogoManifestPath, 'utf8')) as {items?: Array<Record<string, unknown>>};
+  const normalizedBaseUrl = baseUrl.replace(/\/$/, '');
+  return {
+    items: Array.isArray(raw.items)
+      ? raw.items
+          .map((item) => {
+            const presetKey = String(item.preset_key || item.presetKey || '').trim();
+            const fileName = String(item.file_name || item.fileName || '').trim();
+            if (!presetKey || !fileName) return null;
+            return {
+              presetKey,
+              label: String(item.label || presetKey).trim() || presetKey,
+              fileName,
+              contentType: String(item.content_type || item.contentType || 'image/png').trim() || 'image/png',
+              url: `${normalizedBaseUrl}/portal/model-logo/file?preset_key=${encodeURIComponent(presetKey)}`,
+            };
+          })
+          .filter((item): item is NonNullable<typeof item> => Boolean(item))
+      : [],
+  };
 }
 
 function resolvePublicBaseUrl(headers: Record<string, string | string[] | undefined>): string {
@@ -1347,9 +1375,30 @@ const server = createJsonServer([
   },
   {
     method: 'GET',
+    path: '/portal/runtime/private-config',
+    handler: ({headers, url}: HandlerContext) =>
+      portalService.getPrivateRuntimeConfig(
+        requireBearerToken(headers),
+        (url.searchParams.get('app_name') || '').trim(),
+        resolvePublicBaseUrl(headers),
+        {
+          surfaceKey: (url.searchParams.get('surface_key') || '').trim() || null,
+        },
+      ),
+  },
+  {
+    method: 'GET',
     path: '/portal/runtime/models',
     handler: ({url}: HandlerContext) =>
       portalService.getResolvedRuntimeModels((url.searchParams.get('app_name') || '').trim()),
+  },
+  {
+    method: 'GET',
+    path: '/admin/portal/model-logo-presets',
+    handler: ({headers}: HandlerContext) => {
+      requireBearerToken(headers);
+      return loadModelLogoManifest(resolvePublicBaseUrl(headers));
+    },
   },
   {
     method: 'GET',
@@ -1409,6 +1458,29 @@ const server = createJsonServer([
         headers: {
           'Content-Type': result.file.contentType,
           'Cache-Control': 'public, max-age=3600',
+        },
+      });
+    },
+  },
+  {
+    method: 'GET',
+    path: '/portal/model-logo/file',
+    handler: ({url}: HandlerContext) => {
+      const presetKey = (url.searchParams.get('preset_key') || '').trim();
+      const manifest = loadModelLogoManifest(config.apiUrl || 'http://127.0.0.1:2130');
+      const item = manifest.items.find((entry) => entry.presetKey === presetKey);
+      if (!item) {
+        throw new HttpError(404, 'NOT_FOUND', 'model logo preset not found');
+      }
+      const filePath = resolve(modelLogoAssetRoot, item.fileName);
+      if (!existsSync(filePath)) {
+        throw new HttpError(404, 'NOT_FOUND', 'model logo file not found');
+      }
+      return createRawResponse(readFileSync(filePath), {
+        statusCode: 200,
+        headers: {
+          'Content-Type': item.contentType,
+          'Cache-Control': 'public, max-age=86400',
         },
       });
     },

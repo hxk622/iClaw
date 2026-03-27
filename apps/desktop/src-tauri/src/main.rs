@@ -2846,9 +2846,15 @@ fn sync_oem_runtime_snapshot(
         return Err(String::from("auth_base_url is required"));
     }
 
-    let mut url = Url::parse(&format!("{trimmed_auth_base_url}/portal/public-config"))
+    let mut private_url = Url::parse(&format!("{trimmed_auth_base_url}/portal/runtime/private-config"))
+        .map_err(|e| format!("failed to parse OEM private runtime config url: {e}"))?;
+    private_url
+        .query_pairs_mut()
+        .append_pair("app_name", trimmed_brand_id);
+    let mut public_url = Url::parse(&format!("{trimmed_auth_base_url}/portal/public-config"))
         .map_err(|e| format!("failed to parse OEM runtime config url: {e}"))?;
-    url.query_pairs_mut()
+    public_url
+        .query_pairs_mut()
         .append_pair("app_name", trimmed_brand_id);
 
     let client = Client::builder()
@@ -2857,10 +2863,28 @@ fn sync_oem_runtime_snapshot(
         .build()
         .map_err(|e| format!("failed to build OEM runtime config client: {e}"))?;
 
-    let response = client
-        .get(url)
-        .send()
-        .map_err(|e| format!("failed to fetch OEM runtime config: {e}"))?;
+    let private_response = match load_auth_tokens() {
+        Ok(Some(tokens)) if !tokens.access_token.trim().is_empty() => client
+            .get(private_url)
+            .bearer_auth(tokens.access_token)
+            .send()
+            .ok(),
+        Ok(_) => None,
+        Err(_) => None,
+    };
+    let response = if let Some(resp) = private_response {
+        if resp.status().is_success() { resp } else {
+            client
+                .get(public_url)
+                .send()
+                .map_err(|e| format!("failed to fetch OEM runtime config: {e}"))?
+        }
+    } else {
+        client
+            .get(public_url)
+            .send()
+            .map_err(|e| format!("failed to fetch OEM runtime config: {e}"))?
+    };
     let status = response.status();
     let envelope = response
         .json::<PublicBrandConfigEnvelope>()
