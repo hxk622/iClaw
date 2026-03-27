@@ -1875,17 +1875,7 @@ function getPortalModelConnections(ref) {
 }
 
 function getMergedModelCatalog() {
-  return state.modelCatalog
-    .map((item) => {
-      const connectedBrands = getPortalModelConnections(item.ref);
-      return {
-        ...item,
-        input: asStringArray(item.input),
-        connectedBrands,
-        connected_brand_count: connectedBrands.length,
-      };
-    })
-    .sort((left, right) => left.label.localeCompare(right.label, 'zh-CN'));
+  return [];
 }
 
 function getCapabilityFilterOptions() {
@@ -2844,13 +2834,12 @@ async function loadAppData() {
   render();
 
   try {
-    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, mcpRegistryData, modelCatalogData, modelProviderProfilesData, modelLogoPresetsData, menuCatalogData, composerControlCatalogData, composerShortcutCatalogData, skillSyncSourcesData, skillSyncRunsData, paymentOrdersData] = await Promise.all([
+    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, mcpRegistryData, modelProviderProfilesData, modelLogoPresetsData, menuCatalogData, composerControlCatalogData, composerShortcutCatalogData, skillSyncSourcesData, skillSyncRunsData, paymentOrdersData] = await Promise.all([
       apiFetch('/admin/portal/apps', {method: 'GET'}),
       apiFetch('/admin/agents/catalog', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/skills', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/mcps', {method: 'GET'}),
       apiFetch('/admin/mcp/catalog', {method: 'GET'}),
-      apiFetch('/admin/portal/catalog/models', {method: 'GET'}),
       apiFetch('/admin/portal/model-provider-profiles', {method: 'GET'}),
       apiFetch('/admin/portal/model-logo-presets', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/menus', {method: 'GET'}),
@@ -2881,7 +2870,7 @@ async function loadAppData() {
     state.skillCatalog = Array.isArray(skillCatalogData.items) ? skillCatalogData.items : [];
     state.mcpCatalog = Array.isArray(mcpCatalogData.items) ? mcpCatalogData.items : [];
     state.mcpRegistryCatalog = Array.isArray(mcpRegistryData.items) ? mcpRegistryData.items : [];
-    state.modelCatalog = Array.isArray(modelCatalogData.items) ? modelCatalogData.items : [];
+    state.modelCatalog = [];
     state.modelProviderProfiles = Array.isArray(modelProviderProfilesData.items) ? modelProviderProfilesData.items : [];
     state.modelProviderOverrides = overridesMap;
     state.modelLogoPresets = Array.isArray(modelLogoPresetsData.items) ? modelLogoPresetsData.items : [];
@@ -3074,16 +3063,7 @@ async function saveBrandEditor(form) {
       }),
       apiFetch(`/admin/portal/apps/${encodeURIComponent(snapshot.brandId)}/models`, {
         method: 'PUT',
-        body: JSON.stringify(
-          state.modelCatalog.map((item, index) => ({
-            modelRef: item.ref,
-            enabled: snapshot.selectedModels.includes(item.ref),
-            sortOrder: (index + 1) * 10,
-            recommended: snapshot.recommendedModels.includes(item.ref),
-            default: snapshot.defaultModel === item.ref,
-            config: asObject(existingModelBindings.get(item.ref)?.config),
-          })),
-        ),
+        body: JSON.stringify([]),
       }),
       apiFetch(`/admin/portal/apps/${encodeURIComponent(snapshot.brandId)}/menus`, {
         method: 'PUT',
@@ -3276,22 +3256,10 @@ async function createBrand(formData) {
         ),
       }),
     ]);
-    const defaultModel = state.modelCatalog.find((item) => item.ref === 'openai/gpt-5.4') || state.modelCatalog[0] || null;
-    if (defaultModel) {
-      await apiFetch(`/admin/portal/apps/${encodeURIComponent(brandId)}/models`, {
-        method: 'PUT',
-        body: JSON.stringify(
-          state.modelCatalog.map((item, index) => ({
-            modelRef: item.ref,
-            enabled: item.ref === defaultModel.ref,
-            sortOrder: (index + 1) * 10,
-            recommended: item.ref === defaultModel.ref,
-            default: item.ref === defaultModel.ref,
-            config: {},
-          })),
-        ),
-      });
-    }
+    await apiFetch(`/admin/portal/apps/${encodeURIComponent(brandId)}/models`, {
+      method: 'PUT',
+      body: JSON.stringify([]),
+    });
     await loadAppData();
     state.showCreateBrandForm = false;
     state.route = 'brand-detail';
