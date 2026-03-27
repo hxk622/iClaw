@@ -606,17 +606,24 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  min-height: 28px;
-  margin-top: 6px;
+  gap: 10px;
+  min-height: 22px;
+  margin-top: 4px;
   padding: 0 2px;
+  opacity: 0.68;
+  transition: opacity 160ms ease;
+}
+
+.openclaw-chat-surface .chat-group.assistant:hover .iclaw-chat-assistant-footer,
+.openclaw-chat-surface .iclaw-chat-assistant-footer:focus-within {
+  opacity: 0.94;
 }
 
 .openclaw-chat-surface .iclaw-chat-assistant-meta {
   min-width: 0;
   color: var(--chat-surface-muted);
-  font-size: 12px;
-  line-height: 1.35;
+  font-size: 11px;
+  line-height: 1.2;
   white-space: nowrap;
 }
 
@@ -649,13 +656,14 @@ body {
   align-items: center;
   justify-content: flex-end;
   flex: 0 0 auto;
-  min-width: 152px;
-  min-height: 32px;
+  gap: 8px;
+  min-width: 126px;
+  min-height: 24px;
 }
 
 .openclaw-chat-surface .iclaw-chat-assistant-footer__timestamp {
   color: var(--chat-surface-muted);
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1;
   transition:
     opacity 160ms ease,
