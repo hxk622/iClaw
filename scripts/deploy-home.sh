@@ -3,6 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 MODE="${1:-dev}"
+
+export ICLAW_PACKAGING_ENV="$MODE"
 HOME_NGINX_PATH_DEFAULT="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" distribution.home.nginxPath | tail -n1)"
 
 if [[ "$MODE" == "dev" ]]; then

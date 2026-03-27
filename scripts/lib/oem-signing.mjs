@@ -1,5 +1,5 @@
 import process from 'node:process';
-import { readPreferredEnvValue, readPreferredPackagingEnvValue, resolveConfiguredAppName } from './app-env.mjs';
+import { readPreferredEnvValue, readPreferredSigningEnvValue, resolveConfiguredAppName } from './app-env.mjs';
 
 function trimString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -23,7 +23,7 @@ function toBrandEnvSuffix(brandId) {
 function resolveEnvValue(rootDir, key) {
   return (
     trimString(process.env[key]) ||
-    trimString(readPreferredPackagingEnvValue(rootDir, key)) ||
+    trimString(readPreferredSigningEnvValue(rootDir, key)) ||
     trimString(readPreferredEnvValue(rootDir, key))
   );
 }

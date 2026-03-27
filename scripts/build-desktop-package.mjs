@@ -5,7 +5,7 @@ import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { resolveBrandId } from './lib/brand-profile.mjs';
-import { resolveConfiguredAppName, resolvePackagingOverlayEnv, resolvePackagingSourceEnv } from './lib/app-env.mjs';
+import { resolveConfiguredAppName, resolvePackagingSourceEnv, resolveSigningOverlayEnv } from './lib/app-env.mjs';
 import { resolveOemSigningProfile } from './lib/oem-signing.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -391,7 +391,7 @@ async function assertPackagedRuntimeConfig() {
 async function main() {
   const { brandId, target, forwardedArgs } = parseArgs(process.argv.slice(2));
   const snapshotKey = 'desktop-package-build';
-  const packagingOverlayEnv = resolvePackagingOverlayEnv(rootDir);
+  const packagingOverlayEnv = resolveSigningOverlayEnv(rootDir);
   const packagingSourceEnv = resolvePackagingSourceEnv(rootDir);
   const signingProfile = await resolveOemSigningProfile({ rootDir, brandId });
   const env = {

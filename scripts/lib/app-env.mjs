@@ -59,20 +59,24 @@ function envFileCandidates(rootDir) {
   return envFileCandidatesFor(rootDir, resolveSelectedEnvName());
 }
 
-function packagingEnvFileCandidatesFor(rootDir, envName = '') {
+function signingEnvFileCandidatesFor(rootDir, envName = '') {
   const selectedEnv = normalizeEnvName(envName);
   const candidates = [];
   if (selectedEnv) {
+    candidates.push(path.join(rootDir, `.env.signing.${selectedEnv}.local`));
+    candidates.push(path.join(rootDir, `.env.signing.${selectedEnv}`));
     candidates.push(path.join(rootDir, `.env.packaging.${selectedEnv}.local`));
     candidates.push(path.join(rootDir, `.env.packaging.${selectedEnv}`));
   }
+  candidates.push(path.join(rootDir, '.env.signing.local'));
+  candidates.push(path.join(rootDir, '.env.signing'));
   candidates.push(path.join(rootDir, '.env.packaging.local'));
   candidates.push(path.join(rootDir, '.env.packaging'));
   return candidates;
 }
 
-function packagingEnvFileCandidates(rootDir) {
-  return packagingEnvFileCandidatesFor(rootDir, resolveSelectedEnvName());
+function signingEnvFileCandidates(rootDir) {
+  return signingEnvFileCandidatesFor(rootDir, resolveSelectedEnvName());
 }
 
 export function readPreferredEnvValue(rootDir, key) {
@@ -97,8 +101,8 @@ export function readPreferredEnvValueFor(rootDir, envName, key) {
   return '';
 }
 
-export function readPreferredPackagingEnvValue(rootDir, key) {
-  for (const filePath of packagingEnvFileCandidates(rootDir)) {
+export function readPreferredSigningEnvValue(rootDir, key) {
+  for (const filePath of signingEnvFileCandidates(rootDir)) {
     const values = readEnvFile(filePath);
     const value = trimString(values[key]);
     if (value) {
@@ -108,8 +112,8 @@ export function readPreferredPackagingEnvValue(rootDir, key) {
   return '';
 }
 
-export function resolvePackagingOverlayEnv(rootDir) {
-  const files = packagingEnvFileCandidates(rootDir);
+export function resolveSigningOverlayEnv(rootDir) {
+  const files = signingEnvFileCandidates(rootDir);
   const merged = {};
   for (let index = files.length - 1; index >= 0; index -= 1) {
     Object.assign(merged, readEnvFile(files[index]));
@@ -131,6 +135,14 @@ export function resolvePackagingSourceEnv(rootDir) {
     S3_ACCESS_KEY: pick('ICLAW_PACKAGE_SOURCE_S3_ACCESS_KEY'),
     S3_SECRET_KEY: pick('ICLAW_PACKAGE_SOURCE_S3_SECRET_KEY'),
   };
+}
+
+export function readPreferredPackagingEnvValue(rootDir, key) {
+  return readPreferredSigningEnvValue(rootDir, key);
+}
+
+export function resolvePackagingOverlayEnv(rootDir) {
+  return resolveSigningOverlayEnv(rootDir);
 }
 
 export function resolveConfiguredAppName(rootDir) {

@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT_DIR/scripts/lib/openclaw-package.sh"
 
 ENV_NAME="${1:-prod}"
+export ICLAW_PACKAGING_ENV="$ENV_NAME"
 RUNTIME_CONFIG_PATH="$(openclaw_runtime_bootstrap_config_path "$ROOT_DIR")"
 RUNTIME_PREFIX_DEFAULT="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" runtimeDistribution.minioPrefix | tail -n1)"
 RUNTIME_DEV_BUCKET_DEFAULT="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" runtimeDistribution.dev.bucket | tail -n1)"

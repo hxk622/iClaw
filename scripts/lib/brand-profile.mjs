@@ -1,9 +1,10 @@
-import fsp from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import {spawnSync} from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { normalizeEnvName, resolveConfiguredAppName, resolveSelectedEnvName } from './app-env.mjs';
+import { loadPackagingProfile } from './packaging-profile.mjs';
+import fsp from 'node:fs/promises';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const defaultRootDir = path.resolve(__dirname, '..', '..');
@@ -86,6 +87,20 @@ export function resolveBrandId(
 export async function loadBrandProfile(options = {}) {
   const rootDir = options.rootDir ? path.resolve(options.rootDir) : defaultRootDir;
   const brandId = resolveBrandId(options.brandId);
+  try {
+    const resolved = await loadPackagingProfile({
+      rootDir,
+      brandId,
+      envName: options.envName,
+    });
+    const brandDir = path.dirname(resolved.filePath);
+    return {
+      rootDir,
+      brandDir,
+      brandConfigPath: resolved.filePath,
+      profile: resolved.profile,
+    };
+  } catch {}
   await ensureSyncedBrandProfile(rootDir, brandId);
   const brandDir = cacheRootFor(rootDir, brandId);
   const brandConfigPath = path.join(brandDir, 'profile.json');
