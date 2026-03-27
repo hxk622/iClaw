@@ -76,6 +76,48 @@ bash scripts/build-desktop-matrix.sh
 - dev：本地 Vite（home）+ 远端源 MinIO（`47.93.231.197`）
 - prod：Nginx（`113.44.132.75`）+ 火山 MinIO（`115.191.6.179`）
 
+## macOS Prod 标准流程
+
+macOS 正式发版默认按“双打”执行，不再只打一种架构。
+
+要求产物：
+
+- `aarch64-apple-darwin`
+- `x86_64-apple-darwin`
+
+标准命令：
+
+```bash
+bash scripts/build-desktop-matrix.sh
+bash scripts/publish-downloads.sh prod
+```
+
+如果只想手动补打单个架构，可用：
+
+```bash
+ICLAW_DESKTOP_TARGETS=aarch64-apple-darwin ICLAW_DESKTOP_CHANNELS=prod bash scripts/build-desktop-matrix.sh
+ICLAW_DESKTOP_TARGETS=x86_64-apple-darwin ICLAW_DESKTOP_CHANNELS=prod bash scripts/build-desktop-matrix.sh
+bash scripts/publish-downloads.sh prod
+```
+
+发布完成后，`dist/releases/` 至少应包含：
+
+- `*_aarch64_prod.dmg`
+- `*_x64_prod.dmg`
+- `*_aarch64_prod.app.tar.gz`
+- `*_aarch64_prod.app.tar.gz.sig`
+- `*_x64_prod.app.tar.gz`
+- `*_x64_prod.app.tar.gz.sig`
+- `latest-prod-darwin-aarch64.json`
+- `latest-prod-darwin-x64.json`
+- `latest-prod.json`
+
+说明：
+
+- `scripts/build-desktop-matrix.sh` 在 macOS 主机上默认就会同时打 `aarch64` 和 `x64`
+- `scripts/publish-downloads.sh prod` 会上传 installer、updater 和 manifest，并按保留策略清理旧版本
+- prod 构建必须通过签名校验；macOS 公证失败时不会产出可公开发布的 prod 包
+
 补充：
 
 - 默认 PostgreSQL / MinIO 源环境：`47.93.231.197`
