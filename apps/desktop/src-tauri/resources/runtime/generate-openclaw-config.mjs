@@ -178,7 +178,6 @@ function main() {
   }
 
   const config = readJsonIfExists(configPath) ?? {};
-  const runtimeConfig = asObject(readJsonIfExists(runtimeConfigPath));
   const portalRuntimeSnapshot = loadPortalRuntimeSnapshot();
   const resolvedProviderConfig = extractResolvedProviderConfig(portalRuntimeSnapshot);
   if (!resolvedProviderConfig?.providerKey) {
@@ -187,14 +186,12 @@ function main() {
   if (!Array.isArray(resolvedProviderConfig.models) || resolvedProviderConfig.models.length === 0) {
     throw new Error(`Resolved provider "${resolvedProviderConfig.providerKey}" has no enabled models. Configure Model Center before launching OpenClaw.`);
   }
-  const normalizedApiKey = trimString(runtimeConfig.openai_api_key);
-  const normalizedBaseUrl = normalizeOpenaiBaseUrl(runtimeConfig.openai_base_url);
   const activeModelRef = resolvedProviderConfig.models[0]?.modelRef || '';
   const activeModelId = activeModelRef ? activeModelRef.split('/').pop() : '';
   const allowlistModelRefs = resolvedProviderConfig.models.map((entry) => entry.modelRef).filter(Boolean);
   const mergedAllowedOrigins = parseAllowedOrigins(mode, process.env.ICLAW_OPENCLAW_ALLOWED_ORIGINS);
-  const embeddingBaseUrl = normalizeOpenaiBaseUrl(resolvedProviderConfig?.baseUrl || normalizedBaseUrl);
-  const embeddingApiKey = trimString(resolvedProviderConfig?.apiKey || normalizedApiKey);
+  const embeddingBaseUrl = normalizeOpenaiBaseUrl(resolvedProviderConfig.baseUrl);
+  const embeddingApiKey = trimString(resolvedProviderConfig.apiKey);
   const memoryAutoRecallEnabled = baseUrlSupportsEmbeddings(embeddingBaseUrl);
 
   sanitizeLegacySkillEntries(config);

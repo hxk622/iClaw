@@ -2560,18 +2560,6 @@ fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Resul
     Ok(config_path)
 }
 
-fn normalize_openai_base_url(raw: &str) -> String {
-    let trimmed = raw.trim().trim_end_matches('/');
-    if trimmed.is_empty() {
-        return String::new();
-    }
-    if trimmed.ends_with("/v1") {
-        trimmed.to_string()
-    } else {
-        format!("{trimmed}/v1")
-    }
-}
-
 fn resource_runtime_config_path(app: &AppHandle) -> PathBuf {
     if let Ok(resource_dir) = app.path().resource_dir() {
         let p = resource_dir
@@ -2680,23 +2668,6 @@ fn start_sidecar(
     }
     configure_runtime_network_env(&mut command, &app);
 
-    if let Some(v) = config.openai_api_key {
-        if !v.trim().is_empty() {
-            command.env("OPENAI_API_KEY", v);
-        }
-    }
-    if let Some(v) = config.openai_base_url {
-        let normalized_base_url = normalize_openai_base_url(&v);
-        if !normalized_base_url.is_empty() {
-            command.env("OPENAI_BASE_URL", &normalized_base_url);
-            command.env("OPENAI_API_BASE", normalized_base_url);
-        }
-    }
-    if let Some(v) = config.openai_model {
-        if !v.trim().is_empty() {
-            command.env("OPENAI_MODEL", v);
-        }
-    }
     if let Some(v) = config.anthropic_api_key {
         if !v.trim().is_empty() {
             command.env("ANTHROPIC_API_KEY", v);
@@ -2925,15 +2896,23 @@ fn diagnose_runtime(app: AppHandle) -> Result<RuntimeDiagnosis, String> {
     let mcp_config = resource_mcp_config_path(&app);
     let paths = ensure_runtime_dirs(&app)?;
     let config = load_runtime_config_internal(&app)?;
-    let api_key_configured = config
-        .openai_api_key
-        .as_deref()
-        .map(|v| !v.trim().is_empty())
-        .unwrap_or(false)
+    let snapshot = load_oem_runtime_snapshot_internal(&app).ok().flatten();
+    let provider_api_key_configured = snapshot
+        .as_ref()
+        .and_then(|value| value.config.as_object())
+        .and_then(|config| config.get("model_provider"))
+        .and_then(|value| value.as_object())
+        .and_then(|model_provider| model_provider.get("profile"))
+        .and_then(|value| value.as_object())
+        .and_then(|profile| profile.get("api_key"))
+        .and_then(|value| value.as_str())
+        .map(|value| !value.trim().is_empty())
+        .unwrap_or(false);
+    let api_key_configured = provider_api_key_configured
         || config
             .anthropic_api_key
             .as_deref()
-            .map(|v| !v.trim().is_empty())
+            .map(|value| !value.trim().is_empty())
             .unwrap_or(false);
 
     Ok(RuntimeDiagnosis {
@@ -3342,23 +3321,6 @@ fn configure_memory_runtime_command(command: &mut Command, app: &AppHandle) -> R
         command.env("NODE_EXTRA_CA_CERTS", extra_ca_certs);
     }
     configure_runtime_network_env(command, app);
-    if let Some(v) = config.openai_api_key {
-        if !v.trim().is_empty() {
-            command.env("OPENAI_API_KEY", v);
-        }
-    }
-    if let Some(v) = config.openai_base_url {
-        let normalized_base_url = normalize_openai_base_url(&v);
-        if !normalized_base_url.is_empty() {
-            command.env("OPENAI_BASE_URL", &normalized_base_url);
-            command.env("OPENAI_API_BASE", normalized_base_url);
-        }
-    }
-    if let Some(v) = config.openai_model {
-        if !v.trim().is_empty() {
-            command.env("OPENAI_MODEL", v);
-        }
-    }
     if let Some(v) = config.anthropic_api_key {
         if !v.trim().is_empty() {
             command.env("ANTHROPIC_API_KEY", v);

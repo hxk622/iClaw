@@ -88,43 +88,6 @@ function cloneJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-function buildResolvedCapabilityModelEntries(resolved: {
-  profile: {
-    providerKey: string;
-    apiProtocol: string;
-    baseUrl: string;
-    logoPresetKey: string | null;
-  };
-  models: Array<{
-    modelRef: string;
-    modelId: string;
-    label: string;
-    reasoning: boolean;
-    inputModalities: string[];
-    contextWindow: number | null;
-    maxTokens: number | null;
-    logoPresetKey: string | null;
-    metadata: PortalJsonObject;
-  }>;
-}) {
-  return resolved.models.map((model) => ({
-    ref: model.modelRef,
-    providerId: resolved.profile.providerKey,
-    modelId: model.modelId,
-    label: model.label,
-    api: resolved.profile.apiProtocol,
-    baseUrl: resolved.profile.baseUrl,
-    useRuntimeOpenai: false,
-    authHeader: true,
-    reasoning: model.reasoning,
-    input: cloneJson(model.inputModalities),
-    contextWindow: model.contextWindow ?? 0,
-    maxTokens: model.maxTokens ?? 0,
-    logoPresetKey: model.logoPresetKey,
-    metadata: cloneJson(model.metadata),
-  }));
-}
-
 function applyResolvedRuntimeModelsToConfig(
   config: PortalJsonObject,
   resolved: {
@@ -169,14 +132,9 @@ function applyResolvedRuntimeModelsToConfig(
 ): PortalJsonObject {
   const nextConfig = cloneJson(config);
   const capabilities = asObject(nextConfig.capabilities);
-  const existingModels = asObject(capabilities.models);
-  const entries = buildResolvedCapabilityModelEntries(resolved);
-  capabilities.models = {
-    ...existingModels,
-    default: entries[0]?.ref || null,
-    recommended: entries.map((item) => item.ref),
-    entries,
-  };
+  if (Object.prototype.hasOwnProperty.call(capabilities, 'models')) {
+    delete capabilities.models;
+  }
   nextConfig.capabilities = capabilities;
   nextConfig.model_provider = {
     provider_mode: resolved.providerMode,

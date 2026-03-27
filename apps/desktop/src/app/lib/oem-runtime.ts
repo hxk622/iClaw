@@ -281,13 +281,10 @@ function resolveEnabledModelRefs(root: Record<string, unknown>): Set<string> {
     .filter((item) => asObject(item).enabled !== false)
     .map((item) => String(asObject(item).model_ref ?? asObject(item).modelRef ?? '').trim())
     .filter(Boolean);
-  const modelsConfig = asObject(asObject(root.capabilities).models);
-  const fallback = [
-    ...asArray(modelsConfig.entries).map((item) => String(asObject(item).ref ?? '').trim()),
-    ...asStringArray(modelsConfig.recommended),
-    String(modelsConfig.default || '').trim(),
-  ].filter(Boolean);
-  return new Set(bound.length ? bound : fallback);
+  const providerModels = asArray(asObject(root.model_provider).models)
+    .map((item) => String(asObject(item).model_ref ?? asObject(item).modelRef ?? '').trim())
+    .filter(Boolean);
+  return new Set(bound.length ? bound : providerModels);
 }
 
 function matchesMenuRequirements(
