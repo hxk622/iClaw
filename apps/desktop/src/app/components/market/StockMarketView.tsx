@@ -1,12 +1,13 @@
 import type {ButtonHTMLAttributes, ReactNode} from 'react';
 import {useDeferredValue, useEffect, useState} from 'react';
 import type {IClawClient, MarketStockData} from '@iclaw/sdk';
-import {BookmarkPlus, MessageSquare, Search, TrendingDown, TrendingUp, X} from 'lucide-react';
+import {BarChart3, BookmarkPlus, Building2, Landmark, ListFilter, MessageSquare, Search, TrendingDown, TrendingUp, X} from 'lucide-react';
 
 import {PageContent, PageHeader, PageSurface} from '@/app/components/ui/PageLayout';
 import {Chip} from '@/app/components/ui/Chip';
 import {cn} from '@/app/lib/cn';
 import {INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE} from '@/app/lib/ui-interactions';
+import {InstrumentIdentityBadge, WorkspaceFilterPill, WorkspaceMetricGrid, WorkspaceSearchControls, WorkspaceSectionCard} from './MarketWorkspaceShared';
 
 const EXCHANGE_TABS = [
   {label: '全部A股', value: ''},
@@ -93,11 +94,6 @@ function exchangeLabel(exchange: MarketStockData['exchange']): string {
   if (exchange === 'sh') return '沪市';
   if (exchange === 'sz') return '深市';
   return '北交所';
-}
-
-function companyMonogram(name: string): string {
-  const compact = name.replace(/\s+/g, '');
-  return compact.slice(0, Math.min(2, compact.length)) || '--';
 }
 
 function buildCardSummary(stock: MarketStockData): string {
@@ -283,9 +279,7 @@ function StockCard({
       )}
     >
       <div className="flex items-start gap-3">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-[#18324A] text-[15px] font-semibold tracking-[0.08em] text-white dark:bg-[#243A52]">
-          {companyMonogram(stock.company_name)}
-        </div>
+        <InstrumentIdentityBadge label={stock.company_name} symbol={stock.symbol} tone="blue" />
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
@@ -640,6 +634,43 @@ export function StockMarketView({
   const [detailLoading, setDetailLoading] = useState(false);
 
   const showingSearchResults = Boolean(exchange || tag || deferredQuery);
+  const stockMetricItems = [
+    {
+      label: 'A股覆盖',
+      value: formatStockCount(exchangeCounts['']) || '--',
+      icon: <BarChart3 className="h-[18px] w-[18px]" />,
+      iconWrapClassName: 'border-[rgba(201,169,97,0.20)] bg-[rgba(201,169,97,0.12)]',
+      iconClassName: 'text-[rgb(155,112,39)] dark:text-[#f1d59c]',
+    },
+    {
+      label: '沪市',
+      value: formatStockCount(exchangeCounts.sh) || '--',
+      icon: <Landmark className="h-[18px] w-[18px]" />,
+      iconWrapClassName: 'border-[rgba(74,107,138,0.18)] bg-[rgba(74,107,138,0.10)]',
+      iconClassName: 'text-[#4A6B8A] dark:text-[#b7d0e5]',
+    },
+    {
+      label: '深市',
+      value: formatStockCount(exchangeCounts.sz) || '--',
+      icon: <Building2 className="h-[18px] w-[18px]" />,
+      iconWrapClassName: 'border-[rgba(34,197,94,0.18)] bg-[rgba(34,197,94,0.10)]',
+      iconClassName: 'text-[rgb(21,128,61)] dark:text-[#c7f9d7]',
+    },
+    {
+      label: '北交所',
+      value: formatStockCount(exchangeCounts.bj) || '--',
+      icon: <TrendingUp className="h-[18px] w-[18px]" />,
+      iconWrapClassName: 'border-[rgba(168,85,247,0.18)] bg-[rgba(168,85,247,0.10)]',
+      iconClassName: 'text-[rgb(126,34,206)] dark:text-[#e9d5ff]',
+    },
+    {
+      label: '当前命中',
+      value: formatStockCount(total) || '--',
+      icon: <Search className="h-[18px] w-[18px]" />,
+      iconWrapClassName: 'border-[rgba(239,68,68,0.18)] bg-[rgba(239,68,68,0.10)]',
+      iconClassName: 'text-[rgb(185,28,28)] dark:text-[#fecaca]',
+    },
+  ];
 
   useEffect(() => {
     let cancelled = false;
@@ -773,72 +804,61 @@ export function StockMarketView({
         <PageHeader
           title={title}
           description="按策略篮子组织的 A 股研究工作台。支持筛选、检索、详情抽屉和 AI 研究接力。"
-          actionsClassName="w-full xl:w-auto"
-          actions={
-            <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_176px] gap-3 xl:w-[560px] xl:max-w-[560px]">
-              <label className="relative flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
-                <input
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="搜索股票名称 / 代码"
-                  className="h-12 w-full rounded-[16px] border border-[rgba(255,255,255,0.08)] bg-[rgba(24,22,20,0.96)] pl-10 pr-4 text-[13px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[rgba(210,176,106,0.42)] focus:ring-2 focus:ring-[rgba(210,176,106,0.12)]"
-                />
-              </label>
-              <select
-                value={sortBy}
-                onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
-                className="h-12 cursor-pointer rounded-[16px] border border-[rgba(255,255,255,0.08)] bg-[rgba(24,22,20,0.96)] px-4 text-[13px] text-[var(--text-primary)] outline-none"
-              >
-                <option value="change_percent_desc">排序: 涨跌幅</option>
-                <option value="market_cap_desc">排序: 总市值</option>
-                <option value="turnover_rate_desc">排序: 换手率</option>
-                <option value="pe_ttm_asc">排序: 市盈率</option>
-              </select>
-            </div>
+        />
+
+        <WorkspaceSearchControls
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          placeholder="搜索股票名称 / 代码"
+          secondaryControl={
+            <select
+              value={sortBy}
+              onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
+              className="h-[42px] cursor-pointer rounded-lg border border-[var(--border-default)] bg-[var(--bg-card)] px-4 text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[rgba(201,169,97,0.24)] dark:bg-[rgba(255,255,255,0.03)]"
+            >
+              <option value="change_percent_desc">排序: 涨跌幅</option>
+              <option value="market_cap_desc">排序: 总市值</option>
+              <option value="turnover_rate_desc">排序: 换手率</option>
+              <option value="pe_ttm_asc">排序: 市盈率</option>
+            </select>
           }
         />
 
-        <div className="mt-5 rounded-[24px] border border-[rgba(255,255,255,0.06)] bg-[rgba(24,22,20,0.94)] p-5 shadow-[0_18px_44px_rgba(0,0,0,0.18)]">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">交易所</div>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {EXCHANGE_TABS.map((item) => (
-              <Chip
-                key={item.label}
-                clickable
-                active={exchange === item.value}
-                tone={exchange === item.value ? 'accent' : 'outline'}
-                className={cn(
-                  'px-3 py-2 text-[12px]',
-                  exchange === item.value ? '' : 'border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)] text-[var(--text-secondary)]',
-                )}
-                onClick={() => setExchange(item.value)}
-              >
-                <span>{item.label}</span>
-                {formatStockCount(exchangeCounts[item.value]) ? (
-                  <span className="text-[11px] opacity-80">{formatStockCount(exchangeCounts[item.value])}</span>
-                ) : null}
-              </Chip>
-            ))}
-          </div>
-          <div className="mt-5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">策略篮子</div>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {FILTER_TAGS.map((item) => (
-              <Chip
-                key={item}
-                clickable
-                active={tag === item}
-                tone={tag === item ? 'brand' : 'outline'}
-                className={cn(
-                  'px-3 py-2 text-[12px]',
-                  tag === item ? '' : 'border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)] text-[var(--text-secondary)]',
-                )}
-                onClick={() => setTag((current) => (current === item ? '' : item))}
-              >
-                {item}
-              </Chip>
-            ))}
-          </div>
+        <WorkspaceMetricGrid items={stockMetricItems} />
+
+        <div className="mt-4">
+          <WorkspaceSectionCard
+            title="筛选与策略篮子"
+            description="先按交易所和策略主题缩小范围，再进入个股详情和 AI 研究。"
+            icon={<ListFilter className="h-4.5 w-4.5" />}
+          >
+            <div>
+              <div className="mb-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">交易所</div>
+              <div className="flex flex-wrap gap-2">
+                {EXCHANGE_TABS.map((item) => (
+                  <WorkspaceFilterPill key={item.label} active={exchange === item.value} onClick={() => setExchange(item.value)}>
+                    <span>{item.label}</span>
+                    {formatStockCount(exchangeCounts[item.value]) ? <span className="text-[11px] opacity-80">{formatStockCount(exchangeCounts[item.value])}</span> : null}
+                  </WorkspaceFilterPill>
+                ))}
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="mb-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">策略篮子</div>
+              <div className="flex flex-wrap gap-2">
+                {FILTER_TAGS.map((item) => (
+                  <WorkspaceFilterPill key={item} active={tag === item} onClick={() => setTag((current) => (current === item ? '' : item))}>
+                    {item}
+                  </WorkspaceFilterPill>
+                ))}
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-2 text-[12px] text-[var(--text-secondary)]">
+              <Chip tone="outline">当前结果 {formatStockCount(total) || '--'}</Chip>
+              <Chip tone="outline">{exchange ? `交易所 ${exchangeLabel(exchange as MarketStockData['exchange'])}` : '全市场'}</Chip>
+              <Chip tone="outline">{tag || '未限定策略'}</Chip>
+            </div>
+          </WorkspaceSectionCard>
         </div>
 
         {loading ? (

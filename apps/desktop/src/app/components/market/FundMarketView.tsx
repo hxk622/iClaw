@@ -21,6 +21,7 @@ import {Chip} from '@/app/components/ui/Chip';
 import {PageContent, PageHeader, PageSurface} from '@/app/components/ui/PageLayout';
 import {cn} from '@/app/lib/cn';
 import {INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE} from '@/app/lib/ui-interactions';
+import {InstrumentIdentityBadge, WorkspaceFilterPill, WorkspaceMetricGrid, WorkspaceSearchControls, WorkspaceSectionCard} from './MarketWorkspaceShared';
 
 type FundCategoryTab = 'all' | 'etf' | 'index' | 'dividend' | 'bond' | 'qdii' | 'active';
 type FundRegion = 'A股' | '海外' | '全球';
@@ -45,15 +46,6 @@ type FundItem = MarketFundData & {
   aiFocus: string;
   watchlisted: boolean;
   themeKey: string | null;
-};
-
-type OverviewCard = {
-  id: string;
-  title: string;
-  value: string;
-  delta: string;
-  positive: boolean;
-  detail: string;
 };
 
 const CATEGORY_TABS: Array<{value: FundCategoryTab; label: string}> = [
@@ -187,51 +179,6 @@ function fundTagTone(tag: string): 'brand' | 'accent' | 'success' | 'warning' | 
   return 'outline';
 }
 
-function buildOverviewCards(allFunds: FundItem[]): OverviewCard[] {
-  const etfCount = allFunds.filter((fund) => fund.instrument_kind === 'etf').length;
-  const qdiiCount = allFunds.filter((fund) => fund.instrument_kind === 'qdii').length;
-  const activeCount = allFunds.filter((fund) => fund.strategy_tags.includes('主动管理')).length;
-  const dividendCount = allFunds.filter((fund) => fund.strategy_tags.includes('红利')).length;
-  const avgReturn1y =
-    allFunds.reduce((sum, fund) => sum + (typeof fund.return_1y === 'number' ? fund.return_1y : 0), 0) /
-    Math.max(1, allFunds.filter((fund) => typeof fund.return_1y === 'number').length);
-
-  return [
-    {
-      id: 'etf',
-      title: '核心 ETF 池',
-      value: `${etfCount} 只`,
-      delta: formatSignedPercent(avgReturn1y, 1),
-      positive: avgReturn1y >= 0,
-      detail: '场内宽基、行业与红利 ETF 已接入真实行情和基金详情。',
-    },
-    {
-      id: 'active',
-      title: '主动公募池',
-      value: `${activeCount} 只`,
-      delta: '+研究中',
-      positive: true,
-      detail: '覆盖核心主动权益、均衡与债券基金，方便继续做经理风格研究。',
-    },
-    {
-      id: 'dividend',
-      title: '红利策略',
-      value: `${dividendCount} 只`,
-      delta: '偏稳健',
-      positive: true,
-      detail: '红利与低波策略已单独打标签，适合做防御和现金流视角筛选。',
-    },
-    {
-      id: 'qdii',
-      title: '海外配置',
-      value: `${qdiiCount} 只`,
-      delta: '已覆盖',
-      positive: true,
-      detail: 'QDII ETF 和海外主动基金已经纳入同一研究入口，可一起比较。',
-    },
-  ];
-}
-
 function EmptyPanel({title, description}: {title: string; description: string}) {
   return (
     <div className="rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-6 py-10 text-center">
@@ -265,31 +212,6 @@ function StatusPanel({
   );
 }
 
-function FundOverviewCard({card}: {card: OverviewCard}) {
-  return (
-    <div className="rounded-[22px] border border-[var(--border-default)] bg-[var(--bg-elevated)] p-4 shadow-[0_16px_34px_rgba(18,24,36,0.04)]">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-[12px] font-medium text-[var(--text-muted)]">{card.title}</div>
-          <div className="mt-2 text-[22px] font-semibold tracking-[-0.05em] text-[var(--text-primary)]">{card.value}</div>
-        </div>
-        <div
-          className={cn(
-            'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-semibold',
-            card.positive
-              ? 'bg-[rgba(34,197,94,0.12)] text-[rgb(21,128,61)]'
-              : 'bg-[rgba(239,68,68,0.12)] text-[rgb(185,28,28)]',
-          )}
-        >
-          {card.positive ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-          {card.delta}
-        </div>
-      </div>
-      <p className="mt-3 text-[12px] leading-6 text-[var(--text-secondary)]">{card.detail}</p>
-    </div>
-  );
-}
-
 function FundCard({
   fund,
   active,
@@ -315,14 +237,17 @@ function FundCard({
       )}
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <Chip tone="outline">{fund.symbol}</Chip>
-            <Chip tone="muted">{fund.typeLabel}</Chip>
-            <Chip tone={fundTagTone(fund.strategy_tags[0] || '')}>{fund.strategy_tags[0] || fund.instrumentLabel}</Chip>
+        <div className="flex min-w-0 items-start gap-3">
+          <InstrumentIdentityBadge label={fund.companyName} symbol={fund.symbol} />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <Chip tone="outline">{fund.symbol}</Chip>
+              <Chip tone="muted">{fund.typeLabel}</Chip>
+              <Chip tone={fundTagTone(fund.strategy_tags[0] || '')}>{fund.strategy_tags[0] || fund.instrumentLabel}</Chip>
+            </div>
+            <h3 className="mt-3 text-[18px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">{fund.companyName}</h3>
+            <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{fund.summary}</p>
           </div>
-          <h3 className="mt-3 text-[18px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">{fund.companyName}</h3>
-          <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{fund.summary}</p>
         </div>
         <div className="rounded-[18px] border border-[rgba(42,74,111,0.12)] bg-[rgba(42,74,111,0.06)] px-3 py-2 text-right">
           <div className="text-[11px] text-[var(--text-muted)]">近一年</div>
@@ -430,75 +355,6 @@ function WatchlistPanel({
             当前还没有命中自选标记的基金。
           </div>
         )}
-      </div>
-    </section>
-  );
-}
-
-function FilterPanel({
-  selectedRisk,
-  selectedRegion,
-  onSelectRisk,
-  onSelectRegion,
-  onClear,
-}: {
-  selectedRisk: FundRisk | null;
-  selectedRegion: FundRegion | null;
-  onSelectRisk: (risk: FundRisk | null) => void;
-  onSelectRegion: (region: FundRegion | null) => void;
-  onClear: () => void;
-}) {
-  return (
-    <section className="rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-elevated)] p-5">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="text-[16px] font-semibold text-[var(--text-primary)]">智能筛选</div>
-          <div className="mt-1 text-[12px] text-[var(--text-secondary)]">先用风险和区域缩小范围，再进入单只基金研究。</div>
-        </div>
-        <Filter className="h-4.5 w-4.5 text-[var(--text-muted)]" />
-      </div>
-
-      <div className="mt-4">
-        <div className="text-[12px] font-medium text-[var(--text-muted)]">风险等级</div>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {RISK_FILTERS.map((risk) => (
-            <Chip
-              key={risk}
-              clickable
-              active={selectedRisk === risk}
-              tone={selectedRisk === risk ? 'brand' : 'outline'}
-              onClick={() => onSelectRisk(selectedRisk === risk ? null : risk)}
-            >
-              {risk}
-            </Chip>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-4">
-        <div className="text-[12px] font-medium text-[var(--text-muted)]">投资区域</div>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {REGION_FILTERS.map((region) => (
-            <Chip
-              key={region}
-              clickable
-              active={selectedRegion === region}
-              tone={selectedRegion === region ? 'brand' : 'outline'}
-              onClick={() => onSelectRegion(selectedRegion === region ? null : region)}
-            >
-              {region}
-            </Chip>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-5 rounded-[18px] border border-[var(--border-default)] bg-[rgba(255,255,255,0.52)] px-4 py-3 text-[12px] leading-6 text-[var(--text-secondary)] dark:bg-[rgba(255,255,255,0.02)]">
-        当前已接入真实基金数据，支持按类型、风险、区域、标签和关键词一起缩小结果集。
-      </div>
-
-      <div className="mt-4 flex gap-2">
-        <Button variant="primary" size="sm" block>筛选已生效</Button>
-        <Button variant="ghost" size="sm" onClick={onClear}>重置</Button>
       </div>
     </section>
   );
@@ -829,138 +685,204 @@ export function FundMarketView({
     };
   }, [client, selectedFundId]);
 
-  const overviewCards = useMemo(() => buildOverviewCards(allFunds), [allFunds]);
   const watchlistFunds = useMemo(() => allFunds.filter((fund) => fund.watchlisted).slice(0, 4), [allFunds]);
   const themeFunds = useMemo(() => resolveThemeFunds(allFunds), [allFunds]);
   const featuredFund = visibleFunds[0] ?? allFunds[0] ?? null;
+  const etfCount = allFunds.filter((fund) => fund.instrument_kind === 'etf').length;
+  const qdiiCount = allFunds.filter((fund) => fund.instrument_kind === 'qdii').length;
+  const dividendCount = allFunds.filter((fund) => fund.strategy_tags.includes('红利')).length;
+  const activeFilterCount = [activeTab !== 'all', Boolean(selectedRisk), Boolean(selectedRegion), Boolean(deferredQuery)].filter(Boolean).length;
+  const fundMetricItems = [
+    {
+      label: '基金覆盖',
+      value: `${allFunds.length} 只`,
+      icon: <BarChart3 className="h-[18px] w-[18px]" />,
+      iconWrapClassName: 'border-[rgba(201,169,97,0.20)] bg-[rgba(201,169,97,0.12)]',
+      iconClassName: 'text-[rgb(155,112,39)] dark:text-[#f1d59c]',
+    },
+    {
+      label: 'ETF',
+      value: `${etfCount} 只`,
+      icon: <WalletCards className="h-[18px] w-[18px]" />,
+      iconWrapClassName: 'border-[rgba(74,107,138,0.18)] bg-[rgba(74,107,138,0.10)]',
+      iconClassName: 'text-[#4A6B8A] dark:text-[#b7d0e5]',
+    },
+    {
+      label: '红利策略',
+      value: `${dividendCount} 只`,
+      icon: <ShieldCheck className="h-[18px] w-[18px]" />,
+      iconWrapClassName: 'border-[rgba(34,197,94,0.18)] bg-[rgba(34,197,94,0.10)]',
+      iconClassName: 'text-[rgb(21,128,61)] dark:text-[#c7f9d7]',
+    },
+    {
+      label: 'QDII',
+      value: `${qdiiCount} 只`,
+      icon: <Globe2 className="h-[18px] w-[18px]" />,
+      iconWrapClassName: 'border-[rgba(168,85,247,0.18)] bg-[rgba(168,85,247,0.10)]',
+      iconClassName: 'text-[rgb(126,34,206)] dark:text-[#e9d5ff]',
+    },
+    {
+      label: '当前命中',
+      value: `${total} 只`,
+      icon: <Search className="h-[18px] w-[18px]" />,
+      iconWrapClassName: 'border-[rgba(239,68,68,0.18)] bg-[rgba(239,68,68,0.10)]',
+      iconClassName: 'text-[rgb(185,28,28)] dark:text-[#fecaca]',
+    },
+  ];
 
   return (
     <PageSurface as="div" className="bg-[var(--lobster-page-bg)]">
       <PageContent className="max-w-none px-5 py-5 lg:px-6 xl:px-7">
         <PageHeader
-          eyebrow="Fund Research Workspace"
           title={title}
           description="基金列表已经接入真实 control-plane 数据。支持检索、筛选、详情抽屉和 AI 研究接力。"
-          actions={
-            <label className="relative min-w-[280px] flex-1 xl:max-w-[360px]">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="搜索基金名称 / 代码 / 经理 / 跟踪方向"
-                className="h-12 w-full rounded-[16px] border border-[rgba(255,255,255,0.08)] bg-[rgba(24,22,20,0.96)] pl-10 pr-4 text-[13px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[rgba(210,176,106,0.42)] focus:ring-2 focus:ring-[rgba(210,176,106,0.12)]"
-              />
-            </label>
-          }
         />
 
-        {featuredFund ? (
-          <section className="mt-5 overflow-hidden rounded-[28px] border border-[rgba(42,74,111,0.14)] bg-[radial-gradient(circle_at_top_left,rgba(244,214,160,0.18),transparent_34%),linear-gradient(135deg,rgba(19,31,48,0.96),rgba(33,52,72,0.94))] p-6 text-white shadow-[0_26px_64px_rgba(17,24,39,0.18)]">
-            <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-              <div className="max-w-[760px]">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Chip tone="outline" className="border-[rgba(255,255,255,0.14)] bg-[rgba(255,255,255,0.04)] text-white">{featuredFund.symbol}</Chip>
-                  <Chip tone="outline" className="border-[rgba(255,255,255,0.14)] bg-[rgba(255,255,255,0.04)] text-white">{featuredFund.instrumentLabel}</Chip>
-                  <Chip tone="outline" className="border-[rgba(255,255,255,0.14)] bg-[rgba(255,255,255,0.04)] text-white">{featuredFund.region}</Chip>
-                </div>
-                <h2 className="mt-4 text-[34px] font-semibold tracking-[-0.05em]">{featuredFund.companyName}</h2>
-                <p className="mt-3 max-w-[700px] text-[14px] leading-7 text-[rgba(255,255,255,0.82)]">{featuredFund.summary}</p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {featuredFund.strategy_tags.slice(0, 4).map((tag) => (
-                    <Chip key={tag} tone="outline" className="border-[rgba(255,255,255,0.14)] bg-[rgba(255,255,255,0.04)] text-white">{tag}</Chip>
-                  ))}
-                </div>
-              </div>
+        <WorkspaceSearchControls
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="搜索基金名称 / 代码 / 经理 / 跟踪方向"
+        />
 
-              <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[360px]">
-                {[
-                  {label: '近一年', value: formatSignedPercent(featuredFund.return_1y)},
-                  {label: '近一月', value: formatSignedPercent(featuredFund.return_1m)},
-                  {label: '规模', value: formatScaleAmount(featuredFund.scale_amount)},
-                  {label: '申购费率', value: formatFeeRate(featuredFund.fee_rate)},
-                ].map((item) => (
-                  <div key={item.label} className="rounded-[18px] border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.06)] px-4 py-4">
-                    <div className="text-[11px] uppercase tracking-[0.12em] text-[rgba(255,255,255,0.56)]">{item.label}</div>
-                    <div className="mt-2 text-[22px] font-semibold tracking-[-0.04em] text-white">{item.value}</div>
-                  </div>
+        <WorkspaceMetricGrid items={fundMetricItems} />
+
+        <div className="mt-4">
+          <WorkspaceSectionCard
+            title="筛选与研究路径"
+            description="分类、风险、区域和关键词走同一套入口，保持和技能页、股票页一致的操作节奏。"
+            icon={<Filter className="h-4.5 w-4.5" />}
+          >
+            <div>
+              <div className="mb-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">基金分类</div>
+              <div className="flex flex-wrap gap-2">
+                {CATEGORY_TABS.map((tab) => (
+                  <WorkspaceFilterPill key={tab.value} active={activeTab === tab.value} onClick={() => setActiveTab(tab.value)}>
+                    {tab.label}
+                  </WorkspaceFilterPill>
                 ))}
               </div>
             </div>
-          </section>
-        ) : null}
-
-        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {overviewCards.map((card) => (
-            <FundOverviewCard key={card.id} card={card} />
-          ))}
+            <div className="mt-4">
+              <div className="mb-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">风险等级</div>
+              <div className="flex flex-wrap gap-2">
+                {RISK_FILTERS.map((risk) => (
+                  <WorkspaceFilterPill key={risk} active={selectedRisk === risk} onClick={() => setSelectedRisk(selectedRisk === risk ? null : risk)}>
+                    {risk}
+                  </WorkspaceFilterPill>
+                ))}
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="mb-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">投资区域</div>
+              <div className="flex flex-wrap gap-2">
+                {REGION_FILTERS.map((region) => (
+                  <WorkspaceFilterPill key={region} active={selectedRegion === region} onClick={() => setSelectedRegion(selectedRegion === region ? null : region)}>
+                    {region}
+                  </WorkspaceFilterPill>
+                ))}
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-2 text-[12px] text-[var(--text-secondary)]">
+              <Chip tone="outline">当前结果 {total} 只</Chip>
+              <Chip tone="outline">{activeTab === 'all' ? '全市场' : CATEGORY_TABS.find((tab) => tab.value === activeTab)?.label}</Chip>
+              <Chip tone="outline">{selectedRisk || '未限定风险'}</Chip>
+              <Chip tone="outline">{selectedRegion || '未限定区域'}</Chip>
+              <Chip tone="outline">{activeFilterCount > 0 ? `启用 ${activeFilterCount} 项条件` : '未启用额外条件'}</Chip>
+              {(selectedRisk || selectedRegion) ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="rounded-md px-3 py-1.5 text-[12px]"
+                  onClick={() => {
+                    setSelectedRisk(null);
+                    setSelectedRegion(null);
+                  }}
+                >
+                  重置筛选
+                </Button>
+              ) : null}
+            </div>
+          </WorkspaceSectionCard>
         </div>
 
-        <div className="mt-5 flex flex-wrap gap-2">
-          {CATEGORY_TABS.map((tab) => (
-            <Chip
-              key={tab.value}
-              clickable
-              active={activeTab === tab.value}
-              tone={activeTab === tab.value ? 'brand' : 'outline'}
-              onClick={() => setActiveTab(tab.value)}
+        {featuredFund ? (
+          <div className="mt-4">
+            <WorkspaceSectionCard
+              title="当前聚焦基金"
+              description="保持在主内容流里展示，不再单独做另一套英雄区，减少跨市场切换时的跳变。"
+              icon={<Sparkles className="h-4.5 w-4.5" />}
             >
-              {tab.label}
-            </Chip>
-          ))}
-        </div>
-
-        <div className="mt-5 grid gap-6 xl:grid-cols-[minmax(0,1.8fr)_340px]">
-          <div className="space-y-6">
-            <section>
-              <div className="mb-4 flex items-end justify-between gap-3">
-                <div>
-                  <div className="text-[18px] font-semibold text-[var(--text-primary)]">推荐基金</div>
-                  <div className="mt-1 text-[12px] text-[var(--text-secondary)]">
-                    当前命中 <span className="font-semibold text-[var(--text-primary)]">{total}</span> 只基金。每张卡都能直接进入 AI 对话，聊天页会自动带上该基金 / ETF 上下文。
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex items-start gap-4">
+                  <InstrumentIdentityBadge label={featuredFund.companyName} symbol={featuredFund.symbol} />
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Chip tone="outline">{featuredFund.symbol}</Chip>
+                      <Chip tone="muted">{featuredFund.instrumentLabel}</Chip>
+                      <Chip tone="outline">{featuredFund.region}</Chip>
+                    </div>
+                    <div className="mt-3 text-[22px] font-semibold tracking-[-0.05em] text-[var(--text-primary)]">{featuredFund.companyName}</div>
+                    <div className="mt-2 max-w-[760px] text-[13px] leading-6 text-[var(--text-secondary)]">{featuredFund.summary}</div>
                   </div>
                 </div>
-                <Chip tone="outline">{activeTab === 'all' ? '全市场' : CATEGORY_TABS.find((tab) => tab.value === activeTab)?.label}</Chip>
-              </div>
-
-              {loading ? (
-                <StatusPanel title="基金市场加载中" description="正在从 control-plane 拉取真实基金数据..." />
-              ) : error ? (
-                <StatusPanel title="基金市场加载失败" description={error} tone="danger" />
-              ) : visibleFunds.length > 0 ? (
-                <div className="grid gap-4 xl:grid-cols-2">
-                  {visibleFunds.map((fund) => (
-                    <FundCard
-                      key={fund.id}
-                      fund={fund}
-                      active={selectedFund?.id === fund.id}
-                      onOpenDetail={(item) => {
-                        setSelectedFundId(item.id);
-                        setSelectedFund(item);
-                      }}
-                      onStartResearch={onStartResearch}
-                    />
+                <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[360px]">
+                  {[
+                    {label: '近一年', value: formatSignedPercent(featuredFund.return_1y)},
+                    {label: '近一月', value: formatSignedPercent(featuredFund.return_1m)},
+                    {label: '规模', value: formatScaleAmount(featuredFund.scale_amount)},
+                    {label: '申购费率', value: formatFeeRate(featuredFund.fee_rate)},
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-4 dark:bg-[rgba(255,255,255,0.02)]">
+                      <div className="text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">{item.label}</div>
+                      <div className="mt-2 text-[20px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">{item.value}</div>
+                    </div>
                   ))}
                 </div>
-              ) : (
-                <EmptyPanel title="没有匹配到基金" description="可以尝试放宽分类、风险或区域筛选，或者换一个基金经理 / 代码关键词再搜一次。" />
-              )}
-            </section>
-
-            <ThemeSpotlights funds={themeFunds} onStartResearch={onStartResearch} />
+              </div>
+            </WorkspaceSectionCard>
           </div>
+        ) : null}
 
-          <div className="space-y-5">
+        <div className="mt-6 space-y-6">
+          <section>
+            <div className="mb-4 flex items-end justify-between gap-3">
+              <div>
+                <div className="text-[18px] font-semibold text-[var(--text-primary)]">推荐基金</div>
+                <div className="mt-1 text-[12px] text-[var(--text-secondary)]">
+                  当前命中 <span className="font-semibold text-[var(--text-primary)]">{total}</span> 只基金。每张卡都能直接进入 AI 对话，聊天页会自动带上该基金 / ETF 上下文。
+                </div>
+              </div>
+              <Chip tone="outline">{activeTab === 'all' ? '全市场' : CATEGORY_TABS.find((tab) => tab.value === activeTab)?.label}</Chip>
+            </div>
+
+            {loading ? (
+              <StatusPanel title="基金市场加载中" description="正在从 control-plane 拉取真实基金数据..." />
+            ) : error ? (
+              <StatusPanel title="基金市场加载失败" description={error} tone="danger" />
+            ) : visibleFunds.length > 0 ? (
+              <div className="grid gap-4 xl:grid-cols-2">
+                {visibleFunds.map((fund) => (
+                  <FundCard
+                    key={fund.id}
+                    fund={fund}
+                    active={selectedFund?.id === fund.id}
+                    onOpenDetail={(item) => {
+                      setSelectedFundId(item.id);
+                      setSelectedFund(item);
+                    }}
+                    onStartResearch={onStartResearch}
+                  />
+                ))}
+              </div>
+            ) : (
+              <EmptyPanel title="没有匹配到基金" description="可以尝试放宽分类、风险或区域筛选，或者换一个基金经理 / 代码关键词再搜一次。" />
+            )}
+          </section>
+
+          <ThemeSpotlights funds={themeFunds} onStartResearch={onStartResearch} />
+
+          <div className="grid gap-5 xl:grid-cols-2">
             <WatchlistPanel funds={watchlistFunds} onStartResearch={onStartResearch} />
-            <FilterPanel
-              selectedRisk={selectedRisk}
-              selectedRegion={selectedRegion}
-              onSelectRisk={setSelectedRisk}
-              onSelectRegion={setSelectedRegion}
-              onClear={() => {
-                setSelectedRisk(null);
-                setSelectedRegion(null);
-              }}
-            />
             <AIInsightsPanel />
           </div>
         </div>
