@@ -1990,7 +1990,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         return '等待网关连接';
       }
       if (selectedModel) {
-        return selectedModel.detail;
+        return selectedModel.badge ? `${selectedModel.badge} · ${selectedModel.detail}` : selectedModel.detail;
       }
       return modelsLoading ? '同步可用模型中' : '当前暂无可用模型';
     })();

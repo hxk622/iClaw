@@ -15,6 +15,7 @@ export type RuntimeModelCatalogResponse = {
     label: string;
     logoPresetKey: string | null;
     billingMultiplier: number | null;
+    billing_multiplier?: number | null;
     reasoning: boolean;
     inputModalities: string[];
     contextWindow: number | null;
@@ -70,6 +71,8 @@ export function mapRuntimeModelsToGatewayEntries(
       billingMultiplier:
         typeof entry.billingMultiplier === 'number' && Number.isFinite(entry.billingMultiplier)
           ? entry.billingMultiplier
+          : typeof entry.billing_multiplier === 'number' && Number.isFinite(entry.billing_multiplier)
+            ? entry.billing_multiplier
           : undefined,
       contextWindow: typeof entry.contextWindow === 'number' ? entry.contextWindow : undefined,
       reasoning: Boolean(entry.reasoning),
