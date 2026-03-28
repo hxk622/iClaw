@@ -275,8 +275,6 @@ const CHAT_SELECTION_MENU_WIDTH = 220;
 const CHAT_SELECTION_MENU_HEIGHT = 176;
 const CHAT_SELECTION_MENU_GAP = 12;
 const SESSION_TRANSITION_MIN_DURATION_MS = 260;
-const CREDIT_INPUT_COST_PER_1K = 1;
-const CREDIT_OUTPUT_COST_PER_1K = 2;
 const ICLAW_BILLING_SUMMARY_KEY = '__iclawBillingSummary';
 const ICLAW_BILLING_STATE_KEY = '__iclawBillingState';
 const ICLAW_BILLING_RUN_ID_KEY = '__iclawBillingRunId';
@@ -799,16 +797,6 @@ function findPreviousUserGroup(group: HTMLElement): HTMLElement | null {
   return null;
 }
 
-function computeCreditCostFromUsage(inputTokens: number, outputTokens: number): number {
-  const inputCost = Math.ceil((Math.max(0, inputTokens) / 1000) * CREDIT_INPUT_COST_PER_1K);
-  const outputCost = Math.ceil((Math.max(0, outputTokens) / 1000) * CREDIT_OUTPUT_COST_PER_1K);
-  const baseCost = Math.max(0, inputCost + outputCost);
-  if (baseCost <= 0) {
-    return 0;
-  }
-  return Math.max(1, baseCost);
-}
-
 function getUsageMetric(record: Record<string, unknown>, keys: string[]): number {
   for (const key of keys) {
     const value = record[key];
@@ -1142,25 +1130,6 @@ function deriveAssistantFooterMetas(
       model = model || optimisticUsage.model;
     }
 
-    if (inputTokens > 0 || outputTokens > 0) {
-      const credits = computeCreditCostFromUsage(inputTokens, outputTokens);
-      return {
-        timestampLabel: formatAssistantFooterTimestamp(assistantGroup.timestamp),
-        state: 'charged',
-        label: '实际消耗 ',
-        value: String(credits),
-        credits,
-        inputTokens,
-        outputTokens,
-        tooltip: buildAssistantFooterTooltip({
-          state: 'charged',
-          inputTokens,
-          outputTokens,
-          credits,
-        }),
-      };
-    }
-
     const derivedState =
       billingState === 'missing'
         ? 'missing'
@@ -1176,13 +1145,13 @@ function deriveAssistantFooterMetas(
       credits: null,
       inputTokens,
       outputTokens,
-        tooltip: buildAssistantFooterTooltip({
-          state: derivedState,
-          inputTokens,
-          outputTokens,
-          credits: inputTokens > 0 || outputTokens > 0 ? computeCreditCostFromUsage(inputTokens, outputTokens) : null,
-        }),
-      };
+      tooltip: buildAssistantFooterTooltip({
+        state: derivedState,
+        inputTokens,
+        outputTokens,
+        credits: null,
+      }),
+    };
   });
 }
 
