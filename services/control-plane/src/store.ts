@@ -34,6 +34,7 @@ import type {
   PaymentWebhookInput,
   RunBillingSummaryRecord,
   RunGrantRecord,
+  PersistedUsageEventInput,
   SessionRecord,
   SessionTokenPair,
   SkillCatalogEntryRecord,
@@ -45,7 +46,6 @@ import type {
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
   UpsertUserExtensionInstallConfigInput,
-  UsageEventInput,
   UsageEventResult,
   UserAgentLibraryRecord,
   UserExtensionInstallConfigRecord,
@@ -187,6 +187,11 @@ export interface ControlPlaneStore {
   applyPaymentWebhook(provider: PaymentProvider, input: Required<PaymentWebhookInput>): Promise<PaymentOrderRecord | null>;
   getRunGrantById(grantId: string): Promise<RunGrantRecord | null>;
   getRunBillingSummary(grantId: string): Promise<RunBillingSummaryRecord | null>;
+  listRunBillingSummariesBySession(
+    userId: string,
+    sessionKey: string,
+    limit?: number | null,
+  ): Promise<RunBillingSummaryRecord[]>;
   createRunGrant(input: {
     userId: string;
     sessionKey: string;
@@ -198,7 +203,7 @@ export interface ControlPlaneStore {
     expiresAt: string;
     signature: string;
   }): Promise<RunGrantRecord>;
-  recordUsageEvent(userId: string, input: Required<UsageEventInput>): Promise<UsageEventResult>;
+  recordUsageEvent(userId: string, input: PersistedUsageEventInput): Promise<UsageEventResult>;
   getWorkspaceBackup(userId: string): Promise<WorkspaceBackupRecord | null>;
   saveWorkspaceBackup(userId: string, input: WorkspaceBackupInput): Promise<WorkspaceBackupRecord>;
   listUserFiles(
@@ -1161,6 +1166,21 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     return this.runBillingSummaryByGrantId.get(grantId) || null;
   }
 
+  async listRunBillingSummariesBySession(
+    userId: string,
+    sessionKey: string,
+    limit?: number | null,
+  ): Promise<RunBillingSummaryRecord[]> {
+    const normalizedSessionKey = sessionKey.trim() || 'main';
+    const normalizedLimit =
+      typeof limit === 'number' && Number.isFinite(limit) ? Math.max(1, Math.floor(limit)) : 200;
+    return Array.from(this.runGrantsById.values())
+      .filter((grant) => grant.userId === userId && grant.sessionKey === normalizedSessionKey && grant.billingSummary)
+      .map((grant) => grant.billingSummary as RunBillingSummaryRecord)
+      .sort((left, right) => Date.parse(right.settledAt) - Date.parse(left.settledAt))
+      .slice(0, normalizedLimit);
+  }
+
   async createRunGrant(input: {
     userId: string;
     sessionKey: string;
@@ -1192,7 +1212,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     return grant;
   }
 
-  async recordUsageEvent(userId: string, input: Required<UsageEventInput>): Promise<UsageEventResult> {
+  async recordUsageEvent(userId: string, input: PersistedUsageEventInput): Promise<UsageEventResult> {
     const existing = this.usageEventsByEventId.get(input.event_id);
     if (existing) return existing;
 
@@ -1261,6 +1281,10 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       model: input.model || null,
       balanceAfter: nextAccount.totalAvailableBalance,
       settledAt,
+      assistantTimestamp:
+        typeof input.assistant_timestamp === 'number' && Number.isFinite(input.assistant_timestamp)
+          ? Math.floor(input.assistant_timestamp)
+          : null,
     };
 
     if (grant) {

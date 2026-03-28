@@ -1020,6 +1020,7 @@ function buildAssistantFooterTooltip(input: {
 function deriveAssistantFooterMetas(
   messages: unknown[],
   pendingSettlements: PendingUsageSettlement[],
+  sessionBillingSummaries: RunBillingSummaryData[],
   app: OpenClawAppElement | null,
   isBusy: boolean,
 ): Array<AssistantFooterMeta | null> {
@@ -1027,6 +1028,17 @@ function deriveAssistantFooterMetas(
   if (assistantGroups.length === 0) {
     return [];
   }
+  const persistedBillingByRunId = new Map<string, RunBillingSummaryData>();
+  const persistedBillingByTimestamp = new Map<number, RunBillingSummaryData>();
+  sessionBillingSummaries.forEach((summary) => {
+    const runId = summary.event_id?.trim();
+    if (runId) {
+      persistedBillingByRunId.set(runId, summary);
+    }
+    if (typeof summary.assistant_timestamp === 'number' && Number.isFinite(summary.assistant_timestamp)) {
+      persistedBillingByTimestamp.set(summary.assistant_timestamp, summary);
+    }
+  });
 
   const pendingAssistantIndexes = new Set<number>();
   const optimisticUsageByAssistantIndex = new Map<number, AssistantUsageSettlement>();
@@ -1065,6 +1077,10 @@ function deriveAssistantFooterMetas(
     let billingSummary: RunBillingSummaryData | null = null;
     let billingState: AssistantBillingState | null = null;
     const optimisticUsage = optimisticUsageByAssistantIndex.get(assistantGroupIndex) ?? null;
+    const persistedBilling =
+      (assistantGroup.runId ? persistedBillingByRunId.get(assistantGroup.runId) ?? null : null) ||
+      persistedBillingByTimestamp.get(assistantGroup.timestamp) ||
+      null;
 
     assistantGroup.messages.forEach((message: unknown) => {
       const record = message as Record<string, unknown>;
@@ -1094,6 +1110,10 @@ function deriveAssistantFooterMetas(
         billingState = messageBillingState;
       }
     });
+
+    if (!billingSummary && persistedBilling) {
+      billingSummary = persistedBilling;
+    }
 
     if (billingSummary) {
       inputTokens = Math.max(inputTokens, billingSummary.input_tokens || 0);
@@ -1732,6 +1752,7 @@ export function OpenClawChatSurface({
   const [sessionTransitionVisible, setSessionTransitionVisible] = useState(false);
   const [composerDraft, setComposerDraft] = useState<ComposerDraftPayload | null>(null);
   const [assistantFooterVersion, setAssistantFooterVersion] = useState(0);
+  const [sessionBillingSummaries, setSessionBillingSummaries] = useState<RunBillingSummaryData[]>([]);
   const [pendingSettlementCount, setPendingSettlementCount] = useState(0);
   const [creditEstimate, setCreditEstimate] = useState<ComposerCreditEstimateState>({
     loading: false,
@@ -1792,6 +1813,27 @@ export function OpenClawChatSurface({
       window.clearTimeout(sessionTransitionHideTimerRef.current);
       sessionTransitionHideTimerRef.current = null;
     }
+  }, []);
+
+  const mergeSessionBillingSummary = useCallback((summary: RunBillingSummaryData) => {
+    setSessionBillingSummaries((current) => {
+      const next = new Map<string, RunBillingSummaryData>();
+      current.forEach((item) => {
+        const key = item.event_id?.trim();
+        if (key) {
+          next.set(key, item);
+        }
+      });
+      const incomingKey = summary.event_id?.trim();
+      if (incomingKey) {
+        next.set(incomingKey, summary);
+      }
+      return Array.from(next.values()).sort((left, right) => {
+        const leftTime = Date.parse(left.settled_at || '') || 0;
+        const rightTime = Date.parse(right.settled_at || '') || 0;
+        return rightTime - leftTime;
+      });
+    });
   }, []);
 
   const tryAutoOpenArtifactCard = useCallback(() => {
@@ -2061,6 +2103,7 @@ export function OpenClawChatSurface({
     setModelsLoading(true);
     setModelSwitching(false);
     setComposerDraft(null);
+    setSessionBillingSummaries([]);
     setAssistantFooterVersion((current) => current + 1);
     setCreditEstimate({
       loading: false,
@@ -2070,6 +2113,37 @@ export function OpenClawChatSurface({
       estimatedInputTokens: null,
     });
   }, [clearArtifactAutoOpenTimers, clearUsageSettlementTimers, sessionKey]);
+
+  useEffect(() => {
+    if (!creditClient || !creditToken) {
+      setSessionBillingSummaries([]);
+      return;
+    }
+
+    let cancelled = false;
+    void creditClient
+      .listRunBillingSummariesBySession(creditToken, {
+        sessionKey,
+        limit: 200,
+      })
+      .then((summaries) => {
+        if (cancelled) {
+          return;
+        }
+        setSessionBillingSummaries(Array.isArray(summaries) ? summaries : []);
+        setAssistantFooterVersion((current) => current + 1);
+      })
+      .catch(() => {
+        if (cancelled) {
+          return;
+        }
+        setSessionBillingSummaries([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [creditClient, creditToken, sessionKey]);
 
   useEffect(() => {
     const prompt = composerDraft?.prompt?.trim() || '';
@@ -2651,6 +2725,20 @@ export function OpenClawChatSurface({
       shell.style.setProperty('--iclaw-thread-bottom-gap', `${Math.ceil(overlap + 24)}px`);
     };
 
+    const canElementConsumeWheel = (element: HTMLElement | null, deltaY: number): boolean => {
+      if (!element || element.scrollHeight <= element.clientHeight + 1) {
+        return false;
+      }
+      const maxScrollTop = Math.max(0, element.scrollHeight - element.clientHeight);
+      if (deltaY < 0) {
+        return element.scrollTop > 0;
+      }
+      if (deltaY > 0) {
+        return element.scrollTop < maxScrollTop;
+      }
+      return false;
+    };
+
     updateComposerHeight();
     const observer = new ResizeObserver(() => {
       updateComposerHeight();
@@ -2664,7 +2752,7 @@ export function OpenClawChatSurface({
       observer.observe(thread);
     }
 
-    const handleComposerWheel = (event: WheelEvent) => {
+    const handleShellWheel = (event: WheelEvent) => {
       const target = event.target as HTMLElement | null;
       if (
         target?.closest(
@@ -2675,16 +2763,23 @@ export function OpenClawChatSurface({
       }
 
       const editor = target?.closest('.iclaw-composer__editor') as HTMLElement | null;
-      if (editor && editor.scrollHeight > editor.clientHeight) {
-        const nextScrollTop = editor.scrollTop + event.deltaY;
-        const maxScrollTop = editor.scrollHeight - editor.clientHeight;
-        if (nextScrollTop > 0 && nextScrollTop < maxScrollTop) {
-          return;
-        }
+      if (canElementConsumeWheel(editor, event.deltaY)) {
+        return;
       }
 
       const activeThread = resolveActiveThread();
       if (!activeThread || activeThread.scrollHeight <= activeThread.clientHeight) {
+        return;
+      }
+      if (target?.closest('.chat-thread') && canElementConsumeWheel(activeThread, event.deltaY)) {
+        activeThread.scrollTop = Math.max(
+          0,
+          Math.min(
+            activeThread.scrollHeight - activeThread.clientHeight,
+            activeThread.scrollTop + event.deltaY,
+          ),
+        );
+        event.preventDefault();
         return;
       }
 
@@ -2698,12 +2793,12 @@ export function OpenClawChatSurface({
       event.preventDefault();
     };
 
-    composer?.addEventListener('wheel', handleComposerWheel, {passive: false});
+    shell.addEventListener('wheel', handleShellWheel, {passive: false});
     window.addEventListener('resize', updateComposerHeight);
 
     return () => {
       observer.disconnect();
-      composer?.removeEventListener('wheel', handleComposerWheel);
+      shell.removeEventListener('wheel', handleShellWheel);
       window.removeEventListener('resize', updateComposerHeight);
     };
   }, [status.connected, status.busy]);
@@ -3117,6 +3212,7 @@ export function OpenClawChatSurface({
             billingSummary,
             billingState: 'charged',
           });
+          mergeSessionBillingSummary(billingSummary);
           settledAny = true;
           shouldRefreshBalance = true;
           shouldRefreshFooter = true;
@@ -3190,11 +3286,13 @@ export function OpenClawChatSurface({
           outputTokens: usage.outputTokens,
           model: usage.model || pending.model || undefined,
           appName,
+          assistantTimestamp: usage.timestamp,
         });
         annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
           billingSummary: result.billing_summary,
           billingState: 'charged',
         });
+        mergeSessionBillingSummary(result.billing_summary);
         settledAny = true;
         shouldRefreshBalance = true;
         shouldRefreshFooter = true;
@@ -3231,7 +3329,7 @@ export function OpenClawChatSurface({
       await onCreditBalanceRefresh?.();
     }
     return settledAny;
-  }, [appName, clearUsageSettlementTimers, creditClient, creditToken, onCreditBalanceRefresh]);
+  }, [appName, clearUsageSettlementTimers, creditClient, creditToken, mergeSessionBillingSummary, onCreditBalanceRefresh]);
 
   useEffect(() => {
     if (status.busy || !activeRecentTaskRunRef.current) {
@@ -3912,6 +4010,7 @@ export function OpenClawChatSurface({
       const assistantFooterMetas = deriveAssistantFooterMetas(
         appRef.current?.chatMessages ?? [],
         pendingUsageSettlementsRef.current,
+        sessionBillingSummaries,
         appRef.current,
         status.busy,
       );
@@ -3989,6 +4088,7 @@ export function OpenClawChatSurface({
     clearMessageActionTimers,
     handleSend,
     pendingSettlementCount,
+    sessionBillingSummaries,
     status.busy,
     user?.display_name,
     user?.email,

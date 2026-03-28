@@ -239,6 +239,7 @@ function toRunBillingSummaryView(summary: RunBillingSummaryRecord): RunBillingSu
     model: summary.model,
     balance_after: summary.balanceAfter,
     settled_at: summary.settledAt,
+    assistant_timestamp: summary.assistantTimestamp,
   };
 }
 
@@ -3356,6 +3357,10 @@ export class ControlPlaneService {
       provider: (input.provider || '').trim(),
       model: normalizedModel,
       app_name: normalizedAppName || '',
+      assistant_timestamp:
+        typeof input.assistant_timestamp === 'number' && Number.isFinite(input.assistant_timestamp)
+          ? Math.floor(input.assistant_timestamp)
+          : undefined,
     };
 
     let result: UsageEventResult;
@@ -3406,6 +3411,21 @@ export class ControlPlaneService {
     }
 
     return toRunBillingSummaryView(summary);
+  }
+
+  async listRunBillingSummariesBySession(
+    accessToken: string,
+    sessionKeyInput: string,
+    limitInput?: number | null,
+  ): Promise<RunBillingSummaryView[]> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const sessionKey = sessionKeyInput.trim() || 'main';
+    const limit =
+      typeof limitInput === 'number' && Number.isFinite(limitInput)
+        ? Math.max(1, Math.min(500, Math.floor(limitInput)))
+        : 200;
+    const summaries = await this.store.listRunBillingSummariesBySession(user.id, sessionKey, limit);
+    return summaries.map(toRunBillingSummaryView);
   }
 
   private async getUserForAccessToken(accessToken: string) {

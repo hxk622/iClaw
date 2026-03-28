@@ -35,6 +35,7 @@ import type {
   PaymentProvider,
   PaymentWebhookEventRecord,
   PaymentWebhookInput,
+  PersistedUsageEventInput,
   RunBillingSummaryRecord,
   RunGrantRecord,
   SessionRecord,
@@ -49,7 +50,6 @@ import type {
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
   UpsertUserExtensionInstallConfigInput,
-  UsageEventInput,
   UsageEventResult,
   UserAgentLibraryRecord,
   UserExtensionInstallConfigRecord,
@@ -425,6 +425,12 @@ function parseRunBillingSummary(
         : typeof summary.settledAt === 'string'
           ? summary.settledAt
           : new Date().toISOString(),
+    assistantTimestamp:
+      typeof summary.assistant_timestamp === 'number'
+        ? summary.assistant_timestamp
+        : typeof summary.assistantTimestamp === 'number'
+          ? summary.assistantTimestamp
+          : null,
   };
 }
 
@@ -2608,6 +2614,52 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     return grant.billingSummary;
   }
 
+  async listRunBillingSummariesBySession(
+    userId: string,
+    sessionKey: string,
+    limit?: number | null,
+  ): Promise<RunBillingSummaryRecord[]> {
+    const normalizedSessionKey = sessionKey.trim() || 'main';
+    const normalizedLimit =
+      typeof limit === 'number' && Number.isFinite(limit) ? Math.max(1, Math.min(500, Math.floor(limit))) : 200;
+    const result = await this.pool.query<RunGrantRow>(
+      `
+        select
+          id,
+          user_id,
+          status,
+          nonce,
+          max_input_tokens,
+          max_output_tokens,
+          credit_limit,
+          expires_at,
+          used_at,
+          metadata,
+          created_at
+        from run_grants
+        where
+          user_id = $1
+          and status = 'settled'
+          and coalesce(metadata->>'session_key', 'main') = $2
+          and metadata ? 'billing_summary'
+        order by coalesce(used_at, created_at) desc, created_at desc
+        limit $3
+      `,
+      [userId, normalizedSessionKey, normalizedLimit],
+    );
+
+    return result.rows
+      .map((row) => {
+        const metadata = parseJsonObject(row.metadata);
+        return parseRunBillingSummary(typeof metadata.billing_summary === 'object' ? metadata.billing_summary : null, {
+          grantId: row.id,
+          sessionKey: typeof metadata.session_key === 'string' ? metadata.session_key : normalizedSessionKey,
+          client: typeof metadata.client === 'string' ? metadata.client : 'desktop',
+        });
+      })
+      .filter((summary): summary is RunBillingSummaryRecord => Boolean(summary));
+  }
+
   async createRunGrant(input: {
     userId: string;
     sessionKey: string;
@@ -2672,7 +2724,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     };
   }
 
-  async recordUsageEvent(userId: string, input: Required<UsageEventInput>): Promise<UsageEventResult> {
+  async recordUsageEvent(userId: string, input: PersistedUsageEventInput): Promise<UsageEventResult> {
     const client = await this.pool.connect();
 
     try {
@@ -2715,6 +2767,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
             model: row.model || null,
             balanceAfter: balance.totalAvailableBalance,
             settledAt,
+            assistantTimestamp: null,
           },
         };
       }
@@ -2742,6 +2795,10 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         model: input.model || null,
         balanceAfter: nextBalance,
         settledAt,
+        assistantTimestamp:
+          typeof input.assistant_timestamp === 'number' && Number.isFinite(input.assistant_timestamp)
+            ? Math.floor(input.assistant_timestamp)
+            : null,
       };
 
       await client.query(
@@ -2881,6 +2938,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
               model: summary.model,
               balance_after: summary.balanceAfter,
               settled_at: summary.settledAt,
+              assistant_timestamp: summary.assistantTimestamp,
             },
           }),
         ],

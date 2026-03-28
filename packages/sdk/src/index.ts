@@ -111,6 +111,7 @@ interface UsageEventInput {
   provider?: string;
   model?: string;
   appName?: string;
+  assistantTimestamp?: number;
 }
 
 interface WorkspaceBackupInput {
@@ -188,6 +189,7 @@ export interface RunBillingSummaryData {
   model: string | null;
   balance_after: number;
   settled_at: string;
+  assistant_timestamp: number | null;
 }
 
 export interface UsageEventData {
@@ -1314,6 +1316,26 @@ export class IClawClient {
     return json.data;
   }
 
+  async listRunBillingSummariesBySession(
+    token: string,
+    input?: {sessionKey?: string; limit?: number},
+  ): Promise<RunBillingSummaryData[]> {
+    const sessionKey = input?.sessionKey?.trim() || 'main';
+    const limit = typeof input?.limit === 'number' && Number.isFinite(input.limit) ? Math.max(1, Math.floor(input.limit)) : 200;
+    const res = await this.fetchAuth(
+      `/agent/run/billing/session?session_key=${encodeURIComponent(sessionKey)}&limit=${encodeURIComponent(String(limit))}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: 'include',
+      },
+    );
+    if (!res.ok) throw await parseError(res);
+    const json = (await res.json()) as {data: RunBillingSummaryData[]};
+    return Array.isArray(json.data) ? json.data : [];
+  }
+
   async reportUsageEvent(input: UsageEventInput): Promise<UsageEventData> {
     const res = await this.fetchAuth('/usage/events', {
       method: 'POST',
@@ -1330,6 +1352,7 @@ export class IClawClient {
         provider: input.provider,
         model: input.model,
         app_name: input.appName,
+        assistant_timestamp: input.assistantTimestamp,
       }),
     });
     if (!res.ok) throw await parseError(res);

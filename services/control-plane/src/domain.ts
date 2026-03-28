@@ -238,6 +238,7 @@ export type RunBillingSummaryRecord = {
   model: string | null;
   balanceAfter: number;
   settledAt: string;
+  assistantTimestamp: number | null;
 };
 
 export type UsageDebitRecord = {
@@ -974,6 +975,11 @@ export type UsageEventInput = {
   provider?: string;
   model?: string;
   app_name?: string;
+  assistant_timestamp?: number;
+};
+
+export type PersistedUsageEventInput = Required<Omit<UsageEventInput, 'assistant_timestamp'>> & {
+  assistant_timestamp?: number;
 };
 
 export type RunBillingSummaryView = {
@@ -989,6 +995,7 @@ export type RunBillingSummaryView = {
   model: string | null;
   balance_after: number;
   settled_at: string;
+  assistant_timestamp: number | null;
 };
 
 export type InstallSkillInput = {

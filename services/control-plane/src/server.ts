@@ -1551,6 +1551,18 @@ const server = createJsonServer([
       service.getRunBillingSummary(requireBearerToken(headers), (url.searchParams.get('grant_id') || '').trim()),
   },
   {
+    method: 'GET',
+    path: '/agent/run/billing/session',
+    handler: ({headers, url}: HandlerContext) => {
+      const rawLimit = (url.searchParams.get('limit') || '').trim();
+      return service.listRunBillingSummariesBySession(
+        requireBearerToken(headers),
+        (url.searchParams.get('session_key') || '').trim(),
+        rawLimit ? Number(rawLimit) : undefined,
+      );
+    },
+  },
+  {
     method: 'POST',
     path: '/usage/events',
     handler: ({headers, body}: HandlerContext) =>

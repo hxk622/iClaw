@@ -24,6 +24,7 @@ import type {
   PaymentProviderScopeType,
   PaymentProvider,
   PaymentWebhookInput,
+  PersistedUsageEventInput,
   RunBillingSummaryRecord,
   RunGrantRecord,
   SessionRecord,
@@ -37,7 +38,6 @@ import type {
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
   UpsertUserExtensionInstallConfigInput,
-  UsageEventInput,
   UsageEventResult,
   UserAgentLibraryRecord,
   UserExtensionInstallConfigRecord,
@@ -409,6 +409,14 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     );
   }
 
+  async listRunBillingSummariesBySession(
+    userId: string,
+    sessionKey: string,
+    limit?: number | null,
+  ): Promise<RunBillingSummaryRecord[]> {
+    return this.base.listRunBillingSummariesBySession(userId, sessionKey, limit);
+  }
+
   async createRunGrant(input: {
     userId: string;
     sessionKey: string;
@@ -426,7 +434,7 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     return grant;
   }
 
-  async recordUsageEvent(userId: string, input: Required<UsageEventInput>): Promise<UsageEventResult> {
+  async recordUsageEvent(userId: string, input: PersistedUsageEventInput): Promise<UsageEventResult> {
     const cached = await this.cache.get<UsageEventResult>(this.usageEventKey(input.event_id));
     if (cached) {
       return cached;
