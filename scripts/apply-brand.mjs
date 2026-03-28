@@ -13,6 +13,7 @@ const tauriDir = path.join(desktopDir, 'src-tauri');
 const outputBrandDir = path.join(desktopDir, 'public', 'brand');
 const outputPublicDir = path.join(desktopDir, 'public');
 const outputIconsDir = path.join(tauriDir, 'icons-generated');
+const outputInstallerAssetsDir = path.join(tauriDir, 'installer-generated');
 const legacyInstallerAssetPath = path.join(desktopDir, 'src', 'app', 'assets', 'installer-lobster.png');
 const homeWebPublicBrandDir = path.join(homeWebDir, 'public', 'brand');
 const tauriTemplatePath = path.join(tauriDir, 'tauri.conf.json');
@@ -139,6 +140,21 @@ async function main() {
   const appleTouchIcon = resolveBrandPath(brandDir, brand.assets.appleTouchIcon || brand.assets.faviconPng);
   const installerHero = resolveBrandPath(brandDir, brand.assets.installerHero);
   const tauriIconsDir = resolveBrandPath(brandDir, brand.assets.tauriIconsDir);
+  const dmgBackground = brand.assets.dmgBackground
+    ? resolveBrandPath(brandDir, brand.assets.dmgBackground)
+    : installerHero;
+  const dmgVolumeIcon = brand.assets.dmgVolumeIcon
+    ? resolveBrandPath(brandDir, brand.assets.dmgVolumeIcon)
+    : path.join(tauriIconsDir || '', 'icon.icns');
+  const windowsInstallerHeaderImage = brand.assets.windowsInstallerHeaderImage
+    ? resolveBrandPath(brandDir, brand.assets.windowsInstallerHeaderImage)
+    : null;
+  const windowsInstallerSidebarImage = brand.assets.windowsInstallerSidebarImage
+    ? resolveBrandPath(brandDir, brand.assets.windowsInstallerSidebarImage)
+    : null;
+  const windowsInstallerIcon = brand.assets.windowsInstallerIcon
+    ? resolveBrandPath(brandDir, brand.assets.windowsInstallerIcon)
+    : path.join(tauriIconsDir || '', 'icon.ico');
   const homeLogo = brand.assets.homeLogo
     ? resolveBrandPath(brandDir, brand.assets.homeLogo)
     : resolveBrandPath(brandDir, brand.assets.faviconPng);
@@ -150,6 +166,7 @@ async function main() {
   await fs.mkdir(outputBrandDir, { recursive: true });
   await fs.mkdir(outputPublicDir, { recursive: true });
   await fs.mkdir(homeWebPublicBrandDir, { recursive: true });
+  await fs.mkdir(outputInstallerAssetsDir, { recursive: true });
   await copyFile(faviconIco, path.join(outputBrandDir, 'favicon.ico'));
   await copyFile(faviconPng, path.join(outputBrandDir, 'favicon.png'));
   await copyFile(appleTouchIcon, path.join(outputBrandDir, 'apple-touch-icon.png'));
@@ -159,6 +176,17 @@ async function main() {
   await copyFile(appleTouchIcon, path.join(outputPublicDir, 'apple-touch-icon.png'));
   await copyFile(installerHero, legacyInstallerAssetPath);
   await copyDirectory(tauriIconsDir, outputIconsDir);
+  await copyFile(dmgBackground, path.join(outputInstallerAssetsDir, 'dmg-background.png'));
+  await copyFile(dmgVolumeIcon, path.join(outputInstallerAssetsDir, 'dmg-volume.icns'));
+  await copyFile(windowsInstallerIcon, path.join(outputInstallerAssetsDir, 'nsis-installer.ico'));
+  await copyOptionalFile(
+    windowsInstallerHeaderImage,
+    path.join(outputInstallerAssetsDir, 'nsis-header.bmp'),
+  );
+  await copyOptionalFile(
+    windowsInstallerSidebarImage,
+    path.join(outputInstallerAssetsDir, 'nsis-sidebar.bmp'),
+  );
   await copyFile(faviconPng, path.join(homeWebPublicBrandDir, 'favicon.png'));
   await copyFile(appleTouchIcon, path.join(homeWebPublicBrandDir, 'apple-touch-icon.png'));
   await copyFile(homeLogo, path.join(homeWebPublicBrandDir, 'logo.png'));
@@ -174,6 +202,8 @@ async function main() {
     tauriConfig.app.windows[0].title = brand.productName;
   }
   tauriConfig.bundle = tauriConfig.bundle || {};
+  tauriConfig.bundle.windows = tauriConfig.bundle.windows || {};
+  tauriConfig.bundle.windows.nsis = tauriConfig.bundle.windows.nsis || {};
   tauriConfig.bundle.createUpdaterArtifacts = Boolean((process.env.TAURI_SIGNING_PRIVATE_KEY || '').trim());
   tauriConfig.bundle.icon = [
     'icons-generated/32x32.png',
@@ -182,6 +212,17 @@ async function main() {
     'icons-generated/icon.icns',
     'icons-generated/icon.ico',
   ];
+  tauriConfig.bundle.windows.nsis.installerIcon = 'installer-generated/nsis-installer.ico';
+  if (windowsInstallerHeaderImage) {
+    tauriConfig.bundle.windows.nsis.headerImage = 'installer-generated/nsis-header.bmp';
+  } else {
+    delete tauriConfig.bundle.windows.nsis.headerImage;
+  }
+  if (windowsInstallerSidebarImage) {
+    tauriConfig.bundle.windows.nsis.sidebarImage = 'installer-generated/nsis-sidebar.bmp';
+  } else {
+    delete tauriConfig.bundle.windows.nsis.sidebarImage;
+  }
   const updaterPubkey = (process.env.TAURI_UPDATER_PUBLIC_KEY || '').trim();
   if (updaterPubkey) {
     tauriConfig.plugins = tauriConfig.plugins || {};

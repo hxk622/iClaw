@@ -18,6 +18,7 @@ const TRACKED_PATHS = [
   'apps/desktop/public/apple-touch-icon.png',
   'apps/desktop/src/app/assets/installer-lobster.png',
   'apps/desktop/src-tauri/icons-generated',
+  'apps/desktop/src-tauri/installer-generated',
   'home-web/brand.generated.js',
   'home-web/public/brand',
 ];

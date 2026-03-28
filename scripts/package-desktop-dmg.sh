@@ -52,6 +52,9 @@ bundle_dir="$target_dir/bundle"
 macos_dir="$bundle_dir/macos"
 dmg_dir="$bundle_dir/dmg"
 app_bundle_path="$macos_dir/$product_name.app"
+installer_assets_dir="$TAURI_DIR/installer-generated"
+dmg_background_path="$installer_assets_dir/dmg-background.png"
+dmg_volume_icon_path="$installer_assets_dir/dmg-volume.icns"
 
 if [[ ! -d "$app_bundle_path" ]]; then
   echo "Missing app bundle: $app_bundle_path" >&2
@@ -105,7 +108,14 @@ normalize_channel() {
 mkdir -p "$dmg_dir"
 
 stage_dir="$(mktemp -d "${TMPDIR:-/tmp}/iclaw-dmg-stage.XXXXXX")"
+rw_dmg_path="$(mktemp "${TMPDIR:-/tmp}/iclaw-dmg-rw.XXXXXX.dmg")"
+mount_dir="$(mktemp -d "${TMPDIR:-/tmp}/iclaw-dmg-mount.XXXXXX")"
 cleanup() {
+  if mount | grep -q "$mount_dir"; then
+    hdiutil detach "$mount_dir" -force >/dev/null 2>&1 || true
+  fi
+  rm -f "$rw_dmg_path"
+  rm -rf "$mount_dir"
   rm -rf "$stage_dir"
 }
 trap cleanup EXIT
@@ -122,11 +132,64 @@ dmg_path="$dmg_dir/$dmg_name"
 rm -f "$dmg_path"
 
 echo "Creating DMG: $dmg_path"
+
 hdiutil create \
-  -volname "$product_name" \
   -srcfolder "$stage_dir" \
+  -volname "$product_name" \
+  -fs HFS+ \
+  -format UDRW \
   -ov \
+  "$rw_dmg_path" >/dev/null
+
+hdiutil attach "$rw_dmg_path" \
+  -mountpoint "$mount_dir" \
+  -noverify \
+  -nobrowse \
+  -quiet
+
+mkdir -p "$mount_dir/.background"
+if [[ -f "$dmg_background_path" ]]; then
+  cp "$dmg_background_path" "$mount_dir/.background/background.png"
+fi
+
+if [[ -f "$dmg_volume_icon_path" ]]; then
+  cp "$dmg_volume_icon_path" "$mount_dir/.VolumeIcon.icns"
+  if command -v SetFile >/dev/null 2>&1; then
+    SetFile -a C "$mount_dir" || true
+  fi
+fi
+
+osascript <<EOF >/dev/null
+tell application "Finder"
+  tell disk "$product_name"
+    open
+    tell container window
+      set current view to icon view
+      set toolbar visible to false
+      set statusbar visible to false
+      set bounds to {120, 120, 860, 600}
+      set theViewOptions to the icon view options
+      set arrangement of theViewOptions to not arranged
+      set icon size of theViewOptions to 128
+      if exists file ".background:background.png" then
+        set background picture of theViewOptions to file ".background:background.png"
+      end if
+    end tell
+    set position of item "$product_name.app" of container window to {190, 250}
+    set position of item "Applications" of container window to {545, 250}
+    update without registering applications
+    delay 1
+    close
+  end tell
+end tell
+EOF
+
+hdiutil detach "$mount_dir" -quiet
+
+hdiutil convert "$rw_dmg_path" \
   -format UDZO \
-  "$dmg_path"
+  -imagekey zlib-level=9 \
+  -ov \
+  -o "$dmg_path" >/dev/null
 
 echo "Created DMG: $dmg_path"
