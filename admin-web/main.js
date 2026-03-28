@@ -29,6 +29,98 @@ const PRIMARY_PAYMENT_PROVIDER = 'wechat_qr';
 const PAYMENT_PROVIDER_REQUIRED_FIELDS = ['sp_mchid', 'sp_appid', 'sub_mchid', 'notify_url', 'serial_no', 'api_v3_key', 'private_key_pem'];
 const PAYMENT_PROVIDER_CONFIG_FIELDS = ['sp_mchid', 'sp_appid', 'sub_mchid', 'notify_url', 'serial_no'];
 const PAYMENT_PROVIDER_SECRET_FIELDS = ['api_v3_key', 'private_key_pem'];
+const HEADER_SURFACE_PRESETS = [
+  {
+    key: 'wealth',
+    label: '理财版',
+    description: '稳健、陪伴感更强，适合理财、财富管理、基金投顾类 OEM。',
+    config: {
+      statusLabel: '理财观察',
+      liveStatusLabel: '实时策略',
+      showLiveBadge: true,
+      showQuotes: true,
+      showHeadlines: true,
+      showSecurityBadge: true,
+      securityLabel: '交易风控中',
+      showCredits: true,
+      showRechargeButton: true,
+      rechargeLabel: '充值中心',
+      showModeBadge: true,
+      modeBadgeLabel: '机构版',
+      fallbackQuotes: [
+        {id: 'sh000300', label: '沪深300', value: '3,942.18', change: 0.86, changePercent: '+0.86%'},
+        {id: 'sz399001', label: '深证成指', value: '11,248.72', change: -0.42, changePercent: '-0.42%'},
+        {id: 'csi-bank', label: '银行指数', value: '5,184.33', change: 0.57, changePercent: '+0.57%'},
+        {id: 'gold', label: '现货黄金', value: '2,184.60', change: 0.34, changePercent: '+0.34%'},
+      ],
+      fallbackHeadlines: [
+        {id: 'wealth-1', title: '央国企红利与低波资产继续受到中长期资金关注', source: '策略晨会', href: ''},
+        {id: 'wealth-2', title: 'TMT 交易拥挤度回升，成长风格短线波动可能放大', source: '市场监控', href: ''},
+        {id: 'wealth-3', title: '组合回撤预警、仓位管理与再平衡建议已接入顶部策略栏', source: '系统提示', href: ''},
+      ],
+    },
+  },
+  {
+    key: 'broker',
+    label: '券商版',
+    description: '偏行情驱动和交易氛围，适合券商、交易终端、投研协同场景。',
+    config: {
+      statusLabel: '盘口速递',
+      liveStatusLabel: '实时行情',
+      showLiveBadge: true,
+      showQuotes: true,
+      showHeadlines: true,
+      showSecurityBadge: true,
+      securityLabel: '交易链路正常',
+      showCredits: true,
+      showRechargeButton: true,
+      rechargeLabel: '账户增值',
+      showModeBadge: true,
+      modeBadgeLabel: '交易席位',
+      fallbackQuotes: [
+        {id: 'sse-a', label: '上证指数', value: '3,118.55', change: 0.68, changePercent: '+0.68%'},
+        {id: 'gem', label: '创业板指', value: '1,862.40', change: 1.14, changePercent: '+1.14%'},
+        {id: 'northbound', label: '北向净流入', value: '32.6 亿', change: 0.52, changePercent: '+0.52%'},
+        {id: 'turnover', label: '两市成交', value: '9,846 亿', change: -0.27, changePercent: '-0.27%'},
+      ],
+      fallbackHeadlines: [
+        {id: 'broker-1', title: 'AI 算力链再度活跃，龙头股成交额显著放大', source: '盘中快讯', href: ''},
+        {id: 'broker-2', title: '券商板块估值修复延续，量价配合改善', source: '行业盯盘', href: ''},
+        {id: 'broker-3', title: '北向资金午后回流，核心宽基 ETF 获持续申购', source: '资金流监测', href: ''},
+      ],
+    },
+  },
+  {
+    key: 'advisor',
+    label: '投顾版',
+    description: '更偏组合诊断、风险提示和陪伴式投顾，适合投顾、顾问服务类 OEM。',
+    config: {
+      statusLabel: '组合守护',
+      liveStatusLabel: '风险扫描',
+      showLiveBadge: true,
+      showQuotes: true,
+      showHeadlines: true,
+      showSecurityBadge: true,
+      securityLabel: '合规陪伴中',
+      showCredits: true,
+      showRechargeButton: true,
+      rechargeLabel: '升级服务',
+      showModeBadge: true,
+      modeBadgeLabel: '顾问席',
+      fallbackQuotes: [
+        {id: 'portfolio', label: '组合波动', value: '12.4%', change: -0.36, changePercent: '-0.36%'},
+        {id: 'drawdown', label: '年内回撤', value: '4.8%', change: -0.12, changePercent: '-0.12%'},
+        {id: 'alpha', label: '超额收益', value: '+3.2%', change: 0.28, changePercent: '+0.28%'},
+        {id: 'cash', label: '建议现金', value: '18%', change: 0.00, changePercent: '0.00%'},
+      ],
+      fallbackHeadlines: [
+        {id: 'advisor-1', title: '权益仓位建议保持中性偏均衡，等待增量信号确认', source: '组合建议', href: ''},
+        {id: 'advisor-2', title: '高波动板块建议分批止盈，避免短线情绪回撤放大', source: '风险提示', href: ''},
+        {id: 'advisor-3', title: '债券与红利资产可继续作为账户稳定器进行配置', source: '顾问观点', href: ''},
+      ],
+    },
+  },
+];
 const CAPABILITY_ROUTE_MODE = {
   'skills-mcp': 'skills',
   'skill-center': 'skills',
@@ -5032,6 +5124,30 @@ function renderBrandSurfaceEditor(buffer, surfaceKey, title, description) {
         </div>
       `
       : '';
+  const presetPicker =
+    surfaceKey === 'header'
+      ? `
+        <div class="fig-card__section-copy">
+          <p>平台预置模板：</p>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+            ${HEADER_SURFACE_PRESETS.map(
+              (preset) => `
+                <button
+                  class="capability-card"
+                  type="button"
+                  data-action="apply-header-surface-preset"
+                  data-preset-key="${escapeHtml(preset.key)}"
+                  style="text-align:left;"
+                >
+                  <strong>${escapeHtml(preset.label)}</strong>
+                  <span>${escapeHtml(preset.description)}</span>
+                </button>
+              `,
+            ).join('')}
+          </div>
+        </div>
+      `
+      : '';
   return `
     <section class="fig-brand-section">
       <div class="fig-section-heading">
@@ -5053,6 +5169,7 @@ function renderBrandSurfaceEditor(buffer, surfaceKey, title, description) {
               <span>${visibilityStateLabel(surface.enabled)}</span>
             </label>
           </div>
+          ${presetPicker}
           ${helperCopy}
           <textarea class="code-input code-input--tall" name="surface_config__${escapeHtml(surface.key)}">${escapeHtml(surface.json)}</textarea>
         </div>
@@ -9784,6 +9901,23 @@ app.addEventListener('click', async (event) => {
     state.route = 'payments-config';
     state.selectedPaymentProviderTab = target.getAttribute('data-tab-key') || 'platform';
     render();
+    return;
+  }
+
+  if (action === 'apply-header-surface-preset') {
+    const presetKey = target.getAttribute('data-preset-key') || '';
+    const preset = HEADER_SURFACE_PRESETS.find((item) => item.key === presetKey) || null;
+    const form = document.querySelector('#brand-editor-form');
+    if (!(form instanceof HTMLFormElement) || !preset) {
+      return;
+    }
+    const textarea = form.querySelector('[name="surface_config__header"]');
+    if (textarea instanceof HTMLTextAreaElement) {
+      textarea.value = prettyJson(preset.config);
+      captureBrandEditorBuffer();
+      setNotice(`已填充 Header 模板：${preset.label}`);
+      render();
+    }
     return;
   }
 
