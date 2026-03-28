@@ -316,12 +316,12 @@ function collectJavaScriptFiles(dirPath, out) {
 function patchOpenAiWrapperFile(filePath) {
   let raw = fs.readFileSync(filePath, 'utf8');
   const APPLY_MARKER = 'agent.streamFn = createOpenAIDefaultTransportWrapper(agent.streamFn);';
-  if (raw.includes(PATCH_MARKER) && !raw.includes('else if (provider === "openai" || agent.model?.api === "openai-completions") agent.streamFn = createOpenAIDefaultTransportWrapper(agent.streamFn);')) {
-    raw = raw.replace('else if (provider === "openai") agent.streamFn = createOpenAIDefaultTransportWrapper(agent.streamFn);', 'else if (provider === "openai" || agent.model?.api === "openai-completions") agent.streamFn = createOpenAIDefaultTransportWrapper(agent.streamFn);');
+  if (raw.includes(PATCH_MARKER) && !raw.includes('agent.streamFn = createOpenAIDefaultTransportWrapper(agent.streamFn);')) {
+    raw = raw.replace('else if (provider === "openai") agent.streamFn = createOpenAIDefaultTransportWrapper(agent.streamFn);', 'agent.streamFn = createOpenAIDefaultTransportWrapper(agent.streamFn);');
     fs.writeFileSync(filePath, raw);
     return true;
   }
-  if (raw.includes(PATCH_MARKER) && raw.includes('else if (provider === "openai" || agent.model?.api === "openai-completions") agent.streamFn = createOpenAIDefaultTransportWrapper(agent.streamFn);')) {
+  if (raw.includes(PATCH_MARKER) && raw.includes('agent.streamFn = createOpenAIDefaultTransportWrapper(agent.streamFn);')) {
     return false;
   }
 
@@ -334,7 +334,7 @@ function patchOpenAiWrapperFile(filePath) {
   const replacement = `function createOpenAIDefaultTransportWrapper(baseStreamFn) {\n\tconst underlying = baseStreamFn ?? streamSimple;\n\treturn (model, context, options) => {\n\t\tconst typedOptions = options;\n\t\tconst originalOnPayload = options?.onPayload;\n\t\treturn underlying(model, context, {\n\t\t\t...options,\n\t\t\ttransport: options?.transport ?? "auto",\n\t\t\topenaiWsWarmup: typedOptions?.openaiWsWarmup ?? false,\n\t\t\tonPayload: (payload) => {\n\t\t\t\tif (model.api === "openai-completions" && payload && typeof payload === "object") {\n\t\t\t\t\tconst payloadObj = payload;\n\t\t\t\t\tpayloadObj.stream_options = { ...(payloadObj.stream_options ?? {}), include_usage: true };\n\t\t\t\t}\n\t\t\t\treturn originalOnPayload?.(payload, model);\n\t\t\t}\n\t\t});\n\t};\n}`;
 
   raw = raw.replace(anchor, replacement);
-  raw = raw.replace('else if (provider === "openai") agent.streamFn = createOpenAIDefaultTransportWrapper(agent.streamFn);', 'else if (provider === "openai" || agent.model?.api === "openai-completions") agent.streamFn = createOpenAIDefaultTransportWrapper(agent.streamFn);');
+  raw = raw.replace('else if (provider === "openai") agent.streamFn = createOpenAIDefaultTransportWrapper(agent.streamFn);', 'agent.streamFn = createOpenAIDefaultTransportWrapper(agent.streamFn);');
   fs.writeFileSync(filePath, raw);
   return true;
 }
