@@ -379,14 +379,18 @@ export function AuthPanel({
 
         <SocialDivider />
 
+        <div className="mb-3 rounded-2xl border border-[var(--chip-brand-border)] bg-[var(--chip-brand-bg)] px-4 py-3 text-[12px] text-[var(--text-secondary)]">
+          微信和 Gmail 登录暂未开放，请先使用账号密码登录。
+        </div>
+
         <div className="grid grid-cols-2 gap-3">
           <Button
             variant="secondary"
             size="md"
             block
-            disabled={loading || socialLoadingProvider !== null}
-            onClick={() => void onSocialLogin('wechat')}
-            leadingIcon={socialLoadingProvider === 'wechat' ? <Loader2 className="h-4 w-4 animate-spin" /> : <WechatIcon />}
+            disabled
+            leadingIcon={<WechatIcon />}
+            className="opacity-55"
           >
             <span>微信</span>
           </Button>
@@ -394,11 +398,11 @@ export function AuthPanel({
             variant="secondary"
             size="md"
             block
-            disabled={loading || socialLoadingProvider !== null}
-            onClick={() => void onSocialLogin('google')}
-            leadingIcon={socialLoadingProvider === 'google' ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon />}
+            disabled
+            leadingIcon={<GoogleIcon />}
+            className="opacity-55"
           >
-            <span>Google</span>
+            <span>Gmail</span>
           </Button>
         </div>
 
