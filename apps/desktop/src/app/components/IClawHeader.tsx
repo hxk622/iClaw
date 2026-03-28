@@ -2,8 +2,10 @@ import { Coins, Crown, Globe2, Minus, Newspaper, Sparkles, TrendingDown, Trendin
 import { useEffect, useMemo, useState } from 'react';
 import { SecurityStatusInline } from '@/app/components/ui/SecurityStatusInline';
 import { cn } from '@/app/lib/cn';
+import type { ResolvedHeaderConfig } from '@/app/lib/oem-runtime';
 
 type IClawHeaderProps = {
+  config?: ResolvedHeaderConfig | null;
   balance: number | null;
   loading?: boolean;
   authenticated: boolean;
@@ -59,6 +61,16 @@ const FALLBACK_HEADLINES: HeaderHeadline[] = [
     source: '系统提示',
   },
 ];
+
+function resolveFallbackQuotes(config?: ResolvedHeaderConfig | null): HeaderMarketQuote[] {
+  return config?.fallbackQuotes?.length ? config.fallbackQuotes.map((item) => ({...item})) : FALLBACK_QUOTES;
+}
+
+function resolveFallbackHeadlines(config?: ResolvedHeaderConfig | null): HeaderHeadline[] {
+  return config?.fallbackHeadlines?.length
+    ? config.fallbackHeadlines.map((item) => ({...item}))
+    : FALLBACK_HEADLINES;
+}
 
 function formatBalance(value: number | null, authenticated: boolean, loading: boolean): string {
   if (!authenticated || loading || value == null) {
@@ -226,18 +238,34 @@ function getChangeClassName(change: number): string {
   return 'text-[var(--text-muted)]';
 }
 
-function useHeaderFeed(): HeaderFeedSnapshot {
-  const [quotes, setQuotes] = useState<HeaderMarketQuote[]>(FALLBACK_QUOTES);
-  const [headlines, setHeadlines] = useState<HeaderHeadline[]>(FALLBACK_HEADLINES);
+function useHeaderFeed(config?: ResolvedHeaderConfig | null): HeaderFeedSnapshot {
+  const fallbackQuotes = useMemo(() => resolveFallbackQuotes(config), [config]);
+  const fallbackHeadlines = useMemo(() => resolveFallbackHeadlines(config), [config]);
+  const [quotes, setQuotes] = useState<HeaderMarketQuote[]>(fallbackQuotes);
+  const [headlines, setHeadlines] = useState<HeaderHeadline[]>(fallbackHeadlines);
   const [quotesLive, setQuotesLive] = useState(false);
   const [newsLive, setNewsLive] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!quotesLive) {
+      setQuotes(fallbackQuotes);
+    }
+  }, [fallbackQuotes, quotesLive]);
+
+  useEffect(() => {
+    if (!newsLive) {
+      setHeadlines(fallbackHeadlines);
+    }
+  }, [fallbackHeadlines, newsLive]);
 
   useEffect(() => {
     let disposed = false;
 
     const loadQuotes = async () => {
       if (!HEADER_QUOTES_URL) {
+        setQuotes(fallbackQuotes);
+        setQuotesLive(false);
         return;
       }
       try {
@@ -250,6 +278,7 @@ function useHeaderFeed(): HeaderFeedSnapshot {
         setUpdatedAt(Date.now());
       } catch {
         if (!disposed) {
+          setQuotes(fallbackQuotes);
           setQuotesLive(false);
         }
       }
@@ -264,13 +293,15 @@ function useHeaderFeed(): HeaderFeedSnapshot {
       disposed = true;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [fallbackQuotes]);
 
   useEffect(() => {
     let disposed = false;
 
     const loadNews = async () => {
       if (!HEADER_NEWS_URL) {
+        setHeadlines(fallbackHeadlines);
+        setNewsLive(false);
         return;
       }
       try {
@@ -283,6 +314,7 @@ function useHeaderFeed(): HeaderFeedSnapshot {
         setUpdatedAt(Date.now());
       } catch {
         if (!disposed) {
+          setHeadlines(fallbackHeadlines);
           setNewsLive(false);
         }
       }
@@ -297,7 +329,7 @@ function useHeaderFeed(): HeaderFeedSnapshot {
       disposed = true;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [fallbackHeadlines]);
 
   return {
     quotes,
@@ -308,6 +340,7 @@ function useHeaderFeed(): HeaderFeedSnapshot {
 }
 
 export function IClawHeader({
+  config,
   balance,
   loading = false,
   authenticated,
@@ -315,7 +348,8 @@ export function IClawHeader({
   onRechargeClick,
 }: IClawHeaderProps) {
   const balanceText = formatBalance(balance, authenticated, loading);
-  const feed = useHeaderFeed();
+  const resolvedConfig = config || null;
+  const feed = useHeaderFeed(resolvedConfig);
   const [headlineIndex, setHeadlineIndex] = useState(0);
 
   useEffect(() => {
@@ -338,88 +372,122 @@ export function IClawHeader({
 
   const activeHeadline = feed.headlines[headlineIndex] ?? null;
   const updatedLabel = useMemo(() => {
+    const idleLabel = resolvedConfig?.statusLabel || '市场概览';
+    const liveLabel = resolvedConfig?.liveStatusLabel || '实时更新';
     if (!feed.updatedAt) {
-      return feed.live ? '实时数据' : '市场概览';
+      return feed.live ? liveLabel : idleLabel;
     }
-    return `${feed.live ? '实时更新' : '市场概览'} · ${new Intl.DateTimeFormat('zh-CN', {
+    return `${feed.live ? liveLabel : idleLabel} · ${new Intl.DateTimeFormat('zh-CN', {
       hour: '2-digit',
       minute: '2-digit',
     }).format(feed.updatedAt)}`;
-  }, [feed.live, feed.updatedAt]);
+  }, [feed.live, feed.updatedAt, resolvedConfig?.liveStatusLabel, resolvedConfig?.statusLabel]);
 
   return (
     <header className="border-b border-[var(--border-default)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--bg-card)_96%,white_4%),color-mix(in_srgb,var(--bg-page)_94%,white_6%))] backdrop-blur-sm">
       <div className="flex h-14 items-center justify-between gap-4 px-6">
         <div className="flex min-w-0 flex-1 items-center gap-4">
-          <div className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--border-default)_76%,transparent)] bg-[color-mix(in_srgb,var(--bg-card)_84%,white_16%)] px-3 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] shadow-[var(--shadow-sm)]">
-            <Globe2 className="h-3.5 w-3.5 text-[var(--brand-primary)]" />
-            <span>{updatedLabel}</span>
-          </div>
-
-          <div className="flex min-w-0 flex-1 items-center overflow-hidden">
-            <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {feed.quotes.map((quote) => (
-                <div
-                  key={quote.id}
-                  className="group inline-flex shrink-0 items-center gap-2 rounded-full border border-transparent px-2.5 py-1.5 transition-colors duration-200 hover:border-[color-mix(in_srgb,var(--border-default)_88%,transparent)] hover:bg-[color-mix(in_srgb,var(--bg-card)_78%,white_22%)]"
-                >
-                  <span className="text-[11px] font-medium text-[var(--text-muted)]">{quote.label}</span>
-                  <span className="text-[13px] font-semibold tabular-nums text-[var(--text-primary)]">{quote.value}</span>
-                  <span className={cn('inline-flex items-center gap-0.5 text-[11px] font-semibold tabular-nums', getChangeClassName(quote.change))}>
-                    {getTrendIcon(quote.change)}
-                    {quote.changePercent}
-                  </span>
-                </div>
-              ))}
+          {resolvedConfig?.showLiveBadge !== false ? (
+            <div className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--border-default)_76%,transparent)] bg-[color-mix(in_srgb,var(--bg-card)_84%,white_16%)] px-3 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] shadow-[var(--shadow-sm)]">
+              <Globe2 className="h-3.5 w-3.5 text-[var(--brand-primary)]" />
+              <span>{updatedLabel}</span>
             </div>
-          </div>
+          ) : null}
+
+          {resolvedConfig?.showQuotes !== false ? (
+            <div className="flex min-w-0 flex-1 items-center overflow-hidden">
+              <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {feed.quotes.map((quote) => (
+                  <div
+                    key={quote.id}
+                    className="group inline-flex shrink-0 items-center gap-2 rounded-full border border-transparent px-2.5 py-1.5 transition-colors duration-200 hover:border-[color-mix(in_srgb,var(--border-default)_88%,transparent)] hover:bg-[color-mix(in_srgb,var(--bg-card)_78%,white_22%)]"
+                  >
+                    <span className="text-[11px] font-medium text-[var(--text-muted)]">{quote.label}</span>
+                    <span className="text-[13px] font-semibold tabular-nums text-[var(--text-primary)]">{quote.value}</span>
+                    <span className={cn('inline-flex items-center gap-0.5 text-[11px] font-semibold tabular-nums', getChangeClassName(quote.change))}>
+                      {getTrendIcon(quote.change)}
+                      {quote.changePercent}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
 
+        {resolvedConfig?.showHeadlines !== false ? (
         <div className="hidden min-w-0 flex-[0_1_32rem] items-center justify-center lg:flex">
           <div className="flex min-w-0 items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--border-default)_78%,transparent)] bg-[color-mix(in_srgb,var(--bg-card)_86%,white_14%)] px-3 py-1.5 shadow-[var(--shadow-sm)]">
             <Newspaper className="h-3.5 w-3.5 shrink-0 text-[var(--brand-primary)]" />
             <div className="min-w-0 truncate text-[12px] text-[var(--text-secondary)]">
               {activeHeadline ? (
-                <>
-                  <span className="truncate text-[var(--text-primary)]">{activeHeadline.title}</span>
-                  {activeHeadline.source ? <span className="ml-2 text-[var(--text-muted)]">{activeHeadline.source}</span> : null}
-                </>
+                activeHeadline.href ? (
+                  <a
+                    className="inline-flex min-w-0 items-center gap-0"
+                    href={activeHeadline.href}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <span className="truncate text-[var(--text-primary)]">{activeHeadline.title}</span>
+                    {activeHeadline.source ? <span className="ml-2 text-[var(--text-muted)]">{activeHeadline.source}</span> : null}
+                  </a>
+                ) : (
+                  <>
+                    <span className="truncate text-[var(--text-primary)]">{activeHeadline.title}</span>
+                    {activeHeadline.source ? <span className="ml-2 text-[var(--text-muted)]">{activeHeadline.source}</span> : null}
+                  </>
+                )
               ) : (
                 '市场快讯入口已预留，接入统一 headlines feed 后可无缝切换为真实滚动资讯。'
               )}
             </div>
           </div>
         </div>
+        ) : null}
 
         <div className="flex shrink-0 items-center gap-3">
-          <SecurityStatusInline state="protecting" label="安全防护中" className="hidden shrink-0 sm:inline-flex" />
+          {resolvedConfig?.showSecurityBadge !== false ? (
+            <SecurityStatusInline
+              state="protecting"
+              label={resolvedConfig?.securityLabel || '安全防护中'}
+              className="hidden shrink-0 sm:inline-flex"
+            />
+          ) : null}
 
-          <button
-            type="button"
-            className="group inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--border-default)_82%,transparent)] bg-[color-mix(in_srgb,var(--bg-card)_88%,white_12%)] px-3 shadow-[var(--shadow-sm)] transition-colors duration-200 hover:bg-[color-mix(in_srgb,var(--bg-hover)_94%,white_6%)]"
-            onClick={onCreditsClick}
-          >
-            <span className="inline-flex h-5.5 w-5.5 items-center justify-center rounded-full bg-[rgba(245,158,11,0.14)] text-[#b45309]">
-              <Coins className="h-3.5 w-3.5" />
-            </span>
-            <span className="text-[12px] font-semibold tabular-nums text-[var(--text-primary)]">{balanceText}</span>
-          </button>
+          {resolvedConfig?.showCredits !== false ? (
+            <button
+              type="button"
+              className="group inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--border-default)_82%,transparent)] bg-[color-mix(in_srgb,var(--bg-card)_88%,white_12%)] px-3 shadow-[var(--shadow-sm)] transition-colors duration-200 hover:bg-[color-mix(in_srgb,var(--bg-hover)_94%,white_6%)]"
+              onClick={onCreditsClick}
+            >
+              <span className="inline-flex h-5.5 w-5.5 items-center justify-center rounded-full bg-[rgba(245,158,11,0.14)] text-[#b45309]">
+                <Coins className="h-3.5 w-3.5" />
+              </span>
+              <span className="text-[12px] font-semibold tabular-nums text-[var(--text-primary)]">{balanceText}</span>
+            </button>
+          ) : null}
 
-          <button
-            type="button"
-            className="group inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--border-default)_82%,transparent)] bg-[color-mix(in_srgb,var(--bg-card)_88%,white_12%)] px-3 shadow-[var(--shadow-sm)] transition-colors duration-200 hover:bg-[color-mix(in_srgb,var(--bg-hover)_94%,white_6%)]"
-            onClick={onRechargeClick}
-          >
-            <span className="inline-flex h-5.5 w-5.5 items-center justify-center rounded-full bg-[rgba(168,140,93,0.14)] text-[var(--brand-primary)]">
-              <Crown className="h-3.5 w-3.5" />
-            </span>
-            <span className="hidden text-[12px] font-semibold text-[var(--text-primary)] sm:inline">充值中心</span>
-          </button>
+          {resolvedConfig?.showRechargeButton !== false ? (
+            <button
+              type="button"
+              className="group inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--border-default)_82%,transparent)] bg-[color-mix(in_srgb,var(--bg-card)_88%,white_12%)] px-3 shadow-[var(--shadow-sm)] transition-colors duration-200 hover:bg-[color-mix(in_srgb,var(--bg-hover)_94%,white_6%)]"
+              onClick={onRechargeClick}
+            >
+              <span className="inline-flex h-5.5 w-5.5 items-center justify-center rounded-full bg-[rgba(168,140,93,0.14)] text-[var(--brand-primary)]">
+                <Crown className="h-3.5 w-3.5" />
+              </span>
+              <span className="hidden text-[12px] font-semibold text-[var(--text-primary)] sm:inline">
+                {resolvedConfig?.rechargeLabel || '充值中心'}
+              </span>
+            </button>
+          ) : null}
 
-          <div className="hidden items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--chip-brand-bg)_64%,var(--bg-card))] px-2.5 py-1 text-[11px] font-medium text-[var(--chip-brand-text)] xl:inline-flex">
-            <Sparkles className="h-3.5 w-3.5" />
-            脉搏模式
-          </div>
+          {resolvedConfig?.showModeBadge !== false ? (
+            <div className="hidden items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--chip-brand-bg)_64%,var(--bg-card))] px-2.5 py-1 text-[11px] font-medium text-[var(--chip-brand-text)] xl:inline-flex">
+              <Sparkles className="h-3.5 w-3.5" />
+              {resolvedConfig?.modeBadgeLabel || '脉搏模式'}
+            </div>
+          ) : null}
         </div>
       </div>
     </header>

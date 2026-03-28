@@ -5023,6 +5023,15 @@ function getBrandSurfaceDraft(buffer, key) {
 function renderBrandSurfaceEditor(buffer, surfaceKey, title, description) {
   const surface = getBrandSurfaceDraft(buffer, surfaceKey);
   const blueprint = getSurfaceBlueprint(surfaceKey);
+  const helperCopy =
+    surfaceKey === 'header'
+      ? `
+        <div class="fig-card__section-copy">
+          <p><code>surfaces.header.config</code> 现已被桌面端实际消费。常用字段：</p>
+          <p><code>statusLabel</code> / <code>liveStatusLabel</code> / <code>showQuotes</code> / <code>showHeadlines</code> / <code>showSecurityBadge</code> / <code>showCredits</code> / <code>showRechargeButton</code> / <code>rechargeLabel</code> / <code>showModeBadge</code> / <code>modeBadgeLabel</code> / <code>fallbackQuotes</code> / <code>fallbackHeadlines</code></p>
+        </div>
+      `
+      : '';
   return `
     <section class="fig-brand-section">
       <div class="fig-section-heading">
@@ -5044,6 +5053,7 @@ function renderBrandSurfaceEditor(buffer, surfaceKey, title, description) {
               <span>${visibilityStateLabel(surface.enabled)}</span>
             </label>
           </div>
+          ${helperCopy}
           <textarea class="code-input code-input--tall" name="surface_config__${escapeHtml(surface.key)}">${escapeHtml(surface.json)}</textarea>
         </div>
       </article>

@@ -13,6 +13,7 @@ import {
 } from './lib/tauri-runtime-config';
 import {
   loadBrandRuntimeConfigWithFallback,
+  resolveHeaderConfig,
   resolveInputComposerConfig,
   resolveRequiredEnabledMenuKeys,
   resolveRequiredMenuUiConfig,
@@ -1280,6 +1281,7 @@ function AuthedView({
   const [creditBalanceLoading, setCreditBalanceLoading] = useState(false);
   const enabledMenuKeys = resolveRequiredEnabledMenuKeys(brandShellConfig);
   const menuUiConfig = resolveRequiredMenuUiConfig(brandShellConfig, [...enabledMenuKeys, 'chat', 'task-center']);
+  const headerConfig = resolveHeaderConfig(brandShellConfig);
   const inputComposerConfig = resolveInputComposerConfig(brandShellConfig);
   const welcomePageConfig = resolveWelcomePageConfig(brandShellConfig);
   const availablePrimaryViews = enabledMenuKeys.filter((key) => key !== 'settings') as PrimaryView[];
@@ -1630,8 +1632,9 @@ function AuthedView({
         onSkipDesktopUpdate={onSkipDesktopUpdate}
       />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        {resolvedPrimaryView === 'data-connections' ? null : (
+        {resolvedPrimaryView === 'data-connections' || headerConfig.enabled === false ? null : (
           <IClawHeader
+            config={headerConfig}
             balance={creditBalance?.total_available_balance ?? creditBalance?.available_balance ?? creditBalance?.balance ?? null}
             loading={creditBalanceLoading}
             authenticated={authenticated}

@@ -73,6 +73,39 @@ export type ResolvedWelcomePageConfig = {
   disclaimer: string;
 };
 
+export type ResolvedHeaderQuoteConfig = {
+  id: string;
+  label: string;
+  value: string;
+  change: number;
+  changePercent: string;
+};
+
+export type ResolvedHeaderHeadlineConfig = {
+  id: string;
+  title: string;
+  source: string | null;
+  href: string | null;
+};
+
+export type ResolvedHeaderConfig = {
+  enabled: boolean;
+  statusLabel: string;
+  liveStatusLabel: string;
+  showLiveBadge: boolean;
+  showQuotes: boolean;
+  showHeadlines: boolean;
+  showSecurityBadge: boolean;
+  securityLabel: string;
+  showCredits: boolean;
+  showRechargeButton: boolean;
+  rechargeLabel: string;
+  showModeBadge: boolean;
+  modeBadgeLabel: string;
+  fallbackQuotes: ResolvedHeaderQuoteConfig[];
+  fallbackHeadlines: ResolvedHeaderHeadlineConfig[];
+};
+
 const DEFAULT_ENABLED_MENU_KEYS = [
   'chat',
   'cron',
@@ -207,6 +240,52 @@ function resolveComposerShortcutConfigs(value: unknown): ResolvedComposerShortcu
     })
     .filter((item): item is ResolvedComposerShortcutConfig => Boolean(item))
     .sort((left, right) => left.sortOrder - right.sortOrder || left.shortcutKey.localeCompare(right.shortcutKey, 'zh-CN'));
+}
+
+function normalizeHeaderQuoteConfig(value: unknown, index: number): ResolvedHeaderQuoteConfig | null {
+  const raw = asObject(value);
+  const label = String(raw.label || raw.name || raw.title || '').trim();
+  if (!label) {
+    return null;
+  }
+  const numericChange =
+    typeof raw.change === 'number'
+      ? raw.change
+      : typeof raw.change === 'string' && raw.change.trim()
+        ? Number(raw.change.trim().replace(/%$/, ''))
+        : typeof raw.change_percent === 'number'
+          ? raw.change_percent
+          : typeof raw.changePercent === 'number'
+            ? raw.changePercent
+            : 0;
+  const change = Number.isFinite(numericChange) ? numericChange : 0;
+  const changePercent =
+    typeof raw.change_percent === 'string' && raw.change_percent.trim()
+      ? raw.change_percent.trim()
+      : typeof raw.changePercent === 'string' && raw.changePercent.trim()
+        ? raw.changePercent.trim()
+        : `${change > 0 ? '+' : ''}${change.toFixed(2)}%`;
+  return {
+    id: String(raw.id || `header-quote-${index}`).trim() || `header-quote-${index}`,
+    label,
+    value: String(raw.value || raw.price || raw.last || '--').trim() || '--',
+    change,
+    changePercent,
+  };
+}
+
+function normalizeHeaderHeadlineConfig(value: unknown, index: number): ResolvedHeaderHeadlineConfig | null {
+  const raw = asObject(value);
+  const title = String(raw.title || raw.text || raw.headline || '').trim();
+  if (!title) {
+    return null;
+  }
+  return {
+    id: String(raw.id || `header-headline-${index}`).trim() || `header-headline-${index}`,
+    title,
+    source: String(raw.source || raw.provider || '').trim() || null,
+    href: String(raw.href || raw.url || '').trim() || null,
+  };
 }
 
 const LEGACY_MENU_KEY_MAP: Record<string, string[]> = {
@@ -570,6 +649,48 @@ export function resolveWelcomePageConfig(
     targetAudience: String(welcomeConfig.target_audience || welcomeConfig.targetAudience || '').trim(),
     quickActions,
     disclaimer: String(welcomeConfig.disclaimer || '').trim(),
+  };
+}
+
+export function resolveHeaderConfig(
+  config: Record<string, unknown> | null | undefined,
+): ResolvedHeaderConfig {
+  const root = asObject(config);
+  const headerSurface = asObject(asObject(root.surfaces).header);
+  const headerConfig = asObject(headerSurface.config);
+  return {
+    enabled: headerSurface.enabled !== false,
+    statusLabel:
+      String(
+        headerConfig.status_label ||
+          headerConfig.statusLabel ||
+          headerConfig.badge_label ||
+          headerConfig.badgeLabel ||
+          '',
+      ).trim() || '市场概览',
+    liveStatusLabel:
+      String(headerConfig.live_status_label || headerConfig.liveStatusLabel || '').trim() || '实时更新',
+    showLiveBadge: headerConfig.show_live_badge !== false && headerConfig.showLiveBadge !== false,
+    showQuotes: headerConfig.show_quotes !== false && headerConfig.showQuotes !== false,
+    showHeadlines: headerConfig.show_headlines !== false && headerConfig.showHeadlines !== false,
+    showSecurityBadge: headerConfig.show_security_badge !== false && headerConfig.showSecurityBadge !== false,
+    securityLabel:
+      String(headerConfig.security_label || headerConfig.securityLabel || '').trim() || '安全防护中',
+    showCredits: headerConfig.show_credits !== false && headerConfig.showCredits !== false,
+    showRechargeButton: headerConfig.show_recharge_button !== false && headerConfig.showRechargeButton !== false,
+    rechargeLabel:
+      String(headerConfig.recharge_label || headerConfig.rechargeLabel || '').trim() || '充值中心',
+    showModeBadge: headerConfig.show_mode_badge !== false && headerConfig.showModeBadge !== false,
+    modeBadgeLabel:
+      String(headerConfig.mode_badge_label || headerConfig.modeBadgeLabel || '').trim() || '脉搏模式',
+    fallbackQuotes: asArray(headerConfig.fallback_quotes ?? headerConfig.fallbackQuotes ?? headerConfig.quotes)
+      .map((item, index) => normalizeHeaderQuoteConfig(item, index))
+      .filter((item): item is ResolvedHeaderQuoteConfig => Boolean(item)),
+    fallbackHeadlines: asArray(
+      headerConfig.fallback_headlines ?? headerConfig.fallbackHeadlines ?? headerConfig.headlines,
+    )
+      .map((item, index) => normalizeHeaderHeadlineConfig(item, index))
+      .filter((item): item is ResolvedHeaderHeadlineConfig => Boolean(item)),
   };
 }
 
