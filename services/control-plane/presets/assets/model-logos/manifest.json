@@ -20,8 +20,8 @@
   {
     "preset_key": "stepfun",
     "label": "Stepfun",
-    "asset_path": "services/control-plane/presets/assets/model-logos/Stepfun.svg",
-    "asset_type": "image/svg+xml"
+    "asset_path": "services/control-plane/presets/assets/model-logos/stepfun.png",
+    "asset_type": "image/png"
   },
   {
     "preset_key": "tongyi",
@@ -94,5 +94,11 @@
     "label": "NVIDIA",
     "asset_path": "services/control-plane/presets/assets/model-logos/nvidia.png",
     "asset_type": "image/png"
+  },
+  {
+    "preset_key": "openai",
+    "label": "OpenAI",
+    "asset_path": "services/control-plane/presets/assets/model-logos/openai.svg",
+    "asset_type": "image/svg+xml"
   }
 ]
