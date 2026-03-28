@@ -10,10 +10,14 @@ export type DefaultCloudSkillSeed = {
   skillType: string;
   tags: string[];
   publisher?: string;
+  distribution?: 'bundled' | 'cloud';
   version?: string;
   artifactFormat?: 'tar.gz' | 'zip';
   artifactUrl?: string;
   artifactSourcePath?: string;
+  originType?: 'manual' | 'bundled' | 'clawhub' | 'github_repo';
+  sourceUrl?: string;
+  metadata?: Record<string, unknown>;
 };
 
 export type DefaultAgentCatalogSeed = Omit<AgentCatalogEntryRecord, 'createdAt' | 'updatedAt'>;
@@ -84,6 +88,307 @@ function buildExpertPrompt(input: {
 const DEFAULT_FINANCE_MCP_KEYS = ['browser', 'tavily', 'serper', 'yahoo-finance'];
 const DEFAULT_GLOBAL_FINANCE_MCP_KEYS = ['browser', 'tavily', 'serper', 'yahoo-finance', 'sec-edgar'];
 const DEFAULT_MACRO_MCP_KEYS = ['browser', 'tavily', 'serper', 'yahoo-finance', 'fred'];
+const AGENT_REACH_SOURCE_URL = 'https://github.com/Panniantong/Agent-Reach';
+
+function buildAgentReachMetadata(input: {
+  channel: string;
+  sourceLabel?: string;
+  requiresApiKey?: boolean;
+  setupSchema?: Record<string, unknown> | null;
+}): Record<string, unknown> {
+  const metadata: Record<string, unknown> = {
+    source_label: input.sourceLabel || 'Agent Reach',
+    provider: 'agent-reach',
+    channel: input.channel,
+    source_url: AGENT_REACH_SOURCE_URL,
+    source_kind: 'agent-reach-wrapper',
+    requires_api_key: input.requiresApiKey === true,
+  };
+  if (input.setupSchema) {
+    metadata.setup_schema = input.setupSchema;
+  }
+  return metadata;
+}
+
+function buildSecretSetupSchema(fields: Array<{
+  key: string;
+  label: string;
+  placeholder?: string;
+  helpText?: string;
+}>): Record<string, unknown> {
+  return {
+    version: 1,
+    fields: fields.map((field) => ({
+      key: field.key,
+      label: field.label,
+      type: 'secret',
+      required: true,
+      inject_as: field.key,
+      placeholder: field.placeholder || '',
+      help_text: field.helpText || '',
+    })),
+  };
+}
+
+const AGENT_REACH_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
+  {
+    slug: 'agent-reach-web',
+    name: 'Agent Reach · Web 阅读',
+    description: '面向任意网页做抓取、摘要、提炼观点与结构化信息整理，适合网页研究与内容速读。',
+    market: '通用',
+    category: 'data',
+    skillType: '工具包',
+    tags: ['Agent Reach', 'Web', '网页', '阅读'],
+    publisher: 'Agent Reach · iClaw',
+    distribution: 'cloud',
+    artifactSourcePath: 'agent-reach-web',
+    sourceUrl: AGENT_REACH_SOURCE_URL,
+    metadata: buildAgentReachMetadata({channel: 'web'}),
+  },
+  {
+    slug: 'agent-reach-rss',
+    name: 'Agent Reach · RSS 订阅',
+    description: '读取 RSS 订阅源并做聚合、摘要和主题追踪，适合资讯监控与订阅整理。',
+    market: '通用',
+    category: 'data',
+    skillType: '工具包',
+    tags: ['Agent Reach', 'RSS', '订阅', '资讯'],
+    publisher: 'Agent Reach · iClaw',
+    distribution: 'cloud',
+    artifactSourcePath: 'agent-reach-rss',
+    sourceUrl: AGENT_REACH_SOURCE_URL,
+    metadata: buildAgentReachMetadata({channel: 'rss'}),
+  },
+  {
+    slug: 'agent-reach-youtube',
+    name: 'Agent Reach · YouTube',
+    description: '围绕 YouTube 视频做检索、字幕摘要、要点提炼与内容拆解。',
+    market: '通用',
+    category: 'report',
+    skillType: '分析师',
+    tags: ['Agent Reach', 'YouTube', '视频', '字幕'],
+    publisher: 'Agent Reach · iClaw',
+    distribution: 'cloud',
+    artifactSourcePath: 'agent-reach-youtube',
+    sourceUrl: AGENT_REACH_SOURCE_URL,
+    metadata: buildAgentReachMetadata({channel: 'youtube'}),
+  },
+  {
+    slug: 'agent-reach-bilibili',
+    name: 'Agent Reach · Bilibili',
+    description: '面向 B 站视频做检索、字幕理解、摘要和内容洞察。',
+    market: '通用',
+    category: 'report',
+    skillType: '分析师',
+    tags: ['Agent Reach', 'Bilibili', 'B站', '视频'],
+    publisher: 'Agent Reach · iClaw',
+    distribution: 'cloud',
+    artifactSourcePath: 'agent-reach-bilibili',
+    sourceUrl: AGENT_REACH_SOURCE_URL,
+    metadata: buildAgentReachMetadata({channel: 'bilibili'}),
+  },
+  {
+    slug: 'agent-reach-douyin',
+    name: 'Agent Reach · 抖音',
+    description: '读取抖音内容并做视频信息提炼、热点拆解与传播洞察。',
+    market: '通用',
+    category: 'report',
+    skillType: '分析师',
+    tags: ['Agent Reach', '抖音', '短视频', '热点'],
+    publisher: 'Agent Reach · iClaw',
+    distribution: 'cloud',
+    artifactSourcePath: 'agent-reach-douyin',
+    sourceUrl: AGENT_REACH_SOURCE_URL,
+    metadata: buildAgentReachMetadata({channel: 'douyin'}),
+  },
+  {
+    slug: 'agent-reach-wechat-official',
+    name: 'Agent Reach · 微信公众号',
+    description: '搜索并阅读公众号文章，输出主题摘要、观点比较和引用整理。',
+    market: '通用',
+    category: 'report',
+    skillType: '分析师',
+    tags: ['Agent Reach', '微信', '公众号', '文章'],
+    publisher: 'Agent Reach · iClaw',
+    distribution: 'cloud',
+    artifactSourcePath: 'agent-reach-wechat-official',
+    sourceUrl: AGENT_REACH_SOURCE_URL,
+    metadata: buildAgentReachMetadata({channel: 'wechat-official'}),
+  },
+  {
+    slug: 'agent-reach-weibo',
+    name: 'Agent Reach · 微博',
+    description: '读取微博热榜、搜索结果与帖子内容，适合舆情追踪与热点分析。',
+    market: '通用',
+    category: 'data',
+    skillType: '扫描器',
+    tags: ['Agent Reach', '微博', '热榜', '舆情'],
+    publisher: 'Agent Reach · iClaw',
+    distribution: 'cloud',
+    artifactSourcePath: 'agent-reach-weibo',
+    sourceUrl: AGENT_REACH_SOURCE_URL,
+    metadata: buildAgentReachMetadata({channel: 'weibo'}),
+  },
+  {
+    slug: 'agent-reach-v2ex',
+    name: 'Agent Reach · V2EX',
+    description: '跟踪 V2EX 热点、节点讨论和帖子详情，适合社区趋势与开发者观点研究。',
+    market: '通用',
+    category: 'data',
+    skillType: '扫描器',
+    tags: ['Agent Reach', 'V2EX', '社区', '开发者'],
+    publisher: 'Agent Reach · iClaw',
+    distribution: 'cloud',
+    artifactSourcePath: 'agent-reach-v2ex',
+    sourceUrl: AGENT_REACH_SOURCE_URL,
+    metadata: buildAgentReachMetadata({channel: 'v2ex'}),
+  },
+  {
+    slug: 'agent-reach-xueqiu',
+    name: 'Agent Reach · 雪球',
+    description: '跟踪雪球讨论、观点与情绪线索，适合投资舆情与主题热度观察。',
+    market: '通用',
+    category: 'data',
+    skillType: '扫描器',
+    tags: ['Agent Reach', '雪球', '投资社区', '舆情'],
+    publisher: 'Agent Reach · iClaw',
+    distribution: 'cloud',
+    artifactSourcePath: 'agent-reach-xueqiu',
+    sourceUrl: AGENT_REACH_SOURCE_URL,
+    metadata: buildAgentReachMetadata({channel: 'xueqiu'}),
+  },
+  {
+    slug: 'agent-reach-twitter',
+    name: 'Agent Reach · Twitter/X',
+    description: '面向 X/Twitter 做内容检索、账号追踪和传播分析；完整能力需要 Cookie 登录态。',
+    market: '通用',
+    category: 'data',
+    skillType: '工具包',
+    tags: ['Agent Reach', 'Twitter', 'X', '社交媒体'],
+    publisher: 'Agent Reach · iClaw',
+    distribution: 'cloud',
+    artifactSourcePath: 'agent-reach-twitter',
+    sourceUrl: AGENT_REACH_SOURCE_URL,
+    metadata: buildAgentReachMetadata({
+      channel: 'twitter',
+      requiresApiKey: true,
+      setupSchema: buildSecretSetupSchema([
+        {
+          key: 'TWITTER_COOKIE',
+          label: 'Twitter Cookie',
+          placeholder: '粘贴已登录 X/Twitter 的 cookie',
+          helpText: '用于读取更完整的搜索、时间线与交互内容。',
+        },
+      ]),
+    }),
+  },
+  {
+    slug: 'agent-reach-xiaohongshu',
+    name: 'Agent Reach · 小红书',
+    description: '围绕小红书做搜索、笔记阅读、评论洞察与内容运营分析；完整能力需要登录态。',
+    market: '通用',
+    category: 'report',
+    skillType: '工具包',
+    tags: ['Agent Reach', '小红书', '内容运营', '社区'],
+    publisher: 'Agent Reach · iClaw',
+    distribution: 'cloud',
+    artifactSourcePath: 'agent-reach-xiaohongshu',
+    sourceUrl: AGENT_REACH_SOURCE_URL,
+    metadata: buildAgentReachMetadata({
+      channel: 'xiaohongshu',
+      requiresApiKey: true,
+      setupSchema: buildSecretSetupSchema([
+        {
+          key: 'XIAOHONGSHU_COOKIE',
+          label: '小红书 Cookie',
+          placeholder: '粘贴已登录小红书的 cookie',
+          helpText: '用于访问更稳定的搜索结果和账号相关能力。',
+        },
+      ]),
+    }),
+  },
+  {
+    slug: 'agent-reach-github',
+    name: 'Agent Reach · GitHub',
+    description: '读取仓库、Issue、PR 与代码仓搜索结果，适合开源情报、项目调研与代码库导航。',
+    market: '通用',
+    category: 'data',
+    skillType: '工具包',
+    tags: ['Agent Reach', 'GitHub', '代码仓', '开源'],
+    publisher: 'Agent Reach · iClaw',
+    distribution: 'cloud',
+    artifactSourcePath: 'agent-reach-github',
+    sourceUrl: AGENT_REACH_SOURCE_URL,
+    metadata: buildAgentReachMetadata({channel: 'github'}),
+  },
+  {
+    slug: 'agent-reach-linkedin',
+    name: 'Agent Reach · LinkedIn',
+    description: '阅读 LinkedIn 公开资料、公司页和职位信息，适合人物、组织与招聘洞察。',
+    market: '通用',
+    category: 'data',
+    skillType: '分析师',
+    tags: ['Agent Reach', 'LinkedIn', '招聘', '公司研究'],
+    publisher: 'Agent Reach · iClaw',
+    distribution: 'cloud',
+    artifactSourcePath: 'agent-reach-linkedin',
+    sourceUrl: AGENT_REACH_SOURCE_URL,
+    metadata: buildAgentReachMetadata({channel: 'linkedin'}),
+  },
+  {
+    slug: 'agent-reach-reddit',
+    name: 'Agent Reach · Reddit',
+    description: '搜索 Reddit 社区、帖子和评论，适合海外舆情、社区趋势与用户声音分析。',
+    market: '通用',
+    category: 'data',
+    skillType: '扫描器',
+    tags: ['Agent Reach', 'Reddit', '社区', '舆情'],
+    publisher: 'Agent Reach · iClaw',
+    distribution: 'cloud',
+    artifactSourcePath: 'agent-reach-reddit',
+    sourceUrl: AGENT_REACH_SOURCE_URL,
+    metadata: buildAgentReachMetadata({channel: 'reddit'}),
+  },
+  {
+    slug: 'agent-reach-exa-search',
+    name: 'Agent Reach · Exa 搜索',
+    description: '用 Exa 风格的网页搜索与结果聚合能力做主题检索、竞品调研和资料发现。',
+    market: '通用',
+    category: 'data',
+    skillType: '工具包',
+    tags: ['Agent Reach', 'Exa', '搜索', '研究'],
+    publisher: 'Agent Reach · iClaw',
+    distribution: 'cloud',
+    artifactSourcePath: 'agent-reach-exa-search',
+    sourceUrl: AGENT_REACH_SOURCE_URL,
+    metadata: buildAgentReachMetadata({channel: 'exa-search'}),
+  },
+  {
+    slug: 'agent-reach-podcast-transcript',
+    name: 'Agent Reach · 播客转录',
+    description: '读取播客并生成结构化 transcript、摘要和金句提炼，适合长内容研究。',
+    market: '通用',
+    category: 'report',
+    skillType: '工具包',
+    tags: ['Agent Reach', '播客', '转录', '摘要'],
+    publisher: 'Agent Reach · iClaw',
+    distribution: 'cloud',
+    artifactSourcePath: 'agent-reach-podcast-transcript',
+    sourceUrl: AGENT_REACH_SOURCE_URL,
+    metadata: buildAgentReachMetadata({
+      channel: 'podcast-transcript',
+      requiresApiKey: true,
+      setupSchema: buildSecretSetupSchema([
+        {
+          key: 'GROQ_API_KEY',
+          label: 'GROQ API Key',
+          placeholder: '请输入用于 Whisper/转录的 GROQ API Key',
+          helpText: '用于调用转录能力生成播客字幕和摘要。',
+        },
+      ]),
+    }),
+  },
+];
 
 export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
   {
@@ -216,6 +521,7 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     tags: ['A股', '事件驱动', '并购重组'],
     artifactSourcePath: 'A股事件驱动探测器',
   },
+  ...AGENT_REACH_CLOUD_SKILL_SEEDS,
   {
     slug: 'a-share-sentiment-dislocation',
     name: 'A股情绪与现实背离分析',

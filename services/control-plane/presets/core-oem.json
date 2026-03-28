@@ -323,7 +323,16 @@
   "skills": [
     {"slug": "docx", "name": "DOCX 文档工具", "description": "创建、编辑和分析 Word 文档，支持修订、批注、格式保留与文本提取。", "category": "report", "publisher": "iClaw", "metadata": {"sourceType": "preset"}, "active": true},
     {"slug": "xlsx", "name": "XLSX 表格工具", "description": "创建、编辑和分析电子表格，支持公式、格式、数据处理与可视化。", "category": "data", "publisher": "iClaw", "metadata": {"sourceType": "preset"}, "active": true},
-    {"slug": "pdf", "name": "PDF 工具包", "description": "提取文本和表格、合并拆分 PDF、处理表单并生成新的 PDF 文档。", "category": "report", "publisher": "iClaw", "metadata": {"sourceType": "preset"}, "active": true}
+    {"slug": "pdf", "name": "PDF 工具包", "description": "提取文本和表格、合并拆分 PDF、处理表单并生成新的 PDF 文档。", "category": "report", "publisher": "iClaw", "metadata": {"sourceType": "preset"}, "active": true},
+    {"slug": "agent-reach-web", "name": "Agent Reach · Web 阅读", "description": "面向任意网页做抓取、摘要、提炼观点与结构化信息整理。", "category": "data", "publisher": "Agent Reach · iClaw", "metadata": {"sourceType": "preset", "sourceCatalog": "agent-reach", "platformPresetReason": "免配置网页阅读"}, "active": true},
+    {"slug": "agent-reach-rss", "name": "Agent Reach · RSS 订阅", "description": "读取 RSS 订阅源并做聚合、摘要和主题追踪。", "category": "data", "publisher": "Agent Reach · iClaw", "metadata": {"sourceType": "preset", "sourceCatalog": "agent-reach", "platformPresetReason": "免配置订阅聚合"}, "active": true},
+    {"slug": "agent-reach-youtube", "name": "Agent Reach · YouTube", "description": "围绕 YouTube 视频做检索、字幕摘要、要点提炼与内容拆解。", "category": "report", "publisher": "Agent Reach · iClaw", "metadata": {"sourceType": "preset", "sourceCatalog": "agent-reach", "platformPresetReason": "免配置视频理解"}, "active": true},
+    {"slug": "agent-reach-bilibili", "name": "Agent Reach · Bilibili", "description": "面向 B 站视频做检索、字幕理解、摘要和内容洞察。", "category": "report", "publisher": "Agent Reach · iClaw", "metadata": {"sourceType": "preset", "sourceCatalog": "agent-reach", "platformPresetReason": "免配置视频理解"}, "active": true},
+    {"slug": "agent-reach-douyin", "name": "Agent Reach · 抖音", "description": "读取抖音内容并做视频信息提炼、热点拆解与传播洞察。", "category": "report", "publisher": "Agent Reach · iClaw", "metadata": {"sourceType": "preset", "sourceCatalog": "agent-reach", "platformPresetReason": "免配置短视频洞察"}, "active": true},
+    {"slug": "agent-reach-wechat-official", "name": "Agent Reach · 微信公众号", "description": "搜索并阅读公众号文章，输出主题摘要、观点比较和引用整理。", "category": "report", "publisher": "Agent Reach · iClaw", "metadata": {"sourceType": "preset", "sourceCatalog": "agent-reach", "platformPresetReason": "免配置文章阅读"}, "active": true},
+    {"slug": "agent-reach-weibo", "name": "Agent Reach · 微博", "description": "读取微博热榜、搜索结果与帖子内容，适合舆情追踪与热点分析。", "category": "data", "publisher": "Agent Reach · iClaw", "metadata": {"sourceType": "preset", "sourceCatalog": "agent-reach", "platformPresetReason": "免配置热点追踪"}, "active": true},
+    {"slug": "agent-reach-v2ex", "name": "Agent Reach · V2EX", "description": "跟踪 V2EX 热点、节点讨论和帖子详情。", "category": "data", "publisher": "Agent Reach · iClaw", "metadata": {"sourceType": "preset", "sourceCatalog": "agent-reach", "platformPresetReason": "免配置社区洞察"}, "active": true},
+    {"slug": "agent-reach-xueqiu", "name": "Agent Reach · 雪球", "description": "跟踪雪球讨论、观点与情绪线索，适合投资舆情观察。", "category": "data", "publisher": "Agent Reach · iClaw", "metadata": {"sourceType": "preset", "sourceCatalog": "agent-reach", "platformPresetReason": "免配置投资社区追踪"}, "active": true}
   ],
   "mcps": [
     {

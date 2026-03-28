@@ -7302,6 +7302,25 @@ function renderCloudSkillsPage() {
   const skills = [...state.cloudSkillCatalog];
   const meta = state.cloudSkillCatalogMeta || {};
   const selectedSkill = getCloudSkillCatalogEntry(state.selectedCloudSkillSlug) || skills[0] || null;
+  const selectedSkillMetadata = selectedSkill && selectedSkill.metadata && typeof selectedSkill.metadata === 'object' ? selectedSkill.metadata : {};
+  const selectedSkillSetupSchema =
+    selectedSkillMetadata && typeof selectedSkillMetadata.setup_schema === 'object'
+      ? selectedSkillMetadata.setup_schema
+      : selectedSkillMetadata && typeof selectedSkillMetadata.setupSchema === 'object'
+        ? selectedSkillMetadata.setupSchema
+        : null;
+  const selectedSkillRequiresConfig =
+    Boolean(selectedSkillSetupSchema) ||
+    (Array.isArray(selectedSkillMetadata.required_env) && selectedSkillMetadata.required_env.length > 0) ||
+    (Array.isArray(selectedSkillMetadata.requiredEnv) && selectedSkillMetadata.requiredEnv.length > 0);
+  const selectedSkillSourceLabel =
+    typeof selectedSkillMetadata.source_label === 'string'
+      ? selectedSkillMetadata.source_label
+      : typeof selectedSkillMetadata.sourceLabel === 'string'
+        ? selectedSkillMetadata.sourceLabel
+        : typeof selectedSkillMetadata.provider === 'string'
+          ? selectedSkillMetadata.provider
+          : '未知';
   const selectedSource = state.skillSyncSources.find((item) => item.id === state.selectedSkillSyncSourceId) || state.skillSyncSources[0] || null;
   const runs = state.skillSyncRuns || [];
   const pageStart = skills.length ? Number(meta.offset || 0) + 1 : 0;
@@ -7422,11 +7441,16 @@ function renderCloudSkillsPage() {
                       <div class="fig-meta-card"><span>版本</span><strong>v${escapeHtml(selectedSkill.version || '0.0.0')}</strong></div>
                       <div class="fig-meta-card"><span>来源</span><strong>${escapeHtml(selectedSkill.origin_type || 'manual')}</strong></div>
                       <div class="fig-meta-card"><span>发布者</span><strong>${escapeHtml(selectedSkill.publisher || '未知')}</strong></div>
+                      <div class="fig-meta-card"><span>安装配置</span><strong>${escapeHtml(selectedSkillRequiresConfig ? '需配置' : '免配置')}</strong></div>
                     </div>
                     <div class="chip-grid">
                       ${(selectedSkill.tags || []).length
                         ? selectedSkill.tags.map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`).join('')
                         : `<div class="empty-state">暂无标签。</div>`}
+                    </div>
+                    <div class="fig-meta-cards">
+                      <div class="fig-meta-card"><span>来源标识</span><strong>${escapeHtml(selectedSkillSourceLabel)}</strong></div>
+                      <div class="fig-meta-card"><span>平台预装建议</span><strong>${escapeHtml(selectedSkillRequiresConfig ? '不建议直接平台预装' : '可进平台级 Skill')}</strong></div>
                     </div>
                     <div class="action-row">
                       ${selectedSkill.source_url ? `<a class="text-button" href="${escapeHtml(selectedSkill.source_url)}" target="_blank" rel="noreferrer">查看来源</a>` : ''}
