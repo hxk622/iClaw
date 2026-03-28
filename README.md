@@ -103,8 +103,16 @@ pnpm dev:all
 1. 初始化数据库和角色：
 
 ```bash
+DATABASE_URL=postgres://iclaw_app:change_me_now@127.0.0.1:5432/iclaw_control \
+pnpm db:init:control-plane
+```
+
+如果要由脚本自动创建 role / database，再补充：
+
+```bash
+DATABASE_URL=postgres://iclaw_app:change_me_now@127.0.0.1:5432/iclaw_control \
 ICLAW_CONTROL_DB_SUPERUSER=postgres \
-ICLAW_CONTROL_DB_PASSWORD=change_me_now \
+ICLAW_CONTROL_DB_ADMIN_DB=postgres \
 pnpm db:init:control-plane
 ```
 

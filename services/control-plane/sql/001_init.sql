@@ -84,17 +84,42 @@ alter table credit_accounts add column if not exists topup_balance bigint;
 alter table credit_accounts add column if not exists daily_free_granted_at timestamptz;
 alter table credit_accounts add column if not exists daily_free_expires_at timestamptz;
 
-update credit_accounts
-set
-  daily_free_balance = coalesce(daily_free_balance, balance, 0),
-  topup_balance = coalesce(topup_balance, 0),
-  daily_free_granted_at = coalesce(daily_free_granted_at, updated_at, now()),
-  daily_free_expires_at = coalesce(daily_free_expires_at, updated_at, now())
-where
-  daily_free_balance is null
-  or topup_balance is null
-  or daily_free_granted_at is null
-  or daily_free_expires_at is null;
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_name = 'credit_accounts'
+      and column_name = 'balance'
+      and table_schema = any (current_schemas(false))
+  ) then
+    execute $sql$
+      update credit_accounts
+      set
+        daily_free_balance = coalesce(daily_free_balance, balance, 0),
+        topup_balance = coalesce(topup_balance, 0),
+        daily_free_granted_at = coalesce(daily_free_granted_at, updated_at, now()),
+        daily_free_expires_at = coalesce(daily_free_expires_at, updated_at, now())
+      where
+        daily_free_balance is null
+        or topup_balance is null
+        or daily_free_granted_at is null
+        or daily_free_expires_at is null
+    $sql$;
+  else
+    update credit_accounts
+    set
+      daily_free_balance = coalesce(daily_free_balance, 0),
+      topup_balance = coalesce(topup_balance, 0),
+      daily_free_granted_at = coalesce(daily_free_granted_at, updated_at, now()),
+      daily_free_expires_at = coalesce(daily_free_expires_at, updated_at, now())
+    where
+      daily_free_balance is null
+      or topup_balance is null
+      or daily_free_granted_at is null
+      or daily_free_expires_at is null;
+  end if;
+end $$;
 
 alter table credit_accounts alter column daily_free_balance set default 0;
 alter table credit_accounts alter column topup_balance set default 0;

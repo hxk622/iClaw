@@ -47,19 +47,30 @@ pnpm --filter @iclaw/control-plane check
 初始化新 PostgreSQL：
 
 ```bash
+DATABASE_URL=postgres://iclaw_app:change_me@127.0.0.1:5432/iclaw_control \
+pnpm db:init:control-plane
+```
+
+如果需要让脚本顺手创建 role / database，再显式提供 superuser 信息：
+
+```bash
+DATABASE_URL=postgres://iclaw_app:change_me@127.0.0.1:5432/iclaw_control \
 ICLAW_CONTROL_DB_SUPERUSER=postgres \
-ICLAW_CONTROL_DB_PASSWORD=change_me \
+ICLAW_CONTROL_DB_ADMIN_DB=postgres \
 pnpm db:init:control-plane
 ```
 
 可覆盖变量：
 
+- `DATABASE_URL`
 - `ICLAW_CONTROL_DB_HOST`
 - `ICLAW_CONTROL_DB_PORT`
 - `ICLAW_CONTROL_DB_SUPERUSER`
+- `ICLAW_CONTROL_DB_ADMIN_DB`
 - `ICLAW_CONTROL_DB_NAME`
 - `ICLAW_CONTROL_DB_USER`
 - `ICLAW_CONTROL_DB_PASSWORD`
+- `ICLAW_CONTROL_DB_SKIP_BOOTSTRAP`
 
 默认地址：
 
