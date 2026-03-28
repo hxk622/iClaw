@@ -1185,7 +1185,7 @@ function toSkillCatalogEntryView(
     tags: record.tags,
     version: record.version,
     artifact_url: artifactUrl,
-    artifact_path: record.artifactSourcePath,
+    artifact_path: record.distribution === 'bundled' ? record.artifactSourcePath : null,
     artifact_format: record.artifactFormat,
     artifact_sha256: record.artifactSha256,
     origin_type: record.originType,

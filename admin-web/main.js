@@ -3940,7 +3940,7 @@ async function setCloudSkillEnabled(slug, enabled) {
         artifact_url: skill.artifact_url || null,
         artifact_format: skill.artifact_format,
         artifact_sha256: skill.artifact_sha256 || null,
-        artifact_source_path: skill.artifact_path || null,
+        artifact_source_path: skill.distribution === 'bundled' ? (skill.artifact_path || null) : null,
         origin_type: skill.origin_type,
         source_url: skill.source_url || null,
         metadata: asObject(skill.metadata),

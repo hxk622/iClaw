@@ -104,7 +104,7 @@ function buildAgentReachMetadata(input: {
     provider: 'agent-reach',
     channel: input.channel,
     source_url: AGENT_REACH_SOURCE_URL,
-    source_kind: 'agent-reach-wrapper',
+    source_kind: 'managed-cloud-artifact',
     requires_api_key: input.requiresApiKey === true,
     [CLOUD_SKILL_ARTIFACT_OBJECT_KEY_FIELD]: buildCloudSkillArtifactObjectKey({
       slug: input.slug,

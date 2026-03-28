@@ -1,8 +1,5 @@
-import {execFileSync} from 'node:child_process';
-import {mkdtemp, readFile, rm} from 'node:fs/promises';
-import {tmpdir} from 'node:os';
-import {basename, dirname, resolve} from 'node:path';
-import {fileURLToPath} from 'node:url';
+import {readdir, readFile} from 'node:fs/promises';
+import {basename, resolve} from 'node:path';
 
 import {config} from '../src/config.ts';
 import {buildCloudSkillArtifactObjectKey, CLOUD_SKILL_ARTIFACT_OBJECT_KEY_FIELD} from '../src/cloud-skill-artifacts.ts';
@@ -27,17 +24,35 @@ function normalizeSlugList(value: string | null): string[] {
   );
 }
 
-async function packageSkillSource(skillDir: string, slug: string): Promise<Buffer> {
-  const tempDir = await mkdtemp(resolve(tmpdir(), 'iclaw-cloud-skill-'));
-  const archivePath = resolve(tempDir, `${slug}.tar.gz`);
-  try {
-    execFileSync('tar', ['-czf', archivePath, '-C', dirname(skillDir), basename(skillDir)], {
-      stdio: 'pipe',
-    });
-    return await readFile(archivePath);
-  } finally {
-    await rm(tempDir, {recursive: true, force: true});
+async function readArtifactFile(artifactPath: string): Promise<Buffer> {
+  return await readFile(artifactPath);
+}
+
+function detectArtifactFormat(filename: string): 'tar.gz' | 'zip' {
+  if (filename.endsWith('.zip')) {
+    return 'zip';
   }
+  if (filename.endsWith('.tar.gz')) {
+    return 'tar.gz';
+  }
+  throw new Error(`unsupported artifact format: ${filename}`);
+}
+
+async function collectArtifactFiles(artifactDir: string): Promise<Map<string, string>> {
+  const entries = await readdir(artifactDir, {withFileTypes: true});
+  const result = new Map<string, string>();
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    const name = entry.name.trim();
+    const slug = name.endsWith('.tar.gz')
+      ? name.slice(0, -'.tar.gz'.length)
+      : name.endsWith('.zip')
+        ? name.slice(0, -'.zip'.length)
+        : '';
+    if (!slug) continue;
+    result.set(slug, resolve(artifactDir, name));
+  }
+  return result;
 }
 
 async function main() {
@@ -46,27 +61,19 @@ async function main() {
   }
 
   const rawSlugs = normalizeSlugList(readArg('--slugs'));
-  const currentFile = fileURLToPath(import.meta.url);
-  const repoRoot = resolve(dirname(currentFile), '../../..');
-  const defaultSourceRoot = resolve(repoRoot, 'skills');
-  const sourceRoot = readArg('--source-root') || defaultSourceRoot;
+  const artifactDirArg = readArg('--artifact-dir');
+  if (!artifactDirArg) {
+    throw new Error('--artifact-dir is required; cloud skill publishing only accepts prebuilt artifacts');
+  }
+  const artifactDir = resolve(artifactDirArg);
+  const artifactFiles = await collectArtifactFiles(artifactDir);
   const store = new PgControlPlaneStore(config.databaseUrl);
 
   try {
-    const targetSlugs =
-      rawSlugs.length > 0
-        ? rawSlugs
-        : (
-            await store.listSkillCatalogAdmin(50000, 0, 'agent-reach-')
-          )
-            .filter(
-              (entry) =>
-                entry.distribution === 'cloud' &&
-                entry.slug.startsWith('agent-reach-') &&
-                (entry.artifactSourcePath ||
-                  (typeof entry.metadata?.source_kind === 'string' && entry.metadata.source_kind === 'agent-reach-wrapper')),
-            )
-            .map((entry) => entry.slug);
+    const targetSlugs = rawSlugs.length > 0 ? rawSlugs : Array.from(artifactFiles.keys()).sort();
+    if (targetSlugs.length === 0) {
+      throw new Error(`no cloud skill artifacts found in ${artifactDir}`);
+    }
 
     const published: Array<{slug: string; objectKey: string; sha256: string; sizeBytes: number}> = [];
     for (const slug of targetSlugs) {
@@ -74,18 +81,22 @@ async function main() {
       if (!entry) {
         throw new Error(`cloud skill not found: ${slug}`);
       }
-      const sourceDir = resolve(sourceRoot, slug);
-      const archive = await packageSkillSource(sourceDir, slug);
+      const artifactPath = artifactFiles.get(slug);
+      if (!artifactPath) {
+        throw new Error(`artifact not found for ${slug} in ${artifactDir}`);
+      }
+      const artifactFormat = detectArtifactFormat(basename(artifactPath));
+      const archive = await readArtifactFile(artifactPath);
       const objectKey = buildCloudSkillArtifactObjectKey({
         slug,
         version: entry.version,
-        artifactFormat: entry.artifactFormat,
+        artifactFormat,
       });
       const uploaded = await uploadPortalSkillArtifact({
         slug,
         artifact: archive,
-        filename: `${slug}.${entry.artifactFormat === 'zip' ? 'zip' : 'tar.gz'}`,
-        contentType: entry.artifactFormat === 'zip' ? 'application/zip' : 'application/gzip',
+        filename: `${slug}.${artifactFormat === 'zip' ? 'zip' : 'tar.gz'}`,
+        contentType: artifactFormat === 'zip' ? 'application/zip' : 'application/gzip',
         objectKey,
       });
 
