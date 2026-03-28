@@ -15,6 +15,8 @@ import type {
   AdminRefundPaymentOrderInput,
   AdminMarkPaymentOrderPaidInput,
   AdminPaymentOrderDetailView,
+  AdminPaymentProviderBindingView,
+  AdminPaymentProviderProfileView,
   AdminPaymentOrderSummaryView,
   AdminAgentCatalogEntryView,
   AgentCategory,
@@ -44,6 +46,11 @@ import type {
   OAuthProvider,
   PaymentOrderRecord,
   PaymentOrderView,
+  PaymentProviderBindingRecord,
+  PaymentProviderBindingMode,
+  PaymentProviderChannelKind,
+  PaymentProviderProfileRecord,
+  PaymentProviderScopeType,
   PaymentProvider,
   PaymentWebhookEventRecord,
   PaymentWebhookEventView,
@@ -59,8 +66,10 @@ import type {
   SkillCatalogEntryView,
   SkillSyncRunView,
   SkillSyncSourceView,
-  UpsertSkillCatalogEntryInput,
   UpsertAgentCatalogEntryInput,
+  UpsertAdminPaymentProviderBindingInput,
+  UpsertAdminPaymentProviderProfileInput,
+  UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
   UpsertUserExtensionInstallConfigInput,
   UpdateSkillLibraryItemInput,
@@ -90,6 +99,12 @@ import type {ControlPlaneStore} from './store.ts';
 import {generateOpaqueToken, hashOpaqueToken} from './tokens.ts';
 
 const SUPPORTED_PAYMENT_PROVIDERS = new Set<PaymentProvider>(['mock', 'wechat_qr', 'alipay_qr']);
+const SUPPORTED_PAYMENT_PROVIDER_SCOPE_TYPES = new Set<PaymentProviderScopeType>(['platform', 'app']);
+const SUPPORTED_PAYMENT_PROVIDER_BINDING_MODES = new Set<PaymentProviderBindingMode>([
+  'inherit_platform',
+  'use_app_profile',
+]);
+const SUPPORTED_PAYMENT_PROVIDER_CHANNEL_KINDS = new Set<PaymentProviderChannelKind>(['wechat_service_provider']);
 const SUPPORTED_PAYMENT_WEBHOOK_STATUSES = new Set<PaymentOrderRecord['status']>([
   'pending',
   'paid',
@@ -104,6 +119,8 @@ const MARKET_STOCK_DEFAULT_LIMIT = 120;
 const MARKET_STOCK_MAX_LIMIT = 500;
 const MARKET_FUND_DEFAULT_LIMIT = 120;
 const MARKET_FUND_MAX_LIMIT = 500;
+const PAYMENT_PROVIDER_SECRET_FIELDS = ['api_v3_key', 'private_key_pem'] as const;
+const PAYMENT_PROVIDER_REQUIRED_CONFIG_FIELDS = ['sp_mchid', 'sp_appid', 'sub_mchid', 'notify_url', 'serial_no'] as const;
 
 function resolvePublicApiBaseUrl(): string {
   if (config.apiUrl.trim()) {
@@ -456,6 +473,155 @@ function normalizePaymentProvider(value: string | undefined, fallback: PaymentPr
   }
   return provider;
 }
+
+function paymentProviderLabel(provider: PaymentProvider): string {
+  if (provider === 'wechat_qr') return '微信支付';
+  if (provider === 'alipay_qr') return '支付宝';
+  return '测试支付';
+}
+
+function normalizePaymentProviderScopeType(
+  value: string | undefined,
+  fallback: PaymentProviderScopeType = 'platform',
+): PaymentProviderScopeType {
+  const normalized = (value || '').trim();
+  const scopeType = (normalized || fallback) as PaymentProviderScopeType;
+  if (!SUPPORTED_PAYMENT_PROVIDER_SCOPE_TYPES.has(scopeType)) {
+    throw new HttpError(400, 'BAD_REQUEST', 'unsupported payment provider scope_type');
+  }
+  return scopeType;
+}
+
+function normalizePaymentProviderBindingMode(
+  value: string | undefined,
+  fallback: PaymentProviderBindingMode = 'inherit_platform',
+): PaymentProviderBindingMode {
+  const normalized = (value || '').trim();
+  const mode = (normalized || fallback) as PaymentProviderBindingMode;
+  if (!SUPPORTED_PAYMENT_PROVIDER_BINDING_MODES.has(mode)) {
+    throw new HttpError(400, 'BAD_REQUEST', 'unsupported payment provider mode');
+  }
+  return mode;
+}
+
+function normalizePaymentProviderChannelKind(
+  provider: PaymentProvider,
+  value: string | undefined,
+): PaymentProviderChannelKind {
+  const normalized = (value || '').trim();
+  const fallback: PaymentProviderChannelKind = provider === 'wechat_qr' ? 'wechat_service_provider' : 'wechat_service_provider';
+  const channelKind = (normalized || fallback) as PaymentProviderChannelKind;
+  if (!SUPPORTED_PAYMENT_PROVIDER_CHANNEL_KINDS.has(channelKind)) {
+    throw new HttpError(400, 'BAD_REQUEST', 'unsupported payment provider channel_kind');
+  }
+  return channelKind;
+}
+
+function normalizeConfigStringMap(value: unknown): Record<string, string> {
+  const raw = asObject(value);
+  const normalized: Record<string, string> = {};
+  for (const [key, item] of Object.entries(raw)) {
+    const nextKey = String(key || '').trim();
+    if (!nextKey) {
+      continue;
+    }
+    if (typeof item === 'string') {
+      normalized[nextKey] = item.trim();
+      continue;
+    }
+    if (typeof item === 'number' || typeof item === 'boolean') {
+      normalized[nextKey] = String(item);
+    }
+  }
+  return normalized;
+}
+
+function paymentProviderRequiredFields(
+  profile: Pick<PaymentProviderProfileRecord, 'provider' | 'channelKind' | 'config' | 'secretPayloadEncrypted'>,
+): string[] {
+  if (profile.provider !== 'wechat_qr' || profile.channelKind !== 'wechat_service_provider') {
+    return [];
+  }
+  const configValues = normalizeConfigStringMap(profile.config);
+  const secretValues = decryptInstallSecretPayload(profile.secretPayloadEncrypted);
+  const missing: string[] = [];
+  for (const key of PAYMENT_PROVIDER_REQUIRED_CONFIG_FIELDS) {
+    if (!configValues[key]?.trim()) {
+      missing.push(key);
+    }
+  }
+  for (const key of PAYMENT_PROVIDER_SECRET_FIELDS) {
+    if (!secretValues[key]?.trim()) {
+      missing.push(key);
+    }
+  }
+  return missing;
+}
+
+function toAdminPaymentProviderProfileView(record: PaymentProviderProfileRecord): AdminPaymentProviderProfileView {
+  const missingFields = paymentProviderRequiredFields(record);
+  return {
+    id: record.id,
+    provider: record.provider,
+    scope_type: record.scopeType,
+    scope_key: record.scopeKey,
+    channel_kind: record.channelKind,
+    display_name: record.displayName,
+    enabled: record.enabled,
+    config: record.config,
+    configured_secret_keys: record.configuredSecretKeys,
+    completeness_status: missingFields.length === 0 ? 'configured' : 'missing',
+    missing_fields: missingFields,
+    created_at: record.createdAt,
+    updated_at: record.updatedAt,
+  };
+}
+
+function toAdminPaymentProviderBindingView(record: PaymentProviderBindingRecord): AdminPaymentProviderBindingView {
+  return {
+    app_name: record.appName,
+    provider: record.provider,
+    mode: record.mode,
+    active_profile_id: record.activeProfileId,
+    updated_at: record.updatedAt,
+  };
+}
+
+function mergePaymentProviderSecretValues(
+  existingProfile: PaymentProviderProfileRecord | null,
+  inputSecretValues: Record<string, unknown> | undefined,
+): {secretValues: Record<string, string>; configuredSecretKeys: string[]} {
+  const merged = decryptInstallSecretPayload(existingProfile?.secretPayloadEncrypted);
+  const normalizedInput = asObject(inputSecretValues);
+  for (const key of PAYMENT_PROVIDER_SECRET_FIELDS) {
+    const nextValue = normalizedInput[key];
+    if (typeof nextValue === 'string' && nextValue.trim()) {
+      merged[key] = nextValue.trim();
+    }
+  }
+  return {
+    secretValues: merged,
+    configuredSecretKeys: PAYMENT_PROVIDER_SECRET_FIELDS.filter((key) => Boolean(merged[key]?.trim())),
+  };
+}
+
+function normalizePaymentProviderConfigValues(value: unknown): Record<string, string> {
+  const normalized = normalizeConfigStringMap(value);
+  const next: Record<string, string> = {};
+  for (const [key, item] of Object.entries(normalized)) {
+    if (!key.trim()) {
+      continue;
+    }
+    next[key] = item.trim();
+  }
+  return next;
+}
+
+type ResolvedPaymentProviderProfile = {
+  scopeType: PaymentProviderScopeType;
+  profile: PaymentProviderProfileRecord;
+  missingFields: string[];
+};
 
 const TOPUP_PACKAGES = new Map<
   string,
@@ -1737,6 +1903,7 @@ export class ControlPlaneService {
     if (!packageConfig) {
       throw new HttpError(400, 'BAD_REQUEST', 'invalid package_id');
     }
+    const paymentProfileResolution = await this.resolvePaymentProviderProfileForOrder(provider, appName || null);
     const order = await this.store.createPaymentOrder(user.id, {
       provider,
       package_id: packageId,
@@ -1747,6 +1914,7 @@ export class ControlPlaneService {
       platform,
       arch,
       user_agent: userAgent,
+      metadata: paymentProfileResolution.metadata,
       ...packageConfig,
     });
     return toPaymentOrderView(order);
@@ -1810,6 +1978,118 @@ export class ControlPlaneService {
     return {
       items: items.map((item) => toAdminPaymentOrderSummaryView(item)),
     };
+  }
+
+  async listAdminPaymentProviderProfiles(
+    accessToken: string,
+    input?: {provider?: string | null},
+  ): Promise<{items: AdminPaymentProviderProfileView[]}> {
+    await this.requireAdminUser(accessToken);
+    const provider = input?.provider ? normalizePaymentProvider(input.provider, 'wechat_qr') : null;
+    const items = await this.store.listPaymentProviderProfiles({provider});
+    return {
+      items: items.map((item) => toAdminPaymentProviderProfileView(item)),
+    };
+  }
+
+  async upsertAdminPaymentProviderProfile(
+    accessToken: string,
+    input: UpsertAdminPaymentProviderProfileInput,
+  ): Promise<AdminPaymentProviderProfileView> {
+    await this.requireAdminUser(accessToken);
+    const provider = normalizePaymentProvider(input.provider, 'wechat_qr');
+    const scopeType = normalizePaymentProviderScopeType(input.scope_type, 'platform');
+    const scopeKey =
+      scopeType === 'platform'
+        ? 'platform'
+        : String(input.scope_key || '')
+            .trim()
+            .toLowerCase();
+    if (!scopeKey) {
+      throw new HttpError(400, 'BAD_REQUEST', 'scope_key is required');
+    }
+    const existing =
+      (input.id ? await this.store.getPaymentProviderProfileById(String(input.id).trim()) : null) ||
+      (await this.store.getPaymentProviderProfileByScope(provider, scopeType, scopeKey));
+    const channelKind = normalizePaymentProviderChannelKind(provider, input.channel_kind || existing?.channelKind);
+    const displayName =
+      String(input.display_name || '').trim() ||
+      existing?.displayName ||
+      `${scopeType === 'platform' ? '平台默认' : scopeKey} ${paymentProviderLabel(provider)}`;
+    const configValues = {
+      ...(existing ? normalizePaymentProviderConfigValues(existing.config) : {}),
+      ...normalizePaymentProviderConfigValues(input.config_values),
+    };
+    const mergedSecrets = mergePaymentProviderSecretValues(existing, input.secret_values);
+    const record = await this.store.upsertPaymentProviderProfile({
+      id: existing?.id || String(input.id || '').trim() || null,
+      provider,
+      scope_type: scopeType,
+      scope_key: scopeKey,
+      channel_kind: channelKind,
+      display_name: displayName,
+      enabled: input.enabled ?? existing?.enabled ?? true,
+      config_values: configValues,
+      configured_secret_keys: mergedSecrets.configuredSecretKeys,
+      secret_payload_encrypted: encryptInstallSecretPayload(mergedSecrets.secretValues),
+      secret_values: {},
+    });
+    return toAdminPaymentProviderProfileView(record);
+  }
+
+  async listAdminPaymentProviderBindings(
+    accessToken: string,
+    input?: {provider?: string | null},
+  ): Promise<{items: AdminPaymentProviderBindingView[]}> {
+    await this.requireAdminUser(accessToken);
+    const provider = input?.provider ? normalizePaymentProvider(input.provider, 'wechat_qr') : null;
+    const items = await this.store.listPaymentProviderBindings(provider);
+    return {
+      items: items.map((item) => toAdminPaymentProviderBindingView(item)),
+    };
+  }
+
+  async upsertAdminPaymentProviderBinding(
+    accessToken: string,
+    appNameInput: string,
+    input: UpsertAdminPaymentProviderBindingInput,
+  ): Promise<AdminPaymentProviderBindingView> {
+    await this.requireAdminUser(accessToken);
+    const appName = String(appNameInput || '')
+      .trim()
+      .toLowerCase();
+    if (!appName) {
+      throw new HttpError(400, 'BAD_REQUEST', 'app_name is required');
+    }
+    const provider = normalizePaymentProvider(input.provider, 'wechat_qr');
+    const mode = normalizePaymentProviderBindingMode(input.mode, 'inherit_platform');
+    let activeProfileId = String(input.active_profile_id || '').trim() || null;
+
+    if (mode === 'use_app_profile') {
+      const fallbackProfile = await this.store.getPaymentProviderProfileByScope(provider, 'app', appName);
+      if (!activeProfileId) {
+        activeProfileId = fallbackProfile?.id || null;
+      }
+      if (!activeProfileId) {
+        throw new HttpError(400, 'BAD_REQUEST', 'active_profile_id is required when mode=use_app_profile');
+      }
+      const activeProfile = await this.store.getPaymentProviderProfileById(activeProfileId);
+      if (!activeProfile) {
+        throw new HttpError(404, 'NOT_FOUND', 'payment provider profile not found');
+      }
+      if (activeProfile.provider !== provider || activeProfile.scopeType !== 'app' || activeProfile.scopeKey !== appName) {
+        throw new HttpError(400, 'BAD_REQUEST', 'active_profile_id must belong to the current OEM app');
+      }
+    } else {
+      activeProfileId = null;
+    }
+
+    const record = await this.store.upsertPaymentProviderBinding(appName, {
+      provider,
+      mode,
+      active_profile_id: activeProfileId,
+    });
+    return toAdminPaymentProviderBindingView(record);
   }
 
   async getAdminPaymentOrder(accessToken: string, orderIdInput: string): Promise<AdminPaymentOrderDetailView> {
@@ -3335,6 +3615,99 @@ export class ControlPlaneService {
     }
     const updated = await this.store.updateUserRole(user.id, targetRole);
     return updated || user;
+  }
+
+  private resolveConfiguredPaymentProviderProfile(
+    scopeType: PaymentProviderScopeType,
+    profile: PaymentProviderProfileRecord | null,
+  ): ResolvedPaymentProviderProfile | null {
+    if (!profile || !profile.enabled) {
+      return null;
+    }
+    const missingFields = paymentProviderRequiredFields(profile);
+    if (missingFields.length > 0) {
+      return null;
+    }
+    return {
+      scopeType,
+      profile,
+      missingFields,
+    };
+  }
+
+  private async resolvePaymentProviderProfileForOrder(
+    provider: PaymentProvider,
+    appName: string | null,
+  ): Promise<{
+    resolved: ResolvedPaymentProviderProfile | null;
+    metadata: Record<string, unknown>;
+  }> {
+    const normalizedAppName = String(appName || '')
+      .trim()
+      .toLowerCase();
+    let candidateMissingFields: string[] = [];
+    let bindingMode: PaymentProviderBindingMode | null = null;
+
+    if (normalizedAppName) {
+      const binding = await this.store.getPaymentProviderBinding(normalizedAppName, provider);
+      bindingMode = binding?.mode || null;
+      if (binding?.mode === 'use_app_profile') {
+        const appProfile =
+          (binding.activeProfileId ? await this.store.getPaymentProviderProfileById(binding.activeProfileId) : null) ||
+          (await this.store.getPaymentProviderProfileByScope(provider, 'app', normalizedAppName));
+        const appResolved = this.resolveConfiguredPaymentProviderProfile('app', appProfile);
+        if (appResolved) {
+          return {
+            resolved: appResolved,
+            metadata: {
+              payment_profile_status: 'resolved',
+              payment_profile_scope: appResolved.scopeType,
+              payment_profile_id: appResolved.profile.id,
+              payment_profile_display_name: appResolved.profile.displayName,
+              payment_profile_channel_kind: appResolved.profile.channelKind,
+              payment_profile_binding_mode: bindingMode,
+            },
+          };
+        }
+        if (appProfile) {
+          candidateMissingFields = paymentProviderRequiredFields(appProfile);
+        }
+      }
+    }
+
+    const platformProfile = await this.store.getPaymentProviderProfileByScope(provider, 'platform', 'platform');
+    const platformResolved = this.resolveConfiguredPaymentProviderProfile('platform', platformProfile);
+    if (platformResolved) {
+      return {
+        resolved: platformResolved,
+        metadata: {
+          payment_profile_status: 'resolved',
+          payment_profile_scope: platformResolved.scopeType,
+          payment_profile_id: platformResolved.profile.id,
+          payment_profile_display_name: platformResolved.profile.displayName,
+          payment_profile_channel_kind: platformResolved.profile.channelKind,
+          payment_profile_binding_mode: bindingMode,
+        },
+      };
+    }
+
+    const missingFields = candidateMissingFields.length
+      ? candidateMissingFields
+      : platformProfile
+        ? paymentProviderRequiredFields(platformProfile)
+        : [];
+    return {
+      resolved: null,
+      metadata: {
+        payment_profile_status: 'missing',
+        payment_profile_scope: null,
+        payment_profile_id: null,
+        payment_profile_display_name: null,
+        payment_profile_channel_kind: null,
+        payment_profile_binding_mode: bindingMode,
+        payment_profile_missing_fields: missingFields,
+      },
+    };
   }
 
   private async requireAdminUser(accessToken: string): Promise<UserRecord> {

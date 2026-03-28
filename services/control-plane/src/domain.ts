@@ -254,6 +254,9 @@ export type UsageEventResult = {
 
 export type PaymentProvider = 'mock' | 'wechat_qr' | 'alipay_qr';
 export type PaymentOrderStatus = 'created' | 'pending' | 'paid' | 'failed' | 'expired' | 'refunded';
+export type PaymentProviderScopeType = 'platform' | 'app';
+export type PaymentProviderChannelKind = 'wechat_service_provider';
+export type PaymentProviderBindingMode = 'inherit_platform' | 'use_app_profile';
 
 export type PaymentOrderRecord = {
   id: string;
@@ -332,6 +335,29 @@ export type PaymentWebhookEventRecord = {
   createdAt: string;
 };
 
+export type PaymentProviderProfileRecord = {
+  id: string;
+  provider: PaymentProvider;
+  scopeType: PaymentProviderScopeType;
+  scopeKey: string;
+  channelKind: PaymentProviderChannelKind;
+  displayName: string;
+  enabled: boolean;
+  config: Record<string, unknown>;
+  configuredSecretKeys: string[];
+  secretPayloadEncrypted: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PaymentProviderBindingRecord = {
+  appName: string;
+  provider: PaymentProvider;
+  mode: PaymentProviderBindingMode;
+  activeProfileId: string | null;
+  updatedAt: string;
+};
+
 export type AdminPaymentOrderSummaryRecord = PaymentOrderRecord & {
   username: string;
   userEmail: string;
@@ -393,6 +419,48 @@ export type PaymentWebhookEventView = {
 
 export type AdminPaymentOrderDetailView = AdminPaymentOrderSummaryView & {
   webhook_events: PaymentWebhookEventView[];
+};
+
+export type AdminPaymentProviderProfileView = {
+  id: string;
+  provider: PaymentProvider;
+  scope_type: PaymentProviderScopeType;
+  scope_key: string;
+  channel_kind: PaymentProviderChannelKind;
+  display_name: string;
+  enabled: boolean;
+  config: Record<string, unknown>;
+  configured_secret_keys: string[];
+  completeness_status: 'configured' | 'missing';
+  missing_fields: string[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type AdminPaymentProviderBindingView = {
+  app_name: string;
+  provider: PaymentProvider;
+  mode: PaymentProviderBindingMode;
+  active_profile_id: string | null;
+  updated_at: string;
+};
+
+export type UpsertAdminPaymentProviderProfileInput = {
+  id?: string | null;
+  provider?: string;
+  scope_type?: string;
+  scope_key?: string;
+  channel_kind?: string;
+  display_name?: string;
+  enabled?: boolean;
+  config_values?: Record<string, unknown>;
+  secret_values?: Record<string, string>;
+};
+
+export type UpsertAdminPaymentProviderBindingInput = {
+  provider?: string;
+  mode?: string;
+  active_profile_id?: string | null;
 };
 
 export type AdminMarkPaymentOrderPaidInput = {

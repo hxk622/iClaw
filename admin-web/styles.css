@@ -256,6 +256,63 @@ code {
   text-align: left;
 }
 
+.nav-group {
+  display: grid;
+  gap: 6px;
+}
+
+.nav-item--group {
+  cursor: default;
+  opacity: 0.9;
+}
+
+.nav-item--group:hover {
+  transform: none;
+}
+
+.nav-group.is-active .nav-item--group {
+  background: rgba(244, 243, 240, 0.05);
+  border-color: rgba(244, 243, 240, 0.08);
+}
+
+.nav-sublist {
+  display: grid;
+  gap: 6px;
+  padding-left: 18px;
+}
+
+.nav-subitem {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--sidebar-muted);
+  text-align: left;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.nav-subitem:hover {
+  background: rgba(244, 243, 240, 0.06);
+  border-color: rgba(244, 243, 240, 0.08);
+  color: var(--sidebar-text);
+  transform: translateX(2px);
+}
+
+.nav-subitem.is-active {
+  background: rgba(244, 243, 240, 0.12);
+  border-color: rgba(244, 243, 240, 0.12);
+  color: #fffdf8;
+}
+
 .nav-item:hover,
 .mini-brand-card:hover {
   background: var(--sidebar-accent);
@@ -316,6 +373,44 @@ code {
 .nav-item.is-active .nav-item__label {
   font-size: 16px;
   color: #fffdf8;
+}
+
+.nav-subitem .nav-item__icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+}
+
+.nav-subitem .nav-item__label {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.payment-provider-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.payment-provider-summary__item {
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--panel-border);
+  background: var(--card-muted);
+  display: grid;
+  gap: 6px;
+}
+
+.payment-provider-summary__item span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.payment-provider-summary__item strong {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
 }
 
 .nav-item small,

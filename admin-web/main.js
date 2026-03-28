@@ -14,9 +14,21 @@ const NAV_ITEMS = [
   {id: 'cloud-skills', label: '云技能', icon: 'store'},
   {id: 'assets', label: '资源管理', icon: 'image'},
   {id: 'releases', label: '版本发布', icon: 'rocket'},
-  {id: 'payments', label: '订单中心', icon: 'package'},
+  {
+    id: 'payments',
+    label: '支付中心',
+    icon: 'package',
+    children: [
+      {id: 'payments-config', label: '账户配置', icon: 'settings'},
+      {id: 'payments-orders', label: '订单中心', icon: 'fileText'},
+    ],
+  },
   {id: 'audit-log', label: '审计日志', icon: 'fileText'},
 ];
+const PRIMARY_PAYMENT_PROVIDER = 'wechat_qr';
+const PAYMENT_PROVIDER_REQUIRED_FIELDS = ['sp_mchid', 'sp_appid', 'sub_mchid', 'notify_url', 'serial_no', 'api_v3_key', 'private_key_pem'];
+const PAYMENT_PROVIDER_CONFIG_FIELDS = ['sp_mchid', 'sp_appid', 'sub_mchid', 'notify_url', 'serial_no'];
+const PAYMENT_PROVIDER_SECRET_FIELDS = ['api_v3_key', 'private_key_pem'];
 const CAPABILITY_ROUTE_MODE = {
   'skills-mcp': 'skills',
   'skill-center': 'skills',
@@ -209,6 +221,8 @@ const state = {
   modelProviderOverrides: {},
   modelProviderDrafts: {},
   modelLogoPresets: [],
+  paymentProviderProfiles: [],
+  paymentProviderBindings: [],
   skillSyncSources: [],
   skillSyncRuns: [],
   capabilityMode: 'skills',
@@ -218,6 +232,7 @@ const state = {
   selectedMcpKey: '',
   selectedModelRef: '',
   selectedModelProviderTab: 'platform',
+  selectedPaymentProviderTab: 'platform',
   selectedBrandMenuKey: '',
   selectedCloudSkillSlug: '',
   selectedSkillSyncSourceId: '',
@@ -1620,6 +1635,9 @@ function navIsActive(itemId) {
   if (itemId === 'brands') {
     return state.route === 'brands' || state.route === 'brand-detail';
   }
+  if (itemId === 'payments') {
+    return state.route === 'payments-config' || state.route === 'payments-orders';
+  }
   if (CAPABILITY_ROUTE_MODE[itemId]) {
     return state.route === itemId;
   }
@@ -2825,6 +2843,10 @@ function syncSupplementalSelection() {
   if (!state.audit.find((item) => item.id === state.selectedAuditId)) {
     state.selectedAuditId = state.audit[0]?.id || '';
   }
+  const appNames = (state.brands || []).map((item) => item.brandId);
+  if (state.selectedPaymentProviderTab !== 'platform' && !appNames.includes(state.selectedPaymentProviderTab)) {
+    state.selectedPaymentProviderTab = 'platform';
+  }
 }
 
 async function ensurePaymentOrderDetail(orderId) {
@@ -2949,7 +2971,7 @@ async function loadAppData() {
   render();
 
   try {
-    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, mcpRegistryData, modelProviderProfilesData, modelLogoPresetsData, menuCatalogData, composerControlCatalogData, composerShortcutCatalogData, skillSyncSourcesData, skillSyncRunsData, paymentOrdersData] = await Promise.all([
+    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, mcpRegistryData, modelProviderProfilesData, modelLogoPresetsData, menuCatalogData, composerControlCatalogData, composerShortcutCatalogData, skillSyncSourcesData, skillSyncRunsData, paymentProviderProfilesData, paymentProviderBindingsData, paymentOrdersData] = await Promise.all([
       apiFetch('/admin/portal/apps', {method: 'GET'}),
       apiFetch('/admin/agents/catalog', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/skills', {method: 'GET'}),
@@ -2962,6 +2984,8 @@ async function loadAppData() {
       apiFetch('/admin/portal/catalog/composer-shortcuts', {method: 'GET'}),
       apiFetch('/admin/skills/sync/sources', {method: 'GET'}),
       apiFetch('/admin/skills/sync/runs', {method: 'GET'}),
+      apiFetch(`/admin/payments/provider-profiles?provider=${encodeURIComponent(PRIMARY_PAYMENT_PROVIDER)}`, {method: 'GET'}),
+      apiFetch(`/admin/payments/provider-bindings?provider=${encodeURIComponent(PRIMARY_PAYMENT_PROVIDER)}`, {method: 'GET'}),
       apiFetch('/admin/payments/orders?limit=200', {method: 'GET'}),
     ]);
     const apps = Array.isArray(appsData.items) ? appsData.items : [];
@@ -2989,6 +3013,8 @@ async function loadAppData() {
     state.modelProviderProfiles = Array.isArray(modelProviderProfilesData.items) ? modelProviderProfilesData.items : [];
     state.modelProviderOverrides = overridesMap;
     state.modelLogoPresets = Array.isArray(modelLogoPresetsData.items) ? modelLogoPresetsData.items : [];
+    state.paymentProviderProfiles = Array.isArray(paymentProviderProfilesData.items) ? paymentProviderProfilesData.items : [];
+    state.paymentProviderBindings = Array.isArray(paymentProviderBindingsData.items) ? paymentProviderBindingsData.items : [];
     state.menuCatalog = Array.isArray(menuCatalogData.items)
       ? menuCatalogData.items.map((item, index) => normalizeMenuCatalogItem(item, index)).filter(Boolean)
       : [];
@@ -4276,6 +4302,66 @@ async function saveModelProviderProfile(form) {
   }
 }
 
+async function savePaymentProviderConfig(form) {
+  const formData = new FormData(form);
+  state.busy = true;
+  resetBanner();
+
+  try {
+    const scopeType = String(formData.get('scope_type') || '').trim() || 'platform';
+    const scopeKey = String(formData.get('scope_key') || '').trim() || 'platform';
+    const provider = String(formData.get('provider') || PRIMARY_PAYMENT_PROVIDER).trim() || PRIMARY_PAYMENT_PROVIDER;
+    const mode = String(formData.get('mode') || 'inherit_platform').trim() || 'inherit_platform';
+    const existingProfile = getPaymentProviderProfilesByScope(scopeType, scopeKey, provider)[0] || null;
+    const shouldSaveProfile =
+      scopeType === 'platform' || mode === 'use_app_profile' || Boolean(existingProfile) || hasAnyPaymentProviderValues(formData);
+    let savedProfile = existingProfile;
+
+    if (shouldSaveProfile) {
+      const configValues = Object.fromEntries(
+        PAYMENT_PROVIDER_CONFIG_FIELDS.map((key) => [key, String(formData.get(key) || '').trim()]),
+      );
+      const secretValues = Object.fromEntries(
+        PAYMENT_PROVIDER_SECRET_FIELDS.map((key) => [key, String(formData.get(key) || '')]),
+      );
+      savedProfile = await apiFetch('/admin/payments/provider-profiles', {
+        method: 'PUT',
+        body: JSON.stringify({
+          id: String(formData.get('profile_id') || '').trim() || null,
+          provider,
+          scope_type: scopeType,
+          scope_key: scopeKey,
+          channel_kind: 'wechat_service_provider',
+          display_name: String(formData.get('display_name') || '').trim(),
+          enabled: formData.get('enabled') === 'on',
+          config_values: configValues,
+          secret_values: secretValues,
+        }),
+      });
+    }
+
+    if (scopeType === 'app') {
+      await apiFetch(`/admin/payments/provider-bindings/${encodeURIComponent(scopeKey)}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          provider,
+          mode,
+          active_profile_id: mode === 'use_app_profile' ? savedProfile?.id || String(formData.get('profile_id') || '').trim() || null : null,
+        }),
+      });
+    }
+
+    await loadAppData();
+    state.selectedPaymentProviderTab = scopeType === 'platform' ? 'platform' : scopeKey;
+    setNotice(`${scopeType === 'platform' ? '平台默认支付配置' : `${scopeKey} 支付配置`}已保存。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '支付配置保存失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
 function toggleBrandCapability(type, value) {
   const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
   if (!buffer) return;
@@ -4456,9 +4542,12 @@ function logout() {
   state.skillLibrary = [];
   state.mcpCatalog = [];
   state.modelCatalog = [];
+  state.paymentProviderProfiles = [];
+  state.paymentProviderBindings = [];
   state.skillSyncSources = [];
   state.skillSyncRuns = [];
   state.selectedModelRef = '';
+  state.selectedPaymentProviderTab = 'platform';
   state.selectedCloudSkillSlug = '';
   state.selectedSkillSyncSourceId = '';
   state.selectedReleaseId = '';
@@ -4502,12 +4591,34 @@ function renderSidebar() {
       </div>
       <nav class="nav-list">
         ${NAV_ITEMS.map(
-          (item) => `
-            <button class="nav-item${navIsActive(item.id) ? ' is-active' : ''}" type="button" data-action="navigate" data-page="${item.id}">
-              ${icon(item.icon, 'nav-item__icon')}
-              <span class="nav-item__label">${escapeHtml(item.label)}</span>
-            </button>
-          `,
+          (item) =>
+            Array.isArray(item.children) && item.children.length
+              ? `
+                <div class="nav-group${navIsActive(item.id) ? ' is-active' : ''}">
+                  <div class="nav-item nav-item--group">
+                    ${icon(item.icon, 'nav-item__icon')}
+                    <span class="nav-item__label">${escapeHtml(item.label)}</span>
+                  </div>
+                  <div class="nav-sublist">
+                    ${item.children
+                      .map(
+                        (child) => `
+                          <button class="nav-subitem${navIsActive(child.id) ? ' is-active' : ''}" type="button" data-action="navigate" data-page="${child.id}">
+                            ${icon(child.icon, 'nav-item__icon')}
+                            <span class="nav-item__label">${escapeHtml(child.label)}</span>
+                          </button>
+                        `,
+                      )
+                      .join('')}
+                  </div>
+                </div>
+              `
+              : `
+                <button class="nav-item${navIsActive(item.id) ? ' is-active' : ''}" type="button" data-action="navigate" data-page="${item.id}">
+                  ${icon(item.icon, 'nav-item__icon')}
+                  <span class="nav-item__label">${escapeHtml(item.label)}</span>
+                </button>
+              `,
         ).join('')}
       </nav>
       <div class="sidebar-footer">
@@ -6338,6 +6449,30 @@ function getSelectedModelProviderTab() {
     return 'platform';
   }
   return appNames.includes(state.selectedModelProviderTab) ? state.selectedModelProviderTab : 'platform';
+}
+
+function getPaymentProviderProfilesByScope(scopeType, scopeKey, provider = PRIMARY_PAYMENT_PROVIDER) {
+  return (state.paymentProviderProfiles || []).filter(
+    (item) => item.provider === provider && item.scope_type === scopeType && item.scope_key === scopeKey,
+  );
+}
+
+function getPaymentProviderBinding(appName, provider = PRIMARY_PAYMENT_PROVIDER) {
+  return (state.paymentProviderBindings || []).find((item) => item.provider === provider && item.app_name === appName) || null;
+}
+
+function getSelectedPaymentProviderTab() {
+  const appNames = (state.brands || []).map((item) => item.brandId);
+  if (state.selectedPaymentProviderTab === 'platform') {
+    return 'platform';
+  }
+  return appNames.includes(state.selectedPaymentProviderTab) ? state.selectedPaymentProviderTab : 'platform';
+}
+
+function hasAnyPaymentProviderValues(formData) {
+  return [...PAYMENT_PROVIDER_CONFIG_FIELDS, ...PAYMENT_PROVIDER_SECRET_FIELDS].some((key) =>
+    String(formData.get(key) || '').trim(),
+  );
 }
 
 function getModelLogoPreset(presetKey) {
@@ -8261,6 +8396,156 @@ function paymentProviderLabel(provider) {
   return normalized || '未知渠道';
 }
 
+function renderPaymentProviderConfigPage() {
+  const selectedTab = getSelectedPaymentProviderTab();
+  const selectedBrand = selectedTab === 'platform' ? null : (state.brands || []).find((item) => item.brandId === selectedTab) || null;
+  const scopeType = selectedBrand ? 'app' : 'platform';
+  const scopeKey = selectedBrand ? selectedBrand.brandId : 'platform';
+  const profile = getPaymentProviderProfilesByScope(scopeType, scopeKey)[0] || {
+    id: '',
+    provider: PRIMARY_PAYMENT_PROVIDER,
+    scope_type: scopeType,
+    scope_key: scopeKey,
+    channel_kind: 'wechat_service_provider',
+    display_name: selectedBrand ? `${selectedBrand.displayName} 微信支付` : '平台默认微信支付',
+    enabled: true,
+    config: {},
+    configured_secret_keys: [],
+    completeness_status: 'missing',
+    missing_fields: PAYMENT_PROVIDER_REQUIRED_FIELDS,
+  };
+  const binding = selectedBrand ? getPaymentProviderBinding(selectedBrand.brandId) : null;
+  const tabs = [
+    {key: 'platform', label: '平台'},
+    ...(state.brands || []).map((brand) => ({key: brand.brandId, label: brand.displayName})),
+  ];
+  const config = asObject(profile.config);
+  const mode = selectedBrand ? binding?.mode || 'inherit_platform' : 'inherit_platform';
+  const missingFields = Array.isArray(profile.missing_fields) ? profile.missing_fields : [];
+  const configuredSecrets = Array.isArray(profile.configured_secret_keys) ? profile.configured_secret_keys : [];
+  return `
+    <div class="fig-page">
+      <div class="fig-page__header">
+        <div class="fig-page__header-inner">
+          <div>
+            <h1>支付账户配置</h1>
+            <p class="fig-page__description">先按“平台默认 + OEM 绑定”管理微信服务商。OEM 未指定时，订单回落平台配置；指定后切到该 OEM 自己的商户资料。</p>
+          </div>
+        </div>
+      </div>
+      ${renderPageGuide('支付中心怎么用', [
+        '平台 tab 维护默认微信服务商资料，所有 OEM 默认继承这里。',
+        'OEM tab 可以先录入自己的服务商配置，再决定是继承平台还是切到 OEM 专属资料。',
+        '当前先实现配置、绑定和订单解析落表；真实微信下单执行器后续直接复用这套 profile。',
+      ], 'payments')}
+      <div class="fig-detail-stack">
+        <section class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
+            <h3>Scope</h3>
+            <span>平台默认 + OEM 覆盖</span>
+          </div>
+          <div class="segmented" style="flex-wrap:wrap;">
+            ${tabs
+              .map(
+                (tab) =>
+                  `<button class="tab-pill${selectedTab === tab.key ? ' is-active' : ''}" type="button" data-action="select-payment-provider-tab" data-tab-key="${escapeHtml(tab.key)}">${escapeHtml(tab.label)}</button>`,
+              )
+              .join('')}
+          </div>
+        </section>
+        <form id="payment-provider-form" class="fig-card fig-card--subtle">
+          <input type="hidden" name="profile_id" value="${fieldValue(profile.id || '')}" />
+          <input type="hidden" name="provider" value="${fieldValue(profile.provider || PRIMARY_PAYMENT_PROVIDER)}" />
+          <input type="hidden" name="scope_type" value="${fieldValue(scopeType)}" />
+          <input type="hidden" name="scope_key" value="${fieldValue(scopeKey)}" />
+          <div class="fig-card__head">
+            <div>
+              <h3>${escapeHtml(selectedBrand ? `${selectedBrand.displayName} 微信服务商` : '平台默认微信服务商')}</h3>
+              <span>${escapeHtml(selectedBrand ? 'OEM 可以继承平台，或切到自己的服务商配置' : '所有 OEM 默认回落到这里')}</span>
+            </div>
+            ${selectedBrand
+              ? `
+                <label class="field" style="min-width:220px;">
+                  <span>Provider Mode</span>
+                  <select class="field-select" name="mode">
+                    <option value="inherit_platform"${mode !== 'use_app_profile' ? ' selected' : ''}>继承平台</option>
+                    <option value="use_app_profile"${mode === 'use_app_profile' ? ' selected' : ''}>使用 OEM 服务商</option>
+                  </select>
+                </label>
+              `
+              : ''}
+          </div>
+          <div class="payment-provider-summary">
+            <div class="payment-provider-summary__item">
+              <span>当前状态</span>
+              <strong>${escapeHtml(profile.completeness_status === 'configured' ? '已配置完整' : '配置缺失')}</strong>
+            </div>
+            <div class="payment-provider-summary__item">
+              <span>启用状态</span>
+              <strong>${profile.enabled !== false ? '已启用' : '已禁用'}</strong>
+            </div>
+            <div class="payment-provider-summary__item">
+              <span>已录入密钥</span>
+              <strong>${escapeHtml(configuredSecrets.join(' / ') || '无')}</strong>
+            </div>
+            <div class="payment-provider-summary__item">
+              <span>缺失字段</span>
+              <strong>${escapeHtml(missingFields.join(' / ') || '无')}</strong>
+            </div>
+          </div>
+          <div class="form-grid form-grid--two">
+            <label class="field">
+              <span>显示名称</span>
+              <input class="field-input" name="display_name" value="${fieldValue(profile.display_name || '')}" placeholder="例如：平台默认微信服务商" />
+            </label>
+            <label class="field">
+              <span>通道类型</span>
+              <input class="field-input" value="wechat_service_provider" readonly />
+            </label>
+            <label class="field">
+              <span>服务商商户号 SP_MCHID</span>
+              <input class="field-input" name="sp_mchid" value="${fieldValue(config.sp_mchid || '')}" placeholder="服务商商户号" />
+            </label>
+            <label class="field">
+              <span>服务商应用 AppID</span>
+              <input class="field-input" name="sp_appid" value="${fieldValue(config.sp_appid || '')}" placeholder="wx..." />
+            </label>
+            <label class="field">
+              <span>子商户号 SUB_MCHID</span>
+              <input class="field-input" name="sub_mchid" value="${fieldValue(config.sub_mchid || '')}" placeholder="OEM 对应子商户号" />
+            </label>
+            <label class="field">
+              <span>证书序列号 SERIAL_NO</span>
+              <input class="field-input" name="serial_no" value="${fieldValue(config.serial_no || '')}" placeholder="平台证书序列号" />
+            </label>
+            <label class="field field--wide">
+              <span>回调地址 NOTIFY_URL</span>
+              <input class="field-input" name="notify_url" value="${fieldValue(config.notify_url || '')}" placeholder="https://api.example.com/payments/wechat/webhook" />
+            </label>
+            <label class="field field--wide">
+              <span>API V3 Key</span>
+              <input class="field-input" name="api_v3_key" value="" placeholder="${configuredSecrets.includes('api_v3_key') ? '已配置，留空表示保持不变' : '32 位 APIv3 Key'}" />
+            </label>
+            <label class="field field--wide">
+              <span>商户私钥 PEM</span>
+              <textarea class="field-textarea" name="private_key_pem" rows="8" placeholder="${configuredSecrets.includes('private_key_pem') ? '已配置，留空表示保持不变' : '-----BEGIN PRIVATE KEY-----'}"></textarea>
+            </label>
+          </div>
+          <div class="fig-card fig-card--subtle" style="margin-top:16px;">
+            <label class="toggle fig-toggle">
+              <input type="checkbox" name="enabled"${profile.enabled !== false ? ' checked' : ''} />
+              <span>启用该支付资料</span>
+            </label>
+          </div>
+          <div class="fig-form-actions">
+            <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>保存支付配置</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
 function getFilteredPaymentOrders() {
   return state.paymentOrders.filter((item) => {
     if (state.filters.paymentStatus !== 'all' && item.status !== state.filters.paymentStatus) {
@@ -9085,8 +9370,10 @@ function renderDashboard() {
             ? renderAssetsPage()
             : state.route === 'releases'
               ? renderReleasesPage()
-              : state.route === 'payments'
-                ? renderPaymentsPage()
+              : state.route === 'payments-config'
+                ? renderPaymentProviderConfigPage()
+                : state.route === 'payments-orders'
+                  ? renderPaymentsPage()
                 : renderAuditPage();
 
   app.innerHTML = `
@@ -9183,6 +9470,11 @@ app.addEventListener('submit', async (event) => {
     return;
   }
 
+  if (form.id === 'payment-provider-form') {
+    await savePaymentProviderConfig(form);
+    return;
+  }
+
   if (form.id === 'payment-order-manual-form') {
     const data = new FormData(form);
     const orderId = String(data.get('order_id') || '').trim();
@@ -9240,11 +9532,12 @@ app.addEventListener('click', async (event) => {
 
   if (action === 'navigate') {
     captureBrandEditorBuffer();
-    state.route = target.getAttribute('data-page') || 'overview';
+    const nextRoute = target.getAttribute('data-page') || 'overview';
+    state.route = nextRoute;
     if (isCapabilityRoute(state.route)) {
       state.capabilityMode = getCapabilityModeForRoute(state.route);
     }
-    if (state.route === 'payments' && state.selectedPaymentOrderId) {
+    if (state.route === 'payments-orders' && state.selectedPaymentOrderId) {
       await ensurePaymentOrderDetail(state.selectedPaymentOrderId);
     }
     render();
@@ -9449,6 +9742,13 @@ app.addEventListener('click', async (event) => {
     state.capabilityMode = 'models';
     state.route = getCapabilityRouteForMode(state.capabilityMode);
     state.selectedModelProviderTab = target.getAttribute('data-tab-key') || 'platform';
+    render();
+    return;
+  }
+
+  if (action === 'select-payment-provider-tab') {
+    state.route = 'payments-config';
+    state.selectedPaymentProviderTab = target.getAttribute('data-tab-key') || 'platform';
     render();
     return;
   }

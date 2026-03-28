@@ -218,6 +218,22 @@ create table if not exists payment_webhook_events (
   unique (provider, event_id)
 );
 
+create table if not exists payment_provider_profiles (
+  id uuid primary key,
+  provider text not null,
+  scope_type text not null,
+  scope_key text not null,
+  channel_kind text not null,
+  display_name text not null,
+  enabled boolean not null default true,
+  config_json jsonb not null default '{}'::jsonb,
+  configured_secret_keys jsonb not null default '[]'::jsonb,
+  secret_payload_encrypted text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (provider, scope_type, scope_key)
+);
+
 create table if not exists user_workspace_backups (
   user_id uuid primary key references users(id) on delete cascade,
   identity_md text not null,
@@ -547,6 +563,15 @@ create table if not exists app_model_runtime_overrides (
   active_profile_id uuid references model_provider_profiles(id) on delete set null,
   cache_version bigint not null default 1,
   updated_at timestamptz not null default now()
+);
+
+create table if not exists app_payment_provider_overrides (
+  app_name text not null references oem_apps(app_name) on delete cascade,
+  provider text not null,
+  mode text not null default 'inherit_platform',
+  active_profile_id uuid references payment_provider_profiles(id) on delete set null,
+  updated_at timestamptz not null default now(),
+  primary key (app_name, provider)
 );
 
 create table if not exists oem_menu_catalog (

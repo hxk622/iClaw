@@ -17,6 +17,11 @@ import type {
   OAuthAccountRecord,
   OAuthProvider,
   PaymentOrderRecord,
+  PaymentProviderBindingMode,
+  PaymentProviderBindingRecord,
+  PaymentProviderChannelKind,
+  PaymentProviderProfileRecord,
+  PaymentProviderScopeType,
   PaymentProvider,
   PaymentWebhookInput,
   RunBillingSummaryRecord,
@@ -27,6 +32,8 @@ import type {
   SkillSyncRunRecord,
   SkillSyncSourceRecord,
   UpsertAgentCatalogEntryInput,
+  UpsertAdminPaymentProviderBindingInput,
+  UpsertAdminPaymentProviderProfileInput,
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
   UpsertUserExtensionInstallConfigInput,
@@ -289,6 +296,58 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     query?: string | null;
   }): Promise<AdminPaymentOrderSummaryRecord[]> {
     return this.base.listPaymentOrdersAdmin(input);
+  }
+
+  async listPaymentProviderProfiles(input?: {
+    provider?: PaymentProvider | null;
+    scopeType?: PaymentProviderScopeType | null;
+    scopeKey?: string | null;
+  }): Promise<PaymentProviderProfileRecord[]> {
+    return this.base.listPaymentProviderProfiles(input);
+  }
+
+  async getPaymentProviderProfileById(id: string): Promise<PaymentProviderProfileRecord | null> {
+    return this.base.getPaymentProviderProfileById(id);
+  }
+
+  async getPaymentProviderProfileByScope(
+    provider: PaymentProvider,
+    scopeType: PaymentProviderScopeType,
+    scopeKey: string,
+  ): Promise<PaymentProviderProfileRecord | null> {
+    return this.base.getPaymentProviderProfileByScope(provider, scopeType, scopeKey);
+  }
+
+  async upsertPaymentProviderProfile(
+    input: Required<UpsertAdminPaymentProviderProfileInput> & {
+      provider: PaymentProvider;
+      scope_type: PaymentProviderScopeType;
+      channel_kind: PaymentProviderChannelKind;
+      configured_secret_keys: string[];
+      secret_payload_encrypted?: string | null;
+      config_values: Record<string, unknown>;
+    },
+  ): Promise<PaymentProviderProfileRecord> {
+    return this.base.upsertPaymentProviderProfile(input);
+  }
+
+  async listPaymentProviderBindings(provider?: PaymentProvider | null): Promise<PaymentProviderBindingRecord[]> {
+    return this.base.listPaymentProviderBindings(provider);
+  }
+
+  async getPaymentProviderBinding(appName: string, provider: PaymentProvider): Promise<PaymentProviderBindingRecord | null> {
+    return this.base.getPaymentProviderBinding(appName, provider);
+  }
+
+  async upsertPaymentProviderBinding(
+    appName: string,
+    input: Required<UpsertAdminPaymentProviderBindingInput> & {
+      provider: PaymentProvider;
+      mode: PaymentProviderBindingMode;
+      active_profile_id?: string | null;
+    },
+  ): Promise<PaymentProviderBindingRecord> {
+    return this.base.upsertPaymentProviderBinding(appName, input);
   }
 
   async getPaymentOrderAdmin(orderId: string): Promise<AdminPaymentOrderDetailRecord | null> {

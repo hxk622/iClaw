@@ -27,6 +27,11 @@ import type {
   OAuthAccountRecord,
   OAuthProvider,
   PaymentOrderRecord,
+  PaymentProviderBindingMode,
+  PaymentProviderBindingRecord,
+  PaymentProviderChannelKind,
+  PaymentProviderProfileRecord,
+  PaymentProviderScopeType,
   PaymentProvider,
   PaymentWebhookEventRecord,
   PaymentWebhookInput,
@@ -39,6 +44,8 @@ import type {
   SkillSyncRunRecord,
   SkillSyncSourceRecord,
   UpsertAgentCatalogEntryInput,
+  UpsertAdminPaymentProviderBindingInput,
+  UpsertAdminPaymentProviderProfileInput,
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
   UpsertUserExtensionInstallConfigInput,
@@ -138,6 +145,29 @@ type PaymentWebhookEventRow = {
   processed_at: Date | null;
   process_status: string;
   created_at: Date;
+};
+
+type PaymentProviderProfileRow = {
+  id: string;
+  provider: PaymentProvider;
+  scope_type: PaymentProviderScopeType;
+  scope_key: string;
+  channel_kind: PaymentProviderChannelKind;
+  display_name: string;
+  enabled: boolean;
+  config_json: Record<string, unknown> | null;
+  configured_secret_keys: unknown;
+  secret_payload_encrypted: string | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+type PaymentProviderBindingRow = {
+  app_name: string;
+  provider: PaymentProvider;
+  mode: PaymentProviderBindingMode;
+  active_profile_id: string | null;
+  updated_at: Date;
 };
 
 type AdminPaymentOrderRow = PaymentOrderRow & {
@@ -579,6 +609,33 @@ function mapPaymentWebhookEventRow(row: PaymentWebhookEventRow): PaymentWebhookE
     processedAt: row.processed_at ? row.processed_at.toISOString() : null,
     processStatus: row.process_status,
     createdAt: row.created_at.toISOString(),
+  };
+}
+
+function mapPaymentProviderProfileRow(row: PaymentProviderProfileRow): PaymentProviderProfileRecord {
+  return {
+    id: row.id,
+    provider: row.provider,
+    scopeType: row.scope_type,
+    scopeKey: row.scope_key,
+    channelKind: row.channel_kind,
+    displayName: row.display_name,
+    enabled: row.enabled,
+    config: parseJsonObject(row.config_json),
+    configuredSecretKeys: parseSkillTags(row.configured_secret_keys),
+    secretPayloadEncrypted: row.secret_payload_encrypted,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapPaymentProviderBindingRow(row: PaymentProviderBindingRow): PaymentProviderBindingRecord {
+  return {
+    appName: row.app_name,
+    provider: row.provider,
+    mode: row.mode,
+    activeProfileId: row.active_profile_id,
+    updatedAt: row.updated_at.toISOString(),
   };
 }
 
@@ -1556,7 +1613,13 @@ export class PgControlPlaneStore implements ControlPlaneStore {
 
   async createPaymentOrder(
     userId: string,
-    input: Required<CreatePaymentOrderInput> & {packageName: string; credits: number; bonusCredits: number; amountCnyFen: number},
+    input: Required<CreatePaymentOrderInput> & {
+      packageName: string;
+      credits: number;
+      bonusCredits: number;
+      amountCnyFen: number;
+      metadata?: Record<string, unknown>;
+    },
   ): Promise<PaymentOrderRecord> {
     const now = new Date();
     const orderId = randomUUID();
@@ -1607,6 +1670,9 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           arch: input.arch || null,
           return_url: input.return_url || null,
           user_agent: input.user_agent || null,
+          ...((input.metadata && typeof input.metadata === 'object' && !Array.isArray(input.metadata)
+            ? input.metadata
+            : {}) as Record<string, unknown>),
         }),
         now,
       ],
@@ -1762,6 +1828,250 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       params,
     );
     return result.rows.map((row) => mapAdminPaymentOrderRow(row));
+  }
+
+  async listPaymentProviderProfiles(input?: {
+    provider?: PaymentProvider | null;
+    scopeType?: PaymentProviderScopeType | null;
+    scopeKey?: string | null;
+  }): Promise<PaymentProviderProfileRecord[]> {
+    const values: Array<string> = [];
+    const where: string[] = [];
+    if (input?.provider) {
+      values.push(input.provider);
+      where.push(`provider = $${values.length}`);
+    }
+    if (input?.scopeType) {
+      values.push(input.scopeType);
+      where.push(`scope_type = $${values.length}`);
+    }
+    if (input?.scopeKey?.trim()) {
+      values.push(input.scopeKey.trim());
+      where.push(`scope_key = $${values.length}`);
+    }
+    const whereSql = where.length ? `where ${where.join(' and ')}` : '';
+    const result = await this.pool.query<PaymentProviderProfileRow>(
+      `
+        select
+          id,
+          provider,
+          scope_type,
+          scope_key,
+          channel_kind,
+          display_name,
+          enabled,
+          config_json,
+          configured_secret_keys,
+          secret_payload_encrypted,
+          created_at,
+          updated_at
+        from payment_provider_profiles
+        ${whereSql}
+        order by provider asc, scope_type asc, scope_key asc, display_name asc
+      `,
+      values,
+    );
+    return result.rows.map(mapPaymentProviderProfileRow);
+  }
+
+  async getPaymentProviderProfileById(id: string): Promise<PaymentProviderProfileRecord | null> {
+    const result = await this.pool.query<PaymentProviderProfileRow>(
+      `
+        select
+          id,
+          provider,
+          scope_type,
+          scope_key,
+          channel_kind,
+          display_name,
+          enabled,
+          config_json,
+          configured_secret_keys,
+          secret_payload_encrypted,
+          created_at,
+          updated_at
+        from payment_provider_profiles
+        where id = $1
+        limit 1
+      `,
+      [id],
+    );
+    return result.rows[0] ? mapPaymentProviderProfileRow(result.rows[0]) : null;
+  }
+
+  async getPaymentProviderProfileByScope(
+    provider: PaymentProvider,
+    scopeType: PaymentProviderScopeType,
+    scopeKey: string,
+  ): Promise<PaymentProviderProfileRecord | null> {
+    const result = await this.pool.query<PaymentProviderProfileRow>(
+      `
+        select
+          id,
+          provider,
+          scope_type,
+          scope_key,
+          channel_kind,
+          display_name,
+          enabled,
+          config_json,
+          configured_secret_keys,
+          secret_payload_encrypted,
+          created_at,
+          updated_at
+        from payment_provider_profiles
+        where provider = $1
+          and scope_type = $2
+          and scope_key = $3
+        limit 1
+      `,
+      [provider, scopeType, scopeKey],
+    );
+    return result.rows[0] ? mapPaymentProviderProfileRow(result.rows[0]) : null;
+  }
+
+  async upsertPaymentProviderProfile(
+    input: Required<UpsertAdminPaymentProviderProfileInput> & {
+      provider: PaymentProvider;
+      scope_type: PaymentProviderScopeType;
+      channel_kind: PaymentProviderChannelKind;
+      configured_secret_keys: string[];
+      secret_payload_encrypted?: string | null;
+      config_values: Record<string, unknown>;
+    },
+  ): Promise<PaymentProviderProfileRecord> {
+    const existing = await this.getPaymentProviderProfileByScope(input.provider, input.scope_type, input.scope_key);
+    const profileId = existing?.id || input.id || randomUUID();
+    const result = await this.pool.query<PaymentProviderProfileRow>(
+      `
+        insert into payment_provider_profiles (
+          id,
+          provider,
+          scope_type,
+          scope_key,
+          channel_kind,
+          display_name,
+          enabled,
+          config_json,
+          configured_secret_keys,
+          secret_payload_encrypted,
+          created_at,
+          updated_at
+        )
+        values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, now(), now())
+        on conflict (provider, scope_type, scope_key)
+        do update set
+          channel_kind = excluded.channel_kind,
+          display_name = excluded.display_name,
+          enabled = excluded.enabled,
+          config_json = excluded.config_json,
+          configured_secret_keys = excluded.configured_secret_keys,
+          secret_payload_encrypted = excluded.secret_payload_encrypted,
+          updated_at = now()
+        returning
+          id,
+          provider,
+          scope_type,
+          scope_key,
+          channel_kind,
+          display_name,
+          enabled,
+          config_json,
+          configured_secret_keys,
+          secret_payload_encrypted,
+          created_at,
+          updated_at
+      `,
+      [
+        profileId,
+        input.provider,
+        input.scope_type,
+        input.scope_key,
+        input.channel_kind,
+        input.display_name,
+        input.enabled !== false,
+        JSON.stringify(input.config_values || {}),
+        JSON.stringify(input.configured_secret_keys || []),
+        input.secret_payload_encrypted ?? null,
+      ],
+    );
+    return mapPaymentProviderProfileRow(result.rows[0]);
+  }
+
+  async listPaymentProviderBindings(provider?: PaymentProvider | null): Promise<PaymentProviderBindingRecord[]> {
+    const values: Array<string> = [];
+    const whereSql = provider ? `where provider = $1` : '';
+    if (provider) {
+      values.push(provider);
+    }
+    const result = await this.pool.query<PaymentProviderBindingRow>(
+      `
+        select
+          app_name,
+          provider,
+          mode,
+          active_profile_id,
+          updated_at
+        from app_payment_provider_overrides
+        ${whereSql}
+        order by app_name asc, provider asc
+      `,
+      values,
+    );
+    return result.rows.map(mapPaymentProviderBindingRow);
+  }
+
+  async getPaymentProviderBinding(appName: string, provider: PaymentProvider): Promise<PaymentProviderBindingRecord | null> {
+    const result = await this.pool.query<PaymentProviderBindingRow>(
+      `
+        select
+          app_name,
+          provider,
+          mode,
+          active_profile_id,
+          updated_at
+        from app_payment_provider_overrides
+        where app_name = $1 and provider = $2
+        limit 1
+      `,
+      [appName, provider],
+    );
+    return result.rows[0] ? mapPaymentProviderBindingRow(result.rows[0]) : null;
+  }
+
+  async upsertPaymentProviderBinding(
+    appName: string,
+    input: Required<UpsertAdminPaymentProviderBindingInput> & {
+      provider: PaymentProvider;
+      mode: PaymentProviderBindingMode;
+      active_profile_id?: string | null;
+    },
+  ): Promise<PaymentProviderBindingRecord> {
+    const result = await this.pool.query<PaymentProviderBindingRow>(
+      `
+        insert into app_payment_provider_overrides (
+          app_name,
+          provider,
+          mode,
+          active_profile_id,
+          updated_at
+        )
+        values ($1, $2, $3, $4, now())
+        on conflict (app_name, provider)
+        do update set
+          mode = excluded.mode,
+          active_profile_id = excluded.active_profile_id,
+          updated_at = now()
+        returning
+          app_name,
+          provider,
+          mode,
+          active_profile_id,
+          updated_at
+      `,
+      [appName, input.provider, input.mode, input.active_profile_id ?? null],
+    );
+    return mapPaymentProviderBindingRow(result.rows[0]);
   }
 
   async getPaymentOrderAdmin(orderId: string): Promise<AdminPaymentOrderDetailRecord | null> {

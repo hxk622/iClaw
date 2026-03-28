@@ -28,6 +28,8 @@ import type {
   RegisterInput,
   RunAuthorizeInput,
   UpsertAgentCatalogEntryInput,
+  UpsertAdminPaymentProviderBindingInput,
+  UpsertAdminPaymentProviderProfileInput,
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
   UpsertUserExtensionInstallConfigInput,
@@ -1116,6 +1118,41 @@ const server = createJsonServer([
     method: 'GET',
     path: '/admin/portal/apps',
     handler: ({headers}: HandlerContext) => portalService.listApps(requireBearerToken(headers)),
+  },
+  {
+    method: 'GET',
+    path: '/admin/payments/provider-profiles',
+    handler: ({headers, url}: HandlerContext) =>
+      service.listAdminPaymentProviderProfiles(requireBearerToken(headers), {
+        provider: (url.searchParams.get('provider') || '').trim() || null,
+      }),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/payments/provider-profiles',
+    handler: ({headers, body}: HandlerContext) =>
+      service.upsertAdminPaymentProviderProfile(
+        requireBearerToken(headers),
+        (body || {}) as UpsertAdminPaymentProviderProfileInput,
+      ),
+  },
+  {
+    method: 'GET',
+    path: '/admin/payments/provider-bindings',
+    handler: ({headers, url}: HandlerContext) =>
+      service.listAdminPaymentProviderBindings(requireBearerToken(headers), {
+        provider: (url.searchParams.get('provider') || '').trim() || null,
+      }),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/payments/provider-bindings/:appName',
+    handler: ({headers, params, body}: HandlerContext) =>
+      service.upsertAdminPaymentProviderBinding(
+        requireBearerToken(headers),
+        params.appName || '',
+        (body || {}) as UpsertAdminPaymentProviderBindingInput,
+      ),
   },
   {
     method: 'GET',

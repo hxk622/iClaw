@@ -24,6 +24,11 @@ import type {
   OAuthAccountRecord,
   OAuthProvider,
   PaymentOrderRecord,
+  PaymentProviderBindingMode,
+  PaymentProviderBindingRecord,
+  PaymentProviderChannelKind,
+  PaymentProviderProfileRecord,
+  PaymentProviderScopeType,
   PaymentProvider,
   PaymentWebhookEventRecord,
   PaymentWebhookInput,
@@ -35,6 +40,8 @@ import type {
   SkillSyncRunRecord,
   SkillSyncSourceRecord,
   UpsertAgentCatalogEntryInput,
+  UpsertAdminPaymentProviderBindingInput,
+  UpsertAdminPaymentProviderProfileInput,
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
   UpsertUserExtensionInstallConfigInput,
@@ -113,7 +120,16 @@ export interface ControlPlaneStore {
   getCreditAccount(userId: string): Promise<CreditAccountRecord>;
   getCreditBalance(userId: string): Promise<number>;
   getCreditLedger(userId: string): Promise<CreditLedgerRecord[]>;
-  createPaymentOrder(userId: string, input: Required<CreatePaymentOrderInput> & {packageName: string; credits: number; bonusCredits: number; amountCnyFen: number;}): Promise<PaymentOrderRecord>;
+  createPaymentOrder(
+    userId: string,
+    input: Required<CreatePaymentOrderInput> & {
+      packageName: string;
+      credits: number;
+      bonusCredits: number;
+      amountCnyFen: number;
+      metadata?: Record<string, unknown>;
+    },
+  ): Promise<PaymentOrderRecord>;
   getPaymentOrderById(userId: string, orderId: string): Promise<PaymentOrderRecord | null>;
   listPaymentOrdersAdmin(input?: {
     limit?: number | null;
@@ -122,6 +138,37 @@ export interface ControlPlaneStore {
     appName?: string | null;
     query?: string | null;
   }): Promise<AdminPaymentOrderSummaryRecord[]>;
+  listPaymentProviderProfiles(input?: {
+    provider?: PaymentProvider | null;
+    scopeType?: PaymentProviderScopeType | null;
+    scopeKey?: string | null;
+  }): Promise<PaymentProviderProfileRecord[]>;
+  getPaymentProviderProfileById(id: string): Promise<PaymentProviderProfileRecord | null>;
+  getPaymentProviderProfileByScope(
+    provider: PaymentProvider,
+    scopeType: PaymentProviderScopeType,
+    scopeKey: string,
+  ): Promise<PaymentProviderProfileRecord | null>;
+  upsertPaymentProviderProfile(
+    input: Required<UpsertAdminPaymentProviderProfileInput> & {
+      provider: PaymentProvider;
+      scope_type: PaymentProviderScopeType;
+      channel_kind: PaymentProviderChannelKind;
+      configured_secret_keys: string[];
+      secret_payload_encrypted?: string | null;
+      config_values: Record<string, unknown>;
+    },
+  ): Promise<PaymentProviderProfileRecord>;
+  listPaymentProviderBindings(provider?: PaymentProvider | null): Promise<PaymentProviderBindingRecord[]>;
+  getPaymentProviderBinding(appName: string, provider: PaymentProvider): Promise<PaymentProviderBindingRecord | null>;
+  upsertPaymentProviderBinding(
+    appName: string,
+    input: Required<UpsertAdminPaymentProviderBindingInput> & {
+      provider: PaymentProvider;
+      mode: PaymentProviderBindingMode;
+      active_profile_id?: string | null;
+    },
+  ): Promise<PaymentProviderBindingRecord>;
   getPaymentOrderAdmin(orderId: string): Promise<AdminPaymentOrderDetailRecord | null>;
   markPaymentOrderPaidAdmin(input: {
     orderId: string;
@@ -303,6 +350,8 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   private readonly sessionsByRefreshToken = new Map<string, SessionRecord>();
   private readonly creditAccountsByUserId = new Map<string, CreditAccountRecord>();
   private readonly creditLedgerByUserId = new Map<string, CreditLedgerRecord[]>();
+  private readonly paymentProviderProfilesById = new Map<string, PaymentProviderProfileRecord>();
+  private readonly paymentProviderBindingsByKey = new Map<string, PaymentProviderBindingRecord>();
   private readonly paymentOrdersById = new Map<string, PaymentOrderRecord>();
   private readonly paymentWebhookEventsByOrderId = new Map<string, PaymentWebhookEventRecord[]>();
   private readonly runGrantsById = new Map<string, RunGrantRecord>();
@@ -633,7 +682,13 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
 
   async createPaymentOrder(
     userId: string,
-    input: Required<CreatePaymentOrderInput> & {packageName: string; credits: number; bonusCredits: number; amountCnyFen: number},
+    input: Required<CreatePaymentOrderInput> & {
+      packageName: string;
+      credits: number;
+      bonusCredits: number;
+      amountCnyFen: number;
+      metadata?: Record<string, unknown>;
+    },
   ): Promise<PaymentOrderRecord> {
     const now = new Date().toISOString();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
@@ -673,6 +728,9 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
         arch: input.arch || null,
         return_url: input.return_url || null,
         user_agent: input.user_agent || null,
+        ...((input.metadata && typeof input.metadata === 'object' && !Array.isArray(input.metadata)
+          ? input.metadata
+          : {}) as Record<string, unknown>),
       },
       paidAt: null,
       expiredAt: expiresAt,
@@ -746,6 +804,111 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
         };
       });
     return items;
+  }
+
+  async listPaymentProviderProfiles(input?: {
+    provider?: PaymentProvider | null;
+    scopeType?: PaymentProviderScopeType | null;
+    scopeKey?: string | null;
+  }): Promise<PaymentProviderProfileRecord[]> {
+    const provider = (input?.provider || '').trim().toLowerCase();
+    const scopeType = (input?.scopeType || '').trim().toLowerCase();
+    const scopeKey = (input?.scopeKey || '').trim();
+    return Array.from(this.paymentProviderProfilesById.values())
+      .filter((item) => {
+        if (provider && item.provider !== provider) return false;
+        if (scopeType && item.scopeType !== scopeType) return false;
+        if (scopeKey && item.scopeKey !== scopeKey) return false;
+        return true;
+      })
+      .sort((left, right) =>
+        `${left.provider}:${left.scopeType}:${left.scopeKey}:${left.displayName}`.localeCompare(
+          `${right.provider}:${right.scopeType}:${right.scopeKey}:${right.displayName}`,
+          'zh-CN',
+        ),
+      );
+  }
+
+  async getPaymentProviderProfileById(id: string): Promise<PaymentProviderProfileRecord | null> {
+    return this.paymentProviderProfilesById.get(id) || null;
+  }
+
+  async getPaymentProviderProfileByScope(
+    provider: PaymentProvider,
+    scopeType: PaymentProviderScopeType,
+    scopeKey: string,
+  ): Promise<PaymentProviderProfileRecord | null> {
+    return (
+      Array.from(this.paymentProviderProfilesById.values()).find(
+        (item) => item.provider === provider && item.scopeType === scopeType && item.scopeKey === scopeKey,
+      ) || null
+    );
+  }
+
+  async upsertPaymentProviderProfile(
+    input: Required<UpsertAdminPaymentProviderProfileInput> & {
+      provider: PaymentProvider;
+      scope_type: PaymentProviderScopeType;
+      channel_kind: PaymentProviderChannelKind;
+      configured_secret_keys: string[];
+      secret_payload_encrypted?: string | null;
+      config_values: Record<string, unknown>;
+    },
+  ): Promise<PaymentProviderProfileRecord> {
+    const now = new Date().toISOString();
+    const existing =
+      (input.id ? this.paymentProviderProfilesById.get(input.id) : null) ||
+      (await this.getPaymentProviderProfileByScope(input.provider, input.scope_type, input.scope_key));
+    const record: PaymentProviderProfileRecord = {
+      id: existing?.id || input.id || randomUUID(),
+      provider: input.provider,
+      scopeType: input.scope_type,
+      scopeKey: input.scope_key,
+      channelKind: input.channel_kind,
+      displayName: input.display_name,
+      enabled: input.enabled !== false,
+      config: input.config_values,
+      configuredSecretKeys: input.configured_secret_keys,
+      secretPayloadEncrypted: input.secret_payload_encrypted ?? existing?.secretPayloadEncrypted ?? null,
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+    };
+    this.paymentProviderProfilesById.set(record.id, record);
+    return record;
+  }
+
+  async listPaymentProviderBindings(provider?: PaymentProvider | null): Promise<PaymentProviderBindingRecord[]> {
+    const normalizedProvider = (provider || '').trim().toLowerCase();
+    return Array.from(this.paymentProviderBindingsByKey.values())
+      .filter((item) => !normalizedProvider || item.provider === normalizedProvider)
+      .sort((left, right) => left.appName.localeCompare(right.appName, 'zh-CN'));
+  }
+
+  async getPaymentProviderBinding(appName: string, provider: PaymentProvider): Promise<PaymentProviderBindingRecord | null> {
+    return this.paymentProviderBindingsByKey.get(`${appName}:${provider}`) || null;
+  }
+
+  async upsertPaymentProviderBinding(
+    appName: string,
+    input: Required<UpsertAdminPaymentProviderBindingInput> & {
+      provider: PaymentProvider;
+      mode: PaymentProviderBindingMode;
+      active_profile_id?: string | null;
+    },
+  ): Promise<PaymentProviderBindingRecord> {
+    const now = new Date().toISOString();
+    const key = `${appName}:${input.provider}`;
+    const existing = this.paymentProviderBindingsByKey.get(key);
+    const record: PaymentProviderBindingRecord = {
+      appName,
+      provider: input.provider,
+      mode: input.mode,
+      activeProfileId: input.active_profile_id || null,
+      updatedAt: existing?.updatedAt || now,
+    };
+    record.updatedAt = now;
+    this.paymentProviderBindingsByKey.set(key, record);
+    return record;
   }
 
   async getPaymentOrderAdmin(orderId: string): Promise<AdminPaymentOrderDetailRecord | null> {
