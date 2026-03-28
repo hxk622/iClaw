@@ -1732,6 +1732,10 @@ body {
   scrollbar-width: none;
 }
 
+.iclaw-composer__selector-menu--stock {
+  overflow: hidden;
+}
+
 .iclaw-composer__selector-menu--expert::-webkit-scrollbar,
 .iclaw-composer__selector-menu--skill::-webkit-scrollbar,
 .iclaw-composer__selector-menu--compact::-webkit-scrollbar {
@@ -1799,6 +1803,41 @@ body {
   padding: 8px 8px 0;
 }
 
+.iclaw-composer__selector-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 8px 0;
+  padding: 0 10px;
+  min-height: 34px;
+  border: 1px solid color-mix(in srgb, var(--composer-panel-border) 74%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--chat-surface-panel-subtle) 90%, white 10%);
+}
+
+.iclaw-composer__selector-search-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  flex: 0 0 auto;
+}
+
+.iclaw-composer__selector-search-input {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
+  outline: none;
+}
+
+.iclaw-composer__selector-search-input::placeholder {
+  color: var(--text-muted);
+}
+
 .iclaw-composer__selector-section-title {
   padding: 8px 8px 6px;
   color: var(--text-muted);
@@ -1816,6 +1855,13 @@ body {
   flex-direction: column;
   padding: 8px;
   scrollbar-width: none;
+}
+
+.iclaw-composer__skill-list--stock {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .iclaw-composer__selector-recent-strip {
@@ -2654,6 +2700,28 @@ body {
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.6;
+}
+
+.iclaw-composer__selector-load-hint,
+.iclaw-composer__selector-load-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  margin-top: 4px;
+  padding: 0 10px 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.iclaw-composer__selector-load-more {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--brand-primary);
+  padding-bottom: 4px;
 }
 
 .iclaw-composer__actions {

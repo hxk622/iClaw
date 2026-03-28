@@ -50,6 +50,7 @@ import {
   type ComposerAgentOption,
   type ComposerSkillOption,
   type ComposerDraftPayload,
+  type ComposerInstrumentSearchPage,
   type ComposerSendPayload,
   type ComposerStockContext,
   type OpenClawImageAttachment,
@@ -1909,57 +1910,79 @@ export function OpenClawChatSurface({
   );
 
   const handleSearchStocks = useCallback(
-    async (query: string): Promise<ComposerStockContext[]> => {
+    async (
+      query: string,
+      options?: {limit?: number; offset?: number},
+    ): Promise<ComposerInstrumentSearchPage> => {
       if (!creditClient) {
-        return [];
+        return {
+          items: [],
+          hasMore: false,
+          nextOffset: null,
+        };
       }
 
       const trimmedQuery = query.trim();
       const page = await creditClient.listMarketStocksPage({
         market: 'a_share',
         search: trimmedQuery || undefined,
-        sort: trimmedQuery ? 'amount_desc' : 'total_market_cap_desc',
-        limit: 8,
-        offset: 0,
+        sort: 'amount_desc',
+        limit: options?.limit ?? 8,
+        offset: options?.offset ?? 0,
       });
 
-      return page.items.map((stock) => ({
-        id: stock.id,
-        symbol: stock.symbol,
-        companyName: stock.company_name,
-        exchange: stock.exchange,
-        board: resolveStockComposerBoard(stock),
-        instrumentKind: 'stock',
-        instrumentLabel: '股票',
-      }));
+      return {
+        items: page.items.map((stock) => ({
+          id: stock.id,
+          symbol: stock.symbol,
+          companyName: stock.company_name,
+          exchange: stock.exchange,
+          board: resolveStockComposerBoard(stock),
+          instrumentKind: 'stock',
+          instrumentLabel: '股票',
+        })),
+        hasMore: page.has_more,
+        nextOffset: page.next_offset,
+      };
     },
     [creditClient],
   );
 
   const handleSearchFunds = useCallback(
-    async (query: string): Promise<ComposerStockContext[]> => {
+    async (
+      query: string,
+      options?: {limit?: number; offset?: number},
+    ): Promise<ComposerInstrumentSearchPage> => {
       if (!creditClient) {
-        return [];
+        return {
+          items: [],
+          hasMore: false,
+          nextOffset: null,
+        };
       }
 
       const trimmedQuery = query.trim();
       const page = await creditClient.listMarketFundsPage({
         market: 'cn_fund',
         search: trimmedQuery || undefined,
-        sort: trimmedQuery ? 'scale_desc' : 'return_1y_desc',
-        limit: 8,
-        offset: 0,
+        sort: 'scale_desc',
+        limit: options?.limit ?? 8,
+        offset: options?.offset ?? 0,
       });
 
-      return page.items.map((fund) => ({
-        id: fund.id,
-        symbol: fund.symbol,
-        companyName: fund.fund_name,
-        exchange: fund.exchange,
-        board: resolveFundComposerBoard(fund),
-        instrumentKind: fund.instrument_kind,
-        instrumentLabel: resolveFundComposerInstrumentLabel(fund),
-      }));
+      return {
+        items: page.items.map((fund) => ({
+          id: fund.id,
+          symbol: fund.symbol,
+          companyName: fund.fund_name,
+          exchange: fund.exchange,
+          board: resolveFundComposerBoard(fund),
+          instrumentKind: fund.instrument_kind,
+          instrumentLabel: resolveFundComposerInstrumentLabel(fund),
+        })),
+        hasMore: page.has_more,
+        nextOffset: page.next_offset,
+      };
     },
     [creditClient],
   );

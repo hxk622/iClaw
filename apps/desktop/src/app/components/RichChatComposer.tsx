@@ -9,6 +9,7 @@ import {
   Globe,
   Image as ImageIcon,
   Plus,
+  Search,
   SlidersHorizontal,
   Sparkles,
   Star,
@@ -21,6 +22,7 @@ import {
   useImperativeHandle,
   useRef,
   useState,
+  type UIEvent,
 } from 'react';
 import { ComposerModelLogo } from './ComposerModelLogo';
 import { findComposerModelOption, type ComposerModelOption } from '../lib/model-catalog';
@@ -67,6 +69,11 @@ export type ComposerInstrumentContext = {
 
 export type ComposerStockContext = ComposerInstrumentContext;
 export type ComposerStockOption = ComposerInstrumentContext;
+export type ComposerInstrumentSearchPage = {
+  items: ComposerStockOption[];
+  hasMore: boolean;
+  nextOffset: number | null;
+};
 
 export type ComposerDraftAttachment = {
   type: 'image' | 'pdf' | 'video' | 'file';
@@ -176,11 +183,14 @@ type RichChatComposerProps = {
   initialSelectedAgentSlug?: string | null;
   initialSelectedSkillSlug?: string | null;
   initialSelectedStock?: ComposerStockContext | null;
-  searchStocks?: (query: string) => Promise<ComposerStockOption[]>;
-  searchFunds?: (query: string) => Promise<ComposerStockOption[]>;
+  searchStocks?: (query: string, options?: {limit?: number; offset?: number}) => Promise<ComposerInstrumentSearchPage>;
+  searchFunds?: (query: string, options?: {limit?: number; offset?: number}) => Promise<ComposerInstrumentSearchPage>;
   composerConfig?: ResolvedInputComposerConfig | null;
   onSelectedSkillSlugChange?: (slug: string | null) => void;
 };
+
+const STOCK_MENU_PAGE_SIZE = 8;
+const STOCK_MENU_SCROLL_THRESHOLD = 40;
 
 const SUPPORTED_ATTACHMENT_TYPES = ['image/', 'video/', 'application/pdf'];
 const PLACEHOLDER = '输入研究问题，@专家，或选择下方财经快捷模板...';
@@ -684,6 +694,8 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const stockToolbarRef = useRef<HTMLDivElement | null>(null);
     const fundToolbarRef = useRef<HTMLDivElement | null>(null);
     const stockFloatingMenuRef = useRef<HTMLDivElement | null>(null);
+    const stockToolbarSearchInputRef = useRef<HTMLInputElement | null>(null);
+    const stockListRef = useRef<HTMLDivElement | null>(null);
     const skillMenuRef = useRef<HTMLDivElement | null>(null);
     const modeMenuRef = useRef<HTMLDivElement | null>(null);
     const marketMenuRef = useRef<HTMLDivElement | null>(null);
@@ -719,7 +731,11 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const [stockQuery, setStockQuery] = useState('');
     const [stockResults, setStockResults] = useState<ComposerStockOption[]>([]);
     const [stockLoading, setStockLoading] = useState(false);
+    const [stockLoadingMore, setStockLoadingMore] = useState(false);
     const [stockError, setStockError] = useState<string | null>(null);
+    const [stockLoadMoreError, setStockLoadMoreError] = useState<string | null>(null);
+    const [stockHasMore, setStockHasMore] = useState(false);
+    const [stockNextOffset, setStockNextOffset] = useState<number | null>(null);
     const [recentSelections, setRecentSelections] = useState<RecentSelectionState>(EMPTY_RECENT_SELECTIONS);
     const [activeQuickQueryId, setActiveQuickQueryId] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1044,7 +1060,13 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       setStockMenuPosition(null);
       setStockMenuKind('stock');
       setStockQuery('');
+      setStockResults([]);
+      setStockHasMore(false);
+      setStockNextOffset(null);
+      setStockLoading(false);
+      setStockLoadingMore(false);
       setStockError(null);
+      setStockLoadMoreError(null);
       pendingStockTriggerRef.current = false;
     }, []);
 
@@ -1756,10 +1778,71 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       setSelectedStockContext(initialSelectedStock || null);
     }, [initialSelectedStock]);
 
+    const loadMoreStockResults = useCallback(() => {
+      const activeSearch = stockMenuKind === 'stock' ? searchStocks : searchFunds;
+      if (
+        !stockMenuOpen ||
+        !connected ||
+        !activeSearch ||
+        stockLoading ||
+        stockLoadingMore ||
+        !stockHasMore
+      ) {
+        return;
+      }
+
+      const offset = stockNextOffset ?? stockResults.length;
+      const version = stockSearchSeqRef.current;
+      setStockLoadingMore(true);
+      setStockLoadMoreError(null);
+
+      void activeSearch(stockQuery.trim(), {limit: STOCK_MENU_PAGE_SIZE, offset})
+        .then((page) => {
+          if (stockSearchSeqRef.current !== version) {
+            return;
+          }
+          setStockResults((current) => {
+            const seen = new Set(current.map((item) => item.id));
+            const appended = page.items.filter((item) => !seen.has(item.id));
+            return appended.length > 0 ? [...current, ...appended] : current;
+          });
+          setStockHasMore(page.hasMore);
+          setStockNextOffset(page.nextOffset);
+        })
+        .catch(() => {
+          if (stockSearchSeqRef.current !== version) {
+            return;
+          }
+          setStockLoadMoreError('更多标的加载失败');
+        })
+        .finally(() => {
+          if (stockSearchSeqRef.current !== version) {
+            return;
+          }
+          setStockLoadingMore(false);
+        });
+    }, [
+      connected,
+      searchFunds,
+      searchStocks,
+      stockHasMore,
+      stockLoading,
+      stockLoadingMore,
+      stockMenuKind,
+      stockMenuOpen,
+      stockNextOffset,
+      stockQuery,
+      stockResults.length,
+    ]);
+
     useEffect(() => {
       const activeSearch = stockMenuKind === 'stock' ? searchStocks : searchFunds;
       if (!stockMenuOpen || !connected || !activeSearch) {
         setStockLoading(false);
+        setStockLoadingMore(false);
+        setStockHasMore(false);
+        setStockNextOffset(null);
+        setStockLoadMoreError(null);
         if (!stockMenuOpen || !activeSearch) {
           setStockResults([]);
         }
@@ -1771,13 +1854,18 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       stockSearchSeqRef.current = sequence;
       setStockLoading(true);
       setStockError(null);
+      setStockLoadMoreError(null);
+      setStockHasMore(false);
+      setStockNextOffset(null);
 
-      void activeSearch(stockQuery.trim())
-        .then((results) => {
+      void activeSearch(stockQuery.trim(), {limit: STOCK_MENU_PAGE_SIZE, offset: 0})
+        .then((page) => {
           if (cancelled || stockSearchSeqRef.current !== sequence) {
             return;
           }
-          setStockResults(results);
+          setStockResults(page.items);
+          setStockHasMore(page.hasMore);
+          setStockNextOffset(page.nextOffset);
         })
         .catch(() => {
           if (cancelled || stockSearchSeqRef.current !== sequence) {
@@ -1797,6 +1885,22 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         cancelled = true;
       };
     }, [connected, searchFunds, searchStocks, stockMenuKind, stockMenuOpen, stockQuery]);
+
+    useEffect(() => {
+      if (!stockMenuOpen || stockMenuSource !== 'toolbar') {
+        return;
+      }
+      const frame = window.requestAnimationFrame(() => {
+        stockToolbarSearchInputRef.current?.focus();
+      });
+      return () => {
+        window.cancelAnimationFrame(frame);
+      };
+    }, [stockMenuKind, stockMenuOpen, stockMenuSource]);
+
+    useEffect(() => {
+      stockListRef.current?.scrollTo({top: 0});
+    }, [stockMenuKind, stockMenuOpen, stockQuery]);
 
     useEffect(() => {
       if (!visibleTopBarControlKeys.has('mode') || (selectedMode && !findStaticOption(modeOptions, selectedMode))) {
@@ -2117,6 +2221,16 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       Boolean(selectedStockContext) ||
       (visibleTopBarControlKeys.has('watchlist') && Boolean(selectedWatchlistOption)) ||
       (visibleTopBarControlKeys.has('output-format') && Boolean(selectedOutputOption));
+    const stockSearchPlaceholder =
+      stockMenuKind === 'stock' ? '搜索股票代码或名称' : '搜索基金、ETF 或代码';
+    const stockMenuSearchVisible = stockMenuSource === 'toolbar';
+    const handleStockListScroll = (event: UIEvent<HTMLDivElement>) => {
+      const target = event.currentTarget;
+      const distanceToBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+      if (distanceToBottom <= STOCK_MENU_SCROLL_THRESHOLD) {
+        loadMoreStockResults();
+      }
+    };
 
     const mentionMenuPanel = (
       <div className="iclaw-composer__selector-menu iclaw-composer__selector-menu--expert" role="dialog" aria-label="选择专家">
@@ -2196,7 +2310,11 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const stockMenuControl = stockMenuKind === 'stock' ? stockControl : fundControl;
     const stockMenuPanelTitle = stockMenuControl?.displayName || (stockMenuKind === 'stock' ? '选择股票' : '选择基金/ETF');
     const stockMenuPanel = (
-      <div className="iclaw-composer__selector-menu iclaw-composer__selector-menu--compact" role="menu" aria-label={stockMenuPanelTitle}>
+      <div
+        className="iclaw-composer__selector-menu iclaw-composer__selector-menu--compact iclaw-composer__selector-menu--stock"
+        role="menu"
+        aria-label={stockMenuPanelTitle}
+      >
         <div className="iclaw-composer__selector-menu-header">
           <div className="iclaw-composer__selector-menu-header-copy">
             <span className="iclaw-composer__selector-menu-kicker">标的上下文</span>
@@ -2215,7 +2333,25 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
           </div>
           <span className="iclaw-composer__selector-menu-pill">{stockMenuStatusLabel}</span>
         </div>
-        <div className="iclaw-composer__skill-list">
+        {stockMenuSearchVisible ? (
+          <div className="iclaw-composer__selector-search">
+            <span className="iclaw-composer__selector-search-icon" aria-hidden="true">
+              <Search className="h-3.5 w-3.5" />
+            </span>
+            <input
+              ref={stockToolbarSearchInputRef}
+              type="text"
+              className="iclaw-composer__selector-search-input"
+              value={stockQuery}
+              onChange={(event) => setStockQuery(event.target.value)}
+              placeholder={stockSearchPlaceholder}
+              aria-label={stockSearchPlaceholder}
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </div>
+        ) : null}
+        <div ref={stockListRef} className="iclaw-composer__skill-list iclaw-composer__skill-list--stock" onScroll={handleStockListScroll}>
           <div className="iclaw-composer__selector-section-title">默认</div>
           <button
             type="button"
@@ -2277,6 +2413,19 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   : '暂无可用基金或 ETF'}
             </div>
           )}
+          {stockLoadMoreError ? (
+            <button
+              type="button"
+              className="iclaw-composer__selector-load-more"
+              onClick={() => loadMoreStockResults()}
+            >
+              {stockLoadMoreError}，点击重试
+            </button>
+          ) : null}
+          {stockLoadingMore ? <div className="iclaw-composer__selector-load-hint">正在加载更多...</div> : null}
+          {!stockLoading && !stockLoadingMore && stockHasMore ? (
+            <div className="iclaw-composer__selector-load-hint">继续下滑加载更多</div>
+          ) : null}
         </div>
       </div>
     );
