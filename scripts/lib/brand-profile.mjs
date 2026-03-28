@@ -93,10 +93,9 @@ export async function loadBrandProfile(options = {}) {
       brandId,
       envName: options.envName,
     });
-    const brandDir = path.dirname(resolved.filePath);
     return {
       rootDir,
-      brandDir,
+      brandDir: rootDir,
       brandConfigPath: resolved.filePath,
       profile: resolved.profile,
     };
