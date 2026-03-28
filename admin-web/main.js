@@ -121,6 +121,209 @@ const HEADER_SURFACE_PRESETS = [
     },
   },
 ];
+const HOME_WEB_SURFACE_PRESETS = [
+  {
+    key: 'wealth',
+    label: '理财版',
+    description: '强调稳健配置、资产陪伴和财富管理语境的官网文案。',
+    config: {
+      website: {
+        homeTitle: '财富顾问官网',
+        metaDescription: '面向财富管理、基金投顾和长期配置场景的桌面 AI 工作台。',
+        brandLabel: '财富顾问',
+        kicker: 'Wealth AI Desktop',
+        heroTitlePre: '把 AI 装进你的资产配置流程',
+        heroTitleMain: '稳健研究，打开即用',
+        heroDescription: '适合理财顾问、基金投顾和高净值陪伴场景，聚焦研究、组合诊断与长期配置。',
+        topCtaLabel: '立即下载',
+        scrollLabel: '查看下载版本',
+        downloadTitle: '下载财富顾问桌面端',
+      },
+    },
+  },
+  {
+    key: 'broker',
+    label: '券商版',
+    description: '更突出行情、交易效率和终端属性的官网文案。',
+    config: {
+      website: {
+        homeTitle: '交易终端官网',
+        metaDescription: '面向券商、交易终端和投研协同场景的本地 AI 客户端。',
+        brandLabel: '交易终端',
+        kicker: 'Broker Research Terminal',
+        heroTitlePre: '把 AI 接到你的行情与研究链路里',
+        heroTitleMain: '盯盘、研究、问答一站完成',
+        heroDescription: '聚焦行情理解、标的筛选、盘中问答和交易协同，适合券商与专业投资团队。',
+        topCtaLabel: '下载终端',
+        scrollLabel: '查看终端下载',
+        downloadTitle: '下载交易终端',
+      },
+    },
+  },
+  {
+    key: 'advisor',
+    label: '投顾版',
+    description: '更偏顾问服务、组合陪伴和客户沟通的官网文案。',
+    config: {
+      website: {
+        homeTitle: '投顾助手官网',
+        metaDescription: '面向投顾服务、客户陪伴和组合运营场景的 AI 桌面应用。',
+        brandLabel: '投顾助手',
+        kicker: 'Advisor Companion',
+        heroTitlePre: '让 AI 成为你的顾问席位',
+        heroTitleMain: '陪客户，也陪组合',
+        heroDescription: '聚焦组合跟踪、风险提示、客户陪伴和日常投顾交付，适合顾问型 OEM 场景。',
+        topCtaLabel: '下载顾问端',
+        scrollLabel: '查看顾问端下载',
+        downloadTitle: '下载投顾助手',
+      },
+    },
+  },
+];
+const SIDEBAR_SURFACE_PRESETS = [
+  {
+    key: 'wealth',
+    label: '理财版',
+    description: '突出顾问陪伴、组合跟踪和长期配置的侧边栏结构。',
+    config: {
+      variant: 'wealth',
+      brandBlock: {
+        title: '财富顾问台',
+        subtitle: '组合、基金、客户陪伴',
+      },
+      layout: {
+        sectionStyle: 'soft-card',
+        emphasizeActiveItem: true,
+      },
+    },
+    selectedMenus: ['chat', 'investment-experts', 'fund-market', 'memory', 'im-bots', 'security', 'task-center'],
+    menuOrder: ['chat', 'investment-experts', 'fund-market', 'memory', 'im-bots', 'security', 'task-center'],
+    menuConfigs: {
+      chat: {group_label: '顾问台'},
+      'investment-experts': {group_label: '顾问台', display_name: '投顾专家'},
+      'fund-market': {group_label: '市场跟踪', display_name: '基金市场'},
+      memory: {group_label: '顾问台'},
+      'im-bots': {group_label: '协同触达'},
+      security: {group_label: '系统'},
+      'task-center': {group_label: '系统'},
+    },
+  },
+  {
+    key: 'broker',
+    label: '券商版',
+    description: '突出盯盘、研究和交易支持的侧边栏结构。',
+    config: {
+      variant: 'broker',
+      brandBlock: {
+        title: '交易研究台',
+        subtitle: '盯盘、标的、投研协同',
+      },
+      layout: {
+        sectionStyle: 'dense',
+        emphasizeActiveItem: true,
+      },
+    },
+    selectedMenus: ['chat', 'stock-market', 'fund-market', 'investment-experts', 'data-connections', 'skill-store', 'mcp-store', 'task-center'],
+    menuOrder: ['chat', 'stock-market', 'fund-market', 'investment-experts', 'data-connections', 'skill-store', 'mcp-store', 'task-center'],
+    menuConfigs: {
+      chat: {group_label: '交易台'},
+      'stock-market': {group_label: '行情'},
+      'fund-market': {group_label: '行情'},
+      'investment-experts': {group_label: '研究'},
+      'data-connections': {group_label: '研究'},
+      'skill-store': {group_label: '扩展'},
+      'mcp-store': {group_label: '扩展'},
+      'task-center': {group_label: '系统'},
+    },
+  },
+  {
+    key: 'advisor',
+    label: '投顾版',
+    description: '突出客户运营、组合诊断和服务交付的侧边栏结构。',
+    config: {
+      variant: 'advisor',
+      brandBlock: {
+        title: '顾问服务台',
+        subtitle: '客户、组合、服务交付',
+      },
+      layout: {
+        sectionStyle: 'service',
+        emphasizeActiveItem: true,
+      },
+    },
+    selectedMenus: ['chat', 'investment-experts', 'stock-market', 'fund-market', 'im-bots', 'memory', 'security', 'task-center'],
+    menuOrder: ['chat', 'investment-experts', 'stock-market', 'fund-market', 'im-bots', 'memory', 'security', 'task-center'],
+    menuConfigs: {
+      chat: {group_label: '服务台'},
+      'investment-experts': {group_label: '服务台', display_name: '顾问专家'},
+      'stock-market': {group_label: '市场跟踪'},
+      'fund-market': {group_label: '市场跟踪'},
+      'im-bots': {group_label: '客户触达'},
+      memory: {group_label: '客户触达', display_name: '客户记忆'},
+      security: {group_label: '系统'},
+      'task-center': {group_label: '系统'},
+    },
+  },
+];
+const INPUT_ASSEMBLY_PRESETS = [
+  {
+    key: 'wealth',
+    label: '理财版',
+    description: '偏组合诊断、基金分析和长期配置的输入框模板。',
+    selectedComposerControls: ['expert', 'mode', 'fund-context', 'watchlist', 'output-format'],
+    composerControlOrder: ['expert', 'mode', 'fund-context', 'watchlist', 'output-format'],
+    composerControlConfigs: {
+      mode: {display_name: '分析模式', allowed_option_values: ['quick', 'deep-research', 'report']},
+      watchlist: {display_name: '组合视角', allowed_option_values: ['all', 'core', 'long-term']},
+      'output-format': {display_name: '输出形式', allowed_option_values: ['summary', 'table', 'report']},
+    },
+    selectedComposerShortcuts: ['fund-analysis', 'valuation-analysis', 'market-recap'],
+    composerShortcutOrder: ['fund-analysis', 'valuation-analysis', 'market-recap'],
+    composerShortcutConfigs: {
+      'fund-analysis': {display_name: '基金体检'},
+      'valuation-analysis': {display_name: '估值校准'},
+      'market-recap': {display_name: '市场跟踪'},
+    },
+  },
+  {
+    key: 'broker',
+    label: '券商版',
+    description: '偏标的研究、行情跟踪和研报输出的输入框模板。',
+    selectedComposerControls: ['expert', 'skill', 'mode', 'market-scope', 'stock-context', 'output-format'],
+    composerControlOrder: ['expert', 'skill', 'mode', 'market-scope', 'stock-context', 'output-format'],
+    composerControlConfigs: {
+      mode: {display_name: '工作模式', allowed_option_values: ['quick', 'deep-research', 'report']},
+      'market-scope': {display_name: '市场范围', allowed_option_values: ['cn', 'us', 'hk', 'macro']},
+      'output-format': {display_name: '交付形式', allowed_option_values: ['summary', 'table', 'minutes', 'report']},
+    },
+    selectedComposerShortcuts: ['market-recap', 'earnings-analysis', 'valuation-analysis', 'company-compare', 'sector-review'],
+    composerShortcutOrder: ['market-recap', 'earnings-analysis', 'valuation-analysis', 'company-compare', 'sector-review'],
+    composerShortcutConfigs: {
+      'market-recap': {display_name: '盘面复盘'},
+      'earnings-analysis': {display_name: '财报速读'},
+      'company-compare': {display_name: '双标的对比'},
+    },
+  },
+  {
+    key: 'advisor',
+    label: '投顾版',
+    description: '偏顾问问答、组合视角和客户沟通输出的输入框模板。',
+    selectedComposerControls: ['expert', 'mode', 'watchlist', 'fund-context', 'output-format'],
+    composerControlOrder: ['expert', 'mode', 'watchlist', 'fund-context', 'output-format'],
+    composerControlConfigs: {
+      mode: {display_name: '顾问模式', allowed_option_values: ['quick', 'report']},
+      watchlist: {display_name: '客户组合', allowed_option_values: ['all', 'core', 'long-term']},
+      'output-format': {display_name: '交付模版', allowed_option_values: ['summary', 'table', 'minutes', 'report']},
+    },
+    selectedComposerShortcuts: ['market-recap', 'fund-analysis', 'valuation-analysis', 'company-compare'],
+    composerShortcutOrder: ['market-recap', 'fund-analysis', 'valuation-analysis', 'company-compare'],
+    composerShortcutConfigs: {
+      'market-recap': {display_name: '晨会摘要'},
+      'fund-analysis': {display_name: '组合体检'},
+      'company-compare': {display_name: '客户对比'},
+    },
+  },
+];
 const CAPABILITY_ROUTE_MODE = {
   'skills-mcp': 'skills',
   'skill-center': 'skills',
@@ -977,6 +1180,88 @@ const DEFAULT_WELCOME_SURFACE_CONFIG = {
   disclaimer: '本智囊提供的所有信息仅供学习参考，不构成投资建议。投资有风险，决策需谨慎。',
   quickActions: DEFAULT_WELCOME_QUICK_ACTIONS,
 };
+const WELCOME_ASSEMBLY_PRESETS = [
+  {
+    key: 'wealth',
+    label: '理财版',
+    description: '强调长期配置、组合诊断和理性投资陪伴的 Welcome 模板。',
+    config: {
+      kol_name: '林安',
+      expert_name: '林安的财富顾问',
+      slogan: '用长期主义管理波动，用纪律守住回报',
+      avatar_url:
+        'https://images.unsplash.com/photo-1573497491765-cf4147d9d62f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
+      background_image_url:
+        'https://images.unsplash.com/photo-1516321497487-e288fb19713f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
+      primary_color: '#B68B4C',
+      description: '我会围绕组合体检、基金筛选、资产配置和长期持有策略，帮你把复杂的理财问题拆成可执行判断。',
+      expertise_areas: ['资产配置', '基金分析', '组合诊断', '长期配置'],
+      target_audience: '希望稳步提升认知、重视回撤管理和长期目标的理性投资者。',
+      disclaimer: '内容仅供学习与研究参考，不构成任何收益承诺或投资建议。',
+      quick_actions: [
+        {label: '组合诊断', prompt: '帮我看看当前组合的风险暴露、仓位分布和是否需要再平衡。', icon_key: 'PieChart'},
+        {label: '基金筛选', prompt: '帮我筛一下适合长期配置的基金或 ETF，并解释适用场景。', icon_key: 'TrendingUp'},
+        {label: '风险提示', prompt: '基于当前市场环境，提示我组合里最需要注意的风险点。', icon_key: 'ShieldCheck'},
+        {label: '长期计划', prompt: '如果目标是 3 到 5 年长期投资，现在应该如何制定配置计划？', icon_key: 'Lightbulb'},
+      ],
+    },
+  },
+  {
+    key: 'broker',
+    label: '券商版',
+    description: '强调行情、财报、板块和标的研究的 Welcome 模板。',
+    config: {
+      kol_name: '周策',
+      expert_name: '周策的交易研究席',
+      slogan: '先抓主线，再看估值，最后回到交易纪律',
+      avatar_url:
+        'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
+      background_image_url:
+        'https://images.unsplash.com/photo-1526628953301-3e589a6a8b74?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
+      primary_color: '#4F82C9',
+      description: '我会围绕盘中主线、财报预期差、行业轮动和估值框架，快速给你研究线索与结论。',
+      expertise_areas: ['盘面复盘', '财报解读', '行业轮动', '估值比较'],
+      target_audience: '需要更快形成盘面判断、跟踪主线并输出研究结论的专业投资者。',
+      disclaimer: '所有内容仅供研究交流，不构成买卖建议，盘中波动请结合风险承受能力独立决策。',
+      quick_actions: [
+        {label: '盘面复盘', prompt: '复盘今天市场，说明指数、板块、资金风格和背后的驱动。', icon_key: 'TrendingUp'},
+        {label: '财报速读', prompt: '解读最新财报，重点看增长、利润率、现金流和管理层指引。', icon_key: 'Search'},
+        {label: '板块机会', prompt: '当前哪些板块更值得重点跟踪？为什么？', icon_key: 'Lightbulb'},
+        {label: '标的对比', prompt: '请对比两个候选标的的商业模式、估值和主要风险。', icon_key: 'MessageCircle'},
+      ],
+    },
+  },
+  {
+    key: 'advisor',
+    label: '投顾版',
+    description: '强调顾问陪伴、客户沟通和组合建议的 Welcome 模板。',
+    config: {
+      kol_name: '顾言',
+      expert_name: '顾言的投顾助手',
+      slogan: '把复杂市场翻译成客户能听懂的行动建议',
+      avatar_url:
+        'https://images.unsplash.com/photo-1494790108377-be9c29b29330?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
+      background_image_url:
+        'https://images.unsplash.com/photo-1519389950473-47ba0277781c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
+      primary_color: '#8E6BBE',
+      description: '我会从组合解释、客户沟通、风险提示和顾问交付四个角度，帮你更高效地服务客户。',
+      expertise_areas: ['客户陪伴', '组合解释', '顾问交付', '风险提示'],
+      target_audience: '需要把研究结论转成顾问服务、陪伴沟通和客户交付的投顾团队。',
+      disclaimer: '内容仅供顾问内部研究与沟通参考，正式服务需遵循适当性、合规和风险披露要求。',
+      quick_actions: [
+        {label: '客户话术', prompt: '把当前市场判断整理成适合客户沟通的话术和重点结论。', icon_key: 'MessageCircle'},
+        {label: '组合回顾', prompt: '帮我生成一段组合回顾，解释近期表现、风险和后续建议。', icon_key: 'PieChart'},
+        {label: '风险说明', prompt: '把这次调整涉及的风险点和适当性提示整理清楚。', icon_key: 'ShieldCheck'},
+        {label: '服务建议', prompt: '基于当前组合和市场环境，下一步顾问服务该怎么推进？', icon_key: 'Sparkles'},
+      ],
+    },
+  },
+];
+const SURFACE_PRESET_REGISTRY = {
+  header: HEADER_SURFACE_PRESETS,
+  sidebar: SIDEBAR_SURFACE_PRESETS,
+  'home-web': HOME_WEB_SURFACE_PRESETS,
+};
 
 const WELCOME_ACTION_ICON_OPTIONS = [
   ['', '默认'],
@@ -1223,6 +1508,47 @@ function statusLabel(status) {
 
 function visibilityStateLabel(visible) {
   return visible ? '已显示' : '已隐藏';
+}
+
+function renderPresetPicker(options) {
+  const presets = asArray(options?.presets);
+  if (!presets.length) {
+    return '';
+  }
+  const title = String(options?.title || '平台预置模板').trim() || '平台预置模板';
+  const action = String(options?.action || '').trim();
+  if (!action) {
+    return '';
+  }
+  const attrs = asObject(options?.attrs);
+  return `
+    <div class="fig-card__section-copy">
+      <p>${escapeHtml(title)}：</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+        ${presets
+          .map((preset) => {
+            const entry = asObject(preset);
+            const extraAttrs = Object.entries(attrs)
+              .map(([key, value]) => `data-${escapeHtml(key)}="${escapeHtml(value)}"`)
+              .join(' ');
+            return `
+              <button
+                class="capability-card"
+                type="button"
+                data-action="${escapeHtml(action)}"
+                data-preset-key="${escapeHtml(entry.key || '')}"
+                ${extraAttrs}
+                style="text-align:left;"
+              >
+                <strong>${escapeHtml(entry.label || entry.key || '未命名模板')}</strong>
+                <span>${escapeHtml(entry.description || '')}</span>
+              </button>
+            `;
+          })
+          .join('')}
+      </div>
+    </div>
+  `;
 }
 
 function installStateLabel(installed) {
@@ -4584,6 +4910,69 @@ function reorderBrandComposerShortcut(sourceKey, targetKey, placement = 'before'
   render();
 }
 
+function applySidebarPresetToBuffer(buffer, preset) {
+  const selectedMenus = asStringArray(preset.selectedMenus);
+  if (!selectedMenus.length) {
+    return buffer;
+  }
+  const nextMenuConfigs = {...asObject(buffer.menuConfigs)};
+  for (const [menuKey, config] of Object.entries(asObject(preset.menuConfigs))) {
+    nextMenuConfigs[menuKey] = normalizeMenuDraftConfig({
+      ...asObject(nextMenuConfigs[menuKey]),
+      ...asObject(config),
+    });
+  }
+  buffer.selectedMenus = selectedMenus;
+  buffer.menuOrder = buildOrderedMenuList(asStringArray(preset.menuOrder).length ? preset.menuOrder : selectedMenus);
+  buffer.menuConfigs = nextMenuConfigs;
+  return buffer;
+}
+
+function applyInputAssemblyPresetToBuffer(buffer, preset) {
+  const selectedComposerControls = asStringArray(preset.selectedComposerControls);
+  const selectedComposerShortcuts = asStringArray(preset.selectedComposerShortcuts);
+  if (selectedComposerControls.length) {
+    buffer.selectedComposerControls = selectedComposerControls;
+    buffer.composerControlOrder = buildOrderedComposerControlList(
+      asStringArray(preset.composerControlOrder).length ? preset.composerControlOrder : selectedComposerControls,
+    );
+    buffer.composerControlConfigs = {
+      ...asObject(buffer.composerControlConfigs),
+      ...Object.fromEntries(
+        Object.entries(asObject(preset.composerControlConfigs)).map(([key, value]) => [
+          key,
+          normalizeComposerControlDraftConfig(value),
+        ]),
+      ),
+    };
+  }
+  if (selectedComposerShortcuts.length) {
+    buffer.selectedComposerShortcuts = selectedComposerShortcuts;
+    buffer.composerShortcutOrder = buildOrderedComposerShortcutList(
+      asStringArray(preset.composerShortcutOrder).length ? preset.composerShortcutOrder : selectedComposerShortcuts,
+    );
+    buffer.composerShortcutConfigs = {
+      ...asObject(buffer.composerShortcutConfigs),
+      ...Object.fromEntries(
+        Object.entries(asObject(preset.composerShortcutConfigs)).map(([key, value]) => [
+          key,
+          normalizeComposerShortcutDraftConfig(value),
+        ]),
+      ),
+    };
+  }
+  return buffer;
+}
+
+function applyWelcomeAssemblyPresetToBuffer(buffer, preset) {
+  const config = normalizeWelcomeSurfaceConfig(asObject(preset.config));
+  buffer.welcome = {
+    enabled: true,
+    ...config,
+  };
+  return buffer;
+}
+
 function toggleBrandRecommendedModel(value) {
   const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
   if (!buffer || !buffer.selectedModels.includes(value)) return;
@@ -5123,31 +5512,24 @@ function renderBrandSurfaceEditor(buffer, surfaceKey, title, description) {
           <p><code>statusLabel</code> / <code>liveStatusLabel</code> / <code>showQuotes</code> / <code>showHeadlines</code> / <code>showSecurityBadge</code> / <code>showCredits</code> / <code>showRechargeButton</code> / <code>rechargeLabel</code> / <code>showModeBadge</code> / <code>modeBadgeLabel</code> / <code>fallbackQuotes</code> / <code>fallbackHeadlines</code></p>
         </div>
       `
-      : '';
-  const presetPicker =
-    surfaceKey === 'header'
-      ? `
-        <div class="fig-card__section-copy">
-          <p>平台预置模板：</p>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
-            ${HEADER_SURFACE_PRESETS.map(
-              (preset) => `
-                <button
-                  class="capability-card"
-                  type="button"
-                  data-action="apply-header-surface-preset"
-                  data-preset-key="${escapeHtml(preset.key)}"
-                  style="text-align:left;"
-                >
-                  <strong>${escapeHtml(preset.label)}</strong>
-                  <span>${escapeHtml(preset.description)}</span>
-                </button>
-              `,
-            ).join('')}
+      : surfaceKey === 'home-web'
+        ? `
+          <div class="fig-card__section-copy">
+            <p><code>surfaces["home-web"].config.website</code> 会覆盖官网首页文案；建议先套模板，再按 OEM 细调品牌名、Hero 文案和下载区标题。</p>
           </div>
-        </div>
-      `
+        `
+        : surfaceKey === 'sidebar'
+          ? `
+            <div class="fig-card__section-copy">
+              <p>Sidebar 模板除了填充 surface JSON，也会同步一套建议的左菜单分组与排序；后续可去「左菜单栏」页继续微调。</p>
+            </div>
+          `
       : '';
+  const presetPicker = renderPresetPicker({
+    presets: SURFACE_PRESET_REGISTRY[surfaceKey],
+    action: 'apply-surface-preset',
+    attrs: {surfaceKey},
+  });
   return `
     <section class="fig-brand-section">
       <div class="fig-section-heading">
@@ -5856,12 +6238,17 @@ function renderBrandInputAssembly(buffer) {
   const shortcuts = buildOrderedComposerShortcutList(buffer.composerShortcutOrder)
     .map((shortcutKey) => getComposerShortcutDefinition(shortcutKey))
     .filter(Boolean);
+  const presetPicker = renderPresetPicker({
+    presets: INPUT_ASSEMBLY_PRESETS,
+    action: 'apply-input-assembly-preset',
+  });
   return `
     <section class="fig-brand-section">
       <div class="fig-section-heading">
         <h2>输入框</h2>
         <p>第一栏维护顶部快捷选择控件，第三栏维护底部快捷方式；全部走平台目录 + OEM 绑定，不再写死在代码里。</p>
       </div>
+      ${presetPicker}
       <div class="fig-capability-columns">
         <article class="fig-card fig-card--subtle">
           <div class="fig-card__head">
@@ -5889,12 +6276,17 @@ function renderBrandInputAssembly(buffer) {
 function renderBrandWelcomeAssembly(buffer) {
   const welcome = normalizeWelcomeSurfaceConfig(buffer.welcome);
   const enabled = buffer.welcome?.enabled !== false;
+  const presetPicker = renderPresetPicker({
+    presets: WELCOME_ASSEMBLY_PRESETS,
+    action: 'apply-welcome-assembly-preset',
+  });
   return `
     <section class="fig-brand-section">
       <div class="fig-section-heading">
         <h2>Welcome页</h2>
         <p>维护聊天空状态里的 K2C 欢迎内容，服务对象是 KOL 的粉丝，输入框仍复用现有聊天输入区。</p>
       </div>
+      ${presetPicker}
       <article class="fig-card fig-card--subtle">
         <div class="fig-card__head">
           <h3>显示开关</h3>
@@ -9904,20 +10296,54 @@ app.addEventListener('click', async (event) => {
     return;
   }
 
-  if (action === 'apply-header-surface-preset') {
+  if (action === 'apply-surface-preset') {
+    const surfaceKey = target.getAttribute('data-surface-key') || '';
     const presetKey = target.getAttribute('data-preset-key') || '';
-    const preset = HEADER_SURFACE_PRESETS.find((item) => item.key === presetKey) || null;
+    const preset = asArray(SURFACE_PRESET_REGISTRY[surfaceKey]).find((item) => item?.key === presetKey) || null;
     const form = document.querySelector('#brand-editor-form');
-    if (!(form instanceof HTMLFormElement) || !preset) {
+    if (!(form instanceof HTMLFormElement) || !preset || !surfaceKey) {
       return;
     }
-    const textarea = form.querySelector('[name="surface_config__header"]');
+    const textarea = form.querySelector(`[name="surface_config__${CSS.escape(surfaceKey)}"]`);
     if (textarea instanceof HTMLTextAreaElement) {
       textarea.value = prettyJson(preset.config);
       captureBrandEditorBuffer();
-      setNotice(`已填充 Header 模板：${preset.label}`);
+      const buffer = state.brandDraftBuffer || ensureBrandDraftBuffer();
+      if (buffer && surfaceKey === 'sidebar') {
+        applySidebarPresetToBuffer(buffer, preset);
+        state.brandDraftBuffer = buffer;
+      }
+      setNotice(`已填充 ${surfaceLabel(surfaceKey)} 模板：${preset.label}`);
       render();
     }
+    return;
+  }
+
+  if (action === 'apply-input-assembly-preset') {
+    const presetKey = target.getAttribute('data-preset-key') || '';
+    const preset = INPUT_ASSEMBLY_PRESETS.find((item) => item.key === presetKey) || null;
+    const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
+    if (!buffer || !preset) {
+      return;
+    }
+    applyInputAssemblyPresetToBuffer(buffer, preset);
+    state.brandDraftBuffer = buffer;
+    setNotice(`已填充输入框模板：${preset.label}`);
+    render();
+    return;
+  }
+
+  if (action === 'apply-welcome-assembly-preset') {
+    const presetKey = target.getAttribute('data-preset-key') || '';
+    const preset = WELCOME_ASSEMBLY_PRESETS.find((item) => item.key === presetKey) || null;
+    const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
+    if (!buffer || !preset) {
+      return;
+    }
+    applyWelcomeAssemblyPresetToBuffer(buffer, preset);
+    state.brandDraftBuffer = buffer;
+    setNotice(`已填充 Welcome 模板：${preset.label}`);
+    render();
     return;
   }
 
