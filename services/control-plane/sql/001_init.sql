@@ -1707,7 +1707,25 @@ create index if not exists idx_run_grants_nonce on run_grants(nonce);
 create index if not exists idx_usage_events_event_id on usage_events(event_id);
 create index if not exists idx_credit_ledger_user_id_created_at on credit_ledger(user_id, created_at desc);
 create index if not exists idx_run_grants_user_id_created_at on run_grants(user_id, created_at desc);
+create index if not exists idx_run_grants_billing_session_lookup
+  on run_grants (
+    user_id,
+    (coalesce(metadata->>'session_key', 'main')),
+    (coalesce(used_at, created_at)) desc,
+    created_at desc
+  )
+  where status = 'settled' and metadata ? 'billing_summary';
 create index if not exists idx_usage_events_user_id_created_at on usage_events(user_id, created_at desc);
+create index if not exists idx_payment_orders_created_at
+  on payment_orders(created_at desc);
+create index if not exists idx_payment_orders_status_created_at
+  on payment_orders(status, created_at desc);
+create index if not exists idx_payment_orders_provider_created_at
+  on payment_orders(provider, created_at desc);
+create index if not exists idx_payment_orders_app_name_created_at
+  on payment_orders((coalesce(metadata->>'app_name', '')), created_at desc);
+create index if not exists idx_payment_webhook_events_order_created_at
+  on payment_webhook_events(order_id, created_at desc);
 create index if not exists idx_user_workspace_backups_updated_at on user_workspace_backups(updated_at desc);
 create index if not exists idx_agent_catalog_entries_active_sort
   on agent_catalog_entries(active, sort_order, name);
@@ -1720,10 +1738,18 @@ create index if not exists idx_skill_sync_sources_type_active
   on skill_sync_sources(source_type, active, display_name);
 create index if not exists idx_skill_sync_runs_source_started_at
   on skill_sync_runs(source_id, started_at desc);
+create index if not exists idx_skill_sync_runs_started_at
+  on skill_sync_runs(started_at desc);
+create index if not exists idx_user_private_skills_user_updated_at
+  on user_private_skills(user_id, updated_at desc, created_at desc);
 create index if not exists idx_user_skill_library_user_id_installed_at
   on user_skill_library(user_id, installed_at desc);
 create index if not exists idx_user_mcp_library_user_id_installed_at
   on user_mcp_library(user_id, installed_at desc);
+create index if not exists idx_app_payment_provider_overrides_provider_app
+  on app_payment_provider_overrides(provider, app_name);
+create index if not exists idx_payment_provider_profiles_scope_lookup
+  on payment_provider_profiles(scope_type, scope_key, provider, display_name);
 create index if not exists idx_platform_bundled_skills_sort
   on platform_bundled_skills(active, sort_order, skill_slug);
 create index if not exists idx_oem_bundled_skills_app_sort
@@ -1771,6 +1797,8 @@ create index if not exists idx_market_fund_catalog_scale_amount
   on market_fund_catalog(scale_amount desc nulls last);
 create index if not exists idx_market_fund_catalog_strategy_tags
   on market_fund_catalog using gin(strategy_tags);
+create index if not exists idx_oem_mcp_catalog_active_name
+  on oem_mcp_catalog(active, name);
 create index if not exists idx_oem_composer_control_catalog_type_key
   on oem_composer_control_catalog(control_type, control_key);
 create index if not exists idx_oem_composer_control_option_catalog_sort
