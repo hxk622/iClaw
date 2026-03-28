@@ -106,100 +106,7 @@
         "im-bots",
         "memory",
         "security"
-      ],
-      "models": {
-        "default": "openai/gpt-5.4",
-        "recommended": [
-          "openai/gpt-5.4",
-          "openai/glm-5",
-          "deepseek/deepseek-v3.2"
-        ],
-        "entries": [
-          {
-            "ref": "openai/gpt-5.4",
-            "label": "GPT 5.4",
-            "providerId": "openai",
-            "modelId": "gpt-5.4",
-            "api": "openai-completions",
-            "baseUrl": null,
-            "useRuntimeOpenai": true,
-            "authHeader": true,
-            "reasoning": true,
-            "input": [
-              "text",
-              "image"
-            ],
-            "contextWindow": 272000,
-            "maxTokens": 128000
-          },
-          {
-            "ref": "openai/qwen3.5-plus",
-            "label": "Qwen3.5 Plus",
-            "providerId": "openai",
-            "modelId": "qwen3.5-plus",
-            "api": "openai-completions",
-            "baseUrl": null,
-            "useRuntimeOpenai": true,
-            "authHeader": true,
-            "reasoning": true,
-            "input": [
-              "text",
-              "image"
-            ],
-            "contextWindow": 131072,
-            "maxTokens": 8192
-          },
-          {
-            "ref": "openai/qwen3-max",
-            "label": "Qwen3 Max",
-            "providerId": "openai",
-            "modelId": "qwen3-max",
-            "api": "openai-completions",
-            "baseUrl": null,
-            "useRuntimeOpenai": true,
-            "authHeader": true,
-            "reasoning": true,
-            "input": [
-              "text",
-              "image"
-            ],
-            "contextWindow": 262144,
-            "maxTokens": 8192
-          },
-          {
-            "ref": "openai/glm-5",
-            "label": "GLM 5",
-            "providerId": "openai",
-            "modelId": "glm-5",
-            "api": "openai-completions",
-            "baseUrl": null,
-            "useRuntimeOpenai": true,
-            "authHeader": true,
-            "reasoning": true,
-            "input": [
-              "text"
-            ],
-            "contextWindow": 202752,
-            "maxTokens": 16384
-          },
-          {
-            "ref": "deepseek/deepseek-v3.2",
-            "label": "DeepSeek V3.2",
-            "providerId": "deepseek",
-            "modelId": "deepseek-v3.2",
-            "api": "openai-completions",
-            "baseUrl": "https://api.deepseek.com/v1",
-            "useRuntimeOpenai": false,
-            "authHeader": true,
-            "reasoning": true,
-            "input": [
-              "text"
-            ],
-            "contextWindow": 128000,
-            "maxTokens": 8192
-          }
-        ]
-      }
+      ]
     },
     "controlPlane": {
       "s3Bucket": "licaiclaw-files",
@@ -639,58 +546,6 @@
         "config": {}
       }
     ],
-    "model_bindings": [
-      {
-        "model_ref": "openai/gpt-5.4",
-        "sort_order": 10,
-        "recommended": true,
-        "default": true,
-        "config": {
-          "default": true,
-          "recommended": true
-        }
-      },
-      {
-        "model_ref": "openai/qwen3.5-plus",
-        "sort_order": 20,
-        "recommended": false,
-        "default": false,
-        "config": {
-          "default": false,
-          "recommended": false
-        }
-      },
-      {
-        "model_ref": "openai/qwen3-max",
-        "sort_order": 30,
-        "recommended": false,
-        "default": false,
-        "config": {
-          "default": false,
-          "recommended": false
-        }
-      },
-      {
-        "model_ref": "openai/glm-5",
-        "sort_order": 40,
-        "recommended": true,
-        "default": false,
-        "config": {
-          "default": false,
-          "recommended": true
-        }
-      },
-      {
-        "model_ref": "deepseek/deepseek-v3.2",
-        "sort_order": 50,
-        "recommended": true,
-        "default": false,
-        "config": {
-          "default": false,
-          "recommended": true
-        }
-      }
-    ],
     "menu_bindings": [
       {
         "menu_key": "chat",
@@ -782,11 +637,161 @@
     ],
     "menu_catalog": [],
     "composer_control_bindings": [],
-    "composer_shortcut_bindings": []
+    "composer_shortcut_bindings": [],
+    "model_provider": {
+      "provider_mode": "inherit_platform",
+      "resolved_scope": "platform",
+      "version": 1774632077904,
+      "profile": {
+        "id": "b6d1b82c-1c92-4c95-a9bb-fcd5c8b6c101",
+        "scope_type": "platform",
+        "scope_key": "platform",
+        "provider_key": "bailian",
+        "provider_label": "bailian",
+        "api_protocol": "openai-completions",
+        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "auth_mode": "bearer",
+        "api_key": "sk-c644d84390984cd5bcb3f31dd5822906",
+        "logo_preset_key": null,
+        "metadata": {},
+        "enabled": true,
+        "sort_order": 100,
+        "created_at": "2026-03-27T15:12:24.644Z",
+        "updated_at": "2026-03-27T17:21:17.904Z"
+      },
+      "models": [
+        {
+          "id": "e03dc732-d7ce-44d4-a274-2e5f262c446f",
+          "model_ref": "bailian/qwen3.5-plus",
+          "model_id": "qwen3.5-plus",
+          "label": "qwen3.5-plus",
+          "logo_preset_key": "tongyi",
+          "reasoning": false,
+          "input_modalities": [
+            "text"
+          ],
+          "context_window": null,
+          "max_tokens": null,
+          "enabled": true,
+          "sort_order": 100,
+          "metadata": {},
+          "created_at": "2026-03-27T17:21:17.904Z",
+          "updated_at": "2026-03-27T17:21:17.904Z"
+        },
+        {
+          "id": "557cd746-68ed-4739-82b2-c0d532434616",
+          "model_ref": "bailian/qwen3.5-flash",
+          "model_id": "qwen3.5-flash",
+          "label": "qwen3.5-flash",
+          "logo_preset_key": "tongyi",
+          "reasoning": false,
+          "input_modalities": [
+            "text"
+          ],
+          "context_window": null,
+          "max_tokens": null,
+          "enabled": true,
+          "sort_order": 101,
+          "metadata": {},
+          "created_at": "2026-03-27T17:21:17.904Z",
+          "updated_at": "2026-03-27T17:21:17.904Z"
+        },
+        {
+          "id": "1cc63126-7e67-4f34-8831-69fc27f1cba8",
+          "model_ref": "bailian/qwen3-max",
+          "model_id": "qwen3-max",
+          "label": "qwen3-max",
+          "logo_preset_key": "tongyi",
+          "reasoning": false,
+          "input_modalities": [
+            "text"
+          ],
+          "context_window": null,
+          "max_tokens": null,
+          "enabled": true,
+          "sort_order": 102,
+          "metadata": {},
+          "created_at": "2026-03-27T17:21:17.904Z",
+          "updated_at": "2026-03-27T17:21:17.904Z"
+        },
+        {
+          "id": "53575cbe-35b6-4362-9f8b-b2c7b3ad7e03",
+          "model_ref": "bailian/deepseek-v3.2",
+          "model_id": "deepseek-v3.2",
+          "label": "deepseek-v3.2",
+          "logo_preset_key": "deepseek",
+          "reasoning": false,
+          "input_modalities": [
+            "text"
+          ],
+          "context_window": null,
+          "max_tokens": null,
+          "enabled": true,
+          "sort_order": 103,
+          "metadata": {},
+          "created_at": "2026-03-27T17:21:17.904Z",
+          "updated_at": "2026-03-27T17:21:17.904Z"
+        },
+        {
+          "id": "7a972c28-5f79-447f-b29b-7ee19802c2a2",
+          "model_ref": "bailian/kimi-k2.5",
+          "model_id": "kimi-k2.5",
+          "label": "kimi-k2.5",
+          "logo_preset_key": "moonshotai-new",
+          "reasoning": false,
+          "input_modalities": [
+            "text"
+          ],
+          "context_window": null,
+          "max_tokens": null,
+          "enabled": true,
+          "sort_order": 104,
+          "metadata": {},
+          "created_at": "2026-03-27T17:21:17.904Z",
+          "updated_at": "2026-03-27T17:21:17.904Z"
+        },
+        {
+          "id": "8406dfff-27c5-4166-8109-7d739852073b",
+          "model_ref": "bailian/glm-5",
+          "model_id": "glm-5",
+          "label": "glm-5",
+          "logo_preset_key": "zhipu",
+          "reasoning": false,
+          "input_modalities": [
+            "text"
+          ],
+          "context_window": null,
+          "max_tokens": null,
+          "enabled": true,
+          "sort_order": 105,
+          "metadata": {},
+          "created_at": "2026-03-27T17:21:17.904Z",
+          "updated_at": "2026-03-27T17:21:17.904Z"
+        },
+        {
+          "id": "cd4e0966-a6ef-4f19-a752-38de5b56bc72",
+          "model_ref": "bailian/MiniMax-M2.5",
+          "model_id": "MiniMax-M2.5",
+          "label": "MiniMax-M2.5",
+          "logo_preset_key": "minimax-color",
+          "reasoning": false,
+          "input_modalities": [
+            "text"
+          ],
+          "context_window": null,
+          "max_tokens": null,
+          "enabled": true,
+          "sort_order": 106,
+          "metadata": {},
+          "created_at": "2026-03-27T17:21:17.904Z",
+          "updated_at": "2026-03-27T17:21:17.904Z"
+        }
+      ]
+    }
   },
   "syncMeta": {
     "appName": "licaiclaw",
-    "syncedAt": "2026-03-27T17:24:45.019Z",
+    "syncedAt": "2026-03-27T17:55:30.434Z",
     "copiedSkillDirs": [
       "A股ESG筛选器",
       "A股低估值股票筛选器",
