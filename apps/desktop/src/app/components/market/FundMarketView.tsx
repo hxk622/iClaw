@@ -687,7 +687,6 @@ export function FundMarketView({
 
   const watchlistFunds = useMemo(() => allFunds.filter((fund) => fund.watchlisted).slice(0, 4), [allFunds]);
   const themeFunds = useMemo(() => resolveThemeFunds(allFunds), [allFunds]);
-  const featuredFund = visibleFunds[0] ?? allFunds[0] ?? null;
   const etfCount = allFunds.filter((fund) => fund.instrument_kind === 'etf').length;
   const qdiiCount = allFunds.filter((fund) => fund.instrument_kind === 'qdii').length;
   const dividendCount = allFunds.filter((fund) => fund.strategy_tags.includes('红利')).length;
@@ -742,6 +741,7 @@ export function FundMarketView({
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="搜索基金名称 / 代码 / 经理 / 跟踪方向"
+          className="mt-5 mb-4"
         />
 
         <WorkspaceMetricGrid items={fundMetricItems} />
@@ -804,44 +804,6 @@ export function FundMarketView({
             </div>
           </WorkspaceSectionCard>
         </div>
-
-        {featuredFund ? (
-          <div className="mt-4">
-            <WorkspaceSectionCard
-              title="当前聚焦基金"
-              description="保持在主内容流里展示，不再单独做另一套英雄区，减少跨市场切换时的跳变。"
-              icon={<Sparkles className="h-4.5 w-4.5" />}
-            >
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                <div className="flex items-start gap-4">
-                  <InstrumentIdentityBadge label={featuredFund.companyName} symbol={featuredFund.symbol} />
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Chip tone="outline">{featuredFund.symbol}</Chip>
-                      <Chip tone="muted">{featuredFund.instrumentLabel}</Chip>
-                      <Chip tone="outline">{featuredFund.region}</Chip>
-                    </div>
-                    <div className="mt-3 text-[22px] font-semibold tracking-[-0.05em] text-[var(--text-primary)]">{featuredFund.companyName}</div>
-                    <div className="mt-2 max-w-[760px] text-[13px] leading-6 text-[var(--text-secondary)]">{featuredFund.summary}</div>
-                  </div>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[360px]">
-                  {[
-                    {label: '近一年', value: formatSignedPercent(featuredFund.return_1y)},
-                    {label: '近一月', value: formatSignedPercent(featuredFund.return_1m)},
-                    {label: '规模', value: formatScaleAmount(featuredFund.scale_amount)},
-                    {label: '申购费率', value: formatFeeRate(featuredFund.fee_rate)},
-                  ].map((item) => (
-                    <div key={item.label} className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-4 dark:bg-[rgba(255,255,255,0.02)]">
-                      <div className="text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">{item.label}</div>
-                      <div className="mt-2 text-[20px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">{item.value}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </WorkspaceSectionCard>
-          </div>
-        ) : null}
 
         <div className="mt-6 space-y-6">
           <section>

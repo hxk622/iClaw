@@ -18,14 +18,16 @@ export function WorkspaceSearchControls({
   onChange,
   placeholder,
   secondaryControl,
+  className,
 }: {
   value: string;
   onChange: ChangeEventHandler<HTMLInputElement>;
   placeholder: string;
   secondaryControl?: ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="mb-4">
+    <div className={cn('mb-4', className)}>
       <div className={cn('grid gap-3', secondaryControl ? 'grid-cols-1 xl:grid-cols-[minmax(0,1fr)_220px]' : 'grid-cols-1')}>
         <label className="relative flex-1">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[var(--text-muted)]" />

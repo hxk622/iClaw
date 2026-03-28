@@ -810,6 +810,7 @@ export function StockMarketView({
           value={searchQuery}
           onChange={(event) => setSearchQuery(event.target.value)}
           placeholder="搜索股票名称 / 代码"
+          className="mt-5 mb-4"
           secondaryControl={
             <select
               value={sortBy}
