@@ -76,6 +76,7 @@ export type PortalModelProviderProfileModelRecord = {
   modelId: string;
   label: string;
   logoPresetKey: string | null;
+  billingMultiplier: number;
   reasoning: boolean;
   inputModalities: string[];
   contextWindow: number | null;
@@ -354,6 +355,7 @@ export type UpsertPortalModelProviderProfileInput = {
     modelId: string;
     label: string;
     logoPresetKey?: string | null;
+    billingMultiplier?: number | null;
     reasoning?: boolean;
     inputModalities?: string[];
     contextWindow?: number | null;

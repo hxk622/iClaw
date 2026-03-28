@@ -1813,8 +1813,29 @@ function getMcpRegistryEntry(key) {
   return state.mcpRegistryCatalog.find((item) => item.key === key || item.mcpKey === key) || null;
 }
 
+function normalizeBillingMultiplierValue(value, fallback = 1) {
+  const parsed = typeof value === 'number' ? value : Number(String(value || '').trim());
+  return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed * 100) / 100 : fallback;
+}
+
 function getModelCatalogEntry(ref) {
-  return state.modelCatalog.find((item) => item.ref === ref) || null;
+  const normalizedRef = String(ref || '').trim();
+  if (!normalizedRef) return null;
+  for (const profile of asArray(state.modelProviderProfiles)) {
+    const profileData = asObject(profile);
+    const matched = asArray(profileData.models).find((item) => String(asObject(item).modelRef || '').trim() === normalizedRef);
+    if (!matched) continue;
+    const model = asObject(matched);
+    return {
+      ref: normalizedRef,
+      label: String(model.label || normalizedRef).trim() || normalizedRef,
+      providerId: String(profileData.providerKey || '').trim(),
+      modelId: String(model.modelId || '').trim(),
+      logoPresetKey: String(model.logoPresetKey || '').trim(),
+      billingMultiplier: normalizeBillingMultiplierValue(model.billingMultiplier ?? model.billing_multiplier, 1),
+    };
+  }
+  return null;
 }
 
 function getMergedSkills() {
@@ -1875,7 +1896,40 @@ function getPortalModelConnections(ref) {
 }
 
 function getMergedModelCatalog() {
-  return [];
+  const selectedBrandId = String(state.selectedBrandId || '').trim();
+  const platformProfile = getModelProviderProfilesByScope('platform', 'platform').find((item) => item.enabled !== false) || null;
+  const override = selectedBrandId ? asObject(state.modelProviderOverrides[selectedBrandId]) : null;
+  const appProfile =
+    selectedBrandId && override.providerMode === 'use_app_profile'
+      ? getModelProviderProfilesByScope('app', selectedBrandId).find((item) => item.enabled !== false) || null
+      : null;
+  const profile = appProfile || platformProfile;
+  if (!profile) {
+    return [];
+  }
+  return asArray(profile.models)
+    .map((item, index) => {
+      const model = asObject(item);
+      const providerKey = String(profile.providerKey || '').trim();
+      const modelId = String(model.modelId || '').trim();
+      const ref = String(model.modelRef || '').trim() || (providerKey && modelId ? `${providerKey}/${modelId}` : '');
+      if (!ref) {
+        return null;
+      }
+      return {
+        ref,
+        label: String(model.label || modelId || ref).trim() || ref,
+        providerId: providerKey,
+        modelId,
+        logoPresetKey: String(model.logoPresetKey || '').trim(),
+        billingMultiplier: normalizeBillingMultiplierValue(model.billingMultiplier ?? model.billing_multiplier, 1),
+        enabled: model.enabled !== false,
+        sortOrder: Number(model.sortOrder || model.sort_order || (index + 1) * 10) || (index + 1) * 10,
+      };
+    })
+    .filter(Boolean)
+    .filter((item) => item.enabled !== false)
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.label.localeCompare(right.label, 'zh-CN'));
 }
 
 function getCapabilityFilterOptions() {
@@ -2006,6 +2060,7 @@ function buildModelProviderDraft(input = {}) {
         label: String(model.label || '').trim(),
         modelId: String(model.modelId || '').trim(),
         logoPresetKey: String(model.logoPresetKey || '').trim(),
+        billingMultiplier: normalizeBillingMultiplierValue(model.billingMultiplier ?? model.billing_multiplier, 1),
       };
     }),
   };
@@ -2036,6 +2091,7 @@ function captureModelProviderDraft(form) {
         label: String(getValue('model_label')?.value || '').trim(),
         modelId: String(getValue('model_id')?.value || '').trim(),
         logoPresetKey: String(getValue('model_logo_preset_key')?.value || '').trim(),
+        billingMultiplier: normalizeBillingMultiplierValue(getValue('model_billing_multiplier')?.value, 1),
       };
     }),
   };
@@ -4177,6 +4233,7 @@ async function saveModelProviderProfile(form) {
             label: String(getValue('model_label')?.value || '').trim(),
             modelId: String(getValue('model_id')?.value || '').trim(),
             logoPresetKey: String(getValue('model_logo_preset_key')?.value || '').trim() || null,
+            billingMultiplier: normalizeBillingMultiplierValue(getValue('model_billing_multiplier')?.value, 1),
             reasoning: false,
             inputModalities: ['text'],
             contextWindow: null,
@@ -5111,7 +5168,7 @@ function renderBrandModelAssembly(buffer) {
                       <input class="model-checkbox visually-hidden" type="checkbox" value="${escapeHtml(model.ref)}"${buffer.selectedModels.includes(model.ref) ? ' checked' : ''} />
                       <div>
                         <strong>${escapeHtml(model.label)}</strong>
-                        <span>${escapeHtml(model.providerId)} · ${escapeHtml(model.modelId)}</span>
+                        <span>${escapeHtml(model.providerId)} · ${escapeHtml(model.modelId)} · ${escapeHtml(`${normalizeBillingMultiplierValue(model.billingMultiplier, 1)}x`)}</span>
                       </div>
                       <div class="metric-chips">
                         ${renderSwitch({
@@ -6316,6 +6373,7 @@ function renderModelLogoPreview(presetKey, label = 'Logo') {
 function renderModelProviderRow(item = {}, index = 0) {
   const logoPresetKey = String(item.logoPresetKey || '');
   const logoPreset = getModelLogoPreset(logoPresetKey);
+  const billingMultiplier = normalizeBillingMultiplierValue(item.billingMultiplier ?? item.billing_multiplier, 1);
   return `
     <div class="fig-card fig-card--subtle" data-model-provider-row="true" style="padding:16px;">
       <div class="fig-card__head">
@@ -6330,6 +6388,10 @@ function renderModelProviderRow(item = {}, index = 0) {
         <label class="field">
           <span>Model ID</span>
           <input class="field-input" name="model_id" value="${fieldValue(item.modelId || '')}" placeholder="qwen-max" />
+        </label>
+        <label class="field">
+          <span>倍率</span>
+          <input class="field-input" name="model_billing_multiplier" type="number" min="0.01" step="0.1" value="${fieldValue(billingMultiplier)}" placeholder="1.0" />
         </label>
         <label class="field field--wide">
           <span>Logo Preset</span>
@@ -6391,7 +6453,7 @@ function renderModelProviderCenterPage() {
       ${renderPageGuide('模型中心怎么用', [
         '平台 tab 维护全局 fallback provider。',
         '每个 OEM tab 都可以选择“继承平台”或“使用 OEM Provider”。',
-        '模型列表、Base URL、API Key、Logo 都在同一个 provider profile 里维护；保存后会同步清理 runtime 缓存。',
+        '模型列表、Base URL、API Key、Logo、倍率都在同一个 provider profile 里维护；保存后会同步清理 runtime 缓存。',
       ], 'capability')}
       <div class="fig-detail-stack">
         <section class="fig-card fig-card--subtle">

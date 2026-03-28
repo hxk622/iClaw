@@ -14,6 +14,7 @@ export type RuntimeModelCatalogResponse = {
     modelId: string;
     label: string;
     logoPresetKey: string | null;
+    billingMultiplier: number | null;
     reasoning: boolean;
     inputModalities: string[];
     contextWindow: number | null;
@@ -66,6 +67,10 @@ export function mapRuntimeModelsToGatewayEntries(
       name: String(entry.label || entry.modelId || '').trim(),
       provider,
       logoPresetKey: typeof entry.logoPresetKey === 'string' && entry.logoPresetKey.trim() ? entry.logoPresetKey.trim() : null,
+      billingMultiplier:
+        typeof entry.billingMultiplier === 'number' && Number.isFinite(entry.billingMultiplier)
+          ? entry.billingMultiplier
+          : undefined,
       contextWindow: typeof entry.contextWindow === 'number' ? entry.contextWindow : undefined,
       reasoning: Boolean(entry.reasoning),
       input: Array.isArray(entry.inputModalities)

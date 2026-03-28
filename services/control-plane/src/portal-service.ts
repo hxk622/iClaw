@@ -34,7 +34,6 @@ import type {
   ReplacePortalAppSkillBindingsInput,
   UpsertPortalAppInput,
   UpsertPortalAppModelRuntimeOverrideInput,
-  UpsertPortalModelInput,
   UpsertPortalModelProviderProfileInput,
   UpsertPortalMenuInput,
   UpsertPortalMcpInput,
@@ -117,6 +116,7 @@ function applyResolvedRuntimeModelsToConfig(
       modelId: string;
       label: string;
       logoPresetKey: string | null;
+      billingMultiplier: number;
       reasoning: boolean;
       inputModalities: string[];
       contextWindow: number | null;
@@ -163,6 +163,7 @@ function applyResolvedRuntimeModelsToConfig(
       model_id: model.modelId,
       label: model.label,
       logo_preset_key: model.logoPresetKey,
+      billing_multiplier: model.billingMultiplier,
       reasoning: model.reasoning,
       input_modalities: cloneJson(model.inputModalities),
       context_window: model.contextWindow,
@@ -217,6 +218,14 @@ function normalizeNullableInteger(value: unknown, field: string): number | null 
   if (value === undefined || value === null) return null;
   if (typeof value !== 'number' || !Number.isInteger(value)) {
     throw new HttpError(400, 'BAD_REQUEST', `${field} must be an integer`);
+  }
+  return value;
+}
+
+function normalizeOptionalPositiveNumber(value: unknown, field: string, fallback: number): number {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    throw new HttpError(400, 'BAD_REQUEST', `${field} must be a positive number`);
   }
   return value;
 }
@@ -420,11 +429,6 @@ export class PortalService {
     return {items: await this.store.listMcps()};
   }
 
-  async listModels(accessToken: string) {
-    await this.requireAdmin(accessToken);
-    return {items: await this.store.listModels()};
-  }
-
   async listModelProviderProfiles(
     accessToken: string,
     input?: {
@@ -450,26 +454,6 @@ export class PortalService {
       transport: normalizeOptionalString(input.transport, 'transport') || 'config',
       objectKey: normalizeOptionalString(input.objectKey, 'object_key'),
       config: asObject(input.config),
-      metadata: asObject(input.metadata),
-      active: normalizeOptionalBoolean(input.active, 'active', true),
-    });
-  }
-
-  async upsertModel(accessToken: string, input: UpsertPortalModelInput) {
-    await this.requireAdmin(accessToken);
-    return this.store.upsertModel({
-      ref: normalizeModelRef(input.ref),
-      label: normalizeRequiredString(input.label, 'label'),
-      providerId: normalizeRequiredString(input.providerId, 'provider_id'),
-      modelId: normalizeRequiredString(input.modelId, 'model_id'),
-      api: normalizeRequiredString(input.api, 'api'),
-      baseUrl: normalizeOptionalString(input.baseUrl, 'base_url'),
-      useRuntimeOpenai: normalizeOptionalBoolean(input.useRuntimeOpenai, 'use_runtime_openai', false),
-      authHeader: normalizeOptionalBoolean(input.authHeader, 'auth_header', true),
-      reasoning: normalizeOptionalBoolean(input.reasoning, 'reasoning', false),
-      input: asArray(input.input).map((item) => normalizeRequiredString(item, 'input[]')),
-      contextWindow: normalizeOptionalInteger(input.contextWindow, 'context_window', 0),
-      maxTokens: normalizeOptionalInteger(input.maxTokens, 'max_tokens', 0),
       metadata: asObject(input.metadata),
       active: normalizeOptionalBoolean(input.active, 'active', true),
     });
@@ -503,6 +487,11 @@ export class PortalService {
           modelId,
           label: normalizeRequiredString(value.label, `models[${index}].label`),
           logoPresetKey: normalizeOptionalString(value.logoPresetKey ?? value.logo_preset_key, `models[${index}].logo_preset_key`),
+          billingMultiplier: normalizeOptionalPositiveNumber(
+            value.billingMultiplier ?? value.billing_multiplier,
+            `models[${index}].billing_multiplier`,
+            1,
+          ),
           reasoning: normalizeOptionalBoolean(value.reasoning, `models[${index}].reasoning`, false),
           inputModalities: asArray(value.inputModalities ?? value.input_modalities).map((entry) =>
             normalizeRequiredString(entry, `models[${index}].input_modalities[]`),
@@ -602,13 +591,6 @@ export class PortalService {
   ) {
     await this.authResolver(accessToken);
     return this.buildResolvedRuntimeConfig(appNameInput, baseUrl, input, {includeSecrets: true});
-  }
-
-  async deleteModel(accessToken: string, refInput: string) {
-    await this.requireAdmin(accessToken);
-    const ref = normalizeModelRef(refInput);
-    await this.store.deleteModel(ref);
-    return {ref};
   }
 
   async deleteMcp(accessToken: string, mcpKeyInput: string) {

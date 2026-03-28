@@ -3,6 +3,7 @@ export type GatewayModelCatalogEntry = {
   name: string;
   provider: string;
   logoPresetKey?: string | null;
+  billingMultiplier?: number;
   contextWindow?: number;
   reasoning?: boolean;
   input?: Array<'text' | 'image'>;
@@ -32,6 +33,7 @@ export type ComposerModelOption = {
   logoPresetKey: string | null;
   detail: string;
   badge: string | null;
+  billingMultiplier: number;
   tier: ComposerModelTier;
   reasoning: boolean;
   supportsImageInput: boolean;
@@ -64,7 +66,6 @@ type ModelPresentationProfile = {
   label: string;
   family: ModelFamily;
   tier: ComposerModelTier;
-  badge: string | null;
   order: number;
 };
 
@@ -83,7 +84,6 @@ const MODEL_PROFILE_RULES: ModelProfileRule[] = [
       label: 'Qwen3.5 Plus',
       family: 'qwen',
       tier: 'advanced',
-      badge: '0.6x',
       order: 10,
     },
   },
@@ -93,7 +93,6 @@ const MODEL_PROFILE_RULES: ModelProfileRule[] = [
       label: 'MiniMax m2.7',
       family: 'minimax',
       tier: 'advanced',
-      badge: '2x',
       order: 20,
     },
   },
@@ -103,7 +102,6 @@ const MODEL_PROFILE_RULES: ModelProfileRule[] = [
       label: 'MiniMax m2.5',
       family: 'minimax',
       tier: 'advanced',
-      badge: '1.8x',
       order: 30,
     },
   },
@@ -113,7 +111,6 @@ const MODEL_PROFILE_RULES: ModelProfileRule[] = [
       label: 'Kimi k2.5',
       family: 'kimi',
       tier: 'advanced',
-      badge: '1.8x',
       order: 40,
     },
   },
@@ -125,7 +122,6 @@ const MODEL_PROFILE_RULES: ModelProfileRule[] = [
       label: 'Doubao Seed-2.0-code',
       family: 'doubao',
       tier: 'advanced',
-      badge: '1x',
       order: 50,
     },
   },
@@ -137,7 +133,6 @@ const MODEL_PROFILE_RULES: ModelProfileRule[] = [
       label: 'Qwen3 Coder Plus',
       family: 'qwen',
       tier: 'advanced',
-      badge: '2.5x',
       order: 60,
     },
   },
@@ -148,7 +143,6 @@ const MODEL_PROFILE_RULES: ModelProfileRule[] = [
       label: 'Qwen3 Max',
       family: 'qwen',
       tier: 'advanced',
-      badge: '1x',
       order: 70,
     },
   },
@@ -158,7 +152,6 @@ const MODEL_PROFILE_RULES: ModelProfileRule[] = [
       label: 'GLM 4.7',
       family: 'glm',
       tier: 'basic',
-      badge: '1.4x',
       order: 80,
     },
   },
@@ -168,7 +161,6 @@ const MODEL_PROFILE_RULES: ModelProfileRule[] = [
       label: 'GLM 5',
       family: 'glm',
       tier: 'advanced',
-      badge: '1.6x',
       order: 85,
     },
   },
@@ -179,7 +171,6 @@ const MODEL_PROFILE_RULES: ModelProfileRule[] = [
       label: 'DeepSeek V3.2',
       family: 'deepseek',
       tier: 'advanced',
-      badge: '1x',
       order: 88,
     },
   },
@@ -189,7 +180,6 @@ const MODEL_PROFILE_RULES: ModelProfileRule[] = [
       label: 'MiniMax m2.1',
       family: 'minimax',
       tier: 'basic',
-      badge: '1.8x',
       order: 90,
     },
   },
@@ -279,16 +269,8 @@ export function resolveModelLabel(entry: GatewayModelCatalogEntry): string {
 
 function buildCapabilityDetail(
   entry: GatewayModelCatalogEntry,
-  profile: ModelPresentationProfile | null,
+  _profile: ModelPresentationProfile | null,
 ): string {
-  if (profile) {
-    const tags = [profile.badge]
-      .filter((value): value is string => Boolean(value));
-    if (tags.length > 0) {
-      return tags.join(' · ');
-    }
-  }
-
   const tags: string[] = [];
   if (entry.input?.includes('image')) {
     tags.push('图像理解');
@@ -307,6 +289,15 @@ function buildCapabilityDetail(
     tags.push('文本对话');
   }
   return tags.join(' · ');
+}
+
+function formatModelBillingBadge(multiplier: number | null | undefined): string | null {
+  if (typeof multiplier !== 'number' || !Number.isFinite(multiplier) || multiplier <= 0) {
+    return null;
+  }
+  const normalized = Math.round(multiplier * 100) / 100;
+  const text = Number.isInteger(normalized) ? String(normalized) : normalized.toFixed(2).replace(/\.?0+$/, '');
+  return `${text}x`;
 }
 
 export function buildComposerModelOptions(models: GatewayModelCatalogEntry[]): ComposerModelOption[] {
@@ -329,7 +320,11 @@ export function buildComposerModelOptions(models: GatewayModelCatalogEntry[]): C
         family,
         logoPresetKey: typeof entry.logoPresetKey === 'string' && entry.logoPresetKey.trim() ? entry.logoPresetKey.trim() : null,
         detail: buildCapabilityDetail(entry, presentation),
-        badge: presentation?.badge ?? null,
+        badge: formatModelBillingBadge(entry.billingMultiplier),
+        billingMultiplier:
+          typeof entry.billingMultiplier === 'number' && Number.isFinite(entry.billingMultiplier) && entry.billingMultiplier > 0
+            ? entry.billingMultiplier
+            : 1,
         tier: presentation?.tier ?? 'other',
         reasoning: Boolean(entry.reasoning),
         supportsImageInput: Boolean(entry.input?.includes('image')),

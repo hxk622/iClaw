@@ -110,6 +110,7 @@ interface UsageEventInput {
   creditCost?: number;
   provider?: string;
   model?: string;
+  appName?: string;
 }
 
 interface WorkspaceBackupInput {
@@ -231,6 +232,7 @@ export interface CreditQuoteAttachmentInput {
 export interface CreditQuoteInput {
   message?: string;
   model?: string;
+  appName?: string;
   historyMessages?: number;
   hasSearch?: boolean;
   hasTools?: boolean;
@@ -1207,6 +1209,7 @@ export class IClawClient {
       body: JSON.stringify({
         message: input.message,
         model: input.model,
+        app_name: input.appName,
         history_messages: input.historyMessages,
         has_search: input.hasSearch,
         has_tools: input.hasTools,
@@ -1326,6 +1329,7 @@ export class IClawClient {
         output_tokens: input.outputTokens || 0,
         provider: input.provider,
         model: input.model,
+        app_name: input.appName,
       }),
     });
     if (!res.ok) throw await parseError(res);

@@ -146,6 +146,7 @@ type PortalModelProviderProfileModelRow = {
   model_id: string;
   label: string;
   logo_preset_key: string | null;
+  billing_multiplier: number | string | null;
   reasoning: boolean;
   input_modalities_json: unknown[] | null;
   context_window: number | null;
@@ -403,6 +404,8 @@ function mapModelRow(row: PortalModelRow): PortalModelRecord {
 }
 
 function mapModelProviderProfileModelRow(row: PortalModelProviderProfileModelRow): PortalModelProviderProfileModelRecord {
+  const billingMultiplierRaw =
+    typeof row.billing_multiplier === 'string' ? Number(row.billing_multiplier) : row.billing_multiplier;
   return {
     id: row.id,
     profileId: row.profile_id,
@@ -410,6 +413,10 @@ function mapModelProviderProfileModelRow(row: PortalModelProviderProfileModelRow
     modelId: row.model_id,
     label: row.label,
     logoPresetKey: row.logo_preset_key,
+    billingMultiplier:
+      typeof billingMultiplierRaw === 'number' && Number.isFinite(billingMultiplierRaw) && billingMultiplierRaw > 0
+        ? billingMultiplierRaw
+        : 1,
     reasoning: row.reasoning,
     inputModalities: asStringArray(row.input_modalities_json),
     contextWindow: typeof row.context_window === 'number' ? row.context_window : null,
@@ -2126,6 +2133,7 @@ export class PgPortalStore {
                 model_id,
                 label,
                 logo_preset_key,
+                billing_multiplier,
                 reasoning,
                 input_modalities_json,
                 context_window,
@@ -2136,7 +2144,7 @@ export class PgPortalStore {
                 created_at,
                 updated_at
               )
-              values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13::jsonb, now(), now())
+              values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14::jsonb, now(), now())
             `,
             [
               item.id || randomUUID(),
@@ -2145,6 +2153,7 @@ export class PgPortalStore {
               item.modelId,
               item.label,
               item.logoPresetKey || null,
+              item.billingMultiplier ?? 1,
               item.reasoning ?? false,
               JSON.stringify(item.inputModalities || []),
               item.contextWindow ?? null,
@@ -2271,8 +2280,31 @@ export class PgPortalStore {
       resolvedScope,
       profile,
       models,
-      version: Math.max(versionBase, updatedAtMs),
+              version: Math.max(versionBase, updatedAtMs),
     };
+  }
+
+  async resolveBillingMultiplierForAppModel(appName: string, modelInput: string | null | undefined): Promise<number> {
+    const normalizedModel = String(modelInput || '').trim();
+    if (!normalizedModel) {
+      return 1;
+    }
+    const resolved = await this.resolveRuntimeModels(appName);
+    if (!resolved) {
+      return 1;
+    }
+    const normalizedLower = normalizedModel.toLowerCase();
+    const normalizedTail = normalizedLower.split('/').pop() || normalizedLower;
+    const matched =
+      resolved.models.find((item) => item.modelRef.trim().toLowerCase() === normalizedLower) ||
+      resolved.models.find((item) => item.modelId.trim().toLowerCase() === normalizedLower) ||
+      resolved.models.find((item) => {
+        const refTail = item.modelRef.trim().toLowerCase().split('/').pop() || '';
+        const modelTail = item.modelId.trim().toLowerCase().split('/').pop() || '';
+        return refTail === normalizedTail || modelTail === normalizedTail;
+      }) ||
+      null;
+    return matched?.billingMultiplier && matched.billingMultiplier > 0 ? matched.billingMultiplier : 1;
   }
 
   private async listModelProviderProfileModelsByProfileIds(
@@ -2292,6 +2324,7 @@ export class PgPortalStore {
           model_id,
           label,
           logo_preset_key,
+          billing_multiplier,
           reasoning,
           input_modalities_json,
           context_window,

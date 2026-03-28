@@ -530,6 +530,7 @@ create table if not exists model_provider_profile_models (
   model_id text not null,
   label text not null,
   logo_preset_key text,
+  billing_multiplier double precision not null default 1.0,
   reasoning boolean not null default false,
   input_modalities_json jsonb not null default '[]'::jsonb,
   context_window integer,
@@ -542,6 +543,9 @@ create table if not exists model_provider_profile_models (
   unique (profile_id, model_ref),
   unique (profile_id, model_id)
 );
+
+alter table if exists model_provider_profile_models
+  add column if not exists billing_multiplier double precision not null default 1.0;
 
 create table if not exists app_model_runtime_overrides (
   app_name text primary key references oem_apps(app_name) on delete cascade,

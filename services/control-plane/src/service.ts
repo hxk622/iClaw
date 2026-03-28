@@ -1379,9 +1379,19 @@ function toPrivateSkillCatalogEntryView(record: UserPrivateSkillRecord, baseUrl?
 
 export class ControlPlaneService {
   private readonly store: ControlPlaneStore;
+  private readonly resolveBillingMultiplierForModel: (
+    appName: string | null,
+    model: string | null,
+  ) => Promise<number>;
 
-  constructor(store: ControlPlaneStore) {
+  constructor(
+    store: ControlPlaneStore,
+    options: {
+      resolveBillingMultiplierForModel?: (appName: string | null, model: string | null) => Promise<number>;
+    } = {},
+  ) {
     this.store = store;
+    this.resolveBillingMultiplierForModel = options.resolveBillingMultiplierForModel || (async () => 1);
   }
 
   async register(input: RegisterInput): Promise<{tokens: AuthTokens; user: PublicUser}> {
@@ -1650,6 +1660,7 @@ export class ControlPlaneService {
     const hasTools = Boolean(input.has_tools);
     const historyMessages = Math.max(0, Math.min(48, input.history_messages || 0));
     const normalizedModel = (input.model || '').trim() || null;
+    const normalizedAppName = (input.app_name || '').trim() || null;
     const account = await this.store.getCreditAccount(user.id);
 
     if (!message && attachments.length === 0) {
@@ -1683,16 +1694,16 @@ export class ControlPlaneService {
       attachmentCount: attachments.length,
       hasSearch,
       hasTools,
-      model: normalizedModel,
     });
-    const lowCost = this.computeBilledCreditCost(estimatedInputTokens, outputEstimate.low, normalizedModel);
+    const billingMultiplier = await this.resolveBillingMultiplier(normalizedAppName, normalizedModel);
+    const lowCost = this.computeBilledCreditCost(estimatedInputTokens, outputEstimate.low, billingMultiplier);
     const highCost = Math.max(
       lowCost,
-      this.computeBilledCreditCost(estimatedInputTokens, outputEstimate.high, normalizedModel),
+      this.computeBilledCreditCost(estimatedInputTokens, outputEstimate.high, billingMultiplier),
     );
     const maxChargeCredits = Math.max(
       highCost,
-      this.computeBilledCreditCost(estimatedInputTokens, outputEstimate.max, normalizedModel),
+      this.computeBilledCreditCost(estimatedInputTokens, outputEstimate.max, billingMultiplier),
     );
 
     return {
@@ -3049,7 +3060,9 @@ export class ControlPlaneService {
     }
 
     const normalizedModel = (input.model || '').trim();
-    const creditCost = this.computeBilledCreditCost(inputTokens, outputTokens, normalizedModel || null);
+    const normalizedAppName = (input.app_name || '').trim() || null;
+    const billingMultiplier = await this.resolveBillingMultiplier(normalizedAppName, normalizedModel || null);
+    const creditCost = this.computeBilledCreditCost(inputTokens, outputTokens, billingMultiplier);
     if (creditCost > grant.creditLimit) {
       throw new HttpError(402, 'CREDIT_LIMIT_EXCEEDED', 'usage exceeded run grant credit limit');
     }
@@ -3062,6 +3075,7 @@ export class ControlPlaneService {
       credit_cost: creditCost,
       provider: (input.provider || '').trim(),
       model: normalizedModel,
+      app_name: normalizedAppName || '',
     };
 
     let result: UsageEventResult;
@@ -3221,12 +3235,12 @@ export class ControlPlaneService {
     return Math.max(0, inputCost + outputCost);
   }
 
-  private computeBilledCreditCost(inputTokens: number, outputTokens: number, model: string | null): number {
+  private computeBilledCreditCost(inputTokens: number, outputTokens: number, billingMultiplier: number): number {
     const baseCost = this.computeCreditCost(inputTokens, outputTokens);
     if (baseCost <= 0) {
       return 0;
     }
-    return Math.max(1, Math.ceil(baseCost * this.resolveBillingModelFactor(model)));
+    return Math.max(1, Math.ceil(baseCost * (billingMultiplier > 0 ? billingMultiplier : 1)));
   }
 
   private estimateQuoteInputTokens(input: {
@@ -3259,18 +3273,15 @@ export class ControlPlaneService {
     attachmentCount: number;
     hasSearch: boolean;
     hasTools: boolean;
-    model: string | null;
   }): {low: number; high: number; max: number} {
     const messageTokens = this.estimateTokensFromText(input.message);
-    const modelBias = this.resolveQuoteModelReasoningBias(input.model);
     const base =
       180 +
       Math.round(messageTokens * 0.45) +
       input.historyMessages * 20 +
       input.attachmentCount * 90 +
       (input.hasSearch ? 220 : 0) +
-      (input.hasTools ? 160 : 0) +
-      modelBias;
+      (input.hasTools ? 160 : 0);
 
     const low = Math.max(120, Math.round(base * 0.72));
     const high = Math.max(low, Math.round(base * 1.2));
@@ -3298,34 +3309,9 @@ export class ControlPlaneService {
     );
   }
 
-  private resolveBillingModelFactor(model: string | null): number {
-    const normalized = (model || '').trim().toLowerCase();
-    if (!normalized) return 1;
-    if (normalized.includes('opus') || normalized.includes('gpt-5') || normalized.includes('o1') || normalized.includes('o3') || normalized.includes('o4')) {
-      return 1.7;
-    }
-    if (normalized.includes('sonnet') || normalized.includes('gemini') || normalized.includes('grok')) {
-      return 1.3;
-    }
-    if (normalized.includes('mini') || normalized.includes('flash') || normalized.includes('haiku') || normalized.includes('nano')) {
-      return 0.8;
-    }
-    return 1;
-  }
-
-  private resolveQuoteModelReasoningBias(model: string | null): number {
-    const normalized = (model || '').trim().toLowerCase();
-    if (!normalized) return 0;
-    if (normalized.includes('opus') || normalized.includes('o1') || normalized.includes('o3') || normalized.includes('o4')) {
-      return 220;
-    }
-    if (normalized.includes('sonnet') || normalized.includes('gpt-5') || normalized.includes('gemini')) {
-      return 120;
-    }
-    if (normalized.includes('mini') || normalized.includes('flash') || normalized.includes('haiku') || normalized.includes('nano')) {
-      return -40;
-    }
-    return 0;
+  private async resolveBillingMultiplier(appName: string | null, model: string | null): Promise<number> {
+    const multiplier = await this.resolveBillingMultiplierForModel(appName, model);
+    return Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1;
   }
 
   private resolveBootstrapRole(email: string): UserRole | null {

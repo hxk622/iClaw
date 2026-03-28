@@ -45,7 +45,6 @@ import type {
   UpsertPortalAppInput,
   UpsertPortalAppModelRuntimeOverrideInput,
   UpsertPortalMenuInput,
-  UpsertPortalModelInput,
   UpsertPortalModelProviderProfileInput,
   UpsertPortalMcpInput,
   UpsertPortalSkillInput,
@@ -96,7 +95,15 @@ await ensureDefaultSkillSyncSources(store);
 await ensurePortalPreset(portalStore);
 await ensurePortalSkillCatalogPolicy(portalStore);
 
-const service = new ControlPlaneService(store);
+const service = new ControlPlaneService(store, {
+  resolveBillingMultiplierForModel: async (appName, model) => {
+    const normalizedAppName = (appName || '').trim();
+    if (!normalizedAppName) {
+      return 1;
+    }
+    return portalStore.resolveBillingMultiplierForAppModel(normalizedAppName, model);
+  },
+});
 const oemService = new OemService(oemStore, async (accessToken) => service.me(accessToken), {
   controlStore: store,
 });
@@ -1211,11 +1218,6 @@ const server = createJsonServer([
   },
   {
     method: 'GET',
-    path: '/admin/portal/catalog/models',
-    handler: ({headers}: HandlerContext) => portalService.listModels(requireBearerToken(headers)),
-  },
-  {
-    method: 'GET',
     path: '/admin/portal/model-provider-profiles',
     handler: ({headers, url}: HandlerContext) =>
       portalService.listModelProviderProfiles(requireBearerToken(headers), {
@@ -1234,21 +1236,9 @@ const server = createJsonServer([
   },
   {
     method: 'PUT',
-    path: '/admin/portal/catalog/models',
-    handler: ({headers, body}: HandlerContext) =>
-      portalService.upsertModel(requireBearerToken(headers), (body || {}) as UpsertPortalModelInput),
-  },
-  {
-    method: 'PUT',
     path: '/admin/portal/model-provider-profiles',
     handler: ({headers, body}: HandlerContext) =>
       portalService.upsertModelProviderProfile(requireBearerToken(headers), (body || {}) as UpsertPortalModelProviderProfileInput),
-  },
-  {
-    method: 'DELETE',
-    path: '/admin/portal/catalog/models',
-    handler: ({headers, url}: HandlerContext) =>
-      portalService.deleteModel(requireBearerToken(headers), (url.searchParams.get('ref') || '').trim()),
   },
   {
     method: 'DELETE',

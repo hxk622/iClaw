@@ -798,35 +798,14 @@ function findPreviousUserGroup(group: HTMLElement): HTMLElement | null {
   return null;
 }
 
-function resolveBillingModelFactor(model: string | null): number {
-  const normalized = (model || '').trim().toLowerCase();
-  if (!normalized) return 1;
-  if (
-    normalized.includes('opus') ||
-    normalized.includes('gpt-5') ||
-    normalized.includes('o1') ||
-    normalized.includes('o3') ||
-    normalized.includes('o4')
-  ) {
-    return 1.7;
-  }
-  if (normalized.includes('sonnet') || normalized.includes('gemini') || normalized.includes('grok')) {
-    return 1.3;
-  }
-  if (normalized.includes('mini') || normalized.includes('flash') || normalized.includes('haiku') || normalized.includes('nano')) {
-    return 0.8;
-  }
-  return 1;
-}
-
-function computeCreditCostFromUsage(inputTokens: number, outputTokens: number, model: string | null = null): number {
+function computeCreditCostFromUsage(inputTokens: number, outputTokens: number): number {
   const inputCost = Math.ceil((Math.max(0, inputTokens) / 1000) * CREDIT_INPUT_COST_PER_1K);
   const outputCost = Math.ceil((Math.max(0, outputTokens) / 1000) * CREDIT_OUTPUT_COST_PER_1K);
   const baseCost = Math.max(0, inputCost + outputCost);
   if (baseCost <= 0) {
     return 0;
   }
-  return Math.max(1, Math.ceil(baseCost * resolveBillingModelFactor(model)));
+  return Math.max(1, baseCost);
 }
 
 function getUsageMetric(record: Record<string, unknown>, keys: string[]): number {
@@ -1163,7 +1142,7 @@ function deriveAssistantFooterMetas(
     }
 
     if (inputTokens > 0 || outputTokens > 0) {
-      const credits = computeCreditCostFromUsage(inputTokens, outputTokens, model);
+      const credits = computeCreditCostFromUsage(inputTokens, outputTokens);
       return {
         timestampLabel: formatAssistantFooterTimestamp(assistantGroup.timestamp),
         state: 'charged',
@@ -1200,7 +1179,7 @@ function deriveAssistantFooterMetas(
           state: derivedState,
           inputTokens,
           outputTokens,
-          credits: inputTokens > 0 || outputTokens > 0 ? computeCreditCostFromUsage(inputTokens, outputTokens, model) : null,
+          credits: inputTokens > 0 || outputTokens > 0 ? computeCreditCostFromUsage(inputTokens, outputTokens) : null,
         }),
       };
   });
@@ -2057,6 +2036,7 @@ export function OpenClawChatSurface({
         .creditsQuote(creditToken, {
           message: prompt,
           model: selectedModelId || undefined,
+          appName,
           historyMessages,
           hasTools: true,
           attachments: attachmentItems.map((item) => ({
@@ -2093,7 +2073,7 @@ export function OpenClawChatSurface({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [composerDraft, creditClient, creditToken, renderState.groupCount, selectedModelId]);
+  }, [appName, composerDraft, creditClient, creditToken, renderState.groupCount, selectedModelId]);
 
   useEffect(() => {
     if (!creditClient || !creditToken) {
@@ -3143,6 +3123,7 @@ export function OpenClawChatSurface({
           inputTokens: usage.inputTokens,
           outputTokens: usage.outputTokens,
           model: usage.model || pending.model || undefined,
+          appName,
         });
         annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
           billingSummary: result.billing_summary,
@@ -3184,7 +3165,7 @@ export function OpenClawChatSurface({
       await onCreditBalanceRefresh?.();
     }
     return settledAny;
-  }, [clearUsageSettlementTimers, creditClient, creditToken, onCreditBalanceRefresh]);
+  }, [appName, clearUsageSettlementTimers, creditClient, creditToken, onCreditBalanceRefresh]);
 
   useEffect(() => {
     if (status.busy || !activeRecentTaskRunRef.current) {

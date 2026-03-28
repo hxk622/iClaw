@@ -21,8 +21,8 @@ test('resolveAllowedOrigins always preserves desktop-safe local defaults', async
 test('resolveAllowedOrigins de-duplicates overlapping values', async () => {
   const {resolveAllowedOrigins} = await loadConfigModule();
   const allowedOrigins = resolveAllowedOrigins('tauri://localhost,https://tauri.localhost,https://tauri.localhost');
-  const tauriOrigins = allowedOrigins.filter((origin) => origin === 'tauri://localhost');
-  const httpsTauriOrigins = allowedOrigins.filter((origin) => origin === 'https://tauri.localhost');
+  const tauriOrigins = allowedOrigins.filter((origin: string) => origin === 'tauri://localhost');
+  const httpsTauriOrigins = allowedOrigins.filter((origin: string) => origin === 'https://tauri.localhost');
 
   assert.equal(tauriOrigins.length, 1);
   assert.equal(httpsTauriOrigins.length, 1);

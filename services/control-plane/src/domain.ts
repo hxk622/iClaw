@@ -155,6 +155,7 @@ export type UserFileView = {
 export type CreditQuoteInput = {
   message?: string;
   model?: string;
+  app_name?: string;
   history_messages?: number;
   has_search?: boolean;
   has_tools?: boolean;
@@ -904,6 +905,7 @@ export type UsageEventInput = {
   credit_cost?: number;
   provider?: string;
   model?: string;
+  app_name?: string;
 };
 
 export type RunBillingSummaryView = {
