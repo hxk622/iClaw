@@ -316,9 +316,6 @@ export function buildComposerModelOptions(models: GatewayModelCatalogEntry[]): C
     if (!id) {
       return;
     }
-    if (detectModelFamily(entry) === 'deepseek') {
-      return;
-    }
     deduped.set(id, entry);
   });
 
