@@ -7,6 +7,8 @@ import {fileURLToPath} from 'node:url';
 
 import { downloadAvatar } from './avatar-storage.ts';
 import {downloadPrivateSkillArtifact} from './skill-storage.ts';
+import {getCloudSkillArtifactObjectKey} from './cloud-skill-artifacts.ts';
+import {downloadPortalSkillArtifact} from './portal-skill-storage.ts';
 import {
   ensureBootstrapAdmin,
   ensureDefaultCatalogs,
@@ -907,7 +909,11 @@ const server = createJsonServer([
       const version = (url.searchParams.get('version') || '').trim() || undefined;
       const entry = await service.getSkillArtifactEntry(slug, version);
       let archive: Buffer;
-      if (entry.artifactSourcePath) {
+      const portalArtifactObjectKey = getCloudSkillArtifactObjectKey(entry.metadata);
+      if (entry.distribution === 'cloud' && portalArtifactObjectKey) {
+        const artifact = await downloadPortalSkillArtifact(portalArtifactObjectKey);
+        archive = artifact.buffer;
+      } else if (entry.distribution === 'bundled' && entry.artifactSourcePath) {
         resolveSkillSourceDir(entry.artifactSourcePath);
         archive = packageSkillArtifact(entry.artifactSourcePath);
       } else if (entry.originType === 'github_repo') {

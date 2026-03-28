@@ -6523,7 +6523,7 @@ function renderModelProviderRow(item = {}, index = 0) {
         </label>
         <label class="field">
           <span>倍率</span>
-          <input class="field-input" name="model_billing_multiplier" type="number" min="0.01" step="0.1" value="${fieldValue(billingMultiplier)}" placeholder="1.0" />
+          <input class="field-input" name="model_billing_multiplier" type="number" min="0.01" step="0.01" value="${fieldValue(billingMultiplier)}" placeholder="1.0" />
         </label>
         <label class="field field--wide">
           <span>Logo Preset</span>

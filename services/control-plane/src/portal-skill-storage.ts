@@ -117,11 +117,12 @@ export async function uploadPortalSkillArtifact(input: {
   artifact: Buffer;
   filename?: string | null;
   contentType?: string | null;
+  objectKey?: string | null;
 }): Promise<{objectKey: string; contentSha256: string; sizeBytes: number; artifactFormat: 'tar.gz' | 'zip'}> {
   assertValidArtifact(input.artifact);
   await ensureBucketExists();
   const artifactFormat = normalizeArtifactFormat(input.filename, input.contentType);
-  const objectKey = buildObjectKey(input.slug, artifactFormat);
+  const objectKey = input.objectKey?.trim() || buildObjectKey(input.slug, artifactFormat);
   const client = getS3Client();
   await client.send(
     new PutObjectCommand({

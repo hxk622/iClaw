@@ -4,6 +4,11 @@ import { deleteAvatarByKey, deleteOldAvatars, extractAvatarKey, uploadAvatar } f
 import {config} from './config.ts';
 import {randomBytes} from 'node:crypto';
 import {decryptInstallSecretPayload, encryptInstallSecretPayload} from './install-config-secrets.ts';
+import {
+  buildCloudSkillArtifactProxyUrl,
+  getCloudSkillArtifactObjectKey,
+  shouldServeCloudSkillViaControlPlane,
+} from './cloud-skill-artifacts.ts';
 import {deletePrivateSkillArtifact, uploadPrivateSkillArtifact} from './skill-storage.ts';
 import {
   deleteUserFile as deleteStoredUserFile,
@@ -1160,12 +1165,13 @@ function toSkillCatalogEntryView(
   baseUrl?: string,
   source: SkillSource = record.distribution,
 ): SkillCatalogEntryView {
-  const origin = (baseUrl || '').trim().replace(/\/$/, '');
   const artifactUrl =
     record.artifactUrl ||
-    ((record.artifactSourcePath || record.metadata?.github) && origin
-      ? `${origin}/skills/artifact?slug=${encodeURIComponent(record.slug)}`
-      : null);
+    (record.distribution === 'bundled' && record.artifactSourcePath
+      ? buildCloudSkillArtifactProxyUrl(record.slug, baseUrl)
+      : shouldServeCloudSkillViaControlPlane(record)
+        ? buildCloudSkillArtifactProxyUrl(record.slug, baseUrl)
+        : null);
   return {
     slug: record.slug,
     name: record.name,
@@ -2735,6 +2741,18 @@ export class ControlPlaneService {
 
     if (existing?.distribution === 'bundled' && distribution !== 'bundled') {
       throw new HttpError(400, 'BAD_REQUEST', 'bundled skill distribution cannot be changed');
+    }
+    if (distribution === 'cloud' && artifactSourcePath) {
+      throw new HttpError(400, 'BAD_REQUEST', 'cloud skills cannot use artifact_source_path');
+    }
+    if (
+      distribution === 'cloud' &&
+      active &&
+      !artifactUrl &&
+      !getCloudSkillArtifactObjectKey(metadata) &&
+      originType !== 'github_repo'
+    ) {
+      throw new HttpError(400, 'BAD_REQUEST', 'active cloud skills require artifact_url or managed cloud artifact');
     }
 
     const record = await this.store.upsertSkillCatalogEntry({

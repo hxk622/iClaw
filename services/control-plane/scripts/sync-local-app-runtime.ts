@@ -10,6 +10,7 @@ import {buildPortalPublicConfig} from '../src/portal-runtime.ts';
 import {PgPortalStore} from '../src/portal-store.ts';
 import {PgControlPlaneStore} from '../src/pg-store.ts';
 import type {PortalJsonObject, PortalResolvedRuntimeModelsResult} from '../src/portal-domain.ts';
+import {buildCloudSkillArtifactProxyUrl, shouldServeCloudSkillViaControlPlane} from '../src/cloud-skill-artifacts.ts';
 
 function readArg(name: string): string | null {
   const index = process.argv.findIndex((item) => item === name);
@@ -204,6 +205,7 @@ async function main() {
 
   const portalStore = new PgPortalStore(config.databaseUrl);
   const controlStore = new PgControlPlaneStore(config.databaseUrl);
+  const localControlPlaneBaseUrl = (config.apiUrl || `http://127.0.0.1:${config.port}`).replace(/\/+$/, '');
 
   try {
     const [detail, catalogMcps, platformSkills] = await Promise.all([
@@ -244,9 +246,14 @@ async function main() {
         skippedSkills.push(binding.skillSlug);
         continue;
       }
-      if (entry.artifactUrl) {
+      const resolvedArtifactUrl =
+        entry.artifactUrl ||
+        (shouldServeCloudSkillViaControlPlane(entry)
+          ? buildCloudSkillArtifactProxyUrl(binding.skillSlug, localControlPlaneBaseUrl)
+          : null);
+      if (resolvedArtifactUrl) {
         try {
-          const artifact = await downloadSkillArtifact(entry.artifactUrl);
+          const artifact = await downloadSkillArtifact(resolvedArtifactUrl);
           const copiedDirName = await extractPortalSkillArtifact({
             slug: binding.skillSlug,
             artifact,
@@ -256,12 +263,16 @@ async function main() {
           rememberCopiedSkill(copiedDirName);
           continue;
         } catch (error) {
-          console.warn('[sync-local-app-runtime] failed to download skill artifact, fallback to local source path', {
+          console.warn('[sync-local-app-runtime] failed to download skill artifact', {
             slug: binding.skillSlug,
-            artifactUrl: entry.artifactUrl,
+            artifactUrl: resolvedArtifactUrl,
             error: error instanceof Error ? error.message : String(error),
           });
         }
+      }
+      if (entry.distribution === 'cloud') {
+        skippedSkills.push(binding.skillSlug);
+        continue;
       }
       const relativeSourcePath = entry?.artifactSourcePath?.trim() || '';
       if (!relativeSourcePath) {
@@ -379,3 +390,4 @@ async function main() {
 }
 
 await main();
+    const localControlPlaneBaseUrl = (config.apiUrl || `http://127.0.0.1:${config.port}`).replace(/\/+$/, '');

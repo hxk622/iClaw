@@ -1,5 +1,6 @@
 import type {AgentCatalogEntryRecord, SkillCatalogEntryRecord} from './domain.ts';
 import {AGENCY_AGENTS_CATALOG_SEEDS} from './generated/agency-agents-catalog.ts';
+import {buildCloudSkillArtifactObjectKey, CLOUD_SKILL_ARTIFACT_OBJECT_KEY_FIELD} from './cloud-skill-artifacts.ts';
 
 export type DefaultCloudSkillSeed = {
   slug: string;
@@ -91,6 +92,8 @@ const DEFAULT_MACRO_MCP_KEYS = ['browser', 'tavily', 'serper', 'yahoo-finance', 
 const AGENT_REACH_SOURCE_URL = 'https://github.com/Panniantong/Agent-Reach';
 
 function buildAgentReachMetadata(input: {
+  slug: string;
+  version?: string;
   channel: string;
   sourceLabel?: string;
   requiresApiKey?: boolean;
@@ -103,6 +106,11 @@ function buildAgentReachMetadata(input: {
     source_url: AGENT_REACH_SOURCE_URL,
     source_kind: 'agent-reach-wrapper',
     requires_api_key: input.requiresApiKey === true,
+    [CLOUD_SKILL_ARTIFACT_OBJECT_KEY_FIELD]: buildCloudSkillArtifactObjectKey({
+      slug: input.slug,
+      version: input.version || '1.0.0',
+      artifactFormat: 'tar.gz',
+    }),
   };
   if (input.setupSchema) {
     metadata.setup_schema = input.setupSchema;
@@ -141,9 +149,8 @@ const AGENT_REACH_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     tags: ['Agent Reach', 'Web', '网页', '阅读'],
     publisher: 'Agent Reach · iClaw',
     distribution: 'cloud',
-    artifactSourcePath: 'agent-reach-web',
     sourceUrl: AGENT_REACH_SOURCE_URL,
-    metadata: buildAgentReachMetadata({channel: 'web'}),
+    metadata: buildAgentReachMetadata({slug: 'agent-reach-web', channel: 'web'}),
   },
   {
     slug: 'agent-reach-rss',
@@ -155,9 +162,8 @@ const AGENT_REACH_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     tags: ['Agent Reach', 'RSS', '订阅', '资讯'],
     publisher: 'Agent Reach · iClaw',
     distribution: 'cloud',
-    artifactSourcePath: 'agent-reach-rss',
     sourceUrl: AGENT_REACH_SOURCE_URL,
-    metadata: buildAgentReachMetadata({channel: 'rss'}),
+    metadata: buildAgentReachMetadata({slug: 'agent-reach-rss', channel: 'rss'}),
   },
   {
     slug: 'agent-reach-youtube',
@@ -169,9 +175,8 @@ const AGENT_REACH_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     tags: ['Agent Reach', 'YouTube', '视频', '字幕'],
     publisher: 'Agent Reach · iClaw',
     distribution: 'cloud',
-    artifactSourcePath: 'agent-reach-youtube',
     sourceUrl: AGENT_REACH_SOURCE_URL,
-    metadata: buildAgentReachMetadata({channel: 'youtube'}),
+    metadata: buildAgentReachMetadata({slug: 'agent-reach-youtube', channel: 'youtube'}),
   },
   {
     slug: 'agent-reach-bilibili',
@@ -183,9 +188,8 @@ const AGENT_REACH_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     tags: ['Agent Reach', 'Bilibili', 'B站', '视频'],
     publisher: 'Agent Reach · iClaw',
     distribution: 'cloud',
-    artifactSourcePath: 'agent-reach-bilibili',
     sourceUrl: AGENT_REACH_SOURCE_URL,
-    metadata: buildAgentReachMetadata({channel: 'bilibili'}),
+    metadata: buildAgentReachMetadata({slug: 'agent-reach-bilibili', channel: 'bilibili'}),
   },
   {
     slug: 'agent-reach-douyin',
@@ -197,9 +201,8 @@ const AGENT_REACH_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     tags: ['Agent Reach', '抖音', '短视频', '热点'],
     publisher: 'Agent Reach · iClaw',
     distribution: 'cloud',
-    artifactSourcePath: 'agent-reach-douyin',
     sourceUrl: AGENT_REACH_SOURCE_URL,
-    metadata: buildAgentReachMetadata({channel: 'douyin'}),
+    metadata: buildAgentReachMetadata({slug: 'agent-reach-douyin', channel: 'douyin'}),
   },
   {
     slug: 'agent-reach-wechat-official',
@@ -211,9 +214,8 @@ const AGENT_REACH_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     tags: ['Agent Reach', '微信', '公众号', '文章'],
     publisher: 'Agent Reach · iClaw',
     distribution: 'cloud',
-    artifactSourcePath: 'agent-reach-wechat-official',
     sourceUrl: AGENT_REACH_SOURCE_URL,
-    metadata: buildAgentReachMetadata({channel: 'wechat-official'}),
+    metadata: buildAgentReachMetadata({slug: 'agent-reach-wechat-official', channel: 'wechat-official'}),
   },
   {
     slug: 'agent-reach-weibo',
@@ -225,9 +227,8 @@ const AGENT_REACH_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     tags: ['Agent Reach', '微博', '热榜', '舆情'],
     publisher: 'Agent Reach · iClaw',
     distribution: 'cloud',
-    artifactSourcePath: 'agent-reach-weibo',
     sourceUrl: AGENT_REACH_SOURCE_URL,
-    metadata: buildAgentReachMetadata({channel: 'weibo'}),
+    metadata: buildAgentReachMetadata({slug: 'agent-reach-weibo', channel: 'weibo'}),
   },
   {
     slug: 'agent-reach-v2ex',
@@ -239,9 +240,8 @@ const AGENT_REACH_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     tags: ['Agent Reach', 'V2EX', '社区', '开发者'],
     publisher: 'Agent Reach · iClaw',
     distribution: 'cloud',
-    artifactSourcePath: 'agent-reach-v2ex',
     sourceUrl: AGENT_REACH_SOURCE_URL,
-    metadata: buildAgentReachMetadata({channel: 'v2ex'}),
+    metadata: buildAgentReachMetadata({slug: 'agent-reach-v2ex', channel: 'v2ex'}),
   },
   {
     slug: 'agent-reach-xueqiu',
@@ -253,9 +253,8 @@ const AGENT_REACH_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     tags: ['Agent Reach', '雪球', '投资社区', '舆情'],
     publisher: 'Agent Reach · iClaw',
     distribution: 'cloud',
-    artifactSourcePath: 'agent-reach-xueqiu',
     sourceUrl: AGENT_REACH_SOURCE_URL,
-    metadata: buildAgentReachMetadata({channel: 'xueqiu'}),
+    metadata: buildAgentReachMetadata({slug: 'agent-reach-xueqiu', channel: 'xueqiu'}),
   },
   {
     slug: 'agent-reach-twitter',
@@ -267,9 +266,9 @@ const AGENT_REACH_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     tags: ['Agent Reach', 'Twitter', 'X', '社交媒体'],
     publisher: 'Agent Reach · iClaw',
     distribution: 'cloud',
-    artifactSourcePath: 'agent-reach-twitter',
     sourceUrl: AGENT_REACH_SOURCE_URL,
     metadata: buildAgentReachMetadata({
+      slug: 'agent-reach-twitter',
       channel: 'twitter',
       requiresApiKey: true,
       setupSchema: buildSecretSetupSchema([
@@ -292,9 +291,9 @@ const AGENT_REACH_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     tags: ['Agent Reach', '小红书', '内容运营', '社区'],
     publisher: 'Agent Reach · iClaw',
     distribution: 'cloud',
-    artifactSourcePath: 'agent-reach-xiaohongshu',
     sourceUrl: AGENT_REACH_SOURCE_URL,
     metadata: buildAgentReachMetadata({
+      slug: 'agent-reach-xiaohongshu',
       channel: 'xiaohongshu',
       requiresApiKey: true,
       setupSchema: buildSecretSetupSchema([
@@ -317,9 +316,8 @@ const AGENT_REACH_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     tags: ['Agent Reach', 'GitHub', '代码仓', '开源'],
     publisher: 'Agent Reach · iClaw',
     distribution: 'cloud',
-    artifactSourcePath: 'agent-reach-github',
     sourceUrl: AGENT_REACH_SOURCE_URL,
-    metadata: buildAgentReachMetadata({channel: 'github'}),
+    metadata: buildAgentReachMetadata({slug: 'agent-reach-github', channel: 'github'}),
   },
   {
     slug: 'agent-reach-linkedin',
@@ -331,9 +329,8 @@ const AGENT_REACH_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     tags: ['Agent Reach', 'LinkedIn', '招聘', '公司研究'],
     publisher: 'Agent Reach · iClaw',
     distribution: 'cloud',
-    artifactSourcePath: 'agent-reach-linkedin',
     sourceUrl: AGENT_REACH_SOURCE_URL,
-    metadata: buildAgentReachMetadata({channel: 'linkedin'}),
+    metadata: buildAgentReachMetadata({slug: 'agent-reach-linkedin', channel: 'linkedin'}),
   },
   {
     slug: 'agent-reach-reddit',
@@ -345,9 +342,8 @@ const AGENT_REACH_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     tags: ['Agent Reach', 'Reddit', '社区', '舆情'],
     publisher: 'Agent Reach · iClaw',
     distribution: 'cloud',
-    artifactSourcePath: 'agent-reach-reddit',
     sourceUrl: AGENT_REACH_SOURCE_URL,
-    metadata: buildAgentReachMetadata({channel: 'reddit'}),
+    metadata: buildAgentReachMetadata({slug: 'agent-reach-reddit', channel: 'reddit'}),
   },
   {
     slug: 'agent-reach-exa-search',
@@ -359,9 +355,8 @@ const AGENT_REACH_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     tags: ['Agent Reach', 'Exa', '搜索', '研究'],
     publisher: 'Agent Reach · iClaw',
     distribution: 'cloud',
-    artifactSourcePath: 'agent-reach-exa-search',
     sourceUrl: AGENT_REACH_SOURCE_URL,
-    metadata: buildAgentReachMetadata({channel: 'exa-search'}),
+    metadata: buildAgentReachMetadata({slug: 'agent-reach-exa-search', channel: 'exa-search'}),
   },
   {
     slug: 'agent-reach-podcast-transcript',
@@ -373,9 +368,9 @@ const AGENT_REACH_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     tags: ['Agent Reach', '播客', '转录', '摘要'],
     publisher: 'Agent Reach · iClaw',
     distribution: 'cloud',
-    artifactSourcePath: 'agent-reach-podcast-transcript',
     sourceUrl: AGENT_REACH_SOURCE_URL,
     metadata: buildAgentReachMetadata({
+      slug: 'agent-reach-podcast-transcript',
       channel: 'podcast-transcript',
       requiresApiKey: true,
       setupSchema: buildSecretSetupSchema([
