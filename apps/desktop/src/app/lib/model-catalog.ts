@@ -296,7 +296,9 @@ function formatModelBillingBadge(multiplier: number | null | undefined): string 
     return null;
   }
   const normalized = Math.round(multiplier * 100) / 100;
-  const text = Number.isInteger(normalized) ? String(normalized) : normalized.toFixed(2).replace(/\.?0+$/, '');
+  const text = Number.isInteger(normalized)
+    ? normalized.toFixed(1)
+    : normalized.toFixed(2).replace(/0+$/, '').replace(/\.$/, '.0');
   return `${text}x`;
 }
 
