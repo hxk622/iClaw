@@ -457,20 +457,14 @@ create table if not exists oem_apps (
   updated_at timestamptz not null default now()
 );
 
-create table if not exists oem_skill_catalog (
-  slug text primary key,
-  name text not null,
-  description text not null,
-  category text,
-  publisher text not null default 'iClaw',
-  object_key text,
-  content_sha256 text,
+create table if not exists platform_bundled_skills (
+  skill_slug text primary key references skill_catalog_entries(slug) on delete cascade,
+  sort_order integer not null default 100,
   metadata_json jsonb not null default '{}'::jsonb,
   active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table oem_skill_catalog drop column if exists visibility;
 
 create table if not exists oem_mcp_catalog (
   mcp_key text primary key,
@@ -671,9 +665,9 @@ create table if not exists oem_composer_shortcut_catalog (
   updated_at timestamptz not null default now()
 );
 
-create table if not exists oem_app_skill_bindings (
+create table if not exists oem_bundled_skills (
   app_name text not null references oem_apps(app_name) on delete cascade,
-  skill_slug text not null references oem_skill_catalog(slug) on delete cascade,
+  skill_slug text not null references skill_catalog_entries(slug) on delete cascade,
   enabled boolean not null default true,
   sort_order integer not null default 100,
   config_json jsonb not null default '{}'::jsonb,
@@ -1680,8 +1674,10 @@ create index if not exists idx_user_skill_library_user_id_installed_at
   on user_skill_library(user_id, installed_at desc);
 create index if not exists idx_user_mcp_library_user_id_installed_at
   on user_mcp_library(user_id, installed_at desc);
-create index if not exists idx_oem_app_skill_bindings_app_sort
-  on oem_app_skill_bindings(app_name, sort_order, skill_slug);
+create index if not exists idx_platform_bundled_skills_sort
+  on platform_bundled_skills(active, sort_order, skill_slug);
+create index if not exists idx_oem_bundled_skills_app_sort
+  on oem_bundled_skills(app_name, sort_order, skill_slug);
 create index if not exists idx_oem_app_mcp_bindings_app_sort
   on oem_app_mcp_bindings(app_name, sort_order, mcp_key);
 create index if not exists idx_oem_app_model_bindings_app_sort

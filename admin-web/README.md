@@ -14,8 +14,13 @@ For `skill` and `mcp`, the current structure is explicitly three-layer:
   - full skill catalog
   - global marketplace / source-of-truth view
 - `平台级 Skill`
+  - backed by `platform_bundled_skills`
   - platform preinstalled subset selected from `云技能`
   - automatically inherited by every OEM app
+- `OEM Skill 装配`
+  - backed by `oem_bundled_skills`
+  - OEM incremental preinstalled subset
+  - automatically excludes skills already inherited from platform
 - `平台级 MCP`
   - platform preinstalled subset selected from the full MCP registry
   - automatically inherited by every OEM app

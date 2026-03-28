@@ -1,5 +1,7 @@
 # Admin Web 云技能同步设计
 
+> 注：本文中的旧名 `oem_skill_catalog` / `oem_app_skill_bindings` 已在当前开发实现中收敛为 `platform_bundled_skills` / `oem_bundled_skills`。`cloud skill` 仍是唯一总库，platform / OEM 层都只保存 bundled binding，不再拥有 skill 主数据。
+
 ## 目标
 
 在 `admin-web` 增加一个“技能同步中心”，支持：

@@ -707,13 +707,28 @@ async function listSkillBindings(db: Pool | PoolClient, appName: string): Promis
   const result = await db.query<PortalSkillBindingRow>(
     `
       select app_name, skill_slug, enabled, sort_order, config_json
-      from oem_app_skill_bindings
+      from oem_bundled_skills
       where app_name = $1
       order by sort_order asc, skill_slug asc
     `,
     [appName],
   );
   return result.rows.map(mapSkillBindingRow);
+}
+
+async function listActivePlatformBundledSkillSlugs(db: Pool | PoolClient): Promise<Set<string>> {
+  const result = await db.query<{skill_slug: string}>(
+    `
+      select skill_slug
+      from platform_bundled_skills
+      where active = true
+    `,
+  );
+  return new Set(
+    result.rows
+      .map((row) => String(row.skill_slug || '').trim())
+      .filter(Boolean),
+  );
 }
 
 async function listMcpBindings(db: Pool | PoolClient, appName: string): Promise<PortalAppMcpBindingRecord[]> {
@@ -943,10 +958,17 @@ async function replaceSkillBindings(
   appName: string,
   items: ReplacePortalAppSkillBindingsInput,
 ): Promise<void> {
-  const slugs = items.map((item) => item.skillSlug);
+  const platformSkillSlugs = await listActivePlatformBundledSkillSlugs(db);
+  const filteredItems = items
+    .map((item) => ({
+      ...item,
+      skillSlug: String(item.skillSlug || '').trim(),
+    }))
+    .filter((item) => item.skillSlug && !platformSkillSlugs.has(item.skillSlug));
+  const slugs = filteredItems.map((item) => item.skillSlug);
   await db.query(
     `
-      delete from oem_app_skill_bindings
+      delete from oem_bundled_skills
       where app_name = $1
         and (
           cardinality($2::text[]) = 0
@@ -955,10 +977,10 @@ async function replaceSkillBindings(
     `,
     [appName, slugs],
   );
-  for (const item of items) {
+  for (const item of filteredItems) {
     await db.query(
       `
-        insert into oem_app_skill_bindings (
+        insert into oem_bundled_skills (
           app_name,
           skill_slug,
           enabled,
@@ -1113,10 +1135,15 @@ async function seedSkillBindings(
   appName: string,
   items: ReplacePortalAppSkillBindingsInput,
 ): Promise<void> {
+  const platformSkillSlugs = await listActivePlatformBundledSkillSlugs(db);
   for (const item of items) {
+    const skillSlug = String(item.skillSlug || '').trim();
+    if (!skillSlug || platformSkillSlugs.has(skillSlug)) {
+      continue;
+    }
     await db.query(
       `
-        insert into oem_app_skill_bindings (
+        insert into oem_bundled_skills (
           app_name,
           skill_slug,
           enabled,
@@ -1126,7 +1153,7 @@ async function seedSkillBindings(
         values ($1, $2, $3, $4, $5::jsonb)
         on conflict (app_name, skill_slug) do nothing
       `,
-      [appName, item.skillSlug, item.enabled ?? true, item.sortOrder ?? 100, JSON.stringify(item.config || {})],
+      [appName, skillSlug, item.enabled ?? true, item.sortOrder ?? 100, JSON.stringify(item.config || {})],
     );
   }
 }
@@ -1508,13 +1535,13 @@ export class PgPortalStore {
     const result = await this.pool.query<PortalSkillRow>(
       `
         select
-          p.slug,
-          coalesce(c.name, p.name) as name,
-          coalesce(c.description, p.description) as description,
+          p.skill_slug as slug,
+          c.name,
+          c.description,
           c.market,
-          coalesce(c.category, p.category) as category,
+          c.category,
           c.skill_type,
-          coalesce(c.publisher, p.publisher) as publisher,
+          c.publisher,
           c.distribution,
           c.tags,
           c.version,
@@ -1525,11 +1552,10 @@ export class PgPortalStore {
           p.active,
           p.created_at,
           p.updated_at
-        from oem_skill_catalog p
-        left join skill_catalog_entries c
-          on c.slug = p.slug
-         and c.active = true
-        order by coalesce(c.name, p.name) asc, p.slug asc
+        from platform_bundled_skills p
+        join skill_catalog_entries c
+          on c.slug = p.skill_slug
+        order by p.sort_order asc, c.name asc, p.skill_slug asc
       `,
     );
     return result.rows.map(mapSkillRow);
@@ -1694,13 +1720,13 @@ export class PgPortalStore {
     const result = await this.pool.query<PortalSkillRow>(
       `
         select
-          p.slug,
-          coalesce(c.name, p.name) as name,
-          coalesce(c.description, p.description) as description,
+          p.skill_slug as slug,
+          c.name,
+          c.description,
           c.market,
-          coalesce(c.category, p.category) as category,
+          c.category,
           c.skill_type,
-          coalesce(c.publisher, p.publisher) as publisher,
+          c.publisher,
           c.distribution,
           c.tags,
           c.version,
@@ -1711,11 +1737,10 @@ export class PgPortalStore {
           p.active,
           p.created_at,
           p.updated_at
-        from oem_skill_catalog p
-        left join skill_catalog_entries c
-          on c.slug = p.slug
-         and c.active = true
-        where p.slug = $1
+        from platform_bundled_skills p
+        join skill_catalog_entries c
+          on c.slug = p.skill_slug
+        where p.skill_slug = $1
         limit 1
       `,
       [slug],
@@ -1724,23 +1749,11 @@ export class PgPortalStore {
   }
 
   async upsertSkill(input: UpsertPortalSkillInput): Promise<PortalSkillRecord> {
-    const catalog = await this.pool.query<{
-      slug: string;
-      name: string;
-      description: string;
-      category: string | null;
-      publisher: string;
-    }>(
+    const catalog = await this.pool.query<{slug: string}>(
       `
-        select
-          slug,
-          name,
-          description,
-          category,
-          publisher
+        select slug
         from skill_catalog_entries
         where slug = $1
-          and active = true
         limit 1
       `,
       [input.slug],
@@ -1748,55 +1761,32 @@ export class PgPortalStore {
     if (!catalog.rows[0]) {
       throw new HttpError(404, 'NOT_FOUND', `cloud skill not found: ${input.slug}`);
     }
-    const cloud = catalog.rows[0];
+    const sortOrderResult = await this.pool.query<{next_sort_order: number}>(
+      `
+        select coalesce(max(sort_order), 0) + 10 as next_sort_order
+        from platform_bundled_skills
+      `,
+    );
     await this.pool.query(
       `
-        insert into oem_skill_catalog (
-          slug,
-          name,
-          description,
-          category,
-          publisher,
-          object_key,
-          content_sha256,
+        insert into platform_bundled_skills (
+          skill_slug,
+          sort_order,
           metadata_json,
           active,
           created_at,
           updated_at
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, now(), now())
-        on conflict (slug)
+        values ($1, $2, $3::jsonb, $4, now(), now())
+        on conflict (skill_slug)
         do update set
-          name = excluded.name,
-          description = excluded.description,
-          category = excluded.category,
-          publisher = excluded.publisher,
-          object_key = excluded.object_key,
-          content_sha256 = excluded.content_sha256,
           metadata_json = excluded.metadata_json,
           active = excluded.active,
           updated_at = now()
-        returning
-          slug,
-          name,
-          description,
-          category,
-          publisher,
-          object_key,
-          content_sha256,
-          metadata_json,
-          active,
-          created_at,
-          updated_at
       `,
       [
         input.slug,
-        cloud.name,
-        cloud.description,
-        cloud.category || null,
-        cloud.publisher,
-        null,
-        null,
+        Number(sortOrderResult.rows[0]?.next_sort_order || 10),
         JSON.stringify(input.metadata || {}),
         input.active ?? true,
       ],
@@ -1809,7 +1799,7 @@ export class PgPortalStore {
   }
 
   async deleteSkill(slug: string): Promise<void> {
-    await this.pool.query(`delete from oem_skill_catalog where slug = $1`, [slug]);
+    await this.pool.query(`delete from platform_bundled_skills where skill_slug = $1`, [slug]);
   }
 
   async listMcps(): Promise<PortalMcpRecord[]> {
@@ -2418,7 +2408,10 @@ export class PgPortalStore {
         appName,
         action: 'skill_bindings_saved',
         actorUserId,
-        payload: {count: items.length},
+        payload: {
+          count: items.length,
+          layer: 'oem_bundled_skills',
+        },
       });
       await client.query('commit');
     } catch (error) {
@@ -2635,7 +2628,7 @@ export class PgPortalStore {
         }
       }
 
-      for (const skill of input.skills) {
+      for (const [index, skill] of input.skills.entries()) {
         const catalog = await client.query<{
           slug: string;
           name: string;
@@ -2663,40 +2656,24 @@ export class PgPortalStore {
         const cloud = catalog.rows[0];
         await client.query(
           `
-            insert into oem_skill_catalog (
-              slug,
-              name,
-              description,
-              category,
-              publisher,
-              object_key,
-              content_sha256,
+            insert into platform_bundled_skills (
+              skill_slug,
+              sort_order,
               metadata_json,
               active,
               created_at,
               updated_at
             )
-            values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, now(), now())
-            on conflict (slug)
+            values ($1, $2, $3::jsonb, $4, now(), now())
+            on conflict (skill_slug)
             do update set
-              name = excluded.name,
-              description = excluded.description,
-              category = excluded.category,
-              publisher = excluded.publisher,
-              object_key = excluded.object_key,
-              content_sha256 = excluded.content_sha256,
               metadata_json = excluded.metadata_json,
               active = excluded.active,
               updated_at = now()
           `,
           [
             cloud.slug,
-            cloud.name,
-            cloud.description,
-            cloud.category || null,
-            cloud.publisher,
-            null,
-            null,
+            (index + 1) * 10,
             JSON.stringify(skill.metadata || {}),
             skill.active ?? true,
           ],

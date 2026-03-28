@@ -3574,9 +3574,9 @@ async function setSkillEnabled(slug, enabled) {
       }),
     });
     await loadAppData();
-    setNotice(`平台级 Skill ${slug} 已${enabled ? '启用' : '停用'}。`);
+    setNotice(`平台预装 Skill ${slug} 已${enabled ? '启用' : '停用'}。`);
   } catch (error) {
-    setError(error instanceof Error ? error.message : `平台级 Skill ${enabled ? '启用' : '停用'}失败`);
+    setError(error instanceof Error ? error.message : `平台预装 Skill ${enabled ? '启用' : '停用'}失败`);
   } finally {
     state.busy = false;
     render();
@@ -3708,9 +3708,9 @@ async function deleteSkill(slug) {
       method: 'DELETE',
     });
     await loadAppData();
-    setNotice(`已将 ${slug} 移出平台级 Skill。`);
+    setNotice(`已将 ${slug} 移出平台预装 Skill。`);
   } catch (error) {
-    setError(error instanceof Error ? error.message : '移出平台级 Skill 失败');
+    setError(error instanceof Error ? error.message : '移出平台预装 Skill 失败');
   } finally {
     state.busy = false;
     render();
@@ -3731,19 +3731,6 @@ async function importSkill(formData) {
     if (!skill) {
       throw new Error(`未找到 Skill ${slug}`);
     }
-    await apiFetch('/admin/skills/catalog', {
-      method: 'PUT',
-      body: JSON.stringify({
-        slug,
-        name: String(formData.get('name') || '').trim(),
-        description: String(formData.get('description') || '').trim(),
-        market: String(formData.get('market') || '').trim() || null,
-        category: String(formData.get('category') || '').trim() || null,
-        skill_type: String(formData.get('skill_type') || '').trim() || null,
-        publisher: String(formData.get('publisher') || '').trim() || skill.publisher || 'admin-web',
-        tags: splitLines(formData.get('tags_text')),
-      }),
-    });
     const body = {
       metadata: parseJsonText(String(formData.get('metadata_json') || '{}').trim() || '{}', 'Skill metadata'),
       active: String(formData.get('active') || 'true') === 'true',
@@ -3755,9 +3742,9 @@ async function importSkill(formData) {
     await loadAppData();
     state.showSkillImportPanel = false;
     state.selectedSkillSlug = slug;
-    setNotice(`已保存技能 ${slug}。`);
+    setNotice(`已保存平台预装 Skill 绑定 ${slug}。`);
   } catch (error) {
-    setError(error instanceof Error ? error.message : '技能保存失败');
+    setError(error instanceof Error ? error.message : '平台预装 Skill 保存失败');
   } finally {
     state.busy = false;
     render();
@@ -3799,9 +3786,9 @@ async function addPlatformSkillFromCloud(formData) {
     await loadAppData();
     state.selectedSkillSlug = slug;
     state.showPlatformSkillAddPanel = false;
-    setNotice(`已将云技能 ${slug} 加入平台级 Skill。`);
+    setNotice(`已将云技能 ${slug} 加入平台预装 Skill。`);
   } catch (error) {
-    setError(error instanceof Error ? error.message : '加入平台级 Skill 失败');
+    setError(error instanceof Error ? error.message : '加入平台预装 Skill 失败');
   } finally {
     state.busy = false;
     render();
@@ -4623,8 +4610,8 @@ function renderBrandDetailGuide(activeTab) {
   }
   if (activeTab === 'skills') {
     return renderPageGuide('技能装配怎么配', [
-      '技能全集先在“云技能”维护，平台通用预装子集在“平台级 Skill”维护。',
-      '当前页面只负责当前 OEM 的增量预装；平台级 Skill 会自动继承并锁定。',
+      '技能全集先在“云技能”维护；平台预装子集存到 `platform_bundled_skills`。',
+      '当前页面只负责当前 OEM 的增量预装；OEM 增量层存到 `oem_bundled_skills`，平台预装会自动继承并锁定。',
       '保存配置后再发布快照，客户端同步新 snapshot 后技能入口和运行时能力才会更新。',
     ], 'brand');
   }
@@ -4996,12 +4983,12 @@ function renderBrandSkillsAssembly(buffer) {
     <section class="fig-brand-section">
       <div class="fig-section-heading">
         <h2>技能</h2>
-        <p>这里是 OEM 级增量预装层。页面读取云技能全集，但平台级 Skill 会自动继承并锁定，OEM 只负责额外加装自己的那部分。</p>
+        <p>这里是 OEM 级增量预装层。页面读取云技能全集，但平台预装子集会自动继承并锁定，OEM 只负责额外加装自己的那部分。</p>
       </div>
       <article class="fig-card fig-card--subtle">
         <div class="fig-card__head">
           <h3>OEM Skill 装配</h3>
-          <span>平台级 Skill 自动继承，当前页面只做 OEM 增量安装</span>
+          <span>平台预装自动继承，当前页面只做 OEM 增量安装</span>
         </div>
         <div class="fig-toolbar">
           <label class="fig-search fig-search--grow">
@@ -5040,7 +5027,7 @@ function renderBrandSkillsAssembly(buffer) {
                       <div class="fig-capability-item__body">
                         <strong>${escapeHtml(skill.name)}</strong>
                         <span>${escapeHtml(skill.category || '未分类')} · ${escapeHtml(skill.publisher || 'iClaw')}</span>
-                        ${platformManaged ? '<div class="metric-chips"><span>平台级 Skill</span><span>OEM 不可修改</span></div>' : ''}
+                        ${platformManaged ? '<div class="metric-chips"><span>平台预装</span><span>OEM 不可修改</span></div>' : ''}
                       </div>
                       ${renderSwitch({
                         checked: installed,
@@ -6572,7 +6559,7 @@ function renderSkillsMcpPage() {
         `;
   const pageDescription =
     state.capabilityMode === 'skills'
-      ? `管理平台级 Skill 预装子集；云技能总库当前 ${cloudSkillTotal} 条`
+      ? `管理平台预装 Skill 子集；云技能总库当前 ${cloudSkillTotal} 条`
       : state.capabilityMode === 'mcp'
         ? '管理平台级 MCP 预装子集，来源于 MCP 全集'
         : '管理模型主目录、OEM allowlist、推荐和默认模型';
@@ -6580,7 +6567,7 @@ function renderSkillsMcpPage() {
     state.capabilityMode === 'skills' ? '平台级 Skill' : state.capabilityMode === 'mcp' ? '平台级 MCP' : '模型中心';
   const listCountLabel =
     state.capabilityMode === 'skills'
-      ? `当前显示 ${skills.length} 个平台级 Skill / 云总库 ${cloudSkillTotal}`
+      ? `当前显示 ${skills.length} 个平台预装 Skill / 云总库 ${cloudSkillTotal}`
       : state.capabilityMode === 'mcp'
         ? `当前显示 ${mcpServers.length} 个平台级 MCP`
         : `当前显示 ${models.length} 个模型`;
@@ -6697,7 +6684,7 @@ function renderSkillsMcpPage() {
                 `,
               )
               .join('')
-          : `<div class="empty-state">还没有平台级 Skill，先从云技能全集加入。</div>`}
+          : `<div class="empty-state">还没有平台预装 Skill，先从云技能全集加入。</div>`}
       `
       : state.capabilityMode === 'mcp'
         ? `
@@ -6752,9 +6739,9 @@ function renderSkillsMcpPage() {
       </div>
       ${renderPageGuide(`${pageTitle}怎么用`, state.capabilityMode === 'skills'
         ? [
-            '这里不是云技能全集，而是“平台内建预装 Skill 子集”。',
-            '点击“从云技能加入”后，会把云技能中的某个 skill 纳入平台级 Skill，并自动继承到所有 OEM。',
-            '品牌详情里的“技能”页只做 OEM 增量预装，不重复管理平台级 Skill。',
+            '这里不是云技能全集，而是 `platform_bundled_skill` 这一层。',
+            '点击“从云技能加入”后，会把云技能中的某个 skill 纳入平台预装子集，并自动继承到所有 OEM。',
+            '品牌详情里的“技能”页只做 `oem_bundled_skill` 增量预装，不重复管理平台预装层。',
           ]
         : state.capabilityMode === 'mcp'
           ? [
@@ -7203,7 +7190,7 @@ function renderCloudSkillsPage() {
         ${renderPageGuide('云技能怎么用', [
           '这里维护技能商店主库，支持从 ClawHub 或 GitHub 同步技能目录。',
           '先新增同步源，再执行同步，把技能灌入云技能主库。',
-          '云技能入库后，可先加入“平台级 Skill”成为平台预装子集，或直接去品牌管理做 OEM 增量装配。',
+          '云技能入库后，可先加入“平台预装 Skill”子集，或直接去品牌管理做 OEM 增量装配。',
         ], 'cloud')}
         <section class="fig-card">
           <div class="fig-card__head">
@@ -7359,8 +7346,8 @@ function renderPlatformSkillAddPanel() {
   return `
     <section class="fig-card fig-card--subtle">
       <div class="fig-card__head">
-        <h3>从云技能加入平台级 Skill</h3>
-        <span>平台级 Skill 只是一层平台预装子集，真实全集在“云技能”。</span>
+        <h3>从云技能加入平台预装 Skill</h3>
+        <span>这里只创建 <code>platform_bundled_skill</code> 绑定；真实全集仍在“云技能”。</span>
       </div>
       <form id="platform-skill-add-form" class="form-grid form-grid--two">
         <label class="field">
@@ -7373,11 +7360,11 @@ function renderPlatformSkillAddPanel() {
         <div class="field">
           <span>说明</span>
           <small style="display:block;line-height:1.7;color:var(--text-secondary);">
-            输入云技能 slug 后保存，系统会从云技能全集读取该 skill，并把它加入平台级 Skill 子集。
+            输入云技能 slug 后保存，系统会从云技能全集读取该 skill，并把它加入平台预装子集。
           </small>
         </div>
         <div class="fig-form-actions">
-          <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>加入平台级 Skill</button>
+          <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>加入平台预装</button>
         </div>
       </form>
     </section>
@@ -7391,64 +7378,25 @@ function renderSkillImportPanel() {
   return `
     <section class="fig-card fig-card--subtle">
       <div class="fig-card__head">
-        <h3>${skill ? '编辑 Skill' : '新增平台级 Skill 绑定'}</h3>
-        <span>主数据直接写入云技能总库；平台层只维护启用状态和 metadata。</span>
+        <h3>${skill ? '编辑平台预装 Skill 绑定' : '新增平台预装 Skill 绑定'}</h3>
+        <span>平台页只维护 bundled binding；名称、描述、版本等主数据属于云技能总库。</span>
       </div>
-      <form id="skill-import-form" class="form-grid form-grid--two">
+      <form id="skill-import-form" class="form-grid">
         <label class="field">
           <span>Slug</span>
           <input class="field-input" name="slug" placeholder="cloud-skill-slug" value="${fieldValue(skill?.slug)}" ${skill ? 'readonly' : ''} />
         </label>
+        <div class="fig-meta-cards">
+          <div class="fig-meta-card"><span>名称</span><strong>${escapeHtml(skill?.name || '-')}</strong></div>
+          <div class="fig-meta-card"><span>发布者</span><strong>${escapeHtml(skill?.publisher || 'iClaw')}</strong></div>
+          <div class="fig-meta-card"><span>分类</span><strong>${escapeHtml(skill?.category || '未分类')}</strong></div>
+          <div class="fig-meta-card"><span>版本</span><strong>${escapeHtml(skill?.version || '-')}</strong></div>
+        </div>
+        <div class="fig-card__section-copy">
+          <p>云技能主数据请在“云技能”页维护；这里仅控制平台预装层的启停和 binding metadata。</p>
+        </div>
         <label class="field">
-          <span>来源</span>
-          <input class="field-input" value="${fieldValue(skill?.distribution || 'cloud')}" readonly />
-        </label>
-        <label class="field">
-          <span>Name</span>
-          <input class="field-input" name="name" value="${fieldValue(skill?.name)}" placeholder="Skill 名称" />
-        </label>
-        <label class="field">
-          <span>Publisher</span>
-          <input class="field-input" name="publisher" value="${fieldValue(skill?.publisher || 'iClaw')}" placeholder="发布者" />
-        </label>
-        <label class="field field--wide">
-          <span>Description</span>
-          <textarea class="field-textarea" name="description" placeholder="Skill 做什么">${escapeHtml(skill?.description || '')}</textarea>
-        </label>
-        <label class="field">
-          <span>Market</span>
-          <input class="field-input" name="market" value="${fieldValue(skill?.market || '')}" placeholder="A股 / 美股 / 通用" />
-        </label>
-        <label class="field">
-          <span>Category</span>
-          <select class="field-select" name="category">
-            ${['', 'data', 'research', 'portfolio', 'report', 'general']
-              .map((item) => `<option value="${item}"${(skill?.category || '') === item ? ' selected' : ''}>${escapeHtml(item || '自动推断')}</option>`)
-              .join('')}
-          </select>
-        </label>
-        <label class="field">
-          <span>Skill Type</span>
-          <select class="field-select" name="skill_type">
-            ${['', '工具包', '分析师', '生成器', '扫描器']
-              .map((item) => `<option value="${item}"${(skill?.skill_type || '') === item ? ' selected' : ''}>${escapeHtml(item || '自动推断')}</option>`)
-              .join('')}
-          </select>
-        </label>
-        <label class="field field--wide">
-          <span>Tags</span>
-          <textarea class="field-textarea" name="tags_text" placeholder="每行一个 tag，也支持逗号分隔">${escapeHtml((skill?.tags || []).join('\n'))}</textarea>
-        </label>
-        <label class="field">
-          <span>Version</span>
-          <input class="field-input" value="${fieldValue(skill?.version || '-')}" readonly />
-        </label>
-        <label class="field">
-          <span>Source URL</span>
-          <input class="field-input" value="${fieldValue(skill?.source_url || '')}" readonly />
-        </label>
-        <label class="field">
-          <span>状态</span>
+          <span>平台预装状态</span>
           <select class="field-select" name="active">
             <option value="true"${skill?.active !== false ? ' selected' : ''}>上架</option>
             <option value="false"${skill?.active === false ? ' selected' : ''}>下架</option>
@@ -7468,7 +7416,7 @@ function renderSkillImportPanel() {
 
 function renderSkillDetail(skill) {
   if (!skill) {
-    return `${state.showPlatformSkillAddPanel ? renderPlatformSkillAddPanel() : ''}${state.showSkillImportPanel ? renderSkillImportPanel() : ''}<div class="fig-card fig-card--detail-empty"><div class="empty-state">选择一个平台级 Skill 查看详情，或先从云技能全集加入。</div></div>`;
+    return `${state.showPlatformSkillAddPanel ? renderPlatformSkillAddPanel() : ''}${state.showSkillImportPanel ? renderSkillImportPanel() : ''}<div class="fig-card fig-card--detail-empty"><div class="empty-state">选择一个平台预装 Skill 查看详情，或先从云技能全集加入。</div></div>`;
   }
   return `
     <div class="fig-detail-stack">
@@ -7477,7 +7425,7 @@ function renderSkillDetail(skill) {
         <div class="fig-card__head">
           <div>
             <h2>${escapeHtml(skill.name)}</h2>
-            <span>${escapeHtml(skill.slug)} · ${escapeHtml(skill.publisher || 'iClaw')} · 平台级 Skill</span>
+            <span>${escapeHtml(skill.slug)} · ${escapeHtml(skill.publisher || 'iClaw')} · 平台预装 Skill</span>
           </div>
           ${renderSwitch({
             checked: skill.active !== false,
@@ -7494,8 +7442,8 @@ function renderSkillDetail(skill) {
           <div class="fig-meta-card"><span>生效 OEM</span><strong>${escapeHtml(skill.brand_count)}</strong></div>
         </div>
         <div class="action-row">
-          <button class="ghost-button" type="button" data-action="skill-delete" data-skill-slug="${escapeHtml(skill.slug)}">移出平台级 Skill</button>
-          <button class="text-button" type="button" data-action="toggle-skill-import">${state.showSkillImportPanel ? '收起编辑面板' : '编辑平台级记录'}</button>
+          <button class="ghost-button" type="button" data-action="skill-delete" data-skill-slug="${escapeHtml(skill.slug)}">移出平台预装</button>
+          <button class="text-button" type="button" data-action="toggle-skill-import">${state.showSkillImportPanel ? '收起编辑面板' : '编辑 bundled 绑定'}</button>
         </div>
       </div>
       <section class="fig-card fig-card--subtle">

@@ -151,19 +151,24 @@ OEM 装配层不负责：
 
 例如：
 
-- `oem_skill_catalog`
+- `cloud_skill_catalog`
+- `platform_bundled_skills`
 - `oem_mcp_catalog`
 - `oem_model_catalog`
 - `oem_surface_catalog`
 - `oem_component_catalog`
 
-这些表保存平台级能力全集。
+其中：
+
+- `cloud_skill_catalog` 保存 skill 全集
+- `platform_bundled_skills` 保存平台级预装 skill 子集
+- 其它 catalog 表保存平台级能力全集
 
 ### 4.2 OEM 绑定表
 
 例如：
 
-- `oem_app_skill_bindings`
+- `oem_bundled_skills`
 - `oem_app_mcp_bindings`
 - `oem_app_model_bindings`
 - `oem_app_surface_bindings`
@@ -197,8 +202,8 @@ OEM 装配层不负责：
 Skill 明确按以下三层治理：
 
 1. `cloud skill` 总库
-2. 平台级 skill 绑定
-3. OEM 级 skill 绑定
+2. `platform_bundled_skill`
+3. `oem_bundled_skill`
 
 定义如下：
 
@@ -206,18 +211,20 @@ Skill 明确按以下三层治理：
   - 是 skill 的唯一主数据中心
   - 保存 skill metadata、tag、版本、icon、来源、同步时间、扩展元数据等
   - ClawHub、GitHub、本地导入目录等都只是它的导入来源，不是长期真值
-- 平台级 skill 绑定
+- `platform_bundled_skill`
   - 表示“平台默认安装 / 共享给所有 OEM 的 skill”
   - 这是共享层，不属于某个单独 OEM
+  - 存储表为 `platform_bundled_skills`
   - 平台层只维护 `skill slug + enabled + sort_order + binding metadata`
   - 平台层不再单独上传或维护 skill artifact
-- OEM 级 skill 绑定
+- `oem_bundled_skill`
   - 表示“某个 OEM app 额外启用的 skill”
   - 这是 app 自己的增量层
+  - 存储表为 `oem_bundled_skills`
 
 对某个 OEM app 来说，可见且可安装的 skill 集合计算规则固定为：
 
-`visible_skills(app) = platform_level_skills + oem_level_skills(app)`
+`visible_skills(app) = platform_bundled_skills + oem_bundled_skills(app)`
 
 这里的 `+` 指按 `skill_key` 去重后的并集，而不是简单拼接。
 

@@ -104,8 +104,8 @@ pnpm db:init:control-plane
 OEM portal 现在也是 control-plane 的职责范围之一：
 
 - `oem_apps` 保存 OEM app 主配置
-- `oem_skill_catalog` / `oem_mcp_catalog` / `oem_model_catalog` 保存平台能力目录
-- `oem_app_skill_bindings` / `oem_app_mcp_bindings` / `oem_app_model_bindings` / `oem_app_menu_bindings` 保存 OEM app 级 binding
+- `platform_bundled_skills` / `oem_mcp_catalog` / `oem_model_catalog` 保存平台能力目录或平台预装子集
+- `oem_bundled_skills` / `oem_app_mcp_bindings` / `oem_app_model_bindings` / `oem_app_menu_bindings` 保存 OEM app 级 binding
 - `oem_app_assets` 保存 MinIO 资产索引
 - `pnpm preset:sync:oem` 会把 `services/control-plane/presets/core-oem.json` 里的预置 app、skill、MCP、model、menu、asset 同步进数据库和对象存储
 

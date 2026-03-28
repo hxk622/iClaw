@@ -50,7 +50,7 @@ export function mergePlatformSkillBindings(
         sortOrder: (platformMap.get(skillSlug)?.index || 0) * 10 + 10,
         config: {
           ...baseConfig,
-          source_layer: 'platform',
+          source_layer: 'platform_bundled',
           managed_by: 'platform',
           locked: true,
         },
@@ -61,7 +61,10 @@ export function mergePlatformSkillBindings(
       ...binding,
       appName: binding.appName || appName,
       skillSlug,
-      config: baseConfig,
+      config: {
+        ...baseConfig,
+        source_layer: String(baseConfig.source_layer || '').trim() || 'oem_bundled',
+      },
     });
   }
 
@@ -73,7 +76,7 @@ export function mergePlatformSkillBindings(
       enabled: true,
       sortOrder: index * 10 + 10,
       config: {
-        source_layer: 'platform',
+        source_layer: 'platform_bundled',
         managed_by: 'platform',
         locked: true,
       },
