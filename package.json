@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "pnpm dev:all",
     "sync:clawhub:top": "pnpm --filter @iclaw/control-plane sync:clawhub:top",
-    "publish:managed-cloud-skills": "node scripts/run-with-env.mjs dev pnpm --filter @iclaw/control-plane publish:managed-cloud-skills",
+    "upload:cloud-skill-artifacts": "node scripts/run-with-env.mjs dev pnpm --filter @iclaw/control-plane upload:cloud-skill-artifacts",
     "env:dev": "node scripts/run-bash.mjs scripts/env.sh dev",
     "env:test": "node scripts/run-bash.mjs scripts/env.sh test",
     "env:prod": "node scripts/run-bash.mjs scripts/env.sh prod",
