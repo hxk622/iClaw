@@ -316,13 +316,28 @@ function collectJavaScriptFiles(dirPath, out) {
 function patchOpenAiWrapperFile(filePath) {
   let raw = fs.readFileSync(filePath, 'utf8');
   const APPLY_MARKER = 'agent.streamFn = createOpenAIDefaultTransportWrapper(agent.streamFn);';
-  if (raw.includes(PATCH_MARKER) && !raw.includes('agent.streamFn = createOpenAIDefaultTransportWrapper(agent.streamFn);')) {
+  const LEGACY_PROVIDER_FILTER = 'if (model.api === "openai-completions" && model.provider === "openai" && payload && typeof payload === "object") {';
+  let changed = false;
+
+  if (raw.includes(LEGACY_PROVIDER_FILTER)) {
+    raw = raw.replace(LEGACY_PROVIDER_FILTER, 'if (model.api === "openai-completions" && payload && typeof payload === "object") {');
+    changed = true;
+  }
+  if (raw.includes('else if (provider === "openai") agent.streamFn = createOpenAIDefaultTransportWrapper(agent.streamFn);')) {
     raw = raw.replace('else if (provider === "openai") agent.streamFn = createOpenAIDefaultTransportWrapper(agent.streamFn);', 'agent.streamFn = createOpenAIDefaultTransportWrapper(agent.streamFn);');
+    changed = true;
+  }
+  if (changed) {
     fs.writeFileSync(filePath, raw);
     return true;
   }
-  if (raw.includes(PATCH_MARKER) && raw.includes('agent.streamFn = createOpenAIDefaultTransportWrapper(agent.streamFn);')) {
+  if (raw.includes(PATCH_MARKER) && raw.includes(APPLY_MARKER)) {
     return false;
+  }
+  if (raw.includes(PATCH_MARKER) && !raw.includes(APPLY_MARKER)) {
+    raw = raw.replace('else if (provider === "openai") agent.streamFn = createOpenAIDefaultTransportWrapper(agent.streamFn);', 'agent.streamFn = createOpenAIDefaultTransportWrapper(agent.streamFn);');
+    fs.writeFileSync(filePath, raw);
+    return true;
   }
 
   const anchor = `function createOpenAIDefaultTransportWrapper(baseStreamFn) {\n\tconst underlying = baseStreamFn ?? streamSimple;\n\treturn (model, context, options) => {\n\t\tconst typedOptions = options;\n\t\treturn underlying(model, context, {\n\t\t\t...options,\n\t\t\ttransport: options?.transport ?? "auto",\n\t\t\topenaiWsWarmup: typedOptions?.openaiWsWarmup ?? false\n\t\t});\n\t};\n}`;
