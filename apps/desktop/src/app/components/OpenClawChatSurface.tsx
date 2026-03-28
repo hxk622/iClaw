@@ -514,6 +514,7 @@ const MESSAGE_ACTION_FEEDBACK_MS = 1600;
 const USAGE_SETTLEMENT_RETRY_INTERVAL_MS = 1500;
 const USAGE_SETTLEMENT_MAX_WAIT_MS = 60_000;
 const USAGE_SETTLEMENT_TERMINAL_GRACE_MS = 6_000;
+const BILLING_REHYDRATION_FALLBACK_WINDOW_MS = 90_000;
 const MESSAGE_ACTION_ICONS = {
   copy:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
@@ -1030,6 +1031,8 @@ function deriveAssistantFooterMetas(
   }
   const persistedBillingByRunId = new Map<string, RunBillingSummaryData>();
   const persistedBillingByTimestamp = new Map<number, RunBillingSummaryData>();
+  const persistedBillingByAssistantIndex = new Map<number, RunBillingSummaryData>();
+  const usedSummaryEventIds = new Set<string>();
   sessionBillingSummaries.forEach((summary) => {
     const runId = summary.event_id?.trim();
     if (runId) {
@@ -1039,6 +1042,67 @@ function deriveAssistantFooterMetas(
       persistedBillingByTimestamp.set(summary.assistant_timestamp, summary);
     }
   });
+
+  assistantGroups.forEach((assistantGroup, assistantGroupIndex) => {
+    const summary =
+      (assistantGroup.runId ? persistedBillingByRunId.get(assistantGroup.runId) ?? null : null) ||
+      persistedBillingByTimestamp.get(assistantGroup.timestamp) ||
+      null;
+    if (!summary) {
+      return;
+    }
+    persistedBillingByAssistantIndex.set(assistantGroupIndex, summary);
+    if (summary.event_id?.trim()) {
+      usedSummaryEventIds.add(summary.event_id.trim());
+    }
+  });
+
+  const unmatchedSummaries = sessionBillingSummaries
+    .filter((summary) => {
+      const eventId = summary.event_id?.trim();
+      return eventId ? !usedSummaryEventIds.has(eventId) : false;
+    })
+    .sort((left, right) => {
+      const leftTime =
+        (typeof left.assistant_timestamp === 'number' && Number.isFinite(left.assistant_timestamp)
+          ? left.assistant_timestamp
+          : Date.parse(left.settled_at || '')) || 0;
+      const rightTime =
+        (typeof right.assistant_timestamp === 'number' && Number.isFinite(right.assistant_timestamp)
+          ? right.assistant_timestamp
+          : Date.parse(right.settled_at || '')) || 0;
+      return rightTime - leftTime;
+    });
+
+  const unmatchedAssistantIndexes = assistantGroups
+    .map((_, index) => index)
+    .filter((index) => !persistedBillingByAssistantIndex.has(index))
+    .sort((left, right) => right - left);
+
+  for (const assistantGroupIndex of unmatchedAssistantIndexes) {
+    const assistantGroup = assistantGroups[assistantGroupIndex];
+    if (!assistantGroup) {
+      continue;
+    }
+    const candidateIndex = unmatchedSummaries.findIndex((summary) => {
+      const summaryTime =
+        (typeof summary.assistant_timestamp === 'number' && Number.isFinite(summary.assistant_timestamp)
+          ? summary.assistant_timestamp
+          : Date.parse(summary.settled_at || '')) || 0;
+      if (summaryTime <= 0) {
+        return false;
+      }
+      const delta = Math.abs(summaryTime - assistantGroup.timestamp);
+      return delta <= BILLING_REHYDRATION_FALLBACK_WINDOW_MS;
+    });
+    if (candidateIndex < 0) {
+      continue;
+    }
+    const [matchedSummary] = unmatchedSummaries.splice(candidateIndex, 1);
+    if (matchedSummary) {
+      persistedBillingByAssistantIndex.set(assistantGroupIndex, matchedSummary);
+    }
+  }
 
   const pendingAssistantIndexes = new Set<number>();
   const optimisticUsageByAssistantIndex = new Map<number, AssistantUsageSettlement>();
@@ -1077,10 +1141,7 @@ function deriveAssistantFooterMetas(
     let billingSummary: RunBillingSummaryData | null = null;
     let billingState: AssistantBillingState | null = null;
     const optimisticUsage = optimisticUsageByAssistantIndex.get(assistantGroupIndex) ?? null;
-    const persistedBilling =
-      (assistantGroup.runId ? persistedBillingByRunId.get(assistantGroup.runId) ?? null : null) ||
-      persistedBillingByTimestamp.get(assistantGroup.timestamp) ||
-      null;
+    const persistedBilling = persistedBillingByAssistantIndex.get(assistantGroupIndex) ?? null;
 
     assistantGroup.messages.forEach((message: unknown) => {
       const record = message as Record<string, unknown>;
@@ -1259,11 +1320,21 @@ function derivePendingSettlementUsage(
   terminalEventMessage?: unknown,
   sessionTokenSnapshot?: { inputTokens: number; outputTokens: number } | null,
 ): AssistantUsageSettlement | null {
-  const directUsage =
-    (terminalEventMessage ? deriveAssistantUsageFromMessage(terminalEventMessage) : null) ||
+  const latestAssistantUsage =
     // Embedded webchat does not always retain terminal chat events, but the final
     // assistant message still carries usage in chatMessages after the run completes.
     deriveLatestAssistantUsageSince(messages, pending.runId, pending.startedAt);
+  const terminalUsage = terminalEventMessage ? deriveAssistantUsageFromMessage(terminalEventMessage) : null;
+  const directUsage =
+    latestAssistantUsage || terminalUsage
+      ? {
+          inputTokens: terminalUsage?.inputTokens ?? latestAssistantUsage?.inputTokens ?? 0,
+          outputTokens: terminalUsage?.outputTokens ?? latestAssistantUsage?.outputTokens ?? 0,
+          model: terminalUsage?.model || latestAssistantUsage?.model || null,
+          // Use the assistant message timestamp as the persisted anchor.
+          timestamp: latestAssistantUsage?.timestamp ?? terminalUsage?.timestamp ?? Date.now(),
+        }
+      : null;
   if (directUsage) {
     return directUsage;
   }
@@ -1288,7 +1359,7 @@ function derivePendingSettlementUsage(
     inputTokens,
     outputTokens,
     model: pending.model,
-    timestamp: Date.now(),
+    timestamp: pending.startedAt,
   };
 }
 
