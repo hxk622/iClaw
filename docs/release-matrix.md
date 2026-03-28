@@ -57,6 +57,11 @@ bash scripts/build-desktop-matrix.sh
   - 逗号分隔，覆盖默认 channel 列表
   - 例：`ICLAW_DESKTOP_CHANNELS=prod`
 
+签名配置：
+
+- 优先从 `.env.signing.local` / `.env.signing.<env>.local` 读取 Apple 签名、公证和 updater key
+- 旧的 `.env.packaging.*` 仍兼容，但只作为过渡 fallback
+
 ## 环境行为
 
 - dev 包：

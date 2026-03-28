@@ -45,6 +45,15 @@ See `docs/` for product decisions and contracts.
 - `.env.test`
 - `.env.prod`
 
+签名相关敏感值单独放：
+
+- `.env.signing.local`
+- 可选：`.env.signing.dev.local`
+- 可选：`.env.signing.test.local`
+- 可选：`.env.signing.prod.local`
+
+例如 Apple 签名、公证、updater key 应放在 `.env.signing.*`，不要混进 `.env.dev/.env.test/.env.prod`。
+
 在编译/启动前，通过脚本生成 `.env`：
 
 ```bash

@@ -63,13 +63,16 @@ function signingEnvFileCandidatesFor(rootDir, envName = '') {
   const selectedEnv = normalizeEnvName(envName);
   const candidates = [];
   if (selectedEnv) {
+    // Preferred signing-only env files.
     candidates.push(path.join(rootDir, `.env.signing.${selectedEnv}.local`));
     candidates.push(path.join(rootDir, `.env.signing.${selectedEnv}`));
+    // Backward-compatible fallback for the old packaging naming.
     candidates.push(path.join(rootDir, `.env.packaging.${selectedEnv}.local`));
     candidates.push(path.join(rootDir, `.env.packaging.${selectedEnv}`));
   }
   candidates.push(path.join(rootDir, '.env.signing.local'));
   candidates.push(path.join(rootDir, '.env.signing'));
+  // Backward-compatible fallback for the old packaging naming.
   candidates.push(path.join(rootDir, '.env.packaging.local'));
   candidates.push(path.join(rootDir, '.env.packaging'));
   return candidates;
