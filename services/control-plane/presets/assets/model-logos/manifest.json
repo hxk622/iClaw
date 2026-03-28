@@ -64,5 +64,35 @@
     "label": "Zhipu",
     "asset_path": "services/control-plane/presets/assets/model-logos/zhipu.svg",
     "asset_type": "image/svg+xml"
+  },
+  {
+    "preset_key": "anthropic",
+    "label": "Anthropic",
+    "asset_path": "services/control-plane/presets/assets/model-logos/anthropic.svg",
+    "asset_type": "image/svg+xml"
+  },
+  {
+    "preset_key": "google-gemini",
+    "label": "Google Gemini",
+    "asset_path": "services/control-plane/presets/assets/model-logos/google-gemini.svg",
+    "asset_type": "image/svg+xml"
+  },
+  {
+    "preset_key": "grok",
+    "label": "Grok",
+    "asset_path": "services/control-plane/presets/assets/model-logos/grok.png",
+    "asset_type": "image/png"
+  },
+  {
+    "preset_key": "xiaomi",
+    "label": "Xiaomi",
+    "asset_path": "services/control-plane/presets/assets/model-logos/xiaomi.png",
+    "asset_type": "image/png"
+  },
+  {
+    "preset_key": "nvidia",
+    "label": "NVIDIA",
+    "asset_path": "services/control-plane/presets/assets/model-logos/nvidia.png",
+    "asset_type": "image/png"
   }
 ]
