@@ -350,6 +350,8 @@ type PendingUsageSettlement = {
   startedAt: number;
   expiresAt: number;
   model: string | null;
+  baselineInputTokens: number | null;
+  baselineOutputTokens: number | null;
   attempts: number;
   terminalState: 'pending' | 'final' | 'aborted' | 'error';
 };
@@ -361,6 +363,8 @@ type GatewaySessionsListResult = {
   sessions: Array<{
     key: string;
     model?: string | null;
+    inputTokens?: number | null;
+    outputTokens?: number | null;
   }>;
 };
 
@@ -1028,15 +1032,7 @@ function deriveAssistantFooterMetas(
   const optimisticUsageByAssistantIndex = new Map<number, AssistantUsageSettlement>();
   pendingSettlements.forEach((pending) => {
     const terminalEvent = app ? findTerminalChatEventForRun(app, pending.sessionKey, pending.runId) : null;
-    const optimisticUsage =
-      app
-        ? (terminalEvent?.message
-            ? deriveAssistantUsageFromMessage(terminalEvent.message)
-            : null) ||
-          (findLatestTerminalChatRunSince(app, pending.sessionKey, pending.startedAt) === pending.runId
-            ? deriveLatestAssistantUsageSince(messages, pending.runId, pending.startedAt)
-            : null)
-        : null;
+    const optimisticUsage = derivePendingSettlementUsage(messages, pending, terminalEvent?.message);
 
     if (pending.runId) {
       const matchedIndex = assistantGroups.findIndex((group) => group.runId === pending.runId);
@@ -1234,6 +1230,45 @@ function deriveAssistantUsageFromMessage(message: unknown): AssistantUsageSettle
         ? record.model.trim()
         : null,
     timestamp: normalized.timestamp || Date.now(),
+  };
+}
+
+function derivePendingSettlementUsage(
+  messages: unknown[],
+  pending: PendingUsageSettlement,
+  terminalEventMessage?: unknown,
+  sessionTokenSnapshot?: { inputTokens: number; outputTokens: number } | null,
+): AssistantUsageSettlement | null {
+  const directUsage =
+    (terminalEventMessage ? deriveAssistantUsageFromMessage(terminalEventMessage) : null) ||
+    // Embedded webchat does not always retain terminal chat events, but the final
+    // assistant message still carries usage in chatMessages after the run completes.
+    deriveLatestAssistantUsageSince(messages, pending.runId, pending.startedAt);
+  if (directUsage) {
+    return directUsage;
+  }
+
+  if (!sessionTokenSnapshot) {
+    return null;
+  }
+
+  const baselineInputTokens = pending.baselineInputTokens ?? null;
+  const baselineOutputTokens = pending.baselineOutputTokens ?? null;
+  if (baselineInputTokens == null || baselineOutputTokens == null) {
+    return null;
+  }
+
+  const inputTokens = Math.max(0, sessionTokenSnapshot.inputTokens - baselineInputTokens);
+  const outputTokens = Math.max(0, sessionTokenSnapshot.outputTokens - baselineOutputTokens);
+  if (inputTokens <= 0 && outputTokens <= 0) {
+    return null;
+  }
+
+  return {
+    inputTokens,
+    outputTokens,
+    model: pending.model,
+    timestamp: Date.now(),
   };
 }
 
@@ -1520,6 +1555,43 @@ async function loadChatModelSnapshot(
     options,
     selectedModelId: resolvedSelection,
     resolvedSessionKey: matchedSession?.key?.trim() ?? null,
+  };
+}
+
+function findGatewaySessionEntry(
+  sessionsResult: GatewaySessionsListResult | null | undefined,
+  targetSessionKey: string,
+): GatewaySessionsListResult['sessions'][number] | null {
+  const aliases = resolveEquivalentGatewaySessionKeys(targetSessionKey);
+  return (
+    sessionsResult?.sessions.find((session) =>
+      aliases.has(normalizeGatewaySessionKey(session.key)),
+    ) ?? null
+  );
+}
+
+async function loadGatewaySessionTokenSnapshot(
+  app: OpenClawAppElement,
+  targetSessionKey: string,
+): Promise<{ inputTokens: number; outputTokens: number } | null> {
+  const request = app.client?.request;
+  if (!app.connected || typeof request !== 'function') {
+    return null;
+  }
+
+  const sessionsResult = await request<GatewaySessionsListResult>('sessions.list', {
+    includeGlobal: true,
+    includeUnknown: true,
+    limit: 200,
+  });
+  const session = findGatewaySessionEntry(sessionsResult, targetSessionKey);
+  if (!session) {
+    return null;
+  }
+
+  return {
+    inputTokens: Math.max(0, Number(session.inputTokens || 0)),
+    outputTokens: Math.max(0, Number(session.outputTokens || 0)),
   };
 }
 
@@ -3069,11 +3141,13 @@ export function OpenClawChatSurface({
         }
       }
 
-      const usage =
-        (terminalEvent?.message ? deriveAssistantUsageFromMessage(terminalEvent.message) : null) ||
-        (findLatestTerminalChatRunSince(app, pending.sessionKey, pending.startedAt) === pending.runId
-          ? deriveLatestAssistantUsageSince(app.chatMessages, pending.runId, pending.startedAt)
-          : null);
+      const sessionTokenSnapshot = await loadGatewaySessionTokenSnapshot(app, pending.sessionKey);
+      const usage = derivePendingSettlementUsage(
+        app.chatMessages,
+        pending,
+        terminalEvent?.message,
+        sessionTokenSnapshot,
+      );
 
       if (!usage) {
         pending.attempts += 1;
@@ -3353,16 +3427,19 @@ export function OpenClawChatSurface({
           creditEstimate.estimatedInputTokens ?? fallbackEstimatedInputTokens,
         ),
       });
+      const baselineSessionTokens = await loadGatewaySessionTokenSnapshot(app, effectiveGatewaySessionKey);
 
       pendingUsageSettlementsRef.current = [
         ...pendingUsageSettlementsRef.current,
         {
           runId,
           grantId: runGrant.grant_id,
-          sessionKey,
+          sessionKey: effectiveGatewaySessionKey,
           startedAt,
           expiresAt: startedAt + USAGE_SETTLEMENT_MAX_WAIT_MS,
           model: selectedModelId,
+          baselineInputTokens: baselineSessionTokens?.inputTokens ?? null,
+          baselineOutputTokens: baselineSessionTokens?.outputTokens ?? null,
           attempts: 0,
           terminalState: 'pending',
         },
