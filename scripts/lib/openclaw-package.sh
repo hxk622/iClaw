@@ -325,7 +325,7 @@ function patchOpenAiWrapperFile(filePath) {
     return false;
   }
 
-  const replacement = `function createOpenAIDefaultTransportWrapper(baseStreamFn) {\n\tconst underlying = baseStreamFn ?? streamSimple;\n\treturn (model, context, options) => {\n\t\tconst typedOptions = options;\n\t\tconst originalOnPayload = options?.onPayload;\n\t\treturn underlying(model, context, {\n\t\t\t...options,\n\t\t\ttransport: options?.transport ?? "auto",\n\t\t\topenaiWsWarmup: typedOptions?.openaiWsWarmup ?? false,\n\t\t\tonPayload: (payload) => {\n\t\t\t\tif (model.api === "openai-completions" && model.provider === "openai" && payload && typeof payload === "object") {\n\t\t\t\t\tconst payloadObj = payload;\n\t\t\t\t\tpayloadObj.stream_options = { ...(payloadObj.stream_options ?? {}), include_usage: true };\n\t\t\t\t}\n\t\t\t\treturn originalOnPayload?.(payload, model);\n\t\t\t}\n\t\t});\n\t};\n}`;
+  const replacement = `function createOpenAIDefaultTransportWrapper(baseStreamFn) {\n\tconst underlying = baseStreamFn ?? streamSimple;\n\treturn (model, context, options) => {\n\t\tconst typedOptions = options;\n\t\tconst originalOnPayload = options?.onPayload;\n\t\treturn underlying(model, context, {\n\t\t\t...options,\n\t\t\ttransport: options?.transport ?? "auto",\n\t\t\topenaiWsWarmup: typedOptions?.openaiWsWarmup ?? false,\n\t\t\tonPayload: (payload) => {\n\t\t\t\tif (model.api === "openai-completions" && payload && typeof payload === "object") {\n\t\t\t\t\tconst payloadObj = payload;\n\t\t\t\t\tpayloadObj.stream_options = { ...(payloadObj.stream_options ?? {}), include_usage: true };\n\t\t\t\t}\n\t\t\t\treturn originalOnPayload?.(payload, model);\n\t\t\t}\n\t\t});\n\t};\n}`;
 
   raw = raw.replace(anchor, replacement);
   fs.writeFileSync(filePath, raw);
@@ -343,7 +343,7 @@ for (const filePath of entries) {
 }
 
 if (patched > 0) {
-  process.stderr.write(`[openclaw-runtime] patched OpenAI chat.completions stream_options.include_usage into ${patched} dist files\n`);
+  process.stderr.write(`[openclaw-runtime] patched OpenAI-compatible chat.completions stream_options.include_usage into ${patched} dist files\n`);
 }
 EOF
 }
