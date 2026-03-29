@@ -37,6 +37,11 @@ export interface MemoryRuntimeStatus {
   ftsAvailable?: boolean | null;
   ftsError?: string | null;
   vectorAvailable?: boolean | null;
+  vectorError?: string | null;
+  embeddingConfigured: boolean;
+  configuredScope?: string | null;
+  configuredProvider?: string | null;
+  configuredModel?: string | null;
 }
 
 export interface MemorySnapshot {

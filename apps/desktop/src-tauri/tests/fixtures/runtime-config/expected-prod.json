@@ -59,15 +59,7 @@
             },
             "contextWindow": 131072,
             "maxTokens": 8192
-          }
-        ]
-      },
-      "deepseek": {
-        "api": "openai-completions",
-        "authHeader": true,
-        "baseUrl": "https://api.deepseek.com/v1",
-        "apiKey": "",
-        "models": [
+          },
           {
             "id": "deepseek-v3.2",
             "name": "DeepSeek V3.2",
@@ -96,11 +88,11 @@
       "memory-lancedb": {
         "config": {
           "embedding": {
-            "apiKey": "sk-test-runtime",
-            "model": "text-embedding-3-small",
-            "baseUrl": "https://fast.vpsairobot.com/v1"
+            "apiKey": "sk-memory-prod",
+            "model": "text-embedding-v4",
+            "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1"
           },
-          "autoRecall": false,
+          "autoRecall": true,
           "autoCapture": false
         }
       }

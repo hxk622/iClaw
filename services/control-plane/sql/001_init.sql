@@ -590,6 +590,25 @@ create table if not exists app_model_runtime_overrides (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists memory_embedding_profiles (
+  id uuid primary key,
+  scope_type text not null,
+  scope_key text not null,
+  provider_key text not null,
+  provider_label text not null,
+  base_url text not null,
+  auth_mode text not null default 'bearer',
+  api_key text not null,
+  embedding_model text not null,
+  logo_preset_key text,
+  auto_recall boolean not null default true,
+  metadata_json jsonb not null default '{}'::jsonb,
+  enabled boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (scope_type, scope_key)
+);
+
 create table if not exists app_payment_provider_overrides (
   app_name text not null references oem_apps(app_name) on delete cascade,
   provider text not null,
@@ -1767,6 +1786,8 @@ create index if not exists idx_model_provider_profile_models_profile_sort
 
 create index if not exists idx_app_model_runtime_overrides_mode
   on app_model_runtime_overrides(provider_mode, app_name);
+create index if not exists idx_memory_embedding_profiles_scope
+  on memory_embedding_profiles(scope_type, scope_key, enabled);
 create index if not exists idx_oem_app_menu_bindings_app_sort
   on oem_app_menu_bindings(app_name, sort_order, menu_key);
 create index if not exists idx_oem_menu_catalog_category_key

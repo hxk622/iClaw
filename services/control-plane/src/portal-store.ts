@@ -21,9 +21,11 @@ import type {
   PortalComposerControlRecord,
   PortalComposerShortcutRecord,
   PortalJsonObject,
+  PortalMemoryEmbeddingProfileRecord,
   PortalModelProviderProfileModelRecord,
   PortalModelProviderProfileRecord,
   PortalModelProviderScopeType,
+  PortalResolvedMemoryEmbeddingResult,
   PortalResolvedRuntimeModelsResult,
   PortalModelRecord,
   PortalMenuRecord,
@@ -39,6 +41,7 @@ import type {
   UpsertPortalComposerControlInput,
   UpsertPortalComposerShortcutInput,
   UpsertPortalAppModelRuntimeOverrideInput,
+  UpsertPortalMemoryEmbeddingProfileInput,
   UpsertPortalModelInput,
   UpsertPortalModelProviderProfileInput,
   UpsertPortalMenuInput,
@@ -163,6 +166,24 @@ type PortalAppModelRuntimeOverrideRow = {
   provider_mode: PortalAppModelProviderMode;
   active_profile_id: string | null;
   cache_version: string | number;
+  updated_at: Date;
+};
+
+type PortalMemoryEmbeddingProfileRow = {
+  id: string;
+  scope_type: PortalModelProviderScopeType;
+  scope_key: string;
+  provider_key: string;
+  provider_label: string;
+  base_url: string;
+  auth_mode: string;
+  api_key: string;
+  embedding_model: string;
+  logo_preset_key: string | null;
+  auto_recall: boolean;
+  metadata_json: Record<string, unknown> | null;
+  enabled: boolean;
+  created_at: Date;
   updated_at: Date;
 };
 
@@ -459,6 +480,26 @@ function mapAppModelRuntimeOverrideRow(row: PortalAppModelRuntimeOverrideRow): P
     providerMode: row.provider_mode,
     activeProfileId: row.active_profile_id,
     cacheVersion: Number(row.cache_version || 1),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapMemoryEmbeddingProfileRow(row: PortalMemoryEmbeddingProfileRow): PortalMemoryEmbeddingProfileRecord {
+  return {
+    id: row.id,
+    scopeType: row.scope_type,
+    scopeKey: row.scope_key,
+    providerKey: row.provider_key,
+    providerLabel: row.provider_label,
+    baseUrl: row.base_url,
+    authMode: row.auth_mode,
+    apiKey: row.api_key,
+    embeddingModel: row.embedding_model,
+    logoPresetKey: row.logo_preset_key,
+    autoRecall: row.auto_recall,
+    metadata: asJsonObject(row.metadata_json),
+    enabled: row.enabled,
+    createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
 }
@@ -2234,6 +2275,162 @@ export class PgPortalStore {
     await this.pool.query(`delete from model_provider_profiles where id = $1`, [id]);
   }
 
+  async listMemoryEmbeddingProfiles(
+    scopeType?: PortalModelProviderScopeType | null,
+    scopeKey?: string | null,
+  ): Promise<PortalMemoryEmbeddingProfileRecord[]> {
+    const values: Array<string> = [];
+    const filters: string[] = [];
+    if (scopeType) {
+      values.push(scopeType);
+      filters.push(`scope_type = $${values.length}`);
+    }
+    if (scopeKey && scopeKey.trim()) {
+      values.push(scopeKey.trim());
+      filters.push(`scope_key = $${values.length}`);
+    }
+    const whereClause = filters.length ? `where ${filters.join(' and ')}` : '';
+    const result = await this.pool.query<PortalMemoryEmbeddingProfileRow>(
+      `
+        select
+          id,
+          scope_type,
+          scope_key,
+          provider_key,
+          provider_label,
+          base_url,
+          auth_mode,
+          api_key,
+          embedding_model,
+          logo_preset_key,
+          auto_recall,
+          metadata_json,
+          enabled,
+          created_at,
+          updated_at
+        from memory_embedding_profiles
+        ${whereClause}
+        order by scope_type asc, scope_key asc, provider_key asc
+      `,
+      values,
+    );
+    return result.rows.map((row) => mapMemoryEmbeddingProfileRow(row));
+  }
+
+  async getMemoryEmbeddingProfile(id: string): Promise<PortalMemoryEmbeddingProfileRecord | null> {
+    const result = await this.pool.query<PortalMemoryEmbeddingProfileRow>(
+      `
+        select
+          id,
+          scope_type,
+          scope_key,
+          provider_key,
+          provider_label,
+          base_url,
+          auth_mode,
+          api_key,
+          embedding_model,
+          logo_preset_key,
+          auto_recall,
+          metadata_json,
+          enabled,
+          created_at,
+          updated_at
+        from memory_embedding_profiles
+        where id = $1
+        limit 1
+      `,
+      [id],
+    );
+    return result.rows[0] ? mapMemoryEmbeddingProfileRow(result.rows[0]) : null;
+  }
+
+  async upsertMemoryEmbeddingProfile(input: UpsertPortalMemoryEmbeddingProfileInput): Promise<PortalMemoryEmbeddingProfileRecord> {
+    const existing = await this.pool.query<{id: string}>(
+      `
+        select id
+        from memory_embedding_profiles
+        where scope_type = $1
+          and scope_key = $2
+        limit 1
+      `,
+      [input.scopeType, input.scopeKey],
+    );
+    const currentId = existing.rows[0]?.id || input.id || randomUUID();
+    const result = await this.pool.query<PortalMemoryEmbeddingProfileRow>(
+      `
+        insert into memory_embedding_profiles (
+          id,
+          scope_type,
+          scope_key,
+          provider_key,
+          provider_label,
+          base_url,
+          auth_mode,
+          api_key,
+          embedding_model,
+          logo_preset_key,
+          auto_recall,
+          metadata_json,
+          enabled,
+          created_at,
+          updated_at
+        )
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, now(), now())
+        on conflict (scope_type, scope_key)
+        do update set
+          id = memory_embedding_profiles.id,
+          provider_key = excluded.provider_key,
+          provider_label = excluded.provider_label,
+          base_url = excluded.base_url,
+          auth_mode = excluded.auth_mode,
+          api_key = excluded.api_key,
+          embedding_model = excluded.embedding_model,
+          logo_preset_key = excluded.logo_preset_key,
+          auto_recall = excluded.auto_recall,
+          metadata_json = excluded.metadata_json,
+          enabled = excluded.enabled,
+          updated_at = now()
+        returning
+          id,
+          scope_type,
+          scope_key,
+          provider_key,
+          provider_label,
+          base_url,
+          auth_mode,
+          api_key,
+          embedding_model,
+          logo_preset_key,
+          auto_recall,
+          metadata_json,
+          enabled,
+          created_at,
+          updated_at
+      `,
+      [
+        currentId,
+        input.scopeType,
+        input.scopeKey,
+        input.providerKey,
+        input.providerLabel,
+        input.baseUrl,
+        input.authMode || 'bearer',
+        input.apiKey,
+        input.embeddingModel,
+        input.logoPresetKey || null,
+        input.autoRecall ?? true,
+        JSON.stringify(input.metadata || {}),
+        input.enabled ?? true,
+      ],
+    );
+    return mapMemoryEmbeddingProfileRow(result.rows[0]);
+  }
+
+  async deleteMemoryEmbeddingProfile(id: string): Promise<void> {
+    await this.pool.query(`delete from memory_embedding_profiles where id = $1`, [id]);
+  }
+
   async getAppModelRuntimeOverride(appName: string): Promise<PortalAppModelRuntimeOverrideRecord | null> {
     const result = await this.pool.query<PortalAppModelRuntimeOverrideRow>(
       `
@@ -2332,6 +2529,83 @@ export class PgPortalStore {
       profile,
       models,
               version: Math.max(versionBase, updatedAtMs),
+    };
+  }
+
+  async resolveMemoryEmbedding(appName: string): Promise<PortalResolvedMemoryEmbeddingResult | null> {
+    const appResult = await this.pool.query<PortalMemoryEmbeddingProfileRow>(
+      `
+        select
+          id,
+          scope_type,
+          scope_key,
+          provider_key,
+          provider_label,
+          base_url,
+          auth_mode,
+          api_key,
+          embedding_model,
+          logo_preset_key,
+          auto_recall,
+          metadata_json,
+          enabled,
+          created_at,
+          updated_at
+        from memory_embedding_profiles
+        where scope_type = 'app'
+          and scope_key = $1
+          and enabled = true
+        limit 1
+      `,
+      [appName],
+    );
+    const appProfile = appResult.rows[0];
+    if (appProfile) {
+      const mapped = mapMemoryEmbeddingProfileRow(appProfile);
+      return {
+        appName,
+        resolvedScope: 'app',
+        profile: mapped,
+        version: Date.parse(mapped.updatedAt) || Date.now(),
+      };
+    }
+
+    const platformResult = await this.pool.query<PortalMemoryEmbeddingProfileRow>(
+      `
+        select
+          id,
+          scope_type,
+          scope_key,
+          provider_key,
+          provider_label,
+          base_url,
+          auth_mode,
+          api_key,
+          embedding_model,
+          logo_preset_key,
+          auto_recall,
+          metadata_json,
+          enabled,
+          created_at,
+          updated_at
+        from memory_embedding_profiles
+        where scope_type = 'platform'
+          and scope_key = 'platform'
+          and enabled = true
+        limit 1
+      `,
+      [],
+    );
+    const platformProfile = platformResult.rows[0];
+    if (!platformProfile) {
+      return null;
+    }
+    const mapped = mapMemoryEmbeddingProfileRow(platformProfile);
+    return {
+      appName,
+      resolvedScope: 'platform',
+      profile: mapped,
+      version: Date.parse(mapped.updatedAt) || Date.now(),
     };
   }
 

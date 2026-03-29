@@ -2,11 +2,13 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+source "$ROOT_DIR/scripts/lib/gateway-token.sh"
 API_PORT="${ICLAW_API_PORT:-2126}"
 AUTH_PORT="${ICLAW_CONTROL_PLANE_PORT:-2130}"
 WEB_PORT="${ICLAW_WEB_PORT:-1520}"
 WEB_HOST="${ICLAW_WEB_HOST:-127.0.0.1}"
 APP_NAME="${APP_NAME:-${ICLAW_PORTAL_APP_NAME:-${ICLAW_BRAND:-${ICLAW_APP_NAME:-}}}}"
+OPENCLAW_STATE_DIR="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}"
 
 read_env_value() {
   local key="$1"
@@ -18,11 +20,15 @@ read_env_value() {
 ENV_GATEWAY_TOKEN="$(read_env_value VITE_GATEWAY_TOKEN)"
 ENV_APP_NAME="$(read_env_value APP_NAME)"
 APP_NAME="${APP_NAME:-${ENV_APP_NAME:-}}"
+GATEWAY_TOKEN_FILE="$(resolve_gateway_token_file)"
 
 if [[ -z "${APP_NAME:-}" ]]; then
   echo "[web-dev] APP_NAME is required. Set it in .env.dev or pass APP_NAME/ICLAW_PORTAL_APP_NAME." >&2
   exit 1
 fi
+
+resolve_gateway_token "$ENV_GATEWAY_TOKEN" "$GATEWAY_TOKEN_FILE"
+echo "[web-dev] gateway token source: $GATEWAY_TOKEN_SOURCE"
 
 stop_existing_web() {
   local pids=""
@@ -72,6 +78,6 @@ node scripts/sync-openclaw-resources.mjs
 echo "[web-dev] Starting frontend on $WEB_HOST:$WEB_PORT"
 VITE_API_BASE_URL="http://127.0.0.1:$API_PORT" \
 VITE_AUTH_BASE_URL="http://127.0.0.1:$AUTH_PORT" \
-VITE_GATEWAY_TOKEN="${VITE_GATEWAY_TOKEN:-${ENV_GATEWAY_TOKEN:-iclaw-local-dev-gateway-token}}" \
+VITE_GATEWAY_TOKEN="$GATEWAY_TOKEN" \
 ICLAW_PORTAL_APP_NAME="$APP_NAME" \
 pnpm --filter @iclaw/desktop dev --host "$WEB_HOST" --port "$WEB_PORT" --strictPort

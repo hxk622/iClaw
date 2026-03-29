@@ -515,6 +515,8 @@ const state = {
   modelProviderProfiles: [],
   modelProviderOverrides: {},
   modelProviderDrafts: {},
+  memoryEmbeddingProfiles: [],
+  memoryEmbeddingDrafts: {},
   modelLogoPresets: [],
   paymentProviderProfiles: [],
   paymentProviderBindings: [],
@@ -527,6 +529,7 @@ const state = {
   selectedMcpKey: '',
   selectedModelRef: '',
   selectedModelProviderTab: 'platform',
+  selectedModelCenterSection: 'chat-provider',
   selectedPaymentProviderTab: 'platform',
   selectedBrandMenuKey: '',
   selectedCloudSkillSlug: '',
@@ -536,6 +539,7 @@ const state = {
   selectedAuditId: '',
   selectedDesktopReleaseChannel: 'prod',
   mcpTestResult: null,
+  memoryEmbeddingTestResult: null,
   assets: [],
   releases: [],
   paymentOrders: [],
@@ -2478,6 +2482,10 @@ function getModelProviderDraftKey(scopeType, scopeKey) {
   return `${String(scopeType || '').trim()}:${String(scopeKey || '').trim()}`;
 }
 
+function getMemoryEmbeddingDraftKey(scopeType, scopeKey) {
+  return `${String(scopeType || '').trim()}:${String(scopeKey || '').trim()}`;
+}
+
 function buildModelProviderDraft(input = {}) {
   const profile = asObject(input.profile);
   const override = asObject(input.override);
@@ -2499,6 +2507,21 @@ function buildModelProviderDraft(input = {}) {
         billingMultiplier: normalizeBillingMultiplierValue(model.billingMultiplier ?? model.billing_multiplier, 1),
       };
     }),
+  };
+}
+
+function buildMemoryEmbeddingDraft(input = {}) {
+  const profile = asObject(input.profile);
+  return {
+    id: String(profile.id || '').trim(),
+    scopeType: String(input.scopeType || profile.scopeType || '').trim(),
+    scopeKey: String(input.scopeKey || profile.scopeKey || '').trim(),
+    providerKey: String(profile.providerKey || '').trim(),
+    baseUrl: String(profile.baseUrl || '').trim(),
+    apiKey: String(profile.apiKey || '').trim(),
+    embeddingModel: String(profile.embeddingModel || '').trim(),
+    logoPresetKey: String(profile.logoPresetKey || '').trim(),
+    autoRecall: profile.autoRecall !== false,
   };
 }
 
@@ -2532,6 +2555,31 @@ function captureModelProviderDraft(form) {
     }),
   };
   state.modelProviderDrafts[getModelProviderDraftKey(scopeType, scopeKey)] = draft;
+  return draft;
+}
+
+function captureMemoryEmbeddingDraft(form) {
+  if (!(form instanceof HTMLFormElement)) {
+    return null;
+  }
+  const formData = new FormData(form);
+  const scopeType = String(formData.get('scope_type') || '').trim();
+  const scopeKey = String(formData.get('scope_key') || '').trim();
+  if (!scopeType || !scopeKey) {
+    return null;
+  }
+  const draft = {
+    id: String(formData.get('memory_profile_id') || '').trim(),
+    scopeType,
+    scopeKey,
+    providerKey: String(formData.get('memory_provider_key') || '').trim(),
+    baseUrl: String(formData.get('memory_base_url') || '').trim(),
+    apiKey: String(formData.get('memory_api_key') || '').trim(),
+    embeddingModel: String(formData.get('memory_embedding_model') || '').trim(),
+    logoPresetKey: String(formData.get('memory_logo_preset_key') || '').trim(),
+    autoRecall: formData.get('memory_auto_recall') === 'on',
+  };
+  state.memoryEmbeddingDrafts[getMemoryEmbeddingDraftKey(scopeType, scopeKey)] = draft;
   return draft;
 }
 
@@ -3389,13 +3437,14 @@ async function loadAppData() {
   render();
 
   try {
-    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, mcpRegistryData, modelProviderProfilesData, modelLogoPresetsData, menuCatalogData, composerControlCatalogData, composerShortcutCatalogData, skillSyncSourcesData, skillSyncRunsData, paymentProviderProfilesData, paymentProviderBindingsData, paymentOrdersData] = await Promise.all([
+    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, mcpRegistryData, modelProviderProfilesData, memoryEmbeddingProfilesData, modelLogoPresetsData, menuCatalogData, composerControlCatalogData, composerShortcutCatalogData, skillSyncSourcesData, skillSyncRunsData, paymentProviderProfilesData, paymentProviderBindingsData, paymentOrdersData] = await Promise.all([
       apiFetch('/admin/portal/apps', {method: 'GET'}),
       apiFetch('/admin/agents/catalog', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/skills', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/mcps', {method: 'GET'}),
       apiFetch('/admin/mcp/catalog', {method: 'GET'}),
       apiFetch('/admin/portal/model-provider-profiles', {method: 'GET'}),
+      apiFetch('/admin/portal/memory-embedding-profiles', {method: 'GET'}),
       apiFetch('/admin/portal/model-logo-presets', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/menus', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/composer-controls', {method: 'GET'}),
@@ -3429,6 +3478,7 @@ async function loadAppData() {
     state.mcpRegistryCatalog = Array.isArray(mcpRegistryData.items) ? mcpRegistryData.items : [];
     state.modelCatalog = [];
     state.modelProviderProfiles = Array.isArray(modelProviderProfilesData.items) ? modelProviderProfilesData.items : [];
+    state.memoryEmbeddingProfiles = Array.isArray(memoryEmbeddingProfilesData.items) ? memoryEmbeddingProfilesData.items : [];
     state.modelProviderOverrides = overridesMap;
     state.modelLogoPresets = Array.isArray(modelLogoPresetsData.items) ? modelLogoPresetsData.items : [];
     state.paymentProviderProfiles = Array.isArray(paymentProviderProfilesData.items) ? paymentProviderProfilesData.items : [];
@@ -4730,6 +4780,128 @@ async function saveModelProviderProfile(form) {
     );
   } catch (error) {
     setError(error instanceof Error ? error.message : 'Provider 保存失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function saveMemoryEmbeddingProfile(form) {
+  captureMemoryEmbeddingDraft(form);
+  const formData = new FormData(form);
+  state.busy = true;
+  resetBanner();
+
+  try {
+    const scopeType = String(formData.get('scope_type') || '').trim();
+    const scopeKey = String(formData.get('scope_key') || '').trim();
+    const providerKey = String(formData.get('memory_provider_key') || '').trim();
+    const baseUrl = String(formData.get('memory_base_url') || '').trim();
+    const apiKey = String(formData.get('memory_api_key') || '').trim();
+    const embeddingModel = String(formData.get('memory_embedding_model') || '').trim();
+    const autoRecall = formData.get('memory_auto_recall') === 'on';
+
+    const preflight = await apiFetch('/admin/portal/memory-embedding-profiles/preflight', {
+      method: 'POST',
+      body: JSON.stringify({
+        providerKey,
+        baseUrl,
+        authMode: 'bearer',
+        apiKey,
+        embeddingModel,
+      }),
+    });
+    state.memoryEmbeddingTestResult = {
+      ok: true,
+      message: preflight?.dimensions ? `${preflight.dimensions} 维向量返回成功` : '预检通过',
+      dimensions: preflight?.dimensions || null,
+    };
+
+    await apiFetch('/admin/portal/memory-embedding-profiles', {
+      method: 'PUT',
+      body: JSON.stringify({
+        id: String(formData.get('memory_profile_id') || '').trim() || null,
+        scopeType,
+        scopeKey,
+        providerKey,
+        providerLabel: providerKey,
+        baseUrl,
+        authMode: 'bearer',
+        apiKey,
+        embeddingModel,
+        logoPresetKey: String(formData.get('memory_logo_preset_key') || '').trim() || null,
+        autoRecall,
+        metadata: {},
+        enabled: true,
+      }),
+    });
+
+    await loadAppData();
+    delete state.memoryEmbeddingDrafts[getMemoryEmbeddingDraftKey(scopeType, scopeKey)];
+    setNotice(
+      `${scopeType === 'platform' ? '平台' : scopeKey} 记忆 Embedding 已保存，并通过预检${preflight?.dimensions ? `（${preflight.dimensions} 维）` : ''}。`,
+    );
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '记忆 Embedding 保存失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function testMemoryEmbeddingProfile(form) {
+  captureMemoryEmbeddingDraft(form);
+  const formData = new FormData(form);
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    state.memoryEmbeddingTestResult = await apiFetch('/admin/portal/memory-embedding-profiles/preflight', {
+      method: 'POST',
+      body: JSON.stringify({
+        providerKey: String(formData.get('memory_provider_key') || '').trim(),
+        baseUrl: String(formData.get('memory_base_url') || '').trim(),
+        authMode: 'bearer',
+        apiKey: String(formData.get('memory_api_key') || '').trim(),
+        embeddingModel: String(formData.get('memory_embedding_model') || '').trim(),
+      }),
+    });
+    setNotice(
+      `记忆 Embedding 测试通过${state.memoryEmbeddingTestResult?.dimensions ? `（${state.memoryEmbeddingTestResult.dimensions} 维）` : ''}。`,
+    );
+  } catch (error) {
+    state.memoryEmbeddingTestResult = {ok: false, message: error instanceof Error ? error.message : '记忆 Embedding 测试失败'};
+    setError(error instanceof Error ? error.message : '记忆 Embedding 测试失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function restorePlatformMemoryEmbedding(appName) {
+  const normalizedAppName = String(appName || '').trim();
+  if (!normalizedAppName) {
+    return;
+  }
+  const appProfile = getMemoryEmbeddingProfilesByScope('app', normalizedAppName)[0] || null;
+  if (!appProfile?.id) {
+    return;
+  }
+
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    await apiFetch(`/admin/portal/memory-embedding-profiles?id=${encodeURIComponent(appProfile.id)}`, {
+      method: 'DELETE',
+    });
+    delete state.memoryEmbeddingDrafts[getMemoryEmbeddingDraftKey('app', normalizedAppName)];
+    await loadAppData();
+    setNotice(`${normalizedAppName} 已恢复跟随平台记忆 Embedding。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '恢复平台记忆 Embedding 失败');
   } finally {
     state.busy = false;
     render();
@@ -7009,6 +7181,10 @@ function getModelProviderProfilesByScope(scopeType, scopeKey) {
     .sort((left, right) => Number(left.sortOrder || 0) - Number(right.sortOrder || 0));
 }
 
+function getMemoryEmbeddingProfilesByScope(scopeType, scopeKey) {
+  return (state.memoryEmbeddingProfiles || []).filter((item) => item.scopeType === scopeType && item.scopeKey === scopeKey);
+}
+
 function getSelectedModelProviderTab() {
   const appNames = (state.brands || []).map((item) => item.brandId);
   if (state.selectedModelProviderTab === 'platform') {
@@ -7122,13 +7298,32 @@ function renderModelProviderCenterPage() {
   const override = selectedBrand ? state.modelProviderOverrides[selectedBrand.brandId] || null : null;
   const draftKey = getModelProviderDraftKey(scopeType, scopeKey);
   const draft = state.modelProviderDrafts[draftKey] || buildModelProviderDraft({profile, override, scopeType, scopeKey});
+  const memoryProfile = getMemoryEmbeddingProfilesByScope(scopeType, scopeKey)[0] || {
+    id: '',
+    scopeType,
+    scopeKey,
+    providerKey: '',
+    baseUrl: '',
+    apiKey: '',
+    embeddingModel: '',
+    logoPresetKey: '',
+    autoRecall: true,
+  };
+  const memoryDraftKey = getMemoryEmbeddingDraftKey(scopeType, scopeKey);
+  const memoryDraft = state.memoryEmbeddingDrafts[memoryDraftKey] || buildMemoryEmbeddingDraft({profile: memoryProfile, scopeType, scopeKey});
   const providerLogoPresetKey = String(draft.logoPresetKey || '');
   const providerLogoPreset = getModelLogoPreset(providerLogoPresetKey);
+  const memoryLogoPresetKey = String(memoryDraft.logoPresetKey || '');
+  const memoryLogoPreset = getModelLogoPreset(memoryLogoPresetKey);
   const currentProviderMode = String(draft.providerMode || 'inherit_platform').trim() || 'inherit_platform';
   const usesOemProvider = currentProviderMode === 'use_app_profile';
   const hasSavedOemProfile = Boolean(selectedBrand && String(profile.id || '').trim());
+  const hasSavedOemMemoryProfile = Boolean(selectedBrand && String(memoryProfile.id || '').trim());
   const platformProviderLabel = String(platformProfile?.providerKey || platformProfile?.providerLabel || '').trim() || '未配置';
   const oemProviderLabel = String(draft.providerKey || profile.providerKey || '').trim() || '未配置';
+  const platformMemoryProfile = getMemoryEmbeddingProfilesByScope('platform', 'platform')[0] || null;
+  const platformMemoryLabel = String(platformMemoryProfile?.providerKey || platformMemoryProfile?.providerLabel || '').trim() || '未配置';
+  const oemMemoryLabel = String(memoryDraft.providerKey || memoryProfile.providerKey || '').trim() || '未配置';
   const providerStatusTitle = !selectedBrand
     ? `当前平台默认 Provider：${platformProviderLabel}`
     : usesOemProvider
@@ -7141,6 +7336,17 @@ function renderModelProviderCenterPage() {
       : hasSavedOemProfile
         ? '这个 OEM 已保存独立 provider，但当前仍跟随平台。再次保存下方配置会自动启用 OEM Provider。'
         : '这个 OEM 当前跟随平台。填写并保存下方配置后，会自动切到自己的 Provider。';
+  const memoryStatusTitle = !selectedBrand
+    ? `当前平台默认记忆 Embedding：${platformMemoryLabel}`
+    : hasSavedOemMemoryProfile
+      ? `当前使用 OEM 记忆 Embedding：${oemMemoryLabel}`
+      : `当前跟随平台记忆 Embedding：${platformMemoryLabel}`;
+  const memoryStatusDescription = !selectedBrand
+    ? '这里是所有 OEM 的默认记忆向量配置。OEM 没有单独配置时都会继承这里。'
+    : hasSavedOemMemoryProfile
+      ? '当前这个 OEM 已经切到自己的记忆 Embedding。保存后会直接更新当前生效配置。'
+      : '这个 OEM 当前跟随平台记忆 Embedding。填写并保存下方配置后，会只影响这个 OEM 的记忆索引与召回。';
+  const selectedSection = state.selectedModelCenterSection === 'memory-embedding' ? 'memory-embedding' : 'chat-provider';
   const tabs = [
     {key: 'platform', label: '平台'},
     ...(state.brands || []).map((brand) => ({key: brand.brandId, label: brand.displayName})),
@@ -7161,6 +7367,9 @@ function renderModelProviderCenterPage() {
         'OEM tab 不再暴露 Provider Mode。填写并保存独立 provider 后，会自动切到 OEM Provider。',
         '如果要恢复到平台默认 provider，直接点“恢复跟随平台”。',
         '模型列表、Base URL、API Key、Logo、倍率都在同一个 provider profile 里维护；保存后会同步清理 runtime 缓存。',
+        '记忆 Embedding 现在是独立配置，不再复用聊天 provider。聊天能用，不代表记忆向量一定能用。',
+        '保存记忆 Embedding 前会先做一次真实 /embeddings 预检；预检不过，配置不会被当成可用保存。',
+        '平台记忆 Embedding 是所有 OEM 的默认兜底；OEM 一旦配置独立记忆 Embedding，只影响这个 OEM 的记忆索引和召回。',
       ], 'capability')}
       <div class="fig-detail-stack">
         <section class="fig-card fig-card--subtle">
@@ -7177,7 +7386,17 @@ function renderModelProviderCenterPage() {
               .join('')}
           </div>
         </section>
-        <form id="model-provider-form" class="fig-card fig-card--subtle">
+        <section class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
+            <h3>配置视图</h3>
+            <span>先定视图，再定配置</span>
+          </div>
+          <div class="segmented">
+            <button class="tab-pill${selectedSection === 'chat-provider' ? ' is-active' : ''}" type="button" data-action="select-model-center-section" data-section-key="chat-provider">聊天 Provider</button>
+            <button class="tab-pill${selectedSection === 'memory-embedding' ? ' is-active' : ''}" type="button" data-action="select-model-center-section" data-section-key="memory-embedding">记忆 Embedding</button>
+          </div>
+        </section>
+        <form id="model-provider-form" class="fig-card fig-card--subtle"${selectedSection !== 'chat-provider' ? ' style="display:none;"' : ''}>
           <input type="hidden" name="profile_id" value="${fieldValue(draft.id || '')}" />
           <input type="hidden" name="scope_type" value="${fieldValue(scopeType)}" />
           <input type="hidden" name="scope_key" value="${fieldValue(scopeKey)}" />
@@ -7234,6 +7453,69 @@ function renderModelProviderCenterPage() {
           <div class="fig-form-actions">
             <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>保存 Provider</button>
             ${selectedBrand ? `<button class="ghost-button" type="button" data-action="restore-platform-model-provider" data-app-name="${escapeHtml(selectedBrand.brandId)}"${state.busy || currentProviderMode !== 'use_app_profile' ? ' disabled' : ''}>恢复跟随平台</button>` : ''}
+          </div>
+        </form>
+        <form id="memory-embedding-form" class="fig-card fig-card--subtle"${selectedSection !== 'memory-embedding' ? ' style="display:none;"' : ''}>
+          <input type="hidden" name="memory_profile_id" value="${fieldValue(memoryDraft.id || '')}" />
+          <input type="hidden" name="scope_type" value="${fieldValue(scopeType)}" />
+          <input type="hidden" name="scope_key" value="${fieldValue(scopeKey)}" />
+          <div class="fig-card__head">
+            <div>
+              <h3>${escapeHtml(selectedBrand ? `${selectedBrand.displayName} 记忆 Embedding` : '平台记忆 Embedding Fallback')}</h3>
+              <span>${escapeHtml(scopeType === 'platform' ? '所有 OEM 默认继承这里' : '这里维护这个 OEM 的独立记忆向量配置')}</span>
+            </div>
+          </div>
+          <div class="empty-state" style="min-height:auto; align-items:flex-start; text-align:left; margin-bottom:16px;">
+            <strong>${escapeHtml(memoryStatusTitle)}</strong>
+            <span>${escapeHtml(memoryStatusDescription)}</span>
+          </div>
+          ${
+            state.memoryEmbeddingTestResult
+              ? `<div class="banner ${state.memoryEmbeddingTestResult.ok ? 'banner--success' : 'banner--error'}" style="margin-bottom:16px;">测试结果: ${escapeHtml(state.memoryEmbeddingTestResult.message || (state.memoryEmbeddingTestResult.dimensions ? `${state.memoryEmbeddingTestResult.dimensions} 维向量返回成功` : '已通过'))}</div>`
+              : ''
+          }
+          <div class="form-grid form-grid--two">
+            <label class="field">
+              <span>Provider Key</span>
+              <input class="field-input" name="memory_provider_key" value="${fieldValue(memoryDraft.providerKey || '')}" placeholder="bailian / siliconflow" />
+            </label>
+            <label class="field field--wide">
+              <span>Base URL</span>
+              <input class="field-input" name="memory_base_url" value="${fieldValue(memoryDraft.baseUrl || '')}" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1" />
+            </label>
+            <label class="field field--wide">
+              <span>API Key</span>
+              <input class="field-input" name="memory_api_key" value="${fieldValue(memoryDraft.apiKey || '')}" placeholder="Embedding API Key" />
+            </label>
+            <label class="field">
+              <span>Embedding Model</span>
+              <input class="field-input" name="memory_embedding_model" value="${fieldValue(memoryDraft.embeddingModel || '')}" placeholder="text-embedding-v4" />
+            </label>
+            <label class="field field--wide">
+              <span>Provider Logo Preset</span>
+              <select class="field-select" name="memory_logo_preset_key" data-logo-select="true">
+                <option value="">不设置</option>
+                ${(state.modelLogoPresets || [])
+                  .map(
+                    (preset) =>
+                      `<option value="${escapeHtml(preset.presetKey)}"${memoryLogoPresetKey === preset.presetKey ? ' selected' : ''}>${escapeHtml(preset.label)}</option>`,
+                  )
+                  .join('')}
+              </select>
+            </label>
+            <div class="field field--wide">
+              <span>Provider Logo Preview</span>
+              <div data-logo-preview="true">${memoryLogoPreset ? renderModelLogoPreview(memoryLogoPreset.presetKey, 'Memory Provider Logo') : '<div class="empty-state" style="min-height:40px;">Provider Logo 未设置</div>'}</div>
+            </div>
+            <label class="field field--wide" style="display:flex;align-items:center;gap:10px;">
+              <input type="checkbox" name="memory_auto_recall"${memoryDraft.autoRecall !== false ? ' checked' : ''} />
+              <span>开启 Auto Recall</span>
+            </label>
+          </div>
+          <div class="fig-form-actions">
+            <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>保存记忆 Embedding</button>
+            <button class="ghost-button" type="button" data-action="test-memory-embedding"${state.busy ? ' disabled' : ''}>测试连接</button>
+            ${selectedBrand ? `<button class="ghost-button" type="button" data-action="restore-platform-memory-embedding" data-app-name="${escapeHtml(selectedBrand.brandId)}"${state.busy || !hasSavedOemMemoryProfile ? ' disabled' : ''}>恢复跟随平台</button>` : ''}
           </div>
         </form>
       </div>
@@ -10074,6 +10356,11 @@ app.addEventListener('submit', async (event) => {
     return;
   }
 
+  if (form.id === 'memory-embedding-form') {
+    await saveMemoryEmbeddingProfile(form);
+    return;
+  }
+
   if (form.id === 'payment-provider-form') {
     await savePaymentProviderConfig(form);
     return;
@@ -10109,6 +10396,11 @@ app.addEventListener('input', (event) => {
   const form = target?.closest('form');
   if (form instanceof HTMLFormElement && form.id === 'model-provider-form') {
     captureModelProviderDraft(form);
+    return;
+  }
+  if (form instanceof HTMLFormElement && form.id === 'memory-embedding-form') {
+    captureMemoryEmbeddingDraft(form);
+    state.memoryEmbeddingTestResult = null;
   }
 });
 
@@ -10117,6 +10409,11 @@ app.addEventListener('change', (event) => {
   const form = target?.closest('form');
   if (form instanceof HTMLFormElement && form.id === 'model-provider-form') {
     captureModelProviderDraft(form);
+    return;
+  }
+  if (form instanceof HTMLFormElement && form.id === 'memory-embedding-form') {
+    captureMemoryEmbeddingDraft(form);
+    state.memoryEmbeddingTestResult = null;
   }
 });
 
@@ -10346,6 +10643,15 @@ app.addEventListener('click', async (event) => {
     state.capabilityMode = 'models';
     state.route = getCapabilityRouteForMode(state.capabilityMode);
     state.selectedModelProviderTab = target.getAttribute('data-tab-key') || 'platform';
+    state.memoryEmbeddingTestResult = null;
+    render();
+    return;
+  }
+
+  if (action === 'select-model-center-section') {
+    state.capabilityMode = 'models';
+    state.route = getCapabilityRouteForMode(state.capabilityMode);
+    state.selectedModelCenterSection = target.getAttribute('data-section-key') || 'chat-provider';
     render();
     return;
   }
@@ -10354,6 +10660,22 @@ app.addEventListener('click', async (event) => {
     const appName = target.getAttribute('data-app-name') || '';
     if (appName && window.confirm(`确认让 ${appName} 恢复跟随平台 Provider？`)) {
       await restorePlatformModelProvider(appName);
+    }
+    return;
+  }
+
+  if (action === 'restore-platform-memory-embedding') {
+    const appName = target.getAttribute('data-app-name') || '';
+    if (appName && window.confirm(`确认让 ${appName} 恢复跟随平台记忆 Embedding？`)) {
+      await restorePlatformMemoryEmbedding(appName);
+    }
+    return;
+  }
+
+  if (action === 'test-memory-embedding') {
+    const form = target.closest('form');
+    if (form instanceof HTMLFormElement) {
+      await testMemoryEmbeddingProfile(form);
     }
     return;
   }

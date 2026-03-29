@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+source "$ROOT_DIR/scripts/lib/gateway-token.sh"
 API_PORT="${ICLAW_API_PORT:-2126}"
 API_DETACH="${ICLAW_API_DETACH:-0}"
 LOG_DIR="${ICLAW_LOG_DIR:-$ROOT_DIR/logs/openclaw}"
@@ -57,8 +58,8 @@ try {
 ENV_GATEWAY_TOKEN="$(read_env_value VITE_GATEWAY_TOKEN)"
 ENV_APP_NAME="$(read_env_value APP_NAME)"
 PORTAL_APP_NAME="${PORTAL_APP_NAME:-${ENV_APP_NAME:-}}"
-GATEWAY_TOKEN="${OPENCLAW_GATEWAY_TOKEN:-${ENV_GATEWAY_TOKEN:-iclaw-local-dev-gateway-token}}"
 OPENCLAW_STATE_DIR="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}"
+GATEWAY_TOKEN_FILE="$(resolve_gateway_token_file)"
 OPENCLAW_CONFIG_PATH="${OPENCLAW_CONFIG_PATH:-$OPENCLAW_STATE_DIR/openclaw.json}"
 RUNTIME_ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-$(read_runtime_config_value anthropic_api_key)}"
 
@@ -352,6 +353,8 @@ if [[ -n "${PORTAL_APP_NAME:-}" ]]; then
   node --experimental-strip-types "$ROOT_DIR/services/control-plane/scripts/sync-local-app-runtime.ts" --app "$PORTAL_APP_NAME"
 fi
 bash "$ROOT_DIR/scripts/prepare-openclaw-workspace.sh"
+resolve_gateway_token "$ENV_GATEWAY_TOKEN" "$GATEWAY_TOKEN_FILE"
+echo "[api-dev] gateway token source: $GATEWAY_TOKEN_SOURCE"
 sync_gateway_token_config
 stop_existing_api
 if [[ "$API_DETACH" == "1" ]]; then

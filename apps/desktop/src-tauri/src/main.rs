@@ -56,6 +56,8 @@ const LOCAL_CONTROL_PLANE_URL: &str = "http://127.0.0.1:2130";
 const AUTH_ACCESS_KEY: &str = "access_token";
 const AUTH_REFRESH_KEY: &str = "refresh_token";
 const AUTH_GATEWAY_TOKEN_KEY: &str = "gateway_token";
+const SHARED_GATEWAY_TOKEN_DIR: &str = ".openclaw";
+const SHARED_GATEWAY_TOKEN_FILE: &str = "gateway-token";
 const DESKTOP_UPDATER_PUBLIC_KEY: Option<&str> = option_env!("TAURI_UPDATER_PUBLIC_KEY");
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -73,6 +75,15 @@ struct OemRuntimeSnapshot {
     brand_id: String,
     published_version: u64,
     config: serde_json::Value,
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+struct DesktopWindowStateSnapshot {
+    width: u32,
+    height: u32,
+    position_x: i32,
+    position_y: i32,
 }
 
 #[derive(Deserialize)]
@@ -144,6 +155,11 @@ struct DesktopMemoryRuntimeStatus {
     fts_available: Option<bool>,
     fts_error: Option<String>,
     vector_available: Option<bool>,
+    vector_error: Option<String>,
+    embedding_configured: bool,
+    configured_scope: Option<String>,
+    configured_provider: Option<String>,
+    configured_model: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -2251,14 +2267,108 @@ fn generate_gateway_token() -> String {
         .join("")
 }
 
-fn load_or_create_gateway_token() -> Result<String, String> {
-    let entry = Entry::new(AUTH_SERVICE, AUTH_GATEWAY_TOKEN_KEY).map_err(|e| e.to_string())?;
+fn shared_gateway_token_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let home = app
+        .path()
+        .home_dir()
+        .map_err(|e| format!("failed to resolve home dir: {e}"))?;
+    let dir = home.join(SHARED_GATEWAY_TOKEN_DIR);
+    fs::create_dir_all(&dir).map_err(|e| {
+        format!(
+            "failed to create shared gateway token dir {}: {e}",
+            dir.to_string_lossy()
+        )
+    })?;
+    Ok(dir.join(SHARED_GATEWAY_TOKEN_FILE))
+}
 
+fn read_gateway_token_file(path: &Path) -> Result<Option<String>, String> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    let raw = fs::read_to_string(path).map_err(|e| {
+        format!(
+            "failed to read shared gateway token {}: {e}",
+            path.to_string_lossy()
+        )
+    })?;
+    let token = raw.trim();
+    if token.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(token.to_string()))
+}
+
+fn write_gateway_token_file(path: &Path, token: &str) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| {
+            format!(
+                "failed to create shared gateway token parent {}: {e}",
+                parent.to_string_lossy()
+            )
+        })?;
+    }
+    fs::write(path, format!("{}\n", token.trim())).map_err(|e| {
+        format!(
+            "failed to write shared gateway token {}: {e}",
+            path.to_string_lossy()
+        )
+    })?;
+    #[cfg(unix)]
+    {
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600)).map_err(|e| {
+            format!(
+                "failed to lock shared gateway token permissions {}: {e}",
+                path.to_string_lossy()
+            )
+        })?;
+    }
+    Ok(())
+}
+
+fn sync_gateway_token_keyring(token: &str) -> Result<(), String> {
+    let entry = Entry::new(AUTH_SERVICE, AUTH_GATEWAY_TOKEN_KEY).map_err(|e| e.to_string())?;
     match entry.get_password() {
-        Ok(token) if !token.trim().is_empty() => Ok(token),
+        Ok(current) if current.trim() == token.trim() => Ok(()),
+        Ok(_) | Err(keyring::Error::NoEntry) => {
+            entry
+                .set_password(token.trim())
+                .map_err(|e| format!("failed to sync gateway token keyring: {e}"))
+        }
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+fn load_or_create_gateway_token(app: &AppHandle) -> Result<String, String> {
+    let shared_path = shared_gateway_token_path(app)?;
+
+    let explicit_env = env::var("ICLAW_GATEWAY_TOKEN")
+        .ok()
+        .or_else(|| env::var("OPENCLAW_GATEWAY_TOKEN").ok())
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    if let Some(token) = explicit_env {
+        write_gateway_token_file(&shared_path, &token)?;
+        sync_gateway_token_keyring(&token)?;
+        return Ok(token);
+    }
+
+    if let Some(token) = read_gateway_token_file(&shared_path)? {
+        sync_gateway_token_keyring(&token)?;
+        return Ok(token);
+    }
+
+    let entry = Entry::new(AUTH_SERVICE, AUTH_GATEWAY_TOKEN_KEY).map_err(|e| e.to_string())?;
+    match entry.get_password() {
+        Ok(token) if !token.trim().is_empty() => {
+            let normalized = token.trim().to_string();
+            write_gateway_token_file(&shared_path, &normalized)?;
+            Ok(normalized)
+        }
         Ok(_) | Err(keyring::Error::NoEntry) => {
             let token = generate_gateway_token();
-            entry.set_password(&token).map_err(|e| e.to_string())?;
+            write_gateway_token_file(&shared_path, &token)?;
+            sync_gateway_token_keyring(&token)?;
             Ok(token)
         }
         Err(e) => Err(e.to_string()),
@@ -2461,6 +2571,75 @@ fn openclaw_config_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(path)
 }
 
+fn desktop_window_state_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let path = app_data_base_dir(app)?.join("config").join("window-state.json");
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("failed to create window state dir: {e}"))?;
+    }
+    Ok(path)
+}
+
+fn load_desktop_window_state(app: &AppHandle) -> Result<Option<DesktopWindowStateSnapshot>, String> {
+    let path = desktop_window_state_path(app)?;
+    if !path.exists() {
+        return Ok(None);
+    }
+    let raw = fs::read_to_string(&path)
+        .map_err(|e| format!("failed to read window state {}: {e}", path.to_string_lossy()))?;
+    let parsed = serde_json::from_str::<DesktopWindowStateSnapshot>(&raw)
+        .map_err(|e| format!("failed to parse window state {}: {e}", path.to_string_lossy()))?;
+    if parsed.width == 0 || parsed.height == 0 {
+        return Ok(None);
+    }
+    Ok(Some(parsed))
+}
+
+fn save_desktop_window_state(
+    app: &AppHandle,
+    snapshot: &DesktopWindowStateSnapshot,
+) -> Result<(), String> {
+    let path = desktop_window_state_path(app)?;
+    let raw = serde_json::to_string_pretty(snapshot)
+        .map_err(|e| format!("failed to serialize window state: {e}"))?;
+    fs::write(&path, format!("{raw}\n"))
+        .map_err(|e| format!("failed to write window state {}: {e}", path.to_string_lossy()))
+}
+
+fn persist_window_state_from_metrics(
+    app: &AppHandle,
+    size: PhysicalSize<u32>,
+    position: PhysicalPosition<i32>,
+) {
+    let snapshot = DesktopWindowStateSnapshot {
+        width: size.width,
+        height: size.height,
+        position_x: position.x,
+        position_y: position.y,
+    };
+    let _ = save_desktop_window_state(app, &snapshot);
+}
+
+fn persist_desktop_window_state(window: &tauri::Window) {
+    let Ok(size) = window.inner_size() else {
+        return;
+    };
+    let Ok(position) = window.outer_position() else {
+        return;
+    };
+    persist_window_state_from_metrics(&window.app_handle(), size, position);
+}
+
+fn persist_desktop_webview_window_state(window: &tauri::WebviewWindow) {
+    let Ok(size) = window.inner_size() else {
+        return;
+    };
+    let Ok(position) = window.outer_position() else {
+        return;
+    };
+    persist_window_state_from_metrics(&window.app_handle(), size, position);
+}
+
 fn resolve_desktop_auth_base_url() -> String {
     let configured = DESKTOP_AUTH_BASE_URL.trim().trim_end_matches('/');
     if configured.is_empty() {
@@ -2490,6 +2669,34 @@ fn sync_current_brand_runtime_snapshot(app: &AppHandle) -> Result<bool, String> 
         resolve_desktop_auth_base_url(),
         brand_id,
     )
+}
+
+fn read_memory_embedding_profile_from_snapshot(
+    app: &AppHandle,
+) -> Option<(String, String, String)> {
+    let snapshot = load_oem_runtime_snapshot_internal(app).ok().flatten()?;
+    let config = snapshot.config.as_object()?;
+    let memory_embedding = config.get("memory_embedding")?.as_object()?;
+    let profile = memory_embedding.get("profile")?.as_object()?;
+    let scope = profile
+        .get("scope_key")
+        .and_then(|value| value.as_str())
+        .map(String::from)
+        .unwrap_or_default();
+    let provider = profile
+        .get("provider_key")
+        .and_then(|value| value.as_str())
+        .map(String::from)
+        .unwrap_or_default();
+    let model = profile
+        .get("embedding_model")
+        .and_then(|value| value.as_str())
+        .map(String::from)
+        .unwrap_or_default();
+    if provider.trim().is_empty() || model.trim().is_empty() {
+        return None;
+    }
+    Some((scope, provider, model))
 }
 
 fn load_oem_runtime_snapshot_internal(app: &AppHandle) -> Result<Option<OemRuntimeSnapshot>, String> {
@@ -2643,7 +2850,7 @@ fn start_sidecar(
     if let Err(error) = sync_current_brand_runtime_snapshot(&app) {
         eprintln!("failed to sync OEM runtime snapshot before sidecar start: {error}");
     }
-    let gateway_token = load_or_create_gateway_token()?;
+    let gateway_token = load_or_create_gateway_token(&app)?;
     ensure_openclaw_workspace_seed(&app)?;
     let openclaw_state_dir = openclaw_state_dir(&app)?;
     let openclaw_config_path = ensure_openclaw_runtime_config(&app, &gateway_token)?;
@@ -2765,9 +2972,9 @@ fn clear_auth_tokens() -> Result<bool, String> {
 }
 
 #[tauri::command]
-fn load_gateway_auth() -> Result<StoredGatewayAuth, String> {
+fn load_gateway_auth(app: AppHandle) -> Result<StoredGatewayAuth, String> {
     Ok(StoredGatewayAuth {
-        token: Some(load_or_create_gateway_token()?),
+        token: Some(load_or_create_gateway_token(&app)?),
         password: None,
     })
 }
@@ -2800,7 +3007,7 @@ fn save_oem_runtime_snapshot(app: AppHandle, snapshot: OemRuntimeSnapshot) -> Re
         .map_err(|e| format!("failed to serialize OEM runtime snapshot: {e}"))?;
     fs::write(&snapshot_path, raw)
         .map_err(|e| format!("failed to write OEM runtime snapshot: {e}"))?;
-    let gateway_token = load_or_create_gateway_token()?;
+    let gateway_token = load_or_create_gateway_token(&app)?;
     ensure_openclaw_runtime_config(&app, &gateway_token)?;
     Ok(true)
 }
@@ -3306,7 +3513,7 @@ fn configure_memory_runtime_command(command: &mut Command, app: &AppHandle) -> R
     if let Err(error) = sync_current_brand_runtime_snapshot(app) {
         eprintln!("failed to sync OEM runtime snapshot before memory runtime command: {error}");
     }
-    let gateway_token = load_or_create_gateway_token()?;
+    let gateway_token = load_or_create_gateway_token(app)?;
     ensure_openclaw_workspace_seed(app)?;
     let openclaw_state_dir = openclaw_state_dir(app)?;
     let openclaw_config_path = ensure_openclaw_runtime_config(app, &gateway_token)?;
@@ -3383,6 +3590,7 @@ fn load_desktop_memory_runtime_status(
     app: &AppHandle,
 ) -> Result<DesktopMemoryRuntimeStatus, String> {
     let value = run_memory_cli_json(app, &["memory", "status", "--json"])?;
+    let memory_profile = read_memory_embedding_profile_from_snapshot(app);
     let first = value
         .as_array()
         .and_then(|items| items.first())
@@ -3453,6 +3661,15 @@ fn load_desktop_memory_runtime_status(
             .get("vector")
             .and_then(|value| value.get("available"))
             .and_then(|value| value.as_bool()),
+        vector_error: status
+            .get("vector")
+            .and_then(|value| value.get("error"))
+            .and_then(|value| value.as_str())
+            .map(String::from),
+        embedding_configured: memory_profile.is_some(),
+        configured_scope: memory_profile.as_ref().map(|item| item.0.clone()),
+        configured_provider: memory_profile.as_ref().map(|item| item.1.clone()),
+        configured_model: memory_profile.as_ref().map(|item| item.2.clone()),
     })
 }
 
@@ -3916,20 +4133,31 @@ fn apply_initial_window_layout(app: &AppHandle) {
         return;
     };
 
+    if let Ok(Some(snapshot)) = load_desktop_window_state(app) {
+        let _ = window.set_size(PhysicalSize::new(snapshot.width, snapshot.height));
+        let _ = window.set_position(PhysicalPosition::new(
+            snapshot.position_x,
+            snapshot.position_y,
+        ));
+        return;
+    }
+
     let Ok(Some(monitor)) = window.current_monitor() else {
         return;
     };
 
     let monitor_size = monitor.size();
-    let target_width = ((monitor_size.width as f64) * 0.8).round() as u32;
-    let target_height = ((monitor_size.height as f64) * 0.8).round() as u32;
+    let monitor_position = monitor.position();
+    let target_width = ((monitor_size.width as f64) * 1.0).round() as u32;
+    let target_height = ((monitor_size.height as f64) * 1.0).round() as u32;
     let width = target_width.max(980);
     let height = target_height.max(680);
-    let pos_x = ((monitor_size.width.saturating_sub(width)) / 2) as i32;
-    let pos_y = ((monitor_size.height.saturating_sub(height)) / 2) as i32;
+    let pos_x = monitor_position.x + ((monitor_size.width.saturating_sub(width)) / 2) as i32;
+    let pos_y = monitor_position.y + ((monitor_size.height.saturating_sub(height)) / 2) as i32;
 
     let _ = window.set_size(PhysicalSize::new(width, height));
     let _ = window.set_position(PhysicalPosition::new(pos_x, pos_y));
+    persist_desktop_webview_window_state(&window);
 }
 
 fn main() {
@@ -3951,9 +4179,16 @@ fn main() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                let _ = window.minimize();
+            match event {
+                WindowEvent::CloseRequested { api, .. } => {
+                    persist_desktop_window_state(window);
+                    api.prevent_close();
+                    let _ = window.minimize();
+                }
+                WindowEvent::Resized(_) | WindowEvent::Moved(_) => {
+                    persist_desktop_window_state(window);
+                }
+                _ => {}
             }
         })
         .invoke_handler(tauri::generate_handler![

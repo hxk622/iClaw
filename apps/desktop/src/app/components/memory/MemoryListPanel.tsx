@@ -6,6 +6,7 @@ import { Chip } from '@/app/components/ui/Chip';
 import { EmptyStatePanel } from '@/app/components/ui/EmptyStatePanel';
 import { PressableCard } from '@/app/components/ui/PressableCard';
 import { SurfacePanel } from '@/app/components/ui/SurfacePanel';
+import type { MemoryRuntimeStatus } from '@/app/lib/tauri-memory';
 import type { MemoryEntry } from './model';
 import {
   getDomainBadgeClass,
@@ -21,6 +22,7 @@ export function MemoryListPanel({
   loading,
   hasActiveFilters,
   runtimeError,
+  runtimeStatus,
   memoryDir,
   onSelect,
   onClearFilters,
@@ -31,10 +33,16 @@ export function MemoryListPanel({
   loading: boolean;
   hasActiveFilters: boolean;
   runtimeError: string | null;
+  runtimeStatus: MemoryRuntimeStatus | null;
   memoryDir: string;
   onSelect: (id: string) => void;
   onClearFilters: () => void;
 }) {
+  const configHint = !runtimeStatus?.embeddingConfigured
+    ? '当前未配置记忆 Embedding；手动记忆可以继续使用，但向量召回不会启动。'
+    : runtimeError || runtimeStatus?.vectorError
+      ? `当前记忆 Embedding 已配置，但运行异常：${runtimeStatus?.vectorError || runtimeError}`
+      : null;
   return (
     <SurfacePanel className="overflow-hidden rounded-[24px] border-[var(--border-default)] bg-[var(--bg-card)]">
       <div className="flex flex-col gap-3 border-b border-[var(--border-default)] px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
@@ -56,6 +64,12 @@ export function MemoryListPanel({
             <Chip tone="danger" className="rounded-full px-3 py-1 text-[12px]">
               <AlertCircle className="h-3.5 w-3.5" />
               {runtimeError}
+            </Chip>
+          ) : null}
+          {configHint ? (
+            <Chip tone="warning" className="rounded-full px-3 py-1 text-[12px]">
+              <AlertCircle className="h-3.5 w-3.5" />
+              {configHint}
             </Chip>
           ) : null}
         </div>

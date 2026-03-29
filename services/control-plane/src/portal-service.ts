@@ -25,6 +25,7 @@ import type {
   PortalAppRecord,
   PortalAppStatus,
   PortalJsonObject,
+  PortalMemoryEmbeddingProfileRecord,
   PortalModelProviderScopeType,
   ReplacePortalAppComposerControlBindingsInput,
   ReplacePortalAppComposerShortcutBindingsInput,
@@ -34,6 +35,8 @@ import type {
   ReplacePortalAppSkillBindingsInput,
   UpsertPortalAppInput,
   UpsertPortalAppModelRuntimeOverrideInput,
+  ValidatePortalMemoryEmbeddingProfileInput,
+  UpsertPortalMemoryEmbeddingProfileInput,
   UpsertPortalModelProviderProfileInput,
   UpsertPortalMenuInput,
   UpsertPortalMcpInput,
@@ -178,6 +181,44 @@ function applyResolvedRuntimeModelsToConfig(
   return nextConfig;
 }
 
+function applyResolvedMemoryEmbeddingToConfig(
+  config: PortalJsonObject,
+  resolved: {
+    resolvedScope: PortalModelProviderScopeType;
+    version: number;
+    profile: PortalMemoryEmbeddingProfileRecord;
+  } | null,
+  options: {includeSecrets?: boolean} = {},
+): PortalJsonObject {
+  const nextConfig = cloneJson(config);
+  if (!resolved) {
+    delete nextConfig.memory_embedding;
+    return nextConfig;
+  }
+  nextConfig.memory_embedding = {
+    resolved_scope: resolved.resolvedScope,
+    version: resolved.version,
+    profile: {
+      id: resolved.profile.id,
+      scope_type: resolved.profile.scopeType,
+      scope_key: resolved.profile.scopeKey,
+      provider_key: resolved.profile.providerKey,
+      provider_label: resolved.profile.providerLabel,
+      base_url: resolved.profile.baseUrl,
+      auth_mode: resolved.profile.authMode,
+      embedding_model: resolved.profile.embeddingModel,
+      logo_preset_key: resolved.profile.logoPresetKey,
+      auto_recall: resolved.profile.autoRecall,
+      metadata: cloneJson(resolved.profile.metadata),
+      enabled: resolved.profile.enabled,
+      created_at: resolved.profile.createdAt,
+      updated_at: resolved.profile.updatedAt,
+      ...(options.includeSecrets ? {api_key: resolved.profile.apiKey || ''} : {}),
+    },
+  };
+  return nextConfig;
+}
+
 function normalizeRequiredString(value: unknown, field: string): string {
   if (typeof value !== 'string') {
     throw new HttpError(400, 'BAD_REQUEST', `${field} is required`);
@@ -212,6 +253,12 @@ function normalizeOptionalInteger(value: unknown, field: string, fallback: numbe
     throw new HttpError(400, 'BAD_REQUEST', `${field} must be an integer`);
   }
   return value;
+}
+
+function joinOpenaiCompatiblePath(baseUrl: string, path: string): string {
+  const normalizedBase = baseUrl.trim().replace(/\/+$/, '');
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${normalizedBase}${normalizedPath}`;
 }
 
 function normalizeNullableInteger(value: unknown, field: string): number | null {
@@ -309,6 +356,10 @@ function normalizeProviderMode(value: unknown): PortalAppModelProviderMode {
 
 function runtimeModelCacheKey(appName: string): string {
   return `portal:runtime:models:${appName}`;
+}
+
+function runtimeMemoryEmbeddingCacheKey(appName: string): string {
+  return `portal:runtime:memory-embedding:${appName}`;
 }
 
 function normalizeBindingConfig(value: unknown): PortalJsonObject {
@@ -519,6 +570,116 @@ export class PortalService {
     return {id: profileId};
   }
 
+  async listMemoryEmbeddingProfiles(
+    accessToken: string,
+    input?: {
+      scopeType?: string | null;
+      scopeKey?: string | null;
+    },
+  ) {
+    await this.requireAdmin(accessToken);
+    return {
+      items: await this.store.listMemoryEmbeddingProfiles(
+        normalizeProviderScopeType(input?.scopeType),
+        normalizeOptionalString(input?.scopeKey, 'scope_key'),
+      ),
+    };
+  }
+
+  async upsertMemoryEmbeddingProfile(accessToken: string, input: UpsertPortalMemoryEmbeddingProfileInput) {
+    await this.requireAdmin(accessToken);
+    const scopeType = normalizeRequiredProviderScopeType(input.scopeType);
+    const profile = await this.store.upsertMemoryEmbeddingProfile({
+      id: normalizeOptionalString(input.id, 'id'),
+      scopeType,
+      scopeKey: scopeType === 'platform' ? 'platform' : normalizeAppName(input.scopeKey),
+      providerKey: normalizeRequiredString(input.providerKey, 'provider_key'),
+      providerLabel: normalizeRequiredString(input.providerLabel, 'provider_label'),
+      baseUrl: normalizeRequiredString(input.baseUrl, 'base_url'),
+      authMode: normalizeOptionalString(input.authMode, 'auth_mode') || 'bearer',
+      apiKey: normalizeRequiredString(input.apiKey, 'api_key'),
+      embeddingModel: normalizeRequiredString(input.embeddingModel, 'embedding_model'),
+      logoPresetKey: normalizeOptionalString(input.logoPresetKey, 'logo_preset_key'),
+      autoRecall: normalizeOptionalBoolean(input.autoRecall, 'auto_recall', true),
+      metadata: asObject(input.metadata),
+      enabled: normalizeOptionalBoolean(input.enabled, 'enabled', true),
+    });
+    await this.invalidateMemoryEmbeddingCachesForScope(profile.scopeType, profile.scopeKey);
+    return profile;
+  }
+
+  async validateMemoryEmbeddingProfile(accessToken: string, input: ValidatePortalMemoryEmbeddingProfileInput) {
+    await this.requireAdmin(accessToken);
+    const providerKey = normalizeRequiredString(input.providerKey, 'provider_key');
+    const baseUrl = normalizeRequiredString(input.baseUrl, 'base_url');
+    const authMode = normalizeOptionalString(input.authMode, 'auth_mode') || 'bearer';
+    const apiKey = normalizeRequiredString(input.apiKey, 'api_key');
+    const embeddingModel = normalizeRequiredString(input.embeddingModel, 'embedding_model');
+    const requestUrl = joinOpenaiCompatiblePath(baseUrl, '/embeddings');
+
+    let response: Response;
+    try {
+      const headers: Record<string, string> = {
+        'content-type': 'application/json',
+      };
+      let finalUrl = requestUrl;
+      if (authMode === 'query') {
+        const url = new URL(requestUrl);
+        url.searchParams.set('api_key', apiKey);
+        finalUrl = url.toString();
+      } else {
+        headers.authorization = `Bearer ${apiKey}`;
+      }
+      response = await fetch(finalUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: embeddingModel,
+          input: 'ping',
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'unknown network error';
+      throw new HttpError(502, 'MEMORY_EMBEDDING_PREFLIGHT_FAILED', `memory embedding preflight failed: ${message}`);
+    }
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const apiMessage =
+        typeof (payload as {error?: {message?: unknown}})?.error?.message === 'string'
+          ? String((payload as {error?: {message?: string}}).error?.message || '').trim()
+          : '';
+      throw new HttpError(
+        400,
+        'MEMORY_EMBEDDING_PREFLIGHT_FAILED',
+        apiMessage || `memory embedding preflight failed with status ${response.status}`,
+      );
+    }
+
+    const data = Array.isArray((payload as {data?: unknown[]}).data) ? ((payload as {data?: unknown[]}).data ?? []) : [];
+    const firstItem = data.length > 0 ? data[0] : null;
+    const first = firstItem && typeof firstItem === 'object' ? (firstItem as Record<string, unknown>) : {};
+    const embedding = Array.isArray(first.embedding) ? first.embedding : [];
+    return {
+      ok: true,
+      providerKey,
+      embeddingModel,
+      dimensions: embedding.length || null,
+    };
+  }
+
+  async deleteMemoryEmbeddingProfile(accessToken: string, profileIdInput: string) {
+    await this.requireAdmin(accessToken);
+    const profileId = normalizeRequiredString(profileIdInput, 'id');
+    const existing = await this.store.getMemoryEmbeddingProfile(profileId);
+    await this.store.deleteMemoryEmbeddingProfile(profileId);
+    if (existing) {
+      await this.invalidateMemoryEmbeddingCachesForScope(existing.scopeType, existing.scopeKey);
+    }
+    return {id: profileId};
+  }
+
   async getAppModelRuntimeOverride(accessToken: string, appNameInput: string) {
     await this.requireAdmin(accessToken);
     return this.store.getAppModelRuntimeOverride(normalizeAppName(appNameInput));
@@ -581,6 +742,26 @@ export class PortalService {
     };
     await this.cache?.set(cacheKey, publicPayload, 600);
     return publicPayload;
+  }
+
+  async getResolvedMemoryEmbedding(appNameInput: string) {
+    const appName = normalizeAppName(appNameInput);
+    const cacheKey = runtimeMemoryEmbeddingCacheKey(appName);
+    const cached = await this.cache?.get<{
+      appName: string;
+      resolvedScope: PortalModelProviderScopeType;
+      profile: PortalMemoryEmbeddingProfileRecord;
+      version: number;
+    }>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+    const resolved = await this.store.resolveMemoryEmbedding(appName);
+    if (!resolved) {
+      throw new HttpError(404, 'NOT_FOUND', 'memory embedding not found');
+    }
+    await this.cache?.set(cacheKey, resolved, 600);
+    return resolved;
   }
 
   async getPrivateRuntimeConfig(
@@ -1059,19 +1240,28 @@ export class PortalService {
         `${baseUrl.replace(/\/$/, '')}/portal/asset/file?app_name=${encodeURIComponent(appName)}&asset_key=${encodeURIComponent(asset.assetKey)}`,
     });
     const resolvedModels = await this.store.resolveRuntimeModels(appName);
-    if (!resolvedModels) {
-      return publicConfig;
+    const resolvedMemoryEmbedding = await this.store.resolveMemoryEmbedding(appName);
+    let nextConfig = publicConfig.config;
+    if (resolvedModels) {
+      nextConfig = applyResolvedRuntimeModelsToConfig(nextConfig, resolvedModels, {
+        includeSecrets: options.includeSecrets,
+      });
     }
+    nextConfig = applyResolvedMemoryEmbeddingToConfig(nextConfig, resolvedMemoryEmbedding, {
+      includeSecrets: options.includeSecrets,
+    });
     return {
       ...publicConfig,
-      config: applyResolvedRuntimeModelsToConfig(publicConfig.config, resolvedModels, {
-        includeSecrets: options.includeSecrets,
-      }),
+      config: nextConfig,
     };
   }
 
   private async invalidateRuntimeModelCache(appName: string): Promise<void> {
     await this.cache?.delete(runtimeModelCacheKey(appName));
+  }
+
+  private async invalidateMemoryEmbeddingCache(appName: string): Promise<void> {
+    await this.cache?.delete(runtimeMemoryEmbeddingCacheKey(appName));
   }
 
   private async invalidateRuntimeModelCachesForScope(
@@ -1089,6 +1279,21 @@ export class PortalService {
       if (!override || override.providerMode === 'inherit_platform') {
         await this.invalidateRuntimeModelCache(app.appName);
       }
+    }
+  }
+
+  private async invalidateMemoryEmbeddingCachesForScope(
+    scopeType: PortalModelProviderScopeType,
+    scopeKey: string,
+  ): Promise<void> {
+    if (scopeType === 'app') {
+      await this.invalidateMemoryEmbeddingCache(scopeKey);
+      return;
+    }
+    await this.invalidateMemoryEmbeddingCache('platform');
+    const apps = await this.store.listApps();
+    for (const app of apps) {
+      await this.invalidateMemoryEmbeddingCache(app.appName);
     }
   }
 

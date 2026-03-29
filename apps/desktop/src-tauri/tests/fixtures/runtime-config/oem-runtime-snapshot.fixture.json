@@ -2,6 +2,64 @@
   "brandId": "licaiclaw",
   "publishedVersion": 10,
   "config": {
+    "model_provider": {
+      "provider_mode": "use_app_profile",
+      "resolved_scope": "app",
+      "version": 12,
+      "profile": {
+        "id": "provider-app-1",
+        "scope_type": "app",
+        "scope_key": "licaiclaw",
+        "provider_key": "openai",
+        "provider_label": "OpenAI Compat",
+        "api_protocol": "openai-completions",
+        "base_url": "https://fast.vpsairobot.com/v1",
+        "auth_mode": "bearer",
+        "api_key": "sk-test-runtime",
+        "logo_preset_key": "openai",
+        "metadata": {},
+        "enabled": true,
+        "sort_order": 100,
+        "created_at": "2026-03-30T00:00:00.000Z",
+        "updated_at": "2026-03-30T00:00:00.000Z"
+      },
+      "models": [
+        {
+          "id": "model-1",
+          "model_ref": "openai/qwen3.5-plus",
+          "model_id": "qwen3.5-plus",
+          "label": "Qwen3.5 Plus",
+          "logo_preset_key": "qwen",
+          "billing_multiplier": 1,
+          "reasoning": true,
+          "input_modalities": ["text", "image"],
+          "context_window": 131072,
+          "max_tokens": 8192,
+          "enabled": true,
+          "sort_order": 10,
+          "metadata": {},
+          "created_at": "2026-03-30T00:00:00.000Z",
+          "updated_at": "2026-03-30T00:00:00.000Z"
+        },
+        {
+          "id": "model-2",
+          "model_ref": "deepseek/deepseek-v3.2",
+          "model_id": "deepseek-v3.2",
+          "label": "DeepSeek V3.2",
+          "logo_preset_key": "deepseek",
+          "billing_multiplier": 1,
+          "reasoning": true,
+          "input_modalities": ["text"],
+          "context_window": 128000,
+          "max_tokens": 8192,
+          "enabled": true,
+          "sort_order": 20,
+          "metadata": {},
+          "created_at": "2026-03-30T00:00:00.000Z",
+          "updated_at": "2026-03-30T00:00:00.000Z"
+        }
+      ]
+    },
     "capabilities": {
       "models": {
         "default": "openai/qwen3.5-plus",
@@ -35,6 +93,27 @@
             "maxTokens": 8192
           }
         ]
+      }
+    },
+    "memory_embedding": {
+      "resolved_scope": "app",
+      "version": 12,
+      "profile": {
+        "id": "memory-app-1",
+        "scope_type": "app",
+        "scope_key": "licaiclaw",
+        "provider_key": "bailian",
+        "provider_label": "Bailian",
+        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "auth_mode": "bearer",
+        "api_key": "sk-memory-prod",
+        "embedding_model": "text-embedding-v4",
+        "logo_preset_key": "alibaba-cloud",
+        "auto_recall": true,
+        "metadata": {},
+        "enabled": true,
+        "created_at": "2026-03-30T00:00:00.000Z",
+        "updated_at": "2026-03-30T00:00:00.000Z"
       }
     }
   }

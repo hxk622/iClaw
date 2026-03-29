@@ -14,6 +14,25 @@ function resolveLatestSyncLabel(latestUpdatedAt: string | null) {
   return latestUpdatedAt ?? '暂无同步';
 }
 
+function resolveVectorState(runtimeStatus: MemoryRuntimeStatus | null, runtimeError: string | null) {
+  if (!runtimeStatus?.embeddingConfigured) {
+    return {label: '向量未配置', tone: 'warning' as const};
+  }
+  if (runtimeError || runtimeStatus.vectorError || runtimeStatus.vectorAvailable === false) {
+    return {label: '向量异常', tone: 'danger' as const};
+  }
+  if (runtimeStatus.vectorAvailable === true) {
+    return {label: '向量可用', tone: 'success' as const};
+  }
+  return {label: '向量待检查', tone: 'outline' as const};
+}
+
+function resolveFtsState(runtimeStatus: MemoryRuntimeStatus | null) {
+  if (runtimeStatus?.ftsAvailable === true) return {label: 'FTS 可用', tone: 'success' as const};
+  if (runtimeStatus?.ftsAvailable === false || runtimeStatus?.ftsError) return {label: 'FTS 异常', tone: 'warning' as const};
+  return {label: 'FTS 未知', tone: 'outline' as const};
+}
+
 export function MemoryStatusBar({
   runtimeStatus,
   runtimeError,
@@ -28,6 +47,17 @@ export function MemoryStatusBar({
   latestUpdatedAt: string | null;
 }) {
   const indexTone = statusSummary.indexHealth === '健康' ? 'success' : runtimeError ? 'danger' : 'accent';
+  const vectorState = resolveVectorState(runtimeStatus, runtimeError);
+  const ftsState = resolveFtsState(runtimeStatus);
+  const configuredLabel =
+    runtimeStatus?.embeddingConfigured
+      ? `${runtimeStatus.configuredProvider || runtimeStatus.provider || 'unknown'} / ${runtimeStatus.configuredModel || runtimeStatus.model || 'unknown'}`
+      : '未配置';
+  const guidance = !runtimeStatus?.embeddingConfigured
+    ? '当前未配置记忆 Embedding。手动记忆仍可用，但语义召回和向量索引不会启动。请到 admin-web 模型中心的“记忆 Embedding”卡片配置。'
+    : runtimeError || runtimeStatus?.vectorError
+      ? `记忆 Embedding 已配置，但当前启动异常。${runtimeStatus?.vectorError || runtimeError || '请检查 Base URL、API Key、Embedding Model。'}`
+      : null;
 
   return (
     <SurfacePanel className="rounded-[20px] border-[var(--border-default)] bg-[var(--bg-card)]">
@@ -74,8 +104,17 @@ export function MemoryStatusBar({
         <Chip tone={indexTone} className="rounded-full px-2.5 py-1 text-[11px]">
           {runtimeError ? '索引异常' : `索引 ${statusSummary.indexHealth}`}
         </Chip>
+        <Chip tone={vectorState.tone} className="rounded-full px-2.5 py-1 text-[11px]">
+          {vectorState.label}
+        </Chip>
+        <Chip tone={ftsState.tone} className="rounded-full px-2.5 py-1 text-[11px]">
+          {ftsState.label}
+        </Chip>
         <Chip tone="outline" className="rounded-full px-2.5 py-1 text-[11px]">
           分块 {statusSummary.indexedChunks}
+        </Chip>
+        <Chip tone="outline" className="rounded-full px-2.5 py-1 text-[11px]">
+          配置 · {configuredLabel}
         </Chip>
         <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)]">
           <Clock3 className="h-3.5 w-3.5 text-[var(--text-muted)]" />
@@ -100,6 +139,11 @@ export function MemoryStatusBar({
           </div>
         </div>
       </div>
+      {guidance ? (
+        <div className="border-t border-[var(--border-default)] px-3 py-2 text-[12px] leading-5 text-[var(--text-secondary)]">
+          {guidance}
+        </div>
+      ) : null}
     </SurfacePanel>
   );
 }

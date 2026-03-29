@@ -251,18 +251,27 @@ export default function App() {
     password: GATEWAY_PASSWORD,
   });
 
+  const refreshGatewayAuth = useCallback(async () => {
+    if (!isTauriRuntime()) {
+      return null;
+    }
+    const auth = await loadGatewayAuth();
+    if (!auth) {
+      return null;
+    }
+    const token = typeof auth.token === 'string' && auth.token.trim() ? auth.token.trim() : undefined;
+    const password =
+      typeof auth.password === 'string' && auth.password.trim() ? auth.password.trim() : undefined;
+    setGatewayAuth((current) =>
+      current.token === token && current.password === password ? current : { token, password },
+    );
+    return { token, password };
+  }, []);
+
   useEffect(() => {
     if (!isTauriRuntime()) return;
-    if (gatewayAuth.token || gatewayAuth.password) return;
-    void loadGatewayAuth().then((auth) => {
-      if (!auth) return;
-      const token = typeof auth.token === 'string' && auth.token.trim() ? auth.token.trim() : undefined;
-      const password =
-        typeof auth.password === 'string' && auth.password.trim() ? auth.password.trim() : undefined;
-      if (!token && !password) return;
-      setGatewayAuth({ token, password });
-    });
-  }, [gatewayAuth.password, gatewayAuth.token]);
+    void refreshGatewayAuth();
+  }, [refreshGatewayAuth]);
 
   const client = useMemo(
     () =>
@@ -397,6 +406,7 @@ export default function App() {
     setInitialHealthResolved(false);
     setHealthChecking(true);
     try {
+      await refreshGatewayAuth();
       setBrandRuntimeReady(false);
       await syncBrandRuntimeSnapshot();
       await startSidecar(SIDE_CAR_ARGS);

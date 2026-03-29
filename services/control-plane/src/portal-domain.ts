@@ -124,6 +124,31 @@ export type PortalResolvedRuntimeModelsResult = {
   version: number;
 };
 
+export type PortalMemoryEmbeddingProfileRecord = {
+  id: string;
+  scopeType: PortalModelProviderScopeType;
+  scopeKey: string;
+  providerKey: string;
+  providerLabel: string;
+  baseUrl: string;
+  authMode: string;
+  apiKey: string;
+  embeddingModel: string;
+  logoPresetKey: string | null;
+  autoRecall: boolean;
+  metadata: PortalJsonObject;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PortalResolvedMemoryEmbeddingResult = {
+  appName: string;
+  resolvedScope: PortalModelProviderScopeType;
+  profile: PortalMemoryEmbeddingProfileRecord;
+  version: number;
+};
+
 export type PortalMenuRecord = {
   menuKey: string;
   displayName: string;
@@ -371,6 +396,30 @@ export type UpsertPortalAppModelRuntimeOverrideInput = {
   providerMode?: PortalAppModelProviderMode;
   activeProfileId?: string | null;
   cacheVersion?: number | null;
+};
+
+export type UpsertPortalMemoryEmbeddingProfileInput = {
+  id?: string | null;
+  scopeType: PortalModelProviderScopeType;
+  scopeKey: string;
+  providerKey: string;
+  providerLabel: string;
+  baseUrl: string;
+  authMode?: string | null;
+  apiKey: string;
+  embeddingModel: string;
+  logoPresetKey?: string | null;
+  autoRecall?: boolean;
+  metadata?: PortalJsonObject;
+  enabled?: boolean;
+};
+
+export type ValidatePortalMemoryEmbeddingProfileInput = {
+  providerKey: string;
+  baseUrl: string;
+  authMode?: string | null;
+  apiKey: string;
+  embeddingModel: string;
 };
 
 export type UpsertPortalMenuInput = {

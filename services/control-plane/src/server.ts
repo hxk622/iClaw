@@ -48,6 +48,8 @@ import {OemService} from './oem-service.ts';
 import type {
   UpsertPortalAppInput,
   UpsertPortalAppModelRuntimeOverrideInput,
+  UpsertPortalMemoryEmbeddingProfileInput,
+  ValidatePortalMemoryEmbeddingProfileInput,
   UpsertPortalMenuInput,
   UpsertPortalModelProviderProfileInput,
   UpsertPortalMcpInput,
@@ -1336,6 +1338,33 @@ const server = createJsonServer([
       portalService.deleteModelProviderProfile(requireBearerToken(headers), (url.searchParams.get('id') || '').trim()),
   },
   {
+    method: 'GET',
+    path: '/admin/portal/memory-embedding-profiles',
+    handler: ({headers, url}: HandlerContext) =>
+      portalService.listMemoryEmbeddingProfiles(requireBearerToken(headers), {
+        scopeType: (url.searchParams.get('scope_type') || '').trim() || null,
+        scopeKey: (url.searchParams.get('scope_key') || '').trim() || null,
+      }),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/portal/memory-embedding-profiles',
+    handler: ({headers, body}: HandlerContext) =>
+      portalService.upsertMemoryEmbeddingProfile(requireBearerToken(headers), (body || {}) as UpsertPortalMemoryEmbeddingProfileInput),
+  },
+  {
+    method: 'POST',
+    path: '/admin/portal/memory-embedding-profiles/preflight',
+    handler: ({headers, body}: HandlerContext) =>
+      portalService.validateMemoryEmbeddingProfile(requireBearerToken(headers), (body || {}) as ValidatePortalMemoryEmbeddingProfileInput),
+  },
+  {
+    method: 'DELETE',
+    path: '/admin/portal/memory-embedding-profiles',
+    handler: ({headers, url}: HandlerContext) =>
+      portalService.deleteMemoryEmbeddingProfile(requireBearerToken(headers), (url.searchParams.get('id') || '').trim()),
+  },
+  {
     method: 'DELETE',
     path: '/admin/portal/catalog/mcps/:mcpKey',
     handler: ({headers, params}: HandlerContext) =>
@@ -1471,6 +1500,12 @@ const server = createJsonServer([
     path: '/portal/runtime/models',
     handler: ({url}: HandlerContext) =>
       portalService.getResolvedRuntimeModels((url.searchParams.get('app_name') || '').trim()),
+  },
+  {
+    method: 'GET',
+    path: '/portal/runtime/memory-embedding',
+    handler: ({url}: HandlerContext) =>
+      portalService.getResolvedMemoryEmbedding((url.searchParams.get('app_name') || '').trim()),
   },
   {
     method: 'GET',
