@@ -6,10 +6,19 @@ export class RedisKeyValueCache implements KeyValueCache {
   readonly label = 'redis';
   private readonly client: RedisClientType;
   private readonly keyPrefix: string;
+  private lastErrorAt = 0;
 
   constructor(url: string, keyPrefix: string) {
     this.client = createClient({url});
     this.keyPrefix = keyPrefix.replace(/:$/, '');
+    this.client.on('error', (error) => {
+      const now = Date.now();
+      if (now - this.lastErrorAt < 10_000) {
+        return;
+      }
+      this.lastErrorAt = now;
+      console.warn('[control-plane] redis cache error, continuing without cache for this request', error);
+    });
   }
 
   async connect(): Promise<void> {
@@ -20,7 +29,12 @@ export class RedisKeyValueCache implements KeyValueCache {
   }
 
   async get<T>(key: string): Promise<T | null> {
-    const raw = await this.client.get(this.key(key));
+    let raw: string | null = null;
+    try {
+      raw = await this.client.get(this.key(key));
+    } catch {
+      return null;
+    }
     if (!raw) {
       return null;
     }
@@ -37,9 +51,13 @@ export class RedisKeyValueCache implements KeyValueCache {
       return;
     }
 
-    await this.client.set(this.key(key), JSON.stringify(value), {
-      EX: Math.max(1, Math.floor(ttlSeconds)),
-    });
+    try {
+      await this.client.set(this.key(key), JSON.stringify(value), {
+        EX: Math.max(1, Math.floor(ttlSeconds)),
+      });
+    } catch {
+      return;
+    }
   }
 
   async delete(...keys: string[]): Promise<void> {
@@ -47,7 +65,11 @@ export class RedisKeyValueCache implements KeyValueCache {
     if (normalized.length === 0) {
       return;
     }
-    await this.client.del(normalized);
+    try {
+      await this.client.del(normalized);
+    } catch {
+      return;
+    }
   }
 
   private key(key: string): string {
