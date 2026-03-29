@@ -10,7 +10,12 @@ import {buildPortalPublicConfig} from '../src/portal-runtime.ts';
 import {PgPortalStore} from '../src/portal-store.ts';
 import {PgControlPlaneStore} from '../src/pg-store.ts';
 import type {PortalJsonObject, PortalResolvedRuntimeModelsResult} from '../src/portal-domain.ts';
-import {buildCloudSkillArtifactProxyUrl, shouldServeCloudSkillViaControlPlane} from '../src/cloud-skill-artifacts.ts';
+import {
+  buildCloudSkillArtifactProxyUrl,
+  getCloudSkillArtifactObjectKey,
+  shouldServeCloudSkillViaControlPlane,
+} from '../src/cloud-skill-artifacts.ts';
+import {downloadPortalSkillArtifact} from '../src/portal-skill-storage.ts';
 
 function readArg(name: string): string | null {
   const index = process.argv.findIndex((item) => item === name);
@@ -119,12 +124,25 @@ function inferArtifactFormat(entry: {
 }
 
 async function downloadSkillArtifact(url: string): Promise<Buffer> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`failed to download skill artifact: ${response.status} ${response.statusText}`);
+  const timeoutMs = Number(process.env.ICLAW_RUNTIME_SKILL_DOWNLOAD_TIMEOUT_MS || 8000);
+  const controller = new AbortController();
+  const timer = Number.isFinite(timeoutMs) && timeoutMs > 0
+    ? setTimeout(() => controller.abort(new Error(`skill artifact download timed out after ${timeoutMs}ms`)), timeoutMs)
+    : null;
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`failed to download skill artifact: ${response.status} ${response.statusText}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
   }
-  const arrayBuffer = await response.arrayBuffer();
-  return Buffer.from(arrayBuffer);
 }
 
 async function findSkillRoot(dir: string): Promise<string | null> {
@@ -170,7 +188,9 @@ async function extractPortalSkillArtifact(params: {
     if (!skillRoot) {
       throw new Error(`skill artifact ${params.slug} does not contain SKILL.md`);
     }
-    const dirName = basename(skillRoot) || params.slug;
+    const inferredDirName = basename(skillRoot);
+    const dirName =
+      !inferredDirName || inferredDirName === 'extract' || skillRoot === extractRoot ? params.slug : inferredDirName;
     const targetPath = resolve(params.runtimeSkillsRoot, dirName);
     await rm(targetPath, {recursive: true, force: true});
     await cp(skillRoot, targetPath, {
@@ -205,8 +225,6 @@ async function main() {
 
   const portalStore = new PgPortalStore(config.databaseUrl);
   const controlStore = new PgControlPlaneStore(config.databaseUrl);
-  const localControlPlaneBaseUrl = (config.apiUrl || `http://127.0.0.1:${config.port}`).replace(/\/+$/, '');
-
   try {
     const [detail, catalogMcps, platformSkills] = await Promise.all([
       portalStore.getAppDetail(appName),
@@ -246,10 +264,30 @@ async function main() {
         skippedSkills.push(binding.skillSlug);
         continue;
       }
+      const portalArtifactObjectKey = getCloudSkillArtifactObjectKey(entry.metadata || {});
+      if (entry.distribution === 'cloud' && portalArtifactObjectKey) {
+        try {
+          const artifact = await downloadPortalSkillArtifact(portalArtifactObjectKey);
+          const copiedDirName = await extractPortalSkillArtifact({
+            slug: binding.skillSlug,
+            artifact: artifact.buffer,
+            format: inferArtifactFormat(entry),
+            runtimeSkillsRoot,
+          });
+          rememberCopiedSkill(copiedDirName);
+          continue;
+        } catch (error) {
+          console.warn('[sync-local-app-runtime] failed to download portal skill artifact from storage', {
+            slug: binding.skillSlug,
+            objectKey: portalArtifactObjectKey,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
       const resolvedArtifactUrl =
         entry.artifactUrl ||
         (shouldServeCloudSkillViaControlPlane(entry)
-          ? buildCloudSkillArtifactProxyUrl(binding.skillSlug, localControlPlaneBaseUrl)
+          ? buildCloudSkillArtifactProxyUrl(binding.skillSlug, config.apiUrl || `http://127.0.0.1:${config.port}`)
           : null);
       if (resolvedArtifactUrl) {
         try {
@@ -390,4 +428,3 @@ async function main() {
 }
 
 await main();
-    const localControlPlaneBaseUrl = (config.apiUrl || `http://127.0.0.1:${config.port}`).replace(/\/+$/, '');
