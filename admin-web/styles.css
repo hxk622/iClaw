@@ -525,7 +525,7 @@ code {
 }
 
 .banner-row--toast .banner {
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .banner[hidden] {
