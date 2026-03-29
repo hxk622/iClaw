@@ -76,11 +76,30 @@ if (!config.databaseUrl) {
 
 await ensureControlPlaneSchema(config.databaseUrl);
 
+type StartupBootstrapStatus = 'pending' | 'running' | 'ready' | 'failed';
+
 let store: ControlPlaneStore = new PgControlPlaneStore(config.databaseUrl);
 let cacheLabel = 'none';
 let runtimeCache: KeyValueCache | null = null;
 const oemStore = new PgOemStore(config.databaseUrl);
 const portalStore = new PgPortalStore(config.databaseUrl);
+const startupState: {
+  bootstrap: {
+    status: StartupBootstrapStatus;
+    startedAt: string | null;
+    completedAt: string | null;
+    durationMs: number | null;
+    lastError: string | null;
+  };
+} = {
+  bootstrap: {
+    status: 'pending',
+    startedAt: null,
+    completedAt: null,
+    durationMs: null,
+    lastError: null,
+  },
+};
 
 if (config.redisUrl) {
   try {
@@ -92,12 +111,6 @@ if (config.redisUrl) {
     console.warn('[control-plane] redis unavailable, continuing without cache', error);
   }
 }
-
-await ensureBootstrapAdmin(store);
-await ensureDefaultCatalogs(store);
-await ensureDefaultSkillSyncSources(store);
-await ensurePortalPreset(portalStore);
-await ensurePortalSkillCatalogPolicy(portalStore);
 
 const service = new ControlPlaneService(store, {
   resolveBillingMultiplierForModel: async (appName, model) => {
@@ -116,6 +129,38 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const skillsSourceRoot = resolve(process.env.ICLAW_SKILLS_SOURCE_DIR || resolve(repoRoot, 'skills'));
 const modelLogoAssetRoot = resolve(repoRoot, 'services/control-plane/presets/assets/model-logos');
 const modelLogoManifestPath = resolve(modelLogoAssetRoot, 'manifest.json');
+
+async function runStartupBootstrap(): Promise<void> {
+  if (startupState.bootstrap.status === 'running' || startupState.bootstrap.status === 'ready') {
+    return;
+  }
+
+  startupState.bootstrap.status = 'running';
+  startupState.bootstrap.startedAt = new Date().toISOString();
+  startupState.bootstrap.completedAt = null;
+  startupState.bootstrap.durationMs = null;
+  startupState.bootstrap.lastError = null;
+
+  const startedAt = Date.now();
+  try {
+    await ensureBootstrapAdmin(store);
+    await ensureDefaultCatalogs(store);
+    await ensureDefaultSkillSyncSources(store);
+    await ensurePortalPreset(portalStore);
+    await ensurePortalSkillCatalogPolicy(portalStore);
+
+    startupState.bootstrap.status = 'ready';
+    startupState.bootstrap.completedAt = new Date().toISOString();
+    startupState.bootstrap.durationMs = Date.now() - startedAt;
+    console.log(`[control-plane] startup bootstrap ready in ${startupState.bootstrap.durationMs}ms`);
+  } catch (error) {
+    startupState.bootstrap.status = 'failed';
+    startupState.bootstrap.completedAt = new Date().toISOString();
+    startupState.bootstrap.durationMs = Date.now() - startedAt;
+    startupState.bootstrap.lastError = error instanceof Error ? error.message : String(error);
+    console.error('[control-plane] startup bootstrap failed', error);
+  }
+}
 
 function requireBearerToken(headers: Record<string, string | string[] | undefined>): string {
   const authHeader = headers.authorization;
@@ -334,6 +379,7 @@ const server = createJsonServer([
       version: '0.1.0',
       storage: store.storageLabel,
       cache: cacheLabel,
+      bootstrap: {...startupState.bootstrap},
     }),
   },
   {
@@ -1585,4 +1631,5 @@ const server = createJsonServer([
 server.listen(config.port, config.listenHost, () => {
   console.log(`[control-plane] listening on http://${config.listenHost}:${config.port}`);
   console.log(`[control-plane] allowed origins: ${config.allowedOrigins.join(', ')}`);
+  void runStartupBootstrap();
 });

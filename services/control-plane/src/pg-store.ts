@@ -969,9 +969,23 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const schemaPath = resolve(repoRoot, 'services/control-plane/sql/001_init.sql');
 
 export async function ensureControlPlaneSchema(databaseUrl: string): Promise<void> {
-  const sql = await readFile(schemaPath, 'utf8');
   const pool = new Pool({connectionString: databaseUrl});
   try {
+    const schemaCheck = await pool.query<{
+      users_table: string | null;
+      skill_catalog_table: string | null;
+      portal_apps_table: string | null;
+    }>(`
+      select
+        to_regclass('public.users') as users_table,
+        to_regclass('public.skill_catalog') as skill_catalog_table,
+        to_regclass('public.portal_apps') as portal_apps_table
+    `);
+    const existingSchema = schemaCheck.rows[0];
+    if (existingSchema?.users_table && existingSchema.skill_catalog_table && existingSchema.portal_apps_table) {
+      return;
+    }
+    const sql = await readFile(schemaPath, 'utf8');
     await pool.query(sql);
   } finally {
     await pool.end();
