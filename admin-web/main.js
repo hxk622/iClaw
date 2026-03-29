@@ -4653,8 +4653,11 @@ async function saveModelProviderProfile(form) {
     const scopeKey = String(formData.get('scope_key') || '').trim();
     const providerMode = String(formData.get('provider_mode') || 'inherit_platform').trim();
     const providerKey = String(formData.get('provider_key') || '').trim();
+    const baseUrl = String(formData.get('base_url') || '').trim();
+    const apiKey = String(formData.get('api_key') || '').trim();
     const shouldSaveProfile = scopeType === 'platform' || providerMode === 'use_app_profile' || Boolean(providerKey);
     let savedProfile = null;
+    let effectiveProviderMode = providerMode;
 
     if (shouldSaveProfile) {
       const models = Array.from(form.querySelectorAll('[data-model-provider-row="true"]'))
@@ -4676,6 +4679,14 @@ async function saveModelProviderProfile(form) {
         })
         .filter((item) => item.modelId && item.label);
 
+      if (
+        scopeType === 'app' &&
+        providerMode !== 'use_app_profile' &&
+        (providerKey || baseUrl || apiKey || models.length > 0)
+      ) {
+        effectiveProviderMode = 'use_app_profile';
+      }
+
       savedProfile = await apiFetch('/admin/portal/model-provider-profiles', {
         method: 'PUT',
         body: JSON.stringify({
@@ -4685,9 +4696,9 @@ async function saveModelProviderProfile(form) {
           providerKey,
           providerLabel: providerKey,
           apiProtocol: 'openai-completions',
-          baseUrl: String(formData.get('base_url') || '').trim(),
+          baseUrl,
           authMode: 'bearer',
-          apiKey: String(formData.get('api_key') || '').trim(),
+          apiKey,
           logoPresetKey: String(formData.get('logo_preset_key') || '').trim() || null,
           metadata: {},
           enabled: true,
@@ -4701,8 +4712,11 @@ async function saveModelProviderProfile(form) {
       await apiFetch(`/admin/portal/apps/${encodeURIComponent(scopeKey)}/model-provider-override`, {
         method: 'PUT',
         body: JSON.stringify({
-          providerMode,
-          activeProfileId: providerMode === 'use_app_profile' ? savedProfile?.id || String(formData.get('profile_id') || '').trim() || null : null,
+          providerMode: effectiveProviderMode,
+          activeProfileId:
+            effectiveProviderMode === 'use_app_profile'
+              ? savedProfile?.id || String(formData.get('profile_id') || '').trim() || null
+              : null,
           cacheVersion: Date.now(),
         }),
       });
@@ -4711,7 +4725,9 @@ async function saveModelProviderProfile(form) {
     await loadAppData();
     delete state.modelProviderDrafts[getModelProviderDraftKey(scopeType, scopeKey)];
     state.selectedModelProviderTab = scopeType === 'platform' ? 'platform' : scopeKey;
-    setNotice(`${scopeType === 'platform' ? '平台' : scopeKey} provider 已保存。`);
+    setNotice(
+      `${scopeType === 'platform' ? '平台' : scopeKey} provider 已保存${scopeType === 'app' && effectiveProviderMode === 'use_app_profile' && providerMode !== 'use_app_profile' ? '，并已自动切到 OEM Provider。' : '。'}`,
+    );
   } catch (error) {
     setError(error instanceof Error ? error.message : 'Provider 保存失败');
   } finally {
@@ -7094,6 +7110,7 @@ function renderModelProviderCenterPage() {
       ${renderPageGuide('模型中心怎么用', [
         '平台 tab 维护全局 fallback provider。',
         '每个 OEM tab 都可以选择“继承平台”或“使用 OEM Provider”。',
+        'OEM tab 里如果填写了独立 provider 并保存，系统会自动切到“使用 OEM Provider”，避免 profile 已保存但实际仍继承平台。',
         '模型列表、Base URL、API Key、Logo、倍率都在同一个 provider profile 里维护；保存后会同步清理 runtime 缓存。',
       ], 'capability')}
       <div class="fig-detail-stack">
