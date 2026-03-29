@@ -29,6 +29,7 @@ import { ComposerModelLogo } from './ComposerModelLogo';
 import { findComposerModelOption, type ComposerModelOption } from '../lib/model-catalog';
 import type { ResolvedInputComposerConfig } from '../lib/oem-runtime';
 import { Chip } from './ui/Chip';
+import sendSwishAigeiUrl from '@/app/assets/send-sounds/send-swish-aigei.mp3';
 
 export type OpenClawImageAttachment = {
   id: string;
@@ -741,6 +742,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const [activeQuickQueryId, setActiveQuickQueryId] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const submitInFlightRef = useRef(false);
+    const sendAudioRef = useRef<HTMLAudioElement | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
     const topBarControls = composerConfig
       ? composerConfig.topBarControls
@@ -1619,7 +1621,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       [focus, insertReference, processFiles, replacePrompt],
     );
 
-    const playSendWhoosh = useCallback(() => {
+    const playFallbackSendWhoosh = useCallback(() => {
       if (typeof window === 'undefined') {
         return;
       }
@@ -1662,6 +1664,28 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         // Ignore audio failures; send should still proceed.
       }
     }, []);
+
+    const playSendWhoosh = useCallback(() => {
+      if (typeof window === 'undefined') {
+        return;
+      }
+
+      try {
+        const audio = sendAudioRef.current ?? new Audio(sendSwishAigeiUrl);
+        if (!sendAudioRef.current) {
+          audio.preload = 'auto';
+          audio.volume = 0.9;
+          sendAudioRef.current = audio;
+        }
+        audio.pause();
+        audio.currentTime = 0;
+        void audio.play().catch(() => {
+          playFallbackSendWhoosh();
+        });
+      } catch {
+        playFallbackSendWhoosh();
+      }
+    }, [playFallbackSendWhoosh]);
 
     const handleSubmit = useCallback(async () => {
       if (submitInFlightRef.current) {
