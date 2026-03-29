@@ -46,7 +46,7 @@ import type { ComposerStockContext } from './components/RichChatComposer';
 import { type PersistableSettingsSection, SettingsProvider, useSettings } from './contexts/settings-context';
 import { BRAND } from './lib/brand';
 import { type InvestmentExpert } from '@/app/lib/investment-experts';
-import { buildLobsterConversationPrompt, type LobsterAgent } from './lib/lobster-store';
+import { type LobsterAgent } from './lib/lobster-store';
 import {
   applyIclawWorkspaceBackup,
   loadIclawWorkspaceFiles,
@@ -149,6 +149,7 @@ const DEFAULT_CHAT_ROUTE = {
   focusTaskId: null as string | null,
   focusTaskPrompt: null as string | null,
 };
+type ActiveChatRoute = typeof DEFAULT_CHAT_ROUTE;
 type PrimaryView = string;
 const PRIMARY_VIEW_ORDER: PrimaryView[] = [
   'chat',
@@ -1326,6 +1327,17 @@ function AuthedView({
     setPrimaryView(resolvedPrimaryView);
   }, [primaryView, resolvedPrimaryView, setPrimaryView]);
 
+  const openChatRoute = useCallback(
+    (nextRoute: ActiveChatRoute, options?: {forceRemount?: boolean}) => {
+      setActiveChatRoute(nextRoute);
+      if (options?.forceRemount) {
+        setChatSurfaceVersion((current) => current + 1);
+      }
+      setPrimaryView('chat');
+    },
+    [setPrimaryView],
+  );
+
   useEffect(() => {
     if (!accessToken) {
       return;
@@ -1444,23 +1456,21 @@ function AuthedView({
 
   const handleStartLobsterConversation = (agent: LobsterAgent) => {
     const seed = `${agent.slug}-${Date.now()}`;
-    setActiveChatRoute({
+    openChatRoute({
       sessionKey: `lobster-${seed}`,
-      initialPrompt: buildLobsterConversationPrompt(agent),
+      initialPrompt: null,
       initialPromptKey: seed,
-      initialAgentSlug: null,
+      initialAgentSlug: agent.slug,
       initialSkillSlug: null,
       initialStockContext: null,
       focusTaskId: null,
       focusTaskPrompt: null,
     });
-    setChatSurfaceVersion((current) => current + 1);
-    setPrimaryView('chat');
   };
 
   const handleStartInvestmentExpertConversation = (expert: InvestmentExpert) => {
     const seed = `${expert.slug}-${Date.now()}`;
-    setActiveChatRoute({
+    openChatRoute({
       sessionKey: `investment-expert-${seed}`,
       initialPrompt: null,
       initialPromptKey: seed,
@@ -1470,13 +1480,11 @@ function AuthedView({
       focusTaskId: null,
       focusTaskPrompt: null,
     });
-    setChatSurfaceVersion((current) => current + 1);
-    setPrimaryView('chat');
   };
 
   const handleStartStockResearchConversation = (stock: MarketStockData) => {
     const seed = `stock-${stock.symbol}-${Date.now()}`;
-    setActiveChatRoute({
+    openChatRoute({
       sessionKey: seed,
       initialPrompt: null,
       initialPromptKey: seed,
@@ -1492,13 +1500,11 @@ function AuthedView({
       focusTaskId: null,
       focusTaskPrompt: null,
     });
-    setChatSurfaceVersion((current) => current + 1);
-    setPrimaryView('chat');
   };
 
   const handleStartFundResearchConversation = (fund: FundMarketResearchTarget) => {
     const seed = `fund-${fund.symbol}-${Date.now()}`;
-    setActiveChatRoute({
+    openChatRoute({
       sessionKey: seed,
       initialPrompt: null,
       initialPromptKey: seed,
@@ -1516,13 +1522,11 @@ function AuthedView({
       focusTaskId: null,
       focusTaskPrompt: null,
     });
-    setChatSurfaceVersion((current) => current + 1);
-    setPrimaryView('chat');
   };
 
   const handleStartNewChat = () => {
     const seed = `chat-${Date.now()}`;
-    setActiveChatRoute({
+    openChatRoute({
       sessionKey: seed,
       initialPrompt: null,
       initialPromptKey: seed,
@@ -1532,8 +1536,6 @@ function AuthedView({
       focusTaskId: null,
       focusTaskPrompt: null,
     });
-    setChatSurfaceVersion((current) => current + 1);
-    setPrimaryView('chat');
   };
 
   const handleOpenTaskChat = (taskId: string) => {
@@ -1543,7 +1545,7 @@ function AuthedView({
       return;
     }
 
-    setActiveChatRoute({
+    openChatRoute({
       sessionKey: task.sessionKey,
       initialPrompt: null,
       initialPromptKey: null,
@@ -1552,9 +1554,7 @@ function AuthedView({
       initialStockContext: null,
       focusTaskId: task.id,
       focusTaskPrompt: task.prompt,
-    });
-    setChatSurfaceVersion((current) => current + 1);
-    setPrimaryView('chat');
+    }, { forceRemount: true });
   };
 
   const handleActiveChatSkillChange = useCallback((skillSlug: string | null) => {
@@ -1571,7 +1571,7 @@ function AuthedView({
 
   const handleStartSkillConversation = (skill: { slug: string }) => {
     const seed = `skill-${skill.slug}-${Date.now()}`;
-    setActiveChatRoute({
+    openChatRoute({
       sessionKey: seed,
       initialPrompt: null,
       initialPromptKey: seed,
@@ -1581,8 +1581,6 @@ function AuthedView({
       focusTaskId: null,
       focusTaskPrompt: null,
     });
-    setChatSurfaceVersion((current) => current + 1);
-    setPrimaryView('chat');
   };
 
   return (
