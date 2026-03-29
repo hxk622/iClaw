@@ -4736,6 +4736,37 @@ async function saveModelProviderProfile(form) {
   }
 }
 
+async function restorePlatformModelProvider(appName) {
+  const normalizedAppName = String(appName || '').trim();
+  if (!normalizedAppName) {
+    return;
+  }
+
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    await apiFetch(`/admin/portal/apps/${encodeURIComponent(normalizedAppName)}/model-provider-override`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        providerMode: 'inherit_platform',
+        activeProfileId: null,
+        cacheVersion: Date.now(),
+      }),
+    });
+    delete state.modelProviderDrafts[getModelProviderDraftKey('app', normalizedAppName)];
+    await loadAppData();
+    state.selectedModelProviderTab = normalizedAppName;
+    setNotice(`${normalizedAppName} 已恢复跟随平台 Provider。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '恢复平台 Provider 失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
 async function savePaymentProviderConfig(form) {
   const formData = new FormData(form);
   state.busy = true;
@@ -7076,6 +7107,7 @@ function renderModelProviderCenterPage() {
   const selectedBrand = selectedTab === 'platform' ? null : (state.brands || []).find((item) => item.brandId === selectedTab) || null;
   const scopeType = selectedBrand ? 'app' : 'platform';
   const scopeKey = selectedBrand ? selectedBrand.brandId : 'platform';
+  const platformProfile = getModelProviderProfilesByScope('platform', 'platform')[0] || null;
   const profiles = getModelProviderProfilesByScope(scopeType, scopeKey);
   const profile = profiles[0] || {
     id: '',
@@ -7092,6 +7124,23 @@ function renderModelProviderCenterPage() {
   const draft = state.modelProviderDrafts[draftKey] || buildModelProviderDraft({profile, override, scopeType, scopeKey});
   const providerLogoPresetKey = String(draft.logoPresetKey || '');
   const providerLogoPreset = getModelLogoPreset(providerLogoPresetKey);
+  const currentProviderMode = String(draft.providerMode || 'inherit_platform').trim() || 'inherit_platform';
+  const usesOemProvider = currentProviderMode === 'use_app_profile';
+  const hasSavedOemProfile = Boolean(selectedBrand && String(profile.id || '').trim());
+  const platformProviderLabel = String(platformProfile?.providerKey || platformProfile?.providerLabel || '').trim() || '未配置';
+  const oemProviderLabel = String(draft.providerKey || profile.providerKey || '').trim() || '未配置';
+  const providerStatusTitle = !selectedBrand
+    ? `当前平台默认 Provider：${platformProviderLabel}`
+    : usesOemProvider
+      ? `当前使用 OEM Provider：${oemProviderLabel}`
+      : `当前跟随平台 Provider：${platformProviderLabel}`;
+  const providerStatusDescription = !selectedBrand
+    ? '这里是所有 OEM 的默认 provider。OEM 未单独启用时都会继承这里。'
+    : usesOemProvider
+      ? '当前这个 OEM 已经切到自己的 provider。修改并保存下方配置，会直接更新当前生效配置。'
+      : hasSavedOemProfile
+        ? '这个 OEM 已保存独立 provider，但当前仍跟随平台。再次保存下方配置会自动启用 OEM Provider。'
+        : '这个 OEM 当前跟随平台。填写并保存下方配置后，会自动切到自己的 Provider。';
   const tabs = [
     {key: 'platform', label: '平台'},
     ...(state.brands || []).map((brand) => ({key: brand.brandId, label: brand.displayName})),
@@ -7109,8 +7158,8 @@ function renderModelProviderCenterPage() {
       </div>
       ${renderPageGuide('模型中心怎么用', [
         '平台 tab 维护全局 fallback provider。',
-        '每个 OEM tab 都可以选择“继承平台”或“使用 OEM Provider”。',
-        'OEM tab 里如果填写了独立 provider 并保存，系统会自动切到“使用 OEM Provider”，避免 profile 已保存但实际仍继承平台。',
+        'OEM tab 不再暴露 Provider Mode。填写并保存独立 provider 后，会自动切到 OEM Provider。',
+        '如果要恢复到平台默认 provider，直接点“恢复跟随平台”。',
         '模型列表、Base URL、API Key、Logo、倍率都在同一个 provider profile 里维护；保存后会同步清理 runtime 缓存。',
       ], 'capability')}
       <div class="fig-detail-stack">
@@ -7132,22 +7181,16 @@ function renderModelProviderCenterPage() {
           <input type="hidden" name="profile_id" value="${fieldValue(draft.id || '')}" />
           <input type="hidden" name="scope_type" value="${fieldValue(scopeType)}" />
           <input type="hidden" name="scope_key" value="${fieldValue(scopeKey)}" />
+          <input type="hidden" name="provider_mode" value="${fieldValue(currentProviderMode)}" />
           <div class="fig-card__head">
             <div>
               <h3>${escapeHtml(selectedBrand ? `${selectedBrand.displayName} Provider` : '平台 Fallback Provider')}</h3>
-              <span>${escapeHtml(scopeType === 'platform' ? '所有 OEM 默认继承这里' : '这个 OEM 可以继承平台，或切到自己的 provider')}</span>
+              <span>${escapeHtml(scopeType === 'platform' ? '所有 OEM 默认继承这里' : '这里维护这个 OEM 的独立 provider 配置')}</span>
             </div>
-            ${selectedBrand
-              ? `
-                <label class="field" style="min-width:220px;">
-                  <span>Provider Mode</span>
-                  <select class="field-select" name="provider_mode">
-                    <option value="inherit_platform"${draft.providerMode !== 'use_app_profile' ? ' selected' : ''}>继承平台</option>
-                    <option value="use_app_profile"${draft.providerMode === 'use_app_profile' ? ' selected' : ''}>使用 OEM Provider</option>
-                  </select>
-                </label>
-              `
-              : ''}
+          </div>
+          <div class="empty-state" style="min-height:auto; align-items:flex-start; text-align:left; margin-bottom:16px;">
+            <strong>${escapeHtml(providerStatusTitle)}</strong>
+            <span>${escapeHtml(providerStatusDescription)}</span>
           </div>
           <div class="form-grid form-grid--two">
             <label class="field">
@@ -7190,6 +7233,7 @@ function renderModelProviderCenterPage() {
           </section>
           <div class="fig-form-actions">
             <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>保存 Provider</button>
+            ${selectedBrand ? `<button class="ghost-button" type="button" data-action="restore-platform-model-provider" data-app-name="${escapeHtml(selectedBrand.brandId)}"${state.busy || currentProviderMode !== 'use_app_profile' ? ' disabled' : ''}>恢复跟随平台</button>` : ''}
           </div>
         </form>
       </div>
@@ -10303,6 +10347,14 @@ app.addEventListener('click', async (event) => {
     state.route = getCapabilityRouteForMode(state.capabilityMode);
     state.selectedModelProviderTab = target.getAttribute('data-tab-key') || 'platform';
     render();
+    return;
+  }
+
+  if (action === 'restore-platform-model-provider') {
+    const appName = target.getAttribute('data-app-name') || '';
+    if (appName && window.confirm(`确认让 ${appName} 恢复跟随平台 Provider？`)) {
+      await restorePlatformModelProvider(appName);
+    }
     return;
   }
 
