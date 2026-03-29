@@ -22,6 +22,7 @@ import {
   useImperativeHandle,
   useRef,
   useState,
+  type CSSProperties,
   type UIEvent,
 } from 'react';
 import { ComposerModelLogo } from './ComposerModelLogo';
@@ -2098,6 +2099,15 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       }
       return modelsLoading ? '同步可用模型中' : '当前暂无可用模型';
     })();
+    const modelTriggerWidth = (() => {
+      const minWidth = 188;
+      const maxWidth = 312;
+      const textWeight = Math.max(modelTriggerLabel.length, Math.ceil(modelTriggerDetail.length * 0.78));
+      return `${Math.min(maxWidth, Math.max(minWidth, Math.round(108 + textWeight * 8.2)))}px`;
+    })();
+    const modelTriggerStyle = {
+      '--iclaw-model-trigger-width': modelTriggerWidth,
+    } as CSSProperties;
     const modelVisualLoading = sessionTransitioning || modelsLoading || modelSwitching;
     const modelDisabled =
       !connected || composerBusy || sessionTransitioning || modelSwitching || modelOptions.length === 0;
@@ -3504,6 +3514,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   <button
                     type="button"
                     className="iclaw-composer__model-trigger"
+                    style={modelTriggerStyle}
                     data-loading={modelVisualLoading ? 'true' : 'false'}
                     disabled={modelDisabled}
                     aria-haspopup="menu"

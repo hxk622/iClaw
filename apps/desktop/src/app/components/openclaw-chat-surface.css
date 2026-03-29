@@ -2740,9 +2740,9 @@ body {
 
 .iclaw-composer__model-trigger {
   position: relative;
-  width: 188px;
+  width: var(--iclaw-model-trigger-width, 188px);
   min-width: 188px;
-  max-width: 188px;
+  max-width: min(312px, calc(100vw - 120px));
   justify-content: space-between;
   gap: 12px;
   min-height: 40px;
@@ -2792,6 +2792,7 @@ body {
 
 .iclaw-composer__model-trigger-main {
   display: inline-flex;
+  flex: 1 1 auto;
   min-width: 0;
   align-items: center;
   gap: 10px;
@@ -2826,10 +2827,19 @@ body {
 .iclaw-composer__model-copy,
 .iclaw-composer__model-option-copy {
   display: inline-flex;
+  flex: 1 1 auto;
   min-width: 0;
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
+}
+
+.iclaw-composer__model-trigger .iclaw-composer__model-label {
+  font-size: 12px;
+}
+
+.iclaw-composer__model-trigger .iclaw-composer__model-detail {
+  font-size: 10.5px;
 }
 
 .iclaw-composer__model-label,
