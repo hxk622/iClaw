@@ -49,6 +49,7 @@ import type {
   UpsertPortalAppInput,
   UpsertPortalAppModelRuntimeOverrideInput,
   UpsertPortalMemoryEmbeddingProfileInput,
+  UpsertPortalModelInput,
   ValidatePortalMemoryEmbeddingProfileInput,
   UpsertPortalMenuInput,
   UpsertPortalModelProviderProfileInput,
@@ -1306,6 +1307,23 @@ const server = createJsonServer([
     method: 'GET',
     path: '/admin/portal/catalog/mcps',
     handler: ({headers}: HandlerContext) => portalService.listMcps(requireBearerToken(headers)),
+  },
+  {
+    method: 'GET',
+    path: '/admin/portal/catalog/models',
+    handler: ({headers}: HandlerContext) => portalService.listModels(requireBearerToken(headers)),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/portal/catalog/models',
+    handler: ({headers, body}: HandlerContext) =>
+      portalService.upsertModel(requireBearerToken(headers), (body || {}) as UpsertPortalModelInput),
+  },
+  {
+    method: 'DELETE',
+    path: '/admin/portal/catalog/models',
+    handler: ({headers, url}: HandlerContext) =>
+      portalService.deleteModel(requireBearerToken(headers), (url.searchParams.get('ref') || '').trim()),
   },
   {
     method: 'GET',

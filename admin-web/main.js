@@ -2258,24 +2258,82 @@ function normalizeBillingMultiplierValue(value, fallback = 1) {
   return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed * 100) / 100 : fallback;
 }
 
-function getModelCatalogEntry(ref) {
+function getActiveModelProfile() {
+  const selectedBrandId = String(state.selectedBrandId || '').trim();
+  const platformProfile = getModelProviderProfilesByScope('platform', 'platform').find((item) => item.enabled !== false) || null;
+  const override = selectedBrandId ? asObject(state.modelProviderOverrides[selectedBrandId]) : null;
+  const appProfile =
+    selectedBrandId && override.providerMode === 'use_app_profile'
+      ? getModelProviderProfilesByScope('app', selectedBrandId).find((item) => item.enabled !== false) || null
+      : null;
+  return appProfile || platformProfile || null;
+}
+
+function normalizeModelProfileEntry(profile, item, index = 0) {
+  const profileData = asObject(profile);
+  const model = asObject(item);
+  const providerId = String(profileData.providerKey || '').trim();
+  const modelId = String(model.modelId || '').trim();
+  const ref = String(model.modelRef || '').trim() || (providerId && modelId ? `${providerId}/${modelId}` : '');
+  if (!ref) {
+    return null;
+  }
+  const active = model.enabled !== false;
+  return {
+    ref,
+    label: String(model.label || modelId || ref).trim() || ref,
+    providerId,
+    modelId,
+    logoPresetKey: String(model.logoPresetKey || '').trim(),
+    billingMultiplier: normalizeBillingMultiplierValue(model.billingMultiplier ?? model.billing_multiplier, 1),
+    reasoning: model.reasoning === true,
+    active,
+    enabled: active,
+    sortOrder: Number(model.sortOrder || model.sort_order || (index + 1) * 10) || (index + 1) * 10,
+  };
+}
+
+function findAnyModelProfileEntry(ref) {
   const normalizedRef = String(ref || '').trim();
   if (!normalizedRef) return null;
   for (const profile of asArray(state.modelProviderProfiles)) {
-    const profileData = asObject(profile);
-    const matched = asArray(profileData.models).find((item) => String(asObject(item).modelRef || '').trim() === normalizedRef);
+    const matched = asArray(asObject(profile).models).find(
+      (item) => String(asObject(item).modelRef || '').trim() === normalizedRef,
+    );
     if (!matched) continue;
-    const model = asObject(matched);
-    return {
-      ref: normalizedRef,
-      label: String(model.label || normalizedRef).trim() || normalizedRef,
-      providerId: String(profileData.providerKey || '').trim(),
-      modelId: String(model.modelId || '').trim(),
-      logoPresetKey: String(model.logoPresetKey || '').trim(),
-      billingMultiplier: normalizeBillingMultiplierValue(model.billingMultiplier ?? model.billing_multiplier, 1),
-    };
+    return normalizeModelProfileEntry(profile, matched);
   }
   return null;
+}
+
+function getModelCatalogEntry(ref) {
+  const normalizedRef = String(ref || '').trim();
+  if (!normalizedRef) return null;
+  const catalogEntry =
+    asArray(state.modelCatalog).find((item) => String(asObject(item).ref || '').trim() === normalizedRef) || null;
+  const profileEntry = findAnyModelProfileEntry(normalizedRef);
+  if (catalogEntry) {
+    const model = asObject(catalogEntry);
+    return {
+      ref: normalizedRef,
+      label: String(model.label || profileEntry?.label || normalizedRef).trim() || normalizedRef,
+      providerId: String(model.providerId || profileEntry?.providerId || '').trim(),
+      modelId: String(model.modelId || profileEntry?.modelId || '').trim(),
+      api: String(model.api || 'openai-completions').trim() || 'openai-completions',
+      baseUrl: typeof model.baseUrl === 'string' ? model.baseUrl : model.baseUrl || '',
+      useRuntimeOpenai: model.useRuntimeOpenai !== false,
+      authHeader: model.authHeader !== false,
+      reasoning: model.reasoning === true || profileEntry?.reasoning === true,
+      input: asStringArray(model.input),
+      contextWindow: Number(model.contextWindow || 0) || 0,
+      maxTokens: Number(model.maxTokens || 0) || 0,
+      metadata: asObject(model.metadata),
+      logoPresetKey: String(profileEntry?.logoPresetKey || '').trim(),
+      billingMultiplier: normalizeBillingMultiplierValue(profileEntry?.billingMultiplier, 1),
+      active: model.active !== false,
+    };
+  }
+  return profileEntry;
 }
 
 function getMergedSkills() {
@@ -2336,39 +2394,53 @@ function getPortalModelConnections(ref) {
 }
 
 function getMergedModelCatalog() {
-  const selectedBrandId = String(state.selectedBrandId || '').trim();
-  const platformProfile = getModelProviderProfilesByScope('platform', 'platform').find((item) => item.enabled !== false) || null;
-  const override = selectedBrandId ? asObject(state.modelProviderOverrides[selectedBrandId]) : null;
-  const appProfile =
-    selectedBrandId && override.providerMode === 'use_app_profile'
-      ? getModelProviderProfilesByScope('app', selectedBrandId).find((item) => item.enabled !== false) || null
-      : null;
-  const profile = appProfile || platformProfile;
-  if (!profile) {
-    return [];
-  }
-  return asArray(profile.models)
-    .map((item, index) => {
-      const model = asObject(item);
-      const providerKey = String(profile.providerKey || '').trim();
-      const modelId = String(model.modelId || '').trim();
-      const ref = String(model.modelRef || '').trim() || (providerKey && modelId ? `${providerKey}/${modelId}` : '');
-      if (!ref) {
-        return null;
-      }
+  const profile = getActiveModelProfile();
+  const profileEntries = new Map();
+  asArray(profile?.models).forEach((item, index) => {
+    const normalized = normalizeModelProfileEntry(profile, item, index);
+    if (normalized) {
+      profileEntries.set(normalized.ref, normalized);
+    }
+  });
+
+  const refs = new Set([
+    ...asArray(state.modelCatalog).map((item) => String(asObject(item).ref || '').trim()).filter(Boolean),
+    ...profileEntries.keys(),
+  ]);
+
+  return Array.from(refs)
+    .map((ref, index) => {
+      const catalog = asObject(
+        asArray(state.modelCatalog).find((item) => String(asObject(item).ref || '').trim() === ref) || {},
+      );
+      const profileEntry = profileEntries.get(ref) || null;
+      const active = (Object.keys(catalog).length ? catalog.active !== false : true) && (profileEntry ? profileEntry.active !== false : true);
+      const connectedBrands = getPortalModelConnections(ref);
       return {
         ref,
-        label: String(model.label || modelId || ref).trim() || ref,
-        providerId: providerKey,
-        modelId,
-        logoPresetKey: String(model.logoPresetKey || '').trim(),
-        billingMultiplier: normalizeBillingMultiplierValue(model.billingMultiplier ?? model.billing_multiplier, 1),
-        enabled: model.enabled !== false,
-        sortOrder: Number(model.sortOrder || model.sort_order || (index + 1) * 10) || (index + 1) * 10,
+        label: String(catalog.label || profileEntry?.label || ref).trim() || ref,
+        providerId: String(catalog.providerId || profileEntry?.providerId || '').trim(),
+        modelId: String(catalog.modelId || profileEntry?.modelId || '').trim(),
+        api: String(catalog.api || 'openai-completions').trim() || 'openai-completions',
+        baseUrl: typeof catalog.baseUrl === 'string' ? catalog.baseUrl : catalog.baseUrl || '',
+        useRuntimeOpenai: catalog.useRuntimeOpenai !== false,
+        authHeader: catalog.authHeader !== false,
+        reasoning: catalog.reasoning === true || profileEntry?.reasoning === true,
+        input: asStringArray(catalog.input),
+        contextWindow: Number(catalog.contextWindow || 0) || 0,
+        maxTokens: Number(catalog.maxTokens || 0) || 0,
+        metadata: asObject(catalog.metadata),
+        logoPresetKey: String(profileEntry?.logoPresetKey || '').trim(),
+        billingMultiplier: normalizeBillingMultiplierValue(profileEntry?.billingMultiplier, 1),
+        active,
+        enabled: active,
+        sortOrder: profileEntry?.sortOrder ?? (index + 1) * 10,
+        connectedBrands,
+        connected_brand_count: connectedBrands.length,
       };
     })
-    .filter(Boolean)
-    .filter((item) => item.enabled !== false)
+    .filter((item) => item.ref)
+    .filter((item) => item.active !== false)
     .sort((left, right) => left.sortOrder - right.sortOrder || left.label.localeCompare(right.label, 'zh-CN'));
 }
 
@@ -3437,12 +3509,13 @@ async function loadAppData() {
   render();
 
   try {
-    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, mcpRegistryData, modelProviderProfilesData, memoryEmbeddingProfilesData, modelLogoPresetsData, menuCatalogData, composerControlCatalogData, composerShortcutCatalogData, skillSyncSourcesData, skillSyncRunsData, paymentProviderProfilesData, paymentProviderBindingsData, paymentOrdersData] = await Promise.all([
+    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, mcpRegistryData, modelCatalogData, modelProviderProfilesData, memoryEmbeddingProfilesData, modelLogoPresetsData, menuCatalogData, composerControlCatalogData, composerShortcutCatalogData, skillSyncSourcesData, skillSyncRunsData, paymentProviderProfilesData, paymentProviderBindingsData, paymentOrdersData] = await Promise.all([
       apiFetch('/admin/portal/apps', {method: 'GET'}),
       apiFetch('/admin/agents/catalog', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/skills', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/mcps', {method: 'GET'}),
       apiFetch('/admin/mcp/catalog', {method: 'GET'}),
+      apiFetch('/admin/portal/catalog/models', {method: 'GET'}),
       apiFetch('/admin/portal/model-provider-profiles', {method: 'GET'}),
       apiFetch('/admin/portal/memory-embedding-profiles', {method: 'GET'}),
       apiFetch('/admin/portal/model-logo-presets', {method: 'GET'}),
@@ -3476,7 +3549,7 @@ async function loadAppData() {
     state.skillCatalog = Array.isArray(skillCatalogData.items) ? skillCatalogData.items : [];
     state.mcpCatalog = Array.isArray(mcpCatalogData.items) ? mcpCatalogData.items : [];
     state.mcpRegistryCatalog = Array.isArray(mcpRegistryData.items) ? mcpRegistryData.items : [];
-    state.modelCatalog = [];
+    state.modelCatalog = Array.isArray(modelCatalogData.items) ? modelCatalogData.items : [];
     state.modelProviderProfiles = Array.isArray(modelProviderProfilesData.items) ? modelProviderProfilesData.items : [];
     state.memoryEmbeddingProfiles = Array.isArray(memoryEmbeddingProfilesData.items) ? memoryEmbeddingProfilesData.items : [];
     state.modelProviderOverrides = overridesMap;

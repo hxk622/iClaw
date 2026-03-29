@@ -35,6 +35,7 @@ import type {
   ReplacePortalAppSkillBindingsInput,
   UpsertPortalAppInput,
   UpsertPortalAppModelRuntimeOverrideInput,
+  UpsertPortalModelInput,
   ValidatePortalMemoryEmbeddingProfileInput,
   UpsertPortalMemoryEmbeddingProfileInput,
   UpsertPortalModelProviderProfileInput,
@@ -480,6 +481,11 @@ export class PortalService {
     return {items: await this.store.listMcps()};
   }
 
+  async listModels(accessToken: string) {
+    await this.requireAdmin(accessToken);
+    return {items: await this.store.listModels()};
+  }
+
   async listModelProviderProfiles(
     accessToken: string,
     input?: {
@@ -505,6 +511,26 @@ export class PortalService {
       transport: normalizeOptionalString(input.transport, 'transport') || 'config',
       objectKey: normalizeOptionalString(input.objectKey, 'object_key'),
       config: asObject(input.config),
+      metadata: asObject(input.metadata),
+      active: normalizeOptionalBoolean(input.active, 'active', true),
+    });
+  }
+
+  async upsertModel(accessToken: string, input: UpsertPortalModelInput) {
+    await this.requireAdmin(accessToken);
+    return this.store.upsertModel({
+      ref: normalizeModelRef(input.ref),
+      label: normalizeRequiredString(input.label, 'label'),
+      providerId: normalizeRequiredString(input.providerId, 'provider_id'),
+      modelId: normalizeRequiredString(input.modelId, 'model_id'),
+      api: normalizeRequiredString(input.api, 'api'),
+      baseUrl: normalizeOptionalString(input.baseUrl, 'base_url'),
+      useRuntimeOpenai: normalizeOptionalBoolean(input.useRuntimeOpenai, 'use_runtime_openai', true),
+      authHeader: normalizeOptionalBoolean(input.authHeader, 'auth_header', true),
+      reasoning: normalizeOptionalBoolean(input.reasoning, 'reasoning', false),
+      input: asArray(input.input).map((entry, index) => normalizeRequiredString(entry, `input[${index}]`)),
+      contextWindow: normalizeOptionalInteger(input.contextWindow, 'context_window', 0),
+      maxTokens: normalizeOptionalInteger(input.maxTokens, 'max_tokens', 0),
       metadata: asObject(input.metadata),
       active: normalizeOptionalBoolean(input.active, 'active', true),
     });
@@ -779,6 +805,13 @@ export class PortalService {
     const mcpKey = normalizeRequiredString(mcpKeyInput, 'mcp_key');
     await this.store.deleteMcp(mcpKey);
     return {mcpKey};
+  }
+
+  async deleteModel(accessToken: string, refInput: string) {
+    await this.requireAdmin(accessToken);
+    const ref = normalizeModelRef(refInput);
+    await this.store.deleteModel(ref);
+    return {ref};
   }
 
   async replaceAppSkills(accessToken: string, appNameInput: string, itemsInput: ReplacePortalAppSkillBindingsInput) {
