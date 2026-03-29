@@ -101,27 +101,25 @@ export async function ensureDefaultSkillSyncSources(store: ControlPlaneStore): P
 
 export async function ensureDefaultCatalogs(store: ControlPlaneStore): Promise<void> {
   for (const skill of DEFAULT_CLOUD_SKILL_SEEDS) {
-    if (await store.getSkillCatalogEntry(skill.slug)) {
-      continue;
-    }
+    const existing = await store.getSkillCatalogEntry(skill.slug);
     await store.upsertSkillCatalogEntry({
-      slug: skill.slug,
-      name: skill.name,
-      description: skill.description,
-      market: skill.market,
-      category: skill.category,
-      skill_type: skill.skillType,
-      publisher: skill.publisher || 'iClaw',
-      distribution: skill.distribution || (skill.artifactSourcePath ? 'bundled' : 'cloud'),
-      tags: skill.tags,
-      version: skill.version || '1.0.0',
-      artifact_url: skill.artifactUrl || null,
-      artifact_format: skill.artifactFormat || 'tar.gz',
-      artifact_sha256: null,
-      artifact_source_path: skill.artifactSourcePath || null,
-      origin_type: skill.originType || (skill.artifactSourcePath ? 'bundled' : 'clawhub'),
-      source_url: skill.sourceUrl || skill.artifactUrl || null,
-      metadata: skill.metadata || {},
+      slug: existing?.slug || skill.slug,
+      name: existing?.name || skill.name,
+      description: existing?.description || skill.description,
+      market: existing?.market || skill.market,
+      category: existing?.category || skill.category,
+      skill_type: existing?.skillType || skill.skillType,
+      publisher: existing?.publisher || skill.publisher || 'iClaw',
+      distribution: existing?.distribution || skill.distribution || (skill.artifactSourcePath ? 'bundled' : 'cloud'),
+      tags: existing?.tags?.length ? existing.tags : skill.tags,
+      version: existing?.version || skill.version || '1.0.0',
+      artifact_url: existing?.artifactUrl || skill.artifactUrl || null,
+      artifact_format: existing?.artifactFormat || skill.artifactFormat || 'tar.gz',
+      artifact_sha256: existing?.artifactSha256 || null,
+      artifact_source_path: existing?.artifactSourcePath || skill.artifactSourcePath || null,
+      origin_type: existing?.originType || skill.originType || (skill.artifactSourcePath ? 'bundled' : 'clawhub'),
+      source_url: existing?.sourceUrl || skill.sourceUrl || skill.artifactUrl || null,
+      metadata: existing?.metadata || skill.metadata || {},
       active: true,
     });
   }
