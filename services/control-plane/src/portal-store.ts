@@ -2051,64 +2051,125 @@ export class PgPortalStore {
       [input.scopeType, input.scopeKey, input.providerKey],
     );
     const existingProfileId = existing.rows[0]?.id || '';
-    const profileId = existingProfileId || input.id || randomUUID();
+    const currentProfileResult =
+      input.id
+        ? await this.pool.query<PortalModelProviderProfileRow>(
+            `
+              select
+                id,
+                scope_type,
+                scope_key,
+                provider_key,
+                provider_label,
+                api_protocol,
+                base_url,
+                auth_mode,
+                api_key,
+                logo_preset_key,
+                metadata_json,
+                enabled,
+                sort_order,
+                created_at,
+                updated_at
+              from model_provider_profiles
+              where id = $1
+              limit 1
+            `,
+            [input.id],
+          )
+        : {rows: [] as PortalModelProviderProfileRow[]};
+    const currentProfile = currentProfileResult.rows[0] || null;
+    const canReuseCurrentProfileId =
+      !existingProfileId &&
+      !!currentProfile &&
+      currentProfile.scope_type === input.scopeType &&
+      currentProfile.scope_key === input.scopeKey;
+    const profileId =
+      existingProfileId ||
+      (canReuseCurrentProfileId ? currentProfile.id : '') ||
+      (!currentProfile ? input.id || '' : '') ||
+      randomUUID();
     const client = await this.pool.connect();
     try {
       await client.query('begin');
-      const profileResult = await client.query<{id: string}>(
-        `
-          insert into model_provider_profiles (
-            id,
-            scope_type,
-            scope_key,
-            provider_key,
-            provider_label,
-            api_protocol,
-            base_url,
-            auth_mode,
-            api_key,
-            logo_preset_key,
-            metadata_json,
-            enabled,
-            sort_order,
-            created_at,
-            updated_at
+      const profileParams = [
+        profileId,
+        input.scopeType,
+        input.scopeKey,
+        input.providerKey,
+        input.providerLabel,
+        input.apiProtocol,
+        input.baseUrl,
+        input.authMode || 'bearer',
+        input.apiKey,
+        input.logoPresetKey || null,
+        JSON.stringify(input.metadata || {}),
+        input.enabled ?? true,
+        input.sortOrder ?? 100,
+      ];
+      const profileResult = canReuseCurrentProfileId
+        ? await client.query<{id: string}>(
+            `
+              update model_provider_profiles
+              set
+                scope_type = $2,
+                scope_key = $3,
+                provider_key = $4,
+                provider_label = $5,
+                api_protocol = $6,
+                base_url = $7,
+                auth_mode = $8,
+                api_key = $9,
+                logo_preset_key = $10,
+                metadata_json = $11::jsonb,
+                enabled = $12,
+                sort_order = $13,
+                updated_at = now()
+              where id = $1
+              returning id
+            `,
+            profileParams,
           )
-          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, now(), now())
-          on conflict (scope_type, scope_key, provider_key)
-          do update set
-            id = model_provider_profiles.id,
-            scope_type = excluded.scope_type,
-            scope_key = excluded.scope_key,
-            provider_key = excluded.provider_key,
-            provider_label = excluded.provider_label,
-            api_protocol = excluded.api_protocol,
-            base_url = excluded.base_url,
-            auth_mode = excluded.auth_mode,
-            api_key = excluded.api_key,
-            logo_preset_key = excluded.logo_preset_key,
-            metadata_json = excluded.metadata_json,
-            enabled = excluded.enabled,
-            sort_order = excluded.sort_order,
-            updated_at = now()
-          returning id
-        `,
-        [
-          profileId,
-          input.scopeType,
-          input.scopeKey,
-          input.providerKey,
-          input.providerLabel,
-          input.apiProtocol,
-          input.baseUrl,
-          input.authMode || 'bearer',
-          input.apiKey,
-          input.logoPresetKey || null,
-          JSON.stringify(input.metadata || {}),
-          input.enabled ?? true,
-          input.sortOrder ?? 100,
-        ],
-      );
+        : await client.query<{id: string}>(
+            `
+              insert into model_provider_profiles (
+                id,
+                scope_type,
+                scope_key,
+                provider_key,
+                provider_label,
+                api_protocol,
+                base_url,
+                auth_mode,
+                api_key,
+                logo_preset_key,
+                metadata_json,
+                enabled,
+                sort_order,
+                created_at,
+                updated_at
+              )
+              values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, now(), now())
+              on conflict (scope_type, scope_key, provider_key)
+              do update set
+                id = model_provider_profiles.id,
+                scope_type = excluded.scope_type,
+                scope_key = excluded.scope_key,
+                provider_key = excluded.provider_key,
+                provider_label = excluded.provider_label,
+                api_protocol = excluded.api_protocol,
+                base_url = excluded.base_url,
+                auth_mode = excluded.auth_mode,
+                api_key = excluded.api_key,
+                logo_preset_key = excluded.logo_preset_key,
+                metadata_json = excluded.metadata_json,
+                enabled = excluded.enabled,
+                sort_order = excluded.sort_order,
+                updated_at = now()
+              returning id
+            `,
+            profileParams,
+          );
       const resolvedProfileId = profileResult.rows[0]?.id || profileId;
 
       if (Array.isArray(input.models)) {
@@ -2162,9 +2223,9 @@ export class PgPortalStore {
     } finally {
       client.release();
     }
-    const next = await this.getModelProviderProfile(existingProfileId || input.id || profileId);
+    const next = await this.getModelProviderProfile(profileId);
     if (!next) {
-      throw new Error(`model provider profile upsert failed: ${existingProfileId || input.id || profileId}`);
+      throw new Error(`model provider profile upsert failed: ${profileId}`);
     }
     return next;
   }
