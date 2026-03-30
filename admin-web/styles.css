@@ -2260,6 +2260,50 @@ code {
   border-top: 1px solid var(--line);
 }
 
+.fig-kv-editor {
+  display: grid;
+  gap: 14px;
+  width: 100%;
+}
+
+.fig-kv-editor__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fig-kv-editor__head h4 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.fig-kv-editor__head p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.fig-kv-editor__stack {
+  display: grid;
+  gap: 12px;
+}
+
+.fig-kv-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) 140px minmax(0, 1.2fr) auto;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--card-subtle) 76%, transparent);
+}
+
+.fig-kv-row__remove {
+  align-self: end;
+}
+
 .fig-list {
   display: grid;
   gap: 10px;

@@ -1261,12 +1261,6 @@ const WELCOME_ASSEMBLY_PRESETS = [
     },
   },
 ];
-const SURFACE_PRESET_REGISTRY = {
-  header: HEADER_SURFACE_PRESETS,
-  sidebar: SIDEBAR_SURFACE_PRESETS,
-  'home-web': HOME_WEB_SURFACE_PRESETS,
-};
-
 const WELCOME_ACTION_ICON_OPTIONS = [
   ['', '默认'],
   ['TrendingUp', '趋势上涨'],
@@ -1306,6 +1300,44 @@ const DEFAULT_HEADER_SURFACE_CONFIG = {
   modeBadgeLabel: '脉搏模式',
   fallbackQuotes: DEFAULT_HEADER_QUOTES,
   fallbackHeadlines: DEFAULT_HEADER_HEADLINES,
+};
+
+const DEFAULT_HOME_WEB_SURFACE_CONFIG = {
+  website: {
+    homeTitle: 'iClaw 官网',
+    metaDescription: 'iClaw 官网，面向普通用户的本地 AI 客户端。',
+    brandLabel: 'iClaw',
+    kicker: 'Official Website',
+    heroTitlePre: '让AI真正像软件一样',
+    heroTitleMain: '装上就能用！',
+    heroDescription: 'iClaw 面向普通用户设计。少一点配置，多一点结果。打开、提问、执行、拿答案。',
+    topCtaLabel: '下载',
+    scrollLabel: '向下下载',
+    downloadTitle: '下载 iClaw',
+  },
+};
+
+const DEFAULT_SIDEBAR_SURFACE_CONFIG = {
+  variant: 'default',
+  brandBlock: {
+    title: 'iClaw',
+    subtitle: '',
+  },
+  layout: {
+    sectionStyle: 'default',
+    emphasizeActiveItem: true,
+  },
+};
+
+const DEFAULT_DESKTOP_SHELL_CONFIG = {
+  websiteTitle: 'iClaw',
+  devWebsiteTitle: 'iClaw-dev',
+  sidebarTitle: 'iClaw',
+  devSidebarTitle: 'iClaw-dev',
+  sidebarSubtitle: '',
+  legalName: 'iClaw',
+  bundleIdentifier: 'ai.iclaw.desktop',
+  authService: 'ai.iclaw.desktop',
 };
 
 function normalizeWelcomeQuickAction(value, index = 0) {
@@ -1364,6 +1396,83 @@ function buildWelcomeSurfaceConfigFromBuffer(welcome) {
         icon_key: String(item.iconKey || '').trim(),
       }))
       .filter((item) => item.label || item.prompt || item.icon_key),
+  };
+}
+
+function normalizeHomeWebSurfaceConfig(value) {
+  const config = asObject(value);
+  const website = asObject(config.website);
+  return {
+    homeTitle: String(website.homeTitle || DEFAULT_HOME_WEB_SURFACE_CONFIG.website.homeTitle).trim(),
+    metaDescription: String(website.metaDescription || DEFAULT_HOME_WEB_SURFACE_CONFIG.website.metaDescription).trim(),
+    brandLabel: String(website.brandLabel || DEFAULT_HOME_WEB_SURFACE_CONFIG.website.brandLabel).trim(),
+    kicker: String(website.kicker || DEFAULT_HOME_WEB_SURFACE_CONFIG.website.kicker).trim(),
+    heroTitlePre: String(website.heroTitlePre || DEFAULT_HOME_WEB_SURFACE_CONFIG.website.heroTitlePre).trim(),
+    heroTitleMain: String(website.heroTitleMain || DEFAULT_HOME_WEB_SURFACE_CONFIG.website.heroTitleMain).trim(),
+    heroDescription: String(website.heroDescription || DEFAULT_HOME_WEB_SURFACE_CONFIG.website.heroDescription).trim(),
+    topCtaLabel: String(website.topCtaLabel || DEFAULT_HOME_WEB_SURFACE_CONFIG.website.topCtaLabel).trim(),
+    scrollLabel: String(website.scrollLabel || DEFAULT_HOME_WEB_SURFACE_CONFIG.website.scrollLabel).trim(),
+    downloadTitle: String(website.downloadTitle || DEFAULT_HOME_WEB_SURFACE_CONFIG.website.downloadTitle).trim(),
+  };
+}
+
+function buildHomeWebSurfaceConfigFromBuffer(homeWeb) {
+  const next = normalizeHomeWebSurfaceConfig({website: homeWeb});
+  return {
+    website: {
+      homeTitle: next.homeTitle,
+      metaDescription: next.metaDescription,
+      brandLabel: next.brandLabel,
+      kicker: next.kicker,
+      heroTitlePre: next.heroTitlePre,
+      heroTitleMain: next.heroTitleMain,
+      heroDescription: next.heroDescription,
+      topCtaLabel: next.topCtaLabel,
+      scrollLabel: next.scrollLabel,
+      downloadTitle: next.downloadTitle,
+    },
+  };
+}
+
+function normalizeSidebarSurfaceConfig(value) {
+  const config = asObject(value);
+  const brandBlock = asObject(config.brandBlock || config.brand_block);
+  const layout = asObject(config.layout);
+  return {
+    variant: String(config.variant || DEFAULT_SIDEBAR_SURFACE_CONFIG.variant).trim() || DEFAULT_SIDEBAR_SURFACE_CONFIG.variant,
+    brandTitle: String(brandBlock.title || DEFAULT_SIDEBAR_SURFACE_CONFIG.brandBlock.title).trim(),
+    brandSubtitle: String(brandBlock.subtitle || DEFAULT_SIDEBAR_SURFACE_CONFIG.brandBlock.subtitle).trim(),
+    sectionStyle: String(layout.sectionStyle || layout.section_style || DEFAULT_SIDEBAR_SURFACE_CONFIG.layout.sectionStyle).trim(),
+    emphasizeActiveItem: layout.emphasizeActiveItem !== false && layout.emphasize_active_item !== false,
+  };
+}
+
+function buildSidebarSurfaceConfigFromBuffer(sidebar) {
+  const next = normalizeSidebarSurfaceConfig(sidebar);
+  return {
+    variant: next.variant,
+    brandBlock: {
+      title: next.brandTitle,
+      subtitle: next.brandSubtitle,
+    },
+    layout: {
+      sectionStyle: next.sectionStyle,
+      emphasizeActiveItem: next.emphasizeActiveItem,
+    },
+  };
+}
+
+function normalizeDesktopShellConfig(value) {
+  const config = asObject(value);
+  return {
+    websiteTitle: String(config.websiteTitle || config.website_title || DEFAULT_DESKTOP_SHELL_CONFIG.websiteTitle).trim(),
+    devWebsiteTitle: String(config.devWebsiteTitle || config.dev_website_title || DEFAULT_DESKTOP_SHELL_CONFIG.devWebsiteTitle).trim(),
+    sidebarTitle: String(config.sidebarTitle || config.sidebar_title || DEFAULT_DESKTOP_SHELL_CONFIG.sidebarTitle).trim(),
+    devSidebarTitle: String(config.devSidebarTitle || config.dev_sidebar_title || DEFAULT_DESKTOP_SHELL_CONFIG.devSidebarTitle).trim(),
+    sidebarSubtitle: String(config.sidebarSubtitle || config.sidebar_subtitle || DEFAULT_DESKTOP_SHELL_CONFIG.sidebarSubtitle).trim(),
+    legalName: String(config.legalName || config.legal_name || DEFAULT_DESKTOP_SHELL_CONFIG.legalName).trim(),
+    bundleIdentifier: String(config.bundleIdentifier || config.bundle_identifier || DEFAULT_DESKTOP_SHELL_CONFIG.bundleIdentifier).trim(),
+    authService: String(config.authService || config.auth_service || DEFAULT_DESKTOP_SHELL_CONFIG.authService).trim(),
   };
 }
 
@@ -2264,6 +2373,142 @@ function prettyJson(value) {
   return JSON.stringify(value || {}, null, 2);
 }
 
+function normalizeMetadataEntryDraft(value, fallbackPath = '') {
+  const raw = asObject(value);
+  const type = String(raw.type || 'string').trim();
+  return {
+    path: String(raw.path || fallbackPath || '').trim(),
+    type: ['string', 'number', 'boolean'].includes(type) ? type : 'string',
+    value: raw.value == null ? '' : String(raw.value),
+  };
+}
+
+function flattenObjectEntries(value, parentPath = '') {
+  const source = asObject(value);
+  return Object.entries(source).flatMap(([key, nested]) => {
+    const path = parentPath ? `${parentPath}.${key}` : key;
+    if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+      return flattenObjectEntries(nested, path);
+    }
+    return [normalizeMetadataEntryDraft({
+      path,
+      type: typeof nested === 'number' ? 'number' : typeof nested === 'boolean' ? 'boolean' : 'string',
+      value:
+        typeof nested === 'string'
+          ? nested
+          : typeof nested === 'number' || typeof nested === 'boolean'
+            ? String(nested)
+            : nested == null
+              ? ''
+              : JSON.stringify(nested),
+    })];
+  });
+}
+
+function expandMetadataEntries(entries) {
+  const result = {};
+  for (const entry of asArray(entries)) {
+    const draft = normalizeMetadataEntryDraft(entry);
+    if (!draft.path) continue;
+    const segments = draft.path
+      .split('.')
+      .map((item) => item.trim())
+      .filter(Boolean);
+    if (!segments.length) continue;
+    let cursor = result;
+    while (segments.length > 1) {
+      const segment = segments.shift();
+      if (!segment) break;
+      if (!cursor[segment] || typeof cursor[segment] !== 'object' || Array.isArray(cursor[segment])) {
+        cursor[segment] = {};
+      }
+      cursor = cursor[segment];
+    }
+    const leaf = segments[0];
+    if (!leaf) continue;
+    if (draft.type === 'number') {
+      const numeric = Number(draft.value);
+      cursor[leaf] = Number.isFinite(numeric) ? numeric : 0;
+    } else if (draft.type === 'boolean') {
+      cursor[leaf] = draft.value === 'true';
+    } else {
+      cursor[leaf] = String(draft.value || '');
+    }
+  }
+  return result;
+}
+
+function renderMetadataEntriesEditor({
+  name,
+  title,
+  description = '',
+  value,
+  addLabel = '新增字段',
+}) {
+  const entries = flattenObjectEntries(value);
+  const safeEntries = entries.length ? entries : [normalizeMetadataEntryDraft({}, '')];
+  return `
+    <section class="fig-kv-editor" data-metadata-editor="${escapeHtml(name)}">
+      <div class="fig-kv-editor__head">
+        <div>
+          <h4>${escapeHtml(title)}</h4>
+          ${description ? `<p>${escapeHtml(description)}</p>` : ''}
+        </div>
+        <button class="ghost-button" type="button" data-action="add-metadata-entry" data-editor-name="${escapeHtml(name)}">${escapeHtml(addLabel)}</button>
+      </div>
+      <div class="fig-kv-editor__stack">
+        ${safeEntries
+          .map(
+            (entry, index) => `
+              <div class="fig-kv-row" data-metadata-entry>
+                <label class="field">
+                  <span>字段路径</span>
+                  <input class="field-input" name="${escapeHtml(name)}__path__${index}" value="${fieldValue(entry.path)}" placeholder="例如 sourceType / setup.schemaVersion" />
+                </label>
+                <label class="field">
+                  <span>类型</span>
+                  <select class="field-select" name="${escapeHtml(name)}__type__${index}">
+                    <option value="string"${entry.type === 'string' ? ' selected' : ''}>文本</option>
+                    <option value="number"${entry.type === 'number' ? ' selected' : ''}>数字</option>
+                    <option value="boolean"${entry.type === 'boolean' ? ' selected' : ''}>布尔</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>值</span>
+                  <input class="field-input" name="${escapeHtml(name)}__value__${index}" value="${fieldValue(entry.value)}" placeholder="字段值" />
+                </label>
+                <button class="ghost-button fig-kv-row__remove" type="button" data-action="remove-metadata-entry">删除</button>
+              </div>
+            `,
+          )
+          .join('')}
+      </div>
+    </section>
+  `;
+}
+
+function readMetadataEntriesFromForm(form, name) {
+  if (!(form instanceof Element)) {
+    return [];
+  }
+  const rows = Array.from(form.querySelectorAll(`[data-metadata-editor="${CSS.escape(name)}"] [data-metadata-entry]`));
+  return rows
+    .map((row) =>
+      normalizeMetadataEntryDraft({
+        path: row.querySelector(`input[name^="${CSS.escape(name)}__path__"]`) instanceof HTMLInputElement
+          ? row.querySelector(`input[name^="${CSS.escape(name)}__path__"]`).value
+          : '',
+        type: row.querySelector(`select[name^="${CSS.escape(name)}__type__"]`) instanceof HTMLSelectElement
+          ? row.querySelector(`select[name^="${CSS.escape(name)}__type__"]`).value
+          : 'string',
+        value: row.querySelector(`input[name^="${CSS.escape(name)}__value__"]`) instanceof HTMLInputElement
+          ? row.querySelector(`input[name^="${CSS.escape(name)}__value__"]`).value
+          : '',
+      }),
+    )
+    .filter((item) => item.path);
+}
+
 function getAgentEditableAvatarUrl(agent) {
   return String(asObject(agent?.metadata).avatar_url || '').trim();
 }
@@ -3012,6 +3257,13 @@ function buildBrandDraftBuffer(detail) {
   const meta = getAppBrandMeta(brand);
   const welcomeSurface = asObject(surfaceEntries.welcome);
   const welcomeConfig = normalizeWelcomeSurfaceConfig(asObject(welcomeSurface.config));
+  const headerSurface = asObject(surfaceEntries.header);
+  const headerConfig = normalizeHeaderSurfaceConfig(asObject(headerSurface.config));
+  const homeWebSurface = asObject(surfaceEntries['home-web']);
+  const homeWebConfig = normalizeHomeWebSurfaceConfig(asObject(homeWebSurface.config));
+  const sidebarSurface = asObject(surfaceEntries.sidebar);
+  const sidebarConfig = normalizeSidebarSurfaceConfig(asObject(sidebarSurface.config));
+  const desktopShellConfig = normalizeDesktopShellConfig(draftConfig);
 
   return {
     brandId: brand?.brandId || '',
@@ -3053,9 +3305,22 @@ function buildBrandDraftBuffer(detail) {
     savedModelEntries: modelEntries.map((item) => clone(asObject(item))),
     agentsText: asStringArray(capabilities.agents).join('\n'),
     menusText: selectedMenus.join('\n'),
+    desktopShell: desktopShellConfig,
+    homeWeb: {
+      enabled: homeWebSurface.enabled !== false,
+      ...homeWebConfig,
+    },
     welcome: {
       enabled: welcomeSurface.enabled !== false,
       ...welcomeConfig,
+    },
+    header: {
+      enabled: headerSurface.enabled !== false,
+      ...headerConfig,
+    },
+    sidebar: {
+      enabled: sidebarSurface.enabled !== false,
+      ...sidebarConfig,
     },
     surfaces: orderedSurfaceKeys.map((key) => {
       const surface = asObject(surfaceEntries[key]);
@@ -3184,7 +3449,9 @@ function captureBrandEditorBuffer() {
     });
   }
   const welcomeEnabledInput = form.querySelector('[name="welcome_enabled"]');
+  const homeWebEnabledInput = form.querySelector('[name="home_web_enabled"]');
   const headerEnabledInput = form.querySelector('[name="header_enabled"]');
+  const sidebarEnabledInput = form.querySelector('[name="sidebar_enabled"]');
   const welcomeQuickActions = Array.from({length: 4}, (_, index) => ({
     label:
       form.querySelector(`[name="welcome_quick_action_label__${index}"]`) instanceof HTMLInputElement
@@ -3246,6 +3513,58 @@ function captureBrandEditorBuffer() {
       label: surfaceLabel('welcome'),
       enabled: welcomeEnabledInput instanceof HTMLInputElement ? welcomeEnabledInput.checked : existing.welcome?.enabled !== false,
       json: JSON.stringify(buildWelcomeSurfaceConfigFromBuffer(welcome), null, 2),
+    });
+  }
+  const homeWeb = normalizeHomeWebSurfaceConfig({
+    website: {
+      homeTitle:
+        form.querySelector('[name="home_web_home_title"]') instanceof HTMLInputElement
+          ? form.querySelector('[name="home_web_home_title"]').value
+          : existing.homeWeb?.homeTitle,
+      metaDescription:
+        form.querySelector('[name="home_web_meta_description"]') instanceof HTMLTextAreaElement
+          ? form.querySelector('[name="home_web_meta_description"]').value
+          : existing.homeWeb?.metaDescription,
+      brandLabel:
+        form.querySelector('[name="home_web_brand_label"]') instanceof HTMLInputElement
+          ? form.querySelector('[name="home_web_brand_label"]').value
+          : existing.homeWeb?.brandLabel,
+      kicker:
+        form.querySelector('[name="home_web_kicker"]') instanceof HTMLInputElement
+          ? form.querySelector('[name="home_web_kicker"]').value
+          : existing.homeWeb?.kicker,
+      heroTitlePre:
+        form.querySelector('[name="home_web_hero_title_pre"]') instanceof HTMLInputElement
+          ? form.querySelector('[name="home_web_hero_title_pre"]').value
+          : existing.homeWeb?.heroTitlePre,
+      heroTitleMain:
+        form.querySelector('[name="home_web_hero_title_main"]') instanceof HTMLInputElement
+          ? form.querySelector('[name="home_web_hero_title_main"]').value
+          : existing.homeWeb?.heroTitleMain,
+      heroDescription:
+        form.querySelector('[name="home_web_hero_description"]') instanceof HTMLTextAreaElement
+          ? form.querySelector('[name="home_web_hero_description"]').value
+          : existing.homeWeb?.heroDescription,
+      topCtaLabel:
+        form.querySelector('[name="home_web_top_cta_label"]') instanceof HTMLInputElement
+          ? form.querySelector('[name="home_web_top_cta_label"]').value
+          : existing.homeWeb?.topCtaLabel,
+      scrollLabel:
+        form.querySelector('[name="home_web_scroll_label"]') instanceof HTMLInputElement
+          ? form.querySelector('[name="home_web_scroll_label"]').value
+          : existing.homeWeb?.scrollLabel,
+      downloadTitle:
+        form.querySelector('[name="home_web_download_title"]') instanceof HTMLInputElement
+          ? form.querySelector('[name="home_web_download_title"]').value
+          : existing.homeWeb?.downloadTitle,
+    },
+  });
+  if (form.querySelector('[name="home_web_enabled"]') || form.querySelector('[name="home_web_home_title"]')) {
+    surfaceMap.set('home-web', {
+      key: 'home-web',
+      label: surfaceLabel('home-web'),
+      enabled: homeWebEnabledInput instanceof HTMLInputElement ? homeWebEnabledInput.checked : existing.homeWeb?.enabled !== false,
+      json: JSON.stringify(buildHomeWebSurfaceConfigFromBuffer(homeWeb), null, 2),
     });
   }
   const header = normalizeHeaderSurfaceConfig({
@@ -3334,8 +3653,42 @@ function captureBrandEditorBuffer() {
     surfaceMap.set('header', {
       key: 'header',
       label: surfaceLabel('header'),
-      enabled: headerEnabledInput instanceof HTMLInputElement ? headerEnabledInput.checked : true,
+      enabled: headerEnabledInput instanceof HTMLInputElement ? headerEnabledInput.checked : existing.header?.enabled !== false,
       json: JSON.stringify(buildHeaderSurfaceConfigFromBuffer(header), null, 2),
+    });
+  }
+  const sidebar = normalizeSidebarSurfaceConfig({
+    variant:
+      form.querySelector('[name="sidebar_variant"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="sidebar_variant"]').value
+        : existing.sidebar?.variant,
+    brandBlock: {
+      title:
+        form.querySelector('[name="sidebar_brand_title"]') instanceof HTMLInputElement
+          ? form.querySelector('[name="sidebar_brand_title"]').value
+          : existing.sidebar?.brandTitle,
+      subtitle:
+        form.querySelector('[name="sidebar_brand_subtitle"]') instanceof HTMLInputElement
+          ? form.querySelector('[name="sidebar_brand_subtitle"]').value
+          : existing.sidebar?.brandSubtitle,
+    },
+    layout: {
+      sectionStyle:
+        form.querySelector('[name="sidebar_section_style"]') instanceof HTMLInputElement
+          ? form.querySelector('[name="sidebar_section_style"]').value
+          : existing.sidebar?.sectionStyle,
+      emphasizeActiveItem:
+        form.querySelector('[name="sidebar_emphasize_active_item"]') instanceof HTMLInputElement
+          ? form.querySelector('[name="sidebar_emphasize_active_item"]').checked
+          : existing.sidebar?.emphasizeActiveItem,
+    },
+  });
+  if (form.querySelector('[name="sidebar_enabled"]') || form.querySelector('[name="sidebar_variant"]')) {
+    surfaceMap.set('sidebar', {
+      key: 'sidebar',
+      label: surfaceLabel('sidebar'),
+      enabled: sidebarEnabledInput instanceof HTMLInputElement ? sidebarEnabledInput.checked : existing.sidebar?.enabled !== false,
+      json: JSON.stringify(buildSidebarSurfaceConfigFromBuffer(sidebar), null, 2),
     });
   }
   const surfaces = Array.from(surfaceMap.values());
@@ -3399,9 +3752,55 @@ function captureBrandEditorBuffer() {
     menusText: form.querySelector('[name="menus_text"]')
       ? String(data.get('menus_text') || existing.menusText || '')
       : String(existing.menusText || ''),
+    desktopShell: normalizeDesktopShellConfig({
+      websiteTitle:
+        form.querySelector('[name="desktop_website_title"]') instanceof HTMLInputElement
+          ? form.querySelector('[name="desktop_website_title"]').value
+          : existing.desktopShell?.websiteTitle,
+      devWebsiteTitle:
+        form.querySelector('[name="desktop_dev_website_title"]') instanceof HTMLInputElement
+          ? form.querySelector('[name="desktop_dev_website_title"]').value
+          : existing.desktopShell?.devWebsiteTitle,
+      sidebarTitle:
+        form.querySelector('[name="desktop_sidebar_title"]') instanceof HTMLInputElement
+          ? form.querySelector('[name="desktop_sidebar_title"]').value
+          : existing.desktopShell?.sidebarTitle,
+      devSidebarTitle:
+        form.querySelector('[name="desktop_dev_sidebar_title"]') instanceof HTMLInputElement
+          ? form.querySelector('[name="desktop_dev_sidebar_title"]').value
+          : existing.desktopShell?.devSidebarTitle,
+      sidebarSubtitle:
+        form.querySelector('[name="desktop_sidebar_subtitle"]') instanceof HTMLInputElement
+          ? form.querySelector('[name="desktop_sidebar_subtitle"]').value
+          : existing.desktopShell?.sidebarSubtitle,
+      legalName:
+        form.querySelector('[name="desktop_legal_name"]') instanceof HTMLInputElement
+          ? form.querySelector('[name="desktop_legal_name"]').value
+          : existing.desktopShell?.legalName,
+      bundleIdentifier:
+        form.querySelector('[name="desktop_bundle_identifier"]') instanceof HTMLInputElement
+          ? form.querySelector('[name="desktop_bundle_identifier"]').value
+          : existing.desktopShell?.bundleIdentifier,
+      authService:
+        form.querySelector('[name="desktop_auth_service"]') instanceof HTMLInputElement
+          ? form.querySelector('[name="desktop_auth_service"]').value
+          : existing.desktopShell?.authService,
+    }),
+    homeWeb: {
+      enabled: homeWebEnabledInput instanceof HTMLInputElement ? homeWebEnabledInput.checked : existing.homeWeb?.enabled !== false,
+      ...homeWeb,
+    },
     welcome: {
       enabled: welcomeEnabledInput instanceof HTMLInputElement ? welcomeEnabledInput.checked : existing.welcome?.enabled !== false,
       ...welcome,
+    },
+    header: {
+      enabled: headerEnabledInput instanceof HTMLInputElement ? headerEnabledInput.checked : existing.header?.enabled !== false,
+      ...header,
+    },
+    sidebar: {
+      enabled: sidebarEnabledInput instanceof HTMLInputElement ? sidebarEnabledInput.checked : existing.sidebar?.enabled !== false,
+      ...sidebar,
     },
     surfaces,
   };
@@ -3449,6 +3848,23 @@ function composeDraftConfig(buffer) {
       onPrimary: buffer.theme.darkOnPrimary.trim(),
     },
   };
+  const desktopShell = normalizeDesktopShellConfig(buffer.desktopShell);
+  draftConfig.websiteTitle = desktopShell.websiteTitle;
+  draftConfig.website_title = desktopShell.websiteTitle;
+  draftConfig.devWebsiteTitle = desktopShell.devWebsiteTitle;
+  draftConfig.dev_website_title = desktopShell.devWebsiteTitle;
+  draftConfig.sidebarTitle = desktopShell.sidebarTitle;
+  draftConfig.sidebar_title = desktopShell.sidebarTitle;
+  draftConfig.devSidebarTitle = desktopShell.devSidebarTitle;
+  draftConfig.dev_sidebar_title = desktopShell.devSidebarTitle;
+  draftConfig.sidebarSubtitle = desktopShell.sidebarSubtitle;
+  draftConfig.sidebar_subtitle = desktopShell.sidebarSubtitle;
+  draftConfig.legalName = desktopShell.legalName;
+  draftConfig.legal_name = desktopShell.legalName;
+  draftConfig.bundleIdentifier = desktopShell.bundleIdentifier;
+  draftConfig.bundle_identifier = desktopShell.bundleIdentifier;
+  draftConfig.authService = desktopShell.authService;
+  draftConfig.auth_service = desktopShell.authService;
 
   draftConfig.surfaces = buffer.surfaces.reduce((accumulator, surface) => {
     accumulator[surface.key] = {
@@ -3467,7 +3883,7 @@ function composeDraftConfig(buffer) {
     display_name: buffer.displayName.trim(),
     product_name: nextProductName,
     tenant_key: nextTenantKey,
-    legal_name: String(brandMetaSnake.legal_name || draftConfig.legalName || draftConfig.legal_name || buffer.displayName.trim()).trim(),
+    legal_name: String(desktopShell.legalName || brandMetaSnake.legal_name || draftConfig.legalName || draftConfig.legal_name || buffer.displayName.trim()).trim(),
     storage_namespace: String(brandMetaSnake.storage_namespace || asObject(draftConfig.storage).namespace || nextTenantKey).trim(),
   };
   draftConfig.brandMeta = {
@@ -4180,16 +4596,8 @@ async function saveAsset(formData) {
   const brandId = String(formData.get('brand_id') || '').trim();
   const assetKey = String(formData.get('asset_key') || '').trim();
   const kind = String(formData.get('kind') || '').trim();
-  const metadataText = String(formData.get('metadata_json') || '{}').trim();
   const file = formData.get('file');
-
-  let metadata = {};
-  try {
-    metadata = parseJsonText(metadataText, '资源 metadata');
-  } catch (error) {
-    setError(error instanceof Error ? error.message : '资源 metadata 不是合法 JSON');
-    return;
-  }
+  const metadata = expandMetadataEntries(readMetadataEntriesFromForm(document.querySelector('#asset-form'), 'metadata_entries'));
 
   state.busy = true;
   resetBanner();
@@ -4437,7 +4845,8 @@ async function saveAgentCatalogEntry(formData) {
 
   try {
     const slug = String(formData.get('slug') || '').trim();
-    const metadata = asObject(parseJsonText(String(formData.get('metadata_json') || '{}').trim() || '{}', 'Agent metadata'));
+    const form = document.querySelector('#agent-editor-form');
+    const metadata = expandMetadataEntries(readMetadataEntriesFromForm(form, 'metadata_entries'));
     const avatarUrl = String(formData.get('avatar_url') || '').trim();
     if (avatarUrl) {
       metadata.avatar_url = avatarUrl;
@@ -4520,7 +4929,7 @@ async function importSkill(formData) {
       throw new Error(`未找到 Skill ${slug}`);
     }
     const body = {
-      metadata: parseJsonText(String(formData.get('metadata_json') || '{}').trim() || '{}', 'Skill metadata'),
+      metadata: expandMetadataEntries(readMetadataEntriesFromForm(document.querySelector('#skill-import-form'), 'metadata_entries')),
       active: String(formData.get('active') || 'true') === 'true',
     };
     await apiFetch(`/admin/portal/catalog/skills/${encodeURIComponent(slug)}`, {
@@ -4691,7 +5100,7 @@ async function saveSkillSyncSource(formData) {
         source_key: String(formData.get('source_key') || '').trim(),
         display_name: String(formData.get('display_name') || '').trim(),
         source_url: String(formData.get('source_url') || '').trim(),
-        config: parseJsonText(String(formData.get('config_json') || '{}').trim() || '{}', 'Sync source config'),
+        config: expandMetadataEntries(readMetadataEntriesFromForm(document.querySelector('#skill-sync-source-form'), 'config_entries')),
         active: String(formData.get('active') || 'true') === 'true',
       }),
     });
@@ -4752,7 +5161,7 @@ async function saveMcpCatalogEntry(formData) {
           http_url: String(formData.get('http_url') || '').trim() || null,
           env: parseEnvText(String(formData.get('env_text') || '')),
         },
-        metadata: parseJsonText(String(formData.get('metadata_json') || '{}').trim() || '{}', 'MCP metadata'),
+        metadata: expandMetadataEntries(readMetadataEntriesFromForm(document.querySelector('#mcp-editor-form'), 'metadata_entries')),
         active: String(formData.get('enabled') || 'true') === 'true',
       }),
     });
@@ -4869,7 +5278,7 @@ async function saveModelCatalogEntry(formData) {
         input: splitLines(String(formData.get('input_text') || '')),
         contextWindow: Number(formData.get('context_window') || 0) || 0,
         maxTokens: Number(formData.get('max_tokens') || 0) || 0,
-        metadata: parseJsonText(String(formData.get('metadata_json') || '{}').trim() || '{}', 'Model metadata'),
+        metadata: expandMetadataEntries(readMetadataEntriesFromForm(document.querySelector('#model-editor-form'), 'metadata_entries')),
         active: String(formData.get('enabled') || 'true') === 'true',
       }),
     });
@@ -5506,6 +5915,25 @@ function applyHeaderAssemblyPresetToBuffer(buffer, preset) {
   return upsertSurfaceDraft(buffer, 'header', true, buildHeaderSurfaceConfigFromBuffer(config));
 }
 
+function applyHomeWebAssemblyPresetToBuffer(buffer, preset) {
+  const config = normalizeHomeWebSurfaceConfig(asObject(preset.config));
+  buffer.homeWeb = {
+    enabled: true,
+    ...config,
+  };
+  return upsertSurfaceDraft(buffer, 'home-web', true, buildHomeWebSurfaceConfigFromBuffer(config));
+}
+
+function applySidebarAssemblyPresetToBuffer(buffer, preset) {
+  const config = normalizeSidebarSurfaceConfig(asObject(preset.config));
+  buffer.sidebar = {
+    enabled: true,
+    ...config,
+  };
+  applySidebarPresetToBuffer(buffer, preset);
+  return upsertSurfaceDraft(buffer, 'sidebar', true, buildSidebarSurfaceConfigFromBuffer(config));
+}
+
 function toggleBrandRecommendedModel(value) {
   const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
   if (!buffer || !buffer.selectedModels.includes(value)) return;
@@ -5729,7 +6157,7 @@ function renderBrandDetailGuide(activeTab) {
   if (activeTab === 'theme') {
     return renderPageGuide('主题样式怎么改', [
       '优先在 Light / Dark Theme 中维护主色、hover 色和文字色。',
-      '需要更深度控制时，再用下方高级 JSON 直接编辑完整 draft config。',
+      '页面底部会展示当前草稿快照，方便核对，但不再要求手写 JSON。',
       '保存只会更新草稿，发布快照后品牌端才会切到新主题。',
     ], 'brand');
   }
@@ -5765,14 +6193,14 @@ function renderBrandDetailGuide(activeTab) {
   if (surfaceBlueprint?.kind === 'shell') {
     return renderPageGuide(`${surfaceBlueprint.label}怎么配`, [
       `这里单独维护 ${surfaceBlueprint.label} 的 OEM 配置，不再和其他 UI 位混在一个大 Surface tab 里。`,
-      '切换开关控制这个区域是否显示，JSON 区域用于写该区域的装配配置。',
+      '所有常用字段都改成了组件化表单，不再需要手写 JSON。',
       '保存配置只更新草稿；发布快照后，该 OEM 才会真正切到这套界面配置。',
     ], 'brand');
   }
   if (surfaceBlueprint?.kind === 'module') {
     return renderPageGuide(`${surfaceBlueprint.label}怎么配`, [
       `这里单独维护 ${surfaceBlueprint.label} 这个业务模块，包含入口显隐和模块 surface 配置。`,
-      '如果该模块有侧边栏入口，会单独显示模块入口开关；模块内部再维护自己的 surface JSON。',
+      '如果该模块有侧边栏入口，会单独显示模块入口开关；模块内部配置改成轻量字段编辑，不再直接贴 JSON。',
       '保存配置并发布快照后，该 OEM 才会按品牌显示这块模块能力。',
     ], 'brand');
   }
@@ -6034,61 +6462,210 @@ function getBrandSurfaceDraft(buffer, key) {
   );
 }
 
-function renderBrandSurfaceEditor(buffer, surfaceKey, title, description) {
-  const surface = getBrandSurfaceDraft(buffer, surfaceKey);
-  const blueprint = getSurfaceBlueprint(surfaceKey);
-  const helperCopy =
-    surfaceKey === 'header'
-      ? `
-        <div class="fig-card__section-copy">
-          <p><code>surfaces.header.config</code> 现已被桌面端实际消费。常用字段：</p>
-          <p><code>statusLabel</code> / <code>liveStatusLabel</code> / <code>showQuotes</code> / <code>showHeadlines</code> / <code>showSecurityBadge</code> / <code>showCredits</code> / <code>showRechargeButton</code> / <code>rechargeLabel</code> / <code>showModeBadge</code> / <code>modeBadgeLabel</code> / <code>fallbackQuotes</code> / <code>fallbackHeadlines</code></p>
-        </div>
-      `
-      : surfaceKey === 'home-web'
-        ? `
-          <div class="fig-card__section-copy">
-            <p><code>surfaces["home-web"].config.website</code> 会覆盖官网首页文案；建议先套模板，再按 OEM 细调品牌名、Hero 文案和下载区标题。</p>
+function renderBrandDesktopAssembly(buffer) {
+  const desktop = normalizeDesktopShellConfig(buffer.desktopShell);
+  return `
+    <section class="fig-brand-section">
+      <div class="fig-section-heading">
+        <h2>桌面端</h2>
+        <p>维护桌面端壳层真正生效的基础品牌字段，包括窗口标题、侧栏标题和打包标识。</p>
+      </div>
+      <div class="fig-capability-columns">
+        <article class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
+            <h3>展示文案</h3>
+            <span>这些字段会进桌面端 brand profile，不再通过 JSON 手填。</span>
           </div>
-        `
-        : surfaceKey === 'sidebar'
-          ? `
-            <div class="fig-card__section-copy">
-              <p>Sidebar 模板除了填充 surface JSON，也会同步一套建议的左菜单分组与排序；后续可去「左菜单栏」页继续微调。</p>
-            </div>
-          `
-      : '';
+          <div class="form-grid">
+            <label class="field">
+              <span>Website Title</span>
+              <input class="field-input" name="desktop_website_title" value="${fieldValue(desktop.websiteTitle)}" />
+            </label>
+            <label class="field">
+              <span>Dev Website Title</span>
+              <input class="field-input" name="desktop_dev_website_title" value="${fieldValue(desktop.devWebsiteTitle)}" />
+            </label>
+            <label class="field">
+              <span>Sidebar Title</span>
+              <input class="field-input" name="desktop_sidebar_title" value="${fieldValue(desktop.sidebarTitle)}" />
+            </label>
+            <label class="field">
+              <span>Dev Sidebar Title</span>
+              <input class="field-input" name="desktop_dev_sidebar_title" value="${fieldValue(desktop.devSidebarTitle)}" />
+            </label>
+            <label class="field field--wide">
+              <span>Sidebar Subtitle</span>
+              <input class="field-input" name="desktop_sidebar_subtitle" value="${fieldValue(desktop.sidebarSubtitle)}" />
+            </label>
+          </div>
+        </article>
+        <article class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
+            <h3>打包 / 登录标识</h3>
+            <span>用于桌面端协议、服务名和协议文案等运行时标识。</span>
+          </div>
+          <div class="form-grid">
+            <label class="field">
+              <span>Legal Name</span>
+              <input class="field-input" name="desktop_legal_name" value="${fieldValue(desktop.legalName)}" />
+            </label>
+            <label class="field">
+              <span>Bundle Identifier</span>
+              <input class="field-input" name="desktop_bundle_identifier" value="${fieldValue(desktop.bundleIdentifier)}" />
+            </label>
+            <label class="field field--wide">
+              <span>Auth Service</span>
+              <input class="field-input" name="desktop_auth_service" value="${fieldValue(desktop.authService)}" />
+            </label>
+          </div>
+        </article>
+      </div>
+    </section>
+  `;
+}
+
+function renderBrandHomeWebAssembly(buffer) {
+  const homeWeb = normalizeHomeWebSurfaceConfig({website: buffer.homeWeb});
+  const enabled = buffer.homeWeb?.enabled !== false;
   const presetPicker = renderPresetPicker({
-    presets: SURFACE_PRESET_REGISTRY[surfaceKey],
-    action: 'apply-surface-preset',
-    attrs: {surfaceKey},
+    presets: HOME_WEB_SURFACE_PRESETS,
+    action: 'apply-home-web-assembly-preset',
   });
   return `
     <section class="fig-brand-section">
       <div class="fig-section-heading">
-        <h2>${escapeHtml(title || surface.label)}</h2>
-        <p>${escapeHtml(description || `维护 ${surface.label} 的 OEM 装配配置`)}</p>
+        <h2>Home页</h2>
+        <p>按内容区块维护官网 / Home 页文案，保存后仍然写回 <code>surfaces["home-web"].config.website</code>。</p>
       </div>
-      <article class="surface-editor fig-surface-card" data-surface-key="${escapeHtml(surface.key)}" data-surface-label="${escapeHtml(surface.label)}">
-        <div class="fig-surface-card__preview">
-          ${icon(blueprint?.icon || 'layout', 'fig-surface-card__preview-icon')}
+      ${presetPicker}
+      <article class="fig-card fig-card--subtle">
+        <div class="fig-card__head">
+          <h3>显示开关</h3>
+          <span>关闭后保留配置，但不让这一层 Home surface 生效。</span>
         </div>
-        <div class="fig-surface-card__body">
-          <div class="surface-editor__head fig-surface-card__head">
-              <div>
-                <h3>${escapeHtml(surface.label)}</h3>
-                <p>${visibilityStateLabel(surface.enabled)}</p>
-              </div>
-            <label class="toggle fig-toggle">
-              <input type="checkbox" name="surface_enabled__${escapeHtml(surface.key)}"${surface.enabled ? ' checked' : ''} />
-              <span>${visibilityStateLabel(surface.enabled)}</span>
+        <label class="toggle fig-toggle">
+          <input type="checkbox" name="home_web_enabled"${enabled ? ' checked' : ''} />
+          <span>${visibilityStateLabel(enabled)}</span>
+        </label>
+      </article>
+      <div class="fig-capability-columns">
+        <article class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
+            <h3>品牌与 Hero</h3>
+            <span>控制顶部按钮、品牌名和 Hero 主文案。</span>
+          </div>
+          <div class="form-grid">
+            <label class="field">
+              <span>Brand Label</span>
+              <input class="field-input" name="home_web_brand_label" value="${fieldValue(homeWeb.brandLabel)}" />
+            </label>
+            <label class="field">
+              <span>Kicker</span>
+              <input class="field-input" name="home_web_kicker" value="${fieldValue(homeWeb.kicker)}" />
+            </label>
+            <label class="field">
+              <span>Hero Title Pre</span>
+              <input class="field-input" name="home_web_hero_title_pre" value="${fieldValue(homeWeb.heroTitlePre)}" />
+            </label>
+            <label class="field">
+              <span>Hero Title Main</span>
+              <input class="field-input" name="home_web_hero_title_main" value="${fieldValue(homeWeb.heroTitleMain)}" />
+            </label>
+            <label class="field">
+              <span>Top CTA Label</span>
+              <input class="field-input" name="home_web_top_cta_label" value="${fieldValue(homeWeb.topCtaLabel)}" />
+            </label>
+            <label class="field">
+              <span>Scroll Label</span>
+              <input class="field-input" name="home_web_scroll_label" value="${fieldValue(homeWeb.scrollLabel)}" />
             </label>
           </div>
-          ${presetPicker}
-          ${helperCopy}
-          <textarea class="code-input code-input--tall" name="surface_config__${escapeHtml(surface.key)}">${escapeHtml(surface.json)}</textarea>
-        </div>
-      </article>
+        </article>
+        <article class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
+            <h3>SEO 与下载区</h3>
+            <span>控制浏览器标题、描述和下载区域标题。</span>
+          </div>
+          <div class="form-grid">
+            <label class="field">
+              <span>Home Title</span>
+              <input class="field-input" name="home_web_home_title" value="${fieldValue(homeWeb.homeTitle)}" />
+            </label>
+            <label class="field">
+              <span>Download Title</span>
+              <input class="field-input" name="home_web_download_title" value="${fieldValue(homeWeb.downloadTitle)}" />
+            </label>
+            <label class="field field--wide">
+              <span>Meta Description</span>
+              <textarea class="field-textarea" name="home_web_meta_description" rows="4">${fieldValue(homeWeb.metaDescription)}</textarea>
+            </label>
+            <label class="field field--wide">
+              <span>Hero Description</span>
+              <textarea class="field-textarea" name="home_web_hero_description" rows="4">${fieldValue(homeWeb.heroDescription)}</textarea>
+            </label>
+          </div>
+        </article>
+      </div>
+    </section>
+  `;
+}
+
+function renderBrandSidebarAssembly(buffer) {
+  const sidebar = normalizeSidebarSurfaceConfig(buffer.sidebar);
+  const enabled = buffer.sidebar?.enabled !== false;
+  const presetPicker = renderPresetPicker({
+    presets: SIDEBAR_SURFACE_PRESETS,
+    action: 'apply-sidebar-assembly-preset',
+  });
+  return `
+    <section class="fig-brand-section">
+      <div class="fig-section-heading">
+        <h2>侧边栏</h2>
+        <p>维护侧边栏容器本身的品牌块和布局风格。菜单显隐与排序继续在「左菜单栏」里做。</p>
+      </div>
+      ${presetPicker}
+      <div class="fig-capability-columns">
+        <article class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
+            <h3>显示与品牌块</h3>
+            <span>控制侧边栏是否生效，以及品牌标题、副标题。</span>
+          </div>
+          <div class="form-grid">
+            <label class="toggle fig-toggle field field--wide">
+              <input type="checkbox" name="sidebar_enabled"${enabled ? ' checked' : ''} />
+              <span>${visibilityStateLabel(enabled)}</span>
+            </label>
+            <label class="field">
+              <span>Variant</span>
+              <input class="field-input" name="sidebar_variant" value="${fieldValue(sidebar.variant)}" />
+            </label>
+            <label class="field">
+              <span>Brand Title</span>
+              <input class="field-input" name="sidebar_brand_title" value="${fieldValue(sidebar.brandTitle)}" />
+            </label>
+            <label class="field field--wide">
+              <span>Brand Subtitle</span>
+              <input class="field-input" name="sidebar_brand_subtitle" value="${fieldValue(sidebar.brandSubtitle)}" />
+            </label>
+          </div>
+        </article>
+        <article class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
+            <h3>布局风格</h3>
+            <span>保留轻量布局字段，避免再手填一整段 sidebar JSON。</span>
+          </div>
+          <div class="form-grid">
+            <label class="field">
+              <span>Section Style</span>
+              <input class="field-input" name="sidebar_section_style" value="${fieldValue(sidebar.sectionStyle)}" placeholder="soft-card / dense / service" />
+            </label>
+            <label class="toggle fig-toggle field">
+              <input type="checkbox" name="sidebar_emphasize_active_item"${sidebar.emphasizeActiveItem ? ' checked' : ''} />
+              <span>高亮当前激活菜单</span>
+            </label>
+          </div>
+        </article>
+      </div>
     </section>
   `;
 }
@@ -6099,6 +6676,10 @@ function renderBrandModuleSurfaceInline(buffer, surfaceKey) {
   if (!blueprint || blueprint.kind !== 'module') {
     return '';
   }
+  let metadata = {};
+  try {
+    metadata = JSON.parse(String(surface.json || '{}'));
+  } catch {}
   return `
     <article class="surface-editor fig-surface-card" data-surface-key="${escapeHtml(surface.key)}" data-surface-label="${escapeHtml(surface.label)}">
       <div class="fig-surface-card__preview">
@@ -6118,7 +6699,12 @@ function renderBrandModuleSurfaceInline(buffer, surfaceKey) {
         <div class="fig-card__section-copy">
           <p>这里维护这个左菜单对应业务页的 surface 配置。入口和页面不再拆成两排 tab，统一在同一个菜单详情里编辑。</p>
         </div>
-        <textarea class="code-input code-input--tall" name="surface_config__${escapeHtml(surface.key)}">${escapeHtml(surface.json)}</textarea>
+        ${renderMetadataEntriesEditor({
+          name: `surface_config__${surface.key}`,
+          title: `${surface.label} 页面字段`,
+          description: '填写该模块页面需要的轻量字段；键支持点路径。',
+          value: metadata,
+        })}
       </div>
     </article>
   `;
@@ -7102,6 +7688,10 @@ function renderBrandModuleAssembly(buffer, surfaceKey) {
   const menuItem = getMenuDefinition(blueprint?.menuKey) || null;
   const enabled = menuItem ? buffer.selectedMenus.includes(menuItem.key) : true;
   const surface = getBrandSurfaceDraft(buffer, surfaceKey);
+  let metadata = {};
+  try {
+    metadata = JSON.parse(String(surface.json || '{}'));
+  } catch {}
   return `
     <section class="fig-brand-section">
       <div class="fig-section-heading">
@@ -7142,7 +7732,12 @@ function renderBrandModuleAssembly(buffer, surfaceKey) {
                 <span>${visibilityStateLabel(surface.enabled)}</span>
               </label>
             </div>
-            <textarea class="code-input code-input--tall" name="surface_config__${escapeHtml(surface.key)}">${escapeHtml(surface.json)}</textarea>
+            ${renderMetadataEntriesEditor({
+              name: `surface_config__${surface.key}`,
+              title: `${surface.label} 页面字段`,
+              description: '模块配置改为键值编辑，不再直接输入原始 JSON。',
+              value: metadata,
+            })}
           </div>
         </article>
       </div>
@@ -7367,11 +7962,11 @@ function renderBrandEditorBody(buffer, assets, activeTab = state.brandDetailTab)
   const normalizedTab = normalizeBrandDetailTab(activeTab);
 
   if (normalizedTab === 'desktop') {
-    return renderBrandSurfaceEditor(buffer, 'desktop', '桌面端', '维护桌面端主壳层的 OEM 配置。');
+    return renderBrandDesktopAssembly(buffer);
   }
 
   if (normalizedTab === 'home-web') {
-    return renderBrandSurfaceEditor(buffer, 'home-web', 'Home页', '维护官网 / Home 页的 OEM 配置。');
+    return renderBrandHomeWebAssembly(buffer);
   }
 
   if (normalizedTab === 'welcome') {
@@ -7383,7 +7978,7 @@ function renderBrandEditorBody(buffer, assets, activeTab = state.brandDetailTab)
   }
 
   if (normalizedTab === 'sidebar') {
-    return renderBrandSurfaceEditor(buffer, 'sidebar', '侧边栏', '维护侧边栏容器本身的布局、视觉和交互配置。');
+    return renderBrandSidebarAssembly(buffer);
   }
 
   if (normalizedTab === 'input') {
@@ -7458,10 +8053,14 @@ function renderBrandEditorBody(buffer, assets, activeTab = state.brandDetailTab)
                   <span>上传文件</span>
                   <input class="field-input" name="file" type="file" />
                 </label>
-                <label class="field field--wide">
-                  <span>Metadata JSON</span>
-                  <textarea class="field-textarea" name="metadata_json">{}</textarea>
-                </label>
+                <div class="field field--wide">
+                  ${renderMetadataEntriesEditor({
+                    name: 'metadata_entries',
+                    title: '资源 Metadata',
+                    description: '可选。按字段路径补充资源附加信息。',
+                    value: {},
+                  })}
+                </div>
               </div>
               <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>上传资源</button>
             </form>
@@ -7504,11 +8103,12 @@ function renderBrandEditorBody(buffer, assets, activeTab = state.brandDetailTab)
   }
 
   if (normalizedTab === 'theme') {
+    const draftPreview = composeDraftConfig(buffer);
     return `
       <section class="fig-brand-section">
         <div class="fig-section-heading">
           <h2>主题样式</h2>
-          <p>维护 Light / Dark 主题色，并保留完整 JSON 编辑能力</p>
+          <p>维护 Light / Dark 主题色。底部只展示当前草稿快照，不再要求手写 JSON。</p>
         </div>
         <div class="fig-theme-grid">
           <article class="fig-card fig-card--subtle">
@@ -7570,11 +8170,11 @@ function renderBrandEditorBody(buffer, assets, activeTab = state.brandDetailTab)
         </div>
         <section class="fig-card">
           <div class="fig-card__head">
-            <h3>高级 JSON</h3>
-            <span>完整 Draft Config</span>
+            <h3>当前草稿快照</h3>
+            <span>只读预览，保存时按上面的结构化字段生成</span>
           </div>
           <label class="field">
-            <textarea class="code-input code-input--tall" name="advanced_json">${escapeHtml(buffer.advancedJson)}</textarea>
+            <textarea class="code-input code-input--tall" readonly>${escapeHtml(prettyJson(draftPreview))}</textarea>
           </label>
         </section>
       </section>
@@ -7584,7 +8184,7 @@ function renderBrandEditorBody(buffer, assets, activeTab = state.brandDetailTab)
   return `
     <section class="fig-card">
       <label class="field">
-        <textarea class="code-input code-input--tall" name="advanced_json">${escapeHtml(buffer.advancedJson)}</textarea>
+        <textarea class="code-input code-input--tall" readonly>${escapeHtml(prettyJson(composeDraftConfig(buffer)))}</textarea>
       </label>
     </section>
   `;
@@ -8433,10 +9033,14 @@ function renderAgentEditorForm(agent) {
           <span>Use Cases</span>
           <textarea class="field-textarea" name="use_cases_text" placeholder="每行一个 use case">${escapeHtml((editable.use_cases || []).join('\n'))}</textarea>
         </label>
-        <label class="field field--wide">
-          <span>Metadata JSON</span>
-          <textarea class="field-textarea" name="metadata_json">${escapeHtml(prettyJson(editable.metadata || {}))}</textarea>
-        </label>
+        <div class="field field--wide">
+          ${renderMetadataEntriesEditor({
+            name: 'metadata_entries',
+            title: 'Metadata',
+            description: 'Agent 的附加字段，支持点路径。',
+            value: editable.metadata || {},
+          })}
+        </div>
         <div class="fig-form-actions">
           <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>保存 Agent</button>
         </div>
@@ -8631,10 +9235,14 @@ function renderSkillSyncSourceForm() {
             <option value="false"${editable.active === false ? ' selected' : ''}>禁用</option>
           </select>
         </label>
-        <label class="field field--wide">
-          <span>Config JSON</span>
-          <textarea class="field-textarea" name="config_json">${escapeHtml(prettyJson(editable.config || {}))}</textarea>
-        </label>
+        <div class="field field--wide">
+          ${renderMetadataEntriesEditor({
+            name: 'config_entries',
+            title: 'Config',
+            description: '同步源附加配置，支持点路径。',
+            value: editable.config || {},
+          })}
+        </div>
         <div class="fig-form-actions">
           <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>保存同步源</button>
         </div>
@@ -8906,10 +9514,14 @@ function renderSkillImportPanel() {
             <option value="false"${skill?.active === false ? ' selected' : ''}>下架</option>
           </select>
         </label>
-        <label class="field field--wide">
-          <span>Metadata JSON</span>
-          <textarea class="field-textarea" name="metadata_json">${escapeHtml(prettyJson(skill?.metadata || {}))}</textarea>
-        </label>
+        <div class="field field--wide">
+          ${renderMetadataEntriesEditor({
+            name: 'metadata_entries',
+            title: 'Metadata',
+            description: '平台预装 Skill binding 的附加字段。',
+            value: skill?.metadata || {},
+          })}
+        </div>
         <div class="fig-form-actions">
           <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>保存 Skill</button>
         </div>
@@ -9099,10 +9711,14 @@ function renderMcpDetail(server) {
           <span>Object Key</span>
           <input class="field-input" name="object_key" value="${fieldValue(editable.objectKey)}" placeholder="minio://mcps/key.json" />
         </label>
-        <label class="field field--wide">
-          <span>Metadata JSON</span>
-          <textarea class="field-textarea" name="metadata_json">${escapeHtml(prettyJson(editable.metadata))}</textarea>
-        </label>
+        <div class="field field--wide">
+          ${renderMetadataEntriesEditor({
+            name: 'metadata_entries',
+            title: 'Metadata',
+            description: 'MCP 附加字段，支持点路径。',
+            value: editable.metadata,
+          })}
+        </div>
       </div>
       <div class="action-row">
         <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>保存 MCP</button>
@@ -9268,10 +9884,14 @@ function renderModelDetail(model) {
             <span>Max Tokens</span>
             <input class="field-input" name="max_tokens" type="number" min="0" value="${fieldValue(model.maxTokens || 0)}" />
           </label>
-          <label class="field field--wide">
-            <span>Metadata JSON</span>
-            <textarea class="field-textarea" name="metadata_json">${escapeHtml(prettyJson(model.metadata || {}))}</textarea>
-          </label>
+          <div class="field field--wide">
+            ${renderMetadataEntriesEditor({
+              name: 'metadata_entries',
+              title: 'Metadata',
+              description: '模型附加字段，支持点路径。',
+              value: model.metadata || {},
+            })}
+          </div>
         </div>
         <div class="action-row">
           <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>保存模型</button>
@@ -9442,10 +10062,14 @@ function renderAssetsPage() {
                     <span>上传文件</span>
                     <input class="field-input" name="file" type="file" />
                   </label>
-                  <label class="field field--wide">
-                    <span>Metadata JSON</span>
-                    <textarea class="field-textarea" name="metadata_json">{}</textarea>
-                  </label>
+                  <div class="field field--wide">
+                    ${renderMetadataEntriesEditor({
+                      name: 'metadata_entries',
+                      title: '资源 Metadata',
+                      description: '可选。按字段路径补充资源附加信息。',
+                      value: {},
+                    })}
+                  </div>
                   <div class="fig-form-actions">
                     <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>上传并登记</button>
                   </div>
@@ -11170,26 +11794,31 @@ app.addEventListener('click', async (event) => {
     return;
   }
 
-  if (action === 'apply-surface-preset') {
-    const surfaceKey = target.getAttribute('data-surface-key') || '';
+  if (action === 'apply-home-web-assembly-preset') {
     const presetKey = target.getAttribute('data-preset-key') || '';
-    const preset = asArray(SURFACE_PRESET_REGISTRY[surfaceKey]).find((item) => item?.key === presetKey) || null;
-    const form = document.querySelector('#brand-editor-form');
-    if (!(form instanceof HTMLFormElement) || !preset || !surfaceKey) {
+    const preset = HOME_WEB_SURFACE_PRESETS.find((item) => item.key === presetKey) || null;
+    const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
+    if (!buffer || !preset) {
       return;
     }
-    const textarea = form.querySelector(`[name="surface_config__${CSS.escape(surfaceKey)}"]`);
-    if (textarea instanceof HTMLTextAreaElement) {
-      textarea.value = prettyJson(preset.config);
-      captureBrandEditorBuffer();
-      const buffer = state.brandDraftBuffer || ensureBrandDraftBuffer();
-      if (buffer && surfaceKey === 'sidebar') {
-        applySidebarPresetToBuffer(buffer, preset);
-        state.brandDraftBuffer = buffer;
-      }
-      setNotice(`已填充 ${surfaceLabel(surfaceKey)} 模板：${preset.label}`);
-      render();
+    applyHomeWebAssemblyPresetToBuffer(buffer, preset);
+    state.brandDraftBuffer = buffer;
+    setNotice(`已填充 Home 模板：${preset.label}`);
+    render();
+    return;
+  }
+
+  if (action === 'apply-sidebar-assembly-preset') {
+    const presetKey = target.getAttribute('data-preset-key') || '';
+    const preset = SIDEBAR_SURFACE_PRESETS.find((item) => item.key === presetKey) || null;
+    const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
+    if (!buffer || !preset) {
+      return;
     }
+    applySidebarAssemblyPresetToBuffer(buffer, preset);
+    state.brandDraftBuffer = buffer;
+    setNotice(`已填充 Sidebar 模板：${preset.label}`);
+    render();
     return;
   }
 
@@ -11232,6 +11861,60 @@ app.addEventListener('click', async (event) => {
     state.brandDraftBuffer = buffer;
     setNotice(`已填充 Header 模板：${preset.label}`);
     render();
+    return;
+  }
+
+  if (action === 'add-metadata-entry') {
+    const editorName = target.getAttribute('data-editor-name') || '';
+    const editor = editorName ? document.querySelector(`[data-metadata-editor="${CSS.escape(editorName)}"]`) : null;
+    const stack = editor?.querySelector('.fig-kv-editor__stack');
+    if (!(editor instanceof HTMLElement) || !(stack instanceof HTMLElement)) {
+      return;
+    }
+    const nextIndex = stack.querySelectorAll('[data-metadata-entry]').length;
+    const row = document.createElement('div');
+    row.className = 'fig-kv-row';
+    row.setAttribute('data-metadata-entry', 'true');
+    row.innerHTML = `
+      <label class="field">
+        <span>字段路径</span>
+        <input class="field-input" name="${escapeHtml(editorName)}__path__${nextIndex}" placeholder="例如 sourceType / setup.schemaVersion" />
+      </label>
+      <label class="field">
+        <span>类型</span>
+        <select class="field-select" name="${escapeHtml(editorName)}__type__${nextIndex}">
+          <option value="string">文本</option>
+          <option value="number">数字</option>
+          <option value="boolean">布尔</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>值</span>
+        <input class="field-input" name="${escapeHtml(editorName)}__value__${nextIndex}" placeholder="字段值" />
+      </label>
+      <button class="ghost-button fig-kv-row__remove" type="button" data-action="remove-metadata-entry">删除</button>
+    `;
+    stack.appendChild(row);
+    enhanceCustomSelects();
+    return;
+  }
+
+  if (action === 'remove-metadata-entry') {
+    const row = target.closest('[data-metadata-entry]');
+    const stack = row?.parentElement;
+    if (!(row instanceof HTMLElement) || !(stack instanceof HTMLElement)) {
+      return;
+    }
+    if (stack.querySelectorAll('[data-metadata-entry]').length <= 1) {
+      const pathInput = row.querySelector('input[name*="__path__"]');
+      const valueInput = row.querySelector('input[name*="__value__"]');
+      const typeInput = row.querySelector('select[name*="__type__"]');
+      if (pathInput instanceof HTMLInputElement) pathInput.value = '';
+      if (valueInput instanceof HTMLInputElement) valueInput.value = '';
+      if (typeInput instanceof HTMLSelectElement) typeInput.value = 'string';
+      return;
+    }
+    row.remove();
     return;
   }
 
