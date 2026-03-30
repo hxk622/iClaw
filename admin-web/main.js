@@ -1278,6 +1278,36 @@ const WELCOME_ACTION_ICON_OPTIONS = [
   ['ShieldCheck', '盾牌'],
 ];
 
+const DEFAULT_HEADER_QUOTES = [
+  {label: '沪深300', value: '3,942.18', change: 0.86, changePercent: '+0.86%'},
+  {label: '深证成指', value: '11,248.72', change: -0.42, changePercent: '-0.42%'},
+  {label: '银行指数', value: '5,184.33', change: 0.57, changePercent: '+0.57%'},
+  {label: '现货黄金', value: '2,184.60', change: 0.34, changePercent: '+0.34%'},
+];
+
+const DEFAULT_HEADER_HEADLINES = [
+  {title: '央国企红利与低波资产继续受到中长期资金关注', source: '策略晨会', href: ''},
+  {title: 'TMT 交易拥挤度回升，成长风格短线波动可能放大', source: '市场监控', href: ''},
+  {title: '组合回撤预警、仓位管理与再平衡建议已接入顶部策略栏', source: '系统提示', href: ''},
+];
+
+const DEFAULT_HEADER_SURFACE_CONFIG = {
+  statusLabel: '市场概览',
+  liveStatusLabel: '实时更新',
+  showLiveBadge: true,
+  showQuotes: true,
+  showHeadlines: true,
+  showSecurityBadge: true,
+  securityLabel: '安全防护中',
+  showCredits: true,
+  showRechargeButton: true,
+  rechargeLabel: '充值中心',
+  showModeBadge: true,
+  modeBadgeLabel: '脉搏模式',
+  fallbackQuotes: DEFAULT_HEADER_QUOTES,
+  fallbackHeadlines: DEFAULT_HEADER_HEADLINES,
+};
+
 function normalizeWelcomeQuickAction(value, index = 0) {
   const raw = asObject(value);
   return {
@@ -1334,6 +1364,106 @@ function buildWelcomeSurfaceConfigFromBuffer(welcome) {
         icon_key: String(item.iconKey || '').trim(),
       }))
       .filter((item) => item.label || item.prompt || item.icon_key),
+  };
+}
+
+function normalizeHeaderQuoteDraft(value, index = 0) {
+  const raw = asObject(value);
+  const defaults = DEFAULT_HEADER_QUOTES[index] || DEFAULT_HEADER_QUOTES[DEFAULT_HEADER_QUOTES.length - 1] || {};
+  const changeValue =
+    typeof raw.change === 'number'
+      ? raw.change
+      : typeof raw.change === 'string' && raw.change.trim()
+        ? Number(raw.change.trim().replace(/%$/, ''))
+        : typeof defaults.change === 'number'
+          ? defaults.change
+          : 0;
+  const numericChange = Number.isFinite(changeValue) ? changeValue : 0;
+  return {
+    label: String(raw.label || defaults.label || '').trim(),
+    value: String(raw.value || defaults.value || '--').trim() || '--',
+    change: numericChange,
+    changePercent:
+      String(raw.change_percent || raw.changePercent || '').trim() ||
+      `${numericChange > 0 ? '+' : ''}${numericChange.toFixed(2)}%`,
+  };
+}
+
+function normalizeHeaderHeadlineDraft(value, index = 0) {
+  const raw = asObject(value);
+  const defaults =
+    DEFAULT_HEADER_HEADLINES[index] || DEFAULT_HEADER_HEADLINES[DEFAULT_HEADER_HEADLINES.length - 1] || {};
+  return {
+    title: String(raw.title || defaults.title || '').trim(),
+    source: String(raw.source || defaults.source || '').trim(),
+    href: String(raw.href || raw.url || defaults.href || '').trim(),
+  };
+}
+
+function normalizeHeaderSurfaceConfig(value) {
+  const config = asObject(value);
+  const quotes = asArray(config.fallback_quotes ?? config.fallbackQuotes ?? config.quotes)
+    .map((item, index) => normalizeHeaderQuoteDraft(item, index))
+    .filter((item) => item.label);
+  const headlines = asArray(config.fallback_headlines ?? config.fallbackHeadlines ?? config.headlines)
+    .map((item, index) => normalizeHeaderHeadlineDraft(item, index))
+    .filter((item) => item.title);
+
+  return {
+    statusLabel:
+      String(config.status_label || config.statusLabel || config.badge_label || config.badgeLabel || DEFAULT_HEADER_SURFACE_CONFIG.statusLabel).trim(),
+    liveStatusLabel:
+      String(config.live_status_label || config.liveStatusLabel || DEFAULT_HEADER_SURFACE_CONFIG.liveStatusLabel).trim(),
+    showLiveBadge: config.show_live_badge !== false && config.showLiveBadge !== false,
+    showQuotes: config.show_quotes !== false && config.showQuotes !== false,
+    showHeadlines: config.show_headlines !== false && config.showHeadlines !== false,
+    showSecurityBadge: config.show_security_badge !== false && config.showSecurityBadge !== false,
+    securityLabel:
+      String(config.security_label || config.securityLabel || DEFAULT_HEADER_SURFACE_CONFIG.securityLabel).trim(),
+    showCredits: config.show_credits !== false && config.showCredits !== false,
+    showRechargeButton: config.show_recharge_button !== false && config.showRechargeButton !== false,
+    rechargeLabel:
+      String(config.recharge_label || config.rechargeLabel || DEFAULT_HEADER_SURFACE_CONFIG.rechargeLabel).trim(),
+    showModeBadge: config.show_mode_badge !== false && config.showModeBadge !== false,
+    modeBadgeLabel:
+      String(config.mode_badge_label || config.modeBadgeLabel || DEFAULT_HEADER_SURFACE_CONFIG.modeBadgeLabel).trim(),
+    fallbackQuotes: Array.from({length: 4}, (_, index) => ({
+      ...normalizeHeaderQuoteDraft(DEFAULT_HEADER_QUOTES[index], index),
+      ...(quotes[index] || {}),
+    })),
+    fallbackHeadlines: Array.from({length: 3}, (_, index) => ({
+      ...normalizeHeaderHeadlineDraft(DEFAULT_HEADER_HEADLINES[index], index),
+      ...(headlines[index] || {}),
+    })),
+  };
+}
+
+function buildHeaderSurfaceConfigFromBuffer(header) {
+  const next = normalizeHeaderSurfaceConfig(header);
+  return {
+    status_label: next.statusLabel,
+    live_status_label: next.liveStatusLabel,
+    show_live_badge: next.showLiveBadge,
+    show_quotes: next.showQuotes,
+    show_headlines: next.showHeadlines,
+    show_security_badge: next.showSecurityBadge,
+    security_label: next.securityLabel,
+    show_credits: next.showCredits,
+    show_recharge_button: next.showRechargeButton,
+    recharge_label: next.rechargeLabel,
+    show_mode_badge: next.showModeBadge,
+    mode_badge_label: next.modeBadgeLabel,
+    fallback_quotes: next.fallbackQuotes.map((item) => ({
+      label: String(item.label || '').trim(),
+      value: String(item.value || '').trim(),
+      change: Number(item.change || 0),
+      change_percent: String(item.changePercent || '').trim(),
+    })),
+    fallback_headlines: next.fallbackHeadlines.map((item) => ({
+      title: String(item.title || '').trim(),
+      source: String(item.source || '').trim(),
+      href: String(item.href || '').trim(),
+    })),
   };
 }
 
@@ -3054,6 +3184,7 @@ function captureBrandEditorBuffer() {
     });
   }
   const welcomeEnabledInput = form.querySelector('[name="welcome_enabled"]');
+  const headerEnabledInput = form.querySelector('[name="header_enabled"]');
   const welcomeQuickActions = Array.from({length: 4}, (_, index) => ({
     label:
       form.querySelector(`[name="welcome_quick_action_label__${index}"]`) instanceof HTMLInputElement
@@ -3115,6 +3246,96 @@ function captureBrandEditorBuffer() {
       label: surfaceLabel('welcome'),
       enabled: welcomeEnabledInput instanceof HTMLInputElement ? welcomeEnabledInput.checked : existing.welcome?.enabled !== false,
       json: JSON.stringify(buildWelcomeSurfaceConfigFromBuffer(welcome), null, 2),
+    });
+  }
+  const header = normalizeHeaderSurfaceConfig({
+    status_label:
+      form.querySelector('[name="header_status_label"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="header_status_label"]').value
+        : '',
+    live_status_label:
+      form.querySelector('[name="header_live_status_label"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="header_live_status_label"]').value
+        : '',
+    show_live_badge:
+      form.querySelector('[name="header_show_live_badge"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="header_show_live_badge"]').checked
+        : undefined,
+    show_quotes:
+      form.querySelector('[name="header_show_quotes"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="header_show_quotes"]').checked
+        : undefined,
+    show_headlines:
+      form.querySelector('[name="header_show_headlines"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="header_show_headlines"]').checked
+        : undefined,
+    show_security_badge:
+      form.querySelector('[name="header_show_security_badge"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="header_show_security_badge"]').checked
+        : undefined,
+    security_label:
+      form.querySelector('[name="header_security_label"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="header_security_label"]').value
+        : '',
+    show_credits:
+      form.querySelector('[name="header_show_credits"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="header_show_credits"]').checked
+        : undefined,
+    show_recharge_button:
+      form.querySelector('[name="header_show_recharge_button"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="header_show_recharge_button"]').checked
+        : undefined,
+    recharge_label:
+      form.querySelector('[name="header_recharge_label"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="header_recharge_label"]').value
+        : '',
+    show_mode_badge:
+      form.querySelector('[name="header_show_mode_badge"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="header_show_mode_badge"]').checked
+        : undefined,
+    mode_badge_label:
+      form.querySelector('[name="header_mode_badge_label"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="header_mode_badge_label"]').value
+        : '',
+    fallback_quotes: Array.from({length: 4}, (_, index) => ({
+      label:
+        form.querySelector(`[name="header_quote_label__${index}"]`) instanceof HTMLInputElement
+          ? form.querySelector(`[name="header_quote_label__${index}"]`).value
+          : '',
+      value:
+        form.querySelector(`[name="header_quote_value__${index}"]`) instanceof HTMLInputElement
+          ? form.querySelector(`[name="header_quote_value__${index}"]`).value
+          : '',
+      change:
+        form.querySelector(`[name="header_quote_change__${index}"]`) instanceof HTMLInputElement
+          ? Number(form.querySelector(`[name="header_quote_change__${index}"]`).value || 0)
+          : 0,
+      change_percent:
+        form.querySelector(`[name="header_quote_change_percent__${index}"]`) instanceof HTMLInputElement
+          ? form.querySelector(`[name="header_quote_change_percent__${index}"]`).value
+          : '',
+    })),
+    fallback_headlines: Array.from({length: 3}, (_, index) => ({
+      title:
+        form.querySelector(`[name="header_headline_title__${index}"]`) instanceof HTMLInputElement
+          ? form.querySelector(`[name="header_headline_title__${index}"]`).value
+          : '',
+      source:
+        form.querySelector(`[name="header_headline_source__${index}"]`) instanceof HTMLInputElement
+          ? form.querySelector(`[name="header_headline_source__${index}"]`).value
+          : '',
+      href:
+        form.querySelector(`[name="header_headline_href__${index}"]`) instanceof HTMLInputElement
+          ? form.querySelector(`[name="header_headline_href__${index}"]`).value
+          : '',
+    })),
+  });
+  if (form.querySelector('[name="header_enabled"]') || form.querySelector('[name="header_status_label"]')) {
+    surfaceMap.set('header', {
+      key: 'header',
+      label: surfaceLabel('header'),
+      enabled: headerEnabledInput instanceof HTMLInputElement ? headerEnabledInput.checked : true,
+      json: JSON.stringify(buildHeaderSurfaceConfigFromBuffer(header), null, 2),
     });
   }
   const surfaces = Array.from(surfaceMap.values());
@@ -5265,6 +5486,26 @@ function applyWelcomeAssemblyPresetToBuffer(buffer, preset) {
   return buffer;
 }
 
+function upsertSurfaceDraft(buffer, surfaceKey, enabled, config) {
+  const nextSurface = {
+    key: surfaceKey,
+    label: surfaceLabel(surfaceKey),
+    enabled,
+    json: JSON.stringify(asObject(config), null, 2),
+  };
+  const nextSurfaces = asArray(buffer.surfaces)
+    .filter((item) => String(asObject(item).key || '').trim() !== surfaceKey)
+    .map((item) => clone(item));
+  nextSurfaces.push(nextSurface);
+  buffer.surfaces = nextSurfaces;
+  return buffer;
+}
+
+function applyHeaderAssemblyPresetToBuffer(buffer, preset) {
+  const config = normalizeHeaderSurfaceConfig(asObject(preset.config));
+  return upsertSurfaceDraft(buffer, 'header', true, buildHeaderSurfaceConfigFromBuffer(config));
+}
+
 function toggleBrandRecommendedModel(value) {
   const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
   if (!buffer || !buffer.selectedModels.includes(value)) return;
@@ -6565,6 +6806,175 @@ function renderBrandInputAssembly(buffer) {
   `;
 }
 
+function renderBrandHeaderAssembly(buffer) {
+  const surface = getBrandSurfaceDraft(buffer, 'header');
+  let rawConfig = {};
+  try {
+    rawConfig = JSON.parse(String(surface.json || '{}'));
+  } catch {}
+  const header = normalizeHeaderSurfaceConfig(rawConfig);
+  const enabled = surface.enabled !== false;
+  const presetPicker = renderPresetPicker({
+    presets: HEADER_SURFACE_PRESETS,
+    action: 'apply-header-assembly-preset',
+  });
+  return `
+    <section class="fig-brand-section">
+      <div class="fig-section-heading">
+        <h2>Header栏</h2>
+        <p>按组件配置顶部状态、行情、头条和按钮文案，保存后仍然写回 <code>surfaces.header.config</code>，但不再需要手写 JSON。</p>
+      </div>
+      ${presetPicker}
+      <article class="fig-card fig-card--subtle">
+        <div class="fig-card__head">
+          <h3>显示开关</h3>
+          <span>控制顶部栏整体及各个区块的显示状态。</span>
+        </div>
+        <div class="fig-menu-card__grid">
+          <label class="toggle fig-toggle">
+            <input type="checkbox" name="header_enabled"${enabled ? ' checked' : ''} />
+            <span>Header栏${enabled ? '已启用' : '已禁用'}</span>
+          </label>
+          <label class="toggle fig-toggle">
+            <input type="checkbox" name="header_show_live_badge"${header.showLiveBadge ? ' checked' : ''} />
+            <span>显示实时状态</span>
+          </label>
+          <label class="toggle fig-toggle">
+            <input type="checkbox" name="header_show_quotes"${header.showQuotes ? ' checked' : ''} />
+            <span>显示行情卡片</span>
+          </label>
+          <label class="toggle fig-toggle">
+            <input type="checkbox" name="header_show_headlines"${header.showHeadlines ? ' checked' : ''} />
+            <span>显示头条区域</span>
+          </label>
+          <label class="toggle fig-toggle">
+            <input type="checkbox" name="header_show_security_badge"${header.showSecurityBadge ? ' checked' : ''} />
+            <span>显示安全标签</span>
+          </label>
+          <label class="toggle fig-toggle">
+            <input type="checkbox" name="header_show_credits"${header.showCredits ? ' checked' : ''} />
+            <span>显示积分额度</span>
+          </label>
+          <label class="toggle fig-toggle">
+            <input type="checkbox" name="header_show_recharge_button"${header.showRechargeButton ? ' checked' : ''} />
+            <span>显示充值按钮</span>
+          </label>
+          <label class="toggle fig-toggle">
+            <input type="checkbox" name="header_show_mode_badge"${header.showModeBadge ? ' checked' : ''} />
+            <span>显示模式标签</span>
+          </label>
+        </div>
+      </article>
+      <div class="fig-capability-columns">
+        <article class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
+            <h3>基础文案</h3>
+            <span>控制左上状态、按钮和辅助标签的文案。</span>
+          </div>
+          <div class="form-grid">
+            <label class="field">
+              <span>状态标题</span>
+              <input class="field-input" name="header_status_label" value="${fieldValue(header.statusLabel)}" />
+            </label>
+            <label class="field">
+              <span>实时状态文案</span>
+              <input class="field-input" name="header_live_status_label" value="${fieldValue(header.liveStatusLabel)}" />
+            </label>
+            <label class="field">
+              <span>安全标签文案</span>
+              <input class="field-input" name="header_security_label" value="${fieldValue(header.securityLabel)}" />
+            </label>
+            <label class="field">
+              <span>充值按钮文案</span>
+              <input class="field-input" name="header_recharge_label" value="${fieldValue(header.rechargeLabel)}" />
+            </label>
+            <label class="field">
+              <span>模式标签文案</span>
+              <input class="field-input" name="header_mode_badge_label" value="${fieldValue(header.modeBadgeLabel)}" />
+            </label>
+          </div>
+        </article>
+        <article class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
+            <h3>行情卡片</h3>
+            <span>最多 4 个行情位，未接实时数据时会回退到这里。</span>
+          </div>
+          <div class="fig-capability-stack">
+            ${header.fallbackQuotes
+              .map(
+                (item, index) => `
+                  <article class="checkbox-card checkbox-card--capability fig-capability-item">
+                    <div class="fig-capability-item__body">
+                      <div>
+                        <strong>行情卡 ${index + 1}</strong>
+                        <span>配置名称、数值和涨跌幅。</span>
+                      </div>
+                      <div class="fig-menu-card__grid">
+                        <label class="field fig-inline-field">
+                          <span>名称</span>
+                          <input class="field-input" name="header_quote_label__${index}" value="${fieldValue(item.label)}" />
+                        </label>
+                        <label class="field fig-inline-field">
+                          <span>数值</span>
+                          <input class="field-input" name="header_quote_value__${index}" value="${fieldValue(item.value)}" />
+                        </label>
+                        <label class="field fig-inline-field">
+                          <span>涨跌数值</span>
+                          <input class="field-input" name="header_quote_change__${index}" type="number" step="0.01" value="${fieldValue(item.change)}" />
+                        </label>
+                        <label class="field fig-inline-field">
+                          <span>涨跌文案</span>
+                          <input class="field-input" name="header_quote_change_percent__${index}" value="${fieldValue(item.changePercent)}" placeholder="+0.86%" />
+                        </label>
+                      </div>
+                    </div>
+                  </article>
+                `,
+              )
+              .join('')}
+          </div>
+        </article>
+      </div>
+      <article class="fig-card fig-card--subtle">
+        <div class="fig-card__head">
+          <h3>头条区域</h3>
+          <span>最多 3 条头条，支持标题、来源和跳转链接。</span>
+        </div>
+        <div class="fig-capability-stack">
+          ${header.fallbackHeadlines
+            .map(
+              (item, index) => `
+                <article class="checkbox-card checkbox-card--capability fig-capability-item">
+                  <div class="fig-capability-item__body">
+                    <div>
+                      <strong>头条 ${index + 1}</strong>
+                      <span>配置标题、来源和链接。</span>
+                    </div>
+                    <div class="fig-menu-card__grid">
+                      <label class="field" style="grid-column: 1 / -1;">
+                        <span>标题</span>
+                        <input class="field-input" name="header_headline_title__${index}" value="${fieldValue(item.title)}" />
+                      </label>
+                      <label class="field fig-inline-field">
+                        <span>来源</span>
+                        <input class="field-input" name="header_headline_source__${index}" value="${fieldValue(item.source)}" />
+                      </label>
+                      <label class="field fig-inline-field">
+                        <span>链接</span>
+                        <input class="field-input" name="header_headline_href__${index}" value="${fieldValue(item.href)}" placeholder="https://..." />
+                      </label>
+                    </div>
+                  </div>
+                </article>
+              `,
+            )
+            .join('')}
+        </div>
+      </article>
+    </section>
+  `;
+}
+
 function renderBrandWelcomeAssembly(buffer) {
   const welcome = normalizeWelcomeSurfaceConfig(buffer.welcome);
   const enabled = buffer.welcome?.enabled !== false;
@@ -6969,7 +7379,7 @@ function renderBrandEditorBody(buffer, assets, activeTab = state.brandDetailTab)
   }
 
   if (normalizedTab === 'header') {
-    return renderBrandSurfaceEditor(buffer, 'header', 'Header栏', '维护顶部栏的品牌视觉、信息架构和交互配置。');
+    return renderBrandHeaderAssembly(buffer);
   }
 
   if (normalizedTab === 'sidebar') {
@@ -10807,6 +11217,20 @@ app.addEventListener('click', async (event) => {
     applyWelcomeAssemblyPresetToBuffer(buffer, preset);
     state.brandDraftBuffer = buffer;
     setNotice(`已填充 Welcome 模板：${preset.label}`);
+    render();
+    return;
+  }
+
+  if (action === 'apply-header-assembly-preset') {
+    const presetKey = target.getAttribute('data-preset-key') || '';
+    const preset = HEADER_SURFACE_PRESETS.find((item) => item.key === presetKey) || null;
+    const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
+    if (!buffer || !preset) {
+      return;
+    }
+    applyHeaderAssemblyPresetToBuffer(buffer, preset);
+    state.brandDraftBuffer = buffer;
+    setNotice(`已填充 Header 模板：${preset.label}`);
     render();
     return;
   }
