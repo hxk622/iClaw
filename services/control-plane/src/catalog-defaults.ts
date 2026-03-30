@@ -1,6 +1,7 @@
 import type {AgentCatalogEntryRecord, SkillCatalogEntryRecord} from './domain.ts';
 import {AGENCY_AGENTS_CATALOG_SEEDS} from './generated/agency-agents-catalog.ts';
 import {buildCloudSkillArtifactObjectKey, CLOUD_SKILL_ARTIFACT_OBJECT_KEY_FIELD} from './cloud-skill-artifacts.ts';
+import {EXTERNAL_CLOUD_SKILL_SEEDS} from './external-cloud-skill-presets.ts';
 
 export type DefaultCloudSkillSeed = {
   slug: string;
@@ -569,6 +570,7 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     tags: ['PDF', '文档', '办公'],
     artifactSourcePath: 'pdf',
   },
+  ...EXTERNAL_CLOUD_SKILL_SEEDS,
   {
     slug: 'a-share-esg',
     name: 'A股ESG筛选分析',

@@ -10,6 +10,7 @@
     "sync:clawhub:top": "node --experimental-strip-types scripts/sync-clawhub-top-skills.ts",
     "sync:clawhub:all": "node --experimental-strip-types scripts/sync-clawhub-top-skills.ts --limit 0",
     "upload:cloud-skill-artifacts": "node --experimental-strip-types scripts/upload-cloud-skill-artifacts.ts",
+    "publish:external-cloud-skill": "node --experimental-strip-types scripts/publish-external-cloud-skill.ts",
     "preset:sync:oem": "node --experimental-strip-types scripts/sync-oem-preset.ts",
     "import:a-share-stocks": "node --experimental-strip-types scripts/import-a-share-stocks.ts",
     "import:cn-funds": "node --experimental-strip-types scripts/import-cn-funds.ts",
