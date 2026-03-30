@@ -310,11 +310,11 @@ start_openclaw_foreground() {
   local tee_pid=""
   local pid=""
   cleanup_foreground() {
-    if [[ -n "$pid" ]] && kill -0 "$pid" >/dev/null 2>&1; then
+    if [[ -n "${pid:-}" ]] && kill -0 "$pid" >/dev/null 2>&1; then
       kill "$pid" >/dev/null 2>&1 || true
       wait "$pid" 2>/dev/null || true
     fi
-    if [[ -n "$tee_pid" ]] && kill -0 "$tee_pid" >/dev/null 2>&1; then
+    if [[ -n "${tee_pid:-}" ]] && kill -0 "$tee_pid" >/dev/null 2>&1; then
       kill "$tee_pid" >/dev/null 2>&1 || true
       wait "$tee_pid" 2>/dev/null || true
     fi
@@ -342,7 +342,11 @@ start_openclaw_foreground() {
   echo "[api-dev] 最新日志软链: $LATEST_LOG"
   echo "[api-dev] Ctrl+C 将停止后端服务"
 
-  wait "$pid"
+  local wait_status=0
+  wait "$pid" || wait_status=$?
+  trap - EXIT INT TERM
+  cleanup_foreground
+  return "$wait_status"
 }
 
 ensure_sidecar_bin
