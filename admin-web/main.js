@@ -1211,6 +1211,7 @@ const DEFAULT_WELCOME_QUICK_ACTIONS = [
 ];
 
 const DEFAULT_WELCOME_SURFACE_CONFIG = {
+  entryLabel: '面向粉丝开放的 K2C 服务入口',
   kolName: '陈雪',
   expertName: '陈雪的投资智囊',
   slogan: '用价值投资思维，陪你穿越市场周期',
@@ -1231,6 +1232,7 @@ const WELCOME_ASSEMBLY_PRESETS = [
     label: '理财版',
     description: '强调长期配置、组合诊断和理性投资陪伴的 Welcome 模板。',
     config: {
+      entry_label: '面向粉丝开放的 K2C 服务入口',
       kol_name: '林安',
       expert_name: '林安的财富顾问',
       slogan: '用长期主义管理波动，用纪律守住回报',
@@ -1256,6 +1258,7 @@ const WELCOME_ASSEMBLY_PRESETS = [
     label: '券商版',
     description: '强调行情、财报、板块和标的研究的 Welcome 模板。',
     config: {
+      entry_label: '面向交易用户开放的研究服务入口',
       kol_name: '周策',
       expert_name: '周策的交易研究席',
       slogan: '先抓主线，再看估值，最后回到交易纪律',
@@ -1281,6 +1284,7 @@ const WELCOME_ASSEMBLY_PRESETS = [
     label: '投顾版',
     description: '强调顾问陪伴、客户沟通和组合建议的 Welcome 模板。',
     config: {
+      entry_label: '面向客户开放的投顾服务入口',
       kol_name: '顾言',
       expert_name: '顾言的投顾助手',
       slogan: '把复杂市场翻译成客户能听懂的行动建议',
@@ -1398,6 +1402,7 @@ function normalizeWelcomeSurfaceConfig(value) {
     .filter((item) => item.label || item.prompt || item.iconKey);
 
   return {
+    entryLabel: String(config.entry_label || config.entryLabel || DEFAULT_WELCOME_SURFACE_CONFIG.entryLabel).trim(),
     kolName: String(config.kol_name || config.kolName || DEFAULT_WELCOME_SURFACE_CONFIG.kolName).trim(),
     expertName: String(config.expert_name || config.expertName || DEFAULT_WELCOME_SURFACE_CONFIG.expertName).trim(),
     slogan: String(config.slogan || DEFAULT_WELCOME_SURFACE_CONFIG.slogan).trim(),
@@ -1420,6 +1425,7 @@ function normalizeWelcomeSurfaceConfig(value) {
 function buildWelcomeSurfaceConfigFromBuffer(welcome) {
   const next = normalizeWelcomeSurfaceConfig(welcome);
   return {
+    entry_label: next.entryLabel,
     kol_name: next.kolName,
     expert_name: next.expertName,
     slogan: next.slogan,
@@ -3520,6 +3526,10 @@ function captureBrandEditorBuffer() {
       getCheckedInputValue(form, `welcome_quick_action_icon__${index}`) || asArray(existing.welcome?.quickActions)[index]?.iconKey,
   }));
   const welcome = normalizeWelcomeSurfaceConfig({
+    entry_label:
+      form.querySelector('[name="welcome_entry_label"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="welcome_entry_label"]').value
+        : existing.welcome?.entryLabel,
     kol_name:
       form.querySelector('[name="welcome_kol_name"]') instanceof HTMLInputElement
         ? form.querySelector('[name="welcome_kol_name"]').value
@@ -7708,6 +7718,10 @@ function renderBrandWelcomeAssembly(buffer) {
             <span>配置头像、欢迎语和主视觉颜色。</span>
           </div>
           <div class="form-grid">
+            <label class="field">
+              <span>入口标题</span>
+              <input class="field-input" name="welcome_entry_label" value="${fieldValue(welcome.entryLabel)}" />
+            </label>
             <label class="field">
               <span>KOL 名称</span>
               <input class="field-input" name="welcome_kol_name" value="${fieldValue(welcome.kolName)}" />

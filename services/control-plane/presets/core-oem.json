@@ -102,6 +102,7 @@
           "welcome": {
             "enabled": true,
             "config": {
+              "entryLabel": "面向粉丝开放的 K2C 服务入口",
               "kolName": "iClaw",
               "expertName": "我的龙虾助理",
               "slogan": "打开就会用的 AI 助理",

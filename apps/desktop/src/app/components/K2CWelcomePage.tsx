@@ -21,6 +21,7 @@ type WelcomeQuickAction = {
 };
 
 type WelcomeProfile = {
+  entryLabel: string;
   kolName: string;
   expertName: string;
   slogan: string;
@@ -35,6 +36,7 @@ type WelcomeProfile = {
 };
 
 const DEFAULT_PROFILE: WelcomeProfile = {
+  entryLabel: '面向粉丝开放的 K2C 服务入口',
   kolName: 'iClaw',
   expertName: '我的龙虾助理',
   slogan: '打开就会用的 AI 助理',
@@ -113,6 +115,7 @@ function resolveWelcomeProfile(config?: ResolvedWelcomePageConfig | null): Welco
     .filter((action) => action.label && action.prompt);
 
   return {
+    entryLabel: config.entryLabel || DEFAULT_PROFILE.entryLabel,
     kolName: config.kolName || DEFAULT_PROFILE.kolName,
     expertName: config.expertName || DEFAULT_PROFILE.expertName,
     slogan: config.slogan || DEFAULT_PROFILE.slogan,
@@ -221,7 +224,7 @@ export function K2CWelcomePage({
 
                   <div className="mt-6">
                     <div className="text-[13px] font-medium tracking-[0.08em] text-[var(--text-muted)] dark:text-[rgba(233,224,210,0.58)]">
-                      面向粉丝开放的 K2C 服务入口
+                      {profile.entryLabel}
                     </div>
                     <h1 className="mt-3 text-[30px] font-semibold tracking-[-0.05em] text-[var(--text-primary)] dark:text-[rgba(248,245,238,0.96)] md:text-[42px]">
                       {profile.expertName}

@@ -60,6 +60,7 @@ export type ResolvedWelcomeQuickActionConfig = {
 
 export type ResolvedWelcomePageConfig = {
   enabled: boolean;
+  entryLabel: string;
   kolName: string;
   expertName: string;
   slogan: string;
@@ -636,6 +637,7 @@ export function resolveWelcomePageConfig(
 
   return {
     enabled: welcomeSurface.enabled !== false,
+    entryLabel: String(welcomeConfig.entry_label || welcomeConfig.entryLabel || '').trim(),
     kolName: String(welcomeConfig.kol_name || welcomeConfig.kolName || '').trim(),
     expertName: String(welcomeConfig.expert_name || welcomeConfig.expertName || '').trim(),
     slogan: String(welcomeConfig.slogan || '').trim(),

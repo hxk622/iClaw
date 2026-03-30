@@ -2531,13 +2531,6 @@ export function OpenClawChatSurface({
   }, [clearArtifactAutoOpenTimers, clearUsageSettlementTimers, sessionKey]);
 
   useEffect(() => {
-    if (queuedMessages.length === 0) {
-      return;
-    }
-    void flushQueuedMessages();
-  }, [flushQueuedMessages, queuedMessages.length, sendBlockedReason, status.busy, status.connected]);
-
-  useEffect(() => {
     if (!creditClient || !creditToken) {
       setSessionBillingSummaries([]);
       return;
@@ -4187,6 +4180,13 @@ export function OpenClawChatSurface({
       setQueuedMessages((current) => (current.some((item) => item.id === next.id) ? current : [next, ...current]));
     }
   }, [sendBlockedReason, sendQueuedOrImmediateMessage, status.busy, status.connected]);
+
+  useEffect(() => {
+    if (queuedMessages.length === 0) {
+      return;
+    }
+    void flushQueuedMessages();
+  }, [flushQueuedMessages, queuedMessages.length, sendBlockedReason, status.busy, status.connected]);
 
   const handleSend = useCallback(async (payload: ComposerSendPayload): Promise<boolean> => {
     const app = appRef.current;
