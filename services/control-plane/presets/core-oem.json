@@ -789,7 +789,8 @@
         "command": "npx",
         "args": ["nano-banana-mcp"],
         "env": {
-          "GEMINI_API_KEY": "${GEMINI_API_KEY}"
+          "GEMINI_API_KEY": "${GEMINI_API_KEY}",
+          "GOOGLE_GEMINI_BASE_URL": "${GOOGLE_GEMINI_BASE_URL}"
         }
       },
       "metadata": {
@@ -816,6 +817,15 @@
               "inject_as": "GEMINI_API_KEY",
               "placeholder": "请输入 Gemini API Key",
               "help_text": "用于调用 Nano Banana 的 Gemini 图像生成与编辑能力。"
+            },
+            {
+              "key": "GOOGLE_GEMINI_BASE_URL",
+              "label": "Gemini Base URL",
+              "type": "text",
+              "required": false,
+              "inject_as": "GOOGLE_GEMINI_BASE_URL",
+              "placeholder": "可选，例如 https://your-gemini-proxy.example.com/",
+              "help_text": "仅当你使用 Gemini 兼容中转站时填写；如果是直连 Google，就留空。"
             }
           ]
         }
