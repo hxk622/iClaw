@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { readCacheString, removeCacheKeys, writeCacheString } from '@/app/lib/persistence/cache-store';
 import { ACCESS_TOKEN_STORAGE_KEY, REFRESH_TOKEN_STORAGE_KEY } from './storage';
 
 const LEGACY_ACCESS_TOKEN_KEY = 'iclaw_access_token';
@@ -25,33 +26,35 @@ function normalizeStoredAuth(input: Partial<StoredAuth> | null | undefined): Sto
 }
 
 function readBrowserAuth(): StoredAuth | null {
-  const accessToken = localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
-  const refreshToken = localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
+  const accessToken = readCacheString(ACCESS_TOKEN_STORAGE_KEY);
+  const refreshToken = readCacheString(REFRESH_TOKEN_STORAGE_KEY);
   return normalizeStoredAuth({ accessToken: accessToken || '', refreshToken: refreshToken || '' });
 }
 
 function persistBrowserAuth(auth: StoredAuth): void {
-  localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, auth.accessToken);
-  localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, auth.refreshToken);
+  writeCacheString(ACCESS_TOKEN_STORAGE_KEY, auth.accessToken);
+  writeCacheString(REFRESH_TOKEN_STORAGE_KEY, auth.refreshToken);
 }
 
 function clearBrowserAuth(): void {
-  localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
-  localStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
-  localStorage.removeItem(LEGACY_REFRESH_TOKEN_KEY);
-  LEGACY_NAMESPACE_ACCESS_TOKEN_KEYS.forEach((key) => localStorage.removeItem(key));
-  LEGACY_NAMESPACE_REFRESH_TOKEN_KEYS.forEach((key) => localStorage.removeItem(key));
+  removeCacheKeys([
+    ACCESS_TOKEN_STORAGE_KEY,
+    REFRESH_TOKEN_STORAGE_KEY,
+    LEGACY_ACCESS_TOKEN_KEY,
+    LEGACY_REFRESH_TOKEN_KEY,
+    ...LEGACY_NAMESPACE_ACCESS_TOKEN_KEYS,
+    ...LEGACY_NAMESPACE_REFRESH_TOKEN_KEYS,
+  ]);
 }
 
 function readLegacyBrowserAuth(): StoredAuth | null {
   const accessToken =
-    localStorage.getItem(LEGACY_ACCESS_TOKEN_KEY) ||
-    LEGACY_NAMESPACE_ACCESS_TOKEN_KEYS.map((key) => localStorage.getItem(key)).find(Boolean) ||
+    readCacheString(LEGACY_ACCESS_TOKEN_KEY) ||
+    LEGACY_NAMESPACE_ACCESS_TOKEN_KEYS.map((key) => readCacheString(key)).find(Boolean) ||
     '';
   const refreshToken =
-    localStorage.getItem(LEGACY_REFRESH_TOKEN_KEY) ||
-    LEGACY_NAMESPACE_REFRESH_TOKEN_KEYS.map((key) => localStorage.getItem(key)).find(Boolean) ||
+    readCacheString(LEGACY_REFRESH_TOKEN_KEY) ||
+    LEGACY_NAMESPACE_REFRESH_TOKEN_KEYS.map((key) => readCacheString(key)).find(Boolean) ||
     '';
   return normalizeStoredAuth({ accessToken, refreshToken });
 }

@@ -34,6 +34,7 @@ import { FinancePresetInstallSheet } from '@/app/components/cron-presets/Finance
 import { FINANCE_CRON_PRESETS, type FinancePresetTaskTemplate } from '@/app/lib/finance-cron-presets';
 import { cn } from '@/app/lib/cn';
 import { readAppLocale } from '@/app/lib/general-preferences';
+import { clearCacheKeysByPrefix, clearSessionKeysByPrefix, removeCacheKeys } from '@/app/lib/persistence/cache-store';
 import './openclaw-chat-surface.css';
 
 type OpenClawTheme = 'system' | 'light' | 'dark';
@@ -299,29 +300,13 @@ function clearOpenClawEmbeddedState(gatewayUrl: string): void {
     return;
   }
 
-  const clearPrefixedKeys = (storage: Storage | undefined, prefix: string) => {
-    if (!storage) {
-      return;
-    }
-    const toDelete: string[] = [];
-    for (let index = 0; index < storage.length; index += 1) {
-      const key = storage.key(index);
-      if (key && key.startsWith(prefix)) {
-        toDelete.push(key);
-      }
-    }
-    toDelete.forEach((key) => storage.removeItem(key));
-  };
-
   try {
-    window.localStorage.removeItem(OPENCLAW_CONTROL_SETTINGS_KEY);
-    window.localStorage.removeItem(OPENCLAW_DEVICE_AUTH_KEY);
-    window.localStorage.removeItem(OPENCLAW_DEVICE_IDENTITY_KEY);
-    clearPrefixedKeys(window.localStorage, OPENCLAW_CONTROL_TOKEN_PREFIX);
+    removeCacheKeys([OPENCLAW_CONTROL_SETTINGS_KEY, OPENCLAW_DEVICE_AUTH_KEY, OPENCLAW_DEVICE_IDENTITY_KEY]);
+    clearCacheKeysByPrefix(OPENCLAW_CONTROL_TOKEN_PREFIX);
   } catch {}
 
   try {
-    clearPrefixedKeys(window.sessionStorage, OPENCLAW_CONTROL_TOKEN_PREFIX);
+    clearSessionKeysByPrefix(OPENCLAW_CONTROL_TOKEN_PREFIX);
   } catch {}
 }
 

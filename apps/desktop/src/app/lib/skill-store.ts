@@ -15,6 +15,7 @@ import type {
   ExtensionSetupStatus,
 } from './extension-setup';
 import {parseExtensionSetupSchema} from './extension-setup';
+import { canUseCacheStorage, readCacheJson, writeCacheJson } from './persistence/cache-store';
 
 export type RawBundledSkillCatalogItem = {
   slug: string;
@@ -185,7 +186,7 @@ function isTauriRuntime(): boolean {
 }
 
 function canUseStorage(): boolean {
-  return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+  return canUseCacheStorage();
 }
 
 function emitWindowEvent(name: string, detail?: unknown): void {
@@ -483,7 +484,7 @@ function persistSkillStoreCatalogSnapshot(page: SkillStoreCatalogPage, query?: S
       hasMore: page.hasMore,
       nextOffset: page.nextOffset,
     };
-    window.localStorage.setItem(skillStoreCatalogCacheKey(query), JSON.stringify(snapshot));
+    writeCacheJson(skillStoreCatalogCacheKey(query), snapshot);
   } catch {
     // Ignore cache write errors and continue with live data.
   }
@@ -494,11 +495,10 @@ export function readSkillStoreCatalogSnapshot(query?: SkillStoreCatalogQuery): S
     return null;
   }
   try {
-    const raw = window.localStorage.getItem(skillStoreCatalogCacheKey(query));
-    if (!raw) {
+    const snapshot = readCacheJson<Partial<SkillStoreCatalogCacheSnapshot>>(skillStoreCatalogCacheKey(query));
+    if (!snapshot) {
       return null;
     }
-    const snapshot = JSON.parse(raw) as Partial<SkillStoreCatalogCacheSnapshot>;
     if (
       snapshot.version !== 1 ||
       !Array.isArray(snapshot.items) ||

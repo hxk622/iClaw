@@ -30,6 +30,7 @@ import { findComposerModelOption, type ComposerModelOption } from '../lib/model-
 import type { ResolvedInputComposerConfig } from '../lib/oem-runtime';
 import { Chip } from './ui/Chip';
 import sendSwishAigeiUrl from '@/app/assets/send-sounds/send-swish-aigei.mp3';
+import { readCacheJson, writeCacheJson } from '@/app/lib/persistence/cache-store';
 
 export type OpenClawImageAttachment = {
   id: string;
@@ -366,17 +367,6 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
-function getSelectionStorage(): Storage | null {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
 function normalizeRecentSelectionState(value: unknown): RecentSelectionState {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return EMPTY_RECENT_SELECTIONS;
@@ -394,28 +384,20 @@ function normalizeRecentSelectionState(value: unknown): RecentSelectionState {
 }
 
 function readRecentSelections(): RecentSelectionState {
-  const storage = getSelectionStorage();
-  if (!storage) {
-    return EMPTY_RECENT_SELECTIONS;
-  }
   try {
-    const raw = storage.getItem(RECENT_SELECTIONS_STORAGE_KEY);
+    const raw = readCacheJson<unknown>(RECENT_SELECTIONS_STORAGE_KEY);
     if (!raw) {
       return EMPTY_RECENT_SELECTIONS;
     }
-    return normalizeRecentSelectionState(JSON.parse(raw));
+    return normalizeRecentSelectionState(raw);
   } catch {
     return EMPTY_RECENT_SELECTIONS;
   }
 }
 
 function writeRecentSelections(value: RecentSelectionState): void {
-  const storage = getSelectionStorage();
-  if (!storage) {
-    return;
-  }
   try {
-    storage.setItem(RECENT_SELECTIONS_STORAGE_KEY, JSON.stringify(value));
+    writeCacheJson(RECENT_SELECTIONS_STORAGE_KEY, value);
   } catch {
     // Ignore local storage write failures.
   }

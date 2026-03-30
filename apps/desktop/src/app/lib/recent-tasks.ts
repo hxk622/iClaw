@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { readCacheJson, writeCacheJson } from '@/app/lib/persistence/cache-store';
 
 export type RecentTaskStatus = 'running' | 'completed' | 'failed';
 export type RecentTaskArtifact = 'report' | 'ppt' | 'webpage' | 'pdf' | 'sheet';
@@ -40,17 +41,6 @@ export const RECENT_TASK_ARTIFACT_LABELS: Record<RecentTaskArtifact, string> = {
   pdf: 'PDF',
   sheet: '表格',
 };
-
-function getStorage(): Storage | null {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
 
 function emitRecentTasksUpdated(): void {
   if (typeof window === 'undefined') {
@@ -161,16 +151,8 @@ function compareRecentTasksByUpdatedAt(a: RecentTaskRecord, b: RecentTaskRecord)
 }
 
 function readTasksFromStorage(): RecentTaskRecord[] {
-  const storage = getStorage();
-  if (!storage) {
-    return [];
-  }
   try {
-    const raw = storage.getItem(RECENT_TASKS_STORAGE_KEY);
-    if (!raw) {
-      return [];
-    }
-    const parsed = JSON.parse(raw);
+    const parsed = readCacheJson<unknown[]>(RECENT_TASKS_STORAGE_KEY);
     if (!Array.isArray(parsed)) {
       return [];
     }
@@ -183,17 +165,8 @@ function readTasksFromStorage(): RecentTaskRecord[] {
 }
 
 function writeTasksToStorage(tasks: RecentTaskRecord[]): void {
-  const storage = getStorage();
-  if (!storage) {
-    return;
-  }
   try {
-    storage.setItem(
-      RECENT_TASKS_STORAGE_KEY,
-      JSON.stringify(
-        mergeRecentTasksBySession(tasks).slice(0, MAX_PERSISTED_TASKS),
-      ),
-    );
+    writeCacheJson(RECENT_TASKS_STORAGE_KEY, mergeRecentTasksBySession(tasks).slice(0, MAX_PERSISTED_TASKS));
     emitRecentTasksUpdated();
   } catch {}
 }
