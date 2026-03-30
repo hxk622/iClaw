@@ -756,6 +756,17 @@ function isLikelyInternalToolTraceGroup(group: HTMLElement): boolean {
   return group.classList.contains('tool') && (hasCommandTrace || hasToolCompletionTrace);
 }
 
+function collapseArtifactToolCardInlineBody(card: HTMLElement): void {
+  const inlineSections = Array.from(
+    card.querySelectorAll('.chat-tool-card__output, .chat-tool-card__preview, .chat-tool-card__inline'),
+  ).filter((node): node is HTMLElement => node instanceof HTMLElement);
+
+  inlineSections.forEach((section) => {
+    section.setAttribute('hidden', 'true');
+    section.dataset.iclawArtifactInlineBody = 'collapsed';
+  });
+}
+
 function normalizeToolCards(group: HTMLElement): void {
   const toolCards = Array.from(group.querySelectorAll('.chat-tool-card')).filter(
     (node): node is HTMLElement => node instanceof HTMLElement,
@@ -778,6 +789,7 @@ function normalizeToolCards(group: HTMLElement): void {
   toolCards.forEach((card) => {
     if (isLikelyArtifactToolCard(card)) {
       artifactCardCount += 1;
+      collapseArtifactToolCardInlineBody(card);
       card.removeAttribute('hidden');
       card.dataset.iclawToolCard = 'artifact';
       return;
