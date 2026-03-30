@@ -1464,18 +1464,6 @@ body {
   --iclaw-chat-drop-chip-color: var(--danger);
 }
 
-.iclaw-composer::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  right: -18px;
-  left: -18px;
-  height: 28px;
-  background: var(--bg-page);
-  pointer-events: none;
-  z-index: 2;
-}
-
 .iclaw-chat-selection-menu {
   position: fixed;
   z-index: 80;
