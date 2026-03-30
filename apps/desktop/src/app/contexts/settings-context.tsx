@@ -13,7 +13,13 @@ import {
   type MessageAlignment,
 } from '@/app/lib/general-preferences';
 import { SETTINGS_STORAGE_KEY } from '@/app/lib/storage';
-import { applyThemeMode, persistThemeMode, readStoredThemeMode, type ThemeMode } from '@/app/lib/theme';
+import {
+  applyThemeMode,
+  normalizeThemeModePreference,
+  persistThemeMode,
+  readStoredThemeMode,
+  type ThemeMode,
+} from '@/app/lib/theme';
 
 export type ConfigStatus = 'not-configured' | 'using-default' | 'customized';
 export type PersistableSettingsSection =
@@ -154,7 +160,7 @@ function readPersistedSettings(): PersistedSettings {
       general: {
         ...defaultSettings.general,
         ...parsed.general,
-        themeMode: parsed.general?.themeMode || legacyTheme || storedTheme,
+        themeMode: normalizeThemeModePreference(parsed.general?.themeMode ?? legacyTheme, storedTheme),
       },
       safetyDefaults: {
         ...defaultSettings.safetyDefaults,

@@ -2,9 +2,9 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 export type ResolvedTheme = 'light' | 'dark';
 
 import { BRAND } from './brand';
-import { THEME_CHANGE_EVENT, THEME_STORAGE_KEY } from './storage';
+import { THEME_CHANGE_EVENT, THEME_EXPLICIT_STORAGE_KEY, THEME_STORAGE_KEY } from './storage';
 
-export { THEME_CHANGE_EVENT, THEME_STORAGE_KEY };
+export { THEME_CHANGE_EVENT, THEME_EXPLICIT_STORAGE_KEY, THEME_STORAGE_KEY };
 
 function isThemeMode(value: string | null): value is ThemeMode {
   return value === 'light' || value === 'dark' || value === 'system';
@@ -18,15 +18,32 @@ export function hasExplicitStoredThemeMode(): boolean {
   if (typeof window === 'undefined') {
     return false;
   }
-  return isThemeMode(window.localStorage.getItem(THEME_STORAGE_KEY));
+  const explicit = window.localStorage.getItem(THEME_EXPLICIT_STORAGE_KEY);
+  if (explicit === '1') {
+    return true;
+  }
+  const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+  return saved === 'light' || saved === 'dark';
+}
+
+export function normalizeThemeModePreference(
+  value: string | null | undefined,
+  fallback: ThemeMode = getBrandDefaultThemeMode(),
+): ThemeMode {
+  if (!isThemeMode(value)) {
+    return fallback;
+  }
+  if (value === 'light' || value === 'dark') {
+    return value;
+  }
+  return hasExplicitStoredThemeMode() ? 'system' : fallback;
 }
 
 export function readStoredThemeMode(): ThemeMode {
   if (typeof window === 'undefined') {
     return getBrandDefaultThemeMode();
   }
-  const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
-  return isThemeMode(saved) ? saved : getBrandDefaultThemeMode();
+  return normalizeThemeModePreference(window.localStorage.getItem(THEME_STORAGE_KEY));
 }
 
 export function resolveThemeMode(mode: ThemeMode): ResolvedTheme {
@@ -67,5 +84,6 @@ export function applyThemeMode(mode: ThemeMode): ResolvedTheme {
 export function persistThemeMode(mode: ThemeMode): void {
   if (typeof window !== 'undefined') {
     window.localStorage.setItem(THEME_STORAGE_KEY, mode);
+    window.localStorage.setItem(THEME_EXPLICIT_STORAGE_KEY, '1');
   }
 }
