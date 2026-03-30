@@ -329,6 +329,30 @@ alter table skill_catalog_entries add column if not exists source_url text;
 alter table skill_catalog_entries add column if not exists metadata_json jsonb not null default '{}'::jsonb;
 alter table skill_catalog_entries drop column if exists visibility;
 
+create or replace view cloud_skill_catalog as
+select
+  slug,
+  name,
+  description,
+  market,
+  category,
+  skill_type,
+  publisher,
+  distribution,
+  tags,
+  version,
+  artifact_format,
+  artifact_url,
+  artifact_sha256,
+  artifact_source_path,
+  origin_type,
+  source_url,
+  metadata_json,
+  active,
+  created_at,
+  updated_at
+from skill_catalog_entries;
+
 create table if not exists skill_sync_sources (
   id text primary key,
   source_type text not null,

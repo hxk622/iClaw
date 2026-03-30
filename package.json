@@ -30,6 +30,7 @@
     "check:control-plane": "pnpm --filter @iclaw/control-plane check",
     "build:openclaw-runtime": "node scripts/run-bash.mjs scripts/build-openclaw-runtime.sh",
     "publish:openclaw-runtime": "node scripts/run-bash.mjs scripts/publish-openclaw-runtime.sh",
+    "preset:doctor:oem": "node scripts/run-with-env.mjs dev pnpm --filter @iclaw/control-plane preset:doctor:oem",
     "dev:desktop": "node scripts/run-with-env.mjs dev pnpm --filter @iclaw/desktop dev --host 0.0.0.0 --port 1520 --strictPort",
     "build:desktop": "node scripts/run-with-env.mjs prod pnpm --filter @iclaw/desktop build",
     "tauri:dev": "node scripts/run-with-env.mjs dev pnpm --filter @iclaw/desktop tauri:dev",

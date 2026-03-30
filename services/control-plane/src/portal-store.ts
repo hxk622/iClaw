@@ -1661,7 +1661,7 @@ export class PgPortalStore {
           p.created_at,
           p.updated_at
         from platform_bundled_skills p
-        join skill_catalog_entries c
+        join cloud_skill_catalog c
           on c.slug = p.skill_slug
         order by p.sort_order asc, c.name asc, p.skill_slug asc
       `,
@@ -1846,7 +1846,7 @@ export class PgPortalStore {
           p.created_at,
           p.updated_at
         from platform_bundled_skills p
-        join skill_catalog_entries c
+        join cloud_skill_catalog c
           on c.slug = p.skill_slug
         where p.skill_slug = $1
         limit 1
@@ -1860,7 +1860,7 @@ export class PgPortalStore {
     const catalog = await this.pool.query<{slug: string}>(
       `
         select slug
-        from skill_catalog_entries
+        from cloud_skill_catalog
         where slug = $1
         limit 1
       `,
@@ -3066,7 +3066,7 @@ export class PgPortalStore {
               category,
               publisher,
               active
-            from skill_catalog_entries
+            from cloud_skill_catalog
             where slug = $1
             limit 1
           `,

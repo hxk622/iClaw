@@ -968,17 +968,24 @@ export async function ensureControlPlaneSchema(databaseUrl: string): Promise<voi
   const pool = new Pool({connectionString: databaseUrl});
   try {
     const schemaCheck = await pool.query<{
-      users_table: string | null;
-      skill_catalog_table: string | null;
-      portal_apps_table: string | null;
+      users_relation: string | null;
+      skill_catalog_relation: string | null;
+      portal_apps_relation: string | null;
+      cloud_skill_catalog_relation: string | null;
     }>(`
       select
-        to_regclass('public.users') as users_table,
-        to_regclass('public.skill_catalog') as skill_catalog_table,
-        to_regclass('public.portal_apps') as portal_apps_table
+        to_regclass('users')::text as users_relation,
+        to_regclass('skill_catalog_entries')::text as skill_catalog_relation,
+        to_regclass('oem_apps')::text as portal_apps_relation,
+        to_regclass('cloud_skill_catalog')::text as cloud_skill_catalog_relation
     `);
     const existingSchema = schemaCheck.rows[0];
-    if (existingSchema?.users_table && existingSchema.skill_catalog_table && existingSchema.portal_apps_table) {
+    if (
+      existingSchema?.users_relation &&
+      existingSchema.skill_catalog_relation &&
+      existingSchema.portal_apps_relation &&
+      existingSchema.cloud_skill_catalog_relation
+    ) {
       return;
     }
     const sql = await readFile(schemaPath, 'utf8');
@@ -3745,7 +3752,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         active,
         created_at,
         updated_at
-      from skill_catalog_entries
+      from cloud_skill_catalog
       ${whereSql}
       ${this.buildSkillCatalogOrderClause()}
       ${paginationSql}
@@ -3762,7 +3769,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     const result = await this.pool.query<{count: string}>(
       `
         select count(*)::text as count
-        from skill_catalog_entries
+        from cloud_skill_catalog
         ${whereSql}
       `,
       values,
@@ -3808,7 +3815,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         active,
         created_at,
         updated_at
-      from skill_catalog_entries
+      from cloud_skill_catalog
       ${whereSql}
       ${this.buildSkillCatalogOrderClause()}
       ${paginationSql}
@@ -3828,7 +3835,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     const result = await this.pool.query<{count: string}>(
       `
         select count(*)::text as count
-        from skill_catalog_entries
+        from cloud_skill_catalog
         ${whereSql}
       `,
       values,
@@ -3882,7 +3889,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         active,
         created_at,
         updated_at
-      from skill_catalog_entries
+      from cloud_skill_catalog
       ${whereSql}
       order by name asc
       ${paginationSql}
@@ -3913,7 +3920,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     const result = await this.pool.query<{count: string}>(
       `
         select count(*)::text as count
-        from skill_catalog_entries
+        from cloud_skill_catalog
         ${whereSql}
       `,
       values,
@@ -3945,7 +3952,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           active,
           created_at,
           updated_at
-        from skill_catalog_entries
+        from cloud_skill_catalog
         where slug = $1
         limit 1
       `,
@@ -3957,7 +3964,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
   async upsertSkillCatalogEntry(input: Required<UpsertSkillCatalogEntryInput>): Promise<SkillCatalogEntryRecord> {
     await this.pool.query(
       `
-        insert into skill_catalog_entries (
+        insert into cloud_skill_catalog (
           slug,
           name,
           description,
@@ -4042,7 +4049,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
   async deleteSkillCatalogEntry(slug: string): Promise<boolean> {
     const result = await this.pool.query(
       `
-        delete from skill_catalog_entries
+        delete from cloud_skill_catalog
         where slug = $1
       `,
       [slug],
