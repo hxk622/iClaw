@@ -145,12 +145,22 @@ async function runStartupBootstrap(): Promise<void> {
   startupState.bootstrap.lastError = null;
 
   const startedAt = Date.now();
+  const runStep = async (label: string, task: () => Promise<void>): Promise<void> => {
+    const stepStartedAt = Date.now();
+    try {
+      await task();
+      console.log(`[control-plane] bootstrap ${label} in ${Date.now() - stepStartedAt}ms`);
+    } catch (error) {
+      console.error(`[control-plane] bootstrap ${label} failed in ${Date.now() - stepStartedAt}ms`, error);
+      throw error;
+    }
+  };
   try {
-    await ensureBootstrapAdmin(store);
-    await ensureDefaultCatalogs(store);
-    await ensureDefaultSkillSyncSources(store);
-    await ensurePortalPreset(portalStore);
-    await ensurePortalSkillCatalogPolicy(portalStore);
+    await runStep('ensureBootstrapAdmin', () => ensureBootstrapAdmin(store));
+    await runStep('ensureDefaultCatalogs', () => ensureDefaultCatalogs(store));
+    await runStep('ensureDefaultSkillSyncSources', () => ensureDefaultSkillSyncSources(store));
+    await runStep('ensurePortalPreset', () => ensurePortalPreset(portalStore));
+    await runStep('ensurePortalSkillCatalogPolicy', () => ensurePortalSkillCatalogPolicy(portalStore));
 
     startupState.bootstrap.status = 'ready';
     startupState.bootstrap.completedAt = new Date().toISOString();

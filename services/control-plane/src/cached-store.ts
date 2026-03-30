@@ -88,6 +88,14 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     this.storageLabel = `${base.storageLabel}+${cache.label}`;
   }
 
+  async getSystemState(stateKey: string): Promise<Record<string, unknown> | null> {
+    return this.base.getSystemState(stateKey);
+  }
+
+  async setSystemState(stateKey: string, stateValue: Record<string, unknown>): Promise<void> {
+    await this.base.setSystemState(stateKey, stateValue);
+  }
+
   async getUserByIdentifier(identifier: string): Promise<UserRecord | null> {
     const normalized = normalizeIdentifier(identifier);
     return this.getOrLoad(this.userIdentifierKey(normalized), USER_CACHE_TTL_SECONDS, () =>

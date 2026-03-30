@@ -519,6 +519,12 @@ type UserAgentLibraryRow = {
   updated_at: Date;
 };
 
+type SystemStateRow = {
+  state_key: string;
+  state_value: Record<string, unknown> | null;
+  updated_at: Date;
+};
+
 function mapUserRow(row: UserRow): UserRecord {
   return {
     id: row.id,
@@ -998,6 +1004,40 @@ export class PgControlPlaneStore implements ControlPlaneStore {
 
   constructor(connectionString: string) {
     this.pool = new Pool({connectionString});
+  }
+
+  async getSystemState(stateKey: string): Promise<Record<string, unknown> | null> {
+    const result = await this.pool.query<SystemStateRow>(
+      `
+        select
+          state_key,
+          state_value,
+          updated_at
+        from oem_system_state
+        where state_key = $1
+        limit 1
+      `,
+      [stateKey],
+    );
+    return result.rows[0] ? parseJsonObject(result.rows[0].state_value) : null;
+  }
+
+  async setSystemState(stateKey: string, stateValue: Record<string, unknown>): Promise<void> {
+    await this.pool.query(
+      `
+        insert into oem_system_state (
+          state_key,
+          state_value,
+          updated_at
+        )
+        values ($1, $2::jsonb, now())
+        on conflict (state_key)
+        do update set
+          state_value = excluded.state_value,
+          updated_at = now()
+      `,
+      [stateKey, JSON.stringify(stateValue)],
+    );
   }
 
   async getUserByIdentifier(identifier: string): Promise<UserRecord | null> {

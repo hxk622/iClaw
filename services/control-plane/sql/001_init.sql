@@ -817,6 +817,12 @@ create table if not exists oem_app_assets (
   unique (app_name, asset_key)
 );
 
+create table if not exists oem_system_state (
+  state_key text primary key,
+  state_value jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists oem_app_releases (
   id uuid primary key,
   app_name text not null references oem_apps(app_name) on delete cascade,

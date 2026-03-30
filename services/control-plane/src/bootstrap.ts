@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -20,6 +21,21 @@ const LEGACY_DEFAULT_INVESTMENT_CATEGORY_FIXUPS: Record<string, {from: string[];
   'a-share-value-hunter': {from: ['stock'], to: 'value'},
   'us-value-compass': {from: ['global'], to: 'value'},
 };
+const DEFAULT_CATALOGS_STATE_KEY = 'bootstrap/default-catalogs';
+const PORTAL_PRESET_STATE_KEY = 'portal_preset/core-oem';
+
+function buildDefaultCatalogsHash(): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        skills: DEFAULT_CLOUD_SKILL_SEEDS,
+        agents: DEFAULT_AGENT_CATALOG_SEEDS,
+        deprecatedAgents: DEPRECATED_DEFAULT_AGENT_SLUGS,
+        investmentCategoryFixups: LEGACY_DEFAULT_INVESTMENT_CATEGORY_FIXUPS,
+      }),
+    )
+    .digest('hex');
+}
 
 function rolePriority(role: 'user' | 'admin' | 'super_admin'): number {
   switch (role) {
@@ -67,14 +83,31 @@ export async function ensurePortalPreset(portalStore: PgPortalStore): Promise<vo
   const currentFile = fileURLToPath(import.meta.url);
   const repoRoot = resolve(dirname(currentFile), '../../..');
   const manifestPath = resolve(repoRoot, 'services/control-plane/presets/core-oem.json');
-  const raw = JSON.parse(await readFile(manifestPath, 'utf8')) as PortalPresetManifest;
+  const manifestText = await readFile(manifestPath, 'utf8');
+  const raw = JSON.parse(manifestText) as PortalPresetManifest;
   if (raw.schemaVersion !== 1) {
     throw new Error(`unsupported portal preset schema version: ${raw.schemaVersion}`);
+  }
+  const manifestHash = createHash('sha256').update(manifestText).digest('hex');
+  const previousState = await portalStore.getSystemState(PORTAL_PRESET_STATE_KEY);
+  if (
+    typeof previousState?.manifestHash === 'string' &&
+    previousState.manifestHash === manifestHash &&
+    Number(previousState.schemaVersion) === raw.schemaVersion
+  ) {
+    return;
   }
 
   await syncPortalPresetManifest(portalStore, raw, {
     manifestDir: dirname(manifestPath),
     preserveExistingAppState: true,
+  });
+  await portalStore.setSystemState(PORTAL_PRESET_STATE_KEY, {
+    manifestHash,
+    schemaVersion: raw.schemaVersion,
+    presetKey: 'core-oem',
+    manifestPath: 'services/control-plane/presets/core-oem.json',
+    appliedAt: new Date().toISOString(),
   });
 }
 
@@ -100,6 +133,12 @@ export async function ensureDefaultSkillSyncSources(store: ControlPlaneStore): P
 }
 
 export async function ensureDefaultCatalogs(store: ControlPlaneStore): Promise<void> {
+  const seedHash = buildDefaultCatalogsHash();
+  const previousState = await store.getSystemState(DEFAULT_CATALOGS_STATE_KEY);
+  if (typeof previousState?.seedHash === 'string' && previousState.seedHash === seedHash) {
+    return;
+  }
+
   for (const skill of DEFAULT_CLOUD_SKILL_SEEDS) {
     const existing = await store.getSkillCatalogEntry(skill.slug);
     await store.upsertSkillCatalogEntry({
@@ -205,4 +244,9 @@ export async function ensureDefaultCatalogs(store: ControlPlaneStore): Promise<v
       active: false,
     });
   }
+
+  await store.setSystemState(DEFAULT_CATALOGS_STATE_KEY, {
+    seedHash,
+    appliedAt: new Date().toISOString(),
+  });
 }

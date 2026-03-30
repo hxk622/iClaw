@@ -98,6 +98,8 @@ function expirePaymentOrderIfNeeded(order: PaymentOrderRecord): PaymentOrderReco
 
 export interface ControlPlaneStore {
   readonly storageLabel: string;
+  getSystemState(stateKey: string): Promise<Record<string, unknown> | null>;
+  setSystemState(stateKey: string, stateValue: Record<string, unknown>): Promise<void>;
   getUserByIdentifier(identifier: string): Promise<UserRecord | null>;
   getUserByEmail(email: string): Promise<UserRecord | null>;
   getUserByOAuthAccount(provider: OAuthProvider, providerId: string): Promise<UserRecord | null>;
@@ -358,6 +360,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   private readonly paymentProviderProfilesById = new Map<string, PaymentProviderProfileRecord>();
   private readonly paymentProviderBindingsByKey = new Map<string, PaymentProviderBindingRecord>();
   private readonly paymentOrdersById = new Map<string, PaymentOrderRecord>();
+  private readonly systemStateByKey = new Map<string, Record<string, unknown>>();
   private readonly paymentWebhookEventsByOrderId = new Map<string, PaymentWebhookEventRecord[]>();
   private readonly runGrantsById = new Map<string, RunGrantRecord>();
   private readonly usageEventsByEventId = new Map<string, UsageEventResult>();
@@ -398,6 +401,14 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     for (const entry of createDefaultAgentCatalogEntries(now)) {
       this.agentCatalog.set(entry.slug, entry);
     }
+  }
+
+  async getSystemState(stateKey: string): Promise<Record<string, unknown> | null> {
+    return this.systemStateByKey.get(stateKey) || null;
+  }
+
+  async setSystemState(stateKey: string, stateValue: Record<string, unknown>): Promise<void> {
+    this.systemStateByKey.set(stateKey, {...stateValue});
   }
 
   async getUserByIdentifier(identifier: string): Promise<UserRecord | null> {

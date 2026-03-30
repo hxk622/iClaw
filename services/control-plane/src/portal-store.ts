@@ -304,6 +304,12 @@ type PortalAssetRow = {
   updated_at: Date;
 };
 
+type PortalSystemStateRow = {
+  state_key: string;
+  state_value: Record<string, unknown> | null;
+  updated_at: Date;
+};
+
 type PortalReleaseRow = {
   id: string;
   app_name: string;
@@ -1477,6 +1483,40 @@ export class PgPortalStore {
 
   async close(): Promise<void> {
     await this.pool.end();
+  }
+
+  async getSystemState(stateKey: string): Promise<PortalJsonObject | null> {
+    const result = await this.pool.query<PortalSystemStateRow>(
+      `
+        select
+          state_key,
+          state_value,
+          updated_at
+        from oem_system_state
+        where state_key = $1
+        limit 1
+      `,
+      [stateKey],
+    );
+    return result.rows[0] ? asJsonObject(result.rows[0].state_value) : null;
+  }
+
+  async setSystemState(stateKey: string, stateValue: PortalJsonObject): Promise<void> {
+    await this.pool.query(
+      `
+        insert into oem_system_state (
+          state_key,
+          state_value,
+          updated_at
+        )
+        values ($1, $2::jsonb, now())
+        on conflict (state_key)
+        do update set
+          state_value = excluded.state_value,
+          updated_at = now()
+      `,
+      [stateKey, JSON.stringify(stateValue)],
+    );
   }
 
   async listApps(): Promise<PortalAppRecord[]> {
