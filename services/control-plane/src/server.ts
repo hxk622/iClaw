@@ -13,7 +13,6 @@ import {
   ensureBootstrapAdmin,
   ensureDefaultCatalogs,
   ensureDefaultSkillSyncSources,
-  ensurePortalPreset,
   ensurePortalSkillCatalogPolicy,
 } from './bootstrap.ts';
 import {CachedControlPlaneStore} from './cached-store.ts';
@@ -159,7 +158,6 @@ async function runStartupBootstrap(): Promise<void> {
     await runStep('ensureBootstrapAdmin', () => ensureBootstrapAdmin(store));
     await runStep('ensureDefaultCatalogs', () => ensureDefaultCatalogs(store));
     await runStep('ensureDefaultSkillSyncSources', () => ensureDefaultSkillSyncSources(store));
-    await runStep('ensurePortalPreset', () => ensurePortalPreset(portalStore));
     await runStep('ensurePortalSkillCatalogPolicy', () => ensurePortalSkillCatalogPolicy(portalStore));
 
     startupState.bootstrap.status = 'ready';
