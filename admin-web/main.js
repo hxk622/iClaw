@@ -583,6 +583,9 @@ const state = {
   },
 };
 
+let filterRenderTimer = null;
+let pendingFilterFocus = null;
+
 function loadTokens() {
   try {
     const raw = localStorage.getItem(TOKEN_STORAGE_KEY);
@@ -12233,7 +12236,32 @@ function handleFilterInput(target) {
   const key = target.getAttribute('data-filter-key');
   if (!key) return;
   state.filters[key] = target.value;
-  render();
+  if (filterRenderTimer) {
+    window.clearTimeout(filterRenderTimer);
+  }
+  pendingFilterFocus = {
+    key,
+    value: target.value,
+    selectionStart:
+      target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement ? target.selectionStart : null,
+    selectionEnd:
+      target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement ? target.selectionEnd : null,
+  };
+  filterRenderTimer = window.setTimeout(() => {
+    filterRenderTimer = null;
+    render();
+    if (!pendingFilterFocus) {
+      return;
+    }
+    const active = document.querySelector(`[data-filter-key="${CSS.escape(pendingFilterFocus.key)}"]`);
+    if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
+      active.focus();
+      const start = typeof pendingFilterFocus.selectionStart === 'number' ? pendingFilterFocus.selectionStart : active.value.length;
+      const end = typeof pendingFilterFocus.selectionEnd === 'number' ? pendingFilterFocus.selectionEnd : start;
+      active.setSelectionRange(start, end);
+    }
+    pendingFilterFocus = null;
+  }, 80);
 }
 
 function syncAgentAvatarEditor(form) {
