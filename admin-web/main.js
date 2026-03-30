@@ -5434,6 +5434,28 @@ function openModelLogoPicker(form, inputName) {
   dialog.showModal();
 }
 
+async function syncPortalPresetManifest() {
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    const result = await apiFetch('/admin/portal/preset-sync', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    await loadAppData();
+    setNotice(
+      `baseline preset 已同步：${Number(result.appCount || 0)} 个 app，${Number(result.skillCount || 0)} 个 skill，${Number(result.mcpCount || 0)} 个 mcp，${Number(result.assetCount || 0)} 个 asset。`,
+    );
+  } catch (error) {
+    setError(error instanceof Error ? error.message : 'baseline preset 同步失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
 async function saveModelProviderProfile(form) {
   captureModelProviderDraft(form);
   const formData = new FormData(form);
@@ -8494,6 +8516,19 @@ function renderModelProviderCenterPage() {
         '平台记忆 Embedding 是所有 OEM 的默认兜底；OEM 一旦配置独立记忆 Embedding，只影响这个 OEM 的记忆索引和召回。',
       ], 'capability')}
       <div class="fig-detail-stack">
+        <section class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
+            <div>
+              <h3>Baseline Preset</h3>
+              <span>仅用于新环境首灌、空库恢复、基线修复</span>
+            </div>
+            <button class="ghost-button" type="button" data-action="sync-portal-preset"${state.busy ? ' disabled' : ''}>同步 baseline preset</button>
+          </div>
+          <div class="empty-state" style="min-height:auto; align-items:flex-start; text-align:left;">
+            <strong>默认不会随 control-plane 启动自动执行。</strong>
+            <span>这里只保留手工入口，避免把 admin-web 里的日常配置在启动时又被回刷。</span>
+          </div>
+        </section>
         <section class="fig-card fig-card--subtle">
           <div class="fig-card__head">
             <h3>Provider Scope</h3>
@@ -11799,6 +11834,13 @@ app.addEventListener('click', async (event) => {
     state.route = getCapabilityRouteForMode(state.capabilityMode);
     state.selectedModelCenterSection = target.getAttribute('data-section-key') || 'chat-provider';
     render();
+    return;
+  }
+
+  if (action === 'sync-portal-preset') {
+    if (window.confirm('确认手工同步 baseline preset？这个操作只应用于新环境首灌、空库恢复或基线修复。')) {
+      await syncPortalPresetManifest();
+    }
     return;
   }
 

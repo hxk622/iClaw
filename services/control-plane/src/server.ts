@@ -1183,6 +1183,15 @@ const server = createJsonServer([
     handler: ({headers}: HandlerContext) => portalService.listApps(requireBearerToken(headers)),
   },
   {
+    method: 'POST',
+    path: '/admin/portal/preset-sync',
+    handler: ({headers, body}: HandlerContext) =>
+      portalService.syncPresetManifest(
+        requireBearerToken(headers),
+        ((body || {}) as {manifest_path?: string; force_app_state?: boolean; manifestPath?: string; forceAppState?: boolean}) || {},
+      ),
+  },
+  {
     method: 'GET',
     path: '/admin/payments/provider-profiles',
     handler: ({headers, url}: HandlerContext) =>

@@ -1,3 +1,7 @@
+import {readFile} from 'node:fs/promises';
+import {dirname, resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
+
 import type {PublicUser} from './domain.ts';
 import {HttpError} from './errors.ts';
 import {
@@ -26,6 +30,7 @@ import type {
   PortalAppStatus,
   PortalJsonObject,
   PortalMemoryEmbeddingProfileRecord,
+  PortalPresetManifest,
   PortalModelProviderScopeType,
   ReplacePortalAppComposerControlBindingsInput,
   ReplacePortalAppComposerShortcutBindingsInput,
@@ -43,8 +48,12 @@ import type {
   UpsertPortalMcpInput,
   UpsertPortalSkillInput,
 } from './portal-domain.ts';
+import {syncPortalPresetManifest} from './portal-preset.ts';
 import {buildPortalPublicConfig} from './portal-runtime.ts';
 import type {PgPortalStore} from './portal-store.ts';
+
+const moduleDir = dirname(fileURLToPath(import.meta.url));
+const defaultPortalPresetManifestPath = resolve(moduleDir, '../presets/core-oem.json');
 
 function rolePriority(role: 'user' | 'admin' | 'super_admin'): number {
   switch (role) {
@@ -393,6 +402,52 @@ export class PortalService {
   async listApps(accessToken: string) {
     await this.requireAdmin(accessToken);
     return {items: await this.store.listApps()};
+  }
+
+  async syncPresetManifest(
+    accessToken: string,
+    input: {
+      manifestPath?: string | null;
+      forceAppState?: boolean;
+      manifest_path?: string | null;
+      force_app_state?: boolean;
+    } = {},
+  ) {
+    await this.requireAdmin(accessToken);
+    const manifestPath =
+      normalizeOptionalString(input.manifestPath ?? input.manifest_path, 'manifest_path') || defaultPortalPresetManifestPath;
+    const forceAppState = input.forceAppState === true || input.force_app_state === true;
+    let raw: PortalPresetManifest;
+    try {
+      raw = JSON.parse(await readFile(manifestPath, 'utf8')) as PortalPresetManifest;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'unknown read error';
+      throw new HttpError(500, 'PRESET_SYNC_READ_FAILED', `failed to read preset manifest: ${message}`);
+    }
+    if (raw.schemaVersion !== 1) {
+      throw new HttpError(400, 'PRESET_SYNC_UNSUPPORTED_SCHEMA', `unsupported preset schema version: ${String(raw.schemaVersion ?? '')}`);
+    }
+
+    await syncPortalPresetManifest(this.store, raw, {
+      manifestDir: dirname(manifestPath),
+      preserveExistingAppState: !forceAppState,
+    });
+    await this.invalidateAllRuntimeModelCaches();
+    await this.invalidateAllMemoryEmbeddingCaches();
+
+    return {
+      ok: true,
+      manifestPath,
+      preserveExistingAppState: !forceAppState,
+      appCount: Array.isArray(raw.apps) ? raw.apps.length : 0,
+      skillCount: Array.isArray(raw.skills) ? raw.skills.length : 0,
+      mcpCount: Array.isArray(raw.mcps) ? raw.mcps.length : 0,
+      modelCount: Array.isArray(raw.models) ? raw.models.length : 0,
+      menuCount: Array.isArray(raw.menus) ? raw.menus.length : 0,
+      composerControlCount: Array.isArray(raw.composerControls) ? raw.composerControls.length : 0,
+      composerShortcutCount: Array.isArray(raw.composerShortcuts) ? raw.composerShortcuts.length : 0,
+      assetCount: Array.isArray(raw.assets) ? raw.assets.length : 0,
+    };
   }
 
   async getApp(accessToken: string, appNameInput: string) {
@@ -1323,6 +1378,22 @@ export class PortalService {
       await this.invalidateMemoryEmbeddingCache(scopeKey);
       return;
     }
+    await this.invalidateMemoryEmbeddingCache('platform');
+    const apps = await this.store.listApps();
+    for (const app of apps) {
+      await this.invalidateMemoryEmbeddingCache(app.appName);
+    }
+  }
+
+  private async invalidateAllRuntimeModelCaches(): Promise<void> {
+    await this.invalidateRuntimeModelCache('platform');
+    const apps = await this.store.listApps();
+    for (const app of apps) {
+      await this.invalidateRuntimeModelCache(app.appName);
+    }
+  }
+
+  private async invalidateAllMemoryEmbeddingCaches(): Promise<void> {
     await this.invalidateMemoryEmbeddingCache('platform');
     const apps = await this.store.listApps();
     for (const app of apps) {
