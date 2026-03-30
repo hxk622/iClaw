@@ -1584,6 +1584,40 @@ function setMessageActionFeedback(button: HTMLButtonElement, state: 'idle' | 'su
   button.dataset.state = state;
 }
 
+const MODEL_SNAPSHOT_RPC_TIMEOUT_MS = 8000;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const timer = window.setTimeout(() => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      reject(new Error(`${label} timeout`));
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        window.clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 function createMessageActionButton(params: {
   className: string;
   title: string;
@@ -1622,11 +1656,15 @@ async function loadChatModelSnapshot(
 
   const [runtimeCatalog, sessionsResult] = await Promise.all([
     fetchRuntimeModelCatalog(input),
-    request<GatewaySessionsListResult>('sessions.list', {
-      includeGlobal: true,
-      includeUnknown: true,
-      limit: 200,
-    }),
+    withTimeout(
+      request<GatewaySessionsListResult>('sessions.list', {
+        includeGlobal: true,
+        includeUnknown: true,
+        limit: 200,
+      }),
+      MODEL_SNAPSHOT_RPC_TIMEOUT_MS,
+      'gateway sessions.list',
+    ),
   ]);
 
   const options = buildComposerModelOptions(mapRuntimeModelsToGatewayEntries(runtimeCatalog));

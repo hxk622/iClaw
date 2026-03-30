@@ -2526,11 +2526,11 @@ export class PgPortalStore {
   }
 
   async resolveRuntimeModels(appName: string): Promise<PortalResolvedRuntimeModelsResult | null> {
-    const [apps, override] = await Promise.all([
-      this.listApps(),
+    const [appRow, override] = await Promise.all([
+      readAppRow(this.pool, appName),
       this.getAppModelRuntimeOverride(appName),
     ]);
-    if (!apps.some((item) => item.appName === appName)) {
+    if (!appRow) {
       return null;
     }
     const providerMode = override?.providerMode || 'inherit_platform';

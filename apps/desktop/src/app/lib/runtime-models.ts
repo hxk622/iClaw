@@ -1,5 +1,7 @@
 import type { GatewayModelCatalogEntry } from './model-catalog';
 
+const RUNTIME_MODEL_CATALOG_TIMEOUT_MS = 8000;
+
 export type RuntimeModelCatalogResponse = {
   appName: string;
   providerMode: string;
@@ -38,23 +40,36 @@ export async function fetchRuntimeModelCatalog(input: {
   if (!authBaseUrl || !appName) {
     throw new Error('runtime model catalog requires authBaseUrl and appName');
   }
-  const response = await fetch(
-    joinUrl(authBaseUrl, `/portal/runtime/models?app_name=${encodeURIComponent(appName)}`),
-    {
-      method: 'GET',
-      credentials: 'include',
-      headers: {
-        Accept: 'application/json',
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), RUNTIME_MODEL_CATALOG_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(
+      joinUrl(authBaseUrl, `/portal/runtime/models?app_name=${encodeURIComponent(appName)}`),
+      {
+        method: 'GET',
+        credentials: 'include',
+        signal: controller.signal,
+        headers: {
+          Accept: 'application/json',
+        },
       },
-    },
-  );
-  const payload = (await response.json().catch(() => null)) as
-    | { success?: boolean; data?: RuntimeModelCatalogResponse; error?: { message?: string } }
-    | null;
-  if (!response.ok || !payload?.success || !payload.data) {
-    throw new Error(payload?.error?.message || 'runtime model catalog unavailable');
+    );
+    const payload = (await response.json().catch(() => null)) as
+      | { success?: boolean; data?: RuntimeModelCatalogResponse; error?: { message?: string } }
+      | null;
+    if (!response.ok || !payload?.success || !payload.data) {
+      throw new Error(payload?.error?.message || 'runtime model catalog unavailable');
+    }
+    return payload.data;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('runtime model catalog timeout');
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
   }
-  return payload.data;
 }
 
 export function mapRuntimeModelsToGatewayEntries(
