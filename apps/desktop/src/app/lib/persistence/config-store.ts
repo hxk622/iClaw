@@ -157,9 +157,10 @@ async function loadNativeConfigDocument(): Promise<DesktopConfigDocument | null>
 async function persistConfigDocument(document: DesktopConfigDocument): Promise<DesktopConfigDocument> {
   const normalized = normalizeDocument(document);
   cachedConfigDocument = normalized;
-  writeCacheJson(DESKTOP_CONFIG_STORAGE_KEY, normalized);
   if (isTauriRuntime()) {
     await invoke<boolean>('save_desktop_client_config', { config: normalized });
+  } else {
+    writeCacheJson(DESKTOP_CONFIG_STORAGE_KEY, normalized);
   }
   return normalized;
 }
@@ -176,16 +177,17 @@ export async function bootstrapDesktopConfigStore(): Promise<DesktopConfigDocume
     const nativeDocument = await loadNativeConfigDocument();
     if (nativeDocument) {
       cachedConfigDocument = nativeDocument;
-      writeCacheJson(DESKTOP_CONFIG_STORAGE_KEY, nativeDocument);
       bootstrapped = true;
       return nativeDocument;
     }
 
-    const localDocument = readLocalConfigDocument();
-    if (localDocument) {
-      cachedConfigDocument = localDocument;
-      bootstrapped = true;
-      return localDocument;
+    if (!isTauriRuntime()) {
+      const localDocument = readLocalConfigDocument();
+      if (localDocument) {
+        cachedConfigDocument = localDocument;
+        bootstrapped = true;
+        return localDocument;
+      }
     }
 
     const migratedDocument = buildLegacyMigrationDocument();

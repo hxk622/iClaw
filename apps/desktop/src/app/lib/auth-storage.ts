@@ -40,31 +40,48 @@ function clearBrowserAuth(): void {
   localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
   localStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
   localStorage.removeItem(LEGACY_REFRESH_TOKEN_KEY);
+  LEGACY_NAMESPACE_ACCESS_TOKEN_KEYS.forEach((key) => localStorage.removeItem(key));
+  LEGACY_NAMESPACE_REFRESH_TOKEN_KEYS.forEach((key) => localStorage.removeItem(key));
 }
 
 function readLegacyBrowserAuth(): StoredAuth | null {
-  return null;
+  const accessToken =
+    localStorage.getItem(LEGACY_ACCESS_TOKEN_KEY) ||
+    LEGACY_NAMESPACE_ACCESS_TOKEN_KEYS.map((key) => localStorage.getItem(key)).find(Boolean) ||
+    '';
+  const refreshToken =
+    localStorage.getItem(LEGACY_REFRESH_TOKEN_KEY) ||
+    LEGACY_NAMESPACE_REFRESH_TOKEN_KEYS.map((key) => localStorage.getItem(key)).find(Boolean) ||
+    '';
+  return normalizeStoredAuth({ accessToken, refreshToken });
+}
+
+async function migrateBrowserAuthToSecureStore(): Promise<StoredAuth | null> {
+  const auth = readBrowserAuth() || readLegacyBrowserAuth();
+  if (!auth) {
+    clearBrowserAuth();
+    return null;
+  }
+  await invoke<boolean>('save_auth_tokens', {
+    accessToken: auth.accessToken,
+    refreshToken: auth.refreshToken,
+  });
+  clearBrowserAuth();
+  return auth;
 }
 
 export async function readAuth(): Promise<StoredAuth | null> {
   if (isTauriRuntime()) {
-    try {
-      const result = await invoke<{ access_token: string; refresh_token: string } | null>(
-        'load_auth_tokens',
-      );
-      const auth = normalizeStoredAuth({
-        accessToken: result?.access_token || '',
-        refreshToken: result?.refresh_token || '',
-      });
-      if (auth) {
-        persistBrowserAuth(auth);
-        return auth;
-      }
-    } catch (error) {
-      console.warn('[desktop] failed to read keyring auth tokens, falling back to local storage', error);
+    const result = await invoke<{ access_token: string; refresh_token: string } | null>('load_auth_tokens');
+    const auth = normalizeStoredAuth({
+      accessToken: result?.access_token || '',
+      refreshToken: result?.refresh_token || '',
+    });
+    if (auth) {
+      clearBrowserAuth();
+      return auth;
     }
-
-    return readBrowserAuth() || readLegacyBrowserAuth();
+    return migrateBrowserAuthToSecureStore();
   }
 
   const browserAuth = readBrowserAuth();
@@ -76,33 +93,36 @@ export async function readAuth(): Promise<StoredAuth | null> {
 
 export async function writeAuth(auth: StoredAuth): Promise<void> {
   const normalized = normalizeStoredAuth(auth);
+  if (isTauriRuntime()) {
+    if (!normalized) {
+      await invoke<boolean>('clear_auth_tokens');
+      clearBrowserAuth();
+      return;
+    }
+    await invoke<boolean>('save_auth_tokens', {
+      accessToken: normalized.accessToken,
+      refreshToken: normalized.refreshToken,
+    });
+    clearBrowserAuth();
+    return;
+  }
+
   if (!normalized) {
     clearBrowserAuth();
     return;
   }
 
   persistBrowserAuth(normalized);
-
-  if (isTauriRuntime()) {
-    try {
-      await invoke<boolean>('save_auth_tokens', {
-        accessToken: normalized.accessToken,
-        refreshToken: normalized.refreshToken,
-      });
-    } catch (error) {
-      console.warn('[desktop] failed to persist auth tokens to keyring, local storage mirror kept', error);
-    }
-  }
 }
 
 export async function clearAuth(): Promise<void> {
-  clearBrowserAuth();
-
   if (isTauriRuntime()) {
     try {
       await invoke<boolean>('clear_auth_tokens');
-    } catch (error) {
-      console.warn('[desktop] failed to clear keyring auth tokens', error);
+    } finally {
+      clearBrowserAuth();
     }
+  } else {
+    clearBrowserAuth();
   }
 }
