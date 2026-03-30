@@ -25,6 +25,27 @@ const LEGACY_DEFAULT_INVESTMENT_CATEGORY_FIXUPS: Record<string, {from: string[];
 const DEFAULT_CATALOGS_BOOTSTRAP_VERSION = 3;
 const DEFAULT_CATALOGS_STATE_KEY = 'bootstrap/default-catalogs';
 const PORTAL_PRESET_STATE_KEY = 'portal_preset/core-oem';
+const PORTAL_PRESET_BOOTSTRAP_VERSION = 3;
+
+function resolveSharedEnabledMcpKeys(
+  bindings: Array<{appName: string; items: Array<{mcpKey: string; enabled?: boolean}>}>,
+): string[] {
+  const enabledBindingSets = bindings
+    .map((binding) =>
+      new Set(
+        (Array.isArray(binding.items) ? binding.items : [])
+          .filter((item) => item.enabled !== false)
+          .map((item) => String(item.mcpKey || '').trim())
+          .filter(Boolean),
+      ),
+    )
+    .filter((items) => items.size > 0);
+  if (enabledBindingSets.length === 0) {
+    return [];
+  }
+  const [firstSet, ...restSets] = enabledBindingSets;
+  return [...firstSet].filter((mcpKey) => restSets.every((items) => items.has(mcpKey)));
+}
 
 function buildDefaultCatalogsHash(): string {
   return createHash('sha256')
@@ -93,10 +114,30 @@ export async function ensurePortalPreset(portalStore: PgPortalStore): Promise<vo
   }
   const manifestHash = createHash('sha256').update(manifestText).digest('hex');
   const previousState = await portalStore.getSystemState(PORTAL_PRESET_STATE_KEY);
+  const manifestMcpBindings = Array.isArray(raw.bindings?.mcps) ? raw.bindings.mcps : [];
+  const sharedPresetMcpKeys = resolveSharedEnabledMcpKeys(manifestMcpBindings);
+  const hasMcpCatalogGap = (raw.mcps || []).length > 0 && (await portalStore.countCloudMcps()) === 0;
+  const hasMcpBindingGap =
+    manifestMcpBindings.length > 0 &&
+    (await Promise.all(
+      manifestMcpBindings.map(async (binding) => {
+        const detail = await portalStore.getAppDetail(binding.appName);
+        const expected = Array.isArray(binding.items) ? binding.items.length : 0;
+        const actual = Array.isArray(detail?.mcpBindings) ? detail!.mcpBindings.length : 0;
+        return expected > 0 && actual === 0;
+      }),
+    )).some(Boolean);
+  const platformMcps = sharedPresetMcpKeys.length > 0 ? await portalStore.listMcps() : [];
+  const platformMcpKeySet = new Set(platformMcps.map((item) => item.mcpKey));
+  const hasPlatformMcpGap = sharedPresetMcpKeys.some((mcpKey) => !platformMcpKeySet.has(mcpKey));
   if (
     typeof previousState?.manifestHash === 'string' &&
     previousState.manifestHash === manifestHash &&
-    Number(previousState.schemaVersion) === raw.schemaVersion
+    Number(previousState.schemaVersion) === raw.schemaVersion &&
+    Number(previousState.bootstrapVersion) === PORTAL_PRESET_BOOTSTRAP_VERSION &&
+    !hasMcpCatalogGap &&
+    !hasMcpBindingGap &&
+    !hasPlatformMcpGap
   ) {
     return;
   }
@@ -108,6 +149,7 @@ export async function ensurePortalPreset(portalStore: PgPortalStore): Promise<vo
   await portalStore.setSystemState(PORTAL_PRESET_STATE_KEY, {
     manifestHash,
     schemaVersion: raw.schemaVersion,
+    bootstrapVersion: PORTAL_PRESET_BOOTSTRAP_VERSION,
     presetKey: 'core-oem',
     manifestPath: 'services/control-plane/presets/core-oem.json',
     appliedAt: new Date().toISOString(),

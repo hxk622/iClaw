@@ -1932,6 +1932,26 @@ export class PgPortalStore {
     return result.rows.map(mapMcpRow);
   }
 
+  async countCloudMcps(): Promise<number> {
+    const result = await this.pool.query<{count: string}>(
+      `
+        select count(*)::text as count
+        from cloud_mcp_catalog
+      `,
+    );
+    return Number(result.rows[0]?.count || '0');
+  }
+
+  async countPlatformMcps(): Promise<number> {
+    const result = await this.pool.query<{count: string}>(
+      `
+        select count(*)::text as count
+        from platform_bundled_mcps
+      `,
+    );
+    return Number(result.rows[0]?.count || '0');
+  }
+
   async listModels(): Promise<PortalModelRecord[]> {
     const result = await this.pool.query<PortalModelRow>(
       `
@@ -3117,6 +3137,48 @@ export class PgPortalStore {
             JSON.stringify(mcp.config || {}),
             JSON.stringify(mcp.metadata || {}),
             mcp.active ?? true,
+          ],
+        );
+      }
+
+      const sharedPresetMcpKeys = (() => {
+        const enabledBindingSets = input.mcpBindings
+          .map((binding) =>
+            new Set(
+              (Array.isArray(binding.items) ? binding.items : [])
+                .filter((item) => item.enabled !== false)
+                .map((item) => String(item.mcpKey || '').trim())
+                .filter(Boolean),
+            ),
+          )
+          .filter((items) => items.size > 0);
+        if (enabledBindingSets.length === 0) {
+          return [] as string[];
+        }
+        const [firstSet, ...restSets] = enabledBindingSets;
+        return [...firstSet].filter((mcpKey) => restSets.every((items) => items.has(mcpKey)));
+      })();
+      for (const [index, mcpKey] of sharedPresetMcpKeys.entries()) {
+        await client.query(
+          `
+            insert into platform_bundled_mcps (
+              mcp_key,
+              sort_order,
+              metadata_json,
+              active,
+              created_at,
+              updated_at
+            )
+            values ($1, $2, $3::jsonb, true, now(), now())
+            on conflict (mcp_key) do nothing
+          `,
+          [
+            mcpKey,
+            (index + 1) * 10,
+            JSON.stringify({
+              sourceType: 'preset',
+              derivedFrom: 'shared_oem_mcp_bindings',
+            }),
           ],
         );
       }
