@@ -561,8 +561,8 @@ export class PortalService {
     await this.requireAdmin(accessToken);
     return this.store.upsertMcp({
       mcpKey: normalizeRequiredString(input.mcpKey, 'mcp_key'),
-      name: normalizeRequiredString(input.name, 'name'),
-      description: normalizeRequiredString(input.description, 'description'),
+      name: normalizeOptionalString(input.name, 'name') || '',
+      description: normalizeOptionalString(input.description, 'description') || '',
       transport: normalizeOptionalString(input.transport, 'transport') || 'config',
       objectKey: normalizeOptionalString(input.objectKey, 'object_key'),
       config: asObject(input.config),

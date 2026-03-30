@@ -153,7 +153,8 @@ OEM 装配层不负责：
 
 - `cloud_skill_catalog`
 - `platform_bundled_skills`
-- `oem_mcp_catalog`
+- `cloud_mcp_catalog`
+- `platform_bundled_mcps`
 - `oem_model_catalog`
 - `oem_surface_catalog`
 - `oem_component_catalog`
@@ -162,6 +163,8 @@ OEM 装配层不负责：
 
 - `cloud_skill_catalog` 保存 skill 全集
 - `platform_bundled_skills` 保存平台级预装 skill 子集
+- `cloud_mcp_catalog` 保存 MCP 全集
+- `platform_bundled_mcps` 保存平台级预装 MCP 子集
 - 其它 catalog 表保存平台级能力全集
 
 ### 4.2 OEM 绑定表
@@ -169,7 +172,7 @@ OEM 装配层不负责：
 例如：
 
 - `oem_bundled_skills`
-- `oem_app_mcp_bindings`
+- `oem_bundled_mcps`
 - `oem_app_model_bindings`
 - `oem_app_surface_bindings`
 - `oem_app_component_bindings`
@@ -434,8 +437,9 @@ OEM 的未来重点不只是能力启停，还包括 UI/交互的积木化搭配
 
 对 `admin-web` 的具体约束：
 
-- `MCP center` 编辑的是平台级共享 catalog，不带某个 OEM 归属语义
-- OEM app 页面编辑的是 `oem_app_mcp_bindings` 这类绑定，不直接改 MCP 主数据
+- `云MCP` 页面编辑的是 `cloud_mcp_catalog`，这是 MCP 主数据唯一真值
+- `平台级 MCP` 页面编辑的是 `platform_bundled_mcps`，只管理平台预装子集
+- OEM app 页面编辑的是 `oem_bundled_mcps` 这类绑定，不直接改 MCP 主数据
 - 页面文案、接口命名、表头、操作按钮都要避免把“平台主数据编辑”和“OEM 显隐配置”混成一个概念
 - 任何“默认已安装 / 是否显示 / 排序 / 推荐”都应落在 OEM binding，而不是改写平台 catalog 真值
 

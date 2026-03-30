@@ -334,8 +334,8 @@ export type UpsertPortalSkillInput = {
 
 export type UpsertPortalMcpInput = {
   mcpKey: string;
-  name: string;
-  description: string;
+  name?: string;
+  description?: string;
   transport?: string | null;
   objectKey?: string | null;
   config?: PortalJsonObject;

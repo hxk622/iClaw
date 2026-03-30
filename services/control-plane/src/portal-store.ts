@@ -778,11 +778,26 @@ async function listActivePlatformBundledSkillSlugs(db: Pool | PoolClient): Promi
   );
 }
 
+async function listActivePlatformBundledMcpKeys(db: Pool | PoolClient): Promise<Set<string>> {
+  const result = await db.query<{mcp_key: string}>(
+    `
+      select mcp_key
+      from platform_bundled_mcps
+      where active = true
+    `,
+  );
+  return new Set(
+    result.rows
+      .map((row) => String(row.mcp_key || '').trim())
+      .filter(Boolean),
+  );
+}
+
 async function listMcpBindings(db: Pool | PoolClient, appName: string): Promise<PortalAppMcpBindingRecord[]> {
   const result = await db.query<PortalMcpBindingRow>(
     `
       select app_name, mcp_key, enabled, sort_order, config_json
-      from oem_app_mcp_bindings
+      from oem_bundled_mcps
       where app_name = $1
       order by sort_order asc, mcp_key asc
     `,
@@ -1052,10 +1067,17 @@ async function replaceMcpBindings(
   appName: string,
   items: ReplacePortalAppMcpBindingsInput,
 ): Promise<void> {
-  const keys = items.map((item) => item.mcpKey);
+  const platformMcpKeys = await listActivePlatformBundledMcpKeys(db);
+  const filteredItems = items
+    .map((item) => ({
+      ...item,
+      mcpKey: String(item.mcpKey || '').trim(),
+    }))
+    .filter((item) => item.mcpKey && !platformMcpKeys.has(item.mcpKey));
+  const keys = filteredItems.map((item) => item.mcpKey);
   await db.query(
     `
-      delete from oem_app_mcp_bindings
+      delete from oem_bundled_mcps
       where app_name = $1
         and (
           cardinality($2::text[]) = 0
@@ -1064,10 +1086,10 @@ async function replaceMcpBindings(
     `,
     [appName, keys],
   );
-  for (const item of items) {
+  for (const item of filteredItems) {
     await db.query(
       `
-        insert into oem_app_mcp_bindings (
+        insert into oem_bundled_mcps (
           app_name,
           mcp_key,
           enabled,
@@ -1210,10 +1232,15 @@ async function seedMcpBindings(
   appName: string,
   items: ReplacePortalAppMcpBindingsInput,
 ): Promise<void> {
+  const platformMcpKeys = await listActivePlatformBundledMcpKeys(db);
   for (const item of items) {
+    const mcpKey = String(item.mcpKey || '').trim();
+    if (!mcpKey || platformMcpKeys.has(mcpKey)) {
+      continue;
+    }
     await db.query(
       `
-        insert into oem_app_mcp_bindings (
+        insert into oem_bundled_mcps (
           app_name,
           mcp_key,
           enabled,
@@ -1223,7 +1250,7 @@ async function seedMcpBindings(
         values ($1, $2, $3, $4, $5::jsonb)
         on conflict (app_name, mcp_key) do nothing
       `,
-      [appName, item.mcpKey, item.enabled ?? true, item.sortOrder ?? 100, JSON.stringify(item.config || {})],
+      [appName, mcpKey, item.enabled ?? true, item.sortOrder ?? 100, JSON.stringify(item.config || {})],
     );
   }
 }
@@ -1887,18 +1914,19 @@ export class PgPortalStore {
     const result = await this.pool.query<PortalMcpRow>(
       `
         select
-          mcp_key,
-          name,
-          description,
-          transport,
-          object_key,
-          config_json,
-          metadata_json,
-          active,
-          created_at,
-          updated_at
-        from oem_mcp_catalog
-        order by mcp_key asc
+          p.mcp_key,
+          c.name,
+          c.description,
+          c.transport,
+          c.object_key,
+          c.config_json,
+          p.metadata_json,
+          p.active,
+          p.created_at,
+          p.updated_at
+        from platform_bundled_mcps p
+        join cloud_mcp_catalog c on c.mcp_key = p.mcp_key
+        order by p.sort_order asc, p.mcp_key asc
       `,
     );
     return result.rows.map(mapMcpRow);
@@ -2715,59 +2743,57 @@ export class PgPortalStore {
   }
 
   async upsertMcp(input: UpsertPortalMcpInput): Promise<PortalMcpRecord> {
-    const result = await this.pool.query<PortalMcpRow>(
+    const cloudExisting = await this.pool.query<{mcp_key: string}>(
       `
-        insert into oem_mcp_catalog (
+        select mcp_key
+        from cloud_mcp_catalog
+        where mcp_key = $1
+        limit 1
+      `,
+      [input.mcpKey],
+    );
+    if (!cloudExisting.rows[0]) {
+      throw new Error(`[portal-mcp] cloud mcp not found: ${input.mcpKey}`);
+    }
+    const sortOrderResult = await this.pool.query<{next_sort_order: number}>(
+      `
+        select coalesce(max(sort_order), 0) + 10 as next_sort_order
+        from platform_bundled_mcps
+      `,
+    );
+    await this.pool.query(
+      `
+        insert into platform_bundled_mcps (
           mcp_key,
-          name,
-          description,
-          transport,
-          object_key,
-          config_json,
+          sort_order,
           metadata_json,
           active,
           created_at,
           updated_at
         )
-        values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, now(), now())
+        values ($1, $2, $3::jsonb, $4, now(), now())
         on conflict (mcp_key)
         do update set
-          name = excluded.name,
-          description = excluded.description,
-          transport = excluded.transport,
-          object_key = excluded.object_key,
-          config_json = excluded.config_json,
           metadata_json = excluded.metadata_json,
           active = excluded.active,
           updated_at = now()
-        returning
-          mcp_key,
-          name,
-          description,
-          transport,
-          object_key,
-          config_json,
-          metadata_json,
-          active,
-          created_at,
-          updated_at
       `,
       [
         input.mcpKey,
-        input.name,
-        input.description,
-        input.transport || 'config',
-        input.objectKey || null,
-        JSON.stringify(input.config || {}),
+        Number(sortOrderResult.rows[0]?.next_sort_order || 10),
         JSON.stringify(input.metadata || {}),
         input.active ?? true,
       ],
     );
-    return mapMcpRow(result.rows[0]);
+    const next = (await this.listMcps()).find((item) => item.mcpKey === input.mcpKey) || null;
+    if (!next) {
+      throw new Error(`platform mcp upsert failed: ${input.mcpKey}`);
+    }
+    return next;
   }
 
   async deleteMcp(mcpKey: string): Promise<void> {
-    await this.pool.query(`delete from oem_mcp_catalog where mcp_key = $1`, [mcpKey]);
+    await this.pool.query(`delete from platform_bundled_mcps where mcp_key = $1`, [mcpKey]);
   }
 
   async replaceAppSkillBindings(
@@ -2811,7 +2837,7 @@ export class PgPortalStore {
         appName,
         action: 'mcp_bindings_saved',
         actorUserId,
-        payload: {count: items.length},
+        payload: {count: items.length, layer: 'oem_bundled_mcps'},
       });
       await client.query('commit');
     } catch (error) {
@@ -3058,7 +3084,7 @@ export class PgPortalStore {
       for (const mcp of input.mcps) {
         await client.query(
           `
-            insert into oem_mcp_catalog (
+            insert into cloud_mcp_catalog (
               mcp_key,
               name,
               description,

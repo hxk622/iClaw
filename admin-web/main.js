@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   {id: 'mcp-center', label: '平台级 MCP', icon: 'network'},
   {id: 'model-center', label: '模型中心', icon: 'package'},
   {id: 'cloud-skills', label: '云技能', icon: 'store'},
+  {id: 'cloud-mcps', label: '云MCP', icon: 'network'},
   {id: 'assets', label: '资源管理', icon: 'image'},
   {id: 'releases', label: '版本发布', icon: 'rocket'},
   {
@@ -569,6 +570,7 @@ const state = {
   selectedPaymentProviderTab: 'platform',
   selectedBrandMenuKey: '',
   selectedCloudSkillSlug: '',
+  selectedCloudMcpKey: '',
   selectedSkillSyncSourceId: '',
   selectedReleaseId: '',
   selectedPaymentOrderId: '',
@@ -2667,6 +2669,10 @@ function getMcpRegistryEntry(key) {
   return state.mcpRegistryCatalog.find((item) => item.key === key || item.mcpKey === key) || null;
 }
 
+function getCloudMcpCatalogEntry(key) {
+  return getMcpRegistryEntry(key);
+}
+
 function normalizeBillingMultiplierValue(value, fallback = 1) {
   const parsed = typeof value === 'number' ? value : Number(String(value || '').trim());
   return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed * 100) / 100 : fallback;
@@ -4298,6 +4304,9 @@ async function loadAppData() {
     if (!state.selectedCloudSkillSlug || !state.cloudSkillCatalog.find((item) => item.slug === state.selectedCloudSkillSlug)) {
       state.selectedCloudSkillSlug = state.cloudSkillCatalog[0]?.slug || '';
     }
+    if (!state.selectedCloudMcpKey || !state.mcpRegistryCatalog.find((item) => (item.key || item.mcpKey) === state.selectedCloudMcpKey)) {
+      state.selectedCloudMcpKey = state.mcpRegistryCatalog[0]?.key || state.mcpRegistryCatalog[0]?.mcpKey || '';
+    }
     if (!state.selectedSkillSyncSourceId || !state.skillSyncSources.find((item) => item.id === state.selectedSkillSyncSourceId)) {
       state.selectedSkillSyncSourceId = state.skillSyncSources[0]?.id || '';
     }
@@ -5087,7 +5096,7 @@ async function addPlatformMcpFromRegistry(formData) {
     }
     const registryEntry = getMcpRegistryEntry(key);
     if (!registryEntry) {
-      throw new Error(`MCP 全集中未找到 ${key}`);
+      throw new Error(`云MCP总库中未找到 ${key}`);
     }
     const config = asObject(registryEntry.config);
     await apiFetch(`/admin/portal/catalog/mcps/${encodeURIComponent(key)}`, {
@@ -5190,16 +5199,6 @@ async function saveMcpCatalogEntry(formData) {
     await apiFetch(`/admin/portal/catalog/mcps/${encodeURIComponent(key)}`, {
       method: 'PUT',
       body: JSON.stringify({
-        name: String(formData.get('name') || '').trim(),
-        description: String(formData.get('description') || '').trim(),
-        transport: String(formData.get('transport') || '').trim() || 'config',
-        object_key: String(formData.get('object_key') || '').trim() || null,
-        config: {
-          command: String(formData.get('command') || '').trim() || null,
-          args: splitLines(String(formData.get('args_text') || '')),
-          http_url: String(formData.get('http_url') || '').trim() || null,
-          env: parseEnvText(String(formData.get('env_text') || '')),
-        },
         metadata: expandMetadataEntries(readMetadataEntriesFromForm(document.querySelector('#mcp-editor-form'), 'metadata_entries')),
         active: String(formData.get('enabled') || 'true') === 'true',
       }),
@@ -5209,6 +5208,40 @@ async function saveMcpCatalogEntry(formData) {
     setNotice(`平台级 MCP ${state.selectedMcpKey} 已保存。`);
   } catch (error) {
     setError(error instanceof Error ? error.message : 'MCP 保存失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function saveCloudMcpCatalogEntry(formData) {
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    const key = String(formData.get('key') || '').trim();
+    await apiFetch('/admin/mcp/catalog', {
+      method: 'PUT',
+      body: JSON.stringify({
+        key,
+        name: String(formData.get('name') || '').trim(),
+        description: String(formData.get('description') || '').trim(),
+        transport: String(formData.get('transport') || '').trim() || 'config',
+        object_key: String(formData.get('object_key') || '').trim() || null,
+        enabled: String(formData.get('enabled') || 'true') === 'true',
+        command: String(formData.get('command') || '').trim() || null,
+        args: splitLines(String(formData.get('args_text') || '')),
+        http_url: String(formData.get('http_url') || '').trim() || null,
+        env: parseEnvText(String(formData.get('env_text') || '')),
+        metadata: expandMetadataEntries(readMetadataEntriesFromForm(document.querySelector('#cloud-mcp-editor-form'), 'cloud_mcp_metadata_entries')),
+      }),
+    });
+    await loadAppData();
+    state.selectedCloudMcpKey = key;
+    setNotice(`云MCP ${key} 已保存。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '云MCP 保存失败');
   } finally {
     state.busy = false;
     render();
@@ -5249,6 +5282,27 @@ async function deleteMcpCatalogEntry(key) {
     setNotice(`已将 ${key} 移出平台级 MCP。`);
   } catch (error) {
     setError(error instanceof Error ? error.message : 'MCP 删除失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function deleteCloudMcpCatalogEntry(key) {
+  if (!key) return;
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    await apiFetch(`/admin/mcp/catalog?key=${encodeURIComponent(key)}`, {
+      method: 'DELETE',
+    });
+    await loadAppData();
+    state.selectedCloudMcpKey = '';
+    setNotice(`已删除云MCP ${key}。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '云MCP 删除失败');
   } finally {
     state.busy = false;
     render();
@@ -6231,7 +6285,7 @@ function renderBrandDetailGuide(activeTab) {
   }
   if (activeTab === 'mcps') {
     return renderPageGuide('MCP 装配怎么配', [
-      'MCP 全集先在注册表里维护，平台通用预装子集在“平台级 MCP”维护。',
+      '云MCP总库先在“云MCP”页维护，平台通用预装子集在“平台级 MCP”维护。',
       '当前页面只负责当前 OEM 的增量装配；平台级 MCP 会自动继承并锁定。',
       '保存配置后再发布快照，客户端同步后才会加载新的 MCP 清单。',
     ], 'brand');
@@ -6871,7 +6925,7 @@ function renderBrandMcpAssembly(buffer) {
     <section class="fig-brand-section">
       <div class="fig-section-heading">
         <h2>MCP</h2>
-        <p>这里是 OEM 级 MCP 增量装配层。平台级 MCP 自动继承并锁定，当前页面只负责从 MCP 全集里给这个 OEM 追加能力。</p>
+        <p>这里是 OEM 级 MCP 增量装配层。平台级 MCP 自动继承并锁定，当前页面只负责从云MCP总库里给这个 OEM 追加能力。</p>
       </div>
       <article class="fig-card fig-card--subtle">
         <div class="fig-card__head">
@@ -6879,7 +6933,7 @@ function renderBrandMcpAssembly(buffer) {
           <span>平台级 MCP 自动继承，当前页面只做 OEM 增量安装</span>
         </div>
         <div class="fig-meta-cards">
-          <div class="fig-meta-card"><span>MCP 全集</span><strong>${escapeHtml(mcpServers.length)}</strong></div>
+          <div class="fig-meta-card"><span>云MCP总库</span><strong>${escapeHtml(mcpServers.length)}</strong></div>
           <div class="fig-meta-card"><span>生效总数</span><strong>${escapeHtml(effectiveSelectedMcp.length)}</strong></div>
           <div class="fig-meta-card"><span>OEM 增量</span><strong>${escapeHtml(oemInstalledCount)}</strong></div>
           <div class="fig-meta-card"><span>平台继承</span><strong>${escapeHtml(platformManagedCount)}</strong></div>
@@ -8702,7 +8756,7 @@ function renderSkillsMcpPage() {
         ? `
           <button class="solid-button fig-button" type="button" data-action="new-mcp">
             ${icon('plus', 'button-icon')}
-            从 MCP 全集加入
+            从云MCP加入
           </button>
         `
         : `
@@ -8715,7 +8769,7 @@ function renderSkillsMcpPage() {
     state.capabilityMode === 'skills'
       ? `管理平台预装 Skill 子集；云技能总库当前 ${cloudSkillTotal} 条`
       : state.capabilityMode === 'mcp'
-        ? '管理平台级 MCP 预装子集，来源于 MCP 全集'
+        ? '管理平台级 MCP 预装子集；云MCP总库是唯一主数据来源'
         : '管理模型主目录、OEM allowlist、推荐和默认模型';
   const pageTitle =
     state.capabilityMode === 'skills' ? '平台级 Skill' : state.capabilityMode === 'mcp' ? '平台级 MCP' : '模型中心';
@@ -8853,7 +8907,7 @@ function renderSkillsMcpPage() {
                   `,
                 )
                 .join('')
-            : `<div class="empty-state">还没有平台级 MCP，先从 MCP 全集加入。</div>`}
+            : `<div class="empty-state">还没有平台级 MCP，先从云MCP加入。</div>`}
         `
         : `
           ${models.length
@@ -8899,8 +8953,8 @@ function renderSkillsMcpPage() {
           ]
         : state.capabilityMode === 'mcp'
           ? [
-              '这里不是 MCP 全集，而是“平台内建预装 MCP 子集”。',
-              '点击“从 MCP 全集加入”后，会把注册表中的某个 MCP 纳入平台级 MCP，并自动继承到所有 OEM。',
+              '这里不是云MCP全集，而是 `platform_bundled_mcps` 这一层。',
+              '点击“从云MCP加入”后，会把云MCP总库中的某个 MCP 纳入平台级 MCP，并自动继承到所有 OEM。',
               '品牌详情里的“MCP”页只做 OEM 增量装配，不重复管理平台级 MCP。',
             ]
           : [
@@ -9525,6 +9579,171 @@ function renderCloudSkillsPage() {
   `;
 }
 
+function renderCloudMcpsPage() {
+  const mcps = [...state.mcpRegistryCatalog]
+    .map((item) => {
+      const key = String(item.key || item.mcpKey || '').trim();
+      return {
+        key,
+        name: String(item.name || titleizeKey(key)).trim() || key,
+        description: String(item.description || '').trim(),
+        transport: String(item.transport || 'config').trim() || 'config',
+        objectKey: String(item.object_key || item.objectKey || '').trim(),
+        config: asObject(item.config),
+        metadata: asObject(item.metadata),
+        enabled: item.enabled !== false && item.active !== false,
+      };
+    })
+    .filter((item) => item.key)
+    .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
+  const selected =
+    state.selectedCloudMcpKey === '__new__'
+      ? {
+          key: '',
+          name: '',
+          description: '',
+          transport: 'config',
+          objectKey: '',
+          config: {},
+          metadata: {},
+          enabled: true,
+        }
+      : mcps.find((item) => item.key === state.selectedCloudMcpKey) || mcps[0] || null;
+  const selectedConfig = asObject(selected?.config);
+  const selectedEnv = asObject(selectedConfig.env);
+
+  return `
+    <div class="fig-page">
+      <div class="fig-page__header">
+        <div class="fig-page__header-inner">
+          <div>
+            <h1>云MCP</h1>
+            <p class="fig-page__description">这里是 MCP 商店总库，也是 MCP 的唯一主数据来源。</p>
+          </div>
+          <div class="action-row">
+            <button class="solid-button fig-button" type="button" data-action="new-cloud-mcp">
+              ${icon('plus', 'button-icon')}
+              新增云MCP
+            </button>
+          </div>
+        </div>
+      </div>
+      ${renderPageGuide('云MCP怎么用', [
+        '这里维护 cloud MCP 总库，MCP 商店直接读取这里。',
+        '平台级 MCP 只是从云MCP里挑出来的预装子集；品牌页 MCP 只是 OEM 增量装配层。',
+        '不要在平台级 MCP 页面维护 MCP 主数据，主数据统一在这里维护。',
+      ], 'cloud')}
+      <div class="fig-layout">
+        <aside class="fig-sidebar">
+          <section class="fig-card fig-card--subtle">
+            <div class="fig-card__head">
+              <h3>云MCP列表</h3>
+              <span>${escapeHtml(mcps.length)} 个</span>
+            </div>
+            <div class="fig-capability-list">
+              ${mcps.length
+                ? mcps.map((item) => `
+                    <button class="capability-card${selected && selected.key === item.key ? ' is-active' : ''}" type="button" data-action="select-cloud-mcp" data-mcp-key="${escapeHtml(item.key)}">
+                      <strong>${escapeHtml(item.name)}</strong>
+                      <span>${escapeHtml(item.transport)} • ${item.enabled ? '已启用' : '已关闭'}</span>
+                    </button>
+                  `).join('')
+                : `<div class="empty-state">还没有云MCP。</div>`}
+            </div>
+          </section>
+        </aside>
+        <section class="fig-capability-detail">
+          <div class="fig-detail-stack">
+            <div class="fig-card">
+              <div class="fig-card__head">
+                <div>
+                  <h2>${escapeHtml(selected?.name || '新建云MCP')}</h2>
+                  <span>${escapeHtml(selected?.key || 'new-cloud-mcp')} · Cloud MCP Catalog</span>
+                </div>
+                <div class="metric-chips">
+                  <span>${selected?.enabled === false ? '目录关闭' : '目录可用'}</span>
+                  <span>${escapeHtml(selected?.transport || 'config')}</span>
+                </div>
+              </div>
+              <p class="detail-copy">${escapeHtml(selected?.description || '维护 MCP 名称、描述、连接方式、启动参数、环境变量和扩展元数据。')}</p>
+            </div>
+            <form id="cloud-mcp-editor-form" class="fig-card fig-card--subtle">
+              <div class="fig-card__head">
+                <h3>云MCP主数据</h3>
+                <span>这里维护 cloud MCP 的唯一真值。</span>
+              </div>
+              <div class="form-grid form-grid--two">
+                <label class="field">
+                  <span>Key</span>
+                  <input class="field-input" name="key" value="${fieldValue(selected?.key || '')}" placeholder="browser / yahoo-finance" ${selected?.key ? 'readonly' : ''} />
+                </label>
+                <label class="field">
+                  <span>Name</span>
+                  <input class="field-input" name="name" value="${fieldValue(selected?.name || '')}" placeholder="Browser" />
+                </label>
+                <label class="field field--wide">
+                  <span>Description</span>
+                  <textarea class="field-textarea" name="description">${escapeHtml(selected?.description || '')}</textarea>
+                </label>
+                <label class="field">
+                  <span>默认状态</span>
+                  <select class="field-select" name="enabled">
+                    <option value="true"${selected?.enabled === false ? '' : ' selected'}>可用</option>
+                    <option value="false"${selected?.enabled === false ? ' selected' : ''}>关闭</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Transport</span>
+                  <input class="field-input" name="transport" value="${fieldValue(selected?.transport || 'config')}" placeholder="stdio / http / config" />
+                </label>
+                <label class="field">
+                  <span>Command</span>
+                  <input class="field-input" name="command" value="${fieldValue(selectedConfig.command)}" placeholder="uvx / npx / node" />
+                </label>
+                <label class="field field--wide">
+                  <span>Args</span>
+                  <textarea class="field-textarea" name="args_text" placeholder="每行一个参数">${escapeHtml(asArray(selectedConfig.args).map((item) => String(item || '')).join('\n'))}</textarea>
+                </label>
+                <label class="field field--wide">
+                  <span>HTTP URL</span>
+                  <input class="field-input" name="http_url" value="${fieldValue(selectedConfig.http_url || selectedConfig.httpUrl)}" placeholder="http://127.0.0.1:4010/mcp" />
+                </label>
+                <label class="field field--wide">
+                  <span>Env</span>
+                  <textarea class="field-textarea" name="env_text" placeholder="KEY=value">${escapeHtml(formatEnvPairs(selectedEnv))}</textarea>
+                </label>
+                <label class="field">
+                  <span>Object Key</span>
+                  <input class="field-input" name="object_key" value="${fieldValue(selected?.objectKey || '')}" placeholder="minio://mcps/key.json" />
+                </label>
+                <div class="field field--wide">
+                  ${renderMetadataEntriesEditor({
+                    name: 'cloud_mcp_metadata_entries',
+                    title: 'Metadata',
+                    description: 'Cloud MCP 附加字段，支持点路径。',
+                    value: selected?.metadata || {},
+                  })}
+                </div>
+              </div>
+              <div class="action-row">
+                <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>保存云MCP</button>
+                <button class="ghost-button" type="button" data-action="cloud-mcp-test" data-mcp-key="${escapeHtml(selected?.key || '')}"${state.busy ? ' disabled' : ''}>测试连接</button>
+                ${selected?.key ? `<button class="ghost-button" type="button" data-action="cloud-mcp-delete" data-mcp-key="${escapeHtml(selected.key)}"${state.busy ? ' disabled' : ''}>删除云MCP</button>` : ''}
+                ${selected?.key ? `<button class="ghost-button" type="button" data-action="navigate" data-page="mcp-center">查看平台级 MCP</button>` : ''}
+              </div>
+              ${
+                state.mcpTestResult
+                  ? `<div class="banner ${state.mcpTestResult.ok ? 'banner--success' : 'banner--error'}">测试结果: ${escapeHtml(state.mcpTestResult.message || '未返回消息')}</div>`
+                  : ''
+              }
+            </form>
+          </div>
+        </section>
+      </div>
+    </div>
+  `;
+}
+
 function renderPlatformSkillAddPanel() {
   const knownCloudSkills = [...state.cloudSkillCatalog]
     .sort((left, right) => String(left.name || '').localeCompare(String(right.name || ''), 'zh-CN'))
@@ -9673,12 +9892,12 @@ function renderPlatformMcpAddPanel() {
   return `
     <section class="fig-card fig-card--subtle">
       <div class="fig-card__head">
-        <h3>从 MCP 全集加入平台级 MCP</h3>
-        <span>平台级 MCP 是平台预装子集，真实全集来自 MCP 注册表。</span>
+        <h3>从云MCP加入平台级 MCP</h3>
+        <span>这里只创建 <code>platform_bundled_mcps</code> 绑定；真实全集仍在“云MCP”。</span>
       </div>
       <form id="platform-mcp-add-form" class="form-grid form-grid--two">
         <label class="field">
-          <span>MCP Key</span>
+          <span>Cloud MCP Key</span>
           <input class="field-input" name="key" list="platform-mcp-registry-options" placeholder="输入 MCP key" />
           <datalist id="platform-mcp-registry-options">
             ${knownMcps.map((item) => `<option value="${escapeHtml(item.key)}">${escapeHtml(item.name)}</option>`).join('')}
@@ -9687,7 +9906,7 @@ function renderPlatformMcpAddPanel() {
         <div class="field">
           <span>说明</span>
           <small style="display:block;line-height:1.7;color:var(--text-secondary);">
-            输入 MCP key 后保存，系统会从 MCP 全集读取该记录，并把它加入平台级 MCP 子集。
+            输入云MCP key 后保存，系统会从云MCP总库读取该记录，并把它加入平台级 MCP 子集。
           </small>
         </div>
         <div class="fig-form-actions">
@@ -9703,24 +9922,10 @@ function renderMcpDetail(server) {
     return `
       <div class="fig-detail-stack">
         ${state.showPlatformMcpAddPanel ? renderPlatformMcpAddPanel() : ''}
-        <div class="fig-card fig-card--detail-empty"><div class="empty-state">选择一个平台级 MCP 查看详情，或先从 MCP 全集加入。</div></div>
+        <div class="fig-card fig-card--detail-empty"><div class="empty-state">选择一个平台级 MCP 查看详情，或先从云MCP加入。</div></div>
       </div>
     `;
   }
-  const isNew = !server.key;
-  const editable = {
-    key: server.key,
-    name: server.name,
-    description: server.description || '',
-    enabled: server.enabled_by_default,
-    transport: server.transport || 'config',
-    objectKey: server.objectKey || '',
-    command: server.command,
-    args: server.args || [],
-    http_url: server.http_url,
-    env: asObject(server.config?.env),
-    metadata: asObject(server.metadata),
-  };
   return `
     <div class="fig-detail-stack">
       ${state.showPlatformMcpAddPanel ? renderPlatformMcpAddPanel() : ''}
@@ -9728,115 +9933,71 @@ function renderMcpDetail(server) {
         <div class="fig-card__head">
           <div>
             <h2>${escapeHtml(server.name)}</h2>
-            <span>${escapeHtml(server.key || 'new-mcp')} · ${escapeHtml(server.command || '未声明 command')} · 平台级 MCP</span>
+            <span>${escapeHtml(server.key)} · 平台级 MCP</span>
           </div>
           <div class="metric-chips">
             <span>${escapeHtml(server.connected_brand_count)} 个 OEM 生效</span>
             <span>${server.enabled_by_default ? '目录可用' : '目录关闭'}</span>
           </div>
         </div>
-      </div>
-      <form id="mcp-editor-form" class="fig-card fig-card--subtle">
-      <div class="fig-card__head">
-        <h3>MCP 配置</h3>
-        <span>这里维护平台级 MCP 子集中的展示与运行配置；MCP 全集主数据仍以注册表为准。</span>
-      </div>
-      <div class="form-grid form-grid--two">
-        <label class="field">
-          <span>Key</span>
-          <input class="field-input" name="key" value="${fieldValue(editable.key)}" />
-        </label>
-        <label class="field">
-          <span>Name</span>
-          <input class="field-input" name="name" value="${fieldValue(editable.name)}" />
-        </label>
-        <label class="field field--wide">
-          <span>Description</span>
-          <textarea class="field-textarea" name="description">${escapeHtml(editable.description)}</textarea>
-        </label>
-        <label class="field">
-          <span>默认状态</span>
-          <select class="field-select" name="enabled">
-            <option value="true"${editable.enabled ? ' selected' : ''}>可用</option>
-            <option value="false"${editable.enabled ? '' : ' selected'}>关闭</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>Transport</span>
-          <input class="field-input" name="transport" value="${fieldValue(editable.transport)}" placeholder="stdio / http / config" />
-        </label>
-        <label class="field">
-          <span>Command</span>
-          <input class="field-input" name="command" value="${fieldValue(editable.command)}" placeholder="uvx / npx / node" />
-        </label>
-        <label class="field field--wide">
-          <span>Args</span>
-          <textarea class="field-textarea" name="args_text" placeholder="每行一个参数">${escapeHtml((editable.args || []).join('\n'))}</textarea>
-        </label>
-        <label class="field field--wide">
-          <span>HTTP URL</span>
-          <input class="field-input" name="http_url" value="${fieldValue(editable.http_url)}" placeholder="http://127.0.0.1:4010/mcp" />
-        </label>
-        <label class="field field--wide">
-          <span>Env</span>
-          <textarea class="field-textarea" name="env_text" placeholder="KEY=value">${escapeHtml(formatEnvPairs(editable.env))}</textarea>
-        </label>
-        <label class="field">
-          <span>Object Key</span>
-          <input class="field-input" name="object_key" value="${fieldValue(editable.objectKey)}" placeholder="minio://mcps/key.json" />
-        </label>
-        <div class="field field--wide">
-          ${renderMetadataEntriesEditor({
-            name: 'metadata_entries',
-            title: 'Metadata',
-            description: 'MCP 附加字段，支持点路径。',
-            value: editable.metadata,
-          })}
+        <p class="detail-copy">${escapeHtml(server.description || '暂无描述。')}</p>
+        <div class="fig-meta-cards">
+          <div class="fig-meta-card"><span>Transport</span><strong>${escapeHtml(server.transport || 'config')}</strong></div>
+          <div class="fig-meta-card"><span>Command</span><strong>${escapeHtml(server.command || '未声明')}</strong></div>
+          <div class="fig-meta-card"><span>HTTP URL</span><strong>${escapeHtml(server.http_url || '未声明')}</strong></div>
+          <div class="fig-meta-card"><span>环境变量</span><strong>${escapeHtml((server.env_keys || []).length)}</strong></div>
         </div>
       </div>
-      <div class="action-row">
-        <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>保存 MCP</button>
-        <button class="ghost-button" type="button" data-action="mcp-test" data-mcp-key="${escapeHtml(server.key)}"${state.busy ? ' disabled' : ''}>测试连接</button>
-        ${isNew ? '' : `<button class="ghost-button" type="button" data-action="mcp-delete" data-mcp-key="${escapeHtml(server.key)}"${state.busy ? ' disabled' : ''}>移出平台级 MCP</button>`}
-      </div>
-      ${
-        state.mcpTestResult
-          ? `<div class="banner ${state.mcpTestResult.ok ? 'banner--success' : 'banner--error'}">测试结果: ${escapeHtml(state.mcpTestResult.message || '未返回消息')}</div>`
-          : ''
-      }
+      <form id="mcp-editor-form" class="fig-card fig-card--subtle">
+        <div class="fig-card__head">
+          <h3>平台级 MCP 绑定</h3>
+          <span>这里只维护 platform bundled binding；MCP 主数据请到“云MCP”维护。</span>
+        </div>
+        <div class="form-grid">
+          <label class="field">
+            <span>Key</span>
+            <input class="field-input" name="key" value="${fieldValue(server.key)}" readonly />
+          </label>
+          <label class="field">
+            <span>平台预装状态</span>
+            <select class="field-select" name="enabled">
+              <option value="true"${server.enabled_by_default ? ' selected' : ''}>上架</option>
+              <option value="false"${server.enabled_by_default ? '' : ' selected'}>下架</option>
+            </select>
+          </label>
+          <div class="field field--wide">
+            ${renderMetadataEntriesEditor({
+              name: 'metadata_entries',
+              title: 'Metadata',
+              description: '平台级 MCP binding 的附加字段。',
+              value: asObject(server.metadata),
+            })}
+          </div>
+        </div>
+        <div class="action-row">
+          <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>保存平台级 MCP</button>
+          <button class="ghost-button" type="button" data-action="mcp-delete" data-mcp-key="${escapeHtml(server.key)}"${state.busy ? ' disabled' : ''}>移出平台级 MCP</button>
+          <button class="ghost-button" type="button" data-action="navigate" data-page="cloud-mcps">查看云MCP主数据</button>
+        </div>
       </form>
-      <section class="meta-columns">
-      <div class="meta-box">
-        <span>Args</span>
-        <strong>${escapeHtml((server.args || []).join(' ') || '无')}</strong>
-      </div>
-      <div class="meta-box">
-        <span>HTTP URL</span>
-        <strong>${escapeHtml(server.http_url || '未声明')}</strong>
-      </div>
-      <div class="meta-box meta-box--wide">
-        <span>环境变量</span>
-        <strong>${escapeHtml((server.env_keys || []).join(', ') || '无')}</strong>
-      </div>
-      </section>
       <section class="fig-card fig-card--subtle">
-      <div class="fig-card__head">
-        <h3>品牌连接图</h3>
-        <span>真实来自各品牌 capabilities.mcp_servers</span>
-      </div>
-      <div class="chip-grid">
-        ${(server.connected_brands || []).length
-          ? server.connected_brands
-              .map(
-                (brand) => `
-                  <button class="chip chip--interactive" type="button" data-action="select-brand" data-brand-id="${escapeHtml(brand.brand_id)}">
-                    ${escapeHtml(brand.display_name)}
-                  </button>
-                `,
-              )
-              .join('')
-          : `<div class="empty-state">${capabilityBindingEmptyLabel('mcp')}</div>`}
-      </div>
+        <div class="fig-card__head">
+          <h3>品牌连接图</h3>
+          <span>真实来自各品牌 capabilities.mcp_servers</span>
+        </div>
+        <div class="chip-grid">
+          ${(server.connected_brands || []).length
+            ? server.connected_brands
+                .map(
+                  (brand) => `
+                    <button class="chip chip--interactive" type="button" data-action="select-brand" data-brand-id="${escapeHtml(brand.brand_id)}">
+                      ${escapeHtml(brand.display_name)}
+                    </button>
+                  `,
+                )
+                .join('')
+            : `<div class="empty-state">${capabilityBindingEmptyLabel('mcp')}</div>`}
+        </div>
       </section>
       ${renderCapabilityBrandMatrix('mcp', server)}
     </div>
@@ -11433,6 +11594,8 @@ function renderDashboard() {
           ? renderSkillsMcpPage()
           : state.route === 'cloud-skills'
           ? renderCloudSkillsPage()
+          : state.route === 'cloud-mcps'
+            ? renderCloudMcpsPage()
           : state.route === 'assets'
             ? renderAssetsPage()
             : state.route === 'releases'
@@ -11524,6 +11687,11 @@ app.addEventListener('submit', async (event) => {
 
   if (form.id === 'mcp-editor-form') {
     await saveMcpCatalogEntry(new FormData(form));
+    return;
+  }
+
+  if (form.id === 'cloud-mcp-editor-form') {
+    await saveCloudMcpCatalogEntry(new FormData(form));
     return;
   }
 
@@ -11679,6 +11847,13 @@ app.addEventListener('click', async (event) => {
     return;
   }
 
+  if (action === 'select-cloud-mcp') {
+    state.selectedCloudMcpKey = target.getAttribute('data-mcp-key') || '';
+    state.mcpTestResult = null;
+    render();
+    return;
+  }
+
   if (action === 'search-cloud-skills') {
     await loadCloudSkillCatalogPage({
       query: getAdminSkillCatalogQueryValue('[data-cloud-skill-query]', state.cloudSkillCatalogMeta.query),
@@ -11764,6 +11939,14 @@ app.addEventListener('click', async (event) => {
     state.capabilityMode = 'mcp';
     state.route = getCapabilityRouteForMode(state.capabilityMode);
     state.showPlatformMcpAddPanel = !state.showPlatformMcpAddPanel;
+    state.mcpTestResult = null;
+    render();
+    return;
+  }
+
+  if (action === 'new-cloud-mcp') {
+    state.route = 'cloud-mcps';
+    state.selectedCloudMcpKey = '__new__';
     state.mcpTestResult = null;
     render();
     return;
@@ -12200,10 +12383,31 @@ app.addEventListener('click', async (event) => {
     return;
   }
 
+  if (action === 'cloud-mcp-test') {
+    const form = document.querySelector('#cloud-mcp-editor-form');
+    if (form instanceof HTMLFormElement) {
+      const data = new FormData(form);
+      await testMcpCatalogEntry({
+        key: String(data.get('key') || '').trim() || target.getAttribute('data-mcp-key') || '',
+        command: String(data.get('command') || '').trim() || null,
+        http_url: String(data.get('http_url') || '').trim() || null,
+      });
+    }
+    return;
+  }
+
   if (action === 'mcp-delete') {
     const key = target.getAttribute('data-mcp-key') || '';
     if (window.confirm(`确认删除 MCP ${key}？`)) {
       await deleteMcpCatalogEntry(key);
+    }
+    return;
+  }
+
+  if (action === 'cloud-mcp-delete') {
+    const key = target.getAttribute('data-mcp-key') || '';
+    if (window.confirm(`确认删除云MCP ${key}？`)) {
+      await deleteCloudMcpCatalogEntry(key);
     }
     return;
   }

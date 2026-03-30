@@ -120,21 +120,24 @@ pnpm db:init:control-plane
 OEM portal 现在也是 control-plane 的职责范围之一：
 
 - `oem_apps` 保存 OEM app 主配置
-- `platform_bundled_skills` / `oem_mcp_catalog` / `oem_model_catalog` 保存平台能力目录或平台预装子集
-- `oem_bundled_skills` / `oem_app_mcp_bindings` / `oem_app_model_bindings` / `oem_app_menu_bindings` 保存 OEM app 级 binding
+- `cloud_skill_catalog` / `cloud_mcp_catalog` / `oem_model_catalog` 保存平台能力全集主数据
+- `platform_bundled_skills` / `platform_bundled_mcps` 保存平台预装子集
+- `oem_bundled_skills` / `oem_bundled_mcps` / `oem_app_model_bindings` / `oem_app_menu_bindings` 保存 OEM app 级 binding
 - `oem_app_assets` 保存 MinIO 资产索引
 - `pnpm preset:sync:oem` 会把 `services/control-plane/presets/core-oem.json` 里的预置 app、skill、MCP、model、menu、asset 同步进数据库和对象存储
 
 这里的职责边界需要特别明确：
 
-- `oem_mcp_catalog` 保存的是平台级共享 MCP catalog，而不是某个 OEM 私有 MCP 数据
-- `iclaw` / `licaiclaw` 这类 OEM app 只通过 `oem_app_mcp_bindings` 控制：
+- `cloud_mcp_catalog` 保存 MCP 全集主数据，是云MCP的唯一真值
+- `platform_bundled_mcps` 只保存平台预装 MCP 子集，不重复复制 MCP 主数据
+- `iclaw` / `licaiclaw` 这类 OEM app 只通过 `oem_bundled_mcps` 控制：
   - 是否显示
   - 是否默认已安装
   - 是否推荐
   - 排序和少量展示 metadata
 - MCP 的名称、描述、logo、分类、连接方式、抓取来源等原始内容属于平台级主数据，不能在 OEM binding 中复制出第二份真值
 - 对外返回某个 app 的 MCP 列表时，control-plane 应负责把“平台 catalog + OEM binding”合成为当前 app 视图；前端只负责展示，不负责推断业务真相
+- 仓库内的 `mcp/mcp.json` 不再是主数据来源；本地 `services/openclaw/resources/mcp/mcp.json` 只是运行时生成产物
 - `services/control-plane/presets/core-oem.json` 现在只作为手工 seed / repair manifest 使用，不再参与 control-plane 日常启动 bootstrap
 - `pnpm preset:sync:oem` 是显式运维动作：
   - 适用于新环境首灌
