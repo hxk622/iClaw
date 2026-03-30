@@ -7,7 +7,6 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const resourcesSrcDir = path.join(rootDir, 'services', 'openclaw', 'resources');
-const mcpPresetDir = path.join(rootDir, 'mcp');
 const serversSrcDir = path.join(rootDir, 'servers');
 const resourcesDstDir = path.join(rootDir, 'apps', 'desktop', 'src-tauri', 'resources');
 
@@ -45,36 +44,10 @@ async function copyFileIfPresent(sourcePath, destinationPath) {
   await fs.copyFile(sourcePath, destinationPath);
 }
 
-async function loadJsonIfPresent(targetPath) {
-  if (!(await pathExists(targetPath))) {
-    return null;
-  }
-  return JSON.parse(await fs.readFile(targetPath, 'utf8'));
-}
-
 async function syncMcpConfig() {
   const sourcePath = path.join(resourcesSrcDir, 'mcp', 'mcp.json');
-  const overlayPath = path.join(mcpPresetDir, 'mcp.json');
   const outputPath = path.join(resourcesDstDir, 'mcp', 'mcp.json');
-
-  const source = await loadJsonIfPresent(sourcePath);
-  const overlay = await loadJsonIfPresent(overlayPath);
-
-  if (!source && !overlay) {
-    return;
-  }
-
-  const merged = {
-    ...(source ?? {}),
-    ...(overlay ?? {}),
-    mcpServers: {
-      ...(source?.mcpServers ?? {}),
-      ...(overlay?.mcpServers ?? {}),
-    },
-  };
-
-  await fs.mkdir(path.dirname(outputPath), { recursive: true });
-  await fs.writeFile(outputPath, `${JSON.stringify(merged, null, 2)}\n`, 'utf8');
+  await copyFileIfPresent(sourcePath, outputPath);
 }
 
 async function main() {

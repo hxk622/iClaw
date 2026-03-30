@@ -9,7 +9,6 @@ import { loadBrandProfile, resolveBrandId } from '../../scripts/lib/brand-profil
 const desktopNodeModules = path.resolve(__dirname, './node_modules');
 const workspaceDir = path.join(os.homedir(), '.openclaw', 'workspace');
 const resourcesDir = path.resolve(__dirname, '../../services/openclaw/resources');
-const skillsDir = path.resolve(__dirname, '../../skills');
 const CONTROL_UI_BOOTSTRAP_CONFIG_PATH = '/__openclaw/control-ui-config.json';
 
 const workspaceFiles = {
@@ -21,22 +20,6 @@ const workspaceFiles = {
 } as const;
 
 type WorkspaceFileKey = keyof typeof workspaceFiles;
-
-type BundledSkillCatalogItem = {
-  slug: string;
-  name: string;
-  description: string;
-  tags: string[];
-  license: string | null;
-  homepage: string | null;
-  market: string | null;
-  category: string | null;
-  skill_type: string | null;
-  publisher: string | null;
-  distribution: string | null;
-  path: string;
-  source: 'bundled';
-};
 
 async function readWorkspaceFile(key: WorkspaceFileKey): Promise<string> {
   const filename = workspaceFiles[key];
@@ -92,107 +75,6 @@ async function writeWorkspacePayload(body: unknown) {
   }
 }
 
-function parseFrontmatter(raw: string): Record<string, string> {
-  if (!raw.startsWith('---\n')) {
-    return {};
-  }
-
-  const closingIndex = raw.indexOf('\n---', 4);
-  if (closingIndex === -1) {
-    return {};
-  }
-
-  const frontmatter = raw.slice(4, closingIndex).split('\n');
-  const values: Record<string, string> = {};
-  let blockKey: string | null = null;
-  let blockLines: string[] = [];
-
-  for (const line of frontmatter) {
-    if (blockKey) {
-      if (/^\s/.test(line) || !line.trim()) {
-        blockLines.push(line.replace(/^\s+/, ''));
-        continue;
-      }
-      values[blockKey] = blockLines.join('\n').trim();
-      blockKey = null;
-      blockLines = [];
-    }
-
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const separatorIndex = trimmed.indexOf(':');
-    if (separatorIndex === -1) continue;
-
-    const key = trimmed.slice(0, separatorIndex).trim();
-    const value = trimmed.slice(separatorIndex + 1).trim();
-    if (!key) continue;
-    if (value === '|' || value === '>') {
-      blockKey = key;
-      blockLines = [];
-      continue;
-    }
-    values[key] = value.replace(/^['"]|['"]$/g, '');
-  }
-
-  if (blockKey) {
-    values[blockKey] = blockLines.join('\n').trim();
-  }
-
-  return values;
-}
-
-function parseTags(value: string | undefined): string[] {
-  if (!value) return [];
-  const normalized = value.replace(/^\[/, '').replace(/\]$/, '');
-  return normalized
-    .split(',')
-    .map((tag) => tag.trim().replace(/^['"]|['"]$/g, ''))
-    .filter(Boolean);
-}
-
-async function loadBundledSkillsCatalog(): Promise<BundledSkillCatalogItem[]> {
-  const entries = await fs.readdir(skillsDir, { withFileTypes: true });
-  const items = await Promise.all(
-    entries
-      .filter((entry) => entry.isDirectory())
-      .map(async (entry) => {
-        const skillMdPath = path.join(skillsDir, entry.name, 'SKILL.md');
-        try {
-          const raw = await fs.readFile(skillMdPath, 'utf8');
-          const frontmatter = parseFrontmatter(raw);
-          const name = frontmatter.name?.trim();
-          const description = frontmatter.description?.trim();
-
-          if (!name || !description) {
-            return null;
-          }
-
-          return {
-            slug: (frontmatter.slug || entry.name).trim(),
-            name,
-            description,
-            tags: parseTags(frontmatter.tags),
-            license: frontmatter.license?.trim() || null,
-            homepage: frontmatter.homepage?.trim() || null,
-            market: frontmatter.market?.trim() || null,
-            category: frontmatter.category?.trim() || null,
-            skill_type: frontmatter.skill_type?.trim() || null,
-            publisher: frontmatter.publisher?.trim() || null,
-            distribution: frontmatter.distribution?.trim() || null,
-            path: skillMdPath,
-            source: 'bundled',
-          } satisfies BundledSkillCatalogItem;
-        } catch {
-          return null;
-        }
-      }),
-  );
-
-  return items
-    .filter((item): item is BundledSkillCatalogItem => Boolean(item))
-    .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
-}
-
 function workspaceDevPlugin(assistantName: string) {
   return {
     name: 'iclaw-workspace-dev-plugin',
@@ -226,26 +108,6 @@ function workspaceDevPlugin(assistantName: string) {
             res.statusCode = 500;
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify({ error: error instanceof Error ? error.message : 'bootstrap endpoint failed' }));
-            return;
-          }
-        }
-
-        if (req.url?.startsWith('/__iclaw/bundled-skills')) {
-          try {
-            if (req.method !== 'GET') {
-              res.statusCode = 405;
-              res.end('Method Not Allowed');
-              return;
-            }
-
-            const payload = await loadBundledSkillsCatalog();
-            res.setHeader('Content-Type', 'application/json; charset=utf-8');
-            res.end(JSON.stringify(payload));
-            return;
-          } catch (error) {
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json; charset=utf-8');
-            res.end(JSON.stringify({ error: error instanceof Error ? error.message : 'skills endpoint failed' }));
             return;
           }
         }

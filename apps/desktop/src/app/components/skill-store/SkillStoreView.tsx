@@ -31,7 +31,6 @@ import {
   installSkillFromStore,
   loadExtensionInstallConfig,
   loadAdminSkillStoreCatalogPage,
-  loadBundledSkillCatalog,
   loadSkillSyncRuns,
   loadSkillSyncSources,
   loadSkillStoreCatalogPage,
@@ -702,17 +701,8 @@ export function SkillStoreView({
     let cancelled = false;
 
     const load = async () => {
-      if (!initialCatalogSnapshot) {
-        try {
-          const bundledCatalog = await loadBundledSkillCatalog();
-          if (!cancelled) {
-            setSkills((current) => (current.length > 0 ? current : bundledCatalog));
-            setCatalogTotal((current) => (current > 0 ? current : bundledCatalog.length));
-            setInitialHydrated(true);
-          }
-        } catch {
-          // Ignore bundled fallback failures and continue with live fetch.
-        }
+      if (!initialCatalogSnapshot && !cancelled) {
+        setInitialHydrated(true);
       }
 
       setLoading(true);

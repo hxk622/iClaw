@@ -9,6 +9,7 @@ import {
   DEFAULT_CLOUD_SKILL_SEEDS,
   DEPRECATED_DEFAULT_AGENT_SLUGS,
 } from './catalog-defaults.ts';
+import {getCloudSkillArtifactObjectKey} from './cloud-skill-artifacts.ts';
 import {hashPassword} from './passwords.ts';
 import type {PortalPresetManifest} from './portal-domain.ts';
 import {syncPortalPresetManifest} from './portal-preset.ts';
@@ -21,6 +22,7 @@ const LEGACY_DEFAULT_INVESTMENT_CATEGORY_FIXUPS: Record<string, {from: string[];
   'a-share-value-hunter': {from: ['stock'], to: 'value'},
   'us-value-compass': {from: ['global'], to: 'value'},
 };
+const DEFAULT_CATALOGS_BOOTSTRAP_VERSION = 3;
 const DEFAULT_CATALOGS_STATE_KEY = 'bootstrap/default-catalogs';
 const PORTAL_PRESET_STATE_KEY = 'portal_preset/core-oem';
 
@@ -32,6 +34,7 @@ function buildDefaultCatalogsHash(): string {
         agents: DEFAULT_AGENT_CATALOG_SEEDS,
         deprecatedAgents: DEPRECATED_DEFAULT_AGENT_SLUGS,
         investmentCategoryFixups: LEGACY_DEFAULT_INVESTMENT_CATEGORY_FIXUPS,
+        bootstrapVersion: DEFAULT_CATALOGS_BOOTSTRAP_VERSION,
       }),
     )
     .digest('hex');
@@ -141,6 +144,28 @@ export async function ensureDefaultCatalogs(store: ControlPlaneStore): Promise<v
 
   for (const skill of DEFAULT_CLOUD_SKILL_SEEDS) {
     const existing = await store.getSkillCatalogEntry(skill.slug);
+    const existingHasCloudArtifact = Boolean(
+      existing &&
+        (existing.artifactUrl ||
+          getCloudSkillArtifactObjectKey(existing.metadata || {}) ||
+          existing.originType === 'github_repo'),
+    );
+    const useBundledFallback =
+      Boolean(skill.artifactSourcePath) &&
+      !existingHasCloudArtifact &&
+      (!existing || existing.distribution === 'bundled');
+    const distribution =
+      useBundledFallback
+        ? 'bundled'
+        : existing?.distribution === 'bundled'
+          ? 'cloud'
+          : existing?.distribution || skill.distribution || 'cloud';
+    const originType =
+      useBundledFallback
+        ? 'bundled'
+        : existing?.originType === 'bundled'
+          ? skill.originType || 'manual'
+          : existing?.originType || skill.originType || 'clawhub';
     await store.upsertSkillCatalogEntry({
       slug: existing?.slug || skill.slug,
       name: existing?.name || skill.name,
@@ -149,14 +174,14 @@ export async function ensureDefaultCatalogs(store: ControlPlaneStore): Promise<v
       category: existing?.category || skill.category,
       skill_type: existing?.skillType || skill.skillType,
       publisher: existing?.publisher || skill.publisher || 'iClaw',
-      distribution: existing?.distribution || skill.distribution || (skill.artifactSourcePath ? 'bundled' : 'cloud'),
+      distribution,
       tags: existing?.tags?.length ? existing.tags : skill.tags,
       version: existing?.version || skill.version || '1.0.0',
-      artifact_url: existing?.artifactUrl || skill.artifactUrl || null,
+      artifact_url: useBundledFallback ? null : existing?.artifactUrl || skill.artifactUrl || null,
       artifact_format: existing?.artifactFormat || skill.artifactFormat || 'tar.gz',
       artifact_sha256: existing?.artifactSha256 || null,
-      artifact_source_path: existing?.artifactSourcePath || skill.artifactSourcePath || null,
-      origin_type: existing?.originType || skill.originType || (skill.artifactSourcePath ? 'bundled' : 'clawhub'),
+      artifact_source_path: useBundledFallback ? existing?.artifactSourcePath || skill.artifactSourcePath || null : null,
+      origin_type: originType,
       source_url: existing?.sourceUrl || skill.sourceUrl || skill.artifactUrl || null,
       metadata: existing?.metadata || skill.metadata || {},
       active: true,

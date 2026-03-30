@@ -17,22 +17,6 @@ import type {
 import {parseExtensionSetupSchema} from './extension-setup';
 import { canUseCacheStorage, readCacheJson, writeCacheJson } from './persistence/cache-store';
 
-export type RawBundledSkillCatalogItem = {
-  slug: string;
-  name: string;
-  description: string;
-  tags: string[];
-  license: string | null;
-  homepage: string | null;
-  market: string | null;
-  category: string | null;
-  skill_type: string | null;
-  publisher: string | null;
-  distribution: string | null;
-  path: string;
-  source: 'bundled';
-};
-
 type ManagedSkillInstallInput = {
   slug: string;
   version: string;
@@ -363,44 +347,6 @@ function isFeaturedSkill(item: {slug: string; featured?: boolean | null}): boole
   return FEATURED_SKILL_SLUGS.has(item.slug);
 }
 
-function normalizeBundledSkill(item: RawBundledSkillCatalogItem): SkillStoreItem {
-  const market = inferMarket(item);
-  const inferredCategoryId = inferCategoryId(item);
-  const categoryId =
-    market === 'A股' ? 'a-share' : market === '美股' ? 'us-stock' : inferredCategoryId;
-
-  return {
-    slug: item.slug,
-    name: item.name,
-    description: item.description,
-    tags: item.tags,
-    downloadCount: null,
-    featured: isFeaturedSkill(item),
-    source: 'bundled',
-    market,
-    skillType: inferSkillType(item),
-    categoryId,
-    categoryLabel: categoryLabel(categoryId, market),
-    official: true,
-    installed: true,
-    userInstalled: false,
-    localInstalled: true,
-    enabled: true,
-    sourceLabel: '系统预置',
-    publisher: item.publisher || 'iClaw',
-    version: null,
-    artifactUrl: null,
-    artifactFormat: null,
-    artifactSha256: null,
-    sourceUrl: null,
-    metadata: {},
-    setupSchema: null,
-    setupStatus: 'not_required',
-    setupSchemaVersion: null,
-    setupUpdatedAt: null,
-  };
-}
-
 function sortSkillStoreItems<T extends SkillStoreItem>(items: Iterable<T>): T[] {
   return Array.from(items).sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
 }
@@ -572,42 +518,17 @@ function normalizeAdminSkill(
   item: AdminSkillCatalogEntryData,
   libraryItem: UserSkillLibraryItemData | null,
   localItem: ManagedSkillInstallRecord | null,
-  bundledItem: RawBundledSkillCatalogItem | null,
 ): AdminSkillStoreItem {
-  const normalized =
-    item.source === 'bundled' && bundledItem
-      ? normalizeBundledSkill({
-          ...bundledItem,
-          name: item.name,
-          description: item.description,
-          tags: item.tags,
-          market: item.market,
-          category: item.category,
-          skill_type: item.skill_type,
-          publisher: item.publisher,
-          distribution: item.distribution,
-        })
-      : normalizeCloudSkill(item, libraryItem, localItem);
+  const normalized = normalizeCloudSkill(item, libraryItem, localItem);
 
   return {
     ...normalized,
     source: item.source,
-    sourceLabel: item.source === 'bundled' ? '系统预置' : '云端技能',
+    sourceLabel: item.source === 'private' ? '我的导入' : item.source === 'bundled' ? '系统预置' : '云端技能',
     active: item.active,
     createdAt: item.created_at,
     updatedAt: item.updated_at,
   };
-}
-
-async function loadBundledSkillCatalogRaw(): Promise<RawBundledSkillCatalogItem[]> {
-  return isTauriRuntime()
-    ? await invoke<RawBundledSkillCatalogItem[]>('load_bundled_skills_catalog')
-    : await fetch('/__iclaw/bundled-skills').then(async (response) => {
-        if (!response.ok) {
-          throw new Error(`bundled skills request failed: ${response.status}`);
-        }
-        return (await response.json()) as RawBundledSkillCatalogItem[];
-      });
 }
 
 async function listManagedSkills(): Promise<ManagedSkillInstallRecord[]> {
@@ -635,11 +556,6 @@ async function removeManagedSkill(slug: string): Promise<boolean> {
     emitWindowEvent(SKILL_STORE_UPDATED_EVENT);
   }
   return removed;
-}
-
-export async function loadBundledSkillCatalog(): Promise<SkillStoreItem[]> {
-  const rawItems = await loadBundledSkillCatalogRaw();
-  return sortSkillStoreItems(rawItems.map(normalizeBundledSkill));
 }
 
 function normalizeCatalogPageMeta<T>(page: SkillCatalogPageData<T>) {
@@ -708,9 +624,7 @@ export async function loadAdminSkillStoreCatalogPage(input: {
 }): Promise<AdminSkillStoreCatalogPage> {
   const offset = Math.max(0, Math.floor(input.offset ?? 0));
   const limit = Math.max(1, Math.floor(input.limit ?? SKILL_STORE_INITIAL_CLOUD_LIMIT));
-  const includeBundled = offset === 0;
-  const [bundledRawItems, adminPage, libraryItems, localManagedItems] = await Promise.all([
-    includeBundled ? loadBundledSkillCatalogRaw() : Promise.resolve([]),
+  const [adminPage, libraryItems, localManagedItems] = await Promise.all([
     input.client.listAdminSkillsCatalogPage(input.accessToken, { limit, offset }),
     input.client.getSkillLibrary(input.accessToken).catch(() => []),
     listManagedSkills().catch(() => []),
@@ -718,7 +632,6 @@ export async function loadAdminSkillStoreCatalogPage(input: {
 
   const libraryBySlug = new Map(libraryItems.map((item) => [item.slug, item]));
   const localBySlug = new Map(localManagedItems.map((item) => [item.slug, item]));
-  const bundledBySlug = new Map(bundledRawItems.map((item) => [item.slug, item]));
 
   return toSkillStoreCatalogPage({
     items: adminPage.items.map((item) =>
@@ -726,7 +639,6 @@ export async function loadAdminSkillStoreCatalogPage(input: {
         item,
         libraryBySlug.get(item.slug) || null,
         localBySlug.get(item.slug) || null,
-        bundledBySlug.get(item.slug) || null,
       ),
     ),
     ...normalizeCatalogPageMeta(adminPage),

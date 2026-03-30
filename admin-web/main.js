@@ -547,7 +547,7 @@ const state = {
   personalSkillCatalog: [],
   skillLibrary: [],
   mcpCatalog: [],
-  mcpRegistryCatalog: [],
+  cloudMcpCatalog: [],
   modelCatalog: [],
   modelProviderProfiles: [],
   modelProviderOverrides: {},
@@ -2665,12 +2665,8 @@ function getMcpCatalogEntry(key) {
   return state.mcpCatalog.find((item) => item.key === key || item.mcpKey === key) || null;
 }
 
-function getMcpRegistryEntry(key) {
-  return state.mcpRegistryCatalog.find((item) => item.key === key || item.mcpKey === key) || null;
-}
-
 function getCloudMcpCatalogEntry(key) {
-  return getMcpRegistryEntry(key);
+  return state.cloudMcpCatalog.find((item) => item.key === key || item.mcpKey === key) || null;
 }
 
 function normalizeBillingMultiplierValue(value, fallback = 1) {
@@ -4191,7 +4187,7 @@ async function loadAppData() {
   render();
 
   try {
-    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, mcpRegistryData, modelCatalogData, modelProviderProfilesData, memoryEmbeddingProfilesData, modelLogoPresetsData, menuCatalogData, composerControlCatalogData, composerShortcutCatalogData, skillSyncSourcesData, skillSyncRunsData, paymentProviderProfilesData, paymentProviderBindingsData, paymentOrdersData] = await Promise.all([
+    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, cloudMcpCatalogData, modelCatalogData, modelProviderProfilesData, memoryEmbeddingProfilesData, modelLogoPresetsData, menuCatalogData, composerControlCatalogData, composerShortcutCatalogData, skillSyncSourcesData, skillSyncRunsData, paymentProviderProfilesData, paymentProviderBindingsData, paymentOrdersData] = await Promise.all([
       apiFetch('/admin/portal/apps', {method: 'GET'}),
       apiFetch('/admin/agents/catalog', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/skills', {method: 'GET'}),
@@ -4230,7 +4226,7 @@ async function loadAppData() {
     state.agentCatalog = Array.isArray(agentCatalogData.items) ? agentCatalogData.items : [];
     state.skillCatalog = Array.isArray(skillCatalogData.items) ? skillCatalogData.items : [];
     state.mcpCatalog = Array.isArray(mcpCatalogData.items) ? mcpCatalogData.items : [];
-    state.mcpRegistryCatalog = Array.isArray(mcpRegistryData.items) ? mcpRegistryData.items : [];
+    state.cloudMcpCatalog = Array.isArray(cloudMcpCatalogData.items) ? cloudMcpCatalogData.items : [];
     state.modelCatalog = Array.isArray(modelCatalogData.items) ? modelCatalogData.items : [];
     state.modelProviderProfiles = Array.isArray(modelProviderProfilesData.items) ? modelProviderProfilesData.items : [];
     state.memoryEmbeddingProfiles = Array.isArray(memoryEmbeddingProfilesData.items) ? memoryEmbeddingProfilesData.items : [];
@@ -4304,8 +4300,8 @@ async function loadAppData() {
     if (!state.selectedCloudSkillSlug || !state.cloudSkillCatalog.find((item) => item.slug === state.selectedCloudSkillSlug)) {
       state.selectedCloudSkillSlug = state.cloudSkillCatalog[0]?.slug || '';
     }
-    if (!state.selectedCloudMcpKey || !state.mcpRegistryCatalog.find((item) => (item.key || item.mcpKey) === state.selectedCloudMcpKey)) {
-      state.selectedCloudMcpKey = state.mcpRegistryCatalog[0]?.key || state.mcpRegistryCatalog[0]?.mcpKey || '';
+    if (!state.selectedCloudMcpKey || !state.cloudMcpCatalog.find((item) => (item.key || item.mcpKey) === state.selectedCloudMcpKey)) {
+      state.selectedCloudMcpKey = state.cloudMcpCatalog[0]?.key || state.cloudMcpCatalog[0]?.mcpKey || '';
     }
     if (!state.selectedSkillSyncSourceId || !state.skillSyncSources.find((item) => item.id === state.selectedSkillSyncSourceId)) {
       state.selectedSkillSyncSourceId = state.skillSyncSources[0]?.id || '';
@@ -5094,30 +5090,20 @@ async function addPlatformMcpFromRegistry(formData) {
     if (!key) {
       throw new Error('请填写 MCP key');
     }
-    const registryEntry = getMcpRegistryEntry(key);
-    if (!registryEntry) {
+    const cloudMcpEntry = getCloudMcpCatalogEntry(key);
+    if (!cloudMcpEntry) {
       throw new Error(`云MCP总库中未找到 ${key}`);
     }
-    const config = asObject(registryEntry.config);
     await apiFetch(`/admin/portal/catalog/mcps/${encodeURIComponent(key)}`, {
       method: 'PUT',
       body: JSON.stringify({
-        name: String(registryEntry.name || key).trim(),
-        description: String(registryEntry.description || '').trim(),
-        transport: String(registryEntry.transport || registryEntry.type || 'config').trim() || 'config',
-        config: {
-          command: String(registryEntry.command || config.command || '').trim() || null,
-          args: asArray(registryEntry.args || config.args).map((item) => String(item || '').trim()).filter(Boolean),
-          http_url: String(registryEntry.http_url || registryEntry.httpUrl || config.http_url || config.httpUrl || '').trim() || null,
-          env: asObject(registryEntry.env || config.env),
-        },
         metadata: {
-          ...asObject(registryEntry.metadata),
-          sourceType: 'mcp-registry-import',
-          sourceCatalog: 'mcp-registry',
-          registryKey: key,
+          ...asObject(cloudMcpEntry.metadata),
+          sourceType: 'cloud-mcp-import',
+          sourceCatalog: 'cloud-mcps',
+          cloudMcpKey: key,
         },
-        active: registryEntry.enabled !== false,
+        active: cloudMcpEntry.enabled !== false,
       }),
     });
     await loadAppData();
@@ -6903,7 +6889,7 @@ function renderBrandSkillsAssembly(buffer) {
 }
 
 function renderBrandMcpAssembly(buffer) {
-  const mcpServers = [...state.mcpRegistryCatalog]
+  const mcpServers = [...state.cloudMcpCatalog]
     .map((item) => {
       const key = String(item.key || item.mcpKey || '').trim();
       const config = asObject(item.config);
@@ -9580,7 +9566,7 @@ function renderCloudSkillsPage() {
 }
 
 function renderCloudMcpsPage() {
-  const mcps = [...state.mcpRegistryCatalog]
+  const mcps = [...state.cloudMcpCatalog]
     .map((item) => {
       const key = String(item.key || item.mcpKey || '').trim();
       return {
@@ -9881,7 +9867,7 @@ function renderSkillDetail(skill) {
 }
 
 function renderPlatformMcpAddPanel() {
-  const knownMcps = [...state.mcpRegistryCatalog]
+  const knownMcps = [...state.cloudMcpCatalog]
     .map((item) => ({
       key: String(item.key || item.mcpKey || '').trim(),
       name: String(item.name || '').trim(),
@@ -9898,8 +9884,8 @@ function renderPlatformMcpAddPanel() {
       <form id="platform-mcp-add-form" class="form-grid form-grid--two">
         <label class="field">
           <span>Cloud MCP Key</span>
-          <input class="field-input" name="key" list="platform-mcp-registry-options" placeholder="输入 MCP key" />
-          <datalist id="platform-mcp-registry-options">
+          <input class="field-input" name="key" list="platform-mcp-cloud-options" placeholder="输入 MCP key" />
+          <datalist id="platform-mcp-cloud-options">
             ${knownMcps.map((item) => `<option value="${escapeHtml(item.key)}">${escapeHtml(item.name)}</option>`).join('')}
           </datalist>
         </label>

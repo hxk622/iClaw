@@ -507,13 +507,22 @@ create table if not exists platform_bundled_skills (
   updated_at timestamptz not null default now()
 );
 
-create table if not exists oem_mcp_catalog (
+create table if not exists cloud_mcp_catalog (
   mcp_key text primary key,
   name text not null,
   description text not null,
   transport text not null default 'config',
   object_key text,
   config_json jsonb not null default '{}'::jsonb,
+  metadata_json jsonb not null default '{}'::jsonb,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists platform_bundled_mcps (
+  mcp_key text primary key references cloud_mcp_catalog(mcp_key) on delete cascade,
+  sort_order integer not null default 100,
   metadata_json jsonb not null default '{}'::jsonb,
   active boolean not null default true,
   created_at timestamptz not null default now(),
@@ -745,9 +754,9 @@ create table if not exists oem_bundled_skills (
   primary key (app_name, skill_slug)
 );
 
-create table if not exists oem_app_mcp_bindings (
+create table if not exists oem_bundled_mcps (
   app_name text not null references oem_apps(app_name) on delete cascade,
-  mcp_key text not null references oem_mcp_catalog(mcp_key) on delete cascade,
+  mcp_key text not null references cloud_mcp_catalog(mcp_key) on delete cascade,
   enabled boolean not null default true,
   sort_order integer not null default 100,
   config_json jsonb not null default '{}'::jsonb,
@@ -755,6 +764,9 @@ create table if not exists oem_app_mcp_bindings (
   updated_at timestamptz not null default now(),
   primary key (app_name, mcp_key)
 );
+
+drop table if exists oem_app_mcp_bindings cascade;
+drop table if exists oem_mcp_catalog cascade;
 
 create table if not exists oem_app_model_bindings (
   app_name text not null references oem_apps(app_name) on delete cascade,
@@ -1777,10 +1789,14 @@ create index if not exists idx_payment_provider_profiles_scope_lookup
   on payment_provider_profiles(scope_type, scope_key, provider, display_name);
 create index if not exists idx_platform_bundled_skills_sort
   on platform_bundled_skills(active, sort_order, skill_slug);
+create index if not exists idx_cloud_mcp_catalog_active_name
+  on cloud_mcp_catalog(active, name);
+create index if not exists idx_platform_bundled_mcps_sort
+  on platform_bundled_mcps(active, sort_order, mcp_key);
 create index if not exists idx_oem_bundled_skills_app_sort
   on oem_bundled_skills(app_name, sort_order, skill_slug);
-create index if not exists idx_oem_app_mcp_bindings_app_sort
-  on oem_app_mcp_bindings(app_name, sort_order, mcp_key);
+create index if not exists idx_oem_bundled_mcps_app_sort
+  on oem_bundled_mcps(app_name, sort_order, mcp_key);
 create index if not exists idx_oem_app_model_bindings_app_sort
   on oem_app_model_bindings(app_name, sort_order, model_ref);
 
@@ -1824,8 +1840,6 @@ create index if not exists idx_market_fund_catalog_scale_amount
   on market_fund_catalog(scale_amount desc nulls last);
 create index if not exists idx_market_fund_catalog_strategy_tags
   on market_fund_catalog using gin(strategy_tags);
-create index if not exists idx_oem_mcp_catalog_active_name
-  on oem_mcp_catalog(active, name);
 create index if not exists idx_oem_composer_control_catalog_type_key
   on oem_composer_control_catalog(control_type, control_key);
 create index if not exists idx_oem_composer_control_option_catalog_sort
