@@ -35,42 +35,39 @@ type WelcomeProfile = {
 };
 
 const DEFAULT_PROFILE: WelcomeProfile = {
-  kolName: '陈雪',
-  expertName: '陈雪的投资智囊',
-  slogan: '用价值投资思维，陪你穿越市场周期',
-  avatarUrl:
-    'https://images.unsplash.com/photo-1581065178047-8ee15951ede6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBhc2lhbiUyMHdvbWFuJTIwYnVzaW5lc3N8ZW58MXx8fHwxNzc0MjgzMTg0fDA&ixlib=rb-4.1.0&q=80&w=1080',
+  kolName: 'iClaw',
+  expertName: '我的龙虾助理',
+  slogan: '打开就会用的 AI 助理',
+  avatarUrl: '/brand/favicon.png',
   primaryColor: '#C4975F',
-  backgroundImageUrl:
-    'https://images.unsplash.com/photo-1760172287483-02d382f63a6f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxlbGVnYW50JTIwYWJzdHJhY3QlMjBnb2xkJTIwZ3JhZGllbnR8ZW58MXx8fHwxNzc0MjgzMTgzfDA&ixlib=rb-4.1.0&q=80&w=1080',
+  backgroundImageUrl: '/brand/installer-hero.png',
   description:
-    '我会用我 10 年的投资框架和市场洞察，帮你理解复杂的金融市场，找到适合你的投资路径。',
-  expertiseAreas: ['价值投资', '资产配置', '长期持有策略', '市场周期分析'],
-  targetAudience: '希望建立长期投资思维的理性投资者。',
+    '我会帮你查资料、写内容、整理信息、拆解任务，把复杂问题变成可以直接使用的结果。',
+  expertiseAreas: ['通用问答', '内容创作', '信息整理', '任务执行'],
+  targetAudience: '希望像使用软件一样自然使用 AI 的普通用户。',
   quickActions: [
     {
-      label: '市场行情分析',
-      prompt: '帮我分析一下当前市场形势，有哪些值得关注的板块和投资机会？',
-      iconKey: 'TrendingUp',
+      label: '快速写一段',
+      prompt: '帮我起草一段清晰自然的中文文案。',
+      iconKey: 'MessageCircle',
     },
     {
-      label: '投资组合诊断',
-      prompt: '帮我分析我的投资组合，看看是否需要调整配置？',
-      iconKey: 'PieChart',
-    },
-    {
-      label: '个股深度研究',
-      prompt: '我想了解某个公司的投资价值，能帮我做个深度分析吗？',
+      label: '整理资料',
+      prompt: '帮我把这件事的关键信息梳理成一份清晰提纲。',
       iconKey: 'Search',
     },
     {
-      label: '投资策略咨询',
-      prompt: '基于当前市场环境，给我一些长期投资的建议。',
+      label: '拆解任务',
+      prompt: '帮我把这个目标拆成一份可执行的步骤计划。',
       iconKey: 'Lightbulb',
     },
+    {
+      label: '直接聊聊',
+      prompt: '你好，先介绍一下你能帮我做什么。',
+      iconKey: 'Sparkles',
+    },
   ],
-  disclaimer:
-    '本智囊提供的所有信息仅供学习参考，不构成投资建议。投资有风险，决策需谨慎。',
+  disclaimer: 'iClaw 提供的内容用于效率辅助，请结合实际场景自行判断和确认。',
 };
 
 const WELCOME_ICON_MAP: Record<string, LucideIcon> = {

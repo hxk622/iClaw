@@ -97,6 +97,50 @@
             "primaryHover": "#C2AA82",
             "onPrimary": "#11100F"
           }
+        },
+        "surfaces": {
+          "welcome": {
+            "enabled": true,
+            "config": {
+              "kolName": "iClaw",
+              "expertName": "我的龙虾助理",
+              "slogan": "打开就会用的 AI 助理",
+              "avatarUrl": "/brand/favicon.png",
+              "primaryColor": "#A88C5D",
+              "backgroundImageUrl": "/brand/installer-hero.png",
+              "description": "我会帮你查资料、写内容、整理信息、拆解任务，把复杂问题变成可以直接使用的结果。",
+              "expertiseAreas": [
+                "通用问答",
+                "内容创作",
+                "信息整理",
+                "任务执行"
+              ],
+              "targetAudience": "希望像使用软件一样自然使用 AI 的普通用户。",
+              "quickActions": [
+                {
+                  "label": "快速写一段",
+                  "prompt": "帮我起草一段清晰自然的中文文案。",
+                  "iconKey": "MessageCircle"
+                },
+                {
+                  "label": "整理资料",
+                  "prompt": "帮我把这件事的关键信息梳理成一份清晰提纲。",
+                  "iconKey": "Search"
+                },
+                {
+                  "label": "拆解任务",
+                  "prompt": "帮我把这个目标拆成一份可执行的步骤计划。",
+                  "iconKey": "Lightbulb"
+                },
+                {
+                  "label": "直接聊聊",
+                  "prompt": "你好，先介绍一下你能帮我做什么。",
+                  "iconKey": "Sparkles"
+                }
+              ],
+              "disclaimer": "iClaw 提供的内容用于效率辅助，请结合实际场景自行判断和确认。"
+            }
+          }
         }
       }
     },
