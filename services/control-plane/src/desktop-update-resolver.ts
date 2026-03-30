@@ -3,8 +3,6 @@ import type { IncomingHttpHeaders } from 'node:http';
 import { config } from './config.ts';
 import {
   DESKTOP_UPDATE_RESPONSE_HEADERS,
-  resolveDesktopUpdaterPayload,
-  resolveDesktopUpdateHint,
   type DesktopUpdaterPayload,
   type DesktopUpdateRequest,
   type DesktopUpdateHint,
@@ -76,18 +74,6 @@ export async function resolveDesktopUpdateResponseHeaders(
   return responseHeaders;
 }
 
-export function buildDesktopUpdateSource(channel: string) {
-  return {
-    channel,
-    manifestDir: config.desktopReleaseManifestDir,
-    publicBaseUrl:
-      channel === 'dev' ? config.desktopReleaseManifestBaseUrls.dev : config.desktopReleaseManifestBaseUrls.prod,
-    cacheTtlMs: config.desktopReleaseManifestCacheTtlMs,
-    mandatory: config.desktopUpdateMandatory,
-    forceUpdateBelowVersion: config.desktopForceUpdateBelowVersion,
-  };
-}
-
 export async function resolveDesktopUpdateHintPayload(
   request: DesktopUpdateRequest,
   portalStore: PgPortalStore,
@@ -123,7 +109,7 @@ export async function resolveDesktopUpdateHintPayload(
       }
     }
   }
-  return resolveDesktopUpdateHint(buildDesktopUpdateSource(requestedChannel), request);
+  return null;
 }
 
 export async function resolveDesktopUpdaterRoutePayload(
@@ -162,7 +148,7 @@ export async function resolveDesktopUpdaterRoutePayload(
       }
     }
   }
-  return resolveDesktopUpdaterPayload(buildDesktopUpdateSource(requestedChannel), request);
+  return null;
 }
 
 function readOptionalAppName(value?: string | null): string | null {
