@@ -374,6 +374,14 @@ type PendingUsageSettlement = {
   terminalState: 'pending' | 'final' | 'aborted' | 'error';
 };
 
+type QueuedComposerMessage = {
+  id: string;
+  createdAt: number;
+  preview: string;
+  attachmentCount: number;
+  payload: ComposerSendPayload;
+};
+
 type GatewaySessionsListResult = {
   defaults: {
     model: string | null;
@@ -469,6 +477,36 @@ function resolveSessionModelFromList(
       aliases.has(normalizeGatewaySessionKey(session.key)),
     )?.model?.trim() ?? ''
   );
+}
+
+function cloneComposerSendPayload(payload: ComposerSendPayload): ComposerSendPayload {
+  return {
+    ...payload,
+    imageAttachments: payload.imageAttachments.map((attachment) => ({ ...attachment })),
+    selectedStockContext: payload.selectedStockContext ? { ...payload.selectedStockContext } : null,
+  };
+}
+
+function formatQueuedComposerMessagePreview(payload: ComposerSendPayload): string {
+  const normalizedPrompt = payload.prompt.trim().replace(/\s+/g, ' ');
+  if (normalizedPrompt) {
+    return normalizedPrompt.length > 72 ? `${normalizedPrompt.slice(0, 72)}…` : normalizedPrompt;
+  }
+  const attachmentCount = payload.imageAttachments.length;
+  if (attachmentCount > 0) {
+    return attachmentCount === 1 ? '图片消息' : `图片消息 (${attachmentCount})`;
+  }
+  return '新消息';
+}
+
+function createQueuedComposerMessage(payload: ComposerSendPayload): QueuedComposerMessage {
+  return {
+    id: createDesktopRunId(),
+    createdAt: Date.now(),
+    preview: formatQueuedComposerMessagePreview(payload),
+    attachmentCount: payload.imageAttachments.length,
+    payload: cloneComposerSendPayload(payload),
+  };
 }
 
 function hasDraggedFiles(dataTransfer: DataTransfer | null | undefined): boolean {
@@ -2013,6 +2051,8 @@ export function OpenClawChatSurface({
   const usageSettlementTimersRef = useRef<number[]>([]);
   const activeRecentTaskRunRef = useRef<ActiveRecentTaskRun | null>(null);
   const pendingUsageSettlementsRef = useRef<PendingUsageSettlement[]>([]);
+  const queuedMessagesRef = useRef<QueuedComposerMessage[]>([]);
+  const queueDispatchInFlightRef = useRef<string | null>(null);
   const [status, setStatus] = useState<ChatSurfaceStatus>({
     busy: false,
     connected: false,
@@ -2054,6 +2094,7 @@ export function OpenClawChatSurface({
   const [assistantFooterVersion, setAssistantFooterVersion] = useState(0);
   const [sessionBillingSummaries, setSessionBillingSummaries] = useState<RunBillingSummaryData[]>([]);
   const [pendingSettlementCount, setPendingSettlementCount] = useState(0);
+  const [queuedMessages, setQueuedMessages] = useState<QueuedComposerMessage[]>([]);
   const [creditEstimate, setCreditEstimate] = useState<ComposerCreditEstimateState>({
     loading: false,
     low: null,
@@ -2072,6 +2113,11 @@ export function OpenClawChatSurface({
       onBusyStateChange?.(false);
     };
   }, [onBusyStateChange]);
+
+  useEffect(() => {
+    queuedMessagesRef.current = queuedMessages;
+  }, [queuedMessages]);
+
   const effectiveGatewaySessionKey = resolvedModelSessionKey || sessionKey;
   const [installedLobsterAgents, setInstalledLobsterAgents] = useState<ComposerAgentOption[]>([]);
   const [skillOptions, setSkillOptions] = useState<ComposerSkillOption[]>([]);
@@ -2470,6 +2516,9 @@ export function OpenClawChatSurface({
     setModelSwitching(false);
     setComposerDraft(null);
     setSessionBillingSummaries([]);
+    queuedMessagesRef.current = [];
+    queueDispatchInFlightRef.current = null;
+    setQueuedMessages([]);
     setAssistantFooterVersion((current) => current + 1);
     setCreditEstimate({
       loading: false,
@@ -2480,6 +2529,13 @@ export function OpenClawChatSurface({
       estimatedOutputTokens: null,
     });
   }, [clearArtifactAutoOpenTimers, clearUsageSettlementTimers, sessionKey]);
+
+  useEffect(() => {
+    if (queuedMessages.length === 0) {
+      return;
+    }
+    void flushQueuedMessages();
+  }, [flushQueuedMessages, queuedMessages.length, sendBlockedReason, status.busy, status.connected]);
 
   useEffect(() => {
     if (!creditClient || !creditToken) {
@@ -3917,16 +3973,9 @@ export function OpenClawChatSurface({
         ? `已识别 ${dropSummary.totalFiles} 个文件，其中 ${dropSummary.supportedFiles} 个会加入输入框，${dropSummary.unsupportedCount} 个会被忽略。`
         : `已识别 ${dropSummary.totalFiles} 个文件，都会直接加入当前输入框。`;
 
-  const handleSend = useCallback(async (payload: ComposerSendPayload): Promise<boolean> => {
+  const sendQueuedOrImmediateMessage = useCallback(async (payload: ComposerSendPayload): Promise<boolean> => {
     const app = appRef.current;
     const request = app?.client?.request;
-    if (status.busy) {
-      setStatus((current) => ({
-        ...current,
-        lastError: '当前回答生成中，请等待完成或先停止，再发送下一条。',
-      }));
-      return false;
-    }
     if (sendBlockedReason) {
       setStatus((current) => ({
         ...current,
@@ -4095,9 +4144,59 @@ export function OpenClawChatSurface({
     selectedModelId,
     effectiveGatewaySessionKey,
     sendBlockedReason,
-    status.busy,
     status.lastError,
+    sessionKey,
   ]);
+
+  const enqueueQueuedMessage = useCallback((payload: ComposerSendPayload) => {
+    const next = createQueuedComposerMessage(payload);
+    setQueuedMessages((current) => [...current, next]);
+  }, []);
+
+  const removeQueuedMessage = useCallback((id: string) => {
+    setQueuedMessages((current) => current.filter((item) => item.id !== id));
+  }, []);
+
+  const flushQueuedMessages = useCallback(async () => {
+    if (queueDispatchInFlightRef.current) {
+      return;
+    }
+
+    const app = appRef.current;
+    const gatewayBusy = Boolean(app?.chatSending || app?.chatRunId);
+    if (sendBlockedReason || !status.connected || status.busy || gatewayBusy) {
+      return;
+    }
+
+    const [next] = queuedMessagesRef.current;
+    if (!next) {
+      return;
+    }
+
+    queueDispatchInFlightRef.current = next.id;
+    setQueuedMessages((current) => current.filter((item) => item.id !== next.id));
+
+    let accepted = false;
+    try {
+      accepted = await sendQueuedOrImmediateMessage(next.payload);
+    } finally {
+      queueDispatchInFlightRef.current = null;
+    }
+
+    if (!accepted) {
+      setQueuedMessages((current) => (current.some((item) => item.id === next.id) ? current : [next, ...current]));
+    }
+  }, [sendBlockedReason, sendQueuedOrImmediateMessage, status.busy, status.connected]);
+
+  const handleSend = useCallback(async (payload: ComposerSendPayload): Promise<boolean> => {
+    const app = appRef.current;
+    const gatewayBusy = Boolean(app?.chatSending || app?.chatRunId);
+    if (!sendBlockedReason && (status.busy || gatewayBusy)) {
+      enqueueQueuedMessage(payload);
+      return true;
+    }
+    return sendQueuedOrImmediateMessage(payload);
+  }, [enqueueQueuedMessage, sendBlockedReason, sendQueuedOrImmediateMessage, status.busy]);
 
   const handleAbort = useCallback(async () => {
     await appRef.current?.handleAbortChat();
@@ -4762,6 +4861,44 @@ export function OpenClawChatSurface({
                       </span>
                     ) : null}
                   </div>
+                </div>
+              </div>
+            ) : null}
+
+            {queuedMessages.length > 0 ? (
+              <div className="iclaw-chat-queue-panel" role="status" aria-live="polite">
+                <div className="iclaw-chat-queue-panel__header">
+                  <div className="iclaw-chat-queue-panel__title">
+                    <MessageSquarePlus className="h-4 w-4" />
+                    <span>已排队 {queuedMessages.length} 条</span>
+                  </div>
+                  <div className="iclaw-chat-queue-panel__subtitle">当前回答结束后会自动顺序发送</div>
+                </div>
+                <div className="iclaw-chat-queue-panel__list">
+                  {queuedMessages.map((item, index) => (
+                    <div key={item.id} className="iclaw-chat-queue-panel__item">
+                      <div className="iclaw-chat-queue-panel__item-main">
+                        <span className="iclaw-chat-queue-panel__item-order">{index + 1}</span>
+                        <div className="iclaw-chat-queue-panel__item-copy">
+                          <div className="iclaw-chat-queue-panel__item-preview" title={item.preview}>
+                            {item.preview}
+                          </div>
+                          <div className="iclaw-chat-queue-panel__item-meta">
+                            {item.attachmentCount > 0 ? `附件 ${item.attachmentCount} 个` : '纯文本'}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="iclaw-chat-queue-panel__remove"
+                        aria-label="移除排队消息"
+                        title="移除排队消息"
+                        onClick={() => removeQueuedMessage(item.id)}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               </div>
             ) : null}

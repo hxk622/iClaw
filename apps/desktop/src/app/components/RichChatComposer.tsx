@@ -1679,9 +1679,6 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         await onAbort();
         return;
       }
-      if (busy) {
-        return;
-      }
       if (sendDisabledReason) {
         return;
       }
@@ -2089,12 +2086,11 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     }, [mentionMenuOpen, mentionMenuSource, stockMenuOpen, stockMenuSource, syncMentionMenuPosition, syncStockMenuPosition]);
 
     const composerBusy = busy || isSubmitting;
-    const submitLabel = composerBusy && !hasContent ? '停止' : '发送';
-    const sendState = composerBusy ? 'busy' : hasContent ? 'ready' : 'empty';
-    const busyDraftBlockedReason = busy && hasContent ? '当前回答生成中，请等待完成或先停止，再发送下一条' : null;
+    const showAbortAction = composerBusy && !hasContent;
+    const submitLabel = showAbortAction ? '停止' : busy && hasContent ? '加入队列' : '发送';
+    const sendState = showAbortAction ? 'busy' : hasContent ? 'ready' : 'empty';
     const submitDisabledReason =
       sendDisabledReason ||
-      busyDraftBlockedReason ||
       (!connected ? '等待网关连接后才能发送' : !composerBusy && !hasContent ? '输入内容后才能发送' : null);
     const selectedModel =
       findComposerModelOption(modelOptions, selectedModelId) ?? modelOptions[0] ?? null;
@@ -3620,11 +3616,11 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   className="iclaw-composer__submit"
                   data-state={sendState}
                   disabled={Boolean(submitDisabledReason)}
-                  onClick={() => void (composerBusy && !hasContent ? onAbort() : handleSubmit())}
+                  onClick={() => void (showAbortAction ? onAbort() : handleSubmit())}
                   aria-label={submitLabel}
                   title={submitDisabledReason || submitLabel}
                 >
-                  {composerBusy ? (
+                  {showAbortAction ? (
                     <>
                       <span className="iclaw-composer__submit-spinner" aria-hidden="true" />
                       <Square className="relative z-[1] h-[14px] w-[14px]" fill="currentColor" strokeWidth={0} />
