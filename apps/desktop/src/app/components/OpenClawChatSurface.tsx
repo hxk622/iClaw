@@ -198,6 +198,12 @@ type ChatSurfaceStatus = {
   lastErrorCode: string | null;
 };
 
+type ChatSurfaceBusySnapshot = {
+  startedAt: number | null;
+  runId: string | null;
+  streamChars: number;
+};
+
 type ChatSurfaceRenderState = {
   hostHeight: number;
   hasNativeInput: boolean;
@@ -817,6 +823,16 @@ function formatAssistantFooterTimestamp(timestamp: number): string {
     hour: 'numeric',
     minute: '2-digit',
   });
+}
+
+function formatBusyElapsedLabel(milliseconds: number): string {
+  const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+  if (totalSeconds < 60) {
+    return `${totalSeconds}s`;
+  }
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
 }
 
 type AssistantMessageGroup = {
@@ -1812,6 +1828,11 @@ export function OpenClawChatSurface({
   const [showRenderDiagnosticsCard, setShowRenderDiagnosticsCard] = useState(false);
   const [unhandledGatewayError, setUnhandledGatewayError] = useState<UnhandledGatewayError | null>(null);
   const [lastRpcFailure, setLastRpcFailure] = useState<GatewayRpcFailure | null>(null);
+  const [busySnapshot, setBusySnapshot] = useState<ChatSurfaceBusySnapshot>({
+    startedAt: null,
+    runId: null,
+    streamChars: 0,
+  });
   const [selectionMenu, setSelectionMenu] = useState<SelectionMenuState | null>(null);
   const [modelOptions, setModelOptions] = useState<ComposerModelOption[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
@@ -1832,6 +1853,7 @@ export function OpenClawChatSurface({
     error: null,
     estimatedInputTokens: null,
   });
+  const [busyClock, setBusyClock] = useState(() => Date.now());
   const effectiveGatewaySessionKey = resolvedModelSessionKey || sessionKey;
   const [installedLobsterAgents, setInstalledLobsterAgents] = useState<ComposerAgentOption[]>([]);
   const [skillOptions, setSkillOptions] = useState<ComposerSkillOption[]>([]);
@@ -2933,6 +2955,23 @@ export function OpenClawChatSurface({
           ? current
           : nextStatus,
       );
+      setBusySnapshot((current) => {
+        const nextStartedAt =
+          typeof app.chatStreamStartedAt === 'number' && Number.isFinite(app.chatStreamStartedAt)
+            ? app.chatStreamStartedAt
+            : null;
+        const nextRunId = typeof app.chatRunId === 'string' && app.chatRunId.trim() ? app.chatRunId.trim() : null;
+        const nextStreamChars = typeof app.chatStream === 'string' ? app.chatStream.length : 0;
+        return current.startedAt === nextStartedAt &&
+          current.runId === nextRunId &&
+          current.streamChars === nextStreamChars
+          ? current
+          : {
+              startedAt: nextStartedAt,
+              runId: nextRunId,
+              streamChars: nextStreamChars,
+            };
+      });
       setRenderState((current) =>
         current.hostHeight === nextRenderState.hostHeight &&
         current.hasNativeInput === nextRenderState.hasNativeInput &&
@@ -2949,6 +2988,17 @@ export function OpenClawChatSurface({
 
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!status.busy) {
+      return;
+    }
+    setBusyClock(Date.now());
+    const timer = window.setInterval(() => {
+      setBusyClock(Date.now());
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [status.busy, busySnapshot.startedAt, busySnapshot.runId]);
 
   useEffect(() => {
     const app = appRef.current;
@@ -3177,6 +3227,25 @@ export function OpenClawChatSurface({
   const showBootMask = shellAuthenticated && !status.connected;
   const showSessionTransitionMask = sessionTransitionVisible && !showBootMask;
   const shellTransitioning = showBootMask || showSessionTransitionMask;
+  const busyElapsedMs =
+    status.busy && busySnapshot.startedAt ? Math.max(0, busyClock - busySnapshot.startedAt) : 0;
+  const busyElapsedLabel = status.busy ? formatBusyElapsedLabel(busyElapsedMs) : null;
+  const busyPhaseTitle = !status.busy
+    ? null
+    : busySnapshot.streamChars > 0
+      ? '正在生成回复'
+      : busyElapsedMs >= 2500
+        ? '任务执行中'
+        : '请求已发出，正在思考';
+  const busyPhaseDetail = !status.busy
+    ? null
+    : busySnapshot.streamChars > 0
+      ? `模型已经开始输出内容 · 已运行 ${busyElapsedLabel}`
+      : busyElapsedMs >= 2500
+        ? `当前可能在调用工具、检索资料或整理结果 · 已运行 ${busyElapsedLabel}`
+        : `请求已经提交到 OpenClaw · 已运行 ${busyElapsedLabel}`;
+  const showLiveRunBanner =
+    status.connected && status.busy && !showBootMask && !showSessionTransitionMask;
   const secureContextHint =
     typeof window !== 'undefined' && !window.isSecureContext
       ? '当前页面不是安全上下文，OpenClaw 可能会拒绝设备身份校验。'
@@ -4252,6 +4321,24 @@ export function OpenClawChatSurface({
                 mode="switch"
                 label="正在切换对话，正在同步消息与输入状态"
               />
+            ) : null}
+
+            {showLiveRunBanner ? (
+              <div className="iclaw-chat-live-banner" role="status" aria-live="polite">
+                <div className="iclaw-chat-live-banner__pulse" aria-hidden="true">
+                  <span />
+                </div>
+                <div className="iclaw-chat-live-banner__copy">
+                  <div className="iclaw-chat-live-banner__title">{busyPhaseTitle}</div>
+                  <div className="iclaw-chat-live-banner__meta">
+                    {busyPhaseDetail}
+                    <span className="iclaw-chat-live-banner__separator" aria-hidden="true">
+                      ·
+                    </span>
+                    可点击右下角停止
+                  </div>
+                </div>
+              </div>
             ) : null}
 
             {shellDropActive ? (
