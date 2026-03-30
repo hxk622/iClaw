@@ -99,6 +99,9 @@ interface AuthorizeRunInput {
   sessionKey?: string;
   client?: string;
   estimatedInputTokens?: number;
+  estimatedOutputTokens?: number;
+  model?: string;
+  appName?: string;
 }
 
 interface UsageEventInput {
@@ -1297,6 +1300,9 @@ export class IClawClient {
         session_key: input.sessionKey || 'main',
         client: input.client || 'desktop',
         estimated_input_tokens: input.estimatedInputTokens || 0,
+        estimated_output_tokens: input.estimatedOutputTokens || 0,
+        model: input.model,
+        app_name: input.appName,
       }),
     });
     if (!res.ok) throw await parseError(res);

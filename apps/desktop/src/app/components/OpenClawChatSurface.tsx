@@ -190,6 +190,7 @@ type ComposerCreditEstimateState = {
   high: number | null;
   error: string | null;
   estimatedInputTokens: number | null;
+  estimatedOutputTokens: number | null;
 };
 
 type ChatSurfaceStatus = {
@@ -1702,6 +1703,18 @@ function markOutgoingChatFailed(params: {
   ];
 }
 
+function resolvePreflightChatErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : '任务发送失败';
+  const code =
+    error && typeof error === 'object' && 'code' in error && typeof error.code === 'string'
+      ? error.code
+      : null;
+  if (code === 'INSUFFICIENT_CREDITS' || code === 'CREDIT_LIMIT_EXCEEDED') {
+    return message;
+  }
+  return message;
+}
+
 function setMessageActionFeedback(button: HTMLButtonElement, state: 'idle' | 'success'): void {
   button.dataset.state = state;
 }
@@ -2019,6 +2032,7 @@ export function OpenClawChatSurface({
     high: null,
     error: null,
     estimatedInputTokens: null,
+    estimatedOutputTokens: null,
   });
   const effectiveGatewaySessionKey = resolvedModelSessionKey || sessionKey;
   const [installedLobsterAgents, setInstalledLobsterAgents] = useState<ComposerAgentOption[]>([]);
@@ -2425,6 +2439,7 @@ export function OpenClawChatSurface({
       high: null,
       error: null,
       estimatedInputTokens: null,
+      estimatedOutputTokens: null,
     });
   }, [clearArtifactAutoOpenTimers, clearUsageSettlementTimers, sessionKey]);
 
@@ -2470,6 +2485,7 @@ export function OpenClawChatSurface({
         high: null,
         error: null,
         estimatedInputTokens: null,
+        estimatedOutputTokens: null,
       });
       return;
     }
@@ -2481,6 +2497,7 @@ export function OpenClawChatSurface({
       high: current.high,
       error: null,
       estimatedInputTokens: current.estimatedInputTokens,
+      estimatedOutputTokens: current.estimatedOutputTokens,
     }));
 
     const timer = window.setTimeout(() => {
@@ -2506,6 +2523,7 @@ export function OpenClawChatSurface({
             high: quote.estimated_credits_high,
             error: null,
             estimatedInputTokens: quote.estimated_input_tokens,
+            estimatedOutputTokens: quote.estimated_output_tokens,
           });
         })
         .catch((error) => {
@@ -2518,6 +2536,7 @@ export function OpenClawChatSurface({
             high: null,
             error: error instanceof Error ? error.message : 'estimate unavailable',
             estimatedInputTokens: null,
+            estimatedOutputTokens: null,
           });
         });
     }, 360);
@@ -3895,7 +3914,6 @@ export function OpenClawChatSurface({
     };
 
     let runId: string | null = null;
-    let stagedLocalEcho = false;
     let handoffStarted = false;
 
     try {
@@ -3907,6 +3925,23 @@ export function OpenClawChatSurface({
 
       runId = createDesktopRunId();
       const startedAt = Date.now();
+      const fallbackEstimatedInputTokens =
+        Math.max(0, Math.ceil(normalizedPrompt.length * 0.75)) + payload.imageAttachments.length * 220;
+      const baselineSessionTokens = await loadGatewaySessionTokenSnapshot(app, effectiveGatewaySessionKey);
+      const runGrant = await creditClient.authorizeRun({
+        token: creditToken,
+        sessionKey: effectiveGatewaySessionKey,
+        client: 'desktop',
+        estimatedInputTokens: estimateRunGrantInputTokens({
+          quotedInputTokens: creditEstimate.estimatedInputTokens ?? null,
+          fallbackInputTokens: fallbackEstimatedInputTokens,
+          baselineSessionTokens,
+        }),
+        estimatedOutputTokens: Math.max(0, creditEstimate.estimatedOutputTokens ?? 0),
+        model: selectedModelId || undefined,
+        appName,
+      });
+
       stageOutgoingChatMessage({
         app,
         prompt: normalizedPrompt,
@@ -3914,22 +3949,7 @@ export function OpenClawChatSurface({
         runId,
         startedAt,
       });
-      stagedLocalEcho = true;
       app.scrollToBottom();
-
-      const fallbackEstimatedInputTokens =
-        Math.max(0, Math.ceil(normalizedPrompt.length * 0.75)) + payload.imageAttachments.length * 220;
-      const baselineSessionTokens = await loadGatewaySessionTokenSnapshot(app, effectiveGatewaySessionKey);
-      const runGrant = await creditClient.authorizeRun({
-        token: creditToken,
-        sessionKey,
-        client: 'desktop',
-        estimatedInputTokens: estimateRunGrantInputTokens({
-          quotedInputTokens: creditEstimate.estimatedInputTokens ?? null,
-          fallbackInputTokens: fallbackEstimatedInputTokens,
-          baselineSessionTokens,
-        }),
-      });
 
       pendingUsageSettlementsRef.current = [
         ...pendingUsageSettlementsRef.current,
@@ -3971,13 +3991,13 @@ export function OpenClawChatSurface({
       }, 420);
       return true;
     } catch (error) {
-      const detail = error instanceof Error ? error.message : '任务发送失败';
+      const detail = resolvePreflightChatErrorMessage(error);
       if (runId) {
         pendingUsageSettlementsRef.current = pendingUsageSettlementsRef.current.filter(
           (pending) => pending.runId !== runId,
         );
       }
-      if (stagedLocalEcho && !handoffStarted) {
+      if (!handoffStarted) {
         markOutgoingChatFailed({ app, detail });
       }
       setPendingSettlementCount(pendingUsageSettlementsRef.current.length);
@@ -4001,11 +4021,12 @@ export function OpenClawChatSurface({
     collectLatestArtifactKinds,
     creditClient,
     creditEstimate.estimatedInputTokens,
+    creditEstimate.estimatedOutputTokens,
     creditToken,
     finalizeRecentTaskRun,
+    appName,
     selectedModelId,
     effectiveGatewaySessionKey,
-    sessionKey,
     status.lastError,
   ]);
 

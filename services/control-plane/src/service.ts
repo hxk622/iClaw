@@ -3279,14 +3279,39 @@ export class ControlPlaneService {
     const sessionKey = (input.session_key || 'main').trim() || 'main';
     const client = (input.client || 'desktop').trim() || 'desktop';
     const estimatedInputTokens = Math.max(0, input.estimated_input_tokens || 0);
+    const estimatedOutputTokens = Math.max(0, input.estimated_output_tokens || 0);
+    const normalizedModel = (input.model || '').trim();
+    const normalizedAppName = (input.app_name || '').trim() || null;
     const account = await this.store.getCreditAccount(user.id);
     const currentBalance = account.totalAvailableBalance;
     if (currentBalance <= 0) {
       throw new HttpError(402, 'INSUFFICIENT_CREDITS', 'current balance is insufficient');
     }
+
+    const creditLimit = Math.min(currentBalance, config.runGrantCreditLimit);
+    const billingMultiplier = await this.resolveBillingMultiplier(normalizedAppName, normalizedModel || null);
+    const estimatedCreditCost = this.computeBilledCreditCost(
+      estimatedInputTokens,
+      estimatedOutputTokens,
+      billingMultiplier,
+    );
+    if (estimatedCreditCost > currentBalance) {
+      throw new HttpError(
+        402,
+        'INSUFFICIENT_CREDITS',
+        `当前龙虾币不足。本次预估消耗约 ${estimatedCreditCost} 龙虾币，当前可用 ${currentBalance} 龙虾币，请先前往充值中心充值后再发送。`,
+      );
+    }
+    if (estimatedCreditCost > creditLimit) {
+      throw new HttpError(
+        402,
+        'CREDIT_LIMIT_EXCEEDED',
+        `本次预估消耗约 ${estimatedCreditCost} 龙虾币，已超过单次运行上限 ${creditLimit} 龙虾币。请缩短上下文、开启新对话，或联系管理员调整额度。`,
+      );
+    }
+
     const nonce = makeNonce();
     const expiresAt = new Date(Date.now() + config.runGrantTtlSeconds * 1000).toISOString();
-    const creditLimit = Math.min(currentBalance, config.runGrantCreditLimit);
     const maxInputTokens = Math.max(config.runGrantMaxInputTokens, estimatedInputTokens);
     const signature = makeSignature({userId: user.id, nonce, expiresAt});
 

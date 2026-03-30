@@ -964,6 +964,9 @@ export type RunAuthorizeInput = {
   session_key?: string;
   client?: string;
   estimated_input_tokens?: number;
+  estimated_output_tokens?: number;
+  model?: string;
+  app_name?: string;
 };
 
 export type UsageEventInput = {
