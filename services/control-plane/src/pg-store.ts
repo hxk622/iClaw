@@ -67,6 +67,7 @@ import type {
 } from './domain.ts';
 import {buildPlaceholderPaymentUrl} from './payment-placeholders.ts';
 import type {ControlPlaneStore} from './store.ts';
+import {startOfNextShanghaiDayIso} from './time.ts';
 
 type UserRow = {
   id: string;
@@ -545,21 +546,6 @@ function parseDbNumber(value: string | number | null | undefined): number {
   if (typeof value === 'number') return value;
   if (typeof value === 'string') return Number.parseInt(value, 10) || 0;
   return 0;
-}
-
-function startOfNextShanghaiDayIso(from = new Date()): string {
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Shanghai',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-  const parts = formatter.formatToParts(from);
-  const year = Number(parts.find((item) => item.type === 'year')?.value || '1970');
-  const month = Number(parts.find((item) => item.type === 'month')?.value || '01');
-  const day = Number(parts.find((item) => item.type === 'day')?.value || '01');
-  const nextUtc = Date.UTC(year, month - 1, day, 16, 0, 0, 0) + 24 * 60 * 60 * 1000;
-  return new Date(nextUtc).toISOString();
 }
 
 function mapCreditAccountRow(row: CreditAccountRow, createdAt?: Date): CreditAccountRecord {

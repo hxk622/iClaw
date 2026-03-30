@@ -63,24 +63,10 @@ import type {
 } from './domain.ts';
 import { DEFAULT_CLAWHUB_SYNC_SOURCE } from './skill-sync-defaults.ts';
 import {buildPlaceholderPaymentUrl} from './payment-placeholders.ts';
+import {startOfNextShanghaiDayIso} from './time.ts';
 
 function normalizeUsernameLookup(value: string): string {
   return value.trim().replace(/\s+/g, ' ').toLowerCase();
-}
-
-function startOfNextShanghaiDayIso(from = new Date()): string {
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Shanghai',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-  const parts = formatter.formatToParts(from);
-  const year = Number(parts.find((item) => item.type === 'year')?.value || '1970');
-  const month = Number(parts.find((item) => item.type === 'month')?.value || '01');
-  const day = Number(parts.find((item) => item.type === 'day')?.value || '01');
-  const nextUtc = Date.UTC(year, month - 1, day, 16, 0, 0, 0) + 24 * 60 * 60 * 1000;
-  return new Date(nextUtc).toISOString();
 }
 
 function expirePaymentOrderIfNeeded(order: PaymentOrderRecord): PaymentOrderRecord {
