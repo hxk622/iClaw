@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { IClawClient } from '@iclaw/sdk';
-import { AlertCircle, Search, Sparkles } from 'lucide-react';
+import { AlertCircle, LoaderCircle, Search, Sparkles } from 'lucide-react';
 
 import type { AppUserAvatarSource } from '@/app/lib/user-avatar';
 import { Chip } from '@/app/components/ui/Chip';
 import {
   isLobsterStoreAgent,
+  readCachedLobsterAgents,
   type LobsterAgent,
   type LobsterStoreCategory,
   type LobsterStoreTab,
@@ -58,8 +59,11 @@ export function LobsterStoreView({
   onRequestAuth: (mode?: 'login' | 'register', postAuthView?: 'account' | null) => void;
 }) {
   const [activeTab, setActiveTab] = useState<LobsterStoreTab>('shop');
-  const [agents, setAgents] = useState<LobsterAgent[]>([]);
+  const [agents, setAgents] = useState<LobsterAgent[]>(() =>
+    (readCachedLobsterAgents() || []).filter((agent) => isLobsterStoreAgent(agent)),
+  );
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detailSlug, setDetailSlug] = useState<string | null>(null);
   const [installBusySlug, setInstallBusySlug] = useState<string | null>(null);
@@ -68,8 +72,9 @@ export function LobsterStoreView({
   const [activeDivision, setActiveDivision] = useState<'all' | string>('all');
   const [query, setQuery] = useState('');
 
-  const refresh = async () => {
-    setLoading(true);
+  const refresh = useCallback(async () => {
+    setLoading(agents.length === 0);
+    setRefreshing(agents.length > 0);
     setError(null);
     try {
       const nextAgents = await loadLobsterAgents({ client, accessToken });
@@ -78,12 +83,22 @@ export function LobsterStoreView({
       setError(refreshError instanceof Error ? refreshError.message : '加载龙虾商店失败');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, [accessToken, agents.length, client]);
 
   useEffect(() => {
+    const cachedAgents = (readCachedLobsterAgents() || []).filter((agent) => isLobsterStoreAgent(agent));
+    if (cachedAgents.length > 0) {
+      setAgents(cachedAgents);
+      setLoading(false);
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+      setRefreshing(false);
+    }
     void refresh();
-  }, [accessToken, client]);
+  }, [refresh]);
 
   const selectedAgent = useMemo(
     () => agents.find((agent) => agent.slug === detailSlug) || null,
@@ -272,14 +287,62 @@ export function LobsterStoreView({
           </div>
         ) : null}
 
+        {refreshing ? (
+          <div className="mt-4 flex items-center gap-2 rounded-[16px] border border-[var(--lobster-border)] bg-[var(--lobster-card-elevated)] px-4 py-3 text-[13px] text-[var(--lobster-text-secondary)] shadow-[0_10px_24px_rgba(18,15,11,0.04)]">
+            <LoaderCircle className="h-4 w-4 animate-spin text-[var(--lobster-gold-strong)]" />
+            <span>正在更新助手库...</span>
+            <div className="ml-auto h-1.5 w-24 overflow-hidden rounded-full bg-[var(--lobster-muted-bg)]">
+              <div className="h-full w-1/2 animate-pulse rounded-full bg-[var(--lobster-gold-strong)]" />
+            </div>
+          </div>
+        ) : null}
+
         {loading ? (
-          <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
-            {Array.from({ length: 6 }).map((_, index) => (
-              <div
-                key={index}
-                className="h-[248px] animate-pulse rounded-[24px] border border-[var(--lobster-border)] bg-[var(--lobster-card-bg)]"
-              />
-            ))}
+          <div className="mt-4 space-y-4">
+            <div className="rounded-[22px] border border-[var(--lobster-border)] bg-[var(--lobster-card-bg)] px-4 py-4">
+              <div className="flex flex-col gap-3">
+                <div className="h-4 w-28 animate-pulse rounded-full bg-[var(--lobster-muted-bg)]" />
+                <div className="h-3 w-56 animate-pulse rounded-full bg-[var(--lobster-muted-bg)]/80" />
+                <div className="flex flex-wrap gap-2 pt-2">
+                  {Array.from({ length: 6 }).map((_, index) => (
+                    <div
+                      key={index}
+                      className="h-8 w-24 animate-pulse rounded-full border border-[var(--lobster-border)] bg-[var(--lobster-card-elevated)]"
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="rounded-[24px] border border-[var(--lobster-border)] bg-[var(--lobster-card-bg)] p-5 shadow-[0_10px_24px_rgba(18,15,11,0.04)]"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="h-16 w-16 animate-pulse rounded-full bg-[var(--lobster-muted-bg)]" />
+                    <div className="min-w-0 flex-1 space-y-2 pt-1">
+                      <div className="h-4 w-28 animate-pulse rounded-full bg-[var(--lobster-muted-bg)]" />
+                      <div className="h-3 w-20 animate-pulse rounded-full bg-[var(--lobster-muted-bg)]/80" />
+                    </div>
+                  </div>
+                  <div className="mt-5 space-y-2">
+                    <div className="h-3 w-full animate-pulse rounded-full bg-[var(--lobster-muted-bg)]/80" />
+                    <div className="h-3 w-11/12 animate-pulse rounded-full bg-[var(--lobster-muted-bg)]/70" />
+                    <div className="h-3 w-2/3 animate-pulse rounded-full bg-[var(--lobster-muted-bg)]/60" />
+                  </div>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    {Array.from({ length: 3 }).map((__, chipIndex) => (
+                      <div
+                        key={chipIndex}
+                        className="h-7 w-16 animate-pulse rounded-full bg-[var(--lobster-muted-bg)]/70"
+                      />
+                    ))}
+                  </div>
+                  <div className="mt-6 h-10 w-full animate-pulse rounded-[14px] bg-[var(--lobster-muted-bg)]" />
+                </div>
+              ))}
+            </div>
           </div>
         ) : activeTab === 'shop' ? (
           <div className="mt-4">

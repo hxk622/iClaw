@@ -1,4 +1,5 @@
 import type { AgentCatalogEntryData, IClawClient, UserAgentLibraryItemData } from '@iclaw/sdk';
+import { readCacheJson, writeCacheJson } from '@/app/lib/persistence/cache-store';
 
 export type LobsterStoreTab = 'shop' | 'my-lobster';
 export type LobsterStoreCategory = AgentCatalogEntryData['category'];
@@ -13,6 +14,18 @@ export type LobsterAgent = AgentCatalogEntryData & {
 };
 
 export type LobsterAgentMetadataValue = string | number | boolean | null | undefined | Record<string, unknown> | unknown[];
+
+const LOBSTER_CATALOG_CACHE_KEY = 'iclaw.lobster.catalog.v1';
+const LOBSTER_CATALOG_CACHE_TTL_MS = 10 * 60 * 1000;
+
+type LobsterCatalogCacheSnapshot = {
+  version: 1;
+  savedAt: number;
+  items: AgentCatalogEntryData[];
+};
+
+let inMemoryCatalogSnapshot: AgentCatalogEntryData[] | null = null;
+let inFlightCatalogLoad: Promise<AgentCatalogEntryData[]> | null = null;
 
 const AVATAR_BY_SLUG: Record<string, string> = {
   'stock-expert': '/agent-avatars/pexels/portrait-16.jpg',
@@ -430,12 +443,65 @@ export function isLobsterStoreAgent(agent: Pick<AgentCatalogEntryData, 'metadata
   return surface === 'lobster-store' || surface === 'both';
 }
 
+function readLobsterCatalogSnapshot(): AgentCatalogEntryData[] | null {
+  const snapshot = readCacheJson<Partial<LobsterCatalogCacheSnapshot>>(LOBSTER_CATALOG_CACHE_KEY);
+  if (
+    !snapshot ||
+    snapshot.version !== 1 ||
+    !Array.isArray(snapshot.items) ||
+    typeof snapshot.savedAt !== 'number' ||
+    Date.now() - snapshot.savedAt > LOBSTER_CATALOG_CACHE_TTL_MS
+  ) {
+    return null;
+  }
+  return snapshot.items as AgentCatalogEntryData[];
+}
+
+function persistLobsterCatalogSnapshot(items: AgentCatalogEntryData[]): void {
+  inMemoryCatalogSnapshot = items;
+  writeCacheJson(LOBSTER_CATALOG_CACHE_KEY, {
+    version: 1,
+    savedAt: Date.now(),
+    items,
+  } satisfies LobsterCatalogCacheSnapshot);
+}
+
+async function loadLobsterCatalog(client: IClawClient): Promise<AgentCatalogEntryData[]> {
+  const cached = readLobsterCatalogSnapshot() || inMemoryCatalogSnapshot;
+  if (cached) {
+    return cached;
+  }
+  if (inFlightCatalogLoad) {
+    return inFlightCatalogLoad;
+  }
+
+  inFlightCatalogLoad = client
+    .listAgentsCatalog()
+    .then((catalog) => {
+      persistLobsterCatalogSnapshot(catalog);
+      return catalog;
+    })
+    .finally(() => {
+      inFlightCatalogLoad = null;
+    });
+
+  return inFlightCatalogLoad;
+}
+
+export function readCachedLobsterAgents(): LobsterAgent[] | null {
+  const cachedCatalog = readLobsterCatalogSnapshot() || inMemoryCatalogSnapshot;
+  if (!cachedCatalog) {
+    return null;
+  }
+  return hydrateLobsterAgents(cachedCatalog, []);
+}
+
 export async function loadLobsterAgents(input: {
   client: IClawClient;
   accessToken: string | null;
 }): Promise<LobsterAgent[]> {
   const [catalog, library] = await Promise.all([
-    input.client.listAgentsCatalog(),
+    loadLobsterCatalog(input.client),
     input.accessToken ? input.client.getAgentLibrary(input.accessToken).catch(() => []) : Promise.resolve([]),
   ]);
   return hydrateLobsterAgents(catalog, library);
