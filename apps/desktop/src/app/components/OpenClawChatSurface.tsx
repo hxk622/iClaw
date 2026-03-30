@@ -3920,6 +3920,13 @@ export function OpenClawChatSurface({
   const handleSend = useCallback(async (payload: ComposerSendPayload): Promise<boolean> => {
     const app = appRef.current;
     const request = app?.client?.request;
+    if (status.busy) {
+      setStatus((current) => ({
+        ...current,
+        lastError: '当前回答生成中，请等待完成或先停止，再发送下一条。',
+      }));
+      return false;
+    }
     if (sendBlockedReason) {
       setStatus((current) => ({
         ...current,
@@ -4088,6 +4095,7 @@ export function OpenClawChatSurface({
     selectedModelId,
     effectiveGatewaySessionKey,
     sendBlockedReason,
+    status.busy,
     status.lastError,
   ]);
 

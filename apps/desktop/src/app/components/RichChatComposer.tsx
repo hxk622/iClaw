@@ -1679,6 +1679,9 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         await onAbort();
         return;
       }
+      if (busy) {
+        return;
+      }
       if (sendDisabledReason) {
         return;
       }
@@ -2088,8 +2091,11 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const composerBusy = busy || isSubmitting;
     const submitLabel = composerBusy && !hasContent ? '停止' : '发送';
     const sendState = composerBusy ? 'busy' : hasContent ? 'ready' : 'empty';
+    const busyDraftBlockedReason = busy && hasContent ? '当前回答生成中，请等待完成或先停止，再发送下一条' : null;
     const submitDisabledReason =
-      sendDisabledReason || (!connected ? '等待网关连接后才能发送' : !composerBusy && !hasContent ? '输入内容后才能发送' : null);
+      sendDisabledReason ||
+      busyDraftBlockedReason ||
+      (!connected ? '等待网关连接后才能发送' : !composerBusy && !hasContent ? '输入内容后才能发送' : null);
     const selectedModel =
       findComposerModelOption(modelOptions, selectedModelId) ?? modelOptions[0] ?? null;
     const modelTriggerLabel = (() => {
