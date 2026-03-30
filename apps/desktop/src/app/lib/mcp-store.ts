@@ -1,22 +1,10 @@
-import { invoke } from '@tauri-apps/api/core';
 import type { IClawClient, McpCatalogEntryData, UserMcpLibraryItemData } from '@iclaw/sdk';
-import bundledMcpConfig from '../../../src-tauri/resources/mcp/mcp.json';
 import type {
   ExtensionInstallConfigSnapshot,
   ExtensionSetupSchema,
   ExtensionSetupStatus,
 } from './extension-setup';
 import {parseExtensionSetupSchema} from './extension-setup';
-
-export type RawBundledMcpCatalogItem = {
-  mcp_key: string;
-  transport: string;
-  enabled: boolean;
-  command?: string | null;
-  args?: string[];
-  http_url?: string | null;
-  config?: Record<string, unknown>;
-};
 
 export type McpStoreProtocol = 'STDIO' | 'HTTP' | 'SSE';
 export type McpStoreSource = 'bundled' | 'cloud';
@@ -54,22 +42,6 @@ export type McpStoreItem = {
   setupSchemaVersion: number | null;
   setupUpdatedAt: string | null;
 };
-
-type RawBundledMcpConfigFile = {
-  mcpServers?: Record<string, {
-    type?: string;
-    enabled?: boolean;
-    command?: string;
-    args?: string[];
-    httpUrl?: string;
-    url?: string;
-    env?: Record<string, string>;
-  }>;
-};
-
-function isTauriRuntime(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-}
 
 function readObject(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
@@ -109,17 +81,6 @@ function normalizeProtocol(value: string | null | undefined): McpStoreProtocol {
     return 'HTTP';
   }
   return 'STDIO';
-}
-
-function normalizeBundledTransport(config: Record<string, unknown>): string {
-  const explicit = readString(config.type);
-  if (explicit) {
-    return explicit;
-  }
-  if (readString(config.httpUrl) || readString(config.url)) {
-    return 'http';
-  }
-  return 'stdio';
 }
 
 function readDateLabel(value: string | null | undefined): string {
@@ -243,23 +204,17 @@ function tierWeight(tier: McpStoreTier): number {
   }
 }
 
-function readCommand(config: Record<string, unknown>, bundled?: RawBundledMcpCatalogItem | null): string | null {
-  if (bundled?.command?.trim()) {
-    return bundled.command.trim();
-  }
+function readCommand(config: Record<string, unknown>): string | null {
   return readString(config.command);
 }
 
-function readHttpUrl(config: Record<string, unknown>, bundled?: RawBundledMcpCatalogItem | null): string | null {
-  if (bundled?.http_url?.trim()) {
-    return bundled.http_url.trim();
-  }
+function readHttpUrl(config: Record<string, unknown>): string | null {
   return readString(config.httpUrl) || readString(config.url);
 }
 
-function buildConfigSummary(command: string | null, httpUrl: string | null, bundled?: RawBundledMcpCatalogItem | null): string | null {
+function buildConfigSummary(command: string | null, httpUrl: string | null, config: Record<string, unknown>): string | null {
   if (command) {
-    const args = bundled?.args?.filter(Boolean).join(' ') || '';
+    const args = readStringArray(config.args).join(' ');
     return args ? `${command} ${args}`.trim() : command;
   }
   return httpUrl;
@@ -267,23 +222,19 @@ function buildConfigSummary(command: string | null, httpUrl: string | null, bund
 
 function normalizeStoreItem(input: {
   key: string;
-  bundled: RawBundledMcpCatalogItem | null;
   cloud: McpCatalogEntryData | null;
   library: UserMcpLibraryItemData | null;
 }): McpStoreItem {
   const metadata = readObject(input.cloud?.metadata);
-  const config = {
-    ...readObject(input.cloud?.config),
-    ...readObject(input.bundled?.config),
-  };
+  const config = readObject(input.cloud?.config);
   const categories = parseCategories(metadata);
   const setupSchema = parseExtensionSetupSchema(metadata, config);
   const iconKey = inferIconKey(categories, input.key);
-  const command = readCommand(config, input.bundled);
-  const httpUrl = readHttpUrl(config, input.bundled);
+  const command = readCommand(config);
+  const httpUrl = readHttpUrl(config);
   const defaultInstalled = input.cloud?.default_installed === true;
   const installed = defaultInstalled || Boolean(input.library);
-  const source: McpStoreSource = input.bundled && !input.cloud ? 'bundled' : 'cloud';
+  const source: McpStoreSource = 'cloud';
 
   return {
     id: input.key,
@@ -291,10 +242,10 @@ function normalizeStoreItem(input: {
     name: input.cloud?.name?.trim() || titleizeMcpKey(input.key),
     description:
       input.cloud?.description?.trim() ||
-      (input.bundled ? '当前桌面端预置的 MCP 连接，可直接作为默认能力接入。' : '来自云端目录的 MCP 连接，后续可按策略同步到本地运行时。'),
+      '来自云端目录的 MCP 连接，后续可按策略同步到本地运行时。',
     source,
     sourceLabel: defaultInstalled ? 'OEM预置' : resolveCloudSourceLabel(metadata),
-    protocol: normalizeProtocol(input.cloud?.transport || input.bundled?.transport || null),
+    protocol: normalizeProtocol(input.cloud?.transport || null),
     installState: defaultInstalled ? 'bundled' : input.library ? 'installed' : 'available',
     defaultInstalled,
     installed,
@@ -304,7 +255,7 @@ function normalizeStoreItem(input: {
     requiresApiKey: inferRequiresApiKey(config, metadata),
     categories,
     lastUpdated: readDateLabel(input.cloud?.updated_at || input.library?.updated_at || null),
-    configSummary: buildConfigSummary(command, httpUrl, input.bundled),
+    configSummary: buildConfigSummary(command, httpUrl, config),
     command,
     httpUrl,
     featured: readBoolean(metadata.featured) === true || readBoolean(metadata.official) === true || defaultInstalled,
@@ -346,55 +297,25 @@ function compareMcpStoreItems(left: McpStoreItem, right: McpStoreItem): number {
   return left.name.localeCompare(right.name, 'zh-CN');
 }
 
-function fallbackBundledMcpCatalog(): RawBundledMcpCatalogItem[] {
-  const source = bundledMcpConfig as RawBundledMcpConfigFile;
-  const servers = source.mcpServers || {};
-  return Object.entries(servers)
-    .map(([mcpKey, value]) => ({
-      mcp_key: mcpKey,
-      transport: normalizeBundledTransport(readObject(value)),
-      enabled: value?.enabled !== false,
-      command: readString(value?.command),
-      args: Array.isArray(value?.args) ? value.args.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : [],
-      http_url: readString(value?.httpUrl) || readString(value?.url),
-      config: readObject(value),
-    }))
-    .sort((left, right) => left.mcp_key.localeCompare(right.mcp_key, 'zh-CN'));
-}
-
-export async function loadBundledMcpCatalog(): Promise<RawBundledMcpCatalogItem[]> {
-  if (!isTauriRuntime()) {
-    return fallbackBundledMcpCatalog();
-  }
-  try {
-    return await invoke<RawBundledMcpCatalogItem[]>('load_bundled_mcp_catalog');
-  } catch {
-    return fallbackBundledMcpCatalog();
-  }
-}
-
 export async function loadMcpStoreCatalog(input: {
   client: IClawClient;
   accessToken: string | null;
   limit?: number;
   offset?: number;
 }): Promise<McpStoreItem[]> {
-  const [bundledItems, cloudPage, libraryItems] = await Promise.all([
-    input.offset && input.offset > 0 ? Promise.resolve([]) : loadBundledMcpCatalog().catch(() => []),
+  const [cloudPage, libraryItems] = await Promise.all([
     input.client.listMcpCatalogPage({ limit: input.limit ?? 200, offset: input.offset ?? 0 }),
     input.accessToken ? input.client.getMcpLibrary(input.accessToken).catch(() => []) : Promise.resolve([]),
   ]);
 
-  const bundledByKey = new Map(bundledItems.map((item) => [item.mcp_key, item]));
   const cloudByKey = new Map(cloudPage.items.map((item) => [item.mcp_key, item]));
   const libraryByKey = new Map(libraryItems.map((item) => [item.mcp_key, item]));
-  const keys = Array.from(new Set([...bundledByKey.keys(), ...cloudByKey.keys(), ...libraryByKey.keys()]));
+  const keys = Array.from(new Set([...cloudByKey.keys(), ...libraryByKey.keys()]));
 
   return keys
     .map((key) =>
       normalizeStoreItem({
         key,
-        bundled: bundledByKey.get(key) || null,
         cloud: cloudByKey.get(key) || null,
         library: libraryByKey.get(key) || null,
       }),

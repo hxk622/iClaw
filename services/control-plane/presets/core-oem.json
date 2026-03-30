@@ -785,13 +785,40 @@
       "name": "Nano Banana",
       "description": "图像生成与编辑能力接入。",
       "transport": "config",
-      "config": {"command": "npx"},
+      "config": {
+        "command": "npx",
+        "args": ["nano-banana-mcp"],
+        "env": {
+          "GEMINI_API_KEY": "${GEMINI_API_KEY}"
+        }
+      },
       "metadata": {
         "sourceType": "preset",
+        "sourceLabel": "社区推荐",
+        "community": true,
         "tier": "p1",
-        "publisher": "Nano Banana",
+        "publisher": "ConechoAI",
+        "requiresApiKey": true,
+        "channel": "community",
         "categories": ["生产力", "图像工具"],
-        "tags": ["image", "generation", "editing"]
+        "tags": ["image", "generation", "editing", "gemini"],
+        "requiredEnv": ["GEMINI_API_KEY"],
+        "docsUrl": "https://github.com/ConechoAI/Nano-Banana-MCP",
+        "homepageUrl": "https://github.com/ConechoAI/Nano-Banana-MCP",
+        "setupSchema": {
+          "version": 1,
+          "fields": [
+            {
+              "key": "GEMINI_API_KEY",
+              "label": "Gemini API Key",
+              "type": "secret",
+              "required": true,
+              "inject_as": "GEMINI_API_KEY",
+              "placeholder": "请输入 Gemini API Key",
+              "help_text": "用于调用 Nano Banana 的 Gemini 图像生成与编辑能力。"
+            }
+          ]
+        }
       },
       "active": true
     },
