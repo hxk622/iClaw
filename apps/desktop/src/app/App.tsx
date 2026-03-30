@@ -414,6 +414,7 @@ export default function App() {
   const [postAuthView, setPostAuthView] = useState<'account' | 'recharge' | null>(null);
   const [authBootstrapReady, setAuthBootstrapReady] = useState(false);
   const [guestPromptInitialized, setGuestPromptInitialized] = useState(false);
+  const [authBootstrapHintVisible, setAuthBootstrapHintVisible] = useState(false);
   const [desktopUpdateHint, setDesktopUpdateHint] = useState<DesktopUpdateHint | null>(null);
   const [skippedDesktopUpdateVersion, setSkippedDesktopUpdateVersion] = useState<string | null>(() =>
     readSkippedDesktopUpdateVersion(),
@@ -1167,6 +1168,19 @@ export default function App() {
   const shouldShowAuthBootstrapHint = !shouldShowStartupGate && !authBootstrapReady;
 
   useEffect(() => {
+    if (!shouldShowAuthBootstrapHint) {
+      setAuthBootstrapHintVisible(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setAuthBootstrapHintVisible(true);
+    }, 420);
+
+    return () => window.clearTimeout(timer);
+  }, [shouldShowAuthBootstrapHint]);
+
+  useEffect(() => {
     if (!desktopUpdateHint) return;
     if (desktopUpdateHint.latestVersion !== skippedDesktopUpdateVersion) {
       if (desktopUpdateActionState !== 'ready-to-restart') {
@@ -1308,7 +1322,7 @@ export default function App() {
   return (
     <SettingsProvider>
       <div className="relative h-screen overflow-hidden">
-        {shouldShowAuthBootstrapHint ? (
+        {authBootstrapHintVisible ? (
           <div className="pointer-events-none absolute inset-x-0 top-3 z-40 flex justify-center px-4">
             <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-elevated)_86%,transparent)] px-3 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] shadow-[0_10px_28px_rgba(15,23,42,0.12)] backdrop-blur-md">
               <span className="h-2 w-2 rounded-full bg-[var(--brand-primary)] motion-safe:animate-pulse" />

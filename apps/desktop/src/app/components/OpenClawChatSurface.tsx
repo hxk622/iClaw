@@ -3394,7 +3394,12 @@ export function OpenClawChatSurface({
   }, [closeSelectionMenu, resolveChatSelection, selectionMenu]);
 
   useEffect(() => {
-    if ((sessionTransitionVisible || initialSurfaceRestorePending) && !status.lastError) {
+    const bootStillSettling =
+      initialSurfaceRestorePending ||
+      !hasBootSettled ||
+      (shellAuthenticated && sessionHistoryState === 'unknown' && !hasObservedHistory);
+
+    if ((sessionTransitionVisible || bootStillSettling) && !status.lastError) {
       setShowConnectionCard(false);
       return;
     }
@@ -3414,7 +3419,16 @@ export function OpenClawChatSurface({
     }, 320);
 
     return () => window.clearTimeout(timer);
-  }, [initialSurfaceRestorePending, sessionTransitionVisible, status.connected, status.lastError]);
+  }, [
+    hasBootSettled,
+    hasObservedHistory,
+    initialSurfaceRestorePending,
+    sessionHistoryState,
+    sessionTransitionVisible,
+    shellAuthenticated,
+    status.connected,
+    status.lastError,
+  ]);
 
   useEffect(() => {
     const threadReady = renderState.hasThread && renderState.threadVisible;
@@ -3487,11 +3501,12 @@ export function OpenClawChatSurface({
     : hasGatewayAuth
       ? '正在连接 OpenClaw 网关…'
       : '缺少本地网关凭据，当前无法连接 OpenClaw。';
+  const waitingForHistoryResolution =
+    shellAuthenticated && sessionHistoryState === 'unknown' && !hasObservedHistory;
   const showBootMask =
-    !hasBootSettled &&
     shellAuthenticated &&
     !status.lastError &&
-    (!status.connected || initialSurfaceRestorePending);
+    ((!hasBootSettled && (!status.connected || initialSurfaceRestorePending)) || waitingForHistoryResolution);
   const showSessionTransitionMask = sessionTransitionVisible && !showBootMask;
   const shellTransitioning = showBootMask || showSessionTransitionMask;
   const secureContextHint =
@@ -4062,7 +4077,7 @@ export function OpenClawChatSurface({
   const showWelcomePage =
     !initialSurfaceRestorePending &&
     !hasObservedHistory &&
-    sessionHistoryState !== 'has-history' &&
+    sessionHistoryState === 'empty' &&
     !showRenderDiagnosticsCard &&
     !showConnectionCard &&
     !showBootMask &&
@@ -4159,6 +4174,11 @@ export function OpenClawChatSurface({
       let inAssistantTurn = false;
 
       groups.forEach((group) => {
+        if (group.hasAttribute('hidden')) {
+          group.classList.remove('iclaw-chat-group--continued');
+          return;
+        }
+
         const isUser = group.classList.contains('user');
         const isAssistantSide =
           !isUser &&
