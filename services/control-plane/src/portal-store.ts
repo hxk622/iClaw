@@ -3056,6 +3056,7 @@ export class PgPortalStore {
           description: string;
           category: string | null;
           publisher: string;
+          active: boolean;
         }>(
           `
             select
@@ -3063,10 +3064,10 @@ export class PgPortalStore {
               name,
               description,
               category,
-              publisher
+              publisher,
+              active
             from skill_catalog_entries
             where slug = $1
-              and active = true
             limit 1
           `,
           [skill.slug],
@@ -3075,6 +3076,9 @@ export class PgPortalStore {
           throw new Error(`[portal-preset] preset skill not found in cloud catalog: ${skill.slug}`);
         }
         const cloud = catalog.rows[0];
+        if (cloud.active === false) {
+          throw new Error(`[portal-preset] preset skill inactive in cloud catalog: ${skill.slug}`);
+        }
         await client.query(
           `
             insert into platform_bundled_skills (

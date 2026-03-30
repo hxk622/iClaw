@@ -176,10 +176,27 @@ export async function ensureDefaultSkillSyncSources(store: ControlPlaneStore): P
   await store.upsertSkillSyncSource(DEFAULT_CLAWHUB_SYNC_SOURCE);
 }
 
+async function hasDefaultSkillCatalogGap(store: ControlPlaneStore): Promise<boolean> {
+  const entries = await Promise.all(DEFAULT_CLOUD_SKILL_SEEDS.map((skill) => store.getSkillCatalogEntry(skill.slug)));
+  return entries.some((entry) => !entry || entry.active === false || entry.distribution !== 'cloud');
+}
+
+async function hasDefaultAgentCatalogGap(store: ControlPlaneStore): Promise<boolean> {
+  const entries = await Promise.all(DEFAULT_AGENT_CATALOG_SEEDS.map((agent) => store.getAgentCatalogEntry(agent.slug)));
+  return entries.some((entry) => !entry || entry.active === false);
+}
+
 export async function ensureDefaultCatalogs(store: ControlPlaneStore): Promise<void> {
   const seedHash = buildDefaultCatalogsHash();
   const previousState = await store.getSystemState(DEFAULT_CATALOGS_STATE_KEY);
-  if (typeof previousState?.seedHash === 'string' && previousState.seedHash === seedHash) {
+  const hasSkillGap = await hasDefaultSkillCatalogGap(store);
+  const hasAgentGap = await hasDefaultAgentCatalogGap(store);
+  if (
+    typeof previousState?.seedHash === 'string' &&
+    previousState.seedHash === seedHash &&
+    !hasSkillGap &&
+    !hasAgentGap
+  ) {
     return;
   }
 

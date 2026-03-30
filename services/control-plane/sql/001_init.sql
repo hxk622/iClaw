@@ -1731,7 +1731,7 @@ on conflict (id) do update set
 update skill_catalog_entries
 set active = false,
     updated_at = now()
-where slug in ('github', 'gog', 'ontology', 'skill-vetter', 'summarize');
+where slug in ('github', 'gog', 'ontology', 'summarize');
 
 create index if not exists idx_device_sessions_user_id on device_sessions(user_id);
 create index if not exists idx_access_tokens_user_id on access_tokens(user_id);
