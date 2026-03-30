@@ -217,6 +217,11 @@ type ChatSurfaceRenderState = {
   chatMessageCount: number;
 };
 
+type CreditBlockNotice = {
+  message: string;
+  code: 'INSUFFICIENT_CREDITS' | 'CREDIT_LIMIT_EXCEEDED';
+};
+
 type ChatSurfaceTransitionMode = 'boot' | 'switch';
 type SessionHistoryState = 'unknown' | 'empty' | 'has-history';
 
@@ -1631,8 +1636,8 @@ async function sendAuthorizedChatMessage(params: {
     app.chatRunId = null;
     app.chatStream = null;
     app.chatStreamStartedAt = null;
-    app.lastError = detail;
-    app.lastErrorCode = code;
+    app.lastError = isCreditBlockCode(code) ? null : detail;
+    app.lastErrorCode = isCreditBlockCode(code) ? null : code;
     if (!shouldSuppressInlineChatError(code)) {
       app.chatMessages = [
         ...app.chatMessages,
@@ -1702,8 +1707,8 @@ function markOutgoingChatFailed(params: {
   app.chatRunId = null;
   app.chatStream = null;
   app.chatStreamStartedAt = null;
-  app.lastError = detail;
-  app.lastErrorCode = code;
+  app.lastError = isCreditBlockCode(code) ? null : detail;
+  app.lastErrorCode = isCreditBlockCode(code) ? null : code;
   if (!shouldSuppressInlineChatError(code)) {
     app.chatMessages = [
       ...app.chatMessages,
@@ -1727,6 +1732,10 @@ function resolveGatewayErrorDetail(error: unknown): { message: string; code: str
 
 function shouldSuppressInlineChatError(code: string | null | undefined): boolean {
   return code === 'INSUFFICIENT_CREDITS';
+}
+
+function isCreditBlockCode(code: string | null | undefined): code is CreditBlockNotice['code'] {
+  return code === 'INSUFFICIENT_CREDITS' || code === 'CREDIT_LIMIT_EXCEEDED';
 }
 
 function setMessageActionFeedback(button: HTMLButtonElement, state: 'idle' | 'success'): void {
@@ -2024,6 +2033,7 @@ export function OpenClawChatSurface({
   const [showConnectionCard, setShowConnectionCard] = useState(false);
   const [showRenderDiagnosticsCard, setShowRenderDiagnosticsCard] = useState(false);
   const [rechargeNoticeDismissed, setRechargeNoticeDismissed] = useState(false);
+  const [creditBlockNotice, setCreditBlockNotice] = useState<CreditBlockNotice | null>(null);
   const [initialSurfaceRestorePending, setInitialSurfaceRestorePending] = useState(shellAuthenticated);
   const [hasBootSettled, setHasBootSettled] = useState(false);
   const [sessionHistoryState, setSessionHistoryState] = useState<SessionHistoryState>(
@@ -3562,14 +3572,13 @@ export function OpenClawChatSurface({
       : null;
   const authRole = appRef.current?.hello?.auth?.role ?? null;
   const authScopes = appRef.current?.hello?.auth?.scopes ?? null;
-  const showRechargeCtaCard =
-    status.connected && status.lastErrorCode === 'INSUFFICIENT_CREDITS' && !rechargeNoticeDismissed;
+  const showRechargeCtaCard = status.connected && Boolean(creditBlockNotice) && !rechargeNoticeDismissed;
 
   useEffect(() => {
-    if (status.lastErrorCode !== 'INSUFFICIENT_CREDITS') {
+    if (!creditBlockNotice) {
       setRechargeNoticeDismissed(false);
     }
-  }, [status.lastErrorCode]);
+  }, [creditBlockNotice]);
 
   useEffect(() => {
     window.__ICLAW_OPENCLAW_DIAGNOSTICS__ = {
@@ -3984,6 +3993,7 @@ export function OpenClawChatSurface({
         model: selectedModelId || undefined,
         appName,
       });
+      setCreditBlockNotice(null);
 
       stageOutgoingChatMessage({
         app,
@@ -4035,8 +4045,11 @@ export function OpenClawChatSurface({
       return true;
     } catch (error) {
       const { message: detail, code } = resolveGatewayErrorDetail(error);
-      if (code === 'INSUFFICIENT_CREDITS') {
+      if (isCreditBlockCode(code)) {
+        setCreditBlockNotice({ message: detail, code });
         setRechargeNoticeDismissed(false);
+      } else {
+        setCreditBlockNotice(null);
       }
       if (runId) {
         pendingUsageSettlementsRef.current = pendingUsageSettlementsRef.current.filter(
@@ -4058,8 +4071,8 @@ export function OpenClawChatSurface({
       activeRecentTaskRunRef.current = null;
       setStatus((current) => ({
         ...current,
-        lastError: detail,
-        lastErrorCode: code,
+        lastError: isCreditBlockCode(code) ? null : detail,
+        lastErrorCode: isCreditBlockCode(code) ? null : code,
       }));
       return false;
     }
@@ -4635,8 +4648,12 @@ export function OpenClawChatSurface({
               <EmptyStatePanel
                 compact
                 className="pr-14"
-                title="龙虾币余额不足，当前消息已被拦截"
-                description={status.lastError || '请先前往充值中心充值后再继续发送。'}
+                title={
+                  creditBlockNotice?.code === 'CREDIT_LIMIT_EXCEEDED'
+                    ? '本次消息超过单次额度限制，当前已被拦截'
+                    : '龙虾币余额不足，当前消息已被拦截'
+                }
+                description={creditBlockNotice?.message || '请先前往充值中心充值后再继续发送。'}
                 action={
                   onOpenRechargeCenter ? (
                     <Button
