@@ -9,6 +9,7 @@ import {
   ScrollText,
   Wallet,
   WifiOff,
+  X,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type DragEvent as ReactDragEvent } from 'react';
 import type { CreditQuoteData, IClawClient, MarketFundData, MarketStockData, RunBillingSummaryData } from '@iclaw/sdk';
@@ -1630,14 +1631,16 @@ async function sendAuthorizedChatMessage(params: {
     app.chatStreamStartedAt = null;
     app.lastError = detail;
     app.lastErrorCode = code;
-    app.chatMessages = [
-      ...app.chatMessages,
-      {
-        role: 'assistant',
-        content: [{ type: 'text', text: `Error: ${detail}` }],
-        timestamp: Date.now(),
-      },
-    ];
+    if (!shouldSuppressInlineChatError(code)) {
+      app.chatMessages = [
+        ...app.chatMessages,
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: `Error: ${detail}` }],
+          timestamp: Date.now(),
+        },
+      ];
+    }
     throw error;
   } finally {
     app.chatSending = false;
@@ -1699,14 +1702,16 @@ function markOutgoingChatFailed(params: {
   app.chatStreamStartedAt = null;
   app.lastError = detail;
   app.lastErrorCode = code;
-  app.chatMessages = [
-    ...app.chatMessages,
-    {
-      role: 'assistant',
-      content: [{ type: 'text', text: `Error: ${detail}` }],
-      timestamp: Date.now(),
-    },
-  ];
+  if (!shouldSuppressInlineChatError(code)) {
+    app.chatMessages = [
+      ...app.chatMessages,
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: `Error: ${detail}` }],
+        timestamp: Date.now(),
+      },
+    ];
+  }
 }
 
 function resolveGatewayErrorDetail(error: unknown): { message: string; code: string | null } {
@@ -1716,6 +1721,10 @@ function resolveGatewayErrorDetail(error: unknown): { message: string; code: str
       ? error.code
       : null;
   return { message, code };
+}
+
+function shouldSuppressInlineChatError(code: string | null | undefined): boolean {
+  return code === 'INSUFFICIENT_CREDITS';
 }
 
 function setMessageActionFeedback(button: HTMLButtonElement, state: 'idle' | 'success'): void {
@@ -2010,6 +2019,7 @@ export function OpenClawChatSurface({
   });
   const [showConnectionCard, setShowConnectionCard] = useState(false);
   const [showRenderDiagnosticsCard, setShowRenderDiagnosticsCard] = useState(false);
+  const [rechargeNoticeDismissed, setRechargeNoticeDismissed] = useState(false);
   const [initialSurfaceRestorePending, setInitialSurfaceRestorePending] = useState(shellAuthenticated);
   const [hasBootSettled, setHasBootSettled] = useState(false);
   const [sessionHistoryState, setSessionHistoryState] = useState<SessionHistoryState>(
@@ -3538,7 +3548,14 @@ export function OpenClawChatSurface({
       : null;
   const authRole = appRef.current?.hello?.auth?.role ?? null;
   const authScopes = appRef.current?.hello?.auth?.scopes ?? null;
-  const showRechargeCtaCard = status.connected && status.lastErrorCode === 'INSUFFICIENT_CREDITS';
+  const showRechargeCtaCard =
+    status.connected && status.lastErrorCode === 'INSUFFICIENT_CREDITS' && !rechargeNoticeDismissed;
+
+  useEffect(() => {
+    if (status.lastErrorCode !== 'INSUFFICIENT_CREDITS') {
+      setRechargeNoticeDismissed(false);
+    }
+  }, [status.lastErrorCode]);
 
   useEffect(() => {
     window.__ICLAW_OPENCLAW_DIAGNOSTICS__ = {
@@ -3997,6 +4014,9 @@ export function OpenClawChatSurface({
       return true;
     } catch (error) {
       const { message: detail, code } = resolveGatewayErrorDetail(error);
+      if (code === 'INSUFFICIENT_CREDITS') {
+        setRechargeNoticeDismissed(false);
+      }
       if (runId) {
         pendingUsageSettlementsRef.current = pendingUsageSettlementsRef.current.filter(
           (pending) => pending.runId !== runId,
@@ -4589,23 +4609,35 @@ export function OpenClawChatSurface({
 
         {showRechargeCtaCard ? (
           <div className="mb-4">
-            <EmptyStatePanel
-              compact
-              title="龙虾币余额不足，当前消息已被拦截"
-              description={status.lastError || '请先前往充值中心充值后再继续发送。'}
-              action={
-                onOpenRechargeCenter ? (
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    leadingIcon={<Wallet className="h-4 w-4" />}
-                    onClick={onOpenRechargeCenter}
-                  >
-                    去充值中心
-                  </Button>
-                ) : undefined
-              }
-            />
+            <div className="relative">
+              <EmptyStatePanel
+                compact
+                className="pr-14"
+                title="龙虾币余额不足，当前消息已被拦截"
+                description={status.lastError || '请先前往充值中心充值后再继续发送。'}
+                action={
+                  onOpenRechargeCenter ? (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      leadingIcon={<Wallet className="h-4 w-4" />}
+                      onClick={onOpenRechargeCenter}
+                    >
+                      去充值中心
+                    </Button>
+                  ) : undefined
+                }
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute top-3 right-3 rounded-full p-2"
+                aria-label="关闭龙虾币余额提醒"
+                onClick={() => setRechargeNoticeDismissed(true)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         ) : null}
 
