@@ -1992,6 +1992,7 @@ function AuthedView({
               inputComposerConfig={inputComposerConfig}
               welcomePageConfig={welcomePageConfig}
               onInitialSkillSlugChange={handleActiveChatSkillChange}
+              onOpenRechargeCenter={() => setOverlayView('recharge')}
             />
           ) : (
             <RuntimeAuthRequiredView

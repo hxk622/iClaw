@@ -7,6 +7,7 @@ import {
   MessageSquarePlus,
   RefreshCw,
   ScrollText,
+  Wallet,
   WifiOff,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type DragEvent as ReactDragEvent } from 'react';
@@ -182,6 +183,7 @@ type OpenClawChatSurfaceProps = {
   inputComposerConfig?: ResolvedInputComposerConfig | null;
   welcomePageConfig?: ResolvedWelcomePageConfig | null;
   onInitialSkillSlugChange?: (slug: string | null) => void;
+  onOpenRechargeCenter?: () => void;
 };
 
 type ComposerCreditEstimateState = {
@@ -1622,11 +1624,12 @@ async function sendAuthorizedChatMessage(params: {
       attachments: apiAttachments.length > 0 ? apiAttachments : undefined,
     });
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
+    const { message: detail, code } = resolveGatewayErrorDetail(error);
     app.chatRunId = null;
     app.chatStream = null;
     app.chatStreamStartedAt = null;
     app.lastError = detail;
+    app.lastErrorCode = code;
     app.chatMessages = [
       ...app.chatMessages,
       {
@@ -1678,6 +1681,7 @@ function stageOutgoingChatMessage(params: {
   app.chatAttachments = [];
   app.chatSending = true;
   app.lastError = null;
+  app.lastErrorCode = null;
   app.chatRunId = runId;
   app.chatStream = '';
   app.chatStreamStartedAt = startedAt;
@@ -1686,13 +1690,15 @@ function stageOutgoingChatMessage(params: {
 function markOutgoingChatFailed(params: {
   app: OpenClawAppElement;
   detail: string;
+  code?: string | null;
 }): void {
-  const { app, detail } = params;
+  const { app, detail, code = null } = params;
   app.chatSending = false;
   app.chatRunId = null;
   app.chatStream = null;
   app.chatStreamStartedAt = null;
   app.lastError = detail;
+  app.lastErrorCode = code;
   app.chatMessages = [
     ...app.chatMessages,
     {
@@ -1703,16 +1709,13 @@ function markOutgoingChatFailed(params: {
   ];
 }
 
-function resolvePreflightChatErrorMessage(error: unknown): string {
+function resolveGatewayErrorDetail(error: unknown): { message: string; code: string | null } {
   const message = error instanceof Error ? error.message : '任务发送失败';
   const code =
     error && typeof error === 'object' && 'code' in error && typeof error.code === 'string'
       ? error.code
       : null;
-  if (code === 'INSUFFICIENT_CREDITS' || code === 'CREDIT_LIMIT_EXCEEDED') {
-    return message;
-  }
-  return message;
+  return { message, code };
 }
 
 function setMessageActionFeedback(button: HTMLButtonElement, state: 'idle' | 'success'): void {
@@ -1967,6 +1970,7 @@ export function OpenClawChatSurface({
   inputComposerConfig = null,
   welcomePageConfig = null,
   onInitialSkillSlugChange,
+  onOpenRechargeCenter,
 }: OpenClawChatSurfaceProps) {
   const shellRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -3534,6 +3538,7 @@ export function OpenClawChatSurface({
       : null;
   const authRole = appRef.current?.hello?.auth?.role ?? null;
   const authScopes = appRef.current?.hello?.auth?.scopes ?? null;
+  const showRechargeCtaCard = status.connected && status.lastErrorCode === 'INSUFFICIENT_CREDITS';
 
   useEffect(() => {
     window.__ICLAW_OPENCLAW_DIAGNOSTICS__ = {
@@ -3991,14 +3996,14 @@ export function OpenClawChatSurface({
       }, 420);
       return true;
     } catch (error) {
-      const detail = resolvePreflightChatErrorMessage(error);
+      const { message: detail, code } = resolveGatewayErrorDetail(error);
       if (runId) {
         pendingUsageSettlementsRef.current = pendingUsageSettlementsRef.current.filter(
           (pending) => pending.runId !== runId,
         );
       }
       if (!handoffStarted) {
-        markOutgoingChatFailed({ app, detail });
+        markOutgoingChatFailed({ app, detail, code });
       }
       setPendingSettlementCount(pendingUsageSettlementsRef.current.length);
       if (pendingUsageSettlementsRef.current.length === 0) {
@@ -4013,6 +4018,7 @@ export function OpenClawChatSurface({
       setStatus((current) => ({
         ...current,
         lastError: detail,
+        lastErrorCode: code,
       }));
       return false;
     }
@@ -4576,6 +4582,28 @@ export function OpenClawChatSurface({
                 >
                   重新尝试
                 </Button>
+              }
+            />
+          </div>
+        ) : null}
+
+        {showRechargeCtaCard ? (
+          <div className="mb-4">
+            <EmptyStatePanel
+              compact
+              title="龙虾币余额不足，当前消息已被拦截"
+              description={status.lastError || '请先前往充值中心充值后再继续发送。'}
+              action={
+                onOpenRechargeCenter ? (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    leadingIcon={<Wallet className="h-4 w-4" />}
+                    onClick={onOpenRechargeCenter}
+                  >
+                    去充值中心
+                  </Button>
+                ) : undefined
               }
             />
           </div>
