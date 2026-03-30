@@ -786,11 +786,12 @@
       "description": "图像生成与编辑能力接入。",
       "transport": "config",
       "config": {
-        "command": "npx",
-        "args": ["nano-banana-mcp"],
+        "command": "node",
+        "args": ["__ICLAW_SERVERS_DIR__/nano-banana/index.mjs"],
         "env": {
           "GEMINI_API_KEY": "${GEMINI_API_KEY}",
-          "GOOGLE_GEMINI_BASE_URL": "${GOOGLE_GEMINI_BASE_URL}"
+          "GOOGLE_GEMINI_BASE_URL": "${GOOGLE_GEMINI_BASE_URL}",
+          "NANO_BANANA_MODEL": "${NANO_BANANA_MODEL}"
         }
       },
       "metadata": {
@@ -826,6 +827,15 @@
               "inject_as": "GOOGLE_GEMINI_BASE_URL",
               "placeholder": "可选，例如 https://your-gemini-proxy.example.com/",
               "help_text": "仅当你使用 Gemini 兼容中转站时填写；如果是直连 Google，就留空。"
+            },
+            {
+              "key": "NANO_BANANA_MODEL",
+              "label": "Gemini Image Model",
+              "type": "text",
+              "required": false,
+              "inject_as": "NANO_BANANA_MODEL",
+              "placeholder": "默认 gemini-3.1-flash-image",
+              "help_text": "可选。只有当你的 Gemini 或兼容中转站不支持默认图像模型时，才需要手动指定。"
             }
           ]
         }
