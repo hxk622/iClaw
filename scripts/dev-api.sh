@@ -83,6 +83,8 @@ resolve_openclaw_bin() {
 }
 
 OPENCLAW_BIN="$(resolve_openclaw_bin)"
+OPENCLAW_CLI_BIN="$ROOT_DIR/services/openclaw/bin/openclaw"
+OPENCLAW_RUNTIME_NODE_DIR="$ROOT_DIR/services/openclaw/runtime/node"
 
 is_mock_sidecar_bin() {
   local bin_path="$1"
@@ -98,20 +100,23 @@ is_mock_sidecar_bin() {
 ensure_sidecar_bin() {
   echo "[api-dev] 使用后端二进制: $OPENCLAW_BIN"
 
-  if [[ -x "$OPENCLAW_BIN" ]] && ! is_mock_sidecar_bin "$OPENCLAW_BIN"; then
+  if [[ -x "$OPENCLAW_BIN" ]] && [[ -x "$OPENCLAW_CLI_BIN" ]] && ! is_mock_sidecar_bin "$OPENCLAW_BIN"; then
     return 0
   fi
 
   if [[ -x "$OPENCLAW_BIN" ]] && is_mock_sidecar_bin "$OPENCLAW_BIN"; then
     echo "[api-dev] 检测到 mock openclaw-server，切换为真实 runtime..."
+  elif [[ -x "$OPENCLAW_BIN" ]] && [[ ! -x "$OPENCLAW_CLI_BIN" ]]; then
+    echo "[api-dev] 检测到 openclaw CLI launcher 缺失，重新准备 server runtime..."
   else
     echo "[api-dev] 后端二进制缺失，正在准备真实 runtime..."
   fi
 
   (cd "$ROOT_DIR" && bash scripts/build-openclaw-server-runtime.sh)
 
-  if [[ ! -x "$OPENCLAW_BIN" ]] || is_mock_sidecar_bin "$OPENCLAW_BIN"; then
+  if [[ ! -x "$OPENCLAW_BIN" ]] || [[ ! -x "$OPENCLAW_CLI_BIN" ]] || is_mock_sidecar_bin "$OPENCLAW_BIN"; then
     echo "[api-dev] 后端二进制不可用: $OPENCLAW_BIN" >&2
+    echo "[api-dev] openclaw CLI launcher: $OPENCLAW_CLI_BIN" >&2
     echo "[api-dev] 请设置 OPENCLAW_PACKAGE_TGZ=/abs/path/to/openclaw.tgz，或在 openclaw-runtime.json / ICLAW_OPENCLAW_RUNTIME_VERSION 中提供版本。" >&2
     exit 1
   fi
@@ -272,9 +277,11 @@ start_openclaw_detached() {
 
   echo "[api-dev] 启动后端服务 :$API_PORT"
   echo "[api-dev] gateway tracing: verbose=$OPENCLAW_VERBOSE ws-log=$OPENCLAW_WS_LOG_STYLE raw-stream=$OPENCLAW_RAW_STREAM"
+  PATH="$ROOT_DIR/services/openclaw/bin:$OPENCLAW_RUNTIME_NODE_DIR${PATH:+:$PATH}" \
   OPENCLAW_LOG_DIR="$LOG_DIR" \
   OPENCLAW_GATEWAY_TOKEN="$GATEWAY_TOKEN" \
   ANTHROPIC_API_KEY="$RUNTIME_ANTHROPIC_API_KEY" \
+  ICLAW_OPENCLAW_CLI_PATH="$OPENCLAW_CLI_BIN" \
   NODE_EXTRA_CA_CERTS="$EXTRA_CA_CERTS_PATH" \
   PORT="$API_PORT" \
   nohup "$OPENCLAW_BIN" "${openclaw_args[@]}" >"$LOG_FILE" 2>&1 &
@@ -328,9 +335,11 @@ start_openclaw_foreground() {
 
   echo "[api-dev] 启动后端服务 :$API_PORT (foreground)"
   echo "[api-dev] gateway tracing: verbose=$OPENCLAW_VERBOSE ws-log=$OPENCLAW_WS_LOG_STYLE raw-stream=$OPENCLAW_RAW_STREAM"
+  PATH="$ROOT_DIR/services/openclaw/bin:$OPENCLAW_RUNTIME_NODE_DIR${PATH:+:$PATH}" \
   OPENCLAW_LOG_DIR="$LOG_DIR" \
   OPENCLAW_GATEWAY_TOKEN="$GATEWAY_TOKEN" \
   ANTHROPIC_API_KEY="$RUNTIME_ANTHROPIC_API_KEY" \
+  ICLAW_OPENCLAW_CLI_PATH="$OPENCLAW_CLI_BIN" \
   NODE_EXTRA_CA_CERTS="$EXTRA_CA_CERTS_PATH" \
   PORT="$API_PORT" \
   "$OPENCLAW_BIN" "${openclaw_args[@]}" >"$pipe_path" 2>&1 &

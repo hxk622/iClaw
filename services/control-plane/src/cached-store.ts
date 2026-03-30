@@ -35,6 +35,7 @@ import type {
   UpsertAgentCatalogEntryInput,
   UpsertAdminPaymentProviderBindingInput,
   UpsertAdminPaymentProviderProfileInput,
+  UpsertMcpCatalogEntryInput,
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
   UpsertUserExtensionInstallConfigInput,
@@ -718,6 +719,10 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     return this.getOrLoadValue(this.mcpCatalogKey(), MCP_CATALOG_CACHE_TTL_SECONDS, () => this.base.listMcpCatalog());
   }
 
+  async listMcpCatalogAdmin(): Promise<McpCatalogEntryRecord[]> {
+    return this.base.listMcpCatalogAdmin();
+  }
+
   async countMcpCatalog(): Promise<number> {
     return this.getOrLoadValue(this.mcpCatalogCountKey(), MCP_CATALOG_PAGE_CACHE_TTL_SECONDS, () =>
       this.base.countMcpCatalog(),
@@ -728,6 +733,36 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     return this.getOrLoad(this.mcpCatalogEntryKey(mcpKey), MCP_CATALOG_CACHE_TTL_SECONDS, () =>
       this.base.getMcpCatalogEntry(mcpKey),
     );
+  }
+
+  async upsertMcpCatalogEntry(input: Required<UpsertMcpCatalogEntryInput>): Promise<McpCatalogEntryRecord> {
+    const record = await this.base.upsertMcpCatalogEntry(input);
+    await this.cache.delete(
+      this.mcpCatalogKey(),
+      this.mcpCatalogCountKey(),
+      this.mcpCatalogPageKey(60, 0),
+      this.mcpCatalogPageKey(60, 60),
+      this.mcpCatalogPageKey(300, 0),
+      this.mcpCatalogPageKey(1000, 0),
+      this.mcpCatalogEntryKey(record.mcpKey),
+    );
+    return record;
+  }
+
+  async deleteMcpCatalogEntry(mcpKey: string): Promise<boolean> {
+    const removed = await this.base.deleteMcpCatalogEntry(mcpKey);
+    if (removed) {
+      await this.cache.delete(
+        this.mcpCatalogKey(),
+        this.mcpCatalogCountKey(),
+        this.mcpCatalogPageKey(60, 0),
+        this.mcpCatalogPageKey(60, 60),
+        this.mcpCatalogPageKey(300, 0),
+        this.mcpCatalogPageKey(1000, 0),
+        this.mcpCatalogEntryKey(mcpKey),
+      );
+    }
+    return removed;
   }
 
   async listSkillSyncSources(): Promise<SkillSyncSourceRecord[]> {

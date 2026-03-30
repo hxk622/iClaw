@@ -23,6 +23,11 @@ export async function startSidecar(args: string[]): Promise<boolean> {
   return invoke<boolean>('start_sidecar', { args });
 }
 
+export async function ensureOpenClawCliAvailable(): Promise<boolean> {
+  if (!isTauriRuntime()) return false;
+  return invoke<boolean>('ensure_openclaw_cli_available');
+}
+
 export async function detectPortConflicts(): Promise<PortConflictStatus | null> {
   if (!isTauriRuntime()) return null;
   return invoke<PortConflictStatus>('detect_port_conflicts');

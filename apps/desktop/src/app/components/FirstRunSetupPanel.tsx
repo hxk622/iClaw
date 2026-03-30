@@ -13,6 +13,7 @@ interface FirstRunSetupPanelProps {
   stepDetail: string;
   errorMessage: string | null;
   onRetry: () => Promise<void>;
+  presentation?: 'fullscreen' | 'embedded';
 }
 
 const PARTICLES = Array.from({ length: 16 }, (_, index) => ({
@@ -76,6 +77,7 @@ export function FirstRunSetupPanel({
   stepDetail,
   errorMessage,
   onRetry,
+  presentation = 'fullscreen',
 }: FirstRunSetupPanelProps) {
   const [theme, setTheme] = useState<ResolvedTheme>(() => getResolvedThemeFromDom());
   const clampedProgress = Math.max(0, Math.min(100, Math.round(progress)));
@@ -94,8 +96,17 @@ export function FirstRunSetupPanel({
     };
   }, []);
 
+  const containerClassName =
+    presentation === 'embedded'
+      ? `relative flex h-full min-h-0 items-center justify-center overflow-auto px-6 py-10 ${palette.page}`
+      : `relative flex min-h-screen items-center justify-center overflow-hidden px-6 py-10 ${palette.page}`;
+  const cardClassName =
+    presentation === 'embedded'
+      ? `relative w-full max-w-[760px] overflow-hidden rounded-[32px] border px-8 py-9 backdrop-blur-2xl md:px-10 md:py-10 ${palette.card}`
+      : `relative w-full max-w-[780px] overflow-hidden rounded-[36px] border px-8 py-10 backdrop-blur-2xl md:px-12 md:py-12 ${palette.card}`;
+
   return (
-    <div className={`relative flex min-h-screen items-center justify-center overflow-hidden px-6 py-10 ${palette.page}`}>
+    <div className={containerClassName}>
       <div className={`pointer-events-none absolute inset-0 ${palette.gradient}`} />
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         {PARTICLES.map((particle) => (
@@ -115,7 +126,7 @@ export function FirstRunSetupPanel({
         style={{ animation: 'installer-scan-line 4.6s linear infinite' }}
       />
 
-      <div className={`relative w-full max-w-[780px] overflow-hidden rounded-[36px] border px-8 py-10 backdrop-blur-2xl md:px-12 md:py-12 ${palette.card}`}>
+      <div className={cardClassName}>
         <div className="text-center">
           <div className={`text-[11px] uppercase tracking-[0.34em] ${palette.meta}`}>
             Installation Sequence

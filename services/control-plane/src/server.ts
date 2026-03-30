@@ -1149,12 +1149,18 @@ const server = createJsonServer([
         requireBearerToken(headers),
         (body || {}) as {
           key?: string;
+          name?: string;
+          description?: string;
           enabled?: boolean;
           type?: string | null;
+          transport?: string | null;
           command?: string | null;
           args?: string[];
           http_url?: string | null;
           env?: Record<string, string>;
+          object_key?: string | null;
+          config?: Record<string, unknown>;
+          metadata?: Record<string, unknown>;
         },
       ),
   },

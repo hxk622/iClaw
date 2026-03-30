@@ -38,6 +38,12 @@ function readFixture(name) {
   return JSON.parse(fs.readFileSync(path.join(fixturesDir, name), 'utf8'));
 }
 
+function writeTempJson(tempDir, name, value) {
+  const targetPath = path.join(tempDir, name);
+  fs.writeFileSync(targetPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  return targetPath;
+}
+
 test('golden: dev runtime config generation stays stable', () => {
   const actual = runGenerator({
     ICLAW_OPENCLAW_RUNTIME_CONFIG_PATH: path.join(fixturesDir, 'runtime-config.fixture.json'),
@@ -60,4 +66,26 @@ test('golden: prod runtime config generation stays stable', () => {
     ICLAW_OPENCLAW_ALLOWED_ORIGINS: 'tauri://localhost,http://tauri.localhost,https://tauri.localhost',
   });
   assert.deepEqual(actual, readFixture('expected-prod.json'));
+});
+
+test('normalizes openai-compatible provider baseUrl to include /v1 when missing', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'iclaw-runtime-config-baseurl-test-'));
+  try {
+    const runtimeFixture = readFixture('runtime-config.fixture.json');
+    const snapshotFixture = readFixture('oem-runtime-snapshot.fixture.json');
+    snapshotFixture.config.model_provider.profile.base_url = 'https://omnirouter.aiyuanxi.com';
+    snapshotFixture.config.model_provider.profile.provider_key = 'omnirouter';
+    snapshotFixture.config.model_provider.profile.provider_label = 'Omnirouter';
+    const actual = runGenerator({
+      ICLAW_OPENCLAW_RUNTIME_CONFIG_PATH: writeTempJson(tempDir, 'runtime-config.fixture.json', runtimeFixture),
+      ICLAW_OPENCLAW_OEM_RUNTIME_SNAPSHOT_PATH: writeTempJson(tempDir, 'oem-runtime-snapshot.fixture.json', snapshotFixture),
+      ICLAW_OPENCLAW_GATEWAY_TOKEN: 'baseurl-test-token',
+      ICLAW_OPENCLAW_WORKSPACE_DIR: '/tmp/iclaw-baseurl-workspace',
+      ICLAW_OPENCLAW_RUNTIME_MODE: 'dev',
+      ICLAW_OPENCLAW_ALLOWED_ORIGINS: 'http://127.0.0.1:1520,http://localhost:1520',
+    });
+    assert.equal(actual.models.providers.omnirouter.baseUrl, 'https://omnirouter.aiyuanxi.com/v1');
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
 });

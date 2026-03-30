@@ -1,17 +1,12 @@
 import {execFile} from 'node:child_process';
-import {readFile, writeFile} from 'node:fs/promises';
-import {dirname, resolve} from 'node:path';
-import {fileURLToPath} from 'node:url';
 import {promisify} from 'node:util';
 
-import type {PublicUser} from './domain.ts';
+import type {McpCatalogEntryRecord, PublicUser, UpsertMcpCatalogEntryInput} from './domain.ts';
 import {HttpError} from './errors.ts';
 import {deleteOemAssetFile, downloadOemAssetFile, uploadOemAssetFile} from './oem-asset-storage.ts';
 import type {PgOemStore} from './oem-store.ts';
 import type {ControlPlaneStore} from './store.ts';
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const mcpCatalogPath = resolve(repoRoot, 'mcp/mcp.json');
 const execFileAsync = promisify(execFile);
 
 function normalizeBrandId(value: unknown): string {
@@ -503,55 +498,33 @@ function normalizeEnvRecord(value: unknown): Record<string, string> {
   return output;
 }
 
-function sanitizeMcpEntryView(key: string, value: unknown) {
-  const entry = asObject(value);
-  const env = normalizeEnvRecord(entry.env);
+function formatMcpCatalogEntryView(entry: McpCatalogEntryRecord) {
+  const config = asObject(entry.config);
+  const env = normalizeEnvRecord(config.env);
   return {
-    key,
-    name: titleizeKey(key),
-    enabled: entry.enabled !== false,
-    type: typeof entry.type === 'string' ? entry.type : null,
-    command: typeof entry.command === 'string' ? entry.command.trim() || null : null,
-    args: asStringArray(entry.args),
-    http_url: typeof entry.httpUrl === 'string' ? entry.httpUrl.trim() || null : null,
+    key: entry.mcpKey,
+    mcpKey: entry.mcpKey,
+    name: entry.name || titleizeKey(entry.mcpKey),
+    description: entry.description || '',
+    enabled: entry.active !== false,
+    active: entry.active !== false,
+    type: typeof config.type === 'string' ? config.type : null,
+    transport: entry.transport || 'config',
+    command: typeof config.command === 'string' ? config.command.trim() || null : null,
+    args: asStringArray(config.args),
+    http_url:
+      typeof config.http_url === 'string'
+        ? config.http_url.trim() || null
+        : typeof config.httpUrl === 'string'
+          ? config.httpUrl.trim() || null
+          : null,
     env,
     env_keys: Object.keys(env).sort(),
+    config,
+    metadata: asObject(entry.metadata),
+    object_key: entry.objectKey || null,
+    objectKey: entry.objectKey || null,
   };
-}
-
-async function readMcpCatalogDocument(): Promise<{mcpServers: Record<string, unknown>}> {
-  const raw = JSON.parse(await readFile(mcpCatalogPath, 'utf8')) as {mcpServers?: Record<string, unknown>};
-  return {
-    mcpServers: raw.mcpServers && typeof raw.mcpServers === 'object' ? raw.mcpServers : {},
-  };
-}
-
-async function writeMcpCatalogDocument(document: {mcpServers: Record<string, unknown>}): Promise<void> {
-  await writeFile(mcpCatalogPath, `${JSON.stringify(document, null, 2)}\n`, 'utf8');
-}
-
-async function readMcpCatalog(): Promise<
-  Array<{
-    key: string;
-    enabledByDefault: boolean;
-    command: string | null;
-    args: string[];
-    httpUrl: string | null;
-    envKeys: string[];
-  }>
-> {
-  const raw = await readMcpCatalogDocument();
-  return Object.entries(raw.mcpServers || {}).map(([key, value]) => {
-    const entry = sanitizeMcpEntryView(key, value);
-    return {
-      key,
-      enabledByDefault: entry.enabled,
-      command: entry.command,
-      args: entry.args,
-      httpUrl: entry.http_url,
-      envKeys: entry.env_keys,
-    };
-  });
 }
 
 function rolePriority(role: PublicUser['role']): number {
@@ -1146,17 +1119,15 @@ export class OemService {
 
   async listMcpCatalog(accessToken: string) {
     await this.requireAdmin(accessToken);
-    const raw = await readMcpCatalogDocument();
+    const items = await this.getMcpCatalog();
     return {
-      items: Object.entries(raw.mcpServers)
-        .map(([key, value]) => sanitizeMcpEntryView(key, value))
-        .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN')),
+      items,
     };
   }
 
   async upsertMcpCatalogEntry(
     accessToken: string,
-    input: {
+    input: UpsertMcpCatalogEntryInput & {
       key?: string;
       enabled?: boolean;
       type?: string | null;
@@ -1167,45 +1138,74 @@ export class OemService {
     },
   ) {
     await this.requireAdmin(accessToken);
+    if (!this.controlStore) {
+      throw new HttpError(500, 'INTERNAL_ERROR', 'cloud mcp catalog store unavailable');
+    }
     const key = normalizeMcpKey(input.key);
-    const raw = await readMcpCatalogDocument();
-    const existing = asObject(raw.mcpServers[key]);
-    const entry = sanitizeMcpEntryView(key, existing);
-    const enabled = normalizeOptionalBoolean(input.enabled, 'enabled', entry.enabled);
-    const type = normalizeOptionalString(input.type, 'type') ?? entry.type;
-    const command = normalizeOptionalString(input.command, 'command') ?? entry.command;
-    const args = input.args === undefined ? entry.args : asStringArray(input.args);
-    const httpUrl = normalizeOptionalString(input.http_url, 'http_url') ?? entry.http_url;
-    const env = input.env === undefined ? entry.env : normalizeEnvRecord(input.env);
+    const existing = await this.controlStore.getMcpCatalogEntry(key);
+    const existingView = existing ? formatMcpCatalogEntryView(existing) : null;
+    const enabled = normalizeOptionalBoolean(input.enabled, 'enabled', existingView?.enabled ?? true);
+    const type = normalizeOptionalString(input.type, 'type') ?? existingView?.type;
+    const transport =
+      normalizeOptionalString(input.transport, 'transport') ??
+      existing?.transport ??
+      existingView?.type ??
+      'config';
+    const command = normalizeOptionalString(input.command, 'command') ?? existingView?.command;
+    const args = input.args === undefined ? (existingView?.args || []) : asStringArray(input.args);
+    const httpUrl = normalizeOptionalString(input.http_url, 'http_url') ?? existingView?.http_url;
+    const env = input.env === undefined ? normalizeEnvRecord(existingView?.env || {}) : normalizeEnvRecord(input.env);
+    const name =
+      normalizeOptionalString(input.name, 'name') ||
+      existing?.name ||
+      existingView?.name ||
+      titleizeKey(key);
+    const description =
+      normalizeOptionalString(input.description, 'description') ||
+      existing?.description ||
+      '';
+    const objectKey =
+      normalizeOptionalString(input.object_key, 'object_key') ??
+      existing?.objectKey ??
+      null;
+    const metadata =
+      input.metadata && typeof input.metadata === 'object' && !Array.isArray(input.metadata)
+        ? cloneObject(input.metadata as Record<string, unknown>)
+        : existing?.metadata && typeof existing.metadata === 'object'
+          ? cloneObject(existing.metadata)
+          : {};
 
     if (!command && !httpUrl) {
       throw new HttpError(400, 'BAD_REQUEST', 'command or http_url is required');
     }
 
-    const nextEntry: Record<string, unknown> = {
-      enabled,
-    };
-    if (type) nextEntry.type = type;
-    if (command) nextEntry.command = command;
-    if (args.length) nextEntry.args = args;
-    if (httpUrl) nextEntry.httpUrl = httpUrl;
-    if (Object.keys(env).length > 0) nextEntry.env = env;
+    const nextConfig: Record<string, unknown> = {};
+    if (type) nextConfig.type = type;
+    if (command) nextConfig.command = command;
+    if (args.length) nextConfig.args = args;
+    if (httpUrl) nextConfig.http_url = httpUrl;
+    if (Object.keys(env).length > 0) nextConfig.env = env;
 
-    raw.mcpServers[key] = nextEntry;
-    await writeMcpCatalogDocument(raw);
-    return sanitizeMcpEntryView(key, nextEntry);
+    const record = await this.controlStore.upsertMcpCatalogEntry({
+      mcp_key: key,
+      name,
+      description,
+      transport,
+      object_key: objectKey,
+      config: nextConfig,
+      metadata,
+      active: enabled,
+    });
+    return formatMcpCatalogEntryView(record);
   }
 
   async deleteMcpCatalogEntry(accessToken: string, keyInput: string) {
     await this.requireAdmin(accessToken);
-    const key = normalizeMcpKey(keyInput);
-    const raw = await readMcpCatalogDocument();
-    if (!raw.mcpServers[key]) {
-      return {removed: false};
+    if (!this.controlStore) {
+      throw new HttpError(500, 'INTERNAL_ERROR', 'cloud mcp catalog store unavailable');
     }
-    delete raw.mcpServers[key];
-    await writeMcpCatalogDocument(raw);
-    return {removed: true};
+    const key = normalizeMcpKey(keyInput);
+    return {removed: await this.controlStore.deleteMcpCatalogEntry(key)};
   }
 
   async testMcpCatalogEntry(
@@ -1222,12 +1222,14 @@ export class OemService {
     let httpUrl = normalizeOptionalString(input.http_url, 'http_url');
 
     if (key && !command && !httpUrl) {
-      const raw = await readMcpCatalogDocument();
-      const existing = raw.mcpServers[key];
+      if (!this.controlStore) {
+        throw new HttpError(500, 'INTERNAL_ERROR', 'cloud mcp catalog store unavailable');
+      }
+      const existing = await this.controlStore.getMcpCatalogEntry(key);
       if (!existing) {
         throw new HttpError(404, 'NOT_FOUND', 'MCP entry not found');
       }
-      const entry = sanitizeMcpEntryView(key, existing);
+      const entry = formatMcpCatalogEntryView(existing);
       command = entry.command;
       httpUrl = entry.http_url;
     }
@@ -1348,12 +1350,12 @@ export class OemService {
         entry.key,
         {
           key: entry.key,
-          name: titleizeKey(entry.key),
-          enabled_by_default: entry.enabledByDefault,
+          name: entry.name || titleizeKey(entry.key),
+          enabled_by_default: entry.enabled !== false,
           command: entry.command,
           args: entry.args,
-          http_url: entry.httpUrl,
-          env_keys: entry.envKeys,
+          http_url: entry.http_url,
+          env_keys: entry.env_keys,
           connected_brands: [] as Array<{brand_id: string; display_name: string; status: string}>,
         },
       ]),
@@ -1441,6 +1443,12 @@ export class OemService {
   }
 
   private async getMcpCatalog() {
-    return readMcpCatalog();
+    if (!this.controlStore) {
+      return [];
+    }
+    const items = await this.controlStore.listMcpCatalogAdmin();
+    return items
+      .map((item) => formatMcpCatalogEntryView(item))
+      .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
   }
 }

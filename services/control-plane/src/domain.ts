@@ -1045,6 +1045,17 @@ export type UpdateMcpLibraryItemInput = {
   enabled?: boolean;
 };
 
+export type UpsertMcpCatalogEntryInput = {
+  mcp_key?: string;
+  name?: string;
+  description?: string;
+  transport?: string | null;
+  object_key?: string | null;
+  config?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  active?: boolean;
+};
+
 export type UpsertSkillCatalogEntryInput = {
   slug?: string;
   name?: string;

@@ -1,13 +1,15 @@
-import { type Dispatch, type SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type Dispatch, type ReactNode, type SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { IClawClient, type CreditBalanceData, type DesktopUpdateHint, type MarketStockData } from '@iclaw/sdk';
 import desktopPackageJson from '../../package.json';
 import { clearAuth, readAuth, writeAuth } from './lib/auth-storage';
 import { getGoogleOAuthUrl, getWeChatOAuthUrl, openOAuthPopup, type OAuthProvider } from './lib/oauth';
-import { detectPortConflicts, isTauriRuntime, loadGatewayAuth, startSidecar } from './lib/tauri-sidecar';
+import { detectPortConflicts, ensureOpenClawCliAvailable, isTauriRuntime, loadGatewayAuth, startSidecar } from './lib/tauri-sidecar';
 import {
+  clearPortalProviderAuth,
   diagnoseRuntime,
   installRuntime,
   listenRuntimeInstallProgress,
+  syncPortalProviderAuth,
   type RuntimeDiagnosis,
   type RuntimeInstallProgress,
 } from './lib/tauri-runtime-config';
@@ -135,6 +137,8 @@ const DISABLE_GATEWAY_DEVICE_IDENTITY =
 const CHAT_SESSION_KEY = 'main';
 const IM_BOT_TEST_SESSION_KEY = 'im-bots-test';
 const AUTH_BOOTSTRAP_TIMEOUT_MS = 10_000;
+const SIDECAR_BOOT_HEALTHCHECK_ATTEMPTS = 60;
+const SIDECAR_BOOT_HEALTHCHECK_INTERVAL_MS = 500;
 const DESKTOP_APP_VERSION = desktopPackageJson.version;
 const DESKTOP_RELEASE_CHANNEL: 'dev' | 'prod' =
   String(import.meta.env.VITE_BUILD_CHANNEL || '').trim().toLowerCase() === 'dev' ? 'dev' : 'prod';
@@ -224,6 +228,68 @@ function RuntimeAuthRequiredView({
           </div>
         </div>
       </PageContent>
+    </PageSurface>
+  );
+}
+
+function AuthBootstrapPlaceholderView({
+  eyebrow,
+  title,
+  description,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <PageSurface as="div">
+      <PageContent className="flex min-h-full items-center">
+        <div className="mx-auto w-full max-w-[760px]">
+          <div className="rounded-[32px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-8 py-10 text-center shadow-[0_24px_64px_rgba(15,23,42,0.08)]">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--brand-primary)_14%,white)]">
+              <span className="h-2.5 w-2.5 rounded-full bg-[var(--brand-primary)] motion-safe:animate-pulse" />
+            </div>
+            <div className="text-lg font-semibold text-[var(--text-primary)]">{title}</div>
+            <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{description}</p>
+          </div>
+          <div className="mt-3 text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+            {eyebrow}
+          </div>
+        </div>
+      </PageContent>
+    </PageSurface>
+  );
+}
+
+function ChatBootstrapPlaceholderView() {
+  return (
+    <PageSurface as="div" className="bg-[var(--bg-page)]">
+      <div className="flex min-h-0 flex-1 flex-col px-6 pt-3.5 pb-2 lg:px-8">
+        <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-none border-0 bg-transparent p-0 shadow-none">
+          <div className="openclaw-chat-surface-shell h-full flex-1 overflow-hidden" data-session-transitioning="true">
+            <div className="absolute inset-0 bg-[var(--bg-page)]" />
+            <div className="absolute inset-0 flex flex-col gap-4 px-1 pt-4 pb-5">
+              <div className="flex justify-start">
+                <div className="h-28 w-full max-w-[min(480px,76%)] rounded-[28px] bg-[color-mix(in_srgb,var(--brand-primary)_8%,var(--bg-elevated))] motion-safe:animate-pulse" />
+              </div>
+              <div className="flex justify-end">
+                <div className="h-20 w-full max-w-[min(360px,62%)] rounded-[24px] bg-[color-mix(in_srgb,var(--text-primary)_6%,var(--bg-elevated))] motion-safe:animate-pulse" />
+              </div>
+              <div className="mt-auto rounded-[28px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-5 py-4 shadow-[0_24px_64px_rgba(15,23,42,0.08)]">
+                <div className="h-3 w-28 rounded-full bg-[color-mix(in_srgb,var(--brand-primary)_20%,transparent)]" />
+                <div className="mt-3 h-11 rounded-[18px] bg-[color-mix(in_srgb,var(--text-primary)_6%,var(--bg-page))]" />
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <div className="flex gap-2">
+                    <div className="h-8 w-8 rounded-full bg-[color-mix(in_srgb,var(--text-primary)_8%,var(--bg-page))]" />
+                    <div className="h-8 w-8 rounded-full bg-[color-mix(in_srgb,var(--text-primary)_8%,var(--bg-page))]" />
+                  </div>
+                  <div className="h-9 w-24 rounded-full bg-[color-mix(in_srgb,var(--brand-primary)_18%,white)]" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </PageSurface>
   );
 }
@@ -409,6 +475,68 @@ export default function App() {
         setBrandRuntimeReady(true);
       }
     }
+  }, []);
+
+  const resolvePortConflictMessage = useCallback(async (): Promise<string | null> => {
+    const status = await detectPortConflicts().catch(() => null);
+    return formatPortConflictMessage(status?.occupied_ports ?? []);
+  }, []);
+
+  const waitForClientHealth = useCallback(
+    async (
+      options: {
+        attempts?: number;
+        intervalMs?: number;
+        suppressError?: boolean;
+      } = {},
+    ): Promise<boolean> => {
+      const {
+        attempts = SIDECAR_BOOT_HEALTHCHECK_ATTEMPTS,
+        intervalMs = SIDECAR_BOOT_HEALTHCHECK_INTERVAL_MS,
+        suppressError = false,
+      } = options;
+      for (let attempt = 0; attempt < attempts; attempt += 1) {
+        try {
+          await client.health();
+          setHealthy(true);
+          setHealthError(null);
+          return true;
+        } catch (error) {
+          const portConflictMessage = await resolvePortConflictMessage();
+          if (!suppressError) {
+            setHealthy(false);
+            setHealthError(
+              portConflictMessage || (error instanceof Error ? error.message : 'health check failed'),
+            );
+          } else {
+            setHealthy(false);
+            setHealthError(null);
+          }
+        }
+        await new Promise((resolve) => {
+          window.setTimeout(resolve, intervalMs);
+        });
+      }
+      return false;
+    },
+    [client, resolvePortConflictMessage],
+  );
+
+  const syncManagedProviderAuth = useCallback(async (): Promise<void> => {
+    if (!IS_TAURI_RUNTIME) {
+      return;
+    }
+    await syncPortalProviderAuth({
+      authBaseUrl: AUTH_BASE_URL,
+      brandId: BRAND.brandId,
+    });
+  }, []);
+
+  const clearManagedProviderAuth = useCallback(async (): Promise<void> => {
+    if (!IS_TAURI_RUNTIME) {
+      return;
+    }
+    await clearPortalProviderAuth();
   }, []);
 
   const retrySetup = async () => {
@@ -645,6 +773,7 @@ export default function App() {
           try {
             const user = (await client.me()) as AuthUser;
             if (!user) {
+              await clearManagedProviderAuth().catch(() => {});
               settleGuest(false);
               return;
             }
@@ -656,6 +785,7 @@ export default function App() {
         }
 
         if (!isLikelyAccessToken(auth.accessToken)) {
+          await clearManagedProviderAuth().catch(() => {});
           settleGuest(true);
           return;
         }
@@ -667,6 +797,11 @@ export default function App() {
           } catch (error) {
             console.error('[desktop] failed to sync workspace from backup, resetting to defaults', error);
             await resetIclawWorkspaceToDefaults();
+          }
+          try {
+            await syncManagedProviderAuth();
+          } catch (error) {
+            console.warn('[desktop] failed to sync managed provider auth from stored session', error);
           }
           settleAuthed(auth.accessToken, user || null);
           return;
@@ -690,10 +825,16 @@ export default function App() {
             accessToken: refreshed.access_token,
             refreshToken: refreshed.refresh_token || auth.refreshToken,
           });
+          try {
+            await syncManagedProviderAuth();
+          } catch (error) {
+            console.warn('[desktop] failed to sync managed provider auth after refresh', error);
+          }
           const user = (await client.me(refreshed.access_token)) as AuthUser;
           settleAuthed(refreshed.access_token, user || null);
         } catch (error) {
           if (isUnauthorizedAuthError(error)) {
+            await clearManagedProviderAuth().catch(() => {});
             settleGuest(true);
             return;
           }
@@ -724,6 +865,7 @@ export default function App() {
         accessToken: data.tokens.access_token,
         refreshToken: data.tokens.refresh_token,
       });
+      await syncManagedProviderAuth();
       setAccessToken(data.tokens.access_token);
       setSessionAuthed(true);
       setCurrentUser((data.user as AuthUser) || null);
@@ -733,6 +875,8 @@ export default function App() {
         setPostAuthView(null);
       }
     } catch (e) {
+      void clearAuth();
+      void clearManagedProviderAuth();
       setAuthError(e instanceof Error ? e.message : '登录失败');
     } finally {
       setAuthLoading(false);
@@ -749,6 +893,7 @@ export default function App() {
         accessToken: data.tokens.access_token,
         refreshToken: data.tokens.refresh_token,
       });
+      await syncManagedProviderAuth();
       setAccessToken(data.tokens.access_token);
       setSessionAuthed(true);
       setCurrentUser((data.user as AuthUser) || null);
@@ -758,6 +903,8 @@ export default function App() {
         setPostAuthView(null);
       }
     } catch (e) {
+      void clearAuth();
+      void clearManagedProviderAuth();
       setAuthError(e instanceof Error ? e.message : '注册失败');
     } finally {
       setAuthLoading(false);
@@ -780,6 +927,7 @@ export default function App() {
         accessToken: data.tokens.access_token,
         refreshToken: data.tokens.refresh_token,
       });
+      await syncManagedProviderAuth();
       setAccessToken(data.tokens.access_token);
       setSessionAuthed(true);
       setCurrentUser((data.user as AuthUser) || null);
@@ -791,6 +939,8 @@ export default function App() {
     } catch (error) {
       const message = error instanceof Error ? error.message : '社交登录失败';
       if (message !== '授权已取消') {
+        void clearAuth();
+        void clearManagedProviderAuth();
         setAuthError(message);
       }
     } finally {
@@ -803,6 +953,7 @@ export default function App() {
       void resetIclawWorkspaceToDefaults();
     }
     void clearAuth();
+    void clearManagedProviderAuth();
     setAccessToken(null);
     setSessionAuthed(false);
     setCurrentUser(null);
@@ -834,31 +985,22 @@ export default function App() {
 
     let cancelled = false;
 
-    const resolvePortConflictMessage = async (): Promise<string | null> => {
-      const status = await detectPortConflicts().catch(() => null);
-      return formatPortConflictMessage(status?.occupied_ports ?? []);
-    };
-
-    const check = async (blocking = false): Promise<boolean> => {
+    const check = async (
+      options: {
+        blocking?: boolean;
+        suppressError?: boolean;
+      } = {},
+    ): Promise<boolean> => {
+      const { blocking = false, suppressError = false } = options;
       if (blocking) {
         setHealthChecking(true);
       }
       try {
-        await client.health();
-        if (!cancelled) {
-          setHealthy(true);
-          setHealthError(null);
-        }
-        return true;
-      } catch (e) {
-        const portConflictMessage = await resolvePortConflictMessage();
-        if (!cancelled) {
-          setHealthy(false);
-          setHealthError(
-            portConflictMessage || (e instanceof Error ? e.message : 'health check failed'),
-          );
-        }
-        return false;
+        const healthyNow = await waitForClientHealth({
+          attempts: 1,
+          suppressError,
+        });
+        return healthyNow;
       } finally {
         if (!cancelled && blocking) {
           setHealthChecking(false);
@@ -866,9 +1008,35 @@ export default function App() {
       }
     };
 
+    const waitForSidecarHealth = async (): Promise<boolean> => {
+      for (let attempt = 0; attempt < SIDECAR_BOOT_HEALTHCHECK_ATTEMPTS; attempt += 1) {
+        const healthyNow = await check({ suppressError: true });
+        if (healthyNow || cancelled) {
+          return healthyNow;
+        }
+        if (!cancelled) {
+          setHealthy(false);
+          setHealthError(null);
+        }
+        await new Promise((resolve) => {
+          window.setTimeout(resolve, SIDECAR_BOOT_HEALTHCHECK_INTERVAL_MS);
+        });
+      }
+      return false;
+    };
+
     const boot = async () => {
-      const healthyNow = await check(true);
+      if (isTauriRuntime()) {
+        try {
+          await ensureOpenClawCliAvailable();
+        } catch (error) {
+          console.warn('[desktop] failed to ensure openclaw cli launcher', error);
+        }
+      }
+      const healthyNow = await check({ blocking: true });
       if (!cancelled && !healthyNow && isTauriRuntime()) {
+        setHealthChecking(true);
+        setHealthError(null);
         try {
           await startSidecar(SIDE_CAR_ARGS);
         } catch (error) {
@@ -885,7 +1053,18 @@ export default function App() {
           }
           return;
         }
-        await check(true);
+        const sidecarHealthy = await waitForSidecarHealth();
+        if (!cancelled) {
+          setHealthChecking(false);
+        }
+        if (!cancelled && !sidecarHealthy) {
+          const portConflictMessage = await resolvePortConflictMessage();
+          setHealthy(false);
+          setHealthError(
+            portConflictMessage ||
+              `无法连接本地 API，请确认已启动并监听 ${API_BASE_URL}`,
+          );
+        }
       }
       if (!cancelled) {
         setInitialHealthResolved(true);
@@ -957,10 +1136,10 @@ export default function App() {
       return {
         state: 'loading',
         title: `${BRAND.displayName} 正在苏醒`,
-        subtitle: '正在准备本地运行环境',
+        subtitle: '正在启动本地 AI 运行环境',
         progress: 12,
-        stepLabel: '正在检查本地环境',
-        stepDetail: '确认核心组件、工作区和运行配置是否已准备就绪。',
+        stepLabel: '正在检查本地引擎',
+        stepDetail: '确认 runtime、gateway、工作区和运行配置是否已准备就绪。',
         errorMessage: null,
       };
     }
@@ -985,6 +1164,7 @@ export default function App() {
       healthChecking ||
       (!healthy && Boolean(healthError))
     );
+  const shouldShowAuthBootstrapHint = !shouldShowStartupGate && !authBootstrapReady;
 
   useEffect(() => {
     if (!desktopUpdateHint) return;
@@ -1011,64 +1191,19 @@ export default function App() {
     }
   }, [authBootstrapReady, guestPromptInitialized, isAuthenticated, shouldShowStartupGate]);
 
-  if (shouldShowStartupGate) {
-    return (
-      <FirstRunSetupPanel
-        state={installerView.state}
-        title={installerView.title}
-        subtitle={installerView.subtitle}
-        progress={installerView.progress}
-        stepLabel={installerView.stepLabel}
-        stepDetail={installerView.stepDetail}
-        errorMessage={installerView.errorMessage}
-        onRetry={retrySetup}
-      />
-    );
-  }
-
-  if (!authBootstrapReady) {
-    return (
-      <div className="h-screen overflow-hidden bg-[var(--bg-page)]">
-        <div className="flex h-full items-stretch justify-center px-6 py-6">
-          <div className="iclaw-chat-boot-mask relative w-full max-w-[1180px]" aria-hidden="true">
-            <span className="iclaw-chat-boot-mask__sr-only">正在恢复登录状态</span>
-            <div className="iclaw-chat-skeleton">
-              <div className="iclaw-chat-skeleton__header">
-                <div className="iclaw-chat-skeleton__dot" />
-                <div className="iclaw-chat-skeleton__title" />
-                <div className="iclaw-chat-skeleton__meta" />
-              </div>
-              <div className="iclaw-chat-skeleton__thread">
-                <div className="iclaw-chat-skeleton__group">
-                  <div className="iclaw-chat-skeleton__avatar" />
-                  <div className="iclaw-chat-skeleton__stack">
-                    <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--wide" />
-                    <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--short" />
-                    <div className="iclaw-chat-skeleton__bubble iclaw-chat-skeleton__bubble--long" />
-                  </div>
-                </div>
-                <div className="iclaw-chat-skeleton__group iclaw-chat-skeleton__group--user">
-                  <div className="iclaw-chat-skeleton__stack iclaw-chat-skeleton__stack--user">
-                    <div className="iclaw-chat-skeleton__line iclaw-chat-skeleton__line--medium" />
-                    <div className="iclaw-chat-skeleton__bubble iclaw-chat-skeleton__bubble--short" />
-                  </div>
-                  <div className="iclaw-chat-skeleton__avatar iclaw-chat-skeleton__avatar--user" />
-                </div>
-              </div>
-              <div className="iclaw-chat-skeleton__composer">
-                <div className="iclaw-chat-skeleton__composer-line" />
-                <div className="iclaw-chat-skeleton__composer-actions">
-                  <div className="iclaw-chat-skeleton__composer-chip" />
-                  <div className="iclaw-chat-skeleton__composer-chip" />
-                  <div className="iclaw-chat-skeleton__composer-button" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const startupPlaceholder = shouldShowStartupGate ? (
+    <FirstRunSetupPanel
+      presentation="embedded"
+      state={installerView.state}
+      title={installerView.title}
+      subtitle={installerView.subtitle}
+      progress={installerView.progress}
+      stepLabel={installerView.stepLabel}
+      stepDetail={installerView.stepDetail}
+      errorMessage={installerView.errorMessage}
+      onRetry={retrySetup}
+    />
+  ) : null;
 
   const visibleDesktopUpdateHint = shouldShowDesktopUpdateHint(desktopUpdateHint, skippedDesktopUpdateVersion)
     ? desktopUpdateHint
@@ -1173,10 +1308,19 @@ export default function App() {
   return (
     <SettingsProvider>
       <div className="relative h-screen overflow-hidden">
+        {shouldShowAuthBootstrapHint ? (
+          <div className="pointer-events-none absolute inset-x-0 top-3 z-40 flex justify-center px-4">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-elevated)_86%,transparent)] px-3 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] shadow-[0_10px_28px_rgba(15,23,42,0.12)] backdrop-blur-md">
+              <span className="h-2 w-2 rounded-full bg-[var(--brand-primary)] motion-safe:animate-pulse" />
+              <span>正在恢复登录状态</span>
+            </div>
+          </div>
+        ) : null}
         <AuthedView
           primaryView={primaryView}
           setPrimaryView={setPrimaryView}
           brandShellConfig={brandShellConfig}
+          startupPlaceholder={startupPlaceholder}
           revalidateBrandRuntimeConfig={syncBrandRuntimeSnapshot}
           overlayView={overlayView}
           setOverlayView={setOverlayView}
@@ -1188,6 +1332,7 @@ export default function App() {
           gatewayAuth={gatewayAuth}
           handleLogout={handleLogout}
           authenticated={isAuthenticated}
+          authBootstrapReady={authBootstrapReady}
           authModalOpen={authModalOpen}
           onRequestAuth={openAuthModal}
           desktopUpdateHint={visibleDesktopUpdateHint}
@@ -1235,6 +1380,7 @@ interface AuthedViewProps {
   primaryView: PrimaryView;
   setPrimaryView: Dispatch<SetStateAction<PrimaryView>>;
   brandShellConfig: Record<string, unknown> | null;
+  startupPlaceholder: ReactNode;
   revalidateBrandRuntimeConfig: () => Promise<void>;
   overlayView: 'settings' | 'account' | 'recharge' | null;
   setOverlayView: Dispatch<SetStateAction<'settings' | 'account' | 'recharge' | null>>;
@@ -1246,6 +1392,7 @@ interface AuthedViewProps {
   gatewayAuth: { token?: string; password?: string };
   handleLogout: () => void;
   authenticated: boolean;
+  authBootstrapReady: boolean;
   authModalOpen: boolean;
   onRequestAuth: (mode?: 'login' | 'register', nextView?: 'account' | 'recharge' | null) => void;
   desktopUpdateHint: DesktopUpdateHint | null;
@@ -1271,6 +1418,7 @@ function AuthedView({
   primaryView,
   setPrimaryView,
   brandShellConfig,
+  startupPlaceholder,
   revalidateBrandRuntimeConfig,
   overlayView,
   setOverlayView,
@@ -1282,6 +1430,7 @@ function AuthedView({
   gatewayAuth,
   handleLogout,
   authenticated,
+  authBootstrapReady,
   authModalOpen,
   onRequestAuth,
   desktopUpdateHint,
@@ -1681,7 +1830,9 @@ function AuthedView({
           />
         )}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {resolvedPrimaryView === 'investment-experts' ? (
+          {startupPlaceholder ? (
+            startupPlaceholder
+          ) : resolvedPrimaryView === 'investment-experts' ? (
             <InvestmentExpertsView
               title={menuUiConfig['investment-experts'].displayName}
               client={client}
@@ -1749,7 +1900,13 @@ function AuthedView({
               chatMenuLabel={chatMenuLabel}
             />
           ) : resolvedPrimaryView === 'cron' ? (
-            authenticated ? (
+            !authBootstrapReady ? (
+              <AuthBootstrapPlaceholderView
+                eyebrow="Cron Shell"
+                title="正在恢复定时任务会话"
+                description="正在校验 control-plane 登录态并恢复本地运行时。"
+              />
+            ) : authenticated ? (
               <OpenClawCronSurface
                 title={menuUiConfig.cron.displayName}
                 gatewayUrl={GATEWAY_WS_URL}
@@ -1795,6 +1952,8 @@ function AuthedView({
                 </div>
               </PageContent>
             </PageSurface>
+          ) : !authBootstrapReady ? (
+            <ChatBootstrapPlaceholderView />
           ) : authenticated ? (
             <OpenClawChatSurface
               key={`${activeChatRoute.sessionKey}:${chatSurfaceVersion}`}

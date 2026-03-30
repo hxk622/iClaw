@@ -291,9 +291,21 @@ setlocal
 set "ROOT=%~dp0"
 "%ROOT%bin\node.exe" "%ROOT%openclaw\openclaw.mjs" gateway %*
 CMD
+  cat > "$STAGE_DIR/bin/openclaw.cmd" <<'CMD'
+@echo off
+setlocal
+set "ROOT=%~dp0.."
+if "%OPENCLAW_BUNDLED_PLUGINS_DIR%"=="" set "OPENCLAW_BUNDLED_PLUGINS_DIR=%ROOT%\openclaw\extensions"
+if exist "%ROOT%\bin\python3.exe" if "%UV_PYTHON%"=="" set "UV_PYTHON=%ROOT%\bin\python3.exe"
+"%ROOT%\bin\node.exe" "%ROOT%\openclaw\openclaw.mjs" %*
+CMD
 else
   openclaw_write_gateway_launcher \
     "$STAGE_DIR/openclaw-runtime" \
+    '$(cd "$SCRIPT_DIR" && pwd)/openclaw' \
+    '$(cd "$SCRIPT_DIR" && pwd)/bin/node'
+  openclaw_write_cli_launcher \
+    "$STAGE_DIR/bin/openclaw" \
     '$(cd "$SCRIPT_DIR" && pwd)/openclaw' \
     '$(cd "$SCRIPT_DIR" && pwd)/bin/node'
 fi

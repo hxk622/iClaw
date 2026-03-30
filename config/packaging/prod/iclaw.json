@@ -1,0 +1,110 @@
+{
+  "brandId": "iclaw",
+  "productName": "iClaw",
+  "displayName": "iClaw",
+  "websiteTitle": "iClaw",
+  "defaultThemeMode": "dark",
+  "sidebarSubtitle": "",
+  "legalName": "iClaw",
+  "bundleIdentifier": "ai.iclaw.desktop",
+  "authService": "ai.iclaw.desktop",
+  "theme": {
+    "dark": {
+      "primary": "#B49A70",
+      "onPrimary": "#11100F",
+      "primaryHover": "#C2AA82"
+    },
+    "light": {
+      "primary": "#A88C5D",
+      "onPrimary": "#1A1A18",
+      "primaryHover": "#8F7751"
+    }
+  },
+  "assets": {
+    "faviconIco": "services/control-plane/presets/assets/iclaw/favicon.ico",
+    "faviconPng": "services/control-plane/presets/assets/iclaw/favicon.png",
+    "appleTouchIcon": "services/control-plane/presets/assets/iclaw/apple-touch-icon.png",
+    "installerHero": "services/control-plane/presets/assets/iclaw/installer-hero.png",
+    "dmgBackground": "services/control-plane/presets/assets/iclaw/installer-hero.png",
+    "dmgVolumeIcon": "services/control-plane/presets/assets/iclaw/tauri-icons/icon.icns",
+    "windowsInstallerIcon": "services/control-plane/presets/assets/iclaw/tauri-icons/icon.ico",
+    "windowsInstallerHeaderImage": null,
+    "windowsInstallerSidebarImage": null,
+    "tauriIconsDir": "services/control-plane/presets/assets/iclaw/tauri-icons",
+    "logoMaster": "services/control-plane/presets/assets/iclaw/favicon.png",
+    "homeLogo": "services/control-plane/presets/assets/iclaw/favicon.png",
+    "homeHeroArt": null,
+    "homeHeroLayer1": null,
+    "homeHeroLayer2": null,
+    "homeHeroPhoto": null
+  },
+  "storage": {
+    "namespace": "iclaw"
+  },
+  "endpoints": {
+    "authBaseUrl": "https://iclaw.aiyuanxi.com"
+  },
+  "oauth": {
+    "wechat": {
+      "appId": "",
+      "redirectUri": ""
+    },
+    "google": {
+      "clientId": "",
+      "redirectUri": ""
+    }
+  },
+  "website": {
+    "homeTitle": "iClaw 官网",
+    "metaDescription": "iClaw 官网，面向普通用户的本地 AI 客户端。",
+    "brandLabel": "iClaw",
+    "kicker": "Official Website",
+    "heroTitlePre": "让AI真正像软件一样",
+    "heroTitleMain": "装上就能用！",
+    "heroDescription": "iClaw 面向普通用户设计。少一点配置，多一点结果。打开、提问、执行、拿答案。",
+    "topCtaLabel": "下载",
+    "scrollLabel": "向下下载",
+    "downloadTitle": "下载 iClaw"
+  },
+  "distribution": {
+    "artifactBaseName": "iClaw",
+    "downloads": {
+      "dev": {
+        "bucket": "iclaw-dev",
+        "publicBaseUrl": "http://47.93.231.197:9000/iclaw-dev"
+      },
+      "prod": {
+        "bucket": "iclaw-prod",
+        "publicBaseUrl": "https://iclaw.aiyuanxi.com/downloads"
+      }
+    },
+    "home": {
+      "nginxPath": "/var/www/iclaw-home"
+    }
+  },
+  "runtimeDistribution": {
+    "minioPrefix": "runtime",
+    "dev": {
+      "bucket": "iclaw-dev",
+      "publicBaseUrl": "http://47.93.231.197:9000/iclaw-dev"
+    },
+    "prod": {
+      "bucket": "iclaw-prod",
+      "publicBaseUrl": "https://iclaw.aiyuanxi.com/downloads"
+    }
+  },
+  "controlPlane": {
+    "serviceName": "iclaw-control-plane",
+    "s3Bucket": "iclaw-files",
+    "redisKeyPrefix": "iclaw:control-plane",
+    "allowedOrigins": [
+      "http://127.0.0.1:1520",
+      "http://localhost:1520",
+      "https://tauri.localhost",
+      "http://tauri.localhost",
+      "tauri://localhost",
+      "https://iclaw.aiyuanxi.com",
+      "https://iclaw-admin.aiyuanxi.com"
+    ]
+  }
+}

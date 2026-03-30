@@ -47,6 +47,7 @@ import type {
   UpsertAgentCatalogEntryInput,
   UpsertAdminPaymentProviderBindingInput,
   UpsertAdminPaymentProviderProfileInput,
+  UpsertMcpCatalogEntryInput,
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
   UpsertUserExtensionInstallConfigInput,
@@ -4076,7 +4077,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           active,
           created_at,
           updated_at
-        from oem_mcp_catalog
+        from cloud_mcp_catalog
         where active = true
         order by name asc
         ${paginationSql}
@@ -4085,11 +4086,31 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     );
   }
 
+  async listMcpCatalogAdmin(): Promise<McpCatalogEntryRecord[]> {
+    return this.listMcpCatalogEntries(
+      `
+        select
+          mcp_key,
+          name,
+          description,
+          transport,
+          object_key,
+          config_json,
+          metadata_json,
+          active,
+          created_at,
+          updated_at
+        from cloud_mcp_catalog
+        order by name asc, mcp_key asc
+      `,
+    );
+  }
+
   async countMcpCatalog(): Promise<number> {
     const result = await this.pool.query<{count: string}>(
       `
         select count(*)::text as count
-        from oem_mcp_catalog
+        from cloud_mcp_catalog
         where active = true
       `,
     );
@@ -4110,13 +4131,76 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           active,
           created_at,
           updated_at
-        from oem_mcp_catalog
+        from cloud_mcp_catalog
         where mcp_key = $1
         limit 1
       `,
       [mcpKey],
     );
     return result[0] || null;
+  }
+
+  async upsertMcpCatalogEntry(input: Required<UpsertMcpCatalogEntryInput>): Promise<McpCatalogEntryRecord> {
+    const result = await this.pool.query<McpCatalogRow>(
+      `
+        insert into cloud_mcp_catalog (
+          mcp_key,
+          name,
+          description,
+          transport,
+          object_key,
+          config_json,
+          metadata_json,
+          active,
+          created_at,
+          updated_at
+        )
+        values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, now(), now())
+        on conflict (mcp_key)
+        do update set
+          name = excluded.name,
+          description = excluded.description,
+          transport = excluded.transport,
+          object_key = excluded.object_key,
+          config_json = excluded.config_json,
+          metadata_json = excluded.metadata_json,
+          active = excluded.active,
+          updated_at = now()
+        returning
+          mcp_key,
+          name,
+          description,
+          transport,
+          object_key,
+          config_json,
+          metadata_json,
+          active,
+          created_at,
+          updated_at
+      `,
+      [
+        input.mcp_key,
+        input.name,
+        input.description,
+        input.transport || 'config',
+        input.object_key || null,
+        JSON.stringify(input.config || {}),
+        JSON.stringify(input.metadata || {}),
+        input.active,
+      ],
+    );
+    return mapMcpCatalogRow(result.rows[0]);
+  }
+
+  async deleteMcpCatalogEntry(mcpKey: string): Promise<boolean> {
+    const result = await this.pool.query(
+      `
+        delete from cloud_mcp_catalog
+        where mcp_key = $1
+      `,
+      [mcpKey],
+    );
+    return (result.rowCount || 0) > 0;
   }
 
   async listSkillSyncSources(): Promise<SkillSyncSourceRecord[]> {

@@ -392,7 +392,7 @@ export function Sidebar({
 
   return (
     <div className="flex h-screen w-[256px] shrink-0 flex-col border-r border-[var(--border-default)] bg-[var(--bg-page)]">
-      <div className="flex h-14 items-center gap-3 border-b border-[var(--border-default)] px-4">
+      <div className="flex h-[50px] items-center gap-3 border-b border-[var(--border-default)] px-4">
         <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-default)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--bg-card)_84%,white_16%),color-mix(in_srgb,var(--bg-page)_90%,white_10%))] shadow-[var(--shadow-sm)]">
           <img src={BRAND.assets.faviconPngSrc} alt={BRAND.assets.logoAlt} className="h-full w-full object-cover" />
         </div>

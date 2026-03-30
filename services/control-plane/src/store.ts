@@ -43,6 +43,7 @@ import type {
   UpsertAgentCatalogEntryInput,
   UpsertAdminPaymentProviderBindingInput,
   UpsertAdminPaymentProviderProfileInput,
+  UpsertMcpCatalogEntryInput,
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
   UpsertUserExtensionInstallConfigInput,
@@ -278,8 +279,11 @@ export interface ControlPlaneStore {
   upsertSkillCatalogEntry(input: Required<UpsertSkillCatalogEntryInput>): Promise<SkillCatalogEntryRecord>;
   deleteSkillCatalogEntry(slug: string): Promise<boolean>;
   listMcpCatalog(limit?: number, offset?: number): Promise<McpCatalogEntryRecord[]>;
+  listMcpCatalogAdmin(): Promise<McpCatalogEntryRecord[]>;
   countMcpCatalog(): Promise<number>;
   getMcpCatalogEntry(mcpKey: string): Promise<McpCatalogEntryRecord | null>;
+  upsertMcpCatalogEntry(input: Required<UpsertMcpCatalogEntryInput>): Promise<McpCatalogEntryRecord>;
+  deleteMcpCatalogEntry(mcpKey: string): Promise<boolean>;
   listSkillSyncSources(): Promise<SkillSyncSourceRecord[]>;
   getSkillSyncSource(id: string): Promise<SkillSyncSourceRecord | null>;
   upsertSkillSyncSource(input: Required<UpsertSkillSyncSourceInput>): Promise<SkillSyncSourceRecord>;
@@ -1614,12 +1618,39 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     return this.paginateSkillCatalog(items, limit, offset);
   }
 
+  async listMcpCatalogAdmin(): Promise<McpCatalogEntryRecord[]> {
+    return Array.from(this.mcpCatalog.values()).sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
+  }
+
   async countMcpCatalog(): Promise<number> {
     return Array.from(this.mcpCatalog.values()).filter((item) => item.active).length;
   }
 
   async getMcpCatalogEntry(mcpKey: string): Promise<McpCatalogEntryRecord | null> {
     return this.mcpCatalog.get(mcpKey) || null;
+  }
+
+  async upsertMcpCatalogEntry(input: Required<UpsertMcpCatalogEntryInput>): Promise<McpCatalogEntryRecord> {
+    const now = new Date().toISOString();
+    const existing = this.mcpCatalog.get(input.mcp_key);
+    const next: McpCatalogEntryRecord = {
+      mcpKey: input.mcp_key,
+      name: input.name,
+      description: input.description,
+      transport: input.transport || 'config',
+      objectKey: input.object_key,
+      config: input.config,
+      metadata: input.metadata,
+      active: input.active,
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+    };
+    this.mcpCatalog.set(input.mcp_key, next);
+    return next;
+  }
+
+  async deleteMcpCatalogEntry(mcpKey: string): Promise<boolean> {
+    return this.mcpCatalog.delete(mcpKey);
   }
 
   async listSkillSyncSources(): Promise<SkillSyncSourceRecord[]> {

@@ -2082,7 +2082,6 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const composerBusy = busy || isSubmitting;
     const submitLabel = composerBusy && !hasContent ? '停止' : '发送';
     const sendState = composerBusy ? 'busy' : hasContent ? 'ready' : 'empty';
-    const runStatusLabel = composerBusy ? 'AI 执行中' : null;
     const selectedModel =
       findComposerModelOption(modelOptions, selectedModelId) ?? modelOptions[0] ?? null;
     const modelTriggerLabel = (() => {
@@ -3517,12 +3516,6 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
               </div>
 
               <div className="iclaw-composer__actions">
-                {runStatusLabel ? (
-                  <div className="iclaw-composer__run-status" role="status" aria-live="polite">
-                    <span className="iclaw-composer__run-status-dot" aria-hidden="true" />
-                    <span className="iclaw-composer__run-status-text">{runStatusLabel}</span>
-                  </div>
-                ) : null}
                 <div ref={modelMenuRef} className="iclaw-composer__model-picker">
                   <button
                     type="button"

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "理财客",
+  "productName": "iClaw",
   "version": "1.0.0+202603091514",
-  "identifier": "ai.licaiclaw.desktop",
+  "identifier": "ai.iclaw.desktop",
   "build": {
     "beforeDevCommand": "node ../../scripts/sync-openclaw-resources.mjs && pnpm dev --host 0.0.0.0 --port 1520",
     "beforeBuildCommand": "node ../../scripts/sync-openclaw-resources.mjs && pnpm build",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "理财客",
+        "title": "iClaw",
         "width": 1280,
         "height": 820,
         "minWidth": 980,
@@ -40,6 +40,11 @@
       "icons-generated/icon.icns",
       "icons-generated/icon.ico"
     ],
+    "windows": {
+      "nsis": {
+        "installerIcon": "installer-generated/nsis-installer.ico"
+      }
+    },
     "createUpdaterArtifacts": false
   }
 }

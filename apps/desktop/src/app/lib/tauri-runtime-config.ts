@@ -95,3 +95,19 @@ export async function syncOemRuntimeSnapshot(input: {
     brandId: input.brandId,
   });
 }
+
+export async function syncPortalProviderAuth(input: {
+  authBaseUrl: string;
+  brandId: string;
+}): Promise<boolean> {
+  if (!isTauriRuntime()) return false;
+  return invoke<boolean>('sync_portal_provider_auth', {
+    authBaseUrl: input.authBaseUrl,
+    brandId: input.brandId,
+  });
+}
+
+export async function clearPortalProviderAuth(): Promise<boolean> {
+  if (!isTauriRuntime()) return false;
+  return invoke<boolean>('clear_portal_provider_auth');
+}

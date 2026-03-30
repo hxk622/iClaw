@@ -132,6 +132,22 @@ function isTruthyEnv(value) {
   return /^(1|true|yes)$/i.test(String(value || '').trim());
 }
 
+function buildChannelSigningEnv(signingEnv, channel) {
+  const env = { ...signingEnv };
+  const shouldNotarize =
+    channel === 'prod' ||
+    isTruthyEnv(process.env.ICLAW_MACOS_NOTARIZE_DEV) ||
+    isTruthyEnv(process.env.ICLAW_MACOS_NOTARIZE_TEST);
+
+  if (process.platform === 'darwin' && !shouldNotarize) {
+    delete env.APPLE_ID;
+    delete env.APPLE_PASSWORD;
+    delete env.APPLE_TEAM_ID;
+  }
+
+  return env;
+}
+
 async function readGeneratedProductName() {
   const config = JSON.parse(await fs.readFile(generatedConfigPath, 'utf8'));
   const productName = typeof config.productName === 'string' ? config.productName.trim() : '';
@@ -394,17 +410,18 @@ async function main() {
   const packagingOverlayEnv = resolveSigningOverlayEnv(rootDir);
   const packagingSourceEnv = resolvePackagingSourceEnv(rootDir);
   const signingProfile = await resolveOemSigningProfile({ rootDir, brandId });
+  const channel = normalizeChannel(process.env.ICLAW_ENV_NAME || process.env.NODE_ENV);
+  const channelSigningEnv = buildChannelSigningEnv(signingProfile.env, channel);
   const env = {
     ...process.env,
     ...packagingOverlayEnv,
     ...packagingSourceEnv,
-    ...signingProfile.env,
+    ...channelSigningEnv,
     APP_NAME: brandId,
     ICLAW_PORTAL_APP_NAME: brandId,
     ICLAW_BRAND: brandId,
     ICLAW_USE_PACKAGING_SOURCE_ENV: '1',
   };
-  const channel = normalizeChannel(env.ICLAW_ENV_NAME || env.NODE_ENV);
   const { tauriBundle, packageDmg } = platformBundleTarget();
   const pnpm = pnpmCommand();
 
@@ -415,6 +432,9 @@ async function main() {
         `[desktop-package] Using signing profile "${signingProfile.profileName}" for brand ${brandId}` +
           `${signingProfile.filePath ? ` (${signingProfile.filePath})` : ''}\n`,
       );
+      if (process.platform === 'darwin' && channel !== 'prod' && !env.APPLE_ID) {
+        process.stdout.write(`[desktop-package] macOS ${channel || 'non-prod'} build: signing enabled, notarization skipped by default\n`);
+      }
     } else {
       process.stdout.write(`[desktop-package] No OEM signing profile configured for brand ${brandId}; using ambient signing env\n`);
     }

@@ -158,6 +158,10 @@ openclaw_write_gateway_launcher \
   "$SERVER_BIN" \
   '$(cd "$SCRIPT_DIR/../runtime/openclaw" && pwd)' \
   '$(cd "$SCRIPT_DIR/../runtime/node" && pwd)/node'
+openclaw_write_cli_launcher \
+  "$BIN_DIR/openclaw" \
+  '$(cd "$SCRIPT_DIR/../runtime/openclaw" && pwd)' \
+  '$(cd "$SCRIPT_DIR/../runtime/node" && pwd)/node'
 
 DEST_NAME="openclaw-$TARGET_TRIPLE"
 if [[ "$TARGET_TRIPLE" == *"windows"* ]]; then

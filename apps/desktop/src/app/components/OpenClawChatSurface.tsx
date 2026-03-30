@@ -199,12 +199,6 @@ type ChatSurfaceStatus = {
   lastErrorCode: string | null;
 };
 
-type ChatSurfaceBusySnapshot = {
-  startedAt: number | null;
-  runId: string | null;
-  streamChars: number;
-};
-
 type ChatSurfaceRenderState = {
   hostHeight: number;
   hasNativeInput: boolean;
@@ -214,9 +208,11 @@ type ChatSurfaceRenderState = {
   threadVisible: boolean;
   threadHeight: number;
   groupCount: number;
+  chatMessageCount: number;
 };
 
 type ChatSurfaceTransitionMode = 'boot' | 'switch';
+type SessionHistoryState = 'unknown' | 'empty' | 'has-history';
 
 type UnhandledGatewayError = {
   message: string;
@@ -282,6 +278,10 @@ const CHAT_SELECTION_MENU_WIDTH = 220;
 const CHAT_SELECTION_MENU_HEIGHT = 176;
 const CHAT_SELECTION_MENU_GAP = 12;
 const SESSION_TRANSITION_MIN_DURATION_MS = 260;
+const INITIAL_SURFACE_BOOT_TIMEOUT_MS = 3200;
+const INITIAL_EMPTY_SESSION_SETTLE_MS = 1100;
+const STATUS_POLL_INTERVAL_MS = 420;
+const CONNECTION_LOSS_GRACE_MS = 1200;
 const ICLAW_BILLING_SUMMARY_KEY = '__iclawBillingSummary';
 const ICLAW_BILLING_STATE_KEY = '__iclawBillingState';
 const ICLAW_BILLING_RUN_ID_KEY = '__iclawBillingRunId';
@@ -904,16 +904,6 @@ function formatAssistantFooterTimestamp(timestamp: number): string {
   });
 }
 
-function formatBusyElapsedLabel(milliseconds: number): string {
-  const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
-  if (totalSeconds < 60) {
-    return `${totalSeconds}s`;
-  }
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
-}
-
 type AssistantMessageGroup = {
   role: string;
   timestamp: number;
@@ -1088,9 +1078,7 @@ function mergeRunBillingSummaries(
   current.forEach(appendSummary);
   incoming.forEach(appendSummary);
 
-  return Array.from(merged.values()).sort(
-    (left, right) => getBillingSummarySortTime(right) - getBillingSummarySortTime(left),
-  );
+  return Array.from(merged.values()).sort((left, right) => getBillingSummarySortTime(right) - getBillingSummarySortTime(left));
 }
 
 function annotateAssistantGroup(
@@ -1782,6 +1770,7 @@ async function loadChatModelSnapshot(
   options: ComposerModelOption[];
   selectedModelId: string | null;
   resolvedSessionKey: string | null;
+  hasPersistedHistory: boolean;
 } | null> {
   const request = app.client?.request;
   if (!app.connected || typeof request !== 'function') {
@@ -1819,6 +1808,8 @@ async function loadChatModelSnapshot(
     options,
     selectedModelId: resolvedSelection,
     resolvedSessionKey: matchedSession?.key?.trim() ?? null,
+    hasPersistedHistory:
+      Math.max(0, Number(matchedSession?.inputTokens ?? 0)) + Math.max(0, Number(matchedSession?.outputTokens ?? 0)) > 0,
   };
 }
 
@@ -1857,6 +1848,24 @@ async function loadGatewaySessionTokenSnapshot(
     inputTokens: Math.max(0, Number(session.inputTokens || 0)),
     outputTokens: Math.max(0, Number(session.outputTokens || 0)),
   };
+}
+
+function estimateRunGrantInputTokens(input: {
+  quotedInputTokens: number | null;
+  fallbackInputTokens: number;
+  baselineSessionTokens: { inputTokens: number; outputTokens: number } | null;
+}): number {
+  const quotedInputTokens = Math.max(0, input.quotedInputTokens ?? 0);
+  const fallbackInputTokens = Math.max(0, input.fallbackInputTokens);
+  const baselineInputTokens = Math.max(0, input.baselineSessionTokens?.inputTokens ?? 0);
+  const baselineOutputTokens = Math.max(0, input.baselineSessionTokens?.outputTokens ?? 0);
+  const promptBudget = Math.max(quotedInputTokens, fallbackInputTokens, 1);
+  const transcriptAwareBudget =
+    baselineInputTokens +
+    baselineOutputTokens +
+    Math.max(4096, Math.ceil(promptBudget * 1.5));
+
+  return Math.max(quotedInputTokens, fallbackInputTokens, transcriptAwareBudget);
 }
 
 function isSessionRenderReady(renderState: ChatSurfaceRenderState): boolean {
@@ -1980,16 +1989,17 @@ export function OpenClawChatSurface({
     threadVisible: false,
     threadHeight: 0,
     groupCount: 0,
+    chatMessageCount: 0,
   });
   const [showConnectionCard, setShowConnectionCard] = useState(false);
   const [showRenderDiagnosticsCard, setShowRenderDiagnosticsCard] = useState(false);
+  const [initialSurfaceRestorePending, setInitialSurfaceRestorePending] = useState(shellAuthenticated);
+  const [hasBootSettled, setHasBootSettled] = useState(false);
+  const [sessionHistoryState, setSessionHistoryState] = useState<SessionHistoryState>(
+    shellAuthenticated ? 'unknown' : 'empty',
+  );
   const [unhandledGatewayError, setUnhandledGatewayError] = useState<UnhandledGatewayError | null>(null);
   const [lastRpcFailure, setLastRpcFailure] = useState<GatewayRpcFailure | null>(null);
-  const [busySnapshot, setBusySnapshot] = useState<ChatSurfaceBusySnapshot>({
-    startedAt: null,
-    runId: null,
-    streamChars: 0,
-  });
   const [selectionMenu, setSelectionMenu] = useState<SelectionMenuState | null>(null);
   const [modelOptions, setModelOptions] = useState<ComposerModelOption[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
@@ -2010,7 +2020,6 @@ export function OpenClawChatSurface({
     error: null,
     estimatedInputTokens: null,
   });
-  const [busyClock, setBusyClock] = useState(() => Date.now());
   const effectiveGatewaySessionKey = resolvedModelSessionKey || sessionKey;
   const [installedLobsterAgents, setInstalledLobsterAgents] = useState<ComposerAgentOption[]>([]);
   const [skillOptions, setSkillOptions] = useState<ComposerSkillOption[]>([]);
@@ -2026,6 +2035,15 @@ export function OpenClawChatSurface({
   const sessionTransitionStartedAtRef = useRef(0);
   const responseUsageEnabledSessionKeyRef = useRef<string | null>(null);
   const sessionTransitionHideTimerRef = useRef<number | null>(null);
+  const connectionLossTimerRef = useRef<number | null>(null);
+  const pendingConnectionLossStatusRef = useRef<ChatSurfaceStatus>({
+    busy: false,
+    connected: false,
+    lastError: null,
+    lastErrorCode: null,
+  });
+  const hasObservedHistory =
+    renderState.groupCount > 0 || renderState.chatMessageCount > 0 || Boolean(appRef.current?.chatMessages?.length);
 
   const closeSelectionMenu = useCallback(() => {
     setSelectionMenu(null);
@@ -2062,6 +2080,13 @@ export function OpenClawChatSurface({
     if (sessionTransitionHideTimerRef.current != null) {
       window.clearTimeout(sessionTransitionHideTimerRef.current);
       sessionTransitionHideTimerRef.current = null;
+    }
+  }, []);
+
+  const clearConnectionLossTimer = useCallback(() => {
+    if (connectionLossTimerRef.current != null) {
+      window.clearTimeout(connectionLossTimerRef.current);
+      connectionLossTimerRef.current = null;
     }
   }, []);
 
@@ -2165,6 +2190,7 @@ export function OpenClawChatSurface({
       setModelOptions(snapshot.options);
       setSelectedModelId(snapshot.selectedModelId);
       setResolvedModelSessionKey(snapshot.resolvedSessionKey);
+      setSessionHistoryState(snapshot.hasPersistedHistory ? 'has-history' : 'empty');
       return true;
     } catch (error) {
       if (modelLoadVersionRef.current === requestVersion) {
@@ -2181,6 +2207,61 @@ export function OpenClawChatSurface({
       }
     }
   }, [appName, authBaseUrl, sessionKey]);
+
+  const ensureWrappedClientRequest = useCallback((app: OpenClawAppElement | null) => {
+    const client = app?.client;
+    if (!app || !client || typeof client.request !== 'function') {
+      return;
+    }
+
+    const currentRequest = client.request as (((method: string, params?: unknown) => Promise<unknown>) & {
+      __iclawWrapped?: boolean;
+    });
+    if (currentRequest.__iclawWrapped) {
+      return;
+    }
+
+    const wrappedRequest = (async <T = unknown>(method: string, params?: unknown): Promise<T> => {
+      try {
+        return (await currentRequest.call(client, method, params)) as T;
+      } catch (error) {
+        const detailCode =
+          typeof (error as { details?: { code?: unknown } }).details?.code === 'string'
+            ? String((error as { details?: { code?: unknown } }).details?.code)
+            : null;
+        const codeValue = (error as { code?: unknown }).code;
+        const messageValue = (error as { message?: unknown }).message;
+        const code =
+          typeof codeValue === 'number' || typeof codeValue === 'string' ? String(codeValue) : null;
+        const message =
+          typeof messageValue === 'string' && messageValue.trim()
+            ? messageValue
+            : error instanceof Error
+              ? error.message
+              : String(error);
+
+        if (code === '403' || detailCode !== null || message.toLowerCase().includes('forbidden')) {
+          console.error('[iclaw][openclaw-rpc-failure]', {
+            method,
+            code,
+            detailCode,
+            message,
+            params,
+          });
+          setLastRpcFailure({
+            method,
+            code,
+            detailCode,
+            message,
+          });
+        }
+        throw error;
+      }
+    }) as typeof client.request & { __iclawWrapped?: boolean };
+
+    wrappedRequest.__iclawWrapped = true;
+    client.request = wrappedRequest;
+  }, []);
 
   const handleModelChange = useCallback(
     async (modelId: string) => {
@@ -2717,67 +2798,6 @@ export function OpenClawChatSurface({
   }, []);
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      const app = appRef.current;
-      const client = app?.client;
-      if (!app || !client || typeof client.request !== 'function') {
-        return;
-      }
-
-      const currentRequest = client.request as (((method: string, params?: unknown) => Promise<unknown>) & {
-        __iclawWrapped?: boolean;
-      });
-
-      if (currentRequest.__iclawWrapped) {
-        return;
-      }
-
-      const wrappedRequest = (async <T = unknown>(method: string, params?: unknown): Promise<T> => {
-        try {
-          return (await currentRequest.call(client, method, params)) as T;
-        } catch (error) {
-          const detailCode =
-            typeof (error as { details?: { code?: unknown } }).details?.code === 'string'
-              ? String((error as { details?: { code?: unknown } }).details?.code)
-              : null;
-          const codeValue = (error as { code?: unknown }).code;
-          const messageValue = (error as { message?: unknown }).message;
-          const code =
-            typeof codeValue === 'number' || typeof codeValue === 'string' ? String(codeValue) : null;
-          const message =
-            typeof messageValue === 'string' && messageValue.trim()
-              ? messageValue
-              : error instanceof Error
-                ? error.message
-                : String(error);
-
-          if (code === '403' || detailCode !== null || message.toLowerCase().includes('forbidden')) {
-            console.error('[iclaw][openclaw-rpc-failure]', {
-              method,
-              code,
-              detailCode,
-              message,
-              params,
-            });
-            setLastRpcFailure({
-              method,
-              code,
-              detailCode,
-              message,
-            });
-          }
-          throw error;
-        }
-      }) as typeof client.request & { __iclawWrapped?: boolean };
-
-      wrappedRequest.__iclawWrapped = true;
-      client.request = wrappedRequest;
-    }, 250);
-
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
     const host = hostRef.current;
     if (!host) {
       return;
@@ -3068,6 +3088,8 @@ export function OpenClawChatSurface({
         return;
       }
 
+      ensureWrappedClientRequest(app);
+
       const nextStatus: ChatSurfaceStatus = {
         busy: Boolean(app.chatSending || app.chatRunId),
         connected: Boolean(app.connected),
@@ -3087,32 +3109,8 @@ export function OpenClawChatSurface({
         threadVisible: threadState.visible,
         threadHeight: threadState.height,
         groupCount: host.querySelectorAll('.chat-group').length,
+        chatMessageCount: Array.isArray(app.chatMessages) ? app.chatMessages.length : 0,
       };
-      setStatus((current) =>
-        current.busy === nextStatus.busy &&
-        current.connected === nextStatus.connected &&
-        current.lastError === nextStatus.lastError &&
-        current.lastErrorCode === nextStatus.lastErrorCode
-          ? current
-          : nextStatus,
-      );
-      setBusySnapshot((current) => {
-        const nextStartedAt =
-          typeof app.chatStreamStartedAt === 'number' && Number.isFinite(app.chatStreamStartedAt)
-            ? app.chatStreamStartedAt
-            : null;
-        const nextRunId = typeof app.chatRunId === 'string' && app.chatRunId.trim() ? app.chatRunId.trim() : null;
-        const nextStreamChars = typeof app.chatStream === 'string' ? app.chatStream.length : 0;
-        return current.startedAt === nextStartedAt &&
-          current.runId === nextRunId &&
-          current.streamChars === nextStreamChars
-          ? current
-          : {
-              startedAt: nextStartedAt,
-              runId: nextRunId,
-              streamChars: nextStreamChars,
-            };
-      });
       setRenderState((current) =>
         current.hostHeight === nextRenderState.hostHeight &&
         current.hasNativeInput === nextRenderState.hasNativeInput &&
@@ -3121,25 +3119,70 @@ export function OpenClawChatSurface({
         current.hasThread === nextRenderState.hasThread &&
         current.threadVisible === nextRenderState.threadVisible &&
         current.threadHeight === nextRenderState.threadHeight &&
-        current.groupCount === nextRenderState.groupCount
+        current.groupCount === nextRenderState.groupCount &&
+        current.chatMessageCount === nextRenderState.chatMessageCount
           ? current
           : nextRenderState,
       );
-    }, 180);
+      if (nextStatus.connected) {
+        clearConnectionLossTimer();
+        setStatus((current) =>
+          current.busy === nextStatus.busy &&
+          current.connected === true &&
+          current.lastError === nextStatus.lastError &&
+          current.lastErrorCode === nextStatus.lastErrorCode
+            ? current
+            : {
+                busy: nextStatus.busy,
+                connected: true,
+                lastError: nextStatus.lastError,
+                lastErrorCode: nextStatus.lastErrorCode,
+              },
+        );
+        return;
+      }
 
-    return () => window.clearInterval(timer);
-  }, []);
+      pendingConnectionLossStatusRef.current = nextStatus;
+      setStatus((current) =>
+        current.busy === nextStatus.busy &&
+        current.lastError === (nextStatus.lastError ?? current.lastError) &&
+        current.lastErrorCode === (nextStatus.lastErrorCode ?? current.lastErrorCode)
+          ? current
+          : {
+              busy: nextStatus.busy,
+              connected: current.connected,
+              lastError: nextStatus.lastError ?? current.lastError,
+              lastErrorCode: nextStatus.lastErrorCode ?? current.lastErrorCode,
+            },
+      );
 
-  useEffect(() => {
-    if (!status.busy) {
-      return;
-    }
-    setBusyClock(Date.now());
-    const timer = window.setInterval(() => {
-      setBusyClock(Date.now());
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [status.busy, busySnapshot.startedAt, busySnapshot.runId]);
+      if (connectionLossTimerRef.current != null) {
+        return;
+      }
+      connectionLossTimerRef.current = window.setTimeout(() => {
+        connectionLossTimerRef.current = null;
+        const pending = pendingConnectionLossStatusRef.current;
+        setStatus((current) =>
+          current.busy === pending.busy &&
+          current.connected === false &&
+          current.lastError === pending.lastError &&
+          current.lastErrorCode === pending.lastErrorCode
+            ? current
+            : {
+                busy: pending.busy,
+                connected: false,
+                lastError: pending.lastError,
+                lastErrorCode: pending.lastErrorCode,
+              },
+        );
+      }, CONNECTION_LOSS_GRACE_MS);
+    }, STATUS_POLL_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(timer);
+      clearConnectionLossTimer();
+    };
+  }, [clearConnectionLossTimer, ensureWrappedClientRequest]);
 
   useEffect(() => {
     const app = appRef.current;
@@ -3160,6 +3203,78 @@ export function OpenClawChatSurface({
       timers.forEach((timer) => window.clearTimeout(timer));
     };
   }, [clearArtifactAutoOpenTimers, status.connected]);
+
+  useEffect(() => {
+    if (!shellAuthenticated) {
+      setInitialSurfaceRestorePending(false);
+      setSessionHistoryState('empty');
+      return;
+    }
+    setInitialSurfaceRestorePending(true);
+    setSessionHistoryState('unknown');
+  }, [sessionKey, shellAuthenticated]);
+
+  useEffect(() => {
+    if (!initialSurfaceRestorePending) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setInitialSurfaceRestorePending(false);
+    }, INITIAL_SURFACE_BOOT_TIMEOUT_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [initialSurfaceRestorePending]);
+
+  useEffect(() => {
+    if (!initialSurfaceRestorePending) {
+      return;
+    }
+
+    if (!shellAuthenticated || status.lastError || hasObservedHistory) {
+      setInitialSurfaceRestorePending(false);
+      return;
+    }
+
+    if (!status.connected || !isSessionRenderReady(renderState)) {
+      return;
+    }
+
+    if (sessionHistoryState === 'unknown' || sessionHistoryState === 'has-history') {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setInitialSurfaceRestorePending(false);
+    }, INITIAL_EMPTY_SESSION_SETTLE_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    hasObservedHistory,
+    initialSurfaceRestorePending,
+    renderState,
+    sessionHistoryState,
+    shellAuthenticated,
+    status.connected,
+    status.lastError,
+  ]);
+
+  useEffect(() => {
+    if (hasBootSettled) {
+      return;
+    }
+    if (!shellAuthenticated || initialSurfaceRestorePending || !status.connected || !isSessionRenderReady(renderState)) {
+      return;
+    }
+    setHasBootSettled(true);
+  }, [hasBootSettled, initialSurfaceRestorePending, renderState, shellAuthenticated, status.connected]);
+
+  useEffect(() => {
+    if (!hasObservedHistory || sessionHistoryState === 'has-history') {
+      return;
+    }
+    setSessionHistoryState('has-history');
+  }, [hasObservedHistory, sessionHistoryState]);
 
   useEffect(() => {
     if (!status.connected) {
@@ -3279,7 +3394,7 @@ export function OpenClawChatSurface({
   }, [closeSelectionMenu, resolveChatSelection, selectionMenu]);
 
   useEffect(() => {
-    if (sessionTransitionVisible && !status.lastError) {
+    if ((sessionTransitionVisible || initialSurfaceRestorePending) && !status.lastError) {
       setShowConnectionCard(false);
       return;
     }
@@ -3299,11 +3414,17 @@ export function OpenClawChatSurface({
     }, 320);
 
     return () => window.clearTimeout(timer);
-  }, [sessionTransitionVisible, status.connected, status.lastError]);
+  }, [initialSurfaceRestorePending, sessionTransitionVisible, status.connected, status.lastError]);
 
   useEffect(() => {
     const threadReady = renderState.hasThread && renderState.threadVisible;
-    if (sessionTransitionVisible || !shellAuthenticated || !status.connected || threadReady) {
+    if (
+      initialSurfaceRestorePending ||
+      sessionTransitionVisible ||
+      !shellAuthenticated ||
+      !status.connected ||
+      threadReady
+    ) {
       setShowRenderDiagnosticsCard(false);
       return;
     }
@@ -3318,6 +3439,7 @@ export function OpenClawChatSurface({
     renderState.hasThread,
     renderState.nativeInputVisible,
     renderState.threadVisible,
+    initialSurfaceRestorePending,
     shellAuthenticated,
     sessionTransitionVisible,
     status.connected,
@@ -3365,28 +3487,13 @@ export function OpenClawChatSurface({
     : hasGatewayAuth
       ? '正在连接 OpenClaw 网关…'
       : '缺少本地网关凭据，当前无法连接 OpenClaw。';
-  const showBootMask = shellAuthenticated && !status.connected;
+  const showBootMask =
+    !hasBootSettled &&
+    shellAuthenticated &&
+    !status.lastError &&
+    (!status.connected || initialSurfaceRestorePending);
   const showSessionTransitionMask = sessionTransitionVisible && !showBootMask;
   const shellTransitioning = showBootMask || showSessionTransitionMask;
-  const busyElapsedMs =
-    status.busy && busySnapshot.startedAt ? Math.max(0, busyClock - busySnapshot.startedAt) : 0;
-  const busyElapsedLabel = status.busy ? formatBusyElapsedLabel(busyElapsedMs) : null;
-  const busyPhaseTitle = !status.busy
-    ? null
-    : busySnapshot.streamChars > 0
-      ? '正在生成回复'
-      : busyElapsedMs >= 2500
-        ? '任务执行中'
-        : '请求已发出，正在思考';
-  const busyPhaseDetail = !status.busy
-    ? null
-    : busySnapshot.streamChars > 0
-      ? `模型已经开始输出内容 · 已运行 ${busyElapsedLabel}`
-      : busyElapsedMs >= 2500
-        ? `当前可能在调用工具、检索资料或整理结果 · 已运行 ${busyElapsedLabel}`
-        : `请求已经提交到 OpenClaw · 已运行 ${busyElapsedLabel}`;
-  const showLiveRunBanner =
-    status.connected && status.busy && !showBootMask && !showSessionTransitionMask;
   const secureContextHint =
     typeof window !== 'undefined' && !window.isSecureContext
       ? '当前页面不是安全上下文，OpenClaw 可能会拒绝设备身份校验。'
@@ -3797,16 +3904,17 @@ export function OpenClawChatSurface({
 
       const fallbackEstimatedInputTokens =
         Math.max(0, Math.ceil(normalizedPrompt.length * 0.75)) + payload.imageAttachments.length * 220;
+      const baselineSessionTokens = await loadGatewaySessionTokenSnapshot(app, effectiveGatewaySessionKey);
       const runGrant = await creditClient.authorizeRun({
         token: creditToken,
         sessionKey,
         client: 'desktop',
-        estimatedInputTokens: Math.max(
-          0,
-          creditEstimate.estimatedInputTokens ?? fallbackEstimatedInputTokens,
-        ),
+        estimatedInputTokens: estimateRunGrantInputTokens({
+          quotedInputTokens: creditEstimate.estimatedInputTokens ?? null,
+          fallbackInputTokens: fallbackEstimatedInputTokens,
+          baselineSessionTokens,
+        }),
       });
-      const baselineSessionTokens = await loadGatewaySessionTokenSnapshot(app, effectiveGatewaySessionKey);
 
       pendingUsageSettlementsRef.current = [
         ...pendingUsageSettlementsRef.current,
@@ -3952,6 +4060,9 @@ export function OpenClawChatSurface({
   }, [initialPrompt, initialPromptKey]);
 
   const showWelcomePage =
+    !initialSurfaceRestorePending &&
+    !hasObservedHistory &&
+    sessionHistoryState !== 'has-history' &&
     !showRenderDiagnosticsCard &&
     !showConnectionCard &&
     !showBootMask &&
@@ -4381,7 +4492,7 @@ export function OpenClawChatSurface({
 
   return (
     <PageSurface as="div" className="bg-[var(--bg-page)]">
-      <div className="flex min-h-0 flex-1 flex-col px-6 py-5 lg:px-8">
+      <div className="flex min-h-0 flex-1 flex-col px-6 pt-3.5 pb-2 lg:px-8">
         {showRenderDiagnosticsCard ? (
           <div className="mb-4">
             <EmptyStatePanel
@@ -4463,24 +4574,6 @@ export function OpenClawChatSurface({
                 mode="switch"
                 label="正在切换对话，正在同步消息与输入状态"
               />
-            ) : null}
-
-            {showLiveRunBanner ? (
-              <div className="iclaw-chat-live-banner" role="status" aria-live="polite">
-                <div className="iclaw-chat-live-banner__pulse" aria-hidden="true">
-                  <span />
-                </div>
-                <div className="iclaw-chat-live-banner__copy">
-                  <div className="iclaw-chat-live-banner__title">{busyPhaseTitle}</div>
-                  <div className="iclaw-chat-live-banner__meta">
-                    {busyPhaseDetail}
-                    <span className="iclaw-chat-live-banner__separator" aria-hidden="true">
-                      ·
-                    </span>
-                    可点击右下角停止
-                  </div>
-                </div>
-              </div>
             ) : null}
 
             {shellDropActive ? (

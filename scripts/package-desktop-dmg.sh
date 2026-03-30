@@ -159,7 +159,7 @@ if [[ -f "$dmg_volume_icon_path" ]]; then
   fi
 fi
 
-osascript <<EOF >/dev/null
+if ! osascript <<EOF >/dev/null
 tell application "Finder"
   tell disk "$product_name"
     open
@@ -183,6 +183,9 @@ tell application "Finder"
   end tell
 end tell
 EOF
+then
+  echo "[dmg] warning: Finder layout customization failed for $product_name; continuing with default DMG layout" >&2
+fi
 
 hdiutil detach "$mount_dir" -quiet
 

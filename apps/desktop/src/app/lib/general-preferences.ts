@@ -11,7 +11,7 @@ export interface GeneralPreferences {
 }
 
 export const DEFAULT_GENERAL_PREFERENCES: GeneralPreferences = {
-  contentFontSize: 'medium',
+  contentFontSize: 'large',
   language: 'zh',
   layoutPreset: 'standard',
   messageAlignment: 'sided',

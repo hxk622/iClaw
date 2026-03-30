@@ -1,4 +1,4 @@
-import { loadOemRuntimeSnapshot, saveOemRuntimeSnapshot, syncOemRuntimeSnapshot } from './tauri-runtime-config';
+import { loadOemRuntimeSnapshot, saveOemRuntimeSnapshot } from './tauri-runtime-config';
 
 export type BrandRuntimeConfig = {
   brandId: string;

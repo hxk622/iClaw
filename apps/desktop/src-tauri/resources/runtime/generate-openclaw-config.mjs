@@ -3,6 +3,11 @@ import path from 'node:path';
 
 const DEFAULT_PROVIDER_MODEL_CONTEXT_WINDOW = 131072;
 const DEFAULT_PROVIDER_MODEL_MAX_TOKENS = 8192;
+const OPENAI_COMPATIBLE_API_PROTOCOLS = new Set([
+  'openai-completions',
+  'openai-responses',
+  'openai-codex-responses',
+]);
 
 function trimString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -27,6 +32,24 @@ function asNumber(value, fallback = 0) {
 function normalizePositiveModelLimit(value, fallback) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function normalizeOpenAICompatibleBaseUrl(baseUrl, apiProtocol) {
+  const normalizedBaseUrl = trimString(baseUrl).replace(/\/+$/, '');
+  const normalizedProtocol = trimString(apiProtocol).toLowerCase();
+  if (!normalizedBaseUrl || !OPENAI_COMPATIBLE_API_PROTOCOLS.has(normalizedProtocol)) {
+    return normalizedBaseUrl;
+  }
+  try {
+    const url = new URL(normalizedBaseUrl);
+    const pathname = url.pathname.replace(/\/+$/, '');
+    if (!pathname) {
+      url.pathname = '/v1';
+    }
+    return url.toString().replace(/\/+$/, '');
+  } catch {
+    return normalizedBaseUrl;
+  }
 }
 
 function ensureObject(parent, key) {
@@ -230,6 +253,60 @@ function main() {
   defaults.compaction = {
     ...(defaults.compaction && typeof defaults.compaction === 'object' && !Array.isArray(defaults.compaction) ? defaults.compaction : {}),
     mode: 'safeguard',
+    reserveTokensFloor: 52000,
+    memoryFlush: {
+      ...(
+        defaults.compaction &&
+        typeof defaults.compaction === 'object' &&
+        !Array.isArray(defaults.compaction) &&
+        defaults.compaction.memoryFlush &&
+        typeof defaults.compaction.memoryFlush === 'object' &&
+        !Array.isArray(defaults.compaction.memoryFlush)
+          ? defaults.compaction.memoryFlush
+          : {}
+      ),
+      enabled: true,
+      softThresholdTokens: 12000,
+      systemPrompt: 'Session nearing compaction. Store durable memories now.',
+      prompt:
+        'Write durable notes for decisions, unresolved blockers, exact identifiers, and artifact paths to memory/YYYY-MM-DD.md; reply with NO_REPLY if nothing should be stored.',
+    },
+  };
+  defaults.contextPruning = {
+    ...(defaults.contextPruning && typeof defaults.contextPruning === 'object' && !Array.isArray(defaults.contextPruning) ? defaults.contextPruning : {}),
+    mode: 'cache-ttl',
+    ttl: '10m',
+    keepLastAssistants: 4,
+    minPrunableToolChars: 12000,
+    softTrim: {
+      ...(
+        defaults.contextPruning &&
+        typeof defaults.contextPruning === 'object' &&
+        !Array.isArray(defaults.contextPruning) &&
+        defaults.contextPruning.softTrim &&
+        typeof defaults.contextPruning.softTrim === 'object' &&
+        !Array.isArray(defaults.contextPruning.softTrim)
+          ? defaults.contextPruning.softTrim
+          : {}
+      ),
+      maxChars: 2400,
+      headChars: 900,
+      tailChars: 900,
+    },
+    hardClear: {
+      ...(
+        defaults.contextPruning &&
+        typeof defaults.contextPruning === 'object' &&
+        !Array.isArray(defaults.contextPruning) &&
+        defaults.contextPruning.hardClear &&
+        typeof defaults.contextPruning.hardClear === 'object' &&
+        !Array.isArray(defaults.contextPruning.hardClear)
+          ? defaults.contextPruning.hardClear
+          : {}
+      ),
+      enabled: true,
+      placeholder: '[Old tool result content cleared to control context growth]',
+    },
   };
   defaults.thinkingDefault = 'xhigh';
   defaults.timeoutSeconds = 1800;
@@ -248,7 +325,10 @@ function main() {
   resolvedProvider.api = resolvedProviderConfig.apiProtocol || 'openai-completions';
   resolvedProvider.authHeader = resolvedProviderConfig.authMode !== 'query';
   if (resolvedProviderConfig.baseUrl) {
-    resolvedProvider.baseUrl = resolvedProviderConfig.baseUrl;
+    resolvedProvider.baseUrl = normalizeOpenAICompatibleBaseUrl(
+      resolvedProviderConfig.baseUrl,
+      resolvedProviderConfig.apiProtocol,
+    );
   }
   if (resolvedProviderConfig.apiKey) {
     resolvedProvider.apiKey = resolvedProviderConfig.apiKey;

@@ -5,7 +5,7 @@ import {basename, dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 import {config} from '../src/config.ts';
-import {mergePlatformSkillBindings} from '../src/platform-inheritance.ts';
+import {mergePlatformMcpBindings, mergePlatformSkillBindings} from '../src/platform-inheritance.ts';
 import {buildPortalPublicConfig} from '../src/portal-runtime.ts';
 import {PgPortalStore} from '../src/portal-store.ts';
 import {PgControlPlaneStore} from '../src/pg-store.ts';
@@ -217,7 +217,6 @@ async function main() {
   const scriptDir = dirname(fileURLToPath(import.meta.url));
   const repoRoot = resolve(scriptDir, '../../..');
   const skillsSourceRoot = resolve(repoRoot, 'skills');
-  const projectMcpConfigPath = resolve(repoRoot, 'mcp/mcp.json');
   const runtimeResourcesRoot = resolve(repoRoot, 'services/openclaw/resources');
   const runtimeSkillsRoot = resolve(runtimeResourcesRoot, 'skills');
   const runtimeMcpConfigPath = resolve(runtimeResourcesRoot, 'mcp/mcp.json');
@@ -226,10 +225,11 @@ async function main() {
   const portalStore = new PgPortalStore(config.databaseUrl);
   const controlStore = new PgControlPlaneStore(config.databaseUrl);
   try {
-    const [detail, catalogMcps, platformSkills] = await Promise.all([
+    const [detail, catalogMcps, platformSkills, platformMcps] = await Promise.all([
       portalStore.getAppDetail(appName),
-      portalStore.listMcps(),
+      controlStore.listMcpCatalogAdmin(),
       portalStore.listSkills(),
+      portalStore.listMcps(),
     ]);
     if (!detail) {
       throw new Error(`portal app not found: ${appName}`);
@@ -244,6 +244,14 @@ async function main() {
         appName,
         detail.skillBindings,
         platformSkills,
+      ),
+    };
+    const detailWithPlatformCapabilities = {
+      ...detailWithPlatformSkills,
+      mcpBindings: mergePlatformMcpBindings(
+        appName,
+        detail.mcpBindings,
+        platformMcps,
       ),
     };
     const copiedSkills: string[] = [];
@@ -346,17 +354,16 @@ async function main() {
       'utf8',
     );
 
-    const projectMcp = JSON.parse(await readFile(projectMcpConfigPath, 'utf8')) as {mcpServers?: Record<string, unknown>};
     const catalogByKey = new Map(catalogMcps.map((item) => [item.mcpKey, item]));
-    const enabledBindings = detail.mcpBindings.filter((item) => item.enabled).sort((left, right) => left.sortOrder - right.sortOrder);
+    const enabledBindings = detailWithPlatformCapabilities.mcpBindings
+      .filter((item) => item.enabled)
+      .sort((left, right) => left.sortOrder - right.sortOrder);
     const nextMcpServers = Object.fromEntries(
       enabledBindings.map((binding) => {
-        const baseConfig = asObject(projectMcp.mcpServers?.[binding.mcpKey]);
         const catalogConfig = asObject(catalogByKey.get(binding.mcpKey)?.config);
         return [
           binding.mcpKey,
           {
-            ...baseConfig,
             ...catalogConfig,
             ...binding.config,
             enabled: true,
@@ -377,7 +384,7 @@ async function main() {
       'utf8',
     );
 
-    const publicConfig = buildPortalPublicConfig(detailWithPlatformSkills, {
+    const publicConfig = buildPortalPublicConfig(detailWithPlatformCapabilities, {
       assetUrlResolver: (asset) => asset.publicUrl || asset.objectKey || null,
     });
     const resolvedRuntimeModels = await portalStore.resolveRuntimeModels(appName);

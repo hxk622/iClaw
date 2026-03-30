@@ -114,6 +114,209 @@ struct PublicBrandAppRef {
     app_name: Option<String>,
 }
 
+fn openclaw_main_agent_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = openclaw_state_dir(app)?.join("agents").join("main").join("agent");
+    fs::create_dir_all(&dir)
+        .map_err(|e| format!("failed to create OpenClaw main agent dir {}: {e}", dir.to_string_lossy()))?;
+    Ok(dir)
+}
+
+fn openclaw_auth_profiles_path(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(openclaw_main_agent_dir(app)?.join("auth-profiles.json"))
+}
+
+fn read_json_file_if_exists(target: &Path) -> Result<Option<serde_json::Value>, String> {
+    if !target.exists() {
+        return Ok(None);
+    }
+    let raw = fs::read_to_string(target)
+        .map_err(|e| format!("failed to read json file {}: {e}", target.to_string_lossy()))?;
+    let parsed = serde_json::from_str::<serde_json::Value>(&raw)
+        .map_err(|e| format!("failed to parse json file {}: {e}", target.to_string_lossy()))?;
+    Ok(Some(parsed))
+}
+
+fn write_locked_json_file(target: &Path, value: &serde_json::Value) -> Result<(), String> {
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("failed to create parent dir {}: {e}", parent.to_string_lossy()))?;
+    }
+    let raw = serde_json::to_string_pretty(value)
+        .map_err(|e| format!("failed to serialize json file {}: {e}", target.to_string_lossy()))?;
+    fs::write(target, format!("{raw}\n"))
+        .map_err(|e| format!("failed to write json file {}: {e}", target.to_string_lossy()))?;
+    #[cfg(unix)]
+    {
+        fs::set_permissions(target, fs::Permissions::from_mode(0o600))
+            .map_err(|e| format!("failed to set json file permissions {}: {e}", target.to_string_lossy()))?;
+    }
+    Ok(())
+}
+
+fn read_private_runtime_config(
+    access_token: &str,
+    auth_base_url: &str,
+    brand_id: &str,
+) -> Result<PublicBrandConfigData, String> {
+    let trimmed_auth_base_url = auth_base_url.trim().trim_end_matches('/');
+    let trimmed_brand_id = brand_id.trim();
+    if trimmed_auth_base_url.is_empty() {
+        return Err(String::from("auth_base_url is required"));
+    }
+    if trimmed_brand_id.is_empty() {
+        return Err(String::from("brand_id is required"));
+    }
+    if access_token.trim().is_empty() {
+        return Err(String::from("access token is required"));
+    }
+
+    let mut private_url = Url::parse(&format!("{trimmed_auth_base_url}/portal/runtime/private-config"))
+        .map_err(|e| format!("failed to parse OEM private runtime config url: {e}"))?;
+    private_url
+        .query_pairs_mut()
+        .append_pair("app_name", trimmed_brand_id);
+
+    let client = Client::builder()
+        .connect_timeout(Duration::from_secs(8))
+        .timeout(Duration::from_secs(8))
+        .build()
+        .map_err(|e| format!("failed to build OEM runtime config client: {e}"))?;
+    let response = client
+        .get(private_url)
+        .bearer_auth(access_token)
+        .send()
+        .map_err(|e| format!("failed to fetch OEM private runtime config: {e}"))?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(format!("OEM private runtime config request failed ({status})"));
+    }
+    let envelope = response
+        .json::<PublicBrandConfigEnvelope>()
+        .map_err(|e| format!("failed to parse OEM runtime config response: {e}"))?;
+    if !envelope.success {
+        return Err(format!(
+            "OEM private runtime config returned unsuccessful response ({status})"
+        ));
+    }
+    envelope
+        .data
+        .ok_or_else(|| format!("OEM private runtime config missing data payload ({status})"))
+}
+
+fn extract_config_api_key(config: &serde_json::Value, path: &[&str]) -> Option<(String, String)> {
+    let mut current = config;
+    for segment in path {
+        current = current.get(*segment)?;
+    }
+    let provider = current
+        .get("provider_key")
+        .and_then(|value| value.as_str())
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())?;
+    let api_key = current
+        .get("api_key")
+        .and_then(|value| value.as_str())
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())?;
+    Some((provider, api_key))
+}
+
+fn upsert_portal_provider_auth_profiles(
+    app: &AppHandle,
+    config: &serde_json::Value,
+) -> Result<bool, String> {
+    let auth_path = openclaw_auth_profiles_path(app)?;
+    let mut store = read_json_file_if_exists(&auth_path)?
+        .and_then(|value| value.as_object().cloned())
+        .unwrap_or_default();
+    let mut profiles = store
+        .remove("profiles")
+        .and_then(|value| value.as_object().cloned())
+        .unwrap_or_default();
+
+    let mut changed = false;
+    let mut matched_profiles = 0_u8;
+    for path in [
+        ["model_provider", "profile"],
+        ["memory_embedding", "profile"],
+    ] {
+        if let Some((provider, api_key)) = extract_config_api_key(config, &path) {
+            matched_profiles = matched_profiles.saturating_add(1);
+            let profile_id = format!("{provider}:default");
+            let next_value = json!({
+                "type": "api_key",
+                "provider": provider,
+                "key": api_key,
+            });
+            if profiles.get(&profile_id) != Some(&next_value) {
+                profiles.insert(profile_id, next_value);
+                changed = true;
+            }
+        }
+    }
+
+    if matched_profiles == 0 {
+        return Err(String::from(
+            "private runtime config did not contain any provider api_key values",
+        ));
+    }
+
+    store.insert(String::from("version"), serde_json::Value::from(1));
+    store.insert(String::from("profiles"), serde_json::Value::Object(profiles));
+    if changed || !auth_path.exists() {
+        write_locked_json_file(&auth_path, &serde_json::Value::Object(store))?;
+    }
+    Ok(changed)
+}
+
+fn clear_portal_provider_auth_profiles(app: &AppHandle) -> Result<bool, String> {
+    let auth_path = openclaw_auth_profiles_path(app)?;
+    if !auth_path.exists() {
+        return Ok(true);
+    }
+    let snapshot = load_oem_runtime_snapshot_internal(app)?;
+    let Some(snapshot) = snapshot else {
+        return Ok(true);
+    };
+    let mut store = read_json_file_if_exists(&auth_path)?
+        .and_then(|value| value.as_object().cloned())
+        .unwrap_or_default();
+    let mut profiles = store
+        .remove("profiles")
+        .and_then(|value| value.as_object().cloned())
+        .unwrap_or_default();
+
+    let mut changed = false;
+    for path in [
+        ["model_provider", "profile"],
+        ["memory_embedding", "profile"],
+    ] {
+        let Some(provider) = snapshot
+            .config
+            .get(path[0])
+            .and_then(|value| value.get(path[1]))
+            .and_then(|value| value.get("provider_key"))
+            .and_then(|value| value.as_str())
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+        else {
+            continue;
+        };
+        let profile_id = format!("{provider}:default");
+        if profiles.remove(&profile_id).is_some() {
+            changed = true;
+        }
+    }
+
+    if !changed {
+        return Ok(true);
+    }
+    store.insert(String::from("version"), serde_json::Value::from(1));
+    store.insert(String::from("profiles"), serde_json::Value::Object(profiles));
+    write_locked_json_file(&auth_path, &serde_json::Value::Object(store))?;
+    Ok(true)
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct DesktopMemoryEntry {
@@ -690,6 +893,207 @@ fn resolve_runtime_command(app: &AppHandle) -> Result<ResolvedRuntimeCommand, St
     Err(String::from(
         "openclaw runtime not found; install the configured runtime artifact or provide ICLAW_OPENCLAW_RUNTIME_DIR",
     ))
+}
+
+fn resolved_runtime_root(runtime: &ResolvedRuntimeCommand) -> Result<PathBuf, String> {
+    if let Some(working_dir) = runtime.working_dir.as_ref() {
+        return Ok(working_dir.clone());
+    }
+    runtime
+        .display_path
+        .parent()
+        .map(|path| path.to_path_buf())
+        .ok_or_else(|| {
+            format!(
+                "failed to resolve runtime root from {}",
+                runtime.display_path.to_string_lossy()
+            )
+        })
+}
+
+fn resolved_runtime_node_path(runtime_root: &Path) -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        runtime_root.join("bin").join("node.exe")
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        runtime_root.join("bin").join("node")
+    }
+}
+
+fn openclaw_cli_wrapper_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let wrapper_dir = app_data_base_dir(app)?.join("bin");
+    fs::create_dir_all(&wrapper_dir)
+        .map_err(|e| format!("failed to create openclaw cli wrapper dir: {e}"))?;
+    #[cfg(target_os = "windows")]
+    {
+        Ok(wrapper_dir.join("openclaw.cmd"))
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Ok(wrapper_dir.join("openclaw"))
+    }
+}
+
+fn runtime_bin_openclaw_cli_path(runtime_root: &Path) -> Result<PathBuf, String> {
+    let bin_dir = runtime_root.join("bin");
+    fs::create_dir_all(&bin_dir)
+        .map_err(|e| format!("failed to create runtime bin dir {}: {e}", bin_dir.to_string_lossy()))?;
+    #[cfg(target_os = "windows")]
+    {
+        Ok(bin_dir.join("openclaw.cmd"))
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Ok(bin_dir.join("openclaw"))
+    }
+}
+
+fn shell_quote(path: &Path) -> String {
+    format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"))
+}
+
+fn write_text_if_changed(path: &Path, content: &str) -> Result<(), String> {
+    if fs::read_to_string(path).ok().as_deref() == Some(content) {
+        return Ok(());
+    }
+    fs::write(path, content)
+        .map_err(|e| format!("failed to write {}: {e}", path.to_string_lossy()))?;
+    Ok(())
+}
+
+#[cfg(unix)]
+fn ensure_executable(path: &Path) -> Result<(), String> {
+    let mut permissions = fs::metadata(path)
+        .map_err(|e| format!("failed to read metadata for {}: {e}", path.to_string_lossy()))?
+        .permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(path, permissions)
+        .map_err(|e| format!("failed to set executable permissions on {}: {e}", path.to_string_lossy()))
+}
+
+#[cfg(not(unix))]
+fn ensure_executable(_path: &Path) -> Result<(), String> {
+    Ok(())
+}
+
+fn ensure_openclaw_cli_wrapper(
+    app: &AppHandle,
+    runtime: &ResolvedRuntimeCommand,
+) -> Result<PathBuf, String> {
+    let runtime_root = resolved_runtime_root(runtime)?;
+    let node_path = resolved_runtime_node_path(&runtime_root);
+    let node_dir = node_path.parent().ok_or_else(|| {
+        format!(
+            "failed to resolve node dir from {}",
+            node_path.to_string_lossy()
+        )
+    })?;
+    let cli_path = runtime_root.join("openclaw").join("openclaw.mjs");
+    if !node_path.exists() {
+        return Err(format!(
+            "runtime node binary not found: {}",
+            node_path.to_string_lossy()
+        ));
+    }
+    if !cli_path.exists() {
+        return Err(format!(
+            "runtime openclaw cli entry not found: {}",
+            cli_path.to_string_lossy()
+        ));
+    }
+
+    let python_path = node_dir.join(if cfg!(target_os = "windows") {
+        "python3.exe"
+    } else {
+        "python3"
+    });
+    #[cfg(target_os = "windows")]
+    let wrapper_body = format!(
+        "@echo off\r\n\
+setlocal\r\n\
+set \"NODE_BIN={node_bin}\"\r\n\
+set \"RUNTIME_ROOT={runtime_root}\"\r\n\
+set \"PATH={node_dir};%PATH%\"\r\n\
+if \"%OPENCLAW_BUNDLED_PLUGINS_DIR%\"==\"\" set \"OPENCLAW_BUNDLED_PLUGINS_DIR=%RUNTIME_ROOT%\\extensions\"\r\n\
+if exist \"{python_path}\" if \"%UV_PYTHON%\"==\"\" set \"UV_PYTHON={python_path}\"\r\n\
+\"%NODE_BIN%\" \"{cli_path}\" %*\r\n",
+        node_bin = node_path.to_string_lossy(),
+        runtime_root = runtime_root.to_string_lossy(),
+        node_dir = node_dir.to_string_lossy(),
+        python_path = python_path.to_string_lossy(),
+        cli_path = cli_path.to_string_lossy(),
+    );
+
+    #[cfg(not(target_os = "windows"))]
+    let wrapper_body = format!(
+        "#!/usr/bin/env bash\n\
+set -euo pipefail\n\
+NODE_BIN={node_bin}\n\
+RUNTIME_ROOT={runtime_root}\n\
+export PATH={node_dir}${{PATH:+:$PATH}}\n\
+export OPENCLAW_BUNDLED_PLUGINS_DIR=\"${{OPENCLAW_BUNDLED_PLUGINS_DIR:-$RUNTIME_ROOT/extensions}}\"\n\
+if [[ -x {python_path} && -z \"${{UV_PYTHON:-}}\" ]]; then\n\
+  export UV_PYTHON={python_path}\n\
+fi\n\
+exec \"$NODE_BIN\" {cli_path} \"$@\"\n",
+        node_bin = shell_quote(&node_path),
+        runtime_root = shell_quote(&runtime_root),
+        node_dir = shell_quote(node_dir),
+        python_path = shell_quote(&python_path),
+        cli_path = shell_quote(&cli_path),
+    );
+
+    let runtime_wrapper_path = runtime_bin_openclaw_cli_path(&runtime_root)?;
+    write_text_if_changed(&runtime_wrapper_path, &wrapper_body)?;
+    ensure_executable(&runtime_wrapper_path)?;
+
+    let wrapper_path = openclaw_cli_wrapper_path(app)?;
+    write_text_if_changed(&wrapper_path, &wrapper_body)?;
+    ensure_executable(&wrapper_path)?;
+    Ok(wrapper_path)
+}
+
+#[tauri::command]
+fn ensure_openclaw_cli_available(app: AppHandle) -> Result<bool, String> {
+    let runtime = resolve_runtime_command(&app)?;
+    let _ = ensure_openclaw_cli_wrapper(&app, &runtime)?;
+    Ok(true)
+}
+
+fn prepend_openclaw_cli_to_path(
+    command: &mut Command,
+    wrapper_path: &Path,
+    runtime: &ResolvedRuntimeCommand,
+) -> Result<(), String> {
+    let wrapper_dir = wrapper_path.parent().ok_or_else(|| {
+        format!(
+            "failed to resolve openclaw wrapper dir from {}",
+            wrapper_path.to_string_lossy()
+        )
+    })?;
+    let runtime_root = resolved_runtime_root(runtime)?;
+    let node_path = resolved_runtime_node_path(&runtime_root);
+    let node_dir = node_path.parent().ok_or_else(|| {
+        format!(
+            "failed to resolve node dir from {}",
+            node_path.to_string_lossy()
+        )
+    })?;
+
+    let existing_path = env::var_os("PATH").or_else(|| env::var_os("Path"));
+    let mut entries = vec![wrapper_dir.to_path_buf(), node_dir.to_path_buf()];
+    if let Some(current) = existing_path {
+        entries.extend(env::split_paths(&current));
+    }
+    let joined = env::join_paths(entries)
+        .map_err(|e| format!("failed to join PATH for openclaw cli wrapper: {e}"))?;
+    command.env("PATH", &joined);
+    #[cfg(target_os = "windows")]
+    command.env("Path", &joined);
+    command.env("ICLAW_OPENCLAW_CLI_PATH", wrapper_path);
+    Ok(())
 }
 
 fn resource_skills_dir(app: &AppHandle) -> PathBuf {
@@ -2871,14 +3275,15 @@ fn start_sidecar(
     let mcp_config = prepare_runtime_mcp_config(&app, &paths.cache_dir)?;
     let extra_ca_certs = resource_extra_ca_certs_path(&app);
 
+    let runtime_root = resolved_runtime_root(&runtime)?;
     let mut command = Command::new(&runtime.program);
     if let Some(working_dir) = runtime.working_dir.as_ref() {
         command.current_dir(working_dir);
-        command.env(
-            "ICLAW_OPENCLAW_RUNTIME_ROOT",
-            working_dir.to_string_lossy().to_string(),
-        );
     }
+    command.env(
+        "ICLAW_OPENCLAW_RUNTIME_ROOT",
+        runtime_root.to_string_lossy().to_string(),
+    );
     command.args(&runtime.args_prefix);
     command.args(args);
     command.env("OPENCLAW_STATE_DIR", openclaw_state_dir);
@@ -2892,6 +3297,8 @@ fn start_sidecar(
     if extra_ca_certs.exists() {
         command.env("NODE_EXTRA_CA_CERTS", extra_ca_certs);
     }
+    let wrapper_path = ensure_openclaw_cli_wrapper(&app, &runtime)?;
+    prepend_openclaw_cli_to_path(&mut command, &wrapper_path, &runtime)?;
     configure_runtime_network_env(&mut command, &app);
 
     if let Some(v) = config.anthropic_api_key {
@@ -3026,6 +3433,27 @@ fn save_oem_runtime_snapshot(app: AppHandle, snapshot: OemRuntimeSnapshot) -> Re
 #[tauri::command]
 fn load_oem_runtime_snapshot(app: AppHandle) -> Result<Option<OemRuntimeSnapshot>, String> {
     load_oem_runtime_snapshot_internal(&app)
+}
+
+#[tauri::command]
+fn sync_portal_provider_auth(
+    app: AppHandle,
+    auth_base_url: String,
+    brand_id: String,
+) -> Result<bool, String> {
+    let tokens = load_auth_tokens()?
+        .ok_or_else(|| String::from("missing access token for provider auth sync"))?;
+    let data = read_private_runtime_config(&tokens.access_token, &auth_base_url, &brand_id)?;
+    let config = data
+        .config
+        .ok_or_else(|| String::from("private runtime config missing config payload"))?;
+    upsert_portal_provider_auth_profiles(&app, &config)?;
+    Ok(true)
+}
+
+#[tauri::command]
+fn clear_portal_provider_auth(app: AppHandle) -> Result<bool, String> {
+    clear_portal_provider_auth_profiles(&app)
 }
 
 #[tauri::command]
@@ -3524,6 +3952,7 @@ fn configure_memory_runtime_command(command: &mut Command, app: &AppHandle) -> R
     if let Err(error) = sync_current_brand_runtime_snapshot(app) {
         eprintln!("failed to sync OEM runtime snapshot before memory runtime command: {error}");
     }
+    let runtime = resolve_runtime_command(app)?;
     let gateway_token = load_or_create_gateway_token(app)?;
     ensure_openclaw_workspace_seed(app)?;
     let openclaw_state_dir = openclaw_state_dir(app)?;
@@ -3546,6 +3975,8 @@ fn configure_memory_runtime_command(command: &mut Command, app: &AppHandle) -> R
     if extra_ca_certs.exists() {
         command.env("NODE_EXTRA_CA_CERTS", extra_ca_certs);
     }
+    let wrapper_path = ensure_openclaw_cli_wrapper(app, &runtime)?;
+    prepend_openclaw_cli_to_path(command, &wrapper_path, &runtime)?;
     configure_runtime_network_env(command, app);
     if let Some(v) = config.anthropic_api_key {
         if !v.trim().is_empty() {
@@ -4227,6 +4658,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             start_sidecar,
             stop_sidecar,
+            ensure_openclaw_cli_available,
             save_auth_tokens,
             load_auth_tokens,
             clear_auth_tokens,
@@ -4236,6 +4668,8 @@ fn main() {
             save_runtime_config,
             save_oem_runtime_snapshot,
             load_oem_runtime_snapshot,
+            sync_portal_provider_auth,
+            clear_portal_provider_auth,
             sync_oem_runtime_snapshot,
             install_runtime,
             diagnose_runtime,

@@ -20,30 +20,35 @@ if (
 
 applyBrandTheme();
 document.title = SHOW_DEV_BRANDING ? BRAND.devWebsiteTitle : BRAND.websiteTitle;
-await bootstrapDesktopConfigStore();
-applyThemeMode(readStoredThemeMode());
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-  if (readStoredThemeMode() === 'system') {
-    applyThemeMode('system');
+
+async function bootstrapApp() {
+  await bootstrapDesktopConfigStore();
+  applyThemeMode(readStoredThemeMode());
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (readStoredThemeMode() === 'system') {
+      applyThemeMode('system');
+    }
+  });
+
+  createRoot(document.getElementById('root')!).render(<App />);
+
+  if (SHOW_DEV_BRANDING) {
+    const existingHost = document.getElementById('agentation-root');
+    const agentationHost = existingHost ?? document.createElement('div');
+
+    if (!existingHost) {
+      agentationHost.id = 'agentation-root';
+      document.body.append(agentationHost);
+    }
+
+    void import('./app/components/DevAgentation')
+      .then(({ mountDevAgentation }) => {
+        mountDevAgentation(agentationHost);
+      })
+      .catch((error) => {
+        console.error('failed to mount agentation in dev', error);
+      });
   }
-});
-
-createRoot(document.getElementById('root')!).render(<App />);
-
-if (SHOW_DEV_BRANDING) {
-  const existingHost = document.getElementById('agentation-root');
-  const agentationHost = existingHost ?? document.createElement('div');
-
-  if (!existingHost) {
-    agentationHost.id = 'agentation-root';
-    document.body.append(agentationHost);
-  }
-
-  void import('./app/components/DevAgentation')
-    .then(({ mountDevAgentation }) => {
-      mountDevAgentation(agentationHost);
-    })
-    .catch((error) => {
-      console.error('failed to mount agentation in dev', error);
-    });
 }
+
+void bootstrapApp();
