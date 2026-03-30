@@ -6,7 +6,7 @@ import path from 'path';
 import { createRequire } from 'module';
 import { pathToFileURL } from 'url';
 
-const DEFAULT_MODEL = 'gemini-3.1-flash-image';
+const DEFAULT_MODEL = 'gemini-3-pro-image-preview';
 const DEFAULT_CONFIG_FILE = '.nano-banana-config.json';
 
 const requireResolvers = [createRequire(import.meta.url)];

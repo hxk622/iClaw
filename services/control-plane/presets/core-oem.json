@@ -834,7 +834,7 @@
               "type": "text",
               "required": false,
               "inject_as": "NANO_BANANA_MODEL",
-              "placeholder": "默认 gemini-3.1-flash-image",
+              "placeholder": "默认 gemini-3-pro-image-preview",
               "help_text": "可选。只有当你的 Gemini 或兼容中转站不支持默认图像模型时，才需要手动指定。"
             }
           ]
