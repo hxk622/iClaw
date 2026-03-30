@@ -323,6 +323,42 @@ const INPUT_ASSEMBLY_PRESETS = [
       'company-compare': {display_name: '客户对比'},
     },
   },
+  {
+    key: 'xiaohongshu',
+    label: '小红书运营版',
+    description: '偏内容选题、爆文拆解、笔记润色和评论互动的输入框模板。',
+    selectedComposerControls: ['skill', 'mode', 'output-format'],
+    composerControlOrder: ['skill', 'mode', 'output-format'],
+    composerControlConfigs: {
+      skill: {display_name: '运营技能'},
+      mode: {display_name: '运营模式', allowed_option_values: ['quick', 'deep-research', 'report']},
+      'output-format': {display_name: '产出形式', allowed_option_values: ['summary', 'table', 'minutes', 'report']},
+    },
+    selectedComposerShortcuts: [
+      'xhs-topic-mining',
+      'xhs-viral-analysis',
+      'xhs-competitor-review',
+      'xhs-note-polish',
+      'xhs-comment-reply',
+      'xhs-publishing-plan',
+    ],
+    composerShortcutOrder: [
+      'xhs-topic-mining',
+      'xhs-viral-analysis',
+      'xhs-competitor-review',
+      'xhs-note-polish',
+      'xhs-comment-reply',
+      'xhs-publishing-plan',
+    ],
+    composerShortcutConfigs: {
+      'xhs-topic-mining': {display_name: '选题挖掘'},
+      'xhs-viral-analysis': {display_name: '爆文拆解'},
+      'xhs-competitor-review': {display_name: '竞品对标'},
+      'xhs-note-polish': {display_name: '笔记润色'},
+      'xhs-comment-reply': {display_name: '评论回复'},
+      'xhs-publishing-plan': {display_name: '发布计划'},
+    },
+  },
 ];
 const CAPABILITY_ROUTE_MODE = {
   'skills-mcp': 'skills',
