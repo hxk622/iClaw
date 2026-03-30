@@ -135,7 +135,7 @@ OEM portal 现在也是 control-plane 的职责范围之一：
   - 是否默认已安装
   - 是否推荐
   - 排序和少量展示 metadata
-- Skill 的平台级主数据通过 `cloud_skill_catalog` 暴露；当前底层物理表仍是兼容历史的 `skill_catalog_entries`，业务代码不应再直接引用旧表名
+- Skill 的平台级主数据物理表就是 `cloud_skill_catalog`；业务代码和运维文档都应只使用这个名字
 - MCP 的名称、描述、logo、分类、连接方式、抓取来源等原始内容属于平台级主数据，不能在 OEM binding 中复制出第二份真值
 - 对外返回某个 app 的 MCP 列表时，control-plane 应负责把“平台 catalog + OEM binding”合成为当前 app 视图；前端只负责展示，不负责推断业务真相
 - 仓库根目录的 `mcp/mcp.json` overlay 已删除；本地 `services/openclaw/resources/mcp/mcp.json` 只是运行时生成产物
@@ -148,6 +148,9 @@ OEM portal 现在也是 control-plane 的职责范围之一：
   - 检查 preset 中引用的 skill / MCP 是否都存在且为 active
   - 检查 binding 里的 appName 是否都能在 manifest apps 中找到
   - 预期先 `doctor`，通过后再 `sync`
+- `pnpm migrate:skill-catalog-table` 是一次性结构迁移：
+  - 把历史物理表 `skill_catalog_entries` 重命名为 `cloud_skill_catalog`
+  - 同步处理旧 view / 索引命名残留
 
 在未显式覆盖环境变量时，会按 app-name 推导这些默认值：
 

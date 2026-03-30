@@ -968,23 +968,20 @@ export async function ensureControlPlaneSchema(databaseUrl: string): Promise<voi
   const pool = new Pool({connectionString: databaseUrl});
   try {
     const schemaCheck = await pool.query<{
-      users_relation: string | null;
-      skill_catalog_relation: string | null;
-      portal_apps_relation: string | null;
-      cloud_skill_catalog_relation: string | null;
+      users_relation_kind: string | null;
+      portal_apps_relation_kind: string | null;
+      cloud_skill_catalog_relation_kind: string | null;
     }>(`
       select
-        to_regclass('users')::text as users_relation,
-        to_regclass('skill_catalog_entries')::text as skill_catalog_relation,
-        to_regclass('oem_apps')::text as portal_apps_relation,
-        to_regclass('cloud_skill_catalog')::text as cloud_skill_catalog_relation
+        (select c.relkind::text from pg_class c where c.oid = to_regclass('users')) as users_relation_kind,
+        (select c.relkind::text from pg_class c where c.oid = to_regclass('oem_apps')) as portal_apps_relation_kind,
+        (select c.relkind::text from pg_class c where c.oid = to_regclass('cloud_skill_catalog')) as cloud_skill_catalog_relation_kind
     `);
     const existingSchema = schemaCheck.rows[0];
     if (
-      existingSchema?.users_relation &&
-      existingSchema.skill_catalog_relation &&
-      existingSchema.portal_apps_relation &&
-      existingSchema.cloud_skill_catalog_relation
+      existingSchema?.users_relation_kind === 'r' &&
+      existingSchema.portal_apps_relation_kind === 'r' &&
+      existingSchema.cloud_skill_catalog_relation_kind === 'r'
     ) {
       return;
     }

@@ -295,7 +295,7 @@ create table if not exists user_agent_library (
   primary key (user_id, agent_slug)
 );
 
-create table if not exists skill_catalog_entries (
+create table if not exists cloud_skill_catalog (
   slug text primary key,
   name text not null,
   description text not null,
@@ -318,40 +318,16 @@ create table if not exists skill_catalog_entries (
   updated_at timestamptz not null default now()
 );
 
-alter table skill_catalog_entries add column if not exists version text not null default '1.0.0';
-alter table skill_catalog_entries add column if not exists artifact_format text not null default 'tar.gz';
+alter table cloud_skill_catalog add column if not exists version text not null default '1.0.0';
+alter table cloud_skill_catalog add column if not exists artifact_format text not null default 'tar.gz';
 alter table agent_catalog_entries add column if not exists metadata_json jsonb not null default '{}'::jsonb;
-alter table skill_catalog_entries add column if not exists artifact_url text;
-alter table skill_catalog_entries add column if not exists artifact_sha256 text;
-alter table skill_catalog_entries add column if not exists artifact_source_path text;
-alter table skill_catalog_entries add column if not exists origin_type text not null default 'manual';
-alter table skill_catalog_entries add column if not exists source_url text;
-alter table skill_catalog_entries add column if not exists metadata_json jsonb not null default '{}'::jsonb;
-alter table skill_catalog_entries drop column if exists visibility;
-
-create or replace view cloud_skill_catalog as
-select
-  slug,
-  name,
-  description,
-  market,
-  category,
-  skill_type,
-  publisher,
-  distribution,
-  tags,
-  version,
-  artifact_format,
-  artifact_url,
-  artifact_sha256,
-  artifact_source_path,
-  origin_type,
-  source_url,
-  metadata_json,
-  active,
-  created_at,
-  updated_at
-from skill_catalog_entries;
+alter table cloud_skill_catalog add column if not exists artifact_url text;
+alter table cloud_skill_catalog add column if not exists artifact_sha256 text;
+alter table cloud_skill_catalog add column if not exists artifact_source_path text;
+alter table cloud_skill_catalog add column if not exists origin_type text not null default 'manual';
+alter table cloud_skill_catalog add column if not exists source_url text;
+alter table cloud_skill_catalog add column if not exists metadata_json jsonb not null default '{}'::jsonb;
+alter table cloud_skill_catalog drop column if exists visibility;
 
 create table if not exists skill_sync_sources (
   id text primary key,
@@ -523,7 +499,7 @@ create table if not exists oem_apps (
 );
 
 create table if not exists platform_bundled_skills (
-  skill_slug text primary key references skill_catalog_entries(slug) on delete cascade,
+  skill_slug text primary key references cloud_skill_catalog(slug) on delete cascade,
   sort_order integer not null default 100,
   metadata_json jsonb not null default '{}'::jsonb,
   active boolean not null default true,
@@ -769,7 +745,7 @@ create table if not exists oem_composer_shortcut_catalog (
 
 create table if not exists oem_bundled_skills (
   app_name text not null references oem_apps(app_name) on delete cascade,
-  skill_slug text not null references skill_catalog_entries(slug) on delete cascade,
+  skill_slug text not null references cloud_skill_catalog(slug) on delete cascade,
   enabled boolean not null default true,
   sort_order integer not null default 100,
   config_json jsonb not null default '{}'::jsonb,
@@ -1139,7 +1115,7 @@ do update set
   active = excluded.active,
   updated_at = now();
 
-insert into skill_catalog_entries (
+insert into cloud_skill_catalog (
   slug,
   name,
   description,
@@ -1405,7 +1381,7 @@ insert into skill_catalog_entries (
   )
 on conflict (slug) do nothing;
 
-update skill_catalog_entries entry
+update cloud_skill_catalog entry
 set distribution = 'cloud',
     version = seeded.version,
     artifact_format = seeded.artifact_format,
@@ -1441,7 +1417,7 @@ from (
 ) as seeded(slug, version, artifact_format, artifact_url, artifact_sha256, artifact_source_path, origin_type, source_url)
 where entry.slug = seeded.slug;
 
-insert into skill_catalog_entries (
+insert into cloud_skill_catalog (
   slug,
   name,
   description,
@@ -1693,7 +1669,7 @@ on conflict (slug) do update set
   active = excluded.active,
   updated_at = now();
 
-update skill_catalog_entries entry
+update cloud_skill_catalog entry
 set version = seeded.version,
     artifact_format = seeded.artifact_format,
     artifact_url = seeded.artifact_url,
@@ -1752,7 +1728,7 @@ on conflict (id) do update set
   active = excluded.active,
   updated_at = now();
 
-update skill_catalog_entries
+update cloud_skill_catalog
 set active = false,
     updated_at = now()
 where slug in ('github', 'gog', 'ontology', 'summarize');
@@ -1792,9 +1768,9 @@ create index if not exists idx_agent_catalog_entries_active_sort
   on agent_catalog_entries(active, sort_order, name);
 create index if not exists idx_user_agent_library_user_id_installed_at
   on user_agent_library(user_id, installed_at desc);
-drop index if exists idx_skill_catalog_entries_distribution_active;
-create index if not exists idx_skill_catalog_entries_distribution_active
-  on skill_catalog_entries(distribution, active);
+drop index if exists idx_cloud_skill_catalog_distribution_active;
+create index if not exists idx_cloud_skill_catalog_distribution_active
+  on cloud_skill_catalog(distribution, active);
 create index if not exists idx_skill_sync_sources_type_active
   on skill_sync_sources(source_type, active, display_name);
 create index if not exists idx_skill_sync_runs_source_started_at
