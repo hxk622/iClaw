@@ -2080,6 +2080,20 @@ function getDesktopReleaseConfig(source) {
   };
 }
 
+function resolveDesktopEnforcementMode(policy) {
+  const normalized = asObject(policy);
+  const mandatory = Boolean(normalized.mandatory);
+  const allowCurrentRunToFinish =
+    normalized.allowCurrentRunToFinish === undefined &&
+    normalized.allow_current_run_to_finish === undefined
+      ? true
+      : Boolean(normalized.allowCurrentRunToFinish ?? normalized.allow_current_run_to_finish);
+  if (!mandatory) {
+    return 'recommended';
+  }
+  return allowCurrentRunToFinish ? 'required_after_run' : 'required_now';
+}
+
 function findDesktopReleaseTarget(snapshot, platform, arch) {
   return asArray(snapshot?.targets).find((item) => item.platform === platform && item.arch === arch) || null;
 }
@@ -4749,9 +4763,10 @@ async function publishDesktopRelease(formData) {
   const channel = String(formData.get('channel') || 'prod').trim() || 'prod';
   const version = String(formData.get('version') || '').trim();
   const notes = String(formData.get('notes') || '').trim();
-  const mandatory = formData.get('mandatory') === 'on';
+  const enforcementMode = String(formData.get('enforcement_mode') || 'recommended').trim() || 'recommended';
+  const mandatory = enforcementMode === 'required_after_run' || enforcementMode === 'required_now';
   const forceUpdateBelowVersion = String(formData.get('force_update_below_version') || '').trim();
-  const allowCurrentRunToFinish = formData.get('allow_current_run_to_finish') === 'on';
+  const allowCurrentRunToFinish = enforcementMode !== 'required_now';
   const reasonMessage = String(formData.get('reason_message') || '').trim();
 
   if (!brandId) {
@@ -4777,7 +4792,7 @@ async function publishDesktopRelease(formData) {
         mandatory,
         force_update_below_version: forceUpdateBelowVersion || null,
         allow_current_run_to_finish: allowCurrentRunToFinish,
-        reason_code: mandatory ? 'stability_hotfix' : null,
+        reason_code: mandatory ? (enforcementMode === 'required_now' ? 'mandatory_immediate' : 'stability_hotfix') : null,
         reason_message: reasonMessage || null,
       }),
     });
@@ -10406,7 +10421,7 @@ function renderReleasesPage() {
       <div class="fig-page__body">
         ${renderPageGuide('版本发布怎么用', [
           '先选择品牌，再维护该品牌桌面端的 dmg、exe、updater 和签名文件。',
-          '版本号、强更阈值、说明文案都在这里统一配置并发布生效。',
+          '版本号、强更阈值、说明文案和 3 档更新策略都在这里统一配置并发布生效。',
           '下方时间线用于回看历史快照和对比当前草稿差异。',
         ], 'releases')}
         <div class="fig-toolbar">
@@ -10425,7 +10440,7 @@ function renderReleasesPage() {
           <div class="fig-card__head">
             <div>
               <h3>桌面发布中心</h3>
-              <span>上传 dmg / exe / updater / sig，并在同一页开启强更策略</span>
+              <span>上传 dmg / exe / updater / sig，并在同一页配置常规提醒、任务结束后强更、立即强更</span>
             </div>
           </div>
           ${
@@ -10449,6 +10464,20 @@ function renderReleasesPage() {
                       <span>Force Below</span>
                       <input class="field-input" name="force_update_below_version" value="${fieldValue(desktopDraft?.policy?.forceUpdateBelowVersion || desktopPublished?.policy?.forceUpdateBelowVersion || '')}" placeholder="例如 1.4.6" />
                     </label>
+                    <label class="field">
+                      <span>更新策略</span>
+                      <select class="field-select" name="enforcement_mode">
+                        <option value="recommended"${
+                          resolveDesktopEnforcementMode(desktopDraft?.policy || desktopPublished?.policy) === 'recommended' ? ' selected' : ''
+                        }>常规提醒</option>
+                        <option value="required_after_run"${
+                          resolveDesktopEnforcementMode(desktopDraft?.policy || desktopPublished?.policy) === 'required_after_run' ? ' selected' : ''
+                        }>强更，但允许当前任务跑完</option>
+                        <option value="required_now"${
+                          resolveDesktopEnforcementMode(desktopDraft?.policy || desktopPublished?.policy) === 'required_now' ? ' selected' : ''
+                        }>立即强更</option>
+                      </select>
+                    </label>
                   </div>
                   <div class="fig-meta-cards">
                     <div class="fig-meta-card"><span>当前草稿</span><strong>${escapeHtml(desktopDraft?.version || '未配置')}</strong></div>
@@ -10460,18 +10489,16 @@ function renderReleasesPage() {
                     <textarea class="field-input" name="notes" rows="3" placeholder="写给更新弹窗 / updater notes 的说明">${fieldValue(desktopDraft?.notes || desktopPublished?.notes || '')}</textarea>
                   </label>
                   <div class="fig-meta-cards">
-                    <label class="fig-meta-card">
-                      <span>开启强更</span>
-                      <input type="checkbox" name="mandatory"${desktopDraft?.policy?.mandatory || desktopPublished?.policy?.mandatory ? ' checked' : ''} />
-                    </label>
-                    <label class="fig-meta-card">
-                      <span>允许当前任务跑完</span>
-                      <input type="checkbox" name="allow_current_run_to_finish"${
-                        desktopDraft?.policy?.allowCurrentRunToFinish ?? desktopPublished?.policy?.allowCurrentRunToFinish ?? true
-                          ? ' checked'
-                          : ''
-                      } />
-                    </label>
+                    <div class="fig-meta-card">
+                      <span>当前策略</span>
+                      <strong>${escapeHtml(
+                        resolveDesktopEnforcementMode(desktopPublished?.policy) === 'required_now'
+                          ? '立即强更'
+                          : resolveDesktopEnforcementMode(desktopPublished?.policy) === 'required_after_run'
+                            ? '任务结束后强更'
+                            : '常规提醒',
+                      )}</strong>
+                    </div>
                     <div class="fig-meta-card">
                       <span>策略说明</span>
                       <strong>${escapeHtml(desktopPublished?.policy?.reasonMessage || '未配置')}</strong>

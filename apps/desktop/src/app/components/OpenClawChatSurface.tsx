@@ -185,6 +185,8 @@ type OpenClawChatSurfaceProps = {
   welcomePageConfig?: ResolvedWelcomePageConfig | null;
   onInitialSkillSlugChange?: (slug: string | null) => void;
   onOpenRechargeCenter?: () => void;
+  onBusyStateChange?: (busy: boolean) => void;
+  sendBlockedReason?: string | null;
 };
 
 type ComposerCreditEstimateState = {
@@ -1036,7 +1038,7 @@ function readAssistantBillingSummary(message: unknown): RunBillingSummaryData | 
     return null;
   }
   const summary = message[ICLAW_BILLING_SUMMARY_KEY];
-  return isRecord(summary) ? (summary as RunBillingSummaryData) : null;
+  return isRecord(summary) ? (summary as unknown as RunBillingSummaryData) : null;
 }
 
 function readAssistantBillingState(message: unknown): AssistantBillingState | null {
@@ -1980,6 +1982,8 @@ export function OpenClawChatSurface({
   welcomePageConfig = null,
   onInitialSkillSlugChange,
   onOpenRechargeCenter,
+  onBusyStateChange,
+  sendBlockedReason = null,
 }: OpenClawChatSurfaceProps) {
   const shellRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -2048,6 +2052,16 @@ export function OpenClawChatSurface({
     estimatedInputTokens: null,
     estimatedOutputTokens: null,
   });
+
+  useEffect(() => {
+    onBusyStateChange?.(status.busy);
+  }, [onBusyStateChange, status.busy]);
+
+  useEffect(() => {
+    return () => {
+      onBusyStateChange?.(false);
+    };
+  }, [onBusyStateChange]);
   const effectiveGatewaySessionKey = resolvedModelSessionKey || sessionKey;
   const [installedLobsterAgents, setInstalledLobsterAgents] = useState<ComposerAgentOption[]>([]);
   const [skillOptions, setSkillOptions] = useState<ComposerSkillOption[]>([]);
@@ -3897,6 +3911,13 @@ export function OpenClawChatSurface({
   const handleSend = useCallback(async (payload: ComposerSendPayload): Promise<boolean> => {
     const app = appRef.current;
     const request = app?.client?.request;
+    if (sendBlockedReason) {
+      setStatus((current) => ({
+        ...current,
+        lastError: sendBlockedReason,
+      }));
+      return false;
+    }
     if (!app?.connected || typeof request !== 'function') {
       setStatus((current) => ({
         ...current,
@@ -4053,6 +4074,7 @@ export function OpenClawChatSurface({
     appName,
     selectedModelId,
     effectiveGatewaySessionKey,
+    sendBlockedReason,
     status.lastError,
   ]);
 
@@ -4724,6 +4746,7 @@ export function OpenClawChatSurface({
               ref={composerRef}
               connected={status.connected}
               busy={status.busy}
+              sendDisabledReason={sendBlockedReason}
               dropActive={shellDropActive}
               sessionTransitioning={shellTransitioning}
               lobsterAgents={installedLobsterAgents}

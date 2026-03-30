@@ -28,6 +28,7 @@ import { IClawHeader } from './components/IClawHeader';
 import { OpenClawChatSurface } from './components/OpenClawChatSurface';
 import { OpenClawCronSurface } from './components/OpenClawCronSurface';
 import { Sidebar } from './components/Sidebar';
+import { DesktopUpdateGuard } from './components/DesktopUpdateGuard';
 import { Button } from './components/ui/Button';
 import { EmptyStatePanel } from './components/ui/EmptyStatePanel';
 import { PageContent, PageSurface } from './components/ui/PageLayout';
@@ -57,7 +58,10 @@ import {
 } from './lib/iclaw-settings';
 import { readRecentTasks } from './lib/recent-tasks';
 import {
+  normalizeDesktopUpdateEnforcementState,
   readSkippedDesktopUpdateVersion,
+  resolveDesktopUpdateGateState,
+  resolveDesktopUpdatePolicyLabel,
   resolveDesktopUpdateArtifactUrl,
   shouldShowDesktopUpdateHint,
   writeSkippedDesktopUpdateVersion,
@@ -143,6 +147,7 @@ const DESKTOP_APP_VERSION = desktopPackageJson.version;
 const DESKTOP_RELEASE_CHANNEL: 'dev' | 'prod' =
   String(import.meta.env.VITE_BUILD_CHANNEL || '').trim().toLowerCase() === 'dev' ? 'dev' : 'prod';
 const DISPLAY_DESKTOP_APP_VERSION = DESKTOP_APP_VERSION.split('+', 1)[0] || DESKTOP_APP_VERSION;
+const DESKTOP_UPDATE_REVALIDATE_TTL_MS = 15 * 60 * 1000;
 const DEFAULT_CHAT_ROUTE = {
   sessionKey: CHAT_SESSION_KEY,
   initialPrompt: null as string | null,
@@ -173,6 +178,13 @@ const PRIMARY_VIEW_ORDER: PrimaryView[] = [
   'task-center',
 ];
 const SUPPORTED_PRIMARY_VIEWS = new Set<PrimaryView>(PRIMARY_VIEW_ORDER);
+
+function buildDesktopUpdateAnnouncement(hint: DesktopUpdateHint): string {
+  const policyLabel = resolveDesktopUpdatePolicyLabel(hint);
+  const reasonMessage = hint.reasonMessage?.trim();
+  const base = `发现新版本 ${hint.latestVersion}。当前策略：${policyLabel}。`;
+  return reasonMessage ? `${base} ${reasonMessage}` : base;
+}
 
 type InstallerViewState = 'loading' | 'error';
 
@@ -299,7 +311,8 @@ function isLikelyAccessToken(token: string): boolean {
 }
 
 function formatPortConflictMessage(ports: number[]): string | null {
-  const relevantPorts = ports.filter((port) => port === SIDECAR_PORT);
+  const sidecarPort = Number(SIDECAR_PORT);
+  const relevantPorts = Number.isFinite(sidecarPort) ? ports.filter((port) => port === sidecarPort) : [];
   if (relevantPorts.length === 0) {
     return null;
   }
@@ -353,6 +366,7 @@ export default function App() {
         desktopAppName: BRAND.brandId,
         desktopReleaseChannel: DESKTOP_RELEASE_CHANNEL,
         onDesktopUpdateHint: (hint) => {
+          desktopUpdateLastCheckedAtRef.current = Date.now();
           if (!hint.updateAvailable) {
             setDesktopUpdateHint(null);
             setDesktopUpdateActionState((current) => (current === 'ready-to-restart' ? current : 'idle'));
@@ -366,6 +380,8 @@ export default function App() {
             if (
               current?.latestVersion === hint.latestVersion &&
               current.mandatory === hint.mandatory &&
+              current.enforcementState === hint.enforcementState &&
+              current.reasonMessage === hint.reasonMessage &&
               current.manifestUrl === hint.manifestUrl &&
               current.artifactUrl === hint.artifactUrl
             ) {
@@ -426,10 +442,13 @@ export default function App() {
   const [desktopUpdateProgress, setDesktopUpdateProgress] = useState<number | null>(null);
   const [desktopUpdateDetail, setDesktopUpdateDetail] = useState<string | null>(null);
   const [desktopUpdateStatusMessage, setDesktopUpdateStatusMessage] = useState<string | null>(null);
+  const [chatSurfaceBusy, setChatSurfaceBusy] = useState(false);
   const [brandRuntimeReady, setBrandRuntimeReady] = useState(!IS_TAURI_RUNTIME);
   const [brandShellConfig, setBrandShellConfig] = useState<Record<string, unknown> | null>(null);
   const brandRuntimeSignatureRef = useRef<string | null>(null);
   const brandRuntimeSyncInFlightRef = useRef(false);
+  const desktopUpdateLastCheckedAtRef = useRef(0);
+  const desktopUpdateCheckInFlightRef = useRef(false);
 
   const syncWorkspaceForUser = async (token: string): Promise<void> => {
     if (!IS_TAURI_RUNTIME) return;
@@ -1074,7 +1093,7 @@ export default function App() {
 
     void boot();
     const timer = window.setInterval(() => {
-      void check(false);
+      void check({ blocking: false });
     }, 10000);
 
     return () => {
@@ -1194,6 +1213,78 @@ export default function App() {
     }
   }, [desktopUpdateActionState, desktopUpdateHint, skippedDesktopUpdateVersion]);
 
+  const effectiveDesktopUpdateHint = desktopUpdateHint?.updateAvailable ? desktopUpdateHint : null;
+  const desktopUpdateGateState = resolveDesktopUpdateGateState({
+    hint: effectiveDesktopUpdateHint,
+    skippedVersion: skippedDesktopUpdateVersion,
+    currentRunBusy: chatSurfaceBusy,
+    readyToRestart: desktopUpdateActionState === 'ready-to-restart',
+  });
+  const visibleDesktopUpdateHint =
+    effectiveDesktopUpdateHint &&
+    (desktopUpdateActionState === 'ready-to-restart' ||
+      shouldShowDesktopUpdateHint(effectiveDesktopUpdateHint, skippedDesktopUpdateVersion))
+      ? effectiveDesktopUpdateHint
+      : null;
+  const desktopUpdateEnforcementState = normalizeDesktopUpdateEnforcementState(effectiveDesktopUpdateHint);
+  const desktopUpdateNewRunBlockedReason =
+    desktopUpdateGateState === 'required_waiting_current_run'
+      ? '当前版本已进入强更流程。现有任务可以继续执行，但新的对话或任务要等升级完成后再发起。'
+      : desktopUpdateGateState === 'required_blocked'
+        ? '当前版本需要升级后才能继续发起新的对话或任务。'
+        : desktopUpdateGateState === 'ready_to_restart'
+          ? '新版本已经安装完成，请先重启应用后继续。'
+          : null;
+  const desktopUpdateSendBlockedReason =
+    desktopUpdateGateState === 'required_blocked' || desktopUpdateGateState === 'ready_to_restart'
+      ? desktopUpdateNewRunBlockedReason
+      : null;
+
+  useEffect(() => {
+    if (!authBootstrapReady || (IS_TAURI_RUNTIME && shouldShowStartupGate)) {
+      return;
+    }
+    void handleCheckForDesktopUpdates({ silent: true });
+  }, [authBootstrapReady, shouldShowStartupGate]);
+
+  useEffect(() => {
+    if (!authBootstrapReady || (IS_TAURI_RUNTIME && shouldShowStartupGate)) {
+      return;
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') {
+        return;
+      }
+      if (Date.now() - desktopUpdateLastCheckedAtRef.current < DESKTOP_UPDATE_REVALIDATE_TTL_MS) {
+        return;
+      }
+      void handleCheckForDesktopUpdates({ silent: true });
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [authBootstrapReady, shouldShowStartupGate]);
+
+  useEffect(() => {
+    if (!effectiveDesktopUpdateHint) {
+      return;
+    }
+    if (desktopUpdateGateState === 'required_waiting_current_run') {
+      setDesktopUpdateStatusMessage(buildDesktopUpdateAnnouncement(effectiveDesktopUpdateHint));
+      return;
+    }
+    if (desktopUpdateGateState === 'required_blocked') {
+      setDesktopUpdateStatusMessage(`当前版本需要升级到 ${effectiveDesktopUpdateHint.latestVersion} 后继续使用。`);
+      return;
+    }
+    if (desktopUpdateGateState === 'ready_to_restart') {
+      setDesktopUpdateStatusMessage(`版本 ${effectiveDesktopUpdateHint.latestVersion} 已安装完成，重启后生效。`);
+    }
+  }, [desktopUpdateGateState, effectiveDesktopUpdateHint]);
+
   useEffect(() => {
     if (!authBootstrapReady || guestPromptInitialized || (IS_TAURI_RUNTIME && shouldShowStartupGate)) {
       return;
@@ -1218,10 +1309,6 @@ export default function App() {
       onRetry={retrySetup}
     />
   ) : null;
-
-  const visibleDesktopUpdateHint = shouldShowDesktopUpdateHint(desktopUpdateHint, skippedDesktopUpdateVersion)
-    ? desktopUpdateHint
-    : null;
   const desktopUpdateCardStatus =
     desktopUpdateActionState === 'ready-to-restart'
       ? 'ready-to-restart'
@@ -1233,7 +1320,7 @@ export default function App() {
 
   const handleSkipDesktopUpdate = () => {
     if (!desktopUpdateHint || desktopUpdateHint.mandatory) return;
-    writeSkippedDesktopUpdateVersion(desktopUpdateHint.latestVersion);
+    void writeSkippedDesktopUpdateVersion(desktopUpdateHint.latestVersion);
     setSkippedDesktopUpdateVersion(desktopUpdateHint.latestVersion);
     setDesktopUpdateActionState('idle');
     setDesktopUpdateError(null);
@@ -1242,44 +1329,54 @@ export default function App() {
     setDesktopUpdateStatusMessage(`已跳过版本 ${desktopUpdateHint.latestVersion}`);
   };
 
-  const handleCheckForDesktopUpdates = async () => {
-    setDesktopUpdateError(null);
-    setDesktopUpdateStatusMessage(null);
-    if (desktopUpdateActionState !== 'ready-to-restart') {
-      setDesktopUpdateActionState('checking');
-      setDesktopUpdateProgress(null);
-      setDesktopUpdateDetail('正在检查是否有新版本。');
+  const handleCheckForDesktopUpdates = async (options: {silent?: boolean} = {}) => {
+    const { silent = false } = options;
+    if (desktopUpdateCheckInFlightRef.current || desktopUpdateActionState === 'downloading') {
+      return;
     }
-
+    desktopUpdateCheckInFlightRef.current = true;
+    if (!silent) {
+      setDesktopUpdateError(null);
+      setDesktopUpdateStatusMessage(null);
+      if (desktopUpdateActionState !== 'ready-to-restart') {
+        setDesktopUpdateActionState('checking');
+        setDesktopUpdateProgress(null);
+        setDesktopUpdateDetail('正在检查是否有新版本。');
+      }
+    }
     try {
       const hint = await client.getDesktopUpdateHint({
         appVersion: DESKTOP_APP_VERSION,
         channel: DESKTOP_RELEASE_CHANNEL,
       });
+      desktopUpdateLastCheckedAtRef.current = Date.now();
       if (hint.updateAvailable) {
         setDesktopUpdateHint(hint);
-        setDesktopUpdateStatusMessage(
-          hint.mandatory
-            ? `发现新版本 ${hint.latestVersion}，当前版本需要强制升级。`
-            : `发现新版本 ${hint.latestVersion}。`,
-        );
+        if (!silent || normalizeDesktopUpdateEnforcementState(hint) !== 'recommended') {
+          setDesktopUpdateStatusMessage(buildDesktopUpdateAnnouncement(hint));
+        }
       } else {
         setDesktopUpdateHint(null);
-        setDesktopUpdateStatusMessage('当前已是最新版本。');
+        if (!silent) {
+          setDesktopUpdateStatusMessage('当前已是最新版本。');
+        }
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : '检查更新失败';
-      setDesktopUpdateError(message);
-      setDesktopUpdateStatusMessage(message);
+      if (!silent) {
+        setDesktopUpdateError(message);
+        setDesktopUpdateStatusMessage(message);
+      }
     } finally {
-      if (desktopUpdateActionState !== 'ready-to-restart') {
+      desktopUpdateCheckInFlightRef.current = false;
+      if (!silent && desktopUpdateActionState !== 'ready-to-restart') {
         setDesktopUpdateActionState('idle');
       }
     }
   };
 
   const handleUpgradeDesktopApp = async () => {
-    if (!visibleDesktopUpdateHint) return;
+    if (!effectiveDesktopUpdateHint) return;
     setDesktopUpdateActionState('checking');
     setDesktopUpdateError(null);
     setDesktopUpdateStatusMessage(null);
@@ -1297,10 +1394,16 @@ export default function App() {
           await downloadAndInstallDesktopUpdate();
           return;
         }
+        if (updaterCheck?.external_download_url) {
+          window.open(updaterCheck.external_download_url, '_blank', 'noopener,noreferrer');
+          setDesktopUpdateActionState('opened');
+          setDesktopUpdateStatusMessage('已打开更新下载页。');
+          return;
+        }
       }
 
-      const artifactUrl = await resolveDesktopUpdateArtifactUrl(visibleDesktopUpdateHint);
-      const targetUrl = artifactUrl || visibleDesktopUpdateHint.manifestUrl;
+      const artifactUrl = await resolveDesktopUpdateArtifactUrl(effectiveDesktopUpdateHint);
+      const targetUrl = artifactUrl || effectiveDesktopUpdateHint.manifestUrl;
       if (!targetUrl) {
         throw new Error('当前更新源未提供下载地址');
       }
@@ -1330,6 +1433,13 @@ export default function App() {
             </div>
           </div>
         ) : null}
+        <DesktopUpdateGuard
+          hint={effectiveDesktopUpdateHint}
+          gateState={desktopUpdateGateState}
+          busy={desktopUpdateActionState === 'checking' || desktopUpdateActionState === 'downloading'}
+          onUpgrade={handleUpgradeDesktopApp}
+          onRestart={handleRestartDesktopApp}
+        />
         <AuthedView
           primaryView={primaryView}
           setPrimaryView={setPrimaryView}
@@ -1363,8 +1473,13 @@ export default function App() {
           onSkipDesktopUpdate={handleSkipDesktopUpdate}
           onCheckForDesktopUpdates={handleCheckForDesktopUpdates}
           desktopUpdateCurrentVersion={DISPLAY_DESKTOP_APP_VERSION}
-          desktopUpdateLatestVersion={desktopUpdateHint?.latestVersion || null}
-          desktopUpdateMandatory={Boolean(desktopUpdateHint?.mandatory)}
+          desktopUpdateLatestVersion={effectiveDesktopUpdateHint?.latestVersion || null}
+          desktopUpdateMandatory={Boolean(effectiveDesktopUpdateHint?.mandatory)}
+          desktopUpdateEnforcementState={desktopUpdateEnforcementState}
+          desktopUpdatePolicyLabel={resolveDesktopUpdatePolicyLabel(effectiveDesktopUpdateHint)}
+          desktopUpdateNewRunBlockedReason={desktopUpdateNewRunBlockedReason}
+          desktopUpdateSendBlockedReason={desktopUpdateSendBlockedReason}
+          onChatBusyChange={setChatSurfaceBusy}
           desktopUpdateChecking={desktopUpdateActionState === 'checking'}
           desktopUpdateReadyToRestart={desktopUpdateActionState === 'ready-to-restart'}
           desktopUpdateStatusMessage={desktopUpdateStatusMessage}
@@ -1423,6 +1538,11 @@ interface AuthedViewProps {
   desktopUpdateCurrentVersion: string;
   desktopUpdateLatestVersion: string | null;
   desktopUpdateMandatory: boolean;
+  desktopUpdateEnforcementState: 'recommended' | 'required_after_run' | 'required_now';
+  desktopUpdatePolicyLabel: string;
+  desktopUpdateNewRunBlockedReason: string | null;
+  desktopUpdateSendBlockedReason: string | null;
+  onChatBusyChange: (busy: boolean) => void;
   desktopUpdateChecking: boolean;
   desktopUpdateReadyToRestart: boolean;
   desktopUpdateStatusMessage: string | null;
@@ -1461,6 +1581,11 @@ function AuthedView({
   desktopUpdateCurrentVersion,
   desktopUpdateLatestVersion,
   desktopUpdateMandatory,
+  desktopUpdateEnforcementState,
+  desktopUpdatePolicyLabel,
+  desktopUpdateNewRunBlockedReason,
+  desktopUpdateSendBlockedReason,
+  onChatBusyChange,
   desktopUpdateChecking,
   desktopUpdateReadyToRestart,
   desktopUpdateStatusMessage,
@@ -1658,6 +1783,10 @@ function AuthedView({
   };
 
   const handleStartLobsterConversation = (agent: LobsterAgent) => {
+    if (desktopUpdateNewRunBlockedReason) {
+      setPrimaryView('chat');
+      return;
+    }
     const seed = `${agent.slug}-${Date.now()}`;
     openChatRoute({
       sessionKey: `lobster-${seed}`,
@@ -1672,6 +1801,10 @@ function AuthedView({
   };
 
   const handleStartInvestmentExpertConversation = (expert: InvestmentExpert) => {
+    if (desktopUpdateNewRunBlockedReason) {
+      setPrimaryView('chat');
+      return;
+    }
     const seed = `${expert.slug}-${Date.now()}`;
     openChatRoute({
       sessionKey: `investment-expert-${seed}`,
@@ -1686,6 +1819,10 @@ function AuthedView({
   };
 
   const handleStartStockResearchConversation = (stock: MarketStockData) => {
+    if (desktopUpdateNewRunBlockedReason) {
+      setPrimaryView('chat');
+      return;
+    }
     const seed = `stock-${stock.symbol}-${Date.now()}`;
     openChatRoute({
       sessionKey: seed,
@@ -1706,6 +1843,10 @@ function AuthedView({
   };
 
   const handleStartFundResearchConversation = (fund: FundMarketResearchTarget) => {
+    if (desktopUpdateNewRunBlockedReason) {
+      setPrimaryView('chat');
+      return;
+    }
     const seed = `fund-${fund.symbol}-${Date.now()}`;
     openChatRoute({
       sessionKey: seed,
@@ -1728,6 +1869,10 @@ function AuthedView({
   };
 
   const handleStartNewChat = () => {
+    if (desktopUpdateNewRunBlockedReason) {
+      setPrimaryView('chat');
+      return;
+    }
     const seed = `chat-${Date.now()}`;
     openChatRoute({
       sessionKey: seed,
@@ -1773,6 +1918,10 @@ function AuthedView({
   }, []);
 
   const handleStartSkillConversation = (skill: { slug: string }) => {
+    if (desktopUpdateNewRunBlockedReason) {
+      setPrimaryView('chat');
+      return;
+    }
     const seed = `skill-${skill.slug}-${Date.now()}`;
     openChatRoute({
       sessionKey: seed,
@@ -1831,6 +1980,7 @@ function AuthedView({
         onUpgradeDesktopApp={onUpgradeDesktopApp}
         onRestartDesktopApp={onRestartDesktopApp}
         onSkipDesktopUpdate={onSkipDesktopUpdate}
+        newChatDisabledReason={desktopUpdateNewRunBlockedReason}
       />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {resolvedPrimaryView === 'data-connections' || headerConfig.enabled === false ? null : (
@@ -1993,6 +2143,8 @@ function AuthedView({
               welcomePageConfig={welcomePageConfig}
               onInitialSkillSlugChange={handleActiveChatSkillChange}
               onOpenRechargeCenter={() => setOverlayView('recharge')}
+              onBusyStateChange={onChatBusyChange}
+              sendBlockedReason={desktopUpdateSendBlockedReason}
             />
           ) : (
             <RuntimeAuthRequiredView
@@ -2026,6 +2178,8 @@ function AuthedView({
           desktopUpdateCurrentVersion={desktopUpdateCurrentVersion}
           desktopUpdateLatestVersion={desktopUpdateLatestVersion}
           desktopUpdateMandatory={desktopUpdateMandatory}
+          desktopUpdateEnforcementState={desktopUpdateEnforcementState}
+          desktopUpdatePolicyLabel={desktopUpdatePolicyLabel}
           desktopUpdateChecking={desktopUpdateChecking}
           desktopUpdateReadyToRestart={desktopUpdateReadyToRestart}
           desktopUpdateStatusMessage={desktopUpdateStatusMessage}

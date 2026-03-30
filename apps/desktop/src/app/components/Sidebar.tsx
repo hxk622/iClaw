@@ -100,6 +100,7 @@ interface SidebarProps {
   onUpgradeDesktopApp?: () => void;
   onRestartDesktopApp?: () => void;
   onSkipDesktopUpdate?: () => void;
+  newChatDisabledReason?: string | null;
 }
 
 interface SidebarItem {
@@ -153,6 +154,7 @@ export function Sidebar({
   onUpgradeDesktopApp,
   onRestartDesktopApp,
   onSkipDesktopUpdate,
+  newChatDisabledReason = null,
 }: SidebarProps) {
   const isDevChannel =
     !('__TAURI_INTERNALS__' in window) && (import.meta.env.DEV || import.meta.env.MODE === 'development');
@@ -408,6 +410,8 @@ export function Sidebar({
             size="sm"
             block
             onClick={onStartNewChat}
+            disabled={Boolean(newChatDisabledReason)}
+            title={newChatDisabledReason || '新建对话'}
             leadingIcon={
               <span className="inline-flex h-5.5 w-5.5 items-center justify-center rounded-full bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)]">
                 <Plus className="h-3.5 w-3.5" />

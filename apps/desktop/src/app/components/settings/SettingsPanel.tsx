@@ -17,6 +17,8 @@ interface SettingsPanelProps {
   desktopUpdateCurrentVersion: string;
   desktopUpdateLatestVersion: string | null;
   desktopUpdateMandatory: boolean;
+  desktopUpdateEnforcementState: 'recommended' | 'required_after_run' | 'required_now';
+  desktopUpdatePolicyLabel: string;
   desktopUpdateChecking: boolean;
   desktopUpdateReadyToRestart: boolean;
   desktopUpdateStatusMessage: string | null;
@@ -30,6 +32,8 @@ export function SettingsPanel({
   desktopUpdateCurrentVersion,
   desktopUpdateLatestVersion,
   desktopUpdateMandatory,
+  desktopUpdateEnforcementState,
+  desktopUpdatePolicyLabel,
   desktopUpdateChecking,
   desktopUpdateReadyToRestart,
   desktopUpdateStatusMessage,
@@ -50,6 +54,8 @@ export function SettingsPanel({
             currentVersion={desktopUpdateCurrentVersion}
             latestVersion={desktopUpdateLatestVersion}
             mandatory={desktopUpdateMandatory}
+            enforcementState={desktopUpdateEnforcementState}
+            policyLabel={desktopUpdatePolicyLabel}
             checkingForUpdates={desktopUpdateChecking}
             readyToRestart={desktopUpdateReadyToRestart}
             statusMessage={desktopUpdateStatusMessage}
@@ -74,6 +80,8 @@ export function SettingsPanel({
     desktopUpdateCurrentVersion,
     desktopUpdateLatestVersion,
     desktopUpdateMandatory,
+    desktopUpdateEnforcementState,
+    desktopUpdatePolicyLabel,
     desktopUpdateReadyToRestart,
     desktopUpdateStatusMessage,
     onCheckForDesktopUpdates,

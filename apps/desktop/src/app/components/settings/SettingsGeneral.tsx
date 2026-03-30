@@ -59,6 +59,8 @@ interface SettingsGeneralProps {
   currentVersion: string;
   latestVersion: string | null;
   mandatory: boolean;
+  enforcementState: 'recommended' | 'required_after_run' | 'required_now';
+  policyLabel: string;
   checkingForUpdates: boolean;
   readyToRestart: boolean;
   statusMessage: string | null;
@@ -70,6 +72,8 @@ export function SettingsGeneral({
   currentVersion,
   latestVersion,
   mandatory,
+  enforcementState,
+  policyLabel,
   checkingForUpdates,
   readyToRestart,
   statusMessage,
@@ -256,7 +260,10 @@ export function SettingsGeneral({
             </div>
 
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--text-secondary)]">
-              <span>服务器策略：{mandatory ? '强制更新' : '常规提醒'}</span>
+              <span>服务器策略：{policyLabel}</span>
+              {mandatory ? (
+                <span>{enforcementState === 'required_now' ? '当前版本会立即拦截继续使用' : '允许当前任务完成后再升级'}</span>
+              ) : null}
               {statusMessage ? <span>{statusMessage}</span> : null}
             </div>
           </div>

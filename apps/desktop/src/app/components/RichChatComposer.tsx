@@ -165,6 +165,7 @@ type RichChatComposerProps = {
   authBaseUrl: string;
   connected: boolean;
   busy: boolean;
+  sendDisabledReason?: string | null;
   sessionTransitioning?: boolean;
   lobsterAgents: ComposerAgentOption[];
   skillOptions: ComposerSkillOption[];
@@ -646,6 +647,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       authBaseUrl,
       connected,
       busy,
+      sendDisabledReason = null,
       sessionTransitioning = false,
       lobsterAgents,
       skillOptions,
@@ -1677,6 +1679,9 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         await onAbort();
         return;
       }
+      if (sendDisabledReason) {
+        return;
+      }
 
       const editor = editorRef.current;
       if (!editor || !connected) {
@@ -1755,6 +1760,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       outputOptions,
       restoreDraftSnapshot,
       selectedSkillSlug,
+      sendDisabledReason,
       skillOptions,
       visibleTopBarControlKeys,
       watchlistOptions,
@@ -2082,6 +2088,8 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const composerBusy = busy || isSubmitting;
     const submitLabel = composerBusy && !hasContent ? '停止' : '发送';
     const sendState = composerBusy ? 'busy' : hasContent ? 'ready' : 'empty';
+    const submitDisabledReason =
+      sendDisabledReason || (!connected ? '等待网关连接后才能发送' : !composerBusy && !hasContent ? '输入内容后才能发送' : null);
     const selectedModel =
       findComposerModelOption(modelOptions, selectedModelId) ?? modelOptions[0] ?? null;
     const modelTriggerLabel = (() => {
@@ -3605,10 +3613,10 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                   type="button"
                   className="iclaw-composer__submit"
                   data-state={sendState}
-                  disabled={!connected || (!composerBusy && !hasContent)}
+                  disabled={Boolean(submitDisabledReason)}
                   onClick={() => void (composerBusy && !hasContent ? onAbort() : handleSubmit())}
                   aria-label={submitLabel}
-                  title={submitLabel}
+                  title={submitDisabledReason || submitLabel}
                 >
                   {composerBusy ? (
                     <>
