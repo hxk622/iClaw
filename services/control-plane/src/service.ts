@@ -719,34 +719,28 @@ function normalizeSkillEnabled(value: unknown): boolean {
   return value;
 }
 
-function normalizeSkillDistribution(value: unknown, fallback?: 'bundled' | 'cloud'): 'bundled' | 'cloud' {
+function normalizeSkillDistribution(value: unknown, fallback?: 'cloud'): 'cloud' {
   if (value === undefined) {
     if (fallback) return fallback;
     throw new HttpError(400, 'BAD_REQUEST', 'distribution is required');
   }
-  if (value === 'bundled' || value === 'cloud') {
-    return value;
+  if (value === 'cloud') {
+    return 'cloud';
   }
-  throw new HttpError(400, 'BAD_REQUEST', 'distribution must be bundled or cloud');
+  throw new HttpError(400, 'BAD_REQUEST', 'distribution must be cloud');
 }
 
 function normalizeSkillOriginType(
   value: unknown,
-  fallback: 'bundled' | 'clawhub' | 'github_repo' | 'manual' | 'private' = 'manual',
-): 'bundled' | 'clawhub' | 'github_repo' | 'manual' | 'private' {
+  fallback: 'clawhub' | 'github_repo' | 'manual' | 'private' = 'manual',
+): 'clawhub' | 'github_repo' | 'manual' | 'private' {
   if (value === undefined || value === null || value === '') {
     return fallback;
   }
-  if (
-    value === 'bundled' ||
-    value === 'clawhub' ||
-    value === 'github_repo' ||
-    value === 'manual' ||
-    value === 'private'
-  ) {
+  if (value === 'clawhub' || value === 'github_repo' || value === 'manual' || value === 'private') {
     return value;
   }
-  throw new HttpError(400, 'BAD_REQUEST', 'origin_type must be bundled, clawhub, github_repo, manual, or private');
+  throw new HttpError(400, 'BAD_REQUEST', 'origin_type must be clawhub, github_repo, manual, or private');
 }
 
 function normalizeOptionalCatalogString(
@@ -1167,11 +1161,9 @@ function toSkillCatalogEntryView(
 ): SkillCatalogEntryView {
   const artifactUrl =
     record.artifactUrl ||
-    (record.distribution === 'bundled' && record.artifactSourcePath
+    (shouldServeCloudSkillViaControlPlane(record)
       ? buildCloudSkillArtifactProxyUrl(record.slug, baseUrl)
-      : shouldServeCloudSkillViaControlPlane(record)
-        ? buildCloudSkillArtifactProxyUrl(record.slug, baseUrl)
-        : null);
+      : null);
   return {
     slug: record.slug,
     name: record.name,
@@ -1185,7 +1177,7 @@ function toSkillCatalogEntryView(
     tags: record.tags,
     version: record.version,
     artifact_url: artifactUrl,
-    artifact_path: record.distribution === 'bundled' ? record.artifactSourcePath : null,
+    artifact_path: null,
     artifact_format: record.artifactFormat,
     artifact_sha256: record.artifactSha256,
     origin_type: record.originType,
@@ -2698,7 +2690,10 @@ export class ControlPlaneService {
     const publisher = (
       publisherCandidate === undefined ? (existing?.publisher ?? '') : (publisherCandidate || '')
     ).trim();
-    const distribution = normalizeSkillDistribution(input.distribution, existing?.distribution || 'cloud');
+    const distribution = normalizeSkillDistribution(
+      input.distribution,
+      existing?.distribution === 'cloud' ? 'cloud' : 'cloud',
+    );
     const tags = normalizeSkillTags(input.tags, existing?.tags || []);
     const version = normalizeOptionalSkillVersion(input.version) || existing?.version || '1.0.0';
     const artifactUrlCandidate = normalizeOptionalCatalogString(input.artifact_url, 'artifact_url', {
@@ -2710,13 +2705,13 @@ export class ControlPlaneService {
       normalizeOptionalCatalogString(input.artifact_sha256, 'artifact_sha256', {allowNull: true, trimToNull: true}) ??
       existing?.artifactSha256 ??
       null;
-    const artifactSourcePath =
-      normalizeOptionalCatalogString(input.artifact_source_path, 'artifact_source_path', {allowNull: true, trimToNull: true}) ??
-      existing?.artifactSourcePath ??
-      null;
+    const artifactSourcePath = normalizeOptionalCatalogString(input.artifact_source_path, 'artifact_source_path', {
+      allowNull: true,
+      trimToNull: true,
+    });
     const originType = normalizeSkillOriginType(
       input.origin_type,
-      existing?.originType || (distribution === 'bundled' ? 'bundled' : 'manual'),
+      existing?.originType === 'bundled' ? 'manual' : existing?.originType || 'manual',
     );
     const sourceUrl =
       normalizeOptionalCatalogString(input.source_url, 'source_url', {allowNull: true, trimToNull: true}) ??
@@ -2739,11 +2734,8 @@ export class ControlPlaneService {
       throw new HttpError(400, 'BAD_REQUEST', 'publisher is required');
     }
 
-    if (existing?.distribution === 'bundled' && distribution !== 'bundled') {
-      throw new HttpError(400, 'BAD_REQUEST', 'bundled skill distribution cannot be changed');
-    }
-    if (distribution === 'cloud' && artifactSourcePath) {
-      throw new HttpError(400, 'BAD_REQUEST', 'cloud skills cannot use artifact_source_path');
+    if (artifactSourcePath) {
+      throw new HttpError(400, 'BAD_REQUEST', 'artifact_source_path is no longer supported');
     }
     if (
       distribution === 'cloud' &&
@@ -2769,7 +2761,7 @@ export class ControlPlaneService {
       artifact_url: artifactUrl,
       artifact_format: artifactFormat,
       artifact_sha256: artifactSha256,
-      artifact_source_path: artifactSourcePath,
+      artifact_source_path: null,
       origin_type: originType,
       source_url: sourceUrl,
       metadata,
@@ -2785,9 +2777,6 @@ export class ControlPlaneService {
     const entry = await this.store.getSkillCatalogEntry(slug);
     if (!entry) {
       return {removed: false};
-    }
-    if (entry.distribution === 'bundled') {
-      throw new HttpError(400, 'BAD_REQUEST', 'bundled skills cannot be deleted');
     }
     return {
       removed: await this.store.deleteSkillCatalogEntry(slug),

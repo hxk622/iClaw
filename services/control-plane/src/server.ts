@@ -1,8 +1,8 @@
-import {execFileSync} from 'node:child_process';
 import {existsSync, readFileSync} from 'node:fs';
 import {mkdtemp, mkdir, readdir, rm, writeFile} from 'node:fs/promises';
+import {execFileSync} from 'node:child_process';
 import {tmpdir} from 'node:os';
-import {dirname, resolve, sep} from 'node:path';
+import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 import { downloadAvatar } from './avatar-storage.ts';
@@ -128,7 +128,6 @@ const oemService = new OemService(oemStore, async (accessToken) => service.me(ac
 });
 const portalService = new PortalService(portalStore, async (accessToken) => service.me(accessToken), {cache: runtimeCache});
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const skillsSourceRoot = resolve(process.env.ICLAW_SKILLS_SOURCE_DIR || resolve(repoRoot, 'skills'));
 const modelLogoAssetRoot = resolve(repoRoot, 'services/control-plane/presets/assets/model-logos');
 const modelLogoManifestPath = resolve(modelLogoAssetRoot, 'manifest.json');
 
@@ -280,25 +279,6 @@ function resolveSkillCatalogTagKeywords(url: URL): string[] {
   );
 }
 
-function resolveSkillSourceDir(relativePath: string): string {
-  const normalized = relativePath.trim();
-  if (!normalized || normalized.includes('..')) {
-    throw new HttpError(400, 'BAD_REQUEST', 'invalid skill artifact path');
-  }
-
-  const target = resolve(skillsSourceRoot, normalized);
-  if (target !== skillsSourceRoot && !target.startsWith(`${skillsSourceRoot}${sep}`)) {
-    throw new HttpError(400, 'BAD_REQUEST', 'invalid skill artifact path');
-  }
-  if (!existsSync(target)) {
-    throw new HttpError(404, 'NOT_FOUND', 'skill artifact source not found');
-  }
-  if (!existsSync(resolve(target, 'SKILL.md'))) {
-    throw new HttpError(404, 'NOT_FOUND', 'skill artifact source is incomplete');
-  }
-  return target;
-}
-
 function resolveDesktopUpdateRequest(url: URL) {
   return {
     appName: (url.searchParams.get('app_name') || '').trim() || null,
@@ -307,19 +287,6 @@ function resolveDesktopUpdateRequest(url: URL) {
     arch: (url.searchParams.get('arch') || '').trim() || null,
     channel: (url.searchParams.get('channel') || '').trim() || null,
   };
-}
-
-function packageSkillArtifact(sourcePath: string): Buffer {
-  const relative = sourcePath.trim();
-  try {
-    return execFileSync('tar', ['-czf', '-', '-C', skillsSourceRoot, relative], {
-      encoding: 'buffer',
-      maxBuffer: 32 * 1024 * 1024,
-    }) as Buffer;
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : 'failed to package skill artifact';
-    throw new HttpError(500, 'INTERNAL_ERROR', detail);
-  }
 }
 
 async function packageGithubSkillArtifact(metadata: Record<string, unknown>): Promise<Buffer> {
@@ -970,9 +937,6 @@ const server = createJsonServer([
       if (entry.distribution === 'cloud' && portalArtifactObjectKey) {
         const artifact = await downloadPortalSkillArtifact(portalArtifactObjectKey);
         archive = artifact.buffer;
-      } else if (entry.distribution === 'bundled' && entry.artifactSourcePath) {
-        resolveSkillSourceDir(entry.artifactSourcePath);
-        archive = packageSkillArtifact(entry.artifactSourcePath);
       } else if (entry.originType === 'github_repo') {
         archive = await packageGithubSkillArtifact(entry.metadata);
       } else {

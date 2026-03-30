@@ -1135,7 +1135,7 @@ insert into skill_catalog_entries (
     'report',
     '工具包',
     'iClaw',
-    'bundled',
+    'cloud',
     '["文档","Word","办公"]'::jsonb,
     true
   ),
@@ -1147,7 +1147,7 @@ insert into skill_catalog_entries (
     'data',
     '工具包',
     'iClaw',
-    'bundled',
+    'cloud',
     '["表格","Excel","数据"]'::jsonb,
     true
   ),
@@ -1159,7 +1159,7 @@ insert into skill_catalog_entries (
     'report',
     '工具包',
     'iClaw',
-    'bundled',
+    'cloud',
     '["PDF","文档","办公"]'::jsonb,
     true
   ),
@@ -1171,7 +1171,7 @@ insert into skill_catalog_entries (
     'research',
     '分析师',
     'iClaw',
-    'bundled',
+    'cloud',
     '["A股","ESG","筛选"]'::jsonb,
     true
   ),
@@ -1183,7 +1183,7 @@ insert into skill_catalog_entries (
     'research',
     '扫描器',
     'iClaw',
-    'bundled',
+    'cloud',
     '["A股","量化","因子"]'::jsonb,
     true
   ),
@@ -1195,7 +1195,7 @@ insert into skill_catalog_entries (
     'research',
     '扫描器',
     'iClaw',
-    'bundled',
+    'cloud',
     '["A股","行业","轮动"]'::jsonb,
     true
   ),
@@ -1207,7 +1207,7 @@ insert into skill_catalog_entries (
     'data',
     '工具包',
     'iClaw',
-    'bundled',
+    'cloud',
     '["A股","数据","工具包"]'::jsonb,
     true
   ),
@@ -1219,7 +1219,7 @@ insert into skill_catalog_entries (
     'research',
     '扫描器',
     'iClaw',
-    'bundled',
+    'cloud',
     '["A股","低估值","价值投资"]'::jsonb,
     true
   ),
@@ -1231,7 +1231,7 @@ insert into skill_catalog_entries (
     'research',
     '分析师',
     'iClaw',
-    'bundled',
+    'cloud',
     '["A股","内部人交易","管理层"]'::jsonb,
     true
   ),
@@ -1243,7 +1243,7 @@ insert into skill_catalog_entries (
     'research',
     '扫描器',
     'iClaw',
-    'bundled',
+    'cloud',
     '["A股","小盘成长","高增长"]'::jsonb,
     true
   ),
@@ -1255,7 +1255,7 @@ insert into skill_catalog_entries (
     'research',
     '分析师',
     'iClaw',
-    'bundled',
+    'cloud',
     '["A股","科技估值","估值"]'::jsonb,
     true
   ),
@@ -1267,7 +1267,7 @@ insert into skill_catalog_entries (
     'portfolio',
     '分析师',
     'iClaw',
-    'bundled',
+    'cloud',
     '["A股","红利","股息"]'::jsonb,
     true
   ),
@@ -1279,7 +1279,7 @@ insert into skill_catalog_entries (
     'research',
     '分析师',
     'iClaw',
-    'bundled',
+    'cloud',
     '["美股","ESG","筛选"]'::jsonb,
     true
   ),
@@ -1291,7 +1291,7 @@ insert into skill_catalog_entries (
     'research',
     '扫描器',
     'iClaw',
-    'bundled',
+    'cloud',
     '["美股","量化","因子"]'::jsonb,
     true
   ),
@@ -1303,7 +1303,7 @@ insert into skill_catalog_entries (
     'research',
     '扫描器',
     'iClaw',
-    'bundled',
+    'cloud',
     '["美股","行业","轮动"]'::jsonb,
     true
   ),
@@ -1315,7 +1315,7 @@ insert into skill_catalog_entries (
     'data',
     '工具包',
     'iClaw',
-    'bundled',
+    'cloud',
     '["美股","数据","工具包"]'::jsonb,
     true
   ),
@@ -1327,7 +1327,7 @@ insert into skill_catalog_entries (
     'research',
     '扫描器',
     'iClaw',
-    'bundled',
+    'cloud',
     '["美股","低估值","价值投资"]'::jsonb,
     true
   ),
@@ -1339,7 +1339,7 @@ insert into skill_catalog_entries (
     'research',
     '分析师',
     'iClaw',
-    'bundled',
+    'cloud',
     '["美股","内部人交易","管理层"]'::jsonb,
     true
   ),
@@ -1351,7 +1351,7 @@ insert into skill_catalog_entries (
     'research',
     '扫描器',
     'iClaw',
-    'bundled',
+    'cloud',
     '["美股","小盘成长","高增长"]'::jsonb,
     true
   ),
@@ -1363,7 +1363,7 @@ insert into skill_catalog_entries (
     'research',
     '分析师',
     'iClaw',
-    'bundled',
+    'cloud',
     '["美股","科技估值","估值"]'::jsonb,
     true
   ),
@@ -1375,45 +1375,45 @@ insert into skill_catalog_entries (
     'portfolio',
     '分析师',
     'iClaw',
-    'bundled',
+    'cloud',
     '["美股","股息","红利"]'::jsonb,
     true
   )
 on conflict (slug) do nothing;
 
 update skill_catalog_entries entry
-set distribution = 'bundled',
+set distribution = 'cloud',
     version = seeded.version,
     artifact_format = seeded.artifact_format,
     artifact_url = seeded.artifact_url,
     artifact_sha256 = seeded.artifact_sha256,
-    artifact_source_path = seeded.artifact_source_path,
+    artifact_source_path = null,
     origin_type = seeded.origin_type,
     source_url = seeded.source_url,
     updated_at = now()
 from (
   values
-    ('docx', '1.0.0', 'tar.gz', null::text, null::text, 'docx', 'bundled', null::text),
-    ('xlsx', '1.0.0', 'tar.gz', null, null, 'xlsx', 'bundled', null),
-    ('pdf', '1.0.0', 'tar.gz', null, null, 'pdf', 'bundled', null),
-    ('a-share-esg', '1.0.0', 'tar.gz', null, null, 'A股ESG筛选器', 'bundled', null),
-    ('a-share-factor-screener', '1.0.0', 'tar.gz', null, null, 'A股量化因子筛选器', 'bundled', null),
-    ('a-share-industry-rotation', '1.0.0', 'tar.gz', null, null, 'A股行业轮动探测器', 'bundled', null),
-    ('a-share-data-toolkit', '1.0.0', 'tar.gz', null, null, 'A股数据工具包', 'bundled', null),
-    ('a-share-low-valuation', '1.0.0', 'tar.gz', null, null, 'A股低估值股票筛选器', 'bundled', null),
-    ('a-share-insider', '1.0.0', 'tar.gz', null, null, 'A股内部交易分析师', 'bundled', null),
-    ('a-share-small-cap-growth', '1.0.0', 'tar.gz', null, null, 'A股小盘成长股识别器', 'bundled', null),
-    ('a-share-tech-valuation', '1.0.0', 'tar.gz', null, null, 'A股科技股估值分析师', 'bundled', null),
-    ('a-share-dividend', '1.0.0', 'tar.gz', null, null, 'A股高股息策略分析器', 'bundled', null),
-    ('us-esg', '1.0.0', 'tar.gz', null, null, '美股ESG筛选器', 'bundled', null),
-    ('us-factor-screener', '1.0.0', 'tar.gz', null, null, '美股量化因子扫描器', 'bundled', null),
-    ('us-industry-rotation', '1.0.0', 'tar.gz', null, null, '美股行业轮动探测器', 'bundled', null),
-    ('us-data-toolkit', '1.0.0', 'tar.gz', null, null, '美股数据工具包', 'bundled', null),
-    ('us-low-valuation', '1.0.0', 'tar.gz', null, null, '美股低估值股票扫描器', 'bundled', null),
-    ('us-insider', '1.0.0', 'tar.gz', null, null, '美股内部交易分析师', 'bundled', null),
-    ('us-small-cap-growth', '1.0.0', 'tar.gz', null, null, '美股小盘成长股扫描器', 'bundled', null),
-    ('us-tech-valuation', '1.0.0', 'tar.gz', null, null, '美股科技股估值分析师', 'bundled', null),
-    ('us-dividend-aristocrats', '1.0.0', 'tar.gz', null, null, '美股高股息策略分析器', 'bundled', null)
+    ('docx', '1.0.0', 'tar.gz', null::text, null::text, null::text, 'manual', null::text),
+    ('xlsx', '1.0.0', 'tar.gz', null, null, null, 'manual', null),
+    ('pdf', '1.0.0', 'tar.gz', null, null, null, 'manual', null),
+    ('a-share-esg', '1.0.0', 'tar.gz', null, null, null, 'manual', null),
+    ('a-share-factor-screener', '1.0.0', 'tar.gz', null, null, null, 'manual', null),
+    ('a-share-industry-rotation', '1.0.0', 'tar.gz', null, null, null, 'manual', null),
+    ('a-share-data-toolkit', '1.0.0', 'tar.gz', null, null, null, 'manual', null),
+    ('a-share-low-valuation', '1.0.0', 'tar.gz', null, null, null, 'manual', null),
+    ('a-share-insider', '1.0.0', 'tar.gz', null, null, null, 'manual', null),
+    ('a-share-small-cap-growth', '1.0.0', 'tar.gz', null, null, null, 'manual', null),
+    ('a-share-tech-valuation', '1.0.0', 'tar.gz', null, null, null, 'manual', null),
+    ('a-share-dividend', '1.0.0', 'tar.gz', null, null, null, 'manual', null),
+    ('us-esg', '1.0.0', 'tar.gz', null, null, null, 'manual', null),
+    ('us-factor-screener', '1.0.0', 'tar.gz', null, null, null, 'manual', null),
+    ('us-industry-rotation', '1.0.0', 'tar.gz', null, null, null, 'manual', null),
+    ('us-data-toolkit', '1.0.0', 'tar.gz', null, null, null, 'manual', null),
+    ('us-low-valuation', '1.0.0', 'tar.gz', null, null, null, 'manual', null),
+    ('us-insider', '1.0.0', 'tar.gz', null, null, null, 'manual', null),
+    ('us-small-cap-growth', '1.0.0', 'tar.gz', null, null, null, 'manual', null),
+    ('us-tech-valuation', '1.0.0', 'tar.gz', null, null, null, 'manual', null),
+    ('us-dividend-aristocrats', '1.0.0', 'tar.gz', null, null, null, 'manual', null)
 ) as seeded(slug, version, artifact_format, artifact_url, artifact_sha256, artifact_source_path, origin_type, source_url)
 where entry.slug = seeded.slug;
 

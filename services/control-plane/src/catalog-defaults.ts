@@ -12,12 +12,11 @@ export type DefaultCloudSkillSeed = {
   skillType: string;
   tags: string[];
   publisher?: string;
-  distribution?: 'bundled' | 'cloud';
+  distribution?: 'cloud';
   version?: string;
   artifactFormat?: 'tar.gz' | 'zip';
   artifactUrl?: string;
-  artifactSourcePath?: string;
-  originType?: 'manual' | 'bundled' | 'clawhub' | 'github_repo';
+  originType?: 'manual' | 'clawhub' | 'github_repo';
   sourceUrl?: string;
   metadata?: Record<string, unknown>;
 };
@@ -548,7 +547,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'report',
     skillType: '工具包',
     tags: ['文档', 'Word', '办公'],
-    artifactSourcePath: 'docx',
   },
   {
     slug: 'xlsx',
@@ -558,7 +556,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'data',
     skillType: '工具包',
     tags: ['表格', 'Excel', '数据'],
-    artifactSourcePath: 'xlsx',
   },
   {
     slug: 'pdf',
@@ -568,7 +565,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'report',
     skillType: '工具包',
     tags: ['PDF', '文档', '办公'],
-    artifactSourcePath: 'pdf',
   },
   ...EXTERNAL_CLOUD_SKILL_SEEDS,
   {
@@ -579,7 +575,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'research',
     skillType: '分析师',
     tags: ['A股', 'ESG', '筛选'],
-    artifactSourcePath: 'A股ESG筛选器',
   },
   {
     slug: 'a-share-data-toolkit',
@@ -589,7 +584,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'data',
     skillType: '工具包',
     tags: ['A股', '数据', '工具'],
-    artifactSourcePath: 'A股数据工具包',
   },
   {
     slug: 'a-share-factor-screener',
@@ -599,7 +593,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'quant',
     skillType: '筛选器',
     tags: ['A股', '因子', '量化'],
-    artifactSourcePath: 'A股量化因子筛选器',
   },
   {
     slug: 'a-share-industry-rotation',
@@ -609,7 +602,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'macro',
     skillType: '分析师',
     tags: ['A股', '行业', '轮动'],
-    artifactSourcePath: 'A股行业轮动探测器',
   },
   {
     slug: 'a-share-low-valuation',
@@ -619,7 +611,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'research',
     skillType: '筛选器',
     tags: ['A股', '低估值', '价值'],
-    artifactSourcePath: 'A股低估值股票筛选器',
   },
   {
     slug: 'a-share-insider',
@@ -629,7 +620,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'signal',
     skillType: '分析师',
     tags: ['A股', '内部交易', '信号'],
-    artifactSourcePath: 'A股内部交易分析师',
   },
   {
     slug: 'a-share-small-cap-growth',
@@ -639,7 +629,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'growth',
     skillType: '筛选器',
     tags: ['A股', '小盘', '成长'],
-    artifactSourcePath: 'A股小盘成长股识别器',
   },
   {
     slug: 'a-share-tech-valuation',
@@ -649,7 +638,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'technology',
     skillType: '分析师',
     tags: ['A股', '科技', '估值'],
-    artifactSourcePath: 'A股科技股估值分析师',
   },
   {
     slug: 'a-share-dividend',
@@ -659,7 +647,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'income',
     skillType: '分析师',
     tags: ['A股', '高股息', '红利'],
-    artifactSourcePath: 'A股高股息策略分析器',
   },
   {
     slug: 'a-share-event-driven',
@@ -669,7 +656,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'event',
     skillType: '分析师',
     tags: ['A股', '事件驱动', '并购重组'],
-    artifactSourcePath: 'A股事件驱动探测器',
   },
   ...AGENT_REACH_CLOUD_SKILL_SEEDS,
   ...FINANCE_LOBSTER_CLOUD_SKILL_SEEDS,
@@ -681,7 +667,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'signal',
     skillType: '分析师',
     tags: ['A股', '情绪', '逆向'],
-    artifactSourcePath: 'A股情绪现实背离度分析师',
   },
   {
     slug: 'a-share-portfolio-health',
@@ -691,7 +676,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'portfolio',
     skillType: '分析师',
     tags: ['A股', '组合', '风险'],
-    artifactSourcePath: 'A股组合健康诊断师',
   },
   {
     slug: 'a-share-risk-return-optimizer',
@@ -701,7 +685,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'portfolio',
     skillType: '优化器',
     tags: ['A股', '组合优化', '资产配置'],
-    artifactSourcePath: 'A股风险收益优化器',
   },
   {
     slug: 'us-esg',
@@ -711,7 +694,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'research',
     skillType: '分析师',
     tags: ['美股', 'ESG', '筛选'],
-    artifactSourcePath: '美股ESG筛选器',
   },
   {
     slug: 'us-data-toolkit',
@@ -721,7 +703,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'data',
     skillType: '工具包',
     tags: ['美股', '数据', '工具'],
-    artifactSourcePath: '美股数据工具包',
   },
   {
     slug: 'us-factor-screener',
@@ -731,7 +712,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'quant',
     skillType: '筛选器',
     tags: ['美股', '因子', '量化'],
-    artifactSourcePath: '美股量化因子扫描器',
   },
   {
     slug: 'us-industry-rotation',
@@ -741,7 +721,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'macro',
     skillType: '分析师',
     tags: ['美股', '行业', '轮动'],
-    artifactSourcePath: '美股行业轮动探测器',
   },
   {
     slug: 'us-low-valuation',
@@ -751,7 +730,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'research',
     skillType: '筛选器',
     tags: ['美股', '低估值', '价值'],
-    artifactSourcePath: '美股低估值股票扫描器',
   },
   {
     slug: 'us-insider',
@@ -761,7 +739,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'signal',
     skillType: '分析师',
     tags: ['美股', '内部人交易', '信号'],
-    artifactSourcePath: '美股内部交易分析师',
   },
   {
     slug: 'us-small-cap-growth',
@@ -771,7 +748,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'growth',
     skillType: '筛选器',
     tags: ['美股', '小盘', '成长'],
-    artifactSourcePath: '美股小盘成长股扫描器',
   },
   {
     slug: 'us-tech-valuation',
@@ -781,7 +757,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'technology',
     skillType: '分析师',
     tags: ['美股', '科技', '估值'],
-    artifactSourcePath: '美股科技股估值分析师',
   },
   {
     slug: 'us-dividend-aristocrats',
@@ -791,7 +766,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'income',
     skillType: '分析师',
     tags: ['美股', '股息', '红利'],
-    artifactSourcePath: '美股高股息策略分析器',
   },
   {
     slug: 'us-event-driven',
@@ -801,7 +775,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'event',
     skillType: '分析师',
     tags: ['美股', '事件驱动', '特殊情境'],
-    artifactSourcePath: '美股事件驱动探测器',
   },
   {
     slug: 'us-sentiment-dislocation',
@@ -811,7 +784,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'signal',
     skillType: '分析师',
     tags: ['美股', '情绪', '逆向'],
-    artifactSourcePath: '美股情绪现实背离度分析师',
   },
   {
     slug: 'us-portfolio-health',
@@ -821,7 +793,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'portfolio',
     skillType: '分析师',
     tags: ['美股', '组合', '风险'],
-    artifactSourcePath: '美股组合健康诊断师',
   },
   {
     slug: 'us-risk-return-optimizer',
@@ -831,7 +802,6 @@ export const DEFAULT_CLOUD_SKILL_SEEDS: DefaultCloudSkillSeed[] = [
     category: 'portfolio',
     skillType: '优化器',
     tags: ['美股', '组合优化', '资产配置'],
-    artifactSourcePath: '美股风险收益优化器',
   },
   {
     slug: 'admapix',
@@ -1095,14 +1065,14 @@ export function createDefaultCloudSkillCatalogEntries(now: string): SkillCatalog
     category: seed.category,
     skillType: seed.skillType,
     publisher: seed.publisher || 'iClaw',
-    distribution: seed.distribution || (seed.artifactSourcePath ? 'bundled' : 'cloud'),
+    distribution: 'cloud',
     tags: [...seed.tags],
     version: seed.version || '1.0.0',
     artifactFormat: seed.artifactFormat || 'tar.gz',
     artifactUrl: seed.artifactUrl || null,
     artifactSha256: null,
-    artifactSourcePath: seed.artifactSourcePath || null,
-    originType: seed.originType || (seed.artifactSourcePath ? 'bundled' : 'clawhub'),
+    artifactSourcePath: null,
+    originType: seed.originType || 'clawhub',
     sourceUrl: seed.sourceUrl || seed.artifactUrl || null,
     metadata: seed.metadata || {},
     active: true,

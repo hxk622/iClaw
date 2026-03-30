@@ -216,7 +216,6 @@ async function main() {
   const appName = normalizeAppName(resolvedAppName);
   const scriptDir = dirname(fileURLToPath(import.meta.url));
   const repoRoot = resolve(scriptDir, '../../..');
-  const skillsSourceRoot = resolve(repoRoot, 'skills');
   const runtimeResourcesRoot = resolve(repoRoot, 'services/openclaw/resources');
   const runtimeSkillsRoot = resolve(runtimeResourcesRoot, 'skills');
   const runtimeMcpConfigPath = resolve(runtimeResourcesRoot, 'mcp/mcp.json');
@@ -316,28 +315,7 @@ async function main() {
           });
         }
       }
-      if (entry.distribution === 'cloud') {
-        skippedSkills.push(binding.skillSlug);
-        continue;
-      }
-      const relativeSourcePath = entry?.artifactSourcePath?.trim() || '';
-      if (!relativeSourcePath) {
-        skippedSkills.push(binding.skillSlug);
-        continue;
-      }
-      if (copiedSkillDirs.has(relativeSourcePath)) {
-        continue;
-      }
-      const sourcePath = resolve(skillsSourceRoot, relativeSourcePath);
-      if (!(await pathExists(resolve(sourcePath, 'SKILL.md')))) {
-        skippedSkills.push(binding.skillSlug);
-        continue;
-      }
-      await cp(sourcePath, resolve(runtimeSkillsRoot, relativeSourcePath), {
-        recursive: true,
-        force: true,
-      });
-      rememberCopiedSkill(relativeSourcePath);
+      skippedSkills.push(binding.skillSlug);
     }
 
     await writeFile(

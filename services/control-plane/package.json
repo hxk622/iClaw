@@ -9,7 +9,6 @@
     "check": "tsc --noEmit",
     "sync:clawhub:top": "node --experimental-strip-types scripts/sync-clawhub-top-skills.ts",
     "sync:clawhub:all": "node --experimental-strip-types scripts/sync-clawhub-top-skills.ts --limit 0",
-    "migrate:bundled-skills-to-cloud": "node --experimental-strip-types scripts/migrate-bundled-skills-to-cloud.ts",
     "upload:cloud-skill-artifacts": "node --experimental-strip-types scripts/upload-cloud-skill-artifacts.ts",
     "publish:external-cloud-skill": "node --experimental-strip-types scripts/publish-external-cloud-skill.ts",
     "preset:sync:oem": "node --experimental-strip-types scripts/sync-oem-preset.ts",

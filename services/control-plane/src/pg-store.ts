@@ -791,6 +791,9 @@ function mapMarketFundRow(row: MarketFundRow): MarketFundRecord {
 }
 
 function mapSkillCatalogRow(row: SkillCatalogRow): SkillCatalogRecord {
+  const distribution = row.distribution === 'cloud' ? 'cloud' : 'cloud';
+  const artifactSourcePath = distribution === 'cloud' ? null : row.artifact_source_path;
+  const originType = row.origin_type === 'bundled' ? 'manual' : row.origin_type;
   return {
     slug: row.slug,
     name: row.name,
@@ -799,14 +802,14 @@ function mapSkillCatalogRow(row: SkillCatalogRow): SkillCatalogRecord {
     category: row.category,
     skillType: row.skill_type,
     publisher: row.publisher,
-    distribution: row.distribution,
+    distribution,
     tags: parseSkillTags(row.tags),
     version: row.version,
     artifactFormat: row.artifact_format,
     artifactUrl: row.artifact_url,
     artifactSha256: row.artifact_sha256,
-    artifactSourcePath: row.artifact_source_path,
-    originType: row.origin_type,
+    artifactSourcePath,
+    originType,
     sourceUrl: row.source_url,
     metadata: parseJsonObject(row.metadata_json),
     active: row.active,

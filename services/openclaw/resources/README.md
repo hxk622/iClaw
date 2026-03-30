@@ -2,7 +2,7 @@
 
 This directory stores bundled local sidecar resources that are synced into the desktop app.
 
-- Skills source: repo root `skills/`
+- Skills source: `services/openclaw/resources/skills/`
 - `mcp/mcp.json`: generated MCP runtime config synced into the desktop bundle
 - `config/runtime-config.json`: default runtime model/provider config
 

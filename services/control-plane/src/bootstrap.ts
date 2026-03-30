@@ -9,7 +9,6 @@ import {
   DEFAULT_CLOUD_SKILL_SEEDS,
   DEPRECATED_DEFAULT_AGENT_SLUGS,
 } from './catalog-defaults.ts';
-import {getCloudSkillArtifactObjectKey} from './cloud-skill-artifacts.ts';
 import {hashPassword} from './passwords.ts';
 import type {PortalPresetManifest} from './portal-domain.ts';
 import {syncPortalPresetManifest} from './portal-preset.ts';
@@ -186,28 +185,11 @@ export async function ensureDefaultCatalogs(store: ControlPlaneStore): Promise<v
 
   for (const skill of DEFAULT_CLOUD_SKILL_SEEDS) {
     const existing = await store.getSkillCatalogEntry(skill.slug);
-    const existingHasCloudArtifact = Boolean(
-      existing &&
-        (existing.artifactUrl ||
-          getCloudSkillArtifactObjectKey(existing.metadata || {}) ||
-          existing.originType === 'github_repo'),
-    );
-    const useBundledFallback =
-      Boolean(skill.artifactSourcePath) &&
-      !existingHasCloudArtifact &&
-      (!existing || existing.distribution === 'bundled');
-    const distribution =
-      useBundledFallback
-        ? 'bundled'
-        : existing?.distribution === 'bundled'
-          ? 'cloud'
-          : existing?.distribution || skill.distribution || 'cloud';
+    const distribution = 'cloud';
     const originType =
-      useBundledFallback
-        ? 'bundled'
-        : existing?.originType === 'bundled'
-          ? skill.originType || 'manual'
-          : existing?.originType || skill.originType || 'clawhub';
+      existing?.originType === 'bundled'
+        ? skill.originType || 'manual'
+        : existing?.originType || skill.originType || 'clawhub';
     await store.upsertSkillCatalogEntry({
       slug: existing?.slug || skill.slug,
       name: existing?.name || skill.name,
@@ -219,10 +201,10 @@ export async function ensureDefaultCatalogs(store: ControlPlaneStore): Promise<v
       distribution,
       tags: existing?.tags?.length ? existing.tags : skill.tags,
       version: existing?.version || skill.version || '1.0.0',
-      artifact_url: useBundledFallback ? null : existing?.artifactUrl || skill.artifactUrl || null,
+      artifact_url: existing?.artifactUrl || skill.artifactUrl || null,
       artifact_format: existing?.artifactFormat || skill.artifactFormat || 'tar.gz',
       artifact_sha256: existing?.artifactSha256 || null,
-      artifact_source_path: useBundledFallback ? existing?.artifactSourcePath || skill.artifactSourcePath || null : null,
+      artifact_source_path: null,
       origin_type: originType,
       source_url: existing?.sourceUrl || skill.sourceUrl || skill.artifactUrl || null,
       metadata: existing?.metadata || skill.metadata || {},

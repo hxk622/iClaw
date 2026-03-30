@@ -97,7 +97,7 @@ pnpm dev:web
 
 ## 本地能力资源（skills / mcp）
 
-- 源目录（可维护）：`skills`、`servers`、`services/openclaw/resources/mcp/mcp.json`
+- 源目录（可维护）：`servers`、`services/openclaw/resources/skills`、`services/openclaw/resources/mcp/mcp.json`
 - `services/openclaw/resources/mcp/mcp.json` 是桌面端打包使用的唯一 MCP 配置来源；它本身应由 control-plane/runtime 同步链路生成，而不是再叠加仓库内 overlay。
 - 打包目录（自动同步）：`apps/desktop/src-tauri/resources/skills`、`apps/desktop/src-tauri/resources/mcp/mcp.json`
 - 同步命令：`node ../../scripts/sync-openclaw-resources.mjs`

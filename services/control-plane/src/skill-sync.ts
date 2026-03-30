@@ -657,7 +657,7 @@ async function loadGithubCandidates(source: SkillSyncSourceRecord): Promise<Norm
       artifact_url: null,
       artifact_format: 'tar.gz',
       artifact_sha256: null,
-      artifact_source_path: skillDir || '.',
+      artifact_source_path: null,
       origin_type: 'github_repo',
       source_url: `https://github.com/${owner}/${repo}${skillDir ? `/tree/${branch}/${skillDir}` : ''}`,
       metadata: {

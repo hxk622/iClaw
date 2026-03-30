@@ -12,7 +12,7 @@ export type ExternalCloudSkillSeed = {
   distribution: 'cloud';
   artifactFormat: 'zip' | 'tar.gz';
   version: string;
-  originType: 'manual' | 'bundled' | 'clawhub' | 'github_repo';
+  originType: 'manual' | 'clawhub' | 'github_repo';
   sourceUrl?: string;
   metadata: Record<string, unknown>;
 };
