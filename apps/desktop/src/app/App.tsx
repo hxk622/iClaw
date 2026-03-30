@@ -1424,7 +1424,7 @@ function AuthedView({
       await saveIclawWorkspaceSection(section, content);
     }
 
-    commitSectionSave(section);
+    await commitSectionSave(section);
 
     if (
       accessToken &&

@@ -1,7 +1,13 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { SettingsState } from '@/app/contexts/settings-context';
+import {
+  DESKTOP_CONFIG_SECTION_SETTINGS,
+  DESKTOP_CONFIG_SECTION_THEME,
+  buildExplicitThemeConfig,
+  writeDesktopConfigSection,
+} from '@/app/lib/persistence/config-store';
 import { isTauriRuntime } from '@/app/lib/tauri-sidecar';
-import { SETTINGS_STORAGE_KEY, WORKSPACE_UPDATED_EVENT } from '@/app/lib/storage';
+import { WORKSPACE_UPDATED_EVENT } from '@/app/lib/storage';
 
 export interface IclawWorkspaceFiles {
   workspace_dir: string;
@@ -102,8 +108,14 @@ export async function saveIclawWorkspaceSection(
 }
 
 export async function saveIclawSettingsAndApply(settings: SettingsState): Promise<boolean> {
+  await writeDesktopConfigSection(DESKTOP_CONFIG_SECTION_SETTINGS, {
+    general: settings.general,
+    safetyDefaults: settings.safetyDefaults,
+    configStatuses: settings.configStatuses,
+  });
+  await writeDesktopConfigSection(DESKTOP_CONFIG_SECTION_THEME, buildExplicitThemeConfig(settings.general.themeMode));
+
   if (!isTauriRuntime()) {
-    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
     try {
       const response = await fetch(WORKSPACE_DEV_ENDPOINT, {
         method: 'POST',

@@ -2580,6 +2580,17 @@ fn desktop_window_state_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(path)
 }
 
+fn desktop_client_config_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let path = app_data_base_dir(app)?
+        .join("config")
+        .join("desktop-client-config.json");
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("failed to create desktop client config dir: {e}"))?;
+    }
+    Ok(path)
+}
+
 fn load_desktop_window_state(app: &AppHandle) -> Result<Option<DesktopWindowStateSnapshot>, String> {
     let path = desktop_window_state_path(app)?;
     if !path.exists() {
@@ -3866,6 +3877,28 @@ fn save_iclaw_workspace_section(
 }
 
 #[tauri::command]
+fn load_desktop_client_config(app: AppHandle) -> Result<Option<serde_json::Value>, String> {
+    let path = desktop_client_config_path(&app)?;
+    if !path.exists() {
+        return Ok(None);
+    }
+    let raw = fs::read_to_string(&path)
+        .map_err(|e| format!("failed to read desktop client config {}: {e}", path.to_string_lossy()))?;
+    let parsed = serde_json::from_str::<serde_json::Value>(&raw)
+        .map_err(|e| format!("failed to parse desktop client config {}: {e}", path.to_string_lossy()))?;
+    Ok(Some(parsed))
+}
+
+#[tauri::command]
+fn save_desktop_client_config(app: AppHandle, config: serde_json::Value) -> Result<bool, String> {
+    let path = desktop_client_config_path(&app)?;
+    let raw = serde_json::to_string_pretty(&config)
+        .map_err(|e| format!("failed to serialize desktop client config: {e}"))?;
+    write_text(&path, &format!("{raw}\n"))?;
+    Ok(true)
+}
+
+#[tauri::command]
 fn load_memory_snapshot(app: AppHandle) -> Result<DesktopMemorySnapshot, String> {
     ensure_openclaw_workspace_seed(&app)?;
     let entries = load_desktop_memory_entries(&app)?;
@@ -4218,6 +4251,8 @@ fn main() {
             apply_iclaw_workspace_backup,
             save_iclaw_settings_and_apply,
             save_iclaw_workspace_section,
+            load_desktop_client_config,
+            save_desktop_client_config,
             load_memory_snapshot,
             save_memory_entry,
             delete_memory_entry,

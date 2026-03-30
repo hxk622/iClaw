@@ -1,5 +1,6 @@
 import type { DesktopUpdateHint } from '@iclaw/sdk';
 import { BRAND } from './brand';
+import { readCacheString, writeCacheString } from '@/app/lib/persistence/cache-store';
 
 const DESKTOP_UPDATE_SKIPPED_VERSION_KEY = `${BRAND.storage.namespace}:desktop.update.skipped_version`;
 
@@ -24,24 +25,12 @@ export function formatDesktopUpdateVersion(version: string): string {
 }
 
 export function readSkippedDesktopUpdateVersion(): string | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const value = window.localStorage.getItem(DESKTOP_UPDATE_SKIPPED_VERSION_KEY);
-    return value?.trim() || null;
-  } catch {
-    return null;
-  }
+  const value = readCacheString(DESKTOP_UPDATE_SKIPPED_VERSION_KEY);
+  return value?.trim() || null;
 }
 
 export function writeSkippedDesktopUpdateVersion(version: string | null): void {
-  if (typeof window === 'undefined') return;
-  try {
-    if (!version) {
-      window.localStorage.removeItem(DESKTOP_UPDATE_SKIPPED_VERSION_KEY);
-      return;
-    }
-    window.localStorage.setItem(DESKTOP_UPDATE_SKIPPED_VERSION_KEY, version);
-  } catch {}
+  writeCacheString(DESKTOP_UPDATE_SKIPPED_VERSION_KEY, version || null);
 }
 
 export function shouldShowDesktopUpdateHint(

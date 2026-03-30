@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import App from './app/App';
 import { applyBrandTheme, BRAND } from './app/lib/brand';
+import { bootstrapDesktopConfigStore } from './app/lib/persistence/config-store';
 import { applyThemeMode, readStoredThemeMode } from './app/lib/theme';
 import './styles/index.css';
 
@@ -19,6 +20,7 @@ if (
 
 applyBrandTheme();
 document.title = SHOW_DEV_BRANDING ? BRAND.devWebsiteTitle : BRAND.websiteTitle;
+await bootstrapDesktopConfigStore();
 applyThemeMode(readStoredThemeMode());
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
   if (readStoredThemeMode() === 'system') {

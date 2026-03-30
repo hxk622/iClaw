@@ -12,14 +12,19 @@ import {
   type LayoutPreset,
   type MessageAlignment,
 } from '@/app/lib/general-preferences';
-import { SETTINGS_STORAGE_KEY } from '@/app/lib/storage';
 import {
   applyThemeMode,
   normalizeThemeModePreference,
-  persistThemeMode,
   readStoredThemeMode,
   type ThemeMode,
 } from '@/app/lib/theme';
+import {
+  DESKTOP_CONFIG_SECTION_SETTINGS,
+  DESKTOP_CONFIG_SECTION_THEME,
+  buildExplicitThemeConfig,
+  readDesktopConfigSection,
+  writeDesktopConfigSection,
+} from '@/app/lib/persistence/config-store';
 
 export type ConfigStatus = 'not-configured' | 'using-default' | 'customized';
 export type PersistableSettingsSection =
@@ -86,7 +91,7 @@ type SettingsContextType = {
   updateSafetyDefaults: (config: Partial<SafetyDefaultsConfig>) => void;
   hasUnsavedChangesForSection: (section: PersistableSettingsSection) => boolean;
   buildSectionSaveSnapshot: (section: PersistableSettingsSection) => SettingsState;
-  commitSectionSave: (section: PersistableSettingsSection) => void;
+  commitSectionSave: (section: PersistableSettingsSection) => Promise<void>;
   resetSettings: (section: PersistableSettingsSection) => void;
 };
 
@@ -141,43 +146,34 @@ type PersistedSettings = Pick<SettingsState, 'general' | 'safetyDefaults' | 'con
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 function readPersistedSettings(): PersistedSettings {
-  const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
+  const parsed = readDesktopConfigSection<Partial<PersistedSettings> & {
+    appearance?: { themeMode?: ThemeMode };
+    general?: Partial<GeneralConfig>;
+  }>(DESKTOP_CONFIG_SECTION_SETTINGS);
   const storedTheme = readStoredThemeMode();
-  if (!saved) {
+  if (!parsed) {
     return {
       general: { ...defaultSettings.general, themeMode: storedTheme },
       safetyDefaults: defaultSettings.safetyDefaults,
       configStatuses: defaultSettings.configStatuses,
     };
   }
-  try {
-    const parsed = JSON.parse(saved) as Partial<PersistedSettings> & {
-      appearance?: { themeMode?: ThemeMode };
-      general?: Partial<GeneralConfig>;
-    };
-    const legacyTheme = parsed.appearance?.themeMode;
-    return {
-      general: {
-        ...defaultSettings.general,
-        ...parsed.general,
-        themeMode: normalizeThemeModePreference(parsed.general?.themeMode ?? legacyTheme, storedTheme),
-      },
-      safetyDefaults: {
-        ...defaultSettings.safetyDefaults,
-        ...parsed.safetyDefaults,
-      },
-      configStatuses: {
-        ...defaultSettings.configStatuses,
-        ...parsed.configStatuses,
-      },
-    };
-  } catch {
-    return {
-      general: { ...defaultSettings.general, themeMode: storedTheme },
-      safetyDefaults: defaultSettings.safetyDefaults,
-      configStatuses: defaultSettings.configStatuses,
-    };
-  }
+  const legacyTheme = parsed.appearance?.themeMode;
+  return {
+    general: {
+      ...defaultSettings.general,
+      ...parsed.general,
+      themeMode: normalizeThemeModePreference(parsed.general?.themeMode ?? legacyTheme, storedTheme),
+    },
+    safetyDefaults: {
+      ...defaultSettings.safetyDefaults,
+      ...parsed.safetyDefaults,
+    },
+    configStatuses: {
+      ...defaultSettings.configStatuses,
+      ...parsed.configStatuses,
+    },
+  };
 }
 
 function mergeWorkspaceFiles(current: SettingsState, workspaceFiles: IclawWorkspaceFiles): SettingsState {
@@ -342,28 +338,26 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     isLoading: false,
   });
 
-  const commitSectionSave = (section: PersistableSettingsSection) => {
+  const commitSectionSave = async (section: PersistableSettingsSection) => {
     if (section === 'general' || section === 'safety-defaults') {
-      setSavedPersistedSettings((prev) => {
-        const next: PersistedSettings = {
-          general: section === 'general' ? settings.general : prev.general,
-          safetyDefaults: section === 'safety-defaults' ? settings.safetyDefaults : prev.safetyDefaults,
-          configStatuses: {
-            ...prev.configStatuses,
-            general: section === 'general' ? settings.configStatuses.general : prev.configStatuses.general,
-            safetyDefaults:
-              section === 'safety-defaults'
-                ? settings.configStatuses.safetyDefaults
-                : prev.configStatuses.safetyDefaults,
-          },
-        };
-        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next));
-        return next;
-      });
-    }
-
-    if (section === 'general') {
-      persistThemeMode(settings.general.themeMode);
+      const next: PersistedSettings = {
+        general: section === 'general' ? settings.general : savedPersistedSettings.general,
+        safetyDefaults: section === 'safety-defaults' ? settings.safetyDefaults : savedPersistedSettings.safetyDefaults,
+        configStatuses: {
+          ...savedPersistedSettings.configStatuses,
+          general:
+            section === 'general' ? settings.configStatuses.general : savedPersistedSettings.configStatuses.general,
+          safetyDefaults:
+            section === 'safety-defaults'
+              ? settings.configStatuses.safetyDefaults
+              : savedPersistedSettings.configStatuses.safetyDefaults,
+        },
+      };
+      setSavedPersistedSettings(next);
+      await writeDesktopConfigSection(DESKTOP_CONFIG_SECTION_SETTINGS, next);
+      if (section === 'general') {
+        await writeDesktopConfigSection(DESKTOP_CONFIG_SECTION_THEME, buildExplicitThemeConfig(settings.general.themeMode));
+      }
     }
 
     if (section === 'identity' || section === 'user-profile' || section === 'soul-persona') {
