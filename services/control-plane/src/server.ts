@@ -1694,8 +1694,10 @@ const server = createJsonServer([
   allowedOrigins: config.allowedOrigins,
   allowedHeaders: desktopUpdateAllowedRequestHeaders(),
   exposedHeaders: ['x-request-id', ...desktopUpdateExposedHeaders()],
-  resolveResponseHeaders: ({request}) =>
-    resolveDesktopUpdateResponseHeaders(request.headers, portalStore, resolvePublicBaseUrl(request.headers)),
+  resolveResponseHeaders: ({request, url}) => ({
+    ...resolveDesktopUpdateResponseHeaders(request.headers, portalStore, resolvePublicBaseUrl(request.headers)),
+    ...(url.pathname === '/portal/public-config' ? {'Cache-Control': 'no-store'} : {}),
+  }),
 });
 
 server.listen(config.port, config.listenHost, () => {
