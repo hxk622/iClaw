@@ -2559,31 +2559,37 @@ export function OpenClawChatSurface({
       return;
     }
 
+    const sessionKeys = Array.from(
+      new Set([sessionKey, effectiveGatewaySessionKey].map((value) => value.trim()).filter(Boolean)),
+    );
+    if (sessionKeys.length === 0) {
+      setSessionBillingSummaries([]);
+      return;
+    }
+
     let cancelled = false;
-    void creditClient
-      .listRunBillingSummariesBySession(creditToken, {
-        sessionKey,
-        limit: 200,
-      })
-      .then((summaries) => {
-        if (cancelled) {
-          return;
-        }
-        setSessionBillingSummaries((current) =>
-          mergeRunBillingSummaries(current, Array.isArray(summaries) ? summaries : []),
-        );
-        setAssistantFooterVersion((current) => current + 1);
-      })
-      .catch(() => {
-        if (cancelled) {
-          return;
-        }
-      });
+    void Promise.all(
+      sessionKeys.map((targetSessionKey) =>
+        creditClient
+          .listRunBillingSummariesBySession(creditToken, {
+            sessionKey: targetSessionKey,
+            limit: 200,
+          })
+          .catch(() => []),
+      ),
+    ).then((summaryLists) => {
+      if (cancelled) {
+        return;
+      }
+      const summaries = summaryLists.flat().filter((summary): summary is RunBillingSummaryData => Boolean(summary));
+      setSessionBillingSummaries((current) => mergeRunBillingSummaries(current, summaries));
+      setAssistantFooterVersion((current) => current + 1);
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [creditClient, creditToken, sessionKey]);
+  }, [creditClient, creditToken, effectiveGatewaySessionKey, sessionKey]);
 
   useEffect(() => {
     const prompt = composerDraft?.prompt?.trim() || '';
