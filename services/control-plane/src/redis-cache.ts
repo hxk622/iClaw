@@ -1,6 +1,7 @@
 import {createClient, type RedisClientType} from 'redis';
 
 import type {KeyValueCache} from './cache.ts';
+import {logWarn} from './logger.ts';
 
 export class RedisKeyValueCache implements KeyValueCache {
   readonly label = 'redis';
@@ -17,7 +18,7 @@ export class RedisKeyValueCache implements KeyValueCache {
         return;
       }
       this.lastErrorAt = now;
-      console.warn('[control-plane] redis cache error, continuing without cache for this request', error);
+      logWarn('redis cache error, continuing without cache for this request', {error});
     });
   }
 

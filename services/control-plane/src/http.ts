@@ -2,6 +2,7 @@ import {createServer, type IncomingMessage, type ServerResponse} from 'node:http
 import {randomUUID} from 'node:crypto';
 
 import {HttpError} from './errors.ts';
+import {logError, logInfo, logWarn} from './logger.ts';
 
 export type HandlerContext<TBody = unknown> = {
   body: TBody;
@@ -156,8 +157,11 @@ export function createJsonServer(routes: Route[], options: JsonServerOptions = {
   );
   return createServer(async (request, response) => {
     const requestId = randomUUID();
+    const startedAt = Date.now();
     response.setHeader('x-request-id', requestId);
     let url = new URL(request.url || '/', 'http://localhost');
+    const method = request.method || 'GET';
+    const api = `${url.pathname}${url.search}`;
     applyCorsHeaders(request, response, allowedOrigins, allowedHeaders, exposedHeaders);
 
     if (options.resolveResponseHeaders) {
@@ -171,13 +175,21 @@ export function createJsonServer(routes: Route[], options: JsonServerOptions = {
           response.setHeader(key, value);
         }
       } catch (error) {
-        console.warn('[control-plane] failed to resolve response headers', error);
+        logWarn('failed to resolve response headers', {requestId, api, method, error});
       }
     }
 
     if (request.method === 'OPTIONS') {
       response.statusCode = 204;
       response.end();
+      logInfo('request completed', {
+        requestId,
+        api,
+        method,
+        headers: request.headers,
+        statusCode: 204,
+        durationMs: Date.now() - startedAt,
+      });
       return;
     }
 
@@ -193,6 +205,13 @@ export function createJsonServer(routes: Route[], options: JsonServerOptions = {
       }
 
       const body = await readBody(request, matched.route.bodyType || 'json');
+      logInfo('request received', {
+        requestId,
+        api,
+        method,
+        headers: request.headers,
+        payload: body,
+      });
       const data = await matched.route.handler({
         body,
         requestId,
@@ -203,24 +222,69 @@ export function createJsonServer(routes: Route[], options: JsonServerOptions = {
 
       if (isRawResponse(data)) {
         raw(response, data);
+        logInfo('request completed', {
+          requestId,
+          api,
+          method,
+          statusCode: data.statusCode || 200,
+          durationMs: Date.now() - startedAt,
+          responsePayload: {
+            body: data.body,
+            headers: data.headers || {},
+          },
+        });
         return;
       }
 
-      json(response, 200, {success: true, data});
+      const responsePayload = {success: true, data};
+      json(response, 200, responsePayload);
+      logInfo('request completed', {
+        requestId,
+        api,
+        method,
+        statusCode: 200,
+        durationMs: Date.now() - startedAt,
+        responsePayload,
+      });
     } catch (error) {
       const httpError =
         error instanceof HttpError
           ? error
           : new HttpError(500, 'INTERNAL_ERROR', error instanceof Error ? error.message : 'Unexpected error');
 
-      json(response, httpError.statusCode, {
+      const errorPayload = {
         success: false,
         error: {
           code: httpError.api.code,
           message: httpError.api.message,
           requestId,
         },
-      });
+      };
+
+      if (httpError.statusCode >= 500) {
+        logError('request failed', {
+          requestId,
+          api,
+          method,
+          headers: request.headers,
+          statusCode: httpError.statusCode,
+          durationMs: Date.now() - startedAt,
+          responsePayload: errorPayload,
+          error,
+        });
+      } else {
+        logWarn('request rejected', {
+          requestId,
+          api,
+          method,
+          headers: request.headers,
+          statusCode: httpError.statusCode,
+          durationMs: Date.now() - startedAt,
+          responsePayload: errorPayload,
+        });
+      }
+
+      json(response, httpError.statusCode, errorPayload);
     }
   });
 }

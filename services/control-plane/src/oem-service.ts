@@ -3,6 +3,7 @@ import {promisify} from 'node:util';
 
 import type {McpCatalogEntryRecord, PublicUser, UpsertMcpCatalogEntryInput} from './domain.ts';
 import {HttpError} from './errors.ts';
+import {logWarn} from './logger.ts';
 import {deleteOemAssetFile, downloadOemAssetFile, uploadOemAssetFile} from './oem-asset-storage.ts';
 import type {PgOemStore} from './oem-store.ts';
 import type {ControlPlaneStore} from './store.ts';
@@ -1070,7 +1071,7 @@ export class OemService {
         objectKey: existing.objectKey,
       });
     } catch (error) {
-      console.warn('[oem-service] failed to delete OEM asset object', {
+      logWarn('failed to delete OEM asset object', {
         brandId,
         assetKey,
         storageProvider: existing.storageProvider,

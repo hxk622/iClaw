@@ -4,6 +4,7 @@ import {fileURLToPath} from 'node:url';
 
 import type {PublicUser} from './domain.ts';
 import {HttpError} from './errors.ts';
+import {logWarn} from './logger.ts';
 import {
   deletePortalDesktopReleaseFile,
   downloadPortalDesktopReleaseFile,
@@ -1094,7 +1095,7 @@ export class PortalService {
 
     if (previousFile?.objectKey && previousFile.objectKey !== upload.objectKey) {
       await deletePortalDesktopReleaseFile(previousFile.objectKey).catch((error) => {
-        console.warn('[portal-service] failed to delete previous desktop release file', {
+        logWarn('failed to delete previous desktop release file', {
           appName,
           channel,
           platform,
@@ -1205,7 +1206,7 @@ export class PortalService {
         storageProvider: existing.storageProvider || 's3',
         objectKey: existing.objectKey,
       }).catch((error) => {
-        console.warn('[portal-service] failed to delete portal asset object', {appName, assetKey, error});
+        logWarn('failed to delete portal asset object', {appName, assetKey, error});
       });
     }
     return removed;
