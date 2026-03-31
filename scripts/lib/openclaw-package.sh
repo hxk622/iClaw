@@ -370,6 +370,62 @@ if (patched > 0) {
 EOF
 }
 
+openclaw_patch_package_runtime_control_ui_tool_output() {
+  local source_dir="$1"
+  local dist_dir="$source_dir/dist"
+
+  [[ -d "$dist_dir" ]] || return 0
+
+  SOURCE_DIR_FOR_PATCH="$source_dir" node <<'EOF'
+const fs = require('fs');
+const path = require('path');
+
+const sourceDir = process.env.SOURCE_DIR_FOR_PATCH;
+if (!sourceDir) process.exit(0);
+
+const distDir = path.join(sourceDir, 'dist');
+if (!fs.existsSync(distDir) || !fs.statSync(distDir).isDirectory()) process.exit(0);
+
+const LEGACY_EXTRACTOR = 'function Fd(e){if(typeof e.text==`string`)return e.text;if(typeof e.content==`string`)return e.content}';
+const LEGACY_PATCHED_EXTRACTOR = 'function Fd(e){let t=n=>{if(n==null)return null;if(typeof n==`string`)return n;if(typeof n==`number`||typeof n==`boolean`)return String(n);if(Array.isArray(n)){let e=n.map(t).filter(e=>typeof e==`string`&&e.trim().length>0);return e.length>0?e.join(`\\n\\n`):null}if(typeof n==`object`){if(typeof n.text==`string`)return n.text;if(typeof n.content==`string`)return n.content;if(typeof n.content==`number`||typeof n.content==`boolean`)return String(n.content);let r;Array.isArray(n.content)&&(r=t(n.content)));if(r)return r;try{return JSON.stringify(n,null,2)}catch{return String(n)}}return null};return t(e)}';
+const PATCH_MARKER = 'n.content!=null&&n.content!==n&&(r=t(n.content))';
+const REPLACEMENT_EXTRACTOR = 'function Fd(e){let t=n=>{if(n==null)return null;if(typeof n==`string`)return n;if(typeof n==`number`||typeof n==`boolean`)return String(n);if(Array.isArray(n)){let e=n.map(t).filter(e=>typeof e==`string`&&e.trim().length>0);return e.length>0?e.join(`\\n\\n`):null}if(typeof n==`object`){if(typeof n.text==`string`)return n.text;let r;n.content!=null&&n.content!==n&&(r=t(n.content));if(r)return r;try{return JSON.stringify(n,null,2)}catch{return String(n)}}return null};return t(e)}';
+
+function patchControlUiBundle(filePath) {
+  let raw = fs.readFileSync(filePath, 'utf8');
+  if (raw.includes(PATCH_MARKER)) {
+    return false;
+  }
+  if (raw.includes(LEGACY_PATCHED_EXTRACTOR)) {
+    raw = raw.replace(LEGACY_PATCHED_EXTRACTOR, REPLACEMENT_EXTRACTOR);
+    fs.writeFileSync(filePath, raw);
+    return true;
+  }
+  if (!raw.includes(LEGACY_EXTRACTOR)) {
+    return false;
+  }
+
+  raw = raw.replace(LEGACY_EXTRACTOR, REPLACEMENT_EXTRACTOR);
+  fs.writeFileSync(filePath, raw);
+  return true;
+}
+
+const assetsDir = path.join(distDir, 'control-ui', 'assets');
+if (!fs.existsSync(assetsDir) || !fs.statSync(assetsDir).isDirectory()) process.exit(0);
+
+let patched = 0;
+for (const entry of fs.readdirSync(assetsDir, { withFileTypes: true })) {
+  if (!entry.isFile()) continue;
+  if (!/^index-.*\.js$/.test(entry.name)) continue;
+  if (patchControlUiBundle(path.join(assetsDir, entry.name))) patched += 1;
+}
+
+if (patched > 0) {
+  process.stderr.write(`[openclaw-runtime] patched control-ui tool output extraction into ${patched} dist files\n`);
+}
+EOF
+}
+
 openclaw_ensure_package_runtime_deps() {
   local source_dir="$1"
 

@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT_DIR/scripts/lib/gateway-token.sh"
+source "$ROOT_DIR/scripts/lib/openclaw-package.sh"
 API_PORT="${ICLAW_API_PORT:-2126}"
 API_DETACH="${ICLAW_API_DETACH:-0}"
 LOG_DIR="${ICLAW_LOG_DIR:-$ROOT_DIR/logs/openclaw}"
@@ -120,6 +121,12 @@ ensure_sidecar_bin() {
     echo "[api-dev] 请设置 OPENCLAW_PACKAGE_TGZ=/abs/path/to/openclaw.tgz，或在 openclaw-runtime.json / ICLAW_OPENCLAW_RUNTIME_VERSION 中提供版本。" >&2
     exit 1
   fi
+}
+
+ensure_runtime_ui_patches() {
+  local runtime_dir="$ROOT_DIR/services/openclaw/runtime/openclaw"
+  [[ -d "$runtime_dir/dist" ]] || return 0
+  openclaw_patch_package_runtime_control_ui_tool_output "$runtime_dir"
 }
 
 ensure_macos_codesign_if_needed() {
@@ -359,6 +366,7 @@ start_openclaw_foreground() {
 }
 
 ensure_sidecar_bin
+ensure_runtime_ui_patches
 ensure_macos_runtime_frameworks
 ensure_macos_codesign_if_needed
 if [[ -n "${PORTAL_APP_NAME:-}" ]]; then
