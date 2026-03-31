@@ -9,6 +9,7 @@ export type ChatSessionSnapshot = {
   sessionKey: string;
   savedAt: number;
   messages: unknown[];
+  pendingUsageSettlements?: unknown[];
 };
 
 const CHAT_SESSION_SNAPSHOT_PREFIX = 'iclaw.chat.session.v1';
@@ -107,6 +108,7 @@ export function readStoredChatSnapshot(params: {
     sessionKey: params.sessionKey,
     savedAt: typeof snapshot.savedAt === 'number' ? snapshot.savedAt : Date.now(),
     messages: snapshot.messages,
+    pendingUsageSettlements: Array.isArray(snapshot.pendingUsageSettlements) ? snapshot.pendingUsageSettlements : [],
   };
 }
 

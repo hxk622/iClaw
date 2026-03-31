@@ -449,7 +449,59 @@ type ChatSessionSnapshot = {
   sessionKey: string;
   savedAt: number;
   messages: unknown[];
+  pendingUsageSettlements?: PendingUsageSettlement[];
 };
+
+function normalizePendingUsageSettlement(value: unknown): PendingUsageSettlement | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const runId = typeof record.runId === 'string' ? record.runId.trim() : '';
+  const grantId = typeof record.grantId === 'string' ? record.grantId.trim() : '';
+  const sessionKey = typeof record.sessionKey === 'string' ? record.sessionKey.trim() : '';
+  const startedAt = typeof record.startedAt === 'number' && Number.isFinite(record.startedAt) ? record.startedAt : NaN;
+  const expiresAt = typeof record.expiresAt === 'number' && Number.isFinite(record.expiresAt) ? record.expiresAt : NaN;
+  if (!runId || !grantId || !sessionKey || !Number.isFinite(startedAt) || !Number.isFinite(expiresAt)) {
+    return null;
+  }
+
+  const terminalState =
+    record.terminalState === 'final' ||
+    record.terminalState === 'aborted' ||
+    record.terminalState === 'error'
+      ? record.terminalState
+      : 'pending';
+
+  return {
+    runId,
+    grantId,
+    sessionKey,
+    startedAt,
+    expiresAt,
+    model: typeof record.model === 'string' && record.model.trim() ? record.model.trim() : null,
+    baselineInputTokens:
+      typeof record.baselineInputTokens === 'number' && Number.isFinite(record.baselineInputTokens)
+        ? record.baselineInputTokens
+        : null,
+    baselineOutputTokens:
+      typeof record.baselineOutputTokens === 'number' && Number.isFinite(record.baselineOutputTokens)
+        ? record.baselineOutputTokens
+        : null,
+    attempts: typeof record.attempts === 'number' && Number.isFinite(record.attempts) ? Math.max(0, record.attempts) : 0,
+    terminalState,
+  };
+}
+
+function normalizePendingUsageSettlements(values: unknown): PendingUsageSettlement[] {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+  return values
+    .map((value) => normalizePendingUsageSettlement(value))
+    .filter((value): value is PendingUsageSettlement => value !== null);
+}
 
 function readChatSessionSnapshot(
   appName: string,
@@ -2549,6 +2601,7 @@ export function OpenClawChatSurface({
             sessionKey,
             savedAt: Date.now(),
             messages,
+            pendingUsageSettlements: pendingUsageSettlementsRef.current,
           }
         : null;
     const serialized = snapshot ? JSON.stringify(snapshot) : null;
@@ -2558,6 +2611,15 @@ export function OpenClawChatSurface({
     writeChatSessionSnapshot(appName, sessionKey, snapshot, conversationId);
     persistedChatSnapshotRef.current = serialized;
   }, [appName, conversationId, sessionKey]);
+
+  const replacePendingUsageSettlements = useCallback(
+    (next: PendingUsageSettlement[]) => {
+      pendingUsageSettlementsRef.current = next;
+      setPendingSettlementCount(next.length);
+      persistChatSessionSnapshot();
+    },
+    [persistChatSessionSnapshot],
+  );
 
   const mergeSessionBillingSummary = useCallback((summary: RunBillingSummaryData) => {
     setSessionBillingSummaries((current) => mergeRunBillingSummaries(current, [summary]));
@@ -3044,6 +3106,8 @@ export function OpenClawChatSurface({
       conversationId,
     });
     app.chatMessages = snapshot?.messages ?? [];
+    pendingUsageSettlementsRef.current = normalizePendingUsageSettlements(snapshot?.pendingUsageSettlements);
+    setPendingSettlementCount(pendingUsageSettlementsRef.current.length);
     persistedChatSnapshotRef.current = snapshot ? JSON.stringify(snapshot) : null;
     if ((snapshot?.messages?.length ?? 0) > 0) {
       setSessionHistoryState('has-history');
@@ -4580,8 +4644,7 @@ export function OpenClawChatSurface({
       }
     }
 
-    pendingUsageSettlementsRef.current = remaining;
-    setPendingSettlementCount(remaining.length);
+    replacePendingUsageSettlements(remaining);
     if (remaining.length === 0) {
       clearUsageSettlementTimers();
     }
@@ -4592,7 +4655,15 @@ export function OpenClawChatSurface({
       await onCreditBalanceRefresh?.();
     }
     return settledAny;
-  }, [appName, clearUsageSettlementTimers, creditClient, creditToken, mergeSessionBillingSummary, onCreditBalanceRefresh]);
+  }, [
+    appName,
+    clearUsageSettlementTimers,
+    creditClient,
+    creditToken,
+    mergeSessionBillingSummary,
+    onCreditBalanceRefresh,
+    replacePendingUsageSettlements,
+  ]);
 
   useEffect(() => {
     if (status.busy || !activeRecentTaskRunRef.current) {
@@ -4836,7 +4907,7 @@ export function OpenClawChatSurface({
       ]).then(([baseline, grant]) => [baseline, grant] as const);
       setCreditBlockNotice(null);
 
-      pendingUsageSettlementsRef.current = [
+      replacePendingUsageSettlements([
         ...pendingUsageSettlementsRef.current,
         {
           runId,
@@ -4850,8 +4921,7 @@ export function OpenClawChatSurface({
           attempts: 0,
           terminalState: 'pending',
         },
-      ];
-      setPendingSettlementCount(pendingUsageSettlementsRef.current.length);
+      ]);
 
       handoffStarted = true;
       await sendAuthorizedChatMessage({
@@ -4884,15 +4954,14 @@ export function OpenClawChatSurface({
         setCreditBlockNotice(null);
       }
       if (runId) {
-        pendingUsageSettlementsRef.current = pendingUsageSettlementsRef.current.filter(
-          (pending) => pending.runId !== runId,
+        replacePendingUsageSettlements(
+          pendingUsageSettlementsRef.current.filter((pending) => pending.runId !== runId),
         );
       }
       if (!handoffStarted) {
         markOutgoingChatFailed({ app, detail, code });
       }
       persistChatSessionSnapshot();
-      setPendingSettlementCount(pendingUsageSettlementsRef.current.length);
       if (pendingUsageSettlementsRef.current.length === 0) {
         clearUsageSettlementTimers();
       }
@@ -4920,6 +4989,7 @@ export function OpenClawChatSurface({
     conversationId,
     persistChatSessionSnapshot,
     renderState.groupCount,
+    replacePendingUsageSettlements,
     selectedModelId,
     effectiveGatewaySessionKey,
     effectiveSendBlockedReason,
