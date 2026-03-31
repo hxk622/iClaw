@@ -1214,9 +1214,11 @@ function findAssistantGroupForRun(
 ): AssistantMessageGroup | null {
   const assistantGroups = collectAssistantMessageGroups(messages);
   if (runId) {
-    const matchedGroup = assistantGroups.find((group) => group.runId === runId);
-    if (matchedGroup) {
-      return matchedGroup;
+    for (let index = assistantGroups.length - 1; index >= 0; index -= 1) {
+      const matchedGroup = assistantGroups[index];
+      if (matchedGroup?.runId === runId) {
+        return matchedGroup;
+      }
     }
   }
   for (let index = assistantGroups.length - 1; index >= 0; index -= 1) {
@@ -1428,7 +1430,13 @@ function deriveAssistantFooterMetas(
     const optimisticUsage = derivePendingSettlementUsage(messages, pending, terminalEvent?.message);
 
     if (pending.runId) {
-      const matchedIndex = assistantGroups.findIndex((group) => group.runId === pending.runId);
+      let matchedIndex = -1;
+      for (let index = assistantGroups.length - 1; index >= 0; index -= 1) {
+        if (assistantGroups[index]?.runId === pending.runId) {
+          matchedIndex = index;
+          break;
+        }
+      }
       if (matchedIndex >= 0) {
         if (optimisticUsage) {
           optimisticUsageByAssistantIndex.set(matchedIndex, optimisticUsage);
