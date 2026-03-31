@@ -1623,7 +1623,10 @@ export class ControlPlaneService {
 
   async login(input: LoginInput): Promise<{tokens: AuthTokens; user: PublicUser}> {
     const identifier = normalizeIdentifier(input.identifier, 'identifier');
-    const password = input.password.trim();
+    const password = (input.password ?? input.credential ?? '').trim();
+    if (!password) {
+      throw new HttpError(400, 'BAD_REQUEST', 'password is required');
+    }
     const existingUser = await this.store.getUserByIdentifier(identifier);
     if (!existingUser || !existingUser.passwordHash || !verifyPassword(password, existingUser.passwordHash)) {
       throw new HttpError(401, 'UNAUTHORIZED', 'invalid credentials');

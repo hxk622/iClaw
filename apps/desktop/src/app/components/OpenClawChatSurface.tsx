@@ -3783,15 +3783,7 @@ export function OpenClawChatSurface({
       if (!activeThread || activeThread.scrollHeight <= activeThread.clientHeight) {
         return;
       }
-      if (target?.closest('.chat-thread') && canElementConsumeWheel(activeThread, event.deltaY)) {
-        activeThread.scrollTop = Math.max(
-          0,
-          Math.min(
-            activeThread.scrollHeight - activeThread.clientHeight,
-            activeThread.scrollTop + event.deltaY,
-          ),
-        );
-        event.preventDefault();
+      if (target?.closest('.chat-thread')) {
         return;
       }
 

@@ -177,6 +177,25 @@ test('configured super admin email is promoted during auth flows', async () => {
   });
 });
 
+test('login accepts legacy credential field alias', async () => {
+  const store = new InMemoryControlPlaneStore();
+  const service = new ControlPlaneService(store);
+  await service.register({
+    username: 'legacy-login',
+    email: 'legacy@example.com',
+    password: 'password123',
+    name: 'Legacy Login',
+  });
+
+  const login = await service.login({
+    identifier: 'legacy@example.com',
+    credential: 'password123',
+  });
+
+  assert.ok(login.tokens.access_token);
+  assert.equal(login.user.email, 'legacy@example.com');
+});
+
 test('non-admin users cannot access admin skill catalog APIs', async () => {
   const store = new InMemoryControlPlaneStore();
   const service = new ControlPlaneService(store);

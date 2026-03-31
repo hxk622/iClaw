@@ -1001,7 +1001,8 @@ export type RegisterInput = {
 
 export type LoginInput = {
   identifier: string;
-  password: string;
+  password?: string;
+  credential?: string;
 };
 
 export type RunAuthorizeInput = {

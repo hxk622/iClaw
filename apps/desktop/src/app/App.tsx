@@ -1804,6 +1804,7 @@ function AuthedView({
 }: AuthedViewProps) {
   const { buildSectionSaveSnapshot, commitSectionSave } = useSettings();
   const lastResolvedPrimaryViewRef = useRef<PrimaryView | null>(null);
+  const chatRuntimeAuthRef = useRef(authenticated);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(() => readPersistedWorkspaceScene().selectedTaskId);
   const [activeChatRoute, setActiveChatRoute] = useState<ActiveChatRoute>(() => resolveInitialChatRoute());
   const [chatSurfaceVersion, setChatSurfaceVersion] = useState(0);
@@ -1817,6 +1818,8 @@ function AuthedView({
   const availablePrimaryViews = enabledMenuKeys.filter((key) => key !== 'settings') as PrimaryView[];
   const fallbackPrimaryView = availablePrimaryViews[0] || 'chat';
   const resolvedPrimaryView = availablePrimaryViews.includes(primaryView) ? primaryView : fallbackPrimaryView;
+  const chatShellAuthenticated =
+    authenticated || (!authModalOpen && authBootstrapReady && chatRuntimeAuthRef.current);
   const activeMenuLabel =
     menuUiConfig[resolvedPrimaryView]?.displayName ||
     menuUiConfig[fallbackPrimaryView]?.displayName ||
@@ -1848,6 +1851,16 @@ function AuthedView({
               description: '聚合技能商店里的基础通用技能，展示当前热门前 100 项，右侧布局与技能商店保持一致。',
             }
           : null;
+
+  useEffect(() => {
+    if (authenticated) {
+      chatRuntimeAuthRef.current = true;
+      return;
+    }
+    if (authModalOpen) {
+      chatRuntimeAuthRef.current = false;
+    }
+  }, [authModalOpen, authenticated]);
 
   useEffect(() => {
     if (primaryView === resolvedPrimaryView) {
@@ -2415,7 +2428,7 @@ function AuthedView({
             </PageSurface>
           ) : !authBootstrapReady ? (
             <ChatBootstrapPlaceholderView />
-          ) : authenticated ? (
+          ) : chatShellAuthenticated ? (
             <OpenClawChatSurface
               key={`chat-surface:${chatSurfaceVersion}`}
               gatewayUrl={GATEWAY_WS_URL}
@@ -2432,7 +2445,7 @@ function AuthedView({
               initialStockContext={activeChatRoute.initialStockContext}
               focusTaskId={activeChatRoute.focusTaskId}
               focusTaskPrompt={activeChatRoute.focusTaskPrompt}
-              shellAuthenticated={authenticated}
+              shellAuthenticated={chatShellAuthenticated}
               creditClient={client}
               creditToken={accessToken}
               onCreditBalanceRefresh={refreshCreditBalance}
@@ -2450,10 +2463,10 @@ function AuthedView({
               eyebrow="Chat Shell"
               title="当前聊天区还不能挂载运行时"
               description="这不是正常空态。当前是 iClaw shell 还没有完成登录确认，因此 OpenClaw chat wrapper 暂时不会挂载。"
-              authenticated={authenticated}
-              hasGatewayAuth={Boolean(gatewayAuth.token || gatewayAuth.password)}
-              onLogin={() => onRequestAuth('login')}
-            />
+                authenticated={chatShellAuthenticated}
+                hasGatewayAuth={Boolean(gatewayAuth.token || gatewayAuth.password)}
+                onLogin={() => onRequestAuth('login')}
+              />
           )}
         </div>
       </div>
