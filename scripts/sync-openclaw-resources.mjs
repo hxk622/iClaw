@@ -53,14 +53,13 @@ async function syncMcpConfig() {
 async function main() {
   await fs.mkdir(resourcesDstDir, { recursive: true });
   await Promise.all([
-    fs.mkdir(path.join(resourcesDstDir, 'skills'), { recursive: true }),
     fs.mkdir(path.join(resourcesDstDir, 'mcp'), { recursive: true }),
     fs.mkdir(path.join(resourcesDstDir, 'config'), { recursive: true }),
     fs.mkdir(path.join(resourcesDstDir, 'certs'), { recursive: true }),
     fs.mkdir(path.join(resourcesDstDir, 'servers'), { recursive: true }),
   ]);
 
-  await copyDirIfPresent(path.join(resourcesSrcDir, 'skills'), path.join(resourcesDstDir, 'skills'));
+  await fs.rm(path.join(resourcesDstDir, 'skills'), { recursive: true, force: true });
   await copyDirIfPresent(serversSrcDir, path.join(resourcesDstDir, 'servers'));
   await copyDirIfPresent(path.join(resourcesSrcDir, 'certs'), path.join(resourcesDstDir, 'certs'));
   await copyFileIfPresent(

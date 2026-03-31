@@ -97,9 +97,10 @@ pnpm dev:web
 
 ## 本地能力资源（skills / mcp）
 
-- 源目录（可维护）：`servers`、`services/openclaw/resources/skills`、`services/openclaw/resources/mcp/mcp.json`
+- Skills 单轨：只以 cloud skill + 平台/OEM 绑定为准。桌面端会在 OpenClaw 启动前，把当前生效 skills 同步到 `~/.openclaw/workspace/skills`。
+- 源目录（可维护）：`servers`、`services/openclaw/resources/mcp/mcp.json`
 - `services/openclaw/resources/mcp/mcp.json` 是桌面端打包使用的唯一 MCP 配置来源；它本身应由 control-plane/runtime 同步链路生成，而不是再叠加仓库内 overlay。
-- 打包目录（自动同步）：`apps/desktop/src-tauri/resources/skills`、`apps/desktop/src-tauri/resources/mcp/mcp.json`
+- 打包目录（自动同步）：`apps/desktop/src-tauri/resources/mcp/mcp.json`
 - 同步命令：`node ../../scripts/sync-openclaw-resources.mjs`
 
 `tauri dev` / `tauri build` 会在 pre-command 自动执行资源同步。`pnpm tauri:build` 会在 macOS 产出 DMG，在 Windows 产出 NSIS 安装包 `.exe`。

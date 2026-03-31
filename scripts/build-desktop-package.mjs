@@ -421,6 +421,7 @@ async function main() {
     ICLAW_PORTAL_APP_NAME: brandId,
     ICLAW_BRAND: brandId,
     ICLAW_USE_PACKAGING_SOURCE_ENV: '1',
+    ICLAW_SKIP_RUNTIME_SKILL_SYNC: '1',
   };
   const { tauriBundle, packageDmg } = platformBundleTarget();
   const pnpm = pnpmCommand();

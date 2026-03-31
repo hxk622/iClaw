@@ -1,8 +1,10 @@
 # OpenClaw Bundled Resources
 
-This directory stores bundled local sidecar resources that are synced into the desktop app.
+This directory stores static sidecar resources that are synced into the desktop app.
 
-- Skills source: `services/openclaw/resources/skills/`
+- Skills are no longer sourced from this directory.
+- Effective cloud skills are materialized into the OpenClaw workspace at runtime:
+  `~/.openclaw/workspace/skills/`
 - `mcp/mcp.json`: generated MCP runtime config synced into the desktop bundle
 - `config/runtime-config.json`: default runtime model/provider config
 

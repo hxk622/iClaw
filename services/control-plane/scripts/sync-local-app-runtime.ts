@@ -1,7 +1,7 @@
 import {cp, mkdtemp, mkdir, readdir, readFile, rm, writeFile} from 'node:fs/promises';
 import {execFileSync} from 'node:child_process';
 import {tmpdir} from 'node:os';
-import {basename, dirname, resolve} from 'node:path';
+import {basename, dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 import {config} from '../src/config.ts';
@@ -92,6 +92,18 @@ async function pathExists(targetPath: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function resolveRuntimeWorkspaceDir(repoRoot: string): string {
+  const explicitWorkspaceDir =
+    process.env.ICLAW_OPENCLAW_WORKSPACE_DIR ||
+    process.env.OPENCLAW_WORKSPACE_DIR ||
+    '';
+  if (explicitWorkspaceDir.trim()) {
+    return resolve(explicitWorkspaceDir.trim());
+  }
+  const stateDir = process.env.OPENCLAW_STATE_DIR || join(process.env.HOME || repoRoot, '.openclaw');
+  return resolve(stateDir, 'workspace');
 }
 
 function normalizeAppName(value: string): string {
@@ -216,10 +228,12 @@ async function main() {
   const appName = normalizeAppName(resolvedAppName);
   const scriptDir = dirname(fileURLToPath(import.meta.url));
   const repoRoot = resolve(scriptDir, '../../..');
+  const runtimeWorkspaceDir = resolveRuntimeWorkspaceDir(repoRoot);
   const runtimeResourcesRoot = resolve(repoRoot, 'services/openclaw/resources');
-  const runtimeSkillsRoot = resolve(runtimeResourcesRoot, 'skills');
+  const runtimeSkillsRoot = resolve(runtimeWorkspaceDir, 'skills');
   const runtimeMcpConfigPath = resolve(runtimeResourcesRoot, 'mcp/mcp.json');
   const runtimeAppConfigPath = resolve(runtimeResourcesRoot, 'config/portal-app-runtime.json');
+  const skipRuntimeSkillSync = /^(1|true|yes)$/i.test(String(process.env.ICLAW_SKIP_RUNTIME_SKILL_SYNC || '').trim());
 
   const portalStore = new PgPortalStore(config.databaseUrl);
   const controlStore = new PgControlPlaneStore(config.databaseUrl);
@@ -233,9 +247,6 @@ async function main() {
     if (!detail) {
       throw new Error(`portal app not found: ${appName}`);
     }
-
-    await rm(runtimeSkillsRoot, {recursive: true, force: true});
-    await mkdir(runtimeSkillsRoot, {recursive: true});
 
     const detailWithPlatformSkills = {
       ...detail,
@@ -265,72 +276,77 @@ async function main() {
       copiedSkills.push(normalized);
     };
 
-    for (const binding of detailWithPlatformSkills.skillBindings.filter((item) => item.enabled).sort((left, right) => left.sortOrder - right.sortOrder)) {
-      const entry = await controlStore.getSkillCatalogEntry(binding.skillSlug);
-      if (!entry || entry.active === false) {
-        skippedSkills.push(binding.skillSlug);
-        continue;
-      }
-      const portalArtifactObjectKey = getCloudSkillArtifactObjectKey(entry.metadata || {});
-      if (entry.distribution === 'cloud' && portalArtifactObjectKey) {
-        try {
-          const artifact = await downloadPortalSkillArtifact(portalArtifactObjectKey);
-          const copiedDirName = await extractPortalSkillArtifact({
-            slug: binding.skillSlug,
-            artifact: artifact.buffer,
-            format: inferArtifactFormat(entry),
-            runtimeSkillsRoot,
-          });
-          rememberCopiedSkill(copiedDirName);
-          continue;
-        } catch (error) {
-          console.warn('[sync-local-app-runtime] failed to download portal skill artifact from storage', {
-            slug: binding.skillSlug,
-            objectKey: portalArtifactObjectKey,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-      }
-      const resolvedArtifactUrl =
-        entry.artifactUrl ||
-        (shouldServeCloudSkillViaControlPlane(entry)
-          ? buildCloudSkillArtifactProxyUrl(binding.skillSlug, config.apiUrl || `http://127.0.0.1:${config.port}`)
-          : null);
-      if (resolvedArtifactUrl) {
-        try {
-          const artifact = await downloadSkillArtifact(resolvedArtifactUrl);
-          const copiedDirName = await extractPortalSkillArtifact({
-            slug: binding.skillSlug,
-            artifact,
-            format: inferArtifactFormat(entry),
-            runtimeSkillsRoot,
-          });
-          rememberCopiedSkill(copiedDirName);
-          continue;
-        } catch (error) {
-          console.warn('[sync-local-app-runtime] failed to download skill artifact', {
-            slug: binding.skillSlug,
-            artifactUrl: resolvedArtifactUrl,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-      }
-      skippedSkills.push(binding.skillSlug);
-    }
+    if (!skipRuntimeSkillSync) {
+      await rm(runtimeSkillsRoot, {recursive: true, force: true});
+      await mkdir(runtimeSkillsRoot, {recursive: true});
 
-    await writeFile(
-      resolve(runtimeSkillsRoot, 'skills-manifest.json'),
-      `${JSON.stringify(
-        {
-          version: '0.1.0',
-          preset: appName,
-          skills: copiedSkills,
-        },
-        null,
-        2,
-      )}\n`,
-      'utf8',
-    );
+      for (const binding of detailWithPlatformSkills.skillBindings.filter((item) => item.enabled).sort((left, right) => left.sortOrder - right.sortOrder)) {
+        const entry = await controlStore.getSkillCatalogEntry(binding.skillSlug);
+        if (!entry || entry.active === false) {
+          skippedSkills.push(binding.skillSlug);
+          continue;
+        }
+        const portalArtifactObjectKey = getCloudSkillArtifactObjectKey(entry.metadata || {});
+        if (entry.distribution === 'cloud' && portalArtifactObjectKey) {
+          try {
+            const artifact = await downloadPortalSkillArtifact(portalArtifactObjectKey);
+            const copiedDirName = await extractPortalSkillArtifact({
+              slug: binding.skillSlug,
+              artifact: artifact.buffer,
+              format: inferArtifactFormat(entry),
+              runtimeSkillsRoot,
+            });
+            rememberCopiedSkill(copiedDirName);
+            continue;
+          } catch (error) {
+            console.warn('[sync-local-app-runtime] failed to download portal skill artifact from storage', {
+              slug: binding.skillSlug,
+              objectKey: portalArtifactObjectKey,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+        const resolvedArtifactUrl =
+          entry.artifactUrl ||
+          (shouldServeCloudSkillViaControlPlane(entry)
+            ? buildCloudSkillArtifactProxyUrl(binding.skillSlug, config.apiUrl || `http://127.0.0.1:${config.port}`)
+            : null);
+        if (resolvedArtifactUrl) {
+          try {
+            const artifact = await downloadSkillArtifact(resolvedArtifactUrl);
+            const copiedDirName = await extractPortalSkillArtifact({
+              slug: binding.skillSlug,
+              artifact,
+              format: inferArtifactFormat(entry),
+              runtimeSkillsRoot,
+            });
+            rememberCopiedSkill(copiedDirName);
+            continue;
+          } catch (error) {
+            console.warn('[sync-local-app-runtime] failed to download skill artifact', {
+              slug: binding.skillSlug,
+              artifactUrl: resolvedArtifactUrl,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+        skippedSkills.push(binding.skillSlug);
+      }
+
+      await writeFile(
+        resolve(runtimeSkillsRoot, 'skills-manifest.json'),
+        `${JSON.stringify(
+          {
+            version: '0.1.0',
+            preset: appName,
+            skills: copiedSkills,
+          },
+          null,
+          2,
+        )}\n`,
+        'utf8',
+      );
+    }
 
     const catalogByKey = new Map(catalogMcps.map((item) => [item.mcpKey, item]));
     const enabledBindings = detailWithPlatformCapabilities.mcpBindings
@@ -383,6 +399,7 @@ async function main() {
             copiedSkillDirs: copiedSkills,
             skippedSkillSlugs: skippedSkills,
             enabledMcpKeys: enabledBindings.map((item) => item.mcpKey),
+            skipRuntimeSkillSync,
           },
         },
         null,
@@ -396,9 +413,11 @@ async function main() {
         {
           ok: true,
           appName,
+          runtimeWorkspaceDir,
           copiedSkillDirs: copiedSkills,
           skippedSkillSlugs: skippedSkills,
           enabledMcpKeys: enabledBindings.map((item) => item.mcpKey),
+          skipRuntimeSkillSync,
           runtimeSkillsRoot,
           runtimeMcpConfigPath,
           runtimeAppConfigPath,

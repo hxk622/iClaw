@@ -402,9 +402,10 @@ ensure_macos_runtime_frameworks
 ensure_macos_codesign_if_needed
 if [[ -n "${PORTAL_APP_NAME:-}" ]]; then
   echo "[api-dev] 同步 portal app 本地运行资源: ${PORTAL_APP_NAME}"
+  export ICLAW_OPENCLAW_WORKSPACE_DIR="${OPENCLAW_STATE_DIR}/workspace"
   node --experimental-strip-types "$ROOT_DIR/services/control-plane/scripts/sync-local-app-runtime.ts" --app "$PORTAL_APP_NAME"
 fi
-bash "$ROOT_DIR/scripts/prepare-openclaw-workspace.sh"
+OPENCLAW_WORKSPACE_DIR="${OPENCLAW_STATE_DIR}/workspace" bash "$ROOT_DIR/scripts/prepare-openclaw-workspace.sh"
 resolve_gateway_token "$ENV_GATEWAY_TOKEN" "$GATEWAY_TOKEN_FILE"
 echo "[api-dev] gateway token source: $GATEWAY_TOKEN_SOURCE"
 sync_gateway_token_config

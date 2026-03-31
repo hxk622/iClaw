@@ -102,6 +102,15 @@ struct PublicBrandConfigData {
     config: Option<serde_json::Value>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+struct RuntimeSkillSyncState {
+    brand_id: String,
+    published_version: u64,
+    skill_slugs: Vec<String>,
+    synced_at: String,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PublicBrandRef {
@@ -1096,16 +1105,8 @@ fn prepend_openclaw_cli_to_path(
     Ok(())
 }
 
-fn resource_skills_dir(app: &AppHandle) -> PathBuf {
-    if let Ok(resource_dir) = app.path().resource_dir() {
-        let p = resource_dir.join("resources").join("skills");
-        if p.exists() {
-            return p;
-        }
-    }
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("resources")
-        .join("skills")
+fn runtime_skills_dir(app: &AppHandle) -> PathBuf {
+    openclaw_workspace_dir(app).join("skills")
 }
 
 fn resource_mcp_config_path(app: &AppHandle) -> PathBuf {
@@ -1131,6 +1132,21 @@ fn resource_servers_dir(app: &AppHandle) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("resources")
         .join("servers")
+}
+
+fn runtime_skills_manifest_path(app: &AppHandle) -> PathBuf {
+    runtime_skills_dir(app).join("skills-manifest.json")
+}
+
+fn runtime_skill_sync_state_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let path = app_data_base_dir(app)?
+        .join("config")
+        .join("runtime-skill-sync-state.json");
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("failed to create runtime skill sync state dir: {e}"))?;
+    }
+    Ok(path)
 }
 
 fn replace_iclaw_servers_dir_placeholders(value: &mut serde_json::Value, servers_dir: &str) {
@@ -1218,6 +1234,312 @@ fn prepare_runtime_mcp_config(app: &AppHandle, cache_dir: &str) -> Result<PathBu
     fs::write(&resolved_path, format!("{resolved}\n"))
         .map_err(|e| format!("failed to write resolved mcp config: {e}"))?;
     Ok(resolved_path)
+}
+
+fn runtime_skill_bindings_from_snapshot(snapshot: &OemRuntimeSnapshot) -> Vec<(String, i64)> {
+    let bindings = snapshot
+        .config
+        .get("skill_bindings")
+        .and_then(|value| value.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let mut parsed = bindings
+        .into_iter()
+        .filter_map(|value| {
+            let object = value.as_object()?;
+            let slug = object
+                .get("skill_slug")
+                .and_then(|value| value.as_str())
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())?;
+            let sort_order = object
+                .get("sort_order")
+                .and_then(|value| value.as_i64())
+                .unwrap_or(0);
+            Some((slug, sort_order))
+        })
+        .collect::<Vec<_>>();
+    parsed.sort_by(|left, right| left.1.cmp(&right.1).then_with(|| left.0.cmp(&right.0)));
+    parsed
+}
+
+fn load_runtime_skill_sync_state(app: &AppHandle) -> Result<Option<RuntimeSkillSyncState>, String> {
+    let path = runtime_skill_sync_state_path(app)?;
+    if !path.exists() {
+        return Ok(None);
+    }
+    let raw = fs::read_to_string(&path).map_err(|e| {
+        format!(
+            "failed to read runtime skill sync state {}: {e}",
+            path.to_string_lossy()
+        )
+    })?;
+    let parsed = serde_json::from_str::<RuntimeSkillSyncState>(&raw).map_err(|e| {
+        format!(
+            "failed to parse runtime skill sync state {}: {e}",
+            path.to_string_lossy()
+        )
+    })?;
+    Ok(Some(parsed))
+}
+
+fn save_runtime_skill_sync_state(
+    app: &AppHandle,
+    state: &RuntimeSkillSyncState,
+) -> Result<(), String> {
+    let path = runtime_skill_sync_state_path(app)?;
+    let value = serde_json::to_value(state)
+        .map_err(|e| format!("failed to serialize runtime skill sync state: {e}"))?;
+    write_locked_json_file(&path, &value)
+}
+
+fn runtime_skills_cache_is_fresh(app: &AppHandle, snapshot: &OemRuntimeSnapshot) -> Result<bool, String> {
+    let expected_skill_slugs = runtime_skill_bindings_from_snapshot(snapshot)
+        .into_iter()
+        .map(|(slug, _)| slug)
+        .collect::<Vec<_>>();
+    let Some(state) = load_runtime_skill_sync_state(app)? else {
+        return Ok(false);
+    };
+    if state.brand_id.trim() != snapshot.brand_id.trim() {
+        return Ok(false);
+    }
+    if state.published_version != snapshot.published_version {
+        return Ok(false);
+    }
+    if state.skill_slugs != expected_skill_slugs {
+        return Ok(false);
+    }
+    Ok(runtime_skills_manifest_path(app).exists())
+}
+
+fn copy_dir_recursive(source: &Path, destination: &Path) -> Result<(), String> {
+    fs::create_dir_all(destination).map_err(|e| {
+        format!(
+            "failed to create skill destination dir {}: {e}",
+            destination.to_string_lossy()
+        )
+    })?;
+    for entry in fs::read_dir(source).map_err(|e| {
+        format!(
+            "failed to read skill source dir {}: {e}",
+            source.to_string_lossy()
+        )
+    })? {
+        let entry = entry.map_err(|e| format!("failed to read skill source entry: {e}"))?;
+        let source_path = entry.path();
+        let destination_path = destination.join(entry.file_name());
+        let metadata = entry.metadata().map_err(|e| {
+            format!(
+                "failed to read skill source metadata {}: {e}",
+                source_path.to_string_lossy()
+            )
+        })?;
+        if metadata.is_dir() {
+            copy_dir_recursive(&source_path, &destination_path)?;
+            continue;
+        }
+        if let Some(parent) = destination_path.parent() {
+            fs::create_dir_all(parent).map_err(|e| {
+                format!(
+                    "failed to create skill destination parent {}: {e}",
+                    parent.to_string_lossy()
+                )
+            })?;
+        }
+        fs::copy(&source_path, &destination_path).map_err(|e| {
+            format!(
+                "failed to copy skill file {} -> {}: {e}",
+                source_path.to_string_lossy(),
+                destination_path.to_string_lossy()
+            )
+        })?;
+        #[cfg(unix)]
+        {
+            fs::set_permissions(
+                &destination_path,
+                fs::Permissions::from_mode(metadata.permissions().mode()),
+            )
+            .map_err(|e| {
+                format!(
+                    "failed to preserve skill file permissions {}: {e}",
+                    destination_path.to_string_lossy()
+                )
+            })?;
+        }
+    }
+    Ok(())
+}
+
+fn find_skill_root(dir: &Path) -> Result<Option<PathBuf>, String> {
+    if dir.join("SKILL.md").exists() {
+        return Ok(Some(dir.to_path_buf()));
+    }
+    let entries = fs::read_dir(dir)
+        .map_err(|e| format!("failed to scan extracted skill dir {}: {e}", dir.to_string_lossy()))?;
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("failed to read extracted skill dir entry: {e}"))?;
+        let path = entry.path();
+        let metadata = entry.metadata().map_err(|e| {
+            format!(
+                "failed to read extracted skill metadata {}: {e}",
+                path.to_string_lossy()
+            )
+        })?;
+        if !metadata.is_dir() {
+            continue;
+        }
+        if path.join("SKILL.md").exists() {
+            return Ok(Some(path));
+        }
+    }
+    let entries = fs::read_dir(dir)
+        .map_err(|e| format!("failed to rescan extracted skill dir {}: {e}", dir.to_string_lossy()))?;
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("failed to read extracted skill dir entry: {e}"))?;
+        let path = entry.path();
+        let metadata = entry.metadata().map_err(|e| {
+            format!(
+                "failed to read extracted skill metadata {}: {e}",
+                path.to_string_lossy()
+            )
+        })?;
+        if !metadata.is_dir() {
+            continue;
+        }
+        if let Some(found) = find_skill_root(&path)? {
+            return Ok(Some(found));
+        }
+    }
+    Ok(None)
+}
+
+fn current_unix_timestamp_string() -> String {
+    match SystemTime::now().duration_since(UNIX_EPOCH) {
+        Ok(duration) => duration.as_secs().to_string(),
+        Err(_) => String::from("0"),
+    }
+}
+
+fn sync_current_brand_runtime_skills(app: &AppHandle, auth_base_url: &str) -> Result<bool, String> {
+    let snapshot = load_oem_runtime_snapshot_internal(app)?
+        .ok_or_else(|| String::from("OEM runtime snapshot is missing; cannot sync runtime skills"))?;
+    if runtime_skills_cache_is_fresh(app, &snapshot)? {
+        return Ok(false);
+    }
+
+    let workspace_dir = openclaw_workspace_dir(app);
+    fs::create_dir_all(&workspace_dir)
+        .map_err(|e| format!("failed to create openclaw workspace dir: {e}"))?;
+    let skills_root = runtime_skills_dir(app);
+    let temp_sync_root = workspace_dir.join(format!(
+        ".skills-sync-{}",
+        current_unix_timestamp_string()
+    ));
+    let staged_skills_root = temp_sync_root.join("skills");
+    if temp_sync_root.exists() {
+        fs::remove_dir_all(&temp_sync_root).map_err(|e| {
+            format!(
+                "failed to clear temporary runtime skills dir {}: {e}",
+                temp_sync_root.to_string_lossy()
+            )
+        })?;
+    }
+    fs::create_dir_all(&staged_skills_root).map_err(|e| {
+        format!(
+            "failed to create temporary runtime skills dir {}: {e}",
+            staged_skills_root.to_string_lossy()
+        )
+    })?;
+
+    let client = Client::builder()
+        .connect_timeout(Duration::from_secs(8))
+        .timeout(Duration::from_secs(120))
+        .build()
+        .map_err(|e| format!("failed to build runtime skill sync client: {e}"))?;
+
+    let skill_bindings = runtime_skill_bindings_from_snapshot(&snapshot);
+    let mut copied_skill_dirs = Vec::new();
+
+    for (slug, _) in &skill_bindings {
+        let mut artifact_url = Url::parse(&format!(
+            "{}/skills/artifact",
+            auth_base_url.trim().trim_end_matches('/')
+        ))
+        .map_err(|e| format!("failed to build runtime skill artifact url: {e}"))?;
+        artifact_url.query_pairs_mut().append_pair("slug", slug);
+
+        let archive_path = temp_sync_root.join(format!("{slug}.tar.gz"));
+        let mut response = client
+            .get(artifact_url)
+            .send()
+            .and_then(|resp| resp.error_for_status())
+            .map_err(|e| format!("failed to download runtime skill artifact for {slug}: {e}"))?;
+        let mut archive_file = File::create(&archive_path).map_err(|e| {
+            format!(
+                "failed to create runtime skill archive file {}: {e}",
+                archive_path.to_string_lossy()
+            )
+        })?;
+        std::io::copy(&mut response, &mut archive_file)
+            .map_err(|e| format!("failed to write runtime skill archive for {slug}: {e}"))?;
+
+        let extracted_root = temp_sync_root.join(format!("{slug}.extract"));
+        fs::create_dir_all(&extracted_root).map_err(|e| {
+            format!(
+                "failed to create runtime skill extract dir {}: {e}",
+                extracted_root.to_string_lossy()
+            )
+        })?;
+        extract_tar_gz_archive(&archive_path, &extracted_root)?;
+        let skill_root = find_skill_root(&extracted_root)?
+            .ok_or_else(|| format!("runtime skill artifact {slug} does not contain SKILL.md"))?;
+        let dir_name = skill_root
+            .file_name()
+            .and_then(|value| value.to_str())
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty() && value != "extract")
+            .unwrap_or_else(|| slug.to_string());
+        let destination = staged_skills_root.join(&dir_name);
+        copy_dir_recursive(&skill_root, &destination)?;
+        copied_skill_dirs.push(dir_name);
+    }
+
+    let manifest_path = staged_skills_root.join("skills-manifest.json");
+    let manifest = json!({
+        "version": "0.1.0",
+        "preset": snapshot.brand_id,
+        "publishedVersion": snapshot.published_version,
+        "skills": copied_skill_dirs,
+    });
+    write_locked_json_file(&manifest_path, &manifest)?;
+
+    if skills_root.exists() {
+        fs::remove_dir_all(&skills_root).map_err(|e| {
+            format!(
+                "failed to clear existing runtime skills dir {}: {e}",
+                skills_root.to_string_lossy()
+            )
+        })?;
+    }
+    fs::rename(&staged_skills_root, &skills_root).map_err(|e| {
+        format!(
+            "failed to activate runtime skills dir {}: {e}",
+            skills_root.to_string_lossy()
+        )
+    })?;
+    if temp_sync_root.exists() {
+        let _ = fs::remove_dir_all(&temp_sync_root);
+    }
+
+    let sync_state = RuntimeSkillSyncState {
+        brand_id: snapshot.brand_id,
+        published_version: snapshot.published_version,
+        skill_slugs: skill_bindings.into_iter().map(|(slug, _)| slug).collect(),
+        synced_at: current_unix_timestamp_string(),
+    };
+    save_runtime_skill_sync_state(app, &sync_state)?;
+    Ok(true)
 }
 
 fn parse_skill_frontmatter(raw: &str) -> Vec<(String, String)> {
@@ -1466,7 +1788,7 @@ fn github_zipball_url(repo_url: &str) -> Result<String, String> {
 fn load_bundled_skills_catalog_internal(
     app: &AppHandle,
 ) -> Result<Vec<BundledSkillCatalogItem>, String> {
-    let skills_dir = resource_skills_dir(app);
+    let skills_dir = runtime_skills_dir(app);
     if !skills_dir.exists() {
         return Ok(Vec::new());
     }
@@ -3086,6 +3408,24 @@ fn sync_current_brand_runtime_snapshot(app: &AppHandle) -> Result<bool, String> 
     )
 }
 
+fn ensure_current_brand_runtime_skills(app: &AppHandle, context: &str) -> Result<bool, String> {
+    match sync_current_brand_runtime_skills(app, &resolve_desktop_auth_base_url()) {
+        Ok(changed) => Ok(changed),
+        Err(error) => {
+            if runtime_skills_manifest_path(app).exists() {
+                eprintln!(
+                    "failed to sync runtime skills before {context}; reusing last cached runtime skills: {error}"
+                );
+                Ok(false)
+            } else {
+                Err(format!(
+                    "failed to sync runtime skills before {context}: {error}"
+                ))
+            }
+        }
+    }
+}
+
 fn load_oem_runtime_snapshot_internal(app: &AppHandle) -> Result<Option<OemRuntimeSnapshot>, String> {
     let snapshot_path = oem_runtime_snapshot_path(app)?;
     if !snapshot_path.exists() {
@@ -3239,11 +3579,12 @@ fn start_sidecar(
     }
     let gateway_token = load_or_create_gateway_token(&app)?;
     ensure_openclaw_workspace_seed(&app)?;
+    ensure_current_brand_runtime_skills(&app, "sidecar start")?;
     let openclaw_state_dir = openclaw_state_dir(&app)?;
     let openclaw_config_path = ensure_openclaw_runtime_config(&app, &gateway_token)?;
     let config = load_runtime_config_internal(&app)?;
     let paths = ensure_runtime_dirs(&app)?;
-    let skills_dir = resource_skills_dir(&app);
+    let skills_dir = runtime_skills_dir(&app);
     let mcp_config = prepare_runtime_mcp_config(&app, &paths.cache_dir)?;
     let extra_ca_certs = resource_extra_ca_certs_path(&app);
 
@@ -3518,7 +3859,7 @@ fn install_runtime(app: AppHandle) -> Result<bool, String> {
 fn diagnose_runtime(app: AppHandle) -> Result<RuntimeDiagnosis, String> {
     let runtime = resolve_runtime_command(&app).ok();
     let bootstrap_config = load_runtime_bootstrap_config(&app)?;
-    let skills_dir = resource_skills_dir(&app);
+    let skills_dir = runtime_skills_dir(&app);
     let mcp_config = resource_mcp_config_path(&app);
     let paths = ensure_runtime_dirs(&app)?;
     let config = load_runtime_config_internal(&app)?;
@@ -3927,11 +4268,12 @@ fn configure_memory_runtime_command(command: &mut Command, app: &AppHandle) -> R
     let runtime = resolve_runtime_command(app)?;
     let gateway_token = load_or_create_gateway_token(app)?;
     ensure_openclaw_workspace_seed(app)?;
+    ensure_current_brand_runtime_skills(app, "memory runtime command")?;
     let openclaw_state_dir = openclaw_state_dir(app)?;
     let openclaw_config_path = ensure_openclaw_runtime_config(app, &gateway_token)?;
     let config = load_runtime_config_internal(app)?;
     let paths = ensure_runtime_dirs(app)?;
-    let skills_dir = resource_skills_dir(app);
+    let skills_dir = runtime_skills_dir(app);
     let mcp_config = prepare_runtime_mcp_config(app, &paths.cache_dir)?;
     let extra_ca_certs = resource_extra_ca_certs_path(app);
 
@@ -4134,6 +4476,8 @@ fn ensure_openclaw_workspace_seed(app: &AppHandle) -> Result<(), String> {
     let workspace_dir = openclaw_workspace_dir(app);
     fs::create_dir_all(&workspace_dir)
         .map_err(|e| format!("failed to create workspace dir: {e}"))?;
+    fs::create_dir_all(workspace_dir.join("skills"))
+        .map_err(|e| format!("failed to create workspace skills dir: {e}"))?;
 
     let identity_path = workspace_dir.join("IDENTITY.md");
     let user_path = workspace_dir.join("USER.md");
