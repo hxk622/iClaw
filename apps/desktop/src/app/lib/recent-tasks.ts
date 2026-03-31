@@ -7,6 +7,7 @@ export type RecentTaskArtifact = 'report' | 'ppt' | 'webpage' | 'pdf' | 'sheet';
 export interface RecentTaskRecord {
   id: string;
   source: 'chat';
+  conversationId: string;
   sessionKey: string;
   title: string;
   summary: string;
@@ -21,6 +22,7 @@ export interface RecentTaskRecord {
 
 interface StartRecentTaskInput {
   prompt: string;
+  conversationId?: string;
   sessionKey?: string;
 }
 
@@ -73,6 +75,7 @@ function normalizeRecentTask(task: RecentTaskRecord): RecentTaskRecord {
   return {
     ...task,
     source: 'chat',
+    conversationId: task.conversationId || task.sessionKey || 'main',
     sessionKey: task.sessionKey || 'main',
     prompt,
     title,
@@ -89,20 +92,20 @@ function isCustomRecentTaskTitle(task: RecentTaskRecord): boolean {
   return collapseText(task.title) !== buildRecentTaskTitle(task.prompt);
 }
 
-function mergeRecentTasksBySession(tasks: RecentTaskRecord[]): RecentTaskRecord[] {
-  const groupedBySession = new Map<string, RecentTaskRecord[]>();
+function mergeRecentTasksByConversation(tasks: RecentTaskRecord[]): RecentTaskRecord[] {
+  const groupedByConversation = new Map<string, RecentTaskRecord[]>();
 
   tasks.map((task) => normalizeRecentTask(task)).forEach((task) => {
-    const sessionKey = task.sessionKey || 'main';
-    const group = groupedBySession.get(sessionKey);
+    const conversationId = task.conversationId || task.sessionKey || 'main';
+    const group = groupedByConversation.get(conversationId);
     if (group) {
       group.push(task);
       return;
     }
-    groupedBySession.set(sessionKey, [task]);
+    groupedByConversation.set(conversationId, [task]);
   });
 
-  return Array.from(groupedBySession.values())
+  return Array.from(groupedByConversation.values())
     .map((group) => {
       const oldest = [...group].sort(
         (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
@@ -121,6 +124,8 @@ function mergeRecentTasksBySession(tasks: RecentTaskRecord[]): RecentTaskRecord[
 
       return {
         ...canonical,
+        conversationId: canonical.conversationId || canonical.sessionKey || 'main',
+        sessionKey: newest.sessionKey || canonical.sessionKey || 'main',
         prompt: sessionPrompt,
         title: latestCustomTitleTask?.title || buildRecentTaskTitle(sessionPrompt),
         summary: buildRecentTaskSummary(sessionPrompt),
@@ -156,7 +161,7 @@ function readTasksFromStorage(): RecentTaskRecord[] {
     if (!Array.isArray(parsed)) {
       return [];
     }
-    return mergeRecentTasksBySession(
+    return mergeRecentTasksByConversation(
       parsed.filter((item): item is RecentTaskRecord => Boolean(item && typeof item === 'object' && 'id' in item)),
     );
   } catch {
@@ -166,7 +171,7 @@ function readTasksFromStorage(): RecentTaskRecord[] {
 
 function writeTasksToStorage(tasks: RecentTaskRecord[]): void {
   try {
-    writeCacheJson(RECENT_TASKS_STORAGE_KEY, mergeRecentTasksBySession(tasks).slice(0, MAX_PERSISTED_TASKS));
+    writeCacheJson(RECENT_TASKS_STORAGE_KEY, mergeRecentTasksByConversation(tasks).slice(0, MAX_PERSISTED_TASKS));
     emitRecentTasksUpdated();
   } catch {}
 }
@@ -214,6 +219,7 @@ export function readRecentTasks(): RecentTaskRecord[] {
 
 export function startRecentTask(input: StartRecentTaskInput): RecentTaskRecord {
   const now = new Date().toISOString();
+  const conversationId = input.conversationId || input.sessionKey || 'main';
   const sessionKey = input.sessionKey || 'main';
   const prompt = collapseText(stripPromptMarkers(input.prompt)) || '基于上传内容发起的任务';
   const nextTitle = buildRecentTaskTitle(input.prompt);
@@ -222,11 +228,13 @@ export function startRecentTask(input: StartRecentTaskInput): RecentTaskRecord {
   let activeTask: RecentTaskRecord | null = null;
 
   updateTaskList((tasks) => {
-    const existing = tasks.find((task) => normalizeRecentTask(task).sessionKey === sessionKey) ?? null;
+    const existing =
+      tasks.find((task) => normalizeRecentTask(task).conversationId === conversationId) ?? null;
     if (!existing) {
       activeTask = {
         id: createRecentTaskId(),
         source: 'chat',
+        conversationId,
         sessionKey,
         prompt,
         title: nextTitle,
@@ -244,6 +252,8 @@ export function startRecentTask(input: StartRecentTaskInput): RecentTaskRecord {
     const normalizedExisting = normalizeRecentTask(existing);
     activeTask = {
       ...normalizedExisting,
+      conversationId,
+      sessionKey,
       prompt: normalizedExisting.prompt || prompt,
       title: isCustomRecentTaskTitle(normalizedExisting)
         ? normalizedExisting.title

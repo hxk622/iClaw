@@ -1856,3 +1856,52 @@ create index if not exists idx_oem_app_releases_app_published
   on oem_app_releases(app_name, published_at desc, version_no desc);
 create index if not exists idx_oem_app_audit_events_app_created
   on oem_app_audit_events(app_name, created_at desc);
+
+create table if not exists chat_conversations (
+  id uuid primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  app_name text not null,
+  kind text not null default 'general',
+  title text,
+  active_session_key text not null,
+  status text not null default 'active',
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists chat_conversation_sessions (
+  id uuid primary key,
+  conversation_id uuid not null references chat_conversations(id) on delete cascade,
+  session_key text not null,
+  is_active boolean not null default false,
+  joined_at timestamptz not null default now(),
+  left_at timestamptz,
+  join_reason text,
+  metadata jsonb not null default '{}'::jsonb,
+  unique (conversation_id, session_key)
+);
+
+create table if not exists chat_conversation_handoffs (
+  id uuid primary key,
+  conversation_id uuid not null references chat_conversations(id) on delete cascade,
+  from_session_key text not null,
+  to_session_key text not null,
+  reason text not null,
+  summary text,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_chat_conversations_user_updated
+  on chat_conversations(user_id, updated_at desc);
+create index if not exists idx_chat_conversations_app_updated
+  on chat_conversations(app_name, updated_at desc);
+create index if not exists idx_chat_conversations_active_session
+  on chat_conversations(active_session_key);
+create index if not exists idx_chat_conversation_sessions_conversation_joined
+  on chat_conversation_sessions(conversation_id, joined_at desc);
+create index if not exists idx_chat_conversation_sessions_session_key
+  on chat_conversation_sessions(session_key);
+create index if not exists idx_chat_conversation_handoffs_conversation_created
+  on chat_conversation_handoffs(conversation_id, created_at desc);

@@ -58,6 +58,12 @@ import {
 } from './lib/iclaw-settings';
 import { readRecentTasks } from './lib/recent-tasks';
 import {
+  ensureChatConversation,
+  linkSessionToConversation,
+  readChatConversation,
+  type ChatConversationKind,
+} from './lib/chat-conversations';
+import {
   createGeneralChatSessionKey,
   createSuccessorGeneralChatSessionKey,
   CRON_SYSTEM_SESSION_KEY,
@@ -161,6 +167,7 @@ const ACTIVE_CHAT_ROUTE_STORAGE_KEY = 'iclaw.desktop.active-chat-route.v1';
 const ACTIVE_WORKSPACE_SCENE_STORAGE_KEY = 'iclaw.desktop.active-workspace-scene.v1';
 
 type ActiveChatRoute = {
+  conversationId: string | null;
   sessionKey: string;
   initialPrompt: string | null;
   initialPromptKey: string | null;
@@ -172,6 +179,7 @@ type ActiveChatRoute = {
 };
 
 type PersistedChatRouteSnapshot = {
+  conversationId?: unknown;
   sessionKey?: unknown;
   initialPrompt?: unknown;
   initialPromptKey?: unknown;
@@ -232,6 +240,7 @@ function readPersistedActiveChatRoute(): ActiveChatRoute | null {
     return null;
   }
   return {
+    conversationId: normalizeOptionalText(snapshot.conversationId),
     sessionKey,
     initialPrompt: normalizeOptionalText(snapshot.initialPrompt),
     initialPromptKey: normalizeOptionalText(snapshot.initialPromptKey),
@@ -249,6 +258,7 @@ function writePersistedActiveChatRoute(route: ActiveChatRoute | null): void {
     return;
   }
   writeCacheJson(ACTIVE_CHAT_ROUTE_STORAGE_KEY, {
+    conversationId: route.conversationId,
     sessionKey: route.sessionKey,
     initialPrompt: route.initialPrompt,
     initialPromptKey: route.initialPromptKey,
@@ -258,6 +268,39 @@ function writePersistedActiveChatRoute(route: ActiveChatRoute | null): void {
     focusTaskId: route.focusTaskId,
     focusTaskPrompt: route.focusTaskPrompt,
   });
+}
+
+function buildActiveChatRoute(params: {
+  sessionKey: string;
+  conversationId?: string | null;
+  kind?: ChatConversationKind;
+  title?: string | null;
+  initialPrompt?: string | null;
+  initialPromptKey?: string | null;
+  initialAgentSlug?: string | null;
+  initialSkillSlug?: string | null;
+  initialStockContext?: ComposerStockContext | null;
+  focusTaskId?: string | null;
+  focusTaskPrompt?: string | null;
+}): ActiveChatRoute {
+  const conversation = ensureChatConversation({
+    conversationId: params.conversationId,
+    sessionKey: params.sessionKey,
+    kind: params.kind ?? 'general',
+    title: params.title ?? null,
+  });
+
+  return {
+    conversationId: conversation.id,
+    sessionKey: params.sessionKey,
+    initialPrompt: params.initialPrompt ?? null,
+    initialPromptKey: params.initialPromptKey ?? null,
+    initialAgentSlug: params.initialAgentSlug ?? null,
+    initialSkillSlug: params.initialSkillSlug ?? null,
+    initialStockContext: params.initialStockContext ?? null,
+    focusTaskId: params.focusTaskId ?? null,
+    focusTaskPrompt: params.focusTaskPrompt ?? null,
+  };
 }
 
 function readPersistedWorkspaceScene(): {
@@ -298,19 +341,28 @@ function writePersistedWorkspaceScene(input: {
 }
 
 function createDefaultChatRoute(sessionKey = resolveInitialGeneralChatSessionKey()) {
-  return {
+  return buildActiveChatRoute({
     sessionKey,
-    initialPrompt: null as string | null,
-    initialPromptKey: null as string | null,
-    initialAgentSlug: null as string | null,
-    initialSkillSlug: null as string | null,
-    initialStockContext: null as ComposerStockContext | null,
-    focusTaskId: null as string | null,
-    focusTaskPrompt: null as string | null,
-  };
+    kind: 'general',
+  });
 }
 function resolveInitialChatRoute(): ActiveChatRoute {
-  return readPersistedActiveChatRoute() ?? createDefaultChatRoute();
+  const persisted = readPersistedActiveChatRoute();
+  if (persisted) {
+    return buildActiveChatRoute({
+      sessionKey: persisted.sessionKey,
+      conversationId: persisted.conversationId,
+      kind: 'general',
+      initialPrompt: persisted.initialPrompt,
+      initialPromptKey: persisted.initialPromptKey,
+      initialAgentSlug: persisted.initialAgentSlug,
+      initialSkillSlug: persisted.initialSkillSlug,
+      initialStockContext: persisted.initialStockContext,
+      focusTaskId: persisted.focusTaskId,
+      focusTaskPrompt: persisted.focusTaskPrompt,
+    });
+  }
+  return createDefaultChatRoute();
 }
 
 type PrimaryView = string;
@@ -1819,7 +1871,20 @@ function AuthedView({
 
   const openChatRoute = useCallback(
     (nextRoute: ActiveChatRoute, options?: {forceRemount?: boolean}) => {
-      setActiveChatRoute(nextRoute);
+      setActiveChatRoute(
+        buildActiveChatRoute({
+          sessionKey: nextRoute.sessionKey,
+          conversationId: nextRoute.conversationId,
+          kind: 'general',
+          initialPrompt: nextRoute.initialPrompt,
+          initialPromptKey: nextRoute.initialPromptKey,
+          initialAgentSlug: nextRoute.initialAgentSlug,
+          initialSkillSlug: nextRoute.initialSkillSlug,
+          initialStockContext: nextRoute.initialStockContext,
+          focusTaskId: nextRoute.focusTaskId,
+          focusTaskPrompt: nextRoute.focusTaskPrompt,
+        }),
+      );
       if (options?.forceRemount) {
         setChatSurfaceVersion((current) => current + 1);
       }
@@ -1961,8 +2026,10 @@ function AuthedView({
       return;
     }
     const seed = `${agent.slug}-${Date.now()}`;
-    openChatRoute({
+    openChatRoute(buildActiveChatRoute({
       sessionKey: `lobster-${seed}`,
+      kind: 'lobster',
+      title: agent.name,
       initialPrompt: null,
       initialPromptKey: seed,
       initialAgentSlug: agent.slug,
@@ -1970,7 +2037,7 @@ function AuthedView({
       initialStockContext: null,
       focusTaskId: null,
       focusTaskPrompt: null,
-    });
+    }));
   };
 
   const handleStartInvestmentExpertConversation = (expert: InvestmentExpert) => {
@@ -1979,8 +2046,10 @@ function AuthedView({
       return;
     }
     const seed = `${expert.slug}-${Date.now()}`;
-    openChatRoute({
+    openChatRoute(buildActiveChatRoute({
       sessionKey: `investment-expert-${seed}`,
+      kind: 'investment-expert',
+      title: expert.name,
       initialPrompt: null,
       initialPromptKey: seed,
       initialAgentSlug: expert.slug,
@@ -1988,7 +2057,7 @@ function AuthedView({
       initialStockContext: null,
       focusTaskId: null,
       focusTaskPrompt: null,
-    });
+    }));
   };
 
   const handleStartStockResearchConversation = (stock: MarketStockData) => {
@@ -1997,8 +2066,10 @@ function AuthedView({
       return;
     }
     const seed = `stock-${stock.symbol}-${Date.now()}`;
-    openChatRoute({
+    openChatRoute(buildActiveChatRoute({
       sessionKey: seed,
+      kind: 'stock-research',
+      title: `${stock.company_name} ${stock.symbol}`,
       initialPrompt: null,
       initialPromptKey: seed,
       initialAgentSlug: null,
@@ -2012,7 +2083,7 @@ function AuthedView({
       },
       focusTaskId: null,
       focusTaskPrompt: null,
-    });
+    }));
   };
 
   const handleStartFundResearchConversation = (fund: FundMarketResearchTarget) => {
@@ -2021,8 +2092,10 @@ function AuthedView({
       return;
     }
     const seed = `fund-${fund.symbol}-${Date.now()}`;
-    openChatRoute({
+    openChatRoute(buildActiveChatRoute({
       sessionKey: seed,
+      kind: 'fund-research',
+      title: `${fund.companyName} ${fund.symbol}`,
       initialPrompt: null,
       initialPromptKey: seed,
       initialAgentSlug: null,
@@ -2038,7 +2111,7 @@ function AuthedView({
       },
       focusTaskId: null,
       focusTaskPrompt: null,
-    });
+    }));
   };
 
   const handleStartNewChat = () => {
@@ -2073,8 +2146,21 @@ function AuthedView({
         to: nextSessionKey,
         pressure,
       });
+      if (current.conversationId) {
+        linkSessionToConversation({
+          conversationId: current.conversationId,
+          fromSessionKey: current.sessionKey,
+          toSessionKey: nextSessionKey,
+          reason: 'session-pressure-handoff',
+          summary: null,
+        });
+      }
       writePersistedActiveGeneralChatSessionKey(nextSessionKey);
-      return createDefaultChatRoute(nextSessionKey);
+      return buildActiveChatRoute({
+        sessionKey: nextSessionKey,
+        conversationId: current.conversationId,
+        kind: 'general',
+      });
     });
     setChatSurfaceVersion((current) => current + 1);
   }, []);
@@ -2086,8 +2172,13 @@ function AuthedView({
       return;
     }
 
-    openChatRoute({
-      sessionKey: task.sessionKey,
+    const conversation = task.conversationId ? readChatConversation(task.conversationId) : null;
+    const targetSessionKey = conversation?.activeSessionKey || task.sessionKey;
+
+    openChatRoute(buildActiveChatRoute({
+      sessionKey: targetSessionKey,
+      conversationId: conversation?.id || task.conversationId,
+      kind: 'task',
       initialPrompt: null,
       initialPromptKey: null,
       initialAgentSlug: null,
@@ -2095,7 +2186,7 @@ function AuthedView({
       initialStockContext: null,
       focusTaskId: task.id,
       focusTaskPrompt: task.prompt,
-    }, { forceRemount: true });
+    }), { forceRemount: true });
   };
 
   const handleActiveChatSkillChange = useCallback((skillSlug: string | null) => {
@@ -2116,8 +2207,10 @@ function AuthedView({
       return;
     }
     const seed = `skill-${skill.slug}-${Date.now()}`;
-    openChatRoute({
+    openChatRoute(buildActiveChatRoute({
       sessionKey: seed,
+      kind: 'skill',
+      title: skill.slug,
       initialPrompt: null,
       initialPromptKey: seed,
       initialAgentSlug: null,
@@ -2125,7 +2218,7 @@ function AuthedView({
       initialStockContext: null,
       focusTaskId: null,
       focusTaskPrompt: null,
-    });
+    }));
   };
 
   return (
@@ -2319,6 +2412,7 @@ function AuthedView({
               gatewayPassword={gatewayAuth.password}
               authBaseUrl={AUTH_BASE_URL}
               appName={BRAND.brandId}
+              conversationId={activeChatRoute.conversationId}
               sessionKey={activeChatRoute.sessionKey}
               initialPrompt={activeChatRoute.initialPrompt}
               initialPromptKey={activeChatRoute.initialPromptKey}

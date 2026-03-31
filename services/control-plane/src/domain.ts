@@ -241,6 +241,50 @@ export type RunBillingSummaryRecord = {
   assistantTimestamp: number | null;
 };
 
+export type ChatConversationKind =
+  | 'general'
+  | 'skill'
+  | 'lobster'
+  | 'investment-expert'
+  | 'stock-research'
+  | 'fund-research'
+  | 'task';
+
+export type ChatConversationRecord = {
+  id: string;
+  userId: string;
+  appName: string;
+  kind: ChatConversationKind;
+  title: string | null;
+  activeSessionKey: string;
+  status: 'active' | 'archived';
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ChatConversationSessionRecord = {
+  id: string;
+  conversationId: string;
+  sessionKey: string;
+  isActive: boolean;
+  joinedAt: string;
+  leftAt: string | null;
+  joinReason: string | null;
+  metadata: Record<string, unknown>;
+};
+
+export type ChatConversationHandoffRecord = {
+  id: string;
+  conversationId: string;
+  fromSessionKey: string;
+  toSessionKey: string;
+  reason: string;
+  summary: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};
+
 export type UsageDebitRecord = {
   bucket: CreditBucket;
   amount: number;

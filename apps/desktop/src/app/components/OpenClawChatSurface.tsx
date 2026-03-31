@@ -170,6 +170,7 @@ type OpenClawChatSurfaceProps = {
   gatewayPassword?: string;
   authBaseUrl: string;
   appName: string;
+  conversationId?: string | null;
   sessionKey?: string;
   initialPrompt?: string | null;
   initialPromptKey?: string | null;
@@ -423,6 +424,7 @@ type ChatSessionSnapshot = {
 };
 
 const CHAT_SESSION_SNAPSHOT_PREFIX = 'iclaw.chat.session.v1';
+const CHAT_CONVERSATION_SNAPSHOT_PREFIX = 'iclaw.chat.conversation.v1';
 
 function buildChatSessionSnapshotStorageKey(appName: string, sessionKey: string): string {
   const normalizedAppName = appName.trim().toLowerCase() || 'default';
@@ -430,8 +432,26 @@ function buildChatSessionSnapshotStorageKey(appName: string, sessionKey: string)
   return `${CHAT_SESSION_SNAPSHOT_PREFIX}:${normalizedAppName}:${normalizedSessionKey}`;
 }
 
-function readChatSessionSnapshot(appName: string, sessionKey: string): ChatSessionSnapshot | null {
-  const snapshot = readCacheJson<ChatSessionSnapshot>(buildChatSessionSnapshotStorageKey(appName, sessionKey));
+function buildChatConversationSnapshotStorageKey(appName: string, conversationId: string): string {
+  const normalizedAppName = appName.trim().toLowerCase() || 'default';
+  const normalizedConversationId = conversationId.trim().toLowerCase();
+  return `${CHAT_CONVERSATION_SNAPSHOT_PREFIX}:${normalizedAppName}:${normalizedConversationId}`;
+}
+
+function readChatSessionSnapshot(
+  appName: string,
+  sessionKey: string,
+  conversationId?: string | null,
+): ChatSessionSnapshot | null {
+  const snapshot =
+    readCacheJson<ChatSessionSnapshot>(buildChatSessionSnapshotStorageKey(appName, sessionKey)) ||
+    (
+      typeof conversationId === 'string' && conversationId.trim()
+        ? readCacheJson<ChatSessionSnapshot>(
+            buildChatConversationSnapshotStorageKey(appName, conversationId),
+          )
+        : null
+    );
   if (!snapshot || !Array.isArray(snapshot.messages)) {
     return null;
   }
@@ -446,13 +466,21 @@ function writeChatSessionSnapshot(
   appName: string,
   sessionKey: string,
   snapshot: ChatSessionSnapshot | null,
+  conversationId?: string | null,
 ): void {
   const storageKey = buildChatSessionSnapshotStorageKey(appName, sessionKey);
+  const conversationStorageKey =
+    typeof conversationId === 'string' && conversationId.trim()
+      ? buildChatConversationSnapshotStorageKey(appName, conversationId)
+      : null;
   if (!snapshot || !Array.isArray(snapshot.messages) || snapshot.messages.length === 0) {
-    removeCacheKeys([storageKey]);
+    removeCacheKeys(conversationStorageKey ? [storageKey, conversationStorageKey] : [storageKey]);
     return;
   }
   writeCacheJson(storageKey, snapshot);
+  if (conversationStorageKey) {
+    writeCacheJson(conversationStorageKey, snapshot);
+  }
 }
 
 function normalizeGatewaySessionKey(key?: string | null): string {
@@ -1524,6 +1552,33 @@ function deriveLatestAssistantUsageSince(
   };
 }
 
+function deriveLatestAssistantUsageFallbackSince(
+  messages: unknown[],
+  startedAt: number,
+): AssistantUsageSettlement | null {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return null;
+  }
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    const normalized = normalizeMessage(message);
+    if (normalizeRoleForGrouping(normalized.role) !== 'assistant') {
+      continue;
+    }
+    if (normalized.timestamp > 0 && normalized.timestamp + 1_500 < startedAt) {
+      continue;
+    }
+
+    const usage = deriveAssistantUsageFromMessage(message);
+    if (usage) {
+      return usage;
+    }
+  }
+
+  return null;
+}
+
 function deriveAssistantUsageFromMessage(message: unknown): AssistantUsageSettlement | null {
   if (!message || typeof message !== 'object') {
     return null;
@@ -1578,6 +1633,11 @@ function derivePendingSettlementUsage(
     return directUsage;
   }
 
+  const fallbackUsage = deriveLatestAssistantUsageFallbackSince(messages, pending.startedAt);
+  if (fallbackUsage) {
+    return fallbackUsage;
+  }
+
   if (!sessionTokenSnapshot) {
     return null;
   }
@@ -1613,6 +1673,7 @@ function findTerminalChatEventForRun(
   sessionKey: string,
   runId: string,
 ): TerminalChatEventMatch | null {
+  const sessionAliases = resolveEquivalentGatewaySessionKeys(sessionKey);
   const entries = Array.isArray(app.eventLogBuffer)
     ? app.eventLogBuffer
     : Array.isArray(app.eventLog)
@@ -1627,7 +1688,11 @@ function findTerminalChatEventForRun(
     if (payload.runId !== runId) {
       continue;
     }
-    if (typeof payload.sessionKey === 'string' && payload.sessionKey !== sessionKey) {
+    if (
+      typeof payload.sessionKey === 'string' &&
+      payload.sessionKey &&
+      !sessionAliases.has(normalizeGatewaySessionKey(payload.sessionKey))
+    ) {
       continue;
     }
     const state = payload.state;
@@ -2091,6 +2156,7 @@ export function OpenClawChatSurface({
   gatewayPassword,
   authBaseUrl,
   appName,
+  conversationId = null,
   sessionKey = 'main',
   initialPrompt = null,
   initialPromptKey = null,
@@ -2214,6 +2280,7 @@ export function OpenClawChatSurface({
   const previousSessionKeyRef = useRef(sessionKey);
   const sessionTransitionPendingRef = useRef(false);
   const sessionTransitionStartedAtRef = useRef(0);
+  const sessionModelBootstrapKeyRef = useRef<string | null>(null);
   const responseUsageEnabledSessionKeyRef = useRef<string | null>(null);
   const persistedChatSnapshotRef = useRef<string | null>(null);
   const sessionTransitionHideTimerRef = useRef<number | null>(null);
@@ -2297,9 +2364,9 @@ export function OpenClawChatSurface({
     if (persistedChatSnapshotRef.current === serialized) {
       return;
     }
-    writeChatSessionSnapshot(appName, sessionKey, snapshot);
+    writeChatSessionSnapshot(appName, sessionKey, snapshot, conversationId);
     persistedChatSnapshotRef.current = serialized;
-  }, [appName, sessionKey]);
+  }, [appName, conversationId, sessionKey]);
 
   const mergeSessionBillingSummary = useCallback((summary: RunBillingSummaryData) => {
     setSessionBillingSummaries((current) => mergeRunBillingSummaries(current, [summary]));
@@ -2481,6 +2548,30 @@ export function OpenClawChatSurface({
     wrappedRequest.__iclawWrapped = true;
     client.request = wrappedRequest;
   }, []);
+
+  const ensureGatewaySessionPrepared = useCallback(async (): Promise<void> => {
+    const app = appRef.current;
+    const request = app?.client?.request;
+    if (!app?.connected || typeof request !== 'function') {
+      throw new Error('尚未连接到 OpenClaw 网关，请稍后再试。');
+    }
+
+    const patchTargets = buildGatewaySessionPatchTargets(sessionKey, resolvedModelSessionKey);
+    if (patchTargets.length === 0) {
+      return;
+    }
+
+    await Promise.all(
+      patchTargets.map((key) =>
+        request('sessions.patch', {
+          key,
+          responseUsage: 'tokens',
+          ...(selectedModelId ? { model: selectedModelId } : {}),
+        }),
+      ),
+    );
+    responseUsageEnabledSessionKeyRef.current = effectiveGatewaySessionKey;
+  }, [effectiveGatewaySessionKey, resolvedModelSessionKey, selectedModelId, sessionKey]);
 
   const handleModelChange = useCallback(
     async (modelId: string) => {
@@ -2699,6 +2790,7 @@ export function OpenClawChatSurface({
     queueDispatchInFlightRef.current = null;
     setQueuedMessages([]);
     setAssistantFooterVersion((current) => current + 1);
+    sessionModelBootstrapKeyRef.current = null;
     setCreditEstimate({
       loading: false,
       low: null,
@@ -2715,14 +2807,14 @@ export function OpenClawChatSurface({
     if (!app) {
       return;
     }
-    const snapshot = readChatSessionSnapshot(appName, sessionKey);
+    const snapshot = readChatSessionSnapshot(appName, sessionKey, conversationId);
     app.chatMessages = snapshot?.messages ?? [];
     persistedChatSnapshotRef.current = snapshot ? JSON.stringify(snapshot) : null;
     if ((snapshot?.messages?.length ?? 0) > 0) {
       setSessionHistoryState('has-history');
       setInitialSurfaceRestorePending(false);
     }
-  }, [appName, sessionKey]);
+  }, [appName, conversationId, sessionKey]);
 
   useEffect(() => {
     if (!creditClient || !creditToken) {
@@ -2932,7 +3024,7 @@ export function OpenClawChatSurface({
     app.sessionKey = sessionKey;
     app.tab = 'chat';
 
-    const snapshot = readChatSessionSnapshot(appName, sessionKey);
+    const snapshot = readChatSessionSnapshot(appName, sessionKey, conversationId);
     app.chatMessages = snapshot?.messages ?? [];
     persistedChatSnapshotRef.current = snapshot ? JSON.stringify(snapshot) : null;
     if ((snapshot?.messages?.length ?? 0) > 0) {
@@ -2979,6 +3071,55 @@ export function OpenClawChatSurface({
       app.connect();
     }
   }, [gatewayPassword, gatewayToken, gatewayUrl, sessionKey]);
+
+  useEffect(() => {
+    const app = appRef.current;
+    const request = app?.client?.request;
+    if (!app?.connected || typeof request !== 'function' || !selectedModelId || modelSwitching) {
+      return;
+    }
+    if (resolvedModelSessionKey) {
+      return;
+    }
+
+    const bootstrapKey = `${sessionKey}:${selectedModelId}`;
+    if (sessionModelBootstrapKeyRef.current === bootstrapKey) {
+      return;
+    }
+    sessionModelBootstrapKeyRef.current = bootstrapKey;
+
+    let cancelled = false;
+    const patchTargets = buildGatewaySessionPatchTargets(sessionKey, resolvedModelSessionKey);
+    void Promise.all(
+      patchTargets.map((key) =>
+        request('sessions.patch', {
+          key,
+          model: selectedModelId,
+        }),
+      ),
+    )
+      .then(() => {
+        if (cancelled) {
+          return;
+        }
+        void refreshModelCatalog();
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        sessionModelBootstrapKeyRef.current = null;
+        console.warn('[desktop] failed to bootstrap model for fresh chat session', {
+          sessionKey,
+          model: selectedModelId,
+          error,
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [modelSwitching, refreshModelCatalog, resolvedModelSessionKey, selectedModelId, sessionKey, status.connected]);
 
   useEffect(() => {
     const app = appRef.current;
@@ -3647,38 +3788,42 @@ export function OpenClawChatSurface({
   }, [refreshModelCatalog, status.connected]);
 
   useEffect(() => {
-    const transportIssue =
-      !status.connected ||
-      looksLikeGatewayTransportIssue(status.lastError) ||
-      looksLikeGatewayTransportIssue(lastRpcFailure?.message) ||
-      looksLikeGatewayTransportIssue(unhandledGatewayError?.message) ||
-      looksLikeGatewayTransportIssue(unhandledGatewayError?.raw);
-    const historyNeedsRecovery =
-      shellAuthenticated &&
-      status.connected &&
-      sessionHistoryState === 'has-history' &&
-      !hasObservedHistory &&
-      !initialSurfaceRestorePending &&
-      !status.busy &&
-      isSessionRenderReady(renderState);
+    if (!status.connected || status.lastError) {
+      return;
+    }
+    if (lastRpcFailure) {
+      setLastRpcFailure(null);
+    }
+    if (unhandledGatewayError) {
+      setUnhandledGatewayError(null);
+    }
+  }, [lastRpcFailure, status.connected, status.lastError, unhandledGatewayError]);
 
-    if (!transportIssue && !historyNeedsRecovery) {
+  useEffect(() => {
+    const canAttemptAutoRecovery =
+      hasBootSettled && !initialSurfaceRestorePending && !sessionTransitionPendingRef.current;
+    const transportIssue =
+      !status.connected &&
+      (
+        looksLikeGatewayTransportIssue(status.lastError) ||
+        looksLikeGatewayTransportIssue(lastRpcFailure?.message) ||
+        looksLikeGatewayTransportIssue(unhandledGatewayError?.message) ||
+        looksLikeGatewayTransportIssue(unhandledGatewayError?.raw)
+      );
+
+    if (!canAttemptAutoRecovery || !transportIssue) {
       clearAutoRecoveryTimer();
       autoRecoveryAttemptsRef.current = 0;
       return;
     }
 
-    scheduleAutoRecoveryReconnect(historyNeedsRecovery ? 'history-reconcile' : 'transport-recover');
+    scheduleAutoRecoveryReconnect('transport-recover');
   }, [
     clearAutoRecoveryTimer,
-    hasObservedHistory,
+    hasBootSettled,
     initialSurfaceRestorePending,
     lastRpcFailure?.message,
-    renderState,
     scheduleAutoRecoveryReconnect,
-    sessionHistoryState,
-    shellAuthenticated,
-    status.busy,
     status.connected,
     status.lastError,
     unhandledGatewayError?.message,
@@ -3879,6 +4024,13 @@ export function OpenClawChatSurface({
     ((!hasBootSettled && (!status.connected || initialSurfaceRestorePending)) || waitingForHistoryResolution);
   const showSessionTransitionMask = sessionTransitionVisible && !showBootMask;
   const shellTransitioning = showBootMask || showSessionTransitionMask;
+  const localSendBlockedReason =
+    modelSwitching
+      ? '正在切换模型，请稍后发送。'
+      : modelsLoading
+        ? '正在准备对话模型，请稍后发送。'
+        : null;
+  const effectiveSendBlockedReason = sendBlockedReason || localSendBlockedReason;
   const secureContextHint =
     typeof window !== 'undefined' && !window.isSecureContext
       ? '当前页面不是安全上下文，OpenClaw 可能会拒绝设备身份校验。'
@@ -4233,10 +4385,10 @@ export function OpenClawChatSurface({
   const sendQueuedOrImmediateMessage = useCallback(async (payload: ComposerSendPayload): Promise<boolean> => {
     const app = appRef.current;
     const request = app?.client?.request;
-    if (sendBlockedReason) {
+    if (effectiveSendBlockedReason) {
       setStatus((current) => ({
         ...current,
-        lastError: sendBlockedReason,
+        lastError: effectiveSendBlockedReason,
       }));
       return false;
     }
@@ -4269,6 +4421,7 @@ export function OpenClawChatSurface({
 
     const task = startRecentTask({
       prompt: payload.prompt,
+      conversationId,
       sessionKey,
     });
 
@@ -4287,15 +4440,16 @@ export function OpenClawChatSurface({
       }
 
       clearUsageSettlementTimers();
+      await ensureGatewaySessionPrepared();
 
       runId = createDesktopRunId();
       const startedAt = Date.now();
       const fallbackEstimatedInputTokens =
         Math.max(0, Math.ceil(normalizedPrompt.length * 0.75)) + payload.imageAttachments.length * 220;
-      const baselineSessionTokens = await loadGatewaySessionTokenSnapshot(app, effectiveGatewaySessionKey);
+      const baselineSessionTokens = await loadGatewaySessionTokenSnapshot(app, sessionKey);
       const runGrant = await creditClient.authorizeRun({
         token: creditToken,
-        sessionKey: effectiveGatewaySessionKey,
+        sessionKey,
         client: 'desktop',
         estimatedInputTokens: estimateRunGrantInputTokens({
           quotedInputTokens: creditEstimate.estimatedInputTokens ?? null,
@@ -4323,7 +4477,7 @@ export function OpenClawChatSurface({
         {
           runId,
           grantId: runGrant.grant_id,
-          sessionKey: effectiveGatewaySessionKey,
+          sessionKey,
           startedAt,
           expiresAt: startedAt + USAGE_SETTLEMENT_MAX_WAIT_MS,
           model: selectedModelId,
@@ -4338,7 +4492,7 @@ export function OpenClawChatSurface({
       handoffStarted = true;
       await sendAuthorizedChatMessage({
         app,
-        sessionKey: effectiveGatewaySessionKey,
+        sessionKey,
         prompt: normalizedPrompt,
         imageAttachments: payload.imageAttachments,
         runId,
@@ -4399,11 +4553,13 @@ export function OpenClawChatSurface({
     creditEstimate.estimatedOutputTokens,
     creditToken,
     finalizeRecentTaskRun,
+    ensureGatewaySessionPrepared,
     appName,
+    conversationId,
     persistChatSessionSnapshot,
     selectedModelId,
     effectiveGatewaySessionKey,
-    sendBlockedReason,
+    effectiveSendBlockedReason,
     status.lastError,
     sessionKey,
   ]);
@@ -4424,7 +4580,7 @@ export function OpenClawChatSurface({
 
     const app = appRef.current;
     const gatewayBusy = Boolean(app?.chatSending || app?.chatRunId);
-    if (sendBlockedReason || !status.connected || status.busy || gatewayBusy) {
+    if (effectiveSendBlockedReason || !status.connected || status.busy || gatewayBusy) {
       return;
     }
 
@@ -4446,24 +4602,24 @@ export function OpenClawChatSurface({
     if (!accepted) {
       setQueuedMessages((current) => (current.some((item) => item.id === next.id) ? current : [next, ...current]));
     }
-  }, [sendBlockedReason, sendQueuedOrImmediateMessage, status.busy, status.connected]);
+  }, [effectiveSendBlockedReason, sendQueuedOrImmediateMessage, status.busy, status.connected]);
 
   useEffect(() => {
     if (queuedMessages.length === 0) {
       return;
     }
     void flushQueuedMessages();
-  }, [flushQueuedMessages, queuedMessages.length, sendBlockedReason, status.busy, status.connected]);
+  }, [effectiveSendBlockedReason, flushQueuedMessages, queuedMessages.length, status.busy, status.connected]);
 
   const handleSend = useCallback(async (payload: ComposerSendPayload): Promise<boolean> => {
     const app = appRef.current;
     const gatewayBusy = Boolean(app?.chatSending || app?.chatRunId);
-    if (!sendBlockedReason && (status.busy || gatewayBusy)) {
+    if (!effectiveSendBlockedReason && (status.busy || gatewayBusy)) {
       enqueueQueuedMessage(payload);
       return true;
     }
     return sendQueuedOrImmediateMessage(payload);
-  }, [enqueueQueuedMessage, sendBlockedReason, sendQueuedOrImmediateMessage, status.busy]);
+  }, [effectiveSendBlockedReason, enqueueQueuedMessage, sendQueuedOrImmediateMessage, status.busy]);
 
   const handleAbort = useCallback(async () => {
     await appRef.current?.handleAbortChat();
@@ -5175,7 +5331,7 @@ export function OpenClawChatSurface({
               ref={composerRef}
               connected={status.connected}
               busy={status.busy}
-              sendDisabledReason={sendBlockedReason}
+              sendDisabledReason={effectiveSendBlockedReason}
               dropActive={shellDropActive}
               sessionTransitioning={shellTransitioning}
               lobsterAgents={installedLobsterAgents}
