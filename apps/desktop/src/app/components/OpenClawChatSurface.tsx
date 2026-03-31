@@ -56,9 +56,11 @@ import {
   clearCacheKeysByPrefix,
   clearSessionKeysByPrefix,
   readCacheJson,
-  removeCacheKeys,
-  writeCacheJson,
 } from '../lib/persistence/cache-store';
+import {
+  hydrateChatSnapshotForRender,
+  writeStoredChatSnapshot,
+} from '../lib/chat-history';
 import {
   RichChatComposer,
   type ComposerAgentOption,
@@ -423,43 +425,16 @@ type ChatSessionSnapshot = {
   messages: unknown[];
 };
 
-const CHAT_SESSION_SNAPSHOT_PREFIX = 'iclaw.chat.session.v1';
-const CHAT_CONVERSATION_SNAPSHOT_PREFIX = 'iclaw.chat.conversation.v1';
-
-function buildChatSessionSnapshotStorageKey(appName: string, sessionKey: string): string {
-  const normalizedAppName = appName.trim().toLowerCase() || 'default';
-  const normalizedSessionKey = sessionKey.trim().toLowerCase() || 'main';
-  return `${CHAT_SESSION_SNAPSHOT_PREFIX}:${normalizedAppName}:${normalizedSessionKey}`;
-}
-
-function buildChatConversationSnapshotStorageKey(appName: string, conversationId: string): string {
-  const normalizedAppName = appName.trim().toLowerCase() || 'default';
-  const normalizedConversationId = conversationId.trim().toLowerCase();
-  return `${CHAT_CONVERSATION_SNAPSHOT_PREFIX}:${normalizedAppName}:${normalizedConversationId}`;
-}
-
 function readChatSessionSnapshot(
   appName: string,
   sessionKey: string,
   conversationId?: string | null,
 ): ChatSessionSnapshot | null {
-  const snapshot =
-    readCacheJson<ChatSessionSnapshot>(buildChatSessionSnapshotStorageKey(appName, sessionKey)) ||
-    (
-      typeof conversationId === 'string' && conversationId.trim()
-        ? readCacheJson<ChatSessionSnapshot>(
-            buildChatConversationSnapshotStorageKey(appName, conversationId),
-          )
-        : null
-    );
-  if (!snapshot || !Array.isArray(snapshot.messages)) {
-    return null;
-  }
-  return {
+  return hydrateChatSnapshotForRender({
+    appName,
     sessionKey,
-    savedAt: typeof snapshot.savedAt === 'number' ? snapshot.savedAt : Date.now(),
-    messages: snapshot.messages,
-  };
+    conversationId,
+  });
 }
 
 function writeChatSessionSnapshot(
@@ -468,19 +443,12 @@ function writeChatSessionSnapshot(
   snapshot: ChatSessionSnapshot | null,
   conversationId?: string | null,
 ): void {
-  const storageKey = buildChatSessionSnapshotStorageKey(appName, sessionKey);
-  const conversationStorageKey =
-    typeof conversationId === 'string' && conversationId.trim()
-      ? buildChatConversationSnapshotStorageKey(appName, conversationId)
-      : null;
-  if (!snapshot || !Array.isArray(snapshot.messages) || snapshot.messages.length === 0) {
-    removeCacheKeys(conversationStorageKey ? [storageKey, conversationStorageKey] : [storageKey]);
-    return;
-  }
-  writeCacheJson(storageKey, snapshot);
-  if (conversationStorageKey) {
-    writeCacheJson(conversationStorageKey, snapshot);
-  }
+  writeStoredChatSnapshot({
+    appName,
+    sessionKey,
+    conversationId,
+    snapshot,
+  });
 }
 
 function normalizeGatewaySessionKey(key?: string | null): string {

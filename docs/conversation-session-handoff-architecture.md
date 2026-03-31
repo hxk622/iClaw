@@ -93,6 +93,7 @@ The desktop local layer now includes:
 - general chat session rotation that preserves `conversationId`
 - task-center reopen logic that resolves the conversation's active runtime session
 - local chat snapshot continuity keyed by `conversationId`, so handoff does not visually drop prior messages
+- session handoff records now carry a lightweight continuation summary, and the chat surface injects a single continuation marker into the visible thread
 
 This is still local-first. Control-plane persistence is the next stage.
 

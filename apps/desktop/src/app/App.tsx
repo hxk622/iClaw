@@ -63,6 +63,7 @@ import {
   readChatConversation,
   type ChatConversationKind,
 } from './lib/chat-conversations';
+import { deriveConversationHandoffSummary } from './lib/chat-history';
 import {
   createGeneralChatSessionKey,
   createSuccessorGeneralChatSessionKey,
@@ -2146,13 +2147,21 @@ function AuthedView({
         to: nextSessionKey,
         pressure,
       });
+      const handoffSummary =
+        current.conversationId
+          ? deriveConversationHandoffSummary({
+              appName: BRAND.brandId,
+              sessionKey: current.sessionKey,
+              conversationId: current.conversationId,
+            })
+          : null;
       if (current.conversationId) {
         linkSessionToConversation({
           conversationId: current.conversationId,
           fromSessionKey: current.sessionKey,
           toSessionKey: nextSessionKey,
           reason: 'session-pressure-handoff',
-          summary: null,
+          summary: handoffSummary,
         });
       }
       writePersistedActiveGeneralChatSessionKey(nextSessionKey);
