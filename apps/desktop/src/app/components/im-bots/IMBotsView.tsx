@@ -168,19 +168,19 @@ const platformMetaList: PlatformCardMeta[] = [
     eta: '10 分钟',
     admin: '需要',
     guideUrl: 'https://open.feishu.cn/app',
-    capabilities: ['群聊', '私聊', '组织内'],
+    capabilities: ['群聊', '私聊', '长连接'],
     credentialFields: [
       { key: 'app_id', label: 'App ID', placeholder: '请输入飞书 App ID' },
       { key: 'app_secret', label: 'App Secret', placeholder: '请输入飞书 App Secret' },
-      { key: 'callback_url', label: '回调地址', placeholder: '', readOnly: true },
     ],
     introSteps: [
       '登录飞书开放平台，创建企业自建应用。',
       '开启机器人能力，并在权限管理中开通消息收发权限。',
-      '确认事件订阅方式，并保留当前产品生成的回调地址。',
+      '默认使用长连接模式接入，不需要额外配置公网回调地址。',
       '回到 iClaw 继续完成凭据填写与测试。',
     ],
     testHints: [
+      '飞书默认走 websocket / 长连接模式，不依赖 webhook 回调地址。',
       '飞书官方原生支持 OpenClaw，多账号场景可通过 accountId 建模。',
       '如企业使用国际版 Lark，后续可在高级配置里补充域名覆盖。',
     ],
