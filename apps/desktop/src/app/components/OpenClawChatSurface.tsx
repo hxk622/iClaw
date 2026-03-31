@@ -4803,27 +4803,9 @@ export function OpenClawChatSurface({
       }
 
       clearUsageSettlementTimers();
-      await ensureGatewaySessionPrepared();
 
       runId = createDesktopRunId();
       const startedAt = Date.now();
-      const baselineSessionTokens = await loadGatewaySessionTokenSnapshot(app, sessionKey);
-      const runGrant = await creditClient.authorizeRun({
-        token: creditToken,
-        sessionKey,
-        client: 'desktop',
-        message: normalizedPrompt,
-        historyMessages: estimateHistoryMessagesFromGroups(renderState.groupCount),
-        hasSearch: inferCreditQuoteHasSearch(normalizedPrompt),
-        hasTools: true,
-        attachments: payload.imageAttachments.map((item) => ({
-          type: item.type,
-        })),
-        model: selectedModelId || undefined,
-        appName,
-      });
-      setCreditBlockNotice(null);
-
       stageOutgoingChatMessage({
         app,
         prompt: normalizedPrompt,
@@ -4833,6 +4815,26 @@ export function OpenClawChatSurface({
       });
       persistChatSessionSnapshot();
       app.scrollToBottom();
+
+      const [baselineSessionTokens, runGrant] = await Promise.all([
+        loadGatewaySessionTokenSnapshot(app, sessionKey),
+        creditClient.authorizeRun({
+          token: creditToken,
+          sessionKey,
+          client: 'desktop',
+          message: normalizedPrompt,
+          historyMessages: estimateHistoryMessagesFromGroups(renderState.groupCount),
+          hasSearch: inferCreditQuoteHasSearch(normalizedPrompt),
+          hasTools: true,
+          attachments: payload.imageAttachments.map((item) => ({
+            type: item.type,
+          })),
+          model: selectedModelId || undefined,
+          appName,
+        }),
+        ensureGatewaySessionPrepared(),
+      ]).then(([baseline, grant]) => [baseline, grant] as const);
+      setCreditBlockNotice(null);
 
       pendingUsageSettlementsRef.current = [
         ...pendingUsageSettlementsRef.current,

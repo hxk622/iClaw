@@ -160,7 +160,7 @@ export function RecentTasksList({
         <div className="mb-2 flex items-center justify-between px-3">
           <div className="flex h-7 items-center gap-2">
             <span className="text-xs leading-none text-[var(--text-muted)]">{title}</span>
-            <span className="rounded-full border border-[var(--border-default)] bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[10px] text-[var(--text-secondary)]">
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[var(--border-default)] bg-[var(--bg-elevated)] text-[10px] leading-none text-[var(--text-secondary)]">
               {Math.min(visibleTasks.length, SIDEBAR_TASK_LIMIT)}
             </span>
           </div>
