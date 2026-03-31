@@ -3755,7 +3755,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         updated_at
       from cloud_skill_catalog
       ${whereSql}
-      ${this.buildSkillCatalogOrderClause()}
+      ${this.buildSkillCatalogOrderClause(values, filters?.extraSkillSlugs || [])}
       ${paginationSql}
     `, values);
   }
@@ -3818,7 +3818,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         updated_at
       from cloud_skill_catalog
       ${whereSql}
-      ${this.buildSkillCatalogOrderClause()}
+      ${this.buildSkillCatalogOrderClause(values, normalizedSlugs)}
       ${paginationSql}
     `, values);
   }
@@ -4917,9 +4917,24 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     return `where ${whereClauses.join('\n  and ')}`;
   }
 
-  private buildSkillCatalogOrderClause(): string {
+  private buildSkillCatalogOrderClause(values: unknown[], prioritySlugs: string[] = []): string {
+    const normalizedPrioritySlugs = Array.from(new Set(prioritySlugs.map((slug) => slug.trim()).filter(Boolean)));
+    const priorityOrderSql =
+      normalizedPrioritySlugs.length > 0
+        ? (() => {
+            values.push(normalizedPrioritySlugs);
+            const placeholder = `$${values.length}::text[]`;
+            return `
+        case
+          when slug = any(${placeholder}) then 0
+          else 1
+        end asc,
+      `;
+          })()
+        : '';
     return `
       order by
+        ${priorityOrderSql}
         greatest(
           coalesce(case when metadata_json ->> 'downloads' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json ->> 'downloads')::numeric)::bigint end, 0),
           coalesce(case when metadata_json ->> 'download_count' ~ '^[0-9]+(\\.[0-9]+)?$' then round((metadata_json ->> 'download_count')::numeric)::bigint end, 0),
