@@ -59,6 +59,7 @@ import {
 import { readRecentTasks } from './lib/recent-tasks';
 import {
   ensureChatConversation,
+  findChatConversationBySessionKey,
   linkSessionToConversation,
   readChatConversation,
   type ChatConversationKind,
@@ -2171,7 +2172,6 @@ function AuthedView({
         kind: 'general',
       });
     });
-    setChatSurfaceVersion((current) => current + 1);
   }, []);
 
   const handleOpenTaskChat = (taskId: string) => {
@@ -2181,7 +2181,9 @@ function AuthedView({
       return;
     }
 
-    const conversation = task.conversationId ? readChatConversation(task.conversationId) : null;
+    const conversation =
+      (task.conversationId ? readChatConversation(task.conversationId) : null) ||
+      findChatConversationBySessionKey(task.sessionKey);
     const targetSessionKey = conversation?.activeSessionKey || task.sessionKey;
 
     openChatRoute(buildActiveChatRoute({
@@ -2195,7 +2197,7 @@ function AuthedView({
       initialStockContext: null,
       focusTaskId: task.id,
       focusTaskPrompt: task.prompt,
-    }), { forceRemount: true });
+    }));
   };
 
   const handleActiveChatSkillChange = useCallback((skillSlug: string | null) => {

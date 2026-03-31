@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { readCacheJson, writeCacheJson } from '@/app/lib/persistence/cache-store';
+import { findChatConversationBySessionKey } from '@/app/lib/chat-conversations';
 
 export type RecentTaskStatus = 'running' | 'completed' | 'failed';
 export type RecentTaskArtifact = 'report' | 'ppt' | 'webpage' | 'pdf' | 'sheet';
@@ -22,7 +23,7 @@ export interface RecentTaskRecord {
 
 interface StartRecentTaskInput {
   prompt: string;
-  conversationId?: string;
+  conversationId?: string | null;
   sessionKey?: string;
 }
 
@@ -71,12 +72,15 @@ function normalizeRecentTask(task: RecentTaskRecord): RecentTaskRecord {
   const prompt = normalizedPrompt || '基于上传内容发起的任务';
   const title = collapseText(task.title) || buildRecentTaskTitle(prompt);
   const summary = collapseText(task.summary) || buildRecentTaskSummary(prompt);
+  const resolvedSessionKey = task.sessionKey || 'main';
+  const resolvedConversationId =
+    task.conversationId || findChatConversationBySessionKey(resolvedSessionKey)?.id || resolvedSessionKey || 'main';
 
   return {
     ...task,
     source: 'chat',
-    conversationId: task.conversationId || task.sessionKey || 'main',
-    sessionKey: task.sessionKey || 'main',
+    conversationId: resolvedConversationId,
+    sessionKey: resolvedSessionKey,
     prompt,
     title,
     summary,
@@ -219,8 +223,8 @@ export function readRecentTasks(): RecentTaskRecord[] {
 
 export function startRecentTask(input: StartRecentTaskInput): RecentTaskRecord {
   const now = new Date().toISOString();
-  const conversationId = input.conversationId || input.sessionKey || 'main';
   const sessionKey = input.sessionKey || 'main';
+  const conversationId = input.conversationId || findChatConversationBySessionKey(sessionKey)?.id || sessionKey || 'main';
   const prompt = collapseText(stripPromptMarkers(input.prompt)) || '基于上传内容发起的任务';
   const nextTitle = buildRecentTaskTitle(input.prompt);
   const nextSummary = buildRecentTaskSummary(input.prompt);
@@ -229,7 +233,10 @@ export function startRecentTask(input: StartRecentTaskInput): RecentTaskRecord {
 
   updateTaskList((tasks) => {
     const existing =
-      tasks.find((task) => normalizeRecentTask(task).conversationId === conversationId) ?? null;
+      tasks.find((task) => {
+        const normalizedTask = normalizeRecentTask(task);
+        return normalizedTask.conversationId === conversationId || normalizedTask.sessionKey === sessionKey;
+      }) ?? null;
     if (!existing) {
       activeTask = {
         id: createRecentTaskId(),

@@ -56,6 +56,7 @@ import {
   clearCacheKeysByPrefix,
   clearSessionKeysByPrefix,
   readCacheJson,
+  removeCacheKeys,
 } from '../lib/persistence/cache-store';
 import {
   hydrateChatSnapshotForRender,
@@ -2154,19 +2155,13 @@ async function loadGatewaySessionTokenSnapshot(
 function estimateRunGrantInputTokens(input: {
   quotedInputTokens: number | null;
   fallbackInputTokens: number;
-  baselineSessionTokens: { inputTokens: number; outputTokens: number } | null;
 }): number {
   const quotedInputTokens = Math.max(0, input.quotedInputTokens ?? 0);
   const fallbackInputTokens = Math.max(0, input.fallbackInputTokens);
-  const baselineInputTokens = Math.max(0, input.baselineSessionTokens?.inputTokens ?? 0);
-  const baselineOutputTokens = Math.max(0, input.baselineSessionTokens?.outputTokens ?? 0);
   const promptBudget = Math.max(quotedInputTokens, fallbackInputTokens, 1);
-  const transcriptAwareBudget =
-    baselineInputTokens +
-    baselineOutputTokens +
-    Math.max(4096, Math.ceil(promptBudget * 1.5));
+  const bufferedTurnBudget = Math.max(1024, Math.ceil(promptBudget * 1.35));
 
-  return Math.max(quotedInputTokens, fallbackInputTokens, transcriptAwareBudget);
+  return Math.max(quotedInputTokens, fallbackInputTokens, bufferedTurnBudget);
 }
 
 function isSessionRenderReady(renderState: ChatSurfaceRenderState): boolean {
@@ -4477,6 +4472,37 @@ export function OpenClawChatSurface({
   }, [finalizeRecentTaskRun, status.busy]);
 
   useEffect(() => {
+    if (status.busy) {
+      return;
+    }
+
+    const app = appRef.current;
+    const host = hostRef.current;
+    if (!app || !host) {
+      return;
+    }
+
+    const thread = host.querySelector('.chat-thread') as HTMLElement | null;
+    if (!thread) {
+      return;
+    }
+
+    const distanceToBottom = Math.max(0, thread.scrollHeight - thread.clientHeight - thread.scrollTop);
+    const nearBottomThreshold = Math.max(160, Math.ceil(thread.clientHeight * 0.18));
+    if (distanceToBottom > nearBottomThreshold) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      app.scrollToBottom({ smooth: true });
+    }, 40);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [assistantFooterVersion, pendingSettlementCount, status.busy]);
+
+  useEffect(() => {
     if (pendingSettlementCount === 0) {
       clearUsageSettlementTimers();
       return;
@@ -4660,7 +4686,6 @@ export function OpenClawChatSurface({
         estimatedInputTokens: estimateRunGrantInputTokens({
           quotedInputTokens: creditEstimate.estimatedInputTokens ?? null,
           fallbackInputTokens: fallbackEstimatedInputTokens,
-          baselineSessionTokens,
         }),
         estimatedOutputTokens: Math.max(0, creditEstimate.estimatedOutputTokens ?? 0),
         model: selectedModelId || undefined,
@@ -5084,8 +5109,14 @@ export function OpenClawChatSurface({
           <div class="iclaw-chat-assistant-footer__right">
             <span class="iclaw-chat-assistant-footer__timestamp"></span>
             <div class="iclaw-chat-assistant-toolbar">
-              <button type="button" class="iclaw-chat-assistant-toolbar__btn" data-action="like" aria-label="点赞" title="点赞">${MESSAGE_ACTION_ICONS.thumbsUp}</button>
-              <button type="button" class="iclaw-chat-assistant-toolbar__btn" data-action="dislike" aria-label="点踩" title="点踩">${MESSAGE_ACTION_ICONS.thumbsDown}</button>
+              <button type="button" class="iclaw-chat-assistant-toolbar__btn" data-action="like" data-state="idle" aria-label="点赞" title="点赞">
+                <span class="iclaw-message-action__icon iclaw-message-action__icon--idle">${MESSAGE_ACTION_ICONS.thumbsUp}</span>
+                <span class="iclaw-message-action__icon iclaw-message-action__icon--success">${MESSAGE_ACTION_ICONS.check}</span>
+              </button>
+              <button type="button" class="iclaw-chat-assistant-toolbar__btn" data-action="dislike" data-state="idle" aria-label="点踩" title="点踩">
+                <span class="iclaw-message-action__icon iclaw-message-action__icon--idle">${MESSAGE_ACTION_ICONS.thumbsDown}</span>
+                <span class="iclaw-message-action__icon iclaw-message-action__icon--success">${MESSAGE_ACTION_ICONS.check}</span>
+              </button>
               <button type="button" class="iclaw-chat-assistant-toolbar__btn iclaw-chat-assistant-toolbar__btn--copyable" data-action="copy" data-state="idle" aria-label="复制" title="复制">
                 <span class="iclaw-message-action__icon iclaw-message-action__icon--idle">${MESSAGE_ACTION_ICONS.copy}</span>
                 <span class="iclaw-message-action__icon iclaw-message-action__icon--success">${MESSAGE_ACTION_ICONS.check}</span>
@@ -5112,9 +5143,15 @@ export function OpenClawChatSurface({
             const active = target.dataset.active === 'true';
             if (active) {
               target.removeAttribute('data-active');
+              setMessageActionFeedback(target, 'idle');
             } else {
               target.dataset.active = 'true';
               opposite?.removeAttribute('data-active');
+              setMessageActionFeedback(target, 'success');
+              if (opposite) {
+                setMessageActionFeedback(opposite, 'idle');
+              }
+              scheduleButtonReset(target);
             }
             target.blur();
             return;
