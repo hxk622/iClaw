@@ -45,7 +45,7 @@ import { SettingsPanel } from './components/settings/SettingsPanel';
 import { RechargeCenter } from './components/recharge/RechargeCenter';
 import { StockMarketView } from './components/market/StockMarketView';
 import { FundMarketView, type FundMarketResearchTarget } from './components/market/FundMarketView';
-import type { ComposerStockContext } from './components/RichChatComposer';
+import type { ComposerInstrumentKind, ComposerStockContext } from './components/RichChatComposer';
 import { type PersistableSettingsSection, SettingsProvider, useSettings } from './contexts/settings-context';
 import { BRAND } from './lib/brand';
 import { type InvestmentExpert } from '@/app/lib/investment-experts';
@@ -158,6 +158,7 @@ const DESKTOP_RELEASE_CHANNEL: 'dev' | 'prod' =
 const DISPLAY_DESKTOP_APP_VERSION = DESKTOP_APP_VERSION.split('+', 1)[0] || DESKTOP_APP_VERSION;
 const DESKTOP_UPDATE_REVALIDATE_TTL_MS = 15 * 60 * 1000;
 const ACTIVE_CHAT_ROUTE_STORAGE_KEY = 'iclaw.desktop.active-chat-route.v1';
+const ACTIVE_WORKSPACE_SCENE_STORAGE_KEY = 'iclaw.desktop.active-workspace-scene.v1';
 
 type ActiveChatRoute = {
   sessionKey: string;
@@ -181,8 +182,21 @@ type PersistedChatRouteSnapshot = {
   focusTaskPrompt?: unknown;
 };
 
+type PersistedWorkspaceSceneSnapshot = {
+  primaryView?: unknown;
+  selectedTaskId?: unknown;
+};
+
 function normalizeOptionalText(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function normalizePersistedExchange(value: unknown): ComposerStockContext['exchange'] | null {
+  return value === 'sh' || value === 'sz' || value === 'bj' || value === 'otc' ? value : null;
+}
+
+function normalizePersistedInstrumentKind(value: unknown): ComposerInstrumentKind | undefined {
+  return value === 'stock' || value === 'fund' || value === 'etf' || value === 'qdii' ? value : undefined;
 }
 
 function normalizePersistedStockContext(value: unknown): ComposerStockContext | null {
@@ -192,16 +206,18 @@ function normalizePersistedStockContext(value: unknown): ComposerStockContext | 
   const raw = value as Record<string, unknown>;
   const id = normalizeOptionalText(raw.id);
   const symbol = normalizeOptionalText(raw.symbol);
-  if (!id || !symbol) {
+  const companyName = normalizeOptionalText(raw.companyName);
+  const exchange = normalizePersistedExchange(raw.exchange);
+  if (!id || !symbol || !companyName || !exchange) {
     return null;
   }
   return {
     id,
     symbol,
-    companyName: normalizeOptionalText(raw.companyName),
-    exchange: normalizeOptionalText(raw.exchange),
+    companyName,
+    exchange,
     board: normalizeOptionalText(raw.board),
-    instrumentKind: normalizeOptionalText(raw.instrumentKind),
+    instrumentKind: normalizePersistedInstrumentKind(raw.instrumentKind),
     instrumentLabel: normalizeOptionalText(raw.instrumentLabel),
   };
 }
@@ -241,6 +257,43 @@ function writePersistedActiveChatRoute(route: ActiveChatRoute | null): void {
     initialStockContext: route.initialStockContext,
     focusTaskId: route.focusTaskId,
     focusTaskPrompt: route.focusTaskPrompt,
+  });
+}
+
+function readPersistedWorkspaceScene(): {
+  primaryView: string | null;
+  selectedTaskId: string | null;
+} {
+  const snapshot = readCacheJson<PersistedWorkspaceSceneSnapshot>(ACTIVE_WORKSPACE_SCENE_STORAGE_KEY);
+  if (!snapshot || typeof snapshot !== 'object') {
+    return {
+      primaryView: null,
+      selectedTaskId: null,
+    };
+  }
+  return {
+    primaryView: normalizeOptionalText(snapshot.primaryView),
+    selectedTaskId: normalizeOptionalText(snapshot.selectedTaskId),
+  };
+}
+
+function writePersistedWorkspaceScene(input: {
+  primaryView?: string | null;
+  selectedTaskId?: string | null;
+}): void {
+  const current = readPersistedWorkspaceScene();
+  const next = {
+    primaryView: input.primaryView === undefined ? current.primaryView : normalizeOptionalText(input.primaryView),
+    selectedTaskId:
+      input.selectedTaskId === undefined ? current.selectedTaskId : normalizeOptionalText(input.selectedTaskId),
+  };
+  if (!next.primaryView && !next.selectedTaskId) {
+    writeCacheJson(ACTIVE_WORKSPACE_SCENE_STORAGE_KEY, null);
+    return;
+  }
+  writeCacheJson(ACTIVE_WORKSPACE_SCENE_STORAGE_KEY, {
+    ...(next.primaryView ? {primaryView: next.primaryView} : {}),
+    ...(next.selectedTaskId ? {selectedTaskId: next.selectedTaskId} : {}),
   });
 }
 
@@ -524,7 +577,7 @@ export default function App() {
   const [runtimeReady, setRuntimeReady] = useState(!isTauriRuntime());
   const [runtimeDiagnosis, setRuntimeDiagnosis] = useState<RuntimeDiagnosis | null>(null);
   const [runtimeInstallProgress, setRuntimeInstallProgress] = useState<RuntimeInstallProgress | null>(null);
-  const [primaryView, setPrimaryView] = useState<PrimaryView>('chat');
+  const [primaryView, setPrimaryView] = useState<PrimaryView>(() => readPersistedWorkspaceScene().primaryView ?? 'chat');
   const [overlayView, setOverlayView] = useState<'settings' | 'account' | 'recharge' | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
@@ -550,6 +603,10 @@ export default function App() {
   const brandRuntimeSyncInFlightRef = useRef(false);
   const desktopUpdateLastCheckedAtRef = useRef(0);
   const desktopUpdateCheckInFlightRef = useRef(false);
+
+  useEffect(() => {
+    writePersistedWorkspaceScene({primaryView});
+  }, [primaryView]);
 
   const syncWorkspaceForUser = async (token: string): Promise<void> => {
     if (!IS_TAURI_RUNTIME) return;
@@ -1693,7 +1750,7 @@ function AuthedView({
 }: AuthedViewProps) {
   const { buildSectionSaveSnapshot, commitSectionSave } = useSettings();
   const lastResolvedPrimaryViewRef = useRef<PrimaryView | null>(null);
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(() => readPersistedWorkspaceScene().selectedTaskId);
   const [activeChatRoute, setActiveChatRoute] = useState<ActiveChatRoute>(() => resolveInitialChatRoute());
   const [chatSurfaceVersion, setChatSurfaceVersion] = useState(0);
   const [creditBalance, setCreditBalance] = useState<CreditBalanceData | null>(null);
@@ -1744,6 +1801,10 @@ function AuthedView({
     }
     setPrimaryView(resolvedPrimaryView);
   }, [primaryView, resolvedPrimaryView, setPrimaryView]);
+
+  useEffect(() => {
+    writePersistedWorkspaceScene({selectedTaskId});
+  }, [selectedTaskId]);
 
   useEffect(() => {
     const lastView = lastResolvedPrimaryViewRef.current;
