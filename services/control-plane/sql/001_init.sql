@@ -1164,6 +1164,18 @@ insert into cloud_skill_catalog (
     true
   ),
   (
+    'frontend-slides',
+    'Frontend Slides',
+    '创建高设计感、强动效、零依赖的 HTML 演示文稿，也支持将 PPT/PPTX 转为 Web Slides。',
+    '通用',
+    'content',
+    '演示生成',
+    'zarazhangrui · iClaw',
+    'cloud',
+    '["演示","Slides","PPT","HTML","前端设计"]'::jsonb,
+    true
+  ),
+  (
     'a-share-esg',
     'A股ESG筛选分析',
     '从ESG角度筛选A股上市公司，评估可持续发展实践与争议风险。',
@@ -1396,6 +1408,7 @@ from (
     ('docx', '1.0.0', 'tar.gz', null::text, null::text, null::text, 'manual', null::text),
     ('xlsx', '1.0.0', 'tar.gz', null, null, null, 'manual', null),
     ('pdf', '1.0.0', 'tar.gz', null, null, null, 'manual', null),
+    ('frontend-slides', '1.0.0', 'zip', null, null, null, 'github_repo', 'https://github.com/zarazhangrui/frontend-slides'),
     ('a-share-esg', '1.0.0', 'tar.gz', null, null, null, 'manual', null),
     ('a-share-factor-screener', '1.0.0', 'tar.gz', null, null, null, 'manual', null),
     ('a-share-industry-rotation', '1.0.0', 'tar.gz', null, null, null, 'manual', null),
@@ -1416,6 +1429,17 @@ from (
     ('us-dividend-aristocrats', '1.0.0', 'tar.gz', null, null, null, 'manual', null)
 ) as seeded(slug, version, artifact_format, artifact_url, artifact_sha256, artifact_source_path, origin_type, source_url)
 where entry.slug = seeded.slug;
+
+update cloud_skill_catalog
+set metadata_json = metadata_json || jsonb_build_object(
+  'execution_surface', 'desktop-local',
+  'has_side_effects', false,
+  'source_label', 'GitHub',
+  'source_repo', 'zarazhangrui/frontend-slides',
+  'portal_artifact_object_key', 'portal-skills/frontend-slides/1.0.0/artifact.zip'
+),
+    updated_at = now()
+where slug = 'frontend-slides';
 
 insert into cloud_skill_catalog (
   slug,
@@ -1747,7 +1771,7 @@ create index if not exists idx_run_grants_user_id_created_at on run_grants(user_
 create index if not exists idx_run_grants_billing_session_lookup
   on run_grants (
     user_id,
-    (coalesce(metadata->>'session_key', 'main')),
+    (coalesce(metadata->>'session_key', 'agent:main:main')),
     (coalesce(used_at, created_at)) desc,
     created_at desc
   )

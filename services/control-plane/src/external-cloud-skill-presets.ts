@@ -23,6 +23,9 @@ export const XIAOHONGSHU_CLOUD_SKILL_ARTIFACT_FORMAT = 'zip' as const;
 export const REMOTION_CLOUD_SKILL_SLUG = 'remotion-skill';
 export const REMOTION_CLOUD_SKILL_VERSION = '1.0.0';
 export const REMOTION_CLOUD_SKILL_ARTIFACT_FORMAT = 'zip' as const;
+export const FRONTEND_SLIDES_CLOUD_SKILL_SLUG = 'frontend-slides';
+export const FRONTEND_SLIDES_CLOUD_SKILL_VERSION = '1.0.0';
+export const FRONTEND_SLIDES_CLOUD_SKILL_ARTIFACT_FORMAT = 'zip' as const;
 
 export const XIAOHONGSHU_CLOUD_SKILL_SEED: ExternalCloudSkillSeed = {
   slug: XIAOHONGSHU_CLOUD_SKILL_SLUG,
@@ -74,9 +77,37 @@ export const REMOTION_CLOUD_SKILL_SEED: ExternalCloudSkillSeed = {
   },
 };
 
+export const FRONTEND_SLIDES_CLOUD_SKILL_SEED: ExternalCloudSkillSeed = {
+  slug: FRONTEND_SLIDES_CLOUD_SKILL_SLUG,
+  name: 'Frontend Slides',
+  description: '创建高设计感、强动效、零依赖的 HTML 演示文稿，也支持将 PPT/PPTX 转为 Web Slides。',
+  market: '通用',
+  category: 'content',
+  skillType: '演示生成',
+  tags: ['演示', 'Slides', 'PPT', 'HTML', '前端设计'],
+  publisher: 'zarazhangrui · iClaw',
+  distribution: 'cloud' as const,
+  artifactFormat: FRONTEND_SLIDES_CLOUD_SKILL_ARTIFACT_FORMAT,
+  version: FRONTEND_SLIDES_CLOUD_SKILL_VERSION,
+  originType: 'github_repo' as const,
+  sourceUrl: 'https://github.com/zarazhangrui/frontend-slides',
+  metadata: {
+    execution_surface: 'desktop-local',
+    has_side_effects: false,
+    source_label: 'GitHub',
+    source_repo: 'zarazhangrui/frontend-slides',
+    [CLOUD_SKILL_ARTIFACT_OBJECT_KEY_FIELD]: buildCloudSkillArtifactObjectKey({
+      slug: FRONTEND_SLIDES_CLOUD_SKILL_SLUG,
+      version: FRONTEND_SLIDES_CLOUD_SKILL_VERSION,
+      artifactFormat: FRONTEND_SLIDES_CLOUD_SKILL_ARTIFACT_FORMAT,
+    }),
+  },
+};
+
 export const EXTERNAL_CLOUD_SKILL_SEEDS: ExternalCloudSkillSeed[] = [
   XIAOHONGSHU_CLOUD_SKILL_SEED,
   REMOTION_CLOUD_SKILL_SEED,
+  FRONTEND_SLIDES_CLOUD_SKILL_SEED,
 ];
 
 export const XIAOHONGSHU_CLOUD_SKILL_REQUIRED_PATHS = ['scripts', 'skills'];
@@ -84,6 +115,16 @@ export const XIAOHONGSHU_CLOUD_SKILL_REQUIRED_PATHS = ['scripts', 'skills'];
 export const XIAOHONGSHU_CLOUD_SKILL_OPTIONAL_PATHS = ['requirements.txt'];
 
 export const REMOTION_CLOUD_SKILL_REQUIRED_PATHS = ['rules'];
+export const FRONTEND_SLIDES_CLOUD_SKILL_REQUIRED_PATHS = [
+  'LICENSE',
+  'README.md',
+  'SKILL.md',
+  'STYLE_PRESETS.md',
+  'animation-patterns.md',
+  'html-template.md',
+  'viewport-base.css',
+  'scripts',
+] as const;
 
 export const XIAOHONGSHU_CLOUD_SKILL_REQUIREMENTS = `requests>=2.31,<3
 websockets>=11,<16

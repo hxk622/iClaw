@@ -8,6 +8,8 @@ import {config} from '../src/config.ts';
 import {CLOUD_SKILL_ARTIFACT_OBJECT_KEY_FIELD} from '../src/cloud-skill-artifacts.ts';
 import {
   buildRemotionSkillMarkdown,
+  FRONTEND_SLIDES_CLOUD_SKILL_REQUIRED_PATHS,
+  FRONTEND_SLIDES_CLOUD_SKILL_SLUG,
   buildXiaohongshuSkillMarkdown,
   getExternalCloudSkillSeed,
   REMOTION_CLOUD_SKILL_REQUIRED_PATHS,
@@ -101,6 +103,17 @@ async function stageRemotionSkill(sourceDir: string, stageDir: string): Promise<
   await writeFile(resolve(stageDir, 'SKILL.md'), buildRemotionSkillMarkdown(), 'utf8');
 }
 
+async function stageFrontendSlidesSkill(sourceDir: string, stageDir: string): Promise<void> {
+  for (const relativePath of FRONTEND_SLIDES_CLOUD_SKILL_REQUIRED_PATHS) {
+    const sourcePath = resolve(sourceDir, relativePath);
+    if (!(await pathExists(sourcePath))) {
+      throw new Error(`missing required source path: ${relativePath}`);
+    }
+    await cp(sourcePath, resolve(stageDir, relativePath), {recursive: true, force: true});
+  }
+  await removeJunkFiles(stageDir);
+}
+
 async function stageSkillSource(slug: string, sourceDir: string, stageDir: string): Promise<void> {
   switch (slug) {
     case XIAOHONGSHU_CLOUD_SKILL_SLUG:
@@ -108,6 +121,9 @@ async function stageSkillSource(slug: string, sourceDir: string, stageDir: strin
       return;
     case REMOTION_CLOUD_SKILL_SLUG:
       await stageRemotionSkill(sourceDir, stageDir);
+      return;
+    case FRONTEND_SLIDES_CLOUD_SKILL_SLUG:
+      await stageFrontendSlidesSkill(sourceDir, stageDir);
       return;
     default:
       throw new Error(`unsupported external cloud skill slug: ${slug}`);
