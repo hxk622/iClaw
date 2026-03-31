@@ -3727,14 +3727,8 @@ export function OpenClawChatSurface({
 
     const updateComposerHeight = () => {
       const composer = shell.querySelector('.iclaw-composer') as HTMLElement | null;
-      const thread = resolveActiveThread();
       const composerHeight = composer?.getBoundingClientRect().height ?? 0;
-      const overlap =
-        composer && thread
-          ? Math.max(0, thread.getBoundingClientRect().bottom - composer.getBoundingClientRect().top)
-          : 0;
       shell.style.setProperty('--iclaw-composer-height', `${Math.ceil(composerHeight)}px`);
-      shell.style.setProperty('--iclaw-thread-bottom-gap', `${Math.ceil(overlap + 24)}px`);
     };
 
     const canElementConsumeWheel = (element: HTMLElement | null, deltaY: number): boolean => {
@@ -3749,6 +3743,16 @@ export function OpenClawChatSurface({
         return element.scrollTop < maxScrollTop;
       }
       return false;
+    };
+
+    const normalizeWheelDelta = (event: WheelEvent): number => {
+      if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+        return event.deltaY * 16;
+      }
+      if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+        return event.deltaY * Math.max(240, shell.clientHeight * 0.85);
+      }
+      return event.deltaY;
     };
 
     updateComposerHeight();
@@ -3766,6 +3770,7 @@ export function OpenClawChatSurface({
 
     const handleShellWheel = (event: WheelEvent) => {
       const target = event.target as HTMLElement | null;
+      const deltaY = normalizeWheelDelta(event);
       if (
         target?.closest(
           '.iclaw-composer__mention-menu, .iclaw-composer__model-menu, .iclaw-composer__selector-menu, .iclaw-composer__floating-menu',
@@ -3775,7 +3780,14 @@ export function OpenClawChatSurface({
       }
 
       const editor = target?.closest('.iclaw-composer__editor') as HTMLElement | null;
-      if (canElementConsumeWheel(editor, event.deltaY)) {
+      if (canElementConsumeWheel(editor, deltaY)) {
+        return;
+      }
+
+      const innerScrollable = target?.closest(
+        '.chat-tool-card__output, .chat-tool-card__preview, .chat-tool-card__inline, pre, code, table',
+      ) as HTMLElement | null;
+      if (canElementConsumeWheel(innerScrollable, deltaY)) {
         return;
       }
 
@@ -3783,12 +3795,9 @@ export function OpenClawChatSurface({
       if (!activeThread || activeThread.scrollHeight <= activeThread.clientHeight) {
         return;
       }
-      if (target?.closest('.chat-thread')) {
-        return;
-      }
 
       const maxScrollTop = activeThread.scrollHeight - activeThread.clientHeight;
-      const nextScrollTop = Math.max(0, Math.min(maxScrollTop, activeThread.scrollTop + event.deltaY));
+      const nextScrollTop = Math.max(0, Math.min(maxScrollTop, activeThread.scrollTop + deltaY));
       if (Math.abs(nextScrollTop - activeThread.scrollTop) < 1) {
         return;
       }
