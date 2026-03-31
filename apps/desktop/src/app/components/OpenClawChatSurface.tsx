@@ -288,11 +288,12 @@ const OPENCLAW_DEVICE_IDENTITY_KEY = 'openclaw-device-identity-v1';
 const CHAT_SELECTION_MENU_WIDTH = 220;
 const CHAT_SELECTION_MENU_HEIGHT = 176;
 const CHAT_SELECTION_MENU_GAP = 12;
-const SESSION_TRANSITION_MIN_DURATION_MS = 260;
+const SESSION_TRANSITION_MIN_DURATION_MS = 120;
 const INITIAL_SURFACE_BOOT_TIMEOUT_MS = 3200;
-const INITIAL_EMPTY_SESSION_SETTLE_MS = 1100;
+const INITIAL_EMPTY_SESSION_SETTLE_MS = 120;
 const STATUS_POLL_INTERVAL_MS = 420;
 const CONNECTION_LOSS_GRACE_MS = 1200;
+const SEEDED_EMPTY_SESSION_PREFIXES = ['chat-', 'skill-', 'stock-', 'fund-'] as const;
 const ICLAW_BILLING_SUMMARY_KEY = '__iclawBillingSummary';
 const ICLAW_BILLING_STATE_KEY = '__iclawBillingState';
 const ICLAW_BILLING_RUN_ID_KEY = '__iclawBillingRunId';
@@ -1833,6 +1834,11 @@ function createMessageActionButton(params: {
   return button;
 }
 
+function isSeededEmptySessionKey(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return SEEDED_EMPTY_SESSION_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+}
+
 async function loadChatModelSnapshot(
   app: OpenClawAppElement,
   targetSessionKey: string,
@@ -2491,6 +2497,23 @@ export function OpenClawChatSurface({
     sessionTransitionPendingRef.current = true;
     sessionTransitionStartedAtRef.current = performance.now();
     clearSessionTransitionTimer();
+    setStatus((current) => ({
+      ...current,
+      connected: false,
+      lastError: null,
+      lastErrorCode: null,
+    }));
+    setRenderState({
+      hostHeight: 0,
+      hasNativeInput: false,
+      nativeInputVisible: false,
+      nativeInputHeight: 0,
+      hasThread: false,
+      threadVisible: false,
+      threadHeight: 0,
+      groupCount: 0,
+      chatMessageCount: 0,
+    });
     setSessionTransitionVisible(true);
     closeSelectionMenu();
   }, [clearSessionTransitionTimer, closeSelectionMenu, sessionKey]);
@@ -3316,6 +3339,11 @@ export function OpenClawChatSurface({
       setSessionHistoryState('empty');
       return;
     }
+    if (isSeededEmptySessionKey(sessionKey)) {
+      setInitialSurfaceRestorePending(false);
+      setSessionHistoryState('empty');
+      return;
+    }
     setInitialSurfaceRestorePending(true);
     setSessionHistoryState('unknown');
   }, [sessionKey, shellAuthenticated]);
@@ -3572,7 +3600,6 @@ export function OpenClawChatSurface({
 
     const ready =
       status.connected &&
-      !modelsLoading &&
       !modelSwitching &&
       isSessionRenderReady(renderState);
 

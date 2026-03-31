@@ -2120,7 +2120,7 @@ function AuthedView({
             <ChatBootstrapPlaceholderView />
           ) : authenticated ? (
             <OpenClawChatSurface
-              key={`${activeChatRoute.sessionKey}:${chatSurfaceVersion}`}
+              key={`chat-surface:${chatSurfaceVersion}`}
               gatewayUrl={GATEWAY_WS_URL}
               gatewayToken={gatewayAuth.token}
               gatewayPassword={gatewayAuth.password}
