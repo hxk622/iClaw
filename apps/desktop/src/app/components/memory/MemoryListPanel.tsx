@@ -39,9 +39,9 @@ export function MemoryListPanel({
   onClearFilters: () => void;
 }) {
   const configHint = !runtimeStatus?.embeddingConfigured
-    ? '当前未配置记忆 Embedding；手动记忆可以继续使用，但向量召回不会启动。'
+    ? '当前使用内置记忆模式；手动记忆和基础索引可用，但语义召回未开启。'
     : runtimeError || runtimeStatus?.vectorError
-      ? `当前记忆 Embedding 已配置，但运行异常：${runtimeStatus?.vectorError || runtimeError}`
+      ? `当前向量提供方已配置，但运行异常：${runtimeStatus?.vectorError || runtimeError}`
       : null;
   return (
     <SurfacePanel className="overflow-hidden rounded-[24px] border-[var(--border-default)] bg-[var(--bg-card)]">

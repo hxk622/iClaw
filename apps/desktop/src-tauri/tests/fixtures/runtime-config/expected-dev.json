@@ -103,20 +103,8 @@
   },
   "plugins": {
     "slots": {
-      "memory": "memory-lancedb"
+      "memory": "none"
     },
-    "entries": {
-      "memory-lancedb": {
-        "config": {
-          "embedding": {
-            "apiKey": "sk-memory-dev",
-            "model": "text-embedding-v4",
-            "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1"
-          },
-          "autoRecall": true,
-          "autoCapture": false
-        }
-      }
-    }
+    "entries": {}
   }
 }

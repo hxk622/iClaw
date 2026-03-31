@@ -7,7 +7,8 @@ import type { MemoryStatusSummary } from './model';
 
 function resolveEngineLabel(runtimeStatus: MemoryRuntimeStatus | null) {
   if (!runtimeStatus?.backend) return '未连接';
-  return runtimeStatus.backend === 'builtin' ? 'Builtin' : 'LanceDB';
+  if (runtimeStatus.backend === 'builtin') return 'Builtin';
+  return runtimeStatus.backend;
 }
 
 function resolveLatestSyncLabel(latestUpdatedAt: string | null) {
@@ -52,11 +53,11 @@ export function MemoryStatusBar({
   const configuredLabel =
     runtimeStatus?.embeddingConfigured
       ? `${runtimeStatus.configuredProvider || runtimeStatus.provider || 'unknown'} / ${runtimeStatus.configuredModel || runtimeStatus.model || 'unknown'}`
-      : '未配置';
+      : '未配置向量提供方';
   const guidance = !runtimeStatus?.embeddingConfigured
-    ? '当前未配置记忆 Embedding。手动记忆仍可用，但语义召回和向量索引不会启动。请到 admin-web 模型中心的“记忆 Embedding”卡片配置。'
+    ? '当前采用内置记忆后端。手动记忆、导入导出和基础索引可继续使用；如果需要语义召回，再补充向量提供方配置。'
     : runtimeError || runtimeStatus?.vectorError
-      ? `记忆 Embedding 已配置，但当前启动异常。${runtimeStatus?.vectorError || runtimeError || '请检查 Base URL、API Key、Embedding Model。'}`
+      ? `向量提供方已配置，但当前不可用。${runtimeStatus?.vectorError || runtimeError || '请检查 API Key、Base URL 和模型配置。'}`
       : null;
 
   return (

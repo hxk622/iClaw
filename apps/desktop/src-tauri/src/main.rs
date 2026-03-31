@@ -3086,34 +3086,6 @@ fn sync_current_brand_runtime_snapshot(app: &AppHandle) -> Result<bool, String> 
     )
 }
 
-fn read_memory_embedding_profile_from_snapshot(
-    app: &AppHandle,
-) -> Option<(String, String, String)> {
-    let snapshot = load_oem_runtime_snapshot_internal(app).ok().flatten()?;
-    let config = snapshot.config.as_object()?;
-    let memory_embedding = config.get("memory_embedding")?.as_object()?;
-    let profile = memory_embedding.get("profile")?.as_object()?;
-    let scope = profile
-        .get("scope_key")
-        .and_then(|value| value.as_str())
-        .map(String::from)
-        .unwrap_or_default();
-    let provider = profile
-        .get("provider_key")
-        .and_then(|value| value.as_str())
-        .map(String::from)
-        .unwrap_or_default();
-    let model = profile
-        .get("embedding_model")
-        .and_then(|value| value.as_str())
-        .map(String::from)
-        .unwrap_or_default();
-    if provider.trim().is_empty() || model.trim().is_empty() {
-        return None;
-    }
-    Some((scope, provider, model))
-}
-
 fn load_oem_runtime_snapshot_internal(app: &AppHandle) -> Result<Option<OemRuntimeSnapshot>, String> {
     let snapshot_path = oem_runtime_snapshot_path(app)?;
     if !snapshot_path.exists() {
@@ -4032,13 +4004,29 @@ fn load_desktop_memory_runtime_status(
     app: &AppHandle,
 ) -> Result<DesktopMemoryRuntimeStatus, String> {
     let value = run_memory_cli_json(app, &["memory", "status", "--json"])?;
-    let memory_profile = read_memory_embedding_profile_from_snapshot(app);
     let first = value
         .as_array()
         .and_then(|items| items.first())
         .ok_or_else(|| String::from("memory status returned empty payload"))?;
     let status = first.get("status").cloned().unwrap_or_else(|| json!({}));
     let scan = first.get("scan").cloned().unwrap_or_else(|| json!({}));
+    let custom = status.get("custom").cloned().unwrap_or_else(|| json!({}));
+    let provider = status
+        .get("provider")
+        .and_then(|value| value.as_str())
+        .map(String::from);
+    let model = status
+        .get("model")
+        .and_then(|value| value.as_str())
+        .map(String::from);
+    let provider_configured = provider
+        .as_ref()
+        .map(|value| !value.trim().is_empty() && value != "none")
+        .unwrap_or(false);
+    let fallback_vector_error = custom
+        .get("providerUnavailableReason")
+        .and_then(|value| value.as_str())
+        .map(String::from);
 
     Ok(DesktopMemoryRuntimeStatus {
         backend: status
@@ -4066,14 +4054,8 @@ fn load_desktop_memory_runtime_status(
             .get("dbPath")
             .and_then(|value| value.as_str())
             .map(String::from),
-        provider: status
-            .get("provider")
-            .and_then(|value| value.as_str())
-            .map(String::from),
-        model: status
-            .get("model")
-            .and_then(|value| value.as_str())
-            .map(String::from),
+        provider: provider.clone(),
+        model: model.clone(),
         source_counts: status
             .get("sourceCounts")
             .and_then(|value| value.as_array())
@@ -4107,11 +4089,12 @@ fn load_desktop_memory_runtime_status(
             .get("vector")
             .and_then(|value| value.get("error"))
             .and_then(|value| value.as_str())
-            .map(String::from),
-        embedding_configured: memory_profile.is_some(),
-        configured_scope: memory_profile.as_ref().map(|item| item.0.clone()),
-        configured_provider: memory_profile.as_ref().map(|item| item.1.clone()),
-        configured_model: memory_profile.as_ref().map(|item| item.2.clone()),
+            .map(String::from)
+            .or(fallback_vector_error),
+        embedding_configured: provider_configured,
+        configured_scope: None,
+        configured_provider: provider,
+        configured_model: model,
     })
 }
 

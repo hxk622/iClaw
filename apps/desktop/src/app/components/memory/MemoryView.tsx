@@ -288,10 +288,6 @@ export function MemoryView({ title }: { title: string }) {
   };
 
   const handleRefreshIndex = async () => {
-    if (!runtimeStatus?.embeddingConfigured) {
-      setRuntimeError('当前未配置记忆 Embedding。请先到 admin-web 的模型中心配置“记忆 Embedding”。');
-      return;
-    }
     setMutating(true);
     try {
       await reindexMemory(true);

@@ -159,28 +159,6 @@ function extractResolvedProviderConfig(snapshot) {
   };
 }
 
-function extractResolvedMemoryEmbeddingConfig(snapshot) {
-  const rootConfig = asObject(snapshot?.config);
-  const memoryEmbedding = asObject(rootConfig.memory_embedding);
-  const profile = asObject(memoryEmbedding.profile);
-  const providerKey = trimString(profile.provider_key || profile.providerKey);
-  const embeddingModel = trimString(profile.embedding_model || profile.embeddingModel);
-  const baseUrl = trimString(profile.base_url || profile.baseUrl);
-  const apiKey = trimString(profile.api_key || profile.apiKey);
-  if (!providerKey || !embeddingModel || !baseUrl || !apiKey) {
-    return null;
-  }
-  return {
-    providerKey,
-    providerLabel: trimString(profile.provider_label || profile.providerLabel) || providerKey,
-    baseUrl,
-    apiKey,
-    authMode: trimString(profile.auth_mode || profile.authMode) || 'bearer',
-    embeddingModel,
-    autoRecall: asBool(profile.auto_recall ?? profile.autoRecall, true),
-  };
-}
-
 function replaceProviderModels(provider, entries) {
   provider.models = entries
     .map((entry) => ({
@@ -220,8 +198,6 @@ function main() {
   const activeModelRef = resolvedProviderConfig.models[0]?.modelRef || '';
   const allowlistModelRefs = resolvedProviderConfig.models.map((entry) => entry.modelRef).filter(Boolean);
   const mergedAllowedOrigins = parseAllowedOrigins(mode, process.env.ICLAW_OPENCLAW_ALLOWED_ORIGINS);
-  const resolvedMemoryEmbeddingConfig = extractResolvedMemoryEmbeddingConfig(portalRuntimeSnapshot);
-
   sanitizeLegacySkillEntries(config);
 
   const gateway = ensureObject(config, 'gateway');
@@ -348,21 +324,9 @@ function main() {
   const plugins = ensureObject(config, 'plugins');
   const slots = ensureObject(plugins, 'slots');
   const entries = ensureObject(plugins, 'entries');
-  if (resolvedMemoryEmbeddingConfig) {
-    slots.memory = 'memory-lancedb';
-    const memoryPlugin = ensureObject(entries, 'memory-lancedb');
-    const memoryPluginConfig = ensureObject(memoryPlugin, 'config');
-    const embedding = ensureObject(memoryPluginConfig, 'embedding');
-    embedding.apiKey = resolvedMemoryEmbeddingConfig.apiKey;
-    embedding.model = resolvedMemoryEmbeddingConfig.embeddingModel;
-    embedding.baseUrl = resolvedMemoryEmbeddingConfig.baseUrl;
-    memoryPluginConfig.autoRecall = resolvedMemoryEmbeddingConfig.autoRecall;
-    memoryPluginConfig.autoCapture = false;
-  } else {
-    slots.memory = 'none';
-    if (entries['memory-lancedb']) {
-      delete entries['memory-lancedb'];
-    }
+  slots.memory = 'none';
+  if (entries['memory-lancedb']) {
+    delete entries['memory-lancedb'];
   }
   plugins.slots = slots;
   plugins.entries = entries;
