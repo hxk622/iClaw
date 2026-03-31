@@ -1,5 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 
+const MEMORY_DEV_ENDPOINT = '/__iclaw/memory';
+
 export interface MemoryEntryRecord {
   id: string;
   title: string;
@@ -57,26 +59,103 @@ function isTauriRuntime(): boolean {
 }
 
 export async function loadMemorySnapshot(): Promise<MemorySnapshot | null> {
-  if (!isTauriRuntime()) return null;
+  if (!isTauriRuntime()) {
+    try {
+      const response = await fetch(MEMORY_DEV_ENDPOINT, {
+        method: 'GET',
+        credentials: 'same-origin',
+      });
+      if (!response.ok) {
+        return null;
+      }
+      return (await response.json()) as MemorySnapshot;
+    } catch {
+      return null;
+    }
+  }
   return invoke<MemorySnapshot>('load_memory_snapshot');
 }
 
 export async function saveMemoryEntry(entry: MemoryEntryRecord): Promise<MemoryEntryRecord | null> {
-  if (!isTauriRuntime()) return null;
+  if (!isTauriRuntime()) {
+    const response = await fetch(MEMORY_DEV_ENDPOINT, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'save',
+        entry,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`memory save failed: ${response.status}`);
+    }
+    return (await response.json()) as MemoryEntryRecord;
+  }
   return invoke<MemoryEntryRecord>('save_memory_entry', { entry });
 }
 
 export async function deleteMemoryEntry(id: string): Promise<boolean> {
-  if (!isTauriRuntime()) return false;
+  if (!isTauriRuntime()) {
+    const response = await fetch(MEMORY_DEV_ENDPOINT, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'delete',
+        id,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`memory delete failed: ${response.status}`);
+    }
+    return (await response.json()) as boolean;
+  }
   return invoke<boolean>('delete_memory_entry', { id });
 }
 
 export async function archiveMemoryEntry(id: string): Promise<boolean> {
-  if (!isTauriRuntime()) return false;
+  if (!isTauriRuntime()) {
+    const response = await fetch(MEMORY_DEV_ENDPOINT, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'archive',
+        id,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`memory archive failed: ${response.status}`);
+    }
+    return (await response.json()) as boolean;
+  }
   return invoke<boolean>('archive_memory_entry', { id });
 }
 
 export async function reindexMemory(force = false): Promise<boolean> {
-  if (!isTauriRuntime()) return false;
+  if (!isTauriRuntime()) {
+    const response = await fetch(MEMORY_DEV_ENDPOINT, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'reindex',
+        force,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`memory reindex failed: ${response.status}`);
+    }
+    return (await response.json()) as boolean;
+  }
   return invoke<boolean>('reindex_memory', { force });
 }
