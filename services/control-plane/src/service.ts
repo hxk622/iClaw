@@ -3278,41 +3278,54 @@ export class ControlPlaneService {
     const user = await this.getUserForAccessToken(accessToken);
     const sessionKey = (input.session_key || 'main').trim() || 'main';
     const client = (input.client || 'desktop').trim() || 'desktop';
-    const estimatedInputTokens = Math.max(0, input.estimated_input_tokens || 0);
-    const estimatedOutputTokens = Math.max(0, input.estimated_output_tokens || 0);
+    const message = (input.message || '').trim();
+    const attachments = Array.isArray(input.attachments) ? input.attachments : [];
+    const hasSearch = Boolean(input.has_search);
+    const hasTools = Boolean(input.has_tools);
+    const historyMessages = Math.max(0, Math.min(48, input.history_messages || 0));
+    let estimatedInputTokens = Math.max(0, input.estimated_input_tokens || 0);
+    let estimatedOutputTokens = Math.max(0, input.estimated_output_tokens || 0);
     const normalizedModel = (input.model || '').trim();
     const normalizedAppName = (input.app_name || '').trim() || null;
     const account = await this.store.getCreditAccount(user.id);
     const currentBalance = account.totalAvailableBalance;
-    if (currentBalance <= 0) {
-      throw new HttpError(402, 'INSUFFICIENT_CREDITS', 'current balance is insufficient');
+    if (currentBalance < 0) {
+      throw new HttpError(
+        402,
+        'INSUFFICIENT_CREDITS',
+        `当前龙虾币余额已为 ${currentBalance}，账号已暂停发送。请先前往充值中心充值后再继续。`,
+      );
     }
 
-    const creditLimit = Math.min(currentBalance, config.runGrantCreditLimit);
+    if ((estimatedInputTokens <= 0 || estimatedOutputTokens <= 0) && (message || attachments.length > 0)) {
+      estimatedInputTokens = this.estimateQuoteInputTokens({
+        message,
+        historyMessages,
+        attachments,
+        hasSearch,
+        hasTools,
+      });
+      estimatedOutputTokens = this.estimateQuoteOutputTokens({
+        message,
+        historyMessages,
+        attachmentCount: attachments.length,
+        hasSearch,
+        hasTools,
+      }).high;
+    }
+
     const billingMultiplier = await this.resolveBillingMultiplier(normalizedAppName, normalizedModel || null);
     const estimatedCreditCost = this.computeBilledCreditCost(
       estimatedInputTokens,
       estimatedOutputTokens,
       billingMultiplier,
     );
-    if (estimatedCreditCost > currentBalance) {
-      throw new HttpError(
-        402,
-        'INSUFFICIENT_CREDITS',
-        `当前龙虾币不足。本次预估消耗约 ${estimatedCreditCost} 龙虾币，当前可用 ${currentBalance} 龙虾币，请先前往充值中心充值后再发送。`,
-      );
-    }
-    if (estimatedCreditCost > creditLimit) {
-      throw new HttpError(
-        402,
-        'CREDIT_LIMIT_EXCEEDED',
-        `本次预估消耗约 ${estimatedCreditCost} 龙虾币，已超过单次运行上限 ${creditLimit} 龙虾币。请缩短上下文、开启新对话，或联系管理员调整额度。`,
-      );
-    }
+    const creditLimit = Math.max(1, config.runGrantCreditLimit, estimatedCreditCost);
 
     const nonce = makeNonce();
     const expiresAt = new Date(Date.now() + config.runGrantTtlSeconds * 1000).toISOString();
     const maxInputTokens = Math.max(config.runGrantMaxInputTokens, estimatedInputTokens);
+    const maxOutputTokens = Math.max(config.runGrantMaxOutputTokens, estimatedOutputTokens);
     const signature = makeSignature({userId: user.id, nonce, expiresAt});
 
     const grant = await this.store.createRunGrant({
@@ -3321,7 +3334,7 @@ export class ControlPlaneService {
       client,
       nonce,
       maxInputTokens,
-      maxOutputTokens: config.runGrantMaxOutputTokens,
+      maxOutputTokens,
       creditLimit,
       expiresAt,
       signature,
@@ -3582,11 +3595,11 @@ export class ControlPlaneService {
     hasSearch: boolean;
     hasTools: boolean;
   }): number {
-    const basePromptTokens = 180;
+    const basePromptTokens = 220;
     const messageTokens = this.estimateTokensFromText(input.message);
     const historyTokens = input.historyMessages * 120;
-    const searchTokens = input.hasSearch ? 320 : 0;
-    const toolTokens = input.hasTools ? 220 : 0;
+    const toolTokens = input.hasTools ? 24_000 : 0;
+    const searchTokens = input.hasSearch ? 128_000 : 0;
     const attachmentTokens = (input.attachments || []).reduce((sum, item) => {
       const chars = Math.max(0, item?.chars || 0);
       const inferredTextTokens = chars > 0 ? Math.ceil(chars * 0.75) : 0;
@@ -3608,12 +3621,12 @@ export class ControlPlaneService {
   }): {low: number; high: number; max: number} {
     const messageTokens = this.estimateTokensFromText(input.message);
     const base =
-      180 +
+      220 +
       Math.round(messageTokens * 0.45) +
       input.historyMessages * 20 +
       input.attachmentCount * 90 +
-      (input.hasSearch ? 220 : 0) +
-      (input.hasTools ? 160 : 0);
+      (input.hasSearch ? 520 : 0) +
+      (input.hasTools ? 260 : 0);
 
     const low = Math.max(120, Math.round(base * 0.72));
     const high = Math.max(low, Math.round(base * 1.2));

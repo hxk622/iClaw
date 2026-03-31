@@ -2823,9 +2823,6 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       const balance = await this.lockAndReadAccount(client, userId);
       const dailyDebit = Math.min(balance.dailyFreeBalance, input.credit_cost);
       const topupDebit = input.credit_cost - dailyDebit;
-      if (topupDebit > balance.topupBalance) {
-        throw new Error('INSUFFICIENT_CREDITS');
-      }
       const nextDailyFreeBalance = balance.dailyFreeBalance - dailyDebit;
       const nextTopupBalance = balance.topupBalance - topupDebit;
       const nextBalance = nextDailyFreeBalance + nextTopupBalance;

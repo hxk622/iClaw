@@ -304,7 +304,7 @@ const OPENCLAW_DEVICE_IDENTITY_KEY = 'openclaw-device-identity-v1';
 const CHAT_SELECTION_MENU_WIDTH = 220;
 const CHAT_SELECTION_MENU_HEIGHT = 176;
 const CHAT_SELECTION_MENU_GAP = 12;
-const SESSION_TRANSITION_MIN_DURATION_MS = 120;
+const SESSION_TRANSITION_MIN_DURATION_MS = 0;
 const INITIAL_SURFACE_BOOT_TIMEOUT_MS = 3200;
 const INITIAL_EMPTY_SESSION_SETTLE_MS = 120;
 const STATUS_POLL_INTERVAL_MS = 420;
@@ -1371,6 +1371,31 @@ function buildAssistantFooterMetaFromSummary(summary: RunBillingSummaryData): As
   };
 }
 
+function buildAssistantFooterMetaFromPending(
+  pending: PendingUsageSettlement,
+  usage: AssistantUsageSettlement | null,
+): AssistantFooterMeta {
+  const inputTokens = Math.max(0, usage?.inputTokens ?? 0);
+  const outputTokens = Math.max(0, usage?.outputTokens ?? 0);
+  const state: AssistantBillingState = 'pending';
+
+  return {
+    timestampLabel: formatAssistantFooterTimestamp(usage?.timestamp ?? pending.startedAt),
+    state,
+    label: '计费结算中',
+    value: null,
+    credits: null,
+    inputTokens,
+    outputTokens,
+    tooltip: buildAssistantFooterTooltip({
+      state,
+      inputTokens,
+      outputTokens,
+      credits: null,
+    }),
+  };
+}
+
 function deriveAssistantFooterMetas(
   messages: unknown[],
   pendingSettlements: PendingUsageSettlement[],
@@ -1585,12 +1610,77 @@ function deriveAssistantFooterMetas(
   });
 }
 
+function deriveStandaloneUserRunFooterMetas(
+  messages: unknown[],
+  pendingSettlements: PendingUsageSettlement[],
+  sessionBillingSummaries: RunBillingSummaryData[],
+  app: OpenClawAppElement | null,
+): Array<AssistantFooterMeta | null> {
+  const messageGroups = collectMessageGroups(messages);
+  const userGroups = messageGroups.filter((group) => group.role === 'user');
+  if (userGroups.length === 0) {
+    return [];
+  }
+
+  const assistantRunIds = new Set(
+    collectAssistantMessageGroups(messages)
+      .map((group) => group.runId?.trim() || '')
+      .filter(Boolean),
+  );
+  const summariesByRunId = new Map<string, RunBillingSummaryData>();
+  sessionBillingSummaries.forEach((summary) => {
+    const runId = summary.event_id?.trim();
+    if (runId) {
+      summariesByRunId.set(runId, summary);
+    }
+  });
+  const pendingByRunId = new Map<string, PendingUsageSettlement>();
+  pendingSettlements.forEach((pending) => {
+    const runId = pending.runId?.trim();
+    if (runId) {
+      pendingByRunId.set(runId, pending);
+    }
+  });
+
+  return userGroups.map((group) => {
+    const runId = group.runId?.trim() || '';
+    if (!runId || assistantRunIds.has(runId)) {
+      return null;
+    }
+
+    const persistedSummary = summariesByRunId.get(runId);
+    if (persistedSummary) {
+      return buildAssistantFooterMetaFromSummary(persistedSummary);
+    }
+
+    const pending = pendingByRunId.get(runId);
+    if (!pending) {
+      return null;
+    }
+
+    const terminalEvent = app ? findTerminalChatEventForRun(app, pending.sessionKey, pending.runId) : null;
+    const optimisticUsage = derivePendingSettlementUsage(messages, pending, terminalEvent?.message);
+    return buildAssistantFooterMetaFromPending(pending, optimisticUsage);
+  });
+}
+
 function extractChatGroupTimestampLabel(group: HTMLElement): string {
   return group.querySelector('.chat-group-footer .chat-group-timestamp')?.textContent?.trim() ?? '';
 }
 
 function normalizeChatSenderLabel(value: string | null | undefined): string {
   return (value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function inferCreditQuoteHasSearch(prompt: string): boolean {
+  const normalized = prompt.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  return /天气|气温|下雨|降雨|新闻|最新|最近|今日|今天|现在|当前|行情|股价|价格|汇率|热搜|搜索|查一下|查查|weather|forecast|news|latest|today|current|price|quote|search/.test(
+    normalized,
+  );
 }
 
 function deriveLatestAssistantUsageSince(
@@ -1832,6 +1922,39 @@ function findLatestTerminalChatRunSince(
   }
 
   return null;
+}
+
+function reconcileGatewayChatBusyState(
+  app: OpenClawAppElement,
+  sessionKey: string,
+): { busy: boolean; settledRunId: string | null; terminalState: TerminalChatEventMatch['state'] | null } {
+  const activeRunId = typeof app.chatRunId === 'string' ? app.chatRunId.trim() : '';
+  if (!activeRunId) {
+    return {
+      busy: Boolean(app.chatSending),
+      settledRunId: null,
+      terminalState: null,
+    };
+  }
+
+  const terminalEvent = findTerminalChatEventForRun(app, sessionKey, activeRunId);
+  if (terminalEvent) {
+    app.chatSending = false;
+    app.chatRunId = null;
+    app.chatStream = null;
+    app.chatStreamStartedAt = null;
+    return {
+      busy: false,
+      settledRunId: activeRunId,
+      terminalState: terminalEvent.state,
+    };
+  }
+
+  return {
+    busy: true,
+    settledRunId: null,
+    terminalState: null,
+  };
 }
 
 function createDesktopRunId(): string {
@@ -2152,18 +2275,6 @@ async function loadGatewaySessionTokenSnapshot(
   };
 }
 
-function estimateRunGrantInputTokens(input: {
-  quotedInputTokens: number | null;
-  fallbackInputTokens: number;
-}): number {
-  const quotedInputTokens = Math.max(0, input.quotedInputTokens ?? 0);
-  const fallbackInputTokens = Math.max(0, input.fallbackInputTokens);
-  const promptBudget = Math.max(quotedInputTokens, fallbackInputTokens, 1);
-  const bufferedTurnBudget = Math.max(1024, Math.ceil(promptBudget * 1.35));
-
-  return Math.max(quotedInputTokens, fallbackInputTokens, bufferedTurnBudget);
-}
-
 function isSessionRenderReady(renderState: ChatSurfaceRenderState): boolean {
   if (!renderState.hasNativeInput || !renderState.nativeInputVisible) {
     return false;
@@ -2451,6 +2562,36 @@ export function OpenClawChatSurface({
   const mergeSessionBillingSummary = useCallback((summary: RunBillingSummaryData) => {
     setSessionBillingSummaries((current) => mergeRunBillingSummaries(current, [summary]));
   }, []);
+
+  const requestFreshCreditQuote = useCallback(
+    async (
+      prompt: string,
+      attachments: OpenClawImageAttachment[],
+    ): Promise<CreditQuoteData> => {
+      if (!creditClient || !creditToken) {
+        throw new Error('当前账号龙虾币鉴权尚未就绪，暂时不能发送消息。');
+      }
+
+      const trimmedPrompt = prompt.trim();
+      if (!trimmedPrompt && attachments.length === 0) {
+        throw new Error('发送内容为空。');
+      }
+
+      const historyMessages = estimateHistoryMessagesFromGroups(renderState.groupCount);
+      return creditClient.creditsQuote(creditToken, {
+        message: trimmedPrompt,
+        model: selectedModelId || undefined,
+        appName,
+        historyMessages,
+        hasSearch: inferCreditQuoteHasSearch(trimmedPrompt),
+        hasTools: true,
+        attachments: attachments.map((item) => ({
+          type: item.type,
+        })),
+      });
+    },
+    [appName, creditClient, creditToken, renderState.groupCount, selectedModelId],
+  );
 
   const tryAutoOpenArtifactCard = useCallback(() => {
     const host = hostRef.current;
@@ -2974,18 +3115,7 @@ export function OpenClawChatSurface({
     }));
 
     const timer = window.setTimeout(() => {
-      const historyMessages = estimateHistoryMessagesFromGroups(renderState.groupCount);
-      void creditClient
-        .creditsQuote(creditToken, {
-          message: prompt,
-          model: selectedModelId || undefined,
-          appName,
-          historyMessages,
-          hasTools: true,
-          attachments: attachmentItems.map((item) => ({
-            type: item.type,
-          })),
-        })
+      void requestFreshCreditQuote(prompt, attachmentItems)
         .then((quote: CreditQuoteData) => {
           if (cancelled) {
             return;
@@ -3018,7 +3148,7 @@ export function OpenClawChatSurface({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [appName, composerDraft, creditClient, creditToken, renderState.groupCount, selectedModelId]);
+  }, [composerDraft, creditClient, creditToken, requestFreshCreditQuote]);
 
   useEffect(() => {
     if (!creditClient || !creditToken) {
@@ -3653,9 +3783,10 @@ export function OpenClawChatSurface({
       }
 
       ensureWrappedClientRequest(app);
+      const reconciledBusyState = reconcileGatewayChatBusyState(app, sessionKey);
 
       const nextStatus: ChatSurfaceStatus = {
-        busy: Boolean(app.chatSending || app.chatRunId),
+        busy: reconciledBusyState.busy,
         connected: Boolean(app.connected),
         lastError: app.lastError ?? null,
         lastErrorCode: app.lastErrorCode ?? null,
@@ -3746,7 +3877,7 @@ export function OpenClawChatSurface({
       window.clearInterval(timer);
       clearConnectionLossTimer();
     };
-  }, [clearConnectionLossTimer, ensureWrappedClientRequest]);
+  }, [clearConnectionLossTimer, ensureWrappedClientRequest, sessionKey]);
 
   useEffect(() => {
     const app = appRef.current;
@@ -4676,18 +4807,18 @@ export function OpenClawChatSurface({
 
       runId = createDesktopRunId();
       const startedAt = Date.now();
-      const fallbackEstimatedInputTokens =
-        Math.max(0, Math.ceil(normalizedPrompt.length * 0.75)) + payload.imageAttachments.length * 220;
       const baselineSessionTokens = await loadGatewaySessionTokenSnapshot(app, sessionKey);
       const runGrant = await creditClient.authorizeRun({
         token: creditToken,
         sessionKey,
         client: 'desktop',
-        estimatedInputTokens: estimateRunGrantInputTokens({
-          quotedInputTokens: creditEstimate.estimatedInputTokens ?? null,
-          fallbackInputTokens: fallbackEstimatedInputTokens,
-        }),
-        estimatedOutputTokens: Math.max(0, creditEstimate.estimatedOutputTokens ?? 0),
+        message: normalizedPrompt,
+        historyMessages: estimateHistoryMessagesFromGroups(renderState.groupCount),
+        hasSearch: inferCreditQuoteHasSearch(normalizedPrompt),
+        hasTools: true,
+        attachments: payload.imageAttachments.map((item) => ({
+          type: item.type,
+        })),
         model: selectedModelId || undefined,
         appName,
       });
@@ -4780,14 +4911,13 @@ export function OpenClawChatSurface({
     clearUsageSettlementTimers,
     collectLatestArtifactKinds,
     creditClient,
-    creditEstimate.estimatedInputTokens,
-    creditEstimate.estimatedOutputTokens,
     creditToken,
     finalizeRecentTaskRun,
     ensureGatewaySessionPrepared,
     appName,
     conversationId,
     persistChatSessionSnapshot,
+    renderState.groupCount,
     selectedModelId,
     effectiveGatewaySessionKey,
     effectiveSendBlockedReason,
@@ -4810,7 +4940,7 @@ export function OpenClawChatSurface({
     }
 
     const app = appRef.current;
-    const gatewayBusy = Boolean(app?.chatSending || app?.chatRunId);
+    const gatewayBusy = app ? reconcileGatewayChatBusyState(app, sessionKey).busy : false;
     if (effectiveSendBlockedReason || !status.connected || status.busy || gatewayBusy) {
       return;
     }
@@ -4833,7 +4963,7 @@ export function OpenClawChatSurface({
     if (!accepted) {
       setQueuedMessages((current) => (current.some((item) => item.id === next.id) ? current : [next, ...current]));
     }
-  }, [effectiveSendBlockedReason, sendQueuedOrImmediateMessage, status.busy, status.connected]);
+  }, [effectiveSendBlockedReason, sendQueuedOrImmediateMessage, sessionKey, status.busy, status.connected]);
 
   useEffect(() => {
     if (queuedMessages.length === 0) {
@@ -4844,13 +4974,13 @@ export function OpenClawChatSurface({
 
   const handleSend = useCallback(async (payload: ComposerSendPayload): Promise<boolean> => {
     const app = appRef.current;
-    const gatewayBusy = Boolean(app?.chatSending || app?.chatRunId);
+    const gatewayBusy = app ? reconcileGatewayChatBusyState(app, sessionKey).busy : false;
     if (!effectiveSendBlockedReason && (status.busy || gatewayBusy)) {
       enqueueQueuedMessage(payload);
       return true;
     }
     return sendQueuedOrImmediateMessage(payload);
-  }, [effectiveSendBlockedReason, enqueueQueuedMessage, sendQueuedOrImmediateMessage, status.busy]);
+  }, [effectiveSendBlockedReason, enqueueQueuedMessage, sendQueuedOrImmediateMessage, sessionKey, status.busy]);
 
   const handleAbort = useCallback(async () => {
     await appRef.current?.handleAbortChat();
@@ -5087,6 +5217,15 @@ export function OpenClawChatSurface({
       }
     };
 
+    const clearUserRunFooter = (group: HTMLElement) => {
+      const footer = group.querySelector(
+        '.chat-group-messages > .iclaw-chat-run-footer',
+      ) as HTMLDivElement | null;
+      if (footer && !footer.hasAttribute('hidden')) {
+        footer.setAttribute('hidden', 'true');
+      }
+    };
+
     const ensureAssistantFooter = (group: HTMLElement, footerMeta: AssistantFooterMeta | null) => {
       const messages = group.querySelector('.chat-group-messages') as HTMLElement | null;
       if (!messages) {
@@ -5273,6 +5412,76 @@ export function OpenClawChatSurface({
       }
     };
 
+    const ensureUserRunFooter = (group: HTMLElement, footerMeta: AssistantFooterMeta | null) => {
+      const messages = group.querySelector('.chat-group-messages') as HTMLElement | null;
+      if (!messages) {
+        return;
+      }
+
+      const fallbackTimestamp = extractChatGroupTimestampLabel(group);
+      let footer = messages.querySelector(':scope > .iclaw-chat-run-footer') as HTMLDivElement | null;
+
+      if (!footer) {
+        footer = document.createElement('div');
+        footer.className = 'iclaw-chat-run-footer';
+        footer.innerHTML = `
+          <div class="iclaw-chat-assistant-meta" data-state="idle">
+            <span class="iclaw-chat-assistant-meta__label"></span>
+            <strong class="iclaw-chat-assistant-meta__value"></strong>
+          </div>
+          <span class="iclaw-chat-run-footer__timestamp"></span>
+        `;
+        messages.append(footer);
+      }
+
+      const metaNode = footer.querySelector(':scope > .iclaw-chat-assistant-meta') as HTMLDivElement | null;
+      const metaLabelNode = metaNode?.querySelector(
+        ':scope > .iclaw-chat-assistant-meta__label',
+      ) as HTMLSpanElement | null;
+      const metaValueNode = metaNode?.querySelector(
+        ':scope > .iclaw-chat-assistant-meta__value',
+      ) as HTMLElement | null;
+      const timestampNode = footer.querySelector(
+        ':scope > .iclaw-chat-run-footer__timestamp',
+      ) as HTMLSpanElement | null;
+
+      if (!footerMeta) {
+        footer.setAttribute('hidden', 'true');
+        if (metaNode) {
+          metaNode.dataset.state = 'idle';
+          metaNode.title = '';
+          setElementTextIfChanged(metaLabelNode, '');
+          setElementTextIfChanged(metaValueNode, '');
+        }
+        setElementTextIfChanged(timestampNode, '');
+        return;
+      }
+
+      if (footer.hasAttribute('hidden')) {
+        footer.removeAttribute('hidden');
+      }
+
+      if (metaNode) {
+        metaNode.dataset.state = footerMeta.state;
+        metaNode.title = footerMeta.tooltip ?? '';
+        if (footerMeta.value) {
+          if (metaValueNode?.hasAttribute('hidden')) {
+            metaValueNode.removeAttribute('hidden');
+          }
+          setElementTextIfChanged(metaLabelNode, footerMeta.label);
+          setElementTextIfChanged(metaValueNode, footerMeta.value);
+        } else {
+          if (metaValueNode && !metaValueNode.hasAttribute('hidden')) {
+            metaValueNode.setAttribute('hidden', 'true');
+          }
+          setElementTextIfChanged(metaLabelNode, footerMeta.label);
+          setElementTextIfChanged(metaValueNode, '');
+        }
+      }
+
+      setElementTextIfChanged(timestampNode, footerMeta.timestampLabel || fallbackTimestamp);
+    };
+
     const decorateChatGroups = () => {
       const assistantFooterMetas = deriveAssistantFooterMetas(
         appRef.current?.chatMessages ?? [],
@@ -5280,6 +5489,12 @@ export function OpenClawChatSurface({
         sessionBillingSummaries,
         appRef.current,
         status.busy,
+      );
+      const standaloneUserRunFooterMetas = deriveStandaloneUserRunFooterMetas(
+        appRef.current?.chatMessages ?? [],
+        pendingUsageSettlementsRef.current,
+        sessionBillingSummaries,
+        appRef.current,
       );
       const groups = Array.from(host.querySelectorAll('.chat-group')).filter(
         (node): node is HTMLElement => node instanceof HTMLElement,
@@ -5293,6 +5508,7 @@ export function OpenClawChatSurface({
               .map((summary) => buildAssistantFooterMetaFromSummary(summary))
           : [];
       let assistantIndex = 0;
+      let userIndex = 0;
       let domFallbackAssistantIndex = 0;
 
       groups.forEach((group) => {
@@ -5306,10 +5522,13 @@ export function OpenClawChatSurface({
 
         if (group.classList.contains('user')) {
           ensureUserCopyButton(group);
+          ensureUserRunFooter(group, standaloneUserRunFooterMetas[userIndex] ?? null);
+          userIndex += 1;
           return;
         }
 
         if (group.classList.contains('assistant')) {
+          clearUserRunFooter(group);
           const footerMeta =
             assistantFooterMetas[assistantIndex] ??
             domFallbackFooterMetas[domFallbackAssistantIndex] ??
@@ -5325,6 +5544,7 @@ export function OpenClawChatSurface({
           return;
         }
 
+        clearUserRunFooter(group);
         clearAssistantFooter(group);
       });
     };

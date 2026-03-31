@@ -1221,9 +1221,6 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     const requestedCost = Math.max(0, input.credit_cost);
     const dailyDebit = Math.min(currentAccount.dailyFreeBalance, requestedCost);
     const topupDebit = requestedCost - dailyDebit;
-    if (topupDebit > currentAccount.topupBalance) {
-      throw new Error('INSUFFICIENT_CREDITS');
-    }
     const nextAccount: CreditAccountRecord = {
       ...currentAccount,
       dailyFreeBalance: currentAccount.dailyFreeBalance - dailyDebit,

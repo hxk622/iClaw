@@ -100,6 +100,11 @@ interface AuthorizeRunInput {
   client?: string;
   estimatedInputTokens?: number;
   estimatedOutputTokens?: number;
+  message?: string;
+  historyMessages?: number;
+  hasSearch?: boolean;
+  hasTools?: boolean;
+  attachments?: CreditQuoteAttachmentInput[];
   model?: string;
   appName?: string;
 }
@@ -1301,6 +1306,11 @@ export class IClawClient {
         client: input.client || 'desktop',
         estimated_input_tokens: input.estimatedInputTokens || 0,
         estimated_output_tokens: input.estimatedOutputTokens || 0,
+        message: input.message,
+        history_messages: input.historyMessages,
+        has_search: input.hasSearch,
+        has_tools: input.hasTools,
+        attachments: input.attachments,
         model: input.model,
         app_name: input.appName,
       }),

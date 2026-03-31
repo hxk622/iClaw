@@ -1009,6 +1009,11 @@ export type RunAuthorizeInput = {
   client?: string;
   estimated_input_tokens?: number;
   estimated_output_tokens?: number;
+  message?: string;
+  history_messages?: number;
+  has_search?: boolean;
+  has_tools?: boolean;
+  attachments?: CreditQuoteAttachmentInput[];
   model?: string;
   app_name?: string;
 };
