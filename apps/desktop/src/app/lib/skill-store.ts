@@ -72,7 +72,7 @@ export type SkillStoreItem = {
   tags: string[];
   downloadCount: number | null;
   featured: boolean;
-  source: 'bundled' | 'cloud' | 'private';
+  source: 'cloud' | 'private';
   market: SkillMarketLabel;
   skillType: SkillTypeLabel;
   categoryId: SkillStoreCategoryId;
@@ -389,7 +389,8 @@ function toSkillStoreCatalogPage<T extends SkillStoreItem>(input: {
 }
 
 function toSnapshotSkill(item: SkillStoreItem): SkillStoreItem {
-  if (item.source === 'bundled') {
+  const defaultInstalled = item.metadata?.default_installed === true;
+  if (defaultInstalled) {
     return item;
   }
   return {
@@ -475,12 +476,28 @@ function normalizeCloudSkill(
   const inferredCategoryId = inferCategoryId(item);
   const categoryId =
     market === 'A股' ? 'a-share' : market === '美股' ? 'us-stock' : inferredCategoryId;
-  const builtin = item.source === 'bundled';
+  const appBinding =
+    item.metadata && typeof item.metadata.app_binding === 'object' && !Array.isArray(item.metadata.app_binding)
+      ? (item.metadata.app_binding as Record<string, unknown>)
+      : null;
+  const appBundled = item.metadata?.default_installed === true || Boolean(appBinding);
+  const appBindingSourceLayer =
+    appBinding && typeof appBinding.source_layer === 'string' ? appBinding.source_layer.trim() : '';
   const userInstalled = Boolean(libraryItem);
-  const localInstalled = builtin || Boolean(localItem);
-  const installed = builtin || userInstalled || localInstalled;
-  const enabled = builtin ? true : (libraryItem?.enabled ?? installed);
+  const localInstalled = Boolean(localItem);
+  const installed = appBundled || userInstalled || localInstalled;
+  const enabled = appBundled ? true : (libraryItem?.enabled ?? installed);
   const setupSchema = parseExtensionSetupSchema(item.metadata);
+  const sourceLabel =
+    item.source === 'private'
+      ? '我的导入'
+      : appBindingSourceLayer === 'platform_bundled'
+        ? '平台预装'
+        : appBindingSourceLayer === 'oem_bundled'
+          ? 'OEM预装'
+          : item.metadata?.default_installed === true
+            ? '系统预置'
+            : '云端技能';
 
   return {
     slug: item.slug,
@@ -494,12 +511,12 @@ function normalizeCloudSkill(
     skillType: inferSkillType(item),
     categoryId,
     categoryLabel: categoryLabel(categoryId, market),
-    official: builtin || normalizeText(item.publisher) === 'iclaw',
+    official: appBundled || normalizeText(item.publisher) === 'iclaw',
     installed,
     userInstalled,
     localInstalled,
     enabled,
-    sourceLabel: item.source === 'private' ? '我的导入' : builtin ? '系统预置' : '云端技能',
+    sourceLabel,
     publisher: item.publisher,
     version: item.version,
     artifactUrl: item.artifact_url,
@@ -524,7 +541,7 @@ function normalizeAdminSkill(
   return {
     ...normalized,
     source: item.source,
-    sourceLabel: item.source === 'private' ? '我的导入' : item.source === 'bundled' ? '系统预置' : '云端技能',
+    sourceLabel: item.source === 'private' ? '我的导入' : normalized.sourceLabel,
     active: item.active,
     createdAt: item.created_at,
     updatedAt: item.updated_at,
@@ -666,7 +683,7 @@ export async function saveAdminSkillStoreEntry(input: {
     category?: string | null;
     skillType?: string | null;
     publisher?: string;
-    distribution?: 'bundled' | 'cloud';
+    distribution?: 'cloud';
     tags?: string[];
     active?: boolean;
   };

@@ -204,13 +204,13 @@ function matchesCategory(skill: SkillStoreItem, categoryId: SkillStoreCategoryId
 
 function matchesInstallFilter(skill: SkillStoreItem, filter: SkillInstallFilter): boolean {
   if (filter === 'all') return true;
-  if (filter === 'installed') return skill.installed || skill.source === 'bundled';
-  return !skill.installed && skill.source !== 'bundled';
+  if (filter === 'installed') return skill.installed || isSystemPreinstalledSkill(skill);
+  return !skill.installed && !isSystemPreinstalledSkill(skill);
 }
 
 function resolveDisplayStatus(skill: SkillStoreItem, actionLoading: boolean, installFailed: boolean): SkillDisplayStatus {
   if (installFailed) return 'failed';
-  if (skill.source === 'bundled') return 'builtin';
+  if (isSystemPreinstalledSkill(skill)) return 'builtin';
   if (skill.installed) return 'installed';
   if (actionLoading) return 'installing';
   return 'available';
@@ -228,6 +228,12 @@ function formatDownloadCount(value: number | null | undefined): string | null {
 }
 
 function compareSkillsByPopularity(left: SkillStoreItem, right: SkillStoreItem): number {
+  const leftPreinstalledPriority = preinstalledPriority(left);
+  const rightPreinstalledPriority = preinstalledPriority(right);
+  if (leftPreinstalledPriority !== rightPreinstalledPriority) {
+    return leftPreinstalledPriority - rightPreinstalledPriority;
+  }
+
   if (left.featured !== right.featured) {
     return left.featured ? -1 : 1;
   }
@@ -238,12 +244,29 @@ function compareSkillsByPopularity(left: SkillStoreItem, right: SkillStoreItem):
     return rightDownloads - leftDownloads;
   }
 
-  if (left.source !== right.source) {
-    if (left.source === 'bundled') return -1;
-    if (right.source === 'bundled') return 1;
-  }
-
   return left.name.localeCompare(right.name, 'zh-CN');
+}
+
+function isSystemPreinstalledSkill(skill: SkillStoreItem): boolean {
+  return (
+    skill.metadata?.default_installed === true ||
+    skill.sourceLabel === '系统预置' ||
+    skill.sourceLabel === '平台预装' ||
+    skill.sourceLabel === 'OEM预装'
+  );
+}
+
+function preinstalledPriority(skill: SkillStoreItem): number {
+  if (skill.sourceLabel === '系统预置') {
+    return 0;
+  }
+  if (skill.sourceLabel === '平台预装') {
+    return 1;
+  }
+  if (skill.sourceLabel === 'OEM预装') {
+    return 2;
+  }
+  return 3;
 }
 
 function normalizeSkillTag(value: string): string {
@@ -320,6 +343,24 @@ function FeaturedBadge() {
   );
 }
 
+function PreinstalledBadge({ sourceLabel }: {sourceLabel: string}) {
+  const title =
+    sourceLabel === '平台预装'
+      ? '平台预装'
+      : sourceLabel === 'OEM预装'
+        ? 'OEM预装'
+        : '系统预置';
+  return (
+    <span
+      title={title}
+      aria-label={title}
+      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[rgba(34,197,94,0.34)] bg-[linear-gradient(180deg,rgba(34,197,94,0.94),rgba(22,163,74,0.92))] text-white shadow-[0_10px_24px_rgba(34,197,94,0.32)] ring-2 ring-[rgba(15,23,42,0.32)] dark:border-[rgba(134,239,172,0.36)] dark:ring-[rgba(15,23,42,0.56)]"
+    >
+      <CheckCircle2 className="h-4.5 w-4.5" />
+    </span>
+  );
+}
+
 function SourceBadge({ sourceLabel }: {sourceLabel: string}) {
   if (sourceLabel === '云端技能') {
     return (
@@ -362,10 +403,10 @@ function SkillCard({
   onEdit: (skill: SkillStoreItem) => void;
 }) {
   const status = resolveDisplayStatus(skill, actionLoading, installFailed);
-  const showInstallAction = skill.source !== 'bundled' && !adminMode;
+  const showInstallAction = !isSystemPreinstalledSkill(skill) && !adminMode;
   const needsSetup = skill.setupSchema != null && skill.setupStatus !== 'configured';
   const canStartConversation =
-    !actionLoading && !installFailed && !needsSetup && (skill.source === 'bundled' || skill.installed);
+    !actionLoading && !installFailed && !needsSetup && (isSystemPreinstalledSkill(skill) || skill.installed);
   const actionLabel =
     status === 'failed'
       ? '重试安装'
@@ -381,6 +422,8 @@ function SkillCard({
   const actionVariant = status === 'failed' ? 'danger' : canStartConversation ? 'secondary' : 'primary';
   const actionDisabled = status === 'installing';
   const downloadLabel = formatDownloadCount(skill.downloadCount);
+  const sourceLabel = skill.sourceLabel;
+  const showPreinstalledBadge = isSystemPreinstalledSkill(skill);
 
   return (
     <PressableCard
@@ -394,16 +437,21 @@ function SkillCard({
           : undefined
       }
       className={cn(
-        'flex h-full flex-col rounded-lg border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)]',
+        'relative flex h-full flex-col overflow-hidden rounded-lg border-[var(--border-default)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-sm)]',
         skill.featured &&
           'border-[rgba(201,169,97,0.24)] bg-[linear-gradient(180deg,rgba(255,251,242,0.98),rgba(252,251,248,0.96))] dark:bg-[linear-gradient(180deg,rgba(39,31,18,0.42),rgba(24,21,18,0.96))]',
         !adminMode && 'hover:border-[rgba(201,169,97,0.22)] hover:shadow-[var(--shadow-md)]',
       )}
     >
+      {showPreinstalledBadge ? (
+        <div className="absolute right-4 top-4 z-10">
+          <PreinstalledBadge sourceLabel={sourceLabel} />
+        </div>
+      ) : null}
       <div className="mb-3 flex items-start gap-3">
         <SkillGlyph skill={skill} className="h-11 w-11 rounded-[14px]" iconClassName="h-5 w-5" />
         <div className="min-w-0 flex-1">
-          <div className="mb-1 flex flex-wrap items-center gap-2">
+          <div className={cn('mb-1 flex flex-wrap items-center gap-2', showPreinstalledBadge && 'pr-12')}>
             {skill.featured ? <FeaturedBadge /> : null}
           </div>
           <h3 className="line-clamp-1 text-[15px] font-medium leading-snug text-[var(--text-primary)]">{skill.name}</h3>
@@ -430,7 +478,7 @@ function SkillCard({
 
         <div className="flex items-center justify-between border-t border-[var(--border-default)] pt-3">
           <div className="flex flex-wrap items-center gap-2">
-            <SourceBadge sourceLabel={adminMode && skill.source === 'bundled' ? '系统预置' : skill.sourceLabel} />
+            <SourceBadge sourceLabel={sourceLabel} />
             <SkillStatusBadge status={status} />
             {needsSetup ? <Chip tone="warning">需配置</Chip> : null}
           </div>
@@ -1018,7 +1066,7 @@ export function SkillStoreView({
     category: string | null;
     skillType: string | null;
     publisher: string;
-    distribution: 'bundled' | 'cloud';
+    distribution: 'cloud';
     active: boolean;
     tags: string[];
   }) => {
@@ -1287,8 +1335,8 @@ export function SkillStoreView({
   const backendTotalCount = adminMode ? adminTotal : catalogTotal;
   const primaryMetricLabel = adminMode ? '平台目录' : '云端目录';
   const primaryMetricCount = backendTotalCount;
-  const installedCount = visibleSkills.filter((skill) => skill.installed || skill.source === 'bundled').length;
-  const builtinCount = visibleSkills.filter((skill) => skill.source === 'bundled').length;
+  const installedCount = visibleSkills.filter((skill) => skill.installed || isSystemPreinstalledSkill(skill)).length;
+  const builtinCount = visibleSkills.filter((skill) => isSystemPreinstalledSkill(skill)).length;
   const featuredCount = visibleSkills.filter((skill) => skill.featured).length;
   const failedCount = installErrorSlugs.length;
   const mySkillsCount = visibleSkills.filter((skill) => skill.userInstalled).length;
@@ -1382,7 +1430,7 @@ export function SkillStoreView({
               iconClassName="text-[rgb(21,128,61)] dark:text-[#c7f9d7]"
             />
             <MetricCard
-              label="系统预置"
+              label="系统预装"
               value={builtinCount}
               icon={<Download className="h-[18px] w-[18px]" />}
               iconWrapClassName="border-[rgba(74,107,138,0.18)] bg-[rgba(74,107,138,0.10)]"

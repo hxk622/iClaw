@@ -203,10 +203,7 @@ export async function ensureDefaultCatalogs(store: ControlPlaneStore): Promise<v
   for (const skill of DEFAULT_CLOUD_SKILL_SEEDS) {
     const existing = await store.getSkillCatalogEntry(skill.slug);
     const distribution = 'cloud';
-    const originType =
-      existing?.originType === 'bundled'
-        ? skill.originType || 'manual'
-        : existing?.originType || skill.originType || 'clawhub';
+    const originType = existing?.originType || skill.originType || 'clawhub';
     await store.upsertSkillCatalogEntry({
       slug: existing?.slug || skill.slug,
       name: existing?.name || skill.name,

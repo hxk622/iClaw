@@ -1,4 +1,4 @@
-import { ApiError, type AuthTokens } from '@iclaw/shared';
+import { ApiError, toCanonicalSessionKey, type AuthTokens } from '@iclaw/shared';
 
 export interface ClientOptions {
   apiBaseUrl: string;
@@ -312,15 +312,15 @@ export interface SkillCatalogEntryData {
   category: string | null;
   skill_type: string | null;
   publisher: string;
-  distribution: 'bundled' | 'cloud';
-  source: 'bundled' | 'cloud' | 'private';
+  distribution: 'cloud';
+  source: 'cloud' | 'private';
   tags: string[];
   version: string;
   artifact_url: string | null;
   artifact_path: string | null;
   artifact_format: 'tar.gz' | 'zip';
   artifact_sha256: string | null;
-  origin_type: 'bundled' | 'clawhub' | 'github_repo' | 'manual' | 'private';
+  origin_type: 'clawhub' | 'github_repo' | 'manual' | 'private';
   source_url: string | null;
   metadata: Record<string, unknown>;
 }
@@ -443,14 +443,14 @@ interface UpsertAdminSkillCatalogInput {
   category?: string | null;
   skillType?: string | null;
   publisher?: string;
-  distribution?: 'bundled' | 'cloud';
+  distribution?: 'cloud';
   tags?: string[];
   version?: string;
   artifactUrl?: string | null;
   artifactFormat?: 'tar.gz' | 'zip';
   artifactSha256?: string | null;
   artifactSourcePath?: string | null;
-  originType?: 'bundled' | 'clawhub' | 'github_repo' | 'manual' | 'private';
+  originType?: 'clawhub' | 'github_repo' | 'manual' | 'private';
   sourceUrl?: string | null;
   metadata?: Record<string, unknown>;
   active?: boolean;
@@ -913,7 +913,7 @@ export class IClawClient {
       this.apiBaseUrl.replace(/^http:\/\//i, 'ws://').replace(/^https:\/\//i, 'wss://');
     this.gatewayToken = options.gatewayToken;
     this.gatewayPassword = options.gatewayPassword;
-    this.gatewaySessionKey = options.gatewaySessionKey || 'main';
+    this.gatewaySessionKey = toCanonicalSessionKey(options.gatewaySessionKey);
     this.preferGatewayWs = Boolean(options.preferGatewayWs);
     this.disableGatewayDeviceIdentity = Boolean(options.disableGatewayDeviceIdentity);
     this.desktopAppVersion = options.desktopAppVersion?.trim() || undefined;
@@ -1304,7 +1304,7 @@ export class IClawClient {
       },
       body: JSON.stringify({
         event_id: input.eventId,
-        session_key: input.sessionKey || 'main',
+        session_key: toCanonicalSessionKey(input.sessionKey),
         client: input.client || 'desktop',
         estimated_input_tokens: input.estimatedInputTokens || 0,
         estimated_output_tokens: input.estimatedOutputTokens || 0,
@@ -1338,7 +1338,7 @@ export class IClawClient {
     token: string,
     input?: {sessionKey?: string; limit?: number},
   ): Promise<RunBillingSummaryData[]> {
-    const sessionKey = input?.sessionKey?.trim() || 'main';
+    const sessionKey = toCanonicalSessionKey(input?.sessionKey);
     const limit = typeof input?.limit === 'number' && Number.isFinite(input.limit) ? Math.max(1, Math.floor(input.limit)) : 200;
     const res = await this.fetchAuth(
       `/agent/run/billing/session?session_key=${encodeURIComponent(sessionKey)}&limit=${encodeURIComponent(String(limit))}`,

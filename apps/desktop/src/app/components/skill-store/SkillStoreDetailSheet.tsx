@@ -17,12 +17,21 @@ type StatusMeta = {
   note: string;
 };
 
+function isSystemPreinstalledSkill(skill: SkillStoreItem): boolean {
+  return (
+    skill.metadata?.default_installed === true ||
+    skill.sourceLabel === '系统预置' ||
+    skill.sourceLabel === '平台预装' ||
+    skill.sourceLabel === 'OEM预装'
+  );
+}
+
 function canStartConversation(skill: SkillStoreItem, input: { actionLoading: boolean; installFailed: boolean }): boolean {
   return (
     !input.actionLoading &&
     !input.installFailed &&
     skill.setupStatus !== 'missing' &&
-    (skill.source === 'bundled' || skill.installed)
+    (isSystemPreinstalledSkill(skill) || skill.installed)
   );
 }
 
@@ -49,7 +58,7 @@ function resolveStatus(skill: SkillStoreItem, input: { actionLoading: boolean; i
     };
   }
 
-  if (skill.source === 'bundled') {
+  if (isSystemPreinstalledSkill(skill)) {
     return {
       label: '默认已安装',
       tone: 'brand',
@@ -90,7 +99,7 @@ function metadataRows(skill: SkillStoreItem) {
   return [
     {
       label: '最新版本',
-      value: skill.version || (skill.source === 'bundled' ? 'bundled' : '未发布'),
+      value: skill.version || (isSystemPreinstalledSkill(skill) ? '系统预装' : '未发布'),
     },
     {
       label: '来源地址',
@@ -156,7 +165,7 @@ export function SkillStoreDetailSheet({
                   </Chip>
                 ) : null}
                 <Chip tone={status.tone}>{status.label}</Chip>
-                <Chip tone={skill.source === 'bundled' ? 'brand' : skill.source === 'private' ? 'success' : 'outline'}>
+                <Chip tone={isSystemPreinstalledSkill(skill) ? 'brand' : skill.source === 'private' ? 'success' : 'outline'}>
                   {skill.sourceLabel}
                 </Chip>
                 <Chip tone="outline">{skill.categoryLabel}</Chip>
@@ -169,7 +178,7 @@ export function SkillStoreDetailSheet({
       footer={
         <div className="flex flex-col gap-3">
           <div className="text-[13px] leading-6 text-[var(--text-secondary)]">
-            {skill.source === 'bundled'
+            {isSystemPreinstalledSkill(skill)
               ? '系统预置技能默认随应用提供，可直接进入对话。'
               : skill.source === 'private'
                 ? '这是你导入到账号中的技能，可直接进入对话。'

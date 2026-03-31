@@ -28,12 +28,12 @@ export function SegmentedTabs<T extends string>({
             type="button"
             onClick={() => onChange(item.id)}
             className={cn(
-              'inline-flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-2 text-[14px] font-medium transition-all',
+              'inline-flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-2 text-[14px] font-medium transition-all duration-150',
               APPLE_FLAT_SURFACE,
               SPRING_PRESSABLE,
               INTERACTIVE_FOCUS_RING,
               active
-                ? 'border-[var(--chip-brand-border-strong)] bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)] shadow-[var(--button-secondary-shadow)]'
+                ? 'border-[var(--chip-brand-active-border)] bg-[linear-gradient(180deg,var(--chip-brand-bg-hover),var(--chip-brand-bg))] text-[var(--chip-brand-text)] shadow-[0_0_0_1px_var(--chip-brand-active-border),0_12px_28px_rgba(168,140,93,0.16)] dark:shadow-[0_0_0_1px_var(--chip-brand-active-border),0_14px_30px_rgba(0,0,0,0.26)]'
                 : 'border-transparent bg-transparent text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
             )}
           >
@@ -43,7 +43,7 @@ export function SegmentedTabs<T extends string>({
                 className={cn(
                   'rounded-full px-2 py-0.5 text-[11px]',
                   active
-                    ? 'bg-[var(--chip-brand-bg-hover)] text-[var(--chip-brand-text)]'
+                    ? 'bg-[rgba(255,255,255,0.22)] text-[var(--chip-brand-text)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] dark:bg-[rgba(255,255,255,0.10)]'
                     : 'bg-[var(--bg-card)] text-[var(--text-muted)] dark:bg-[rgba(255,255,255,0.05)]',
                 )}
               >

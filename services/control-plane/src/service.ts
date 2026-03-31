@@ -1,4 +1,4 @@
-import type {AuthTokens} from '@iclaw/shared';
+import { toCanonicalSessionKey, type AuthTokens } from '@iclaw/shared';
 
 import { deleteAvatarByKey, deleteOldAvatars, extractAvatarKey, uploadAvatar } from './avatar-storage.ts';
 import {config} from './config.ts';
@@ -97,6 +97,7 @@ import type {
   WorkspaceBackupView,
 } from './domain.ts';
 import {HttpError} from './errors.ts';
+import {logWarn} from './logger.ts';
 import {loadOAuthUserProfile} from './oauth.ts';
 import {hashPassword, verifyPassword} from './passwords.ts';
 import {syncSkillsFromSource} from './skill-sync.ts';
@@ -1157,7 +1158,7 @@ function resolveExtensionSetupState(
 function toSkillCatalogEntryView(
   record: SkillCatalogEntryRecord,
   baseUrl?: string,
-  source: SkillSource = record.distribution,
+  source: SkillSource = 'cloud',
 ): SkillCatalogEntryView {
   const artifactUrl =
     record.artifactUrl ||
@@ -2712,10 +2713,7 @@ export class ControlPlaneService {
       allowNull: true,
       trimToNull: true,
     });
-    const originType = normalizeSkillOriginType(
-      input.origin_type,
-      existing?.originType === 'bundled' ? 'manual' : existing?.originType || 'manual',
-    );
+    const originType = normalizeSkillOriginType(input.origin_type, existing?.originType || 'manual');
     const sourceUrl =
       normalizeOptionalCatalogString(input.source_url, 'source_url', {allowNull: true, trimToNull: true}) ??
       existing?.sourceUrl ??
@@ -3267,7 +3265,7 @@ export class ControlPlaneService {
     try {
       await deletePrivateSkillArtifact(skill.artifactKey);
     } catch (error) {
-      console.warn('[control-plane] failed to delete private skill artifact', {
+      logWarn('failed to delete private skill artifact', {
         userId: user.id,
         slug,
         artifactKey: skill.artifactKey,
@@ -3280,7 +3278,12 @@ export class ControlPlaneService {
   async authorizeRun(accessToken: string, input: RunAuthorizeInput): Promise<RunGrantView> {
     const user = await this.getUserForAccessToken(accessToken);
     const eventId = (input.event_id || '').trim() || null;
-    const sessionKey = (input.session_key || 'main').trim() || 'main';
+    let sessionKey: string;
+    try {
+      sessionKey = toCanonicalSessionKey(input.session_key);
+    } catch {
+      throw new HttpError(400, 'BAD_REQUEST', 'session_key must use canonical session identity');
+    }
     const client = (input.client || 'desktop').trim() || 'desktop';
     const message = (input.message || '').trim();
     const attachments = Array.isArray(input.attachments) ? input.attachments : [];
@@ -3469,7 +3472,12 @@ export class ControlPlaneService {
     limitInput?: number | null,
   ): Promise<RunBillingSummaryView[]> {
     const user = await this.getUserForAccessToken(accessToken);
-    const sessionKey = sessionKeyInput.trim() || 'main';
+    let sessionKey: string;
+    try {
+      sessionKey = toCanonicalSessionKey(sessionKeyInput);
+    } catch {
+      throw new HttpError(400, 'BAD_REQUEST', 'session_key must use canonical session identity');
+    }
     const limit =
       typeof limitInput === 'number' && Number.isFinite(limitInput)
         ? Math.max(1, Math.min(500, Math.floor(limitInput)))

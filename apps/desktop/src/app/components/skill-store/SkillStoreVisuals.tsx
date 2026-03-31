@@ -118,7 +118,12 @@ const TONE_STYLES: Record<VisualTone, {wrap: string; glow: string; icon: string}
 function resolveSkillVisual(skill: SkillStoreItem): VisualDescriptor {
   const text = `${skill.slug} ${skill.name} ${skill.description} ${skill.tags.join(' ')}`.toLowerCase();
 
-  if (skill.source === 'bundled') {
+  if (
+    skill.metadata?.default_installed === true ||
+    skill.sourceLabel === '系统预置' ||
+    skill.sourceLabel === '平台预装' ||
+    skill.sourceLabel === 'OEM预装'
+  ) {
     return { icon: Landmark, tone: 'brand', label: '系统预置' };
   }
   if (/esg|治理|可持续/.test(text)) {
@@ -210,7 +215,7 @@ function tagTone(tag: string): keyof typeof TAG_TONE_CLASSES {
   if (/组合|风险|策略|量化|交易|portfolio/.test(text)) return 'amber';
   if (/报告|写作|memo|summary|report/.test(text)) return 'rose';
   if (/agent|workflow|自动化|proactive|self/.test(text)) return 'violet';
-  if (/官方|内置|bundled|系统/.test(text)) return 'brand';
+  if (/官方|内置|系统/.test(text)) return 'brand';
 
   const tones: Array<keyof typeof TAG_TONE_CLASSES> = ['brand', 'emerald', 'sky', 'amber', 'rose', 'violet', 'slate'];
   const hash = Array.from(text).reduce((acc, char) => acc + char.charCodeAt(0), 0);

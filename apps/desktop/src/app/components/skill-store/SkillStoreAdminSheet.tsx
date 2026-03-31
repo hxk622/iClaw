@@ -24,10 +24,18 @@ type EditableSkillForm = {
   category: string;
   skillType: string;
   publisher: string;
-  distribution: 'bundled' | 'cloud';
   active: boolean;
   tagsText: string;
 };
+
+function isSystemPreinstalledSkill(skill: AdminSkillStoreItem): boolean {
+  return (
+    skill.metadata?.default_installed === true ||
+    skill.sourceLabel === '系统预置' ||
+    skill.sourceLabel === '平台预装' ||
+    skill.sourceLabel === 'OEM预装'
+  );
+}
 
 function toFormState(skill: AdminSkillStoreItem): EditableSkillForm {
   return {
@@ -39,7 +47,6 @@ function toFormState(skill: AdminSkillStoreItem): EditableSkillForm {
     category: skill.categoryId === 'a-share' || skill.categoryId === 'us-stock' ? '' : skill.categoryId,
     skillType: skill.skillType,
     publisher: skill.publisher,
-    distribution: skill.source === 'bundled' ? 'bundled' : 'cloud',
     active: skill.active,
     tagsText: skill.tags.join(', '),
   };
@@ -88,7 +95,7 @@ export function SkillStoreAdminSheet({
     category: string | null;
     skillType: string | null;
     publisher: string;
-    distribution: 'bundled' | 'cloud';
+    distribution: 'cloud';
     active: boolean;
     tags: string[];
   }) => Promise<void>;
@@ -104,7 +111,7 @@ export function SkillStoreAdminSheet({
     return null;
   }
 
-  const deleteDisabled = skill.source === 'bundled' || deleting || saving;
+  const deleteDisabled = isSystemPreinstalledSkill(skill) || deleting || saving;
 
   return (
     <div
@@ -135,7 +142,7 @@ export function SkillStoreAdminSheet({
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            <Chip tone="brand">{skill.source === 'bundled' ? '系统预置' : '云端技能'}</Chip>
+            <Chip tone="brand">{isSystemPreinstalledSkill(skill) ? skill.sourceLabel : '云端技能'}</Chip>
             {skill.featured ? <Chip tone="accent">官方精选</Chip> : null}
             <Chip tone={skill.active ? 'success' : 'outline'}>{skill.active ? '已启用' : '已停用'}</Chip>
           </div>
@@ -341,7 +348,7 @@ export function SkillStoreAdminSheet({
               leadingIcon={<Trash2 className="h-4 w-4" />}
               onClick={() => void onDelete(skill.slug)}
             >
-              {skill.source === 'bundled' ? '内置技能不可删除' : deleting ? '删除中…' : '删除技能'}
+              {isSystemPreinstalledSkill(skill) ? '预装技能不可删除' : deleting ? '删除中…' : '删除技能'}
             </Button>
 
             <div className="flex items-center gap-3">
@@ -362,7 +369,7 @@ export function SkillStoreAdminSheet({
                     category: form.category.trim() || null,
                     skillType: form.skillType.trim() || null,
                     publisher: form.publisher.trim(),
-                    distribution: form.distribution,
+                    distribution: 'cloud',
                     active: form.active,
                     tags: parseTags(form.tagsText),
                   })

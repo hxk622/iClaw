@@ -4,6 +4,7 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 import {Pool, type PoolClient} from 'pg';
+import { toCanonicalSessionKey } from '@iclaw/shared';
 
 import {config} from './config.ts';
 import type {
@@ -250,14 +251,14 @@ type SkillCatalogRow = {
   category: string | null;
   skill_type: string | null;
   publisher: string;
-  distribution: 'bundled' | 'cloud';
+  distribution: 'cloud';
   tags: unknown;
   version: string;
   artifact_format: 'tar.gz' | 'zip';
   artifact_url: string | null;
   artifact_sha256: string | null;
   artifact_source_path: string | null;
-  origin_type: 'bundled' | 'clawhub' | 'github_repo' | 'manual' | 'private';
+  origin_type: 'clawhub' | 'github_repo' | 'manual' | 'private';
   source_url: string | null;
   metadata_json: Record<string, unknown> | null;
   active: boolean;
@@ -386,10 +387,10 @@ function parseRunBillingSummary(
     eventId,
     sessionKey:
       typeof summary.session_key === 'string'
-        ? summary.session_key
+        ? toCanonicalSessionKey(summary.session_key)
         : typeof summary.sessionKey === 'string'
-          ? summary.sessionKey
-          : fallback?.sessionKey || 'main',
+          ? toCanonicalSessionKey(summary.sessionKey)
+          : fallback?.sessionKey || toCanonicalSessionKey(),
     client:
       typeof summary.client === 'string'
         ? summary.client
@@ -777,9 +778,9 @@ function mapMarketFundRow(row: MarketFundRow): MarketFundRecord {
 }
 
 function mapSkillCatalogRow(row: SkillCatalogRow): SkillCatalogRecord {
-  const distribution = row.distribution === 'cloud' ? 'cloud' : 'cloud';
-  const artifactSourcePath = distribution === 'cloud' ? null : row.artifact_source_path;
-  const originType = row.origin_type === 'bundled' ? 'manual' : row.origin_type;
+  const distribution = 'cloud';
+  const artifactSourcePath = null;
+  const originType = row.origin_type;
   return {
     slug: row.slug,
     name: row.name,
@@ -2632,7 +2633,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     return {
       id: row.id,
       userId: row.user_id,
-      sessionKey: typeof metadata.session_key === 'string' ? metadata.session_key : 'main',
+      sessionKey: typeof metadata.session_key === 'string' ? toCanonicalSessionKey(metadata.session_key) : toCanonicalSessionKey(),
       client: typeof metadata.client === 'string' ? metadata.client : 'desktop',
       status: row.status === 'settled' ? 'settled' : 'issued',
       nonce: row.nonce,
@@ -2646,7 +2647,8 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         typeof metadata.billing_summary === 'object' ? metadata.billing_summary : null,
         {
           grantId: row.id,
-          sessionKey: typeof metadata.session_key === 'string' ? metadata.session_key : 'main',
+          sessionKey:
+            typeof metadata.session_key === 'string' ? toCanonicalSessionKey(metadata.session_key) : toCanonicalSessionKey(),
           client: typeof metadata.client === 'string' ? metadata.client : 'desktop',
         },
       ),
@@ -2667,7 +2669,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     sessionKey: string,
     limit?: number | null,
   ): Promise<RunBillingSummaryRecord[]> {
-    const normalizedSessionKey = sessionKey.trim() || 'main';
+    const normalizedSessionKey = toCanonicalSessionKey(sessionKey);
     const normalizedLimit =
       typeof limit === 'number' && Number.isFinite(limit) ? Math.max(1, Math.min(500, Math.floor(limit))) : 200;
     const result = await this.pool.query<RunGrantRow>(
@@ -2688,7 +2690,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         where
           user_id = $1
           and status = 'settled'
-          and coalesce(metadata->>'session_key', 'main') = $2
+          and coalesce(metadata->>'session_key', 'agent:main:main') = $2
           and metadata ? 'billing_summary'
         order by coalesce(used_at, created_at) desc, created_at desc
         limit $3
@@ -2701,7 +2703,10 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         const metadata = parseJsonObject(row.metadata);
         return parseRunBillingSummary(typeof metadata.billing_summary === 'object' ? metadata.billing_summary : null, {
           grantId: row.id,
-          sessionKey: typeof metadata.session_key === 'string' ? metadata.session_key : normalizedSessionKey,
+          sessionKey:
+            typeof metadata.session_key === 'string'
+              ? toCanonicalSessionKey(metadata.session_key)
+              : normalizedSessionKey,
           client: typeof metadata.client === 'string' ? metadata.client : 'desktop',
         });
       })
@@ -2747,7 +2752,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         input.creditLimit,
         input.expiresAt,
         JSON.stringify({
-          session_key: input.sessionKey,
+          session_key: toCanonicalSessionKey(input.sessionKey),
           event_id: input.eventId || null,
           client: input.client,
           signature: input.signature,
@@ -2759,7 +2764,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     return {
       id: grantId,
       userId: input.userId,
-      sessionKey: input.sessionKey,
+      sessionKey: toCanonicalSessionKey(input.sessionKey),
       client: input.client,
       status: 'issued',
       nonce: input.nonce,
@@ -2781,7 +2786,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       await client.query('begin');
 
       const grant = await this.getRunGrantById(input.grant_id);
-      const sessionKey = grant?.sessionKey || 'main';
+      const sessionKey = grant?.sessionKey || toCanonicalSessionKey();
       const runClient = grant?.client || 'desktop';
 
       const existing = await client.query<UsageEventLookupRow>(

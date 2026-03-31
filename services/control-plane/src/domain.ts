@@ -540,8 +540,8 @@ export type WorkspaceBackupView = WorkspaceBackupInput & {
   updated_at: string;
 };
 
-export type SkillDistribution = 'bundled' | 'cloud';
-export type SkillSource = 'bundled' | 'cloud' | 'private';
+export type SkillDistribution = 'cloud';
+export type SkillSource = 'cloud' | 'private';
 export type UserSkillLibrarySource = 'cloud' | 'private';
 export type McpCatalogSource = 'cloud';
 export type UserMcpLibrarySource = 'cloud';
@@ -550,7 +550,7 @@ export type ExtensionSetupStatus = 'not_required' | 'configured' | 'missing';
 export type UserPrivateSkillSourceKind = 'github' | 'local';
 export type AgentCategory = 'finance' | 'content' | 'productivity' | 'commerce' | 'general';
 export type SkillArtifactFormat = 'tar.gz' | 'zip';
-export type SkillOriginType = 'bundled' | 'clawhub' | 'github_repo' | 'manual' | 'private';
+export type SkillOriginType = 'clawhub' | 'github_repo' | 'manual' | 'private';
 export type SkillSyncSourceType = 'clawhub' | 'github_repo';
 export type SkillSyncRunStatus = 'running' | 'succeeded' | 'partial_failed' | 'failed';
 export type SkillSyncItemStatus = 'created' | 'updated' | 'skipped' | 'failed';
