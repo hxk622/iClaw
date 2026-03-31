@@ -5314,7 +5314,7 @@ export function OpenClawChatSurface({
             assistantFooterMetas[assistantIndex] ??
             domFallbackFooterMetas[domFallbackAssistantIndex] ??
             null;
-          const shouldShowFooter = isTerminalAssistantTurnGroup(groups, groupIndex);
+          const shouldShowFooter = isTerminalAssistantTurnGroup(groups, groupIndex) && !status.busy;
           if (shouldShowFooter) {
             ensureAssistantFooter(group, footerMeta);
           } else {
