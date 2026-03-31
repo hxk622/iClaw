@@ -723,7 +723,6 @@ const MESSAGE_ACTION_FEEDBACK_MS = 1600;
 const USAGE_SETTLEMENT_RETRY_INTERVAL_MS = 1500;
 const USAGE_SETTLEMENT_MAX_WAIT_MS = 60_000;
 const USAGE_SETTLEMENT_TERMINAL_GRACE_MS = 6_000;
-const BILLING_REHYDRATION_FALLBACK_WINDOW_MS = 90_000;
 const MESSAGE_ACTION_ICONS = {
   copy:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
@@ -1406,79 +1405,21 @@ function deriveAssistantFooterMetas(
     return [];
   }
   const persistedBillingByRunId = new Map<string, RunBillingSummaryData>();
-  const persistedBillingByTimestamp = new Map<number, RunBillingSummaryData>();
   const persistedBillingByAssistantIndex = new Map<number, RunBillingSummaryData>();
-  const usedSummaryEventIds = new Set<string>();
   sessionBillingSummaries.forEach((summary) => {
     const runId = summary.event_id?.trim();
     if (runId) {
       persistedBillingByRunId.set(runId, summary);
     }
-    if (typeof summary.assistant_timestamp === 'number' && Number.isFinite(summary.assistant_timestamp)) {
-      persistedBillingByTimestamp.set(summary.assistant_timestamp, summary);
-    }
   });
 
   assistantGroups.forEach((assistantGroup, assistantGroupIndex) => {
-    const summary =
-      (assistantGroup.runId ? persistedBillingByRunId.get(assistantGroup.runId) ?? null : null) ||
-      persistedBillingByTimestamp.get(assistantGroup.timestamp) ||
-      null;
+    const summary = assistantGroup.runId ? persistedBillingByRunId.get(assistantGroup.runId) ?? null : null;
     if (!summary) {
       return;
     }
     persistedBillingByAssistantIndex.set(assistantGroupIndex, summary);
-    if (summary.event_id?.trim()) {
-      usedSummaryEventIds.add(summary.event_id.trim());
-    }
   });
-
-  const unmatchedSummaries = sessionBillingSummaries
-    .filter((summary) => {
-      const eventId = summary.event_id?.trim();
-      return eventId ? !usedSummaryEventIds.has(eventId) : false;
-    })
-    .sort((left, right) => {
-      const leftTime =
-        (typeof left.assistant_timestamp === 'number' && Number.isFinite(left.assistant_timestamp)
-          ? left.assistant_timestamp
-          : Date.parse(left.settled_at || '')) || 0;
-      const rightTime =
-        (typeof right.assistant_timestamp === 'number' && Number.isFinite(right.assistant_timestamp)
-          ? right.assistant_timestamp
-          : Date.parse(right.settled_at || '')) || 0;
-      return rightTime - leftTime;
-    });
-
-  const unmatchedAssistantIndexes = assistantGroups
-    .map((_, index) => index)
-    .filter((index) => !persistedBillingByAssistantIndex.has(index))
-    .sort((left, right) => right - left);
-
-  for (const assistantGroupIndex of unmatchedAssistantIndexes) {
-    const assistantGroup = assistantGroups[assistantGroupIndex];
-    if (!assistantGroup) {
-      continue;
-    }
-    const candidateIndex = unmatchedSummaries.findIndex((summary) => {
-      const summaryTime =
-        (typeof summary.assistant_timestamp === 'number' && Number.isFinite(summary.assistant_timestamp)
-          ? summary.assistant_timestamp
-          : Date.parse(summary.settled_at || '')) || 0;
-      if (summaryTime <= 0) {
-        return false;
-      }
-      const delta = Math.abs(summaryTime - assistantGroup.timestamp);
-      return delta <= BILLING_REHYDRATION_FALLBACK_WINDOW_MS;
-    });
-    if (candidateIndex < 0) {
-      continue;
-    }
-    const [matchedSummary] = unmatchedSummaries.splice(candidateIndex, 1);
-    if (matchedSummary) {
-      persistedBillingByAssistantIndex.set(assistantGroupIndex, matchedSummary);
-    }
-  }
 
   const pendingAssistantIndexes = new Set<number>();
   const optimisticUsageByAssistantIndex = new Map<number, AssistantUsageSettlement>();
@@ -1494,16 +1435,6 @@ function deriveAssistantFooterMetas(
         }
         pendingAssistantIndexes.add(matchedIndex);
         return;
-      }
-    }
-    for (let index = assistantGroups.length - 1; index >= 0; index -= 1) {
-      const group = assistantGroups[index];
-      if (group && group.timestamp >= pending.startedAt) {
-        if (optimisticUsage) {
-          optimisticUsageByAssistantIndex.set(index, optimisticUsage);
-        }
-        pendingAssistantIndexes.add(index);
-        break;
       }
     }
   });
@@ -1726,33 +1657,6 @@ function deriveLatestAssistantUsageSince(
   };
 }
 
-function deriveLatestAssistantUsageFallbackSince(
-  messages: unknown[],
-  startedAt: number,
-): AssistantUsageSettlement | null {
-  if (!Array.isArray(messages) || messages.length === 0) {
-    return null;
-  }
-
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    const normalized = normalizeMessage(message);
-    if (normalizeRoleForGrouping(normalized.role) !== 'assistant') {
-      continue;
-    }
-    if (normalized.timestamp > 0 && normalized.timestamp + 1_500 < startedAt) {
-      continue;
-    }
-
-    const usage = deriveAssistantUsageFromMessage(message);
-    if (usage) {
-      return usage;
-    }
-  }
-
-  return null;
-}
-
 function deriveAssistantUsageFromMessage(message: unknown): AssistantUsageSettlement | null {
   if (!message || typeof message !== 'object') {
     return null;
@@ -1805,11 +1709,6 @@ function derivePendingSettlementUsage(
   if (directUsage) {
     return directUsage;
   }
-
-  const fallbackUsage = deriveLatestAssistantUsageFallbackSince(messages, pending.startedAt);
-  if (fallbackUsage) {
-    return fallbackUsage;
-  }
   return null;
 }
 
@@ -1831,7 +1730,6 @@ function findTerminalChatEventForRun(
     : Array.isArray(app.eventLog)
       ? app.eventLog
       : [];
-  let fallbackMatch: TerminalChatEventMatch | null = null;
 
   for (const entry of entries) {
     if (!entry || entry.event !== 'chat' || typeof entry.payload !== 'object' || !entry.payload) {
@@ -1851,9 +1749,6 @@ function findTerminalChatEventForRun(
       state,
       message: payload.message,
     };
-    if (!fallbackMatch) {
-      fallbackMatch = match;
-    }
     if (
       typeof payload.sessionKey === 'string' &&
       payload.sessionKey &&
@@ -1864,7 +1759,7 @@ function findTerminalChatEventForRun(
     return match;
   }
 
-  return fallbackMatch;
+  return null;
 }
 
 function findLatestTerminalChatRunSince(
