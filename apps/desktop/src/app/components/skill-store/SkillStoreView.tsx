@@ -1285,7 +1285,8 @@ export function SkillStoreView({
 
   const viewSkillCount = visibleSkills.length;
   const backendTotalCount = adminMode ? adminTotal : catalogTotal;
-  const totalCount = viewSkillCount;
+  const primaryMetricLabel = adminMode ? '平台目录' : '云端目录';
+  const primaryMetricCount = backendTotalCount;
   const installedCount = visibleSkills.filter((skill) => skill.installed || skill.source === 'bundled').length;
   const builtinCount = visibleSkills.filter((skill) => skill.source === 'bundled').length;
   const featuredCount = visibleSkills.filter((skill) => skill.featured).length;
@@ -1367,8 +1368,8 @@ export function SkillStoreView({
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
             <MetricCard
-              label="视图总数"
-              value={totalCount}
+              label={primaryMetricLabel}
+              value={primaryMetricCount}
               icon={<Package className="h-[18px] w-[18px]" />}
               iconWrapClassName="border-[rgba(201,169,97,0.20)] bg-[rgba(201,169,97,0.12)]"
               iconClassName="text-[rgb(155,112,39)] dark:text-[#f1d59c]"
