@@ -35,6 +35,11 @@ import {
   resolveUserAvatarUrl,
   type AppUserAvatarSource,
 } from '../lib/user-avatar';
+import {
+  buildChatSessionPressureSnapshot,
+  isGeneralChatSessionKey,
+  type ChatSessionPressureSnapshot,
+} from '../lib/chat-session';
 import type { ResolvedInputComposerConfig, ResolvedWelcomePageConfig } from '../lib/oem-runtime';
 import { loadSkillStoreCatalog } from '@/app/lib/skill-store';
 import {
@@ -47,7 +52,13 @@ import {
   markRecentTaskFailed,
   startRecentTask,
 } from '../lib/recent-tasks';
-import { clearCacheKeysByPrefix, clearSessionKeysByPrefix, removeCacheKeys } from '../lib/persistence/cache-store';
+import {
+  clearCacheKeysByPrefix,
+  clearSessionKeysByPrefix,
+  readCacheJson,
+  removeCacheKeys,
+  writeCacheJson,
+} from '../lib/persistence/cache-store';
 import {
   RichChatComposer,
   type ComposerAgentOption,
@@ -184,6 +195,7 @@ type OpenClawChatSurfaceProps = {
   inputComposerConfig?: ResolvedInputComposerConfig | null;
   welcomePageConfig?: ResolvedWelcomePageConfig | null;
   onInitialSkillSlugChange?: (slug: string | null) => void;
+  onGeneralChatSessionOverloaded?: (snapshot: ChatSessionPressureSnapshot) => void;
   onOpenRechargeCenter?: () => void;
   onBusyStateChange?: (busy: boolean) => void;
   sendBlockedReason?: string | null;
@@ -404,6 +416,45 @@ type DraggedFileSummary = {
   unsupportedCount: number;
 };
 
+type ChatSessionSnapshot = {
+  sessionKey: string;
+  savedAt: number;
+  messages: unknown[];
+};
+
+const CHAT_SESSION_SNAPSHOT_PREFIX = 'iclaw.chat.session.v1';
+
+function buildChatSessionSnapshotStorageKey(appName: string, sessionKey: string): string {
+  const normalizedAppName = appName.trim().toLowerCase() || 'default';
+  const normalizedSessionKey = sessionKey.trim().toLowerCase() || 'main';
+  return `${CHAT_SESSION_SNAPSHOT_PREFIX}:${normalizedAppName}:${normalizedSessionKey}`;
+}
+
+function readChatSessionSnapshot(appName: string, sessionKey: string): ChatSessionSnapshot | null {
+  const snapshot = readCacheJson<ChatSessionSnapshot>(buildChatSessionSnapshotStorageKey(appName, sessionKey));
+  if (!snapshot || !Array.isArray(snapshot.messages)) {
+    return null;
+  }
+  return {
+    sessionKey,
+    savedAt: typeof snapshot.savedAt === 'number' ? snapshot.savedAt : Date.now(),
+    messages: snapshot.messages,
+  };
+}
+
+function writeChatSessionSnapshot(
+  appName: string,
+  sessionKey: string,
+  snapshot: ChatSessionSnapshot | null,
+): void {
+  const storageKey = buildChatSessionSnapshotStorageKey(appName, sessionKey);
+  if (!snapshot || !Array.isArray(snapshot.messages) || snapshot.messages.length === 0) {
+    removeCacheKeys([storageKey]);
+    return;
+  }
+  writeCacheJson(storageKey, snapshot);
+}
+
 function normalizeGatewaySessionKey(key?: string | null): string {
   return key?.trim().toLowerCase() ?? '';
 }
@@ -498,6 +549,21 @@ function formatQueuedComposerMessagePreview(payload: ComposerSendPayload): strin
     return attachmentCount === 1 ? '图片消息' : `图片消息 (${attachmentCount})`;
   }
   return '新消息';
+}
+
+function looksLikeGatewayTransportIssue(value?: string | null): boolean {
+  const normalized = value?.trim().toLowerCase() ?? '';
+  if (!normalized) {
+    return false;
+  }
+  return (
+    normalized.includes('seq gap') ||
+    normalized.includes('websocket') ||
+    normalized.includes('gateway connection closed') ||
+    normalized.includes('gateway websocket closed') ||
+    normalized.includes("reading 'ws'") ||
+    normalized.includes('transport error')
+  );
 }
 
 function createQueuedComposerMessage(payload: ComposerSendPayload): QueuedComposerMessage {
@@ -1851,6 +1917,7 @@ async function loadChatModelSnapshot(
   selectedModelId: string | null;
   resolvedSessionKey: string | null;
   hasPersistedHistory: boolean;
+  sessionPressure: ChatSessionPressureSnapshot;
 } | null> {
   const request = app.client?.request;
   if (!app.connected || typeof request !== 'function') {
@@ -1890,6 +1957,12 @@ async function loadChatModelSnapshot(
     resolvedSessionKey: matchedSession?.key?.trim() ?? null,
     hasPersistedHistory:
       Math.max(0, Number(matchedSession?.inputTokens ?? 0)) + Math.max(0, Number(matchedSession?.outputTokens ?? 0)) > 0,
+    sessionPressure: buildChatSessionPressureSnapshot({
+      inputTokens: matchedSession?.inputTokens ?? 0,
+      outputTokens: matchedSession?.outputTokens ?? 0,
+      hasPersistedHistory:
+        Math.max(0, Number(matchedSession?.inputTokens ?? 0)) + Math.max(0, Number(matchedSession?.outputTokens ?? 0)) > 0,
+    }),
   };
 }
 
@@ -2034,6 +2107,7 @@ export function OpenClawChatSurface({
   inputComposerConfig = null,
   welcomePageConfig = null,
   onInitialSkillSlugChange,
+  onGeneralChatSessionOverloaded,
   onOpenRechargeCenter,
   onBusyStateChange,
   sendBlockedReason = null,
@@ -2043,6 +2117,9 @@ export function OpenClawChatSurface({
   const appRef = useRef<OpenClawAppElement | null>(null);
   const composerRef = useRef<RichChatComposerHandle | null>(null);
   const reconnectKeyRef = useRef<string | null>(null);
+  const autoRecoveryTimerRef = useRef<number | null>(null);
+  const autoRecoveryAttemptsRef = useRef(0);
+  const overloadedGeneralSessionRef = useRef<string | null>(null);
   const initialScrollScheduledRef = useRef(false);
   const shellDragDepthRef = useRef(0);
   const artifactAutoOpenStateRef = useRef<ArtifactAutoOpenState>({
@@ -2138,6 +2215,7 @@ export function OpenClawChatSurface({
   const sessionTransitionPendingRef = useRef(false);
   const sessionTransitionStartedAtRef = useRef(0);
   const responseUsageEnabledSessionKeyRef = useRef<string | null>(null);
+  const persistedChatSnapshotRef = useRef<string | null>(null);
   const sessionTransitionHideTimerRef = useRef<number | null>(null);
   const connectionLossTimerRef = useRef<number | null>(null);
   const pendingConnectionLossStatusRef = useRef<ChatSurfaceStatus>({
@@ -2193,6 +2271,35 @@ export function OpenClawChatSurface({
       connectionLossTimerRef.current = null;
     }
   }, []);
+
+  const clearAutoRecoveryTimer = useCallback(() => {
+    if (autoRecoveryTimerRef.current != null) {
+      window.clearTimeout(autoRecoveryTimerRef.current);
+      autoRecoveryTimerRef.current = null;
+    }
+  }, []);
+
+  const persistChatSessionSnapshot = useCallback(() => {
+    const app = appRef.current;
+    if (!app) {
+      return;
+    }
+    const messages = Array.isArray(app.chatMessages) ? app.chatMessages : [];
+    const snapshot =
+      messages.length > 0
+        ? {
+            sessionKey,
+            savedAt: Date.now(),
+            messages,
+          }
+        : null;
+    const serialized = snapshot ? JSON.stringify(snapshot) : null;
+    if (persistedChatSnapshotRef.current === serialized) {
+      return;
+    }
+    writeChatSessionSnapshot(appName, sessionKey, snapshot);
+    persistedChatSnapshotRef.current = serialized;
+  }, [appName, sessionKey]);
 
   const mergeSessionBillingSummary = useCallback((summary: RunBillingSummaryData) => {
     setSessionBillingSummaries((current) => mergeRunBillingSummaries(current, [summary]));
@@ -2295,6 +2402,14 @@ export function OpenClawChatSurface({
       setSelectedModelId(snapshot.selectedModelId);
       setResolvedModelSessionKey(snapshot.resolvedSessionKey);
       setSessionHistoryState(snapshot.hasPersistedHistory ? 'has-history' : 'empty');
+      if (
+        snapshot.sessionPressure.overloaded &&
+        isGeneralChatSessionKey(sessionKey) &&
+        overloadedGeneralSessionRef.current !== sessionKey
+      ) {
+        overloadedGeneralSessionRef.current = sessionKey;
+        onGeneralChatSessionOverloaded?.(snapshot.sessionPressure);
+      }
       return true;
     } catch (error) {
       if (modelLoadVersionRef.current === requestVersion) {
@@ -2310,7 +2425,7 @@ export function OpenClawChatSurface({
         setModelsLoading(false);
       }
     }
-  }, [appName, authBaseUrl, sessionKey]);
+  }, [appName, authBaseUrl, onGeneralChatSessionOverloaded, sessionKey]);
 
   const ensureWrappedClientRequest = useCallback((app: OpenClawAppElement | null) => {
     const client = app?.client;
@@ -2488,6 +2603,44 @@ export function OpenClawChatSurface({
     [creditClient],
   );
 
+  const scheduleAutoRecoveryReconnect = useCallback((reason: string, baseDelayMs = 320) => {
+    if (autoRecoveryTimerRef.current != null) {
+      return;
+    }
+
+    const attempt = autoRecoveryAttemptsRef.current;
+    if (attempt >= 4) {
+      return;
+    }
+
+    const delayMs = Math.min(2_500, baseDelayMs * Math.max(1, 2 ** attempt));
+    autoRecoveryTimerRef.current = window.setTimeout(() => {
+      autoRecoveryTimerRef.current = null;
+      autoRecoveryAttemptsRef.current += 1;
+      const app = appRef.current;
+      if (!app) {
+        return;
+      }
+      console.warn('[desktop] attempt openclaw chat auto-recovery reconnect', {
+        sessionKey,
+        reason,
+        attempt: autoRecoveryAttemptsRef.current,
+      });
+      try {
+        app.connect();
+      } catch (error) {
+        console.warn('[desktop] openclaw reconnect attempt failed to start', {
+          sessionKey,
+          reason,
+          error,
+        });
+      }
+      window.setTimeout(() => {
+        void refreshModelCatalog();
+      }, 220);
+    }, delayMs);
+  }, [refreshModelCatalog, sessionKey]);
+
   useEffect(() => {
     if (previousSessionKeyRef.current === sessionKey) {
       return;
@@ -2522,6 +2675,9 @@ export function OpenClawChatSurface({
     if (pendingUsageSettlementsRef.current.length > 0) {
       console.warn('[desktop] drop pending credit settlements because session changed', pendingUsageSettlementsRef.current);
     }
+    clearAutoRecoveryTimer();
+    autoRecoveryAttemptsRef.current = 0;
+    overloadedGeneralSessionRef.current = null;
     artifactAutoOpenStateRef.current = {
       lastBusy: false,
       runSequence: 0,
@@ -2551,7 +2707,22 @@ export function OpenClawChatSurface({
       estimatedInputTokens: null,
       estimatedOutputTokens: null,
     });
-  }, [clearArtifactAutoOpenTimers, clearUsageSettlementTimers, sessionKey]);
+    persistedChatSnapshotRef.current = null;
+  }, [clearArtifactAutoOpenTimers, clearAutoRecoveryTimer, clearUsageSettlementTimers, sessionKey]);
+
+  useEffect(() => {
+    const app = appRef.current;
+    if (!app) {
+      return;
+    }
+    const snapshot = readChatSessionSnapshot(appName, sessionKey);
+    app.chatMessages = snapshot?.messages ?? [];
+    persistedChatSnapshotRef.current = snapshot ? JSON.stringify(snapshot) : null;
+    if ((snapshot?.messages?.length ?? 0) > 0) {
+      setSessionHistoryState('has-history');
+      setInitialSurfaceRestorePending(false);
+    }
+  }, [appName, sessionKey]);
 
   useEffect(() => {
     if (!creditClient || !creditToken) {
@@ -2735,6 +2906,17 @@ export function OpenClawChatSurface({
   }, [creditClient, creditToken]);
 
   useEffect(() => {
+    persistChatSessionSnapshot();
+  }, [
+    assistantFooterVersion,
+    persistChatSessionSnapshot,
+    renderState.chatMessageCount,
+    renderState.groupCount,
+    renderState.threadHeight,
+    status.busy,
+  ]);
+
+  useEffect(() => {
     const host = hostRef.current;
     if (!host) {
       return;
@@ -2749,6 +2931,14 @@ export function OpenClawChatSurface({
     app.password = gatewayPassword?.trim() ?? '';
     app.sessionKey = sessionKey;
     app.tab = 'chat';
+
+    const snapshot = readChatSessionSnapshot(appName, sessionKey);
+    app.chatMessages = snapshot?.messages ?? [];
+    persistedChatSnapshotRef.current = snapshot ? JSON.stringify(snapshot) : null;
+    if ((snapshot?.messages?.length ?? 0) > 0) {
+      setSessionHistoryState('has-history');
+      setInitialSurfaceRestorePending(false);
+    }
 
     appRef.current = app;
     host.replaceChildren(app);
@@ -3457,6 +3647,47 @@ export function OpenClawChatSurface({
   }, [refreshModelCatalog, status.connected]);
 
   useEffect(() => {
+    const transportIssue =
+      !status.connected ||
+      looksLikeGatewayTransportIssue(status.lastError) ||
+      looksLikeGatewayTransportIssue(lastRpcFailure?.message) ||
+      looksLikeGatewayTransportIssue(unhandledGatewayError?.message) ||
+      looksLikeGatewayTransportIssue(unhandledGatewayError?.raw);
+    const historyNeedsRecovery =
+      shellAuthenticated &&
+      status.connected &&
+      sessionHistoryState === 'has-history' &&
+      !hasObservedHistory &&
+      !initialSurfaceRestorePending &&
+      !status.busy &&
+      isSessionRenderReady(renderState);
+
+    if (!transportIssue && !historyNeedsRecovery) {
+      clearAutoRecoveryTimer();
+      autoRecoveryAttemptsRef.current = 0;
+      return;
+    }
+
+    scheduleAutoRecoveryReconnect(historyNeedsRecovery ? 'history-reconcile' : 'transport-recover');
+  }, [
+    clearAutoRecoveryTimer,
+    hasObservedHistory,
+    initialSurfaceRestorePending,
+    lastRpcFailure?.message,
+    renderState,
+    scheduleAutoRecoveryReconnect,
+    sessionHistoryState,
+    shellAuthenticated,
+    status.busy,
+    status.connected,
+    status.lastError,
+    unhandledGatewayError?.message,
+    unhandledGatewayError?.raw,
+  ]);
+
+  useEffect(() => clearAutoRecoveryTimer, [clearAutoRecoveryTimer]);
+
+  useEffect(() => {
     const host = hostRef.current;
     if (!host) {
       return;
@@ -4084,6 +4315,7 @@ export function OpenClawChatSurface({
         runId,
         startedAt,
       });
+      persistChatSessionSnapshot();
       app.scrollToBottom();
 
       pendingUsageSettlementsRef.current = [
@@ -4141,6 +4373,7 @@ export function OpenClawChatSurface({
       if (!handoffStarted) {
         markOutgoingChatFailed({ app, detail, code });
       }
+      persistChatSessionSnapshot();
       setPendingSettlementCount(pendingUsageSettlementsRef.current.length);
       if (pendingUsageSettlementsRef.current.length === 0) {
         clearUsageSettlementTimers();
@@ -4167,6 +4400,7 @@ export function OpenClawChatSurface({
     creditToken,
     finalizeRecentTaskRun,
     appName,
+    persistChatSessionSnapshot,
     selectedModelId,
     effectiveGatewaySessionKey,
     sendBlockedReason,

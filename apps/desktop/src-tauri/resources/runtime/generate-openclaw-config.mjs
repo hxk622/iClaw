@@ -253,7 +253,7 @@ function main() {
   defaults.compaction = {
     ...(defaults.compaction && typeof defaults.compaction === 'object' && !Array.isArray(defaults.compaction) ? defaults.compaction : {}),
     mode: 'safeguard',
-    reserveTokensFloor: 52000,
+    reserveTokensFloor: 68000,
     memoryFlush: {
       ...(
         defaults.compaction &&
@@ -266,7 +266,7 @@ function main() {
           : {}
       ),
       enabled: true,
-      softThresholdTokens: 12000,
+      softThresholdTokens: 16000,
       systemPrompt: 'Session nearing compaction. Store durable memories now.',
       prompt:
         'Write durable notes for decisions, unresolved blockers, exact identifiers, and artifact paths to memory/YYYY-MM-DD.md; reply with NO_REPLY if nothing should be stored.',
@@ -276,8 +276,8 @@ function main() {
     ...(defaults.contextPruning && typeof defaults.contextPruning === 'object' && !Array.isArray(defaults.contextPruning) ? defaults.contextPruning : {}),
     mode: 'cache-ttl',
     ttl: '10m',
-    keepLastAssistants: 4,
-    minPrunableToolChars: 12000,
+    keepLastAssistants: 3,
+    minPrunableToolChars: 6000,
     softTrim: {
       ...(
         defaults.contextPruning &&
@@ -289,9 +289,9 @@ function main() {
           ? defaults.contextPruning.softTrim
           : {}
       ),
-      maxChars: 2400,
-      headChars: 900,
-      tailChars: 900,
+      maxChars: 1600,
+      headChars: 500,
+      tailChars: 500,
     },
     hardClear: {
       ...(
