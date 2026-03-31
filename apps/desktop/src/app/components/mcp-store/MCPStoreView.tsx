@@ -240,23 +240,21 @@ function MineCard({
 
   return (
     <PressableCard as="article" interactive className="rounded-[22px] p-5" onClick={() => onDetail(item)}>
-      <div className="flex gap-4">
-        <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px]', iconToneClass(item.tone))}>
-          <Icon className="h-5 w-5" />
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="text-[17px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">{item.name}</div>
-                <SourceBadge label={item.sourceLabel} />
-              </div>
-              <p className="mt-1.5 text-[13px] leading-6 text-[var(--text-secondary)]">{item.description}</p>
+      <div className="flex h-full flex-col gap-4">
+        <div className="flex items-start gap-4">
+          <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px]', iconToneClass(item.tone))}>
+            <Icon className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="text-[17px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">{item.name}</div>
+              <SourceBadge label={item.sourceLabel} />
             </div>
-
+            <p className="mt-1.5 line-clamp-3 text-[13px] leading-6 text-[var(--text-secondary)]">{item.description}</p>
+          </div>
+          <div className="shrink-0" onClick={(event) => event.stopPropagation()}>
             {item.canToggle ? (
-              <div className="flex items-center gap-3" onClick={(event) => event.stopPropagation()}>
+              <div className="flex items-center gap-3">
                 <div className="text-[12px] text-[var(--text-secondary)]">{item.enabled ? '已启用' : '已停用'}</div>
                 <Switch checked={item.enabled} onChange={(checked) => onToggle(item, checked)} disabled={busy} />
               </div>
@@ -266,35 +264,35 @@ function MineCard({
               </span>
             )}
           </div>
+        </div>
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            <ProtocolBadge protocol={item.protocol} />
-            {item.requiresApiKey ? <Chip tone="warning">需配置密钥</Chip> : <Chip tone="outline">免密钥</Chip>}
-            <InstallBadge item={item} />
-            {item.setupSchema && item.setupStatus !== 'configured' ? <Chip tone="warning">需配置</Chip> : null}
-          </div>
+        <div className="flex flex-wrap gap-2">
+          <ProtocolBadge protocol={item.protocol} />
+          {item.requiresApiKey ? <Chip tone="warning">需配置密钥</Chip> : <Chip tone="outline">免密钥</Chip>}
+          <InstallBadge item={item} />
+          {item.setupSchema && item.setupStatus !== 'configured' ? <Chip tone="warning">需配置</Chip> : null}
+        </div>
 
-          <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
-            <InfoTile label="接入来源" value={item.sourceLabel} />
-            <InfoTile label="当前状态" value={item.enabled ? '启用中' : '已停用'} />
-            <InfoTile label="配置状态" value={item.setupSchema ? (item.setupStatus === 'configured' ? '已配置' : '待配置') : '无需配置'} />
-          </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <InfoTile label="接入来源" value={item.sourceLabel} />
+          <InfoTile label="当前状态" value={item.enabled ? '启用中' : '已停用'} />
+          <InfoTile label="配置状态" value={item.setupSchema ? (item.setupStatus === 'configured' ? '已配置' : '待配置') : '无需配置'} />
+        </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-2" onClick={(event) => event.stopPropagation()}>
-            <Button variant="ghost" size="sm" onClick={() => onDetail(item)}>
-              详情
+        <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-[var(--border-default)] pt-3.5" onClick={(event) => event.stopPropagation()}>
+          <Button variant="ghost" size="sm" onClick={() => onDetail(item)}>
+            详情
+          </Button>
+          {item.setupSchema ? (
+            <Button variant="ghost" size="sm" disabled={busy} onClick={() => onInstall(item)}>
+              {item.setupStatus === 'configured' ? '重设配置' : '配置'}
             </Button>
-            {item.setupSchema ? (
-              <Button variant="ghost" size="sm" disabled={busy} onClick={() => onInstall(item)}>
-                {item.setupStatus === 'configured' ? '重设配置' : '配置'}
-              </Button>
-            ) : null}
-            {item.userInstalled ? (
-              <Button variant="ghost" size="sm" disabled={busy} leadingIcon={busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} onClick={() => onRemove(item)}>
-                移除
-              </Button>
-            ) : null}
-          </div>
+          ) : null}
+          {item.userInstalled ? (
+            <Button variant="ghost" size="sm" disabled={busy} leadingIcon={busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} onClick={() => onRemove(item)}>
+              移除
+            </Button>
+          ) : null}
         </div>
       </div>
     </PressableCard>
@@ -920,7 +918,7 @@ export function MCPStoreView({
               ) : loading ? (
                 <LoadingGrid />
               ) : mineItems.length > 0 ? (
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 2xl:grid-cols-3">
                   {mineItems.map((item) => (
                     <MineCard
                       key={item.mcpKey}
