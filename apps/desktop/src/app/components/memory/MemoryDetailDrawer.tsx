@@ -259,10 +259,10 @@ export function MemoryDetailDrawer({
                     <div className="text-[11px] text-[#6B655D] dark:text-[#B7AEA2]">状态: {entry.status}</div>
                     <div className="text-[11px] text-[#6B655D] dark:text-[#B7AEA2]">来源说明: {entry.sourceLabel}</div>
                     <div className="text-[11px] text-[#6B655D] dark:text-[#B7AEA2]">
-                      捕获置信度: {Math.round(entry.captureConfidence * 100)}%
+                      自动记录把握: {Math.round(entry.captureConfidence * 100)}%
                     </div>
                     <div className="text-[11px] text-[#6B655D] dark:text-[#B7AEA2]">
-                      索引状态: <span className={getIndexHealthClass(entry.indexHealth)}>{entry.indexHealth}</span>
+                      整理状态: <span className={getIndexHealthClass(entry.indexHealth)}>{entry.indexHealth}</span>
                     </div>
                   </div>
                 )}
@@ -276,7 +276,7 @@ export function MemoryDetailDrawer({
               </DrawerBlock>
 
               {recallRecords.length > 0 ? (
-                <DrawerBlock label={`召回记录 (${entry.recallCount} 次)`}>
+                <DrawerBlock label={`使用记录 (${entry.recallCount} 次)`}>
                   <div className="space-y-2">
                     {recallRecords.map((record) => (
                       <div key={record.date} className="rounded-lg border border-[#ECE7DE] bg-white p-3.5 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)]">
@@ -467,7 +467,7 @@ function buildRecallRecords(entry: MemoryEntry | null) {
   if (!entry) return [];
   if (!entry.lastRecalledAt) return [];
 
-  const suffix = entry.recallCount > 1 ? `累计已被召回 ${entry.recallCount} 次。` : '最近一次被系统召回。';
+  const suffix = entry.recallCount > 1 ? `累计已在对话里用到 ${entry.recallCount} 次。` : '最近一次已在对话里用到。';
   return [
     {
       date: entry.lastRecalledAt,

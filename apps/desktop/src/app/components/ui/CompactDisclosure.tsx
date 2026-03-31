@@ -27,8 +27,8 @@ export function CompactDisclosure({
       )}
     >
       <div className="min-w-0">
-        <div className="text-[12px] font-medium text-[var(--text-primary)]">{title}</div>
-        {summary ? <div className="mt-0.5 text-[11px] text-[var(--text-secondary)]">{summary}</div> : null}
+        <div className="text-[13px] font-medium text-[var(--text-primary)]">{title}</div>
+        {summary ? <div className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">{summary}</div> : null}
       </div>
       <ChevronDown
         className={cn(

@@ -1,0 +1,101 @@
+diff --git a/apps/desktop/src/app/App.tsx b/apps/desktop/src/app/App.tsx
+index 5bbb4d7..f50f9ee 100644
+--- a/apps/desktop/src/app/App.tsx
++++ b/apps/desktop/src/app/App.tsx
+@@ -1,4 +1,4 @@
+-import { type Dispatch, type SetStateAction, useCallback, useEffect, useMemo, useState } from 'react';
++import { type Dispatch, type SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+ import { IClawClient, type CreditBalanceData, type DesktopUpdateHint, type MarketStockData } from '@iclaw/sdk';
+ import desktopPackageJson from '../../package.json';
+ import { clearAuth, readAuth, writeAuth } from './lib/auth-storage';
+@@ -361,6 +361,8 @@ export default function App() {
+   const [desktopUpdateStatusMessage, setDesktopUpdateStatusMessage] = useState<string | null>(null);
+   const [brandRuntimeReady, setBrandRuntimeReady] = useState(!IS_TAURI_RUNTIME);
+   const [brandShellConfig, setBrandShellConfig] = useState<Record<string, unknown> | null>(null);
++  const brandRuntimeSignatureRef = useRef<string | null>(null);
++  const brandRuntimeSyncInFlightRef = useRef(false);
+ 
+   const syncWorkspaceForUser = async (token: string): Promise<void> => {
+     if (!IS_TAURI_RUNTIME) return;
+@@ -380,16 +382,29 @@ export default function App() {
+   };
+ 
+   const syncBrandRuntimeSnapshot = useCallback(async (): Promise<void> => {
++    if (brandRuntimeSyncInFlightRef.current) {
++      return;
++    }
++    brandRuntimeSyncInFlightRef.current = true;
+     try {
+       const runtimeConfig = await loadBrandRuntimeConfigWithFallback({
+         authBaseUrl: AUTH_BASE_URL,
+         brandId: BRAND.brandId,
+       });
+-      setBrandShellConfig(runtimeConfig?.config ?? null);
++      const nextConfig = runtimeConfig?.config ?? null;
++      const nextSignature = nextConfig ? JSON.stringify(nextConfig) : null;
++      if (brandRuntimeSignatureRef.current !== nextSignature) {
++        brandRuntimeSignatureRef.current = nextSignature;
++        setBrandShellConfig(nextConfig);
++      }
+     } catch (error) {
+       console.warn('failed to sync OEM runtime snapshot', error);
+-      setBrandShellConfig(null);
++      if (brandRuntimeSignatureRef.current !== null) {
++        brandRuntimeSignatureRef.current = null;
++        setBrandShellConfig(null);
++      }
+     } finally {
++      brandRuntimeSyncInFlightRef.current = false;
+       if (IS_TAURI_RUNTIME) {
+         setBrandRuntimeReady(true);
+       }
+@@ -1162,6 +1177,7 @@ export default function App() {
+           primaryView={primaryView}
+           setPrimaryView={setPrimaryView}
+           brandShellConfig={brandShellConfig}
++          revalidateBrandRuntimeConfig={syncBrandRuntimeSnapshot}
+           overlayView={overlayView}
+           setOverlayView={setOverlayView}
+           client={client}
+@@ -1219,6 +1235,7 @@ interface AuthedViewProps {
+   primaryView: PrimaryView;
+   setPrimaryView: Dispatch<SetStateAction<PrimaryView>>;
+   brandShellConfig: Record<string, unknown> | null;
++  revalidateBrandRuntimeConfig: () => Promise<void>;
+   overlayView: 'settings' | 'account' | 'recharge' | null;
+   setOverlayView: Dispatch<SetStateAction<'settings' | 'account' | 'recharge' | null>>;
+   client: IClawClient;
+@@ -1254,6 +1271,7 @@ function AuthedView({
+   primaryView,
+   setPrimaryView,
+   brandShellConfig,
++  revalidateBrandRuntimeConfig,
+   overlayView,
+   setOverlayView,
+   client,
+@@ -1285,6 +1303,7 @@ function AuthedView({
+   desktopUpdateStatusMessage,
+ }: AuthedViewProps) {
+   const { buildSectionSaveSnapshot, commitSectionSave } = useSettings();
++  const lastResolvedPrimaryViewRef = useRef<PrimaryView | null>(null);
+   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+   const [activeChatRoute, setActiveChatRoute] = useState({ ...DEFAULT_CHAT_ROUTE });
+   const [chatSurfaceVersion, setChatSurfaceVersion] = useState(0);
+@@ -1337,6 +1356,17 @@ function AuthedView({
+     setPrimaryView(resolvedPrimaryView);
+   }, [primaryView, resolvedPrimaryView, setPrimaryView]);
+ 
++  useEffect(() => {
++    const lastView = lastResolvedPrimaryViewRef.current;
++    lastResolvedPrimaryViewRef.current = resolvedPrimaryView;
++    if (resolvedPrimaryView !== 'chat' || lastView === 'chat') {
++      return;
++    }
++    void revalidateBrandRuntimeConfig().catch((error) => {
++      console.warn('[desktop] failed to revalidate OEM runtime config on chat entry', error);
++    });
++  }, [resolvedPrimaryView, revalidateBrandRuntimeConfig]);
++
+   const openChatRoute = useCallback(
+     (nextRoute: ActiveChatRoute, options?: {forceRemount?: boolean}) => {
+       setActiveChatRoute(nextRoute);

@@ -3,7 +3,7 @@ export type MemoryType = '偏好' | '事实' | '决策' | '实体' | '其他';
 export type MemoryImportance = '高' | '中' | '低';
 export type MemorySourceType = '手动创建' | '自动捕获' | '导入' | '对话沉淀';
 export type MemoryStatus = '已确认' | '待检查';
-export type RecallState = '最近被召回' | '从未召回';
+export type RecallState = '最近被用到' | '从未用到';
 export type MemoryTimeRange = '最近 7 天' | '最近 30 天' | '全部';
 
 export type MemoryEntry = {
@@ -75,7 +75,7 @@ export const TYPE_OPTIONS: MemoryType[] = ['偏好', '事实', '决策', '实体
 export const IMPORTANCE_OPTIONS: MemoryImportance[] = ['高', '中', '低'];
 export const SOURCE_OPTIONS: MemorySourceType[] = ['手动创建', '自动捕获', '导入', '对话沉淀'];
 export const TIME_RANGE_OPTIONS: MemoryTimeRange[] = ['最近 7 天', '最近 30 天', '全部'];
-export const RECALL_OPTIONS: RecallState[] = ['最近被召回', '从未召回'];
+export const RECALL_OPTIONS: RecallState[] = ['最近被用到', '从未用到'];
 
 export const EMPTY_FILTERS: MemoryFilters = {
   domains: [],
@@ -148,7 +148,7 @@ export function toggleValue<T>(current: T[], value: T) {
 }
 
 export function formatRecallState(entry: MemoryEntry): RecallState {
-  return entry.recallCount > 0 ? '最近被召回' : '从未召回';
+  return entry.recallCount > 0 ? '最近被用到' : '从未用到';
 }
 
 export function parseMemoryDate(value: string | null | undefined): number | null {

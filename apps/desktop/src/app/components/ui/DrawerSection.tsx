@@ -32,7 +32,7 @@ export function DrawerSection({
                 {title ? <div className="text-[16px] font-semibold text-[var(--text-primary)]">{title}</div> : null}
               </div>
             ) : null}
-            {description ? <p className={cn('text-[13px] leading-6 text-[var(--text-secondary)]', title || icon ? 'mt-2' : '')}>{description}</p> : null}
+            {description ? <p className={cn('text-[14px] leading-7 text-[var(--text-secondary)]', title || icon ? 'mt-2' : '')}>{description}</p> : null}
           </div>
           {headerAccessory ? <div className="flex flex-wrap items-center gap-2">{headerAccessory}</div> : null}
         </div>

@@ -1,7 +1,7 @@
 # USER.md - 使用者配置文件
 
 ## 基础画像
-- Name: 用户
+- Name: 主人
 - Role: Investor / Analyst / Operator
 - Location: 由设置页提供
 - Timezone: 由设置页提供

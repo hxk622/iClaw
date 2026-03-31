@@ -3021,6 +3021,7 @@ function getMemoryEmbeddingDraftKey(scopeType, scopeKey) {
 function buildModelProviderDraft(input = {}) {
   const profile = asObject(input.profile);
   const override = asObject(input.override);
+  const metadata = asObject(profile.metadata);
   return {
     id: String(profile.id || '').trim(),
     scopeType: String(input.scopeType || profile.scopeType || '').trim(),
@@ -3030,6 +3031,8 @@ function buildModelProviderDraft(input = {}) {
     baseUrl: String(profile.baseUrl || '').trim(),
     apiKey: String(profile.apiKey || '').trim(),
     logoPresetKey: String(profile.logoPresetKey || '').trim(),
+    defaultModelRef:
+      String(metadata.default_model_ref || metadata.defaultModelRef || '').trim(),
     models: asArray(profile.models).map((item) => {
       const model = asObject(item);
       return {
@@ -3076,6 +3079,7 @@ function captureModelProviderDraft(form) {
     baseUrl: String(formData.get('base_url') || '').trim(),
     apiKey: String(formData.get('api_key') || '').trim(),
     logoPresetKey: String(formData.get('logo_preset_key') || '').trim(),
+    defaultModelRef: String(formData.get('default_model_ref') || '').trim(),
     models: Array.from(form.querySelectorAll('[data-model-provider-row="true"]')).map((row) => {
       const getValue = (name) => row.querySelector(`[name="${name}"]`);
       return {
@@ -3088,6 +3092,15 @@ function captureModelProviderDraft(form) {
   };
   state.modelProviderDrafts[getModelProviderDraftKey(scopeType, scopeKey)] = draft;
   return draft;
+}
+
+function buildProviderDraftModelRef(providerKey, modelId) {
+  const normalizedProviderKey = String(providerKey || '').trim();
+  const normalizedModelId = String(modelId || '').trim();
+  if (!normalizedProviderKey || !normalizedModelId) {
+    return '';
+  }
+  return `${normalizedProviderKey}/${normalizedModelId}`;
 }
 
 function captureMemoryEmbeddingDraft(form) {
@@ -5602,6 +5615,11 @@ async function saveModelProviderProfile(form) {
           };
         })
         .filter((item) => item.modelId && item.label);
+      const modelRefs = models.map((item) => buildProviderDraftModelRef(providerKey, item.modelId)).filter(Boolean);
+      let defaultModelRef = String(formData.get('default_model_ref') || '').trim();
+      if (defaultModelRef && !modelRefs.includes(defaultModelRef)) {
+        defaultModelRef = '';
+      }
 
       if (
         scopeType === 'app' &&
@@ -5624,7 +5642,7 @@ async function saveModelProviderProfile(form) {
           authMode: 'bearer',
           apiKey,
           logoPresetKey: String(formData.get('logo_preset_key') || '').trim() || null,
-          metadata: {},
+          metadata: defaultModelRef ? {default_model_ref: defaultModelRef} : {},
           enabled: true,
           sortOrder: 100,
           models,
@@ -8632,6 +8650,23 @@ function renderModelProviderCenterPage() {
     {key: 'platform', label: '平台'},
     ...(state.brands || []).map((brand) => ({key: brand.brandId, label: brand.displayName})),
   ];
+  const providerModelOptions = (draft.models || [])
+    .map((item) => {
+      const model = asObject(item);
+      const modelId = String(model.modelId || '').trim();
+      const label = String(model.label || modelId).trim();
+      const ref = buildProviderDraftModelRef(draft.providerKey, modelId);
+      if (!ref || !label) {
+        return null;
+      }
+      return {
+        ref,
+        label,
+      };
+    })
+    .filter(Boolean);
+  const providerDefaultModelRef =
+    providerModelOptions.some((item) => item.ref === draft.defaultModelRef) ? draft.defaultModelRef : '';
 
   return `
     <div class="fig-page">
@@ -8647,7 +8682,7 @@ function renderModelProviderCenterPage() {
         '平台 tab 维护全局 fallback provider。',
         'OEM tab 不再暴露 Provider Mode。填写并保存独立 provider 后，会自动切到 OEM Provider。',
         '如果要恢复到平台默认 provider，直接点“恢复跟随平台”。',
-        '模型列表、Base URL、API Key、Logo、倍率都在同一个 provider profile 里维护；保存后会同步清理 runtime 缓存。',
+        '模型列表、默认模型、Base URL、API Key、Logo、倍率都在同一个 provider profile 里维护；保存后会同步清理 runtime 缓存。',
         '记忆 Embedding 现在是独立配置，不再复用聊天 provider。聊天能用，不代表记忆向量一定能用。',
         '保存记忆 Embedding 前会先做一次真实 /embeddings 预检；预检不过，配置不会被当成可用保存。',
         '平台记忆 Embedding 是所有 OEM 的默认兜底；OEM 一旦配置独立记忆 Embedding，只影响这个 OEM 的记忆索引和召回。',
@@ -8739,6 +8774,20 @@ function renderModelProviderCenterPage() {
             <div class="fig-card__head">
               <h3>Model List</h3>
               <button class="ghost-button" type="button" data-action="add-provider-model-row">新增模型</button>
+            </div>
+            <div class="form-grid" style="margin-bottom:16px;">
+              <label class="field field--wide">
+                <span>默认模型</span>
+                <select class="field-select" name="default_model_ref">
+                  <option value="">请选择默认模型</option>
+                  ${providerModelOptions
+                    .map(
+                      (item) =>
+                        `<option value="${escapeHtml(item.ref)}"${providerDefaultModelRef === item.ref ? ' selected' : ''}>${escapeHtml(item.label)} · ${escapeHtml(item.ref)}</option>`,
+                    )
+                    .join('')}
+                </select>
+              </label>
             </div>
             <div data-model-provider-rows="true" class="fig-detail-stack">
               ${(draft.models || []).length ? draft.models.map((item, index) => renderModelProviderRow(item, index)).join('') : renderModelProviderRow({}, 0)}
@@ -11853,6 +11902,7 @@ app.addEventListener('change', (event) => {
   const form = target?.closest('form');
   if (form instanceof HTMLFormElement && form.id === 'model-provider-form') {
     captureModelProviderDraft(form);
+    render();
     return;
   }
   if (form instanceof HTMLFormElement && form.id === 'memory-embedding-form') {
@@ -12313,6 +12363,11 @@ app.addEventListener('click', async (event) => {
 
   if (action === 'add-provider-model-row') {
     appendProviderModelRow({});
+    const form = target.closest('form');
+    if (form instanceof HTMLFormElement) {
+      captureModelProviderDraft(form);
+      render();
+    }
     return;
   }
 
@@ -12320,6 +12375,11 @@ app.addEventListener('click', async (event) => {
     const row = target.closest('[data-model-provider-row="true"]');
     if (row && row.parentElement && row.parentElement.querySelectorAll('[data-model-provider-row="true"]').length > 1) {
       row.remove();
+      const form = target.closest('form');
+      if (form instanceof HTMLFormElement) {
+        captureModelProviderDraft(form);
+        render();
+      }
     }
     return;
   }

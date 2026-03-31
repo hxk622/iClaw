@@ -4,6 +4,7 @@ import {
 } from '@openclaw-ui/ui/chat/message-normalizer.ts';
 import { readChatConversation } from './chat-conversations';
 import { readCacheJson, removeCacheKeys, writeCacheJson } from './persistence/cache-store';
+import { canonicalizeChatSessionKey } from './chat-session';
 
 export type ChatSessionSnapshot = {
   sessionKey: string;
@@ -77,7 +78,7 @@ function readLatestRoleText(messages: unknown[], role: 'user' | 'assistant'): st
 
 export function buildChatSessionSnapshotStorageKey(appName: string, sessionKey: string): string {
   const normalizedAppName = appName.trim().toLowerCase() || 'default';
-  const normalizedSessionKey = sessionKey.trim().toLowerCase() || 'main';
+  const normalizedSessionKey = canonicalizeChatSessionKey(sessionKey).toLowerCase();
   return `${CHAT_SESSION_SNAPSHOT_PREFIX}:${normalizedAppName}:${normalizedSessionKey}`;
 }
 
@@ -105,7 +106,7 @@ export function readStoredChatSnapshot(params: {
     return null;
   }
   return {
-    sessionKey: params.sessionKey,
+    sessionKey: canonicalizeChatSessionKey(params.sessionKey),
     savedAt: typeof snapshot.savedAt === 'number' ? snapshot.savedAt : Date.now(),
     messages: snapshot.messages,
     pendingUsageSettlements: Array.isArray(snapshot.pendingUsageSettlements) ? snapshot.pendingUsageSettlements : [],
@@ -129,9 +130,13 @@ export function writeStoredChatSnapshot(params: {
     return;
   }
 
-  writeCacheJson(sessionStorageKey, params.snapshot);
+  const normalizedSnapshot: ChatSessionSnapshot = {
+    ...params.snapshot,
+    sessionKey: canonicalizeChatSessionKey(params.snapshot.sessionKey || params.sessionKey),
+  };
+  writeCacheJson(sessionStorageKey, normalizedSnapshot);
   if (conversationStorageKey) {
-    writeCacheJson(conversationStorageKey, params.snapshot);
+    writeCacheJson(conversationStorageKey, normalizedSnapshot);
   }
 }
 

@@ -35,7 +35,7 @@ export function MetricCard({
           <span className={iconClassName}>{icon}</span>
         </div>
         <div className="min-w-0">
-          <div className="mb-0.5 text-[11px] text-[var(--text-muted)]">{label}</div>
+          <div className="mb-0.5 text-[12px] font-medium text-[var(--text-secondary)]">{label}</div>
           <div className="text-[20px] font-medium leading-none text-[var(--text-primary)]">{value}</div>
         </div>
       </div>

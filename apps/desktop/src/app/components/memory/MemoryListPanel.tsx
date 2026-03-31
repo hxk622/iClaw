@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
-import { AlertCircle, Archive, CalendarClock, CheckCircle2, Clock3, FolderTree, SearchX, Sparkles, Star } from 'lucide-react';
+import { AlertCircle, Archive, CalendarClock, CheckCircle2, Clock3, FolderTree, Search, SearchX, Sparkles, Star } from 'lucide-react';
 import { cn } from '@/app/lib/cn';
+import type { MemorySearchResult } from '@/app/lib/memory-recall';
 import { Button } from '@/app/components/ui/Button';
 import { Chip } from '@/app/components/ui/Chip';
 import { EmptyStatePanel } from '@/app/components/ui/EmptyStatePanel';
@@ -18,6 +19,8 @@ import {
 export function MemoryListPanel({
   entries,
   totalCount,
+  searchQuery,
+  searchMatchesById,
   selectedId,
   loading,
   hasActiveFilters,
@@ -29,6 +32,8 @@ export function MemoryListPanel({
 }: {
   entries: MemoryEntry[];
   totalCount: number;
+  searchQuery: string;
+  searchMatchesById: Map<string, MemorySearchResult<MemoryEntry>>;
   selectedId: string | null;
   loading: boolean;
   hasActiveFilters: boolean;
@@ -39,9 +44,9 @@ export function MemoryListPanel({
   onClearFilters: () => void;
 }) {
   const configHint = !runtimeStatus?.embeddingConfigured
-    ? '当前使用内置记忆模式；手动记忆和基础索引可用，但语义召回未开启。'
+    ? '现在可以新增、编辑和搜索记忆；更智能的联想还没开启。'
     : runtimeError || runtimeStatus?.vectorError
-      ? `当前向量提供方已配置，但运行异常：${runtimeStatus?.vectorError || runtimeError}`
+      ? '智能联想暂时不可用，但不影响查看和搜索已有记忆。'
       : null;
   return (
     <SurfacePanel className="overflow-hidden rounded-[24px] border-[var(--border-default)] bg-[var(--bg-card)]">
@@ -63,7 +68,7 @@ export function MemoryListPanel({
           {runtimeError ? (
             <Chip tone="danger" className="rounded-full px-3 py-1 text-[12px]">
               <AlertCircle className="h-3.5 w-3.5" />
-              {runtimeError}
+              记忆状态需要检查
             </Chip>
           ) : null}
           {configHint ? (
@@ -80,7 +85,7 @@ export function MemoryListPanel({
           <EmptyShell
             icon={<Sparkles className="h-5 w-5" strokeWidth={1.5} />}
             title="正在读取真实记忆"
-            description="正在从本地桌面工作区加载记忆与索引状态"
+            description="正在从本地桌面工作区加载记忆内容"
           />
         ) : entries.length === 0 ? (
           <EmptyShell
@@ -94,7 +99,7 @@ export function MemoryListPanel({
             title={hasActiveFilters ? '未找到匹配的记忆' : '暂无记忆'}
             description={
               hasActiveFilters
-                ? '尝试调整搜索关键词或筛选条件'
+                ? '换个说法、标签或时间范围试试'
                 : memoryDir
                   ? '当前目录已经连接，可继续创建、导入或等待自动沉淀'
                   : '开始创建 AI 的第一条记忆'
@@ -111,6 +116,8 @@ export function MemoryListPanel({
           <div className="space-y-3">
             {entries.map((entry) => {
               const selected = selectedId === entry.id;
+              const searchMatch = searchMatchesById.get(entry.id) ?? null;
+              const previewText = searchMatch?.excerpt || entry.summary;
               return (
                 <PressableCard
                   key={entry.id}
@@ -128,12 +135,12 @@ export function MemoryListPanel({
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="line-clamp-1 text-[15px] font-medium text-[var(--text-primary)]">{entry.title}</p>
-                          <p className="mt-1.5 line-clamp-2 text-[13px] leading-6 text-[var(--text-secondary)]">{entry.summary}</p>
+                          <p className="mt-1.5 line-clamp-2 text-[13px] leading-6 text-[var(--text-secondary)]">{previewText}</p>
                         </div>
                         {entry.recallCount > 0 ? (
                           <Chip tone="accent" className="rounded-full px-3 py-1 text-[12px]">
                             <Sparkles className="h-3.5 w-3.5" />
-                            {entry.recallCount} 次召回
+                            被用到 {entry.recallCount} 次
                           </Chip>
                         ) : null}
                       </div>
@@ -148,6 +155,12 @@ export function MemoryListPanel({
                             {tag}
                           </Chip>
                         ))}
+                        {searchQuery.trim() && searchMatch?.reasons.length ? (
+                          <Chip tone="outline" className="rounded-full px-3 py-1 text-[12px]">
+                            <Search className="h-3.5 w-3.5" />
+                            {searchMatch.reasons.join('、')}匹配
+                          </Chip>
+                        ) : null}
                       </div>
 
                       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-[12px] text-[var(--text-muted)]">
@@ -162,7 +175,7 @@ export function MemoryListPanel({
                         {entry.lastRecalledAt ? (
                           <span className="inline-flex items-center gap-1.5">
                             <CheckCircle2 size={13} strokeWidth={1.6} />
-                            最近召回：{entry.lastRecalledAt}
+                            最近用到：{entry.lastRecalledAt}
                           </span>
                         ) : null}
                       </div>

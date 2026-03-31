@@ -1,8 +1,8 @@
+import { getSessionIdFromKey, toCanonicalSessionKey } from '@iclaw/shared';
 import { readCacheString, writeCacheString } from './persistence/cache-store';
 
 const ACTIVE_GENERAL_CHAT_SESSION_STORAGE_KEY = 'iclaw.desktop.active-general-chat-session.v1';
 const GENERAL_CHAT_SESSION_PREFIX = 'chat-';
-const LEGACY_MAIN_CHAT_SESSION_KEYS = new Set(['main', 'agent:main:main']);
 
 export const CRON_SYSTEM_SESSION_KEY = 'system-cron';
 export const GENERAL_CHAT_SESSION_MAX_TOTAL_TOKENS = 24_000;
@@ -17,52 +17,77 @@ export type ChatSessionPressureSnapshot = {
   overloaded: boolean;
 };
 
-function normalizeSessionKey(value?: string | null): string {
-  return value?.trim() ?? '';
-}
-
 function createSessionEntropy(): string {
   return Math.random().toString(36).slice(2, 8);
 }
 
+export function canonicalizeChatSessionKey(value?: string | null): string {
+  return toCanonicalSessionKey(value);
+}
+
+export function tryCanonicalizeChatSessionKey(value?: string | null): string | null {
+  try {
+    return canonicalizeChatSessionKey(value);
+  } catch {
+    return null;
+  }
+}
+
+export function getChatSessionId(value?: string | null): string {
+  return getSessionIdFromKey(value);
+}
+
+export function createScopedChatSessionKey(sessionId: string): string {
+  return canonicalizeChatSessionKey(sessionId);
+}
+
 export function createGeneralChatSessionKey(now = Date.now()): string {
-  return `${GENERAL_CHAT_SESSION_PREFIX}${now}-${createSessionEntropy()}`;
+  return createScopedChatSessionKey(`${GENERAL_CHAT_SESSION_PREFIX}${now}-${createSessionEntropy()}`);
 }
 
 export function createSuccessorGeneralChatSessionKey(currentSessionKey?: string | null): string {
   let next = createGeneralChatSessionKey();
-  const current = normalizeSessionKey(currentSessionKey);
-  while (current && next === current) {
+  const current = canonicalizeChatSessionKey(currentSessionKey);
+  while (next === current) {
     next = createGeneralChatSessionKey();
   }
   return next;
 }
 
 export function isGeneralChatSessionKey(value?: string | null): boolean {
-  const normalized = normalizeSessionKey(value).toLowerCase();
-  return normalized.startsWith(GENERAL_CHAT_SESSION_PREFIX);
+  return getChatSessionId(value).toLowerCase().startsWith(GENERAL_CHAT_SESSION_PREFIX);
 }
 
-export function isLegacyMainChatSessionKey(value?: string | null): boolean {
-  const normalized = normalizeSessionKey(value).toLowerCase();
-  return LEGACY_MAIN_CHAT_SESSION_KEYS.has(normalized);
+function isMainChatSessionKey(value?: string | null): boolean {
+  return getChatSessionId(value).toLowerCase() === 'main';
 }
 
 export function readPersistedActiveGeneralChatSessionKey(): string | null {
-  const stored = normalizeSessionKey(readCacheString(ACTIVE_GENERAL_CHAT_SESSION_STORAGE_KEY));
-  if (!stored || isLegacyMainChatSessionKey(stored)) {
+  const stored = readCacheString(ACTIVE_GENERAL_CHAT_SESSION_STORAGE_KEY);
+  if (!stored) {
     return null;
   }
-  return stored;
+  const sessionKey = tryCanonicalizeChatSessionKey(stored);
+  if (!sessionKey) {
+    return null;
+  }
+  if (isMainChatSessionKey(sessionKey)) {
+    return null;
+  }
+  return sessionKey;
 }
 
 export function writePersistedActiveGeneralChatSessionKey(sessionKey: string | null): void {
-  const normalized = normalizeSessionKey(sessionKey);
-  if (!normalized || !isGeneralChatSessionKey(normalized) || isLegacyMainChatSessionKey(normalized)) {
+  if (!sessionKey) {
     writeCacheString(ACTIVE_GENERAL_CHAT_SESSION_STORAGE_KEY, null);
     return;
   }
-  writeCacheString(ACTIVE_GENERAL_CHAT_SESSION_STORAGE_KEY, normalized);
+  const canonicalSessionKey = canonicalizeChatSessionKey(sessionKey);
+  if (!isGeneralChatSessionKey(canonicalSessionKey) || isMainChatSessionKey(canonicalSessionKey)) {
+    writeCacheString(ACTIVE_GENERAL_CHAT_SESSION_STORAGE_KEY, null);
+    return;
+  }
+  writeCacheString(ACTIVE_GENERAL_CHAT_SESSION_STORAGE_KEY, canonicalSessionKey);
 }
 
 export function resolveInitialGeneralChatSessionKey(): string {

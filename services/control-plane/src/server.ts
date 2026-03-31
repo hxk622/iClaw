@@ -39,6 +39,7 @@ import type {
   UpdateProfileInput,
   UsageEventInput,
   WorkspaceBackupInput,
+  SkillCatalogEntryView,
 } from './domain.ts';
 import {HttpError} from './errors.ts';
 import {createJsonServer, createRawResponse, type HandlerContext} from './http.ts';
@@ -62,6 +63,7 @@ import {resolveSkillCatalogVisibilityMode} from './portal-skill-catalog-policy.t
 import {ensureControlPlaneSchema, PgControlPlaneStore} from './pg-store.ts';
 import {createRedisKeyValueCache} from './redis-cache.ts';
 import {ControlPlaneService} from './service.ts';
+import {logError, logInfo, logWarn} from './logger.ts';
 import {
   desktopUpdateAllowedRequestHeaders,
   desktopUpdateExposedHeaders,
@@ -110,7 +112,7 @@ if (config.redisUrl) {
     cacheLabel = cache.label;
     runtimeCache = cache;
   } catch (error) {
-    console.warn('[control-plane] redis unavailable, continuing without cache', error);
+    logWarn('redis unavailable, continuing without cache', {error});
   }
 }
 
@@ -147,9 +149,9 @@ async function runStartupBootstrap(): Promise<void> {
     const stepStartedAt = Date.now();
     try {
       await task();
-      console.log(`[control-plane] bootstrap ${label} in ${Date.now() - stepStartedAt}ms`);
+      logInfo('bootstrap step completed', {label, durationMs: Date.now() - stepStartedAt});
     } catch (error) {
-      console.error(`[control-plane] bootstrap ${label} failed in ${Date.now() - stepStartedAt}ms`, error);
+      logError('bootstrap step failed', {label, durationMs: Date.now() - stepStartedAt, error});
       throw error;
     }
   };
@@ -162,13 +164,13 @@ async function runStartupBootstrap(): Promise<void> {
     startupState.bootstrap.status = 'ready';
     startupState.bootstrap.completedAt = new Date().toISOString();
     startupState.bootstrap.durationMs = Date.now() - startedAt;
-    console.log(`[control-plane] startup bootstrap ready in ${startupState.bootstrap.durationMs}ms`);
+    logInfo('startup bootstrap ready', {durationMs: startupState.bootstrap.durationMs});
   } catch (error) {
     startupState.bootstrap.status = 'failed';
     startupState.bootstrap.completedAt = new Date().toISOString();
     startupState.bootstrap.durationMs = Date.now() - startedAt;
     startupState.bootstrap.lastError = error instanceof Error ? error.message : String(error);
-    console.error('[control-plane] startup bootstrap failed', error);
+    logError('startup bootstrap failed', {durationMs: startupState.bootstrap.durationMs, error});
   }
 }
 
@@ -277,6 +279,48 @@ function resolveSkillCatalogTagKeywords(url: URL): string[] {
         .filter(Boolean),
     ),
   );
+}
+
+function decorateSkillCatalogItemsForApp(
+  items: SkillCatalogEntryView[],
+  appName: string,
+  bindings: Array<{skillSlug: string; enabled: boolean; config?: Record<string, unknown> | null}>,
+): SkillCatalogEntryView[] {
+  const bindingBySlug = new Map(
+    bindings
+      .map((binding) => {
+        const skillSlug = String(binding.skillSlug || '').trim();
+        if (!skillSlug) return null;
+        return [skillSlug, binding] as const;
+      })
+      .filter(Boolean) as Array<readonly [string, {skillSlug: string; enabled: boolean; config?: Record<string, unknown> | null}]>,
+  );
+
+  return items.map((item) => {
+    const binding = bindingBySlug.get(item.slug);
+    if (!binding || binding.enabled === false) {
+      return item;
+    }
+    const bindingConfig =
+      binding.config && typeof binding.config === 'object' && !Array.isArray(binding.config)
+        ? binding.config
+        : {};
+    const sourceLayer = typeof bindingConfig.source_layer === 'string' ? bindingConfig.source_layer.trim() : '';
+    const managedBy = typeof bindingConfig.managed_by === 'string' ? bindingConfig.managed_by.trim() : '';
+    return {
+      ...item,
+      metadata: {
+        ...(item.metadata || {}),
+        default_installed: true,
+        app_binding: {
+          app_name: appName,
+          enabled: true,
+          source_layer: sourceLayer || 'oem_bundled',
+          managed_by: managedBy || (sourceLayer === 'platform_bundled' ? 'platform' : 'oem'),
+        },
+      },
+    };
+  });
 }
 
 function resolveDesktopUpdateRequest(url: URL) {
@@ -710,16 +754,25 @@ const server = createJsonServer([
         return service.listSkillCatalog(baseUrl, limit, offset, null, {tagKeywords});
       }
       const platformSkills = await portalStore.listSkills().catch(() => []);
-      const visibleSkillSlugs = mergePlatformSkillBindings(detail.app.appName, detail.skillBindings, platformSkills)
+      const mergedSkillBindings = mergePlatformSkillBindings(detail.app.appName, detail.skillBindings, platformSkills);
+      const visibleSkillSlugs = mergedSkillBindings
         .filter((binding) => binding.enabled)
         .map((binding) => binding.skillSlug);
       if (resolveSkillCatalogVisibilityMode(detail.app.config) === 'all_cloud') {
-        return service.listSkillCatalog(baseUrl, limit, offset, null, {
+        const page = await service.listSkillCatalog(baseUrl, limit, offset, null, {
           tagKeywords,
           extraSkillSlugs: visibleSkillSlugs,
         });
+        return {
+          ...page,
+          items: decorateSkillCatalogItemsForApp(page.items, detail.app.appName, mergedSkillBindings),
+        };
       }
-      return service.listSkillCatalog(baseUrl, limit, offset, visibleSkillSlugs, {tagKeywords});
+      const page = await service.listSkillCatalog(baseUrl, limit, offset, visibleSkillSlugs, {tagKeywords});
+      return {
+        ...page,
+        items: decorateSkillCatalogItemsForApp(page.items, detail.app.appName, mergedSkillBindings),
+      };
     },
   },
   {
@@ -1671,7 +1724,10 @@ const server = createJsonServer([
 });
 
 server.listen(config.port, config.listenHost, () => {
-  console.log(`[control-plane] listening on http://${config.listenHost}:${config.port}`);
-  console.log(`[control-plane] allowed origins: ${config.allowedOrigins.join(', ')}`);
+  logInfo('control-plane listening', {
+    url: `http://${config.listenHost}:${config.port}`,
+    allowedOrigins: config.allowedOrigins,
+    cache: cacheLabel,
+  });
   void runStartupBootstrap();
 });

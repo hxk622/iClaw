@@ -167,6 +167,7 @@ type RichChatComposerProps = {
   busy: boolean;
   sendDisabledReason?: string | null;
   sessionTransitioning?: boolean;
+  queueWhileConnecting?: boolean;
   lobsterAgents: ComposerAgentOption[];
   skillOptions: ComposerSkillOption[];
   modelOptions: ComposerModelOption[];
@@ -184,13 +185,15 @@ type RichChatComposerProps = {
     error?: string | null;
   } | null;
   dropActive?: boolean;
+  skillSelectionScopeKey?: string | null;
   initialSelectedAgentSlug?: string | null;
+  initialSelectedSkillSeedKey?: string | null;
   initialSelectedSkillSlug?: string | null;
+  initialSelectedSkillOption?: ComposerSkillOption | null;
   initialSelectedStock?: ComposerStockContext | null;
   searchStocks?: (query: string, options?: {limit?: number; offset?: number}) => Promise<ComposerInstrumentSearchPage>;
   searchFunds?: (query: string, options?: {limit?: number; offset?: number}) => Promise<ComposerInstrumentSearchPage>;
   composerConfig?: ResolvedInputComposerConfig | null;
-  onSelectedSkillSlugChange?: (slug: string | null) => void;
 };
 
 const STOCK_MENU_PAGE_SIZE = 8;
@@ -649,6 +652,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       busy,
       sendDisabledReason = null,
       sessionTransitioning = false,
+      queueWhileConnecting = false,
       lobsterAgents,
       skillOptions,
       modelOptions,
@@ -661,13 +665,15 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       onDraftChange,
       creditEstimate,
       dropActive = false,
+      skillSelectionScopeKey = null,
       initialSelectedAgentSlug = null,
+      initialSelectedSkillSeedKey = null,
       initialSelectedSkillSlug = null,
+      initialSelectedSkillOption = null,
       initialSelectedStock = null,
       searchStocks,
       searchFunds,
       composerConfig = null,
-      onSelectedSkillSlugChange,
     },
     ref,
   ) {
@@ -728,6 +734,8 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const submitInFlightRef = useRef(false);
     const sendAudioRef = useRef<HTMLAudioElement | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
+    const consumedInitialSkillSeedRef = useRef<string | null>(null);
+    const lastSkillSelectionScopeKeyRef = useRef<string | null>(null);
     const topBarControls = composerConfig
       ? composerConfig.topBarControls
       : DEFAULT_TOP_BAR_CONTROLS.map((item) => ({
@@ -941,8 +949,11 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         const verticalGap = 12;
         const minLeft = horizontalInset;
         const maxLeft = Math.max(minLeft, shellRect.width - estimatedWidth - horizontalInset);
-        const centeredLeft = caretRect.left - shellRect.left - estimatedWidth / 2;
-        const left = Math.min(maxLeft, Math.max(minLeft, centeredLeft));
+        const anchoredLeft =
+          kind === 'mention'
+            ? caretRect.left - shellRect.left
+            : caretRect.left - shellRect.left - estimatedWidth / 2;
+        const left = Math.min(maxLeft, Math.max(minLeft, anchoredLeft));
         const topAbove = caretRect.top - shellRect.top - estimatedHeight - verticalGap;
         const topBelow = caretRect.bottom - shellRect.top + verticalGap;
         const canPlaceAbove = topAbove >= 4;
@@ -1685,7 +1696,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       }
 
       const editor = editorRef.current;
-      if (!editor || !connected) {
+      if (!editor || (!connected && !queueWhileConnecting)) {
         return;
       }
 
@@ -1766,6 +1777,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       visibleTopBarControlKeys,
       watchlistOptions,
       playSendWhoosh,
+      queueWhileConnecting,
     ]);
 
     useEffect(() => {
@@ -1781,12 +1793,27 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     }, [initialSelectedAgentSlug]);
 
     useEffect(() => {
-      setSelectedSkillSlug(initialSelectedSkillSlug || null);
-    }, [initialSelectedSkillSlug]);
+      const scopeKey = skillSelectionScopeKey || '__default__';
+      if (lastSkillSelectionScopeKeyRef.current === scopeKey) {
+        return;
+      }
+      lastSkillSelectionScopeKeyRef.current = scopeKey;
+      consumedInitialSkillSeedRef.current = null;
+      setSelectedSkillSlug(null);
+    }, [skillSelectionScopeKey]);
 
     useEffect(() => {
-      onSelectedSkillSlugChange?.(selectedSkillSlug);
-    }, [onSelectedSkillSlugChange, selectedSkillSlug]);
+      if (!initialSelectedSkillSlug) {
+        return;
+      }
+      const scopeKey = skillSelectionScopeKey || '__default__';
+      const seedKey = `${scopeKey}:${initialSelectedSkillSeedKey?.trim() || initialSelectedSkillSlug}`;
+      if (consumedInitialSkillSeedRef.current === seedKey) {
+        return;
+      }
+      consumedInitialSkillSeedRef.current = seedKey;
+      setSelectedSkillSlug(initialSelectedSkillSlug);
+    }, [initialSelectedSkillSeedKey, initialSelectedSkillSlug, skillSelectionScopeKey]);
 
     useEffect(() => {
       setSelectedStockContext(initialSelectedStock || null);
@@ -2092,7 +2119,11 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const sendState = showAbortAction ? 'busy' : hasContent ? 'ready' : 'empty';
     const submitDisabledReason =
       sendDisabledReason ||
-      (!connected ? '等待网关连接后才能发送' : !composerBusy && !hasContent ? '输入内容后才能发送' : null);
+      (!connected && !queueWhileConnecting
+        ? '等待网关连接后才能发送'
+        : !composerBusy && !hasContent
+          ? '输入内容后才能发送'
+          : null);
     const selectedModel =
       findComposerModelOption(modelOptions, selectedModelId) ?? modelOptions[0] ?? null;
     const modelTriggerLabel = (() => {
@@ -2129,7 +2160,9 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const modelDisabled =
       !connected || composerBusy || sessionTransitioning || modelSwitching || modelOptions.length === 0;
     const selectedAgent = lobsterAgents.find((option) => option.slug === selectedAgentSlug) ?? null;
-    const selectedSkill = skillOptions.find((option) => option.slug === selectedSkillSlug) ?? null;
+    const selectedSkill =
+      skillOptions.find((option) => option.slug === selectedSkillSlug) ??
+      (selectedSkillSlug && initialSelectedSkillOption?.slug === selectedSkillSlug ? initialSelectedSkillOption : null);
     const selectedModeOption = findStaticOption(modeOptions, selectedMode);
     const selectedMarketScopeOption = findStaticOption(marketScopeOptions, selectedMarketScope);
     const selectedStockContextLabel = formatStockContextLabel(selectedStockContext);

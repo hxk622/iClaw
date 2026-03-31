@@ -23,6 +23,9 @@ importers:
       '@iclaw/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      '@iclaw/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@noble/ed25519':
         specifier: 3.0.0
         version: 3.0.0

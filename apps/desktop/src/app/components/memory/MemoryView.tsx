@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 
 import { PageContent, PageSurface } from '@/app/components/ui/PageLayout';
+import { searchMemoryEntries, sortMemoryEntriesForDisplay } from '@/app/lib/memory-recall';
 import {
   archiveMemoryEntry,
   deleteMemoryEntry as deleteMemoryEntryRecord,
@@ -88,18 +89,8 @@ export function MemoryView({ title }: { title: string }) {
     [activeEntries],
   );
 
-  const filteredEntries = useMemo(() => {
+  const baseFilteredEntries = useMemo(() => {
     return activeEntries.filter((entry) => {
-      const query = searchQuery.trim().toLowerCase();
-      if (query) {
-        const matchesQuery =
-          entry.title.toLowerCase().includes(query) ||
-          entry.summary.toLowerCase().includes(query) ||
-          entry.content.toLowerCase().includes(query) ||
-          entry.tags.some((tag) => tag.toLowerCase().includes(query));
-        if (!matchesQuery) return false;
-      }
-
       if (filters.domains.length > 0 && !filters.domains.includes(entry.domain)) return false;
       if (filters.types.length > 0 && !filters.types.includes(entry.type)) return false;
       if (filters.tags.length > 0 && !filters.tags.some((tag) => entry.tags.includes(tag))) return false;
@@ -114,7 +105,24 @@ export function MemoryView({ title }: { title: string }) {
 
       return true;
     });
-  }, [activeEntries, filters, searchQuery]);
+  }, [activeEntries, filters]);
+
+  const searchResults = useMemo(
+    () => searchMemoryEntries(baseFilteredEntries, searchQuery),
+    [baseFilteredEntries, searchQuery],
+  );
+
+  const searchMatchesById = useMemo(
+    () => new Map(searchResults.map((result) => [result.entry.id, result])),
+    [searchResults],
+  );
+
+  const filteredEntries = useMemo(() => {
+    if (searchQuery.trim()) {
+      return searchResults.map((result) => result.entry);
+    }
+    return sortMemoryEntriesForDisplay(baseFilteredEntries);
+  }, [baseFilteredEntries, searchQuery, searchResults]);
 
   useEffect(() => {
     if (filteredEntries.length === 0) {
@@ -162,7 +170,7 @@ export function MemoryView({ title }: { title: string }) {
       recalled,
       pendingReview,
       totalRecalls,
-      indexedFiles: runtimeStatus?.files ?? total,
+      indexedFiles: runtimeStatus?.files && runtimeStatus.files > 0 ? runtimeStatus.files : total,
       indexedChunks: runtimeStatus?.chunks ?? 0,
       indexHealth: unhealthy === 0 ? '健康' : '待刷新',
     };
@@ -293,7 +301,7 @@ export function MemoryView({ title }: { title: string }) {
       await reindexMemory(true);
       await reloadSnapshot();
     } catch (error) {
-      setRuntimeError(error instanceof Error ? error.message : '刷新索引失败');
+      setRuntimeError(error instanceof Error ? error.message : '更新整理状态失败');
       await reloadSnapshot();
     } finally {
       setMutating(false);
@@ -496,6 +504,8 @@ export function MemoryView({ title }: { title: string }) {
               <MemoryListPanel
                 entries={filteredEntries}
                 totalCount={statusSummary.total}
+                searchQuery={searchQuery}
+                searchMatchesById={searchMatchesById}
                 selectedId={selectedId}
                 loading={loading}
                 hasActiveFilters={hasActiveFilters}

@@ -76,7 +76,7 @@ export function PageHeader({
         {eyebrow ? (
           <div
             className={cn(
-              'text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]',
+              'text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]',
               eyebrowClassName,
             )}
           >
@@ -94,7 +94,7 @@ export function PageHeader({
         {description ? (
           <p
             className={cn(
-              'mt-1.5 max-w-[760px] text-[13px] leading-6 text-[var(--text-secondary)]',
+              'mt-1.5 max-w-[760px] text-[15px] leading-7 text-[var(--text-secondary)]',
               descriptionClassName,
             )}
           >

@@ -144,7 +144,7 @@ export function InvestmentExpertsView({
           description="AI智能体 · 专业投资研究与资产配置专家团队"
           contentClassName="space-y-1"
           titleClassName="mt-0 text-[28px] font-semibold tracking-[-0.045em] text-[var(--lobster-text-primary)]"
-          descriptionClassName="mt-0 text-[13px] leading-6 text-[var(--lobster-text-secondary)]"
+          descriptionClassName="mt-0 text-[15px] leading-7 text-[var(--lobster-text-secondary)]"
           actions={
             <label className="relative block w-full min-w-[260px] max-w-[320px]">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--lobster-text-muted)]" />
@@ -152,14 +152,14 @@ export function InvestmentExpertsView({
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="搜索专家、策略、市场方向…"
-                className="h-10 w-full rounded-[12px] border border-[var(--lobster-border)] bg-[var(--lobster-card-elevated)] pl-10 pr-4 text-[13px] text-[var(--lobster-text-primary)] outline-none transition placeholder:text-[var(--lobster-text-muted)] focus:border-[var(--lobster-gold-border-strong)] focus:ring-2 focus:ring-[rgba(168,140,93,0.14)]"
+                className="h-11 w-full rounded-[12px] border border-[var(--lobster-border)] bg-[var(--lobster-card-elevated)] pl-10 pr-4 text-[14px] text-[var(--lobster-text-primary)] outline-none transition placeholder:text-[var(--lobster-text-muted)] focus:border-[var(--lobster-gold-border-strong)] focus:ring-2 focus:ring-[rgba(168,140,93,0.14)]"
               />
             </label>
           }
         />
 
         {error ? (
-          <div className="mt-4 flex items-start gap-3 rounded-[18px] border border-[var(--lobster-danger-border)] bg-[var(--lobster-danger-soft)] px-4 py-3 text-[13px] leading-6 text-[var(--lobster-danger-text)]">
+          <div className="mt-4 flex items-start gap-3 rounded-[18px] border border-[var(--lobster-danger-border)] bg-[var(--lobster-danger-soft)] px-4 py-3 text-[14px] leading-7 text-[var(--lobster-danger-text)]">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <span>{error}</span>
           </div>
@@ -188,7 +188,7 @@ export function InvestmentExpertsView({
                 >
                   <span>{tab.label}</span>
                   {tab.id === 'mine' && installedCount > 0 ? (
-                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--lobster-gold-soft)] px-1.5 text-[10px] text-[var(--lobster-gold-strong)]">
+                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--lobster-gold-soft)] px-1.5 text-[11px] font-medium text-[var(--lobster-gold-strong)]">
                       {installedCount}
                     </span>
                   ) : null}
@@ -210,7 +210,7 @@ export function InvestmentExpertsView({
                 type="button"
                 onClick={() => setActiveFilter(category.id)}
                 className={cn(
-                  'inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-[12px] font-medium transition cursor-pointer',
+                  'inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2.5 text-[13px] font-medium transition cursor-pointer',
                   SPRING_PRESSABLE,
                   INTERACTIVE_FOCUS_RING,
                   active
@@ -228,7 +228,7 @@ export function InvestmentExpertsView({
           })}
         </div>
 
-        <div className="mt-4 flex items-start gap-3 rounded-[14px] border border-[var(--lobster-border)] bg-[var(--lobster-muted-bg)] px-4 py-3 text-[12px] leading-6 text-[var(--lobster-text-secondary)]">
+        <div className="mt-4 flex items-start gap-3 rounded-[14px] border border-[var(--lobster-border)] bg-[var(--lobster-muted-bg)] px-4 py-3 text-[13px] leading-7 text-[var(--lobster-text-secondary)]">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-[var(--lobster-text-muted)]" />
           <span>每位智能投资专家都是独立AI智能体，可接受指令、自主完成投研任务并输出结构化结果。</span>
         </div>
@@ -255,7 +255,7 @@ export function InvestmentExpertsView({
                     <h2 className="text-[18px] font-semibold text-[var(--lobster-text-primary)]">
                       {group.label}
                     </h2>
-                    <span className="inline-flex items-center rounded-full bg-[var(--lobster-muted-bg)] px-2.5 py-0.5 text-[11px] text-[var(--lobster-text-muted)]">
+                    <span className="inline-flex items-center rounded-full bg-[var(--lobster-muted-bg)] px-2.5 py-0.5 text-[12px] text-[var(--lobster-text-secondary)]">
                       {group.experts.length}
                     </span>
                   </div>
@@ -280,7 +280,7 @@ export function InvestmentExpertsView({
                   <div className="text-[18px] font-semibold text-[var(--lobster-text-primary)]">
                     未找到匹配的专家
                   </div>
-                  <div className="mt-2 text-[13px] leading-6 text-[var(--lobster-text-secondary)]">
+                  <div className="mt-2 text-[14px] leading-7 text-[var(--lobster-text-secondary)]">
                     可以切换分类、清空关键词，或换一个更具体的方向试试。
                   </div>
                 </div>

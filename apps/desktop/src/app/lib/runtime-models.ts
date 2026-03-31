@@ -10,6 +10,7 @@ export type RuntimeModelCatalogResponse = {
     providerKey: string;
     providerLabel: string;
     logoPresetKey: string | null;
+    metadata?: Record<string, unknown>;
   } | null;
   models: Array<{
     modelRef: string;

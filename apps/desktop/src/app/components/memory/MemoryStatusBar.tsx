@@ -5,33 +5,31 @@ import { SummaryMetricItem } from '@/app/components/ui/SummaryMetricItem';
 import { SurfacePanel } from '@/app/components/ui/SurfacePanel';
 import type { MemoryStatusSummary } from './model';
 
-function resolveEngineLabel(runtimeStatus: MemoryRuntimeStatus | null) {
-  if (!runtimeStatus?.backend) return '未连接';
-  if (runtimeStatus.backend === 'builtin') return 'Builtin';
-  return runtimeStatus.backend;
-}
-
 function resolveLatestSyncLabel(latestUpdatedAt: string | null) {
-  return latestUpdatedAt ?? '暂无同步';
+  return latestUpdatedAt ?? '暂无更新';
 }
 
-function resolveVectorState(runtimeStatus: MemoryRuntimeStatus | null, runtimeError: string | null) {
+function resolveSmartRecallState(runtimeStatus: MemoryRuntimeStatus | null, runtimeError: string | null) {
   if (!runtimeStatus?.embeddingConfigured) {
-    return {label: '向量未配置', tone: 'warning' as const};
+    return { label: '智能联想未开启', tone: 'warning' as const };
   }
   if (runtimeError || runtimeStatus.vectorError || runtimeStatus.vectorAvailable === false) {
-    return {label: '向量异常', tone: 'danger' as const};
+    return { label: '智能联想需要检查', tone: 'danger' as const };
   }
   if (runtimeStatus.vectorAvailable === true) {
-    return {label: '向量可用', tone: 'success' as const};
+    return { label: '智能联想可用', tone: 'success' as const };
   }
-  return {label: '向量待检查', tone: 'outline' as const};
+  return { label: '智能联想准备中', tone: 'outline' as const };
 }
 
-function resolveFtsState(runtimeStatus: MemoryRuntimeStatus | null) {
-  if (runtimeStatus?.ftsAvailable === true) return {label: 'FTS 可用', tone: 'success' as const};
-  if (runtimeStatus?.ftsAvailable === false || runtimeStatus?.ftsError) return {label: 'FTS 异常', tone: 'warning' as const};
-  return {label: 'FTS 未知', tone: 'outline' as const};
+function resolveSearchState(runtimeStatus: MemoryRuntimeStatus | null, runtimeError: string | null) {
+  if (runtimeError || runtimeStatus?.ftsError) {
+    return { label: '查找需要检查', tone: 'warning' as const };
+  }
+  if ((runtimeStatus?.files ?? 0) > 0 || (runtimeStatus?.scanTotalFiles ?? 0) > 0) {
+    return { label: '可查找', tone: 'success' as const };
+  }
+  return { label: '等待整理', tone: 'outline' as const };
 }
 
 export function MemoryStatusBar({
@@ -47,17 +45,13 @@ export function MemoryStatusBar({
   topTags: Array<[string, number]>;
   latestUpdatedAt: string | null;
 }) {
-  const indexTone = statusSummary.indexHealth === '健康' ? 'success' : runtimeError ? 'danger' : 'accent';
-  const vectorState = resolveVectorState(runtimeStatus, runtimeError);
-  const ftsState = resolveFtsState(runtimeStatus);
-  const configuredLabel =
-    runtimeStatus?.embeddingConfigured
-      ? `${runtimeStatus.configuredProvider || runtimeStatus.provider || 'unknown'} / ${runtimeStatus.configuredModel || runtimeStatus.model || 'unknown'}`
-      : '未配置向量提供方';
+  const organizationTone = statusSummary.indexHealth === '健康' ? 'success' : runtimeError ? 'danger' : 'accent';
+  const smartRecallState = resolveSmartRecallState(runtimeStatus, runtimeError);
+  const searchState = resolveSearchState(runtimeStatus, runtimeError);
   const guidance = !runtimeStatus?.embeddingConfigured
-    ? '当前采用内置记忆后端。手动记忆、导入导出和基础索引可继续使用；如果需要语义召回，再补充向量提供方配置。'
+    ? '现在已经可以新增、编辑和搜索记忆。更智能的联想稍后再补，不影响日常使用。'
     : runtimeError || runtimeStatus?.vectorError
-      ? `向量提供方已配置，但当前不可用。${runtimeStatus?.vectorError || runtimeError || '请检查 API Key、Base URL 和模型配置。'}`
+      ? '智能联想暂时没有工作起来，但已有记忆仍然可以正常查看和搜索。'
       : null;
 
   return (
@@ -66,14 +60,14 @@ export function MemoryStatusBar({
         <SummaryMetricItem
           label="总量"
           value={`${statusSummary.total}`}
-          note={`${statusSummary.indexedFiles} 文件已索引`}
+          note={`${statusSummary.indexedFiles} 条已整理`}
           icon={Database}
           tone="brand"
           first
           className="px-1.5 py-1"
         />
         <SummaryMetricItem
-          label="自动捕获"
+          label="自动记录"
           value={`${statusSummary.autoCaptured}`}
           note="自动沉淀"
           icon={Zap}
@@ -81,9 +75,9 @@ export function MemoryStatusBar({
           className="px-1.5 py-1"
         />
         <SummaryMetricItem
-          label="累计召回"
+          label="被用到"
           value={`${statusSummary.totalRecalls}`}
-          note={`${statusSummary.recalled} 条已用过`}
+          note={`${statusSummary.recalled} 条被带出过`}
           icon={Activity}
           tone="neutral"
           className="px-1.5 py-1"
@@ -91,7 +85,7 @@ export function MemoryStatusBar({
         <SummaryMetricItem
           label="待检查"
           value={`${statusSummary.pendingReview}`}
-          note={runtimeError ? '索引异常' : '等待确认'}
+          note={runtimeError ? '需要检查' : '等待确认'}
           icon={runtimeError ? TriangleAlert : CheckCircle2}
           tone={runtimeError ? 'warning' : 'neutral'}
           className="px-1.5 py-1"
@@ -100,26 +94,23 @@ export function MemoryStatusBar({
 
       <div className="flex flex-wrap items-center gap-2 px-3 py-2">
         <Chip tone="outline" className="rounded-full px-2.5 py-1 text-[11px]">
-          引擎 · {resolveEngineLabel(runtimeStatus)}
+          {runtimeStatus ? '本地记忆已连接' : '本地记忆未连接'}
         </Chip>
-        <Chip tone={indexTone} className="rounded-full px-2.5 py-1 text-[11px]">
-          {runtimeError ? '索引异常' : `索引 ${statusSummary.indexHealth}`}
+        <Chip tone={organizationTone} className="rounded-full px-2.5 py-1 text-[11px]">
+          {runtimeError ? '整理需要检查' : `整理 ${statusSummary.indexHealth}`}
         </Chip>
-        <Chip tone={vectorState.tone} className="rounded-full px-2.5 py-1 text-[11px]">
-          {vectorState.label}
+        <Chip tone={searchState.tone} className="rounded-full px-2.5 py-1 text-[11px]">
+          {searchState.label}
         </Chip>
-        <Chip tone={ftsState.tone} className="rounded-full px-2.5 py-1 text-[11px]">
-          {ftsState.label}
-        </Chip>
-        <Chip tone="outline" className="rounded-full px-2.5 py-1 text-[11px]">
-          分块 {statusSummary.indexedChunks}
+        <Chip tone={smartRecallState.tone} className="rounded-full px-2.5 py-1 text-[11px]">
+          {smartRecallState.label}
         </Chip>
         <Chip tone="outline" className="rounded-full px-2.5 py-1 text-[11px]">
-          配置 · {configuredLabel}
+          内容片段 {statusSummary.indexedChunks}
         </Chip>
         <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)]">
           <Clock3 className="h-3.5 w-3.5 text-[var(--text-muted)]" />
-          <span>{resolveLatestSyncLabel(latestUpdatedAt)}</span>
+          <span>最近更新：{resolveLatestSyncLabel(latestUpdatedAt)}</span>
         </div>
 
         <div className="ml-auto flex min-w-0 items-center gap-2">

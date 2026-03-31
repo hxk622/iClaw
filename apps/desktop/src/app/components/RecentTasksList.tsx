@@ -159,8 +159,8 @@ export function RecentTasksList({
       <div className="mb-4">
         <div className="mb-2 flex items-center justify-between px-3">
           <div className="flex h-7 items-center gap-2">
-            <span className="text-xs leading-none text-[var(--text-muted)]">{title}</span>
-            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[var(--border-default)] bg-[var(--bg-elevated)] text-[10px] leading-none text-[var(--text-secondary)]">
+            <span className="text-[13px] leading-none text-[var(--text-secondary)]">{title}</span>
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[var(--border-default)] bg-[var(--bg-elevated)] text-[11px] font-medium leading-none text-[var(--text-secondary)]">
               {Math.min(visibleTasks.length, SIDEBAR_TASK_LIMIT)}
             </span>
           </div>
@@ -168,7 +168,7 @@ export function RecentTasksList({
             type="button"
             onClick={onOpenAll}
             className={cn(
-              'h-7 cursor-pointer rounded-full px-2 text-[11px] leading-none text-[var(--text-muted)]',
+              'h-7 cursor-pointer rounded-full px-2 text-[12px] leading-none text-[var(--text-secondary)]',
               'transition-[transform,color,background-color] duration-[var(--motion-panel)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
               SPRING_PRESSABLE,
               INTERACTIVE_FOCUS_RING,
@@ -185,7 +185,7 @@ export function RecentTasksList({
               onClick={onOpenAll}
               className={cn(
                 'w-full cursor-pointer rounded-[18px] border border-dashed border-[var(--border-default)] bg-[var(--bg-card)] px-3 py-3 text-left',
-                'text-[11px] leading-5 text-[var(--text-secondary)]',
+                'text-[12px] leading-6 text-[var(--text-secondary)]',
                 SPRING_PRESSABLE,
                 INTERACTIVE_FOCUS_RING,
               )}

@@ -39,7 +39,7 @@ export function CompactSegmentedControl<T extends string>({
             type="button"
             onClick={() => onChange(option.value)}
             className={cn(
-              'relative inline-flex min-h-[34px] items-center justify-center rounded-[8px] px-4 py-1.5 text-[13px] font-medium',
+              'relative inline-flex min-h-[36px] items-center justify-center rounded-[8px] px-4 py-2 text-[14px] font-medium',
               'cursor-pointer',
               SPRING_PRESSABLE,
               INTERACTIVE_FOCUS_RING,
@@ -51,7 +51,7 @@ export function CompactSegmentedControl<T extends string>({
                     activeItemClassName,
                   )
                 : cn(
-                    'border border-transparent bg-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]',
+                    'border border-transparent bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
                     inactiveItemClassName,
                   ),
             )}

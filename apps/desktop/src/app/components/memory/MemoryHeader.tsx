@@ -22,7 +22,7 @@ export function MemoryHeader({
   return (
     <PageHeader
       title={title}
-      description="AI 的长期记忆与标签化管理"
+      description="把重要事实、偏好和决策留在这里，后面更容易找回来"
       className="gap-2.5"
       contentClassName="space-y-1"
       titleClassName="mt-0 text-[24px] font-semibold tracking-[-0.045em] text-[var(--text-primary)]"
@@ -38,7 +38,7 @@ export function MemoryHeader({
             className="px-3.5 py-1.5 text-[12px]"
             leadingIcon={<RefreshCw size={14} strokeWidth={1.5} />}
           >
-            刷新索引
+            更新整理
           </Button>
           <Button
             onClick={onExport}

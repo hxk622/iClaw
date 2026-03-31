@@ -23,7 +23,7 @@ export function SettingsSidebar({ activeSection, onSelect }: SettingsSidebarProp
   return (
     <aside className="flex w-[240px] flex-col border-r border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-hover)_38%,transparent)] p-6">
       <div className="mb-8">
-        <h2 className="text-[15px] font-medium tracking-tight text-[var(--text-primary)]">iClaw 设置</h2>
+        <h2 className="text-[17px] font-semibold tracking-tight text-[var(--text-primary)]">iClaw 设置</h2>
       </div>
 
       <nav className="space-y-1">
@@ -35,7 +35,7 @@ export function SettingsSidebar({ activeSection, onSelect }: SettingsSidebarProp
               type="button"
               onClick={() => onSelect(item.key)}
               className={cn(
-                'w-full rounded-lg border px-3 py-2.5 text-left text-[13px] transition-colors cursor-pointer',
+                'w-full rounded-lg border px-3 py-3 text-left text-[14px] transition-colors cursor-pointer',
                 SPRING_PRESSABLE,
                 INTERACTIVE_FOCUS_RING,
                 active
@@ -43,11 +43,11 @@ export function SettingsSidebar({ activeSection, onSelect }: SettingsSidebarProp
                   : 'border-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-card)]/65 hover:text-[var(--text-primary)]',
               )}
             >
-              <div className={cn('text-[13px] font-medium', active ? 'text-[var(--brand-primary)]' : 'text-[var(--text-primary)]')}>
+              <div className={cn('text-[14px] font-medium', active ? 'text-[var(--brand-primary)]' : 'text-[var(--text-primary)]')}>
                 {item.label}
               </div>
               {item.sublabel ? (
-                <div className="mt-0.5 text-[11px] text-[var(--text-muted)]">{item.sublabel}</div>
+                <div className="mt-1 text-[12px] text-[var(--text-secondary)]">{item.sublabel}</div>
               ) : null}
             </button>
           );

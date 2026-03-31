@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { readCacheJson, writeCacheJson } from '@/app/lib/persistence/cache-store';
 import { findChatConversationBySessionKey } from '@/app/lib/chat-conversations';
+import { canonicalizeChatSessionKey, tryCanonicalizeChatSessionKey } from '@/app/lib/chat-session';
 
 export type RecentTaskStatus = 'running' | 'completed' | 'failed';
 export type RecentTaskArtifact = 'report' | 'ppt' | 'webpage' | 'pdf' | 'sheet';
@@ -72,9 +73,12 @@ function normalizeRecentTask(task: RecentTaskRecord): RecentTaskRecord {
   const prompt = normalizedPrompt || '基于上传内容发起的任务';
   const title = collapseText(task.title) || buildRecentTaskTitle(prompt);
   const summary = collapseText(task.summary) || buildRecentTaskSummary(prompt);
-  const resolvedSessionKey = task.sessionKey || 'main';
+  const resolvedSessionKey = tryCanonicalizeChatSessionKey(task.sessionKey);
+  if (!resolvedSessionKey) {
+    throw new Error('invalid session key');
+  }
   const resolvedConversationId =
-    task.conversationId || findChatConversationBySessionKey(resolvedSessionKey)?.id || resolvedSessionKey || 'main';
+    task.conversationId || findChatConversationBySessionKey(resolvedSessionKey)?.id || resolvedSessionKey;
 
   return {
     ...task,
@@ -100,7 +104,7 @@ function mergeRecentTasksByConversation(tasks: RecentTaskRecord[]): RecentTaskRe
   const groupedByConversation = new Map<string, RecentTaskRecord[]>();
 
   tasks.map((task) => normalizeRecentTask(task)).forEach((task) => {
-    const conversationId = task.conversationId || task.sessionKey || 'main';
+    const conversationId = task.conversationId || task.sessionKey;
     const group = groupedByConversation.get(conversationId);
     if (group) {
       group.push(task);
@@ -128,8 +132,8 @@ function mergeRecentTasksByConversation(tasks: RecentTaskRecord[]): RecentTaskRe
 
       return {
         ...canonical,
-        conversationId: canonical.conversationId || canonical.sessionKey || 'main',
-        sessionKey: newest.sessionKey || canonical.sessionKey || 'main',
+        conversationId: canonical.conversationId || canonical.sessionKey,
+        sessionKey: newest.sessionKey || canonical.sessionKey,
         prompt: sessionPrompt,
         title: latestCustomTitleTask?.title || buildRecentTaskTitle(sessionPrompt),
         summary: buildRecentTaskSummary(sessionPrompt),
@@ -166,7 +170,16 @@ function readTasksFromStorage(): RecentTaskRecord[] {
       return [];
     }
     return mergeRecentTasksByConversation(
-      parsed.filter((item): item is RecentTaskRecord => Boolean(item && typeof item === 'object' && 'id' in item)),
+      parsed
+        .filter((item): item is RecentTaskRecord => Boolean(item && typeof item === 'object' && 'id' in item))
+        .map((item) => {
+          try {
+            return normalizeRecentTask(item);
+          } catch {
+            return null;
+          }
+        })
+        .filter((item): item is RecentTaskRecord => item !== null),
     );
   } catch {
     return [];
@@ -223,8 +236,8 @@ export function readRecentTasks(): RecentTaskRecord[] {
 
 export function startRecentTask(input: StartRecentTaskInput): RecentTaskRecord {
   const now = new Date().toISOString();
-  const sessionKey = input.sessionKey || 'main';
-  const conversationId = input.conversationId || findChatConversationBySessionKey(sessionKey)?.id || sessionKey || 'main';
+  const sessionKey = canonicalizeChatSessionKey(input.sessionKey);
+  const conversationId = input.conversationId || findChatConversationBySessionKey(sessionKey)?.id || sessionKey;
   const prompt = collapseText(stripPromptMarkers(input.prompt)) || '基于上传内容发起的任务';
   const nextTitle = buildRecentTaskTitle(input.prompt);
   const nextSummary = buildRecentTaskSummary(input.prompt);

@@ -62,7 +62,7 @@ const failureLabelMap = {
 
 const SETTINGS_SEGMENTED_WRAPPER_CLASS =
   'rounded-lg border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-hover)_70%,transparent)] p-1 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)]';
-const SETTINGS_SEGMENTED_ITEM_CLASS = 'min-h-0 rounded-md px-6 py-2 text-[12px] font-normal';
+const SETTINGS_SEGMENTED_ITEM_CLASS = 'min-h-0 rounded-md px-6 py-2.5 text-[13px] font-medium';
 const SETTINGS_SEGMENTED_ACTIVE_CLASS =
   'border-[var(--border-default)] bg-[var(--bg-card)] text-[var(--text-primary)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.08)]';
 const SETTINGS_SEGMENTED_INACTIVE_CLASS = 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]';
@@ -80,8 +80,8 @@ export function SafetyDefaults() {
   return (
     <div className="max-w-[680px] space-y-8">
       <div className="mb-8">
-        <h1 className="mb-2 text-[22px] font-medium tracking-tight text-[var(--text-primary)]">安全策略</h1>
-        <p className="text-[13px] leading-6 text-[var(--text-secondary)]">
+        <h1 className="mb-2 text-[24px] font-semibold tracking-tight text-[var(--text-primary)]">安全策略</h1>
+        <p className="text-[15px] leading-7 text-[var(--text-secondary)]">
           管理系统运行模式、权限边界、网络访问与失败回退策略
         </p>
       </div>
@@ -120,10 +120,10 @@ export function SafetyDefaults() {
                 }
               />
               <div>
-                <div className="mb-1 text-[13px] font-medium text-[var(--text-primary)]">
+                <div className="mb-1 text-[14px] font-medium text-[var(--text-primary)]">
                   执行危险操作前需要二次确认
                 </div>
-                <div className="text-[11px] text-[var(--text-muted)]">
+                <div className="text-[12px] leading-5 text-[var(--text-secondary)]">
                   包括删除文件、修改系统配置、网络请求等
                 </div>
               </div>
@@ -179,12 +179,12 @@ export function SafetyDefaults() {
         <div className="mb-4 flex items-start gap-3">
           <Shield className="mt-0.5 h-5 w-5 text-[var(--brand-primary)]" />
           <div>
-            <h3 className="mb-1 text-[14px] font-medium text-[var(--text-primary)]">当前生效边界摘要</h3>
-            <div className="text-[11px] text-[var(--text-muted)]">基于上述配置，当前系统安全边界如下</div>
+            <h3 className="mb-1 text-[16px] font-semibold text-[var(--text-primary)]">当前生效边界摘要</h3>
+            <div className="text-[12px] text-[var(--text-secondary)]">基于上述配置，当前系统安全边界如下</div>
           </div>
         </div>
 
-        <div className="space-y-2 pl-8 text-[12px] text-[var(--text-secondary)]">
+        <div className="space-y-2 pl-8 text-[13px] leading-6 text-[var(--text-secondary)]">
           <SummaryItem>
             运行模式：{currentRunModeLabel}，{safetyDefaults.dangerousActionConfirmation ? '需要' : '无需'}危险操作二次确认
           </SummaryItem>
@@ -198,7 +198,7 @@ export function SafetyDefaults() {
 }
 
 function SectionTitle({ title }: { title: string }) {
-  return <h2 className="text-[14px] font-medium text-[var(--text-primary)]">{title}</h2>;
+  return <h2 className="text-[16px] font-semibold text-[var(--text-primary)]">{title}</h2>;
 }
 
 function SummaryItem({ children }: { children: ReactNode }) {

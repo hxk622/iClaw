@@ -55,7 +55,7 @@ export function MemoryFilterBar({
             <input
               value={searchQuery}
               onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="搜索标题、摘要、正文或标签"
+              placeholder="搜标题、内容、标签或来源"
               className="h-10 w-full rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-elevated)] pl-10 pr-4 text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]"
             />
           </label>
@@ -79,7 +79,7 @@ export function MemoryFilterBar({
         <div className="border-t border-[var(--border-default)] pt-2.5">
           <CompactDisclosure
             title="高级筛选"
-            summary={activeAdvancedCount > 0 ? `已启用 ${activeAdvancedCount} 项条件` : '按领域、标签、时间和召回状态细筛'}
+            summary={activeAdvancedCount > 0 ? `已启用 ${activeAdvancedCount} 项条件` : '按领域、标签、时间和使用情况细筛'}
             open={advancedOpen}
             onToggle={() => setAdvancedOpen((current) => !current)}
           />
@@ -152,7 +152,7 @@ export function MemoryFilterBar({
                 </InlineFilterGroup>
 
                 <InlineFilterGroup
-                  label="召回"
+                  label="使用情况"
                   leadingIcon={<Clock3 size={13} strokeWidth={1.5} className="text-[var(--text-muted)]" />}
                 >
                   {RECALL_OPTIONS.map((state) => (

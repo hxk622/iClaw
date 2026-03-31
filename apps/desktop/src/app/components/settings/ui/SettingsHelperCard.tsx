@@ -33,8 +33,8 @@ export function SettingsHelperCard({
       <div className={cn('flex items-start gap-2', !Icon && 'block')}>
         {Icon ? <Icon className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--text-muted)]" /> : null}
         <div>
-          <div className="mb-0.5 text-[12px] font-medium text-[var(--text-primary)]">{title}</div>
-          <div className="text-[10px] text-[var(--text-muted)]">{description}</div>
+          <div className="mb-1 text-[13px] font-medium text-[var(--text-primary)]">{title}</div>
+          <div className="text-[12px] leading-5 text-[var(--text-secondary)]">{description}</div>
         </div>
       </div>
     </button>

@@ -554,7 +554,7 @@ export function OpenClawCronSurface({
   gatewayUrl,
   gatewayToken,
   gatewayPassword,
-  sessionKey = 'main',
+  sessionKey = 'agent:main:main',
   shellAuthenticated = false,
 }: OpenClawCronSurfaceProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);

@@ -50,7 +50,7 @@ const messageAlignmentOptions: Array<{ value: MessageAlignment; label: string }>
 
 const SETTINGS_SEGMENTED_WRAPPER_CLASS =
   'rounded-lg border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-hover)_70%,transparent)] p-1 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.04)]';
-const SETTINGS_SEGMENTED_ITEM_CLASS = 'min-h-0 rounded-md px-5 py-2 text-[12px] font-normal';
+const SETTINGS_SEGMENTED_ITEM_CLASS = 'min-h-0 rounded-md px-5 py-2.5 text-[13px] font-medium';
 const SETTINGS_SEGMENTED_ACTIVE_CLASS =
   'border-[var(--border-default)] bg-[var(--bg-card)] text-[var(--text-primary)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.08)]';
 const SETTINGS_SEGMENTED_INACTIVE_CLASS = 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]';
@@ -87,8 +87,8 @@ export function SettingsGeneral({
   return (
     <div className="max-w-[680px] space-y-8">
       <header className="space-y-2">
-        <h1 className="text-[22px] font-medium tracking-tight text-[var(--text-primary)]">通用设置</h1>
-        <p className="text-[13px] leading-6 text-[var(--text-secondary)]">
+        <h1 className="text-[24px] font-semibold tracking-tight text-[var(--text-primary)]">通用设置</h1>
+        <p className="text-[15px] leading-7 text-[var(--text-secondary)]">
           配置界面主题、阅读体验、聊天布局、工作区映射与桌面更新策略
         </p>
       </header>
@@ -181,7 +181,7 @@ export function SettingsGeneral({
         <SectionTitle title="工作区文件" />
         <SettingsCard className="rounded-[16px] p-5">
           <div className="space-y-4">
-            <div className="text-[11px] text-[var(--text-muted)]">{workspaceRoot}</div>
+            <div className="text-[12px] text-[var(--text-secondary)]">{workspaceRoot}</div>
 
             <div className="space-y-3">
               {[
@@ -193,8 +193,8 @@ export function SettingsGeneral({
                   <div className="flex min-w-0 items-center gap-3">
                     <FileText className="h-4 w-4 flex-shrink-0 text-[var(--text-muted)]" />
                     <div className="min-w-0">
-                      <div className="text-[12px] font-medium text-[var(--text-primary)]">{file.name}</div>
-                      <div className="text-[11px] text-[var(--text-muted)]">{file.description}</div>
+                      <div className="text-[13px] font-medium text-[var(--text-primary)]">{file.name}</div>
+                      <div className="text-[12px] text-[var(--text-secondary)]">{file.description}</div>
                     </div>
                   </div>
                   <SettingsBadge tone="blue">本地文件</SettingsBadge>
@@ -203,7 +203,7 @@ export function SettingsGeneral({
             </div>
 
             <div className="border-t border-[var(--border-default)] pt-3">
-              <p className="text-[11px] text-[var(--text-secondary)]">保存后将直接覆盖本地工作区文件</p>
+              <p className="text-[12px] text-[var(--text-secondary)]">保存后将直接覆盖本地工作区文件</p>
             </div>
           </div>
         </SettingsCard>
@@ -259,7 +259,7 @@ export function SettingsGeneral({
               ) : null}
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--text-secondary)]">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-[var(--text-secondary)]">
               <span>服务器策略：{policyLabel}</span>
               {mandatory ? (
                 <span>{enforcementState === 'required_now' ? '当前版本会立即拦截继续使用' : '允许当前任务完成后再升级'}</span>
@@ -274,18 +274,18 @@ export function SettingsGeneral({
 }
 
 function SectionTitle({ title }: { title: string }) {
-  return <h2 className="text-[14px] font-medium text-[var(--text-primary)]">{title}</h2>;
+  return <h2 className="text-[16px] font-semibold text-[var(--text-primary)]">{title}</h2>;
 }
 
 function SubsectionLabel({ label }: { label: string }) {
-  return <div className="text-[12px] text-[var(--text-secondary)]">{label}</div>;
+  return <div className="text-[13px] font-medium text-[var(--text-secondary)]">{label}</div>;
 }
 
 function VersionMeta({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="mb-1 text-[12px] text-[var(--text-secondary)]">{label}</div>
-      <div className="text-[15px] font-medium text-[var(--text-primary)]">{value}</div>
+      <div className="mb-1 text-[13px] text-[var(--text-secondary)]">{label}</div>
+      <div className="text-[16px] font-medium text-[var(--text-primary)]">{value}</div>
     </div>
   );
 }

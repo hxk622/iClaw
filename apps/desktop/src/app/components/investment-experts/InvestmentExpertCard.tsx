@@ -15,7 +15,7 @@ function StatusPill({
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold',
+        'inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold',
         installed
           ? 'bg-[rgba(34,197,94,0.10)] text-[#166534] dark:bg-[rgba(34,197,94,0.18)] dark:text-[#c7f9d7]'
           : 'bg-[rgba(37,99,235,0.10)] text-[#2563eb] dark:bg-[rgba(59,130,246,0.18)] dark:text-[#bfdbfe]',
@@ -79,7 +79,7 @@ export function InvestmentExpertCard({
       {badge ? (
         <div
           className={cn(
-            'absolute -right-2 -top-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold',
+            'absolute -right-2 -top-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold',
             badge.className,
           )}
         >
@@ -106,12 +106,12 @@ export function InvestmentExpertCard({
         <h3 className="text-[16px] font-semibold leading-6 text-[var(--lobster-text-primary)]">
           {expert.name}
         </h3>
-        <p className="mt-1 text-[12px] leading-5 text-[var(--lobster-text-secondary)]">
+        <p className="mt-1 text-[13px] leading-6 text-[var(--lobster-text-secondary)]">
           {expert.subtitle}
         </p>
       </div>
 
-      <p className="mb-4 line-clamp-2 text-[13px] leading-6 text-[var(--lobster-text-secondary)]">
+      <p className="mb-4 line-clamp-2 text-[14px] leading-7 text-[var(--lobster-text-secondary)]">
         {expert.description}
       </p>
 
@@ -120,7 +120,7 @@ export function InvestmentExpertCard({
         {expert.tags.slice(0, 3).map((tag) => (
           <span
             key={tag}
-            className="inline-flex items-center rounded-[8px] bg-[var(--lobster-muted-bg)] px-2.5 py-1 text-[11px] text-[var(--lobster-text-secondary)]"
+            className="inline-flex items-center rounded-[8px] bg-[var(--lobster-muted-bg)] px-2.5 py-1 text-[12px] text-[var(--lobster-text-secondary)]"
           >
             {tag}
           </span>
@@ -128,7 +128,7 @@ export function InvestmentExpertCard({
       </div>
 
       <div className="mt-auto">
-        <div className="mb-4 flex items-center gap-1.5 text-[12px] text-[var(--lobster-text-muted)]">
+        <div className="mb-4 flex items-center gap-1.5 text-[13px] text-[var(--lobster-text-secondary)]">
           <Users className="h-3.5 w-3.5" />
           <span>{expert.usageCount.toLocaleString('zh-CN')} 人使用</span>
         </div>
@@ -164,7 +164,7 @@ export function InvestmentExpertCard({
               onInstall(expert);
             }}
             className={cn(
-              'inline-flex h-10 w-full cursor-pointer items-center justify-center gap-1.5 rounded-[10px] px-3 text-[13px] font-semibold transition',
+              'inline-flex h-10 w-full cursor-pointer items-center justify-center gap-1.5 rounded-[10px] px-3 text-[14px] font-semibold transition',
               SPRING_PRESSABLE,
               INTERACTIVE_FOCUS_RING,
               'border border-[rgba(168,140,93,0.42)] bg-[linear-gradient(180deg,#ccb27b_0%,#b49154_100%)] text-[#120e09] shadow-[0_10px_22px_rgba(168,140,93,0.20)] hover:border-[rgba(168,140,93,0.55)] hover:bg-[linear-gradient(180deg,#d1b884_0%,#bc9a5f_100%)] disabled:cursor-not-allowed disabled:opacity-70',

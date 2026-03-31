@@ -25,7 +25,7 @@ export function ChecklistPanel({
 }: ChecklistPanelProps) {
   return (
     <section className={className}>
-      <h4 className="mb-3 text-[13px] text-[var(--text-secondary)]">{title}</h4>
+      <h4 className="mb-3 text-[14px] font-medium text-[var(--text-secondary)]">{title}</h4>
       <div className="space-y-2">
         {items.map((item) => (
           <SurfacePanel
@@ -57,7 +57,7 @@ export function ChecklistPanel({
 
               <div
                 className={cn(
-                  'text-[12px] leading-relaxed',
+                  'text-[13px] leading-6',
                   variant === 'progress' && item.completed
                     ? 'text-[var(--text-secondary)] line-through'
                     : 'text-[var(--text-primary)]',

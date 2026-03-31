@@ -189,7 +189,7 @@ export function TaskCenterView({
           </section>
         ) : (
           <>
-            <section className="grid grid-cols-3 gap-2">
+            <section className="grid grid-cols-3 gap-3">
               <SummaryCard
                 icon={<ListChecks className="h-4 w-4" />}
                 label="任务总数"
@@ -209,7 +209,7 @@ export function TaskCenterView({
               />
             </section>
 
-            <section className="mt-4 flex items-center gap-4">
+            <section className="mt-5 flex items-center gap-4">
               <div className="relative min-w-0 flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
                 <input
@@ -298,13 +298,13 @@ function SummaryCard({
         : 'bg-[var(--bg-hover)] text-[var(--text-secondary)]';
 
   return (
-    <div className="rounded-[10px] border border-[var(--border-default)] bg-[var(--bg-card)] px-3 py-2.5 shadow-[var(--pressable-card-rest-shadow)]">
+    <div className="rounded-[12px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-3 shadow-[var(--pressable-card-rest-shadow)]">
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-2">
           <div className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px]', iconClassName)}>
             {icon}
           </div>
-          <span className="truncate text-[12px] text-[var(--text-secondary)]">{label}</span>
+          <span className="truncate text-[13px] font-medium text-[var(--text-secondary)]">{label}</span>
         </div>
         <div className="text-[22px] font-semibold leading-none text-[var(--text-primary)]">
           {value}
@@ -312,7 +312,7 @@ function SummaryCard({
       </div>
 
       {tone === 'running' && value > 0 ? (
-        <div className="mt-1.5 inline-flex items-center gap-1 rounded-[6px] bg-[var(--bg-hover)] px-1.5 py-0.5 text-[10px] text-[var(--brand-primary)]">
+        <div className="mt-2 inline-flex items-center gap-1 rounded-[6px] bg-[var(--bg-hover)] px-2 py-0.5 text-[11px] font-medium text-[var(--brand-primary)]">
           <span className="h-1 w-1 rounded-full bg-[var(--brand-primary)] animate-pulse" />
           处理中
         </div>
@@ -376,7 +376,7 @@ function TaskCard({
           </div>
         ) : null}
 
-        <div className="flex flex-wrap items-center gap-4 text-[12px] text-[var(--text-muted)]">
+        <div className="flex flex-wrap items-center gap-4 text-[13px] text-[var(--text-secondary)]">
           <span className="inline-flex items-center gap-1">
             <Clock3 className="h-3 w-3" />
             {task.lastUpdated}
@@ -427,7 +427,7 @@ function TaskDetailPanel({
     return (
       <div className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-card)] p-8 text-center shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
         <FileText className="mx-auto mb-4 h-12 w-12 text-[var(--text-muted)]" />
-        <p className="text-[14px] text-[var(--text-secondary)]">选择一个任务查看详情</p>
+        <p className="text-[15px] text-[var(--text-secondary)]">选择一个任务查看详情</p>
       </div>
     );
   }
@@ -451,7 +451,7 @@ function TaskDetailPanel({
         {task.title}
       </h2>
 
-      <p className="mb-6 text-[14px] leading-6 text-[var(--text-secondary)]">
+      <p className="mb-6 text-[15px] leading-7 text-[var(--text-secondary)]">
         {task.summary}
       </p>
 
@@ -479,7 +479,7 @@ function TaskDetailPanel({
       </div>
 
       <div className="mb-6">
-        <div className="mb-2 text-[12px] text-[var(--text-secondary)]">结果类型</div>
+        <div className="mb-2 text-[13px] font-medium text-[var(--text-secondary)]">结果类型</div>
         <div className="flex flex-wrap gap-2">
           {task.resultTypes.map((type) => (
             <span
@@ -522,12 +522,12 @@ function DetailInfoTile({
   value: string;
 }) {
   return (
-    <div className="rounded-[12px] border border-[var(--border-default)] bg-[var(--bg-hover)] p-3">
-      <div className="mb-1 flex items-center gap-1.5 text-[12px] text-[var(--text-muted)]">
+    <div className="rounded-[12px] border border-[var(--border-default)] bg-[var(--bg-hover)] p-3.5">
+      <div className="mb-1 flex items-center gap-1.5 text-[13px] text-[var(--text-secondary)]">
         {icon}
         <span>{label}</span>
       </div>
-      <div className="text-[14px] font-medium text-[var(--text-primary)]">{value}</div>
+      <div className="text-[15px] font-medium text-[var(--text-primary)]">{value}</div>
     </div>
   );
 }
@@ -536,7 +536,7 @@ function StatusBadge({ status }: { status: RecentTaskRecord['status'] }) {
   const meta = STATUS_META[status];
 
   return (
-    <span className={cn('inline-flex items-center gap-1.5 rounded-[6px] px-2.5 py-1 text-[12px]', meta.toneClassName)}>
+    <span className={cn('inline-flex items-center gap-1.5 rounded-[6px] px-2.5 py-1 text-[13px] font-medium', meta.toneClassName)}>
       {status === 'running' ? <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" /> : null}
       {meta.label}
     </span>

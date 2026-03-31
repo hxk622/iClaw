@@ -37,11 +37,14 @@ import {
 } from '../lib/user-avatar';
 import {
   buildChatSessionPressureSnapshot,
+  canonicalizeChatSessionKey,
+  getChatSessionId,
   isGeneralChatSessionKey,
   type ChatSessionPressureSnapshot,
 } from '../lib/chat-session';
 import type { ResolvedInputComposerConfig, ResolvedWelcomePageConfig } from '../lib/oem-runtime';
 import { loadSkillStoreCatalog } from '@/app/lib/skill-store';
+import { buildMemoryContextPrompt, pickRelevantMemories } from '@/app/lib/memory-recall';
 import {
   isInvestmentExpertAgent,
   loadLobsterAgents,
@@ -81,6 +84,7 @@ import {
   type OpenClawImageAttachment,
   type RichChatComposerHandle,
 } from './RichChatComposer';
+import { loadMemorySnapshot, saveMemoryEntry, type MemoryEntryRecord } from '@/app/lib/tauri-memory';
 
 declare global {
   interface Window {
@@ -187,6 +191,7 @@ type OpenClawChatSurfaceProps = {
   initialPromptKey?: string | null;
   initialAgentSlug?: string | null;
   initialSkillSlug?: string | null;
+  initialSkillOption?: ComposerSkillOption | null;
   initialStockContext?: ComposerStockContext | null;
   focusTaskId?: string | null;
   focusTaskPrompt?: string | null;
@@ -206,7 +211,6 @@ type OpenClawChatSurfaceProps = {
   } | null;
   inputComposerConfig?: ResolvedInputComposerConfig | null;
   welcomePageConfig?: ResolvedWelcomePageConfig | null;
-  onInitialSkillSlugChange?: (slug: string | null) => void;
   onGeneralChatSessionOverloaded?: (snapshot: ChatSessionPressureSnapshot) => void;
   onOpenRechargeCenter?: () => void;
   onBusyStateChange?: (busy: boolean) => void;
@@ -315,7 +319,7 @@ const CHAT_SELECTION_MENU_GAP = 12;
 const SESSION_TRANSITION_MIN_DURATION_MS = 0;
 const INITIAL_SURFACE_BOOT_TIMEOUT_MS = 3200;
 const INITIAL_EMPTY_SESSION_SETTLE_MS = 120;
-const STATUS_POLL_INTERVAL_MS = 420;
+const STATUS_POLL_INTERVAL_MS = 120;
 const CONNECTION_LOSS_GRACE_MS = 1200;
 const SEEDED_EMPTY_SESSION_PREFIXES = ['chat-', 'skill-', 'stock-', 'fund-'] as const;
 const ICLAW_BILLING_SUMMARY_KEY = '__iclawBillingSummary';
@@ -456,7 +460,7 @@ function readChatSessionSnapshot(
 ): ChatSessionSnapshot | null {
   return hydrateChatSnapshotForRender({
     appName,
-    sessionKey,
+    sessionKey: canonicalizeChatSessionKey(sessionKey),
     conversationId,
   });
 }
@@ -469,50 +473,31 @@ function writeChatSessionSnapshot(
 ): void {
   writeStoredChatSnapshot({
     appName,
-    sessionKey,
+    sessionKey: canonicalizeChatSessionKey(sessionKey),
     conversationId,
     snapshot,
   });
 }
 
-function normalizeGatewaySessionKey(key?: string | null): string {
-  return key?.trim().toLowerCase() ?? '';
+function tryCanonicalizeSessionKey(value?: string | null): string | null {
+  try {
+    return canonicalizeChatSessionKey(value);
+  } catch {
+    return null;
+  }
 }
 
-function resolveEquivalentGatewaySessionKeys(targetSessionKey: string): Set<string> {
-  const normalized = normalizeGatewaySessionKey(targetSessionKey);
-  const keys = new Set<string>();
-  if (!normalized) {
-    return keys;
-  }
-
-  keys.add(normalized);
-
-  if (normalized === 'main') {
-    keys.add('agent:main:main');
-    return keys;
-  }
-
-  if (!normalized.includes(':')) {
-    keys.add(`agent:${normalized}:main`);
-    keys.add(`agent:main:${normalized}`);
-    return keys;
-  }
-
-  const canonicalMainMatch = normalized.match(/^agent:([^:]+):main$/);
-  if (canonicalMainMatch) {
-    const baseKey = canonicalMainMatch[1] ?? normalized;
-    keys.add(baseKey);
-    keys.add(`agent:main:${baseKey}`);
-  }
-
-  const mainPrefixedMatch = normalized.match(/^agent:main:(.+)$/);
-  if (mainPrefixedMatch) {
-    const baseKey = mainPrefixedMatch[1] ?? normalized;
-    keys.add(baseKey);
-    keys.add(`agent:${baseKey}:main`);
-  }
-
+function collectCanonicalSessionKeys(...candidates: Array<string | null | undefined>): string[] {
+  const unique = new Set<string>();
+  const keys: string[] = [];
+  candidates.forEach((candidate) => {
+    const canonical = tryCanonicalizeSessionKey(candidate);
+    if (!canonical || unique.has(canonical)) {
+      return;
+    }
+    unique.add(canonical);
+    keys.push(canonical);
+  });
   return keys;
 }
 
@@ -520,94 +505,18 @@ function buildGatewaySessionPatchTargets(
   sessionKey: string,
   resolvedSessionKey?: string | null,
 ): string[] {
-  const candidates = [resolvedSessionKey?.trim() || '', sessionKey.trim()];
-  const normalized = new Set<string>();
-  const targets: string[] = [];
-
-  for (const candidate of candidates) {
-    if (!candidate) continue;
-    const aliases = resolveEquivalentGatewaySessionKeys(candidate);
-    if (aliases.size === 0) {
-      const key = normalizeGatewaySessionKey(candidate);
-      if (!key || normalized.has(key)) continue;
-      normalized.add(key);
-      targets.push(candidate);
-      continue;
-    }
-    for (const alias of aliases) {
-      const key = normalizeGatewaySessionKey(alias);
-      if (!key || normalized.has(key)) continue;
-      normalized.add(key);
-      targets.push(alias);
-    }
-  }
-
-  return targets;
-}
-
-function resolveGatewaySessionBaseKey(targetSessionKey: string): string {
-  const normalized = normalizeGatewaySessionKey(targetSessionKey);
-  const canonicalMainMatch = normalized.match(/^agent:([^:]+):main$/);
-  if (canonicalMainMatch?.[1]) {
-    return canonicalMainMatch[1];
-  }
-  const mainPrefixedMatch = normalized.match(/^agent:main:(.+)$/);
-  if (mainPrefixedMatch?.[1]) {
-    return mainPrefixedMatch[1];
-  }
-  return normalized;
-}
-
-function rankGatewaySessionEntry(targetSessionKey: string, entryKey: string, inputTokens: number, outputTokens: number): number {
-  const normalizedTarget = normalizeGatewaySessionKey(targetSessionKey);
-  const normalizedEntry = normalizeGatewaySessionKey(entryKey);
-  const baseKey = resolveGatewaySessionBaseKey(targetSessionKey);
-
-  let score = 0;
-  if (normalizedEntry === normalizedTarget) {
-    score += 40;
-  }
-  if (normalizedEntry === `agent:main:${baseKey}`) {
-    score += 30;
-  }
-  if (normalizedEntry === `agent:${baseKey}:main`) {
-    score += 20;
-  }
-  if (normalizedEntry === baseKey) {
-    score += 10;
-  }
-  score += Math.max(0, inputTokens) + Math.max(0, outputTokens);
-  return score;
+  return collectCanonicalSessionKeys(resolvedSessionKey, sessionKey);
 }
 
 function findPreferredGatewaySessionEntry(
   sessionsResult: GatewaySessionsListResult | null | undefined,
   targetSessionKey: string,
 ): GatewaySessionsListResult['sessions'][number] | null {
-  const aliases = resolveEquivalentGatewaySessionKeys(targetSessionKey);
-  const candidates =
-    sessionsResult?.sessions.filter((session) =>
-      aliases.has(normalizeGatewaySessionKey(session.key)),
-    ) ?? [];
-  if (candidates.length === 0) {
-    return null;
-  }
-
-  return candidates.sort((left, right) => {
-    const leftScore = rankGatewaySessionEntry(
-      targetSessionKey,
-      left.key,
-      Math.max(0, Number(left.inputTokens || 0)),
-      Math.max(0, Number(left.outputTokens || 0)),
-    );
-    const rightScore = rankGatewaySessionEntry(
-      targetSessionKey,
-      right.key,
-      Math.max(0, Number(right.inputTokens || 0)),
-      Math.max(0, Number(right.outputTokens || 0)),
-    );
-    return rightScore - leftScore;
-  })[0] ?? null;
+  const canonicalTargetSessionKey = canonicalizeChatSessionKey(targetSessionKey);
+  return (
+    sessionsResult?.sessions.find((session) => tryCanonicalizeSessionKey(session.key) === canonicalTargetSessionKey) ??
+    null
+  );
 }
 
 function resolveSessionModelFromList(
@@ -789,6 +698,12 @@ function shouldResetEmbeddedOpenClawState(gatewayUrl: string): boolean {
   } catch {
     return false;
   }
+}
+
+function buildChatScopeIdentity(sessionKey: string, conversationId?: string | null): string {
+  const normalizedSessionKey = canonicalizeChatSessionKey(sessionKey);
+  const normalizedConversationId = typeof conversationId === 'string' ? conversationId.trim() : '';
+  return `${normalizedSessionKey}::${normalizedConversationId}`;
 }
 
 function estimateHistoryMessagesFromGroups(groupCount: number): number {
@@ -1284,6 +1199,21 @@ function mergeRunBillingSummaries(
   return Array.from(merged.values()).sort((left, right) => getBillingSummarySortTime(right) - getBillingSummarySortTime(left));
 }
 
+function filterRunBillingSummariesBySessionKeys(
+  summaries: RunBillingSummaryData[],
+  sessionKeys: Array<string | null | undefined>,
+): RunBillingSummaryData[] {
+  const allowedSessionKeys = new Set(collectCanonicalSessionKeys(...sessionKeys));
+  if (allowedSessionKeys.size === 0) {
+    return [];
+  }
+
+  return summaries.filter((summary) => {
+    const summarySessionKey = tryCanonicalizeSessionKey(summary.session_key);
+    return Boolean(summarySessionKey && allowedSessionKeys.has(summarySessionKey));
+  });
+}
+
 function annotateAssistantGroup(
   messages: unknown[],
   runId: string | null,
@@ -1547,60 +1477,6 @@ function deriveAssistantFooterMetas(
   });
 }
 
-function deriveStandaloneUserRunFooterMetas(
-  messages: unknown[],
-  pendingSettlements: PendingUsageSettlement[],
-  sessionBillingSummaries: RunBillingSummaryData[],
-  app: OpenClawAppElement | null,
-): Array<AssistantFooterMeta | null> {
-  const messageGroups = collectMessageGroups(messages);
-  const userGroups = messageGroups.filter((group) => group.role === 'user');
-  if (userGroups.length === 0) {
-    return [];
-  }
-
-  const assistantRunIds = new Set(
-    collectAssistantMessageGroups(messages)
-      .map((group) => group.runId?.trim() || '')
-      .filter(Boolean),
-  );
-  const summariesByRunId = new Map<string, RunBillingSummaryData>();
-  sessionBillingSummaries.forEach((summary) => {
-    const runId = summary.event_id?.trim();
-    if (runId) {
-      summariesByRunId.set(runId, summary);
-    }
-  });
-  const pendingByRunId = new Map<string, PendingUsageSettlement>();
-  pendingSettlements.forEach((pending) => {
-    const runId = pending.runId?.trim();
-    if (runId) {
-      pendingByRunId.set(runId, pending);
-    }
-  });
-
-  return userGroups.map((group) => {
-    const runId = group.runId?.trim() || '';
-    if (!runId || assistantRunIds.has(runId)) {
-      return null;
-    }
-
-    const persistedSummary = summariesByRunId.get(runId);
-    if (persistedSummary) {
-      return buildAssistantFooterMetaFromSummary(persistedSummary);
-    }
-
-    const pending = pendingByRunId.get(runId);
-    if (!pending) {
-      return null;
-    }
-
-    const terminalEvent = app ? findTerminalChatEventForRun(app, pending.sessionKey, pending.runId) : null;
-    const optimisticUsage = derivePendingSettlementUsage(messages, pending, terminalEvent?.message);
-    return buildAssistantFooterMetaFromPending(pending, optimisticUsage);
-  });
-}
-
 function extractChatGroupTimestampLabel(group: HTMLElement): string {
   return group.querySelector('.chat-group-footer .chat-group-timestamp')?.textContent?.trim() ?? '';
 }
@@ -1720,6 +1596,47 @@ function derivePendingSettlementUsage(
   return null;
 }
 
+function derivePendingSettlementUsageFromSessionDelta(
+  messages: unknown[],
+  pending: PendingUsageSettlement,
+  sessionTokens: { inputTokens: number; outputTokens: number } | null,
+): AssistantUsageSettlement | null {
+  if (
+    !sessionTokens ||
+    pending.baselineInputTokens === null ||
+    pending.baselineOutputTokens === null
+  ) {
+    return null;
+  }
+
+  const baselineInputTokens = Math.max(0, pending.baselineInputTokens);
+  const baselineOutputTokens = Math.max(0, pending.baselineOutputTokens);
+  const currentInputTokens = Math.max(0, sessionTokens.inputTokens);
+  const currentOutputTokens = Math.max(0, sessionTokens.outputTokens);
+
+  if (
+    currentInputTokens < baselineInputTokens ||
+    currentOutputTokens < baselineOutputTokens
+  ) {
+    return null;
+  }
+
+  const inputTokens = Math.max(0, currentInputTokens - baselineInputTokens);
+  const outputTokens = Math.max(0, currentOutputTokens - baselineOutputTokens);
+  if (inputTokens <= 0 && outputTokens <= 0) {
+    return null;
+  }
+
+  const assistantGroup = findAssistantGroupForRun(messages, pending.runId, pending.startedAt);
+
+  return {
+    inputTokens,
+    outputTokens,
+    model: pending.model || null,
+    timestamp: assistantGroup?.timestamp ?? pending.startedAt,
+  };
+}
+
 type TerminalChatEventMatch = {
   ts: number;
   sessionKey: string | null;
@@ -1732,7 +1649,7 @@ function findTerminalChatEventForRun(
   sessionKey: string,
   runId: string,
 ): TerminalChatEventMatch | null {
-  const sessionAliases = resolveEquivalentGatewaySessionKeys(sessionKey);
+  const canonicalSessionKey = canonicalizeChatSessionKey(sessionKey);
   const entries = Array.isArray(app.eventLogBuffer)
     ? app.eventLogBuffer
     : Array.isArray(app.eventLog)
@@ -1760,7 +1677,7 @@ function findTerminalChatEventForRun(
     if (
       typeof payload.sessionKey === 'string' &&
       payload.sessionKey &&
-      !sessionAliases.has(normalizeGatewaySessionKey(payload.sessionKey))
+      tryCanonicalizeSessionKey(payload.sessionKey) !== canonicalSessionKey
     ) {
       continue;
     }
@@ -1789,7 +1706,7 @@ function findLatestTerminalChatRunSince(
       break;
     }
     const payload = entry.payload as Record<string, unknown>;
-    if (typeof payload.sessionKey === 'string' && payload.sessionKey !== sessionKey) {
+    if (typeof payload.sessionKey === 'string' && tryCanonicalizeSessionKey(payload.sessionKey) !== canonicalizeChatSessionKey(sessionKey)) {
       continue;
     }
     const state = payload.state;
@@ -1840,6 +1757,19 @@ function createDesktopRunId(): string {
     return crypto.randomUUID();
   }
   return `desktop-run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function createMemoryUsageTimestamp() {
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+    .format(new Date())
+    .replace(/\//g, '-');
 }
 
 function dataUrlToBase64(dataUrl: string): { content: string; mimeType: string } | null {
@@ -2059,7 +1989,7 @@ function createMessageActionButton(params: {
 }
 
 function isSeededEmptySessionKey(value: string): boolean {
-  const normalized = value.trim().toLowerCase();
+  const normalized = getChatSessionId(value).trim().toLowerCase();
   return SEEDED_EMPTY_SESSION_PREFIXES.some((prefix) => normalized.startsWith(prefix));
 }
 
@@ -2099,16 +2029,27 @@ async function loadChatModelSnapshot(
   const matchedSession = findPreferredGatewaySessionEntry(sessionsResult, targetSessionKey);
   const sessionModel = matchedSession?.model?.trim() ?? '';
   const defaultModel = sessionsResult?.defaults?.model?.trim() ?? '';
+  const runtimeProfileMetadata =
+    runtimeCatalog.profile && typeof runtimeCatalog.profile.metadata === 'object' && runtimeCatalog.profile.metadata
+      ? runtimeCatalog.profile.metadata
+      : null;
+  const providerDefaultModel =
+    typeof runtimeProfileMetadata?.default_model_ref === 'string'
+      ? runtimeProfileMetadata.default_model_ref.trim()
+      : typeof runtimeProfileMetadata?.defaultModelRef === 'string'
+        ? runtimeProfileMetadata.defaultModelRef.trim()
+        : '';
   const resolvedSelection =
     findComposerModelOption(options, sessionModel)?.id ||
     findComposerModelOption(options, defaultModel)?.id ||
+    findComposerModelOption(options, providerDefaultModel)?.id ||
     options[0]?.id ||
     null;
 
   return {
     options,
     selectedModelId: resolvedSelection,
-    resolvedSessionKey: matchedSession?.key?.trim() ?? null,
+    resolvedSessionKey: matchedSession ? canonicalizeChatSessionKey(matchedSession.key) : null,
     hasPersistedHistory:
       Math.max(0, Number(matchedSession?.inputTokens ?? 0)) + Math.max(0, Number(matchedSession?.outputTokens ?? 0)) > 0,
     sessionPressure: buildChatSessionPressureSnapshot({
@@ -2223,11 +2164,12 @@ export function OpenClawChatSurface({
   authBaseUrl,
   appName,
   conversationId = null,
-  sessionKey = 'main',
+  sessionKey = 'agent:main:main',
   initialPrompt = null,
   initialPromptKey = null,
   initialAgentSlug = null,
   initialSkillSlug = null,
+  initialSkillOption = null,
   initialStockContext = null,
   focusTaskId = null,
   focusTaskPrompt = null,
@@ -2238,7 +2180,6 @@ export function OpenClawChatSurface({
   user,
   inputComposerConfig = null,
   welcomePageConfig = null,
-  onInitialSkillSlugChange,
   onGeneralChatSessionOverloaded,
   onOpenRechargeCenter,
   onBusyStateChange,
@@ -2308,6 +2249,7 @@ export function OpenClawChatSurface({
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelSwitching, setModelSwitching] = useState(false);
   const [sessionTransitionVisible, setSessionTransitionVisible] = useState(false);
+  const [optimisticEmptySessionActive, setOptimisticEmptySessionActive] = useState(() => isSeededEmptySessionKey(sessionKey));
   const [composerDraft, setComposerDraft] = useState<ComposerDraftPayload | null>(null);
   const [assistantFooterVersion, setAssistantFooterVersion] = useState(0);
   const [sessionBillingSummaries, setSessionBillingSummaries] = useState<RunBillingSummaryData[]>([]);
@@ -2338,6 +2280,8 @@ export function OpenClawChatSurface({
   }, [queuedMessages]);
 
   const effectiveGatewaySessionKey = resolvedModelSessionKey || sessionKey;
+  const sessionBillingScopeKeys = collectCanonicalSessionKeys(sessionKey, effectiveGatewaySessionKey);
+  const sessionBillingScopeKeySignature = sessionBillingScopeKeys.join('|');
   const [installedLobsterAgents, setInstalledLobsterAgents] = useState<ComposerAgentOption[]>([]);
   const [skillOptions, setSkillOptions] = useState<ComposerSkillOption[]>([]);
   const consumedInitialPromptKeyRef = useRef<string | null>(null);
@@ -2347,7 +2291,7 @@ export function OpenClawChatSurface({
   const selectionMenuRef = useRef<HTMLDivElement | null>(null);
   const modelLoadVersionRef = useRef(0);
   const messageActionTimersRef = useRef<number[]>([]);
-  const previousSessionKeyRef = useRef(sessionKey);
+  const previousChatScopeRef = useRef(buildChatScopeIdentity(sessionKey, conversationId));
   const sessionTransitionPendingRef = useRef(false);
   const sessionTransitionStartedAtRef = useRef(0);
   const sessionModelBootstrapKeyRef = useRef<string | null>(null);
@@ -2355,6 +2299,7 @@ export function OpenClawChatSurface({
   const persistedChatSnapshotRef = useRef<string | null>(null);
   const sessionTransitionHideTimerRef = useRef<number | null>(null);
   const connectionLossTimerRef = useRef<number | null>(null);
+  const busyRef = useRef(status.busy);
   const pendingConnectionLossStatusRef = useRef<ChatSurfaceStatus>({
     busy: false,
     connected: false,
@@ -2362,7 +2307,8 @@ export function OpenClawChatSurface({
     lastErrorCode: null,
   });
   const hasObservedHistory =
-    renderState.groupCount > 0 || renderState.chatMessageCount > 0 || Boolean(appRef.current?.chatMessages?.length);
+    !optimisticEmptySessionActive &&
+    (renderState.groupCount > 0 || renderState.chatMessageCount > 0 || Boolean(appRef.current?.chatMessages?.length));
 
   const closeSelectionMenu = useCallback(() => {
     setSelectionMenu(null);
@@ -2394,6 +2340,10 @@ export function OpenClawChatSurface({
     usageSettlementTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     usageSettlementTimersRef.current = [];
   }, []);
+
+  useEffect(() => {
+    busyRef.current = status.busy;
+  }, [status.busy]);
 
   const clearSessionTransitionTimer = useCallback(() => {
     if (sessionTransitionHideTimerRef.current != null) {
@@ -2458,8 +2408,10 @@ export function OpenClawChatSurface({
   );
 
   const mergeSessionBillingSummary = useCallback((summary: RunBillingSummaryData) => {
-    setSessionBillingSummaries((current) => mergeRunBillingSummaries(current, [summary]));
-  }, []);
+    setSessionBillingSummaries((current) =>
+      filterRunBillingSummariesBySessionKeys(mergeRunBillingSummaries(current, [summary]), sessionBillingScopeKeys),
+    );
+  }, [sessionBillingScopeKeySignature]);
 
   const requestFreshCreditQuote = useCallback(
     async (
@@ -2588,6 +2540,9 @@ export function OpenClawChatSurface({
       setSelectedModelId(snapshot.selectedModelId);
       setResolvedModelSessionKey(snapshot.resolvedSessionKey);
       setSessionHistoryState(snapshot.hasPersistedHistory ? 'has-history' : 'empty');
+      if (snapshot.hasPersistedHistory) {
+        setOptimisticEmptySessionActive(false);
+      }
       return true;
     } catch (error) {
       if (modelLoadVersionRef.current === requestVersion) {
@@ -2844,18 +2799,21 @@ export function OpenClawChatSurface({
   }, [refreshModelCatalog, sessionKey]);
 
   useEffect(() => {
-    if (previousSessionKeyRef.current === sessionKey) {
+    const nextChatScope = buildChatScopeIdentity(sessionKey, conversationId);
+    if (previousChatScopeRef.current === nextChatScope) {
       return;
     }
 
     const localSnapshot = readChatSessionSnapshot(appName, sessionKey, conversationId);
     const hasImmediateSnapshot = (localSnapshot?.messages?.length ?? 0) > 0;
-    previousSessionKeyRef.current = sessionKey;
-    sessionTransitionPendingRef.current = !hasImmediateSnapshot;
+    const fastOpenEmptySession = !hasImmediateSnapshot && isSeededEmptySessionKey(sessionKey);
+    setOptimisticEmptySessionActive(fastOpenEmptySession);
+    previousChatScopeRef.current = nextChatScope;
+    sessionTransitionPendingRef.current = !hasImmediateSnapshot && !fastOpenEmptySession;
     sessionTransitionStartedAtRef.current = performance.now();
     clearSessionTransitionTimer();
     setStatus((current) =>
-      hasImmediateSnapshot
+      hasImmediateSnapshot || fastOpenEmptySession
         ? {
             ...current,
             lastError: null,
@@ -2883,6 +2841,10 @@ export function OpenClawChatSurface({
     }
     if (hasImmediateSnapshot) {
       setSessionHistoryState('has-history');
+      setInitialSurfaceRestorePending(false);
+      setSessionTransitionVisible(false);
+    } else if (fastOpenEmptySession) {
+      setSessionHistoryState('empty');
       setInitialSurfaceRestorePending(false);
       setSessionTransitionVisible(false);
     } else {
@@ -2915,6 +2877,7 @@ export function OpenClawChatSurface({
     clearArtifactAutoOpenTimers();
     clearUsageSettlementTimers();
     modelLoadVersionRef.current += 1;
+    setResolvedModelSessionKey(null);
     setModelsLoading(true);
     setModelSwitching(false);
     setComposerDraft(null);
@@ -2924,6 +2887,7 @@ export function OpenClawChatSurface({
     setQueuedMessages([]);
     setAssistantFooterVersion((current) => current + 1);
     sessionModelBootstrapKeyRef.current = null;
+    responseUsageEnabledSessionKeyRef.current = null;
     setCreditEstimate({
       loading: false,
       low: null,
@@ -2961,6 +2925,7 @@ export function OpenClawChatSurface({
     setPendingSettlementCount(pendingUsageSettlementsRef.current.length);
     persistedChatSnapshotRef.current = snapshot ? JSON.stringify(snapshot) : null;
     if ((snapshot?.messages?.length ?? 0) > 0) {
+      setOptimisticEmptySessionActive(false);
       setSessionHistoryState('has-history');
       setInitialSurfaceRestorePending(false);
     }
@@ -2972,17 +2937,14 @@ export function OpenClawChatSurface({
       return;
     }
 
-    const sessionKeys = Array.from(
-      new Set([sessionKey, effectiveGatewaySessionKey].map((value) => value.trim()).filter(Boolean)),
-    );
-    if (sessionKeys.length === 0) {
+    if (sessionBillingScopeKeys.length === 0) {
       setSessionBillingSummaries([]);
       return;
     }
 
     let cancelled = false;
     void Promise.all(
-      sessionKeys.map((targetSessionKey) =>
+      sessionBillingScopeKeys.map((targetSessionKey) =>
         creditClient
           .listRunBillingSummariesBySession(creditToken, {
             sessionKey: targetSessionKey,
@@ -2994,15 +2956,18 @@ export function OpenClawChatSurface({
       if (cancelled) {
         return;
       }
-      const summaries = summaryLists.flat().filter((summary): summary is RunBillingSummaryData => Boolean(summary));
-      setSessionBillingSummaries((current) => mergeRunBillingSummaries(current, summaries));
+      const summaries = filterRunBillingSummariesBySessionKeys(
+        summaryLists.flat().filter((summary): summary is RunBillingSummaryData => Boolean(summary)),
+        sessionBillingScopeKeys,
+      );
+      setSessionBillingSummaries(mergeRunBillingSummaries([], summaries));
       setAssistantFooterVersion((current) => current + 1);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [creditClient, creditToken, effectiveGatewaySessionKey, sessionKey]);
+  }, [creditClient, creditToken, sessionBillingScopeKeySignature]);
 
   useEffect(() => {
     const prompt = composerDraft?.prompt?.trim() || '';
@@ -3203,7 +3168,6 @@ export function OpenClawChatSurface({
       gatewayUrl,
       gatewayToken: gatewayToken?.trim() ?? '',
       gatewayPassword: gatewayPassword?.trim() ?? '',
-      sessionKey: runtimeSessionKey,
     });
     if (reconnectKeyRef.current === null) {
       reconnectKeyRef.current = reconnectKey;
@@ -3692,7 +3656,7 @@ export function OpenClawChatSurface({
   }, [clearArtifactAutoOpenTimers, status.busy, tryAutoOpenArtifactCard]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
+    const syncSurfaceState = () => {
       const app = appRef.current;
       const host = hostRef.current;
       if (!app || !host) {
@@ -3785,10 +3749,13 @@ export function OpenClawChatSurface({
                 connected: false,
                 lastError: pending.lastError,
                 lastErrorCode: pending.lastErrorCode,
-              },
+            },
         );
       }, CONNECTION_LOSS_GRACE_MS);
-    }, STATUS_POLL_INTERVAL_MS);
+    };
+
+    syncSurfaceState();
+    const timer = window.setInterval(syncSurfaceState, STATUS_POLL_INTERVAL_MS);
 
     return () => {
       window.clearInterval(timer);
@@ -3887,11 +3854,14 @@ export function OpenClawChatSurface({
   }, [hasBootSettled, initialSurfaceRestorePending, renderState, shellAuthenticated, status.connected]);
 
   useEffect(() => {
-    if (!hasObservedHistory || sessionHistoryState === 'has-history') {
+    if (optimisticEmptySessionActive || !hasObservedHistory || sessionHistoryState === 'has-history') {
       return;
     }
     setSessionHistoryState('has-history');
-  }, [hasObservedHistory, sessionHistoryState]);
+  }, [hasObservedHistory, optimisticEmptySessionActive, sessionHistoryState]);
+
+  const allowImmediateEmptySessionUi =
+    shellAuthenticated && optimisticEmptySessionActive;
 
   useEffect(() => {
     if (!status.connected) {
@@ -4061,6 +4031,11 @@ export function OpenClawChatSurface({
       !hasBootSettled ||
       (shellAuthenticated && sessionHistoryState === 'unknown' && !hasObservedHistory);
 
+    if (allowImmediateEmptySessionUi && !status.lastError) {
+      setShowConnectionCard(false);
+      return;
+    }
+
     if ((sessionTransitionVisible || bootStillSettling) && !status.lastError) {
       setShowConnectionCard(false);
       return;
@@ -4082,6 +4057,7 @@ export function OpenClawChatSurface({
 
     return () => window.clearTimeout(timer);
   }, [
+    allowImmediateEmptySessionUi,
     hasBootSettled,
     hasObservedHistory,
     initialSurfaceRestorePending,
@@ -4203,6 +4179,13 @@ export function OpenClawChatSurface({
       modelsLoading,
       modelSwitching,
       pendingSettlementCount,
+      sessionBillingSummaries: sessionBillingSummaries.map((summary) => ({
+        grantId: summary.grant_id,
+        eventId: summary.event_id,
+        sessionKey: summary.session_key,
+        creditCost: summary.credit_cost,
+        settledAt: summary.settled_at,
+      })),
       pendingUsageSettlements: pendingUsageSettlementsRef.current.map((pending) => ({
         runId: pending.runId,
         grantId: pending.grantId,
@@ -4239,6 +4222,7 @@ export function OpenClawChatSurface({
     renderState,
     resolvedModelSessionKey,
     selectedModelId,
+    sessionBillingSummaries,
     effectiveGatewaySessionKey,
     shellAuthenticated,
     status.connected,
@@ -4300,6 +4284,7 @@ export function OpenClawChatSurface({
       input: {
         terminalEvent?: TerminalChatEventMatch | null;
         usage?: AssistantUsageSettlement | null;
+        sessionTokens?: { inputTokens: number; outputTokens: number } | null;
         action: UsageSettlementAttemptDiagnostic['action'];
         detail?: string | null;
       },
@@ -4316,8 +4301,8 @@ export function OpenClawChatSurface({
           matchedTerminalState: input.terminalEvent?.state ?? null,
           baselineInputTokens: pending.baselineInputTokens ?? null,
           baselineOutputTokens: pending.baselineOutputTokens ?? null,
-          sessionInputTokens: null,
-          sessionOutputTokens: null,
+          sessionInputTokens: input.sessionTokens?.inputTokens ?? null,
+          sessionOutputTokens: input.sessionTokens?.outputTokens ?? null,
           derivedUsage: input.usage ?? null,
           action: input.action,
           detail: input.detail ?? null,
@@ -4328,7 +4313,7 @@ export function OpenClawChatSurface({
 
     for (const pending of pendings) {
       const isActivePending =
-        pending.sessionKey === sessionKey &&
+        pending.sessionKey === canonicalizeChatSessionKey(sessionKey) &&
         (!pending.conversationId || !conversationId || pending.conversationId === conversationId);
       const sessionSnapshot = !isActivePending
         ? readChatSessionSnapshot(appName, pending.sessionKey, pending.conversationId)
@@ -4384,7 +4369,22 @@ export function OpenClawChatSurface({
         }
       }
 
-      const usage = derivePendingSettlementUsage(sourceMessages, pending, terminalEvent?.message);
+      const directUsage = derivePendingSettlementUsage(sourceMessages, pending, terminalEvent?.message);
+      let sessionTokens: { inputTokens: number; outputTokens: number } | null = null;
+      if (!directUsage && app) {
+        try {
+          sessionTokens = await loadGatewaySessionTokenSnapshot(app, pending.sessionKey);
+        } catch (error) {
+          console.warn('[desktop] failed to load gateway session token snapshot', {
+            runId: pending.runId,
+            sessionKey: pending.sessionKey,
+            error,
+          });
+        }
+      }
+      const usage =
+        directUsage ||
+        derivePendingSettlementUsageFromSessionDelta(sourceMessages, pending, sessionTokens);
 
       if (!usage) {
         pending.attempts += 1;
@@ -4399,6 +4399,7 @@ export function OpenClawChatSurface({
           pushSettlementDiagnostic(pending, {
             action: 'usage-missing-terminal-error',
             terminalEvent,
+            sessionTokens,
             detail: 'terminal state is error and no usage could be derived',
           });
           continue;
@@ -4416,6 +4417,7 @@ export function OpenClawChatSurface({
           pushSettlementDiagnostic(pending, {
             action: 'usage-missing-terminal-timeout',
             terminalEvent,
+            sessionTokens,
             detail: 'terminal grace elapsed without usage',
           });
           continue;
@@ -4431,6 +4433,7 @@ export function OpenClawChatSurface({
           pushSettlementDiagnostic(pending, {
             action: 'usage-missing-expired',
             terminalEvent,
+            sessionTokens,
             detail: 'usage settlement expired',
           });
           continue;
@@ -4438,6 +4441,7 @@ export function OpenClawChatSurface({
         pushSettlementDiagnostic(pending, {
           action: 'usage-missing',
           terminalEvent,
+          sessionTokens,
           detail: 'usage could not be derived yet',
         });
         remaining.push(pending);
@@ -4468,8 +4472,12 @@ export function OpenClawChatSurface({
         pushSettlementDiagnostic(pending, {
           action: 'reported',
           terminalEvent,
+          sessionTokens,
           usage,
-          detail: 'usage event reported successfully',
+          detail:
+            directUsage
+              ? 'usage event reported successfully'
+              : 'usage event reported from gateway session token delta',
         });
       } catch (error) {
         pending.attempts += 1;
@@ -4481,6 +4489,7 @@ export function OpenClawChatSurface({
         pushSettlementDiagnostic(pending, {
           action: 'report-failed',
           terminalEvent,
+          sessionTokens,
           usage,
           detail: error instanceof Error ? error.message : String(error),
         });
@@ -4488,6 +4497,7 @@ export function OpenClawChatSurface({
           pushSettlementDiagnostic(pending, {
             action: 'report-failed-loaded-summary',
             terminalEvent,
+            sessionTokens,
             usage,
             detail: 'report failed but billing summary was already persisted',
           });
@@ -4526,8 +4536,39 @@ export function OpenClawChatSurface({
     onCreditBalanceRefresh,
     replacePendingUsageSettlements,
     conversationId,
+    effectiveGatewaySessionKey,
     sessionKey,
   ]);
+
+  const scheduleUsageSettlementAttempt = useCallback(
+    (delay = 0) => {
+      clearUsageSettlementTimers();
+      if (storedPendingUsageSettlementsRef.current.length === 0) {
+        return;
+      }
+
+      const timer = window.setTimeout(async () => {
+        usageSettlementTimersRef.current = usageSettlementTimersRef.current.filter((value) => value !== timer);
+
+        if (storedPendingUsageSettlementsRef.current.length === 0) {
+          return;
+        }
+
+        if (busyRef.current) {
+          scheduleUsageSettlementAttempt(USAGE_SETTLEMENT_RETRY_INTERVAL_MS);
+          return;
+        }
+
+        await attemptPendingUsageSettlement();
+        if (storedPendingUsageSettlementsRef.current.length > 0) {
+          scheduleUsageSettlementAttempt(USAGE_SETTLEMENT_RETRY_INTERVAL_MS);
+        }
+      }, Math.max(0, delay));
+
+      usageSettlementTimersRef.current = [timer];
+    },
+    [attemptPendingUsageSettlement, clearUsageSettlementTimers],
+  );
 
   useEffect(() => {
     if (status.busy || !activeRecentTaskRunRef.current) {
@@ -4574,17 +4615,18 @@ export function OpenClawChatSurface({
       return;
     }
 
-    clearUsageSettlementTimers();
-    void attemptPendingUsageSettlement();
-    const timer = window.setInterval(() => {
-      void attemptPendingUsageSettlement();
-    }, USAGE_SETTLEMENT_RETRY_INTERVAL_MS);
-    usageSettlementTimersRef.current.push(timer);
+    scheduleUsageSettlementAttempt(0);
+  }, [clearUsageSettlementTimers, globalPendingSettlementCount, scheduleUsageSettlementAttempt]);
 
-    return () => {
-      clearUsageSettlementTimers();
-    };
-  }, [attemptPendingUsageSettlement, clearUsageSettlementTimers, globalPendingSettlementCount]);
+  useEffect(() => {
+    if (status.busy || globalPendingSettlementCount === 0) {
+      return;
+    }
+
+    scheduleUsageSettlementAttempt(0);
+  }, [globalPendingSettlementCount, scheduleUsageSettlementAttempt, status.busy]);
+
+  useEffect(() => clearUsageSettlementTimers, [clearUsageSettlementTimers]);
 
   useEffect(() => {
     const activeRun = activeRecentTaskRunRef.current;
@@ -4659,6 +4701,56 @@ export function OpenClawChatSurface({
     void composerRef.current?.addFiles(files);
   }, [resetShellDropState, shellTransitioning, status.connected]);
 
+  const loadRelevantMemoryMatches = useCallback(async (prompt: string) => {
+    const trimmedPrompt = prompt.trim();
+    if (trimmedPrompt.length < 2) {
+      return [];
+    }
+
+    try {
+      const snapshot = await loadMemorySnapshot();
+      if (!snapshot) {
+        return [];
+      }
+
+      const activeEntries = snapshot.entries.filter(
+        (entry): entry is MemoryEntryRecord => Boolean(entry && entry.active),
+      );
+      return pickRelevantMemories(activeEntries, trimmedPrompt, 3);
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const noteMemoryUsage = useCallback(async (entryIds: string[]) => {
+    if (entryIds.length === 0) {
+      return;
+    }
+
+    try {
+      const snapshot = await loadMemorySnapshot();
+      if (!snapshot) {
+        return;
+      }
+
+      const stamp = createMemoryUsageTimestamp();
+      const idSet = new Set(entryIds);
+      const targets = snapshot.entries.filter((entry) => entry.active && idSet.has(entry.id)).slice(0, 6);
+
+      await Promise.all(
+        targets.map((entry) =>
+          saveMemoryEntry({
+            ...entry,
+            lastRecalledAt: stamp,
+            recallCount: (entry.recallCount ?? 0) + 1,
+          }),
+        ),
+      );
+    } catch {
+      // Keep chat sending non-blocking even if memory bookkeeping fails.
+    }
+  }, []);
+
   const dropSummary = shellDropSummary ?? {
     totalFiles: 0,
     supportedFiles: 0,
@@ -4698,8 +4790,17 @@ export function OpenClawChatSurface({
       return false;
     }
 
+    const matchingPrompt = payload.prompt.trim();
     const promptToSend = buildSkillScopedPrompt(payload);
     const normalizedPrompt = promptToSend.trim();
+    const shouldAugmentWithMemory = !normalizedPrompt.startsWith('/');
+    const relevantMemoryMatches = shouldAugmentWithMemory
+      ? await loadRelevantMemoryMatches(matchingPrompt || normalizedPrompt)
+      : [];
+    const runtimePrompt =
+      shouldAugmentWithMemory && relevantMemoryMatches.length > 0
+        ? buildMemoryContextPrompt(normalizedPrompt, relevantMemoryMatches)
+        : normalizedPrompt;
     if (normalizedPrompt.startsWith('/') && payload.imageAttachments.length === 0) {
       try {
         app.chatMessage = normalizedPrompt;
@@ -4758,7 +4859,7 @@ export function OpenClawChatSurface({
           eventId: runId,
           sessionKey: runtimeSessionKey,
           client: 'desktop',
-          message: normalizedPrompt,
+          message: runtimePrompt,
           historyMessages: estimateHistoryMessagesFromGroups(renderState.groupCount),
           hasSearch: inferCreditQuoteHasSearch(normalizedPrompt),
           hasTools: true,
@@ -4771,6 +4872,7 @@ export function OpenClawChatSurface({
         ensureGatewaySessionPrepared(),
       ]).then(([grant]) => grant);
       setCreditBlockNotice(null);
+      const baselineTokenSnapshot = await loadGatewaySessionTokenSnapshot(app, runtimeSessionKey).catch(() => null);
 
       replacePendingUsageSettlements([
         ...storedPendingUsageSettlementsRef.current.filter((pending) => pending.runId !== runId),
@@ -4782,8 +4884,8 @@ export function OpenClawChatSurface({
           startedAt,
           expiresAt: startedAt + USAGE_SETTLEMENT_MAX_WAIT_MS,
           model: selectedModelId,
-          baselineInputTokens: null,
-          baselineOutputTokens: null,
+          baselineInputTokens: baselineTokenSnapshot?.inputTokens ?? null,
+          baselineOutputTokens: baselineTokenSnapshot?.outputTokens ?? null,
           attempts: 0,
           terminalState: 'pending',
         },
@@ -4793,11 +4895,12 @@ export function OpenClawChatSurface({
       await sendAuthorizedChatMessage({
         app,
         sessionKey: runtimeSessionKey,
-        prompt: normalizedPrompt,
+        prompt: runtimePrompt,
         imageAttachments: payload.imageAttachments,
         runId,
         startedAt,
       });
+      void noteMemoryUsage(relevantMemoryMatches.map((item) => item.entry.id));
       app.scrollToBottom();
       window.setTimeout(() => app.scrollToBottom({ smooth: true }), 180);
       window.setTimeout(() => app.scrollToBottom({ smooth: true }), 900);
@@ -4856,6 +4959,8 @@ export function OpenClawChatSurface({
     persistChatSessionSnapshot,
     renderState.groupCount,
     replacePendingUsageSettlements,
+    loadRelevantMemoryMatches,
+    noteMemoryUsage,
     selectedModelId,
     effectiveGatewaySessionKey,
     effectiveSendBlockedReason,
@@ -4879,7 +4984,16 @@ export function OpenClawChatSurface({
 
     const app = appRef.current;
     const gatewayBusy = app ? reconcileGatewayChatBusyState(app, effectiveGatewaySessionKey).busy : false;
-    if (effectiveSendBlockedReason || !status.connected || status.busy || gatewayBusy) {
+    if (effectiveSendBlockedReason) {
+      return;
+    }
+    if (!status.connected) {
+      if (allowImmediateEmptySessionUi) {
+        app?.connect();
+      }
+      return;
+    }
+    if (status.busy || gatewayBusy) {
       return;
     }
 
@@ -4901,7 +5015,14 @@ export function OpenClawChatSurface({
     if (!accepted) {
       setQueuedMessages((current) => (current.some((item) => item.id === next.id) ? current : [next, ...current]));
     }
-  }, [effectiveGatewaySessionKey, effectiveSendBlockedReason, sendQueuedOrImmediateMessage, status.busy, status.connected]);
+  }, [
+    allowImmediateEmptySessionUi,
+    effectiveGatewaySessionKey,
+    effectiveSendBlockedReason,
+    sendQueuedOrImmediateMessage,
+    status.busy,
+    status.connected,
+  ]);
 
   useEffect(() => {
     if (queuedMessages.length === 0) {
@@ -4913,12 +5034,33 @@ export function OpenClawChatSurface({
   const handleSend = useCallback(async (payload: ComposerSendPayload): Promise<boolean> => {
     const app = appRef.current;
     const gatewayBusy = app ? reconcileGatewayChatBusyState(app, effectiveGatewaySessionKey).busy : false;
+    if (!effectiveSendBlockedReason && !status.connected && allowImmediateEmptySessionUi) {
+      setOptimisticEmptySessionActive(false);
+      enqueueQueuedMessage(payload);
+      app?.connect();
+      return true;
+    }
     if (!effectiveSendBlockedReason && (status.busy || gatewayBusy)) {
+      if (optimisticEmptySessionActive) {
+        setOptimisticEmptySessionActive(false);
+      }
       enqueueQueuedMessage(payload);
       return true;
     }
+    if (optimisticEmptySessionActive) {
+      setOptimisticEmptySessionActive(false);
+    }
     return sendQueuedOrImmediateMessage(payload);
-  }, [effectiveGatewaySessionKey, effectiveSendBlockedReason, enqueueQueuedMessage, sendQueuedOrImmediateMessage, status.busy]);
+  }, [
+    allowImmediateEmptySessionUi,
+    effectiveGatewaySessionKey,
+    effectiveSendBlockedReason,
+    enqueueQueuedMessage,
+    optimisticEmptySessionActive,
+    sendQueuedOrImmediateMessage,
+    status.busy,
+    status.connected,
+  ]);
 
   const handleAbort = useCallback(async () => {
     await appRef.current?.handleAbortChat();
@@ -4986,16 +5128,17 @@ export function OpenClawChatSurface({
   }, [initialPrompt, initialPromptKey]);
 
   const showWelcomePage =
-    !initialSurfaceRestorePending &&
-    !hasObservedHistory &&
-    sessionHistoryState === 'empty' &&
+    ((allowImmediateEmptySessionUi && sessionHistoryState === 'empty') ||
+      (!initialSurfaceRestorePending &&
+        !hasObservedHistory &&
+        sessionHistoryState === 'empty' &&
+        renderState.groupCount === 0)) &&
     !showRenderDiagnosticsCard &&
     !showConnectionCard &&
     !showBootMask &&
     !showSessionTransitionMask &&
     !status.busy &&
-    welcomePageConfig?.enabled !== false &&
-    renderState.groupCount === 0;
+    welcomePageConfig?.enabled !== false;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -5350,74 +5493,16 @@ export function OpenClawChatSurface({
       }
     };
 
-    const ensureUserRunFooter = (group: HTMLElement, footerMeta: AssistantFooterMeta | null) => {
+    const removeUserRunFooter = (group: HTMLElement) => {
       const messages = group.querySelector('.chat-group-messages') as HTMLElement | null;
       if (!messages) {
         return;
       }
-
-      const fallbackTimestamp = extractChatGroupTimestampLabel(group);
       let footer = messages.querySelector(':scope > .iclaw-chat-run-footer') as HTMLDivElement | null;
-
-      if (!footer) {
-        footer = document.createElement('div');
-        footer.className = 'iclaw-chat-run-footer';
-        footer.innerHTML = `
-          <div class="iclaw-chat-assistant-meta" data-state="idle">
-            <span class="iclaw-chat-assistant-meta__label"></span>
-            <strong class="iclaw-chat-assistant-meta__value"></strong>
-          </div>
-          <span class="iclaw-chat-run-footer__timestamp"></span>
-        `;
-        messages.append(footer);
+      if (footer) {
+        footer.remove();
+        footer = null;
       }
-
-      const metaNode = footer.querySelector(':scope > .iclaw-chat-assistant-meta') as HTMLDivElement | null;
-      const metaLabelNode = metaNode?.querySelector(
-        ':scope > .iclaw-chat-assistant-meta__label',
-      ) as HTMLSpanElement | null;
-      const metaValueNode = metaNode?.querySelector(
-        ':scope > .iclaw-chat-assistant-meta__value',
-      ) as HTMLElement | null;
-      const timestampNode = footer.querySelector(
-        ':scope > .iclaw-chat-run-footer__timestamp',
-      ) as HTMLSpanElement | null;
-
-      if (!footerMeta) {
-        footer.setAttribute('hidden', 'true');
-        if (metaNode) {
-          metaNode.dataset.state = 'idle';
-          metaNode.title = '';
-          setElementTextIfChanged(metaLabelNode, '');
-          setElementTextIfChanged(metaValueNode, '');
-        }
-        setElementTextIfChanged(timestampNode, '');
-        return;
-      }
-
-      if (footer.hasAttribute('hidden')) {
-        footer.removeAttribute('hidden');
-      }
-
-      if (metaNode) {
-        metaNode.dataset.state = footerMeta.state;
-        metaNode.title = footerMeta.tooltip ?? '';
-        if (footerMeta.value) {
-          if (metaValueNode?.hasAttribute('hidden')) {
-            metaValueNode.removeAttribute('hidden');
-          }
-          setElementTextIfChanged(metaLabelNode, footerMeta.label);
-          setElementTextIfChanged(metaValueNode, footerMeta.value);
-        } else {
-          if (metaValueNode && !metaValueNode.hasAttribute('hidden')) {
-            metaValueNode.setAttribute('hidden', 'true');
-          }
-          setElementTextIfChanged(metaLabelNode, footerMeta.label);
-          setElementTextIfChanged(metaValueNode, '');
-        }
-      }
-
-      setElementTextIfChanged(timestampNode, footerMeta.timestampLabel || fallbackTimestamp);
     };
 
     const decorateChatGroups = () => {
@@ -5427,12 +5512,6 @@ export function OpenClawChatSurface({
         sessionBillingSummaries,
         appRef.current,
         status.busy,
-      );
-      const standaloneUserRunFooterMetas = deriveStandaloneUserRunFooterMetas(
-        appRef.current?.chatMessages ?? [],
-        pendingUsageSettlementsRef.current,
-        sessionBillingSummaries,
-        appRef.current,
       );
       const groups = Array.from(host.querySelectorAll('.chat-group')).filter(
         (node): node is HTMLElement => node instanceof HTMLElement,
@@ -5460,7 +5539,7 @@ export function OpenClawChatSurface({
 
         if (group.classList.contains('user')) {
           ensureUserCopyButton(group);
-          ensureUserRunFooter(group, standaloneUserRunFooterMetas[userIndex] ?? null);
+          removeUserRunFooter(group);
           userIndex += 1;
           return;
         }
@@ -5636,7 +5715,12 @@ export function OpenClawChatSurface({
             className="openclaw-chat-surface-shell h-full flex-1 overflow-hidden"
             data-session-transitioning={shellTransitioning ? 'true' : 'false'}
           >
-            <div ref={hostRef} className="openclaw-chat-surface min-h-0 flex-1 overflow-hidden" />
+            <div
+              ref={hostRef}
+              className={`openclaw-chat-surface min-h-0 flex-1 overflow-hidden ${
+                allowImmediateEmptySessionUi ? 'pointer-events-none opacity-0' : ''
+              }`}
+            />
 
             {showWelcomePage ? (
               <K2CWelcomePage
@@ -5669,10 +5753,10 @@ export function OpenClawChatSurface({
                   <div className="text-[16px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
                     {dropTitle}
                   </div>
-                  <div className="text-[13px] leading-6 text-[var(--text-secondary)]">
+                  <div className="text-[14px] leading-7 text-[var(--text-secondary)]">
                     {dropDescription}
                   </div>
-                  <div className="flex flex-wrap items-center justify-center gap-2 text-[12px]">
+                  <div className="flex flex-wrap items-center justify-center gap-2 text-[13px]">
                     {dropSummary.imageCount > 0 ? (
                       <span className="iclaw-chat-drop-chip" data-tone="image">
                         <ImageIcon className="h-3.5 w-3.5" />
@@ -5748,10 +5832,14 @@ export function OpenClawChatSurface({
               sendDisabledReason={effectiveSendBlockedReason}
               dropActive={shellDropActive}
               sessionTransitioning={shellTransitioning}
+              queueWhileConnecting={allowImmediateEmptySessionUi}
               lobsterAgents={installedLobsterAgents}
               skillOptions={skillOptions}
               initialSelectedAgentSlug={initialAgentSlug}
+              skillSelectionScopeKey={sessionKey}
+              initialSelectedSkillSeedKey={initialPromptKey}
               initialSelectedSkillSlug={initialSkillSlug}
+              initialSelectedSkillOption={initialSkillOption}
               initialSelectedStock={initialStockContext}
               searchStocks={handleSearchStocks}
               searchFunds={handleSearchFunds}
@@ -5763,7 +5851,6 @@ export function OpenClawChatSurface({
               onDraftChange={setComposerDraft}
               creditEstimate={composerDraft?.hasContent ? creditEstimate : null}
               composerConfig={inputComposerConfig}
-              onSelectedSkillSlugChange={onInitialSkillSlugChange}
               onSend={handleSend}
               onAbort={handleAbort}
             />

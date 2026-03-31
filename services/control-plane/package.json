@@ -14,6 +14,7 @@
     "preset:doctor:oem": "node --experimental-strip-types scripts/doctor-oem-preset.ts",
     "preset:sync:oem": "node --experimental-strip-types scripts/sync-oem-preset.ts",
     "migrate:skill-catalog-table": "node --experimental-strip-types scripts/migrate-skill-catalog-table.ts",
+    "migrate:canonical-session-keys": "node --experimental-strip-types scripts/migrate-canonical-session-keys.ts",
     "import:a-share-stocks": "node --experimental-strip-types scripts/import-a-share-stocks.ts",
     "import:cn-funds": "node --experimental-strip-types scripts/import-cn-funds.ts",
     "sync:local-app-runtime": "node --experimental-strip-types scripts/sync-local-app-runtime.ts",

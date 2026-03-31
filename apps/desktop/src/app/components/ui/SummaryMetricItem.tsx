@@ -46,9 +46,9 @@ export function SummaryMetricItem({
       <div className="min-w-0">
         <div className="flex items-baseline gap-2">
           <div className="text-[18px] font-semibold leading-none tracking-[-0.04em] text-[var(--text-primary)]">{value}</div>
-          <div className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">{label}</div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">{label}</div>
         </div>
-        <p className="mt-1 text-[11px] leading-snug text-[var(--text-secondary)]">{note}</p>
+        <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">{note}</p>
       </div>
     </div>
   );

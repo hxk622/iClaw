@@ -17,6 +17,7 @@
     "posttauri:build": "node ../../scripts/brand-generated-state.mjs restore desktop-tauri-build"
   },
   "dependencies": {
+    "@iclaw/shared": "workspace:*",
     "@iclaw/sdk": "workspace:*",
     "@noble/ed25519": "3.0.0",
     "@tauri-apps/api": "^2.8.0",

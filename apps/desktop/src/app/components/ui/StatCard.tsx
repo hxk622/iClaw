@@ -68,10 +68,10 @@ export function StatCard({
           <span className={toneClasses.icon}>{icon}</span>
         </div>
         <div className="min-w-0">
-          <div className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{label}</div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">{label}</div>
           <div className="mt-0.5 text-[18px] font-semibold leading-tight text-[var(--text-primary)]">{value}</div>
           {description ? (
-            <div className="mt-0.5 text-[10px] leading-4 text-[var(--text-muted)]">{description}</div>
+            <div className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">{description}</div>
           ) : null}
         </div>
       </div>

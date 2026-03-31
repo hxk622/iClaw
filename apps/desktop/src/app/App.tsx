@@ -45,7 +45,7 @@ import { SettingsPanel } from './components/settings/SettingsPanel';
 import { RechargeCenter } from './components/recharge/RechargeCenter';
 import { StockMarketView } from './components/market/StockMarketView';
 import { FundMarketView, type FundMarketResearchTarget } from './components/market/FundMarketView';
-import type { ComposerInstrumentKind, ComposerStockContext } from './components/RichChatComposer';
+import type { ComposerInstrumentKind, ComposerSkillOption, ComposerStockContext } from './components/RichChatComposer';
 import { type PersistableSettingsSection, SettingsProvider, useSettings } from './contexts/settings-context';
 import { BRAND } from './lib/brand';
 import { type InvestmentExpert } from '@/app/lib/investment-experts';
@@ -66,11 +66,14 @@ import {
 } from './lib/chat-conversations';
 import { deriveConversationHandoffSummary } from './lib/chat-history';
 import {
+  canonicalizeChatSessionKey,
   createGeneralChatSessionKey,
+  createScopedChatSessionKey,
   createSuccessorGeneralChatSessionKey,
   CRON_SYSTEM_SESSION_KEY,
   isGeneralChatSessionKey,
   resolveInitialGeneralChatSessionKey,
+  tryCanonicalizeChatSessionKey,
   writePersistedActiveGeneralChatSessionKey,
   type ChatSessionPressureSnapshot,
 } from './lib/chat-session';
@@ -83,7 +86,7 @@ import {
   shouldShowDesktopUpdateHint,
   writeSkippedDesktopUpdateVersion,
 } from './lib/desktop-updates';
-import { syncManagedSkills } from './lib/skill-store';
+import { syncManagedSkills, type SkillStoreItem } from './lib/skill-store';
 import { readCacheJson, writeCacheJson } from './lib/persistence/cache-store';
 import {
   checkDesktopUpdate,
@@ -175,6 +178,7 @@ type ActiveChatRoute = {
   initialPromptKey: string | null;
   initialAgentSlug: string | null;
   initialSkillSlug: string | null;
+  initialSkillOption: ComposerSkillOption | null;
   initialStockContext: ComposerStockContext | null;
   focusTaskId: string | null;
   focusTaskPrompt: string | null;
@@ -187,6 +191,7 @@ type PersistedChatRouteSnapshot = {
   initialPromptKey?: unknown;
   initialAgentSlug?: unknown;
   initialSkillSlug?: unknown;
+  initialSkillOption?: unknown;
   initialStockContext?: unknown;
   focusTaskId?: unknown;
   focusTaskPrompt?: unknown;
@@ -207,6 +212,28 @@ function normalizePersistedExchange(value: unknown): ComposerStockContext['excha
 
 function normalizePersistedInstrumentKind(value: unknown): ComposerInstrumentKind | undefined {
   return value === 'stock' || value === 'fund' || value === 'etf' || value === 'qdii' ? value : undefined;
+}
+
+function normalizePersistedSkillOption(value: unknown): ComposerSkillOption | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  const raw = value as Record<string, unknown>;
+  const slug = normalizeOptionalText(raw.slug);
+  const name = normalizeOptionalText(raw.name);
+  const market = normalizeOptionalText(raw.market);
+  const skillType = normalizeOptionalText(raw.skillType);
+  const categoryLabel = normalizeOptionalText(raw.categoryLabel);
+  if (!slug || !name || !market || !skillType || !categoryLabel) {
+    return null;
+  }
+  return {
+    slug,
+    name,
+    market,
+    skillType,
+    categoryLabel,
+  };
 }
 
 function normalizePersistedStockContext(value: unknown): ComposerStockContext | null {
@@ -241,13 +268,18 @@ function readPersistedActiveChatRoute(): ActiveChatRoute | null {
   if (!sessionKey || sessionKey === CRON_SYSTEM_SESSION_KEY) {
     return null;
   }
+  const canonicalSessionKey = tryCanonicalizeChatSessionKey(sessionKey);
+  if (!canonicalSessionKey) {
+    return null;
+  }
   return {
     conversationId: normalizeOptionalText(snapshot.conversationId),
-    sessionKey,
+    sessionKey: canonicalSessionKey,
     initialPrompt: normalizeOptionalText(snapshot.initialPrompt),
     initialPromptKey: normalizeOptionalText(snapshot.initialPromptKey),
     initialAgentSlug: normalizeOptionalText(snapshot.initialAgentSlug),
     initialSkillSlug: normalizeOptionalText(snapshot.initialSkillSlug),
+    initialSkillOption: normalizePersistedSkillOption(snapshot.initialSkillOption),
     initialStockContext: normalizePersistedStockContext(snapshot.initialStockContext),
     focusTaskId: normalizeOptionalText(snapshot.focusTaskId),
     focusTaskPrompt: normalizeOptionalText(snapshot.focusTaskPrompt),
@@ -266,6 +298,7 @@ function writePersistedActiveChatRoute(route: ActiveChatRoute | null): void {
     initialPromptKey: route.initialPromptKey,
     initialAgentSlug: route.initialAgentSlug,
     initialSkillSlug: route.initialSkillSlug,
+    initialSkillOption: route.initialSkillOption,
     initialStockContext: route.initialStockContext,
     focusTaskId: route.focusTaskId,
     focusTaskPrompt: route.focusTaskPrompt,
@@ -281,24 +314,27 @@ function buildActiveChatRoute(params: {
   initialPromptKey?: string | null;
   initialAgentSlug?: string | null;
   initialSkillSlug?: string | null;
+  initialSkillOption?: ComposerSkillOption | null;
   initialStockContext?: ComposerStockContext | null;
   focusTaskId?: string | null;
   focusTaskPrompt?: string | null;
 }): ActiveChatRoute {
+  const sessionKey = canonicalizeChatSessionKey(params.sessionKey);
   const conversation = ensureChatConversation({
     conversationId: params.conversationId,
-    sessionKey: params.sessionKey,
+    sessionKey,
     kind: params.kind ?? 'general',
     title: params.title ?? null,
   });
 
   return {
     conversationId: conversation.id,
-    sessionKey: params.sessionKey,
+    sessionKey,
     initialPrompt: params.initialPrompt ?? null,
     initialPromptKey: params.initialPromptKey ?? null,
     initialAgentSlug: params.initialAgentSlug ?? null,
     initialSkillSlug: params.initialSkillSlug ?? null,
+    initialSkillOption: params.initialSkillOption ?? null,
     initialStockContext: params.initialStockContext ?? null,
     focusTaskId: params.focusTaskId ?? null,
     focusTaskPrompt: params.focusTaskPrompt ?? null,
@@ -359,6 +395,7 @@ function resolveInitialChatRoute(): ActiveChatRoute {
       initialPromptKey: persisted.initialPromptKey,
       initialAgentSlug: persisted.initialAgentSlug,
       initialSkillSlug: persisted.initialSkillSlug,
+      initialSkillOption: persisted.initialSkillOption,
       initialStockContext: persisted.initialStockContext,
       focusTaskId: persisted.focusTaskId,
       focusTaskPrompt: persisted.focusTaskPrompt,
@@ -1819,7 +1856,9 @@ function AuthedView({
   const fallbackPrimaryView = availablePrimaryViews[0] || 'chat';
   const resolvedPrimaryView = availablePrimaryViews.includes(primaryView) ? primaryView : fallbackPrimaryView;
   const chatShellAuthenticated =
-    authenticated || (!authModalOpen && authBootstrapReady && chatRuntimeAuthRef.current);
+    authenticated ||
+    Boolean(accessToken) ||
+    (!authModalOpen && authBootstrapReady && chatRuntimeAuthRef.current);
   const activeMenuLabel =
     menuUiConfig[resolvedPrimaryView]?.displayName ||
     menuUiConfig[fallbackPrimaryView]?.displayName ||
@@ -1853,14 +1892,14 @@ function AuthedView({
           : null;
 
   useEffect(() => {
-    if (authenticated) {
+    if (authenticated || accessToken) {
       chatRuntimeAuthRef.current = true;
       return;
     }
     if (authModalOpen) {
       chatRuntimeAuthRef.current = false;
     }
-  }, [authModalOpen, authenticated]);
+  }, [accessToken, authModalOpen, authenticated]);
 
   useEffect(() => {
     if (primaryView === resolvedPrimaryView) {
@@ -1895,6 +1934,7 @@ function AuthedView({
           initialPromptKey: nextRoute.initialPromptKey,
           initialAgentSlug: nextRoute.initialAgentSlug,
           initialSkillSlug: nextRoute.initialSkillSlug,
+          initialSkillOption: nextRoute.initialSkillOption,
           initialStockContext: nextRoute.initialStockContext,
           focusTaskId: nextRoute.focusTaskId,
           focusTaskPrompt: nextRoute.focusTaskPrompt,
@@ -2042,13 +2082,14 @@ function AuthedView({
     }
     const seed = `${agent.slug}-${Date.now()}`;
     openChatRoute(buildActiveChatRoute({
-      sessionKey: `lobster-${seed}`,
+      sessionKey: createScopedChatSessionKey(`lobster-${seed}`),
       kind: 'lobster',
       title: agent.name,
       initialPrompt: null,
       initialPromptKey: seed,
       initialAgentSlug: agent.slug,
       initialSkillSlug: null,
+      initialSkillOption: null,
       initialStockContext: null,
       focusTaskId: null,
       focusTaskPrompt: null,
@@ -2062,13 +2103,14 @@ function AuthedView({
     }
     const seed = `${expert.slug}-${Date.now()}`;
     openChatRoute(buildActiveChatRoute({
-      sessionKey: `investment-expert-${seed}`,
+      sessionKey: createScopedChatSessionKey(`investment-expert-${seed}`),
       kind: 'investment-expert',
       title: expert.name,
       initialPrompt: null,
       initialPromptKey: seed,
       initialAgentSlug: expert.slug,
       initialSkillSlug: expert.primarySkillSlug,
+      initialSkillOption: null,
       initialStockContext: null,
       focusTaskId: null,
       focusTaskPrompt: null,
@@ -2082,13 +2124,14 @@ function AuthedView({
     }
     const seed = `stock-${stock.symbol}-${Date.now()}`;
     openChatRoute(buildActiveChatRoute({
-      sessionKey: seed,
+      sessionKey: createScopedChatSessionKey(seed),
       kind: 'stock-research',
       title: `${stock.company_name} ${stock.symbol}`,
       initialPrompt: null,
       initialPromptKey: seed,
       initialAgentSlug: null,
       initialSkillSlug: null,
+      initialSkillOption: null,
       initialStockContext: {
         id: stock.id,
         symbol: stock.symbol,
@@ -2108,13 +2151,14 @@ function AuthedView({
     }
     const seed = `fund-${fund.symbol}-${Date.now()}`;
     openChatRoute(buildActiveChatRoute({
-      sessionKey: seed,
+      sessionKey: createScopedChatSessionKey(seed),
       kind: 'fund-research',
       title: `${fund.companyName} ${fund.symbol}`,
       initialPrompt: null,
       initialPromptKey: seed,
       initialAgentSlug: null,
       initialSkillSlug: null,
+      initialSkillOption: null,
       initialStockContext: {
         id: fund.id,
         symbol: fund.symbol,
@@ -2150,6 +2194,7 @@ function AuthedView({
         current.initialPromptKey ||
         current.initialAgentSlug ||
         current.initialSkillSlug ||
+        current.initialSkillOption ||
         current.initialStockContext
       ) {
         return current;
@@ -2207,38 +2252,34 @@ function AuthedView({
       initialPromptKey: null,
       initialAgentSlug: null,
       initialSkillSlug: null,
+      initialSkillOption: null,
       initialStockContext: null,
       focusTaskId: task.id,
       focusTaskPrompt: task.prompt,
     }));
   };
 
-  const handleActiveChatSkillChange = useCallback((skillSlug: string | null) => {
-    setActiveChatRoute((current) => {
-      if (current.initialSkillSlug === skillSlug) {
-        return current;
-      }
-      return {
-        ...current,
-        initialSkillSlug: skillSlug,
-      };
-    });
-  }, []);
-
-  const handleStartSkillConversation = (skill: { slug: string }) => {
+  const handleStartSkillConversation = (skill: SkillStoreItem) => {
     if (desktopUpdateNewRunBlockedReason) {
       setPrimaryView('chat');
       return;
     }
     const seed = `skill-${skill.slug}-${Date.now()}`;
     openChatRoute(buildActiveChatRoute({
-      sessionKey: seed,
+      sessionKey: createScopedChatSessionKey(seed),
       kind: 'skill',
       title: skill.slug,
       initialPrompt: null,
       initialPromptKey: seed,
       initialAgentSlug: null,
       initialSkillSlug: skill.slug,
+      initialSkillOption: {
+        slug: skill.slug,
+        name: skill.name,
+        market: skill.market,
+        skillType: skill.skillType,
+        categoryLabel: skill.categoryLabel,
+      },
       initialStockContext: null,
       focusTaskId: null,
       focusTaskPrompt: null,
@@ -2442,6 +2483,7 @@ function AuthedView({
               initialPromptKey={activeChatRoute.initialPromptKey}
               initialAgentSlug={activeChatRoute.initialAgentSlug}
               initialSkillSlug={activeChatRoute.initialSkillSlug}
+              initialSkillOption={activeChatRoute.initialSkillOption}
               initialStockContext={activeChatRoute.initialStockContext}
               focusTaskId={activeChatRoute.focusTaskId}
               focusTaskPrompt={activeChatRoute.focusTaskPrompt}
@@ -2452,7 +2494,6 @@ function AuthedView({
               user={currentUser}
               inputComposerConfig={inputComposerConfig}
               welcomePageConfig={welcomePageConfig}
-              onInitialSkillSlugChange={handleActiveChatSkillChange}
               onGeneralChatSessionOverloaded={handleRotateGeneralChatSession}
               onOpenRechargeCenter={() => setOverlayView('recharge')}
               onBusyStateChange={onChatBusyChange}

@@ -388,7 +388,7 @@ export function IClawHeader({
       <div className="flex h-[50px] items-center justify-between gap-3.5 px-6">
         <div className="flex min-w-0 flex-1 items-center gap-3.5">
           {resolvedConfig?.showLiveBadge !== false ? (
-            <div className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--border-default)_76%,transparent)] bg-[color-mix(in_srgb,var(--bg-card)_84%,white_16%)] px-3 py-1 text-[11px] font-medium text-[var(--text-secondary)] shadow-[var(--shadow-sm)]">
+            <div className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--border-default)_76%,transparent)] bg-[color-mix(in_srgb,var(--bg-card)_84%,white_16%)] px-3 py-1 text-[12px] font-medium text-[var(--text-secondary)] shadow-[var(--shadow-sm)]">
               <Globe2 className="h-3.5 w-3.5 text-[var(--brand-primary)]" />
               <span>{updatedLabel}</span>
             </div>
@@ -402,9 +402,9 @@ export function IClawHeader({
                     key={quote.id}
                     className="group inline-flex shrink-0 items-center gap-2 rounded-full border border-transparent px-2.5 py-1 transition-colors duration-200 hover:border-[color-mix(in_srgb,var(--border-default)_88%,transparent)] hover:bg-[color-mix(in_srgb,var(--bg-card)_78%,white_22%)]"
                   >
-                    <span className="text-[11px] font-medium text-[var(--text-muted)]">{quote.label}</span>
-                    <span className="text-[13px] font-semibold tabular-nums text-[var(--text-primary)]">{quote.value}</span>
-                    <span className={cn('inline-flex items-center gap-0.5 text-[11px] font-semibold tabular-nums', getChangeClassName(quote.change))}>
+                    <span className="text-[12px] font-medium text-[var(--text-secondary)]">{quote.label}</span>
+                    <span className="text-[14px] font-semibold tabular-nums text-[var(--text-primary)]">{quote.value}</span>
+                    <span className={cn('inline-flex items-center gap-0.5 text-[12px] font-semibold tabular-nums', getChangeClassName(quote.change))}>
                       {getTrendIcon(quote.change)}
                       {quote.changePercent}
                     </span>
@@ -419,7 +419,7 @@ export function IClawHeader({
         <div className="hidden min-w-0 flex-[0_1_32rem] items-center justify-center lg:flex">
           <div className="flex min-w-0 items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--border-default)_78%,transparent)] bg-[color-mix(in_srgb,var(--bg-card)_86%,white_14%)] px-3 py-1 shadow-[var(--shadow-sm)]">
             <Newspaper className="h-3.5 w-3.5 shrink-0 text-[var(--brand-primary)]" />
-            <div className="min-w-0 truncate text-[12px] text-[var(--text-secondary)]">
+            <div className="min-w-0 truncate text-[13px] leading-6 text-[var(--text-secondary)]">
               {activeHeadline ? (
                 activeHeadline.href ? (
                   <a
@@ -463,7 +463,7 @@ export function IClawHeader({
               <span className="inline-flex h-5.5 w-5.5 items-center justify-center rounded-full bg-[rgba(245,158,11,0.14)] text-[#b45309]">
                 <Coins className="h-3.5 w-3.5" />
               </span>
-              <span className="text-[12px] font-semibold tabular-nums text-[var(--text-primary)]">{balanceText}</span>
+              <span className="text-[13px] font-semibold tabular-nums text-[var(--text-primary)]">{balanceText}</span>
             </button>
           ) : null}
 
@@ -476,14 +476,14 @@ export function IClawHeader({
               <span className="inline-flex h-5.5 w-5.5 items-center justify-center rounded-full bg-[rgba(168,140,93,0.14)] text-[var(--brand-primary)]">
                 <Crown className="h-3.5 w-3.5" />
               </span>
-              <span className="hidden text-[12px] font-semibold text-[var(--text-primary)] sm:inline">
+              <span className="hidden text-[13px] font-semibold text-[var(--text-primary)] sm:inline">
                 {resolvedConfig?.rechargeLabel || '充值中心'}
               </span>
             </button>
           ) : null}
 
           {resolvedConfig?.showModeBadge !== false ? (
-            <div className="hidden items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--chip-brand-bg)_64%,var(--bg-card))] px-2.5 py-[3px] text-[11px] font-medium text-[var(--chip-brand-text)] xl:inline-flex">
+            <div className="hidden items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--chip-brand-bg)_64%,var(--bg-card))] px-2.5 py-[3px] text-[12px] font-medium text-[var(--chip-brand-text)] xl:inline-flex">
               <Sparkles className="h-3.5 w-3.5" />
               {resolvedConfig?.modeBadgeLabel || '脉搏模式'}
             </div>

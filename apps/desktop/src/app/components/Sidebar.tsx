@@ -359,12 +359,12 @@ export function Sidebar({
                 ) : null
               )}
             </span>
-            <span className={`flex-1 text-[14px] text-[var(--text-primary)] transition-transform duration-[var(--motion-panel)] ${item.active ? 'translate-x-[1px] font-medium' : 'group-hover:translate-x-[1px]'}`}>
+            <span className={`flex-1 text-[14px] font-medium text-[var(--text-primary)] transition-transform duration-[var(--motion-panel)] ${item.active ? 'translate-x-[1px] font-semibold' : 'group-hover:translate-x-[1px]'}`}>
               {item.label}
             </span>
             {item.dot && <span className="h-2 w-2 rounded-full bg-[var(--state-success)]" />}
             {item.badge && (
-              <span className="rounded-full bg-[var(--brand-primary)] px-2 py-0.5 text-[11px] text-[var(--brand-on-primary)] transition-transform duration-[var(--motion-panel)] group-hover:scale-105">
+              <span className="rounded-full bg-[var(--brand-primary)] px-2 py-0.5 text-[11px] font-semibold text-[var(--brand-on-primary)] transition-transform duration-[var(--motion-panel)] group-hover:scale-105">
                 {item.badge}
               </span>
             )}
@@ -399,7 +399,7 @@ export function Sidebar({
           <img src={BRAND.assets.faviconPngSrc} alt={BRAND.assets.logoAlt} className="h-full w-full object-cover" />
         </div>
         <div className="min-w-0">
-          <div className="truncate text-[15px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">{brandText}</div>
+          <div className="truncate text-[16px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">{brandText}</div>
         </div>
       </div>
 
@@ -417,7 +417,7 @@ export function Sidebar({
                 <Plus className="h-3.5 w-3.5" />
               </span>
             }
-            className="h-9.5 justify-center rounded-[13px] border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--bg-card)_86%,var(--bg-page))] px-3 text-[13px] font-medium text-[var(--text-primary)] shadow-none hover:border-[var(--chip-brand-border)] hover:bg-[color-mix(in_srgb,var(--chip-brand-bg)_48%,var(--bg-card))] hover:text-[var(--text-primary)]"
+            className="h-10 justify-center rounded-[13px] border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--bg-card)_86%,var(--bg-page))] px-3 text-[14px] font-semibold text-[var(--text-primary)] shadow-none hover:border-[var(--chip-brand-border)] hover:bg-[color-mix(in_srgb,var(--chip-brand-bg)_48%,var(--bg-card))] hover:text-[var(--text-primary)]"
           >
             新建对话
           </Button>
@@ -470,9 +470,9 @@ export function Sidebar({
             />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] text-[var(--text-primary)]">{resolveUserName(user)}</div>
+            <div className="truncate text-[14px] font-medium text-[var(--text-primary)]">{resolveUserName(user)}</div>
             {!authenticated ? (
-              <div className="text-[11px] text-[var(--text-muted)]">点击登录解锁完整功能</div>
+              <div className="text-[12px] text-[var(--text-secondary)]">点击登录解锁完整功能</div>
             ) : null}
           </div>
         </button>

@@ -33,12 +33,12 @@ export function InfoTile({
         className,
       )}
     >
-      <div className="text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">{label}</div>
-      <div className="mt-2 min-w-0 break-words text-[14px] font-medium text-[var(--text-primary)] [overflow-wrap:anywhere]">
+      <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">{label}</div>
+      <div className="mt-2 min-w-0 break-words text-[15px] font-medium text-[var(--text-primary)] [overflow-wrap:anywhere]">
         {value}
       </div>
       {description ? (
-        <p className="mt-1.5 break-words text-[13px] leading-6 text-[var(--text-secondary)] [overflow-wrap:anywhere]">{description}</p>
+        <p className="mt-1.5 break-words text-[14px] leading-6 text-[var(--text-secondary)] [overflow-wrap:anywhere]">{description}</p>
       ) : null}
     </div>
   );

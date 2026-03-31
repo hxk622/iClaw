@@ -102,7 +102,7 @@ export function SecurityCenterView({ title }: { title: string }) {
           className="gap-2.5"
           contentClassName="space-y-1"
           titleClassName="mt-0 text-[24px] font-semibold tracking-[-0.045em]"
-          descriptionClassName="mt-0 text-[12px] leading-5"
+          descriptionClassName="mt-0 text-[14px] leading-6"
         />
 
         <SurfacePanel tone="subtle" className="mt-3 rounded-[20px] p-1.5">
@@ -246,14 +246,14 @@ function PolicyBlock({
   return (
     <div className="rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-card)] p-5">
       <h3 className="text-[16px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">{title}</h3>
-      <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{description}</p>
+      <p className="mt-2 text-[14px] leading-7 text-[var(--text-secondary)]">{description}</p>
       <div className="mt-4 space-y-3">
         {items.map((item) => (
           <div key={item} className="flex items-center gap-2.5">
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[rgba(74,107,90,0.10)] text-[var(--state-success)]">
               <Check className="h-3 w-3 stroke-[2.6]" />
             </span>
-            <span className="text-[13px] text-[var(--text-secondary)]">{item}</span>
+            <span className="text-[14px] text-[var(--text-secondary)]">{item}</span>
           </div>
         ))}
       </div>
@@ -299,7 +299,7 @@ function SecurityHeroCard({
             <h2 className="text-[18px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
               一键实时防护
             </h2>
-            <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
+            <p className="mt-2 text-[14px] leading-7 text-[var(--text-secondary)]">
               将运行时监控、异常识别与默认拦截策略统一切到保护态，适合作为全局默认安全开关。
             </p>
           </div>
@@ -311,7 +311,7 @@ function SecurityHeroCard({
         </div>
 
         <div className="rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-hover)] px-4 py-4">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+          <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
             当前策略
           </div>
           <div className="mt-3 space-y-3">
@@ -322,7 +322,7 @@ function SecurityHeroCard({
         </div>
 
         <div className="mt-auto rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-4">
-          <div className="text-[13px] leading-6 text-[var(--text-secondary)]">
+          <div className="text-[14px] leading-7 text-[var(--text-secondary)]">
             与其它桌面主页面一样，这里使用统一页框、统一统计条和统一交互反馈，避免安全页继续成为视觉孤岛。
           </div>
         </div>
@@ -371,7 +371,7 @@ function SecurityFeatureCard({
             <h3 className="text-[16px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
               {title}
             </h3>
-            <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{description}</p>
+            <p className="mt-2 text-[14px] leading-7 text-[var(--text-secondary)]">{description}</p>
           </div>
           <SecurityToggle checked={enabled} onChange={onToggle} label={`切换${title}`} />
         </div>
@@ -429,7 +429,7 @@ function SecurityCapabilityItem({
           )}
         />
       </span>
-      <span className="text-[13px] text-[var(--text-secondary)]">{label}</span>
+      <span className="text-[14px] text-[var(--text-secondary)]">{label}</span>
     </div>
   );
 }

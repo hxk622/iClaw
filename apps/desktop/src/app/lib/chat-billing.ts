@@ -1,4 +1,5 @@
 import { readCacheJson, writeCacheJson } from './persistence/cache-store';
+import { canonicalizeChatSessionKey, tryCanonicalizeChatSessionKey } from './chat-session';
 
 export type PendingUsageSettlementRecord = {
   runId: string;
@@ -41,10 +42,15 @@ export function normalizePendingUsageSettlementRecord(value: unknown): PendingUs
     return null;
   }
 
+  const canonicalSessionKey = tryCanonicalizeChatSessionKey(sessionKey);
+  if (!canonicalSessionKey) {
+    return null;
+  }
+
   return {
     runId,
     grantId,
-    sessionKey,
+    sessionKey: canonicalSessionKey,
     conversationId: normalizeText(record.conversationId),
     startedAt,
     expiresAt,
@@ -104,11 +110,11 @@ export function filterPendingUsageSettlementsForSession(
   sessionKey: string,
   conversationId?: string | null,
 ): PendingUsageSettlementRecord[] {
-  const normalizedSessionKey = sessionKey.trim();
+  const canonicalSessionKey = canonicalizeChatSessionKey(sessionKey);
   const normalizedConversationId = normalizeText(conversationId);
 
   return settlements.filter((item) => {
-    if (item.sessionKey !== normalizedSessionKey) {
+    if (canonicalizeChatSessionKey(item.sessionKey) !== canonicalSessionKey) {
       return false;
     }
     if (!normalizedConversationId) {

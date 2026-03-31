@@ -1,0 +1,66 @@
+diff --git a/apps/desktop/src/app/components/OpenClawChatSurface.tsx b/apps/desktop/src/app/components/OpenClawChatSurface.tsx
+index 9251547..2db6e63 100644
+--- a/apps/desktop/src/app/components/OpenClawChatSurface.tsx
++++ b/apps/desktop/src/app/components/OpenClawChatSurface.tsx
+@@ -718,6 +718,47 @@ function collectLatestArtifactKinds(host: HTMLElement | null): ReturnType<typeof
+   return [];
+ }
+ 
++function hasVisibleMessageContent(group: HTMLElement): boolean {
++  return Array.from(group.querySelectorAll('.chat-message')).some((node) => {
++    if (!(node instanceof HTMLElement) || node.hasAttribute('hidden')) {
++      return false;
++    }
++    return Boolean(node.textContent?.replace(/\s+/g, ' ').trim());
++  });
++}
++
++function normalizeToolCards(group: HTMLElement): void {
++  const toolCards = Array.from(group.querySelectorAll('.chat-tool-card')).filter(
++    (node): node is HTMLElement => node instanceof HTMLElement,
++  );
++  if (toolCards.length === 0) {
++    group.removeAttribute('data-iclaw-tool-group-state');
++    if (group.hasAttribute('hidden') && !group.classList.contains('tool')) {
++      group.removeAttribute('hidden');
++    }
++    return;
++  }
++
++  let artifactCardCount = 0;
++  toolCards.forEach((card) => {
++    if (isLikelyArtifactToolCard(card)) {
++      artifactCardCount += 1;
++      card.removeAttribute('hidden');
++      card.dataset.iclawToolCard = 'artifact';
++      return;
++    }
++    card.setAttribute('hidden', 'true');
++    card.dataset.iclawToolCard = 'internal';
++  });
++
++  group.dataset.iclawToolGroupState = artifactCardCount > 0 ? 'artifact' : 'internal';
++  if (artifactCardCount > 0) {
++    group.removeAttribute('hidden');
++    return;
++  }
++
++  if (group.classList.contains('tool') || !hasVisibleMessageContent(group)) {
++    group.setAttribute('hidden', 'true');
++    return;
++  }
++
++  group.removeAttribute('hidden');
++}
++
+ function createReferenceChip(text: string): HTMLSpanElement {
+   const chip = document.createElement('span');
+   chip.className = 'iclaw-chat-inline-reference';
+@@ -4184,6 +4225,7 @@ export function OpenClawChatSurface({
+ 
+       groups.forEach((group) => {
+         normalizeUserGroupClass(group);
++        normalizeToolCards(group);
+       });
+ 
+       normalizeAssistantTurnGroups(groups);

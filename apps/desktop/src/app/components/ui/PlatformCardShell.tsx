@@ -42,7 +42,7 @@ export function PlatformCardShell({
           <div className="min-w-0">
             <div className="text-[16px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">{title}</div>
             <p
-              className="mt-1 h-[38px] overflow-hidden text-[12px] leading-5 text-[var(--text-secondary)]"
+              className="mt-1 h-[42px] overflow-hidden text-[13px] leading-[22px] text-[var(--text-secondary)]"
               style={{
                 display: '-webkit-box',
                 WebkitLineClamp: 2,

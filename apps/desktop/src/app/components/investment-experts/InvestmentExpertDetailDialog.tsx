@@ -14,7 +14,7 @@ function StatusPill({
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold',
+        'inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold',
         installed
           ? 'bg-[rgba(34,197,94,0.10)] text-[#166534] dark:bg-[rgba(34,197,94,0.18)] dark:text-[#c7f9d7]'
           : 'bg-[rgba(37,99,235,0.10)] text-[#2563eb] dark:bg-[rgba(59,130,246,0.18)] dark:text-[#bfdbfe]',
@@ -87,7 +87,7 @@ export function InvestmentExpertDetailDialog({
               <h2 className="text-[28px] font-semibold tracking-[-0.04em] text-[var(--lobster-text-primary)]">
                 {expert.name}
               </h2>
-              <p className="mt-1 text-[14px] leading-6 text-[var(--lobster-text-secondary)]">
+              <p className="mt-1 text-[15px] leading-7 text-[var(--lobster-text-secondary)]">
                 {expert.subtitle}
               </p>
 
@@ -96,14 +96,14 @@ export function InvestmentExpertDetailDialog({
                 {expert.tags.slice(0, 4).map((tag) => (
                   <span
                     key={tag}
-                    className="inline-flex items-center rounded-[8px] bg-[var(--lobster-muted-bg)] px-2.5 py-1 text-[11px] text-[var(--lobster-text-secondary)]"
+                    className="inline-flex items-center rounded-[8px] bg-[var(--lobster-muted-bg)] px-2.5 py-1 text-[12px] text-[var(--lobster-text-secondary)]"
                   >
                     {tag}
                   </span>
                 ))}
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-5 text-[13px] text-[var(--lobster-text-secondary)]">
+              <div className="mt-4 flex flex-wrap items-center gap-5 text-[14px] text-[var(--lobster-text-secondary)]">
                 <span className="inline-flex items-center gap-1.5">
                   <Users className="h-4 w-4 text-[var(--lobster-text-muted)]" />
                   {expert.usageCount.toLocaleString('zh-CN')} 人使用
@@ -151,7 +151,7 @@ export function InvestmentExpertDetailDialog({
                   <div className="text-[14px] font-semibold text-[var(--lobster-text-primary)]">
                     {skill.title}
                   </div>
-                  <div className="mt-1 text-[12px] leading-6 text-[var(--lobster-text-secondary)]">
+                  <div className="mt-1 text-[13px] leading-6 text-[var(--lobster-text-secondary)]">
                     {skill.description}
                   </div>
                 </div>
@@ -165,7 +165,7 @@ export function InvestmentExpertDetailDialog({
               {expert.taskExamples.map((task) => (
                 <div
                   key={task}
-                  className="flex items-start gap-2 rounded-[12px] bg-[var(--lobster-muted-bg)] px-4 py-3 text-[13px] leading-6 text-[var(--lobster-text-secondary)]"
+                  className="flex items-start gap-2 rounded-[12px] bg-[var(--lobster-muted-bg)] px-4 py-3 text-[14px] leading-7 text-[var(--lobster-text-secondary)]"
                 >
                   <span className="mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--lobster-gold-strong)]" />
                   <span>{task}</span>
@@ -182,7 +182,7 @@ export function InvestmentExpertDetailDialog({
                   <div key={`${message.role}-${index}`} className={message.role === 'user' ? 'text-right' : 'text-left'}>
                     <div
                       className={cn(
-                        'inline-block max-w-[85%] rounded-[14px] px-4 py-3 text-[13px] leading-6',
+                        'inline-block max-w-[85%] rounded-[14px] px-4 py-3 text-[14px] leading-7',
                         message.role === 'user'
                           ? 'border border-[rgba(168,140,93,0.36)] bg-[linear-gradient(180deg,#ccb27b_0%,#b49154_100%)] text-[#120e09]'
                           : 'border border-[var(--lobster-border)] bg-[var(--lobster-card-elevated)] text-[var(--lobster-text-primary)]',

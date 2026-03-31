@@ -8,7 +8,7 @@
   --secondary: var(--bg-hover);
   --secondary-foreground: var(--text-primary);
   --muted: var(--bg-hover);
-  --muted-foreground: #737373;
+  --muted-foreground: var(--text-muted);
   --accent: var(--bg-hover);
   --accent-foreground: var(--text-primary);
   --destructive: var(--state-error);
@@ -21,7 +21,17 @@
 body {
   background: var(--bg-page);
   color: var(--text-primary);
-  font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+  font-family:
+    'SF Pro Text',
+    'SF Pro Display',
+    -apple-system,
+    BlinkMacSystemFont,
+    'PingFang SC',
+    'Hiragino Sans GB',
+    'Microsoft YaHei',
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
 }
 
 .openclaw-chat-surface {
@@ -83,8 +93,8 @@ body {
   --focus-ring: 0 0 0 2px var(--bg-page), 0 0 0 4px rgba(0, 0, 0, 0.12);
   --focus-glow: 0 0 0 2px var(--bg-page), 0 0 0 4px rgba(0, 0, 0, 0.12);
   --grid-line: rgba(0, 0, 0, 0.04);
-  --font-body: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
-  --font-display: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+  --font-body: 'SF Pro Text', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'SF Pro Text', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
   --mono: 'SF Mono', 'JetBrains Mono', Menlo, Monaco, Consolas, monospace;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.04);
@@ -127,8 +137,10 @@ body {
 .openclaw-chat-surface .content.content--chat {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
   height: 100%;
   min-height: 0;
+  padding-bottom: 0;
   overflow: hidden;
 }
 
@@ -320,11 +332,114 @@ body {
   min-height: 0;
 }
 
-.openclaw-chat-surface .chat-split-container,
+.openclaw-chat-surface .chat-split-container {
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+  height: 100%;
+  align-items: stretch;
+  overflow: hidden;
+}
+
 .openclaw-chat-surface .chat-main {
   display: flex;
   flex-direction: column;
+  min-width: 400px;
+  transition: flex 0.25s ease-out;
   overflow: hidden;
+}
+
+.openclaw-chat-surface .chat-sidebar {
+  border-left: 1px solid var(--chat-surface-panel-border);
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-width: 300px;
+  min-height: 0;
+  overflow: hidden;
+  animation: iclaw-tool-sidebar-slide-in 0.2s ease-out;
+}
+
+.openclaw-chat-surface .sidebar-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--chat-surface-panel);
+}
+
+.openclaw-chat-surface .sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--chat-surface-panel-border);
+  background: var(--chat-surface-panel);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.openclaw-chat-surface .sidebar-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.openclaw-chat-surface .sidebar-header > .btn {
+  min-width: auto;
+  padding: 4px 8px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.openclaw-chat-surface .sidebar-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 16px;
+  overflow: auto;
+}
+
+.openclaw-chat-surface .sidebar-markdown {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.openclaw-chat-surface .sidebar-markdown .markdown-inline-image {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 420px;
+  object-fit: contain;
+  border: 1px solid var(--chat-surface-panel-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--chat-surface-panel-muted) 70%, transparent);
+}
+
+.openclaw-chat-surface .sidebar-markdown :where(pre) {
+  padding: 12px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.12);
+  overflow-x: auto;
+}
+
+.openclaw-chat-surface .sidebar-markdown :where(code) {
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+@keyframes iclaw-tool-sidebar-slide-in {
+  0% {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .openclaw-chat-surface .chat-thread {
@@ -1002,6 +1117,279 @@ body {
   border-radius: 8px;
 }
 
+.openclaw-chat-surface .chat-tools-collapse,
+.openclaw-chat-surface .chat-tool-msg-collapse,
+.openclaw-chat-surface .chat-json-collapse {
+  border: 1px solid color-mix(in srgb, var(--chat-surface-panel-border) 92%, transparent);
+  border-radius: 14px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--chat-surface-panel-muted) 78%, transparent),
+      color-mix(in srgb, var(--chat-surface-panel) 96%, transparent)
+    );
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+}
+
+.openclaw-chat-surface .chat-tools-summary,
+.openclaw-chat-surface .chat-tool-msg-summary,
+.openclaw-chat-surface .chat-json-summary {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 0;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--brand-primary) 9%, transparent),
+      color-mix(in srgb, var(--chat-surface-panel-muted) 92%, transparent) 22%,
+      color-mix(in srgb, var(--chat-surface-panel-muted) 82%, transparent)
+    );
+  color: var(--text-secondary);
+  font-size: 12px;
+  transition:
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.openclaw-chat-surface .chat-tools-summary:hover,
+.openclaw-chat-surface .chat-tool-msg-summary:hover,
+.openclaw-chat-surface .chat-json-summary:hover {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--brand-primary) 14%, transparent),
+      color-mix(in srgb, var(--chat-surface-panel-muted) 100%, transparent) 22%,
+      color-mix(in srgb, var(--chat-surface-panel-muted) 86%, transparent)
+    );
+  color: var(--text-primary);
+}
+
+.openclaw-chat-surface .chat-tools-summary::after,
+.openclaw-chat-surface .chat-tool-msg-summary::after,
+.openclaw-chat-surface .chat-json-summary::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 1px;
+  background: color-mix(in srgb, var(--chat-surface-panel-border) 76%, transparent);
+  pointer-events: none;
+}
+
+.openclaw-chat-surface .chat-tools-summary__icon,
+.openclaw-chat-surface .chat-tool-msg-summary__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 28%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--brand-primary) 11%, transparent);
+  color: var(--brand-primary);
+  opacity: 1;
+}
+
+.openclaw-chat-surface .chat-tools-summary__icon svg,
+.openclaw-chat-surface .chat-tool-msg-summary__icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+.openclaw-chat-surface .chat-tools-summary__count,
+.openclaw-chat-surface .chat-tool-msg-summary__label {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.openclaw-chat-surface .chat-tools-summary__names,
+.openclaw-chat-surface .chat-tool-msg-summary__names,
+.openclaw-chat-surface .chat-tool-msg-summary__preview,
+.openclaw-chat-surface .chat-json-label {
+  color: var(--text-secondary);
+  font-family: var(--mono);
+  font-size: 11px;
+  opacity: 1;
+}
+
+.openclaw-chat-surface .chat-tools-collapse__body,
+.openclaw-chat-surface .chat-tool-msg-body {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--chat-surface-panel) 98%, transparent),
+      color-mix(in srgb, var(--chat-surface-panel) 90%, transparent)
+    );
+}
+
+.openclaw-chat-surface .chat-tool-card {
+  position: relative;
+  max-height: none;
+  margin-top: 0;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--chat-surface-panel-border) 92%, transparent);
+  border-radius: 12px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--chat-surface-panel-muted) 64%, transparent),
+      color-mix(in srgb, var(--chat-surface-panel) 100%, transparent)
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
+    0 8px 18px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+.openclaw-chat-surface .chat-tool-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--brand-primary), color-mix(in srgb, var(--brand-primary) 36%, transparent));
+  opacity: 0.9;
+}
+
+.openclaw-chat-surface .chat-tool-card:hover {
+  border-color: color-mix(in srgb, var(--brand-primary) 22%, var(--chat-surface-panel-border));
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--chat-surface-panel-muted) 78%, transparent),
+      color-mix(in srgb, var(--chat-surface-panel) 100%, transparent)
+    );
+}
+
+.openclaw-chat-surface .chat-tool-card__header {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.openclaw-chat-surface .chat-tool-card__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.openclaw-chat-surface .chat-tool-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 24%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
+  color: var(--brand-primary);
+}
+
+.openclaw-chat-surface .chat-tool-card__icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+.openclaw-chat-surface .chat-tool-card__action,
+.openclaw-chat-surface .chat-tool-card__status {
+  flex: 0 0 auto;
+  align-self: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 22px;
+}
+
+.openclaw-chat-surface .chat-tool-card__action {
+  background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
+  color: var(--brand-primary);
+  opacity: 1;
+}
+
+.openclaw-chat-surface .chat-tool-card__status {
+  background: color-mix(in srgb, #18b26b 12%, transparent);
+  color: #18b26b;
+}
+
+.openclaw-chat-surface .chat-tool-card__detail,
+.openclaw-chat-surface .chat-tool-card__status-text {
+  margin-top: 8px;
+  padding-left: 30px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.openclaw-chat-surface .chat-tool-card__preview,
+.openclaw-chat-surface .chat-tool-card__inline,
+.openclaw-chat-surface .chat-tool-card__output,
+.openclaw-chat-surface .chat-json-content {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--chat-surface-panel-border) 82%, transparent);
+  border-radius: 10px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--chat-surface-code-bg) 92%, transparent),
+      color-mix(in srgb, var(--chat-surface-panel-muted) 72%, transparent)
+    );
+  color: var(--text-primary);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.58;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.openclaw-chat-surface .chat-tool-card__preview {
+  max-height: 72px;
+}
+
+.openclaw-chat-surface .chat-tool-card__inline,
+.openclaw-chat-surface .chat-tool-card__output,
+.openclaw-chat-surface .chat-json-content {
+  max-height: 320px;
+  overflow: auto;
+}
+
+.openclaw-chat-surface .chat-json-collapse {
+  margin-top: 6px;
+}
+
+.openclaw-chat-surface .chat-json-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 18px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--brand-primary) 12%, transparent);
+  color: var(--brand-primary);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
 .openclaw-chat-surface .chat-compose,
 .openclaw-chat-surface .agent-chat__input {
   display: none !important;
@@ -1021,8 +1409,8 @@ body {
 
 .openclaw-chat-surface-shell {
   --iclaw-composer-height: 170px;
-  --iclaw-thread-bottom-gap: 96px;
-  --iclaw-thread-footer-safe-area: 56px;
+  --iclaw-thread-bottom-gap: 28px;
+  --iclaw-thread-footer-safe-area: 24px;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -1280,6 +1668,22 @@ body {
 }
 
 @media (max-width: 768px) {
+  .openclaw-chat-surface .chat-split-container.chat-split-container--open {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+  }
+
+  .openclaw-chat-surface .chat-split-container.chat-split-container--open .chat-main {
+    display: none;
+  }
+
+  .openclaw-chat-surface .chat-split-container.chat-split-container--open .chat-sidebar {
+    width: 100%;
+    min-width: 0;
+    border-left: none;
+  }
+
   .iclaw-chat-boot-mask {
     padding: 14px 14px 12px;
   }
@@ -1513,13 +1917,12 @@ body {
 }
 
 .iclaw-composer {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
+  position: relative;
   z-index: 30;
+  flex: 0 0 auto;
   width: calc(100% - 12px);
-  margin: 0 auto;
+  margin: 12px auto 0;
+  padding-bottom: 4px;
 }
 
 .iclaw-composer[data-drop-active='true'] .iclaw-composer__panel {

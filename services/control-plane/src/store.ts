@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { toCanonicalSessionKey } from '@iclaw/shared';
 
 import {config} from './config.ts';
 import {
@@ -1173,7 +1174,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     sessionKey: string,
     limit?: number | null,
   ): Promise<RunBillingSummaryRecord[]> {
-    const normalizedSessionKey = sessionKey.trim() || 'main';
+    const normalizedSessionKey = toCanonicalSessionKey(sessionKey);
     const normalizedLimit =
       typeof limit === 'number' && Number.isFinite(limit) ? Math.max(1, Math.floor(limit)) : 200;
     return Array.from(this.runGrantsById.values())
@@ -1198,7 +1199,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     const grant: RunGrantRecord = {
       id: randomUUID(),
       userId: input.userId,
-      sessionKey: input.sessionKey,
+      sessionKey: toCanonicalSessionKey(input.sessionKey),
       client: input.client,
       status: 'issued',
       nonce: input.nonce,
@@ -1271,7 +1272,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     const summary: RunBillingSummaryRecord = {
       grantId: input.grant_id,
       eventId: input.event_id,
-      sessionKey: grant?.sessionKey || 'main',
+      sessionKey: grant?.sessionKey || toCanonicalSessionKey(),
       client: grant?.client || 'desktop',
       status: 'settled',
       inputTokens: Math.max(0, input.input_tokens),

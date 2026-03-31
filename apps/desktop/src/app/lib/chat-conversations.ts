@@ -1,4 +1,5 @@
 import { readCacheJson, writeCacheJson } from './persistence/cache-store';
+import { tryCanonicalizeChatSessionKey } from './chat-session';
 
 export type ChatConversationKind =
   | 'general'
@@ -52,6 +53,11 @@ function normalizeText(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
+function normalizeSessionKey(value: unknown): string | null {
+  const text = normalizeText(value);
+  return text ? tryCanonicalizeChatSessionKey(text) : null;
+}
+
 function normalizeKind(value: unknown): ChatConversationKind {
   return value === 'general' ||
     value === 'skill' ||
@@ -75,7 +81,7 @@ function dedupeSessionKeys(sessionKeys: string[], activeSessionKey: string): str
   const normalized = Array.from(
     new Set(
       [activeSessionKey, ...sessionKeys]
-        .map((value) => normalizeText(value))
+        .map((value) => normalizeSessionKey(value))
         .filter((value): value is string => Boolean(value)),
     ),
   );
@@ -88,14 +94,14 @@ function normalizeConversationRecord(value: unknown): ChatConversationRecord | n
   }
   const raw = value as Record<string, unknown>;
   const id = normalizeText(raw.id);
-  const activeSessionKey = normalizeText(raw.activeSessionKey);
+  const activeSessionKey = normalizeSessionKey(raw.activeSessionKey);
   if (!id || !activeSessionKey) {
     return null;
   }
 
   const rawSessionKeys = Array.isArray(raw.sessionKeys) ? raw.sessionKeys : [];
   const sessionKeys = dedupeSessionKeys(
-    rawSessionKeys.map((item) => normalizeText(item)).filter((item): item is string => Boolean(item)),
+    rawSessionKeys.map((item) => normalizeSessionKey(item)).filter((item): item is string => Boolean(item)),
     activeSessionKey,
   );
 
@@ -107,8 +113,8 @@ function normalizeConversationRecord(value: unknown): ChatConversationRecord | n
       }
       const entry = item as Record<string, unknown>;
       const handoffId = normalizeText(entry.id);
-      const fromSessionKey = normalizeText(entry.fromSessionKey);
-      const toSessionKey = normalizeText(entry.toSessionKey);
+      const fromSessionKey = normalizeSessionKey(entry.fromSessionKey);
+      const toSessionKey = normalizeSessionKey(entry.toSessionKey);
       const reason = normalizeText(entry.reason);
       if (!handoffId || !fromSessionKey || !toSessionKey || !reason) {
         return null;
@@ -174,7 +180,7 @@ export function readChatConversation(conversationId: string): ChatConversationRe
 }
 
 export function findChatConversationBySessionKey(sessionKey: string): ChatConversationRecord | null {
-  const normalizedSessionKey = normalizeText(sessionKey);
+  const normalizedSessionKey = normalizeSessionKey(sessionKey);
   if (!normalizedSessionKey) {
     return null;
   }
@@ -184,7 +190,7 @@ export function findChatConversationBySessionKey(sessionKey: string): ChatConver
 }
 
 export function ensureChatConversation(input: EnsureConversationInput): ChatConversationRecord {
-  const sessionKey = normalizeText(input.sessionKey);
+  const sessionKey = normalizeSessionKey(input.sessionKey);
   if (!sessionKey) {
     throw new Error('sessionKey is required');
   }
@@ -235,8 +241,8 @@ export function ensureChatConversation(input: EnsureConversationInput): ChatConv
 
 export function linkSessionToConversation(input: LinkConversationSessionInput): ChatConversationRecord | null {
   const conversationId = normalizeText(input.conversationId);
-  const fromSessionKey = normalizeText(input.fromSessionKey);
-  const toSessionKey = normalizeText(input.toSessionKey);
+  const fromSessionKey = normalizeSessionKey(input.fromSessionKey);
+  const toSessionKey = normalizeSessionKey(input.toSessionKey);
   const reason = normalizeText(input.reason);
   if (!conversationId || !fromSessionKey || !toSessionKey || !reason) {
     return null;

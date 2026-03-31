@@ -17,7 +17,7 @@ const VARIANT_CLASS_NAMES: Record<ConversationActionButtonVariant, string> = {
 };
 
 const SIZE_CLASS_NAMES: Record<ConversationActionButtonSize, string> = {
-  sm: 'min-h-[36px] rounded-[10px] px-3 text-[13px]',
+  sm: 'min-h-[36px] rounded-[10px] px-3 text-[14px]',
   md: 'min-h-[44px] rounded-[16px] px-4 py-2.5 text-[14px]',
 };
 

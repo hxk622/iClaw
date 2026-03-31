@@ -25,8 +25,8 @@ export function EmptyStatePanel({
           className,
         )}
       >
-        <div className="text-[13px] font-medium text-[var(--text-primary)]">{title}</div>
-        <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{description}</p>
+        <div className="text-[14px] font-medium text-[var(--text-primary)]">{title}</div>
+        <p className="mt-2 text-[14px] leading-6 text-[var(--text-secondary)]">{description}</p>
         {action ? <div className="mt-4">{action}</div> : null}
       </div>
     );
@@ -47,7 +47,7 @@ export function EmptyStatePanel({
             </div>
           ) : null}
           <div className={cn('text-[22px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]', icon ? 'mt-3' : '')}>{title}</div>
-          <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{description}</p>
+          <p className="mt-2 text-[14px] leading-7 text-[var(--text-secondary)]">{description}</p>
         </div>
         {action ? <div className="flex items-center gap-3">{action}</div> : null}
       </div>
