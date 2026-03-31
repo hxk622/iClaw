@@ -197,7 +197,7 @@ const STOCK_MENU_PAGE_SIZE = 8;
 const STOCK_MENU_SCROLL_THRESHOLD = 40;
 
 const SUPPORTED_ATTACHMENT_TYPES = ['image/', 'video/', 'application/pdf'];
-const PLACEHOLDER = '输入研究问题，@专家，或选择下方财经快捷模板...';
+const DEFAULT_PLACEHOLDER = '输入研究问题，@专家，或选择下方财经快捷模板...';
 const QUICK_QUERY_OPTIONS = [
   {
     id: 'earnings',
@@ -757,6 +757,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
           metadata: {},
           config: {},
         }));
+    const composerPlaceholder = composerConfig?.placeholderText?.trim() || DEFAULT_PLACEHOLDER;
     const topBarControlMap = new Map(topBarControls.map((item) => [item.controlKey, {item, order: item.sortOrder}]));
     const visibleTopBarControlKeys = new Set(topBarControls.map((item) => item.controlKey));
     const modeOptions = (topBarControlMap.get('mode')?.item.options || []).map((option) => ({
@@ -3365,7 +3366,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
 
               {!hasContent ? (
                 <div className="iclaw-composer__placeholder" aria-hidden="true">
-                  {connected ? PLACEHOLDER : '网关未连接，暂时无法发送'}
+                  {connected ? composerPlaceholder : '网关未连接，暂时无法发送'}
                 </div>
               ) : null}
               <div

@@ -1385,6 +1385,10 @@ const DEFAULT_DESKTOP_SHELL_CONFIG = {
   authService: 'ai.iclaw.desktop',
 };
 
+const DEFAULT_INPUT_SURFACE_CONFIG = {
+  placeholderText: '输入研究问题，@专家，或选择下方财经快捷模板...',
+};
+
 function normalizeWelcomeQuickAction(value, index = 0) {
   const raw = asObject(value);
   return {
@@ -1478,6 +1482,26 @@ function buildHomeWebSurfaceConfigFromBuffer(homeWeb) {
       scrollLabel: next.scrollLabel,
       downloadTitle: next.downloadTitle,
     },
+  };
+}
+
+function normalizeInputSurfaceConfig(value) {
+  const config = asObject(value);
+  return {
+    placeholderText: String(
+      config.placeholder_text ||
+      config.placeholderText ||
+      config.composer_placeholder ||
+      config.composerPlaceholder ||
+      DEFAULT_INPUT_SURFACE_CONFIG.placeholderText,
+    ).trim() || DEFAULT_INPUT_SURFACE_CONFIG.placeholderText,
+  };
+}
+
+function buildInputSurfaceConfigFromBuffer(input) {
+  const next = normalizeInputSurfaceConfig(input);
+  return {
+    placeholder_text: next.placeholderText,
   };
 }
 
@@ -3322,6 +3346,8 @@ function buildBrandDraftBuffer(detail) {
   const headerConfig = normalizeHeaderSurfaceConfig(asObject(headerSurface.config));
   const homeWebSurface = asObject(surfaceEntries['home-web']);
   const homeWebConfig = normalizeHomeWebSurfaceConfig(asObject(homeWebSurface.config));
+  const inputSurface = asObject(surfaceEntries.input);
+  const inputConfig = normalizeInputSurfaceConfig(asObject(inputSurface.config));
   const sidebarSurface = asObject(surfaceEntries.sidebar);
   const sidebarConfig = normalizeSidebarSurfaceConfig(asObject(sidebarSurface.config));
   const desktopShellConfig = normalizeDesktopShellConfig(draftConfig);
@@ -3378,6 +3404,10 @@ function buildBrandDraftBuffer(detail) {
     header: {
       enabled: headerSurface.enabled !== false,
       ...headerConfig,
+    },
+    input: {
+      enabled: inputSurface.enabled !== false,
+      ...inputConfig,
     },
     sidebar: {
       enabled: sidebarSurface.enabled !== false,
@@ -3512,6 +3542,7 @@ function captureBrandEditorBuffer() {
   const welcomeEnabledInput = form.querySelector('[name="welcome_enabled"]');
   const homeWebEnabledInput = form.querySelector('[name="home_web_enabled"]');
   const headerEnabledInput = form.querySelector('[name="header_enabled"]');
+  const inputEnabledInput = form.querySelector('[name="input_enabled"]');
   const sidebarEnabledInput = form.querySelector('[name="sidebar_enabled"]');
   const welcomeQuickActions = Array.from({length: 4}, (_, index) => ({
     label:
@@ -3720,6 +3751,20 @@ function captureBrandEditorBuffer() {
       label: surfaceLabel('header'),
       enabled: headerEnabledInput instanceof HTMLInputElement ? headerEnabledInput.checked : existing.header?.enabled !== false,
       json: JSON.stringify(buildHeaderSurfaceConfigFromBuffer(header), null, 2),
+    });
+  }
+  const input = normalizeInputSurfaceConfig({
+    placeholder_text:
+      form.querySelector('[name="input_placeholder_text"]') instanceof HTMLTextAreaElement
+        ? form.querySelector('[name="input_placeholder_text"]').value
+        : existing.input?.placeholderText,
+  });
+  if (form.querySelector('[name="input_enabled"]') || form.querySelector('[name="input_placeholder_text"]')) {
+    surfaceMap.set('input', {
+      key: 'input',
+      label: surfaceLabel('input'),
+      enabled: inputEnabledInput instanceof HTMLInputElement ? inputEnabledInput.checked : existing.input?.enabled !== false,
+      json: JSON.stringify(buildInputSurfaceConfigFromBuffer(input), null, 2),
     });
   }
   const sidebar = normalizeSidebarSurfaceConfig({
@@ -7477,6 +7522,13 @@ function renderComposerShortcutCard(buffer, item, index, total) {
 }
 
 function renderBrandInputAssembly(buffer) {
+  const surface = getBrandSurfaceDraft(buffer, 'input');
+  let rawConfig = {};
+  try {
+    rawConfig = JSON.parse(String(surface.json || '{}'));
+  } catch {}
+  const inputConfig = normalizeInputSurfaceConfig(rawConfig);
+  const enabled = surface.enabled !== false;
   const controls = buildOrderedComposerControlList(buffer.composerControlOrder)
     .map((controlKey) => getComposerControlDefinition(controlKey))
     .filter(Boolean);
@@ -7491,9 +7543,25 @@ function renderBrandInputAssembly(buffer) {
     <section class="fig-brand-section">
       <div class="fig-section-heading">
         <h2>输入框</h2>
-        <p>第一栏维护顶部快捷选择控件，第三栏维护底部快捷方式；全部走平台目录 + OEM 绑定，不再写死在代码里。</p>
+        <p>第一栏维护顶部快捷选择控件，第二栏维护输入提示文案，第三栏维护底部快捷方式；全部走平台目录 + OEM 绑定。</p>
       </div>
       ${presetPicker}
+      <article class="fig-card fig-card--subtle">
+        <div class="fig-card__head">
+          <h3>第二栏输入区</h3>
+          <span>控制输入框 placeholder 文案，发送前的空状态提示走这里。</span>
+        </div>
+        <div class="form-grid">
+          <label class="toggle fig-toggle field field--wide">
+            <input type="checkbox" name="input_enabled"${enabled ? ' checked' : ''} />
+            <span>${visibilityStateLabel(enabled)}</span>
+          </label>
+          <label class="field field--wide">
+            <span>Placeholder</span>
+            <textarea class="field-textarea" name="input_placeholder_text" rows="3">${fieldValue(inputConfig.placeholderText)}</textarea>
+          </label>
+        </div>
+      </article>
       <div class="fig-capability-columns">
         <article class="fig-card fig-card--subtle">
           <div class="fig-card__head">

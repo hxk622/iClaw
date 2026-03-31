@@ -48,6 +48,7 @@ export type ResolvedComposerShortcutConfig = {
 };
 
 export type ResolvedInputComposerConfig = {
+  placeholderText: string;
   topBarControls: ResolvedComposerControlConfig[];
   footerShortcuts: ResolvedComposerShortcutConfig[];
 };
@@ -603,9 +604,29 @@ export function resolveInputComposerConfig(
     ? rootFooterShortcuts
     : resolveComposerShortcutConfigs(inputConfig.footer_shortcuts);
   if (!topBarControls.length && !footerShortcuts.length) {
-    return null;
+    const placeholderText = String(
+      inputConfig.placeholder_text ||
+      inputConfig.placeholderText ||
+      inputConfig.composer_placeholder ||
+      inputConfig.composerPlaceholder ||
+      '',
+    ).trim();
+    return placeholderText
+      ? {
+          placeholderText,
+          topBarControls,
+          footerShortcuts,
+        }
+      : null;
   }
   return {
+    placeholderText: String(
+      inputConfig.placeholder_text ||
+      inputConfig.placeholderText ||
+      inputConfig.composer_placeholder ||
+      inputConfig.composerPlaceholder ||
+      '',
+    ).trim(),
     topBarControls,
     footerShortcuts,
   };
