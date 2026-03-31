@@ -390,6 +390,31 @@ type PendingUsageSettlement = {
   terminalState: 'pending' | 'final' | 'aborted' | 'error';
 };
 
+type UsageSettlementAttemptDiagnostic = {
+  sequence: number;
+  runId: string;
+  sessionKey: string;
+  terminalState: PendingUsageSettlement['terminalState'];
+  matchedTerminalSessionKey: string | null;
+  matchedTerminalState: PendingUsageSettlement['terminalState'] | null;
+  baselineInputTokens: number | null;
+  baselineOutputTokens: number | null;
+  sessionInputTokens: number | null;
+  sessionOutputTokens: number | null;
+  derivedUsage: AssistantUsageSettlement | null;
+  action:
+    | 'start'
+    | 'loaded-summary'
+    | 'usage-missing'
+    | 'usage-missing-terminal-error'
+    | 'usage-missing-terminal-timeout'
+    | 'usage-missing-expired'
+    | 'reported'
+    | 'report-failed'
+    | 'report-failed-loaded-summary';
+  detail: string | null;
+};
+
 type QueuedComposerMessage = {
   id: string;
   createdAt: number;
@@ -471,12 +496,22 @@ function resolveEquivalentGatewaySessionKeys(targetSessionKey: string): Set<stri
 
   if (!normalized.includes(':')) {
     keys.add(`agent:${normalized}:main`);
+    keys.add(`agent:main:${normalized}`);
     return keys;
   }
 
   const canonicalMainMatch = normalized.match(/^agent:([^:]+):main$/);
   if (canonicalMainMatch) {
-    keys.add(canonicalMainMatch[1] ?? normalized);
+    const baseKey = canonicalMainMatch[1] ?? normalized;
+    keys.add(baseKey);
+    keys.add(`agent:main:${baseKey}`);
+  }
+
+  const mainPrefixedMatch = normalized.match(/^agent:main:(.+)$/);
+  if (mainPrefixedMatch) {
+    const baseKey = mainPrefixedMatch[1] ?? normalized;
+    keys.add(baseKey);
+    keys.add(`agent:${baseKey}:main`);
   }
 
   return keys;
@@ -511,20 +546,76 @@ function buildGatewaySessionPatchTargets(
   return targets;
 }
 
+function resolveGatewaySessionBaseKey(targetSessionKey: string): string {
+  const normalized = normalizeGatewaySessionKey(targetSessionKey);
+  const canonicalMainMatch = normalized.match(/^agent:([^:]+):main$/);
+  if (canonicalMainMatch?.[1]) {
+    return canonicalMainMatch[1];
+  }
+  const mainPrefixedMatch = normalized.match(/^agent:main:(.+)$/);
+  if (mainPrefixedMatch?.[1]) {
+    return mainPrefixedMatch[1];
+  }
+  return normalized;
+}
+
+function rankGatewaySessionEntry(targetSessionKey: string, entryKey: string, inputTokens: number, outputTokens: number): number {
+  const normalizedTarget = normalizeGatewaySessionKey(targetSessionKey);
+  const normalizedEntry = normalizeGatewaySessionKey(entryKey);
+  const baseKey = resolveGatewaySessionBaseKey(targetSessionKey);
+
+  let score = 0;
+  if (normalizedEntry === normalizedTarget) {
+    score += 40;
+  }
+  if (normalizedEntry === `agent:main:${baseKey}`) {
+    score += 30;
+  }
+  if (normalizedEntry === `agent:${baseKey}:main`) {
+    score += 20;
+  }
+  if (normalizedEntry === baseKey) {
+    score += 10;
+  }
+  score += Math.max(0, inputTokens) + Math.max(0, outputTokens);
+  return score;
+}
+
+function findPreferredGatewaySessionEntry(
+  sessionsResult: GatewaySessionsListResult | null | undefined,
+  targetSessionKey: string,
+): GatewaySessionsListResult['sessions'][number] | null {
+  const aliases = resolveEquivalentGatewaySessionKeys(targetSessionKey);
+  const candidates =
+    sessionsResult?.sessions.filter((session) =>
+      aliases.has(normalizeGatewaySessionKey(session.key)),
+    ) ?? [];
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  return candidates.sort((left, right) => {
+    const leftScore = rankGatewaySessionEntry(
+      targetSessionKey,
+      left.key,
+      Math.max(0, Number(left.inputTokens || 0)),
+      Math.max(0, Number(left.outputTokens || 0)),
+    );
+    const rightScore = rankGatewaySessionEntry(
+      targetSessionKey,
+      right.key,
+      Math.max(0, Number(right.inputTokens || 0)),
+      Math.max(0, Number(right.outputTokens || 0)),
+    );
+    return rightScore - leftScore;
+  })[0] ?? null;
+}
+
 function resolveSessionModelFromList(
   sessionsResult: GatewaySessionsListResult | null | undefined,
   targetSessionKey: string,
 ): string {
-  const aliases = resolveEquivalentGatewaySessionKeys(targetSessionKey);
-  if (aliases.size === 0) {
-    return '';
-  }
-
-  return (
-    sessionsResult?.sessions.find((session) =>
-      aliases.has(normalizeGatewaySessionKey(session.key)),
-    )?.model?.trim() ?? ''
-  );
+  return findPreferredGatewaySessionEntry(sessionsResult, targetSessionKey)?.model?.trim() ?? '';
 }
 
 function cloneComposerSendPayload(payload: ComposerSendPayload): ComposerSendPayload {
@@ -1253,6 +1344,32 @@ function buildAssistantFooterTooltip(input: {
   return `${usageDetail} · 结算结果缺失，请排查 usage 回传或结算上报链路`;
 }
 
+function buildAssistantFooterMetaFromSummary(summary: RunBillingSummaryData): AssistantFooterMeta {
+  const inputTokens = Math.max(0, summary.input_tokens || 0);
+  const outputTokens = Math.max(0, summary.output_tokens || 0);
+  const credits = Math.max(0, summary.credit_cost || 0);
+  const timestamp =
+    (typeof summary.assistant_timestamp === 'number' && Number.isFinite(summary.assistant_timestamp)
+      ? summary.assistant_timestamp
+      : Date.parse(summary.settled_at || '')) || Date.now();
+
+  return {
+    timestampLabel: formatAssistantFooterTimestamp(timestamp),
+    state: 'charged',
+    label: '实际消耗 ',
+    value: String(credits),
+    credits,
+    inputTokens,
+    outputTokens,
+    tooltip: buildAssistantFooterTooltip({
+      state: 'charged',
+      inputTokens,
+      outputTokens,
+      credits,
+    }),
+  };
+}
+
 function deriveAssistantFooterMetas(
   messages: unknown[],
   pendingSettlements: PendingUsageSettlement[],
@@ -1632,6 +1749,7 @@ function derivePendingSettlementUsage(
 
 type TerminalChatEventMatch = {
   ts: number;
+  sessionKey: string | null;
   state: 'final' | 'aborted' | 'error';
   message?: unknown;
 };
@@ -1647,6 +1765,7 @@ function findTerminalChatEventForRun(
     : Array.isArray(app.eventLog)
       ? app.eventLog
       : [];
+  let fallbackMatch: TerminalChatEventMatch | null = null;
 
   for (const entry of entries) {
     if (!entry || entry.event !== 'chat' || typeof entry.payload !== 'object' || !entry.payload) {
@@ -1656,6 +1775,19 @@ function findTerminalChatEventForRun(
     if (payload.runId !== runId) {
       continue;
     }
+    const state = payload.state;
+    if (state !== 'final' && state !== 'aborted' && state !== 'error') {
+      continue;
+    }
+    const match: TerminalChatEventMatch = {
+      ts: entry.ts,
+      sessionKey: typeof payload.sessionKey === 'string' ? payload.sessionKey : null,
+      state,
+      message: payload.message,
+    };
+    if (!fallbackMatch) {
+      fallbackMatch = match;
+    }
     if (
       typeof payload.sessionKey === 'string' &&
       payload.sessionKey &&
@@ -1663,18 +1795,10 @@ function findTerminalChatEventForRun(
     ) {
       continue;
     }
-    const state = payload.state;
-    if (state !== 'final' && state !== 'aborted' && state !== 'error') {
-      continue;
-    }
-    return {
-      ts: entry.ts,
-      state,
-      message: payload.message,
-    };
+    return match;
   }
 
-  return null;
+  return fallbackMatch;
 }
 
 function findLatestTerminalChatRunSince(
@@ -1971,11 +2095,7 @@ async function loadChatModelSnapshot(
   ]);
 
   const options = buildComposerModelOptions(mapRuntimeModelsToGatewayEntries(runtimeCatalog));
-  const aliases = resolveEquivalentGatewaySessionKeys(targetSessionKey);
-  const matchedSession =
-    sessionsResult?.sessions.find((session) =>
-      aliases.has(normalizeGatewaySessionKey(session.key)),
-    ) ?? null;
+  const matchedSession = findPreferredGatewaySessionEntry(sessionsResult, targetSessionKey);
   const sessionModel = matchedSession?.model?.trim() ?? '';
   const defaultModel = sessionsResult?.defaults?.model?.trim() ?? '';
   const resolvedSelection =
@@ -2003,12 +2123,7 @@ function findGatewaySessionEntry(
   sessionsResult: GatewaySessionsListResult | null | undefined,
   targetSessionKey: string,
 ): GatewaySessionsListResult['sessions'][number] | null {
-  const aliases = resolveEquivalentGatewaySessionKeys(targetSessionKey);
-  return (
-    sessionsResult?.sessions.find((session) =>
-      aliases.has(normalizeGatewaySessionKey(session.key)),
-    ) ?? null
-  );
+  return findPreferredGatewaySessionEntry(sessionsResult, targetSessionKey);
 }
 
 async function loadGatewaySessionTokenSnapshot(
@@ -2166,6 +2281,8 @@ export function OpenClawChatSurface({
   const artifactAutoOpenTimerRef = useRef<number | null>(null);
   const artifactAutoOpenBurstTimersRef = useRef<number[]>([]);
   const usageSettlementTimersRef = useRef<number[]>([]);
+  const usageSettlementAttemptSequenceRef = useRef(0);
+  const usageSettlementDiagnosticsRef = useRef<UsageSettlementAttemptDiagnostic[]>([]);
   const activeRecentTaskRunRef = useRef<ActiveRecentTaskRun | null>(null);
   const pendingUsageSettlementsRef = useRef<PendingUsageSettlement[]>([]);
   const queuedMessagesRef = useRef<QueuedComposerMessage[]>([]);
@@ -2437,14 +2554,6 @@ export function OpenClawChatSurface({
       setSelectedModelId(snapshot.selectedModelId);
       setResolvedModelSessionKey(snapshot.resolvedSessionKey);
       setSessionHistoryState(snapshot.hasPersistedHistory ? 'has-history' : 'empty');
-      if (
-        snapshot.sessionPressure.overloaded &&
-        isGeneralChatSessionKey(sessionKey) &&
-        overloadedGeneralSessionRef.current !== sessionKey
-      ) {
-        overloadedGeneralSessionRef.current = sessionKey;
-        onGeneralChatSessionOverloaded?.(snapshot.sessionPressure);
-      }
       return true;
     } catch (error) {
       if (modelLoadVersionRef.current === requestVersion) {
@@ -2705,30 +2814,48 @@ export function OpenClawChatSurface({
       return;
     }
 
+    const localSnapshot = readChatSessionSnapshot(appName, sessionKey, conversationId);
+    const hasImmediateSnapshot = (localSnapshot?.messages?.length ?? 0) > 0;
     previousSessionKeyRef.current = sessionKey;
-    sessionTransitionPendingRef.current = true;
+    sessionTransitionPendingRef.current = !hasImmediateSnapshot;
     sessionTransitionStartedAtRef.current = performance.now();
     clearSessionTransitionTimer();
-    setStatus((current) => ({
-      ...current,
-      connected: false,
-      lastError: null,
-      lastErrorCode: null,
-    }));
-    setRenderState({
-      hostHeight: 0,
-      hasNativeInput: false,
-      nativeInputVisible: false,
-      nativeInputHeight: 0,
-      hasThread: false,
-      threadVisible: false,
-      threadHeight: 0,
-      groupCount: 0,
-      chatMessageCount: 0,
-    });
-    setSessionTransitionVisible(true);
+    setStatus((current) =>
+      hasImmediateSnapshot
+        ? {
+            ...current,
+            lastError: null,
+            lastErrorCode: null,
+          }
+        : {
+            ...current,
+            connected: false,
+            lastError: null,
+            lastErrorCode: null,
+          },
+    );
+    if (!hasImmediateSnapshot) {
+      setRenderState({
+        hostHeight: 0,
+        hasNativeInput: false,
+        nativeInputVisible: false,
+        nativeInputHeight: 0,
+        hasThread: false,
+        threadVisible: false,
+        threadHeight: 0,
+        groupCount: 0,
+        chatMessageCount: 0,
+      });
+    }
+    if (hasImmediateSnapshot) {
+      setSessionHistoryState('has-history');
+      setInitialSurfaceRestorePending(false);
+      setSessionTransitionVisible(false);
+    } else {
+      setSessionTransitionVisible(true);
+    }
     closeSelectionMenu();
-  }, [clearSessionTransitionTimer, closeSelectionMenu, sessionKey]);
+  }, [appName, clearSessionTransitionTimer, closeSelectionMenu, conversationId, sessionKey]);
 
   useEffect(() => {
     if (pendingUsageSettlementsRef.current.length > 0) {
@@ -2775,7 +2902,11 @@ export function OpenClawChatSurface({
     if (!app) {
       return;
     }
-    const snapshot = readChatSessionSnapshot(appName, sessionKey, conversationId);
+    const snapshot = hydrateChatSnapshotForRender({
+      appName,
+      sessionKey,
+      conversationId,
+    });
     app.chatMessages = snapshot?.messages ?? [];
     persistedChatSnapshotRef.current = snapshot ? JSON.stringify(snapshot) : null;
     if ((snapshot?.messages?.length ?? 0) > 0) {
@@ -2992,7 +3123,11 @@ export function OpenClawChatSurface({
     app.sessionKey = sessionKey;
     app.tab = 'chat';
 
-    const snapshot = readChatSessionSnapshot(appName, sessionKey, conversationId);
+    const snapshot = hydrateChatSnapshotForRender({
+      appName,
+      sessionKey,
+      conversationId,
+    });
     app.chatMessages = snapshot?.messages ?? [];
     persistedChatSnapshotRef.current = snapshot ? JSON.stringify(snapshot) : null;
     if ((snapshot?.messages?.length ?? 0) > 0) {
@@ -4023,6 +4158,21 @@ export function OpenClawChatSurface({
       modelOptions: modelOptions.map((option) => option.id),
       modelsLoading,
       modelSwitching,
+      pendingSettlementCount,
+      pendingUsageSettlements: pendingUsageSettlementsRef.current.map((pending) => ({
+        runId: pending.runId,
+        grantId: pending.grantId,
+        sessionKey: pending.sessionKey,
+        startedAt: pending.startedAt,
+        expiresAt: pending.expiresAt,
+        baselineInputTokens: pending.baselineInputTokens,
+        baselineOutputTokens: pending.baselineOutputTokens,
+        attempts: pending.attempts,
+        terminalState: pending.terminalState,
+      })),
+      usageSettlementTimerCount: usageSettlementTimersRef.current.length,
+      usageSettlementAttemptSequence: usageSettlementAttemptSequenceRef.current,
+      usageSettlementDiagnostics: usageSettlementDiagnosticsRef.current,
       renderState,
       unhandledGatewayError,
       lastRpcFailure,
@@ -4041,6 +4191,7 @@ export function OpenClawChatSurface({
     modelOptions,
     modelsLoading,
     modelSwitching,
+    pendingSettlementCount,
     renderState,
     resolvedModelSessionKey,
     selectedModelId,
@@ -4099,11 +4250,47 @@ export function OpenClawChatSurface({
     let shouldRefreshBalance = false;
     let shouldRefreshFooter = false;
 
+    const pushSettlementDiagnostic = (
+      pending: PendingUsageSettlement,
+      input: {
+        terminalEvent?: TerminalChatEventMatch | null;
+        sessionTokenSnapshot?: { inputTokens: number; outputTokens: number } | null;
+        usage?: AssistantUsageSettlement | null;
+        action: UsageSettlementAttemptDiagnostic['action'];
+        detail?: string | null;
+      },
+    ) => {
+      const sequence = usageSettlementAttemptSequenceRef.current + 1;
+      usageSettlementAttemptSequenceRef.current = sequence;
+      usageSettlementDiagnosticsRef.current = [
+        {
+          sequence,
+          runId: pending.runId,
+          sessionKey: pending.sessionKey,
+          terminalState: pending.terminalState,
+          matchedTerminalSessionKey: input.terminalEvent?.sessionKey ?? null,
+          matchedTerminalState: input.terminalEvent?.state ?? null,
+          baselineInputTokens: pending.baselineInputTokens ?? null,
+          baselineOutputTokens: pending.baselineOutputTokens ?? null,
+          sessionInputTokens: input.sessionTokenSnapshot?.inputTokens ?? null,
+          sessionOutputTokens: input.sessionTokenSnapshot?.outputTokens ?? null,
+          derivedUsage: input.usage ?? null,
+          action: input.action,
+          detail: input.detail ?? null,
+        },
+        ...usageSettlementDiagnosticsRef.current,
+      ].slice(0, 16);
+    };
+
     for (const pending of pendings) {
       const terminalEvent = findTerminalChatEventForRun(app, pending.sessionKey, pending.runId);
       if (terminalEvent) {
         pending.terminalState = terminalEvent.state;
       }
+      pushSettlementDiagnostic(pending, {
+        action: 'start',
+        terminalEvent,
+      });
 
       const tryLoadBillingSummary = async (): Promise<boolean> => {
         try {
@@ -4116,6 +4303,11 @@ export function OpenClawChatSurface({
           settledAny = true;
           shouldRefreshBalance = true;
           shouldRefreshFooter = true;
+          pushSettlementDiagnostic(pending, {
+            action: 'loaded-summary',
+            terminalEvent,
+            detail: 'resolved from existing billing summary',
+          });
           return true;
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
@@ -4153,6 +4345,12 @@ export function OpenClawChatSurface({
             billingState: 'missing',
           });
           shouldRefreshFooter = true;
+          pushSettlementDiagnostic(pending, {
+            action: 'usage-missing-terminal-error',
+            terminalEvent,
+            sessionTokenSnapshot,
+            detail: 'terminal state is error and no usage could be derived',
+          });
           continue;
         }
         if (
@@ -4163,6 +4361,12 @@ export function OpenClawChatSurface({
             billingState: 'missing',
           });
           shouldRefreshFooter = true;
+          pushSettlementDiagnostic(pending, {
+            action: 'usage-missing-terminal-timeout',
+            terminalEvent,
+            sessionTokenSnapshot,
+            detail: 'terminal grace elapsed without usage',
+          });
           continue;
         }
         if (Date.now() >= pending.expiresAt) {
@@ -4171,8 +4375,20 @@ export function OpenClawChatSurface({
             billingState: 'missing',
           });
           shouldRefreshFooter = true;
+          pushSettlementDiagnostic(pending, {
+            action: 'usage-missing-expired',
+            terminalEvent,
+            sessionTokenSnapshot,
+            detail: 'usage settlement expired',
+          });
           continue;
         }
+        pushSettlementDiagnostic(pending, {
+          action: 'usage-missing',
+          terminalEvent,
+          sessionTokenSnapshot,
+          detail: 'usage could not be derived yet',
+        });
         remaining.push(pending);
         continue;
       }
@@ -4196,6 +4412,13 @@ export function OpenClawChatSurface({
         settledAny = true;
         shouldRefreshBalance = true;
         shouldRefreshFooter = true;
+        pushSettlementDiagnostic(pending, {
+          action: 'reported',
+          terminalEvent,
+          sessionTokenSnapshot,
+          usage,
+          detail: 'usage event reported successfully',
+        });
       } catch (error) {
         pending.attempts += 1;
         console.error('[desktop] failed to report usage event', {
@@ -4203,7 +4426,21 @@ export function OpenClawChatSurface({
           grantId: pending.grantId,
           error,
         });
+        pushSettlementDiagnostic(pending, {
+          action: 'report-failed',
+          terminalEvent,
+          sessionTokenSnapshot,
+          usage,
+          detail: error instanceof Error ? error.message : String(error),
+        });
         if (await tryLoadBillingSummary()) {
+          pushSettlementDiagnostic(pending, {
+            action: 'report-failed-loaded-summary',
+            terminalEvent,
+            sessionTokenSnapshot,
+            usage,
+            detail: 'report failed but billing summary was already persisted',
+          });
           continue;
         }
         if (Date.now() >= pending.expiresAt) {
@@ -4240,7 +4477,8 @@ export function OpenClawChatSurface({
   }, [finalizeRecentTaskRun, status.busy]);
 
   useEffect(() => {
-    if (status.busy || pendingSettlementCount === 0) {
+    if (pendingSettlementCount === 0) {
+      clearUsageSettlementTimers();
       return;
     }
 
@@ -4254,7 +4492,7 @@ export function OpenClawChatSurface({
     return () => {
       clearUsageSettlementTimers();
     };
-  }, [attemptPendingUsageSettlement, clearUsageSettlementTimers, pendingSettlementCount, status.busy]);
+  }, [attemptPendingUsageSettlement, clearUsageSettlementTimers, pendingSettlementCount]);
 
   useEffect(() => {
     const activeRun = activeRecentTaskRunRef.current;
@@ -5009,7 +5247,16 @@ export function OpenClawChatSurface({
       const groups = Array.from(host.querySelectorAll('.chat-group')).filter(
         (node): node is HTMLElement => node instanceof HTMLElement,
       );
+      const assistantGroupCount = groups.filter((group) => group.classList.contains('assistant')).length;
+      const domFallbackFooterMetas =
+        assistantFooterMetas.length === 0 && sessionBillingSummaries.length > 0
+          ? sessionBillingSummaries
+              .slice(0, assistantGroupCount)
+              .reverse()
+              .map((summary) => buildAssistantFooterMetaFromSummary(summary))
+          : [];
       let assistantIndex = 0;
+      let domFallbackAssistantIndex = 0;
 
       groups.forEach((group) => {
         normalizeUserGroupClass(group);
@@ -5026,7 +5273,10 @@ export function OpenClawChatSurface({
         }
 
         if (group.classList.contains('assistant')) {
-          const footerMeta = assistantFooterMetas[assistantIndex] ?? null;
+          const footerMeta =
+            assistantFooterMetas[assistantIndex] ??
+            domFallbackFooterMetas[domFallbackAssistantIndex] ??
+            null;
           const shouldShowFooter = isTerminalAssistantTurnGroup(groups, groupIndex);
           if (shouldShowFooter) {
             ensureAssistantFooter(group, footerMeta);
@@ -5034,6 +5284,7 @@ export function OpenClawChatSurface({
             clearAssistantFooter(group);
           }
           assistantIndex += 1;
+          domFallbackAssistantIndex += 1;
           return;
         }
 
