@@ -63,6 +63,14 @@ import {
   writeStoredChatSnapshot,
 } from '../lib/chat-history';
 import {
+  filterPendingUsageSettlementsForSession,
+  mergePendingUsageSettlementRecords,
+  normalizePendingUsageSettlementRecords,
+  readStoredPendingUsageSettlements,
+  writeStoredPendingUsageSettlements,
+  type PendingUsageSettlementRecord,
+} from '../lib/chat-billing';
+import {
   RichChatComposer,
   type ComposerAgentOption,
   type ComposerSkillOption,
@@ -378,18 +386,7 @@ type AssistantUsageSettlement = {
   timestamp: number;
 };
 
-type PendingUsageSettlement = {
-  runId: string;
-  grantId: string;
-  sessionKey: string;
-  startedAt: number;
-  expiresAt: number;
-  model: string | null;
-  baselineInputTokens: number | null;
-  baselineOutputTokens: number | null;
-  attempts: number;
-  terminalState: 'pending' | 'final' | 'aborted' | 'error';
-};
+type PendingUsageSettlement = PendingUsageSettlementRecord;
 
 type UsageSettlementAttemptDiagnostic = {
   sequence: number;
@@ -449,59 +446,8 @@ type ChatSessionSnapshot = {
   sessionKey: string;
   savedAt: number;
   messages: unknown[];
-  pendingUsageSettlements?: PendingUsageSettlement[];
+  pendingUsageSettlements?: unknown[];
 };
-
-function normalizePendingUsageSettlement(value: unknown): PendingUsageSettlement | null {
-  if (!value || typeof value !== 'object') {
-    return null;
-  }
-
-  const record = value as Record<string, unknown>;
-  const runId = typeof record.runId === 'string' ? record.runId.trim() : '';
-  const grantId = typeof record.grantId === 'string' ? record.grantId.trim() : '';
-  const sessionKey = typeof record.sessionKey === 'string' ? record.sessionKey.trim() : '';
-  const startedAt = typeof record.startedAt === 'number' && Number.isFinite(record.startedAt) ? record.startedAt : NaN;
-  const expiresAt = typeof record.expiresAt === 'number' && Number.isFinite(record.expiresAt) ? record.expiresAt : NaN;
-  if (!runId || !grantId || !sessionKey || !Number.isFinite(startedAt) || !Number.isFinite(expiresAt)) {
-    return null;
-  }
-
-  const terminalState =
-    record.terminalState === 'final' ||
-    record.terminalState === 'aborted' ||
-    record.terminalState === 'error'
-      ? record.terminalState
-      : 'pending';
-
-  return {
-    runId,
-    grantId,
-    sessionKey,
-    startedAt,
-    expiresAt,
-    model: typeof record.model === 'string' && record.model.trim() ? record.model.trim() : null,
-    baselineInputTokens:
-      typeof record.baselineInputTokens === 'number' && Number.isFinite(record.baselineInputTokens)
-        ? record.baselineInputTokens
-        : null,
-    baselineOutputTokens:
-      typeof record.baselineOutputTokens === 'number' && Number.isFinite(record.baselineOutputTokens)
-        ? record.baselineOutputTokens
-        : null,
-    attempts: typeof record.attempts === 'number' && Number.isFinite(record.attempts) ? Math.max(0, record.attempts) : 0,
-    terminalState,
-  };
-}
-
-function normalizePendingUsageSettlements(values: unknown): PendingUsageSettlement[] {
-  if (!Array.isArray(values)) {
-    return [];
-  }
-  return values
-    .map((value) => normalizePendingUsageSettlement(value))
-    .filter((value): value is PendingUsageSettlement => value !== null);
-}
 
 function readChatSessionSnapshot(
   appName: string,
@@ -1840,7 +1786,6 @@ function derivePendingSettlementUsage(
   messages: unknown[],
   pending: PendingUsageSettlement,
   terminalEventMessage?: unknown,
-  sessionTokenSnapshot?: { inputTokens: number; outputTokens: number } | null,
 ): AssistantUsageSettlement | null {
   const latestAssistantUsage =
     // Embedded webchat does not always retain terminal chat events, but the final
@@ -1865,29 +1810,7 @@ function derivePendingSettlementUsage(
   if (fallbackUsage) {
     return fallbackUsage;
   }
-
-  if (!sessionTokenSnapshot) {
-    return null;
-  }
-
-  const baselineInputTokens = pending.baselineInputTokens ?? null;
-  const baselineOutputTokens = pending.baselineOutputTokens ?? null;
-  if (baselineInputTokens == null || baselineOutputTokens == null) {
-    return null;
-  }
-
-  const inputTokens = Math.max(0, sessionTokenSnapshot.inputTokens - baselineInputTokens);
-  const outputTokens = Math.max(0, sessionTokenSnapshot.outputTokens - baselineOutputTokens);
-  if (inputTokens <= 0 && outputTokens <= 0) {
-    return null;
-  }
-
-  return {
-    inputTokens,
-    outputTokens,
-    model: pending.model,
-    timestamp: pending.startedAt,
-  };
+  return null;
 }
 
 type TerminalChatEventMatch = {
@@ -2065,7 +1988,6 @@ async function sendAuthorizedChatMessage(params: {
     await request('chat.send', {
       sessionKey,
       message,
-      deliver: false,
       idempotencyKey: runId,
       attachments: apiAttachments.length > 0 ? apiAttachments : undefined,
     });
@@ -2442,6 +2364,7 @@ export function OpenClawChatSurface({
   const usageSettlementAttemptSequenceRef = useRef(0);
   const usageSettlementDiagnosticsRef = useRef<UsageSettlementAttemptDiagnostic[]>([]);
   const activeRecentTaskRunRef = useRef<ActiveRecentTaskRun | null>(null);
+  const storedPendingUsageSettlementsRef = useRef<PendingUsageSettlement[]>([]);
   const pendingUsageSettlementsRef = useRef<PendingUsageSettlement[]>([]);
   const queuedMessagesRef = useRef<QueuedComposerMessage[]>([]);
   const queueDispatchInFlightRef = useRef<string | null>(null);
@@ -2485,6 +2408,7 @@ export function OpenClawChatSurface({
   const [composerDraft, setComposerDraft] = useState<ComposerDraftPayload | null>(null);
   const [assistantFooterVersion, setAssistantFooterVersion] = useState(0);
   const [sessionBillingSummaries, setSessionBillingSummaries] = useState<RunBillingSummaryData[]>([]);
+  const [globalPendingSettlementCount, setGlobalPendingSettlementCount] = useState(0);
   const [pendingSettlementCount, setPendingSettlementCount] = useState(0);
   const [queuedMessages, setQueuedMessages] = useState<QueuedComposerMessage[]>([]);
   const [creditEstimate, setCreditEstimate] = useState<ComposerCreditEstimateState>({
@@ -2601,7 +2525,11 @@ export function OpenClawChatSurface({
             sessionKey,
             savedAt: Date.now(),
             messages,
-            pendingUsageSettlements: pendingUsageSettlementsRef.current,
+            pendingUsageSettlements: filterPendingUsageSettlementsForSession(
+              storedPendingUsageSettlementsRef.current,
+              sessionKey,
+              conversationId,
+            ),
           }
         : null;
     const serialized = snapshot ? JSON.stringify(snapshot) : null;
@@ -2614,11 +2542,16 @@ export function OpenClawChatSurface({
 
   const replacePendingUsageSettlements = useCallback(
     (next: PendingUsageSettlement[]) => {
-      pendingUsageSettlementsRef.current = next;
-      setPendingSettlementCount(next.length);
+      const normalizedNext = mergePendingUsageSettlementRecords([], next);
+      storedPendingUsageSettlementsRef.current = normalizedNext;
+      writeStoredPendingUsageSettlements(appName, normalizedNext);
+      const activeSessionPendings = filterPendingUsageSettlementsForSession(normalizedNext, sessionKey, conversationId);
+      pendingUsageSettlementsRef.current = activeSessionPendings;
+      setGlobalPendingSettlementCount(normalizedNext.length);
+      setPendingSettlementCount(activeSessionPendings.length);
       persistChatSessionSnapshot();
     },
-    [persistChatSessionSnapshot],
+    [appName, conversationId, persistChatSessionSnapshot, sessionKey],
   );
 
   const mergeSessionBillingSummary = useCallback((summary: RunBillingSummaryData) => {
@@ -3070,7 +3003,11 @@ export function OpenClawChatSurface({
       lastOpenedToken: null,
     };
     activeRecentTaskRunRef.current = null;
-    pendingUsageSettlementsRef.current = [];
+    pendingUsageSettlementsRef.current = filterPendingUsageSettlementsForSession(
+      storedPendingUsageSettlementsRef.current,
+      sessionKey,
+      conversationId,
+    );
     setPendingSettlementCount(0);
     clearArtifactAutoOpenTimers();
     clearUsageSettlementTimers();
@@ -3093,7 +3030,7 @@ export function OpenClawChatSurface({
       estimatedOutputTokens: null,
     });
     persistedChatSnapshotRef.current = null;
-  }, [clearArtifactAutoOpenTimers, clearAutoRecoveryTimer, clearUsageSettlementTimers, sessionKey]);
+  }, [clearArtifactAutoOpenTimers, clearAutoRecoveryTimer, clearUsageSettlementTimers, conversationId, sessionKey]);
 
   useEffect(() => {
     const app = appRef.current;
@@ -3106,7 +3043,18 @@ export function OpenClawChatSurface({
       conversationId,
     });
     app.chatMessages = snapshot?.messages ?? [];
-    pendingUsageSettlementsRef.current = normalizePendingUsageSettlements(snapshot?.pendingUsageSettlements);
+    const mergedStoredSettlements = mergePendingUsageSettlementRecords(
+      readStoredPendingUsageSettlements(appName),
+      normalizePendingUsageSettlementRecords(snapshot?.pendingUsageSettlements),
+    );
+    storedPendingUsageSettlementsRef.current = mergedStoredSettlements;
+    writeStoredPendingUsageSettlements(appName, mergedStoredSettlements);
+    pendingUsageSettlementsRef.current = filterPendingUsageSettlementsForSession(
+      mergedStoredSettlements,
+      sessionKey,
+      conversationId,
+    );
+    setGlobalPendingSettlementCount(mergedStoredSettlements.length);
     setPendingSettlementCount(pendingUsageSettlementsRef.current.length);
     persistedChatSnapshotRef.current = snapshot ? JSON.stringify(snapshot) : null;
     if ((snapshot?.messages?.length ?? 0) > 0) {
@@ -3305,11 +3253,11 @@ export function OpenClawChatSurface({
     clearOpenClawEmbeddedState(gatewayUrl);
 
     const app = document.createElement('openclaw-app') as OpenClawAppElement;
-    const settings = buildSettings({ gatewayUrl, gatewayToken, sessionKey });
+    const settings = buildSettings({ gatewayUrl, gatewayToken, sessionKey: effectiveGatewaySessionKey });
 
     app.applySettings(settings);
     app.password = gatewayPassword?.trim() ?? '';
-    app.sessionKey = sessionKey;
+    app.sessionKey = effectiveGatewaySessionKey;
     app.tab = 'chat';
 
     const snapshot = hydrateChatSnapshotForRender({
@@ -3341,17 +3289,18 @@ export function OpenClawChatSurface({
       return;
     }
 
-    const settings = buildSettings({ gatewayUrl, gatewayToken, sessionKey });
+    const runtimeSessionKey = effectiveGatewaySessionKey;
+    const settings = buildSettings({ gatewayUrl, gatewayToken, sessionKey: runtimeSessionKey });
     app.applySettings(settings);
     app.password = gatewayPassword?.trim() ?? '';
-    app.sessionKey = sessionKey;
+    app.sessionKey = runtimeSessionKey;
     app.tab = 'chat';
 
     const reconnectKey = JSON.stringify({
       gatewayUrl,
       gatewayToken: gatewayToken?.trim() ?? '',
       gatewayPassword: gatewayPassword?.trim() ?? '',
-      sessionKey,
+      sessionKey: runtimeSessionKey,
     });
     if (reconnectKeyRef.current === null) {
       reconnectKeyRef.current = reconnectKey;
@@ -3362,7 +3311,7 @@ export function OpenClawChatSurface({
       initialScrollScheduledRef.current = false;
       app.connect();
     }
-  }, [gatewayPassword, gatewayToken, gatewayUrl, sessionKey]);
+  }, [effectiveGatewaySessionKey, gatewayPassword, gatewayToken, gatewayUrl]);
 
   useEffect(() => {
     const app = appRef.current;
@@ -3848,7 +3797,7 @@ export function OpenClawChatSurface({
       }
 
       ensureWrappedClientRequest(app);
-      const reconciledBusyState = reconcileGatewayChatBusyState(app, sessionKey);
+      const reconciledBusyState = reconcileGatewayChatBusyState(app, effectiveGatewaySessionKey);
 
       const nextStatus: ChatSurfaceStatus = {
         busy: reconciledBusyState.busy,
@@ -3942,7 +3891,7 @@ export function OpenClawChatSurface({
       window.clearInterval(timer);
       clearConnectionLossTimer();
     };
-  }, [clearConnectionLossTimer, ensureWrappedClientRequest, sessionKey]);
+  }, [clearConnectionLossTimer, effectiveGatewaySessionKey, ensureWrappedClientRequest]);
 
   useEffect(() => {
     const app = appRef.current;
@@ -4345,6 +4294,7 @@ export function OpenClawChatSurface({
       lastError: status.lastError,
       lastErrorCode: status.lastErrorCode,
       selectedModelId,
+      effectiveGatewaySessionKey,
       resolvedModelSessionKey,
       modelOptions: modelOptions.map((option) => option.id),
       modelsLoading,
@@ -4386,6 +4336,7 @@ export function OpenClawChatSurface({
     renderState,
     resolvedModelSessionKey,
     selectedModelId,
+    effectiveGatewaySessionKey,
     shellAuthenticated,
     status.connected,
     status.lastError,
@@ -4431,8 +4382,8 @@ export function OpenClawChatSurface({
 
   const attemptPendingUsageSettlement = useCallback(async (): Promise<boolean> => {
     const app = appRef.current;
-    const pendings = pendingUsageSettlementsRef.current;
-    if (pendings.length === 0 || !app || !creditClient || !creditToken) {
+    const pendings = storedPendingUsageSettlementsRef.current;
+    if (pendings.length === 0 || !creditClient || !creditToken) {
       return false;
     }
 
@@ -4445,7 +4396,6 @@ export function OpenClawChatSurface({
       pending: PendingUsageSettlement,
       input: {
         terminalEvent?: TerminalChatEventMatch | null;
-        sessionTokenSnapshot?: { inputTokens: number; outputTokens: number } | null;
         usage?: AssistantUsageSettlement | null;
         action: UsageSettlementAttemptDiagnostic['action'];
         detail?: string | null;
@@ -4463,8 +4413,8 @@ export function OpenClawChatSurface({
           matchedTerminalState: input.terminalEvent?.state ?? null,
           baselineInputTokens: pending.baselineInputTokens ?? null,
           baselineOutputTokens: pending.baselineOutputTokens ?? null,
-          sessionInputTokens: input.sessionTokenSnapshot?.inputTokens ?? null,
-          sessionOutputTokens: input.sessionTokenSnapshot?.outputTokens ?? null,
+          sessionInputTokens: null,
+          sessionOutputTokens: null,
           derivedUsage: input.usage ?? null,
           action: input.action,
           detail: input.detail ?? null,
@@ -4474,7 +4424,16 @@ export function OpenClawChatSurface({
     };
 
     for (const pending of pendings) {
-      const terminalEvent = findTerminalChatEventForRun(app, pending.sessionKey, pending.runId);
+      const isActivePending =
+        pending.sessionKey === sessionKey &&
+        (!pending.conversationId || !conversationId || pending.conversationId === conversationId);
+      const sessionSnapshot = !isActivePending
+        ? readChatSessionSnapshot(appName, pending.sessionKey, pending.conversationId)
+        : null;
+      const sourceMessages =
+        (isActivePending ? (Array.isArray(app?.chatMessages) ? app.chatMessages : []) : sessionSnapshot?.messages) ?? [];
+      const terminalEvent =
+        isActivePending && app ? findTerminalChatEventForRun(app, pending.sessionKey, pending.runId) : null;
       if (terminalEvent) {
         pending.terminalState = terminalEvent.state;
       }
@@ -4486,14 +4445,16 @@ export function OpenClawChatSurface({
       const tryLoadBillingSummary = async (): Promise<boolean> => {
         try {
           const billingSummary = await creditClient.getRunBillingSummary(creditToken, pending.grantId);
-          annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
-            billingSummary,
-            billingState: 'charged',
-          });
-          mergeSessionBillingSummary(billingSummary);
+          if (isActivePending && app) {
+            annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
+              billingSummary,
+              billingState: 'charged',
+            });
+            mergeSessionBillingSummary(billingSummary);
+          }
           settledAny = true;
           shouldRefreshBalance = true;
-          shouldRefreshFooter = true;
+          shouldRefreshFooter = shouldRefreshFooter || isActivePending;
           pushSettlementDiagnostic(pending, {
             action: 'loaded-summary',
             terminalEvent,
@@ -4520,26 +4481,21 @@ export function OpenClawChatSurface({
         }
       }
 
-      const sessionTokenSnapshot = await loadGatewaySessionTokenSnapshot(app, pending.sessionKey);
-      const usage = derivePendingSettlementUsage(
-        app.chatMessages,
-        pending,
-        terminalEvent?.message,
-        sessionTokenSnapshot,
-      );
+      const usage = derivePendingSettlementUsage(sourceMessages, pending, terminalEvent?.message);
 
       if (!usage) {
         pending.attempts += 1;
         if (pending.terminalState === 'error') {
           console.warn('[desktop] skip credit settlement because run ended with error', pending);
-          annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
-            billingState: 'missing',
-          });
-          shouldRefreshFooter = true;
+          if (isActivePending && app) {
+            annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
+              billingState: 'missing',
+            });
+            shouldRefreshFooter = true;
+          }
           pushSettlementDiagnostic(pending, {
             action: 'usage-missing-terminal-error',
             terminalEvent,
-            sessionTokenSnapshot,
             detail: 'terminal state is error and no usage could be derived',
           });
           continue;
@@ -4548,28 +4504,30 @@ export function OpenClawChatSurface({
           pending.terminalState !== 'pending' &&
           Date.now() - pending.startedAt >= USAGE_SETTLEMENT_TERMINAL_GRACE_MS
         ) {
-          annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
-            billingState: 'missing',
-          });
-          shouldRefreshFooter = true;
+          if (isActivePending && app) {
+            annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
+              billingState: 'missing',
+            });
+            shouldRefreshFooter = true;
+          }
           pushSettlementDiagnostic(pending, {
             action: 'usage-missing-terminal-timeout',
             terminalEvent,
-            sessionTokenSnapshot,
             detail: 'terminal grace elapsed without usage',
           });
           continue;
         }
         if (Date.now() >= pending.expiresAt) {
           console.warn('[desktop] mark billing as missing because assistant usage was not found before expiry', pending);
-          annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
-            billingState: 'missing',
-          });
-          shouldRefreshFooter = true;
+          if (isActivePending && app) {
+            annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
+              billingState: 'missing',
+            });
+            shouldRefreshFooter = true;
+          }
           pushSettlementDiagnostic(pending, {
             action: 'usage-missing-expired',
             terminalEvent,
-            sessionTokenSnapshot,
             detail: 'usage settlement expired',
           });
           continue;
@@ -4577,7 +4535,6 @@ export function OpenClawChatSurface({
         pushSettlementDiagnostic(pending, {
           action: 'usage-missing',
           terminalEvent,
-          sessionTokenSnapshot,
           detail: 'usage could not be derived yet',
         });
         remaining.push(pending);
@@ -4595,18 +4552,19 @@ export function OpenClawChatSurface({
           appName,
           assistantTimestamp: usage.timestamp,
         });
-        annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
-          billingSummary: result.billing_summary,
-          billingState: 'charged',
-        });
-        mergeSessionBillingSummary(result.billing_summary);
+        if (isActivePending && app) {
+          annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
+            billingSummary: result.billing_summary,
+            billingState: 'charged',
+          });
+          mergeSessionBillingSummary(result.billing_summary);
+        }
         settledAny = true;
         shouldRefreshBalance = true;
-        shouldRefreshFooter = true;
+        shouldRefreshFooter = shouldRefreshFooter || isActivePending;
         pushSettlementDiagnostic(pending, {
           action: 'reported',
           terminalEvent,
-          sessionTokenSnapshot,
           usage,
           detail: 'usage event reported successfully',
         });
@@ -4620,7 +4578,6 @@ export function OpenClawChatSurface({
         pushSettlementDiagnostic(pending, {
           action: 'report-failed',
           terminalEvent,
-          sessionTokenSnapshot,
           usage,
           detail: error instanceof Error ? error.message : String(error),
         });
@@ -4628,17 +4585,18 @@ export function OpenClawChatSurface({
           pushSettlementDiagnostic(pending, {
             action: 'report-failed-loaded-summary',
             terminalEvent,
-            sessionTokenSnapshot,
             usage,
             detail: 'report failed but billing summary was already persisted',
           });
           continue;
         }
         if (Date.now() >= pending.expiresAt) {
-          annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
-            billingState: 'missing',
-          });
-          shouldRefreshFooter = true;
+          if (isActivePending && app) {
+            annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
+              billingState: 'missing',
+            });
+            shouldRefreshFooter = true;
+          }
           continue;
         }
         remaining.push(pending);
@@ -4664,6 +4622,8 @@ export function OpenClawChatSurface({
     mergeSessionBillingSummary,
     onCreditBalanceRefresh,
     replacePendingUsageSettlements,
+    conversationId,
+    sessionKey,
   ]);
 
   useEffect(() => {
@@ -4706,7 +4666,7 @@ export function OpenClawChatSurface({
   }, [assistantFooterVersion, pendingSettlementCount, status.busy]);
 
   useEffect(() => {
-    if (pendingSettlementCount === 0) {
+    if (globalPendingSettlementCount === 0) {
       clearUsageSettlementTimers();
       return;
     }
@@ -4721,7 +4681,7 @@ export function OpenClawChatSurface({
     return () => {
       clearUsageSettlementTimers();
     };
-  }, [attemptPendingUsageSettlement, clearUsageSettlementTimers, pendingSettlementCount]);
+  }, [attemptPendingUsageSettlement, clearUsageSettlementTimers, globalPendingSettlementCount]);
 
   useEffect(() => {
     const activeRun = activeRecentTaskRunRef.current;
@@ -4878,6 +4838,7 @@ export function OpenClawChatSurface({
 
       runId = createDesktopRunId();
       const startedAt = Date.now();
+      const runtimeSessionKey = effectiveGatewaySessionKey;
       stageOutgoingChatMessage({
         app,
         prompt: normalizedPrompt,
@@ -4888,11 +4849,11 @@ export function OpenClawChatSurface({
       persistChatSessionSnapshot();
       app.scrollToBottom();
 
-      const [baselineSessionTokens, runGrant] = await Promise.all([
-        loadGatewaySessionTokenSnapshot(app, sessionKey),
+      const runGrant = await Promise.all([
         creditClient.authorizeRun({
           token: creditToken,
-          sessionKey,
+          eventId: runId,
+          sessionKey: runtimeSessionKey,
           client: 'desktop',
           message: normalizedPrompt,
           historyMessages: estimateHistoryMessagesFromGroups(renderState.groupCount),
@@ -4905,20 +4866,21 @@ export function OpenClawChatSurface({
           appName,
         }),
         ensureGatewaySessionPrepared(),
-      ]).then(([baseline, grant]) => [baseline, grant] as const);
+      ]).then(([grant]) => grant);
       setCreditBlockNotice(null);
 
       replacePendingUsageSettlements([
-        ...pendingUsageSettlementsRef.current,
+        ...storedPendingUsageSettlementsRef.current.filter((pending) => pending.runId !== runId),
         {
           runId,
           grantId: runGrant.grant_id,
-          sessionKey,
+          sessionKey: runtimeSessionKey,
+          conversationId,
           startedAt,
           expiresAt: startedAt + USAGE_SETTLEMENT_MAX_WAIT_MS,
           model: selectedModelId,
-          baselineInputTokens: baselineSessionTokens?.inputTokens ?? null,
-          baselineOutputTokens: baselineSessionTokens?.outputTokens ?? null,
+          baselineInputTokens: null,
+          baselineOutputTokens: null,
           attempts: 0,
           terminalState: 'pending',
         },
@@ -4927,7 +4889,7 @@ export function OpenClawChatSurface({
       handoffStarted = true;
       await sendAuthorizedChatMessage({
         app,
-        sessionKey,
+        sessionKey: runtimeSessionKey,
         prompt: normalizedPrompt,
         imageAttachments: payload.imageAttachments,
         runId,
@@ -4956,14 +4918,14 @@ export function OpenClawChatSurface({
       }
       if (runId) {
         replacePendingUsageSettlements(
-          pendingUsageSettlementsRef.current.filter((pending) => pending.runId !== runId),
+          storedPendingUsageSettlementsRef.current.filter((pending) => pending.runId !== runId),
         );
       }
       if (!handoffStarted) {
         markOutgoingChatFailed({ app, detail, code });
       }
       persistChatSessionSnapshot();
-      if (pendingUsageSettlementsRef.current.length === 0) {
+      if (storedPendingUsageSettlementsRef.current.length === 0) {
         clearUsageSettlementTimers();
       }
       markRecentTaskFailed({
@@ -5013,7 +4975,7 @@ export function OpenClawChatSurface({
     }
 
     const app = appRef.current;
-    const gatewayBusy = app ? reconcileGatewayChatBusyState(app, sessionKey).busy : false;
+    const gatewayBusy = app ? reconcileGatewayChatBusyState(app, effectiveGatewaySessionKey).busy : false;
     if (effectiveSendBlockedReason || !status.connected || status.busy || gatewayBusy) {
       return;
     }
@@ -5036,7 +4998,7 @@ export function OpenClawChatSurface({
     if (!accepted) {
       setQueuedMessages((current) => (current.some((item) => item.id === next.id) ? current : [next, ...current]));
     }
-  }, [effectiveSendBlockedReason, sendQueuedOrImmediateMessage, sessionKey, status.busy, status.connected]);
+  }, [effectiveGatewaySessionKey, effectiveSendBlockedReason, sendQueuedOrImmediateMessage, status.busy, status.connected]);
 
   useEffect(() => {
     if (queuedMessages.length === 0) {
@@ -5047,13 +5009,13 @@ export function OpenClawChatSurface({
 
   const handleSend = useCallback(async (payload: ComposerSendPayload): Promise<boolean> => {
     const app = appRef.current;
-    const gatewayBusy = app ? reconcileGatewayChatBusyState(app, sessionKey).busy : false;
+    const gatewayBusy = app ? reconcileGatewayChatBusyState(app, effectiveGatewaySessionKey).busy : false;
     if (!effectiveSendBlockedReason && (status.busy || gatewayBusy)) {
       enqueueQueuedMessage(payload);
       return true;
     }
     return sendQueuedOrImmediateMessage(payload);
-  }, [effectiveSendBlockedReason, enqueueQueuedMessage, sendQueuedOrImmediateMessage, sessionKey, status.busy]);
+  }, [effectiveGatewaySessionKey, effectiveSendBlockedReason, enqueueQueuedMessage, sendQueuedOrImmediateMessage, status.busy]);
 
   const handleAbort = useCallback(async () => {
     await appRef.current?.handleAbortChat();
@@ -5771,7 +5733,7 @@ export function OpenClawChatSurface({
             className="openclaw-chat-surface-shell h-full flex-1 overflow-hidden"
             data-session-transitioning={shellTransitioning ? 'true' : 'false'}
           >
-            <div ref={hostRef} className="openclaw-chat-surface h-full min-h-0 flex-1 overflow-hidden" />
+            <div ref={hostRef} className="openclaw-chat-surface min-h-0 flex-1 overflow-hidden" />
 
             {showWelcomePage ? (
               <K2CWelcomePage

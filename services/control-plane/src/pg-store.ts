@@ -2711,6 +2711,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
   async createRunGrant(input: {
     userId: string;
     sessionKey: string;
+    eventId?: string | null;
     client: string;
     nonce: string;
     maxInputTokens: number;
@@ -2747,6 +2748,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         input.expiresAt,
         JSON.stringify({
           session_key: input.sessionKey,
+          event_id: input.eventId || null,
           client: input.client,
           signature: input.signature,
         }),

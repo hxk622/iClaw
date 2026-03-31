@@ -1006,6 +1006,7 @@ export type LoginInput = {
 };
 
 export type RunAuthorizeInput = {
+  event_id?: string;
   session_key?: string;
   client?: string;
   estimated_input_tokens?: number;

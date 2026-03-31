@@ -3279,6 +3279,7 @@ export class ControlPlaneService {
 
   async authorizeRun(accessToken: string, input: RunAuthorizeInput): Promise<RunGrantView> {
     const user = await this.getUserForAccessToken(accessToken);
+    const eventId = (input.event_id || '').trim() || null;
     const sessionKey = (input.session_key || 'main').trim() || 'main';
     const client = (input.client || 'desktop').trim() || 'desktop';
     const message = (input.message || '').trim();
@@ -3334,6 +3335,7 @@ export class ControlPlaneService {
     const grant = await this.store.createRunGrant({
       userId: user.id,
       sessionKey,
+      eventId,
       client,
       nonce,
       maxInputTokens,

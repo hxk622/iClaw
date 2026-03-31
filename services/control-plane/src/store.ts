@@ -184,6 +184,7 @@ export interface ControlPlaneStore {
   createRunGrant(input: {
     userId: string;
     sessionKey: string;
+    eventId?: string | null;
     client: string;
     nonce: string;
     maxInputTokens: number;
@@ -1185,6 +1186,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   async createRunGrant(input: {
     userId: string;
     sessionKey: string;
+    eventId?: string | null;
     client: string;
     nonce: string;
     maxInputTokens: number;

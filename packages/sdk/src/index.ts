@@ -96,6 +96,7 @@ interface ChatHistoryInput {
 
 interface AuthorizeRunInput {
   token: string;
+  eventId?: string;
   sessionKey?: string;
   client?: string;
   estimatedInputTokens?: number;
@@ -1302,6 +1303,7 @@ export class IClawClient {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
+        event_id: input.eventId,
         session_key: input.sessionKey || 'main',
         client: input.client || 'desktop',
         estimated_input_tokens: input.estimatedInputTokens || 0,
