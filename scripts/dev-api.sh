@@ -284,15 +284,46 @@ start_openclaw_detached() {
 
   echo "[api-dev] 启动后端服务 :$API_PORT"
   echo "[api-dev] gateway tracing: verbose=$OPENCLAW_VERBOSE ws-log=$OPENCLAW_WS_LOG_STYLE raw-stream=$OPENCLAW_RAW_STREAM"
-  PATH="$ROOT_DIR/services/openclaw/bin:$OPENCLAW_RUNTIME_NODE_DIR${PATH:+:$PATH}" \
-  OPENCLAW_LOG_DIR="$LOG_DIR" \
-  OPENCLAW_GATEWAY_TOKEN="$GATEWAY_TOKEN" \
-  ANTHROPIC_API_KEY="$RUNTIME_ANTHROPIC_API_KEY" \
-  ICLAW_OPENCLAW_CLI_PATH="$OPENCLAW_CLI_BIN" \
-  NODE_EXTRA_CA_CERTS="$EXTRA_CA_CERTS_PATH" \
-  PORT="$API_PORT" \
-  nohup "$OPENCLAW_BIN" "${openclaw_args[@]}" >"$LOG_FILE" 2>&1 &
-  local pid=$!
+  local pid
+  pid="$(
+    PATH="$ROOT_DIR/services/openclaw/bin:$OPENCLAW_RUNTIME_NODE_DIR${PATH:+:$PATH}" \
+    OPENCLAW_LOG_DIR="$LOG_DIR" \
+    OPENCLAW_GATEWAY_TOKEN="$GATEWAY_TOKEN" \
+    ANTHROPIC_API_KEY="$RUNTIME_ANTHROPIC_API_KEY" \
+    ICLAW_OPENCLAW_CLI_PATH="$OPENCLAW_CLI_BIN" \
+    NODE_EXTRA_CA_CERTS="$EXTRA_CA_CERTS_PATH" \
+    PORT="$API_PORT" \
+    OPENCLAW_BIN_PATH="$OPENCLAW_BIN" \
+    OPENCLAW_LOG_FILE="$LOG_FILE" \
+    OPENCLAW_ARGS_JSON="$(printf '%s\n' "${openclaw_args[@]}" | node -e 'const fs=require("fs"); const args=fs.readFileSync(0, "utf8").split(/\n/).filter(Boolean); process.stdout.write(JSON.stringify(args));')" \
+    node <<'EOF'
+const fs = require('fs');
+const { spawn } = require('child_process');
+
+const cmd = process.env.OPENCLAW_BIN_PATH;
+const logFile = process.env.OPENCLAW_LOG_FILE;
+const args = JSON.parse(process.env.OPENCLAW_ARGS_JSON || '[]');
+
+if (!cmd || !logFile) {
+  process.stderr.write('[api-dev] detached spawn missing command or log path\n');
+  process.exit(1);
+}
+
+const out = fs.openSync(logFile, 'a');
+const child = spawn(cmd, args, {
+  detached: true,
+  stdio: ['ignore', out, out],
+  env: process.env,
+});
+
+child.unref();
+process.stdout.write(String(child.pid));
+EOF
+  )"
+  if [[ -z "$pid" ]]; then
+    echo "[api-dev] detached spawn failed: empty pid" >&2
+    return 1
+  fi
 
   wait_for_health "$pid"
 
