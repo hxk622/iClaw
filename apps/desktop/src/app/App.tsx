@@ -58,6 +58,15 @@ import {
 } from './lib/iclaw-settings';
 import { readRecentTasks } from './lib/recent-tasks';
 import {
+  createGeneralChatSessionKey,
+  createSuccessorGeneralChatSessionKey,
+  CRON_SYSTEM_SESSION_KEY,
+  isGeneralChatSessionKey,
+  resolveInitialGeneralChatSessionKey,
+  writePersistedActiveGeneralChatSessionKey,
+  type ChatSessionPressureSnapshot,
+} from './lib/chat-session';
+import {
   normalizeDesktopUpdateEnforcementState,
   readSkippedDesktopUpdateVersion,
   resolveDesktopUpdateGateState,
@@ -67,6 +76,7 @@ import {
   writeSkippedDesktopUpdateVersion,
 } from './lib/desktop-updates';
 import { syncManagedSkills } from './lib/skill-store';
+import { readCacheJson, writeCacheJson } from './lib/persistence/cache-store';
 import {
   checkDesktopUpdate,
   downloadAndInstallDesktopUpdate,
@@ -138,7 +148,6 @@ const DISABLE_GATEWAY_DEVICE_IDENTITY =
   (typeof window !== 'undefined' &&
     isLoopbackHostname(window.location.hostname) &&
     isLoopbackUrl(API_BASE_URL));
-const CHAT_SESSION_KEY = 'main';
 const IM_BOT_TEST_SESSION_KEY = 'im-bots-test';
 const AUTH_BOOTSTRAP_TIMEOUT_MS = 10_000;
 const SIDECAR_BOOT_HEALTHCHECK_ATTEMPTS = 60;
@@ -148,17 +157,109 @@ const DESKTOP_RELEASE_CHANNEL: 'dev' | 'prod' =
   String(import.meta.env.VITE_BUILD_CHANNEL || '').trim().toLowerCase() === 'dev' ? 'dev' : 'prod';
 const DISPLAY_DESKTOP_APP_VERSION = DESKTOP_APP_VERSION.split('+', 1)[0] || DESKTOP_APP_VERSION;
 const DESKTOP_UPDATE_REVALIDATE_TTL_MS = 15 * 60 * 1000;
-const DEFAULT_CHAT_ROUTE = {
-  sessionKey: CHAT_SESSION_KEY,
-  initialPrompt: null as string | null,
-  initialPromptKey: null as string | null,
-  initialAgentSlug: null as string | null,
-  initialSkillSlug: null as string | null,
-  initialStockContext: null as ComposerStockContext | null,
-  focusTaskId: null as string | null,
-  focusTaskPrompt: null as string | null,
+const ACTIVE_CHAT_ROUTE_STORAGE_KEY = 'iclaw.desktop.active-chat-route.v1';
+
+type ActiveChatRoute = {
+  sessionKey: string;
+  initialPrompt: string | null;
+  initialPromptKey: string | null;
+  initialAgentSlug: string | null;
+  initialSkillSlug: string | null;
+  initialStockContext: ComposerStockContext | null;
+  focusTaskId: string | null;
+  focusTaskPrompt: string | null;
 };
-type ActiveChatRoute = typeof DEFAULT_CHAT_ROUTE;
+
+type PersistedChatRouteSnapshot = {
+  sessionKey?: unknown;
+  initialPrompt?: unknown;
+  initialPromptKey?: unknown;
+  initialAgentSlug?: unknown;
+  initialSkillSlug?: unknown;
+  initialStockContext?: unknown;
+  focusTaskId?: unknown;
+  focusTaskPrompt?: unknown;
+};
+
+function normalizeOptionalText(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function normalizePersistedStockContext(value: unknown): ComposerStockContext | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  const raw = value as Record<string, unknown>;
+  const id = normalizeOptionalText(raw.id);
+  const symbol = normalizeOptionalText(raw.symbol);
+  if (!id || !symbol) {
+    return null;
+  }
+  return {
+    id,
+    symbol,
+    companyName: normalizeOptionalText(raw.companyName),
+    exchange: normalizeOptionalText(raw.exchange),
+    board: normalizeOptionalText(raw.board),
+    instrumentKind: normalizeOptionalText(raw.instrumentKind),
+    instrumentLabel: normalizeOptionalText(raw.instrumentLabel),
+  };
+}
+
+function readPersistedActiveChatRoute(): ActiveChatRoute | null {
+  const snapshot = readCacheJson<PersistedChatRouteSnapshot>(ACTIVE_CHAT_ROUTE_STORAGE_KEY);
+  if (!snapshot || typeof snapshot !== 'object') {
+    return null;
+  }
+  const sessionKey = normalizeOptionalText(snapshot.sessionKey);
+  if (!sessionKey || sessionKey === CRON_SYSTEM_SESSION_KEY) {
+    return null;
+  }
+  return {
+    sessionKey,
+    initialPrompt: normalizeOptionalText(snapshot.initialPrompt),
+    initialPromptKey: normalizeOptionalText(snapshot.initialPromptKey),
+    initialAgentSlug: normalizeOptionalText(snapshot.initialAgentSlug),
+    initialSkillSlug: normalizeOptionalText(snapshot.initialSkillSlug),
+    initialStockContext: normalizePersistedStockContext(snapshot.initialStockContext),
+    focusTaskId: normalizeOptionalText(snapshot.focusTaskId),
+    focusTaskPrompt: normalizeOptionalText(snapshot.focusTaskPrompt),
+  };
+}
+
+function writePersistedActiveChatRoute(route: ActiveChatRoute | null): void {
+  if (!route) {
+    writeCacheJson(ACTIVE_CHAT_ROUTE_STORAGE_KEY, null);
+    return;
+  }
+  writeCacheJson(ACTIVE_CHAT_ROUTE_STORAGE_KEY, {
+    sessionKey: route.sessionKey,
+    initialPrompt: route.initialPrompt,
+    initialPromptKey: route.initialPromptKey,
+    initialAgentSlug: route.initialAgentSlug,
+    initialSkillSlug: route.initialSkillSlug,
+    initialStockContext: route.initialStockContext,
+    focusTaskId: route.focusTaskId,
+    focusTaskPrompt: route.focusTaskPrompt,
+  });
+}
+
+function createDefaultChatRoute(sessionKey = resolveInitialGeneralChatSessionKey()) {
+  return {
+    sessionKey,
+    initialPrompt: null as string | null,
+    initialPromptKey: null as string | null,
+    initialAgentSlug: null as string | null,
+    initialSkillSlug: null as string | null,
+    initialStockContext: null as ComposerStockContext | null,
+    focusTaskId: null as string | null,
+    focusTaskPrompt: null as string | null,
+  };
+}
+function resolveInitialChatRoute(): ActiveChatRoute {
+  return readPersistedActiveChatRoute() ?? createDefaultChatRoute();
+}
+
 type PrimaryView = string;
 const PRIMARY_VIEW_ORDER: PrimaryView[] = [
   'chat',
@@ -1593,7 +1694,7 @@ function AuthedView({
   const { buildSectionSaveSnapshot, commitSectionSave } = useSettings();
   const lastResolvedPrimaryViewRef = useRef<PrimaryView | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [activeChatRoute, setActiveChatRoute] = useState({ ...DEFAULT_CHAT_ROUTE });
+  const [activeChatRoute, setActiveChatRoute] = useState<ActiveChatRoute>(() => resolveInitialChatRoute());
   const [chatSurfaceVersion, setChatSurfaceVersion] = useState(0);
   const [creditBalance, setCreditBalance] = useState<CreditBalanceData | null>(null);
   const [creditBalanceLoading, setCreditBalanceLoading] = useState(false);
@@ -1665,6 +1766,17 @@ function AuthedView({
     },
     [setPrimaryView],
   );
+
+  useEffect(() => {
+    writePersistedActiveChatRoute(activeChatRoute);
+  }, [activeChatRoute]);
+
+  useEffect(() => {
+    if (!isGeneralChatSessionKey(activeChatRoute.sessionKey)) {
+      return;
+    }
+    writePersistedActiveGeneralChatSessionKey(activeChatRoute.sessionKey);
+  }, [activeChatRoute.sessionKey]);
 
   useEffect(() => {
     if (!accessToken) {
@@ -1873,18 +1985,38 @@ function AuthedView({
       setPrimaryView('chat');
       return;
     }
-    const seed = `chat-${Date.now()}`;
-    openChatRoute({
-      sessionKey: seed,
-      initialPrompt: null,
-      initialPromptKey: seed,
-      initialAgentSlug: null,
-      initialSkillSlug: null,
-      initialStockContext: null,
-      focusTaskId: null,
-      focusTaskPrompt: null,
-    });
+    const sessionKey = createGeneralChatSessionKey();
+    openChatRoute(createDefaultChatRoute(sessionKey));
   };
+
+  const handleRotateGeneralChatSession = useCallback((pressure: ChatSessionPressureSnapshot) => {
+    setActiveChatRoute((current) => {
+      if (!isGeneralChatSessionKey(current.sessionKey)) {
+        return current;
+      }
+      if (
+        current.focusTaskId ||
+        current.focusTaskPrompt ||
+        current.initialPrompt ||
+        current.initialPromptKey ||
+        current.initialAgentSlug ||
+        current.initialSkillSlug ||
+        current.initialStockContext
+      ) {
+        return current;
+      }
+
+      const nextSessionKey = createSuccessorGeneralChatSessionKey(current.sessionKey);
+      console.info('[desktop] rotate overloaded general chat session', {
+        from: current.sessionKey,
+        to: nextSessionKey,
+        pressure,
+      });
+      writePersistedActiveGeneralChatSessionKey(nextSessionKey);
+      return createDefaultChatRoute(nextSessionKey);
+    });
+    setChatSurfaceVersion((current) => current + 1);
+  }, []);
 
   const handleOpenTaskChat = (taskId: string) => {
     const task = readRecentTasks().find((item) => item.id === taskId);
@@ -2076,7 +2208,7 @@ function AuthedView({
                 gatewayUrl={GATEWAY_WS_URL}
                 gatewayToken={gatewayAuth.token}
                 gatewayPassword={gatewayAuth.password}
-                sessionKey={CHAT_SESSION_KEY}
+                sessionKey={CRON_SYSTEM_SESSION_KEY}
                 shellAuthenticated={authenticated}
               />
             ) : (
@@ -2142,6 +2274,7 @@ function AuthedView({
               inputComposerConfig={inputComposerConfig}
               welcomePageConfig={welcomePageConfig}
               onInitialSkillSlugChange={handleActiveChatSkillChange}
+              onGeneralChatSessionOverloaded={handleRotateGeneralChatSession}
               onOpenRechargeCenter={() => setOverlayView('recharge')}
               onBusyStateChange={onChatBusyChange}
               sendBlockedReason={desktopUpdateSendBlockedReason}
