@@ -3451,6 +3451,7 @@ fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Resul
     let config_path = openclaw_config_path(app)?;
     let runtime_config_path = runtime_config_path(app)?;
     let generator_path = resource_runtime_config_generator_path(app);
+    let portal_runtime_config_path = resource_portal_runtime_config_path(app);
     let node_path = resolve_runtime_node_path(app)?;
     let workspace_dir = openclaw_workspace_dir(app);
     let snapshot_path = oem_runtime_snapshot_path(app)?;
@@ -3465,6 +3466,12 @@ fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Resul
         "ICLAW_OPENCLAW_ALLOWED_ORIGINS",
         "tauri://localhost,http://tauri.localhost,https://tauri.localhost",
     );
+    if portal_runtime_config_path.exists() {
+        command.env(
+            "ICLAW_OPENCLAW_PORTAL_RUNTIME_CONFIG_PATH",
+            portal_runtime_config_path,
+        );
+    }
     if snapshot_path.exists() {
         command.env("ICLAW_OPENCLAW_OEM_RUNTIME_SNAPSHOT_PATH", snapshot_path);
     }
@@ -3513,6 +3520,23 @@ fn resource_runtime_config_path(app: &AppHandle) -> PathBuf {
         .join("resources")
         .join("config")
         .join("runtime-config.json")
+}
+
+fn resource_portal_runtime_config_path(app: &AppHandle) -> PathBuf {
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let p = resource_dir
+            .join("resources")
+            .join("config")
+            .join("portal-app-runtime.json");
+        if p.exists() {
+            return p;
+        }
+    }
+
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("resources")
+        .join("config")
+        .join("portal-app-runtime.json")
 }
 
 fn load_runtime_config_internal(app: &AppHandle) -> Result<RuntimeConfig, String> {
