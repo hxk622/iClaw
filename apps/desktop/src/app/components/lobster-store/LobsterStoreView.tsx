@@ -241,6 +241,7 @@ export function LobsterStoreView({
     try {
       await uninstallLobsterAgent({ client, accessToken, slug: agent.slug });
       await refresh();
+      setDetailSlug(null);
     } catch (removeError) {
       setError(removeError instanceof Error ? removeError.message : '移除失败');
     } finally {
@@ -511,12 +512,14 @@ export function LobsterStoreView({
         agent={selectedAgent}
         open={Boolean(selectedAgent)}
         installBusy={selectedAgent ? installBusySlug === selectedAgent.slug : false}
+        removeBusy={selectedAgent ? removeBusySlug === selectedAgent.slug : false}
         onOpenChange={(open) => {
           if (!open) {
             setDetailSlug(null);
           }
         }}
         onInstall={handleInstall}
+        onRemove={handleRemove}
         onStartConversation={onStartConversation}
       />
     </PageSurface>

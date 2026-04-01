@@ -15,6 +15,7 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
+  Trash2,
   Upload,
 } from 'lucide-react';
 import {
@@ -35,6 +36,7 @@ import {
   loadSkillSyncSources,
   loadSkillStoreCatalogPage,
   readSkillStoreCatalogSnapshot,
+  removeSkillFromStore,
   runSkillSync,
   saveAdminSkillStoreEntry,
   saveExtensionInstallConfig,
@@ -387,8 +389,10 @@ function SkillCard({
   skill,
   adminMode,
   actionLoading,
+  removeLoading,
   installFailed,
   onAction,
+  onRemove,
   onStartConversation,
   onOpenDetail,
   onEdit,
@@ -396,8 +400,10 @@ function SkillCard({
   skill: SkillStoreItem;
   adminMode: boolean;
   actionLoading: boolean;
+  removeLoading: boolean;
   installFailed: boolean;
   onAction: (skill: SkillStoreItem) => void;
+  onRemove: (skill: SkillStoreItem) => void;
   onStartConversation: (skill: SkillStoreItem) => void;
   onOpenDetail: (skill: SkillStoreItem) => void;
   onEdit: (skill: SkillStoreItem) => void;
@@ -420,10 +426,11 @@ function SkillCard({
             ? '对话'
             : '安装';
   const actionVariant = status === 'failed' ? 'danger' : canStartConversation ? 'secondary' : 'primary';
-  const actionDisabled = status === 'installing';
+  const actionDisabled = status === 'installing' || removeLoading;
   const downloadLabel = formatDownloadCount(skill.downloadCount);
   const sourceLabel = skill.sourceLabel;
   const showPreinstalledBadge = isSystemPreinstalledSkill(skill);
+  const showRemoveAction = skill.userInstalled && !showPreinstalledBadge && !adminMode;
 
   return (
     <PressableCard
@@ -497,29 +504,46 @@ function SkillCard({
               编辑
             </Button>
           ) : (
-            <Button
-              variant={actionVariant}
-              size="sm"
-              disabled={actionDisabled}
-              leadingIcon={canStartConversation ? <MessageSquare className="h-4 w-4" /> : undefined}
-              className={cn(
-                'rounded-md px-4 py-1.5 text-[13px] font-normal shadow-none',
-                (status === 'installed' || status === 'builtin') &&
-                  'border-[var(--border-default)] bg-[var(--bg-secondary)] text-[var(--text-muted)]',
-              )}
-              onClick={(event) => {
-                event.stopPropagation();
-                if (canStartConversation) {
-                  onStartConversation(skill);
-                } else if (showInstallAction) {
-                  onAction(skill);
-                } else {
-                  onOpenDetail(skill);
-                }
-              }}
-            >
-              {actionLabel}
-            </Button>
+            <div className="flex items-center gap-2">
+              {showRemoveAction ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={actionLoading || removeLoading}
+                  leadingIcon={removeLoading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                  className="rounded-md px-3 py-1.5 text-[13px] font-normal text-[var(--state-error)] shadow-none"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onRemove(skill);
+                  }}
+                >
+                  {removeLoading ? '卸载中…' : '卸载'}
+                </Button>
+              ) : null}
+              <Button
+                variant={actionVariant}
+                size="sm"
+                disabled={actionDisabled}
+                leadingIcon={canStartConversation ? <MessageSquare className="h-4 w-4" /> : undefined}
+                className={cn(
+                  'rounded-md px-4 py-1.5 text-[13px] font-normal shadow-none',
+                  (status === 'installed' || status === 'builtin') &&
+                    'border-[var(--border-default)] bg-[var(--bg-secondary)] text-[var(--text-muted)]',
+                )}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (canStartConversation) {
+                    onStartConversation(skill);
+                  } else if (showInstallAction) {
+                    onAction(skill);
+                  } else {
+                    onOpenDetail(skill);
+                  }
+                }}
+              >
+                {actionLabel}
+              </Button>
+            </div>
           )}
         </div>
       </div>
@@ -662,6 +686,7 @@ export function SkillStoreView({
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [installingSlug, setInstallingSlug] = useState<string | null>(null);
+  const [removingSlug, setRemovingSlug] = useState<string | null>(null);
   const [installErrorSlugs, setInstallErrorSlugs] = useState<string[]>([]);
   const [adminMode, setAdminMode] = useState(false);
   const [adminCapable, setAdminCapable] = useState(false);
@@ -1023,6 +1048,36 @@ export function SkillStoreView({
     }
     setSelectedSkill(null);
     onStartConversation(skill);
+  };
+
+  const handleRemove = async (skill: SkillStoreItem) => {
+    if (!skill.userInstalled || isSystemPreinstalledSkill(skill)) {
+      return;
+    }
+    if (!authenticated || !accessToken) {
+      onRequestAuth('login');
+      return;
+    }
+
+    setRemovingSlug(skill.slug);
+    setError(null);
+    try {
+      await removeSkillFromStore({
+        client,
+        accessToken,
+        slug: skill.slug,
+      });
+      await refreshCatalog({ preferAdmin: adminMode });
+      setSelectedSkill(null);
+    } catch (nextError) {
+      if (nextError instanceof Error && nextError.message === 'AUTH_REQUIRED') {
+        onRequestAuth('login');
+      } else {
+        setError(nextError instanceof Error ? nextError.message : '卸载失败');
+      }
+    } finally {
+      setRemovingSlug(null);
+    }
   };
 
   const handleSetupSubmit = async (payload: {
@@ -1705,8 +1760,10 @@ export function SkillStoreView({
                 skill={skill}
                 adminMode={adminMode}
                 actionLoading={installingSlug === skill.slug}
+                removeLoading={removingSlug === skill.slug}
                 installFailed={installErrorSlugs.includes(skill.slug)}
                 onAction={handleInstall}
+                onRemove={handleRemove}
                 onStartConversation={handleStartConversation}
                 onOpenDetail={(nextSkill) => {
                   if (!adminMode) {
@@ -1760,8 +1817,10 @@ export function SkillStoreView({
       <SkillStoreDetailSheet
         skill={selectedSkill}
         actionLoading={selectedSkill ? installingSlug === selectedSkill.slug : false}
+        removeLoading={selectedSkill ? removingSlug === selectedSkill.slug : false}
         installFailed={selectedSkill ? installErrorSlugs.includes(selectedSkill.slug) : false}
         onInstall={handleInstall}
+        onRemove={handleRemove}
         onStartConversation={handleStartConversation}
         onClose={() => setSelectedSkill(null)}
       />

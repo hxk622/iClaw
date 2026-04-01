@@ -1,4 +1,4 @@
-import { CalendarDays, MessageSquare, Package, Sparkles, UserRound } from 'lucide-react';
+import { CalendarDays, MessageSquare, Package, Sparkles, Trash2, UserRound } from 'lucide-react';
 import type { SkillStoreItem } from '@/app/lib/skill-store';
 import { Button } from '@/app/components/ui/Button';
 import { Chip } from '@/app/components/ui/Chip';
@@ -127,15 +127,19 @@ function metadataRows(skill: SkillStoreItem) {
 export function SkillStoreDetailSheet({
   skill,
   actionLoading,
+  removeLoading,
   installFailed,
   onInstall,
+  onRemove,
   onStartConversation,
   onClose,
 }: {
   skill: SkillStoreItem | null;
   actionLoading: boolean;
+  removeLoading: boolean;
   installFailed: boolean;
   onInstall: (skill: SkillStoreItem) => void;
+  onRemove: (skill: SkillStoreItem) => void;
   onStartConversation: (skill: SkillStoreItem) => void;
   onClose: () => void;
 }) {
@@ -190,7 +194,7 @@ export function SkillStoreDetailSheet({
             variant={status.actionVariant}
             size="md"
             block
-            disabled={status.disabled}
+            disabled={status.disabled || removeLoading}
             leadingIcon={chatReady ? <MessageSquare className="h-4 w-4" /> : undefined}
             onClick={() => {
               if (chatReady) {
@@ -202,6 +206,18 @@ export function SkillStoreDetailSheet({
           >
             {status.actionLabel}
           </Button>
+          {skill.userInstalled && !isSystemPreinstalledSkill(skill) ? (
+            <Button
+              variant="danger"
+              size="md"
+              block
+              disabled={actionLoading || removeLoading}
+              leadingIcon={<Trash2 className="h-4 w-4" />}
+              onClick={() => onRemove(skill)}
+            >
+              {removeLoading ? '卸载中…' : '卸载'}
+            </Button>
+          ) : null}
         </div>
       }
     >

@@ -43,11 +43,12 @@ import {
   type ChatSessionPressureSnapshot,
 } from '../lib/chat-session';
 import type { ResolvedInputComposerConfig, ResolvedWelcomePageConfig } from '../lib/oem-runtime';
-import { loadSkillStoreCatalog } from '@/app/lib/skill-store';
+import { loadSkillStoreCatalog, subscribeSkillStoreEvents } from '@/app/lib/skill-store';
 import { buildMemoryContextPrompt, pickRelevantMemories } from '@/app/lib/memory-recall';
 import {
   isInvestmentExpertAgent,
   loadLobsterAgents,
+  subscribeLobsterStoreEvents,
 } from '../lib/lobster-store';
 import {
   inferRecentTaskArtifactsFromText,
@@ -3038,17 +3039,25 @@ export function OpenClawChatSurface({
     }
 
     let cancelled = false;
-    void loadLobsterAgents({
-      client: creditClient,
-      accessToken: creditToken,
-    })
-      .then((lobsterAgents) => {
-        if (cancelled) {
-          return;
-        }
+    const reloadComposerCatalogs = async () => {
+      const [lobsterResult, skillResult] = await Promise.allSettled([
+        loadLobsterAgents({
+          client: creditClient,
+          accessToken: creditToken,
+        }),
+        loadSkillStoreCatalog({
+          client: creditClient,
+          accessToken: creditToken,
+        }),
+      ]);
 
+      if (cancelled) {
+        return;
+      }
+
+      if (lobsterResult.status === 'fulfilled') {
         setInstalledLobsterAgents(
-          lobsterAgents
+          lobsterResult.value
             .filter((agent) => agent.installed)
             .map((agent) => ({
               slug: agent.slug,
@@ -3061,24 +3070,13 @@ export function OpenClawChatSurface({
             }))
             .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN')),
         );
-      })
-      .catch(() => {
-        if (cancelled) {
-          return;
-        }
+      } else {
         setInstalledLobsterAgents([]);
-      });
+      }
 
-    void loadSkillStoreCatalog({
-      client: creditClient,
-      accessToken: creditToken,
-    })
-      .then((skills) => {
-        if (cancelled) {
-          return;
-        }
+      if (skillResult.status === 'fulfilled') {
         setSkillOptions(
-          skills
+          skillResult.value
             .filter((skill) => skill.enabled && (skill.installed || skill.userInstalled || skill.source === 'bundled'))
             .map((skill) => ({
               slug: skill.slug,

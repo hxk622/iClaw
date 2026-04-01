@@ -778,6 +778,31 @@ export async function installSkillFromStore(input: {
   });
 }
 
+export async function removeSkillFromStore(input: {
+  client: IClawClient;
+  accessToken: string | null;
+  slug: string;
+}): Promise<{removed: boolean}> {
+  if (!input.accessToken) {
+    throw new Error('AUTH_REQUIRED');
+  }
+
+  const result = await input.client.removeSkillFromLibrary(input.accessToken, input.slug);
+  let localRemoved = false;
+
+  try {
+    localRemoved = await removeManagedSkill(input.slug);
+  } catch {
+    // The cloud library is authoritative. Local cleanup failure should not mask removal.
+  }
+
+  if (result.removed || localRemoved) {
+    emitWindowEvent(SKILL_STORE_UPDATED_EVENT);
+  }
+
+  return { removed: result.removed || localRemoved };
+}
+
 export async function loadExtensionInstallConfig(input: {
   client: IClawClient;
   accessToken: string;

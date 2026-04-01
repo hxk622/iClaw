@@ -1816,6 +1816,26 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     }, [initialSelectedSkillSeedKey, initialSelectedSkillSlug, skillSelectionScopeKey]);
 
     useEffect(() => {
+      if (!selectedAgentSlug) {
+        return;
+      }
+      if (lobsterAgents.some((option) => option.slug === selectedAgentSlug)) {
+        return;
+      }
+      setSelectedAgentSlug(null);
+    }, [lobsterAgents, selectedAgentSlug]);
+
+    useEffect(() => {
+      if (!selectedSkillSlug) {
+        return;
+      }
+      if (skillOptions.some((option) => option.slug === selectedSkillSlug)) {
+        return;
+      }
+      setSelectedSkillSlug(null);
+    }, [selectedSkillSlug, skillOptions]);
+
+    useEffect(() => {
       setSelectedStockContext(initialSelectedStock || null);
     }, [initialSelectedStock]);
 

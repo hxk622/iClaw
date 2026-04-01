@@ -17,6 +17,7 @@ export type LobsterAgentMetadataValue = string | number | boolean | null | undef
 
 const LOBSTER_CATALOG_CACHE_KEY = 'iclaw.lobster.catalog.v1';
 const LOBSTER_CATALOG_CACHE_TTL_MS = 10 * 60 * 1000;
+const LOBSTER_STORE_UPDATED_EVENT = 'iclaw-lobster-store-updated';
 
 type LobsterCatalogCacheSnapshot = {
   version: 1;
@@ -26,6 +27,24 @@ type LobsterCatalogCacheSnapshot = {
 
 let inMemoryCatalogSnapshot: AgentCatalogEntryData[] | null = null;
 let inFlightCatalogLoad: Promise<AgentCatalogEntryData[]> | null = null;
+
+function emitWindowEvent(name: string, detail?: unknown): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  window.dispatchEvent(new CustomEvent(name, { detail }));
+}
+
+export function subscribeLobsterStoreEvents(onUpdate: () => void): () => void {
+  if (typeof window === 'undefined') {
+    return () => {};
+  }
+
+  window.addEventListener(LOBSTER_STORE_UPDATED_EVENT, onUpdate);
+  return () => {
+    window.removeEventListener(LOBSTER_STORE_UPDATED_EVENT, onUpdate);
+  };
+}
 
 const AVATAR_BY_SLUG: Record<string, string> = {
   'stock-expert': '/agent-avatars/pexels/portrait-16.jpg',
@@ -512,7 +531,9 @@ export async function installLobsterAgent(input: {
   accessToken: string;
   slug: string;
 }): Promise<UserAgentLibraryItemData> {
-  return input.client.installAgent(input.accessToken, input.slug);
+  const result = await input.client.installAgent(input.accessToken, input.slug);
+  emitWindowEvent(LOBSTER_STORE_UPDATED_EVENT);
+  return result;
 }
 
 export async function uninstallLobsterAgent(input: {
@@ -520,7 +541,11 @@ export async function uninstallLobsterAgent(input: {
   accessToken: string;
   slug: string;
 }): Promise<{ removed: boolean }> {
-  return input.client.removeAgentFromLibrary(input.accessToken, input.slug);
+  const result = await input.client.removeAgentFromLibrary(input.accessToken, input.slug);
+  if (result.removed) {
+    emitWindowEvent(LOBSTER_STORE_UPDATED_EVENT);
+  }
+  return result;
 }
 
 export function buildLobsterConversationPrompt(agent: LobsterAgent): string {

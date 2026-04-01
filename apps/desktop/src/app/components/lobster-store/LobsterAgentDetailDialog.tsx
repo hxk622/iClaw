@@ -1,4 +1,4 @@
-import { MessageSquare, Plus, ShieldCheck, Sparkles } from 'lucide-react';
+import { MessageSquare, Plus, ShieldCheck, Sparkles, Trash2 } from 'lucide-react';
 
 import {
   isAgencyAgentsImported,
@@ -16,15 +16,19 @@ export function LobsterAgentDetailDialog({
   agent,
   open,
   installBusy = false,
+  removeBusy = false,
   onOpenChange,
   onInstall,
+  onRemove,
   onStartConversation,
 }: {
   agent: LobsterAgent | null;
   open: boolean;
   installBusy?: boolean;
+  removeBusy?: boolean;
   onOpenChange: (open: boolean) => void;
   onInstall: (agent: LobsterAgent) => void;
+  onRemove: (agent: LobsterAgent) => void;
   onStartConversation: (agent: LobsterAgent) => void;
 }) {
   if (!agent || !open) {
@@ -83,21 +87,34 @@ export function LobsterAgentDetailDialog({
               ? '这个龙虾已经加入你的工作台，可直接发起对话。'
               : '添加后会进入“我的龙虾”，后续可以直接从商店或对话里调用。'}
           </div>
-          <LobsterActionButton
-            block
-            variant={agent.installed ? 'accent' : 'primary'}
-            leadingIcon={agent.installed ? <MessageSquare className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-            disabled={installBusy}
-            onClick={() => {
-              if (agent.installed) {
-                onStartConversation(agent);
-                return;
-              }
-              onInstall(agent);
-            }}
-          >
-            {agent.installed ? '对话' : installBusy ? '添加中...' : '添加'}
-          </LobsterActionButton>
+          <div className="flex gap-3">
+            <LobsterActionButton
+              block
+              variant={agent.installed ? 'accent' : 'primary'}
+              leadingIcon={agent.installed ? <MessageSquare className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              disabled={installBusy || removeBusy}
+              onClick={() => {
+                if (agent.installed) {
+                  onStartConversation(agent);
+                  return;
+                }
+                onInstall(agent);
+              }}
+            >
+              {agent.installed ? '对话' : installBusy ? '添加中...' : '添加'}
+            </LobsterActionButton>
+            {agent.installed ? (
+              <LobsterActionButton
+                block
+                variant="danger"
+                leadingIcon={<Trash2 className="h-4 w-4" />}
+                disabled={installBusy || removeBusy}
+                onClick={() => onRemove(agent)}
+              >
+                {removeBusy ? '移除中...' : '移除'}
+              </LobsterActionButton>
+            ) : null}
+          </div>
         </div>
       }
     >
