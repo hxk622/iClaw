@@ -1,11 +1,11 @@
 {
-  "brandId": "iclaw",
-  "productName": "iClaw",
-  "bundleIdentifier": "ai.iclaw.desktop",
-  "authService": "ai.iclaw.desktop",
+  "brandId": "licaiclaw",
+  "productName": "理财客",
+  "bundleIdentifier": "ai.licaiclaw.desktop",
+  "authService": "ai.licaiclaw.desktop",
   "endpoints": {
-    "authBaseUrl": "https://iclaw.aiyuanxi.com"
+    "authBaseUrl": "https://caiclaw.aiyuanxi.com"
   },
-  "artifactBaseName": "iClaw",
-  "storageNamespace": "iclaw"
+  "artifactBaseName": "LiCaiClaw",
+  "storageNamespace": "licaiclaw"
 }

@@ -270,7 +270,15 @@
         "stock-data-skill",
         "stock-strategy-backtester",
         "stock-monitor-skill",
-        "stock-watcher"
+        "stock-watcher",
+        "self-improving-agent",
+        "summarize-pro",
+        "self-improving",
+        "weather",
+        "nano-pdf",
+        "skill-creator",
+        "stock-analysis",
+        "agent-browser-clawdbot"
       ],
       "mcp_servers": [
         "browser",
@@ -671,6 +679,78 @@
           "managed_by": "platform",
           "locked": true
         }
+      },
+      {
+        "skill_slug": "self-improving-agent",
+        "sort_order": 270,
+        "config": {
+          "source_layer": "platform_bundled",
+          "managed_by": "platform",
+          "locked": true
+        }
+      },
+      {
+        "skill_slug": "summarize-pro",
+        "sort_order": 280,
+        "config": {
+          "source_layer": "platform_bundled",
+          "managed_by": "platform",
+          "locked": true
+        }
+      },
+      {
+        "skill_slug": "self-improving",
+        "sort_order": 290,
+        "config": {
+          "source_layer": "platform_bundled",
+          "managed_by": "platform",
+          "locked": true
+        }
+      },
+      {
+        "skill_slug": "weather",
+        "sort_order": 300,
+        "config": {
+          "source_layer": "platform_bundled",
+          "managed_by": "platform",
+          "locked": true
+        }
+      },
+      {
+        "skill_slug": "nano-pdf",
+        "sort_order": 310,
+        "config": {
+          "source_layer": "platform_bundled",
+          "managed_by": "platform",
+          "locked": true
+        }
+      },
+      {
+        "skill_slug": "skill-creator",
+        "sort_order": 320,
+        "config": {
+          "source_layer": "platform_bundled",
+          "managed_by": "platform",
+          "locked": true
+        }
+      },
+      {
+        "skill_slug": "stock-analysis",
+        "sort_order": 330,
+        "config": {
+          "source_layer": "platform_bundled",
+          "managed_by": "platform",
+          "locked": true
+        }
+      },
+      {
+        "skill_slug": "agent-browser-clawdbot",
+        "sort_order": 340,
+        "config": {
+          "source_layer": "platform_bundled",
+          "managed_by": "platform",
+          "locked": true
+        }
       }
     ],
     "mcp_bindings": [
@@ -789,7 +869,7 @@
     "model_provider": {
       "provider_mode": "use_app_profile",
       "resolved_scope": "app",
-      "version": 1774832569760,
+      "version": 1774977158288,
       "profile": {
         "id": "57371112-053f-4ecc-968f-eb21567c3c0c",
         "scope_type": "app",
@@ -801,15 +881,17 @@
         "auth_mode": "bearer",
         "api_key": "sk-lrEzozeDfQZrPOncmooAG2OITJEq2FAvu7YC1DbpodTBDGPJ",
         "logo_preset_key": null,
-        "metadata": {},
+        "metadata": {
+          "default_model_ref": "omnirouter/kimi-k2.5"
+        },
         "enabled": true,
         "sort_order": 100,
         "created_at": "2026-03-28T18:32:35.408Z",
-        "updated_at": "2026-03-30T01:02:49.626Z"
+        "updated_at": "2026-03-31T17:12:38.197Z"
       },
       "models": [
         {
-          "id": "bdac3657-34f2-4a85-af05-ba8e2c2d7a04",
+          "id": "c4a5b2e1-c893-4fe7-a4a1-3e6649257e45",
           "model_ref": "omnirouter/claude-opus-4-6",
           "model_id": "claude-opus-4-6",
           "label": "claude-opus-4-6",
@@ -823,11 +905,11 @@
           "enabled": true,
           "sort_order": 100,
           "metadata": {},
-          "created_at": "2026-03-30T01:02:49.626Z",
-          "updated_at": "2026-03-30T01:02:49.626Z"
+          "created_at": "2026-03-31T17:12:38.197Z",
+          "updated_at": "2026-03-31T17:12:38.197Z"
         },
         {
-          "id": "83439201-be48-4e4c-80f9-8723b77269b3",
+          "id": "bfc1020e-4a13-45b7-8fc4-76665942b63b",
           "model_ref": "omnirouter/gpt-5.4",
           "model_id": "gpt-5.4",
           "label": "gpt-5.4",
@@ -841,11 +923,11 @@
           "enabled": true,
           "sort_order": 101,
           "metadata": {},
-          "created_at": "2026-03-30T01:02:49.626Z",
-          "updated_at": "2026-03-30T01:02:49.626Z"
+          "created_at": "2026-03-31T17:12:38.197Z",
+          "updated_at": "2026-03-31T17:12:38.197Z"
         },
         {
-          "id": "fe0780c5-0580-47f2-bdef-ea34f029aaee",
+          "id": "a2f135ce-8b97-404c-bf60-96fc7d233b9b",
           "model_ref": "omnirouter/kimi-k2.5",
           "model_id": "kimi-k2.5",
           "label": "kimi-k2.5",
@@ -859,11 +941,11 @@
           "enabled": true,
           "sort_order": 102,
           "metadata": {},
-          "created_at": "2026-03-30T01:02:49.626Z",
-          "updated_at": "2026-03-30T01:02:49.626Z"
+          "created_at": "2026-03-31T17:12:38.197Z",
+          "updated_at": "2026-03-31T17:12:38.197Z"
         },
         {
-          "id": "2ec64b17-8cfb-4d04-922f-e8fdc9c0b755",
+          "id": "68623530-f349-419c-9206-f75d67b75148",
           "model_ref": "omnirouter/MiniMax-M2.5",
           "model_id": "MiniMax-M2.5",
           "label": "MiniMax-M2.5",
@@ -877,43 +959,16 @@
           "enabled": true,
           "sort_order": 103,
           "metadata": {},
-          "created_at": "2026-03-30T01:02:49.626Z",
-          "updated_at": "2026-03-30T01:02:49.626Z"
+          "created_at": "2026-03-31T17:12:38.197Z",
+          "updated_at": "2026-03-31T17:12:38.197Z"
         }
       ]
     }
   },
   "syncMeta": {
     "appName": "iclaw",
-    "syncedAt": "2026-03-31T16:01:55.537Z",
-    "copiedSkillDirs": [
-      "docx",
-      "xlsx",
-      "pdf",
-      "agent-reach-web",
-      "xiaohongshu-skills",
-      "agent-reach-rss",
-      "remotion-skill",
-      "agent-reach-youtube",
-      "find-skill",
-      "frontend-slides",
-      "agent-reach-bilibili",
-      "agent-reach-douyin",
-      "agent-reach-wechat-official",
-      "agent-reach-weibo",
-      "agent-reach-v2ex",
-      "agent-reach-xueqiu",
-      "skill-vetter",
-      "multi-search-engine",
-      "clawpolicy",
-      "stock-analysis-skill",
-      "stock-daily-analysis",
-      "tushare-stock-skill",
-      "stock-data-skill",
-      "stock-strategy-backtester",
-      "stock-monitor-skill",
-      "stock-watcher"
-    ],
+    "syncedAt": "2026-04-01T11:54:01.779Z",
+    "copiedSkillDirs": [],
     "skippedSkillSlugs": [],
     "enabledMcpKeys": [
       "browser",
@@ -921,6 +976,7 @@
       "tavily",
       "serper",
       "yahoo-finance"
-    ]
+    ],
+    "skipRuntimeSkillSync": true
   }
 }

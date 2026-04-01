@@ -62,6 +62,28 @@ async function copyDirectory(sourcePath, targetPath) {
   await fs.cp(sourcePath, targetPath, { recursive: true });
 }
 
+async function ensureTauriIcons(params) {
+  const {
+    faviconIco,
+    faviconPng,
+    tauriIconsDir,
+    outputIconsDir,
+  } = params;
+
+  await fs.rm(outputIconsDir, { recursive: true, force: true });
+  await fs.mkdir(outputIconsDir, { recursive: true });
+
+  // Keep Windows/Linux bundle icons aligned with the visible brand logo.
+  await copyFile(faviconPng, path.join(outputIconsDir, '32x32.png'));
+  await copyFile(faviconPng, path.join(outputIconsDir, '128x128.png'));
+  await copyFile(faviconPng, path.join(outputIconsDir, '128x128@2x.png'));
+  await copyFile(faviconPng, path.join(outputIconsDir, 'icon.png'));
+  await copyFile(faviconIco, path.join(outputIconsDir, 'icon.ico'));
+
+  const icnsSourcePath = path.join(tauriIconsDir, 'icon.icns');
+  await copyFile(icnsSourcePath, path.join(outputIconsDir, 'icon.icns'));
+}
+
 function buildBrandTs(brand) {
   return `export const BRAND = ${JSON.stringify(
     {
@@ -175,7 +197,12 @@ async function main() {
   await copyFile(faviconPng, path.join(outputPublicDir, 'favicon.png'));
   await copyFile(appleTouchIcon, path.join(outputPublicDir, 'apple-touch-icon.png'));
   await copyFile(installerHero, legacyInstallerAssetPath);
-  await copyDirectory(tauriIconsDir, outputIconsDir);
+  await ensureTauriIcons({
+    faviconIco,
+    faviconPng,
+    tauriIconsDir,
+    outputIconsDir,
+  });
   await copyFile(dmgBackground, path.join(outputInstallerAssetsDir, 'dmg-background.png'));
   await copyFile(dmgVolumeIcon, path.join(outputInstallerAssetsDir, 'dmg-volume.icns'));
   await copyFile(windowsInstallerIcon, path.join(outputInstallerAssetsDir, 'nsis-installer.ico'));

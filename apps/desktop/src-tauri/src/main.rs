@@ -1153,7 +1153,10 @@ fn replace_iclaw_servers_dir_placeholders(value: &mut serde_json::Value, servers
     match value {
         serde_json::Value::String(raw) => {
             if raw.contains("__ICLAW_SERVERS_DIR__") {
-                *raw = raw.replace("__ICLAW_SERVERS_DIR__", servers_dir);
+                *raw = raw.replace(
+                    "__ICLAW_SERVERS_DIR__",
+                    &normalize_windows_path_text(servers_dir),
+                );
             }
         }
         serde_json::Value::Array(items) => {
@@ -2460,11 +2463,43 @@ fn append_node_options_arg(existing: Option<String>, arg: &str) -> String {
     }
 }
 
+fn node_options_safe_path(path: &Path) -> String {
+    let raw = path.to_string_lossy();
+    let normalized = raw
+        .strip_prefix(r"\\?\")
+        .or_else(|| raw.strip_prefix("//?/"))
+        .unwrap_or(raw.as_ref());
+    normalized.replace('\\', "/")
+}
+
+fn node_command_safe_path(path: &Path) -> String {
+    let raw = path.to_string_lossy();
+    raw.strip_prefix(r"\\?\")
+        .or_else(|| raw.strip_prefix("//?/"))
+        .unwrap_or(raw.as_ref())
+        .to_string()
+}
+
+fn normalize_windows_path_text(raw: &str) -> String {
+    raw.strip_prefix(r"\\?\")
+        .or_else(|| raw.strip_prefix("//?/"))
+        .unwrap_or(raw)
+        .replace('\\', "/")
+}
+
 fn configure_runtime_network_env(command: &mut Command, app: &AppHandle) {
     let hook_path = resource_node_fetch_user_agent_hook_path(app);
     if hook_path.exists() {
-        let require_arg = format!("--require={}", hook_path.to_string_lossy());
+        let require_arg = format!("--require={}", node_options_safe_path(&hook_path));
         let next_node_options = append_node_options_arg(env::var("NODE_OPTIONS").ok(), &require_arg);
+        append_desktop_bootstrap_log(
+            app,
+            &format!(
+                "configure_runtime_network_env: hook_path={} node_options={}",
+                hook_path.to_string_lossy(),
+                next_node_options
+            ),
+        );
         if !next_node_options.trim().is_empty() {
             command.env("NODE_OPTIONS", next_node_options);
         }
@@ -3118,6 +3153,29 @@ fn ensure_runtime_dirs(app: &AppHandle) -> Result<RuntimePaths, String> {
     Ok(paths)
 }
 
+fn append_desktop_bootstrap_log(app: &AppHandle, message: &str) {
+    let paths = match ensure_runtime_dirs(app) {
+        Ok(paths) => paths,
+        Err(_) => return,
+    };
+    let log_path = PathBuf::from(paths.log_dir).join("desktop-bootstrap.log");
+    let timestamp = chrono_like_timestamp();
+    let line = format!("{timestamp} {message}\n");
+    let mut options = fs::OpenOptions::new();
+    options.create(true).append(true);
+    if let Ok(mut file) = options.open(log_path) {
+        let _ = file.write_all(line.as_bytes());
+    }
+}
+
+fn chrono_like_timestamp() -> String {
+    let seconds = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|value| value.as_secs())
+        .unwrap_or(0);
+    format!("[{}]", seconds)
+}
+
 fn sidecar_log_paths(app: &AppHandle) -> Result<(PathBuf, PathBuf), String> {
     let paths = ensure_runtime_dirs(app)?;
     let log_dir = PathBuf::from(paths.log_dir);
@@ -3542,7 +3600,7 @@ fn generate_openclaw_runtime_config(
     let workspace_dir = openclaw_workspace_dir(app);
     let snapshot_path = oem_runtime_snapshot_path(app)?;
     let mut command = Command::new(&node_path);
-    command.arg(&generator_path);
+    command.arg(node_command_safe_path(&generator_path));
     command.env("ICLAW_OPENCLAW_CONFIG_PATH", config_path);
     command.env("ICLAW_OPENCLAW_RUNTIME_CONFIG_PATH", &runtime_config_path);
     command.env("ICLAW_OPENCLAW_GATEWAY_TOKEN", gateway_token);
@@ -3657,6 +3715,10 @@ fn start_sidecar(
     state: State<'_, SidecarState>,
     args: Vec<String>,
 ) -> Result<bool, String> {
+    append_desktop_bootstrap_log(
+        &app,
+        &format!("start_sidecar: begin args={}", args.join(" ")),
+    );
     let mut child_guard = state
         .child
         .lock()
@@ -3665,9 +3727,13 @@ fn start_sidecar(
     if let Some(child) = child_guard.as_mut() {
         match child.try_wait() {
             Ok(Some(_)) => {
+                append_desktop_bootstrap_log(&app, "start_sidecar: previous child already exited");
                 *child_guard = None;
             }
-            Ok(None) => return Ok(true),
+            Ok(None) => {
+                append_desktop_bootstrap_log(&app, "start_sidecar: existing child still running");
+                return Ok(true);
+            }
             Err(error) => {
                 return Err(format!("failed to inspect existing openclaw runtime process: {error}"));
             }
@@ -3680,8 +3746,10 @@ fn start_sidecar(
         if should_reuse_existing_local_sidecar(&occupied_ports) {
             let port = configured_sidecar_port();
             if is_existing_local_sidecar_healthy(port) {
+                append_desktop_bootstrap_log(&app, &format!("start_sidecar: reusing healthy listener on {port}"));
                 return Ok(true);
             }
+            append_desktop_bootstrap_log(&app, &format!("start_sidecar: unhealthy listener detected on {port}"));
             return Err(format!(
                 "检测到 {port} 端口已有监听，但该服务未通过 OpenClaw 健康检查。请先关闭占用进程后再启动应用。"
             ));
@@ -3700,16 +3768,41 @@ fn start_sidecar(
     let runtime = resolve_runtime_command(&app)?;
     if let Err(error) = sync_current_brand_runtime_snapshot(&app) {
         eprintln!("failed to sync OEM runtime snapshot before sidecar start: {error}");
+        append_desktop_bootstrap_log(&app, &format!("start_sidecar: snapshot sync warning {error}"));
     }
     let gateway_token = load_or_create_gateway_token(&app)?;
+    append_desktop_bootstrap_log(&app, "start_sidecar: gateway token ready");
     ensure_openclaw_workspace_seed(&app)?;
-    ensure_current_brand_runtime_skills(&app, "sidecar start")?;
+    append_desktop_bootstrap_log(&app, "start_sidecar: workspace seed ready");
+    if let Err(error) = ensure_current_brand_runtime_skills(&app, "sidecar start") {
+        append_desktop_bootstrap_log(
+            &app,
+            &format!("start_sidecar: runtime skill sync warning {error}"),
+        );
+    } else {
+        append_desktop_bootstrap_log(&app, "start_sidecar: runtime skills ready");
+    }
     let openclaw_state_dir = openclaw_state_dir(&app)?;
     let openclaw_config_path = ensure_openclaw_runtime_config(&app, &gateway_token)?;
+    append_desktop_bootstrap_log(
+        &app,
+        &format!(
+            "start_sidecar: config ready path={}",
+            openclaw_config_path.to_string_lossy()
+        ),
+    );
     let config = load_runtime_config_internal(&app)?;
     let paths = ensure_runtime_dirs(&app)?;
     let skills_dir = runtime_skills_dir(&app);
     let mcp_config = prepare_runtime_mcp_config(&app, &paths.cache_dir)?;
+    append_desktop_bootstrap_log(
+        &app,
+        &format!(
+            "start_sidecar: runtime dirs ready skills_dir={} mcp_config={}",
+            skills_dir.to_string_lossy(),
+            mcp_config.to_string_lossy()
+        ),
+    );
     let extra_ca_certs = resource_extra_ca_certs_path(&app);
     let (stdout_log_path, stderr_log_path) = sidecar_log_paths(&app)?;
 
@@ -3761,11 +3854,29 @@ fn start_sidecar(
     let mut child = command
         .spawn()
         .map_err(|e| format!("failed to start openclaw runtime ({}): {e}", runtime.source))?;
+    append_desktop_bootstrap_log(
+        &app,
+        &format!(
+            "start_sidecar: spawned runtime source={} program={}",
+            runtime.source,
+            runtime.program.to_string_lossy()
+        ),
+    );
     std::thread::sleep(Duration::from_millis(1200));
     if let Some(status) = child
         .try_wait()
         .map_err(|e| format!("failed to inspect launched openclaw runtime: {e}"))?
     {
+        append_desktop_bootstrap_log(
+            &app,
+            &format!(
+                "start_sidecar: child exited early status={}",
+                status
+                    .code()
+                    .map(|value| value.to_string())
+                    .unwrap_or_else(|| String::from("unknown"))
+            ),
+        );
         return Err(describe_sidecar_exit(
             status,
             &stdout_log_path,
@@ -3773,6 +3884,7 @@ fn start_sidecar(
         ));
     }
     *child_guard = Some(child);
+    append_desktop_bootstrap_log(&app, "start_sidecar: child running");
     Ok(true)
 }
 
@@ -3877,13 +3989,27 @@ fn save_runtime_config(app: AppHandle, config: RuntimeConfig) -> Result<bool, St
 
 #[tauri::command]
 fn save_oem_runtime_snapshot(app: AppHandle, snapshot: OemRuntimeSnapshot) -> Result<bool, String> {
+    append_desktop_bootstrap_log(
+        &app,
+        &format!(
+            "save_oem_runtime_snapshot: begin brand_id={} published_version={}",
+            snapshot.brand_id, snapshot.published_version
+        ),
+    );
     let snapshot_path = oem_runtime_snapshot_path(&app)?;
     let raw = serde_json::to_string_pretty(&snapshot)
         .map_err(|e| format!("failed to serialize OEM runtime snapshot: {e}"))?;
     fs::write(&snapshot_path, raw)
         .map_err(|e| format!("failed to write OEM runtime snapshot: {e}"))?;
     let gateway_token = load_or_create_gateway_token(&app)?;
-    ensure_openclaw_runtime_config(&app, &gateway_token)?;
+    let config_path = ensure_openclaw_runtime_config(&app, &gateway_token)?;
+    append_desktop_bootstrap_log(
+        &app,
+        &format!(
+            "save_oem_runtime_snapshot: config_ready path={}",
+            config_path.to_string_lossy()
+        ),
+    );
     Ok(true)
 }
 
@@ -3919,6 +4045,10 @@ fn sync_oem_runtime_snapshot(
     auth_base_url: String,
     brand_id: String,
 ) -> Result<bool, String> {
+    append_desktop_bootstrap_log(
+        &app,
+        &format!("sync_oem_runtime_snapshot: begin brand_id={brand_id} auth_base_url={auth_base_url}"),
+    );
     let trimmed_brand_id = brand_id.trim();
     let trimmed_auth_base_url = auth_base_url.trim().trim_end_matches('/');
     if trimmed_brand_id.is_empty() {
@@ -3990,7 +4120,15 @@ fn sync_oem_runtime_snapshot(
         published_version: data.published_version.unwrap_or(0),
         config,
     };
-    save_oem_runtime_snapshot(app, snapshot)
+    let result = save_oem_runtime_snapshot(app.clone(), snapshot);
+    match &result {
+        Ok(_) => append_desktop_bootstrap_log(&app, "sync_oem_runtime_snapshot: success"),
+        Err(error) => append_desktop_bootstrap_log(
+            &app,
+            &format!("sync_oem_runtime_snapshot: error {error}"),
+        ),
+    }
+    result
 }
 
 #[tauri::command]
@@ -4026,7 +4164,7 @@ fn diagnose_runtime(app: AppHandle) -> Result<RuntimeDiagnosis, String> {
             .map(|value| !value.trim().is_empty())
             .unwrap_or(false);
 
-    Ok(RuntimeDiagnosis {
+    let result = RuntimeDiagnosis {
         runtime_found: runtime.is_some(),
         runtime_installable: runtime_download_configured(&bootstrap_config),
         runtime_source: runtime.as_ref().map(|value| value.source.clone()),
@@ -4046,7 +4184,19 @@ fn diagnose_runtime(app: AppHandle) -> Result<RuntimeDiagnosis, String> {
         work_dir: paths.work_dir,
         log_dir: paths.log_dir,
         cache_dir: paths.cache_dir,
-    })
+    };
+    append_desktop_bootstrap_log(
+        &app,
+        &format!(
+            "diagnose_runtime: found={} installable={} skills_dir_ready={} mcp_config_ready={} runtime_path={}",
+            result.runtime_found,
+            result.runtime_installable,
+            result.skills_dir_ready,
+            result.mcp_config_ready,
+            result.runtime_path.clone().unwrap_or_default()
+        ),
+    );
+    Ok(result)
 }
 
 #[tauri::command]
@@ -4408,11 +4558,20 @@ fn load_desktop_memory_entries(app: &AppHandle) -> Result<Vec<DesktopMemoryEntry
 fn configure_memory_runtime_command(command: &mut Command, app: &AppHandle) -> Result<(), String> {
     if let Err(error) = sync_current_brand_runtime_snapshot(app) {
         eprintln!("failed to sync OEM runtime snapshot before memory runtime command: {error}");
+        append_desktop_bootstrap_log(
+            app,
+            &format!("memory_runtime_command: snapshot sync warning {error}"),
+        );
     }
     let runtime = resolve_runtime_command(app)?;
     let gateway_token = load_or_create_gateway_token(app)?;
     ensure_openclaw_workspace_seed(app)?;
-    ensure_current_brand_runtime_skills(app, "memory runtime command")?;
+    if let Err(error) = ensure_current_brand_runtime_skills(app, "memory runtime command") {
+        append_desktop_bootstrap_log(
+            app,
+            &format!("memory_runtime_command: runtime skill sync warning {error}"),
+        );
+    }
     let openclaw_state_dir = openclaw_state_dir(app)?;
     let openclaw_config_path = ensure_openclaw_runtime_config(app, &gateway_token)?;
     let config = load_runtime_config_internal(app)?;
