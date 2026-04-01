@@ -87,6 +87,15 @@ function Normalize-EnvName {
   }
 }
 
+function Get-PublicAppVersion {
+  param([Parameter(Mandatory = $true)][string]$Version)
+  $normalized = $Version.Trim()
+  if (-not $normalized) {
+    throw 'Version cannot be empty'
+  }
+  return ($normalized -split '\+', 2)[0]
+}
+
 function Read-EnvFile {
   param([Parameter(Mandatory = $true)][string]$Path)
   $values = @{}
@@ -307,9 +316,10 @@ try {
   $artifactBaseName = Get-JsonValue -ScriptPath $node -Arguments @("$RootDir\scripts\read-brand-value.mjs", '--brand', $Brand, 'distribution.artifactBaseName')
   $packageJson = Get-Content -LiteralPath (Join-Path $RootDir 'package.json') -Raw | ConvertFrom-Json
   $appVersion = [string]$packageJson.version
+  $publicAppVersion = Get-PublicAppVersion -Version $appVersion
   $normalizedChannels = @($Channels | ForEach-Object { Normalize-EnvName $_ })
   if (-not $ReleaseVersion) {
-    $ReleaseVersion = "$appVersion.$(Get-Date -Format 'yyyyMMddHHmm')"
+    $ReleaseVersion = "$publicAppVersion.$(Get-Date -Format 'yyyyMMddHHmm')"
   }
 
   if (-not $SkipBuild) {

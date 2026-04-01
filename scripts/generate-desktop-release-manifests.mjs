@@ -39,6 +39,10 @@ function splitVersion(version) {
   };
 }
 
+function normalizeReleaseVersionPrefix(version) {
+  return splitVersion(version).baseVersion;
+}
+
 async function sha256File(filePath) {
   const hash = crypto.createHash('sha256');
   const buffer = await fs.readFile(filePath);
@@ -131,7 +135,14 @@ function matchReleaseFile(fileName, artifactBaseName, target, channel) {
 }
 
 function isReleaseForAppVersion(releaseVersion, appVersion) {
-  return releaseVersion === appVersion || releaseVersion.startsWith(`${appVersion}.`);
+  const normalizedAppVersion = trimString(appVersion);
+  const publicVersion = normalizeReleaseVersionPrefix(normalizedAppVersion);
+  return (
+    releaseVersion === normalizedAppVersion ||
+    releaseVersion.startsWith(`${normalizedAppVersion}.`) ||
+    releaseVersion === publicVersion ||
+    releaseVersion.startsWith(`${publicVersion}.`)
+  );
 }
 
 function compareByName(a, b) {
