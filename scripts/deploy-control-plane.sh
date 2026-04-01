@@ -22,6 +22,14 @@ rsync -a \
   "$ROOT_DIR/services/control-plane/src/" \
   "${REMOTE}:${ICLAW_CONTROL_PLANE_PATH}/services/control-plane/src/"
 
+rsync -a \
+  "$ROOT_DIR/services/control-plane/scripts/" \
+  "${REMOTE}:${ICLAW_CONTROL_PLANE_PATH}/services/control-plane/scripts/"
+
+rsync -a \
+  "$ROOT_DIR/services/control-plane/sql/" \
+  "${REMOTE}:${ICLAW_CONTROL_PLANE_PATH}/services/control-plane/sql/"
+
 echo "Restarting PM2 app: ${ICLAW_CONTROL_PLANE_PM2_APP}"
 ssh "${REMOTE}" "cd ${ICLAW_CONTROL_PLANE_PATH} && pm2 restart ${ICLAW_CONTROL_PLANE_PM2_APP}"
 
