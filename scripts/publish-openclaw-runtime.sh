@@ -51,24 +51,35 @@ if [[ -z "$VERSION" ]]; then
   exit 1
 fi
 
-if [[ -z "$ARCHIVE_PATH_RAW" ]]; then
-  echo "Runtime artifact_url missing in $RUNTIME_CONFIG_PATH for target $TARGET_TRIPLE" >&2
-  exit 1
-fi
-
-ARCHIVE_PATH="$(openclaw_abs_path "$ARCHIVE_PATH_RAW")"
-if [[ ! -f "$ARCHIVE_PATH" ]]; then
-  echo "Runtime archive not found: $ARCHIVE_PATH" >&2
-  exit 1
-fi
-
 if [[ -z "$ARTIFACT_FORMAT" ]]; then
   ARTIFACT_FORMAT="tar.gz"
 fi
 
-DETECTED_TARGET_TRIPLE="$(openclaw_detect_runtime_target_triple "$ARCHIVE_PATH_RAW" || true)"
+resolve_publish_source_archive() {
+  local explicit_path="${ICLAW_OPENCLAW_RUNTIME_ARCHIVE_PATH:-${OPENCLAW_RUNTIME_ARCHIVE_PATH:-}}"
+  if [[ -n "$explicit_path" ]]; then
+    openclaw_abs_path "$explicit_path"
+    return 0
+  fi
+
+  if [[ -n "$ARCHIVE_PATH_RAW" && "$ARCHIVE_PATH_RAW" != http://* && "$ARCHIVE_PATH_RAW" != https://* ]]; then
+    openclaw_abs_path "$ARCHIVE_PATH_RAW"
+    return 0
+  fi
+
+  openclaw_local_runtime_archive_path "$ROOT_DIR" "$VERSION" "$TARGET_TRIPLE" "$ARTIFACT_FORMAT"
+}
+
+ARCHIVE_PATH="$(resolve_publish_source_archive)"
+if [[ ! -f "$ARCHIVE_PATH" ]]; then
+  echo "Runtime archive not found for publish source: $ARCHIVE_PATH" >&2
+  echo "Build it first with pnpm build:openclaw-runtime, or pass ICLAW_OPENCLAW_RUNTIME_ARCHIVE_PATH=/abs/path/to/archive" >&2
+  exit 1
+fi
+
+DETECTED_TARGET_TRIPLE="$(openclaw_detect_runtime_target_triple "$ARCHIVE_PATH" || true)"
 if [[ -n "$DETECTED_TARGET_TRIPLE" && "$DETECTED_TARGET_TRIPLE" != "$TARGET_TRIPLE" ]]; then
-  echo "Runtime archive target mismatch: expected $TARGET_TRIPLE but got $DETECTED_TARGET_TRIPLE from $ARCHIVE_PATH_RAW" >&2
+  echo "Runtime archive target mismatch: expected $TARGET_TRIPLE but got $DETECTED_TARGET_TRIPLE from $ARCHIVE_PATH" >&2
   exit 1
 fi
 

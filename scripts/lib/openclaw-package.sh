@@ -100,6 +100,28 @@ openclaw_detect_runtime_target_triple() {
   esac
 }
 
+openclaw_runtime_archive_extension() {
+  local artifact_format="${1:-tar.gz}"
+  case "$artifact_format" in
+    tar.gz|tgz|'') printf 'tar.gz\n' ;;
+    zip) printf 'zip\n' ;;
+    *)
+      echo "Unsupported runtime artifact format: $artifact_format" >&2
+      return 1
+      ;;
+  esac
+}
+
+openclaw_local_runtime_archive_path() {
+  local root_dir="$1"
+  local version="$2"
+  local target_triple="$3"
+  local artifact_format="${4:-tar.gz}"
+  local ext
+  ext="$(openclaw_runtime_archive_extension "$artifact_format")" || return 1
+  printf '%s/openclaw-runtime-%s-%s.%s\n' "$(openclaw_runtime_artifacts_dir "$root_dir")" "$target_triple" "$version" "$ext"
+}
+
 openclaw_prepare_package_tgz() {
   local root_dir="$1"
   local artifacts_dir
