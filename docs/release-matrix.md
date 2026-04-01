@@ -81,6 +81,22 @@ bash scripts/build-desktop-matrix.sh
 - dev：本地 Vite（home）+ 远端源 MinIO（`47.93.231.197`）
 - prod：Nginx（`113.44.132.75`）+ 火山 MinIO（`115.191.6.179`）
 
+## 下载路径约定
+
+公开下载地址必须按平台和架构分层，避免不同安装包互相覆盖。
+
+- 根索引：`/downloads/latest-<channel>.json`
+- Windows x64：`/downloads/windows/x64/<artifact>`
+- Windows ARM64：`/downloads/windows/aarch64/<artifact>`
+- macOS Intel：`/downloads/darwin/x64/<artifact>`
+- macOS Apple Silicon：`/downloads/darwin/aarch64/<artifact>`
+
+说明：
+
+- 平台 manifest 也放在对应目录，例如 `latest-prod-windows-x64.json` 应位于 `/downloads/windows/x64/`
+- installer、updater、签名文件都跟随同一平台/架构目录发布
+- 脚本侧不得再把公开下载产物只上传到桶根目录，必须和公网 URL 前缀保持一致
+
 ## macOS Prod 标准流程
 
 macOS 正式发版默认按“双打”执行，不再只打一种架构。

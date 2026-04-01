@@ -96,6 +96,22 @@ function Get-PublicAppVersion {
   return ($normalized -split '\+', 2)[0]
 }
 
+function Resolve-UploadPrefix {
+  param([Parameter(Mandatory = $true)][string]$PublicBaseUrl)
+  $normalized = $PublicBaseUrl.Trim()
+  if (-not $normalized) {
+    return ''
+  }
+
+  try {
+    $uri = [System.Uri]$normalized
+  } catch {
+    return ''
+  }
+
+  return $uri.AbsolutePath.Trim('/')
+}
+
 function Read-EnvFile {
   param([Parameter(Mandatory = $true)][string]$Path)
   $values = @{}
@@ -273,10 +289,13 @@ function Publish-Channel {
   if ($channelValue -eq 'dev') {
     $alias = if ($env:ICLAW_MINIO_DEV_ALIAS) { $env:ICLAW_MINIO_DEV_ALIAS } else { 'local' }
     $bucket = if ($env:ICLAW_MINIO_DEV_BUCKET) { $env:ICLAW_MINIO_DEV_BUCKET } else { Get-JsonValue -ScriptPath (Get-CommandPath -Name 'node') -Arguments @("$RootDir\scripts\read-brand-value.mjs", '--brand', $Brand, 'distribution.downloads.dev.bucket') }
+    $publicBaseUrl = Get-JsonValue -ScriptPath (Get-CommandPath -Name 'node') -Arguments @("$RootDir\scripts\read-brand-value.mjs", '--brand', $Brand, 'distribution.downloads.dev.publicBaseUrl')
   } else {
     $alias = if ($env:ICLAW_MINIO_PROD_ALIAS) { $env:ICLAW_MINIO_PROD_ALIAS } else { 'remoteprod' }
     $bucket = if ($env:ICLAW_MINIO_PROD_BUCKET) { $env:ICLAW_MINIO_PROD_BUCKET } else { Get-JsonValue -ScriptPath (Get-CommandPath -Name 'node') -Arguments @("$RootDir\scripts\read-brand-value.mjs", '--brand', $Brand, 'distribution.downloads.prod.bucket') }
+    $publicBaseUrl = Get-JsonValue -ScriptPath (Get-CommandPath -Name 'node') -Arguments @("$RootDir\scripts\read-brand-value.mjs", '--brand', $Brand, 'distribution.downloads.prod.publicBaseUrl')
   }
+  $uploadPrefix = Resolve-UploadPrefix -PublicBaseUrl $publicBaseUrl
 
   $patterns = @(
     "${ArtifactBaseName}_*_${channelValue}.exe",
@@ -296,6 +315,11 @@ function Publish-Channel {
   }
 
   Invoke-Checked -FilePath $mc -Arguments @('mb', '--ignore-existing', "$alias/$bucket")
+  $uploadRoot = "$alias/$bucket"
+  if ($uploadPrefix) {
+    $uploadRoot = "$uploadRoot/$uploadPrefix"
+    Invoke-Checked -FilePath $mc -Arguments @('mb', '--ignore-existing', $uploadRoot)
+  }
   $manifestsByTarget = @{}
   foreach ($file in $files) {
     $manifestMatch = [regex]::Match($file.Name, '^latest-(?<channel>dev|prod)-(?<platform>[^-]+)-(?<arch>[^.]+)\.json$')
@@ -306,22 +330,44 @@ function Publish-Channel {
       }
       $null = $manifestsByTarget[$targetKey].Add($file)
     }
-    Invoke-Checked -FilePath $mc -Arguments @('cp', $file.FullName, "$alias/$bucket/")
+    if ($file.Name -match '^latest-(?<channel>dev|prod)\.json$') {
+      Invoke-Checked -FilePath $mc -Arguments @('cp', $file.FullName, "$uploadRoot/")
+    }
   }
 
   $installers = Get-ChildItem -LiteralPath $ReleaseDir -File -Filter "${ArtifactBaseName}_*_${channelValue}.exe" -ErrorAction SilentlyContinue |
     Sort-Object Name
+  $updaters = Get-ChildItem -LiteralPath $ReleaseDir -File -Filter "${ArtifactBaseName}_*_${channelValue}.nsis.zip*" -ErrorAction SilentlyContinue |
+    Sort-Object Name
+  $installerGroups = @{}
   foreach ($installer in $installers) {
     $isArm = $installer.Name -match '_(aarch64|arm64)_'
     $archLabel = if ($isArm) { 'aarch64' } else { 'x64' }
-    $targetDir = "$alias/$bucket/windows/$archLabel"
-    Invoke-Checked -FilePath $mc -Arguments @('mb', '--ignore-existing', $targetDir)
-    Invoke-Checked -FilePath $mc -Arguments @('cp', $installer.FullName, "$targetDir/")
-
     $targetKey = "windows/$archLabel"
+    if (-not $installerGroups.ContainsKey($targetKey)) {
+      $installerGroups[$targetKey] = New-Object System.Collections.Generic.List[object]
+    }
+    $null = $installerGroups[$targetKey].Add($installer)
+  }
+
+  foreach ($entry in $installerGroups.GetEnumerator()) {
+    $targetKey = $entry.Key
+    $targetDir = "$uploadRoot/$targetKey"
+    Invoke-Checked -FilePath $mc -Arguments @('mb', '--ignore-existing', $targetDir)
+    foreach ($installer in $entry.Value) {
+      Invoke-Checked -FilePath $mc -Arguments @('cp', $installer.FullName, "$targetDir/")
+    }
+
     if ($manifestsByTarget.ContainsKey($targetKey)) {
       foreach ($manifest in $manifestsByTarget[$targetKey]) {
         Invoke-Checked -FilePath $mc -Arguments @('cp', $manifest.FullName, "$targetDir/")
+      }
+    }
+
+    foreach ($updater in $updaters) {
+      $updaterArch = if ($updater.Name -match '_(aarch64|arm64)_') { 'aarch64' } else { 'x64' }
+      if ("windows/$updaterArch" -eq $targetKey) {
+        Invoke-Checked -FilePath $mc -Arguments @('cp', $updater.FullName, "$targetDir/")
       }
     }
   }
