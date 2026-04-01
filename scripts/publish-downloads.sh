@@ -9,8 +9,10 @@ KEEP_VERSIONS="${ICLAW_KEEP_VERSIONS:-2}"
 export ICLAW_PACKAGING_ENV="$ENV_NAME"
 ARTIFACT_BASE_NAME="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" distribution.artifactBaseName | tail -n1)"
 DEV_BUCKET_DEFAULT="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" distribution.downloads.dev.bucket | tail -n1)"
+TEST_BUCKET_DEFAULT="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" distribution.downloads.test.bucket | tail -n1)"
 PROD_BUCKET_DEFAULT="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" distribution.downloads.prod.bucket | tail -n1)"
 DEV_PUBLIC_BASE_URL="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" distribution.downloads.dev.publicBaseUrl | tail -n1)"
+TEST_PUBLIC_BASE_URL="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" distribution.downloads.test.publicBaseUrl | tail -n1)"
 PROD_PUBLIC_BASE_URL="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" distribution.downloads.prod.publicBaseUrl | tail -n1)"
 
 if [[ ! -d "$RELEASE_DIR" ]]; then
@@ -265,7 +267,60 @@ elif [[ "$ENV_NAME" == "prod" ]]; then
   done
 
   echo "Uploaded to prod minio: $prod_upload_target"
+elif [[ "$ENV_NAME" == "test" ]]; then
+  : "${ICLAW_MINIO_TEST_ALIAS:=local}"
+  : "${ICLAW_MINIO_TEST_BUCKET:=$TEST_BUCKET_DEFAULT}"
+  : "${ICLAW_MINIO_TEST_PREFIX:=$(resolve_upload_prefix "$TEST_PUBLIC_BASE_URL")}"
+
+  prune_all_local
+
+  mc mb --ignore-existing "$ICLAW_MINIO_TEST_ALIAS/$ICLAW_MINIO_TEST_BUCKET"
+  test_upload_target="$ICLAW_MINIO_TEST_ALIAS/$ICLAW_MINIO_TEST_BUCKET"
+  if [[ -n "$ICLAW_MINIO_TEST_PREFIX" ]]; then
+    test_upload_target="$test_upload_target/$ICLAW_MINIO_TEST_PREFIX"
+  fi
+  test_files=()
+  test_updater_files=()
+  shopt -s nullglob
+  test_files=(
+    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_test.dmg
+    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_test.exe
+  )
+  test_updater_files=(
+    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_test.app.tar.gz
+    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_test.app.tar.gz.sig
+    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_test.nsis.zip
+    "$RELEASE_DIR"/"${ARTIFACT_BASE_NAME}"_*_test.nsis.zip.sig
+  )
+  shopt -u nullglob
+  if [[ ${#test_files[@]} -eq 0 ]]; then
+    echo "No test desktop installers found for brand artifact prefix: $ARTIFACT_BASE_NAME" >&2
+    exit 1
+  fi
+  shopt -s nullglob
+  test_manifests=("$RELEASE_DIR"/latest-test*.json)
+  shopt -u nullglob
+  if [[ ${#test_manifests[@]} -eq 0 ]]; then
+    echo "No test desktop release manifests found under: $RELEASE_DIR" >&2
+    exit 1
+  fi
+  test_uploads=()
+  test_uploads+=("${test_files[@]}")
+  if [[ ${#test_updater_files[@]} -gt 0 ]]; then
+    test_uploads+=("${test_updater_files[@]}")
+  fi
+  test_uploads+=("${test_manifests[@]}")
+  for file_path in "${test_uploads[@]}"; do
+    upload_target_file "$file_path" "$test_upload_target"
+  done
+  mc anonymous set download "$ICLAW_MINIO_TEST_ALIAS/$ICLAW_MINIO_TEST_BUCKET"
+
+  for arch in aarch64 x64; do
+    minio_prune "$ICLAW_MINIO_TEST_ALIAS" "$ICLAW_MINIO_TEST_BUCKET" "$ICLAW_MINIO_TEST_PREFIX" test "$arch"
+  done
+
+  echo "Uploaded to test minio: $test_upload_target"
 else
-  echo "Unknown env: $ENV_NAME (use dev or prod)" >&2
+  echo "Unknown env: $ENV_NAME (use dev | test | prod)" >&2
   exit 1
 fi

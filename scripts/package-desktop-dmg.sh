@@ -96,6 +96,9 @@ normalize_channel() {
     dev|development|local)
       echo "dev"
       ;;
+    test|testing|staging)
+      echo "test"
+      ;;
     prod|production|release)
       echo "prod"
       ;;

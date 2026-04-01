@@ -6,6 +6,15 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { resolveBrandId } from './lib/brand-profile.mjs';
 import { resolveConfiguredAppName, resolvePackagingSourceEnv, resolveSigningOverlayEnv } from './lib/app-env.mjs';
+import {
+  buildBundleRoot,
+  buildPackagingWorkspacePaths,
+  getArchLabelForTarget,
+  listKnownRuntimeTargets,
+  resolvePackagingChannelFromEnv,
+  resolvePackagingTargetInfo,
+  trimString,
+} from './lib/desktop-packaging.mjs';
 import { resolveOemSigningProfile } from './lib/oem-signing.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -20,9 +29,7 @@ const syncResourcesScriptPath = path.join(rootDir, 'scripts', 'sync-openclaw-res
 const packageDmgScriptPath = path.join(rootDir, 'scripts', 'package-desktop-dmg.sh');
 const runtimeBootstrapConfigPath = path.join(tauriDir, 'resources', 'config', 'openclaw-runtime.json');
 const bundledRuntimeDir = path.join(tauriDir, 'resources', 'openclaw-runtime');
-const bundledSkillsDir = path.join(tauriDir, 'resources', 'bundled-skills');
-const packagedSkillBaselineDir = path.join(rootDir, 'services', 'openclaw', 'resources', 'baseline', 'skills');
-const packagedMcpBaselineDir = path.join(rootDir, 'services', 'openclaw', 'resources', 'baseline', 'mcp');
+const openclawResourcesSourceDir = path.join(rootDir, 'services', 'openclaw', 'resources');
 const nsisAutoRunDefinition = '!define MUI_FINISHPAGE_RUN\n!define MUI_FINISHPAGE_RUN_FUNCTION RunMainBinary\n';
 
 function parseArgs(argv) {
@@ -120,21 +127,6 @@ function platformBundleTarget() {
   throw new Error(`Unsupported desktop packaging platform: ${process.platform}`);
 }
 
-function normalizeChannel(value) {
-  const normalized = String(value || '').trim().toLowerCase();
-  if (['dev', 'development', 'local'].includes(normalized)) {
-    return 'dev';
-  }
-  if (['prod', 'production', 'release'].includes(normalized)) {
-    return 'prod';
-  }
-  return '';
-}
-
-function trimString(value) {
-  return typeof value === 'string' ? value.trim() : '';
-}
-
 function isTruthyEnv(value) {
   return /^(1|true|yes)$/i.test(String(value || '').trim());
 }
@@ -165,11 +157,7 @@ async function readGeneratedProductName() {
 }
 
 function bundleTargetRoot(target) {
-  const root = path.join(tauriDir, 'target');
-  if (target && target.trim()) {
-    return path.join(root, target.trim(), 'release', 'bundle');
-  }
-  return path.join(root, 'release', 'bundle');
+  return buildBundleRoot({ tauriDir, target, profile: 'release' });
 }
 
 async function validateMacosProdBundle({ target, channel }) {
@@ -278,15 +266,11 @@ async function copyLatestNsisOutput({ target }) {
     throw new Error(`desktop packaging aborted: unable to locate bundled NSIS installer under ${installerDir}`);
   }
 
-  const nsisOutputPath = path.join(
-    tauriDir,
-    'target',
-    'release',
-    'nsis',
-    'x64',
-    'nsis-output.exe',
-  );
-  await fs.copyFile(nsisOutputPath, latestInstaller.fullPath);
+  const nsisOutput = await findLatestWindowsNsisArtifact('nsis-output.exe', target);
+  if (!nsisOutput) {
+    throw new Error('desktop packaging aborted: unable to locate rebuilt NSIS output (nsis-output.exe)');
+  }
+  await fs.copyFile(nsisOutput.fullPath, latestInstaller.fullPath);
 }
 
 async function rebuildWindowsNsisInstaller({ target }) {
@@ -294,22 +278,22 @@ async function rebuildWindowsNsisInstaller({ target }) {
     return;
   }
 
-  const installerScriptPath = path.join(tauriDir, 'target', 'release', 'nsis', 'x64', 'installer.nsi');
-  if (!(await pathExists(installerScriptPath))) {
+  const installerScript = await findLatestWindowsNsisArtifact('installer.nsi', target);
+  if (!installerScript) {
     return;
   }
 
-  const changed = await patchWindowsNsisScript(installerScriptPath);
+  const changed = await patchWindowsNsisScript(installerScript.fullPath);
   if (!changed) {
     return;
   }
 
   const makensis = findMakensisPath();
-  run(makensis, [installerScriptPath], { cwd: rootDir });
+  run(makensis, [installerScript.fullPath], { cwd: rootDir });
   await copyLatestNsisOutput({ target });
 }
 
-function syncLocalAppRuntime({ pnpm, env, brandId, channel }) {
+function syncLocalAppRuntime({ pnpm, env, brandId, packagingPaths }) {
   const args = [
     path.join(rootDir, 'scripts', 'with-packaging-source-env.mjs'),
     '--',
@@ -327,8 +311,8 @@ function syncLocalAppRuntime({ pnpm, env, brandId, channel }) {
     cwd: rootDir,
     env: {
       ...env,
-      ICLAW_PACKAGED_SKILL_BASELINE_DIR: packagedSkillBaselineDir,
-      ICLAW_PACKAGED_MCP_BASELINE_DIR: packagedMcpBaselineDir,
+      ICLAW_PACKAGED_SKILL_BASELINE_DIR: packagingPaths.packagedSkillBaselineDir,
+      ICLAW_PACKAGED_MCP_BASELINE_DIR: packagingPaths.packagedMcpBaselineDir,
     },
     shell: false,
     encoding: 'utf8',
@@ -350,7 +334,7 @@ function syncLocalAppRuntime({ pnpm, env, brandId, channel }) {
   );
 }
 
-function syncBundledBaselineSkills({ pnpm, env, brandId }) {
+function syncBundledBaselineSkills({ pnpm, env, brandId, packagingPaths }) {
   const args = [
     path.join(rootDir, 'scripts', 'with-packaging-source-env.mjs'),
     '--',
@@ -363,7 +347,7 @@ function syncBundledBaselineSkills({ pnpm, env, brandId }) {
     '--app',
     brandId,
     '--skills-output-root',
-    bundledSkillsDir,
+    packagingPaths.bundledSkillsDir,
     '--bundled-only',
     '--incremental',
   ];
@@ -372,7 +356,7 @@ function syncBundledBaselineSkills({ pnpm, env, brandId }) {
     ICLAW_SKIP_RUNTIME_SKILL_SYNC: '0',
     ICLAW_BUNDLED_SKILLS_ONLY: '1',
     ICLAW_INCREMENTAL_SKILL_SYNC: '1',
-    ICLAW_RUNTIME_SKILLS_OUTPUT_ROOT: bundledSkillsDir,
+    ICLAW_RUNTIME_SKILLS_OUTPUT_ROOT: packagingPaths.bundledSkillsDir,
   };
   const result = spawnSync(process.execPath, args, {
     stdio: 'pipe',
@@ -414,6 +398,71 @@ async function pathExists(targetPath) {
   }
 }
 
+async function recreateDir(targetPath) {
+  await fs.rm(targetPath, { recursive: true, force: true });
+  await fs.mkdir(targetPath, { recursive: true });
+}
+
+async function copyDirIfPresent(sourcePath, destinationPath) {
+  if (!(await pathExists(sourcePath))) {
+    return;
+  }
+  await fs.mkdir(path.dirname(destinationPath), { recursive: true });
+  await fs.cp(sourcePath, destinationPath, {
+    recursive: true,
+    force: true,
+    verbatimSymlinks: true,
+  });
+}
+
+async function preparePackagingResourcesSource(resourcesSourceDir) {
+  await recreateDir(resourcesSourceDir);
+  await Promise.all([
+    copyDirIfPresent(path.join(openclawResourcesSourceDir, 'certs'), path.join(resourcesSourceDir, 'certs')),
+    copyDirIfPresent(path.join(openclawResourcesSourceDir, 'config'), path.join(resourcesSourceDir, 'config')),
+    copyDirIfPresent(path.join(openclawResourcesSourceDir, 'mcp'), path.join(resourcesSourceDir, 'mcp')),
+  ]);
+  await fs.mkdir(path.join(resourcesSourceDir, 'baseline'), { recursive: true });
+  await fs.mkdir(path.join(resourcesSourceDir, 'bundled-skills'), { recursive: true });
+}
+
+async function collectFilesRecursively(rootPath, fileName) {
+  const matches = [];
+  if (!(await pathExists(rootPath))) {
+    return matches;
+  }
+
+  async function walk(currentPath) {
+    const entries = await fs.readdir(currentPath, { withFileTypes: true });
+    for (const entry of entries) {
+      const nextPath = path.join(currentPath, entry.name);
+      if (entry.isDirectory()) {
+        await walk(nextPath);
+        continue;
+      }
+      if (entry.isFile() && entry.name === fileName) {
+        const stat = await fs.stat(nextPath);
+        matches.push({ fullPath: nextPath, mtimeMs: stat.mtimeMs });
+      }
+    }
+  }
+
+  await walk(rootPath);
+  return matches;
+}
+
+async function findLatestWindowsNsisArtifact(fileName, target = '') {
+  const allMatches = await collectFilesRecursively(path.join(tauriDir, 'target'), fileName);
+  const targetSegment = trimString(target);
+  const targetMatches = targetSegment
+    ? allMatches.filter((entry) => entry.fullPath.includes(targetSegment))
+    : allMatches;
+  const scopedMatches = (targetMatches.length > 0 ? targetMatches : allMatches)
+    .filter((entry) => entry.fullPath.includes(`${path.sep}nsis${path.sep}`))
+    .sort((left, right) => right.mtimeMs - left.mtimeMs);
+  return scopedMatches[0] || null;
+}
+
 async function runtimeLayoutLooksComplete(runtimeDir, targetTriple = '') {
   const requiredPaths = [
     path.join(runtimeDir, targetTriple.includes('windows') ? 'openclaw-runtime.cmd' : 'openclaw-runtime'),
@@ -425,32 +474,10 @@ async function runtimeLayoutLooksComplete(runtimeDir, targetTriple = '') {
 }
 
 function inferRuntimeTargetTriple(target = '') {
-  if (KNOWN_RUNTIME_TARGET_TRIPLES.includes(target)) {
-    return target;
-  }
-  if (process.platform === 'darwin') {
-    if (process.arch === 'arm64') return 'aarch64-apple-darwin';
-    if (process.arch === 'x64') return 'x86_64-apple-darwin';
-  }
-  if (process.platform === 'win32') {
-    if (process.arch === 'arm64') return 'aarch64-pc-windows-msvc';
-    if (process.arch === 'x64') return 'x86_64-pc-windows-msvc';
-  }
-  if (process.platform === 'linux') {
-    if (process.arch === 'arm64') return 'aarch64-unknown-linux-gnu';
-    if (process.arch === 'x64') return 'x86_64-unknown-linux-gnu';
-  }
-  return '';
+  return resolvePackagingTargetInfo(target)?.triple || '';
 }
 
-const KNOWN_RUNTIME_TARGET_TRIPLES = [
-  'aarch64-apple-darwin',
-  'x86_64-apple-darwin',
-  'aarch64-pc-windows-msvc',
-  'x86_64-pc-windows-msvc',
-  'aarch64-unknown-linux-gnu',
-  'x86_64-unknown-linux-gnu',
-];
+const KNOWN_RUNTIME_TARGET_TRIPLES = listKnownRuntimeTargets();
 
 function detectRuntimeArtifactTargetTriple(artifactUrl) {
   const normalized = trimString(artifactUrl);
@@ -614,11 +641,17 @@ async function assertPackagedRuntimeConfig(env, targetTriple) {
 async function main() {
   const { brandId, target, forwardedArgs } = parseArgs(process.argv.slice(2));
   const runtimeTargetTriple = inferRuntimeTargetTriple(target);
-  const snapshotKey = 'desktop-package-build';
+  const channel = resolvePackagingChannelFromEnv(process.env);
+  const packagingPaths = buildPackagingWorkspacePaths({ rootDir, brandId, channel, target });
+  const snapshotKey = [
+    'desktop-package-build',
+    brandId,
+    channel || 'adhoc',
+    getArchLabelForTarget(target) || 'host',
+  ].join('-');
   const packagingOverlayEnv = resolveSigningOverlayEnv(rootDir);
   const packagingSourceEnv = resolvePackagingSourceEnv(rootDir);
   const signingProfile = await resolveOemSigningProfile({ rootDir, brandId });
-  const channel = normalizeChannel(process.env.ICLAW_ENV_NAME || process.env.NODE_ENV);
   const channelSigningEnv = buildChannelSigningEnv(signingProfile.env, channel);
   const env = {
     ...process.env,
@@ -629,12 +662,14 @@ async function main() {
     ICLAW_PORTAL_APP_NAME: brandId,
     ICLAW_BRAND: brandId,
     ICLAW_USE_PACKAGING_SOURCE_ENV: '1',
+    ICLAW_ENV_NAME: channel || process.env.ICLAW_ENV_NAME || process.env.NODE_ENV || '',
+    ICLAW_OPENCLAW_RESOURCES_SOURCE_DIR: packagingPaths.resourcesSourceDir,
   };
   const { tauriBundle, packageDmg } = platformBundleTarget();
   const pnpm = pnpmCommand();
   let restoreRuntimeBootstrapConfig = async () => {};
 
-  run(process.execPath, [brandStateScriptPath, 'snapshot', snapshotKey], {env});
+  run(process.execPath, [brandStateScriptPath, 'snapshot', snapshotKey], { env });
   try {
     if (signingProfile.profileName) {
       process.stdout.write(
@@ -649,8 +684,9 @@ async function main() {
     }
 
     run(process.execPath, [applyBrandScriptPath, brandId], { env });
-    syncLocalAppRuntime({ pnpm, env, brandId, channel });
-    syncBundledBaselineSkills({ pnpm, env, brandId });
+    await preparePackagingResourcesSource(packagingPaths.resourcesSourceDir);
+    syncLocalAppRuntime({ pnpm, env, brandId, packagingPaths });
+    syncBundledBaselineSkills({ pnpm, env, brandId, packagingPaths });
     run(process.execPath, [syncResourcesScriptPath], { env });
     restoreRuntimeBootstrapConfig = await applyRuntimeBootstrapOverlay(env, runtimeTargetTriple);
     await assertPackagedRuntimeConfig(env, runtimeTargetTriple);
@@ -672,7 +708,8 @@ async function main() {
   } finally {
     await fs.rm(tempConfigPath, { force: true });
     await restoreRuntimeBootstrapConfig();
-    run(process.execPath, [brandStateScriptPath, 'restore', snapshotKey], {env});
+    await fs.rm(packagingPaths.workspaceRoot, { recursive: true, force: true });
+    run(process.execPath, [brandStateScriptPath, 'restore', snapshotKey], { env });
   }
 }
 

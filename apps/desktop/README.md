@@ -106,7 +106,7 @@ pnpm dev:web
 职责边界：
 
 - control-plane：数据库真值层，负责解析当前 OEM 生效的 skill / MCP / model / surface。
-- `services/control-plane/scripts/sync-local-app-runtime.ts`：本地物化层。供 `pnpm dev:api` 或打包阶段使用，把 control-plane 已解析的 runtime 结果预同步到本地工作区 / baseline。
+- `services/control-plane/scripts/sync-local-app-runtime.ts`：本地物化层。供 `pnpm dev:api` 或打包阶段使用，把 control-plane 已解析的 runtime 结果预同步到本地工作区；桌面打包阶段会额外落到临时 staging baseline，而不是直接污染仓库资源目录。
 - Tauri Rust：运行时激活层。应用启动时优先激活包内 baseline；若 baseline 与当前 snapshot 不匹配，再做一次本地 catch-up 同步。
 - OpenClaw sidecar：纯消费层，只读取本地已经落盘的 config / workspace / baseline，不再自行推断 OEM 真值。
 

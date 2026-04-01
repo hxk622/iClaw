@@ -10,7 +10,7 @@ import { loadBrandProfile, resolveBrandId } from './lib/brand-profile.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const defaultReleaseDir = path.join(rootDir, 'dist', 'releases');
-const supportedChannels = new Set(['dev', 'prod']);
+const supportedChannels = new Set(['dev', 'test', 'prod']);
 const supportedTargets = [
   { platform: 'darwin', arch: 'aarch64', installerExt: 'dmg', updaterExt: 'app.tar.gz' },
   { platform: 'darwin', arch: 'x64', installerExt: 'dmg', updaterExt: 'app.tar.gz' },
@@ -102,7 +102,7 @@ function parseArgs(argv) {
   }
 
   if (!supportedChannels.has(channel)) {
-    throw new Error('Usage: node scripts/generate-desktop-release-manifests.mjs --channel <dev|prod> [--version <x.y.z+build>] [--brand <brand-id>] [--release-dir <dir>]');
+    throw new Error('Usage: node scripts/generate-desktop-release-manifests.mjs --channel <dev|test|prod> [--version <x.y.z+build>] [--brand <brand-id>] [--release-dir <dir>]');
   }
 
   return {

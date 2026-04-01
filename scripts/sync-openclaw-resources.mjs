@@ -6,9 +6,14 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
-const resourcesSrcDir = path.join(rootDir, 'services', 'openclaw', 'resources');
+const defaultResourcesSrcDir = path.join(rootDir, 'services', 'openclaw', 'resources');
+const resourcesSrcDir = path.resolve(trimString(process.env.ICLAW_OPENCLAW_RESOURCES_SOURCE_DIR) || defaultResourcesSrcDir);
 const serversSrcDir = path.join(rootDir, 'servers');
 const resourcesDstDir = path.join(rootDir, 'apps', 'desktop', 'src-tauri', 'resources');
+
+function trimString(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
 
 async function pathExists(targetPath) {
   try {
@@ -61,9 +66,11 @@ async function main() {
 
   await fs.rm(path.join(resourcesDstDir, 'skills'), { recursive: true, force: true });
   await fs.rm(path.join(resourcesDstDir, 'baseline'), { recursive: true, force: true });
+  await fs.rm(path.join(resourcesDstDir, 'bundled-skills'), { recursive: true, force: true });
   await copyDirIfPresent(serversSrcDir, path.join(resourcesDstDir, 'servers'));
   await copyDirIfPresent(path.join(resourcesSrcDir, 'certs'), path.join(resourcesDstDir, 'certs'));
   await copyDirIfPresent(path.join(resourcesSrcDir, 'baseline'), path.join(resourcesDstDir, 'baseline'));
+  await copyDirIfPresent(path.join(resourcesSrcDir, 'bundled-skills'), path.join(resourcesDstDir, 'bundled-skills'));
   await copyFileIfPresent(
     path.join(resourcesSrcDir, 'config', 'runtime-config.json'),
     path.join(resourcesDstDir, 'config', 'runtime-config.json'),
@@ -74,7 +81,7 @@ async function main() {
   );
   await syncMcpConfig();
 
-  process.stdout.write(`Synced OpenClaw resources to ${resourcesDstDir}\n`);
+  process.stdout.write(`Synced OpenClaw resources from ${resourcesSrcDir} to ${resourcesDstDir}\n`);
 }
 
 main().catch((error) => {

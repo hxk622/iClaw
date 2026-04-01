@@ -80,6 +80,9 @@ function Normalize-EnvName {
     'dev' { return 'dev' }
     'development' { return 'dev' }
     'local' { return 'dev' }
+    'test' { return 'test' }
+    'testing' { return 'test' }
+    'staging' { return 'test' }
     'prod' { return 'prod' }
     'production' { return 'prod' }
     'release' { return 'prod' }
@@ -290,6 +293,10 @@ function Publish-Channel {
     $alias = if ($env:ICLAW_MINIO_DEV_ALIAS) { $env:ICLAW_MINIO_DEV_ALIAS } else { 'local' }
     $bucket = if ($env:ICLAW_MINIO_DEV_BUCKET) { $env:ICLAW_MINIO_DEV_BUCKET } else { Get-JsonValue -ScriptPath (Get-CommandPath -Name 'node') -Arguments @("$RootDir\scripts\read-brand-value.mjs", '--brand', $Brand, 'distribution.downloads.dev.bucket') }
     $publicBaseUrl = Get-JsonValue -ScriptPath (Get-CommandPath -Name 'node') -Arguments @("$RootDir\scripts\read-brand-value.mjs", '--brand', $Brand, 'distribution.downloads.dev.publicBaseUrl')
+  } elseif ($channelValue -eq 'test') {
+    $alias = if ($env:ICLAW_MINIO_TEST_ALIAS) { $env:ICLAW_MINIO_TEST_ALIAS } else { 'local' }
+    $bucket = if ($env:ICLAW_MINIO_TEST_BUCKET) { $env:ICLAW_MINIO_TEST_BUCKET } else { Get-JsonValue -ScriptPath (Get-CommandPath -Name 'node') -Arguments @("$RootDir\scripts\read-brand-value.mjs", '--brand', $Brand, 'distribution.downloads.test.bucket') }
+    $publicBaseUrl = Get-JsonValue -ScriptPath (Get-CommandPath -Name 'node') -Arguments @("$RootDir\scripts\read-brand-value.mjs", '--brand', $Brand, 'distribution.downloads.test.publicBaseUrl')
   } else {
     $alias = if ($env:ICLAW_MINIO_PROD_ALIAS) { $env:ICLAW_MINIO_PROD_ALIAS } else { 'remoteprod' }
     $bucket = if ($env:ICLAW_MINIO_PROD_BUCKET) { $env:ICLAW_MINIO_PROD_BUCKET } else { Get-JsonValue -ScriptPath (Get-CommandPath -Name 'node') -Arguments @("$RootDir\scripts\read-brand-value.mjs", '--brand', $Brand, 'distribution.downloads.prod.bucket') }

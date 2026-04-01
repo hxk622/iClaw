@@ -121,6 +121,8 @@ build_one() {
 
   if [[ "$channel" == "dev" ]]; then
     node_env="dev"
+  elif [[ "$channel" == "test" ]]; then
+    node_env="test"
   elif [[ "$channel" == "prod" ]]; then
     node_env="prod"
   else
@@ -132,12 +134,10 @@ build_one() {
 
   echo "==> building: target=$target channel=$channel"
 
-  NODE_ENV="$node_env" bash "$ROOT_DIR/scripts/env.sh"
-
   (
-    cd "$DESKTOP_DIR"
+    cd "$ROOT_DIR"
     NODE_ENV="$node_env" \
-    node "$ROOT_DIR/scripts/build-desktop-package.mjs" --target "$target"
+    node "$ROOT_DIR/scripts/run-with-env.mjs" "$node_env" node "$ROOT_DIR/scripts/build-desktop-package.mjs" --target "$target"
   )
 
   current_artifact_base_name="$(artifact_base_name)"
