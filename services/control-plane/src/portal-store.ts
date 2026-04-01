@@ -1933,6 +1933,27 @@ export class PgPortalStore {
     return result.rows.map(mapMcpRow);
   }
 
+  async listCloudMcps(): Promise<PortalMcpRecord[]> {
+    const result = await this.pool.query<PortalMcpRow>(
+      `
+        select
+          c.mcp_key,
+          c.name,
+          c.description,
+          c.transport,
+          c.object_key,
+          c.config_json,
+          '{}'::jsonb as metadata_json,
+          c.active,
+          c.created_at,
+          c.updated_at
+        from cloud_mcp_catalog c
+        order by c.name asc, c.mcp_key asc
+      `,
+    );
+    return result.rows.map(mapMcpRow);
+  }
+
   async countCloudMcps(): Promise<number> {
     const result = await this.pool.query<{count: string}>(
       `

@@ -1,5 +1,6 @@
 import {access, cp, mkdtemp, mkdir, readdir, readFile, rm, writeFile} from 'node:fs/promises';
 import {execFileSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
 import {tmpdir} from 'node:os';
 import {basename, dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -38,8 +39,16 @@ function asObject(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
 function cloneJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function hashJson(value: unknown): string {
+  return createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
 
 function applyResolvedRuntimeModelsToConfig(
@@ -143,6 +152,19 @@ async function readBundledSkillManifest(manifestPath: string): Promise<BundledSk
   }
 }
 
+async function readJsonFileIfExists(targetPath: string): Promise<Record<string, unknown> | null> {
+  try {
+    const raw = await readFile(targetPath, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return null;
+    }
+    return parsed as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 function canReuseBundledSkill(params: {
   existing: BundledSkillManifestEntry | undefined;
   targetPath: string;
@@ -165,6 +187,55 @@ function canReuseBundledSkill(params: {
     existing.portalArtifactObjectKey === portalArtifactObjectKey &&
     Boolean(targetPath)
   );
+}
+
+function stringArrayEquals(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) return false;
+  return left.every((item, index) => item === right[index]);
+}
+
+async function canReuseCurrentRuntimeSync(params: {
+  appName: string;
+  runtimeSkillsRoot: string;
+  runtimeMcpConfigPath: string;
+  runtimeAppConfigPath: string;
+  packagedSkillBaselineDir: string | null;
+  packagedMcpBaselineDir: string | null;
+  expectedPublishedVersion: number;
+  expectedSkillSlugs: string[];
+  expectedMcpKeys: string[];
+  expectedMcpConfigSha256: string;
+  expectedResolvedConfigSha256: string;
+}): Promise<boolean> {
+  const appConfig = await readJsonFileIfExists(params.runtimeAppConfigPath);
+  const syncMeta = asObject(appConfig?.syncMeta);
+  if (!appConfig) return false;
+  if (String(syncMeta.appName || '').trim().toLowerCase() !== params.appName) return false;
+  if (Number(appConfig.publishedVersion || 0) !== params.expectedPublishedVersion) return false;
+  if (!stringArrayEquals(
+    asArray(syncMeta.enabledMcpKeys).map((item) => String(item || '').trim()).filter(Boolean),
+    params.expectedMcpKeys,
+  )) return false;
+  if (String(syncMeta.mcpConfigSha256 || '').trim() !== params.expectedMcpConfigSha256) return false;
+  if (String(syncMeta.resolvedConfigSha256 || '').trim() !== params.expectedResolvedConfigSha256) return false;
+
+  const skillsManifest = await readJsonFileIfExists(resolve(params.runtimeSkillsRoot, 'skills-manifest.json'));
+  const skillEntries = Array.isArray(skillsManifest?.entries) ? skillsManifest!.entries : [];
+  const actualSkillSlugs = skillEntries
+    .map((entry) => String(asObject(entry).slug || '').trim())
+    .filter(Boolean);
+  if (!stringArrayEquals(actualSkillSlugs, params.expectedSkillSlugs)) return false;
+  if (!(await pathExists(params.runtimeMcpConfigPath))) return false;
+
+  if (params.packagedSkillBaselineDir) {
+    if (!(await pathExists(resolve(params.packagedSkillBaselineDir, 'skills-manifest.json')))) return false;
+  }
+  if (params.packagedMcpBaselineDir) {
+    if (!(await pathExists(resolve(params.packagedMcpBaselineDir, 'mcp-manifest.json')))) return false;
+    if (!(await pathExists(resolve(params.packagedMcpBaselineDir, 'mcp.json')))) return false;
+  }
+
+  return true;
 }
 
 function resolveRuntimeWorkspaceDir(repoRoot: string): string {
@@ -310,6 +381,12 @@ async function main() {
       normalizeOptionalText(process.env.ICLAW_RUNTIME_SKILLS_OUTPUT_ROOT) ||
       resolve(runtimeWorkspaceDir, 'skills'),
   );
+  const packagedSkillBaselineDir = String(process.env.ICLAW_PACKAGED_SKILL_BASELINE_DIR || '').trim()
+    ? resolve(String(process.env.ICLAW_PACKAGED_SKILL_BASELINE_DIR || '').trim())
+    : null;
+  const packagedMcpBaselineDir = String(process.env.ICLAW_PACKAGED_MCP_BASELINE_DIR || '').trim()
+    ? resolve(String(process.env.ICLAW_PACKAGED_MCP_BASELINE_DIR || '').trim())
+    : null;
   const runtimeMcpConfigPath = resolve(runtimeResourcesRoot, 'mcp/mcp.json');
   const runtimeAppConfigPath = resolve(runtimeResourcesRoot, 'config/portal-app-runtime.json');
   const skipRuntimeSkillSync = /^(1|true|yes)$/i.test(String(process.env.ICLAW_SKIP_RUNTIME_SKILL_SYNC || '').trim());
@@ -345,17 +422,113 @@ async function main() {
         platformMcps,
       ),
     };
+    const expectedSkillSlugs = detailWithPlatformSkills.skillBindings
+      .filter((item) => item.enabled)
+      .sort((left, right) => left.sortOrder - right.sortOrder)
+      .map((item) => item.skillSlug);
     const copiedSkills: string[] = [];
     const copiedSkillDirs = new Set<string>();
+    const packagedSkillEntries: Array<{
+      slug: string;
+      version: string | null;
+      artifactUrl: string | null;
+      artifactFormat: string;
+      artifactSha256: string | null;
+      dirName: string;
+    }> = [];
     const skippedSkills: string[] = [];
-    const rememberCopiedSkill = (dirName: string) => {
+    const rememberCopiedSkill = (
+      dirName: string,
+      entry?: {
+        slug: string;
+        version: string | null;
+        artifactUrl: string | null;
+        artifactFormat: string;
+        artifactSha256: string | null;
+      },
+    ) => {
       const normalized = dirName.trim();
       if (!normalized || copiedSkillDirs.has(normalized)) {
         return;
       }
       copiedSkillDirs.add(normalized);
       copiedSkills.push(normalized);
+      if (entry) {
+        packagedSkillEntries.push({
+          ...entry,
+          dirName: normalized,
+        });
+      }
     };
+
+    const catalogByKey = new Map(catalogMcps.map((item) => [item.mcpKey, item]));
+    const enabledBindings = detailWithPlatformCapabilities.mcpBindings
+      .filter((item) => item.enabled)
+      .sort((left, right) => left.sortOrder - right.sortOrder);
+    const nextMcpServers = Object.fromEntries(
+      enabledBindings.map((binding) => {
+        const catalogConfig = asObject(catalogByKey.get(binding.mcpKey)?.config);
+        return [
+          binding.mcpKey,
+          {
+            ...catalogConfig,
+            ...binding.config,
+            enabled: true,
+          },
+        ];
+      }),
+    );
+
+    const publicConfig = buildPortalPublicConfig(detailWithPlatformCapabilities, {
+      assetUrlResolver: (asset) => asset.publicUrl || asset.objectKey || null,
+    });
+    const resolvedRuntimeModels = await portalStore.resolveRuntimeModels(appName);
+    const resolvedConfig = resolvedRuntimeModels
+      ? applyResolvedRuntimeModelsToConfig(publicConfig.config, resolvedRuntimeModels)
+      : publicConfig.config;
+    const resolvedConfigWithMcp = {
+      ...resolvedConfig,
+      resolved_mcp_servers: cloneJson(nextMcpServers),
+    };
+    const expectedPublishedVersion = Number(publicConfig.publishedVersion || 0);
+    const expectedMcpKeys = enabledBindings.map((item) => item.mcpKey);
+    const expectedMcpConfigSha256 = hashJson(nextMcpServers);
+    const expectedResolvedConfigSha256 = hashJson({
+      app: publicConfig.app,
+      publishedVersion: publicConfig.publishedVersion,
+      config: resolvedConfigWithMcp,
+    });
+
+    if (await canReuseCurrentRuntimeSync({
+      appName,
+      runtimeSkillsRoot,
+      runtimeMcpConfigPath,
+      runtimeAppConfigPath,
+      packagedSkillBaselineDir,
+      packagedMcpBaselineDir,
+      expectedPublishedVersion,
+      expectedSkillSlugs,
+      expectedMcpKeys,
+      expectedMcpConfigSha256,
+      expectedResolvedConfigSha256,
+    })) {
+      console.log(
+        JSON.stringify(
+          {
+            ok: true,
+            appName,
+            reusedCachedRuntimeSync: true,
+            enabledMcpKeys: expectedMcpKeys,
+            runtimeSkillsRoot,
+            runtimeMcpConfigPath,
+            runtimeAppConfigPath,
+          },
+          null,
+          2,
+        ),
+      );
+      return;
+    }
 
     if (!skipRuntimeSkillSync) {
       const targetBindings = detailWithPlatformSkills.skillBindings
@@ -431,7 +604,13 @@ async function main() {
             if (existingDirName && existingDirName !== copiedDirName) {
               await rm(resolve(runtimeSkillsRoot, existingDirName), {recursive: true, force: true});
             }
-            rememberCopiedSkill(copiedDirName);
+            rememberCopiedSkill(copiedDirName, {
+              slug: binding.skillSlug,
+              version: entry.version,
+              artifactUrl: resolvedArtifactUrl,
+              artifactFormat: inferArtifactFormat(entry),
+              artifactSha256: entry.artifactSha256,
+            });
             nextManifestItems.push({
               slug: binding.skillSlug,
               dirName: copiedDirName,
@@ -461,7 +640,13 @@ async function main() {
             if (existingDirName && existingDirName !== copiedDirName) {
               await rm(resolve(runtimeSkillsRoot, existingDirName), {recursive: true, force: true});
             }
-            rememberCopiedSkill(copiedDirName);
+            rememberCopiedSkill(copiedDirName, {
+              slug: binding.skillSlug,
+              version: entry.version,
+              artifactUrl: resolvedArtifactUrl,
+              artifactFormat: inferArtifactFormat(entry),
+              artifactSha256: entry.artifactSha256,
+            });
             nextManifestItems.push({
               slug: binding.skillSlug,
               dirName: copiedDirName,
@@ -496,40 +681,31 @@ async function main() {
         }
       }
 
+      const skillsManifest = {
+        version: '0.2.0',
+        preset: appName,
+        brandId: appName,
+        publishedVersion: Number(publicConfig.publishedVersion || detail.publishedVersion || 0),
+        skillSlugs: expectedSkillSlugs,
+        skills: copiedSkills,
+        items: nextManifestItems,
+        entries: packagedSkillEntries,
+      };
       await writeFile(
         manifestPath,
-        `${JSON.stringify(
-          {
-            version: '0.1.0',
-            preset: appName,
-            publishedVersion: detail.publishedVersion,
-            skills: copiedSkills,
-            items: nextManifestItems,
-          },
-          null,
-          2,
-        )}\n`,
+        `${JSON.stringify(skillsManifest, null, 2)}\n`,
         'utf8',
       );
+      if (packagedSkillBaselineDir) {
+        await rm(packagedSkillBaselineDir, {recursive: true, force: true});
+        await mkdir(dirname(packagedSkillBaselineDir), {recursive: true});
+        await cp(runtimeSkillsRoot, packagedSkillBaselineDir, {
+          recursive: true,
+          force: true,
+        });
+      }
     }
 
-    const catalogByKey = new Map(catalogMcps.map((item) => [item.mcpKey, item]));
-    const enabledBindings = detailWithPlatformCapabilities.mcpBindings
-      .filter((item) => item.enabled)
-      .sort((left, right) => left.sortOrder - right.sortOrder);
-    const nextMcpServers = Object.fromEntries(
-      enabledBindings.map((binding) => {
-        const catalogConfig = asObject(catalogByKey.get(binding.mcpKey)?.config);
-        return [
-          binding.mcpKey,
-          {
-            ...catalogConfig,
-            ...binding.config,
-            enabled: true,
-          },
-        ];
-      }),
-    );
     await mkdir(dirname(runtimeMcpConfigPath), {recursive: true});
     await writeFile(
       runtimeMcpConfigPath,
@@ -542,14 +718,39 @@ async function main() {
       )}\n`,
       'utf8',
     );
+    const mcpManifest = {
+      version: '0.1.0',
+      preset: appName,
+      brandId: appName,
+      publishedVersion: Number(publicConfig.publishedVersion || detail.publishedVersion || 0),
+      mcpKeys: enabledBindings.map((item) => item.mcpKey),
+      configSha256: hashJson(nextMcpServers),
+      entries: enabledBindings.map((binding) => {
+        const catalog = catalogByKey.get(binding.mcpKey);
+        return {
+          mcpKey: binding.mcpKey,
+          sortOrder: binding.sortOrder,
+          transport: String(catalog?.transport || '').trim() || 'config',
+          objectKey: catalog?.objectKey || null,
+          configSha256: hashJson(nextMcpServers[binding.mcpKey] || {}),
+        };
+      }),
+    };
+    if (packagedMcpBaselineDir) {
+      await rm(packagedMcpBaselineDir, {recursive: true, force: true});
+      await mkdir(packagedMcpBaselineDir, {recursive: true});
+      await writeFile(
+        resolve(packagedMcpBaselineDir, 'mcp.json'),
+        `${JSON.stringify({mcpServers: nextMcpServers}, null, 2)}\n`,
+        'utf8',
+      );
+      await writeFile(
+        resolve(packagedMcpBaselineDir, 'mcp-manifest.json'),
+        `${JSON.stringify(mcpManifest, null, 2)}\n`,
+        'utf8',
+      );
+    }
 
-    const publicConfig = buildPortalPublicConfig(detailWithPlatformCapabilities, {
-      assetUrlResolver: (asset) => asset.publicUrl || asset.objectKey || null,
-    });
-    const resolvedRuntimeModels = await portalStore.resolveRuntimeModels(appName);
-    const resolvedConfig = resolvedRuntimeModels
-      ? applyResolvedRuntimeModelsToConfig(publicConfig.config, resolvedRuntimeModels)
-      : publicConfig.config;
     await mkdir(dirname(runtimeAppConfigPath), {recursive: true});
     await writeFile(
       runtimeAppConfigPath,
@@ -557,13 +758,15 @@ async function main() {
         {
           app: publicConfig.app,
           publishedVersion: publicConfig.publishedVersion,
-          config: resolvedConfig,
+          config: resolvedConfigWithMcp,
           syncMeta: {
             appName,
             syncedAt: new Date().toISOString(),
             copiedSkillDirs: copiedSkills,
             skippedSkillSlugs: skippedSkills,
             enabledMcpKeys: enabledBindings.map((item) => item.mcpKey),
+            mcpConfigSha256: mcpManifest.configSha256,
+            resolvedConfigSha256: expectedResolvedConfigSha256,
             skipRuntimeSkillSync,
             bundledOnly,
             incrementalSkillSync,

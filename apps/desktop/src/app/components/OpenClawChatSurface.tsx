@@ -633,6 +633,7 @@ const MESSAGE_ACTION_FEEDBACK_MS = 1600;
 const USAGE_SETTLEMENT_RETRY_INTERVAL_MS = 1500;
 const USAGE_SETTLEMENT_MAX_WAIT_MS = 60_000;
 const USAGE_SETTLEMENT_TERMINAL_GRACE_MS = 6_000;
+const GATEWAY_SESSION_LIST_LIMIT = 1000;
 const MESSAGE_ACTION_ICONS = {
   copy:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
@@ -1035,6 +1036,13 @@ type ChatMessageGroup = {
   runId: string | null;
 };
 
+type ChatMessageTurn = {
+  startedAt: number;
+  userGroup: ChatMessageGroup | null;
+  assistantGroups: ChatMessageGroup[];
+  runId: string | null;
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object';
 }
@@ -1128,22 +1136,52 @@ function findAssistantGroupForRun(
   runId: string | null,
   startedAt: number,
 ): AssistantMessageGroup | null {
+  const assistantGroups = findAssistantGroupsForRun(messages, runId, startedAt);
+  return assistantGroups.length > 0 ? assistantGroups[assistantGroups.length - 1] ?? null : null;
+}
+
+function findAssistantGroupsForRun(
+  messages: unknown[],
+  runId: string | null,
+  startedAt: number,
+): AssistantMessageGroup[] {
   const assistantGroups = collectAssistantMessageGroups(messages);
   if (runId) {
-    for (let index = assistantGroups.length - 1; index >= 0; index -= 1) {
-      const matchedGroup = assistantGroups[index];
-      if (matchedGroup?.runId === runId) {
-        return matchedGroup;
-      }
-    }
+    return assistantGroups.filter((group) => group.runId === runId);
   }
-  for (let index = assistantGroups.length - 1; index >= 0; index -= 1) {
-    const group = assistantGroups[index];
-    if (group && group.timestamp >= startedAt) {
-      return group;
+  return assistantGroups.filter((group) => group.timestamp >= startedAt);
+}
+
+function summarizeAssistantGroupUsage(group: AssistantMessageGroup): {inputTokens: number; outputTokens: number} | null {
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let hasUsage = false;
+
+  group.messages.forEach((message) => {
+    if (!isRecord(message)) {
+      return;
     }
+    const usage = isRecord(message.usage) ? message.usage : null;
+    if (!usage) {
+      return;
+    }
+    const nextInputTokens = getUsageMetric(usage, ['input', 'inputTokens', 'input_tokens']);
+    const nextOutputTokens = getUsageMetric(usage, ['output', 'outputTokens', 'output_tokens']);
+    if (nextInputTokens > 0 || nextOutputTokens > 0) {
+      hasUsage = true;
+    }
+    inputTokens += nextInputTokens;
+    outputTokens += nextOutputTokens;
+  });
+
+  if (!hasUsage) {
+    return null;
   }
-  return null;
+
+  return {
+    inputTokens,
+    outputTokens,
+  };
 }
 
 function readAssistantBillingSummary(message: unknown): RunBillingSummaryData | null {
@@ -1250,6 +1288,258 @@ function annotateAssistantGroup(
   return true;
 }
 
+function collectMessageTurns(messages: unknown[]): ChatMessageTurn[] {
+  const groups = collectMessageGroups(messages);
+  if (groups.length === 0) {
+    return [];
+  }
+
+  const turns: ChatMessageTurn[] = [];
+  let currentTurn: ChatMessageTurn | null = null;
+
+  const finalizeCurrentTurn = () => {
+    if (!currentTurn?.userGroup) {
+      return;
+    }
+    turns.push({
+      startedAt: currentTurn.startedAt,
+      userGroup: currentTurn.userGroup,
+      assistantGroups: [...currentTurn.assistantGroups],
+      runId: currentTurn.runId,
+    });
+  };
+
+  groups.forEach((group) => {
+    if (group.role === 'user') {
+      finalizeCurrentTurn();
+      currentTurn = {
+        startedAt: group.timestamp,
+        userGroup: group,
+        assistantGroups: [],
+        runId: group.runId,
+      };
+      return;
+    }
+
+    if (group.role !== 'assistant' || !currentTurn) {
+      return;
+    }
+
+    currentTurn.assistantGroups.push(group);
+    if (!currentTurn.runId && group.runId) {
+      currentTurn.runId = group.runId;
+    }
+  });
+
+  finalizeCurrentTurn();
+  return turns;
+}
+
+function readRunIdFromTurn(turn: ChatMessageTurn): string | null {
+  if (turn.runId) {
+    return turn.runId;
+  }
+  if (turn.userGroup?.runId) {
+    return turn.userGroup.runId;
+  }
+  for (const assistantGroup of turn.assistantGroups) {
+    if (assistantGroup.runId) {
+      return assistantGroup.runId;
+    }
+  }
+  return null;
+}
+
+function getTurnAssistantTimestamp(turn: ChatMessageTurn): number {
+  return turn.assistantGroups[turn.assistantGroups.length - 1]?.timestamp ?? turn.startedAt;
+}
+
+function summarizeTurnUsage(turn: ChatMessageTurn): {inputTokens: number; outputTokens: number} | null {
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let hasUsage = false;
+
+  turn.assistantGroups.forEach((assistantGroup) => {
+    const usage = summarizeAssistantGroupUsage(assistantGroup);
+    if (!usage) {
+      return;
+    }
+    hasUsage = true;
+    inputTokens += usage.inputTokens;
+    outputTokens += usage.outputTokens;
+  });
+
+  if (!hasUsage) {
+    return null;
+  }
+
+  return {
+    inputTokens,
+    outputTokens,
+  };
+}
+
+function applyRunIdToTurn(turn: ChatMessageTurn, runId: string): boolean {
+  const normalizedRunId = runId.trim();
+  if (!normalizedRunId) {
+    return false;
+  }
+
+  let mutated = false;
+  const groups = turn.userGroup ? [turn.userGroup, ...turn.assistantGroups] : [...turn.assistantGroups];
+
+  groups.forEach((group) => {
+    group.runId = normalizedRunId;
+    group.messages.forEach((message) => {
+      if (!isRecord(message)) {
+        return;
+      }
+      if (readBillingRunId(message) === normalizedRunId) {
+        return;
+      }
+      message[ICLAW_BILLING_RUN_ID_KEY] = normalizedRunId;
+      mutated = true;
+    });
+  });
+
+  if (turn.runId !== normalizedRunId) {
+    turn.runId = normalizedRunId;
+    mutated = true;
+  }
+
+  return mutated;
+}
+
+function findTurnIndexForRunIdRecovery(input: {
+  turns: ChatMessageTurn[];
+  runId: string;
+  startedAt?: number | null;
+  assistantTimestamp?: number | null;
+  summary?: RunBillingSummaryData | null;
+}): number {
+  const normalizedRunId = input.runId.trim();
+  if (!normalizedRunId || input.turns.length === 0) {
+    return -1;
+  }
+
+  for (let index = input.turns.length - 1; index >= 0; index -= 1) {
+    if (readRunIdFromTurn(input.turns[index]) === normalizedRunId) {
+      return index;
+    }
+  }
+
+  const TURN_START_MATCH_MAX_DELTA_MS = 2_000;
+  const ASSISTANT_MATCH_MAX_DELTA_MS = 15_000;
+  let bestIndex = -1;
+  let bestScore = Number.NEGATIVE_INFINITY;
+  let bestDelta = Number.POSITIVE_INFINITY;
+  const targetInputTokens = Math.max(0, input.summary?.input_tokens || 0);
+  const targetOutputTokens = Math.max(0, input.summary?.output_tokens || 0);
+  const hasTargetUsage = targetInputTokens > 0 || targetOutputTokens > 0;
+
+  input.turns.forEach((turn, index) => {
+    const existingRunId = readRunIdFromTurn(turn);
+    if (existingRunId && existingRunId !== normalizedRunId) {
+      return;
+    }
+
+    let score = 0;
+    let delta = Number.POSITIVE_INFINITY;
+
+    if (typeof input.startedAt === 'number' && Number.isFinite(input.startedAt)) {
+      const startedAtDelta = Math.abs(turn.startedAt - input.startedAt);
+      if (startedAtDelta <= TURN_START_MATCH_MAX_DELTA_MS) {
+        score = Math.max(score, 4);
+        delta = Math.min(delta, startedAtDelta);
+      }
+    }
+
+    if (
+      typeof input.assistantTimestamp === 'number' &&
+      Number.isFinite(input.assistantTimestamp) &&
+      turn.assistantGroups.length > 0
+    ) {
+      const assistantDelta = Math.abs(getTurnAssistantTimestamp(turn) - input.assistantTimestamp);
+      if (assistantDelta <= ASSISTANT_MATCH_MAX_DELTA_MS) {
+        const usage = summarizeTurnUsage(turn);
+        const usageMatches =
+          usage !== null &&
+          usage.inputTokens === targetInputTokens &&
+          usage.outputTokens === targetOutputTokens;
+        score = Math.max(score, usageMatches ? 3 : hasTargetUsage ? 1 : 2);
+        delta = Math.min(delta, assistantDelta);
+      }
+    }
+
+    if (score <= 0) {
+      return;
+    }
+    if (score > bestScore || (score === bestScore && delta < bestDelta)) {
+      bestIndex = index;
+      bestScore = score;
+      bestDelta = delta;
+    }
+  });
+
+  return bestIndex;
+}
+
+function reconcileChatMessageRunMetadata(input: {
+  messages: unknown[];
+  pendingSettlements: PendingUsageSettlement[];
+  sessionBillingSummaries: RunBillingSummaryData[];
+}): boolean {
+  if (!Array.isArray(input.messages) || input.messages.length === 0) {
+    return false;
+  }
+
+  const turns = collectMessageTurns(input.messages);
+  if (turns.length === 0) {
+    return false;
+  }
+
+  let mutated = false;
+
+  input.pendingSettlements.forEach((pending) => {
+    const runId = pending.runId?.trim();
+    if (!runId) {
+      return;
+    }
+    const turnIndex = findTurnIndexForRunIdRecovery({
+      turns,
+      runId,
+      startedAt: pending.startedAt,
+    });
+    if (turnIndex < 0) {
+      return;
+    }
+    mutated = applyRunIdToTurn(turns[turnIndex], runId) || mutated;
+  });
+
+  input.sessionBillingSummaries.forEach((summary) => {
+    const runId = summary.event_id?.trim();
+    if (!runId) {
+      return;
+    }
+    const assistantTimestamp =
+      typeof summary.assistant_timestamp === 'number' && Number.isFinite(summary.assistant_timestamp)
+        ? summary.assistant_timestamp
+        : Date.parse(summary.settled_at || '') || null;
+    const turnIndex = findTurnIndexForRunIdRecovery({
+      turns,
+      runId,
+      assistantTimestamp,
+      summary,
+    });
+    if (turnIndex < 0) {
+      return;
+    }
+    mutated = applyRunIdToTurn(turns[turnIndex], runId) || mutated;
+  });
+
+  return mutated;
+}
+
 function buildAssistantFooterTooltip(input: {
   state: AssistantBillingState;
   inputTokens: number;
@@ -1337,8 +1627,10 @@ function deriveAssistantFooterMetas(
   if (assistantGroups.length === 0) {
     return [];
   }
+  const LEGACY_SUMMARY_MATCH_MAX_DELTA_MS = 15_000;
   const persistedBillingByRunId = new Map<string, RunBillingSummaryData>();
   const persistedBillingByAssistantIndex = new Map<number, RunBillingSummaryData>();
+  const matchedSummaryEventIds = new Set<string>();
   sessionBillingSummaries.forEach((summary) => {
     const runId = summary.event_id?.trim();
     if (runId) {
@@ -1352,6 +1644,65 @@ function deriveAssistantFooterMetas(
       return;
     }
     persistedBillingByAssistantIndex.set(assistantGroupIndex, summary);
+    if (summary.event_id?.trim()) {
+      matchedSummaryEventIds.add(summary.event_id.trim());
+    }
+  });
+
+  const unmatchedAssistantIndexes = assistantGroups
+    .map((_, assistantGroupIndex) => assistantGroupIndex)
+    .filter((assistantGroupIndex) => !persistedBillingByAssistantIndex.has(assistantGroupIndex));
+  const remainingSummaries = sessionBillingSummaries.filter((summary) => {
+    const eventId = summary.event_id?.trim();
+    return !eventId || !matchedSummaryEventIds.has(eventId);
+  });
+
+  remainingSummaries.forEach((summary) => {
+    const anchorTimestamp = summary.assistant_timestamp;
+    if (typeof anchorTimestamp !== 'number' || !Number.isFinite(anchorTimestamp)) {
+      return;
+    }
+
+    let bestAssistantIndex = -1;
+    let bestScore = Number.NEGATIVE_INFINITY;
+    let bestDelta = Number.POSITIVE_INFINITY;
+
+    unmatchedAssistantIndexes.forEach((assistantGroupIndex) => {
+      const assistantGroup = assistantGroups[assistantGroupIndex];
+      if (!assistantGroup) {
+        return;
+      }
+
+      const timestampDelta = Math.abs((assistantGroup.timestamp || 0) - anchorTimestamp);
+      if (timestampDelta > LEGACY_SUMMARY_MATCH_MAX_DELTA_MS) {
+        return;
+      }
+
+      const usage = summarizeAssistantGroupUsage(assistantGroup);
+      const usageMatches =
+        usage !== null &&
+        usage.inputTokens === Math.max(0, summary.input_tokens || 0) &&
+        usage.outputTokens === Math.max(0, summary.output_tokens || 0);
+      const score = usageMatches ? 2 : usage === null ? 1 : -1;
+      if (score < 0) {
+        return;
+      }
+      if (score > bestScore || (score === bestScore && timestampDelta < bestDelta)) {
+        bestAssistantIndex = assistantGroupIndex;
+        bestScore = score;
+        bestDelta = timestampDelta;
+      }
+    });
+
+    if (bestAssistantIndex < 0) {
+      return;
+    }
+
+    persistedBillingByAssistantIndex.set(bestAssistantIndex, summary);
+    const nextIndex = unmatchedAssistantIndexes.indexOf(bestAssistantIndex);
+    if (nextIndex >= 0) {
+      unmatchedAssistantIndexes.splice(nextIndex, 1);
+    }
   });
 
   const pendingAssistantIndexes = new Set<number>();
@@ -1497,48 +1848,50 @@ function inferCreditQuoteHasSearch(prompt: string): boolean {
   );
 }
 
-function deriveLatestAssistantUsageSince(
+function deriveRunAssistantUsageSince(
   messages: unknown[],
   runId: string | null,
   startedAt: number,
 ): AssistantUsageSettlement | null {
-  const latestAssistantGroup = findAssistantGroupForRun(messages, runId, startedAt);
-  if (!latestAssistantGroup) {
+  const assistantGroups = findAssistantGroupsForRun(messages, runId, startedAt);
+  if (assistantGroups.length === 0) {
     return null;
   }
-  const assistantGroup = latestAssistantGroup;
 
   let inputTokens = 0;
   let outputTokens = 0;
   let model: string | null = null;
   let hasUsage = false;
 
-  assistantGroup.messages.forEach((message: unknown) => {
-    const record = message as Record<string, unknown>;
-    const usage = record.usage as Record<string, unknown> | undefined;
-    if (usage) {
-      const messageInputTokens = getUsageMetric(usage, ['input', 'inputTokens', 'input_tokens']);
-      const messageOutputTokens = getUsageMetric(usage, ['output', 'outputTokens', 'output_tokens']);
-      if (messageInputTokens > 0 || messageOutputTokens > 0) {
-        hasUsage = true;
+  assistantGroups.forEach((assistantGroup) => {
+    assistantGroup.messages.forEach((message: unknown) => {
+      const record = message as Record<string, unknown>;
+      const usage = record.usage as Record<string, unknown> | undefined;
+      if (usage) {
+        const messageInputTokens = getUsageMetric(usage, ['input', 'inputTokens', 'input_tokens']);
+        const messageOutputTokens = getUsageMetric(usage, ['output', 'outputTokens', 'output_tokens']);
+        if (messageInputTokens > 0 || messageOutputTokens > 0) {
+          hasUsage = true;
+        }
+        inputTokens += messageInputTokens;
+        outputTokens += messageOutputTokens;
       }
-      inputTokens += messageInputTokens;
-      outputTokens += messageOutputTokens;
-    }
-    if (typeof record.model === 'string' && record.model.trim() && record.model !== 'gateway-injected') {
-      model = record.model.trim();
-    }
+      if (typeof record.model === 'string' && record.model.trim() && record.model !== 'gateway-injected') {
+        model = record.model.trim();
+      }
+    });
   });
 
   if (!hasUsage) {
     return null;
   }
 
+  const latestAssistantGroup = assistantGroups[assistantGroups.length - 1] ?? null;
   return {
     inputTokens,
     outputTokens,
     model,
-    timestamp: assistantGroup.timestamp,
+    timestamp: latestAssistantGroup?.timestamp ?? startedAt,
   };
 }
 
@@ -1576,19 +1929,20 @@ function derivePendingSettlementUsage(
   pending: PendingUsageSettlement,
   terminalEventMessage?: unknown,
 ): AssistantUsageSettlement | null {
-  const latestAssistantUsage =
-    // Embedded webchat does not always retain terminal chat events, but the final
-    // assistant message still carries usage in chatMessages after the run completes.
-    deriveLatestAssistantUsageSince(messages, pending.runId, pending.startedAt);
+  const runAssistantUsage =
+    // A single run may produce multiple assistant groups around tool calls, so
+    // settlement must aggregate usage across the whole run instead of reading only
+    // the last visible assistant group.
+    deriveRunAssistantUsageSince(messages, pending.runId, pending.startedAt);
   const terminalUsage = terminalEventMessage ? deriveAssistantUsageFromMessage(terminalEventMessage) : null;
   const directUsage =
-    latestAssistantUsage || terminalUsage
+    runAssistantUsage || terminalUsage
       ? {
-          inputTokens: terminalUsage?.inputTokens ?? latestAssistantUsage?.inputTokens ?? 0,
-          outputTokens: terminalUsage?.outputTokens ?? latestAssistantUsage?.outputTokens ?? 0,
-          model: terminalUsage?.model || latestAssistantUsage?.model || null,
-          // Use the assistant message timestamp as the persisted anchor.
-          timestamp: latestAssistantUsage?.timestamp ?? terminalUsage?.timestamp ?? Date.now(),
+          inputTokens: Math.max(runAssistantUsage?.inputTokens ?? 0, terminalUsage?.inputTokens ?? 0),
+          outputTokens: Math.max(runAssistantUsage?.outputTokens ?? 0, terminalUsage?.outputTokens ?? 0),
+          model: terminalUsage?.model || runAssistantUsage?.model || null,
+          // Use the latest assistant message timestamp as the persisted anchor.
+          timestamp: runAssistantUsage?.timestamp ?? terminalUsage?.timestamp ?? Date.now(),
         }
       : null;
   if (directUsage) {
@@ -1597,42 +1951,26 @@ function derivePendingSettlementUsage(
   return null;
 }
 
-function derivePendingSettlementUsageFromSessionDelta(
+function derivePendingSettlementUsageFromSessionSnapshot(
   messages: unknown[],
   pending: PendingUsageSettlement,
   sessionTokens: { inputTokens: number; outputTokens: number } | null,
 ): AssistantUsageSettlement | null {
-  if (
-    !sessionTokens ||
-    pending.baselineInputTokens === null ||
-    pending.baselineOutputTokens === null
-  ) {
+  if (!sessionTokens) {
     return null;
   }
 
-  const baselineInputTokens = Math.max(0, pending.baselineInputTokens);
-  const baselineOutputTokens = Math.max(0, pending.baselineOutputTokens);
   const currentInputTokens = Math.max(0, sessionTokens.inputTokens);
   const currentOutputTokens = Math.max(0, sessionTokens.outputTokens);
-
-  if (
-    currentInputTokens < baselineInputTokens ||
-    currentOutputTokens < baselineOutputTokens
-  ) {
-    return null;
-  }
-
-  const inputTokens = Math.max(0, currentInputTokens - baselineInputTokens);
-  const outputTokens = Math.max(0, currentOutputTokens - baselineOutputTokens);
-  if (inputTokens <= 0 && outputTokens <= 0) {
+  if (currentInputTokens <= 0 && currentOutputTokens <= 0) {
     return null;
   }
 
   const assistantGroup = findAssistantGroupForRun(messages, pending.runId, pending.startedAt);
 
   return {
-    inputTokens,
-    outputTokens,
+    inputTokens: currentInputTokens,
+    outputTokens: currentOutputTokens,
     model: pending.model || null,
     timestamp: assistantGroup?.timestamp ?? pending.startedAt,
   };
@@ -1994,12 +2332,29 @@ function isSeededEmptySessionKey(value: string): boolean {
   return SEEDED_EMPTY_SESSION_PREFIXES.some((prefix) => normalized.startsWith(prefix));
 }
 
+function hasStoredChatSnapshotMessages(
+  appName: string,
+  sessionKey: string,
+  conversationId?: string | null,
+): boolean {
+  return (readChatSessionSnapshot(appName, sessionKey, conversationId)?.messages?.length ?? 0) > 0;
+}
+
+function shouldTreatAsImmediateEmptySession(
+  appName: string,
+  sessionKey: string,
+  conversationId?: string | null,
+): boolean {
+  return isSeededEmptySessionKey(sessionKey) && !hasStoredChatSnapshotMessages(appName, sessionKey, conversationId);
+}
+
 async function loadChatModelSnapshot(
   app: OpenClawAppElement,
   targetSessionKey: string,
   input: {
     authBaseUrl: string;
     appName: string;
+    conversationId?: string | null;
   },
 ): Promise<{
   options: ComposerModelOption[];
@@ -2019,7 +2374,7 @@ async function loadChatModelSnapshot(
       request<GatewaySessionsListResult>('sessions.list', {
         includeGlobal: true,
         includeUnknown: true,
-        limit: 200,
+        limit: GATEWAY_SESSION_LIST_LIMIT,
       }),
       MODEL_SNAPSHOT_RPC_TIMEOUT_MS,
       'gateway sessions.list',
@@ -2047,17 +2402,20 @@ async function loadChatModelSnapshot(
     options[0]?.id ||
     null;
 
+  const hasStoredHistory = hasStoredChatSnapshotMessages(input.appName, targetSessionKey, input.conversationId);
+  const hasSessionTokenHistory =
+    Math.max(0, Number(matchedSession?.inputTokens ?? 0)) + Math.max(0, Number(matchedSession?.outputTokens ?? 0)) > 0;
+  const hasPersistedHistory = hasStoredHistory || hasSessionTokenHistory;
+
   return {
     options,
     selectedModelId: resolvedSelection,
     resolvedSessionKey: matchedSession ? canonicalizeChatSessionKey(matchedSession.key) : null,
-    hasPersistedHistory:
-      Math.max(0, Number(matchedSession?.inputTokens ?? 0)) + Math.max(0, Number(matchedSession?.outputTokens ?? 0)) > 0,
+    hasPersistedHistory,
     sessionPressure: buildChatSessionPressureSnapshot({
       inputTokens: matchedSession?.inputTokens ?? 0,
       outputTokens: matchedSession?.outputTokens ?? 0,
-      hasPersistedHistory:
-        Math.max(0, Number(matchedSession?.inputTokens ?? 0)) + Math.max(0, Number(matchedSession?.outputTokens ?? 0)) > 0,
+      hasPersistedHistory,
     }),
   };
 }
@@ -2081,7 +2439,7 @@ async function loadGatewaySessionTokenSnapshot(
   const sessionsResult = await request<GatewaySessionsListResult>('sessions.list', {
     includeGlobal: true,
     includeUnknown: true,
-    limit: 200,
+    limit: GATEWAY_SESSION_LIST_LIMIT,
   });
   const session = findGatewaySessionEntry(sessionsResult, targetSessionKey);
   if (!session) {
@@ -2234,10 +2592,16 @@ export function OpenClawChatSurface({
   const [showRenderDiagnosticsCard, setShowRenderDiagnosticsCard] = useState(false);
   const [rechargeNoticeDismissed, setRechargeNoticeDismissed] = useState(false);
   const [creditBlockNotice, setCreditBlockNotice] = useState<CreditBlockNotice | null>(null);
-  const [initialSurfaceRestorePending, setInitialSurfaceRestorePending] = useState(shellAuthenticated);
+  const [initialSurfaceRestorePending, setInitialSurfaceRestorePending] = useState(
+    () => shellAuthenticated && !shouldTreatAsImmediateEmptySession(appName, sessionKey, conversationId),
+  );
   const [hasBootSettled, setHasBootSettled] = useState(false);
   const [sessionHistoryState, setSessionHistoryState] = useState<SessionHistoryState>(
-    shellAuthenticated ? 'unknown' : 'empty',
+    !shellAuthenticated
+      ? 'empty'
+      : shouldTreatAsImmediateEmptySession(appName, sessionKey, conversationId)
+        ? 'empty'
+        : 'unknown',
   );
   const [unhandledGatewayError, setUnhandledGatewayError] = useState<UnhandledGatewayError | null>(null);
   const [lastRpcFailure, setLastRpcFailure] = useState<GatewayRpcFailure | null>(null);
@@ -2250,7 +2614,9 @@ export function OpenClawChatSurface({
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelSwitching, setModelSwitching] = useState(false);
   const [sessionTransitionVisible, setSessionTransitionVisible] = useState(false);
-  const [optimisticEmptySessionActive, setOptimisticEmptySessionActive] = useState(() => isSeededEmptySessionKey(sessionKey));
+  const [optimisticEmptySessionActive, setOptimisticEmptySessionActive] = useState(() =>
+    shouldTreatAsImmediateEmptySession(appName, sessionKey, conversationId),
+  );
   const [composerDraft, setComposerDraft] = useState<ComposerDraftPayload | null>(null);
   const [assistantFooterVersion, setAssistantFooterVersion] = useState(0);
   const [sessionBillingSummaries, setSessionBillingSummaries] = useState<RunBillingSummaryData[]>([]);
@@ -2373,17 +2739,23 @@ export function OpenClawChatSurface({
       return;
     }
     const messages = Array.isArray(app.chatMessages) ? app.chatMessages : [];
+    const activePendingUsageSettlements = filterPendingUsageSettlementsForSession(
+      storedPendingUsageSettlementsRef.current,
+      sessionKey,
+      conversationId,
+    );
+    reconcileChatMessageRunMetadata({
+      messages,
+      pendingSettlements: activePendingUsageSettlements,
+      sessionBillingSummaries,
+    });
     const snapshot =
       messages.length > 0
         ? {
             sessionKey,
             savedAt: Date.now(),
             messages,
-            pendingUsageSettlements: filterPendingUsageSettlementsForSession(
-              storedPendingUsageSettlementsRef.current,
-              sessionKey,
-              conversationId,
-            ),
+            pendingUsageSettlements: activePendingUsageSettlements,
           }
         : null;
     const serialized = snapshot ? JSON.stringify(snapshot) : null;
@@ -2392,7 +2764,7 @@ export function OpenClawChatSurface({
     }
     writeChatSessionSnapshot(appName, sessionKey, snapshot, conversationId);
     persistedChatSnapshotRef.current = serialized;
-  }, [appName, conversationId, sessionKey]);
+  }, [appName, conversationId, sessionBillingSummaries, sessionKey]);
 
   const replacePendingUsageSettlements = useCallback(
     (next: PendingUsageSettlement[]) => {
@@ -2532,6 +2904,7 @@ export function OpenClawChatSurface({
       const snapshot = await loadChatModelSnapshot(app, sessionKey, {
         authBaseUrl,
         appName,
+        conversationId,
       });
       if (!snapshot || modelLoadVersionRef.current !== requestVersion) {
         return false;
@@ -3086,16 +3459,23 @@ export function OpenClawChatSurface({
               categoryLabel: skill.categoryLabel,
             })),
         );
-      })
-      .catch(() => {
-        if (cancelled) {
-          return;
-        }
+      } else {
         setSkillOptions([]);
-      });
+      }
+    };
+
+    void reloadComposerCatalogs();
+    const unsubscribeSkillStore = subscribeSkillStoreEvents(() => {
+      void reloadComposerCatalogs();
+    });
+    const unsubscribeLobsterStore = subscribeLobsterStoreEvents(() => {
+      void reloadComposerCatalogs();
+    });
 
     return () => {
       cancelled = true;
+      unsubscribeSkillStore();
+      unsubscribeLobsterStore();
     };
   }, [creditClient, creditToken]);
 
@@ -3787,14 +4167,19 @@ export function OpenClawChatSurface({
       setSessionHistoryState('empty');
       return;
     }
-    if (isSeededEmptySessionKey(sessionKey)) {
+    if (hasStoredChatSnapshotMessages(appName, sessionKey, conversationId)) {
+      setInitialSurfaceRestorePending(false);
+      setSessionHistoryState('has-history');
+      return;
+    }
+    if (shouldTreatAsImmediateEmptySession(appName, sessionKey, conversationId)) {
       setInitialSurfaceRestorePending(false);
       setSessionHistoryState('empty');
       return;
     }
     setInitialSurfaceRestorePending(true);
     setSessionHistoryState('unknown');
-  }, [sessionKey, shellAuthenticated]);
+  }, [appName, conversationId, sessionKey, shellAuthenticated]);
 
   useEffect(() => {
     if (!initialSurfaceRestorePending) {
@@ -4028,8 +4413,14 @@ export function OpenClawChatSurface({
       initialSurfaceRestorePending ||
       !hasBootSettled ||
       (shellAuthenticated && sessionHistoryState === 'unknown' && !hasObservedHistory);
+    const hasStableVisibleChat = hasObservedHistory || renderState.groupCount > 0 || renderState.chatMessageCount > 0;
 
     if (allowImmediateEmptySessionUi && !status.lastError) {
+      setShowConnectionCard(false);
+      return;
+    }
+
+    if (hasStableVisibleChat) {
       setShowConnectionCard(false);
       return;
     }
@@ -4059,6 +4450,8 @@ export function OpenClawChatSurface({
     hasBootSettled,
     hasObservedHistory,
     initialSurfaceRestorePending,
+    renderState.chatMessageCount,
+    renderState.groupCount,
     sessionHistoryState,
     sessionTransitionVisible,
     shellAuthenticated,
@@ -4138,11 +4531,13 @@ export function OpenClawChatSurface({
       : '缺少本地网关凭据，当前无法连接 OpenClaw。';
   const waitingForHistoryResolution =
     shellAuthenticated && sessionHistoryState === 'unknown' && !hasObservedHistory;
+  const hasStableVisibleChat = hasObservedHistory || renderState.groupCount > 0 || renderState.chatMessageCount > 0;
   const showBootMask =
     shellAuthenticated &&
+    !hasStableVisibleChat &&
     !status.lastError &&
     ((!hasBootSettled && (!status.connected || initialSurfaceRestorePending)) || waitingForHistoryResolution);
-  const showSessionTransitionMask = sessionTransitionVisible && !showBootMask;
+  const showSessionTransitionMask = sessionTransitionVisible && !showBootMask && !hasStableVisibleChat;
   const shellTransitioning = showBootMask || showSessionTransitionMask;
   const localSendBlockedReason =
     modelSwitching
@@ -4382,7 +4777,9 @@ export function OpenClawChatSurface({
       }
       const usage =
         directUsage ||
-        derivePendingSettlementUsageFromSessionDelta(sourceMessages, pending, sessionTokens);
+        (pending.terminalState === 'final'
+          ? derivePendingSettlementUsageFromSessionSnapshot(sourceMessages, pending, sessionTokens)
+          : null);
 
       if (!usage) {
         pending.attempts += 1;
@@ -4475,7 +4872,7 @@ export function OpenClawChatSurface({
           detail:
             directUsage
               ? 'usage event reported successfully'
-              : 'usage event reported from gateway session token delta',
+              : 'usage event reported from gateway session token snapshot',
         });
       } catch (error) {
         pending.attempts += 1;
@@ -5504,8 +5901,14 @@ export function OpenClawChatSurface({
     };
 
     const decorateChatGroups = () => {
+      const chatMessages = appRef.current?.chatMessages ?? [];
+      reconcileChatMessageRunMetadata({
+        messages: chatMessages,
+        pendingSettlements: pendingUsageSettlementsRef.current,
+        sessionBillingSummaries,
+      });
       const assistantFooterMetas = deriveAssistantFooterMetas(
-        appRef.current?.chatMessages ?? [],
+        chatMessages,
         pendingUsageSettlementsRef.current,
         sessionBillingSummaries,
         appRef.current,

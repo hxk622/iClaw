@@ -126,6 +126,7 @@ ensure_sidecar_bin() {
 ensure_runtime_ui_patches() {
   local runtime_dir="$ROOT_DIR/services/openclaw/runtime/openclaw"
   [[ -d "$runtime_dir/dist" ]] || return 0
+  openclaw_patch_package_runtime_openai_usage "$runtime_dir"
   openclaw_patch_package_runtime_control_ui_tool_output "$runtime_dir"
 }
 

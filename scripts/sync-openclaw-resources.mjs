@@ -60,8 +60,10 @@ async function main() {
   ]);
 
   await fs.rm(path.join(resourcesDstDir, 'skills'), { recursive: true, force: true });
+  await fs.rm(path.join(resourcesDstDir, 'baseline'), { recursive: true, force: true });
   await copyDirIfPresent(serversSrcDir, path.join(resourcesDstDir, 'servers'));
   await copyDirIfPresent(path.join(resourcesSrcDir, 'certs'), path.join(resourcesDstDir, 'certs'));
+  await copyDirIfPresent(path.join(resourcesSrcDir, 'baseline'), path.join(resourcesDstDir, 'baseline'));
   await copyFileIfPresent(
     path.join(resourcesSrcDir, 'config', 'runtime-config.json'),
     path.join(resourcesDstDir, 'config', 'runtime-config.json'),

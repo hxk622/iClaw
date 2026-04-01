@@ -21,6 +21,8 @@ const packageDmgScriptPath = path.join(rootDir, 'scripts', 'package-desktop-dmg.
 const runtimeBootstrapConfigPath = path.join(tauriDir, 'resources', 'config', 'openclaw-runtime.json');
 const bundledRuntimeDir = path.join(tauriDir, 'resources', 'openclaw-runtime');
 const bundledSkillsDir = path.join(tauriDir, 'resources', 'bundled-skills');
+const packagedSkillBaselineDir = path.join(rootDir, 'services', 'openclaw', 'resources', 'baseline', 'skills');
+const packagedMcpBaselineDir = path.join(rootDir, 'services', 'openclaw', 'resources', 'baseline', 'mcp');
 const nsisAutoRunDefinition = '!define MUI_FINISHPAGE_RUN\n!define MUI_FINISHPAGE_RUN_FUNCTION RunMainBinary\n';
 
 function parseArgs(argv) {
@@ -319,7 +321,11 @@ function syncLocalAppRuntime({ pnpm, env, brandId, channel }) {
   const result = spawnSync(process.execPath, args, {
     stdio: 'pipe',
     cwd: rootDir,
-    env,
+    env: {
+      ...env,
+      ICLAW_PACKAGED_SKILL_BASELINE_DIR: packagedSkillBaselineDir,
+      ICLAW_PACKAGED_MCP_BASELINE_DIR: packagedMcpBaselineDir,
+    },
     shell: false,
     encoding: 'utf8',
   });
@@ -470,7 +476,6 @@ async function main() {
     ICLAW_PORTAL_APP_NAME: brandId,
     ICLAW_BRAND: brandId,
     ICLAW_USE_PACKAGING_SOURCE_ENV: '1',
-    ICLAW_SKIP_RUNTIME_SKILL_SYNC: '1',
   };
   const { tauriBundle, packageDmg } = platformBundleTarget();
   const pnpm = pnpmCommand();

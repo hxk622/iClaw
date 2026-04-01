@@ -111,6 +111,31 @@ struct RuntimeSkillSyncState {
     synced_at: String,
 }
 
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+struct RuntimeMcpSyncState {
+    brand_id: String,
+    published_version: u64,
+    mcp_keys: Vec<String>,
+    synced_at: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+struct PackagedRuntimeSkillBaselineManifest {
+    brand_id: String,
+    published_version: u64,
+    skill_slugs: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+struct PackagedRuntimeMcpBaselineManifest {
+    brand_id: String,
+    published_version: u64,
+    mcp_keys: Vec<String>,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PublicBrandRef {
@@ -1122,6 +1147,29 @@ fn resource_bundled_skills_dir(app: &AppHandle) -> PathBuf {
 }
 
 fn resource_mcp_config_path(app: &AppHandle) -> PathBuf {
+    if let Ok(runtime_path) = runtime_mcp_config_source_path(app) {
+        if runtime_path.exists() {
+            return runtime_path;
+        }
+    }
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let p = resource_dir
+            .join("resources")
+            .join("baseline")
+            .join("mcp")
+            .join("mcp.json");
+        if p.exists() {
+            return p;
+        }
+    }
+    let packaged_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("resources")
+        .join("baseline")
+        .join("mcp")
+        .join("mcp.json");
+    if packaged_path.exists() {
+        return packaged_path;
+    }
     if let Ok(resource_dir) = app.path().resource_dir() {
         let p = resource_dir.join("resources").join("mcp").join("mcp.json");
         if p.exists() {
@@ -1225,6 +1273,46 @@ fn skill_manifest_matches_snapshot(
     manifest_skill_slugs(manifest) == expected_skill_slugs
 }
 
+fn packaged_runtime_skills_root(app: &AppHandle) -> PathBuf {
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let p = resource_dir
+            .join("resources")
+            .join("baseline")
+            .join("skills");
+        if p.exists() {
+            return p;
+        }
+    }
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("resources")
+        .join("baseline")
+        .join("skills")
+}
+
+fn packaged_runtime_skills_manifest_path(app: &AppHandle) -> PathBuf {
+    packaged_runtime_skills_root(app).join("skills-manifest.json")
+}
+
+fn packaged_runtime_mcp_root(app: &AppHandle) -> PathBuf {
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let p = resource_dir
+            .join("resources")
+            .join("baseline")
+            .join("mcp");
+        if p.exists() {
+            return p;
+        }
+    }
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("resources")
+        .join("baseline")
+        .join("mcp")
+}
+
+fn packaged_runtime_mcp_manifest_path(app: &AppHandle) -> PathBuf {
+    packaged_runtime_mcp_root(app).join("mcp-manifest.json")
+}
+
 fn runtime_skill_sync_state_path(app: &AppHandle) -> Result<PathBuf, String> {
     let path = app_data_base_dir(app)?
         .join("config")
@@ -1232,6 +1320,26 @@ fn runtime_skill_sync_state_path(app: &AppHandle) -> Result<PathBuf, String> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .map_err(|e| format!("failed to create runtime skill sync state dir: {e}"))?;
+    }
+    Ok(path)
+}
+
+fn runtime_mcp_config_source_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let path = app_data_base_dir(app)?.join("config").join("runtime-mcp.json");
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("failed to create runtime mcp config dir: {e}"))?;
+    }
+    Ok(path)
+}
+
+fn runtime_mcp_sync_state_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let path = app_data_base_dir(app)?
+        .join("config")
+        .join("runtime-mcp-sync-state.json");
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("failed to create runtime mcp sync state dir: {e}"))?;
     }
     Ok(path)
 }
@@ -1353,6 +1461,71 @@ fn runtime_skill_bindings_from_snapshot(snapshot: &OemRuntimeSnapshot) -> Vec<(S
     parsed
 }
 
+fn runtime_mcp_bindings_from_snapshot(snapshot: &OemRuntimeSnapshot) -> Vec<(String, i64)> {
+    let bindings = snapshot
+        .config
+        .get("mcp_bindings")
+        .and_then(|value| value.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let mut parsed = bindings
+        .into_iter()
+        .filter_map(|value| {
+            let object = value.as_object()?;
+            let mcp_key = object
+                .get("mcp_key")
+                .and_then(|value| value.as_str())
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())?;
+            let sort_order = object
+                .get("sort_order")
+                .and_then(|value| value.as_i64())
+                .unwrap_or(0);
+            Some((mcp_key, sort_order))
+        })
+        .collect::<Vec<_>>();
+    parsed.sort_by(|left, right| left.1.cmp(&right.1).then_with(|| left.0.cmp(&right.0)));
+    parsed
+}
+
+fn runtime_mcp_servers_from_snapshot(snapshot: &OemRuntimeSnapshot) -> serde_json::Map<String, serde_json::Value> {
+    if let Some(object) = snapshot
+        .config
+        .get("resolved_mcp_servers")
+        .and_then(|value| value.as_object())
+    {
+        return object.clone();
+    }
+
+    let mut fallback = serde_json::Map::new();
+    let bindings = snapshot
+        .config
+        .get("mcp_bindings")
+        .and_then(|value| value.as_array())
+        .cloned()
+        .unwrap_or_default();
+    for value in bindings {
+        let Some(object) = value.as_object() else {
+            continue;
+        };
+        let Some(mcp_key) = object
+            .get("mcp_key")
+            .and_then(|value| value.as_str())
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty()) else {
+            continue;
+        };
+        let mut config = object
+            .get("config")
+            .and_then(|value| value.as_object())
+            .cloned()
+            .unwrap_or_default();
+        config.insert(String::from("enabled"), serde_json::Value::Bool(true));
+        fallback.insert(mcp_key, serde_json::Value::Object(config));
+    }
+    fallback
+}
+
 fn load_runtime_skill_sync_state(app: &AppHandle) -> Result<Option<RuntimeSkillSyncState>, String> {
     let path = runtime_skill_sync_state_path(app)?;
     if !path.exists() {
@@ -1383,6 +1556,33 @@ fn save_runtime_skill_sync_state(
     write_locked_json_file(&path, &value)
 }
 
+fn load_runtime_mcp_sync_state(app: &AppHandle) -> Result<Option<RuntimeMcpSyncState>, String> {
+    let path = runtime_mcp_sync_state_path(app)?;
+    if !path.exists() {
+        return Ok(None);
+    }
+    let raw = fs::read_to_string(&path).map_err(|e| {
+        format!(
+            "failed to read runtime mcp sync state {}: {e}",
+            path.to_string_lossy()
+        )
+    })?;
+    let parsed = serde_json::from_str::<RuntimeMcpSyncState>(&raw).map_err(|e| {
+        format!(
+            "failed to parse runtime mcp sync state {}: {e}",
+            path.to_string_lossy()
+        )
+    })?;
+    Ok(Some(parsed))
+}
+
+fn save_runtime_mcp_sync_state(app: &AppHandle, state: &RuntimeMcpSyncState) -> Result<(), String> {
+    let path = runtime_mcp_sync_state_path(app)?;
+    let value = serde_json::to_value(state)
+        .map_err(|e| format!("failed to serialize runtime mcp sync state: {e}"))?;
+    write_locked_json_file(&path, &value)
+}
+
 fn runtime_skills_cache_is_fresh(app: &AppHandle, snapshot: &OemRuntimeSnapshot) -> Result<bool, String> {
     let expected_skill_slugs = runtime_skill_bindings_from_snapshot(snapshot)
         .into_iter()
@@ -1405,6 +1605,182 @@ fn runtime_skills_cache_is_fresh(app: &AppHandle, snapshot: &OemRuntimeSnapshot)
         return Ok(manifest_matches);
     }
     Ok(runtime_skills_manifest_path(app).exists() || manifest_matches)
+}
+
+fn runtime_mcp_cache_is_fresh(app: &AppHandle, snapshot: &OemRuntimeSnapshot) -> Result<bool, String> {
+    let expected_mcp_keys = runtime_mcp_bindings_from_snapshot(snapshot)
+        .into_iter()
+        .map(|(mcp_key, _)| mcp_key)
+        .collect::<Vec<_>>();
+    let Some(state) = load_runtime_mcp_sync_state(app)? else {
+        return Ok(false);
+    };
+    if state.brand_id.trim() != snapshot.brand_id.trim() {
+        return Ok(false);
+    }
+    if state.published_version != snapshot.published_version {
+        return Ok(false);
+    }
+    if state.mcp_keys != expected_mcp_keys {
+        return Ok(false);
+    }
+    Ok(runtime_mcp_config_source_path(app)?.exists())
+}
+
+fn load_packaged_runtime_skill_baseline_manifest(
+    app: &AppHandle,
+) -> Result<Option<PackagedRuntimeSkillBaselineManifest>, String> {
+    let path = packaged_runtime_skills_manifest_path(app);
+    if !path.exists() {
+        return Ok(None);
+    }
+    let raw = fs::read_to_string(&path).map_err(|e| {
+        format!(
+            "failed to read packaged runtime skill baseline manifest {}: {e}",
+            path.to_string_lossy()
+        )
+    })?;
+    let parsed = serde_json::from_str::<PackagedRuntimeSkillBaselineManifest>(&raw).map_err(|e| {
+        format!(
+            "failed to parse packaged runtime skill baseline manifest {}: {e}",
+            path.to_string_lossy()
+        )
+    })?;
+    Ok(Some(parsed))
+}
+
+fn packaged_runtime_skill_baseline_matches_snapshot(
+    manifest: &PackagedRuntimeSkillBaselineManifest,
+    snapshot: &OemRuntimeSnapshot,
+) -> bool {
+    manifest.brand_id.trim() == snapshot.brand_id.trim()
+        && manifest.published_version == snapshot.published_version
+        && manifest.skill_slugs
+            == runtime_skill_bindings_from_snapshot(snapshot)
+                .into_iter()
+                .map(|(slug, _)| slug)
+                .collect::<Vec<_>>()
+}
+
+fn activate_packaged_runtime_skill_baseline(
+    app: &AppHandle,
+    snapshot: &OemRuntimeSnapshot,
+) -> Result<bool, String> {
+    let Some(manifest) = load_packaged_runtime_skill_baseline_manifest(app)? else {
+        return Ok(false);
+    };
+    if !packaged_runtime_skill_baseline_matches_snapshot(&manifest, snapshot) {
+        return Ok(false);
+    }
+
+    let packaged_root = packaged_runtime_skills_root(app);
+    if !packaged_root.exists() {
+        return Ok(false);
+    }
+
+    let workspace_dir = openclaw_workspace_dir(app);
+    fs::create_dir_all(&workspace_dir)
+        .map_err(|e| format!("failed to create openclaw workspace dir: {e}"))?;
+    let skills_root = runtime_skills_dir(app);
+    if skills_root.exists() {
+        fs::remove_dir_all(&skills_root).map_err(|e| {
+            format!(
+                "failed to clear existing runtime skills dir {}: {e}",
+                skills_root.to_string_lossy()
+            )
+        })?;
+    }
+    copy_dir_recursive(&packaged_root, &skills_root)?;
+
+    let sync_state = RuntimeSkillSyncState {
+        brand_id: snapshot.brand_id.clone(),
+        published_version: snapshot.published_version,
+        skill_slugs: runtime_skill_bindings_from_snapshot(snapshot)
+            .into_iter()
+            .map(|(slug, _)| slug)
+            .collect(),
+        synced_at: current_unix_timestamp_string(),
+    };
+    save_runtime_skill_sync_state(app, &sync_state)?;
+    Ok(true)
+}
+
+fn load_packaged_runtime_mcp_baseline_manifest(
+    app: &AppHandle,
+) -> Result<Option<PackagedRuntimeMcpBaselineManifest>, String> {
+    let path = packaged_runtime_mcp_manifest_path(app);
+    if !path.exists() {
+        return Ok(None);
+    }
+    let raw = fs::read_to_string(&path).map_err(|e| {
+        format!(
+            "failed to read packaged runtime mcp baseline manifest {}: {e}",
+            path.to_string_lossy()
+        )
+    })?;
+    let parsed = serde_json::from_str::<PackagedRuntimeMcpBaselineManifest>(&raw).map_err(|e| {
+        format!(
+            "failed to parse packaged runtime mcp baseline manifest {}: {e}",
+            path.to_string_lossy()
+        )
+    })?;
+    Ok(Some(parsed))
+}
+
+fn packaged_runtime_mcp_baseline_matches_snapshot(
+    manifest: &PackagedRuntimeMcpBaselineManifest,
+    snapshot: &OemRuntimeSnapshot,
+) -> bool {
+    manifest.brand_id.trim() == snapshot.brand_id.trim()
+        && manifest.published_version == snapshot.published_version
+        && manifest.mcp_keys
+            == runtime_mcp_bindings_from_snapshot(snapshot)
+                .into_iter()
+                .map(|(mcp_key, _)| mcp_key)
+                .collect::<Vec<_>>()
+}
+
+fn activate_packaged_runtime_mcp_baseline(
+    app: &AppHandle,
+    snapshot: &OemRuntimeSnapshot,
+) -> Result<bool, String> {
+    let Some(manifest) = load_packaged_runtime_mcp_baseline_manifest(app)? else {
+        return Ok(false);
+    };
+    if !packaged_runtime_mcp_baseline_matches_snapshot(&manifest, snapshot) {
+        return Ok(false);
+    }
+
+    let packaged_path = packaged_runtime_mcp_root(app).join("mcp.json");
+    if !packaged_path.exists() {
+        return Ok(false);
+    }
+
+    let runtime_path = runtime_mcp_config_source_path(app)?;
+    let raw = fs::read_to_string(&packaged_path).map_err(|e| {
+        format!(
+            "failed to read packaged runtime mcp baseline {}: {e}",
+            packaged_path.to_string_lossy()
+        )
+    })?;
+    fs::write(&runtime_path, raw).map_err(|e| {
+        format!(
+            "failed to activate packaged runtime mcp baseline {}: {e}",
+            runtime_path.to_string_lossy()
+        )
+    })?;
+
+    let sync_state = RuntimeMcpSyncState {
+        brand_id: snapshot.brand_id.clone(),
+        published_version: snapshot.published_version,
+        mcp_keys: runtime_mcp_bindings_from_snapshot(snapshot)
+            .into_iter()
+            .map(|(mcp_key, _)| mcp_key)
+            .collect(),
+        synced_at: current_unix_timestamp_string(),
+    };
+    save_runtime_mcp_sync_state(app, &sync_state)?;
+    Ok(true)
 }
 
 fn copy_dir_recursive(source: &Path, destination: &Path) -> Result<(), String> {
@@ -1521,6 +1897,9 @@ fn sync_current_brand_runtime_skills(app: &AppHandle, auth_base_url: &str) -> Re
     if runtime_skills_cache_is_fresh(app, &snapshot)? {
         return Ok(false);
     }
+    if activate_packaged_runtime_skill_baseline(app, &snapshot)? {
+        return Ok(true);
+    }
 
     let workspace_dir = openclaw_workspace_dir(app);
     fs::create_dir_all(&workspace_dir)
@@ -1633,6 +2012,37 @@ fn sync_current_brand_runtime_skills(app: &AppHandle, auth_base_url: &str) -> Re
         synced_at: current_unix_timestamp_string(),
     };
     save_runtime_skill_sync_state(app, &sync_state)?;
+    Ok(true)
+}
+
+fn sync_current_brand_runtime_mcp(app: &AppHandle) -> Result<bool, String> {
+    let snapshot = load_oem_runtime_snapshot_internal(app)?
+        .ok_or_else(|| String::from("OEM runtime snapshot is missing; cannot sync runtime mcp"))?;
+    if runtime_mcp_cache_is_fresh(app, &snapshot)? {
+        return Ok(false);
+    }
+    if activate_packaged_runtime_mcp_baseline(app, &snapshot)? {
+        return Ok(true);
+    }
+
+    let runtime_path = runtime_mcp_config_source_path(app)?;
+    let mcp_servers = runtime_mcp_servers_from_snapshot(&snapshot);
+    let manifest = json!({
+        "mcpServers": mcp_servers,
+    });
+    write_locked_json_file(&runtime_path, &manifest)?;
+    let mcp_keys = runtime_mcp_bindings_from_snapshot(&snapshot)
+        .into_iter()
+        .map(|(mcp_key, _)| mcp_key)
+        .collect();
+
+    let sync_state = RuntimeMcpSyncState {
+        brand_id: snapshot.brand_id,
+        published_version: snapshot.published_version,
+        mcp_keys,
+        synced_at: current_unix_timestamp_string(),
+    };
+    save_runtime_mcp_sync_state(app, &sync_state)?;
     Ok(true)
 }
 
@@ -3638,6 +4048,25 @@ fn ensure_current_brand_runtime_skills(app: &AppHandle, context: &str) -> Result
     }
 }
 
+fn ensure_current_brand_runtime_mcps(app: &AppHandle, context: &str) -> Result<bool, String> {
+    match sync_current_brand_runtime_mcp(app) {
+        Ok(changed) => Ok(changed),
+        Err(error) => {
+            let cached_path = runtime_mcp_config_source_path(app)?;
+            if cached_path.exists() {
+                eprintln!(
+                    "failed to sync runtime mcp before {context}; reusing last cached runtime mcp config: {error}"
+                );
+                Ok(false)
+            } else {
+                Err(format!(
+                    "failed to sync runtime mcp before {context}: {error}"
+                ))
+            }
+        }
+    }
+}
+
 fn load_oem_runtime_snapshot_internal(app: &AppHandle) -> Result<Option<OemRuntimeSnapshot>, String> {
     let snapshot_path = oem_runtime_snapshot_path(app)?;
     if !snapshot_path.exists() {
@@ -3871,14 +4300,9 @@ fn start_sidecar(
     append_desktop_bootstrap_log(&app, "start_sidecar: gateway token ready");
     ensure_openclaw_workspace_seed(&app)?;
     append_desktop_bootstrap_log(&app, "start_sidecar: workspace seed ready");
-    if let Err(error) = ensure_current_brand_runtime_skills(&app, "sidecar start") {
-        append_desktop_bootstrap_log(
-            &app,
-            &format!("start_sidecar: runtime skill sync warning {error}"),
-        );
-    } else {
-        append_desktop_bootstrap_log(&app, "start_sidecar: runtime skills ready");
-    }
+    ensure_current_brand_runtime_mcps(&app, "sidecar start")?;
+    ensure_current_brand_runtime_skills(&app, "sidecar start")?;
+    append_desktop_bootstrap_log(&app, "start_sidecar: runtime skills ready");
     let openclaw_state_dir = openclaw_state_dir(&app)?;
     let openclaw_config_path = ensure_openclaw_runtime_config(&app, &gateway_token)?;
     append_desktop_bootstrap_log(
@@ -4663,12 +5087,8 @@ fn configure_memory_runtime_command(command: &mut Command, app: &AppHandle) -> R
     let runtime = resolve_runtime_command(app)?;
     let gateway_token = load_or_create_gateway_token(app)?;
     ensure_openclaw_workspace_seed(app)?;
-    if let Err(error) = ensure_current_brand_runtime_skills(app, "memory runtime command") {
-        append_desktop_bootstrap_log(
-            app,
-            &format!("memory_runtime_command: runtime skill sync warning {error}"),
-        );
-    }
+    ensure_current_brand_runtime_mcps(app, "memory runtime command")?;
+    ensure_current_brand_runtime_skills(app, "memory runtime command")?;
     let openclaw_state_dir = openclaw_state_dir(app)?;
     let openclaw_config_path = ensure_openclaw_runtime_config(app, &gateway_token)?;
     let config = load_runtime_config_internal(app)?;

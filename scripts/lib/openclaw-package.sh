@@ -317,7 +317,17 @@ function patchOpenAiWrapperFile(filePath) {
   let raw = fs.readFileSync(filePath, 'utf8');
   const APPLY_MARKER = 'agent.streamFn = createOpenAIDefaultTransportWrapper(agent.streamFn);';
   const LEGACY_PROVIDER_FILTER = 'if (model.api === "openai-completions" && model.provider === "openai" && payload && typeof payload === "object") {';
+  const USAGE_COMPAT_BUG = 'const forcedUsageStreaming = compat?.supportsUsageInStreaming === true;';
+  const USAGE_COMPAT_FIX = `const forcedDeveloperRole = compat?.supportsDeveloperRole === true;\n\tif (forcedDeveloperRole) return model;\n\treturn {\n\t\t...model,\n\t\tcompat: compat ? {\n\t\t\t...compat,\n\t\t\tsupportsDeveloperRole: false\n\t\t} : {\n\t\t\tsupportsDeveloperRole: false\n\t\t}\n\t};`;
   let changed = false;
+
+  if (raw.includes(USAGE_COMPAT_BUG)) {
+    raw = raw.replace(
+      `const forcedDeveloperRole = compat?.supportsDeveloperRole === true;\n\tconst forcedUsageStreaming = compat?.supportsUsageInStreaming === true;\n\tif (forcedDeveloperRole && forcedUsageStreaming) return model;\n\treturn {\n\t\t...model,\n\t\tcompat: compat ? {\n\t\t\t...compat,\n\t\t\tsupportsDeveloperRole: forcedDeveloperRole || false,\n\t\t\tsupportsUsageInStreaming: forcedUsageStreaming || false\n\t\t} : {\n\t\t\tsupportsDeveloperRole: false,\n\t\t\tsupportsUsageInStreaming: false\n\t\t}\n\t};`,
+      USAGE_COMPAT_FIX
+    );
+    changed = true;
+  }
 
   if (raw.includes(LEGACY_PROVIDER_FILTER)) {
     raw = raw.replace(LEGACY_PROVIDER_FILTER, 'if (model.api === "openai-completions" && payload && typeof payload === "object") {');
