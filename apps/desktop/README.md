@@ -76,6 +76,14 @@ pnpm dev:web
    - `ICLAW_OPENCLAW_RUNTIME_FORMAT`
    - `ICLAW_OPENCLAW_RUNTIME_LAUNCHER`
 
+`openclaw-runtime.json` 现在支持 `artifacts.<target-triple>` 映射，例如
+`aarch64-apple-darwin`、`x86_64-pc-windows-msvc`。桌面端和打包脚本都会优先按当前
+target 读取对应条目，避免某个平台发布时覆盖另一个平台。
+
+`pnpm build:openclaw-runtime` 会把当前 target 的本地 artifact 回写到对应
+`artifacts.<target-triple>`；`pnpm publish:openclaw-runtime <env> <target-triple>` 会把该
+target 的条目更新为发布后的公开下载地址。
+
 运行时会将 artifact 下载到应用数据目录下的 `openclaw/runtime/versions/<version>` 并从那里启动。
 
 `artifact_url` 既可以是 HTTPS 地址，也可以是本机绝对路径，便于本地联调验证。

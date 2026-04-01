@@ -414,9 +414,9 @@ async function pathExists(targetPath) {
   }
 }
 
-async function runtimeLayoutLooksComplete(runtimeDir) {
+async function runtimeLayoutLooksComplete(runtimeDir, targetTriple = '') {
   const requiredPaths = [
-    path.join(runtimeDir, process.platform === 'win32' ? 'openclaw-runtime.cmd' : 'openclaw-runtime'),
+    path.join(runtimeDir, targetTriple.includes('windows') ? 'openclaw-runtime.cmd' : 'openclaw-runtime'),
     path.join(runtimeDir, 'openclaw', 'openclaw.mjs'),
     path.join(runtimeDir, 'openclaw', 'package.json'),
   ];
@@ -424,7 +424,10 @@ async function runtimeLayoutLooksComplete(runtimeDir) {
   return checks.every(Boolean);
 }
 
-function inferRuntimeTargetTriple() {
+function inferRuntimeTargetTriple(target = '') {
+  if (KNOWN_RUNTIME_TARGET_TRIPLES.includes(target)) {
+    return target;
+  }
   if (process.platform === 'darwin') {
     if (process.arch === 'arm64') return 'aarch64-apple-darwin';
     if (process.arch === 'x64') return 'x86_64-apple-darwin';
@@ -464,10 +467,40 @@ async function readRuntimeBootstrapConfig() {
   return JSON.parse(await fs.readFile(runtimeBootstrapConfigPath, 'utf8'));
 }
 
-function applyRuntimeBootstrapEnvOverrides(rawConfig, env) {
+function resolveRuntimeBootstrapConfigForTarget(rawConfig, targetTriple = '') {
   const nextConfig = {
     ...(rawConfig && typeof rawConfig === 'object' ? rawConfig : {}),
   };
+  const artifacts =
+    nextConfig.artifacts && typeof nextConfig.artifacts === 'object' && !Array.isArray(nextConfig.artifacts)
+      ? nextConfig.artifacts
+      : {};
+  const scoped =
+    targetTriple &&
+    artifacts[targetTriple] &&
+    typeof artifacts[targetTriple] === 'object' &&
+    !Array.isArray(artifacts[targetTriple])
+      ? artifacts[targetTriple]
+      : null;
+  if (scoped) {
+    if (trimString(scoped.artifact_url)) nextConfig.artifact_url = trimString(scoped.artifact_url);
+    if (typeof scoped.artifact_sha256 === 'string') nextConfig.artifact_sha256 = trimString(scoped.artifact_sha256);
+    if (trimString(scoped.artifact_format)) nextConfig.artifact_format = trimString(scoped.artifact_format);
+    if (typeof scoped.launcher_relative_path === 'string') {
+      nextConfig.launcher_relative_path = trimString(scoped.launcher_relative_path);
+    }
+  }
+  return nextConfig;
+}
+
+function applyRuntimeBootstrapEnvOverrides(rawConfig, env, targetTriple = '') {
+  const nextConfig = {
+    ...(rawConfig && typeof rawConfig === 'object' ? rawConfig : {}),
+  };
+  const nextArtifacts =
+    nextConfig.artifacts && typeof nextConfig.artifacts === 'object' && !Array.isArray(nextConfig.artifacts)
+      ? { ...nextConfig.artifacts }
+      : {};
   const version = trimString(env.ICLAW_OPENCLAW_RUNTIME_VERSION);
   const artifactUrl = trimString(env.ICLAW_OPENCLAW_RUNTIME_URL);
   const artifactSha = trimString(env.ICLAW_OPENCLAW_RUNTIME_SHA256);
@@ -480,6 +513,21 @@ function applyRuntimeBootstrapEnvOverrides(rawConfig, env) {
   if (artifactFormat) nextConfig.artifact_format = artifactFormat;
   if (launcherRelativePath) nextConfig.launcher_relative_path = launcherRelativePath;
 
+  if (targetTriple && (artifactUrl || artifactSha || artifactFormat || launcherRelativePath)) {
+    const scoped =
+      nextArtifacts[targetTriple] &&
+      typeof nextArtifacts[targetTriple] === 'object' &&
+      !Array.isArray(nextArtifacts[targetTriple])
+        ? { ...nextArtifacts[targetTriple] }
+        : {};
+    if (artifactUrl) scoped.artifact_url = artifactUrl;
+    if (artifactSha) scoped.artifact_sha256 = artifactSha;
+    if (artifactFormat) scoped.artifact_format = artifactFormat;
+    if (launcherRelativePath) scoped.launcher_relative_path = launcherRelativePath;
+    nextArtifacts[targetTriple] = scoped;
+    nextConfig.artifacts = nextArtifacts;
+  }
+
   return nextConfig;
 }
 
@@ -488,11 +536,11 @@ async function writeRuntimeBootstrapConfig(config) {
   await fs.writeFile(runtimeBootstrapConfigPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
 }
 
-async function applyRuntimeBootstrapOverlay(env) {
+async function applyRuntimeBootstrapOverlay(env, targetTriple) {
   const originalExists = await pathExists(runtimeBootstrapConfigPath);
   const originalRaw = originalExists ? await fs.readFile(runtimeBootstrapConfigPath, 'utf8') : null;
   const originalConfig = originalRaw ? JSON.parse(originalRaw) : {};
-  const nextConfig = applyRuntimeBootstrapEnvOverrides(originalConfig, env);
+  const nextConfig = applyRuntimeBootstrapEnvOverrides(originalConfig, env, targetTriple);
   const nextRaw = `${JSON.stringify(nextConfig, null, 2)}\n`;
   if (nextRaw !== originalRaw) {
     await writeRuntimeBootstrapConfig(nextConfig);
@@ -507,8 +555,8 @@ async function applyRuntimeBootstrapOverlay(env) {
   };
 }
 
-async function assertPackagedRuntimeConfig(env) {
-  if (await runtimeLayoutLooksComplete(bundledRuntimeDir)) {
+async function assertPackagedRuntimeConfig(env, targetTriple) {
+  if (await runtimeLayoutLooksComplete(bundledRuntimeDir, targetTriple)) {
     return;
   }
 
@@ -522,7 +570,10 @@ async function assertPackagedRuntimeConfig(env) {
     );
   }
 
-  const raw = applyRuntimeBootstrapEnvOverrides(await readRuntimeBootstrapConfig(), env);
+  const raw = resolveRuntimeBootstrapConfigForTarget(
+    applyRuntimeBootstrapEnvOverrides(await readRuntimeBootstrapConfig(), env, targetTriple),
+    targetTriple,
+  );
   const version = trimString(raw.version);
   const artifactUrl = trimString(raw.artifact_url);
   const artifactFormat = trimString(raw.artifact_format);
@@ -531,7 +582,7 @@ async function assertPackagedRuntimeConfig(env) {
     throw new Error(
       [
         'desktop packaging aborted: invalid OpenClaw runtime bootstrap config.',
-        `Expected non-empty version and artifact_url in ${runtimeBootstrapConfigPath}`,
+        `Expected non-empty version and artifact_url for target ${targetTriple || 'current-host'} in ${runtimeBootstrapConfigPath}`,
       ].join('\n'),
     );
   }
@@ -545,16 +596,16 @@ async function assertPackagedRuntimeConfig(env) {
     );
   }
 
-  const expectedTargetTriple = inferRuntimeTargetTriple();
+  const expectedTargetTriple = inferRuntimeTargetTriple(targetTriple);
   const artifactTargetTriple = detectRuntimeArtifactTargetTriple(artifactUrl);
   if (expectedTargetTriple && artifactTargetTriple && artifactTargetTriple !== expectedTargetTriple) {
     throw new Error(
       [
-        'desktop packaging aborted: OpenClaw runtime artifact target does not match the current packaging platform.',
+        'desktop packaging aborted: OpenClaw runtime artifact target does not match the current package target.',
         `Expected target: ${expectedTargetTriple}`,
         `Configured artifact: ${artifactUrl}`,
         `Detected target in artifact URL: ${artifactTargetTriple}`,
-        'Run `pnpm build:openclaw-runtime` for the current platform, or pass matching ICLAW_OPENCLAW_RUNTIME_* overrides for this package build.',
+        'Run `pnpm build:openclaw-runtime` for that target, publish the matching runtime, or pass matching ICLAW_OPENCLAW_RUNTIME_* overrides for this package build.',
       ].join('\n'),
     );
   }
@@ -562,6 +613,7 @@ async function assertPackagedRuntimeConfig(env) {
 
 async function main() {
   const { brandId, target, forwardedArgs } = parseArgs(process.argv.slice(2));
+  const runtimeTargetTriple = inferRuntimeTargetTriple(target);
   const snapshotKey = 'desktop-package-build';
   const packagingOverlayEnv = resolveSigningOverlayEnv(rootDir);
   const packagingSourceEnv = resolvePackagingSourceEnv(rootDir);
@@ -600,8 +652,8 @@ async function main() {
     syncLocalAppRuntime({ pnpm, env, brandId, channel });
     syncBundledBaselineSkills({ pnpm, env, brandId });
     run(process.execPath, [syncResourcesScriptPath], { env });
-    restoreRuntimeBootstrapConfig = await applyRuntimeBootstrapOverlay(env);
-    await assertPackagedRuntimeConfig(env);
+    restoreRuntimeBootstrapConfig = await applyRuntimeBootstrapOverlay(env, runtimeTargetTriple);
+    await assertPackagedRuntimeConfig(env, runtimeTargetTriple);
     await writeTempTauriConfig();
 
     run(pnpm.command, [...pnpm.args, '--dir', desktopDir, 'build'], { env, shell: pnpm.shell });

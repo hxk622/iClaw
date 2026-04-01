@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT_DIR/scripts/lib/openclaw-package.sh"
 
 ENV_NAME="${1:-prod}"
+TARGET_TRIPLE="${2:-${ICLAW_OPENCLAW_RUNTIME_TARGET:-$(openclaw_host_target_triple || true)}}"
 export ICLAW_PACKAGING_ENV="$ENV_NAME"
 RUNTIME_CONFIG_PATH="$(openclaw_runtime_bootstrap_config_path "$ROOT_DIR")"
 RUNTIME_PREFIX_DEFAULT="$(node "$ROOT_DIR/scripts/read-brand-value.mjs" runtimeDistribution.minioPrefix | tail -n1)"
@@ -22,11 +23,16 @@ read_runtime_field() {
   local key="$1"
   node -e '
 const fs = require("fs");
-const [configPath, key] = process.argv.slice(1);
+const [configPath, key, targetTriple] = process.argv.slice(1);
 const raw = JSON.parse(fs.readFileSync(configPath, "utf8"));
-const value = raw && typeof raw === "object" ? raw[key] : undefined;
+const root = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+const artifacts = root.artifacts && typeof root.artifacts === "object" && !Array.isArray(root.artifacts) ? root.artifacts : {};
+const scoped = targetTriple && artifacts[targetTriple] && typeof artifacts[targetTriple] === "object" && !Array.isArray(artifacts[targetTriple])
+  ? artifacts[targetTriple]
+  : null;
+const value = scoped && typeof scoped[key] !== "undefined" ? scoped[key] : root[key];
 if (typeof value === "string") process.stdout.write(value);
-' "$RUNTIME_CONFIG_PATH" "$key"
+' "$RUNTIME_CONFIG_PATH" "$key" "$TARGET_TRIPLE"
 }
 
 VERSION="$(read_runtime_field version)"
@@ -35,13 +41,18 @@ ARCHIVE_SHA256="$(read_runtime_field artifact_sha256)"
 ARTIFACT_FORMAT="$(read_runtime_field artifact_format)"
 LAUNCHER_RELATIVE_PATH="$(read_runtime_field launcher_relative_path)"
 
+if [[ -z "$TARGET_TRIPLE" ]]; then
+  echo "Unable to determine runtime target triple; pass it as the second argument or set ICLAW_OPENCLAW_RUNTIME_TARGET" >&2
+  exit 1
+fi
+
 if [[ -z "$VERSION" ]]; then
   echo "Runtime version missing in $RUNTIME_CONFIG_PATH" >&2
   exit 1
 fi
 
 if [[ -z "$ARCHIVE_PATH_RAW" ]]; then
-  echo "Runtime artifact_url missing in $RUNTIME_CONFIG_PATH" >&2
+  echo "Runtime artifact_url missing in $RUNTIME_CONFIG_PATH for target $TARGET_TRIPLE" >&2
   exit 1
 fi
 
@@ -53,6 +64,12 @@ fi
 
 if [[ -z "$ARTIFACT_FORMAT" ]]; then
   ARTIFACT_FORMAT="tar.gz"
+fi
+
+DETECTED_TARGET_TRIPLE="$(openclaw_detect_runtime_target_triple "$ARCHIVE_PATH_RAW" || true)"
+if [[ -n "$DETECTED_TARGET_TRIPLE" && "$DETECTED_TARGET_TRIPLE" != "$TARGET_TRIPLE" ]]; then
+  echo "Runtime archive target mismatch: expected $TARGET_TRIPLE but got $DETECTED_TARGET_TRIPLE from $ARCHIVE_PATH_RAW" >&2
+  exit 1
 fi
 
 runtime_public_url_for() {
@@ -113,7 +130,8 @@ openclaw_write_runtime_bootstrap_config \
   "$PUBLIC_URL" \
   "$ARCHIVE_SHA256" \
   "$ARTIFACT_FORMAT" \
-  "$LAUNCHER_RELATIVE_PATH"
+  "$LAUNCHER_RELATIVE_PATH" \
+  "$TARGET_TRIPLE"
 
 echo "Updated runtime bootstrap config:"
 echo "  $RUNTIME_CONFIG_PATH"

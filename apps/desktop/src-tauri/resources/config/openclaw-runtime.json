@@ -4,6 +4,14 @@
   "artifact_sha256": "a9864d7855e1b2196566f727f2b5bc539dc8d05a38f8f4d50b937ded89bf051a",
   "artifact_format": "tar.gz",
   "launcher_relative_path": null,
+  "artifacts": {
+    "x86_64-pc-windows-msvc": {
+      "artifact_url": "https://iclaw.aiyuanxi.com/downloads/runtime/openclaw/2026.3.13/openclaw-runtime-x86_64-pc-windows-msvc-2026.3.13.tar.gz",
+      "artifact_sha256": "a9864d7855e1b2196566f727f2b5bc539dc8d05a38f8f4d50b937ded89bf051a",
+      "artifact_format": "tar.gz",
+      "launcher_relative_path": null
+    }
+  },
   "dev_source_dir": null,
   "dev_node_path": null
 }

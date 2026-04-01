@@ -54,6 +54,52 @@ openclaw_abs_path() {
   fi
 }
 
+openclaw_host_target_triple() {
+  local os arch
+  os="$(uname -s)"
+  arch="$(uname -m)"
+
+  case "$os" in
+    Darwin)
+      case "$arch" in
+        arm64|aarch64) printf 'aarch64-apple-darwin\n' ;;
+        x86_64) printf 'x86_64-apple-darwin\n' ;;
+        *) return 1 ;;
+      esac
+      ;;
+    Linux)
+      case "$arch" in
+        x86_64|amd64) printf 'x86_64-unknown-linux-gnu\n' ;;
+        arm64|aarch64) printf 'aarch64-unknown-linux-gnu\n' ;;
+        *) return 1 ;;
+      esac
+      ;;
+    MINGW*|MSYS*|CYGWIN*|Windows_NT)
+      case "$arch" in
+        x86_64|amd64) printf 'x86_64-pc-windows-msvc\n' ;;
+        arm64|aarch64) printf 'aarch64-pc-windows-msvc\n' ;;
+        *) return 1 ;;
+      esac
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+openclaw_detect_runtime_target_triple() {
+  local raw="$1"
+  case "$raw" in
+    *openclaw-runtime-aarch64-apple-darwin-*) printf 'aarch64-apple-darwin\n' ;;
+    *openclaw-runtime-x86_64-apple-darwin-*) printf 'x86_64-apple-darwin\n' ;;
+    *openclaw-runtime-aarch64-pc-windows-msvc-*) printf 'aarch64-pc-windows-msvc\n' ;;
+    *openclaw-runtime-x86_64-pc-windows-msvc-*) printf 'x86_64-pc-windows-msvc\n' ;;
+    *openclaw-runtime-aarch64-unknown-linux-gnu-*) printf 'aarch64-unknown-linux-gnu\n' ;;
+    *openclaw-runtime-x86_64-unknown-linux-gnu-*) printf 'x86_64-unknown-linux-gnu\n' ;;
+    *) return 1 ;;
+  esac
+}
+
 openclaw_prepare_package_tgz() {
   local root_dir="$1"
   local artifacts_dir
@@ -444,13 +490,13 @@ openclaw_ensure_package_runtime_deps() {
   fi
 
   if [[ -d "$source_dir/node_modules" ]]; then
-    echo "[openclaw-runtime] runtime deps incomplete, refreshing with npm install --omit=dev"
+    echo "[openclaw-runtime] runtime deps incomplete, refreshing with npm install --omit=dev --legacy-peer-deps"
   else
-    echo "[openclaw-runtime] node_modules missing, running npm install --omit=dev"
+    echo "[openclaw-runtime] node_modules missing, running npm install --omit=dev --legacy-peer-deps"
   fi
   (
     cd "$source_dir"
-    npm install --omit=dev
+    npm install --omit=dev --legacy-peer-deps
   )
 
   if ! openclaw_package_has_runtime_deps "$source_dir"; then
@@ -466,22 +512,41 @@ openclaw_write_runtime_bootstrap_config() {
   local artifact_sha256="${4:-}"
   local artifact_format="${5:-tar.gz}"
   local launcher_relative_path="${6:-}"
+  local target_triple="${7:-}"
   local config_path
   config_path="$(openclaw_runtime_bootstrap_config_path "$root_dir")"
 
   mkdir -p "$(dirname "$config_path")"
   node -e '
 const fs = require("fs");
-const [configPath, version, artifactUrl, artifactSha, artifactFormat, launcherPath] = process.argv.slice(1);
-const payload = {
-  version,
-  artifact_url: artifactUrl,
+const [configPath, version, artifactUrl, artifactSha, artifactFormat, launcherPath, targetTriple] = process.argv.slice(1);
+let payload = {};
+try {
+  const existing = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  if (existing && typeof existing === "object" && !Array.isArray(existing)) {
+    payload = existing;
+  }
+} catch {}
+const nextArtifact = {
+  artifact_url: artifactUrl || null,
   artifact_sha256: artifactSha || null,
   artifact_format: artifactFormat || "tar.gz",
   launcher_relative_path: launcherPath || null,
-  dev_source_dir: null,
-  dev_node_path: null,
 };
+payload.version = version || payload.version || null;
+payload.artifact_url = nextArtifact.artifact_url;
+payload.artifact_sha256 = nextArtifact.artifact_sha256;
+payload.artifact_format = nextArtifact.artifact_format;
+payload.launcher_relative_path = nextArtifact.launcher_relative_path;
+payload.dev_source_dir = null;
+payload.dev_node_path = null;
+if (targetTriple) {
+  const artifacts = payload.artifacts && typeof payload.artifacts === "object" && !Array.isArray(payload.artifacts)
+    ? payload.artifacts
+    : {};
+  artifacts[targetTriple] = nextArtifact;
+  payload.artifacts = artifacts;
+}
 fs.writeFileSync(configPath, `${JSON.stringify(payload, null, 2)}\n`);
-' "$config_path" "$version" "$artifact_url" "$artifact_sha256" "$artifact_format" "$launcher_relative_path"
+' "$config_path" "$version" "$artifact_url" "$artifact_sha256" "$artifact_format" "$launcher_relative_path" "$target_triple"
 }

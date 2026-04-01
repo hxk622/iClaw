@@ -11,6 +11,7 @@ use reqwest::{blocking::Client, Url};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
 use std::env;
 use std::fs::{self, File};
 use std::io::{Read, Write};
@@ -428,12 +429,22 @@ struct IclawWorkspaceBackupPayload {
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
+struct RuntimeBootstrapArtifact {
+    artifact_url: Option<String>,
+    artifact_sha256: Option<String>,
+    artifact_format: Option<String>,
+    launcher_relative_path: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
 struct RuntimeBootstrapConfig {
     version: Option<String>,
     artifact_url: Option<String>,
     artifact_sha256: Option<String>,
     artifact_format: Option<String>,
     launcher_relative_path: Option<String>,
+    #[serde(default)]
+    artifacts: BTreeMap<String, RuntimeBootstrapArtifact>,
     dev_source_dir: Option<String>,
     dev_node_path: Option<String>,
 }
@@ -732,6 +743,68 @@ fn env_override(name: &str) -> Option<String> {
     clean_optional(env::var(name).ok())
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn current_runtime_target_triple() -> &'static str {
+    "aarch64-apple-darwin"
+}
+
+#[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+fn current_runtime_target_triple() -> &'static str {
+    "x86_64-apple-darwin"
+}
+
+#[cfg(all(target_os = "windows", target_arch = "aarch64"))]
+fn current_runtime_target_triple() -> &'static str {
+    "aarch64-pc-windows-msvc"
+}
+
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+fn current_runtime_target_triple() -> &'static str {
+    "x86_64-pc-windows-msvc"
+}
+
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+fn current_runtime_target_triple() -> &'static str {
+    "aarch64-unknown-linux-gnu"
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+fn current_runtime_target_triple() -> &'static str {
+    "x86_64-unknown-linux-gnu"
+}
+
+#[cfg(not(any(
+    all(target_os = "macos", target_arch = "aarch64"),
+    all(target_os = "macos", target_arch = "x86_64"),
+    all(target_os = "windows", target_arch = "aarch64"),
+    all(target_os = "windows", target_arch = "x86_64"),
+    all(target_os = "linux", target_arch = "aarch64"),
+    all(target_os = "linux", target_arch = "x86_64")
+)))]
+fn current_runtime_target_triple() -> &'static str {
+    "unknown"
+}
+
+fn apply_target_runtime_bootstrap_artifact(config: &mut RuntimeBootstrapConfig) {
+    let target = current_runtime_target_triple();
+    let Some(artifact) = config.artifacts.get(target).cloned() else {
+        return;
+    };
+
+    if let Some(value) = clean_optional(artifact.artifact_url) {
+        config.artifact_url = Some(value);
+    }
+    if let Some(value) = clean_optional(artifact.artifact_sha256) {
+        config.artifact_sha256 = Some(value);
+    }
+    if let Some(value) = clean_optional(artifact.artifact_format) {
+        config.artifact_format = Some(value);
+    }
+    if let Some(value) = clean_optional(artifact.launcher_relative_path) {
+        config.launcher_relative_path = Some(value);
+    }
+}
+
 fn load_runtime_bootstrap_config(app: &AppHandle) -> Result<RuntimeBootstrapConfig, String> {
     let path = runtime_bootstrap_config_path(app);
     let mut config = if path.exists() {
@@ -742,6 +815,8 @@ fn load_runtime_bootstrap_config(app: &AppHandle) -> Result<RuntimeBootstrapConf
     } else {
         RuntimeBootstrapConfig::default()
     };
+
+    apply_target_runtime_bootstrap_artifact(&mut config);
 
     if let Some(value) = env_override("ICLAW_OPENCLAW_RUNTIME_VERSION") {
         config.version = Some(value);
