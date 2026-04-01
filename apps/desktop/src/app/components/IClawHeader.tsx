@@ -73,10 +73,13 @@ function resolveFallbackHeadlines(config?: ResolvedHeaderConfig | null): HeaderH
 }
 
 function formatBalance(value: number | null, authenticated: boolean, loading: boolean): string {
-  if (!authenticated || loading || value == null) {
-    return '--';
+  if (loading) {
+    return '龙虾币加载中';
   }
-  return new Intl.NumberFormat('zh-CN').format(value);
+  if (!authenticated || value == null) {
+    return '龙虾币';
+  }
+  return `${new Intl.NumberFormat('zh-CN').format(value)}龙虾币`;
 }
 
 function normalizeNumber(input: unknown): number {
