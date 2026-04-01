@@ -83,6 +83,7 @@ function normalizePersistedPortalAssetUrl(rawValue: string | null | undefined, b
   if (!matchedPrefix) {
     return raw;
   }
+
   return `${normalizedBase}${raw.slice(matchedPrefix.length)}`;
 }
 
@@ -93,12 +94,35 @@ function asObject(value: unknown): PortalJsonObject {
   return value as PortalJsonObject;
 }
 
-function asArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
-}
-
 function cloneJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function buildResolvedMcpServers(
+  detail: Pick<PortalAppDetail, 'mcpBindings'>,
+  catalog: Array<{mcpKey: string; config: PortalJsonObject}>,
+): PortalJsonObject {
+  const catalogByKey = new Map(catalog.map((item) => [item.mcpKey, item]));
+  return Object.fromEntries(
+    detail.mcpBindings
+      .filter((item) => item.enabled)
+      .sort((left, right) => left.sortOrder - right.sortOrder)
+      .map((binding) => {
+        const catalogConfig = asObject(catalogByKey.get(binding.mcpKey)?.config);
+        return [
+          binding.mcpKey,
+          {
+            ...cloneJson(catalogConfig),
+            ...cloneJson(asObject(binding.config)),
+            enabled: true,
+          },
+        ] as const;
+      }),
+  );
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
 }
 
 function applyResolvedRuntimeModelsToConfig(
@@ -1308,9 +1332,10 @@ export class PortalService {
     if (!detail) {
       throw new HttpError(404, 'NOT_FOUND', 'portal app not found');
     }
-    const [platformSkills, platformMcps, menus, composerControls, composerShortcuts] = await Promise.all([
+    const [platformSkills, platformMcps, cloudMcps, menus, composerControls, composerShortcuts] = await Promise.all([
       this.store.listSkills(),
       this.store.listMcps(),
+      this.store.listCloudMcps(),
       this.store.listMenus(),
       this.store.listComposerControls(),
       this.store.listComposerShortcuts(),
@@ -1336,6 +1361,13 @@ export class PortalService {
         includeSecrets: options.includeSecrets,
       });
     }
+    nextConfig = {
+      ...nextConfig,
+      resolved_mcp_servers: buildResolvedMcpServers({
+        ...detail,
+        mcpBindings: mergePlatformMcpBindings(detail.app.appName, detail.mcpBindings, platformMcps),
+      }, cloudMcps),
+    };
     nextConfig = applyResolvedMemoryEmbeddingToConfig(nextConfig, resolvedMemoryEmbedding, {
       includeSecrets: options.includeSecrets,
     });
