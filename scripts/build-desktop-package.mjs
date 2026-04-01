@@ -131,6 +131,10 @@ function normalizeChannel(value) {
   return '';
 }
 
+function trimString(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 function isTruthyEnv(value) {
   return /^(1|true|yes)$/i.test(String(value || '').trim());
 }
@@ -420,7 +424,90 @@ async function runtimeLayoutLooksComplete(runtimeDir) {
   return checks.every(Boolean);
 }
 
-async function assertPackagedRuntimeConfig() {
+function inferRuntimeTargetTriple() {
+  if (process.platform === 'darwin') {
+    if (process.arch === 'arm64') return 'aarch64-apple-darwin';
+    if (process.arch === 'x64') return 'x86_64-apple-darwin';
+  }
+  if (process.platform === 'win32') {
+    if (process.arch === 'arm64') return 'aarch64-pc-windows-msvc';
+    if (process.arch === 'x64') return 'x86_64-pc-windows-msvc';
+  }
+  if (process.platform === 'linux') {
+    if (process.arch === 'arm64') return 'aarch64-unknown-linux-gnu';
+    if (process.arch === 'x64') return 'x86_64-unknown-linux-gnu';
+  }
+  return '';
+}
+
+const KNOWN_RUNTIME_TARGET_TRIPLES = [
+  'aarch64-apple-darwin',
+  'x86_64-apple-darwin',
+  'aarch64-pc-windows-msvc',
+  'x86_64-pc-windows-msvc',
+  'aarch64-unknown-linux-gnu',
+  'x86_64-unknown-linux-gnu',
+];
+
+function detectRuntimeArtifactTargetTriple(artifactUrl) {
+  const normalized = trimString(artifactUrl);
+  if (!normalized) {
+    return '';
+  }
+  return KNOWN_RUNTIME_TARGET_TRIPLES.find((triple) => normalized.includes(`openclaw-runtime-${triple}-`)) || '';
+}
+
+async function readRuntimeBootstrapConfig() {
+  if (!(await pathExists(runtimeBootstrapConfigPath))) {
+    return null;
+  }
+  return JSON.parse(await fs.readFile(runtimeBootstrapConfigPath, 'utf8'));
+}
+
+function applyRuntimeBootstrapEnvOverrides(rawConfig, env) {
+  const nextConfig = {
+    ...(rawConfig && typeof rawConfig === 'object' ? rawConfig : {}),
+  };
+  const version = trimString(env.ICLAW_OPENCLAW_RUNTIME_VERSION);
+  const artifactUrl = trimString(env.ICLAW_OPENCLAW_RUNTIME_URL);
+  const artifactSha = trimString(env.ICLAW_OPENCLAW_RUNTIME_SHA256);
+  const artifactFormat = trimString(env.ICLAW_OPENCLAW_RUNTIME_FORMAT);
+  const launcherRelativePath = trimString(env.ICLAW_OPENCLAW_RUNTIME_LAUNCHER);
+
+  if (version) nextConfig.version = version;
+  if (artifactUrl) nextConfig.artifact_url = artifactUrl;
+  if (artifactSha) nextConfig.artifact_sha256 = artifactSha;
+  if (artifactFormat) nextConfig.artifact_format = artifactFormat;
+  if (launcherRelativePath) nextConfig.launcher_relative_path = launcherRelativePath;
+
+  return nextConfig;
+}
+
+async function writeRuntimeBootstrapConfig(config) {
+  await fs.mkdir(path.dirname(runtimeBootstrapConfigPath), { recursive: true });
+  await fs.writeFile(runtimeBootstrapConfigPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+}
+
+async function applyRuntimeBootstrapOverlay(env) {
+  const originalExists = await pathExists(runtimeBootstrapConfigPath);
+  const originalRaw = originalExists ? await fs.readFile(runtimeBootstrapConfigPath, 'utf8') : null;
+  const originalConfig = originalRaw ? JSON.parse(originalRaw) : {};
+  const nextConfig = applyRuntimeBootstrapEnvOverrides(originalConfig, env);
+  const nextRaw = `${JSON.stringify(nextConfig, null, 2)}\n`;
+  if (nextRaw !== originalRaw) {
+    await writeRuntimeBootstrapConfig(nextConfig);
+  }
+
+  return async () => {
+    if (originalRaw === null) {
+      await fs.rm(runtimeBootstrapConfigPath, { force: true });
+      return;
+    }
+    await fs.writeFile(runtimeBootstrapConfigPath, originalRaw, 'utf8');
+  };
+}
+
+async function assertPackagedRuntimeConfig(env) {
   if (await runtimeLayoutLooksComplete(bundledRuntimeDir)) {
     return;
   }
@@ -435,10 +522,10 @@ async function assertPackagedRuntimeConfig() {
     );
   }
 
-  const raw = JSON.parse(await fs.readFile(runtimeBootstrapConfigPath, 'utf8'));
-  const version = typeof raw.version === 'string' ? raw.version.trim() : '';
-  const artifactUrl = typeof raw.artifact_url === 'string' ? raw.artifact_url.trim() : '';
-  const artifactFormat = typeof raw.artifact_format === 'string' ? raw.artifact_format.trim() : '';
+  const raw = applyRuntimeBootstrapEnvOverrides(await readRuntimeBootstrapConfig(), env);
+  const version = trimString(raw.version);
+  const artifactUrl = trimString(raw.artifact_url);
+  const artifactFormat = trimString(raw.artifact_format);
 
   if (!version || !artifactUrl) {
     throw new Error(
@@ -454,6 +541,20 @@ async function assertPackagedRuntimeConfig() {
       [
         'desktop packaging aborted: unsupported OpenClaw runtime artifact_format.',
         `Found "${artifactFormat}" in ${runtimeBootstrapConfigPath}`,
+      ].join('\n'),
+    );
+  }
+
+  const expectedTargetTriple = inferRuntimeTargetTriple();
+  const artifactTargetTriple = detectRuntimeArtifactTargetTriple(artifactUrl);
+  if (expectedTargetTriple && artifactTargetTriple && artifactTargetTriple !== expectedTargetTriple) {
+    throw new Error(
+      [
+        'desktop packaging aborted: OpenClaw runtime artifact target does not match the current packaging platform.',
+        `Expected target: ${expectedTargetTriple}`,
+        `Configured artifact: ${artifactUrl}`,
+        `Detected target in artifact URL: ${artifactTargetTriple}`,
+        'Run `pnpm build:openclaw-runtime` for the current platform, or pass matching ICLAW_OPENCLAW_RUNTIME_* overrides for this package build.',
       ].join('\n'),
     );
   }
@@ -479,6 +580,7 @@ async function main() {
   };
   const { tauriBundle, packageDmg } = platformBundleTarget();
   const pnpm = pnpmCommand();
+  let restoreRuntimeBootstrapConfig = async () => {};
 
   run(process.execPath, [brandStateScriptPath, 'snapshot', snapshotKey], {env});
   try {
@@ -498,7 +600,8 @@ async function main() {
     syncLocalAppRuntime({ pnpm, env, brandId, channel });
     syncBundledBaselineSkills({ pnpm, env, brandId });
     run(process.execPath, [syncResourcesScriptPath], { env });
-    await assertPackagedRuntimeConfig();
+    restoreRuntimeBootstrapConfig = await applyRuntimeBootstrapOverlay(env);
+    await assertPackagedRuntimeConfig(env);
     await writeTempTauriConfig();
 
     run(pnpm.command, [...pnpm.args, '--dir', desktopDir, 'build'], { env, shell: pnpm.shell });
@@ -516,6 +619,7 @@ async function main() {
     }
   } finally {
     await fs.rm(tempConfigPath, { force: true });
+    await restoreRuntimeBootstrapConfig();
     run(process.execPath, [brandStateScriptPath, 'restore', snapshotKey], {env});
   }
 }

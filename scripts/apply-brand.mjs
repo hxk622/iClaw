@@ -55,6 +55,20 @@ async function copyOptionalFile(sourcePath, targetPath) {
   await copyFile(sourcePath, targetPath);
 }
 
+async function copyFirstExistingFile(sourcePaths, targetPath) {
+  for (const sourcePath of sourcePaths) {
+    if (!sourcePath) {
+      continue;
+    }
+    try {
+      await fs.access(sourcePath);
+      await copyFile(sourcePath, targetPath);
+      return;
+    } catch {}
+  }
+  throw new Error(`missing source for ${targetPath}: ${sourcePaths.filter(Boolean).join(', ')}`);
+}
+
 async function copyDirectory(sourcePath, targetPath) {
   await ensureFile(sourcePath, path.basename(targetPath));
   await fs.rm(targetPath, { recursive: true, force: true });
@@ -73,11 +87,20 @@ async function ensureTauriIcons(params) {
   await fs.rm(outputIconsDir, { recursive: true, force: true });
   await fs.mkdir(outputIconsDir, { recursive: true });
 
-  // Keep Windows/Linux bundle icons aligned with the visible brand logo.
-  await copyFile(faviconPng, path.join(outputIconsDir, '32x32.png'));
-  await copyFile(faviconPng, path.join(outputIconsDir, '128x128.png'));
-  await copyFile(faviconPng, path.join(outputIconsDir, '128x128@2x.png'));
-  await copyFile(faviconPng, path.join(outputIconsDir, 'icon.png'));
+  const tauri32x32 = tauriIconsDir ? path.join(tauriIconsDir, '32x32.png') : null;
+  const tauri128x128 = tauriIconsDir ? path.join(tauriIconsDir, '128x128.png') : null;
+  const tauri128x128Retina = tauriIconsDir ? path.join(tauriIconsDir, '128x128@2x.png') : null;
+  const tauriIconPng = tauriIconsDir ? path.join(tauriIconsDir, 'icon.png') : null;
+
+  // Tauri expects exact sizes and RGBA PNGs here. Reusing favicon.png can
+  // produce a 512/1024 RGB asset masquerading as 32x32, which breaks release builds.
+  await copyFirstExistingFile([tauri32x32, faviconPng], path.join(outputIconsDir, '32x32.png'));
+  await copyFirstExistingFile([tauri128x128, tauriIconPng, faviconPng], path.join(outputIconsDir, '128x128.png'));
+  await copyFirstExistingFile(
+    [tauri128x128Retina, tauri128x128, tauriIconPng, faviconPng],
+    path.join(outputIconsDir, '128x128@2x.png'),
+  );
+  await copyFirstExistingFile([tauriIconPng, faviconPng], path.join(outputIconsDir, 'icon.png'));
   await copyFile(faviconIco, path.join(outputIconsDir, 'icon.ico'));
 
   const icnsSourcePath = path.join(tauriIconsDir, 'icon.icns');
