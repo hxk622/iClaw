@@ -29,18 +29,6 @@ import {
 type SidebarUser = AppUserAvatarSource;
 type PrimaryView = string;
 
-function AssistantStoreIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M12 12.2a3.1 3.1 0 1 0 0-6.2 3.1 3.1 0 0 0 0 6.2Z" />
-      <path d="M6.8 18.1c.8-2.4 2.8-3.6 5.2-3.6s4.4 1.2 5.2 3.6" />
-      <path d="M17.8 5.2h2.6" />
-      <path d="M19.1 3.9v2.6" />
-      <path d="m16.8 7.5.9.9" />
-    </svg>
-  );
-}
-
 function MCPStoreIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -205,9 +193,10 @@ export function Sidebar({
       iconWrapClass: 'rounded-full border border-[rgba(168,140,93,0.22)] bg-[rgba(168,140,93,0.08)] shadow-[0_6px_14px_rgba(168,140,93,0.10)] overflow-hidden',
     },
     'lobster-store': {
-      icon: AssistantStoreIcon,
-      iconClass: 'text-[var(--brand-primary)]',
-      iconWrapClass: 'rounded-[10px] border border-transparent bg-transparent',
+      imageSrc: '/agent-avatars/pexels/portrait-01.jpg',
+      imageAlt: 'Lobster expert avatar',
+      iconClass: 'text-[rgb(113,101,82)]',
+      iconWrapClass: 'rounded-full border border-[rgba(168,140,93,0.22)] bg-[rgba(168,140,93,0.08)] shadow-[0_6px_14px_rgba(168,140,93,0.10)] overflow-hidden',
     },
     'skill-store': { icon: Blocks, iconClass: 'text-[rgb(106,90,144)]' },
     'mcp-store': {
