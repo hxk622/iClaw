@@ -72,8 +72,6 @@ if (actualBrandTsId !== expectedBrandId) {
 
 process.stdout.write(`[web-dev] Verified generated brand: ${actualBrandId}\n`);
 EOF
-pnpm --filter @iclaw/control-plane sync:local-app-runtime -- --app "$APP_NAME"
-node scripts/sync-openclaw-resources.mjs
 
 echo "[web-dev] Starting frontend on $WEB_HOST:$WEB_PORT"
 VITE_API_BASE_URL="http://127.0.0.1:$API_PORT" \
