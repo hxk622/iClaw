@@ -108,23 +108,31 @@ function parseAllowedOrigins(rawMode, rawOrigins) {
   return ['tauri://localhost', 'http://tauri.localhost', 'https://tauri.localhost'];
 }
 
-function loadPortalRuntimeSnapshot() {
+function loadPortalRuntimeSnapshotSources() {
   const snapshotPath = trimString(process.env.ICLAW_OPENCLAW_OEM_RUNTIME_SNAPSHOT_PATH);
   const portalRuntimeConfigPath = trimString(process.env.ICLAW_OPENCLAW_PORTAL_RUNTIME_CONFIG_PATH);
-  const raw = readJsonIfExists(snapshotPath) ?? readJsonIfExists(portalRuntimeConfigPath);
-  if (!raw) {
-    return null;
-  }
-  if (raw.config && typeof raw.config === 'object' && !Array.isArray(raw.config)) {
-    return raw;
-  }
-  return { brandId: trimString(process.env.APP_NAME), publishedVersion: 0, config: raw };
+  const normalizeSnapshot = (raw) => {
+    if (!raw) {
+      return null;
+    }
+    if (raw.config && typeof raw.config === 'object' && !Array.isArray(raw.config)) {
+      return raw;
+    }
+    return { brandId: trimString(process.env.APP_NAME), publishedVersion: 0, config: raw };
+  };
+
+  return {
+    snapshot: normalizeSnapshot(readJsonIfExists(snapshotPath)),
+    bundled: normalizeSnapshot(readJsonIfExists(portalRuntimeConfigPath)),
+  };
 }
 
-function extractResolvedProviderConfig(snapshot) {
+function extractResolvedProviderConfig(snapshot, bundledSnapshot = null) {
   const rootConfig = asObject(snapshot?.config);
+  const bundledRootConfig = asObject(bundledSnapshot?.config);
   const modelProvider = asObject(rootConfig.model_provider);
   const profile = asObject(modelProvider.profile);
+  const bundledProfile = asObject(asObject(bundledRootConfig.model_provider).profile);
   const providerKey = trimString(profile.provider_key || profile.providerKey);
   if (!providerKey) {
     return null;
@@ -153,7 +161,11 @@ function extractResolvedProviderConfig(snapshot) {
     providerLabel: trimString(profile.provider_label || profile.providerLabel) || providerKey,
     apiProtocol: trimString(profile.api_protocol || profile.apiProtocol) || 'openai-completions',
     baseUrl: trimString(profile.base_url || profile.baseUrl),
-    apiKey: trimString(profile.api_key || profile.apiKey),
+    apiKey:
+      trimString(profile.api_key || profile.apiKey) ||
+      (trimString(bundledProfile.provider_key || bundledProfile.providerKey) === providerKey
+        ? trimString(bundledProfile.api_key || bundledProfile.apiKey)
+        : ''),
     authMode: trimString(profile.auth_mode || profile.authMode) || 'bearer',
     models,
   };
@@ -187,8 +199,12 @@ function main() {
   }
 
   const config = readJsonIfExists(configPath) ?? {};
-  const portalRuntimeSnapshot = loadPortalRuntimeSnapshot();
-  const resolvedProviderConfig = extractResolvedProviderConfig(portalRuntimeSnapshot);
+  const portalRuntimeSources = loadPortalRuntimeSnapshotSources();
+  const portalRuntimeSnapshot = portalRuntimeSources.snapshot ?? portalRuntimeSources.bundled;
+  const resolvedProviderConfig = extractResolvedProviderConfig(
+    portalRuntimeSnapshot,
+    portalRuntimeSources.bundled,
+  );
   if (!resolvedProviderConfig?.providerKey) {
     throw new Error('Missing resolved model provider config. Configure Model Center before launching OpenClaw.');
   }

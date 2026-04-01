@@ -20,6 +20,7 @@ const syncResourcesScriptPath = path.join(rootDir, 'scripts', 'sync-openclaw-res
 const packageDmgScriptPath = path.join(rootDir, 'scripts', 'package-desktop-dmg.sh');
 const runtimeBootstrapConfigPath = path.join(tauriDir, 'resources', 'config', 'openclaw-runtime.json');
 const bundledRuntimeDir = path.join(tauriDir, 'resources', 'openclaw-runtime');
+const bundledSkillsDir = path.join(tauriDir, 'resources', 'bundled-skills');
 const nsisAutoRunDefinition = '!define MUI_FINISHPAGE_RUN\n!define MUI_FINISHPAGE_RUN_FUNCTION RunMainBinary\n';
 
 function parseArgs(argv) {
@@ -339,6 +340,54 @@ function syncLocalAppRuntime({ pnpm, env, brandId, channel }) {
   );
 }
 
+function syncBundledBaselineSkills({ pnpm, env, brandId }) {
+  const args = [
+    path.join(rootDir, 'scripts', 'with-packaging-source-env.mjs'),
+    '--',
+    pnpm.command,
+    ...pnpm.args,
+    '--filter',
+    '@iclaw/control-plane',
+    'sync:local-app-runtime',
+    '--',
+    '--app',
+    brandId,
+    '--skills-output-root',
+    bundledSkillsDir,
+    '--bundled-only',
+    '--incremental',
+  ];
+  const syncEnv = {
+    ...env,
+    ICLAW_SKIP_RUNTIME_SKILL_SYNC: '0',
+    ICLAW_BUNDLED_SKILLS_ONLY: '1',
+    ICLAW_INCREMENTAL_SKILL_SYNC: '1',
+    ICLAW_RUNTIME_SKILLS_OUTPUT_ROOT: bundledSkillsDir,
+  };
+  const result = spawnSync(process.execPath, args, {
+    stdio: 'pipe',
+    cwd: rootDir,
+    env: syncEnv,
+    shell: false,
+    encoding: 'utf8',
+  });
+
+  if (result.status === 0) {
+    process.stdout.write(result.stdout || '');
+    process.stderr.write(result.stderr || '');
+    return;
+  }
+
+  const details = (result.stderr || result.stdout || '').trim() || `exit ${result.status ?? 'unknown'}`;
+  throw new Error(
+    [
+      `desktop packaging aborted: failed to sync bundled baseline skills for ${brandId}.`,
+      'Fix the configured source PostgreSQL / MinIO environment and rerun the package build.',
+      details,
+    ].join('\n'),
+  );
+}
+
 async function writeTempTauriConfig() {
   const config = JSON.parse(await fs.readFile(generatedConfigPath, 'utf8'));
   config.build = config.build || {};
@@ -442,6 +491,7 @@ async function main() {
 
     run(process.execPath, [applyBrandScriptPath, brandId], { env });
     syncLocalAppRuntime({ pnpm, env, brandId, channel });
+    syncBundledBaselineSkills({ pnpm, env, brandId });
     run(process.execPath, [syncResourcesScriptPath], { env });
     await assertPackagedRuntimeConfig();
     await writeTempTauriConfig();

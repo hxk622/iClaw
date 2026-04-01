@@ -1109,6 +1109,18 @@ fn runtime_skills_dir(app: &AppHandle) -> PathBuf {
     openclaw_workspace_dir(app).join("skills")
 }
 
+fn resource_bundled_skills_dir(app: &AppHandle) -> PathBuf {
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let p = resource_dir.join("resources").join("bundled-skills");
+        if p.exists() {
+            return p;
+        }
+    }
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("resources")
+        .join("bundled-skills")
+}
+
 fn resource_mcp_config_path(app: &AppHandle) -> PathBuf {
     if let Ok(resource_dir) = app.path().resource_dir() {
         let p = resource_dir.join("resources").join("mcp").join("mcp.json");
@@ -1136,6 +1148,81 @@ fn resource_servers_dir(app: &AppHandle) -> PathBuf {
 
 fn runtime_skills_manifest_path(app: &AppHandle) -> PathBuf {
     runtime_skills_dir(app).join("skills-manifest.json")
+}
+
+fn resource_bundled_skills_manifest_path(app: &AppHandle) -> PathBuf {
+    resource_bundled_skills_dir(app).join("skills-manifest.json")
+}
+
+fn load_skill_manifest_value(path: &Path) -> Result<Option<serde_json::Value>, String> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    let raw = fs::read_to_string(path)
+        .map_err(|e| format!("failed to read skill manifest {}: {e}", path.to_string_lossy()))?;
+    let parsed = serde_json::from_str::<serde_json::Value>(&raw)
+        .map_err(|e| format!("failed to parse skill manifest {}: {e}", path.to_string_lossy()))?;
+    Ok(Some(parsed))
+}
+
+fn manifest_skill_dirs(value: &serde_json::Value) -> Vec<String> {
+    value
+        .get("skills")
+        .and_then(|entry| entry.as_array())
+        .map(|items| {
+            items.iter()
+                .filter_map(|item| item.as_str().map(|raw| raw.trim().to_string()))
+                .filter(|value| !value.is_empty())
+                .collect::<Vec<String>>()
+        })
+        .unwrap_or_default()
+}
+
+fn manifest_skill_slugs(value: &serde_json::Value) -> Vec<String> {
+    let item_slugs = value
+        .get("items")
+        .and_then(|entry| entry.as_array())
+        .map(|items| {
+            items.iter()
+                .filter_map(|item| {
+                    item.get("slug")
+                        .and_then(|value| value.as_str())
+                        .map(|raw| raw.trim().to_string())
+                })
+                .filter(|value| !value.is_empty())
+                .collect::<Vec<String>>()
+        })
+        .unwrap_or_default();
+    if item_slugs.is_empty() {
+        manifest_skill_dirs(value)
+    } else {
+        item_slugs
+    }
+}
+
+fn skill_manifest_matches_snapshot(
+    manifest: &serde_json::Value,
+    snapshot: &OemRuntimeSnapshot,
+    expected_skill_slugs: &[String],
+) -> bool {
+    let preset = manifest
+        .get("preset")
+        .and_then(|value| value.as_str())
+        .map(|value| value.trim())
+        .unwrap_or("");
+    if !preset.is_empty() && preset != snapshot.brand_id.trim() {
+        return false;
+    }
+
+    let published_version = manifest
+        .get("publishedVersion")
+        .and_then(|value| value.as_u64())
+        .unwrap_or(snapshot.published_version);
+    if published_version != snapshot.published_version {
+        return false;
+    }
+
+    manifest_skill_slugs(manifest) == expected_skill_slugs
 }
 
 fn runtime_skill_sync_state_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -1301,19 +1388,23 @@ fn runtime_skills_cache_is_fresh(app: &AppHandle, snapshot: &OemRuntimeSnapshot)
         .into_iter()
         .map(|(slug, _)| slug)
         .collect::<Vec<_>>();
+    let manifest_matches = load_skill_manifest_value(&runtime_skills_manifest_path(app))?
+        .as_ref()
+        .map(|manifest| skill_manifest_matches_snapshot(manifest, snapshot, &expected_skill_slugs))
+        .unwrap_or(false);
     let Some(state) = load_runtime_skill_sync_state(app)? else {
-        return Ok(false);
+        return Ok(manifest_matches);
     };
     if state.brand_id.trim() != snapshot.brand_id.trim() {
-        return Ok(false);
+        return Ok(manifest_matches);
     }
     if state.published_version != snapshot.published_version {
-        return Ok(false);
+        return Ok(manifest_matches);
     }
     if state.skill_slugs != expected_skill_slugs {
-        return Ok(false);
+        return Ok(manifest_matches);
     }
-    Ok(runtime_skills_manifest_path(app).exists())
+    Ok(runtime_skills_manifest_path(app).exists() || manifest_matches)
 }
 
 fn copy_dir_recursive(source: &Path, destination: &Path) -> Result<(), String> {
@@ -1792,9 +1883,15 @@ fn load_bundled_skills_catalog_internal(
     app: &AppHandle,
 ) -> Result<Vec<BundledSkillCatalogItem>, String> {
     let skills_dir = runtime_skills_dir(app);
-    if !skills_dir.exists() {
-        return Ok(Vec::new());
-    }
+    let skills_dir = if skills_dir.exists() {
+        skills_dir
+    } else {
+        let resource_dir = resource_bundled_skills_dir(app);
+        if !resource_dir.exists() {
+            return Ok(Vec::new());
+        }
+        resource_dir
+    };
 
     let mut items: Vec<BundledSkillCatalogItem> = Vec::new();
     let entries =
@@ -4781,6 +4878,7 @@ fn ensure_openclaw_workspace_seed(app: &AppHandle) -> Result<(), String> {
         .map_err(|e| format!("failed to create workspace dir: {e}"))?;
     fs::create_dir_all(workspace_dir.join("skills"))
         .map_err(|e| format!("failed to create workspace skills dir: {e}"))?;
+    seed_bundled_skills_into_workspace(app)?;
 
     let identity_path = workspace_dir.join("IDENTITY.md");
     let user_path = workspace_dir.join("USER.md");
@@ -4812,6 +4910,70 @@ fn ensure_openclaw_workspace_seed(app: &AppHandle) -> Result<(), String> {
         let _ = fs::remove_file(bootstrap_path);
     }
 
+    Ok(())
+}
+
+fn seed_bundled_skills_into_workspace(app: &AppHandle) -> Result<(), String> {
+    let bundled_manifest_path = resource_bundled_skills_manifest_path(app);
+    let Some(bundled_manifest) = load_skill_manifest_value(&bundled_manifest_path)? else {
+        return Ok(());
+    };
+
+    let bundled_skills_dir = resource_bundled_skills_dir(app);
+    if !bundled_skills_dir.exists() {
+        return Ok(());
+    }
+
+    let runtime_skills_dir = runtime_skills_dir(app);
+    fs::create_dir_all(&runtime_skills_dir)
+        .map_err(|e| format!("failed to create runtime skills dir: {e}"))?;
+
+    let bundled_skill_dirs = manifest_skill_dirs(&bundled_manifest);
+    if bundled_skill_dirs.is_empty() {
+        write_locked_json_file(&runtime_skills_manifest_path(app), &bundled_manifest)?;
+        return Ok(());
+    }
+
+    let existing_manifest = load_skill_manifest_value(&runtime_skills_manifest_path(app))?;
+    let existing_skill_dirs = existing_manifest
+        .as_ref()
+        .map(manifest_skill_dirs)
+        .unwrap_or_default();
+    let manifests_match = existing_manifest
+        .as_ref()
+        .map(|value| value == &bundled_manifest)
+        .unwrap_or(false);
+    let all_skills_present = bundled_skill_dirs
+        .iter()
+        .all(|dir_name| runtime_skills_dir.join(dir_name).join("SKILL.md").exists());
+
+    if manifests_match && all_skills_present {
+        return Ok(());
+    }
+
+    for stale_dir in existing_skill_dirs {
+        if bundled_skill_dirs.contains(&stale_dir) {
+            continue;
+        }
+        let target_path = runtime_skills_dir.join(&stale_dir);
+        if target_path.exists() {
+            let _ = fs::remove_dir_all(target_path);
+        }
+    }
+
+    for dir_name in &bundled_skill_dirs {
+        let source_path = bundled_skills_dir.join(dir_name);
+        if !source_path.exists() {
+            continue;
+        }
+        let target_path = runtime_skills_dir.join(dir_name);
+        if target_path.exists() {
+            let _ = fs::remove_dir_all(&target_path);
+        }
+        copy_dir_recursive(&source_path, &target_path)?;
+    }
+
+    write_locked_json_file(&runtime_skills_manifest_path(app), &bundled_manifest)?;
     Ok(())
 }
 

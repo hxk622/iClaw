@@ -1,4 +1,4 @@
-import {cp, mkdtemp, mkdir, readdir, readFile, rm, writeFile} from 'node:fs/promises';
+import {access, cp, mkdtemp, mkdir, readdir, readFile, rm, writeFile} from 'node:fs/promises';
 import {execFileSync} from 'node:child_process';
 import {tmpdir} from 'node:os';
 import {basename, dirname, join, resolve} from 'node:path';
@@ -21,6 +21,14 @@ function readArg(name: string): string | null {
   const index = process.argv.findIndex((item) => item === name);
   if (index === -1) return null;
   return process.argv[index + 1] || null;
+}
+
+function hasFlag(name: string): boolean {
+  return process.argv.includes(name);
+}
+
+function isTruthy(value: unknown): boolean {
+  return /^(1|true|yes)$/i.test(String(value || '').trim());
 }
 
 function asObject(value: unknown): Record<string, unknown> {
@@ -87,11 +95,76 @@ function applyResolvedRuntimeModelsToConfig(
 
 async function pathExists(targetPath: string): Promise<boolean> {
   try {
-    await readFile(targetPath);
+    await access(targetPath);
     return true;
   } catch {
     return false;
   }
+}
+
+function normalizeOptionalText(value: unknown): string | null {
+  const normalized = String(value || '').trim();
+  return normalized ? normalized : null;
+}
+
+function normalizeBindingSourceLayer(binding: PortalAppSkillBindingRecord): string {
+  const config = asObject(binding.config);
+  return String(config.source_layer || config.sourceLayer || '')
+    .trim()
+    .toLowerCase();
+}
+
+type BundledSkillManifestEntry = {
+  slug: string;
+  dirName: string;
+  sourceLayer: string;
+  artifactUrl: string | null;
+  artifactSha256: string | null;
+  portalArtifactObjectKey: string | null;
+};
+
+type BundledSkillManifest = {
+  version: string;
+  preset: string;
+  publishedVersion: number | null;
+  skills: string[];
+  items?: BundledSkillManifestEntry[];
+};
+
+async function readBundledSkillManifest(manifestPath: string): Promise<BundledSkillManifest | null> {
+  if (!(await pathExists(manifestPath))) {
+    return null;
+  }
+  try {
+    const raw = JSON.parse(await readFile(manifestPath, 'utf8')) as BundledSkillManifest;
+    return raw && typeof raw === 'object' ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
+function canReuseBundledSkill(params: {
+  existing: BundledSkillManifestEntry | undefined;
+  targetPath: string;
+  artifactUrl: string | null;
+  artifactSha256: string | null;
+  portalArtifactObjectKey: string | null;
+}): boolean {
+  const {existing, targetPath, artifactUrl, artifactSha256, portalArtifactObjectKey} = params;
+  if (!existing) {
+    return false;
+  }
+  if (!artifactSha256 && !existing.artifactSha256 && !artifactUrl && !existing.artifactUrl) {
+    return false;
+  }
+  if (artifactSha256 && existing.artifactSha256) {
+    return existing.artifactSha256 === artifactSha256;
+  }
+  return (
+    existing.artifactUrl === artifactUrl &&
+    existing.portalArtifactObjectKey === portalArtifactObjectKey &&
+    Boolean(targetPath)
+  );
 }
 
 function resolveRuntimeWorkspaceDir(repoRoot: string): string {
@@ -194,7 +267,9 @@ async function extractPortalSkillArtifact(params: {
     if (params.format === 'zip') {
       execFileSync('unzip', ['-q', archivePath, '-d', extractRoot], {stdio: 'pipe'});
     } else {
-      execFileSync('tar', ['-xzf', archivePath, '-C', extractRoot], {stdio: 'pipe'});
+      const archiveArg = process.platform === 'win32' ? archivePath.replace(/\\/g, '/') : archivePath;
+      const extractArg = process.platform === 'win32' ? extractRoot.replace(/\\/g, '/') : extractRoot;
+      execFileSync('tar', ['--force-local', '-xzf', archiveArg, '-C', extractArg], {stdio: 'pipe'});
     }
     const skillRoot = await findSkillRoot(extractRoot);
     if (!skillRoot) {
@@ -230,10 +305,16 @@ async function main() {
   const repoRoot = resolve(scriptDir, '../../..');
   const runtimeWorkspaceDir = resolveRuntimeWorkspaceDir(repoRoot);
   const runtimeResourcesRoot = resolve(repoRoot, 'services/openclaw/resources');
-  const runtimeSkillsRoot = resolve(runtimeWorkspaceDir, 'skills');
+  const runtimeSkillsRoot = resolve(
+    normalizeOptionalText(readArg('--skills-output-root')) ||
+      normalizeOptionalText(process.env.ICLAW_RUNTIME_SKILLS_OUTPUT_ROOT) ||
+      resolve(runtimeWorkspaceDir, 'skills'),
+  );
   const runtimeMcpConfigPath = resolve(runtimeResourcesRoot, 'mcp/mcp.json');
   const runtimeAppConfigPath = resolve(runtimeResourcesRoot, 'config/portal-app-runtime.json');
   const skipRuntimeSkillSync = /^(1|true|yes)$/i.test(String(process.env.ICLAW_SKIP_RUNTIME_SKILL_SYNC || '').trim());
+  const bundledOnly = hasFlag('--bundled-only') || isTruthy(process.env.ICLAW_BUNDLED_SKILLS_ONLY);
+  const incrementalSkillSync = hasFlag('--incremental') || isTruthy(process.env.ICLAW_INCREMENTAL_SKILL_SYNC);
 
   const portalStore = new PgPortalStore(config.databaseUrl);
   const controlStore = new PgControlPlaneStore(config.databaseUrl);
@@ -277,16 +358,67 @@ async function main() {
     };
 
     if (!skipRuntimeSkillSync) {
-      await rm(runtimeSkillsRoot, {recursive: true, force: true});
+      const targetBindings = detailWithPlatformSkills.skillBindings
+        .filter((item) => item.enabled)
+        .filter((item) => !bundledOnly || ['platform_bundled', 'oem_bundled'].includes(normalizeBindingSourceLayer(item)))
+        .sort((left, right) => left.sortOrder - right.sortOrder);
+      const manifestPath = resolve(runtimeSkillsRoot, 'skills-manifest.json');
+      const previousManifest = incrementalSkillSync ? await readBundledSkillManifest(manifestPath) : null;
+      const previousItems = new Map(
+        Array.isArray(previousManifest?.items)
+          ? previousManifest.items
+              .filter((item) => item && typeof item === 'object')
+              .map((item) => [String(item.slug || '').trim(), item] as const)
+              .filter(([slug]) => Boolean(slug))
+          : [],
+      );
+
+      if (!incrementalSkillSync) {
+        await rm(runtimeSkillsRoot, {recursive: true, force: true});
+      }
       await mkdir(runtimeSkillsRoot, {recursive: true});
 
-      for (const binding of detailWithPlatformSkills.skillBindings.filter((item) => item.enabled).sort((left, right) => left.sortOrder - right.sortOrder)) {
+      const nextManifestItems: BundledSkillManifestEntry[] = [];
+
+      for (const binding of targetBindings) {
         const entry = await controlStore.getSkillCatalogEntry(binding.skillSlug);
         if (!entry || entry.active === false) {
           skippedSkills.push(binding.skillSlug);
           continue;
         }
+        const sourceLayer = normalizeBindingSourceLayer(binding) || 'oem_bundled';
         const portalArtifactObjectKey = getCloudSkillArtifactObjectKey(entry.metadata || {});
+        const resolvedArtifactUrl =
+          entry.artifactUrl ||
+          (shouldServeCloudSkillViaControlPlane(entry)
+            ? buildCloudSkillArtifactProxyUrl(binding.skillSlug, config.apiUrl || `http://127.0.0.1:${config.port}`)
+            : null);
+        const existingEntry = previousItems.get(binding.skillSlug);
+        const existingDirName = normalizeOptionalText(existingEntry?.dirName);
+        const existingTargetPath = existingDirName ? resolve(runtimeSkillsRoot, existingDirName) : '';
+        if (
+          incrementalSkillSync &&
+          existingDirName &&
+          (await pathExists(existingTargetPath)) &&
+          canReuseBundledSkill({
+            existing: existingEntry,
+            targetPath: existingTargetPath,
+            artifactUrl: resolvedArtifactUrl,
+            artifactSha256: normalizeOptionalText(entry.artifactSha256),
+            portalArtifactObjectKey,
+          })
+        ) {
+          rememberCopiedSkill(existingDirName);
+          nextManifestItems.push({
+            slug: binding.skillSlug,
+            dirName: existingDirName,
+            sourceLayer,
+            artifactUrl: resolvedArtifactUrl,
+            artifactSha256: normalizeOptionalText(entry.artifactSha256),
+            portalArtifactObjectKey,
+          });
+          continue;
+        }
         if (entry.distribution === 'cloud' && portalArtifactObjectKey) {
           try {
             const artifact = await downloadPortalSkillArtifact(portalArtifactObjectKey);
@@ -296,7 +428,18 @@ async function main() {
               format: inferArtifactFormat(entry),
               runtimeSkillsRoot,
             });
+            if (existingDirName && existingDirName !== copiedDirName) {
+              await rm(resolve(runtimeSkillsRoot, existingDirName), {recursive: true, force: true});
+            }
             rememberCopiedSkill(copiedDirName);
+            nextManifestItems.push({
+              slug: binding.skillSlug,
+              dirName: copiedDirName,
+              sourceLayer,
+              artifactUrl: resolvedArtifactUrl,
+              artifactSha256: normalizeOptionalText(entry.artifactSha256),
+              portalArtifactObjectKey,
+            });
             continue;
           } catch (error) {
             console.warn('[sync-local-app-runtime] failed to download portal skill artifact from storage', {
@@ -306,11 +449,6 @@ async function main() {
             });
           }
         }
-        const resolvedArtifactUrl =
-          entry.artifactUrl ||
-          (shouldServeCloudSkillViaControlPlane(entry)
-            ? buildCloudSkillArtifactProxyUrl(binding.skillSlug, config.apiUrl || `http://127.0.0.1:${config.port}`)
-            : null);
         if (resolvedArtifactUrl) {
           try {
             const artifact = await downloadSkillArtifact(resolvedArtifactUrl);
@@ -320,7 +458,18 @@ async function main() {
               format: inferArtifactFormat(entry),
               runtimeSkillsRoot,
             });
+            if (existingDirName && existingDirName !== copiedDirName) {
+              await rm(resolve(runtimeSkillsRoot, existingDirName), {recursive: true, force: true});
+            }
             rememberCopiedSkill(copiedDirName);
+            nextManifestItems.push({
+              slug: binding.skillSlug,
+              dirName: copiedDirName,
+              sourceLayer,
+              artifactUrl: resolvedArtifactUrl,
+              artifactSha256: normalizeOptionalText(entry.artifactSha256),
+              portalArtifactObjectKey,
+            });
             continue;
           } catch (error) {
             console.warn('[sync-local-app-runtime] failed to download skill artifact', {
@@ -333,13 +482,29 @@ async function main() {
         skippedSkills.push(binding.skillSlug);
       }
 
+      if (incrementalSkillSync && previousItems.size > 0) {
+        const desiredSlugs = new Set(nextManifestItems.map((item) => item.slug));
+        for (const [slug, item] of previousItems.entries()) {
+          if (desiredSlugs.has(slug)) {
+            continue;
+          }
+          const dirName = normalizeOptionalText(item.dirName);
+          if (!dirName) {
+            continue;
+          }
+          await rm(resolve(runtimeSkillsRoot, dirName), {recursive: true, force: true});
+        }
+      }
+
       await writeFile(
-        resolve(runtimeSkillsRoot, 'skills-manifest.json'),
+        manifestPath,
         `${JSON.stringify(
           {
             version: '0.1.0',
             preset: appName,
+            publishedVersion: detail.publishedVersion,
             skills: copiedSkills,
+            items: nextManifestItems,
           },
           null,
           2,
@@ -400,6 +565,8 @@ async function main() {
             skippedSkillSlugs: skippedSkills,
             enabledMcpKeys: enabledBindings.map((item) => item.mcpKey),
             skipRuntimeSkillSync,
+            bundledOnly,
+            incrementalSkillSync,
           },
         },
         null,
@@ -418,6 +585,8 @@ async function main() {
           skippedSkillSlugs: skippedSkills,
           enabledMcpKeys: enabledBindings.map((item) => item.mcpKey),
           skipRuntimeSkillSync,
+          bundledOnly,
+          incrementalSkillSync,
           runtimeSkillsRoot,
           runtimeMcpConfigPath,
           runtimeAppConfigPath,
