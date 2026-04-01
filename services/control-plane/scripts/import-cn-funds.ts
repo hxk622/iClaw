@@ -4,6 +4,7 @@ import {promisify} from 'node:util';
 import {Pool} from 'pg';
 
 import {config} from '../src/config.ts';
+import {buildPgPoolConfig} from '../src/pg-connection.ts';
 import {ensureControlPlaneSchema} from '../src/pg-store.ts';
 
 type FundDirectoryItem = {
@@ -860,7 +861,7 @@ async function main() {
     await sleep(80);
   }
 
-  const pool = new Pool({connectionString: config.databaseUrl});
+  const pool = new Pool(buildPgPoolConfig(config.databaseUrl));
   try {
     await pool.query(`delete from market_fund_catalog where market = 'cn_fund'`);
     for (let index = 0; index < rows.length; index += 100) {

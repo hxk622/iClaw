@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto';
 
 import {Pool, type PoolClient} from 'pg';
+import {buildPgPoolConfig} from './pg-connection.ts';
 
 import type {
   OemAssetRecord,
@@ -173,7 +174,7 @@ export class PgOemStore {
   private readonly pool: Pool;
 
   constructor(databaseUrl: string) {
-    this.pool = new Pool({connectionString: databaseUrl});
+    this.pool = new Pool(buildPgPoolConfig(databaseUrl));
   }
 
   async seedBrand(input: SeedOemBrandInput): Promise<void> {
