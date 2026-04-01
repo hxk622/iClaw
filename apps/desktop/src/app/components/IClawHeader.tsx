@@ -457,6 +457,8 @@ export function IClawHeader({
           {resolvedConfig?.showCredits !== false ? (
             <button
               type="button"
+              title="龙虾币"
+              aria-label="龙虾币"
               className="group inline-flex h-8.5 cursor-pointer items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--border-default)_82%,transparent)] bg-[color-mix(in_srgb,var(--bg-card)_88%,white_12%)] px-3 shadow-[var(--shadow-sm)] transition-colors duration-200 hover:bg-[color-mix(in_srgb,var(--bg-hover)_94%,white_6%)]"
               onClick={onCreditsClick}
             >
