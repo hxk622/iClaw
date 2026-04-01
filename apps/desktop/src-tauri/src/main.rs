@@ -18,7 +18,7 @@ use std::net::TcpListener;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command};
+use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::Mutex;
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -3118,6 +3118,49 @@ fn ensure_runtime_dirs(app: &AppHandle) -> Result<RuntimePaths, String> {
     Ok(paths)
 }
 
+fn sidecar_log_paths(app: &AppHandle) -> Result<(PathBuf, PathBuf), String> {
+    let paths = ensure_runtime_dirs(app)?;
+    let log_dir = PathBuf::from(paths.log_dir);
+    Ok((
+        log_dir.join("sidecar-stdout.log"),
+        log_dir.join("sidecar-stderr.log"),
+    ))
+}
+
+fn read_log_tail(path: &Path, max_chars: usize) -> Option<String> {
+    let raw = fs::read_to_string(path).ok()?;
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let char_count = trimmed.chars().count();
+    if char_count <= max_chars {
+        return Some(trimmed.to_string());
+    }
+    Some(
+        trimmed
+            .chars()
+            .skip(char_count.saturating_sub(max_chars))
+            .collect(),
+    )
+}
+
+fn describe_sidecar_exit(status: ExitStatus, stdout_path: &Path, stderr_path: &Path) -> String {
+    let code = status
+        .code()
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| String::from("unknown"));
+    let detail = read_log_tail(stderr_path, 400).or_else(|| read_log_tail(stdout_path, 400));
+    match detail {
+        Some(detail) => format!("openclaw runtime exited before becoming healthy (code {code}): {detail}"),
+        None => format!(
+            "openclaw runtime exited before becoming healthy (code {code}). Check {} and {} for details.",
+            stdout_path.to_string_lossy(),
+            stderr_path.to_string_lossy()
+        ),
+    }
+}
+
 fn is_loopback_port_occupied(port: u16) -> bool {
     TcpListener::bind(("127.0.0.1", port)).is_err()
 }
@@ -3156,6 +3199,20 @@ fn detect_local_service_port_conflicts() -> Vec<u16> {
 
 fn should_reuse_existing_local_sidecar(occupied_ports: &[u16]) -> bool {
     occupied_ports.len() == 1 && occupied_ports[0] == configured_sidecar_port()
+}
+
+fn is_existing_local_sidecar_healthy(port: u16) -> bool {
+    let Ok(client) = Client::builder()
+        .connect_timeout(Duration::from_secs(1))
+        .timeout(Duration::from_secs(2))
+        .build()
+    else {
+        return false;
+    };
+    let Ok(response) = client.get(format!("http://127.0.0.1:{port}/health")).send() else {
+        return false;
+    };
+    response.status().is_success()
 }
 
 fn listen_port_targets() -> Vec<u16> {
@@ -3449,6 +3506,35 @@ fn load_oem_runtime_snapshot_internal(app: &AppHandle) -> Result<Option<OemRunti
 
 fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Result<PathBuf, String> {
     let config_path = openclaw_config_path(app)?;
+    generate_openclaw_runtime_config(app, gateway_token, &config_path)?;
+    if config_path.exists() {
+        return Ok(config_path);
+    }
+
+    let fallback_dir = env::temp_dir().join(format!(
+        "iclaw-openclaw-config-{}",
+        timestamp_string()
+    ));
+    fs::create_dir_all(&fallback_dir)
+        .map_err(|e| format!("failed to create fallback openclaw config dir: {e}"))?;
+    let fallback_path = fallback_dir.join("openclaw.json");
+    generate_openclaw_runtime_config(app, gateway_token, &fallback_path)?;
+    if fallback_path.exists() {
+        return Ok(fallback_path);
+    }
+
+    Err(format!(
+        "openclaw config generator completed but no config file was written to {} or {}",
+        config_path.to_string_lossy(),
+        fallback_path.to_string_lossy()
+    ))
+}
+
+fn generate_openclaw_runtime_config(
+    app: &AppHandle,
+    gateway_token: &str,
+    config_path: &Path,
+) -> Result<(), String> {
     let runtime_config_path = runtime_config_path(app)?;
     let generator_path = resource_runtime_config_generator_path(app);
     let portal_runtime_config_path = resource_portal_runtime_config_path(app);
@@ -3457,7 +3543,7 @@ fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Resul
     let snapshot_path = oem_runtime_snapshot_path(app)?;
     let mut command = Command::new(&node_path);
     command.arg(&generator_path);
-    command.env("ICLAW_OPENCLAW_CONFIG_PATH", &config_path);
+    command.env("ICLAW_OPENCLAW_CONFIG_PATH", config_path);
     command.env("ICLAW_OPENCLAW_RUNTIME_CONFIG_PATH", &runtime_config_path);
     command.env("ICLAW_OPENCLAW_GATEWAY_TOKEN", gateway_token);
     command.env("ICLAW_OPENCLAW_WORKSPACE_DIR", workspace_dir);
@@ -3502,7 +3588,7 @@ fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Resul
             }
         ));
     }
-    Ok(config_path)
+    Ok(())
 }
 
 fn resource_runtime_config_path(app: &AppHandle) -> PathBuf {
@@ -3576,15 +3662,29 @@ fn start_sidecar(
         .lock()
         .map_err(|_| String::from("failed to lock sidecar state"))?;
 
-    if child_guard.is_some() {
-        return Ok(true);
+    if let Some(child) = child_guard.as_mut() {
+        match child.try_wait() {
+            Ok(Some(_)) => {
+                *child_guard = None;
+            }
+            Ok(None) => return Ok(true),
+            Err(error) => {
+                return Err(format!("failed to inspect existing openclaw runtime process: {error}"));
+            }
+        }
     }
 
     reclaim_managed_local_service_ports(&app);
     let occupied_ports = detect_local_service_port_conflicts();
     if !occupied_ports.is_empty() {
         if should_reuse_existing_local_sidecar(&occupied_ports) {
-            return Ok(true);
+            let port = configured_sidecar_port();
+            if is_existing_local_sidecar_healthy(port) {
+                return Ok(true);
+            }
+            return Err(format!(
+                "检测到 {port} 端口已有监听，但该服务未通过 OpenClaw 健康检查。请先关闭占用进程后再启动应用。"
+            ));
         }
 
         let ports = occupied_ports
@@ -3611,6 +3711,7 @@ fn start_sidecar(
     let skills_dir = runtime_skills_dir(&app);
     let mcp_config = prepare_runtime_mcp_config(&app, &paths.cache_dir)?;
     let extra_ca_certs = resource_extra_ca_certs_path(&app);
+    let (stdout_log_path, stderr_log_path) = sidecar_log_paths(&app)?;
 
     let runtime_root = resolved_runtime_root(&runtime)?;
     let mut command = Command::new(&runtime.program);
@@ -3637,6 +3738,14 @@ fn start_sidecar(
     let wrapper_path = ensure_openclaw_cli_wrapper(&app, &runtime)?;
     prepend_openclaw_cli_to_path(&mut command, &wrapper_path, &runtime)?;
     configure_runtime_network_env(&mut command, &app);
+    command.stdout(Stdio::from(
+        File::create(&stdout_log_path)
+            .map_err(|e| format!("failed to create sidecar stdout log {}: {e}", stdout_log_path.to_string_lossy()))?,
+    ));
+    command.stderr(Stdio::from(
+        File::create(&stderr_log_path)
+            .map_err(|e| format!("failed to create sidecar stderr log {}: {e}", stderr_log_path.to_string_lossy()))?,
+    ));
 
     if let Some(v) = config.anthropic_api_key {
         if !v.trim().is_empty() {
@@ -3649,9 +3758,20 @@ fn start_sidecar(
         }
     }
 
-    let child = command
+    let mut child = command
         .spawn()
         .map_err(|e| format!("failed to start openclaw runtime ({}): {e}", runtime.source))?;
+    std::thread::sleep(Duration::from_millis(1200));
+    if let Some(status) = child
+        .try_wait()
+        .map_err(|e| format!("failed to inspect launched openclaw runtime: {e}"))?
+    {
+        return Err(describe_sidecar_exit(
+            status,
+            &stdout_log_path,
+            &stderr_log_path,
+        ));
+    }
     *child_guard = Some(child);
     Ok(true)
 }
