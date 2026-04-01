@@ -12,7 +12,7 @@ import {
   type InvestmentExpertTab,
 } from '@/app/lib/investment-experts';
 import { cn } from '@/app/lib/cn';
-import { installLobsterAgent, loadLobsterAgents } from '@/app/lib/lobster-store';
+import { installLobsterAgent, loadLobsterAgents, uninstallLobsterAgent } from '@/app/lib/lobster-store';
 import { InvestmentExpertCard } from './InvestmentExpertCard';
 import { InvestmentExpertDetailDialog } from './InvestmentExpertDetailDialog';
 import { MyInvestmentExpertsView } from './MyInvestmentExpertsView';
@@ -59,6 +59,7 @@ export function InvestmentExpertsView({
   const [error, setError] = useState<string | null>(null);
   const [detailSlug, setDetailSlug] = useState<string | null>(null);
   const [installBusySlug, setInstallBusySlug] = useState<string | null>(null);
+  const [removeBusySlug, setRemoveBusySlug] = useState<string | null>(null);
 
   const normalizedQuery = query.trim().toLowerCase();
 
@@ -132,6 +133,25 @@ export function InvestmentExpertsView({
       setError(installError instanceof Error ? installError.message : '安装失败');
     } finally {
       setInstallBusySlug(null);
+    }
+  };
+
+  const handleRemove = async (target: InvestmentExpert) => {
+    if (!accessToken || !authenticated) {
+      onRequestAuth('login');
+      return;
+    }
+
+    setRemoveBusySlug(target.slug);
+    setError(null);
+    try {
+      await uninstallLobsterAgent({client, accessToken, slug: target.slug});
+      await refresh();
+      setDetailSlug((current) => (current === target.slug ? null : current));
+    } catch (removeError) {
+      setError(removeError instanceof Error ? removeError.message : '移除失败');
+    } finally {
+      setRemoveBusySlug(null);
     }
   };
 
@@ -266,8 +286,10 @@ export function InvestmentExpertsView({
                         key={expert.slug}
                         expert={expert}
                         installBusy={installBusySlug === expert.slug}
+                        removeBusy={removeBusySlug === expert.slug}
                         onOpenDetail={(nextExpert) => setDetailSlug(nextExpert.slug)}
                         onInstall={handleInstall}
+                        onRemove={handleRemove}
                         onStartConversation={onStartConversation}
                       />
                     ))}
@@ -291,8 +313,10 @@ export function InvestmentExpertsView({
           <div className="mt-7">
             <MyInvestmentExpertsView
               experts={myExperts}
+              removeBusySlug={removeBusySlug}
               onOpenDetail={(expert) => setDetailSlug(expert.slug)}
               onInstall={handleInstall}
+              onRemove={handleRemove}
               onStartConversation={onStartConversation}
             />
           </div>
@@ -303,12 +327,14 @@ export function InvestmentExpertsView({
         expert={selectedExpert}
         open={Boolean(selectedExpert)}
         installBusy={selectedExpert ? installBusySlug === selectedExpert.slug : false}
+        removeBusy={selectedExpert ? removeBusySlug === selectedExpert.slug : false}
         onOpenChange={(nextOpen) => {
           if (!nextOpen) {
             setDetailSlug(null);
           }
         }}
         onInstall={handleInstall}
+        onRemove={handleRemove}
         onStartConversation={onStartConversation}
       />
     </PageSurface>

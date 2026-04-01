@@ -1705,6 +1705,58 @@ function deriveAssistantFooterMetas(
     }
   });
 
+  const stillUnmatchedSummaries = sessionBillingSummaries.filter((summary) => {
+    const eventId = summary.event_id?.trim();
+    if (eventId && matchedSummaryEventIds.has(eventId)) {
+      return false;
+    }
+    return !Array.from(persistedBillingByAssistantIndex.values()).some((value) => value === summary);
+  });
+
+  if (stillUnmatchedSummaries.length > 0 && unmatchedAssistantIndexes.length > 0) {
+    const sortedSummaryIndexes = stillUnmatchedSummaries
+      .map((summary, index) => ({
+        index,
+        summary,
+        anchorTimestamp:
+          (typeof summary.assistant_timestamp === 'number' && Number.isFinite(summary.assistant_timestamp)
+            ? summary.assistant_timestamp
+            : Date.parse(summary.settled_at || '')) || 0,
+      }))
+      .sort((left, right) => right.anchorTimestamp - left.anchorTimestamp);
+
+    const sortedAssistantIndexes = [...unmatchedAssistantIndexes].sort((left, right) => {
+      const leftTimestamp = assistantGroups[left]?.timestamp ?? 0;
+      const rightTimestamp = assistantGroups[right]?.timestamp ?? 0;
+      return rightTimestamp - leftTimestamp;
+    });
+
+    sortedSummaryIndexes.forEach(({ summary, anchorTimestamp }) => {
+      const candidatePosition = sortedAssistantIndexes.findIndex((assistantGroupIndex) => {
+        const assistantGroup = assistantGroups[assistantGroupIndex];
+        if (!assistantGroup) {
+          return false;
+        }
+        if (anchorTimestamp <= 0) {
+          return true;
+        }
+        return (assistantGroup.timestamp || 0) <= anchorTimestamp + LEGACY_SUMMARY_MATCH_MAX_DELTA_MS;
+      });
+      if (candidatePosition < 0) {
+        return;
+      }
+      const assistantGroupIndex = sortedAssistantIndexes[candidatePosition];
+      if (typeof assistantGroupIndex !== 'number') {
+        return;
+      }
+      persistedBillingByAssistantIndex.set(assistantGroupIndex, summary);
+      sortedAssistantIndexes.splice(candidatePosition, 1);
+      if (summary.event_id?.trim()) {
+        matchedSummaryEventIds.add(summary.event_id.trim());
+      }
+    });
+  }
+
   const pendingAssistantIndexes = new Set<number>();
   const optimisticUsageByAssistantIndex = new Map<number, AssistantUsageSettlement>();
   pendingSettlements.forEach((pending) => {

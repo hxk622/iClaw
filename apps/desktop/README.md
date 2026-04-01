@@ -76,14 +76,6 @@ pnpm dev:web
    - `ICLAW_OPENCLAW_RUNTIME_FORMAT`
    - `ICLAW_OPENCLAW_RUNTIME_LAUNCHER`
 
-`openclaw-runtime.json` 现在支持 `artifacts.<target-triple>` 映射，例如
-`aarch64-apple-darwin`、`x86_64-pc-windows-msvc`。桌面端和打包脚本都会优先按当前
-target 读取对应条目，避免某个平台发布时覆盖另一个平台。
-
-`pnpm build:openclaw-runtime` 会把当前 target 的本地 artifact 回写到对应
-`artifacts.<target-triple>`；`pnpm publish:openclaw-runtime <env> <target-triple>` 会把该
-target 的条目更新为发布后的公开下载地址。
-
 运行时会将 artifact 下载到应用数据目录下的 `openclaw/runtime/versions/<version>` 并从那里启动。
 
 `artifact_url` 既可以是 HTTPS 地址，也可以是本机绝对路径，便于本地联调验证。
@@ -110,5 +102,18 @@ target 的条目更新为发布后的公开下载地址。
 - `services/openclaw/resources/mcp/mcp.json` 是桌面端打包使用的唯一 MCP 配置来源；它本身应由 control-plane/runtime 同步链路生成，而不是再叠加仓库内 overlay。
 - 打包目录（自动同步）：`apps/desktop/src-tauri/resources/mcp/mcp.json`
 - 同步命令：`node ../../scripts/sync-openclaw-resources.mjs`
+
+职责边界：
+
+- control-plane：数据库真值层，负责解析当前 OEM 生效的 skill / MCP / model / surface。
+- `services/control-plane/scripts/sync-local-app-runtime.ts`：本地物化层。供 `pnpm dev:api` 或打包阶段使用，把 control-plane 已解析的 runtime 结果预同步到本地工作区 / baseline。
+- Tauri Rust：运行时激活层。应用启动时优先激活包内 baseline；若 baseline 与当前 snapshot 不匹配，再做一次本地 catch-up 同步。
+- OpenClaw sidecar：纯消费层，只读取本地已经落盘的 config / workspace / baseline，不再自行推断 OEM 真值。
+
+因此 `pnpm dev:api` 和桌面端 Rust 看起来都在“同步 skill / MCP”，但它们不是双真值：
+
+- `pnpm dev:api` 解决开发联调和打包前预热。
+- 桌面端 Rust 解决最终安装包在用户机器上的启动一致性。
+- 真正的 OEM 解析结果始终来自 control-plane。
 
 `tauri dev` / `tauri build` 会在 pre-command 自动执行资源同步。`pnpm tauri:build` 会在 macOS 产出 DMG，在 Windows 产出 NSIS 安装包 `.exe`。

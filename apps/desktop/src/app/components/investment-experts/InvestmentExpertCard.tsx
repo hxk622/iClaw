@@ -1,4 +1,4 @@
-import { Flame, Plus, Sparkles, Users } from 'lucide-react';
+import { Flame, Plus, Sparkles, Trash2, Users } from 'lucide-react';
 
 import { cn } from '@/app/lib/cn';
 import { ConversationActionButton } from '@/app/components/ui/ConversationActionButton';
@@ -31,15 +31,19 @@ export function InvestmentExpertCard({
   mode = 'shop',
   onOpenDetail,
   onInstall,
+  onRemove,
   onStartConversation,
   installBusy = false,
+  removeBusy = false,
 }: {
   expert: InvestmentExpert;
   mode?: InvestmentExpertCardMode;
   onOpenDetail: (expert: InvestmentExpert) => void;
   onInstall: (expert: InvestmentExpert) => void;
+  onRemove?: (expert: InvestmentExpert) => void;
   onStartConversation: (expert: InvestmentExpert) => void;
   installBusy?: boolean;
+  removeBusy?: boolean;
 }) {
   const inMineTab = mode === 'mine';
   const badge = expert.isRecommended
@@ -134,16 +138,35 @@ export function InvestmentExpertCard({
         </div>
 
         {inMineTab ? (
-          <ConversationActionButton
-            type="button"
-            variant="accent"
-            size="sm"
-            className="w-full"
-            onClick={(event) => {
-              event.stopPropagation();
-              onStartConversation(expert);
-            }}
-          />
+          <div className="flex items-center gap-2">
+            <ConversationActionButton
+              type="button"
+              variant="accent"
+              size="sm"
+              className="min-w-0 flex-1"
+              onClick={(event) => {
+                event.stopPropagation();
+                onStartConversation(expert);
+              }}
+            />
+            <button
+              type="button"
+              disabled={removeBusy || !onRemove}
+              onClick={(event) => {
+                event.stopPropagation();
+                onRemove?.(expert);
+              }}
+              className={cn(
+                'inline-flex h-10 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-[10px] px-3 text-[13px] font-semibold transition',
+                SPRING_PRESSABLE,
+                INTERACTIVE_FOCUS_RING,
+                'border border-[rgba(239,68,68,0.18)] bg-[rgba(239,68,68,0.08)] text-[#b42318] hover:border-[rgba(239,68,68,0.28)] hover:bg-[rgba(239,68,68,0.12)] disabled:cursor-not-allowed disabled:opacity-70 dark:border-[rgba(248,113,113,0.2)] dark:bg-[rgba(248,113,113,0.12)] dark:text-[#fecaca]',
+              )}
+            >
+              <Trash2 className="h-4 w-4" />
+              {removeBusy ? '移除中...' : '移除'}
+            </button>
+          </div>
         ) : expert.installed ? (
           <ConversationActionButton
             type="button"

@@ -6,13 +6,17 @@ import type { InvestmentExpert } from '@/app/lib/investment-experts';
 
 export function MyInvestmentExpertsView({
   experts,
+  removeBusySlug,
   onOpenDetail,
   onInstall,
+  onRemove,
   onStartConversation,
 }: {
   experts: InvestmentExpert[];
+  removeBusySlug: string | null;
   onOpenDetail: (expert: InvestmentExpert) => void;
   onInstall: (expert: InvestmentExpert) => void;
+  onRemove: (expert: InvestmentExpert) => void;
   onStartConversation: (expert: InvestmentExpert) => void;
 }) {
   if (experts.length === 0) {
@@ -38,8 +42,10 @@ export function MyInvestmentExpertsView({
           key={expert.slug}
           expert={expert}
           mode="mine"
+          removeBusy={removeBusySlug === expert.slug}
           onOpenDetail={onOpenDetail}
           onInstall={onInstall}
+          onRemove={onRemove}
           onStartConversation={onStartConversation}
         />
       ))}

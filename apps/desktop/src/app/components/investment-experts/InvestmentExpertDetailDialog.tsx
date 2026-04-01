@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { CheckCircle, Star, UserPlus, Users, X } from 'lucide-react';
+import { CheckCircle, Star, Trash2, UserPlus, Users, X } from 'lucide-react';
 
 import { cn } from '@/app/lib/cn';
 import { ConversationActionButton } from '@/app/components/ui/ConversationActionButton';
@@ -29,15 +29,19 @@ export function InvestmentExpertDetailDialog({
   expert,
   open,
   installBusy = false,
+  removeBusy = false,
   onOpenChange,
   onInstall,
+  onRemove,
   onStartConversation,
 }: {
   expert: InvestmentExpert | null;
   open: boolean;
   installBusy?: boolean;
+  removeBusy?: boolean;
   onOpenChange: (open: boolean) => void;
   onInstall: (expert: InvestmentExpert) => void;
+  onRemove: (expert: InvestmentExpert) => void;
   onStartConversation: (expert: InvestmentExpert) => void;
 }) {
   useEffect(() => {
@@ -199,13 +203,29 @@ export function InvestmentExpertDetailDialog({
 
         <div className="sticky bottom-0 flex gap-3 border-t border-[var(--lobster-border)] bg-[var(--lobster-card-elevated)] px-7 py-5">
           {expert.installed ? (
-            <ConversationActionButton
-              type="button"
-              variant="accent"
-              size="md"
-              onClick={() => onStartConversation(expert)}
-              className="flex-1"
-            />
+            <>
+              <ConversationActionButton
+                type="button"
+                variant="accent"
+                size="md"
+                onClick={() => onStartConversation(expert)}
+                className="flex-1"
+              />
+              <button
+                type="button"
+                disabled={removeBusy}
+                onClick={() => onRemove(expert)}
+                className={cn(
+                  'inline-flex min-w-[160px] cursor-pointer items-center justify-center gap-2 rounded-[12px] border px-5 py-3 text-[14px] font-semibold transition',
+                  SPRING_PRESSABLE,
+                  INTERACTIVE_FOCUS_RING,
+                  'border-[rgba(239,68,68,0.18)] bg-[rgba(239,68,68,0.08)] text-[#b42318] hover:border-[rgba(239,68,68,0.28)] hover:bg-[rgba(239,68,68,0.12)] disabled:cursor-not-allowed disabled:opacity-70 dark:border-[rgba(248,113,113,0.2)] dark:bg-[rgba(248,113,113,0.12)] dark:text-[#fecaca]',
+                )}
+              >
+                <Trash2 className="h-[18px] w-[18px]" />
+                {removeBusy ? '移除中...' : '从我的专家移除'}
+              </button>
+            </>
           ) : (
             <button
               type="button"

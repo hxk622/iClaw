@@ -1,0 +1,51 @@
+{
+  "version": "0.1.0",
+  "preset": "iclaw",
+  "brandId": "iclaw",
+  "publishedVersion": 26,
+  "mcpKeys": [
+    "browser",
+    "markitdown",
+    "tavily",
+    "serper",
+    "yahoo-finance"
+  ],
+  "configSha256": "9c36775f521c1b0e0aa3990061eae2ffbf7b738e0d81ecb3b0996446e39b210d",
+  "entries": [
+    {
+      "mcpKey": "browser",
+      "sortOrder": 10,
+      "transport": "config",
+      "objectKey": null,
+      "configSha256": "e34a6f97553b8232cd3f51a787cbfbcf12eb731748c0984060bc13cf511a709d"
+    },
+    {
+      "mcpKey": "markitdown",
+      "sortOrder": 20,
+      "transport": "config",
+      "objectKey": null,
+      "configSha256": "e12d4ee4efb20d40ee9b219295f2160c4f3580c3b7f7eb8043bcf526343e4d47"
+    },
+    {
+      "mcpKey": "tavily",
+      "sortOrder": 30,
+      "transport": "config",
+      "objectKey": null,
+      "configSha256": "50f1e969aef3c1d34a926caf521ef28dd7e0a5004a64490a5cbd1c203d0f1f77"
+    },
+    {
+      "mcpKey": "serper",
+      "sortOrder": 40,
+      "transport": "config",
+      "objectKey": null,
+      "configSha256": "299195081bb926f281eab1801df44881c5275c2855fc081067167c30a9be36b4"
+    },
+    {
+      "mcpKey": "yahoo-finance",
+      "sortOrder": 50,
+      "transport": "config",
+      "objectKey": null,
+      "configSha256": "ab48be8988b7e1a2b05aee32d8970ac5bc691d77066ea255c45ea9cd6fcbb1ba"
+    }
+  ]
+}

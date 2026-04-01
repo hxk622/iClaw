@@ -1,0 +1,352 @@
+{
+  "version": "0.2.0",
+  "preset": "iclaw",
+  "brandId": "iclaw",
+  "publishedVersion": 26,
+  "skillSlugs": [
+    "docx",
+    "xlsx",
+    "pdf",
+    "agent-reach-web",
+    "xiaohongshu-skills",
+    "agent-reach-rss",
+    "remotion-skill",
+    "agent-reach-youtube",
+    "find-skill",
+    "frontend-slides",
+    "agent-reach-bilibili",
+    "agent-reach-douyin",
+    "agent-reach-wechat-official",
+    "agent-reach-weibo",
+    "agent-reach-v2ex",
+    "agent-reach-xueqiu",
+    "skill-vetter",
+    "multi-search-engine",
+    "clawpolicy",
+    "stock-analysis-skill",
+    "stock-daily-analysis",
+    "tushare-stock-skill",
+    "stock-data-skill",
+    "stock-strategy-backtester",
+    "stock-monitor-skill",
+    "stock-watcher",
+    "self-improving-agent",
+    "summarize-pro",
+    "self-improving",
+    "weather",
+    "nano-pdf",
+    "skill-creator",
+    "stock-analysis",
+    "agent-browser-clawdbot"
+  ],
+  "skills": [
+    "docx",
+    "xlsx",
+    "pdf",
+    "agent-reach-web",
+    "xiaohongshu-skills",
+    "agent-reach-rss",
+    "remotion-skill",
+    "agent-reach-youtube",
+    "find-skill",
+    "frontend-slides",
+    "agent-reach-bilibili",
+    "agent-reach-douyin",
+    "agent-reach-wechat-official",
+    "agent-reach-weibo",
+    "agent-reach-v2ex",
+    "agent-reach-xueqiu",
+    "skill-vetter",
+    "multi-search-engine",
+    "clawpolicy",
+    "stock-analysis-skill",
+    "stock-daily-analysis",
+    "tushare-stock-skill",
+    "stock-data-skill",
+    "stock-strategy-backtester",
+    "stock-monitor-skill",
+    "stock-watcher",
+    "self-improving-agent",
+    "summarize-pro",
+    "self-improving",
+    "weather",
+    "nano-pdf",
+    "skill-creator",
+    "stock-analysis",
+    "agent-browser-clawdbot"
+  ],
+  "entries": [
+    {
+      "slug": "docx",
+      "version": "1.0.0",
+      "artifactUrl": null,
+      "artifactFormat": "tar.gz",
+      "artifactSha256": null,
+      "dirName": "docx"
+    },
+    {
+      "slug": "xlsx",
+      "version": "1.0.0",
+      "artifactUrl": null,
+      "artifactFormat": "tar.gz",
+      "artifactSha256": null,
+      "dirName": "xlsx"
+    },
+    {
+      "slug": "pdf",
+      "version": "0.1.0",
+      "artifactUrl": "https://wry-manatee-359.convex.site/api/v1/download?slug=pdf&version=0.1.0",
+      "artifactFormat": "zip",
+      "artifactSha256": null,
+      "dirName": "pdf"
+    },
+    {
+      "slug": "agent-reach-web",
+      "version": "1.0.0",
+      "artifactUrl": null,
+      "artifactFormat": "tar.gz",
+      "artifactSha256": "19c44d855cf4f9d70dad4fd1220b480151c0cffcbe5e0eed9190e8285946016d",
+      "dirName": "agent-reach-web"
+    },
+    {
+      "slug": "xiaohongshu-skills",
+      "version": "1.0.2",
+      "artifactUrl": "https://wry-manatee-359.convex.site/api/v1/download?slug=xiaohongshu-skills&version=1.0.2",
+      "artifactFormat": "zip",
+      "artifactSha256": null,
+      "dirName": "xiaohongshu-skills"
+    },
+    {
+      "slug": "agent-reach-rss",
+      "version": "1.0.0",
+      "artifactUrl": null,
+      "artifactFormat": "tar.gz",
+      "artifactSha256": "17d7992c9e5010e703fba1e1c65ca5d047cc8215c8eb7af5b63a3737f5871396",
+      "dirName": "agent-reach-rss"
+    },
+    {
+      "slug": "remotion-skill",
+      "version": "1.0.0",
+      "artifactUrl": null,
+      "artifactFormat": "zip",
+      "artifactSha256": "81feeaef33fcb431eb40e96125a6bf33e0d4434c02ab927c2654c43b35cbb63a",
+      "dirName": "remotion-skill"
+    },
+    {
+      "slug": "agent-reach-youtube",
+      "version": "1.0.0",
+      "artifactUrl": null,
+      "artifactFormat": "tar.gz",
+      "artifactSha256": "e6931fad6b674f4c223787cc1cca686944a63c70a0d71b23a2effe9c489b7e3e",
+      "dirName": "agent-reach-youtube"
+    },
+    {
+      "slug": "find-skill",
+      "version": "1.0.0",
+      "artifactUrl": "https://wry-manatee-359.convex.site/api/v1/download?slug=find-skill&version=1.0.0",
+      "artifactFormat": "zip",
+      "artifactSha256": null,
+      "dirName": "find-skill"
+    },
+    {
+      "slug": "frontend-slides",
+      "version": "1.0.0",
+      "artifactUrl": "https://wry-manatee-359.convex.site/api/v1/download?slug=myclaw-frontend-slides&version=1.0.0",
+      "artifactFormat": "zip",
+      "artifactSha256": null,
+      "dirName": "frontend-slides"
+    },
+    {
+      "slug": "agent-reach-bilibili",
+      "version": "1.0.0",
+      "artifactUrl": null,
+      "artifactFormat": "tar.gz",
+      "artifactSha256": "1126738d30227f1835e18c75b72a5c47a107781b5153b669693262d19e72451e",
+      "dirName": "agent-reach-bilibili"
+    },
+    {
+      "slug": "agent-reach-douyin",
+      "version": "1.0.0",
+      "artifactUrl": null,
+      "artifactFormat": "tar.gz",
+      "artifactSha256": "ce2ccc9e21e6f5affa2d3313fa35119b3ca8065683223f622c7541e17794b8e9",
+      "dirName": "agent-reach-douyin"
+    },
+    {
+      "slug": "agent-reach-wechat-official",
+      "version": "1.0.0",
+      "artifactUrl": null,
+      "artifactFormat": "tar.gz",
+      "artifactSha256": "2efb9e0befbf689979d829ee82099d7513b1f8bb78985b94ecfaf954d532d363",
+      "dirName": "agent-reach-wechat-official"
+    },
+    {
+      "slug": "agent-reach-weibo",
+      "version": "1.0.0",
+      "artifactUrl": null,
+      "artifactFormat": "tar.gz",
+      "artifactSha256": "734eaeceed525b7cd5294b76a9be6fde88cafab2b17ce21ed5fde06920d850d4",
+      "dirName": "agent-reach-weibo"
+    },
+    {
+      "slug": "agent-reach-v2ex",
+      "version": "1.0.0",
+      "artifactUrl": null,
+      "artifactFormat": "tar.gz",
+      "artifactSha256": "808bd973cdb898cade2218b2e04d3940bcc21f755fe703499412300205bc744e",
+      "dirName": "agent-reach-v2ex"
+    },
+    {
+      "slug": "agent-reach-xueqiu",
+      "version": "1.0.0",
+      "artifactUrl": null,
+      "artifactFormat": "tar.gz",
+      "artifactSha256": "5e052be26280d98b749433143e4ccd4a11a7835fe79ff26b91a17327c0792d6d",
+      "dirName": "agent-reach-xueqiu"
+    },
+    {
+      "slug": "skill-vetter",
+      "version": "1.0.2",
+      "artifactUrl": "https://wry-manatee-359.convex.site/api/v1/download?slug=xiaoding-skill-vetter&version=1.0.2",
+      "artifactFormat": "zip",
+      "artifactSha256": null,
+      "dirName": "skill-vetter"
+    },
+    {
+      "slug": "multi-search-engine",
+      "version": "2.0.1",
+      "artifactUrl": "https://wry-manatee-359.convex.site/api/v1/download?slug=multi-search-engine&version=2.0.1",
+      "artifactFormat": "zip",
+      "artifactSha256": null,
+      "dirName": "multi-search-engine"
+    },
+    {
+      "slug": "clawpolicy",
+      "version": "3.0.2",
+      "artifactUrl": "https://wry-manatee-359.convex.site/api/v1/download?slug=clawpolicy&version=3.0.2",
+      "artifactFormat": "zip",
+      "artifactSha256": null,
+      "dirName": "clawpolicy"
+    },
+    {
+      "slug": "stock-analysis-skill",
+      "version": "2.1.3",
+      "artifactUrl": "https://wry-manatee-359.convex.site/api/v1/download?slug=stock-analysis-skill&version=2.1.3",
+      "artifactFormat": "zip",
+      "artifactSha256": null,
+      "dirName": "stock-analysis-skill"
+    },
+    {
+      "slug": "stock-daily-analysis",
+      "version": "1.0.0",
+      "artifactUrl": "https://wry-manatee-359.convex.site/api/v1/download?slug=stock-daily-analysis&version=1.0.0",
+      "artifactFormat": "zip",
+      "artifactSha256": null,
+      "dirName": "stock-daily-analysis"
+    },
+    {
+      "slug": "tushare-stock-skill",
+      "version": "1.0.3",
+      "artifactUrl": "https://wry-manatee-359.convex.site/api/v1/download?slug=tushare-stock-skill&version=1.0.3",
+      "artifactFormat": "zip",
+      "artifactSha256": null,
+      "dirName": "tushare-stock-skill"
+    },
+    {
+      "slug": "stock-data-skill",
+      "version": "2.0.0",
+      "artifactUrl": "https://wry-manatee-359.convex.site/api/v1/download?slug=stock-data-skill&version=2.0.0",
+      "artifactFormat": "zip",
+      "artifactSha256": null,
+      "dirName": "stock-data-skill"
+    },
+    {
+      "slug": "stock-strategy-backtester",
+      "version": "1.0.4",
+      "artifactUrl": "https://wry-manatee-359.convex.site/api/v1/download?slug=stock-strategy-backtester&version=1.0.4",
+      "artifactFormat": "zip",
+      "artifactSha256": null,
+      "dirName": "stock-strategy-backtester"
+    },
+    {
+      "slug": "stock-monitor-skill",
+      "version": "1.3.0",
+      "artifactUrl": "https://wry-manatee-359.convex.site/api/v1/download?slug=stock-monitor&version=1.3.0",
+      "artifactFormat": "zip",
+      "artifactSha256": null,
+      "dirName": "stock-monitor-skill"
+    },
+    {
+      "slug": "stock-watcher",
+      "version": "1.0.0",
+      "artifactUrl": "https://wry-manatee-359.convex.site/api/v1/download?slug=stock-watcher&version=1.0.0",
+      "artifactFormat": "zip",
+      "artifactSha256": null,
+      "dirName": "stock-watcher"
+    },
+    {
+      "slug": "self-improving-agent",
+      "version": "1.0.0",
+      "artifactUrl": "https://wry-manatee-359.convex.site/api/v1/download?slug=cs-self-improving-agent&version=1.0.0",
+      "artifactFormat": "zip",
+      "artifactSha256": null,
+      "dirName": "self-improving-agent"
+    },
+    {
+      "slug": "summarize-pro",
+      "version": "1.0.0",
+      "artifactUrl": "https://wry-manatee-359.convex.site/api/v1/download?slug=summarize-pro&version=1.0.0",
+      "artifactFormat": "zip",
+      "artifactSha256": null,
+      "dirName": "summarize-pro"
+    },
+    {
+      "slug": "self-improving",
+      "version": "1.2.16",
+      "artifactUrl": "https://wry-manatee-359.convex.site/api/v1/download?slug=self-improving&version=1.2.16",
+      "artifactFormat": "zip",
+      "artifactSha256": null,
+      "dirName": "self-improving"
+    },
+    {
+      "slug": "weather",
+      "version": "1.0.0",
+      "artifactUrl": "https://wry-manatee-359.convex.site/api/v1/download?slug=weather-wang&version=1.0.0",
+      "artifactFormat": "zip",
+      "artifactSha256": null,
+      "dirName": "weather"
+    },
+    {
+      "slug": "nano-pdf",
+      "version": "1.0.1",
+      "artifactUrl": "https://wry-manatee-359.convex.site/api/v1/download?slug=nano-pdf-editor&version=1.0.1",
+      "artifactFormat": "zip",
+      "artifactSha256": null,
+      "dirName": "nano-pdf"
+    },
+    {
+      "slug": "skill-creator",
+      "version": "1.0.0",
+      "artifactUrl": "https://wry-manatee-359.convex.site/api/v1/download?slug=rex-skill-creator&version=1.0.0",
+      "artifactFormat": "zip",
+      "artifactSha256": null,
+      "dirName": "skill-creator"
+    },
+    {
+      "slug": "stock-analysis",
+      "version": "1.0.0",
+      "artifactUrl": "https://wry-manatee-359.convex.site/api/v1/download?slug=manus-stock-analysis&version=1.0.0",
+      "artifactFormat": "zip",
+      "artifactSha256": null,
+      "dirName": "stock-analysis"
+    },
+    {
+      "slug": "agent-browser-clawdbot",
+      "version": "0.1.0",
+      "artifactUrl": "https://wry-manatee-359.convex.site/api/v1/download?slug=agent-browser-clawdbot&version=0.1.0",
+      "artifactFormat": "zip",
+      "artifactSha256": null,
+      "dirName": "agent-browser-clawdbot"
+    }
+  ]
+}

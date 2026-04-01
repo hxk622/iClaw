@@ -1,0 +1,56 @@
+{
+  "mcpServers": {
+    "browser": {
+      "args": [
+        "__ICLAW_SERVERS_DIR__/agent-browser/index.mjs"
+      ],
+      "command": "node",
+      "source_layer": "platform",
+      "managed_by": "platform",
+      "locked": true,
+      "enabled": true
+    },
+    "markitdown": {
+      "args": [
+        "markitdown-mcp"
+      ],
+      "command": "uvx",
+      "source_layer": "platform",
+      "managed_by": "platform",
+      "locked": true,
+      "enabled": true
+    },
+    "tavily": {
+      "args": [
+        "-y",
+        "tavily-mcp@latest"
+      ],
+      "command": "npx",
+      "source_layer": "platform",
+      "managed_by": "platform",
+      "locked": true,
+      "enabled": true
+    },
+    "serper": {
+      "args": [
+        "-y",
+        "serper-search-scrape-mcp-server"
+      ],
+      "command": "npx",
+      "source_layer": "platform",
+      "managed_by": "platform",
+      "locked": true,
+      "enabled": true
+    },
+    "yahoo-finance": {
+      "args": [
+        "mcp-yahoo-finance"
+      ],
+      "command": "uvx",
+      "source_layer": "platform",
+      "managed_by": "platform",
+      "locked": true,
+      "enabled": true
+    }
+  }
+}

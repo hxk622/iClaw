@@ -403,6 +403,19 @@ OEM 的未来重点不只是能力启停，还包括 UI/交互的积木化搭配
 - Rust 必须在 sidecar 启动前做一次 best-effort 兜底同步
 - 这样即使前端同步丢失，runtime-bound 配置也不会 silently 退回旧配置
 
+进一步拆开后，各层职责应固定：
+
+- control-plane：唯一真值与装配计算层
+- `sync-local-app-runtime`：开发态 / 打包态的本地物化工具，把当前 app 的 runtime 结果提前同步到本地
+- Tauri Rust：安装包运行时的激活与 catch-up 层，优先激活 baseline，不匹配时再按 snapshot 拉齐
+- sidecar：只消费本地 config / workspace / baseline，不再自行判断某个 OEM 应该启用什么
+
+因此 `pnpm dev:api` 和桌面端 Rust 看起来都在“同步 skill / MCP”，但它们不是双真值：
+
+- 前者解决开发联调和打包前预热
+- 后者解决最终安装包在用户机器上的启动一致性
+- 真正的 OEM 解析结果始终来自 control-plane
+
 而不是：
 
 - 输入框实时直连 control-plane
