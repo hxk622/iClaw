@@ -50,9 +50,9 @@ async function sha256File(filePath) {
   return hash.digest('hex');
 }
 
-function buildArtifactUrl(publicBaseUrl, fileName) {
+function buildArtifactUrl(publicBaseUrl, fileName, platform, arch) {
   if (!publicBaseUrl) return null;
-  return `${publicBaseUrl}/${encodeURIComponent(fileName)}`;
+  return `${publicBaseUrl}/${platform}/${arch}/${encodeURIComponent(fileName)}`;
 }
 
 function findUpdaterArtifacts(params) {
@@ -66,7 +66,7 @@ function findUpdaterArtifacts(params) {
   return {
     archiveName,
     signaturePath: path.join(releaseDir, signatureName),
-    url: buildArtifactUrl(publicBaseUrl, archiveName),
+    url: buildArtifactUrl(publicBaseUrl, archiveName, params.platform, params.arch),
   };
 }
 
@@ -177,6 +177,7 @@ async function collectEntries(params) {
     const updaterArtifacts = findUpdaterArtifacts({
       artifactBaseName,
       releaseVersion: latest.releaseVersion,
+      platform: target.platform,
       arch: target.arch,
       channel,
       files,
@@ -196,7 +197,7 @@ async function collectEntries(params) {
       build_id: versionParts.buildId,
       release_version: latest.releaseVersion,
       artifact_name: latest.fileName,
-      artifact_url: buildArtifactUrl(publicBaseUrl, latest.fileName),
+      artifact_url: buildArtifactUrl(publicBaseUrl, latest.fileName, target.platform, target.arch),
       artifact_size: stats.size,
       artifact_sha256: sha256,
       published_at: stats.mtime.toISOString(),

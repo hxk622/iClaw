@@ -108,6 +108,51 @@ try {
 ' "$public_base_url"
 }
 
+platform_arch_from_name() {
+  local file_name="$1"
+  local ext="${file_name##*.}"
+  local platform=""
+  local arch=""
+
+  case "$ext" in
+    dmg)
+      platform="darwin"
+      if [[ "$file_name" == *_aarch64_* ]]; then
+        arch="aarch64"
+      elif [[ "$file_name" == *_x64_* ]]; then
+        arch="x64"
+      fi
+      ;;
+    exe|zip)
+      platform="windows"
+      if [[ "$file_name" == *_aarch64_* ]] || [[ "$file_name" == *_arm64_* ]]; then
+        arch="aarch64"
+      elif [[ "$file_name" == *_x64_* ]]; then
+        arch="x64"
+      fi
+      ;;
+  esac
+
+  if [[ -n "$platform" && -n "$arch" ]]; then
+    printf '%s/%s\n' "$platform" "$arch"
+  fi
+}
+
+upload_target_file() {
+  local source_path="$1"
+  local target_root="$2"
+  local file_name
+  file_name="$(basename "$source_path")"
+  mc cp "$source_path" "$target_root/"
+
+  local platform_arch=""
+  platform_arch="$(platform_arch_from_name "$file_name" || true)"
+  if [[ -n "$platform_arch" ]]; then
+    mc mb --ignore-existing "$target_root/$platform_arch"
+    mc cp "$source_path" "$target_root/$platform_arch/"
+  fi
+}
+
 prune_all_local() {
   for arch in aarch64 x64; do
     local_prune "$ENV_NAME" "$arch"
@@ -157,7 +202,9 @@ if [[ "$ENV_NAME" == "dev" ]]; then
     dev_uploads+=("${dev_updater_files[@]}")
   fi
   dev_uploads+=("${dev_manifests[@]}")
-  mc cp "${dev_uploads[@]}" "$dev_upload_target/"
+  for file_path in "${dev_uploads[@]}"; do
+    upload_target_file "$file_path" "$dev_upload_target"
+  done
   mc anonymous set download "$ICLAW_MINIO_DEV_ALIAS/$ICLAW_MINIO_DEV_BUCKET"
 
   for arch in aarch64 x64; do
@@ -208,7 +255,9 @@ elif [[ "$ENV_NAME" == "prod" ]]; then
     prod_uploads+=("${prod_updater_files[@]}")
   fi
   prod_uploads+=("${prod_manifests[@]}")
-  mc cp "${prod_uploads[@]}" "$prod_upload_target/"
+  for file_path in "${prod_uploads[@]}"; do
+    upload_target_file "$file_path" "$prod_upload_target"
+  done
   mc anonymous set download "$ICLAW_MINIO_PROD_ALIAS/$ICLAW_MINIO_PROD_BUCKET"
 
   for arch in aarch64 x64; do

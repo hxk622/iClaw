@@ -296,13 +296,37 @@ function Publish-Channel {
   }
 
   Invoke-Checked -FilePath $mc -Arguments @('mb', '--ignore-existing', "$alias/$bucket")
+  $manifestsByTarget = @{}
   foreach ($file in $files) {
+    $manifestMatch = [regex]::Match($file.Name, '^latest-(?<channel>dev|prod)-(?<platform>[^-]+)-(?<arch>[^.]+)\.json$')
+    if ($manifestMatch.Success) {
+      $targetKey = "$($manifestMatch.Groups['platform'].Value)/$($manifestMatch.Groups['arch'].Value)"
+      if (-not $manifestsByTarget.ContainsKey($targetKey)) {
+        $manifestsByTarget[$targetKey] = New-Object System.Collections.Generic.List[object]
+      }
+      $null = $manifestsByTarget[$targetKey].Add($file)
+    }
     Invoke-Checked -FilePath $mc -Arguments @('cp', $file.FullName, "$alias/$bucket/")
   }
-  Invoke-Checked -FilePath $mc -Arguments @('anonymous', 'set', 'download', "$alias/$bucket")
 
   $installers = Get-ChildItem -LiteralPath $ReleaseDir -File -Filter "${ArtifactBaseName}_*_${channelValue}.exe" -ErrorAction SilentlyContinue |
     Sort-Object Name
+  foreach ($installer in $installers) {
+    $isArm = $installer.Name -match '_(aarch64|arm64)_'
+    $archLabel = if ($isArm) { 'aarch64' } else { 'x64' }
+    $targetDir = "$alias/$bucket/windows/$archLabel"
+    Invoke-Checked -FilePath $mc -Arguments @('mb', '--ignore-existing', $targetDir)
+    Invoke-Checked -FilePath $mc -Arguments @('cp', $installer.FullName, "$targetDir/")
+
+    $targetKey = "windows/$archLabel"
+    if ($manifestsByTarget.ContainsKey($targetKey)) {
+      foreach ($manifest in $manifestsByTarget[$targetKey]) {
+        Invoke-Checked -FilePath $mc -Arguments @('cp', $manifest.FullName, "$targetDir/")
+      }
+    }
+  }
+  Invoke-Checked -FilePath $mc -Arguments @('anonymous', 'set', 'download', "$alias/$bucket")
+
   if ($KeepVersions -gt 0 -and $installers.Count -gt $KeepVersions) {
     $installers | Select-Object -First ($installers.Count - $KeepVersions) | ForEach-Object {
       Remove-Item -LiteralPath $_.FullName -Force

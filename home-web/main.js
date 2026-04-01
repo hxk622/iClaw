@@ -107,7 +107,7 @@ function buildDownloadHref(runtimeBrand, arch) {
     return '';
   }
   const fileName = `${runtimeBrand.release.artifactBaseName}_${runtimeBrand.release.version}_${arch}_${ENV_NAME}.dmg`;
-  return `${baseUrl}/${encodeURIComponent(fileName)}`;
+  return `${baseUrl}/darwin/${arch}/${encodeURIComponent(fileName)}`;
 }
 
 function buildDownloads(runtimeBrand) {
