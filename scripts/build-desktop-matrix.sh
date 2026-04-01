@@ -5,9 +5,10 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DESKTOP_DIR="$ROOT_DIR/apps/desktop"
 OUT_DIR="$ROOT_DIR/dist/releases"
 APP_VERSION="$(node -p "require('$ROOT_DIR/package.json').version")"
+PUBLIC_APP_VERSION="${APP_VERSION%%+*}"
 HOST_PLATFORM="$(node -p "process.platform")"
 timestamp="$(date +%Y%m%d%H%M)"
-RELEASE_VERSION="${1:-${APP_VERSION}.${timestamp}}"
+RELEASE_VERSION="${1:-${PUBLIC_APP_VERSION}.${timestamp}}"
 CHANNELS=("dev" "prod")
 
 case "$HOST_PLATFORM" in

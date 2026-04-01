@@ -36,8 +36,8 @@ bash scripts/build-desktop-matrix.sh
 
 例子：
 
-- `LiCaiClaw_1.0.0+202603091514.202603211230_aarch64_dev.dmg`
-- `LiCaiClaw_1.0.0+202603091514.202603211230_x64_prod.exe`
+- `LiCaiClaw_1.0.0.202603211230_aarch64_dev.dmg`
+- `LiCaiClaw_1.0.0.202603211230_x64_prod.exe`
 
 ## 默认矩阵
 
