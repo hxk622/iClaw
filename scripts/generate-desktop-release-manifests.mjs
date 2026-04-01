@@ -12,10 +12,10 @@ const rootDir = path.resolve(__dirname, '..');
 const defaultReleaseDir = path.join(rootDir, 'dist', 'releases');
 const supportedChannels = new Set(['dev', 'test', 'prod']);
 const supportedTargets = [
-  { platform: 'darwin', arch: 'aarch64', installerExt: 'dmg', updaterExt: 'app.tar.gz' },
-  { platform: 'darwin', arch: 'x64', installerExt: 'dmg', updaterExt: 'app.tar.gz' },
-  { platform: 'windows', arch: 'x64', installerExt: 'exe', updaterExt: 'nsis.zip' },
-  { platform: 'windows', arch: 'aarch64', installerExt: 'exe', updaterExt: 'nsis.zip' },
+  { platform: 'darwin', publicPlatform: 'mac', arch: 'aarch64', installerExt: 'dmg', updaterExt: 'app.tar.gz' },
+  { platform: 'darwin', publicPlatform: 'mac', arch: 'x64', installerExt: 'dmg', updaterExt: 'app.tar.gz' },
+  { platform: 'windows', publicPlatform: 'windows', arch: 'x64', installerExt: 'exe', updaterExt: 'nsis.zip' },
+  { platform: 'windows', publicPlatform: 'windows', arch: 'aarch64', installerExt: 'exe', updaterExt: 'nsis.zip' },
 ];
 
 function trimString(value) {
@@ -177,7 +177,7 @@ async function collectEntries(params) {
     const updaterArtifacts = findUpdaterArtifacts({
       artifactBaseName,
       releaseVersion: latest.releaseVersion,
-      platform: target.platform,
+      platform: target.publicPlatform,
       arch: target.arch,
       channel,
       files,
@@ -190,14 +190,14 @@ async function collectEntries(params) {
       : '';
 
     entries.push({
-      platform: target.platform,
+      platform: target.publicPlatform,
       arch: target.arch,
       version: appVersion,
       base_version: versionParts.baseVersion,
       build_id: versionParts.buildId,
       release_version: latest.releaseVersion,
       artifact_name: latest.fileName,
-      artifact_url: buildArtifactUrl(publicBaseUrl, latest.fileName, target.platform, target.arch),
+      artifact_url: buildArtifactUrl(publicBaseUrl, latest.fileName, target.publicPlatform, target.arch),
       artifact_size: stats.size,
       artifact_sha256: sha256,
       published_at: stats.mtime.toISOString(),

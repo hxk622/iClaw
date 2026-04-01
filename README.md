@@ -257,11 +257,11 @@ bash scripts/version.sh 1.0.0 202603091514
 桌面端发布现在会为每个 channel 生成一组 latest manifest，位置在 `dist/releases/`：
 
 - `latest-dev.json`
-- `latest-dev-darwin-aarch64.json`
-- `latest-dev-darwin-x64.json`
+- `latest-dev-mac-aarch64.json`
+- `latest-dev-mac-x64.json`
 - `latest-prod.json`
-- `latest-prod-darwin-aarch64.json`
-- `latest-prod-darwin-x64.json`
+- `latest-prod-mac-aarch64.json`
+- `latest-prod-mac-x64.json`
 
 manifest 内容包含：
 

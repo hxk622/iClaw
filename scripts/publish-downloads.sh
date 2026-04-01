@@ -67,16 +67,32 @@ minio_prune() {
   local bucket="$2"
   local prefix="$3"
   local channel="$4"
-  local arch="$5"
+  local platform="$5"
+  local arch="$6"
+  local extension_pattern=""
+
+  case "$platform" in
+    mac)
+      extension_pattern='dmg'
+      ;;
+    windows)
+      extension_pattern='exe'
+      ;;
+    *)
+      echo "Unsupported public platform for prune: $platform" >&2
+      return 1
+      ;;
+  esac
 
   local remote_root="$alias/$bucket"
   if [[ -n "$prefix" ]]; then
     remote_root="$remote_root/$prefix"
   fi
+  remote_root="$remote_root/$platform/$arch"
 
   local objects
   objects="$(
-    mc ls "$remote_root" | awk '{print $NF}' | grep -E "^${ARTIFACT_BASE_NAME}_.*_${arch}_${channel}\\.(dmg|exe)$" | sort -V || true
+    mc ls "$remote_root" 2>/dev/null | awk '{print $NF}' | grep -E "^${ARTIFACT_BASE_NAME}_.*_${arch}_${channel}\\.${extension_pattern}$" | sort -V || true
   )"
   [[ -z "$objects" ]] && return 0
 
@@ -97,6 +113,29 @@ minio_prune() {
   done
 }
 
+remove_legacy_root_objects() {
+  local alias="$1"
+  local bucket="$2"
+  local prefix="$3"
+  local channel="$4"
+
+  local remote_root="$alias/$bucket"
+  if [[ -n "$prefix" ]]; then
+    remote_root="$remote_root/$prefix"
+  fi
+
+  local objects
+  objects="$(
+    mc ls "$remote_root" 2>/dev/null | awk '{print $NF}' | grep -E "^(${ARTIFACT_BASE_NAME}_.*_(aarch64|x64)_${channel}\\.(dmg|exe|app\\.tar\\.gz|app\\.tar\\.gz\\.sig|nsis\\.zip|nsis\\.zip\\.sig)|latest-${channel}-(darwin|mac|windows)-(aarch64|x64)\\.json)$" || true
+  )"
+  [[ -z "$objects" ]] && return 0
+
+  printf '%s\n' "$objects" | sed '/^$/d' | while IFS= read -r obj; do
+    mc rm "$remote_root/$obj"
+    echo "[minio-cleanup] removed legacy root object: $obj from $remote_root"
+  done
+}
+
 resolve_upload_prefix() {
   local public_base_url="$1"
   node -e '
@@ -112,28 +151,28 @@ try {
 
 platform_arch_from_name() {
   local file_name="$1"
-  local ext="${file_name##*.}"
   local platform=""
   local arch=""
 
-  case "$ext" in
-    dmg)
-      platform="darwin"
-      if [[ "$file_name" == *_aarch64_* ]]; then
-        arch="aarch64"
-      elif [[ "$file_name" == *_x64_* ]]; then
-        arch="x64"
-      fi
+  if [[ "$file_name" =~ ^latest-(dev|test|prod)-(mac|windows)-(aarch64|x64)\.json$ ]]; then
+    printf '%s/%s\n' "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}"
+    return 0
+  fi
+
+  case "$file_name" in
+    *.dmg|*.app.tar.gz|*.app.tar.gz.sig)
+      platform="mac"
       ;;
-    exe|zip)
+    *.exe|*.nsis.zip|*.nsis.zip.sig)
       platform="windows"
-      if [[ "$file_name" == *_aarch64_* ]] || [[ "$file_name" == *_arm64_* ]]; then
-        arch="aarch64"
-      elif [[ "$file_name" == *_x64_* ]]; then
-        arch="x64"
-      fi
       ;;
   esac
+
+  if [[ "$file_name" == *_aarch64_* ]] || [[ "$file_name" == *_arm64_* ]]; then
+    arch="aarch64"
+  elif [[ "$file_name" == *_x64_* ]]; then
+    arch="x64"
+  fi
 
   if [[ -n "$platform" && -n "$arch" ]]; then
     printf '%s/%s\n' "$platform" "$arch"
@@ -145,14 +184,16 @@ upload_target_file() {
   local target_root="$2"
   local file_name
   file_name="$(basename "$source_path")"
-  mc cp "$source_path" "$target_root/"
 
   local platform_arch=""
   platform_arch="$(platform_arch_from_name "$file_name" || true)"
   if [[ -n "$platform_arch" ]]; then
     mc mb --ignore-existing "$target_root/$platform_arch"
     mc cp "$source_path" "$target_root/$platform_arch/"
+    return 0
   fi
+
+  mc cp "$source_path" "$target_root/"
 }
 
 prune_all_local() {
@@ -209,9 +250,12 @@ if [[ "$ENV_NAME" == "dev" ]]; then
   done
   mc anonymous set download "$ICLAW_MINIO_DEV_ALIAS/$ICLAW_MINIO_DEV_BUCKET"
 
-  for arch in aarch64 x64; do
-    minio_prune "$ICLAW_MINIO_DEV_ALIAS" "$ICLAW_MINIO_DEV_BUCKET" "$ICLAW_MINIO_DEV_PREFIX" dev "$arch"
+  for platform in mac windows; do
+    for arch in aarch64 x64; do
+      minio_prune "$ICLAW_MINIO_DEV_ALIAS" "$ICLAW_MINIO_DEV_BUCKET" "$ICLAW_MINIO_DEV_PREFIX" dev "$platform" "$arch"
+    done
   done
+  remove_legacy_root_objects "$ICLAW_MINIO_DEV_ALIAS" "$ICLAW_MINIO_DEV_BUCKET" "$ICLAW_MINIO_DEV_PREFIX" dev
 
   echo "Uploaded to dev minio: $dev_upload_target"
 elif [[ "$ENV_NAME" == "prod" ]]; then
@@ -262,9 +306,12 @@ elif [[ "$ENV_NAME" == "prod" ]]; then
   done
   mc anonymous set download "$ICLAW_MINIO_PROD_ALIAS/$ICLAW_MINIO_PROD_BUCKET"
 
-  for arch in aarch64 x64; do
-    minio_prune "$ICLAW_MINIO_PROD_ALIAS" "$ICLAW_MINIO_PROD_BUCKET" "$ICLAW_MINIO_PROD_PREFIX" prod "$arch"
+  for platform in mac windows; do
+    for arch in aarch64 x64; do
+      minio_prune "$ICLAW_MINIO_PROD_ALIAS" "$ICLAW_MINIO_PROD_BUCKET" "$ICLAW_MINIO_PROD_PREFIX" prod "$platform" "$arch"
+    done
   done
+  remove_legacy_root_objects "$ICLAW_MINIO_PROD_ALIAS" "$ICLAW_MINIO_PROD_BUCKET" "$ICLAW_MINIO_PROD_PREFIX" prod
 
   echo "Uploaded to prod minio: $prod_upload_target"
 elif [[ "$ENV_NAME" == "test" ]]; then
@@ -315,9 +362,12 @@ elif [[ "$ENV_NAME" == "test" ]]; then
   done
   mc anonymous set download "$ICLAW_MINIO_TEST_ALIAS/$ICLAW_MINIO_TEST_BUCKET"
 
-  for arch in aarch64 x64; do
-    minio_prune "$ICLAW_MINIO_TEST_ALIAS" "$ICLAW_MINIO_TEST_BUCKET" "$ICLAW_MINIO_TEST_PREFIX" test "$arch"
+  for platform in mac windows; do
+    for arch in aarch64 x64; do
+      minio_prune "$ICLAW_MINIO_TEST_ALIAS" "$ICLAW_MINIO_TEST_BUCKET" "$ICLAW_MINIO_TEST_PREFIX" test "$platform" "$arch"
+    done
   done
+  remove_legacy_root_objects "$ICLAW_MINIO_TEST_ALIAS" "$ICLAW_MINIO_TEST_BUCKET" "$ICLAW_MINIO_TEST_PREFIX" test
 
   echo "Uploaded to test minio: $test_upload_target"
 else

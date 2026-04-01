@@ -40,13 +40,15 @@ fi
 mkdir -p "$OUT_DIR"
 
 product_name() {
-  node -e "const fs=require('fs'); const path=require('path'); const config=JSON.parse(fs.readFileSync(path.join(process.argv[1], 'tauri.generated.conf.json'), 'utf8')); process.stdout.write(config.productName);" \
-    "$DESKTOP_DIR/src-tauri"
+  local brand_id="${1:-}"
+  local env_name="${2:-dev}"
+  NODE_ENV="$env_name" APP_NAME="$brand_id" node "$ROOT_DIR/scripts/read-brand-value.mjs" --brand "$brand_id" productName | tail -n1
 }
 
 artifact_base_name() {
-  node -e "const fs=require('fs'); const path=require('path'); const config=JSON.parse(fs.readFileSync(path.join(process.argv[1], 'brand.generated.json'), 'utf8')); process.stdout.write(config.artifactBaseName || config.productName);" \
-    "$DESKTOP_DIR/src-tauri"
+  local brand_id="${1:-}"
+  local env_name="${2:-dev}"
+  NODE_ENV="$env_name" APP_NAME="$brand_id" node "$ROOT_DIR/scripts/read-brand-value.mjs" --brand "$brand_id" distribution.artifactBaseName | tail -n1
 }
 
 host_label() {
@@ -118,6 +120,8 @@ build_one() {
   local node_env
   local arch_label
   local current_artifact_base_name
+  local current_product_name
+  local current_brand_id
 
   if [[ "$channel" == "dev" ]]; then
     node_env="dev"
@@ -131,16 +135,31 @@ build_one() {
   fi
 
   arch_label="$(arch_label_for_target "$target")"
+  current_brand_id="${ICLAW_BRAND:-${APP_NAME:-}}"
+  if [[ -z "$current_brand_id" ]]; then
+    echo "Missing ICLAW_BRAND or APP_NAME for desktop build" >&2
+    exit 1
+  fi
+  current_artifact_base_name="$(artifact_base_name "$current_brand_id" "$node_env")"
+  current_product_name="$(product_name "$current_brand_id" "$node_env")"
 
   echo "==> building: target=$target channel=$channel"
 
   (
     cd "$ROOT_DIR"
-    NODE_ENV="$node_env" \
-    node "$ROOT_DIR/scripts/run-with-env.mjs" "$node_env" node "$ROOT_DIR/scripts/build-desktop-package.mjs" --target "$target"
+    bash "$ROOT_DIR/scripts/with-env.sh" "$node_env" \
+      env \
+      APP_NAME="$current_brand_id" \
+      ICLAW_PORTAL_APP_NAME="${ICLAW_PORTAL_APP_NAME:-$current_brand_id}" \
+      ICLAW_BRAND="$current_brand_id" \
+      ICLAW_OPENCLAW_RUNTIME_VERSION="${ICLAW_OPENCLAW_RUNTIME_VERSION:-}" \
+      ICLAW_OPENCLAW_RUNTIME_URL="${ICLAW_OPENCLAW_RUNTIME_URL:-}" \
+      ICLAW_OPENCLAW_RUNTIME_SHA256="${ICLAW_OPENCLAW_RUNTIME_SHA256:-}" \
+      ICLAW_OPENCLAW_RUNTIME_FORMAT="${ICLAW_OPENCLAW_RUNTIME_FORMAT:-}" \
+      NODE_ENV="$node_env" \
+      ICLAW_ENV_NAME="$node_env" \
+      node "$ROOT_DIR/scripts/build-desktop-package.mjs" --target "$target"
   )
-
-  current_artifact_base_name="$(artifact_base_name)"
 
   local bundle_dir
   bundle_dir="$(bundle_dir_for_target "$target")"
@@ -163,8 +182,6 @@ build_one() {
     echo "saved: $installer_out"
 
     local updater_dir="$bundle_dir/macos"
-    local current_product_name
-    current_product_name="$(product_name)"
     local updater_archive="$updater_dir/${current_product_name}.app.tar.gz"
     local updater_signature="${updater_archive}.sig"
     if [[ -f "$updater_archive" && -f "$updater_signature" ]]; then
