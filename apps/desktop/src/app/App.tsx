@@ -552,7 +552,7 @@ function ChatBootstrapPlaceholderView() {
   );
 }
 
-function GuestWelcomeBackgroundView({
+function WelcomeBackgroundView({
   welcomePageConfig,
   onRequestAuth,
 }: {
@@ -571,33 +571,7 @@ function GuestWelcomeBackgroundView({
             className="openclaw-chat-surface-shell h-full flex-1 overflow-hidden"
             style={{ ['--iclaw-composer-height' as string]: '170px' }}
           >
-            <K2CWelcomePage
-              config={welcomePageConfig}
-              onStartChat={requestLogin}
-              onFillPrompt={requestLogin}
-            />
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 px-1 pb-2">
-              <div className="mx-auto max-w-[1120px]">
-                <div className="rounded-[28px] border border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-5 py-4 shadow-[0_24px_64px_rgba(15,23,42,0.08)] backdrop-blur-md">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="min-w-0">
-                      <div className="text-[13px] font-semibold text-[var(--text-primary)]">登录后继续对话，或先体验游客模式</div>
-                      <div className="mt-1 text-[12px] leading-6 text-[var(--text-secondary)]">
-                        当前显示的是 welcome 背景页，登录弹窗关闭后不会再漏出未完成挂载的 chat shell 中间态。
-                      </div>
-                    </div>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      className="pointer-events-auto shrink-0"
-                      onClick={requestLogin}
-                    >
-                      去登录
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <K2CWelcomePage config={welcomePageConfig} onStartChat={requestLogin} onFillPrompt={requestLogin} />
           </div>
         </div>
       </div>
@@ -1915,7 +1889,7 @@ function AuthedView({
     authenticated ||
     Boolean(accessToken) ||
     (!authModalOpen && authBootstrapReady && chatRuntimeAuthRef.current);
-  const showGuestWelcomeBackground = authBootstrapReady && !authenticated;
+  const showWelcomeBackground = authBootstrapReady && !authenticated;
   const activeMenuLabel =
     menuUiConfig[resolvedPrimaryView]?.displayName ||
     menuUiConfig[fallbackPrimaryView]?.displayName ||
@@ -2478,8 +2452,8 @@ function AuthedView({
                 title="正在恢复定时任务会话"
                 description="正在校验 control-plane 登录态并恢复本地运行时。"
               />
-            ) : showGuestWelcomeBackground ? (
-              <GuestWelcomeBackgroundView
+            ) : showWelcomeBackground ? (
+              <WelcomeBackgroundView
                 welcomePageConfig={welcomePageConfig}
                 onRequestAuth={onRequestAuth}
               />
@@ -2531,8 +2505,8 @@ function AuthedView({
             </PageSurface>
           ) : !authBootstrapReady ? (
             <ChatBootstrapPlaceholderView />
-          ) : showGuestWelcomeBackground ? (
-            <GuestWelcomeBackgroundView
+          ) : showWelcomeBackground ? (
+            <WelcomeBackgroundView
               welcomePageConfig={welcomePageConfig}
               onRequestAuth={onRequestAuth}
             />
