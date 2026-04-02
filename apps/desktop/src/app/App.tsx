@@ -95,6 +95,7 @@ import {
   listenDesktopUpdateProgress,
   restartDesktopApp,
 } from './lib/tauri-desktop-updater';
+import { desktopLogin, desktopMe, desktopRefresh } from './lib/tauri-auth';
 
 interface AuthUser {
   id?: string;
@@ -1070,7 +1071,7 @@ export default function App() {
         const auth = await readAuth();
         if (!auth) {
           try {
-            const user = (await client.me()) as AuthUser;
+            const user = (await (IS_TAURI_RUNTIME ? desktopMe() : client.me())) as AuthUser;
             if (!user) {
               await clearManagedProviderAuth().catch(() => {});
               settleGuest(false);
@@ -1090,7 +1091,7 @@ export default function App() {
         }
 
         try {
-          const user = (await client.me(auth.accessToken)) as AuthUser;
+          const user = (await (IS_TAURI_RUNTIME ? desktopMe(auth.accessToken) : client.me(auth.accessToken))) as AuthUser;
           try {
             await syncWorkspaceForUser(auth.accessToken);
           } catch (error) {
@@ -1113,7 +1114,7 @@ export default function App() {
         }
 
         try {
-          const refreshed = await client.refresh(auth.refreshToken);
+          const refreshed = IS_TAURI_RUNTIME ? await desktopRefresh(auth.refreshToken) : await client.refresh(auth.refreshToken);
           try {
             await syncWorkspaceForUser(refreshed.access_token);
           } catch (error) {
@@ -1129,7 +1130,7 @@ export default function App() {
           } catch (error) {
             console.warn('[desktop] failed to sync managed provider auth after refresh', error);
           }
-          const user = (await client.me(refreshed.access_token)) as AuthUser;
+          const user = (await (IS_TAURI_RUNTIME ? desktopMe(refreshed.access_token) : client.me(refreshed.access_token))) as AuthUser;
           settleAuthed(refreshed.access_token, user || null);
         } catch (error) {
           if (isUnauthorizedAuthError(error)) {
@@ -1158,7 +1159,7 @@ export default function App() {
     setAuthLoading(true);
     setAuthError(null);
     try {
-      const data = await client.login(input);
+      const data = IS_TAURI_RUNTIME ? await desktopLogin(input) : await client.login(input);
       await syncWorkspaceForUser(data.tokens.access_token);
       await writeAuth({
         accessToken: data.tokens.access_token,

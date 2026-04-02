@@ -129,6 +129,39 @@ function platformBundleTarget() {
   throw new Error(`Unsupported desktop packaging platform: ${process.platform}`);
 }
 
+function splitAppVersion(version) {
+  const normalized = trimString(version);
+  const [baseVersion] = normalized.split('+', 1);
+  return {
+    fullVersion: normalized,
+    baseVersion: trimString(baseVersion),
+  };
+}
+
+function formatReleaseTimestamp(date = new Date()) {
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}${pad(date.getHours())}${pad(date.getMinutes())}`;
+}
+
+function resolveNormalizedReleaseVersion(version, explicitReleaseVersion = '') {
+  const { baseVersion } = splitAppVersion(version);
+  if (!baseVersion) {
+    throw new Error('desktop packaging aborted: missing app base version for artifact naming');
+  }
+
+  const requested = trimString(explicitReleaseVersion).replace(/\+[^.]+/g, '');
+  if (!requested) {
+    return `${baseVersion}.${formatReleaseTimestamp()}`;
+  }
+  if (/^\d+\.\d+\.\d+$/.test(requested)) {
+    return `${requested}.${formatReleaseTimestamp()}`;
+  }
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(requested)) {
+    return requested;
+  }
+  throw new Error(`desktop packaging aborted: unsupported release version format "${explicitReleaseVersion}"`);
+}
+
 function isTruthyEnv(value) {
   return /^(1|true|yes)$/i.test(String(value || '').trim());
 }
@@ -293,6 +326,86 @@ async function rebuildWindowsNsisInstaller({ target }) {
   const makensis = findMakensisPath();
   run(makensis, [installerScript.fullPath], { cwd: rootDir });
   await copyLatestNsisOutput({ target });
+}
+
+async function renameIfExists(sourcePath, destinationPath) {
+  if (!(await pathExists(sourcePath))) {
+    return false;
+  }
+  if (sourcePath === destinationPath) {
+    return true;
+  }
+  await fs.rm(destinationPath, { force: true });
+  await fs.rename(sourcePath, destinationPath);
+  return true;
+}
+
+async function normalizeBundledArtifactNames({ target, brandProfile, channel, appVersion }) {
+  const targetInfo = resolvePackagingTargetInfo(target);
+  if (!targetInfo) {
+    return;
+  }
+
+  const artifactBaseName = trimString(brandProfile?.distribution?.artifactBaseName) || trimString(brandProfile?.productName);
+  const productName = trimString(brandProfile?.productName);
+  const { fullVersion } = splitAppVersion(appVersion);
+  const releaseVersion = resolveNormalizedReleaseVersion(
+    fullVersion,
+    process.env.ICLAW_RELEASE_VERSION || process.env.ICLAW_DESKTOP_RELEASE_VERSION || '',
+  );
+  const normalizedChannel = resolvePackagingChannelFromEnv(process.env) || normalizePackagingChannelFromEnvFallback(channel);
+  const arch = targetInfo.arch;
+  const bundleRoot = bundleTargetRoot(target);
+
+  if (targetInfo.platform === 'windows') {
+    const nsisDir = path.join(bundleRoot, 'nsis');
+    const entries = await fs.readdir(nsisDir, { withFileTypes: true });
+    const installers = [];
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.exe')) {
+        continue;
+      }
+      const fullPath = path.join(nsisDir, entry.name);
+      const stat = await fs.stat(fullPath);
+      installers.push({ name: entry.name, fullPath, mtimeMs: stat.mtimeMs });
+    }
+    installers.sort((left, right) => right.mtimeMs - left.mtimeMs);
+    const installer = installers[0];
+    if (!installer) {
+      throw new Error(`desktop packaging aborted: no Windows installer found under ${nsisDir}`);
+    }
+    const normalizedInstallerName = `${artifactBaseName}_${releaseVersion}_${arch}_${normalizedChannel}.exe`;
+    await renameIfExists(installer.fullPath, path.join(nsisDir, normalizedInstallerName));
+
+    const defaultUpdaterName = `${productName}_${fullVersion}_${arch}-nsis.zip`;
+    const normalizedUpdaterName = `${artifactBaseName}_${releaseVersion}_${arch}_${normalizedChannel}.nsis.zip`;
+    if (await renameIfExists(path.join(nsisDir, defaultUpdaterName), path.join(nsisDir, normalizedUpdaterName))) {
+      await renameIfExists(path.join(nsisDir, `${defaultUpdaterName}.sig`), path.join(nsisDir, `${normalizedUpdaterName}.sig`));
+    }
+    return;
+  }
+
+  if (targetInfo.platform === 'darwin') {
+    const dmgDir = path.join(bundleRoot, 'dmg');
+    const defaultDmgName = `${artifactBaseName}_${fullVersion}_${arch}_${normalizedChannel}.dmg`;
+    const normalizedDmgName = `${artifactBaseName}_${releaseVersion}_${arch}_${normalizedChannel}.dmg`;
+    await renameIfExists(path.join(dmgDir, defaultDmgName), path.join(dmgDir, normalizedDmgName));
+
+    const macosDir = path.join(bundleRoot, 'macos');
+    const defaultUpdaterName = `${productName}.app.tar.gz`;
+    const normalizedUpdaterName = `${artifactBaseName}_${releaseVersion}_${arch}_${normalizedChannel}.app.tar.gz`;
+    if (await renameIfExists(path.join(macosDir, defaultUpdaterName), path.join(macosDir, normalizedUpdaterName))) {
+      await renameIfExists(path.join(macosDir, `${defaultUpdaterName}.sig`), path.join(macosDir, `${normalizedUpdaterName}.sig`));
+    }
+  }
+}
+
+function normalizePackagingChannelFromEnvFallback(channel) {
+  const normalized = trimString(channel).toLowerCase();
+  if (normalized === 'dev' || normalized === 'test' || normalized === 'prod') {
+    return normalized;
+  }
+  return 'prod';
 }
 
 function syncLocalAppRuntime({ pnpm, env, brandId, packagingPaths }) {
@@ -761,6 +874,8 @@ async function main() {
   const { brandId, target, forwardedArgs } = parseArgs(process.argv.slice(2));
   const runtimeTargetTriple = inferRuntimeTargetTriple(target);
   const channel = resolvePackagingChannelFromEnv(process.env);
+  const packageJson = JSON.parse(await fs.readFile(path.join(rootDir, 'package.json'), 'utf8'));
+  const appVersion = trimString(packageJson.version);
   const { profile: brandProfile } = await loadBrandProfile({ rootDir, brandId, envName: channel });
   const packagingPaths = buildPackagingWorkspacePaths({ rootDir, brandId, channel, target });
   const snapshotKey = [
@@ -825,6 +940,7 @@ async function main() {
     if (packageDmg) {
       run('bash', [packageDmgScriptPath, ...forwardedArgs], { env });
     }
+    await normalizeBundledArtifactNames({ target, brandProfile, channel, appVersion });
   } finally {
     await fs.rm(tempConfigPath, { force: true });
     await restoreRuntimeBootstrapConfig();

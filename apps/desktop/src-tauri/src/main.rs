@@ -8,6 +8,7 @@ use keyring::Entry;
 use rand::rngs::OsRng;
 use rand::RngCore;
 use reqwest::{blocking::Client, Url};
+use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -236,6 +237,140 @@ fn read_private_runtime_config(
     envelope
         .data
         .ok_or_else(|| format!("OEM private runtime config missing data payload ({status})"))
+}
+
+fn build_desktop_auth_client() -> Result<Client, String> {
+    Client::builder()
+        .connect_timeout(Duration::from_secs(8))
+        .timeout(Duration::from_secs(20))
+        .build()
+        .map_err(|e| format!("failed to build desktop auth client: {e}"))
+}
+
+fn desktop_auth_headers() -> Result<HeaderMap, String> {
+    let mut headers = HeaderMap::new();
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    headers.insert("origin", HeaderValue::from_static("tauri://localhost"));
+    headers.insert("x-iclaw-app-name", HeaderValue::from_static(DESKTOP_BRAND_ID));
+    headers.insert("x-iclaw-channel", HeaderValue::from_static("prod"));
+    if let Some(version) = option_env!("CARGO_PKG_VERSION") {
+        let value = HeaderValue::from_str(version)
+            .map_err(|e| format!("failed to encode desktop version header: {e}"))?;
+        headers.insert("x-iclaw-app-version", value);
+    }
+    Ok(headers)
+}
+
+fn parse_desktop_error_response(response: reqwest::blocking::Response) -> Result<String, String> {
+    let status = response.status();
+    let text = response
+        .text()
+        .map_err(|e| format!("desktop auth request failed ({status}) and error body could not be read: {e}"))?;
+    if let Ok(payload) = serde_json::from_str::<DesktopErrorEnvelope>(&text) {
+        if let Some(error) = payload.error {
+            let code = error
+                .code
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| String::from("HTTP_ERROR"));
+            let message = error
+                .message
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| format!("desktop auth request failed ({status})"));
+            let request_id = error
+                .request_id
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty());
+            let payload = DesktopInvokeErrorPayload {
+                code,
+                message,
+                request_id,
+            };
+            return serde_json::to_string(&payload)
+                .map_err(|e| format!("failed to encode desktop auth error payload: {e}"));
+        }
+    }
+    Ok(format!("desktop auth request failed ({status})"))
+}
+
+fn desktop_auth_base_url() -> Result<String, String> {
+    let trimmed = DESKTOP_AUTH_BASE_URL.trim().trim_end_matches('/').to_string();
+    if trimmed.is_empty() {
+        return Err(String::from("desktop auth base url is required"));
+    }
+    Ok(trimmed)
+}
+
+fn desktop_login_internal(input: DesktopLoginInput) -> Result<DesktopAuthResponse, String> {
+    let auth_base_url = desktop_auth_base_url()?;
+    let client = build_desktop_auth_client()?;
+    let headers = desktop_auth_headers()?;
+    let url = format!("{auth_base_url}/auth/login");
+    let response = client
+        .post(url)
+        .headers(headers)
+        .json(&json!({
+            "identifier": input.identifier.trim(),
+            "email": input.identifier.trim(),
+            "password": input.password,
+        }))
+        .send()
+        .map_err(|e| format!("desktop login request failed: {e}"))?;
+    if !response.status().is_success() {
+        return Err(parse_desktop_error_response(response)?);
+    }
+    let envelope = response
+        .json::<ControlPlaneEnvelope<DesktopAuthResponse>>()
+        .map_err(|e| format!("failed to parse desktop login response: {e}"))?;
+    Ok(envelope.data)
+}
+
+fn desktop_me_internal(access_token: Option<String>) -> Result<serde_json::Value, String> {
+    let auth_base_url = desktop_auth_base_url()?;
+    let client = build_desktop_auth_client()?;
+    let mut headers = desktop_auth_headers()?;
+    if let Some(token) = access_token
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
+        let bearer = HeaderValue::from_str(&format!("Bearer {token}"))
+            .map_err(|e| format!("failed to encode authorization header: {e}"))?;
+        headers.insert(AUTHORIZATION, bearer);
+    }
+    let response = client
+        .get(format!("{auth_base_url}/auth/me"))
+        .headers(headers)
+        .send()
+        .map_err(|e| format!("desktop me request failed: {e}"))?;
+    if !response.status().is_success() {
+        return Err(parse_desktop_error_response(response)?);
+    }
+    let envelope = response
+        .json::<ControlPlaneEnvelope<serde_json::Value>>()
+        .map_err(|e| format!("failed to parse desktop me response: {e}"))?;
+    Ok(envelope.data)
+}
+
+fn desktop_refresh_internal(input: DesktopRefreshInput) -> Result<DesktopAuthTokens, String> {
+    let auth_base_url = desktop_auth_base_url()?;
+    let client = build_desktop_auth_client()?;
+    let headers = desktop_auth_headers()?;
+    let response = client
+        .post(format!("{auth_base_url}/auth/refresh"))
+        .headers(headers)
+        .json(&json!({
+            "refresh_token": input.refresh_token.trim(),
+        }))
+        .send()
+        .map_err(|e| format!("desktop refresh request failed: {e}"))?;
+    if !response.status().is_success() {
+        return Err(parse_desktop_error_response(response)?);
+    }
+    let envelope = response
+        .json::<ControlPlaneEnvelope<DesktopAuthTokens>>()
+        .map_err(|e| format!("failed to parse desktop refresh response: {e}"))?;
+    Ok(envelope.data)
 }
 
 fn extract_config_api_key(config: &serde_json::Value, path: &[&str]) -> Option<(String, String)> {
@@ -646,6 +781,49 @@ struct RuntimePaths {
 struct StoredAuthTokens {
     access_token: String,
     refresh_token: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct DesktopAuthTokens {
+    access_token: String,
+    refresh_token: String,
+    expires_in: u64,
+}
+
+#[derive(Serialize, Deserialize)]
+struct DesktopLoginInput {
+    identifier: String,
+    password: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct DesktopRefreshInput {
+    refresh_token: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct DesktopAuthResponse {
+    tokens: DesktopAuthTokens,
+    user: serde_json::Value,
+}
+
+#[derive(Deserialize)]
+struct DesktopErrorEnvelope {
+    error: Option<DesktopErrorPayload>,
+}
+
+#[derive(Deserialize)]
+struct DesktopErrorPayload {
+    code: Option<String>,
+    message: Option<String>,
+    request_id: Option<String>,
+}
+
+#[derive(Serialize)]
+struct DesktopInvokeErrorPayload {
+    code: String,
+    message: String,
+    request_id: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -4636,6 +4814,21 @@ fn clear_portal_provider_auth(app: AppHandle) -> Result<bool, String> {
 }
 
 #[tauri::command]
+fn desktop_login(input: DesktopLoginInput) -> Result<DesktopAuthResponse, String> {
+    desktop_login_internal(input)
+}
+
+#[tauri::command]
+fn desktop_me(access_token: Option<String>) -> Result<serde_json::Value, String> {
+    desktop_me_internal(access_token)
+}
+
+#[tauri::command]
+fn desktop_refresh(input: DesktopRefreshInput) -> Result<DesktopAuthTokens, String> {
+    desktop_refresh_internal(input)
+}
+
+#[tauri::command]
 fn sync_oem_runtime_snapshot(
     app: AppHandle,
     auth_base_url: String,
@@ -5933,8 +6126,13 @@ fn main() {
             match event {
                 WindowEvent::CloseRequested { api, .. } => {
                     persist_desktop_window_state(window);
-                    api.prevent_close();
-                    let _ = window.minimize();
+                    let is_focused = window.is_focused().unwrap_or(false);
+                    if is_focused {
+                        api.prevent_close();
+                        let _ = window.minimize();
+                    } else {
+                        window.app_handle().exit(0);
+                    }
                 }
                 WindowEvent::Resized(_) | WindowEvent::Moved(_) => {
                     persist_desktop_window_state(window);
@@ -5957,6 +6155,9 @@ fn main() {
             load_oem_runtime_snapshot,
             sync_portal_provider_auth,
             clear_portal_provider_auth,
+            desktop_login,
+            desktop_me,
+            desktop_refresh,
             sync_oem_runtime_snapshot,
             install_runtime,
             diagnose_runtime,
