@@ -984,6 +984,27 @@ function extractChatGroupText(group: HTMLElement | null): string {
   return textBlocks.join('\n\n').trim();
 }
 
+function extractMessageText(message: unknown): string {
+  const normalized = normalizeMessage(message);
+  return normalized.content
+    .map((item) => (typeof item.text === 'string' ? item.text.replace(/\u00a0/g, ' ').trim() : ''))
+    .filter(Boolean)
+    .join('\n\n')
+    .trim();
+}
+
+function extractChatMessageGroupText(group: ChatMessageGroup | null): string {
+  if (!group) {
+    return '';
+  }
+
+  return group.messages
+    .map((message) => extractMessageText(message))
+    .filter(Boolean)
+    .join('\n\n')
+    .trim();
+}
+
 function setElementTextIfChanged(node: Node | null, nextText: string): void {
   if (!node) {
     return;
@@ -992,17 +1013,6 @@ function setElementTextIfChanged(node: Node | null, nextText: string): void {
     return;
   }
   node.textContent = nextText;
-}
-
-function findPreviousUserGroup(group: HTMLElement): HTMLElement | null {
-  let current = group.previousElementSibling;
-  while (current) {
-    if (current instanceof HTMLElement && current.classList.contains('chat-group') && current.classList.contains('user')) {
-      return current;
-    }
-    current = current.previousElementSibling;
-  }
-  return null;
 }
 
 function getUsageMetric(record: Record<string, unknown>, keys: string[]): number {
@@ -1333,6 +1343,26 @@ function collectMessageTurns(messages: unknown[]): ChatMessageTurn[] {
 
   finalizeCurrentTurn();
   return turns;
+}
+
+function buildTerminalAssistantPromptMap(messages: unknown[]): Map<number, string> {
+  const turns = collectMessageTurns(messages);
+  const promptByAssistantIndex = new Map<number, string>();
+  let assistantGroupIndex = 0;
+
+  turns.forEach((turn) => {
+    const assistantGroupCount = turn.assistantGroups.length;
+    if (assistantGroupCount <= 0) {
+      return;
+    }
+
+    const promptText = extractChatMessageGroupText(turn.userGroup);
+    const terminalAssistantIndex = assistantGroupIndex + assistantGroupCount - 1;
+    promptByAssistantIndex.set(terminalAssistantIndex, promptText);
+    assistantGroupIndex += assistantGroupCount;
+  });
+
+  return promptByAssistantIndex;
 }
 
 function readRunIdFromTurn(turn: ChatMessageTurn): string | null {
@@ -5754,14 +5784,17 @@ export function OpenClawChatSurface({
       }
     };
 
-    const ensureAssistantFooter = (group: HTMLElement, footerMeta: AssistantFooterMeta | null) => {
+    const ensureAssistantFooter = (
+      group: HTMLElement,
+      footerMeta: AssistantFooterMeta | null,
+      regeneratePromptText: string,
+    ) => {
       const messages = group.querySelector('.chat-group-messages') as HTMLElement | null;
       if (!messages) {
         return;
       }
 
       const assistantText = extractChatGroupText(group);
-      const promptText = extractChatGroupText(findPreviousUserGroup(group));
       const fallbackTimestamp = extractChatGroupTimestampLabel(group);
       let footer = messages.querySelector(':scope > .iclaw-chat-assistant-footer') as HTMLDivElement | null;
 
@@ -5835,7 +5868,7 @@ export function OpenClawChatSurface({
             if (status.busy) {
               return;
             }
-            const nextPrompt = extractChatGroupText(findPreviousUserGroup(group));
+            const nextPrompt = footer?.dataset.regeneratePrompt?.trim() || '';
             if (!nextPrompt) {
               return;
             }
@@ -5935,8 +5968,11 @@ export function OpenClawChatSurface({
       if (copyButton) {
         copyButton.disabled = !assistantText;
       }
+      if (footer.dataset.regeneratePrompt !== regeneratePromptText) {
+        footer.dataset.regeneratePrompt = regeneratePromptText;
+      }
       if (regenerateButton) {
-        regenerateButton.disabled = status.busy || !promptText;
+        regenerateButton.disabled = status.busy || !regeneratePromptText;
       }
     };
 
@@ -5966,6 +6002,7 @@ export function OpenClawChatSurface({
         appRef.current,
         status.busy,
       );
+      const terminalAssistantPromptMap = buildTerminalAssistantPromptMap(chatMessages);
       const groups = Array.from(host.querySelectorAll('.chat-group')).filter(
         (node): node is HTMLElement => node instanceof HTMLElement,
       );
@@ -6005,7 +6042,7 @@ export function OpenClawChatSurface({
             null;
           const shouldShowFooter = isTerminalAssistantTurnGroup(groups, groupIndex) && !status.busy;
           if (shouldShowFooter) {
-            ensureAssistantFooter(group, footerMeta);
+            ensureAssistantFooter(group, footerMeta, terminalAssistantPromptMap.get(assistantIndex) ?? '');
           } else {
             clearAssistantFooter(group);
           }
