@@ -340,7 +340,10 @@ async function extractPortalSkillArtifact(params: {
     } else {
       const archiveArg = process.platform === 'win32' ? archivePath.replace(/\\/g, '/') : archivePath;
       const extractArg = process.platform === 'win32' ? extractRoot.replace(/\\/g, '/') : extractRoot;
-      execFileSync('tar', ['--force-local', '-xzf', archiveArg, '-C', extractArg], {stdio: 'pipe'});
+      const tarArgs = process.platform === 'win32'
+        ? ['--force-local', '-xzf', archiveArg, '-C', extractArg]
+        : ['-xzf', archiveArg, '-C', extractArg];
+      execFileSync('tar', tarArgs, {stdio: 'pipe'});
     }
     const skillRoot = await findSkillRoot(extractRoot);
     if (!skillRoot) {

@@ -15,14 +15,25 @@ EXTRA_CA_CERTS_PATH="${ICLAW_EXTRA_CA_CERTS_PATH:-$ROOT_DIR/services/openclaw/re
 OPENCLAW_VERBOSE="${ICLAW_OPENCLAW_VERBOSE:-1}"
 OPENCLAW_WS_LOG_STYLE="${ICLAW_OPENCLAW_WS_LOG:-compact}"
 OPENCLAW_RAW_STREAM="${ICLAW_OPENCLAW_RAW_STREAM:-0}"
-PORTAL_APP_NAME="${APP_NAME:-${ICLAW_PORTAL_APP_NAME:-}}"
+PORTAL_APP_NAME=""
+PORTAL_APP_SOURCE=""
+
+if [[ -n "${APP_NAME:-}" ]]; then
+  PORTAL_APP_NAME="${APP_NAME}"
+  PORTAL_APP_SOURCE="env"
+elif [[ -n "${ICLAW_PORTAL_APP_NAME:-}" ]]; then
+  PORTAL_APP_NAME="${ICLAW_PORTAL_APP_NAME}"
+  PORTAL_APP_SOURCE="env"
+fi
 
 if [[ $# -gt 0 ]]; then
   if [[ "${1:-}" == "--app" ]]; then
     PORTAL_APP_NAME="${2:-}"
+    PORTAL_APP_SOURCE="arg"
     shift 2 || true
   elif [[ "${1:-}" != --* ]]; then
     PORTAL_APP_NAME="$1"
+    PORTAL_APP_SOURCE="arg"
     shift || true
   fi
 fi
@@ -56,9 +67,42 @@ try {
 ' "$RUNTIME_CONFIG_PATH" "$key"
 }
 
+read_generated_brand_id() {
+  local generated_brand_path="$ROOT_DIR/apps/desktop/src-tauri/brand.generated.json"
+  [[ -f "$generated_brand_path" ]] || return 0
+  node -e '
+const fs = require("fs");
+const targetPath = process.argv[1];
+try {
+  const parsed = JSON.parse(fs.readFileSync(targetPath, "utf8"));
+  const value = typeof parsed?.brandId === "string" ? parsed.brandId.trim() : "";
+  if (value) process.stdout.write(value);
+} catch {}
+' "$generated_brand_path"
+}
+
 ENV_GATEWAY_TOKEN="$(read_env_value VITE_GATEWAY_TOKEN)"
 ENV_APP_NAME="$(read_env_value APP_NAME)"
-PORTAL_APP_NAME="${PORTAL_APP_NAME:-${ENV_APP_NAME:-}}"
+if [[ -z "${PORTAL_APP_NAME:-}" && -n "${ENV_APP_NAME:-}" ]]; then
+  PORTAL_APP_NAME="${ENV_APP_NAME}"
+  PORTAL_APP_SOURCE="env-file"
+fi
+GENERATED_BRAND_ID="$(read_generated_brand_id)"
+if [[ -n "${GENERATED_BRAND_ID:-}" ]]; then
+  if [[ -z "${PORTAL_APP_NAME:-}" ]]; then
+    PORTAL_APP_NAME="${GENERATED_BRAND_ID}"
+    PORTAL_APP_SOURCE="generated-brand"
+  elif [[ "$PORTAL_APP_NAME" != "$GENERATED_BRAND_ID" ]]; then
+    if [[ "$PORTAL_APP_SOURCE" == "arg" ]]; then
+      echo "[api-dev] 检测到显式 --app=${PORTAL_APP_NAME}，与当前生成品牌 ${GENERATED_BRAND_ID} 不一致，按显式参数继续。"
+    else
+      echo "[api-dev] 检测到当前生成品牌为 ${GENERATED_BRAND_ID}，但环境解析得到的 app 为 ${PORTAL_APP_NAME}。"
+      echo "[api-dev] 为避免前端品牌与 OpenClaw runtime 品牌错配，dev:api 将跟随当前生成品牌。"
+      PORTAL_APP_NAME="${GENERATED_BRAND_ID}"
+      PORTAL_APP_SOURCE="generated-brand"
+    fi
+  fi
+fi
 OPENCLAW_STATE_DIR="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}"
 GATEWAY_TOKEN_FILE="$(resolve_gateway_token_file)"
 OPENCLAW_CONFIG_PATH="${OPENCLAW_CONFIG_PATH:-$OPENCLAW_STATE_DIR/openclaw.json}"
@@ -402,7 +446,7 @@ ensure_runtime_ui_patches
 ensure_macos_runtime_frameworks
 ensure_macos_codesign_if_needed
 if [[ -n "${PORTAL_APP_NAME:-}" ]]; then
-  echo "[api-dev] 同步 portal app 本地运行资源: ${PORTAL_APP_NAME}"
+  echo "[api-dev] 同步 portal app 本地运行资源: ${PORTAL_APP_NAME} (source: ${PORTAL_APP_SOURCE:-unknown})"
   export ICLAW_OPENCLAW_WORKSPACE_DIR="${OPENCLAW_STATE_DIR}/workspace"
   node --experimental-strip-types "$ROOT_DIR/services/control-plane/scripts/sync-local-app-runtime.ts" --app "$PORTAL_APP_NAME"
 fi
