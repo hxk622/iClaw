@@ -1290,9 +1290,6 @@ export default function App() {
     mode: 'login' | 'register' = 'login',
     nextView: 'account' | 'recharge' | null = null,
   ) => {
-    if (!isAuthenticated) {
-      setPrimaryView('chat');
-    }
     setAuthError(null);
     setAuthModalMode(mode);
     setPostAuthView(nextView);
