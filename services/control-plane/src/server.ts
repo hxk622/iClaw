@@ -158,7 +158,9 @@ async function runStartupBootstrap(): Promise<void> {
   try {
     await runStep('ensureBootstrapAdmin', () => ensureBootstrapAdmin(store));
     await Promise.all([
-      runStep('ensureDefaultCatalogs', () => ensureDefaultCatalogs(store)),
+      // Default catalog repair is intentionally disabled on normal startup.
+      // Keep it as an explicit/manual operation instead of a boot-time guardrail.
+      // runStep('ensureDefaultCatalogs', () => ensureDefaultCatalogs(store)),
       runStep('ensureDefaultSkillSyncSources', () => ensureDefaultSkillSyncSources(store)),
       runStep('ensurePortalSkillCatalogPolicy', () => ensurePortalSkillCatalogPolicy(portalStore)),
     ]);
@@ -173,6 +175,7 @@ async function runStartupBootstrap(): Promise<void> {
     startupState.bootstrap.durationMs = Date.now() - startedAt;
     startupState.bootstrap.lastError = error instanceof Error ? error.message : String(error);
     logError('startup bootstrap failed', {durationMs: startupState.bootstrap.durationMs, error});
+    throw error;
   }
 }
 
@@ -1731,5 +1734,10 @@ server.listen(config.port, config.listenHost, () => {
     allowedOrigins: config.allowedOrigins,
     cache: cacheLabel,
   });
-  void runStartupBootstrap();
+  void runStartupBootstrap().catch((error) => {
+    logError('control-plane bootstrap aborted process startup', {error});
+    server.close(() => {
+      process.exit(1);
+    });
+  });
 });
