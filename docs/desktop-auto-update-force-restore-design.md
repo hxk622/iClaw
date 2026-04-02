@@ -205,12 +205,12 @@
 
 ### 7.4 对业务入口的约束
 
-命中强更后，所有“发起新 run”的入口统一禁用：
+命中强更后，所有“发起新 turn / 新执行”的入口统一禁用：
 
 - composer 发送按钮
 - slash command 执行入口
-- task / workflow 创建入口
-- 其他会消耗后端资源的新任务入口
+- workflow 创建入口
+- 其他会消耗后端资源的新执行入口
 
 浏览历史、查看结果、复制内容、导出内容等只读操作保持可用。
 
@@ -226,7 +226,7 @@
 
 - 当前页面路由
 - 当前会话 `sessionKey`
-- 当前聚焦任务 `focusTaskId`
+- 当前聚焦轮次 `focusedTurnId`
 - 最近一次可恢复的 prompt
 - composer draft 文本
 - composer 附件引用摘要

@@ -17,27 +17,28 @@ import { FilterPill } from '@/app/components/ui/FilterPill';
 import { PressableCard } from '@/app/components/ui/PressableCard';
 import { cn } from '@/app/lib/cn';
 import {
-  RECENT_TASK_ARTIFACT_LABELS,
-  type RecentTaskRecord,
-  formatRecentTaskRelativeTime,
-  useRecentTasks,
-} from '@/app/lib/recent-tasks';
+  CHAT_TURN_ARTIFACT_LABELS,
+  type ChatTurnRecord,
+  formatChatTurnRelativeTime,
+  useChatTurns,
+} from '@/app/lib/chat-turns';
 
-type TaskFilter = 'all' | RecentTaskRecord['status'];
+type TurnFilter = 'all' | ChatTurnRecord['status'];
 
 interface TaskCenterViewProps {
-  selectedTaskId?: string | null;
-  onSelectTask?: (taskId: string) => void;
-  onOpenChat?: () => void;
+  selectedTurnId?: string | null;
+  onSelectTurn?: (turnId: string) => void;
+  onOpenTurnChat?: (turnId: string) => void;
+  onBackToChat?: () => void;
   taskCenterLabel: string;
   chatMenuLabel: string;
 }
 
-interface TaskViewModel {
+interface TurnViewModel {
   id: string;
   title: string;
   summary: string;
-  status: RecentTaskRecord['status'];
+  status: ChatTurnRecord['status'];
   isPinned: boolean;
   resultTypes: string[];
   lastUpdated: string;
@@ -46,7 +47,7 @@ interface TaskViewModel {
   statusMessage: string;
 }
 
-const FILTER_ITEMS: Array<{ value: TaskFilter; label: string }> = [
+const FILTER_ITEMS: Array<{ value: TurnFilter; label: string }> = [
   { value: 'all', label: '全部' },
   { value: 'running', label: '进行中' },
   { value: 'completed', label: '已完成' },
@@ -54,7 +55,7 @@ const FILTER_ITEMS: Array<{ value: TaskFilter; label: string }> = [
 ];
 
 const STATUS_META: Record<
-  RecentTaskRecord['status'],
+  ChatTurnRecord['status'],
   {
     label: string;
     toneClassName: string;
@@ -91,53 +92,54 @@ const STATUS_META: Record<
 };
 
 export function TaskCenterView({
-  selectedTaskId = null,
-  onSelectTask,
-  onOpenChat,
+  selectedTurnId = null,
+  onSelectTurn,
+  onOpenTurnChat,
+  onBackToChat,
   taskCenterLabel,
   chatMenuLabel,
 }: TaskCenterViewProps) {
-  const tasks = useRecentTasks();
+  const turns = useChatTurns();
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<TaskFilter>('all');
+  const [filter, setFilter] = useState<TurnFilter>('all');
 
-  const mappedTasks = useMemo(() => tasks.map((task) => mapTaskToViewModel(task, chatMenuLabel)), [chatMenuLabel, tasks]);
+  const mappedTurns = useMemo(() => turns.map((turn) => mapTurnToViewModel(turn, chatMenuLabel)), [chatMenuLabel, turns]);
 
-  const filteredTasks = useMemo(() => {
+  const filteredTurns = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
-    return mappedTasks.filter((task, index) => {
-      const sourceTask = tasks[index];
-      const matchesFilter = filter === 'all' || task.status === filter;
+    return mappedTurns.filter((turn, index) => {
+      const sourceTurn = turns[index];
+      const matchesFilter = filter === 'all' || turn.status === filter;
       const matchesQuery =
         normalizedQuery.length === 0
           ? true
-          : `${task.title} ${task.summary} ${sourceTask?.prompt ?? ''}`
+          : `${turn.title} ${turn.summary} ${sourceTurn?.prompt ?? ''}`
               .toLowerCase()
               .includes(normalizedQuery);
       return matchesFilter && matchesQuery;
     });
-  }, [filter, mappedTasks, query, tasks]);
+  }, [filter, mappedTurns, query, turns]);
 
-  const selectedTask =
-    filteredTasks.find((task) => task.id === selectedTaskId) ?? filteredTasks[0] ?? null;
+  const selectedTurn =
+    filteredTurns.find((turn) => turn.id === selectedTurnId) ?? filteredTurns[0] ?? null;
 
   useEffect(() => {
-    if (!filteredTasks.length) {
+    if (!filteredTurns.length) {
       return;
     }
 
-    if (!selectedTaskId || !filteredTasks.some((task) => task.id === selectedTaskId)) {
-      onSelectTask?.(filteredTasks[0].id);
+    if (!selectedTurnId || !filteredTurns.some((turn) => turn.id === selectedTurnId)) {
+      onSelectTurn?.(filteredTurns[0].id);
     }
-  }, [filteredTasks, onSelectTask, selectedTaskId]);
+  }, [filteredTurns, onSelectTurn, selectedTurnId]);
 
-  const totalTasks = mappedTasks.length;
-  const runningTasks = mappedTasks.filter((task) => task.status === 'running').length;
-  const completedTasks = mappedTasks.filter((task) => task.status === 'completed').length;
-  const hasNoTasks = totalTasks === 0;
+  const totalTurns = mappedTurns.length;
+  const runningTurns = mappedTurns.filter((turn) => turn.status === 'running').length;
+  const completedTurns = mappedTurns.filter((turn) => turn.status === 'completed').length;
+  const hasNoTurns = totalTurns === 0;
   const hasNoSearchResults =
-    !hasNoTasks && filteredTasks.length === 0 && (query.trim() !== '' || filter !== 'all');
+    !hasNoTurns && filteredTurns.length === 0 && (query.trim() !== '' || filter !== 'all');
 
   return (
     <div className="flex flex-1 overflow-y-auto bg-[var(--bg-page)]">
@@ -156,14 +158,14 @@ export function TaskCenterView({
             variant="primary"
             size="md"
             leadingIcon={<MessageSquare className="h-4 w-4" />}
-            onClick={onOpenChat}
+            onClick={onBackToChat}
             className="shrink-0"
           >
             返回{chatMenuLabel}
           </Button>
         </header>
 
-        {hasNoTasks ? (
+        {hasNoTurns ? (
           <section className="flex min-h-[600px] items-center justify-center">
             <div className="w-full max-w-[460px] rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-card)] p-12 text-center shadow-[var(--pressable-card-rest-shadow)]">
               <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-[18px] bg-[var(--bg-hover)] text-[var(--text-muted)]">
@@ -180,7 +182,7 @@ export function TaskCenterView({
                   variant="primary"
                   size="md"
                   leadingIcon={<MessageSquare className="h-4 w-4" />}
-                  onClick={onOpenChat}
+                  onClick={onBackToChat}
                 >
                   返回{chatMenuLabel}
                 </Button>
@@ -193,18 +195,18 @@ export function TaskCenterView({
               <SummaryCard
                 icon={<ListChecks className="h-4 w-4" />}
                 label="任务总数"
-                value={totalTasks}
+                value={totalTurns}
               />
               <SummaryCard
                 icon={<Clock3 className="h-4 w-4" />}
                 label="进行中"
-                value={runningTasks}
+                value={runningTurns}
                 tone="running"
               />
               <SummaryCard
                 icon={<CheckCircle2 className="h-4 w-4" />}
                 label="已完成"
-                value={completedTasks}
+                value={completedTurns}
                 tone="completed"
               />
             </section>
@@ -253,13 +255,13 @@ export function TaskCenterView({
               <section className="mt-5 flex gap-6">
                 <div className="min-w-0 flex-1">
                   <div className="space-y-3">
-                    {filteredTasks.map((task) => (
-                      <TaskCard
-                        key={task.id}
-                        task={task}
-                        isSelected={selectedTask?.id === task.id}
-                        onSelect={() => onSelectTask?.(task.id)}
-                        onOpenChat={onOpenChat}
+                    {filteredTurns.map((turn) => (
+                      <TurnCard
+                        key={turn.id}
+                        turn={turn}
+                        isSelected={selectedTurn?.id === turn.id}
+                        onSelect={() => onSelectTurn?.(turn.id)}
+                        onOpenChat={() => onOpenTurnChat?.(turn.id)}
                       />
                     ))}
                   </div>
@@ -267,7 +269,11 @@ export function TaskCenterView({
 
                 <aside className="w-[400px] shrink-0">
                   <div className="sticky top-8">
-                    <TaskDetailPanel task={selectedTask} onOpenChat={onOpenChat} chatMenuLabel={chatMenuLabel} />
+                    <TurnDetailPanel
+                      turn={selectedTurn}
+                      onOpenChat={selectedTurn ? () => onOpenTurnChat?.(selectedTurn.id) : undefined}
+                      chatMenuLabel={chatMenuLabel}
+                    />
                   </div>
                 </aside>
               </section>
@@ -321,13 +327,13 @@ function SummaryCard({
   );
 }
 
-function TaskCard({
-  task,
+function TurnCard({
+  turn,
   isSelected,
   onSelect,
   onOpenChat,
 }: {
-  task: TaskViewModel;
+  turn: TurnViewModel;
   isSelected: boolean;
   onSelect?: () => void;
   onOpenChat?: () => void;
@@ -346,8 +352,8 @@ function TaskCard({
     >
       <div className="min-w-0">
         <div className="mb-3 flex flex-wrap items-center gap-2">
-          <StatusBadge status={task.status} />
-          {task.isPinned ? (
+          <StatusBadge status={turn.status} />
+          {turn.isPinned ? (
             <span className="inline-flex items-center gap-1 rounded-[6px] bg-[var(--bg-hover)] px-2.5 py-1 text-[12px] text-[var(--text-secondary)]">
               <Pin className="h-3 w-3" />
               已置顶
@@ -356,16 +362,16 @@ function TaskCard({
         </div>
 
         <h3 className="mb-2 text-[16px] font-semibold text-[var(--text-primary)]">
-          {task.title}
+          {turn.title}
         </h3>
 
         <p className="mb-3 line-clamp-2 text-[14px] leading-6 text-[var(--text-secondary)]">
-          {task.summary}
+          {turn.summary}
         </p>
 
-        {task.resultTypes.length > 0 ? (
+        {turn.resultTypes.length > 0 ? (
           <div className="mb-3 flex flex-wrap gap-2">
-            {task.resultTypes.map((type) => (
+            {turn.resultTypes.map((type) => (
               <span
                 key={type}
                 className="rounded-[6px] border border-[var(--border-default)] bg-[var(--bg-hover)] px-2 py-0.5 text-[12px] text-[var(--text-secondary)]"
@@ -379,11 +385,11 @@ function TaskCard({
         <div className="flex flex-wrap items-center gap-4 text-[13px] text-[var(--text-secondary)]">
           <span className="inline-flex items-center gap-1">
             <Clock3 className="h-3 w-3" />
-            {task.lastUpdated}
+            {turn.lastUpdated}
           </span>
           <span className="inline-flex items-center gap-1">
             <Calendar className="h-3 w-3" />
-            {task.createdAt}
+            {turn.createdAt}
           </span>
         </div>
 
@@ -414,16 +420,16 @@ function TaskCard({
   );
 }
 
-function TaskDetailPanel({
-  task,
+function TurnDetailPanel({
+  turn,
   onOpenChat,
   chatMenuLabel,
 }: {
-  task: TaskViewModel | null;
+  turn: TurnViewModel | null;
   onOpenChat?: () => void;
   chatMenuLabel: string;
 }) {
-  if (!task) {
+  if (!turn) {
     return (
       <div className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-card)] p-8 text-center shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
         <FileText className="mx-auto mb-4 h-12 w-12 text-[var(--text-muted)]" />
@@ -432,56 +438,56 @@ function TaskDetailPanel({
     );
   }
 
-  const meta = STATUS_META[task.status];
+  const meta = STATUS_META[turn.status];
   const StatusIcon = meta.icon;
 
   return (
     <div className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-card)] p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <StatusBadge status={task.status} />
-        {task.isPinned ? (
+        <StatusBadge status={turn.status} />
+        {turn.isPinned ? (
           <span className="inline-flex items-center gap-1 rounded-[6px] bg-[var(--bg-hover)] px-2.5 py-1 text-[12px] text-[var(--text-secondary)]">
             <Pin className="h-3 w-3" />
             已置顶
           </span>
-        ) : null}
+          ) : null}
       </div>
 
       <h2 className="mb-3 text-[18px] font-semibold leading-7 text-[var(--text-primary)]">
-        {task.title}
+        {turn.title}
       </h2>
 
       <p className="mb-6 text-[15px] leading-7 text-[var(--text-secondary)]">
-        {task.summary}
+        {turn.summary}
       </p>
 
       <div className="mb-6 grid grid-cols-2 gap-3">
         <DetailInfoTile
           icon={<Clock3 className="h-4 w-4" />}
           label="最近更新"
-          value={task.lastUpdated}
+          value={turn.lastUpdated}
         />
         <DetailInfoTile
           icon={<MessageSquare className="h-4 w-4" />}
           label="任务来源"
-          value={task.source}
+          value={turn.source}
         />
         <DetailInfoTile
           icon={<Calendar className="h-4 w-4" />}
           label="创建时间"
-          value={task.createdAt}
+          value={turn.createdAt}
         />
         <DetailInfoTile
           icon={<FileText className="h-4 w-4" />}
           label="结果类型"
-          value={`${task.resultTypes.length} 个`}
+          value={`${turn.resultTypes.length} 个`}
         />
       </div>
 
       <div className="mb-6">
         <div className="mb-2 text-[13px] font-medium text-[var(--text-secondary)]">结果类型</div>
         <div className="flex flex-wrap gap-2">
-          {task.resultTypes.map((type) => (
+          {turn.resultTypes.map((type) => (
             <span
               key={type}
               className="rounded-[10px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[14px] text-[var(--text-primary)]"
@@ -495,7 +501,7 @@ function TaskDetailPanel({
       <div className={cn('mb-6 rounded-[12px] border p-4', meta.messageClassName)}>
         <div className="flex items-start gap-2">
           <StatusIcon className={cn('mt-0.5 h-4 w-4 shrink-0', meta.iconClassName)} />
-          <p className="flex-1 text-[14px] leading-6">{task.statusMessage}</p>
+          <p className="flex-1 text-[14px] leading-6">{turn.statusMessage}</p>
         </div>
       </div>
 
@@ -532,7 +538,7 @@ function DetailInfoTile({
   );
 }
 
-function StatusBadge({ status }: { status: RecentTaskRecord['status'] }) {
+function StatusBadge({ status }: { status: ChatTurnRecord['status'] }) {
   const meta = STATUS_META[status];
 
   return (
@@ -543,29 +549,29 @@ function StatusBadge({ status }: { status: RecentTaskRecord['status'] }) {
   );
 }
 
-function mapTaskToViewModel(task: RecentTaskRecord, chatMenuLabel: string): TaskViewModel {
-  const resultTypes = task.artifacts.map((artifact) => RECENT_TASK_ARTIFACT_LABELS[artifact]);
+function mapTurnToViewModel(turn: ChatTurnRecord, chatMenuLabel: string): TurnViewModel {
+  const resultTypes = turn.artifacts.map((artifact) => CHAT_TURN_ARTIFACT_LABELS[artifact]);
 
   return {
-    id: task.id,
-    title: task.title,
-    summary: task.summary,
-    status: task.status,
-    isPinned: Boolean(task.pinnedAt),
+    id: turn.id,
+    title: turn.title,
+    summary: turn.summary,
+    status: turn.status,
+    isPinned: Boolean(turn.pinnedAt),
     resultTypes,
-    lastUpdated: formatRecentTaskRelativeTime(task.updatedAt),
-    createdAt: formatCompactDate(task.createdAt),
+    lastUpdated: formatChatTurnRelativeTime(turn.updatedAt),
+    createdAt: formatCompactDate(turn.createdAt),
     source: chatMenuLabel,
-    statusMessage: buildStatusMessage(task, resultTypes),
+    statusMessage: buildStatusMessage(turn, resultTypes),
   };
 }
 
-function buildStatusMessage(task: RecentTaskRecord, resultTypes: string[]): string {
-  if (task.status === 'failed') {
-    return task.lastError || '任务执行失败，可回到对话重试';
+function buildStatusMessage(turn: ChatTurnRecord, resultTypes: string[]): string {
+  if (turn.status === 'failed') {
+    return turn.lastError || '任务执行失败，可回到对话重试';
   }
 
-  if (task.status === 'running') {
+  if (turn.status === 'running') {
     return '任务仍在处理中，完成后会自动更新状态与结果。';
   }
 

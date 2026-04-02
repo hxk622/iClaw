@@ -57,7 +57,7 @@ import {
   resetIclawWorkspaceToDefaults,
   saveIclawWorkspaceSection,
 } from './lib/iclaw-settings';
-import { readRecentTasks } from './lib/recent-tasks';
+import { readChatTurns } from './lib/chat-turns';
 import {
   ensureChatConversation,
   findChatConversationBySessionKey,
@@ -179,12 +179,12 @@ type ActiveChatRoute = {
   sessionKey: string;
   initialPrompt: string | null;
   initialPromptKey: string | null;
+  focusedTurnId: string | null;
+  focusedTurnKey: string | null;
   initialAgentSlug: string | null;
   initialSkillSlug: string | null;
   initialSkillOption: ComposerSkillOption | null;
   initialStockContext: ComposerStockContext | null;
-  focusTaskId: string | null;
-  focusTaskPrompt: string | null;
 };
 
 type PersistedChatRouteSnapshot = {
@@ -192,17 +192,17 @@ type PersistedChatRouteSnapshot = {
   sessionKey?: unknown;
   initialPrompt?: unknown;
   initialPromptKey?: unknown;
+  focusedTurnId?: unknown;
+  focusedTurnKey?: unknown;
   initialAgentSlug?: unknown;
   initialSkillSlug?: unknown;
   initialSkillOption?: unknown;
   initialStockContext?: unknown;
-  focusTaskId?: unknown;
-  focusTaskPrompt?: unknown;
 };
 
 type PersistedWorkspaceSceneSnapshot = {
   primaryView?: unknown;
-  selectedTaskId?: unknown;
+  selectedTurnId?: unknown;
 };
 
 function normalizeOptionalText(value: unknown): string | null {
@@ -280,12 +280,12 @@ function readPersistedActiveChatRoute(): ActiveChatRoute | null {
     sessionKey: canonicalSessionKey,
     initialPrompt: normalizeOptionalText(snapshot.initialPrompt),
     initialPromptKey: normalizeOptionalText(snapshot.initialPromptKey),
+    focusedTurnId: null,
+    focusedTurnKey: null,
     initialAgentSlug: normalizeOptionalText(snapshot.initialAgentSlug),
     initialSkillSlug: normalizeOptionalText(snapshot.initialSkillSlug),
     initialSkillOption: normalizePersistedSkillOption(snapshot.initialSkillOption),
     initialStockContext: normalizePersistedStockContext(snapshot.initialStockContext),
-    focusTaskId: normalizeOptionalText(snapshot.focusTaskId),
-    focusTaskPrompt: normalizeOptionalText(snapshot.focusTaskPrompt),
   };
 }
 
@@ -303,8 +303,6 @@ function writePersistedActiveChatRoute(route: ActiveChatRoute | null): void {
     initialSkillSlug: route.initialSkillSlug,
     initialSkillOption: route.initialSkillOption,
     initialStockContext: route.initialStockContext,
-    focusTaskId: route.focusTaskId,
-    focusTaskPrompt: route.focusTaskPrompt,
   });
 }
 
@@ -315,12 +313,12 @@ function buildActiveChatRoute(params: {
   title?: string | null;
   initialPrompt?: string | null;
   initialPromptKey?: string | null;
+  focusedTurnId?: string | null;
+  focusedTurnKey?: string | null;
   initialAgentSlug?: string | null;
   initialSkillSlug?: string | null;
   initialSkillOption?: ComposerSkillOption | null;
   initialStockContext?: ComposerStockContext | null;
-  focusTaskId?: string | null;
-  focusTaskPrompt?: string | null;
 }): ActiveChatRoute {
   const sessionKey = canonicalizeChatSessionKey(params.sessionKey);
   const conversation = ensureChatConversation({
@@ -335,49 +333,49 @@ function buildActiveChatRoute(params: {
     sessionKey,
     initialPrompt: params.initialPrompt ?? null,
     initialPromptKey: params.initialPromptKey ?? null,
+    focusedTurnId: params.focusedTurnId ?? null,
+    focusedTurnKey: params.focusedTurnKey ?? null,
     initialAgentSlug: params.initialAgentSlug ?? null,
     initialSkillSlug: params.initialSkillSlug ?? null,
     initialSkillOption: params.initialSkillOption ?? null,
     initialStockContext: params.initialStockContext ?? null,
-    focusTaskId: params.focusTaskId ?? null,
-    focusTaskPrompt: params.focusTaskPrompt ?? null,
   };
 }
 
 function readPersistedWorkspaceScene(): {
   primaryView: string | null;
-  selectedTaskId: string | null;
+  selectedTurnId: string | null;
 } {
   const snapshot = readCacheJson<PersistedWorkspaceSceneSnapshot>(ACTIVE_WORKSPACE_SCENE_STORAGE_KEY);
   if (!snapshot || typeof snapshot !== 'object') {
     return {
       primaryView: null,
-      selectedTaskId: null,
+      selectedTurnId: null,
     };
   }
   return {
     primaryView: normalizeOptionalText(snapshot.primaryView),
-    selectedTaskId: normalizeOptionalText(snapshot.selectedTaskId),
+    selectedTurnId: normalizeOptionalText(snapshot.selectedTurnId),
   };
 }
 
 function writePersistedWorkspaceScene(input: {
   primaryView?: string | null;
-  selectedTaskId?: string | null;
+  selectedTurnId?: string | null;
 }): void {
   const current = readPersistedWorkspaceScene();
   const next = {
     primaryView: input.primaryView === undefined ? current.primaryView : normalizeOptionalText(input.primaryView),
-    selectedTaskId:
-      input.selectedTaskId === undefined ? current.selectedTaskId : normalizeOptionalText(input.selectedTaskId),
+    selectedTurnId:
+      input.selectedTurnId === undefined ? current.selectedTurnId : normalizeOptionalText(input.selectedTurnId),
   };
-  if (!next.primaryView && !next.selectedTaskId) {
+  if (!next.primaryView && !next.selectedTurnId) {
     writeCacheJson(ACTIVE_WORKSPACE_SCENE_STORAGE_KEY, null);
     return;
   }
   writeCacheJson(ACTIVE_WORKSPACE_SCENE_STORAGE_KEY, {
     ...(next.primaryView ? {primaryView: next.primaryView} : {}),
-    ...(next.selectedTaskId ? {selectedTaskId: next.selectedTaskId} : {}),
+    ...(next.selectedTurnId ? {selectedTurnId: next.selectedTurnId} : {}),
   });
 }
 
@@ -396,12 +394,12 @@ function resolveInitialChatRoute(): ActiveChatRoute {
       kind: 'general',
       initialPrompt: persisted.initialPrompt,
       initialPromptKey: persisted.initialPromptKey,
+      focusedTurnId: null,
+      focusedTurnKey: null,
       initialAgentSlug: persisted.initialAgentSlug,
       initialSkillSlug: persisted.initialSkillSlug,
       initialSkillOption: persisted.initialSkillOption,
       initialStockContext: persisted.initialStockContext,
-      focusTaskId: persisted.focusTaskId,
-      focusTaskPrompt: persisted.focusTaskPrompt,
     });
   }
   return createDefaultChatRoute();
@@ -1916,7 +1914,7 @@ function AuthedView({
   const lastResolvedPrimaryViewRef = useRef<PrimaryView | null>(null);
   const chatRuntimeAuthRef = useRef(authenticated);
   const initialChatRouteRef = useRef<ActiveChatRoute>(resolveInitialChatRoute());
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(() => readPersistedWorkspaceScene().selectedTaskId);
+  const [selectedTurnId, setSelectedTurnId] = useState<string | null>(() => readPersistedWorkspaceScene().selectedTurnId);
   const [activeChatRoute, setActiveChatRoute] = useState<ActiveChatRoute>(() => initialChatRouteRef.current);
   const [chatSurfaceEntries, setChatSurfaceEntries] = useState<Record<string, ChatSurfaceEntry>>(() => {
     const initialRoute = initialChatRouteRef.current;
@@ -1981,8 +1979,8 @@ function AuthedView({
   }, [primaryView, resolvedPrimaryView, setPrimaryView]);
 
   useEffect(() => {
-    writePersistedWorkspaceScene({selectedTaskId});
-  }, [selectedTaskId]);
+    writePersistedWorkspaceScene({selectedTurnId});
+  }, [selectedTurnId]);
 
   useEffect(() => {
     const lastView = lastResolvedPrimaryViewRef.current;
@@ -2010,10 +2008,10 @@ function AuthedView({
         existing.route.conversationId === nextEntry.route.conversationId &&
         existing.route.initialPrompt === nextEntry.route.initialPrompt &&
         existing.route.initialPromptKey === nextEntry.route.initialPromptKey &&
+        existing.route.focusedTurnId === nextEntry.route.focusedTurnId &&
+        existing.route.focusedTurnKey === nextEntry.route.focusedTurnKey &&
         existing.route.initialAgentSlug === nextEntry.route.initialAgentSlug &&
         existing.route.initialSkillSlug === nextEntry.route.initialSkillSlug &&
-        existing.route.focusTaskId === nextEntry.route.focusTaskId &&
-        existing.route.focusTaskPrompt === nextEntry.route.focusTaskPrompt &&
         JSON.stringify(existing.route.initialSkillOption) === JSON.stringify(nextEntry.route.initialSkillOption) &&
         JSON.stringify(existing.route.initialStockContext) === JSON.stringify(nextEntry.route.initialStockContext)
       ) {
@@ -2084,12 +2082,12 @@ function AuthedView({
           kind: 'general',
           initialPrompt: nextRoute.initialPrompt,
           initialPromptKey: nextRoute.initialPromptKey,
+          focusedTurnId: nextRoute.focusedTurnId,
+          focusedTurnKey: nextRoute.focusedTurnKey,
           initialAgentSlug: nextRoute.initialAgentSlug,
           initialSkillSlug: nextRoute.initialSkillSlug,
           initialSkillOption: nextRoute.initialSkillOption,
           initialStockContext: nextRoute.initialStockContext,
-          focusTaskId: nextRoute.focusTaskId,
-          focusTaskPrompt: nextRoute.focusTaskPrompt,
         }),
       );
       setPrimaryView('chat');
@@ -2270,8 +2268,6 @@ function AuthedView({
       initialSkillSlug: null,
       initialSkillOption: null,
       initialStockContext: null,
-      focusTaskId: null,
-      focusTaskPrompt: null,
     }));
   };
 
@@ -2291,8 +2287,6 @@ function AuthedView({
       initialSkillSlug: expert.primarySkillSlug,
       initialSkillOption: null,
       initialStockContext: null,
-      focusTaskId: null,
-      focusTaskPrompt: null,
     }));
   };
 
@@ -2318,8 +2312,6 @@ function AuthedView({
         exchange: stock.exchange,
         board: stock.board,
       },
-      focusTaskId: null,
-      focusTaskPrompt: null,
     }));
   };
 
@@ -2347,8 +2339,6 @@ function AuthedView({
         instrumentKind: fund.instrumentKind,
         instrumentLabel: fund.instrumentLabel,
       },
-      focusTaskId: null,
-      focusTaskPrompt: null,
     }));
   };
 
@@ -2367,8 +2357,6 @@ function AuthedView({
         return current;
       }
       if (
-        current.focusTaskId ||
-        current.focusTaskPrompt ||
         current.initialPrompt ||
         current.initialPromptKey ||
         current.initialAgentSlug ||
@@ -2411,32 +2399,54 @@ function AuthedView({
     });
   }, []);
 
-  const handleOpenTaskChat = (taskId: string) => {
-    const task = readRecentTasks().find((item) => item.id === taskId);
-    if (!task?.sessionKey) {
+  const handleOpenTurnChat = (turnId: string) => {
+    const turn = readChatTurns().find((item) => item.id === turnId);
+    if (!turn?.sessionKey) {
       setPrimaryView('task-center');
       return;
     }
 
     const conversation =
-      (task.conversationId ? readChatConversation(task.conversationId) : null) ||
-      findChatConversationBySessionKey(task.sessionKey);
-    const targetSessionKey = conversation?.activeSessionKey || task.sessionKey;
+      (turn.conversationId ? readChatConversation(turn.conversationId) : null) ||
+      findChatConversationBySessionKey(turn.sessionKey);
+    const targetSessionKey = conversation?.activeSessionKey || turn.sessionKey;
 
     openChatRoute(buildActiveChatRoute({
       sessionKey: targetSessionKey,
-      conversationId: conversation?.id || task.conversationId,
-      kind: 'task',
+      conversationId: conversation?.id || turn.conversationId,
+      kind: conversation?.kind ?? 'general',
       initialPrompt: null,
       initialPromptKey: null,
+      focusedTurnId: turn.id,
+      focusedTurnKey: `${turn.id}:${Date.now()}`,
       initialAgentSlug: null,
       initialSkillSlug: null,
       initialSkillOption: null,
       initialStockContext: null,
-      focusTaskId: task.id,
-      focusTaskPrompt: task.prompt,
     }));
   };
+
+  const handleOpenConversation = useCallback((conversationId: string) => {
+    const conversation = readChatConversation(conversationId);
+    if (!conversation?.activeSessionKey) {
+      setPrimaryView('chat');
+      return;
+    }
+
+    openChatRoute(buildActiveChatRoute({
+      sessionKey: conversation.activeSessionKey,
+      conversationId: conversation.id,
+      kind: conversation.kind,
+      initialPrompt: null,
+      initialPromptKey: null,
+      focusedTurnId: null,
+      focusedTurnKey: null,
+      initialAgentSlug: null,
+      initialSkillSlug: null,
+      initialSkillOption: null,
+      initialStockContext: null,
+    }));
+  }, [openChatRoute]);
 
   const handleStartSkillConversation = (skill: SkillStoreItem) => {
     if (desktopUpdateNewRunBlockedReason) {
@@ -2460,8 +2470,6 @@ function AuthedView({
         categoryLabel: skill.categoryLabel,
       },
       initialStockContext: null,
-      focusTaskId: null,
-      focusTaskPrompt: null,
     }));
   };
 
@@ -2581,9 +2589,10 @@ function AuthedView({
     if (viewKey === 'task-center') {
       return (
         <TaskCenterView
-          selectedTaskId={selectedTaskId}
-          onSelectTask={setSelectedTaskId}
-          onOpenChat={() => setPrimaryView('chat')}
+          selectedTurnId={selectedTurnId}
+          onSelectTurn={setSelectedTurnId}
+          onOpenTurnChat={handleOpenTurnChat}
+          onBackToChat={() => setPrimaryView('chat')}
           taskCenterLabel={viewLabel}
           chatMenuLabel={chatMenuLabel}
         />
@@ -2716,7 +2725,7 @@ function AuthedView({
         activeView={resolvedPrimaryView}
         enabledMenuKeys={enabledMenuKeys}
         menuUiConfig={menuUiConfig}
-        selectedTaskId={selectedTaskId}
+        selectedConversationId={activeChatRoute.conversationId}
         authenticated={authenticated}
         onOpenChat={() => setPrimaryView('chat')}
         onStartNewChat={handleStartNewChat}
@@ -2730,9 +2739,7 @@ function AuthedView({
         onOpenSecurity={() => setPrimaryView('security')}
         onOpenImBots={() => setPrimaryView('im-bots')}
         onOpenMemory={() => setPrimaryView('memory')}
-        onOpenTasks={() => setPrimaryView('task-center')}
-        onSelectTask={setSelectedTaskId}
-        onOpenTaskChat={handleOpenTaskChat}
+        onOpenConversation={handleOpenConversation}
         onOpenAccount={() => {
           if (!authenticated) {
             onRequestAuth('login', 'account');
@@ -2788,12 +2795,12 @@ function AuthedView({
                       sessionKey={entry.route.sessionKey}
                       initialPrompt={entry.route.initialPrompt}
                       initialPromptKey={entry.route.initialPromptKey}
+                      focusedTurnId={entry.route.focusedTurnId}
+                      focusedTurnKey={entry.route.focusedTurnKey}
                       initialAgentSlug={entry.route.initialAgentSlug}
                       initialSkillSlug={entry.route.initialSkillSlug}
                       initialSkillOption={entry.route.initialSkillOption}
                       initialStockContext={entry.route.initialStockContext}
-                      focusTaskId={entry.route.focusTaskId}
-                      focusTaskPrompt={entry.route.focusTaskPrompt}
                       shellAuthenticated={chatShellAuthenticated}
                       creditClient={client}
                       creditToken={accessToken}

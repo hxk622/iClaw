@@ -15,7 +15,7 @@ import {
 import type { DesktopUpdateHint } from '@iclaw/sdk';
 import { AvatarDropdown } from './AvatarDropdown';
 import { DesktopUpdateCard } from './DesktopUpdateCard';
-import { RecentTasksList } from './RecentTasksList';
+import { RecentConversationsList } from './RecentConversationsList';
 import { Button } from './ui/Button';
 import { BRAND } from '../lib/brand';
 import type { RequiredResolvedMenuUiConfig } from '../lib/oem-runtime';
@@ -56,7 +56,7 @@ interface SidebarProps {
   activeView?: PrimaryView;
   enabledMenuKeys?: string[] | null;
   menuUiConfig: Record<string, RequiredResolvedMenuUiConfig>;
-  selectedTaskId?: string | null;
+  selectedConversationId?: string | null;
   authenticated?: boolean;
   onOpenChat?: () => void;
   onStartNewChat?: () => void;
@@ -70,9 +70,7 @@ interface SidebarProps {
   onOpenSecurity?: () => void;
   onOpenImBots?: () => void;
   onOpenMemory?: () => void;
-  onOpenTasks?: () => void;
-  onSelectTask?: (taskId: string) => void;
-  onOpenTaskChat?: (taskId: string) => void;
+  onOpenConversation?: (conversationId: string) => void;
   onLogout?: () => void;
   onOpenAccount?: () => void;
   onOpenRechargeCenter?: () => void;
@@ -110,7 +108,7 @@ export function Sidebar({
   activeView = 'chat',
   enabledMenuKeys = null,
   menuUiConfig,
-  selectedTaskId = null,
+  selectedConversationId = null,
   authenticated = false,
   onOpenChat,
   onStartNewChat,
@@ -124,9 +122,7 @@ export function Sidebar({
   onOpenSecurity,
   onOpenImBots,
   onOpenMemory,
-  onOpenTasks,
-  onSelectTask,
-  onOpenTaskChat,
+  onOpenConversation,
   onLogout,
   onOpenAccount,
   onOpenRechargeCenter,
@@ -250,11 +246,10 @@ export function Sidebar({
   };
 
   const configuredMainMenuKeys = (enabledMenuKeys || Object.keys(menuUiConfig)).filter(
-    (key) => key !== 'settings' && key !== 'task-center' && Boolean(menuUiConfig[key]),
+    (key) => key !== 'settings' && Boolean(menuUiConfig[key]),
   );
   const mainItems = configuredMainMenuKeys.map(buildMenuItem);
   const chatEnabled = enabledMenuKeys ? enabledMenuKeys.includes('chat') : true;
-  const taskCenterEnabled = enabledMenuKeys ? enabledMenuKeys.includes('task-center') : true;
   const settingsEnabled = true;
 
   const groupedMainItems = mainItems.reduce(
@@ -363,20 +358,12 @@ export function Sidebar({
     </div>
   );
 
-  const renderRecordGroup = () => (
+  const renderConversationGroup = () => (
     <div className="mb-3">
-      <RecentTasksList
-        title={resolveMenuLabel('task-center')}
-        selectedTaskId={activeView === 'task-center' ? selectedTaskId : null}
-        onOpenAll={onOpenTasks}
-        onSelectTask={(taskId) => {
-          onSelectTask?.(taskId);
-          if (onOpenTaskChat) {
-            onOpenTaskChat(taskId);
-            return;
-          }
-          onOpenTasks?.();
-        }}
+      <RecentConversationsList
+        title="最近对话"
+        selectedConversationId={activeView === 'chat' ? selectedConversationId : null}
+        onSelectConversation={(conversationId) => onOpenConversation?.(conversationId)}
       />
     </div>
   );
@@ -417,7 +404,7 @@ export function Sidebar({
         {groupedMainItems.map((group) => (
           <div key={group.title}>{renderGroup(group.title, group.items)}</div>
         ))}
-        {taskCenterEnabled ? renderRecordGroup() : null}
+        {chatEnabled ? renderConversationGroup() : null}
       </div>
 
       <div className="border-t border-[var(--border-default)] p-3 pb-0">

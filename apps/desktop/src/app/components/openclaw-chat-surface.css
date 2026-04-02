@@ -497,6 +497,17 @@ body {
   margin-bottom: 32px;
 }
 
+.openclaw-chat-surface .chat-group.chat-group--turn-focused {
+  scroll-margin-top: 88px;
+}
+
+.openclaw-chat-surface .chat-group.chat-group--turn-focused .chat-bubble {
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--brand-primary) 24%, transparent),
+    0 12px 28px color-mix(in srgb, var(--brand-primary) 12%, transparent);
+  transition: box-shadow 180ms ease;
+}
+
 .openclaw-chat-surface .chat-group-messages {
   display: flex;
   flex-direction: column;
@@ -1423,6 +1434,148 @@ body {
   flex-direction: column;
   min-height: 0;
   background: var(--bg-page);
+}
+
+.iclaw-chat-stage {
+  gap: 0;
+}
+
+.iclaw-chat-stage__main {
+  flex: 1 1 auto;
+}
+
+.iclaw-chat-stage--artifact-open .iclaw-chat-stage__main {
+  flex: 0 0 60%;
+}
+
+.iclaw-artifact-preview-pane {
+  display: flex;
+  flex: 0 0 40%;
+  min-width: 320px;
+  min-height: 0;
+  flex-direction: column;
+  border-left: 1px solid var(--chat-surface-panel-border);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--chat-surface-panel) 98%, white 2%),
+      color-mix(in srgb, var(--chat-surface-panel-muted) 92%, transparent)
+    );
+}
+
+.iclaw-artifact-preview-pane__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex: 0 0 auto;
+  padding: 14px 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--chat-surface-panel-border) 92%, transparent);
+  background: color-mix(in srgb, var(--chat-surface-panel) 95%, transparent);
+}
+
+.iclaw-artifact-preview-pane__meta {
+  min-width: 0;
+}
+
+.iclaw-artifact-preview-pane__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.iclaw-artifact-preview-pane__path {
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.iclaw-artifact-preview-pane__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border: 1px solid color-mix(in srgb, var(--chat-surface-panel-border) 92%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--chat-surface-panel) 94%, transparent);
+  color: var(--text-secondary);
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease;
+}
+
+.iclaw-artifact-preview-pane__close:hover,
+.iclaw-artifact-preview-pane__close:focus-visible {
+  border-color: color-mix(in srgb, var(--brand-primary) 26%, var(--chat-surface-panel-border));
+  background: color-mix(in srgb, var(--brand-primary) 10%, var(--chat-surface-panel));
+  color: var(--brand-primary);
+}
+
+.iclaw-artifact-preview-pane__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  background: color-mix(in srgb, var(--chat-surface-panel) 98%, transparent);
+}
+
+.iclaw-artifact-preview-pane__loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 20px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.iclaw-artifact-preview-pane__frame {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  border: 0;
+  background: #ffffff;
+}
+
+.iclaw-artifact-preview-pane__markdown {
+  min-height: 100%;
+  padding: 20px 22px 36px;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.72;
+}
+
+.iclaw-artifact-preview-pane__markdown :where(p, ul, ol, pre, blockquote, table) {
+  margin-top: 0;
+  margin-bottom: 14px;
+}
+
+.iclaw-artifact-preview-pane__markdown :where(pre) {
+  overflow: auto;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--chat-surface-panel-border) 82%, transparent);
+  background: color-mix(in srgb, var(--chat-surface-code-bg) 88%, transparent);
+}
+
+.iclaw-artifact-preview-pane__text {
+  min-height: 100%;
+  margin: 0;
+  padding: 18px 20px 28px;
+  color: var(--text-primary);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .openclaw-chat-surface-shell .openclaw-chat-surface,
@@ -4104,6 +4257,24 @@ body {
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 1180px) {
+  .iclaw-chat-stage {
+    flex-direction: column;
+  }
+
+  .iclaw-chat-stage--artifact-open .iclaw-chat-stage__main {
+    flex: 1 1 auto;
+  }
+
+  .iclaw-artifact-preview-pane {
+    flex: 0 0 42%;
+    min-width: 0;
+    min-height: 280px;
+    border-left: 0;
+    border-top: 1px solid var(--chat-surface-panel-border);
   }
 }
 

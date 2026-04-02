@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { readCacheJson, writeCacheJson } from './persistence/cache-store';
 import { tryCanonicalizeChatSessionKey } from './chat-session';
 
@@ -7,8 +8,7 @@ export type ChatConversationKind =
   | 'lobster'
   | 'investment-expert'
   | 'stock-research'
-  | 'fund-research'
-  | 'task';
+  | 'fund-research';
 
 export type ChatConversationHandoffRecord = {
   id: string;
@@ -46,8 +46,16 @@ type LinkConversationSessionInput = {
 };
 
 const CHAT_CONVERSATIONS_STORAGE_KEY = 'iclaw.chat.conversations.v1';
+const CHAT_CONVERSATIONS_UPDATED_EVENT = 'iclaw:chat-conversations:updated';
 const MAX_CONVERSATIONS = 240;
 const MAX_HANDOFFS_PER_CONVERSATION = 32;
+
+function emitChatConversationsUpdated(): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  window.dispatchEvent(new CustomEvent(CHAT_CONVERSATIONS_UPDATED_EVENT));
+}
 
 function normalizeText(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
@@ -64,8 +72,7 @@ function normalizeKind(value: unknown): ChatConversationKind {
     value === 'lobster' ||
     value === 'investment-expert' ||
     value === 'stock-research' ||
-    value === 'fund-research' ||
-    value === 'task'
+    value === 'fund-research'
     ? value
     : 'general';
 }
@@ -157,6 +164,7 @@ function readConversationList(): ChatConversationRecord[] {
 
 function writeConversationList(records: ChatConversationRecord[]): void {
   writeCacheJson(CHAT_CONVERSATIONS_STORAGE_KEY, records.slice(0, MAX_CONVERSATIONS));
+  emitChatConversationsUpdated();
 }
 
 function updateConversationList(
@@ -283,4 +291,38 @@ export function linkSessionToConversation(input: LinkConversationSessionInput): 
   );
 
   return updated.find((record) => record.id === conversationId) ?? null;
+}
+
+export function subscribeChatConversations(listener: () => void): () => void {
+  if (typeof window === 'undefined') {
+    return () => {};
+  }
+
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key && event.key !== CHAT_CONVERSATIONS_STORAGE_KEY) {
+      return;
+    }
+    listener();
+  };
+
+  window.addEventListener('storage', handleStorage);
+  window.addEventListener(CHAT_CONVERSATIONS_UPDATED_EVENT, listener);
+
+  return () => {
+    window.removeEventListener('storage', handleStorage);
+    window.removeEventListener(CHAT_CONVERSATIONS_UPDATED_EVENT, listener);
+  };
+}
+
+export function useChatConversations(): ChatConversationRecord[] {
+  const [conversations, setConversations] = useState<ChatConversationRecord[]>(() => readChatConversations());
+
+  useEffect(() => {
+    setConversations(readChatConversations());
+    return subscribeChatConversations(() => {
+      setConversations(readChatConversations());
+    });
+  }, []);
+
+  return conversations;
 }

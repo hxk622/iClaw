@@ -18,6 +18,7 @@ import {
   normalizeMessage,
   normalizeRoleForGrouping,
 } from '@openclaw-ui/ui/chat/message-normalizer.ts';
+import { toSanitizedMarkdownHtml } from '@openclaw-ui/ui/markdown.ts';
 import './openclaw-chat-surface.css';
 import { Button } from '@/app/components/ui/Button';
 import { EmptyStatePanel } from '@/app/components/ui/EmptyStatePanel';
@@ -51,11 +52,12 @@ import {
   subscribeLobsterStoreEvents,
 } from '../lib/lobster-store';
 import {
-  inferRecentTaskArtifactsFromText,
-  markRecentTaskCompleted,
-  markRecentTaskFailed,
-  startRecentTask,
-} from '../lib/recent-tasks';
+  inferChatTurnArtifactsFromText,
+  markChatTurnCompleted,
+  markChatTurnFailed,
+  readChatTurns,
+  startChatTurn,
+} from '../lib/chat-turns';
 import {
   clearCacheKeysByPrefix,
   clearSessionKeysByPrefix,
@@ -154,6 +156,8 @@ type OpenClawAppElement = HTMLElement & {
   chatAttachments: OpenClawImageAttachment[];
   lastError: string | null;
   lastErrorCode?: string | null;
+  sidebarOpen?: boolean;
+  sidebarContent?: string | null;
   eventLog?: Array<{
     ts: number;
     event: string;
@@ -178,6 +182,8 @@ type OpenClawAppElement = HTMLElement & {
   scrollToBottom: (opts?: { smooth?: boolean }) => void;
   handleSendChat: (message?: string, options?: { restoreDraft?: boolean }) => Promise<void>;
   handleAbortChat: () => Promise<void>;
+  handleOpenSidebar?: (content: string) => void;
+  handleCloseSidebar?: () => void;
 };
 
 type OpenClawChatSurfaceProps = {
@@ -190,12 +196,12 @@ type OpenClawChatSurfaceProps = {
   sessionKey?: string;
   initialPrompt?: string | null;
   initialPromptKey?: string | null;
+  focusedTurnId?: string | null;
+  focusedTurnKey?: string | null;
   initialAgentSlug?: string | null;
   initialSkillSlug?: string | null;
   initialSkillOption?: ComposerSkillOption | null;
   initialStockContext?: ComposerStockContext | null;
-  focusTaskId?: string | null;
-  focusTaskPrompt?: string | null;
   shellAuthenticated?: boolean;
   creditClient?: IClawClient;
   creditToken?: string | null;
@@ -358,6 +364,48 @@ const ARTIFACT_CARD_KEYWORDS = [
   '幻灯片',
   '文档',
 ];
+const ARTIFACT_PREVIEW_HTML_EXTENSIONS = new Set(['html', 'htm']);
+const ARTIFACT_PREVIEW_MARKDOWN_EXTENSIONS = new Set(['md', 'markdown']);
+const ARTIFACT_PREVIEW_TEXT_EXTENSIONS = new Set([
+  'txt',
+  'text',
+  'json',
+  'js',
+  'jsx',
+  'ts',
+  'tsx',
+  'css',
+  'scss',
+  'less',
+  'xml',
+  'yml',
+  'yaml',
+  'csv',
+  'tsv',
+  'sql',
+  'py',
+  'rb',
+  'go',
+  'rs',
+  'java',
+  'kt',
+  'swift',
+  'sh',
+  'bash',
+  'zsh',
+  'c',
+  'cc',
+  'cpp',
+  'h',
+  'hpp',
+  'vue',
+  'svelte',
+  'mdx',
+]);
+const ARTIFACT_PATH_PATTERN = new RegExp(
+  `([^\\s|)\\]}]+?\\.(?:${ARTIFACT_CARD_EXTENSIONS.join('|')}))`,
+  'ig',
+);
 
 type ArtifactAutoOpenState = {
   lastBusy: boolean;
@@ -367,8 +415,8 @@ type ArtifactAutoOpenState = {
   lastOpenedToken: string | null;
 };
 
-type ActiveRecentTaskRun = {
-  taskId: string;
+type ActiveChatTurnRun = {
+  turnId: string;
   baselineError: string | null;
   failureMessage: string | null;
 };
@@ -447,6 +495,17 @@ type DraggedFileSummary = {
   pdfCount: number;
   videoCount: number;
   unsupportedCount: number;
+};
+
+type ArtifactPreviewKind = 'html' | 'markdown' | 'text' | 'unsupported';
+
+type ArtifactPreviewState = {
+  title: string;
+  path: string;
+  kind: ArtifactPreviewKind;
+  content: string | null;
+  loading: boolean;
+  error: string | null;
 };
 
 type ChatSessionSnapshot = {
@@ -776,6 +835,128 @@ function buildToolCardSignature(card: HTMLElement): string {
   return parts.join(' | ');
 }
 
+function extractArtifactExtension(path: string | null): string | null {
+  if (!path) {
+    return null;
+  }
+  const match = /\.([a-z0-9]+)$/i.exec(path.trim());
+  return match?.[1]?.toLowerCase() ?? null;
+}
+
+function resolveArtifactPreviewKind(path: string | null): ArtifactPreviewKind {
+  const extension = extractArtifactExtension(path);
+  if (!extension) {
+    return 'text';
+  }
+  if (ARTIFACT_PREVIEW_HTML_EXTENSIONS.has(extension)) {
+    return 'html';
+  }
+  if (ARTIFACT_PREVIEW_MARKDOWN_EXTENSIONS.has(extension)) {
+    return 'markdown';
+  }
+  if (ARTIFACT_PREVIEW_TEXT_EXTENSIONS.has(extension)) {
+    return 'text';
+  }
+  return 'unsupported';
+}
+
+function sanitizeArtifactPathCandidate(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+  const trimmed = value
+    .trim()
+    .replace(/^["'`]+/, '')
+    .replace(/["'`]+$/, '')
+    .replace(/[),.;:]+$/, '');
+  if (!trimmed) {
+    return null;
+  }
+  return /\.(?:[a-z0-9]+)$/i.test(trimmed) ? trimmed : null;
+}
+
+function extractArtifactPathFromText(text: string): string | null {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized) {
+    return null;
+  }
+
+  const directionalMatch = normalized.match(
+    new RegExp(`(?:from|to|in)\\s+(.+?\\.(?:${ARTIFACT_CARD_EXTENSIONS.join('|')}))(?:\\s*\\(|$)`, 'i'),
+  );
+  const directionalPath = sanitizeArtifactPathCandidate(directionalMatch?.[1] ?? null);
+  if (directionalPath) {
+    return directionalPath;
+  }
+
+  ARTIFACT_PATH_PATTERN.lastIndex = 0;
+  let match: RegExpExecArray | null = null;
+  while ((match = ARTIFACT_PATH_PATTERN.exec(normalized)) !== null) {
+    const candidate = sanitizeArtifactPathCandidate(match[1]);
+    if (candidate) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function extractArtifactPathFromCard(card: HTMLElement): string | null {
+  const candidates = [
+    card.dataset.iclawArtifactPath,
+    ...Array.from(
+      card.querySelectorAll('.chat-tool-card__detail, .chat-tool-card__preview, .chat-tool-card__inline'),
+    ).map((node) => node.textContent ?? ''),
+    buildToolCardSignature(card),
+  ];
+
+  for (const candidate of candidates) {
+    const path = extractArtifactPathFromText(candidate);
+    if (path) {
+      return path;
+    }
+  }
+
+  return null;
+}
+
+function extractArtifactInlineContentFromCard(card: HTMLElement): string | null {
+  const sections = Array.from(
+    card.querySelectorAll('.chat-tool-card__inline, .chat-tool-card__preview, .chat-tool-card__output'),
+  )
+    .map((node) => node.textContent?.trim() ?? '')
+    .filter(Boolean);
+  if (sections.length === 0) {
+    return null;
+  }
+  return sections.join('\n\n');
+}
+
+function buildArtifactPreviewTitle(path: string): string {
+  const normalized = path.replace(/\\/g, '/');
+  const segments = normalized.split('/').filter(Boolean);
+  return segments.at(-1) ?? normalized;
+}
+
+function buildArtifactWorkspaceNameCandidates(path: string, workspaceDir: string | null): string[] {
+  const normalizedPath = path.replace(/\\/g, '/').trim();
+  const normalizedWorkspace = workspaceDir?.replace(/\\/g, '/').replace(/\/+$/, '') ?? null;
+  const candidates = new Set<string>();
+
+  if (normalizedWorkspace && normalizedPath.startsWith(`${normalizedWorkspace}/`)) {
+    candidates.add(normalizedPath.slice(normalizedWorkspace.length + 1));
+  }
+  if (normalizedPath.startsWith('./')) {
+    candidates.add(normalizedPath.slice(2));
+  }
+  candidates.add(normalizedPath);
+  candidates.add(normalizedPath.replace(/^\/+/, ''));
+
+  return Array.from(candidates)
+    .map((candidate) => candidate.trim())
+    .filter((candidate) => Boolean(candidate) && candidate !== '.');
+}
+
 function isLikelyArtifactToolCard(card: HTMLElement): boolean {
   const normalized = buildToolCardSignature(card).toLowerCase();
   if (!normalized) {
@@ -809,7 +990,7 @@ function findLatestArtifactToolCard(host: HTMLElement): HTMLElement | null {
   return null;
 }
 
-function collectLatestArtifactKinds(host: HTMLElement | null): ReturnType<typeof inferRecentTaskArtifactsFromText> {
+function collectLatestArtifactKinds(host: HTMLElement | null): ReturnType<typeof inferChatTurnArtifactsFromText> {
   if (!host) {
     return [];
   }
@@ -823,9 +1004,9 @@ function collectLatestArtifactKinds(host: HTMLElement | null): ReturnType<typeof
       continue;
     }
 
-    const artifacts = new Set<ReturnType<typeof inferRecentTaskArtifactsFromText>[number]>();
+    const artifacts = new Set<ReturnType<typeof inferChatTurnArtifactsFromText>[number]>();
     cards.forEach((card) => {
-      inferRecentTaskArtifactsFromText(buildToolCardSignature(card)).forEach((artifact) => {
+      inferChatTurnArtifactsFromText(buildToolCardSignature(card)).forEach((artifact) => {
         artifacts.add(artifact);
       });
     });
@@ -849,6 +1030,50 @@ function hasVisibleMessageContent(group: HTMLElement): boolean {
 
 function buildNormalizedGroupText(group: HTMLElement): string {
   return group.textContent?.replace(/\s+/g, ' ').trim().toLowerCase() ?? '';
+}
+
+function normalizeTurnFocusText(value: string): string {
+  return value
+    .replace(/\[\[(?:引用|图片|PDF|视频|附件):[\s\S]*?\]\]/g, ' ')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function findFocusedTurnGroup(host: HTMLElement, prompt: string): HTMLElement | null {
+  const normalizedPrompt = normalizeTurnFocusText(prompt);
+  if (!normalizedPrompt) {
+    return null;
+  }
+
+  let bestMatch: { group: HTMLElement; score: number } | null = null;
+  const groups = Array.from(host.querySelectorAll('.chat-group.user')).filter(
+    (node): node is HTMLElement => node instanceof HTMLElement,
+  );
+
+  for (const group of groups) {
+    const textNodes = Array.from(group.querySelectorAll('.chat-text'))
+      .map((node) => normalizeTurnFocusText(node.textContent ?? ''))
+      .filter(Boolean);
+    const normalizedGroupText = textNodes.join(' ').trim();
+    if (!normalizedGroupText) {
+      continue;
+    }
+    if (
+      !normalizedGroupText.includes(normalizedPrompt) &&
+      !normalizedPrompt.includes(normalizedGroupText)
+    ) {
+      continue;
+    }
+
+    const score = Math.min(normalizedGroupText.length, normalizedPrompt.length);
+    if (!bestMatch || score > bestMatch.score) {
+      bestMatch = { group, score };
+    }
+  }
+
+  return bestMatch?.group ?? null;
 }
 
 function isLikelyInternalToolTraceGroup(group: HTMLElement): boolean {
@@ -912,6 +1137,12 @@ function normalizeToolCards(group: HTMLElement): void {
       collapseArtifactToolCardInlineBody(card);
       card.removeAttribute('hidden');
       card.dataset.iclawToolCard = 'artifact';
+      const artifactPath = extractArtifactPathFromCard(card);
+      if (artifactPath) {
+        card.dataset.iclawArtifactPath = artifactPath;
+      } else {
+        delete card.dataset.iclawArtifactPath;
+      }
       return;
     }
     card.setAttribute('hidden', 'true');
@@ -2610,12 +2841,12 @@ export function OpenClawChatSurface({
   sessionKey = 'agent:main:main',
   initialPrompt = null,
   initialPromptKey = null,
+  focusedTurnId = null,
+  focusedTurnKey = null,
   initialAgentSlug = null,
   initialSkillSlug = null,
   initialSkillOption = null,
   initialStockContext = null,
-  focusTaskId = null,
-  focusTaskPrompt = null,
   shellAuthenticated = false,
   creditClient,
   creditToken,
@@ -2639,6 +2870,8 @@ export function OpenClawChatSurface({
   const autoRecoveryAttemptsRef = useRef(0);
   const overloadedGeneralSessionRef = useRef<string | null>(null);
   const initialScrollScheduledRef = useRef(false);
+  const consumedFocusedTurnKeyRef = useRef<string | null>(null);
+  const focusedTurnHighlightTimerRef = useRef<number | null>(null);
   const shellDragDepthRef = useRef(0);
   const artifactAutoOpenStateRef = useRef<ArtifactAutoOpenState>({
     lastBusy: false,
@@ -2652,7 +2885,7 @@ export function OpenClawChatSurface({
   const usageSettlementTimersRef = useRef<number[]>([]);
   const usageSettlementAttemptSequenceRef = useRef(0);
   const usageSettlementDiagnosticsRef = useRef<UsageSettlementAttemptDiagnostic[]>([]);
-  const activeRecentTaskRunRef = useRef<ActiveRecentTaskRun | null>(null);
+  const activeChatTurnRunRef = useRef<ActiveChatTurnRun | null>(null);
   const storedPendingUsageSettlementsRef = useRef<PendingUsageSettlement[]>([]);
   const pendingUsageSettlementsRef = useRef<PendingUsageSettlement[]>([]);
   const queuedMessagesRef = useRef<QueuedComposerMessage[]>([]);
@@ -2710,6 +2943,7 @@ export function OpenClawChatSurface({
   const [globalPendingSettlementCount, setGlobalPendingSettlementCount] = useState(0);
   const [pendingSettlementCount, setPendingSettlementCount] = useState(0);
   const [queuedMessages, setQueuedMessages] = useState<QueuedComposerMessage[]>([]);
+  const [artifactPreview, setArtifactPreview] = useState<ArtifactPreviewState | null>(null);
   const [creditEstimate, setCreditEstimate] = useState<ComposerCreditEstimateState>({
     loading: false,
     low: null,
@@ -2728,6 +2962,15 @@ export function OpenClawChatSurface({
       onBusyStateChange?.(false);
     };
   }, [onBusyStateChange]);
+
+  useEffect(() => {
+    return () => {
+      if (focusedTurnHighlightTimerRef.current != null) {
+        window.clearTimeout(focusedTurnHighlightTimerRef.current);
+        focusedTurnHighlightTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     onPendingBillingStateChange?.(globalPendingSettlementCount > 0);
@@ -2761,6 +3004,8 @@ export function OpenClawChatSurface({
   const sessionModelBootstrapKeyRef = useRef<string | null>(null);
   const responseUsageEnabledSessionKeyRef = useRef<string | null>(null);
   const persistedChatSnapshotRef = useRef<string | null>(null);
+  const artifactPreviewWorkspaceDirRef = useRef<string | null>(null);
+  const artifactPreviewRequestSeqRef = useRef(0);
   const sessionTransitionHideTimerRef = useRef<number | null>(null);
   const surfaceReactivationTimerRef = useRef<number | null>(null);
   const connectionLossTimerRef = useRef<number | null>(null);
@@ -2807,6 +3052,150 @@ export function OpenClawChatSurface({
     usageSettlementTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     usageSettlementTimersRef.current = [];
   }, []);
+
+  const closeArtifactPreview = useCallback(() => {
+    artifactPreviewRequestSeqRef.current += 1;
+    setArtifactPreview(null);
+  }, []);
+
+  const ensureArtifactPreviewWorkspaceDir = useCallback(async (): Promise<string | null> => {
+    if (artifactPreviewWorkspaceDirRef.current) {
+      return artifactPreviewWorkspaceDirRef.current;
+    }
+
+    const app = appRef.current;
+    const request = app?.client?.request;
+    if (!app?.connected || typeof request !== 'function') {
+      return null;
+    }
+
+    try {
+      const result = await request<{workspace?: string} | null>('agents.files.list', {
+        agentId: 'main',
+      });
+      const workspace =
+        typeof result?.workspace === 'string' && result.workspace.trim()
+          ? result.workspace.trim()
+          : null;
+      artifactPreviewWorkspaceDirRef.current = workspace;
+      return workspace;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const openArtifactPreviewFromCard = useCallback(
+    async (card: HTMLElement) => {
+      const app = appRef.current;
+      const request = app?.client?.request;
+      if (!app?.connected || typeof request !== 'function') {
+        return false;
+      }
+
+      app.handleCloseSidebar?.();
+
+      const path = extractArtifactPathFromCard(card);
+      const inlineContent = extractArtifactInlineContentFromCard(card);
+      const previewPath = path ?? 'artifact';
+      const previewKind = resolveArtifactPreviewKind(path);
+      const title = buildArtifactPreviewTitle(previewPath);
+      const requestSeq = artifactPreviewRequestSeqRef.current + 1;
+      artifactPreviewRequestSeqRef.current = requestSeq;
+
+      if (!path && inlineContent) {
+        setArtifactPreview({
+          title,
+          path: previewPath,
+          kind: 'text',
+          content: inlineContent,
+          loading: false,
+          error: null,
+        });
+        return true;
+      }
+
+      if (!path) {
+        setArtifactPreview({
+          title,
+          path: previewPath,
+          kind: 'unsupported',
+          content: null,
+          loading: false,
+          error: '未解析到制品文件路径，当前无法在右侧分屏展示真实内容。',
+        });
+        return false;
+      }
+
+      if (previewKind === 'unsupported') {
+        setArtifactPreview({
+          title,
+          path,
+          kind: previewKind,
+          content: null,
+          loading: false,
+          error: `暂不支持直接预览 ${extractArtifactExtension(path)?.toUpperCase() ?? '该'} 文件，请改成文本/Markdown/HTML 制品后再预览。`,
+        });
+        return false;
+      }
+
+      setArtifactPreview({
+        title,
+        path,
+        kind: previewKind,
+        content: null,
+        loading: true,
+        error: null,
+      });
+
+      const workspaceDir = await ensureArtifactPreviewWorkspaceDir();
+      const nameCandidates = buildArtifactWorkspaceNameCandidates(path, workspaceDir);
+
+      let resolvedContent: string | null = null;
+      let resolvedName: string | null = null;
+      for (const candidateName of nameCandidates) {
+        try {
+          const result = await request<{file?: {content?: string | null}} | null>('agents.files.get', {
+            agentId: 'main',
+            name: candidateName,
+          });
+          if (typeof result?.file?.content === 'string') {
+            resolvedContent = result.file.content;
+            resolvedName = candidateName;
+            break;
+          }
+        } catch {
+          // Try the next candidate before surfacing a failure.
+        }
+      }
+
+      if (artifactPreviewRequestSeqRef.current !== requestSeq) {
+        return true;
+      }
+
+      if (resolvedContent == null) {
+        setArtifactPreview({
+          title,
+          path,
+          kind: previewKind,
+          content: null,
+          loading: false,
+          error: '已识别到制品卡片，但没有从 OpenClaw workspace 读到对应文件内容。',
+        });
+        return false;
+      }
+
+      setArtifactPreview({
+        title,
+        path: resolvedName ?? path,
+        kind: previewKind,
+        content: resolvedContent,
+        loading: false,
+        error: null,
+      });
+      return true;
+    },
+    [ensureArtifactPreviewWorkspaceDir],
+  );
 
   useEffect(() => {
     busyRef.current = status.busy;
@@ -2940,9 +3329,9 @@ export function OpenClawChatSurface({
 
     state.lastOpenedToken = token;
     state.pendingRunSequence = null;
-    candidate.click();
+    void openArtifactPreviewFromCard(candidate);
     return true;
-  }, []);
+  }, [openArtifactPreviewFromCard]);
 
   const queueArtifactAutoOpenScan = useCallback(
     (delay = 80) => {
@@ -3341,7 +3730,7 @@ export function OpenClawChatSurface({
       pendingScanCount: 0,
       lastOpenedToken: null,
     };
-    activeRecentTaskRunRef.current = null;
+    activeChatTurnRunRef.current = null;
     pendingUsageSettlementsRef.current = filterPendingUsageSettlementsForSession(
       storedPendingUsageSettlementsRef.current,
       sessionKey,
@@ -3371,6 +3760,9 @@ export function OpenClawChatSurface({
       estimatedOutputTokens: null,
     });
     persistedChatSnapshotRef.current = null;
+    artifactPreviewWorkspaceDirRef.current = null;
+    artifactPreviewRequestSeqRef.current += 1;
+    setArtifactPreview(null);
   }, [clearArtifactAutoOpenTimers, clearAutoRecoveryTimer, clearUsageSettlementTimers, conversationId, sessionKey]);
 
   useEffect(() => {
@@ -4464,6 +4856,36 @@ export function OpenClawChatSurface({
   }, [closeSelectionMenu, resolveChatSelection]);
 
   useEffect(() => {
+    const host = hostRef.current;
+    if (!host) {
+      return;
+    }
+
+    const handleCardClickCapture = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      const card = target?.closest('.chat-tool-card--clickable') as HTMLElement | null;
+      if (!card || !host.contains(card)) {
+        return;
+      }
+
+      if (card.dataset.iclawToolCard === 'artifact') {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        void openArtifactPreviewFromCard(card);
+        return;
+      }
+
+      if (artifactPreview) {
+        closeArtifactPreview();
+      }
+    };
+
+    host.addEventListener('click', handleCardClickCapture, true);
+    return () => host.removeEventListener('click', handleCardClickCapture, true);
+  }, [artifactPreview, closeArtifactPreview, openArtifactPreviewFromCard]);
+
+  useEffect(() => {
     if (!selectionMenu) {
       return;
     }
@@ -4806,27 +5228,27 @@ export function OpenClawChatSurface({
     return 'OpenClaw 已连接，但聊天线程和输入区都没有渲染出来。更像是当前浏览器实例中的嵌入层兼容问题。';
   })();
 
-  const finalizeRecentTaskRun = useCallback(() => {
-    const activeRun = activeRecentTaskRunRef.current;
+  const finalizeChatTurnRun = useCallback(() => {
+    const activeRun = activeChatTurnRunRef.current;
     if (!activeRun) {
       return;
     }
 
     const artifacts = collectLatestArtifactKinds(hostRef.current);
     if (activeRun.failureMessage) {
-      markRecentTaskFailed({
-        id: activeRun.taskId,
+      markChatTurnFailed({
+        id: activeRun.turnId,
         artifacts,
         error: activeRun.failureMessage,
       });
     } else {
-      markRecentTaskCompleted({
-        id: activeRun.taskId,
+      markChatTurnCompleted({
+        id: activeRun.turnId,
         artifacts,
       });
     }
 
-    activeRecentTaskRunRef.current = null;
+    activeChatTurnRunRef.current = null;
   }, []);
 
   const attemptPendingUsageSettlement = useCallback(async (): Promise<boolean> => {
@@ -5135,12 +5557,12 @@ export function OpenClawChatSurface({
   );
 
   useEffect(() => {
-    if (status.busy || !activeRecentTaskRunRef.current) {
+    if (status.busy || !activeChatTurnRunRef.current) {
       return;
     }
 
-    finalizeRecentTaskRun();
-  }, [finalizeRecentTaskRun, status.busy]);
+    finalizeChatTurnRun();
+  }, [finalizeChatTurnRun, status.busy]);
 
   useEffect(() => {
     if (status.busy) {
@@ -5193,7 +5615,7 @@ export function OpenClawChatSurface({
   useEffect(() => clearUsageSettlementTimers, [clearUsageSettlementTimers]);
 
   useEffect(() => {
-    const activeRun = activeRecentTaskRunRef.current;
+    const activeRun = activeChatTurnRunRef.current;
     if (!status.busy || !activeRun || !status.lastError) {
       return;
     }
@@ -5382,14 +5804,14 @@ export function OpenClawChatSurface({
       }
     }
 
-    const task = startRecentTask({
+    const turn = startChatTurn({
       prompt: payload.prompt,
       conversationId,
       sessionKey,
     });
 
-    activeRecentTaskRunRef.current = {
-      taskId: task.id,
+    activeChatTurnRunRef.current = {
+      turnId: turn.id,
       baselineError: status.lastError,
       failureMessage: null,
     };
@@ -5470,11 +5892,11 @@ export function OpenClawChatSurface({
       window.setTimeout(() => app.scrollToBottom({ smooth: true }), 900);
       window.setTimeout(() => {
         const latestApp = appRef.current;
-        if (!activeRecentTaskRunRef.current) {
+        if (!activeChatTurnRunRef.current) {
           return;
         }
         if (!latestApp?.chatSending && !latestApp?.chatRunId) {
-          finalizeRecentTaskRun();
+          finalizeChatTurnRun();
         }
       }, 420);
       return true;
@@ -5498,12 +5920,12 @@ export function OpenClawChatSurface({
       if (storedPendingUsageSettlementsRef.current.length === 0) {
         clearUsageSettlementTimers();
       }
-      markRecentTaskFailed({
-        id: task.id,
+      markChatTurnFailed({
+        id: turn.id,
         artifacts: collectLatestArtifactKinds(hostRef.current),
         error: detail,
       });
-      activeRecentTaskRunRef.current = null;
+      activeChatTurnRunRef.current = null;
       setStatus((current) => ({
         ...current,
         lastError: isCreditBlockCode(code) ? null : detail,
@@ -5516,7 +5938,7 @@ export function OpenClawChatSurface({
     collectLatestArtifactKinds,
     creditClient,
     creditToken,
-    finalizeRecentTaskRun,
+    finalizeChatTurnRun,
     ensureGatewaySessionPrepared,
     appName,
     conversationId,
@@ -5628,8 +6050,8 @@ export function OpenClawChatSurface({
 
   const handleAbort = useCallback(async () => {
     await appRef.current?.handleAbortChat();
-    if (activeRecentTaskRunRef.current) {
-      activeRecentTaskRunRef.current.failureMessage = '任务已中止';
+    if (activeChatTurnRunRef.current) {
+      activeChatTurnRunRef.current.failureMessage = '任务已中止';
     }
   }, []);
 
@@ -5691,6 +6113,58 @@ export function OpenClawChatSurface({
     consumedInitialPromptKeyRef.current = initialPromptKey;
   }, [initialPrompt, initialPromptKey]);
 
+  useEffect(() => {
+    if (!surfaceVisible || !focusedTurnId) {
+      return;
+    }
+
+    const focusSignal = focusedTurnKey || focusedTurnId;
+    if (!focusSignal || consumedFocusedTurnKeyRef.current === focusSignal) {
+      return;
+    }
+
+    const turn = readChatTurns().find((item) => item.id === focusedTurnId);
+    const prompt = turn?.prompt?.trim() ?? '';
+    if (!prompt) {
+      consumedFocusedTurnKeyRef.current = focusSignal;
+      return;
+    }
+
+    const timers = [0, 180, 520, 1100].map((delay) =>
+      window.setTimeout(() => {
+        const host = hostRef.current;
+        if (!host || consumedFocusedTurnKeyRef.current === focusSignal) {
+          return;
+        }
+
+        const targetGroup = findFocusedTurnGroup(host, prompt);
+        if (!targetGroup) {
+          return;
+        }
+
+        targetGroup.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        host.querySelectorAll('.chat-group--turn-focused').forEach((node) => {
+          node.classList.remove('chat-group--turn-focused');
+        });
+        targetGroup.classList.add('chat-group--turn-focused');
+
+        if (focusedTurnHighlightTimerRef.current != null) {
+          window.clearTimeout(focusedTurnHighlightTimerRef.current);
+        }
+        focusedTurnHighlightTimerRef.current = window.setTimeout(() => {
+          targetGroup.classList.remove('chat-group--turn-focused');
+          focusedTurnHighlightTimerRef.current = null;
+        }, 2200);
+
+        consumedFocusedTurnKeyRef.current = focusSignal;
+      }, delay),
+    );
+
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, [focusedTurnId, focusedTurnKey, renderState.groupCount, renderState.chatMessageCount, surfaceVisible]);
+
   const showWelcomePage =
     ((allowImmediateEmptySessionUi && sessionHistoryState === 'empty') ||
       (!initialSurfaceRestorePending &&
@@ -5703,6 +6177,11 @@ export function OpenClawChatSurface({
     !showSessionTransitionMask &&
     !status.busy &&
     welcomePageConfig?.enabled !== false;
+
+  const artifactPreviewMarkup =
+    artifactPreview?.kind === 'markdown' && artifactPreview.content
+      ? { __html: toSanitizedMarkdownHtml(artifactPreview.content) }
+      : null;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -6288,157 +6767,163 @@ export function OpenClawChatSurface({
           onDropCapture={handleShellDrop}
         >
           <div
-            ref={shellRef}
-            className="openclaw-chat-surface-shell h-full flex-1 overflow-hidden"
-            data-session-transitioning={shellTransitioning ? 'true' : 'false'}
-            data-surface-reactivating={showSurfaceReactivationMask ? 'true' : 'false'}
+            className={`iclaw-chat-stage flex min-h-0 min-w-0 flex-1 overflow-hidden ${
+              artifactPreview ? 'iclaw-chat-stage--artifact-open' : ''
+            }`}
           >
-            <div
-              ref={hostRef}
-              className={`openclaw-chat-surface min-h-0 flex-1 overflow-hidden ${
-                allowImmediateEmptySessionUi ? 'pointer-events-none opacity-0' : ''
-              }`}
-            />
+            <div className="iclaw-chat-stage__main min-h-0 min-w-0 flex-1 overflow-hidden">
+              <div
+                ref={shellRef}
+                className="openclaw-chat-surface-shell h-full flex-1 overflow-hidden"
+                data-session-transitioning={shellTransitioning ? 'true' : 'false'}
+                data-surface-reactivating={showSurfaceReactivationMask ? 'true' : 'false'}
+              >
+                <div
+                  ref={hostRef}
+                  className={`openclaw-chat-surface min-h-0 flex-1 overflow-hidden ${
+                    allowImmediateEmptySessionUi ? 'pointer-events-none opacity-0' : ''
+                  }`}
+                />
 
-            {showWelcomePage ? (
-              <K2CWelcomePage
-                onStartChat={handleWelcomeStartChat}
-                onFillPrompt={handleWelcomeFillPrompt}
-                config={welcomePageConfig}
-              />
-            ) : null}
+                {showWelcomePage ? (
+                  <K2CWelcomePage
+                    onStartChat={handleWelcomeStartChat}
+                    onFillPrompt={handleWelcomeFillPrompt}
+                    config={welcomePageConfig}
+                  />
+                ) : null}
 
-            {showBootMask ? (
-              <ChatSurfaceSkeletonMask
-                mode="boot"
-                label={status.lastError ? '聊天界面恢复失败，正在等待重连' : '正在恢复聊天界面'}
-              />
-            ) : null}
+                {showBootMask ? (
+                  <ChatSurfaceSkeletonMask
+                    mode="boot"
+                    label={status.lastError ? '聊天界面恢复失败，正在等待重连' : '正在恢复聊天界面'}
+                  />
+                ) : null}
 
-            {showSessionTransitionMask ? (
-              <ChatSurfaceSkeletonMask
-                mode="switch"
-                label="正在切换对话，正在同步消息与输入状态"
-              />
-            ) : null}
+                {showSessionTransitionMask ? (
+                  <ChatSurfaceSkeletonMask
+                    mode="switch"
+                    label="正在切换对话，正在同步消息与输入状态"
+                  />
+                ) : null}
 
-            {showSurfaceReactivationMask ? (
-              <ChatSurfaceSkeletonMask
-                mode="switch"
-                label="正在恢复已缓存的对话界面"
-              />
-            ) : null}
+                {showSurfaceReactivationMask ? (
+                  <ChatSurfaceSkeletonMask
+                    mode="switch"
+                    label="正在恢复已缓存的对话界面"
+                  />
+                ) : null}
 
-            {shellDropActive ? (
-              <div className="pointer-events-none absolute inset-3 z-40 flex items-center justify-center rounded-[30px] border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,rgba(255,255,255,0.48))] bg-[color:color-mix(in_srgb,var(--chat-surface-panel)_72%,rgba(255,255,255,0.28)_28%)] backdrop-blur-[14px] shadow-[0_24px_60px_rgba(26,22,18,0.16)]">
-                <div className="flex max-w-[420px] flex-col items-center gap-3 px-6 text-center">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-[18px] border border-[color:color-mix(in_srgb,var(--brand-primary)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white_88%)] text-[var(--brand-primary)] shadow-[0_14px_30px_rgba(0,0,0,0.08)]">
-                    <ImageIcon className="h-6 w-6" />
-                  </div>
-                  <div className="text-[16px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
-                    {dropTitle}
-                  </div>
-                  <div className="text-[14px] leading-7 text-[var(--text-secondary)]">
-                    {dropDescription}
-                  </div>
-                  <div className="flex flex-wrap items-center justify-center gap-2 text-[13px]">
-                    {dropSummary.imageCount > 0 ? (
-                      <span className="iclaw-chat-drop-chip" data-tone="image">
-                        <ImageIcon className="h-3.5 w-3.5" />
-                        图片 {dropSummary.imageCount}
-                      </span>
-                    ) : null}
-                    {dropSummary.pdfCount > 0 ? (
-                      <span className="iclaw-chat-drop-chip" data-tone="pdf">
-                        <FileText className="h-3.5 w-3.5" />
-                        PDF {dropSummary.pdfCount}
-                      </span>
-                    ) : null}
-                    {dropSummary.videoCount > 0 ? (
-                      <span className="iclaw-chat-drop-chip" data-tone="video">
-                        <Film className="h-3.5 w-3.5" />
-                        视频 {dropSummary.videoCount}
-                      </span>
-                    ) : null}
-                    {dropSummary.unsupportedCount > 0 ? (
-                      <span className="iclaw-chat-drop-chip" data-tone="unsupported">
-                        <ScrollText className="h-3.5 w-3.5" />
-                        忽略 {dropSummary.unsupportedCount}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
-            {queuedMessages.length > 0 ? (
-              <div className="iclaw-chat-queue-panel" role="status" aria-live="polite">
-                <div className="iclaw-chat-queue-panel__header">
-                  <div className="iclaw-chat-queue-panel__title">
-                    <MessageSquarePlus className="h-4 w-4" />
-                    <span>已排队 {queuedMessages.length} 条</span>
-                  </div>
-                  <div className="iclaw-chat-queue-panel__subtitle">当前回答结束后会自动顺序发送</div>
-                </div>
-                <div className="iclaw-chat-queue-panel__list">
-                  {queuedMessages.map((item, index) => (
-                    <div key={item.id} className="iclaw-chat-queue-panel__item">
-                      <div className="iclaw-chat-queue-panel__item-main">
-                        <span className="iclaw-chat-queue-panel__item-order">{index + 1}</span>
-                        <div className="iclaw-chat-queue-panel__item-copy">
-                          <div className="iclaw-chat-queue-panel__item-preview" title={item.preview}>
-                            {item.preview}
-                          </div>
-                          <div className="iclaw-chat-queue-panel__item-meta">
-                            {item.attachmentCount > 0 ? `附件 ${item.attachmentCount} 个` : '纯文本'}
-                          </div>
-                        </div>
+                {shellDropActive ? (
+                  <div className="pointer-events-none absolute inset-3 z-40 flex items-center justify-center rounded-[30px] border border-[color:color-mix(in_srgb,var(--brand-primary)_30%,rgba(255,255,255,0.48))] bg-[color:color-mix(in_srgb,var(--chat-surface-panel)_72%,rgba(255,255,255,0.28)_28%)] backdrop-blur-[14px] shadow-[0_24px_60px_rgba(26,22,18,0.16)]">
+                    <div className="flex max-w-[420px] flex-col items-center gap-3 px-6 text-center">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-[18px] border border-[color:color-mix(in_srgb,var(--brand-primary)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,white_88%)] text-[var(--brand-primary)] shadow-[0_14px_30px_rgba(0,0,0,0.08)]">
+                        <ImageIcon className="h-6 w-6" />
                       </div>
-                      <button
-                        type="button"
-                        className="iclaw-chat-queue-panel__remove"
-                        aria-label="移除排队消息"
-                        title="移除排队消息"
-                        onClick={() => removeQueuedMessage(item.id)}
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
+                      <div className="text-[16px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">
+                        {dropTitle}
+                      </div>
+                      <div className="text-[14px] leading-7 text-[var(--text-secondary)]">
+                        {dropDescription}
+                      </div>
+                      <div className="flex flex-wrap items-center justify-center gap-2 text-[13px]">
+                        {dropSummary.imageCount > 0 ? (
+                          <span className="iclaw-chat-drop-chip" data-tone="image">
+                            <ImageIcon className="h-3.5 w-3.5" />
+                            图片 {dropSummary.imageCount}
+                          </span>
+                        ) : null}
+                        {dropSummary.pdfCount > 0 ? (
+                          <span className="iclaw-chat-drop-chip" data-tone="pdf">
+                            <FileText className="h-3.5 w-3.5" />
+                            PDF {dropSummary.pdfCount}
+                          </span>
+                        ) : null}
+                        {dropSummary.videoCount > 0 ? (
+                          <span className="iclaw-chat-drop-chip" data-tone="video">
+                            <Film className="h-3.5 w-3.5" />
+                            视频 {dropSummary.videoCount}
+                          </span>
+                        ) : null}
+                        {dropSummary.unsupportedCount > 0 ? (
+                          <span className="iclaw-chat-drop-chip" data-tone="unsupported">
+                            <ScrollText className="h-3.5 w-3.5" />
+                            忽略 {dropSummary.unsupportedCount}
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
+                  </div>
+                ) : null}
 
-            <RichChatComposer
-              authBaseUrl={authBaseUrl}
-              ref={composerRef}
-              connected={status.connected}
-              busy={status.busy}
-              sendDisabledReason={effectiveSendBlockedReason}
-              dropActive={shellDropActive}
-              sessionTransitioning={shellTransitioning}
-              queueWhileConnecting={allowImmediateEmptySessionUi}
-              lobsterAgents={installedLobsterAgents}
-              skillOptions={skillOptions}
-              initialSelectedAgentSlug={initialAgentSlug}
-              skillSelectionScopeKey={sessionKey}
-              initialSelectedSkillSeedKey={initialPromptKey}
-              initialSelectedSkillSlug={initialSkillSlug}
-              initialSelectedSkillOption={initialSkillOption}
-              initialSelectedStock={initialStockContext}
-              searchStocks={handleSearchStocks}
-              searchFunds={handleSearchFunds}
-              modelOptions={modelOptions}
-              selectedModelId={selectedModelId}
-              modelsLoading={modelsLoading}
-              modelSwitching={modelSwitching}
-              onModelChange={handleModelChange}
-              onDraftChange={setComposerDraft}
-              creditEstimate={composerDraft?.hasContent ? creditEstimate : null}
-              composerConfig={inputComposerConfig}
-              onSend={handleSend}
-              onAbort={handleAbort}
-            />
+                {queuedMessages.length > 0 ? (
+                  <div className="iclaw-chat-queue-panel" role="status" aria-live="polite">
+                    <div className="iclaw-chat-queue-panel__header">
+                      <div className="iclaw-chat-queue-panel__title">
+                        <MessageSquarePlus className="h-4 w-4" />
+                        <span>已排队 {queuedMessages.length} 条</span>
+                      </div>
+                      <div className="iclaw-chat-queue-panel__subtitle">当前回答结束后会自动顺序发送</div>
+                    </div>
+                    <div className="iclaw-chat-queue-panel__list">
+                      {queuedMessages.map((item, index) => (
+                        <div key={item.id} className="iclaw-chat-queue-panel__item">
+                          <div className="iclaw-chat-queue-panel__item-main">
+                            <span className="iclaw-chat-queue-panel__item-order">{index + 1}</span>
+                            <div className="iclaw-chat-queue-panel__item-copy">
+                              <div className="iclaw-chat-queue-panel__item-preview" title={item.preview}>
+                                {item.preview}
+                              </div>
+                              <div className="iclaw-chat-queue-panel__item-meta">
+                                {item.attachmentCount > 0 ? `附件 ${item.attachmentCount} 个` : '纯文本'}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className="iclaw-chat-queue-panel__remove"
+                            aria-label="移除排队消息"
+                            title="移除排队消息"
+                            onClick={() => removeQueuedMessage(item.id)}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                <RichChatComposer
+                  authBaseUrl={authBaseUrl}
+                  ref={composerRef}
+                  connected={status.connected}
+                  busy={status.busy}
+                  sendDisabledReason={effectiveSendBlockedReason}
+                  dropActive={shellDropActive}
+                  sessionTransitioning={shellTransitioning}
+                  queueWhileConnecting={allowImmediateEmptySessionUi}
+                  lobsterAgents={installedLobsterAgents}
+                  skillOptions={skillOptions}
+                  initialSelectedAgentSlug={initialAgentSlug}
+                  skillSelectionScopeKey={sessionKey}
+                  initialSelectedSkillSeedKey={initialPromptKey}
+                  initialSelectedSkillSlug={initialSkillSlug}
+                  initialSelectedSkillOption={initialSkillOption}
+                  initialSelectedStock={initialStockContext}
+                  searchStocks={handleSearchStocks}
+                  searchFunds={handleSearchFunds}
+                  modelOptions={modelOptions}
+                  selectedModelId={selectedModelId}
+                  modelsLoading={modelsLoading}
+                  modelSwitching={modelSwitching}
+                  onModelChange={handleModelChange}
+                  onDraftChange={setComposerDraft}
+                  creditEstimate={composerDraft?.hasContent ? creditEstimate : null}
+                  composerConfig={inputComposerConfig}
+                  onSend={handleSend}
+                  onAbort={handleAbort}
+                />
 
             {surfaceVisible && !showSurfaceReactivationMask && showRenderDiagnosticsCard ? (
               <div className="iclaw-chat-render-card" role="status" aria-live="polite">
@@ -6484,39 +6969,89 @@ export function OpenClawChatSurface({
               </div>
             ) : null}
 
-            {selectionMenu ? (
-              <div
-                ref={selectionMenuRef}
-                className="iclaw-chat-selection-menu"
-                style={{ left: selectionMenu.x, top: selectionMenu.y }}
-                role="menu"
-                aria-label="选中文本操作"
-              >
-                <button type="button" className="iclaw-chat-selection-menu__item" onClick={() => handleSelectionAction('')}>
-                  <MessageSquarePlus className="iclaw-chat-selection-menu__icon" />
-                  追问
-                </button>
-                <button
-                  type="button"
-                  className="iclaw-chat-selection-menu__item"
-                  onClick={() => handleSelectionAction('请总结这段内容的要点。')}
-                >
-                  <ScrollText className="iclaw-chat-selection-menu__icon" />
-                  总结
-                </button>
-                <button
-                  type="button"
-                  className="iclaw-chat-selection-menu__item"
-                  onClick={() => handleSelectionAction('请用更容易理解的话解释这段内容。')}
-                >
-                  <MessageCircleQuestionMark className="iclaw-chat-selection-menu__icon" />
-                  解释
-                </button>
-                <button type="button" className="iclaw-chat-selection-menu__item" onClick={() => void handleSelectionCopy()}>
-                  <Copy className="iclaw-chat-selection-menu__icon" />
-                  复制
-                </button>
+                {selectionMenu ? (
+                  <div
+                    ref={selectionMenuRef}
+                    className="iclaw-chat-selection-menu"
+                    style={{ left: selectionMenu.x, top: selectionMenu.y }}
+                    role="menu"
+                    aria-label="选中文本操作"
+                  >
+                    <button type="button" className="iclaw-chat-selection-menu__item" onClick={() => handleSelectionAction('')}>
+                      <MessageSquarePlus className="iclaw-chat-selection-menu__icon" />
+                      追问
+                    </button>
+                    <button
+                      type="button"
+                      className="iclaw-chat-selection-menu__item"
+                      onClick={() => handleSelectionAction('请总结这段内容的要点。')}
+                    >
+                      <ScrollText className="iclaw-chat-selection-menu__icon" />
+                      总结
+                    </button>
+                    <button
+                      type="button"
+                      className="iclaw-chat-selection-menu__item"
+                      onClick={() => handleSelectionAction('请用更容易理解的话解释这段内容。')}
+                    >
+                      <MessageCircleQuestionMark className="iclaw-chat-selection-menu__icon" />
+                      解释
+                    </button>
+                    <button type="button" className="iclaw-chat-selection-menu__item" onClick={() => void handleSelectionCopy()}>
+                      <Copy className="iclaw-chat-selection-menu__icon" />
+                      复制
+                    </button>
+                  </div>
+                ) : null}
               </div>
+            </div>
+
+            {artifactPreview ? (
+              <aside className="iclaw-artifact-preview-pane">
+                <div className="iclaw-artifact-preview-pane__header">
+                  <div className="iclaw-artifact-preview-pane__meta">
+                    <div className="iclaw-artifact-preview-pane__title">{artifactPreview.title}</div>
+                    <div className="iclaw-artifact-preview-pane__path">{artifactPreview.path}</div>
+                  </div>
+                  <button
+                    type="button"
+                    className="iclaw-artifact-preview-pane__close"
+                    aria-label="关闭制品预览"
+                    title="关闭制品预览"
+                    onClick={closeArtifactPreview}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="iclaw-artifact-preview-pane__body">
+                  {artifactPreview.loading ? (
+                    <div className="iclaw-artifact-preview-pane__loading" role="status" aria-live="polite">
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      正在读取制品内容...
+                    </div>
+                  ) : artifactPreview.error ? (
+                    <EmptyStatePanel
+                      compact
+                      title="右侧分屏暂时没有拿到真实内容"
+                      description={artifactPreview.error}
+                    />
+                  ) : artifactPreview.kind === 'html' ? (
+                    <iframe
+                      title={artifactPreview.title}
+                      className="iclaw-artifact-preview-pane__frame"
+                      sandbox="allow-downloads allow-forms allow-modals allow-popups allow-scripts"
+                      srcDoc={artifactPreview.content ?? ''}
+                    />
+                  ) : artifactPreview.kind === 'markdown' && artifactPreviewMarkup ? (
+                    <div
+                      className="iclaw-artifact-preview-pane__markdown"
+                      dangerouslySetInnerHTML={artifactPreviewMarkup}
+                    />
+                  ) : (
+                    <pre className="iclaw-artifact-preview-pane__text">{artifactPreview.content ?? ''}</pre>
+                  )}
+                </div>
+              </aside>
             ) : null}
           </div>
         </div>
