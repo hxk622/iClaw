@@ -2893,12 +2893,14 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  max-width: min(280px, calc(100vw - 220px));
+  min-width: 0;
+  max-width: min(100%, min(280px, calc(100vw - 220px)));
   margin: 0 4px 0 0;
   padding: 5px 8px 5px 5px;
   border: 1px solid transparent;
   border-radius: 12px;
   vertical-align: baseline;
+  overflow: hidden;
 }
 
 .iclaw-inline-token[data-token-tone='reference'] {
@@ -2976,6 +2978,9 @@ body {
 }
 
 .iclaw-inline-token__label {
+  display: block;
+  min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
