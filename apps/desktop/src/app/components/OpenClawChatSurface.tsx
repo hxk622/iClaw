@@ -4520,6 +4520,11 @@ export function OpenClawChatSurface({
       return;
     }
 
+    if (!surfaceVisible || surfaceReactivating) {
+      setShowConnectionCard(false);
+      return;
+    }
+
     if (hasStableVisibleChat) {
       setShowConnectionCard(false);
       return;
@@ -4554,6 +4559,8 @@ export function OpenClawChatSurface({
     renderState.groupCount,
     sessionHistoryState,
     sessionTransitionVisible,
+    surfaceReactivating,
+    surfaceVisible,
     shellAuthenticated,
     status.connected,
     status.lastError,
@@ -4564,6 +4571,8 @@ export function OpenClawChatSurface({
     if (
       initialSurfaceRestorePending ||
       sessionTransitionVisible ||
+      surfaceReactivating ||
+      !surfaceVisible ||
       !shellAuthenticated ||
       !status.connected ||
       threadReady
@@ -4585,6 +4594,8 @@ export function OpenClawChatSurface({
     initialSurfaceRestorePending,
     shellAuthenticated,
     sessionTransitionVisible,
+    surfaceReactivating,
+    surfaceVisible,
     status.connected,
   ]);
 
@@ -6182,7 +6193,7 @@ export function OpenClawChatSurface({
   return (
     <PageSurface as="div" className="bg-[var(--bg-page)]">
       <div className="flex min-h-0 flex-1 flex-col px-6 pt-3.5 pb-2 lg:px-8">
-        {showRenderDiagnosticsCard ? (
+        {surfaceVisible && !showSurfaceReactivationMask && showRenderDiagnosticsCard ? (
           <div className="mb-4">
             <EmptyStatePanel
               compact
@@ -6202,7 +6213,7 @@ export function OpenClawChatSurface({
           </div>
         ) : null}
 
-        {!status.connected && showConnectionCard ? (
+        {surfaceVisible && !showSurfaceReactivationMask && !status.connected && showConnectionCard ? (
           <div className="mb-4">
             <EmptyStatePanel
               compact
@@ -6427,7 +6438,7 @@ export function OpenClawChatSurface({
               onAbort={handleAbort}
             />
 
-            {showRenderDiagnosticsCard ? (
+            {surfaceVisible && !showSurfaceReactivationMask && showRenderDiagnosticsCard ? (
               <div className="iclaw-chat-render-card" role="status" aria-live="polite">
                 <div className="iclaw-chat-state-card__eyebrow">渲染诊断</div>
                 <div className="iclaw-chat-state-card__title">{renderDiagnosticsMessage}</div>
