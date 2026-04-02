@@ -33,6 +33,18 @@ rsync -a \
 echo "Restarting PM2 app: ${ICLAW_CONTROL_PLANE_PM2_APP}"
 ssh "${REMOTE}" "cd ${ICLAW_CONTROL_PLANE_PATH} && pm2 restart ${ICLAW_CONTROL_PLANE_PM2_APP}"
 
+echo "Waiting for control-plane health on prod"
+ssh "${REMOTE}" '
+for _ in $(seq 1 40); do
+  if curl -fsS http://127.0.0.1:2130/health >/dev/null 2>&1; then
+    exit 0
+  fi
+  sleep 1
+done
+echo "control-plane health check timed out after restart" >&2
+exit 1
+'
+
 echo "Verifying desktop CORS on prod"
 curl -i -X OPTIONS \
   -H 'Origin: tauri://localhost' \
