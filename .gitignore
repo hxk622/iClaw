@@ -43,4 +43,5 @@ home-web/brand.generated.js
 home-web/public/brand/
 .tmp-brand-state/
 .tmp-packaging/
+.tmp-*/
 config/*.local.json
