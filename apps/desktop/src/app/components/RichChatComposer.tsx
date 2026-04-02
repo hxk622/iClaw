@@ -140,6 +140,12 @@ type RecentSelectionBucket = 'agents' | 'skills' | 'modes' | 'markets' | 'watchl
 
 type RecentSelectionState = Record<RecentSelectionBucket, string[]>;
 
+type SelectorRecentMenuKey = 'expert' | 'skill' | 'mode' | 'market' | 'watchlist' | 'output';
+
+type SelectorRecentView = 'recent' | 'all';
+
+type SelectorRecentViewState = Record<SelectorRecentMenuKey, SelectorRecentView>;
+
 type ComposerMenuSource = 'toolbar' | 'typing';
 
 type ComposerFloatingMenuPosition = {
@@ -299,6 +305,15 @@ const EMPTY_RECENT_SELECTIONS: RecentSelectionState = {
   outputs: [],
 };
 
+const DEFAULT_SELECTOR_RECENT_VIEWS: SelectorRecentViewState = {
+  expert: 'all',
+  skill: 'all',
+  mode: 'all',
+  market: 'all',
+  watchlist: 'all',
+  output: 'all',
+};
+
 function createComposerId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -417,6 +432,10 @@ function withRecentSelection(
     [bucket]: [value, ...state[bucket].filter((item) => item !== value)].slice(0, MAX_RECENT_SELECTIONS),
   };
   return next;
+}
+
+function resolveSelectorRecentView(hasRecent: boolean): SelectorRecentView {
+  return hasRecent ? 'recent' : 'all';
 }
 
 function buildTokenMarker(token: ComposerTokenMeta): string {
@@ -729,6 +748,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const [stockHasMore, setStockHasMore] = useState(false);
     const [stockNextOffset, setStockNextOffset] = useState<number | null>(null);
     const [recentSelections, setRecentSelections] = useState<RecentSelectionState>(EMPTY_RECENT_SELECTIONS);
+    const [selectorRecentViews, setSelectorRecentViews] = useState<SelectorRecentViewState>(DEFAULT_SELECTOR_RECENT_VIEWS);
     const [activeQuickQueryId, setActiveQuickQueryId] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const submitInFlightRef = useRef(false);
@@ -788,6 +808,25 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       label: option.label,
       detail: option.description,
     }));
+    const groupedSkills = groupSkillOptions(skillOptions);
+    const recentAgentOptions = recentSelections.agents
+      .map((slug) => lobsterAgents.find((option) => option.slug === slug) ?? null)
+      .filter((option): option is ComposerAgentOption => Boolean(option));
+    const recentSkillOptions = recentSelections.skills
+      .map((slug) => skillOptions.find((option) => option.slug === slug) ?? null)
+      .filter((option): option is ComposerSkillOption => Boolean(option));
+    const recentModeOptions = recentSelections.modes
+      .map((value) => findStaticOption(modeOptions, value))
+      .filter((option): option is ComposerStaticOption => Boolean(option));
+    const recentMarketOptions = recentSelections.markets
+      .map((value) => findStaticOption(marketScopeOptions, value))
+      .filter((option): option is ComposerStaticOption => Boolean(option));
+    const recentWatchlistOptions = recentSelections.watchlists
+      .map((value) => findStaticOption(watchlistOptions, value))
+      .filter((option): option is ComposerStaticOption => Boolean(option));
+    const recentOutputOptions = recentSelections.outputs
+      .map((value) => findStaticOption(outputOptions, value))
+      .filter((option): option is ComposerStaticOption => Boolean(option));
 
     const refreshState = useCallback(() => {
       const editor = editorRef.current;
@@ -1097,6 +1136,31 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         const next = withRecentSelection(current, bucket, value);
         writeRecentSelections(next);
         return next;
+      });
+    }, []);
+
+    const setSelectorRecentView = useCallback((menuKey: SelectorRecentMenuKey, view: SelectorRecentView) => {
+      setSelectorRecentViews((current) => {
+        if (current[menuKey] === view) {
+          return current;
+        }
+        return {
+          ...current,
+          [menuKey]: view,
+        };
+      });
+    }, []);
+
+    const primeSelectorRecentView = useCallback((menuKey: SelectorRecentMenuKey, hasRecent: boolean) => {
+      const nextView = resolveSelectorRecentView(hasRecent);
+      setSelectorRecentViews((current) => {
+        if (current[menuKey] === nextView) {
+          return current;
+        }
+        return {
+          ...current,
+          [menuKey]: nextView,
+        };
       });
     }, []);
 
@@ -1423,6 +1487,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         return;
       }
       pendingMentionTriggerRef.current = source === 'typing';
+      primeSelectorRecentView('expert', recentAgentOptions.length > 0);
       setMentionMenuSource(source);
       closeStockMenu();
       closeSkillMenu();
@@ -1437,7 +1502,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
           syncMentionMenuPosition();
         });
       }
-    }, [closeMarketMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, connected, syncMentionMenuPosition]);
+    }, [closeMarketMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, connected, primeSelectorRecentView, recentAgentOptions.length, syncMentionMenuPosition]);
 
     const openStockMenu = useCallback((source: ComposerMenuSource, kind: ComposerInstrumentMenuKind = 'stock') => {
       if (!connected) {
@@ -1466,6 +1531,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       if (!connected) {
         return;
       }
+      primeSelectorRecentView('skill', recentSkillOptions.length > 0);
       setModelMenuOpen(false);
       closeMentionMenu();
       closeStockMenu();
@@ -1474,12 +1540,13 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       closeWatchlistMenu();
       closeOutputMenu();
       setSkillMenuOpen(true);
-    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeStockMenu, closeWatchlistMenu, connected]);
+    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeStockMenu, closeWatchlistMenu, connected, primeSelectorRecentView, recentSkillOptions.length]);
 
     const openModeMenu = useCallback(() => {
       if (!connected) {
         return;
       }
+      primeSelectorRecentView('mode', recentModeOptions.length > 0);
       setModelMenuOpen(false);
       closeMentionMenu();
       closeSkillMenu();
@@ -1488,12 +1555,13 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       closeWatchlistMenu();
       closeOutputMenu();
       setModeMenuOpen(true);
-    }, [closeMarketMenu, closeMentionMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, connected]);
+    }, [closeMarketMenu, closeMentionMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, connected, primeSelectorRecentView, recentModeOptions.length]);
 
     const openMarketMenu = useCallback(() => {
       if (!connected) {
         return;
       }
+      primeSelectorRecentView('market', recentMarketOptions.length > 0);
       setModelMenuOpen(false);
       closeMentionMenu();
       closeSkillMenu();
@@ -1502,12 +1570,13 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       closeWatchlistMenu();
       closeOutputMenu();
       setMarketMenuOpen(true);
-    }, [closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, connected]);
+    }, [closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, connected, primeSelectorRecentView, recentMarketOptions.length]);
 
     const openWatchlistMenu = useCallback(() => {
       if (!connected) {
         return;
       }
+      primeSelectorRecentView('watchlist', recentWatchlistOptions.length > 0);
       setModelMenuOpen(false);
       closeMentionMenu();
       closeSkillMenu();
@@ -1516,12 +1585,13 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       closeStockMenu();
       closeOutputMenu();
       setWatchlistMenuOpen(true);
-    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, connected]);
+    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeOutputMenu, closeSkillMenu, closeStockMenu, connected, primeSelectorRecentView, recentWatchlistOptions.length]);
 
     const openOutputMenu = useCallback(() => {
       if (!connected) {
         return;
       }
+      primeSelectorRecentView('output', recentOutputOptions.length > 0);
       setModelMenuOpen(false);
       closeMentionMenu();
       closeSkillMenu();
@@ -1530,7 +1600,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       closeWatchlistMenu();
       closeStockMenu();
       setOutputMenuOpen(true);
-    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, connected]);
+    }, [closeMarketMenu, closeMentionMenu, closeModeMenu, closeSkillMenu, closeStockMenu, closeWatchlistMenu, connected, primeSelectorRecentView, recentOutputOptions.length]);
 
     const selectSkill = useCallback((slug: string | null) => {
       setSelectedSkillSlug(slug);
@@ -2223,25 +2293,6 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
         : null);
     const watchlistControl = topBarControlMap.get('watchlist')?.item || null;
     const outputControl = topBarControlMap.get('output-format')?.item || null;
-    const groupedSkills = groupSkillOptions(skillOptions);
-    const recentAgentOptions = recentSelections.agents
-      .map((slug) => lobsterAgents.find((option) => option.slug === slug) ?? null)
-      .filter((option): option is ComposerAgentOption => Boolean(option));
-    const recentSkillOptions = recentSelections.skills
-      .map((slug) => skillOptions.find((option) => option.slug === slug) ?? null)
-      .filter((option): option is ComposerSkillOption => Boolean(option));
-    const recentModeOptions = recentSelections.modes
-      .map((value) => findStaticOption(modeOptions, value))
-      .filter((option): option is ComposerStaticOption => Boolean(option));
-    const recentMarketOptions = recentSelections.markets
-      .map((value) => findStaticOption(marketScopeOptions, value))
-      .filter((option): option is ComposerStaticOption => Boolean(option));
-    const recentWatchlistOptions = recentSelections.watchlists
-      .map((value) => findStaticOption(watchlistOptions, value))
-      .filter((option): option is ComposerStaticOption => Boolean(option));
-    const recentOutputOptions = recentSelections.outputs
-      .map((value) => findStaticOption(outputOptions, value))
-      .filter((option): option is ComposerStaticOption => Boolean(option));
     const creditEstimateText = creditEstimate
       ? creditEstimate.loading
         ? '正在估算龙虾币...'
@@ -2304,6 +2355,46 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const stockSearchPlaceholder =
       stockMenuKind === 'stock' ? '搜索股票代码或名称' : '搜索基金、ETF 或代码';
     const stockMenuSearchVisible = stockMenuSource === 'toolbar';
+    const expertMenuView = selectorRecentViews.expert;
+    const skillMenuView = selectorRecentViews.skill;
+    const modeMenuView = selectorRecentViews.mode;
+    const marketMenuView = selectorRecentViews.market;
+    const watchlistMenuView = selectorRecentViews.watchlist;
+    const outputMenuView = selectorRecentViews.output;
+    const renderSelectorViewSwitcher = (
+      menuKey: SelectorRecentMenuKey,
+      currentView: SelectorRecentView,
+      label: string,
+      hasRecent: boolean,
+    ) => {
+      if (!hasRecent) {
+        return null;
+      }
+      return (
+        <div className="iclaw-composer__selector-view-switcher" role="tablist" aria-label={`${label}视图`}>
+          <button
+            type="button"
+            className="iclaw-composer__selector-view-tab"
+            role="tab"
+            aria-selected={currentView === 'recent'}
+            data-active={currentView === 'recent' ? 'true' : 'false'}
+            onClick={() => setSelectorRecentView(menuKey, 'recent')}
+          >
+            最近
+          </button>
+          <button
+            type="button"
+            className="iclaw-composer__selector-view-tab"
+            role="tab"
+            aria-selected={currentView === 'all'}
+            data-active={currentView === 'all' ? 'true' : 'false'}
+            onClick={() => setSelectorRecentView(menuKey, 'all')}
+          >
+            全部
+          </button>
+        </div>
+      );
+    };
     const handleStockListScroll = (event: UIEvent<HTMLDivElement>) => {
       const target = event.currentTarget;
       const distanceToBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
@@ -2323,6 +2414,8 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
           <span className="iclaw-composer__selector-menu-pill">{selectedAgent ? '已指定' : '默认'}</span>
         </div>
         <div className="iclaw-composer__selector-menu-body">
+          {renderSelectorViewSwitcher('expert', expertMenuView, '专家', recentAgentOptions.length > 0)}
+          <div className="iclaw-composer__selector-section-title">默认</div>
           <button
             type="button"
             className="iclaw-composer__skill-option"
@@ -2340,31 +2433,38 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
             </span>
             {!selectedAgent ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
           </button>
-          {recentAgentOptions.length > 0 ? (
+          {expertMenuView === 'recent' ? (
             <>
-              <div className="iclaw-composer__selector-section-title">最近使用</div>
-              <div className="iclaw-composer__selector-recent-strip">
+              {recentAgentOptions.length > 0 ? <div className="iclaw-composer__selector-section-title">最近使用</div> : null}
+              <div className="iclaw-composer__selector-recent-list">
                 {recentAgentOptions.map((agent) => (
                   <button
                     key={agent.slug}
                     type="button"
-                    className="iclaw-composer__selector-recent-item"
+                    className="iclaw-composer__skill-option"
                     data-active={selectedAgent?.slug === agent.slug ? 'true' : 'false'}
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => insertAgentMention(agent)}
                   >
-                    <span className="iclaw-composer__selector-recent-avatar">
-                      <img src={agent.avatarSrc} alt={agent.name} className="iclaw-composer__selector-recent-avatar-image" />
+                    <span className="iclaw-composer__skill-option-main">
+                      <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--expert iclaw-composer__selector-icon--menu">
+                        <img src={agent.avatarSrc} alt={agent.name} className="iclaw-composer__selector-avatar-image" />
+                      </span>
+                      <span className="iclaw-composer__skill-option-copy">
+                        <span className="iclaw-composer__skill-option-label">{agent.name}</span>
+                        <span className="iclaw-composer__skill-option-detail">快速指定该专家接管本轮回答</span>
+                      </span>
                     </span>
-                    <span className="iclaw-composer__selector-recent-text">{agent.name}</span>
+                    {selectedAgent?.slug === agent.slug ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
                   </button>
                 ))}
               </div>
+              {recentAgentOptions.length === 0 ? <div className="iclaw-composer__mention-empty">还没有最近使用的专家</div> : null}
             </>
           ) : null}
-          {lobsterAgents.length > 0 ? <div className="iclaw-composer__selector-section-title">已安装专家</div> : null}
+          {expertMenuView === 'all' && lobsterAgents.length > 0 ? <div className="iclaw-composer__selector-section-title">已安装专家</div> : null}
         </div>
-        {lobsterAgents.length > 0 ? (
+        {expertMenuView === 'all' && lobsterAgents.length > 0 ? (
           <div className="iclaw-composer__mention-grid">
             {lobsterAgents.map((agent) => (
               <button
@@ -2381,9 +2481,9 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
               </button>
             ))}
           </div>
-        ) : (
+        ) : expertMenuView === 'all' ? (
           <div className="iclaw-composer__mention-empty">还没有已安装的龙虾专家</div>
-        )}
+        ) : null}
       </div>
     );
 
@@ -2615,6 +2715,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                       </span>
                     </div>
                     <div className="iclaw-composer__skill-list">
+                      {renderSelectorViewSwitcher('skill', skillMenuView, '技能', recentSkillOptions.length > 0)}
                       <div className="iclaw-composer__selector-section-title">默认</div>
                       <button
                         type="button"
@@ -2635,38 +2736,16 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                       </button>
                       {skillOptions.length > 0 ? (
                         <>
-                          {recentSkillOptions.length > 0 ? (
+                          {skillMenuView === 'recent' ? (
                             <>
-                              <div className="iclaw-composer__selector-section-title">最近使用</div>
-                              <div className="iclaw-composer__selector-recent-strip">
+                              {recentSkillOptions.length > 0 ? <div className="iclaw-composer__selector-section-title">最近使用</div> : null}
+                              <div className="iclaw-composer__selector-recent-list">
                                 {recentSkillOptions.map((skill) => (
                                   <button
                                     key={skill.slug}
                                     type="button"
-                                    className="iclaw-composer__selector-recent-item"
-                                    data-active={selectedSkillSlug === skill.slug ? 'true' : 'false'}
-                                    onClick={() => selectSkill(skill.slug)}
-                                  >
-                                    <span className="iclaw-composer__selector-recent-icon iclaw-composer__selector-recent-icon--skill">
-                                      <Sparkles className="h-3 w-3" />
-                                    </span>
-                                    <span className="iclaw-composer__selector-recent-text">{skill.name}</span>
-                                  </button>
-                                ))}
-                              </div>
-                            </>
-                          ) : null}
-                          {groupedSkills.map((group) => (
-                            <div key={group.label} className="iclaw-composer__selector-section-block">
-                              <div className="iclaw-composer__selector-section-title">{group.label}</div>
-                              {group.items.map((skill) => {
-                                const active = skill.slug === selectedSkillSlug;
-                                return (
-                                  <button
-                                    key={skill.slug}
-                                    type="button"
                                     className="iclaw-composer__skill-option"
-                                    data-active={active ? 'true' : 'false'}
+                                    data-active={selectedSkillSlug === skill.slug ? 'true' : 'false'}
                                     onClick={() => selectSkill(skill.slug)}
                                   >
                                     <span className="iclaw-composer__skill-option-main">
@@ -2680,12 +2759,45 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                                         </span>
                                       </span>
                                     </span>
-                                    {active ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
+                                    {selectedSkillSlug === skill.slug ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
                                   </button>
-                                );
-                              })}
-                            </div>
-                          ))}
+                                ))}
+                              </div>
+                              {recentSkillOptions.length === 0 ? <div className="iclaw-composer__mention-empty">还没有最近使用的技能</div> : null}
+                            </>
+                          ) : null}
+                          {skillMenuView === 'all'
+                            ? groupedSkills.map((group) => (
+                                <div key={group.label} className="iclaw-composer__selector-section-block">
+                                  <div className="iclaw-composer__selector-section-title">{group.label}</div>
+                                  {group.items.map((skill) => {
+                                    const active = skill.slug === selectedSkillSlug;
+                                    return (
+                                      <button
+                                        key={skill.slug}
+                                        type="button"
+                                        className="iclaw-composer__skill-option"
+                                        data-active={active ? 'true' : 'false'}
+                                        onClick={() => selectSkill(skill.slug)}
+                                      >
+                                        <span className="iclaw-composer__skill-option-main">
+                                          <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--skill iclaw-composer__selector-icon--menu">
+                                            <Sparkles className="h-3.5 w-3.5" />
+                                          </span>
+                                          <span className="iclaw-composer__skill-option-copy">
+                                            <span className="iclaw-composer__skill-option-label">{skill.name}</span>
+                                            <span className="iclaw-composer__skill-option-detail">
+                                              {skill.market} · {skill.skillType}
+                                            </span>
+                                          </span>
+                                        </span>
+                                        {active ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              ))
+                            : null}
                         </>
                       ) : (
                         <div className="iclaw-composer__mention-empty">还没有可用技能</div>
@@ -2742,6 +2854,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                       <span className="iclaw-composer__selector-menu-pill">{selectedModeOption?.label ?? '默认'}</span>
                     </div>
                     <div className="iclaw-composer__skill-list">
+                      {renderSelectorViewSwitcher('mode', modeMenuView, '模式', recentModeOptions.length > 0)}
                       <div className="iclaw-composer__selector-section-title">默认</div>
                       <button
                         type="button"
@@ -2760,51 +2873,60 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                         </span>
                         {!selectedMode ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
                       </button>
-                      {recentModeOptions.length > 0 ? (
+                      {modeMenuView === 'recent' ? (
                         <>
-                          <div className="iclaw-composer__selector-section-title">最近使用</div>
-                          <div className="iclaw-composer__selector-recent-strip">
+                          {recentModeOptions.length > 0 ? <div className="iclaw-composer__selector-section-title">最近使用</div> : null}
+                          <div className="iclaw-composer__selector-recent-list">
                             {recentModeOptions.map((option) => (
                               <button
                                 key={option.value}
                                 type="button"
-                                className="iclaw-composer__selector-recent-item"
+                                className="iclaw-composer__skill-option"
                                 data-active={selectedMode === option.value ? 'true' : 'false'}
                                 onClick={() => selectMode(option.value)}
                               >
-                                <span className="iclaw-composer__selector-recent-icon iclaw-composer__selector-recent-icon--mode">
-                                  <SlidersHorizontal className="h-3 w-3" />
+                                <span className="iclaw-composer__skill-option-main">
+                                  <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--mode iclaw-composer__selector-icon--menu">
+                                    <SlidersHorizontal className="h-3.5 w-3.5" />
+                                  </span>
+                                  <span className="iclaw-composer__skill-option-copy">
+                                    <span className="iclaw-composer__skill-option-label">{option.label}</span>
+                                    <span className="iclaw-composer__skill-option-detail">{option.detail}</span>
+                                  </span>
                                 </span>
-                                <span className="iclaw-composer__selector-recent-text">{option.label}</span>
+                                {selectedMode === option.value ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
                               </button>
                             ))}
                           </div>
+                          {recentModeOptions.length === 0 ? <div className="iclaw-composer__mention-empty">还没有最近使用的模式</div> : null}
                         </>
                       ) : null}
-                      <div className="iclaw-composer__selector-section-title">可选模式</div>
-                      {modeOptions.map((option) => {
-                        const active = option.value === selectedMode;
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            className="iclaw-composer__skill-option"
-                            data-active={active ? 'true' : 'false'}
-                            onClick={() => selectMode(option.value)}
-                          >
-                            <span className="iclaw-composer__skill-option-main">
-                              <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--mode iclaw-composer__selector-icon--menu">
-                                <SlidersHorizontal className="h-3.5 w-3.5" />
-                              </span>
-                              <span className="iclaw-composer__skill-option-copy">
-                                <span className="iclaw-composer__skill-option-label">{option.label}</span>
-                                <span className="iclaw-composer__skill-option-detail">{option.detail}</span>
-                              </span>
-                            </span>
-                            {active ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
-                          </button>
-                        );
-                      })}
+                      {modeMenuView === 'all' ? <div className="iclaw-composer__selector-section-title">可选模式</div> : null}
+                      {modeMenuView === 'all'
+                        ? modeOptions.map((option) => {
+                            const active = option.value === selectedMode;
+                            return (
+                              <button
+                                key={option.value}
+                                type="button"
+                                className="iclaw-composer__skill-option"
+                                data-active={active ? 'true' : 'false'}
+                                onClick={() => selectMode(option.value)}
+                              >
+                                <span className="iclaw-composer__skill-option-main">
+                                  <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--mode iclaw-composer__selector-icon--menu">
+                                    <SlidersHorizontal className="h-3.5 w-3.5" />
+                                  </span>
+                                  <span className="iclaw-composer__skill-option-copy">
+                                    <span className="iclaw-composer__skill-option-label">{option.label}</span>
+                                    <span className="iclaw-composer__skill-option-detail">{option.detail}</span>
+                                  </span>
+                                </span>
+                                {active ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
+                              </button>
+                            );
+                          })
+                        : null}
                     </div>
                   </div>
                 ) : null}
@@ -2857,6 +2979,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                       <span className="iclaw-composer__selector-menu-pill">{selectedMarketScopeOption?.label ?? '默认'}</span>
                     </div>
                     <div className="iclaw-composer__skill-list">
+                      {renderSelectorViewSwitcher('market', marketMenuView, '市场', recentMarketOptions.length > 0)}
                       <div className="iclaw-composer__selector-section-title">默认</div>
                       <button
                         type="button"
@@ -2875,51 +2998,60 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                         </span>
                         {!selectedMarketScope ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
                       </button>
-                      {recentMarketOptions.length > 0 ? (
+                      {marketMenuView === 'recent' ? (
                         <>
-                          <div className="iclaw-composer__selector-section-title">最近使用</div>
-                          <div className="iclaw-composer__selector-recent-strip">
+                          {recentMarketOptions.length > 0 ? <div className="iclaw-composer__selector-section-title">最近使用</div> : null}
+                          <div className="iclaw-composer__selector-recent-list">
                             {recentMarketOptions.map((option) => (
                               <button
                                 key={option.value}
                                 type="button"
-                                className="iclaw-composer__selector-recent-item"
+                                className="iclaw-composer__skill-option"
                                 data-active={selectedMarketScope === option.value ? 'true' : 'false'}
                                 onClick={() => selectMarketScope(option.value)}
                               >
-                                <span className="iclaw-composer__selector-recent-icon iclaw-composer__selector-recent-icon--market">
-                                  <Globe className="h-3 w-3" />
+                                <span className="iclaw-composer__skill-option-main">
+                                  <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--market iclaw-composer__selector-icon--menu">
+                                    <Globe className="h-3.5 w-3.5" />
+                                  </span>
+                                  <span className="iclaw-composer__skill-option-copy">
+                                    <span className="iclaw-composer__skill-option-label">{option.label}</span>
+                                    <span className="iclaw-composer__skill-option-detail">{option.detail}</span>
+                                  </span>
                                 </span>
-                                <span className="iclaw-composer__selector-recent-text">{option.label}</span>
+                                {selectedMarketScope === option.value ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
                               </button>
                             ))}
                           </div>
+                          {recentMarketOptions.length === 0 ? <div className="iclaw-composer__mention-empty">还没有最近使用的市场范围</div> : null}
                         </>
                       ) : null}
-                      <div className="iclaw-composer__selector-section-title">可选范围</div>
-                      {marketScopeOptions.map((option) => {
-                        const active = option.value === selectedMarketScope;
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            className="iclaw-composer__skill-option"
-                            data-active={active ? 'true' : 'false'}
-                            onClick={() => selectMarketScope(option.value)}
-                          >
-                            <span className="iclaw-composer__skill-option-main">
-                              <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--market iclaw-composer__selector-icon--menu">
-                                <Globe className="h-3.5 w-3.5" />
-                              </span>
-                              <span className="iclaw-composer__skill-option-copy">
-                                <span className="iclaw-composer__skill-option-label">{option.label}</span>
-                                <span className="iclaw-composer__skill-option-detail">{option.detail}</span>
-                              </span>
-                            </span>
-                            {active ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
-                          </button>
-                        );
-                      })}
+                      {marketMenuView === 'all' ? <div className="iclaw-composer__selector-section-title">可选范围</div> : null}
+                      {marketMenuView === 'all'
+                        ? marketScopeOptions.map((option) => {
+                            const active = option.value === selectedMarketScope;
+                            return (
+                              <button
+                                key={option.value}
+                                type="button"
+                                className="iclaw-composer__skill-option"
+                                data-active={active ? 'true' : 'false'}
+                                onClick={() => selectMarketScope(option.value)}
+                              >
+                                <span className="iclaw-composer__skill-option-main">
+                                  <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--market iclaw-composer__selector-icon--menu">
+                                    <Globe className="h-3.5 w-3.5" />
+                                  </span>
+                                  <span className="iclaw-composer__skill-option-copy">
+                                    <span className="iclaw-composer__skill-option-label">{option.label}</span>
+                                    <span className="iclaw-composer__skill-option-detail">{option.detail}</span>
+                                  </span>
+                                </span>
+                                {active ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
+                              </button>
+                            );
+                          })
+                        : null}
                     </div>
                   </div>
                 ) : null}
@@ -3050,6 +3182,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                       <span className="iclaw-composer__selector-menu-pill">{selectedWatchlistOption?.label ?? '默认'}</span>
                     </div>
                     <div className="iclaw-composer__skill-list">
+                      {renderSelectorViewSwitcher('watchlist', watchlistMenuView, '自选组', recentWatchlistOptions.length > 0)}
                       <div className="iclaw-composer__selector-section-title">默认</div>
                       <button
                         type="button"
@@ -3068,51 +3201,60 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                         </span>
                         {!selectedWatchlist ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
                       </button>
-                      {recentWatchlistOptions.length > 0 ? (
+                      {watchlistMenuView === 'recent' ? (
                         <>
-                          <div className="iclaw-composer__selector-section-title">最近使用</div>
-                          <div className="iclaw-composer__selector-recent-strip">
+                          {recentWatchlistOptions.length > 0 ? <div className="iclaw-composer__selector-section-title">最近使用</div> : null}
+                          <div className="iclaw-composer__selector-recent-list">
                             {recentWatchlistOptions.map((option) => (
                               <button
                                 key={option.value}
                                 type="button"
-                                className="iclaw-composer__selector-recent-item"
+                                className="iclaw-composer__skill-option"
                                 data-active={selectedWatchlist === option.value ? 'true' : 'false'}
                                 onClick={() => selectWatchlist(option.value)}
                               >
-                                <span className="iclaw-composer__selector-recent-icon iclaw-composer__selector-recent-icon--watchlist">
-                                  <Star className="h-3 w-3" />
+                                <span className="iclaw-composer__skill-option-main">
+                                  <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--watchlist iclaw-composer__selector-icon--menu">
+                                    <Star className="h-3.5 w-3.5" />
+                                  </span>
+                                  <span className="iclaw-composer__skill-option-copy">
+                                    <span className="iclaw-composer__skill-option-label">{option.label}</span>
+                                    <span className="iclaw-composer__skill-option-detail">{option.detail}</span>
+                                  </span>
                                 </span>
-                                <span className="iclaw-composer__selector-recent-text">{option.label}</span>
+                                {selectedWatchlist === option.value ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
                               </button>
                             ))}
                           </div>
+                          {recentWatchlistOptions.length === 0 ? <div className="iclaw-composer__mention-empty">还没有最近使用的自选组</div> : null}
                         </>
                       ) : null}
-                      <div className="iclaw-composer__selector-section-title">可选分组</div>
-                      {watchlistOptions.map((option) => {
-                        const active = option.value === selectedWatchlist;
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            className="iclaw-composer__skill-option"
-                            data-active={active ? 'true' : 'false'}
-                            onClick={() => selectWatchlist(option.value)}
-                          >
-                            <span className="iclaw-composer__skill-option-main">
-                              <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--watchlist iclaw-composer__selector-icon--menu">
-                                <Star className="h-3.5 w-3.5" />
-                              </span>
-                              <span className="iclaw-composer__skill-option-copy">
-                                <span className="iclaw-composer__skill-option-label">{option.label}</span>
-                                <span className="iclaw-composer__skill-option-detail">{option.detail}</span>
-                              </span>
-                            </span>
-                            {active ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
-                          </button>
-                        );
-                      })}
+                      {watchlistMenuView === 'all' ? <div className="iclaw-composer__selector-section-title">可选分组</div> : null}
+                      {watchlistMenuView === 'all'
+                        ? watchlistOptions.map((option) => {
+                            const active = option.value === selectedWatchlist;
+                            return (
+                              <button
+                                key={option.value}
+                                type="button"
+                                className="iclaw-composer__skill-option"
+                                data-active={active ? 'true' : 'false'}
+                                onClick={() => selectWatchlist(option.value)}
+                              >
+                                <span className="iclaw-composer__skill-option-main">
+                                  <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--watchlist iclaw-composer__selector-icon--menu">
+                                    <Star className="h-3.5 w-3.5" />
+                                  </span>
+                                  <span className="iclaw-composer__skill-option-copy">
+                                    <span className="iclaw-composer__skill-option-label">{option.label}</span>
+                                    <span className="iclaw-composer__skill-option-detail">{option.detail}</span>
+                                  </span>
+                                </span>
+                                {active ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
+                              </button>
+                            );
+                          })
+                        : null}
                     </div>
                   </div>
                 ) : null}
@@ -3165,6 +3307,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                       <span className="iclaw-composer__selector-menu-pill">{selectedOutputOption?.label ?? '默认'}</span>
                     </div>
                     <div className="iclaw-composer__skill-list">
+                      {renderSelectorViewSwitcher('output', outputMenuView, '输出模版', recentOutputOptions.length > 0)}
                       <div className="iclaw-composer__selector-section-title">默认</div>
                       <button
                         type="button"
@@ -3183,51 +3326,60 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
                         </span>
                         {!selectedOutput ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
                       </button>
-                      {recentOutputOptions.length > 0 ? (
+                      {outputMenuView === 'recent' ? (
                         <>
-                          <div className="iclaw-composer__selector-section-title">最近使用</div>
-                          <div className="iclaw-composer__selector-recent-strip">
+                          {recentOutputOptions.length > 0 ? <div className="iclaw-composer__selector-section-title">最近使用</div> : null}
+                          <div className="iclaw-composer__selector-recent-list">
                             {recentOutputOptions.map((option) => (
                               <button
                                 key={option.value}
                                 type="button"
-                                className="iclaw-composer__selector-recent-item"
+                                className="iclaw-composer__skill-option"
                                 data-active={selectedOutput === option.value ? 'true' : 'false'}
                                 onClick={() => selectOutput(option.value)}
                               >
-                                <span className="iclaw-composer__selector-recent-icon iclaw-composer__selector-recent-icon--output">
-                                  <FileText className="h-3 w-3" />
+                                <span className="iclaw-composer__skill-option-main">
+                                  <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--output iclaw-composer__selector-icon--menu">
+                                    <FileText className="h-3.5 w-3.5" />
+                                  </span>
+                                  <span className="iclaw-composer__skill-option-copy">
+                                    <span className="iclaw-composer__skill-option-label">{option.label}</span>
+                                    <span className="iclaw-composer__skill-option-detail">{option.detail}</span>
+                                  </span>
                                 </span>
-                                <span className="iclaw-composer__selector-recent-text">{option.label}</span>
+                                {selectedOutput === option.value ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
                               </button>
                             ))}
                           </div>
+                          {recentOutputOptions.length === 0 ? <div className="iclaw-composer__mention-empty">还没有最近使用的输出模版</div> : null}
                         </>
                       ) : null}
-                      <div className="iclaw-composer__selector-section-title">可选输出</div>
-                      {outputOptions.map((option) => {
-                        const active = option.value === selectedOutput;
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            className="iclaw-composer__skill-option"
-                            data-active={active ? 'true' : 'false'}
-                            onClick={() => selectOutput(option.value)}
-                          >
-                            <span className="iclaw-composer__skill-option-main">
-                              <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--output iclaw-composer__selector-icon--menu">
-                                <FileText className="h-3.5 w-3.5" />
-                              </span>
-                              <span className="iclaw-composer__skill-option-copy">
-                                <span className="iclaw-composer__skill-option-label">{option.label}</span>
-                                <span className="iclaw-composer__skill-option-detail">{option.detail}</span>
-                              </span>
-                            </span>
-                            {active ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
-                          </button>
-                        );
-                      })}
+                      {outputMenuView === 'all' ? <div className="iclaw-composer__selector-section-title">可选输出</div> : null}
+                      {outputMenuView === 'all'
+                        ? outputOptions.map((option) => {
+                            const active = option.value === selectedOutput;
+                            return (
+                              <button
+                                key={option.value}
+                                type="button"
+                                className="iclaw-composer__skill-option"
+                                data-active={active ? 'true' : 'false'}
+                                onClick={() => selectOutput(option.value)}
+                              >
+                                <span className="iclaw-composer__skill-option-main">
+                                  <span className="iclaw-composer__selector-icon iclaw-composer__selector-icon--output iclaw-composer__selector-icon--menu">
+                                    <FileText className="h-3.5 w-3.5" />
+                                  </span>
+                                  <span className="iclaw-composer__skill-option-copy">
+                                    <span className="iclaw-composer__skill-option-label">{option.label}</span>
+                                    <span className="iclaw-composer__skill-option-detail">{option.detail}</span>
+                                  </span>
+                                </span>
+                                {active ? <Check className="iclaw-composer__skill-option-check h-4 w-4" /> : null}
+                              </button>
+                            );
+                          })
+                        : null}
                     </div>
                   </div>
                 ) : null}
