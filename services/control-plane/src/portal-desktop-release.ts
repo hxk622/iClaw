@@ -28,6 +28,14 @@ export type PortalDesktopReleaseTarget = {
   installer: PortalDesktopReleaseFile | null;
   updater: PortalDesktopReleaseFile | null;
   signature: PortalDesktopReleaseSignature | null;
+  release: PortalDesktopReleaseTargetRelease;
+};
+
+export type PortalDesktopReleaseTargetRelease = {
+  version: string | null;
+  notes: string | null;
+  policy: PortalDesktopReleasePolicy;
+  publishedAt: string | null;
 };
 
 export type PortalDesktopReleasePolicy = {
@@ -154,6 +162,25 @@ function normalizeDesktopReleaseSignature(value: unknown): PortalDesktopReleaseS
   return signature ? { ...base, signature } : null;
 }
 
+function emptyTargetRelease(): PortalDesktopReleaseTargetRelease {
+  return {
+    version: null,
+    notes: null,
+    policy: emptyPolicy(),
+    publishedAt: null,
+  };
+}
+
+function normalizeTargetRelease(value: unknown): PortalDesktopReleaseTargetRelease {
+  const release = asObject(value);
+  return {
+    version: trimString(release.version) || null,
+    notes: trimString(release.notes) || null,
+    policy: normalizePolicy(release.policy),
+    publishedAt: trimString(release.publishedAt || release.published_at) || null,
+  };
+}
+
 function emptyPolicy(): PortalDesktopReleasePolicy {
   return {
     mandatory: false,
@@ -185,6 +212,7 @@ function emptyTarget(platform: DesktopReleasePlatform, arch: DesktopReleaseArch)
     installer: null,
     updater: null,
     signature: null,
+    release: emptyTargetRelease(),
   };
 }
 
@@ -199,6 +227,7 @@ function normalizeTarget(value: unknown): PortalDesktopReleaseTarget | null {
     installer: normalizeDesktopReleaseFile(target.installer),
     updater: normalizeDesktopReleaseFile(target.updater),
     signature: normalizeDesktopReleaseSignature(target.signature),
+    release: normalizeTargetRelease(target.release),
   };
 }
 
@@ -387,6 +416,27 @@ function buildManifestEntry(baseUrl: string, appName: string, channel: DesktopRe
   };
 }
 
+function resolveTargetRelease(target: PortalDesktopReleaseTarget, snapshot: PortalDesktopReleaseSnapshot): PortalDesktopReleaseTargetRelease {
+  const hasTargetScopedRelease =
+    Boolean(target.release.version) ||
+    Boolean(target.release.notes) ||
+    Boolean(target.release.publishedAt) ||
+    Boolean(target.release.policy.mandatory) ||
+    Boolean(target.release.policy.forceUpdateBelowVersion) ||
+    Boolean(target.release.policy.reasonCode) ||
+    Boolean(target.release.policy.reasonMessage) ||
+    target.release.policy.allowCurrentRunToFinish !== true;
+  if (hasTargetScopedRelease) {
+    return target.release;
+  }
+  return {
+    version: snapshot.version,
+    notes: snapshot.notes,
+    policy: snapshot.policy,
+    publishedAt: snapshot.publishedAt,
+  };
+}
+
 export function buildPortalDesktopReleaseManifestPayload(input: {
   baseUrl: string;
   appName: string;
@@ -395,10 +445,21 @@ export function buildPortalDesktopReleaseManifestPayload(input: {
   platform?: DesktopReleasePlatform | '';
   arch?: DesktopReleaseArch | '';
 }): Record<string, unknown> | null {
-  const version = trimString(input.snapshot.version);
-  if (!version) return null;
   const entries = input.snapshot.targets
-    .map((target) => buildManifestEntry(input.baseUrl, input.appName, input.channel, target, version, input.snapshot.notes, input.snapshot.publishedAt))
+    .map((target) => {
+      const release = resolveTargetRelease(target, input.snapshot);
+      const version = trimString(release.version);
+      if (!version) return null;
+      return buildManifestEntry(
+        input.baseUrl,
+        input.appName,
+        input.channel,
+        target,
+        version,
+        release.notes,
+        release.publishedAt,
+      );
+    })
     .filter(Boolean) as PortalDesktopManifestEntry[];
   if (entries.length === 0) return null;
 
@@ -409,18 +470,19 @@ export function buildPortalDesktopReleaseManifestPayload(input: {
         schema_version: 1,
         app_name: input.appName,
         channel: input.channel,
-        version,
+        version: targetEntry.version,
         generated_at: new Date().toISOString(),
         entry: targetEntry,
       };
     }
   }
 
+  const uniqueVersions = Array.from(new Set(entries.map((entry) => entry.version)));
   return {
     schema_version: 1,
     app_name: input.appName,
     channel: input.channel,
-    version,
+    version: uniqueVersions.length === 1 ? uniqueVersions[0] : null,
     generated_at: new Date().toISOString(),
     entries,
   };
@@ -442,20 +504,21 @@ export function resolvePortalDesktopReleaseHint(input: {
   const arch = normalizeDesktopReleaseArch(input.arch);
   const releaseConfig = readPortalDesktopReleaseConfig(input.config);
   const published = releaseConfig.channels[channel].published;
-  const latestVersion = trimString(published.version);
-  if (!latestVersion) return null;
   const target = findTarget(published.targets, platform, arch);
   if (!target || !target.installer) return null;
+  const release = resolveTargetRelease(target, published);
+  const latestVersion = trimString(release.version);
+  if (!latestVersion) return null;
   const updateAvailable = compareDesktopReleaseVersions(latestVersion, appVersion) > 0;
-  const mandatory = updateAvailable && (published.policy.mandatory || isForcedUpdate(published.policy, appVersion));
+  const mandatory = updateAvailable && (release.policy.mandatory || isForcedUpdate(release.policy, appVersion));
   return {
     latestVersion,
     updateAvailable,
     mandatory,
-    enforcementState: resolveEnforcementState(mandatory, published.policy.allowCurrentRunToFinish),
+    enforcementState: resolveEnforcementState(mandatory, release.policy.allowCurrentRunToFinish),
     blockNewRuns: mandatory,
-    reasonCode: published.policy.reasonCode,
-    reasonMessage: published.policy.reasonMessage,
+    reasonCode: release.policy.reasonCode,
+    reasonMessage: release.policy.reasonMessage,
     manifestUrl: buildPortalDesktopReleaseManifestUrl({
       baseUrl: input.baseUrl,
       appName: input.appName,
@@ -490,11 +553,13 @@ export function resolvePortalDesktopUpdaterPayload(input: {
   const arch = normalizeDesktopReleaseArch(input.arch);
   const releaseConfig = readPortalDesktopReleaseConfig(input.config);
   const published = releaseConfig.channels[channel].published;
-  const latestVersion = trimString(published.version);
-  if (!latestVersion || compareDesktopReleaseVersions(latestVersion, appVersion) <= 0) return null;
   const target = findTarget(published.targets, platform, arch);
+  if (!target) return null;
+  const release = resolveTargetRelease(target, published);
+  const latestVersion = trimString(release.version);
+  if (!latestVersion || compareDesktopReleaseVersions(latestVersion, appVersion) <= 0) return null;
   if (!target?.updater || !target.signature?.signature) return null;
-  const mandatory = published.policy.mandatory || isForcedUpdate(published.policy, appVersion);
+  const mandatory = release.policy.mandatory || isForcedUpdate(release.policy, appVersion);
   return {
     version: latestVersion,
     url: buildPortalDesktopReleaseArtifactUrl({
@@ -506,13 +571,13 @@ export function resolvePortalDesktopUpdaterPayload(input: {
       artifactType: 'updater',
     }),
     signature: target.signature.signature,
-    notes: published.notes,
-    pubDate: published.publishedAt || target.updater.uploadedAt || null,
+    notes: release.notes,
+    pubDate: release.publishedAt || target.updater.uploadedAt || null,
     mandatory,
-    enforcementState: resolveEnforcementState(mandatory, published.policy.allowCurrentRunToFinish),
+    enforcementState: resolveEnforcementState(mandatory, release.policy.allowCurrentRunToFinish),
     blockNewRuns: mandatory,
-    reasonCode: published.policy.reasonCode,
-    reasonMessage: published.policy.reasonMessage,
+    reasonCode: release.policy.reasonCode,
+    reasonMessage: release.policy.reasonMessage,
     externalDownloadUrl: buildPortalDesktopReleaseArtifactUrl({
       baseUrl: input.baseUrl,
       appName: input.appName,

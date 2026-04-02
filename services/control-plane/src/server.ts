@@ -1530,6 +1530,17 @@ const server = createJsonServer([
   },
   {
     method: 'POST',
+    path: '/admin/portal/apps/:appName/desktop-release/:channel/:platform/:arch/publish',
+    handler: ({headers, params, body}: HandlerContext) =>
+      portalService.publishDesktopRelease(requireBearerToken(headers), params.appName || '', {
+        ...((body || {}) as Record<string, unknown>),
+        channel: params.channel || '',
+        platform: params.platform || '',
+        arch: params.arch || '',
+      }),
+  },
+  {
+    method: 'POST',
     path: '/admin/portal/apps/:appName/desktop-release/:channel/publish',
     handler: ({headers, params, body}: HandlerContext) =>
       portalService.publishDesktopRelease(requireBearerToken(headers), params.appName || '', {

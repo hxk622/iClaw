@@ -1146,6 +1146,8 @@ export class PortalService {
     appNameInput: string,
     input: {
       channel?: string | null;
+      platform?: string | null;
+      arch?: string | null;
       version?: string | null;
       notes?: string | null;
       mandatory?: boolean;
@@ -1159,6 +1161,8 @@ export class PortalService {
     const detail = await this.getAppDetailOrThrow(appNameInput);
     const appName = detail.app.appName;
     const channel = normalizeDesktopReleaseChannel(input.channel);
+    const platform = normalizeDesktopReleasePlatform(input.platform);
+    const arch = normalizeDesktopReleaseArch(input.arch);
     const version = normalizeRequiredString(input.version, 'version');
     if (!validatePortalDesktopReleaseVersion(version)) {
       throw new HttpError(400, 'BAD_REQUEST', 'version must use semver triplet like 1.2.3');
@@ -1171,23 +1175,24 @@ export class PortalService {
     const releaseConfig = readPortalDesktopReleaseConfig(detail.app.config);
     const channelState = releaseConfig.channels[channel];
     const nextDraft = cloneJson(channelState.draft);
-    const activeTargets = nextDraft.targets.filter((target) => target.installer || target.updater || target.signature);
+    const targetScope = platform && arch
+      ? nextDraft.targets.filter((target) => target.platform === platform && target.arch === arch)
+      : nextDraft.targets;
+    const activeTargets = targetScope.filter((target) => target.installer || target.updater || target.signature);
     if (activeTargets.length === 0) {
       throw new HttpError(400, 'BAD_REQUEST', 'at least one desktop release target must be uploaded before publish');
     }
     for (const target of activeTargets) {
-      if (!target.installer || !target.updater || !target.signature?.signature) {
+      if (!target.installer) {
         throw new HttpError(
           400,
           'BAD_REQUEST',
-          `desktop release target ${target.platform}/${target.arch} is incomplete; installer, updater, and signature are required`,
+          `desktop release target ${target.platform}/${target.arch} is incomplete; installer is required`,
         );
       }
     }
 
-    nextDraft.version = version;
-    nextDraft.notes = normalizeOptionalString(input.notes, 'notes');
-    nextDraft.policy = {
+    const nextPolicy = {
       mandatory: normalizeOptionalBoolean(input.mandatory, 'mandatory', false),
       forceUpdateBelowVersion,
       allowCurrentRunToFinish: normalizeOptionalBoolean(
@@ -1198,7 +1203,31 @@ export class PortalService {
       reasonCode: normalizeOptionalString(input.reason_code, 'reason_code'),
       reasonMessage: normalizeOptionalString(input.reason_message, 'reason_message'),
     };
-    nextDraft.publishedAt = new Date().toISOString();
+    const publishedAt = new Date().toISOString();
+    const nextNotes = normalizeOptionalString(input.notes, 'notes');
+    if (platform && arch) {
+      for (const target of activeTargets) {
+        target.release = {
+          version,
+          notes: nextNotes,
+          policy: nextPolicy,
+          publishedAt,
+        };
+      }
+    } else {
+      nextDraft.version = version;
+      nextDraft.notes = nextNotes;
+      nextDraft.policy = nextPolicy;
+      nextDraft.publishedAt = publishedAt;
+      for (const target of activeTargets) {
+        target.release = {
+          version,
+          notes: nextNotes,
+          policy: nextPolicy,
+          publishedAt,
+        };
+      }
+    }
     channelState.draft = nextDraft;
     channelState.published = cloneJson(nextDraft);
 

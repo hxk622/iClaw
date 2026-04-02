@@ -25,7 +25,7 @@ if ! [[ "$KEEP_VERSIONS" =~ ^[0-9]+$ ]] || [[ "$KEEP_VERSIONS" -lt 1 ]]; then
   exit 1
 fi
 
-node "$ROOT_DIR/scripts/generate-desktop-release-manifests.mjs" --channel "$ENV_NAME"
+node "$ROOT_DIR/scripts/export-desktop-release-manifests.mjs" --channel "$ENV_NAME"
 
 local_prune() {
   local channel="$1"
