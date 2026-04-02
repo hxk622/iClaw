@@ -46,3 +46,25 @@ bash scripts/publish-downloads.sh prod
 ```bash
 bash scripts/deploy-home.sh prod
 ```
+
+腾讯云堡垒机发布脚本：
+
+```bash
+bash scripts/deploy-home-tecent.sh build
+ICLAW_BASTION_PASSWORD='***' bash scripts/deploy-home-tecent.sh prod
+```
+
+默认行为：
+
+- 品牌默认使用 `licaiclaw`
+- 堡垒机默认使用 `w-hanxingkai@relay1.idc.hexun.com`
+- 目标机器默认使用 `root@172.17.0.5` 和 `root@172.17.0.9`
+- nginx 目录默认读取 `config/packaging/prod/licaiclaw.json` 中的 `distribution.home.nginxPath`
+
+常用覆盖项：
+
+- `ICLAW_TARGET_USER`
+- `ICLAW_TENCENT_TARGETS`
+- `ICLAW_NGINX_PATH`
+- `ICLAW_BASTION_HOST`
+- `ICLAW_BASTION_USER`
