@@ -830,63 +830,133 @@ async function parseError(response: Response): Promise<ApiError> {
 const DEFAULT_REQUEST_TIMEOUT_MS = 8_000;
 const HEALTH_REQUEST_TIMEOUT_MS = 5_000;
 const STREAM_REQUEST_TIMEOUT_MS = 15_000;
+const DEFAULT_RETRY_MAX_ATTEMPTS = 2;
+const RETRYABLE_STATUS_CODES = new Set([408, 429, 502, 503, 504]);
+const IDEMPOTENT_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 type TimedFetchOptions = {
   timeoutMs?: number;
   serviceName: string;
   serviceBaseUrl: string;
+  retry?: RequestRetryOptions;
 };
+
+type RequestRetryOptions = {
+  enabled?: boolean;
+  maxAttempts?: number;
+  retryUnsafeMethods?: boolean;
+};
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function resolveRequestMethod(init: RequestInit): string {
+  return (init.method || 'GET').trim().toUpperCase();
+}
+
+function canRetryRequest(method: string, retry: RequestRetryOptions | undefined): boolean {
+  if (retry?.enabled === false) return false;
+  if (retry?.retryUnsafeMethods) return true;
+  return IDEMPOTENT_METHODS.has(method);
+}
+
+function resolveRetryAttempts(retry: RequestRetryOptions | undefined): number {
+  const maxAttempts = retry?.maxAttempts ?? DEFAULT_RETRY_MAX_ATTEMPTS;
+  return Number.isFinite(maxAttempts) ? Math.max(1, Math.floor(maxAttempts)) : DEFAULT_RETRY_MAX_ATTEMPTS;
+}
+
+function resolveRetryDelayMs(attemptIndex: number): number {
+  const baseDelayMs = 250;
+  const jitterMs = Math.floor(Math.random() * 120);
+  return Math.min(1000, baseDelayMs * 2 ** attemptIndex) + jitterMs;
+}
+
+function shouldRetryResponse(response: Response): boolean {
+  return RETRYABLE_STATUS_CODES.has(response.status);
+}
 
 async function fetchWithTimeout(
   input: string,
   init: RequestInit,
   options: TimedFetchOptions,
 ): Promise<Response> {
-  const controller = new AbortController();
   const timeoutMs = options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
   const upstreamSignal = init.signal;
-  let timedOut = false;
-  const abortFromUpstream = () => controller.abort();
+  const method = resolveRequestMethod(init);
+  const retryEnabled = canRetryRequest(method, options.retry);
+  const maxAttempts = retryEnabled ? resolveRetryAttempts(options.retry) : 1;
+  let lastError: unknown = null;
 
-  if (upstreamSignal?.aborted) {
-    controller.abort();
-  } else {
-    upstreamSignal?.addEventListener('abort', abortFromUpstream, { once: true });
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const controller = new AbortController();
+    let timedOut = false;
+    const abortFromUpstream = () => controller.abort();
+
+    if (upstreamSignal?.aborted) {
+      controller.abort();
+    } else {
+      upstreamSignal?.addEventListener('abort', abortFromUpstream, { once: true });
+    }
+
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
+
+    try {
+      const response = await fetch(input, {
+        ...init,
+        signal: controller.signal,
+      });
+      if (attempt + 1 < maxAttempts && shouldRetryResponse(response)) {
+        await sleep(resolveRetryDelayMs(attempt));
+        continue;
+      }
+      return response;
+    } catch (error) {
+      if (upstreamSignal?.aborted) {
+        throw new ApiError({
+          code: 'ABORTED',
+          message: '请求已取消',
+        });
+      }
+      lastError = error;
+      const isRetryableError = timedOut || error instanceof Error;
+      if (attempt + 1 < maxAttempts && isRetryableError) {
+        await sleep(resolveRetryDelayMs(attempt));
+        continue;
+      }
+      if (timedOut) {
+        throw new ApiError({
+          code: 'TIMEOUT',
+          message: `请求超时，请确认${options.serviceName}已启动并监听 ${options.serviceBaseUrl}`,
+        });
+      }
+      if (error instanceof Error) {
+        throw new ApiError({
+          code: 'NETWORK_ERROR',
+          message: `无法连接${options.serviceName}，请确认已启动并监听 ${options.serviceBaseUrl}`,
+        });
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+      upstreamSignal?.removeEventListener('abort', abortFromUpstream);
+    }
   }
 
-  const timeoutId = setTimeout(() => {
-    timedOut = true;
-    controller.abort();
-  }, timeoutMs);
-  try {
-    return await fetch(input, {
-      ...init,
-      signal: controller.signal,
-    });
-  } catch (error) {
-    if (timedOut) {
-      throw new ApiError({
-        code: 'TIMEOUT',
-        message: `请求超时，请确认${options.serviceName}已启动并监听 ${options.serviceBaseUrl}`,
-      });
-    }
-    if (upstreamSignal?.aborted) {
-      throw new ApiError({
-        code: 'ABORTED',
-        message: '请求已取消',
-      });
-    }
-    if (error instanceof Error) {
-      throw new ApiError({
+  throw lastError instanceof Error
+    ? new ApiError({
         code: 'NETWORK_ERROR',
         message: `无法连接${options.serviceName}，请确认已启动并监听 ${options.serviceBaseUrl}`,
+      })
+    : new ApiError({
+        code: 'HTTP_ERROR',
+        message: `请求${options.serviceName}失败`,
       });
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
-    upstreamSignal?.removeEventListener('abort', abortFromUpstream);
-  }
 }
 
 export class IClawClient {
@@ -924,7 +994,12 @@ export class IClawClient {
     this.onDesktopUpdateHint = options.onDesktopUpdateHint;
   }
 
-  private fetchAuth(path: string, init: RequestInit = {}, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS): Promise<Response> {
+  private fetchAuth(
+    path: string,
+    init: RequestInit = {},
+    timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+    retry?: RequestRetryOptions,
+  ): Promise<Response> {
     const headers = new Headers(init.headers || {});
     if (this.desktopAppVersion) headers.set('x-iclaw-app-version', this.desktopAppVersion);
     if (this.desktopAppName) headers.set('x-iclaw-app-name', this.desktopAppName);
@@ -938,17 +1013,28 @@ export class IClawClient {
       timeoutMs,
       serviceName: 'control-plane',
       serviceBaseUrl: this.authBaseUrl,
+      retry: retry || {
+        enabled: true,
+      },
     }).then((response) => {
       this.captureDesktopUpdateHint(response);
       return response;
     });
   }
 
-  private fetchApi(path: string, init: RequestInit = {}, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS): Promise<Response> {
+  private fetchApi(
+    path: string,
+    init: RequestInit = {},
+    timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+    retry?: RequestRetryOptions,
+  ): Promise<Response> {
     return fetchWithTimeout(`${this.apiBaseUrl}${path}`, init, {
       timeoutMs,
       serviceName: '本地 API',
       serviceBaseUrl: this.apiBaseUrl,
+      retry: retry || {
+        enabled: true,
+      },
     });
   }
 
@@ -1041,6 +1127,9 @@ export class IClawClient {
         email: input.identifier,
         password: input.password,
       }),
+    }, DEFAULT_REQUEST_TIMEOUT_MS, {
+      enabled: true,
+      retryUnsafeMethods: true,
     });
     if (!res.ok) throw await parseError(res);
     const json = (await res.json()) as { data: { tokens: AuthTokens; user: unknown } };
