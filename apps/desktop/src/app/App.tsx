@@ -722,6 +722,7 @@ export default function App() {
   const brandRuntimeSyncInFlightRef = useRef(false);
   const desktopUpdateLastCheckedAtRef = useRef(0);
   const desktopUpdateCheckInFlightRef = useRef(false);
+  const lastRuntimeProgressRef = useRef(0);
 
   useEffect(() => {
     writePersistedWorkspaceScene({primaryView});
@@ -871,6 +872,7 @@ export default function App() {
 
     let detach = () => {};
     void listenRuntimeInstallProgress((payload) => {
+      lastRuntimeProgressRef.current = Math.max(lastRuntimeProgressRef.current, payload.progress || 0);
       setRuntimeInstallProgress(payload);
     }).then((unlisten) => {
       detach = unlisten;
@@ -1378,12 +1380,12 @@ export default function App() {
       window.clearInterval(timer);
     };
   }, [brandRuntimeReady, client, runtimeChecking, runtimeInstalling, runtimeReady]);
-  const installerErrorMessage =
-    runtimeInstallError ||
-    healthError ||
-    (!runtimeReady && !runtimeInstalling && !runtimeDiagnosis?.runtime_installable
+  const runtimeUnavailableErrorMessage =
+    !runtimeReady && !runtimeInstalling && !runtimeDiagnosis?.runtime_installable
       ? '当前安装包未包含可用的运行时来源，请重新下载应用或联系支持。'
-      : null);
+      : null;
+  const installStageErrorMessage = runtimeInstallError || runtimeUnavailableErrorMessage;
+  const startupStageErrorMessage = !installStageErrorMessage && runtimeReady ? healthError : null;
   const installerView: InstallerViewModel = (() => {
     const normalizedProgress = runtimeInstallProgress
       ? {
@@ -1392,16 +1394,29 @@ export default function App() {
           detail: normalizeBrandRuntimeText(runtimeInstallProgress.detail),
         }
       : null;
+    const stableProgress = Math.max(lastRuntimeProgressRef.current, normalizedProgress?.progress ?? 0);
 
-    if (installerErrorMessage) {
+    if (installStageErrorMessage) {
       return {
         state: 'error',
         title: '唤醒失败',
         subtitle: '安装过程遇到问题',
-        progress: Math.max(0, Math.min(100, normalizedProgress?.progress ?? 0)),
-        stepLabel: normalizedProgress?.label || '安装过程中断',
-        stepDetail: normalizedProgress?.detail || '无法继续准备本地运行环境。',
-        errorMessage: installerErrorMessage,
+        progress: Math.max(6, Math.min(88, stableProgress || 6)),
+        stepLabel: '安装过程中断',
+        stepDetail: '本地运行环境还没有准备完成，无法继续进入应用。',
+        errorMessage: installStageErrorMessage,
+      };
+    }
+
+    if (startupStageErrorMessage) {
+      return {
+        state: 'error',
+        title: '启动失败',
+        subtitle: '本地服务未能成功拉起',
+        progress: Math.max(96, stableProgress),
+        stepLabel: '运行环境已部署完成',
+        stepDetail: 'runtime 文件已经准备好，但本地 API / gateway 健康检查没有通过。',
+        errorMessage: startupStageErrorMessage,
       };
     }
 
