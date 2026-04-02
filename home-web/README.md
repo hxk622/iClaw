@@ -60,11 +60,14 @@ ICLAW_BASTION_PASSWORD='***' bash scripts/deploy-home-tecent.sh prod
 - 堡垒机默认使用 `w-hanxingkai@relay1.idc.hexun.com`
 - 目标机器默认使用 `root@172.17.0.5` 和 `root@172.17.0.9`
 - nginx 目录默认读取 `config/packaging/prod/licaiclaw.json` 中的 `distribution.home.nginxPath`
+- 默认写入 `/etc/nginx/conf.d/caiclaw.hexun.com.conf`，并执行 `nginx -t` + reload
 
 常用覆盖项：
 
 - `ICLAW_TARGET_USER`
 - `ICLAW_TENCENT_TARGETS`
 - `ICLAW_NGINX_PATH`
+- `ICLAW_NGINX_CONF_PATH`
+- `ICLAW_INSTALL_NGINX_CONF`
 - `ICLAW_BASTION_HOST`
 - `ICLAW_BASTION_USER`

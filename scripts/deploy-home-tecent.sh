@@ -96,8 +96,25 @@ deploy_host() {
   local target_ref="${ICLAW_TARGET_USER}@${host}"
   local target_archive="${ICLAW_REMOTE_TMP_DIR}/home-web-${ICLAW_HOME_BRAND}-${DEPLOY_ID}.tgz"
   local target_release_dir="${ICLAW_REMOTE_TMP_DIR}/home-web-${ICLAW_HOME_BRAND}-${DEPLOY_ID}"
+  local nginx_conf
   local inner_command
   local outer_command
+
+  nginx_conf="$(cat <<EOF
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${ICLAW_NGINX_SERVER_NAME};
+
+    root ${ICLAW_NGINX_PATH};
+    index index.html;
+
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+}
+EOF
+)"
 
   inner_command="$(cat <<EOF
 set -euo pipefail
@@ -107,6 +124,17 @@ mkdir -p $(shell_quote "$target_release_dir")
 tar -xzf $(shell_quote "$target_archive") -C $(shell_quote "$target_release_dir")
 find $(shell_quote "$ICLAW_NGINX_PATH") -mindepth 1 -maxdepth 1 -exec rm -rf {} +
 cp -a $(shell_quote "$target_release_dir")/. $(shell_quote "$ICLAW_NGINX_PATH")/
+if [[ $(shell_quote "$ICLAW_INSTALL_NGINX_CONF") == "1" ]]; then
+  cat > $(shell_quote "$ICLAW_NGINX_CONF_PATH") <<'NGINXCONF'
+${nginx_conf}
+NGINXCONF
+  nginx -t
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl reload nginx
+  else
+    service nginx reload
+  fi
+fi
 rm -rf $(shell_quote "$target_release_dir") $(shell_quote "$target_archive")
 EOF
 )"
@@ -152,9 +180,13 @@ export ICLAW_HOME_BRAND
 : "${ICLAW_REMOTE_TMP_DIR:=/tmp}"
 : "${ICLAW_CONNECT_TIMEOUT:=15}"
 : "${ICLAW_DOMAIN:=caiclaw.hexun.com}"
+: "${ICLAW_NGINX_SERVER_NAME:=$ICLAW_DOMAIN}"
+: "${ICLAW_INSTALL_NGINX_CONF:=1}"
 
 ICLAW_NGINX_PATH="${ICLAW_NGINX_PATH:-$(node "$ROOT_DIR/scripts/read-brand-value.mjs" --brand "$ICLAW_HOME_BRAND" distribution.home.nginxPath | tail -n1)}"
+ICLAW_NGINX_CONF_PATH="${ICLAW_NGINX_CONF_PATH:-/etc/nginx/conf.d/${ICLAW_NGINX_SERVER_NAME}.conf}"
 export ICLAW_NGINX_PATH
+export ICLAW_NGINX_CONF_PATH
 
 if [[ -z "$ICLAW_BASTION_PASSWORD" && "$MODE" == "prod" ]]; then
   read -r -s -p "Bastion password for ${ICLAW_BASTION_USER}@${ICLAW_BASTION_HOST}: " ICLAW_BASTION_PASSWORD
