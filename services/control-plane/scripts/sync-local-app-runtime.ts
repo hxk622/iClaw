@@ -390,11 +390,21 @@ async function main() {
   const packagedMcpBaselineDir = String(process.env.ICLAW_PACKAGED_MCP_BASELINE_DIR || '').trim()
     ? resolve(String(process.env.ICLAW_PACKAGED_MCP_BASELINE_DIR || '').trim())
     : null;
-  const runtimeMcpConfigPath = resolve(runtimeResourcesRoot, 'mcp/mcp.json');
-  const runtimeAppConfigPath = resolve(runtimeResourcesRoot, 'config/portal-app-runtime.json');
+  const runtimeMcpConfigPath = resolve(
+    normalizeOptionalText(readArg('--mcp-config-path')) ||
+      normalizeOptionalText(process.env.ICLAW_RUNTIME_MCP_CONFIG_PATH) ||
+      resolve(runtimeResourcesRoot, 'mcp/mcp.json'),
+  );
+  const runtimeAppConfigPath = resolve(
+    normalizeOptionalText(readArg('--app-config-path')) ||
+      normalizeOptionalText(process.env.ICLAW_RUNTIME_APP_CONFIG_PATH) ||
+      resolve(runtimeResourcesRoot, 'config/portal-app-runtime.json'),
+  );
   const skipRuntimeSkillSync = /^(1|true|yes)$/i.test(String(process.env.ICLAW_SKIP_RUNTIME_SKILL_SYNC || '').trim());
   const bundledOnly = hasFlag('--bundled-only') || isTruthy(process.env.ICLAW_BUNDLED_SKILLS_ONLY);
-  const incrementalSkillSync = hasFlag('--incremental') || isTruthy(process.env.ICLAW_INCREMENTAL_SKILL_SYNC);
+  const incrementalSkillSync = hasFlag('--no-incremental')
+    ? false
+    : hasFlag('--incremental') || !/^(0|false|no)$/i.test(String(process.env.ICLAW_INCREMENTAL_SKILL_SYNC || '1').trim());
 
   const portalStore = new PgPortalStore(config.databaseUrl);
   const controlStore = new PgControlPlaneStore(config.databaseUrl);

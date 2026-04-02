@@ -10,7 +10,6 @@ LOG_DIR="${ICLAW_LOG_DIR:-$ROOT_DIR/logs/openclaw}"
 LOG_FILE="${ICLAW_OPENCLAW_LOG:-$LOG_DIR/openclaw-$(date +%Y%m%d-%H%M%S).log}"
 LATEST_LOG="$LOG_DIR/latest.log"
 RUNTIME_CONFIG_PATH="${ICLAW_RUNTIME_CONFIG_PATH:-$ROOT_DIR/services/openclaw/resources/config/runtime-config.json}"
-PORTAL_RUNTIME_CONFIG_PATH="${ICLAW_PORTAL_RUNTIME_CONFIG_PATH:-$ROOT_DIR/services/openclaw/resources/config/portal-app-runtime.json}"
 EXTRA_CA_CERTS_PATH="${ICLAW_EXTRA_CA_CERTS_PATH:-$ROOT_DIR/services/openclaw/resources/certs/isrg-root-x1.pem}"
 OPENCLAW_VERBOSE="${ICLAW_OPENCLAW_VERBOSE:-1}"
 OPENCLAW_WS_LOG_STYLE="${ICLAW_OPENCLAW_WS_LOG:-compact}"
@@ -81,6 +80,22 @@ try {
 ' "$generated_brand_path"
 }
 
+normalize_app_state_key() {
+  local raw="$1"
+  local normalized
+  normalized="$(
+    printf '%s' "$raw" \
+      | tr '[:upper:]' '[:lower:]' \
+      | tr -cs 'a-z0-9._-' '-'
+  )"
+  normalized="${normalized#-}"
+  normalized="${normalized%-}"
+  if [[ -z "$normalized" ]]; then
+    normalized="default"
+  fi
+  printf '%s\n' "$normalized"
+}
+
 ENV_GATEWAY_TOKEN="$(read_env_value VITE_GATEWAY_TOKEN)"
 ENV_APP_NAME="$(read_env_value APP_NAME)"
 if [[ -z "${PORTAL_APP_NAME:-}" && -n "${ENV_APP_NAME:-}" ]]; then
@@ -104,8 +119,13 @@ if [[ -n "${GENERATED_BRAND_ID:-}" ]]; then
   fi
 fi
 OPENCLAW_STATE_DIR="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}"
+OPENCLAW_APP_STATE_KEY="$(normalize_app_state_key "${PORTAL_APP_NAME:-default}")"
+OPENCLAW_APP_STATE_ROOT="${OPENCLAW_APP_STATE_ROOT:-$OPENCLAW_STATE_DIR/apps/$OPENCLAW_APP_STATE_KEY}"
+OPENCLAW_WORKSPACE_DIR="${OPENCLAW_WORKSPACE_DIR:-$OPENCLAW_APP_STATE_ROOT/workspace}"
+OPENCLAW_CONFIG_PATH="${OPENCLAW_CONFIG_PATH:-$OPENCLAW_APP_STATE_ROOT/openclaw.json}"
+PORTAL_RUNTIME_CONFIG_PATH="${ICLAW_PORTAL_RUNTIME_CONFIG_PATH:-$OPENCLAW_APP_STATE_ROOT/portal-app-runtime.json}"
+PORTAL_MCP_CONFIG_PATH="${ICLAW_PORTAL_MCP_CONFIG_PATH:-$OPENCLAW_APP_STATE_ROOT/mcp.json}"
 GATEWAY_TOKEN_FILE="$(resolve_gateway_token_file)"
-OPENCLAW_CONFIG_PATH="${OPENCLAW_CONFIG_PATH:-$OPENCLAW_STATE_DIR/openclaw.json}"
 RUNTIME_ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-$(read_runtime_config_value anthropic_api_key)}"
 
 detect_target_triple() {
@@ -251,7 +271,7 @@ sync_gateway_token_config() {
   ICLAW_OPENCLAW_RUNTIME_CONFIG_PATH="$RUNTIME_CONFIG_PATH" \
   ICLAW_OPENCLAW_GATEWAY_TOKEN="$GATEWAY_TOKEN" \
   ICLAW_OPENCLAW_PORTAL_RUNTIME_CONFIG_PATH="$PORTAL_RUNTIME_CONFIG_PATH" \
-  ICLAW_OPENCLAW_WORKSPACE_DIR="$OPENCLAW_STATE_DIR/workspace" \
+  ICLAW_OPENCLAW_WORKSPACE_DIR="$OPENCLAW_WORKSPACE_DIR" \
   ICLAW_OPENCLAW_RUNTIME_MODE="dev" \
   ICLAW_OPENCLAW_ALLOWED_ORIGINS="http://127.0.0.1:1520,http://localhost:1520" \
   node "$ROOT_DIR/apps/desktop/src-tauri/resources/runtime/generate-openclaw-config.mjs"
@@ -334,6 +354,8 @@ start_openclaw_detached() {
     PATH="$ROOT_DIR/services/openclaw/bin:$OPENCLAW_RUNTIME_NODE_DIR${PATH:+:$PATH}" \
     OPENCLAW_LOG_DIR="$LOG_DIR" \
     OPENCLAW_GATEWAY_TOKEN="$GATEWAY_TOKEN" \
+    OPENCLAW_CONFIG_PATH="$OPENCLAW_CONFIG_PATH" \
+    OPENCLAW_WORKSPACE_DIR="$OPENCLAW_WORKSPACE_DIR" \
     ANTHROPIC_API_KEY="$RUNTIME_ANTHROPIC_API_KEY" \
     ICLAW_OPENCLAW_CLI_PATH="$OPENCLAW_CLI_BIN" \
     NODE_EXTRA_CA_CERTS="$EXTRA_CA_CERTS_PATH" \
@@ -421,6 +443,8 @@ start_openclaw_foreground() {
   PATH="$ROOT_DIR/services/openclaw/bin:$OPENCLAW_RUNTIME_NODE_DIR${PATH:+:$PATH}" \
   OPENCLAW_LOG_DIR="$LOG_DIR" \
   OPENCLAW_GATEWAY_TOKEN="$GATEWAY_TOKEN" \
+  OPENCLAW_CONFIG_PATH="$OPENCLAW_CONFIG_PATH" \
+  OPENCLAW_WORKSPACE_DIR="$OPENCLAW_WORKSPACE_DIR" \
   ANTHROPIC_API_KEY="$RUNTIME_ANTHROPIC_API_KEY" \
   ICLAW_OPENCLAW_CLI_PATH="$OPENCLAW_CLI_BIN" \
   NODE_EXTRA_CA_CERTS="$EXTRA_CA_CERTS_PATH" \
@@ -447,10 +471,13 @@ ensure_macos_runtime_frameworks
 ensure_macos_codesign_if_needed
 if [[ -n "${PORTAL_APP_NAME:-}" ]]; then
   echo "[api-dev] 同步 portal app 本地运行资源: ${PORTAL_APP_NAME} (source: ${PORTAL_APP_SOURCE:-unknown})"
-  export ICLAW_OPENCLAW_WORKSPACE_DIR="${OPENCLAW_STATE_DIR}/workspace"
+  echo "[api-dev] app runtime state root: $OPENCLAW_APP_STATE_ROOT"
+  export ICLAW_OPENCLAW_WORKSPACE_DIR="$OPENCLAW_WORKSPACE_DIR"
+  export ICLAW_RUNTIME_APP_CONFIG_PATH="$PORTAL_RUNTIME_CONFIG_PATH"
+  export ICLAW_RUNTIME_MCP_CONFIG_PATH="$PORTAL_MCP_CONFIG_PATH"
   node --experimental-strip-types "$ROOT_DIR/services/control-plane/scripts/sync-local-app-runtime.ts" --app "$PORTAL_APP_NAME"
 fi
-OPENCLAW_WORKSPACE_DIR="${OPENCLAW_STATE_DIR}/workspace" bash "$ROOT_DIR/scripts/prepare-openclaw-workspace.sh"
+OPENCLAW_WORKSPACE_DIR="$OPENCLAW_WORKSPACE_DIR" bash "$ROOT_DIR/scripts/prepare-openclaw-workspace.sh"
 resolve_gateway_token "$ENV_GATEWAY_TOKEN" "$GATEWAY_TOKEN_FILE"
 echo "[api-dev] gateway token source: $GATEWAY_TOKEN_SOURCE"
 sync_gateway_token_config

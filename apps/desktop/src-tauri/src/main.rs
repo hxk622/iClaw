@@ -1383,8 +1383,8 @@ fn prepend_openclaw_cli_to_path(
     Ok(())
 }
 
-fn runtime_skills_dir(app: &AppHandle) -> PathBuf {
-    openclaw_workspace_dir(app).join("skills")
+fn runtime_skills_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(openclaw_workspace_dir(app)?.join("skills"))
 }
 
 fn resource_bundled_skills_dir(app: &AppHandle) -> PathBuf {
@@ -1447,8 +1447,8 @@ fn resource_servers_dir(app: &AppHandle) -> PathBuf {
         .join("servers")
 }
 
-fn runtime_skills_manifest_path(app: &AppHandle) -> PathBuf {
-    runtime_skills_dir(app).join("skills-manifest.json")
+fn runtime_skills_manifest_path(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(runtime_skills_dir(app)?.join("skills-manifest.json"))
 }
 
 fn resource_bundled_skills_manifest_path(app: &AppHandle) -> PathBuf {
@@ -1526,6 +1526,74 @@ fn skill_manifest_matches_snapshot(
     manifest_skill_slugs(manifest) == expected_skill_slugs
 }
 
+fn normalize_runtime_scope_key(raw: &str) -> String {
+    let normalized: String = raw
+        .trim()
+        .chars()
+        .map(|ch| {
+            let lower = ch.to_ascii_lowercase();
+            if lower.is_ascii_alphanumeric() || matches!(lower, '.' | '_' | '-') {
+                lower
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    let trimmed = normalized.trim_matches('-');
+    if trimmed.is_empty() {
+        String::from("default")
+    } else {
+        String::from(trimmed)
+    }
+}
+
+fn openclaw_home_root_dir(app: &AppHandle) -> PathBuf {
+    if let Ok(home) = app.path().home_dir() {
+        return home.join(".openclaw");
+    }
+    PathBuf::from(".openclaw")
+}
+
+fn legacy_openclaw_workspace_dir(app: &AppHandle) -> PathBuf {
+    openclaw_home_root_dir(app).join("workspace")
+}
+
+fn runtime_scope_root_dir_raw(app: &AppHandle) -> PathBuf {
+    let scope_key = normalize_runtime_scope_key(&resolve_active_oem_brand_id(app));
+    openclaw_home_root_dir(app).join("apps").join(scope_key)
+}
+
+fn runtime_scope_root_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = runtime_scope_root_dir_raw(app);
+    fs::create_dir_all(&dir)
+        .map_err(|e| format!("failed to create runtime scope dir {}: {e}", dir.to_string_lossy()))?;
+    Ok(dir)
+}
+
+fn legacy_openclaw_state_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(app_data_base_dir(app)?.join("state"))
+}
+
+fn legacy_openclaw_config_path(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(app_data_base_dir(app)?.join("config").join("openclaw.json"))
+}
+
+fn legacy_runtime_skill_sync_state_path(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(app_data_base_dir(app)?
+        .join("config")
+        .join("runtime-skill-sync-state.json"))
+}
+
+fn legacy_runtime_mcp_config_source_path(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(app_data_base_dir(app)?.join("config").join("runtime-mcp.json"))
+}
+
+fn legacy_runtime_mcp_sync_state_path(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(app_data_base_dir(app)?
+        .join("config")
+        .join("runtime-mcp-sync-state.json"))
+}
+
 fn packaged_runtime_skills_root(app: &AppHandle) -> PathBuf {
     if let Ok(resource_dir) = app.path().resource_dir() {
         let p = resource_dir
@@ -1567,9 +1635,8 @@ fn packaged_runtime_mcp_manifest_path(app: &AppHandle) -> PathBuf {
 }
 
 fn runtime_skill_sync_state_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let path = app_data_base_dir(app)?
-        .join("config")
-        .join("runtime-skill-sync-state.json");
+    ensure_runtime_scope_migrated(app)?;
+    let path = runtime_scope_root_dir_raw(app).join("runtime-skill-sync-state.json");
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .map_err(|e| format!("failed to create runtime skill sync state dir: {e}"))?;
@@ -1578,7 +1645,8 @@ fn runtime_skill_sync_state_path(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 fn runtime_mcp_config_source_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let path = app_data_base_dir(app)?.join("config").join("runtime-mcp.json");
+    ensure_runtime_scope_migrated(app)?;
+    let path = runtime_scope_root_dir_raw(app).join("mcp.json");
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .map_err(|e| format!("failed to create runtime mcp config dir: {e}"))?;
@@ -1587,9 +1655,8 @@ fn runtime_mcp_config_source_path(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 fn runtime_mcp_sync_state_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let path = app_data_base_dir(app)?
-        .join("config")
-        .join("runtime-mcp-sync-state.json");
+    ensure_runtime_scope_migrated(app)?;
+    let path = runtime_scope_root_dir_raw(app).join("runtime-mcp-sync-state.json");
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .map_err(|e| format!("failed to create runtime mcp sync state dir: {e}"))?;
@@ -1841,7 +1908,8 @@ fn runtime_skills_cache_is_fresh(app: &AppHandle, snapshot: &OemRuntimeSnapshot)
         .into_iter()
         .map(|(slug, _)| slug)
         .collect::<Vec<_>>();
-    let manifest_matches = load_skill_manifest_value(&runtime_skills_manifest_path(app))?
+    let runtime_manifest_path = runtime_skills_manifest_path(app)?;
+    let manifest_matches = load_skill_manifest_value(&runtime_manifest_path)?
         .as_ref()
         .map(|manifest| skill_manifest_matches_snapshot(manifest, snapshot, &expected_skill_slugs))
         .unwrap_or(false);
@@ -1857,7 +1925,7 @@ fn runtime_skills_cache_is_fresh(app: &AppHandle, snapshot: &OemRuntimeSnapshot)
     if state.skill_slugs != expected_skill_slugs {
         return Ok(manifest_matches);
     }
-    Ok(runtime_skills_manifest_path(app).exists() || manifest_matches)
+    Ok(runtime_manifest_path.exists() || manifest_matches)
 }
 
 fn runtime_mcp_cache_is_fresh(app: &AppHandle, snapshot: &OemRuntimeSnapshot) -> Result<bool, String> {
@@ -1931,10 +1999,10 @@ fn activate_packaged_runtime_skill_baseline(
         return Ok(false);
     }
 
-    let workspace_dir = openclaw_workspace_dir(app);
+    let workspace_dir = openclaw_workspace_dir(app)?;
     fs::create_dir_all(&workspace_dir)
         .map_err(|e| format!("failed to create openclaw workspace dir: {e}"))?;
-    let skills_root = runtime_skills_dir(app);
+    let skills_root = runtime_skills_dir(app)?;
     if skills_root.exists() {
         fs::remove_dir_all(&skills_root).map_err(|e| {
             format!(
@@ -2094,6 +2162,113 @@ fn copy_dir_recursive(source: &Path, destination: &Path) -> Result<(), String> {
     Ok(())
 }
 
+fn copy_dir_recursive_missing(source: &Path, destination: &Path) -> Result<(), String> {
+    if !source.exists() {
+        return Ok(());
+    }
+    if destination.exists() && !destination.is_dir() {
+        return Err(format!(
+            "failed to merge runtime dir {} into {}: destination is not a directory",
+            source.to_string_lossy(),
+            destination.to_string_lossy()
+        ));
+    }
+    fs::create_dir_all(destination).map_err(|e| {
+        format!(
+            "failed to create runtime destination dir {}: {e}",
+            destination.to_string_lossy()
+        )
+    })?;
+    for entry in fs::read_dir(source).map_err(|e| {
+        format!(
+            "failed to read runtime source dir {}: {e}",
+            source.to_string_lossy()
+        )
+    })? {
+        let entry = entry.map_err(|e| format!("failed to read runtime source entry: {e}"))?;
+        let source_path = entry.path();
+        let destination_path = destination.join(entry.file_name());
+        let metadata = entry.metadata().map_err(|e| {
+            format!(
+                "failed to read runtime source metadata {}: {e}",
+                source_path.to_string_lossy()
+            )
+        })?;
+        if metadata.is_dir() {
+            copy_dir_recursive_missing(&source_path, &destination_path)?;
+            continue;
+        }
+        if destination_path.exists() {
+            continue;
+        }
+        if let Some(parent) = destination_path.parent() {
+            fs::create_dir_all(parent).map_err(|e| {
+                format!(
+                    "failed to create runtime destination parent {}: {e}",
+                    parent.to_string_lossy()
+                )
+            })?;
+        }
+        fs::copy(&source_path, &destination_path).map_err(|e| {
+            format!(
+                "failed to copy runtime file {} -> {}: {e}",
+                source_path.to_string_lossy(),
+                destination_path.to_string_lossy()
+            )
+        })?;
+    }
+    Ok(())
+}
+
+fn copy_file_if_missing(source: &Path, destination: &Path) -> Result<bool, String> {
+    if !source.exists() || destination.exists() {
+        return Ok(false);
+    }
+    if let Some(parent) = destination.parent() {
+        fs::create_dir_all(parent).map_err(|e| {
+            format!(
+                "failed to create runtime destination parent {}: {e}",
+                parent.to_string_lossy()
+            )
+        })?;
+    }
+    fs::copy(source, destination).map_err(|e| {
+        format!(
+            "failed to copy runtime file {} -> {}: {e}",
+            source.to_string_lossy(),
+            destination.to_string_lossy()
+        )
+    })?;
+    Ok(true)
+}
+
+fn ensure_runtime_scope_migrated(app: &AppHandle) -> Result<(), String> {
+    let runtime_root = runtime_scope_root_dir(app)?;
+    let workspace_dir = runtime_root.join("workspace");
+    let state_dir = runtime_root.join("state");
+    let config_path = runtime_root.join("openclaw.json");
+    let skill_sync_state_path = runtime_root.join("runtime-skill-sync-state.json");
+    let mcp_config_path = runtime_root.join("mcp.json");
+    let mcp_sync_state_path = runtime_root.join("runtime-mcp-sync-state.json");
+
+    let legacy_workspace_dir = legacy_openclaw_workspace_dir(app);
+    if legacy_workspace_dir.exists() {
+        copy_dir_recursive_missing(&legacy_workspace_dir, &workspace_dir)?;
+    }
+
+    let legacy_state_dir = legacy_openclaw_state_dir(app)?;
+    if legacy_state_dir.exists() {
+        copy_dir_recursive_missing(&legacy_state_dir, &state_dir)?;
+    }
+
+    copy_file_if_missing(&legacy_openclaw_config_path(app)?, &config_path)?;
+    copy_file_if_missing(&legacy_runtime_skill_sync_state_path(app)?, &skill_sync_state_path)?;
+    copy_file_if_missing(&legacy_runtime_mcp_config_source_path(app)?, &mcp_config_path)?;
+    copy_file_if_missing(&legacy_runtime_mcp_sync_state_path(app)?, &mcp_sync_state_path)?;
+
+    Ok(())
+}
+
 fn find_skill_root(dir: &Path) -> Result<Option<PathBuf>, String> {
     if dir.join("SKILL.md").exists() {
         return Ok(Some(dir.to_path_buf()));
@@ -2154,10 +2329,10 @@ fn sync_current_brand_runtime_skills(app: &AppHandle, auth_base_url: &str) -> Re
         return Ok(true);
     }
 
-    let workspace_dir = openclaw_workspace_dir(app);
+    let workspace_dir = openclaw_workspace_dir(app)?;
     fs::create_dir_all(&workspace_dir)
         .map_err(|e| format!("failed to create openclaw workspace dir: {e}"))?;
-    let skills_root = runtime_skills_dir(app);
+    let skills_root = runtime_skills_dir(app)?;
     let temp_sync_root = workspace_dir.join(format!(
         ".skills-sync-{}",
         current_unix_timestamp_string()
@@ -2545,7 +2720,7 @@ fn github_zipball_url(repo_url: &str) -> Result<String, String> {
 fn load_bundled_skills_catalog_internal(
     app: &AppHandle,
 ) -> Result<Vec<BundledSkillCatalogItem>, String> {
-    let skills_dir = runtime_skills_dir(app);
+    let skills_dir = runtime_skills_dir(app)?;
     let skills_dir = if skills_dir.exists() {
         skills_dir
     } else {
@@ -4158,13 +4333,15 @@ fn oem_runtime_snapshot_path(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 fn openclaw_state_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app_data_base_dir(app)?.join("state");
+    ensure_runtime_scope_migrated(app)?;
+    let dir = runtime_scope_root_dir_raw(app).join("state");
     fs::create_dir_all(&dir).map_err(|e| format!("failed to create openclaw state dir: {e}"))?;
     Ok(dir)
 }
 
 fn openclaw_config_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let path = app_data_base_dir(app)?.join("config").join("openclaw.json");
+    ensure_runtime_scope_migrated(app)?;
+    let path = runtime_scope_root_dir_raw(app).join("openclaw.json");
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .map_err(|e| format!("failed to create openclaw config dir: {e}"))?;
@@ -4287,7 +4464,7 @@ fn ensure_current_brand_runtime_skills(app: &AppHandle, context: &str) -> Result
     match sync_current_brand_runtime_skills(app, &resolve_desktop_auth_base_url()) {
         Ok(changed) => Ok(changed),
         Err(error) => {
-            if runtime_skills_manifest_path(app).exists() {
+            if runtime_skills_manifest_path(app)?.exists() {
                 eprintln!(
                     "failed to sync runtime skills before {context}; reusing last cached runtime skills: {error}"
                 );
@@ -4376,7 +4553,7 @@ fn generate_openclaw_runtime_config(
     let generator_path = resource_runtime_config_generator_path(app);
     let portal_runtime_config_path = resource_portal_runtime_config_path(app);
     let node_path = resolve_runtime_node_path(app)?;
-    let workspace_dir = openclaw_workspace_dir(app);
+    let workspace_dir = openclaw_workspace_dir(app)?;
     let snapshot_path = oem_runtime_snapshot_path(app)?;
     let mut command = Command::new(&node_path);
     command.arg(node_command_safe_path(&generator_path));
@@ -4567,7 +4744,7 @@ fn start_sidecar(
     );
     let config = load_runtime_config_internal(&app)?;
     let paths = ensure_runtime_dirs(&app)?;
-    let skills_dir = runtime_skills_dir(&app);
+    let skills_dir = runtime_skills_dir(&app)?;
     let mcp_config = prepare_runtime_mcp_config(&app, &paths.cache_dir)?;
     append_desktop_bootstrap_log(
         &app,
@@ -4930,7 +5107,7 @@ fn install_runtime(app: AppHandle) -> Result<bool, String> {
 fn diagnose_runtime(app: AppHandle) -> Result<RuntimeDiagnosis, String> {
     let runtime = resolve_runtime_command(&app).ok();
     let bootstrap_config = load_runtime_bootstrap_config(&app)?;
-    let skills_dir = runtime_skills_dir(&app);
+    let skills_dir = runtime_skills_dir(&app)?;
     let mcp_config = resource_mcp_config_path(&app);
     let paths = ensure_runtime_dirs(&app)?;
     let config = load_runtime_config_internal(&app)?;
@@ -5032,11 +5209,9 @@ fn import_local_skill(
     import_local_skill_internal(&app, input)
 }
 
-fn openclaw_workspace_dir(app: &AppHandle) -> PathBuf {
-    if let Ok(home) = app.path().home_dir() {
-        return home.join(".openclaw").join("workspace");
-    }
-    PathBuf::from(".openclaw/workspace")
+fn openclaw_workspace_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    ensure_runtime_scope_migrated(app)?;
+    Ok(runtime_scope_root_dir_raw(app).join("workspace"))
 }
 
 fn value_str(settings: &serde_json::Value, path: &[&str], default: &str) -> String {
@@ -5079,32 +5254,32 @@ fn current_memory_timestamp() -> String {
     format!("{seconds}")
 }
 
-fn desktop_memory_dir(app: &AppHandle) -> PathBuf {
-    openclaw_workspace_dir(app).join("memory")
+fn desktop_memory_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(openclaw_workspace_dir(app)?.join("memory"))
 }
 
-fn desktop_memory_archive_dir(app: &AppHandle) -> PathBuf {
-    openclaw_workspace_dir(app).join(".iclaw-memory-archive")
+fn desktop_memory_archive_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(openclaw_workspace_dir(app)?.join(".iclaw-memory-archive"))
 }
 
 fn ensure_desktop_memory_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = desktop_memory_dir(app);
+    let dir = desktop_memory_dir(app)?;
     fs::create_dir_all(&dir).map_err(|e| format!("failed to create memory dir: {e}"))?;
     Ok(dir)
 }
 
 fn ensure_desktop_memory_archive_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = desktop_memory_archive_dir(app);
+    let dir = desktop_memory_archive_dir(app)?;
     fs::create_dir_all(&dir).map_err(|e| format!("failed to create memory archive dir: {e}"))?;
     Ok(dir)
 }
 
-fn memory_entry_path(app: &AppHandle, id: &str) -> PathBuf {
-    desktop_memory_dir(app).join(format!("{id}.md"))
+fn memory_entry_path(app: &AppHandle, id: &str) -> Result<PathBuf, String> {
+    Ok(desktop_memory_dir(app)?.join(format!("{id}.md")))
 }
 
-fn memory_archive_path(app: &AppHandle, id: &str) -> PathBuf {
-    desktop_memory_archive_dir(app).join(format!("{id}.md"))
+fn memory_archive_path(app: &AppHandle, id: &str) -> Result<PathBuf, String> {
+    Ok(desktop_memory_archive_dir(app)?.join(format!("{id}.md")))
 }
 
 fn sanitize_memory_scalar(value: &str) -> String {
@@ -5332,7 +5507,7 @@ fn collect_memory_markdown_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result
 }
 
 fn load_desktop_memory_entries(app: &AppHandle) -> Result<Vec<DesktopMemoryEntry>, String> {
-    let dir = desktop_memory_dir(app);
+    let dir = desktop_memory_dir(app)?;
     let mut files = Vec::new();
     collect_memory_markdown_files(&dir, &mut files)?;
     let mut entries = files
@@ -5361,7 +5536,7 @@ fn configure_memory_runtime_command(command: &mut Command, app: &AppHandle) -> R
     let openclaw_config_path = ensure_openclaw_runtime_config(app, &gateway_token)?;
     let config = load_runtime_config_internal(app)?;
     let paths = ensure_runtime_dirs(app)?;
-    let skills_dir = runtime_skills_dir(app);
+    let skills_dir = runtime_skills_dir(app)?;
     let mcp_config = prepare_runtime_mcp_config(app, &paths.cache_dir)?;
     let extra_ca_certs = resource_extra_ca_certs_path(app);
 
@@ -5479,7 +5654,7 @@ fn load_desktop_memory_runtime_status(
             .get("workspaceDir")
             .and_then(|value| value.as_str())
             .map(String::from),
-        memory_dir: desktop_memory_dir(app).to_string_lossy().to_string(),
+        memory_dir: desktop_memory_dir(app)?.to_string_lossy().to_string(),
         db_path: status
             .get("dbPath")
             .and_then(|value| value.as_str())
@@ -5561,7 +5736,7 @@ const DEFAULT_FINANCE_DECISION_FRAMEWORK_MD: &str =
     include_str!("../../../../services/openclaw/resources/FINANCE_DECISION_FRAMEWORK.md");
 
 fn ensure_openclaw_workspace_seed(app: &AppHandle) -> Result<(), String> {
-    let workspace_dir = openclaw_workspace_dir(app);
+    let workspace_dir = openclaw_workspace_dir(app)?;
     fs::create_dir_all(&workspace_dir)
         .map_err(|e| format!("failed to create workspace dir: {e}"))?;
     fs::create_dir_all(workspace_dir.join("skills"))
@@ -5612,17 +5787,19 @@ fn seed_bundled_skills_into_workspace(app: &AppHandle) -> Result<(), String> {
         return Ok(());
     }
 
-    let runtime_skills_dir = runtime_skills_dir(app);
+    let runtime_skills_dir = runtime_skills_dir(app)?;
     fs::create_dir_all(&runtime_skills_dir)
         .map_err(|e| format!("failed to create runtime skills dir: {e}"))?;
 
     let bundled_skill_dirs = manifest_skill_dirs(&bundled_manifest);
     if bundled_skill_dirs.is_empty() {
-        write_locked_json_file(&runtime_skills_manifest_path(app), &bundled_manifest)?;
+        let runtime_skills_manifest_path = runtime_skills_manifest_path(app)?;
+        write_locked_json_file(&runtime_skills_manifest_path, &bundled_manifest)?;
         return Ok(());
     }
 
-    let existing_manifest = load_skill_manifest_value(&runtime_skills_manifest_path(app))?;
+    let runtime_skills_manifest_path = runtime_skills_manifest_path(app)?;
+    let existing_manifest = load_skill_manifest_value(&runtime_skills_manifest_path)?;
     let existing_skill_dirs = existing_manifest
         .as_ref()
         .map(manifest_skill_dirs)
@@ -5661,13 +5838,13 @@ fn seed_bundled_skills_into_workspace(app: &AppHandle) -> Result<(), String> {
         copy_dir_recursive(&source_path, &target_path)?;
     }
 
-    write_locked_json_file(&runtime_skills_manifest_path(app), &bundled_manifest)?;
+    write_locked_json_file(&runtime_skills_manifest_path, &bundled_manifest)?;
     Ok(())
 }
 
 #[tauri::command]
 fn reset_iclaw_workspace_to_defaults(app: AppHandle) -> Result<bool, String> {
-    let workspace_dir = openclaw_workspace_dir(&app);
+    let workspace_dir = openclaw_workspace_dir(&app)?;
     write_workspace_files(
         &workspace_dir,
         DEFAULT_IDENTITY_MD,
@@ -5683,7 +5860,7 @@ fn apply_iclaw_workspace_backup(
     app: AppHandle,
     backup: IclawWorkspaceBackupPayload,
 ) -> Result<bool, String> {
-    let workspace_dir = openclaw_workspace_dir(&app);
+    let workspace_dir = openclaw_workspace_dir(&app)?;
     write_workspace_files(
         &workspace_dir,
         &backup.identity_md,
@@ -5704,7 +5881,7 @@ fn read_workspace_text(path: &Path, default: &str) -> Result<String, String> {
 #[tauri::command]
 fn load_iclaw_workspace_files(app: AppHandle) -> Result<IclawWorkspaceFiles, String> {
     ensure_openclaw_workspace_seed(&app)?;
-    let workspace_dir = openclaw_workspace_dir(&app);
+    let workspace_dir = openclaw_workspace_dir(&app)?;
 
     Ok(IclawWorkspaceFiles {
         workspace_dir: workspace_dir.to_string_lossy().to_string(),
@@ -5720,7 +5897,7 @@ fn load_iclaw_workspace_files(app: AppHandle) -> Result<IclawWorkspaceFiles, Str
 }
 
 fn apply_iclaw_settings_files(app: &AppHandle, settings: &serde_json::Value) -> Result<(), String> {
-    let workspace_dir = openclaw_workspace_dir(app);
+    let workspace_dir = openclaw_workspace_dir(app)?;
 
     let identity_md = value_str(
         settings,
@@ -5776,7 +5953,7 @@ fn save_iclaw_workspace_section(
     content: String,
 ) -> Result<bool, String> {
     ensure_openclaw_workspace_seed(&app)?;
-    let workspace_dir = openclaw_workspace_dir(&app);
+    let workspace_dir = openclaw_workspace_dir(&app)?;
     let target_path = match section.as_str() {
         "identity" => workspace_dir.join("IDENTITY.md"),
         "user-profile" => workspace_dir.join("USER.md"),
@@ -5813,8 +5990,8 @@ fn save_desktop_client_config(app: AppHandle, config: serde_json::Value) -> Resu
 fn load_memory_snapshot(app: AppHandle) -> Result<DesktopMemorySnapshot, String> {
     ensure_openclaw_workspace_seed(&app)?;
     let entries = load_desktop_memory_entries(&app)?;
-    let memory_dir = desktop_memory_dir(&app).to_string_lossy().to_string();
-    let archive_dir = desktop_memory_archive_dir(&app)
+    let memory_dir = desktop_memory_dir(&app)?.to_string_lossy().to_string();
+    let archive_dir = desktop_memory_archive_dir(&app)?
         .to_string_lossy()
         .to_string();
     match load_desktop_memory_runtime_status(&app) {
@@ -5856,14 +6033,15 @@ fn save_memory_entry(
     normalized.summary = derive_memory_summary(&normalized.content, &normalized.title);
 
     let content = serialize_memory_entry_markdown(&normalized);
-    write_text(&memory_entry_path(&app, &normalized.id), &content)?;
+    let memory_path = memory_entry_path(&app, &normalized.id)?;
+    write_text(&memory_path, &content)?;
     Ok(normalized)
 }
 
 #[tauri::command]
 fn delete_memory_entry(app: AppHandle, id: String) -> Result<bool, String> {
-    let active_path = memory_entry_path(&app, &id);
-    let archive_path = memory_archive_path(&app, &id);
+    let active_path = memory_entry_path(&app, &id)?;
+    let archive_path = memory_archive_path(&app, &id)?;
     if active_path.exists() {
         fs::remove_file(&active_path).map_err(|e| {
             format!(
@@ -5886,11 +6064,11 @@ fn delete_memory_entry(app: AppHandle, id: String) -> Result<bool, String> {
 #[tauri::command]
 fn archive_memory_entry(app: AppHandle, id: String) -> Result<bool, String> {
     ensure_desktop_memory_archive_dir(&app)?;
-    let source_path = memory_entry_path(&app, &id);
+    let source_path = memory_entry_path(&app, &id)?;
     if !source_path.exists() {
         return Ok(true);
     }
-    let target_path = memory_archive_path(&app, &id);
+    let target_path = memory_archive_path(&app, &id)?;
     fs::rename(&source_path, &target_path).map_err(|e| {
         format!(
             "failed to archive memory file {} -> {}: {e}",
