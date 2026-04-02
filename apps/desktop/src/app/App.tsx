@@ -1910,6 +1910,8 @@ function AuthedView({
     menuUiConfig[fallbackPrimaryView]?.displayName ||
     menuUiConfig.chat.displayName;
   const chatMenuLabel = menuUiConfig.chat.displayName;
+  const keepChatSurfaceMounted =
+    !showStartupGate && !showWelcomeBackground && authBootstrapReady && chatShellAuthenticated;
   const skillStoreViewConfig:
     | {
         preset: SkillStoreViewPreset;
@@ -2391,6 +2393,39 @@ function AuthedView({
           />
         )}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          {keepChatSurfaceMounted ? (
+            <div className={resolvedPrimaryView === 'chat' ? 'flex min-h-0 flex-1 overflow-hidden' : 'hidden'}>
+              <OpenClawChatSurface
+                key={`chat-surface:${chatSurfaceVersion}`}
+                gatewayUrl={GATEWAY_WS_URL}
+                gatewayToken={gatewayAuth.token}
+                gatewayPassword={gatewayAuth.password}
+                authBaseUrl={AUTH_BASE_URL}
+                appName={BRAND.brandId}
+                conversationId={activeChatRoute.conversationId}
+                sessionKey={activeChatRoute.sessionKey}
+                initialPrompt={activeChatRoute.initialPrompt}
+                initialPromptKey={activeChatRoute.initialPromptKey}
+                initialAgentSlug={activeChatRoute.initialAgentSlug}
+                initialSkillSlug={activeChatRoute.initialSkillSlug}
+                initialSkillOption={activeChatRoute.initialSkillOption}
+                initialStockContext={activeChatRoute.initialStockContext}
+                focusTaskId={activeChatRoute.focusTaskId}
+                focusTaskPrompt={activeChatRoute.focusTaskPrompt}
+                shellAuthenticated={chatShellAuthenticated}
+                creditClient={client}
+                creditToken={accessToken}
+                onCreditBalanceRefresh={refreshCreditBalance}
+                user={currentUser}
+                inputComposerConfig={inputComposerConfig}
+                welcomePageConfig={welcomePageConfig}
+                onGeneralChatSessionOverloaded={handleRotateGeneralChatSession}
+                onOpenRechargeCenter={() => setOverlayView('recharge')}
+                onBusyStateChange={onChatBusyChange}
+                sendBlockedReason={desktopUpdateSendBlockedReason}
+              />
+            </div>
+          ) : null}
           {showStartupGate ? (
             <ChatBootstrapPlaceholderView />
           ) : resolvedPrimaryView === 'investment-experts' ? (
@@ -2526,35 +2561,7 @@ function AuthedView({
               onRequestAuth={onRequestAuth}
             />
           ) : chatShellAuthenticated ? (
-            <OpenClawChatSurface
-              key={`chat-surface:${chatSurfaceVersion}`}
-              gatewayUrl={GATEWAY_WS_URL}
-              gatewayToken={gatewayAuth.token}
-              gatewayPassword={gatewayAuth.password}
-              authBaseUrl={AUTH_BASE_URL}
-              appName={BRAND.brandId}
-              conversationId={activeChatRoute.conversationId}
-              sessionKey={activeChatRoute.sessionKey}
-              initialPrompt={activeChatRoute.initialPrompt}
-              initialPromptKey={activeChatRoute.initialPromptKey}
-              initialAgentSlug={activeChatRoute.initialAgentSlug}
-              initialSkillSlug={activeChatRoute.initialSkillSlug}
-              initialSkillOption={activeChatRoute.initialSkillOption}
-              initialStockContext={activeChatRoute.initialStockContext}
-              focusTaskId={activeChatRoute.focusTaskId}
-              focusTaskPrompt={activeChatRoute.focusTaskPrompt}
-              shellAuthenticated={chatShellAuthenticated}
-              creditClient={client}
-              creditToken={accessToken}
-              onCreditBalanceRefresh={refreshCreditBalance}
-              user={currentUser}
-              inputComposerConfig={inputComposerConfig}
-              welcomePageConfig={welcomePageConfig}
-              onGeneralChatSessionOverloaded={handleRotateGeneralChatSession}
-              onOpenRechargeCenter={() => setOverlayView('recharge')}
-              onBusyStateChange={onChatBusyChange}
-              sendBlockedReason={desktopUpdateSendBlockedReason}
-            />
+            null
           ) : (
             <RuntimeAuthRequiredView
               eyebrow="Chat Shell"
