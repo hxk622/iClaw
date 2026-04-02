@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto';
 
 import {Pool, type PoolClient} from 'pg';
 import {HttpError} from './errors.ts';
-import {buildPgPoolConfig} from './pg-connection.ts';
+import {createPgPool} from './pg-connection.ts';
 
 import type {
   PortalAppModelProviderMode,
@@ -1506,7 +1506,7 @@ export class PgPortalStore {
   private readonly pool: Pool;
 
   constructor(databaseUrl: string) {
-    this.pool = new Pool(buildPgPoolConfig(databaseUrl));
+    this.pool = createPgPool(databaseUrl, 'portal-store');
   }
 
   async close(): Promise<void> {

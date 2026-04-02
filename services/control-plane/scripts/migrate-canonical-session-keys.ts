@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import { buildPgPoolConfig } from '../src/pg-connection.ts';
+import { createPgPool } from '../src/pg-connection.ts';
 import { config } from '../src/config.ts';
 import { ensureControlPlaneSchema } from '../src/pg-store.ts';
 import { toCanonicalSessionKey } from '@iclaw/shared';
@@ -238,7 +238,7 @@ async function main() {
     throw new Error('DATABASE_URL is required');
   }
 
-  const pool = new Pool(buildPgPoolConfig(config.databaseUrl));
+  const pool = createPgPool(config.databaseUrl, 'script:migrate-canonical-session-keys');
   try {
     const migrated = [];
     migrated.push(await migrateSchema(pool, 'app'));

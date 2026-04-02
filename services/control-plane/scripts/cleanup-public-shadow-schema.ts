@@ -1,7 +1,7 @@
 import {Pool} from 'pg';
 
 import {config} from '../src/config.ts';
-import {buildPgPoolConfig} from '../src/pg-connection.ts';
+import {createPgPool} from '../src/pg-connection.ts';
 
 type TableReport = {
   tableName: string;
@@ -240,7 +240,7 @@ async function main() {
     throw new Error('DATABASE_URL is required');
   }
 
-  const pool = new Pool(buildPgPoolConfig(config.databaseUrl));
+  const pool = createPgPool(config.databaseUrl, 'script:cleanup-public-shadow-schema');
   try {
     const reports = await buildReport(pool);
     const unexpected = reports.filter((item) => {

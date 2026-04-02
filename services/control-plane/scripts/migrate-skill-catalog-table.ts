@@ -1,5 +1,5 @@
 import {config} from '../src/config.ts';
-import {buildPgPoolConfig} from '../src/pg-connection.ts';
+import {createPgPool} from '../src/pg-connection.ts';
 import {ensureControlPlaneSchema} from '../src/pg-store.ts';
 
 import {Pool} from 'pg';
@@ -60,7 +60,7 @@ async function main() {
     throw new Error('DATABASE_URL is required');
   }
 
-  const pool = new Pool(buildPgPoolConfig(config.databaseUrl));
+  const pool = createPgPool(config.databaseUrl, 'script:migrate-skill-catalog-table');
   try {
     await migrateSchema(pool, 'app');
     await migrateSchema(pool, 'public');

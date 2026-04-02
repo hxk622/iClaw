@@ -4,7 +4,7 @@ import {promisify} from 'node:util';
 import {Pool} from 'pg';
 
 import {config} from '../src/config.ts';
-import {buildPgPoolConfig} from '../src/pg-connection.ts';
+import {createPgPool} from '../src/pg-connection.ts';
 import {ensureControlPlaneSchema} from '../src/pg-store.ts';
 
 type CninfoStockListResponse = {
@@ -359,7 +359,7 @@ async function main() {
   console.log(`[import-a-share-stocks] live quote snapshots loaded ${quoteMap.size} symbols`);
 
   const rows = directory.map((item) => toImportRow(item, quoteMap));
-  const pool = new Pool(buildPgPoolConfig(config.databaseUrl));
+  const pool = createPgPool(config.databaseUrl, 'script:import-a-share-stocks');
   try {
     for (let index = 0; index < rows.length; index += 250) {
       const batch = rows.slice(index, index + 250);

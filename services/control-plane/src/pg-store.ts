@@ -7,7 +7,7 @@ import {Pool, type PoolClient} from 'pg';
 import { toCanonicalSessionKey } from '@iclaw/shared';
 
 import {config} from './config.ts';
-import {buildPgPoolConfig} from './pg-connection.ts';
+import {createPgPool} from './pg-connection.ts';
 import type {
   AdminPaymentOrderDetailRecord,
   AdminPaymentOrderSummaryRecord,
@@ -967,7 +967,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const schemaPath = resolve(repoRoot, 'services/control-plane/sql/001_init.sql');
 
 export async function ensureControlPlaneSchema(databaseUrl: string): Promise<void> {
-  const pool = new Pool(buildPgPoolConfig(databaseUrl));
+  const pool = createPgPool(databaseUrl, 'control-plane-schema');
   try {
     const schemaCheck = await pool.query<{
       users_relation_kind: string | null;
@@ -999,7 +999,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
   private readonly pool: Pool;
 
   constructor(connectionString: string) {
-    this.pool = new Pool(buildPgPoolConfig(connectionString));
+    this.pool = createPgPool(connectionString, 'control-plane-store');
   }
 
   async getSystemState(stateKey: string): Promise<Record<string, unknown> | null> {
