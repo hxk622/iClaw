@@ -1,13 +1,13 @@
 {
   "version": "2026.3.13",
-  "artifact_url": "https://iclaw.aiyuanxi.com/downloads/runtime/openclaw/2026.3.13/openclaw-runtime-aarch64-apple-darwin-2026.3.13.tar.gz",
-  "artifact_sha256": "50a5139e22cd3471eee8569729e835e9fbbabe1b24eaea36b332ec71b617cf35",
+  "artifact_url": "https://caiclaw.aiyuanxi.com/runtime/openclaw/2026.3.13/openclaw-runtime-aarch64-apple-darwin-2026.3.13.tar.gz",
+  "artifact_sha256": "536a9d34ecf4881eca5258cb711eaf3541511bcb8e4c2c905fc5ba47e6719859",
   "artifact_format": "tar.gz",
   "launcher_relative_path": null,
   "artifacts": {
     "x86_64-pc-windows-msvc": {
-      "artifact_url": "https://iclaw.aiyuanxi.com/downloads/runtime/openclaw/2026.3.13/openclaw-runtime-x86_64-pc-windows-msvc-2026.3.13.tar.gz",
-      "artifact_sha256": "a9864d7855e1b2196566f727f2b5bc539dc8d05a38f8f4d50b937ded89bf051a",
+      "artifact_url": "https://caiclaw.aiyuanxi.com/runtime/openclaw/2026.3.13/openclaw-runtime-x86_64-pc-windows-msvc-2026.3.13.tar.gz",
+      "artifact_sha256": "536a9d34ecf4881eca5258cb711eaf3541511bcb8e4c2c905fc5ba47e6719859",
       "artifact_format": "tar.gz",
       "launcher_relative_path": null
     },
