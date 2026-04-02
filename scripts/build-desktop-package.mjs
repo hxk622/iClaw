@@ -389,6 +389,7 @@ async function writeTempTauriConfig() {
   config.build = config.build || {};
   config.build.beforeBuildCommand = '';
   await fs.writeFile(tempConfigPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+  return path.relative(desktopDir, tempConfigPath).replace(/\\/g, '/');
 }
 
 async function pathExists(targetPath) {
@@ -809,11 +810,11 @@ async function main() {
     run(process.execPath, [syncResourcesScriptPath], { env });
     restoreRuntimeBootstrapConfig = await applyRuntimeBootstrapOverlay(env, brandProfile, channel, runtimeTargetTriple);
     await assertPackagedRuntimeConfig(env, runtimeTargetTriple);
-    await writeTempTauriConfig();
+    const tempTauriConfigArg = await writeTempTauriConfig();
 
     run(pnpm.command, [...pnpm.args, '--dir', desktopDir, 'build'], { env, shell: pnpm.shell });
     const tauri = tauriBinaryPath();
-    run(tauri.command, ['build', '--config', tempConfigPath, '--bundles', tauriBundle, ...forwardedArgs], {
+    run(tauri.command, ['build', '--config', tempTauriConfigArg, '--bundles', tauriBundle, ...forwardedArgs], {
       cwd: desktopDir,
       env,
       shell: tauri.shell,

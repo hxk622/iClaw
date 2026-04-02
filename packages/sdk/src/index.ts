@@ -828,6 +828,7 @@ async function parseError(response: Response): Promise<ApiError> {
 }
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 8_000;
+const AUTH_REQUEST_TIMEOUT_MS = 20_000;
 const HEALTH_REQUEST_TIMEOUT_MS = 5_000;
 const STREAM_REQUEST_TIMEOUT_MS = 15_000;
 const DEFAULT_RETRY_MAX_ATTEMPTS = 2;
@@ -846,6 +847,33 @@ type RequestRetryOptions = {
   maxAttempts?: number;
   retryUnsafeMethods?: boolean;
 };
+
+function isLoopbackHostname(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase();
+  return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1' || normalized === '[::1]';
+}
+
+function isLoopbackServiceUrl(url: string): boolean {
+  try {
+    return isLoopbackHostname(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
+
+function resolveTimeoutMessage(options: TimedFetchOptions): string {
+  if (isLoopbackServiceUrl(options.serviceBaseUrl)) {
+    return `请求超时，请确认${options.serviceName}已启动并监听 ${options.serviceBaseUrl}`;
+  }
+  return `连接${options.serviceName}超时，请检查网络连接或稍后重试 (${options.serviceBaseUrl})`;
+}
+
+function resolveNetworkErrorMessage(options: TimedFetchOptions): string {
+  if (isLoopbackServiceUrl(options.serviceBaseUrl)) {
+    return `无法连接${options.serviceName}，请确认已启动并监听 ${options.serviceBaseUrl}`;
+  }
+  return `无法连接${options.serviceName}，请检查网络连接或稍后重试 (${options.serviceBaseUrl})`;
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -932,13 +960,13 @@ async function fetchWithTimeout(
       if (timedOut) {
         throw new ApiError({
           code: 'TIMEOUT',
-          message: `请求超时，请确认${options.serviceName}已启动并监听 ${options.serviceBaseUrl}`,
+          message: resolveTimeoutMessage(options),
         });
       }
       if (error instanceof Error) {
         throw new ApiError({
           code: 'NETWORK_ERROR',
-          message: `无法连接${options.serviceName}，请确认已启动并监听 ${options.serviceBaseUrl}`,
+          message: resolveNetworkErrorMessage(options),
         });
       }
       throw error;
@@ -951,7 +979,7 @@ async function fetchWithTimeout(
   throw lastError instanceof Error
     ? new ApiError({
         code: 'NETWORK_ERROR',
-        message: `无法连接${options.serviceName}，请确认已启动并监听 ${options.serviceBaseUrl}`,
+        message: resolveNetworkErrorMessage(options),
       })
     : new ApiError({
         code: 'HTTP_ERROR',
@@ -997,7 +1025,7 @@ export class IClawClient {
   private fetchAuth(
     path: string,
     init: RequestInit = {},
-    timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+    timeoutMs = AUTH_REQUEST_TIMEOUT_MS,
     retry?: RequestRetryOptions,
   ): Promise<Response> {
     const headers = new Headers(init.headers || {});
@@ -1127,9 +1155,6 @@ export class IClawClient {
         email: input.identifier,
         password: input.password,
       }),
-    }, DEFAULT_REQUEST_TIMEOUT_MS, {
-      enabled: true,
-      retryUnsafeMethods: true,
     });
     if (!res.ok) throw await parseError(res);
     const json = (await res.json()) as { data: { tokens: AuthTokens; user: unknown } };
