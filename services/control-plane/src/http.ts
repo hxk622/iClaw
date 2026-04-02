@@ -102,6 +102,68 @@ function json(response: ServerResponse, statusCode: number, payload: unknown): v
   response.end(JSON.stringify(payload));
 }
 
+const HTTP_LOG_STRING_PREVIEW_LENGTH = 240;
+const HTTP_LOG_ARRAY_SAMPLE_LIMIT = 3;
+const HTTP_LOG_OBJECT_SAMPLE_LIMIT = 12;
+const HTTP_LOG_MAX_DEPTH = 2;
+
+function summarizeHttpLogValue(value: unknown, depth = 0): unknown {
+  if (value == null) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    return value.length > HTTP_LOG_STRING_PREVIEW_LENGTH
+      ? {
+          type: 'string',
+          length: value.length,
+          preview: `${value.slice(0, HTTP_LOG_STRING_PREVIEW_LENGTH)}…`,
+        }
+      : value;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return value;
+  }
+  if (Buffer.isBuffer(value)) {
+    return {
+      type: 'buffer',
+      bytes: value.byteLength,
+    };
+  }
+  if (depth >= HTTP_LOG_MAX_DEPTH) {
+    if (Array.isArray(value)) {
+      return {
+        type: 'array',
+        length: value.length,
+      };
+    }
+    return {
+      type: 'object',
+      keyCount: Object.keys(value as Record<string, unknown>).length,
+    };
+  }
+  if (Array.isArray(value)) {
+    return {
+      type: 'array',
+      length: value.length,
+      sample: value.slice(0, HTTP_LOG_ARRAY_SAMPLE_LIMIT).map((entry) => summarizeHttpLogValue(entry, depth + 1)),
+    };
+  }
+  if (typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>);
+    return {
+      type: 'object',
+      keyCount: entries.length,
+      fields: Object.fromEntries(
+        entries
+          .slice(0, HTTP_LOG_OBJECT_SAMPLE_LIMIT)
+          .map(([key, entryValue]) => [key, summarizeHttpLogValue(entryValue, depth + 1)]),
+      ),
+      omittedKeys: Math.max(0, entries.length - HTTP_LOG_OBJECT_SAMPLE_LIMIT),
+    };
+  }
+  return String(value);
+}
+
 function raw(response: ServerResponse, result: RawResponse): void {
   response.statusCode = result.statusCode || 200;
   for (const [key, value] of Object.entries(result.headers || {})) {
@@ -210,7 +272,7 @@ export function createJsonServer(routes: Route[], options: JsonServerOptions = {
         api,
         method,
         headers: request.headers,
-        payload: body,
+        payload: summarizeHttpLogValue(body),
       });
       const data = await matched.route.handler({
         body,
@@ -228,10 +290,10 @@ export function createJsonServer(routes: Route[], options: JsonServerOptions = {
           method,
           statusCode: data.statusCode || 200,
           durationMs: Date.now() - startedAt,
-          responsePayload: {
+          responsePayload: summarizeHttpLogValue({
             body: data.body,
             headers: data.headers || {},
-          },
+          }),
         });
         return;
       }
@@ -244,7 +306,7 @@ export function createJsonServer(routes: Route[], options: JsonServerOptions = {
         method,
         statusCode: 200,
         durationMs: Date.now() - startedAt,
-        responsePayload,
+        responsePayload: summarizeHttpLogValue(responsePayload),
       });
     } catch (error) {
       const httpError =
@@ -269,7 +331,7 @@ export function createJsonServer(routes: Route[], options: JsonServerOptions = {
           headers: request.headers,
           statusCode: httpError.statusCode,
           durationMs: Date.now() - startedAt,
-          responsePayload: errorPayload,
+          responsePayload: summarizeHttpLogValue(errorPayload),
           error,
         });
       } else {
@@ -280,7 +342,7 @@ export function createJsonServer(routes: Route[], options: JsonServerOptions = {
           headers: request.headers,
           statusCode: httpError.statusCode,
           durationMs: Date.now() - startedAt,
-          responsePayload: errorPayload,
+          responsePayload: summarizeHttpLogValue(errorPayload),
         });
       }
 

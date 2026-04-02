@@ -157,9 +157,11 @@ async function runStartupBootstrap(): Promise<void> {
   };
   try {
     await runStep('ensureBootstrapAdmin', () => ensureBootstrapAdmin(store));
-    await runStep('ensureDefaultCatalogs', () => ensureDefaultCatalogs(store));
-    await runStep('ensureDefaultSkillSyncSources', () => ensureDefaultSkillSyncSources(store));
-    await runStep('ensurePortalSkillCatalogPolicy', () => ensurePortalSkillCatalogPolicy(portalStore));
+    await Promise.all([
+      runStep('ensureDefaultCatalogs', () => ensureDefaultCatalogs(store)),
+      runStep('ensureDefaultSkillSyncSources', () => ensureDefaultSkillSyncSources(store)),
+      runStep('ensurePortalSkillCatalogPolicy', () => ensurePortalSkillCatalogPolicy(portalStore)),
+    ]);
 
     startupState.bootstrap.status = 'ready';
     startupState.bootstrap.completedAt = new Date().toISOString();

@@ -25,6 +25,7 @@ const DEFAULT_CATALOGS_BOOTSTRAP_VERSION = 3;
 const DEFAULT_CATALOGS_STATE_KEY = 'bootstrap/default-catalogs';
 const PORTAL_PRESET_STATE_KEY = 'portal_preset/core-oem';
 const PORTAL_PRESET_BOOTSTRAP_VERSION = 3;
+const DEFAULT_CATALOG_UPSERT_CONCURRENCY = 12;
 
 function resolveSharedEnabledMcpKeys(
   bindings: Array<{appName: string; items: Array<{mcpKey: string; enabled?: boolean}>}>,
@@ -69,6 +70,30 @@ function rolePriority(role: 'user' | 'admin' | 'super_admin'): number {
     default:
       return 1;
   }
+}
+
+async function runWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  worker: (item: T, index: number) => Promise<void>,
+): Promise<void> {
+  if (items.length === 0) {
+    return;
+  }
+  let cursor = 0;
+  const concurrency = Math.max(1, Math.min(limit, items.length));
+  await Promise.all(
+    Array.from({length: concurrency}, async () => {
+      while (true) {
+        const index = cursor;
+        cursor += 1;
+        if (index >= items.length) {
+          return;
+        }
+        await worker(items[index], index);
+      }
+    }),
+  );
 }
 
 export async function ensureBootstrapAdmin(store: ControlPlaneStore): Promise<void> {
@@ -176,21 +201,23 @@ export async function ensureDefaultSkillSyncSources(store: ControlPlaneStore): P
   await store.upsertSkillSyncSource(DEFAULT_CLAWHUB_SYNC_SOURCE);
 }
 
-async function hasDefaultSkillCatalogGap(store: ControlPlaneStore): Promise<boolean> {
-  const entries = await Promise.all(DEFAULT_CLOUD_SKILL_SEEDS.map((skill) => store.getSkillCatalogEntry(skill.slug)));
-  return entries.some((entry) => !entry || entry.active === false || entry.distribution !== 'cloud');
-}
-
-async function hasDefaultAgentCatalogGap(store: ControlPlaneStore): Promise<boolean> {
-  const entries = await Promise.all(DEFAULT_AGENT_CATALOG_SEEDS.map((agent) => store.getAgentCatalogEntry(agent.slug)));
-  return entries.some((entry) => !entry || entry.active === false);
-}
-
 export async function ensureDefaultCatalogs(store: ControlPlaneStore): Promise<void> {
   const seedHash = buildDefaultCatalogsHash();
   const previousState = await store.getSystemState(DEFAULT_CATALOGS_STATE_KEY);
-  const hasSkillGap = await hasDefaultSkillCatalogGap(store);
-  const hasAgentGap = await hasDefaultAgentCatalogGap(store);
+  const [existingSkills, existingAgents] = await Promise.all([
+    store.listSkillCatalogAdmin(),
+    store.listAgentCatalogAdmin(),
+  ]);
+  const existingSkillMap = new Map(existingSkills.map((item) => [item.slug, item]));
+  const existingAgentMap = new Map(existingAgents.map((item) => [item.slug, item]));
+  const hasSkillGap = DEFAULT_CLOUD_SKILL_SEEDS.some((skill) => {
+    const entry = existingSkillMap.get(skill.slug);
+    return !entry || entry.active === false || entry.distribution !== 'cloud';
+  });
+  const hasAgentGap = DEFAULT_AGENT_CATALOG_SEEDS.some((agent) => {
+    const entry = existingAgentMap.get(agent.slug);
+    return !entry || entry.active === false;
+  });
   if (
     typeof previousState?.seedHash === 'string' &&
     previousState.seedHash === seedHash &&
@@ -200,11 +227,11 @@ export async function ensureDefaultCatalogs(store: ControlPlaneStore): Promise<v
     return;
   }
 
-  for (const skill of DEFAULT_CLOUD_SKILL_SEEDS) {
-    const existing = await store.getSkillCatalogEntry(skill.slug);
+  await runWithConcurrency(DEFAULT_CLOUD_SKILL_SEEDS, DEFAULT_CATALOG_UPSERT_CONCURRENCY, async (skill) => {
+    const existing = existingSkillMap.get(skill.slug);
     const distribution = 'cloud';
     const originType = existing?.originType || skill.originType || 'clawhub';
-    await store.upsertSkillCatalogEntry({
+    const record = await store.upsertSkillCatalogEntry({
       slug: existing?.slug || skill.slug,
       name: existing?.name || skill.name,
       description: existing?.description || skill.description,
@@ -224,13 +251,14 @@ export async function ensureDefaultCatalogs(store: ControlPlaneStore): Promise<v
       metadata: existing?.metadata || skill.metadata || {},
       active: true,
     });
-  }
+    existingSkillMap.set(record.slug, record);
+  });
 
-  for (const agent of DEFAULT_AGENT_CATALOG_SEEDS) {
-    if (await store.getAgentCatalogEntry(agent.slug)) {
-      continue;
+  await runWithConcurrency(DEFAULT_AGENT_CATALOG_SEEDS, DEFAULT_CATALOG_UPSERT_CONCURRENCY, async (agent) => {
+    if (existingAgentMap.has(agent.slug)) {
+      return;
     }
-    await store.upsertAgentCatalogEntry({
+    const record = await store.upsertAgentCatalogEntry({
       slug: agent.slug,
       name: agent.name,
       description: agent.description,
@@ -245,10 +273,11 @@ export async function ensureDefaultCatalogs(store: ControlPlaneStore): Promise<v
       sort_order: agent.sortOrder,
       active: agent.active,
     });
-  }
+    existingAgentMap.set(record.slug, record);
+  });
 
   for (const [slug, fixup] of Object.entries(LEGACY_DEFAULT_INVESTMENT_CATEGORY_FIXUPS)) {
-    const existing = await store.getAgentCatalogEntry(slug);
+    const existing = existingAgentMap.get(slug) || null;
     if (!existing || existing.active === false) {
       continue;
     }
@@ -266,7 +295,7 @@ export async function ensureDefaultCatalogs(store: ControlPlaneStore): Promise<v
     }
 
     metadata.investment_category = fixup.to;
-    await store.upsertAgentCatalogEntry({
+    const record = await store.upsertAgentCatalogEntry({
       slug: existing.slug,
       name: existing.name,
       description: existing.description,
@@ -281,14 +310,15 @@ export async function ensureDefaultCatalogs(store: ControlPlaneStore): Promise<v
       sort_order: existing.sortOrder,
       active: existing.active,
     });
+    existingAgentMap.set(record.slug, record);
   }
 
   for (const slug of DEPRECATED_DEFAULT_AGENT_SLUGS) {
-    const existing = await store.getAgentCatalogEntry(slug);
+    const existing = existingAgentMap.get(slug) || null;
     if (!existing || existing.active === false) {
       continue;
     }
-    await store.upsertAgentCatalogEntry({
+    const record = await store.upsertAgentCatalogEntry({
       slug: existing.slug,
       name: existing.name,
       description: existing.description,
@@ -306,6 +336,7 @@ export async function ensureDefaultCatalogs(store: ControlPlaneStore): Promise<v
       sort_order: existing.sortOrder,
       active: false,
     });
+    existingAgentMap.set(record.slug, record);
   }
 
   await store.setSystemState(DEFAULT_CATALOGS_STATE_KEY, {
