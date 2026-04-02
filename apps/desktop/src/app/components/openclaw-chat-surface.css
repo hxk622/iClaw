@@ -126,6 +126,13 @@ body {
   display: none !important;
 }
 
+.openclaw-chat-surface .login-gate,
+.openclaw-chat-surface .login-gate__theme,
+.openclaw-chat-surface .login-gate__card,
+.openclaw-chat-surface .login-gate__help {
+  display: none !important;
+}
+
 .openclaw-chat-surface .content {
   padding: 0 0 24px;
   background: transparent;

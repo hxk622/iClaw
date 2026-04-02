@@ -4643,18 +4643,20 @@ export function OpenClawChatSurface({
   const waitingForHistoryResolution =
     shellAuthenticated && sessionHistoryState === 'unknown' && !hasObservedHistory;
   const hasStableVisibleChat = hasObservedHistory || renderState.groupCount > 0 || renderState.chatMessageCount > 0;
+  const renderReady = isSessionRenderReady(renderState);
   const surfaceReadyForReveal =
     status.connected &&
     (hasStableVisibleChat || allowImmediateEmptySessionUi || sessionHistoryState === 'empty') &&
     !status.lastError;
   const showBootMask =
     shellAuthenticated &&
+    !allowImmediateEmptySessionUi &&
     !hasStableVisibleChat &&
     !status.lastError &&
-    ((!hasBootSettled && (!status.connected || initialSurfaceRestorePending)) || waitingForHistoryResolution);
+    (!surfaceReadyForReveal || !hasBootSettled || initialSurfaceRestorePending || waitingForHistoryResolution || !renderReady);
   const showSessionTransitionMask = sessionTransitionVisible && !showBootMask && !hasStableVisibleChat;
-  const showSurfaceReactivationMask = surfaceReactivating && !showBootMask;
-  const shellTransitioning = showBootMask || showSessionTransitionMask || showSurfaceReactivationMask;
+  const showSurfaceReactivationMask = false;
+  const shellTransitioning = showBootMask || showSessionTransitionMask;
   const localSendBlockedReason =
     modelSwitching
       ? '正在切换模型，请稍后发送。'
