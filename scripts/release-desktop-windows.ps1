@@ -99,6 +99,32 @@ function Get-PublicAppVersion {
   return ($normalized -split '\+', 2)[0]
 }
 
+function Get-NormalizedReleaseVersion {
+  param(
+    [Parameter(Mandatory = $true)][string]$BaseVersion,
+    [Parameter()][string]$RequestedReleaseVersion = ''
+  )
+
+  $normalizedBaseVersion = $BaseVersion.Trim()
+  if (-not $normalizedBaseVersion) {
+    throw 'BaseVersion cannot be empty'
+  }
+
+  $candidate = $RequestedReleaseVersion.Trim()
+  if (-not $candidate) {
+    return "$normalizedBaseVersion.$(Get-Date -Format 'yyyyMMddHHmm')"
+  }
+
+  $candidate = [regex]::Replace($candidate, '\+[^.]+', '')
+  if ($candidate -match '^\d+\.\d+\.\d+$') {
+    return "$candidate.$(Get-Date -Format 'yyyyMMddHHmm')"
+  }
+  if ($candidate -notmatch '^\d+\.\d+\.\d+\.\d+$') {
+    throw "Unsupported ReleaseVersion format: $RequestedReleaseVersion. Expected <baseVersion>.<datetime>."
+  }
+  return $candidate
+}
+
 function Resolve-UploadPrefix {
   param([Parameter(Mandatory = $true)][string]$PublicBaseUrl)
   $normalized = $PublicBaseUrl.Trim()
@@ -395,9 +421,7 @@ try {
   $appVersion = [string]$packageJson.version
   $publicAppVersion = Get-PublicAppVersion -Version $appVersion
   $normalizedChannels = @($Channels | ForEach-Object { Normalize-EnvName $_ })
-  if (-not $ReleaseVersion) {
-    $ReleaseVersion = "$publicAppVersion.$(Get-Date -Format 'yyyyMMddHHmm')"
-  }
+  $ReleaseVersion = Get-NormalizedReleaseVersion -BaseVersion $publicAppVersion -RequestedReleaseVersion $ReleaseVersion
 
   if (-not $SkipBuild) {
     foreach ($normalizedChannel in $normalizedChannels) {

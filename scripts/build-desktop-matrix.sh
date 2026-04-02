@@ -8,7 +8,27 @@ APP_VERSION="$(node -p "require('$ROOT_DIR/package.json').version")"
 PUBLIC_APP_VERSION="${APP_VERSION%%+*}"
 HOST_PLATFORM="$(node -p "process.platform")"
 timestamp="$(date +%Y%m%d%H%M)"
-RELEASE_VERSION="${1:-${PUBLIC_APP_VERSION}.${timestamp}}"
+normalize_release_version() {
+  local value="${1:-}"
+  if [[ -z "$value" ]]; then
+    printf '%s.%s\n' "$PUBLIC_APP_VERSION" "$timestamp"
+    return 0
+  fi
+
+  value="$(printf '%s' "$value" | sed -E 's/\+[^.]+//')"
+  if [[ "$value" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    printf '%s.%s\n' "$value" "$timestamp"
+    return 0
+  fi
+  if [[ "$value" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    printf '%s\n' "$value"
+    return 0
+  fi
+
+  echo "Unsupported release version format: $1" >&2
+  exit 1
+}
+RELEASE_VERSION="$(normalize_release_version "${1:-}")"
 CHANNELS=("dev" "prod")
 
 case "$HOST_PLATFORM" in

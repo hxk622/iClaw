@@ -29,6 +29,7 @@ bash scripts/build-desktop-matrix.sh
 
 命名格式：
 
+- `releaseVersion` 固定为：`<baseVersion>.<datetime>`
 - mac installer：`<artifactBaseName>_<releaseVersion>_<arch>_<channel>.dmg`
 - mac updater：`<artifactBaseName>_<releaseVersion>_<arch>_<channel>.app.tar.gz`
 - Windows installer：`<artifactBaseName>_<releaseVersion>_<arch>_<channel>.exe`
@@ -38,6 +39,12 @@ bash scripts/build-desktop-matrix.sh
 
 - `LiCaiClaw_1.0.0.202603211230_aarch64_dev.dmg`
 - `LiCaiClaw_1.0.0.202603211230_x64_prod.exe`
+
+约束：
+
+- 发布文件名不再包含 package.json 里的 `+build` metadata
+- 例如 `1.0.0+202603091514` 对外发布时统一转成 `1.0.0.<datetime>`
+- channel 继续使用下划线字段：`_dev` / `_prod`
 
 ## 默认矩阵
 
