@@ -31,6 +31,7 @@ interface AccountPanelProps {
   onClose: () => void;
   onOpenRechargeCenter: () => void;
   onUserUpdated: (user: AuthUser) => void;
+  active?: boolean;
 }
 
 function formatDate(value: string): string {
@@ -81,7 +82,15 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
-export function AccountPanel({ client, token, user, onClose, onOpenRechargeCenter, onUserUpdated }: AccountPanelProps) {
+export function AccountPanel({
+  client,
+  token,
+  user,
+  onClose,
+  onOpenRechargeCenter,
+  onUserUpdated,
+  active = true,
+}: AccountPanelProps) {
   const [name, setName] = useState(user?.name || '');
   const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.avatar_url || null);
   const [avatarDataBase64, setAvatarDataBase64] = useState<string | null>(null);
@@ -133,6 +142,9 @@ export function AccountPanel({ client, token, user, onClose, onOpenRechargeCente
   };
 
   useEffect(() => {
+    if (!active) {
+      return;
+    }
     let cancelled = false;
     const load = async () => {
       try {
@@ -148,7 +160,7 @@ export function AccountPanel({ client, token, user, onClose, onOpenRechargeCente
     return () => {
       cancelled = true;
     };
-  }, [client, token]);
+  }, [active, client, token]);
 
   const handleSaveProfile = async () => {
     const nextName = name.trim();
@@ -257,7 +269,13 @@ export function AccountPanel({ client, token, user, onClose, onOpenRechargeCente
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-[rgba(26,22,18,0.22)] px-5 py-5 backdrop-blur-[2px]" onClick={onClose}>
+    <div
+      className={`fixed inset-0 z-40 flex items-center justify-center bg-[rgba(26,22,18,0.22)] px-5 py-5 backdrop-blur-[2px] ${
+        active ? '' : 'pointer-events-none opacity-0'
+      }`}
+      aria-hidden={active ? undefined : true}
+      onClick={onClose}
+    >
       <div
         className="relative flex h-full max-h-[920px] w-full max-w-7xl flex-col overflow-hidden rounded-[32px] border border-[var(--border-default)] bg-[linear-gradient(180deg,rgba(252,251,248,0.98),rgba(244,240,233,0.96))] shadow-[0_28px_90px_rgba(42,31,10,0.18)] dark:bg-[linear-gradient(180deg,rgba(24,24,24,0.98),rgba(12,12,12,0.96))]"
         onClick={(event) => event.stopPropagation()}

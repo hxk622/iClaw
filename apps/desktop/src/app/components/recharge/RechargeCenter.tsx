@@ -136,9 +136,10 @@ interface RechargeCenterProps {
   client: IClawClient;
   token: string;
   onClose: () => void;
+  active?: boolean;
 }
 
-export function RechargeCenter({ client, token, onClose }: RechargeCenterProps) {
+export function RechargeCenter({ client, token, onClose, active = true }: RechargeCenterProps) {
   const [step, setStep] = useState<RechargeStep>('plans');
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [selectedPlan, setSelectedPlan] = useState<PaidPlanTier>('plus');
@@ -147,7 +148,7 @@ export function RechargeCenter({ client, token, onClose }: RechargeCenterProps) 
   const [creatingOrder, setCreatingOrder] = useState(false);
   const [activeOrder, setActiveOrder] = useState<PaymentOrderData | null>(null);
   const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
-  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const currentPlan = useMemo(() => getPlanById(selectedPlan), [selectedPlan]);
   const totalPrice = formatPlanPrice(currentPlan, billingCycle);
@@ -155,6 +156,7 @@ export function RechargeCenter({ client, token, onClose }: RechargeCenterProps) 
     activeOrder?.provider === 'wechat_qr' ? PERSONAL_WECHAT_QR_URL : activeOrder?.payment_url || null;
 
   useEffect(() => {
+    if (!active) return;
     if (!planDropdownOpen) return;
     const handlePointerDown = (event: globalThis.MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -163,9 +165,10 @@ export function RechargeCenter({ client, token, onClose }: RechargeCenterProps) 
     };
     window.addEventListener('mousedown', handlePointerDown);
     return () => window.removeEventListener('mousedown', handlePointerDown);
-  }, [planDropdownOpen]);
+  }, [active, planDropdownOpen]);
 
   useEffect(() => {
+    if (!active) return;
     if (step !== 'payment') return;
     let cancelled = false;
     setCreatingOrder(true);
@@ -198,9 +201,10 @@ export function RechargeCenter({ client, token, onClose }: RechargeCenterProps) 
     return () => {
       cancelled = true;
     };
-  }, [billingCycle, client, paymentMethod, selectedPlan, step, token]);
+  }, [active, billingCycle, client, paymentMethod, selectedPlan, step, token]);
 
   useEffect(() => {
+    if (!active) return;
     if (!activeOrder) return;
     if (!['created', 'pending'].includes(activeOrder.status)) return;
     let cancelled = false;
@@ -230,7 +234,7 @@ export function RechargeCenter({ client, token, onClose }: RechargeCenterProps) 
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [activeOrder, client, token]);
+  }, [active, activeOrder, client, token]);
 
   const openPayment = (planId: PlanTier) => {
     if (planId === 'free') return;
@@ -244,7 +248,11 @@ export function RechargeCenter({ client, token, onClose }: RechargeCenterProps) 
   };
 
   return (
-    <div className={PANEL_OVERLAY_CLASS} onClick={onClose}>
+    <div
+      className={`${PANEL_OVERLAY_CLASS} ${active ? '' : 'pointer-events-none opacity-0'}`}
+      aria-hidden={active ? undefined : true}
+      onClick={onClose}
+    >
       {step === 'plans' ? (
         <PlansView
           billingCycle={billingCycle}
@@ -529,7 +537,7 @@ function PaymentView({
   planDropdownOpen: boolean;
   onTogglePlanDropdown: () => void;
   onSelectPlan: (plan: PaidPlanTier) => void;
-  dropdownRef: RefObject<HTMLDivElement | null>;
+  dropdownRef: RefObject<HTMLDivElement>;
   onBack: () => void;
   onClose: () => void;
   creatingOrder: boolean;

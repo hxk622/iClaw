@@ -215,6 +215,7 @@ type OpenClawChatSurfaceProps = {
   onGeneralChatSessionOverloaded?: (snapshot: ChatSessionPressureSnapshot) => void;
   onOpenRechargeCenter?: () => void;
   onBusyStateChange?: (busy: boolean) => void;
+  onPendingBillingStateChange?: (pending: boolean) => void;
   sendBlockedReason?: string | null;
 };
 
@@ -2624,6 +2625,7 @@ export function OpenClawChatSurface({
   onGeneralChatSessionOverloaded,
   onOpenRechargeCenter,
   onBusyStateChange,
+  onPendingBillingStateChange,
   sendBlockedReason = null,
 }: OpenClawChatSurfaceProps) {
   const shellRef = useRef<HTMLDivElement | null>(null);
@@ -2723,6 +2725,16 @@ export function OpenClawChatSurface({
       onBusyStateChange?.(false);
     };
   }, [onBusyStateChange]);
+
+  useEffect(() => {
+    onPendingBillingStateChange?.(globalPendingSettlementCount > 0);
+  }, [globalPendingSettlementCount, onPendingBillingStateChange]);
+
+  useEffect(() => {
+    return () => {
+      onPendingBillingStateChange?.(false);
+    };
+  }, [onPendingBillingStateChange]);
 
   useEffect(() => {
     queuedMessagesRef.current = queuedMessages;

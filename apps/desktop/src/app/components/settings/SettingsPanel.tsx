@@ -14,6 +14,7 @@ import { cn } from '@/app/lib/cn';
 interface SettingsPanelProps {
   onClose: () => void;
   onSave: (section: PersistableSettingsSection) => Promise<void>;
+  active?: boolean;
   desktopUpdateCurrentVersion: string;
   desktopUpdateLatestVersion: string | null;
   desktopUpdateMandatory: boolean;
@@ -29,6 +30,7 @@ interface SettingsPanelProps {
 export function SettingsPanel({
   onClose,
   onSave,
+  active = true,
   desktopUpdateCurrentVersion,
   desktopUpdateLatestVersion,
   desktopUpdateMandatory,
@@ -117,7 +119,13 @@ export function SettingsPanel({
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-8 backdrop-blur-sm" onClick={onClose}>
+    <div
+      className={`fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-8 backdrop-blur-sm ${
+        active ? '' : 'pointer-events-none opacity-0'
+      }`}
+      aria-hidden={active ? undefined : true}
+      onClick={onClose}
+    >
       <div
         className="relative flex h-[720px] w-full max-w-[1200px] max-h-[calc(100vh-64px)] flex-col overflow-hidden rounded-[20px] border border-[var(--border-default)] bg-[var(--bg-card)] shadow-[0_20px_60px_rgba(0,0,0,0.3),0_0_1px_rgba(0,0,0,0.1)]"
         onClick={(event) => event.stopPropagation()}

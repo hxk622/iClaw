@@ -89,6 +89,7 @@ import {
 } from './lib/desktop-updates';
 import { syncManagedSkills, type SkillStoreItem } from './lib/skill-store';
 import { readCacheJson, writeCacheJson } from './lib/persistence/cache-store';
+import { useSurfaceCacheManager } from './lib/surface-cache';
 import {
   checkDesktopUpdate,
   downloadAndInstallDesktopUpdate,
@@ -407,6 +408,18 @@ function resolveInitialChatRoute(): ActiveChatRoute {
 }
 
 type PrimaryView = string;
+type OverlayView = 'settings' | 'account' | 'recharge';
+
+type ChatSurfaceEntry = {
+  route: ActiveChatRoute;
+  version: number;
+};
+
+type ChatSurfaceRuntimeState = {
+  busy: boolean;
+  hasPendingBilling: boolean;
+};
+
 const PRIMARY_VIEW_ORDER: PrimaryView[] = [
   'chat',
   'cron',
@@ -425,6 +438,20 @@ const PRIMARY_VIEW_ORDER: PrimaryView[] = [
   'task-center',
 ];
 const SUPPORTED_PRIMARY_VIEWS = new Set<PrimaryView>(PRIMARY_VIEW_ORDER);
+
+function buildChatSurfaceCacheKey(route: ActiveChatRoute): string {
+  return route.conversationId || route.sessionKey;
+}
+
+function isRenderableMenuPrimaryView(view: PrimaryView): boolean {
+  return view !== 'chat';
+}
+
+function buildSurfaceLayerClassName(active: boolean): string {
+  return active
+    ? 'relative flex min-h-0 flex-1 overflow-hidden'
+    : 'pointer-events-none absolute inset-0 flex min-h-0 flex-1 overflow-hidden opacity-0';
+}
 
 function buildDesktopUpdateAnnouncement(hint: DesktopUpdateHint): string {
   const policyLabel = resolveDesktopUpdatePolicyLabel(hint);
@@ -698,7 +725,7 @@ export default function App() {
   const [runtimeDiagnosis, setRuntimeDiagnosis] = useState<RuntimeDiagnosis | null>(null);
   const [runtimeInstallProgress, setRuntimeInstallProgress] = useState<RuntimeInstallProgress | null>(null);
   const [primaryView, setPrimaryView] = useState<PrimaryView>(() => readPersistedWorkspaceScene().primaryView ?? 'chat');
-  const [overlayView, setOverlayView] = useState<'settings' | 'account' | 'recharge' | null>(null);
+  const [overlayView, setOverlayView] = useState<OverlayView | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
   const [postAuthView, setPostAuthView] = useState<'account' | 'recharge' | null>(null);
@@ -1806,8 +1833,8 @@ interface AuthedViewProps {
   brandShellConfig: Record<string, unknown> | null;
   showStartupGate: boolean;
   revalidateBrandRuntimeConfig: () => Promise<void>;
-  overlayView: 'settings' | 'account' | 'recharge' | null;
-  setOverlayView: Dispatch<SetStateAction<'settings' | 'account' | 'recharge' | null>>;
+  overlayView: OverlayView | null;
+  setOverlayView: Dispatch<SetStateAction<OverlayView | null>>;
   client: IClawClient;
   imBotClient: IClawClient;
   accessToken: string | null;
@@ -1888,11 +1915,29 @@ function AuthedView({
   const { buildSectionSaveSnapshot, commitSectionSave } = useSettings();
   const lastResolvedPrimaryViewRef = useRef<PrimaryView | null>(null);
   const chatRuntimeAuthRef = useRef(authenticated);
+  const initialChatRouteRef = useRef<ActiveChatRoute>(resolveInitialChatRoute());
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(() => readPersistedWorkspaceScene().selectedTaskId);
-  const [activeChatRoute, setActiveChatRoute] = useState<ActiveChatRoute>(() => resolveInitialChatRoute());
-  const [chatSurfaceVersion, setChatSurfaceVersion] = useState(0);
+  const [activeChatRoute, setActiveChatRoute] = useState<ActiveChatRoute>(() => initialChatRouteRef.current);
+  const [chatSurfaceEntries, setChatSurfaceEntries] = useState<Record<string, ChatSurfaceEntry>>(() => {
+    const initialRoute = initialChatRouteRef.current;
+    return {
+      [buildChatSurfaceCacheKey(initialRoute)]: {
+        route: initialRoute,
+        version: 0,
+      },
+    };
+  });
+  const [chatSurfaceRuntimeState, setChatSurfaceRuntimeState] = useState<Record<string, ChatSurfaceRuntimeState>>({});
   const [creditBalance, setCreditBalance] = useState<CreditBalanceData | null>(null);
   const [creditBalanceLoading, setCreditBalanceLoading] = useState(false);
+  const surfaceCache = useSurfaceCacheManager();
+  const {
+    ensureVisible: ensureSurfaceVisible,
+    hidePool: hideSurfacePool,
+    updateFlags: updateSurfaceFlags,
+    getMountedKeys: getMountedSurfaceKeys,
+    isVisible: isSurfaceVisible,
+  } = surfaceCache;
   const enabledMenuKeys = resolveRequiredEnabledMenuKeys(brandShellConfig);
   const menuUiConfig = resolveRequiredMenuUiConfig(brandShellConfig, [...enabledMenuKeys, 'chat', 'task-center']);
   const headerConfig = resolveHeaderConfig(brandShellConfig);
@@ -1906,39 +1951,13 @@ function AuthedView({
     Boolean(accessToken) ||
     (!authModalOpen && authBootstrapReady && chatRuntimeAuthRef.current);
   const showWelcomeBackground = authBootstrapReady && !authenticated;
-  const activeMenuLabel =
-    menuUiConfig[resolvedPrimaryView]?.displayName ||
-    menuUiConfig[fallbackPrimaryView]?.displayName ||
-    menuUiConfig.chat.displayName;
   const chatMenuLabel = menuUiConfig.chat.displayName;
   const keepChatSurfaceMounted =
     !showStartupGate && !showWelcomeBackground && authBootstrapReady && chatShellAuthenticated;
-  const skillStoreViewConfig:
-    | {
-        preset: SkillStoreViewPreset;
-        title: string;
-        description: string;
-      }
-    | null =
-    resolvedPrimaryView === 'skill-store'
-      ? {
-          preset: 'all',
-          title: activeMenuLabel,
-          description: '统一查看系统预置能力与云端技能，安装后可自动同步到设备',
-        }
-      : resolvedPrimaryView === 'finance-skills'
-        ? {
-            preset: 'finance',
-            title: activeMenuLabel,
-            description: '聚合技能商店里的财经、投资、股票与金融分析相关技能，右侧布局与技能商店保持一致。',
-          }
-        : resolvedPrimaryView === 'foundation-skills'
-          ? {
-              preset: 'foundation',
-              title: activeMenuLabel,
-              description: '聚合技能商店里的基础通用技能，展示当前热门前 100 项，右侧布局与技能商店保持一致。',
-            }
-          : null;
+  const mountedChatSurfaceKeys = getMountedSurfaceKeys('chat');
+  const mountedMenuSurfaceKeys = getMountedSurfaceKeys('menu');
+  const mountedOverlaySurfaceKeys = getMountedSurfaceKeys('overlay') as OverlayView[];
+  const hasAnyBusyChatSurface = Object.values(chatSurfaceRuntimeState).some((state) => state.busy);
 
   useEffect(() => {
     if (authenticated || accessToken) {
@@ -1949,6 +1968,10 @@ function AuthedView({
       chatRuntimeAuthRef.current = false;
     }
   }, [accessToken, authModalOpen, authenticated]);
+
+  useEffect(() => {
+    onChatBusyChange(hasAnyBusyChatSurface);
+  }, [hasAnyBusyChatSurface, onChatBusyChange]);
 
   useEffect(() => {
     if (primaryView === resolvedPrimaryView) {
@@ -1972,8 +1995,88 @@ function AuthedView({
     });
   }, [resolvedPrimaryView, revalidateBrandRuntimeConfig]);
 
+  useEffect(() => {
+    const activeChatSurfaceKey = buildChatSurfaceCacheKey(activeChatRoute);
+    setChatSurfaceEntries((current) => {
+      const existing = current[activeChatSurfaceKey];
+      const nextEntry: ChatSurfaceEntry = {
+        route: activeChatRoute,
+        version: existing?.version ?? 0,
+      };
+      if (
+        existing &&
+        existing.version === nextEntry.version &&
+        existing.route.sessionKey === nextEntry.route.sessionKey &&
+        existing.route.conversationId === nextEntry.route.conversationId &&
+        existing.route.initialPrompt === nextEntry.route.initialPrompt &&
+        existing.route.initialPromptKey === nextEntry.route.initialPromptKey &&
+        existing.route.initialAgentSlug === nextEntry.route.initialAgentSlug &&
+        existing.route.initialSkillSlug === nextEntry.route.initialSkillSlug &&
+        existing.route.focusTaskId === nextEntry.route.focusTaskId &&
+        existing.route.focusTaskPrompt === nextEntry.route.focusTaskPrompt &&
+        JSON.stringify(existing.route.initialSkillOption) === JSON.stringify(nextEntry.route.initialSkillOption) &&
+        JSON.stringify(existing.route.initialStockContext) === JSON.stringify(nextEntry.route.initialStockContext)
+      ) {
+        return current;
+      }
+      return {
+        ...current,
+        [activeChatSurfaceKey]: nextEntry,
+      };
+    });
+  }, [activeChatRoute]);
+
+  useEffect(() => {
+    if (keepChatSurfaceMounted) {
+      ensureSurfaceVisible('chat', buildChatSurfaceCacheKey(activeChatRoute));
+      return;
+    }
+    hideSurfacePool('chat');
+  }, [activeChatRoute, ensureSurfaceVisible, hideSurfacePool, keepChatSurfaceMounted]);
+
+  useEffect(() => {
+    if (isRenderableMenuPrimaryView(resolvedPrimaryView)) {
+      ensureSurfaceVisible('menu', resolvedPrimaryView);
+      return;
+    }
+    hideSurfacePool('menu');
+  }, [ensureSurfaceVisible, hideSurfacePool, resolvedPrimaryView]);
+
+  useEffect(() => {
+    if (overlayView) {
+      ensureSurfaceVisible('overlay', overlayView);
+      return;
+    }
+    hideSurfacePool('overlay');
+  }, [ensureSurfaceVisible, hideSurfacePool, overlayView]);
+
+  useEffect(() => {
+    const mountedKeys = new Set(mountedChatSurfaceKeys);
+    setChatSurfaceEntries((current) => {
+      const nextEntries = Object.fromEntries(
+        Object.entries(current).filter(([key]) => mountedKeys.has(key) || key === buildChatSurfaceCacheKey(activeChatRoute)),
+      );
+      return Object.keys(nextEntries).length === Object.keys(current).length ? current : nextEntries;
+    });
+    setChatSurfaceRuntimeState((current) => {
+      const nextState = Object.fromEntries(Object.entries(current).filter(([key]) => mountedKeys.has(key)));
+      return Object.keys(nextState).length === Object.keys(current).length ? current : nextState;
+    });
+  }, [activeChatRoute, mountedChatSurfaceKeys]);
+
   const openChatRoute = useCallback(
     (nextRoute: ActiveChatRoute, options?: {forceRemount?: boolean}) => {
+      const nextSurfaceKey = buildChatSurfaceCacheKey(nextRoute);
+      setChatSurfaceEntries((current) => {
+        const existing = current[nextSurfaceKey];
+        return {
+          ...current,
+          [nextSurfaceKey]: {
+            route: nextRoute,
+            version: options?.forceRemount ? (existing?.version ?? 0) + 1 : (existing?.version ?? 0),
+          },
+        };
+      });
       setActiveChatRoute(
         buildActiveChatRoute({
           sessionKey: nextRoute.sessionKey,
@@ -1989,9 +2092,6 @@ function AuthedView({
           focusTaskPrompt: nextRoute.focusTaskPrompt,
         }),
       );
-      if (options?.forceRemount) {
-        setChatSurfaceVersion((current) => current + 1);
-      }
       setPrimaryView('chat');
     },
     [setPrimaryView],
@@ -2071,6 +2171,36 @@ function AuthedView({
       setCreditBalanceLoading(false);
     }
   }, [accessToken, client]);
+
+  const updateChatSurfaceRuntimeFlags = useCallback(
+    (surfaceKey: string, patch: Partial<ChatSurfaceRuntimeState>) => {
+      setChatSurfaceRuntimeState((current) => {
+        const previous = current[surfaceKey] ?? {
+          busy: false,
+          hasPendingBilling: false,
+        };
+        const next = {
+          ...previous,
+          ...patch,
+        };
+        if (
+          previous.busy === next.busy &&
+          previous.hasPendingBilling === next.hasPendingBilling
+        ) {
+          return current;
+        }
+        return {
+          ...current,
+          [surfaceKey]: next,
+        };
+      });
+      updateSurfaceFlags('chat', surfaceKey, {
+        ...(patch.busy === undefined ? {} : {busy: patch.busy}),
+        ...(patch.hasPendingBilling === undefined ? {} : {hasPendingBilling: patch.hasPendingBilling}),
+      });
+    },
+    [updateSurfaceFlags],
+  );
 
   const handleSaveSettings = async (section: PersistableSettingsSection) => {
     const snapshot = buildSectionSaveSnapshot(section);
@@ -2335,6 +2465,250 @@ function AuthedView({
     }));
   };
 
+  const renderMenuSurface = (viewKey: PrimaryView) => {
+    const viewLabel =
+      menuUiConfig[viewKey]?.displayName ||
+      menuUiConfig[fallbackPrimaryView]?.displayName ||
+      menuUiConfig.chat.displayName;
+    const currentSkillStoreViewConfig:
+      | {
+          preset: SkillStoreViewPreset;
+          title: string;
+          description: string;
+        }
+      | null =
+      viewKey === 'skill-store'
+        ? {
+            preset: 'all',
+            title: viewLabel,
+            description: '统一查看系统预置能力与云端技能，安装后可自动同步到设备',
+          }
+        : viewKey === 'finance-skills'
+          ? {
+              preset: 'finance',
+              title: viewLabel,
+              description: '聚合技能商店里的财经、投资、股票与金融分析相关技能，右侧布局与技能商店保持一致。',
+            }
+          : viewKey === 'foundation-skills'
+            ? {
+                preset: 'foundation',
+                title: viewLabel,
+                description: '聚合技能商店里的基础通用技能，展示当前热门前 100 项，右侧布局与技能商店保持一致。',
+              }
+            : null;
+
+    if (showStartupGate) {
+      return <ChatBootstrapPlaceholderView />;
+    }
+
+    if (viewKey === 'investment-experts') {
+      return (
+        <InvestmentExpertsView
+          title={viewLabel}
+          client={client}
+          accessToken={accessToken}
+          authenticated={authenticated}
+          onRequestAuth={onRequestAuth}
+          onStartConversation={handleStartInvestmentExpertConversation}
+        />
+      );
+    }
+
+    if (viewKey === 'stock-market') {
+      return <StockMarketView title={viewLabel} client={client} onStartResearch={handleStartStockResearchConversation} />;
+    }
+
+    if (viewKey === 'fund-market') {
+      return <FundMarketView title={viewLabel} client={client} onStartResearch={handleStartFundResearchConversation} />;
+    }
+
+    if (viewKey === 'lobster-store') {
+      return (
+        <LobsterStoreView
+          title={viewLabel}
+          client={client}
+          accessToken={accessToken}
+          authenticated={authenticated}
+          currentUser={currentUser}
+          onStartConversation={handleStartLobsterConversation}
+          onRequestAuth={onRequestAuth}
+        />
+      );
+    }
+
+    if (currentSkillStoreViewConfig) {
+      return (
+        <SkillStoreView
+          key={viewKey}
+          client={client}
+          accessToken={accessToken}
+          authBaseUrl={AUTH_BASE_URL}
+          authenticated={authenticated}
+          currentUser={currentUser}
+          onRequestAuth={onRequestAuth}
+          onStartConversation={handleStartSkillConversation}
+          preset={currentSkillStoreViewConfig.preset}
+          title={currentSkillStoreViewConfig.title}
+          description={currentSkillStoreViewConfig.description}
+        />
+      );
+    }
+
+    if (viewKey === 'mcp-store') {
+      return (
+        <MCPStoreView
+          title={viewLabel}
+          client={client}
+          accessToken={accessToken}
+          authenticated={authenticated}
+          onRequestAuth={onRequestAuth}
+        />
+      );
+    }
+
+    if (viewKey === 'data-connections') {
+      return <DataConnectionsView title={viewLabel} />;
+    }
+
+    if (viewKey === 'security') {
+      return <SecurityCenterView title={viewLabel} />;
+    }
+
+    if (viewKey === 'memory') {
+      return <MemoryView title={viewLabel} />;
+    }
+
+    if (viewKey === 'task-center') {
+      return (
+        <TaskCenterView
+          selectedTaskId={selectedTaskId}
+          onSelectTask={setSelectedTaskId}
+          onOpenChat={() => setPrimaryView('chat')}
+          taskCenterLabel={viewLabel}
+          chatMenuLabel={chatMenuLabel}
+        />
+      );
+    }
+
+    if (viewKey === 'cron') {
+      if (!authBootstrapReady) {
+        return (
+          <AuthBootstrapPlaceholderView
+            eyebrow="Cron Shell"
+            title="正在恢复定时任务会话"
+            description="正在校验 control-plane 登录态并恢复本地运行时。"
+          />
+        );
+      }
+      if (showWelcomeBackground) {
+        return <WelcomeBackgroundView welcomePageConfig={welcomePageConfig} onRequestAuth={onRequestAuth} />;
+      }
+      if (authenticated) {
+        return (
+          <OpenClawCronSurface
+            title={viewLabel}
+            gatewayUrl={GATEWAY_WS_URL}
+            gatewayToken={gatewayAuth.token}
+            gatewayPassword={gatewayAuth.password}
+            sessionKey={CRON_SYSTEM_SESSION_KEY}
+            shellAuthenticated={authenticated}
+          />
+        );
+      }
+      return (
+        <RuntimeAuthRequiredView
+          eyebrow="Cron Shell"
+          title="当前定时任务页还不能挂载运行时"
+          description="这不是正常空态。当前是 iClaw shell 还没有完成登录确认，因此 OpenClaw cron wrapper 暂时不会挂载。"
+          authenticated={authenticated}
+          hasGatewayAuth={Boolean(gatewayAuth.token || gatewayAuth.password)}
+          onLogin={() => onRequestAuth('login')}
+        />
+      );
+    }
+
+    if (viewKey === 'im-bots') {
+      return <IMBotsView title={viewLabel} client={imBotClient} />;
+    }
+
+    if (!SUPPORTED_PRIMARY_VIEWS.has(viewKey)) {
+      return (
+        <PageSurface as="div">
+          <PageContent className="flex min-h-full items-center">
+            <div className="mx-auto w-full max-w-[820px]">
+              <EmptyStatePanel
+                title={`${viewLabel} 已装配`}
+                description={
+                  <>
+                    这个左侧菜单已经按照 OEM 配置成功下发并显示。
+                    <br />
+                    当前 Web 端还没有接入对应页面，所以先展示占位页，避免“后台已开启但前端完全不显示”的不一致。
+                    <br />
+                    菜单 Key：{viewKey}
+                  </>
+                }
+                action={
+                  <Button variant="primary" size="sm" onClick={() => setPrimaryView('chat')}>
+                    回到{chatMenuLabel}
+                  </Button>
+                }
+                className="rounded-[32px]"
+              />
+            </div>
+          </PageContent>
+        </PageSurface>
+      );
+    }
+
+    return null;
+  };
+
+  const renderOverlaySurface = (view: OverlayView) => {
+    if (view === 'account' && accessToken) {
+      return (
+        <AccountPanel
+          client={client}
+          token={accessToken}
+          user={currentUser}
+          active={overlayView === 'account'}
+          onClose={() => setOverlayView(null)}
+          onOpenRechargeCenter={() => setOverlayView('recharge')}
+          onUserUpdated={(user) => setCurrentUser(user)}
+        />
+      );
+    }
+    if (view === 'recharge' && accessToken) {
+      return (
+        <RechargeCenter
+          client={client}
+          token={accessToken}
+          active={overlayView === 'recharge'}
+          onClose={() => setOverlayView(null)}
+        />
+      );
+    }
+    if (view === 'settings') {
+      return (
+        <SettingsPanel
+          active={overlayView === 'settings'}
+          onClose={() => setOverlayView(null)}
+          onSave={handleSaveSettings}
+          desktopUpdateCurrentVersion={desktopUpdateCurrentVersion}
+          desktopUpdateLatestVersion={desktopUpdateLatestVersion}
+          desktopUpdateMandatory={desktopUpdateMandatory}
+          desktopUpdateEnforcementState={desktopUpdateEnforcementState}
+          desktopUpdatePolicyLabel={desktopUpdatePolicyLabel}
+          desktopUpdateChecking={desktopUpdateChecking}
+          desktopUpdateReadyToRestart={desktopUpdateReadyToRestart}
+          desktopUpdateStatusMessage={desktopUpdateStatusMessage}
+          onCheckForDesktopUpdates={onCheckForDesktopUpdates}
+          onRestartDesktopApp={onRestartDesktopApp}
+        />
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="relative flex h-screen overflow-hidden bg-[var(--bg-page)]">
       <Sidebar
@@ -2393,217 +2767,89 @@ function AuthedView({
             onRechargeClick={handleHeaderRechargeAction}
           />
         )}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {keepChatSurfaceMounted ? (
-            <div className={resolvedPrimaryView === 'chat' ? 'flex min-h-0 flex-1 overflow-hidden' : 'hidden'}>
-              <OpenClawChatSurface
-                key={`chat-surface:${chatSurfaceVersion}`}
-                gatewayUrl={GATEWAY_WS_URL}
-                gatewayToken={gatewayAuth.token}
-                gatewayPassword={gatewayAuth.password}
-                authBaseUrl={AUTH_BASE_URL}
-                appName={BRAND.brandId}
-                conversationId={activeChatRoute.conversationId}
-                sessionKey={activeChatRoute.sessionKey}
-                initialPrompt={activeChatRoute.initialPrompt}
-                initialPromptKey={activeChatRoute.initialPromptKey}
-                initialAgentSlug={activeChatRoute.initialAgentSlug}
-                initialSkillSlug={activeChatRoute.initialSkillSlug}
-                initialSkillOption={activeChatRoute.initialSkillOption}
-                initialStockContext={activeChatRoute.initialStockContext}
-                focusTaskId={activeChatRoute.focusTaskId}
-                focusTaskPrompt={activeChatRoute.focusTaskPrompt}
-                shellAuthenticated={chatShellAuthenticated}
-                creditClient={client}
-                creditToken={accessToken}
-                onCreditBalanceRefresh={refreshCreditBalance}
-                user={currentUser}
-                inputComposerConfig={inputComposerConfig}
-                welcomePageConfig={welcomePageConfig}
-                onGeneralChatSessionOverloaded={handleRotateGeneralChatSession}
-                onOpenRechargeCenter={() => setOverlayView('recharge')}
-                onBusyStateChange={onChatBusyChange}
-                sendBlockedReason={desktopUpdateSendBlockedReason}
-              />
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+          {keepChatSurfaceMounted
+            ? mountedChatSurfaceKeys.map((surfaceKey) => {
+                const entry = chatSurfaceEntries[surfaceKey];
+                if (!entry) {
+                  return null;
+                }
+                const isActive = resolvedPrimaryView === 'chat' && isSurfaceVisible('chat', surfaceKey);
+                return (
+                  <div key={`chat-surface:${surfaceKey}`} className={buildSurfaceLayerClassName(isActive)}>
+                    <OpenClawChatSurface
+                      key={`chat-surface:${surfaceKey}:${entry.version}`}
+                      gatewayUrl={GATEWAY_WS_URL}
+                      gatewayToken={gatewayAuth.token}
+                      gatewayPassword={gatewayAuth.password}
+                      authBaseUrl={AUTH_BASE_URL}
+                      appName={BRAND.brandId}
+                      conversationId={entry.route.conversationId}
+                      sessionKey={entry.route.sessionKey}
+                      initialPrompt={entry.route.initialPrompt}
+                      initialPromptKey={entry.route.initialPromptKey}
+                      initialAgentSlug={entry.route.initialAgentSlug}
+                      initialSkillSlug={entry.route.initialSkillSlug}
+                      initialSkillOption={entry.route.initialSkillOption}
+                      initialStockContext={entry.route.initialStockContext}
+                      focusTaskId={entry.route.focusTaskId}
+                      focusTaskPrompt={entry.route.focusTaskPrompt}
+                      shellAuthenticated={chatShellAuthenticated}
+                      creditClient={client}
+                      creditToken={accessToken}
+                      onCreditBalanceRefresh={refreshCreditBalance}
+                      user={currentUser}
+                      inputComposerConfig={inputComposerConfig}
+                      welcomePageConfig={welcomePageConfig}
+                      onGeneralChatSessionOverloaded={handleRotateGeneralChatSession}
+                      onOpenRechargeCenter={() => setOverlayView('recharge')}
+                      onBusyStateChange={(busy) => updateChatSurfaceRuntimeFlags(surfaceKey, {busy})}
+                      onPendingBillingStateChange={(hasPendingBilling) =>
+                        updateChatSurfaceRuntimeFlags(surfaceKey, {hasPendingBilling})
+                      }
+                      sendBlockedReason={desktopUpdateSendBlockedReason}
+                    />
+                  </div>
+                );
+              })
+            : null}
+          {mountedMenuSurfaceKeys.map((viewKey) => (
+            <div
+              key={`menu-surface:${viewKey}`}
+              className={buildSurfaceLayerClassName(
+                resolvedPrimaryView !== 'chat' && isSurfaceVisible('menu', viewKey),
+              )}
+            >
+              {renderMenuSurface(viewKey)}
             </div>
-          ) : null}
-          {showStartupGate ? (
-            <ChatBootstrapPlaceholderView />
-          ) : resolvedPrimaryView === 'investment-experts' ? (
-            <InvestmentExpertsView
-              title={menuUiConfig['investment-experts'].displayName}
-              client={client}
-              accessToken={accessToken}
-              authenticated={authenticated}
-              onRequestAuth={onRequestAuth}
-              onStartConversation={handleStartInvestmentExpertConversation}
-            />
-          ) : resolvedPrimaryView === 'stock-market' ? (
-            <StockMarketView
-              title={menuUiConfig['stock-market'].displayName}
-              client={client}
-              onStartResearch={handleStartStockResearchConversation}
-            />
-          ) : resolvedPrimaryView === 'fund-market' ? (
-            <FundMarketView
-              title={menuUiConfig['fund-market'].displayName}
-              client={client}
-              onStartResearch={handleStartFundResearchConversation}
-            />
-          ) : resolvedPrimaryView === 'lobster-store' ? (
-            <LobsterStoreView
-              title={menuUiConfig['lobster-store'].displayName}
-              client={client}
-              accessToken={accessToken}
-              authenticated={authenticated}
-              currentUser={currentUser}
-              onStartConversation={handleStartLobsterConversation}
-              onRequestAuth={onRequestAuth}
-            />
-          ) : skillStoreViewConfig ? (
-            <SkillStoreView
-              key={resolvedPrimaryView}
-              client={client}
-              accessToken={accessToken}
-              authBaseUrl={AUTH_BASE_URL}
-              authenticated={authenticated}
-              currentUser={currentUser}
-              onRequestAuth={onRequestAuth}
-              onStartConversation={handleStartSkillConversation}
-              preset={skillStoreViewConfig.preset}
-              title={skillStoreViewConfig.title}
-              description={skillStoreViewConfig.description}
-            />
-          ) : resolvedPrimaryView === 'mcp-store' ? (
-            <MCPStoreView
-              title={menuUiConfig['mcp-store'].displayName}
-              client={client}
-              accessToken={accessToken}
-              authenticated={authenticated}
-              onRequestAuth={onRequestAuth}
-            />
-          ) : resolvedPrimaryView === 'data-connections' ? (
-            <DataConnectionsView title={menuUiConfig['data-connections'].displayName} />
-          ) : resolvedPrimaryView === 'security' ? (
-            <SecurityCenterView title={menuUiConfig.security.displayName} />
-          ) : resolvedPrimaryView === 'memory' ? (
-            <MemoryView title={menuUiConfig.memory.displayName} />
-          ) : resolvedPrimaryView === 'task-center' ? (
-            <TaskCenterView
-              selectedTaskId={selectedTaskId}
-              onSelectTask={setSelectedTaskId}
-              onOpenChat={() => setPrimaryView('chat')}
-              taskCenterLabel={menuUiConfig['task-center'].displayName}
-              chatMenuLabel={chatMenuLabel}
-            />
-          ) : resolvedPrimaryView === 'cron' ? (
-            !authBootstrapReady ? (
-              <AuthBootstrapPlaceholderView
-                eyebrow="Cron Shell"
-                title="正在恢复定时任务会话"
-                description="正在校验 control-plane 登录态并恢复本地运行时。"
-              />
+          ))}
+          {resolvedPrimaryView === 'chat' ? (
+            showStartupGate ? (
+              <div className={buildSurfaceLayerClassName(true)}>
+                <ChatBootstrapPlaceholderView />
+              </div>
             ) : showWelcomeBackground ? (
-              <WelcomeBackgroundView
-                welcomePageConfig={welcomePageConfig}
-                onRequestAuth={onRequestAuth}
-              />
-            ) : authenticated ? (
-              <OpenClawCronSurface
-                title={menuUiConfig.cron.displayName}
-                gatewayUrl={GATEWAY_WS_URL}
-                gatewayToken={gatewayAuth.token}
-                gatewayPassword={gatewayAuth.password}
-                sessionKey={CRON_SYSTEM_SESSION_KEY}
-                shellAuthenticated={authenticated}
-              />
-            ) : (
-              <RuntimeAuthRequiredView
-                eyebrow="Cron Shell"
-                title="当前定时任务页还不能挂载运行时"
-                description="这不是正常空态。当前是 iClaw shell 还没有完成登录确认，因此 OpenClaw cron wrapper 暂时不会挂载。"
-                authenticated={authenticated}
-                hasGatewayAuth={Boolean(gatewayAuth.token || gatewayAuth.password)}
-                onLogin={() => onRequestAuth('login')}
-              />
+              <div className={buildSurfaceLayerClassName(true)}>
+                <WelcomeBackgroundView welcomePageConfig={welcomePageConfig} onRequestAuth={onRequestAuth} />
+              </div>
+            ) : chatShellAuthenticated ? null : (
+              <div className={buildSurfaceLayerClassName(true)}>
+                <RuntimeAuthRequiredView
+                  eyebrow="Chat Shell"
+                  title="当前聊天区还不能挂载运行时"
+                  description="这不是正常空态。当前是 iClaw shell 还没有完成登录确认，因此 OpenClaw chat wrapper 暂时不会挂载。"
+                  authenticated={chatShellAuthenticated}
+                  hasGatewayAuth={Boolean(gatewayAuth.token || gatewayAuth.password)}
+                  onLogin={() => onRequestAuth('login')}
+                />
+              </div>
             )
-          ) : resolvedPrimaryView === 'im-bots' ? (
-            <IMBotsView title={menuUiConfig['im-bots'].displayName} client={imBotClient} />
-          ) : !SUPPORTED_PRIMARY_VIEWS.has(resolvedPrimaryView) ? (
-            <PageSurface as="div">
-              <PageContent className="flex min-h-full items-center">
-                <div className="mx-auto w-full max-w-[820px]">
-                  <EmptyStatePanel
-                    title={`${activeMenuLabel} 已装配`}
-                    description={
-                      <>
-                        这个左侧菜单已经按照 OEM 配置成功下发并显示。
-                        <br />
-                        当前 Web 端还没有接入对应页面，所以先展示占位页，避免“后台已开启但前端完全不显示”的不一致。
-                        <br />
-                        菜单 Key：{resolvedPrimaryView}
-                      </>
-                    }
-                    action={
-                      <Button variant="primary" size="sm" onClick={() => setPrimaryView('chat')}>
-                        回到{chatMenuLabel}
-                      </Button>
-                    }
-                    className="rounded-[32px]"
-                  />
-                </div>
-              </PageContent>
-            </PageSurface>
-          ) : !authBootstrapReady ? (
-            <ChatBootstrapPlaceholderView />
-          ) : showWelcomeBackground ? (
-            <WelcomeBackgroundView
-              welcomePageConfig={welcomePageConfig}
-              onRequestAuth={onRequestAuth}
-            />
-          ) : chatShellAuthenticated ? (
-            null
-          ) : (
-            <RuntimeAuthRequiredView
-              eyebrow="Chat Shell"
-              title="当前聊天区还不能挂载运行时"
-              description="这不是正常空态。当前是 iClaw shell 还没有完成登录确认，因此 OpenClaw chat wrapper 暂时不会挂载。"
-                authenticated={chatShellAuthenticated}
-                hasGatewayAuth={Boolean(gatewayAuth.token || gatewayAuth.password)}
-                onLogin={() => onRequestAuth('login')}
-              />
-          )}
+          ) : null}
         </div>
       </div>
-      {overlayView === 'account' && accessToken ? (
-        <AccountPanel
-          client={client}
-          token={accessToken}
-          user={currentUser}
-          onClose={() => setOverlayView(null)}
-          onOpenRechargeCenter={() => setOverlayView('recharge')}
-          onUserUpdated={(user) => setCurrentUser(user)}
-        />
-      ) : null}
-      {overlayView === 'recharge' && accessToken ? (
-        <RechargeCenter client={client} token={accessToken} onClose={() => setOverlayView(null)} />
-      ) : null}
-      {overlayView === 'settings' ? (
-        <SettingsPanel
-          onClose={() => setOverlayView(null)}
-          onSave={handleSaveSettings}
-          desktopUpdateCurrentVersion={desktopUpdateCurrentVersion}
-          desktopUpdateLatestVersion={desktopUpdateLatestVersion}
-          desktopUpdateMandatory={desktopUpdateMandatory}
-          desktopUpdateEnforcementState={desktopUpdateEnforcementState}
-          desktopUpdatePolicyLabel={desktopUpdatePolicyLabel}
-          desktopUpdateChecking={desktopUpdateChecking}
-          desktopUpdateReadyToRestart={desktopUpdateReadyToRestart}
-          desktopUpdateStatusMessage={desktopUpdateStatusMessage}
-          onCheckForDesktopUpdates={onCheckForDesktopUpdates}
-          onRestartDesktopApp={onRestartDesktopApp}
-        />
-      ) : null}
+      {mountedOverlaySurfaceKeys.map((view) => (
+        <div key={`overlay-surface:${view}`}>{renderOverlaySurface(view)}</div>
+      ))}
     </div>
   );
 }
