@@ -1,4 +1,4 @@
-import { type Dispatch, type ReactNode, type SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type Dispatch, type SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { IClawClient, type CreditBalanceData, type DesktopUpdateHint, type MarketStockData } from '@iclaw/sdk';
 import desktopPackageJson from '../../package.json';
 import { clearAuth, readAuth, writeAuth } from './lib/auth-storage';
@@ -32,6 +32,7 @@ import { DesktopUpdateGuard } from './components/DesktopUpdateGuard';
 import { Button } from './components/ui/Button';
 import { EmptyStatePanel } from './components/ui/EmptyStatePanel';
 import { PageContent, PageSurface } from './components/ui/PageLayout';
+import { K2CWelcomePage } from './components/K2CWelcomePage';
 import { DataConnectionsView } from './components/data-connections/DataConnectionsView';
 import { InvestmentExpertsView } from './components/investment-experts/InvestmentExpertsView';
 import { LobsterStoreView } from './components/lobster-store/LobsterStoreView';
@@ -541,6 +542,59 @@ function ChatBootstrapPlaceholderView() {
                     <div className="h-8 w-8 rounded-full bg-[color-mix(in_srgb,var(--text-primary)_8%,var(--bg-page))]" />
                   </div>
                   <div className="h-9 w-24 rounded-full bg-[color-mix(in_srgb,var(--brand-primary)_18%,white)]" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </PageSurface>
+  );
+}
+
+function GuestWelcomeBackgroundView({
+  welcomePageConfig,
+  onRequestAuth,
+}: {
+  welcomePageConfig: ReturnType<typeof resolveWelcomePageConfig>;
+  onRequestAuth: (mode?: 'login' | 'register', nextView?: 'account' | 'recharge' | null) => void;
+}) {
+  const requestLogin = useCallback(() => {
+    onRequestAuth('login');
+  }, [onRequestAuth]);
+
+  return (
+    <PageSurface as="div" className="bg-[var(--bg-page)]">
+      <div className="flex min-h-0 flex-1 flex-col px-6 pt-3.5 pb-2 lg:px-8">
+        <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-none border-0 bg-transparent p-0 shadow-none">
+          <div
+            className="openclaw-chat-surface-shell h-full flex-1 overflow-hidden"
+            style={{ ['--iclaw-composer-height' as string]: '170px' }}
+          >
+            <K2CWelcomePage
+              config={welcomePageConfig}
+              onStartChat={requestLogin}
+              onFillPrompt={requestLogin}
+            />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 px-1 pb-2">
+              <div className="mx-auto max-w-[1120px]">
+                <div className="rounded-[28px] border border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-5 py-4 shadow-[0_24px_64px_rgba(15,23,42,0.08)] backdrop-blur-md">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-semibold text-[var(--text-primary)]">登录后继续对话，或先体验游客模式</div>
+                      <div className="mt-1 text-[12px] leading-6 text-[var(--text-secondary)]">
+                        当前显示的是 welcome 背景页，登录弹窗关闭后不会再漏出未完成挂载的 chat shell 中间态。
+                      </div>
+                    </div>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      className="pointer-events-auto shrink-0"
+                      onClick={requestLogin}
+                    >
+                      去登录
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1236,6 +1290,9 @@ export default function App() {
     mode: 'login' | 'register' = 'login',
     nextView: 'account' | 'recharge' | null = null,
   ) => {
+    if (!isAuthenticated) {
+      setPrimaryView('chat');
+    }
     setAuthError(null);
     setAuthModalMode(mode);
     setPostAuthView(nextView);
@@ -1540,24 +1597,11 @@ export default function App() {
     }
     setGuestPromptInitialized(true);
     if (!isAuthenticated) {
+      setPrimaryView('chat');
       setAuthModalMode('login');
       setAuthModalOpen(true);
     }
   }, [authBootstrapReady, guestPromptInitialized, isAuthenticated, shouldShowStartupGate]);
-
-  const startupPlaceholder = shouldShowStartupGate ? (
-    <FirstRunSetupPanel
-      presentation="embedded"
-      state={installerView.state}
-      title={installerView.title}
-      subtitle={installerView.subtitle}
-      progress={installerView.progress}
-      stepLabel={installerView.stepLabel}
-      stepDetail={installerView.stepDetail}
-      errorMessage={installerView.errorMessage}
-      onRetry={retrySetup}
-    />
-  ) : null;
   const desktopUpdateCardStatus =
     desktopUpdateActionState === 'ready-to-restart'
       ? 'ready-to-restart'
@@ -1693,7 +1737,7 @@ export default function App() {
           primaryView={primaryView}
           setPrimaryView={setPrimaryView}
           brandShellConfig={brandShellConfig}
-          startupPlaceholder={startupPlaceholder}
+          showStartupGate={shouldShowStartupGate}
           revalidateBrandRuntimeConfig={syncBrandRuntimeSnapshot}
           overlayView={overlayView}
           setOverlayView={setOverlayView}
@@ -1733,6 +1777,21 @@ export default function App() {
           desktopUpdateReadyToRestart={desktopUpdateActionState === 'ready-to-restart'}
           desktopUpdateStatusMessage={desktopUpdateStatusMessage}
         />
+        {shouldShowStartupGate ? (
+          <div className="fixed inset-0 z-[70]" role="dialog" aria-modal="true" aria-label="本地运行环境安装进度">
+            <FirstRunSetupPanel
+              presentation="fullscreen"
+              state={installerView.state}
+              title={installerView.title}
+              subtitle={installerView.subtitle}
+              progress={installerView.progress}
+              stepLabel={installerView.stepLabel}
+              stepDetail={installerView.stepDetail}
+              errorMessage={installerView.errorMessage}
+              onRetry={retrySetup}
+            />
+          </div>
+        ) : null}
         {authModalOpen ? (
           <AuthPanel
             open={authModalOpen}
@@ -1758,7 +1817,7 @@ interface AuthedViewProps {
   primaryView: PrimaryView;
   setPrimaryView: Dispatch<SetStateAction<PrimaryView>>;
   brandShellConfig: Record<string, unknown> | null;
-  startupPlaceholder: ReactNode;
+  showStartupGate: boolean;
   revalidateBrandRuntimeConfig: () => Promise<void>;
   overlayView: 'settings' | 'account' | 'recharge' | null;
   setOverlayView: Dispatch<SetStateAction<'settings' | 'account' | 'recharge' | null>>;
@@ -1801,7 +1860,7 @@ function AuthedView({
   primaryView,
   setPrimaryView,
   brandShellConfig,
-  startupPlaceholder,
+  showStartupGate,
   revalidateBrandRuntimeConfig,
   overlayView,
   setOverlayView,
@@ -1859,6 +1918,7 @@ function AuthedView({
     authenticated ||
     Boolean(accessToken) ||
     (!authModalOpen && authBootstrapReady && chatRuntimeAuthRef.current);
+  const showGuestWelcomeBackground = authBootstrapReady && !authenticated;
   const activeMenuLabel =
     menuUiConfig[resolvedPrimaryView]?.displayName ||
     menuUiConfig[fallbackPrimaryView]?.displayName ||
@@ -2345,8 +2405,8 @@ function AuthedView({
           />
         )}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {startupPlaceholder ? (
-            startupPlaceholder
+          {showStartupGate ? (
+            <ChatBootstrapPlaceholderView />
           ) : resolvedPrimaryView === 'investment-experts' ? (
             <InvestmentExpertsView
               title={menuUiConfig['investment-experts'].displayName}
@@ -2421,6 +2481,11 @@ function AuthedView({
                 title="正在恢复定时任务会话"
                 description="正在校验 control-plane 登录态并恢复本地运行时。"
               />
+            ) : showGuestWelcomeBackground ? (
+              <GuestWelcomeBackgroundView
+                welcomePageConfig={welcomePageConfig}
+                onRequestAuth={onRequestAuth}
+              />
             ) : authenticated ? (
               <OpenClawCronSurface
                 title={menuUiConfig.cron.displayName}
@@ -2469,6 +2534,11 @@ function AuthedView({
             </PageSurface>
           ) : !authBootstrapReady ? (
             <ChatBootstrapPlaceholderView />
+          ) : showGuestWelcomeBackground ? (
+            <GuestWelcomeBackgroundView
+              welcomePageConfig={welcomePageConfig}
+              onRequestAuth={onRequestAuth}
+            />
           ) : chatShellAuthenticated ? (
             <OpenClawChatSurface
               key={`chat-surface:${chatSurfaceVersion}`}
