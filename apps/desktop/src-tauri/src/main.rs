@@ -23,7 +23,7 @@ use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::Mutex;
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, State, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, RunEvent, State, WindowEvent};
 use tauri_plugin_updater::UpdaterExt;
 use zip::ZipArchive;
 
@@ -5924,7 +5924,7 @@ fn main() {
     } else {
         builder
     };
-    builder
+    let app = builder
         .setup(|app| {
             apply_initial_window_layout(app.handle());
             Ok(())
@@ -5983,6 +5983,13 @@ fn main() {
             download_and_install_desktop_update,
             restart_desktop_app
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+    app.run(|app_handle, event| {
+        if let RunEvent::ExitRequested { .. } = event {
+            if let Some(window) = app_handle.get_webview_window("main") {
+                persist_desktop_webview_window_state(&window);
+            }
+        }
+    });
 }
