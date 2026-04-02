@@ -3,8 +3,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { resolveBrandId } from './lib/brand-profile.mjs';
+import { loadBrandProfile, resolveBrandId } from './lib/brand-profile.mjs';
 import { resolveConfiguredAppName, resolvePackagingSourceEnv, resolveSigningOverlayEnv } from './lib/app-env.mjs';
 import {
   buildBundleRoot,
@@ -558,16 +560,127 @@ function applyRuntimeBootstrapEnvOverrides(rawConfig, env, targetTriple = '') {
   return nextConfig;
 }
 
+function buildRuntimeArtifactPublicUrl({ brandProfile, version, artifactUrl, channel }) {
+  const normalizedVersion = trimString(version);
+  const normalizedArtifactUrl = trimString(artifactUrl);
+  if (!normalizedVersion || !normalizedArtifactUrl) {
+    return '';
+  }
+
+  const runtimeDistribution =
+    brandProfile?.runtimeDistribution && typeof brandProfile.runtimeDistribution === 'object'
+      ? brandProfile.runtimeDistribution
+      : {};
+  const minioPrefix = trimString(runtimeDistribution.minioPrefix) || 'runtime';
+  const channelConfig =
+    channel &&
+    runtimeDistribution[channel] &&
+    typeof runtimeDistribution[channel] === 'object' &&
+    !Array.isArray(runtimeDistribution[channel])
+      ? runtimeDistribution[channel]
+      : {};
+  const publicBaseUrl = trimString(channelConfig.publicBaseUrl);
+  if (!publicBaseUrl) {
+    return '';
+  }
+
+  let artifactFileName = '';
+  try {
+    artifactFileName = basename(new URL(normalizedArtifactUrl).pathname);
+  } catch {
+    artifactFileName = basename(normalizedArtifactUrl.replace(/\\/g, '/'));
+  }
+  if (!artifactFileName) {
+    return '';
+  }
+
+  const normalizedPrefix = minioPrefix.replace(/^\/+|\/+$/g, '');
+  const objectKey = [normalizedPrefix, 'openclaw', normalizedVersion, artifactFileName]
+    .filter(Boolean)
+    .join('/');
+  return `${publicBaseUrl.replace(/\/+$/g, '')}/${objectKey}`;
+}
+
+function applyBrandRuntimeBootstrapOverrides(rawConfig, brandProfile, channel, targetTriple = '') {
+  const nextConfig = {
+    ...(rawConfig && typeof rawConfig === 'object' ? rawConfig : {}),
+  };
+  const nextArtifacts =
+    nextConfig.artifacts && typeof nextConfig.artifacts === 'object' && !Array.isArray(nextConfig.artifacts)
+      ? { ...nextConfig.artifacts }
+      : {};
+
+  const rootArtifactUrl = buildRuntimeArtifactPublicUrl({
+    brandProfile,
+    version: nextConfig.version,
+    artifactUrl: nextConfig.artifact_url,
+    channel,
+  });
+  if (rootArtifactUrl) {
+    nextConfig.artifact_url = rootArtifactUrl;
+  }
+
+  if (targetTriple) {
+    const scoped =
+      nextArtifacts[targetTriple] &&
+      typeof nextArtifacts[targetTriple] === 'object' &&
+      !Array.isArray(nextArtifacts[targetTriple])
+        ? { ...nextArtifacts[targetTriple] }
+        : {};
+    const scopedArtifactUrl = buildRuntimeArtifactPublicUrl({
+      brandProfile,
+      version: nextConfig.version,
+      artifactUrl: scoped.artifact_url || nextConfig.artifact_url,
+      channel,
+    });
+    if (scopedArtifactUrl) {
+      scoped.artifact_url = scopedArtifactUrl;
+      nextArtifacts[targetTriple] = scoped;
+      nextConfig.artifacts = nextArtifacts;
+    }
+  }
+
+  return nextConfig;
+}
+
 async function writeRuntimeBootstrapConfig(config) {
   await fs.mkdir(path.dirname(runtimeBootstrapConfigPath), { recursive: true });
   await fs.writeFile(runtimeBootstrapConfigPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
 }
 
-async function applyRuntimeBootstrapOverlay(env, targetTriple) {
+async function verifyRemoteRuntimeArtifactSha256(artifactUrl, expectedSha256) {
+  const normalizedUrl = trimString(artifactUrl);
+  const normalizedExpectedSha256 = trimString(expectedSha256).toLowerCase();
+  if (!normalizedUrl || !normalizedExpectedSha256 || !/^https?:\/\//i.test(normalizedUrl)) {
+    return;
+  }
+
+  const response = await fetch(normalizedUrl);
+  if (!response.ok || !response.body) {
+    throw new Error(`failed to download runtime artifact for verification: ${response.status} ${response.statusText}`.trim());
+  }
+
+  const hasher = createHash('sha256');
+  for await (const chunk of response.body) {
+    hasher.update(chunk);
+  }
+  const actualSha256 = hasher.digest('hex').toLowerCase();
+  if (actualSha256 !== normalizedExpectedSha256) {
+    throw new Error(
+      `runtime artifact sha256 mismatch for ${normalizedUrl}: expected ${normalizedExpectedSha256}, got ${actualSha256}`,
+    );
+  }
+}
+
+async function applyRuntimeBootstrapOverlay(env, brandProfile, channel, targetTriple) {
   const originalExists = await pathExists(runtimeBootstrapConfigPath);
   const originalRaw = originalExists ? await fs.readFile(runtimeBootstrapConfigPath, 'utf8') : null;
   const originalConfig = originalRaw ? JSON.parse(originalRaw) : {};
-  const nextConfig = applyRuntimeBootstrapEnvOverrides(originalConfig, env, targetTriple);
+  const nextConfig = applyRuntimeBootstrapEnvOverrides(
+    applyBrandRuntimeBootstrapOverrides(originalConfig, brandProfile, channel, targetTriple),
+    env,
+    targetTriple,
+  );
   const nextRaw = `${JSON.stringify(nextConfig, null, 2)}\n`;
   if (nextRaw !== originalRaw) {
     await writeRuntimeBootstrapConfig(nextConfig);
@@ -603,6 +716,7 @@ async function assertPackagedRuntimeConfig(env, targetTriple) {
   );
   const version = trimString(raw.version);
   const artifactUrl = trimString(raw.artifact_url);
+  const artifactSha256 = trimString(raw.artifact_sha256).toLowerCase();
   const artifactFormat = trimString(raw.artifact_format);
 
   if (!version || !artifactUrl) {
@@ -636,12 +750,17 @@ async function assertPackagedRuntimeConfig(env, targetTriple) {
       ].join('\n'),
     );
   }
+
+  if (!/^(1|true|yes)$/i.test(String(env.ICLAW_SKIP_REMOTE_RUNTIME_HASH_VERIFY || '').trim())) {
+    await verifyRemoteRuntimeArtifactSha256(artifactUrl, artifactSha256);
+  }
 }
 
 async function main() {
   const { brandId, target, forwardedArgs } = parseArgs(process.argv.slice(2));
   const runtimeTargetTriple = inferRuntimeTargetTriple(target);
   const channel = resolvePackagingChannelFromEnv(process.env);
+  const { profile: brandProfile } = await loadBrandProfile({ rootDir, brandId, envName: channel });
   const packagingPaths = buildPackagingWorkspacePaths({ rootDir, brandId, channel, target });
   const snapshotKey = [
     'desktop-package-build',
@@ -688,7 +807,7 @@ async function main() {
     syncLocalAppRuntime({ pnpm, env, brandId, packagingPaths });
     syncBundledBaselineSkills({ pnpm, env, brandId, packagingPaths });
     run(process.execPath, [syncResourcesScriptPath], { env });
-    restoreRuntimeBootstrapConfig = await applyRuntimeBootstrapOverlay(env, runtimeTargetTriple);
+    restoreRuntimeBootstrapConfig = await applyRuntimeBootstrapOverlay(env, brandProfile, channel, runtimeTargetTriple);
     await assertPackagedRuntimeConfig(env, runtimeTargetTriple);
     await writeTempTauriConfig();
 
