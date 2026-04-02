@@ -1433,6 +1433,13 @@ body {
   filter: saturate(0.92) blur(1.5px);
 }
 
+.openclaw-chat-surface-shell[data-surface-reactivating='true'] .openclaw-chat-surface,
+.openclaw-chat-surface-shell[data-surface-reactivating='true'] .iclaw-composer {
+  opacity: 0;
+  transform: translateY(6px) scale(0.995);
+  filter: blur(2px);
+}
+
 .iclaw-chat-boot-mask {
   position: absolute;
   inset: 0;

@@ -450,7 +450,7 @@ function isRenderableMenuPrimaryView(view: PrimaryView): boolean {
 function buildSurfaceLayerClassName(active: boolean): string {
   return active
     ? 'relative flex min-h-0 flex-1 overflow-hidden'
-    : 'pointer-events-none absolute inset-0 flex min-h-0 flex-1 overflow-hidden opacity-0';
+    : 'pointer-events-none invisible absolute inset-0 flex min-h-0 flex-1 overflow-hidden opacity-0';
 }
 
 function buildDesktopUpdateAnnouncement(hint: DesktopUpdateHint): string {
@@ -2807,6 +2807,7 @@ function AuthedView({
                       onPendingBillingStateChange={(hasPendingBilling) =>
                         updateChatSurfaceRuntimeFlags(surfaceKey, {hasPendingBilling})
                       }
+                      surfaceVisible={isActive}
                       sendBlockedReason={desktopUpdateSendBlockedReason}
                     />
                   </div>

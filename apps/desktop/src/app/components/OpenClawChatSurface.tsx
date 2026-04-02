@@ -216,6 +216,7 @@ type OpenClawChatSurfaceProps = {
   onOpenRechargeCenter?: () => void;
   onBusyStateChange?: (busy: boolean) => void;
   onPendingBillingStateChange?: (pending: boolean) => void;
+  surfaceVisible?: boolean;
   sendBlockedReason?: string | null;
 };
 
@@ -2626,6 +2627,7 @@ export function OpenClawChatSurface({
   onOpenRechargeCenter,
   onBusyStateChange,
   onPendingBillingStateChange,
+  surfaceVisible = true,
   sendBlockedReason = null,
 }: OpenClawChatSurfaceProps) {
   const shellRef = useRef<HTMLDivElement | null>(null);
@@ -2698,6 +2700,7 @@ export function OpenClawChatSurface({
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelSwitching, setModelSwitching] = useState(false);
   const [sessionTransitionVisible, setSessionTransitionVisible] = useState(false);
+  const [surfaceReactivating, setSurfaceReactivating] = useState(false);
   const [optimisticEmptySessionActive, setOptimisticEmptySessionActive] = useState(() =>
     shouldTreatAsImmediateEmptySession(appName, sessionKey, conversationId),
   );
@@ -2759,8 +2762,11 @@ export function OpenClawChatSurface({
   const responseUsageEnabledSessionKeyRef = useRef<string | null>(null);
   const persistedChatSnapshotRef = useRef<string | null>(null);
   const sessionTransitionHideTimerRef = useRef<number | null>(null);
+  const surfaceReactivationTimerRef = useRef<number | null>(null);
   const connectionLossTimerRef = useRef<number | null>(null);
   const busyRef = useRef(status.busy);
+  const previousSurfaceVisibleRef = useRef(surfaceVisible);
+  const hasActivatedStableSurfaceRef = useRef(false);
   const pendingConnectionLossStatusRef = useRef<ChatSurfaceStatus>({
     busy: false,
     connected: false,
@@ -4626,13 +4632,18 @@ export function OpenClawChatSurface({
   const waitingForHistoryResolution =
     shellAuthenticated && sessionHistoryState === 'unknown' && !hasObservedHistory;
   const hasStableVisibleChat = hasObservedHistory || renderState.groupCount > 0 || renderState.chatMessageCount > 0;
+  const surfaceReadyForReveal =
+    status.connected &&
+    (hasStableVisibleChat || allowImmediateEmptySessionUi || sessionHistoryState === 'empty') &&
+    !status.lastError;
   const showBootMask =
     shellAuthenticated &&
     !hasStableVisibleChat &&
     !status.lastError &&
     ((!hasBootSettled && (!status.connected || initialSurfaceRestorePending)) || waitingForHistoryResolution);
   const showSessionTransitionMask = sessionTransitionVisible && !showBootMask && !hasStableVisibleChat;
-  const shellTransitioning = showBootMask || showSessionTransitionMask;
+  const showSurfaceReactivationMask = surfaceReactivating && !showBootMask;
+  const shellTransitioning = showBootMask || showSessionTransitionMask || showSurfaceReactivationMask;
   const localSendBlockedReason =
     modelSwitching
       ? '正在切换模型，请稍后发送。'
@@ -4653,6 +4664,57 @@ export function OpenClawChatSurface({
       setRechargeNoticeDismissed(false);
     }
   }, [creditBlockNotice]);
+
+  useEffect(() => {
+    if (surfaceReadyForReveal) {
+      hasActivatedStableSurfaceRef.current = true;
+    }
+  }, [surfaceReadyForReveal]);
+
+  useEffect(() => {
+    const wasVisible = previousSurfaceVisibleRef.current;
+    previousSurfaceVisibleRef.current = surfaceVisible;
+    if (!surfaceVisible || wasVisible || !hasActivatedStableSurfaceRef.current) {
+      return;
+    }
+    if (surfaceReactivationTimerRef.current != null) {
+      window.clearTimeout(surfaceReactivationTimerRef.current);
+      surfaceReactivationTimerRef.current = null;
+    }
+    setSurfaceReactivating(true);
+  }, [surfaceVisible]);
+
+  useEffect(() => {
+    if (!surfaceReactivating) {
+      return;
+    }
+    if (!surfaceReadyForReveal) {
+      return;
+    }
+    if (surfaceReactivationTimerRef.current != null) {
+      window.clearTimeout(surfaceReactivationTimerRef.current);
+    }
+    surfaceReactivationTimerRef.current = window.setTimeout(() => {
+      surfaceReactivationTimerRef.current = null;
+      setSurfaceReactivating(false);
+    }, 120);
+    return () => {
+      if (surfaceReactivationTimerRef.current != null) {
+        window.clearTimeout(surfaceReactivationTimerRef.current);
+        surfaceReactivationTimerRef.current = null;
+      }
+    };
+  }, [surfaceReadyForReveal, surfaceReactivating]);
+
+  useEffect(
+    () => () => {
+      if (surfaceReactivationTimerRef.current != null) {
+        window.clearTimeout(surfaceReactivationTimerRef.current);
+        surfaceReactivationTimerRef.current = null;
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     window.__ICLAW_OPENCLAW_DIAGNOSTICS__ = {
@@ -6216,6 +6278,7 @@ export function OpenClawChatSurface({
             ref={shellRef}
             className="openclaw-chat-surface-shell h-full flex-1 overflow-hidden"
             data-session-transitioning={shellTransitioning ? 'true' : 'false'}
+            data-surface-reactivating={showSurfaceReactivationMask ? 'true' : 'false'}
           >
             <div
               ref={hostRef}
@@ -6243,6 +6306,13 @@ export function OpenClawChatSurface({
               <ChatSurfaceSkeletonMask
                 mode="switch"
                 label="正在切换对话，正在同步消息与输入状态"
+              />
+            ) : null}
+
+            {showSurfaceReactivationMask ? (
+              <ChatSurfaceSkeletonMask
+                mode="switch"
+                label="正在恢复已缓存的对话界面"
               />
             ) : null}
 
