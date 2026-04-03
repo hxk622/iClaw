@@ -5160,7 +5160,10 @@ export function OpenClawChatSurface({
       ? '正在连接 OpenClaw 网关…'
       : '缺少本地网关凭据，当前无法连接 OpenClaw。';
   const waitingForHistoryResolution =
-    shellAuthenticated && sessionHistoryState === 'unknown' && !hasObservedHistory;
+    initialSurfaceRestorePending &&
+    shellAuthenticated &&
+    sessionHistoryState === 'unknown' &&
+    !hasObservedHistory;
   const hasStableVisibleChat = hasObservedHistory || renderState.groupCount > 0 || renderState.chatMessageCount > 0;
   const renderReady = isSessionRenderReady(renderState);
   const surfaceReadyForReveal =
