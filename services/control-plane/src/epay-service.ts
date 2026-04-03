@@ -22,6 +22,7 @@ export interface EpayPurchaseInput {
   returnUrl: string;    // 同步跳转地址
   name: string;         // 商品名称
   money: string;        // 金额 (单位: 元)
+  device?: 'pc' | 'mobile';
 }
 
 // Epay 回调参数
@@ -41,10 +42,13 @@ export interface EpayNotifyInput {
  * @returns 待签名的字符串
  */
 function buildSignString(params: Record<string, any>): string {
+  console.log('Building signature with params:', params);
   const sortedKeys = Object.keys(params).sort();
   const pairs: string[] = [];
   for (const key of sortedKeys) {
     const value = params[key];
+    // According to Epay documentation, values should be ignored if they are null, undefined, or an empty string.
+    // Also, the 'sign' and 'sign_type' parameters themselves are excluded from the signature calculation.
     if (key !== 'sign' && key !== 'sign_type' && value !== null && value !== undefined && value !== '') {
       pairs.push(`${key}=${value}`);
     }
@@ -94,6 +98,7 @@ export function createPurchase(input: EpayPurchaseInput, config: EpayConfig) {
     return_url: input.returnUrl,
     name: input.name,
     money: input.money,
+    device: input.device || 'pc',
   };
 
   const sign = createSignature(params, config.key);
@@ -111,6 +116,18 @@ export interface EpayPurchaseView {
   params: Record<string, any>;
 }
 
+function toEpayPaymentType(provider: string): 'alipay' | 'wxpay' {
+  const normalized = provider.trim().toLowerCase();
+  if (normalized.startsWith('alipay')) {
+    return 'alipay';
+  }
+  if (normalized.startsWith('wechat')) {
+    return 'wxpay';
+  }
+  // Default or throw error
+  return 'alipay';
+}
+
 export class EpayService {
   private readonly store: ControlPlaneStore;
   private readonly decryptSecret: (payload: string | null | undefined) => Record<string, string>;
@@ -122,7 +139,7 @@ export class EpayService {
     this.publicUrl = publicUrl;
   }
 
-  async createEpayPaymentOrder(userId: string, input: CreatePaymentOrderInput): Promise<EpayPurchaseView> {
+  async createEpayPaymentOrder(userId: string, input: CreatePaymentOrderInput): Promise<any> {
     const provider = 'epay';
     const packageId = (input.package_id || '').trim();
     const appName = (input.app_name || '').trim();
@@ -158,18 +175,21 @@ export class EpayService {
     });
 
     const epayInput: EpayPurchaseInput = {
-        type: 'alipay',
+        type: toEpayPaymentType(input.provider || ''),
         tradeNo: order.id,
         notifyUrl: `${this.publicUrl}/api/epay/webhooks`,
         returnUrl: order.returnUrl || `${this.publicUrl}/payment-return`,
         name: order.packageName,
-        money: (order.amountCnyFen / 100).toFixed(2),
+        money: '0.01', // DEBUG: 强制金额为 0.01
+        device: 'pc',
     };
 
     const purchase = createPurchase(epayInput, epayConfig);
+
     return {
-      gateway: purchase.gateway,
-      params: purchase.params,
+      message: 'success',
+      url: purchase.gateway,
+      data: purchase.params,
     };
   }
 
