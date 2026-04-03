@@ -8,7 +8,6 @@ import { SegmentedTabs } from '@/app/components/ui/SegmentedTabs';
 import { SurfacePanel } from '@/app/components/ui/SurfacePanel';
 import { cn } from '@/app/lib/cn';
 import {
-  FINANCE_CRON_PRESETS,
   FINANCE_PRESET_CATEGORIES,
   FINANCE_PRESET_MARKETS,
   type FinancePresetCategory,
@@ -41,14 +40,12 @@ const ACCENT_CLASS_MAP: Record<FinancePresetTaskTemplate['accent'], string> = {
 };
 
 export function FinancePresetGallery({
-  installedPresetIds,
+  tasks,
   onInstall,
-  onJumpToTasks,
   clientReady,
 }: {
-  installedPresetIds: Set<string>;
+  tasks: FinancePresetTaskTemplate[];
   onInstall: (task: FinancePresetTaskTemplate) => void;
-  onJumpToTasks: () => void;
   clientReady: boolean;
 }) {
   const [category, setCategory] = useState<FinancePresetCategory>('全部');
@@ -57,7 +54,7 @@ export function FinancePresetGallery({
 
   const filteredTasks = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    return FINANCE_CRON_PRESETS.filter((task) => {
+    return tasks.filter((task) => {
       const categoryMatch = category === '全部' || task.category === category;
       const marketMatch =
         selectedMarkets.length === 0 || selectedMarkets.some((market) => task.tags.includes(market));
@@ -68,16 +65,16 @@ export function FinancePresetGallery({
         task.tags.some((tag) => tag.toLowerCase().includes(query));
       return categoryMatch && marketMatch && searchMatch;
     });
-  }, [category, searchQuery, selectedMarkets]);
+  }, [category, searchQuery, selectedMarkets, tasks]);
 
   const categoryItems = useMemo(
     () =>
       FINANCE_PRESET_CATEGORIES.map((item) => ({
         id: item,
         label: item,
-        badge: item === '全部' ? FINANCE_CRON_PRESETS.length : FINANCE_CRON_PRESETS.filter((task) => task.category === item).length,
+        badge: item === '全部' ? tasks.length : tasks.filter((task) => task.category === item).length,
       })),
-    [],
+    [tasks],
   );
 
   const toggleMarket = (market: FinancePresetMarket) => {
@@ -94,17 +91,14 @@ export function FinancePresetGallery({
             官方模板
           </div>
           <h2 className="mt-1.5 text-[20px] font-semibold tracking-[-0.04em] text-[var(--text-primary)]">
-            金融预置任务
+            待安装任务模板
           </h2>
           <p className="mt-1.5 max-w-[760px] text-[13px] leading-6 text-[var(--text-secondary)]">
-            一键安装常用的金融自动化能力，自动提醒、自动跟踪、自动复盘。安装后会直接进入下方“我的任务”统一管理。
+            这里只展示尚未安装的官方预置任务。安装后会从这里移除，并进入“我的任务”独立管理。
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Chip tone="accent">官方精选 {FINANCE_CRON_PRESETS.length}</Chip>
-          <Button variant="secondary" size="sm" onClick={onJumpToTasks}>
-            查看我的任务
-          </Button>
+          <Chip tone="accent">待安装 {tasks.length}</Chip>
         </div>
       </div>
 
@@ -140,9 +134,7 @@ export function FinancePresetGallery({
           <PresetTaskCard
             key={task.id}
             task={task}
-            installed={installedPresetIds.has(task.id)}
             onInstall={onInstall}
-            onJumpToTasks={onJumpToTasks}
             clientReady={clientReady}
           />
         ))}
@@ -150,9 +142,13 @@ export function FinancePresetGallery({
 
       {filteredTasks.length === 0 ? (
         <div className="mt-5 rounded-[24px] border border-dashed border-[var(--border-default)] px-5 py-10 text-center">
-          <div className="text-[15px] font-medium text-[var(--text-primary)]">没有找到匹配的模板</div>
+          <div className="text-[15px] font-medium text-[var(--text-primary)]">
+            {tasks.length === 0 ? '预置任务已全部安装' : '没有找到匹配的模板'}
+          </div>
           <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
-            可以尝试切换分类、市场范围，或直接用下方“快速创建”自己定义任务。
+            {tasks.length === 0
+              ? '当前官方预置任务都已经进入“我的任务”，可以切回去继续管理。'
+              : '可以尝试切换分类、市场范围，或调整关键词搜索。'}
           </p>
         </div>
       ) : null}
@@ -162,15 +158,11 @@ export function FinancePresetGallery({
 
 function PresetTaskCard({
   task,
-  installed,
   onInstall,
-  onJumpToTasks,
   clientReady,
 }: {
   task: FinancePresetTaskTemplate;
-  installed: boolean;
   onInstall: (task: FinancePresetTaskTemplate) => void;
-  onJumpToTasks: () => void;
   clientReady: boolean;
 }) {
   const Icon = ICON_MAP[task.icon] || FileText;
@@ -179,14 +171,14 @@ function PresetTaskCard({
     <PressableCard
       interactive
       className="rounded-[24px] border-[var(--border-default)] p-4"
-      onClick={() => (installed ? onJumpToTasks() : onInstall(task))}
+      onClick={() => onInstall(task)}
     >
       <div className="flex h-full flex-col">
         <div className="flex items-start justify-between gap-3">
           <div className={cn('flex h-11 w-11 items-center justify-center rounded-[14px]', ACCENT_CLASS_MAP[task.accent])}>
             <Icon className="h-5 w-5" />
           </div>
-          {installed ? <Chip tone="success">已安装</Chip> : <Chip tone="outline">官方模板</Chip>}
+          <Chip tone="outline">官方模板</Chip>
         </div>
 
         <div className="mt-4">
@@ -215,20 +207,16 @@ function PresetTaskCard({
 
         <div className="mt-4 pt-1">
           <Button
-            variant={installed ? 'secondary' : 'primary'}
+            variant="primary"
             size="sm"
             block
-            disabled={!installed && !clientReady}
+            disabled={!clientReady}
             onClick={(event) => {
               event.stopPropagation();
-              if (installed) {
-                onJumpToTasks();
-                return;
-              }
               onInstall(task);
             }}
           >
-            {installed ? '查看任务' : '一键安装'}
+            一键安装
           </Button>
         </div>
       </div>
