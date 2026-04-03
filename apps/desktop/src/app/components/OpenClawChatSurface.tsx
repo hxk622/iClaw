@@ -3279,6 +3279,9 @@ export function OpenClawChatSurface({
       return;
     }
     const messages = Array.isArray(app.chatMessages) ? app.chatMessages : [];
+    if (messages.length === 0 && persistedChatSnapshotRef.current) {
+      return;
+    }
     const activePendingUsageSettlements = filterPendingUsageSettlementsForSession(
       storedPendingUsageSettlementsRef.current,
       sessionKey,
