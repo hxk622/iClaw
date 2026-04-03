@@ -1347,7 +1347,7 @@ export class IClawClient {
   }
 
   async createPaymentOrder(input: CreatePaymentOrderInput): Promise<PaymentOrderData> {
-    const res = await this.fetchAuth('/payments/orders', {
+    const res = await this.fetchAuth('/api/epay/orders', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${input.token}`,

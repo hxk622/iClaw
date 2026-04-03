@@ -297,7 +297,7 @@ export type UsageEventResult = {
   summary: RunBillingSummaryRecord;
 };
 
-export type PaymentProvider = 'mock' | 'wechat_qr' | 'alipay_qr';
+export type PaymentProvider = 'mock' | 'wechat_qr' | 'alipay_qr' | 'epay'
 export type PaymentOrderStatus = 'created' | 'pending' | 'paid' | 'failed' | 'expired' | 'refunded';
 export type PaymentProviderScopeType = 'platform' | 'app';
 export type PaymentProviderChannelKind = 'wechat_service_provider';

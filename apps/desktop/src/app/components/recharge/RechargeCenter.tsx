@@ -8,7 +8,8 @@ import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interacti
 type BillingCycle = 'monthly' | 'yearly';
 type PlanTier = 'free' | 'plus' | 'pro' | 'ultra';
 type PaidPlanTier = Exclude<PlanTier, 'free'>;
-type PaymentMethod = 'wechat_qr' | 'alipay_qr';
+type PaymentMethod = 'wechat_qr' | 'alipay_qr' | null;
+
 type RechargeStep = 'plans' | 'payment';
 
 type RechargePlan = {
@@ -110,7 +111,7 @@ const PLAN_PAYMENT_PACKAGE_MAP: Record<PaidPlanTier, Record<BillingCycle, string
   ultra: { monthly: 'plan_ultra_monthly', yearly: 'plan_ultra_yearly' },
 };
 
-const PAYMENT_METHOD_META: Record<PaymentMethod, { label: string; accentClassName: string }> = {
+const PAYMENT_METHOD_META: Record<Exclude<PaymentMethod, null>, { label: string; accentClassName: string }> = {
   wechat_qr: { label: '微信支付', accentClassName: 'bg-[#07C160] text-white shadow-lg shadow-green-900/30' },
   alipay_qr: { label: '支付宝', accentClassName: 'bg-[#1677FF] text-white shadow-lg shadow-blue-900/30' },
 };
@@ -143,7 +144,7 @@ export function RechargeCenter({ client, token, onClose, active = true }: Rechar
   const [step, setStep] = useState<RechargeStep>('plans');
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [selectedPlan, setSelectedPlan] = useState<PaidPlanTier>('plus');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('wechat_qr');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(null);
   const [planDropdownOpen, setPlanDropdownOpen] = useState(false);
   const [creatingOrder, setCreatingOrder] = useState(false);
   const [activeOrder, setActiveOrder] = useState<PaymentOrderData | null>(null);
@@ -167,74 +168,65 @@ export function RechargeCenter({ client, token, onClose, active = true }: Rechar
     return () => window.removeEventListener('mousedown', handlePointerDown);
   }, [active, planDropdownOpen]);
 
-  useEffect(() => {
-    if (!active) return;
-    if (step !== 'payment') return;
-    let cancelled = false;
+  const handlePayNow = async () => {
+    if (!paymentMethod) return;
     setCreatingOrder(true);
     setPaymentMessage(null);
     const packageId = PLAN_PAYMENT_PACKAGE_MAP[selectedPlan][billingCycle];
 
-    const createOrder = async () => {
-      try {
-        const order = await client.createPaymentOrder({
-          token,
-          provider: paymentMethod,
-          packageId,
-          returnUrl: 'iclaw://payments/result',
-        });
-        if (cancelled) return;
-        setActiveOrder(order);
-      } catch (error) {
-        if (!cancelled) {
-          setActiveOrder(null);
-          setPaymentMessage(error instanceof Error ? error.message : '创建支付订单失败');
-        }
-      } finally {
-        if (!cancelled) {
-          setCreatingOrder(false);
-        }
-      }
-    };
-
-    void createOrder();
-    return () => {
-      cancelled = true;
-    };
-  }, [active, billingCycle, client, paymentMethod, selectedPlan, step, token]);
+    try {
+      const order = await client.createPaymentOrder({
+        token,
+        provider: paymentMethod,
+        packageId,
+        returnUrl: 'iclaw://payments/result',
+      });
+      setActiveOrder(order);
+    } catch (error) {
+      setActiveOrder(null);
+      setPaymentMessage(error instanceof Error ? error.message : '创建支付订单失败');
+    } finally {
+      setCreatingOrder(false);
+    }
+  };
 
   useEffect(() => {
     if (!active) return;
-    if (!activeOrder) return;
-    if (!['created', 'pending'].includes(activeOrder.status)) return;
-    let cancelled = false;
-    const poll = async () => {
-      try {
-        const nextOrder = await client.getPaymentOrder(token, activeOrder.order_id);
-        if (cancelled) return;
-        setActiveOrder(nextOrder);
-        if (nextOrder.status === 'paid') {
-          setPaymentMessage('支付成功，充值余额稍后到账。');
-        } else if (nextOrder.status === 'expired') {
-          setPaymentMessage('二维码已过期，请重新选择支付方式。');
-        } else if (nextOrder.status === 'failed') {
-          setPaymentMessage('支付失败，请重新尝试。');
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setPaymentMessage(error instanceof Error ? error.message : '订单状态刷新失败');
-        }
-      }
-    };
-    void poll();
-    const timer = window.setInterval(() => {
-      void poll();
-    }, 3000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [active, activeOrder, client, token]);
+    if (step !== 'payment') return;
+  }, [active, billingCycle, client, paymentMethod, selectedPlan, step, token]);
+
+  // useEffect(() => {
+  //   if (!active) return;
+  //   if (!activeOrder) return;
+  //   if (!['created', 'pending'].includes(activeOrder.status)) return;
+  //   let cancelled = false;
+  //   const poll = async () => {
+  //     try {
+  //       const nextOrder = await client.getPaymentOrder(token, activeOrder.order_id);
+  //       if (cancelled) return;
+  //       setActiveOrder(nextOrder);
+  //       if (nextOrder.status === 'paid') {
+  //         setPaymentMessage('支付成功，充值余额稍后到账。');
+  //       } else if (nextOrder.status === 'expired') {
+  //         setPaymentMessage('二维码已过期，请重新选择支付方式。');
+  //       } else if (nextOrder.status === 'failed') {
+  //         setPaymentMessage('支付失败，请重新尝试。');
+  //       }
+  //     } catch (error) {
+  //       if (!cancelled) {
+  //         setPaymentMessage(error instanceof Error ? error.message : '订单状态刷新失败');
+  //       }
+  //     }
+  //   };
+  //   void poll();
+  //   const timer = window.setInterval(() => {
+  //     void poll();
+  //   }, 30000);
+  //   return () => {
+  //     cancelled = true;
+  //     window.clearInterval(timer);
+  //   };
+  // }, [active, activeOrder, client, token]);
 
   const openPayment = (planId: PlanTier) => {
     if (planId === 'free') return;
@@ -291,6 +283,7 @@ export function RechargeCenter({ client, token, onClose, active = true }: Rechar
           creatingOrder={creatingOrder}
           activeOrder={activeOrder}
           paymentMessage={paymentMessage}
+          onPayNow={handlePayNow}
           onPanelClick={(event) => event.stopPropagation()}
         />
       )}
@@ -526,6 +519,7 @@ function PaymentView({
   creatingOrder,
   activeOrder,
   paymentMessage,
+  onPayNow,
   onPanelClick,
 }: {
   billingCycle: BillingCycle;
@@ -543,6 +537,7 @@ function PaymentView({
   creatingOrder: boolean;
   activeOrder: PaymentOrderData | null;
   paymentMessage: string | null;
+  onPayNow: () => void;
   onPanelClick: (event: ReactMouseEvent<HTMLDivElement>) => void;
 }) {
   return (
@@ -653,7 +648,8 @@ function PaymentView({
             <p className="mb-8 text-sm text-gray-600 dark:text-gray-400">支持微信支付与支付宝</p>
 
             <div className="mb-8 flex gap-3">
-              {(['wechat_qr', 'alipay_qr'] as PaymentMethod[]).map((method) => {
+              {(['wechat_qr', 'alipay_qr'] as Exclude<PaymentMethod, null>[]).map((method) => {
+                if (!method) return null;
                 const meta = PAYMENT_METHOD_META[method];
                 const selected = paymentMethod === method;
                 return (
@@ -674,6 +670,21 @@ function PaymentView({
             </div>
 
             <div className="mb-8 text-center">
+              <button
+                onClick={onPayNow}
+                disabled={!paymentMethod || creatingOrder}
+                className={cn(
+                  'w-full cursor-pointer rounded-xl py-3 font-medium transition-all',
+                  !paymentMethod || creatingOrder
+                    ? 'cursor-not-allowed bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500'
+                    : 'bg-blue-500 text-white hover:bg-blue-600',
+                )}
+              >
+                立即支付
+              </button>
+            </div>
+
+            <div className="mb-8 text-center">
               <p className="mb-2 text-sm text-gray-600 dark:text-gray-400">支付金额</p>
               <div className="flex items-baseline justify-center gap-1">
                 <span className="text-lg text-[#E63946]">¥</span>
@@ -682,16 +693,16 @@ function PaymentView({
             </div>
 
             <div className="mb-6 rounded-2xl border-2 border-gray-200 bg-white p-8 dark:border-[#2a3441] dark:bg-[#252d3a]">
-              <div className="mb-4 flex aspect-square w-full items-center justify-center rounded-xl bg-gray-100 dark:bg-[#1a1f28]">
+              <div className="mb-4 flex aspect-video w-full items-center justify-center rounded-xl bg-gray-100 dark:bg-[#1a1f28]">
                 {creatingOrder ? (
                   <div className="text-center text-sm text-gray-500 dark:text-gray-400">
                     正在生成{paymentMethod === 'wechat_qr' ? '微信' : '支付宝'}二维码
                   </div>
                 ) : displayPaymentUrl ? (
-                  <img
+                  <iframe
                     src={displayPaymentUrl}
-                    alt={`${paymentMethod === 'wechat_qr' ? '微信' : '支付宝'}支付二维码`}
-                    className="h-48 w-48 border-2 border-gray-300 bg-white object-cover"
+                    title={`${paymentMethod === 'wechat_qr' ? '微信' : '支付宝'}支付`}
+                    className="h-full w-full border-0"
                   />
                 ) : (
                   <div className="flex h-48 w-48 items-center justify-center border-2 border-gray-300 bg-white px-4 text-center text-xs text-gray-400">
@@ -710,6 +721,12 @@ function PaymentView({
                 <p className="mt-3 text-center text-xs text-gray-500 dark:text-gray-500">{paymentMessage}</p>
               ) : null}
             </div>
+
+            {activeOrder ? (
+              <div className="rounded-lg bg-gray-100 p-4 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                <pre>{JSON.stringify(activeOrder, null, 2)}</pre>
+              </div>
+            ) : null}
 
             <div className="text-center text-xs text-gray-500">
               <p>

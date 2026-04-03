@@ -151,9 +151,13 @@ function readNumberEnv(name: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+const port = readNumberEnv('PORT', DEFAULT_PORT);
+const listenHost = (process.env.CONTROL_PLANE_HOST || '127.0.0.1').trim() || '127.0.0.1';
+
 export const config = {
-  port: readNumberEnv('PORT', DEFAULT_PORT),
-  listenHost: (process.env.CONTROL_PLANE_HOST || '127.0.0.1').trim() || '127.0.0.1',
+  port,
+  listenHost,
+  publicUrl: `http://${listenHost}:${port}`,
   databaseUrl: process.env.DATABASE_URL || '',
   appName: brandDefaults.appName,
   s3Endpoint: process.env.S3_ENDPOINT || 'http://127.0.0.1:9000',
@@ -225,4 +229,7 @@ export const config = {
   bootstrapAdminResetPassword: ['1', 'true', 'on', 'yes'].includes(
     (process.env.CONTROL_PLANE_BOOTSTRAP_ADMIN_RESET_PASSWORD || '').trim().toLowerCase(),
   ),
+  epayPartnerId: process.env.EPAY_PARTNER_ID || '',
+  epayKey: process.env.EPAY_KEY || '',
+  epayGateway: process.env.EPAY_GATEWAY || '',
 };
