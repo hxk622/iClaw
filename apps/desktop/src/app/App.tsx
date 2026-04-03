@@ -539,19 +539,6 @@ function canReuseEmptyUnnamedGeneralConversation(route: ActiveChatRoute, appName
   return !snapshotHasMeaningfulConversationMessages(snapshot?.messages ?? []);
 }
 
-function canDisplayChatRouteImmediately(route: ActiveChatRoute, appName: string): boolean {
-  if (canReuseEmptyUnnamedGeneralConversation(route, appName)) {
-    return true;
-  }
-
-  const snapshot = readStoredChatSnapshot({
-    appName,
-    sessionKey: route.sessionKey,
-    conversationId: route.conversationId,
-  });
-  return snapshotHasMeaningfulConversationMessages(snapshot?.messages ?? []);
-}
-
 function resolveInitialChatRoute(): ActiveChatRoute {
   const persisted = readPersistedActiveChatRoute();
   if (persisted) {
@@ -2110,9 +2097,6 @@ function AuthedView({
     () => readPersistedWorkspaceScene().selectedConversationId,
   );
   const [activeChatRoute, setActiveChatRoute] = useState<ActiveChatRoute>(() => initialChatRouteRef.current);
-  const [displayedChatSurfaceKey, setDisplayedChatSurfaceKey] = useState<string>(() =>
-    buildChatSurfaceCacheKey(initialChatRouteRef.current),
-  );
   const [chatSurfaceEntries, setChatSurfaceEntries] = useState<Record<string, ChatSurfaceEntry>>(() => {
     const initialRoute = initialChatRouteRef.current;
     return {
@@ -2169,8 +2153,6 @@ function AuthedView({
     !showStartupGate && !showWelcomeBackground && authBootstrapReady && chatShellAuthenticated;
   const targetChatSurfaceKey = buildChatSurfaceCacheKey(activeChatRoute);
   const mountedChatSurfaceKeys = getMountedSurfaceKeys('chat');
-  const targetChatSurfaceMounted = mountedChatSurfaceKeys.includes(targetChatSurfaceKey);
-  const displayedChatRoute = chatSurfaceEntries[displayedChatSurfaceKey]?.route ?? activeChatRoute;
   const mountedMenuSurfaceKeys = getMountedSurfaceKeys('menu');
   const mountedOverlaySurfaceKeys = getMountedSurfaceKeys('overlay') as OverlayView[];
   const hasAnyBusyChatSurface = Object.values(chatSurfaceRuntimeState).some((state) => state.busy);
@@ -2276,51 +2258,13 @@ function AuthedView({
 
   useEffect(() => {
     if (keepChatSurfaceMounted) {
-      if (
-        displayedChatSurfaceKey !== targetChatSurfaceKey &&
-        targetChatSurfaceMounted &&
-        canDisplayChatRouteImmediately(activeChatRoute, BRAND.brandId)
-      ) {
-        setDisplayedChatSurfaceKey(targetChatSurfaceKey);
-        ensureSurfaceVisible('chat', targetChatSurfaceKey);
-        return;
-      }
-      if (displayedChatSurfaceKey === targetChatSurfaceKey) {
-        ensureSurfaceVisible('chat', targetChatSurfaceKey);
-      } else {
-        ensureSurfaceMounted('chat', targetChatSurfaceKey);
-        ensureSurfaceVisible('chat', displayedChatSurfaceKey);
-      }
+      ensureSurfaceVisible('chat', targetChatSurfaceKey);
       return;
     }
     hideSurfacePool('chat');
   }, [
-    displayedChatSurfaceKey,
-    ensureSurfaceMounted,
     ensureSurfaceVisible,
     hideSurfacePool,
-    keepChatSurfaceMounted,
-    activeChatRoute,
-    targetChatSurfaceMounted,
-    targetChatSurfaceKey,
-  ]);
-
-  useEffect(() => {
-    if (!keepChatSurfaceMounted) {
-      return;
-    }
-    if (displayedChatSurfaceKey === targetChatSurfaceKey) {
-      return;
-    }
-    if (!chatSurfaceRuntimeState[targetChatSurfaceKey]?.ready) {
-      return;
-    }
-    setDisplayedChatSurfaceKey(targetChatSurfaceKey);
-    ensureSurfaceVisible('chat', targetChatSurfaceKey);
-  }, [
-    chatSurfaceRuntimeState,
-    displayedChatSurfaceKey,
-    ensureSurfaceVisible,
     keepChatSurfaceMounted,
     targetChatSurfaceKey,
   ]);
@@ -2353,10 +2297,7 @@ function AuthedView({
       const nextState = Object.fromEntries(Object.entries(current).filter(([key]) => mountedKeys.has(key)));
       return Object.keys(nextState).length === Object.keys(current).length ? current : nextState;
     });
-    if (!mountedKeys.has(displayedChatSurfaceKey)) {
-      setDisplayedChatSurfaceKey(targetChatSurfaceKey);
-    }
-  }, [displayedChatSurfaceKey, mountedChatSurfaceKeys, targetChatSurfaceKey]);
+  }, [mountedChatSurfaceKeys, targetChatSurfaceKey]);
 
   const openChatRoute = useCallback(
     (nextRoute: ActiveChatRoute, options?: {forceRemount?: boolean}) => {
@@ -2794,7 +2735,6 @@ function AuthedView({
       return;
     }
 
-    setDisplayedChatSurfaceKey(nextSurfaceKey);
     setActiveChatRoute(nextRoute);
   }, []);
 
@@ -3075,7 +3015,7 @@ function AuthedView({
         activeView={resolvedPrimaryView}
         enabledMenuKeys={enabledMenuKeys}
         menuUiConfig={menuUiConfig}
-        selectedConversationId={displayedChatRoute.conversationId}
+        selectedConversationId={activeChatRoute.conversationId}
         authenticated={authenticated}
         onOpenChat={handleOpenChatView}
         onStartNewChat={handleStartNewChat}
@@ -3129,7 +3069,7 @@ function AuthedView({
                 }
                 const isActive =
                   resolvedPrimaryView === 'chat' &&
-                  surfaceKey === displayedChatSurfaceKey &&
+                  surfaceKey === targetChatSurfaceKey &&
                   isSurfaceVisible('chat', surfaceKey);
                 return (
                   <div key={`chat-surface:${surfaceKey}`} className={buildSurfaceLayerClassName(isActive)}>
