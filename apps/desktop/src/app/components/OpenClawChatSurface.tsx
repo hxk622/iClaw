@@ -220,8 +220,14 @@ type OpenClawChatSurfaceProps = {
   welcomePageConfig?: ResolvedWelcomePageConfig | null;
   onGeneralChatSessionOverloaded?: (snapshot: ChatSessionPressureSnapshot) => void;
   onOpenRechargeCenter?: () => void;
-  onBusyStateChange?: (busy: boolean) => void;
-  onPendingBillingStateChange?: (pending: boolean) => void;
+  runtimeStateKey?: string | null;
+  onRuntimeStateChange?: (
+    runtimeStateKey: string,
+    patch: {
+      busy?: boolean;
+      hasPendingBilling?: boolean;
+    },
+  ) => void;
   surfaceVisible?: boolean;
   sendBlockedReason?: string | null;
 };
@@ -2887,8 +2893,8 @@ export function OpenClawChatSurface({
   welcomePageConfig = null,
   onGeneralChatSessionOverloaded,
   onOpenRechargeCenter,
-  onBusyStateChange,
-  onPendingBillingStateChange,
+  runtimeStateKey,
+  onRuntimeStateChange,
   surfaceVisible = true,
   sendBlockedReason = null,
 }: OpenClawChatSurfaceProps) {
@@ -2985,14 +2991,20 @@ export function OpenClawChatSurface({
   });
 
   useEffect(() => {
-    onBusyStateChange?.(status.busy);
-  }, [onBusyStateChange, status.busy]);
+    if (!runtimeStateKey) {
+      return;
+    }
+    onRuntimeStateChange?.(runtimeStateKey, {busy: status.busy});
+  }, [onRuntimeStateChange, runtimeStateKey, status.busy]);
 
   useEffect(() => {
     return () => {
-      onBusyStateChange?.(false);
+      if (!runtimeStateKey) {
+        return;
+      }
+      onRuntimeStateChange?.(runtimeStateKey, {busy: false});
     };
-  }, [onBusyStateChange]);
+  }, [onRuntimeStateChange, runtimeStateKey]);
 
   useEffect(() => {
     return () => {
@@ -3004,14 +3016,22 @@ export function OpenClawChatSurface({
   }, []);
 
   useEffect(() => {
-    onPendingBillingStateChange?.(globalPendingSettlementCount > 0);
-  }, [globalPendingSettlementCount, onPendingBillingStateChange]);
+    if (!runtimeStateKey) {
+      return;
+    }
+    onRuntimeStateChange?.(runtimeStateKey, {
+      hasPendingBilling: globalPendingSettlementCount > 0,
+    });
+  }, [globalPendingSettlementCount, onRuntimeStateChange, runtimeStateKey]);
 
   useEffect(() => {
     return () => {
-      onPendingBillingStateChange?.(false);
+      if (!runtimeStateKey) {
+        return;
+      }
+      onRuntimeStateChange?.(runtimeStateKey, {hasPendingBilling: false});
     };
-  }, [onPendingBillingStateChange]);
+  }, [onRuntimeStateChange, runtimeStateKey]);
 
   useEffect(() => {
     queuedMessagesRef.current = queuedMessages;

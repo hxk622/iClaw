@@ -2898,10 +2898,8 @@ function AuthedView({
                       welcomePageConfig={welcomePageConfig}
                       onGeneralChatSessionOverloaded={handleRotateGeneralChatSession}
                       onOpenRechargeCenter={() => setOverlayView('recharge')}
-                      onBusyStateChange={(busy) => updateChatSurfaceRuntimeFlags(surfaceKey, {busy})}
-                      onPendingBillingStateChange={(hasPendingBilling) =>
-                        updateChatSurfaceRuntimeFlags(surfaceKey, {hasPendingBilling})
-                      }
+                      runtimeStateKey={surfaceKey}
+                      onRuntimeStateChange={updateChatSurfaceRuntimeFlags}
                       surfaceVisible={isActive}
                       sendBlockedReason={desktopUpdateSendBlockedReason}
                     />
