@@ -77,7 +77,7 @@ export function RecentConversationsList({
                 type="button"
                 onClick={() => onSelectConversation?.(conversation.id)}
                 className={cn(
-                  'relative flex w-full cursor-pointer items-center gap-3 rounded-[16px] px-3 py-2.5 text-left',
+                  'relative flex w-full cursor-pointer items-center gap-2.5 rounded-[14px] px-2.5 py-2 text-left',
                   'transition-[background-color,border-color,color] duration-[var(--motion-panel)]',
                   SPRING_PRESSABLE,
                   INTERACTIVE_FOCUS_RING,
@@ -86,25 +86,27 @@ export function RecentConversationsList({
               >
                 <span
                   className={cn(
-                    'flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-[var(--text-secondary)]',
+                    'flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[var(--text-secondary)]',
                     isSelected
                       ? 'border-[rgba(168,140,93,0.20)] bg-[rgba(168,140,93,0.12)] text-[var(--brand-primary)]'
                       : 'border-[var(--border-default)] bg-[var(--bg-card)]',
                   )}
                 >
-                  <MessageSquareText className="h-4 w-4" />
+                  <MessageSquareText className="h-3.5 w-3.5" />
                 </span>
 
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] font-medium text-[var(--text-primary)]">
-                    {conversation.title}
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="min-w-0 truncate text-[12px] font-medium text-[var(--text-primary)]">
+                      {conversation.title}
+                    </span>
+                    <span className="inline-flex shrink-0 items-center gap-1 text-[10px] text-[var(--text-muted)]">
+                      <Clock3 className="h-3 w-3 shrink-0" />
+                      {formatChatTurnRelativeTime(conversation.updatedAt)}
+                    </span>
                   </span>
-                  <span className="mt-1 block truncate text-[11px] text-[var(--text-muted)]">
+                  <span className="mt-0.5 block truncate text-[11px] text-[var(--text-muted)]">
                     {conversation.summary}
-                  </span>
-                  <span className="mt-1 inline-flex items-center gap-1 text-[11px] text-[var(--text-muted)]">
-                    <Clock3 className="h-3 w-3 shrink-0" />
-                    {formatChatTurnRelativeTime(conversation.updatedAt)}
                   </span>
                 </span>
               </button>
