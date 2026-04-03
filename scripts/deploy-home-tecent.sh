@@ -27,7 +27,7 @@ trim() {
 }
 
 expect_run() {
-  ICLAW_EXPECT_PASSWORD="$ICLAW_BASTION_PASSWORD" expect <<'EOF' "$@"
+  ICLAW_EXPECT_PASSWORD="$ICLAW_BASTION_PASSWORD" expect -f - "$@" <<'EOF'
 set timeout -1
 set password $env(ICLAW_EXPECT_PASSWORD)
 spawn {*}$argv
@@ -96,9 +96,16 @@ deploy_host() {
   local target_ref="${ICLAW_TARGET_USER}@${host}"
   local target_archive="${ICLAW_REMOTE_TMP_DIR}/home-web-${ICLAW_HOME_BRAND}-${DEPLOY_ID}.tgz"
   local target_release_dir="${ICLAW_REMOTE_TMP_DIR}/home-web-${ICLAW_HOME_BRAND}-${DEPLOY_ID}"
+  local target_prefix
   local nginx_conf
   local inner_command
   local outer_command
+
+  if [[ "$ICLAW_TARGET_USER" == "root" ]]; then
+    target_prefix=""
+  else
+    target_prefix="sudo -n "
+  fi
 
   nginx_conf="$(cat <<EOF
 server {
@@ -118,21 +125,21 @@ EOF
 
   inner_command="$(cat <<EOF
 set -euo pipefail
-mkdir -p $(shell_quote "$ICLAW_NGINX_PATH")
+${target_prefix}mkdir -p $(shell_quote "$ICLAW_NGINX_PATH")
 rm -rf $(shell_quote "$target_release_dir")
 mkdir -p $(shell_quote "$target_release_dir")
 tar -xzf $(shell_quote "$target_archive") -C $(shell_quote "$target_release_dir")
-find $(shell_quote "$ICLAW_NGINX_PATH") -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-cp -a $(shell_quote "$target_release_dir")/. $(shell_quote "$ICLAW_NGINX_PATH")/
+${target_prefix}find $(shell_quote "$ICLAW_NGINX_PATH") -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+${target_prefix}cp -a $(shell_quote "$target_release_dir")/. $(shell_quote "$ICLAW_NGINX_PATH")/
 if [[ $(shell_quote "$ICLAW_INSTALL_NGINX_CONF") == "1" ]]; then
-  cat > $(shell_quote "$ICLAW_NGINX_CONF_PATH") <<'NGINXCONF'
+  ${target_prefix}tee $(shell_quote "$ICLAW_NGINX_CONF_PATH") >/dev/null <<'NGINXCONF'
 ${nginx_conf}
 NGINXCONF
-  nginx -t
+  ${target_prefix}nginx -t
   if command -v systemctl >/dev/null 2>&1; then
-    systemctl reload nginx
+    ${target_prefix}systemctl reload nginx
   else
-    service nginx reload
+    ${target_prefix}service nginx reload
   fi
 fi
 rm -rf $(shell_quote "$target_release_dir") $(shell_quote "$target_archive")
@@ -202,7 +209,7 @@ if [[ "$MODE" == "build" ]]; then
 fi
 
 DEPLOY_ID="$(date +%Y%m%d%H%M%S)"
-LOCAL_ARCHIVE="$(mktemp "${TMPDIR:-/tmp}/home-web-${ICLAW_HOME_BRAND}-${DEPLOY_ID}.XXXXXX.tgz")"
+LOCAL_ARCHIVE="${TMPDIR:-/tmp}/home-web-${ICLAW_HOME_BRAND}-${DEPLOY_ID}.tgz"
 BASTION_ARCHIVE="${ICLAW_REMOTE_TMP_DIR}/home-web-${ICLAW_HOME_BRAND}-${DEPLOY_ID}.tgz"
 
 cleanup() {
@@ -213,9 +220,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
+rm -f "$LOCAL_ARCHIVE"
 tar -C "$ROOT_DIR/home-web/dist" -czf "$LOCAL_ARCHIVE" .
 
 echo "Uploading release archive to bastion ${ICLAW_BASTION_HOST}:${BASTION_ARCHIVE}"
+run_on_bastion "rm -rf $(shell_quote "$BASTION_ARCHIVE")"
 copy_to_bastion "$LOCAL_ARCHIVE" "$BASTION_ARCHIVE"
 
 IFS=',' read -r -a target_hosts <<< "$ICLAW_TENCENT_TARGETS"
