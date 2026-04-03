@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Camera, ChevronLeft, CreditCard, KeyRound, Link2, Loader2, Trash2, Unplug, Wallet } from 'lucide-react';
 import { IClawClient, type CreditBalanceData, type CreditLedgerItemData } from '@iclaw/sdk';
 import { Button } from '@/app/components/ui/Button';
@@ -62,6 +62,76 @@ function creditEventLabel(eventType: string): string {
   return eventType;
 }
 
+type CreditLedgerDisplayItem = {
+  id: string;
+  eventType: string;
+  createdAt: string;
+  totalDelta: number;
+  balanceAfter: number | null;
+  detailLabel: string | null;
+};
+
+function buildCreditLedgerDisplayItems(items: CreditLedgerItemData[]): CreditLedgerDisplayItem[] {
+  const grouped = new Map<string, CreditLedgerDisplayItem & {dailyFreeDebit: number; topupDebit: number}>();
+  const orderedKeys: string[] = [];
+
+  items.forEach((item) => {
+    const canGroupUsageDebit = item.event_type === 'usage_debit' && item.reference_type === 'chat_run' && Boolean(item.reference_id);
+    const groupingKey = canGroupUsageDebit ? `usage:${item.reference_id}` : `single:${item.id}`;
+
+    if (!grouped.has(groupingKey)) {
+      grouped.set(groupingKey, {
+        id: canGroupUsageDebit ? String(item.reference_id) : item.id,
+        eventType: item.event_type,
+        createdAt: item.created_at,
+        totalDelta: 0,
+        balanceAfter: canGroupUsageDebit ? null : item.balance_after,
+        detailLabel: null,
+        dailyFreeDebit: 0,
+        topupDebit: 0,
+      });
+      orderedKeys.push(groupingKey);
+    }
+
+    const target = grouped.get(groupingKey)!;
+    target.totalDelta += item.delta;
+
+    if (!canGroupUsageDebit) {
+      return;
+    }
+
+    if (item.bucket === 'daily_free') {
+      target.dailyFreeDebit += Math.abs(item.amount);
+    } else if (item.bucket === 'topup') {
+      target.topupDebit += Math.abs(item.amount);
+    }
+  });
+
+  return orderedKeys.map((key) => {
+    const item = grouped.get(key)!;
+    if (item.eventType !== 'usage_debit') {
+      return item;
+    }
+
+    const detailParts: string[] = [];
+    if (item.dailyFreeDebit > 0) {
+      detailParts.push(`赠送 ${item.dailyFreeDebit}`);
+    }
+    if (item.topupDebit > 0) {
+      detailParts.push(`充值 ${item.topupDebit}`);
+    }
+
+    return {
+      id: item.id,
+      eventType: item.eventType,
+      createdAt: item.createdAt,
+      totalDelta: item.totalDelta,
+      balanceAfter: null,
+      detailLabel: detailParts.join(' · ') || null,
+    };
+  });
+}
+
 function userInitial(user: AuthUser | null, fallbackName: string): string {
   const source = (fallbackName || user?.name || user?.username || user?.email || 'i').trim();
   return source ? source[0]!.toUpperCase() : 'I';
@@ -109,6 +179,7 @@ export function AccountPanel({
   const [loadingMeta, setLoadingMeta] = useState(true);
   const [metaError, setMetaError] = useState<string | null>(null);
   const [unlinkingProvider, setUnlinkingProvider] = useState<string | null>(null);
+  const displayLedger = useMemo(() => buildCreditLedgerDisplayItems(ledger).slice(0, 8), [ledger]);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -132,7 +203,7 @@ export function AccountPanel({
         client.linkedAccounts(token),
       ]);
       setCredits(creditsData || null);
-      setLedger((ledgerData.items || []).slice(0, 8));
+      setLedger((ledgerData.items || []).slice(0, 24));
       setLinkedAccounts((((linkedData as {items?: LinkedAccount[]})?.items) || []).slice(0, 6));
     } finally {
       if (!silent) {
@@ -509,20 +580,20 @@ export function AccountPanel({
 
               <DrawerSection title="最近流水" icon={<CreditCard className="h-5 w-5" />}>
                 <div className="space-y-3">
-                  {ledger.length === 0 ? (
+                  {displayLedger.length === 0 ? (
                     <InfoTile label="流水" value="还没有龙虾币流水。" />
                   ) : (
-                    ledger.map((item) => (
+                    displayLedger.map((item) => (
                       <div key={item.id} className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
                         <div className="flex items-center justify-between gap-3">
-                          <span className="text-sm text-[var(--text-primary)]">{creditEventLabel(item.event_type)}</span>
-                          <span className={item.delta >= 0 ? 'text-sm text-[var(--state-success)]' : 'text-sm text-[var(--state-error)]'}>
-                            {item.delta >= 0 ? `+${item.delta}` : item.delta}
+                          <span className="text-sm text-[var(--text-primary)]">{creditEventLabel(item.eventType)}</span>
+                          <span className={item.totalDelta >= 0 ? 'text-sm text-[var(--state-success)]' : 'text-sm text-[var(--state-error)]'}>
+                            {item.totalDelta >= 0 ? `+${item.totalDelta}` : item.totalDelta}
                           </span>
                         </div>
                         <div className="mt-1 flex items-center justify-between text-xs text-[var(--text-secondary)]">
-                          <span>余额 {item.balance_after} 龙虾币</span>
-                          <span>{formatDate(item.created_at)}</span>
+                          <span>{item.detailLabel || (item.balanceAfter != null ? `余额 ${item.balanceAfter} 龙虾币` : ' ')}</span>
+                          <span>{formatDate(item.createdAt)}</span>
                         </div>
                       </div>
                     ))
