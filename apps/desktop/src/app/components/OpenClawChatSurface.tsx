@@ -2823,6 +2823,15 @@ function ChatSurfaceSkeletonMask({
   mode: ChatSurfaceTransitionMode;
   label: string;
 }) {
+  if (mode === 'switch') {
+    return (
+      <div className="iclaw-chat-switch-indicator" role="status" aria-live="polite">
+        <span className="iclaw-chat-switch-indicator__dot" aria-hidden="true" />
+        <span className="iclaw-chat-switch-indicator__label">{label}</span>
+      </div>
+    );
+  }
+
   return (
     <div className="iclaw-chat-boot-mask" data-mode={mode} role="status" aria-live="polite">
       <span className="iclaw-chat-boot-mask__sr-only">{label}</span>
@@ -6959,7 +6968,7 @@ export function OpenClawChatSurface({
               <div
                 ref={shellRef}
                 className="openclaw-chat-surface-shell h-full flex-1 overflow-hidden"
-                data-session-transitioning={shellTransitioning ? 'true' : 'false'}
+                data-session-transitioning={showBootMask ? 'true' : 'false'}
                 data-surface-reactivating={showSurfaceReactivationMask ? 'true' : 'false'}
               >
                 <div

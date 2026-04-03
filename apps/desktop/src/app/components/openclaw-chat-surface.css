@@ -1600,6 +1600,41 @@ body {
   filter: blur(2px);
 }
 
+.iclaw-chat-switch-indicator {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  z-index: 24;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 18%, var(--chat-surface-panel-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-page) 76%, rgba(18, 15, 11, 0.16) 24%);
+  color: var(--text-secondary);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 12px 28px rgba(18, 15, 11, 0.12);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.iclaw-chat-switch-indicator__dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand-primary) 74%, white 26%);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--brand-primary) 12%, transparent);
+}
+
+.iclaw-chat-switch-indicator__label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
 .iclaw-chat-boot-mask {
   position: absolute;
   inset: 0;
