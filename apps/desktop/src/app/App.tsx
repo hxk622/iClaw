@@ -2025,13 +2025,18 @@ function AuthedView({
     isVisible: isSurfaceVisible,
   } = surfaceCache;
   const enabledMenuKeys = resolveRequiredEnabledMenuKeys(brandShellConfig).filter((key) => key !== 'task-center');
-  const menuUiConfig = resolveRequiredMenuUiConfig(brandShellConfig, [...enabledMenuKeys, 'chat']);
+  const menuUiConfig = resolveRequiredMenuUiConfig(brandShellConfig, [...enabledMenuKeys, 'chat', 'task-center']);
   const headerConfig = resolveHeaderConfig(brandShellConfig);
   const inputComposerConfig = resolveInputComposerConfig(brandShellConfig);
   const welcomePageConfig = resolveWelcomePageConfig(brandShellConfig);
   const availablePrimaryViews = enabledMenuKeys.filter((key) => key !== 'settings') as PrimaryView[];
   const fallbackPrimaryView = availablePrimaryViews[0] || 'chat';
-  const resolvedPrimaryView = availablePrimaryViews.includes(primaryView) ? primaryView : fallbackPrimaryView;
+  const resolvedPrimaryView =
+    primaryView === 'task-center'
+      ? 'task-center'
+      : availablePrimaryViews.includes(primaryView)
+        ? primaryView
+        : fallbackPrimaryView;
   const chatShellAuthenticated =
     authenticated ||
     Boolean(accessToken) ||
@@ -2828,6 +2833,7 @@ function AuthedView({
         onOpenImBots={() => setPrimaryView('im-bots')}
         onOpenMemory={() => setPrimaryView('memory')}
         onOpenConversation={handleOpenConversation}
+        onOpenTaskCenter={() => setPrimaryView('task-center')}
         onOpenAccount={() => {
           if (!authenticated) {
             onRequestAuth('login', 'account');

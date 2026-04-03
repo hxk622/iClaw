@@ -11,12 +11,14 @@ interface RecentConversationsListProps {
   title: string;
   selectedConversationId?: string | null;
   onSelectConversation?: (conversationId: string) => void;
+  onOpenMore?: () => void;
 }
 
 export function RecentConversationsList({
   title,
   selectedConversationId = null,
   onSelectConversation,
+  onOpenMore,
 }: RecentConversationsListProps) {
   const conversations = useChatConversations();
   const recentTurns = useChatTurns();
@@ -50,6 +52,8 @@ export function RecentConversationsList({
     });
   }, [conversations, recentTurns]);
 
+  const hasMoreConversations = conversations.length > SIDEBAR_CONVERSATION_LIMIT;
+
   return (
     <div className="mb-3">
       <div className="mb-2 flex items-center justify-between px-3">
@@ -59,6 +63,19 @@ export function RecentConversationsList({
             {Math.min(visibleConversations.length, SIDEBAR_CONVERSATION_LIMIT)}
           </span>
         </div>
+        {hasMoreConversations ? (
+          <button
+            type="button"
+            onClick={() => onOpenMore?.()}
+            className={cn(
+              'inline-flex h-7 items-center rounded-[10px] px-2 text-[11px] font-medium text-[var(--brand-primary)]',
+              'transition-[background-color,color] duration-[var(--motion-panel)] hover:bg-[var(--bg-hover)]',
+              INTERACTIVE_FOCUS_RING,
+            )}
+          >
+            更多
+          </button>
+        ) : null}
       </div>
 
       {visibleConversations.length === 0 ? (

@@ -71,6 +71,7 @@ interface SidebarProps {
   onOpenImBots?: () => void;
   onOpenMemory?: () => void;
   onOpenConversation?: (conversationId: string) => void;
+  onOpenTaskCenter?: () => void;
   onLogout?: () => void;
   onOpenAccount?: () => void;
   onOpenRechargeCenter?: () => void;
@@ -123,6 +124,7 @@ export function Sidebar({
   onOpenImBots,
   onOpenMemory,
   onOpenConversation,
+  onOpenTaskCenter,
   onLogout,
   onOpenAccount,
   onOpenRechargeCenter,
@@ -364,6 +366,7 @@ export function Sidebar({
         title="最近对话"
         selectedConversationId={activeView === 'chat' ? selectedConversationId : null}
         onSelectConversation={(conversationId) => onOpenConversation?.(conversationId)}
+        onOpenMore={onOpenTaskCenter}
       />
     </div>
   );
