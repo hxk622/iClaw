@@ -161,10 +161,11 @@ export function RecentConversationsList({
                 key={conversation.id}
                 ref={menuOpen || renaming ? activeConversationRef : null}
                 className={cn(
-                  'group relative flex w-full items-center gap-2.5 rounded-[16px] border px-3 py-2.5 text-left shadow-[0_10px_24px_rgba(16,24,40,0.04)]',
+                  'group relative flex w-full items-stretch gap-3 rounded-[16px] border px-3 py-3 text-left shadow-[0_10px_24px_rgba(16,24,40,0.04)]',
                   'transition-[background-color,border-color,color,box-shadow,transform] duration-[var(--motion-panel)]',
                   SPRING_PRESSABLE,
                   INTERACTIVE_FOCUS_RING,
+                  menuOpen ? 'z-30' : 'z-0',
                   isSelected
                     ? 'border-[rgba(168,140,93,0.24)] bg-[color-mix(in_srgb,var(--bg-card)_82%,var(--bg-hover))] shadow-[0_14px_28px_rgba(168,140,93,0.10)]'
                     : 'border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-card)_94%,var(--bg-page))] hover:border-[color-mix(in_srgb,var(--brand-primary)_22%,var(--border-default))] hover:bg-[var(--bg-hover)] hover:shadow-[0_12px_26px_rgba(16,24,40,0.06)]',
@@ -173,11 +174,11 @@ export function RecentConversationsList({
                 <button
                   type="button"
                   onClick={() => onSelectConversation?.(conversation.id)}
-                  className="flex min-w-0 flex-1 items-center gap-2.5 pr-8 text-left"
+                  className="flex min-w-0 flex-1 items-stretch gap-2.5 pr-10 text-left"
                 >
                   <span
                     className={cn(
-                      'flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[var(--text-secondary)]',
+                      'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[var(--text-secondary)]',
                       isSelected
                         ? 'border-[rgba(168,140,93,0.20)] bg-[rgba(168,140,93,0.12)] text-[var(--brand-primary)] dark:text-white'
                         : 'border-[var(--border-default)] bg-[var(--bg-card)] dark:text-white',
@@ -187,45 +188,56 @@ export function RecentConversationsList({
                   </span>
 
                   <span className="min-w-0 flex-1">
-                    <span className="flex items-center justify-between gap-2 pr-1">
-                      {renaming ? (
-                        <input
-                          ref={renameInputRef}
-                          value={draftTitle}
-                          onChange={(event) => setDraftTitle(event.target.value)}
-                          onClick={(event) => event.stopPropagation()}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter') {
-                              event.preventDefault();
-                              handleCommitRename(conversation.id);
-                            }
-                            if (event.key === 'Escape') {
-                              event.preventDefault();
-                              setRenamingConversationId(null);
-                              setDraftTitle('');
-                            }
-                          }}
-                          onBlur={() => handleCommitRename(conversation.id)}
-                          className="min-w-0 flex-1 rounded-[10px] border border-[var(--brand-primary)] bg-[var(--bg-card)] px-2 py-1 text-[12px] font-medium text-[var(--text-primary)] outline-none"
-                          maxLength={48}
-                        />
-                      ) : (
-                        <span className="min-w-0 truncate text-[12px] font-medium text-[var(--text-primary)]">
-                          {conversation.title}
+                    <span className="flex items-start gap-3">
+                      <span className="min-w-0 flex-1">
+                        {renaming ? (
+                          <input
+                            ref={renameInputRef}
+                            value={draftTitle}
+                            onChange={(event) => setDraftTitle(event.target.value)}
+                            onClick={(event) => event.stopPropagation()}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') {
+                                event.preventDefault();
+                                handleCommitRename(conversation.id);
+                              }
+                              if (event.key === 'Escape') {
+                                event.preventDefault();
+                                setRenamingConversationId(null);
+                                setDraftTitle('');
+                              }
+                            }}
+                            onBlur={() => handleCommitRename(conversation.id)}
+                            className="min-w-0 w-full rounded-[10px] border border-[var(--brand-primary)] bg-[var(--bg-card)] px-2 py-1 text-[12px] font-medium text-[var(--text-primary)] outline-none"
+                            maxLength={48}
+                          />
+                        ) : (
+                          <span className="block line-clamp-2 text-[12px] font-medium leading-5 text-[var(--text-primary)]">
+                            {conversation.title}
+                          </span>
+                        )}
+                        <span className="mt-1 block truncate pr-1 text-[11px] text-[var(--text-muted)]">
+                          {conversation.summary}
                         </span>
-                      )}
-                      <span className="inline-flex shrink-0 items-center gap-1 text-[10px] text-[var(--text-muted)]">
-                        <Clock3 className="h-3 w-3 shrink-0" />
-                        {formatChatTurnRelativeTime(conversation.updatedAt)}
                       </span>
-                    </span>
-                    <span className="mt-0.5 block truncate text-[11px] text-[var(--text-muted)]">
-                      {conversation.summary}
+
+                      <span className="flex shrink-0 flex-col items-end gap-1.5 pt-0.5 text-[10px] text-[var(--text-muted)]">
+                        <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                          <Clock3 className="h-3 w-3 shrink-0" />
+                          {formatChatTurnRelativeTime(conversation.updatedAt)}
+                        </span>
+                        <span
+                          className={cn(
+                            'inline-flex h-2 w-2 rounded-full',
+                            isSelected ? 'bg-[var(--brand-primary)]' : 'bg-[var(--border-default)]',
+                          )}
+                        />
+                      </span>
                     </span>
                   </span>
                 </button>
 
-                <div className="absolute right-2 top-2 z-10">
+                <div className="absolute right-2 top-2 z-40">
                   <button
                     type="button"
                     aria-label={`更多操作：${conversation.title}`}
@@ -246,7 +258,7 @@ export function RecentConversationsList({
                   </button>
 
                   {menuOpen ? (
-                    <div className="absolute right-0 top-8 min-w-[132px] rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-card)] p-1.5 shadow-[0_16px_36px_rgba(16,24,40,0.14)]">
+                    <div className="absolute right-0 top-8 z-50 min-w-[132px] rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-card)] p-1.5 shadow-[0_16px_36px_rgba(16,24,40,0.14)]">
                       <button
                         type="button"
                         onClick={(event) => {

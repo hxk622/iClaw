@@ -65,7 +65,7 @@ import {
   readChatConversation,
   type ChatConversationKind,
 } from './lib/chat-conversations';
-import { deriveConversationHandoffSummary } from './lib/chat-history';
+import { deriveConversationHandoffSummary, readStoredChatSnapshot } from './lib/chat-history';
 import {
   canonicalizeChatSessionKey,
   createGeneralChatSessionKey,
@@ -457,6 +457,48 @@ function createConversationBackedDefaultChatRoute(sessionKey = resolveInitialGen
     kind: 'general',
   });
 }
+
+function hasSeededConversationContext(route: ActiveChatRoute): boolean {
+  return Boolean(
+    route.initialPrompt ||
+      route.initialPromptKey ||
+      route.focusedTurnId ||
+      route.focusedTurnKey ||
+      route.initialAgentSlug ||
+      route.initialSkillSlug ||
+      route.initialSkillOption ||
+      route.initialStockContext,
+  );
+}
+
+function canReuseEmptyUnnamedGeneralConversation(route: ActiveChatRoute, appName: string): boolean {
+  if (!isGeneralChatSessionKey(route.sessionKey) || hasSeededConversationContext(route)) {
+    return false;
+  }
+
+  const conversation =
+    (route.conversationId ? readChatConversation(route.conversationId) : null) ||
+    findChatConversationBySessionKey(route.sessionKey);
+  if (!conversation || conversation.kind !== 'general') {
+    return false;
+  }
+  if ((conversation.title ?? '').trim()) {
+    return false;
+  }
+
+  const hasTurns = readChatTurns().some((turn) => turn.conversationId === conversation.id);
+  if (hasTurns) {
+    return false;
+  }
+
+  const snapshot = readStoredChatSnapshot({
+    appName,
+    sessionKey: route.sessionKey,
+    conversationId: conversation.id,
+  });
+  return (snapshot?.messages?.length ?? 0) === 0;
+}
+
 function resolveInitialChatRoute(): ActiveChatRoute {
   const persisted = readPersistedActiveChatRoute();
   if (persisted) {
@@ -2446,6 +2488,10 @@ function AuthedView({
   const handleStartNewChat = () => {
     if (desktopUpdateNewRunBlockedReason) {
       setPrimaryView('chat');
+      return;
+    }
+    if (canReuseEmptyUnnamedGeneralConversation(activeChatRoute, BRAND.brandId)) {
+      openChatRoute(createConversationBackedDefaultChatRoute(activeChatRoute.sessionKey));
       return;
     }
     const sessionKey = createGeneralChatSessionKey();
