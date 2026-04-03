@@ -348,15 +348,11 @@ function buildActiveChatRoute(params: {
   initialStockContext?: ComposerStockContext | null;
 }): ActiveChatRoute {
   const sessionKey = canonicalizeChatSessionKey(params.sessionKey);
-  const conversation = ensureChatConversation({
-    conversationId: params.conversationId,
-    sessionKey,
-    kind: params.kind ?? 'general',
-    title: params.title ?? null,
-  });
+  const conversationId =
+    normalizeOptionalText(params.conversationId) ?? findChatConversationBySessionKey(sessionKey)?.id ?? null;
 
   return {
-    conversationId: conversation.id,
+    conversationId,
     sessionKey,
     initialPrompt: params.initialPrompt ?? null,
     initialPromptKey: params.initialPromptKey ?? null,
@@ -366,6 +362,38 @@ function buildActiveChatRoute(params: {
     initialSkillSlug: params.initialSkillSlug ?? null,
     initialSkillOption: params.initialSkillOption ?? null,
     initialStockContext: params.initialStockContext ?? null,
+  };
+}
+
+function buildConversationBackedChatRoute(params: {
+  sessionKey: string;
+  conversationId?: string | null;
+  kind?: ChatConversationKind;
+  title?: string | null;
+  initialPrompt?: string | null;
+  initialPromptKey?: string | null;
+  focusedTurnId?: string | null;
+  focusedTurnKey?: string | null;
+  initialAgentSlug?: string | null;
+  initialSkillSlug?: string | null;
+  initialSkillOption?: ComposerSkillOption | null;
+  initialStockContext?: ComposerStockContext | null;
+}): ActiveChatRoute {
+  const route = buildActiveChatRoute(params);
+  const conversation = ensureChatConversation({
+    conversationId: route.conversationId,
+    sessionKey: route.sessionKey,
+    kind: params.kind ?? 'general',
+    title: params.title ?? null,
+  });
+
+  if (route.conversationId === conversation.id) {
+    return route;
+  }
+
+  return {
+    ...route,
+    conversationId: conversation.id,
   };
 }
 
@@ -410,6 +438,13 @@ function writePersistedWorkspaceScene(input: {
 
 function createDefaultChatRoute(sessionKey = resolveInitialGeneralChatSessionKey()) {
   return buildActiveChatRoute({
+    sessionKey,
+    kind: 'general',
+  });
+}
+
+function createConversationBackedDefaultChatRoute(sessionKey = resolveInitialGeneralChatSessionKey()) {
+  return buildConversationBackedChatRoute({
     sessionKey,
     kind: 'general',
   });
@@ -2311,7 +2346,7 @@ function AuthedView({
       return;
     }
     const seed = `${agent.slug}-${Date.now()}`;
-    openChatRoute(buildActiveChatRoute({
+    openChatRoute(buildConversationBackedChatRoute({
       sessionKey: createScopedChatSessionKey(`lobster-${seed}`),
       kind: 'lobster',
       title: agent.name,
@@ -2330,7 +2365,7 @@ function AuthedView({
       return;
     }
     const seed = `${expert.slug}-${Date.now()}`;
-    openChatRoute(buildActiveChatRoute({
+    openChatRoute(buildConversationBackedChatRoute({
       sessionKey: createScopedChatSessionKey(`investment-expert-${seed}`),
       kind: 'investment-expert',
       title: expert.name,
@@ -2349,7 +2384,7 @@ function AuthedView({
       return;
     }
     const seed = `stock-${stock.symbol}-${Date.now()}`;
-    openChatRoute(buildActiveChatRoute({
+    openChatRoute(buildConversationBackedChatRoute({
       sessionKey: createScopedChatSessionKey(seed),
       kind: 'stock-research',
       title: `${stock.company_name} ${stock.symbol}`,
@@ -2374,7 +2409,7 @@ function AuthedView({
       return;
     }
     const seed = `fund-${fund.symbol}-${Date.now()}`;
-    openChatRoute(buildActiveChatRoute({
+    openChatRoute(buildConversationBackedChatRoute({
       sessionKey: createScopedChatSessionKey(seed),
       kind: 'fund-research',
       title: `${fund.companyName} ${fund.symbol}`,
@@ -2401,7 +2436,7 @@ function AuthedView({
       return;
     }
     const sessionKey = createGeneralChatSessionKey();
-    openChatRoute(createDefaultChatRoute(sessionKey));
+    openChatRoute(createConversationBackedDefaultChatRoute(sessionKey));
   };
 
   const handleRotateGeneralChatSession = useCallback((pressure: ChatSessionPressureSnapshot) => {
@@ -2464,7 +2499,7 @@ function AuthedView({
       findChatConversationBySessionKey(turn.sessionKey);
     const targetSessionKey = conversation?.activeSessionKey || turn.sessionKey;
 
-    openChatRoute(buildActiveChatRoute({
+    openChatRoute(buildConversationBackedChatRoute({
       sessionKey: targetSessionKey,
       conversationId: conversation?.id || turn.conversationId,
       kind: conversation?.kind ?? 'general',
@@ -2486,7 +2521,7 @@ function AuthedView({
       return;
     }
 
-    openChatRoute(buildActiveChatRoute({
+    openChatRoute(buildConversationBackedChatRoute({
       sessionKey: conversation.activeSessionKey,
       conversationId: conversation.id,
       kind: conversation.kind,
@@ -2507,7 +2542,7 @@ function AuthedView({
       return;
     }
     const seed = `skill-${skill.slug}-${Date.now()}`;
-    openChatRoute(buildActiveChatRoute({
+    openChatRoute(buildConversationBackedChatRoute({
       sessionKey: createScopedChatSessionKey(seed),
       kind: 'skill',
       title: skill.slug,
