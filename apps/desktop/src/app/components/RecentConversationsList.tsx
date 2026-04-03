@@ -52,8 +52,6 @@ export function RecentConversationsList({
     });
   }, [conversations, recentTurns]);
 
-  const hasMoreConversations = conversations.length > SIDEBAR_CONVERSATION_LIMIT;
-
   return (
     <div className="mb-3">
       <div className="mb-2 flex items-center justify-between px-3">
@@ -63,7 +61,7 @@ export function RecentConversationsList({
             {Math.min(visibleConversations.length, SIDEBAR_CONVERSATION_LIMIT)}
           </span>
         </div>
-        {hasMoreConversations ? (
+        {onOpenMore ? (
           <button
             type="button"
             onClick={() => onOpenMore?.()}
@@ -73,7 +71,7 @@ export function RecentConversationsList({
               INTERACTIVE_FOCUS_RING,
             )}
           >
-            更多
+            历史对话
           </button>
         ) : null}
       </div>
