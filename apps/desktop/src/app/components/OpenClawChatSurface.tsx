@@ -3429,6 +3429,19 @@ export function OpenClawChatSurface({
       if (!snapshot || modelLoadVersionRef.current !== requestVersion) {
         return false;
       }
+      if (
+        isGeneralChatSessionKey(sessionKey) &&
+        snapshot.sessionPressure.overloaded &&
+        snapshot.hasPersistedHistory &&
+        overloadedGeneralSessionRef.current !== sessionKey
+      ) {
+        overloadedGeneralSessionRef.current = sessionKey;
+        onGeneralChatSessionOverloaded?.(snapshot.sessionPressure);
+        return true;
+      }
+      if (!snapshot.sessionPressure.overloaded && overloadedGeneralSessionRef.current === sessionKey) {
+        overloadedGeneralSessionRef.current = null;
+      }
 
       setModelOptions(snapshot.options);
       setSelectedModelId(snapshot.selectedModelId);
@@ -4001,6 +4014,27 @@ export function OpenClawChatSurface({
       unsubscribeLobsterStore();
     };
   }, [creditClient, creditToken]);
+
+  const maybeRotateOverloadedGeneralSession = useCallback(
+    (pressure: ChatSessionPressureSnapshot, targetSessionKey: string) => {
+      if (!pressure.overloaded || !pressure.hasPersistedHistory) {
+        if (overloadedGeneralSessionRef.current === targetSessionKey) {
+          overloadedGeneralSessionRef.current = null;
+        }
+        return false;
+      }
+      if (!isGeneralChatSessionKey(targetSessionKey)) {
+        return false;
+      }
+      if (overloadedGeneralSessionRef.current === targetSessionKey) {
+        return false;
+      }
+      overloadedGeneralSessionRef.current = targetSessionKey;
+      onGeneralChatSessionOverloaded?.(pressure);
+      return true;
+    },
+    [onGeneralChatSessionOverloaded],
+  );
 
   useEffect(() => {
     persistChatSessionSnapshot();
@@ -5389,6 +5423,16 @@ export function OpenClawChatSurface({
       if (!directUsage && app) {
         try {
           sessionTokens = await loadGatewaySessionTokenSnapshot(app, pending.sessionKey);
+          if (sessionTokens && pending.sessionKey === sessionKey) {
+            maybeRotateOverloadedGeneralSession(
+              buildChatSessionPressureSnapshot({
+                inputTokens: sessionTokens.inputTokens,
+                outputTokens: sessionTokens.outputTokens,
+                hasPersistedHistory: true,
+              }),
+              pending.sessionKey,
+            );
+          }
         } catch (error) {
           console.warn('[desktop] failed to load gateway session token snapshot', {
             runId: pending.runId,
@@ -5549,6 +5593,7 @@ export function OpenClawChatSurface({
     clearUsageSettlementTimers,
     creditClient,
     creditToken,
+    maybeRotateOverloadedGeneralSession,
     mergeSessionBillingSummary,
     onCreditBalanceRefresh,
     replacePendingUsageSettlements,
