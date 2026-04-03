@@ -471,6 +471,42 @@ function hasSeededConversationContext(route: ActiveChatRoute): boolean {
   );
 }
 
+function snapshotHasMeaningfulConversationMessages(messages: unknown[]): boolean {
+  return messages.some((message) => {
+    if (!message || typeof message !== 'object' || Array.isArray(message)) {
+      return false;
+    }
+
+    const record = message as Record<string, unknown>;
+    const role = typeof record.role === 'string' ? record.role.trim().toLowerCase() : '';
+    if (role !== 'user' && role !== 'assistant') {
+      return false;
+    }
+
+    if (typeof record.content === 'string' && record.content.trim()) {
+      return true;
+    }
+
+    if (!Array.isArray(record.content)) {
+      return false;
+    }
+
+    return record.content.some((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        return false;
+      }
+      const block = item as Record<string, unknown>;
+      if (typeof block.text === 'string' && block.text.trim()) {
+        return true;
+      }
+      if (block.type === 'image' || block.type === 'file' || block.type === 'video') {
+        return true;
+      }
+      return Boolean(block.source);
+    });
+  });
+}
+
 function canReuseEmptyUnnamedGeneralConversation(route: ActiveChatRoute, appName: string): boolean {
   if (!isGeneralChatSessionKey(route.sessionKey) || hasSeededConversationContext(route)) {
     return false;
@@ -496,7 +532,7 @@ function canReuseEmptyUnnamedGeneralConversation(route: ActiveChatRoute, appName
     sessionKey: route.sessionKey,
     conversationId: conversation.id,
   });
-  return (snapshot?.messages?.length ?? 0) === 0;
+  return !snapshotHasMeaningfulConversationMessages(snapshot?.messages ?? []);
 }
 
 function resolveInitialChatRoute(): ActiveChatRoute {
