@@ -697,7 +697,7 @@ export function OpenClawCronSurface({
   const hostRef = useRef<HTMLDivElement | null>(null);
   const appRef = useRef<OpenClawAppElement | null>(null);
   const reconnectKeyRef = useRef<string | null>(null);
-  const jobsPanelRef = useRef<HTMLElement | null>(null);
+  const jobsPanelRef = useRef<HTMLDivElement | null>(null);
   const [status, setStatus] = useState<CronSurfaceStatus>({
     connected: false,
     lastError: null,

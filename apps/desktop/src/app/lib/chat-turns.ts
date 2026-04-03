@@ -92,8 +92,8 @@ function stripPromptMarkers(prompt: string): string {
   return prompt.replace(/\[\[(?:引用|图片|PDF|视频|附件):[\s\S]*?\]\]/g, ' ');
 }
 
-function collapseText(value: string): string {
-  return value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+function collapseText(value: string | null | undefined): string {
+  return (value ?? '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function trimText(value: string, limit: number): string {
