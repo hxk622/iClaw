@@ -1,5 +1,6 @@
 import { getSessionIdFromKey, toCanonicalSessionKey } from '@iclaw/shared';
 import { readCacheString, writeCacheString } from './persistence/cache-store';
+import { buildChatScopedStorageKey } from './chat-persistence-scope';
 
 const ACTIVE_GENERAL_CHAT_SESSION_STORAGE_KEY = 'iclaw.desktop.active-general-chat-session.v1';
 const GENERAL_CHAT_SESSION_PREFIX = 'chat-';
@@ -62,8 +63,12 @@ function isMainChatSessionKey(value?: string | null): boolean {
   return getChatSessionId(value).toLowerCase() === 'main';
 }
 
+function resolveActiveGeneralChatSessionStorageKey(): string {
+  return buildChatScopedStorageKey(ACTIVE_GENERAL_CHAT_SESSION_STORAGE_KEY);
+}
+
 export function readPersistedActiveGeneralChatSessionKey(): string | null {
-  const stored = readCacheString(ACTIVE_GENERAL_CHAT_SESSION_STORAGE_KEY);
+  const stored = readCacheString(resolveActiveGeneralChatSessionStorageKey());
   if (!stored) {
     return null;
   }
@@ -79,15 +84,15 @@ export function readPersistedActiveGeneralChatSessionKey(): string | null {
 
 export function writePersistedActiveGeneralChatSessionKey(sessionKey: string | null): void {
   if (!sessionKey) {
-    writeCacheString(ACTIVE_GENERAL_CHAT_SESSION_STORAGE_KEY, null);
+    writeCacheString(resolveActiveGeneralChatSessionStorageKey(), null);
     return;
   }
   const canonicalSessionKey = canonicalizeChatSessionKey(sessionKey);
   if (!isGeneralChatSessionKey(canonicalSessionKey) || isMainChatSessionKey(canonicalSessionKey)) {
-    writeCacheString(ACTIVE_GENERAL_CHAT_SESSION_STORAGE_KEY, null);
+    writeCacheString(resolveActiveGeneralChatSessionStorageKey(), null);
     return;
   }
-  writeCacheString(ACTIVE_GENERAL_CHAT_SESSION_STORAGE_KEY, canonicalSessionKey);
+  writeCacheString(resolveActiveGeneralChatSessionStorageKey(), canonicalSessionKey);
 }
 
 export function resolveInitialGeneralChatSessionKey(): string {

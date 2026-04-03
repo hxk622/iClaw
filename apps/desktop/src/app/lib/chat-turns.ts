@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { readCacheJson, writeCacheJson } from '@/app/lib/persistence/cache-store';
 import { findChatConversationBySessionKey } from '@/app/lib/chat-conversations';
 import { canonicalizeChatSessionKey, tryCanonicalizeChatSessionKey } from '@/app/lib/chat-session';
+import { buildChatScopedStorageKey } from '@/app/lib/chat-persistence-scope';
 
 export type ChatTurnStatus = 'running' | 'completed' | 'failed';
 export type ChatTurnArtifact = 'report' | 'ppt' | 'webpage' | 'pdf' | 'sheet';
@@ -38,6 +39,14 @@ const CHAT_TURNS_STORAGE_KEY = 'iclaw.chat.turns.v1';
 const LEGACY_RECENT_TASKS_STORAGE_KEY = 'iclaw.recent-tasks.v1';
 const CHAT_TURNS_UPDATED_EVENT = 'iclaw:chat-turns:updated';
 const MAX_PERSISTED_TURNS = 240;
+
+function resolveChatTurnsStorageKey(): string {
+  return buildChatScopedStorageKey(CHAT_TURNS_STORAGE_KEY);
+}
+
+function resolveLegacyRecentTasksStorageKey(): string {
+  return buildChatScopedStorageKey(LEGACY_RECENT_TASKS_STORAGE_KEY);
+}
 
 export const CHAT_TURN_ARTIFACT_LABELS: Record<ChatTurnArtifact, string> = {
   report: '报告',
@@ -111,8 +120,8 @@ function compareChatTurns(a: ChatTurnRecord, b: ChatTurnRecord): number {
 function readTurnsFromStorage(): ChatTurnRecord[] {
   try {
     const parsed =
-      readCacheJson<unknown[]>(CHAT_TURNS_STORAGE_KEY) ??
-      readCacheJson<unknown[]>(LEGACY_RECENT_TASKS_STORAGE_KEY);
+      readCacheJson<unknown[]>(resolveChatTurnsStorageKey()) ??
+      readCacheJson<unknown[]>(resolveLegacyRecentTasksStorageKey());
     if (!Array.isArray(parsed)) {
       return [];
     }
@@ -135,7 +144,7 @@ function readTurnsFromStorage(): ChatTurnRecord[] {
 
 function writeTurnsToStorage(turns: ChatTurnRecord[]): void {
   try {
-    writeCacheJson(CHAT_TURNS_STORAGE_KEY, turns.slice(0, MAX_PERSISTED_TURNS));
+    writeCacheJson(resolveChatTurnsStorageKey(), turns.slice(0, MAX_PERSISTED_TURNS));
     emitChatTurnsUpdated();
   } catch {}
 }

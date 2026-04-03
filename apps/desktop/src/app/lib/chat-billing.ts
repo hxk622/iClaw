@@ -1,5 +1,6 @@
 import { readCacheJson, writeCacheJson } from './persistence/cache-store';
 import { canonicalizeChatSessionKey, tryCanonicalizeChatSessionKey } from './chat-session';
+import { buildChatScopedStorageKey } from './chat-persistence-scope';
 
 export type PendingUsageSettlementRecord = {
   runId: string;
@@ -23,7 +24,7 @@ function normalizeText(value: unknown): string | null {
 
 function buildPendingUsageSettlementsStorageKey(appName: string): string {
   const normalizedAppName = appName.trim().toLowerCase() || 'default';
-  return `${CHAT_PENDING_USAGE_SETTLEMENTS_PREFIX}:${normalizedAppName}`;
+  return buildChatScopedStorageKey(`${CHAT_PENDING_USAGE_SETTLEMENTS_PREFIX}:${normalizedAppName}`);
 }
 
 export function normalizePendingUsageSettlementRecord(value: unknown): PendingUsageSettlementRecord | null {

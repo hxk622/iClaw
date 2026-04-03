@@ -5,6 +5,7 @@ import {
 import { readChatConversation } from './chat-conversations';
 import { readCacheJson, removeCacheKeys, writeCacheJson } from './persistence/cache-store';
 import { canonicalizeChatSessionKey } from './chat-session';
+import { buildChatScopedStorageKey } from './chat-persistence-scope';
 
 export type ChatSessionSnapshot = {
   sessionKey: string;
@@ -79,13 +80,15 @@ function readLatestRoleText(messages: unknown[], role: 'user' | 'assistant'): st
 export function buildChatSessionSnapshotStorageKey(appName: string, sessionKey: string): string {
   const normalizedAppName = appName.trim().toLowerCase() || 'default';
   const normalizedSessionKey = canonicalizeChatSessionKey(sessionKey).toLowerCase();
-  return `${CHAT_SESSION_SNAPSHOT_PREFIX}:${normalizedAppName}:${normalizedSessionKey}`;
+  return buildChatScopedStorageKey(`${CHAT_SESSION_SNAPSHOT_PREFIX}:${normalizedAppName}:${normalizedSessionKey}`);
 }
 
 export function buildChatConversationSnapshotStorageKey(appName: string, conversationId: string): string {
   const normalizedAppName = appName.trim().toLowerCase() || 'default';
   const normalizedConversationId = conversationId.trim().toLowerCase();
-  return `${CHAT_CONVERSATION_SNAPSHOT_PREFIX}:${normalizedAppName}:${normalizedConversationId}`;
+  return buildChatScopedStorageKey(
+    `${CHAT_CONVERSATION_SNAPSHOT_PREFIX}:${normalizedAppName}:${normalizedConversationId}`,
+  );
 }
 
 export function readStoredChatSnapshot(params: {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { readCacheJson, writeCacheJson } from './persistence/cache-store';
 import { tryCanonicalizeChatSessionKey } from './chat-session';
+import { buildChatScopedStorageKey } from './chat-persistence-scope';
 
 export type ChatConversationKind =
   | 'general'
@@ -49,6 +50,10 @@ const CHAT_CONVERSATIONS_STORAGE_KEY = 'iclaw.chat.conversations.v1';
 const CHAT_CONVERSATIONS_UPDATED_EVENT = 'iclaw:chat-conversations:updated';
 const MAX_CONVERSATIONS = 240;
 const MAX_HANDOFFS_PER_CONVERSATION = 32;
+
+function resolveChatConversationsStorageKey(): string {
+  return buildChatScopedStorageKey(CHAT_CONVERSATIONS_STORAGE_KEY);
+}
 
 function emitChatConversationsUpdated(): void {
   if (typeof window === 'undefined') {
@@ -151,7 +156,7 @@ function normalizeConversationRecord(value: unknown): ChatConversationRecord | n
 }
 
 function readConversationList(): ChatConversationRecord[] {
-  const parsed = readCacheJson<unknown[]>(CHAT_CONVERSATIONS_STORAGE_KEY);
+  const parsed = readCacheJson<unknown[]>(resolveChatConversationsStorageKey());
   if (!Array.isArray(parsed)) {
     return [];
   }
@@ -163,7 +168,7 @@ function readConversationList(): ChatConversationRecord[] {
 }
 
 function writeConversationList(records: ChatConversationRecord[]): void {
-  writeCacheJson(CHAT_CONVERSATIONS_STORAGE_KEY, records.slice(0, MAX_CONVERSATIONS));
+  writeCacheJson(resolveChatConversationsStorageKey(), records.slice(0, MAX_CONVERSATIONS));
   emitChatConversationsUpdated();
 }
 

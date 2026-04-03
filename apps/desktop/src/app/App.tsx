@@ -97,6 +97,10 @@ import {
   restartDesktopApp,
 } from './lib/tauri-desktop-updater';
 import { desktopLogin, desktopMe, desktopRefresh } from './lib/tauri-auth';
+import {
+  buildChatScopedStorageKey,
+  writeCurrentChatPersistenceUserScope,
+} from './lib/chat-persistence-scope';
 
 interface AuthUser {
   id?: string;
@@ -217,6 +221,29 @@ function normalizePersistedInstrumentKind(value: unknown): ComposerInstrumentKin
   return value === 'stock' || value === 'fund' || value === 'etf' || value === 'qdii' ? value : undefined;
 }
 
+function resolveAuthUserPersistenceScope(user: AuthUser | null): string | null {
+  if (!user) {
+    return null;
+  }
+  const id = normalizeOptionalText(user.id);
+  if (id) {
+    return id;
+  }
+  const email = normalizeOptionalText(user.email);
+  if (email) {
+    return email.toLowerCase();
+  }
+  const username = normalizeOptionalText(user.username);
+  if (username) {
+    return username.toLowerCase();
+  }
+  return null;
+}
+
+function applyChatPersistenceUserScope(user: AuthUser | null): void {
+  writeCurrentChatPersistenceUserScope(resolveAuthUserPersistenceScope(user));
+}
+
 function normalizePersistedSkillOption(value: unknown): ComposerSkillOption | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null;
@@ -263,7 +290,7 @@ function normalizePersistedStockContext(value: unknown): ComposerStockContext | 
 }
 
 function readPersistedActiveChatRoute(): ActiveChatRoute | null {
-  const snapshot = readCacheJson<PersistedChatRouteSnapshot>(ACTIVE_CHAT_ROUTE_STORAGE_KEY);
+  const snapshot = readCacheJson<PersistedChatRouteSnapshot>(buildChatScopedStorageKey(ACTIVE_CHAT_ROUTE_STORAGE_KEY));
   if (!snapshot || typeof snapshot !== 'object') {
     return null;
   }
@@ -291,10 +318,10 @@ function readPersistedActiveChatRoute(): ActiveChatRoute | null {
 
 function writePersistedActiveChatRoute(route: ActiveChatRoute | null): void {
   if (!route) {
-    writeCacheJson(ACTIVE_CHAT_ROUTE_STORAGE_KEY, null);
+    writeCacheJson(buildChatScopedStorageKey(ACTIVE_CHAT_ROUTE_STORAGE_KEY), null);
     return;
   }
-  writeCacheJson(ACTIVE_CHAT_ROUTE_STORAGE_KEY, {
+  writeCacheJson(buildChatScopedStorageKey(ACTIVE_CHAT_ROUTE_STORAGE_KEY), {
     conversationId: route.conversationId,
     sessionKey: route.sessionKey,
     initialPrompt: route.initialPrompt,
@@ -346,7 +373,9 @@ function readPersistedWorkspaceScene(): {
   primaryView: string | null;
   selectedTurnId: string | null;
 } {
-  const snapshot = readCacheJson<PersistedWorkspaceSceneSnapshot>(ACTIVE_WORKSPACE_SCENE_STORAGE_KEY);
+  const snapshot = readCacheJson<PersistedWorkspaceSceneSnapshot>(
+    buildChatScopedStorageKey(ACTIVE_WORKSPACE_SCENE_STORAGE_KEY),
+  );
   if (!snapshot || typeof snapshot !== 'object') {
     return {
       primaryView: null,
@@ -370,10 +399,10 @@ function writePersistedWorkspaceScene(input: {
       input.selectedTurnId === undefined ? current.selectedTurnId : normalizeOptionalText(input.selectedTurnId),
   };
   if (!next.primaryView && !next.selectedTurnId) {
-    writeCacheJson(ACTIVE_WORKSPACE_SCENE_STORAGE_KEY, null);
+    writeCacheJson(buildChatScopedStorageKey(ACTIVE_WORKSPACE_SCENE_STORAGE_KEY), null);
     return;
   }
-  writeCacheJson(ACTIVE_WORKSPACE_SCENE_STORAGE_KEY, {
+  writeCacheJson(buildChatScopedStorageKey(ACTIVE_WORKSPACE_SCENE_STORAGE_KEY), {
     ...(next.primaryView ? {primaryView: next.primaryView} : {}),
     ...(next.selectedTurnId ? {selectedTurnId: next.selectedTurnId} : {}),
   });
@@ -650,6 +679,13 @@ export default function App() {
     if (!isTauriRuntime()) return;
     void refreshGatewayAuth();
   }, [refreshGatewayAuth]);
+
+  useEffect(() => {
+    if (!currentUser) {
+      return;
+    }
+    applyChatPersistenceUserScope(currentUser);
+  }, [currentUser]);
 
   const client = useMemo(
     () =>
@@ -1066,6 +1102,7 @@ export default function App() {
       if (clearStoredAuth) {
         void clearAuth().catch(() => {});
       }
+      applyChatPersistenceUserScope(null);
       setAccessToken(null);
       setSessionAuthed(false);
       setCurrentUser(null);
@@ -1076,6 +1113,7 @@ export default function App() {
       if (cancelled || settled) return;
       settled = true;
       window.clearTimeout(timeoutId);
+      applyChatPersistenceUserScope(user);
       setAccessToken(token);
       setSessionAuthed(true);
       setCurrentUser(user);
@@ -1191,6 +1229,7 @@ export default function App() {
         refreshToken: data.tokens.refresh_token,
       });
       await syncManagedProviderAuth();
+      applyChatPersistenceUserScope((data.user as AuthUser) || null);
       setAccessToken(data.tokens.access_token);
       setSessionAuthed(true);
       setCurrentUser((data.user as AuthUser) || null);
@@ -1219,6 +1258,7 @@ export default function App() {
         refreshToken: data.tokens.refresh_token,
       });
       await syncManagedProviderAuth();
+      applyChatPersistenceUserScope((data.user as AuthUser) || null);
       setAccessToken(data.tokens.access_token);
       setSessionAuthed(true);
       setCurrentUser((data.user as AuthUser) || null);
@@ -1253,6 +1293,7 @@ export default function App() {
         refreshToken: data.tokens.refresh_token,
       });
       await syncManagedProviderAuth();
+      applyChatPersistenceUserScope((data.user as AuthUser) || null);
       setAccessToken(data.tokens.access_token);
       setSessionAuthed(true);
       setCurrentUser((data.user as AuthUser) || null);
@@ -1279,6 +1320,7 @@ export default function App() {
     }
     void clearAuth();
     void clearManagedProviderAuth();
+    applyChatPersistenceUserScope(null);
     setAccessToken(null);
     setSessionAuthed(false);
     setCurrentUser(null);
@@ -1746,6 +1788,7 @@ export default function App() {
           onRestart={handleRestartDesktopApp}
         />
         <AuthedView
+          key={resolveAuthUserPersistenceScope(currentUser) || 'guest'}
           primaryView={primaryView}
           setPrimaryView={setPrimaryView}
           brandShellConfig={brandShellConfig}
