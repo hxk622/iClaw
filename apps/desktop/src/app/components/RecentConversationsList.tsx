@@ -202,7 +202,7 @@ export function RecentConversationsList({
                 <button
                   type="button"
                   onClick={() => onSelectConversation?.(conversation.id)}
-                  className="flex h-full min-w-0 flex-1 items-start gap-2.5 pr-[68px] text-left"
+                  className="flex h-full min-w-0 flex-1 items-start gap-2.5 overflow-hidden pr-[68px] text-left"
                 >
                   <span
                     className={cn(
@@ -215,8 +215,8 @@ export function RecentConversationsList({
                     <MessageSquareText className="h-3.5 w-3.5" />
                   </span>
 
-                  <span className="flex min-w-0 flex-1 flex-col justify-between py-[1px]">
-                    <span className="min-w-0 pr-1">
+                  <span className="grid min-w-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden py-[1px]">
+                    <span className="min-w-0 overflow-hidden pr-1">
                       {renaming ? (
                         <input
                           ref={renameInputRef}
@@ -239,12 +239,12 @@ export function RecentConversationsList({
                           maxLength={48}
                         />
                       ) : (
-                        <span className="block line-clamp-2 text-[12px] font-medium leading-[1.25rem] text-[var(--text-primary)]">
+                        <span className="block overflow-hidden text-[12px] font-medium leading-4 text-[var(--text-primary)] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
                           {conversation.title}
                         </span>
                       )}
                     </span>
-                    <span className="block truncate pr-1 text-[11px] leading-4 text-[var(--text-muted)]">
+                    <span className="block truncate overflow-hidden pr-1 text-[11px] leading-4 text-[var(--text-muted)]">
                       {conversation.summary}
                     </span>
                   </span>
