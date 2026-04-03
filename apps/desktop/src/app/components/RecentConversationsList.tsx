@@ -189,7 +189,7 @@ export function RecentConversationsList({
                 key={conversation.id}
                 ref={menuOpen || renaming ? activeConversationRef : null}
                 className={cn(
-                  'group relative flex h-[78px] w-full items-stretch gap-3 overflow-visible rounded-[16px] border px-3 py-2.5 text-left shadow-[0_10px_24px_rgba(16,24,40,0.04)]',
+                  'group relative flex h-[84px] w-full items-stretch gap-3 overflow-visible rounded-[16px] border px-3 py-2.5 text-left shadow-[0_10px_24px_rgba(16,24,40,0.04)]',
                   'transition-[background-color,border-color,color,box-shadow,transform] duration-[var(--motion-panel)]',
                   SPRING_PRESSABLE,
                   INTERACTIVE_FOCUS_RING,
@@ -202,21 +202,29 @@ export function RecentConversationsList({
                 <button
                   type="button"
                   onClick={() => onSelectConversation?.(conversation.id)}
-                  className="flex h-full min-w-0 flex-1 items-start gap-2.5 overflow-hidden pr-[68px] text-left"
+                  className="flex h-full min-w-0 flex-1 items-start gap-2.5 overflow-hidden text-left"
                 >
-                  <span
-                    className={cn(
-                      'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[var(--text-secondary)]',
-                      isSelected
-                        ? 'border-[rgba(168,140,93,0.20)] bg-[rgba(168,140,93,0.12)] text-[var(--brand-primary)] dark:text-white'
-                        : 'border-[var(--border-default)] bg-[var(--bg-card)] dark:text-white',
-                    )}
-                  >
-                    <MessageSquareText className="h-3.5 w-3.5" />
+                  <span className="mt-0.5 flex h-full shrink-0 flex-col items-center justify-between pb-0.5">
+                    <span
+                      className={cn(
+                        'flex h-7 w-7 items-center justify-center rounded-full border text-[var(--text-secondary)]',
+                        isSelected
+                          ? 'border-[rgba(168,140,93,0.20)] bg-[rgba(168,140,93,0.12)] text-[var(--brand-primary)] dark:text-white'
+                          : 'border-[var(--border-default)] bg-[var(--bg-card)] dark:text-white',
+                      )}
+                    >
+                      <MessageSquareText className="h-3.5 w-3.5" />
+                    </span>
+                    <span
+                      className={cn(
+                        'inline-flex h-2 w-2 rounded-full',
+                        isSelected ? 'bg-[var(--brand-primary)]' : 'bg-[var(--border-default)]',
+                      )}
+                    />
                   </span>
 
-                  <span className="grid min-w-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden py-[1px]">
-                    <span className="min-w-0 overflow-hidden pr-1">
+                  <span className="grid min-w-0 flex-1 grid-rows-[16px_32px] overflow-hidden py-[1px]">
+                    <span className="min-w-0 overflow-hidden pr-[68px]">
                       {renaming ? (
                         <input
                           ref={renameInputRef}
@@ -239,12 +247,12 @@ export function RecentConversationsList({
                           maxLength={48}
                         />
                       ) : (
-                        <span className="block overflow-hidden text-[12px] font-medium leading-4 text-[var(--text-primary)] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+                        <span className="block truncate text-[12px] font-medium leading-4 text-[var(--text-primary)]">
                           {conversation.title}
                         </span>
                       )}
                     </span>
-                    <span className="block truncate overflow-hidden pr-1 text-[11px] leading-4 text-[var(--text-muted)]">
+                    <span className="block overflow-hidden text-[11px] leading-4 text-[var(--text-muted)] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
                       {conversation.summary}
                     </span>
                   </span>
@@ -253,7 +261,7 @@ export function RecentConversationsList({
                 <div className="absolute right-3 top-2.5 z-40 flex flex-col items-end">
                   <div
                     className={cn(
-                      'pointer-events-none flex flex-col items-end gap-1 text-[10px] text-[var(--text-muted)] transition-opacity duration-[var(--motion-panel)]',
+                      'pointer-events-none flex items-center text-[10px] text-[var(--text-muted)] transition-opacity duration-[var(--motion-panel)]',
                       menuOpen ? 'opacity-0' : 'opacity-100 group-hover:opacity-0 group-focus-within:opacity-0',
                     )}
                   >
@@ -261,12 +269,6 @@ export function RecentConversationsList({
                       <Clock3 className="h-3 w-3 shrink-0" />
                       {formatChatTurnRelativeTime(conversation.updatedAt)}
                     </span>
-                    <span
-                      className={cn(
-                        'inline-flex h-2 w-2 rounded-full',
-                        isSelected ? 'bg-[var(--brand-primary)]' : 'bg-[var(--border-default)]',
-                      )}
-                    />
                   </div>
                   <button
                     type="button"
