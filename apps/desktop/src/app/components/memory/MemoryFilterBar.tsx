@@ -45,6 +45,8 @@ export function MemoryFilterBar({
       filters.tags.length,
     [filters],
   );
+  const advancedSummary =
+    activeAdvancedCount > 0 ? `已启用 ${activeAdvancedCount} 项条件` : undefined;
 
   return (
     <SurfacePanel tone="subtle" className="rounded-[20px] border-[var(--border-default)] p-3">
@@ -79,9 +81,10 @@ export function MemoryFilterBar({
         <div className="border-t border-[var(--border-default)] pt-2.5">
           <CompactDisclosure
             title="高级筛选"
-            summary={activeAdvancedCount > 0 ? `已启用 ${activeAdvancedCount} 项条件` : '按领域、标签、时间和使用情况细筛'}
+            summary={advancedSummary}
             open={advancedOpen}
             onToggle={() => setAdvancedOpen((current) => !current)}
+            className={!advancedOpen && activeAdvancedCount === 0 ? 'py-1.5' : undefined}
           />
 
           {advancedOpen ? (
