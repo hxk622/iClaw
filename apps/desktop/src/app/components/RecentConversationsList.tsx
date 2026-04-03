@@ -73,7 +73,7 @@ export function RecentConversationsList({
             type="button"
             onClick={() => onOpenMore?.()}
             className={cn(
-              'inline-flex h-7 items-center rounded-[10px] px-2 text-[11px] font-medium text-[var(--brand-primary)]',
+              'inline-flex h-7 items-center rounded-[10px] px-2 text-[13px] font-medium text-[var(--brand-primary)]',
               'transition-[background-color,color] duration-[var(--motion-panel)] hover:bg-[var(--bg-hover)]',
               INTERACTIVE_FOCUS_RING,
             )}
@@ -99,11 +99,13 @@ export function RecentConversationsList({
                 type="button"
                 onClick={() => onSelectConversation?.(conversation.id)}
                 className={cn(
-                  'relative flex w-full cursor-pointer items-center gap-2.5 rounded-[14px] px-2.5 py-2 text-left',
-                  'transition-[background-color,border-color,color] duration-[var(--motion-panel)]',
+                  'relative flex w-full cursor-pointer items-center gap-2.5 rounded-[16px] border px-3 py-2.5 text-left shadow-[0_10px_24px_rgba(16,24,40,0.04)]',
+                  'transition-[background-color,border-color,color,box-shadow,transform] duration-[var(--motion-panel)]',
                   SPRING_PRESSABLE,
                   INTERACTIVE_FOCUS_RING,
-                  isSelected ? 'bg-[var(--bg-hover)]' : 'bg-transparent hover:bg-[var(--bg-hover)]',
+                  isSelected
+                    ? 'border-[rgba(168,140,93,0.24)] bg-[color-mix(in_srgb,var(--bg-card)_82%,var(--bg-hover))] shadow-[0_14px_28px_rgba(168,140,93,0.10)]'
+                    : 'border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-card)_94%,var(--bg-page))] hover:border-[color-mix(in_srgb,var(--brand-primary)_22%,var(--border-default))] hover:bg-[var(--bg-hover)] hover:shadow-[0_12px_26px_rgba(16,24,40,0.06)]',
                 )}
               >
                 <span
