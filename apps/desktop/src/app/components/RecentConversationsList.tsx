@@ -1,13 +1,15 @@
 import { Clock3, MoreHorizontal, MessageSquareText, PencilLine, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Button } from '@/app/components/ui/Button';
 import { cn } from '@/app/lib/cn';
 import { formatChatTurnRelativeTime, useChatTurns } from '@/app/lib/chat-turns';
 import {
-  deleteChatConversation,
   renameChatConversation,
   useChatConversations,
 } from '@/app/lib/chat-conversations';
+import { deleteChatConversationThread } from '@/app/lib/chat-conversation-actions';
 import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
+import { BRAND } from '@/app/lib/brand';
 
 const SIDEBAR_CONVERSATION_LIMIT = 5;
 
@@ -15,6 +17,7 @@ interface RecentConversationsListProps {
   title: string;
   selectedConversationId?: string | null;
   onSelectConversation?: (conversationId: string) => void;
+  onDeleteConversation?: (conversationId: string) => void;
   onOpenMore?: () => void;
 }
 
@@ -22,6 +25,7 @@ export function RecentConversationsList({
   title,
   selectedConversationId = null,
   onSelectConversation,
+  onDeleteConversation,
   onOpenMore,
 }: RecentConversationsListProps) {
   const conversations = useChatConversations();
@@ -29,6 +33,10 @@ export function RecentConversationsList({
   const [menuConversationId, setMenuConversationId] = useState<string | null>(null);
   const [renamingConversationId, setRenamingConversationId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState('');
+  const [pendingDeleteConversation, setPendingDeleteConversation] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
   const activeConversationRef = useRef<HTMLDivElement | null>(null);
   const renameInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -95,6 +103,21 @@ export function RecentConversationsList({
     renameInputRef.current?.select();
   }, [renamingConversationId]);
 
+  useEffect(() => {
+    if (!pendingDeleteConversation) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setPendingDeleteConversation(null);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [pendingDeleteConversation]);
+
   const handleStartRename = (conversationId: string, currentTitle: string) => {
     setMenuConversationId(null);
     setRenamingConversationId(conversationId);
@@ -114,10 +137,15 @@ export function RecentConversationsList({
   };
 
   const handleDeleteConversation = (conversationId: string) => {
-    deleteChatConversation(conversationId);
+    deleteChatConversationThread({
+      appName: BRAND.brandId,
+      conversationId,
+    });
     setMenuConversationId(null);
     setRenamingConversationId(null);
     setDraftTitle('');
+    setPendingDeleteConversation(null);
+    onDeleteConversation?.(conversationId);
   };
 
   return (
@@ -161,7 +189,7 @@ export function RecentConversationsList({
                 key={conversation.id}
                 ref={menuOpen || renaming ? activeConversationRef : null}
                 className={cn(
-                  'group relative flex w-full items-stretch gap-3 rounded-[16px] border px-3 py-3 text-left shadow-[0_10px_24px_rgba(16,24,40,0.04)]',
+                  'group relative flex h-[78px] w-full items-stretch gap-3 overflow-visible rounded-[16px] border px-3 py-2.5 text-left shadow-[0_10px_24px_rgba(16,24,40,0.04)]',
                   'transition-[background-color,border-color,color,box-shadow,transform] duration-[var(--motion-panel)]',
                   SPRING_PRESSABLE,
                   INTERACTIVE_FOCUS_RING,
@@ -174,7 +202,7 @@ export function RecentConversationsList({
                 <button
                   type="button"
                   onClick={() => onSelectConversation?.(conversation.id)}
-                  className="flex min-w-0 flex-1 items-stretch gap-2.5 pr-10 text-left"
+                  className="flex h-full min-w-0 flex-1 items-start gap-2.5 pr-[68px] text-left"
                 >
                   <span
                     className={cn(
@@ -187,57 +215,59 @@ export function RecentConversationsList({
                     <MessageSquareText className="h-3.5 w-3.5" />
                   </span>
 
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-start gap-3">
-                      <span className="min-w-0 flex-1">
-                        {renaming ? (
-                          <input
-                            ref={renameInputRef}
-                            value={draftTitle}
-                            onChange={(event) => setDraftTitle(event.target.value)}
-                            onClick={(event) => event.stopPropagation()}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter') {
-                                event.preventDefault();
-                                handleCommitRename(conversation.id);
-                              }
-                              if (event.key === 'Escape') {
-                                event.preventDefault();
-                                setRenamingConversationId(null);
-                                setDraftTitle('');
-                              }
-                            }}
-                            onBlur={() => handleCommitRename(conversation.id)}
-                            className="min-w-0 w-full rounded-[10px] border border-[var(--brand-primary)] bg-[var(--bg-card)] px-2 py-1 text-[12px] font-medium text-[var(--text-primary)] outline-none"
-                            maxLength={48}
-                          />
-                        ) : (
-                          <span className="block line-clamp-2 text-[12px] font-medium leading-5 text-[var(--text-primary)]">
-                            {conversation.title}
-                          </span>
-                        )}
-                        <span className="mt-1 block truncate pr-1 text-[11px] text-[var(--text-muted)]">
-                          {conversation.summary}
-                        </span>
-                      </span>
-
-                      <span className="flex shrink-0 flex-col items-end gap-1.5 pt-0.5 text-[10px] text-[var(--text-muted)]">
-                        <span className="inline-flex items-center gap-1 whitespace-nowrap">
-                          <Clock3 className="h-3 w-3 shrink-0" />
-                          {formatChatTurnRelativeTime(conversation.updatedAt)}
-                        </span>
-                        <span
-                          className={cn(
-                            'inline-flex h-2 w-2 rounded-full',
-                            isSelected ? 'bg-[var(--brand-primary)]' : 'bg-[var(--border-default)]',
-                          )}
+                  <span className="flex min-w-0 flex-1 flex-col justify-between py-[1px]">
+                    <span className="min-w-0 pr-1">
+                      {renaming ? (
+                        <input
+                          ref={renameInputRef}
+                          value={draftTitle}
+                          onChange={(event) => setDraftTitle(event.target.value)}
+                          onClick={(event) => event.stopPropagation()}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault();
+                              handleCommitRename(conversation.id);
+                            }
+                            if (event.key === 'Escape') {
+                              event.preventDefault();
+                              setRenamingConversationId(null);
+                              setDraftTitle('');
+                            }
+                          }}
+                          onBlur={() => handleCommitRename(conversation.id)}
+                          className="min-w-0 w-full rounded-[10px] border border-[var(--brand-primary)] bg-[var(--bg-card)] px-2 py-1 text-[12px] font-medium text-[var(--text-primary)] outline-none"
+                          maxLength={48}
                         />
-                      </span>
+                      ) : (
+                        <span className="block line-clamp-2 text-[12px] font-medium leading-[1.25rem] text-[var(--text-primary)]">
+                          {conversation.title}
+                        </span>
+                      )}
+                    </span>
+                    <span className="block truncate pr-1 text-[11px] leading-4 text-[var(--text-muted)]">
+                      {conversation.summary}
                     </span>
                   </span>
                 </button>
 
-                <div className="absolute right-2 top-2 z-40">
+                <div className="absolute right-3 top-2.5 z-40 flex flex-col items-end">
+                  <div
+                    className={cn(
+                      'pointer-events-none flex flex-col items-end gap-1 text-[10px] text-[var(--text-muted)] transition-opacity duration-[var(--motion-panel)]',
+                      menuOpen ? 'opacity-0' : 'opacity-100 group-hover:opacity-0 group-focus-within:opacity-0',
+                    )}
+                  >
+                    <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                      <Clock3 className="h-3 w-3 shrink-0" />
+                      {formatChatTurnRelativeTime(conversation.updatedAt)}
+                    </span>
+                    <span
+                      className={cn(
+                        'inline-flex h-2 w-2 rounded-full',
+                        isSelected ? 'bg-[var(--brand-primary)]' : 'bg-[var(--border-default)]',
+                      )}
+                    />
+                  </div>
                   <button
                     type="button"
                     aria-label={`更多操作：${conversation.title}`}
@@ -248,10 +278,10 @@ export function RecentConversationsList({
                       setMenuConversationId((current) => current === conversation.id ? null : conversation.id);
                     }}
                     className={cn(
-                      'inline-flex h-7 w-7 items-center justify-center rounded-[10px] border border-transparent bg-transparent text-[var(--text-muted)] transition-[opacity,background-color,color] duration-[var(--motion-panel)]',
+                      'absolute right-0 top-0 inline-flex h-7 w-7 items-center justify-center rounded-[10px] border border-transparent bg-[var(--bg-card)] text-[var(--text-muted)] shadow-[0_10px_24px_rgba(16,24,40,0.10)] transition-[opacity,background-color,color] duration-[var(--motion-panel)]',
                       menuOpen
-                        ? 'opacity-100 bg-[var(--bg-card)] text-[var(--text-primary)] shadow-[0_10px_24px_rgba(16,24,40,0.10)]'
-                        : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 focus-visible:opacity-100 hover:bg-[var(--bg-card)] hover:text-[var(--text-primary)]',
+                        ? 'opacity-100 text-[var(--text-primary)]'
+                        : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 focus-visible:opacity-100 hover:text-[var(--text-primary)]',
                     )}
                   >
                     <MoreHorizontal className="h-4 w-4" />
@@ -274,10 +304,11 @@ export function RecentConversationsList({
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation();
-                          if (!window.confirm(`确认删除对话「${conversation.title}」吗？`)) {
-                            return;
-                          }
-                          handleDeleteConversation(conversation.id);
+                          setMenuConversationId(null);
+                          setPendingDeleteConversation({
+                            id: conversation.id,
+                            title: conversation.title,
+                          });
                         }}
                         className="flex w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-[12px] text-[var(--state-danger,#c2410c)] transition-colors hover:bg-[var(--bg-hover)]"
                       >
@@ -292,6 +323,46 @@ export function RecentConversationsList({
           })}
         </div>
       )}
+
+      {pendingDeleteConversation ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/42 px-4 backdrop-blur-[6px]">
+          <div
+            className="absolute inset-0"
+            onClick={() => setPendingDeleteConversation(null)}
+            aria-hidden="true"
+          />
+          <div className="relative z-[121] w-full max-w-[420px] rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-card)] p-6 shadow-[0_28px_80px_rgba(15,23,42,0.24)]">
+            <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-[14px] border border-[rgba(239,68,68,0.18)] bg-[rgba(239,68,68,0.10)] text-[rgb(185,28,28)] dark:border-[rgba(248,113,113,0.24)] dark:bg-[rgba(239,68,68,0.18)] dark:text-[#fecaca]">
+              <Trash2 className="h-5 w-5" />
+            </div>
+            <h3 className="text-[18px] font-semibold text-[var(--text-primary)]">删除这条对话？</h3>
+            <p className="mt-2 text-[14px] leading-6 text-[var(--text-secondary)]">
+              <span className="font-medium text-[var(--text-primary)]">“{pendingDeleteConversation.title}”</span>
+              将从当前账号的本地对话记录中移除，关联的会话快照也会一起删除。
+            </p>
+            <p className="mt-2 text-[13px] leading-6 text-[var(--text-muted)]">
+              这个操作不可撤销。
+            </p>
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setPendingDeleteConversation(null)}
+              >
+                取消
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                leadingIcon={<Trash2 className="h-3.5 w-3.5" />}
+                onClick={() => handleDeleteConversation(pendingDeleteConversation.id)}
+              >
+                删除对话
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
