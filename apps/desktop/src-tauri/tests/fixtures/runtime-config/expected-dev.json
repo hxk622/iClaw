@@ -53,6 +53,19 @@
       "maxConcurrent": 4,
       "subagents": {
         "maxConcurrent": 8
+      },
+      "memorySearch": {
+        "enabled": true,
+        "provider": "openai",
+        "model": "text-embedding-v4",
+        "fallback": "none",
+        "remote": {
+          "apiKey": "sk-memory-dev",
+          "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+          "batch": {
+            "enabled": false
+          }
+        }
       }
     }
   },
@@ -103,7 +116,7 @@
   },
   "plugins": {
     "slots": {
-      "memory": "none"
+      "memory": "memory-core"
     },
     "entries": {}
   }

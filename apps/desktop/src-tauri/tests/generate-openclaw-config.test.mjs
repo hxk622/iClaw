@@ -76,6 +76,7 @@ test('normalizes openai-compatible provider baseUrl to include /v1 when missing'
     snapshotFixture.config.model_provider.profile.base_url = 'https://omnirouter.aiyuanxi.com';
     snapshotFixture.config.model_provider.profile.provider_key = 'omnirouter';
     snapshotFixture.config.model_provider.profile.provider_label = 'Omnirouter';
+    snapshotFixture.config.memory_embedding.profile.base_url = 'https://dashscope.aliyuncs.com/compatible-mode';
     const actual = runGenerator({
       ICLAW_OPENCLAW_RUNTIME_CONFIG_PATH: writeTempJson(tempDir, 'runtime-config.fixture.json', runtimeFixture),
       ICLAW_OPENCLAW_OEM_RUNTIME_SNAPSHOT_PATH: writeTempJson(tempDir, 'oem-runtime-snapshot.fixture.json', snapshotFixture),
@@ -85,6 +86,45 @@ test('normalizes openai-compatible provider baseUrl to include /v1 when missing'
       ICLAW_OPENCLAW_ALLOWED_ORIGINS: 'http://127.0.0.1:1520,http://localhost:1520',
     });
     assert.equal(actual.models.providers.omnirouter.baseUrl, 'https://omnirouter.aiyuanxi.com/v1');
+    assert.equal(
+      actual.agents.defaults.memorySearch.remote.baseUrl,
+      'https://dashscope.aliyuncs.com/compatible-mode',
+    );
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('fails fast when memory embedding is configured without an api key', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'iclaw-runtime-config-memory-key-test-'));
+  try {
+    const runtimeFixture = readFixture('runtime-config.fixture.json');
+    const snapshotFixture = readFixture('oem-runtime-snapshot.fixture.json');
+    snapshotFixture.config.memory_embedding.profile.api_key = '';
+    const configPath = path.join(tempDir, 'openclaw.json');
+    assert.throws(
+      () =>
+        execFileSync(process.execPath, [generatorPath], {
+          cwd: repoRoot,
+          env: {
+            ...process.env,
+            ICLAW_OPENCLAW_CONFIG_PATH: configPath,
+            ICLAW_OPENCLAW_RUNTIME_CONFIG_PATH: writeTempJson(
+              tempDir,
+              'runtime-config.fixture.json',
+              runtimeFixture,
+            ),
+            ICLAW_OPENCLAW_OEM_RUNTIME_SNAPSHOT_PATH: writeTempJson(
+              tempDir,
+              'oem-runtime-snapshot.fixture.json',
+              snapshotFixture,
+            ),
+            ICLAW_OPENCLAW_GATEWAY_TOKEN: 'memory-key-test-token',
+          },
+          stdio: 'pipe',
+        }),
+      /Missing memory embedding API key/,
+    );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

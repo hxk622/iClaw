@@ -171,6 +171,33 @@ function extractResolvedProviderConfig(snapshot, bundledSnapshot = null) {
   };
 }
 
+function extractResolvedMemoryEmbeddingConfig(snapshot, bundledSnapshot = null) {
+  const rootConfig = asObject(snapshot?.config);
+  const bundledRootConfig = asObject(bundledSnapshot?.config);
+  const memoryEmbedding = asObject(rootConfig.memory_embedding);
+  const profile = asObject(memoryEmbedding.profile);
+  const bundledProfile = asObject(asObject(bundledRootConfig.memory_embedding).profile);
+  const providerKey = trimString(profile.provider_key || profile.providerKey);
+  const embeddingModel = trimString(profile.embedding_model || profile.embeddingModel);
+  if (!providerKey || !embeddingModel || asBool(profile.enabled, true) === false) {
+    return null;
+  }
+  return {
+    providerKey,
+    providerLabel: trimString(profile.provider_label || profile.providerLabel) || providerKey,
+    baseUrl: trimString(profile.base_url || profile.baseUrl),
+    apiKey:
+      trimString(profile.api_key || profile.apiKey) ||
+      (trimString(bundledProfile.provider_key || bundledProfile.providerKey) === providerKey &&
+      trimString(bundledProfile.embedding_model || bundledProfile.embeddingModel) === embeddingModel
+        ? trimString(bundledProfile.api_key || bundledProfile.apiKey)
+        : ''),
+    authMode: trimString(profile.auth_mode || profile.authMode) || 'bearer',
+    embeddingModel,
+    autoRecall: asBool(profile.auto_recall ?? profile.autoRecall, true),
+  };
+}
+
 function replaceProviderModels(provider, entries) {
   provider.models = entries
     .map((entry) => ({
@@ -205,11 +232,23 @@ function main() {
     portalRuntimeSnapshot,
     portalRuntimeSources.bundled,
   );
+  const resolvedMemoryEmbeddingConfig = extractResolvedMemoryEmbeddingConfig(
+    portalRuntimeSnapshot,
+    portalRuntimeSources.bundled,
+  );
   if (!resolvedProviderConfig?.providerKey) {
     throw new Error('Missing resolved model provider config. Configure Model Center before launching OpenClaw.');
   }
   if (!Array.isArray(resolvedProviderConfig.models) || resolvedProviderConfig.models.length === 0) {
     throw new Error(`Resolved provider "${resolvedProviderConfig.providerKey}" has no enabled models. Configure Model Center before launching OpenClaw.`);
+  }
+  if (resolvedMemoryEmbeddingConfig && resolvedMemoryEmbeddingConfig.authMode !== 'bearer') {
+    throw new Error(
+      `Unsupported memory embedding auth mode "${resolvedMemoryEmbeddingConfig.authMode}". Only bearer auth is supported.`,
+    );
+  }
+  if (resolvedMemoryEmbeddingConfig && !resolvedMemoryEmbeddingConfig.apiKey) {
+    throw new Error('Missing memory embedding API key. Configure Memory Center before launching OpenClaw.');
   }
   const activeModelRef = resolvedProviderConfig.models[0]?.modelRef || '';
   const allowlistModelRefs = resolvedProviderConfig.models.map((entry) => entry.modelRef).filter(Boolean);
@@ -307,6 +346,31 @@ function main() {
     ...(defaults.subagents && typeof defaults.subagents === 'object' && !Array.isArray(defaults.subagents) ? defaults.subagents : {}),
     maxConcurrent: 8,
   };
+  defaults.memorySearch = resolvedMemoryEmbeddingConfig
+    ? {
+        enabled: resolvedMemoryEmbeddingConfig.autoRecall,
+        provider: 'openai',
+        model: resolvedMemoryEmbeddingConfig.embeddingModel,
+        fallback: 'none',
+        remote: {
+          apiKey: resolvedMemoryEmbeddingConfig.apiKey,
+          ...(resolvedMemoryEmbeddingConfig.baseUrl
+            ? {
+                baseUrl: normalizeOpenAICompatibleBaseUrl(
+                  resolvedMemoryEmbeddingConfig.baseUrl,
+                  'openai-completions',
+                ),
+              }
+            : {}),
+          batch: {
+            enabled: false,
+          },
+        },
+      }
+    : {
+        enabled: false,
+        fallback: 'none',
+      };
   agents.defaults = defaults;
   config.agents = agents;
 
@@ -340,7 +404,7 @@ function main() {
   const plugins = ensureObject(config, 'plugins');
   const slots = ensureObject(plugins, 'slots');
   const entries = ensureObject(plugins, 'entries');
-  slots.memory = 'none';
+  slots.memory = resolvedMemoryEmbeddingConfig ? 'memory-core' : 'none';
   if (entries['memory-lancedb']) {
     delete entries['memory-lancedb'];
   }
