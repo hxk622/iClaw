@@ -179,7 +179,7 @@ export function RecentConversationsList({
           </div>
         </div>
       ) : (
-        <div className="space-y-1 px-2">
+        <div className="space-y-0.5 px-2">
           {visibleConversations.map((conversation) => {
             const isSelected = conversation.id === selectedConversationId;
             const menuOpen = menuConversationId === conversation.id;
@@ -189,13 +189,13 @@ export function RecentConversationsList({
                 key={conversation.id}
                 ref={menuOpen || renaming ? activeConversationRef : null}
                 className={cn(
-                  'group relative flex h-[84px] w-full items-stretch gap-3 overflow-visible rounded-[16px] border px-3 py-2.5 text-left shadow-[0_10px_24px_rgba(16,24,40,0.04)]',
+                  'group relative flex h-[76px] w-full items-stretch gap-3 overflow-visible rounded-[16px] border px-3 py-2 text-left shadow-[0_10px_24px_rgba(16,24,40,0.04)]',
                   'transition-[background-color,border-color,color,box-shadow,transform] duration-[var(--motion-panel)]',
                   SPRING_PRESSABLE,
                   INTERACTIVE_FOCUS_RING,
                   menuOpen ? 'z-30' : 'z-0',
                   isSelected
-                    ? 'border-[rgba(168,140,93,0.24)] bg-[color-mix(in_srgb,var(--bg-card)_82%,var(--bg-hover))] shadow-[0_14px_28px_rgba(168,140,93,0.10)]'
+                    ? 'border-[color-mix(in_srgb,var(--brand-primary)_34%,var(--border-default))] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--chip-brand-bg)_72%,var(--bg-card))_0%,color-mix(in_srgb,var(--bg-card)_88%,white_12%)_100%)] ring-1 ring-[color-mix(in_srgb,var(--brand-primary)_14%,transparent)] shadow-[0_18px_36px_rgba(168,140,93,0.16)]'
                     : 'border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-card)_94%,var(--bg-page))] hover:border-[color-mix(in_srgb,var(--brand-primary)_22%,var(--border-default))] hover:bg-[var(--bg-hover)] hover:shadow-[0_12px_26px_rgba(16,24,40,0.06)]',
                 )}
               >
@@ -204,12 +204,12 @@ export function RecentConversationsList({
                   onClick={() => onSelectConversation?.(conversation.id)}
                   className="flex h-full min-w-0 flex-1 items-start gap-2.5 overflow-hidden text-left"
                 >
-                  <span className="mt-0.5 flex h-full shrink-0 flex-col items-center justify-between pb-0.5">
+                  <span className="mt-0.5 flex h-full shrink-0 flex-col items-center justify-start">
                     <span
                       className={cn(
                         'flex h-7 w-7 items-center justify-center rounded-full border text-[var(--text-secondary)]',
                         isSelected
-                          ? 'border-[rgba(168,140,93,0.20)] bg-[rgba(168,140,93,0.12)] text-[var(--brand-primary)] dark:text-white'
+                          ? 'border-[color-mix(in_srgb,var(--brand-primary)_28%,transparent)] bg-[color-mix(in_srgb,var(--chip-brand-bg)_88%,transparent)] text-[var(--brand-primary)] shadow-[0_8px_18px_rgba(168,140,93,0.18)] dark:text-white'
                           : 'border-[var(--border-default)] bg-[var(--bg-card)] dark:text-white',
                       )}
                     >
@@ -217,13 +217,13 @@ export function RecentConversationsList({
                     </span>
                     <span
                       className={cn(
-                        'inline-flex h-2 w-2 rounded-full',
+                        'mt-2 inline-flex h-2 w-2 rounded-full',
                         isSelected ? 'bg-[var(--brand-primary)]' : 'bg-[var(--border-default)]',
                       )}
                     />
                   </span>
 
-                  <span className="grid min-w-0 flex-1 grid-rows-[16px_32px] overflow-hidden py-[1px]">
+                  <span className="flex h-full min-w-0 flex-1 flex-col justify-center overflow-hidden">
                     <span className="min-w-0 overflow-hidden pr-[68px]">
                       {renaming ? (
                         <input
@@ -247,21 +247,34 @@ export function RecentConversationsList({
                           maxLength={48}
                         />
                       ) : (
-                        <span className="block truncate text-[12px] font-medium leading-4 text-[var(--text-primary)]">
+                        <span
+                          className={cn(
+                            'block truncate text-[13px] font-semibold leading-4',
+                            isSelected ? 'text-[color-mix(in_srgb,var(--brand-primary)_92%,var(--text-primary))]' : 'text-[var(--text-primary)]',
+                          )}
+                        >
                           {conversation.title}
                         </span>
                       )}
                     </span>
-                    <span className="block overflow-hidden text-[11px] leading-4 text-[var(--text-muted)] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+                    <span
+                      className={cn(
+                        'mt-0.5 block overflow-hidden text-[12px] leading-4 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]',
+                        isSelected ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]',
+                      )}
+                    >
                       {conversation.summary}
                     </span>
                   </span>
                 </button>
 
-                <div className="absolute right-3 top-2.5 z-40 flex flex-col items-end">
+                <div className="absolute right-3 top-2 z-40 flex flex-col items-end">
                   <div
                     className={cn(
-                      'pointer-events-none flex items-center text-[10px] text-[var(--text-muted)] transition-opacity duration-[var(--motion-panel)]',
+                      'pointer-events-none flex items-center rounded-full px-1.5 py-0.5 text-[10px] transition-opacity duration-[var(--motion-panel)]',
+                      isSelected
+                        ? 'bg-[color-mix(in_srgb,var(--chip-brand-bg)_74%,transparent)] text-[color-mix(in_srgb,var(--brand-primary)_76%,var(--text-secondary))]'
+                        : 'text-[var(--text-muted)]',
                       menuOpen ? 'opacity-0' : 'opacity-100 group-hover:opacity-0 group-focus-within:opacity-0',
                     )}
                   >

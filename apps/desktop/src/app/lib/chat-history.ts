@@ -242,6 +242,32 @@ export function writeStoredChatSnapshot(params: {
   }
 }
 
+export function deleteStoredChatSnapshots(params: {
+  appName: string;
+  sessionKeys?: string[] | null;
+  conversationId?: string | null;
+}): void {
+  const keys = new Set<string>();
+
+  (params.sessionKeys ?? []).forEach((sessionKey) => {
+    const normalizedSessionKey = normalizeText(sessionKey);
+    if (!normalizedSessionKey) {
+      return;
+    }
+    keys.add(buildChatSessionSnapshotStorageKey(params.appName, normalizedSessionKey));
+  });
+
+  const normalizedConversationId = normalizeText(params.conversationId);
+  if (normalizedConversationId) {
+    keys.add(buildChatConversationSnapshotStorageKey(params.appName, normalizedConversationId));
+  }
+
+  if (keys.size === 0) {
+    return;
+  }
+  removeCacheKeys(Array.from(keys));
+}
+
 export function deriveConversationHandoffSummary(params: {
   appName: string;
   sessionKey: string;

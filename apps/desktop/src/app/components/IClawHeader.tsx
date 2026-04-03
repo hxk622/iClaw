@@ -1,5 +1,5 @@
 import { Coins, Crown, Globe2, Minus, Newspaper, Sparkles, TrendingDown, TrendingUp } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { SecurityStatusInline } from '@/app/components/ui/SecurityStatusInline';
 import { cn } from '@/app/lib/cn';
 import type { ResolvedHeaderConfig } from '@/app/lib/oem-runtime';
@@ -342,7 +342,7 @@ function useHeaderFeed(config?: ResolvedHeaderConfig | null): HeaderFeedSnapshot
   };
 }
 
-export function IClawHeader({
+export const IClawHeader = memo(function IClawHeader({
   config,
   balance,
   loading = false,
@@ -387,7 +387,7 @@ export function IClawHeader({
   }, [feed.live, feed.updatedAt, resolvedConfig?.liveStatusLabel, resolvedConfig?.statusLabel]);
 
   return (
-    <header className="border-b border-[var(--border-default)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--bg-card)_96%,white_4%),color-mix(in_srgb,var(--bg-page)_94%,white_6%))] backdrop-blur-sm">
+    <header className="relative z-[1] border-b border-[var(--border-default)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--bg-card)_96%,white_4%),color-mix(in_srgb,var(--bg-page)_94%,white_6%))] backdrop-blur-sm [contain:paint] [transform:translateZ(0)]">
       <div className="flex h-[50px] items-center justify-between gap-3.5 px-6">
         <div className="flex min-w-0 flex-1 items-center gap-3.5">
           {resolvedConfig?.showLiveBadge !== false ? (
@@ -497,4 +497,4 @@ export function IClawHeader({
       </div>
     </header>
   );
-}
+});

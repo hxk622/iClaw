@@ -16,6 +16,7 @@ import { Button } from '@/app/components/ui/Button';
 import { FilterPill } from '@/app/components/ui/FilterPill';
 import { PressableCard } from '@/app/components/ui/PressableCard';
 import { cn } from '@/app/lib/cn';
+import { useChatConversations } from '@/app/lib/chat-conversations';
 import {
   CHAT_TURN_ARTIFACT_LABELS,
   type ChatTurnRecord,
@@ -23,18 +24,18 @@ import {
   useChatTurns,
 } from '@/app/lib/chat-turns';
 
-type TurnFilter = 'all' | ChatTurnRecord['status'];
+type ConversationFilter = 'all' | ChatTurnRecord['status'];
 
 interface TaskCenterViewProps {
-  selectedTurnId?: string | null;
-  onSelectTurn?: (turnId: string) => void;
-  onOpenTurnChat?: (turnId: string) => void;
+  selectedConversationId?: string | null;
+  onSelectConversation?: (conversationId: string) => void;
+  onOpenConversation?: (conversationId: string) => void;
   onBackToChat?: () => void;
   taskCenterLabel: string;
   chatMenuLabel: string;
 }
 
-interface TurnViewModel {
+interface ConversationViewModel {
   id: string;
   title: string;
   summary: string;
@@ -47,7 +48,7 @@ interface TurnViewModel {
   statusMessage: string;
 }
 
-const FILTER_ITEMS: Array<{ value: TurnFilter; label: string }> = [
+const FILTER_ITEMS: Array<{ value: ConversationFilter; label: string }> = [
   { value: 'all', label: '全部' },
   { value: 'running', label: '进行中' },
   { value: 'completed', label: '已完成' },
@@ -92,54 +93,76 @@ const STATUS_META: Record<
 };
 
 export function TaskCenterView({
-  selectedTurnId = null,
-  onSelectTurn,
-  onOpenTurnChat,
+  selectedConversationId = null,
+  onSelectConversation,
+  onOpenConversation,
   onBackToChat,
   taskCenterLabel,
   chatMenuLabel,
 }: TaskCenterViewProps) {
+  const conversations = useChatConversations();
   const turns = useChatTurns();
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<TurnFilter>('all');
+  const [filter, setFilter] = useState<ConversationFilter>('all');
 
-  const mappedTurns = useMemo(() => turns.map((turn) => mapTurnToViewModel(turn, chatMenuLabel)), [chatMenuLabel, turns]);
+  const conversationViewModels = useMemo(() => {
+    const latestTurnByConversation = new Map<string, ChatTurnRecord>();
+    turns.forEach((turn) => {
+      if (!latestTurnByConversation.has(turn.conversationId)) {
+        latestTurnByConversation.set(turn.conversationId, turn);
+      }
+    });
 
-  const filteredTurns = useMemo(() => {
+    return conversations
+      .map((conversation) => {
+        const latestTurn = latestTurnByConversation.get(conversation.id) ?? null;
+        if (!latestTurn) {
+          return null;
+        }
+        return mapConversationToViewModel(conversation.id, latestTurn, chatMenuLabel);
+      })
+      .filter((conversation): conversation is ConversationViewModel => conversation !== null);
+  }, [chatMenuLabel, conversations, turns]);
+
+  const filteredConversations = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
-    return mappedTurns.filter((turn, index) => {
-      const sourceTurn = turns[index];
-      const matchesFilter = filter === 'all' || turn.status === filter;
+    return conversationViewModels.filter((conversation) => {
+      const matchesFilter = filter === 'all' || conversation.status === filter;
       const matchesQuery =
         normalizedQuery.length === 0
           ? true
-          : `${turn.title} ${turn.summary} ${sourceTurn?.prompt ?? ''}`
-              .toLowerCase()
-              .includes(normalizedQuery);
+          : `${conversation.title} ${conversation.summary}`.toLowerCase().includes(normalizedQuery);
       return matchesFilter && matchesQuery;
     });
-  }, [filter, mappedTurns, query, turns]);
+  }, [conversationViewModels, filter, query]);
 
-  const selectedTurn =
-    filteredTurns.find((turn) => turn.id === selectedTurnId) ?? filteredTurns[0] ?? null;
+  const selectedConversation =
+    filteredConversations.find((conversation) => conversation.id === selectedConversationId) ??
+    filteredConversations[0] ??
+    null;
 
   useEffect(() => {
-    if (!filteredTurns.length) {
+    if (!filteredConversations.length) {
       return;
     }
 
-    if (!selectedTurnId || !filteredTurns.some((turn) => turn.id === selectedTurnId)) {
-      onSelectTurn?.(filteredTurns[0].id);
+    if (
+      !selectedConversationId ||
+      !filteredConversations.some((conversation) => conversation.id === selectedConversationId)
+    ) {
+      onSelectConversation?.(filteredConversations[0].id);
     }
-  }, [filteredTurns, onSelectTurn, selectedTurnId]);
+  }, [filteredConversations, onSelectConversation, selectedConversationId]);
 
-  const totalTurns = mappedTurns.length;
-  const runningTurns = mappedTurns.filter((turn) => turn.status === 'running').length;
-  const completedTurns = mappedTurns.filter((turn) => turn.status === 'completed').length;
-  const hasNoTurns = totalTurns === 0;
+  const totalConversations = conversationViewModels.length;
+  const runningConversations = conversationViewModels.filter((conversation) => conversation.status === 'running').length;
+  const completedConversations = conversationViewModels.filter(
+    (conversation) => conversation.status === 'completed',
+  ).length;
+  const hasNoConversations = totalConversations === 0;
   const hasNoSearchResults =
-    !hasNoTurns && filteredTurns.length === 0 && (query.trim() !== '' || filter !== 'all');
+    !hasNoConversations && filteredConversations.length === 0 && (query.trim() !== '' || filter !== 'all');
 
   return (
     <div className="flex flex-1 overflow-y-auto bg-[var(--bg-page)]">
@@ -150,7 +173,7 @@ export function TaskCenterView({
               {taskCenterLabel}
             </h1>
             <p className="text-[15px] text-[var(--text-secondary)]">
-              查看历史任务、结果与更新状态
+              查看历史对话、结果与更新状态
             </p>
           </div>
 
@@ -165,17 +188,17 @@ export function TaskCenterView({
           </Button>
         </header>
 
-        {hasNoTurns ? (
+        {hasNoConversations ? (
           <section className="flex min-h-[600px] items-center justify-center">
             <div className="w-full max-w-[460px] rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-card)] p-12 text-center shadow-[var(--pressable-card-rest-shadow)]">
               <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-[18px] bg-[var(--bg-hover)] text-[var(--text-muted)]">
                 <MessageSquare className="h-8 w-8" />
               </div>
               <h2 className="mb-3 text-[20px] font-semibold text-[var(--text-primary)]">
-                还没有任务记录
+                还没有对话记录
               </h2>
               <p className="mb-8 text-[15px] leading-7 text-[var(--text-secondary)]">
-                从{chatMenuLabel}发起一次真实对话，创建你的第一个任务
+                从{chatMenuLabel}发起一次真实对话，创建你的第一个历史对话
               </p>
               <div className="flex justify-center">
                 <Button
@@ -194,19 +217,19 @@ export function TaskCenterView({
             <section className="grid grid-cols-3 gap-3">
               <SummaryCard
                 icon={<ListChecks className="h-4 w-4" />}
-                label="任务总数"
-                value={totalTurns}
+                label="对话总数"
+                value={totalConversations}
               />
               <SummaryCard
                 icon={<Clock3 className="h-4 w-4" />}
                 label="进行中"
-                value={runningTurns}
+                value={runningConversations}
                 tone="running"
               />
               <SummaryCard
                 icon={<CheckCircle2 className="h-4 w-4" />}
                 label="已完成"
-                value={completedTurns}
+                value={completedConversations}
                 tone="completed"
               />
             </section>
@@ -216,7 +239,7 @@ export function TaskCenterView({
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
                 <input
                   type="text"
-                  placeholder="搜索任务标题或内容..."
+                  placeholder="搜索对话标题或内容..."
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   className={cn(
@@ -245,7 +268,7 @@ export function TaskCenterView({
                   <MessageSquare className="h-5 w-5" />
                 </div>
                 <h2 className="mb-2 text-[18px] font-semibold text-[var(--text-primary)]">
-                  未找到匹配的任务
+                  未找到匹配的对话
                 </h2>
                 <p className="text-[14px] text-[var(--text-secondary)]">
                   尝试调整搜索关键词或筛选条件
@@ -255,13 +278,13 @@ export function TaskCenterView({
               <section className="mt-5 flex gap-6">
                 <div className="min-w-0 flex-1">
                   <div className="space-y-3">
-                    {filteredTurns.map((turn) => (
-                      <TurnCard
-                        key={turn.id}
-                        turn={turn}
-                        isSelected={selectedTurn?.id === turn.id}
-                        onSelect={() => onSelectTurn?.(turn.id)}
-                        onOpenChat={() => onOpenTurnChat?.(turn.id)}
+                    {filteredConversations.map((conversation) => (
+                      <ConversationCard
+                        key={conversation.id}
+                        conversation={conversation}
+                        isSelected={selectedConversation?.id === conversation.id}
+                        onSelect={() => onSelectConversation?.(conversation.id)}
+                        onOpenChat={() => onOpenConversation?.(conversation.id)}
                       />
                     ))}
                   </div>
@@ -269,9 +292,11 @@ export function TaskCenterView({
 
                 <aside className="w-[400px] shrink-0">
                   <div className="sticky top-8">
-                    <TurnDetailPanel
-                      turn={selectedTurn}
-                      onOpenChat={selectedTurn ? () => onOpenTurnChat?.(selectedTurn.id) : undefined}
+                    <ConversationDetailPanel
+                      conversation={selectedConversation}
+                      onOpenChat={
+                        selectedConversation ? () => onOpenConversation?.(selectedConversation.id) : undefined
+                      }
                       chatMenuLabel={chatMenuLabel}
                     />
                   </div>
@@ -327,13 +352,13 @@ function SummaryCard({
   );
 }
 
-function TurnCard({
-  turn,
+function ConversationCard({
+  conversation,
   isSelected,
   onSelect,
   onOpenChat,
 }: {
-  turn: TurnViewModel;
+  conversation: ConversationViewModel;
   isSelected: boolean;
   onSelect?: () => void;
   onOpenChat?: () => void;
@@ -352,8 +377,8 @@ function TurnCard({
     >
       <div className="min-w-0">
         <div className="mb-3 flex flex-wrap items-center gap-2">
-          <StatusBadge status={turn.status} />
-          {turn.isPinned ? (
+          <StatusBadge status={conversation.status} />
+          {conversation.isPinned ? (
             <span className="inline-flex items-center gap-1 rounded-[6px] bg-[var(--bg-hover)] px-2.5 py-1 text-[12px] text-[var(--text-secondary)]">
               <Pin className="h-3 w-3" />
               已置顶
@@ -362,16 +387,16 @@ function TurnCard({
         </div>
 
         <h3 className="mb-2 text-[16px] font-semibold text-[var(--text-primary)]">
-          {turn.title}
+          {conversation.title}
         </h3>
 
         <p className="mb-3 line-clamp-2 text-[14px] leading-6 text-[var(--text-secondary)]">
-          {turn.summary}
+          {conversation.summary}
         </p>
 
-        {turn.resultTypes.length > 0 ? (
+        {conversation.resultTypes.length > 0 ? (
           <div className="mb-3 flex flex-wrap gap-2">
-            {turn.resultTypes.map((type) => (
+            {conversation.resultTypes.map((type) => (
               <span
                 key={type}
                 className="rounded-[6px] border border-[var(--border-default)] bg-[var(--bg-hover)] px-2 py-0.5 text-[12px] text-[var(--text-secondary)]"
@@ -385,11 +410,11 @@ function TurnCard({
         <div className="flex flex-wrap items-center gap-4 text-[13px] text-[var(--text-secondary)]">
           <span className="inline-flex items-center gap-1">
             <Clock3 className="h-3 w-3" />
-            {turn.lastUpdated}
+            {conversation.lastUpdated}
           </span>
           <span className="inline-flex items-center gap-1">
             <Calendar className="h-3 w-3" />
-            {turn.createdAt}
+            {conversation.createdAt}
           </span>
         </div>
 
@@ -420,74 +445,74 @@ function TurnCard({
   );
 }
 
-function TurnDetailPanel({
-  turn,
+function ConversationDetailPanel({
+  conversation,
   onOpenChat,
   chatMenuLabel,
 }: {
-  turn: TurnViewModel | null;
+  conversation: ConversationViewModel | null;
   onOpenChat?: () => void;
   chatMenuLabel: string;
 }) {
-  if (!turn) {
+  if (!conversation) {
     return (
       <div className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-card)] p-8 text-center shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
         <FileText className="mx-auto mb-4 h-12 w-12 text-[var(--text-muted)]" />
-        <p className="text-[15px] text-[var(--text-secondary)]">选择一个任务查看详情</p>
+        <p className="text-[15px] text-[var(--text-secondary)]">选择一个对话查看详情</p>
       </div>
     );
   }
 
-  const meta = STATUS_META[turn.status];
+  const meta = STATUS_META[conversation.status];
   const StatusIcon = meta.icon;
 
   return (
     <div className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-card)] p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <StatusBadge status={turn.status} />
-        {turn.isPinned ? (
+        <StatusBadge status={conversation.status} />
+        {conversation.isPinned ? (
           <span className="inline-flex items-center gap-1 rounded-[6px] bg-[var(--bg-hover)] px-2.5 py-1 text-[12px] text-[var(--text-secondary)]">
             <Pin className="h-3 w-3" />
             已置顶
           </span>
-          ) : null}
+        ) : null}
       </div>
 
       <h2 className="mb-3 text-[18px] font-semibold leading-7 text-[var(--text-primary)]">
-        {turn.title}
+        {conversation.title}
       </h2>
 
       <p className="mb-6 text-[15px] leading-7 text-[var(--text-secondary)]">
-        {turn.summary}
+        {conversation.summary}
       </p>
 
       <div className="mb-6 grid grid-cols-2 gap-3">
         <DetailInfoTile
           icon={<Clock3 className="h-4 w-4" />}
           label="最近更新"
-          value={turn.lastUpdated}
+          value={conversation.lastUpdated}
         />
         <DetailInfoTile
           icon={<MessageSquare className="h-4 w-4" />}
-          label="任务来源"
-          value={turn.source}
+          label="对话来源"
+          value={conversation.source}
         />
         <DetailInfoTile
           icon={<Calendar className="h-4 w-4" />}
           label="创建时间"
-          value={turn.createdAt}
+          value={conversation.createdAt}
         />
         <DetailInfoTile
           icon={<FileText className="h-4 w-4" />}
           label="结果类型"
-          value={`${turn.resultTypes.length} 个`}
+          value={`${conversation.resultTypes.length} 个`}
         />
       </div>
 
       <div className="mb-6">
         <div className="mb-2 text-[13px] font-medium text-[var(--text-secondary)]">结果类型</div>
         <div className="flex flex-wrap gap-2">
-          {turn.resultTypes.map((type) => (
+          {conversation.resultTypes.map((type) => (
             <span
               key={type}
               className="rounded-[10px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[14px] text-[var(--text-primary)]"
@@ -501,7 +526,7 @@ function TurnDetailPanel({
       <div className={cn('mb-6 rounded-[12px] border p-4', meta.messageClassName)}>
         <div className="flex items-start gap-2">
           <StatusIcon className={cn('mt-0.5 h-4 w-4 shrink-0', meta.iconClassName)} />
-          <p className="flex-1 text-[14px] leading-6">{turn.statusMessage}</p>
+          <p className="flex-1 text-[14px] leading-6">{conversation.statusMessage}</p>
         </div>
       </div>
 
@@ -549,37 +574,41 @@ function StatusBadge({ status }: { status: ChatTurnRecord['status'] }) {
   );
 }
 
-function mapTurnToViewModel(turn: ChatTurnRecord, chatMenuLabel: string): TurnViewModel {
-  const resultTypes = turn.artifacts.map((artifact) => CHAT_TURN_ARTIFACT_LABELS[artifact]);
+function mapConversationToViewModel(
+  conversationId: string,
+  latestTurn: ChatTurnRecord,
+  chatMenuLabel: string,
+): ConversationViewModel {
+  const resultTypes = latestTurn.artifacts.map((artifact) => CHAT_TURN_ARTIFACT_LABELS[artifact]);
 
   return {
-    id: turn.id,
-    title: turn.title,
-    summary: turn.summary,
-    status: turn.status,
-    isPinned: Boolean(turn.pinnedAt),
+    id: conversationId,
+    title: latestTurn.title,
+    summary: latestTurn.summary,
+    status: latestTurn.status,
+    isPinned: Boolean(latestTurn.pinnedAt),
     resultTypes,
-    lastUpdated: formatChatTurnRelativeTime(turn.updatedAt),
-    createdAt: formatCompactDate(turn.createdAt),
+    lastUpdated: formatChatTurnRelativeTime(latestTurn.updatedAt),
+    createdAt: formatCompactDate(latestTurn.createdAt),
     source: chatMenuLabel,
-    statusMessage: buildStatusMessage(turn, resultTypes),
+    statusMessage: buildStatusMessage(latestTurn, resultTypes),
   };
 }
 
 function buildStatusMessage(turn: ChatTurnRecord, resultTypes: string[]): string {
   if (turn.status === 'failed') {
-    return turn.lastError || '任务执行失败，可回到对话重试';
+    return turn.lastError || '本轮对话执行失败，可回到对话重试';
   }
 
   if (turn.status === 'running') {
-    return '任务仍在处理中，完成后会自动更新状态与结果。';
+    return '这条对话仍在处理中，完成后会自动更新状态与结果。';
   }
 
   if (resultTypes.length > 0) {
-    return `已生成${resultTypes.join('、')}，可以继续围绕结果追问。`;
+    return `最近一轮已生成${resultTypes.join('、')}，可以继续围绕结果追问。`;
   }
 
-  return '任务已完成，可继续围绕该任务对话。';
+  return '最近一轮已完成，可继续围绕该对话追问。';
 }
 
 function formatCompactDate(dateString: string): string {

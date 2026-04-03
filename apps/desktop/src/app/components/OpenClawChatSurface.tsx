@@ -59,6 +59,10 @@ import {
   startChatTurn,
 } from '../lib/chat-turns';
 import {
+  findChatConversationBySessionKey,
+  readChatConversation,
+} from '../lib/chat-conversations';
+import {
   clearCacheKeysByPrefix,
   clearSessionKeysByPrefix,
   readCacheJson,
@@ -469,6 +473,7 @@ type UsageSettlementAttemptDiagnostic = {
     | 'usage-missing-terminal-timeout'
     | 'usage-missing-expired'
     | 'reported'
+    | 'reported-zero'
     | 'report-failed'
     | 'report-failed-loaded-summary';
   detail: string | null;
@@ -1862,7 +1867,7 @@ function buildAssistantFooterTooltip(input: {
     return `${usageDetail} · 后端正在结算本次消耗`;
   }
 
-  return `${usageDetail} · 结算结果缺失，请排查 usage 回传或结算上报链路`;
+  return `${usageDetail} · 未获取到本次计费结果`;
 }
 
 function buildAssistantFooterMetaFromSummary(summary: RunBillingSummaryData): AssistantFooterMeta {
@@ -2166,7 +2171,7 @@ function deriveAssistantFooterMetas(
     return {
       timestampLabel: formatAssistantFooterTimestamp(assistantGroup.timestamp),
       state: derivedState,
-      label: derivedState === 'pending' ? '计费结算中' : '计费数据缺失',
+      label: derivedState === 'pending' ? '计费结算中' : '计费结果缺失',
       value: null,
       credits: null,
       inputTokens,
@@ -2314,15 +2319,19 @@ function derivePendingSettlementUsageFromSessionSnapshot(
 
   const currentInputTokens = Math.max(0, sessionTokens.inputTokens);
   const currentOutputTokens = Math.max(0, sessionTokens.outputTokens);
-  if (currentInputTokens <= 0 && currentOutputTokens <= 0) {
+  const baselineInputTokens = Math.max(0, pending.baselineInputTokens ?? 0);
+  const baselineOutputTokens = Math.max(0, pending.baselineOutputTokens ?? 0);
+  const deltaInputTokens = Math.max(0, currentInputTokens - baselineInputTokens);
+  const deltaOutputTokens = Math.max(0, currentOutputTokens - baselineOutputTokens);
+  if (deltaInputTokens <= 0 && deltaOutputTokens <= 0) {
     return null;
   }
 
   const assistantGroup = findAssistantGroupForRun(messages, pending.runId, pending.startedAt);
 
   return {
-    inputTokens: currentInputTokens,
-    outputTokens: currentOutputTokens,
+    inputTokens: deltaInputTokens,
+    outputTokens: deltaOutputTokens,
     model: pending.model || null,
     timestamp: assistantGroup?.timestamp ?? pending.startedAt,
   };
@@ -2692,12 +2701,79 @@ function hasStoredChatSnapshotMessages(
   return (readChatSessionSnapshot(appName, sessionKey, conversationId)?.messages?.length ?? 0) > 0;
 }
 
+function snapshotHasMeaningfulRenderableMessages(messages: unknown[]): boolean {
+  return messages.some((message) => {
+    if (!message || typeof message !== 'object' || Array.isArray(message)) {
+      return false;
+    }
+
+    const record = message as Record<string, unknown>;
+    const role = typeof record.role === 'string' ? record.role.trim().toLowerCase() : '';
+    if (role !== 'user' && role !== 'assistant') {
+      return false;
+    }
+
+    if (typeof record.content === 'string' && record.content.trim()) {
+      return true;
+    }
+
+    if (!Array.isArray(record.content)) {
+      return false;
+    }
+
+    return record.content.some((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        return false;
+      }
+      const block = item as Record<string, unknown>;
+      if (typeof block.text === 'string' && block.text.trim()) {
+        return true;
+      }
+      if (block.type === 'image' || block.type === 'file' || block.type === 'video') {
+        return true;
+      }
+      return Boolean(block.source);
+    });
+  });
+}
+
+function hasReusableEmptyGeneralConversation(
+  appName: string,
+  sessionKey: string,
+  conversationId?: string | null,
+): boolean {
+  if (!isGeneralChatSessionKey(sessionKey)) {
+    return false;
+  }
+
+  const conversation =
+    (conversationId ? readChatConversation(conversationId) : null) ||
+    findChatConversationBySessionKey(sessionKey);
+  if (!conversation || conversation.kind !== 'general') {
+    return false;
+  }
+  if ((conversation.title ?? '').trim()) {
+    return false;
+  }
+
+  const hasTurns = readChatTurns().some((turn) => turn.conversationId === conversation.id);
+  if (hasTurns) {
+    return false;
+  }
+
+  const snapshot = readChatSessionSnapshot(appName, sessionKey, conversationId);
+  return !snapshotHasMeaningfulRenderableMessages(snapshot?.messages ?? []);
+}
+
 function shouldTreatAsImmediateEmptySession(
   appName: string,
   sessionKey: string,
   conversationId?: string | null,
 ): boolean {
-  return isSeededEmptySessionKey(sessionKey) && !hasStoredChatSnapshotMessages(appName, sessionKey, conversationId);
+  if (isSeededEmptySessionKey(sessionKey) && !hasStoredChatSnapshotMessages(appName, sessionKey, conversationId)) {
+    return true;
+  }
+  return hasReusableEmptyGeneralConversation(appName, sessionKey, conversationId);
 }
 
 async function loadChatModelSnapshot(
@@ -5474,9 +5550,71 @@ export function OpenClawChatSurface({
       }
       const usage =
         directUsage ||
-        (pending.terminalState === 'final'
+        ((pending.terminalState === 'final' || pending.terminalState === 'aborted')
           ? derivePendingSettlementUsageFromSessionSnapshot(sourceMessages, pending, sessionTokens)
           : null);
+
+      const settleUsage = async (
+        settledUsage: AssistantUsageSettlement,
+        action: 'reported' | 'reported-zero',
+        detail: string,
+      ): Promise<boolean> => {
+        try {
+          const result = await creditClient.reportUsageEvent({
+            token: creditToken,
+            eventId: pending.runId,
+            grantId: pending.grantId,
+            inputTokens: settledUsage.inputTokens,
+            outputTokens: settledUsage.outputTokens,
+            model: settledUsage.model || pending.model || undefined,
+            appName,
+            assistantTimestamp: settledUsage.timestamp,
+          });
+          if (isActivePending && app) {
+            annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
+              billingSummary: result.billing_summary,
+              billingState: 'charged',
+            });
+            mergeSessionBillingSummary(result.billing_summary);
+          }
+          settledAny = true;
+          shouldRefreshBalance = true;
+          shouldRefreshFooter = shouldRefreshFooter || isActivePending;
+          pushSettlementDiagnostic(pending, {
+            action,
+            terminalEvent,
+            sessionTokens,
+            usage: settledUsage,
+            detail,
+          });
+          return true;
+        } catch (error) {
+          pending.attempts += 1;
+          console.error('[desktop] failed to report usage event', {
+            runId: pending.runId,
+            grantId: pending.grantId,
+            error,
+          });
+          pushSettlementDiagnostic(pending, {
+            action: 'report-failed',
+            terminalEvent,
+            sessionTokens,
+            usage: settledUsage,
+            detail: error instanceof Error ? error.message : String(error),
+          });
+          if (await tryLoadBillingSummary()) {
+            pushSettlementDiagnostic(pending, {
+              action: 'report-failed-loaded-summary',
+              terminalEvent,
+              sessionTokens,
+              usage: settledUsage,
+              detail: 'report failed but billing summary was already persisted',
+            });
+            return true;
+          }
+          return false;
+        }
+      };
 
       if (!usage) {
         pending.attempts += 1;
@@ -5500,6 +5638,27 @@ export function OpenClawChatSurface({
           pending.terminalState !== 'pending' &&
           Date.now() - pending.startedAt >= USAGE_SETTLEMENT_TERMINAL_GRACE_MS
         ) {
+          if (pending.terminalState === 'aborted') {
+            const zeroUsage: AssistantUsageSettlement = {
+              inputTokens: 0,
+              outputTokens: 0,
+              model: pending.model || null,
+              timestamp: terminalEvent?.ts ?? pending.startedAt,
+            };
+            if (
+              await settleUsage(
+                zeroUsage,
+                'reported-zero',
+                'aborted run settled at zero after usage fallback exhausted',
+              )
+            ) {
+              continue;
+            }
+            if (Date.now() < pending.expiresAt) {
+              remaining.push(pending);
+              continue;
+            }
+          }
           if (isActivePending && app) {
             annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
               billingState: 'missing',
@@ -5515,6 +5674,23 @@ export function OpenClawChatSurface({
           continue;
         }
         if (Date.now() >= pending.expiresAt) {
+          if (pending.terminalState === 'aborted') {
+            const zeroUsage: AssistantUsageSettlement = {
+              inputTokens: 0,
+              outputTokens: 0,
+              model: pending.model || null,
+              timestamp: terminalEvent?.ts ?? pending.startedAt,
+            };
+            if (
+              await settleUsage(
+                zeroUsage,
+                'reported-zero',
+                'aborted run settled at zero after settlement expiry fallback',
+              )
+            ) {
+              continue;
+            }
+          }
           console.warn('[desktop] mark billing as missing because assistant usage was not found before expiry', pending);
           if (isActivePending && app) {
             annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
@@ -5540,72 +5716,27 @@ export function OpenClawChatSurface({
         continue;
       }
 
-      try {
-        const result = await creditClient.reportUsageEvent({
-          token: creditToken,
-          eventId: pending.runId,
-          grantId: pending.grantId,
-          inputTokens: usage.inputTokens,
-          outputTokens: usage.outputTokens,
-          model: usage.model || pending.model || undefined,
-          appName,
-          assistantTimestamp: usage.timestamp,
-        });
+      if (
+        await settleUsage(
+          usage,
+          'reported',
+          directUsage
+            ? 'usage event reported successfully'
+            : 'usage event reported from gateway session token snapshot delta',
+        )
+      ) {
+        continue;
+      }
+      if (Date.now() >= pending.expiresAt) {
         if (isActivePending && app) {
           annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
-            billingSummary: result.billing_summary,
-            billingState: 'charged',
+            billingState: 'missing',
           });
-          mergeSessionBillingSummary(result.billing_summary);
+          shouldRefreshFooter = true;
         }
-        settledAny = true;
-        shouldRefreshBalance = true;
-        shouldRefreshFooter = shouldRefreshFooter || isActivePending;
-        pushSettlementDiagnostic(pending, {
-          action: 'reported',
-          terminalEvent,
-          sessionTokens,
-          usage,
-          detail:
-            directUsage
-              ? 'usage event reported successfully'
-              : 'usage event reported from gateway session token snapshot',
-        });
-      } catch (error) {
-        pending.attempts += 1;
-        console.error('[desktop] failed to report usage event', {
-          runId: pending.runId,
-          grantId: pending.grantId,
-          error,
-        });
-        pushSettlementDiagnostic(pending, {
-          action: 'report-failed',
-          terminalEvent,
-          sessionTokens,
-          usage,
-          detail: error instanceof Error ? error.message : String(error),
-        });
-        if (await tryLoadBillingSummary()) {
-          pushSettlementDiagnostic(pending, {
-            action: 'report-failed-loaded-summary',
-            terminalEvent,
-            sessionTokens,
-            usage,
-            detail: 'report failed but billing summary was already persisted',
-          });
-          continue;
-        }
-        if (Date.now() >= pending.expiresAt) {
-          if (isActivePending && app) {
-            annotateAssistantGroup(app.chatMessages, pending.runId, pending.startedAt, {
-              billingState: 'missing',
-            });
-            shouldRefreshFooter = true;
-          }
-          continue;
-        }
-        remaining.push(pending);
+        continue;
       }
+      remaining.push(pending);
     }
 
     replacePendingUsageSettlements(remaining);

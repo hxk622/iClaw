@@ -4,6 +4,7 @@ import { IClawClient, type CreditBalanceData, type CreditLedgerItemData } from '
 import { Button } from '@/app/components/ui/Button';
 import { DrawerSection } from '@/app/components/ui/DrawerSection';
 import { InfoTile } from '@/app/components/ui/InfoTile';
+import { resolveUserAvatarUrl } from '@/app/lib/user-avatar';
 
 const ACCOUNT_INPUT_CLASS =
   'h-11 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-page)] px-4 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]';
@@ -16,6 +17,8 @@ type AuthUser = {
   name?: string | null;
   email?: string | null;
   avatar_url?: string | null;
+  avatarUrl?: string | null;
+  avatar?: string | null;
 };
 
 type LinkedAccount = {
@@ -128,7 +131,7 @@ function buildCreditLedgerDisplayItems(items: CreditLedgerItemData[]): CreditLed
       totalDelta: item.totalDelta,
       balanceAfter: null,
       detailLabel: detailParts.join(' · ') || null,
-    };
+    } satisfies CreditLedgerDisplayItem;
   });
 }
 
@@ -162,7 +165,7 @@ export function AccountPanel({
   active = true,
 }: AccountPanelProps) {
   const [name, setName] = useState(user?.name || '');
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.avatar_url || null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(resolveUserAvatarUrl(user));
   const [avatarDataBase64, setAvatarDataBase64] = useState<string | null>(null);
   const [avatarContentType, setAvatarContentType] = useState<string | null>(null);
   const [avatarFilename, setAvatarFilename] = useState<string | null>(null);
@@ -179,17 +182,17 @@ export function AccountPanel({
   const [loadingMeta, setLoadingMeta] = useState(true);
   const [metaError, setMetaError] = useState<string | null>(null);
   const [unlinkingProvider, setUnlinkingProvider] = useState<string | null>(null);
-  const displayLedger = useMemo(() => buildCreditLedgerDisplayItems(ledger).slice(0, 8), [ledger]);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const displayLedger = useMemo(() => buildCreditLedgerDisplayItems(ledger).slice(0, 8), [ledger]);
 
   useEffect(() => {
     setName(user?.name || '');
-    setAvatarPreview(user?.avatar_url || null);
+    setAvatarPreview(resolveUserAvatarUrl(user));
     setAvatarDataBase64(null);
     setAvatarContentType(null);
     setAvatarFilename(null);
     setRemoveAvatar(false);
-  }, [user?.avatar_url, user?.name]);
+  }, [user?.avatar, user?.avatarUrl, user?.avatar_url, user?.name]);
 
   const refreshMeta = async (silent = false) => {
     if (!silent) {
@@ -250,8 +253,12 @@ export function AccountPanel({
         avatarFilename: avatarFilename || undefined,
         removeAvatar,
       })) as AuthUser;
-      onUserUpdated(updated);
-      setAvatarPreview(updated.avatar_url || null);
+      const latestProfile = ((await client.me(token).catch(() => null)) as AuthUser | null) || updated;
+      onUserUpdated({
+        ...(user || {}),
+        ...latestProfile,
+      });
+      setAvatarPreview(resolveUserAvatarUrl(latestProfile));
       setAvatarDataBase64(null);
       setAvatarContentType(null);
       setAvatarFilename(null);

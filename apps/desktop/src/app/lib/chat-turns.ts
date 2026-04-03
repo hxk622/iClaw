@@ -285,6 +285,15 @@ export function deleteChatTurn(id: string): void {
   updateTurnList((turns) => turns.filter((turn) => turn.id !== id));
 }
 
+export function deleteChatTurnsByConversationId(conversationId: string): void {
+  const normalizedConversationId = collapseText(conversationId);
+  if (!normalizedConversationId) {
+    return;
+  }
+
+  updateTurnList((turns) => turns.filter((turn) => turn.conversationId !== normalizedConversationId));
+}
+
 export function subscribeChatTurns(listener: () => void): () => void {
   if (typeof window === 'undefined') {
     return () => {};

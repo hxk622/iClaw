@@ -33,6 +33,12 @@ type EnsureVisibleAction = {
   key: string;
 };
 
+type EnsureMountedAction = {
+  type: 'ensure-mounted';
+  pool: SurfacePoolKind;
+  key: string;
+};
+
 type HidePoolAction = {
   type: 'hide-pool';
   pool: SurfacePoolKind;
@@ -50,7 +56,7 @@ type ResetPoolAction = {
   pool: SurfacePoolKind;
 };
 
-type SurfaceCacheAction = EnsureVisibleAction | HidePoolAction | UpdateFlagsAction | ResetPoolAction;
+type SurfaceCacheAction = EnsureVisibleAction | EnsureMountedAction | HidePoolAction | UpdateFlagsAction | ResetPoolAction;
 
 export const DEFAULT_SURFACE_POOL_LIMITS: SurfacePoolLimits = {
   chat: 50,
@@ -176,6 +182,34 @@ function surfaceCacheReducer(state: SurfaceCacheState, action: SurfaceCacheActio
         action.pool,
       );
     }
+    case 'ensure-mounted': {
+      const now = Date.now();
+      const recordId = `${action.pool}:${action.key}`;
+      const existing = state.records[recordId];
+      const nextRecords = {
+        ...state.records,
+        [recordId]: existing
+          ? {
+              ...existing,
+              mounted: true,
+              visible: false,
+              lifecycleState: 'warm-hidden' as const,
+            }
+          : {
+              ...createRecord(action.pool, action.key, now),
+              visible: false,
+              lifecycleState: 'warm-hidden' as const,
+            },
+      };
+
+      return finalizePool(
+        {
+          ...state,
+          records: nextRecords,
+        },
+        action.pool,
+      );
+    }
     case 'hide-pool': {
       const nextRecords: Record<string, SurfaceRecord> = {};
       for (const [id, record] of Object.entries(state.records)) {
@@ -273,6 +307,14 @@ export function useSurfaceCacheManager(limits: Partial<SurfacePoolLimits> = {}) 
     });
   }, []);
 
+  const ensureMounted = useCallback((pool: SurfacePoolKind, key: string) => {
+    dispatch({
+      type: 'ensure-mounted',
+      pool,
+      key,
+    });
+  }, []);
+
   const updateFlags = useCallback(
     (
       pool: SurfacePoolKind,
@@ -323,6 +365,7 @@ export function useSurfaceCacheManager(limits: Partial<SurfacePoolLimits> = {}) 
   return useMemo(
     () => ({
       state,
+      ensureMounted,
       ensureVisible,
       hidePool,
       updateFlags,
@@ -331,6 +374,6 @@ export function useSurfaceCacheManager(limits: Partial<SurfacePoolLimits> = {}) 
       getRecord,
       isVisible,
     }),
-    [ensureVisible, getMountedKeys, getRecord, hidePool, isVisible, resetPool, state, updateFlags],
+    [ensureMounted, ensureVisible, getMountedKeys, getRecord, hidePool, isVisible, resetPool, state, updateFlags],
   );
 }

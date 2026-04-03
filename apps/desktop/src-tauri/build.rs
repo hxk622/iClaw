@@ -20,7 +20,12 @@ fn main() {
         .and_then(|entry| entry.as_str())
         .map(str::to_owned)
         .or(env_brand_id)
-        .unwrap_or_else(|| panic!("missing brandId; set APP_NAME or generate {}", brand_path.display()));
+        .unwrap_or_else(|| {
+            panic!(
+                "missing brandId; set APP_NAME or generate {}",
+                brand_path.display()
+            )
+        });
     let auth_service = brand_json
         .as_ref()
         .and_then(|value| value.get("authService"))
