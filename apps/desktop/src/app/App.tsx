@@ -913,7 +913,14 @@ export default function App() {
       setBrandRuntimeReady(false);
       await syncBrandRuntimeSnapshot();
       await startSidecar(SIDE_CAR_ARGS);
-      await client.health();
+      const healthyNow = await waitForClientHealth({
+        attempts: SIDECAR_BOOT_HEALTHCHECK_ATTEMPTS,
+        intervalMs: SIDECAR_BOOT_HEALTHCHECK_INTERVAL_MS,
+        suppressError: true,
+      });
+      if (!healthyNow) {
+        throw new Error(`无法连接本地 API，请确认已启动并监听 ${API_BASE_URL}`);
+      }
       setHealthy(true);
       setHealthError(null);
     } catch (error) {
@@ -1400,7 +1407,10 @@ export default function App() {
           console.warn('[desktop] failed to ensure openclaw cli launcher', error);
         }
       }
-      const healthyNow = await check({ blocking: true });
+      const healthyNow = await check({
+        blocking: true,
+        suppressError: isTauriRuntime(),
+      });
       if (!cancelled && !healthyNow && isTauriRuntime()) {
         setHealthChecking(true);
         setHealthError(null);

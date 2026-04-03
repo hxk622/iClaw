@@ -7,8 +7,8 @@ use flate2::Compression;
 use keyring::Entry;
 use rand::rngs::OsRng;
 use rand::RngCore;
+use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use reqwest::{blocking::Client, Url};
-use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -24,7 +24,9 @@ use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::Mutex;
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, RunEvent, State, WindowEvent};
+use tauri::{
+    AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, RunEvent, State, WindowEvent,
+};
 use tauri_plugin_updater::UpdaterExt;
 use zip::ZipArchive;
 
@@ -151,9 +153,16 @@ struct PublicBrandAppRef {
 }
 
 fn openclaw_main_agent_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = openclaw_state_dir(app)?.join("agents").join("main").join("agent");
-    fs::create_dir_all(&dir)
-        .map_err(|e| format!("failed to create OpenClaw main agent dir {}: {e}", dir.to_string_lossy()))?;
+    let dir = openclaw_state_dir(app)?
+        .join("agents")
+        .join("main")
+        .join("agent");
+    fs::create_dir_all(&dir).map_err(|e| {
+        format!(
+            "failed to create OpenClaw main agent dir {}: {e}",
+            dir.to_string_lossy()
+        )
+    })?;
     Ok(dir)
 }
 
@@ -167,24 +176,44 @@ fn read_json_file_if_exists(target: &Path) -> Result<Option<serde_json::Value>, 
     }
     let raw = fs::read_to_string(target)
         .map_err(|e| format!("failed to read json file {}: {e}", target.to_string_lossy()))?;
-    let parsed = serde_json::from_str::<serde_json::Value>(&raw)
-        .map_err(|e| format!("failed to parse json file {}: {e}", target.to_string_lossy()))?;
+    let parsed = serde_json::from_str::<serde_json::Value>(&raw).map_err(|e| {
+        format!(
+            "failed to parse json file {}: {e}",
+            target.to_string_lossy()
+        )
+    })?;
     Ok(Some(parsed))
 }
 
 fn write_locked_json_file(target: &Path, value: &serde_json::Value) -> Result<(), String> {
     if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| format!("failed to create parent dir {}: {e}", parent.to_string_lossy()))?;
+        fs::create_dir_all(parent).map_err(|e| {
+            format!(
+                "failed to create parent dir {}: {e}",
+                parent.to_string_lossy()
+            )
+        })?;
     }
-    let raw = serde_json::to_string_pretty(value)
-        .map_err(|e| format!("failed to serialize json file {}: {e}", target.to_string_lossy()))?;
-    fs::write(target, format!("{raw}\n"))
-        .map_err(|e| format!("failed to write json file {}: {e}", target.to_string_lossy()))?;
+    let raw = serde_json::to_string_pretty(value).map_err(|e| {
+        format!(
+            "failed to serialize json file {}: {e}",
+            target.to_string_lossy()
+        )
+    })?;
+    fs::write(target, format!("{raw}\n")).map_err(|e| {
+        format!(
+            "failed to write json file {}: {e}",
+            target.to_string_lossy()
+        )
+    })?;
     #[cfg(unix)]
     {
-        fs::set_permissions(target, fs::Permissions::from_mode(0o600))
-            .map_err(|e| format!("failed to set json file permissions {}: {e}", target.to_string_lossy()))?;
+        fs::set_permissions(target, fs::Permissions::from_mode(0o600)).map_err(|e| {
+            format!(
+                "failed to set json file permissions {}: {e}",
+                target.to_string_lossy()
+            )
+        })?;
     }
     Ok(())
 }
@@ -206,8 +235,10 @@ fn read_private_runtime_config(
         return Err(String::from("access token is required"));
     }
 
-    let mut private_url = Url::parse(&format!("{trimmed_auth_base_url}/portal/runtime/private-config"))
-        .map_err(|e| format!("failed to parse OEM private runtime config url: {e}"))?;
+    let mut private_url = Url::parse(&format!(
+        "{trimmed_auth_base_url}/portal/runtime/private-config"
+    ))
+    .map_err(|e| format!("failed to parse OEM private runtime config url: {e}"))?;
     private_url
         .query_pairs_mut()
         .append_pair("app_name", trimmed_brand_id);
@@ -224,7 +255,9 @@ fn read_private_runtime_config(
         .map_err(|e| format!("failed to fetch OEM private runtime config: {e}"))?;
     let status = response.status();
     if !status.is_success() {
-        return Err(format!("OEM private runtime config request failed ({status})"));
+        return Err(format!(
+            "OEM private runtime config request failed ({status})"
+        ));
     }
     let envelope = response
         .json::<PublicBrandConfigEnvelope>()
@@ -251,7 +284,10 @@ fn desktop_auth_headers() -> Result<HeaderMap, String> {
     let mut headers = HeaderMap::new();
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
     headers.insert("origin", HeaderValue::from_static("tauri://localhost"));
-    headers.insert("x-iclaw-app-name", HeaderValue::from_static(DESKTOP_BRAND_ID));
+    headers.insert(
+        "x-iclaw-app-name",
+        HeaderValue::from_static(DESKTOP_BRAND_ID),
+    );
     headers.insert("x-iclaw-channel", HeaderValue::from_static("prod"));
     if let Some(version) = option_env!("CARGO_PKG_VERSION") {
         let value = HeaderValue::from_str(version)
@@ -263,9 +299,9 @@ fn desktop_auth_headers() -> Result<HeaderMap, String> {
 
 fn parse_desktop_error_response(response: reqwest::blocking::Response) -> Result<String, String> {
     let status = response.status();
-    let text = response
-        .text()
-        .map_err(|e| format!("desktop auth request failed ({status}) and error body could not be read: {e}"))?;
+    let text = response.text().map_err(|e| {
+        format!("desktop auth request failed ({status}) and error body could not be read: {e}")
+    })?;
     if let Ok(payload) = serde_json::from_str::<DesktopErrorEnvelope>(&text) {
         if let Some(error) = payload.error {
             let code = error
@@ -295,7 +331,10 @@ fn parse_desktop_error_response(response: reqwest::blocking::Response) -> Result
 }
 
 fn desktop_auth_base_url() -> Result<String, String> {
-    let trimmed = DESKTOP_AUTH_BASE_URL.trim().trim_end_matches('/').to_string();
+    let trimmed = DESKTOP_AUTH_BASE_URL
+        .trim()
+        .trim_end_matches('/')
+        .to_string();
     if trimmed.is_empty() {
         return Err(String::from("desktop auth base url is required"));
     }
@@ -432,7 +471,10 @@ fn upsert_portal_provider_auth_profiles(
     }
 
     store.insert(String::from("version"), serde_json::Value::from(1));
-    store.insert(String::from("profiles"), serde_json::Value::Object(profiles));
+    store.insert(
+        String::from("profiles"),
+        serde_json::Value::Object(profiles),
+    );
     if changed || !auth_path.exists() {
         write_locked_json_file(&auth_path, &serde_json::Value::Object(store))?;
     }
@@ -482,7 +524,10 @@ fn clear_portal_provider_auth_profiles(app: &AppHandle) -> Result<bool, String> 
         return Ok(true);
     }
     store.insert(String::from("version"), serde_json::Value::from(1));
-    store.insert(String::from("profiles"), serde_json::Value::Object(profiles));
+    store.insert(
+        String::from("profiles"),
+        serde_json::Value::Object(profiles),
+    );
     write_locked_json_file(&auth_path, &serde_json::Value::Object(store))?;
     Ok(true)
 }
@@ -846,7 +891,6 @@ struct ListeningProcess {
 
 #[derive(Clone)]
 struct ResolvedRuntimeCommand {
-    program: PathBuf,
     args_prefix: Vec<String>,
     working_dir: Option<PathBuf>,
     source: String,
@@ -1141,7 +1185,6 @@ fn resolve_runtime_command(app: &AppHandle) -> Result<ResolvedRuntimeCommand, St
         if runtime_layout_complete(&runtime_dir, &config) {
             let launcher = runtime_dir.join(runtime_launcher_relative_path(&config));
             return Ok(ResolvedRuntimeCommand {
-                program: launcher.clone(),
                 args_prefix: Vec::new(),
                 working_dir: launcher.parent().map(|path| path.to_path_buf()),
                 source: String::from("runtime_dir"),
@@ -1155,7 +1198,6 @@ fn resolve_runtime_command(app: &AppHandle) -> Result<ResolvedRuntimeCommand, St
     if installed_runtime_matches(&installed_dir, &config) {
         let launcher = installed_dir.join(runtime_launcher_relative_path(&config));
         return Ok(ResolvedRuntimeCommand {
-            program: launcher.clone(),
             args_prefix: Vec::new(),
             working_dir: launcher.parent().map(|path| path.to_path_buf()),
             source: String::from("installed"),
@@ -1168,7 +1210,6 @@ fn resolve_runtime_command(app: &AppHandle) -> Result<ResolvedRuntimeCommand, St
     if runtime_layout_complete(&bundled_dir, &config) {
         let launcher = bundled_dir.join(runtime_launcher_relative_path(&config));
         return Ok(ResolvedRuntimeCommand {
-            program: launcher.clone(),
             args_prefix: Vec::new(),
             working_dir: launcher.parent().map(|path| path.to_path_buf()),
             source: String::from("bundled"),
@@ -1209,6 +1250,10 @@ fn resolved_runtime_node_path(runtime_root: &Path) -> PathBuf {
     }
 }
 
+fn resolved_runtime_cli_entry_path(runtime_root: &Path) -> PathBuf {
+    runtime_root.join("openclaw").join("openclaw.mjs")
+}
+
 fn openclaw_cli_wrapper_path(app: &AppHandle) -> Result<PathBuf, String> {
     let wrapper_dir = app_data_base_dir(app)?.join("bin");
     fs::create_dir_all(&wrapper_dir)
@@ -1225,8 +1270,12 @@ fn openclaw_cli_wrapper_path(app: &AppHandle) -> Result<PathBuf, String> {
 
 fn runtime_bin_openclaw_cli_path(runtime_root: &Path) -> Result<PathBuf, String> {
     let bin_dir = runtime_root.join("bin");
-    fs::create_dir_all(&bin_dir)
-        .map_err(|e| format!("failed to create runtime bin dir {}: {e}", bin_dir.to_string_lossy()))?;
+    fs::create_dir_all(&bin_dir).map_err(|e| {
+        format!(
+            "failed to create runtime bin dir {}: {e}",
+            bin_dir.to_string_lossy()
+        )
+    })?;
     #[cfg(target_os = "windows")]
     {
         Ok(bin_dir.join("openclaw.cmd"))
@@ -1253,11 +1302,20 @@ fn write_text_if_changed(path: &Path, content: &str) -> Result<(), String> {
 #[cfg(unix)]
 fn ensure_executable(path: &Path) -> Result<(), String> {
     let mut permissions = fs::metadata(path)
-        .map_err(|e| format!("failed to read metadata for {}: {e}", path.to_string_lossy()))?
+        .map_err(|e| {
+            format!(
+                "failed to read metadata for {}: {e}",
+                path.to_string_lossy()
+            )
+        })?
         .permissions();
     permissions.set_mode(0o755);
-    fs::set_permissions(path, permissions)
-        .map_err(|e| format!("failed to set executable permissions on {}: {e}", path.to_string_lossy()))
+    fs::set_permissions(path, permissions).map_err(|e| {
+        format!(
+            "failed to set executable permissions on {}: {e}",
+            path.to_string_lossy()
+        )
+    })
 }
 
 #[cfg(not(unix))]
@@ -1277,7 +1335,7 @@ fn ensure_openclaw_cli_wrapper(
             node_path.to_string_lossy()
         )
     })?;
-    let cli_path = runtime_root.join("openclaw").join("openclaw.mjs");
+    let cli_path = resolved_runtime_cli_entry_path(&runtime_root);
     if !node_path.exists() {
         return Err(format!(
             "runtime node binary not found: {}",
@@ -1459,10 +1517,18 @@ fn load_skill_manifest_value(path: &Path) -> Result<Option<serde_json::Value>, S
     if !path.exists() {
         return Ok(None);
     }
-    let raw = fs::read_to_string(path)
-        .map_err(|e| format!("failed to read skill manifest {}: {e}", path.to_string_lossy()))?;
-    let parsed = serde_json::from_str::<serde_json::Value>(&raw)
-        .map_err(|e| format!("failed to parse skill manifest {}: {e}", path.to_string_lossy()))?;
+    let raw = fs::read_to_string(path).map_err(|e| {
+        format!(
+            "failed to read skill manifest {}: {e}",
+            path.to_string_lossy()
+        )
+    })?;
+    let parsed = serde_json::from_str::<serde_json::Value>(&raw).map_err(|e| {
+        format!(
+            "failed to parse skill manifest {}: {e}",
+            path.to_string_lossy()
+        )
+    })?;
     Ok(Some(parsed))
 }
 
@@ -1471,7 +1537,8 @@ fn manifest_skill_dirs(value: &serde_json::Value) -> Vec<String> {
         .get("skills")
         .and_then(|entry| entry.as_array())
         .map(|items| {
-            items.iter()
+            items
+                .iter()
                 .filter_map(|item| item.as_str().map(|raw| raw.trim().to_string()))
                 .filter(|value| !value.is_empty())
                 .collect::<Vec<String>>()
@@ -1484,7 +1551,8 @@ fn manifest_skill_slugs(value: &serde_json::Value) -> Vec<String> {
         .get("items")
         .and_then(|entry| entry.as_array())
         .map(|items| {
-            items.iter()
+            items
+                .iter()
                 .filter_map(|item| {
                     item.get("slug")
                         .and_then(|value| value.as_str())
@@ -1565,8 +1633,12 @@ fn runtime_scope_root_dir_raw(app: &AppHandle) -> PathBuf {
 
 fn runtime_scope_root_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = runtime_scope_root_dir_raw(app);
-    fs::create_dir_all(&dir)
-        .map_err(|e| format!("failed to create runtime scope dir {}: {e}", dir.to_string_lossy()))?;
+    fs::create_dir_all(&dir).map_err(|e| {
+        format!(
+            "failed to create runtime scope dir {}: {e}",
+            dir.to_string_lossy()
+        )
+    })?;
     Ok(dir)
 }
 
@@ -1585,7 +1657,9 @@ fn legacy_runtime_skill_sync_state_path(app: &AppHandle) -> Result<PathBuf, Stri
 }
 
 fn legacy_runtime_mcp_config_source_path(app: &AppHandle) -> Result<PathBuf, String> {
-    Ok(app_data_base_dir(app)?.join("config").join("runtime-mcp.json"))
+    Ok(app_data_base_dir(app)?
+        .join("config")
+        .join("runtime-mcp.json"))
 }
 
 fn legacy_runtime_mcp_sync_state_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -1616,10 +1690,7 @@ fn packaged_runtime_skills_manifest_path(app: &AppHandle) -> PathBuf {
 
 fn packaged_runtime_mcp_root(app: &AppHandle) -> PathBuf {
     if let Ok(resource_dir) = app.path().resource_dir() {
-        let p = resource_dir
-            .join("resources")
-            .join("baseline")
-            .join("mcp");
+        let p = resource_dir.join("resources").join("baseline").join("mcp");
         if p.exists() {
             return p;
         }
@@ -1808,7 +1879,9 @@ fn runtime_mcp_bindings_from_snapshot(snapshot: &OemRuntimeSnapshot) -> Vec<(Str
     parsed
 }
 
-fn runtime_mcp_servers_from_snapshot(snapshot: &OemRuntimeSnapshot) -> serde_json::Map<String, serde_json::Value> {
+fn runtime_mcp_servers_from_snapshot(
+    snapshot: &OemRuntimeSnapshot,
+) -> serde_json::Map<String, serde_json::Value> {
     if let Some(object) = snapshot
         .config
         .get("resolved_mcp_servers")
@@ -1832,7 +1905,8 @@ fn runtime_mcp_servers_from_snapshot(snapshot: &OemRuntimeSnapshot) -> serde_jso
             .get("mcp_key")
             .and_then(|value| value.as_str())
             .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty()) else {
+            .filter(|value| !value.is_empty())
+        else {
             continue;
         };
         let mut config = object
@@ -1903,7 +1977,10 @@ fn save_runtime_mcp_sync_state(app: &AppHandle, state: &RuntimeMcpSyncState) -> 
     write_locked_json_file(&path, &value)
 }
 
-fn runtime_skills_cache_is_fresh(app: &AppHandle, snapshot: &OemRuntimeSnapshot) -> Result<bool, String> {
+fn runtime_skills_cache_is_fresh(
+    app: &AppHandle,
+    snapshot: &OemRuntimeSnapshot,
+) -> Result<bool, String> {
     let expected_skill_slugs = runtime_skill_bindings_from_snapshot(snapshot)
         .into_iter()
         .map(|(slug, _)| slug)
@@ -1928,7 +2005,10 @@ fn runtime_skills_cache_is_fresh(app: &AppHandle, snapshot: &OemRuntimeSnapshot)
     Ok(runtime_manifest_path.exists() || manifest_matches)
 }
 
-fn runtime_mcp_cache_is_fresh(app: &AppHandle, snapshot: &OemRuntimeSnapshot) -> Result<bool, String> {
+fn runtime_mcp_cache_is_fresh(
+    app: &AppHandle,
+    snapshot: &OemRuntimeSnapshot,
+) -> Result<bool, String> {
     let expected_mcp_keys = runtime_mcp_bindings_from_snapshot(snapshot)
         .into_iter()
         .map(|(mcp_key, _)| mcp_key)
@@ -1961,12 +2041,13 @@ fn load_packaged_runtime_skill_baseline_manifest(
             path.to_string_lossy()
         )
     })?;
-    let parsed = serde_json::from_str::<PackagedRuntimeSkillBaselineManifest>(&raw).map_err(|e| {
-        format!(
-            "failed to parse packaged runtime skill baseline manifest {}: {e}",
-            path.to_string_lossy()
-        )
-    })?;
+    let parsed =
+        serde_json::from_str::<PackagedRuntimeSkillBaselineManifest>(&raw).map_err(|e| {
+            format!(
+                "failed to parse packaged runtime skill baseline manifest {}: {e}",
+                path.to_string_lossy()
+            )
+        })?;
     Ok(Some(parsed))
 }
 
@@ -2262,9 +2343,18 @@ fn ensure_runtime_scope_migrated(app: &AppHandle) -> Result<(), String> {
     }
 
     copy_file_if_missing(&legacy_openclaw_config_path(app)?, &config_path)?;
-    copy_file_if_missing(&legacy_runtime_skill_sync_state_path(app)?, &skill_sync_state_path)?;
-    copy_file_if_missing(&legacy_runtime_mcp_config_source_path(app)?, &mcp_config_path)?;
-    copy_file_if_missing(&legacy_runtime_mcp_sync_state_path(app)?, &mcp_sync_state_path)?;
+    copy_file_if_missing(
+        &legacy_runtime_skill_sync_state_path(app)?,
+        &skill_sync_state_path,
+    )?;
+    copy_file_if_missing(
+        &legacy_runtime_mcp_config_source_path(app)?,
+        &mcp_config_path,
+    )?;
+    copy_file_if_missing(
+        &legacy_runtime_mcp_sync_state_path(app)?,
+        &mcp_sync_state_path,
+    )?;
 
     Ok(())
 }
@@ -2273,8 +2363,12 @@ fn find_skill_root(dir: &Path) -> Result<Option<PathBuf>, String> {
     if dir.join("SKILL.md").exists() {
         return Ok(Some(dir.to_path_buf()));
     }
-    let entries = fs::read_dir(dir)
-        .map_err(|e| format!("failed to scan extracted skill dir {}: {e}", dir.to_string_lossy()))?;
+    let entries = fs::read_dir(dir).map_err(|e| {
+        format!(
+            "failed to scan extracted skill dir {}: {e}",
+            dir.to_string_lossy()
+        )
+    })?;
     for entry in entries {
         let entry = entry.map_err(|e| format!("failed to read extracted skill dir entry: {e}"))?;
         let path = entry.path();
@@ -2291,8 +2385,12 @@ fn find_skill_root(dir: &Path) -> Result<Option<PathBuf>, String> {
             return Ok(Some(path));
         }
     }
-    let entries = fs::read_dir(dir)
-        .map_err(|e| format!("failed to rescan extracted skill dir {}: {e}", dir.to_string_lossy()))?;
+    let entries = fs::read_dir(dir).map_err(|e| {
+        format!(
+            "failed to rescan extracted skill dir {}: {e}",
+            dir.to_string_lossy()
+        )
+    })?;
     for entry in entries {
         let entry = entry.map_err(|e| format!("failed to read extracted skill dir entry: {e}"))?;
         let path = entry.path();
@@ -2320,8 +2418,9 @@ fn current_unix_timestamp_string() -> String {
 }
 
 fn sync_current_brand_runtime_skills(app: &AppHandle, auth_base_url: &str) -> Result<bool, String> {
-    let snapshot = load_oem_runtime_snapshot_internal(app)?
-        .ok_or_else(|| String::from("OEM runtime snapshot is missing; cannot sync runtime skills"))?;
+    let snapshot = load_oem_runtime_snapshot_internal(app)?.ok_or_else(|| {
+        String::from("OEM runtime snapshot is missing; cannot sync runtime skills")
+    })?;
     if runtime_skills_cache_is_fresh(app, &snapshot)? {
         return Ok(false);
     }
@@ -2333,10 +2432,8 @@ fn sync_current_brand_runtime_skills(app: &AppHandle, auth_base_url: &str) -> Re
     fs::create_dir_all(&workspace_dir)
         .map_err(|e| format!("failed to create openclaw workspace dir: {e}"))?;
     let skills_root = runtime_skills_dir(app)?;
-    let temp_sync_root = workspace_dir.join(format!(
-        ".skills-sync-{}",
-        current_unix_timestamp_string()
-    ));
+    let temp_sync_root =
+        workspace_dir.join(format!(".skills-sync-{}", current_unix_timestamp_string()));
     let staged_skills_root = temp_sync_root.join("skills");
     if temp_sync_root.exists() {
         fs::remove_dir_all(&temp_sync_root).map_err(|e| {
@@ -2792,7 +2889,10 @@ fn infer_bundled_mcp_transport(config: &serde_json::Value) -> String {
     if let Some(value) = explicit {
         return value;
     }
-    if config.get("httpUrl").and_then(|value| value.as_str()).is_some()
+    if config
+        .get("httpUrl")
+        .and_then(|value| value.as_str())
+        .is_some()
         || config.get("url").and_then(|value| value.as_str()).is_some()
     {
         return String::from("http");
@@ -3365,16 +3465,8 @@ fn resource_runtime_config_generator_path(app: &AppHandle) -> PathBuf {
 
 fn resolve_runtime_node_path(app: &AppHandle) -> Result<PathBuf, String> {
     let runtime = resolve_runtime_command(app)?;
-    let runtime_dir = runtime
-        .display_path
-        .parent()
-        .ok_or_else(|| String::from("failed to resolve runtime launcher dir"))?;
-    let node_name = if cfg!(target_os = "windows") {
-        "node.exe"
-    } else {
-        "node"
-    };
-    let node_path = runtime_dir.join("bin").join(node_name);
+    let runtime_root = resolved_runtime_root(&runtime)?;
+    let node_path = resolved_runtime_node_path(&runtime_root);
     if node_path.exists() {
         Ok(node_path)
     } else {
@@ -3426,7 +3518,8 @@ fn configure_runtime_network_env(command: &mut Command, app: &AppHandle) {
     let hook_path = resource_node_fetch_user_agent_hook_path(app);
     if hook_path.exists() {
         let require_arg = format!("--require={}", node_options_safe_path(&hook_path));
-        let next_node_options = append_node_options_arg(env::var("NODE_OPTIONS").ok(), &require_arg);
+        let next_node_options =
+            append_node_options_arg(env::var("NODE_OPTIONS").ok(), &require_arg);
         append_desktop_bootstrap_log(
             app,
             &format!(
@@ -4026,11 +4119,9 @@ fn sync_gateway_token_keyring(token: &str) -> Result<(), String> {
     let entry = Entry::new(AUTH_SERVICE, AUTH_GATEWAY_TOKEN_KEY).map_err(|e| e.to_string())?;
     match entry.get_password() {
         Ok(current) if current.trim() == token.trim() => Ok(()),
-        Ok(_) | Err(keyring::Error::NoEntry) => {
-            entry
-                .set_password(token.trim())
-                .map_err(|e| format!("failed to sync gateway token keyring: {e}"))
-        }
+        Ok(_) | Err(keyring::Error::NoEntry) => entry
+            .set_password(token.trim())
+            .map_err(|e| format!("failed to sync gateway token keyring: {e}")),
         Err(e) => Err(e.to_string()),
     }
 }
@@ -4185,7 +4276,8 @@ fn detect_local_service_port_conflicts() -> Vec<u16> {
     let mut ports = vec![configured_sidecar_port()];
     ports.sort_unstable();
     ports.dedup();
-    ports.into_iter()
+    ports
+        .into_iter()
         .filter(|port| is_loopback_port_occupied(*port))
         .collect()
 }
@@ -4350,7 +4442,9 @@ fn openclaw_config_path(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 fn desktop_window_state_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let path = app_data_base_dir(app)?.join("config").join("window-state.json");
+    let path = app_data_base_dir(app)?
+        .join("config")
+        .join("window-state.json");
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .map_err(|e| format!("failed to create window state dir: {e}"))?;
@@ -4369,15 +4463,25 @@ fn desktop_client_config_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(path)
 }
 
-fn load_desktop_window_state(app: &AppHandle) -> Result<Option<DesktopWindowStateSnapshot>, String> {
+fn load_desktop_window_state(
+    app: &AppHandle,
+) -> Result<Option<DesktopWindowStateSnapshot>, String> {
     let path = desktop_window_state_path(app)?;
     if !path.exists() {
         return Ok(None);
     }
-    let raw = fs::read_to_string(&path)
-        .map_err(|e| format!("failed to read window state {}: {e}", path.to_string_lossy()))?;
-    let parsed = serde_json::from_str::<DesktopWindowStateSnapshot>(&raw)
-        .map_err(|e| format!("failed to parse window state {}: {e}", path.to_string_lossy()))?;
+    let raw = fs::read_to_string(&path).map_err(|e| {
+        format!(
+            "failed to read window state {}: {e}",
+            path.to_string_lossy()
+        )
+    })?;
+    let parsed = serde_json::from_str::<DesktopWindowStateSnapshot>(&raw).map_err(|e| {
+        format!(
+            "failed to parse window state {}: {e}",
+            path.to_string_lossy()
+        )
+    })?;
     if parsed.width == 0 || parsed.height == 0 {
         return Ok(None);
     }
@@ -4391,8 +4495,12 @@ fn save_desktop_window_state(
     let path = desktop_window_state_path(app)?;
     let raw = serde_json::to_string_pretty(snapshot)
         .map_err(|e| format!("failed to serialize window state: {e}"))?;
-    fs::write(&path, format!("{raw}\n"))
-        .map_err(|e| format!("failed to write window state {}: {e}", path.to_string_lossy()))
+    fs::write(&path, format!("{raw}\n")).map_err(|e| {
+        format!(
+            "failed to write window state {}: {e}",
+            path.to_string_lossy()
+        )
+    })
 }
 
 fn persist_window_state_from_metrics(
@@ -4453,11 +4561,7 @@ fn sync_current_brand_runtime_snapshot(app: &AppHandle) -> Result<bool, String> 
     if brand_id.is_empty() {
         return Ok(false);
     }
-    sync_oem_runtime_snapshot(
-        app.clone(),
-        resolve_desktop_auth_base_url(),
-        brand_id,
-    )
+    sync_oem_runtime_snapshot(app.clone(), resolve_desktop_auth_base_url(), brand_id)
 }
 
 fn ensure_current_brand_runtime_skills(app: &AppHandle, context: &str) -> Result<bool, String> {
@@ -4497,7 +4601,9 @@ fn ensure_current_brand_runtime_mcps(app: &AppHandle, context: &str) -> Result<b
     }
 }
 
-fn load_oem_runtime_snapshot_internal(app: &AppHandle) -> Result<Option<OemRuntimeSnapshot>, String> {
+fn load_oem_runtime_snapshot_internal(
+    app: &AppHandle,
+) -> Result<Option<OemRuntimeSnapshot>, String> {
     let snapshot_path = oem_runtime_snapshot_path(app)?;
     if !snapshot_path.exists() {
         return Ok(None);
@@ -4525,10 +4631,8 @@ fn ensure_openclaw_runtime_config(app: &AppHandle, gateway_token: &str) -> Resul
         return Ok(config_path);
     }
 
-    let fallback_dir = env::temp_dir().join(format!(
-        "iclaw-openclaw-config-{}",
-        timestamp_string()
-    ));
+    let fallback_dir =
+        env::temp_dir().join(format!("iclaw-openclaw-config-{}", timestamp_string()));
     fs::create_dir_all(&fallback_dir)
         .map_err(|e| format!("failed to create fallback openclaw config dir: {e}"))?;
     let fallback_path = fallback_dir.join("openclaw.json");
@@ -4691,7 +4795,9 @@ fn start_sidecar(
                 return Ok(true);
             }
             Err(error) => {
-                return Err(format!("failed to inspect existing openclaw runtime process: {error}"));
+                return Err(format!(
+                    "failed to inspect existing openclaw runtime process: {error}"
+                ));
             }
         }
     }
@@ -4702,10 +4808,16 @@ fn start_sidecar(
         if should_reuse_existing_local_sidecar(&occupied_ports) {
             let port = configured_sidecar_port();
             if is_existing_local_sidecar_healthy(port) {
-                append_desktop_bootstrap_log(&app, &format!("start_sidecar: reusing healthy listener on {port}"));
+                append_desktop_bootstrap_log(
+                    &app,
+                    &format!("start_sidecar: reusing healthy listener on {port}"),
+                );
                 return Ok(true);
             }
-            append_desktop_bootstrap_log(&app, &format!("start_sidecar: unhealthy listener detected on {port}"));
+            append_desktop_bootstrap_log(
+                &app,
+                &format!("start_sidecar: unhealthy listener detected on {port}"),
+            );
             return Err(format!(
                 "检测到 {port} 端口已有监听，但该服务未通过 OpenClaw 健康检查。请先关闭占用进程后再启动应用。"
             ));
@@ -4724,7 +4836,10 @@ fn start_sidecar(
     let runtime = resolve_runtime_command(&app)?;
     if let Err(error) = sync_current_brand_runtime_snapshot(&app) {
         eprintln!("failed to sync OEM runtime snapshot before sidecar start: {error}");
-        append_desktop_bootstrap_log(&app, &format!("start_sidecar: snapshot sync warning {error}"));
+        append_desktop_bootstrap_log(
+            &app,
+            &format!("start_sidecar: snapshot sync warning {error}"),
+        );
     }
     let gateway_token = load_or_create_gateway_token(&app)?;
     append_desktop_bootstrap_log(&app, "start_sidecar: gateway token ready");
@@ -4758,14 +4873,28 @@ fn start_sidecar(
     let (stdout_log_path, stderr_log_path) = sidecar_log_paths(&app)?;
 
     let runtime_root = resolved_runtime_root(&runtime)?;
-    let mut command = Command::new(&runtime.program);
-    if let Some(working_dir) = runtime.working_dir.as_ref() {
-        command.current_dir(working_dir);
+    let node_path = resolved_runtime_node_path(&runtime_root);
+    let cli_path = resolved_runtime_cli_entry_path(&runtime_root);
+    if !node_path.exists() {
+        return Err(format!(
+            "runtime node binary not found: {}",
+            node_path.to_string_lossy()
+        ));
     }
+    if !cli_path.exists() {
+        return Err(format!(
+            "runtime openclaw cli entry not found: {}",
+            cli_path.to_string_lossy()
+        ));
+    }
+    let mut command = Command::new(&node_path);
+    command.current_dir(&runtime_root);
     command.env(
         "ICLAW_OPENCLAW_RUNTIME_ROOT",
         runtime_root.to_string_lossy().to_string(),
     );
+    command.arg(&cli_path);
+    command.arg("gateway");
     command.args(&runtime.args_prefix);
     command.args(args);
     command.env("OPENCLAW_STATE_DIR", openclaw_state_dir);
@@ -4782,14 +4911,22 @@ fn start_sidecar(
     let wrapper_path = ensure_openclaw_cli_wrapper(&app, &runtime)?;
     prepend_openclaw_cli_to_path(&mut command, &wrapper_path, &runtime)?;
     configure_runtime_network_env(&mut command, &app);
-    command.stdout(Stdio::from(
-        File::create(&stdout_log_path)
-            .map_err(|e| format!("failed to create sidecar stdout log {}: {e}", stdout_log_path.to_string_lossy()))?,
-    ));
-    command.stderr(Stdio::from(
-        File::create(&stderr_log_path)
-            .map_err(|e| format!("failed to create sidecar stderr log {}: {e}", stderr_log_path.to_string_lossy()))?,
-    ));
+    command.stdout(Stdio::from(File::create(&stdout_log_path).map_err(
+        |e| {
+            format!(
+                "failed to create sidecar stdout log {}: {e}",
+                stdout_log_path.to_string_lossy()
+            )
+        },
+    )?));
+    command.stderr(Stdio::from(File::create(&stderr_log_path).map_err(
+        |e| {
+            format!(
+                "failed to create sidecar stderr log {}: {e}",
+                stderr_log_path.to_string_lossy()
+            )
+        },
+    )?));
 
     if let Some(v) = config.anthropic_api_key {
         if !v.trim().is_empty() {
@@ -4808,9 +4945,10 @@ fn start_sidecar(
     append_desktop_bootstrap_log(
         &app,
         &format!(
-            "start_sidecar: spawned runtime source={} program={}",
+            "start_sidecar: spawned runtime source={} program={} entry={}",
             runtime.source,
-            runtime.program.to_string_lossy()
+            node_path.to_string_lossy(),
+            cli_path.to_string_lossy()
         ),
     );
     std::thread::sleep(Duration::from_millis(1200));
@@ -5013,7 +5151,9 @@ fn sync_oem_runtime_snapshot(
 ) -> Result<bool, String> {
     append_desktop_bootstrap_log(
         &app,
-        &format!("sync_oem_runtime_snapshot: begin brand_id={brand_id} auth_base_url={auth_base_url}"),
+        &format!(
+            "sync_oem_runtime_snapshot: begin brand_id={brand_id} auth_base_url={auth_base_url}"
+        ),
     );
     let trimmed_brand_id = brand_id.trim();
     let trimmed_auth_base_url = auth_base_url.trim().trim_end_matches('/');
@@ -5024,8 +5164,10 @@ fn sync_oem_runtime_snapshot(
         return Err(String::from("auth_base_url is required"));
     }
 
-    let mut private_url = Url::parse(&format!("{trimmed_auth_base_url}/portal/runtime/private-config"))
-        .map_err(|e| format!("failed to parse OEM private runtime config url: {e}"))?;
+    let mut private_url = Url::parse(&format!(
+        "{trimmed_auth_base_url}/portal/runtime/private-config"
+    ))
+    .map_err(|e| format!("failed to parse OEM private runtime config url: {e}"))?;
     private_url
         .query_pairs_mut()
         .append_pair("app_name", trimmed_brand_id);
@@ -5051,7 +5193,9 @@ fn sync_oem_runtime_snapshot(
         Err(_) => None,
     };
     let response = if let Some(resp) = private_response {
-        if resp.status().is_success() { resp } else {
+        if resp.status().is_success() {
+            resp
+        } else {
             client
                 .get(public_url)
                 .send()
@@ -5074,7 +5218,9 @@ fn sync_oem_runtime_snapshot(
         .config
         .ok_or_else(|| format!("OEM runtime config missing config payload ({status})"))?;
     if !envelope.success {
-        return Err(format!("OEM runtime config returned unsuccessful response ({status})"));
+        return Err(format!(
+            "OEM runtime config returned unsuccessful response ({status})"
+        ));
     }
 
     let snapshot = OemRuntimeSnapshot {
@@ -5089,10 +5235,9 @@ fn sync_oem_runtime_snapshot(
     let result = save_oem_runtime_snapshot(app.clone(), snapshot);
     match &result {
         Ok(_) => append_desktop_bootstrap_log(&app, "sync_oem_runtime_snapshot: success"),
-        Err(error) => append_desktop_bootstrap_log(
-            &app,
-            &format!("sync_oem_runtime_snapshot: error {error}"),
-        ),
+        Err(error) => {
+            append_desktop_bootstrap_log(&app, &format!("sync_oem_runtime_snapshot: error {error}"))
+        }
     }
     result
 }
@@ -5577,12 +5722,9 @@ fn run_memory_cli_json(app: &AppHandle, args: &[&str]) -> Result<serde_json::Val
 
 fn run_memory_cli(app: &AppHandle, args: &[&str]) -> Result<std::process::Output, String> {
     let runtime = resolve_runtime_command(app)?;
-    let runtime_root = runtime
-        .display_path
-        .parent()
-        .ok_or_else(|| String::from("failed to resolve runtime root"))?;
-    let node_path = runtime_root.join("bin").join("node");
-    let cli_path = runtime_root.join("openclaw").join("openclaw.mjs");
+    let runtime_root = resolved_runtime_root(&runtime)?;
+    let node_path = resolved_runtime_node_path(&runtime_root);
+    let cli_path = resolved_runtime_cli_entry_path(&runtime_root);
 
     let mut command = Command::new(&node_path);
     command.arg(&cli_path);
@@ -5970,10 +6112,18 @@ fn load_desktop_client_config(app: AppHandle) -> Result<Option<serde_json::Value
     if !path.exists() {
         return Ok(None);
     }
-    let raw = fs::read_to_string(&path)
-        .map_err(|e| format!("failed to read desktop client config {}: {e}", path.to_string_lossy()))?;
-    let parsed = serde_json::from_str::<serde_json::Value>(&raw)
-        .map_err(|e| format!("failed to parse desktop client config {}: {e}", path.to_string_lossy()))?;
+    let raw = fs::read_to_string(&path).map_err(|e| {
+        format!(
+            "failed to read desktop client config {}: {e}",
+            path.to_string_lossy()
+        )
+    })?;
+    let parsed = serde_json::from_str::<serde_json::Value>(&raw).map_err(|e| {
+        format!(
+            "failed to parse desktop client config {}: {e}",
+            path.to_string_lossy()
+        )
+    })?;
     Ok(Some(parsed))
 }
 
@@ -6300,23 +6450,21 @@ fn main() {
             apply_initial_window_layout(app.handle());
             Ok(())
         })
-        .on_window_event(|window, event| {
-            match event {
-                WindowEvent::CloseRequested { api, .. } => {
-                    persist_desktop_window_state(window);
-                    let is_focused = window.is_focused().unwrap_or(false);
-                    if is_focused {
-                        api.prevent_close();
-                        let _ = window.minimize();
-                    } else {
-                        window.app_handle().exit(0);
-                    }
+        .on_window_event(|window, event| match event {
+            WindowEvent::CloseRequested { api, .. } => {
+                persist_desktop_window_state(window);
+                let is_focused = window.is_focused().unwrap_or(false);
+                if is_focused {
+                    api.prevent_close();
+                    let _ = window.minimize();
+                } else {
+                    window.app_handle().exit(0);
                 }
-                WindowEvent::Resized(_) | WindowEvent::Moved(_) => {
-                    persist_desktop_window_state(window);
-                }
-                _ => {}
             }
+            WindowEvent::Resized(_) | WindowEvent::Moved(_) => {
+                persist_desktop_window_state(window);
+            }
+            _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             start_sidecar,
