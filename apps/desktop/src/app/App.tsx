@@ -680,13 +680,6 @@ export default function App() {
     void refreshGatewayAuth();
   }, [refreshGatewayAuth]);
 
-  useEffect(() => {
-    if (!currentUser) {
-      return;
-    }
-    applyChatPersistenceUserScope(currentUser);
-  }, [currentUser]);
-
   const client = useMemo(
     () =>
       new IClawClient({
@@ -785,6 +778,13 @@ export default function App() {
   const desktopUpdateLastCheckedAtRef = useRef(0);
   const desktopUpdateCheckInFlightRef = useRef(false);
   const lastRuntimeProgressRef = useRef(0);
+
+  useEffect(() => {
+    if (!currentUser) {
+      return;
+    }
+    applyChatPersistenceUserScope(currentUser);
+  }, [currentUser]);
 
   useEffect(() => {
     writePersistedWorkspaceScene({primaryView});
