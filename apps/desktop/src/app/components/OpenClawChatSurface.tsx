@@ -2805,12 +2805,8 @@ async function loadGatewaySessionTokenSnapshot(
 }
 
 function isSessionRenderReady(renderState: ChatSurfaceRenderState): boolean {
-  if (!renderState.hasNativeInput || !renderState.nativeInputVisible) {
-    return false;
-  }
-
   if (!renderState.hasThread) {
-    return true;
+    return renderState.hostHeight > 0;
   }
 
   return renderState.threadVisible || renderState.groupCount === 0;
