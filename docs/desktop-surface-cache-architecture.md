@@ -1,6 +1,6 @@
 # Desktop Surface Cache Architecture
 
-更新时间：2026-04-02
+更新时间：2026-04-03
 
 ## 目标
 
@@ -21,6 +21,8 @@
 - `active / busy / pending-billing` 的实例不能被淘汰
 - 淘汰前必须先持久化必要状态
 - 非可见 surface 进入低活跃模式，避免后台继续高频 re-render / polling
+- surface cache 只负责生命周期与恢复效率，不负责定义产品层“当前对话”
+- 聊天域禁止双轨 current state；当前 `conversation` 只能有一个单一真相
 
 ## 术语
 
@@ -70,6 +72,13 @@
 - 管理多个 chat session surface
 - 保持 `OpenClawChatSurface` 在切左菜单时不卸载
 - 允许多个 chat session 在桌面壳内保活
+
+补充冻结约束：
+
+- 即使存在多个已缓存 chat surface，产品层仍然只能有一个当前 `conversation`
+- 左侧选中态与右侧主视图必须由同一个 `activeConversationId` 或等价主状态驱动
+- `surface key`、`mounted surface`、`reveal-ready` 只能决定“何时展示当前 conversation”，不能决定“当前是哪条 conversation”
+- 不允许额外引入与 `activeConversationId` 并列的 `displayedConversationId`、`displayedChatRoute` 一类产品态
 
 默认上限：
 

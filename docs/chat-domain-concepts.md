@@ -1,6 +1,6 @@
 # Chat Domain Concepts
 
-更新时间：2026-04-02
+更新时间：2026-04-03
 
 ## 1. 目标
 
@@ -162,6 +162,50 @@
 - UI 跳转目标优先由 `conversationId` 决定
 - 运行时恢复可以再映射到对应 `sessionKey`
 - `sessionKey` 不能直接作为产品层入口主键
+
+### 4.5 当前对话单一真相
+
+聊天主界面必须始终只有一个“当前对话”一等状态。
+
+推荐唯一主状态：
+
+- `activeConversationId`
+- 或 `activeChatRoute`，但其产品语义必须等价于“当前 `conversation`”
+
+以下 UI / 状态都必须从这一主状态派生，而不能各自维护第二套“当前对话”：
+
+- 左侧聊天列表选中态
+- 右侧 chat view 当前展示态
+- URL / 路由态
+- 历史任务打开后的落点
+- runtime 恢复时对应的 `sessionKey`
+
+明确禁止双轨状态，例如：
+
+- 一个 `activeConversationId`，再并行维护一个 `displayedConversationId`
+- 一个 `activeChatRoute`，再并行维护一个产品语义上的 `displayedChatRoute`
+- 左侧高亮跟 `conversationId`，右侧正文却跟另一套 “displayed surface key”
+
+允许存在的从属状态：
+
+- skeleton / loading / reactivating / reveal-ready
+- surface cache key
+- runtime session ready / connected / busy
+- 本地 snapshot 是否命中
+
+但这些状态只允许表达“当前 conversation 何时可展示、如何恢复”，不允许重新定义“当前是哪条 conversation”。
+
+进一步约束：
+
+- “有本地 snapshot” 不等于 “可以把 UI 主视图切到另一条 conversation”
+- “surface 已挂载” 不等于 “可以改变左侧当前选中态”
+- 任何 reveal / restore / warm cache 逻辑，都只能延迟或加速当前 conversation 的展示，不能创造第二套产品层当前态
+
+一句话冻结：
+
+- 聊天域永远不要双轨 current state
+- 当前对话只能有一个单一真相
+- 其它状态只能是从属状态，不得与之并列
 
 ## 5. 命名规范
 
