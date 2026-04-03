@@ -2024,8 +2024,8 @@ function AuthedView({
     getMountedKeys: getMountedSurfaceKeys,
     isVisible: isSurfaceVisible,
   } = surfaceCache;
-  const enabledMenuKeys = resolveRequiredEnabledMenuKeys(brandShellConfig);
-  const menuUiConfig = resolveRequiredMenuUiConfig(brandShellConfig, [...enabledMenuKeys, 'chat', 'task-center']);
+  const enabledMenuKeys = resolveRequiredEnabledMenuKeys(brandShellConfig).filter((key) => key !== 'task-center');
+  const menuUiConfig = resolveRequiredMenuUiConfig(brandShellConfig, [...enabledMenuKeys, 'chat']);
   const headerConfig = resolveHeaderConfig(brandShellConfig);
   const inputComposerConfig = resolveInputComposerConfig(brandShellConfig);
   const welcomePageConfig = resolveWelcomePageConfig(brandShellConfig);
@@ -2490,7 +2490,7 @@ function AuthedView({
   const handleOpenTurnChat = (turnId: string) => {
     const turn = readChatTurns().find((item) => item.id === turnId);
     if (!turn?.sessionKey) {
-      setPrimaryView('task-center');
+      setPrimaryView('chat');
       return;
     }
 

@@ -123,7 +123,6 @@ const DEFAULT_ENABLED_MENU_KEYS = [
   'data-connections',
   'im-bots',
   'security',
-  'task-center',
 ] as const;
 
 const DEFAULT_MENU_UI_CONFIG: Record<string, RequiredResolvedMenuUiConfig> = {
