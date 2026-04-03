@@ -698,6 +698,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
   ) {
     const editorRef = useRef<HTMLDivElement | null>(null);
     const inputShellRef = useRef<HTMLDivElement | null>(null);
+    const activeControlsRef = useRef<HTMLDivElement | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const modelMenuRef = useRef<HTMLDivElement | null>(null);
     const mentionToolbarRef = useRef<HTMLDivElement | null>(null);
@@ -2352,6 +2353,45 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
       Boolean(selectedStockContext) ||
       (visibleTopBarControlKeys.has('watchlist') && Boolean(selectedWatchlistOption)) ||
       (visibleTopBarControlKeys.has('output-format') && Boolean(selectedOutputOption));
+    useEffect(() => {
+      const shell = inputShellRef.current;
+      if (!shell) {
+        return;
+      }
+
+      const syncActiveControlsHeight = () => {
+        const nextHeight = hasActiveSelections
+          ? Math.ceil(activeControlsRef.current?.getBoundingClientRect().height ?? 0)
+          : 0;
+        shell.style.setProperty('--iclaw-composer-active-controls-height', `${nextHeight}px`);
+      };
+
+      syncActiveControlsHeight();
+
+      if (!hasActiveSelections || typeof ResizeObserver === 'undefined' || !activeControlsRef.current) {
+        return () => {
+          shell.style.setProperty('--iclaw-composer-active-controls-height', '0px');
+        };
+      }
+
+      const observer = new ResizeObserver(() => {
+        syncActiveControlsHeight();
+      });
+      observer.observe(activeControlsRef.current);
+      return () => {
+        observer.disconnect();
+        shell.style.setProperty('--iclaw-composer-active-controls-height', '0px');
+      };
+    }, [
+      hasActiveSelections,
+      selectedAgentSlug,
+      selectedSkillSlug,
+      selectedMode,
+      selectedMarketScope,
+      selectedStockContext?.id,
+      selectedWatchlist,
+      selectedOutput,
+    ]);
     const stockSearchPlaceholder =
       stockMenuKind === 'stock' ? '搜索股票代码或名称' : '搜索基金、ETF 或代码';
     const stockMenuSearchVisible = stockMenuSource === 'toolbar';
@@ -3420,7 +3460,7 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
               }}
             >
               {hasActiveSelections ? (
-                <div className="iclaw-composer__active-controls" aria-label="当前已选控制项">
+                <div ref={activeControlsRef} className="iclaw-composer__active-controls" aria-label="当前已选控制项">
                   {visibleTopBarControlKeys.has('expert') && selectedAgent ? (
                     <button
                       type="button"
