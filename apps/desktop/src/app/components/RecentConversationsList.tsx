@@ -24,6 +24,10 @@ export function RecentConversationsList({
   const recentTurns = useChatTurns();
 
   const visibleConversations = useMemo(() => {
+    const parseTimestamp = (value: string) => {
+      const parsed = new Date(value).getTime();
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
     const recentTurnByConversation = new Map<string, (typeof recentTurns)[number]>();
     recentTurns.forEach((turn) => {
       if (!recentTurnByConversation.has(turn.conversationId)) {
@@ -31,25 +35,28 @@ export function RecentConversationsList({
       }
     });
 
-    return conversations.slice(0, SIDEBAR_CONVERSATION_LIMIT).map((conversation) => {
-      const matchedTurn = recentTurnByConversation.get(conversation.id) ?? null;
-      const conversationTitle =
-        conversation.title?.trim() ||
-        matchedTurn?.title?.trim() ||
-        matchedTurn?.prompt?.trim() ||
-        '未命名对话';
-      const conversationSummary =
-        matchedTurn?.summary?.trim() ||
-        matchedTurn?.prompt?.trim() ||
-        '继续查看这条对话的上下文与结果。';
-      const updatedAt = matchedTurn?.updatedAt || conversation.updatedAt;
-      return {
-        id: conversation.id,
-        title: conversationTitle,
-        summary: conversationSummary,
-        updatedAt,
-      };
-    });
+    return conversations
+      .map((conversation) => {
+        const matchedTurn = recentTurnByConversation.get(conversation.id) ?? null;
+        const conversationTitle =
+          conversation.title?.trim() ||
+          matchedTurn?.title?.trim() ||
+          matchedTurn?.prompt?.trim() ||
+          '未命名对话';
+        const conversationSummary =
+          matchedTurn?.summary?.trim() ||
+          matchedTurn?.prompt?.trim() ||
+          '继续查看这条对话的上下文与结果。';
+        const updatedAt = matchedTurn?.updatedAt || conversation.updatedAt;
+        return {
+          id: conversation.id,
+          title: conversationTitle,
+          summary: conversationSummary,
+          updatedAt,
+        };
+      })
+      .sort((left, right) => parseTimestamp(right.updatedAt) - parseTimestamp(left.updatedAt))
+      .slice(0, SIDEBAR_CONVERSATION_LIMIT);
   }, [conversations, recentTurns]);
 
   return (
@@ -103,8 +110,8 @@ export function RecentConversationsList({
                   className={cn(
                     'flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[var(--text-secondary)]',
                     isSelected
-                      ? 'border-[rgba(168,140,93,0.20)] bg-[rgba(168,140,93,0.12)] text-[var(--brand-primary)]'
-                      : 'border-[var(--border-default)] bg-[var(--bg-card)]',
+                      ? 'border-[rgba(168,140,93,0.20)] bg-[rgba(168,140,93,0.12)] text-[var(--brand-primary)] dark:text-white'
+                      : 'border-[var(--border-default)] bg-[var(--bg-card)] dark:text-white',
                   )}
                 >
                   <MessageSquareText className="h-3.5 w-3.5" />

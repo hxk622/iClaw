@@ -380,16 +380,24 @@ function buildConversationBackedChatRoute(params: {
   initialStockContext?: ComposerStockContext | null;
 }): ActiveChatRoute {
   const route = buildActiveChatRoute(params);
+  if (route.conversationId && readChatConversation(route.conversationId)) {
+    return route;
+  }
+
+  const matchedConversation = findChatConversationBySessionKey(route.sessionKey);
+  if (matchedConversation) {
+    return {
+      ...route,
+      conversationId: matchedConversation.id,
+    };
+  }
+
   const conversation = ensureChatConversation({
-    conversationId: route.conversationId,
+    conversationId: null,
     sessionKey: route.sessionKey,
     kind: params.kind ?? 'general',
     title: params.title ?? null,
   });
-
-  if (route.conversationId === conversation.id) {
-    return route;
-  }
 
   return {
     ...route,

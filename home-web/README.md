@@ -58,9 +58,15 @@ ICLAW_BASTION_PASSWORD='***' bash scripts/deploy-home-tecent.sh prod
 
 - 品牌默认使用 `licaiclaw`
 - 堡垒机默认使用 `w-hanxingkai@relay1.idc.hexun.com`
-- 目标机器默认使用 `root@172.17.0.5` 和 `root@172.17.0.9`
+- 目标机器默认使用 `hxyw_admin@172.17.0.5` 和 `hxyw_admin@172.17.0.9`
 - nginx 目录默认读取 `config/packaging/prod/licaiclaw.json` 中的 `distribution.home.nginxPath`
 - 默认写入 `/etc/nginx/conf.d/caiclaw.hexun.com.conf`，并执行 `nginx -t` + reload
+- 默认通过 `artifact` 模式发布：
+  - 本地构建 `home-web`
+  - 创建临时 GitHub artifact 分支
+  - 堡垒机登录后在跳板机上用 `curl` 拉取构建包
+  - 再从跳板机分发到两台 ECS
+- 发布成功后默认删除临时 artifact 分支；如需保留，设置 `ICLAW_ARTIFACT_KEEP_BRANCH=1`
 
 常用覆盖项：
 
@@ -71,3 +77,17 @@ ICLAW_BASTION_PASSWORD='***' bash scripts/deploy-home-tecent.sh prod
 - `ICLAW_INSTALL_NGINX_CONF`
 - `ICLAW_BASTION_HOST`
 - `ICLAW_BASTION_USER`
+- `ICLAW_BASTION_TRANSFER_MODE`
+- `ICLAW_ARTIFACT_GITHUB_REPO`
+- `ICLAW_ARTIFACT_KEEP_BRANCH`
+
+备用模式：
+
+```bash
+ICLAW_BASTION_TRANSFER_MODE=scp ICLAW_BASTION_PASSWORD='***' bash scripts/deploy-home-tecent.sh prod
+```
+
+说明：
+
+- `artifact`：适用于齐治堡垒机不支持标准 `scp` 上传的情况，是当前推荐默认值
+- `scp`：适用于堡垒机本身支持标准 `scp`/`ssh remote command` 的情况
