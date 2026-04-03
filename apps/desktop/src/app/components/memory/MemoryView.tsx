@@ -3,6 +3,7 @@ import type { ChangeEvent } from 'react';
 
 import { PageContent, PageSurface } from '@/app/components/ui/PageLayout';
 import { searchMemoryEntries, sortMemoryEntriesForDisplay } from '@/app/lib/memory-recall';
+import { pushAppNotification } from '@/app/lib/task-notifications';
 import {
   archiveMemoryEntry,
   deleteMemoryEntry as deleteMemoryEntryRecord,
@@ -49,34 +50,93 @@ export function MemoryView({ title }: { title: string }) {
   const [loading, setLoading] = useState(true);
   const [mutating, setMutating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const softRefreshAbortRef = useRef(0);
 
-  const reloadSnapshot = async () => {
-    setLoading(true);
+  const applyLocalEntryUpsert = (entry: MemoryEntry) => {
+    setEntries((current) => {
+      const next = current.filter((item) => item.id !== entry.id);
+      return sortMemoryEntriesForDisplay([entry, ...next]);
+    });
+  };
+
+  const applyLocalEntryRemoval = (id: string) => {
+    setEntries((current) => current.filter((item) => item.id !== id));
+  };
+
+  const reloadSnapshot = async (options?: {
+    showLoading?: boolean;
+    preserveEntriesOnFailure?: boolean;
+    softRuntimeReconnect?: boolean;
+  }) => {
+    const showLoading = options?.showLoading ?? false;
+    const preserveEntriesOnFailure = options?.preserveEntriesOnFailure ?? false;
+    const softRuntimeReconnect = options?.softRuntimeReconnect ?? false;
+    const requestId = softRefreshAbortRef.current + 1;
+    softRefreshAbortRef.current = requestId;
+
+    if (showLoading) {
+      setLoading(true);
+    }
+
+    let lastRuntimeError: string | null = null;
     try {
-      const snapshot = await loadMemorySnapshot();
-      if (!snapshot) {
-        setEntries([]);
-        setRuntimeStatus(null);
-        setRuntimeError('当前不是桌面运行环境，无法读取真实记忆。');
-        setMemoryDir('');
+      const maxAttempts = softRuntimeReconnect ? 4 : 1;
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        const snapshot = await loadMemorySnapshot();
+        if (requestId !== softRefreshAbortRef.current) {
+          return;
+        }
+        if (!snapshot) {
+          if (!preserveEntriesOnFailure) {
+            setEntries([]);
+          }
+          setRuntimeStatus(null);
+          setRuntimeError('当前不是桌面运行环境，无法读取真实记忆。');
+          setMemoryDir('');
+          return;
+        }
+
+        setEntries(snapshot.entries as MemoryEntry[]);
+        setMemoryDir(snapshot.memoryDir);
+
+        if (!snapshot.runtimeError) {
+          setRuntimeStatus(snapshot.runtimeStatus ?? null);
+          setRuntimeError(null);
+          return;
+        }
+
+        lastRuntimeError = snapshot.runtimeError;
+        if (!softRuntimeReconnect || attempt === maxAttempts - 1) {
+          if (!softRuntimeReconnect || runtimeStatus === null) {
+            setRuntimeStatus(snapshot.runtimeStatus ?? null);
+            setRuntimeError(snapshot.runtimeError);
+          }
+          return;
+        }
+
+        await new Promise((resolve) => window.setTimeout(resolve, 600 * (attempt + 1)));
+      }
+    } catch (error) {
+      if (requestId !== softRefreshAbortRef.current) {
         return;
       }
-      setEntries(snapshot.entries as MemoryEntry[]);
-      setRuntimeStatus(snapshot.runtimeStatus ?? null);
-      setRuntimeError(snapshot.runtimeError ?? null);
-      setMemoryDir(snapshot.memoryDir);
-    } catch (error) {
-      setRuntimeError(error instanceof Error ? error.message : '读取真实记忆失败');
-      setEntries([]);
-      setRuntimeStatus(null);
-      setMemoryDir('');
+      if (!preserveEntriesOnFailure) {
+        setEntries([]);
+        setMemoryDir('');
+      }
+      if (!softRuntimeReconnect || runtimeStatus === null) {
+        setRuntimeStatus(null);
+        setRuntimeError(error instanceof Error ? error.message : lastRuntimeError || '读取真实记忆失败');
+      }
     } finally {
-      setLoading(false);
+      if (showLoading && requestId === softRefreshAbortRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    void reloadSnapshot();
+    void reloadSnapshot({ showLoading: true });
   }, []);
 
   const activeEntries = useMemo(() => entries.filter((entry) => entry.active), [entries]);
@@ -244,12 +304,16 @@ export function MemoryView({ title }: { title: string }) {
 
     setMutating(true);
     try {
-      await persistMemoryEntry(nextEntry);
-      setSelectedId(nextEntry.id);
+      const savedEntry = ((await persistMemoryEntry(nextEntry)) ?? nextEntry) as MemoryEntry;
+      applyLocalEntryUpsert(savedEntry);
+      setSelectedId(savedEntry.id);
       setEditingId(null);
       setDraft(null);
       setTagInput('');
-      await reloadSnapshot();
+      void reloadSnapshot({
+        preserveEntriesOnFailure: true,
+        softRuntimeReconnect: true,
+      });
     } catch (error) {
       setRuntimeError(error instanceof Error ? error.message : '保存记忆失败');
     } finally {
@@ -282,12 +346,16 @@ export function MemoryView({ title }: { title: string }) {
 
     setMutating(true);
     try {
-      await persistMemoryEntry(nextEntry);
-      await reloadSnapshot();
-      setSelectedId(nextEntry.id);
-      setEditingId(nextEntry.id);
-      setDraft(createEditDraft(nextEntry));
+      const savedEntry = ((await persistMemoryEntry(nextEntry)) ?? nextEntry) as MemoryEntry;
+      applyLocalEntryUpsert(savedEntry);
+      setSelectedId(savedEntry.id);
+      setEditingId(savedEntry.id);
+      setDraft(createEditDraft(savedEntry));
       setTagInput('');
+      void reloadSnapshot({
+        preserveEntriesOnFailure: true,
+        softRuntimeReconnect: true,
+      });
     } catch (error) {
       setRuntimeError(error instanceof Error ? error.message : '创建记忆失败');
     } finally {
@@ -299,24 +367,40 @@ export function MemoryView({ title }: { title: string }) {
     setMutating(true);
     try {
       await reindexMemory(true);
-      await reloadSnapshot();
+      await reloadSnapshot({ preserveEntriesOnFailure: true });
     } catch (error) {
       setRuntimeError(error instanceof Error ? error.message : '更新整理状态失败');
-      await reloadSnapshot();
+      await reloadSnapshot({ preserveEntriesOnFailure: true });
     } finally {
       setMutating(false);
     }
   };
 
   const handleExport = () => {
-    const payload = JSON.stringify(activeEntries, null, 2);
-    const blob = new Blob([payload], { type: 'application/json;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `iclaw-memory-${todayStamp().replace(/[\s:]/g, '-')}.json`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    try {
+      const payload = JSON.stringify(activeEntries, null, 2);
+      const blob = new Blob([payload], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const filename = `iclaw-memory-${todayStamp().replace(/[\s:]/g, '-')}.json`;
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      pushAppNotification({
+        tone: 'success',
+        title: '导出成功',
+        text: `已生成导出文件 ${filename}，共 ${activeEntries.length} 条记忆。`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '导出失败，请稍后再试。';
+      setRuntimeError(message);
+      pushAppNotification({
+        tone: 'error',
+        title: '导出失败',
+        text: message,
+      });
+    }
   };
 
   const handleImportClick = () => {
@@ -345,13 +429,17 @@ export function MemoryView({ title }: { title: string }) {
       );
 
       for (const entry of dedupedImports) {
-        await persistMemoryEntry(entry);
+        const savedEntry = ((await persistMemoryEntry(entry)) ?? entry) as MemoryEntry;
+        applyLocalEntryUpsert(savedEntry);
       }
 
-      await reloadSnapshot();
       setSelectedId(dedupedImports[0]?.id ?? null);
       setEditingId(null);
       setDraft(null);
+      void reloadSnapshot({
+        preserveEntriesOnFailure: true,
+        softRuntimeReconnect: true,
+      });
     } finally {
       setMutating(false);
       event.target.value = '';
@@ -383,10 +471,15 @@ export function MemoryView({ title }: { title: string }) {
 
     setMutating(true);
     try {
-      await persistMemoryEntry(mergedEntry);
+      const savedEntry = ((await persistMemoryEntry(mergedEntry)) ?? mergedEntry) as MemoryEntry;
       await deleteMemoryEntryRecord(candidate.id);
-      await reloadSnapshot();
-      setSelectedId(mergedEntry.id);
+      applyLocalEntryRemoval(candidate.id);
+      applyLocalEntryUpsert(savedEntry);
+      setSelectedId(savedEntry.id);
+      void reloadSnapshot({
+        preserveEntriesOnFailure: true,
+        softRuntimeReconnect: true,
+      });
     } catch (error) {
       setRuntimeError(error instanceof Error ? error.message : '合并记忆失败');
     } finally {
@@ -399,10 +492,14 @@ export function MemoryView({ title }: { title: string }) {
     setMutating(true);
     try {
       await archiveMemoryEntry(selectedEntry.id);
+      applyLocalEntryRemoval(selectedEntry.id);
       setSelectedId(null);
       setEditingId(null);
       setDraft(null);
-      await reloadSnapshot();
+      void reloadSnapshot({
+        preserveEntriesOnFailure: true,
+        softRuntimeReconnect: true,
+      });
     } catch (error) {
       setRuntimeError(error instanceof Error ? error.message : '归档记忆失败');
     } finally {
@@ -415,10 +512,14 @@ export function MemoryView({ title }: { title: string }) {
     setMutating(true);
     try {
       await deleteMemoryEntryRecord(selectedEntry.id);
+      applyLocalEntryRemoval(selectedEntry.id);
       setSelectedId(null);
       setEditingId(null);
       setDraft(null);
-      await reloadSnapshot();
+      void reloadSnapshot({
+        preserveEntriesOnFailure: true,
+        softRuntimeReconnect: true,
+      });
     } catch (error) {
       setRuntimeError(error instanceof Error ? error.message : '删除记忆失败');
     } finally {
@@ -430,13 +531,22 @@ export function MemoryView({ title }: { title: string }) {
     if (!selectedEntry) return;
     setMutating(true);
     try {
-      await persistMemoryEntry({
+      const savedEntry = (await persistMemoryEntry({
         ...selectedEntry,
         status: '已确认',
         updatedAt: todayStamp(),
         indexHealth: '待刷新',
+      })) as MemoryEntry | null;
+      applyLocalEntryUpsert((savedEntry ?? {
+        ...selectedEntry,
+        status: '已确认',
+        updatedAt: todayStamp(),
+        indexHealth: '待刷新',
+      }) as MemoryEntry);
+      void reloadSnapshot({
+        preserveEntriesOnFailure: true,
+        softRuntimeReconnect: true,
       });
-      await reloadSnapshot();
     } catch (error) {
       setRuntimeError(error instanceof Error ? error.message : '更新记忆状态失败');
     } finally {
