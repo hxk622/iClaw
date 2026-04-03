@@ -24,10 +24,12 @@ import { Button } from '@/app/components/ui/Button';
 import { Chip } from '@/app/components/ui/Chip';
 import { PressableCard } from '@/app/components/ui/PressableCard';
 import { CompactSegmentedControl } from '@/app/components/ui/CompactSegmentedControl';
+import { DrawerSection } from '@/app/components/ui/DrawerSection';
 import { EmptyStatePanel } from '@/app/components/ui/EmptyStatePanel';
 import { PageContent, PageHeader, PageSurface } from '@/app/components/ui/PageLayout';
 import { Select } from '@/app/components/ui/Select';
 import { SegmentedTabs } from '@/app/components/ui/SegmentedTabs';
+import { SideDetailSheet } from '@/app/components/ui/SideDetailSheet';
 import { SurfacePanel } from '@/app/components/ui/SurfacePanel';
 import { SummaryMetricItem } from '@/app/components/ui/SummaryMetricItem';
 import { FinancePresetGallery } from '@/app/components/cron-presets/FinancePresetGallery';
@@ -135,7 +137,10 @@ type CronJob = {
     nextRunAtMs?: number;
     runningAtMs?: number;
     lastRunAtMs?: number;
+    lastRunStatus?: CronRunStatus;
     lastStatus?: CronRunStatus;
+    lastDurationMs?: number;
+    lastErrorReason?: string;
     lastError?: string;
     consecutiveErrors?: number;
     lastDeliveryStatus?: CronDeliveryStatus;
@@ -144,6 +149,51 @@ type CronJob = {
 
 type CronListResult = {
   jobs?: CronJob[];
+};
+
+type CronRunEntry = {
+  ts?: number;
+  jobId?: string;
+  action?: string;
+  status?: CronRunStatus;
+  error?: string;
+  summary?: string;
+  runAtMs?: number;
+  durationMs?: number;
+  nextRunAtMs?: number;
+  model?: string;
+  provider?: string;
+  deliveryStatus?: string;
+  sessionId?: string;
+  sessionKey?: string;
+};
+
+type CronRunsResult = {
+  entries?: CronRunEntry[];
+  total?: number;
+  offset?: number;
+  limit?: number;
+  hasMore?: boolean;
+  nextOffset?: number | null;
+};
+
+type CronRunHistoryState = {
+  entries: CronRunEntry[];
+  total: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+  nextOffset: number | null;
+  loading: boolean;
+  error: string | null;
+  hydratedAt: number | null;
+};
+
+type CronToast = {
+  id: string;
+  tone: 'success' | 'error' | 'info';
+  title: string;
+  text: string;
 };
 
 type BasicTemplateId = 'reminder' | 'daily-summary' | 'weekly-report' | 'custom';
@@ -555,6 +605,92 @@ function getTemplateIcon(templateId: BasicTemplateId) {
   return Sparkles;
 }
 
+function formatTimestampDetailed(value?: number | null): string {
+  if (!value) {
+    return '暂无记录';
+  }
+  return new Intl.DateTimeFormat(readAppLocale(), {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(new Date(value));
+}
+
+function formatDuration(value?: number | null): string {
+  if (!value || value <= 0) {
+    return '耗时未知';
+  }
+  if (value < 1000) {
+    return `${value} ms`;
+  }
+  const seconds = value / 1000;
+  if (seconds < 60) {
+    return `${seconds.toFixed(seconds >= 10 ? 0 : 1)} 秒`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const remainSeconds = Math.round(seconds % 60);
+  if (minutes < 60) {
+    return remainSeconds > 0 ? `${minutes} 分 ${remainSeconds} 秒` : `${minutes} 分钟`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const remainMinutes = minutes % 60;
+  return remainMinutes > 0 ? `${hours} 小时 ${remainMinutes} 分` : `${hours} 小时`;
+}
+
+function normalizeRunHistory(result: CronRunsResult | null | undefined, limit: number): Omit<CronRunHistoryState, 'loading' | 'error' | 'hydratedAt'> {
+  const entries = Array.isArray(result?.entries) ? result.entries : [];
+  return {
+    entries,
+    total: typeof result?.total === 'number' ? result.total : entries.length,
+    offset: typeof result?.offset === 'number' ? result.offset : 0,
+    limit: typeof result?.limit === 'number' ? result.limit : limit,
+    hasMore: Boolean(result?.hasMore),
+    nextOffset: typeof result?.nextOffset === 'number' ? result.nextOffset : null,
+  };
+}
+
+function getLatestRunEntry(history: CronRunHistoryState | null | undefined): CronRunEntry | null {
+  return history?.entries?.[0] ?? null;
+}
+
+function getRunStatusMeta(status?: CronRunStatus): {
+  label: string;
+  tone: 'muted' | 'brand' | 'danger' | 'success';
+  summaryLabel: string;
+} {
+  if (status === 'ok') {
+    return { label: '执行成功', tone: 'success', summaryLabel: '成功' };
+  }
+  if (status === 'error') {
+    return { label: '执行失败', tone: 'danger', summaryLabel: '失败' };
+  }
+  if (status === 'skipped') {
+    return { label: '已跳过', tone: 'muted', summaryLabel: '跳过' };
+  }
+  return { label: '待执行', tone: 'muted', summaryLabel: '待执行' };
+}
+
+function resolveRunSummary(job: CronJob, run: CronRunEntry | null): string {
+  if (run?.summary?.trim()) {
+    return run.summary.trim();
+  }
+  if (run?.error?.trim()) {
+    return run.error.trim();
+  }
+  if (job.state?.lastError?.trim()) {
+    return job.state.lastError.trim();
+  }
+  if (run?.status === 'ok' || job.state?.lastStatus === 'ok') {
+    return '最近一次执行已完成，但当前运行时没有返回可展示的摘要。';
+  }
+  if (run?.status === 'skipped') {
+    return '这次任务被跳过了，可以打开详情查看具体原因。';
+  }
+  return '任务尚未产生执行结果。首次运行完成后，这里会展示摘要、状态和最近历史。';
+}
+
 export function OpenClawCronSurface({
   title,
   gatewayUrl,
@@ -593,8 +729,29 @@ export function OpenClawCronSurface({
   const [presetSaving, setPresetSaving] = useState(false);
   const [form, setForm] = useState<BasicCronFormState>(() => getDefaultForm());
   const [actionJobId, setActionJobId] = useState<string | null>(null);
-  const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+  const [runHistoryByJobId, setRunHistoryByJobId] = useState<Record<string, CronRunHistoryState>>({});
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<CronToast[]>([]);
   const [selectedPresetTask, setSelectedPresetTask] = useState<FinancePresetTaskTemplate | null>(null);
+  const toastTimerIdsRef = useRef<Record<string, number>>({});
+  const latestRunTsByJobRef = useRef<Record<string, number>>({});
+
+  const dismissToast = (id: string) => {
+    const timerId = toastTimerIdsRef.current[id];
+    if (typeof timerId === 'number') {
+      window.clearTimeout(timerId);
+      delete toastTimerIdsRef.current[id];
+    }
+    setToasts((current) => current.filter((toast) => toast.id !== id));
+  };
+
+  const pushToast = (tone: CronToast['tone'], title: string, text: string) => {
+    const id = `cron-toast-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setToasts((current) => [...current.slice(-2), { id, tone, title, text }]);
+    toastTimerIdsRef.current[id] = window.setTimeout(() => {
+      dismissToast(id);
+    }, 4200);
+  };
 
   const getClient = (): GatewayClient | null => {
     const client = appRef.current?.client;
@@ -629,6 +786,116 @@ export function OpenClawCronSurface({
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadRunHistory = async (
+    jobIds: string[],
+    options?: {
+      limit?: number;
+      notifyOnNewFinished?: boolean;
+    },
+  ) => {
+    const client = getClient();
+    const uniqueJobIds = Array.from(new Set(jobIds.filter(Boolean)));
+    if (!client || uniqueJobIds.length === 0) {
+      return;
+    }
+
+    const limit = options?.limit ?? 1;
+
+    setRunHistoryByJobId((current) => {
+      const next = { ...current };
+      uniqueJobIds.forEach((jobId) => {
+        const previous = next[jobId];
+        next[jobId] = {
+          entries: previous?.entries ?? [],
+          total: previous?.total ?? 0,
+          offset: previous?.offset ?? 0,
+          limit: Math.max(previous?.limit ?? 0, limit),
+          hasMore: previous?.hasMore ?? false,
+          nextOffset: previous?.nextOffset ?? null,
+          loading: true,
+          error: null,
+          hydratedAt: previous?.hydratedAt ?? null,
+        };
+      });
+      return next;
+    });
+
+    const responses = await Promise.all(
+      uniqueJobIds.map(async (jobId) => {
+        try {
+          const response = await client.request<CronRunsResult>('cron.runs', {
+            id: jobId,
+            limit,
+          });
+          return {
+            jobId,
+            history: normalizeRunHistory(response, limit),
+            error: null,
+          };
+        } catch (error) {
+          return {
+            jobId,
+            history: null,
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      }),
+    );
+
+    setRunHistoryByJobId((current) => {
+      const next = { ...current };
+      responses.forEach(({ jobId, history, error }) => {
+        const previous = current[jobId];
+        if (!history) {
+          next[jobId] = {
+            entries: previous?.entries ?? [],
+            total: previous?.total ?? 0,
+            offset: previous?.offset ?? 0,
+            limit: previous?.limit ?? limit,
+            hasMore: previous?.hasMore ?? false,
+            nextOffset: previous?.nextOffset ?? null,
+            loading: false,
+            error,
+            hydratedAt: previous?.hydratedAt ?? null,
+          };
+          return;
+        }
+        next[jobId] = {
+          ...history,
+          loading: false,
+          error: null,
+          hydratedAt: Date.now(),
+        };
+      });
+      return next;
+    });
+
+    responses.forEach(({ jobId, history }) => {
+      if (!history) {
+        return;
+      }
+      const latestEntry = history.entries[0] ?? null;
+      const latestRunTs = latestEntry?.ts ?? latestEntry?.runAtMs ?? 0;
+      const previousRunTs = latestRunTsByJobRef.current[jobId] ?? 0;
+      latestRunTsByJobRef.current[jobId] = latestRunTs;
+      if (
+        !options?.notifyOnNewFinished ||
+        previousRunTs <= 0 ||
+        latestRunTs <= previousRunTs ||
+        latestEntry?.action !== 'finished'
+      ) {
+        return;
+      }
+      if (latestEntry.status === 'ok') {
+        pushToast('success', '定时任务已完成', latestEntry.summary?.trim() || '任务已成功执行。');
+        return;
+      }
+      if (latestEntry.status === 'error') {
+        pushToast('error', '定时任务执行失败', latestEntry.error?.trim() || latestEntry.summary?.trim() || '任务执行失败，请查看详情。');
+      }
+    });
   };
 
   useEffect(() => {
@@ -741,12 +1008,13 @@ export function OpenClawCronSurface({
   }, [clientReady, status.connected]);
 
   useEffect(() => {
-    if (!notice) {
-      return;
-    }
-    const timer = window.setTimeout(() => setNotice(null), 2800);
-    return () => window.clearTimeout(timer);
-  }, [notice]);
+    return () => {
+      Object.values(toastTimerIdsRef.current).forEach((timerId) => {
+        window.clearTimeout(timerId);
+      });
+      toastTimerIdsRef.current = {};
+    };
+  }, []);
 
   useEffect(() => {
     if (status.connected) {
@@ -821,6 +1089,11 @@ export function OpenClawCronSurface({
     [visibleJobs],
   );
 
+  const selectedJob = useMemo(
+    () => jobs.find((job) => job.id === selectedJobId) ?? null,
+    [jobs, selectedJobId],
+  );
+
   const basicJobs = useMemo(() => jobs.filter(isBasicEditableJob), [jobs]);
   const installedPresetIds = useMemo(() => {
     const installed = new Set<string>();
@@ -835,6 +1108,7 @@ export function OpenClawCronSurface({
     () => FINANCE_CRON_PRESETS.filter((preset) => !installedPresetIds.has(preset.id)),
     [installedPresetIds],
   );
+  const visibleJobIds = useMemo(() => sortedVisibleJobs.map((job) => job.id), [sortedVisibleJobs]);
   const topTabItems = useMemo(
     () => [
       { id: 'mine' as const, label: '我的任务', badge: jobs.length },
@@ -860,6 +1134,11 @@ export function OpenClawCronSurface({
     setDrawerOpen(true);
   };
 
+  const openRunHistorySheet = (job: CronJob) => {
+    setSelectedJobId(job.id);
+    void loadRunHistory([job.id], { limit: 10 });
+  };
+
   const jumpToTasks = () => {
     jobsPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
@@ -867,10 +1146,7 @@ export function OpenClawCronSurface({
   const openEdit = (job: CronJob) => {
     const nextForm = buildFormFromJob(job);
     if (!nextForm) {
-      setNotice({
-        tone: 'error',
-        text: '这个任务使用了暂未开放的高级调度配置，当前版本暂不支持编辑。',
-      });
+      pushToast('error', '当前不支持编辑', '这个任务使用了暂未开放的高级调度配置，当前版本暂不支持编辑。');
       return;
     }
     setForm(nextForm);
@@ -891,23 +1167,23 @@ export function OpenClawCronSurface({
   const handleSave = async () => {
     const client = getClient();
     if (!client) {
-      setNotice({ tone: 'error', text: '连接尚未完成，请稍后再试。' });
+      pushToast('error', '连接尚未完成', '连接尚未完成，请稍后再试。');
       return;
     }
     if (!form.name.trim()) {
-      setNotice({ tone: 'error', text: '请填写任务名称。' });
+      pushToast('error', '任务名称缺失', '请填写任务名称。');
       return;
     }
     if (!form.prompt.trim()) {
-      setNotice({ tone: 'error', text: '请填写任务内容。' });
+      pushToast('error', '任务内容缺失', '请填写任务内容。');
       return;
     }
     if (form.frequency === 'once' && !form.onceAt) {
-      setNotice({ tone: 'error', text: '请选择执行时间。' });
+      pushToast('error', '执行时间缺失', '请选择执行时间。');
       return;
     }
     if (form.frequency !== 'once' && !form.runTime) {
-      setNotice({ tone: 'error', text: '请选择执行时刻。' });
+      pushToast('error', '执行时刻缺失', '请选择执行时刻。');
       return;
     }
 
@@ -936,19 +1212,16 @@ export function OpenClawCronSurface({
           id: form.id,
           patch: payload,
         });
-        setNotice({ tone: 'success', text: '任务已更新。' });
+        pushToast('success', '任务已更新', '当前任务配置已经保存。');
       } else {
         await client.request('cron.add', payload);
-        setNotice({ tone: 'success', text: '任务已创建。' });
+        pushToast('success', '任务已创建', '新任务已经加入调度列表。');
       }
       setDrawerOpen(false);
       setForm(getDefaultForm());
       await loadSnapshot();
     } catch (error) {
-      setNotice({
-        tone: 'error',
-        text: error instanceof Error ? error.message : '保存失败，请稍后再试。',
-      });
+      pushToast('error', '保存失败', error instanceof Error ? error.message : '保存失败，请稍后再试。');
     } finally {
       setSaving(false);
     }
@@ -965,7 +1238,7 @@ export function OpenClawCronSurface({
   }) => {
     const client = getClient();
     if (!client) {
-      setNotice({ tone: 'error', text: '连接尚未完成，请稍后再试。' });
+      pushToast('error', '连接尚未完成', '连接尚未完成，请稍后再试。');
       return;
     }
 
@@ -990,16 +1263,13 @@ export function OpenClawCronSurface({
       });
       setSelectedPresetTask(null);
       setActiveTab('mine');
-      setNotice({ tone: 'success', text: `已安装「${input.task.name}」，现在可以在“我的任务”里继续管理。` });
+      pushToast('success', '模板已安装', `已安装「${input.task.name}」，现在可以在“我的任务”里继续管理。`);
       await loadSnapshot();
       window.setTimeout(() => {
         jumpToTasks();
       }, 120);
     } catch (error) {
-      setNotice({
-        tone: 'error',
-        text: error instanceof Error ? error.message : '安装失败，请稍后再试。',
-      });
+      pushToast('error', '安装失败', error instanceof Error ? error.message : '安装失败，请稍后再试。');
     } finally {
       setPresetSaving(false);
     }
@@ -1018,16 +1288,10 @@ export function OpenClawCronSurface({
           enabled: !job.enabled,
         },
       });
-      setNotice({
-        tone: 'success',
-        text: job.enabled ? '任务已暂停。' : '任务已恢复。',
-      });
+      pushToast('success', job.enabled ? '任务已暂停' : '任务已恢复', job.enabled ? '这个任务已停止自动执行。' : '这个任务会重新按计划执行。');
       await loadSnapshot();
     } catch (error) {
-      setNotice({
-        tone: 'error',
-        text: error instanceof Error ? error.message : '操作失败，请稍后再试。',
-      });
+      pushToast('error', '操作失败', error instanceof Error ? error.message : '操作失败，请稍后再试。');
     } finally {
       setActionJobId(null);
     }
@@ -1044,16 +1308,10 @@ export function OpenClawCronSurface({
         id: job.id,
         mode: 'force',
       });
-      setNotice({
-        tone: 'success',
-        text: '已加入执行队列。',
-      });
+      pushToast('info', '已加入执行队列', '任务已经开始排队执行，结果会自动刷新到这张卡片里。');
       await loadSnapshot();
     } catch (error) {
-      setNotice({
-        tone: 'error',
-        text: error instanceof Error ? error.message : '执行失败，请稍后再试。',
-      });
+      pushToast('error', '执行失败', error instanceof Error ? error.message : '执行失败，请稍后再试。');
     } finally {
       setActionJobId(null);
     }
@@ -1069,16 +1327,13 @@ export function OpenClawCronSurface({
       await client.request('cron.remove', {
         id: job.id,
       });
-      setNotice({
-        tone: 'success',
-        text: '任务已删除。',
-      });
+      pushToast('success', '任务已删除', '这个定时任务已从当前运行时移除。');
+      if (selectedJobId === job.id) {
+        setSelectedJobId(null);
+      }
       await loadSnapshot();
     } catch (error) {
-      setNotice({
-        tone: 'error',
-        text: error instanceof Error ? error.message : '删除失败，请稍后再试。',
-      });
+      pushToast('error', '删除失败', error instanceof Error ? error.message : '删除失败，请稍后再试。');
     } finally {
       setActionJobId(null);
     }
@@ -1097,6 +1352,41 @@ export function OpenClawCronSurface({
 
   const fieldClassName =
     'w-full rounded-[10px] border border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-hover)_60%,white_40%)] px-4 py-2.5 text-[14px] text-[var(--text-primary)] outline-none transition focus:border-[#D4A574] focus:ring-2 focus:ring-[rgba(212,165,116,0.18)] dark:bg-[rgba(255,255,255,0.04)] dark:focus:border-[#C99A6E] dark:focus:ring-[rgba(201,154,110,0.22)]';
+
+  useEffect(() => {
+    if (!status.connected || !clientReady || activeTab !== 'mine' || visibleJobIds.length === 0) {
+      return;
+    }
+
+    const pollVisibleJobs = () => {
+      const targets = visibleJobIds.filter((jobId) => jobId !== selectedJobId);
+      if (targets.length === 0) {
+        return;
+      }
+      void loadRunHistory(targets, {
+        limit: 1,
+        notifyOnNewFinished: true,
+      });
+    };
+
+    pollVisibleJobs();
+    const timer = window.setInterval(pollVisibleJobs, 15_000);
+    return () => window.clearInterval(timer);
+  }, [activeTab, clientReady, selectedJobId, status.connected, visibleJobIds]);
+
+  useEffect(() => {
+    if (!status.connected || !clientReady || !selectedJobId) {
+      return;
+    }
+
+    const pollSelectedJob = () => {
+      void loadRunHistory([selectedJobId], { limit: 10 });
+    };
+
+    pollSelectedJob();
+    const timer = window.setInterval(pollSelectedJob, 15_000);
+    return () => window.clearInterval(timer);
+  }, [clientReady, selectedJobId, status.connected]);
 
   return (
     <PageSurface as="div">
@@ -1176,16 +1466,6 @@ export function OpenClawCronSurface({
         <div className="mt-5">
           <SegmentedTabs items={topTabItems} activeId={activeTab} onChange={setActiveTab} />
         </div>
-
-        {notice ? (
-          <div className="mt-4">
-            <EmptyStatePanel
-              compact
-              title={notice.tone === 'success' ? '任务操作已完成' : '任务操作失败'}
-              description={notice.text}
-            />
-          </div>
-        ) : null}
 
         {fetchError ? (
           <div className="mt-4">
@@ -1319,31 +1599,28 @@ export function OpenClawCronSurface({
                           const tone = getJobStatusTone(job);
                           const templateId = inferTemplateId(job);
                           const Icon = getTemplateIcon(templateId);
-                      const isAdvancedOnly = !isBasicEditableJob(job);
-                      const resultTone =
-                        job.state?.lastStatus === 'error'
-                          ? 'danger'
-                          : job.state?.lastStatus === 'ok'
-                            ? 'success'
-                            : 'muted';
-                      const resultText =
-                        job.state?.lastStatus === 'error'
-                          ? '失败'
-                          : job.state?.lastStatus === 'ok'
-                            ? '成功'
-                            : '待执行';
-                      const frequencyLabel =
-                        parseSimpleCronSchedule(job.schedule)?.frequency === 'daily'
-                          ? '每日'
-                          : parseSimpleCronSchedule(job.schedule)?.frequency === 'weekly'
-                            ? '每周'
-                            : parseSimpleCronSchedule(job.schedule)?.frequency === 'once'
-                              ? '单次'
-                              : '自定义';
+                          const isAdvancedOnly = !isBasicEditableJob(job);
+                          const frequencyLabel =
+                            parseSimpleCronSchedule(job.schedule)?.frequency === 'daily'
+                              ? '每日'
+                              : parseSimpleCronSchedule(job.schedule)?.frequency === 'weekly'
+                                ? '每周'
+                                : parseSimpleCronSchedule(job.schedule)?.frequency === 'once'
+                                  ? '单次'
+                                  : '自定义';
+                          const runHistory = runHistoryByJobId[job.id] ?? null;
+                          const latestRun = getLatestRunEntry(runHistory);
+                          const runStatus = getRunStatusMeta(latestRun?.status ?? job.state?.lastStatus);
+                          const runSummary = resolveRunSummary(job, latestRun);
+                          const runMetaText = latestRun
+                            ? `${formatTimestampDetailed(latestRun.runAtMs ?? latestRun.ts)}${latestRun.durationMs ? ` · ${formatDuration(latestRun.durationMs)}` : ''}`
+                            : job.state?.lastRunAtMs
+                              ? `${formatTimestampDetailed(job.state.lastRunAtMs)}${job.state?.lastErrorReason ? ` · ${job.state.lastErrorReason}` : ''}`
+                              : '首次运行后，这里会出现本次结果摘要。';
 
                           return (
                             <PressableCard key={job.id} className="group rounded-[24px] border-[var(--border-default)] px-4 py-4">
-                              <div className="flex items-center gap-4">
+                              <div className="flex items-start gap-4">
                                 <div
                                   className={cn(
                                     'flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[color-mix(in_srgb,var(--bg-hover)_80%,transparent)]',
@@ -1386,57 +1663,101 @@ export function OpenClawCronSurface({
                                       <Repeat className="h-3 w-3" />
                                       节奏: {buildHumanSchedule(job.schedule)}
                                     </span>
-                                    <span>
-                                      结果:{' '}
+                                    <span className="inline-flex items-center gap-1">
+                                      结果:
                                       <span
                                         className={cn(
-                                          resultTone === 'success' && 'text-[rgb(21,128,61)] dark:text-[#86efac]',
-                                          resultTone === 'danger' && 'text-[rgb(185,28,28)] dark:text-[#fecaca]',
-                                          resultTone === 'muted' && 'text-[var(--text-muted)]',
+                                          runStatus.tone === 'success' && 'text-[rgb(21,128,61)] dark:text-[#86efac]',
+                                          runStatus.tone === 'danger' && 'text-[rgb(185,28,28)] dark:text-[#fecaca]',
+                                          runStatus.tone === 'brand' && 'text-[var(--brand-primary)]',
+                                          runStatus.tone === 'muted' && 'text-[var(--text-muted)]',
                                         )}
                                       >
-                                        {resultText}
+                                        {runStatus.summaryLabel}
                                       </span>
                                     </span>
+                                    {latestRun?.model ? (
+                                      <span className="truncate">
+                                        模型: {latestRun.model}
+                                      </span>
+                                    ) : null}
+                                  </div>
+
+                                  <div className="mt-3 rounded-[18px] border border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-hover)_58%,transparent)] px-3.5 py-3 dark:border-[rgba(255,255,255,0.08)]">
+                                    <div className="flex items-center justify-between gap-3">
+                                      <div className="flex min-w-0 items-center gap-2">
+                                        <Chip tone={runStatus.tone} className="rounded-[6px] px-2 py-0.5 text-[10px] uppercase tracking-[0.08em]">
+                                          {runStatus.label}
+                                        </Chip>
+                                        <span className="truncate text-[11px] text-[var(--text-muted)]">{runMetaText}</span>
+                                      </div>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 rounded-[10px] px-2.5 py-0 text-[11px]"
+                                        onClick={() => openRunHistorySheet(job)}
+                                      >
+                                        查看结果
+                                      </Button>
+                                    </div>
+                                    <p className="mt-2 line-clamp-2 text-[12px] leading-5 text-[var(--text-secondary)]">{runSummary}</p>
+                                    {runHistory?.loading && !latestRun ? (
+                                      <div className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
+                                        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                                        正在同步最近一次运行结果
+                                      </div>
+                                    ) : null}
+                                    {runHistory?.error ? (
+                                      <div className="mt-2 text-[11px] text-[rgb(185,28,28)] dark:text-[#fecaca]">
+                                        最近结果读取失败：{runHistory.error}
+                                      </div>
+                                    ) : null}
                                   </div>
                                 </div>
 
-                                <div className="flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className={CRON_GHOST_ICON_BUTTON_CLASS}
-                                    onClick={() => void handleRun(job)}
-                                    disabled={actionJobId === job.id}
-                                  >
-                                    <Play className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className={CRON_GHOST_ICON_BUTTON_CLASS}
-                                    onClick={() => openEdit(job)}
-                                  >
-                                    <PencilLine className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className={CRON_GHOST_ICON_BUTTON_CLASS}
-                                    onClick={() => void handleToggle(job)}
-                                    disabled={actionJobId === job.id}
-                                  >
-                                    {job.enabled ? <Pause className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className={`${CRON_GHOST_ICON_BUTTON_CLASS} text-[rgb(185,28,28)] hover:text-[rgb(185,28,28)]`}
-                                    onClick={() => void handleRemove(job)}
-                                    disabled={actionJobId === job.id}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
+                                <div className="flex shrink-0 flex-col items-end gap-1.5">
+                                  <div className="flex items-center gap-1.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className={CRON_GHOST_ICON_BUTTON_CLASS}
+                                      onClick={() => void handleRun(job)}
+                                      disabled={actionJobId === job.id}
+                                    >
+                                      <Play className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className={CRON_GHOST_ICON_BUTTON_CLASS}
+                                      onClick={() => openEdit(job)}
+                                    >
+                                      <PencilLine className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className={CRON_GHOST_ICON_BUTTON_CLASS}
+                                      onClick={() => void handleToggle(job)}
+                                      disabled={actionJobId === job.id}
+                                    >
+                                      {job.enabled ? <Pause className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className={`${CRON_GHOST_ICON_BUTTON_CLASS} text-[rgb(185,28,28)] hover:text-[rgb(185,28,28)]`}
+                                      onClick={() => void handleRemove(job)}
+                                      disabled={actionJobId === job.id}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
+                                  {latestRun?.provider ? (
+                                    <span className="max-w-[130px] truncate text-[10px] text-[var(--text-muted)]">
+                                      {latestRun.provider}
+                                    </span>
+                                  ) : null}
                                 </div>
                               </div>
                             </PressableCard>
@@ -1606,6 +1927,18 @@ export function OpenClawCronSurface({
               onClose={() => setSelectedPresetTask(null)}
               onInstall={handleInstallPreset}
             />
+
+            <CronRunHistorySheet
+              job={selectedJob}
+              history={selectedJobId ? runHistoryByJobId[selectedJobId] ?? null : null}
+              onClose={() => setSelectedJobId(null)}
+              onRefresh={() => {
+                if (!selectedJobId) {
+                  return;
+                }
+                void loadRunHistory([selectedJobId], { limit: 10 });
+              }}
+            />
           </div>
         ) : null}
 
@@ -1663,7 +1996,213 @@ export function OpenClawCronSurface({
             </div>
           </div>
         </SurfacePanel>
+
+        {toasts.length > 0 ? (
+          <div className="pointer-events-none fixed right-6 top-6 z-[80] flex w-full max-w-[420px] flex-col gap-3">
+            {toasts.map((toast) => (
+              <div
+                key={toast.id}
+                className={cn(
+                  'pointer-events-auto rounded-[18px] border px-4 py-3 shadow-[0_18px_44px_rgba(15,23,42,0.16)] backdrop-blur-sm',
+                  toast.tone === 'success' &&
+                    'border-[rgba(34,197,94,0.18)] bg-[rgba(240,253,244,0.94)] dark:border-[rgba(34,197,94,0.22)] dark:bg-[rgba(20,83,45,0.88)]',
+                  toast.tone === 'error' &&
+                    'border-[rgba(239,68,68,0.18)] bg-[rgba(254,242,242,0.95)] dark:border-[rgba(248,113,113,0.24)] dark:bg-[rgba(127,29,29,0.88)]',
+                  toast.tone === 'info' &&
+                    'border-[rgba(59,130,246,0.18)] bg-[rgba(239,246,255,0.95)] dark:border-[rgba(96,165,250,0.24)] dark:bg-[rgba(30,58,138,0.86)]',
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13px] font-semibold text-[var(--text-primary)] dark:text-white">{toast.title}</div>
+                    <div className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)] dark:text-white/82">{toast.text}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => dismissToast(toast.id)}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-black/5 hover:text-[var(--text-primary)] dark:text-white/72 dark:hover:bg-white/10 dark:hover:text-white"
+                    aria-label="关闭提醒"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </PageContent>
     </PageSurface>
+  );
+}
+
+function CronRunHistorySheet({
+  job,
+  history,
+  onClose,
+  onRefresh,
+}: {
+  job: CronJob | null;
+  history: CronRunHistoryState | null;
+  onClose: () => void;
+  onRefresh: () => void;
+}) {
+  if (!job) {
+    return null;
+  }
+
+  const latestRun = getLatestRunEntry(history);
+  const latestStatus = getRunStatusMeta(latestRun?.status ?? job.state?.lastStatus);
+
+  return (
+    <SideDetailSheet
+      open
+      onClose={onClose}
+      eyebrow="任务结果与历史"
+      title={job.name}
+      header={
+        <div className="flex flex-wrap items-center gap-2">
+          <Chip tone={latestStatus.tone} className="rounded-[8px] px-2.5 py-1 text-[11px] uppercase tracking-[0.08em]">
+            {latestStatus.label}
+          </Chip>
+          <Chip tone={job.enabled ? 'success' : 'muted'} className="rounded-[8px] px-2.5 py-1 text-[11px] uppercase tracking-[0.08em]">
+            {job.enabled ? '已启用' : '已暂停'}
+          </Chip>
+          <span className="text-[12px] text-[var(--text-secondary)]">
+            下次执行：{formatTimestampDetailed(job.state?.nextRunAtMs ?? null)}
+          </span>
+        </div>
+      }
+      footer={
+        <div className="flex items-center gap-3">
+          <Button variant="secondary" size="md" block onClick={onRefresh} leadingIcon={history?.loading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}>
+            刷新结果
+          </Button>
+          <Button variant="primary" size="md" block onClick={onClose}>
+            关闭
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-5">
+        <DrawerSection
+          title="执行概览"
+          description="这里直接读取 OpenClaw 的 cron run history，避免再造第二套任务结果存储。"
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
+              <div className="text-[12px] text-[var(--text-muted)]">最近执行</div>
+              <div className="mt-1 text-[14px] font-medium text-[var(--text-primary)]">
+                {formatTimestampDetailed(latestRun?.runAtMs ?? latestRun?.ts ?? job.state?.lastRunAtMs ?? null)}
+              </div>
+            </div>
+            <div className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
+              <div className="text-[12px] text-[var(--text-muted)]">执行耗时</div>
+              <div className="mt-1 text-[14px] font-medium text-[var(--text-primary)]">
+                {formatDuration(latestRun?.durationMs ?? job.state?.lastDurationMs ?? null)}
+              </div>
+            </div>
+            <div className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
+              <div className="text-[12px] text-[var(--text-muted)]">模型</div>
+              <div className="mt-1 text-[14px] font-medium text-[var(--text-primary)]">
+                {latestRun?.model || '跟随当前任务配置'}
+              </div>
+            </div>
+            <div className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
+              <div className="text-[12px] text-[var(--text-muted)]">Provider</div>
+              <div className="mt-1 text-[14px] font-medium text-[var(--text-primary)]">
+                {latestRun?.provider || '未记录'}
+              </div>
+            </div>
+          </div>
+        </DrawerSection>
+
+        <DrawerSection
+          title="最近一次结果"
+          description="如果是日报、总结或提醒任务，结果内容优先看这里。"
+          headerAccessory={
+            latestRun?.deliveryStatus ? (
+              <span className="text-[12px] text-[var(--text-muted)]">投递状态：{latestRun.deliveryStatus}</span>
+            ) : null
+          }
+        >
+          {history?.loading && !latestRun ? (
+            <div className="inline-flex items-center gap-2 text-[13px] text-[var(--text-secondary)]">
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+              正在同步最近结果…
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div
+                className={cn(
+                  'rounded-[18px] border px-4 py-3 text-[13px] leading-6',
+                  latestStatus.tone === 'success' &&
+                    'border-[rgba(34,197,94,0.18)] bg-[rgba(240,253,244,0.9)] text-[rgb(21,128,61)] dark:border-[rgba(34,197,94,0.22)] dark:bg-[rgba(20,83,45,0.18)] dark:text-[#bbf7d0]',
+                  latestStatus.tone === 'danger' &&
+                    'border-[rgba(239,68,68,0.18)] bg-[rgba(254,242,242,0.92)] text-[rgb(185,28,28)] dark:border-[rgba(248,113,113,0.24)] dark:bg-[rgba(127,29,29,0.18)] dark:text-[#fecaca]',
+                  latestStatus.tone !== 'success' &&
+                    latestStatus.tone !== 'danger' &&
+                    'border-[var(--border-default)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]',
+                )}
+              >
+                {resolveRunSummary(job, latestRun)}
+              </div>
+              {latestRun?.sessionKey ? (
+                <div className="rounded-[14px] border border-dashed border-[var(--border-default)] px-3 py-2 text-[11px] leading-5 text-[var(--text-muted)]">
+                  sessionKey: {latestRun.sessionKey}
+                </div>
+              ) : null}
+            </div>
+          )}
+          {history?.error ? (
+            <div className="mt-3 text-[12px] text-[rgb(185,28,28)] dark:text-[#fecaca]">
+              结果历史读取失败：{history.error}
+            </div>
+          ) : null}
+        </DrawerSection>
+
+        <DrawerSection
+          title="最近执行历史"
+          description="按运行时返回的 finished entries 展示。这里能看到成功、失败和跳过记录。"
+          headerAccessory={
+            history ? (
+              <span className="text-[12px] text-[var(--text-muted)]">
+                已加载 {history.entries.length} / {history.total}
+              </span>
+            ) : null
+          }
+        >
+          {!history || history.entries.length === 0 ? (
+            <EmptyStatePanel compact title="还没有执行历史" description="这个任务还没真正跑过，首次执行完成后会在这里留下记录。" />
+          ) : (
+            <div className="space-y-3">
+              {history.entries.map((entry, index) => {
+                const status = getRunStatusMeta(entry.status);
+                return (
+                  <div key={`${entry.ts ?? entry.runAtMs ?? index}-${entry.status ?? 'unknown'}`} className="rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-card)] px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Chip tone={status.tone} className="rounded-[8px] px-2 py-0.5 text-[10px] uppercase tracking-[0.08em]">
+                        {status.label}
+                      </Chip>
+                      <span className="text-[12px] text-[var(--text-muted)]">
+                        {formatTimestampDetailed(entry.runAtMs ?? entry.ts)}
+                      </span>
+                      {entry.durationMs ? (
+                        <span className="text-[12px] text-[var(--text-muted)]">{formatDuration(entry.durationMs)}</span>
+                      ) : null}
+                      {entry.model ? (
+                        <span className="text-[12px] text-[var(--text-muted)]">模型 {entry.model}</span>
+                      ) : null}
+                    </div>
+                    <div className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
+                      {entry.summary?.trim() || entry.error?.trim() || '本次运行没有返回可展示摘要。'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </DrawerSection>
+      </div>
+    </SideDetailSheet>
   );
 }
