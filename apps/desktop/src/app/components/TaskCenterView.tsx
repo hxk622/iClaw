@@ -45,6 +45,7 @@ interface ConversationViewModel {
   lastUpdated: string;
   createdAt: string;
   source: string;
+  routeTarget: 'chat' | 'cron';
   statusMessage: string;
 }
 
@@ -113,14 +114,14 @@ export function TaskCenterView({
       }
     });
 
-    return conversations
-      .map((conversation) => {
-        const latestTurn = latestTurnByConversation.get(conversation.id) ?? null;
-        if (!latestTurn) {
-          return null;
-        }
-        return mapConversationToViewModel(conversation.id, latestTurn, chatMenuLabel);
-      })
+    return Array.from(latestTurnByConversation.values())
+      .map((latestTurn) =>
+        mapConversationToViewModel({
+          turn: latestTurn,
+          chatMenuLabel,
+          conversationExists: conversations.some((conversation) => conversation.id === latestTurn.conversationId),
+        }),
+      )
       .filter((conversation): conversation is ConversationViewModel => conversation !== null);
   }, [chatMenuLabel, conversations, turns]);
 
@@ -195,10 +196,10 @@ export function TaskCenterView({
                 <MessageSquare className="h-8 w-8" />
               </div>
               <h2 className="mb-3 text-[20px] font-semibold text-[var(--text-primary)]">
-                还没有对话记录
+                还没有任务记录
               </h2>
               <p className="mb-8 text-[15px] leading-7 text-[var(--text-secondary)]">
-                从{chatMenuLabel}发起一次真实对话，创建你的第一个历史对话
+                从{chatMenuLabel}发起一次真实对话，或者完成一次定时任务后，这里会出现对应记录
               </p>
               <div className="flex justify-center">
                 <Button
@@ -217,7 +218,7 @@ export function TaskCenterView({
             <section className="grid grid-cols-3 gap-3">
               <SummaryCard
                 icon={<ListChecks className="h-4 w-4" />}
-                label="对话总数"
+                label="任务总数"
                 value={totalConversations}
               />
               <SummaryCard
@@ -239,7 +240,7 @@ export function TaskCenterView({
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
                 <input
                   type="text"
-                  placeholder="搜索对话标题或内容..."
+                  placeholder="搜索任务标题或内容..."
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   className={cn(
@@ -277,14 +278,18 @@ export function TaskCenterView({
             ) : (
               <section className="mt-5 flex gap-6">
                 <div className="min-w-0 flex-1">
-                  <div className="space-y-3">
+                  <div className="space-y-6">
                     {filteredConversations.map((conversation) => (
                       <ConversationCard
                         key={conversation.id}
                         conversation={conversation}
                         isSelected={selectedConversation?.id === conversation.id}
                         onSelect={() => onSelectConversation?.(conversation.id)}
-                        onOpenChat={() => onOpenConversation?.(conversation.id)}
+                        onOpenTarget={
+                          conversation.routeTarget === 'chat'
+                            ? () => onOpenConversation?.(conversation.id)
+                            : undefined
+                        }
                       />
                     ))}
                   </div>
@@ -294,8 +299,10 @@ export function TaskCenterView({
                   <div className="sticky top-8">
                     <ConversationDetailPanel
                       conversation={selectedConversation}
-                      onOpenChat={
-                        selectedConversation ? () => onOpenConversation?.(selectedConversation.id) : undefined
+                      onOpenTarget={
+                        selectedConversation?.routeTarget === 'chat'
+                          ? () => onOpenConversation?.(selectedConversation.id)
+                          : undefined
                       }
                       chatMenuLabel={chatMenuLabel}
                     />
@@ -356,12 +363,12 @@ function ConversationCard({
   conversation,
   isSelected,
   onSelect,
-  onOpenChat,
+  onOpenTarget,
 }: {
   conversation: ConversationViewModel;
   isSelected: boolean;
   onSelect?: () => void;
-  onOpenChat?: () => void;
+  onOpenTarget?: () => void;
 }) {
   return (
     <PressableCard
@@ -418,28 +425,30 @@ function ConversationCard({
           </span>
         </div>
 
-        <div
-          className={cn(
-            'overflow-hidden transition-[max-height,opacity,margin] duration-[180ms]',
-            isSelected
-              ? 'mt-3 max-h-16 opacity-100'
-              : 'mt-0 max-h-0 opacity-0 group-hover:mt-3 group-hover:max-h-16 group-hover:opacity-100 group-focus-within:mt-3 group-focus-within:max-h-16 group-focus-within:opacity-100',
-          )}
-        >
-          <div className="border-t border-[var(--border-default)] pt-3">
-            <Button
-              variant="secondary"
-              size="sm"
-              leadingIcon={<MessageSquare className="h-3.5 w-3.5" />}
-              onClick={(event) => {
-                event.stopPropagation();
-                onOpenChat?.();
-              }}
-            >
-              继续对话
-            </Button>
+        {conversation.routeTarget === 'chat' ? (
+          <div
+            className={cn(
+              'overflow-hidden transition-[max-height,opacity,margin] duration-[180ms]',
+              isSelected
+                ? 'mt-3 max-h-16 opacity-100'
+                : 'mt-0 max-h-0 opacity-0 group-hover:mt-3 group-hover:max-h-16 group-hover:opacity-100 group-focus-within:mt-3 group-focus-within:max-h-16 group-focus-within:opacity-100',
+            )}
+          >
+            <div className="border-t border-[var(--border-default)] pt-3">
+              <Button
+                variant="secondary"
+                size="sm"
+                leadingIcon={<MessageSquare className="h-3.5 w-3.5" />}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenTarget?.();
+                }}
+              >
+                继续对话
+              </Button>
+            </div>
           </div>
-        </div>
+        ) : null}
       </div>
     </PressableCard>
   );
@@ -447,11 +456,11 @@ function ConversationCard({
 
 function ConversationDetailPanel({
   conversation,
-  onOpenChat,
+  onOpenTarget,
   chatMenuLabel,
 }: {
   conversation: ConversationViewModel | null;
-  onOpenChat?: () => void;
+  onOpenTarget?: () => void;
   chatMenuLabel: string;
 }) {
   if (!conversation) {
@@ -530,15 +539,21 @@ function ConversationDetailPanel({
         </div>
       </div>
 
-      <Button
-        variant="primary"
-        size="md"
-        block
-        leadingIcon={<MessageSquare className="h-4 w-4" />}
-        onClick={onOpenChat}
-      >
-        返回{chatMenuLabel}
-      </Button>
+      {conversation.routeTarget === 'chat' ? (
+        <Button
+          variant="primary"
+          size="md"
+          block
+          leadingIcon={<MessageSquare className="h-4 w-4" />}
+          onClick={onOpenTarget}
+        >
+          返回{chatMenuLabel}
+        </Button>
+      ) : (
+        <div className="rounded-[12px] border border-[var(--border-default)] bg-[var(--bg-hover)] px-4 py-3 text-[13px] leading-6 text-[var(--text-secondary)]">
+          这是定时任务的最新结果摘要。进一步管理这个任务，请在左侧进入“定时任务”页。
+        </div>
+      )}
     </div>
   );
 }
@@ -574,15 +589,19 @@ function StatusBadge({ status }: { status: ChatTurnRecord['status'] }) {
   );
 }
 
-function mapConversationToViewModel(
-  conversationId: string,
-  latestTurn: ChatTurnRecord,
-  chatMenuLabel: string,
-): ConversationViewModel {
+function mapConversationToViewModel(params: {
+  turn: ChatTurnRecord;
+  chatMenuLabel: string;
+  conversationExists: boolean;
+}): ConversationViewModel | null {
+  const latestTurn = params.turn;
+  if (latestTurn.source === 'chat' && !params.conversationExists) {
+    return null;
+  }
   const resultTypes = latestTurn.artifacts.map((artifact) => CHAT_TURN_ARTIFACT_LABELS[artifact]);
 
   return {
-    id: conversationId,
+    id: latestTurn.conversationId,
     title: latestTurn.title,
     summary: latestTurn.summary,
     status: latestTurn.status,
@@ -590,12 +609,27 @@ function mapConversationToViewModel(
     resultTypes,
     lastUpdated: formatChatTurnRelativeTime(latestTurn.updatedAt),
     createdAt: formatCompactDate(latestTurn.createdAt),
-    source: chatMenuLabel,
+    source: latestTurn.source === 'cron' ? latestTurn.sourceLabel || '定时任务' : params.chatMenuLabel,
+    routeTarget: latestTurn.routeTarget === 'cron' ? 'cron' : 'chat',
     statusMessage: buildStatusMessage(latestTurn, resultTypes),
   };
 }
 
 function buildStatusMessage(turn: ChatTurnRecord, resultTypes: string[]): string {
+  if (turn.source === 'cron') {
+    if (turn.status === 'failed') {
+      return turn.lastError || '最近一次定时执行失败，请打开任务查看详情。';
+    }
+    if (turn.status === 'running') {
+      return '这个定时任务正在执行中，完成后会自动更新到任务中心。';
+    }
+    const modelLine =
+      turn.provider || turn.model
+        ? `本次运行使用 ${[turn.provider, turn.model].filter(Boolean).join(' / ')}。`
+        : '';
+    return `${turn.summary}${modelLine ? ` ${modelLine}` : ''}`.trim();
+  }
+
   if (turn.status === 'failed') {
     return turn.lastError || '本轮对话执行失败，可回到对话重试';
   }

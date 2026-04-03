@@ -35,9 +35,11 @@ import { SummaryMetricItem } from '@/app/components/ui/SummaryMetricItem';
 import { FinancePresetGallery } from '@/app/components/cron-presets/FinancePresetGallery';
 import { FinancePresetInstallSheet } from '@/app/components/cron-presets/FinancePresetInstallSheet';
 import { FINANCE_CRON_PRESETS, type FinancePresetTaskTemplate } from '@/app/lib/finance-cron-presets';
+import { deleteCronTaskTurn, inferChatTurnArtifactsFromText, upsertCronTaskTurn } from '@/app/lib/chat-turns';
 import { cn } from '@/app/lib/cn';
 import { readAppLocale } from '@/app/lib/general-preferences';
 import { clearCacheKeysByPrefix, clearSessionKeysByPrefix, removeCacheKeys } from '@/app/lib/persistence/cache-store';
+import { pushAppNotification } from '@/app/lib/task-notifications';
 import './openclaw-chat-surface.css';
 
 type OpenClawTheme = 'system' | 'light' | 'dark';
@@ -187,13 +189,6 @@ type CronRunHistoryState = {
   loading: boolean;
   error: string | null;
   hydratedAt: number | null;
-};
-
-type CronToast = {
-  id: string;
-  tone: 'success' | 'error' | 'info';
-  title: string;
-  text: string;
 };
 
 type BasicTemplateId = 'reminder' | 'daily-summary' | 'weekly-report' | 'custom';
@@ -731,26 +726,17 @@ export function OpenClawCronSurface({
   const [actionJobId, setActionJobId] = useState<string | null>(null);
   const [runHistoryByJobId, setRunHistoryByJobId] = useState<Record<string, CronRunHistoryState>>({});
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-  const [toasts, setToasts] = useState<CronToast[]>([]);
+  const [deleteConfirmJob, setDeleteConfirmJob] = useState<CronJob | null>(null);
   const [selectedPresetTask, setSelectedPresetTask] = useState<FinancePresetTaskTemplate | null>(null);
-  const toastTimerIdsRef = useRef<Record<string, number>>({});
   const latestRunTsByJobRef = useRef<Record<string, number>>({});
 
-  const dismissToast = (id: string) => {
-    const timerId = toastTimerIdsRef.current[id];
-    if (typeof timerId === 'number') {
-      window.clearTimeout(timerId);
-      delete toastTimerIdsRef.current[id];
-    }
-    setToasts((current) => current.filter((toast) => toast.id !== id));
-  };
-
-  const pushToast = (tone: CronToast['tone'], title: string, text: string) => {
-    const id = `cron-toast-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    setToasts((current) => [...current.slice(-2), { id, tone, title, text }]);
-    toastTimerIdsRef.current[id] = window.setTimeout(() => {
-      dismissToast(id);
-    }, 4200);
+  const pushToast = (tone: 'success' | 'error' | 'info', title: string, text: string) => {
+    pushAppNotification({
+      tone,
+      source: 'cron',
+      title,
+      text,
+    });
   };
 
   const getClient = (): GatewayClient | null => {
@@ -873,11 +859,44 @@ export function OpenClawCronSurface({
     });
 
     responses.forEach(({ jobId, history }) => {
+      const job = jobs.find((item) => item.id === jobId) ?? null;
       if (!history) {
         return;
       }
       const latestEntry = history.entries[0] ?? null;
       const latestRunTs = latestEntry?.ts ?? latestEntry?.runAtMs ?? 0;
+      if (job && (latestEntry || job.state?.lastRunAtMs)) {
+        const resolvedStatus =
+          latestEntry?.status === 'ok'
+            ? 'completed'
+            : latestEntry?.status === 'error'
+              ? 'failed'
+              : latestEntry?.status === 'skipped'
+                ? 'completed'
+                : job.state?.runningAtMs
+                  ? 'running'
+                  : job.state?.lastStatus === 'error'
+                    ? 'failed'
+                    : job.state?.lastStatus === 'ok'
+                      ? 'completed'
+                      : 'running';
+        const resolvedSummary = resolveRunSummary(job, latestEntry);
+        upsertCronTaskTurn({
+          jobId: job.id,
+          name: job.name,
+          prompt: job.payload.kind === 'agentTurn' ? job.payload.message : job.payload.text,
+          summary: resolvedSummary,
+          status: resolvedStatus,
+          sessionKey: latestEntry?.sessionKey ?? null,
+          error: latestEntry?.error ?? job.state?.lastError ?? null,
+          artifacts: inferChatTurnArtifactsFromText(`${job.name}\n${resolvedSummary}`),
+          model: latestEntry?.model ?? null,
+          provider: latestEntry?.provider ?? null,
+          deliveryStatus: latestEntry?.deliveryStatus ?? null,
+          nextRunAt: latestEntry?.nextRunAtMs ?? job.state?.nextRunAtMs ?? null,
+          runAt: latestEntry?.runAtMs ?? latestEntry?.ts ?? job.state?.lastRunAtMs ?? Date.now(),
+        });
+      }
       const previousRunTs = latestRunTsByJobRef.current[jobId] ?? 0;
       latestRunTsByJobRef.current[jobId] = latestRunTs;
       if (
@@ -1006,15 +1025,6 @@ export function OpenClawCronSurface({
     }
     void loadSnapshot();
   }, [clientReady, status.connected]);
-
-  useEffect(() => {
-    return () => {
-      Object.values(toastTimerIdsRef.current).forEach((timerId) => {
-        window.clearTimeout(timerId);
-      });
-      toastTimerIdsRef.current = {};
-    };
-  }, []);
 
   useEffect(() => {
     if (status.connected) {
@@ -1318,8 +1328,12 @@ export function OpenClawCronSurface({
   };
 
   const handleRemove = async (job: CronJob) => {
+    setDeleteConfirmJob(job);
+  };
+
+  const handleConfirmRemove = async (job: CronJob) => {
     const client = getClient();
-    if (!client || !window.confirm(`确认删除任务「${job.name}」吗？`)) {
+    if (!client) {
       return;
     }
     setActionJobId(job.id);
@@ -1327,10 +1341,12 @@ export function OpenClawCronSurface({
       await client.request('cron.remove', {
         id: job.id,
       });
+      deleteCronTaskTurn(job.id);
       pushToast('success', '任务已删除', '这个定时任务已从当前运行时移除。');
       if (selectedJobId === job.id) {
         setSelectedJobId(null);
       }
+      setDeleteConfirmJob(null);
       await loadSnapshot();
     } catch (error) {
       pushToast('error', '删除失败', error instanceof Error ? error.message : '删除失败，请稍后再试。');
@@ -1939,6 +1955,18 @@ export function OpenClawCronSurface({
                 void loadRunHistory([selectedJobId], { limit: 10 });
               }}
             />
+
+            <CronDeleteConfirmDialog
+              job={deleteConfirmJob}
+              busy={actionJobId === deleteConfirmJob?.id}
+              onCancel={() => setDeleteConfirmJob(null)}
+              onConfirm={() => {
+                if (!deleteConfirmJob) {
+                  return;
+                }
+                void handleConfirmRemove(deleteConfirmJob);
+              }}
+            />
           </div>
         ) : null}
 
@@ -1997,39 +2025,6 @@ export function OpenClawCronSurface({
           </div>
         </SurfacePanel>
 
-        {toasts.length > 0 ? (
-          <div className="pointer-events-none fixed right-6 top-6 z-[80] flex w-full max-w-[420px] flex-col gap-3">
-            {toasts.map((toast) => (
-              <div
-                key={toast.id}
-                className={cn(
-                  'pointer-events-auto rounded-[18px] border px-4 py-3 shadow-[0_18px_44px_rgba(15,23,42,0.16)] backdrop-blur-sm',
-                  toast.tone === 'success' &&
-                    'border-[rgba(34,197,94,0.18)] bg-[rgba(240,253,244,0.94)] dark:border-[rgba(34,197,94,0.22)] dark:bg-[rgba(20,83,45,0.88)]',
-                  toast.tone === 'error' &&
-                    'border-[rgba(239,68,68,0.18)] bg-[rgba(254,242,242,0.95)] dark:border-[rgba(248,113,113,0.24)] dark:bg-[rgba(127,29,29,0.88)]',
-                  toast.tone === 'info' &&
-                    'border-[rgba(59,130,246,0.18)] bg-[rgba(239,246,255,0.95)] dark:border-[rgba(96,165,250,0.24)] dark:bg-[rgba(30,58,138,0.86)]',
-                )}
-              >
-                <div className="flex items-start gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[13px] font-semibold text-[var(--text-primary)] dark:text-white">{toast.title}</div>
-                    <div className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)] dark:text-white/82">{toast.text}</div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => dismissToast(toast.id)}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-black/5 hover:text-[var(--text-primary)] dark:text-white/72 dark:hover:bg-white/10 dark:hover:text-white"
-                    aria-label="关闭提醒"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : null}
       </PageContent>
     </PageSurface>
   );
@@ -2204,5 +2199,63 @@ function CronRunHistorySheet({
         </DrawerSection>
       </div>
     </SideDetailSheet>
+  );
+}
+
+function CronDeleteConfirmDialog({
+  job,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  job: CronJob | null;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  if (!job) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[rgba(15,23,42,0.24)] px-4 backdrop-blur-sm" onClick={onCancel}>
+      <div
+        className="w-full max-w-[460px] rounded-[28px] border border-[var(--border-default)] bg-[var(--bg-card)] p-6 shadow-[0_28px_80px_rgba(15,23,42,0.18)] dark:border-[rgba(255,255,255,0.08)] dark:shadow-[0_30px_90px_rgba(0,0,0,0.42)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="inline-flex rounded-full bg-[rgba(239,68,68,0.12)] px-3 py-1 text-[11px] font-medium text-[rgb(185,28,28)] dark:bg-[rgba(127,29,29,0.22)] dark:text-[#fecaca]">
+          删除确认
+        </div>
+        <h2 className="mt-4 text-[22px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
+          删除这个定时任务？
+        </h2>
+        <p className="mt-3 text-[14px] leading-7 text-[var(--text-secondary)]">
+          删除后，任务 <span className="font-medium text-[var(--text-primary)]">“{job.name}”</span> 会从当前运行时和任务中心里一起移除，后续不会再按计划执行。
+        </p>
+
+        <div className="mt-5 rounded-[18px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
+          <div className="text-[12px] text-[var(--text-muted)]">执行节奏</div>
+          <div className="mt-1 text-[14px] font-medium text-[var(--text-primary)]">
+            {buildHumanSchedule(job.schedule)}
+          </div>
+        </div>
+
+        <div className="mt-6 flex items-center justify-end gap-3">
+          <Button variant="secondary" size="md" onClick={onCancel} disabled={busy}>
+            取消
+          </Button>
+          <Button
+            variant="primary"
+            size="md"
+            onClick={onConfirm}
+            disabled={busy}
+            className="border-[rgba(185,28,28,0.18)] bg-[rgb(185,28,28)] text-white hover:bg-[rgb(153,27,27)] dark:border-[rgba(248,113,113,0.22)] dark:bg-[rgb(220,38,38)] dark:hover:bg-[rgb(185,28,28)]"
+            leadingIcon={busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+          >
+            确认删除
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -6,10 +6,12 @@ import { buildChatScopedStorageKey } from '@/app/lib/chat-persistence-scope';
 
 export type ChatTurnStatus = 'running' | 'completed' | 'failed';
 export type ChatTurnArtifact = 'report' | 'ppt' | 'webpage' | 'pdf' | 'sheet';
+export type TaskTurnSource = 'chat' | 'cron';
+export type TaskRouteTarget = 'chat' | 'cron';
 
 export interface ChatTurnRecord {
   id: string;
-  source: 'chat';
+  source: TaskTurnSource;
   conversationId: string;
   sessionKey: string;
   title: string;
@@ -21,6 +23,13 @@ export interface ChatTurnRecord {
   pinnedAt?: string | null;
   artifacts: ChatTurnArtifact[];
   lastError: string | null;
+  sourceLabel?: string | null;
+  routeTarget?: TaskRouteTarget;
+  sourceEntityId?: string | null;
+  model?: string | null;
+  provider?: string | null;
+  deliveryStatus?: string | null;
+  nextRunAt?: number | null;
 }
 
 interface StartChatTurnInput {
@@ -33,6 +42,22 @@ interface FinishChatTurnInput {
   id: string;
   artifacts?: ChatTurnArtifact[];
   error?: string | null;
+}
+
+interface UpsertCronTaskTurnInput {
+  jobId: string;
+  name: string;
+  prompt: string;
+  summary: string;
+  status: ChatTurnStatus;
+  sessionKey?: string | null;
+  error?: string | null;
+  artifacts?: ChatTurnArtifact[];
+  model?: string | null;
+  provider?: string | null;
+  deliveryStatus?: string | null;
+  nextRunAt?: number | null;
+  runAt?: number | null;
 }
 
 const CHAT_TURNS_STORAGE_KEY = 'iclaw.chat.turns.v1';
@@ -83,6 +108,34 @@ function normalizeChatTurn(turn: ChatTurnRecord): ChatTurnRecord {
   const prompt = normalizedPrompt || '基于上传内容发起的任务';
   const title = collapseText(turn.title) || buildChatTurnTitle(prompt);
   const summary = collapseText(turn.summary) || buildChatTurnSummary(prompt);
+  const normalizedSource: TaskTurnSource = turn.source === 'cron' ? 'cron' : 'chat';
+
+  if (normalizedSource === 'cron') {
+    const sessionKey = collapseText(turn.sessionKey) || `agent:main:cron:${collapseText(turn.sourceEntityId) || turn.id}`;
+    const conversationId = collapseText(turn.conversationId) || collapseText(turn.sourceEntityId) || turn.id;
+    return {
+      ...turn,
+      source: 'cron',
+      conversationId,
+      sessionKey,
+      prompt,
+      title,
+      summary,
+      createdAt: turn.createdAt || new Date().toISOString(),
+      updatedAt: turn.updatedAt || turn.createdAt || new Date().toISOString(),
+      pinnedAt: typeof turn.pinnedAt === 'string' && turn.pinnedAt ? turn.pinnedAt : null,
+      artifacts: dedupeArtifacts(turn.artifacts ?? []),
+      lastError: turn.lastError ?? null,
+      sourceLabel: collapseText(turn.sourceLabel) || '定时任务',
+      routeTarget: turn.routeTarget === 'cron' ? 'cron' : 'cron',
+      sourceEntityId: collapseText(turn.sourceEntityId) || conversationId,
+      model: collapseText(turn.model),
+      provider: collapseText(turn.provider),
+      deliveryStatus: collapseText(turn.deliveryStatus),
+      nextRunAt: typeof turn.nextRunAt === 'number' && Number.isFinite(turn.nextRunAt) ? turn.nextRunAt : null,
+    };
+  }
+
   const resolvedSessionKey = tryCanonicalizeChatSessionKey(turn.sessionKey);
   if (!resolvedSessionKey) {
     throw new Error('invalid session key');
@@ -103,6 +156,13 @@ function normalizeChatTurn(turn: ChatTurnRecord): ChatTurnRecord {
     pinnedAt: typeof turn.pinnedAt === 'string' && turn.pinnedAt ? turn.pinnedAt : null,
     artifacts: dedupeArtifacts(turn.artifacts ?? []),
     lastError: turn.lastError ?? null,
+    sourceLabel: collapseText(turn.sourceLabel) || null,
+    routeTarget: turn.routeTarget === 'cron' ? 'cron' : 'chat',
+    sourceEntityId: collapseText(turn.sourceEntityId),
+    model: collapseText(turn.model),
+    provider: collapseText(turn.provider),
+    deliveryStatus: collapseText(turn.deliveryStatus),
+    nextRunAt: typeof turn.nextRunAt === 'number' && Number.isFinite(turn.nextRunAt) ? turn.nextRunAt : null,
   };
 }
 
@@ -212,6 +272,13 @@ export function startChatTurn(input: StartChatTurnInput): ChatTurnRecord {
     pinnedAt: null,
     artifacts: [],
     lastError: null,
+    sourceLabel: null,
+    routeTarget: 'chat',
+    sourceEntityId: null,
+    model: null,
+    provider: null,
+    deliveryStatus: null,
+    nextRunAt: null,
   };
 
   updateTurnList((turns) => [nextTurn, ...turns]);
@@ -291,7 +358,60 @@ export function deleteChatTurnsByConversationId(conversationId: string): void {
     return;
   }
 
-  updateTurnList((turns) => turns.filter((turn) => turn.conversationId !== normalizedConversationId));
+  updateTurnList((turns) => turns.filter((turn) => turn.source !== 'chat' || turn.conversationId !== normalizedConversationId));
+}
+
+export function upsertCronTaskTurn(input: UpsertCronTaskTurnInput): ChatTurnRecord | null {
+  const jobId = collapseText(input.jobId);
+  const name = collapseText(input.name);
+  if (!jobId || !name) {
+    return null;
+  }
+
+  const nowIso = new Date(input.runAt ?? Date.now()).toISOString();
+  const prompt = collapseText(stripPromptMarkers(input.prompt)) || name;
+  const summary = trimText(collapseText(input.summary) || name, 120);
+  const nextRecordId = `cron:${jobId}`;
+
+  let nextRecord: ChatTurnRecord | null = null;
+
+  updateTurnList((turns) => {
+    const existing = turns.find((turn) => turn.id === nextRecordId) ?? null;
+    nextRecord = {
+      id: nextRecordId,
+      source: 'cron',
+      conversationId: nextRecordId,
+      sessionKey: collapseText(input.sessionKey) || existing?.sessionKey || `agent:main:cron:${jobId}`,
+      title: trimText(name, 48),
+      summary,
+      prompt,
+      status: input.status,
+      createdAt: existing?.createdAt || nowIso,
+      updatedAt: nowIso,
+      pinnedAt: existing?.pinnedAt ?? null,
+      artifacts: dedupeArtifacts([...(existing?.artifacts ?? []), ...(input.artifacts ?? [])]),
+      lastError: collapseText(input.error) || (input.status === 'failed' ? '任务执行失败' : null),
+      sourceLabel: '定时任务',
+      routeTarget: 'cron',
+      sourceEntityId: jobId,
+      model: collapseText(input.model),
+      provider: collapseText(input.provider),
+      deliveryStatus: collapseText(input.deliveryStatus),
+      nextRunAt: typeof input.nextRunAt === 'number' && Number.isFinite(input.nextRunAt) ? input.nextRunAt : null,
+    };
+    return [nextRecord as ChatTurnRecord, ...turns.filter((turn) => turn.id !== nextRecordId)];
+  });
+
+  return nextRecord;
+}
+
+export function deleteCronTaskTurn(jobId: string): void {
+  const normalizedJobId = collapseText(jobId);
+  if (!normalizedJobId) {
+    return;
+  }
+  const recordId = `cron:${normalizedJobId}`;
+  updateTurnList((turns) => turns.filter((turn) => turn.id !== recordId));
 }
 
 export function subscribeChatTurns(listener: () => void): () => void {

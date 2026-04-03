@@ -1,0 +1,156 @@
+import { useEffect, useState } from 'react';
+import { readCacheJson, writeCacheJson } from '@/app/lib/persistence/cache-store';
+import { buildChatScopedStorageKey } from '@/app/lib/chat-persistence-scope';
+
+export type AppNotificationTone = 'success' | 'error' | 'info';
+export type AppNotificationSource = 'cron' | 'chat' | 'system';
+
+export interface AppNotificationRecord {
+  id: string;
+  tone: AppNotificationTone;
+  source: AppNotificationSource;
+  title: string;
+  text: string;
+  createdAt: string;
+}
+
+const TASK_NOTIFICATIONS_STORAGE_KEY = 'iclaw.task.notifications.v1';
+const TASK_NOTIFICATIONS_UPDATED_EVENT = 'iclaw:task-notifications:updated';
+const MAX_PERSISTED_NOTIFICATIONS = 40;
+
+function resolveTaskNotificationsStorageKey(): string {
+  return buildChatScopedStorageKey(TASK_NOTIFICATIONS_STORAGE_KEY);
+}
+
+function emitTaskNotificationsUpdated(): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  window.dispatchEvent(new CustomEvent(TASK_NOTIFICATIONS_UPDATED_EVENT));
+}
+
+function normalizeText(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function normalizeNotification(record: AppNotificationRecord): AppNotificationRecord | null {
+  const id = normalizeText(record.id);
+  const title = normalizeText(record.title);
+  const text = normalizeText(record.text);
+  const createdAt = normalizeText(record.createdAt);
+  if (!id || !title || !text || !createdAt) {
+    return null;
+  }
+  return {
+    id,
+    tone: record.tone === 'success' || record.tone === 'error' ? record.tone : 'info',
+    source: record.source === 'cron' || record.source === 'chat' ? record.source : 'system',
+    title,
+    text,
+    createdAt,
+  };
+}
+
+function sortNotifications(records: AppNotificationRecord[]): AppNotificationRecord[] {
+  return [...records].sort(
+    (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+  );
+}
+
+export function readAppNotifications(): AppNotificationRecord[] {
+  try {
+    const parsed = readCacheJson<unknown[]>(resolveTaskNotificationsStorageKey());
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return sortNotifications(
+      parsed
+        .filter(
+          (item): item is AppNotificationRecord =>
+            Boolean(item && typeof item === 'object' && 'id' in item && 'title' in item),
+        )
+        .map((item) => normalizeNotification(item))
+        .filter((item): item is AppNotificationRecord => item !== null),
+    ).slice(0, MAX_PERSISTED_NOTIFICATIONS);
+  } catch {
+    return [];
+  }
+}
+
+function writeAppNotifications(records: AppNotificationRecord[]): void {
+  try {
+    writeCacheJson(
+      resolveTaskNotificationsStorageKey(),
+      sortNotifications(records).slice(0, MAX_PERSISTED_NOTIFICATIONS),
+    );
+    emitTaskNotificationsUpdated();
+  } catch {}
+}
+
+export function pushAppNotification(input: {
+  tone: AppNotificationTone;
+  source?: AppNotificationSource;
+  title: string;
+  text: string;
+}): AppNotificationRecord | null {
+  const title = normalizeText(input.title);
+  const text = normalizeText(input.text);
+  if (!title || !text) {
+    return null;
+  }
+  const nextRecord: AppNotificationRecord = {
+    id:
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `notif-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`,
+    tone: input.tone,
+    source: input.source === 'cron' || input.source === 'chat' ? input.source : 'system',
+    title,
+    text,
+    createdAt: new Date().toISOString(),
+  };
+  writeAppNotifications([nextRecord, ...readAppNotifications()]);
+  return nextRecord;
+}
+
+export function dismissAppNotification(id: string): void {
+  const normalizedId = normalizeText(id);
+  if (!normalizedId) {
+    return;
+  }
+  writeAppNotifications(readAppNotifications().filter((record) => record.id !== normalizedId));
+}
+
+export function subscribeAppNotifications(listener: () => void): () => void {
+  if (typeof window === 'undefined') {
+    return () => {};
+  }
+
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key && event.key !== TASK_NOTIFICATIONS_STORAGE_KEY) {
+      return;
+    }
+    listener();
+  };
+
+  window.addEventListener('storage', handleStorage);
+  window.addEventListener(TASK_NOTIFICATIONS_UPDATED_EVENT, listener);
+
+  return () => {
+    window.removeEventListener('storage', handleStorage);
+    window.removeEventListener(TASK_NOTIFICATIONS_UPDATED_EVENT, listener);
+  };
+}
+
+export function useAppNotifications(): AppNotificationRecord[] {
+  const [records, setRecords] = useState<AppNotificationRecord[]>(() => readAppNotifications());
+
+  useEffect(() => {
+    setRecords(readAppNotifications());
+    return subscribeAppNotifications(() => {
+      setRecords(readAppNotifications());
+    });
+  }, []);
+
+  return records;
+}
