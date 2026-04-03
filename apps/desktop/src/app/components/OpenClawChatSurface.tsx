@@ -875,7 +875,11 @@ function sanitizeArtifactPathCandidate(value: string | null | undefined): string
   return /\.(?:[a-z0-9]+)$/i.test(trimmed) ? trimmed : null;
 }
 
-function extractArtifactPathFromText(text: string): string | null {
+function extractArtifactPathFromText(text: unknown): string | null {
+  if (typeof text !== 'string') {
+    return null;
+  }
+
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (!normalized) {
     return null;
@@ -1236,6 +1240,33 @@ function extractChatMessageGroupText(group: ChatMessageGroup | null): string {
     .filter(Boolean)
     .join('\n\n')
     .trim();
+}
+
+const INTERNAL_MEMORY_FLUSH_MARKERS = [
+  'session nearing compaction. store durable memories now.',
+  'write durable notes for decisions',
+  'store durable memories only in memory/',
+  'reply with no_reply',
+] as const;
+
+function normalizeInternalPromptText(text: string): string {
+  return text.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function isInternalMemoryFlushPrompt(text: string): boolean {
+  const normalized = normalizeInternalPromptText(text);
+  if (!normalized) {
+    return false;
+  }
+
+  let matchedMarkers = 0;
+  INTERNAL_MEMORY_FLUSH_MARKERS.forEach((marker) => {
+    if (normalized.includes(marker)) {
+      matchedMarkers += 1;
+    }
+  });
+
+  return matchedMarkers >= 2;
 }
 
 function setElementTextIfChanged(node: Node | null, nextText: string): void {
@@ -6304,6 +6335,81 @@ export function OpenClawChatSurface({
       });
     };
 
+    const isInternallyHiddenNode = (node: Element | null): node is HTMLElement =>
+      node instanceof HTMLElement && node.dataset.iclawInternalHidden === 'true';
+
+    const setInternalNodeHidden = (node: HTMLElement, hidden: boolean) => {
+      if (hidden) {
+        node.dataset.iclawInternalHidden = 'true';
+        node.setAttribute('hidden', 'true');
+        return;
+      }
+
+      if (node.dataset.iclawInternalHidden === 'true') {
+        delete node.dataset.iclawInternalHidden;
+        node.removeAttribute('hidden');
+      }
+    };
+
+    const collectInternalMemoryFlushGroupIndexes = (groups: HTMLElement[]): Set<number> => {
+      const hiddenIndexes = new Set<number>();
+
+      groups.forEach((group, groupIndex) => {
+        if (!isInternalMemoryFlushPrompt(extractChatGroupText(group))) {
+          return;
+        }
+
+        let startIndex = groupIndex;
+        if (group.classList.contains('user')) {
+          hiddenIndexes.add(groupIndex);
+        }
+
+        for (let index = startIndex; index < groups.length; index += 1) {
+          const nextGroup = groups[index];
+          if (!nextGroup) {
+            break;
+          }
+          if (index !== startIndex && nextGroup.classList.contains('user')) {
+            break;
+          }
+          hiddenIndexes.add(index);
+        }
+      });
+
+      return hiddenIndexes;
+    };
+
+    const findAdjacentChatGroup = (
+      node: Element,
+      direction: 'previousElementSibling' | 'nextElementSibling',
+    ): HTMLElement | null => {
+      let sibling = node[direction];
+      while (sibling) {
+        if (sibling instanceof HTMLElement && sibling.classList.contains('chat-group')) {
+          return sibling;
+        }
+        sibling = sibling[direction];
+      }
+      return null;
+    };
+
+    const syncInternalCompactionDividerVisibility = () => {
+      const dividers = Array.from(host.querySelectorAll('.chat-divider')).filter(
+        (node): node is HTMLElement => node instanceof HTMLElement,
+      );
+
+      dividers.forEach((divider) => {
+        const label = normalizeInternalPromptText(
+          divider.querySelector('.chat-divider__label')?.textContent ?? '',
+        );
+        const shouldHide =
+          label === 'compaction' &&
+          (isInternallyHiddenNode(findAdjacentChatGroup(divider, 'previousElementSibling')) ||
+            isInternallyHiddenNode(findAdjacentChatGroup(divider, 'nextElementSibling')));
+        setInternalNodeHidden(divider, shouldHide);
+      });
+    };
+
     const isAssistantSideGroup = (group: HTMLElement) =>
       !group.classList.contains('user') &&
       (group.classList.contains('assistant') ||
@@ -6589,9 +6695,19 @@ export function OpenClawChatSurface({
         normalizeToolCards(group);
       });
 
+      const internalMemoryFlushGroupIndexes = collectInternalMemoryFlushGroupIndexes(groups);
+      groups.forEach((group, groupIndex) => {
+        setInternalNodeHidden(group, internalMemoryFlushGroupIndexes.has(groupIndex));
+      });
+      syncInternalCompactionDividerVisibility();
       normalizeAssistantTurnGroups(groups);
 
       groups.forEach((group, groupIndex) => {
+        if (isInternallyHiddenNode(group)) {
+          clearUserRunFooter(group);
+          clearAssistantFooter(group);
+          return;
+        }
 
         if (group.classList.contains('user')) {
           ensureUserCopyButton(group);
