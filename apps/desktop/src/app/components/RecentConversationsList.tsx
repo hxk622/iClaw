@@ -1,8 +1,12 @@
-import { Clock3, MessageSquareText } from 'lucide-react';
-import { useMemo } from 'react';
+import { Clock3, MoreHorizontal, MessageSquareText, PencilLine, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/app/lib/cn';
 import { formatChatTurnRelativeTime, useChatTurns } from '@/app/lib/chat-turns';
-import { useChatConversations } from '@/app/lib/chat-conversations';
+import {
+  deleteChatConversation,
+  renameChatConversation,
+  useChatConversations,
+} from '@/app/lib/chat-conversations';
 import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 
 const SIDEBAR_CONVERSATION_LIMIT = 5;
@@ -22,6 +26,11 @@ export function RecentConversationsList({
 }: RecentConversationsListProps) {
   const conversations = useChatConversations();
   const recentTurns = useChatTurns();
+  const [menuConversationId, setMenuConversationId] = useState<string | null>(null);
+  const [renamingConversationId, setRenamingConversationId] = useState<string | null>(null);
+  const [draftTitle, setDraftTitle] = useState('');
+  const activeConversationRef = useRef<HTMLDivElement | null>(null);
+  const renameInputRef = useRef<HTMLInputElement | null>(null);
 
   const visibleConversations = useMemo(() => {
     const parseTimestamp = (value: string) => {
@@ -59,6 +68,58 @@ export function RecentConversationsList({
       .slice(0, SIDEBAR_CONVERSATION_LIMIT);
   }, [conversations, recentTurns]);
 
+  useEffect(() => {
+    if (!menuConversationId && !renamingConversationId) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (activeConversationRef.current?.contains(target)) {
+        return;
+      }
+      setMenuConversationId(null);
+      setRenamingConversationId(null);
+      setDraftTitle('');
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, [menuConversationId, renamingConversationId]);
+
+  useEffect(() => {
+    if (!renamingConversationId) {
+      return;
+    }
+    renameInputRef.current?.focus();
+    renameInputRef.current?.select();
+  }, [renamingConversationId]);
+
+  const handleStartRename = (conversationId: string, currentTitle: string) => {
+    setMenuConversationId(null);
+    setRenamingConversationId(conversationId);
+    setDraftTitle(currentTitle);
+  };
+
+  const handleCommitRename = (conversationId: string) => {
+    const nextTitle = draftTitle.trim();
+    if (!nextTitle) {
+      setRenamingConversationId(null);
+      setDraftTitle('');
+      return;
+    }
+    renameChatConversation(conversationId, nextTitle);
+    setRenamingConversationId(null);
+    setDraftTitle('');
+  };
+
+  const handleDeleteConversation = (conversationId: string) => {
+    deleteChatConversation(conversationId);
+    setMenuConversationId(null);
+    setRenamingConversationId(null);
+    setDraftTitle('');
+  };
+
   return (
     <div className="mb-3">
       <div className="mb-2 flex items-center justify-between px-3">
@@ -93,13 +154,14 @@ export function RecentConversationsList({
         <div className="space-y-1 px-2">
           {visibleConversations.map((conversation) => {
             const isSelected = conversation.id === selectedConversationId;
+            const menuOpen = menuConversationId === conversation.id;
+            const renaming = renamingConversationId === conversation.id;
             return (
-              <button
+              <div
                 key={conversation.id}
-                type="button"
-                onClick={() => onSelectConversation?.(conversation.id)}
+                ref={menuOpen || renaming ? activeConversationRef : null}
                 className={cn(
-                  'relative flex w-full cursor-pointer items-center gap-2.5 rounded-[16px] border px-3 py-2.5 text-left shadow-[0_10px_24px_rgba(16,24,40,0.04)]',
+                  'group relative flex w-full items-center gap-2.5 rounded-[16px] border px-3 py-2.5 text-left shadow-[0_10px_24px_rgba(16,24,40,0.04)]',
                   'transition-[background-color,border-color,color,box-shadow,transform] duration-[var(--motion-panel)]',
                   SPRING_PRESSABLE,
                   INTERACTIVE_FOCUS_RING,
@@ -108,32 +170,112 @@ export function RecentConversationsList({
                     : 'border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-card)_94%,var(--bg-page))] hover:border-[color-mix(in_srgb,var(--brand-primary)_22%,var(--border-default))] hover:bg-[var(--bg-hover)] hover:shadow-[0_12px_26px_rgba(16,24,40,0.06)]',
                 )}
               >
-                <span
-                  className={cn(
-                    'flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[var(--text-secondary)]',
-                    isSelected
-                      ? 'border-[rgba(168,140,93,0.20)] bg-[rgba(168,140,93,0.12)] text-[var(--brand-primary)] dark:text-white'
-                      : 'border-[var(--border-default)] bg-[var(--bg-card)] dark:text-white',
-                  )}
+                <button
+                  type="button"
+                  onClick={() => onSelectConversation?.(conversation.id)}
+                  className="flex min-w-0 flex-1 items-center gap-2.5 pr-8 text-left"
                 >
-                  <MessageSquareText className="h-3.5 w-3.5" />
-                </span>
+                  <span
+                    className={cn(
+                      'flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[var(--text-secondary)]',
+                      isSelected
+                        ? 'border-[rgba(168,140,93,0.20)] bg-[rgba(168,140,93,0.12)] text-[var(--brand-primary)] dark:text-white'
+                        : 'border-[var(--border-default)] bg-[var(--bg-card)] dark:text-white',
+                    )}
+                  >
+                    <MessageSquareText className="h-3.5 w-3.5" />
+                  </span>
 
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="min-w-0 truncate text-[12px] font-medium text-[var(--text-primary)]">
-                      {conversation.title}
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center justify-between gap-2 pr-1">
+                      {renaming ? (
+                        <input
+                          ref={renameInputRef}
+                          value={draftTitle}
+                          onChange={(event) => setDraftTitle(event.target.value)}
+                          onClick={(event) => event.stopPropagation()}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault();
+                              handleCommitRename(conversation.id);
+                            }
+                            if (event.key === 'Escape') {
+                              event.preventDefault();
+                              setRenamingConversationId(null);
+                              setDraftTitle('');
+                            }
+                          }}
+                          onBlur={() => handleCommitRename(conversation.id)}
+                          className="min-w-0 flex-1 rounded-[10px] border border-[var(--brand-primary)] bg-[var(--bg-card)] px-2 py-1 text-[12px] font-medium text-[var(--text-primary)] outline-none"
+                          maxLength={48}
+                        />
+                      ) : (
+                        <span className="min-w-0 truncate text-[12px] font-medium text-[var(--text-primary)]">
+                          {conversation.title}
+                        </span>
+                      )}
+                      <span className="inline-flex shrink-0 items-center gap-1 text-[10px] text-[var(--text-muted)]">
+                        <Clock3 className="h-3 w-3 shrink-0" />
+                        {formatChatTurnRelativeTime(conversation.updatedAt)}
+                      </span>
                     </span>
-                    <span className="inline-flex shrink-0 items-center gap-1 text-[10px] text-[var(--text-muted)]">
-                      <Clock3 className="h-3 w-3 shrink-0" />
-                      {formatChatTurnRelativeTime(conversation.updatedAt)}
+                    <span className="mt-0.5 block truncate text-[11px] text-[var(--text-muted)]">
+                      {conversation.summary}
                     </span>
                   </span>
-                  <span className="mt-0.5 block truncate text-[11px] text-[var(--text-muted)]">
-                    {conversation.summary}
-                  </span>
-                </span>
-              </button>
+                </button>
+
+                <div className="absolute right-2 top-2 z-10">
+                  <button
+                    type="button"
+                    aria-label={`更多操作：${conversation.title}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setRenamingConversationId(null);
+                      setDraftTitle('');
+                      setMenuConversationId((current) => current === conversation.id ? null : conversation.id);
+                    }}
+                    className={cn(
+                      'inline-flex h-7 w-7 items-center justify-center rounded-[10px] border border-transparent bg-transparent text-[var(--text-muted)] transition-[opacity,background-color,color] duration-[var(--motion-panel)]',
+                      menuOpen
+                        ? 'opacity-100 bg-[var(--bg-card)] text-[var(--text-primary)] shadow-[0_10px_24px_rgba(16,24,40,0.10)]'
+                        : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 focus-visible:opacity-100 hover:bg-[var(--bg-card)] hover:text-[var(--text-primary)]',
+                    )}
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </button>
+
+                  {menuOpen ? (
+                    <div className="absolute right-0 top-8 min-w-[132px] rounded-[14px] border border-[var(--border-default)] bg-[var(--bg-card)] p-1.5 shadow-[0_16px_36px_rgba(16,24,40,0.14)]">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleStartRename(conversation.id, conversation.title);
+                        }}
+                        className="flex w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-[12px] text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)]"
+                      >
+                        <PencilLine className="h-3.5 w-3.5 shrink-0" />
+                        重命名
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (!window.confirm(`确认删除对话「${conversation.title}」吗？`)) {
+                            return;
+                          }
+                          handleDeleteConversation(conversation.id);
+                        }}
+                        className="flex w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-[12px] text-[var(--state-danger,#c2410c)] transition-colors hover:bg-[var(--bg-hover)]"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                        删除
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
             );
           })}
         </div>

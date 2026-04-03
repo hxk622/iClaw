@@ -298,6 +298,39 @@ export function linkSessionToConversation(input: LinkConversationSessionInput): 
   return updated.find((record) => record.id === conversationId) ?? null;
 }
 
+export function renameChatConversation(conversationId: string, title: string): ChatConversationRecord | null {
+  const normalizedConversationId = normalizeText(conversationId);
+  const normalizedTitle = normalizeText(title);
+  if (!normalizedConversationId || !normalizedTitle) {
+    return null;
+  }
+
+  const updated = updateConversationList((current) =>
+    current.map((record) =>
+      record.id === normalizedConversationId
+        ? {
+            ...record,
+            title: normalizedTitle.slice(0, 48),
+            updatedAt: new Date().toISOString(),
+          }
+        : record,
+    ),
+  );
+
+  return updated.find((record) => record.id === normalizedConversationId) ?? null;
+}
+
+export function deleteChatConversation(conversationId: string): void {
+  const normalizedConversationId = normalizeText(conversationId);
+  if (!normalizedConversationId) {
+    return;
+  }
+
+  updateConversationList((current) =>
+    current.filter((record) => record.id !== normalizedConversationId)
+  );
+}
+
 export function subscribeChatConversations(listener: () => void): () => void {
   if (typeof window === 'undefined') {
     return () => {};
