@@ -10,7 +10,11 @@ import {mergePlatformMcpBindings, mergePlatformSkillBindings} from '../src/platf
 import {buildPortalPublicConfig} from '../src/portal-runtime.ts';
 import {PgPortalStore} from '../src/portal-store.ts';
 import {PgControlPlaneStore} from '../src/pg-store.ts';
-import type {PortalJsonObject, PortalResolvedRuntimeModelsResult} from '../src/portal-domain.ts';
+import type {
+  PortalJsonObject,
+  PortalResolvedMemoryEmbeddingResult,
+  PortalResolvedRuntimeModelsResult,
+} from '../src/portal-domain.ts';
 import {
   buildCloudSkillArtifactProxyUrl,
   getCloudSkillArtifactObjectKey,
@@ -98,6 +102,39 @@ function applyResolvedRuntimeModelsToConfig(
       created_at: model.createdAt,
       updated_at: model.updatedAt,
     })),
+  };
+  return nextConfig;
+}
+
+function applyResolvedMemoryEmbeddingToConfig(
+  config: PortalJsonObject,
+  resolved: PortalResolvedMemoryEmbeddingResult | null,
+): PortalJsonObject {
+  const nextConfig = cloneJson(config);
+  if (!resolved) {
+    delete nextConfig.memory_embedding;
+    return nextConfig;
+  }
+  nextConfig.memory_embedding = {
+    resolved_scope: resolved.resolvedScope,
+    version: resolved.version,
+    profile: {
+      id: resolved.profile.id,
+      scope_type: resolved.profile.scopeType,
+      scope_key: resolved.profile.scopeKey,
+      provider_key: resolved.profile.providerKey,
+      provider_label: resolved.profile.providerLabel,
+      base_url: resolved.profile.baseUrl,
+      auth_mode: resolved.profile.authMode,
+      api_key: resolved.profile.apiKey || '',
+      embedding_model: resolved.profile.embeddingModel,
+      logo_preset_key: resolved.profile.logoPresetKey,
+      auto_recall: resolved.profile.autoRecall,
+      metadata: cloneJson(resolved.profile.metadata),
+      enabled: resolved.profile.enabled,
+      created_at: resolved.profile.createdAt,
+      updated_at: resolved.profile.updatedAt,
+    },
   };
   return nextConfig;
 }
@@ -496,9 +533,14 @@ async function main() {
       assetUrlResolver: (asset) => asset.publicUrl || asset.objectKey || null,
     });
     const resolvedRuntimeModels = await portalStore.resolveRuntimeModels(appName);
-    const resolvedConfig = resolvedRuntimeModels
+    const resolvedMemoryEmbedding = await portalStore.resolveMemoryEmbedding(appName);
+    const modelResolvedConfig = resolvedRuntimeModels
       ? applyResolvedRuntimeModelsToConfig(publicConfig.config, resolvedRuntimeModels)
       : publicConfig.config;
+    const resolvedConfig = applyResolvedMemoryEmbeddingToConfig(
+      modelResolvedConfig,
+      resolvedMemoryEmbedding,
+    );
     const resolvedConfigWithMcp = {
       ...resolvedConfig,
       resolved_mcp_servers: cloneJson(nextMcpServers),
