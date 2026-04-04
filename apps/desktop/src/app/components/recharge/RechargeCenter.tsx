@@ -644,7 +644,7 @@ function PackageSelectionView({
                     onContinue(item.packageId);
                   }}
                   className={cn(
-                    'w-full cursor-pointer rounded-md py-2.5 text-[14px] font-medium transition-colors',
+                    'w-full cursor-pointer rounded-md py-2.5 text-[16px] font-medium transition-colors',
                     PRIMARY_ACTION_BUTTON_CLASS,
                   )}
                 >
