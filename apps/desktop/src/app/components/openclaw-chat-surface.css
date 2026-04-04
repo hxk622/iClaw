@@ -521,12 +521,38 @@ body {
   max-width: min(82%, 100%);
 }
 
+.openclaw-chat-surface .iclaw-chat-intermediate-thinking {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: -8px 0 24px;
+  pointer-events: none;
+}
+
+.openclaw-chat-surface .iclaw-chat-intermediate-thinking__avatar-spacer {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  opacity: 0;
+}
+
+.openclaw-chat-surface .iclaw-chat-intermediate-thinking__body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: min(100%, calc(100% - 52px));
+}
+
 :root[data-chat-layout-preset='compact'] .openclaw-chat-surface .chat-group {
   margin-bottom: 18px;
 }
 
 :root[data-chat-layout-preset='compact'] .openclaw-chat-surface .chat-group.user {
   margin-bottom: 24px;
+}
+
+:root[data-chat-layout-preset='compact'] .openclaw-chat-surface .iclaw-chat-intermediate-thinking {
+  margin: -6px 0 18px;
 }
 
 :root[data-chat-layout-preset='compact'] .openclaw-chat-surface .chat-group-messages {

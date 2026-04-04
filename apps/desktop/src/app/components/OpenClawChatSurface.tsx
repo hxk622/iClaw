@@ -77,6 +77,7 @@ import {
   removeCacheKeys,
 } from '../lib/persistence/cache-store';
 import {
+  countRenderableMessageGroups,
   hydrateChatSnapshotForRender,
   readStoredChatSnapshot,
   writeStoredChatSnapshot,
@@ -3097,7 +3098,13 @@ async function loadChatModelSnapshot(
     options[0]?.id ||
     null;
 
-  const hasStoredHistory = hasStoredChatSnapshotMessages(input.appName, targetSessionKey, input.conversationId);
+  const storedSnapshot = readStoredChatSnapshot({
+    appName: input.appName,
+    sessionKey: targetSessionKey,
+    conversationId: input.conversationId,
+  });
+  const storedMessageGroups = countRenderableMessageGroups(storedSnapshot?.messages ?? []);
+  const hasStoredHistory = storedMessageGroups > 0;
   const hasSessionTokenHistory =
     Math.max(0, Number(matchedSession?.inputTokens ?? 0)) + Math.max(0, Number(matchedSession?.outputTokens ?? 0)) > 0;
   const hasPersistedHistory = hasStoredHistory || hasSessionTokenHistory;
@@ -3110,6 +3117,7 @@ async function loadChatModelSnapshot(
     sessionPressure: buildChatSessionPressureSnapshot({
       inputTokens: matchedSession?.inputTokens ?? 0,
       outputTokens: matchedSession?.outputTokens ?? 0,
+      messageGroups: storedMessageGroups,
       hasPersistedHistory,
     }),
   };
@@ -7036,6 +7044,9 @@ export function OpenClawChatSurface({
       }
     };
 
+    const isHiddenChatGroup = (group: HTMLElement) =>
+      group.dataset.iclawInternalHidden === 'true' || group.hasAttribute('hidden');
+
     const collectInternalMemoryFlushGroupIndexes = (groups: HTMLElement[]): Set<number> => {
       const hiddenIndexes = new Set<number>();
 
@@ -7130,6 +7141,71 @@ export function OpenClawChatSurface({
       if (footer && !footer.hasAttribute('hidden')) {
         footer.setAttribute('hidden', 'true');
       }
+    };
+
+    const removeInterAssistantThinkingPlaceholder = () => {
+      host.querySelectorAll(':scope > .iclaw-chat-intermediate-thinking').forEach((node) => {
+        node.remove();
+      });
+    };
+
+    const ensureInterAssistantThinkingPlaceholder = (anchorGroup: HTMLElement) => {
+      let row = host.querySelector(':scope > .iclaw-chat-intermediate-thinking') as HTMLDivElement | null;
+      if (!row) {
+        row = document.createElement('div');
+        row.className = 'iclaw-chat-intermediate-thinking';
+        row.setAttribute('role', 'status');
+        row.setAttribute('aria-live', 'polite');
+        row.innerHTML = `
+          <span class="iclaw-chat-intermediate-thinking__avatar-spacer" aria-hidden="true"></span>
+          <div class="iclaw-chat-intermediate-thinking__body">
+            <div class="chat-bubble chat-reading-indicator" aria-hidden="true">
+              <span class="chat-reading-indicator__dots">
+                <span></span>
+                <span></span>
+                <span></span>
+              </span>
+            </div>
+          </div>
+        `;
+      }
+
+      if (anchorGroup.nextElementSibling !== row) {
+        anchorGroup.insertAdjacentElement('afterend', row);
+      }
+    };
+
+    const findInterAssistantThinkingAnchor = (groups: HTMLElement[]) => {
+      if (!status.busy) {
+        return null;
+      }
+
+      let lastUserIndex = -1;
+      groups.forEach((group, index) => {
+        if (!isHiddenChatGroup(group) && group.classList.contains('user')) {
+          lastUserIndex = index;
+        }
+      });
+
+      if (lastUserIndex < 0) {
+        return null;
+      }
+
+      const currentTurnGroups = groups
+        .slice(lastUserIndex + 1)
+        .filter((group) => !isHiddenChatGroup(group) && isAssistantSideGroup(group));
+
+      if (currentTurnGroups.length === 0) {
+        return null;
+      }
+
+      const hasAssistantOutput = currentTurnGroups.some((group) => group.classList.contains('assistant'));
+      const hasInterruptionGroup = currentTurnGroups.some((group) => !group.classList.contains('assistant'));
+      if (!hasAssistantOutput || !hasInterruptionGroup) {
+        return null;
+      }
+
+      return currentTurnGroups[currentTurnGroups.length - 1] ?? null;
     };
 
     const clearUserRunFooter = (group: HTMLElement) => {
@@ -7385,9 +7461,16 @@ export function OpenClawChatSurface({
       syncInternalCompactionDividerVisibility();
       normalizeAssistantTurnGroups(groups);
 
+      const interAssistantThinkingAnchor = findInterAssistantThinkingAnchor(groups);
+      if (interAssistantThinkingAnchor) {
+        ensureInterAssistantThinkingPlaceholder(interAssistantThinkingAnchor);
+      } else {
+        removeInterAssistantThinkingPlaceholder();
+      }
+
       groups.forEach((rawGroup, groupIndex) => {
         const group = rawGroup as HTMLElement;
-        if (isInternallyHiddenNode(group)) {
+        if (isHiddenChatGroup(group)) {
           clearUserRunFooter(group);
           clearAssistantFooter(group);
           return;
