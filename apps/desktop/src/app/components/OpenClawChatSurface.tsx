@@ -2137,7 +2137,7 @@ function buildAssistantFooterTooltip(input: {
     return `${usageDetail} · 后端正在结算本次消耗`;
   }
 
-  return `${usageDetail} · 未获取到本次计费结果`;
+  return `${usageDetail} · 实际消耗 0 龙虾币`;
 }
 
 function buildAssistantFooterMetaFromSummary(summary: RunBillingSummaryData): AssistantFooterMeta {
@@ -2432,25 +2432,24 @@ function deriveAssistantFooterMetas(
     }
 
     const derivedState =
-      billingState === 'missing'
-        ? 'missing'
-        : pendingAssistantIndexes.has(assistantGroupIndex) || billingState === 'pending'
-          ? 'pending'
-          : 'missing';
+      pendingAssistantIndexes.has(assistantGroupIndex) || billingState === 'pending'
+        ? 'pending'
+        : 'charged';
+    const derivedCredits = derivedState === 'charged' ? 0 : null;
 
     return {
       timestampLabel: formatAssistantFooterTimestamp(assistantGroup.timestamp),
       state: derivedState,
-      label: derivedState === 'pending' ? '计费结算中' : '计费结果缺失',
-      value: null,
-      credits: null,
+      label: derivedState === 'pending' ? '计费结算中' : '实际消耗 ',
+      value: derivedState === 'pending' ? null : '0',
+      credits: derivedCredits,
       inputTokens,
       outputTokens,
       tooltip: buildAssistantFooterTooltip({
         state: derivedState,
         inputTokens,
         outputTokens,
-        credits: null,
+        credits: derivedCredits,
       }),
     };
   });
