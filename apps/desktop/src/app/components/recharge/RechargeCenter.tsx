@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   Clock3,
+  Coins,
   Crown,
   LoaderCircle,
   RefreshCw,
@@ -75,6 +76,12 @@ const FALLBACK_RECHARGE_PACKAGES: RechargePackage[] = [
 
 const PANEL_OVERLAY_CLASS =
   'fixed inset-0 z-50 flex items-center justify-center bg-[rgba(8,12,20,0.24)] p-4 backdrop-blur-[4px] dark:bg-[rgba(0,0,0,0.44)] md:p-8';
+
+const PRIMARY_ACTION_BUTTON_CLASS =
+  'bg-[#111827] text-white hover:bg-[#0B1220] dark:bg-[#F5F7FA] dark:text-[#111827] dark:hover:bg-[#E7EAEE]';
+
+const SECONDARY_ACTION_BUTTON_CLASS =
+  'border border-[#E5E7EB] bg-white text-[#374151] hover:bg-[#F9FAFB] dark:border-[#2A2A2A] dark:bg-transparent dark:text-[#D1D5DB] dark:hover:bg-[#1A1A1A]';
 
 function formatPaymentDeadline(value: string | null): string | null {
   if (!value) {
@@ -227,7 +234,10 @@ function BrandedPaymentQr({
             <button
               type="button"
               onClick={onRefresh}
-              className="flex cursor-pointer flex-col items-center gap-2 rounded-md bg-gray-900 px-5 py-3.5 text-white transition-colors hover:bg-gray-800 dark:bg-gray-50 dark:text-gray-900 dark:hover:bg-gray-200"
+              className={cn(
+                'flex cursor-pointer flex-col items-center gap-2 rounded-md px-5 py-3.5 transition-colors',
+                PRIMARY_ACTION_BUTTON_CLASS,
+              )}
             >
               <RefreshCw className="h-5 w-5" />
               <span className="text-[13px] font-medium">刷新二维码</span>
@@ -545,7 +555,7 @@ function PackageSelectionView({
 
   return (
     <div
-      className="w-full max-w-[1240px] rounded-lg border border-gray-200/60 bg-white p-12 shadow-[0_1px_3px_rgba(0,0,0,0.04)] dark:border-gray-800 dark:bg-[#141414] dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)]"
+      className="mx-auto w-full max-w-[1240px] rounded-lg border border-gray-200/60 bg-white p-12 shadow-[0_1px_3px_rgba(0,0,0,0.04)] dark:border-gray-800 dark:bg-[#141414] dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)]"
       onClick={(event) => event.stopPropagation()}
     >
       <div className="relative">
@@ -557,7 +567,12 @@ function PackageSelectionView({
         </button>
 
         <div className="mb-12 text-center">
-          <h1 className="mb-2 text-[28px] leading-[1.3] tracking-[-0.01em] text-gray-900 dark:text-gray-50">充值龙虾币</h1>
+          <div className="mb-2 flex items-center justify-center gap-3">
+            <h1 className="text-[28px] leading-[1.3] tracking-[-0.01em] text-gray-900 dark:text-gray-50">充值龙虾币</h1>
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#f1d38a] bg-[linear-gradient(180deg,#fff7df_0%,#fde7a7_100%)] text-[#8a5a00] shadow-[0_6px_16px_rgba(180,134,0,0.14)] dark:border-[#5b471b] dark:bg-[linear-gradient(180deg,#3a2f16_0%,#2b220f_100%)] dark:text-[#f2cf75] dark:shadow-none">
+              <Coins className="h-4 w-4" />
+            </span>
+          </div>
           <p className="text-[15px] text-gray-500 dark:text-gray-400">
             一次性充值，不会自动续费，支付成功后即时到账
           </p>
@@ -641,7 +656,10 @@ function PackageSelectionView({
                     event.preventDefault();
                     onContinue(item.packageId);
                   }}
-                  className="w-full cursor-pointer rounded-md bg-gray-900 py-2.5 text-[14px] font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-50 dark:text-gray-900 dark:hover:bg-gray-200"
+                  className={cn(
+                    'w-full cursor-pointer rounded-md py-2.5 text-[14px] font-medium transition-colors',
+                    PRIMARY_ACTION_BUTTON_CLASS,
+                  )}
                 >
                   立即充值
                 </button>
@@ -978,7 +996,10 @@ function PaymentView({
               <button
                 type="button"
                 onClick={handlePrimaryAction}
-                className="flex w-full items-center justify-center gap-2 rounded-md bg-gray-900 py-2.5 text-[14px] font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-50 dark:text-gray-900 dark:hover:bg-gray-200"
+                className={cn(
+                  'flex w-full items-center justify-center gap-2 rounded-md py-2.5 text-[14px] font-medium transition-colors',
+                  PRIMARY_ACTION_BUTTON_CLASS,
+                )}
               >
                 <RefreshCw className="h-4 w-4" />
                 <span>重试创建订单</span>
@@ -986,7 +1007,10 @@ function PaymentView({
             ) : null}
             <button
               onClick={onBack}
-              className="flex w-full items-center justify-center gap-2 rounded-md border border-gray-200 py-2.5 text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-[#1A1A1A]"
+              className={cn(
+                'flex w-full items-center justify-center gap-2 rounded-md py-2.5 text-[14px] font-medium transition-colors',
+                SECONDARY_ACTION_BUTTON_CLASS,
+              )}
             >
               <ArrowLeft className="h-4 w-4" />
               <span>返回套餐页</span>
