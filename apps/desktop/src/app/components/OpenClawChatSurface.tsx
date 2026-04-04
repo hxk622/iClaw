@@ -301,6 +301,7 @@ type GatewayRpcFailure = {
 
 type ChatTableType = 'narrative' | 'market' | 'tool';
 type ChatTableColumnType = 'text' | 'number' | 'change' | 'status' | 'risk' | 'key';
+type ChatTableHeaderTone = 'blue' | 'green';
 
 function buildSkillScopedPrompt(payload: ComposerSendPayload): string {
   const prompt = payload.prompt.trim();
@@ -1713,6 +1714,14 @@ function resolveChatTableAlign(columnType: ChatTableColumnType): 'left' | 'right
   return 'left';
 }
 
+function resolveChatTableHeaderTone(seed: string): ChatTableHeaderTone {
+  let hash = 0;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
+  }
+  return hash % 2 === 0 ? 'blue' : 'green';
+}
+
 function ensureChatTableBadge(cell: HTMLTableCellElement, tone: string): void {
   let badge = cell.querySelector(':scope > .iclaw-chat-table-badge[data-iclaw-generated="true"]') as HTMLSpanElement | null;
   if (!badge) {
@@ -1942,10 +1951,12 @@ function enhanceChatMarkdownTable(table: HTMLTableElement): void {
   );
   const tableType = inferChatTableType(headers, columnTypes);
   const { card, scrollContainer } = ensureChatTableScrollChrome(table);
+  const headerTone = resolveChatTableHeaderTone(headers.join('|') || normalizeChatTableText(table.textContent));
 
   table.dataset.iclawChatTableEnhanced = 'true';
   table.dataset.iclawChatTableType = tableType;
   card.dataset.iclawTableType = tableType;
+  card.dataset.iclawHeaderTone = headerTone;
   syncChatTableHeader(card, table);
 
   headerCells.forEach((cell, columnIndex) => {
