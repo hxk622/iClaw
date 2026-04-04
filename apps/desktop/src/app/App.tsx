@@ -88,6 +88,7 @@ import {
   shouldShowDesktopUpdateHint,
   writeSkippedDesktopUpdateVersion,
 } from './lib/desktop-updates';
+import { openExternalUrl } from './lib/open-external-url';
 import { executeDesktopUpdateUpgrade } from './lib/desktop-update-upgrade';
 import { syncManagedSkills, type SkillStoreItem } from './lib/skill-store';
 import { readCacheJson, readCacheString, writeCacheJson, writeCacheString } from './lib/persistence/cache-store';
@@ -1928,7 +1929,7 @@ export default function App() {
           checkDesktopUpdate,
           downloadAndInstallDesktopUpdate,
           openExternal: (url) => {
-            window.open(url, '_blank', 'noopener,noreferrer');
+            void openExternalUrl(url);
           },
         },
       });

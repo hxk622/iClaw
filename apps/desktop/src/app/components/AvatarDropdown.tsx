@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Crown, Globe, LogIn, LogOut, RefreshCw, Settings, UserCircle2 } from 'lucide-react';
+import { openExternalUrl } from '@/app/lib/open-external-url';
 
 interface AvatarDropdownProps {
   open: boolean;
@@ -129,7 +130,7 @@ export function AvatarDropdown({
         style={menuItemStyle}
         onClick={() => {
           onClose();
-          window.open(OFFICIAL_SITE_URL, '_blank', 'noopener,noreferrer');
+          void openExternalUrl(OFFICIAL_SITE_URL);
         }}
       >
         <Globe className={menuIconClass} style={menuIconStyle} />

@@ -16,6 +16,7 @@ import { SelectionCard } from '@/app/components/ui/SelectionCard';
 import { SurfacePanel } from '@/app/components/ui/SurfacePanel';
 import { WizardStepper, type WizardStepItem } from '@/app/components/ui/WizardStepper';
 import { cn } from '@/app/lib/cn';
+import { openExternalUrl } from '@/app/lib/open-external-url';
 import { APPLE_FLAT_SURFACE, INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 
 export type IMPlatformId = 'feishu' | 'dingtalk' | 'wecom' | 'qq';
@@ -299,7 +300,9 @@ export function IMBotSetupModal({
                   <Button
                     variant="secondary"
                     size="sm"
-                    onClick={() => window.open(platform.guideUrl, '_blank', 'noopener,noreferrer')}
+                    onClick={() => {
+                      void openExternalUrl(platform.guideUrl);
+                    }}
                     leadingIcon={<ExternalLink className="h-[14px] w-[14px]" />}
                   >
                     <span>打开{platform.label}开放平台</span>

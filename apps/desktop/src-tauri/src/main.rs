@@ -6434,6 +6434,42 @@ fn restart_desktop_app(app: AppHandle) {
     app.restart();
 }
 
+#[tauri::command]
+fn open_external_url(url: String) -> Result<bool, String> {
+    let parsed = Url::parse(url.trim()).map_err(|e| format!("invalid external url: {e}"))?;
+    match parsed.scheme() {
+        "http" | "https" => {}
+        _ => return Err(String::from("unsupported external url scheme")),
+    }
+
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut cmd = Command::new("open");
+        cmd.arg(parsed.as_str());
+        cmd
+    };
+
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut cmd = Command::new("cmd");
+        cmd.args(["/C", "start", "", parsed.as_str()]);
+        cmd
+    };
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let mut command = {
+        let mut cmd = Command::new("xdg-open");
+        cmd.arg(parsed.as_str());
+        cmd
+    };
+
+    command.stdout(Stdio::null()).stderr(Stdio::null());
+    command
+        .spawn()
+        .map_err(|e| format!("failed to open external url: {e}"))?;
+    Ok(true)
+}
+
 fn apply_initial_window_layout(app: &AppHandle) {
     let Some(window) = app.get_webview_window("main") else {
         return;
@@ -6542,7 +6578,8 @@ fn main() {
             reindex_memory,
             check_desktop_update,
             download_and_install_desktop_update,
-            restart_desktop_app
+            restart_desktop_app,
+            open_external_url
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
