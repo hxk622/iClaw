@@ -1,5 +1,7 @@
 # iClaw Release Matrix
 
+更新时间：2026-04-05
+
 ## 目标
 
 桌面发版按宿主平台拆分：
@@ -45,6 +47,8 @@ bash scripts/build-desktop-matrix.sh
 - 发布文件名不再包含 package.json 里的 `+build` metadata
 - 例如 `1.0.0+202603091514` 对外发布时统一转成 `1.0.0.<datetime>`
 - channel 继续使用下划线字段：`_dev` / `_prod`
+- 下载页公开展示的版本号也必须使用同一四段点号版本，不能直接暴露 `package.json` 中的 `+build` 版本
+- 下载页默认应指向当前最新成功发布的 installer 时间戳；如重新补包，页面也必须切到新的 `<releaseVersion>`
 
 ## 默认矩阵
 
@@ -95,14 +99,15 @@ bash scripts/build-desktop-matrix.sh
 - 根索引：`/downloads/latest-<channel>.json`
 - Windows x64：`/downloads/windows/x64/<artifact>`
 - Windows ARM64：`/downloads/windows/aarch64/<artifact>`
-- macOS Intel：`/downloads/mac/x64/<artifact>`
-- macOS Apple Silicon：`/downloads/mac/aarch64/<artifact>`
+- macOS Intel：`/downloads/darwin/x64/<artifact>`
+- macOS Apple Silicon：`/downloads/darwin/aarch64/<artifact>`
 
 说明：
 
-- 平台 manifest 也放在对应目录，例如 `latest-prod-mac-aarch64.json` 应位于 `/downloads/mac/aarch64/`
+- 平台 manifest 也放在对应目录，例如 `latest-prod-darwin-aarch64.json` 应位于 `/downloads/darwin/aarch64/`
 - installer、updater、签名文件都跟随同一平台/架构目录发布
 - 脚本侧不得再把公开下载产物只上传到桶根目录，必须和公网 URL 前缀保持一致
+- 如需兼容历史链接，可以额外保留旧文件名别名；但下载页真值必须只指向当前正式文件名
 
 ## macOS Prod 标准流程
 
@@ -145,6 +150,7 @@ bash scripts/publish-downloads.sh prod
 - `scripts/build-desktop-matrix.sh` 在 macOS 主机上默认就会同时打 `aarch64` 和 `x64`
 - `scripts/publish-downloads.sh prod` 会上传 installer、updater 和 manifest，并按保留策略清理旧版本
 - prod 构建必须通过签名校验；macOS 公证失败时不会产出可公开发布的 prod 包
+- 如果 `home-web` 需要展示下载链接，发布时应显式传入本次对外版本，例如 `ICLAW_HOME_PUBLIC_RELEASE_VERSION=<releaseVersion>`，避免页面继续显示旧时间戳
 
 补充：
 
