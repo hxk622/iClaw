@@ -7139,7 +7139,7 @@ function renderSidebar() {
             Array.isArray(item.children) && item.children.length
               ? `
                 <div class="nav-group${navIsActive(item.id) ? ' is-active' : ''}${isNavGroupCollapsed(item.id) ? ' is-collapsed' : ''}">
-                  <div class="nav-item nav-item--group">
+                  <div class="nav-item nav-item--group" data-action="navigate" data-page="${escapeHtml(item.children[0]?.id || item.id)}">
                     <div class="nav-group__summary">
                       ${icon(item.icon, 'nav-item__icon')}
                       <span class="nav-item__label">${escapeHtml(item.label)}</span>

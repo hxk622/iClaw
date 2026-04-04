@@ -280,7 +280,7 @@ code {
 
 .nav-item--group {
   justify-content: space-between;
-  cursor: default;
+  cursor: pointer;
   opacity: 0.9;
 }
 
