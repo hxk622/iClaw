@@ -305,7 +305,7 @@ const BASIC_TEMPLATES: BasicTemplate[] = [
 ];
 
 const CRON_GHOST_ICON_BUTTON_CLASS =
-  'h-8 w-8 rounded-[8px] px-0 py-0 text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]';
+  'h-8 w-8 rounded-[8px] border border-[color-mix(in_srgb,var(--border-default)_88%,transparent)] bg-[color-mix(in_srgb,var(--bg-hover)_72%,transparent)] px-0 py-0 text-[var(--text-secondary)] shadow-[0_6px_16px_rgba(15,23,42,0.06)] hover:border-[color-mix(in_srgb,var(--brand-primary)_24%,var(--border-default))] hover:bg-[color-mix(in_srgb,var(--bg-hover)_92%,white_8%)] hover:text-[var(--text-primary)]';
 
 function isVisibleElement(node: Element | null): { visible: boolean; height: number } {
   if (!(node instanceof HTMLElement)) {
@@ -1886,7 +1886,7 @@ export function OpenClawCronSurface({
                                 </div>
 
                                 <div className="flex shrink-0 flex-col items-end gap-1.5">
-                                  <div className="flex items-center gap-1.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+                                  <div className="flex items-center gap-1.5 opacity-100 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
                                     <Button
                                       variant="ghost"
                                       size="sm"
