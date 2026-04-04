@@ -63,8 +63,6 @@ import {resolveSkillCatalogVisibilityMode} from './portal-skill-catalog-policy.t
 import {ensureControlPlaneSchema, PgControlPlaneStore} from './pg-store.ts';
 import {createRedisKeyValueCache} from './redis-cache.ts';
 import {ControlPlaneService} from './service.ts';
-import {EpayService} from './epay-service.ts';
-import {decryptInstallSecretPayload} from './install-config-secrets.ts';
 import {logError, logInfo, logWarn} from './logger.ts';
 import {
   desktopUpdateAllowedRequestHeaders,
@@ -127,8 +125,6 @@ const service = new ControlPlaneService(store, {
     return portalStore.resolveBillingMultiplierForAppModel(normalizedAppName, model);
   },
 });
-const epayService = new EpayService(store, decryptInstallSecretPayload, config.publicUrl);
-
 const oemService = new OemService(oemStore, async (accessToken) => service.me(accessToken), {
   controlStore: store,
 });
@@ -258,6 +254,34 @@ async function parseMultipartFormData(
   } catch {
     throw new HttpError(400, 'BAD_REQUEST', 'failed to parse multipart form data');
   }
+}
+
+function parseKeyValueBody(
+  body: Buffer,
+  headers: Record<string, string | string[] | undefined>,
+): Record<string, string> {
+  const contentTypeHeader = headers['content-type'];
+  const contentType = (Array.isArray(contentTypeHeader) ? contentTypeHeader[0] : contentTypeHeader)?.trim().toLowerCase() || '';
+  const raw = body.toString('utf8').trim();
+  if (!raw) {
+    return {};
+  }
+  if (contentType.includes('application/json')) {
+    try {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      return Object.fromEntries(
+        Object.entries(parsed || {}).map(([key, value]) => [key, typeof value === 'string' ? value : String(value ?? '')]),
+      );
+    } catch {
+      throw new HttpError(400, 'BAD_REQUEST', 'request body must be valid JSON');
+    }
+  }
+  const params = new URLSearchParams(raw);
+  const next: Record<string, string> = {};
+  for (const [key, value] of params.entries()) {
+    next[key] = value;
+  }
+  return next;
 }
 
 function getFormDataString(formData: FormData, key: string): string | null {
@@ -403,17 +427,28 @@ async function packageGithubSkillArtifact(metadata: Record<string, unknown>): Pr
 const server = createJsonServer([
   {
     method: 'POST',
-    path: '/api/epay/orders',
-    handler: async ({headers, body}: HandlerContext) => {
-      const user = await service.me(requireBearerToken(headers));
-      return epayService.createEpayPaymentOrder(user.id, (body || {}) as CreatePaymentOrderInput);
+    path: '/payments/webhooks/epay',
+    bodyType: 'raw',
+    handler: async ({body, headers}: HandlerContext<Buffer>) => {
+      await service.applyEpayWebhook(parseKeyValueBody(Buffer.isBuffer(body) ? body : Buffer.alloc(0), headers));
+      return createRawResponse('success', {
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+        },
+      });
     },
   },
   {
     method: 'POST',
     path: '/api/epay/webhooks',
-    handler: ({body}: HandlerContext) => {
-      return epayService.applyEpayWebhook((body || {}) as PaymentWebhookInput);
+    bodyType: 'raw',
+    handler: async ({body, headers}: HandlerContext<Buffer>) => {
+      await service.applyEpayWebhook(parseKeyValueBody(Buffer.isBuffer(body) ? body : Buffer.alloc(0), headers));
+      return createRawResponse('success', {
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+        },
+      });
     },
   },
   {
@@ -610,6 +645,8 @@ const server = createJsonServer([
         platform: ((body || {}) as CreatePaymentOrderInput).platform || getHeaderValue(headers, 'x-iclaw-platform'),
         arch: ((body || {}) as CreatePaymentOrderInput).arch || getHeaderValue(headers, 'x-iclaw-arch'),
         user_agent: ((body || {}) as CreatePaymentOrderInput).user_agent || getHeaderValue(headers, 'user-agent'),
+      }, {
+        publicBaseUrl: resolvePublicBaseUrl(headers),
       }),
   },
   {

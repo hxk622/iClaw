@@ -8,7 +8,7 @@ import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interacti
 type BillingCycle = 'monthly' | 'yearly';
 type PlanTier = 'free' | 'plus' | 'pro' | 'ultra';
 type PaidPlanTier = Exclude<PlanTier, 'free'>;
-type PaymentMethod = 'wechat_qr' | 'alipay_qr' | null;
+type PaymentMethod = 'wechat_qr' | 'alipay_qr';
 
 type RechargeStep = 'plans' | 'payment';
 
@@ -111,7 +111,7 @@ const PLAN_PAYMENT_PACKAGE_MAP: Record<PaidPlanTier, Record<BillingCycle, string
   ultra: { monthly: 'plan_ultra_monthly', yearly: 'plan_ultra_yearly' },
 };
 
-const PAYMENT_METHOD_META: Record<Exclude<PaymentMethod, null>, { label: string; accentClassName: string }> = {
+const PAYMENT_METHOD_META: Record<PaymentMethod, { label: string; accentClassName: string }> = {
   wechat_qr: { label: '微信支付', accentClassName: 'bg-[#07C160] text-white shadow-lg shadow-green-900/30' },
   alipay_qr: { label: '支付宝', accentClassName: 'bg-[#1677FF] text-white shadow-lg shadow-blue-900/30' },
 };
@@ -133,33 +133,20 @@ function formatPlanPrice(plan: RechargePlan, cycle: BillingCycle): number {
   return cycle === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice;
 }
 
-function getRedirect(url: string, data: Record<string, any>) {
-  console.log('getRedirect called with:', { url, data });
-  
-  const params = new URLSearchParams();
-  for (const key in data) {
-    if (Object.prototype.hasOwnProperty.call(data, key)) {
-      params.append(key, data[key]);
-    }
-  }
-  const queryString = params.toString();
-  const fullUrl = queryString ? `${url}${url.includes('?') ? '&' : '?'}${queryString}` : url;
-  
-  console.log('Opening URL:', fullUrl);
-  
-  // 使用多种方式确保跳转成功
+function isDataImageUrl(value: string | null | undefined): boolean {
+  return typeof value === 'string' && value.startsWith('data:image/');
+}
+
+function openPaymentUrl(url: string): boolean {
   try {
-    // 尝试在新窗口打开
-    const newWindow = window.open(fullUrl, '_blank');
-    if (!newWindow || newWindow.closed) {
-      console.log('Window.open was blocked, trying location.href in current window');
-      // 如果被阻止，在当前窗口跳转
-      window.location.href = fullUrl;
+    const newWindow = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+      window.location.assign(url);
     }
+    return true;
   } catch (error) {
-    console.error('Error opening window:', error);
-    // 最后在当前窗口跳转
-    window.location.href = fullUrl;
+    console.error('failed to open payment url', error);
+    return false;
   }
 }
 
@@ -174,14 +161,22 @@ export function RechargeCenter({ client, token, onClose, active = true }: Rechar
   const [step, setStep] = useState<RechargeStep>('plans');
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [selectedPlan, setSelectedPlan] = useState<PaidPlanTier>('plus');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(null);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('wechat_qr');
   const [planDropdownOpen, setPlanDropdownOpen] = useState(false);
   const [creatingOrder, setCreatingOrder] = useState(false);
+  const [activeOrder, setActiveOrder] = useState<PaymentOrderData | null>(null);
   const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const currentPlan = useMemo(() => getPlanById(selectedPlan), [selectedPlan]);
   const totalPrice = formatPlanPrice(currentPlan, billingCycle);
+  const displayPaymentUrl =
+    activeOrder?.provider === 'wechat_qr' && isDataImageUrl(activeOrder.payment_url)
+      ? PERSONAL_WECHAT_QR_URL
+      : isDataImageUrl(activeOrder?.payment_url)
+        ? activeOrder?.payment_url || null
+        : null;
+  const launchPaymentUrl = activeOrder?.payment_url && !isDataImageUrl(activeOrder.payment_url) ? activeOrder.payment_url : null;
 
   useEffect(() => {
     if (!active) return;
@@ -196,96 +191,65 @@ export function RechargeCenter({ client, token, onClose, active = true }: Rechar
   }, [active, planDropdownOpen]);
 
   const handlePayNow = async () => {
-    console.log('handlePayNow called with paymentMethod:', paymentMethod);
-    if (!paymentMethod) {
-      console.log('No payment method selected, returning early');
-      return;
-    }
     setCreatingOrder(true);
     setPaymentMessage(null);
     const packageId = PLAN_PAYMENT_PACKAGE_MAP[selectedPlan][billingCycle];
 
     try {
-      console.log('Creating payment order with params:', {
-        token: token ? 'present' : 'missing',
-        provider: paymentMethod,
-        packageId,
-        returnUrl: 'iclaw://payments/result',
-      });
-      
-      const response = await client.createPaymentOrder({
+      const order = await client.createPaymentOrder({
         token,
         provider: paymentMethod,
         packageId,
         returnUrl: 'iclaw://payments/result',
       });
-      
-      console.log('Payment order response:', response);
-      console.log('Response type:', typeof response);
-      console.log('Response keys:', Object.keys(response || {}));
-      
-      // 检查是否为嵌套结构 { data: { ... } }
-      let orderData = response;
-      if (response && typeof response === 'object' && 'data' in response) {
-        console.log('Found nested data structure, extracting response.data');
-        orderData = (response as any).data;
-      }
-      
-      console.log('Processed order data:', orderData);
-      
-      // 使用 GET 方法重定向到支付页面
-      if (orderData?.url && orderData?.data) {
-        getRedirect(orderData.url, orderData.data);
+      setActiveOrder(order);
+      if (order.payment_url && !isDataImageUrl(order.payment_url)) {
+        const opened = openPaymentUrl(order.payment_url);
+        setPaymentMessage(opened ? '支付页面已打开，请在浏览器中完成支付。' : '浏览器拦截了支付页，请手动重新打开。');
+      } else if (order.payment_url) {
+        setPaymentMessage('二维码已生成，请扫码完成支付。');
       } else {
-        console.error('Invalid order data structure:', orderData);
-        setPaymentMessage('支付订单数据格式错误');
+        setPaymentMessage('支付订单已创建，但未返回支付入口。');
       }
     } catch (error) {
-      console.error('Error creating payment order:', error);
       setPaymentMessage(error instanceof Error ? error.message : '创建支付订单失败');
     } finally {
-      console.log('Setting creatingOrder to false');
       setCreatingOrder(false);
     }
   };
 
   useEffect(() => {
     if (!active) return;
-    if (step !== 'payment') return;
-  }, [active, billingCycle, client, paymentMethod, selectedPlan, step, token]);
-
-  // useEffect(() => {
-  //   if (!active) return;
-  //   if (!activeOrder) return;
-  //   if (!['created', 'pending'].includes(activeOrder.status)) return;
-  //   let cancelled = false;
-  //   const poll = async () => {
-  //     try {
-  //       const nextOrder = await client.getPaymentOrder(token, activeOrder.order_id);
-  //       if (cancelled) return;
-  //       setActiveOrder(nextOrder);
-  //       if (nextOrder.status === 'paid') {
-  //         setPaymentMessage('支付成功，充值余额稍后到账。');
-  //       } else if (nextOrder.status === 'expired') {
-  //         setPaymentMessage('二维码已过期，请重新选择支付方式。');
-  //       } else if (nextOrder.status === 'failed') {
-  //         setPaymentMessage('支付失败，请重新尝试。');
-  //       }
-  //     } catch (error) {
-  //       if (!cancelled) {
-  //         setPaymentMessage(error instanceof Error ? error.message : '订单状态刷新失败');
-  //       }
-  //     }
-  //   };
-  //   void poll();
-  //   const timer = window.setInterval(() => {
-  //     void poll();
-  //   }, 30000);
-  //   return () => {
-  //     cancelled = true;
-  //     window.clearInterval(timer);
-  //   };
-  // }, [active, activeOrder, client, token]);
+    if (!activeOrder) return;
+    if (!['created', 'pending'].includes(activeOrder.status)) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const nextOrder = await client.getPaymentOrder(token, activeOrder.order_id);
+        if (cancelled) return;
+        setActiveOrder(nextOrder);
+        if (nextOrder.status === 'paid') {
+          setPaymentMessage('支付成功，充值余额稍后到账。');
+        } else if (nextOrder.status === 'expired') {
+          setPaymentMessage('支付订单已过期，请重新发起支付。');
+        } else if (nextOrder.status === 'failed') {
+          setPaymentMessage('支付失败，请重新尝试。');
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setPaymentMessage(error instanceof Error ? error.message : '订单状态刷新失败');
+        }
+      }
+    };
+    void poll();
+    const timer = window.setInterval(() => {
+      void poll();
+    }, 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [active, activeOrder, client, token]);
 
   const openPayment = (planId: PlanTier) => {
     if (planId === 'free') return;
@@ -293,6 +257,7 @@ export function RechargeCenter({ client, token, onClose, active = true }: Rechar
       setSelectedPlan(toPaidPlan(planId));
       setPlanDropdownOpen(false);
       setPaymentMessage(null);
+      setActiveOrder(null);
       setStep('payment');
     });
   };
@@ -322,17 +287,23 @@ export function RechargeCenter({ client, token, onClose, active = true }: Rechar
           currentPlan={currentPlan}
           totalPrice={totalPrice}
           paymentMethod={paymentMethod}
+          activeOrder={activeOrder}
+          displayPaymentUrl={displayPaymentUrl}
+          launchPaymentUrl={launchPaymentUrl}
           onPaymentMethodChange={setPaymentMethod}
           planDropdownOpen={planDropdownOpen}
           onTogglePlanDropdown={() => setPlanDropdownOpen((current) => !current)}
           onSelectPlan={(plan) => {
             setSelectedPlan(plan);
             setPlanDropdownOpen(false);
+            setActiveOrder(null);
+            setPaymentMessage(null);
           }}
           dropdownRef={dropdownRef}
           onBack={() => {
             setPlanDropdownOpen(false);
             setPaymentMessage(null);
+            setActiveOrder(null);
             setStep('plans');
           }}
           onClose={onClose}
@@ -563,6 +534,9 @@ function PaymentView({
   currentPlan,
   totalPrice,
   paymentMethod,
+  activeOrder,
+  displayPaymentUrl,
+  launchPaymentUrl,
   onPaymentMethodChange,
   planDropdownOpen,
   onTogglePlanDropdown,
@@ -579,6 +553,9 @@ function PaymentView({
   currentPlan: RechargePlan;
   totalPrice: number;
   paymentMethod: PaymentMethod;
+  activeOrder: PaymentOrderData | null;
+  displayPaymentUrl: string | null;
+  launchPaymentUrl: string | null;
   onPaymentMethodChange: (method: PaymentMethod) => void;
   planDropdownOpen: boolean;
   onTogglePlanDropdown: () => void;
@@ -696,11 +673,10 @@ function PaymentView({
 
           <section className="rounded-2xl border border-gray-200 bg-gray-50 p-8 dark:border-[#2a3441] dark:bg-[#1f2630]">
             <h2 className="mb-2 text-2xl font-bold text-[#1a1a1a] dark:text-[#f0f2f5]">请选择方式扫码支付</h2>
-            <p className="mb-8 text-sm text-gray-600 dark:text-gray-400">支持微信支付与支付宝</p>
+            <p className="mb-8 text-sm text-gray-600 dark:text-gray-400">支持微信支付与支付宝，优先拉起外部收银台</p>
 
             <div className="mb-8 flex gap-3">
-              {(['wechat_qr', 'alipay_qr'] as Exclude<PaymentMethod, null>[]).map((method) => {
-                if (!method) return null;
+              {(['wechat_qr', 'alipay_qr'] as PaymentMethod[]).map((method) => {
                 const meta = PAYMENT_METHOD_META[method];
                 const selected = paymentMethod === method;
                 return (
@@ -723,15 +699,15 @@ function PaymentView({
             <div className="mb-8 text-center">
               <button
                 onClick={onPayNow}
-                disabled={!paymentMethod || creatingOrder}
+                disabled={creatingOrder}
                 className={cn(
                   'w-full cursor-pointer rounded-xl py-3 font-medium transition-all',
-                  !paymentMethod || creatingOrder
+                  creatingOrder
                     ? 'cursor-not-allowed bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500'
                     : 'bg-blue-500 text-white hover:bg-blue-600',
                 )}
               >
-                立即支付
+                {creatingOrder ? '创建订单中...' : activeOrder && launchPaymentUrl ? '重新发起支付' : '立即支付'}
               </button>
             </div>
 
@@ -747,21 +723,44 @@ function PaymentView({
               <div className="mb-4 flex aspect-square w-full items-center justify-center rounded-xl bg-gray-100 dark:bg-[#1a1f28]">
                 {creatingOrder ? (
                   <div className="text-center text-sm text-gray-500 dark:text-gray-400">
-                    正在跳转到支付页面...
+                    正在创建支付订单...
+                  </div>
+                ) : displayPaymentUrl ? (
+                  <img
+                    src={displayPaymentUrl}
+                    alt={`${paymentMethod === 'wechat_qr' ? '微信' : '支付宝'}支付二维码`}
+                    className="h-48 w-48 border-2 border-gray-300 bg-white object-cover"
+                  />
+                ) : launchPaymentUrl ? (
+                  <div className="flex h-48 w-48 flex-col items-center justify-center gap-3 border-2 border-dashed border-gray-300 bg-white px-5 text-center">
+                    <p className="text-sm font-medium text-gray-700">支付页已生成</p>
+                    <button
+                      type="button"
+                      className="rounded-lg bg-[#111827] px-4 py-2 text-sm font-medium text-white hover:bg-[#0b1220]"
+                      onClick={() => openPaymentUrl(launchPaymentUrl)}
+                    >
+                      重新打开支付页
+                    </button>
+                    <p className="text-[11px] leading-5 text-gray-400">如果浏览器阻止弹窗，请手动点击上面的按钮。</p>
                   </div>
                 ) : (
                   <div className="flex h-48 w-48 items-center justify-center border-2 border-gray-300 bg-white px-4 text-center text-xs text-gray-400">
-                    请先在上方选择支付方式
+                    点击“立即支付”后创建订单
                   </div>
                 )}
               </div>
               <p className="text-center text-sm text-gray-600 dark:text-gray-400">
-                {paymentMethod === 'wechat_qr'
-                  ? '请在跳转后使用微信完成支付'
-                  : paymentMethod === 'alipay_qr'
-                  ? '请在跳转后使用支付宝完成支付'
-                  : '点击“立即支付”后将跳转到收银台'}
+                {displayPaymentUrl
+                  ? paymentMethod === 'wechat_qr'
+                    ? '请使用微信扫描二维码完成支付'
+                    : '请使用支付宝扫描二维码完成支付'
+                  : launchPaymentUrl
+                    ? '请在浏览器打开的支付页中完成付款，当前窗口会持续同步订单状态。'
+                    : '点击“立即支付”后将跳转到收银台或生成二维码。'}
               </p>
+              {activeOrder ? (
+                <p className="mt-2 text-center text-xs text-gray-400">订单状态: {activeOrder.status}</p>
+              ) : null}
               {paymentMessage ? (
                 <p className="mt-3 text-center text-xs text-gray-500 dark:text-gray-500">{paymentMessage}</p>
               ) : null}

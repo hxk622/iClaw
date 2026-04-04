@@ -278,7 +278,15 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
 
   async createPaymentOrder(
     userId: string,
-    input: Required<CreatePaymentOrderInput> & {packageName: string; credits: number; bonusCredits: number; amountCnyFen: number},
+    input: Required<CreatePaymentOrderInput> & {
+      order_id?: string;
+      payment_url?: string | null;
+      packageName: string;
+      credits: number;
+      bonusCredits: number;
+      amountCnyFen: number;
+      metadata?: Record<string, unknown>;
+    },
   ): Promise<PaymentOrderRecord> {
     const order = await this.base.createPaymentOrder(userId, input);
     await this.cache.set(this.paymentOrderKey(order.id), order, CREDIT_BALANCE_CACHE_TTL_SECONDS);

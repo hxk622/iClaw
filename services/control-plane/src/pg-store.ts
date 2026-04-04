@@ -1670,6 +1670,8 @@ export class PgControlPlaneStore implements ControlPlaneStore {
   async createPaymentOrder(
     userId: string,
     input: Required<CreatePaymentOrderInput> & {
+      order_id?: string;
+      payment_url?: string | null;
       packageName: string;
       credits: number;
       bonusCredits: number;
@@ -1678,7 +1680,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     },
   ): Promise<PaymentOrderRecord> {
     const now = new Date();
-    const orderId = randomUUID();
+    const orderId = input.order_id?.trim() || randomUUID();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
     await this.pool.query(
       `
@@ -1710,13 +1712,15 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         input.credits,
         input.bonusCredits,
         input.amountCnyFen,
-        buildPlaceholderPaymentUrl({
-          provider: input.provider as PaymentProvider,
-          orderId,
-          packageName: input.packageName,
-          amountCnyFen: input.amountCnyFen,
-          expiresAt: expiresAt.toISOString(),
-        }),
+        typeof input.payment_url === 'string' && input.payment_url.trim()
+          ? input.payment_url.trim()
+          : buildPlaceholderPaymentUrl({
+              provider: input.provider as PaymentProvider,
+              orderId,
+              packageName: input.packageName,
+              amountCnyFen: input.amountCnyFen,
+              expiresAt: expiresAt.toISOString(),
+            }),
         expiresAt,
         JSON.stringify({
           app_name: input.app_name || null,

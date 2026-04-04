@@ -18,11 +18,6 @@ const PROVIDER_THEME: Record<PaymentProvider, {label: string; primary: string; a
     primary: '#1677ff',
     accent: '#edf5ff',
   },
-  epay: {
-    label: 'Epay',
-    primary: '#00A0E9',
-    accent: '#E6F7FF',
-  },
 };
 
 function escapeXml(value: string): string {

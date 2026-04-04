@@ -1,137 +1,57 @@
+import assert from 'node:assert/strict';
+import {describe, it} from 'node:test';
 
-import {describe, it, mock} from 'node:test';
-import assert from 'node:assert';
+import {EpayService} from './epay-service.ts';
+import {createSignature} from './epay.ts';
 
-import {EpayService} from './epay-service.js';
-import {ControlPlaneStore} from './store.js';
-import {CreatePaymentOrderInput} from './domain.js';
-
-// Mock the ControlPlaneStore
-const mockStore: any = {
-  createPaymentOrder: mock.fn(),
-  getPaymentProviderProfileByScope: mock.fn(),
+const CONFIG = {
+  partnerId: '1242',
+  key: 'test_secret_key',
+  gateway: 'https://epay.example.com/submit.php',
 };
 
-import {TOPUP_PACKAGES} from './service.js';
-
 describe('EpayService', () => {
-  it('should create an epay payment order and return purchase details', async () => {
-    // 1. Setup Mocks
-    const mockOrder = {
-      id: 'test_order_123',
-      userId: 'user_abc',
-      packageName: '1000 龙虾币',
-      amountCnyFen: 1000,
-      returnUrl: 'http://localhost/payment-return',
-    };
-
-    const mockProfile = {
-        id: 'profile_1',
-        provider: 'epay',
-        scopeType: 'app',
-        scopeKey: 'default',
-        config: {
-            epayPartnerId: '12345',
-            epayGateway: 'https://epay.example.com/submit.php',
-        },
-        secretPayloadEncrypted: 'encrypted_secrets',
-    };
-
-    (mockStore.createPaymentOrder as any).mock.mockImplementation(() => Promise.resolve(mockOrder));
-    (mockStore.getPaymentProviderProfileByScope as any).mock.mockImplementation(() => Promise.resolve(mockProfile));
-
-    TOPUP_PACKAGES.set('custom_1_yuan', {
-        packageName: '1元测试订单',
-        credits: 0,
-        bonusCredits: 0,
-        amountCnyFen: 100,
+  it('creates checkout url with real order amount instead of debug amount', () => {
+    const service = new EpayService(CONFIG);
+    const result = service.createCheckout({
+      orderId: 'order_123',
+      provider: 'wechat_qr',
+      packageName: '高级版（月套餐）',
+      amountCnyFen: 4000,
+      publicBaseUrl: 'http://127.0.0.1:2130',
+      returnUrl: 'iclaw://payments/result',
     });
 
-    const mockDecryptSecret = mock.fn(() => ({ epayKey: 'test_secret_key' }));
-
-    // 2. Instantiate the service with mocks
-    const epayService = new EpayService(mockStore as ControlPlaneStore, mockDecryptSecret, 'http://localhost:2130');
-
-    // 3. Call the method
-    const input: CreatePaymentOrderInput = {
-      package_id: 'topup_1000',
-      provider: 'epay',
-      app_name: 'default',
-    };
-
-    const result = await epayService.createEpayPaymentOrder('user_abc', input);
-
-    // 4. Assertions
-    assert(result, 'Result should be defined');
-    assert.strictEqual(result.gateway, 'https://epay.example.com/submit.php');
-    assert.strictEqual(result.params.pid, '12345');
-    assert.strictEqual(result.params.out_trade_no, 'test_order_123');
-    assert.strictEqual(result.params.money, '10.00');
-    assert.strictEqual(result.params.name, '1000 龙虾币');
-    assert.strictEqual(result.params.notify_url, 'http://localhost:2130/api/epay/webhooks');
-    assert(result.params.sign, 'Sign should be defined');
-    assert.strictEqual(result.params.sign_type, 'MD5');
-
-    // Verify that the store method was called correctly
-    assert.strictEqual((mockStore.createPaymentOrder as any).mock.calls.length, 1);
+    const url = new URL(result.paymentUrl);
+    assert.equal(url.origin, 'https://epay.example.com');
+    assert.equal(url.pathname, '/submit.php');
+    assert.equal(url.searchParams.get('out_trade_no'), 'order_123');
+    assert.equal(url.searchParams.get('money'), '40.00');
+    assert.equal(url.searchParams.get('notify_url'), 'http://127.0.0.1:2130/payments/webhooks/epay');
+    assert.equal(url.searchParams.get('return_url'), 'iclaw://payments/result');
+    assert.equal(url.searchParams.get('type'), 'wxpay');
+    assert.equal(result.metadata.payment_processor, 'epay');
   });
 
-  it.skip('should generate a real payment URL with actual credentials', async () => {
-    // 1. Setup Mocks with real data
-    const realConfig = {
-      gateway: 'https://vip1.zhunfu.cn/submit.php',
-      partnerId: '1242',
-      key: '5yr5JZxRXxDR5yuxV7z5p7yxbybU5Bxj',
+  it('parses signed success webhook back into internal payment event', () => {
+    const service = new EpayService(CONFIG);
+    const payload = {
+      out_trade_no: 'order_456',
+      trade_no: 'epay_trade_789',
+      trade_status: 'TRADE_SUCCESS',
+      type: 'alipay',
+      money: '80.00',
     };
+    const webhook = service.parseWebhook({
+      ...payload,
+      sign: createSignature(payload, CONFIG.key),
+      sign_type: 'MD5',
+    });
 
-    const mockOrder = {
-      id: `test_order_${Date.now()}`,
-      userId: 'user_real_deal',
-      packageName: '1元测试订单',
-      amountCnyFen: 100, // 1元
-      returnUrl: 'http://localhost/payment-return',
-    };
-
-    const mockProfile = {
-      id: 'profile_real',
-      provider: 'epay',
-      scopeType: 'app',
-      scopeKey: 'default',
-      config: {
-        epayPartnerId: realConfig.partnerId,
-        epayGateway: realConfig.gateway,
-      },
-      secretPayloadEncrypted: 'encrypted_secrets',
-    };
-
-    (mockStore.createPaymentOrder as any).mock.mockImplementation(() => Promise.resolve(mockOrder));
-    (mockStore.getPaymentProviderProfileByScope as any).mock.mockImplementation(() => Promise.resolve(mockProfile));
-
-    const mockDecryptSecret = mock.fn(() => ({ epayKey: realConfig.key }));
-
-    // 2. Instantiate the service
-    const epayService = new EpayService(mockStore as ControlPlaneStore, mockDecryptSecret, 'http://localhost:2130');
-
-    // 3. Call the method
-    const input: CreatePaymentOrderInput = {
-      package_id: 'custom_1_yuan', // Using a custom package id for clarity
-      provider: 'epay',
-      app_name: 'default',
-    };
-
-    const result = await epayService.createEpayPaymentOrder('user_real_deal', input);
-
-    // 4. Construct and log the URL
-    const url = new URL(result.gateway);
-    Object.keys(result.params).forEach(key => url.searchParams.append(key, result.params[key]));
-
-    console.log('\n\n✅ Epay Payment URL Generated:');
-    console.log(url.toString());
-    console.log('\n');
-
-    // 5. Assertions (optional for this test, but good practice)
-    assert(result.params.sign, 'A real sign should be generated');
-    assert.strictEqual(result.params.money, '1.00');
+    assert.equal(webhook.orderId, 'order_456');
+    assert.equal(webhook.providerOrderId, 'epay_trade_789');
+    assert.equal(webhook.status, 'paid');
+    assert.equal(webhook.eventId, 'epay_trade_789:paid');
+    assert.ok(webhook.paidAt);
   });
 });
-

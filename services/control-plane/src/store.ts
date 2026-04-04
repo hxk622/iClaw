@@ -113,6 +113,8 @@ export interface ControlPlaneStore {
   createPaymentOrder(
     userId: string,
     input: Required<CreatePaymentOrderInput> & {
+      order_id?: string;
+      payment_url?: string | null;
       packageName: string;
       credits: number;
       bonusCredits: number;
@@ -691,6 +693,8 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   async createPaymentOrder(
     userId: string,
     input: Required<CreatePaymentOrderInput> & {
+      order_id?: string;
+      payment_url?: string | null;
       packageName: string;
       credits: number;
       bonusCredits: number;
@@ -700,7 +704,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   ): Promise<PaymentOrderRecord> {
     const now = new Date().toISOString();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-    const orderId = randomUUID();
+    const orderId = input.order_id?.trim() || randomUUID();
     const order: PaymentOrderRecord = {
       id: orderId,
       userId,
@@ -714,13 +718,16 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       status: 'pending',
       providerOrderId: null,
       providerPrepayId: null,
-      paymentUrl: buildPlaceholderPaymentUrl({
-        provider: input.provider as PaymentProvider,
-        orderId,
-        packageName: input.packageName,
-        amountCnyFen: input.amountCnyFen,
-        expiresAt,
-      }),
+      paymentUrl:
+        typeof input.payment_url === 'string' && input.payment_url.trim()
+          ? input.payment_url.trim()
+          : buildPlaceholderPaymentUrl({
+              provider: input.provider as PaymentProvider,
+              orderId,
+              packageName: input.packageName,
+              amountCnyFen: input.amountCnyFen,
+              expiresAt,
+            }),
       appName: input.app_name || null,
       appVersion: input.app_version || null,
       releaseChannel: input.release_channel || null,

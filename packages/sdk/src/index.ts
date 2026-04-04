@@ -294,12 +294,6 @@ export interface PaymentOrderData {
   expires_at: string | null;
 }
 
-export interface EpayOrderData {
-  url: string;
-  message: string;
-  data: Record<string, any>;
-}
-
 export interface PaymentWebhookInput {
   provider: 'mock' | 'wechat_qr' | 'alipay_qr';
   eventId: string;
@@ -1352,8 +1346,8 @@ export class IClawClient {
     return json.data;
   }
 
-  async createPaymentOrder(input: CreatePaymentOrderInput): Promise<EpayOrderData> {
-    const res = await this.fetchAuth('/api/epay/orders', {
+  async createPaymentOrder(input: CreatePaymentOrderInput): Promise<PaymentOrderData> {
+    const res = await this.fetchAuth('/payments/orders', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${input.token}`,
@@ -1372,7 +1366,8 @@ export class IClawClient {
       }),
     });
     if (!res.ok) throw await parseError(res);
-    return res.json();
+    const json = (await res.json()) as {data: PaymentOrderData};
+    return json.data;
   }
 
   async getPaymentOrder(token: string, orderId: string): Promise<PaymentOrderData> {

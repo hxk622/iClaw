@@ -2,7 +2,7 @@ import { toCanonicalSessionKey, type AuthTokens } from '@iclaw/shared';
 
 import { deleteAvatarByKey, deleteOldAvatars, extractAvatarKey, uploadAvatar } from './avatar-storage.ts';
 import {config} from './config.ts';
-import {randomBytes} from 'node:crypto';
+import {randomBytes, randomUUID} from 'node:crypto';
 import {decryptInstallSecretPayload, encryptInstallSecretPayload} from './install-config-secrets.ts';
 import {
   buildCloudSkillArtifactProxyUrl,
@@ -97,6 +97,7 @@ import type {
   WorkspaceBackupView,
 } from './domain.ts';
 import {HttpError} from './errors.ts';
+import {EpayService} from './epay-service.ts';
 import {logWarn} from './logger.ts';
 import {loadOAuthUserProfile} from './oauth.ts';
 import {hashPassword, verifyPassword} from './passwords.ts';
@@ -127,6 +128,11 @@ const MARKET_FUND_DEFAULT_LIMIT = 120;
 const MARKET_FUND_MAX_LIMIT = 500;
 const PAYMENT_PROVIDER_SECRET_FIELDS = ['api_v3_key', 'private_key_pem'] as const;
 const PAYMENT_PROVIDER_REQUIRED_CONFIG_FIELDS = ['sp_mchid', 'sp_appid', 'sub_mchid', 'notify_url', 'serial_no'] as const;
+const epayService = new EpayService({
+  partnerId: config.epayPartnerId,
+  key: config.epayKey,
+  gateway: config.epayGateway,
+});
 
 function resolvePublicApiBaseUrl(): string {
   if (config.apiUrl.trim()) {
@@ -1892,7 +1898,11 @@ export class ControlPlaneService {
     };
   }
 
-  async createPaymentOrder(accessToken: string, input: CreatePaymentOrderInput): Promise<PaymentOrderView> {
+  async createPaymentOrder(
+    accessToken: string,
+    input: CreatePaymentOrderInput,
+    options?: {publicBaseUrl?: string},
+  ): Promise<PaymentOrderView> {
     const user = await this.getUserForAccessToken(accessToken);
     const provider = normalizePaymentProvider(input.provider, 'wechat_qr');
     const packageId = (input.package_id || '').trim();
@@ -1907,7 +1917,20 @@ export class ControlPlaneService {
       throw new HttpError(400, 'BAD_REQUEST', 'invalid package_id');
     }
     const paymentProfileResolution = await this.resolvePaymentProviderProfileForOrder(provider, appName || null);
+    const orderId = randomUUID();
+    const checkout =
+      epayService.isEnabled() && (provider === 'wechat_qr' || provider === 'alipay_qr')
+        ? epayService.createCheckout({
+            orderId,
+            provider,
+            packageName: packageConfig.packageName,
+            amountCnyFen: packageConfig.amountCnyFen,
+            publicBaseUrl: options?.publicBaseUrl || resolvePublicApiBaseUrl(),
+            returnUrl: (input.return_url || '').trim(),
+          })
+        : null;
     const order = await this.store.createPaymentOrder(user.id, {
+      order_id: orderId,
       provider,
       package_id: packageId,
       return_url: (input.return_url || '').trim(),
@@ -1917,7 +1940,11 @@ export class ControlPlaneService {
       platform,
       arch,
       user_agent: userAgent,
-      metadata: paymentProfileResolution.metadata,
+      payment_url: checkout?.paymentUrl || null,
+      metadata: {
+        ...paymentProfileResolution.metadata,
+        ...(checkout?.metadata || {}),
+      },
       ...packageConfig,
     });
     return toPaymentOrderView(order);
@@ -1953,6 +1980,25 @@ export class ControlPlaneService {
       provider_order_id: (input.provider_order_id || '').trim(),
       status,
       paid_at: (input.paid_at || '').trim(),
+    });
+    if (!order) {
+      throw new HttpError(404, 'NOT_FOUND', 'payment order not found');
+    }
+    return toPaymentOrderView(order);
+  }
+
+  async applyEpayWebhook(input: Record<string, unknown>): Promise<PaymentOrderView> {
+    const webhook = epayService.parseWebhook(input);
+    const adminOrder = await this.store.getPaymentOrderAdmin(webhook.orderId);
+    if (!adminOrder) {
+      throw new HttpError(404, 'NOT_FOUND', 'payment order not found');
+    }
+    const order = await this.store.applyPaymentWebhook(adminOrder.provider, {
+      event_id: webhook.eventId,
+      order_id: webhook.orderId,
+      provider_order_id: webhook.providerOrderId,
+      status: webhook.status,
+      paid_at: webhook.paidAt || '',
     });
     if (!order) {
       throw new HttpError(404, 'NOT_FOUND', 'payment order not found');

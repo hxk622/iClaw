@@ -1,221 +1,134 @@
 import {HttpError} from './errors.ts';
-import type {ControlPlaneStore} from './store.ts';
-import {TOPUP_PACKAGES, normalizePaymentProvider} from './service.ts';
-import type {PaymentWebhookInput, CreatePaymentOrderInput} from './domain.ts'
-import {config} from './config.ts';
+import type {PaymentProvider} from './domain.ts';
+import {createPaymentLaunchUrl, formatAmountCnyFen, type EpayConfig, verifySignature} from './epay.ts';
 
+type SupportedEpayProvider = Extract<PaymentProvider, 'wechat_qr' | 'alipay_qr'>;
 
-import crypto from 'crypto';
+export type EpayCheckoutInput = {
+  orderId: string;
+  provider: PaymentProvider;
+  packageName: string;
+  amountCnyFen: number;
+  publicBaseUrl: string;
+  returnUrl?: string | null;
+};
 
-// Epay 支付配置
-export interface EpayConfig {
-  partnerId: string; // 商户ID (epay_id)
-  key: string;       // 商户密钥 (epay_key)
-  gateway: string;   // 支付网关地址 (pay_address)
-}
+export type EpayCheckoutResult = {
+  paymentUrl: string;
+  metadata: Record<string, unknown>;
+};
 
-// 发起支付所需的参数
-export interface EpayPurchaseInput {
-  type: 'alipay' | 'wxpay' | 'qqpay'; // 支付方式
-  tradeNo: string;      // 商户订单号
-  notifyUrl: string;    // 异步通知地址
-  returnUrl: string;    // 同步跳转地址
-  name: string;         // 商品名称
-  money: string;        // 金额 (单位: 元)
-  device?: 'pc' | 'mobile';
-}
+export type EpayWebhookResult = {
+  eventId: string;
+  orderId: string;
+  providerOrderId: string;
+  status: 'pending' | 'paid' | 'failed';
+  paidAt: string | null;
+};
 
-// Epay 回调参数
-export interface EpayNotifyInput {
-  trade_no: string;         // 商户订单号
-  out_trade_no: string;     // Epay 订单号
-  type: string;             // 支付方式
-  money: string;            // 金额
-  trade_status: string;     // 交易状态 (TRADE_SUCCESS)
-  sign: string;             // 签名
-  sign_type: 'MD5';         // 签名类型
-}
-
-/**
- * 对参数进行排序并生成待签名的字符串
- * @param params 参数对象
- * @returns 待签名的字符串
- */
-function buildSignString(params: Record<string, any>): string {
-  console.log('Building signature with params:', params);
-  const sortedKeys = Object.keys(params).sort();
-  const pairs: string[] = [];
-  for (const key of sortedKeys) {
-    const value = params[key];
-    // According to Epay documentation, values should be ignored if they are null, undefined, or an empty string.
-    // Also, the 'sign' and 'sign_type' parameters themselves are excluded from the signature calculation.
-    if (key !== 'sign' && key !== 'sign_type' && value !== null && value !== undefined && value !== '') {
-      pairs.push(`${key}=${value}`);
-    }
+function normalizeBaseUrl(value: string): string {
+  const normalized = String(value || '').trim().replace(/\/$/, '');
+  if (!normalized) {
+    throw new HttpError(500, 'INTERNAL_SERVER_ERROR', 'public payment base url is not configured');
   }
-  return pairs.join('&');
+  return normalized;
 }
 
-/**
- * 计算 Epay 签名
- * @param params 参与签名的参数
- * @param key 商户密钥
- * @returns 签名
- */
-function createSignature(params: Record<string, any>, key: string): string {
-  const signString = buildSignString(params);
-  const stringToSign = `${signString}${key}`;
-  return crypto.createHash('md5').update(stringToSign).digest('hex');
+function isSupportedProvider(provider: PaymentProvider): provider is SupportedEpayProvider {
+  return provider === 'wechat_qr' || provider === 'alipay_qr';
 }
 
-/**
- * 验证 Epay 回调签名
- * @param params Epay 回调的所有参数
- * @param key 商户密钥
- * @returns 签名是否有效
- */
-export function verifySignature(params: Record<string, any>, key: string): boolean {
-  const receivedSign = params.sign;
-  if (!receivedSign) {
-    return false;
+function toEpayPaymentType(provider: SupportedEpayProvider): 'alipay' | 'wxpay' {
+  return provider === 'alipay_qr' ? 'alipay' : 'wxpay';
+}
+
+function normalizeWebhookString(input: Record<string, unknown>, key: string): string {
+  return String(input[key] || '').trim();
+}
+
+function mapTradeStatus(value: string): 'pending' | 'paid' | 'failed' {
+  const normalized = value.trim().toUpperCase();
+  if (normalized === 'TRADE_SUCCESS' || normalized === 'TRADE_FINISHED') {
+    return 'paid';
   }
-  const expectedSign = createSignature(params, key);
-  return receivedSign === expectedSign;
-}
-
-/**
- * 生成 Epay 支付的跳转 URL 和参数
- * @param input 支付参数
- * @param config Epay 配置
- * @returns 包含支付网关 URL 和表单参数的对象
- */
-export function createPurchase(input: EpayPurchaseInput, config: EpayConfig) {
-  const params: Record<string, any> = {
-    pid: config.partnerId,
-    type: input.type,
-    out_trade_no: input.tradeNo,
-    notify_url: input.notifyUrl,
-    return_url: input.returnUrl,
-    name: input.name,
-    money: input.money,
-    device: input.device || 'pc',
-  };
-
-  const sign = createSignature(params, config.key);
-  params['sign'] = sign;
-  params['sign_type'] = 'MD5';
-  
-  return {
-    gateway: config.gateway,
-    params,
-  };
-}
-
-export interface EpayPurchaseView {
-  gateway: string;
-  params: Record<string, any>;
-}
-
-function toEpayPaymentType(provider: string): 'alipay' | 'wxpay' {
-  const normalized = provider.trim().toLowerCase();
-  if (normalized.startsWith('alipay')) {
-    return 'alipay';
+  if (normalized === 'WAIT_BUYER_PAY' || normalized === 'PENDING') {
+    return 'pending';
   }
-  if (normalized.startsWith('wechat')) {
-    return 'wxpay';
+  if (normalized === 'TRADE_CLOSED' || normalized === 'TRADE_FAILED' || normalized === 'FAILED') {
+    return 'failed';
   }
-  // Default or throw error
-  return 'alipay';
+  throw new HttpError(400, 'BAD_REQUEST', 'unsupported epay trade_status');
 }
 
 export class EpayService {
-  private readonly store: ControlPlaneStore;
-  private readonly decryptSecret: (payload: string | null | undefined) => Record<string, string>;
-  private readonly publicUrl: string;
+  private readonly config: EpayConfig;
 
-  constructor(store: ControlPlaneStore, decryptSecret: (payload: string | null | undefined) => Record<string, string>, publicUrl: string) {
-    this.store = store;
-    this.decryptSecret = decryptSecret;
-    this.publicUrl = publicUrl;
+  constructor(config: EpayConfig) {
+    this.config = config;
   }
 
-  async createEpayPaymentOrder(userId: string, input: CreatePaymentOrderInput): Promise<any> {
-    const provider = 'epay';
-    const packageId = (input.package_id || '').trim();
-    const appName = (input.app_name || '').trim();
-    const packageConfig = TOPUP_PACKAGES.get(packageId);
-
-    if (!packageConfig) {
-      throw new HttpError(400, 'BAD_REQUEST', 'invalid package_id');
-    }
-
-    const epayConfig: EpayConfig = {
-      partnerId: config.epayPartnerId,
-      key: config.epayKey,
-      gateway: config.epayGateway,
-    };
-
-    if (!epayConfig.partnerId || !epayConfig.key || !epayConfig.gateway) {
-      throw new HttpError(500, 'INTERNAL_SERVER_ERROR', 'epay is not configured correctly');
-    }
-
-    const order = await this.store.createPaymentOrder(userId, {
-      ...input,
-      provider,
-      package_id: packageId,
-      return_url: (input.return_url || '').trim(),
-      app_name: appName,
-      app_version: (input.app_version || '').trim(),
-      release_channel: (input.release_channel || '').trim(),
-      platform: (input.platform || '').trim(),
-      arch: (input.arch || '').trim(),
-      user_agent: (input.user_agent || '').trim(),
-      metadata: {},
-      ...packageConfig,
-    });
-
-    const epayInput: EpayPurchaseInput = {
-        type: toEpayPaymentType(input.provider || ''),
-        tradeNo: order.id,
-        notifyUrl: `${this.publicUrl}/api/epay/webhooks`,
-        returnUrl: order.returnUrl || `${this.publicUrl}/payment-return`,
-        name: order.packageName,
-        money: '0.01', // DEBUG: 强制金额为 0.01
-        device: 'pc',
-    };
-
-    const purchase = createPurchase(epayInput, epayConfig);
-
-    return {
-      message: 'success',
-      url: purchase.gateway,
-      data: purchase.params,
-    };
+  isEnabled(): boolean {
+    return Boolean(
+      String(this.config.partnerId || '').trim() &&
+        String(this.config.key || '').trim() &&
+        String(this.config.gateway || '').trim(),
+    );
   }
 
-  async applyEpayWebhook(input: PaymentWebhookInput) {
-    const provider = 'epay';
-    if (!config.epayPartnerId || !config.epayKey || !config.epayGateway) {
+  createCheckout(input: EpayCheckoutInput): EpayCheckoutResult {
+    if (!this.isEnabled()) {
       throw new HttpError(500, 'INTERNAL_SERVER_ERROR', 'epay is not configured');
     }
-
-    if (!verifySignature(input, config.epayKey)) {
-      throw new HttpError(400, 'BAD_REQUEST', 'invalid signature');
+    if (!isSupportedProvider(input.provider)) {
+      throw new HttpError(400, 'BAD_REQUEST', 'epay only supports wechat_qr and alipay_qr');
     }
 
-    const eventId = (input.event_id || '').trim();
-    const orderId = (input.order_id || '').trim();
-    const status = (input.status || '').trim().toLowerCase();
-    if (!eventId || !orderId || !status) {
-      throw new HttpError(400, 'BAD_REQUEST', 'event_id, order_id and status are required');
+    const publicBaseUrl = normalizeBaseUrl(input.publicBaseUrl);
+    const paymentUrl = createPaymentLaunchUrl(
+      {
+        type: toEpayPaymentType(input.provider),
+        tradeNo: input.orderId,
+        notifyUrl: `${publicBaseUrl}/payments/webhooks/epay`,
+        returnUrl: String(input.returnUrl || '').trim() || `${publicBaseUrl}/payment-return`,
+        name: input.packageName,
+        money: formatAmountCnyFen(input.amountCnyFen),
+        device: 'pc',
+      },
+      this.config,
+    );
+
+    return {
+      paymentUrl,
+      metadata: {
+        payment_processor: 'epay',
+        payment_processor_provider: input.provider,
+        payment_processor_gateway: String(this.config.gateway || '').trim(),
+      },
+    };
+  }
+
+  parseWebhook(input: Record<string, unknown>): EpayWebhookResult {
+    if (!this.isEnabled()) {
+      throw new HttpError(500, 'INTERNAL_SERVER_ERROR', 'epay is not configured');
+    }
+    if (!verifySignature(input, this.config.key)) {
+      throw new HttpError(400, 'BAD_REQUEST', 'invalid epay signature');
     }
 
-    return this.store.applyPaymentWebhook(provider, {
-      event_id: eventId,
-      order_id: orderId,
-      provider_order_id: (input.provider_order_id || '').trim(),
+    const orderId = normalizeWebhookString(input, 'out_trade_no');
+    const providerOrderId = normalizeWebhookString(input, 'trade_no');
+    const tradeStatus = normalizeWebhookString(input, 'trade_status');
+    if (!orderId || !providerOrderId || !tradeStatus) {
+      throw new HttpError(400, 'BAD_REQUEST', 'invalid epay webhook payload');
+    }
+
+    const status = mapTradeStatus(tradeStatus);
+    return {
+      eventId: `${providerOrderId}:${status}`,
+      orderId,
+      providerOrderId,
       status,
-      paid_at: (input.paid_at || '').trim()
-    });
+      paidAt: status === 'paid' ? new Date().toISOString() : null,
+    };
   }
 }
