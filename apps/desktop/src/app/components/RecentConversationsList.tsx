@@ -1,4 +1,4 @@
-import { MoreVertical, MessageSquareText, PencilLine, Trash2 } from 'lucide-react';
+import { Clock3, MoreVertical, MessageSquareText, PencilLine, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/app/components/ui/Button';
@@ -33,6 +33,7 @@ export function RecentConversationsList({
   const recentTurns = useChatTurns();
   const [menuConversationId, setMenuConversationId] = useState<string | null>(null);
   const [renamingConversationId, setRenamingConversationId] = useState<string | null>(null);
+  const [pendingSelectionConversationId, setPendingSelectionConversationId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState('');
   const [pendingDeleteConversation, setPendingDeleteConversation] = useState<{
     id: string;
@@ -59,6 +60,16 @@ export function RecentConversationsList({
     return conversations
       .map((conversation) => {
         const matchedTurn = recentTurnByConversation.get(conversation.id) ?? null;
+        const hasDisplayableMetadata = Boolean(
+          conversation.title?.trim() ||
+          conversation.summary?.trim() ||
+          matchedTurn?.title?.trim() ||
+          matchedTurn?.summary?.trim() ||
+          matchedTurn?.prompt?.trim(),
+        );
+        if (!hasDisplayableMetadata) {
+          return null;
+        }
         const conversationTitle =
           conversation.title?.trim() ||
           matchedTurn?.title?.trim() ||
@@ -77,6 +88,7 @@ export function RecentConversationsList({
           updatedAt,
         };
       })
+      .filter((conversation): conversation is { id: string; title: string; summary: string; updatedAt: string } => Boolean(conversation))
       .sort((left, right) => parseTimestamp(right.updatedAt) - parseTimestamp(left.updatedAt))
       .slice(0, SIDEBAR_CONVERSATION_LIMIT);
   }, [conversations, recentTurns]);
@@ -107,6 +119,10 @@ export function RecentConversationsList({
     renameInputRef.current?.focus();
     renameInputRef.current?.select();
   }, [renamingConversationId]);
+
+  useEffect(() => {
+    setPendingSelectionConversationId(null);
+  }, [selectedConversationId]);
 
   useEffect(() => {
     setPortalReady(true);
@@ -190,7 +206,7 @@ export function RecentConversationsList({
       ) : (
         <div className="space-y-[6px] px-2">
           {visibleConversations.map((conversation) => {
-            const isSelected = conversation.id === selectedConversationId;
+            const isSelected = conversation.id === (pendingSelectionConversationId ?? selectedConversationId);
             const menuOpen = menuConversationId === conversation.id;
             const renaming = renamingConversationId === conversation.id;
             return (
@@ -204,13 +220,16 @@ export function RecentConversationsList({
                   INTERACTIVE_FOCUS_RING,
                   menuOpen ? 'z-30' : 'z-0',
                   isSelected
-                    ? 'border-[rgba(37,99,235,0.34)] bg-[linear-gradient(135deg,rgba(37,99,235,0.10)_0%,rgba(255,255,255,0.88)_100%)] ring-1 ring-[rgba(37,99,235,0.12)] shadow-[0_18px_36px_rgba(37,99,235,0.14)]'
+                    ? 'border-[rgba(37,99,235,0.42)] bg-[rgba(37,99,235,0.08)] ring-1 ring-[rgba(37,99,235,0.10)] shadow-[0_12px_28px_rgba(16,24,40,0.08)]'
                     : 'border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-card)_94%,var(--bg-page))] hover:border-[color-mix(in_srgb,var(--brand-primary)_22%,var(--border-default))] hover:bg-[var(--bg-hover)] hover:shadow-[0_12px_26px_rgba(16,24,40,0.06)]',
                 )}
               >
                 <button
                   type="button"
-                  onClick={() => onSelectConversation?.(conversation.id)}
+                  onClick={() => {
+                    setPendingSelectionConversationId(conversation.id);
+                    onSelectConversation?.(conversation.id);
+                  }}
                   className="flex h-full min-w-0 flex-1 items-stretch gap-1.5 overflow-hidden text-left"
                 >
                   <span className="flex w-7 shrink-0 flex-col items-center justify-between py-0.5">
@@ -224,6 +243,12 @@ export function RecentConversationsList({
                     >
                       <MessageSquareText className="h-3.5 w-3.5" />
                     </span>
+                    <span
+                      className={cn(
+                        'h-1.5 w-1.5 rounded-full',
+                        isSelected ? 'bg-[rgb(34,197,94)]' : 'bg-[var(--border-default)]',
+                      )}
+                    />
                   </span>
 
                   <span className="flex min-w-0 flex-1 flex-col justify-between py-0.5">
@@ -253,7 +278,7 @@ export function RecentConversationsList({
                         <span
                           className={cn(
                             'block truncate text-[13px] font-semibold leading-[18px]',
-                            isSelected ? 'text-[rgb(29,78,216)]' : 'text-[var(--text-primary)]',
+                            isSelected ? 'text-[var(--text-primary)]' : 'text-[var(--text-primary)]',
                           )}
                         >
                           {conversation.title}
@@ -271,15 +296,16 @@ export function RecentConversationsList({
                     </span>
                   </span>
 
-                  <span className="flex w-[46px] shrink-0 flex-col items-end justify-between py-0.5">
+                  <span className="flex w-[52px] shrink-0 flex-col items-end justify-between py-0.5">
                     <span className="h-6 w-6 shrink-0" aria-hidden="true" />
                     <span
                       className={cn(
-                        'pointer-events-none block max-w-full truncate text-right text-[10px] leading-none transition-opacity duration-[var(--motion-panel)]',
-                        isSelected ? 'text-[rgb(59,130,246)]' : 'text-[var(--text-muted)]',
+                        'pointer-events-none inline-flex max-w-full items-center gap-0.5 truncate text-right text-[10px] leading-[15px] transition-opacity duration-[var(--motion-panel)]',
+                        isSelected ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]',
                         menuOpen ? 'opacity-0' : 'opacity-100 group-hover:opacity-0 group-focus-within:opacity-0',
                       )}
                     >
+                      <Clock3 className="h-2.5 w-2.5 shrink-0" />
                       {formatChatTurnRelativeTime(conversation.updatedAt)}
                     </span>
                   </span>
