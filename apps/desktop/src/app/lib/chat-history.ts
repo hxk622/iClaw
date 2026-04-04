@@ -44,6 +44,19 @@ function normalizeSnapshot(
   };
 }
 
+function buildSnapshotContentSignature(snapshot: ChatSessionSnapshot | null): string | null {
+  if (!snapshot) {
+    return null;
+  }
+  return JSON.stringify({
+    sessionKey: snapshot.sessionKey,
+    messages: snapshot.messages,
+    pendingUsageSettlements: Array.isArray(snapshot.pendingUsageSettlements)
+      ? snapshot.pendingUsageSettlements
+      : [],
+  });
+}
+
 function measureSnapshotRichness(snapshot: ChatSessionSnapshot | null): {
   messageCount: number;
   textMessageCount: number;
@@ -229,7 +242,16 @@ export function writeStoredChatSnapshot(params: {
   );
   const preservedSnapshot = choosePreferredSnapshot(existingSessionSnapshot, existingConversationSnapshot);
   const incomingSnapshot = normalizeSnapshot(params.snapshot, params.sessionKey);
-  const resolvedSnapshot = choosePreferredSnapshot(incomingSnapshot, preservedSnapshot);
+  const stabilizedIncomingSnapshot =
+    incomingSnapshot &&
+    preservedSnapshot &&
+    buildSnapshotContentSignature(incomingSnapshot) === buildSnapshotContentSignature(preservedSnapshot)
+      ? {
+          ...incomingSnapshot,
+          savedAt: preservedSnapshot.savedAt,
+        }
+      : incomingSnapshot;
+  const resolvedSnapshot = choosePreferredSnapshot(stabilizedIncomingSnapshot, preservedSnapshot);
 
   if (!resolvedSnapshot || resolvedSnapshot.messages.length === 0) {
     removeCacheKeys(conversationStorageKey ? [sessionStorageKey, conversationStorageKey] : [sessionStorageKey]);
