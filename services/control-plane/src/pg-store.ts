@@ -1077,14 +1077,33 @@ async function ensureRechargePackageSchema(pool: Pool): Promise<void> {
 }
 
 export async function ensureControlPlaneSchema(databaseUrl: string): Promise<void> {
-  const pool = createPgPool(databaseUrl, 'control-plane-schema');
+  const pool = createPgPool(databaseUrl, 'control-plane-schema', {
+    lockTimeoutMs: 5_000,
+    statementTimeoutMs: 30_000,
+  });
   try {
     const migrationPaths = await readSchemaMigrationPaths();
     for (const migrationPath of migrationPaths) {
-      const sql = await readFile(migrationPath, 'utf8');
-      await pool.query(sql);
+      try {
+        const sql = await readFile(migrationPath, 'utf8');
+        await pool.query(sql);
+      } catch (error) {
+        throw new Error(
+          `failed to apply control-plane schema migration ${basename(migrationPath)}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
     }
-    await ensureRechargePackageSchema(pool);
+    try {
+      await ensureRechargePackageSchema(pool);
+    } catch (error) {
+      throw new Error(
+        `failed to ensure control-plane recharge package schema: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   } finally {
     await pool.end();
   }
