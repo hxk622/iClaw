@@ -1322,7 +1322,7 @@ body {
 }
 
 .openclaw-chat-surface .iclaw-chat-table-card table {
-  width: max-content;
+  width: max(100%, max-content);
   min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
