@@ -1735,12 +1735,27 @@ export function SkillStoreView({
 
         {error ? (
           <div className="rounded-[18px] border border-[rgba(239,68,68,0.16)] bg-[rgba(239,68,68,0.08)] px-6 py-5 text-sm text-[var(--state-error)]">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="mt-0.5 h-4.5 w-4.5 shrink-0" />
-              <div>
-                <div className="font-medium">{error === '下载安装失败' ? '下载安装失败' : '技能目录读取失败'}</div>
-                <div className="mt-1 text-[13px] leading-6">{error}</div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="mt-0.5 h-4.5 w-4.5 shrink-0" />
+                <div>
+                  <div className="font-medium">{error === '下载安装失败' ? '下载安装失败' : '技能目录读取失败'}</div>
+                  <div className="mt-1 text-[13px] leading-6">{error}</div>
+                </div>
               </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="self-start"
+                leadingIcon={<RefreshCw className="h-3.5 w-3.5" />}
+                onClick={() => {
+                  void refreshCatalog({ preferAdmin: adminMode }).catch(() => {
+                    setError('技能目录读取失败');
+                  });
+                }}
+              >
+                重试加载
+              </Button>
             </div>
           </div>
         ) : null}

@@ -12,6 +12,14 @@ import { InfoTile } from '@/app/components/ui/InfoTile';
 import { SideDetailSheet } from '@/app/components/ui/SideDetailSheet';
 import { LobsterActionButton } from './LobsterActionButton';
 
+function EmptySectionState({ text }: {text: string}) {
+  return (
+    <div className="rounded-[18px] border border-dashed border-[var(--lobster-border)] bg-[var(--lobster-muted-bg)] px-4 py-3 text-[13px] leading-6 text-[var(--lobster-text-secondary)]">
+      {text}
+    </div>
+  );
+}
+
 export function LobsterAgentDetailDialog({
   agent,
   open,
@@ -127,32 +135,40 @@ export function LobsterAgentDetailDialog({
         </div>
 
         <DrawerSection title="核心功能">
-          <div className="grid gap-3">
-            {agent.capabilities.map((capability) => (
-              <div
-                key={capability}
-                className="rounded-[18px] border border-[var(--lobster-border)] bg-[var(--lobster-card-bg)] px-4 py-3 text-[13px] leading-6 text-[var(--lobster-text-secondary)]"
-              >
-                <div className="flex items-start gap-3">
-                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--lobster-gold)]" />
-                  <span className="break-words [overflow-wrap:anywhere]">{capability}</span>
+          {agent.capabilities.length > 0 ? (
+            <div className="grid gap-3">
+              {agent.capabilities.map((capability) => (
+                <div
+                  key={capability}
+                  className="rounded-[18px] border border-[var(--lobster-border)] bg-[var(--lobster-card-bg)] px-4 py-3 text-[13px] leading-6 text-[var(--lobster-text-secondary)]"
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--lobster-gold)]" />
+                    <span className="break-words [overflow-wrap:anywhere]">{capability}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <EmptySectionState text="当前目录未补充核心能力说明，安装后仍可从对话中直接体验。" />
+          )}
         </DrawerSection>
 
         <DrawerSection title="适用场景">
-          <div className="grid gap-3">
-            {agent.use_cases.map((item) => (
-              <div
-                key={item}
-                className="rounded-[18px] border border-[var(--lobster-border)] bg-[var(--lobster-muted-bg)] px-4 py-3 text-[13px] leading-6 text-[var(--lobster-text-secondary)]"
-              >
-                <span className="break-words [overflow-wrap:anywhere]">{item}</span>
-              </div>
-            ))}
-          </div>
+          {agent.use_cases.length > 0 ? (
+            <div className="grid gap-3">
+              {agent.use_cases.map((item) => (
+                <div
+                  key={item}
+                  className="rounded-[18px] border border-[var(--lobster-border)] bg-[var(--lobster-muted-bg)] px-4 py-3 text-[13px] leading-6 text-[var(--lobster-text-secondary)]"
+                >
+                  <span className="break-words [overflow-wrap:anywhere]">{item}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptySectionState text="当前目录未提供适用场景示例，可先添加后在真实任务里验证效果。" />
+          )}
         </DrawerSection>
 
         <DrawerSection title="安全说明" icon={<ShieldCheck className="h-5 w-5" />}>

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { IClawClient } from '@iclaw/sdk';
-import { AlertCircle, LoaderCircle, Search, Sparkles } from 'lucide-react';
+import { AlertCircle, LoaderCircle, RefreshCw, Search, Sparkles } from 'lucide-react';
 
 import type { AppUserAvatarSource } from '@/app/lib/user-avatar';
 import { Chip } from '@/app/components/ui/Chip';
+import { Button } from '@/app/components/ui/Button';
 import {
   isLobsterStoreAgent,
   readCachedLobsterAgents,
@@ -260,15 +261,26 @@ export function LobsterStoreView({
           titleClassName="mt-0 text-[24px] font-semibold tracking-[-0.045em] text-[var(--lobster-text-primary)]"
           descriptionClassName="mt-0 text-[12px] leading-5 text-[var(--lobster-text-secondary)]"
           actions={
-            <label className="relative block w-full min-w-[260px] max-w-[360px]">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--lobster-text-muted)]" />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="搜索助手、能力、场景、专业分组..."
-                className="h-10 w-full rounded-[12px] border border-[var(--lobster-border)] bg-[var(--lobster-card-elevated)] pl-10 pr-4 text-[13px] text-[var(--lobster-text-primary)] outline-none transition placeholder:text-[var(--lobster-text-muted)] focus:border-[var(--lobster-gold-border-strong)] focus:ring-2 focus:ring-[rgba(168,140,93,0.14)]"
-              />
-            </label>
+            <>
+              <label className="relative block w-full min-w-[260px] max-w-[360px]">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--lobster-text-muted)]" />
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="搜索助手、能力、场景、专业分组..."
+                  className="h-10 w-full rounded-[12px] border border-[var(--lobster-border)] bg-[var(--lobster-card-elevated)] pl-10 pr-4 text-[13px] text-[var(--lobster-text-primary)] outline-none transition placeholder:text-[var(--lobster-text-muted)] focus:border-[var(--lobster-gold-border-strong)] focus:ring-2 focus:ring-[rgba(168,140,93,0.14)]"
+                />
+              </label>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={refreshing}
+                leadingIcon={refreshing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                onClick={() => void refresh()}
+              >
+                {refreshing ? '刷新中…' : '刷新'}
+              </Button>
+            </>
           }
         />
 
@@ -282,9 +294,14 @@ export function LobsterStoreView({
         </div>
 
         {error ? (
-          <div className="mt-4 flex items-start gap-3 rounded-[18px] border border-[var(--lobster-danger-border)] bg-[var(--lobster-danger-soft)] px-4 py-3 text-[13px] leading-6 text-[var(--lobster-danger-text)]">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{error}</span>
+          <div className="mt-4 flex flex-col gap-3 rounded-[18px] border border-[var(--lobster-danger-border)] bg-[var(--lobster-danger-soft)] px-4 py-3 text-[13px] leading-6 text-[var(--lobster-danger-text)] sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+            <Button variant="ghost" size="sm" className="self-start" onClick={() => void refresh()}>
+              重新加载
+            </Button>
           </div>
         ) : null}
 

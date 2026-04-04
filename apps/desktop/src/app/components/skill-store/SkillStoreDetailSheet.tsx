@@ -1,4 +1,5 @@
-import { CalendarDays, MessageSquare, Package, Sparkles, Trash2, UserRound } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { CalendarDays, MessageSquare, Package, Settings2, Sparkles, Tag, Trash2, UserRound } from 'lucide-react';
 import type { SkillStoreItem } from '@/app/lib/skill-store';
 import { Button } from '@/app/components/ui/Button';
 import { Chip } from '@/app/components/ui/Chip';
@@ -26,11 +27,15 @@ function isSystemPreinstalledSkill(skill: SkillStoreItem): boolean {
   );
 }
 
+function needsSetup(skill: SkillStoreItem): boolean {
+  return skill.setupSchema != null && skill.setupStatus !== 'configured';
+}
+
 function canStartConversation(skill: SkillStoreItem, input: { actionLoading: boolean; installFailed: boolean }): boolean {
   return (
     !input.actionLoading &&
     !input.installFailed &&
-    skill.setupStatus !== 'missing' &&
+    !needsSetup(skill) &&
     (isSystemPreinstalledSkill(skill) || skill.installed)
   );
 }
@@ -73,11 +78,11 @@ function resolveStatus(skill: SkillStoreItem, input: { actionLoading: boolean; i
     return {
       label: '已安装',
       tone: 'success',
-      actionLabel: skill.setupStatus === 'missing' ? '补充配置' : '对话',
-      actionVariant: skill.setupStatus === 'missing' ? 'primary' : 'success',
+      actionLabel: needsSetup(skill) ? '补充配置' : '对话',
+      actionVariant: needsSetup(skill) ? 'primary' : 'success',
       disabled: false,
       note:
-        skill.setupStatus === 'missing'
+        needsSetup(skill)
           ? '这个技能已安装，但还缺少运行所需配置。先补齐配置，再进入对话。'
           : skill.source === 'private'
             ? '这是你导入到账号的技能，可直接开始对话。'
@@ -100,28 +105,39 @@ function metadataRows(skill: SkillStoreItem) {
     {
       label: '最新版本',
       value: skill.version || (isSystemPreinstalledSkill(skill) ? '系统预装' : '未发布'),
+      icon: <Package className="h-3.5 w-3.5" />,
+    },
+    {
+      label: '配置状态',
+      value: skill.setupSchema ? (needsSetup(skill) ? '待配置' : '已配置') : '无需配置',
+      icon: <Settings2 className="h-3.5 w-3.5" />,
     },
     {
       label: '来源地址',
       value: skill.sourceUrl ? <span className="block break-words [overflow-wrap:anywhere]">{skill.sourceUrl}</span> : '未记录',
+      icon: <CalendarDays className="h-3.5 w-3.5" />,
     },
     {
       label: '分类',
       value: skill.categoryLabel,
+      icon: <Tag className="h-3.5 w-3.5" />,
     },
     {
       label: '市场',
       value: skill.market,
+      icon: <Sparkles className="h-3.5 w-3.5" />,
     },
     {
       label: '发布者',
       value: skill.publisher,
+      icon: <UserRound className="h-3.5 w-3.5" />,
     },
     {
       label: '来源',
       value: skill.sourceLabel,
+      icon: <Package className="h-3.5 w-3.5" />,
     },
-  ];
+  ] as Array<{ label: string; value: ReactNode; icon: ReactNode }>;
 }
 
 export function SkillStoreDetailSheet({
@@ -229,21 +245,12 @@ export function SkillStoreDetailSheet({
         <DrawerSection title="元信息" icon={<CalendarDays className="h-5 w-5" />}>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {rows.map((row) => {
-                const icon =
-                  row.label === '发布时间' ? (
-                    <CalendarDays className="h-3.5 w-3.5" />
-                  ) : row.label === '发布者' ? (
-                    <UserRound className="h-3.5 w-3.5" />
-                  ) : (
-                    <Package className="h-3.5 w-3.5" />
-                  );
-
                 return (
                   <InfoTile
                     key={row.label}
                     label={
                       <span className="inline-flex items-center gap-2">
-                        <span className="text-[var(--text-secondary)]">{icon}</span>
+                        <span className="text-[var(--text-secondary)]">{row.icon}</span>
                         {row.label}
                       </span>
                     }

@@ -10,6 +10,7 @@ import {
   Globe2,
   LoaderCircle,
   Plus,
+  RefreshCw,
   Search,
   ShieldCheck,
   Sparkles,
@@ -881,7 +882,15 @@ export function MCPStoreView({
               </div>
 
               {error ? (
-                <EmptyStatePanel title="目录加载失败" description={error} />
+                <EmptyStatePanel
+                  title="目录加载失败"
+                  description={error}
+                  action={
+                    <Button variant="secondary" size="sm" leadingIcon={<RefreshCw className="h-4 w-4" />} onClick={() => void loadData()}>
+                      重试加载
+                    </Button>
+                  }
+                />
               ) : loading ? (
                 <LoadingGrid />
               ) : filteredLibraryItems.length > 0 ? (
@@ -914,7 +923,15 @@ export function MCPStoreView({
               </div>
 
               {error ? (
-                <EmptyStatePanel title="我的MCP加载失败" description={error} />
+                <EmptyStatePanel
+                  title="我的MCP加载失败"
+                  description={error}
+                  action={
+                    <Button variant="secondary" size="sm" leadingIcon={<RefreshCw className="h-4 w-4" />} onClick={() => void loadData()}>
+                      重试加载
+                    </Button>
+                  }
+                />
               ) : loading ? (
                 <LoadingGrid />
               ) : mineItems.length > 0 ? (

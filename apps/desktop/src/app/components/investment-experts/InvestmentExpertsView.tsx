@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { IClawClient } from '@iclaw/sdk';
-import { AlertCircle, Info, Search } from 'lucide-react';
+import { AlertCircle, Info, LoaderCircle, RefreshCw, Search } from 'lucide-react';
 
+import { Button } from '@/app/components/ui/Button';
 import { PageContent, PageHeader, PageSurface } from '@/app/components/ui/PageLayout';
 import { STORE_SHELF_GRID_CLASS } from '@/app/components/ui/store-shelf';
 import {
@@ -56,6 +57,7 @@ export function InvestmentExpertsView({
   const [query, setQuery] = useState('');
   const [experts, setExperts] = useState<InvestmentExpert[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detailSlug, setDetailSlug] = useState<string | null>(null);
   const [installBusySlug, setInstallBusySlug] = useState<string | null>(null);
@@ -64,7 +66,9 @@ export function InvestmentExpertsView({
   const normalizedQuery = query.trim().toLowerCase();
 
   const refresh = async () => {
-    setLoading(true);
+    const showRefreshing = experts.length > 0;
+    setLoading(!showRefreshing);
+    setRefreshing(showRefreshing);
     setError(null);
     try {
       const agents = await loadLobsterAgents({client, accessToken});
@@ -73,6 +77,7 @@ export function InvestmentExpertsView({
       setError(refreshError instanceof Error ? refreshError.message : '加载智能投资专家失败');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -166,22 +171,45 @@ export function InvestmentExpertsView({
           titleClassName="mt-0 text-[28px] font-semibold tracking-[-0.045em] text-[var(--lobster-text-primary)]"
           descriptionClassName="mt-0 text-[15px] leading-7 text-[var(--lobster-text-secondary)]"
           actions={
-            <label className="relative block w-full min-w-[260px] max-w-[320px]">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--lobster-text-muted)]" />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="搜索专家、策略、市场方向…"
-                className="h-11 w-full rounded-[12px] border border-[var(--lobster-border)] bg-[var(--lobster-card-elevated)] pl-10 pr-4 text-[14px] text-[var(--lobster-text-primary)] outline-none transition placeholder:text-[var(--lobster-text-muted)] focus:border-[var(--lobster-gold-border-strong)] focus:ring-2 focus:ring-[rgba(168,140,93,0.14)]"
-              />
-            </label>
+            <>
+              <label className="relative block w-full min-w-[260px] max-w-[320px]">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--lobster-text-muted)]" />
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="搜索专家、策略、市场方向…"
+                  className="h-11 w-full rounded-[12px] border border-[var(--lobster-border)] bg-[var(--lobster-card-elevated)] pl-10 pr-4 text-[14px] text-[var(--lobster-text-primary)] outline-none transition placeholder:text-[var(--lobster-text-muted)] focus:border-[var(--lobster-gold-border-strong)] focus:ring-2 focus:ring-[rgba(168,140,93,0.14)]"
+                />
+              </label>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={refreshing}
+                leadingIcon={refreshing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                onClick={() => void refresh()}
+              >
+                {refreshing ? '刷新中…' : '刷新'}
+              </Button>
+            </>
           }
         />
 
         {error ? (
-          <div className="mt-4 flex items-start gap-3 rounded-[18px] border border-[var(--lobster-danger-border)] bg-[var(--lobster-danger-soft)] px-4 py-3 text-[14px] leading-7 text-[var(--lobster-danger-text)]">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{error}</span>
+          <div className="mt-4 flex flex-col gap-3 rounded-[18px] border border-[var(--lobster-danger-border)] bg-[var(--lobster-danger-soft)] px-4 py-3 text-[14px] leading-7 text-[var(--lobster-danger-text)] sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+            <Button variant="ghost" size="sm" className="self-start" onClick={() => void refresh()}>
+              重新加载
+            </Button>
+          </div>
+        ) : null}
+
+        {refreshing ? (
+          <div className="mt-4 flex items-center gap-2 rounded-[14px] border border-[var(--lobster-border)] bg-[var(--lobster-card-elevated)] px-4 py-3 text-[13px] text-[var(--lobster-text-secondary)]">
+            <LoaderCircle className="h-4 w-4 animate-spin text-[var(--lobster-gold-strong)]" />
+            <span>正在刷新专家目录…</span>
           </div>
         ) : null}
 

@@ -6,6 +6,14 @@ import { ConversationActionButton } from '@/app/components/ui/ConversationAction
 import type { InvestmentExpert } from '@/app/lib/investment-experts';
 import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 
+function EmptySectionState({ text }: {text: string}) {
+  return (
+    <div className="rounded-[12px] border border-dashed border-[var(--lobster-border)] bg-[var(--lobster-muted-bg)] px-4 py-3 text-[14px] leading-7 text-[var(--lobster-text-secondary)]">
+      {text}
+    </div>
+  );
+}
+
 function StatusPill({
   installed,
 }: {
@@ -62,7 +70,7 @@ export function InvestmentExpertDetailDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50">
+    <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="investment-expert-detail-title">
       <button
         type="button"
         aria-label="关闭弹窗"
@@ -88,7 +96,7 @@ export function InvestmentExpertDetailDialog({
             </div>
 
             <div className="min-w-0">
-              <h2 className="text-[28px] font-semibold tracking-[-0.04em] text-[var(--lobster-text-primary)]">
+              <h2 id="investment-expert-detail-title" className="text-[28px] font-semibold tracking-[-0.04em] text-[var(--lobster-text-primary)]">
                 {expert.name}
               </h2>
               <p className="mt-1 text-[15px] leading-7 text-[var(--lobster-text-secondary)]">
@@ -146,58 +154,70 @@ export function InvestmentExpertDetailDialog({
 
           <section>
             <h3 className="mb-3 text-[16px] font-semibold text-[var(--lobster-text-primary)]">核心技能</h3>
-            <div className="grid gap-3 md:grid-cols-2">
-              {expert.skills.map((skill) => (
-                <div
-                  key={skill.title}
-                  className="rounded-[14px] border border-[var(--lobster-border)] bg-[var(--lobster-muted-bg)] px-4 py-3"
-                >
-                  <div className="text-[14px] font-semibold text-[var(--lobster-text-primary)]">
-                    {skill.title}
-                  </div>
-                  <div className="mt-1 text-[13px] leading-6 text-[var(--lobster-text-secondary)]">
-                    {skill.description}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section>
-            <h3 className="mb-3 text-[16px] font-semibold text-[var(--lobster-text-primary)]">可执行任务示例</h3>
-            <div className="space-y-2">
-              {expert.taskExamples.map((task) => (
-                <div
-                  key={task}
-                  className="flex items-start gap-2 rounded-[12px] bg-[var(--lobster-muted-bg)] px-4 py-3 text-[14px] leading-7 text-[var(--lobster-text-secondary)]"
-                >
-                  <span className="mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--lobster-gold-strong)]" />
-                  <span>{task}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section>
-            <h3 className="mb-3 text-[16px] font-semibold text-[var(--lobster-text-primary)]">对话预览</h3>
-            <div className="rounded-[16px] border border-[var(--lobster-border)] bg-[var(--lobster-muted-bg)] p-4">
-              <div className="space-y-3">
-                {expert.conversationPreview.map((message, index) => (
-                  <div key={`${message.role}-${index}`} className={message.role === 'user' ? 'text-right' : 'text-left'}>
-                    <div
-                      className={cn(
-                        'inline-block max-w-[85%] rounded-[14px] px-4 py-3 text-[14px] leading-7',
-                        message.role === 'user'
-                          ? 'border border-[rgba(168,140,93,0.36)] bg-[linear-gradient(180deg,#ccb27b_0%,#b49154_100%)] text-[#120e09]'
-                          : 'border border-[var(--lobster-border)] bg-[var(--lobster-card-elevated)] text-[var(--lobster-text-primary)]',
-                      )}
-                    >
-                      {message.content}
+            {expert.skills.length > 0 ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                {expert.skills.map((skill) => (
+                  <div
+                    key={skill.title}
+                    className="rounded-[14px] border border-[var(--lobster-border)] bg-[var(--lobster-muted-bg)] px-4 py-3"
+                  >
+                    <div className="text-[14px] font-semibold text-[var(--lobster-text-primary)]">
+                      {skill.title}
+                    </div>
+                    <div className="mt-1 text-[13px] leading-6 text-[var(--lobster-text-secondary)]">
+                      {skill.description}
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
+            ) : (
+              <EmptySectionState text="当前目录还没有补充核心技能卡片，建议直接发起一次任务试跑来验证效果。" />
+            )}
+          </section>
+
+          <section>
+            <h3 className="mb-3 text-[16px] font-semibold text-[var(--lobster-text-primary)]">可执行任务示例</h3>
+            {expert.taskExamples.length > 0 ? (
+              <div className="space-y-2">
+                {expert.taskExamples.map((task) => (
+                  <div
+                    key={task}
+                    className="flex items-start gap-2 rounded-[12px] bg-[var(--lobster-muted-bg)] px-4 py-3 text-[14px] leading-7 text-[var(--lobster-text-secondary)]"
+                  >
+                    <span className="mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--lobster-gold-strong)]" />
+                    <span>{task}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptySectionState text="当前目录还没有提供任务示例，安装后可直接输入你的投资问题开始协作。" />
+            )}
+          </section>
+
+          <section>
+            <h3 className="mb-3 text-[16px] font-semibold text-[var(--lobster-text-primary)]">对话预览</h3>
+            {expert.conversationPreview.length > 0 ? (
+              <div className="rounded-[16px] border border-[var(--lobster-border)] bg-[var(--lobster-muted-bg)] p-4">
+                <div className="space-y-3">
+                  {expert.conversationPreview.map((message, index) => (
+                    <div key={`${message.role}-${index}`} className={message.role === 'user' ? 'text-right' : 'text-left'}>
+                      <div
+                        className={cn(
+                          'inline-block max-w-[85%] rounded-[14px] px-4 py-3 text-[14px] leading-7',
+                          message.role === 'user'
+                            ? 'border border-[rgba(168,140,93,0.36)] bg-[linear-gradient(180deg,#ccb27b_0%,#b49154_100%)] text-[#120e09]'
+                            : 'border border-[var(--lobster-border)] bg-[var(--lobster-card-elevated)] text-[var(--lobster-text-primary)]',
+                        )}
+                      >
+                        {message.content}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <EmptySectionState text="当前目录还没有预置对话预览，添加后可直接在聊天中验证它的回复风格。" />
+            )}
           </section>
         </div>
 
