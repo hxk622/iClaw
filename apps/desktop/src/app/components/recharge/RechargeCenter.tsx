@@ -154,10 +154,11 @@ interface RechargeCenterProps {
   client: IClawClient;
   token: string;
   onClose: () => void;
+  onPaymentSettled?: () => Promise<void> | void;
   active?: boolean;
 }
 
-export function RechargeCenter({ client, token, onClose, active = true }: RechargeCenterProps) {
+export function RechargeCenter({ client, token, onClose, onPaymentSettled, active = true }: RechargeCenterProps) {
   const [step, setStep] = useState<RechargeStep>('plans');
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [selectedPlan, setSelectedPlan] = useState<PaidPlanTier>('plus');
@@ -229,6 +230,8 @@ export function RechargeCenter({ client, token, onClose, active = true }: Rechar
         if (cancelled) return;
         setActiveOrder(nextOrder);
         if (nextOrder.status === 'paid') {
+          await onPaymentSettled?.();
+          if (cancelled) return;
           setPaymentMessage('支付成功，充值余额稍后到账。');
         } else if (nextOrder.status === 'expired') {
           setPaymentMessage('支付订单已过期，请重新发起支付。');
@@ -249,7 +252,7 @@ export function RechargeCenter({ client, token, onClose, active = true }: Rechar
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [active, activeOrder, client, token]);
+  }, [active, activeOrder, client, onPaymentSettled, token]);
 
   const openPayment = (planId: PlanTier) => {
     if (planId === 'free') return;

@@ -3113,6 +3113,7 @@ function AuthedView({
           client={client}
           token={accessToken}
           active={overlayView === 'recharge'}
+          onPaymentSettled={refreshCreditBalance}
           onClose={() => setOverlayView(null)}
         />
       );
