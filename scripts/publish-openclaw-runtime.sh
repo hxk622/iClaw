@@ -90,15 +90,24 @@ runtime_public_url_for() {
   printf '%s/%s\n' "$normalized" "$object_key"
 }
 
+normalize_base_url() {
+  local value="$1"
+  printf '%s\n' "${value%/}"
+}
+
+EXPECTED_RUNTIME_PUBLIC_BASE_URL=""
+
 case "$ENV_NAME" in
   dev)
     : "${ICLAW_RUNTIME_MINIO_ALIAS:=${ICLAW_MINIO_DEV_ALIAS:-local}}"
     : "${ICLAW_RUNTIME_MINIO_BUCKET:=${ICLAW_MINIO_DEV_BUCKET:-$RUNTIME_DEV_BUCKET_DEFAULT}}"
+    EXPECTED_RUNTIME_PUBLIC_BASE_URL="${RUNTIME_DEV_BASE_URL_DEFAULT:-http://127.0.0.1:9000/$ICLAW_RUNTIME_MINIO_BUCKET}"
     : "${ICLAW_RUNTIME_PUBLIC_BASE_URL:=${RUNTIME_DEV_BASE_URL_DEFAULT:-http://127.0.0.1:9000/$ICLAW_RUNTIME_MINIO_BUCKET}}"
     ;;
   prod)
     : "${ICLAW_RUNTIME_MINIO_ALIAS:=${ICLAW_MINIO_PROD_ALIAS:-remoteprod}}"
     : "${ICLAW_RUNTIME_MINIO_BUCKET:=${ICLAW_MINIO_PROD_BUCKET:-$RUNTIME_PROD_BUCKET_DEFAULT}}"
+    EXPECTED_RUNTIME_PUBLIC_BASE_URL="${RUNTIME_PROD_BASE_URL_DEFAULT:-}"
     : "${ICLAW_RUNTIME_PUBLIC_BASE_URL:=${RUNTIME_PROD_BASE_URL_DEFAULT:-}}"
     ;;
   *)
@@ -113,6 +122,20 @@ if [[ -z "${ICLAW_RUNTIME_PUBLIC_BASE_URL:-}" ]]; then
   echo "ICLAW_RUNTIME_PUBLIC_BASE_URL is required for brand $(node "$ROOT_DIR/scripts/read-brand-value.mjs" brandId | tail -n1) env $ENV_NAME" >&2
   exit 1
 fi
+
+NORMALIZED_RUNTIME_PUBLIC_BASE_URL="$(normalize_base_url "$ICLAW_RUNTIME_PUBLIC_BASE_URL")"
+NORMALIZED_EXPECTED_RUNTIME_PUBLIC_BASE_URL="$(normalize_base_url "$EXPECTED_RUNTIME_PUBLIC_BASE_URL")"
+if [[ -n "$NORMALIZED_EXPECTED_RUNTIME_PUBLIC_BASE_URL" && "$NORMALIZED_RUNTIME_PUBLIC_BASE_URL" != "$NORMALIZED_EXPECTED_RUNTIME_PUBLIC_BASE_URL" ]]; then
+  if [[ "${ICLAW_RUNTIME_ALLOW_PUBLIC_BASE_URL_OVERRIDE:-0}" != "1" ]]; then
+    echo "ICLAW_RUNTIME_PUBLIC_BASE_URL mismatch for env $ENV_NAME" >&2
+    echo "  expected: $NORMALIZED_EXPECTED_RUNTIME_PUBLIC_BASE_URL" >&2
+    echo "  actual:   $NORMALIZED_RUNTIME_PUBLIC_BASE_URL" >&2
+    echo "If this override is intentional, rerun with ICLAW_RUNTIME_ALLOW_PUBLIC_BASE_URL_OVERRIDE=1" >&2
+    exit 1
+  fi
+  echo "[publish-openclaw-runtime] allowing overridden public base url: $NORMALIZED_RUNTIME_PUBLIC_BASE_URL" >&2
+fi
+ICLAW_RUNTIME_PUBLIC_BASE_URL="$NORMALIZED_RUNTIME_PUBLIC_BASE_URL"
 
 if ! command -v mc >/dev/null 2>&1; then
   echo "mc not found in PATH" >&2
