@@ -1,4 +1,4 @@
-import { BRAND } from './brand';
+import { BRAND } from './brand.ts';
 
 export function buildStorageKey(suffix: string): string {
   return `${BRAND.storage.namespace}:${suffix}`;

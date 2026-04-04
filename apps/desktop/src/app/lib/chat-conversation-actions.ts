@@ -16,7 +16,9 @@ export function deleteChatConversationThread(params: {
   }
 
   const conversation = readChatConversation(normalizedConversationId);
-  const relatedTurns = readChatTurns().filter((turn) => turn.conversationId === normalizedConversationId);
+  const relatedTurns = readChatTurns().filter(
+    (turn) => turn.source === 'chat' && turn.conversationId === normalizedConversationId,
+  );
   const sessionKeys = Array.from(
     new Set(
       [

@@ -3,27 +3,23 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT_DIR/scripts/lib/gateway-token.sh"
+source "$ROOT_DIR/scripts/lib/env-files.sh"
 API_PORT="${ICLAW_API_PORT:-2126}"
 AUTH_PORT="${ICLAW_CONTROL_PLANE_PORT:-2130}"
 WEB_PORT="${ICLAW_WEB_PORT:-1520}"
 WEB_HOST="${ICLAW_WEB_HOST:-127.0.0.1}"
 APP_NAME="${APP_NAME:-${ICLAW_PORTAL_APP_NAME:-${ICLAW_BRAND:-${ICLAW_APP_NAME:-}}}}"
 OPENCLAW_STATE_DIR="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}"
+TARGET_ENV="$(normalize_iclaw_env_name "${ICLAW_ENV_NAME:-${NODE_ENV:-dev}}")"
 
-read_env_value() {
-  local key="$1"
-  local env_file="$ROOT_DIR/.env"
-  [[ -f "$env_file" ]] || return 0
-  sed -n "s/^${key}=//p" "$env_file" | tail -n1
-}
-
-ENV_GATEWAY_TOKEN="$(read_env_value VITE_GATEWAY_TOKEN)"
-ENV_APP_NAME="$(read_env_value APP_NAME)"
+warn_if_iclaw_env_mismatch "$ROOT_DIR" "APP_NAME" "$TARGET_ENV"
+ENV_GATEWAY_TOKEN="$(read_iclaw_env_value "$ROOT_DIR" "VITE_GATEWAY_TOKEN" "$TARGET_ENV" || true)"
+ENV_APP_NAME="$(read_iclaw_env_value "$ROOT_DIR" "APP_NAME" "$TARGET_ENV" || true)"
 APP_NAME="${APP_NAME:-${ENV_APP_NAME:-}}"
 GATEWAY_TOKEN_FILE="$(resolve_gateway_token_file)"
 
 if [[ -z "${APP_NAME:-}" ]]; then
-  echo "[web-dev] APP_NAME is required. Set it in .env.dev or pass APP_NAME/ICLAW_PORTAL_APP_NAME." >&2
+  echo "[web-dev] APP_NAME is required. Set it in .env.${TARGET_ENV} or pass APP_NAME/ICLAW_PORTAL_APP_NAME." >&2
   exit 1
 fi
 

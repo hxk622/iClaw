@@ -35,6 +35,26 @@ type HeaderFeedSnapshot = {
   updatedAt: number | null;
 };
 
+function traceHeaderRender(detail: Record<string, unknown>) {
+  if (!import.meta.env.DEV || typeof window === 'undefined') {
+    return;
+  }
+  const target = window as Window & {
+    __ICLAW_RENDER_TRACE__?: Array<{component: string; at: number; detail: Record<string, unknown>}>;
+  };
+  if (!Array.isArray(target.__ICLAW_RENDER_TRACE__)) {
+    target.__ICLAW_RENDER_TRACE__ = [];
+  }
+  target.__ICLAW_RENDER_TRACE__.push({
+    component: 'IClawHeader',
+    at: Date.now(),
+    detail,
+  });
+  if (target.__ICLAW_RENDER_TRACE__.length > 500) {
+    target.__ICLAW_RENDER_TRACE__.splice(0, target.__ICLAW_RENDER_TRACE__.length - 500);
+  }
+}
+
 const HEADER_QUOTES_URL = ((import.meta.env.VITE_HEADER_MARKET_QUOTES_URL as string | undefined) || '').trim();
 const HEADER_NEWS_URL = ((import.meta.env.VITE_HEADER_MARKET_NEWS_URL as string | undefined) || '').trim();
 const HEADER_QUOTES_REFRESH_MS = 30_000;
@@ -350,6 +370,12 @@ export const IClawHeader = memo(function IClawHeader({
   onCreditsClick,
   onRechargeClick,
 }: IClawHeaderProps) {
+  traceHeaderRender({
+    authenticated,
+    loading,
+    balance,
+    configEnabled: config?.enabled ?? null,
+  });
   const balanceText = formatBalance(balance, authenticated, loading);
   const resolvedConfig = config || null;
   const feed = useHeaderFeed(resolvedConfig);

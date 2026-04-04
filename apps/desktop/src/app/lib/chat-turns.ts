@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { readCacheJson, writeCacheJson } from '@/app/lib/persistence/cache-store';
-import { findChatConversationBySessionKey } from '@/app/lib/chat-conversations';
+import { findChatConversationBySessionKey, syncChatConversationMetadata } from '@/app/lib/chat-conversations';
 import { canonicalizeChatSessionKey, tryCanonicalizeChatSessionKey } from '@/app/lib/chat-session';
 import { buildChatScopedStorageKey } from '@/app/lib/chat-persistence-scope';
 
@@ -282,6 +282,12 @@ export function startChatTurn(input: StartChatTurnInput): ChatTurnRecord {
   };
 
   updateTurnList((turns) => [nextTurn, ...turns]);
+  syncChatConversationMetadata({
+    conversationId,
+    sessionKey,
+    title,
+    summary,
+  });
   return nextTurn;
 }
 

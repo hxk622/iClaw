@@ -35,7 +35,14 @@ import { SummaryMetricItem } from '@/app/components/ui/SummaryMetricItem';
 import { FinancePresetGallery } from '@/app/components/cron-presets/FinancePresetGallery';
 import { FinancePresetInstallSheet } from '@/app/components/cron-presets/FinancePresetInstallSheet';
 import { FINANCE_CRON_PRESETS, type FinancePresetTaskTemplate } from '@/app/lib/finance-cron-presets';
-import { deleteCronTaskTurn, inferChatTurnArtifactsFromText, upsertCronTaskTurn } from '@/app/lib/chat-turns';
+import {
+  deleteCronTaskTurn,
+  inferChatTurnArtifactsFromText,
+  readChatTurns,
+  subscribeChatTurns,
+  upsertCronTaskTurn,
+  type ChatTurnRecord,
+} from '@/app/lib/chat-turns';
 import { cn } from '@/app/lib/cn';
 import { readAppLocale } from '@/app/lib/general-preferences';
 import { clearCacheKeysByPrefix, clearSessionKeysByPrefix, removeCacheKeys } from '@/app/lib/persistence/cache-store';
@@ -190,6 +197,8 @@ type CronRunHistoryState = {
   error: string | null;
   hydratedAt: number | null;
 };
+
+type PersistedCronTurnMap = Record<string, ChatTurnRecord>;
 
 type BasicTemplateId = 'reminder' | 'daily-summary' | 'weekly-report' | 'custom';
 type BasicFrequency = 'once' | 'daily' | 'weekly';
@@ -686,6 +695,58 @@ function resolveRunSummary(job: CronJob, run: CronRunEntry | null): string {
   return '任务尚未产生执行结果。首次运行完成后，这里会展示摘要、状态和最近历史。';
 }
 
+function resolvePersistedCronTurns(): PersistedCronTurnMap {
+  const result: PersistedCronTurnMap = {};
+  readChatTurns().forEach((turn) => {
+    if (turn.source !== 'cron') {
+      return;
+    }
+    const jobId = turn.sourceEntityId?.trim();
+    if (!jobId) {
+      return;
+    }
+    const previous = result[jobId];
+    if (!previous || new Date(turn.updatedAt).getTime() >= new Date(previous.updatedAt).getTime()) {
+      result[jobId] = turn;
+    }
+  });
+  return result;
+}
+
+function resolveStoredRunSummary(turn: ChatTurnRecord | null, run: CronRunEntry | null): string {
+  if (run?.summary?.trim()) {
+    return run.summary.trim();
+  }
+  if (run?.error?.trim()) {
+    return run.error.trim();
+  }
+  if (turn?.lastError?.trim()) {
+    return turn.lastError.trim();
+  }
+  if (run?.status === 'ok') {
+    return '最近一次执行已完成，但当前运行时没有返回可展示的摘要。';
+  }
+  if (run?.status === 'skipped') {
+    return '这次任务被跳过了，可以打开详情查看具体原因。';
+  }
+  return turn?.summary?.trim() || '任务已创建，等待执行结果。';
+}
+
+function resolveCronJobId(value: unknown): string | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const candidate = value as
+    | { id?: unknown; jobId?: unknown; payload?: { id?: unknown } | null; job?: { id?: unknown } | null };
+  const resolved =
+    candidate.job?.id ??
+    candidate.id ??
+    candidate.jobId ??
+    candidate.payload?.id ??
+    null;
+  return typeof resolved === 'string' && resolved.trim() ? resolved.trim() : null;
+}
+
 export function OpenClawCronSurface({
   title,
   gatewayUrl,
@@ -728,7 +789,26 @@ export function OpenClawCronSurface({
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [deleteConfirmJob, setDeleteConfirmJob] = useState<CronJob | null>(null);
   const [selectedPresetTask, setSelectedPresetTask] = useState<FinancePresetTaskTemplate | null>(null);
+  const [persistedCronTurnsByJobId, setPersistedCronTurnsByJobId] = useState<PersistedCronTurnMap>(() =>
+    resolvePersistedCronTurns(),
+  );
   const latestRunTsByJobRef = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    const syncPersistedCronTurns = () => {
+      const nextTurns = resolvePersistedCronTurns();
+      Object.entries(nextTurns).forEach(([jobId, turn]) => {
+        const storedTs = new Date(turn.updatedAt).getTime();
+        if (Number.isFinite(storedTs) && storedTs > (latestRunTsByJobRef.current[jobId] ?? 0)) {
+          latestRunTsByJobRef.current[jobId] = storedTs;
+        }
+      });
+      setPersistedCronTurnsByJobId(nextTurns);
+    };
+
+    syncPersistedCronTurns();
+    return subscribeChatTurns(syncPersistedCronTurns);
+  }, []);
 
   const pushToast = (tone: 'success' | 'error' | 'info', title: string, text: string) => {
     pushAppNotification({
@@ -860,12 +940,13 @@ export function OpenClawCronSurface({
 
     responses.forEach(({ jobId, history }) => {
       const job = jobs.find((item) => item.id === jobId) ?? null;
+      const persistedTurn = persistedCronTurnsByJobId[jobId] ?? null;
       if (!history) {
         return;
       }
       const latestEntry = history.entries[0] ?? null;
       const latestRunTs = latestEntry?.ts ?? latestEntry?.runAtMs ?? 0;
-      if (job && (latestEntry || job.state?.lastRunAtMs)) {
+      if (job || persistedTurn) {
         const resolvedStatus =
           latestEntry?.status === 'ok'
             ? 'completed'
@@ -873,28 +954,38 @@ export function OpenClawCronSurface({
               ? 'failed'
               : latestEntry?.status === 'skipped'
                 ? 'completed'
-                : job.state?.runningAtMs
+                : job?.state?.runningAtMs
                   ? 'running'
-                  : job.state?.lastStatus === 'error'
+                  : job?.state?.lastStatus === 'error'
                     ? 'failed'
-                    : job.state?.lastStatus === 'ok'
+                    : job?.state?.lastStatus === 'ok'
                       ? 'completed'
-                      : 'running';
-        const resolvedSummary = resolveRunSummary(job, latestEntry);
+                      : persistedTurn?.status === 'failed'
+                        ? 'failed'
+                        : persistedTurn?.status === 'completed'
+                          ? 'completed'
+                          : 'running';
+        const resolvedSummary = job
+          ? resolveRunSummary(job, latestEntry)
+          : resolveStoredRunSummary(persistedTurn, latestEntry);
         upsertCronTaskTurn({
-          jobId: job.id,
-          name: job.name,
-          prompt: job.payload.kind === 'agentTurn' ? job.payload.message : job.payload.text,
+          jobId,
+          name: job?.name ?? persistedTurn?.title ?? '定时任务',
+          prompt: job
+            ? job.payload.kind === 'agentTurn'
+              ? job.payload.message
+              : job.payload.text
+            : persistedTurn?.prompt ?? persistedTurn?.title ?? '定时任务',
           summary: resolvedSummary,
           status: resolvedStatus,
-          sessionKey: latestEntry?.sessionKey ?? null,
-          error: latestEntry?.error ?? job.state?.lastError ?? null,
-          artifacts: inferChatTurnArtifactsFromText(`${job.name}\n${resolvedSummary}`),
-          model: latestEntry?.model ?? null,
-          provider: latestEntry?.provider ?? null,
-          deliveryStatus: latestEntry?.deliveryStatus ?? null,
-          nextRunAt: latestEntry?.nextRunAtMs ?? job.state?.nextRunAtMs ?? null,
-          runAt: latestEntry?.runAtMs ?? latestEntry?.ts ?? job.state?.lastRunAtMs ?? Date.now(),
+          sessionKey: latestEntry?.sessionKey ?? persistedTurn?.sessionKey ?? null,
+          error: latestEntry?.error ?? job?.state?.lastError ?? persistedTurn?.lastError ?? null,
+          artifacts: inferChatTurnArtifactsFromText(`${job?.name ?? persistedTurn?.title ?? '定时任务'}\n${resolvedSummary}`),
+          model: latestEntry?.model ?? persistedTurn?.model ?? null,
+          provider: latestEntry?.provider ?? persistedTurn?.provider ?? null,
+          deliveryStatus: latestEntry?.deliveryStatus ?? persistedTurn?.deliveryStatus ?? null,
+          nextRunAt: latestEntry?.nextRunAtMs ?? job?.state?.nextRunAtMs ?? persistedTurn?.nextRunAt ?? null,
+          runAt: latestEntry?.runAtMs ?? latestEntry?.ts ?? job?.state?.lastRunAtMs ?? Date.now(),
         });
       }
       const previousRunTs = latestRunTsByJobRef.current[jobId] ?? 0;
@@ -1209,9 +1300,7 @@ export function OpenClawCronSurface({
         message: form.prompt.trim(),
       },
       delivery: {
-        mode: 'announce' as const,
-        channel: 'last',
-        bestEffort: true,
+        mode: 'none' as const,
       },
     };
 
@@ -1224,7 +1313,21 @@ export function OpenClawCronSurface({
         });
         pushToast('success', '任务已更新', '当前任务配置已经保存。');
       } else {
-        await client.request('cron.add', payload);
+        const addResult = await client.request('cron.add', payload);
+        const jobId = resolveCronJobId(addResult);
+        if (jobId) {
+          upsertCronTaskTurn({
+            jobId,
+            name: payload.name,
+            prompt: payload.payload.message,
+            summary: '任务已创建，等待按计划执行。',
+            status: 'running',
+            nextRunAt:
+              payload.schedule.kind === 'at'
+                ? Date.parse(payload.schedule.at)
+                : null,
+          });
+        }
         pushToast('success', '任务已创建', '新任务已经加入调度列表。');
       }
       setDrawerOpen(false);
@@ -1254,7 +1357,7 @@ export function OpenClawCronSurface({
 
     setPresetSaving(true);
     try {
-      await client.request('cron.add', {
+      const addResult = await client.request('cron.add', {
         name: input.jobName,
         enabled: true,
         deleteAfterRun: false,
@@ -1266,11 +1369,19 @@ export function OpenClawCronSurface({
           message: input.prompt,
         },
         delivery: {
-          mode: 'announce',
-          channel: 'last',
-          bestEffort: true,
+          mode: 'none',
         },
       });
+      const jobId = resolveCronJobId(addResult);
+      if (jobId) {
+        upsertCronTaskTurn({
+          jobId,
+          name: input.jobName,
+          prompt: input.prompt,
+          summary: '任务已创建，等待按计划执行。',
+          status: 'running',
+        });
+      }
       setSelectedPresetTask(null);
       setActiveTab('mine');
       pushToast('success', '模板已安装', `已安装「${input.task.name}」，现在可以在“我的任务”里继续管理。`);
@@ -1368,41 +1479,6 @@ export function OpenClawCronSurface({
 
   const fieldClassName =
     'w-full rounded-[10px] border border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-hover)_60%,white_40%)] px-4 py-2.5 text-[14px] text-[var(--text-primary)] outline-none transition focus:border-[#D4A574] focus:ring-2 focus:ring-[rgba(212,165,116,0.18)] dark:bg-[rgba(255,255,255,0.04)] dark:focus:border-[#C99A6E] dark:focus:ring-[rgba(201,154,110,0.22)]';
-
-  useEffect(() => {
-    if (!status.connected || !clientReady || activeTab !== 'mine' || visibleJobIds.length === 0) {
-      return;
-    }
-
-    const pollVisibleJobs = () => {
-      const targets = visibleJobIds.filter((jobId) => jobId !== selectedJobId);
-      if (targets.length === 0) {
-        return;
-      }
-      void loadRunHistory(targets, {
-        limit: 1,
-        notifyOnNewFinished: true,
-      });
-    };
-
-    pollVisibleJobs();
-    const timer = window.setInterval(pollVisibleJobs, 15_000);
-    return () => window.clearInterval(timer);
-  }, [activeTab, clientReady, selectedJobId, status.connected, visibleJobIds]);
-
-  useEffect(() => {
-    if (!status.connected || !clientReady || !selectedJobId) {
-      return;
-    }
-
-    const pollSelectedJob = () => {
-      void loadRunHistory([selectedJobId], { limit: 10 });
-    };
-
-    pollSelectedJob();
-    const timer = window.setInterval(pollSelectedJob, 15_000);
-    return () => window.clearInterval(timer);
-  }, [clientReady, selectedJobId, status.connected]);
 
   return (
     <PageSurface as="div">

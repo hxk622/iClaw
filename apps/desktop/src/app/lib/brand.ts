@@ -1,4 +1,4 @@
-import { BRAND } from './brand.generated';
+import { BRAND } from './brand.generated.ts';
 
 export { BRAND };
 

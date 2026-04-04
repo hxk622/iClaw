@@ -7,6 +7,8 @@ import {
   CheckSquare,
   CheckCircle,
   Link2,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings,
   MessageSquare,
   Plus,
@@ -18,6 +20,7 @@ import { DesktopUpdateCard } from './DesktopUpdateCard';
 import { RecentConversationsList } from './RecentConversationsList';
 import { Button } from './ui/Button';
 import { BRAND } from '../lib/brand';
+import { cn } from '../lib/cn';
 import type { RequiredResolvedMenuUiConfig } from '../lib/oem-runtime';
 import {
   buildGeneratedUserAvatarDataUrl,
@@ -28,6 +31,28 @@ import {
 
 type SidebarUser = AppUserAvatarSource;
 type PrimaryView = string;
+export const SIDEBAR_EXPANDED_WIDTH = 256;
+export const SIDEBAR_COLLAPSED_WIDTH = 76;
+
+function traceSidebarRender(component: string, detail: Record<string, unknown>) {
+  if (!import.meta.env.DEV || typeof window === 'undefined') {
+    return;
+  }
+  const target = window as Window & {
+    __ICLAW_RENDER_TRACE__?: Array<{component: string; at: number; detail: Record<string, unknown>}>;
+  };
+  if (!Array.isArray(target.__ICLAW_RENDER_TRACE__)) {
+    target.__ICLAW_RENDER_TRACE__ = [];
+  }
+  target.__ICLAW_RENDER_TRACE__.push({
+    component,
+    at: Date.now(),
+    detail,
+  });
+  if (target.__ICLAW_RENDER_TRACE__.length > 500) {
+    target.__ICLAW_RENDER_TRACE__.splice(0, target.__ICLAW_RENDER_TRACE__.length - 500);
+  }
+}
 
 function MCPStoreIcon(props: SVGProps<SVGSVGElement>) {
   return (
@@ -54,6 +79,8 @@ function MCPStoreIcon(props: SVGProps<SVGSVGElement>) {
 interface SidebarProps {
   user: SidebarUser | null;
   activeView?: PrimaryView;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
   enabledMenuKeys?: string[] | null;
   menuUiConfig: Record<string, RequiredResolvedMenuUiConfig>;
   selectedConversationId?: string | null;
@@ -105,14 +132,58 @@ interface SidebarItem {
   onClick?: () => void;
 }
 
-const SidebarBrandHeader = memo(function SidebarBrandHeader({brandText}: {brandText: string}) {
+const SidebarCollapseButton = memo(function SidebarCollapseButton({
+  collapsed,
+  onToggle,
+}: {
+  collapsed: boolean;
+  onToggle?: () => void;
+}) {
   return (
-    <div className="flex h-[50px] items-center gap-3 border-b border-[var(--border-default)] px-4">
-      <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-default)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--bg-card)_84%,white_16%),color-mix(in_srgb,var(--bg-page)_90%,white_10%))] shadow-[var(--shadow-sm)]">
+    <button
+      type="button"
+      onClick={() => onToggle?.()}
+      aria-label={collapsed ? '展开侧边栏' : '收起侧边栏'}
+      title={collapsed ? '展开侧边栏' : '收起侧边栏'}
+      className="inline-flex h-7 w-7 items-center justify-center rounded-[10px] border border-transparent bg-transparent text-[var(--text-secondary)] transition-[background-color,color,border-color] duration-[var(--motion-panel)] hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+    >
+      {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+    </button>
+  );
+});
+
+const SidebarBrandHeader = memo(function SidebarBrandHeader({
+  brandText,
+  collapsed,
+  onToggleCollapsed,
+}: {
+  brandText: string;
+  collapsed: boolean;
+  onToggleCollapsed?: () => void;
+}) {
+  traceSidebarRender('SidebarBrandHeader', {brandText, collapsed});
+  return (
+    <div
+      className={cn(
+        'relative flex items-center border-b border-[var(--border-default)]',
+        collapsed ? 'h-[56px] px-2 pr-10' : 'h-[56px] gap-3 px-3 pr-11',
+      )}
+    >
+      <div
+        className={cn(
+          'flex items-center justify-center overflow-hidden rounded-xl border border-[var(--border-default)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--bg-card)_84%,white_16%),color-mix(in_srgb,var(--bg-page)_90%,white_10%))] shadow-[var(--shadow-sm)]',
+          collapsed ? 'h-7 w-7 rounded-[10px]' : 'h-10 w-10',
+        )}
+      >
         <img src={BRAND.assets.faviconPngSrc} alt={BRAND.assets.logoAlt} className="h-full w-full object-cover" />
       </div>
-      <div className="min-w-0">
-        <div className="truncate text-[16px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">{brandText}</div>
+      {!collapsed ? (
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[16px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">{brandText}</div>
+        </div>
+      ) : null}
+      <div className="absolute right-2 top-1/2 -translate-y-1/2">
+        <SidebarCollapseButton collapsed={collapsed} onToggle={onToggleCollapsed} />
       </div>
     </div>
   );
@@ -120,15 +191,42 @@ const SidebarBrandHeader = memo(function SidebarBrandHeader({brandText}: {brandT
 
 const SidebarNewChatBar = memo(function SidebarNewChatBar({
   chatEnabled,
+  collapsed,
   newChatDisabledReason,
   onStartNewChat,
 }: {
   chatEnabled: boolean;
+  collapsed: boolean;
   newChatDisabledReason: string | null;
   onStartNewChat?: () => void;
 }) {
+  traceSidebarRender('SidebarNewChatBar', {
+    chatEnabled,
+    collapsed,
+    disabled: Boolean(newChatDisabledReason),
+  });
   if (!chatEnabled) {
     return null;
+  }
+  if (collapsed) {
+    return (
+      <div className="border-b border-[var(--border-default)] p-3">
+        <Button
+          variant="secondary"
+          size="sm"
+          block
+          onClick={onStartNewChat}
+          disabled={Boolean(newChatDisabledReason)}
+          title={newChatDisabledReason || '新建对话'}
+          leadingIcon={
+            <span className="inline-flex h-5.5 w-5.5 items-center justify-center rounded-full bg-[var(--chip-brand-bg)] text-[var(--chip-brand-text)]">
+              <Plus className="h-3.5 w-3.5" />
+            </span>
+          }
+          className="h-10 justify-center rounded-[13px] border-[var(--border-subtle)] bg-[color-mix(in_srgb,var(--bg-card)_86%,var(--bg-page))] px-0 text-[0px] font-semibold text-[var(--text-primary)] shadow-none hover:border-[var(--chip-brand-border)] hover:bg-[color-mix(in_srgb,var(--chip-brand-bg)_48%,var(--bg-card))] hover:text-[var(--text-primary)]"
+        />
+      </div>
+    );
   }
   return (
     <div className="border-b border-[var(--border-default)] p-3">
@@ -152,10 +250,18 @@ const SidebarNewChatBar = memo(function SidebarNewChatBar({
   );
 });
 
-function SidebarMenuGroup({title, items}: {title: string | null; items: SidebarItem[]}) {
+function SidebarMenuGroup({
+  title,
+  items,
+  collapsed,
+}: {
+  title: string | null;
+  items: SidebarItem[];
+  collapsed: boolean;
+}) {
   return (
     <div className="mb-3">
-      {title ? (
+      {title && !collapsed ? (
         <div className="mb-2 px-3">
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-semibold tracking-[0.12em] text-[var(--text-muted)]">{title}</span>
@@ -168,14 +274,18 @@ function SidebarMenuGroup({title, items}: {title: string | null; items: SidebarI
           <button
             key={item.key}
             onClick={() => item.onClick?.()}
-            className={`group flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-1.5 text-left transition-all duration-[var(--motion-panel)] active:scale-[0.992] ${
+            title={collapsed ? item.label : undefined}
+            aria-label={item.label}
+            className={`group flex w-full cursor-pointer items-center rounded-xl transition-all duration-[var(--motion-panel)] active:scale-[0.992] ${
               item.active
                 ? 'bg-[var(--bg-hover)] shadow-[var(--shadow-sm)]'
-                : 'hover:translate-x-[4px] hover:scale-[1.015] hover:bg-[var(--bg-hover)]'
-            }`}
+                : collapsed
+                  ? 'hover:bg-[var(--bg-hover)]'
+                  : 'hover:translate-x-[4px] hover:scale-[1.015] hover:bg-[var(--bg-hover)]'
+            } ${collapsed ? 'justify-center px-0 py-0 h-11' : 'gap-3 px-3 py-1.5 text-left'}`}
             style={{
               transitionTimingFunction: 'var(--motion-spring)',
-              transformOrigin: 'left center',
+              transformOrigin: collapsed ? 'center center' : 'left center',
             }}
           >
             <span className="flex h-6 w-6 shrink-0 items-center justify-center" aria-hidden="true">
@@ -228,15 +338,17 @@ function SidebarMenuGroup({title, items}: {title: string | null; items: SidebarI
                 />
               ) : null}
             </span>
-            <span className={`flex-1 text-[14px] font-medium text-[var(--text-primary)] transition-transform duration-[var(--motion-panel)] ${item.active ? 'translate-x-[1px] font-semibold' : 'group-hover:translate-x-[1px]'}`}>
-              {item.label}
-            </span>
-            {item.dot && <span className="h-2 w-2 rounded-full bg-[var(--state-success)]" />}
-            {item.badge && (
+            {!collapsed ? (
+              <span className={`flex-1 text-[14px] font-medium text-[var(--text-primary)] transition-transform duration-[var(--motion-panel)] ${item.active ? 'translate-x-[1px] font-semibold' : 'group-hover:translate-x-[1px]'}`}>
+                {item.label}
+              </span>
+            ) : null}
+            {!collapsed && item.dot ? <span className="h-2 w-2 rounded-full bg-[var(--state-success)]" /> : null}
+            {!collapsed && item.badge ? (
               <span className="rounded-full bg-[var(--brand-primary)] px-2 py-0.5 text-[11px] font-semibold text-[var(--brand-on-primary)] transition-transform duration-[var(--motion-panel)] group-hover:scale-105">
                 {item.badge}
               </span>
-            )}
+            ) : null}
           </button>
         ))}
       </div>
@@ -246,30 +358,46 @@ function SidebarMenuGroup({title, items}: {title: string | null; items: SidebarI
 
 const SidebarPrimaryNav = memo(function SidebarPrimaryNav({
   groupedMainItems,
+  collapsed,
 }: {
   groupedMainItems: Array<{ title: string | null; items: SidebarItem[] }>;
+  collapsed: boolean;
 }) {
+  traceSidebarRender('SidebarPrimaryNav', {
+    groupCount: groupedMainItems.length,
+    collapsed,
+    activeKeys: groupedMainItems.flatMap((group) => group.items.filter((item) => item.active).map((item) => item.key)),
+  });
   return (
     <>
-      {groupedMainItems.map((group) => <SidebarMenuGroup key={group.title} title={group.title} items={group.items} />)}
+      {groupedMainItems.map((group) => (
+        <SidebarMenuGroup key={group.title} title={group.title} items={group.items} collapsed={collapsed} />
+      ))}
     </>
   );
 });
 
 const SidebarRecentNav = memo(function SidebarRecentNav({
   chatEnabled,
+  collapsed,
   selectedConversationId,
   onOpenConversation,
   onDeleteConversation,
   onOpenTaskCenter,
 }: {
   chatEnabled: boolean;
+  collapsed: boolean;
   selectedConversationId: string | null;
   onOpenConversation?: (conversationId: string) => void;
   onDeleteConversation?: (conversationId: string) => void;
   onOpenTaskCenter?: () => void;
 }) {
-  if (!chatEnabled) {
+  traceSidebarRender('SidebarRecentNav', {
+    chatEnabled,
+    collapsed,
+    selectedConversationId,
+  });
+  if (!chatEnabled || collapsed) {
     return null;
   }
   return (
@@ -288,6 +416,7 @@ const SidebarRecentNav = memo(function SidebarRecentNav({
 const SidebarFooterAccount = memo(function SidebarFooterAccount({
   user,
   authenticated,
+  collapsed,
   settingsEnabled,
   onOpenAccount,
   onOpenRechargeCenter,
@@ -297,6 +426,7 @@ const SidebarFooterAccount = memo(function SidebarFooterAccount({
 }: {
   user: SidebarUser | null;
   authenticated: boolean;
+  collapsed: boolean;
   settingsEnabled: boolean;
   onOpenAccount?: () => void;
   onOpenRechargeCenter?: () => void;
@@ -304,6 +434,11 @@ const SidebarFooterAccount = memo(function SidebarFooterAccount({
   onOpenSettings?: () => void;
   onLogout?: () => void;
 }) {
+  traceSidebarRender('SidebarFooterAccount', {
+    authenticated,
+    collapsed,
+    userName: resolveUserName(user),
+  });
   const [menuOpen, setMenuOpen] = useState(false);
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -332,10 +467,16 @@ const SidebarFooterAccount = memo(function SidebarFooterAccount({
     <div className="relative p-3 pt-0" ref={menuRef}>
       <button
         onClick={() => setMenuOpen((v) => !v)}
-        className="group flex w-full cursor-pointer items-center gap-3 rounded-xl bg-[var(--bg-elevated)] px-2 py-1.5 text-left transition-all duration-[var(--motion-panel)] hover:translate-x-[2px] hover:scale-[1.01] hover:bg-[var(--bg-hover)] active:scale-[0.992]"
+        title={collapsed ? resolveUserName(user) : undefined}
+        className={cn(
+          'group flex w-full cursor-pointer rounded-xl bg-[var(--bg-elevated)] transition-all duration-[var(--motion-panel)] hover:bg-[var(--bg-hover)] active:scale-[0.992]',
+          collapsed
+            ? 'items-center justify-center px-0 py-1.5'
+            : 'items-center gap-3 px-2 py-1.5 text-left hover:translate-x-[2px] hover:scale-[1.01]',
+        )}
         style={{
           transitionTimingFunction: 'var(--motion-spring)',
-          transformOrigin: 'left center',
+          transformOrigin: collapsed ? 'center center' : 'left center',
         }}
       >
         <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[linear-gradient(135deg,#2b2b2b_0%,#4d4d4d_100%)] text-sm font-medium text-white transition-transform duration-[var(--motion-panel)] group-hover:scale-105">
@@ -350,12 +491,14 @@ const SidebarFooterAccount = memo(function SidebarFooterAccount({
             }}
           />
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[14px] font-medium text-[var(--text-primary)]">{resolveUserName(user)}</div>
-          {!authenticated ? (
-            <div className="text-[12px] text-[var(--text-secondary)]">点击登录解锁完整功能</div>
-          ) : null}
-        </div>
+        {!collapsed ? (
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[14px] font-medium text-[var(--text-primary)]">{resolveUserName(user)}</div>
+            {!authenticated ? (
+              <div className="text-[12px] text-[var(--text-secondary)]">点击登录解锁完整功能</div>
+            ) : null}
+          </div>
+        ) : null}
       </button>
 
       <AvatarDropdown
@@ -374,6 +517,7 @@ const SidebarFooterAccount = memo(function SidebarFooterAccount({
   );
 }, (prev, next) =>
   prev.authenticated === next.authenticated &&
+  prev.collapsed === next.collapsed &&
   prev.settingsEnabled === next.settingsEnabled &&
   prev.user === next.user
 );
@@ -381,6 +525,8 @@ const SidebarFooterAccount = memo(function SidebarFooterAccount({
 function SidebarComponent({
   user,
   activeView = 'chat',
+  collapsed = false,
+  onToggleCollapsed,
   enabledMenuKeys = null,
   menuUiConfig,
   selectedConversationId = null,
@@ -417,6 +563,12 @@ function SidebarComponent({
   onSkipDesktopUpdate,
   newChatDisabledReason = null,
 }: SidebarProps) {
+  traceSidebarRender('Sidebar', {
+    activeView,
+    collapsed,
+    selectedConversationId,
+    authenticated,
+  });
   const isDevChannel =
     !('__TAURI_INTERNALS__' in window) && (import.meta.env.DEV || import.meta.env.MODE === 'development');
   const brandText = isDevChannel ? BRAND.devSidebarTitle : BRAND.sidebarTitle;
@@ -544,18 +696,23 @@ function SidebarComponent({
   );
 
   return (
-    <div className="relative isolate flex h-screen w-[256px] shrink-0 flex-col border-r border-[var(--border-default)] bg-[var(--bg-page)] [contain:layout_paint_style] [transform:translateZ(0)]">
-      <SidebarBrandHeader brandText={brandText} />
+    <div
+      className="relative isolate flex h-screen shrink-0 flex-col border-r border-[var(--border-default)] bg-[var(--bg-page)] transition-[width] duration-[180ms] [contain:layout_paint_style] [transform:translateZ(0)]"
+      style={{ width: collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH }}
+    >
+      <SidebarBrandHeader brandText={brandText} collapsed={collapsed} onToggleCollapsed={onToggleCollapsed} />
       <SidebarNewChatBar
         chatEnabled={chatEnabled}
+        collapsed={collapsed}
         newChatDisabledReason={newChatDisabledReason}
         onStartNewChat={onStartNewChat}
       />
 
       <div className="flex-1 overflow-y-auto px-2 py-1.5">
-        <SidebarPrimaryNav groupedMainItems={groupedMainItems} />
+        <SidebarPrimaryNav groupedMainItems={groupedMainItems} collapsed={collapsed} />
         <SidebarRecentNav
           chatEnabled={chatEnabled}
+          collapsed={collapsed}
           selectedConversationId={activeView === 'chat' ? selectedConversationId : null}
           onOpenConversation={onOpenConversation}
           onDeleteConversation={onDeleteConversation}
@@ -563,8 +720,8 @@ function SidebarComponent({
         />
       </div>
 
-      <div className="border-t border-[var(--border-default)] p-3 pb-0">
-        {desktopUpdateHint ? (
+      <div className={cn('border-t border-[var(--border-default)] p-3 pb-0', collapsed && 'hidden')}>
+        {!collapsed && desktopUpdateHint ? (
           <DesktopUpdateCard
             hint={desktopUpdateHint}
             status={desktopUpdateStatus}
@@ -583,6 +740,7 @@ function SidebarComponent({
       <SidebarFooterAccount
         user={user}
         authenticated={authenticated}
+        collapsed={collapsed}
         settingsEnabled={settingsEnabled}
         onOpenAccount={onOpenAccount}
         onOpenRechargeCenter={onOpenRechargeCenter}

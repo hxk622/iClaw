@@ -230,7 +230,7 @@ export function RecentConversationsList({
                     setPendingSelectionConversationId(conversation.id);
                     onSelectConversation?.(conversation.id);
                   }}
-                  className="flex h-full min-w-0 flex-1 items-stretch gap-1.5 overflow-hidden text-left"
+                  className="relative flex h-full min-w-0 flex-1 items-stretch gap-2 overflow-hidden pr-11 text-left"
                 >
                   <span className="flex w-7 shrink-0 flex-col items-center justify-between py-0.5">
                     <span
@@ -251,7 +251,7 @@ export function RecentConversationsList({
                     />
                   </span>
 
-                  <span className="flex min-w-0 flex-1 flex-col justify-between py-0.5">
+                  <span className="flex min-w-0 flex-1 flex-col justify-start gap-[1px] py-0.5">
                     <span className="min-w-0 overflow-hidden pr-0.5">
                       {renaming ? (
                         <input
@@ -288,7 +288,7 @@ export function RecentConversationsList({
 
                     <span
                       className={cn(
-                        'block min-w-0 overflow-hidden pr-0.5 text-[11px] leading-[15px] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]',
+                        'block min-w-0 max-h-[30px] overflow-hidden pr-0 text-[11px] leading-[15px] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]',
                         isSelected ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]',
                       )}
                     >
@@ -296,18 +296,15 @@ export function RecentConversationsList({
                     </span>
                   </span>
 
-                  <span className="flex w-[52px] shrink-0 flex-col items-end justify-between py-0.5">
-                    <span className="h-6 w-6 shrink-0" aria-hidden="true" />
-                    <span
-                      className={cn(
-                        'pointer-events-none inline-flex max-w-full items-center gap-0.5 truncate text-right text-[10px] leading-[15px] transition-opacity duration-[var(--motion-panel)]',
-                        isSelected ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]',
-                        menuOpen ? 'opacity-0' : 'opacity-100 group-hover:opacity-0 group-focus-within:opacity-0',
-                      )}
-                    >
-                      <Clock3 className="h-2.5 w-2.5 shrink-0" />
-                      {formatChatTurnRelativeTime(conversation.updatedAt)}
-                    </span>
+                  <span
+                    className={cn(
+                      'pointer-events-none absolute bottom-0.5 right-0 inline-flex max-w-[88px] items-center gap-1 whitespace-nowrap text-right text-[10px] leading-[15px] transition-opacity duration-[var(--motion-panel)]',
+                      isSelected ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]',
+                      menuOpen ? 'opacity-0' : 'opacity-100 group-hover:opacity-0 group-focus-within:opacity-0',
+                    )}
+                  >
+                    <Clock3 className="h-2.5 w-2.5 shrink-0" />
+                    {formatChatTurnRelativeTime(conversation.updatedAt)}
                   </span>
                 </button>
 

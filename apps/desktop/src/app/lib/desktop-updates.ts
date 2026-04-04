@@ -1,8 +1,8 @@
 import type { DesktopUpdateHint } from '@iclaw/sdk';
-import { BRAND } from './brand';
-import { readCacheString, writeCacheString } from '@/app/lib/persistence/cache-store';
-import { readDesktopConfigSection, writeDesktopConfigSection } from '@/app/lib/persistence/config-store';
-import { isTauriRuntime } from '@/app/lib/tauri-sidecar';
+import { BRAND } from './brand.ts';
+import { readCacheString, writeCacheString } from './persistence/cache-store.ts';
+import { readDesktopConfigSection, writeDesktopConfigSection } from './persistence/config-store.ts';
+import { isTauriRuntime } from './tauri-sidecar.ts';
 
 const DESKTOP_UPDATE_SKIPPED_VERSION_KEY = `${BRAND.storage.namespace}:desktop.update.skipped_version`;
 const DESKTOP_UPDATE_CONFIG_SECTION = 'desktop-update';

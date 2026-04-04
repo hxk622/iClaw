@@ -26,6 +26,13 @@ import { PageSurface } from '@/app/components/ui/PageLayout';
 import { K2CWelcomePage } from '@/app/components/K2CWelcomePage';
 import { readAppLocale } from '@/app/lib/general-preferences';
 import {
+  isChatSemanticDirectiveClose,
+  matchChatSemanticLead,
+  parseChatSemanticDirective,
+  resolveChatSemanticDefaultTitle,
+  type ChatSemanticTone,
+} from '@/app/lib/chat-semantic-formatting';
+import {
   buildComposerModelOptions,
   findComposerModelOption,
   type ComposerModelOption,
@@ -70,6 +77,7 @@ import {
 } from '../lib/persistence/cache-store';
 import {
   hydrateChatSnapshotForRender,
+  readStoredChatSnapshot,
   writeStoredChatSnapshot,
 } from '../lib/chat-history';
 import {
@@ -83,6 +91,7 @@ import {
 import {
   RichChatComposer,
   type ComposerAgentOption,
+  type ComposerDraftAttachment,
   type ComposerSkillOption,
   type ComposerDraftPayload,
   type ComposerInstrumentSearchPage,
@@ -230,6 +239,7 @@ type OpenClawChatSurfaceProps = {
     patch: {
       busy?: boolean;
       hasPendingBilling?: boolean;
+      ready?: boolean;
     },
   ) => void;
   surfaceVisible?: boolean;
@@ -1035,8 +1045,12 @@ function collectLatestArtifactKinds(host: HTMLElement | null): ReturnType<typeof
 }
 
 function hasVisibleMessageContent(group: HTMLElement): boolean {
-  return Array.from(group.querySelectorAll('.chat-message')).some((node) => {
-    if (!(node instanceof HTMLElement) || node.hasAttribute('hidden')) {
+  return Array.from(group.querySelectorAll('.chat-text, .chat-message')).some((node) => {
+    if (
+      !(node instanceof HTMLElement) ||
+      node.hasAttribute('hidden') ||
+      (node.parentElement?.closest('[hidden]') ?? null)
+    ) {
       return false;
     }
     return Boolean(node.textContent?.replace(/\s+/g, ' ').trim());
@@ -1127,6 +1141,55 @@ function collapseArtifactToolCardInlineBody(card: HTMLElement): void {
   });
 }
 
+function resolveToolCardVisualVariant(card: HTMLElement): 'running' | 'success' | 'error' | 'artifact' {
+  if (isLikelyArtifactToolCard(card) || card.dataset.iclawToolCard === 'artifact') {
+    return 'artifact';
+  }
+
+  const normalized = [
+    card.dataset.iclawArtifactPath,
+    buildToolCardSignature(card),
+    card.querySelector('.chat-tool-card__status')?.textContent ?? '',
+    card.querySelector('.chat-tool-card__status-text')?.textContent ?? '',
+    card.querySelector('.chat-tool-card__action')?.textContent ?? '',
+    card.querySelector('.chat-tool-card__output')?.textContent ?? '',
+  ]
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+  if (!normalized) {
+    return 'success';
+  }
+
+  if (
+    /(error|failed|failure|exception|invalid|denied|timeout|timed out|unavailable|not found|refused|失败|错误|异常|超时|拒绝|无法|未能|无效|找不到)/i.test(
+      normalized,
+    )
+  ) {
+    return 'error';
+  }
+
+  if (
+    /(running|working|processing|pending|executing|in progress|loading|thinking|generating|creating|准备中|执行中|处理中|运行中|等待中|思考中|生成中)/i.test(
+      normalized,
+    )
+  ) {
+    return 'running';
+  }
+
+  if (
+    /(success|succeeded|completed|complete|finished|done|generated|created|opened|saved|成功|完成|已生成|已完成|已保存)/i.test(
+      normalized,
+    )
+  ) {
+    return 'success';
+  }
+
+  return 'success';
+}
+
 function normalizeToolCards(group: HTMLElement): void {
   const toolCards = Array.from(group.querySelectorAll('.chat-tool-card')).filter(
     (node): node is HTMLElement => node instanceof HTMLElement,
@@ -1147,6 +1210,7 @@ function normalizeToolCards(group: HTMLElement): void {
 
   let artifactCardCount = 0;
   toolCards.forEach((card) => {
+    card.dataset.iclawToolVariant = resolveToolCardVisualVariant(card);
     if (isLikelyArtifactToolCard(card)) {
       artifactCardCount += 1;
       collapseArtifactToolCardInlineBody(card);
@@ -1192,6 +1256,208 @@ function createReferenceChip(text: string): HTMLSpanElement {
 
   chip.append(badge, label);
   return chip;
+}
+
+function isSemanticDirectiveElement(node: Element | null): node is HTMLParagraphElement {
+  return node instanceof HTMLParagraphElement;
+}
+
+function isSemanticHeadingCandidateElement(node: Element | null): node is HTMLElement {
+  return (
+    node instanceof HTMLElement &&
+    ['P', 'H1', 'H2', 'H3', 'H4'].includes(node.tagName)
+  );
+}
+
+function createSemanticCallout(tone: ChatSemanticTone, title: string): {
+  wrapper: HTMLDivElement;
+  body: HTMLDivElement;
+} {
+  const wrapper = document.createElement('div');
+  wrapper.className = `iclaw-chat-semantic-callout iclaw-chat-semantic-callout--${tone}`;
+  wrapper.dataset.iclawSemanticCallout = tone;
+
+  const header = document.createElement('div');
+  header.className = 'iclaw-chat-semantic-callout__header';
+
+  const dot = document.createElement('span');
+  dot.className = 'iclaw-chat-semantic-callout__dot';
+  dot.setAttribute('aria-hidden', 'true');
+
+  const titleElement = document.createElement('div');
+  titleElement.className = 'iclaw-chat-semantic-callout__title';
+  titleElement.textContent = title;
+
+  const body = document.createElement('div');
+  body.className = 'iclaw-chat-semantic-callout__body';
+
+  header.append(dot, titleElement);
+  wrapper.append(header, body);
+
+  return { wrapper, body };
+}
+
+function trimLeadingTextFromElement(element: HTMLElement, leadingText: string): void {
+  if (!leadingText) {
+    return;
+  }
+
+  let remaining = leadingText.length;
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  while (remaining > 0 && walker.nextNode()) {
+    const current = walker.currentNode;
+    if (!(current instanceof Text)) {
+      continue;
+    }
+
+    const source = current.nodeValue ?? '';
+    if (!source) {
+      continue;
+    }
+
+    if (source.length <= remaining) {
+      current.nodeValue = '';
+      remaining -= source.length;
+      continue;
+    }
+
+    current.nodeValue = source.slice(remaining);
+    remaining = 0;
+  }
+}
+
+function applySemanticDirectiveBlocks(container: HTMLElement): void {
+  while (true) {
+    const children = Array.from(container.children);
+    let transformed = false;
+
+    for (let index = 0; index < children.length; index += 1) {
+      const start = children[index];
+      if (!isSemanticDirectiveElement(start)) {
+        continue;
+      }
+
+      const directive = parseChatSemanticDirective(start.textContent ?? '');
+      if (!directive) {
+        continue;
+      }
+
+      const collected: HTMLElement[] = [];
+      let closeElement: HTMLParagraphElement | null = null;
+
+      for (let innerIndex = index + 1; innerIndex < children.length; innerIndex += 1) {
+        const current = children[innerIndex];
+        if (isSemanticDirectiveElement(current) && isChatSemanticDirectiveClose(current.textContent ?? '')) {
+          closeElement = current;
+          break;
+        }
+        if (current instanceof HTMLElement) {
+          collected.push(current);
+        }
+      }
+
+      if (!closeElement || collected.length === 0) {
+        continue;
+      }
+
+      const title = directive.title?.trim() || resolveChatSemanticDefaultTitle(directive.tone);
+      const { wrapper, body } = createSemanticCallout(directive.tone, title);
+      collected.forEach((node) => body.append(node));
+      start.replaceWith(wrapper);
+      closeElement.remove();
+      transformed = true;
+      break;
+    }
+
+    if (!transformed) {
+      return;
+    }
+  }
+}
+
+function applySemanticHeadingBlocks(container: HTMLElement): void {
+  while (true) {
+    const children = Array.from(container.children);
+    let transformed = false;
+
+    for (let index = 0; index < children.length; index += 1) {
+      const current = children[index];
+      if (!isSemanticHeadingCandidateElement(current) || current.dataset.iclawSemanticCallout === 'true') {
+        continue;
+      }
+
+      const heading = matchChatSemanticLead(current.textContent ?? '');
+      if (!heading || !heading.standalone) {
+        continue;
+      }
+
+      const collected: HTMLElement[] = [];
+      for (let innerIndex = index + 1; innerIndex < children.length; innerIndex += 1) {
+        const next = children[innerIndex];
+        if (!(next instanceof HTMLElement)) {
+          break;
+        }
+        if (matchChatSemanticLead(next.textContent ?? '') || parseChatSemanticDirective(next.textContent ?? '')) {
+          break;
+        }
+        collected.push(next);
+      }
+
+      if (collected.length === 0) {
+        continue;
+      }
+
+      const { wrapper, body } = createSemanticCallout(heading.tone, heading.title);
+      collected.forEach((node) => body.append(node));
+      current.replaceWith(wrapper);
+      transformed = true;
+      break;
+    }
+
+    if (!transformed) {
+      return;
+    }
+  }
+}
+
+function applySemanticPrefixFormatting(container: HTMLElement): void {
+  const elements = Array.from(container.querySelectorAll('p, li')).filter(
+    (node): node is HTMLElement =>
+      node instanceof HTMLElement && node.closest('.iclaw-chat-semantic-callout') === null,
+  );
+
+  elements.forEach((element) => {
+    if (element.dataset.iclawSemanticInline === 'true' || element.dataset.iclawSemanticCallout === 'true') {
+      return;
+    }
+
+    const lead = matchChatSemanticLead(element.textContent ?? '');
+    if (!lead || lead.standalone) {
+      return;
+    }
+
+    if (element instanceof HTMLParagraphElement) {
+      const clone = element.cloneNode(true) as HTMLParagraphElement;
+      trimLeadingTextFromElement(clone, lead.matchedPrefix);
+      const { wrapper, body } = createSemanticCallout(lead.tone, lead.title);
+      body.append(clone);
+      element.replaceWith(wrapper);
+      return;
+    }
+
+    const label = document.createElement('span');
+    label.className = `iclaw-chat-semantic-inline-label iclaw-chat-semantic-inline-label--${lead.tone}`;
+    label.textContent = `${lead.label}：`;
+    trimLeadingTextFromElement(element, lead.matchedPrefix);
+    element.dataset.iclawSemanticInline = 'true';
+    element.prepend(label, document.createTextNode(' '));
+  });
+}
+
+function applySemanticFormattingToContainer(container: HTMLElement): void {
+  applySemanticDirectiveBlocks(container);
+  applySemanticHeadingBlocks(container);
+  applySemanticPrefixFormatting(container);
 }
 
 async function copyTextToClipboard(text: string): Promise<boolean> {
@@ -2756,7 +3022,7 @@ function hasReusableEmptyGeneralConversation(
     return false;
   }
 
-  const hasTurns = readChatTurns().some((turn) => turn.conversationId === conversation.id);
+  const hasTurns = readChatTurns().some((turn) => turn.source === 'chat' && turn.conversationId === conversation.id);
   if (hasTurns) {
     return false;
   }
@@ -2979,6 +3245,16 @@ export function OpenClawChatSurface({
   surfaceVisible = true,
   sendBlockedReason = null,
 }: OpenClawChatSurfaceProps) {
+  const normalizedSnapshotSessionKey = canonicalizeChatSessionKey(sessionKey);
+  const localStoredSnapshot = readStoredChatSnapshot({
+    appName,
+    sessionKey: normalizedSnapshotSessionKey,
+    conversationId,
+  });
+  const localStoredSnapshotMessageCount = Array.isArray(localStoredSnapshot?.messages)
+    ? localStoredSnapshot.messages.length
+    : 0;
+  const hasLocalStoredSnapshotMessages = localStoredSnapshotMessageCount > 0;
   const shellRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const appRef = useRef<OpenClawAppElement | null>(null);
@@ -3023,14 +3299,17 @@ export function OpenClawChatSurface({
     threadVisible: false,
     threadHeight: 0,
     groupCount: 0,
-    chatMessageCount: 0,
+    chatMessageCount: localStoredSnapshotMessageCount,
   });
   const [showConnectionCard, setShowConnectionCard] = useState(false);
   const [showRenderDiagnosticsCard, setShowRenderDiagnosticsCard] = useState(false);
   const [rechargeNoticeDismissed, setRechargeNoticeDismissed] = useState(false);
   const [creditBlockNotice, setCreditBlockNotice] = useState<CreditBlockNotice | null>(null);
   const [initialSurfaceRestorePending, setInitialSurfaceRestorePending] = useState(
-    () => shellAuthenticated && !shouldTreatAsImmediateEmptySession(appName, sessionKey, conversationId),
+    () =>
+      shellAuthenticated &&
+      !hasLocalStoredSnapshotMessages &&
+      !shouldTreatAsImmediateEmptySession(appName, sessionKey, conversationId),
   );
   const [hasBootSettled, setHasBootSettled] = useState(false);
   const [sessionHistoryState, setSessionHistoryState] = useState<SessionHistoryState>(
@@ -3136,6 +3415,7 @@ export function OpenClawChatSurface({
   const sessionModelBootstrapKeyRef = useRef<string | null>(null);
   const responseUsageEnabledSessionKeyRef = useRef<string | null>(null);
   const persistedChatSnapshotRef = useRef<string | null>(null);
+  const forcedSnapshotRestoreScopeRef = useRef<string | null>(null);
   const artifactPreviewWorkspaceDirRef = useRef<string | null>(null);
   const artifactPreviewRequestSeqRef = useRef(0);
   const sessionTransitionHideTimerRef = useRef<number | null>(null);
@@ -3152,7 +3432,12 @@ export function OpenClawChatSurface({
   });
   const hasObservedHistory =
     !optimisticEmptySessionActive &&
-    (renderState.groupCount > 0 || renderState.chatMessageCount > 0 || Boolean(appRef.current?.chatMessages?.length));
+    (
+      hasLocalStoredSnapshotMessages ||
+      renderState.groupCount > 0 ||
+      renderState.chatMessageCount > 0 ||
+      Boolean(appRef.current?.chatMessages?.length)
+    );
 
   const closeSelectionMenu = useCallback(() => {
     setSelectionMenu(null);
@@ -3413,7 +3698,7 @@ export function OpenClawChatSurface({
   const requestFreshCreditQuote = useCallback(
     async (
       prompt: string,
-      attachments: OpenClawImageAttachment[],
+      attachments: ComposerDraftAttachment[],
     ): Promise<CreditQuoteData> => {
       if (!creditClient || !creditToken) {
         throw new Error('当前账号龙虾币鉴权尚未就绪，暂时不能发送消息。');
@@ -3818,13 +4103,15 @@ export function OpenClawChatSurface({
     const localSnapshot = readChatSessionSnapshot(appName, sessionKey, conversationId);
     const hasImmediateSnapshot = (localSnapshot?.messages?.length ?? 0) > 0;
     const fastOpenEmptySession = !hasImmediateSnapshot && isSeededEmptySessionKey(sessionKey);
+    const preserveVisibleSurfaceDuringSwitch =
+      !hasImmediateSnapshot && !fastOpenEmptySession && hasActivatedStableSurfaceRef.current;
     setOptimisticEmptySessionActive(fastOpenEmptySession);
     previousChatScopeRef.current = nextChatScope;
     sessionTransitionPendingRef.current = !hasImmediateSnapshot && !fastOpenEmptySession;
     sessionTransitionStartedAtRef.current = performance.now();
     clearSessionTransitionTimer();
     setStatus((current) =>
-      hasImmediateSnapshot || fastOpenEmptySession
+      hasImmediateSnapshot || fastOpenEmptySession || preserveVisibleSurfaceDuringSwitch
         ? {
             ...current,
             lastError: null,
@@ -3837,7 +4124,7 @@ export function OpenClawChatSurface({
             lastErrorCode: null,
           },
     );
-    if (!hasImmediateSnapshot) {
+    if (!hasImmediateSnapshot && !preserveVisibleSurfaceDuringSwitch) {
       setRenderState({
         hostHeight: 0,
         hasNativeInput: false,
@@ -3908,6 +4195,7 @@ export function OpenClawChatSurface({
       estimatedOutputTokens: null,
     });
     persistedChatSnapshotRef.current = null;
+    forcedSnapshotRestoreScopeRef.current = null;
     artifactPreviewWorkspaceDirRef.current = null;
     artifactPreviewRequestSeqRef.current += 1;
     setArtifactPreview(null);
@@ -3923,7 +4211,11 @@ export function OpenClawChatSurface({
       sessionKey,
       conversationId,
     });
-    app.chatMessages = snapshot?.messages ?? [];
+    if (snapshot) {
+      app.chatMessages = snapshot.messages ?? [];
+    } else if (!sessionTransitionPendingRef.current) {
+      app.chatMessages = [];
+    }
     const mergedStoredSettlements = mergePendingUsageSettlementRecords(
       readStoredPendingUsageSettlements(appName),
       normalizePendingUsageSettlementRecords(snapshot?.pendingUsageSettlements),
@@ -3944,6 +4236,41 @@ export function OpenClawChatSurface({
       setInitialSurfaceRestorePending(false);
     }
   }, [appName, conversationId, sessionKey]);
+
+  useEffect(() => {
+    const app = appRef.current;
+    if (!app || !status.connected) {
+      return;
+    }
+    if ((renderState.chatMessageCount ?? 0) > 0 || (renderState.groupCount ?? 0) > 0) {
+      return;
+    }
+
+    const snapshot = readChatSessionSnapshot(appName, sessionKey, conversationId);
+    if (!snapshotHasMeaningfulRenderableMessages(snapshot?.messages ?? [])) {
+      return;
+    }
+
+    const restoreScope = `${buildChatScopeIdentity(sessionKey, conversationId)}:${snapshot?.savedAt ?? 0}`;
+    if (forcedSnapshotRestoreScopeRef.current === restoreScope) {
+      return;
+    }
+
+    app.chatMessages = snapshot?.messages ?? [];
+    persistedChatSnapshotRef.current = snapshot ? JSON.stringify(snapshot) : null;
+    forcedSnapshotRestoreScopeRef.current = restoreScope;
+    setOptimisticEmptySessionActive(false);
+    setSessionHistoryState('has-history');
+    setInitialSurfaceRestorePending(false);
+    setAssistantFooterVersion((current) => current + 1);
+  }, [
+    appName,
+    conversationId,
+    renderState.chatMessageCount,
+    renderState.groupCount,
+    sessionKey,
+    status.connected,
+  ]);
 
   useEffect(() => {
     if (!creditClient || !creditToken) {
@@ -4090,7 +4417,7 @@ export function OpenClawChatSurface({
       if (skillResult.status === 'fulfilled') {
         setSkillOptions(
           skillResult.value
-            .filter((skill) => skill.enabled && (skill.installed || skill.userInstalled || skill.source === 'bundled'))
+            .filter((skill) => skill.enabled && (skill.installed || skill.userInstalled || skill.localInstalled))
             .map((skill) => ({
               slug: skill.slug,
               name: skill.name,
@@ -4470,6 +4797,42 @@ export function OpenClawChatSurface({
       observer.disconnect();
     };
   }, []);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) {
+      return;
+    }
+
+    const decorateSemanticText = () => {
+      if (status.busy) {
+        return;
+      }
+
+      const containers = Array.from(host.querySelectorAll('.chat-group.assistant .chat-text')).filter(
+        (node): node is HTMLElement => node instanceof HTMLElement,
+      );
+
+      containers.forEach((container) => {
+        applySemanticFormattingToContainer(container);
+      });
+    };
+
+    decorateSemanticText();
+
+    const observer = new MutationObserver(() => {
+      decorateSemanticText();
+    });
+
+    observer.observe(host, {
+      childList: true,
+      subtree: true,
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [status.busy]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -5236,7 +5599,8 @@ export function OpenClawChatSurface({
     shellAuthenticated &&
     sessionHistoryState === 'unknown' &&
     !hasObservedHistory;
-  const hasStableVisibleChat = hasObservedHistory || renderState.groupCount > 0 || renderState.chatMessageCount > 0;
+  const hasStableVisibleChat =
+    hasLocalStoredSnapshotMessages || hasObservedHistory || renderState.groupCount > 0 || renderState.chatMessageCount > 0;
   const renderReady = isSessionRenderReady(renderState);
   const surfaceReadyForReveal =
     status.connected &&
@@ -5244,6 +5608,7 @@ export function OpenClawChatSurface({
     !status.lastError;
   const showBootMask =
     shellAuthenticated &&
+    !sessionTransitionVisible &&
     !allowImmediateEmptySessionUi &&
     !hasStableVisibleChat &&
     !status.lastError &&
@@ -5277,6 +5642,13 @@ export function OpenClawChatSurface({
       hasActivatedStableSurfaceRef.current = true;
     }
   }, [surfaceReadyForReveal]);
+
+  useEffect(() => {
+    if (!runtimeStateKey) {
+      return;
+    }
+    onRuntimeStateChange?.(runtimeStateKey, {ready: surfaceReadyForReveal});
+  }, [onRuntimeStateChange, runtimeStateKey, surfaceReadyForReveal]);
 
   useEffect(() => {
     const wasVisible = previousSurfaceVisibleRef.current;
@@ -6088,7 +6460,7 @@ export function OpenClawChatSurface({
           hasSearch: inferCreditQuoteHasSearch(normalizedPrompt),
           hasTools: true,
           attachments: payload.imageAttachments.map((item) => ({
-            type: item.type,
+            type: item.mimeType.startsWith('image/') ? 'image' : 'file',
           })),
           model: selectedModelId || undefined,
           appName,
@@ -6361,7 +6733,7 @@ export function OpenClawChatSurface({
       return;
     }
 
-    const turn = readChatTurns().find((item) => item.id === focusedTurnId);
+    const turn = readChatTurns().find((item) => item.source === 'chat' && item.id === focusedTurnId);
     const prompt = turn?.prompt?.trim() ?? '';
     if (!prompt) {
       consumedFocusedTurnKeyRef.current = focusSignal;
@@ -6506,40 +6878,60 @@ export function OpenClawChatSurface({
     };
 
     const normalizeAssistantTurnGroups = (groups: HTMLElement[]) => {
-      let inAssistantTurn = false;
+      let assistantSegment: HTMLElement[] = [];
+
+      const flushAssistantSegment = () => {
+        if (assistantSegment.length === 0) {
+          return;
+        }
+
+        const preferredAnchorIndex = assistantSegment.findIndex(
+          (group) =>
+            group.classList.contains('assistant') &&
+            !group.classList.contains('tool') &&
+            hasVisibleMessageContent(group),
+        );
+        const anchorIndex = preferredAnchorIndex >= 0 ? preferredAnchorIndex : 0;
+
+        assistantSegment.forEach((group, index) => {
+          if (index === anchorIndex) {
+            group.classList.remove('iclaw-chat-group--continued');
+            return;
+          }
+          group.classList.add('iclaw-chat-group--continued');
+        });
+
+        assistantSegment = [];
+      };
 
       groups.forEach((group) => {
         if (group.hasAttribute('hidden')) {
+          flushAssistantSegment();
           group.classList.remove('iclaw-chat-group--continued');
           return;
         }
 
-        const isUser = group.classList.contains('user');
+        if (group.classList.contains('user')) {
+          flushAssistantSegment();
+          group.classList.remove('iclaw-chat-group--continued');
+          return;
+        }
+
         const isAssistantSide =
-          !isUser &&
-          (group.classList.contains('assistant') ||
-            group.classList.contains('tool') ||
-            group.classList.contains('other'));
-
-        if (isUser) {
-          inAssistantTurn = false;
-          group.classList.remove('iclaw-chat-group--continued');
-          return;
-        }
+          group.classList.contains('assistant') ||
+          group.classList.contains('tool') ||
+          group.classList.contains('other');
 
         if (!isAssistantSide) {
+          flushAssistantSegment();
           group.classList.remove('iclaw-chat-group--continued');
           return;
         }
 
-        if (!inAssistantTurn) {
-          group.classList.remove('iclaw-chat-group--continued');
-          inAssistantTurn = true;
-          return;
-        }
-
-        group.classList.add('iclaw-chat-group--continued');
+        assistantSegment.push(group);
       });
+
+      flushAssistantSegment();
     };
 
     const isInternallyHiddenNode = (node: Element | null): node is HTMLElement =>
@@ -6882,9 +7274,7 @@ export function OpenClawChatSurface({
         status.busy,
       );
       const terminalAssistantPromptMap = buildTerminalAssistantPromptMap(chatMessages);
-      const groups = Array.from(host.querySelectorAll('.chat-group')).filter(
-        (node): node is HTMLElement => node instanceof HTMLElement,
-      );
+      const groups = Array.from(host.querySelectorAll<HTMLElement>('.chat-group'));
       const assistantGroupCount = groups.filter((group) => group.classList.contains('assistant')).length;
       const domFallbackFooterMetas =
         assistantFooterMetas.length === 0 && sessionBillingSummaries.length > 0
@@ -6909,7 +7299,8 @@ export function OpenClawChatSurface({
       syncInternalCompactionDividerVisibility();
       normalizeAssistantTurnGroups(groups);
 
-      groups.forEach((group, groupIndex) => {
+      groups.forEach((rawGroup, groupIndex) => {
+        const group = rawGroup as HTMLElement;
         if (isInternallyHiddenNode(group)) {
           clearUserRunFooter(group);
           clearAssistantFooter(group);
@@ -7098,7 +7489,7 @@ export function OpenClawChatSurface({
               <div
                 ref={shellRef}
                 className="openclaw-chat-surface-shell h-full flex-1 overflow-hidden"
-                data-session-transitioning={showBootMask ? 'true' : 'false'}
+                data-session-transitioning={shellTransitioning ? 'true' : 'false'}
                 data-surface-reactivating={showSurfaceReactivationMask ? 'true' : 'false'}
               >
                 <div

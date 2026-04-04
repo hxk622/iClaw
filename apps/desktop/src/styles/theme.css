@@ -13,6 +13,73 @@
   --text-muted: #9a9288;
   --text-disabled: #b3aca2;
 
+  --chat-default-text: #1a1a1a;
+  --chat-default-bg: transparent;
+  --chat-default-border: transparent;
+  --chat-secondary-text: #6b7280;
+  --chat-secondary-bg: transparent;
+  --chat-secondary-border: transparent;
+  --chat-insight-text: #5b21b6;
+  --chat-insight-bg: #f5f3ff;
+  --chat-insight-border: #ddd6fe;
+  --chat-insight-icon: #7c3aed;
+  --chat-action-text: #1e40af;
+  --chat-action-bg: #eff6ff;
+  --chat-action-border: #bfdbfe;
+  --chat-action-icon: #2563eb;
+  --chat-warning-text: #92400e;
+  --chat-warning-bg: #fffbeb;
+  --chat-warning-border: #fde68a;
+  --chat-warning-icon: #d97706;
+  --chat-danger-text: #991b1b;
+  --chat-danger-bg: #fef2f2;
+  --chat-danger-border: #fecaca;
+  --chat-danger-icon: #dc2626;
+  --chat-note-text: #374151;
+  --chat-note-bg: #f9fafb;
+  --chat-note-border: #e5e7eb;
+  --chat-note-icon: #6b7280;
+  --chat-code-text: #be185d;
+  --chat-code-bg: #fdf2f8;
+  --chat-code-border: #fbcfe8;
+  --chat-code-icon: #db2777;
+
+  --tool-running-bg: #f8fbff;
+  --tool-running-border: #d4e5ff;
+  --tool-running-badge-bg: #e6f2ff;
+  --tool-running-badge-text: #0c5ba0;
+  --tool-running-icon: #2b7fd4;
+  --tool-running-hover: #f0f7ff;
+
+  --tool-success-bg: #f7fdf8;
+  --tool-success-border: #d1f4dd;
+  --tool-success-badge-bg: #e3f9eb;
+  --tool-success-badge-text: #0e7d38;
+  --tool-success-icon: #18a854;
+  --tool-success-hover: #edfbf2;
+
+  --tool-error-bg: #fffbfb;
+  --tool-error-border: #ffe5e9;
+  --tool-error-badge-bg: #fff0f2;
+  --tool-error-badge-text: #c41d3a;
+  --tool-error-icon: #d4183d;
+  --tool-error-hover: #fff5f6;
+
+  --tool-artifact-bg: #faf9ff;
+  --tool-artifact-border: #e4deff;
+  --tool-artifact-badge-bg: #ede9ff;
+  --tool-artifact-badge-text: #5b40c4;
+  --tool-artifact-icon: #7c5ce0;
+  --tool-artifact-hover: #f3f0ff;
+
+  --tool-card-title: #0f1419;
+  --tool-card-secondary: #64676d;
+  --tool-card-tertiary: #8e9197;
+  --tool-card-divider: #e8eaed;
+  --tool-card-shadow: rgba(0, 0, 0, 0.04);
+  --tool-card-subtle-bg: rgba(0, 0, 0, 0.02);
+  --tool-card-subtle-hover: rgba(0, 0, 0, 0.05);
+
   --border-subtle: #ece7de;
   --border-default: #ded7cc;
   --border-strong: #c8beaf;
@@ -114,8 +181,8 @@
   --chat-surface-panel-border: rgba(0, 0, 0, 0.08);
   --chat-surface-panel-border-strong: rgba(0, 0, 0, 0.12);
   --chat-surface-panel-shadow: 0 20px 48px rgba(0, 0, 0, 0.08);
-  --chat-surface-code-bg: #f0f0f0;
-  --chat-surface-code-fg: #4a4a4a;
+  --chat-surface-code-bg: var(--chat-code-bg);
+  --chat-surface-code-fg: var(--chat-code-text);
   --chat-surface-pre-bg: #f7f7f7;
   --chat-surface-pre-fg: #2a2a2a;
   --chat-surface-blockquote: rgba(0, 0, 0, 0.08);
@@ -193,6 +260,73 @@
   --text-secondary: #d9d0c4;
   --text-muted: #b6ad9f;
   --text-disabled: #7d756b;
+
+  --chat-default-text: #e5e5e5;
+  --chat-default-bg: transparent;
+  --chat-default-border: transparent;
+  --chat-secondary-text: #9ca3af;
+  --chat-secondary-bg: transparent;
+  --chat-secondary-border: transparent;
+  --chat-insight-text: #c4b5fd;
+  --chat-insight-bg: #2e1065;
+  --chat-insight-border: #5b21b6;
+  --chat-insight-icon: #a78bfa;
+  --chat-action-text: #93c5fd;
+  --chat-action-bg: #1e3a8a;
+  --chat-action-border: #1e40af;
+  --chat-action-icon: #60a5fa;
+  --chat-warning-text: #fcd34d;
+  --chat-warning-bg: #78350f;
+  --chat-warning-border: #92400e;
+  --chat-warning-icon: #fbbf24;
+  --chat-danger-text: #fca5a5;
+  --chat-danger-bg: #7f1d1d;
+  --chat-danger-border: #991b1b;
+  --chat-danger-icon: #f87171;
+  --chat-note-text: #d1d5db;
+  --chat-note-bg: #1f2937;
+  --chat-note-border: #374151;
+  --chat-note-icon: #9ca3af;
+  --chat-code-text: #f9a8d4;
+  --chat-code-bg: #831843;
+  --chat-code-border: #be185d;
+  --chat-code-icon: #f472b6;
+
+  --tool-running-bg: rgba(42, 111, 212, 0.08);
+  --tool-running-border: rgba(42, 111, 212, 0.2);
+  --tool-running-badge-bg: rgba(42, 111, 212, 0.15);
+  --tool-running-badge-text: #70b8ff;
+  --tool-running-icon: #5ba1e8;
+  --tool-running-hover: rgba(42, 111, 212, 0.12);
+
+  --tool-success-bg: rgba(24, 168, 84, 0.08);
+  --tool-success-border: rgba(24, 168, 84, 0.2);
+  --tool-success-badge-bg: rgba(24, 168, 84, 0.15);
+  --tool-success-badge-text: #6edb9a;
+  --tool-success-icon: #4dc987;
+  --tool-success-hover: rgba(24, 168, 84, 0.12);
+
+  --tool-error-bg: rgba(212, 24, 61, 0.08);
+  --tool-error-border: rgba(212, 24, 61, 0.2);
+  --tool-error-badge-bg: rgba(212, 24, 61, 0.15);
+  --tool-error-badge-text: #ff8ca8;
+  --tool-error-icon: #f06181;
+  --tool-error-hover: rgba(212, 24, 61, 0.12);
+
+  --tool-artifact-bg: rgba(124, 92, 224, 0.08);
+  --tool-artifact-border: rgba(124, 92, 224, 0.2);
+  --tool-artifact-badge-bg: rgba(124, 92, 224, 0.15);
+  --tool-artifact-badge-text: #b4a0ff;
+  --tool-artifact-icon: #9b84f5;
+  --tool-artifact-hover: rgba(124, 92, 224, 0.12);
+
+  --tool-card-title: #e8eaed;
+  --tool-card-secondary: #adb0b8;
+  --tool-card-tertiary: #7a7d85;
+  --tool-card-divider: rgba(255, 255, 255, 0.08);
+  --tool-card-shadow: rgba(0, 0, 0, 0.3);
+  --tool-card-subtle-bg: rgba(255, 255, 255, 0.02);
+  --tool-card-subtle-hover: rgba(255, 255, 255, 0.05);
 
   --border-subtle: #302b27;
   --border-default: #433c35;

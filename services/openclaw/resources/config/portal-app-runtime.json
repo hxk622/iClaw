@@ -964,6 +964,27 @@
         }
       ]
     },
+    "memory_embedding": {
+      "resolved_scope": "platform",
+      "version": 1775211268998,
+      "profile": {
+        "id": "5eb5cc15-a0e2-46d3-91ef-2f34019f4d02",
+        "scope_type": "platform",
+        "scope_key": "platform",
+        "provider_key": "bailian",
+        "provider_label": "bailian",
+        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "auth_mode": "bearer",
+        "api_key": "sk-c644d84390984cd5bcb3f31dd5822906",
+        "embedding_model": "text-embedding-v4",
+        "logo_preset_key": null,
+        "auto_recall": true,
+        "metadata": {},
+        "enabled": true,
+        "created_at": "2026-04-03T10:14:28.998Z",
+        "updated_at": "2026-04-03T10:14:28.998Z"
+      }
+    },
     "resolved_mcp_servers": {
       "browser": {
         "args": [
@@ -1021,7 +1042,7 @@
   },
   "syncMeta": {
     "appName": "iclaw",
-    "syncedAt": "2026-04-02T16:51:47.666Z",
+    "syncedAt": "2026-04-04T04:31:24.025Z",
     "copiedSkillDirs": [
       "docx",
       "xlsx",
@@ -1040,9 +1061,7 @@
       "agent-reach-v2ex",
       "agent-reach-xueqiu",
       "skill-vetter",
-      "美股小盘成长股扫描器",
       "multi-search-engine",
-      "美股科技股估值分析师",
       "clawpolicy",
       "stock-analysis-skill",
       "stock-daily-analysis",
@@ -1050,7 +1069,15 @@
       "stock-data-skill",
       "stock-strategy-backtester",
       "stock-monitor-skill",
-      "stock-watcher"
+      "stock-watcher",
+      "self-improving-agent",
+      "summarize-pro",
+      "self-improving",
+      "weather",
+      "nano-pdf",
+      "skill-creator",
+      "stock-analysis",
+      "agent-browser-clawdbot"
     ],
     "skippedSkillSlugs": [],
     "enabledMcpKeys": [
@@ -1061,9 +1088,9 @@
       "yahoo-finance"
     ],
     "mcpConfigSha256": "9c36775f521c1b0e0aa3990061eae2ffbf7b738e0d81ecb3b0996446e39b210d",
-    "resolvedConfigSha256": "cd170c5087895f17abb4904066136b9e87107ff65b4aff0eb63ad7d842628558",
+    "resolvedConfigSha256": "ed41c46345293c71a5e7de296ab72eb6ddd0294a12dcb77e644a9f306e269d92",
     "skipRuntimeSkillSync": false,
-    "bundledOnly": false,
-    "incrementalSkillSync": false
+    "bundledOnly": true,
+    "incrementalSkillSync": true
   }
 }

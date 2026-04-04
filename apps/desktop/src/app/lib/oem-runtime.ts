@@ -726,10 +726,6 @@ export async function syncPublishedBrandRuntimeSnapshot(input: {
     return false;
   }
 
-  if (isTauriRuntime()) {
-    return syncOemRuntimeSnapshot({ authBaseUrl, brandId });
-  }
-
   try {
     const runtimeConfig = await loadPublishedBrandRuntimeConfig({ authBaseUrl, brandId });
     return saveOemRuntimeSnapshot({

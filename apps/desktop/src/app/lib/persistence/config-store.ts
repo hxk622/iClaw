@@ -4,9 +4,9 @@ import {
   SETTINGS_STORAGE_KEY,
   THEME_EXPLICIT_STORAGE_KEY,
   THEME_STORAGE_KEY,
-} from '@/app/lib/storage';
-import { isTauriRuntime } from '@/app/lib/tauri-sidecar';
-import { readCacheJson, readCacheString, writeCacheJson, writeCacheString } from '@/app/lib/persistence/cache-store';
+} from '../storage.ts';
+import { isTauriRuntime } from '../tauri-sidecar.ts';
+import { readCacheJson, readCacheString, writeCacheJson, writeCacheString } from './cache-store.ts';
 
 export const DESKTOP_CONFIG_SECTION_SETTINGS = 'settings';
 export const DESKTOP_CONFIG_SECTION_THEME = 'theme';

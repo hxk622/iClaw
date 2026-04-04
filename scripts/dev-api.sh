@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT_DIR/scripts/lib/gateway-token.sh"
 source "$ROOT_DIR/scripts/lib/openclaw-package.sh"
+source "$ROOT_DIR/scripts/lib/env-files.sh"
 API_PORT="${ICLAW_API_PORT:-2126}"
 API_DETACH="${ICLAW_API_DETACH:-0}"
 LOG_DIR="${ICLAW_LOG_DIR:-$ROOT_DIR/logs/openclaw}"
@@ -14,6 +15,7 @@ EXTRA_CA_CERTS_PATH="${ICLAW_EXTRA_CA_CERTS_PATH:-$ROOT_DIR/services/openclaw/re
 OPENCLAW_VERBOSE="${ICLAW_OPENCLAW_VERBOSE:-1}"
 OPENCLAW_WS_LOG_STYLE="${ICLAW_OPENCLAW_WS_LOG:-compact}"
 OPENCLAW_RAW_STREAM="${ICLAW_OPENCLAW_RAW_STREAM:-0}"
+TARGET_ENV="$(normalize_iclaw_env_name "${ICLAW_ENV_NAME:-${NODE_ENV:-dev}}")"
 PORTAL_APP_NAME=""
 PORTAL_APP_SOURCE=""
 
@@ -36,20 +38,6 @@ if [[ $# -gt 0 ]]; then
     shift || true
   fi
 fi
-
-read_env_value() {
-  local key="$1"
-  local env_file=""
-  for env_file in "$ROOT_DIR/.env" "$ROOT_DIR/.env.dev"; do
-    [[ -f "$env_file" ]] || continue
-    local value
-    value="$(sed -n "s/^${key}=//p" "$env_file" | tail -n1)"
-    if [[ -n "$value" ]]; then
-      printf '%s' "$value"
-      return 0
-    fi
-  done
-}
 
 read_runtime_config_value() {
   local key="$1"
@@ -96,8 +84,9 @@ normalize_app_state_key() {
   printf '%s\n' "$normalized"
 }
 
-ENV_GATEWAY_TOKEN="$(read_env_value VITE_GATEWAY_TOKEN)"
-ENV_APP_NAME="$(read_env_value APP_NAME)"
+warn_if_iclaw_env_mismatch "$ROOT_DIR" "APP_NAME" "$TARGET_ENV"
+ENV_GATEWAY_TOKEN="$(read_iclaw_env_value "$ROOT_DIR" "VITE_GATEWAY_TOKEN" "$TARGET_ENV" || true)"
+ENV_APP_NAME="$(read_iclaw_env_value "$ROOT_DIR" "APP_NAME" "$TARGET_ENV" || true)"
 if [[ -z "${PORTAL_APP_NAME:-}" && -n "${ENV_APP_NAME:-}" ]]; then
   PORTAL_APP_NAME="${ENV_APP_NAME}"
   PORTAL_APP_SOURCE="env-file"
