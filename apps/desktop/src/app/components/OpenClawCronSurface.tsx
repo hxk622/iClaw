@@ -259,6 +259,8 @@ const WEEKDAY_OPTIONS = [
   { value: '0', label: '周日' },
 ];
 
+const STALE_NEXT_RUN_TOLERANCE_MS = 60 * 1000;
+
 const BASIC_TEMPLATES: BasicTemplate[] = [
   {
     id: 'reminder',
@@ -468,6 +470,77 @@ function buildHumanSchedule(schedule: CronSchedule): string {
   }
   const weekday = WEEKDAY_OPTIONS.find((item) => item.value === parsed.weekday)?.label ?? '每周';
   return `${weekday} ${parsed.runTime}`;
+}
+
+function resolveScheduleNextRunAtMs(schedule: CronSchedule, now = Date.now()): number | null {
+  if (schedule.kind === 'at') {
+    const at = Date.parse(schedule.at);
+    return Number.isFinite(at) && at > now ? at : null;
+  }
+
+  if (schedule.kind === 'every') {
+    if (!Number.isFinite(schedule.everyMs) || schedule.everyMs <= 0) {
+      return null;
+    }
+    const anchor = typeof schedule.anchorMs === 'number' && Number.isFinite(schedule.anchorMs)
+      ? schedule.anchorMs
+      : now;
+    if (anchor > now) return anchor;
+    const elapsed = now - anchor;
+    const intervals = Math.floor(elapsed / schedule.everyMs) + 1;
+    return anchor + intervals * schedule.everyMs;
+  }
+
+  const parsed = parseSimpleCronSchedule(schedule);
+  if (!parsed) return null;
+
+  if (parsed.frequency === 'once') {
+    const at = Date.parse(parsed.onceAt);
+    return Number.isFinite(at) && at > now ? at : null;
+  }
+
+  const [hours, minutes] = parsed.runTime.split(':').map((value) => Number(value));
+  const safeHours = Number.isFinite(hours) ? hours : 0;
+  const safeMinutes = Number.isFinite(minutes) ? minutes : 0;
+  const current = new Date(now);
+  const candidate = new Date(now);
+  candidate.setSeconds(0, 0);
+  candidate.setHours(safeHours, safeMinutes, 0, 0);
+
+  if (parsed.frequency === 'daily') {
+    if (candidate.getTime() <= now) {
+      candidate.setDate(candidate.getDate() + 1);
+    }
+    return candidate.getTime();
+  }
+
+  const targetWeekday = Number(parsed.weekday);
+  if (!Number.isFinite(targetWeekday)) {
+    return null;
+  }
+  const offsetDays = (targetWeekday - current.getDay() + 7) % 7;
+  candidate.setDate(candidate.getDate() + offsetDays);
+  if (candidate.getTime() <= now) {
+    candidate.setDate(candidate.getDate() + 7);
+  }
+  return candidate.getTime();
+}
+
+function resolveJobNextRunAtMs(job?: CronJob | null, fallback?: number | null, now = Date.now()): number | null {
+  const stateNextRunAtMs =
+    typeof job?.state?.nextRunAtMs === 'number' && Number.isFinite(job.state.nextRunAtMs)
+      ? job.state.nextRunAtMs
+      : null;
+  if (stateNextRunAtMs && stateNextRunAtMs > now - STALE_NEXT_RUN_TOLERANCE_MS) {
+    return stateNextRunAtMs;
+  }
+
+  const derivedNextRunAtMs = job ? resolveScheduleNextRunAtMs(job.schedule, now) : null;
+  if (derivedNextRunAtMs) {
+    return derivedNextRunAtMs;
+  }
+
+  return typeof fallback === 'number' && Number.isFinite(fallback) ? fallback : null;
 }
 
 function parseSimpleCronSchedule(schedule: CronSchedule): BasicSchedulePreset | null {
@@ -968,6 +1041,10 @@ export function OpenClawCronSurface({
         const resolvedSummary = job
           ? resolveRunSummary(job, latestEntry)
           : resolveStoredRunSummary(persistedTurn, latestEntry);
+        const nextRunAt = resolveJobNextRunAtMs(
+          job,
+          latestEntry?.nextRunAtMs ?? persistedTurn?.nextRunAt ?? null,
+        );
         upsertCronTaskTurn({
           jobId,
           name: job?.name ?? persistedTurn?.title ?? '定时任务',
@@ -984,7 +1061,7 @@ export function OpenClawCronSurface({
           model: latestEntry?.model ?? persistedTurn?.model ?? null,
           provider: latestEntry?.provider ?? persistedTurn?.provider ?? null,
           deliveryStatus: latestEntry?.deliveryStatus ?? persistedTurn?.deliveryStatus ?? null,
-          nextRunAt: latestEntry?.nextRunAtMs ?? job?.state?.nextRunAtMs ?? persistedTurn?.nextRunAt ?? null,
+          nextRunAt,
           runAt: latestEntry?.runAtMs ?? latestEntry?.ts ?? job?.state?.lastRunAtMs ?? Date.now(),
         });
       }
@@ -1704,6 +1781,7 @@ export function OpenClawCronSurface({
                           const latestRun = getLatestRunEntry(runHistory);
                           const runStatus = getRunStatusMeta(latestRun?.status ?? job.state?.lastStatus);
                           const runSummary = resolveRunSummary(job, latestRun);
+                          const nextRunAt = resolveJobNextRunAtMs(job);
                           const runMetaText = latestRun
                             ? `${formatTimestampDetailed(latestRun.runAtMs ?? latestRun.ts)}${latestRun.durationMs ? ` · ${formatDuration(latestRun.durationMs)}` : ''}`
                             : job.state?.lastRunAtMs
@@ -1749,7 +1827,7 @@ export function OpenClawCronSurface({
                                   <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-[var(--text-muted)]">
                                     <span className="inline-flex items-center gap-1">
                                       <Clock className="h-3 w-3" />
-                                      下次: {formatTimestamp(job.state?.nextRunAtMs ?? null)}
+                                      下次: {formatTimestamp(nextRunAt)}
                                     </span>
                                     <span className="inline-flex items-center gap-1">
                                       <Repeat className="h-3 w-3" />
@@ -2123,6 +2201,7 @@ function CronRunHistorySheet({
 
   const latestRun = getLatestRunEntry(history);
   const latestStatus = getRunStatusMeta(latestRun?.status ?? job.state?.lastStatus);
+  const nextRunAt = resolveJobNextRunAtMs(job);
 
   return (
     <SideDetailSheet
@@ -2139,7 +2218,7 @@ function CronRunHistorySheet({
             {job.enabled ? '已启用' : '已暂停'}
           </Chip>
           <span className="text-[12px] text-[var(--text-secondary)]">
-            下次执行：{formatTimestampDetailed(job.state?.nextRunAtMs ?? null)}
+            下次执行：{formatTimestampDetailed(nextRunAt)}
           </span>
         </div>
       }
