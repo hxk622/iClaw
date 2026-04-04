@@ -7,11 +7,13 @@ interface AvatarDropdownProps {
   authenticated: boolean;
   settingsVisible?: boolean;
   settingsLabel?: string;
+  showRestartUpdate?: boolean;
   onClose: () => void;
   onOpenAccount: () => void;
   onOpenRechargeCenter: () => void;
   onOpenLogin: () => void;
   onOpenSettings: () => void;
+  onRestartApp?: () => void;
   onLogout: () => void;
 }
 
@@ -35,11 +37,13 @@ export function AvatarDropdown({
   authenticated,
   settingsVisible = true,
   settingsLabel = '设置',
+  showRestartUpdate = false,
   onClose,
   onOpenAccount,
   onOpenRechargeCenter,
   onOpenLogin,
   onOpenSettings,
+  onRestartApp,
   onLogout,
 }: AvatarDropdownProps) {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -137,13 +141,22 @@ export function AvatarDropdown({
         <span className={menuLabelClass}>官网</span>
       </button>
 
-      <button className={menuItemClass} style={menuItemStyle}>
-        <RefreshCw className={menuIconClass} style={menuIconStyle} />
-        <span className={`flex-1 ${menuLabelClass}`}>新版本已安装</span>
-        <span className="rounded-md bg-[var(--brand-primary)] px-3 py-1 text-[13px] text-[var(--brand-on-primary)]">
-          重启应用
-        </span>
-      </button>
+      {showRestartUpdate ? (
+        <button
+          className={menuItemClass}
+          style={menuItemStyle}
+          onClick={() => {
+            onClose();
+            onRestartApp?.();
+          }}
+        >
+          <RefreshCw className={menuIconClass} style={menuIconStyle} />
+          <span className={`flex-1 ${menuLabelClass}`}>新版本已安装</span>
+          <span className="rounded-md bg-[var(--brand-primary)] px-3 py-1 text-[13px] text-[var(--brand-on-primary)]">
+            重启应用
+          </span>
+        </button>
+      ) : null}
 
       {authenticated ? (
         <>

@@ -432,6 +432,8 @@ const SidebarFooterAccount = memo(function SidebarFooterAccount({
   onOpenRechargeCenter?: () => void;
   onOpenLogin?: () => void;
   onOpenSettings?: () => void;
+  showRestartUpdate?: boolean;
+  onRestartApp?: () => void;
   onLogout?: () => void;
 }) {
   traceSidebarRender('SidebarFooterAccount', {
@@ -506,11 +508,13 @@ const SidebarFooterAccount = memo(function SidebarFooterAccount({
         authenticated={authenticated}
         settingsVisible={settingsEnabled}
         settingsLabel="设置"
+        showRestartUpdate={showRestartUpdate}
         onClose={() => setMenuOpen(false)}
         onOpenAccount={() => onOpenAccount?.()}
         onOpenRechargeCenter={() => onOpenRechargeCenter?.()}
         onOpenLogin={() => onOpenLogin?.()}
         onOpenSettings={() => onOpenSettings?.()}
+        onRestartApp={() => onRestartApp?.()}
         onLogout={() => onLogout?.()}
       />
     </div>
@@ -519,6 +523,7 @@ const SidebarFooterAccount = memo(function SidebarFooterAccount({
   prev.authenticated === next.authenticated &&
   prev.collapsed === next.collapsed &&
   prev.settingsEnabled === next.settingsEnabled &&
+  prev.showRestartUpdate === next.showRestartUpdate &&
   prev.user === next.user
 );
 
@@ -742,10 +747,12 @@ function SidebarComponent({
         authenticated={authenticated}
         collapsed={collapsed}
         settingsEnabled={settingsEnabled}
+        showRestartUpdate={desktopUpdateStatus === 'ready-to-restart'}
         onOpenAccount={onOpenAccount}
         onOpenRechargeCenter={onOpenRechargeCenter}
         onOpenLogin={onOpenLogin}
         onOpenSettings={onOpenSettings}
+        onRestartApp={onRestartDesktopApp}
         onLogout={onLogout}
       />
     </div>
