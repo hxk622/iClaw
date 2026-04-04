@@ -288,7 +288,7 @@ export function RecentConversationsList({
 
                     <span
                       className={cn(
-                        'block min-w-0 truncate pr-0.5 text-[11px] leading-[15px]',
+                        'block min-w-0 overflow-hidden pr-0.5 text-[11px] leading-[15px] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]',
                         isSelected ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]',
                       )}
                     >
