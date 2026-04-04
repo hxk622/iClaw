@@ -110,7 +110,6 @@ export async function saveIclawWorkspaceSection(
 export async function saveIclawSettingsAndApply(settings: SettingsState): Promise<boolean> {
   await writeDesktopConfigSection(DESKTOP_CONFIG_SECTION_SETTINGS, {
     general: settings.general,
-    safetyDefaults: settings.safetyDefaults,
     configStatuses: settings.configStatuses,
   });
   await writeDesktopConfigSection(DESKTOP_CONFIG_SECTION_THEME, buildExplicitThemeConfig(settings.general.themeMode));

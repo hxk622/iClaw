@@ -1,4 +1,4 @@
-import { ChevronRight, Shield, Sparkles, User, UserCircle } from 'lucide-react';
+import { ChevronRight, Sparkles, User, UserCircle } from 'lucide-react';
 import { type ComponentType } from 'react';
 import { useSettings } from '@/app/contexts/settings-context';
 import { StatusBadge } from '@/app/components/settings/ui/StatusBadge';
@@ -9,8 +9,7 @@ export type SettingsSection =
   | 'general'
   | 'identity'
   | 'user-profile'
-  | 'soul-persona'
-  | 'safety-defaults';
+  | 'soul-persona';
 
 interface SettingsOverviewProps {
   onNavigate: (section: SettingsSection) => void;
@@ -55,14 +54,6 @@ const cards: Array<{
     description: '编辑行为边界、风险姿态与风格约束',
     icon: Sparkles,
     section: 'soul-persona',
-  },
-  {
-    key: 'safetyDefaults',
-    statusKey: 'safetyDefaults',
-    title: '安全策略',
-    description: '配置系统操作和文件访问边界',
-    icon: Shield,
-    section: 'safety-defaults',
   },
 ];
 

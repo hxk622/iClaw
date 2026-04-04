@@ -1,4 +1,4 @@
-import { Clock, FileText } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import { SettingsCard } from './SettingsCard';
 
 interface SettingsFileStatusCardProps {
@@ -24,7 +24,6 @@ export function SettingsFileStatusCard({
         </div>
 
         <div className="flex items-center gap-2">
-          <Clock className="h-3.5 w-3.5 text-[var(--text-muted)]" />
           <span className="text-[12px] text-[var(--text-secondary)]">{syncLabel}</span>
           <span className="ml-2 rounded-md bg-[rgba(34,197,94,0.12)] px-2 py-1 text-[11px] font-medium text-[rgb(21,128,61)] dark:bg-[rgba(34,197,94,0.18)] dark:text-[#86efac]">
             本地文件

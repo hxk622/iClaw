@@ -34,7 +34,7 @@ export function Identity() {
       fileName="Identity.md"
       description="定义 iClaw 的身份信息、角色定位、对外自我介绍与默认署名"
       workspacePath={`${workspaceDir || '~/Documents/iClaw/workspace'}/Identity.md`}
-      syncLabel="2分钟前同步"
+      syncLabel="保存后写入本地工作区"
       value={identity.markdownContent}
       placeholder="输入身份定义内容..."
       onChange={(value) => updateIdentity({ markdownContent: value })}

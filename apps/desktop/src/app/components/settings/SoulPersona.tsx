@@ -38,7 +38,7 @@ export function SoulPersona() {
       fileName="Soul.md"
       description="配置 AI 的人格特征、语气风格、价值观边界与默认表达策略"
       workspacePath={`${workspaceDir || '~/Documents/iClaw/workspace'}/Soul.md`}
-      syncLabel="1分钟前同步"
+      syncLabel="保存后写入本地工作区"
       value={soulPersona.markdownContent}
       placeholder="输入人格配置内容..."
       onChange={(value) => updateSoulPersona({ markdownContent: value })}

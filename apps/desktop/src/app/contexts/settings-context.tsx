@@ -31,8 +31,7 @@ export type PersistableSettingsSection =
   | 'general'
   | 'identity'
   | 'user-profile'
-  | 'soul-persona'
-  | 'safety-defaults';
+  | 'soul-persona';
 
 export type IdentityConfig = {
   markdownContent: string;
@@ -55,26 +54,16 @@ export type SoulPersonaConfig = {
   markdownContent: string;
 };
 
-export type SafetyDefaultsConfig = {
-  systemRunMode: 'ask' | 'allow' | 'deny';
-  dangerousActionConfirmation: boolean;
-  networkAccessPolicy: string;
-  fileAccessScope: string;
-  toolFallbackPolicy: string;
-};
-
 export type SettingsState = {
   general: GeneralConfig;
   identity: IdentityConfig;
   userProfile: UserProfileConfig;
   soulPersona: SoulPersonaConfig;
-  safetyDefaults: SafetyDefaultsConfig;
   configStatuses: {
     general: ConfigStatus;
     identity: ConfigStatus;
     userProfile: ConfigStatus;
     soulPersona: ConfigStatus;
-    safetyDefaults: ConfigStatus;
   };
   workspaceDir: string;
   dirtySections: Record<PersistableSettingsSection, boolean>;
@@ -88,7 +77,6 @@ type SettingsContextType = {
   updateIdentity: (config: Partial<IdentityConfig>) => void;
   updateUserProfile: (config: Partial<UserProfileConfig>) => void;
   updateSoulPersona: (config: Partial<SoulPersonaConfig>) => void;
-  updateSafetyDefaults: (config: Partial<SafetyDefaultsConfig>) => void;
   hasUnsavedChangesForSection: (section: PersistableSettingsSection) => boolean;
   buildSectionSaveSnapshot: (section: PersistableSettingsSection) => SettingsState;
   commitSectionSave: (section: PersistableSettingsSection) => Promise<void>;
@@ -100,7 +88,6 @@ const emptyDirtySections = (): Record<PersistableSettingsSection, boolean> => ({
   identity: false,
   'user-profile': false,
   'soul-persona': false,
-  'safety-defaults': false,
 });
 
 const hasDirtySections = (dirtySections: Record<PersistableSettingsSection, boolean>) =>
@@ -121,19 +108,11 @@ const defaultSettings: SettingsState = {
   soulPersona: {
     markdownContent: '',
   },
-  safetyDefaults: {
-    systemRunMode: 'ask',
-    dangerousActionConfirmation: true,
-    networkAccessPolicy: '适中',
-    fileAccessScope: '仅工作区',
-    toolFallbackPolicy: '优雅降级',
-  },
   configStatuses: {
     general: 'using-default',
     identity: 'using-default',
     userProfile: 'using-default',
     soulPersona: 'using-default',
-    safetyDefaults: 'using-default',
   },
   workspaceDir: '',
   dirtySections: emptyDirtySections(),
@@ -141,7 +120,7 @@ const defaultSettings: SettingsState = {
   isLoading: true,
 };
 
-type PersistedSettings = Pick<SettingsState, 'general' | 'safetyDefaults' | 'configStatuses'>;
+type PersistedSettings = Pick<SettingsState, 'general' | 'configStatuses'>;
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
@@ -154,7 +133,6 @@ function readPersistedSettings(): PersistedSettings {
   if (!parsed) {
     return {
       general: { ...defaultSettings.general, themeMode: storedTheme },
-      safetyDefaults: defaultSettings.safetyDefaults,
       configStatuses: defaultSettings.configStatuses,
     };
   }
@@ -164,10 +142,6 @@ function readPersistedSettings(): PersistedSettings {
       ...defaultSettings.general,
       ...parsed.general,
       themeMode: normalizeThemeModePreference(parsed.general?.themeMode ?? legacyTheme, storedTheme),
-    },
-    safetyDefaults: {
-      ...defaultSettings.safetyDefaults,
-      ...parsed.safetyDefaults,
     },
     configStatuses: {
       ...defaultSettings.configStatuses,
@@ -296,16 +270,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }));
   };
 
-  const updateSafetyDefaults = (config: Partial<SafetyDefaultsConfig>) => {
-    setSettings((prev) => ({
-      ...prev,
-      safetyDefaults: { ...prev.safetyDefaults, ...config },
-      configStatuses: { ...prev.configStatuses, safetyDefaults: 'customized' },
-      dirtySections: { ...prev.dirtySections, 'safety-defaults': true },
-      hasUnsavedChanges: true,
-    }));
-  };
-
   const hasUnsavedChangesForSection = (section: PersistableSettingsSection) => settings.dirtySections[section];
 
   const buildSectionSaveSnapshot = (section: PersistableSettingsSection): SettingsState => ({
@@ -323,15 +287,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       section === 'soul-persona'
         ? settings.soulPersona
         : { markdownContent: lastWorkspaceFiles?.soul_md ?? settings.soulPersona.markdownContent },
-    safetyDefaults:
-      section === 'safety-defaults' ? settings.safetyDefaults : savedPersistedSettings.safetyDefaults,
     configStatuses: {
       ...settings.configStatuses,
       general: section === 'general' ? settings.configStatuses.general : savedPersistedSettings.configStatuses.general,
-      safetyDefaults:
-        section === 'safety-defaults'
-          ? settings.configStatuses.safetyDefaults
-          : savedPersistedSettings.configStatuses.safetyDefaults,
     },
     dirtySections: emptyDirtySections(),
     hasUnsavedChanges: false,
@@ -339,25 +297,17 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   });
 
   const commitSectionSave = async (section: PersistableSettingsSection) => {
-    if (section === 'general' || section === 'safety-defaults') {
+    if (section === 'general') {
       const next: PersistedSettings = {
-        general: section === 'general' ? settings.general : savedPersistedSettings.general,
-        safetyDefaults: section === 'safety-defaults' ? settings.safetyDefaults : savedPersistedSettings.safetyDefaults,
+        general: settings.general,
         configStatuses: {
           ...savedPersistedSettings.configStatuses,
-          general:
-            section === 'general' ? settings.configStatuses.general : savedPersistedSettings.configStatuses.general,
-          safetyDefaults:
-            section === 'safety-defaults'
-              ? settings.configStatuses.safetyDefaults
-              : savedPersistedSettings.configStatuses.safetyDefaults,
+          general: settings.configStatuses.general,
         },
       };
       setSavedPersistedSettings(next);
       await writeDesktopConfigSection(DESKTOP_CONFIG_SECTION_SETTINGS, next);
-      if (section === 'general') {
-        await writeDesktopConfigSection(DESKTOP_CONFIG_SECTION_THEME, buildExplicitThemeConfig(settings.general.themeMode));
-      }
+      await writeDesktopConfigSection(DESKTOP_CONFIG_SECTION_THEME, buildExplicitThemeConfig(settings.general.themeMode));
     }
 
     if (section === 'identity' || section === 'user-profile' || section === 'soul-persona') {
@@ -406,15 +356,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           section === 'soul-persona'
             ? { markdownContent: lastWorkspaceFiles?.soul_md ?? defaultSettings.soulPersona.markdownContent }
             : prev.soulPersona,
-        safetyDefaults:
-          section === 'safety-defaults' ? savedPersistedSettings.safetyDefaults : prev.safetyDefaults,
         configStatuses: {
           ...prev.configStatuses,
           general: section === 'general' ? savedPersistedSettings.configStatuses.general : prev.configStatuses.general,
-          safetyDefaults:
-            section === 'safety-defaults'
-              ? savedPersistedSettings.configStatuses.safetyDefaults
-              : prev.configStatuses.safetyDefaults,
         },
         dirtySections,
         hasUnsavedChanges: hasDirtySections(dirtySections),
@@ -430,7 +374,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         updateIdentity,
         updateUserProfile,
         updateSoulPersona,
-        updateSafetyDefaults,
         hasUnsavedChangesForSection,
         buildSectionSaveSnapshot,
         commitSectionSave,

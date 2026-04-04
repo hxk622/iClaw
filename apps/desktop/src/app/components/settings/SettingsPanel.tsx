@@ -5,7 +5,6 @@ import { SettingsGeneral } from '@/app/components/settings/SettingsGeneral';
 import { Identity } from '@/app/components/settings/Identity';
 import { UserProfile } from '@/app/components/settings/UserProfile';
 import { SoulPersona } from '@/app/components/settings/SoulPersona';
-import { SafetyDefaults } from '@/app/components/settings/SafetyDefaults';
 import { SettingsBottomBar } from '@/app/components/settings/ui/SettingsBottomBar';
 import { SettingsSidebar } from '@/app/components/settings/ui/SettingsSidebar';
 import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
@@ -71,8 +70,6 @@ export function SettingsPanel({
         return <UserProfile />;
       case 'soul-persona':
         return <SoulPersona />;
-      case 'safety-defaults':
-        return <SafetyDefaults />;
       default:
         return null;
     }

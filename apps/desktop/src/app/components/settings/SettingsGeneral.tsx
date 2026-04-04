@@ -1,4 +1,4 @@
-import { Check, FileText, Monitor, Moon, RefreshCw, Sun } from 'lucide-react';
+import { Check, FileText, Lock, Monitor, Moon, RefreshCw, Sun } from 'lucide-react';
 import { useSettings } from '@/app/contexts/settings-context';
 import {
   type ContentFontSize,
@@ -227,18 +227,19 @@ export function SettingsGeneral({
 
             <div className="space-y-3">
               <SubsectionLabel label="更新策略" />
-              <CompactSegmentedControl
-                value={settings.general.updateStrategy}
-                options={[
-                  { value: 'notify', label: '常规提醒' },
-                  { value: 'force', label: '强制更新' },
-                ]}
-                onChange={(value) => updateGeneral({ updateStrategy: value })}
-                className={SETTINGS_SEGMENTED_WRAPPER_CLASS}
-                itemClassName={SETTINGS_SEGMENTED_ITEM_CLASS}
-                activeItemClassName={SETTINGS_SEGMENTED_ACTIVE_CLASS}
-                inactiveItemClassName={SETTINGS_SEGMENTED_INACTIVE_CLASS}
-              />
+              <div className="rounded-[14px] border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-hover)_68%,transparent)] p-4">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--brand-primary)_16%,transparent)] text-[var(--brand-primary)]">
+                    <Lock className="h-4 w-4" />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[13px] font-medium text-[var(--text-primary)]">当前由服务器策略统一控制</div>
+                    <div className="text-[12px] leading-5 text-[var(--text-secondary)]">
+                      本地设置里的“常规提醒 / 强制更新”暂未接入实际更新策略。当前真正生效的是服务器下发的升级策略与拦截规则。
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-3 pt-1">

@@ -41,7 +41,7 @@ export function UserProfile() {
       fileName="User.md"
       description="定义用户背景、投资偏好、风险承受能力、表达习惯与输出要求"
       workspacePath={`${workspaceDir || '~/Documents/iClaw/workspace'}/User.md`}
-      syncLabel="5分钟前同步"
+      syncLabel="保存后写入本地工作区"
       value={userProfile.markdownContent}
       placeholder="输入用户画像内容..."
       onChange={(value) => updateUserProfile({ markdownContent: value })}

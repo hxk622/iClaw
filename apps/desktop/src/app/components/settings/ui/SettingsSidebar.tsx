@@ -11,7 +11,6 @@ const navigationItems: Array<{
   { key: 'identity', label: '身份设置', sublabel: 'Identity.md' },
   { key: 'user-profile', label: '用户画像', sublabel: 'User.md' },
   { key: 'soul-persona', label: '人格配置', sublabel: 'Soul.md' },
-  { key: 'safety-defaults', label: '安全策略' },
 ];
 
 interface SettingsSidebarProps {
