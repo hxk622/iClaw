@@ -3166,6 +3166,7 @@ function derivePendingSettlementUsageFromSessionSnapshot(
 type TerminalChatEventMatch = {
   ts: number;
   sessionKey: string | null;
+  runId: string | null;
   state: 'final' | 'aborted' | 'error';
   message?: unknown;
 };
@@ -3197,6 +3198,7 @@ function findTerminalChatEventForRun(
     const match: TerminalChatEventMatch = {
       ts: entry.ts,
       sessionKey: typeof payload.sessionKey === 'string' ? payload.sessionKey : null,
+      runId: typeof payload.runId === 'string' ? payload.runId : null,
       state,
       message: payload.message,
     };
@@ -3213,11 +3215,11 @@ function findTerminalChatEventForRun(
   return null;
 }
 
-function findLatestTerminalChatRunSince(
+function findLatestTerminalChatEventSince(
   app: OpenClawAppElement,
   sessionKey: string,
   startedAt: number,
-): string | null {
+): TerminalChatEventMatch | null {
   const entries = Array.isArray(app.eventLogBuffer)
     ? app.eventLogBuffer
     : Array.isArray(app.eventLog)
@@ -3239,7 +3241,13 @@ function findLatestTerminalChatRunSince(
     if (state !== 'final' && state !== 'aborted' && state !== 'error') {
       continue;
     }
-    return typeof payload.runId === 'string' ? payload.runId : null;
+    return {
+      ts: entry.ts,
+      sessionKey: typeof payload.sessionKey === 'string' ? payload.sessionKey : null,
+      runId: typeof payload.runId === 'string' ? payload.runId : null,
+      state,
+      message: payload.message,
+    };
   }
 
   return null;
@@ -3250,6 +3258,7 @@ function reconcileGatewayChatBusyState(
   sessionKey: string,
 ): { busy: boolean; settledRunId: string | null; terminalState: TerminalChatEventMatch['state'] | null } {
   const activeRunId = typeof app.chatRunId === 'string' ? app.chatRunId.trim() : '';
+  const startedAt = typeof app.chatStreamStartedAt === 'number' && Number.isFinite(app.chatStreamStartedAt) ? app.chatStreamStartedAt : 0;
   if (!activeRunId) {
     return {
       busy: Boolean(app.chatSending),
@@ -3258,7 +3267,11 @@ function reconcileGatewayChatBusyState(
     };
   }
 
-  const terminalEvent = findTerminalChatEventForRun(app, sessionKey, activeRunId);
+  const terminalEvent =
+    findTerminalChatEventForRun(app, sessionKey, activeRunId) ||
+    // Single-track chat should tolerate a gateway terminal event whose runId drifted,
+    // as long as it belongs to the same session and happened after this send started.
+    (startedAt > 0 ? findLatestTerminalChatEventSince(app, sessionKey, startedAt) : null);
   if (terminalEvent) {
     app.chatSending = false;
     app.chatRunId = null;
@@ -3830,6 +3843,7 @@ export function OpenClawChatSurface({
   const autoRecoveryTimerRef = useRef<number | null>(null);
   const autoRecoveryAttemptsRef = useRef(0);
   const overloadedGeneralSessionRef = useRef<string | null>(null);
+  const overloadedGeneralSessionRotationTimerRef = useRef<number | null>(null);
   const initialScrollScheduledRef = useRef(false);
   const consumedFocusedTurnKeyRef = useRef<string | null>(null);
   const focusedTurnHighlightTimerRef = useRef<number | null>(null);
@@ -4110,6 +4124,14 @@ export function OpenClawChatSurface({
     usageSettlementTimersRef.current = [];
   }, []);
 
+  const clearOverloadedGeneralSessionRotationTimer = useCallback(() => {
+    if (overloadedGeneralSessionRotationTimerRef.current == null) {
+      return;
+    }
+    window.clearTimeout(overloadedGeneralSessionRotationTimerRef.current);
+    overloadedGeneralSessionRotationTimerRef.current = null;
+  }, []);
+
   const closeArtifactPreview = useCallback(() => {
     artifactPreviewRequestSeqRef.current += 1;
     setArtifactPreview(null);
@@ -4278,6 +4300,20 @@ export function OpenClawChatSurface({
       autoRecoveryTimerRef.current = null;
     }
   }, []);
+
+  const scheduleOverloadedGeneralSessionRotation = useCallback(
+    (pressure: ChatSessionPressureSnapshot, targetSessionKey: string) => {
+      clearOverloadedGeneralSessionRotationTimer();
+      overloadedGeneralSessionRotationTimerRef.current = window.setTimeout(() => {
+        overloadedGeneralSessionRotationTimerRef.current = null;
+        if (overloadedGeneralSessionRef.current !== targetSessionKey) {
+          return;
+        }
+        onGeneralChatSessionOverloaded?.(pressure);
+      }, 0);
+    },
+    [clearOverloadedGeneralSessionRotationTimer, onGeneralChatSessionOverloaded],
+  );
 
   const persistChatSessionSnapshot = useCallback(() => {
     const app = appRef.current;
@@ -4480,10 +4516,11 @@ export function OpenClawChatSurface({
         overloadedGeneralSessionRef.current !== sessionKey
       ) {
         overloadedGeneralSessionRef.current = sessionKey;
-        onGeneralChatSessionOverloaded?.(snapshot.sessionPressure);
+        scheduleOverloadedGeneralSessionRotation(snapshot.sessionPressure, sessionKey);
         return true;
       }
       if (!snapshot.sessionPressure.overloaded && overloadedGeneralSessionRef.current === sessionKey) {
+        clearOverloadedGeneralSessionRotationTimer();
         overloadedGeneralSessionRef.current = null;
       }
 
@@ -4509,7 +4546,13 @@ export function OpenClawChatSurface({
         setModelsLoading(false);
       }
     }
-  }, [appName, authBaseUrl, onGeneralChatSessionOverloaded, sessionKey]);
+  }, [
+    appName,
+    authBaseUrl,
+    clearOverloadedGeneralSessionRotationTimer,
+    scheduleOverloadedGeneralSessionRotation,
+    sessionKey,
+  ]);
 
   const ensureWrappedClientRequest = useCallback((app: OpenClawAppElement | null) => {
     const client = app?.client;
@@ -4812,6 +4855,7 @@ export function OpenClawChatSurface({
     }
     clearAutoRecoveryTimer();
     autoRecoveryAttemptsRef.current = 0;
+    clearOverloadedGeneralSessionRotationTimer();
     overloadedGeneralSessionRef.current = null;
     artifactAutoOpenStateRef.current = {
       lastBusy: false,
@@ -4854,7 +4898,14 @@ export function OpenClawChatSurface({
     artifactPreviewWorkspaceDirRef.current = null;
     artifactPreviewRequestSeqRef.current += 1;
     setArtifactPreview(null);
-  }, [clearArtifactAutoOpenTimers, clearAutoRecoveryTimer, clearUsageSettlementTimers, conversationId, sessionKey]);
+  }, [
+    clearArtifactAutoOpenTimers,
+    clearAutoRecoveryTimer,
+    clearOverloadedGeneralSessionRotationTimer,
+    clearUsageSettlementTimers,
+    conversationId,
+    sessionKey,
+  ]);
 
   useLayoutEffect(() => {
     const app = appRef.current;
@@ -5104,6 +5155,7 @@ export function OpenClawChatSurface({
   const maybeRotateOverloadedGeneralSession = useCallback(
     (pressure: ChatSessionPressureSnapshot, targetSessionKey: string) => {
       if (!pressure.overloaded || !pressure.hasPersistedHistory) {
+        clearOverloadedGeneralSessionRotationTimer();
         if (overloadedGeneralSessionRef.current === targetSessionKey) {
           overloadedGeneralSessionRef.current = null;
         }
@@ -5116,11 +5168,13 @@ export function OpenClawChatSurface({
         return false;
       }
       overloadedGeneralSessionRef.current = targetSessionKey;
-      onGeneralChatSessionOverloaded?.(pressure);
+      scheduleOverloadedGeneralSessionRotation(pressure, targetSessionKey);
       return true;
     },
-    [onGeneralChatSessionOverloaded],
+    [clearOverloadedGeneralSessionRotationTimer, scheduleOverloadedGeneralSessionRotation],
   );
+
+  useEffect(() => clearOverloadedGeneralSessionRotationTimer, [clearOverloadedGeneralSessionRotationTimer]);
 
   useEffect(() => {
     persistChatSessionSnapshot();
@@ -6559,7 +6613,10 @@ export function OpenClawChatSurface({
       const sourceMessages =
         (isActivePending ? (Array.isArray(app?.chatMessages) ? app.chatMessages : []) : sessionSnapshot?.messages) ?? [];
       const terminalEvent =
-        isActivePending && app ? findTerminalChatEventForRun(app, pending.sessionKey, pending.runId) : null;
+        isActivePending && app
+          ? findTerminalChatEventForRun(app, pending.sessionKey, pending.runId) ||
+            findLatestTerminalChatEventSince(app, pending.sessionKey, pending.startedAt)
+          : null;
       if (terminalEvent) {
         pending.terminalState = terminalEvent.state;
       }
