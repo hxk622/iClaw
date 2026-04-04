@@ -12,7 +12,7 @@ import {
   WifiOff,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState, type DragEvent as ReactDragEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent as ReactDragEvent } from 'react';
 import type { CreditQuoteData, IClawClient, MarketFundData, MarketStockData, RunBillingSummaryData } from '@iclaw/sdk';
 import '@openclaw-ui/main.ts';
 import {
@@ -597,6 +597,24 @@ function writeChatSessionSnapshot(
     sessionKey: canonicalizeChatSessionKey(sessionKey),
     conversationId,
     snapshot,
+  });
+}
+
+function buildChatSessionSnapshotComparableValue(
+  snapshot:
+    | Pick<ChatSessionSnapshot, 'sessionKey' | 'messages' | 'pendingUsageSettlements'>
+    | null
+    | undefined,
+): string | null {
+  if (!snapshot) {
+    return null;
+  }
+  return JSON.stringify({
+    sessionKey: canonicalizeChatSessionKey(snapshot.sessionKey),
+    messages: Array.isArray(snapshot.messages) ? snapshot.messages : [],
+    pendingUsageSettlements: Array.isArray(snapshot.pendingUsageSettlements)
+      ? snapshot.pendingUsageSettlements
+      : [],
   });
 }
 
@@ -4280,21 +4298,36 @@ export function OpenClawChatSurface({
       pendingSettlements: activePendingUsageSettlements,
       sessionBillingSummaries,
     });
+    const comparableSnapshotValue =
+      messages.length > 0
+        ? buildChatSessionSnapshotComparableValue({
+            sessionKey,
+            messages,
+            pendingUsageSettlements: activePendingUsageSettlements,
+          })
+        : null;
+    if (persistedChatSnapshotRef.current === comparableSnapshotValue) {
+      return;
+    }
+    const previousSnapshot =
+      messages.length > 0
+        ? readChatSessionSnapshot(appName, sessionKey, conversationId)
+        : null;
     const snapshot =
       messages.length > 0
         ? {
             sessionKey,
-            savedAt: Date.now(),
+            savedAt:
+              comparableSnapshotValue !== null &&
+              buildChatSessionSnapshotComparableValue(previousSnapshot) === comparableSnapshotValue
+                ? previousSnapshot?.savedAt ?? Date.now()
+                : Date.now(),
             messages,
             pendingUsageSettlements: activePendingUsageSettlements,
           }
         : null;
-    const serialized = snapshot ? JSON.stringify(snapshot) : null;
-    if (persistedChatSnapshotRef.current === serialized) {
-      return;
-    }
     writeChatSessionSnapshot(appName, sessionKey, snapshot, conversationId);
-    persistedChatSnapshotRef.current = serialized;
+    persistedChatSnapshotRef.current = comparableSnapshotValue;
   }, [appName, conversationId, sessionBillingSummaries, sessionKey]);
 
   const replacePendingUsageSettlements = useCallback(
@@ -4716,7 +4749,7 @@ export function OpenClawChatSurface({
     }, delayMs);
   }, [refreshModelCatalog, sessionKey]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const nextChatScope = buildChatScopeIdentity(sessionKey, conversationId);
     if (previousChatScopeRef.current === nextChatScope) {
       return;
@@ -4773,7 +4806,7 @@ export function OpenClawChatSurface({
     closeSelectionMenu();
   }, [appName, clearSessionTransitionTimer, closeSelectionMenu, conversationId, sessionKey]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (pendingUsageSettlementsRef.current.length > 0) {
       console.warn('[desktop] drop pending credit settlements because session changed', pendingUsageSettlementsRef.current);
     }
@@ -4823,7 +4856,7 @@ export function OpenClawChatSurface({
     setArtifactPreview(null);
   }, [clearArtifactAutoOpenTimers, clearAutoRecoveryTimer, clearUsageSettlementTimers, conversationId, sessionKey]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const app = appRef.current;
     if (!app) {
       return;
@@ -4851,7 +4884,7 @@ export function OpenClawChatSurface({
     );
     setGlobalPendingSettlementCount(mergedStoredSettlements.length);
     setPendingSettlementCount(pendingUsageSettlementsRef.current.length);
-    persistedChatSnapshotRef.current = snapshot ? JSON.stringify(snapshot) : null;
+    persistedChatSnapshotRef.current = buildChatSessionSnapshotComparableValue(snapshot);
     if ((snapshot?.messages?.length ?? 0) > 0) {
       setOptimisticEmptySessionActive(false);
       setSessionHistoryState('has-history');
@@ -4859,7 +4892,7 @@ export function OpenClawChatSurface({
     }
   }, [appName, conversationId, sessionKey]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const app = appRef.current;
     if (!app || !status.connected) {
       return;
@@ -4879,7 +4912,7 @@ export function OpenClawChatSurface({
     }
 
     app.chatMessages = snapshot?.messages ?? [];
-    persistedChatSnapshotRef.current = snapshot ? JSON.stringify(snapshot) : null;
+    persistedChatSnapshotRef.current = buildChatSessionSnapshotComparableValue(snapshot);
     forcedSnapshotRestoreScopeRef.current = restoreScope;
     setOptimisticEmptySessionActive(false);
     setSessionHistoryState('has-history');
@@ -5122,7 +5155,7 @@ export function OpenClawChatSurface({
       conversationId,
     });
     app.chatMessages = snapshot?.messages ?? [];
-    persistedChatSnapshotRef.current = snapshot ? JSON.stringify(snapshot) : null;
+    persistedChatSnapshotRef.current = buildChatSessionSnapshotComparableValue(snapshot);
     if ((snapshot?.messages?.length ?? 0) > 0) {
       setSessionHistoryState('has-history');
       setInitialSurfaceRestorePending(false);
@@ -7445,7 +7478,11 @@ export function OpenClawChatSurface({
     };
   }, [focusedTurnId, focusedTurnKey, renderState.groupCount, renderState.chatMessageCount, surfaceVisible]);
 
+  const allowWelcomeForCurrentRoute =
+    !conversationId || shouldTreatAsImmediateEmptySession(appName, sessionKey, conversationId);
+
   const showWelcomePage =
+    allowWelcomeForCurrentRoute &&
     ((allowImmediateEmptySessionUi && sessionHistoryState === 'empty') ||
       (!initialSurfaceRestorePending &&
         !hasObservedHistory &&

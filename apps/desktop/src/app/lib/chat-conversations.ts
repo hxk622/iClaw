@@ -235,6 +235,54 @@ function readLatestRoleText(messages: unknown[], role: 'user' | 'assistant'): st
   return null;
 }
 
+function parseMessageTimestamp(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function resolveSnapshotMessageTimeRange(messages: unknown[]): {createdAt: string; updatedAt: string} | null {
+  let earliestTimestamp: number | null = null;
+  let latestTimestamp: number | null = null;
+
+  messages.forEach((message) => {
+    if (!message || typeof message !== 'object' || Array.isArray(message)) {
+      return;
+    }
+    const raw = message as Record<string, unknown>;
+    const candidates = [
+      raw.timestamp,
+      raw.createdAt,
+      raw.created_at,
+      raw.updatedAt,
+      raw.updated_at,
+    ]
+      .map(parseMessageTimestamp)
+      .filter((value): value is number => value !== null);
+    if (candidates.length === 0) {
+      return;
+    }
+    const currentEarliest = Math.min(...candidates);
+    const currentLatest = Math.max(...candidates);
+    earliestTimestamp = earliestTimestamp == null ? currentEarliest : Math.min(earliestTimestamp, currentEarliest);
+    latestTimestamp = latestTimestamp == null ? currentLatest : Math.max(latestTimestamp, currentLatest);
+  });
+
+  if (earliestTimestamp == null || latestTimestamp == null) {
+    return null;
+  }
+
+  return {
+    createdAt: new Date(earliestTimestamp).toISOString(),
+    updatedAt: new Date(latestTimestamp).toISOString(),
+  };
+}
+
 function extractSnapshotConversationMetadata(
   conversationId: string,
   snapshot: unknown,
@@ -250,9 +298,11 @@ function extractSnapshotConversationMetadata(
     return null;
   }
 
-  const updatedAtNumber =
+  const messageTimeRange = resolveSnapshotMessageTimeRange(messages);
+  const fallbackTimestamp =
     typeof raw.savedAt === 'number' && Number.isFinite(raw.savedAt) ? raw.savedAt : Date.now();
-  const updatedAt = new Date(updatedAtNumber).toISOString();
+  const createdAt = messageTimeRange?.createdAt || new Date(fallbackTimestamp).toISOString();
+  const updatedAt = messageTimeRange?.updatedAt || new Date(fallbackTimestamp).toISOString();
   const latestUserAsk = readLatestRoleText(messages, 'user');
   const latestAssistantReply = readLatestRoleText(messages, 'assistant');
 
@@ -261,7 +311,7 @@ function extractSnapshotConversationMetadata(
     sessionKey,
     title: latestUserAsk,
     summary: latestAssistantReply || latestUserAsk,
-    createdAt: updatedAt,
+    createdAt,
     updatedAt,
   };
 }

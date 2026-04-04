@@ -80,12 +80,11 @@ export function RecentConversationsList({
           matchedTurn?.summary?.trim() ||
           matchedTurn?.prompt?.trim() ||
           '继续查看这条对话的上下文与结果。';
-        const updatedAt = matchedTurn?.updatedAt || conversation.updatedAt;
         return {
           id: conversation.id,
           title: conversationTitle,
           summary: conversationSummary,
-          updatedAt,
+          updatedAt: conversation.updatedAt,
         };
       })
       .filter((conversation): conversation is { id: string; title: string; summary: string; updatedAt: string } => Boolean(conversation))

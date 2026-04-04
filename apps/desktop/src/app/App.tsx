@@ -3332,13 +3332,12 @@ function AuthedView({
         <div className="relative isolate flex min-h-0 flex-1 flex-col overflow-hidden [contain:layout_paint_style]">
           {keepChatSurfaceMounted ? (
             <div
-              key={`chat-surface:${targetChatSurfaceKey}`}
               className={buildSurfaceLayerClassName(resolvedPrimaryView === 'chat')}
               data-chat-surface-key={targetChatSurfaceKey}
               data-chat-surface-active={resolvedPrimaryView === 'chat' ? 'true' : 'false'}
             >
               <OpenClawChatSurface
-                key={`chat-surface:${targetChatSurfaceKey}:${activeChatSurfaceEntry.version}`}
+                key={`chat-surface:${activeChatSurfaceEntry.version}`}
                 gatewayUrl={GATEWAY_WS_URL}
                 gatewayToken={gatewayAuth.token}
                 gatewayPassword={gatewayAuth.password}
