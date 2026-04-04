@@ -421,7 +421,7 @@ export const IClawHeader = memo(function IClawHeader({
 
   return (
     <header className="relative z-[1] border-b border-[var(--border-default)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--bg-card)_96%,white_4%),color-mix(in_srgb,var(--bg-page)_94%,white_6%))] backdrop-blur-sm [contain:paint] [transform:translateZ(0)]">
-      <div className="flex h-[50px] items-center justify-between gap-3.5 px-6">
+      <div className="flex h-[56px] items-center justify-between gap-3.5 px-6">
         <div className="flex min-w-0 flex-1 items-center gap-3.5">
           {resolvedConfig?.showLiveBadge !== false ? (
             <div className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--border-default)_76%,transparent)] bg-[color-mix(in_srgb,var(--bg-card)_84%,white_16%)] px-3 py-1 text-[12px] font-medium text-[var(--text-secondary)] shadow-[var(--shadow-sm)]">
