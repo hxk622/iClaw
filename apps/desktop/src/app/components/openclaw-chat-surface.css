@@ -2382,6 +2382,26 @@ body {
   color: var(--text-primary);
 }
 
+.iclaw-chat-scroll-bottom-button {
+  position: absolute;
+  right: 20px;
+  bottom: calc(var(--iclaw-composer-height) + 10px);
+  z-index: 29;
+  min-width: 112px;
+  border-color: color-mix(in srgb, var(--chat-surface-panel-border) 86%, transparent);
+  background: color-mix(in srgb, var(--chat-surface-panel) 90%, white 10%);
+  color: var(--text-primary);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.14);
+}
+
+.iclaw-chat-scroll-bottom-button:hover,
+.iclaw-chat-scroll-bottom-button:focus-visible {
+  border-color: color-mix(in srgb, var(--brand-primary) 24%, var(--chat-surface-panel-border));
+  background: color-mix(in srgb, var(--brand-primary) 8%, var(--chat-surface-panel));
+  color: var(--brand-primary);
+}
+
 .openclaw-chat-surface .chat-thread ::selection {
   background: color-mix(in srgb, var(--brand-primary) 18%, transparent);
 }

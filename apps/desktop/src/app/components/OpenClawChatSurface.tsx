@@ -1,4 +1,5 @@
 import {
+  ArrowDown,
   Copy,
   Film,
   FileText,
@@ -3284,6 +3285,7 @@ export function OpenClawChatSurface({
   const pendingUsageSettlementsRef = useRef<PendingUsageSettlement[]>([]);
   const queuedMessagesRef = useRef<QueuedComposerMessage[]>([]);
   const queueDispatchInFlightRef = useRef<string | null>(null);
+  const shouldAutoScrollRef = useRef(true);
   const [status, setStatus] = useState<ChatSurfaceStatus>({
     busy: false,
     connected: false,
@@ -3331,6 +3333,7 @@ export function OpenClawChatSurface({
   const [modelSwitching, setModelSwitching] = useState(false);
   const [sessionTransitionVisible, setSessionTransitionVisible] = useState(false);
   const [surfaceReactivating, setSurfaceReactivating] = useState(false);
+  const [showScrollToBottomButton, setShowScrollToBottomButton] = useState(false);
   const [optimisticEmptySessionActive, setOptimisticEmptySessionActive] = useState(() =>
     shouldTreatAsImmediateEmptySession(appName, sessionKey, conversationId),
   );
@@ -3450,6 +3453,77 @@ export function OpenClawChatSurface({
     }
     selection.removeAllRanges();
   }, []);
+
+  const resolveActiveThread = useCallback(() => {
+    const shell = shellRef.current;
+    if (!shell) {
+      return null;
+    }
+    const threads = Array.from(
+      shell.querySelectorAll<HTMLElement>('.openclaw-chat-surface .chat-thread'),
+    );
+    return (
+      threads.find((thread) => {
+        const rect = thread.getBoundingClientRect();
+        return rect.height > 0 && rect.width > 0;
+      }) ?? null
+    );
+  }, []);
+
+  const getThreadDistanceToBottom = useCallback((thread: HTMLElement | null) => {
+    if (!thread) {
+      return 0;
+    }
+    return Math.max(0, thread.scrollHeight - thread.clientHeight - thread.scrollTop);
+  }, []);
+
+  const syncScrollToBottomState = useCallback((thread?: HTMLElement | null) => {
+    const activeThread = thread ?? resolveActiveThread();
+    if (!activeThread) {
+      shouldAutoScrollRef.current = true;
+      setShowScrollToBottomButton(false);
+      return true;
+    }
+
+    const distanceToBottom = getThreadDistanceToBottom(activeThread);
+    const nearBottomThreshold = Math.max(96, Math.ceil(activeThread.clientHeight * 0.1));
+    const showButtonThreshold = Math.max(220, nearBottomThreshold * 2);
+    const isNearBottom = distanceToBottom <= nearBottomThreshold;
+
+    shouldAutoScrollRef.current = isNearBottom;
+    setShowScrollToBottomButton((current) => {
+      const next = distanceToBottom > showButtonThreshold;
+      return current === next ? current : next;
+    });
+    return isNearBottom;
+  }, [getThreadDistanceToBottom, resolveActiveThread]);
+
+  const scrollChatToBottom = useCallback(
+    ({force = false, smooth = false}: {force?: boolean; smooth?: boolean} = {}) => {
+      const app = appRef.current;
+      if (!app) {
+        return;
+      }
+
+      if (force) {
+        shouldAutoScrollRef.current = true;
+        setShowScrollToBottomButton(false);
+      } else if (!syncScrollToBottomState()) {
+        return;
+      }
+
+      if (smooth) {
+        app.scrollToBottom({smooth: true});
+      } else {
+        app.scrollToBottom();
+      }
+
+      window.requestAnimationFrame(() => {
+        syncScrollToBottomState();
+      });
+    },
+    [syncScrollToBottomState],
+  );
 
   const clearArtifactAutoOpenTimers = useCallback(() => {
     if (artifactAutoOpenTimerRef.current != null) {
@@ -4931,18 +5005,6 @@ export function OpenClawChatSurface({
       return;
     }
 
-    const resolveActiveThread = () => {
-      const threads = Array.from(
-        shell.querySelectorAll<HTMLElement>('.openclaw-chat-surface .chat-thread'),
-      );
-      return (
-        threads.find((thread) => {
-          const rect = thread.getBoundingClientRect();
-          return rect.height > 0 && rect.width > 0;
-        }) ?? null
-      );
-    };
-
     const updateComposerHeight = () => {
       const composer = shell.querySelector('.iclaw-composer') as HTMLElement | null;
       const composerHeight = composer?.getBoundingClientRect().height ?? 0;
@@ -4974,17 +5036,41 @@ export function OpenClawChatSurface({
     };
 
     updateComposerHeight();
-    const observer = new ResizeObserver(() => {
+    const resizeObserver = new ResizeObserver(() => {
       updateComposerHeight();
+      syncScrollToBottomState(observedThread);
     });
     const composer = shell.querySelector<HTMLElement>('.iclaw-composer');
-    const thread = resolveActiveThread();
+    let observedThread: HTMLElement | null = null;
+    const handleThreadScroll = () => {
+      syncScrollToBottomState(observedThread);
+    };
+    const bindActiveThread = () => {
+      const nextThread = resolveActiveThread();
+      if (observedThread === nextThread) {
+        syncScrollToBottomState(nextThread);
+        return;
+      }
+      if (observedThread) {
+        resizeObserver.unobserve(observedThread);
+        observedThread.removeEventListener('scroll', handleThreadScroll);
+      }
+      observedThread = nextThread;
+      if (observedThread) {
+        resizeObserver.observe(observedThread);
+        observedThread.addEventListener('scroll', handleThreadScroll, {passive: true});
+      }
+      syncScrollToBottomState(observedThread);
+    };
     if (composer) {
-      observer.observe(composer);
+      resizeObserver.observe(composer);
     }
-    if (thread) {
-      observer.observe(thread);
-    }
+    bindActiveThread();
+    const mutationObserver = new MutationObserver(() => {
+      updateComposerHeight();
+      bindActiveThread();
+    });
+    mutationObserver.observe(shell, {childList: true, subtree: true});
 
     const handleShellWheel = (event: WheelEvent) => {
       const target = event.target as HTMLElement | null;
@@ -5021,18 +5107,25 @@ export function OpenClawChatSurface({
       }
 
       activeThread.scrollTop = nextScrollTop;
+      syncScrollToBottomState(activeThread);
       event.preventDefault();
     };
 
     shell.addEventListener('wheel', handleShellWheel, {passive: false});
     window.addEventListener('resize', updateComposerHeight);
+    window.addEventListener('resize', handleThreadScroll);
 
     return () => {
-      observer.disconnect();
+      mutationObserver.disconnect();
+      resizeObserver.disconnect();
+      if (observedThread) {
+        observedThread.removeEventListener('scroll', handleThreadScroll);
+      }
       shell.removeEventListener('wheel', handleShellWheel);
       window.removeEventListener('resize', updateComposerHeight);
+      window.removeEventListener('resize', handleThreadScroll);
     };
-  }, [status.connected, status.busy]);
+  }, [resolveActiveThread, status.connected, status.busy, syncScrollToBottomState]);
 
   useEffect(() => {
     const state = artifactAutoOpenStateRef.current;
@@ -5175,7 +5268,7 @@ export function OpenClawChatSurface({
     const delays = [0, 180, 700, 1500];
     const timers = delays.map((delay) =>
       window.setTimeout(() => {
-        app.scrollToBottom({ smooth: delay > 0 });
+        scrollChatToBottom({force: true, smooth: delay > 0});
       }, delay),
     );
 
@@ -5183,7 +5276,7 @@ export function OpenClawChatSurface({
       clearArtifactAutoOpenTimers();
       timers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, [clearArtifactAutoOpenTimers, status.connected]);
+  }, [clearArtifactAutoOpenTimers, scrollChatToBottom, status.connected]);
 
   useEffect(() => {
     if (!shellAuthenticated) {
@@ -6180,30 +6273,22 @@ export function OpenClawChatSurface({
     }
 
     const app = appRef.current;
-    const host = hostRef.current;
-    if (!app || !host) {
+    if (!app) {
       return;
     }
 
-    const thread = host.querySelector('.chat-thread') as HTMLElement | null;
-    if (!thread) {
-      return;
-    }
-
-    const distanceToBottom = Math.max(0, thread.scrollHeight - thread.clientHeight - thread.scrollTop);
-    const nearBottomThreshold = Math.max(160, Math.ceil(thread.clientHeight * 0.18));
-    if (distanceToBottom > nearBottomThreshold) {
+    if (!syncScrollToBottomState()) {
       return;
     }
 
     const timer = window.setTimeout(() => {
-      app.scrollToBottom({ smooth: true });
+      scrollChatToBottom({smooth: true});
     }, 40);
 
     return () => {
       window.clearTimeout(timer);
     };
-  }, [assistantFooterVersion, pendingSettlementCount, status.busy]);
+  }, [assistantFooterVersion, pendingSettlementCount, scrollChatToBottom, status.busy, syncScrollToBottomState]);
 
   useEffect(() => {
     if (globalPendingSettlementCount === 0) {
@@ -6402,7 +6487,7 @@ export function OpenClawChatSurface({
         app.chatMessage = normalizedPrompt;
         app.chatAttachments = [];
         await app.handleSendChat();
-        app.scrollToBottom();
+        scrollChatToBottom({force: true});
         return true;
       } catch (error) {
         const detail = error instanceof Error ? error.message : '任务发送失败';
@@ -6447,7 +6532,7 @@ export function OpenClawChatSurface({
         startedAt,
       });
       persistChatSessionSnapshot();
-      app.scrollToBottom();
+      scrollChatToBottom({force: true});
 
       const runGrant = await Promise.all([
         creditClient.authorizeRun({
@@ -6497,9 +6582,9 @@ export function OpenClawChatSurface({
         startedAt,
       });
       void noteMemoryUsage(relevantMemoryMatches.map((item) => item.entry.id));
-      app.scrollToBottom();
-      window.setTimeout(() => app.scrollToBottom({ smooth: true }), 180);
-      window.setTimeout(() => app.scrollToBottom({ smooth: true }), 900);
+      scrollChatToBottom({force: true});
+      window.setTimeout(() => scrollChatToBottom({smooth: true}), 180);
+      window.setTimeout(() => scrollChatToBottom({smooth: true}), 900);
       window.setTimeout(() => {
         const latestApp = appRef.current;
         if (!activeChatTurnRunRef.current) {
@@ -6560,6 +6645,7 @@ export function OpenClawChatSurface({
     selectedModelId,
     effectiveGatewaySessionKey,
     effectiveSendBlockedReason,
+    scrollChatToBottom,
     status.lastError,
     sessionKey,
   ]);
@@ -7606,6 +7692,18 @@ export function OpenClawChatSurface({
                       ))}
                     </div>
                   </div>
+                ) : null}
+
+                {showScrollToBottomButton ? (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="iclaw-chat-scroll-bottom-button"
+                    leadingIcon={<ArrowDown className="h-4 w-4" />}
+                    onClick={() => scrollChatToBottom({force: true, smooth: true})}
+                  >
+                    回到底部
+                  </Button>
                 ) : null}
 
                 <RichChatComposer
