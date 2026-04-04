@@ -19,12 +19,18 @@ import {type IClawClient, type PaymentOrderData} from '@iclaw/sdk';
 import {cn} from '@/app/lib/cn';
 import alipayLogo from '@/app/assets/payment-logos/alipay.jpeg';
 import wechatPayLogo from '@/app/assets/payment-logos/wechat-pay.svg';
-import {type ResolvedRechargePackageConfig, resolveRechargePackageConfig} from '@/app/lib/oem-runtime';
+import {
+  type ResolvedRechargePackageConfig,
+  type ResolvedRechargePaymentMethodConfig,
+  resolveRechargePackageConfig,
+  resolveRechargePaymentMethodConfig,
+} from '@/app/lib/oem-runtime';
 import {INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE} from '@/app/lib/ui-interactions';
 
 type PaymentMethod = 'wechat_qr' | 'alipay_qr';
 type RechargeStep = 'packages' | 'payment';
 type RechargePackage = ResolvedRechargePackageConfig;
+type RechargePaymentMethod = ResolvedRechargePaymentMethodConfig;
 
 const PANEL_OVERLAY_CLASS =
   'fixed inset-0 z-50 flex items-center justify-center bg-[rgba(8,12,20,0.24)] p-4 backdrop-blur-[4px] dark:bg-[rgba(0,0,0,0.44)] md:p-8';
@@ -98,6 +104,13 @@ function getPaymentMethodLogoSrc(paymentMethod: PaymentMethod): string {
   return paymentMethod === 'wechat_qr' ? wechatPayLogo : alipayLogo;
 }
 
+function getPaymentMethodLabel(paymentMethod: PaymentMethod, fallbackLabel?: string | null): string {
+  if (fallbackLabel?.trim()) {
+    return fallbackLabel.trim();
+  }
+  return paymentMethod === 'wechat_qr' ? '微信支付' : '支付宝';
+}
+
 function PaymentMethodLogo({
   paymentMethod,
   className,
@@ -157,6 +170,10 @@ function getPaymentMethodTheme(paymentMethod: PaymentMethod) {
           'border-blue-600 bg-blue-50 dark:border-blue-400 dark:bg-blue-950/30',
         optionSelectedDotClassName: 'bg-blue-600 dark:bg-blue-500',
       };
+}
+
+function getDefaultPaymentMethod(paymentMethods: RechargePaymentMethod[]): PaymentMethod {
+  return paymentMethods.find((item) => item.default)?.provider || paymentMethods[0]?.provider || 'wechat_qr';
 }
 
 function getPackageCardMeta(item: RechargePackage, index: number, total: number) {
@@ -268,7 +285,9 @@ export function RechargeCenter({
   const createOrderAbortRef = useRef<AbortController | null>(null);
 
   const availablePackages = useMemo(() => resolveRechargePackageConfig(runtimeConfig) ?? [], [runtimeConfig]);
+  const availablePaymentMethods = useMemo(() => resolveRechargePaymentMethodConfig(runtimeConfig) ?? [], [runtimeConfig]);
   const defaultPackageId = useMemo(() => getDefaultPackageId(availablePackages), [availablePackages]);
+  const defaultPaymentMethod = useMemo(() => getDefaultPaymentMethod(availablePaymentMethods), [availablePaymentMethods]);
   const currentPackage =
     useMemo(
       () =>
@@ -329,6 +348,16 @@ export function RechargeCenter({
     }
     setSelectedPackageId(defaultPackageId);
   }, [availablePackages, defaultPackageId, selectedPackageId]);
+
+  useEffect(() => {
+    if (!availablePaymentMethods.length) {
+      return;
+    }
+    if (availablePaymentMethods.some((item) => item.provider === paymentMethod)) {
+      return;
+    }
+    setPaymentMethod(defaultPaymentMethod);
+  }, [availablePaymentMethods, defaultPaymentMethod, paymentMethod]);
 
   const cancelPendingCreateOrder = () => {
     createOrderAbortRef.current?.abort();
@@ -457,6 +486,9 @@ export function RechargeCenter({
     if (!availablePackages.some((item) => item.packageId === packageId)) {
       return;
     }
+    if (!availablePaymentMethods.length) {
+      return;
+    }
     flushSync(() => {
       setSelectedPackageId(packageId);
       setPaymentMessage(null);
@@ -481,6 +513,7 @@ export function RechargeCenter({
       <div className="relative flex w-full justify-center">
         <PackageSelectionView
           packages={availablePackages}
+          paymentMethods={availablePaymentMethods}
           selectedPackageId={currentPackage?.packageId || selectedPackageId}
           onPackageSelect={setSelectedPackageId}
           onClose={onClose}
@@ -499,6 +532,7 @@ export function RechargeCenter({
               currentPackage={currentPackage}
               totalPrice={totalPrice}
               paymentMethod={paymentMethod}
+              paymentMethods={availablePaymentMethods}
               activeOrder={activeOrder}
               resolvedQrUrl={resolvedQrUrl}
               onPaymentMethodChange={(method) => {
@@ -524,17 +558,21 @@ export function RechargeCenter({
 
 function PackageSelectionView({
   packages,
+  paymentMethods,
   selectedPackageId,
   onPackageSelect,
   onClose,
   onContinue,
 }: {
   packages: RechargePackage[];
+  paymentMethods: RechargePaymentMethod[];
   selectedPackageId: string;
   onPackageSelect: (packageId: string) => void;
   onClose: () => void;
   onContinue: (packageId: string) => void;
 }) {
+  const hasPaymentMethods = paymentMethods.length > 0;
+
   const handlePackageCardClick = (packageId: string) => {
     onPackageSelect(packageId);
   };
@@ -562,6 +600,11 @@ function PackageSelectionView({
           <p className="text-[15px] text-gray-500 dark:text-gray-400">
             一次性充值，不会自动续费，支付成功后即时到账
           </p>
+          {!hasPaymentMethods ? (
+            <p className="mt-4 text-[13px] text-amber-600 dark:text-amber-400">
+              当前 OEM 尚未启用支付方式，请先在 admin-web 的支付中心完成配置。
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -643,8 +686,10 @@ function PackageSelectionView({
                     event.preventDefault();
                     onContinue(item.packageId);
                   }}
+                  disabled={!hasPaymentMethods}
                   className={cn(
                     'w-full cursor-pointer rounded-md py-2.5 text-[16px] font-medium transition-colors',
+                    !hasPaymentMethods && 'cursor-not-allowed opacity-55',
                     PRIMARY_ACTION_BUTTON_CLASS,
                   )}
                 >
@@ -674,6 +719,7 @@ function PaymentView({
   currentPackage,
   totalPrice,
   paymentMethod,
+  paymentMethods,
   activeOrder,
   resolvedQrUrl,
   onPaymentMethodChange,
@@ -687,6 +733,7 @@ function PaymentView({
   currentPackage: RechargePackage;
   totalPrice: string;
   paymentMethod: PaymentMethod;
+  paymentMethods: RechargePaymentMethod[];
   activeOrder: PaymentOrderData | null;
   resolvedQrUrl: string | null;
   onPaymentMethodChange: (method: PaymentMethod) => void;
@@ -701,6 +748,7 @@ function PaymentView({
   const expiryLabel = formatPaymentDeadline(activeOrder?.expires_at || null);
   const expiryDeadlineTs = parsePaymentDeadline(activeOrder?.expires_at || null);
   const methodTheme = getPaymentMethodTheme(paymentMethod);
+  const currentPaymentMethodConfig = paymentMethods.find((item) => item.provider === paymentMethod) || null;
   const [nowTs, setNowTs] = useState(() => Date.now());
   const isPaid = orderStatus === 'paid';
   const isFailed = orderStatus === 'failed';
@@ -825,7 +873,7 @@ function PaymentView({
                 className="h-4 w-4 rounded-[4px] border-white/80 bg-white shadow-none dark:border-white/80"
                 imageClassName={paymentMethod === 'wechat_qr' ? 'p-[2px]' : 'p-px'}
               />
-              {methodTheme.label}
+              {getPaymentMethodLabel(paymentMethod, currentPaymentMethodConfig?.label)}
             </div>
           </div>
 
@@ -925,7 +973,8 @@ function PaymentView({
           <div className="mb-7">
             <h3 className="mb-3 text-[15px] font-semibold text-gray-900 dark:text-gray-100">支付方式</h3>
             <div className="space-y-2">
-              {(['wechat_qr', 'alipay_qr'] as PaymentMethod[]).map((method) => {
+              {paymentMethods.map((methodConfig) => {
+                const method = methodConfig.provider;
                 const selected = paymentMethod === method;
                 const optionTheme = getPaymentMethodTheme(method);
                 return (
@@ -951,7 +1000,7 @@ function PaymentView({
                       />
                     </div>
                     <span className="text-[14px] font-medium text-gray-900 dark:text-gray-100">
-                      {method === 'wechat_qr' ? '微信支付' : '支付宝'}
+                      {getPaymentMethodLabel(method, methodConfig.label)}
                     </span>
                     {selected ? (
                       <div

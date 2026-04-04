@@ -236,6 +236,52 @@ test('payment orders without checkout urls stay empty instead of falling back to
   assert.equal(order.paymentUrl, null);
 });
 
+test('createPaymentOrder rejects OEM-disabled recharge payment methods', async () => {
+  const store = new InMemoryControlPlaneStore();
+  store.setRechargePaymentMethodsConfig('iclaw-oem', {
+    surfaces: {
+      recharge: {
+        config: {
+          payment_methods: [
+            {
+              provider: 'alipay_qr',
+              enabled: true,
+              is_default: true,
+              sort_order: 10,
+            },
+            {
+              provider: 'wechat_qr',
+              enabled: false,
+              sort_order: 20,
+            },
+          ],
+        },
+      },
+    },
+  });
+  const service = new ControlPlaneService(store);
+  const registration = await service.register({
+    username: 'payment-user',
+    email: 'payment-user@example.com',
+    password: 'password123',
+    name: 'Payment User',
+  });
+
+  await assert.rejects(
+    service.createPaymentOrder(registration.tokens.access_token, {
+      provider: 'wechat_qr',
+      package_id: 'topup_3000',
+      app_name: 'iclaw-oem',
+    }),
+    (error: unknown) => {
+      assert.ok(error instanceof HttpError);
+      assert.equal(error.statusCode, 400);
+      assert.match(error.message, /未启用/);
+      return true;
+    },
+  );
+});
+
 test('credits ledger orders usage debits by assistant timestamp instead of settlement time', async () => {
   const store = new InMemoryControlPlaneStore();
   const service = new ControlPlaneService(store);

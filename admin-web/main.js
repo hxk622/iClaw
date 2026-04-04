@@ -33,6 +33,22 @@ const PRIMARY_PAYMENT_PROVIDER = 'wechat_qr';
 const PAYMENT_PROVIDER_REQUIRED_FIELDS = ['sp_mchid', 'sp_appid', 'sub_mchid', 'notify_url', 'serial_no', 'api_v3_key', 'private_key_pem'];
 const PAYMENT_PROVIDER_CONFIG_FIELDS = ['sp_mchid', 'sp_appid', 'sub_mchid', 'notify_url', 'serial_no'];
 const PAYMENT_PROVIDER_SECRET_FIELDS = ['api_v3_key', 'private_key_pem'];
+const DEFAULT_RECHARGE_PAYMENT_METHODS = [
+  {
+    provider: 'wechat_qr',
+    label: '微信支付',
+    enabled: true,
+    default: true,
+    sortOrder: 10,
+  },
+  {
+    provider: 'alipay_qr',
+    label: '支付宝',
+    enabled: true,
+    default: false,
+    sortOrder: 20,
+  },
+];
 const HEADER_SURFACE_PRESETS = [
   {
     key: 'wealth',
@@ -6689,6 +6705,27 @@ async function savePaymentProviderConfig(form) {
           active_profile_id: mode === 'use_app_profile' ? savedProfile?.id || String(formData.get('profile_id') || '').trim() || null : null,
         }),
       });
+      const usePaymentMethodsOverride = formData.get('use_oem_payment_methods_override') === 'on';
+      const paymentMethodItems = DEFAULT_RECHARGE_PAYMENT_METHODS.map((item, index) => ({
+        provider: item.provider,
+        label: getRechargePaymentMethodOptionLabel(item.provider, item.label),
+        enabled: formData.get(`payment_method_enabled__${item.provider}`) === 'on',
+        default: false,
+        sortOrder: Number(formData.get(`payment_method_sort_order__${item.provider}`) || (index + 1) * 10) || (index + 1) * 10,
+        metadata: {},
+      }))
+        .sort((left, right) => left.sortOrder - right.sortOrder || left.provider.localeCompare(right.provider, 'zh-CN'));
+      const enabledMethodProviders = paymentMethodItems.filter((item) => item.enabled).map((item) => item.provider);
+      const requestedDefaultProvider = String(formData.get('default_payment_method') || '').trim();
+      const resolvedDefaultProvider =
+        enabledMethodProviders.includes(requestedDefaultProvider) ? requestedDefaultProvider : enabledMethodProviders[0] || '';
+      await saveOemRechargePaymentMethodConfig(scopeKey, {
+        useOverride: usePaymentMethodsOverride,
+        items: paymentMethodItems.map((item) => ({
+          ...item,
+          default: Boolean(item.enabled && item.provider === resolvedDefaultProvider),
+        })),
+      });
     }
 
     await loadAppData();
@@ -9647,6 +9684,124 @@ function hasAnyPaymentProviderValues(formData) {
   );
 }
 
+function getRechargePaymentMethodOptionLabel(provider, fallbackLabel = '') {
+  if (fallbackLabel && String(fallbackLabel).trim()) {
+    return String(fallbackLabel).trim();
+  }
+  return provider === 'wechat_qr' ? '微信支付' : provider === 'alipay_qr' ? '支付宝' : provider;
+}
+
+function getRechargePaymentMethodDefaults() {
+  return DEFAULT_RECHARGE_PAYMENT_METHODS.map((item) => ({
+    provider: item.provider,
+    label: item.label,
+    enabled: item.enabled !== false,
+    default: item.default === true,
+    sortOrder: Number(item.sortOrder || 100) || 100,
+    metadata: {},
+    sourceLayer: 'platform_default',
+  }));
+}
+
+function getRawRechargePaymentMethodEntries(config) {
+  const rechargeConfig = asObject(asObject(asObject(config).surfaces).recharge).config;
+  return Array.isArray(rechargeConfig.payment_methods)
+    ? rechargeConfig.payment_methods
+    : Array.isArray(rechargeConfig.paymentMethods)
+      ? rechargeConfig.paymentMethods
+      : null;
+}
+
+function hasOemRechargePaymentMethodOverride(detail) {
+  if (!detail?.app) {
+    return false;
+  }
+  return Array.isArray(getRawRechargePaymentMethodEntries(getAppConfig(detail.app)));
+}
+
+function normalizeRechargePaymentMethodConfig(config) {
+  const rawEntries = getRawRechargePaymentMethodEntries(config);
+  const sourceLayer = Array.isArray(rawEntries) ? 'oem_binding' : 'platform_default';
+  const seen = new Set();
+  const sourceEntries = Array.isArray(rawEntries) ? rawEntries : DEFAULT_RECHARGE_PAYMENT_METHODS;
+  const items = (sourceEntries.length ? sourceEntries : [])
+    .map((item, index) => {
+      const entry = asObject(item);
+      const provider = String(entry.provider || '').trim().toLowerCase();
+      if (!['wechat_qr', 'alipay_qr'].includes(provider) || seen.has(provider)) {
+        return null;
+      }
+      seen.add(provider);
+      const metadata = asObject(entry.metadata);
+      return {
+        provider,
+        label: String(entry.label || metadata.label || '').trim() || getRechargePaymentMethodOptionLabel(provider),
+        enabled: entry.enabled !== false,
+        default: entry.is_default === true || entry.default === true,
+        sortOrder: Number(entry.sort_order ?? entry.sortOrder ?? (index + 1) * 10) || (index + 1) * 10,
+        metadata,
+        sourceLayer,
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.provider.localeCompare(right.provider, 'zh-CN'));
+  if (!items.length && !Array.isArray(rawEntries)) {
+    return getRechargePaymentMethodDefaults();
+  }
+  const enabledItems = items.filter((item) => item.enabled);
+  const defaultProvider = enabledItems.find((item) => item.default)?.provider || enabledItems[0]?.provider || '';
+  return items.map((item) => ({
+    ...item,
+    default: Boolean(item.enabled && item.provider === defaultProvider),
+  }));
+}
+
+async function saveOemRechargePaymentMethodConfig(appName, input) {
+  const normalizedAppName = String(appName || '').trim();
+  if (!normalizedAppName) {
+    return;
+  }
+  const detail =
+    state.portalAppDetails[normalizedAppName] ||
+    (await apiFetch(`/admin/portal/apps/${encodeURIComponent(normalizedAppName)}`, {method: 'GET'}));
+  state.portalAppDetails[normalizedAppName] = detail;
+  if (!detail?.app) {
+    throw new Error(`未找到 OEM 应用 ${normalizedAppName}`);
+  }
+  const currentConfig = clone(getAppConfig(detail.app));
+  const nextConfig = {...currentConfig};
+  const surfaces = {...asObject(nextConfig.surfaces)};
+  const rechargeSurface = {...asObject(surfaces.recharge)};
+  const rechargeConfig = {...asObject(rechargeSurface.config)};
+  if (input.useOverride) {
+    rechargeConfig.payment_methods = input.items.map((item) => ({
+      provider: item.provider,
+      enabled: item.enabled !== false,
+      sort_order: item.sortOrder,
+      is_default: item.default === true,
+      label: item.label,
+      metadata: asObject(item.metadata),
+    }));
+    delete rechargeConfig.paymentMethods;
+  } else {
+    delete rechargeConfig.payment_methods;
+    delete rechargeConfig.paymentMethods;
+  }
+  rechargeSurface.config = rechargeConfig;
+  surfaces.recharge = rechargeSurface;
+  nextConfig.surfaces = surfaces;
+  await apiFetch(`/admin/portal/apps/${encodeURIComponent(normalizedAppName)}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      displayName: detail.app.displayName,
+      description: detail.app.description,
+      status: detail.app.status,
+      defaultLocale: detail.app.defaultLocale || 'zh-CN',
+      config: nextConfig,
+    }),
+  });
+}
+
 function getModelLogoPreset(presetKey) {
   return (state.modelLogoPresets || []).find((item) => item.presetKey === presetKey) || null;
 }
@@ -12539,6 +12694,7 @@ function renderPaymentProviderConfigPage() {
   const selectedBrand = selectedTab === 'platform' ? null : (state.brands || []).find((item) => item.brandId === selectedTab) || null;
   const scopeType = selectedBrand ? 'app' : 'platform';
   const scopeKey = selectedBrand ? selectedBrand.brandId : 'platform';
+  const selectedBrandDetail = selectedBrand ? state.portalAppDetails[selectedBrand.brandId] || null : null;
   const profile = getPaymentProviderProfilesByScope(scopeType, scopeKey)[0] || {
     id: '',
     provider: PRIMARY_PAYMENT_PROVIDER,
@@ -12561,6 +12717,11 @@ function renderPaymentProviderConfigPage() {
   const mode = selectedBrand ? binding?.mode || 'inherit_platform' : 'inherit_platform';
   const missingFields = Array.isArray(profile.missing_fields) ? profile.missing_fields : [];
   const configuredSecrets = Array.isArray(profile.configured_secret_keys) ? profile.configured_secret_keys : [];
+  const paymentMethodConfig = normalizeRechargePaymentMethodConfig(selectedBrandDetail?.app ? getAppConfig(selectedBrandDetail.app) : null);
+  const hasPaymentMethodOverride = selectedBrand ? hasOemRechargePaymentMethodOverride(selectedBrandDetail) : false;
+  const enabledPaymentMethodProviders = paymentMethodConfig.filter((item) => item.enabled).map((item) => item.provider);
+  const selectedDefaultPaymentMethod =
+    paymentMethodConfig.find((item) => item.default && item.enabled)?.provider || enabledPaymentMethodProviders[0] || '';
   return `
     <div class="fig-page">
       <div class="fig-page__header">
@@ -12574,6 +12735,7 @@ function renderPaymentProviderConfigPage() {
       ${renderPageGuide('支付中心怎么用', [
         '平台 tab 维护默认微信服务商资料，所有 OEM 默认继承这里。',
         'OEM tab 可以先录入自己的服务商配置，再决定是继承平台还是切到 OEM 专属资料。',
+        'OEM tab 还能单独控制前台可见支付方式；未开启 OEM 覆盖时，自动继承平台默认的微信支付 + 支付宝。',
         '当前先实现配置、绑定和订单解析落表；真实微信下单执行器后续直接复用这套 profile。',
       ], 'payments')}
       <div class="fig-detail-stack">
@@ -12674,6 +12836,64 @@ function renderPaymentProviderConfigPage() {
               <input type="checkbox" name="enabled"${profile.enabled !== false ? ' checked' : ''} />
               <span>启用该支付资料</span>
             </label>
+          </div>
+          <div class="fig-card fig-card--subtle" style="margin-top:16px;">
+            <div class="fig-card__head">
+              <div>
+                <h3>支付方式可见性</h3>
+                <span>${escapeHtml(selectedBrand ? '控制该 OEM 前台可看到哪些支付方式，以及默认选中哪一个' : '平台默认固定为 微信支付 + 支付宝，OEM 未覆盖时自动继承')}</span>
+              </div>
+            </div>
+            ${
+              selectedBrand
+                ? `
+                  <label class="toggle fig-toggle" style="margin-bottom:16px;">
+                    <input type="checkbox" name="use_oem_payment_methods_override"${hasPaymentMethodOverride ? ' checked' : ''} />
+                    <span>启用 OEM 支付方式覆盖</span>
+                  </label>
+                  <div class="space-y-3">
+                    ${paymentMethodConfig
+                      .map((item, index) => {
+                        return `
+                          <div class="fig-card fig-card--subtle" style="padding:14px;${!hasPaymentMethodOverride ? 'opacity:0.78;' : ''}">
+                            <input type="hidden" name="payment_method_sort_order__${escapeHtml(item.provider)}" value="${fieldValue(String(item.sortOrder || (index + 1) * 10))}" />
+                            <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+                              <div>
+                                <div style="font-weight:600;">${escapeHtml(getRechargePaymentMethodOptionLabel(item.provider, item.label))}</div>
+                                <div style="font-size:12px;opacity:0.75;margin-top:4px;">${escapeHtml(item.provider === 'wechat_qr' ? '微信原生扫码链路' : '支付宝扫码链路')}</div>
+                              </div>
+                              <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;">
+                                <label class="toggle fig-toggle">
+                                  <input type="checkbox" name="payment_method_enabled__${escapeHtml(item.provider)}"${item.enabled ? ' checked' : ''} />
+                                  <span>启用</span>
+                                </label>
+                                <label class="field" style="min-width:140px;">
+                                  <span>设为默认</span>
+                                  <input type="radio" name="default_payment_method" value="${escapeHtml(item.provider)}"${selectedDefaultPaymentMethod === item.provider ? ' checked' : ''} />
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+                        `;
+                      })
+                      .join('')}
+                  </div>
+                `
+                : `
+                  <div class="payment-provider-summary">
+                    ${getRechargePaymentMethodDefaults()
+                      .map(
+                        (item) => `
+                          <div class="payment-provider-summary__item">
+                            <span>${escapeHtml(getRechargePaymentMethodOptionLabel(item.provider, item.label))}</span>
+                            <strong>${item.default ? '默认启用' : '已启用'}</strong>
+                          </div>
+                        `,
+                      )
+                      .join('')}
+                  </div>
+                `
+            }
           </div>
           <div class="fig-form-actions">
             <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>保存支付配置</button>

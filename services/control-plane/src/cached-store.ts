@@ -55,6 +55,7 @@ import type {
 } from './domain.ts';
 import type {KeyValueCache} from './cache.ts';
 import type {ResolvedRechargePackageRecord} from './recharge-packages.ts';
+import type {ResolvedRechargePaymentMethodRecord} from './recharge-payment-methods.ts';
 import type {ControlPlaneStore} from './store.ts';
 
 const USER_CACHE_TTL_SECONDS = 5 * 60;
@@ -308,6 +309,10 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
 
   async resolveRechargePackage(packageId: string, appName?: string | null): Promise<ResolvedRechargePackageRecord | null> {
     return this.base.resolveRechargePackage(packageId, appName);
+  }
+
+  async resolveRechargePaymentMethods(appName?: string | null): Promise<ResolvedRechargePaymentMethodRecord[]> {
+    return this.base.resolveRechargePaymentMethods(appName);
   }
 
   async listPaymentOrdersAdmin(input?: {

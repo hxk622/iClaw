@@ -1896,6 +1896,17 @@ export class ControlPlaneService {
     if (!packageConfig) {
       throw new HttpError(400, 'BAD_REQUEST', 'invalid package_id');
     }
+    const rechargePaymentMethods = await this.store.resolveRechargePaymentMethods(appName || null);
+    const resolvedRechargePaymentMethod = rechargePaymentMethods.find((item) => item.provider === provider && item.enabled) || null;
+    if ((provider === 'wechat_qr' || provider === 'alipay_qr') && !resolvedRechargePaymentMethod) {
+      throw new HttpError(
+        400,
+        'BAD_REQUEST',
+        appName
+          ? `当前 OEM 未启用 ${paymentProviderLabel(provider)}，请先在 admin-web 配置支付方式`
+          : `${paymentProviderLabel(provider)} 当前不可用`,
+      );
+    }
     const paymentProfileResolution = await this.resolvePaymentProviderProfileForOrder(provider, appName || null);
     if ((provider === 'wechat_qr' || provider === 'alipay_qr') && !epayService.isEnabled()) {
       throw new HttpError(
@@ -1932,6 +1943,7 @@ export class ControlPlaneService {
         ...paymentProfileResolution.metadata,
         ...(checkout?.metadata || {}),
         recharge_source_layer: packageConfig.sourceLayer,
+        recharge_payment_method_source_layer: resolvedRechargePaymentMethod?.sourceLayer || null,
       },
       packageName: packageConfig.packageName,
       credits: packageConfig.credits,

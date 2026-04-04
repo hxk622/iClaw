@@ -41,3 +41,59 @@ test('buildPortalPublicConfig preserves skill catalog visibility mode', () => {
     'all_cloud',
   );
 });
+
+test('buildPortalPublicConfig publishes OEM recharge payment methods when configured', () => {
+  const detail: PortalAppDetail = {
+    app: {
+      appName: 'iclaw-oem',
+      displayName: 'iClaw OEM',
+      description: null,
+      status: 'active',
+      defaultLocale: 'zh-CN',
+      config: {
+        surfaces: {
+          recharge: {
+            config: {
+              payment_methods: [
+                {
+                  provider: 'alipay_qr',
+                  enabled: true,
+                  sort_order: 10,
+                  is_default: true,
+                  label: '支付宝',
+                },
+                {
+                  provider: 'wechat_qr',
+                  enabled: false,
+                  sort_order: 20,
+                },
+              ],
+            },
+          },
+        },
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+    skillBindings: [],
+    mcpBindings: [],
+    modelBindings: [],
+    menuBindings: [],
+    composerControlBindings: [],
+    composerShortcutBindings: [],
+    rechargePackageBindings: [],
+    assets: [],
+    releases: [],
+    audit: [],
+  };
+
+  const result = buildPortalPublicConfig(detail);
+  const rechargeSurface = ((result.config.surfaces as Record<string, unknown>).recharge || {}) as Record<string, unknown>;
+  const rechargeConfig = (rechargeSurface.config || {}) as Record<string, unknown>;
+  const paymentMethods = Array.isArray(rechargeConfig.payment_methods) ? rechargeConfig.payment_methods : [];
+
+  assert.equal(paymentMethods.length, 1);
+  assert.equal((paymentMethods[0] as Record<string, unknown>).provider, 'alipay_qr');
+  assert.equal((paymentMethods[0] as Record<string, unknown>).is_default, true);
+  assert.equal(rechargeConfig.payment_methods_source_layer, 'oem_binding');
+});

@@ -10,6 +10,10 @@ import {
   DEFAULT_PLATFORM_RECHARGE_PACKAGE_SEEDS,
   type ResolvedRechargePackageRecord,
 } from './recharge-packages.ts';
+import {
+  resolveRechargePaymentMethods,
+  type ResolvedRechargePaymentMethodRecord,
+} from './recharge-payment-methods.ts';
 import type {
   AdminPaymentOrderDetailRecord,
   AdminPaymentOrderSummaryRecord,
@@ -134,6 +138,7 @@ export interface ControlPlaneStore {
   ): Promise<PaymentOrderRecord>;
   getPaymentOrderById(userId: string, orderId: string): Promise<PaymentOrderRecord | null>;
   resolveRechargePackage(packageId: string, appName?: string | null): Promise<ResolvedRechargePackageRecord | null>;
+  resolveRechargePaymentMethods(appName?: string | null): Promise<ResolvedRechargePaymentMethodRecord[]>;
   listPaymentOrdersAdmin(input?: {
     limit?: number | null;
     status?: string | null;
@@ -365,6 +370,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   private readonly paymentProviderProfilesById = new Map<string, PaymentProviderProfileRecord>();
   private readonly paymentProviderBindingsByKey = new Map<string, PaymentProviderBindingRecord>();
   private readonly paymentOrdersById = new Map<string, PaymentOrderRecord>();
+  private readonly rechargePaymentMethodConfigsByApp = new Map<string, Record<string, unknown>>();
   private readonly systemStateByKey = new Map<string, Record<string, unknown>>();
   private readonly paymentWebhookEventsByOrderId = new Map<string, PaymentWebhookEventRecord[]>();
   private readonly runGrantsById = new Map<string, RunGrantRecord>();
@@ -798,6 +804,25 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       sourceLayer: 'platform_catalog',
       bindingConfig: {},
     };
+  }
+
+  async resolveRechargePaymentMethods(appName?: string | null): Promise<ResolvedRechargePaymentMethodRecord[]> {
+    const normalizedAppName = (appName || '').trim();
+    return resolveRechargePaymentMethods(
+      normalizedAppName ? this.rechargePaymentMethodConfigsByApp.get(normalizedAppName) || null : null,
+    );
+  }
+
+  setRechargePaymentMethodsConfig(appName: string, config: Record<string, unknown> | null | undefined): void {
+    const normalizedAppName = appName.trim();
+    if (!normalizedAppName) {
+      return;
+    }
+    if (!config) {
+      this.rechargePaymentMethodConfigsByApp.delete(normalizedAppName);
+      return;
+    }
+    this.rechargePaymentMethodConfigsByApp.set(normalizedAppName, JSON.parse(JSON.stringify(config)) as Record<string, unknown>);
   }
 
   async listPaymentOrdersAdmin(input?: {

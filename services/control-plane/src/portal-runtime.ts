@@ -8,6 +8,7 @@ import type {
   PortalRechargePackageRecord,
 } from './portal-domain.ts';
 import {stripPortalDesktopReleaseConfig} from './portal-desktop-release.ts';
+import {resolveRechargePaymentMethods} from './recharge-payment-methods.ts';
 
 function asObject(value: unknown): PortalJsonObject {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -113,6 +114,8 @@ export function buildPortalPublicConfig(
   const inputSurfaceConfig = asObject(inputSurface.config);
   const rechargeSurface = asObject(surfaces.recharge);
   const rechargeSurfaceConfig = asObject(rechargeSurface.config);
+  const hasExplicitRechargePaymentMethods =
+    Array.isArray(rechargeSurfaceConfig.payment_methods) || Array.isArray(rechargeSurfaceConfig.paymentMethods);
 
   const skillBindings = detail.skillBindings
     .filter((item) => item.enabled)
@@ -274,6 +277,21 @@ export function buildPortalPublicConfig(
         },
       })))
     .sort((left, right) => left.sort_order - right.sort_order || left.package_id.localeCompare(right.package_id, 'zh-CN'));
+  const resolvedRechargePaymentMethods = resolveRechargePaymentMethods(detail.app.config);
+  const publicRechargePaymentMethods = resolvedRechargePaymentMethods
+    .filter((item) => item.enabled)
+    .map((item) => ({
+      provider: item.provider,
+      sort_order: item.sortOrder,
+      is_default: item.default,
+      label: item.label,
+      metadata: {
+        ...cloneJson(item.metadata),
+        source_layer: item.sourceLayer,
+      },
+    }));
+  const rechargePaymentMethodsSourceLayer =
+    resolvedRechargePaymentMethods[0]?.sourceLayer || (hasExplicitRechargePaymentMethods ? 'oem_binding' : 'platform_default');
   const nextInputSurfaceConfig = {
     ...inputSurfaceConfig,
     top_bar_controls: publicComposerControls,
@@ -282,6 +300,8 @@ export function buildPortalPublicConfig(
   const nextRechargeSurfaceConfig = {
     ...rechargeSurfaceConfig,
     packages: publicRechargePackages,
+    payment_methods: publicRechargePaymentMethods,
+    payment_methods_source_layer: rechargePaymentMethodsSourceLayer,
     source_layer: hasAppRechargeBindings ? 'oem_binding' : 'platform_catalog',
   };
   const resolvedSurfaces: PortalJsonObject = {
@@ -360,6 +380,15 @@ export function buildPortalPublicConfig(
         recommended: item.recommended,
         is_default: item.default,
         config: cloneJson(item.config),
+      })),
+      recharge_payment_method_bindings: resolvedRechargePaymentMethods.map((item) => ({
+        provider: item.provider,
+        enabled: item.enabled,
+        sort_order: item.sortOrder,
+        is_default: item.default,
+        label: item.label,
+        metadata: cloneJson(item.metadata),
+        source_layer: item.sourceLayer,
       })),
     },
     surfaceKey: surfaceKey || null,

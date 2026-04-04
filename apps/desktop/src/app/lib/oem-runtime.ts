@@ -125,6 +125,14 @@ export type ResolvedRechargePackageConfig = {
   metadata: Record<string, unknown>;
 };
 
+export type ResolvedRechargePaymentMethodConfig = {
+  provider: 'wechat_qr' | 'alipay_qr';
+  sortOrder: number;
+  default: boolean;
+  label: string | null;
+  metadata: Record<string, unknown>;
+};
+
 export type ResolvedAuthAgreementConfig = {
   key: string;
   title: string;
@@ -932,6 +940,53 @@ export function resolveRechargePackageConfig(
     })
     .filter((item): item is ResolvedRechargePackageConfig => Boolean(item))
     .sort((left, right) => left.sortOrder - right.sortOrder || left.packageId.localeCompare(right.packageId, 'zh-CN'));
+}
+
+export function resolveRechargePaymentMethodConfig(
+  config: Record<string, unknown> | null | undefined,
+): ResolvedRechargePaymentMethodConfig[] | null {
+  const root = asObject(config);
+  const rechargeSurface = asObject(asObject(root.surfaces).recharge);
+  const rechargeConfig = asObject(rechargeSurface.config);
+  const hasExplicitPaymentMethods =
+    Array.isArray(rechargeConfig.payment_methods) || Array.isArray(rechargeConfig.paymentMethods);
+  const rawPaymentMethods = hasExplicitPaymentMethods
+    ? asArray(rechargeConfig.payment_methods ?? rechargeConfig.paymentMethods)
+    : [
+        {provider: 'wechat_qr', sort_order: 10, is_default: true, label: '微信支付'},
+        {provider: 'alipay_qr', sort_order: 20, is_default: false, label: '支付宝'},
+      ];
+  if (!rawPaymentMethods.length) {
+    return null;
+  }
+
+  const seenProviders = new Set<'wechat_qr' | 'alipay_qr'>();
+  const items = rawPaymentMethods
+    .map((item, index) => {
+      const entry = asObject(item);
+      const provider = String(entry.provider || '').trim().toLowerCase();
+      if ((provider !== 'wechat_qr' && provider !== 'alipay_qr') || seenProviders.has(provider as 'wechat_qr' | 'alipay_qr')) {
+        return null;
+      }
+      seenProviders.add(provider as 'wechat_qr' | 'alipay_qr');
+      return {
+        provider: provider as 'wechat_qr' | 'alipay_qr',
+        sortOrder: Number(entry.sort_order ?? entry.sortOrder ?? (index + 1) * 10) || (index + 1) * 10,
+        default: entry.is_default === true || entry.default === true,
+        label: String(entry.label || '').trim() || null,
+        metadata: asObject(entry.metadata),
+      };
+    })
+    .filter((item): item is ResolvedRechargePaymentMethodConfig => Boolean(item))
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.provider.localeCompare(right.provider, 'zh-CN'));
+  if (!items.length) {
+    return null;
+  }
+  const defaultProvider = items.find((item) => item.default)?.provider || items[0].provider;
+  return items.map((item) => ({
+    ...item,
+    default: item.provider === defaultProvider,
+  }));
 }
 
 export async function syncPublishedBrandRuntimeSnapshot(input: {

@@ -12,6 +12,10 @@ import {
   DEFAULT_PLATFORM_RECHARGE_PACKAGE_SEEDS,
   type ResolvedRechargePackageRecord,
 } from './recharge-packages.ts';
+import {
+  resolveRechargePaymentMethods,
+  type ResolvedRechargePaymentMethodRecord,
+} from './recharge-payment-methods.ts';
 import type {
   AdminPaymentOrderDetailRecord,
   AdminPaymentOrderSummaryRecord,
@@ -2063,6 +2067,23 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       sourceLayer: 'platform_catalog',
       bindingConfig: {},
     };
+  }
+
+  async resolveRechargePaymentMethods(appName?: string | null): Promise<ResolvedRechargePaymentMethodRecord[]> {
+    const normalizedAppName = (appName || '').trim();
+    if (!normalizedAppName) {
+      return resolveRechargePaymentMethods(null);
+    }
+    const result = await this.pool.query<{config_json: Record<string, unknown> | null}>(
+      `
+        select config_json
+        from oem_apps
+        where app_name = $1
+        limit 1
+      `,
+      [normalizedAppName],
+    );
+    return resolveRechargePaymentMethods(parseJsonObject(result.rows[0]?.config_json));
   }
 
   async listPaymentOrdersAdmin(input?: {
