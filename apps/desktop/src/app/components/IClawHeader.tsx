@@ -482,12 +482,6 @@ export const IClawHeader = memo(function IClawHeader({
         ) : null}
 
         <div className="flex shrink-0 items-center gap-3">
-          <NotificationCenterBell
-            unreadCount={notificationUnreadCount}
-            open={notificationCenterOpen}
-            onClick={() => onNotificationsClick?.()}
-          />
-
           {resolvedConfig?.showSecurityBadge !== false ? (
             <SecurityStatusInline
               state="protecting"
@@ -532,6 +526,12 @@ export const IClawHeader = memo(function IClawHeader({
               {resolvedConfig?.modeBadgeLabel || '脉搏模式'}
             </div>
           ) : null}
+
+          <NotificationCenterBell
+            unreadCount={notificationUnreadCount}
+            open={notificationCenterOpen}
+            onClick={() => onNotificationsClick?.()}
+          />
         </div>
       </div>
     </header>
