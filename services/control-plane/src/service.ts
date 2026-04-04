@@ -1,6 +1,6 @@
 import { toCanonicalSessionKey, type AuthTokens } from '@iclaw/shared';
 
-import { deleteAvatarByKey, deleteOldAvatars, extractAvatarKey, uploadAvatar } from './avatar-storage.ts';
+import { deleteAvatarByKey, deleteOldAvatars, extractAvatarKey, normalizeAvatarUrl, uploadAvatar } from './avatar-storage.ts';
 import {config} from './config.ts';
 import {randomBytes, randomUUID} from 'node:crypto';
 import {decryptInstallSecretPayload, encryptInstallSecretPayload} from './install-config-secrets.ts';
@@ -143,21 +143,7 @@ function resolvePublicApiBaseUrl(): string {
 }
 
 function normalizePersistedAvatarUrl(value?: string | null): string | null {
-  const raw = (value || '').trim();
-  if (!raw) {
-    return null;
-  }
-  const localPrefixes = [
-    'http://127.0.0.1:2130',
-    'http://localhost:2130',
-    'http://127.0.0.1',
-    'http://localhost',
-  ];
-  const matchedPrefix = localPrefixes.find((prefix) => raw.startsWith(prefix));
-  if (!matchedPrefix) {
-    return raw;
-  }
-  return `${resolvePublicApiBaseUrl()}${raw.slice(matchedPrefix.length)}`;
+  return normalizeAvatarUrl(value);
 }
 
 function normalizeCatalogLimit(limitInput?: number | null): number {

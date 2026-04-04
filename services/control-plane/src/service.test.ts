@@ -217,6 +217,45 @@ test('login accepts legacy credential field alias', async () => {
   assert.equal(login.user.email, 'legacy@example.com');
 });
 
+test('auth responses normalize legacy localhost avatar urls to the public api base', async () => {
+  const previousApiUrl = config.apiUrl;
+  config.apiUrl = 'https://iclaw.aiyuanxi.com';
+  try {
+    const store = new InMemoryControlPlaneStore();
+    const service = new ControlPlaneService(store);
+    const registration = await service.register({
+      username: 'avatar-localhost-user',
+      email: 'avatar-localhost@example.com',
+      password: 'password123',
+      name: 'Avatar Localhost',
+    });
+
+    const persisted = await store.getUserByEmail('avatar-localhost@example.com');
+    assert.ok(persisted);
+    await store.updateUserProfile(persisted.id, {
+      avatarUrl:
+        'http://127.0.0.1:2130/auth/avatar?key=avatars%2Favatar-localhost-user%2Favatar-demo.png',
+    });
+
+    const login = await service.login({
+      identifier: 'avatar-localhost@example.com',
+      password: 'password123',
+    });
+    assert.equal(
+      login.user.avatar_url,
+      'https://iclaw.aiyuanxi.com/auth/avatar?key=avatars%2Favatar-localhost-user%2Favatar-demo.png',
+    );
+
+    const current = await service.me(registration.tokens.access_token);
+    assert.equal(
+      current.avatar_url,
+      'https://iclaw.aiyuanxi.com/auth/avatar?key=avatars%2Favatar-localhost-user%2Favatar-demo.png',
+    );
+  } finally {
+    config.apiUrl = previousApiUrl;
+  }
+});
+
 test('non-admin users cannot access admin skill catalog APIs', async () => {
   const store = new InMemoryControlPlaneStore();
   const service = new ControlPlaneService(store);

@@ -50,6 +50,24 @@ function getAvatarProxyBaseUrl(): string {
   return base.replace(/\/$/, '');
 }
 
+export function normalizeAvatarUrl(value?: string | null): string | null {
+  const raw = (value || '').trim();
+  if (!raw) {
+    return null;
+  }
+  const localPrefixes = [
+    'http://127.0.0.1:2130',
+    'http://localhost:2130',
+    'http://127.0.0.1',
+    'http://localhost',
+  ];
+  const matchedPrefix = localPrefixes.find((prefix) => raw.startsWith(prefix));
+  if (!matchedPrefix) {
+    return raw;
+  }
+  return `${getAvatarProxyBaseUrl()}${raw.slice(matchedPrefix.length)}`;
+}
+
 function getS3Client(): S3Client {
   if (!hasS3Config()) {
     throw new HttpError(501, 'AVATAR_STORAGE_NOT_CONFIGURED', 'avatar storage is not configured');

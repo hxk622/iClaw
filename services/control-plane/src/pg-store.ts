@@ -75,6 +75,7 @@ import type {
   WorkspaceBackupInput,
   WorkspaceBackupRecord,
 } from './domain.ts';
+import { normalizeAvatarUrl } from './avatar-storage.ts';
 import type {ControlPlaneStore} from './store.ts';
 import {startOfNextShanghaiDayIso} from './time.ts';
 
@@ -543,7 +544,7 @@ function mapUserRow(row: UserRow): UserRecord {
     username: row.username,
     email: row.email,
     displayName: row.displayName || '',
-    avatarUrl: row.avatarUrl || null,
+    avatarUrl: normalizeAvatarUrl(row.avatarUrl),
     passwordHash: row.passwordHash,
     role: row.role,
     status: row.status,
