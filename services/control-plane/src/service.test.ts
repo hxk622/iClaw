@@ -213,6 +213,79 @@ test('non-admin users cannot access admin skill catalog APIs', async () => {
   });
 });
 
+test('credits ledger orders usage debits by assistant timestamp instead of settlement time', async () => {
+  const store = new InMemoryControlPlaneStore();
+  const service = new ControlPlaneService(store);
+  const registration = await service.register({
+    username: 'credit-ledger-user',
+    email: 'credit-ledger@example.com',
+    password: 'password123',
+    name: 'Credit Ledger User',
+  });
+  const initialSession = await store.getSessionByAccessToken(hashOpaqueToken(registration.tokens.access_token));
+  assert.ok(initialSession);
+  const baseNow = new Date(initialSession.createdAt).getTime() + 1_000;
+
+  const sessionKey = 'agent:main:main';
+  const expiresAt = new Date(Date.now() + 60_000).toISOString();
+  const laterAssistantGrant = await store.createRunGrant({
+    userId: registration.user.id,
+    sessionKey,
+    client: 'desktop',
+    nonce: 'nonce-later-assistant',
+    maxInputTokens: 2_000,
+    maxOutputTokens: 2_000,
+    creditLimit: 100,
+    expiresAt,
+    signature: 'sig-later-assistant',
+  });
+  const earlierAssistantGrant = await store.createRunGrant({
+    userId: registration.user.id,
+    sessionKey,
+    client: 'desktop',
+    nonce: 'nonce-earlier-assistant',
+    maxInputTokens: 2_000,
+    maxOutputTokens: 2_000,
+    creditLimit: 100,
+    expiresAt,
+    signature: 'sig-earlier-assistant',
+  });
+
+  await withFakeNow(baseNow + 1_000, async () => {
+    await service.recordUsageEvent(registration.tokens.access_token, {
+      event_id: 'evt-later-assistant',
+      grant_id: laterAssistantGrant.id,
+      input_tokens: 40,
+      output_tokens: 120,
+      provider: 'openai',
+      model: 'gpt-5.4',
+      app_name: 'iClaw',
+      assistant_timestamp: baseNow + 3_000,
+    });
+  });
+
+  await withFakeNow(baseNow + 2_000, async () => {
+    await service.recordUsageEvent(registration.tokens.access_token, {
+      event_id: 'evt-earlier-assistant',
+      grant_id: earlierAssistantGrant.id,
+      input_tokens: 35,
+      output_tokens: 110,
+      provider: 'openai',
+      model: 'gpt-5.4',
+      app_name: 'iClaw',
+      assistant_timestamp: baseNow + 2_000,
+    });
+  });
+
+  await withFakeNow(baseNow + 3_000, async () => {
+    const ledger = await store.getCreditLedger(registration.user.id);
+    const usageItems = ledger.filter((item) => item.eventType === 'usage_debit');
+    assert.ok(usageItems.length >= 2);
+    assert.equal(usageItems[0]?.referenceId, 'evt-later-assistant');
+    assert.equal(usageItems[1]?.referenceId, 'evt-earlier-assistant');
+  });
+});
+
 test('super admin can update and remove cloud skill catalog entries', async () => {
   await withBootstrapRoles({ superAdminEmails: ['515177265@qq.com'] }, async () => {
     const store = new InMemoryControlPlaneStore();

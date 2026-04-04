@@ -50,6 +50,7 @@ export type CreditLedgerRecord = {
   referenceId: string | null;
   eventType: string;
   delta: number;
+  assistantTimestamp?: number | null;
   createdAt: string;
 };
 

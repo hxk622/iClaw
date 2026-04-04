@@ -105,6 +105,7 @@ type CreditLedgerRow = {
   reference_id: string | null;
   event_type: string | null;
   delta: string | number | null;
+  metadata: Record<string, unknown> | null;
   created_at: Date;
 };
 
@@ -695,6 +696,11 @@ function parseJsonObject(raw: unknown): Record<string, unknown> {
     return {};
   }
   return raw as Record<string, unknown>;
+}
+
+function parseCreditLedgerAssistantTimestamp(metadata: Record<string, unknown> | null): number | null {
+  const value = metadata?.assistant_timestamp;
+  return typeof value === 'number' && Number.isFinite(value) ? Math.floor(value) : null;
 }
 
 function mapAgentCatalogRow(row: AgentCatalogRow): AgentCatalogRecord {
@@ -1637,10 +1643,20 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     await this.getCreditAccount(userId);
     const result = await this.pool.query<CreditLedgerRow>(
       `
-        select id, user_id, bucket, direction, amount, balance_after, reference_type, reference_id, event_type, delta, created_at
+        select id, user_id, bucket, direction, amount, balance_after, reference_type, reference_id, event_type, delta, metadata, created_at
         from credit_ledger
         where user_id = $1
-        order by created_at desc
+        order by
+          coalesce(
+            case
+              when jsonb_typeof(metadata->'assistant_timestamp') = 'number'
+                then (metadata->>'assistant_timestamp')::bigint
+              else null
+            end,
+            floor(extract(epoch from created_at) * 1000)::bigint
+          ) desc,
+          created_at desc,
+          id desc
       `,
       [userId],
     );
@@ -1663,6 +1679,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
               ? 'daily_reset'
               : 'credit_ledger'),
       delta: parseDbNumber(row.delta ?? row.amount),
+      assistantTimestamp: parseCreditLedgerAssistantTimestamp(parseJsonObject(row.metadata)),
       createdAt: row.created_at.toISOString(),
     }));
   }
@@ -2929,6 +2946,10 @@ export class PgControlPlaneStore implements ControlPlaneStore {
               output_tokens: input.output_tokens,
               provider: input.provider,
               model: input.model,
+              assistant_timestamp:
+                typeof input.assistant_timestamp === 'number' && Number.isFinite(input.assistant_timestamp)
+                  ? Math.floor(input.assistant_timestamp)
+                  : null,
             }),
           ],
         );
@@ -2964,6 +2985,10 @@ export class PgControlPlaneStore implements ControlPlaneStore {
               output_tokens: input.output_tokens,
               provider: input.provider,
               model: input.model,
+              assistant_timestamp:
+                typeof input.assistant_timestamp === 'number' && Number.isFinite(input.assistant_timestamp)
+                  ? Math.floor(input.assistant_timestamp)
+                  : null,
             }),
           ],
         );

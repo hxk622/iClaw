@@ -84,6 +84,13 @@ function expirePaymentOrderIfNeeded(order: PaymentOrderRecord): PaymentOrderReco
   };
 }
 
+function resolveCreditLedgerSortTimestamp(item: CreditLedgerRecord): number {
+  if (typeof item.assistantTimestamp === 'number' && Number.isFinite(item.assistantTimestamp)) {
+    return item.assistantTimestamp;
+  }
+  return Date.parse(item.createdAt) || 0;
+}
+
 export interface ControlPlaneStore {
   readonly storageLabel: string;
   getSystemState(stateKey: string): Promise<Record<string, unknown> | null>;
@@ -687,7 +694,14 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
 
   async getCreditLedger(userId: string): Promise<CreditLedgerRecord[]> {
     await this.getCreditAccount(userId);
-    return this.creditLedgerByUserId.get(userId) || [];
+    return [...(this.creditLedgerByUserId.get(userId) || [])].sort((left, right) => {
+      const rightTimestamp = resolveCreditLedgerSortTimestamp(right);
+      const leftTimestamp = resolveCreditLedgerSortTimestamp(left);
+      if (rightTimestamp !== leftTimestamp) {
+        return rightTimestamp - leftTimestamp;
+      }
+      return (Date.parse(right.createdAt) || 0) - (Date.parse(left.createdAt) || 0);
+    });
   }
 
   async createPaymentOrder(
@@ -1254,6 +1268,10 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
         referenceId: input.event_id,
         eventType: 'usage_debit',
         delta: -topupDebit,
+        assistantTimestamp:
+          typeof input.assistant_timestamp === 'number' && Number.isFinite(input.assistant_timestamp)
+            ? Math.floor(input.assistant_timestamp)
+            : null,
         createdAt,
       });
     }
@@ -1269,6 +1287,10 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
         referenceId: input.event_id,
         eventType: 'usage_debit',
         delta: -dailyDebit,
+        assistantTimestamp:
+          typeof input.assistant_timestamp === 'number' && Number.isFinite(input.assistant_timestamp)
+            ? Math.floor(input.assistant_timestamp)
+            : null,
         createdAt,
       });
     }
