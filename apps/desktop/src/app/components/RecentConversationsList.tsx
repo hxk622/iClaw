@@ -1,5 +1,6 @@
-import { Clock3, MoreHorizontal, MessageSquareText, PencilLine, Trash2 } from 'lucide-react';
+import { MoreVertical, MessageSquareText, PencilLine, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from '@/app/components/ui/Button';
 import { cn } from '@/app/lib/cn';
 import { formatChatTurnRelativeTime, useChatTurns } from '@/app/lib/chat-turns';
@@ -39,6 +40,7 @@ export function RecentConversationsList({
   } | null>(null);
   const activeConversationRef = useRef<HTMLDivElement | null>(null);
   const renameInputRef = useRef<HTMLInputElement | null>(null);
+  const [portalReady, setPortalReady] = useState(false);
 
   const visibleConversations = useMemo(() => {
     const parseTimestamp = (value: string) => {
@@ -46,11 +48,13 @@ export function RecentConversationsList({
       return Number.isFinite(parsed) ? parsed : 0;
     };
     const recentTurnByConversation = new Map<string, (typeof recentTurns)[number]>();
-    recentTurns.forEach((turn) => {
+    recentTurns
+      .filter((turn) => turn.source === 'chat')
+      .forEach((turn) => {
       if (!recentTurnByConversation.has(turn.conversationId)) {
         recentTurnByConversation.set(turn.conversationId, turn);
       }
-    });
+      });
 
     return conversations
       .map((conversation) => {
@@ -61,6 +65,7 @@ export function RecentConversationsList({
           matchedTurn?.prompt?.trim() ||
           '未命名对话';
         const conversationSummary =
+          conversation.summary?.trim() ||
           matchedTurn?.summary?.trim() ||
           matchedTurn?.prompt?.trim() ||
           '继续查看这条对话的上下文与结果。';
@@ -102,6 +107,10 @@ export function RecentConversationsList({
     renameInputRef.current?.focus();
     renameInputRef.current?.select();
   }, [renamingConversationId]);
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
 
   useEffect(() => {
     if (!pendingDeleteConversation) {
@@ -179,7 +188,7 @@ export function RecentConversationsList({
           </div>
         </div>
       ) : (
-        <div className="space-y-0.5 px-2">
+        <div className="space-y-[6px] px-2">
           {visibleConversations.map((conversation) => {
             const isSelected = conversation.id === selectedConversationId;
             const menuOpen = menuConversationId === conversation.id;
@@ -189,42 +198,36 @@ export function RecentConversationsList({
                 key={conversation.id}
                 ref={menuOpen || renaming ? activeConversationRef : null}
                 className={cn(
-                  'group relative flex h-[76px] w-full items-stretch gap-3 overflow-visible rounded-[16px] border px-3 py-2 text-left shadow-[0_10px_24px_rgba(16,24,40,0.04)]',
+                  'group relative flex h-[68px] w-full items-stretch overflow-visible rounded-[16px] border px-2.5 py-1.5 text-left shadow-[0_10px_24px_rgba(16,24,40,0.04)]',
                   'transition-[background-color,border-color,color,box-shadow,transform] duration-[var(--motion-panel)]',
                   SPRING_PRESSABLE,
                   INTERACTIVE_FOCUS_RING,
                   menuOpen ? 'z-30' : 'z-0',
                   isSelected
-                    ? 'border-[color-mix(in_srgb,var(--brand-primary)_34%,var(--border-default))] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--chip-brand-bg)_72%,var(--bg-card))_0%,color-mix(in_srgb,var(--bg-card)_88%,white_12%)_100%)] ring-1 ring-[color-mix(in_srgb,var(--brand-primary)_14%,transparent)] shadow-[0_18px_36px_rgba(168,140,93,0.16)]'
+                    ? 'border-[rgba(37,99,235,0.34)] bg-[linear-gradient(135deg,rgba(37,99,235,0.10)_0%,rgba(255,255,255,0.88)_100%)] ring-1 ring-[rgba(37,99,235,0.12)] shadow-[0_18px_36px_rgba(37,99,235,0.14)]'
                     : 'border-[var(--border-default)] bg-[color-mix(in_srgb,var(--bg-card)_94%,var(--bg-page))] hover:border-[color-mix(in_srgb,var(--brand-primary)_22%,var(--border-default))] hover:bg-[var(--bg-hover)] hover:shadow-[0_12px_26px_rgba(16,24,40,0.06)]',
                 )}
               >
                 <button
                   type="button"
                   onClick={() => onSelectConversation?.(conversation.id)}
-                  className="flex h-full min-w-0 flex-1 items-start gap-2.5 overflow-hidden text-left"
+                  className="flex h-full min-w-0 flex-1 items-stretch gap-1.5 overflow-hidden text-left"
                 >
-                  <span className="mt-0.5 flex h-full shrink-0 flex-col items-center justify-start">
+                  <span className="flex w-7 shrink-0 flex-col items-center justify-between py-0.5">
                     <span
                       className={cn(
                         'flex h-7 w-7 items-center justify-center rounded-full border text-[var(--text-secondary)]',
                         isSelected
-                          ? 'border-[color-mix(in_srgb,var(--brand-primary)_28%,transparent)] bg-[color-mix(in_srgb,var(--chip-brand-bg)_88%,transparent)] text-[var(--brand-primary)] shadow-[0_8px_18px_rgba(168,140,93,0.18)] dark:text-white'
+                          ? 'border-[rgb(37,99,235)] bg-[rgb(37,99,235)] text-white shadow-[0_10px_22px_rgba(37,99,235,0.24)]'
                           : 'border-[var(--border-default)] bg-[var(--bg-card)] dark:text-white',
                       )}
                     >
                       <MessageSquareText className="h-3.5 w-3.5" />
                     </span>
-                    <span
-                      className={cn(
-                        'mt-2 inline-flex h-2 w-2 rounded-full',
-                        isSelected ? 'bg-[var(--brand-primary)]' : 'bg-[var(--border-default)]',
-                      )}
-                    />
                   </span>
 
-                  <span className="flex h-full min-w-0 flex-1 flex-col justify-center overflow-hidden">
-                    <span className="min-w-0 overflow-hidden pr-[68px]">
+                  <span className="flex min-w-0 flex-1 flex-col justify-between py-0.5">
+                    <span className="min-w-0 overflow-hidden pr-0.5">
                       {renaming ? (
                         <input
                           ref={renameInputRef}
@@ -243,46 +246,46 @@ export function RecentConversationsList({
                             }
                           }}
                           onBlur={() => handleCommitRename(conversation.id)}
-                          className="min-w-0 w-full rounded-[10px] border border-[var(--brand-primary)] bg-[var(--bg-card)] px-2 py-1 text-[12px] font-medium text-[var(--text-primary)] outline-none"
+                          className="min-w-0 w-full rounded-[10px] border border-[rgb(37,99,235)] bg-[var(--bg-card)] px-2 py-1 text-[12px] font-medium text-[var(--text-primary)] outline-none"
                           maxLength={48}
                         />
                       ) : (
                         <span
                           className={cn(
-                            'block truncate text-[13px] font-semibold leading-4',
-                            isSelected ? 'text-[color-mix(in_srgb,var(--brand-primary)_92%,var(--text-primary))]' : 'text-[var(--text-primary)]',
+                            'block truncate text-[13px] font-semibold leading-[18px]',
+                            isSelected ? 'text-[rgb(29,78,216)]' : 'text-[var(--text-primary)]',
                           )}
                         >
                           {conversation.title}
                         </span>
                       )}
                     </span>
+
                     <span
                       className={cn(
-                        'mt-0.5 block overflow-hidden text-[12px] leading-4 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]',
+                        'block min-w-0 truncate pr-0.5 text-[11px] leading-[15px]',
                         isSelected ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]',
                       )}
                     >
                       {conversation.summary}
                     </span>
                   </span>
-                </button>
 
-                <div className="absolute right-3 top-2 z-40 flex flex-col items-end">
-                  <div
-                    className={cn(
-                      'pointer-events-none flex items-center rounded-full px-1.5 py-0.5 text-[10px] transition-opacity duration-[var(--motion-panel)]',
-                      isSelected
-                        ? 'bg-[color-mix(in_srgb,var(--chip-brand-bg)_74%,transparent)] text-[color-mix(in_srgb,var(--brand-primary)_76%,var(--text-secondary))]'
-                        : 'text-[var(--text-muted)]',
-                      menuOpen ? 'opacity-0' : 'opacity-100 group-hover:opacity-0 group-focus-within:opacity-0',
-                    )}
-                  >
-                    <span className="inline-flex items-center gap-1 whitespace-nowrap">
-                      <Clock3 className="h-3 w-3 shrink-0" />
+                  <span className="flex w-[46px] shrink-0 flex-col items-end justify-between py-0.5">
+                    <span className="h-6 w-6 shrink-0" aria-hidden="true" />
+                    <span
+                      className={cn(
+                        'pointer-events-none block max-w-full truncate text-right text-[10px] leading-none transition-opacity duration-[var(--motion-panel)]',
+                        isSelected ? 'text-[rgb(59,130,246)]' : 'text-[var(--text-muted)]',
+                        menuOpen ? 'opacity-0' : 'opacity-100 group-hover:opacity-0 group-focus-within:opacity-0',
+                      )}
+                    >
                       {formatChatTurnRelativeTime(conversation.updatedAt)}
                     </span>
-                  </div>
+                  </span>
+                </button>
+
+                <div className="absolute right-1.5 top-1.5 z-40 flex flex-col items-end">
                   <button
                     type="button"
                     aria-label={`更多操作：${conversation.title}`}
@@ -293,13 +296,13 @@ export function RecentConversationsList({
                       setMenuConversationId((current) => current === conversation.id ? null : conversation.id);
                     }}
                     className={cn(
-                      'absolute right-0 top-0 inline-flex h-7 w-7 items-center justify-center rounded-[10px] border border-transparent bg-[var(--bg-card)] text-[var(--text-muted)] shadow-[0_10px_24px_rgba(16,24,40,0.10)] transition-[opacity,background-color,color] duration-[var(--motion-panel)]',
+                      'absolute right-0 top-0 inline-flex h-6 w-6 items-center justify-center rounded-[9px] border border-transparent bg-[color-mix(in_srgb,var(--bg-card)_92%,transparent)] text-[var(--text-muted)] transition-[background-color,color,border-color] duration-[var(--motion-panel)]',
                       menuOpen
-                        ? 'opacity-100 text-[var(--text-primary)]'
-                        : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 focus-visible:opacity-100 hover:text-[var(--text-primary)]',
+                        ? 'border-[var(--border-default)] bg-[var(--bg-card)] text-[var(--text-primary)] shadow-[0_8px_18px_rgba(16,24,40,0.10)]'
+                        : 'opacity-100 hover:border-[var(--border-default)] hover:bg-[var(--bg-card)] hover:text-[var(--text-primary)]',
                     )}
                   >
-                    <MoreHorizontal className="h-4 w-4" />
+                    <MoreVertical className="h-3.5 w-3.5" />
                   </button>
 
                   {menuOpen ? (
@@ -339,45 +342,48 @@ export function RecentConversationsList({
         </div>
       )}
 
-      {pendingDeleteConversation ? (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/42 px-4 backdrop-blur-[6px]">
-          <div
-            className="absolute inset-0"
-            onClick={() => setPendingDeleteConversation(null)}
-            aria-hidden="true"
-          />
-          <div className="relative z-[121] w-full max-w-[420px] rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-card)] p-6 shadow-[0_28px_80px_rgba(15,23,42,0.24)]">
-            <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-[14px] border border-[rgba(239,68,68,0.18)] bg-[rgba(239,68,68,0.10)] text-[rgb(185,28,28)] dark:border-[rgba(248,113,113,0.24)] dark:bg-[rgba(239,68,68,0.18)] dark:text-[#fecaca]">
-              <Trash2 className="h-5 w-5" />
-            </div>
-            <h3 className="text-[18px] font-semibold text-[var(--text-primary)]">删除这条对话？</h3>
-            <p className="mt-2 text-[14px] leading-6 text-[var(--text-secondary)]">
-              <span className="font-medium text-[var(--text-primary)]">“{pendingDeleteConversation.title}”</span>
-              将从当前账号的本地对话记录中移除，关联的会话快照也会一起删除。
-            </p>
-            <p className="mt-2 text-[13px] leading-6 text-[var(--text-muted)]">
-              这个操作不可撤销。
-            </p>
-            <div className="mt-6 flex items-center justify-end gap-3">
-              <Button
-                variant="secondary"
-                size="sm"
+      {portalReady && pendingDeleteConversation
+        ? createPortal(
+            <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/42 px-4 backdrop-blur-[6px]">
+              <div
+                className="absolute inset-0"
                 onClick={() => setPendingDeleteConversation(null)}
-              >
-                取消
-              </Button>
-              <Button
-                variant="danger"
-                size="sm"
-                leadingIcon={<Trash2 className="h-3.5 w-3.5" />}
-                onClick={() => handleDeleteConversation(pendingDeleteConversation.id)}
-              >
-                删除对话
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+                aria-hidden="true"
+              />
+              <div className="relative z-[161] w-full max-w-[420px] rounded-[24px] border border-[var(--border-default)] bg-[var(--bg-card)] p-6 shadow-[0_28px_80px_rgba(15,23,42,0.24)]">
+                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-[14px] border border-[rgba(239,68,68,0.18)] bg-[rgba(239,68,68,0.10)] text-[rgb(185,28,28)] dark:border-[rgba(248,113,113,0.24)] dark:bg-[rgba(239,68,68,0.18)] dark:text-[#fecaca]">
+                  <Trash2 className="h-5 w-5" />
+                </div>
+                <h3 className="text-[18px] font-semibold text-[var(--text-primary)]">删除这条对话？</h3>
+                <p className="mt-2 text-[14px] leading-6 text-[var(--text-secondary)]">
+                  <span className="font-medium text-[var(--text-primary)]">“{pendingDeleteConversation.title}”</span>
+                  将从当前账号的本地对话记录中移除，关联的会话快照也会一起删除。
+                </p>
+                <p className="mt-2 text-[13px] leading-6 text-[var(--text-muted)]">
+                  这个操作不可撤销。
+                </p>
+                <div className="mt-6 flex items-center justify-end gap-3">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setPendingDeleteConversation(null)}
+                  >
+                    取消
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    leadingIcon={<Trash2 className="h-3.5 w-3.5" />}
+                    onClick={() => handleDeleteConversation(pendingDeleteConversation.id)}
+                  >
+                    删除对话
+                  </Button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
