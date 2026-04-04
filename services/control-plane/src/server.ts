@@ -130,8 +130,93 @@ const oemService = new OemService(oemStore, async (accessToken) => service.me(ac
 });
 const portalService = new PortalService(portalStore, async (accessToken) => service.me(accessToken), {cache: runtimeCache});
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+const controlPlaneRoot = resolve(repoRoot, 'services/control-plane');
+const rootPackageJsonPath = resolve(repoRoot, 'package.json');
 const modelLogoAssetRoot = resolve(repoRoot, 'services/control-plane/presets/assets/model-logos');
 const modelLogoManifestPath = resolve(modelLogoAssetRoot, 'manifest.json');
+const controlPlaneBuildInfoPath = resolve(controlPlaneRoot, 'build-info.json');
+const controlPlanePackageJsonPath = resolve(controlPlaneRoot, 'package.json');
+
+type BuildInfo = {
+  git_commit: string | null;
+  git_tag: string | null;
+  release_version: string | null;
+  build_time: string | null;
+  component: string | null;
+  package_name: string | null;
+  package_version: string | null;
+  dirty: boolean;
+};
+
+function loadBuildInfo(): BuildInfo {
+  const fallbackVersion = (() => {
+    let packageVersion: string | null = null;
+    let packageName: string | null = null;
+    let releaseVersion: string | null = null;
+
+    if (existsSync(controlPlanePackageJsonPath)) {
+      try {
+        const raw = JSON.parse(readFileSync(controlPlanePackageJsonPath, 'utf8')) as {version?: unknown; name?: unknown};
+        packageVersion = typeof raw.version === 'string' ? raw.version : null;
+        packageName = typeof raw.name === 'string' ? raw.name : null;
+      } catch {}
+    }
+
+    if (existsSync(rootPackageJsonPath)) {
+      try {
+        const raw = JSON.parse(readFileSync(rootPackageJsonPath, 'utf8')) as {version?: unknown};
+        releaseVersion = typeof raw.version === 'string' ? raw.version : null;
+      } catch {}
+    }
+
+    return {
+      packageVersion,
+      packageName,
+      releaseVersion: releaseVersion || packageVersion,
+    };
+  })();
+
+  const fallback: BuildInfo = {
+    git_commit: null,
+    git_tag: null,
+    release_version: fallbackVersion.releaseVersion,
+    build_time: null,
+    component: 'control-plane',
+    package_name: fallbackVersion.packageName,
+    package_version: fallbackVersion.packageVersion,
+    dirty: false,
+  };
+
+  if (!existsSync(controlPlaneBuildInfoPath)) {
+    return fallback;
+  }
+
+  try {
+    const raw = JSON.parse(readFileSync(controlPlaneBuildInfoPath, 'utf8')) as Partial<BuildInfo>;
+    return {
+      git_commit: typeof raw.git_commit === 'string' && raw.git_commit.trim() ? raw.git_commit : fallback.git_commit,
+      git_tag: typeof raw.git_tag === 'string' && raw.git_tag.trim() ? raw.git_tag : fallback.git_tag,
+      release_version:
+        typeof raw.release_version === 'string' && raw.release_version.trim()
+          ? raw.release_version
+          : fallback.release_version,
+      build_time: typeof raw.build_time === 'string' && raw.build_time.trim() ? raw.build_time : fallback.build_time,
+      component: typeof raw.component === 'string' && raw.component.trim() ? raw.component : fallback.component,
+      package_name:
+        typeof raw.package_name === 'string' && raw.package_name.trim() ? raw.package_name : fallback.package_name,
+      package_version:
+        typeof raw.package_version === 'string' && raw.package_version.trim()
+          ? raw.package_version
+          : fallback.package_version,
+      dirty: typeof raw.dirty === 'boolean' ? raw.dirty : fallback.dirty,
+    };
+  } catch (error) {
+    logWarn('failed to parse build info, falling back to package metadata', {error, path: controlPlaneBuildInfoPath});
+    return fallback;
+  }
+}
+
+const buildInfo = loadBuildInfo();
 
 async function runStartupBootstrap(): Promise<void> {
   if (startupState.bootstrap.status === 'running' || startupState.bootstrap.status === 'ready') {
@@ -444,7 +529,17 @@ const server = createJsonServer([
     handler: () => ({
       status: 'ok',
       service: config.serviceName,
-      version: '0.1.0',
+      version: buildInfo.package_version || '0.1.0',
+      git_commit: buildInfo.git_commit,
+      git_tag: buildInfo.git_tag,
+      release_version: buildInfo.release_version,
+      build_time: buildInfo.build_time,
+      build_metadata: {
+        component: buildInfo.component,
+        package_name: buildInfo.package_name,
+        package_version: buildInfo.package_version,
+        dirty: buildInfo.dirty,
+      },
       storage: store.storageLabel,
       cache: cacheLabel,
       bootstrap: {...startupState.bootstrap},

@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node ../../scripts/write-build-info.mjs --component control-plane --package services/control-plane/package.json --out services/control-plane/build-info.json",
     "dev": "node --watch-path=src --experimental-strip-types src/server.ts",
+    "prestart": "node ../../scripts/write-build-info.mjs --component control-plane --package services/control-plane/package.json --out services/control-plane/build-info.json",
     "start": "node --experimental-strip-types src/server.ts",
     "check": "tsc --noEmit",
     "test": "node --experimental-strip-types --test src/config.test.ts src/desktop-update-resolver.test.ts src/desktop-updates.test.ts src/portal-desktop-release.test.ts src/portal-runtime.test.ts src/service.test.ts src/time.test.ts",

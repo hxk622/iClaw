@@ -120,6 +120,9 @@
 - [ ] `control-plane /health`
 - [ ] `admin-web` 可访问
 - [ ] `home-web` 可访问
+- [ ] `control-plane /health` 返回 `git_commit / git_tag / release_version / build_time`
+- [ ] `admin-web/build-info.json` 字段完整
+- [ ] `home-web/build-info.json` 字段完整
 - [ ] 登录 / 注册正常
 - [ ] chat 发消息正常
 - [ ] usage / 计费 / 余额链路正常

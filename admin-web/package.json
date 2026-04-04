@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 1479",
     "build": "vite build --base=./",
+    "postbuild": "node ../scripts/write-build-info.mjs --component admin-web --package admin-web/package.json --out admin-web/dist/build-info.json",
     "preview": "vite preview --host 0.0.0.0 --port 1480"
   },
   "devDependencies": {

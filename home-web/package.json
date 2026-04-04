@@ -8,7 +8,7 @@
     "dev": "vite --host 0.0.0.0 --port 1477",
     "prebuild": "node ../scripts/brand-generated-state.mjs snapshot home-web-build && node ../scripts/apply-brand.mjs",
     "build": "vite build",
-    "postbuild": "node ../scripts/brand-generated-state.mjs restore home-web-build",
+    "postbuild": "node ../scripts/write-build-info.mjs --component home-web --package home-web/package.json --out home-web/dist/build-info.json && node ../scripts/brand-generated-state.mjs restore home-web-build",
     "preview": "vite preview --host 0.0.0.0 --port 1478"
   },
   "devDependencies": {

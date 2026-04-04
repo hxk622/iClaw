@@ -79,6 +79,13 @@
 - `window`
   - 计划上线时间窗
 
+并且发布产物必须同时生成并携带 `build-info.json`，至少包含：
+
+- `git_commit`
+- `git_tag`
+- `release_version`
+- `build_time`
+
 硬规则：
 
 - 未冻结 `tag/commit`，禁止上线
@@ -203,6 +210,9 @@
 - `control-plane /health`
 - `admin-web` 首页可访问
 - `home-web` 首页可访问
+- `control-plane /health` 返回 `git_commit / git_tag / release_version / build_time`
+- `admin-web/build-info.json` 可访问且字段完整
+- `home-web/build-info.json` 可访问且字段完整
 
 ### 8.2 业务链路
 

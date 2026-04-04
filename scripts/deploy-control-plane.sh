@@ -16,6 +16,11 @@ fi
 
 REMOTE="${ICLAW_CONTROL_PLANE_USER}@${ICLAW_CONTROL_PLANE_HOST}"
 
+node "$ROOT_DIR/scripts/write-build-info.mjs" \
+  --component control-plane \
+  --package services/control-plane/package.json \
+  --out services/control-plane/build-info.json
+
 echo "Deploying control-plane source -> ${REMOTE}:${ICLAW_CONTROL_PLANE_PATH}/services/control-plane"
 
 rsync -a \
@@ -29,6 +34,10 @@ rsync -a \
 rsync -a \
   "$ROOT_DIR/services/control-plane/sql/" \
   "${REMOTE}:${ICLAW_CONTROL_PLANE_PATH}/services/control-plane/sql/"
+
+rsync -a \
+  "$ROOT_DIR/services/control-plane/build-info.json" \
+  "${REMOTE}:${ICLAW_CONTROL_PLANE_PATH}/services/control-plane/build-info.json"
 
 echo "Restarting PM2 app: ${ICLAW_CONTROL_PLANE_PM2_APP}"
 ssh "${REMOTE}" "cd ${ICLAW_CONTROL_PLANE_PATH} && pm2 restart ${ICLAW_CONTROL_PLANE_PM2_APP}"
