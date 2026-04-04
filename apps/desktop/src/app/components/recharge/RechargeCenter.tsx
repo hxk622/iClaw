@@ -177,7 +177,7 @@ function openPaymentUrl(url: string): boolean {
   try {
     const newWindow = window.open(url, '_blank', 'noopener,noreferrer');
     if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-      window.location.assign(url);
+      return false;
     }
     return true;
   } catch (error) {
@@ -195,6 +195,7 @@ interface RechargeCenterProps {
 }
 
 export function RechargeCenter({ client, token, onClose, onPaymentSettled, active = true }: RechargeCenterProps) {
+  const successAutoCloseTimeoutMs = 3_000;
   const [step, setStep] = useState<RechargeStep>('plans');
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [selectedPlan, setSelectedPlan] = useState<PaidPlanTier>('plus');
@@ -243,7 +244,7 @@ export function RechargeCenter({ client, token, onClose, onPaymentSettled, activ
       setActiveOrder(order);
       if (order.payment_url && !isDataImageUrl(order.payment_url)) {
         const opened = openPaymentUrl(order.payment_url);
-        setPaymentMessage(opened ? '支付页面已打开，请在浏览器中完成支付。' : '浏览器拦截了支付页，请手动重新打开。');
+        setPaymentMessage(opened ? '支付页面已打开，请在浏览器中完成支付。' : '浏览器拦截了弹窗，请点击下方按钮重新打开，当前页面不会跳转。');
       } else if (order.payment_url) {
         setPaymentMessage('二维码已生成，请扫码完成支付。');
       } else {
@@ -294,6 +295,18 @@ export function RechargeCenter({ client, token, onClose, onPaymentSettled, activ
       window.clearInterval(timer);
     };
   }, [active, activeOrder, client, onPaymentSettled, token]);
+
+  useEffect(() => {
+    if (!active || activeOrder?.status !== 'paid') {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      onClose();
+    }, successAutoCloseTimeoutMs);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [active, activeOrder?.status, onClose]);
 
   const openPayment = (planId: PlanTier) => {
     if (planId === 'free') return;
@@ -644,7 +657,7 @@ function PaymentView({
           icon: CheckCircle2,
           iconClassName: '',
           title: '充值成功',
-          description: '龙虾币已自动到账，当前页面余额会同步刷新。',
+          description: '龙虾币已自动到账，当前页面余额会同步刷新，并将在 3 秒后返回当前页面。',
         }
       : isFailed
         ? {
@@ -681,7 +694,7 @@ function PaymentView({
   const primaryButtonLabel = creatingOrder
     ? '创建订单中...'
     : isPaid
-      ? '完成'
+      ? '立即返回'
       : isFailed || isExpired
         ? '重新发起支付'
         : activeOrder && launchPaymentUrl
@@ -864,6 +877,11 @@ function PaymentView({
                   重新打开支付页
                 </button>
               ) : null}
+              {isPaid ? (
+                <p className="text-center text-xs text-emerald-700/80 dark:text-emerald-200/80">
+                  将自动关闭充值窗口并回到你刚才的页面，不会刷新当前应用。
+                </p>
+              ) : null}
               {(isFailed || isExpired) && activeOrder ? (
                 <button
                   type="button"
@@ -901,7 +919,7 @@ function PaymentView({
                     <CheckCircle2 className="h-12 w-12 text-emerald-500" />
                     <div>
                       <p className="text-base font-semibold text-emerald-700 dark:text-emerald-200">充值已完成</p>
-                      <p className="mt-1 text-xs leading-5 text-emerald-600/80 dark:text-emerald-200/70">龙虾币已到账，可直接关闭窗口继续使用。</p>
+                      <p className="mt-1 text-xs leading-5 text-emerald-600/80 dark:text-emerald-200/70">龙虾币已到账，3 秒后自动返回当前页面。</p>
                     </div>
                   </div>
                 ) : isFailed ? (
@@ -926,11 +944,11 @@ function PaymentView({
                     <button
                       type="button"
                       className="rounded-lg bg-[#111827] px-4 py-2 text-sm font-medium text-white hover:bg-[#0b1220]"
-                      onClick={() => openPaymentUrl(launchPaymentUrl)}
+                      onClick={onReopenPayment}
                     >
                       重新打开支付页
                     </button>
-                    <p className="text-[11px] leading-5 text-gray-400">如果浏览器阻止弹窗，请手动点击上面的按钮。</p>
+                    <p className="text-[11px] leading-5 text-gray-400">如果浏览器阻止弹窗，请手动点击上面的按钮，当前页面不会跳走。</p>
                   </div>
                 ) : (
                   <div className="flex h-48 w-48 items-center justify-center border-2 border-gray-300 bg-white px-4 text-center text-xs text-gray-400">
