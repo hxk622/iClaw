@@ -36,6 +36,7 @@ import { PressableCard } from '@/app/components/ui/PressableCard';
 import { SelectionCard } from '@/app/components/ui/SelectionCard';
 import { SummaryMetricItem } from '@/app/components/ui/SummaryMetricItem';
 import { cn } from '@/app/lib/cn';
+import { pushAppNotification } from '@/app/lib/task-notifications';
 import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 import dingtalkLogo from '@/app/assets/im-bots/dingtalk.png';
 import feishuLogo from '@/app/assets/im-bots/feishu.png';
@@ -543,6 +544,8 @@ export function IMBotsView({ title, client }: { title: string; client: IClawClie
   };
 
   const handleRunConnectionTest = async (botId: string) => {
+    const targetBot = bots.find((bot) => bot.id === botId) ?? null;
+
     setBots((prev) =>
       prev.map((bot) =>
         bot.id === botId
@@ -557,6 +560,12 @@ export function IMBotsView({ title, client }: { title: string; client: IClawClie
           : bot,
       ),
     );
+    pushAppNotification({
+      tone: 'info',
+      source: 'system',
+      title: '已开始机器人测试',
+      text: targetBot ? `正在检查「${targetBot.name}」的平台链路与 runtime 连接。` : '正在检查机器人平台链路与 runtime 连接。',
+    });
 
     try {
       await client.health();
@@ -593,6 +602,14 @@ export function IMBotsView({ title, client }: { title: string; client: IClawClie
           };
         }),
       );
+      pushAppNotification({
+        tone: 'success',
+        source: 'system',
+        title: '机器人测试通过',
+        text: targetBot?.assistantId
+          ? `「${targetBot.name}」连接正常，默认助手链路也已就绪。`
+          : `「${targetBot?.name ?? '当前机器人'}」连接正常，但还没有绑定默认助手。`,
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : '本地 runtime 健康检查失败';
       setBots((prev) =>
@@ -610,9 +627,15 @@ export function IMBotsView({ title, client }: { title: string; client: IClawClie
                   ...bot.auditLogs,
                 ],
               }
-            : bot,
+          : bot,
         ),
       );
+      pushAppNotification({
+        tone: 'error',
+        source: 'system',
+        title: '机器人测试失败',
+        text: targetBot ? `「${targetBot.name}」测试失败：${message}` : message,
+      });
     }
   };
 
@@ -792,7 +815,10 @@ export function IMBotsView({ title, client }: { title: string; client: IClawClie
                     bot={bot}
                     meta={meta}
                     onOpenDetails={() => setSelectedBotId(bot.id)}
-                    onRunConnectionTest={() => handleRunConnectionTest(bot.id)}
+                    onRunConnectionTest={() => {
+                      setSelectedBotId(bot.id);
+                      void handleRunConnectionTest(bot.id);
+                    }}
                     onToggleEnabled={() => handleToggleBot(bot.id)}
                   />
                 );
