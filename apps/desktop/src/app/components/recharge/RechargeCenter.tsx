@@ -1,6 +1,6 @@
 import { type MouseEvent as ReactMouseEvent, type RefObject, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { ArrowLeft, ArrowUpRight, Check, ChevronDown, Tag, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowUpRight, Check, CheckCircle2, ChevronDown, Clock3, ExternalLink, LoaderCircle, RefreshCw, Tag, X } from 'lucide-react';
 import { type IClawClient, type PaymentOrderData } from '@iclaw/sdk';
 import { cn } from '@/app/lib/cn';
 import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
@@ -133,6 +133,42 @@ function formatPlanPrice(plan: RechargePlan, cycle: BillingCycle): number {
   return cycle === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice;
 }
 
+function formatPaymentDeadline(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed.toLocaleString('zh-CN', {
+    hour12: false,
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function resolveOrderStatusLabel(status: PaymentOrderData['status']): string {
+  switch (status) {
+    case 'paid':
+      return '已支付';
+    case 'failed':
+      return '支付失败';
+    case 'expired':
+      return '已过期';
+    case 'refunded':
+      return '已退款';
+    case 'created':
+      return '待支付';
+    case 'pending':
+      return '支付中';
+    default:
+      return status;
+  }
+}
+
 function isDataImageUrl(value: string | null | undefined): boolean {
   return typeof value === 'string' && value.startsWith('data:image/');
 }
@@ -194,6 +230,7 @@ export function RechargeCenter({ client, token, onClose, onPaymentSettled, activ
   const handlePayNow = async () => {
     setCreatingOrder(true);
     setPaymentMessage(null);
+    setActiveOrder(null);
     const packageId = PLAN_PAYMENT_PACKAGE_MAP[selectedPlan][billingCycle];
 
     try {
@@ -230,9 +267,13 @@ export function RechargeCenter({ client, token, onClose, onPaymentSettled, activ
         if (cancelled) return;
         setActiveOrder(nextOrder);
         if (nextOrder.status === 'paid') {
-          await onPaymentSettled?.();
+          try {
+            await onPaymentSettled?.();
+          } catch (error) {
+            console.error('[desktop] failed to refresh balance after recharge', error);
+          }
           if (cancelled) return;
-          setPaymentMessage('支付成功，充值余额稍后到账。');
+          setPaymentMessage('支付成功，龙虾币已到账。');
         } else if (nextOrder.status === 'expired') {
           setPaymentMessage('支付订单已过期，请重新发起支付。');
         } else if (nextOrder.status === 'failed') {
@@ -293,7 +334,11 @@ export function RechargeCenter({ client, token, onClose, onPaymentSettled, activ
           activeOrder={activeOrder}
           displayPaymentUrl={displayPaymentUrl}
           launchPaymentUrl={launchPaymentUrl}
-          onPaymentMethodChange={setPaymentMethod}
+          onPaymentMethodChange={(method) => {
+            setPaymentMethod(method);
+            setActiveOrder(null);
+            setPaymentMessage(null);
+          }}
           planDropdownOpen={planDropdownOpen}
           onTogglePlanDropdown={() => setPlanDropdownOpen((current) => !current)}
           onSelectPlan={(plan) => {
@@ -313,6 +358,12 @@ export function RechargeCenter({ client, token, onClose, onPaymentSettled, activ
           creatingOrder={creatingOrder}
           paymentMessage={paymentMessage}
           onPayNow={handlePayNow}
+          onReopenPayment={() => {
+            if (launchPaymentUrl) {
+              const opened = openPaymentUrl(launchPaymentUrl);
+              setPaymentMessage(opened ? '支付页面已重新打开。' : '浏览器拦截了支付页，请手动重新打开。');
+            }
+          }}
           onPanelClick={(event) => event.stopPropagation()}
         />
       )}
@@ -550,6 +601,7 @@ function PaymentView({
   creatingOrder,
   paymentMessage,
   onPayNow,
+  onReopenPayment,
   onPanelClick,
 }: {
   billingCycle: BillingCycle;
@@ -569,8 +621,78 @@ function PaymentView({
   creatingOrder: boolean;
   paymentMessage: string | null;
   onPayNow: () => void;
+  onReopenPayment: () => void;
   onPanelClick: (event: ReactMouseEvent<HTMLDivElement>) => void;
 }) {
+  const orderStatus = activeOrder?.status || null;
+  const expiryLabel = formatPaymentDeadline(activeOrder?.expires_at || null);
+  const isPaid = orderStatus === 'paid';
+  const isFailed = orderStatus === 'failed';
+  const isExpired = orderStatus === 'expired';
+  const isAwaitingPayment = !creatingOrder && Boolean(activeOrder) && !isPaid && !isFailed && !isExpired;
+  const statusCard = creatingOrder
+    ? {
+        tone: 'border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-100',
+        icon: LoaderCircle,
+        iconClassName: 'animate-spin',
+        title: '正在创建支付订单',
+        description: '正在向支付渠道申请订单，请稍候。',
+      }
+    : isPaid
+      ? {
+          tone: 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-100',
+          icon: CheckCircle2,
+          iconClassName: '',
+          title: '充值成功',
+          description: '龙虾币已自动到账，当前页面余额会同步刷新。',
+        }
+      : isFailed
+        ? {
+            tone: 'border-red-200 bg-red-50 text-red-900 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-100',
+            icon: AlertCircle,
+            iconClassName: '',
+            title: '支付失败',
+            description: '本次订单未完成扣款，请重新发起支付或切换支付方式。',
+          }
+        : isExpired
+          ? {
+              tone: 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100',
+              icon: Clock3,
+              iconClassName: '',
+              title: '订单已过期',
+              description: '支付窗口已失效，需要重新创建一个新订单。',
+            }
+          : isAwaitingPayment
+            ? {
+                tone: 'border-sky-200 bg-sky-50 text-sky-900 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-100',
+                icon: Clock3,
+                iconClassName: '',
+                title: '等待完成支付',
+                description: '支付完成后将自动刷新状态并为当前账号充值。',
+              }
+            : {
+                tone: 'border-gray-200 bg-gray-50 text-gray-800 dark:border-[#2a3441] dark:bg-[#1a1f28] dark:text-gray-200',
+                icon: ArrowUpRight,
+                iconClassName: '',
+                title: '准备发起支付',
+                description: '请选择支付方式并创建订单，完成后会自动刷新龙虾币余额。',
+              };
+  const StatusIcon = statusCard.icon;
+  const primaryButtonLabel = creatingOrder
+    ? '创建订单中...'
+    : isPaid
+      ? '完成'
+      : isFailed || isExpired
+        ? '重新发起支付'
+        : activeOrder && launchPaymentUrl
+          ? '重新发起支付'
+          : '立即支付';
+  const primaryButtonTone = isPaid
+    ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+    : isFailed || isExpired
+      ? 'bg-[#E63946] text-white hover:bg-[#d92f3d]'
+      : 'bg-blue-500 text-white hover:bg-blue-600';
+
   return (
     <div
       className="max-h-[calc(100vh-32px)] w-full max-w-[1200px] overflow-auto rounded-[32px] bg-white shadow-xl dark:border dark:border-[#2a3441] dark:bg-[#1a1f28] dark:shadow-2xl"
@@ -678,6 +800,24 @@ function PaymentView({
             <h2 className="mb-2 text-2xl font-bold text-[#1a1a1a] dark:text-[#f0f2f5]">请选择方式扫码支付</h2>
             <p className="mb-8 text-sm text-gray-600 dark:text-gray-400">支持微信支付与支付宝，优先拉起外部收银台</p>
 
+            <div className={cn('mb-6 rounded-2xl border px-4 py-4', statusCard.tone)}>
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/70 text-current dark:bg-black/10">
+                  <StatusIcon className={cn('h-5 w-5', statusCard.iconClassName)} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">{statusCard.title}</p>
+                  <p className="mt-1 text-sm leading-6 opacity-90">{statusCard.description}</p>
+                  {activeOrder ? (
+                    <p className="mt-2 text-xs opacity-75">
+                      订单状态: {resolveOrderStatusLabel(activeOrder.status)}
+                      {expiryLabel && !isPaid ? ` · 有效至 ${expiryLabel}` : ''}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
             <div className="mb-8 flex gap-3">
               {(['wechat_qr', 'alipay_qr'] as PaymentMethod[]).map((method) => {
                 const meta = PAYMENT_METHOD_META[method];
@@ -688,10 +828,12 @@ function PaymentView({
                     onClick={() => onPaymentMethodChange(method)}
                     className={cn(
                       'flex-1 cursor-pointer rounded-xl py-3 font-medium transition-all',
+                      isPaid && 'cursor-not-allowed opacity-60',
                       selected
                         ? meta.accentClassName
                         : 'border-2 border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-[#2a3441] dark:bg-[#252d3a] dark:text-gray-400 dark:hover:border-[#3a4551]',
                     )}
+                    disabled={creatingOrder || isPaid}
                   >
                     {meta.label}
                   </button>
@@ -699,19 +841,39 @@ function PaymentView({
               })}
             </div>
 
-            <div className="mb-8 text-center">
+            <div className="mb-8 flex flex-col gap-3 text-center">
               <button
-                onClick={onPayNow}
+                onClick={isPaid ? onClose : onPayNow}
                 disabled={creatingOrder}
                 className={cn(
                   'w-full cursor-pointer rounded-xl py-3 font-medium transition-all',
                   creatingOrder
                     ? 'cursor-not-allowed bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500'
-                    : 'bg-blue-500 text-white hover:bg-blue-600',
+                    : primaryButtonTone,
                 )}
               >
-                {creatingOrder ? '创建订单中...' : activeOrder && launchPaymentUrl ? '重新发起支付' : '立即支付'}
+                {primaryButtonLabel}
               </button>
+              {isAwaitingPayment && launchPaymentUrl ? (
+                <button
+                  type="button"
+                  onClick={onReopenPayment}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white py-3 text-sm font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 dark:border-[#2a3441] dark:bg-[#252d3a] dark:text-gray-200 dark:hover:border-[#435064] dark:hover:bg-[#2a3441]"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  重新打开支付页
+                </button>
+              ) : null}
+              {(isFailed || isExpired) && activeOrder ? (
+                <button
+                  type="button"
+                  onClick={() => onPaymentMethodChange(paymentMethod)}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white py-3 text-sm font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 dark:border-[#2a3441] dark:bg-[#252d3a] dark:text-gray-200 dark:hover:border-[#435064] dark:hover:bg-[#2a3441]"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  清空当前订单后重选方式
+                </button>
+              ) : null}
             </div>
 
             <div className="mb-8 text-center">
@@ -734,6 +896,30 @@ function PaymentView({
                     alt={`${paymentMethod === 'wechat_qr' ? '微信' : '支付宝'}支付二维码`}
                     className="h-48 w-48 border-2 border-gray-300 bg-white object-cover"
                   />
+                ) : isPaid ? (
+                  <div className="flex h-48 w-48 flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-emerald-200 bg-emerald-50 text-center dark:border-emerald-900/60 dark:bg-emerald-950/30">
+                    <CheckCircle2 className="h-12 w-12 text-emerald-500" />
+                    <div>
+                      <p className="text-base font-semibold text-emerald-700 dark:text-emerald-200">充值已完成</p>
+                      <p className="mt-1 text-xs leading-5 text-emerald-600/80 dark:text-emerald-200/70">龙虾币已到账，可直接关闭窗口继续使用。</p>
+                    </div>
+                  </div>
+                ) : isFailed ? (
+                  <div className="flex h-48 w-48 flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-red-200 bg-red-50 px-5 text-center dark:border-red-900/60 dark:bg-red-950/30">
+                    <AlertCircle className="h-12 w-12 text-red-500" />
+                    <div>
+                      <p className="text-base font-semibold text-red-700 dark:text-red-200">支付失败</p>
+                      <p className="mt-1 text-xs leading-5 text-red-600/80 dark:text-red-200/70">没有发生充值，请重新发起支付。</p>
+                    </div>
+                  </div>
+                ) : isExpired ? (
+                  <div className="flex h-48 w-48 flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-amber-200 bg-amber-50 px-5 text-center dark:border-amber-900/60 dark:bg-amber-950/30">
+                    <Clock3 className="h-12 w-12 text-amber-500" />
+                    <div>
+                      <p className="text-base font-semibold text-amber-700 dark:text-amber-200">订单已失效</p>
+                      <p className="mt-1 text-xs leading-5 text-amber-600/80 dark:text-amber-200/70">当前订单不能继续支付，需要重新创建。</p>
+                    </div>
+                  </div>
                 ) : launchPaymentUrl ? (
                   <div className="flex h-48 w-48 flex-col items-center justify-center gap-3 border-2 border-dashed border-gray-300 bg-white px-5 text-center">
                     <p className="text-sm font-medium text-gray-700">支付页已生成</p>
@@ -757,13 +943,16 @@ function PaymentView({
                   ? paymentMethod === 'wechat_qr'
                     ? '请使用微信扫描二维码完成支付'
                     : '请使用支付宝扫描二维码完成支付'
+                  : isPaid
+                    ? '支付已完成，充值金额已经写入当前账号。'
+                    : isFailed
+                      ? '支付未成功，本次不会充值龙虾币。'
+                      : isExpired
+                        ? '订单已过期，请重新创建后再支付。'
                   : launchPaymentUrl
                     ? '请在浏览器打开的支付页中完成付款，当前窗口会持续同步订单状态。'
                     : '点击“立即支付”后将跳转到收银台或生成二维码。'}
               </p>
-              {activeOrder ? (
-                <p className="mt-2 text-center text-xs text-gray-400">订单状态: {activeOrder.status}</p>
-              ) : null}
               {paymentMessage ? (
                 <p className="mt-3 text-center text-xs text-gray-500 dark:text-gray-500">{paymentMessage}</p>
               ) : null}
