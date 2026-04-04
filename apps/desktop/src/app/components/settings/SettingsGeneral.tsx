@@ -26,10 +26,10 @@ const themeOptions: Array<{
 ];
 
 const fontSizeOptions: Array<{ value: ContentFontSize; label: string }> = [
-  { value: 'small', label: '小' },
-  { value: 'medium', label: '中' },
-  { value: 'large', label: '大' },
-  { value: 'xlarge', label: '更大' },
+  { value: 'small', label: '12px' },
+  { value: 'medium', label: '14px' },
+  { value: 'large', label: '16px' },
+  { value: 'xlarge', label: '18px' },
 ];
 
 const languageOptions: Array<{ value: GeneralLanguage; label: string }> = [

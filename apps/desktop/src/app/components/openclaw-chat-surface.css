@@ -1010,18 +1010,23 @@ body {
 }
 
 :root[data-content-font-size='small'] .openclaw-chat-surface .chat-text {
-  font-size: 13px;
-  line-height: 1.8;
+  font-size: 12px;
+  line-height: 1.75;
+}
+
+:root[data-content-font-size='medium'] .openclaw-chat-surface .chat-text {
+  font-size: 14px;
+  line-height: 1.9;
 }
 
 :root[data-content-font-size='large'] .openclaw-chat-surface .chat-text {
-  font-size: 15px;
-  line-height: 1.95;
+  font-size: 16px;
+  line-height: 2;
 }
 
 :root[data-content-font-size='xlarge'] .openclaw-chat-surface .chat-text {
-  font-size: 16px;
-  line-height: 2;
+  font-size: 18px;
+  line-height: 2.05;
 }
 
 .openclaw-chat-surface .chat-text :where(p, ul, ol, pre, blockquote, table) {
