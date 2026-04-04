@@ -79,23 +79,21 @@ function CapabilityCard({ capability }: { capability: CapabilityEntry }) {
   return (
     <PressableCard className="rounded-[28px] border-[var(--border-default)] p-5">
       <div className="flex h-full flex-col gap-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <Chip tone="brand" className="rounded-full px-2.5 py-1 text-[11px] uppercase tracking-[0.1em]">
-              {capability.category}
-            </Chip>
-            <h3 className="mt-3 text-[18px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
-              {capability.title}
-            </h3>
-            <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{capability.subtitle}</p>
-          </div>
+        <div className="min-w-0">
+          <Chip tone="brand" className="rounded-full px-2.5 py-1 text-[11px] uppercase tracking-[0.1em]">
+            {capability.category}
+          </Chip>
+          <h3 className="mt-3 text-[18px] font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
+            {capability.title}
+          </h3>
+          <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{capability.subtitle}</p>
           {capability.status ? (
             <Chip
               tone={capability.status === '已支持' ? 'success' : 'warning'}
               leadingIcon={
                 capability.status === '已支持' ? <Check className="h-3 w-3" /> : <Clock3 className="h-3 w-3" />
               }
-              className="rounded-full px-2.5 py-1 text-[11px]"
+              className="mt-3 inline-flex rounded-full px-2.5 py-1 text-[11px]"
             >
               {capability.status}
             </Chip>
