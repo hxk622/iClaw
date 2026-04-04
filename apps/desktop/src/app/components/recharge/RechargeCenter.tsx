@@ -8,6 +8,7 @@ import {
   Clock3,
   Coins,
   Crown,
+  FolderCog,
   LoaderCircle,
   RefreshCw,
   Sparkles,
@@ -22,57 +23,6 @@ import {INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE} from '@/app/lib/ui-interaction
 type PaymentMethod = 'wechat_qr' | 'alipay_qr';
 type RechargeStep = 'packages' | 'payment';
 type RechargePackage = ResolvedRechargePackageConfig;
-
-const FALLBACK_RECHARGE_PACKAGES: RechargePackage[] = [
-  {
-    packageId: 'topup_1000',
-    packageName: '1000 龙虾币',
-    credits: 1000,
-    bonusCredits: 100,
-    totalCredits: 1100,
-    amountCnyFen: 1000,
-    sortOrder: 10,
-    recommended: false,
-    default: false,
-    description: '轻量补充，适合临时续航。',
-    badgeLabel: '入门',
-    highlight: '实得 1,100 龙虾币',
-    featureList: ['基础到账 1,000 龙虾币', '额外赠送 100 龙虾币', '一次性充值，不会自动续费'],
-    metadata: {},
-  },
-  {
-    packageId: 'topup_3000',
-    packageName: '3000 龙虾币',
-    credits: 3000,
-    bonusCredits: 400,
-    totalCredits: 3400,
-    amountCnyFen: 3000,
-    sortOrder: 20,
-    recommended: true,
-    default: true,
-    description: '主力充值包，覆盖日常高频使用。',
-    badgeLabel: '最常用',
-    highlight: '实得 3,400 龙虾币',
-    featureList: ['基础到账 3,000 龙虾币', '额外赠送 400 龙虾币', '一次性充值，不会自动续费'],
-    metadata: {},
-  },
-  {
-    packageId: 'topup_5000',
-    packageName: '5000 龙虾币',
-    credits: 5000,
-    bonusCredits: 800,
-    totalCredits: 5800,
-    amountCnyFen: 5000,
-    sortOrder: 30,
-    recommended: false,
-    default: false,
-    description: '高频工作流补能，适合持续重度使用。',
-    badgeLabel: '高配',
-    highlight: '实得 5,800 龙虾币',
-    featureList: ['基础到账 5,000 龙虾币', '额外赠送 800 龙虾币', '一次性充值，不会自动续费'],
-    metadata: {},
-  },
-];
 
 const PANEL_OVERLAY_CLASS =
   'fixed inset-0 z-50 flex items-center justify-center bg-[rgba(8,12,20,0.24)] p-4 backdrop-blur-[4px] dark:bg-[rgba(0,0,0,0.44)] md:p-8';
@@ -142,15 +92,41 @@ function formatOrderIdShort(orderId: string | null | undefined): string | null {
   return orderId.length > 12 ? `${orderId.slice(0, 6)} · ${orderId.slice(-4)}` : orderId;
 }
 
+function PaymentMethodGlyph({paymentMethod, className}: {paymentMethod: PaymentMethod; className?: string}) {
+  if (paymentMethod === 'wechat_qr') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+        <path
+          fill="currentColor"
+          d="M9.11 4.1c-4 0-7.11 2.58-7.11 5.85 0 1.86 1.03 3.52 2.66 4.61L3.98 17l2.55-1.25c.82.18 1.69.28 2.58.28 4 0 7.12-2.58 7.12-5.85S13.11 4.1 9.11 4.1Zm-2.48 4.8a.78.78 0 1 1 0-1.56.78.78 0 0 1 0 1.56Zm4.96 0a.78.78 0 1 1 0-1.56.78.78 0 0 1 0 1.56Z"
+        />
+        <path
+          fill="currentColor"
+          d="M16.98 8.9c-3.08 0-5.57 2.06-5.57 4.66 0 1.43.75 2.72 1.95 3.59l-.52 1.82 1.95-.96c.66.14 1.34.21 2.03.21 3.08 0 5.57-2.06 5.57-4.66S20.06 8.9 16.98 8.9Zm-1.79 3.86a.62.62 0 1 1 0-1.24.62.62 0 0 1 0 1.24Zm3.58 0a.62.62 0 1 1 0-1.24.62.62 0 0 1 0 1.24Z"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <path
+        fill="currentColor"
+        d="M12 3.2c-4.92 0-8.9 3.98-8.9 8.9S7.08 21 12 21s8.9-3.98 8.9-8.9S16.92 3.2 12 3.2Zm3.8 10.72h-1.94l-.58-1.45H9.91l-.55 1.45H7.42L11 5.7h2.08l3.72 8.22Zm-3.16-3.03-1-2.45-1.03 2.45h2.03Z"
+      />
+    </svg>
+  );
+}
+
 function PaymentBrandLogo({paymentMethod}: {paymentMethod: PaymentMethod}) {
   return (
     <div
       className={cn(
-        'flex h-14 w-14 items-center justify-center rounded-md text-[11px] font-semibold text-white shadow-sm',
+        'flex h-14 w-14 items-center justify-center rounded-md text-white shadow-sm',
         paymentMethod === 'wechat_qr' ? 'bg-[#07C160]' : 'bg-[#1677FF]',
       )}
     >
-      {paymentMethod === 'wechat_qr' ? '微信' : '支付宝'}
+      <PaymentMethodGlyph paymentMethod={paymentMethod} className="h-8 w-8" />
     </div>
   );
 }
@@ -254,7 +230,7 @@ function getDefaultPackageId(packages: RechargePackage[]): string {
     packages.find((item) => item.default)?.packageId ||
     packages.find((item) => item.recommended)?.packageId ||
     packages[0]?.packageId ||
-    FALLBACK_RECHARGE_PACKAGES[0]!.packageId
+    ''
   );
 }
 
@@ -286,13 +262,10 @@ export function RechargeCenter({
   const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
   const [generatedLaunchQrUrl, setGeneratedLaunchQrUrl] = useState<string | null>(null);
   const [autoCreateOrderToken, setAutoCreateOrderToken] = useState(0);
-  const [selectedPackageId, setSelectedPackageId] = useState<string>(getDefaultPackageId(FALLBACK_RECHARGE_PACKAGES));
+  const [selectedPackageId, setSelectedPackageId] = useState<string>('');
   const createOrderAbortRef = useRef<AbortController | null>(null);
 
-  const availablePackages = useMemo(() => {
-    const resolved = resolveRechargePackageConfig(runtimeConfig);
-    return resolved && resolved.length ? resolved : FALLBACK_RECHARGE_PACKAGES;
-  }, [runtimeConfig]);
+  const availablePackages = useMemo(() => resolveRechargePackageConfig(runtimeConfig) ?? [], [runtimeConfig]);
   const defaultPackageId = useMemo(() => getDefaultPackageId(availablePackages), [availablePackages]);
   const currentPackage =
     useMemo(
@@ -300,10 +273,10 @@ export function RechargeCenter({
         availablePackages.find((item) => item.packageId === selectedPackageId) ||
         availablePackages.find((item) => item.packageId === defaultPackageId) ||
         availablePackages[0] ||
-        FALLBACK_RECHARGE_PACKAGES[0]!,
+        null,
       [availablePackages, defaultPackageId, selectedPackageId],
-    ) || FALLBACK_RECHARGE_PACKAGES[0]!;
-  const totalPrice = formatPriceAmount(currentPackage.amountCnyFen);
+    ) || null;
+  const totalPrice = formatPriceAmount(currentPackage?.amountCnyFen || 0);
   const displayPaymentUrl = isDataImageUrl(activeOrder?.payment_url) ? activeOrder?.payment_url || null : null;
   const launchPaymentUrl =
     activeOrder?.payment_url && !isDataImageUrl(activeOrder.payment_url) ? activeOrder.payment_url : null;
@@ -345,6 +318,10 @@ export function RechargeCenter({
   }, [displayPaymentUrl, launchPaymentUrl]);
 
   useEffect(() => {
+    if (!availablePackages.length) {
+      setSelectedPackageId('');
+      return;
+    }
     if (availablePackages.some((item) => item.packageId === selectedPackageId)) {
       return;
     }
@@ -360,6 +337,10 @@ export function RechargeCenter({
   useEffect(() => () => cancelPendingCreateOrder(), []);
 
   const handlePayNow = async () => {
+    if (!currentPackage) {
+      setPaymentMessage('当前未配置可充值套餐，请先在 admin-web 发布充值配置。');
+      return;
+    }
     cancelPendingCreateOrder();
     const controller = new AbortController();
     createOrderAbortRef.current = controller;
@@ -471,6 +452,9 @@ export function RechargeCenter({
   }, [active, activeOrder?.status, onClose]);
 
   const openPayment = (packageId: string) => {
+    if (!availablePackages.some((item) => item.packageId === packageId)) {
+      return;
+    }
     flushSync(() => {
       setSelectedPackageId(packageId);
       setPaymentMessage(null);
@@ -495,13 +479,13 @@ export function RechargeCenter({
       <div className="relative w-full">
         <PackageSelectionView
           packages={availablePackages}
-          selectedPackageId={currentPackage.packageId}
+          selectedPackageId={currentPackage?.packageId || selectedPackageId}
           onPackageSelect={setSelectedPackageId}
           onClose={onClose}
           onContinue={openPayment}
         />
 
-        {step === 'payment' ? (
+        {step === 'payment' && currentPackage ? (
           <div
             className="absolute inset-0 flex items-center justify-center rounded-[32px] bg-[rgba(248,250,252,0.72)] px-4 py-4 backdrop-blur-[6px] dark:bg-[rgba(8,12,20,0.52)]"
             onClick={(event) => {
@@ -579,7 +563,8 @@ function PackageSelectionView({
         </div>
       </div>
 
-      <div className="mx-auto grid max-w-[1060px] grid-cols-3 gap-5">
+      {packages.length ? (
+        <div className="mx-auto grid max-w-[1060px] grid-cols-3 gap-5">
         {packages.map((item, index) => {
           const selected = item.packageId === selectedPackageId;
           const priceLabel = formatPriceAmount(item.amountCnyFen);
@@ -667,7 +652,18 @@ function PackageSelectionView({
             </div>
           );
         })}
-      </div>
+        </div>
+      ) : (
+        <div className="mx-auto flex max-w-[780px] flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 px-10 py-16 text-center dark:border-gray-700 dark:bg-[#181818]">
+          <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900">
+            <FolderCog className="h-7 w-7" />
+          </div>
+          <h2 className="mt-5 text-[20px] font-semibold text-gray-900 dark:text-gray-100">暂未配置充值套餐</h2>
+          <p className="mt-3 max-w-[520px] text-[14px] leading-7 text-gray-500 dark:text-gray-400">
+            当前充值中心不再使用前端写死套餐。请先在 `admin-web` 配置并发布 recharge packages，桌面端会按运行时配置自动展示。
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -822,6 +818,7 @@ function PaymentView({
                 methodTheme.accentTextClassName,
               )}
             >
+              <PaymentMethodGlyph paymentMethod={paymentMethod} className="h-3.5 w-3.5" />
               {methodTheme.label}
             </div>
           </div>
@@ -940,11 +937,11 @@ function PaymentView({
                   >
                     <div
                       className={cn(
-                        'flex h-9 w-9 shrink-0 items-center justify-center rounded text-[11px] font-semibold text-white',
+                        'flex h-9 w-9 shrink-0 items-center justify-center rounded text-white',
                         method === 'wechat_qr' ? 'bg-[#07C160]' : 'bg-[#1677FF]',
                       )}
                     >
-                      {method === 'wechat_qr' ? '微信' : '支付宝'}
+                      <PaymentMethodGlyph paymentMethod={method} className="h-5 w-5" />
                     </div>
                     <span className="text-[14px] font-medium text-gray-900 dark:text-gray-100">
                       {method === 'wechat_qr' ? '微信支付' : '支付宝'}
