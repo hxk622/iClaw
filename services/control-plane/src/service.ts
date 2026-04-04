@@ -675,6 +675,9 @@ function toAdminPaymentGatewayConfigView(state: ResolvedPaymentGatewayConfigStat
       partner_id: state.configValues.partner_id,
       gateway: state.configValues.gateway,
     },
+    secret_values: {
+      key: String(state.secretValues.key || '').trim(),
+    },
     configured_secret_keys: state.configuredSecretKeys,
     completeness_status: missingFields.length === 0 ? 'configured' : 'missing',
     missing_fields: missingFields,

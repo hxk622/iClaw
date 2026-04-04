@@ -9718,6 +9718,7 @@ function getPaymentGatewayConfigView() {
     provider: String(value.provider || 'epay').trim() || 'epay',
     source: String(value.source || 'unset').trim() || 'unset',
     config: asObject(value.config),
+    secret_values: asObject(value.secret_values),
     configured_secret_keys: asStringArray(value.configured_secret_keys),
     completeness_status: String(value.completeness_status || 'missing').trim() || 'missing',
     missing_fields: asStringArray(value.missing_fields),
@@ -12753,6 +12754,7 @@ function renderPaymentProviderConfigPage() {
   const scopeKey = selectedBrand ? selectedBrand.brandId : 'platform';
   const gatewayConfig = getPaymentGatewayConfigView();
   const gatewayConfigValues = asObject(gatewayConfig.config);
+  const gatewaySecretValues = asObject(gatewayConfig.secret_values);
   const gatewayConfiguredSecrets = Array.isArray(gatewayConfig.configured_secret_keys) ? gatewayConfig.configured_secret_keys : [];
   const gatewayMissingFields = Array.isArray(gatewayConfig.missing_fields) ? gatewayConfig.missing_fields : [];
   const selectedBrandDetail = selectedBrand ? state.portalAppDetails[selectedBrand.brandId] || null : null;
@@ -12897,7 +12899,7 @@ function renderPaymentProviderConfigPage() {
                   </label>
                   <label class="field field--wide">
                     <span>key</span>
-                    <input class="field-input" name="key" value="" placeholder="${gatewayConfiguredSecrets.includes('key') ? '已配置，留空表示清空并改为 admin 值' : '准付签名 key'}" />
+                    <input class="field-input" name="key" value="${fieldValue(gatewaySecretValues.key || '')}" placeholder="准付签名 key" />
                   </label>
                 </div>
                 <div class="fig-card fig-card--subtle" style="margin-top:16px;">

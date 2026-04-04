@@ -329,6 +329,9 @@ test('admin payment gateway config persists and returns exact values from contro
     assert.equal(saved.source, 'admin');
     assert.equal(saved.config.partner_id, 'platform-partner-001');
     assert.equal(saved.config.gateway, 'https://epay.example.com/submit.php');
+    assert.deepEqual(saved.secret_values, {
+      key: 'platform-key-xyz',
+    });
     assert.deepEqual(saved.configured_secret_keys, ['key']);
     assert.equal(saved.completeness_status, 'configured');
     assert.deepEqual(saved.missing_fields, []);
@@ -338,6 +341,9 @@ test('admin payment gateway config persists and returns exact values from contro
     assert.deepEqual(fetched.config, {
       partner_id: 'platform-partner-001',
       gateway: 'https://epay.example.com/submit.php',
+    });
+    assert.deepEqual(fetched.secret_values, {
+      key: 'platform-key-xyz',
     });
     assert.deepEqual(fetched.configured_secret_keys, ['key']);
     assert.equal(fetched.completeness_status, 'configured');

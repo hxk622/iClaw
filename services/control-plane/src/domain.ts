@@ -500,6 +500,9 @@ export type AdminPaymentGatewayConfigView = {
     partner_id: string;
     gateway: string;
   };
+  secret_values: {
+    key: string;
+  };
   configured_secret_keys: string[];
   completeness_status: 'configured' | 'missing';
   missing_fields: string[];
