@@ -636,26 +636,6 @@ type ResolvedPaymentProviderProfile = {
   missingFields: string[];
 };
 
-export const TOPUP_PACKAGES = new Map<
-  string,
-  {
-    packageName: string;
-    credits: number;
-    bonusCredits: number;
-    amountCnyFen: number;
-  }
->([
-  ['topup_1000', {packageName: '1000 龙虾币', credits: 1000, bonusCredits: 100, amountCnyFen: 1000}],
-  ['topup_3000', {packageName: '3000 龙虾币', credits: 3000, bonusCredits: 400, amountCnyFen: 3000}],
-  ['topup_5000', {packageName: '5000 龙虾币', credits: 5000, bonusCredits: 800, amountCnyFen: 5000}],
-  ['plan_plus_monthly', {packageName: '高级版（月套餐）', credits: 8800, bonusCredits: 0, amountCnyFen: 4000}],
-  ['plan_plus_yearly', {packageName: '高级版（年套餐）', credits: 105600, bonusCredits: 0, amountCnyFen: 38400}],
-  ['plan_pro_monthly', {packageName: '专业版（月套餐）', credits: 17600, bonusCredits: 0, amountCnyFen: 8000}],
-  ['plan_pro_yearly', {packageName: '专业版（年套餐）', credits: 211200, bonusCredits: 0, amountCnyFen: 76800}],
-  ['plan_ultra_monthly', {packageName: '旗舰版（月套餐）', credits: 44000, bonusCredits: 0, amountCnyFen: 20000}],
-  ['plan_ultra_yearly', {packageName: '旗舰版（年套餐）', credits: 528000, bonusCredits: 0, amountCnyFen: 192000}],
-]);
-
 function slugifyUsername(value: string): string {
   const base = value
     .trim()
@@ -1912,11 +1892,18 @@ export class ControlPlaneService {
     const platform = (input.platform || '').trim();
     const arch = (input.arch || '').trim();
     const userAgent = (input.user_agent || '').trim();
-    const packageConfig = TOPUP_PACKAGES.get(packageId);
+    const packageConfig = await this.store.resolveRechargePackage(packageId, appName || null);
     if (!packageConfig) {
       throw new HttpError(400, 'BAD_REQUEST', 'invalid package_id');
     }
     const paymentProfileResolution = await this.resolvePaymentProviderProfileForOrder(provider, appName || null);
+    if ((provider === 'wechat_qr' || provider === 'alipay_qr') && !epayService.isEnabled()) {
+      throw new HttpError(
+        503,
+        'SERVICE_UNAVAILABLE',
+        '支付通道未配置，请设置 EPAY_PARTNER_ID / EPAY_KEY / EPAY_GATEWAY 并重启 control-plane',
+      );
+    }
     const orderId = randomUUID();
     const checkout =
       epayService.isEnabled() && (provider === 'wechat_qr' || provider === 'alipay_qr')
@@ -1944,8 +1931,12 @@ export class ControlPlaneService {
       metadata: {
         ...paymentProfileResolution.metadata,
         ...(checkout?.metadata || {}),
+        recharge_source_layer: packageConfig.sourceLayer,
       },
-      ...packageConfig,
+      packageName: packageConfig.packageName,
+      credits: packageConfig.credits,
+      bonusCredits: packageConfig.bonusCredits,
+      amountCnyFen: packageConfig.amountCnyFen,
     });
     return toPaymentOrderView(order);
   }

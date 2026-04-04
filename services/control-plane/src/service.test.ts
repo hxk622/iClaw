@@ -213,6 +213,29 @@ test('non-admin users cannot access admin skill catalog APIs', async () => {
   });
 });
 
+test('payment orders without checkout urls stay empty instead of falling back to placeholder qr payloads', async () => {
+  const store = new InMemoryControlPlaneStore();
+  const order = await store.createPaymentOrder('user_123', {
+    provider: 'wechat_qr',
+    package_id: 'topup_3000',
+    return_url: '',
+    app_name: 'iclaw',
+    app_version: '1.0.0',
+    release_channel: 'dev',
+    platform: 'darwin',
+    arch: 'arm64',
+    user_agent: 'desktop-test',
+    payment_url: null,
+    packageName: '3000 龙虾币',
+    credits: 3000,
+    bonusCredits: 400,
+    amountCnyFen: 3000,
+    metadata: {},
+  });
+
+  assert.equal(order.paymentUrl, null);
+});
+
 test('credits ledger orders usage debits by assistant timestamp instead of settlement time', async () => {
   const store = new InMemoryControlPlaneStore();
   const service = new ControlPlaneService(store);

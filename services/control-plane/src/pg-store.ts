@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto';
-import {readFile} from 'node:fs/promises';
-import {dirname, resolve} from 'node:path';
+import {readdir, readFile} from 'node:fs/promises';
+import {basename, dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 import {Pool, type PoolClient} from 'pg';
@@ -8,6 +8,10 @@ import { toCanonicalSessionKey } from '@iclaw/shared';
 
 import {config} from './config.ts';
 import {createPgPool} from './pg-connection.ts';
+import {
+  DEFAULT_PLATFORM_RECHARGE_PACKAGE_SEEDS,
+  type ResolvedRechargePackageRecord,
+} from './recharge-packages.ts';
 import type {
   AdminPaymentOrderDetailRecord,
   AdminPaymentOrderSummaryRecord,
@@ -67,7 +71,6 @@ import type {
   WorkspaceBackupInput,
   WorkspaceBackupRecord,
 } from './domain.ts';
-import {buildPlaceholderPaymentUrl} from './payment-placeholders.ts';
 import type {ControlPlaneStore} from './store.ts';
 import {startOfNextShanghaiDayIso} from './time.ts';
 
@@ -970,31 +973,118 @@ function mapUserAgentLibraryRow(row: UserAgentLibraryRow): UserAgentLibraryRecor
 }
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const schemaPath = resolve(repoRoot, 'services/control-plane/sql/001_init.sql');
+const schemaDir = resolve(repoRoot, 'services/control-plane/sql');
+
+async function readSchemaMigrationPaths(): Promise<string[]> {
+  const entries = await readdir(schemaDir, {withFileTypes: true});
+  return entries
+    .filter((entry) => {
+      if (!entry.isFile()) {
+        return false;
+      }
+      const match = entry.name.match(/^(\d+).+\.sql$/i);
+      if (!match) {
+        return false;
+      }
+      return Number(match[1]) >= 1;
+    })
+    .map((entry) => resolve(schemaDir, entry.name))
+    .sort((left, right) => basename(left).localeCompare(basename(right), 'en'));
+}
+
+async function ensureRechargePackageSchema(pool: Pool): Promise<void> {
+  await pool.query(`
+    create table if not exists platform_recharge_package_catalog (
+      package_id text primary key,
+      package_name text not null,
+      credits bigint not null,
+      bonus_credits bigint not null default 0,
+      amount_cny_fen integer not null,
+      sort_order integer not null default 100,
+      recommended boolean not null default false,
+      is_default boolean not null default false,
+      metadata_json jsonb not null default '{}'::jsonb,
+      active boolean not null default true,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+
+    create table if not exists oem_app_recharge_package_bindings (
+      app_name text not null references oem_apps(app_name) on delete cascade,
+      package_id text not null references platform_recharge_package_catalog(package_id) on delete cascade,
+      enabled boolean not null default true,
+      sort_order integer not null default 100,
+      recommended boolean not null default false,
+      is_default boolean not null default false,
+      config_json jsonb not null default '{}'::jsonb,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now(),
+      primary key (app_name, package_id)
+    );
+
+    create index if not exists idx_platform_recharge_package_catalog_sort
+      on platform_recharge_package_catalog(sort_order, package_id);
+
+    create index if not exists idx_oem_app_recharge_package_bindings_app_sort
+      on oem_app_recharge_package_bindings(app_name, sort_order, package_id);
+  `);
+
+  for (const seed of DEFAULT_PLATFORM_RECHARGE_PACKAGE_SEEDS) {
+    await pool.query(
+      `
+        insert into platform_recharge_package_catalog (
+          package_id,
+          package_name,
+          credits,
+          bonus_credits,
+          amount_cny_fen,
+          sort_order,
+          recommended,
+          is_default,
+          metadata_json,
+          active,
+          created_at,
+          updated_at
+        )
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, now(), now())
+        on conflict (package_id)
+        do update set
+          package_name = excluded.package_name,
+          credits = excluded.credits,
+          bonus_credits = excluded.bonus_credits,
+          amount_cny_fen = excluded.amount_cny_fen,
+          sort_order = excluded.sort_order,
+          recommended = excluded.recommended,
+          is_default = excluded.is_default,
+          metadata_json = excluded.metadata_json,
+          active = excluded.active,
+          updated_at = now()
+      `,
+      [
+        seed.packageId,
+        seed.packageName,
+        seed.credits,
+        seed.bonusCredits,
+        seed.amountCnyFen,
+        seed.sortOrder,
+        seed.recommended,
+        seed.default,
+        JSON.stringify(seed.metadata || {}),
+        seed.active !== false,
+      ],
+    );
+  }
+}
 
 export async function ensureControlPlaneSchema(databaseUrl: string): Promise<void> {
   const pool = createPgPool(databaseUrl, 'control-plane-schema');
   try {
-    const schemaCheck = await pool.query<{
-      users_relation_kind: string | null;
-      portal_apps_relation_kind: string | null;
-      cloud_skill_catalog_relation_kind: string | null;
-    }>(`
-      select
-        (select c.relkind::text from pg_class c where c.oid = to_regclass('users')) as users_relation_kind,
-        (select c.relkind::text from pg_class c where c.oid = to_regclass('oem_apps')) as portal_apps_relation_kind,
-        (select c.relkind::text from pg_class c where c.oid = to_regclass('cloud_skill_catalog')) as cloud_skill_catalog_relation_kind
-    `);
-    const existingSchema = schemaCheck.rows[0];
-    if (
-      existingSchema?.users_relation_kind === 'r' &&
-      existingSchema.portal_apps_relation_kind === 'r' &&
-      existingSchema.cloud_skill_catalog_relation_kind === 'r'
-    ) {
-      return;
+    const migrationPaths = await readSchemaMigrationPaths();
+    for (const migrationPath of migrationPaths) {
+      const sql = await readFile(migrationPath, 'utf8');
+      await pool.query(sql);
     }
-    const sql = await readFile(schemaPath, 'utf8');
-    await pool.query(sql);
+    await ensureRechargePackageSchema(pool);
   } finally {
     await pool.end();
   }
@@ -1729,15 +1819,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         input.credits,
         input.bonusCredits,
         input.amountCnyFen,
-        typeof input.payment_url === 'string' && input.payment_url.trim()
-          ? input.payment_url.trim()
-          : buildPlaceholderPaymentUrl({
-              provider: input.provider as PaymentProvider,
-              orderId,
-              packageName: input.packageName,
-              amountCnyFen: input.amountCnyFen,
-              expiresAt: expiresAt.toISOString(),
-            }),
+        typeof input.payment_url === 'string' && input.payment_url.trim() ? input.payment_url.trim() : null,
         expiresAt,
         JSON.stringify({
           app_name: input.app_name || null,
@@ -1819,6 +1901,149 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       );
     }
     return result.rows[0] ? mapPaymentOrderRow(result.rows[0]) : null;
+  }
+
+  async resolveRechargePackage(
+    packageId: string,
+    appName?: string | null,
+  ): Promise<ResolvedRechargePackageRecord | null> {
+    const normalizedPackageId = packageId.trim();
+    const normalizedAppName = (appName || '').trim();
+    if (!normalizedPackageId) {
+      return null;
+    }
+
+    if (normalizedAppName) {
+      const bindingPresence = await this.pool.query<{has_bindings: boolean}>(
+        `
+          select exists(
+            select 1
+            from oem_app_recharge_package_bindings
+            where app_name = $1
+              and enabled = true
+          ) as has_bindings
+        `,
+        [normalizedAppName],
+      );
+      if (bindingPresence.rows[0]?.has_bindings) {
+        const boundResult = await this.pool.query<{
+          package_id: string;
+          package_name: string;
+          credits: string | number;
+          bonus_credits: string | number;
+          amount_cny_fen: number;
+          sort_order: number;
+          recommended: boolean;
+          is_default: boolean;
+          metadata_json: Record<string, unknown> | null;
+          active: boolean;
+          created_at: Date;
+          updated_at: Date;
+          config_json: Record<string, unknown> | null;
+        }>(
+          `
+            select
+              c.package_id,
+              c.package_name,
+              c.credits,
+              c.bonus_credits,
+              c.amount_cny_fen,
+              b.sort_order,
+              b.recommended,
+              b.is_default,
+              c.metadata_json,
+              c.active,
+              c.created_at,
+              c.updated_at,
+              b.config_json
+            from oem_app_recharge_package_bindings b
+            join platform_recharge_package_catalog c on c.package_id = b.package_id
+            where b.app_name = $1
+              and b.package_id = $2
+              and b.enabled = true
+              and c.active = true
+            limit 1
+          `,
+          [normalizedAppName, normalizedPackageId],
+        );
+        const row = boundResult.rows[0];
+        if (!row) {
+          return null;
+        }
+        return {
+          packageId: row.package_id,
+          packageName: row.package_name,
+          credits: parseDbNumber(row.credits),
+          bonusCredits: parseDbNumber(row.bonus_credits),
+          amountCnyFen: Number(row.amount_cny_fen || 0),
+          sortOrder: Number(row.sort_order || 100),
+          recommended: row.recommended === true,
+          default: row.is_default === true,
+          metadata: parseJsonObject(row.metadata_json),
+          active: row.active !== false,
+          createdAt: row.created_at.toISOString(),
+          updatedAt: row.updated_at.toISOString(),
+          sourceLayer: 'oem_binding',
+          bindingConfig: parseJsonObject(row.config_json),
+        };
+      }
+    }
+
+    const result = await this.pool.query<{
+      package_id: string;
+      package_name: string;
+      credits: string | number;
+      bonus_credits: string | number;
+      amount_cny_fen: number;
+      sort_order: number;
+      recommended: boolean;
+      is_default: boolean;
+      metadata_json: Record<string, unknown> | null;
+      active: boolean;
+      created_at: Date;
+      updated_at: Date;
+    }>(
+      `
+        select
+          package_id,
+          package_name,
+          credits,
+          bonus_credits,
+          amount_cny_fen,
+          sort_order,
+          recommended,
+          is_default,
+          metadata_json,
+          active,
+          created_at,
+          updated_at
+        from platform_recharge_package_catalog
+        where package_id = $1
+          and active = true
+        limit 1
+      `,
+      [normalizedPackageId],
+    );
+    const row = result.rows[0];
+    if (!row) {
+      return null;
+    }
+    return {
+      packageId: row.package_id,
+      packageName: row.package_name,
+      credits: parseDbNumber(row.credits),
+      bonusCredits: parseDbNumber(row.bonus_credits),
+      amountCnyFen: Number(row.amount_cny_fen || 0),
+      sortOrder: Number(row.sort_order || 100),
+      recommended: row.recommended === true,
+      default: row.is_default === true,
+      metadata: parseJsonObject(row.metadata_json),
+      active: row.active !== false,
+      createdAt: row.created_at.toISOString(),
+      updatedAt: row.updated_at.toISOString(),
+      sourceLayer: 'platform_catalog',
+      bindingConfig: {},
+    };
   }
 
   async listPaymentOrdersAdmin(input?: {

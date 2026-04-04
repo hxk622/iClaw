@@ -6,6 +6,10 @@ import {
   createDefaultAgentCatalogEntries,
   createDefaultCloudSkillCatalogEntries,
 } from './catalog-defaults.ts';
+import {
+  DEFAULT_PLATFORM_RECHARGE_PACKAGE_SEEDS,
+  type ResolvedRechargePackageRecord,
+} from './recharge-packages.ts';
 import type {
   AdminPaymentOrderDetailRecord,
   AdminPaymentOrderSummaryRecord,
@@ -63,7 +67,6 @@ import type {
   WorkspaceBackupRecord,
 } from './domain.ts';
 import { DEFAULT_CLAWHUB_SYNC_SOURCE } from './skill-sync-defaults.ts';
-import {buildPlaceholderPaymentUrl} from './payment-placeholders.ts';
 import {startOfNextShanghaiDayIso} from './time.ts';
 
 function normalizeUsernameLookup(value: string): string {
@@ -130,6 +133,7 @@ export interface ControlPlaneStore {
     },
   ): Promise<PaymentOrderRecord>;
   getPaymentOrderById(userId: string, orderId: string): Promise<PaymentOrderRecord | null>;
+  resolveRechargePackage(packageId: string, appName?: string | null): Promise<ResolvedRechargePackageRecord | null>;
   listPaymentOrdersAdmin(input?: {
     limit?: number | null;
     status?: string | null;
@@ -732,16 +736,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       status: 'pending',
       providerOrderId: null,
       providerPrepayId: null,
-      paymentUrl:
-        typeof input.payment_url === 'string' && input.payment_url.trim()
-          ? input.payment_url.trim()
-          : buildPlaceholderPaymentUrl({
-              provider: input.provider as PaymentProvider,
-              orderId,
-              packageName: input.packageName,
-              amountCnyFen: input.amountCnyFen,
-              expiresAt,
-            }),
+      paymentUrl: typeof input.payment_url === 'string' && input.payment_url.trim() ? input.payment_url.trim() : null,
       appName: input.app_name || null,
       appVersion: input.app_version || null,
       releaseChannel: input.release_channel || null,
@@ -780,6 +775,29 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       this.paymentOrdersById.set(order.id, normalized);
     }
     return normalized;
+  }
+
+  async resolveRechargePackage(packageId: string, _appName?: string | null): Promise<ResolvedRechargePackageRecord | null> {
+    const seed = DEFAULT_PLATFORM_RECHARGE_PACKAGE_SEEDS.find((item) => item.packageId === packageId) || null;
+    if (!seed || seed.active === false) {
+      return null;
+    }
+    return {
+      packageId: seed.packageId,
+      packageName: seed.packageName,
+      credits: seed.credits,
+      bonusCredits: seed.bonusCredits,
+      amountCnyFen: seed.amountCnyFen,
+      sortOrder: seed.sortOrder,
+      recommended: seed.recommended,
+      default: seed.default,
+      metadata: {...seed.metadata},
+      active: true,
+      createdAt: new Date(0).toISOString(),
+      updatedAt: new Date(0).toISOString(),
+      sourceLayer: 'platform_catalog',
+      bindingConfig: {},
+    };
   }
 
   async listPaymentOrdersAdmin(input?: {
