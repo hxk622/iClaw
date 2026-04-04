@@ -146,6 +146,17 @@ function buildBrandTs(brand) {
   )} as const;\n`;
 }
 
+function resolveHomeReleaseVersion(appVersion) {
+  const requested =
+    (typeof process.env.ICLAW_HOME_PUBLIC_RELEASE_VERSION === 'string' ? process.env.ICLAW_HOME_PUBLIC_RELEASE_VERSION : '') ||
+    (typeof process.env.ICLAW_RELEASE_VERSION === 'string' ? process.env.ICLAW_RELEASE_VERSION : '');
+  const normalizedRequested = requested.trim();
+  if (normalizedRequested) {
+    return normalizedRequested.replace(/\+/g, '.');
+  }
+  return typeof appVersion === 'string' ? appVersion.replace(/\+/g, '.') : '0.0.0';
+}
+
 function buildHomeBrandJs(brand, appVersion) {
   return `export const HOME_BRAND = ${JSON.stringify(
     {
@@ -164,7 +175,7 @@ function buildHomeBrandJs(brand, appVersion) {
         logoAlt: `${brand.displayName} logo`,
       },
       release: {
-        version: appVersion,
+        version: resolveHomeReleaseVersion(appVersion),
         artifactBaseName: brand.distribution.artifactBaseName,
       },
       distribution: brand.distribution,
