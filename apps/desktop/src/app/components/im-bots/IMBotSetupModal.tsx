@@ -37,6 +37,7 @@ export interface IMPlatformMeta {
     label: string;
     placeholder: string;
     readOnly?: boolean;
+    helpText?: string;
   }>;
   introSteps: string[];
   testHints: string[];
@@ -315,7 +316,9 @@ export function IMBotSetupModal({
                     填写平台凭据
                   </h3>
                   <p className="mt-2 text-[13px] leading-relaxed text-[#6B6863] dark:text-[#A39F9A]">
-                    只保留用户真正需要填写的核心字段。像回调地址这类由系统生成的项目，会自动带出并支持复制。
+                    {platform.id === 'wecom'
+                      ? '企微接入需要企业管理员提供应用凭据。像回调地址这类由系统生成的项目，会自动带出并支持复制。'
+                      : '只保留用户真正需要填写的核心字段。像回调地址这类由系统生成的项目，会自动带出并支持复制。'}
                   </p>
                 </div>
 
@@ -348,9 +351,11 @@ export function IMBotSetupModal({
                           </Button>
                         ) : null}
                       </div>
-                      {field.readOnly ? (
+                      {field.readOnly || field.helpText ? (
                         <p className="text-[12px] leading-[1.45] text-[#9B9691] dark:text-[#6B6863]">
-                          这个地址由系统生成，用来接收平台事件回调。
+                          {field.readOnly
+                            ? '这个地址由系统生成，用来接收平台事件回调。'
+                            : field.helpText}
                         </p>
                       ) : null}
                     </div>
