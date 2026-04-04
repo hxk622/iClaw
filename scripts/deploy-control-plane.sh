@@ -24,6 +24,10 @@ node "$ROOT_DIR/scripts/write-build-info.mjs" \
 echo "Deploying control-plane source -> ${REMOTE}:${ICLAW_CONTROL_PLANE_PATH}/services/control-plane"
 
 rsync -a \
+  "$ROOT_DIR/services/control-plane/presets/" \
+  "${REMOTE}:${ICLAW_CONTROL_PLANE_PATH}/services/control-plane/presets/"
+
+rsync -a \
   "$ROOT_DIR/services/control-plane/src/" \
   "${REMOTE}:${ICLAW_CONTROL_PLANE_PATH}/services/control-plane/src/"
 
