@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import {type IClawClient, type PaymentOrderData} from '@iclaw/sdk';
 import {cn} from '@/app/lib/cn';
+import alipayLogo from '@/app/assets/payment-logos/alipay.jpeg';
+import wechatPayLogo from '@/app/assets/payment-logos/wechat-pay.svg';
 import {type ResolvedRechargePackageConfig, resolveRechargePackageConfig} from '@/app/lib/oem-runtime';
 import {INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE} from '@/app/lib/ui-interactions';
 
@@ -92,42 +94,42 @@ function formatOrderIdShort(orderId: string | null | undefined): string | null {
   return orderId.length > 12 ? `${orderId.slice(0, 6)} · ${orderId.slice(-4)}` : orderId;
 }
 
-function PaymentMethodGlyph({paymentMethod, className}: {paymentMethod: PaymentMethod; className?: string}) {
-  if (paymentMethod === 'wechat_qr') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
-        <path
-          fill="currentColor"
-          d="M9.11 4.1c-4 0-7.11 2.58-7.11 5.85 0 1.86 1.03 3.52 2.66 4.61L3.98 17l2.55-1.25c.82.18 1.69.28 2.58.28 4 0 7.12-2.58 7.12-5.85S13.11 4.1 9.11 4.1Zm-2.48 4.8a.78.78 0 1 1 0-1.56.78.78 0 0 1 0 1.56Zm4.96 0a.78.78 0 1 1 0-1.56.78.78 0 0 1 0 1.56Z"
-        />
-        <path
-          fill="currentColor"
-          d="M16.98 8.9c-3.08 0-5.57 2.06-5.57 4.66 0 1.43.75 2.72 1.95 3.59l-.52 1.82 1.95-.96c.66.14 1.34.21 2.03.21 3.08 0 5.57-2.06 5.57-4.66S20.06 8.9 16.98 8.9Zm-1.79 3.86a.62.62 0 1 1 0-1.24.62.62 0 0 1 0 1.24Zm3.58 0a.62.62 0 1 1 0-1.24.62.62 0 0 1 0 1.24Z"
-        />
-      </svg>
-    );
-  }
+function getPaymentMethodLogoSrc(paymentMethod: PaymentMethod): string {
+  return paymentMethod === 'wechat_qr' ? wechatPayLogo : alipayLogo;
+}
 
+function PaymentMethodLogo({
+  paymentMethod,
+  className,
+  imageClassName,
+}: {
+  paymentMethod: PaymentMethod;
+  className?: string;
+  imageClassName?: string;
+}) {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
-      <path
-        fill="currentColor"
-        d="M12 3.2c-4.92 0-8.9 3.98-8.9 8.9S7.08 21 12 21s8.9-3.98 8.9-8.9S16.92 3.2 12 3.2Zm3.8 10.72h-1.94l-.58-1.45H9.91l-.55 1.45H7.42L11 5.7h2.08l3.72 8.22Zm-3.16-3.03-1-2.45-1.03 2.45h2.03Z"
+    <div
+      className={cn(
+        'flex items-center justify-center overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-white',
+        className,
+      )}
+    >
+      <img
+        src={getPaymentMethodLogoSrc(paymentMethod)}
+        alt={paymentMethod === 'wechat_qr' ? '微信支付 Logo' : '支付宝 Logo'}
+        className={cn('h-full w-full object-contain', imageClassName)}
       />
-    </svg>
+    </div>
   );
 }
 
 function PaymentBrandLogo({paymentMethod}: {paymentMethod: PaymentMethod}) {
   return (
-    <div
-      className={cn(
-        'flex h-14 w-14 items-center justify-center rounded-md text-white shadow-sm',
-        paymentMethod === 'wechat_qr' ? 'bg-[#07C160]' : 'bg-[#1677FF]',
-      )}
-    >
-      <PaymentMethodGlyph paymentMethod={paymentMethod} className="h-8 w-8" />
-    </div>
+    <PaymentMethodLogo
+      paymentMethod={paymentMethod}
+      className="h-14 w-14 rounded-md border-white/80 bg-white shadow-[0_6px_18px_rgba(15,23,42,0.12)]"
+      imageClassName={paymentMethod === 'wechat_qr' ? 'p-2.5' : 'p-1.5'}
+    />
   );
 }
 
@@ -818,7 +820,11 @@ function PaymentView({
                 methodTheme.accentTextClassName,
               )}
             >
-              <PaymentMethodGlyph paymentMethod={paymentMethod} className="h-3.5 w-3.5" />
+              <PaymentMethodLogo
+                paymentMethod={paymentMethod}
+                className="h-4 w-4 rounded-[4px] border-white/80 bg-white shadow-none dark:border-white/80"
+                imageClassName={paymentMethod === 'wechat_qr' ? 'p-[2px]' : 'p-px'}
+              />
               {methodTheme.label}
             </div>
           </div>
@@ -936,12 +942,13 @@ function PaymentView({
                     )}
                   >
                     <div
-                      className={cn(
-                        'flex h-9 w-9 shrink-0 items-center justify-center rounded text-white',
-                        method === 'wechat_qr' ? 'bg-[#07C160]' : 'bg-[#1677FF]',
-                      )}
+                      className="shrink-0"
                     >
-                      <PaymentMethodGlyph paymentMethod={method} className="h-5 w-5" />
+                      <PaymentMethodLogo
+                        paymentMethod={method}
+                        className="h-9 w-9 rounded-md"
+                        imageClassName={method === 'wechat_qr' ? 'p-1.5' : 'p-0.5'}
+                      />
                     </div>
                     <span className="text-[14px] font-medium text-gray-900 dark:text-gray-100">
                       {method === 'wechat_qr' ? '微信支付' : '支付宝'}
