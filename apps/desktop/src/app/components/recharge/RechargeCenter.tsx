@@ -476,7 +476,7 @@ export function RechargeCenter({
       aria-hidden={active ? undefined : true}
       onClick={onClose}
     >
-      <div className="relative w-full">
+      <div className="relative flex w-full justify-center">
         <PackageSelectionView
           packages={availablePackages}
           selectedPackageId={currentPackage?.packageId || selectedPackageId}
@@ -487,7 +487,7 @@ export function RechargeCenter({
 
         {step === 'payment' && currentPackage ? (
           <div
-            className="absolute inset-0 flex items-center justify-center rounded-[32px] bg-[rgba(248,250,252,0.72)] px-4 py-4 backdrop-blur-[6px] dark:bg-[rgba(8,12,20,0.52)]"
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(15,23,42,0.22)] px-4 py-6 backdrop-blur-[4px] dark:bg-[rgba(0,0,0,0.58)] md:px-8"
             onClick={(event) => {
               event.stopPropagation();
               closePaymentModal();
