@@ -276,6 +276,8 @@ export interface CreatePaymentOrderInput {
   releaseChannel?: string;
   platform?: string;
   arch?: string;
+  signal?: AbortSignal;
+  timeoutMs?: number;
 }
 
 export interface PaymentOrderData {
@@ -1354,6 +1356,7 @@ export class IClawClient {
         'Content-Type': 'application/json',
       },
       credentials: 'include',
+      signal: input.signal,
       body: JSON.stringify({
         provider: input.provider || 'wechat_qr',
         package_id: input.packageId,
@@ -1364,19 +1367,24 @@ export class IClawClient {
         platform: input.platform || this.desktopPlatform,
         arch: input.arch || this.desktopArch,
       }),
-    });
+    }, input.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS);
     if (!res.ok) throw await parseError(res);
     const json = (await res.json()) as {data: PaymentOrderData};
     return json.data;
   }
 
-  async getPaymentOrder(token: string, orderId: string): Promise<PaymentOrderData> {
+  async getPaymentOrder(
+    token: string,
+    orderId: string,
+    options?: {signal?: AbortSignal; timeoutMs?: number},
+  ): Promise<PaymentOrderData> {
     const res = await this.fetchAuth(`/payments/orders/${encodeURIComponent(orderId)}`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
       credentials: 'include',
-    });
+      signal: options?.signal,
+    }, options?.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS);
     if (!res.ok) throw await parseError(res);
     const json = (await res.json()) as {data: PaymentOrderData};
     return json.data;

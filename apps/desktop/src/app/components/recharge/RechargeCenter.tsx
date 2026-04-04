@@ -1,137 +1,86 @@
-import { type MouseEvent as ReactMouseEvent, type RefObject, useEffect, useMemo, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
-import { AlertCircle, ArrowLeft, ArrowUpRight, Check, CheckCircle2, ChevronDown, Clock3, ExternalLink, LoaderCircle, RefreshCw, Tag, X } from 'lucide-react';
-import { type IClawClient, type PaymentOrderData } from '@iclaw/sdk';
-import { cn } from '@/app/lib/cn';
-import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
+import {type MouseEvent as ReactMouseEvent, type RefObject, useEffect, useMemo, useRef, useState} from 'react';
+import {flushSync} from 'react-dom';
+import QRCode from 'qrcode';
+import {
+  AlertCircle,
+  ArrowLeft,
+  ArrowUpRight,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  Clock3,
+  ExternalLink,
+  LoaderCircle,
+  RefreshCw,
+  X,
+} from 'lucide-react';
+import {type IClawClient, type PaymentOrderData} from '@iclaw/sdk';
+import {cn} from '@/app/lib/cn';
+import {type ResolvedRechargePackageConfig, resolveRechargePackageConfig} from '@/app/lib/oem-runtime';
+import {INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE} from '@/app/lib/ui-interactions';
 
-type BillingCycle = 'monthly' | 'yearly';
-type PlanTier = 'free' | 'plus' | 'pro' | 'ultra';
-type PaidPlanTier = Exclude<PlanTier, 'free'>;
 type PaymentMethod = 'wechat_qr' | 'alipay_qr';
+type RechargeStep = 'packages' | 'payment';
+type RechargePackage = ResolvedRechargePackageConfig;
 
-type RechargeStep = 'plans' | 'payment';
-
-type RechargePlan = {
-  id: PlanTier;
-  name: string;
-  nameEn: string;
-  description: string;
-  monthlyPrice: number;
-  yearlyPrice: number;
-  monthlyCredits: number;
-  yearlyCredits: number;
-  isRecommended: boolean;
-  isCurrentPlan: boolean;
-  features: string[];
-};
-
-const RECHARGE_PLANS: RechargePlan[] = [
+const FALLBACK_RECHARGE_PACKAGES: RechargePackage[] = [
   {
-    id: 'free',
-    name: 'Free',
-    nameEn: '',
-    description: '完美适合初步体验和测试。',
-    monthlyPrice: 0,
-    yearlyPrice: 0,
-    monthlyCredits: 200,
-    yearlyCredits: 200,
-    isRecommended: false,
-    isCurrentPlan: true,
-    features: [
-      '每日额外赠 200 积分，次日重置',
-      '完整的本地设备控制与自动化能力',
-      '解锁所有核心 AI 技能',
-      '跑通您的首个自动化工作流',
-    ],
+    packageId: 'topup_1000',
+    packageName: '1000 龙虾币',
+    credits: 1000,
+    bonusCredits: 100,
+    totalCredits: 1100,
+    amountCnyFen: 1000,
+    sortOrder: 10,
+    recommended: false,
+    default: false,
+    description: '轻量补充，适合临时续航。',
+    badgeLabel: '入门',
+    highlight: '实得 1,100 龙虾币',
+    featureList: ['基础到账 1,000 龙虾币', '额外赠送 100 龙虾币', '一次性充值，不会自动续费'],
+    metadata: {},
   },
   {
-    id: 'plus',
-    name: '高级版',
-    nameEn: 'Plus',
-    description: '助力您的日常工作流',
-    monthlyPrice: 40,
-    yearlyPrice: 384,
-    monthlyCredits: 8800,
-    yearlyCredits: 105600,
-    isRecommended: true,
-    isCurrentPlan: false,
-    features: [
-      '每月 8,800 积分',
-      '每日额外 200 免费积分，次日重置',
-      '可随时加购积分，按需付费',
-      '构建日常多步工作流',
-      '自动提升个人效率',
-    ],
+    packageId: 'topup_3000',
+    packageName: '3000 龙虾币',
+    credits: 3000,
+    bonusCredits: 400,
+    totalCredits: 3400,
+    amountCnyFen: 3000,
+    sortOrder: 20,
+    recommended: true,
+    default: true,
+    description: '主力充值包，覆盖日常高频使用。',
+    badgeLabel: '最常用',
+    highlight: '实得 3,400 龙虾币',
+    featureList: ['基础到账 3,000 龙虾币', '额外赠送 400 龙虾币', '一次性充值，不会自动续费'],
+    metadata: {},
   },
   {
-    id: 'pro',
-    name: '专业版',
-    nameEn: 'Pro',
-    description: '面向高级用户的深度自动化',
-    monthlyPrice: 80,
-    yearlyPrice: 768,
-    monthlyCredits: 17600,
-    yearlyCredits: 211200,
-    isRecommended: false,
-    isCurrentPlan: false,
-    features: [
-      '每月 17,600 积分',
-      '每日额外 200 免费积分，次日重置',
-      '可随时加购积分，按需付费',
-      '运行复杂批量任务处理',
-      '应对中高频业务自动化需求',
-    ],
-  },
-  {
-    id: 'ultra',
-    name: '旗舰版',
-    nameEn: 'Ultra',
-    description: '团队规模化的无限自动化能力',
-    monthlyPrice: 200,
-    yearlyPrice: 1920,
-    monthlyCredits: 44000,
-    yearlyCredits: 528000,
-    isRecommended: false,
-    isCurrentPlan: false,
-    features: [
-      '每月 44,000 积分',
-      '每日额外 200 免费积分，次日重置',
-      '可随时加购积分，按需付费',
-      '部署 24/7 高负载复杂工作流',
-      '为规模化业务提供无限自动化潜力',
-    ],
+    packageId: 'topup_5000',
+    packageName: '5000 龙虾币',
+    credits: 5000,
+    bonusCredits: 800,
+    totalCredits: 5800,
+    amountCnyFen: 5000,
+    sortOrder: 30,
+    recommended: false,
+    default: false,
+    description: '高频工作流补能，适合持续重度使用。',
+    badgeLabel: '高配',
+    highlight: '实得 5,800 龙虾币',
+    featureList: ['基础到账 5,000 龙虾币', '额外赠送 800 龙虾币', '一次性充值，不会自动续费'],
+    metadata: {},
   },
 ];
 
-const PLAN_PAYMENT_PACKAGE_MAP: Record<PaidPlanTier, Record<BillingCycle, string>> = {
-  // 这里承接充值档位的扫码下单与轮询。
-  plus: { monthly: 'plan_plus_monthly', yearly: 'plan_plus_yearly' },
-  pro: { monthly: 'plan_pro_monthly', yearly: 'plan_pro_yearly' },
-  ultra: { monthly: 'plan_ultra_monthly', yearly: 'plan_ultra_yearly' },
+const PAYMENT_METHOD_META: Record<PaymentMethod, {label: string; accentClassName: string}> = {
+  wechat_qr: {label: '微信支付', accentClassName: 'bg-[#07C160] text-white shadow-lg shadow-green-900/30'},
+  alipay_qr: {label: '支付宝', accentClassName: 'bg-[#1677FF] text-white shadow-lg shadow-blue-900/30'},
 };
-
-const PAYMENT_METHOD_META: Record<PaymentMethod, { label: string; accentClassName: string }> = {
-  wechat_qr: { label: '微信支付', accentClassName: 'bg-[#07C160] text-white shadow-lg shadow-green-900/30' },
-  alipay_qr: { label: '支付宝', accentClassName: 'bg-[#1677FF] text-white shadow-lg shadow-blue-900/30' },
-};
-
-const PERSONAL_WECHAT_QR_URL = '/wechat-personal-qr.png';
 
 const PANEL_OVERLAY_CLASS =
   'fixed inset-0 z-50 flex items-center justify-center bg-[rgba(8,12,20,0.24)] p-4 backdrop-blur-[4px] dark:bg-[rgba(0,0,0,0.44)] md:p-8';
-
-function toPaidPlan(plan: PlanTier): PaidPlanTier {
-  return plan === 'free' ? 'plus' : plan;
-}
-
-function getPlanById(id: PlanTier): RechargePlan {
-  return RECHARGE_PLANS.find((plan) => plan.id === id) || RECHARGE_PLANS[0]!;
-}
-
-function formatPlanPrice(plan: RechargePlan, cycle: BillingCycle): number {
-  return cycle === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice;
-}
 
 function formatPaymentDeadline(value: string | null): string | null {
   if (!value) {
@@ -186,85 +135,207 @@ function openPaymentUrl(url: string): boolean {
   }
 }
 
+function formatPriceAmount(amountCnyFen: number): string {
+  const amount = amountCnyFen / 100;
+  return Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
+}
+
+function formatCreditsLabel(value: number): string {
+  return value.toLocaleString('zh-CN');
+}
+
+function getDefaultPackageId(packages: RechargePackage[]): string {
+  return (
+    packages.find((item) => item.default)?.packageId ||
+    packages.find((item) => item.recommended)?.packageId ||
+    packages[0]?.packageId ||
+    FALLBACK_RECHARGE_PACKAGES[0]!.packageId
+  );
+}
+
 interface RechargeCenterProps {
   client: IClawClient;
   token: string;
+  appName?: string;
+  runtimeConfig?: Record<string, unknown> | null;
   onClose: () => void;
   onPaymentSettled?: () => Promise<void> | void;
   active?: boolean;
 }
 
-export function RechargeCenter({ client, token, onClose, onPaymentSettled, active = true }: RechargeCenterProps) {
+export function RechargeCenter({
+  client,
+  token,
+  appName,
+  runtimeConfig,
+  onClose,
+  onPaymentSettled,
+  active = true,
+}: RechargeCenterProps) {
   const successAutoCloseTimeoutMs = 3_000;
-  const [step, setStep] = useState<RechargeStep>('plans');
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
-  const [selectedPlan, setSelectedPlan] = useState<PaidPlanTier>('plus');
+  const paymentOrderRequestTimeoutMs = 8_000;
+  const [step, setStep] = useState<RechargeStep>('packages');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('wechat_qr');
-  const [planDropdownOpen, setPlanDropdownOpen] = useState(false);
+  const [packageDropdownOpen, setPackageDropdownOpen] = useState(false);
   const [creatingOrder, setCreatingOrder] = useState(false);
   const [activeOrder, setActiveOrder] = useState<PaymentOrderData | null>(null);
   const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
+  const [generatedLaunchQrUrl, setGeneratedLaunchQrUrl] = useState<string | null>(null);
+  const [autoCreateOrderToken, setAutoCreateOrderToken] = useState(0);
+  const [selectedPackageId, setSelectedPackageId] = useState<string>(getDefaultPackageId(FALLBACK_RECHARGE_PACKAGES));
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const createOrderAbortRef = useRef<AbortController | null>(null);
 
-  const currentPlan = useMemo(() => getPlanById(selectedPlan), [selectedPlan]);
-  const totalPrice = formatPlanPrice(currentPlan, billingCycle);
-  const displayPaymentUrl =
-    activeOrder?.provider === 'wechat_qr' && isDataImageUrl(activeOrder.payment_url)
-      ? PERSONAL_WECHAT_QR_URL
-      : isDataImageUrl(activeOrder?.payment_url)
-        ? activeOrder?.payment_url || null
-        : null;
-  const launchPaymentUrl = activeOrder?.payment_url && !isDataImageUrl(activeOrder.payment_url) ? activeOrder.payment_url : null;
+  const availablePackages = useMemo(() => {
+    const resolved = resolveRechargePackageConfig(runtimeConfig);
+    return resolved && resolved.length ? resolved : FALLBACK_RECHARGE_PACKAGES;
+  }, [runtimeConfig]);
+  const defaultPackageId = useMemo(() => getDefaultPackageId(availablePackages), [availablePackages]);
+  const currentPackage =
+    useMemo(
+      () =>
+        availablePackages.find((item) => item.packageId === selectedPackageId) ||
+        availablePackages.find((item) => item.packageId === defaultPackageId) ||
+        availablePackages[0] ||
+        FALLBACK_RECHARGE_PACKAGES[0]!,
+      [availablePackages, defaultPackageId, selectedPackageId],
+    ) || FALLBACK_RECHARGE_PACKAGES[0]!;
+  const totalPrice = formatPriceAmount(currentPackage.amountCnyFen);
+  const displayPaymentUrl = isDataImageUrl(activeOrder?.payment_url) ? activeOrder?.payment_url || null : null;
+  const launchPaymentUrl =
+    activeOrder?.payment_url && !isDataImageUrl(activeOrder.payment_url) ? activeOrder.payment_url : null;
+  const resolvedQrUrl = displayPaymentUrl || generatedLaunchQrUrl;
+
+  useEffect(() => {
+    if (displayPaymentUrl) {
+      setGeneratedLaunchQrUrl(null);
+      return;
+    }
+    if (!launchPaymentUrl) {
+      setGeneratedLaunchQrUrl(null);
+      return;
+    }
+    let cancelled = false;
+    QRCode.toDataURL(launchPaymentUrl, {
+      errorCorrectionLevel: 'M',
+      margin: 1,
+      width: 320,
+      color: {
+        dark: '#111827',
+        light: '#FFFFFF',
+      },
+    })
+      .then((url) => {
+        if (!cancelled) {
+          setGeneratedLaunchQrUrl(url);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error('[desktop] failed to generate launch QR code', error);
+          setGeneratedLaunchQrUrl(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [displayPaymentUrl, launchPaymentUrl]);
+
+  useEffect(() => {
+    if (availablePackages.some((item) => item.packageId === selectedPackageId)) {
+      return;
+    }
+    setSelectedPackageId(defaultPackageId);
+  }, [availablePackages, defaultPackageId, selectedPackageId]);
 
   useEffect(() => {
     if (!active) return;
-    if (!planDropdownOpen) return;
+    if (!packageDropdownOpen) return;
     const handlePointerDown = (event: globalThis.MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setPlanDropdownOpen(false);
+        setPackageDropdownOpen(false);
       }
     };
     window.addEventListener('mousedown', handlePointerDown);
     return () => window.removeEventListener('mousedown', handlePointerDown);
-  }, [active, planDropdownOpen]);
+  }, [active, packageDropdownOpen]);
+
+  const cancelPendingCreateOrder = () => {
+    createOrderAbortRef.current?.abort();
+    createOrderAbortRef.current = null;
+    setCreatingOrder(false);
+  };
+
+  useEffect(() => () => cancelPendingCreateOrder(), []);
 
   const handlePayNow = async () => {
+    cancelPendingCreateOrder();
+    const controller = new AbortController();
+    createOrderAbortRef.current = controller;
     setCreatingOrder(true);
     setPaymentMessage(null);
     setActiveOrder(null);
-    const packageId = PLAN_PAYMENT_PACKAGE_MAP[selectedPlan][billingCycle];
+    setGeneratedLaunchQrUrl(null);
 
     try {
       const order = await client.createPaymentOrder({
         token,
         provider: paymentMethod,
-        packageId,
+        packageId: currentPackage.packageId,
         returnUrl: 'iclaw://payments/result',
+        appName,
+        signal: controller.signal,
+        timeoutMs: paymentOrderRequestTimeoutMs,
       });
+      if (controller.signal.aborted) {
+        return;
+      }
       setActiveOrder(order);
       if (order.payment_url && !isDataImageUrl(order.payment_url)) {
-        const opened = openPaymentUrl(order.payment_url);
-        setPaymentMessage(opened ? '支付页面已打开，请在浏览器中完成支付。' : '浏览器拦截了弹窗，请点击下方按钮重新打开，当前页面不会跳转。');
+        setPaymentMessage(
+          '已生成动态支付二维码；你也可以点击下方按钮在浏览器打开支付页，当前页面不会跳走。',
+        );
       } else if (order.payment_url) {
         setPaymentMessage('二维码已生成，请扫码完成支付。');
       } else {
         setPaymentMessage('支付订单已创建，但未返回支付入口。');
       }
     } catch (error) {
+      if (controller.signal.aborted) {
+        return;
+      }
       setPaymentMessage(error instanceof Error ? error.message : '创建支付订单失败');
     } finally {
-      setCreatingOrder(false);
+      if (createOrderAbortRef.current === controller) {
+        createOrderAbortRef.current = null;
+      }
+      if (!controller.signal.aborted) {
+        setCreatingOrder(false);
+      }
     }
   };
+
+  useEffect(() => {
+    if (!active) return;
+    if (step !== 'payment') return;
+    if (creatingOrder) return;
+    if (activeOrder) return;
+    if (autoCreateOrderToken <= 0) return;
+    void handlePayNow();
+  }, [active, step, creatingOrder, activeOrder, autoCreateOrderToken]);
 
   useEffect(() => {
     if (!active) return;
     if (!activeOrder) return;
     if (!['created', 'pending'].includes(activeOrder.status)) return;
     let cancelled = false;
+    const controller = new AbortController();
     const poll = async () => {
       try {
-        const nextOrder = await client.getPaymentOrder(token, activeOrder.order_id);
+        const nextOrder = await client.getPaymentOrder(token, activeOrder.order_id, {
+          signal: controller.signal,
+          timeoutMs: paymentOrderRequestTimeoutMs,
+        });
         if (cancelled) return;
         setActiveOrder(nextOrder);
         if (nextOrder.status === 'paid') {
@@ -276,11 +347,14 @@ export function RechargeCenter({ client, token, onClose, onPaymentSettled, activ
           if (cancelled) return;
           setPaymentMessage('支付成功，龙虾币已到账。');
         } else if (nextOrder.status === 'expired') {
-          setPaymentMessage('支付订单已过期，请重新发起支付。');
+          setPaymentMessage('支付订单已过期，请重新创建充值订单。');
         } else if (nextOrder.status === 'failed') {
           setPaymentMessage('支付失败，请重新尝试。');
         }
       } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
         if (!cancelled) {
           setPaymentMessage(error instanceof Error ? error.message : '订单状态刷新失败');
         }
@@ -292,9 +366,10 @@ export function RechargeCenter({ client, token, onClose, onPaymentSettled, activ
     }, 3000);
     return () => {
       cancelled = true;
+      controller.abort();
       window.clearInterval(timer);
     };
-  }, [active, activeOrder, client, onPaymentSettled, token]);
+  }, [active, activeOrder, client, onPaymentSettled, token, paymentOrderRequestTimeoutMs]);
 
   useEffect(() => {
     if (!active || activeOrder?.status !== 'paid') {
@@ -308,14 +383,14 @@ export function RechargeCenter({ client, token, onClose, onPaymentSettled, activ
     };
   }, [active, activeOrder?.status, onClose]);
 
-  const openPayment = (planId: PlanTier) => {
-    if (planId === 'free') return;
+  const openPayment = (packageId: string) => {
     flushSync(() => {
-      setSelectedPlan(toPaidPlan(planId));
-      setPlanDropdownOpen(false);
+      setSelectedPackageId(packageId);
+      setPackageDropdownOpen(false);
       setPaymentMessage(null);
       setActiveOrder(null);
       setStep('payment');
+      setAutoCreateOrderToken((current) => current + 1);
     });
   };
 
@@ -325,57 +400,71 @@ export function RechargeCenter({ client, token, onClose, onPaymentSettled, activ
       aria-hidden={active ? undefined : true}
       onClick={onClose}
     >
-      {step === 'plans' ? (
-        <PlansView
-          billingCycle={billingCycle}
-          selectedPlan={selectedPlan}
-          onBillingCycleChange={setBillingCycle}
-          onPlanSelect={(planId) => {
-            if (planId !== 'free') {
-              setSelectedPlan(toPaidPlan(planId));
-            }
-          }}
+      {step === 'packages' ? (
+        <PackageSelectionView
+          packages={availablePackages}
+          selectedPackageId={currentPackage.packageId}
+          onPackageSelect={setSelectedPackageId}
           onClose={onClose}
-          onUpgrade={openPayment}
+          onContinue={openPayment}
         />
       ) : (
         <PaymentView
-          billingCycle={billingCycle}
-          currentPlan={currentPlan}
+          packages={availablePackages}
+          currentPackage={currentPackage}
           totalPrice={totalPrice}
           paymentMethod={paymentMethod}
           activeOrder={activeOrder}
           displayPaymentUrl={displayPaymentUrl}
+          resolvedQrUrl={resolvedQrUrl}
           launchPaymentUrl={launchPaymentUrl}
           onPaymentMethodChange={(method) => {
+            cancelPendingCreateOrder();
             setPaymentMethod(method);
             setActiveOrder(null);
             setPaymentMessage(null);
+            setAutoCreateOrderToken((current) => current + 1);
           }}
-          planDropdownOpen={planDropdownOpen}
-          onTogglePlanDropdown={() => setPlanDropdownOpen((current) => !current)}
-          onSelectPlan={(plan) => {
-            setSelectedPlan(plan);
-            setPlanDropdownOpen(false);
+          packageDropdownOpen={packageDropdownOpen}
+          onTogglePackageDropdown={() => setPackageDropdownOpen((current) => !current)}
+          onSelectPackage={(packageId) => {
+            cancelPendingCreateOrder();
+            setSelectedPackageId(packageId);
+            setPackageDropdownOpen(false);
             setActiveOrder(null);
             setPaymentMessage(null);
+            setAutoCreateOrderToken((current) => current + 1);
           }}
           dropdownRef={dropdownRef}
           onBack={() => {
-            setPlanDropdownOpen(false);
+            cancelPendingCreateOrder();
+            setPackageDropdownOpen(false);
             setPaymentMessage(null);
             setActiveOrder(null);
-            setStep('plans');
+            setStep('packages');
           }}
-          onClose={onClose}
+          onClose={() => {
+            cancelPendingCreateOrder();
+            onClose();
+          }}
           creatingOrder={creatingOrder}
           paymentMessage={paymentMessage}
           onPayNow={handlePayNow}
           onReopenPayment={() => {
             if (launchPaymentUrl) {
               const opened = openPaymentUrl(launchPaymentUrl);
-              setPaymentMessage(opened ? '支付页面已重新打开。' : '浏览器拦截了支付页，请手动重新打开。');
+              setPaymentMessage(
+                opened
+                  ? '支付页面已重新打开。'
+                  : '浏览器拦截了弹窗，请点击地址栏允许后重试，当前页面不会跳转。',
+              );
             }
+          }}
+          onResetOrder={() => {
+            cancelPendingCreateOrder();
+            setActiveOrder(null);
+            setPaymentMessage(null);
+            setAutoCreateOrderToken((current) => current + 1);
           }}
           onPanelClick={(event) => event.stopPropagation()}
         />
@@ -384,36 +473,30 @@ export function RechargeCenter({ client, token, onClose, onPaymentSettled, activ
   );
 }
 
-function PlansView({
-  billingCycle,
-  selectedPlan,
-  onBillingCycleChange,
-  onPlanSelect,
+function PackageSelectionView({
+  packages,
+  selectedPackageId,
+  onPackageSelect,
   onClose,
-  onUpgrade,
+  onContinue,
 }: {
-  billingCycle: BillingCycle;
-  selectedPlan: PaidPlanTier;
-  onBillingCycleChange: (cycle: BillingCycle) => void;
-  onPlanSelect: (planId: PlanTier) => void;
+  packages: RechargePackage[];
+  selectedPackageId: string;
+  onPackageSelect: (packageId: string) => void;
   onClose: () => void;
-  onUpgrade: (planId: PlanTier) => void;
+  onContinue: (packageId: string) => void;
 }) {
-  const handlePlanCardClick = (planId: PlanTier) => {
-    if (planId === 'free') {
-      onPlanSelect(planId);
+  const handlePackageCardClick = (packageId: string) => {
+    if (selectedPackageId === packageId) {
+      onContinue(packageId);
       return;
     }
-    if (selectedPlan === planId) {
-      onUpgrade(planId);
-      return;
-    }
-    onPlanSelect(planId);
+    onPackageSelect(packageId);
   };
 
   return (
     <div
-      className="max-h-[calc(100vh-32px)] w-full max-w-[1400px] overflow-auto rounded-[32px] bg-white shadow-xl dark:border dark:border-[#2a3441] dark:bg-[#1a1f28] dark:shadow-2xl"
+      className="max-h-[calc(100vh-32px)] w-full max-w-[1280px] overflow-auto rounded-[32px] bg-white shadow-xl dark:border dark:border-[#2a3441] dark:bg-[#1a1f28] dark:shadow-2xl"
       onClick={(event) => event.stopPropagation()}
     >
       <div className="relative border-b border-gray-100 px-8 pb-8 pt-10 dark:border-[#2a3441] md:px-12 md:pt-12">
@@ -424,42 +507,40 @@ function PlansView({
           <X className="h-5 w-5 text-gray-600 dark:text-gray-400" />
         </button>
 
-        <h1 className="mb-6 text-center text-2xl font-bold text-[#1a1a1a] dark:text-[#f0f2f5] md:text-3xl">
-          充值中心
-        </h1>
-
-        <div className="flex justify-center">
-          <div className="inline-flex rounded-full border border-[#eceef3] bg-[linear-gradient(180deg,#ffffff_0%,#f5f6f9_100%)] p-1 shadow-[0_14px_30px_rgba(15,23,42,0.06),inset_0_1px_1px_rgba(255,255,255,0.9)] dark:border-[#303847] dark:bg-[linear-gradient(180deg,#232b36_0%,#1c222c_100%)] dark:shadow-[0_18px_34px_rgba(0,0,0,0.24)]">
-            <CycleButton
-              active={billingCycle === 'monthly'}
-              label="月套餐"
-              onClick={() => onBillingCycleChange('monthly')}
-            />
-            <CycleButton
-              active={billingCycle === 'yearly'}
-              label="年套餐"
-              onClick={() => onBillingCycleChange('yearly')}
-              tagMode={billingCycle}
-            />
+        <div className="mx-auto max-w-[720px] text-center">
+          <h1 className="text-2xl font-bold text-[#1a1a1a] dark:text-[#f0f2f5] md:text-3xl">充值龙虾币</h1>
+          <p className="mt-4 text-sm leading-7 text-gray-600 dark:text-gray-400">
+            所有充值均为一次性到账，不会自动续费。支付成功后，龙虾币会直接写入当前账号余额。
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            {['即时到账', '不会自动续费', '支持微信 / 支付宝'].map((item) => (
+              <span
+                key={item}
+                className="rounded-full border border-[#f0d6d9] bg-[#fff7f8] px-4 py-1.5 text-xs font-medium text-[#c13c48] dark:border-[#49333a] dark:bg-[#261d21] dark:text-[#ff8a93]"
+              >
+                {item}
+              </span>
+            ))}
           </div>
         </div>
       </div>
 
       <div className="p-8 md:p-12">
-        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-          {RECHARGE_PLANS.map((plan) => {
-            const selected = plan.id === selectedPlan;
+        <div className="grid gap-6 lg:grid-cols-3">
+          {packages.map((item) => {
+            const selected = item.packageId === selectedPackageId;
+            const priceLabel = formatPriceAmount(item.amountCnyFen);
             return (
               <div
-                key={plan.id}
+                key={item.packageId}
                 role="button"
                 aria-pressed={selected}
                 tabIndex={0}
-                onClick={() => handlePlanCardClick(plan.id)}
+                onClick={() => handlePackageCardClick(item.packageId)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
-                    handlePlanCardClick(plan.id);
+                    handlePackageCardClick(item.packageId);
                   }
                 }}
                 className={cn(
@@ -471,74 +552,67 @@ function PlansView({
                     : 'border-gray-200 bg-white shadow-[0_16px_40px_rgba(15,23,42,0.06)] hover:border-[#f0b4ba] hover:shadow-[0_24px_48px_rgba(15,23,42,0.1)] dark:border-[#2a3441] dark:bg-[#1f2630] dark:shadow-[0_18px_40px_rgba(0,0,0,0.22)] dark:hover:border-[#435064] dark:hover:shadow-[0_24px_52px_rgba(0,0,0,0.28)]',
                 )}
               >
-              {plan.isRecommended ? (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <div
-                    className={cn(
-                      'rounded-full px-4 py-1 text-xs font-medium shadow-lg',
-                      selected
-                        ? 'bg-[#E63946] text-white dark:bg-gradient-to-r dark:from-[#E63946] dark:to-[#ff4655] dark:shadow-red-900/40'
-                        : 'bg-[#fff0f2] text-[#d92f3d] shadow-[0_12px_28px_rgba(230,57,70,0.12)] dark:bg-[rgba(230,57,70,0.14)] dark:text-[#ff7b85] dark:shadow-[0_12px_28px_rgba(0,0,0,0.2)]',
-                    )}
-                  >
-                    推荐计划
+                {item.badgeLabel ? (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                    <div
+                      className={cn(
+                        'rounded-full px-4 py-1 text-xs font-medium shadow-lg',
+                        selected
+                          ? 'bg-[#E63946] text-white dark:bg-gradient-to-r dark:from-[#E63946] dark:to-[#ff4655] dark:shadow-red-900/40'
+                          : 'bg-[#fff0f2] text-[#d92f3d] shadow-[0_12px_28px_rgba(230,57,70,0.12)] dark:bg-[rgba(230,57,70,0.14)] dark:text-[#ff7b85] dark:shadow-[0_12px_28px_rgba(0,0,0,0.2)]',
+                      )}
+                    >
+                      {item.badgeLabel}
+                    </div>
                   </div>
-                </div>
-              ) : null}
+                ) : null}
 
-                <div className="min-h-[126px] text-center">
-                  <h3 className="mb-1 text-[20px] font-bold text-[#1a1a1a] dark:text-[#f0f2f5] md:text-[22px]">
-                    {plan.nameEn ? `${plan.name} (${plan.nameEn})` : plan.name}
-                  </h3>
-                  <p className="min-h-[48px] text-sm leading-7 text-gray-600 dark:text-gray-400">{plan.description}</p>
-                </div>
-
-                <div className="min-h-[108px] pt-2 text-center">
-                  <div className="flex items-baseline justify-center gap-1">
-                    <span className="text-xs text-gray-500">¥</span>
-                    <span className="text-4xl font-bold text-[#1a1a1a] dark:text-[#f0f2f5]">
-                      {billingCycle === 'monthly' ? plan.monthlyPrice : Math.round(plan.yearlyPrice / 12)}
-                    </span>
-                    <span className="text-sm text-gray-500">/月</span>
-                  </div>
-                  {billingCycle === 'yearly' && plan.yearlyPrice > 0 ? (
-                    <p className="mt-1 text-xs text-gray-500">
-                      年付 ¥{plan.yearlyPrice} · 合计 {plan.yearlyCredits.toLocaleString()} 积分
-                    </p>
-                  ) : plan.monthlyPrice > 0 ? (
-                    <p className="mt-1 text-xs text-gray-500">每月到账 {plan.monthlyCredits.toLocaleString()} 积分</p>
+                <div className="min-h-[132px] text-center">
+                  <h3 className="text-[24px] font-bold text-[#1a1a1a] dark:text-[#f0f2f5]">{item.packageName}</h3>
+                  <p className="mt-3 text-sm leading-7 text-gray-600 dark:text-gray-400">{item.description}</p>
+                  {item.highlight ? (
+                    <p className="mt-3 text-sm font-medium text-[#d92f3d] dark:text-[#ff8a93]">{item.highlight}</p>
                   ) : null}
                 </div>
 
-                <div className="mt-auto pt-1">
+                <div className="min-h-[132px] pt-4 text-center">
+                  <div className="flex items-baseline justify-center gap-1">
+                    <span className="text-sm text-gray-500">¥</span>
+                    <span className="text-5xl font-bold text-[#1a1a1a] dark:text-[#f0f2f5]">{priceLabel}</span>
+                  </div>
+                  <p className="mt-3 text-sm text-gray-500">
+                    基础到账 {formatCreditsLabel(item.credits)} 龙虾币
+                    {item.bonusCredits > 0 ? ` · 赠送 ${formatCreditsLabel(item.bonusCredits)}` : ''}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500">合计到账 {formatCreditsLabel(item.totalCredits)} 龙虾币</p>
+                </div>
+
+                <div className="mt-auto pt-4">
                   <button
+                    type="button"
                     onClick={(event) => {
                       event.stopPropagation();
                       event.preventDefault();
-                      onUpgrade(plan.id);
+                      onContinue(item.packageId);
                     }}
-                    disabled={plan.isCurrentPlan}
-                    type="button"
                     className={cn(
                       'mb-8 w-full cursor-pointer rounded-[20px] py-3.5 text-base font-semibold',
                       SPRING_PRESSABLE,
-                      plan.isCurrentPlan
-                        ? 'cursor-not-allowed bg-gray-100 text-gray-400 dark:bg-[#2a3441] dark:text-gray-600'
-                        : selected
-                          ? 'bg-[#E63946] !text-white shadow-[0_20px_42px_rgba(230,57,70,0.24)] hover:bg-[#d92f3d] hover:!text-white dark:bg-[#ff4655] dark:hover:bg-[#ff5a66]'
-                          : 'bg-[#111827] !text-white shadow-[0_18px_36px_rgba(17,24,39,0.16)] hover:bg-[#0b1220] hover:!text-white dark:bg-[#0f172a] dark:!text-white dark:hover:bg-[#111c31]',
+                      selected
+                        ? 'bg-[#E63946] !text-white shadow-[0_20px_42px_rgba(230,57,70,0.24)] hover:bg-[#d92f3d] hover:!text-white dark:bg-[#ff4655] dark:hover:bg-[#ff5a66]'
+                        : 'bg-[#111827] !text-white shadow-[0_18px_36px_rgba(17,24,39,0.16)] hover:bg-[#0b1220] hover:!text-white dark:bg-[#0f172a] dark:!text-white dark:hover:bg-[#111c31]',
                     )}
                   >
                     <span className="inline-flex items-center justify-center gap-1.5">
-                      <span>{plan.isCurrentPlan ? '当前正在使用' : '立即充值'}</span>
-                      {plan.isCurrentPlan ? null : <ArrowUpRight className="h-4 w-4" />}
+                      <span>立即充值</span>
+                      <ArrowUpRight className="h-4 w-4" />
                     </span>
                   </button>
 
                   <div>
-                    <p className="mb-4 text-xs font-medium uppercase tracking-[0.08em] text-gray-500">包含特权</p>
+                    <p className="mb-4 text-xs font-medium uppercase tracking-[0.08em] text-gray-500">到账说明</p>
                     <ul className="space-y-2.5">
-                      {plan.features.map((feature) => (
+                      {item.featureList.map((feature) => (
                         <li key={feature} className="flex items-start gap-2">
                           <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#E63946]" />
                           <span className="text-sm leading-7 text-gray-700 dark:text-gray-300">{feature}</span>
@@ -556,58 +630,19 @@ function PlansView({
   );
 }
 
-function CycleButton({
-  active,
-  label,
-  onClick,
-  tagMode,
-}: {
-  active: boolean;
-  label: string;
-  onClick: () => void;
-  tagMode?: BillingCycle;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'relative inline-flex min-w-[120px] cursor-pointer items-center justify-center rounded-full px-6 py-2.5 font-semibold transition-all',
-        active
-          ? 'bg-[#20283a] text-white shadow-[0_14px_28px_rgba(32,40,58,0.26)] dark:bg-[#101827] dark:shadow-[0_16px_30px_rgba(0,0,0,0.34)]'
-          : 'bg-transparent text-[#7b8190] hover:bg-white hover:text-[#384152] hover:shadow-[0_8px_18px_rgba(15,23,42,0.08)] dark:text-[#a1a9b7] dark:hover:bg-[rgba(255,255,255,0.04)] dark:hover:text-[#eef2f8] dark:hover:shadow-none',
-        tagMode && 'gap-2',
-      )}
-    >
-      <span>{label}</span>
-      {tagMode ? (
-        <span
-          className={cn(
-            'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold leading-none shadow-[0_8px_18px_rgba(255,91,97,0.24)]',
-            active
-              ? 'bg-[#ff5b61] text-white shadow-[0_10px_20px_rgba(255,91,97,0.28)]'
-              : 'bg-[#ff5b61] text-white',
-          )}
-        >
-          <Tag className="h-3 w-3" />
-          省20%
-        </span>
-      ) : null}
-    </button>
-  );
-}
-
 function PaymentView({
-  billingCycle,
-  currentPlan,
+  packages,
+  currentPackage,
   totalPrice,
   paymentMethod,
   activeOrder,
   displayPaymentUrl,
+  resolvedQrUrl,
   launchPaymentUrl,
   onPaymentMethodChange,
-  planDropdownOpen,
-  onTogglePlanDropdown,
-  onSelectPlan,
+  packageDropdownOpen,
+  onTogglePackageDropdown,
+  onSelectPackage,
   dropdownRef,
   onBack,
   onClose,
@@ -615,19 +650,21 @@ function PaymentView({
   paymentMessage,
   onPayNow,
   onReopenPayment,
+  onResetOrder,
   onPanelClick,
 }: {
-  billingCycle: BillingCycle;
-  currentPlan: RechargePlan;
-  totalPrice: number;
+  packages: RechargePackage[];
+  currentPackage: RechargePackage;
+  totalPrice: string;
   paymentMethod: PaymentMethod;
   activeOrder: PaymentOrderData | null;
   displayPaymentUrl: string | null;
+  resolvedQrUrl: string | null;
   launchPaymentUrl: string | null;
   onPaymentMethodChange: (method: PaymentMethod) => void;
-  planDropdownOpen: boolean;
-  onTogglePlanDropdown: () => void;
-  onSelectPlan: (plan: PaidPlanTier) => void;
+  packageDropdownOpen: boolean;
+  onTogglePackageDropdown: () => void;
+  onSelectPackage: (packageId: string) => void;
   dropdownRef: RefObject<HTMLDivElement>;
   onBack: () => void;
   onClose: () => void;
@@ -635,6 +672,7 @@ function PaymentView({
   paymentMessage: string | null;
   onPayNow: () => void;
   onReopenPayment: () => void;
+  onResetOrder: () => void;
   onPanelClick: (event: ReactMouseEvent<HTMLDivElement>) => void;
 }) {
   const orderStatus = activeOrder?.status || null;
@@ -643,6 +681,8 @@ function PaymentView({
   const isFailed = orderStatus === 'failed';
   const isExpired = orderStatus === 'expired';
   const isAwaitingPayment = !creatingOrder && Boolean(activeOrder) && !isPaid && !isFailed && !isExpired;
+  const canReopenExternalPayment = isAwaitingPayment && Boolean(launchPaymentUrl);
+  const priceSummary = `¥${totalPrice}`;
   const statusCard = creatingOrder
     ? {
         tone: 'border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-100',
@@ -657,7 +697,7 @@ function PaymentView({
           icon: CheckCircle2,
           iconClassName: '',
           title: '充值成功',
-          description: '龙虾币已自动到账，当前页面余额会同步刷新，并将在 3 秒后返回当前页面。',
+          description: `本次充值 ${formatCreditsLabel(currentPackage.totalCredits)} 龙虾币已到账，当前页面余额会同步刷新，并将在 3 秒后返回当前页面。`,
         }
       : isFailed
         ? {
@@ -665,7 +705,7 @@ function PaymentView({
             icon: AlertCircle,
             iconClassName: '',
             title: '支付失败',
-            description: '本次订单未完成扣款，请重新发起支付或切换支付方式。',
+            description: '本次订单未完成扣款，请重新创建充值订单后再支付。',
           }
         : isExpired
           ? {
@@ -673,7 +713,7 @@ function PaymentView({
               icon: Clock3,
               iconClassName: '',
               title: '订单已过期',
-              description: '支付窗口已失效，需要重新创建一个新订单。',
+              description: '支付窗口已失效，需要重新创建一个新的充值订单。',
             }
           : isAwaitingPayment
             ? {
@@ -681,123 +721,136 @@ function PaymentView({
                 icon: Clock3,
                 iconClassName: '',
                 title: '等待完成支付',
-                description: '支付完成后将自动刷新状态并为当前账号充值。',
+                description: `支付完成后将自动刷新状态，并为当前账号充值 ${formatCreditsLabel(currentPackage.totalCredits)} 龙虾币。`,
               }
             : {
                 tone: 'border-gray-200 bg-gray-50 text-gray-800 dark:border-[#2a3441] dark:bg-[#1a1f28] dark:text-gray-200',
-                icon: ArrowUpRight,
+                icon: ExternalLink,
                 iconClassName: '',
-                title: '准备发起支付',
-                description: '请选择支付方式并创建订单，完成后会自动刷新龙虾币余额。',
+                title: '尚未创建订单',
+                description: `请选择支付方式并创建订单。订单创建成功后，右侧会立即生成真实支付二维码，本次将为当前账号充值 ${formatCreditsLabel(currentPackage.totalCredits)} 龙虾币。`,
               };
   const StatusIcon = statusCard.icon;
   const primaryButtonLabel = creatingOrder
     ? '创建订单中...'
     : isPaid
       ? '立即返回'
-      : isFailed || isExpired
-        ? '重新发起支付'
-        : activeOrder && launchPaymentUrl
-          ? '重新发起支付'
-          : '立即支付';
+      : canReopenExternalPayment
+        ? '打开支付页'
+        : isAwaitingPayment
+          ? '等待支付完成'
+          : isFailed || isExpired
+            ? '重新创建订单'
+            : '创建订单并生成二维码';
   const primaryButtonTone = isPaid
     ? 'bg-emerald-500 text-white hover:bg-emerald-600'
     : isFailed || isExpired
       ? 'bg-[#E63946] text-white hover:bg-[#d92f3d]'
       : 'bg-blue-500 text-white hover:bg-blue-600';
+  const primaryButtonDisabled = creatingOrder || (isAwaitingPayment && !canReopenExternalPayment && !isPaid);
+
+  const handlePrimaryAction = () => {
+    if (isPaid) {
+      onClose();
+      return;
+    }
+    if (canReopenExternalPayment) {
+      onReopenPayment();
+      return;
+    }
+    if (!isAwaitingPayment || isFailed || isExpired) {
+      onPayNow();
+    }
+  };
 
   return (
     <div
-      className="max-h-[calc(100vh-32px)] w-full max-w-[1200px] overflow-auto rounded-[32px] bg-white shadow-xl dark:border dark:border-[#2a3441] dark:bg-[#1a1f28] dark:shadow-2xl"
+      className="flex max-h-[min(840px,calc(100vh-24px))] w-full max-w-[1120px] flex-col overflow-hidden rounded-[28px] bg-white shadow-xl dark:border dark:border-[#2a3441] dark:bg-[#1a1f28] dark:shadow-2xl"
       onClick={onPanelClick}
     >
-      <div className="relative border-b border-gray-100 px-8 pb-6 pt-8 dark:border-[#2a3441] md:px-12">
+      <div className="relative border-b border-gray-100 px-6 pb-4 pt-6 dark:border-[#2a3441] md:px-8">
         <button
           onClick={onBack}
-          className="absolute left-6 top-8 flex cursor-pointer items-center gap-2 text-gray-600 transition-colors hover:text-[#E63946] dark:text-gray-400 md:left-8"
+          className="absolute left-5 top-6 flex cursor-pointer items-center gap-2 text-gray-600 transition-colors hover:text-[#E63946] dark:text-gray-400 md:left-8"
         >
           <ArrowLeft className="h-5 w-5" />
-          <span className="font-medium">返回计划</span>
+          <span className="font-medium">返回充值包</span>
         </button>
 
         <button
           onClick={onClose}
-          className="absolute right-6 top-6 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-[#2a3441] md:right-8 md:top-8"
+          className="absolute right-5 top-5 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-[#2a3441] md:right-7 md:top-5"
         >
           <X className="h-5 w-5 text-gray-600 dark:text-gray-400" />
         </button>
       </div>
 
-      <div className="p-8 md:p-12">
-        <div className="grid gap-8 lg:grid-cols-2">
-          <section className="rounded-2xl border border-gray-200 bg-gray-50 p-8 dark:border-[#2a3441] dark:bg-[#1f2630]">
-            <h2 className="mb-2 text-2xl font-bold text-[#1a1a1a] dark:text-[#f0f2f5]">选择充值档位</h2>
-            <p className="mb-8 text-sm text-gray-600 dark:text-gray-400">请确认当前充值金额与对应到账额度</p>
+      <div className="flex-1 overflow-auto px-5 py-5 md:px-8 md:py-6">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.04fr)_minmax(380px,0.96fr)]">
+          <section className="rounded-2xl border border-gray-200 bg-gray-50 p-6 dark:border-[#2a3441] dark:bg-[#1f2630]">
+            <h2 className="mb-2 text-2xl font-bold text-[#1a1a1a] dark:text-[#f0f2f5]">确认充值包</h2>
+            <p className="mb-6 text-sm text-gray-600 dark:text-gray-400">当前页面只处理一次性充值，支付完成后龙虾币会直接到账，不会自动续费。</p>
 
-            <div ref={dropdownRef} className="relative mb-8">
+            <div ref={dropdownRef} className="relative mb-6">
               <button
-                onClick={onTogglePlanDropdown}
+                onClick={onTogglePackageDropdown}
                 className="flex w-full cursor-pointer items-center justify-between rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-left transition-colors hover:border-[#E63946] dark:border-[#2a3441] dark:bg-[#252d3a]"
               >
                 <div>
-                  <p className="font-semibold text-[#1a1a1a] dark:text-[#f0f2f5]">
-                    {currentPlan.nameEn ? `${currentPlan.name} (${currentPlan.nameEn})` : currentPlan.name}
-                  </p>
+                  <p className="font-semibold text-[#1a1a1a] dark:text-[#f0f2f5]">{currentPackage.packageName}</p>
                   <p className="text-xs text-gray-500">
-                    {billingCycle === 'monthly'
-                      ? `每月 ${currentPlan.monthlyCredits.toLocaleString()} 积分`
-                      : `每年 ${currentPlan.yearlyCredits.toLocaleString()} 积分`}
+                    合计到账 {formatCreditsLabel(currentPackage.totalCredits)} 龙虾币
+                    {currentPackage.bonusCredits > 0 ? ` · 其中赠送 ${formatCreditsLabel(currentPackage.bonusCredits)}` : ''}
                   </p>
                 </div>
                 <ChevronDown
                   className={cn(
                     'h-5 w-5 text-gray-600 transition-transform dark:text-gray-400',
-                    planDropdownOpen && 'rotate-180',
+                    packageDropdownOpen && 'rotate-180',
                   )}
                 />
               </button>
 
-              {planDropdownOpen ? (
+              {packageDropdownOpen ? (
                 <div className="absolute left-0 right-0 top-full z-10 mt-2 overflow-hidden rounded-xl border-2 border-gray-200 bg-white shadow-xl dark:border-[#2a3441] dark:bg-[#252d3a] dark:shadow-2xl">
-                  {(['plus', 'pro', 'ultra'] as PaidPlanTier[]).map((planId) => {
-                    const plan = getPlanById(planId);
-                    return (
-                      <button
-                        key={planId}
-                        onClick={() => onSelectPlan(planId)}
-                        className={cn(
-                          'w-full cursor-pointer px-4 py-3 text-left transition-colors hover:bg-gray-50 dark:hover:bg-[#2a3441]',
-                          planId === currentPlan.id && 'bg-red-50 dark:bg-[#2a1f22]',
-                        )}
-                      >
-                        <p className="font-semibold text-[#1a1a1a] dark:text-[#f0f2f5]">
-                          {plan.nameEn ? `${plan.name} (${plan.nameEn})` : plan.name}
-                        </p>
-                        <p className="text-xs text-gray-500">{billingCycle === 'monthly' ? `每月 ${plan.monthlyCredits.toLocaleString()} 积分` : `每年 ${plan.yearlyCredits.toLocaleString()} 积分`}</p>
-                      </button>
-                    );
-                  })}
+                  {packages.map((item) => (
+                    <button
+                      key={item.packageId}
+                      onClick={() => onSelectPackage(item.packageId)}
+                      className={cn(
+                        'w-full cursor-pointer px-4 py-3 text-left transition-colors hover:bg-gray-50 dark:hover:bg-[#2a3441]',
+                        item.packageId === currentPackage.packageId && 'bg-red-50 dark:bg-[#2a1f22]',
+                      )}
+                    >
+                      <p className="font-semibold text-[#1a1a1a] dark:text-[#f0f2f5]">{item.packageName}</p>
+                      <p className="text-xs text-gray-500">
+                        合计到账 {formatCreditsLabel(item.totalCredits)} 龙虾币 · ¥{formatPriceAmount(item.amountCnyFen)}
+                      </p>
+                    </button>
+                  ))}
                 </div>
               ) : null}
             </div>
 
-            <div className="mb-8 border-b border-gray-200 pb-8 dark:border-[#2a3441]">
+            <div className="mb-6 border-b border-gray-200 pb-6 dark:border-[#2a3441]">
               <div className="flex items-baseline gap-2">
                 <span className="text-sm text-gray-500">¥</span>
                 <span className="text-5xl font-bold text-[#1a1a1a] dark:text-[#f0f2f5]">{totalPrice}</span>
-                <span className="text-gray-500 dark:text-gray-400">/ {billingCycle === 'monthly' ? '月' : '年'}</span>
+                <span className="text-gray-500 dark:text-gray-400">一次性充值</span>
               </div>
-              {billingCycle === 'yearly' ? (
-                <p className="mt-2 text-sm text-gray-500">平均每月 ¥{Math.round(totalPrice / 12)}，合计到账 {currentPlan.yearlyCredits.toLocaleString()} 积分</p>
-              ) : currentPlan.monthlyPrice > 0 ? (
-                <p className="mt-2 text-sm text-gray-500">本次到账 {currentPlan.monthlyCredits.toLocaleString()} 积分</p>
-              ) : null}
+              <p className="mt-2 text-sm text-gray-500">
+                基础到账 {formatCreditsLabel(currentPackage.credits)} 龙虾币
+                {currentPackage.bonusCredits > 0 ? ` · 赠送 ${formatCreditsLabel(currentPackage.bonusCredits)}` : ''}
+              </p>
+              <p className="mt-1 text-sm font-medium text-[#d92f3d] dark:text-[#ff8a93]">
+                合计到账 {formatCreditsLabel(currentPackage.totalCredits)} 龙虾币
+              </p>
             </div>
 
             <div>
-              <p className="mb-4 text-sm font-medium text-gray-700 dark:text-gray-400">包含特权</p>
-              <ul className="space-y-3">
-                {currentPlan.features.map((feature) => (
+              <p className="mb-3 text-sm font-medium text-gray-700 dark:text-gray-400">到账说明</p>
+              <ul className="space-y-2.5">
+                {currentPackage.featureList.map((feature) => (
                   <li key={feature} className="flex items-start gap-3">
                     <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#E63946] dark:shadow-lg dark:shadow-red-900/30">
                       <Check className="h-3 w-3 text-white" />
@@ -809,11 +862,11 @@ function PaymentView({
             </div>
           </section>
 
-          <section className="rounded-2xl border border-gray-200 bg-gray-50 p-8 dark:border-[#2a3441] dark:bg-[#1f2630]">
-            <h2 className="mb-2 text-2xl font-bold text-[#1a1a1a] dark:text-[#f0f2f5]">请选择方式扫码支付</h2>
-            <p className="mb-8 text-sm text-gray-600 dark:text-gray-400">支持微信支付与支付宝，优先拉起外部收银台</p>
+          <section className="rounded-2xl border border-gray-200 bg-gray-50 p-6 dark:border-[#2a3441] dark:bg-[#1f2630]">
+            <h2 className="mb-2 text-2xl font-bold text-[#1a1a1a] dark:text-[#f0f2f5]">请选择方式完成支付</h2>
+            <p className="mb-5 text-sm text-gray-600 dark:text-gray-400">支持微信支付与支付宝。优先在当前页直接扫码，必要时再打开外部支付页。</p>
 
-            <div className={cn('mb-6 rounded-2xl border px-4 py-4', statusCard.tone)}>
+            <div className={cn('mb-4 rounded-2xl border px-4 py-4', statusCard.tone)}>
               <div className="flex items-start gap-3">
                 <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/70 text-current dark:bg-black/10">
                   <StatusIcon className={cn('h-5 w-5', statusCard.iconClassName)} />
@@ -831,7 +884,7 @@ function PaymentView({
               </div>
             </div>
 
-            <div className="mb-8 flex gap-3">
+            <div className="mb-4 flex gap-3">
               {(['wechat_qr', 'alipay_qr'] as PaymentMethod[]).map((method) => {
                 const meta = PAYMENT_METHOD_META[method];
                 const selected = paymentMethod === method;
@@ -841,7 +894,7 @@ function PaymentView({
                     onClick={() => onPaymentMethodChange(method)}
                     className={cn(
                       'flex-1 cursor-pointer rounded-xl py-3 font-medium transition-all',
-                      isPaid && 'cursor-not-allowed opacity-60',
+                      creatingOrder || isPaid ? 'cursor-not-allowed opacity-60' : '',
                       selected
                         ? meta.accentClassName
                         : 'border-2 border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-[#2a3441] dark:bg-[#252d3a] dark:text-gray-400 dark:hover:border-[#3a4551]',
@@ -854,129 +907,151 @@ function PaymentView({
               })}
             </div>
 
-            <div className="mb-8 flex flex-col gap-3 text-center">
-              <button
-                onClick={isPaid ? onClose : onPayNow}
-                disabled={creatingOrder}
-                className={cn(
-                  'w-full cursor-pointer rounded-xl py-3 font-medium transition-all',
-                  creatingOrder
-                    ? 'cursor-not-allowed bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500'
-                    : primaryButtonTone,
-                )}
-              >
-                {primaryButtonLabel}
-              </button>
-              {isAwaitingPayment && launchPaymentUrl ? (
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
+              <div className="flex flex-col gap-3">
                 <button
-                  type="button"
-                  onClick={onReopenPayment}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white py-3 text-sm font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 dark:border-[#2a3441] dark:bg-[#252d3a] dark:text-gray-200 dark:hover:border-[#435064] dark:hover:bg-[#2a3441]"
+                  onClick={handlePrimaryAction}
+                  disabled={primaryButtonDisabled}
+                  className={cn(
+                    'w-full rounded-xl py-3 font-medium transition-all',
+                    primaryButtonDisabled
+                      ? 'cursor-not-allowed bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500'
+                      : `${primaryButtonTone} cursor-pointer`,
+                  )}
                 >
-                  <ExternalLink className="h-4 w-4" />
-                  重新打开支付页
+                  {primaryButtonLabel}
                 </button>
-              ) : null}
-              {isPaid ? (
-                <p className="text-center text-xs text-emerald-700/80 dark:text-emerald-200/80">
-                  将自动关闭充值窗口并回到你刚才的页面，不会刷新当前应用。
-                </p>
-              ) : null}
-              {(isFailed || isExpired) && activeOrder ? (
-                <button
-                  type="button"
-                  onClick={() => onPaymentMethodChange(paymentMethod)}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white py-3 text-sm font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 dark:border-[#2a3441] dark:bg-[#252d3a] dark:text-gray-200 dark:hover:border-[#435064] dark:hover:bg-[#2a3441]"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  清空当前订单后重选方式
-                </button>
-              ) : null}
-            </div>
-
-            <div className="mb-8 text-center">
-              <p className="mb-2 text-sm text-gray-600 dark:text-gray-400">支付金额</p>
-              <div className="flex items-baseline justify-center gap-1">
-                <span className="text-lg text-[#E63946]">¥</span>
-                <span className="text-4xl font-bold text-[#E63946]">{totalPrice}</span>
-              </div>
-            </div>
-
-            <div className="mb-6 rounded-2xl border-2 border-gray-200 bg-white p-8 dark:border-[#2a3441] dark:bg-[#252d3a]">
-              <div className="mb-4 flex aspect-square w-full items-center justify-center rounded-xl bg-gray-100 dark:bg-[#1a1f28]">
-                {creatingOrder ? (
-                  <div className="text-center text-sm text-gray-500 dark:text-gray-400">
-                    正在创建支付订单...
+                {(isAwaitingPayment || isFailed || isExpired) && !isPaid ? (
+                  <button
+                    type="button"
+                    onClick={onResetOrder}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white py-3 text-sm font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 dark:border-[#2a3441] dark:bg-[#252d3a] dark:text-gray-200 dark:hover:border-[#435064] dark:hover:bg-[#2a3441]"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    清空当前订单并重选
+                  </button>
+                ) : null}
+                {isPaid ? (
+                  <p className="text-center text-xs text-emerald-700/80 dark:text-emerald-200/80">
+                    将自动关闭充值窗口并回到你刚才的页面，不会刷新当前应用。
+                  </p>
+                ) : null}
+                <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-[#2a3441] dark:bg-[#252d3a]">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.18em] text-gray-400">本次支付</p>
+                      <div className="mt-1 flex items-baseline gap-1">
+                        <span className="text-base text-[#E63946]">¥</span>
+                        <span className="text-3xl font-bold text-[#E63946]">{totalPrice}</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-gray-500">到账</p>
+                      <p className="mt-1 text-sm font-medium text-[#1a1a1a] dark:text-[#f0f2f5]">
+                        {formatCreditsLabel(currentPackage.totalCredits)} 龙虾币
+                      </p>
+                    </div>
                   </div>
-                ) : displayPaymentUrl ? (
+                  <p className="mt-3 text-xs leading-5 text-gray-500">
+                    {resolvedQrUrl
+                      ? displayPaymentUrl
+                        ? '当前展示的是支付渠道返回的实时二维码。'
+                        : '当前二维码由支付链接即时生成，扫码后会打开对应收银台继续付款。'
+                      : '创建订单后会在这里显示真实支付二维码。'}
+                  </p>
+                  {paymentMessage ? (
+                    <p className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-500">{paymentMessage}</p>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border-2 border-gray-200 bg-white p-4 dark:border-[#2a3441] dark:bg-[#252d3a]">
+                <div className="mb-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-[#1a1a1a] dark:text-[#f0f2f5]">扫码支付</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {paymentMethod === 'wechat_qr' ? '微信扫码' : '支付宝扫码'}
+                    </p>
+                  </div>
+                  {launchPaymentUrl ? (
+                    <button
+                      type="button"
+                      onClick={onReopenPayment}
+                      className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 dark:border-[#364152] dark:text-gray-200 dark:hover:border-[#435064] dark:hover:bg-[#2a3441]"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      打开支付页
+                    </button>
+                  ) : null}
+                </div>
+                <div className="flex min-h-[280px] items-center justify-center rounded-xl bg-gray-100 dark:bg-[#1a1f28]">
+                {creatingOrder ? (
+                  <div className="text-center text-sm text-gray-500 dark:text-gray-400">正在创建支付订单...</div>
+                ) : resolvedQrUrl ? (
                   <img
-                    src={displayPaymentUrl}
+                    src={resolvedQrUrl}
                     alt={`${paymentMethod === 'wechat_qr' ? '微信' : '支付宝'}支付二维码`}
-                    className="h-48 w-48 border-2 border-gray-300 bg-white object-cover"
+                    className="h-64 w-64 rounded-xl border border-gray-200 bg-white object-contain p-3 shadow-sm"
                   />
                 ) : isPaid ? (
-                  <div className="flex h-48 w-48 flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-emerald-200 bg-emerald-50 text-center dark:border-emerald-900/60 dark:bg-emerald-950/30">
+                  <div className="flex h-64 w-64 flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-emerald-200 bg-emerald-50 text-center dark:border-emerald-900/60 dark:bg-emerald-950/30">
                     <CheckCircle2 className="h-12 w-12 text-emerald-500" />
                     <div>
                       <p className="text-base font-semibold text-emerald-700 dark:text-emerald-200">充值已完成</p>
-                      <p className="mt-1 text-xs leading-5 text-emerald-600/80 dark:text-emerald-200/70">龙虾币已到账，3 秒后自动返回当前页面。</p>
+                      <p className="mt-1 text-xs leading-5 text-emerald-600/80 dark:text-emerald-200/70">
+                        龙虾币已到账，3 秒后自动返回当前页面。
+                      </p>
                     </div>
                   </div>
                 ) : isFailed ? (
-                  <div className="flex h-48 w-48 flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-red-200 bg-red-50 px-5 text-center dark:border-red-900/60 dark:bg-red-950/30">
+                  <div className="flex h-64 w-64 flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-red-200 bg-red-50 px-5 text-center dark:border-red-900/60 dark:bg-red-950/30">
                     <AlertCircle className="h-12 w-12 text-red-500" />
                     <div>
                       <p className="text-base font-semibold text-red-700 dark:text-red-200">支付失败</p>
-                      <p className="mt-1 text-xs leading-5 text-red-600/80 dark:text-red-200/70">没有发生充值，请重新发起支付。</p>
+                      <p className="mt-1 text-xs leading-5 text-red-600/80 dark:text-red-200/70">
+                        没有发生充值，请重新创建订单后再支付。
+                      </p>
                     </div>
                   </div>
                 ) : isExpired ? (
-                  <div className="flex h-48 w-48 flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-amber-200 bg-amber-50 px-5 text-center dark:border-amber-900/60 dark:bg-amber-950/30">
+                  <div className="flex h-64 w-64 flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-amber-200 bg-amber-50 px-5 text-center dark:border-amber-900/60 dark:bg-amber-950/30">
                     <Clock3 className="h-12 w-12 text-amber-500" />
                     <div>
                       <p className="text-base font-semibold text-amber-700 dark:text-amber-200">订单已失效</p>
-                      <p className="mt-1 text-xs leading-5 text-amber-600/80 dark:text-amber-200/70">当前订单不能继续支付，需要重新创建。</p>
+                      <p className="mt-1 text-xs leading-5 text-amber-600/80 dark:text-amber-200/70">
+                        当前订单不能继续支付，需要重新创建。
+                      </p>
                     </div>
                   </div>
-                ) : launchPaymentUrl ? (
-                  <div className="flex h-48 w-48 flex-col items-center justify-center gap-3 border-2 border-dashed border-gray-300 bg-white px-5 text-center">
-                    <p className="text-sm font-medium text-gray-700">支付页已生成</p>
-                    <button
-                      type="button"
-                      className="rounded-lg bg-[#111827] px-4 py-2 text-sm font-medium text-white hover:bg-[#0b1220]"
-                      onClick={onReopenPayment}
-                    >
-                      重新打开支付页
-                    </button>
-                    <p className="text-[11px] leading-5 text-gray-400">如果浏览器阻止弹窗，请手动点击上面的按钮，当前页面不会跳走。</p>
-                  </div>
                 ) : (
-                  <div className="flex h-48 w-48 items-center justify-center border-2 border-gray-300 bg-white px-4 text-center text-xs text-gray-400">
-                    点击“立即支付”后创建订单
+                  <div className="flex h-64 w-64 flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-dashed border-gray-300 bg-white px-6 text-center">
+                    <Clock3 className="h-10 w-10 text-gray-300" />
+                    <div>
+                      <p className="text-sm font-semibold text-gray-500">订单未创建</p>
+                      <p className="mt-2 text-xs leading-5 text-gray-400">点击左侧“创建订单并生成二维码”后，这里会显示真实支付二维码。</p>
+                    </div>
                   </div>
                 )}
+                </div>
+                <p className="mt-3 text-center text-sm text-gray-600 dark:text-gray-400">
+                  {resolvedQrUrl
+                    ? displayPaymentUrl
+                      ? paymentMethod === 'wechat_qr'
+                        ? '请直接使用微信扫描上方二维码完成支付。'
+                        : '请直接使用支付宝扫描上方二维码完成支付。'
+                      : '请直接扫描上方动态二维码；如果扫码不便，也可以打开支付页继续。'
+                    : isPaid
+                      ? `支付已完成，${formatCreditsLabel(currentPackage.totalCredits)} 龙虾币已经写入当前账号。`
+                      : isFailed
+                        ? '支付未成功，本次不会充值龙虾币。'
+                        : isExpired
+                          ? '订单已过期，请重新创建后再支付。'
+                          : '当前还没创建订单。点击左侧按钮后，这里会显示真实支付二维码。'}
+                </p>
               </div>
-              <p className="text-center text-sm text-gray-600 dark:text-gray-400">
-                {displayPaymentUrl
-                  ? paymentMethod === 'wechat_qr'
-                    ? '请使用微信扫描二维码完成支付'
-                    : '请使用支付宝扫描二维码完成支付'
-                  : isPaid
-                    ? '支付已完成，充值金额已经写入当前账号。'
-                    : isFailed
-                      ? '支付未成功，本次不会充值龙虾币。'
-                      : isExpired
-                        ? '订单已过期，请重新创建后再支付。'
-                  : launchPaymentUrl
-                    ? '请在浏览器打开的支付页中完成付款，当前窗口会持续同步订单状态。'
-                    : '点击“立即支付”后将跳转到收银台或生成二维码。'}
-              </p>
-              {paymentMessage ? (
-                <p className="mt-3 text-center text-xs text-gray-500 dark:text-gray-500">{paymentMessage}</p>
-              ) : null}
             </div>
 
-            <div className="text-center text-xs text-gray-500">
+            <div className="mt-4 text-center text-xs text-gray-500">
               <p>
                 充值即表示您同意我们的{' '}
                 <a href="#" className="cursor-pointer text-[#E63946] hover:underline">
@@ -987,6 +1062,7 @@ function PaymentView({
                   支付服务协议
                 </a>
               </p>
+              <p className="mt-2">这是一次性充值，不会产生后续自动扣费。</p>
             </div>
           </section>
         </div>
