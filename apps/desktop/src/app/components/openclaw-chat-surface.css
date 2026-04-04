@@ -2763,7 +2763,12 @@ body {
   right: 20px;
   bottom: calc(var(--iclaw-composer-height) + 10px);
   z-index: 29;
-  min-width: 112px;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  padding: 0;
+  gap: 0;
+  border-radius: 999px;
   border-color: color-mix(in srgb, var(--chat-surface-panel-border) 86%, transparent);
   background: color-mix(in srgb, var(--chat-surface-panel) 90%, white 10%);
   color: var(--text-primary);

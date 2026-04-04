@@ -8260,10 +8260,10 @@ export function OpenClawChatSurface({
                     size="sm"
                     className="iclaw-chat-scroll-bottom-button"
                     leadingIcon={<ArrowDown className="h-4 w-4" />}
+                    aria-label="回到底部"
+                    title="回到底部"
                     onClick={() => scrollChatToBottom({force: true, smooth: true})}
-                  >
-                    回到底部
-                  </Button>
+                  />
                 ) : null}
 
                 <RichChatComposer
