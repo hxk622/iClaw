@@ -16,7 +16,7 @@ export const BRAND = {
     "faviconPngSrc": "/brand/favicon.png",
     "appleTouchIconSrc": "/brand/apple-touch-icon.png",
     "installerHeroSrc": "/brand/installer-hero.png",
-    "assistantAvatarSrc": "/brand/favicon.png",
+    "assistantAvatarSrc": "/brand/assistant-avatar.png",
     "logoAlt": "iClaw logo"
   },
   "theme": {

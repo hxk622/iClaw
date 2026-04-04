@@ -12,6 +12,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/Button';
+import { BRAND } from '@/app/lib/brand';
 import type { ResolvedWelcomePageConfig } from '@/app/lib/oem-runtime';
 
 type WelcomeQuickAction = {
@@ -40,7 +41,7 @@ const DEFAULT_PROFILE: WelcomeProfile = {
   kolName: 'iClaw',
   expertName: '我的龙虾助理',
   slogan: '打开就会用的 AI 助理',
-  avatarUrl: '/brand/favicon.png',
+  avatarUrl: BRAND.assets.assistantAvatarSrc || BRAND.assets.faviconPngSrc || '/brand/favicon.png',
   primaryColor: '#C4975F',
   backgroundImageUrl: '/brand/installer-hero.png',
   description:

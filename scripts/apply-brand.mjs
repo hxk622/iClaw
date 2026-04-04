@@ -127,7 +127,7 @@ function buildBrandTs(brand) {
         faviconPngSrc: '/brand/favicon.png',
         appleTouchIconSrc: '/brand/apple-touch-icon.png',
         installerHeroSrc: '/brand/installer-hero.png',
-        assistantAvatarSrc: '/brand/favicon.png',
+        assistantAvatarSrc: '/brand/assistant-avatar.png',
         logoAlt: `${brand.displayName} logo`,
       },
       theme: brand.theme,
@@ -203,6 +203,13 @@ async function main() {
   const homeLogo = brand.assets.homeLogo
     ? resolveBrandPath(brandDir, brand.assets.homeLogo)
     : resolveBrandPath(brandDir, brand.assets.faviconPng);
+  const assistantAvatar = brand.assets.assistantAvatar
+    ? resolveBrandPath(brandDir, brand.assets.assistantAvatar)
+    : brand.assets.logoMaster
+      ? resolveBrandPath(brandDir, brand.assets.logoMaster)
+      : tauriIconsDir
+        ? path.join(tauriIconsDir, 'icon.png')
+        : faviconPng;
   const homeHeroArt = brand.assets.homeHeroArt ? resolveBrandPath(brandDir, brand.assets.homeHeroArt) : null;
   const homeHeroLayer1 = brand.assets.homeHeroLayer1 ? resolveBrandPath(brandDir, brand.assets.homeHeroLayer1) : null;
   const homeHeroLayer2 = brand.assets.homeHeroLayer2 ? resolveBrandPath(brandDir, brand.assets.homeHeroLayer2) : null;
@@ -216,6 +223,7 @@ async function main() {
   await copyFile(faviconPng, path.join(outputBrandDir, 'favicon.png'));
   await copyFile(appleTouchIcon, path.join(outputBrandDir, 'apple-touch-icon.png'));
   await copyFile(installerHero, path.join(outputBrandDir, 'installer-hero.png'));
+  await copyFile(assistantAvatar, path.join(outputBrandDir, 'assistant-avatar.png'));
   await copyFile(faviconIco, path.join(outputPublicDir, 'favicon.ico'));
   await copyFile(faviconPng, path.join(outputPublicDir, 'favicon.png'));
   await copyFile(appleTouchIcon, path.join(outputPublicDir, 'apple-touch-icon.png'));

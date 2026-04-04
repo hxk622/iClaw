@@ -187,6 +187,7 @@ function buildProfile(detail: PortalAppDetail, cachedAssets: Record<string, stri
       appleTouchIcon: cachedAssets.appleTouchIcon || cachedAssets.faviconPng,
       installerHero: cachedAssets.installerHero,
       tauriIconsDir: cachedAssets.tauriIconsDir,
+      assistantAvatar: cachedAssets.assistantAvatar,
       logoMaster: cachedAssets.logoMaster,
       homeLogo: cachedAssets.homeLogo,
       homeHeroArt: cachedAssets.homeHeroArt,
@@ -285,6 +286,13 @@ async function main() {
       detail,
       repoRoot,
       cacheRoot,
+      'assistantAvatar',
+      `assets/assistant-avatar${extname(findAsset(detail, 'assistantAvatar')?.objectKey || '') || '.png'}`,
+    );
+    await writeAssetFile(
+      detail,
+      repoRoot,
+      cacheRoot,
       'logoMaster',
       `assets/logo-master${extname(findAsset(detail, 'logoMaster')?.objectKey || '') || '.png'}`,
     );
@@ -317,6 +325,10 @@ async function main() {
       faviconPng: await relativePathIfExists(cacheRoot, 'assets/favicon.png'),
       appleTouchIcon: await relativePathIfExists(cacheRoot, 'assets/apple-touch-icon.png'),
       installerHero: await relativePathIfExists(cacheRoot, 'assets/installer-hero.png'),
+      assistantAvatar: await relativePathIfExists(
+        cacheRoot,
+        `assets/assistant-avatar${extname(findAsset(detail, 'assistantAvatar')?.objectKey || '') || '.png'}`,
+      ),
       logoMaster: await relativePathIfExists(
         cacheRoot,
         `assets/logo-master${extname(findAsset(detail, 'logoMaster')?.objectKey || '') || '.png'}`,
