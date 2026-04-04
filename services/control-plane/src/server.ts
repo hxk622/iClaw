@@ -439,19 +439,6 @@ const server = createJsonServer([
     },
   },
   {
-    method: 'POST',
-    path: '/api/epay/webhooks',
-    bodyType: 'raw',
-    handler: async ({body, headers}: HandlerContext<Buffer>) => {
-      await service.applyEpayWebhook(parseKeyValueBody(Buffer.isBuffer(body) ? body : Buffer.alloc(0), headers));
-      return createRawResponse('success', {
-        headers: {
-          'Content-Type': 'text/plain; charset=utf-8',
-        },
-      });
-    },
-  },
-  {
     method: 'GET',
     path: '/health',
     handler: () => ({
