@@ -52,6 +52,7 @@ import type {
 import {syncPortalPresetManifest} from './portal-preset.ts';
 import {buildPortalPublicConfig} from './portal-runtime.ts';
 import type {PgPortalStore} from './portal-store.ts';
+import {ensurePortalPreset} from './bootstrap.ts';
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const defaultPortalPresetManifestPath = resolve(moduleDir, '../presets/core-oem.json');
@@ -453,10 +454,16 @@ export class PortalService {
       throw new HttpError(400, 'PRESET_SYNC_UNSUPPORTED_SCHEMA', `unsupported preset schema version: ${String(raw.schemaVersion ?? '')}`);
     }
 
-    await syncPortalPresetManifest(this.store, raw, {
-      manifestDir: dirname(manifestPath),
-      preserveExistingAppState: !forceAppState,
-    });
+    const normalizedDefaultManifestPath = resolve(defaultPortalPresetManifestPath);
+    const normalizedRequestedManifestPath = resolve(manifestPath);
+    if (normalizedRequestedManifestPath === normalizedDefaultManifestPath && !forceAppState) {
+      await ensurePortalPreset(this.store);
+    } else {
+      await syncPortalPresetManifest(this.store, raw, {
+        manifestDir: dirname(manifestPath),
+        preserveExistingAppState: !forceAppState,
+      });
+    }
     await this.invalidateAllRuntimeModelCaches();
     await this.invalidateAllMemoryEmbeddingCaches();
 

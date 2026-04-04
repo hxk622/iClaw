@@ -5569,10 +5569,10 @@ async function syncPortalPresetManifest() {
     });
     await loadAppData();
     setNotice(
-      `baseline preset 已同步：${Number(result.appCount || 0)} 个 app，${Number(result.skillCount || 0)} 个 skill，${Number(result.mcpCount || 0)} 个 mcp，${Number(result.assetCount || 0)} 个 asset。`,
+      `core-oem.json 已同步到数据库：${Number(result.appCount || 0)} 个 app，${Number(result.skillCount || 0)} 个 skill，${Number(result.mcpCount || 0)} 个 mcp，${Number(result.assetCount || 0)} 个 asset。`,
     );
   } catch (error) {
-    setError(error instanceof Error ? error.message : 'baseline preset 同步失败');
+    setError(error instanceof Error ? error.message : 'core-oem.json 同步失败');
   } finally {
     state.busy = false;
     render();
@@ -8691,14 +8691,14 @@ function renderModelProviderCenterPage() {
         <section class="fig-card fig-card--subtle">
           <div class="fig-card__head">
             <div>
-              <h3>Baseline Preset</h3>
-              <span>仅用于新环境首灌、空库恢复、基线修复</span>
+              <h3>Preset 同步</h3>
+              <span>首灌、空库恢复、基线修复，或改完 preset 后显式发布</span>
             </div>
-            <button class="ghost-button" type="button" data-action="sync-portal-preset"${state.busy ? ' disabled' : ''}>同步 baseline preset</button>
+            <button class="ghost-button" type="button" data-action="sync-portal-preset"${state.busy ? ' disabled' : ''}>从 core-oem.json 同步到数据库</button>
           </div>
           <div class="empty-state" style="min-height:auto; align-items:flex-start; text-align:left;">
             <strong>默认不会随 control-plane 启动自动执行。</strong>
-            <span>这里只保留手工入口，避免把 admin-web 里的日常配置在启动时又被回刷。</span>
+            <span>这里只保留手工入口，避免把数据库里的日常运营配置被 preset 回刷覆盖。</span>
           </div>
         </section>
         <section class="fig-card fig-card--subtle">
@@ -9753,6 +9753,10 @@ function renderCloudMcpsPage() {
             <p class="fig-page__description">这里是 MCP 商店总库，也是 MCP 的唯一主数据来源。</p>
           </div>
           <div class="action-row">
+            <button class="ghost-button fig-button" type="button" data-action="sync-portal-preset"${state.busy ? ' disabled' : ''}>
+              ${icon('rotateCcw', 'button-icon')}
+              从 core-oem.json 同步到数据库
+            </button>
             <button class="solid-button fig-button" type="button" data-action="new-cloud-mcp">
               ${icon('plus', 'button-icon')}
               新增云MCP
@@ -12166,7 +12170,7 @@ app.addEventListener('click', async (event) => {
   }
 
   if (action === 'sync-portal-preset') {
-    if (window.confirm('确认手工同步 baseline preset？这个操作只应用于新环境首灌、空库恢复或基线修复。')) {
+    if (window.confirm('确认把 core-oem.json 手工同步到数据库？这个操作适用于首灌、空库恢复、基线修复，或你刚改完 preset 需要显式发布。')) {
       await syncPortalPresetManifest();
     }
     return;
