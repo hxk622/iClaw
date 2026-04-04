@@ -33,7 +33,7 @@ const PRIMARY_ACTION_BUTTON_CLASS =
   'bg-[#111827] !text-white hover:bg-[#0B1220] dark:border dark:border-[#DDE3EA] dark:bg-[#F7F9FC] dark:!text-[#0F172A] dark:hover:bg-[#ECF1F6]';
 
 const SECONDARY_ACTION_BUTTON_CLASS =
-  'border border-[#E5E7EB] bg-white text-[#374151] hover:bg-[#F9FAFB] dark:border-[#2A2A2A] dark:bg-transparent dark:text-[#D1D5DB] dark:hover:bg-[#1A1A1A]';
+  'border border-[#E5E7EB] bg-white text-[#374151] hover:bg-[#F9FAFB] dark:border-[#3A3A3A] dark:bg-transparent dark:text-[#E5E7EB] dark:hover:bg-[#1A1A1A]';
 
 function formatPaymentDeadline(value: string | null): string | null {
   if (!value) {
@@ -139,22 +139,22 @@ function getPaymentMethodTheme(paymentMethod: PaymentMethod) {
         label: '微信支付',
         instruction: '请使用微信扫一扫完成支付',
         accentTextClassName: 'text-[#07C160]',
-        accentBgClassName: 'bg-[rgba(7,193,96,0.10)] dark:bg-[rgba(7,193,96,0.16)]',
-        accentBorderClassName: 'border-[rgba(7,193,96,0.18)] dark:border-[rgba(7,193,96,0.24)]',
+        accentBgClassName: 'bg-[rgba(7,193,96,0.10)] dark:bg-[rgba(7,193,96,0.22)]',
+        accentBorderClassName: 'border-[rgba(7,193,96,0.18)] dark:border-[rgba(7,193,96,0.34)]',
         qrStageClassName: 'bg-[#FAFFF7] dark:bg-[#1A2E1A]',
         optionSelectedClassName:
-          'border-green-600 bg-green-50 dark:border-green-500 dark:bg-green-950/20',
+          'border-green-600 bg-green-50 dark:border-green-400 dark:bg-green-950/30',
         optionSelectedDotClassName: 'bg-green-600 dark:bg-green-500',
       }
     : {
         label: '支付宝',
         instruction: '请使用支付宝扫一扫完成支付',
         accentTextClassName: 'text-[#1677FF]',
-        accentBgClassName: 'bg-[rgba(22,119,255,0.10)] dark:bg-[rgba(22,119,255,0.16)]',
-        accentBorderClassName: 'border-[rgba(22,119,255,0.18)] dark:border-[rgba(22,119,255,0.24)]',
+        accentBgClassName: 'bg-[rgba(22,119,255,0.10)] dark:bg-[rgba(22,119,255,0.22)]',
+        accentBorderClassName: 'border-[rgba(22,119,255,0.18)] dark:border-[rgba(22,119,255,0.34)]',
         qrStageClassName: 'bg-[#F5F9FF] dark:bg-[#1A2845]',
         optionSelectedClassName:
-          'border-blue-600 bg-blue-50 dark:border-blue-500 dark:bg-blue-950/20',
+          'border-blue-600 bg-blue-50 dark:border-blue-400 dark:bg-blue-950/30',
         optionSelectedDotClassName: 'bg-blue-600 dark:bg-blue-500',
       };
 }
@@ -547,9 +547,9 @@ function PackageSelectionView({
       <div className="relative">
         <button
           onClick={onClose}
-          className="absolute right-0 top-0 flex h-10 w-10 cursor-pointer items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-[#242424] dark:hover:text-gray-300"
+          className="absolute right-0 top-0 flex h-10 w-10 cursor-pointer items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:text-gray-300 dark:hover:bg-[#242424] dark:hover:text-gray-100"
         >
-          <X className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+          <X className="h-5 w-5 text-gray-600 dark:text-gray-300" />
         </button>
 
         <div className="mb-12 text-center">
@@ -590,7 +590,7 @@ function PackageSelectionView({
                 INTERACTIVE_FOCUS_RING,
                 selected
                   ? 'border-gray-900 shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:border-gray-100 dark:bg-[#1A1A1A] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]'
-                  : 'border-gray-200/80 bg-white hover:border-gray-300 dark:border-gray-800 dark:bg-[#1A1A1A] dark:hover:border-gray-700',
+                  : 'border-gray-200/80 bg-white hover:border-gray-300 dark:border-[#2F3742] dark:bg-[#1A1A1A] dark:hover:border-[#4B5563]',
               )}
             >
               {meta.badgeText ? (
@@ -656,7 +656,7 @@ function PackageSelectionView({
         })}
         </div>
       ) : (
-        <div className="mx-auto flex max-w-[780px] flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 px-10 py-16 text-center dark:border-gray-700 dark:bg-[#181818]">
+        <div className="mx-auto flex max-w-[780px] flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 px-10 py-16 text-center dark:border-gray-600 dark:bg-[#181818]">
           <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900">
             <FolderCog className="h-7 w-7" />
           </div>
@@ -799,7 +799,7 @@ function PaymentView({
     >
       <button
         onClick={onClose}
-        className="absolute right-5 top-5 z-10 flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+        className="absolute right-5 top-5 z-10 flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100"
       >
         <X className="h-4 w-4" />
       </button>
@@ -885,14 +885,14 @@ function PaymentView({
           </div>
 
           <div className="space-y-1.5 text-center">
-            <p className="text-[14px] text-gray-600 dark:text-gray-400">{methodTheme.instruction}</p>
+            <p className="text-[14px] text-gray-600 dark:text-gray-300">{methodTheme.instruction}</p>
             {(isAwaitingPayment || expiringSoon) && countdownLabel ? (
-              <p className="text-[13px] text-gray-500 dark:text-gray-500">
+              <p className="text-[13px] text-gray-500 dark:text-gray-400">
                 {expiringSoon ? '⚠️ ' : ''}
                 二维码有效期 {countdownLabel}
               </p>
             ) : null}
-            {paymentMessage ? <p className="text-[12px] text-gray-500 dark:text-gray-500">{paymentMessage}</p> : null}
+            {paymentMessage ? <p className="text-[12px] text-gray-500 dark:text-gray-400">{paymentMessage}</p> : null}
           </div>
         </div>
 
@@ -938,7 +938,7 @@ function PaymentView({
                       creatingOrder || isPaid ? 'cursor-not-allowed opacity-60' : '',
                       selected
                         ? optionTheme.optionSelectedClassName
-                        : 'border-gray-200 bg-white hover:border-gray-300 dark:border-gray-800 dark:bg-[#1A1A1A] dark:hover:border-gray-700',
+                        : 'border-gray-200 bg-white hover:border-gray-300 dark:border-[#31343A] dark:bg-[#1A1A1A] dark:hover:border-[#4B5563]',
                     )}
                   >
                     <div
@@ -980,17 +980,17 @@ function PaymentView({
             {expiryLabel && !isPaid ? <p className="mt-2 text-[12px] text-gray-500 dark:text-gray-400">有效至 {expiryLabel}</p> : null}
           </div>
 
-          <div className="mb-5 mt-auto space-y-2 text-[12px] text-gray-500 dark:text-gray-400">
+          <div className="mb-5 mt-auto space-y-2 text-[12px] text-gray-500 dark:text-gray-300">
             <div className="flex items-start gap-2">
-              <div className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-gray-400 dark:bg-gray-500" />
+              <div className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-gray-400 dark:bg-gray-400" />
               <span>官方扫码通道，安全可靠</span>
             </div>
             <div className="flex items-start gap-2">
-              <div className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-gray-400 dark:bg-gray-500" />
+              <div className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-gray-400 dark:bg-gray-400" />
               <span>支付结果自动同步</span>
             </div>
             <div className="flex items-start gap-2">
-              <div className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-gray-400 dark:bg-gray-500" />
+              <div className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-gray-400 dark:bg-gray-400" />
               <span>支付成功后即时到账</span>
             </div>
           </div>
