@@ -228,6 +228,16 @@ function dedupeArtifacts(artifacts: ChatTurnArtifact[]): ChatTurnArtifact[] {
   return Array.from(new Set(artifacts));
 }
 
+function buildCronTurnRecordId(jobId: string, status: ChatTurnStatus, runAt?: number | null): string {
+  if (status === 'running') {
+    return `cron:${jobId}:running`;
+  }
+  if (typeof runAt === 'number' && Number.isFinite(runAt) && runAt > 0) {
+    return `cron:${jobId}:${Math.trunc(runAt)}`;
+  }
+  return `cron:${jobId}:latest`;
+}
+
 export function buildChatTurnTitle(prompt: string): string {
   const cleaned = collapseText(stripPromptMarkers(prompt));
   if (!cleaned) {
@@ -377,7 +387,8 @@ export function upsertCronTaskTurn(input: UpsertCronTaskTurnInput): ChatTurnReco
   const nowIso = new Date(input.runAt ?? Date.now()).toISOString();
   const prompt = collapseText(stripPromptMarkers(input.prompt)) || name;
   const summary = trimText(collapseText(input.summary) || name, 120);
-  const nextRecordId = `cron:${jobId}`;
+  const nextRecordId = buildCronTurnRecordId(jobId, input.status, input.runAt);
+  const runningRecordId = `cron:${jobId}:running`;
 
   let nextRecord: ChatTurnRecord | null = null;
 
@@ -405,7 +416,18 @@ export function upsertCronTaskTurn(input: UpsertCronTaskTurnInput): ChatTurnReco
       deliveryStatus: collapseText(input.deliveryStatus),
       nextRunAt: typeof input.nextRunAt === 'number' && Number.isFinite(input.nextRunAt) ? input.nextRunAt : null,
     };
-    return [nextRecord as ChatTurnRecord, ...turns.filter((turn) => turn.id !== nextRecordId)];
+    return [
+      nextRecord as ChatTurnRecord,
+      ...turns.filter((turn) => {
+        if (turn.id === nextRecordId) {
+          return false;
+        }
+        if (input.status !== 'running' && turn.id === runningRecordId) {
+          return false;
+        }
+        return true;
+      }),
+    ];
   });
 
   return nextRecord;
@@ -416,8 +438,16 @@ export function deleteCronTaskTurn(jobId: string): void {
   if (!normalizedJobId) {
     return;
   }
-  const recordId = `cron:${normalizedJobId}`;
-  updateTurnList((turns) => turns.filter((turn) => turn.id !== recordId));
+  const recordIdPrefix = `cron:${normalizedJobId}`;
+  updateTurnList((turns) =>
+    turns.filter(
+      (turn) =>
+        !(
+          turn.source === 'cron' &&
+          ((turn.sourceEntityId && collapseText(turn.sourceEntityId) === normalizedJobId) || turn.id.startsWith(recordIdPrefix))
+        ),
+    ),
+  );
 }
 
 export function subscribeChatTurns(listener: () => void): () => void {
