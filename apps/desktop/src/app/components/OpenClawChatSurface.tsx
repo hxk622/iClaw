@@ -1878,18 +1878,45 @@ function syncChatTableLayout(
 ): void {
   const previousWidth = table.style.width;
   const previousMinWidth = table.style.minWidth;
+  const previousMaxWidth = table.style.maxWidth;
+  const previousTableLayout = table.style.tableLayout;
 
   table.style.width = 'max-content';
   table.style.minWidth = '0';
+  table.style.maxWidth = 'none';
+  table.style.tableLayout = 'auto';
   const intrinsicWidth = Math.ceil(table.getBoundingClientRect().width);
 
   table.style.width = previousWidth;
   table.style.minWidth = previousMinWidth;
+  table.style.maxWidth = previousMaxWidth;
+  table.style.tableLayout = previousTableLayout;
 
   const containerWidth = Math.ceil(scrollContainer.clientWidth);
-  const layout = intrinsicWidth > containerWidth + 1 ? 'scroll' : 'fill';
+  const layout = intrinsicWidth > containerWidth + 1 ? 'scroll' : 'fit';
   card.dataset.iclawTableLayout = layout;
   table.dataset.iclawTableLayout = layout;
+
+  if (layout === 'fit') {
+    card.style.width = 'fit-content';
+    card.style.maxWidth = '100%';
+    scrollContainer.style.width = 'fit-content';
+    scrollContainer.style.maxWidth = '100%';
+    table.style.width = 'max-content';
+    table.style.minWidth = '0';
+    table.style.maxWidth = 'none';
+    table.style.tableLayout = 'auto';
+    return;
+  }
+
+  card.style.width = '100%';
+  card.style.maxWidth = '100%';
+  scrollContainer.style.width = '100%';
+  scrollContainer.style.maxWidth = '100%';
+  table.style.width = 'max-content';
+  table.style.minWidth = '100%';
+  table.style.maxWidth = 'none';
+  table.style.tableLayout = 'auto';
 }
 
 function enhanceChatMarkdownTable(table: HTMLTableElement): void {
