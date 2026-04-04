@@ -1,7 +1,8 @@
-# Release Template
+# Version Record Template
 
 ## 1. 发布基线
 
+- `version_no`:
 - `release_id`:
 - `environment`: `prod`
 - `git_tag`:
@@ -35,21 +36,21 @@
 
 内容：
 
-## 3.3 DB Data
+### 3.3 DB Data
 
 - [ ] 无
 - [ ] 有
 
 内容：
 
-## 3.4 Object Storage
+### 3.4 Object Storage
 
 - [ ] 无
 - [ ] 有
 
 内容：
 
-## 3.5 Infra Config
+### 3.5 Infra Config
 
 - [ ] 无
 - [ ] 有

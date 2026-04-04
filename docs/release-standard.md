@@ -60,6 +60,8 @@
 
 发布基线字段：
 
+- `version_no`
+  - 例：`0001`
 - `release_id`
   - 例：`release-2026-04-04-01`
 - `environment`
@@ -87,11 +89,16 @@
 
 每次上线必须落一份文档到：
 
-- `docs/ops/releases/<release_id>.md`
+- `docs/version_record/<4位版本号>.md`
 
-建议同时维护一份模板：
+命名规则：
 
-- `docs/ops/releases/TEMPLATE.md`
+- 从 `0001.md` 开始顺序递增
+- `version_record` 目录内只放编号记录，不放其他文件
+
+建议同时维护一份目录外模板：
+
+- `docs/version-record-template.md`
 
 每份发布单至少包含：
 
@@ -289,3 +296,4 @@
 - [release-checklist.md](/Users/xingkaihan/Documents/Code/iClaw/docs/release-checklist.md)
 - [release-matrix.md](/Users/xingkaihan/Documents/Code/iClaw/docs/release-matrix.md)
 - [prod-infra-inventory.md](/Users/xingkaihan/Documents/Code/iClaw/docs/prod-infra-inventory.md)
+- [version-record-template.md](/Users/xingkaihan/Documents/Code/iClaw/docs/version-record-template.md)
