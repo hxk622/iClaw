@@ -472,7 +472,7 @@ function makeSignature(input: {userId: string; nonce: string; expiresAt: string}
   return Buffer.from(`${input.userId}:${input.nonce}:${input.expiresAt}`, 'utf8').toString('base64url');
 }
 
-function normalizePaymentProvider(value: string | undefined, fallback: PaymentProvider = 'wechat_qr'): PaymentProvider {
+export function normalizePaymentProvider(value: string | undefined, fallback: PaymentProvider = 'wechat_qr'): PaymentProvider {
   const normalized = (value || '').trim();
   const provider = (normalized || fallback) as PaymentProvider;
   if (!SUPPORTED_PAYMENT_PROVIDERS.has(provider)) {
@@ -630,7 +630,7 @@ type ResolvedPaymentProviderProfile = {
   missingFields: string[];
 };
 
-const TOPUP_PACKAGES = new Map<
+export const TOPUP_PACKAGES = new Map<
   string,
   {
     packageName: string;

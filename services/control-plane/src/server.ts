@@ -63,6 +63,8 @@ import {resolveSkillCatalogVisibilityMode} from './portal-skill-catalog-policy.t
 import {ensureControlPlaneSchema, PgControlPlaneStore} from './pg-store.ts';
 import {createRedisKeyValueCache} from './redis-cache.ts';
 import {ControlPlaneService} from './service.ts';
+import {EpayService} from './epay-service.ts';
+import {decryptInstallSecretPayload} from './install-config-secrets.ts';
 import {logError, logInfo, logWarn} from './logger.ts';
 import {
   desktopUpdateAllowedRequestHeaders,
@@ -125,6 +127,8 @@ const service = new ControlPlaneService(store, {
     return portalStore.resolveBillingMultiplierForAppModel(normalizedAppName, model);
   },
 });
+const epayService = new EpayService(store, decryptInstallSecretPayload, config.publicUrl);
+
 const oemService = new OemService(oemStore, async (accessToken) => service.me(accessToken), {
   controlStore: store,
 });
@@ -397,6 +401,21 @@ async function packageGithubSkillArtifact(metadata: Record<string, unknown>): Pr
 }
 
 const server = createJsonServer([
+  {
+    method: 'POST',
+    path: '/api/epay/orders',
+    handler: async ({headers, body}: HandlerContext) => {
+      const user = await service.me(requireBearerToken(headers));
+      return epayService.createEpayPaymentOrder(user.id, (body || {}) as CreatePaymentOrderInput);
+    },
+  },
+  {
+    method: 'POST',
+    path: '/api/epay/webhooks',
+    handler: ({body}: HandlerContext) => {
+      return epayService.applyEpayWebhook((body || {}) as PaymentWebhookInput);
+    },
+  },
   {
     method: 'GET',
     path: '/health',

@@ -8,7 +8,8 @@ import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interacti
 type BillingCycle = 'monthly' | 'yearly';
 type PlanTier = 'free' | 'plus' | 'pro' | 'ultra';
 type PaidPlanTier = Exclude<PlanTier, 'free'>;
-type PaymentMethod = 'wechat_qr' | 'alipay_qr';
+type PaymentMethod = 'wechat_qr' | 'alipay_qr' | null;
+
 type RechargeStep = 'plans' | 'payment';
 
 type RechargePlan = {
@@ -110,7 +111,7 @@ const PLAN_PAYMENT_PACKAGE_MAP: Record<PaidPlanTier, Record<BillingCycle, string
   ultra: { monthly: 'plan_ultra_monthly', yearly: 'plan_ultra_yearly' },
 };
 
-const PAYMENT_METHOD_META: Record<PaymentMethod, { label: string; accentClassName: string }> = {
+const PAYMENT_METHOD_META: Record<Exclude<PaymentMethod, null>, { label: string; accentClassName: string }> = {
   wechat_qr: { label: '微信支付', accentClassName: 'bg-[#07C160] text-white shadow-lg shadow-green-900/30' },
   alipay_qr: { label: '支付宝', accentClassName: 'bg-[#1677FF] text-white shadow-lg shadow-blue-900/30' },
 };
@@ -132,6 +133,36 @@ function formatPlanPrice(plan: RechargePlan, cycle: BillingCycle): number {
   return cycle === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice;
 }
 
+function getRedirect(url: string, data: Record<string, any>) {
+  console.log('getRedirect called with:', { url, data });
+  
+  const params = new URLSearchParams();
+  for (const key in data) {
+    if (Object.prototype.hasOwnProperty.call(data, key)) {
+      params.append(key, data[key]);
+    }
+  }
+  const queryString = params.toString();
+  const fullUrl = queryString ? `${url}${url.includes('?') ? '&' : '?'}${queryString}` : url;
+  
+  console.log('Opening URL:', fullUrl);
+  
+  // 使用多种方式确保跳转成功
+  try {
+    // 尝试在新窗口打开
+    const newWindow = window.open(fullUrl, '_blank');
+    if (!newWindow || newWindow.closed) {
+      console.log('Window.open was blocked, trying location.href in current window');
+      // 如果被阻止，在当前窗口跳转
+      window.location.href = fullUrl;
+    }
+  } catch (error) {
+    console.error('Error opening window:', error);
+    // 最后在当前窗口跳转
+    window.location.href = fullUrl;
+  }
+}
+
 interface RechargeCenterProps {
   client: IClawClient;
   token: string;
@@ -143,17 +174,14 @@ export function RechargeCenter({ client, token, onClose, active = true }: Rechar
   const [step, setStep] = useState<RechargeStep>('plans');
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [selectedPlan, setSelectedPlan] = useState<PaidPlanTier>('plus');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('wechat_qr');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(null);
   const [planDropdownOpen, setPlanDropdownOpen] = useState(false);
   const [creatingOrder, setCreatingOrder] = useState(false);
-  const [activeOrder, setActiveOrder] = useState<PaymentOrderData | null>(null);
   const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const currentPlan = useMemo(() => getPlanById(selectedPlan), [selectedPlan]);
   const totalPrice = formatPlanPrice(currentPlan, billingCycle);
-  const displayPaymentUrl =
-    activeOrder?.provider === 'wechat_qr' ? PERSONAL_WECHAT_QR_URL : activeOrder?.payment_url || null;
 
   useEffect(() => {
     if (!active) return;
@@ -167,74 +195,97 @@ export function RechargeCenter({ client, token, onClose, active = true }: Rechar
     return () => window.removeEventListener('mousedown', handlePointerDown);
   }, [active, planDropdownOpen]);
 
-  useEffect(() => {
-    if (!active) return;
-    if (step !== 'payment') return;
-    let cancelled = false;
+  const handlePayNow = async () => {
+    console.log('handlePayNow called with paymentMethod:', paymentMethod);
+    if (!paymentMethod) {
+      console.log('No payment method selected, returning early');
+      return;
+    }
     setCreatingOrder(true);
     setPaymentMessage(null);
     const packageId = PLAN_PAYMENT_PACKAGE_MAP[selectedPlan][billingCycle];
 
-    const createOrder = async () => {
-      try {
-        const order = await client.createPaymentOrder({
-          token,
-          provider: paymentMethod,
-          packageId,
-          returnUrl: 'iclaw://payments/result',
-        });
-        if (cancelled) return;
-        setActiveOrder(order);
-      } catch (error) {
-        if (!cancelled) {
-          setActiveOrder(null);
-          setPaymentMessage(error instanceof Error ? error.message : '创建支付订单失败');
-        }
-      } finally {
-        if (!cancelled) {
-          setCreatingOrder(false);
-        }
+    try {
+      console.log('Creating payment order with params:', {
+        token: token ? 'present' : 'missing',
+        provider: paymentMethod,
+        packageId,
+        returnUrl: 'iclaw://payments/result',
+      });
+      
+      const response = await client.createPaymentOrder({
+        token,
+        provider: paymentMethod,
+        packageId,
+        returnUrl: 'iclaw://payments/result',
+      });
+      
+      console.log('Payment order response:', response);
+      console.log('Response type:', typeof response);
+      console.log('Response keys:', Object.keys(response || {}));
+      
+      // 检查是否为嵌套结构 { data: { ... } }
+      let orderData = response;
+      if (response && typeof response === 'object' && 'data' in response) {
+        console.log('Found nested data structure, extracting response.data');
+        orderData = (response as any).data;
       }
-    };
-
-    void createOrder();
-    return () => {
-      cancelled = true;
-    };
-  }, [active, billingCycle, client, paymentMethod, selectedPlan, step, token]);
+      
+      console.log('Processed order data:', orderData);
+      
+      // 使用 GET 方法重定向到支付页面
+      if (orderData?.url && orderData?.data) {
+        getRedirect(orderData.url, orderData.data);
+      } else {
+        console.error('Invalid order data structure:', orderData);
+        setPaymentMessage('支付订单数据格式错误');
+      }
+    } catch (error) {
+      console.error('Error creating payment order:', error);
+      setPaymentMessage(error instanceof Error ? error.message : '创建支付订单失败');
+    } finally {
+      console.log('Setting creatingOrder to false');
+      setCreatingOrder(false);
+    }
+  };
 
   useEffect(() => {
     if (!active) return;
-    if (!activeOrder) return;
-    if (!['created', 'pending'].includes(activeOrder.status)) return;
-    let cancelled = false;
-    const poll = async () => {
-      try {
-        const nextOrder = await client.getPaymentOrder(token, activeOrder.order_id);
-        if (cancelled) return;
-        setActiveOrder(nextOrder);
-        if (nextOrder.status === 'paid') {
-          setPaymentMessage('支付成功，充值余额稍后到账。');
-        } else if (nextOrder.status === 'expired') {
-          setPaymentMessage('二维码已过期，请重新选择支付方式。');
-        } else if (nextOrder.status === 'failed') {
-          setPaymentMessage('支付失败，请重新尝试。');
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setPaymentMessage(error instanceof Error ? error.message : '订单状态刷新失败');
-        }
-      }
-    };
-    void poll();
-    const timer = window.setInterval(() => {
-      void poll();
-    }, 3000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [active, activeOrder, client, token]);
+    if (step !== 'payment') return;
+  }, [active, billingCycle, client, paymentMethod, selectedPlan, step, token]);
+
+  // useEffect(() => {
+  //   if (!active) return;
+  //   if (!activeOrder) return;
+  //   if (!['created', 'pending'].includes(activeOrder.status)) return;
+  //   let cancelled = false;
+  //   const poll = async () => {
+  //     try {
+  //       const nextOrder = await client.getPaymentOrder(token, activeOrder.order_id);
+  //       if (cancelled) return;
+  //       setActiveOrder(nextOrder);
+  //       if (nextOrder.status === 'paid') {
+  //         setPaymentMessage('支付成功，充值余额稍后到账。');
+  //       } else if (nextOrder.status === 'expired') {
+  //         setPaymentMessage('二维码已过期，请重新选择支付方式。');
+  //       } else if (nextOrder.status === 'failed') {
+  //         setPaymentMessage('支付失败，请重新尝试。');
+  //       }
+  //     } catch (error) {
+  //       if (!cancelled) {
+  //         setPaymentMessage(error instanceof Error ? error.message : '订单状态刷新失败');
+  //       }
+  //     }
+  //   };
+  //   void poll();
+  //   const timer = window.setInterval(() => {
+  //     void poll();
+  //   }, 30000);
+  //   return () => {
+  //     cancelled = true;
+  //     window.clearInterval(timer);
+  //   };
+  // }, [active, activeOrder, client, token]);
 
   const openPayment = (planId: PlanTier) => {
     if (planId === 'free') return;
@@ -242,7 +293,6 @@ export function RechargeCenter({ client, token, onClose, active = true }: Rechar
       setSelectedPlan(toPaidPlan(planId));
       setPlanDropdownOpen(false);
       setPaymentMessage(null);
-      setActiveOrder(null);
       setStep('payment');
     });
   };
@@ -272,7 +322,6 @@ export function RechargeCenter({ client, token, onClose, active = true }: Rechar
           currentPlan={currentPlan}
           totalPrice={totalPrice}
           paymentMethod={paymentMethod}
-          displayPaymentUrl={displayPaymentUrl}
           onPaymentMethodChange={setPaymentMethod}
           planDropdownOpen={planDropdownOpen}
           onTogglePlanDropdown={() => setPlanDropdownOpen((current) => !current)}
@@ -284,13 +333,12 @@ export function RechargeCenter({ client, token, onClose, active = true }: Rechar
           onBack={() => {
             setPlanDropdownOpen(false);
             setPaymentMessage(null);
-            setActiveOrder(null);
             setStep('plans');
           }}
           onClose={onClose}
           creatingOrder={creatingOrder}
-          activeOrder={activeOrder}
           paymentMessage={paymentMessage}
+          onPayNow={handlePayNow}
           onPanelClick={(event) => event.stopPropagation()}
         />
       )}
@@ -515,7 +563,6 @@ function PaymentView({
   currentPlan,
   totalPrice,
   paymentMethod,
-  displayPaymentUrl,
   onPaymentMethodChange,
   planDropdownOpen,
   onTogglePlanDropdown,
@@ -524,15 +571,14 @@ function PaymentView({
   onBack,
   onClose,
   creatingOrder,
-  activeOrder,
   paymentMessage,
+  onPayNow,
   onPanelClick,
 }: {
   billingCycle: BillingCycle;
   currentPlan: RechargePlan;
   totalPrice: number;
   paymentMethod: PaymentMethod;
-  displayPaymentUrl: string | null;
   onPaymentMethodChange: (method: PaymentMethod) => void;
   planDropdownOpen: boolean;
   onTogglePlanDropdown: () => void;
@@ -541,8 +587,8 @@ function PaymentView({
   onBack: () => void;
   onClose: () => void;
   creatingOrder: boolean;
-  activeOrder: PaymentOrderData | null;
   paymentMessage: string | null;
+  onPayNow: () => void;
   onPanelClick: (event: ReactMouseEvent<HTMLDivElement>) => void;
 }) {
   return (
@@ -653,7 +699,8 @@ function PaymentView({
             <p className="mb-8 text-sm text-gray-600 dark:text-gray-400">支持微信支付与支付宝</p>
 
             <div className="mb-8 flex gap-3">
-              {(['wechat_qr', 'alipay_qr'] as PaymentMethod[]).map((method) => {
+              {(['wechat_qr', 'alipay_qr'] as Exclude<PaymentMethod, null>[]).map((method) => {
+                if (!method) return null;
                 const meta = PAYMENT_METHOD_META[method];
                 const selected = paymentMethod === method;
                 return (
@@ -674,6 +721,21 @@ function PaymentView({
             </div>
 
             <div className="mb-8 text-center">
+              <button
+                onClick={onPayNow}
+                disabled={!paymentMethod || creatingOrder}
+                className={cn(
+                  'w-full cursor-pointer rounded-xl py-3 font-medium transition-all',
+                  !paymentMethod || creatingOrder
+                    ? 'cursor-not-allowed bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500'
+                    : 'bg-blue-500 text-white hover:bg-blue-600',
+                )}
+              >
+                立即支付
+              </button>
+            </div>
+
+            <div className="mb-8 text-center">
               <p className="mb-2 text-sm text-gray-600 dark:text-gray-400">支付金额</p>
               <div className="flex items-baseline justify-center gap-1">
                 <span className="text-lg text-[#E63946]">¥</span>
@@ -685,26 +747,20 @@ function PaymentView({
               <div className="mb-4 flex aspect-square w-full items-center justify-center rounded-xl bg-gray-100 dark:bg-[#1a1f28]">
                 {creatingOrder ? (
                   <div className="text-center text-sm text-gray-500 dark:text-gray-400">
-                    正在生成{paymentMethod === 'wechat_qr' ? '微信' : '支付宝'}二维码
+                    正在跳转到支付页面...
                   </div>
-                ) : displayPaymentUrl ? (
-                  <img
-                    src={displayPaymentUrl}
-                    alt={`${paymentMethod === 'wechat_qr' ? '微信' : '支付宝'}支付二维码`}
-                    className="h-48 w-48 border-2 border-gray-300 bg-white object-cover"
-                  />
                 ) : (
                   <div className="flex h-48 w-48 items-center justify-center border-2 border-gray-300 bg-white px-4 text-center text-xs text-gray-400">
-                    {paymentMethod === 'wechat_qr' ? '微信' : '支付宝'}
-                    <br />
-                    扫码支付二维码
+                    请先在上方选择支付方式
                   </div>
                 )}
               </div>
               <p className="text-center text-sm text-gray-600 dark:text-gray-400">
                 {paymentMethod === 'wechat_qr'
-                  ? '请使用微信扫描二维码完成支付'
-                  : '请使用支付宝扫描二维码完成支付'}
+                  ? '请在跳转后使用微信完成支付'
+                  : paymentMethod === 'alipay_qr'
+                  ? '请在跳转后使用支付宝完成支付'
+                  : '点击“立即支付”后将跳转到收银台'}
               </p>
               {paymentMessage ? (
                 <p className="mt-3 text-center text-xs text-gray-500 dark:text-gray-500">{paymentMessage}</p>
