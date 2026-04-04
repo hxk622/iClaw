@@ -1740,6 +1740,43 @@ function clearChatTableBadge(cell: HTMLTableCellElement): void {
   badge.remove();
 }
 
+function removeEmptyTrailingChatTableColumns(table: HTMLTableElement): void {
+  const rows = Array.from(table.querySelectorAll(':scope > thead > tr, :scope > tbody > tr')).filter(
+    (row): row is HTMLTableRowElement => row instanceof HTMLTableRowElement,
+  );
+  if (rows.length === 0) {
+    return;
+  }
+
+  const maxColumnCount = rows.reduce((count, row) => Math.max(count, row.cells.length), 0);
+  if (maxColumnCount <= 1) {
+    return;
+  }
+
+  for (let columnIndex = maxColumnCount - 1; columnIndex >= 0; columnIndex -= 1) {
+    let hasMeaningfulContent = false;
+
+    rows.forEach((row) => {
+      const cell = row.cells.item(columnIndex);
+      if (!cell) {
+        return;
+      }
+      const text = normalizeChatTableText(cell.textContent);
+      if (text) {
+        hasMeaningfulContent = true;
+      }
+    });
+
+    if (hasMeaningfulContent) {
+      break;
+    }
+
+    rows.forEach((row) => {
+      row.cells.item(columnIndex)?.remove();
+    });
+  }
+}
+
 function ensureChatTableScrollChrome(table: HTMLTableElement): {
   card: HTMLDivElement;
   scrollContainer: HTMLDivElement;
@@ -1835,6 +1872,8 @@ function syncChatTableScrollState(card: HTMLDivElement, scrollContainer: HTMLDiv
 }
 
 function enhanceChatMarkdownTable(table: HTMLTableElement): void {
+  removeEmptyTrailingChatTableColumns(table);
+
   const rows = Array.from(table.querySelectorAll(':scope > tbody > tr'));
   const headerCells = Array.from(table.querySelectorAll(':scope > thead > tr:first-child > th'));
   if (headerCells.length === 0 || rows.length === 0) {
