@@ -165,7 +165,7 @@ const SidebarBrandHeader = memo(function SidebarBrandHeader({
   return (
     <div
       className={cn(
-        'relative flex items-center border-b border-[var(--border-default)]',
+        'relative flex items-center border-b border-[var(--border-default)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--bg-card)_96%,white_4%),color-mix(in_srgb,var(--bg-page)_94%,white_6%))] backdrop-blur-sm',
         collapsed ? 'h-[56px] px-2 pr-10' : 'h-[56px] gap-3 px-3 pr-11',
       )}
     >
