@@ -9704,7 +9704,7 @@ function getRechargePaymentMethodDefaults() {
 }
 
 function getRawRechargePaymentMethodEntries(config) {
-  const rechargeConfig = asObject(asObject(asObject(config).surfaces).recharge).config;
+  const rechargeConfig = asObject(asObject(asObject(asObject(config).surfaces).recharge).config);
   return Array.isArray(rechargeConfig.payment_methods)
     ? rechargeConfig.payment_methods
     : Array.isArray(rechargeConfig.paymentMethods)
@@ -13729,36 +13729,68 @@ function ensureDashboardShell() {
   return {shell, sidebarHost, contentHost};
 }
 
+function renderDashboardErrorPage(route, error) {
+  const message = error instanceof Error ? error.message : String(error || 'unknown dashboard render error');
+  const stack = error instanceof Error ? error.stack || '' : '';
+  return `
+    <div class="fig-page">
+      <div class="fig-page__header">
+        <div class="fig-page__header-inner">
+          <div>
+            <h1>页面渲染失败</h1>
+            <p class="fig-page__description">当前路由：${escapeHtml(route || 'unknown')}</p>
+          </div>
+        </div>
+      </div>
+      <div class="fig-page__body">
+        <section class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
+            <h3>错误信息</h3>
+            <span>admin-web runtime error</span>
+          </div>
+          <textarea class="code-input code-input--tall" readonly>${escapeHtml(`${message}${stack ? `\n\n${stack}` : ''}`)}</textarea>
+        </section>
+      </div>
+    </div>
+  `;
+}
+
 function renderDashboard() {
-  const pageContent = state.loading
-    ? renderLoadingPage()
-    : state.route === 'overview'
-      ? renderOverviewPage()
-      : state.route === 'brands'
-        ? renderBrandsPage()
-      : state.route === 'agent-center'
-        ? renderAgentCenterPage()
-      : state.route === 'brand-detail'
-        ? renderBrandDetailPage()
-        : isCapabilityRoute(state.route)
-          ? renderSkillsMcpPage()
-          : state.route === 'cloud-skills'
-          ? renderCloudSkillsPage()
-          : state.route === 'cloud-mcps'
-            ? renderCloudMcpsPage()
-          : state.route === 'runtime-management'
-            ? renderRuntimeManagementPage()
-          : state.route === 'assets'
-            ? renderAssetsPage()
-            : state.route === 'releases'
-              ? renderReleasesPage()
-              : state.route === 'payments-config'
-                ? renderPaymentProviderConfigPage()
-                : state.route === 'payments-packages'
-                  ? renderRechargePackageCatalogPage()
-                : state.route === 'payments-orders'
-                  ? renderPaymentsPage()
-                : renderAuditPage();
+  let pageContent = '';
+  try {
+    pageContent = state.loading
+      ? renderLoadingPage()
+      : state.route === 'overview'
+        ? renderOverviewPage()
+        : state.route === 'brands'
+          ? renderBrandsPage()
+        : state.route === 'agent-center'
+          ? renderAgentCenterPage()
+        : state.route === 'brand-detail'
+          ? renderBrandDetailPage()
+          : isCapabilityRoute(state.route)
+            ? renderSkillsMcpPage()
+            : state.route === 'cloud-skills'
+            ? renderCloudSkillsPage()
+            : state.route === 'cloud-mcps'
+              ? renderCloudMcpsPage()
+            : state.route === 'runtime-management'
+              ? renderRuntimeManagementPage()
+            : state.route === 'assets'
+              ? renderAssetsPage()
+              : state.route === 'releases'
+                ? renderReleasesPage()
+                : state.route === 'payments-config'
+                  ? renderPaymentProviderConfigPage()
+                  : state.route === 'payments-packages'
+                    ? renderRechargePackageCatalogPage()
+                  : state.route === 'payments-orders'
+                    ? renderPaymentsPage()
+                  : renderAuditPage();
+  } catch (error) {
+    console.error('[admin-web] dashboard render failed', {route: state.route, error});
+    pageContent = renderDashboardErrorPage(state.route, error);
+  }
 
   const {sidebarHost, contentHost} = ensureDashboardShell();
   const previousNavList = sidebarHost.querySelector('.nav-list');
