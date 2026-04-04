@@ -3,6 +3,8 @@ import type { IClawClient } from '@iclaw/sdk';
 import {
   Activity,
   Blocks,
+  ChevronDown,
+  ChevronUp,
   CheckCircle2,
   Database,
   FileCode2,
@@ -49,6 +51,7 @@ const STORE_TABS = [
 ] as const;
 
 const MINE_STATUS_FILTERS = ['全部', '已启用', '未启用'] as const;
+const COLLAPSED_CATEGORY_FILTER_COUNT = 10;
 const INPUT_CLASS =
   'w-full rounded-[15px] border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-2.5 text-[14px] text-[var(--text-primary)] outline-none transition-all placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)] focus:ring-4 dark:border-[rgba(255,255,255,0.08)] dark:bg-[rgba(255,255,255,0.03)]';
 
@@ -517,6 +520,7 @@ export function MCPStoreView({
   const [sourceFilter, setSourceFilter] = useState('全部');
   const [protocolFilter, setProtocolFilter] = useState('全部协议');
   const [categoryFilter, setCategoryFilter] = useState('全部类目');
+  const [categoryFiltersExpanded, setCategoryFiltersExpanded] = useState(false);
   const [mineStatus, setMineStatus] = useState<(typeof MINE_STATUS_FILTERS)[number]>('全部');
   const [mineSource, setMineSource] = useState('全部来源');
   const [detailKey, setDetailKey] = useState<string | null>(null);
@@ -557,6 +561,16 @@ export function MCPStoreView({
     () => ['全部类目', ...Array.from(new Set(items.flatMap((item) => item.categories)))],
     [items],
   );
+  const visibleCategoryFilters = useMemo(() => {
+    if (categoryFiltersExpanded || categoryFilters.length <= COLLAPSED_CATEGORY_FILTER_COUNT) {
+      return categoryFilters;
+    }
+    const collapsed = categoryFilters.slice(0, COLLAPSED_CATEGORY_FILTER_COUNT);
+    if (categoryFilter !== '全部类目' && !collapsed.includes(categoryFilter)) {
+      return [...collapsed.slice(0, COLLAPSED_CATEGORY_FILTER_COUNT - 1), categoryFilter];
+    }
+    return collapsed;
+  }, [categoryFilter, categoryFilters, categoryFiltersExpanded]);
   const mineSourceFilters = useMemo(
     () => ['全部来源', ...Array.from(new Set(items.filter((item) => item.installed).map((item) => item.sourceLabel)))],
     [items],
@@ -873,11 +887,21 @@ export function MCPStoreView({
                   ))}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {categoryFilters.map((filter) => (
+                  {visibleCategoryFilters.map((filter) => (
                     <FilterPill key={filter} active={categoryFilter === filter} onClick={() => setCategoryFilter(filter)} className="rounded-full px-3 py-1.5 text-[14px]">
                       {filter}
                     </FilterPill>
                   ))}
+                  {categoryFilters.length > COLLAPSED_CATEGORY_FILTER_COUNT ? (
+                    <button
+                      type="button"
+                      onClick={() => setCategoryFiltersExpanded((current) => !current)}
+                      className="inline-flex items-center gap-1 rounded-full border border-[var(--border-default)] px-3 py-1.5 text-[13px] text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
+                    >
+                      {categoryFiltersExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                      {categoryFiltersExpanded ? '收起类目' : `展开类目 +${categoryFilters.length - visibleCategoryFilters.length}`}
+                    </button>
+                  ) : null}
                 </div>
               </div>
 

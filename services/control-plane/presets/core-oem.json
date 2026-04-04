@@ -716,7 +716,7 @@
     },
     {
       "mcpKey": "lark",
-      "name": "飞书",
+      "name": "飞书 CLI",
       "description": "文档、消息与组织协作工作流。",
       "transport": "http",
       "config": {},
@@ -761,7 +761,7 @@
     },
     {
       "mcpKey": "dingtalk",
-      "name": "钉钉",
+      "name": "钉钉 CLI",
       "description": "机器人消息、群通知与组织协作工作流。",
       "transport": "http",
       "config": {},
@@ -1088,7 +1088,7 @@
     },
     {
       "mcpKey": "wecom",
-      "name": "企微",
+      "name": "企微 CLI",
       "description": "企业微信消息、应用通知与组织协作数据接入。",
       "transport": "http",
       "config": {},
