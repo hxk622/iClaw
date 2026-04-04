@@ -237,7 +237,7 @@ export function IMBotSetupModal({
               type="button"
               onClick={onClose}
               className={cn(
-                'h-9 w-9 rounded-lg border border-transparent p-0 text-[#6B6863] hover:bg-[#EFEDE9] dark:text-[#A39F9A] dark:hover:bg-[#252422]',
+                'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-transparent p-0 text-[#6B6863] hover:bg-[#EFEDE9] dark:text-[#A39F9A] dark:hover:bg-[#252422]',
                 APPLE_FLAT_SURFACE,
                 SPRING_PRESSABLE,
                 INTERACTIVE_FOCUS_RING,
