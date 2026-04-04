@@ -28,17 +28,27 @@ fi
 mc alias set "${ICLAW_SOURCE_MINIO_ALIAS}" "${ICLAW_SOURCE_MINIO_URL}" "${ICLAW_SOURCE_MINIO_ACCESS_KEY}" "${ICLAW_SOURCE_MINIO_SECRET_KEY}" >/dev/null
 mc alias set "${ICLAW_PROD_MINIO_ALIAS}" "${ICLAW_PROD_MINIO_URL}" "${ICLAW_PROD_MINIO_ACCESS_KEY}" "${ICLAW_PROD_MINIO_SECRET_KEY}" >/dev/null
 
+sync_buckets=()
+bucket_list_file="$(mktemp "${TMPDIR:-/tmp}/iclaw-minio-sync-buckets.XXXXXX")"
+cleanup() {
+  rm -f "${bucket_list_file}"
+}
+trap cleanup EXIT
+
 if [[ -n "${ICLAW_SYNC_BUCKETS:-}" ]]; then
-  mapfile -t sync_buckets < <(printf '%s\n' "${ICLAW_SYNC_BUCKETS}" | tr ',' '\n' | awk 'NF')
+  printf '%s\n' "${ICLAW_SYNC_BUCKETS}" | tr ',' '\n' | awk 'NF' >"${bucket_list_file}"
 else
-  mapfile -t sync_buckets < <(
-    env \
-      USER_ASSETS_BUCKET="${USER_ASSETS_BUCKET:-}" \
-      ICLAW_USER_ASSETS_BUCKET="${ICLAW_USER_ASSETS_BUCKET:-}" \
-      ICLAW_EXTRA_SYNC_BUCKETS="${ICLAW_EXTRA_SYNC_BUCKETS:-}" \
-      node "${ROOT_DIR}/scripts/list-minio-sync-buckets.mjs" --manifest "${ICLAW_MINIO_BUCKET_MANIFEST}"
-  )
+  env \
+    USER_ASSETS_BUCKET="${USER_ASSETS_BUCKET:-}" \
+    ICLAW_USER_ASSETS_BUCKET="${ICLAW_USER_ASSETS_BUCKET:-}" \
+    ICLAW_EXTRA_SYNC_BUCKETS="${ICLAW_EXTRA_SYNC_BUCKETS:-}" \
+    node "${ROOT_DIR}/scripts/list-minio-sync-buckets.mjs" --manifest "${ICLAW_MINIO_BUCKET_MANIFEST}" >"${bucket_list_file}"
 fi
+
+while IFS= read -r bucket || [[ -n "${bucket}" ]]; do
+  [[ -n "${bucket}" ]] || continue
+  sync_buckets+=("${bucket}")
+done <"${bucket_list_file}"
 
 if [[ ${#sync_buckets[@]} -eq 0 ]]; then
   echo "[minio-sync] no buckets resolved" >&2
