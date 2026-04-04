@@ -457,7 +457,6 @@ export function RechargeCenter({
           totalPrice={totalPrice}
           paymentMethod={paymentMethod}
           activeOrder={activeOrder}
-          displayPaymentUrl={displayPaymentUrl}
           resolvedQrUrl={resolvedQrUrl}
           onPaymentMethodChange={(method) => {
             cancelPendingCreateOrder();
@@ -491,12 +490,6 @@ export function RechargeCenter({
           creatingOrder={creatingOrder}
           paymentMessage={paymentMessage}
           onPayNow={handlePayNow}
-          onResetOrder={() => {
-            cancelPendingCreateOrder();
-            setActiveOrder(null);
-            setPaymentMessage(null);
-            setAutoCreateOrderToken((current) => current + 1);
-          }}
           onPanelClick={(event) => event.stopPropagation()}
         />
       )}
@@ -667,7 +660,6 @@ function PaymentView({
   totalPrice,
   paymentMethod,
   activeOrder,
-  displayPaymentUrl,
   resolvedQrUrl,
   onPaymentMethodChange,
   packageDropdownOpen,
@@ -679,7 +671,6 @@ function PaymentView({
   creatingOrder,
   paymentMessage,
   onPayNow,
-  onResetOrder,
   onPanelClick,
 }: {
   packages: RechargePackage[];
@@ -687,7 +678,6 @@ function PaymentView({
   totalPrice: string;
   paymentMethod: PaymentMethod;
   activeOrder: PaymentOrderData | null;
-  displayPaymentUrl: string | null;
   resolvedQrUrl: string | null;
   onPaymentMethodChange: (method: PaymentMethod) => void;
   packageDropdownOpen: boolean;
@@ -699,7 +689,6 @@ function PaymentView({
   creatingOrder: boolean;
   paymentMessage: string | null;
   onPayNow: () => void;
-  onResetOrder: () => void;
   onPanelClick: (event: ReactMouseEvent<HTMLDivElement>) => void;
 }) {
   const orderStatus = activeOrder?.status || null;
@@ -708,6 +697,7 @@ function PaymentView({
   const isFailed = orderStatus === 'failed';
   const isExpired = orderStatus === 'expired';
   const isAwaitingPayment = !creatingOrder && Boolean(activeOrder) && !isPaid && !isFailed && !isExpired;
+  const shouldShowQr = Boolean(resolvedQrUrl) && !isPaid && !isFailed && !isExpired;
   const statusCard = creatingOrder
     ? {
         tone: 'border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-100',
@@ -756,27 +746,10 @@ function PaymentView({
                 description: `请选择支付方式并创建订单。订单创建成功后，当前模态窗会直接展示真实支付二维码，本次将为当前账号充值 ${formatCreditsLabel(currentPackage.totalCredits)} 龙虾币。`,
               };
   const StatusIcon = statusCard.icon;
-  const primaryButtonLabel = creatingOrder
-    ? '创建订单中...'
-    : isPaid
-      ? '立即返回'
-      : isAwaitingPayment
-        ? '等待支付完成'
-        : isFailed || isExpired
-          ? '重新创建订单'
-          : '创建订单并生成二维码';
-  const primaryButtonTone = isPaid
-    ? 'bg-emerald-500 text-white hover:bg-emerald-600'
-    : isFailed || isExpired
-      ? 'bg-[#E63946] text-white hover:bg-[#d92f3d]'
-      : 'bg-blue-500 text-white hover:bg-blue-600';
-  const primaryButtonDisabled = creatingOrder || (isAwaitingPayment && !isPaid);
+  const statusActionLabel = isFailed || isExpired ? '重新创建订单' : '重新生成二维码';
+  const showStatusAction = !creatingOrder && !isPaid && !isAwaitingPayment;
 
   const handlePrimaryAction = () => {
-    if (isPaid) {
-      onClose();
-      return;
-    }
     if (!isAwaitingPayment || isFailed || isExpired) {
       onPayNow();
     }
@@ -886,20 +859,33 @@ function PaymentView({
             <p className="mb-5 text-sm text-gray-600 dark:text-gray-400">当前模态窗就是支付页。请选择微信或支付宝后，直接扫描右侧收款码完成支付。</p>
 
             <div className={cn('mb-4 rounded-2xl border px-4 py-4', statusCard.tone)}>
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/70 text-current dark:bg-black/10">
-                  <StatusIcon className={cn('h-5 w-5', statusCard.iconClassName)} />
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/70 text-current dark:bg-black/10">
+                    <StatusIcon className={cn('h-5 w-5', statusCard.iconClassName)} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">{statusCard.title}</p>
+                    <p className="mt-1 text-sm leading-6 opacity-90">{statusCard.description}</p>
+                    {paymentMessage ? <p className="mt-2 text-xs opacity-80">{paymentMessage}</p> : null}
+                    {activeOrder ? (
+                      <p className="mt-2 text-xs opacity-75">
+                        订单状态: {resolveOrderStatusLabel(activeOrder.status)}
+                        {expiryLabel && !isPaid ? ` · 有效至 ${expiryLabel}` : ''}
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold">{statusCard.title}</p>
-                  <p className="mt-1 text-sm leading-6 opacity-90">{statusCard.description}</p>
-                  {activeOrder ? (
-                    <p className="mt-2 text-xs opacity-75">
-                      订单状态: {resolveOrderStatusLabel(activeOrder.status)}
-                      {expiryLabel && !isPaid ? ` · 有效至 ${expiryLabel}` : ''}
-                    </p>
-                  ) : null}
-                </div>
+                {showStatusAction ? (
+                  <button
+                    type="button"
+                    onClick={handlePrimaryAction}
+                    className="inline-flex shrink-0 items-center gap-2 rounded-full border border-current/18 bg-white/70 px-3 py-2 text-xs font-medium transition-colors hover:bg-white dark:bg-black/10 dark:hover:bg-black/20"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    {statusActionLabel}
+                  </button>
+                ) : null}
               </div>
             </div>
 
@@ -926,65 +912,7 @@ function PaymentView({
               })}
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-              <div className="flex flex-col gap-3">
-                <button
-                  onClick={handlePrimaryAction}
-                  disabled={primaryButtonDisabled}
-                  className={cn(
-                    'w-full rounded-xl py-3 font-medium transition-all',
-                    primaryButtonDisabled
-                      ? 'cursor-not-allowed bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500'
-                      : `${primaryButtonTone} cursor-pointer`,
-                  )}
-                >
-                  {primaryButtonLabel}
-                </button>
-                {(isAwaitingPayment || isFailed || isExpired) && !isPaid ? (
-                  <button
-                    type="button"
-                    onClick={onResetOrder}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white py-3 text-sm font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 dark:border-[#2a3441] dark:bg-[#252d3a] dark:text-gray-200 dark:hover:border-[#435064] dark:hover:bg-[#2a3441]"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                    清空当前订单并重选
-                  </button>
-                ) : null}
-                {isPaid ? (
-                  <p className="text-center text-xs text-emerald-700/80 dark:text-emerald-200/80">
-                    将自动关闭充值窗口并回到你刚才的页面，不会刷新当前应用。
-                  </p>
-                ) : null}
-                <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-[#2a3441] dark:bg-[#252d3a]">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.18em] text-gray-400">本次支付</p>
-                      <div className="mt-1 flex items-baseline gap-1">
-                        <span className="text-base text-[#E63946]">¥</span>
-                        <span className="text-3xl font-bold text-[#E63946]">{totalPrice}</span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-gray-500">到账</p>
-                      <p className="mt-1 text-sm font-medium text-[#1a1a1a] dark:text-[#f0f2f5]">
-                        {formatCreditsLabel(currentPackage.totalCredits)} 龙虾币
-                      </p>
-                    </div>
-                  </div>
-                  <p className="mt-3 text-xs leading-5 text-gray-500">
-                    {resolvedQrUrl
-                      ? displayPaymentUrl
-                        ? '当前展示的是支付渠道返回的实时二维码。'
-                        : '当前二维码由支付链接即时生成，扫码后会打开对应收银台继续付款。'
-                      : '创建订单后会在这里显示真实支付二维码。'}
-                  </p>
-                  {paymentMessage ? (
-                    <p className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-500">{paymentMessage}</p>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border-2 border-gray-200 bg-white p-4 dark:border-[#2a3441] dark:bg-[#252d3a]">
+            <div className="rounded-2xl border-2 border-gray-200 bg-white p-4 dark:border-[#2a3441] dark:bg-[#252d3a]">
                 <div className="mb-3 flex items-center justify-between">
                   <div>
                     <p className="text-sm font-semibold text-[#1a1a1a] dark:text-[#f0f2f5]">扫码支付</p>
@@ -996,67 +924,69 @@ function PaymentView({
                     {paymentMethod === 'wechat_qr' ? '微信官方收款码样式' : '支付宝官方收款码样式'}
                   </div>
                 </div>
-                <div className="flex min-h-[280px] items-center justify-center rounded-[24px] bg-[linear-gradient(180deg,#eef2f7_0%,#e7edf6_100%)] p-4 dark:bg-[linear-gradient(180deg,#111827_0%,#182130_100%)]">
-                {creatingOrder ? (
-                  <div className="text-center text-sm text-gray-500 dark:text-gray-400">正在创建支付订单...</div>
-                ) : resolvedQrUrl ? (
-                  <BrandedPaymentQr paymentMethod={paymentMethod} qrUrl={resolvedQrUrl} />
-                ) : isPaid ? (
-                  <div className="flex h-64 w-64 flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-emerald-200 bg-emerald-50 text-center dark:border-emerald-900/60 dark:bg-emerald-950/30">
-                    <CheckCircle2 className="h-12 w-12 text-emerald-500" />
-                    <div>
-                      <p className="text-base font-semibold text-emerald-700 dark:text-emerald-200">充值已完成</p>
-                      <p className="mt-1 text-xs leading-5 text-emerald-600/80 dark:text-emerald-200/70">
-                        龙虾币已到账，3 秒后自动返回当前页面。
-                      </p>
+                <div className="flex min-h-[420px] items-center justify-center rounded-[24px] bg-[linear-gradient(180deg,#eef2f7_0%,#e7edf6_100%)] p-6 dark:bg-[linear-gradient(180deg,#111827_0%,#182130_100%)]">
+                  {creatingOrder ? (
+                    <div className="text-center text-sm text-gray-500 dark:text-gray-400">正在创建支付订单...</div>
+                  ) : isPaid ? (
+                    <div className="flex h-72 w-72 flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-emerald-200 bg-emerald-50 px-6 text-center dark:border-emerald-900/60 dark:bg-emerald-950/30">
+                      <CheckCircle2 className="h-12 w-12 text-emerald-500" />
+                      <div>
+                        <p className="text-base font-semibold text-emerald-700 dark:text-emerald-200">充值已完成</p>
+                        <p className="mt-1 text-xs leading-5 text-emerald-600/80 dark:text-emerald-200/70">
+                          龙虾币已到账，3 秒后自动返回当前页面。
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ) : isFailed ? (
-                  <div className="flex h-64 w-64 flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-red-200 bg-red-50 px-5 text-center dark:border-red-900/60 dark:bg-red-950/30">
-                    <AlertCircle className="h-12 w-12 text-red-500" />
-                    <div>
-                      <p className="text-base font-semibold text-red-700 dark:text-red-200">支付失败</p>
-                      <p className="mt-1 text-xs leading-5 text-red-600/80 dark:text-red-200/70">
-                        没有发生充值，请重新创建订单后再支付。
-                      </p>
+                  ) : isFailed ? (
+                    <div className="flex h-72 w-72 flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-red-200 bg-red-50 px-6 text-center dark:border-red-900/60 dark:bg-red-950/30">
+                      <AlertCircle className="h-12 w-12 text-red-500" />
+                      <div>
+                        <p className="text-base font-semibold text-red-700 dark:text-red-200">支付失败</p>
+                        <p className="mt-1 text-xs leading-5 text-red-600/80 dark:text-red-200/70">
+                          本次未完成扣款，请重新生成新的收款码。
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ) : isExpired ? (
-                  <div className="flex h-64 w-64 flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-amber-200 bg-amber-50 px-5 text-center dark:border-amber-900/60 dark:bg-amber-950/30">
-                    <Clock3 className="h-12 w-12 text-amber-500" />
-                    <div>
-                      <p className="text-base font-semibold text-amber-700 dark:text-amber-200">订单已失效</p>
-                      <p className="mt-1 text-xs leading-5 text-amber-600/80 dark:text-amber-200/70">
-                        当前订单不能继续支付，需要重新创建。
-                      </p>
+                  ) : isExpired ? (
+                    <div className="flex h-72 w-72 flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-amber-200 bg-amber-50 px-6 text-center dark:border-amber-900/60 dark:bg-amber-950/30">
+                      <Clock3 className="h-12 w-12 text-amber-500" />
+                      <div>
+                        <p className="text-base font-semibold text-amber-700 dark:text-amber-200">订单已过期</p>
+                        <p className="mt-1 text-xs leading-5 text-amber-600/80 dark:text-amber-200/70">
+                          当前收款码已失效，请重新创建订单后再支付。
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="flex h-64 w-64 flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-dashed border-gray-300 bg-white px-6 text-center">
-                    <Clock3 className="h-10 w-10 text-gray-300" />
-                    <div>
-                      <p className="text-sm font-semibold text-gray-500">订单未创建</p>
-                      <p className="mt-2 text-xs leading-5 text-gray-400">点击左侧“创建订单并生成二维码”后，这里会显示真实支付二维码。</p>
+                  ) : shouldShowQr ? (
+                    <BrandedPaymentQr paymentMethod={paymentMethod} qrUrl={resolvedQrUrl!} />
+                  ) : (
+                    <div className="flex h-72 w-72 flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-dashed border-gray-300 bg-white px-6 text-center dark:border-[#3a4551] dark:bg-[#111827]">
+                      <Clock3 className="h-10 w-10 text-gray-300" />
+                      <div>
+                        <p className="text-sm font-semibold text-gray-500">正在准备收款码</p>
+                        <p className="mt-2 text-xs leading-5 text-gray-400">订单创建成功后，这里会直接显示可支付的二维码。</p>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
                 </div>
                 <p className="mt-3 text-center text-sm text-gray-600 dark:text-gray-400">
-                  {resolvedQrUrl
-                    ? displayPaymentUrl
-                      ? paymentMethod === 'wechat_qr'
-                        ? '请直接使用微信扫描上方二维码完成支付。'
-                        : '请直接使用支付宝扫描上方二维码完成支付。'
-                      : '请直接扫描上方收款码完成支付。'
+                  {shouldShowQr
+                    ? paymentMethod === 'wechat_qr'
+                      ? '请直接使用微信扫描上方二维码完成支付。'
+                      : '请直接使用支付宝扫描上方二维码完成支付。'
                     : isPaid
                       ? `支付已完成，${formatCreditsLabel(currentPackage.totalCredits)} 龙虾币已经写入当前账号。`
                       : isFailed
                         ? '支付未成功，本次不会充值龙虾币。'
                         : isExpired
                           ? '订单已过期，请重新创建后再支付。'
-                          : '当前还没创建订单。点击左侧按钮后，这里会显示真实支付二维码。'}
+                          : '系统正在生成新的收款码，请稍候。'}
                 </p>
-              </div>
+                {isPaid ? (
+                  <p className="mt-2 text-center text-xs text-emerald-700/80 dark:text-emerald-200/80">
+                    将自动关闭充值窗口并回到你刚才的页面，不会刷新当前应用。
+                  </p>
+                ) : null}
             </div>
 
             <div className="mt-4 text-center text-xs text-gray-500">
