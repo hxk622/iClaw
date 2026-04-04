@@ -299,6 +299,9 @@ type GatewayRpcFailure = {
   message: string;
 };
 
+type ChatTableType = 'narrative' | 'market' | 'tool';
+type ChatTableColumnType = 'text' | 'number' | 'change' | 'status' | 'risk' | 'key';
+
 function buildSkillScopedPrompt(payload: ComposerSendPayload): string {
   const prompt = payload.prompt.trim();
   const controlLines = [
@@ -357,6 +360,36 @@ const ICLAW_BILLING_SUMMARY_KEY = '__iclawBillingSummary';
 const ICLAW_BILLING_STATE_KEY = '__iclawBillingState';
 const ICLAW_BILLING_RUN_ID_KEY = '__iclawBillingRunId';
 const REFERENCE_MARKER_PATTERN = /\[\[引用:([\s\S]*?)\]\]/g;
+const CHAT_TABLE_CARD_SELECTOR = '.iclaw-chat-table-card';
+const CHAT_TABLE_SCROLL_CONTAINER_SELECTOR = '.iclaw-chat-table-scroll-container';
+const CHAT_TABLE_LEFT_SCROLL_ICON = `
+  <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path d="M9.75 3.5 5.25 8l4.5 4.5" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+`;
+const CHAT_TABLE_RIGHT_SCROLL_ICON = `
+  <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path d="M6.25 3.5 10.75 8l-4.5 4.5" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+`;
+const CHAT_TABLE_STATUS_TONE_PATTERNS: Array<{
+  tone: 'success' | 'running' | 'error' | 'pending' | 'default';
+  pattern: RegExp;
+}> = [
+  { tone: 'success', pattern: /^(success|successful|succeeded|completed|done|ok|passed|成功|已完成|完成|已生成|可用|就绪)$/i },
+  { tone: 'running', pattern: /^(running|in[\s-]?progress|processing|syncing|active|executing|执行中|运行中|处理中|同步中|分析中)$/i },
+  { tone: 'error', pattern: /^(failed|failure|error|errored|aborted|timeout|失败|异常|错误|中断|超时)$/i },
+  { tone: 'pending', pattern: /^(pending|queued|waiting|scheduled|等待中|排队中|待执行|待处理|待同步)$/i },
+];
+const CHAT_TABLE_RISK_TONE_PATTERNS: Array<{
+  tone: 'low' | 'medium' | 'high' | 'extreme' | 'default';
+  pattern: RegExp;
+}> = [
+  { tone: 'low', pattern: /^(low|低|较低)$/i },
+  { tone: 'medium', pattern: /^(medium|med|中|中等)$/i },
+  { tone: 'high', pattern: /^(high|高|较高)$/i },
+  { tone: 'extreme', pattern: /^(extreme|very[\s-]?high|critical|极高|很高)$/i },
+];
 const ARTIFACT_CARD_EXTENSIONS = ['md', 'markdown', 'html', 'htm', 'pdf', 'ppt', 'pptx', 'key', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'tsv'];
 const ARTIFACT_CARD_KEYWORDS = [
   'artifact',
@@ -1462,6 +1495,413 @@ function applySemanticFormattingToContainer(container: HTMLElement): void {
   applySemanticDirectiveBlocks(container);
   applySemanticHeadingBlocks(container);
   applySemanticPrefixFormatting(container);
+}
+
+function normalizeChatTableText(value: string | null | undefined): string {
+  return String(value ?? '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeChatTableToken(value: string | null | undefined): string {
+  return normalizeChatTableText(value).toLowerCase();
+}
+
+function isDecorativeTableValue(value: string): boolean {
+  return value === '' || value === '—' || value === '--' || value === '暂无' || value === 'n/a';
+}
+
+function isLikelyNumericTableValue(value: string): boolean {
+  if (isDecorativeTableValue(value)) {
+    return false;
+  }
+
+  const compact = value.replace(/[,\s，]/g, '');
+  const match = compact.match(/[+-]?(?:\d+(?:\.\d+)?|\.\d+)/);
+  if (!match) {
+    return false;
+  }
+
+  const unit = compact
+    .slice((match.index ?? 0) + match[0].length)
+    .replace(/[()]/g, '')
+    .trim();
+  return unit === '' || /^[%‰bpBPxXkKmMbBwW万亿元¥￥$秒分时天年sSmMhHdD]+$/.test(unit);
+}
+
+function isLikelyChangeTableValue(value: string): boolean {
+  if (isDecorativeTableValue(value)) {
+    return false;
+  }
+  const compact = value.replace(/\s+/g, '');
+  return /^[+-]/.test(compact) || compact.includes('%') || compact.includes('bp');
+}
+
+function isLikelyKeyTableValue(value: string): boolean {
+  if (isDecorativeTableValue(value)) {
+    return false;
+  }
+
+  const compact = value.replace(/\s+/g, '');
+  if (/^\d{4,8}$/.test(compact)) {
+    return true;
+  }
+  if (/^[A-Z][A-Z0-9._-]{1,9}$/.test(compact)) {
+    return true;
+  }
+  if (/^[a-z0-9._-]{3,24}$/.test(compact) && !/[一-龥]/.test(compact) && !compact.includes('/')) {
+    return true;
+  }
+  return false;
+}
+
+function matchesEveryMeaningfulValue(values: string[], predicate: (value: string) => boolean): boolean {
+  const meaningful = values.filter((value) => !isDecorativeTableValue(value));
+  return meaningful.length > 0 && meaningful.every(predicate);
+}
+
+function resolveChatTableStatusTone(value: string): 'success' | 'running' | 'error' | 'pending' | 'default' {
+  const normalized = normalizeChatTableToken(value);
+  const match = CHAT_TABLE_STATUS_TONE_PATTERNS.find((item) => item.pattern.test(normalized));
+  return match?.tone ?? 'default';
+}
+
+function resolveChatTableRiskTone(value: string): 'low' | 'medium' | 'high' | 'extreme' | 'default' {
+  const normalized = normalizeChatTableToken(value);
+  const match = CHAT_TABLE_RISK_TONE_PATTERNS.find((item) => item.pattern.test(normalized));
+  return match?.tone ?? 'default';
+}
+
+function resolveChatTableChangeTone(value: string): 'positive' | 'negative' | 'neutral' {
+  const normalized = normalizeChatTableText(value);
+  if (!normalized) {
+    return 'neutral';
+  }
+  if (/^[+＋]/.test(normalized)) {
+    return 'positive';
+  }
+  if (/^[-−]/.test(normalized)) {
+    return 'negative';
+  }
+  if (normalized.includes('上涨') || normalized.includes('增长')) {
+    return 'positive';
+  }
+  if (normalized.includes('下跌') || normalized.includes('下降')) {
+    return 'negative';
+  }
+  const numberMatch = normalized.match(/[+-]?(?:\d+(?:\.\d+)?|\.\d+)/);
+  const numericValue = numberMatch ? Number(numberMatch[0]) : null;
+  if (numericValue == null || Number.isNaN(numericValue)) {
+    return 'neutral';
+  }
+  if (numericValue > 0) {
+    return 'positive';
+  }
+  if (numericValue < 0) {
+    return 'negative';
+  }
+  return 'neutral';
+}
+
+function inferChatTableColumnType(headerText: string, values: string[], columnIndex: number): ChatTableColumnType {
+  const normalizedHeader = normalizeChatTableToken(headerText);
+
+  if (
+    /^(状态|status|state|result status|执行状态)$/.test(normalizedHeader) ||
+    matchesEveryMeaningfulValue(values, (value) => resolveChatTableStatusTone(value) !== 'default')
+  ) {
+    return 'status';
+  }
+
+  if (
+    normalizedHeader.includes('风险') ||
+    normalizedHeader.includes('risk') ||
+    normalizedHeader.includes('评级') ||
+    matchesEveryMeaningfulValue(values, (value) => resolveChatTableRiskTone(value) !== 'default')
+  ) {
+    return 'risk';
+  }
+
+  if (
+    normalizedHeader.includes('代码') ||
+    normalizedHeader.includes('ticker') ||
+    normalizedHeader.includes('symbol') ||
+    normalizedHeader.includes('slug') ||
+    normalizedHeader.includes('编号') ||
+    matchesEveryMeaningfulValue(values, isLikelyKeyTableValue) ||
+    (columnIndex === 0 && matchesEveryMeaningfulValue(values, isLikelyKeyTableValue))
+  ) {
+    return 'key';
+  }
+
+  if (
+    normalizedHeader.includes('涨跌') ||
+    normalizedHeader.includes('收益') ||
+    normalizedHeader.includes('回撤') ||
+    normalizedHeader.includes('变化') ||
+    normalizedHeader.includes('change') ||
+    normalizedHeader.includes('return') ||
+    normalizedHeader.includes('alpha') ||
+    normalizedHeader.includes('beta') ||
+    matchesEveryMeaningfulValue(values, isLikelyChangeTableValue)
+  ) {
+    return 'change';
+  }
+
+  if (
+    normalizedHeader.includes('价格') ||
+    normalizedHeader.includes('金额') ||
+    normalizedHeader.includes('费') ||
+    normalizedHeader.includes('净值') ||
+    normalizedHeader.includes('规模') ||
+    normalizedHeader.includes('数量') ||
+    normalizedHeader.includes('耗时') ||
+    normalizedHeader.includes('duration') ||
+    normalizedHeader.includes('time') ||
+    normalizedHeader.includes('value') ||
+    normalizedHeader.includes('price') ||
+    normalizedHeader.includes('volume') ||
+    normalizedHeader.includes('cap') ||
+    normalizedHeader.includes('pe') ||
+    matchesEveryMeaningfulValue(values, isLikelyNumericTableValue)
+  ) {
+    return 'number';
+  }
+
+  return 'text';
+}
+
+function inferChatTableType(headers: string[], columnTypes: ChatTableColumnType[]): ChatTableType {
+  const joinedHeaders = headers.map((value) => normalizeChatTableToken(value)).join(' | ');
+
+  if (
+    columnTypes.includes('status') ||
+    joinedHeaders.includes('任务') ||
+    joinedHeaders.includes('task') ||
+    joinedHeaders.includes('摘要') ||
+    joinedHeaders.includes('summary') ||
+    joinedHeaders.includes('耗时')
+  ) {
+    return 'tool';
+  }
+
+  if (
+    columnTypes.includes('change') ||
+    columnTypes.includes('risk') ||
+    joinedHeaders.includes('基金') ||
+    joinedHeaders.includes('股票') ||
+    joinedHeaders.includes('行情') ||
+    joinedHeaders.includes('price') ||
+    joinedHeaders.includes('nav') ||
+    joinedHeaders.includes('ticker') ||
+    joinedHeaders.includes('市值')
+  ) {
+    return 'market';
+  }
+
+  return 'narrative';
+}
+
+function resolveChatTableAlign(columnType: ChatTableColumnType): 'left' | 'right' | 'center' {
+  if (columnType === 'number' || columnType === 'change') {
+    return 'right';
+  }
+  if (columnType === 'status' || columnType === 'risk') {
+    return 'center';
+  }
+  return 'left';
+}
+
+function ensureChatTableBadge(cell: HTMLTableCellElement, tone: string): void {
+  let badge = cell.querySelector(':scope > .iclaw-chat-table-badge[data-iclaw-generated="true"]') as HTMLSpanElement | null;
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.className = 'iclaw-chat-table-badge';
+    badge.dataset.iclawGenerated = 'true';
+    const fragment = document.createDocumentFragment();
+    while (cell.firstChild) {
+      fragment.append(cell.firstChild);
+    }
+    badge.append(fragment);
+    cell.append(badge);
+  }
+  badge.dataset.iclawBadgeTone = tone;
+}
+
+function clearChatTableBadge(cell: HTMLTableCellElement): void {
+  const badge = cell.querySelector(':scope > .iclaw-chat-table-badge[data-iclaw-generated="true"]') as HTMLSpanElement | null;
+  if (!badge) {
+    return;
+  }
+  while (badge.firstChild) {
+    cell.insertBefore(badge.firstChild, badge);
+  }
+  badge.remove();
+}
+
+function ensureChatTableScrollChrome(table: HTMLTableElement): {
+  card: HTMLDivElement;
+  scrollContainer: HTMLDivElement;
+} {
+  const existingCard = table.closest(CHAT_TABLE_CARD_SELECTOR) as HTMLDivElement | null;
+  if (existingCard) {
+    const existingScrollContainer = existingCard.querySelector(
+      `:scope > .iclaw-chat-table-scroll-region > ${CHAT_TABLE_SCROLL_CONTAINER_SELECTOR}`,
+    ) as HTMLDivElement | null;
+    if (existingScrollContainer) {
+      return { card: existingCard, scrollContainer: existingScrollContainer };
+    }
+  }
+
+  const card = document.createElement('div');
+  card.className = 'iclaw-chat-table-card';
+
+  const scrollRegion = document.createElement('div');
+  scrollRegion.className = 'iclaw-chat-table-scroll-region';
+
+  const leftIndicator = document.createElement('div');
+  leftIndicator.className = 'iclaw-chat-table-scroll-indicator iclaw-chat-table-scroll-indicator--left';
+  leftIndicator.setAttribute('aria-hidden', 'true');
+  leftIndicator.innerHTML = `<span class="iclaw-chat-table-scroll-indicator__glyph">${CHAT_TABLE_LEFT_SCROLL_ICON}</span>`;
+
+  const rightIndicator = document.createElement('div');
+  rightIndicator.className = 'iclaw-chat-table-scroll-indicator iclaw-chat-table-scroll-indicator--right';
+  rightIndicator.setAttribute('aria-hidden', 'true');
+  rightIndicator.innerHTML = `<span class="iclaw-chat-table-scroll-indicator__glyph">${CHAT_TABLE_RIGHT_SCROLL_ICON}</span>`;
+
+  const scrollContainer = document.createElement('div');
+  scrollContainer.className = 'iclaw-chat-table-scroll-container';
+
+  const parent = table.parentElement;
+  parent?.insertBefore(card, table);
+  scrollContainer.append(table);
+  scrollRegion.append(leftIndicator, scrollContainer, rightIndicator);
+  card.append(scrollRegion);
+
+  return { card, scrollContainer };
+}
+
+function syncChatTableHeader(card: HTMLDivElement, table: HTMLTableElement): void {
+  const caption = table.querySelector(':scope > caption');
+  const rawCaption = normalizeChatTableText(caption?.textContent);
+  caption?.remove();
+
+  const existingHeader = card.querySelector(':scope > .iclaw-chat-table-card__header') as HTMLDivElement | null;
+  if (!rawCaption) {
+    existingHeader?.remove();
+    return;
+  }
+
+  const [title, ...rest] = rawCaption
+    .split(/\n+/)
+    .map((value) => normalizeChatTableText(value))
+    .filter(Boolean);
+  const subtitle = rest.join(' ');
+
+  const header = existingHeader ?? document.createElement('div');
+  header.className = 'iclaw-chat-table-card__header';
+
+  let titleNode = header.querySelector(':scope > .iclaw-chat-table-card__title') as HTMLDivElement | null;
+  if (!titleNode) {
+    titleNode = document.createElement('div');
+    titleNode.className = 'iclaw-chat-table-card__title';
+    header.append(titleNode);
+  }
+  titleNode.textContent = title;
+
+  let subtitleNode = header.querySelector(':scope > .iclaw-chat-table-card__subtitle') as HTMLDivElement | null;
+  if (subtitle) {
+    if (!subtitleNode) {
+      subtitleNode = document.createElement('div');
+      subtitleNode.className = 'iclaw-chat-table-card__subtitle';
+      header.append(subtitleNode);
+    }
+    subtitleNode.textContent = subtitle;
+  } else {
+    subtitleNode?.remove();
+  }
+
+  if (!existingHeader) {
+    card.prepend(header);
+  }
+}
+
+function syncChatTableScrollState(card: HTMLDivElement, scrollContainer: HTMLDivElement): void {
+  const maxScrollLeft = Math.max(0, scrollContainer.scrollWidth - scrollContainer.clientWidth);
+  const scrollLeft = Math.max(0, scrollContainer.scrollLeft);
+  card.dataset.scrollLeft = scrollLeft > 8 ? 'true' : 'false';
+  card.dataset.scrollRight = scrollLeft < maxScrollLeft - 8 ? 'true' : 'false';
+}
+
+function enhanceChatMarkdownTable(table: HTMLTableElement): void {
+  const rows = Array.from(table.querySelectorAll(':scope > tbody > tr'));
+  const headerCells = Array.from(table.querySelectorAll(':scope > thead > tr:first-child > th'));
+  if (headerCells.length === 0 || rows.length === 0) {
+    return;
+  }
+
+  const headers = headerCells.map((cell) => normalizeChatTableText(cell.textContent));
+  const valuesByColumn = headers.map((_, columnIndex) =>
+    rows
+      .map((row) => {
+        const cell = row.children.item(columnIndex);
+        return cell instanceof HTMLTableCellElement ? normalizeChatTableText(cell.textContent) : '';
+      })
+      .filter((value) => value.length > 0),
+  );
+  const columnTypes = headers.map((header, columnIndex) =>
+    inferChatTableColumnType(header, valuesByColumn[columnIndex] ?? [], columnIndex),
+  );
+  const tableType = inferChatTableType(headers, columnTypes);
+  const { card, scrollContainer } = ensureChatTableScrollChrome(table);
+
+  table.dataset.iclawChatTableEnhanced = 'true';
+  table.dataset.iclawChatTableType = tableType;
+  card.dataset.iclawTableType = tableType;
+  syncChatTableHeader(card, table);
+
+  headerCells.forEach((cell, columnIndex) => {
+    const columnType = columnTypes[columnIndex] ?? 'text';
+    const align = resolveChatTableAlign(columnType);
+    cell.dataset.iclawColumnType = columnType;
+    cell.dataset.iclawColumnAlign = align;
+  });
+
+  rows.forEach((row) => {
+    Array.from(row.children).forEach((cell, columnIndex) => {
+      if (!(cell instanceof HTMLTableCellElement)) {
+        return;
+      }
+      const columnType = columnTypes[columnIndex] ?? 'text';
+      const align = resolveChatTableAlign(columnType);
+      cell.dataset.iclawColumnType = columnType;
+      cell.dataset.iclawColumnAlign = align;
+      delete cell.dataset.iclawChangeTone;
+
+      clearChatTableBadge(cell);
+      if (columnType === 'status') {
+        ensureChatTableBadge(cell, resolveChatTableStatusTone(normalizeChatTableText(cell.textContent)));
+      } else if (columnType === 'risk') {
+        ensureChatTableBadge(cell, resolveChatTableRiskTone(normalizeChatTableText(cell.textContent)));
+      } else if (columnType === 'change') {
+        cell.dataset.iclawChangeTone = resolveChatTableChangeTone(normalizeChatTableText(cell.textContent));
+      }
+    });
+  });
+
+  if (scrollContainer.dataset.iclawScrollBound !== 'true') {
+    scrollContainer.dataset.iclawScrollBound = 'true';
+    scrollContainer.addEventListener(
+      'scroll',
+      () => {
+        syncChatTableScrollState(card, scrollContainer);
+      },
+      { passive: true },
+    );
+  }
+
+  syncChatTableScrollState(card, scrollContainer);
 }
 
 async function copyTextToClipboard(text: string): Promise<boolean> {
@@ -4916,6 +5356,42 @@ export function OpenClawChatSurface({
       observer.disconnect();
     };
   }, [status.busy]);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) {
+      return;
+    }
+
+    const decorateChatTables = () => {
+      const tables = Array.from(
+        host.querySelectorAll('.chat-group.assistant .chat-text table, .chat-group.tool .chat-text table, .chat-group.other .chat-text table'),
+      ).filter((node): node is HTMLTableElement => node instanceof HTMLTableElement);
+
+      tables.forEach((table) => {
+        enhanceChatMarkdownTable(table);
+      });
+    };
+
+    decorateChatTables();
+
+    const observer = new MutationObserver(() => {
+      decorateChatTables();
+    });
+
+    observer.observe(host, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+
+    window.addEventListener('resize', decorateChatTables);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', decorateChatTables);
+    };
+  }, []);
 
   useEffect(() => {
     const host = hostRef.current;

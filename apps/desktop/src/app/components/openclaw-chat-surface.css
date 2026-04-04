@@ -101,7 +101,46 @@ body {
   --shadow-lg: 0 12px 30px rgba(0, 0, 0, 0.06);
   --shadow-xl: 0 18px 44px rgba(0, 0, 0, 0.08);
   --shadow-glow: 0 0 16px rgba(0, 0, 0, 0.04);
+  --chat-table-card-bg: rgba(250, 250, 251, 0.8);
+  --chat-table-card-border: rgba(0, 0, 0, 0.08);
+  --chat-table-header-bg: rgba(0, 0, 0, 0.02);
+  --chat-table-row-hover: rgba(0, 0, 0, 0.03);
+  --chat-table-row-border: rgba(0, 0, 0, 0.06);
+  --chat-table-title: color-mix(in srgb, var(--text-primary) 96%, transparent);
+  --chat-table-subtitle: color-mix(in srgb, var(--text-secondary) 84%, transparent);
+  --chat-table-header-text: color-mix(in srgb, var(--text-secondary) 92%, transparent);
+  --chat-table-scroll-shadow: rgba(0, 0, 0, 0.14);
+  --chat-table-scroll-icon: rgba(0, 0, 0, 0.64);
+  --chat-table-status-success-bg: rgba(16, 185, 129, 0.12);
+  --chat-table-status-success-text: rgb(5, 150, 105);
+  --chat-table-status-running-bg: rgba(59, 130, 246, 0.12);
+  --chat-table-status-running-text: rgb(59, 130, 246);
+  --chat-table-status-error-bg: rgba(239, 68, 68, 0.12);
+  --chat-table-status-error-text: rgb(220, 38, 38);
+  --chat-table-status-pending-bg: rgba(245, 158, 11, 0.12);
+  --chat-table-status-pending-text: rgb(217, 119, 6);
+  --chat-table-status-default-bg: rgba(15, 23, 42, 0.06);
+  --chat-table-status-default-text: color-mix(in srgb, var(--text-secondary) 92%, transparent);
   background: var(--bg-page);
+}
+
+:root.dark .openclaw-chat-surface {
+  --chat-table-card-bg: rgba(255, 255, 255, 0.03);
+  --chat-table-card-border: rgba(255, 255, 255, 0.08);
+  --chat-table-header-bg: rgba(255, 255, 255, 0.02);
+  --chat-table-row-hover: rgba(255, 255, 255, 0.03);
+  --chat-table-row-border: rgba(255, 255, 255, 0.06);
+  --chat-table-title: rgba(255, 255, 255, 0.94);
+  --chat-table-subtitle: rgba(255, 255, 255, 0.68);
+  --chat-table-header-text: rgba(255, 255, 255, 0.72);
+  --chat-table-scroll-shadow: rgba(0, 0, 0, 0.3);
+  --chat-table-scroll-icon: rgba(255, 255, 255, 0.72);
+  --chat-table-status-success-text: rgb(52, 211, 153);
+  --chat-table-status-running-text: rgb(96, 165, 250);
+  --chat-table-status-error-text: rgb(248, 113, 113);
+  --chat-table-status-pending-text: rgb(251, 191, 36);
+  --chat-table-status-default-bg: rgba(255, 255, 255, 0.08);
+  --chat-table-status-default-text: rgba(255, 255, 255, 0.72);
 }
 
 .openclaw-chat-surface openclaw-app {
@@ -1093,6 +1132,14 @@ body {
   margin-top: 0.9em;
 }
 
+.openclaw-chat-surface .chat-text .iclaw-chat-table-card {
+  margin: 0;
+}
+
+.openclaw-chat-surface .chat-text :where(p + .iclaw-chat-table-card, ul + .iclaw-chat-table-card, ol + .iclaw-chat-table-card, pre + .iclaw-chat-table-card, blockquote + .iclaw-chat-table-card, .iclaw-chat-table-card + p, .iclaw-chat-table-card + ul, .iclaw-chat-table-card + ol, .iclaw-chat-table-card + pre, .iclaw-chat-table-card + blockquote, .iclaw-chat-table-card + .iclaw-chat-table-card) {
+  margin-top: 0.9em;
+}
+
 .openclaw-chat-surface .chat-text :where(h1, h2, h3, h4) {
   margin: 1.1em 0 0;
   color: var(--chat-default-text, var(--text-primary));
@@ -1140,6 +1187,284 @@ body {
   background: color-mix(in srgb, var(--chat-note-bg) 74%, transparent);
   color: var(--chat-note-text);
   padding: 10px 0 10px 12px;
+}
+
+.openclaw-chat-surface .chat-group-messages:has(.iclaw-chat-table-card),
+.openclaw-chat-surface .chat-group:has(.iclaw-chat-table-card),
+.openclaw-chat-surface .chat-message:has(.iclaw-chat-table-card) {
+  width: 100%;
+  max-width: min(100%, 720px);
+}
+
+.openclaw-chat-surface .chat-bubble:has(.iclaw-chat-table-card) {
+  width: min(100%, 720px);
+  max-width: min(100%, 720px);
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--chat-table-card-border);
+  border-radius: 16px;
+  background: var(--chat-table-card-bg);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.04);
+  backdrop-filter: blur(18px);
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card__header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 20px 20px 0;
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card__title {
+  color: var(--chat-table-title);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card__subtitle {
+  color: var(--chat-table-subtitle);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.openclaw-chat-surface .iclaw-chat-table-scroll-region {
+  position: relative;
+}
+
+.openclaw-chat-surface .iclaw-chat-table-scroll-region::before,
+.openclaw-chat-surface .iclaw-chat-table-scroll-region::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 44px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+  z-index: 2;
+}
+
+.openclaw-chat-surface .iclaw-chat-table-scroll-region::before {
+  left: 0;
+  background: linear-gradient(90deg, var(--chat-table-card-bg) 0%, transparent 100%);
+}
+
+.openclaw-chat-surface .iclaw-chat-table-scroll-region::after {
+  right: 0;
+  background: linear-gradient(270deg, var(--chat-table-card-bg) 0%, transparent 100%);
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card[data-scroll-left='true'] .iclaw-chat-table-scroll-region::before,
+.openclaw-chat-surface .iclaw-chat-table-card[data-scroll-right='true'] .iclaw-chat-table-scroll-region::after,
+.openclaw-chat-surface .iclaw-chat-table-card[data-scroll-left='true'] .iclaw-chat-table-scroll-indicator--left,
+.openclaw-chat-surface .iclaw-chat-table-card[data-scroll-right='true'] .iclaw-chat-table-scroll-indicator--right {
+  opacity: 1;
+}
+
+.openclaw-chat-surface .iclaw-chat-table-scroll-container {
+  position: relative;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.openclaw-chat-surface .iclaw-chat-table-scroll-container::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.openclaw-chat-surface .iclaw-chat-table-scroll-indicator {
+  position: absolute;
+  top: 50%;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-top: -18px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+.openclaw-chat-surface .iclaw-chat-table-scroll-indicator--left {
+  left: 8px;
+}
+
+.openclaw-chat-surface .iclaw-chat-table-scroll-indicator--right {
+  right: 8px;
+}
+
+.openclaw-chat-surface .iclaw-chat-table-scroll-indicator__glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--chat-table-card-bg) 88%, transparent);
+  color: var(--chat-table-scroll-icon);
+  box-shadow: 0 10px 24px var(--chat-table-scroll-shadow);
+  backdrop-filter: blur(12px);
+}
+
+.openclaw-chat-surface .iclaw-chat-table-scroll-indicator__glyph svg {
+  width: 14px;
+  height: 14px;
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card table {
+  width: 100%;
+  min-width: max-content;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--text-primary);
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card thead {
+  background: var(--chat-table-header-bg);
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card thead th {
+  color: var(--chat-table-header-text);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.45;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--chat-table-row-border);
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card :where(th, td) {
+  padding: 14px 16px;
+  vertical-align: middle;
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card thead :where(th) {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card tbody tr {
+  transition: background-color 160ms ease;
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card tbody tr:hover {
+  background: var(--chat-table-row-hover);
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card tbody tr + tr td {
+  border-top: 1px solid var(--chat-table-row-border);
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card td {
+  color: color-mix(in srgb, var(--text-primary) 94%, transparent);
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card :where(th, td)[data-iclaw-column-align='right'] {
+  text-align: right;
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card :where(th, td)[data-iclaw-column-align='center'] {
+  text-align: center;
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card td[data-iclaw-column-type='number'],
+.openclaw-chat-surface .iclaw-chat-table-card td[data-iclaw-column-type='change'] {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card td[data-iclaw-column-type='key'] {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card td[data-iclaw-column-type='change'] {
+  color: var(--chat-table-header-text);
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card td[data-iclaw-column-type='change'][data-iclaw-change-tone='positive'] {
+  color: var(--chat-table-status-success-text);
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card td[data-iclaw-column-type='change'][data-iclaw-change-tone='negative'] {
+  color: var(--chat-table-status-error-text);
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card .iclaw-chat-table-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 58px;
+  padding: 5px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card .iclaw-chat-table-badge[data-iclaw-badge-tone='success'] {
+  background: var(--chat-table-status-success-bg);
+  color: var(--chat-table-status-success-text);
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card .iclaw-chat-table-badge[data-iclaw-badge-tone='running'] {
+  background: var(--chat-table-status-running-bg);
+  color: var(--chat-table-status-running-text);
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card .iclaw-chat-table-badge[data-iclaw-badge-tone='error'] {
+  background: var(--chat-table-status-error-bg);
+  color: var(--chat-table-status-error-text);
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card .iclaw-chat-table-badge[data-iclaw-badge-tone='pending'] {
+  background: var(--chat-table-status-pending-bg);
+  color: var(--chat-table-status-pending-text);
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card .iclaw-chat-table-badge[data-iclaw-badge-tone='low'] {
+  background: var(--chat-table-status-success-bg);
+  color: var(--chat-table-status-success-text);
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card .iclaw-chat-table-badge[data-iclaw-badge-tone='medium'] {
+  background: var(--chat-table-status-pending-bg);
+  color: var(--chat-table-status-pending-text);
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card .iclaw-chat-table-badge[data-iclaw-badge-tone='high'] {
+  background: var(--chat-table-status-error-bg);
+  color: var(--chat-table-status-error-text);
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card .iclaw-chat-table-badge[data-iclaw-badge-tone='extreme'] {
+  background: rgba(168, 85, 247, 0.12);
+  color: rgb(147, 51, 234);
+}
+
+:root.dark .openclaw-chat-surface .iclaw-chat-table-card .iclaw-chat-table-badge[data-iclaw-badge-tone='extreme'] {
+  color: rgb(192, 132, 252);
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card .iclaw-chat-table-badge[data-iclaw-badge-tone='default'] {
+  background: var(--chat-table-status-default-bg);
+  color: var(--chat-table-status-default-text);
 }
 
 .openclaw-chat-surface .iclaw-chat-semantic-callout {
