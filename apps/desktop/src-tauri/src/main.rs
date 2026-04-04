@@ -5717,7 +5717,41 @@ fn configure_memory_runtime_command(command: &mut Command, app: &AppHandle) -> R
 fn run_memory_cli_json(app: &AppHandle, args: &[&str]) -> Result<serde_json::Value, String> {
     let output = run_memory_cli(app, args)?;
     let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    serde_json::from_str(&stdout).map_err(|e| format!("failed to parse memory cli json: {e}"))
+    parse_memory_cli_json_output(&stdout)
+}
+
+fn parse_memory_cli_json_output(stdout: &str) -> Result<serde_json::Value, String> {
+    let trimmed = stdout.trim();
+    if trimmed.is_empty() {
+        return Err(String::from("failed to parse memory cli json: empty stdout"));
+    }
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed) {
+        return Ok(value);
+    }
+
+    let mut candidate_offsets = Vec::new();
+    for (offset, ch) in trimmed.char_indices() {
+        if ch != '[' && ch != '{' {
+            continue;
+        }
+        if offset > 0 {
+            let previous = trimmed[..offset].chars().next_back();
+            if !matches!(previous, Some('\n' | '\r')) {
+                continue;
+            }
+        }
+        candidate_offsets.push(offset);
+    }
+
+    for offset in candidate_offsets {
+        let candidate = &trimmed[offset..];
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(candidate) {
+            return Ok(value);
+        }
+    }
+
+    serde_json::from_str::<serde_json::Value>(trimmed)
+        .map_err(|e| format!("failed to parse memory cli json: {e}"))
 }
 
 fn run_memory_cli(app: &AppHandle, args: &[&str]) -> Result<std::process::Output, String> {
@@ -6519,4 +6553,54 @@ fn main() {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_memory_cli_json_output;
+
+    #[test]
+    fn parse_memory_cli_json_output_accepts_plain_json() {
+        let value = parse_memory_cli_json_output(
+            r#"[
+  {
+    "status": {
+      "files": 1
+    }
+  }
+]"#,
+        )
+        .expect("plain json should parse");
+
+        assert_eq!(value[0]["status"]["files"].as_u64(), Some(1));
+    }
+
+    #[test]
+    fn parse_memory_cli_json_output_ignores_leading_logs() {
+        let value = parse_memory_cli_json_output(
+            r#"[openclaw] log file size cap reached
+[memory] fts unavailable: no such module: fts5
+[
+  {
+    "status": {
+      "files": 3
+    }
+  }
+]"#,
+        )
+        .expect("json with leading logs should parse");
+
+        assert_eq!(value[0]["status"]["files"].as_u64(), Some(3));
+    }
+
+    #[test]
+    fn parse_memory_cli_json_output_handles_disabled_memory_search_banner() {
+        let value = parse_memory_cli_json_output(
+            r#"Memory search disabled.
+[]"#,
+        )
+        .expect("disabled memory search banner should still parse trailing json");
+
+        assert_eq!(value.as_array().map(|items| items.len()), Some(0));
+    }
 }
