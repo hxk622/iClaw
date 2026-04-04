@@ -1322,11 +1322,19 @@ body {
 }
 
 .openclaw-chat-surface .iclaw-chat-table-card table {
-  width: max(100%, max-content);
+  width: max-content;
   min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
   color: var(--text-primary);
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card[data-iclaw-table-layout='fill'] table {
+  width: 100%;
+}
+
+.openclaw-chat-surface .iclaw-chat-table-card[data-iclaw-table-layout='scroll'] table {
+  width: max-content;
 }
 
 .openclaw-chat-surface .iclaw-chat-table-card thead {

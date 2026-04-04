@@ -1871,6 +1871,27 @@ function syncChatTableScrollState(card: HTMLDivElement, scrollContainer: HTMLDiv
   card.dataset.scrollRight = scrollLeft < maxScrollLeft - 8 ? 'true' : 'false';
 }
 
+function syncChatTableLayout(
+  card: HTMLDivElement,
+  scrollContainer: HTMLDivElement,
+  table: HTMLTableElement,
+): void {
+  const previousWidth = table.style.width;
+  const previousMinWidth = table.style.minWidth;
+
+  table.style.width = 'max-content';
+  table.style.minWidth = '0';
+  const intrinsicWidth = Math.ceil(table.getBoundingClientRect().width);
+
+  table.style.width = previousWidth;
+  table.style.minWidth = previousMinWidth;
+
+  const containerWidth = Math.ceil(scrollContainer.clientWidth);
+  const layout = intrinsicWidth > containerWidth + 1 ? 'scroll' : 'fill';
+  card.dataset.iclawTableLayout = layout;
+  table.dataset.iclawTableLayout = layout;
+}
+
 function enhanceChatMarkdownTable(table: HTMLTableElement): void {
   removeEmptyTrailingChatTableColumns(table);
 
@@ -1940,6 +1961,7 @@ function enhanceChatMarkdownTable(table: HTMLTableElement): void {
     );
   }
 
+  syncChatTableLayout(card, scrollContainer, table);
   syncChatTableScrollState(card, scrollContainer);
 }
 
