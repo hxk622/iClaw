@@ -491,6 +491,21 @@ export type AdminPaymentProviderBindingView = {
   updated_at: string;
 };
 
+export type AdminPaymentGatewayConfigSource = 'admin' | 'env_fallback' | 'unset';
+
+export type AdminPaymentGatewayConfigView = {
+  provider: 'epay';
+  source: AdminPaymentGatewayConfigSource;
+  config: {
+    partner_id: string;
+    gateway: string;
+  };
+  configured_secret_keys: string[];
+  completeness_status: 'configured' | 'missing';
+  missing_fields: string[];
+  updated_at: string | null;
+};
+
 export type UpsertAdminPaymentProviderProfileInput = {
   id?: string | null;
   provider?: string;
@@ -507,6 +522,12 @@ export type UpsertAdminPaymentProviderBindingInput = {
   provider?: string;
   mode?: string;
   active_profile_id?: string | null;
+};
+
+export type UpsertAdminPaymentGatewayConfigInput = {
+  provider?: string;
+  config_values?: Record<string, unknown>;
+  secret_values?: Record<string, string>;
 };
 
 export type AdminMarkPaymentOrderPaidInput = {

@@ -29,6 +29,7 @@ import type {
   RegisterInput,
   RunAuthorizeInput,
   UpsertAgentCatalogEntryInput,
+  UpsertAdminPaymentGatewayConfigInput,
   UpsertAdminPaymentProviderBindingInput,
   UpsertAdminPaymentProviderProfileInput,
   UpsertSkillCatalogEntryInput,
@@ -1361,6 +1362,21 @@ const server = createJsonServer([
       portalService.syncPresetManifest(
         requireBearerToken(headers),
         ((body || {}) as {manifest_path?: string; force_app_state?: boolean; manifestPath?: string; forceAppState?: boolean}) || {},
+      ),
+  },
+  {
+    method: 'GET',
+    path: '/admin/payments/gateway-config',
+    handler: ({headers}: HandlerContext) =>
+      service.getAdminPaymentGatewayConfig(requireBearerToken(headers)),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/payments/gateway-config',
+    handler: ({headers, body}: HandlerContext) =>
+      service.upsertAdminPaymentGatewayConfig(
+        requireBearerToken(headers),
+        (body || {}) as UpsertAdminPaymentGatewayConfigInput,
       ),
   },
   {

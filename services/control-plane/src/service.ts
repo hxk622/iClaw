@@ -21,6 +21,8 @@ import type {
   AdminMarkPaymentOrderPaidInput,
   AdminPaymentOrderDetailView,
   AdminPaymentProviderBindingView,
+  AdminPaymentGatewayConfigSource,
+  AdminPaymentGatewayConfigView,
   AdminPaymentProviderProfileView,
   AdminPaymentOrderSummaryView,
   AdminAgentCatalogEntryView,
@@ -73,6 +75,7 @@ import type {
   SkillSyncSourceView,
   UpsertAgentCatalogEntryInput,
   UpsertAdminPaymentProviderBindingInput,
+  UpsertAdminPaymentGatewayConfigInput,
   UpsertAdminPaymentProviderProfileInput,
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
@@ -128,11 +131,9 @@ const MARKET_FUND_DEFAULT_LIMIT = 120;
 const MARKET_FUND_MAX_LIMIT = 500;
 const PAYMENT_PROVIDER_SECRET_FIELDS = ['api_v3_key', 'private_key_pem'] as const;
 const PAYMENT_PROVIDER_REQUIRED_CONFIG_FIELDS = ['sp_mchid', 'sp_appid', 'sub_mchid', 'notify_url', 'serial_no'] as const;
-const epayService = new EpayService({
-  partnerId: config.epayPartnerId,
-  key: config.epayKey,
-  gateway: config.epayGateway,
-});
+const EPAY_PAYMENT_GATEWAY_STATE_KEY = 'payment_gateway:epay';
+const EPAY_GATEWAY_CONFIG_FIELDS = ['partner_id', 'gateway'] as const;
+const EPAY_GATEWAY_SECRET_FIELDS = ['key'] as const;
 
 function resolvePublicApiBaseUrl(): string {
   if (config.apiUrl.trim()) {
@@ -628,6 +629,57 @@ function normalizePaymentProviderConfigValues(value: unknown): Record<string, st
     next[key] = item.trim();
   }
   return next;
+}
+
+type ResolvedPaymentGatewayConfigState = {
+  provider: 'epay';
+  source: AdminPaymentGatewayConfigSource;
+  configValues: {
+    partner_id: string;
+    gateway: string;
+  };
+  secretValues: Record<string, string>;
+  configuredSecretKeys: string[];
+  updatedAt: string | null;
+};
+
+function normalizeEpayGatewayConfigValues(value: unknown): {partner_id: string; gateway: string} {
+  const normalized = normalizeConfigStringMap(value);
+  return {
+    partner_id: String(normalized.partner_id || '').trim(),
+    gateway: String(normalized.gateway || '').trim(),
+  };
+}
+
+function resolveEpayGatewayMissingFields(state: Pick<ResolvedPaymentGatewayConfigState, 'configValues' | 'secretValues'>): string[] {
+  const missing: string[] = [];
+  for (const key of EPAY_GATEWAY_CONFIG_FIELDS) {
+    if (!String(state.configValues[key] || '').trim()) {
+      missing.push(key);
+    }
+  }
+  for (const key of EPAY_GATEWAY_SECRET_FIELDS) {
+    if (!String(state.secretValues[key] || '').trim()) {
+      missing.push(key);
+    }
+  }
+  return missing;
+}
+
+function toAdminPaymentGatewayConfigView(state: ResolvedPaymentGatewayConfigState): AdminPaymentGatewayConfigView {
+  const missingFields = resolveEpayGatewayMissingFields(state);
+  return {
+    provider: state.provider,
+    source: state.source,
+    config: {
+      partner_id: state.configValues.partner_id,
+      gateway: state.configValues.gateway,
+    },
+    configured_secret_keys: state.configuredSecretKeys,
+    completeness_status: missingFields.length === 0 ? 'configured' : 'missing',
+    missing_fields: missingFields,
+    updated_at: state.updatedAt,
+  };
 }
 
 type ResolvedPaymentProviderProfile = {
@@ -1546,6 +1598,64 @@ export class ControlPlaneService {
     this.resolveBillingMultiplierForModel = options.resolveBillingMultiplierForModel || (async () => 1);
   }
 
+  private async resolvePaymentGatewayConfigState(): Promise<ResolvedPaymentGatewayConfigState> {
+    const persisted = await this.store.getSystemState(EPAY_PAYMENT_GATEWAY_STATE_KEY);
+    if (persisted) {
+      const persistedObject = asObject(persisted);
+      const configValues = normalizeEpayGatewayConfigValues(persistedObject.config_values);
+      const configuredSecretKeys = asStringArray(persistedObject.configured_secret_keys).filter((key) =>
+        EPAY_GATEWAY_SECRET_FIELDS.includes(key as (typeof EPAY_GATEWAY_SECRET_FIELDS)[number]),
+      );
+      const secretValues = decryptInstallSecretPayload(
+        typeof persistedObject.secret_payload_encrypted === 'string' ? persistedObject.secret_payload_encrypted : null,
+      );
+      return {
+        provider: 'epay',
+        source: 'admin',
+        configValues,
+        secretValues,
+        configuredSecretKeys,
+        updatedAt: String(persistedObject.updated_at || '').trim() || null,
+      };
+    }
+
+    const envConfigValues = {
+      partner_id: String(config.epayPartnerId || '').trim(),
+      gateway: String(config.epayGateway || '').trim(),
+    };
+    const envSecretValues = {
+      key: String(config.epayKey || '').trim(),
+    };
+    const hasEnvValues = Boolean(
+      envConfigValues.partner_id ||
+        envConfigValues.gateway ||
+        envSecretValues.key,
+    );
+    return {
+      provider: 'epay',
+      source: hasEnvValues ? 'env_fallback' : 'unset',
+      configValues: envConfigValues,
+      secretValues: envSecretValues,
+      configuredSecretKeys: envSecretValues.key ? ['key'] : [],
+      updatedAt: null,
+    };
+  }
+
+  private async resolveEpayService(): Promise<{
+    gateway: ResolvedPaymentGatewayConfigState;
+    service: EpayService;
+  }> {
+    const gateway = await this.resolvePaymentGatewayConfigState();
+    return {
+      gateway,
+      service: new EpayService({
+        partnerId: gateway.configValues.partner_id,
+        key: String(gateway.secretValues.key || '').trim(),
+        gateway: gateway.configValues.gateway,
+      }),
+    };
+  }
+
   async register(input: RegisterInput): Promise<{tokens: AuthTokens; user: PublicUser}> {
     const username = normalizeUsername(input.username);
     const email = normalizeIdentifier(input.email, 'email');
@@ -1907,12 +2017,13 @@ export class ControlPlaneService {
           : `${paymentProviderLabel(provider)} 当前不可用`,
       );
     }
+    const {gateway: paymentGatewayConfig, service: epayService} = await this.resolveEpayService();
     const paymentProfileResolution = await this.resolvePaymentProviderProfileForOrder(provider, appName || null);
     if ((provider === 'wechat_qr' || provider === 'alipay_qr') && !epayService.isEnabled()) {
       throw new HttpError(
         503,
         'SERVICE_UNAVAILABLE',
-        '支付通道未配置，请设置 EPAY_PARTNER_ID / EPAY_KEY / EPAY_GATEWAY 并重启 control-plane',
+        '支付通道未配置，请先在 admin-web 的平台支付网关中填写 partner_id / key / gateway',
       );
     }
     const orderId = randomUUID();
@@ -1944,6 +2055,7 @@ export class ControlPlaneService {
         ...(checkout?.metadata || {}),
         recharge_source_layer: packageConfig.sourceLayer,
         recharge_payment_method_source_layer: resolvedRechargePaymentMethod?.sourceLayer || null,
+        payment_gateway_source: paymentGatewayConfig.source,
       },
       packageName: packageConfig.packageName,
       credits: packageConfig.credits,
@@ -1991,6 +2103,7 @@ export class ControlPlaneService {
   }
 
   async applyEpayWebhook(input: Record<string, unknown>): Promise<PaymentOrderView> {
+    const {service: epayService} = await this.resolveEpayService();
     const webhook = epayService.parseWebhook(input);
     const adminOrder = await this.store.getPaymentOrderAdmin(webhook.orderId);
     if (!adminOrder) {
@@ -2030,6 +2143,41 @@ export class ControlPlaneService {
     return {
       items: items.map((item) => toAdminPaymentOrderSummaryView(item)),
     };
+  }
+
+  async getAdminPaymentGatewayConfig(accessToken: string): Promise<AdminPaymentGatewayConfigView> {
+    await this.requireAdminUser(accessToken);
+    return toAdminPaymentGatewayConfigView(await this.resolvePaymentGatewayConfigState());
+  }
+
+  async upsertAdminPaymentGatewayConfig(
+    accessToken: string,
+    input: UpsertAdminPaymentGatewayConfigInput,
+  ): Promise<AdminPaymentGatewayConfigView> {
+    await this.requireAdminUser(accessToken);
+    const provider = String(input.provider || 'epay').trim().toLowerCase();
+    if (provider !== 'epay') {
+      throw new HttpError(400, 'BAD_REQUEST', 'unsupported payment gateway provider');
+    }
+    const normalizedConfigValues = normalizeConfigStringMap(input.config_values);
+    const normalizedSecretValues = asObject(input.secret_values);
+    const nextSecretValues: Record<string, string> = {};
+    for (const key of EPAY_GATEWAY_SECRET_FIELDS) {
+      const rawValue = normalizedSecretValues[key];
+      nextSecretValues[key] = typeof rawValue === 'string' ? rawValue.trim() : '';
+    }
+    const nextState = {
+      provider: 'epay',
+      config_values: {
+        partner_id: String(normalizedConfigValues.partner_id || '').trim(),
+        gateway: String(normalizedConfigValues.gateway || '').trim(),
+      },
+      configured_secret_keys: EPAY_GATEWAY_SECRET_FIELDS.filter((key) => Boolean(nextSecretValues[key])),
+      secret_payload_encrypted: encryptInstallSecretPayload(nextSecretValues),
+      updated_at: new Date().toISOString(),
+    };
+    await this.store.setSystemState(EPAY_PAYMENT_GATEWAY_STATE_KEY, nextState);
+    return toAdminPaymentGatewayConfigView(await this.resolvePaymentGatewayConfigState());
   }
 
   async listAdminPaymentProviderProfiles(

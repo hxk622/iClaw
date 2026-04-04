@@ -35,6 +35,27 @@ async function withBootstrapRoles<T>(
   }
 }
 
+async function withEpayConfig<T>(
+  overrides: {partnerId?: string; key?: string; gateway?: string},
+  run: () => Promise<T>,
+): Promise<T> {
+  const previous = {
+    partnerId: config.epayPartnerId,
+    key: config.epayKey,
+    gateway: config.epayGateway,
+  };
+  config.epayPartnerId = overrides.partnerId ?? previous.partnerId;
+  config.epayKey = overrides.key ?? previous.key;
+  config.epayGateway = overrides.gateway ?? previous.gateway;
+  try {
+    return await run();
+  } finally {
+    config.epayPartnerId = previous.partnerId;
+    config.epayKey = previous.key;
+    config.epayGateway = previous.gateway;
+  }
+}
+
 test('authenticated API calls slide both token expiries without resetting session creation time', async () => {
   const store = new InMemoryControlPlaneStore();
   const service = new ControlPlaneService(store);
@@ -278,6 +299,91 @@ test('createPaymentOrder rejects OEM-disabled recharge payment methods', async (
       assert.equal(error.statusCode, 400);
       assert.match(error.message, /未启用/);
       return true;
+    },
+  );
+});
+
+test('admin payment gateway config persists and returns exact values from control-plane store', async () => {
+  await withBootstrapRoles({adminEmails: ['payments-admin@example.com']}, async () => {
+    const store = new InMemoryControlPlaneStore();
+    const service = new ControlPlaneService(store);
+    const registration = await service.register({
+      username: 'payments-admin',
+      email: 'payments-admin@example.com',
+      password: 'password123',
+      name: 'Payments Admin',
+    });
+
+    const saved = await service.upsertAdminPaymentGatewayConfig(registration.tokens.access_token, {
+      provider: 'epay',
+      config_values: {
+        partner_id: 'platform-partner-001',
+        gateway: 'https://epay.example.com/submit.php',
+      },
+      secret_values: {
+        key: 'platform-key-xyz',
+      },
+    });
+
+    assert.equal(saved.provider, 'epay');
+    assert.equal(saved.source, 'admin');
+    assert.equal(saved.config.partner_id, 'platform-partner-001');
+    assert.equal(saved.config.gateway, 'https://epay.example.com/submit.php');
+    assert.deepEqual(saved.configured_secret_keys, ['key']);
+    assert.equal(saved.completeness_status, 'configured');
+    assert.deepEqual(saved.missing_fields, []);
+
+    const fetched = await service.getAdminPaymentGatewayConfig(registration.tokens.access_token);
+    assert.equal(fetched.source, 'admin');
+    assert.deepEqual(fetched.config, {
+      partner_id: 'platform-partner-001',
+      gateway: 'https://epay.example.com/submit.php',
+    });
+    assert.deepEqual(fetched.configured_secret_keys, ['key']);
+    assert.equal(fetched.completeness_status, 'configured');
+  });
+});
+
+test('blank admin payment gateway config overrides env fallback for payment order creation', async () => {
+  await withEpayConfig(
+    {
+      partnerId: 'env-partner-001',
+      key: 'env-key-xyz',
+      gateway: 'https://epay-env.example.com/submit.php',
+    },
+    async () => {
+      const store = new InMemoryControlPlaneStore();
+      await store.setSystemState('payment_gateway:epay', {
+        provider: 'epay',
+        config_values: {
+          partner_id: '',
+          gateway: '',
+        },
+        configured_secret_keys: [],
+        secret_payload_encrypted: null,
+        updated_at: new Date().toISOString(),
+      });
+      const service = new ControlPlaneService(store);
+      const registration = await service.register({
+        username: 'payment-gateway-user',
+        email: 'payment-gateway-user@example.com',
+        password: 'password123',
+        name: 'Payment Gateway User',
+      });
+
+      await assert.rejects(
+        service.createPaymentOrder(registration.tokens.access_token, {
+          provider: 'wechat_qr',
+          package_id: 'topup_3000',
+          app_name: 'iclaw',
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof HttpError);
+          assert.equal(error.statusCode, 503);
+          assert.match(error.message, /平台支付网关/);
+          return true;
+        },
+      );
     },
   );
 });

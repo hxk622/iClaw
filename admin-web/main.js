@@ -33,6 +33,8 @@ const PRIMARY_PAYMENT_PROVIDER = 'wechat_qr';
 const PAYMENT_PROVIDER_REQUIRED_FIELDS = ['sp_mchid', 'sp_appid', 'sub_mchid', 'notify_url', 'serial_no', 'api_v3_key', 'private_key_pem'];
 const PAYMENT_PROVIDER_CONFIG_FIELDS = ['sp_mchid', 'sp_appid', 'sub_mchid', 'notify_url', 'serial_no'];
 const PAYMENT_PROVIDER_SECRET_FIELDS = ['api_v3_key', 'private_key_pem'];
+const PAYMENT_GATEWAY_CONFIG_FIELDS = ['partner_id', 'gateway'];
+const PAYMENT_GATEWAY_SECRET_FIELDS = ['key'];
 const DEFAULT_RECHARGE_PAYMENT_METHODS = [
   {
     provider: 'wechat_qr',
@@ -577,6 +579,7 @@ const state = {
   memoryEmbeddingProfiles: [],
   memoryEmbeddingDrafts: {},
   modelLogoPresets: [],
+  paymentGatewayConfig: null,
   paymentProviderProfiles: [],
   paymentProviderBindings: [],
   skillSyncSources: [],
@@ -5052,7 +5055,7 @@ async function loadAppData() {
   render();
 
   try {
-    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, cloudMcpCatalogData, modelCatalogData, modelProviderProfilesData, memoryEmbeddingProfilesData, modelLogoPresetsData, menuCatalogData, rechargePackageCatalogData, composerControlCatalogData, composerShortcutCatalogData, skillSyncSourcesData, skillSyncRunsData, paymentProviderProfilesData, paymentProviderBindingsData, paymentOrdersData, runtimeReleasesData, runtimeBindingsData, runtimeBindingHistoryData, runtimeBootstrapSourceData] = await Promise.all([
+    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, cloudMcpCatalogData, modelCatalogData, modelProviderProfilesData, memoryEmbeddingProfilesData, modelLogoPresetsData, menuCatalogData, rechargePackageCatalogData, composerControlCatalogData, composerShortcutCatalogData, skillSyncSourcesData, skillSyncRunsData, paymentGatewayConfigData, paymentProviderProfilesData, paymentProviderBindingsData, paymentOrdersData, runtimeReleasesData, runtimeBindingsData, runtimeBindingHistoryData, runtimeBootstrapSourceData] = await Promise.all([
       apiFetch('/admin/portal/apps', {method: 'GET'}),
       apiFetch('/admin/agents/catalog', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/skills', {method: 'GET'}),
@@ -5068,6 +5071,7 @@ async function loadAppData() {
       apiFetch('/admin/portal/catalog/composer-shortcuts', {method: 'GET'}),
       apiFetch('/admin/skills/sync/sources', {method: 'GET'}),
       apiFetch('/admin/skills/sync/runs', {method: 'GET'}),
+      apiFetch('/admin/payments/gateway-config', {method: 'GET'}),
       apiFetch(`/admin/payments/provider-profiles?provider=${encodeURIComponent(PRIMARY_PAYMENT_PROVIDER)}`, {method: 'GET'}),
       apiFetch(`/admin/payments/provider-bindings?provider=${encodeURIComponent(PRIMARY_PAYMENT_PROVIDER)}`, {method: 'GET'}),
       apiFetch('/admin/payments/orders?limit=200', {method: 'GET'}),
@@ -5102,6 +5106,7 @@ async function loadAppData() {
     state.memoryEmbeddingProfiles = Array.isArray(memoryEmbeddingProfilesData.items) ? memoryEmbeddingProfilesData.items : [];
     state.modelProviderOverrides = overridesMap;
     state.modelLogoPresets = Array.isArray(modelLogoPresetsData.items) ? modelLogoPresetsData.items : [];
+    state.paymentGatewayConfig = paymentGatewayConfigData && typeof paymentGatewayConfigData === 'object' ? paymentGatewayConfigData : null;
     state.paymentProviderProfiles = Array.isArray(paymentProviderProfilesData.items) ? paymentProviderProfilesData.items : [];
     state.paymentProviderBindings = Array.isArray(paymentProviderBindingsData.items) ? paymentProviderBindingsData.items : [];
     state.runtimeReleases = Array.isArray(runtimeReleasesData.items) ? runtimeReleasesData.items : [];
@@ -6733,6 +6738,35 @@ async function savePaymentProviderConfig(form) {
     setNotice(`${scopeType === 'platform' ? '平台默认支付配置' : `${scopeKey} 支付配置`}已保存。`);
   } catch (error) {
     setError(error instanceof Error ? error.message : '支付配置保存失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function savePaymentGatewayConfig(form) {
+  const formData = new FormData(form);
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    await apiFetch('/admin/payments/gateway-config', {
+      method: 'PUT',
+      body: JSON.stringify({
+        provider: String(formData.get('provider') || 'epay').trim() || 'epay',
+        config_values: Object.fromEntries(
+          PAYMENT_GATEWAY_CONFIG_FIELDS.map((key) => [key, String(formData.get(key) || '').trim()]),
+        ),
+        secret_values: Object.fromEntries(
+          PAYMENT_GATEWAY_SECRET_FIELDS.map((key) => [key, String(formData.get(key) || '')]),
+        ),
+      }),
+    });
+    await loadAppData();
+    setNotice('平台支付网关已保存。');
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '平台支付网关保存失败');
   } finally {
     state.busy = false;
     render();
@@ -9676,6 +9710,29 @@ function getSelectedPaymentProviderTab() {
     return 'platform';
   }
   return appNames.includes(state.selectedPaymentProviderTab) ? state.selectedPaymentProviderTab : 'platform';
+}
+
+function getPaymentGatewayConfigView() {
+  const value = asObject(state.paymentGatewayConfig);
+  return {
+    provider: String(value.provider || 'epay').trim() || 'epay',
+    source: String(value.source || 'unset').trim() || 'unset',
+    config: asObject(value.config),
+    configured_secret_keys: asStringArray(value.configured_secret_keys),
+    completeness_status: String(value.completeness_status || 'missing').trim() || 'missing',
+    missing_fields: asStringArray(value.missing_fields),
+    updated_at: String(value.updated_at || '').trim() || '',
+  };
+}
+
+function getPaymentGatewaySourceLabel(source) {
+  if (source === 'admin') {
+    return 'admin-web';
+  }
+  if (source === 'env_fallback') {
+    return 'env fallback';
+  }
+  return '未配置';
 }
 
 function hasAnyPaymentProviderValues(formData) {
@@ -12694,6 +12751,10 @@ function renderPaymentProviderConfigPage() {
   const selectedBrand = selectedTab === 'platform' ? null : (state.brands || []).find((item) => item.brandId === selectedTab) || null;
   const scopeType = selectedBrand ? 'app' : 'platform';
   const scopeKey = selectedBrand ? selectedBrand.brandId : 'platform';
+  const gatewayConfig = getPaymentGatewayConfigView();
+  const gatewayConfigValues = asObject(gatewayConfig.config);
+  const gatewayConfiguredSecrets = Array.isArray(gatewayConfig.configured_secret_keys) ? gatewayConfig.configured_secret_keys : [];
+  const gatewayMissingFields = Array.isArray(gatewayConfig.missing_fields) ? gatewayConfig.missing_fields : [];
   const selectedBrandDetail = selectedBrand ? state.portalAppDetails[selectedBrand.brandId] || null : null;
   const profile = getPaymentProviderProfilesByScope(scopeType, scopeKey)[0] || {
     id: '',
@@ -12753,6 +12814,103 @@ function renderPaymentProviderConfigPage() {
               .join('')}
           </div>
         </section>
+        ${
+          selectedBrand
+            ? `
+              <section class="fig-card fig-card--subtle">
+                <div class="fig-card__head">
+                  <div>
+                    <h3>平台支付网关</h3>
+                    <span>${escapeHtml(`${selectedBrand.displayName} 当前只能继承平台级 epay 网关，不允许 OEM 单独维护。`)}</span>
+                  </div>
+                </div>
+                <div class="payment-provider-summary">
+                  <div class="payment-provider-summary__item">
+                    <span>当前来源</span>
+                    <strong>${escapeHtml(getPaymentGatewaySourceLabel(gatewayConfig.source))}</strong>
+                  </div>
+                  <div class="payment-provider-summary__item">
+                    <span>完整度</span>
+                    <strong>${escapeHtml(gatewayConfig.completeness_status === 'configured' ? '已配置完整' : '配置缺失')}</strong>
+                  </div>
+                  <div class="payment-provider-summary__item">
+                    <span>已录入密钥</span>
+                    <strong>${escapeHtml(gatewayConfiguredSecrets.join(' / ') || '无')}</strong>
+                  </div>
+                  <div class="payment-provider-summary__item">
+                    <span>缺失字段</span>
+                    <strong>${escapeHtml(gatewayMissingFields.join(' / ') || '无')}</strong>
+                  </div>
+                </div>
+                <div class="form-grid form-grid--two">
+                  <label class="field">
+                    <span>partner_id</span>
+                    <input class="field-input" value="${fieldValue(gatewayConfigValues.partner_id || '')}" readonly />
+                  </label>
+                  <label class="field">
+                    <span>gateway</span>
+                    <input class="field-input" value="${fieldValue(gatewayConfigValues.gateway || '')}" readonly />
+                  </label>
+                </div>
+                <div class="fig-card fig-card--subtle" style="margin-top:16px;">
+                  <div style="font-size:13px;line-height:1.6;opacity:0.78;">
+                    OEM 支付订单会直接复用平台级 epay 网关；如果平台保存了空值，也会以空值为准，不再回退 .env。
+                  </div>
+                </div>
+              </section>
+            `
+            : `
+              <form id="payment-gateway-form" class="fig-card fig-card--subtle">
+                <input type="hidden" name="provider" value="epay" />
+                <div class="fig-card__head">
+                  <div>
+                    <h3>平台支付网关</h3>
+                    <span>epay 属于平台级基础设施。所有 OEM 统一继承这里；一旦保存，将优先使用数据库配置。</span>
+                  </div>
+                </div>
+                <div class="payment-provider-summary">
+                  <div class="payment-provider-summary__item">
+                    <span>当前来源</span>
+                    <strong>${escapeHtml(getPaymentGatewaySourceLabel(gatewayConfig.source))}</strong>
+                  </div>
+                  <div class="payment-provider-summary__item">
+                    <span>完整度</span>
+                    <strong>${escapeHtml(gatewayConfig.completeness_status === 'configured' ? '已配置完整' : '配置缺失')}</strong>
+                  </div>
+                  <div class="payment-provider-summary__item">
+                    <span>已录入密钥</span>
+                    <strong>${escapeHtml(gatewayConfiguredSecrets.join(' / ') || '无')}</strong>
+                  </div>
+                  <div class="payment-provider-summary__item">
+                    <span>更新时间</span>
+                    <strong>${escapeHtml(gatewayConfig.updated_at ? formatDateTime(gatewayConfig.updated_at) : '未保存')}</strong>
+                  </div>
+                </div>
+                <div class="form-grid form-grid--two">
+                  <label class="field">
+                    <span>partner_id</span>
+                    <input class="field-input" name="partner_id" value="${fieldValue(gatewayConfigValues.partner_id || '')}" placeholder="准付商户 partner_id" />
+                  </label>
+                  <label class="field">
+                    <span>gateway</span>
+                    <input class="field-input" name="gateway" value="${fieldValue(gatewayConfigValues.gateway || '')}" placeholder="https://..." />
+                  </label>
+                  <label class="field field--wide">
+                    <span>key</span>
+                    <input class="field-input" name="key" value="" placeholder="${gatewayConfiguredSecrets.includes('key') ? '已配置，留空表示清空并改为 admin 值' : '准付签名 key'}" />
+                  </label>
+                </div>
+                <div class="fig-card fig-card--subtle" style="margin-top:16px;">
+                  <div style="font-size:13px;line-height:1.6;opacity:0.78;">
+                    缺失字段：${escapeHtml(gatewayMissingFields.join(' / ') || '无')}。保存空值后也会以 admin 配置为准，不再回退 .env。
+                  </div>
+                </div>
+                <div class="fig-form-actions">
+                  <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>保存平台网关</button>
+                </div>
+              </form>
+            `
+        }
         <form id="payment-provider-form" class="fig-card fig-card--subtle">
           <input type="hidden" name="profile_id" value="${fieldValue(profile.id || '')}" />
           <input type="hidden" name="provider" value="${fieldValue(profile.provider || PRIMARY_PAYMENT_PROVIDER)}" />
@@ -13916,6 +14074,11 @@ app.addEventListener('submit', async (event) => {
 
   if (form.id === 'payment-provider-form') {
     await savePaymentProviderConfig(form);
+    return;
+  }
+
+  if (form.id === 'payment-gateway-form') {
+    await savePaymentGatewayConfig(form);
     return;
   }
 
