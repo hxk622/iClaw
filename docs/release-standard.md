@@ -89,12 +89,13 @@
 
 每次上线必须落一份文档到：
 
-- `docs/version_record/<4位版本号>.md`
+- `docs/version_record/<发布版本号>.md`
 
 命名规则：
 
-- 从 `0001.md` 开始顺序递增
-- `version_record` 目录内只放编号记录，不放其他文件
+- 文件名使用对外发布版本号
+- 格式为 `1.0.1.<timestamp>.md`
+- `version_record` 目录内只放版本记录，不放其他文件
 
 建议同时维护一份目录外模板：
 
