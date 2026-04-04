@@ -499,6 +499,8 @@ type QueuedComposerMessage = {
   payload: ComposerSendPayload;
 };
 
+type SendAttemptResult = 'sent' | 'retry' | 'failed';
+
 type GatewaySessionsListResult = {
   defaults: {
     model: string | null;
@@ -6461,7 +6463,7 @@ export function OpenClawChatSurface({
         ? `已识别 ${dropSummary.totalFiles} 个文件，其中 ${dropSummary.supportedFiles} 个会加入输入框，${dropSummary.unsupportedCount} 个会被忽略。`
         : `已识别 ${dropSummary.totalFiles} 个文件，都会直接加入当前输入框。`;
 
-  const sendQueuedOrImmediateMessage = useCallback(async (payload: ComposerSendPayload): Promise<boolean> => {
+  const sendQueuedOrImmediateMessage = useCallback(async (payload: ComposerSendPayload): Promise<SendAttemptResult> => {
     const app = appRef.current;
     const request = app?.client?.request;
     if (effectiveSendBlockedReason) {
@@ -6469,14 +6471,14 @@ export function OpenClawChatSurface({
         ...current,
         lastError: effectiveSendBlockedReason,
       }));
-      return false;
+      return 'failed';
     }
     if (!app?.connected || typeof request !== 'function') {
       setStatus((current) => ({
         ...current,
         lastError: app?.lastError ?? '尚未连接到 OpenClaw 网关，请稍等或重新进入页面。',
       }));
-      return false;
+      return 'retry';
     }
 
     const matchingPrompt = payload.prompt.trim();
@@ -6496,14 +6498,14 @@ export function OpenClawChatSurface({
         app.chatAttachments = [];
         await app.handleSendChat();
         scrollChatToBottom({force: true});
-        return true;
+        return 'sent';
       } catch (error) {
         const detail = error instanceof Error ? error.message : '任务发送失败';
         setStatus((current) => ({
           ...current,
           lastError: detail,
         }));
-        return false;
+        return looksLikeGatewayTransportIssue(detail) ? 'retry' : 'failed';
       }
     }
 
@@ -6602,7 +6604,7 @@ export function OpenClawChatSurface({
           finalizeChatTurnRun();
         }
       }, 420);
-      return true;
+      return 'sent';
     } catch (error) {
       const { message: detail, code } = resolveGatewayErrorDetail(error);
       if (isCreditBlockCode(code)) {
@@ -6634,7 +6636,7 @@ export function OpenClawChatSurface({
         lastError: isCreditBlockCode(code) ? null : detail,
         lastErrorCode: isCreditBlockCode(code) ? null : code,
       }));
-      return false;
+      return looksLikeGatewayTransportIssue(detail) ? 'retry' : 'failed';
     }
   }, [
     clearUsageSettlementTimers,
@@ -6695,14 +6697,14 @@ export function OpenClawChatSurface({
     queueDispatchInFlightRef.current = next.id;
     setQueuedMessages((current) => current.filter((item) => item.id !== next.id));
 
-    let accepted = false;
+    let result: SendAttemptResult = 'failed';
     try {
-      accepted = await sendQueuedOrImmediateMessage(next.payload);
+      result = await sendQueuedOrImmediateMessage(next.payload);
     } finally {
       queueDispatchInFlightRef.current = null;
     }
 
-    if (!accepted) {
+    if (result === 'retry') {
       setQueuedMessages((current) => (current.some((item) => item.id === next.id) ? current : [next, ...current]));
     }
   }, [
@@ -6740,7 +6742,7 @@ export function OpenClawChatSurface({
     if (optimisticEmptySessionActive) {
       setOptimisticEmptySessionActive(false);
     }
-    return sendQueuedOrImmediateMessage(payload);
+    return (await sendQueuedOrImmediateMessage(payload)) === 'sent';
   }, [
     allowImmediateEmptySessionUi,
     effectiveGatewaySessionKey,
