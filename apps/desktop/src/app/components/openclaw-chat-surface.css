@@ -788,7 +788,7 @@ body {
 
 .openclaw-chat-surface .iclaw-chat-run-footer__timestamp {
   color: var(--chat-surface-muted);
-  font-size: 11px;
+  font-size: var(--iclaw-content-caption-font-size);
   line-height: 1;
   white-space: nowrap;
 }
@@ -801,7 +801,7 @@ body {
 .openclaw-chat-surface .iclaw-chat-assistant-meta {
   min-width: 0;
   color: var(--chat-surface-muted);
-  font-size: 11px;
+  font-size: var(--iclaw-content-caption-font-size);
   line-height: 1.2;
   white-space: nowrap;
 }
@@ -842,7 +842,7 @@ body {
 
 .openclaw-chat-surface .iclaw-chat-assistant-footer__timestamp {
   color: var(--chat-surface-muted);
-  font-size: 11px;
+  font-size: var(--iclaw-content-caption-font-size);
   line-height: 1;
   transition:
     opacity 160ms ease,
@@ -1032,26 +1032,51 @@ body {
 :root {
   --iclaw-content-font-size: 14px;
   --iclaw-content-line-height: 1.9;
+  --iclaw-content-heading-display-size: 18px;
+  --iclaw-content-heading-size: 15px;
+  --iclaw-content-supporting-font-size: 13px;
+  --iclaw-content-caption-font-size: 12px;
+  --iclaw-content-code-font-size: 13px;
 }
 
 :root[data-content-font-size='small'] {
   --iclaw-content-font-size: 12px;
   --iclaw-content-line-height: 1.75;
+  --iclaw-content-heading-display-size: 16px;
+  --iclaw-content-heading-size: 13px;
+  --iclaw-content-supporting-font-size: 12px;
+  --iclaw-content-caption-font-size: 11px;
+  --iclaw-content-code-font-size: 12px;
 }
 
 :root[data-content-font-size='medium'] {
   --iclaw-content-font-size: 14px;
   --iclaw-content-line-height: 1.9;
+  --iclaw-content-heading-display-size: 18px;
+  --iclaw-content-heading-size: 15px;
+  --iclaw-content-supporting-font-size: 13px;
+  --iclaw-content-caption-font-size: 12px;
+  --iclaw-content-code-font-size: 13px;
 }
 
 :root[data-content-font-size='large'] {
   --iclaw-content-font-size: 16px;
   --iclaw-content-line-height: 2;
+  --iclaw-content-heading-display-size: 20px;
+  --iclaw-content-heading-size: 17px;
+  --iclaw-content-supporting-font-size: 14px;
+  --iclaw-content-caption-font-size: 13px;
+  --iclaw-content-code-font-size: 15px;
 }
 
 :root[data-content-font-size='xlarge'] {
   --iclaw-content-font-size: 18px;
   --iclaw-content-line-height: 2.05;
+  --iclaw-content-heading-display-size: 22px;
+  --iclaw-content-heading-size: 18px;
+  --iclaw-content-supporting-font-size: 16px;
+  --iclaw-content-caption-font-size: 14px;
+  --iclaw-content-code-font-size: 16px;
 }
 
 .openclaw-chat-surface .chat-text {
@@ -1076,11 +1101,11 @@ body {
 }
 
 .openclaw-chat-surface .chat-text :where(h1) {
-  font-size: 18px;
+  font-size: var(--iclaw-content-heading-display-size);
 }
 
 .openclaw-chat-surface .chat-text :where(h2, h3, h4) {
-  font-size: 14px;
+  font-size: var(--iclaw-content-heading-size);
 }
 
 .openclaw-chat-surface .chat-text :where(strong) {
@@ -1093,7 +1118,7 @@ body {
   border-radius: 4px;
   background: var(--chat-code-bg);
   color: var(--chat-code-text);
-  font-size: 13px;
+  font-size: var(--iclaw-content-code-font-size);
 }
 
 .openclaw-chat-surface .chat-text :where(pre) {
@@ -1105,7 +1130,7 @@ body {
 }
 
 .openclaw-chat-surface .chat-text :where(pre code) {
-  font-size: 12px;
+  font-size: var(--iclaw-content-code-font-size);
   line-height: 1.7;
 }
 
@@ -1548,9 +1573,9 @@ body {
   flex: 1 1 220px;
   min-width: 0;
   color: var(--tool-card-title);
-  font-size: 14px;
+  font-size: var(--iclaw-content-font-size);
   font-weight: 500;
-  line-height: 20px;
+  line-height: 1.5;
 }
 
 .openclaw-chat-surface .chat-tool-card__icon {
@@ -1586,7 +1611,7 @@ body {
   min-height: 20px;
   padding: 2px 8px;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: var(--iclaw-content-caption-font-size);
   font-weight: 600;
   line-height: 16px;
 }
@@ -1625,7 +1650,7 @@ body {
 .openclaw-chat-surface .chat-tool-card__detail {
   margin-top: 8px;
   color: var(--tool-card-secondary);
-  font-size: 13px;
+  font-size: var(--iclaw-content-supporting-font-size);
   line-height: 18px;
 }
 
@@ -1637,7 +1662,7 @@ body {
 .openclaw-chat-surface .chat-tool-card__status-text {
   margin-top: 6px;
   color: var(--tool-card-tertiary);
-  font-size: 12px;
+  font-size: var(--iclaw-content-caption-font-size);
   line-height: 16px;
 }
 
@@ -1652,8 +1677,8 @@ body {
   background: var(--tool-card-subtle-bg);
   color: var(--tool-card-secondary);
   font-family: inherit;
-  font-size: 12px;
-  line-height: 18px;
+  font-size: var(--iclaw-content-font-size);
+  line-height: 1.7;
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -1697,7 +1722,7 @@ body {
   border-radius: 6px;
   background: var(--tool-card-subtle-bg);
   color: var(--tool-card-secondary);
-  font-size: 12px;
+  font-size: var(--iclaw-content-caption-font-size);
   font-weight: 600;
   letter-spacing: 0;
 }
@@ -2315,14 +2340,14 @@ body {
   align-items: center;
   gap: 8px;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--iclaw-content-supporting-font-size);
   font-weight: 700;
   letter-spacing: -0.01em;
 }
 
 .iclaw-chat-queue-panel__subtitle {
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--iclaw-content-caption-font-size);
   white-space: nowrap;
 }
 
@@ -2362,7 +2387,7 @@ body {
   border-radius: 999px;
   background: color-mix(in srgb, var(--brand-primary) 14%, transparent);
   color: var(--brand-primary);
-  font-size: 11px;
+  font-size: var(--iclaw-content-caption-font-size);
   font-weight: 700;
 }
 
@@ -2374,7 +2399,7 @@ body {
 .iclaw-chat-queue-panel__item-preview {
   overflow: hidden;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--iclaw-content-supporting-font-size);
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2383,7 +2408,7 @@ body {
 .iclaw-chat-queue-panel__item-meta {
   margin-top: 2px;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: var(--iclaw-content-caption-font-size);
 }
 
 .iclaw-chat-queue-panel__remove {
