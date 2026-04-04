@@ -4,16 +4,14 @@ import QRCode from 'qrcode';
 import {
   AlertCircle,
   ArrowLeft,
-  ArrowUpRight,
-  Check,
   CheckCircle2,
-  ShieldCheck,
-  ChevronDown,
   Clock3,
+  Crown,
   LoaderCircle,
   RefreshCw,
-  ScanLine,
+  Sparkles,
   X,
+  Zap,
 } from 'lucide-react';
 import {type IClawClient, type PaymentOrderData} from '@iclaw/sdk';
 import {cn} from '@/app/lib/cn';
@@ -75,11 +73,6 @@ const FALLBACK_RECHARGE_PACKAGES: RechargePackage[] = [
   },
 ];
 
-const PAYMENT_METHOD_META: Record<PaymentMethod, {label: string; accentClassName: string}> = {
-  wechat_qr: {label: '微信支付', accentClassName: 'bg-[#07C160] text-white shadow-lg shadow-green-900/30'},
-  alipay_qr: {label: '支付宝', accentClassName: 'bg-[#1677FF] text-white shadow-lg shadow-blue-900/30'},
-};
-
 const PANEL_OVERLAY_CLASS =
   'fixed inset-0 z-50 flex items-center justify-center bg-[rgba(8,12,20,0.24)] p-4 backdrop-blur-[4px] dark:bg-[rgba(0,0,0,0.44)] md:p-8';
 
@@ -122,25 +115,6 @@ function formatCountdownLabel(remainingMs: number | null): string | null {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
-function resolveOrderStatusLabel(status: PaymentOrderData['status']): string {
-  switch (status) {
-    case 'paid':
-      return '已支付';
-    case 'failed':
-      return '支付失败';
-    case 'expired':
-      return '已过期';
-    case 'refunded':
-      return '已退款';
-    case 'created':
-      return '待支付';
-    case 'pending':
-      return '支付中';
-    default:
-      return status;
-  }
-}
-
 function isDataImageUrl(value: string | null | undefined): boolean {
   return typeof value === 'string' && value.startsWith('data:image/');
 }
@@ -154,10 +128,6 @@ function formatCreditsLabel(value: number): string {
   return value.toLocaleString('zh-CN');
 }
 
-function getPaymentMethodDisplayLabel(paymentMethod: PaymentMethod): string {
-  return paymentMethod === 'wechat_qr' ? '微信支付' : '支付宝';
-}
-
 function formatOrderIdShort(orderId: string | null | undefined): string | null {
   if (!orderId) {
     return null;
@@ -166,37 +136,64 @@ function formatOrderIdShort(orderId: string | null | undefined): string | null {
 }
 
 function PaymentBrandLogo({paymentMethod}: {paymentMethod: PaymentMethod}) {
-  if (paymentMethod === 'alipay_qr') {
-    return (
-      <div className="flex h-16 w-16 items-center justify-center rounded-[20px] bg-[#1677FF] shadow-[0_14px_28px_rgba(22,119,255,0.28)] ring-4 ring-white/92">
-        <span className="text-[44px] font-black leading-none tracking-[-0.08em] text-white">支</span>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex h-16 w-16 items-center justify-center rounded-[20px] bg-[#07C160] shadow-[0_14px_28px_rgba(7,193,96,0.28)] ring-4 ring-white/92">
-      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-9 w-9">
-        <path
-          fill="#FFFFFF"
-          d="M8.37 4.4C4.31 4.4 1 7.16 1 10.54c0 1.95 1.08 3.68 2.76 4.82l-.7 2.43 2.63-1.3c.88.2 1.79.3 2.68.3 4.06 0 7.37-2.76 7.37-6.15S12.43 4.4 8.37 4.4Zm-2.46 5.08a.8.8 0 1 1 0-1.6.8.8 0 0 1 0 1.6Zm4.92 0a.8.8 0 1 1 0-1.6.8.8 0 0 1 0 1.6Z"
-        />
-        <path
-          fill="#FFFFFF"
-          d="M16.88 9.38c-3.39 0-6.12 2.28-6.12 5.1 0 1.52.8 2.89 2.07 3.82l-.56 1.96 2.1-1.04c.81.18 1.49.22 2.51.22 3.38 0 6.12-2.28 6.12-5.1s-2.74-4.96-6.12-4.96Zm-2.04 4.23a.67.67 0 1 1 0-1.34.67.67 0 0 1 0 1.34Zm4.07 0a.67.67 0 1 1 0-1.34.67.67 0 0 1 0 1.34Z"
-        />
-      </svg>
+    <div
+      className={cn(
+        'flex h-14 w-14 items-center justify-center rounded-md text-[11px] font-semibold text-white shadow-sm',
+        paymentMethod === 'wechat_qr' ? 'bg-[#07C160]' : 'bg-[#1677FF]',
+      )}
+    >
+      {paymentMethod === 'wechat_qr' ? '微信' : '支付宝'}
     </div>
   );
 }
 
-function PaymentScanBadge({paymentMethod, expired = false}: {paymentMethod: PaymentMethod; expired?: boolean}) {
-  return (
-    <div className="inline-flex items-center justify-center gap-2 rounded-full border border-white/70 bg-white/92 px-4 py-2 text-xs font-medium text-[#1f2937] shadow-[0_12px_24px_rgba(15,23,42,0.10)]">
-      {expired ? <Clock3 className="h-4 w-4" /> : <ScanLine className="h-4 w-4" />}
-      <span>{expired ? '二维码已过期' : paymentMethod === 'wechat_qr' ? '微信扫一扫' : '支付宝扫一扫'}</span>
-    </div>
-  );
+function getPaymentMethodTheme(paymentMethod: PaymentMethod) {
+  return paymentMethod === 'wechat_qr'
+    ? {
+        label: '微信支付',
+        instruction: '请使用微信扫一扫完成支付',
+        accentTextClassName: 'text-[#07C160]',
+        accentBgClassName: 'bg-[rgba(7,193,96,0.10)] dark:bg-[rgba(7,193,96,0.16)]',
+        accentBorderClassName: 'border-[rgba(7,193,96,0.18)] dark:border-[rgba(7,193,96,0.24)]',
+        qrStageClassName: 'bg-[#FAFFF7] dark:bg-[#1A2E1A]',
+        optionSelectedClassName:
+          'border-green-600 bg-green-50 dark:border-green-500 dark:bg-green-950/20',
+        optionSelectedDotClassName: 'bg-green-600 dark:bg-green-500',
+      }
+    : {
+        label: '支付宝',
+        instruction: '请使用支付宝扫一扫完成支付',
+        accentTextClassName: 'text-[#1677FF]',
+        accentBgClassName: 'bg-[rgba(22,119,255,0.10)] dark:bg-[rgba(22,119,255,0.16)]',
+        accentBorderClassName: 'border-[rgba(22,119,255,0.18)] dark:border-[rgba(22,119,255,0.24)]',
+        qrStageClassName: 'bg-[#F5F9FF] dark:bg-[#1A2845]',
+        optionSelectedClassName:
+          'border-blue-600 bg-blue-50 dark:border-blue-500 dark:bg-blue-950/20',
+        optionSelectedDotClassName: 'bg-blue-600 dark:bg-blue-500',
+      };
+}
+
+function getPackageCardMeta(item: RechargePackage, index: number, total: number) {
+  if (item.recommended || item.default) {
+    return {
+      icon: <Zap className="h-5 w-5" />,
+      badgeText: item.badgeLabel || '最受欢迎',
+      badgeClassName: 'bg-blue-600 text-white dark:bg-blue-500',
+    };
+  }
+  if (index === total - 1) {
+    return {
+      icon: <Crown className="h-5 w-5" />,
+      badgeText: item.badgeLabel || '超值推荐',
+      badgeClassName: 'bg-purple-600 text-white dark:bg-purple-500',
+    };
+  }
+  return {
+    icon: <Sparkles className="h-5 w-5" />,
+    badgeText: null,
+    badgeClassName: '',
+  };
 }
 
 function BrandedPaymentQr({
@@ -210,15 +207,15 @@ function BrandedPaymentQr({
   expired?: boolean;
   onRefresh?: () => void;
 }) {
+  const methodTheme = getPaymentMethodTheme(paymentMethod);
   return (
-    <div className="flex flex-col items-center gap-2.5">
-      <div className="relative overflow-hidden rounded-[30px] border border-white/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-4 shadow-[0_28px_60px_rgba(15,23,42,0.14)]">
-        <div className="absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,rgba(248,250,252,0.94),rgba(255,255,255,0))]" />
+    <div className="relative rounded-lg border border-gray-200/80 bg-white p-8 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:border-gray-800 dark:bg-[#1A1A1A] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)]">
+      <div className={cn('relative h-[280px] w-[280px] overflow-hidden rounded-md', methodTheme.qrStageClassName)}>
         <img
           src={qrUrl}
           alt={`${paymentMethod === 'wechat_qr' ? '微信' : '支付宝'}支付二维码`}
           className={cn(
-            'relative block h-56 w-56 rounded-[24px] object-contain transition-[filter,transform,opacity] duration-300 md:h-60 md:w-60',
+            'absolute inset-0 h-full w-full object-contain transition-[filter,transform,opacity] duration-300',
             expired && 'scale-[1.01] opacity-75 blur-[0.5px]',
           )}
         />
@@ -226,21 +223,18 @@ function BrandedPaymentQr({
           <PaymentBrandLogo paymentMethod={paymentMethod} />
         </div>
         {expired ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-[rgba(31,41,55,0.40)] backdrop-blur-[1.5px]">
+          <div className="absolute inset-0 flex items-center justify-center bg-white/95 backdrop-blur-sm dark:bg-gray-900/95">
             <button
               type="button"
               onClick={onRefresh}
-              className="group inline-flex cursor-pointer flex-col items-center gap-3 text-white transition-transform hover:scale-[1.02]"
+              className="flex cursor-pointer flex-col items-center gap-2 rounded-md bg-gray-900 px-5 py-3.5 text-white transition-colors hover:bg-gray-800 dark:bg-gray-50 dark:text-gray-900 dark:hover:bg-gray-200"
             >
-              <span className="flex h-20 w-20 items-center justify-center rounded-full border-[5px] border-white/95 bg-white/12 shadow-[0_20px_40px_rgba(0,0,0,0.18)] backdrop-blur-[2px] transition-transform duration-200 group-hover:rotate-[-18deg]">
-                <RefreshCw className="h-9 w-9" strokeWidth={2.5} />
-              </span>
-              <span className="text-[15px] font-semibold tracking-[0.02em] text-white">刷新二维码</span>
+              <RefreshCw className="h-5 w-5" />
+              <span className="text-[13px] font-medium">刷新二维码</span>
             </button>
           </div>
         ) : null}
       </div>
-      <PaymentScanBadge paymentMethod={paymentMethod} expired={expired} />
     </div>
   );
 }
@@ -551,152 +545,122 @@ function PackageSelectionView({
 
   return (
     <div
-      className="max-h-[calc(100vh-32px)] w-full max-w-[1280px] overflow-auto rounded-[32px] bg-white shadow-xl dark:border dark:border-[#2a3441] dark:bg-[#1a1f28] dark:shadow-2xl"
+      className="w-full max-w-[1240px] rounded-lg border border-gray-200/60 bg-white p-12 shadow-[0_1px_3px_rgba(0,0,0,0.04)] dark:border-gray-800 dark:bg-[#141414] dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)]"
       onClick={(event) => event.stopPropagation()}
     >
-      <div className="relative border-b border-gray-100 px-8 pb-8 pt-10 dark:border-[#2a3441] md:px-12 md:pt-12">
+      <div className="relative">
         <button
           onClick={onClose}
-          className="absolute right-6 top-6 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-[#2a3441] md:right-8 md:top-8"
+          className="absolute right-0 top-0 flex h-10 w-10 cursor-pointer items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-[#242424] dark:hover:text-gray-300"
         >
           <X className="h-5 w-5 text-gray-600 dark:text-gray-400" />
         </button>
 
-        <div className="mx-auto max-w-[720px] text-center">
-          <h1 className="text-2xl font-bold text-[#1a1a1a] dark:text-[#f0f2f5] md:text-3xl">充值龙虾币</h1>
-          <p className="mt-4 text-sm leading-7 text-gray-600 dark:text-gray-400">
-            所有充值均为一次性到账，不会自动续费。支付成功后，龙虾币会直接写入当前账号余额。
+        <div className="mb-12 text-center">
+          <h1 className="mb-2 text-[28px] leading-[1.3] tracking-[-0.01em] text-gray-900 dark:text-gray-50">充值龙虾币</h1>
+          <p className="text-[15px] text-gray-500 dark:text-gray-400">
+            一次性充值，不会自动续费，支付成功后即时到账
           </p>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-            {['即时到账', '不会自动续费', '支持微信 / 支付宝'].map((item) => (
-              <span
-                key={item}
-                className="rounded-full border border-[#f0d6d9] bg-[#fff7f8] px-4 py-1.5 text-xs font-medium text-[#c13c48] dark:border-[#49333a] dark:bg-[#261d21] dark:text-[#ff8a93]"
-              >
-                {item}
-              </span>
-            ))}
-          </div>
         </div>
       </div>
 
-      <div className="p-8 md:p-12">
-        <div className="grid gap-6 lg:grid-cols-3">
-          {packages.map((item) => {
-            const selected = item.packageId === selectedPackageId;
-            const priceLabel = formatPriceAmount(item.amountCnyFen);
-            return (
-              <div
-                key={item.packageId}
-                role="button"
-                aria-pressed={selected}
-                tabIndex={0}
-                onClick={() => handlePackageCardClick(item.packageId)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    handlePackageCardClick(item.packageId);
-                  }
-                }}
-                className={cn(
-                  'relative flex h-full cursor-pointer flex-col rounded-[28px] border-2 p-8 text-left outline-none',
-                  SPRING_PRESSABLE,
-                  INTERACTIVE_FOCUS_RING,
-                  selected
-                    ? 'border-[#E63946] bg-[linear-gradient(180deg,#ffffff_0%,#fff7f8_100%)] shadow-[0_24px_60px_rgba(230,57,70,0.16)] dark:border-[#ff5a66] dark:bg-[linear-gradient(180deg,#261d21_0%,#1a1f28_100%)] dark:shadow-[0_24px_60px_rgba(230,57,70,0.18)]'
-                    : 'border-gray-200 bg-white shadow-[0_16px_40px_rgba(15,23,42,0.06)] hover:border-[#f0b4ba] hover:shadow-[0_24px_48px_rgba(15,23,42,0.1)] dark:border-[#2a3441] dark:bg-[#1f2630] dark:shadow-[0_18px_40px_rgba(0,0,0,0.22)] dark:hover:border-[#435064] dark:hover:shadow-[0_24px_52px_rgba(0,0,0,0.28)]',
-                )}
-              >
-                {item.badgeLabel ? (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <div
-                      className={cn(
-                        'rounded-full px-4 py-1 text-xs font-medium shadow-lg',
-                        selected
-                          ? 'bg-[#E63946] text-white dark:bg-gradient-to-r dark:from-[#E63946] dark:to-[#ff4655] dark:shadow-red-900/40'
-                          : 'bg-[#fff0f2] text-[#d92f3d] shadow-[0_12px_28px_rgba(230,57,70,0.12)] dark:bg-[rgba(230,57,70,0.14)] dark:text-[#ff7b85] dark:shadow-[0_12px_28px_rgba(0,0,0,0.2)]',
-                      )}
-                    >
-                      {item.badgeLabel}
-                    </div>
+      <div className="mx-auto grid max-w-[1060px] grid-cols-3 gap-5">
+        {packages.map((item, index) => {
+          const selected = item.packageId === selectedPackageId;
+          const priceLabel = formatPriceAmount(item.amountCnyFen);
+          const meta = getPackageCardMeta(item, index, packages.length);
+          return (
+            <div
+              key={item.packageId}
+              role="button"
+              aria-pressed={selected}
+              tabIndex={0}
+              onClick={() => handlePackageCardClick(item.packageId)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  handlePackageCardClick(item.packageId);
+                }
+              }}
+              className={cn(
+                'relative flex h-full cursor-pointer flex-col rounded-lg border p-7 text-left outline-none transition-all duration-200',
+                SPRING_PRESSABLE,
+                INTERACTIVE_FOCUS_RING,
+                selected
+                  ? 'border-gray-900 shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:border-gray-100 dark:bg-[#1A1A1A] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]'
+                  : 'border-gray-200/80 bg-white hover:border-gray-300 dark:border-gray-800 dark:bg-[#1A1A1A] dark:hover:border-gray-700',
+              )}
+            >
+              {meta.badgeText ? (
+                <div className="absolute -top-2.5 left-1/2 -translate-x-1/2">
+                  <div className={cn('rounded-full px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide', meta.badgeClassName)}>
+                    {meta.badgeText}
                   </div>
-                ) : null}
-
-                <div className="min-h-[132px] text-center">
-                  <h3 className="text-[24px] font-bold text-[#1a1a1a] dark:text-[#f0f2f5]">{item.packageName}</h3>
-                  <p className="mt-3 text-sm leading-7 text-gray-600 dark:text-gray-400">{item.description}</p>
-                  {item.highlight ? (
-                    <p className="mt-3 text-sm font-medium text-[#d92f3d] dark:text-[#ff8a93]">{item.highlight}</p>
-                  ) : null}
                 </div>
+              ) : null}
 
-                <div className="min-h-[132px] pt-4 text-center">
-                  <div className="flex items-baseline justify-center gap-1">
-                    <span className="text-sm text-gray-500">¥</span>
-                    <span className="text-5xl font-bold text-[#1a1a1a] dark:text-[#f0f2f5]">{priceLabel}</span>
-                  </div>
-                  <p className="mt-3 text-sm text-gray-500">
-                    基础到账 {formatCreditsLabel(item.credits)} 龙虾币
-                    {item.bonusCredits > 0 ? ` · 赠送 ${formatCreditsLabel(item.bonusCredits)}` : ''}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500">合计到账 {formatCreditsLabel(item.totalCredits)} 龙虾币</p>
+              <div className="mb-6 flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-md bg-gray-100 text-gray-700 transition-colors dark:bg-gray-800 dark:text-gray-300">
+                  {meta.icon}
                 </div>
+                <h3 className="text-[17px] font-medium text-gray-900 dark:text-gray-100">{item.packageName}</h3>
+              </div>
 
-                <div className="mt-auto pt-4">
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      event.preventDefault();
-                      onContinue(item.packageId);
-                    }}
-                    className={cn(
-                      'mb-8 w-full cursor-pointer rounded-[20px] py-3.5 text-base font-semibold',
-                      SPRING_PRESSABLE,
-                      selected
-                        ? 'bg-[#E63946] !text-white shadow-[0_20px_42px_rgba(230,57,70,0.24)] hover:bg-[#d92f3d] hover:!text-white dark:bg-[#ff4655] dark:hover:bg-[#ff5a66]'
-                        : 'bg-[#111827] !text-white shadow-[0_18px_36px_rgba(17,24,39,0.16)] hover:bg-[#0b1220] hover:!text-white dark:bg-[#0f172a] dark:!text-white dark:hover:bg-[#111c31]',
-                    )}
-                  >
-                    <span className="inline-flex items-center justify-center gap-1.5">
-                      <span>立即充值</span>
-                      <ArrowUpRight className="h-4 w-4" />
-                    </span>
-                  </button>
-
-                  <div>
-                    <p className="mb-4 text-xs font-medium uppercase tracking-[0.08em] text-gray-500">到账说明</p>
-                    <ul className="space-y-2.5">
-                      {item.featureList.map((feature) => (
-                        <li key={feature} className="flex items-start gap-2">
-                          <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#E63946]" />
-                          <span className="text-sm leading-7 text-gray-700 dark:text-gray-300">{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+              <div className="mb-6">
+                <div className="flex items-baseline gap-0.5">
+                  <span className="text-[15px] text-gray-500 dark:text-gray-400">¥</span>
+                  <span className="text-[40px] font-semibold leading-none tracking-tight text-gray-900 dark:text-gray-50">{priceLabel}</span>
                 </div>
               </div>
-            );
-          })}
-        </div>
+
+              <div className="mb-7 flex-1 space-y-2.5">
+                <div className="flex items-center justify-between text-[14px]">
+                  <span className="text-gray-500 dark:text-gray-400">基础到账</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{formatCreditsLabel(item.credits)}</span>
+                </div>
+                {item.bonusCredits > 0 ? (
+                  <div className="flex items-center justify-between text-[14px]">
+                    <span className="text-gray-500 dark:text-gray-400">赠送额度</span>
+                    <span className="font-medium text-orange-600 dark:text-orange-400">+{formatCreditsLabel(item.bonusCredits)}</span>
+                  </div>
+                ) : null}
+                <div className="my-2.5 h-px bg-gray-200/80 dark:bg-gray-800" />
+                <div className="flex items-center justify-between pt-1 text-[14px]">
+                  <span className="font-medium text-gray-900 dark:text-gray-100">合计到账</span>
+                  <span className="text-[15px] font-semibold text-gray-900 dark:text-gray-100">
+                    {formatCreditsLabel(item.totalCredits)} 龙虾币
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-auto">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    event.preventDefault();
+                    onContinue(item.packageId);
+                  }}
+                  className="w-full cursor-pointer rounded-md bg-gray-900 py-2.5 text-[14px] font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-50 dark:text-gray-900 dark:hover:bg-gray-200"
+                >
+                  立即充值
+                </button>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
 function PaymentView({
-  packages,
   currentPackage,
   totalPrice,
   paymentMethod,
   activeOrder,
   resolvedQrUrl,
   onPaymentMethodChange,
-  packageDropdownOpen,
-  onTogglePackageDropdown,
-  onSelectPackage,
-  dropdownRef,
   onBack,
   onClose,
   creatingOrder,
@@ -704,17 +668,12 @@ function PaymentView({
   onPayNow,
   onPanelClick,
 }: {
-  packages: RechargePackage[];
   currentPackage: RechargePackage;
   totalPrice: string;
   paymentMethod: PaymentMethod;
   activeOrder: PaymentOrderData | null;
   resolvedQrUrl: string | null;
   onPaymentMethodChange: (method: PaymentMethod) => void;
-  packageDropdownOpen: boolean;
-  onTogglePackageDropdown: () => void;
-  onSelectPackage: (packageId: string) => void;
-  dropdownRef: RefObject<HTMLDivElement>;
   onBack: () => void;
   onClose: () => void;
   creatingOrder: boolean;
@@ -725,6 +684,7 @@ function PaymentView({
   const orderStatus = activeOrder?.status || null;
   const expiryLabel = formatPaymentDeadline(activeOrder?.expires_at || null);
   const expiryDeadlineTs = parsePaymentDeadline(activeOrder?.expires_at || null);
+  const methodTheme = getPaymentMethodTheme(paymentMethod);
   const [nowTs, setNowTs] = useState(() => Date.now());
   const isPaid = orderStatus === 'paid';
   const isFailed = orderStatus === 'failed';
@@ -737,8 +697,7 @@ function PaymentView({
   const shouldShowQr = Boolean(resolvedQrUrl) && !isPaid && !isFailed && !isExpired;
   const shouldShowExpiredQr = Boolean(resolvedQrUrl) && isExpired && !isPaid && !isFailed;
   const countdownLabel = formatCountdownLabel(remainingMs);
-  const expiringSoon = isAwaitingPayment && remainingMs != null && remainingMs > 0 && remainingMs <= 2 * 60 * 1000;
-  const paymentMethodLabel = getPaymentMethodDisplayLabel(paymentMethod);
+  const expiringSoon = isAwaitingPayment && remainingMs != null && remainingMs > 0 && remainingMs <= 60 * 1000;
   const shortOrderId = formatOrderIdShort(activeOrder?.order_id);
 
   useEffect(() => {
@@ -756,396 +715,283 @@ function PaymentView({
 
   const statusCard = creatingOrder
     ? {
-        tone: 'border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-100',
         icon: LoaderCircle,
         iconClassName: 'animate-spin',
-        title: '正在创建支付订单',
-        description: '正在向支付渠道申请订单，请稍候。',
+        text: '订单创建中',
+        textColor: 'text-blue-700 dark:text-blue-400',
+        bgColor: 'bg-blue-50 dark:bg-blue-950/30',
+        borderColor: 'border-blue-200 dark:border-blue-900',
       }
     : isPaid
       ? {
-          tone: 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-100',
           icon: CheckCircle2,
           iconClassName: '',
-          title: '充值成功',
-          description: `本次充值 ${formatCreditsLabel(currentPackage.totalCredits)} 龙虾币已到账，当前页面余额会同步刷新，并将在 3 秒后返回当前页面。`,
+          text: '支付成功',
+          textColor: 'text-green-700 dark:text-green-400',
+          bgColor: 'bg-green-50 dark:bg-green-950/30',
+          borderColor: 'border-green-200 dark:border-green-900',
         }
       : isFailed
         ? {
-            tone: 'border-red-200 bg-red-50 text-red-900 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-100',
             icon: AlertCircle,
             iconClassName: '',
-            title: '支付失败',
-            description: '本次订单未完成扣款，请重新创建充值订单后再支付。',
+            text: '支付失败',
+            textColor: 'text-red-700 dark:text-red-400',
+            bgColor: 'bg-red-50 dark:bg-red-950/30',
+            borderColor: 'border-red-200 dark:border-red-900',
           }
         : isExpired
           ? {
-              tone: 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100',
               icon: Clock3,
               iconClassName: '',
-              title: '订单已过期',
-              description: '支付窗口已失效，需要重新创建一个新的充值订单。',
+              text: '二维码已过期',
+              textColor: 'text-gray-600 dark:text-gray-400',
+              bgColor: 'bg-gray-50 dark:bg-gray-900/30',
+              borderColor: 'border-gray-200 dark:border-gray-800',
             }
           : isAwaitingPayment
             ? {
-                tone: 'border-sky-200 bg-sky-50 text-sky-900 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-100',
                 icon: Clock3,
                 iconClassName: '',
-                title: '等待完成支付',
-                description: expiringSoon
-                  ? `订单即将过期，请尽快扫码完成支付。支付成功后会自动为当前账号充值 ${formatCreditsLabel(currentPackage.totalCredits)} 龙虾币。`
-                  : `支付完成后将自动刷新状态，并为当前账号充值 ${formatCreditsLabel(currentPackage.totalCredits)} 龙虾币。`,
+                text: expiringSoon ? '即将过期' : '等待支付',
+                textColor: expiringSoon ? 'text-orange-700 dark:text-orange-400' : 'text-amber-700 dark:text-amber-400',
+                bgColor: expiringSoon ? 'bg-orange-50 dark:bg-orange-950/30' : 'bg-amber-50 dark:bg-amber-950/30',
+                borderColor: expiringSoon ? 'border-orange-200 dark:border-orange-900' : 'border-amber-200 dark:border-amber-900',
               }
             : {
-                tone: 'border-gray-200 bg-gray-50 text-gray-800 dark:border-[#2a3441] dark:bg-[#1a1f28] dark:text-gray-200',
                 icon: Clock3,
                 iconClassName: '',
-                title: '尚未创建订单',
-                description: `请选择支付方式并创建订单。订单创建成功后，当前模态窗会直接展示真实支付二维码，本次将为当前账号充值 ${formatCreditsLabel(currentPackage.totalCredits)} 龙虾币。`,
+                text: '等待创建订单',
+                textColor: 'text-gray-600 dark:text-gray-400',
+                bgColor: 'bg-gray-50 dark:bg-gray-900/30',
+                borderColor: 'border-gray-200 dark:border-gray-800',
               };
   const StatusIcon = statusCard.icon;
-  const statusActionLabel = isFailed || isExpired ? '重新创建订单' : '重新生成二维码';
-  const showStatusAction = !creatingOrder && !isPaid && !isAwaitingPayment;
+  const showStatusAction =
+    !creatingOrder && !isPaid && (isFailed || (!activeOrder && Boolean(paymentMessage)) || (isExpired && !resolvedQrUrl));
 
   const handlePrimaryAction = () => {
-    if (!isAwaitingPayment || isFailed || isExpired) {
+    if (!isAwaitingPayment || isFailed || isExpired || !activeOrder) {
       onPayNow();
     }
   };
 
   return (
     <div
-      className="flex w-full max-w-[1120px] flex-col overflow-hidden rounded-[28px] bg-white shadow-xl dark:border dark:border-[#2a3441] dark:bg-[#1a1f28] dark:shadow-2xl"
+      className="relative h-[660px] w-[1000px] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:border-gray-800 dark:bg-[#141414] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
       onClick={onPanelClick}
     >
-      <div className="relative border-b border-gray-100 px-5 pb-3 pt-4 dark:border-[#2a3441] md:px-6">
-        <button
-          onClick={onBack}
-          className="absolute left-4 top-4 flex cursor-pointer items-center gap-2 text-gray-600 transition-colors hover:text-[#E63946] dark:text-gray-400 md:left-6"
-        >
-          <ArrowLeft className="h-5 w-5" />
-          <span className="font-medium">返回充值包</span>
-        </button>
+      <button
+        onClick={onClose}
+        className="absolute right-5 top-5 z-10 flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+      >
+        <X className="h-4 w-4" />
+      </button>
 
-        <button
-          onClick={onClose}
-          className="absolute right-4 top-3 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-[#2a3441] md:right-5 md:top-3"
-        >
-          <X className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-hidden px-3 py-3 md:px-5 md:py-4">
-        <div className="grid gap-3 xl:grid-cols-[minmax(280px,0.78fr)_minmax(0,1.22fr)]">
-          <section className="rounded-[26px] border border-gray-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f3f6fb_100%)] p-4 dark:border-[#2a3441] dark:bg-[linear-gradient(180deg,#1c2330_0%,#1a1f28_100%)] xl:flex xl:flex-col">
-            <div className="mb-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#d92f3d] dark:text-[#ff8a93]">本次充值</p>
-              <h2 className="mt-2 text-[26px] font-bold text-[#1a1a1a] dark:text-[#f0f2f5]">确认充值包</h2>
-              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">左侧只保留套餐与到账信息，右侧直接完成支付，不再重复堆叠相同内容。</p>
+      <div className="flex h-full">
+        <div className="flex w-[60%] flex-col border-r border-gray-200 bg-gray-50 p-10 dark:border-gray-800 dark:bg-[#0A0A0A]">
+          <div className="mb-8">
+            <h2 className="mb-3 text-[20px] font-semibold text-gray-900 dark:text-gray-50">扫码支付</h2>
+            <div className="flex items-baseline gap-2">
+              <span className="text-[14px] text-gray-500 dark:text-gray-400">应付金额</span>
+              <span className="text-[32px] font-semibold leading-none tracking-tight text-gray-900 dark:text-gray-50">¥{totalPrice}</span>
             </div>
+            <div
+              className={cn(
+                'mt-3 inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[13px] font-medium',
+                methodTheme.accentBorderClassName,
+                methodTheme.accentBgClassName,
+                methodTheme.accentTextClassName,
+              )}
+            >
+              {methodTheme.label}
+            </div>
+          </div>
 
-            <div ref={dropdownRef} className="relative mb-3">
-              <button
-                onClick={onTogglePackageDropdown}
-                className="flex w-full cursor-pointer items-center justify-between rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-left transition-colors hover:border-[#E63946] dark:border-[#2a3441] dark:bg-[#252d3a]"
-              >
-                <div>
-                  <p className="font-semibold text-[#1a1a1a] dark:text-[#f0f2f5]">{currentPackage.packageName}</p>
-                  <p className="text-xs text-gray-500">
-                    合计到账 {formatCreditsLabel(currentPackage.totalCredits)} 龙虾币
-                    {currentPackage.bonusCredits > 0 ? ` · 其中赠送 ${formatCreditsLabel(currentPackage.bonusCredits)}` : ''}
-                  </p>
+          <div className="flex flex-1 items-center justify-center">
+            <div className="relative">
+              {creatingOrder ? (
+                <div className="rounded-lg border border-gray-200/80 bg-white p-8 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:border-gray-800 dark:bg-[#1A1A1A] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)]">
+                  <div className="flex h-[280px] w-[280px] items-center justify-center rounded-md bg-gray-50 dark:bg-[#101010]">
+                    <LoaderCircle className="h-7 w-7 animate-spin text-gray-600 dark:text-gray-400" />
+                  </div>
                 </div>
-                <ChevronDown
-                  className={cn(
-                    'h-5 w-5 text-gray-600 transition-transform dark:text-gray-400',
-                    packageDropdownOpen && 'rotate-180',
-                  )}
-                />
-              </button>
+              ) : shouldShowExpiredQr ? (
+                <BrandedPaymentQr paymentMethod={paymentMethod} qrUrl={resolvedQrUrl!} expired onRefresh={handlePrimaryAction} />
+              ) : shouldShowQr ? (
+                <BrandedPaymentQr paymentMethod={paymentMethod} qrUrl={resolvedQrUrl!} />
+              ) : (
+                <div className="rounded-lg border border-gray-200/80 bg-white p-8 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:border-gray-800 dark:bg-[#1A1A1A] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)]">
+                  <div className="flex h-[280px] w-[280px] flex-col items-center justify-center rounded-md bg-gray-50 dark:bg-[#101010]">
+                    <Clock3 className="h-10 w-10 text-gray-300 dark:text-gray-600" />
+                    <p className="mt-3 text-sm font-medium text-gray-500 dark:text-gray-400">正在准备收款码</p>
+                  </div>
+                </div>
+              )}
 
-              {packageDropdownOpen ? (
-                <div className="absolute left-0 right-0 top-full z-10 mt-2 overflow-hidden rounded-xl border-2 border-gray-200 bg-white shadow-xl dark:border-[#2a3441] dark:bg-[#252d3a] dark:shadow-2xl">
-                  {packages.map((item) => (
-                    <button
-                      key={item.packageId}
-                      onClick={() => onSelectPackage(item.packageId)}
-                      className={cn(
-                        'w-full cursor-pointer px-4 py-3 text-left transition-colors hover:bg-gray-50 dark:hover:bg-[#2a3441]',
-                        item.packageId === currentPackage.packageId && 'bg-red-50 dark:bg-[#2a1f22]',
-                      )}
-                    >
-                      <p className="font-semibold text-[#1a1a1a] dark:text-[#f0f2f5]">{item.packageName}</p>
-                      <p className="text-xs text-gray-500">
-                        合计到账 {formatCreditsLabel(item.totalCredits)} 龙虾币 · ¥{formatPriceAmount(item.amountCnyFen)}
-                      </p>
-                    </button>
-                  ))}
+              {isPaid ? (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="rounded-lg border border-green-200 bg-white p-8 shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:border-green-900 dark:bg-[#1A1A1A] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-950/40">
+                        <CheckCircle2 className="h-9 w-9 text-green-600 dark:text-green-500" />
+                      </div>
+                      <div className="text-center">
+                        <div className="mb-1 text-[20px] font-semibold text-gray-900 dark:text-gray-50">支付成功</div>
+                        <div className="text-[14px] text-gray-500 dark:text-gray-400">龙虾币已到账</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {isFailed ? (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="rounded-lg border border-red-200 bg-white p-8 shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:border-red-900 dark:bg-[#1A1A1A] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-950/40">
+                        <AlertCircle className="h-9 w-9 text-red-600 dark:text-red-500" />
+                      </div>
+                      <div className="text-center">
+                        <div className="mb-1 text-[20px] font-semibold text-gray-900 dark:text-gray-50">支付失败</div>
+                        <div className="text-[14px] text-gray-500 dark:text-gray-400">请重新尝试</div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ) : null}
             </div>
+          </div>
 
-            <div className="mb-3 rounded-2xl border border-gray-200 bg-white p-4 dark:border-[#2a3441] dark:bg-[#252d3a]">
-              <div className="flex items-end justify-between gap-4">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-sm text-gray-500">¥</span>
-                  <span className="text-5xl font-bold text-[#1a1a1a] dark:text-[#f0f2f5]">{totalPrice}</span>
-                </div>
-                <span className="rounded-full bg-[#fff1f2] px-3 py-1 text-xs font-semibold text-[#d92f3d] dark:bg-[#3a1e22] dark:text-[#ff9ea6]">
-                  一次性充值
-                </span>
+          <div className="space-y-1.5 text-center">
+            <p className="text-[14px] text-gray-600 dark:text-gray-400">{methodTheme.instruction}</p>
+            {(isAwaitingPayment || expiringSoon) && countdownLabel ? (
+              <p className="text-[13px] text-gray-500 dark:text-gray-500">
+                {expiringSoon ? '⚠️ ' : ''}
+                二维码有效期 {countdownLabel}
+              </p>
+            ) : null}
+            {paymentMessage ? <p className="text-[12px] text-gray-500 dark:text-gray-500">{paymentMessage}</p> : null}
+          </div>
+        </div>
+
+        <div className="flex w-[40%] flex-col bg-white p-8 dark:bg-[#141414]">
+          <div className="mb-7">
+            <h3 className="mb-3 text-[15px] font-semibold text-gray-900 dark:text-gray-100">订单信息</h3>
+            <div className="space-y-2.5 rounded-md border border-gray-200/50 bg-gray-50 p-4 dark:border-gray-800 dark:bg-[#1A1A1A]">
+              <div className="flex items-center justify-between text-[13px]">
+                <span className="text-gray-500 dark:text-gray-400">套餐</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">{currentPackage.packageName}</span>
               </div>
-              <div className="mt-3 grid gap-2.5 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
-                <div className="rounded-xl bg-gray-50 px-4 py-3 dark:bg-[#1f2630]">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">基础到账</p>
-                  <p className="mt-1 text-sm font-semibold text-[#1a1a1a] dark:text-[#f0f2f5]">
-                    {formatCreditsLabel(currentPackage.credits)} 龙虾币
-                  </p>
-                </div>
-                <div className="rounded-xl bg-gray-50 px-4 py-3 dark:bg-[#1f2630]">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">赠送额度</p>
-                  <p className="mt-1 text-sm font-semibold text-[#1a1a1a] dark:text-[#f0f2f5]">
-                    {currentPackage.bonusCredits > 0 ? `${formatCreditsLabel(currentPackage.bonusCredits)} 龙虾币` : '无赠送'}
-                  </p>
-                </div>
-                <div className="rounded-xl bg-[#fff5f5] px-4 py-3 dark:bg-[#2f1d22]">
-                  <p className="text-xs text-[#d06a74] dark:text-[#ffb3bb]">合计到账</p>
-                  <p className="mt-1 text-sm font-semibold text-[#d92f3d] dark:text-[#ff8a93]">
-                    {formatCreditsLabel(currentPackage.totalCredits)} 龙虾币
-                  </p>
-                </div>
+              <div className="flex items-center justify-between text-[13px]">
+                <span className="text-gray-500 dark:text-gray-400">金额</span>
+                <span className="text-[15px] font-semibold text-gray-900 dark:text-gray-100">¥{totalPrice}</span>
               </div>
+              <div className="h-px bg-gray-200 dark:bg-gray-800" />
+              <div className="flex items-center justify-between text-[13px]">
+                <span className="text-gray-500 dark:text-gray-400">到账龙虾币</span>
+                <span className="font-semibold text-gray-900 dark:text-gray-100">{formatCreditsLabel(currentPackage.totalCredits)}</span>
+              </div>
+              {shortOrderId ? (
+                <div className="flex items-center justify-between text-[13px]">
+                  <span className="text-gray-500 dark:text-gray-400">订单编号</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{shortOrderId}</span>
+                </div>
+              ) : null}
             </div>
+          </div>
 
-            <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-[#2a3441] dark:bg-[#252d3a] xl:mt-auto">
-              <p className="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">到账说明</p>
-              <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
-                {currentPackage.featureList.map((feature) => (
-                  <li key={feature} className="flex items-start gap-2 rounded-xl bg-gray-50 px-3 py-2.5 dark:bg-[#1f2630]">
-                    <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#E63946] dark:shadow-lg dark:shadow-red-900/30">
-                      <Check className="h-3 w-3 text-white" />
+          <div className="mb-7">
+            <h3 className="mb-3 text-[15px] font-semibold text-gray-900 dark:text-gray-100">支付方式</h3>
+            <div className="space-y-2">
+              {(['wechat_qr', 'alipay_qr'] as PaymentMethod[]).map((method) => {
+                const selected = paymentMethod === method;
+                const optionTheme = getPaymentMethodTheme(method);
+                return (
+                  <button
+                    key={method}
+                    onClick={() => onPaymentMethodChange(method)}
+                    disabled={creatingOrder || isPaid}
+                    className={cn(
+                      'flex w-full cursor-pointer items-center gap-3 rounded-md border p-3 text-left transition-all',
+                      creatingOrder || isPaid ? 'cursor-not-allowed opacity-60' : '',
+                      selected
+                        ? optionTheme.optionSelectedClassName
+                        : 'border-gray-200 bg-white hover:border-gray-300 dark:border-gray-800 dark:bg-[#1A1A1A] dark:hover:border-gray-700',
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        'flex h-9 w-9 shrink-0 items-center justify-center rounded text-[11px] font-semibold text-white',
+                        method === 'wechat_qr' ? 'bg-[#07C160]' : 'bg-[#1677FF]',
+                      )}
+                    >
+                      {method === 'wechat_qr' ? '微信' : '支付宝'}
                     </div>
-                    <span className="text-sm text-gray-700 dark:text-gray-300">{feature}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </section>
-
-          <section className="rounded-[26px] border border-gray-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f2f5fa_100%)] p-4 dark:border-[#2a3441] dark:bg-[linear-gradient(180deg,#1c2330_0%,#1a1f28_100%)] xl:flex xl:flex-col">
-            <div className="mb-3 flex flex-wrap items-start justify-between gap-3 rounded-[24px] border border-[#dbe4f0] bg-[linear-gradient(135deg,#ffffff_0%,#f9fbff_72%,#f2f7fd_100%)] px-4 py-3 shadow-[0_16px_40px_rgba(148,163,184,0.12)] dark:border-[#334155] dark:bg-[linear-gradient(135deg,#222b39_0%,#1b2330_72%,#171d28_100%)]">
-              <div className="min-w-0">
-                <div className="inline-flex items-center gap-2 rounded-full border border-[#d8e4f2] bg-white/88 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#5b6b80] dark:border-[#3a475a] dark:bg-[#111827]/50 dark:text-[#cbd5e1]">
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  ICLAW 收银台
-                </div>
-                <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-2">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#94a3b8]">应付金额</p>
-                    <p className="mt-1 text-[32px] font-bold tracking-[-0.04em] text-[#111827] dark:text-[#f8fafc]">¥{totalPrice}</p>
-                  </div>
-                  <div className="pb-1 text-sm text-[#64748b] dark:text-[#94a3b8]">{formatCreditsLabel(currentPackage.totalCredits)} 龙虾币</div>
-                </div>
-              </div>
-              <div className="grid min-w-[220px] gap-2 text-right sm:grid-cols-3 xl:min-w-[250px] xl:grid-cols-1 xl:text-left">
-                <div className="rounded-2xl border border-[#e2e8f0] bg-white/82 px-3 py-2.5 dark:border-[#334155] dark:bg-[#111827]/45">
-                  <p className="text-[11px] uppercase tracking-[0.16em] text-[#94a3b8]">支付渠道</p>
-                  <p className="mt-1 text-sm font-semibold text-[#111827] dark:text-[#f8fafc]">{paymentMethodLabel}</p>
-                </div>
-                <div className="rounded-2xl border border-[#e2e8f0] bg-white/82 px-3 py-2.5 dark:border-[#334155] dark:bg-[#111827]/45">
-                  <p className="text-[11px] uppercase tracking-[0.16em] text-[#94a3b8]">订单编号</p>
-                  <p className="mt-1 text-sm font-semibold text-[#111827] dark:text-[#f8fafc]">{shortOrderId || '等待生成'}</p>
-                </div>
-                <div className="rounded-2xl border border-[#e2e8f0] bg-white/82 px-3 py-2.5 dark:border-[#334155] dark:bg-[#111827]/45">
-                  <p className="text-[11px] uppercase tracking-[0.16em] text-[#94a3b8]">支付保障</p>
-                  <p className="mt-1 text-sm font-semibold text-[#111827] dark:text-[#f8fafc]">官方扫码 / 实时到账</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_228px]">
-              <div className="rounded-[24px] border-2 border-[#d8e1ed] bg-white p-4 shadow-[0_20px_48px_rgba(148,163,184,0.12)] dark:border-[#334155] dark:bg-[#252d3a] xl:flex xl:min-h-[520px] xl:flex-col">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-[#1a1a1a] dark:text-[#f0f2f5]">扫码支付</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{paymentMethodLabel}</p>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-end gap-2">
-                    {countdownLabel && !isPaid && !isFailed && !isExpired ? (
+                    <span className="text-[14px] font-medium text-gray-900 dark:text-gray-100">
+                      {method === 'wechat_qr' ? '微信支付' : '支付宝'}
+                    </span>
+                    {selected ? (
                       <div
                         className={cn(
-                          'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold',
-                          expiringSoon
-                            ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200'
-                            : 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-200',
+                          'ml-auto flex h-4 w-4 shrink-0 items-center justify-center rounded-full',
+                          optionTheme.optionSelectedDotClassName,
                         )}
                       >
-                        <Clock3 className="h-3.5 w-3.5" />
-                        {countdownLabel}
+                        <div className="h-1.5 w-1.5 rounded-full bg-white" />
                       </div>
                     ) : null}
-                    <div className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-[11px] font-medium text-gray-500 dark:border-[#364152] dark:bg-[#1f2630] dark:text-gray-300">
-                      {paymentMethod === 'wechat_qr' ? '微信官方收款码样式' : '支付宝官方收款码样式'}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex min-h-[328px] items-center justify-center rounded-[24px] bg-[linear-gradient(180deg,#eef2f7_0%,#e7edf6_100%)] p-4 dark:bg-[linear-gradient(180deg,#111827_0%,#182130_100%)] xl:flex-1">
-                  {creatingOrder ? (
-                    <div className="text-center text-sm text-gray-500 dark:text-gray-400">正在创建支付订单...</div>
-                  ) : isPaid ? (
-                    <div className="flex h-72 w-72 flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-emerald-200 bg-emerald-50 px-6 text-center dark:border-emerald-900/60 dark:bg-emerald-950/30">
-                      <CheckCircle2 className="h-12 w-12 text-emerald-500" />
-                      <div>
-                        <p className="text-base font-semibold text-emerald-700 dark:text-emerald-200">充值已完成</p>
-                        <p className="mt-1 text-xs leading-5 text-emerald-600/80 dark:text-emerald-200/70">
-                          龙虾币已到账，3 秒后自动返回当前页面。
-                        </p>
-                      </div>
-                    </div>
-                  ) : isFailed ? (
-                    <div className="flex h-72 w-72 flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-red-200 bg-red-50 px-6 text-center dark:border-red-900/60 dark:bg-red-950/30">
-                      <AlertCircle className="h-12 w-12 text-red-500" />
-                      <div>
-                        <p className="text-base font-semibold text-red-700 dark:text-red-200">支付失败</p>
-                        <p className="mt-1 text-xs leading-5 text-red-600/80 dark:text-red-200/70">
-                          本次未完成扣款，请重新生成新的收款码。
-                        </p>
-                      </div>
-                    </div>
-                  ) : shouldShowExpiredQr ? (
-                    <BrandedPaymentQr paymentMethod={paymentMethod} qrUrl={resolvedQrUrl!} expired onRefresh={handlePrimaryAction} />
-                  ) : shouldShowQr ? (
-                    <BrandedPaymentQr paymentMethod={paymentMethod} qrUrl={resolvedQrUrl!} />
-                  ) : (
-                    <div className="flex h-72 w-72 flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-dashed border-gray-300 bg-white px-6 text-center dark:border-[#3a4551] dark:bg-[#111827]">
-                      <Clock3 className="h-10 w-10 text-gray-300" />
-                      <div>
-                        <p className="text-sm font-semibold text-gray-500">正在准备收款码</p>
-                        <p className="mt-2 text-xs leading-5 text-gray-400">订单创建成功后，这里会直接显示可支付的二维码。</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <p className="mt-3 text-center text-sm text-gray-600 dark:text-gray-400">
-                  {shouldShowQr
-                    ? paymentMethod === 'wechat_qr'
-                      ? '请直接使用微信扫描上方二维码完成支付。'
-                      : '请直接使用支付宝扫描上方二维码完成支付。'
-                    : shouldShowExpiredQr
-                      ? '当前二维码已失效，请直接点击中间按钮刷新新的二维码。'
-                    : isPaid
-                      ? `支付已完成，${formatCreditsLabel(currentPackage.totalCredits)} 龙虾币已经写入当前账号。`
-                      : isFailed
-                        ? '支付未成功，本次不会充值龙虾币。'
-                        : isExpired
-                          ? '订单已过期，请重新创建后再支付。'
-                          : '系统正在生成新的收款码，请稍候。'}
-                </p>
-                <div className="mt-3 flex flex-wrap items-center justify-center gap-2.5 text-[11px] text-[#7b8797] dark:text-[#94a3b8]">
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[#dbe4f0] bg-[#f8fbff] px-3 py-1.5 dark:border-[#334155] dark:bg-[#111827]/40">
-                    <ShieldCheck className="h-3.5 w-3.5 text-[#16a34a]" />
-                    安全支付环境
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[#dbe4f0] bg-[#f8fbff] px-3 py-1.5 dark:border-[#334155] dark:bg-[#111827]/40">
-                    <Clock3 className="h-3.5 w-3.5 text-[#2563eb]" />
-                    支付结果自动同步
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[#dbe4f0] bg-[#f8fbff] px-3 py-1.5 dark:border-[#334155] dark:bg-[#111827]/40">
-                    <ScanLine className="h-3.5 w-3.5 text-[#0f766e]" />
-                    官方扫码通道
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid content-start gap-3">
-                <div className={cn('rounded-[22px] border px-4 py-3.5', statusCard.tone)}>
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/70 text-current dark:bg-black/10">
-                      <StatusIcon className={cn('h-5 w-5', statusCard.iconClassName)} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold">{statusCard.title}</p>
-                      <p className="mt-1 text-xs leading-5 opacity-90">{statusCard.description}</p>
-                      {paymentMessage ? <p className="mt-2 text-xs opacity-80">{paymentMessage}</p> : null}
-                      {activeOrder ? (
-                        <p className="mt-2 text-[11px] opacity-75">
-                          {resolveOrderStatusLabel(activeOrder.status)}
-                          {expiryLabel && !isPaid ? ` · ${expiryLabel}` : ''}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid gap-2.5">
-                  {(['wechat_qr', 'alipay_qr'] as PaymentMethod[]).map((method) => {
-                    const meta = PAYMENT_METHOD_META[method];
-                    const selected = paymentMethod === method;
-                    return (
-                      <button
-                        key={method}
-                        onClick={() => onPaymentMethodChange(method)}
-                        className={cn(
-                          'w-full cursor-pointer rounded-xl py-3 font-medium transition-all',
-                          creatingOrder || isPaid ? 'cursor-not-allowed opacity-60' : '',
-                          selected
-                            ? meta.accentClassName
-                            : 'border-2 border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-[#2a3441] dark:bg-[#252d3a] dark:text-gray-400 dark:hover:border-[#3a4551]',
-                        )}
-                        disabled={creatingOrder || isPaid}
-                      >
-                        {meta.label}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="rounded-[22px] border border-gray-200 bg-white px-4 py-3 dark:border-[#2a3441] dark:bg-[#252d3a]">
-                  <div className="grid gap-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs text-gray-500 dark:text-gray-400">本次到账</p>
-                      <p className="text-sm font-semibold text-[#1a1a1a] dark:text-[#f0f2f5]">
-                        {formatCreditsLabel(currentPackage.totalCredits)} 龙虾币
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs text-gray-500 dark:text-gray-400">支付方式</p>
-                      <p className="text-sm font-semibold text-[#1a1a1a] dark:text-[#f0f2f5]">{paymentMethodLabel}</p>
-                    </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs text-gray-500 dark:text-gray-400">订单编号</p>
-                      <p className="text-sm font-semibold text-[#1a1a1a] dark:text-[#f0f2f5]">{shortOrderId || '等待生成'}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {showStatusAction ? (
-                  <button
-                    type="button"
-                    onClick={handlePrimaryAction}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-[18px] border border-[#dbe4f0] bg-white px-4 py-3 text-sm font-medium text-[#1f2937] transition-colors hover:bg-[#f8fafc] dark:border-[#334155] dark:bg-[#252d3a] dark:text-gray-200 dark:hover:bg-[#2d3748]"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                    {statusActionLabel}
                   </button>
-                ) : null}
-              </div>
+                );
+              })}
             </div>
+          </div>
 
-            <div className="mt-3 text-center text-xs text-gray-500">
-              <p>
-                充值即表示您同意我们的{' '}
-                <a href="#" className="cursor-pointer text-[#E63946] hover:underline">
-                  充值说明
-                </a>{' '}
-                和{' '}
-                <a href="#" className="cursor-pointer text-[#E63946] hover:underline">
-                  支付服务协议
-                </a>
-              </p>
-              <p className="mt-1">这是一次性充值，不会产生后续自动扣费。</p>
+          <div className="mb-7">
+            <h3 className="mb-3 text-[15px] font-semibold text-gray-900 dark:text-gray-100">支付状态</h3>
+            <div className={cn('flex items-center gap-2.5 rounded-md border p-3', statusCard.bgColor, statusCard.borderColor)}>
+              <div className={statusCard.textColor}>
+                <StatusIcon className={cn('h-4 w-4', statusCard.iconClassName)} />
+              </div>
+              <span className={cn('text-[13px] font-medium', statusCard.textColor)}>{statusCard.text}</span>
             </div>
-          </section>
+            {expiryLabel && !isPaid ? <p className="mt-2 text-[12px] text-gray-500 dark:text-gray-400">有效至 {expiryLabel}</p> : null}
+          </div>
+
+          <div className="mb-5 mt-auto space-y-2 text-[12px] text-gray-500 dark:text-gray-400">
+            <div className="flex items-start gap-2">
+              <div className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-gray-400 dark:bg-gray-500" />
+              <span>官方扫码通道，安全可靠</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <div className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-gray-400 dark:bg-gray-500" />
+              <span>支付结果自动同步</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <div className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-gray-400 dark:bg-gray-500" />
+              <span>支付成功后即时到账</span>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {showStatusAction ? (
+              <button
+                type="button"
+                onClick={handlePrimaryAction}
+                className="flex w-full items-center justify-center gap-2 rounded-md bg-gray-900 py-2.5 text-[14px] font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-50 dark:text-gray-900 dark:hover:bg-gray-200"
+              >
+                <RefreshCw className="h-4 w-4" />
+                <span>重试创建订单</span>
+              </button>
+            ) : null}
+            <button
+              onClick={onBack}
+              className="flex w-full items-center justify-center gap-2 rounded-md border border-gray-200 py-2.5 text-[14px] font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-[#1A1A1A]"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>返回套餐页</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
