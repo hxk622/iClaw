@@ -3,6 +3,7 @@ import './styles.css';
 const API_BASE_URL = ((import.meta.env.VITE_AUTH_BASE_URL || 'http://127.0.0.1:2130') + '').trim().replace(/\/+$/, '');
 const TOKEN_STORAGE_KEY = 'iclaw.admin-web.tokens';
 const THEME_STORAGE_KEY = 'iclaw.admin-web.theme';
+const NAV_GROUP_COLLAPSE_STORAGE_KEY = 'iclaw.admin-web.nav-groups.v1';
 const SYSTEM_MANAGED_MENU_KEYS = new Set(['settings']);
 const NAV_ITEMS = [
   {id: 'overview', label: '总览', icon: 'layoutGrid'},
@@ -11,6 +12,7 @@ const NAV_ITEMS = [
   {id: 'skill-center', label: '平台级 Skill', icon: 'zap'},
   {id: 'mcp-center', label: '平台级 MCP', icon: 'network'},
   {id: 'model-center', label: '模型中心', icon: 'package'},
+  {id: 'runtime-management', label: 'Runtime包管理', icon: 'package'},
   {id: 'cloud-skills', label: '云技能', icon: 'store'},
   {id: 'cloud-mcps', label: '云MCP', icon: 'network'},
   {id: 'assets', label: '资源管理', icon: 'image'},
@@ -21,6 +23,7 @@ const NAV_ITEMS = [
     icon: 'package',
     children: [
       {id: 'payments-config', label: '账户配置', icon: 'settings'},
+      {id: 'payments-packages', label: '充值套餐', icon: 'zap'},
       {id: 'payments-orders', label: '订单中心', icon: 'fileText'},
     ],
   },
@@ -408,18 +411,20 @@ const BRAND_DETAIL_TABS = [
   {id: 'desktop', label: '桌面端', icon: 'monitor'},
   {id: 'home-web', label: 'Home页', icon: 'globe'},
   {id: 'welcome', label: 'Welcome页', icon: 'sparkles'},
+  {id: 'auth', label: '登录与协议', icon: 'shield'},
   {id: 'header', label: 'Header栏', icon: 'layout'},
   {id: 'sidebar', label: '侧边栏', icon: 'sidebar'},
   {id: 'input', label: '输入框', icon: 'messageSquare'},
   {id: 'skills', label: '技能', icon: 'zap'},
   {id: 'mcps', label: 'MCP', icon: 'network'},
+  {id: 'recharge', label: '充值套餐', icon: 'package'},
   {id: 'menus', label: '左菜单栏', icon: 'layers'},
   {id: 'assets', label: '品牌资源', icon: 'image'},
   {id: 'theme', label: '主题样式', icon: 'palette'},
 ];
 const BRAND_DETAIL_TAB_GROUPS = [
-  {id: 'shell', label: 'Shell骨架', icon: 'monitor', tabs: ['desktop', 'home-web', 'welcome', 'header', 'sidebar', 'input']},
-  {id: 'capabilities', label: '能力绑定', icon: 'zap', tabs: ['skills', 'mcps', 'menus']},
+  {id: 'shell', label: 'Shell骨架', icon: 'monitor', tabs: ['desktop', 'home-web', 'welcome', 'auth', 'header', 'sidebar', 'input']},
+  {id: 'capabilities', label: '能力绑定', icon: 'zap', tabs: ['skills', 'mcps', 'recharge', 'menus']},
   {id: 'brand', label: '品牌资源', icon: 'image', tabs: ['assets', 'theme']},
 ];
 const ADMIN_SKILL_BROWSER_PAGE_SIZE = 100;
@@ -523,6 +528,7 @@ const state = {
   menuCatalog: [],
   composerControlCatalog: [],
   composerShortcutCatalog: [],
+  rechargePackageCatalog: [],
   skillCatalog: [],
   cloudSkillCatalog: [],
   cloudSkillCatalogMeta: {
@@ -568,18 +574,32 @@ const state = {
   selectedModelProviderTab: 'platform',
   selectedModelCenterSection: 'chat-provider',
   selectedPaymentProviderTab: 'platform',
+  selectedRuntimeSection: 'release',
+  selectedRuntimeImportChannel: 'prod',
+  selectedRuntimeImportBindScopeType: 'none',
+  selectedRuntimeImportBindScopeKey: '',
+  selectedRechargePackageId: '',
   selectedBrandMenuKey: '',
   selectedCloudSkillSlug: '',
   selectedCloudMcpKey: '',
   selectedSkillSyncSourceId: '',
   selectedReleaseId: '',
+  selectedRuntimeReleaseId: '',
+  selectedRuntimeBindingId: '',
   selectedPaymentOrderId: '',
   selectedAuditId: '',
   selectedDesktopReleaseChannel: 'prod',
+  navGroupsCollapsed: loadNavGroupsCollapsedState(),
   mcpTestResult: null,
   memoryEmbeddingTestResult: null,
   assets: [],
   releases: [],
+  runtimeReleases: [],
+  runtimeBindings: [],
+  runtimeBindingHistory: [],
+  runtimeBootstrapSource: null,
+  runtimeReleaseDraftBuffer: null,
+  runtimeBindingDraftBuffer: null,
   paymentOrders: [],
   paymentOrderDetails: {},
   audit: [],
@@ -640,6 +660,24 @@ function persistTokens(tokens) {
     return;
   }
   localStorage.removeItem(TOKEN_STORAGE_KEY);
+}
+
+function loadNavGroupsCollapsedState() {
+  try {
+    const raw = localStorage.getItem(NAV_GROUP_COLLAPSE_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return {
+      payments: parsed && typeof parsed === 'object' && parsed.payments === false ? false : true,
+    };
+  } catch {
+    return {payments: true};
+  }
+}
+
+function persistNavGroupsCollapsedState() {
+  try {
+    localStorage.setItem(NAV_GROUP_COLLAPSE_STORAGE_KEY, JSON.stringify(state.navGroupsCollapsed || {payments: true}));
+  } catch {}
 }
 
 function isUnauthorizedError(error) {
@@ -952,6 +990,69 @@ function getBrandDetailTabConfig(tabId) {
 function getBrandDetailTabGroup(tabId) {
   const normalized = normalizeBrandDetailTab(tabId);
   return BRAND_DETAIL_TAB_GROUPS.find((group) => group.tabs.includes(normalized)) || BRAND_DETAIL_TAB_GROUPS[0];
+}
+
+function normalizeRechargePackageCatalogItem(item, index = 0) {
+  const raw = asObject(item);
+  const packageId = String(raw.packageId || raw.package_id || '').trim();
+  if (!packageId) return null;
+  const metadata = asObject(raw.metadata);
+  return {
+    packageId,
+    packageName: String(raw.packageName || raw.package_name || '').trim() || packageId,
+    credits: Number(raw.credits || 0) || 0,
+    bonusCredits: Number(raw.bonusCredits || raw.bonus_credits || 0) || 0,
+    amountCnyFen: Number(raw.amountCnyFen || raw.amount_cny_fen || 0) || 0,
+    sortOrder: Number(raw.sortOrder || raw.sort_order || (index + 1) * 10) || (index + 1) * 10,
+    recommended: raw.recommended === true,
+    default: raw.default === true || raw.is_default === true,
+    active: raw.active !== false,
+    metadata,
+    description: String(metadata.description || '').trim(),
+    badgeLabel: String(metadata.badge_label || metadata.badgeLabel || '').trim(),
+    highlight: String(metadata.highlight || '').trim(),
+    featureList: asStringArray(metadata.feature_list ?? metadata.featureList),
+  };
+}
+
+function getRechargePackageCatalogItems() {
+  return asArray(state.rechargePackageCatalog)
+    .map((item, index) => normalizeRechargePackageCatalogItem(item, index))
+    .filter(Boolean)
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.packageId.localeCompare(right.packageId, 'zh-CN'));
+}
+
+function getRechargePackageCatalogEntry(packageId) {
+  const normalized = String(packageId || '').trim();
+  if (!normalized) return null;
+  return getRechargePackageCatalogItems().find((item) => item.packageId === normalized) || null;
+}
+
+function buildOrderedRechargePackageList(order) {
+  const catalogItems = getRechargePackageCatalogItems();
+  const known = new Set(catalogItems.map((item) => item.packageId));
+  const list = asStringArray(order).filter((key) => known.has(key));
+  for (const item of catalogItems) {
+    if (!list.includes(item.packageId)) {
+      list.push(item.packageId);
+    }
+  }
+  return list;
+}
+
+function getPortalRechargePackageOverrideConnections(packageId) {
+  const normalized = String(packageId || '').trim();
+  if (!normalized) return [];
+  return state.brands
+    .filter((brand) =>
+      asArray(state.portalAppDetails[brand.brandId]?.rechargePackageBindings).some(
+        (item) => String(item?.packageId || item?.package_id || '').trim() === normalized && item?.enabled !== false,
+      ),
+    )
+    .map((brand) => ({
+      brand_id: brand.brandId,
+      display_name: brand.displayName,
+    }));
 }
 
 function normalizeMenuCatalogItem(item, index = 0) {
@@ -1389,6 +1490,140 @@ const DEFAULT_INPUT_SURFACE_CONFIG = {
   placeholderText: '输入研究问题，@专家，或选择下方财经快捷模板...',
 };
 
+const AUTH_AGREEMENT_ORDER = ['service', 'privacy', 'billing'];
+const AUTH_AGREEMENT_LABELS = {
+  service: '服务协议',
+  privacy: '隐私说明',
+  billing: '龙虾币计费规则',
+};
+
+function buildDefaultAuthExperiencePreset(brandId, displayName, legalName) {
+  const normalizedBrandId = String(brandId || '').trim().toLowerCase();
+  const productLabel = String(displayName || brandId || '本产品').trim() || '本产品';
+  const legalEntity = String(legalName || displayName || brandId || '本产品').trim() || '本产品';
+  const socialNotice = '微信和 Gmail 登录暂未开放，请先使用账号密码登录。';
+  if (normalizedBrandId === 'licaiclaw') {
+    return {
+      title: '登录后继续使用理财研究与额度体系',
+      subtitle: `${productLabel} 面向财富管理、基金投顾与长期配置场景，协议文案会更强调信息披露、风险揭示与用户自主决策。`,
+      socialNotice,
+      agreements: [
+        {
+          key: 'service',
+          title: `${productLabel}服务协议`,
+          version: 'v2026.04',
+          effectiveDate: '2026-04-04',
+          summary: '适用于财富管理、基金投顾与金融研究类桌面 AI 服务。',
+          content: `${legalEntity}向用户提供 ${productLabel} 桌面端、研究工具、模型问答与相关增值能力。用户在使用前，应确认自己具备相应的民事行为能力，并保证注册资料真实、完整、可验证。\n\n1. ${productLabel} 提供的信息、分析、摘要、研报辅助、组合观察、基金与股票数据解释，仅供研究参考，不构成投资建议、收益承诺或适当性匹配结论。\n2. 用户应基于自身风险承受能力、投资期限、流动性需求和合规要求，独立作出投资决策，并自行承担由此产生的结果。\n3. 未经 ${legalEntity} 书面许可，用户不得将平台内容用于非法证券咨询、违规荐股、误导性营销、代客理财或其他违法违规用途。\n4. 平台可能接入第三方模型、行情、基金、资讯或工具服务，相关结果受上游时效、稳定性和数据口径限制影响，不保证持续可用、完全准确或绝对实时。\n5. 如用户存在异常刷量、接口滥用、账号转借、恶意抓取、利用平台开展违规金融活动等行为，${legalEntity} 有权限制功能、冻结额度或终止服务。\n6. ${legalEntity} 有权基于产品演进、合规要求或监管变化更新本协议。继续使用 ${productLabel} 即视为接受更新后的协议内容。`,
+        },
+        {
+          key: 'privacy',
+          title: `${productLabel}隐私说明`,
+          version: 'v2026.04',
+          effectiveDate: '2026-04-04',
+          summary: '重点覆盖账户信息、研究输入、投资偏好与行为日志的处理方式。',
+          content: `${legalEntity} 重视用户隐私与数据安全。为提供 ${productLabel} 服务，我们会在最小必要范围内处理账号信息、设备信息、操作日志、充值记录，以及用户主动提交的研究问题、标的代码、基金列表、组合偏好和自定义策略信息。\n\n1. 账号信息主要用于身份识别、登录鉴权、额度结算、风险控制和客服支持。\n2. 用户输入的研究问题、筛选条件、观察清单与相关上下文，可能用于生成答案、恢复会话、展示历史记录以及改进交互体验。\n3. 若某项能力需要调用第三方模型、支付、消息通知或数据服务，相关必要字段会在任务执行范围内传输给对应服务提供方。\n4. 我们不会因平台商业宣传目的擅自公开用户的账户资产、持仓、观察列表或个性化研究偏好。\n5. 我们会采取访问控制、日志审计、环境隔离与密钥管理等措施保护数据安全，但仍提醒用户避免在平台内提交超出使用目的的敏感个人信息。\n6. 用户可申请查询、导出、更正或删除与账户相关的数据；如法律法规或监管要求另有规定，我们将在符合法定义务范围内处理。`,
+        },
+        {
+          key: 'billing',
+          title: `${productLabel}龙虾币计费规则`,
+          version: 'v2026.04',
+          effectiveDate: '2026-04-04',
+          summary: '说明日免费额度、充值额度、结算时点与异常处理规则。',
+          content: `${productLabel} 采用龙虾币额度体系。用户可通过平台赠送额度、日免费额度或充值额度使用模型问答、金融数据与工具能力。\n\n1. 每次调用的实际扣费以后端结算结果为准，不同模型、工具链、行情数据或研究任务可能适用不同倍数与成本口径。\n2. 页面上的预估消耗、模型倍数、套餐文案仅作参考，最终以任务完成后的真实 usage 与结算明细为准。\n3. 平台赠送额度、日免费额度与充值额度可能具有不同的优先级、有效期与重置规则，具体以当日账户显示为准。\n4. 因用户主动发起的任务、批量研究、长文本处理、工具调用或高成本模型使用所产生的额度消耗，原则上不支持撤销或回退；法律另有规定或平台自身故障导致的异常扣费除外。\n5. 若用户存在恶意套利、批量刷量、绕过限制、支付异常或退款滥用等行为，${legalEntity} 有权暂停额度结算、冻结账户功能并追究相应责任。`,
+        },
+      ],
+    };
+  }
+  return {
+    title: '登录后继续使用账户与额度体系',
+    subtitle: `${productLabel} 面向更通用的本地 AI 助手与工作台场景，协议文案会更强调通用能力、账户安全与本地运行体验。`,
+    socialNotice,
+    agreements: [
+      {
+        key: 'service',
+        title: `${productLabel}服务协议`,
+        version: 'v2026.04',
+        effectiveDate: '2026-04-04',
+        summary: '适用于通用桌面 AI 客户端、问答、工具执行与本地运行场景。',
+        content: `${legalEntity} 向用户提供 ${productLabel} 桌面端、AI 问答、工具执行、内容处理与配套账户服务。用户应保证注册资料真实、完整、可联系，并妥善保管账号、密码与本地设备环境。\n\n1. ${productLabel} 可调用本地运行时、第三方模型、云端接口或工具服务，回答结果受模型能力、上下文、外部依赖与网络状态影响，不保证绝对准确、连续或无中断。\n2. 用户不得利用平台从事违法违规、侵权、恶意攻击、批量滥用、绕过计费、传播恶意内容或损害平台及第三方权益的行为。\n3. 涉及文件、工具执行、浏览器操作、设备调用等能力时，用户应自行确认任务目标、系统权限与潜在影响，并承担由主动操作产生的后果。\n4. ${productLabel} 输出内容仅供参考，用户应结合具体场景自行判断，不应在未经核验的情况下直接用于高风险决策。\n5. 如用户存在账号共享、自动化刷量、恶意并发、逆向接口或其他破坏服务稳定性的行为，${legalEntity} 有权限制、暂停或终止服务。\n6. ${legalEntity} 可根据产品演进、技术变化或合规要求更新本协议，更新后继续使用即视为接受新的协议内容。`,
+      },
+      {
+        key: 'privacy',
+        title: `${productLabel}隐私说明`,
+        version: 'v2026.04',
+        effectiveDate: '2026-04-04',
+        summary: '重点覆盖账号、设备、会话、文件与运行日志数据的处理方式。',
+        content: `${legalEntity} 会在提供 ${productLabel} 服务所需的最小范围内处理用户信息，包括账号资料、设备信息、登录日志、充值记录、会话内容、文件元数据与必要的运行诊断数据。\n\n1. 账号与设备信息主要用于身份认证、安全校验、额度结算、异常排查与客服支持。\n2. 用户主动输入的问题、上传的文件、选择的工具与会话记录，可能用于任务执行、历史恢复和界面展示。\n3. 当某项能力需要调用第三方模型、存储、支付或消息服务时，完成任务所必需的信息会在相应范围内传输给合作服务提供方。\n4. 平台默认不会将用户内容公开展示，也不会在超出服务目的的情况下向无关第三方出售用户数据。\n5. 我们会采取权限控制、密钥隔离、日志审计与存储保护等措施保障安全，但请用户避免上传与当前任务无关的高度敏感信息。\n6. 用户可就其账户信息提出查询、更正、导出或删除请求；如需履行法律法规义务，我们将在法定范围内保留必要记录。`,
+      },
+      {
+        key: 'billing',
+        title: `${productLabel}龙虾币计费规则`,
+        version: 'v2026.04',
+        effectiveDate: '2026-04-04',
+        summary: '说明通用 AI 使用额度、模型倍数、预估与结算规则。',
+        content: `${productLabel} 通过龙虾币额度提供模型问答、工具调用与相关增值能力。用户的实际消耗以后端结算记录为准。\n\n1. 不同模型、上下文长度、输出长度、工具调用链路与外部服务成本，可能对应不同计费倍数或额度消耗。\n2. 页面上的预估值用于帮助用户理解大致成本，但不构成最终结算承诺；任务完成后展示的结算结果才是正式扣费依据。\n3. 日免费额度、赠送额度与充值额度可能具有不同的使用顺序、重置周期和有效期，具体以账户显示为准。\n4. 因用户主动发起的正常请求所产生的消耗，原则上不支持撤销；若因平台故障、重复结算或系统异常导致错误扣费，平台会按规则核实处理。\n5. 若用户存在恶意刷量、规避限制、退款滥用、支付异常或其他损害平台利益的行为，${legalEntity} 有权暂停结算、冻结账户或采取进一步风控措施。`,
+      },
+    ],
+  };
+}
+
+function normalizeAuthAgreementDraft(value, fallback) {
+  const raw = asObject(value);
+  const defaults = asObject(fallback);
+  const key = String(raw.key || defaults.key || '').trim();
+  return {
+    key,
+    title: String(raw.title || defaults.title || AUTH_AGREEMENT_LABELS[key] || '').trim(),
+    version: String(raw.version || defaults.version || '').trim(),
+    effectiveDate: String(raw.effective_date || raw.effectiveDate || defaults.effectiveDate || defaults.effective_date || '').trim(),
+    summary: String(raw.summary || defaults.summary || '').trim(),
+    content: String(raw.content || defaults.content || '').trim(),
+  };
+}
+
+function normalizeAuthExperienceConfig(value, options = {}) {
+  const config = asObject(value);
+  const preset = buildDefaultAuthExperiencePreset(options.brandId, options.displayName, options.legalName);
+  const rawAgreementMap = new Map(
+    asArray(config.agreements || config.items)
+      .map((item) => normalizeAuthAgreementDraft(item, {}))
+      .filter((item) => item.key)
+      .map((item) => [item.key, item]),
+  );
+  const fallbackAgreementMap = new Map(
+    asArray(preset.agreements)
+      .map((item) => normalizeAuthAgreementDraft(item, {}))
+      .filter((item) => item.key)
+      .map((item) => [item.key, item]),
+  );
+  return {
+    title: String(config.title || preset.title || '').trim(),
+    subtitle: String(config.subtitle || preset.subtitle || '').trim(),
+    socialNotice: String(config.social_notice || config.socialNotice || preset.socialNotice || '').trim(),
+    agreements: AUTH_AGREEMENT_ORDER.map((key) =>
+      normalizeAuthAgreementDraft(rawAgreementMap.get(key), fallbackAgreementMap.get(key) || {key, title: AUTH_AGREEMENT_LABELS[key]}),
+    ),
+  };
+}
+
+function buildAuthExperienceConfigFromBuffer(value, options = {}) {
+  const next = normalizeAuthExperienceConfig(value, options);
+  return {
+    title: next.title,
+    subtitle: next.subtitle,
+    social_notice: next.socialNotice,
+    agreements: next.agreements.map((item) => ({
+      key: item.key,
+      title: item.title,
+      version: item.version,
+      effective_date: item.effectiveDate,
+      summary: item.summary,
+      content: item.content,
+    })),
+  };
+}
+
 function normalizeWelcomeQuickAction(value, index = 0) {
   const raw = asObject(value);
   return {
@@ -1813,6 +2048,8 @@ function statusLabel(status) {
       return '草稿';
     case 'archived':
       return '已归档';
+    case 'deprecated':
+      return '已废弃';
     case 'staging':
       return '预发布';
     default:
@@ -2224,6 +2461,7 @@ function adaptPortalDetail(detail) {
     skillBindings: asArray(detail.skillBindings),
     mcpBindings: asArray(detail.mcpBindings),
     modelBindings: asArray(detail.modelBindings),
+    rechargePackageBindings: asArray(detail.rechargePackageBindings),
     menuBindings: mergeMenuBindings(detail.menuBindings),
     composerControlBindings: mergeComposerControlBindings(detail.composerControlBindings),
     composerShortcutBindings: mergeComposerShortcutBindings(detail.composerShortcutBindings),
@@ -2356,6 +2594,8 @@ function actionLabel(action) {
       return '更新 Skill 绑定';
     case 'mcp_bindings_saved':
       return '更新 MCP 绑定';
+    case 'recharge_package_bindings_saved':
+      return '更新充值套餐绑定';
     case 'menu_bindings_saved':
       return '更新菜单绑定';
     case 'composer_control_bindings_saved':
@@ -2382,12 +2622,16 @@ function navIsActive(itemId) {
     return state.route === 'brands' || state.route === 'brand-detail';
   }
   if (itemId === 'payments') {
-    return state.route === 'payments-config' || state.route === 'payments-orders';
+    return state.route === 'payments-config' || state.route === 'payments-packages' || state.route === 'payments-orders';
   }
   if (CAPABILITY_ROUTE_MODE[itemId]) {
     return state.route === itemId;
   }
   return state.route === itemId;
+}
+
+function isNavGroupCollapsed(groupId) {
+  return Boolean(state.navGroupsCollapsed?.[groupId]);
 }
 
 function isCapabilityRoute(route) {
@@ -3103,6 +3347,168 @@ function buildProviderDraftModelRef(providerKey, modelId) {
   return `${normalizedProviderKey}/${normalizedModelId}`;
 }
 
+function computeRuntimeTargetTriple(platform, arch) {
+  const normalizedPlatform = String(platform || '').trim().toLowerCase();
+  const normalizedArch = String(arch || '').trim().toLowerCase();
+  if (normalizedPlatform === 'darwin' && normalizedArch === 'aarch64') {
+    return 'aarch64-apple-darwin';
+  }
+  if (normalizedPlatform === 'darwin' && normalizedArch === 'x64') {
+    return 'x86_64-apple-darwin';
+  }
+  if (normalizedPlatform === 'windows' && normalizedArch === 'aarch64') {
+    return 'aarch64-pc-windows-msvc';
+  }
+  if (normalizedPlatform === 'windows' && normalizedArch === 'x64') {
+    return 'x86_64-pc-windows-msvc';
+  }
+  if (normalizedPlatform === 'linux' && normalizedArch === 'aarch64') {
+    return 'aarch64-unknown-linux-gnu';
+  }
+  if (normalizedPlatform === 'linux' && normalizedArch === 'x64') {
+    return 'x86_64-unknown-linux-gnu';
+  }
+  return '';
+}
+
+function formatRuntimeTargetLabel(platform, arch) {
+  const platformLabel =
+    String(platform || '').trim() === 'darwin'
+      ? 'macOS'
+      : String(platform || '').trim() === 'windows'
+        ? 'Windows'
+        : String(platform || '').trim() === 'linux'
+          ? 'Linux'
+          : String(platform || '').trim() || 'Unknown';
+  const archLabel = String(arch || '').trim() || 'unknown';
+  return `${platformLabel} / ${archLabel}`;
+}
+
+function formatBytes(value) {
+  const size = Number(value || 0);
+  if (!Number.isFinite(size) || size <= 0) {
+    return '未记录';
+  }
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let current = size;
+  let index = 0;
+  while (current >= 1024 && index < units.length - 1) {
+    current /= 1024;
+    index += 1;
+  }
+  const digits = current >= 100 || index === 0 ? 0 : current >= 10 ? 1 : 2;
+  return `${current.toFixed(digits)} ${units[index]}`;
+}
+
+function syncRuntimeSelection() {
+  if (!state.runtimeReleases.find((item) => item.id === state.selectedRuntimeReleaseId)) {
+    state.selectedRuntimeReleaseId = state.runtimeReleases[0]?.id || '';
+  }
+  if (!state.runtimeBindings.find((item) => item.id === state.selectedRuntimeBindingId)) {
+    state.selectedRuntimeBindingId = state.runtimeBindings[0]?.id || '';
+  }
+}
+
+function buildRuntimeReleaseDraft(release = null) {
+  const value = asObject(release);
+  const platform = String(value.platform || 'darwin').trim() || 'darwin';
+  const arch = String(value.arch || 'aarch64').trim() || 'aarch64';
+  return {
+    id: String(value.id || '').trim(),
+    runtimeKind: String(value.runtimeKind || 'openclaw').trim() || 'openclaw',
+    version: String(value.version || '').trim(),
+    channel: String(value.channel || 'prod').trim() || 'prod',
+    platform,
+    arch,
+    targetTriple: String(value.targetTriple || computeRuntimeTargetTriple(platform, arch)).trim(),
+    artifactUrl: String(value.artifactUrl || '').trim(),
+    bucketName: String(value.bucketName || '').trim(),
+    objectKey: String(value.objectKey || '').trim(),
+    artifactSha256: String(value.artifactSha256 || '').trim(),
+    artifactSizeBytes: String(value.artifactSizeBytes || '').trim(),
+    launcherRelativePath: String(value.launcherRelativePath || '').trim(),
+    gitCommit: String(value.gitCommit || '').trim(),
+    gitTag: String(value.gitTag || '').trim(),
+    releaseVersion: String(value.releaseVersion || '').trim(),
+    buildTime: String(value.buildTime || '').trim(),
+    status: String(value.status || 'draft').trim() || 'draft',
+  };
+}
+
+function buildRuntimeBindingDraft(binding = null) {
+  const value = asObject(binding);
+  const scopeType = String(value.scopeType || 'platform').trim() === 'app' ? 'app' : 'platform';
+  const platform = String(value.platform || 'darwin').trim() || 'darwin';
+  const arch = String(value.arch || 'aarch64').trim() || 'aarch64';
+  return {
+    id: String(value.id || '').trim(),
+    scopeType,
+    scopeKey: scopeType === 'platform' ? 'platform' : String(value.scopeKey || state.brands[0]?.brandId || '').trim(),
+    runtimeKind: String(value.runtimeKind || 'openclaw').trim() || 'openclaw',
+    channel: String(value.channel || 'prod').trim() || 'prod',
+    platform,
+    arch,
+    targetTriple: String(value.targetTriple || computeRuntimeTargetTriple(platform, arch)).trim(),
+    releaseId: String(value.releaseId || '').trim(),
+    enabled: value.enabled !== false,
+    changeReason: '',
+  };
+}
+
+function captureRuntimeReleaseDraft(form) {
+  if (!(form instanceof HTMLFormElement)) {
+    return null;
+  }
+  const formData = new FormData(form);
+  const platform = String(formData.get('platform') || 'darwin').trim() || 'darwin';
+  const arch = String(formData.get('arch') || 'aarch64').trim() || 'aarch64';
+  state.runtimeReleaseDraftBuffer = {
+    id: String(formData.get('release_id') || '').trim(),
+    runtimeKind: String(formData.get('runtime_kind') || 'openclaw').trim() || 'openclaw',
+    version: String(formData.get('version') || '').trim(),
+    channel: String(formData.get('channel') || 'prod').trim() || 'prod',
+    platform,
+    arch,
+    targetTriple: computeRuntimeTargetTriple(platform, arch),
+    artifactUrl: String(formData.get('artifact_url') || '').trim(),
+    bucketName: String(formData.get('bucket_name') || '').trim(),
+    objectKey: String(formData.get('object_key') || '').trim(),
+    artifactSha256: String(formData.get('artifact_sha256') || '').trim(),
+    artifactSizeBytes: String(formData.get('artifact_size_bytes') || '').trim(),
+    launcherRelativePath: String(formData.get('launcher_relative_path') || '').trim(),
+    gitCommit: String(formData.get('git_commit') || '').trim(),
+    gitTag: String(formData.get('git_tag') || '').trim(),
+    releaseVersion: String(formData.get('release_version') || '').trim(),
+    buildTime: String(formData.get('build_time') || '').trim(),
+    status: String(formData.get('status') || 'draft').trim() || 'draft',
+  };
+  return state.runtimeReleaseDraftBuffer;
+}
+
+function captureRuntimeBindingDraft(form) {
+  if (!(form instanceof HTMLFormElement)) {
+    return null;
+  }
+  const formData = new FormData(form);
+  const scopeType = String(formData.get('scope_type') || 'platform').trim() === 'app' ? 'app' : 'platform';
+  const platform = String(formData.get('platform') || 'darwin').trim() || 'darwin';
+  const arch = String(formData.get('arch') || 'aarch64').trim() || 'aarch64';
+  state.runtimeBindingDraftBuffer = {
+    id: String(formData.get('binding_id') || '').trim(),
+    scopeType,
+    scopeKey: scopeType === 'platform' ? 'platform' : String(formData.get('scope_key') || '').trim(),
+    runtimeKind: String(formData.get('runtime_kind') || 'openclaw').trim() || 'openclaw',
+    channel: String(formData.get('channel') || 'prod').trim() || 'prod',
+    platform,
+    arch,
+    targetTriple: computeRuntimeTargetTriple(platform, arch),
+    releaseId: String(formData.get('release_id') || '').trim(),
+    enabled: formData.get('enabled') === 'on',
+    changeReason: String(formData.get('change_reason') || '').trim(),
+  };
+  return state.runtimeBindingDraftBuffer;
+}
+
 function captureMemoryEmbeddingDraft(form) {
   if (!(form instanceof HTMLFormElement)) {
     return null;
@@ -3352,7 +3758,41 @@ function buildBrandDraftBuffer(detail) {
     .slice()
     .sort((left, right) => left.sortOrder - right.sortOrder || left.shortcutKey.localeCompare(right.shortcutKey, 'zh-CN'))
     .map((item) => item.shortcutKey);
+  const rechargeCatalogItems = getRechargePackageCatalogItems();
+  const rechargeBindings = asArray(detail?.rechargePackageBindings)
+    .map((item, index) => {
+      const entry = asObject(item);
+      const packageId = String(entry.packageId || entry.package_id || '').trim();
+      if (!packageId) return null;
+      return {
+        packageId,
+        enabled: entry.enabled !== false,
+        sortOrder: Number(entry.sortOrder || entry.sort_order || (index + 1) * 10) || (index + 1) * 10,
+        recommended: entry.recommended === true,
+        default: entry.default === true || entry.is_default === true,
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.packageId.localeCompare(right.packageId, 'zh-CN'));
+  const useRechargePackagesOverride = rechargeBindings.length > 0;
+  const rechargePackageOrder = buildOrderedRechargePackageList(
+    useRechargePackagesOverride ? rechargeBindings.map((item) => item.packageId) : rechargeCatalogItems.map((item) => item.packageId),
+  );
+  const selectedRechargePackages = useRechargePackagesOverride
+    ? rechargeBindings.filter((item) => item.enabled).map((item) => item.packageId)
+    : rechargeCatalogItems.filter((item) => item.active !== false).map((item) => item.packageId);
+  const recommendedRechargePackages = useRechargePackagesOverride
+    ? rechargeBindings.filter((item) => item.enabled && item.recommended).map((item) => item.packageId)
+    : rechargeCatalogItems.filter((item) => item.active !== false && item.recommended).map((item) => item.packageId);
+  const defaultRechargePackage =
+    (useRechargePackagesOverride
+      ? rechargeBindings.find((item) => item.enabled && item.default)?.packageId
+      : rechargeCatalogItems.find((item) => item.active !== false && item.default)?.packageId) ||
+    recommendedRechargePackages[0] ||
+    selectedRechargePackages[0] ||
+    '';
   const meta = getAppBrandMeta(brand);
+  const desktopShellConfig = normalizeDesktopShellConfig(draftConfig);
   const welcomeSurface = asObject(surfaceEntries.welcome);
   const welcomeConfig = normalizeWelcomeSurfaceConfig(asObject(welcomeSurface.config));
   const headerSurface = asObject(surfaceEntries.header);
@@ -3363,7 +3803,11 @@ function buildBrandDraftBuffer(detail) {
   const inputConfig = normalizeInputSurfaceConfig(asObject(inputSurface.config));
   const sidebarSurface = asObject(surfaceEntries.sidebar);
   const sidebarConfig = normalizeSidebarSurfaceConfig(asObject(sidebarSurface.config));
-  const desktopShellConfig = normalizeDesktopShellConfig(draftConfig);
+  const authExperienceConfig = normalizeAuthExperienceConfig(asObject(draftConfig.auth_experience || draftConfig.authExperience), {
+    brandId: brand?.brandId || '',
+    displayName: brand?.displayName || '',
+    legalName: desktopShellConfig.legalName,
+  });
 
   return {
     brandId: brand?.brandId || '',
@@ -3387,6 +3831,11 @@ function buildBrandDraftBuffer(detail) {
     selectedMcp: ensureEffectiveMcpSelection(
       asArray(detail?.mcpBindings).filter((item) => item.enabled).map((item) => item.mcpKey),
     ),
+    useRechargePackagesOverride,
+    selectedRechargePackages,
+    rechargePackageOrder,
+    recommendedRechargePackages,
+    defaultRechargePackage,
     selectedMenus,
     menuConfigs,
     menuOrder,
@@ -3426,6 +3875,7 @@ function buildBrandDraftBuffer(detail) {
       enabled: sidebarSurface.enabled !== false,
       ...sidebarConfig,
     },
+    authExperience: authExperienceConfig,
     surfaces: orderedSurfaceKeys.map((key) => {
       const surface = asObject(surfaceEntries[key]);
       return {
@@ -3815,11 +4265,84 @@ function captureBrandEditorBuffer() {
     });
   }
   const surfaces = Array.from(surfaceMap.values());
+  const rechargePackageOrder = buildOrderedRechargePackageList(existing.rechargePackageOrder);
+  const selectedRechargePackages = rechargePackageOrder.filter((packageId) => {
+    const input = form.querySelector(`[name="recharge_enabled__${CSS.escape(packageId)}"]`);
+    return input instanceof HTMLInputElement ? input.checked : asStringArray(existing.selectedRechargePackages).includes(packageId);
+  });
+  const recommendedRechargePackages = rechargePackageOrder.filter((packageId) => {
+    const input = form.querySelector(`[name="recharge_recommended__${CSS.escape(packageId)}"]`);
+    return input instanceof HTMLInputElement
+      ? input.checked && selectedRechargePackages.includes(packageId)
+      : asStringArray(existing.recommendedRechargePackages).includes(packageId) && selectedRechargePackages.includes(packageId);
+  });
+  let defaultRechargePackage = form.querySelector('input[name="recharge_default_package"]:checked') instanceof HTMLInputElement
+    ? String(form.querySelector('input[name="recharge_default_package"]:checked').value || '').trim()
+    : String(existing.defaultRechargePackage || '').trim();
+  if (!selectedRechargePackages.includes(defaultRechargePackage)) {
+    defaultRechargePackage = recommendedRechargePackages[0] || selectedRechargePackages[0] || '';
+  }
+  const nextBrandId = String(data.get('brand_id') || existing.brandId || '');
+  const nextDisplayName = String(data.get('display_name') || existing.displayName || '');
+  const nextLegalName =
+    form.querySelector('[name="desktop_legal_name"]') instanceof HTMLInputElement
+      ? form.querySelector('[name="desktop_legal_name"]').value
+      : existing.desktopShell?.legalName;
+  const existingAgreementMap = new Map(
+    asArray(existing.authExperience?.agreements)
+      .map((item) => normalizeAuthAgreementDraft(item, {}))
+      .filter((item) => item.key)
+      .map((item) => [item.key, item]),
+  );
+  const authExperience = normalizeAuthExperienceConfig(
+    {
+      title:
+        form.querySelector('[name="auth_panel_title"]') instanceof HTMLInputElement
+          ? form.querySelector('[name="auth_panel_title"]').value
+          : existing.authExperience?.title,
+      subtitle:
+        form.querySelector('[name="auth_panel_subtitle"]') instanceof HTMLTextAreaElement
+          ? form.querySelector('[name="auth_panel_subtitle"]').value
+          : existing.authExperience?.subtitle,
+      social_notice:
+        form.querySelector('[name="auth_social_notice"]') instanceof HTMLTextAreaElement
+          ? form.querySelector('[name="auth_social_notice"]').value
+          : existing.authExperience?.socialNotice,
+      agreements: AUTH_AGREEMENT_ORDER.map((key) => ({
+        key,
+        title:
+          form.querySelector(`[name="auth_agreement_title__${CSS.escape(key)}"]`) instanceof HTMLInputElement
+            ? form.querySelector(`[name="auth_agreement_title__${CSS.escape(key)}"]`).value
+            : existingAgreementMap.get(key)?.title,
+        version:
+          form.querySelector(`[name="auth_agreement_version__${CSS.escape(key)}"]`) instanceof HTMLInputElement
+            ? form.querySelector(`[name="auth_agreement_version__${CSS.escape(key)}"]`).value
+            : existingAgreementMap.get(key)?.version,
+        effective_date:
+          form.querySelector(`[name="auth_agreement_effective_date__${CSS.escape(key)}"]`) instanceof HTMLInputElement
+            ? form.querySelector(`[name="auth_agreement_effective_date__${CSS.escape(key)}"]`).value
+            : existingAgreementMap.get(key)?.effectiveDate,
+        summary:
+          form.querySelector(`[name="auth_agreement_summary__${CSS.escape(key)}"]`) instanceof HTMLTextAreaElement
+            ? form.querySelector(`[name="auth_agreement_summary__${CSS.escape(key)}"]`).value
+            : existingAgreementMap.get(key)?.summary,
+        content:
+          form.querySelector(`[name="auth_agreement_content__${CSS.escape(key)}"]`) instanceof HTMLTextAreaElement
+            ? form.querySelector(`[name="auth_agreement_content__${CSS.escape(key)}"]`).value
+            : existingAgreementMap.get(key)?.content,
+      })),
+    },
+    {
+      brandId: nextBrandId,
+      displayName: nextDisplayName,
+      legalName: nextLegalName,
+    },
+  );
 
   state.brandDraftBuffer = {
     ...existing,
-    brandId: String(data.get('brand_id') || existing.brandId || ''),
-    displayName: String(data.get('display_name') || existing.displayName || ''),
+    brandId: nextBrandId,
+    displayName: nextDisplayName,
     productName: String(data.get('product_name') || existing.productName || ''),
     tenantKey: String(data.get('tenant_key') || existing.tenantKey || ''),
     status: String(data.get('status') || existing.status || 'draft'),
@@ -3854,6 +4377,14 @@ function captureBrandEditorBuffer() {
     // stale DOM can overwrite the latest toggle state back to old values.
     selectedSkills: ensureEffectiveSkillSelection(existing.selectedSkills),
     selectedMcp: ensureEffectiveMcpSelection(existing.selectedMcp),
+    useRechargePackagesOverride:
+      form.querySelector('[name="recharge_use_override"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="recharge_use_override"]').checked
+        : existing.useRechargePackagesOverride === true,
+    selectedRechargePackages,
+    rechargePackageOrder,
+    recommendedRechargePackages,
+    defaultRechargePackage,
     selectedMenus: asStringArray(existing.selectedMenus),
     menuConfigs,
     menuOrder: buildOrderedMenuList(existing.menuOrder),
@@ -3925,6 +4456,7 @@ function captureBrandEditorBuffer() {
       enabled: sidebarEnabledInput instanceof HTMLInputElement ? sidebarEnabledInput.checked : existing.sidebar?.enabled !== false,
       ...sidebar,
     },
+    authExperience,
     surfaces,
   };
 
@@ -4014,6 +4546,12 @@ function composeDraftConfig(buffer) {
     productName: nextProductName,
     tenantKey: nextTenantKey,
   };
+  draftConfig.auth_experience = buildAuthExperienceConfigFromBuffer(buffer.authExperience, {
+    brandId: buffer.brandId,
+    displayName: buffer.displayName,
+    legalName: desktopShell.legalName,
+  });
+  draftConfig.authExperience = clone(draftConfig.auth_experience);
   draftConfig.productName = nextProductName;
   draftConfig.product_name = nextProductName;
   draftConfig.tenantKey = nextTenantKey;
@@ -4213,6 +4751,67 @@ async function refundPaymentOrder(orderId, payload) {
   }
 }
 
+async function saveRechargePackageCatalogEntry(form) {
+  if (!(form instanceof HTMLFormElement)) {
+    return;
+  }
+  const formData = new FormData(form);
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    const packageId = String(formData.get('package_id') || '').trim();
+    if (!packageId) {
+      throw new Error('请填写 package_id');
+    }
+    await apiFetch(`/admin/portal/catalog/recharge-packages/${encodeURIComponent(packageId)}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        packageName: String(formData.get('package_name') || '').trim(),
+        credits: Number(formData.get('credits') || 0) || 0,
+        bonusCredits: Number(formData.get('bonus_credits') || 0) || 0,
+        amountCnyFen: Number(formData.get('amount_cny_fen') || 0) || 0,
+        sortOrder: Number(formData.get('sort_order') || 0) || 0,
+        recommended: formData.get('recommended') === 'on',
+        default: formData.get('default') === 'on',
+        active: formData.get('active') === 'on',
+        metadata: buildRechargePackageMetadataFromForm(form),
+      }),
+    });
+    await loadAppData();
+    state.selectedRechargePackageId = packageId;
+    setNotice(`充值套餐 ${packageId} 已保存。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '充值套餐保存失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function deleteRechargePackageCatalogEntry(packageId) {
+  const normalized = String(packageId || '').trim();
+  if (!normalized) return;
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    await apiFetch(`/admin/portal/catalog/recharge-packages/${encodeURIComponent(normalized)}`, {
+      method: 'DELETE',
+    });
+    await loadAppData();
+    state.selectedRechargePackageId = '';
+    setNotice(`已删除充值套餐 ${normalized}。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '充值套餐删除失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
 function csvEscape(value) {
   const text = String(value ?? '');
   if (!/[",\n]/.test(text)) return text;
@@ -4264,12 +4863,180 @@ function exportPaymentOrdersCsv() {
   URL.revokeObjectURL(url);
 }
 
+async function refreshRuntimeManagementData(options = {}) {
+  const [runtimeReleasesData, runtimeBindingsData, runtimeBindingHistoryData, runtimeBootstrapSourceData] = await Promise.all([
+    apiFetch('/admin/portal/runtime-releases?limit=200', {method: 'GET'}),
+    apiFetch('/admin/portal/runtime-bindings?limit=200', {method: 'GET'}),
+    apiFetch('/admin/portal/runtime-binding-history?limit=200', {method: 'GET'}),
+    apiFetch('/admin/portal/runtime-bootstrap-source', {method: 'GET'}).catch(() => null),
+  ]);
+  state.runtimeReleases = Array.isArray(runtimeReleasesData.items) ? runtimeReleasesData.items : [];
+  state.runtimeBindings = Array.isArray(runtimeBindingsData.items) ? runtimeBindingsData.items : [];
+  state.runtimeBindingHistory = Array.isArray(runtimeBindingHistoryData.items) ? runtimeBindingHistoryData.items : [];
+  state.runtimeBootstrapSource = runtimeBootstrapSourceData && typeof runtimeBootstrapSourceData === 'object' ? runtimeBootstrapSourceData : null;
+  if (Object.prototype.hasOwnProperty.call(options, 'selectedRuntimeReleaseId')) {
+    state.selectedRuntimeReleaseId = String(options.selectedRuntimeReleaseId || '').trim();
+  }
+  if (Object.prototype.hasOwnProperty.call(options, 'selectedRuntimeBindingId')) {
+    state.selectedRuntimeBindingId = String(options.selectedRuntimeBindingId || '').trim();
+  }
+  syncRuntimeSelection();
+  if (!options.suppressRender) {
+    render();
+  }
+}
+
+async function saveRuntimeRelease(form) {
+  if (!(form instanceof HTMLFormElement)) {
+    return;
+  }
+  const formData = new FormData(form);
+  const platform = String(formData.get('platform') || '').trim();
+  const arch = String(formData.get('arch') || '').trim();
+  const targetTriple = computeRuntimeTargetTriple(platform, arch);
+  if (!targetTriple) {
+    setError('当前 platform / arch 组合还不支持自动推导 target triple');
+    return;
+  }
+  state.busy = true;
+  resetBanner();
+  render();
+  try {
+    const saved = await apiFetch('/admin/portal/runtime-releases', {
+      method: 'PUT',
+      body: JSON.stringify({
+        id: String(formData.get('release_id') || '').trim() || null,
+        runtimeKind: String(formData.get('runtime_kind') || '').trim(),
+        version: String(formData.get('version') || '').trim(),
+        channel: String(formData.get('channel') || '').trim(),
+        platform,
+        arch,
+        targetTriple,
+        artifactUrl: String(formData.get('artifact_url') || '').trim(),
+        bucketName: String(formData.get('bucket_name') || '').trim() || null,
+        objectKey: String(formData.get('object_key') || '').trim() || null,
+        artifactSha256: String(formData.get('artifact_sha256') || '').trim() || null,
+        artifactSizeBytes: Number(formData.get('artifact_size_bytes') || 0) || null,
+        launcherRelativePath: String(formData.get('launcher_relative_path') || '').trim() || null,
+        gitCommit: String(formData.get('git_commit') || '').trim() || null,
+        gitTag: String(formData.get('git_tag') || '').trim() || null,
+        releaseVersion: String(formData.get('release_version') || '').trim() || null,
+        buildTime: String(formData.get('build_time') || '').trim() || null,
+        status: String(formData.get('status') || '').trim() || 'draft',
+      }),
+    });
+    await refreshRuntimeManagementData({
+      selectedRuntimeReleaseId: saved?.id || '',
+      suppressRender: true,
+    });
+    state.runtimeReleaseDraftBuffer = null;
+    state.selectedRuntimeSection = 'release';
+    setNotice(`Runtime release ${saved?.version || ''} 已保存。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : 'Runtime release 保存失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function saveRuntimeBinding(form) {
+  if (!(form instanceof HTMLFormElement)) {
+    return;
+  }
+  const formData = new FormData(form);
+  const scopeType = String(formData.get('scope_type') || '').trim() === 'app' ? 'app' : 'platform';
+  const scopeKey = scopeType === 'platform' ? 'platform' : String(formData.get('scope_key') || '').trim();
+  const platform = String(formData.get('platform') || '').trim();
+  const arch = String(formData.get('arch') || '').trim();
+  const targetTriple = computeRuntimeTargetTriple(platform, arch);
+  if (!scopeKey) {
+    setError('请选择 OEM 应用');
+    return;
+  }
+  if (!targetTriple) {
+    setError('当前 platform / arch 组合还不支持自动推导 target triple');
+    return;
+  }
+  state.busy = true;
+  resetBanner();
+  render();
+  try {
+    const saved = await apiFetch('/admin/portal/runtime-bindings', {
+      method: 'PUT',
+      body: JSON.stringify({
+        id: String(formData.get('binding_id') || '').trim() || null,
+        scopeType,
+        scopeKey,
+        runtimeKind: String(formData.get('runtime_kind') || '').trim(),
+        channel: String(formData.get('channel') || '').trim(),
+        platform,
+        arch,
+        targetTriple,
+        releaseId: String(formData.get('release_id') || '').trim(),
+        enabled: formData.get('enabled') === 'on',
+        changeReason: String(formData.get('change_reason') || '').trim() || null,
+      }),
+    });
+    await refreshRuntimeManagementData({
+      selectedRuntimeBindingId: saved?.id || '',
+      suppressRender: true,
+    });
+    state.runtimeBindingDraftBuffer = null;
+    state.selectedRuntimeSection = 'binding';
+    setNotice('Runtime binding 已保存。');
+  } catch (error) {
+    setError(error instanceof Error ? error.message : 'Runtime binding 保存失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function importLegacyRuntimeBootstrapSource() {
+  state.busy = true;
+  resetBanner();
+  render();
+  try {
+    const bindScopeType = state.selectedRuntimeImportBindScopeType === 'platform'
+      ? 'platform'
+      : state.selectedRuntimeImportBindScopeType === 'app'
+        ? 'app'
+        : 'none';
+    const payload = {
+      channel: state.selectedRuntimeImportChannel === 'dev' ? 'dev' : 'prod',
+      bind_scope_type: bindScopeType === 'none' ? null : bindScopeType,
+      bind_scope_key:
+        bindScopeType === 'app'
+          ? String(state.selectedRuntimeImportBindScopeKey || '').trim()
+          : bindScopeType === 'platform'
+            ? 'platform'
+            : null,
+    };
+    const result = await apiFetch('/admin/portal/runtime-bootstrap-source/import', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    await refreshRuntimeManagementData({suppressRender: true});
+    state.selectedRuntimeSection = bindScopeType === 'none' ? 'release' : 'binding';
+    setNotice(
+      `已从 legacy runtime bootstrap 导入 ${Number(result?.importedReleases?.length || 0)} 条 release` +
+        (bindScopeType === 'none' ? '。' : `，并更新 ${Number(result?.importedBindings?.length || 0)} 条 binding。`),
+    );
+  } catch (error) {
+    setError(error instanceof Error ? error.message : 'legacy runtime bootstrap 导入失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
 async function loadAppData() {
   state.loading = true;
   render();
 
   try {
-    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, cloudMcpCatalogData, modelCatalogData, modelProviderProfilesData, memoryEmbeddingProfilesData, modelLogoPresetsData, menuCatalogData, composerControlCatalogData, composerShortcutCatalogData, skillSyncSourcesData, skillSyncRunsData, paymentProviderProfilesData, paymentProviderBindingsData, paymentOrdersData] = await Promise.all([
+    const [appsData, agentCatalogData, skillCatalogData, mcpCatalogData, cloudMcpCatalogData, modelCatalogData, modelProviderProfilesData, memoryEmbeddingProfilesData, modelLogoPresetsData, menuCatalogData, rechargePackageCatalogData, composerControlCatalogData, composerShortcutCatalogData, skillSyncSourcesData, skillSyncRunsData, paymentProviderProfilesData, paymentProviderBindingsData, paymentOrdersData, runtimeReleasesData, runtimeBindingsData, runtimeBindingHistoryData, runtimeBootstrapSourceData] = await Promise.all([
       apiFetch('/admin/portal/apps', {method: 'GET'}),
       apiFetch('/admin/agents/catalog', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/skills', {method: 'GET'}),
@@ -4280,6 +5047,7 @@ async function loadAppData() {
       apiFetch('/admin/portal/memory-embedding-profiles', {method: 'GET'}),
       apiFetch('/admin/portal/model-logo-presets', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/menus', {method: 'GET'}),
+      apiFetch('/admin/portal/catalog/recharge-packages', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/composer-controls', {method: 'GET'}),
       apiFetch('/admin/portal/catalog/composer-shortcuts', {method: 'GET'}),
       apiFetch('/admin/skills/sync/sources', {method: 'GET'}),
@@ -4287,6 +5055,10 @@ async function loadAppData() {
       apiFetch(`/admin/payments/provider-profiles?provider=${encodeURIComponent(PRIMARY_PAYMENT_PROVIDER)}`, {method: 'GET'}),
       apiFetch(`/admin/payments/provider-bindings?provider=${encodeURIComponent(PRIMARY_PAYMENT_PROVIDER)}`, {method: 'GET'}),
       apiFetch('/admin/payments/orders?limit=200', {method: 'GET'}),
+      apiFetch('/admin/portal/runtime-releases?limit=200', {method: 'GET'}),
+      apiFetch('/admin/portal/runtime-bindings?limit=200', {method: 'GET'}),
+      apiFetch('/admin/portal/runtime-binding-history?limit=200', {method: 'GET'}),
+      apiFetch('/admin/portal/runtime-bootstrap-source', {method: 'GET'}).catch(() => null),
     ]);
     const apps = Array.isArray(appsData.items) ? appsData.items : [];
     const details = await Promise.all(
@@ -4316,8 +5088,15 @@ async function loadAppData() {
     state.modelLogoPresets = Array.isArray(modelLogoPresetsData.items) ? modelLogoPresetsData.items : [];
     state.paymentProviderProfiles = Array.isArray(paymentProviderProfilesData.items) ? paymentProviderProfilesData.items : [];
     state.paymentProviderBindings = Array.isArray(paymentProviderBindingsData.items) ? paymentProviderBindingsData.items : [];
+    state.runtimeReleases = Array.isArray(runtimeReleasesData.items) ? runtimeReleasesData.items : [];
+    state.runtimeBindings = Array.isArray(runtimeBindingsData.items) ? runtimeBindingsData.items : [];
+    state.runtimeBindingHistory = Array.isArray(runtimeBindingHistoryData.items) ? runtimeBindingHistoryData.items : [];
+    state.runtimeBootstrapSource = runtimeBootstrapSourceData && typeof runtimeBootstrapSourceData === 'object' ? runtimeBootstrapSourceData : null;
     state.menuCatalog = Array.isArray(menuCatalogData.items)
       ? menuCatalogData.items.map((item, index) => normalizeMenuCatalogItem(item, index)).filter(Boolean)
+      : [];
+    state.rechargePackageCatalog = Array.isArray(rechargePackageCatalogData.items)
+      ? rechargePackageCatalogData.items.map((item, index) => normalizeRechargePackageCatalogItem(item, index)).filter(Boolean)
       : [];
     state.composerControlCatalog = Array.isArray(composerControlCatalogData.items)
       ? composerControlCatalogData.items.map((item, index) => normalizeComposerControlCatalogItem(item, index)).filter(Boolean)
@@ -4385,12 +5164,19 @@ async function loadAppData() {
     if (!state.selectedCloudMcpKey || !state.cloudMcpCatalog.find((item) => (item.key || item.mcpKey) === state.selectedCloudMcpKey)) {
       state.selectedCloudMcpKey = state.cloudMcpCatalog[0]?.key || state.cloudMcpCatalog[0]?.mcpKey || '';
     }
+    if (
+      state.selectedRechargePackageId !== '__new__' &&
+      (!state.selectedRechargePackageId || !state.rechargePackageCatalog.find((item) => item.packageId === state.selectedRechargePackageId))
+    ) {
+      state.selectedRechargePackageId = state.rechargePackageCatalog[0]?.packageId || '';
+    }
     if (!state.selectedSkillSyncSourceId || !state.skillSyncSources.find((item) => item.id === state.selectedSkillSyncSourceId)) {
       state.selectedSkillSyncSourceId = state.skillSyncSources[0]?.id || '';
     }
 
     syncCapabilitySelection();
     syncSupplementalSelection();
+    syncRuntimeSelection();
 
     if (state.selectedBrandId) {
       await loadBrandDetail(state.selectedBrandId, {silent: true, suppressRender: true});
@@ -4474,6 +5260,16 @@ async function saveBrandEditor(form) {
     );
     const oemSelectedSkills = snapshot.selectedSkills.filter((skillSlug) => !isPlatformManagedSkillSlug(skillSlug));
     const oemSelectedMcp = snapshot.selectedMcp.filter((mcpKey) => !isPlatformManagedMcpKey(mcpKey));
+    const selectedRechargePackages = buildOrderedRechargePackageList(snapshot.rechargePackageOrder)
+      .filter((packageId) => asStringArray(snapshot.selectedRechargePackages).includes(packageId));
+    if (snapshot.useRechargePackagesOverride && !selectedRechargePackages.length) {
+      throw new Error('OEM 充值套餐至少选择一个套餐，或关闭 OEM 覆盖回退到平台默认。');
+    }
+    const defaultRechargePackage = selectedRechargePackages.includes(snapshot.defaultRechargePackage)
+      ? snapshot.defaultRechargePackage
+      : selectedRechargePackages.find((packageId) => asStringArray(snapshot.recommendedRechargePackages).includes(packageId)) ||
+        selectedRechargePackages[0] ||
+        '';
     await apiFetch(`/admin/portal/apps/${encodeURIComponent(snapshot.brandId)}`, {
       method: 'PUT',
       body: JSON.stringify({
@@ -4504,6 +5300,21 @@ async function saveBrandEditor(form) {
             sortOrder: (index + 1) * 10,
             config: asObject(existingMcpBindings.get(mcpKey)?.config),
           })),
+        ),
+      }),
+      apiFetch(`/admin/portal/apps/${encodeURIComponent(snapshot.brandId)}/recharge-packages`, {
+        method: 'PUT',
+        body: JSON.stringify(
+          snapshot.useRechargePackagesOverride
+            ? selectedRechargePackages.map((packageId, index) => ({
+                packageId,
+                enabled: true,
+                sortOrder: (index + 1) * 10,
+                recommended: asStringArray(snapshot.recommendedRechargePackages).includes(packageId),
+                default: packageId === defaultRechargePackage,
+                config: {},
+              }))
+            : [],
         ),
       }),
       apiFetch(`/admin/portal/apps/${encodeURIComponent(snapshot.brandId)}/models`, {
@@ -5927,6 +6738,59 @@ function toggleBrandCapability(type, value) {
   render();
 }
 
+function toggleBrandRechargeOverride() {
+  const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
+  if (!buffer) return;
+  buffer.useRechargePackagesOverride = buffer.useRechargePackagesOverride !== true;
+  if (buffer.useRechargePackagesOverride && !asStringArray(buffer.selectedRechargePackages).length) {
+    const platformItems = getRechargePackageCatalogItems().filter((item) => item.active !== false);
+    buffer.selectedRechargePackages = platformItems.map((item) => item.packageId);
+    buffer.recommendedRechargePackages = platformItems.filter((item) => item.recommended).map((item) => item.packageId);
+    buffer.defaultRechargePackage =
+      platformItems.find((item) => item.default)?.packageId ||
+      buffer.recommendedRechargePackages[0] ||
+      buffer.selectedRechargePackages[0] ||
+      '';
+  }
+  state.brandDraftBuffer = buffer;
+  render();
+}
+
+function toggleBrandRechargePackage(packageId) {
+  const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
+  if (!buffer || !buffer.useRechargePackagesOverride) return;
+  const normalized = String(packageId || '').trim();
+  if (!normalized) return;
+  const current = new Set(asStringArray(buffer.selectedRechargePackages));
+  if (current.has(normalized)) {
+    current.delete(normalized);
+  } else {
+    current.add(normalized);
+  }
+  buffer.selectedRechargePackages = buildOrderedRechargePackageList(buffer.rechargePackageOrder)
+    .filter((item) => current.has(item));
+  buffer.recommendedRechargePackages = asStringArray(buffer.recommendedRechargePackages)
+    .filter((item) => current.has(item));
+  if (!buffer.selectedRechargePackages.includes(buffer.defaultRechargePackage)) {
+    buffer.defaultRechargePackage = buffer.recommendedRechargePackages[0] || buffer.selectedRechargePackages[0] || '';
+  }
+  state.brandDraftBuffer = buffer;
+  render();
+}
+
+function moveBrandRechargePackage(packageId, direction) {
+  const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
+  if (!buffer || !buffer.useRechargePackagesOverride) return;
+  buffer.rechargePackageOrder = moveOrderedItem(
+    buffer.rechargePackageOrder,
+    String(packageId || '').trim(),
+    direction,
+    buildOrderedRechargePackageList,
+  );
+  state.brandDraftBuffer = buffer;
+  render();
+}
+
 function moveBrandMenu(value, direction) {
   const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
   if (!buffer) return;
@@ -6179,13 +7043,25 @@ function logout() {
   state.skillSyncRuns = [];
   state.selectedModelRef = '';
   state.selectedPaymentProviderTab = 'platform';
+  state.selectedRuntimeSection = 'release';
+  state.selectedRuntimeImportChannel = 'prod';
+  state.selectedRuntimeImportBindScopeType = 'none';
+  state.selectedRuntimeImportBindScopeKey = '';
   state.selectedCloudSkillSlug = '';
   state.selectedSkillSyncSourceId = '';
   state.selectedReleaseId = '';
+  state.selectedRuntimeReleaseId = '';
+  state.selectedRuntimeBindingId = '';
   state.selectedAuditId = '';
   state.mcpTestResult = null;
   state.assets = [];
   state.releases = [];
+  state.runtimeReleases = [];
+  state.runtimeBindings = [];
+  state.runtimeBindingHistory = [];
+  state.runtimeBootstrapSource = null;
+  state.runtimeReleaseDraftBuffer = null;
+  state.runtimeBindingDraftBuffer = null;
   state.audit = [];
   state.showCreateBrandForm = false;
   state.showSkillImportPanel = false;
@@ -6225,12 +7101,24 @@ function renderSidebar() {
           (item) =>
             Array.isArray(item.children) && item.children.length
               ? `
-                <div class="nav-group${navIsActive(item.id) ? ' is-active' : ''}">
+                <div class="nav-group${navIsActive(item.id) ? ' is-active' : ''}${isNavGroupCollapsed(item.id) ? ' is-collapsed' : ''}">
                   <div class="nav-item nav-item--group">
-                    ${icon(item.icon, 'nav-item__icon')}
-                    <span class="nav-item__label">${escapeHtml(item.label)}</span>
+                    <div class="nav-group__summary">
+                      ${icon(item.icon, 'nav-item__icon')}
+                      <span class="nav-item__label">${escapeHtml(item.label)}</span>
+                    </div>
+                    <button
+                      class="nav-group__toggle"
+                      type="button"
+                      data-action="toggle-nav-group"
+                      data-group-id="${escapeHtml(item.id)}"
+                      aria-expanded="${isNavGroupCollapsed(item.id) ? 'false' : 'true'}"
+                    >
+                      <span>${isNavGroupCollapsed(item.id) ? '展开' : '收起'}</span>
+                      ${icon(isNavGroupCollapsed(item.id) ? 'chevronDown' : 'chevronUp', 'nav-group__toggle-icon')}
+                    </button>
                   </div>
-                  <div class="nav-sublist">
+                  <div class="nav-sublist${isNavGroupCollapsed(item.id) ? ' is-collapsed' : ''}">
                     ${item.children
                       .map(
                         (child) => `
@@ -6336,6 +7224,13 @@ function renderBrandDetailGuide(activeTab) {
       '保存后更新草稿，发布快照后对应 OEM 才会切到新的欢迎页内容。',
     ], 'brand');
   }
+  if (activeTab === 'auth') {
+    return renderPageGuide('登录与协议怎么配', [
+      '这里维护登录 / 注册弹窗里的说明文案、第三方登录提示，以及 OEM 专属的协议正文。',
+      '协议按 OEM 独立下发，适合区分 iClaw 的通用 AI 场景和理财Claw的金融研究场景。',
+      '法律主体名称仍然沿用“桌面端”里的 Legal Name，这里主要负责对用户展示的文案与正文内容。',
+    ], 'brand');
+  }
   if (activeTab === 'assets') {
     return renderPageGuide('品牌资源怎么用', [
       '先给品牌上传 logo、favicon、home 图等资源，asset key 要和前端约定槽位一致。',
@@ -6362,6 +7257,13 @@ function renderBrandDetailGuide(activeTab) {
       '云MCP总库先在“云MCP”页维护，平台通用预装子集在“平台级 MCP”维护。',
       '当前页面只负责当前 OEM 的增量装配；平台级 MCP 会自动继承并锁定。',
       '保存配置后再发布快照，客户端同步后才会加载新的 MCP 清单。',
+    ], 'brand');
+  }
+  if (activeTab === 'recharge') {
+    return renderPageGuide('充值套餐怎么配', [
+      '平台级套餐目录是真值，统一维护套餐金额、龙虾币、赠送额度和充值文案。',
+      'OEM 默认继承平台套餐；只有当前页保存了 OEM 绑定，运行时才会切到 OEM 自己的套餐集合。',
+      '如果要恢复平台默认，直接关闭 OEM 覆盖并保存；发布快照后客户端就会吃到新的套餐配置。',
     ], 'brand');
   }
   if (activeTab === 'models') {
@@ -7040,6 +7942,114 @@ function renderBrandMcpAssembly(buffer) {
                 )
                 .join('')
             : `<div class="empty-state">当前没有 MCP 目录。</div>`}
+        </div>
+      </article>
+    </section>
+  `;
+}
+
+function renderBrandRechargeAssembly(buffer) {
+  const packages = buildOrderedRechargePackageList(buffer.rechargePackageOrder)
+    .map((packageId) => getRechargePackageCatalogEntry(packageId))
+    .filter(Boolean);
+  const selectedPackages = asStringArray(buffer.selectedRechargePackages);
+  const recommendedPackages = asStringArray(buffer.recommendedRechargePackages).filter((packageId) => selectedPackages.includes(packageId));
+  const defaultPackage = selectedPackages.includes(buffer.defaultRechargePackage)
+    ? buffer.defaultRechargePackage
+    : recommendedPackages[0] || selectedPackages[0] || '';
+  const defaultPackageEntry = getRechargePackageCatalogEntry(defaultPackage);
+  const platformDefaultPackageEntry =
+    getRechargePackageCatalogItems().find((item) => item.active !== false && item.default) ||
+    getRechargePackageCatalogItems().find((item) => item.active !== false && item.recommended) ||
+    getRechargePackageCatalogItems().find((item) => item.active !== false) ||
+    null;
+  return `
+    <section class="fig-brand-section">
+      <div class="fig-section-heading">
+        <h2>充值套餐</h2>
+        <p>默认走平台级套餐目录；只有当前 OEM 保存了绑定，运行时才切到 OEM 自己的套餐集合。</p>
+      </div>
+      <article class="fig-card fig-card--subtle">
+        <div class="fig-card__head">
+          <div>
+            <h3>OEM 套餐覆盖</h3>
+            <span>${buffer.useRechargePackagesOverride ? '当前已切到 OEM 专属套餐' : '当前跟随平台默认套餐'}</span>
+          </div>
+          ${renderSwitch({
+            checked: buffer.useRechargePackagesOverride === true,
+            action: 'toggle-brand-recharge-override',
+            label: buffer.useRechargePackagesOverride ? '使用 OEM 套餐' : '跟随平台',
+          })}
+        </div>
+        <div class="fig-meta-cards">
+          <div class="fig-meta-card"><span>平台套餐数</span><strong>${escapeHtml(getRechargePackageCatalogItems().length)}</strong></div>
+          <div class="fig-meta-card"><span>当前模式</span><strong>${escapeHtml(buffer.useRechargePackagesOverride ? 'OEM 覆盖' : '平台默认')}</strong></div>
+          <div class="fig-meta-card"><span>生效套餐数</span><strong>${escapeHtml(selectedPackages.length)}</strong></div>
+          <div class="fig-meta-card"><span>默认套餐</span><strong>${escapeHtml((buffer.useRechargePackagesOverride ? defaultPackageEntry : platformDefaultPackageEntry)?.packageName || '未设置')}</strong></div>
+        </div>
+        <label class="toggle fig-toggle" style="display:none;">
+          <input type="checkbox" name="recharge_use_override"${buffer.useRechargePackagesOverride ? ' checked' : ''} />
+          <span>${buffer.useRechargePackagesOverride ? '使用 OEM 套餐' : '跟随平台'}</span>
+        </label>
+        <div class="fig-card__section-copy">
+          <p>${buffer.useRechargePackagesOverride ? '你现在维护的是这个 OEM 自己的套餐集合。未勾选的套餐不会下发到该 OEM。' : '当前只是预览平台套餐。若要做 OEM 定制，打开上面的开关后再勾选和排序。'}</p>
+        </div>
+        <div class="fig-capability-stack">
+          ${packages.length
+            ? packages
+                .map((item, index) => {
+                  const enabled = selectedPackages.includes(item.packageId);
+                  const editable = buffer.useRechargePackagesOverride === true;
+                  const disabled = !editable;
+                  return `
+                    <article class="checkbox-card checkbox-card--capability fig-capability-item${editable ? '' : ' is-platform-managed'}">
+                      <div class="fig-capability-item__body">
+                        <div>
+                          <strong>${escapeHtml(item.packageName)}</strong>
+                          <span>${escapeHtml(`${formatFen(item.amountCnyFen)} · 实得 ${formatCredits(item.credits + item.bonusCredits)}`)}</span>
+                          <div class="metric-chips">
+                            <span>${escapeHtml(item.badgeLabel || (item.active !== false ? '平台套餐' : '已下架'))}</span>
+                            ${item.recommended ? '<span>平台推荐</span>' : ''}
+                            ${item.default ? '<span>平台默认</span>' : ''}
+                          </div>
+                        </div>
+                        <p>${escapeHtml(item.description || '未配置描述')}</p>
+                        ${item.featureList.length ? `<span>${escapeHtml(item.featureList.join(' / '))}</span>` : ''}
+                        <div class="fig-menu-card__grid">
+                          <label class="toggle fig-toggle">
+                            <input type="checkbox" name="recharge_enabled__${escapeHtml(item.packageId)}"${enabled ? ' checked' : ''}${disabled ? ' disabled' : ''} />
+                            <span>${enabled ? '已加入 OEM 套餐' : '未加入 OEM 套餐'}</span>
+                          </label>
+                          <label class="toggle fig-toggle">
+                            <input type="checkbox" name="recharge_recommended__${escapeHtml(item.packageId)}"${recommendedPackages.includes(item.packageId) ? ' checked' : ''}${!editable || !enabled ? ' disabled' : ''} />
+                            <span>设为推荐套餐</span>
+                          </label>
+                          <label class="toggle fig-toggle">
+                            <input type="radio" name="recharge_default_package" value="${escapeHtml(item.packageId)}"${defaultPackage === item.packageId ? ' checked' : ''}${!editable || !enabled ? ' disabled' : ''} />
+                            <span>设为默认套餐</span>
+                          </label>
+                        </div>
+                      </div>
+                      <div class="fig-list-item__actions">
+                        ${renderSwitch({
+                          checked: enabled,
+                          action: 'toggle-brand-recharge-package',
+                          attrs: `data-package-id="${escapeHtml(item.packageId)}"`,
+                          label: editable ? (enabled ? '已启用' : '未启用') : '平台预览',
+                          disabled,
+                        })}
+                        <button class="ghost-button fig-icon-button" type="button" data-action="move-brand-recharge-package-up" data-package-id="${escapeHtml(item.packageId)}"${!editable || index <= 0 ? ' disabled' : ''}>
+                          ${icon('chevronUp', 'fig-inline-icon')}
+                        </button>
+                        <button class="ghost-button fig-icon-button" type="button" data-action="move-brand-recharge-package-down" data-package-id="${escapeHtml(item.packageId)}"${!editable || index >= packages.length - 1 ? ' disabled' : ''}>
+                          ${icon('chevronDown', 'fig-inline-icon')}
+                        </button>
+                      </div>
+                    </article>
+                  `;
+                })
+                .join('')
+            : `<div class="empty-state">平台侧还没有充值套餐，请先去“支付中心 / 充值套餐”建立平台主数据。</div>`}
         </div>
       </article>
     </section>
@@ -7899,6 +8909,119 @@ function renderBrandWelcomeAssembly(buffer) {
   `;
 }
 
+function renderBrandAuthAssembly(buffer) {
+  const authExperience = normalizeAuthExperienceConfig(buffer.authExperience, {
+    brandId: buffer.brandId,
+    displayName: buffer.displayName,
+    legalName: buffer.desktopShell?.legalName,
+  });
+  const legalName = String(buffer.desktopShell?.legalName || buffer.displayName || buffer.brandId || '').trim() || '当前品牌';
+  return `
+    <section class="fig-brand-section">
+      <div class="fig-section-heading">
+        <h2>登录与协议</h2>
+        <p>维护桌面端登录 / 注册弹窗里的说明文案、第三方登录提示，以及用户可点击查看的 OEM 协议正文。</p>
+      </div>
+      <div class="fig-capability-columns">
+        <article class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
+            <h3>弹窗文案</h3>
+            <span>这些字段会直接展示在登录框内。</span>
+          </div>
+          <div class="form-grid">
+            <label class="field">
+              <span>弹窗标题</span>
+              <input class="field-input" name="auth_panel_title" value="${fieldValue(authExperience.title)}" />
+            </label>
+            <label class="field field--wide">
+              <span>副标题</span>
+              <textarea class="field-textarea" name="auth_panel_subtitle" rows="4">${fieldValue(authExperience.subtitle)}</textarea>
+            </label>
+            <label class="field field--wide">
+              <span>第三方登录提示</span>
+              <textarea class="field-textarea" name="auth_social_notice" rows="3">${fieldValue(authExperience.socialNotice)}</textarea>
+            </label>
+            <label class="field field--wide">
+              <span>法律主体</span>
+              <input class="field-input" value="${fieldValue(legalName)}" readonly />
+            </label>
+          </div>
+        </article>
+        <article class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
+            <h3>注册勾选区</h3>
+            <span>勾选区会自动展示下面三份协议的标题，并支持用户点击查看正文。</span>
+          </div>
+          <div class="fig-list">
+            ${authExperience.agreements
+              .map(
+                (item) => `
+                  <div class="fig-list-item">
+                    <div>
+                      <div class="fig-list-item__title">${escapeHtml(item.title)}</div>
+                      <div class="fig-list-item__body">${escapeHtml(item.summary || AUTH_AGREEMENT_LABELS[item.key] || '')}</div>
+                      <div class="fig-list-item__meta">
+                        <span>${escapeHtml(item.version || '未设置版本')}</span>
+                        <span>•</span>
+                        <span>${escapeHtml(item.effectiveDate || '未设置生效时间')}</span>
+                      </div>
+                    </div>
+                    <span class="chip">${escapeHtml(AUTH_AGREEMENT_LABELS[item.key] || item.key)}</span>
+                  </div>
+                `,
+              )
+              .join('')}
+          </div>
+        </article>
+      </div>
+      <article class="fig-card fig-card--subtle">
+        <div class="fig-card__head">
+          <h3>协议正文</h3>
+          <span>默认已针对 iClaw / 理财Claw 预填一版，可按 OEM 继续改成更贴近业务与法务要求的版本。</span>
+        </div>
+        <div class="fig-capability-stack">
+          ${authExperience.agreements
+            .map(
+              (item) => `
+                <article class="checkbox-card checkbox-card--capability fig-capability-item">
+                  <div class="fig-capability-item__body">
+                    <div>
+                      <strong>${escapeHtml(AUTH_AGREEMENT_LABELS[item.key] || item.key)}</strong>
+                      <span>${escapeHtml(item.summary || '维护标题、版本、摘要与正文。')}</span>
+                    </div>
+                    <div class="fig-menu-card__grid">
+                      <label class="field fig-inline-field">
+                        <span>标题</span>
+                        <input class="field-input" name="auth_agreement_title__${escapeHtml(item.key)}" value="${fieldValue(item.title)}" />
+                      </label>
+                      <label class="field fig-inline-field">
+                        <span>版本号</span>
+                        <input class="field-input" name="auth_agreement_version__${escapeHtml(item.key)}" value="${fieldValue(item.version)}" placeholder="v2026.04" />
+                      </label>
+                      <label class="field fig-inline-field">
+                        <span>生效日期</span>
+                        <input class="field-input" name="auth_agreement_effective_date__${escapeHtml(item.key)}" value="${fieldValue(item.effectiveDate)}" placeholder="2026-04-04" />
+                      </label>
+                      <label class="field" style="grid-column: 1 / -1;">
+                        <span>摘要</span>
+                        <textarea class="field-textarea" name="auth_agreement_summary__${escapeHtml(item.key)}" rows="3">${fieldValue(item.summary)}</textarea>
+                      </label>
+                      <label class="field" style="grid-column: 1 / -1;">
+                        <span>正文</span>
+                        <textarea class="field-textarea" name="auth_agreement_content__${escapeHtml(item.key)}" rows="12">${fieldValue(item.content)}</textarea>
+                      </label>
+                    </div>
+                  </div>
+                </article>
+              `,
+            )
+            .join('')}
+        </div>
+      </article>
+    </section>
+  `;
+}
+
 function renderBrandModuleAssembly(buffer, surfaceKey) {
   const blueprint = getSurfaceBlueprint(surfaceKey);
   const menuItem = getMenuDefinition(blueprint?.menuKey) || null;
@@ -8189,6 +9312,10 @@ function renderBrandEditorBody(buffer, assets, activeTab = state.brandDetailTab)
     return renderBrandWelcomeAssembly(buffer);
   }
 
+  if (normalizedTab === 'auth') {
+    return renderBrandAuthAssembly(buffer);
+  }
+
   if (normalizedTab === 'header') {
     return renderBrandHeaderAssembly(buffer);
   }
@@ -8207,6 +9334,10 @@ function renderBrandEditorBody(buffer, assets, activeTab = state.brandDetailTab)
 
   if (normalizedTab === 'mcps') {
     return renderBrandMcpAssembly(buffer);
+  }
+
+  if (normalizedTab === 'recharge') {
+    return renderBrandRechargeAssembly(buffer);
   }
 
   if (normalizedTab === 'menus') {
@@ -10507,6 +11638,442 @@ function getFilteredReleases() {
   });
 }
 
+function renderRuntimeManagementPage() {
+  const selectedSection = ['release', 'binding', 'history'].includes(state.selectedRuntimeSection)
+    ? state.selectedRuntimeSection
+    : 'release';
+  const selectedRelease =
+    state.selectedRuntimeReleaseId === '__new__'
+      ? null
+      : state.runtimeReleases.find((item) => item.id === state.selectedRuntimeReleaseId) || state.runtimeReleases[0] || null;
+  const selectedBinding =
+    state.selectedRuntimeBindingId === '__new__'
+      ? null
+      : state.runtimeBindings.find((item) => item.id === state.selectedRuntimeBindingId) || state.runtimeBindings[0] || null;
+  const releaseDraft = state.runtimeReleaseDraftBuffer || buildRuntimeReleaseDraft(selectedRelease);
+  const bindingDraft = state.runtimeBindingDraftBuffer || buildRuntimeBindingDraft(selectedBinding);
+  const releaseOptions = state.runtimeReleases
+    .filter((item) => item.status === 'published' || item.id === bindingDraft.releaseId)
+    .map((item) => ({
+      id: item.id,
+      label: `${item.version} · ${item.channel} · ${formatRuntimeTargetLabel(item.platform, item.arch)}`,
+    }));
+  const runtimeBootstrapSource = state.runtimeBootstrapSource && typeof state.runtimeBootstrapSource === 'object'
+    ? state.runtimeBootstrapSource
+    : null;
+  const historyItems = selectedBinding
+    ? state.runtimeBindingHistory.filter((item) => item.bindingId === selectedBinding.id)
+    : state.runtimeBindingHistory;
+
+  const renderReleaseList = () =>
+    state.runtimeReleases.length
+      ? state.runtimeReleases
+          .map((item) => {
+            const isActive = item.id === (selectedRelease?.id || '');
+            return `
+              <button class="fig-list-item" type="button" data-action="select-runtime-release" data-release-id="${escapeHtml(item.id)}"${isActive ? ' style="background:color-mix(in srgb, var(--card-subtle) 88%, transparent);border-radius:14px;padding:14px;"' : ''}>
+                <div style="text-align:left; width:100%;">
+                  <div class="fig-list-item__title">${escapeHtml(item.version)} · ${escapeHtml(item.channel)}</div>
+                  <div class="fig-list-item__body">${escapeHtml(formatRuntimeTargetLabel(item.platform, item.arch))}</div>
+                  <div class="fig-list-item__meta">
+                    ${statusBadge(item.status)}
+                    <span>${escapeHtml(item.runtimeKind)}</span>
+                    <span>${escapeHtml(formatDateTime(item.updatedAt))}</span>
+                  </div>
+                </div>
+              </button>
+            `;
+          })
+          .join('')
+      : `<div class="empty-state empty-state--panel">还没有 runtime release。</div>`;
+
+  const renderBindingList = () =>
+    state.runtimeBindings.length
+      ? state.runtimeBindings
+          .map((item) => {
+            const isActive = item.id === (selectedBinding?.id || '');
+            const matchedRelease = state.runtimeReleases.find((release) => release.id === item.releaseId) || null;
+            const scopeLabel = item.scopeType === 'platform' ? '平台' : item.scopeKey;
+            return `
+              <button class="fig-list-item" type="button" data-action="select-runtime-binding" data-binding-id="${escapeHtml(item.id)}"${isActive ? ' style="background:color-mix(in srgb, var(--card-subtle) 88%, transparent);border-radius:14px;padding:14px;"' : ''}>
+                <div style="text-align:left; width:100%;">
+                  <div class="fig-list-item__title">${escapeHtml(scopeLabel)} · ${escapeHtml(item.channel)} · ${escapeHtml(formatRuntimeTargetLabel(item.platform, item.arch))}</div>
+                  <div class="fig-list-item__body">${escapeHtml(matchedRelease?.version || item.releaseId)}</div>
+                  <div class="fig-list-item__meta">
+                    ${statusBadge(item.enabled === false ? 'disabled' : 'active')}
+                    <span>${escapeHtml(item.runtimeKind)}</span>
+                    <span>${escapeHtml(formatDateTime(item.updatedAt))}</span>
+                  </div>
+                </div>
+              </button>
+            `;
+          })
+          .join('')
+      : `<div class="empty-state empty-state--panel">还没有 runtime binding。</div>`;
+
+  const renderBootstrapArtifactList = () =>
+    Array.isArray(runtimeBootstrapSource?.artifacts) && runtimeBootstrapSource.artifacts.length
+      ? runtimeBootstrapSource.artifacts
+          .map(
+            (item) => `
+              <div class="fig-list-item">
+                <div style="width:100%;">
+                  <div class="fig-list-item__title">${escapeHtml(item.targetTriple)} · ${escapeHtml(formatRuntimeTargetLabel(item.platform, item.arch))}</div>
+                  <div class="fig-list-item__body" style="word-break:break-all;">${escapeHtml(item.artifactUrl)}</div>
+                  <div class="fig-list-item__meta">
+                    <span>${escapeHtml(item.artifactFormat || 'tar.gz')}</span>
+                    <span>${escapeHtml(item.objectKey || 'object_key 未解析')}</span>
+                  </div>
+                </div>
+              </div>
+            `,
+          )
+          .join('')
+      : `<div class="empty-state empty-state--panel">当前 legacy runtime bootstrap 没有可导入 artifact。</div>`;
+
+  return `
+    <div class="fig-page">
+      <div class="fig-page__header">
+        <div class="fig-page__header-inner">
+          <div>
+            <h1>Runtime包管理</h1>
+            <p class="fig-page__description">独立管理 runtime 包发布、平台/OEM 绑定关系，以及历史切换记录。</p>
+          </div>
+        </div>
+      </div>
+      <div class="fig-page__body">
+        ${renderPageGuide('Runtime包管理怎么用', [
+          'Release 负责登记每个 runtime 包的版本、平台、下载地址和构建信息。',
+          'Binding 负责把平台或某个 OEM 应用绑定到一个已发布的 runtime release。',
+          'History 只做审计追踪，方便回溯当前版本到底从哪次切换生效。',
+        ], 'releases')}
+        <section class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
+            <h3>配置视图</h3>
+            <span>Release / Binding / History</span>
+          </div>
+          <div class="segmented">
+            <button class="tab-pill${selectedSection === 'release' ? ' is-active' : ''}" type="button" data-action="select-runtime-section" data-runtime-section="release">Release</button>
+            <button class="tab-pill${selectedSection === 'binding' ? ' is-active' : ''}" type="button" data-action="select-runtime-section" data-runtime-section="binding">Binding</button>
+            <button class="tab-pill${selectedSection === 'history' ? ' is-active' : ''}" type="button" data-action="select-runtime-section" data-runtime-section="history">History</button>
+          </div>
+        </section>
+        <div class="fig-detail-stack"${selectedSection !== 'release' ? ' style="display:none;"' : ''}>
+          <section class="fig-card fig-card--subtle">
+            <div class="fig-card__head">
+              <div>
+                <h3>Legacy Runtime Bootstrap</h3>
+                <span>兼容当前已经在 S3 上的 runtime 包</span>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <button class="ghost-button" type="button" data-action="refresh-runtime-bootstrap"${state.busy ? ' disabled' : ''}>刷新源预览</button>
+                <button class="ghost-button" type="button" data-action="import-runtime-bootstrap"${state.busy ? ' disabled' : ''}>${state.busy ? '导入中…' : '导入到 Runtime Center'}</button>
+              </div>
+            </div>
+            <div class="fig-meta-cards">
+              <div class="fig-meta-card">
+                <span>Source Path</span>
+                <strong>${escapeHtml(runtimeBootstrapSource?.sourcePath || '未找到')}</strong>
+              </div>
+              <div class="fig-meta-card">
+                <span>Version</span>
+                <strong>${escapeHtml(runtimeBootstrapSource?.version || '未找到')}</strong>
+              </div>
+              <div class="fig-meta-card">
+                <span>Artifacts</span>
+                <strong>${escapeHtml(String(runtimeBootstrapSource?.artifacts?.length || 0))}</strong>
+              </div>
+            </div>
+            <div class="fig-toolbar">
+              <label class="field">
+                <span>导入到哪个 Channel</span>
+                <select class="field-select" data-state-key="selectedRuntimeImportChannel">
+                  <option value="prod"${state.selectedRuntimeImportChannel === 'prod' ? ' selected' : ''}>prod</option>
+                  <option value="dev"${state.selectedRuntimeImportChannel === 'dev' ? ' selected' : ''}>dev</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>导入后自动绑定</span>
+                <select class="field-select" data-state-key="selectedRuntimeImportBindScopeType">
+                  <option value="none"${state.selectedRuntimeImportBindScopeType === 'none' ? ' selected' : ''}>只导入 Release</option>
+                  <option value="platform"${state.selectedRuntimeImportBindScopeType === 'platform' ? ' selected' : ''}>绑定到平台默认</option>
+                  <option value="app"${state.selectedRuntimeImportBindScopeType === 'app' ? ' selected' : ''}>绑定到 OEM</option>
+                </select>
+              </label>
+              <label class="field"${state.selectedRuntimeImportBindScopeType === 'app' ? '' : ' style="opacity:.55;"'}>
+                <span>OEM 应用</span>
+                <select class="field-select" data-state-key="selectedRuntimeImportBindScopeKey"${state.selectedRuntimeImportBindScopeType === 'app' ? '' : ' disabled'}>
+                  <option value="">请选择 OEM</option>
+                  ${state.brands
+                    .map(
+                      (brand) => `<option value="${escapeHtml(brand.brandId)}"${state.selectedRuntimeImportBindScopeKey === brand.brandId ? ' selected' : ''}>${escapeHtml(brand.displayName)}</option>`,
+                    )
+                    .join('')}
+                </select>
+              </label>
+            </div>
+            <div class="fig-list">${renderBootstrapArtifactList()}</div>
+          </section>
+          <section class="fig-card fig-card--subtle">
+            <div class="fig-card__head">
+              <div>
+                <h3>Release 列表</h3>
+                <span>${escapeHtml(String(state.runtimeReleases.length))} 条</span>
+              </div>
+              <button class="ghost-button" type="button" data-action="new-runtime-release">新建 Release</button>
+            </div>
+            <div class="fig-list">${renderReleaseList()}</div>
+          </section>
+          <form id="runtime-release-form" class="fig-card fig-card--subtle">
+            <input type="hidden" name="release_id" value="${fieldValue(releaseDraft.id)}" />
+            <div class="fig-card__head">
+              <div>
+                <h3>${releaseDraft.id ? '编辑 Release' : '新建 Release'}</h3>
+                <span>target triple 自动推导，不单独暴露编辑</span>
+              </div>
+            </div>
+            <div class="fig-toolbar">
+              <label class="field">
+                <span>Runtime Kind</span>
+                <input class="field-input" name="runtime_kind" value="${fieldValue(releaseDraft.runtimeKind)}" placeholder="openclaw" />
+              </label>
+              <label class="field">
+                <span>Version</span>
+                <input class="field-input" name="version" value="${fieldValue(releaseDraft.version)}" placeholder="1.0.1+20260404" />
+              </label>
+              <label class="field">
+                <span>Channel</span>
+                <select class="field-select" name="channel">
+                  <option value="prod"${releaseDraft.channel === 'prod' ? ' selected' : ''}>prod</option>
+                  <option value="dev"${releaseDraft.channel === 'dev' ? ' selected' : ''}>dev</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Status</span>
+                <select class="field-select" name="status">
+                  <option value="draft"${releaseDraft.status === 'draft' ? ' selected' : ''}>draft</option>
+                  <option value="published"${releaseDraft.status === 'published' ? ' selected' : ''}>published</option>
+                  <option value="deprecated"${releaseDraft.status === 'deprecated' ? ' selected' : ''}>deprecated</option>
+                  <option value="archived"${releaseDraft.status === 'archived' ? ' selected' : ''}>archived</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Platform</span>
+                <select class="field-select" name="platform">
+                  <option value="darwin"${releaseDraft.platform === 'darwin' ? ' selected' : ''}>darwin</option>
+                  <option value="windows"${releaseDraft.platform === 'windows' ? ' selected' : ''}>windows</option>
+                  <option value="linux"${releaseDraft.platform === 'linux' ? ' selected' : ''}>linux</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Arch</span>
+                <select class="field-select" name="arch">
+                  <option value="aarch64"${releaseDraft.arch === 'aarch64' ? ' selected' : ''}>aarch64</option>
+                  <option value="x64"${releaseDraft.arch === 'x64' ? ' selected' : ''}>x64</option>
+                </select>
+              </label>
+            </div>
+            <div class="fig-meta-cards">
+              <div class="fig-meta-card">
+                <span>Target Triple</span>
+                <strong>${escapeHtml(computeRuntimeTargetTriple(releaseDraft.platform, releaseDraft.arch) || '未识别')}</strong>
+              </div>
+              <div class="fig-meta-card">
+                <span>包大小</span>
+                <strong>${escapeHtml(formatBytes(releaseDraft.artifactSizeBytes))}</strong>
+              </div>
+              <div class="fig-meta-card">
+                <span>最后更新时间</span>
+                <strong>${escapeHtml(formatDateTime(selectedRelease?.updatedAt || ''))}</strong>
+              </div>
+            </div>
+            <label class="field">
+              <span>Artifact URL</span>
+              <input class="field-input" name="artifact_url" value="${fieldValue(releaseDraft.artifactUrl)}" placeholder="https://..." />
+            </label>
+            <div class="fig-toolbar">
+              <label class="field">
+                <span>Bucket</span>
+                <input class="field-input" name="bucket_name" value="${fieldValue(releaseDraft.bucketName)}" placeholder="iclaw-prod" />
+              </label>
+              <label class="field">
+                <span>Object Key</span>
+                <input class="field-input" name="object_key" value="${fieldValue(releaseDraft.objectKey)}" placeholder="downloads/runtime/..." />
+              </label>
+              <label class="field">
+                <span>SHA256</span>
+                <input class="field-input" name="artifact_sha256" value="${fieldValue(releaseDraft.artifactSha256)}" placeholder="可选" />
+              </label>
+            </div>
+            <div class="fig-toolbar">
+              <label class="field">
+                <span>Size Bytes</span>
+                <input class="field-input" name="artifact_size_bytes" value="${fieldValue(releaseDraft.artifactSizeBytes)}" placeholder="可选" />
+              </label>
+              <label class="field">
+                <span>Launcher Path</span>
+                <input class="field-input" name="launcher_relative_path" value="${fieldValue(releaseDraft.launcherRelativePath)}" placeholder="可选" />
+              </label>
+              <label class="field">
+                <span>Build Time</span>
+                <input class="field-input" name="build_time" value="${fieldValue(releaseDraft.buildTime)}" placeholder="ISO 时间" />
+              </label>
+            </div>
+            <div class="fig-toolbar">
+              <label class="field">
+                <span>Git Commit</span>
+                <input class="field-input" name="git_commit" value="${fieldValue(releaseDraft.gitCommit)}" placeholder="可选" />
+              </label>
+              <label class="field">
+                <span>Git Tag</span>
+                <input class="field-input" name="git_tag" value="${fieldValue(releaseDraft.gitTag)}" placeholder="可选" />
+              </label>
+              <label class="field">
+                <span>Release Version</span>
+                <input class="field-input" name="release_version" value="${fieldValue(releaseDraft.releaseVersion)}" placeholder="可选" />
+              </label>
+            </div>
+            <div class="fig-release-card__actions">
+              <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>${state.busy ? '保存中…' : '保存 Release'}</button>
+            </div>
+          </form>
+        </div>
+        <div class="fig-detail-stack"${selectedSection !== 'binding' ? ' style="display:none;"' : ''}>
+          <section class="fig-card fig-card--subtle">
+            <div class="fig-card__head">
+              <div>
+                <h3>Binding 列表</h3>
+                <span>${escapeHtml(String(state.runtimeBindings.length))} 条</span>
+              </div>
+              <button class="ghost-button" type="button" data-action="new-runtime-binding">新建 Binding</button>
+            </div>
+            <div class="fig-list">${renderBindingList()}</div>
+          </section>
+          <form id="runtime-binding-form" class="fig-card fig-card--subtle">
+            <input type="hidden" name="binding_id" value="${fieldValue(bindingDraft.id)}" />
+            <div class="fig-card__head">
+              <div>
+                <h3>${bindingDraft.id ? '编辑 Binding' : '新建 Binding'}</h3>
+                <span>OEM 配了 binding 就用 OEM；没配就回落平台</span>
+              </div>
+            </div>
+            <div class="fig-toolbar">
+              <label class="field">
+                <span>Scope</span>
+                <select class="field-select" name="scope_type">
+                  <option value="platform"${bindingDraft.scopeType === 'platform' ? ' selected' : ''}>platform</option>
+                  <option value="app"${bindingDraft.scopeType === 'app' ? ' selected' : ''}>OEM app</option>
+                </select>
+              </label>
+              <label class="field"${bindingDraft.scopeType === 'app' ? '' : ' style="opacity:.55;"'}>
+                <span>OEM 应用</span>
+                <select class="field-select" name="scope_key"${bindingDraft.scopeType === 'app' ? '' : ' disabled'}>
+                  ${state.brands
+                    .map(
+                      (brand) => `<option value="${escapeHtml(brand.brandId)}"${bindingDraft.scopeKey === brand.brandId ? ' selected' : ''}>${escapeHtml(brand.displayName)}</option>`,
+                    )
+                    .join('')}
+                </select>
+              </label>
+              <label class="field">
+                <span>Runtime Kind</span>
+                <input class="field-input" name="runtime_kind" value="${fieldValue(bindingDraft.runtimeKind)}" placeholder="openclaw" />
+              </label>
+              <label class="field">
+                <span>Channel</span>
+                <select class="field-select" name="channel">
+                  <option value="prod"${bindingDraft.channel === 'prod' ? ' selected' : ''}>prod</option>
+                  <option value="dev"${bindingDraft.channel === 'dev' ? ' selected' : ''}>dev</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Platform</span>
+                <select class="field-select" name="platform">
+                  <option value="darwin"${bindingDraft.platform === 'darwin' ? ' selected' : ''}>darwin</option>
+                  <option value="windows"${bindingDraft.platform === 'windows' ? ' selected' : ''}>windows</option>
+                  <option value="linux"${bindingDraft.platform === 'linux' ? ' selected' : ''}>linux</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Arch</span>
+                <select class="field-select" name="arch">
+                  <option value="aarch64"${bindingDraft.arch === 'aarch64' ? ' selected' : ''}>aarch64</option>
+                  <option value="x64"${bindingDraft.arch === 'x64' ? ' selected' : ''}>x64</option>
+                </select>
+              </label>
+            </div>
+            <div class="fig-meta-cards">
+              <div class="fig-meta-card">
+                <span>Target Triple</span>
+                <strong>${escapeHtml(computeRuntimeTargetTriple(bindingDraft.platform, bindingDraft.arch) || '未识别')}</strong>
+              </div>
+              <div class="fig-meta-card">
+                <span>当前作用域</span>
+                <strong>${escapeHtml(bindingDraft.scopeType === 'platform' ? '平台默认' : bindingDraft.scopeKey || '未选 OEM')}</strong>
+              </div>
+            </div>
+            <label class="field">
+              <span>绑定到哪个 Release</span>
+              <select class="field-select" name="release_id">
+                <option value="">请选择已发布 release</option>
+                ${releaseOptions
+                  .map(
+                    (item) => `<option value="${escapeHtml(item.id)}"${bindingDraft.releaseId === item.id ? ' selected' : ''}>${escapeHtml(item.label)}</option>`,
+                  )
+                  .join('')}
+              </select>
+            </label>
+            <label class="field">
+              <span>切换原因</span>
+              <textarea class="field-input" name="change_reason" rows="3" placeholder="写明这次绑定为什么切换，方便后续审计追踪">${fieldValue(bindingDraft.changeReason)}</textarea>
+            </label>
+            <label class="field" style="max-width:220px;">
+              <span>Enabled</span>
+              <input type="checkbox" name="enabled"${bindingDraft.enabled ? ' checked' : ''} />
+            </label>
+            <div class="fig-release-card__actions">
+              <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>${state.busy ? '保存中…' : '保存 Binding'}</button>
+            </div>
+          </form>
+        </div>
+        <div class="fig-detail-stack"${selectedSection !== 'history' ? ' style="display:none;"' : ''}>
+          <section class="fig-card fig-card--subtle">
+            <div class="fig-card__head">
+              <div>
+                <h3>Binding History</h3>
+                <span>${selectedBinding ? '当前选中 binding 的历史' : '全部历史'}</span>
+              </div>
+            </div>
+            <div class="fig-list">
+              ${historyItems.length
+                ? historyItems
+                    .map((item) => {
+                      const fromRelease = state.runtimeReleases.find((release) => release.id === item.fromReleaseId) || null;
+                      const toRelease = state.runtimeReleases.find((release) => release.id === item.toReleaseId) || null;
+                      return `
+                        <div class="fig-list-item">
+                          <div style="width:100%;">
+                            <div class="fig-list-item__title">${escapeHtml(item.scopeType === 'platform' ? '平台' : item.scopeKey)} · ${escapeHtml(item.channel)} · ${escapeHtml(item.targetTriple)}</div>
+                            <div class="fig-list-item__body">从 ${escapeHtml(fromRelease?.version || item.fromReleaseId || '空')} 切到 ${escapeHtml(toRelease?.version || item.toReleaseId || '空')}</div>
+                            <div class="fig-list-item__meta">
+                              <span>${escapeHtml(item.runtimeKind)}</span>
+                              <span>${escapeHtml(formatDateTime(item.createdAt))}</span>
+                              ${item.changeReason ? `<span>${escapeHtml(item.changeReason)}</span>` : ''}
+                            </div>
+                          </div>
+                        </div>
+                      `;
+                    })
+                    .join('')
+                : `<div class="empty-state empty-state--panel">还没有 runtime binding history。</div>`}
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderReleasesPage() {
   const items = getFilteredReleases();
   const selectedRelease = items.find((item) => item.id === state.selectedReleaseId) || items[0] || null;
@@ -10770,6 +12337,201 @@ function paymentProviderLabel(provider) {
   if (normalized === 'alipay_qr') return '支付宝扫码';
   if (normalized === 'mock') return '测试支付';
   return normalized || '未知渠道';
+}
+
+function buildRechargePackageMetadataFromForm(form) {
+  const extraMetadata = expandMetadataEntries(readMetadataEntriesFromForm(form, 'recharge_package_metadata_entries'));
+  const featureListRaw = form.querySelector('[name="feature_list"]');
+  const featureList = featureListRaw instanceof HTMLTextAreaElement ? splitLines(featureListRaw.value) : [];
+  return {
+    ...extraMetadata,
+    description:
+      form.querySelector('[name="description"]') instanceof HTMLTextAreaElement
+        ? form.querySelector('[name="description"]').value.trim()
+        : '',
+    badge_label:
+      form.querySelector('[name="badge_label"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="badge_label"]').value.trim()
+        : '',
+    highlight:
+      form.querySelector('[name="highlight"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="highlight"]').value.trim()
+        : '',
+    feature_list: featureList,
+  };
+}
+
+function renderRechargePackageCatalogPage() {
+  const items = getRechargePackageCatalogItems();
+  const selectedPackage =
+    state.selectedRechargePackageId === '__new__'
+      ? null
+      : items.find((item) => item.packageId === state.selectedRechargePackageId) || items[0] || null;
+  const editingItem = selectedPackage || {
+    packageId: '',
+    packageName: '',
+    credits: 0,
+    bonusCredits: 0,
+    amountCnyFen: 0,
+    sortOrder: (items.length + 1) * 10 || 10,
+    recommended: false,
+    default: false,
+    active: true,
+    description: '',
+    badgeLabel: '',
+    highlight: '',
+    featureList: [],
+    metadata: {},
+  };
+  const overrideConnections = selectedPackage ? getPortalRechargePackageOverrideConnections(selectedPackage.packageId) : [];
+  return `
+    <div class="fig-page">
+      <div class="fig-page__header">
+        <div class="fig-page__header-inner">
+          <div>
+            <h1>充值套餐</h1>
+            <p class="fig-page__description">这里维护平台级套餐主数据。所有 OEM 默认继承这里；只有 OEM 明确配置了绑定，才会切到 OEM 自己的套餐集合。</p>
+          </div>
+          <button class="solid-button fig-button" type="button" data-action="new-recharge-package">
+            ${icon('plus', 'button-icon')}
+            新增套餐
+          </button>
+        </div>
+      </div>
+      ${renderPageGuide('充值套餐怎么用', [
+        '平台页维护唯一套餐目录：金额、基础龙虾币、赠送龙虾币、推荐位和展示文案都在这里。',
+        'OEM 页只做 binding，不另建一套主数据；不想让某个 OEM 跟平台一致时，再去品牌详情里做覆盖。',
+        '删除平台套餐会影响所有 OEM 绑定，所以这里只保留平台真值，不在桌面端或 runtime 做硬编码。',
+      ], 'payments')}
+      <div class="fig-page__body">
+        <section class="fig-card fig-audit-table-card">
+          <div class="fig-card__head">
+            <h3>平台套餐目录</h3>
+            <span>${escapeHtml(items.length)} 个</span>
+          </div>
+          <div class="fig-audit-table">
+            <div class="fig-audit-table__header">
+              <div>套餐</div>
+              <div>价格</div>
+              <div>到账</div>
+              <div>排序</div>
+              <div>状态</div>
+            </div>
+            <div class="fig-audit-table__body">
+              ${items.length
+                ? items
+                    .map(
+                      (item) => `
+                        <button class="fig-audit-row${selectedPackage?.packageId === item.packageId ? ' is-active' : ''}" type="button" data-action="select-recharge-package" data-package-id="${escapeHtml(item.packageId)}">
+                          <div>
+                            <div class="fig-audit-row__title">${escapeHtml(item.packageName)}</div>
+                            <div class="fig-audit-row__detail">${escapeHtml(item.packageId)}</div>
+                          </div>
+                          <div>${escapeHtml(formatFen(item.amountCnyFen))}</div>
+                          <div>${escapeHtml(formatCredits(item.credits + item.bonusCredits))}</div>
+                          <div>${escapeHtml(String(item.sortOrder))}</div>
+                          <div>${escapeHtml(item.active !== false ? '已启用' : '已下架')}</div>
+                        </button>
+                      `,
+                    )
+                    .join('')
+                : `<div class="empty-state">还没有平台充值套餐。</div>`}
+            </div>
+          </div>
+        </section>
+        <section class="fig-card">
+          <div class="fig-card__head">
+            <div>
+              <h3>${selectedPackage ? selectedPackage.packageName : '新增平台充值套餐'}</h3>
+              <span>${escapeHtml(selectedPackage ? `${selectedPackage.packageId} · 平台主数据` : '新套餐会直接写入 platform_recharge_package_catalog')}</span>
+            </div>
+          </div>
+          ${selectedPackage
+            ? `
+              <div class="fig-meta-cards">
+                <div class="fig-meta-card"><span>平台默认</span><strong>${selectedPackage.default ? '是' : '否'}</strong></div>
+                <div class="fig-meta-card"><span>平台推荐</span><strong>${selectedPackage.recommended ? '是' : '否'}</strong></div>
+                <div class="fig-meta-card"><span>OEM 覆盖使用数</span><strong>${escapeHtml(overrideConnections.length)}</strong></div>
+                <div class="fig-meta-card"><span>总到账</span><strong>${escapeHtml(formatCredits(selectedPackage.credits + selectedPackage.bonusCredits))}</strong></div>
+              </div>
+            `
+            : ''}
+          <form id="recharge-package-form" class="fig-card fig-card--subtle" style="margin-top:16px;">
+            <div class="form-grid form-grid--two">
+              <label class="field">
+                <span>Package ID</span>
+                <input class="field-input" name="package_id" value="${fieldValue(editingItem.packageId)}" placeholder="topup_3000" ${selectedPackage ? 'readonly' : ''} />
+              </label>
+              <label class="field">
+                <span>套餐名称</span>
+                <input class="field-input" name="package_name" value="${fieldValue(editingItem.packageName)}" placeholder="3000 龙虾币" />
+              </label>
+              <label class="field">
+                <span>金额（分）</span>
+                <input class="field-input" name="amount_cny_fen" type="number" min="1" step="1" value="${fieldValue(editingItem.amountCnyFen)}" />
+              </label>
+              <label class="field">
+                <span>基础龙虾币</span>
+                <input class="field-input" name="credits" type="number" min="1" step="1" value="${fieldValue(editingItem.credits)}" />
+              </label>
+              <label class="field">
+                <span>赠送龙虾币</span>
+                <input class="field-input" name="bonus_credits" type="number" min="0" step="1" value="${fieldValue(editingItem.bonusCredits)}" />
+              </label>
+              <label class="field">
+                <span>排序</span>
+                <input class="field-input" name="sort_order" type="number" min="1" step="1" value="${fieldValue(editingItem.sortOrder)}" />
+              </label>
+              <label class="field field--wide">
+                <span>描述文案</span>
+                <textarea class="field-textarea" name="description" rows="3">${fieldValue(editingItem.description)}</textarea>
+              </label>
+              <label class="field">
+                <span>Badge</span>
+                <input class="field-input" name="badge_label" value="${fieldValue(editingItem.badgeLabel)}" placeholder="最常用 / 高配" />
+              </label>
+              <label class="field">
+                <span>Highlight</span>
+                <input class="field-input" name="highlight" value="${fieldValue(editingItem.highlight)}" placeholder="实得 3,400 龙虾币" />
+              </label>
+              <label class="field field--wide">
+                <span>特性列表</span>
+                <textarea class="field-textarea" name="feature_list" rows="4" placeholder="每行一条卖点">${fieldValue(editingItem.featureList.join('\n'))}</textarea>
+              </label>
+              <div class="field field--wide">
+                ${renderMetadataEntriesEditor({
+                  name: 'recharge_package_metadata_entries',
+                  title: '额外 Metadata',
+                  description: '除 description / badge_label / highlight / feature_list 外的附加字段。',
+                  value: Object.fromEntries(
+                    Object.entries(asObject(editingItem.metadata)).filter(([key]) => !['description', 'badge_label', 'badgeLabel', 'highlight', 'feature_list', 'featureList'].includes(key)),
+                  ),
+                })}
+              </div>
+            </div>
+            <div class="fig-capability-columns" style="margin-top:16px;">
+              <label class="toggle fig-toggle">
+                <input type="checkbox" name="recommended"${editingItem.recommended ? ' checked' : ''} />
+                <span>平台推荐套餐</span>
+              </label>
+              <label class="toggle fig-toggle">
+                <input type="checkbox" name="default"${editingItem.default ? ' checked' : ''} />
+                <span>平台默认套餐</span>
+              </label>
+              <label class="toggle fig-toggle">
+                <input type="checkbox" name="active"${editingItem.active !== false ? ' checked' : ''} />
+                <span>启用套餐</span>
+              </label>
+            </div>
+            <div class="fig-form-actions">
+              <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>保存套餐</button>
+              ${selectedPackage ? `<button class="ghost-button" type="button" data-action="delete-recharge-package" data-package-id="${escapeHtml(selectedPackage.packageId)}"${state.busy ? ' disabled' : ''}>删除套餐</button>` : ''}
+            </div>
+          </form>
+        </section>
+      </div>
+    </div>
+  `;
 }
 
 function renderPaymentProviderConfigPage() {
@@ -11337,6 +13099,7 @@ function renderLogin() {
 let customSelectListenersBound = false;
 let menuAssemblyListenersBound = false;
 let composerSortableListenersBound = false;
+let shouldResetDashboardContentScroll = false;
 const menuAssemblyDragState = {
   sourceKey: '',
   overKey: '',
@@ -11727,6 +13490,25 @@ function enhanceCustomSelects() {
   });
 }
 
+function ensureDashboardShell() {
+  let shell = app.querySelector('[data-dashboard-shell="true"]');
+  if (!(shell instanceof HTMLElement)) {
+    app.innerHTML = `
+      <main class="shell" data-dashboard-shell="true">
+        <div data-dashboard-sidebar="true"></div>
+        <section class="content" data-dashboard-content="true"></section>
+      </main>
+    `;
+    shell = app.querySelector('[data-dashboard-shell="true"]');
+  }
+  const sidebarHost = app.querySelector('[data-dashboard-sidebar="true"]');
+  const contentHost = app.querySelector('[data-dashboard-content="true"]');
+  if (!(shell instanceof HTMLElement) || !(sidebarHost instanceof HTMLElement) || !(contentHost instanceof HTMLElement)) {
+    throw new Error('dashboard shell mount failed');
+  }
+  return {shell, sidebarHost, contentHost};
+}
+
 function renderDashboard() {
   const pageContent = state.loading
     ? renderLoadingPage()
@@ -11744,25 +13526,37 @@ function renderDashboard() {
           ? renderCloudSkillsPage()
           : state.route === 'cloud-mcps'
             ? renderCloudMcpsPage()
+          : state.route === 'runtime-management'
+            ? renderRuntimeManagementPage()
           : state.route === 'assets'
             ? renderAssetsPage()
             : state.route === 'releases'
               ? renderReleasesPage()
               : state.route === 'payments-config'
                 ? renderPaymentProviderConfigPage()
+                : state.route === 'payments-packages'
+                  ? renderRechargePackageCatalogPage()
                 : state.route === 'payments-orders'
                   ? renderPaymentsPage()
                 : renderAuditPage();
 
-  app.innerHTML = `
-    <main class="shell">
-      ${renderSidebar()}
-      <section class="content">
-        ${renderBanner()}
-        ${pageContent}
-      </section>
-    </main>
+  const {sidebarHost, contentHost} = ensureDashboardShell();
+  const previousNavList = sidebarHost.querySelector('.nav-list');
+  const previousSidebarScrollTop = previousNavList instanceof HTMLElement ? previousNavList.scrollTop : 0;
+  const previousContentScrollTop = contentHost.scrollTop;
+
+  sidebarHost.innerHTML = renderSidebar();
+  contentHost.innerHTML = `
+    ${renderBanner()}
+    ${pageContent}
   `;
+
+  const nextNavList = sidebarHost.querySelector('.nav-list');
+  if (nextNavList instanceof HTMLElement) {
+    nextNavList.scrollTop = previousSidebarScrollTop;
+  }
+  contentHost.scrollTop = shouldResetDashboardContentScroll ? 0 : previousContentScrollTop;
+  shouldResetDashboardContentScroll = false;
 }
 
 function render() {
@@ -11858,8 +13652,23 @@ app.addEventListener('submit', async (event) => {
     return;
   }
 
+  if (form.id === 'runtime-release-form') {
+    await saveRuntimeRelease(form);
+    return;
+  }
+
+  if (form.id === 'runtime-binding-form') {
+    await saveRuntimeBinding(form);
+    return;
+  }
+
   if (form.id === 'payment-provider-form') {
     await savePaymentProviderConfig(form);
+    return;
+  }
+
+  if (form.id === 'recharge-package-form') {
+    await saveRechargePackageCatalogEntry(form);
     return;
   }
 
@@ -11898,6 +13707,14 @@ app.addEventListener('input', (event) => {
   if (form instanceof HTMLFormElement && form.id === 'memory-embedding-form') {
     captureMemoryEmbeddingDraft(form);
     state.memoryEmbeddingTestResult = null;
+    return;
+  }
+  if (form instanceof HTMLFormElement && form.id === 'runtime-release-form') {
+    captureRuntimeReleaseDraft(form);
+    return;
+  }
+  if (form instanceof HTMLFormElement && form.id === 'runtime-binding-form') {
+    captureRuntimeBindingDraft(form);
   }
 });
 
@@ -11912,6 +13729,16 @@ app.addEventListener('change', (event) => {
   if (form instanceof HTMLFormElement && form.id === 'memory-embedding-form') {
     captureMemoryEmbeddingDraft(form);
     state.memoryEmbeddingTestResult = null;
+    return;
+  }
+  if (form instanceof HTMLFormElement && form.id === 'runtime-release-form') {
+    captureRuntimeReleaseDraft(form);
+    render();
+    return;
+  }
+  if (form instanceof HTMLFormElement && form.id === 'runtime-binding-form') {
+    captureRuntimeBindingDraft(form);
+    render();
   }
 });
 
@@ -11932,13 +13759,33 @@ app.addEventListener('click', async (event) => {
   if (action === 'navigate') {
     captureBrandEditorBuffer();
     const nextRoute = target.getAttribute('data-page') || 'overview';
+    shouldResetDashboardContentScroll = state.route !== nextRoute;
     state.route = nextRoute;
     if (isCapabilityRoute(state.route)) {
       state.capabilityMode = getCapabilityModeForRoute(state.route);
     }
+    if (state.route === 'runtime-management') {
+      await refreshRuntimeManagementData({suppressRender: true}).catch((error) => {
+        setError(error instanceof Error ? error.message : 'runtime 管理数据刷新失败');
+      });
+    }
     if (state.route === 'payments-orders' && state.selectedPaymentOrderId) {
       await ensurePaymentOrderDetail(state.selectedPaymentOrderId);
     }
+    render();
+    return;
+  }
+
+  if (action === 'toggle-nav-group') {
+    const groupId = String(target.getAttribute('data-group-id') || '').trim();
+    if (!groupId) {
+      return;
+    }
+    state.navGroupsCollapsed = {
+      ...(state.navGroupsCollapsed || {}),
+      [groupId]: !isNavGroupCollapsed(groupId),
+    };
+    persistNavGroupsCollapsedState();
     render();
     return;
   }
@@ -12169,6 +14016,70 @@ app.addEventListener('click', async (event) => {
     return;
   }
 
+  if (action === 'select-runtime-section') {
+    state.route = 'runtime-management';
+    state.selectedRuntimeSection = target.getAttribute('data-runtime-section') || 'release';
+    render();
+    return;
+  }
+
+  if (action === 'new-runtime-release') {
+    state.route = 'runtime-management';
+    state.selectedRuntimeSection = 'release';
+    state.selectedRuntimeReleaseId = '__new__';
+    state.runtimeReleaseDraftBuffer = buildRuntimeReleaseDraft(null);
+    render();
+    return;
+  }
+
+  if (action === 'select-runtime-release') {
+    state.route = 'runtime-management';
+    state.selectedRuntimeSection = 'release';
+    state.selectedRuntimeReleaseId = target.getAttribute('data-release-id') || '';
+    state.runtimeReleaseDraftBuffer = null;
+    render();
+    return;
+  }
+
+  if (action === 'new-runtime-binding') {
+    state.route = 'runtime-management';
+    state.selectedRuntimeSection = 'binding';
+    state.selectedRuntimeBindingId = '__new__';
+    state.runtimeBindingDraftBuffer = buildRuntimeBindingDraft(null);
+    render();
+    return;
+  }
+
+  if (action === 'select-runtime-binding') {
+    state.route = 'runtime-management';
+    state.selectedRuntimeSection = 'binding';
+    state.selectedRuntimeBindingId = target.getAttribute('data-binding-id') || '';
+    state.runtimeBindingDraftBuffer = null;
+    render();
+    return;
+  }
+
+  if (action === 'import-runtime-bootstrap') {
+    await importLegacyRuntimeBootstrapSource();
+    return;
+  }
+
+  if (action === 'refresh-runtime-bootstrap') {
+    state.busy = true;
+    resetBanner();
+    render();
+    try {
+      await refreshRuntimeManagementData({suppressRender: true});
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'runtime bootstrap 刷新失败');
+      state.busy = false;
+      return;
+    }
+    state.busy = false;
+    render();
+    return;
+  }
+
   if (action === 'sync-portal-preset') {
     if (window.confirm('确认把 core-oem.json 手工同步到数据库？这个操作适用于首灌、空库恢复、基线修复，或你刚改完 preset 需要显式发布。')) {
       await syncPortalPresetManifest();
@@ -12204,6 +14115,28 @@ app.addEventListener('click', async (event) => {
     state.route = 'payments-config';
     state.selectedPaymentProviderTab = target.getAttribute('data-tab-key') || 'platform';
     render();
+    return;
+  }
+
+  if (action === 'new-recharge-package') {
+    state.route = 'payments-packages';
+    state.selectedRechargePackageId = '__new__';
+    render();
+    return;
+  }
+
+  if (action === 'select-recharge-package') {
+    state.route = 'payments-packages';
+    state.selectedRechargePackageId = target.getAttribute('data-package-id') || '';
+    render();
+    return;
+  }
+
+  if (action === 'delete-recharge-package') {
+    const packageId = target.getAttribute('data-package-id') || '';
+    if (window.confirm(`确认删除充值套餐 ${packageId}？`)) {
+      await deleteRechargePackageCatalogEntry(packageId);
+    }
     return;
   }
 
@@ -12449,6 +14382,26 @@ app.addEventListener('click', async (event) => {
     return;
   }
 
+  if (action === 'toggle-brand-recharge-override') {
+    toggleBrandRechargeOverride();
+    return;
+  }
+
+  if (action === 'toggle-brand-recharge-package') {
+    toggleBrandRechargePackage(target.getAttribute('data-package-id') || '');
+    return;
+  }
+
+  if (action === 'move-brand-recharge-package-up') {
+    moveBrandRechargePackage(target.getAttribute('data-package-id') || '', 'up');
+    return;
+  }
+
+  if (action === 'move-brand-recharge-package-down') {
+    moveBrandRechargePackage(target.getAttribute('data-package-id') || '', 'down');
+    return;
+  }
+
   if (action === 'toggle-brand-menu') {
     toggleBrandCapability('menu', target.getAttribute('data-menu-key') || '');
     return;
@@ -12671,6 +14624,25 @@ function handleFilterInput(target) {
   const stateKey = target.getAttribute('data-state-key');
   if (stateKey === 'selectedDesktopReleaseChannel') {
     state.selectedDesktopReleaseChannel = target.value === 'dev' ? 'dev' : 'prod';
+    render();
+    return;
+  }
+  if (stateKey === 'selectedRuntimeImportChannel') {
+    state.selectedRuntimeImportChannel = target.value === 'dev' ? 'dev' : 'prod';
+    render();
+    return;
+  }
+  if (stateKey === 'selectedRuntimeImportBindScopeType') {
+    state.selectedRuntimeImportBindScopeType =
+      target.value === 'platform' ? 'platform' : target.value === 'app' ? 'app' : 'none';
+    if (state.selectedRuntimeImportBindScopeType !== 'app') {
+      state.selectedRuntimeImportBindScopeKey = '';
+    }
+    render();
+    return;
+  }
+  if (stateKey === 'selectedRuntimeImportBindScopeKey') {
+    state.selectedRuntimeImportBindScopeKey = target.value;
     render();
     return;
   }

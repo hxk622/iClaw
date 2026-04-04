@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 
 const MEMORY_DEV_ENDPOINT = '/__iclaw/memory';
+const MEMORY_SNAPSHOT_TIMEOUT_MS = 8000;
 
 export interface MemoryEntryRecord {
   id: string;
@@ -58,13 +59,36 @@ function isTauriRuntime(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = globalThis.setTimeout(() => {
+      reject(new Error(message));
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        globalThis.clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        globalThis.clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 export async function loadMemorySnapshot(): Promise<MemorySnapshot | null> {
   if (!isTauriRuntime()) {
     try {
-      const response = await fetch(MEMORY_DEV_ENDPOINT, {
-        method: 'GET',
-        credentials: 'same-origin',
-      });
+      const response = await withTimeout(
+        fetch(MEMORY_DEV_ENDPOINT, {
+          method: 'GET',
+          credentials: 'same-origin',
+        }),
+        MEMORY_SNAPSHOT_TIMEOUT_MS,
+        'memory snapshot request timed out',
+      );
       if (!response.ok) {
         return null;
       }
@@ -73,7 +97,11 @@ export async function loadMemorySnapshot(): Promise<MemorySnapshot | null> {
       return null;
     }
   }
-  return invoke<MemorySnapshot>('load_memory_snapshot');
+  return withTimeout(
+    invoke<MemorySnapshot>('load_memory_snapshot'),
+    MEMORY_SNAPSHOT_TIMEOUT_MS,
+    'memory snapshot request timed out',
+  );
 }
 
 export async function saveMemoryEntry(entry: MemoryEntryRecord): Promise<MemoryEntryRecord | null> {

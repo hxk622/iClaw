@@ -790,6 +790,34 @@ create table if not exists oem_app_menu_bindings (
   primary key (app_name, menu_key)
 );
 
+create table if not exists platform_recharge_package_catalog (
+  package_id text primary key,
+  package_name text not null,
+  credits bigint not null,
+  bonus_credits bigint not null default 0,
+  amount_cny_fen integer not null,
+  sort_order integer not null default 100,
+  recommended boolean not null default false,
+  is_default boolean not null default false,
+  metadata_json jsonb not null default '{}'::jsonb,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists oem_app_recharge_package_bindings (
+  app_name text not null references oem_apps(app_name) on delete cascade,
+  package_id text not null references platform_recharge_package_catalog(package_id) on delete cascade,
+  enabled boolean not null default true,
+  sort_order integer not null default 100,
+  recommended boolean not null default false,
+  is_default boolean not null default false,
+  config_json jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (app_name, package_id)
+);
+
 create table if not exists oem_app_composer_control_bindings (
   app_name text not null references oem_apps(app_name) on delete cascade,
   control_key text not null references oem_composer_control_catalog(control_key) on delete cascade,
@@ -1838,6 +1866,10 @@ create index if not exists idx_oem_app_menu_bindings_app_sort
   on oem_app_menu_bindings(app_name, sort_order, menu_key);
 create index if not exists idx_oem_menu_catalog_category_key
   on oem_menu_catalog(category, menu_key);
+create index if not exists idx_platform_recharge_package_catalog_sort
+  on platform_recharge_package_catalog(sort_order, package_id);
+create index if not exists idx_oem_app_recharge_package_bindings_app_sort
+  on oem_app_recharge_package_bindings(app_name, sort_order, package_id);
 create index if not exists idx_market_stock_catalog_market_exchange_symbol
   on market_stock_catalog(market, exchange, symbol);
 create index if not exists idx_market_stock_catalog_company_name

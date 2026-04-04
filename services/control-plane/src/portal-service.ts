@@ -38,6 +38,7 @@ import type {
   ReplacePortalAppModelBindingsInput,
   ReplacePortalAppMcpBindingsInput,
   ReplacePortalAppMenuBindingsInput,
+  ReplacePortalAppRechargePackageBindingsInput,
   ReplacePortalAppSkillBindingsInput,
   UpsertPortalAppInput,
   UpsertPortalAppModelRuntimeOverrideInput,
@@ -47,8 +48,23 @@ import type {
   UpsertPortalModelProviderProfileInput,
   UpsertPortalMenuInput,
   UpsertPortalMcpInput,
+  UpsertPortalRechargePackageInput,
   UpsertPortalSkillInput,
 } from './portal-domain.ts';
+import type {
+  ImportPortalRuntimeBootstrapInput,
+  ImportPortalRuntimeBootstrapResult,
+  ListPortalRuntimeReleaseBindingHistoryInput,
+  ListPortalRuntimeReleaseBindingsInput,
+  ListPortalRuntimeReleasesInput,
+  PortalLegacyRuntimeBootstrapArtifactRecord,
+  PortalLegacyRuntimeBootstrapSourceRecord,
+  PortalRuntimeReleaseScopeType,
+  PortalRuntimeReleaseStatus,
+  ResolvePortalRuntimeReleaseInput,
+  UpsertPortalRuntimeReleaseBindingInput,
+  UpsertPortalRuntimeReleaseInput,
+} from './runtime-release-domain.ts';
 import {syncPortalPresetManifest} from './portal-preset.ts';
 import {buildPortalPublicConfig} from './portal-runtime.ts';
 import type {PgPortalStore} from './portal-store.ts';
@@ -56,6 +72,10 @@ import {ensurePortalPreset} from './bootstrap.ts';
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const defaultPortalPresetManifestPath = resolve(moduleDir, '../presets/core-oem.json');
+const defaultLegacyRuntimeBootstrapConfigPath = resolve(
+  moduleDir,
+  '../../../apps/desktop/src-tauri/resources/config/openclaw-runtime.json',
+);
 
 function rolePriority(role: 'user' | 'admin' | 'super_admin'): number {
   switch (role) {
@@ -124,6 +144,10 @@ function buildResolvedMcpServers(
 
 function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
+}
+
+function trimString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
 }
 
 function applyResolvedRuntimeModelsToConfig(
@@ -291,6 +315,14 @@ function normalizeOptionalInteger(value: unknown, field: string, fallback: numbe
   return value;
 }
 
+function normalizePositiveInteger(value: unknown, field: string): number {
+  const normalized = normalizeOptionalInteger(value, field, 0);
+  if (normalized <= 0) {
+    throw new HttpError(400, 'BAD_REQUEST', `${field} must be a positive integer`);
+  }
+  return normalized;
+}
+
 function joinOpenaiCompatiblePath(baseUrl: string, path: string): string {
   const normalizedBase = baseUrl.trim().replace(/\/+$/, '');
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
@@ -414,6 +446,183 @@ function normalizeDesktopReleaseArtifactType(value: unknown): 'installer' | 'upd
   throw new HttpError(400, 'BAD_REQUEST', 'artifact_type must be installer, updater, or signature');
 }
 
+function normalizeRuntimeReleaseScopeType(value: unknown): PortalRuntimeReleaseScopeType | null {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  const normalized = normalizeRequiredString(value, 'scope_type').toLowerCase();
+  if (normalized === 'platform' || normalized === 'app') {
+    return normalized;
+  }
+  throw new HttpError(400, 'BAD_REQUEST', 'scope_type must be platform or app');
+}
+
+function normalizeRequiredRuntimeReleaseScopeType(value: unknown): PortalRuntimeReleaseScopeType {
+  const normalized = normalizeRuntimeReleaseScopeType(value);
+  if (!normalized) {
+    throw new HttpError(400, 'BAD_REQUEST', 'scope_type is required');
+  }
+  return normalized;
+}
+
+function normalizeRuntimeReleaseStatus(value: unknown): PortalRuntimeReleaseStatus | null {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  const normalized = normalizeRequiredString(value, 'status').toLowerCase();
+  if (normalized === 'draft' || normalized === 'published' || normalized === 'deprecated' || normalized === 'archived') {
+    return normalized;
+  }
+  throw new HttpError(400, 'BAD_REQUEST', 'status must be draft, published, deprecated, or archived');
+}
+
+function normalizeRuntimeKind(value: unknown): string {
+  return normalizeRequiredString(value, 'runtime_kind').toLowerCase();
+}
+
+function normalizeChannel(value: unknown, field = 'channel'): string {
+  return normalizeRequiredString(value, field).toLowerCase();
+}
+
+function normalizePlatform(value: unknown, field = 'platform'): string {
+  return normalizeRequiredString(value, field).toLowerCase();
+}
+
+function normalizeArch(value: unknown, field = 'arch'): string {
+  return normalizeRequiredString(value, field).toLowerCase();
+}
+
+function normalizeTargetTriple(value: unknown): string {
+  return normalizeRequiredString(value, 'target_triple');
+}
+
+function resolvePlatformArchFromTargetTriple(targetTripleInput: string): {platform: string; arch: string} | null {
+  const targetTriple = targetTripleInput.trim();
+  switch (targetTriple) {
+    case 'aarch64-apple-darwin':
+      return {platform: 'darwin', arch: 'aarch64'};
+    case 'x86_64-apple-darwin':
+      return {platform: 'darwin', arch: 'x64'};
+    case 'aarch64-pc-windows-msvc':
+      return {platform: 'windows', arch: 'aarch64'};
+    case 'x86_64-pc-windows-msvc':
+      return {platform: 'windows', arch: 'x64'};
+    case 'aarch64-unknown-linux-gnu':
+      return {platform: 'linux', arch: 'aarch64'};
+    case 'x86_64-unknown-linux-gnu':
+      return {platform: 'linux', arch: 'x64'};
+    default:
+      return null;
+  }
+}
+
+function inferTargetTripleFromText(value: string): string {
+  const raw = value.trim();
+  if (!raw) {
+    return '';
+  }
+  const candidates = [
+    'aarch64-apple-darwin',
+    'x86_64-apple-darwin',
+    'aarch64-pc-windows-msvc',
+    'x86_64-pc-windows-msvc',
+    'aarch64-unknown-linux-gnu',
+    'x86_64-unknown-linux-gnu',
+  ];
+  return candidates.find((candidate) => raw.includes(candidate)) || '';
+}
+
+function parseObjectKeyFromArtifactUrl(rawValue: string): string | null {
+  const raw = rawValue.trim();
+  if (!raw) {
+    return null;
+  }
+  try {
+    const url = new URL(raw);
+    return decodeURIComponent(url.pathname.replace(/^\/+/, '')) || null;
+  } catch {
+    return null;
+  }
+}
+
+function buildLegacyRuntimeBootstrapArtifactRecord(
+  targetTripleInput: string,
+  value: unknown,
+): PortalLegacyRuntimeBootstrapArtifactRecord | null {
+  const targetTriple = targetTripleInput.trim() || inferTargetTripleFromText(trimString(asObject(value).artifact_url));
+  if (!targetTriple) {
+    return null;
+  }
+  const platformArch = resolvePlatformArchFromTargetTriple(targetTriple);
+  if (!platformArch) {
+    return null;
+  }
+  const payload = asObject(value);
+  const artifactUrl = trimString(payload.artifact_url || payload.artifactUrl);
+  if (!artifactUrl) {
+    return null;
+  }
+  return {
+    targetTriple,
+    platform: platformArch.platform,
+    arch: platformArch.arch,
+    artifactUrl,
+    artifactSha256: trimString(payload.artifact_sha256 || payload.artifactSha256) || null,
+    artifactFormat: trimString(payload.artifact_format || payload.artifactFormat) || 'tar.gz',
+    launcherRelativePath: trimString(payload.launcher_relative_path || payload.launcherRelativePath) || null,
+    objectKey: parseObjectKeyFromArtifactUrl(artifactUrl),
+  };
+}
+
+async function readLegacyRuntimeBootstrapSource(
+  sourcePathInput?: string | null,
+): Promise<PortalLegacyRuntimeBootstrapSourceRecord> {
+  const sourcePath =
+    trimString(sourcePathInput) ||
+    trimString(process.env.ICLAW_OPENCLAW_RUNTIME_BOOTSTRAP_CONFIG_PATH) ||
+    defaultLegacyRuntimeBootstrapConfigPath;
+  let raw: PortalJsonObject;
+  try {
+    raw = JSON.parse(await readFile(sourcePath, 'utf8')) as PortalJsonObject;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'unknown read error';
+    throw new HttpError(404, 'NOT_FOUND', `runtime bootstrap config not found: ${message}`);
+  }
+  const version = trimString(raw.version);
+  if (!version) {
+    throw new HttpError(400, 'BAD_REQUEST', 'runtime bootstrap config is missing version');
+  }
+  const runtimeKind = trimString(raw.runtime_kind || raw.runtimeKind) || 'openclaw';
+  const artifacts: PortalLegacyRuntimeBootstrapArtifactRecord[] = [];
+  const artifactsByTriple = new Map<string, PortalLegacyRuntimeBootstrapArtifactRecord>();
+  const rootArtifact = buildLegacyRuntimeBootstrapArtifactRecord('', raw);
+  if (rootArtifact) {
+    artifactsByTriple.set(rootArtifact.targetTriple, rootArtifact);
+  }
+  const scopedArtifacts = asObject(raw.artifacts);
+  for (const [targetTriple, entry] of Object.entries(scopedArtifacts)) {
+    const mapped = buildLegacyRuntimeBootstrapArtifactRecord(targetTriple, entry);
+    if (!mapped) {
+      throw new HttpError(
+        400,
+        'BAD_REQUEST',
+        `runtime bootstrap artifact "${targetTriple}" is incomplete or unsupported`,
+      );
+    }
+    artifactsByTriple.set(mapped.targetTriple, mapped);
+  }
+  artifacts.push(...artifactsByTriple.values());
+  if (artifacts.length === 0) {
+    throw new HttpError(400, 'BAD_REQUEST', 'runtime bootstrap config has no importable artifacts');
+  }
+  return {
+    sourcePath,
+    version,
+    runtimeKind,
+    artifacts,
+  };
+}
+
 export class PortalService {
   private readonly store: PgPortalStore;
   private readonly authResolver: (accessToken: string) => Promise<PublicUser>;
@@ -517,6 +726,11 @@ export class PortalService {
     return {items: await this.store.listMenus()};
   }
 
+  async listRechargePackages(accessToken: string) {
+    await this.requireAdmin(accessToken);
+    return {items: await this.store.listRechargePackages()};
+  }
+
   async listComposerControls(accessToken: string) {
     await this.requireAdmin(accessToken);
     return {items: await this.store.listComposerControls()};
@@ -535,6 +749,22 @@ export class PortalService {
       category: normalizeOptionalString(input.category, 'category'),
       routeKey: normalizeOptionalString(input.routeKey, 'route_key'),
       iconKey: normalizeOptionalString(input.iconKey, 'icon_key'),
+      metadata: asObject(input.metadata),
+      active: normalizeOptionalBoolean(input.active, 'active', true),
+    });
+  }
+
+  async upsertRechargePackage(accessToken: string, input: UpsertPortalRechargePackageInput) {
+    await this.requireAdmin(accessToken);
+    return this.store.upsertRechargePackage({
+      packageId: normalizeRequiredString(input.packageId, 'package_id'),
+      packageName: normalizeRequiredString(input.packageName, 'package_name'),
+      credits: normalizePositiveInteger(input.credits, 'credits'),
+      bonusCredits: normalizeOptionalInteger(input.bonusCredits, 'bonus_credits', 0),
+      amountCnyFen: normalizePositiveInteger(input.amountCnyFen, 'amount_cny_fen'),
+      sortOrder: normalizeOptionalInteger(input.sortOrder, 'sort_order', 100),
+      recommended: normalizeOptionalBoolean(input.recommended, 'recommended', false),
+      default: normalizeOptionalBoolean(input.default, 'default', false),
       metadata: asObject(input.metadata),
       active: normalizeOptionalBoolean(input.active, 'active', true),
     });
@@ -563,6 +793,13 @@ export class PortalService {
     return {slug};
   }
 
+  async deleteRechargePackage(accessToken: string, packageIdInput: string) {
+    await this.requireAdmin(accessToken);
+    const packageId = normalizeRequiredString(packageIdInput, 'package_id');
+    await this.store.deleteRechargePackage(packageId);
+    return {packageId};
+  }
+
   async listMcps(accessToken: string) {
     await this.requireAdmin(accessToken);
     return {items: await this.store.listMcps()};
@@ -586,6 +823,266 @@ export class PortalService {
         normalizeProviderScopeType(input?.scopeType),
         normalizeOptionalString(input?.scopeKey, 'scope_key'),
       ),
+    };
+  }
+
+  async listRuntimeReleases(
+    accessToken: string,
+    input?: {
+      runtimeKind?: string | null;
+      runtime_kind?: string | null;
+      channel?: string | null;
+      platform?: string | null;
+      arch?: string | null;
+      status?: string | null;
+      limit?: number | null;
+    },
+  ) {
+    await this.requireAdmin(accessToken);
+    return {
+      items: await this.store.listRuntimeReleases({
+        runtimeKind: normalizeOptionalString(input?.runtimeKind ?? input?.runtime_kind, 'runtime_kind'),
+        channel: normalizeOptionalString(input?.channel, 'channel'),
+        platform: normalizeOptionalString(input?.platform, 'platform'),
+        arch: normalizeOptionalString(input?.arch, 'arch'),
+        status: normalizeRuntimeReleaseStatus(input?.status),
+        limit: normalizeOptionalInteger(input?.limit, 'limit', 100),
+      } satisfies ListPortalRuntimeReleasesInput),
+    };
+  }
+
+  async getLegacyRuntimeBootstrapSource(accessToken: string, input?: {sourcePath?: string | null; source_path?: string | null}) {
+    await this.requireAdmin(accessToken);
+    return readLegacyRuntimeBootstrapSource(input?.sourcePath ?? input?.source_path);
+  }
+
+  async importLegacyRuntimeBootstrapSource(
+    accessToken: string,
+    input: ImportPortalRuntimeBootstrapInput,
+  ): Promise<ImportPortalRuntimeBootstrapResult> {
+    const actor = await this.requireAdmin(accessToken);
+    const source = await readLegacyRuntimeBootstrapSource();
+    const runtimeKind = normalizeOptionalString(input.runtimeKind, 'runtime_kind') || source.runtimeKind || 'openclaw';
+    const channel = normalizeChannel(input.channel);
+    const status = normalizeRuntimeReleaseStatus(input.status) || 'published';
+    const bindScopeType = normalizeRuntimeReleaseScopeType(input.bindScopeType ?? input.bind_scope_type);
+    const bindScopeKeyInput = normalizeOptionalString(input.bindScopeKey ?? input.bind_scope_key, 'bind_scope_key');
+    const bindScopeKey =
+      bindScopeType === 'platform'
+        ? 'platform'
+        : bindScopeType === 'app'
+          ? normalizeAppName(bindScopeKeyInput)
+          : null;
+    if (bindScopeType === 'app' && !bindScopeKey) {
+      throw new HttpError(400, 'BAD_REQUEST', 'bind_scope_key is required when bind_scope_type=app');
+    }
+    if (bindScopeType === 'app' && bindScopeKey) {
+      await this.getAppDetailOrThrow(bindScopeKey);
+    }
+
+    const existingReleases = await this.store.listRuntimeReleases({
+      runtimeKind,
+      channel,
+      limit: 500,
+    });
+    const importedReleases = [];
+    const importedBindings = [];
+    for (const artifact of source.artifacts) {
+      if (!/^https?:\/\//i.test(artifact.artifactUrl)) {
+        throw new HttpError(
+          400,
+          'BAD_REQUEST',
+          `runtime bootstrap artifact for ${artifact.targetTriple} must use http(s) URL before import`,
+        );
+      }
+      const matchedExisting =
+        existingReleases.find(
+          (item) =>
+            item.version === source.version &&
+            item.targetTriple === artifact.targetTriple &&
+            item.runtimeKind === runtimeKind &&
+            item.channel === channel,
+        ) || null;
+      const release = await this.store.upsertRuntimeRelease(
+        {
+          id: matchedExisting?.id || null,
+          runtimeKind,
+          version: source.version,
+          channel,
+          platform: artifact.platform,
+          arch: artifact.arch,
+          targetTriple: artifact.targetTriple,
+          artifactType: artifact.artifactFormat || 'tar.gz',
+          storageProvider: 's3',
+          bucketName: null,
+          objectKey: artifact.objectKey,
+          artifactUrl: artifact.artifactUrl,
+          artifactSha256: artifact.artifactSha256,
+          artifactSizeBytes: null,
+          launcherRelativePath: artifact.launcherRelativePath,
+          gitCommit: null,
+          gitTag: null,
+          releaseVersion: source.version,
+          buildTime: null,
+          buildInfo: {},
+          metadata: {
+            import_source: 'legacy_runtime_bootstrap',
+            import_source_path: source.sourcePath,
+          },
+          status,
+        },
+        actor.id,
+      );
+      importedReleases.push(release);
+
+      if (bindScopeType && bindScopeKey) {
+        const binding = await this.store.upsertRuntimeReleaseBinding(
+          {
+            scopeType: bindScopeType,
+            scopeKey: bindScopeKey,
+            runtimeKind,
+            channel,
+            platform: artifact.platform,
+            arch: artifact.arch,
+            targetTriple: artifact.targetTriple,
+            releaseId: release.id,
+            enabled: true,
+            metadata: {
+              import_source: 'legacy_runtime_bootstrap',
+              import_source_path: source.sourcePath,
+            },
+            changeReason: 'imported from legacy runtime bootstrap',
+          },
+          actor.id,
+        );
+        importedBindings.push(binding);
+      }
+    }
+
+    return {
+      source: {
+        ...source,
+        runtimeKind,
+      },
+      importedReleases,
+      importedBindings,
+    };
+  }
+
+  async upsertRuntimeRelease(accessToken: string, input: UpsertPortalRuntimeReleaseInput) {
+    const actor = await this.requireAdmin(accessToken);
+    return this.store.upsertRuntimeRelease(
+      {
+        id: normalizeOptionalString(input.id, 'id'),
+        runtimeKind: normalizeRuntimeKind(input.runtimeKind),
+        version: normalizeRequiredString(input.version, 'version'),
+        channel: normalizeChannel(input.channel),
+        platform: normalizePlatform(input.platform),
+        arch: normalizeArch(input.arch),
+        targetTriple: normalizeTargetTriple(input.targetTriple),
+        artifactType: normalizeOptionalString(input.artifactType, 'artifact_type') || 'tar.gz',
+        storageProvider: normalizeOptionalString(input.storageProvider, 'storage_provider') || 's3',
+        bucketName: normalizeOptionalString(input.bucketName, 'bucket_name'),
+        objectKey: normalizeOptionalString(input.objectKey, 'object_key'),
+        artifactUrl: normalizeRequiredString(input.artifactUrl, 'artifact_url'),
+        artifactSha256: normalizeOptionalString(input.artifactSha256, 'artifact_sha256'),
+        artifactSizeBytes: normalizeNullableInteger(input.artifactSizeBytes, 'artifact_size_bytes'),
+        launcherRelativePath: normalizeOptionalString(input.launcherRelativePath, 'launcher_relative_path'),
+        gitCommit: normalizeOptionalString(input.gitCommit, 'git_commit'),
+        gitTag: normalizeOptionalString(input.gitTag, 'git_tag'),
+        releaseVersion: normalizeOptionalString(input.releaseVersion, 'release_version'),
+        buildTime: normalizeOptionalString(input.buildTime, 'build_time'),
+        buildInfo: asObject(input.buildInfo),
+        metadata: asObject(input.metadata),
+        status: normalizeRuntimeReleaseStatus(input.status) || 'draft',
+      },
+      actor.id,
+    );
+  }
+
+  async listRuntimeReleaseBindings(
+    accessToken: string,
+    input?: {
+      scopeType?: string | null;
+      scope_type?: string | null;
+      scopeKey?: string | null;
+      scope_key?: string | null;
+      runtimeKind?: string | null;
+      runtime_kind?: string | null;
+      channel?: string | null;
+      platform?: string | null;
+      arch?: string | null;
+      limit?: number | null;
+    },
+  ) {
+    await this.requireAdmin(accessToken);
+    return {
+      items: await this.store.listRuntimeReleaseBindings({
+        scopeType: normalizeRuntimeReleaseScopeType(input?.scopeType ?? input?.scope_type),
+        scopeKey: normalizeOptionalString(input?.scopeKey ?? input?.scope_key, 'scope_key'),
+        runtimeKind: normalizeOptionalString(input?.runtimeKind ?? input?.runtime_kind, 'runtime_kind'),
+        channel: normalizeOptionalString(input?.channel, 'channel'),
+        platform: normalizeOptionalString(input?.platform, 'platform'),
+        arch: normalizeOptionalString(input?.arch, 'arch'),
+        limit: normalizeOptionalInteger(input?.limit, 'limit', 200),
+      } satisfies ListPortalRuntimeReleaseBindingsInput),
+    };
+  }
+
+  async upsertRuntimeReleaseBinding(accessToken: string, input: UpsertPortalRuntimeReleaseBindingInput) {
+    const actor = await this.requireAdmin(accessToken);
+    const scopeType = normalizeRequiredRuntimeReleaseScopeType(input.scopeType);
+    const scopeKey =
+      scopeType === 'platform'
+        ? 'platform'
+        : normalizeAppName(input.scopeKey);
+    return this.store.upsertRuntimeReleaseBinding(
+      {
+        id: normalizeOptionalString(input.id, 'id'),
+        scopeType,
+        scopeKey,
+        runtimeKind: normalizeRuntimeKind(input.runtimeKind),
+        channel: normalizeChannel(input.channel),
+        platform: normalizePlatform(input.platform),
+        arch: normalizeArch(input.arch),
+        targetTriple: normalizeTargetTriple(input.targetTriple),
+        releaseId: normalizeRequiredString(input.releaseId, 'release_id'),
+        enabled: normalizeOptionalBoolean(input.enabled, 'enabled', true),
+        metadata: asObject(input.metadata),
+        changeReason: normalizeOptionalString(input.changeReason, 'change_reason'),
+      },
+      actor.id,
+    );
+  }
+
+  async listRuntimeReleaseBindingHistory(
+    accessToken: string,
+    input?: {
+      bindingId?: string | null;
+      binding_id?: string | null;
+      scopeType?: string | null;
+      scope_type?: string | null;
+      scopeKey?: string | null;
+      scope_key?: string | null;
+      runtimeKind?: string | null;
+      runtime_kind?: string | null;
+      channel?: string | null;
+      targetTriple?: string | null;
+      target_triple?: string | null;
+      limit?: number | null;
+    },
+  ) {
+    await this.requireAdmin(accessToken);
+    return {
+      items: await this.store.listRuntimeReleaseBindingHistory({
+        bindingId: normalizeOptionalString(input?.bindingId ?? input?.binding_id, 'binding_id'),
+        scopeType: normalizeRuntimeReleaseScopeType(input?.scopeType ?? input?.scope_type),
+        scopeKey: normalizeOptionalString(input?.scopeKey ?? input?.scope_key, 'scope_key'),
+        runtimeKind: normalizeOptionalString(input?.runtimeKind ?? input?.runtime_kind, 'runtime_kind'),
+        channel: normalizeOptionalString(input?.channel, 'channel'),
+        targetTriple: normalizeOptionalString(input?.targetTriple ?? input?.target_triple, 'target_triple'),
+        limit: normalizeOptionalInteger(input?.limit, 'limit', 100),
+      } satisfies ListPortalRuntimeReleaseBindingHistoryInput),
     };
   }
 
@@ -877,6 +1374,20 @@ export class PortalService {
     return resolved;
   }
 
+  async getResolvedRuntimeRelease(appNameInput: string, input: ResolvePortalRuntimeReleaseInput) {
+    const appName = normalizeAppName(appNameInput);
+    const resolved = await this.store.resolveRuntimeRelease(appName, {
+      runtimeKind: normalizeOptionalString(input.runtimeKind, 'runtime_kind') || 'openclaw',
+      channel: normalizeChannel(input.channel),
+      platform: normalizePlatform(input.platform),
+      arch: normalizeArch(input.arch),
+    });
+    if (!resolved) {
+      throw new HttpError(404, 'NOT_FOUND', 'runtime release not found');
+    }
+    return resolved;
+  }
+
   async getPrivateRuntimeConfig(
     accessToken: string,
     appNameInput: string,
@@ -962,6 +1473,27 @@ export class PortalService {
       };
     });
     return {items: await this.store.replaceAppMenuBindings(appName, items, actor.id)};
+  }
+
+  async replaceAppRechargePackages(
+    accessToken: string,
+    appNameInput: string,
+    itemsInput: ReplacePortalAppRechargePackageBindingsInput,
+  ) {
+    const actor = await this.requireAdmin(accessToken);
+    const appName = normalizeAppName(appNameInput);
+    const items = asArray(itemsInput).map((item, index) => {
+      const value = asObject(item);
+      return {
+        packageId: normalizeRequiredString(value.packageId, 'packageId'),
+        enabled: normalizeOptionalBoolean(value.enabled, 'enabled', true),
+        sortOrder: normalizeOptionalInteger(value.sortOrder, 'sortOrder', (index + 1) * 10),
+        recommended: normalizeOptionalBoolean(value.recommended, 'recommended', false),
+        default: normalizeOptionalBoolean(value.default, 'default', false),
+        config: normalizeBindingConfig(value.config),
+      };
+    });
+    return {items: await this.store.replaceAppRechargePackageBindings(appName, items, actor.id)};
   }
 
   async replaceAppComposerControls(
@@ -1368,13 +1900,14 @@ export class PortalService {
     if (!detail) {
       throw new HttpError(404, 'NOT_FOUND', 'portal app not found');
     }
-    const [platformSkills, platformMcps, cloudMcps, menus, composerControls, composerShortcuts] = await Promise.all([
+    const [platformSkills, platformMcps, cloudMcps, menus, composerControls, composerShortcuts, rechargePackages] = await Promise.all([
       this.store.listSkills(),
       this.store.listMcps(),
       this.store.listCloudMcps(),
       this.store.listMenus(),
       this.store.listComposerControls(),
       this.store.listComposerShortcuts(),
+      this.store.listRechargePackages(),
     ]);
     const publicConfig = buildPortalPublicConfig({
       ...detail,
@@ -1385,6 +1918,7 @@ export class PortalService {
       menuCatalog: menus,
       composerControlCatalog: composerControls,
       composerShortcutCatalog: composerShortcuts,
+      rechargePackageCatalog: rechargePackages,
       assetUrlResolver: (asset) =>
         normalizePersistedPortalAssetUrl(asset.publicUrl, baseUrl) ||
         `${baseUrl.replace(/\/$/, '')}/portal/asset/file?app_name=${encodeURIComponent(appName)}&asset_key=${encodeURIComponent(asset.assetKey)}`,

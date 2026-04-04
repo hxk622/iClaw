@@ -5,6 +5,7 @@ import type {
   PortalComposerShortcutRecord,
   PortalJsonObject,
   PortalMenuRecord,
+  PortalRechargePackageRecord,
 } from './portal-domain.ts';
 import {stripPortalDesktopReleaseConfig} from './portal-desktop-release.ts';
 
@@ -70,6 +71,7 @@ export function buildPortalPublicConfig(
     menuCatalog?: PortalMenuRecord[];
     composerControlCatalog?: PortalComposerControlRecord[];
     composerShortcutCatalog?: PortalComposerShortcutRecord[];
+    rechargePackageCatalog?: PortalRechargePackageRecord[];
     assetUrlResolver?: (asset: PortalAppAssetRecord) => string | null;
   } = {},
 ): {
@@ -104,10 +106,13 @@ export function buildPortalPublicConfig(
   const menuCatalog = Array.isArray(options.menuCatalog) ? options.menuCatalog : [];
   const composerControlCatalog = Array.isArray(options.composerControlCatalog) ? options.composerControlCatalog : [];
   const composerShortcutCatalog = Array.isArray(options.composerShortcutCatalog) ? options.composerShortcutCatalog : [];
+  const rechargePackageCatalog = Array.isArray(options.rechargePackageCatalog) ? options.rechargePackageCatalog : [];
   const surfaceKey = typeof options.surfaceKey === 'string' ? options.surfaceKey.trim() : '';
   const surfaces = asObject(existingConfig.surfaces);
   const inputSurface = asObject(surfaces.input);
   const inputSurfaceConfig = asObject(inputSurface.config);
+  const rechargeSurface = asObject(surfaces.recharge);
+  const rechargeSurfaceConfig = asObject(rechargeSurface.config);
 
   const skillBindings = detail.skillBindings
     .filter((item) => item.enabled)
@@ -223,16 +228,72 @@ export function buildPortalPublicConfig(
       };
     })
     .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const platformRechargePackages = rechargePackageCatalog
+    .filter((item) => item.active !== false)
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.packageId.localeCompare(right.packageId, 'zh-CN'));
+  const enabledRechargeBindings = detail.rechargePackageBindings
+    .filter((item) => item.enabled)
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.packageId.localeCompare(right.packageId, 'zh-CN'));
+  const hasAppRechargeBindings = enabledRechargeBindings.length > 0;
+  const publicRechargePackages = (hasAppRechargeBindings
+    ? enabledRechargeBindings
+        .map((binding) => {
+          const catalog = platformRechargePackages.find((item) => item.packageId === binding.packageId);
+          if (!catalog) return null;
+          return {
+            package_id: catalog.packageId,
+            package_name: catalog.packageName,
+            credits: catalog.credits,
+            bonus_credits: catalog.bonusCredits,
+            total_credits: catalog.credits + catalog.bonusCredits,
+            amount_cny_fen: catalog.amountCnyFen,
+            sort_order: binding.sortOrder,
+            recommended: binding.recommended === true,
+            is_default: binding.default === true,
+            metadata: {
+              ...cloneJson(catalog.metadata),
+              ...cloneJson(binding.config),
+              source_layer: 'oem_binding',
+            },
+          };
+        })
+        .filter((item): item is NonNullable<typeof item> => Boolean(item))
+    : platformRechargePackages.map((item) => ({
+        package_id: item.packageId,
+        package_name: item.packageName,
+        credits: item.credits,
+        bonus_credits: item.bonusCredits,
+        total_credits: item.credits + item.bonusCredits,
+        amount_cny_fen: item.amountCnyFen,
+        sort_order: item.sortOrder,
+        recommended: item.recommended,
+        is_default: item.default,
+        metadata: {
+          ...cloneJson(item.metadata),
+          source_layer: 'platform_catalog',
+        },
+      })))
+    .sort((left, right) => left.sort_order - right.sort_order || left.package_id.localeCompare(right.package_id, 'zh-CN'));
   const nextInputSurfaceConfig = {
     ...inputSurfaceConfig,
     top_bar_controls: publicComposerControls,
     footer_shortcuts: publicComposerShortcuts,
+  };
+  const nextRechargeSurfaceConfig = {
+    ...rechargeSurfaceConfig,
+    packages: publicRechargePackages,
+    source_layer: hasAppRechargeBindings ? 'oem_binding' : 'platform_catalog',
   };
   const resolvedSurfaces: PortalJsonObject = {
     ...surfaces,
     input: {
       ...inputSurface,
       config: nextInputSurfaceConfig,
+    },
+    recharge: {
+      ...rechargeSurface,
+      enabled: rechargeSurface.enabled !== false,
+      config: nextRechargeSurfaceConfig,
     },
   };
   const surfaceEntry = surfaceKey ? asObject(resolvedSurfaces[surfaceKey]) : null;
@@ -281,6 +342,25 @@ export function buildPortalPublicConfig(
       menu_catalog: publicMenuCatalog,
       composer_control_bindings: publicComposerControls,
       composer_shortcut_bindings: publicComposerShortcuts,
+      recharge_package_catalog: platformRechargePackages.map((item) => ({
+        package_id: item.packageId,
+        package_name: item.packageName,
+        credits: item.credits,
+        bonus_credits: item.bonusCredits,
+        total_credits: item.credits + item.bonusCredits,
+        amount_cny_fen: item.amountCnyFen,
+        sort_order: item.sortOrder,
+        recommended: item.recommended,
+        is_default: item.default,
+        metadata: cloneJson(item.metadata),
+      })),
+      recharge_package_bindings: enabledRechargeBindings.map((item) => ({
+        package_id: item.packageId,
+        sort_order: item.sortOrder,
+        recommended: item.recommended,
+        is_default: item.default,
+        config: cloneJson(item.config),
+      })),
     },
     surfaceKey: surfaceKey || null,
     surfaceConfig: surfaceEntry ? asObject(surfaceEntry.config) : null,

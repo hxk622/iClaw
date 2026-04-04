@@ -95,6 +95,29 @@ test('normalizes openai-compatible provider baseUrl to include /v1 when missing'
   }
 });
 
+test('honors default_model_ref even when it is not the first enabled provider model', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'iclaw-runtime-config-default-model-test-'));
+  try {
+    const runtimeFixture = readFixture('runtime-config.fixture.json');
+    const snapshotFixture = readFixture('oem-runtime-snapshot.fixture.json');
+    snapshotFixture.config.model_provider.profile.metadata = {
+      ...(snapshotFixture.config.model_provider.profile.metadata || {}),
+      default_model_ref: 'deepseek/deepseek-v3.2',
+    };
+    const actual = runGenerator({
+      ICLAW_OPENCLAW_RUNTIME_CONFIG_PATH: writeTempJson(tempDir, 'runtime-config.fixture.json', runtimeFixture),
+      ICLAW_OPENCLAW_OEM_RUNTIME_SNAPSHOT_PATH: writeTempJson(tempDir, 'oem-runtime-snapshot.fixture.json', snapshotFixture),
+      ICLAW_OPENCLAW_GATEWAY_TOKEN: 'default-model-test-token',
+      ICLAW_OPENCLAW_WORKSPACE_DIR: '/tmp/iclaw-default-model-workspace',
+      ICLAW_OPENCLAW_RUNTIME_MODE: 'prod',
+      ICLAW_OPENCLAW_ALLOWED_ORIGINS: 'tauri://localhost,http://tauri.localhost,https://tauri.localhost',
+    });
+    assert.equal(actual.agents.defaults.model.primary, 'deepseek/deepseek-v3.2');
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test('fails fast when memory embedding is configured without an api key', () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'iclaw-runtime-config-memory-key-test-'));
   try {

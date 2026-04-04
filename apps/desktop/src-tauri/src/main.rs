@@ -21,7 +21,8 @@ use std::net::TcpListener;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
-use std::sync::Mutex;
+use std::sync::{mpsc, Mutex};
+use std::thread;
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{
@@ -63,6 +64,7 @@ const AUTH_GATEWAY_TOKEN_KEY: &str = "gateway_token";
 const SHARED_GATEWAY_TOKEN_DIR: &str = ".openclaw";
 const SHARED_GATEWAY_TOKEN_FILE: &str = "gateway-token";
 const DESKTOP_UPDATER_PUBLIC_KEY: Option<&str> = option_env!("TAURI_UPDATER_PUBLIC_KEY");
+const MEMORY_RUNTIME_STATUS_TIMEOUT_MS: u64 = 2500;
 
 #[derive(Serialize, Deserialize, Clone)]
 struct RuntimeConfig {
@@ -5879,6 +5881,26 @@ fn load_desktop_memory_runtime_status(
     })
 }
 
+fn load_desktop_memory_runtime_status_with_timeout(
+    app: &AppHandle,
+) -> Result<DesktopMemoryRuntimeStatus, String> {
+    let (sender, receiver) = mpsc::channel();
+    let app_handle = app.clone();
+    thread::spawn(move || {
+        let result = load_desktop_memory_runtime_status(&app_handle);
+        let _ = sender.send(result);
+    });
+
+    receiver
+        .recv_timeout(Duration::from_millis(MEMORY_RUNTIME_STATUS_TIMEOUT_MS))
+        .map_err(|_| {
+            format!(
+                "memory status timed out after {}ms",
+                MEMORY_RUNTIME_STATUS_TIMEOUT_MS
+            )
+        })?
+}
+
 fn write_workspace_files(
     workspace_dir: &Path,
     identity_md: &str,
@@ -6178,7 +6200,7 @@ fn load_memory_snapshot(app: AppHandle) -> Result<DesktopMemorySnapshot, String>
     let archive_dir = desktop_memory_archive_dir(&app)?
         .to_string_lossy()
         .to_string();
-    match load_desktop_memory_runtime_status(&app) {
+    match load_desktop_memory_runtime_status_with_timeout(&app) {
         Ok(runtime_status) => Ok(DesktopMemorySnapshot {
             entries,
             runtime_status: Some(runtime_status),

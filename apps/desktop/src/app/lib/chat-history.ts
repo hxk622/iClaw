@@ -16,6 +16,7 @@ export type ChatSessionSnapshot = {
 
 const CHAT_SESSION_SNAPSHOT_PREFIX = 'iclaw.chat.session.v1';
 const CHAT_CONVERSATION_SNAPSHOT_PREFIX = 'iclaw.chat.conversation.v1';
+const HANDOFF_RECENT_MESSAGE_GROUP_LIMIT = 8;
 
 function normalizeText(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
@@ -42,6 +43,32 @@ function normalizeSnapshot(
     messages: snapshot.messages,
     pendingUsageSettlements: Array.isArray(snapshot.pendingUsageSettlements) ? snapshot.pendingUsageSettlements : [],
   };
+}
+
+function readSessionSnapshot(appName: string, sessionKey: string): ChatSessionSnapshot | null {
+  return normalizeSnapshot(readCacheJson<ChatSessionSnapshot>(buildChatSessionSnapshotStorageKey(appName, sessionKey)), sessionKey);
+}
+
+function readConversationSnapshot(
+  appName: string,
+  sessionKey: string,
+  conversationId?: string | null,
+): ChatSessionSnapshot | null {
+  return normalizeSnapshot(
+    typeof conversationId === 'string' && conversationId.trim()
+      ? readCacheJson<ChatSessionSnapshot>(buildChatConversationSnapshotStorageKey(appName, conversationId))
+      : null,
+    sessionKey,
+  );
+}
+
+function writeSessionSnapshot(appName: string, sessionKey: string, snapshot: ChatSessionSnapshot | null): void {
+  const sessionStorageKey = buildChatSessionSnapshotStorageKey(appName, sessionKey);
+  if (!snapshot || snapshot.messages.length === 0) {
+    removeCacheKeys([sessionStorageKey]);
+    return;
+  }
+  writeCacheJson(sessionStorageKey, normalizeSnapshot(snapshot, sessionKey));
 }
 
 function buildSnapshotContentSignature(snapshot: ChatSessionSnapshot | null): string | null {
@@ -165,6 +192,57 @@ function messageHasBoundaryId(message: unknown, boundaryId: string): boolean {
   );
 }
 
+function getRenderableMessageRole(message: unknown): 'user' | 'assistant' | null {
+  const normalized = normalizeMessage(message);
+  const role = normalizeRoleForGrouping(normalized.role);
+  return role === 'user' || role === 'assistant' ? role : null;
+}
+
+export function countRenderableMessageGroups(messages: unknown[]): number {
+  let groups = 0;
+  let previousRole: 'user' | 'assistant' | null = null;
+
+  messages.forEach((message) => {
+    const role = getRenderableMessageRole(message);
+    if (!role) {
+      return;
+    }
+    if (role !== previousRole) {
+      groups += 1;
+      previousRole = role;
+    }
+  });
+
+  return groups;
+}
+
+function sliceRecentRenderableMessageGroups(messages: unknown[], maxGroups: number): unknown[] {
+  if (maxGroups <= 0 || messages.length === 0) {
+    return [];
+  }
+
+  let groups = 0;
+  let currentRole: 'user' | 'assistant' | null = null;
+  let startIndex = messages.length;
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const role = getRenderableMessageRole(messages[index]);
+    if (!role) {
+      continue;
+    }
+    if (role !== currentRole) {
+      groups += 1;
+      currentRole = role;
+      if (groups > maxGroups) {
+        break;
+      }
+    }
+    startIndex = index;
+  }
+
+  return messages.slice(startIndex);
+}
+
 function readLatestRoleText(messages: unknown[], role: 'user' | 'assistant'): string | null {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const normalized = normalizeMessage(messages[index]);
@@ -205,19 +283,11 @@ export function readStoredChatSnapshot(params: {
   sessionKey: string;
   conversationId?: string | null;
 }): ChatSessionSnapshot | null {
-  const sessionSnapshot = normalizeSnapshot(
-    readCacheJson<ChatSessionSnapshot>(buildChatSessionSnapshotStorageKey(params.appName, params.sessionKey)),
-    params.sessionKey,
-  );
-  const conversationSnapshot = normalizeSnapshot(
-    typeof params.conversationId === 'string' && params.conversationId.trim()
-      ? readCacheJson<ChatSessionSnapshot>(
-          buildChatConversationSnapshotStorageKey(params.appName, params.conversationId),
-        )
-      : null,
-    params.sessionKey,
-  );
-  return choosePreferredSnapshot(sessionSnapshot, conversationSnapshot);
+  const sessionSnapshot = readSessionSnapshot(params.appName, params.sessionKey);
+  if (sessionSnapshot) {
+    return sessionSnapshot;
+  }
+  return readConversationSnapshot(params.appName, params.sessionKey, params.conversationId);
 }
 
 export function writeStoredChatSnapshot(params: {
@@ -321,7 +391,9 @@ export function hydrateChatSnapshotForRender(params: {
   sessionKey: string;
   conversationId?: string | null;
 }): ChatSessionSnapshot | null {
-  const snapshot = readStoredChatSnapshot(params);
+  const sessionSnapshot = readSessionSnapshot(params.appName, params.sessionKey);
+  const conversationSnapshot = readConversationSnapshot(params.appName, params.sessionKey, params.conversationId);
+  const snapshot = sessionSnapshot ?? conversationSnapshot;
   if (!snapshot || !params.conversationId) {
     return snapshot;
   }
@@ -335,28 +407,29 @@ export function hydrateChatSnapshotForRender(params: {
   if (!latestHandoff) {
     return snapshot;
   }
-  if (snapshot.messages.some((message) => messageHasBoundaryId(message, latestHandoff.id))) {
-    return snapshot;
+
+  const hasBoundary = snapshot.messages.some((message) => messageHasBoundaryId(message, latestHandoff.id));
+  const groupCount = countRenderableMessageGroups(snapshot.messages);
+  if (sessionSnapshot && hasBoundary && groupCount <= HANDOFF_RECENT_MESSAGE_GROUP_LIMIT + 1) {
+    return sessionSnapshot;
   }
 
-  const withBoundary: ChatSessionSnapshot = {
+  const compactedSnapshot: ChatSessionSnapshot = {
     ...snapshot,
     messages: [
-      ...snapshot.messages,
       buildConversationBoundaryMessage({
         boundaryId: latestHandoff.id,
         summary: normalizeText(latestHandoff.summary),
         timestamp: Date.parse(latestHandoff.createdAt) || snapshot.savedAt || Date.now(),
       }),
+      ...sliceRecentRenderableMessageGroups(
+        snapshot.messages.filter((message) => !messageHasBoundaryId(message, latestHandoff.id)),
+        HANDOFF_RECENT_MESSAGE_GROUP_LIMIT,
+      ),
     ],
   };
 
-  writeStoredChatSnapshot({
-    appName: params.appName,
-    sessionKey: params.sessionKey,
-    conversationId: params.conversationId,
-    snapshot: withBoundary,
-  });
+  writeSessionSnapshot(params.appName, params.sessionKey, compactedSnapshot);
 
-  return withBoundary;
+  return compactedSnapshot;
 }

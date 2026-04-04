@@ -1,3 +1,8 @@
+import type {
+  AppRechargePackageBindingRecord,
+  RechargePackageCatalogRecord,
+} from './recharge-packages.ts';
+
 export type PortalJsonObject = Record<string, unknown>;
 
 export type PortalAppStatus = 'active' | 'disabled';
@@ -198,6 +203,8 @@ export type PortalComposerShortcutRecord = {
   updatedAt: string;
 };
 
+export type PortalRechargePackageRecord = RechargePackageCatalogRecord;
+
 export type PortalAppSkillBindingRecord = {
   appName: string;
   skillSlug: string;
@@ -246,6 +253,8 @@ export type PortalAppComposerShortcutBindingRecord = {
   sortOrder: number;
   config: PortalJsonObject;
 };
+
+export type PortalAppRechargePackageBindingRecord = AppRechargePackageBindingRecord;
 
 export type PortalAppAssetRecord = {
   id: string;
@@ -303,6 +312,7 @@ export type PortalAppDetail = {
   menuBindings: PortalAppMenuBindingRecord[];
   composerControlBindings: PortalAppComposerControlBindingRecord[];
   composerShortcutBindings: PortalAppComposerShortcutBindingRecord[];
+  rechargePackageBindings: PortalAppRechargePackageBindingRecord[];
   assets: PortalAppAssetRecord[];
   releases: PortalAppReleaseRecord[];
   audit: PortalAppAuditRecord[];
@@ -432,6 +442,19 @@ export type UpsertPortalMenuInput = {
   active?: boolean;
 };
 
+export type UpsertPortalRechargePackageInput = {
+  packageId: string;
+  packageName: string;
+  credits: number;
+  bonusCredits?: number;
+  amountCnyFen: number;
+  sortOrder?: number;
+  recommended?: boolean;
+  default?: boolean;
+  metadata?: PortalJsonObject;
+  active?: boolean;
+};
+
 export type UpsertPortalComposerControlInput = {
   controlKey: string;
   displayName: string;
@@ -501,6 +524,15 @@ export type ReplacePortalAppComposerShortcutBindingsInput = Array<{
   shortcutKey: string;
   enabled?: boolean;
   sortOrder?: number;
+  config?: PortalJsonObject;
+}>;
+
+export type ReplacePortalAppRechargePackageBindingsInput = Array<{
+  packageId: string;
+  enabled?: boolean;
+  sortOrder?: number;
+  recommended?: boolean;
+  default?: boolean;
   config?: PortalJsonObject;
 }>;
 

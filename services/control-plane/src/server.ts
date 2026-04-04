@@ -54,8 +54,14 @@ import type {
   UpsertPortalMenuInput,
   UpsertPortalModelProviderProfileInput,
   UpsertPortalMcpInput,
+  UpsertPortalRechargePackageInput,
   UpsertPortalSkillInput,
 } from './portal-domain.ts';
+import type {
+  ImportPortalRuntimeBootstrapInput,
+  UpsertPortalRuntimeReleaseBindingInput,
+  UpsertPortalRuntimeReleaseInput,
+} from './runtime-release-domain.ts';
 import {PgPortalStore} from './portal-store.ts';
 import {PortalService} from './portal-service.ts';
 import {mergePlatformSkillBindings} from './platform-inheritance.ts';
@@ -1454,6 +1460,11 @@ const server = createJsonServer([
   },
   {
     method: 'GET',
+    path: '/admin/portal/catalog/recharge-packages',
+    handler: ({headers}: HandlerContext) => portalService.listRechargePackages(requireBearerToken(headers)),
+  },
+  {
+    method: 'GET',
     path: '/admin/portal/catalog/composer-controls',
     handler: ({headers}: HandlerContext) => portalService.listComposerControls(requireBearerToken(headers)),
   },
@@ -1481,10 +1492,25 @@ const server = createJsonServer([
       } as UpsertPortalMenuInput),
   },
   {
+    method: 'PUT',
+    path: '/admin/portal/catalog/recharge-packages/:packageId',
+    handler: ({headers, params, body}: HandlerContext) =>
+      portalService.upsertRechargePackage(requireBearerToken(headers), {
+        ...((body || {}) as Record<string, unknown>),
+        packageId: params.packageId || '',
+      } as UpsertPortalRechargePackageInput),
+  },
+  {
     method: 'DELETE',
     path: '/admin/portal/catalog/skills/:slug',
     handler: ({headers, params}: HandlerContext) =>
       portalService.deleteSkill(requireBearerToken(headers), params.slug || ''),
+  },
+  {
+    method: 'DELETE',
+    path: '/admin/portal/catalog/recharge-packages/:packageId',
+    handler: ({headers, params}: HandlerContext) =>
+      portalService.deleteRechargePackage(requireBearerToken(headers), params.packageId || ''),
   },
   {
     method: 'GET',
@@ -1612,6 +1638,12 @@ const server = createJsonServer([
   },
   {
     method: 'PUT',
+    path: '/admin/portal/apps/:appName/recharge-packages',
+    handler: ({headers, params, body}: HandlerContext) =>
+      portalService.replaceAppRechargePackages(requireBearerToken(headers), params.appName || '', (body || []) as never),
+  },
+  {
+    method: 'PUT',
     path: '/admin/portal/apps/:appName/composer-controls',
     handler: ({headers, params, body}: HandlerContext) =>
       portalService.replaceAppComposerControls(requireBearerToken(headers), params.appName || '', (body || []) as never),
@@ -1650,6 +1682,77 @@ const server = createJsonServer([
     path: '/admin/portal/apps/:appName/assets/:assetKey',
     handler: ({headers, params}: HandlerContext) =>
       portalService.deleteAsset(requireBearerToken(headers), params.appName || '', params.assetKey || ''),
+  },
+  {
+    method: 'GET',
+    path: '/admin/portal/runtime-releases',
+    handler: ({headers, url}: HandlerContext) =>
+      portalService.listRuntimeReleases(requireBearerToken(headers), {
+        runtime_kind: (url.searchParams.get('runtime_kind') || '').trim() || null,
+        channel: (url.searchParams.get('channel') || '').trim() || null,
+        platform: (url.searchParams.get('platform') || '').trim() || null,
+        arch: (url.searchParams.get('arch') || '').trim() || null,
+        status: (url.searchParams.get('status') || '').trim() || null,
+        limit: url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : null,
+      }),
+  },
+  {
+    method: 'GET',
+    path: '/admin/portal/runtime-bootstrap-source',
+    handler: ({headers}: HandlerContext) =>
+      portalService.getLegacyRuntimeBootstrapSource(requireBearerToken(headers)),
+  },
+  {
+    method: 'POST',
+    path: '/admin/portal/runtime-bootstrap-source/import',
+    handler: ({headers, body}: HandlerContext) =>
+      portalService.importLegacyRuntimeBootstrapSource(
+        requireBearerToken(headers),
+        (body || {}) as ImportPortalRuntimeBootstrapInput,
+      ),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/portal/runtime-releases',
+    handler: ({headers, body}: HandlerContext) =>
+      portalService.upsertRuntimeRelease(requireBearerToken(headers), (body || {}) as UpsertPortalRuntimeReleaseInput),
+  },
+  {
+    method: 'GET',
+    path: '/admin/portal/runtime-bindings',
+    handler: ({headers, url}: HandlerContext) =>
+      portalService.listRuntimeReleaseBindings(requireBearerToken(headers), {
+        scope_type: (url.searchParams.get('scope_type') || '').trim() || null,
+        scope_key: (url.searchParams.get('scope_key') || '').trim() || null,
+        runtime_kind: (url.searchParams.get('runtime_kind') || '').trim() || null,
+        channel: (url.searchParams.get('channel') || '').trim() || null,
+        platform: (url.searchParams.get('platform') || '').trim() || null,
+        arch: (url.searchParams.get('arch') || '').trim() || null,
+        limit: url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : null,
+      }),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/portal/runtime-bindings',
+    handler: ({headers, body}: HandlerContext) =>
+      portalService.upsertRuntimeReleaseBinding(
+        requireBearerToken(headers),
+        (body || {}) as UpsertPortalRuntimeReleaseBindingInput,
+      ),
+  },
+  {
+    method: 'GET',
+    path: '/admin/portal/runtime-binding-history',
+    handler: ({headers, url}: HandlerContext) =>
+      portalService.listRuntimeReleaseBindingHistory(requireBearerToken(headers), {
+        binding_id: (url.searchParams.get('binding_id') || '').trim() || null,
+        scope_type: (url.searchParams.get('scope_type') || '').trim() || null,
+        scope_key: (url.searchParams.get('scope_key') || '').trim() || null,
+        runtime_kind: (url.searchParams.get('runtime_kind') || '').trim() || null,
+        channel: (url.searchParams.get('channel') || '').trim() || null,
+        target_triple: (url.searchParams.get('target_triple') || '').trim() || null,
+        limit: url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : null,
+      }),
   },
   {
     method: 'PUT',
@@ -1718,6 +1821,17 @@ const server = createJsonServer([
     path: '/portal/runtime/memory-embedding',
     handler: ({url}: HandlerContext) =>
       portalService.getResolvedMemoryEmbedding((url.searchParams.get('app_name') || '').trim()),
+  },
+  {
+    method: 'GET',
+    path: '/portal/runtime/release',
+    handler: ({url}: HandlerContext) =>
+      portalService.getResolvedRuntimeRelease((url.searchParams.get('app_name') || '').trim(), {
+        runtimeKind: (url.searchParams.get('runtime_kind') || '').trim() || null,
+        channel: (url.searchParams.get('channel') || '').trim() || null,
+        platform: (url.searchParams.get('platform') || '').trim() || null,
+        arch: (url.searchParams.get('arch') || '').trim() || null,
+      }),
   },
   {
     method: 'GET',

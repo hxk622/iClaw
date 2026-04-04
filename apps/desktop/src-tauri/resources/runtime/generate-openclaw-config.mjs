@@ -167,6 +167,9 @@ function extractResolvedProviderConfig(snapshot, bundledSnapshot = null) {
         ? trimString(bundledProfile.api_key || bundledProfile.apiKey)
         : ''),
     authMode: trimString(profile.auth_mode || profile.authMode) || 'bearer',
+    defaultModelRef:
+      trimString(asObject(profile.metadata).default_model_ref || asObject(profile.metadata).defaultModelRef) ||
+      trimString(asObject(asObject(rootConfig.capabilities).models).default),
     models,
   };
 }
@@ -250,7 +253,10 @@ function main() {
   if (resolvedMemoryEmbeddingConfig && !resolvedMemoryEmbeddingConfig.apiKey) {
     throw new Error('Missing memory embedding API key. Configure Memory Center before launching OpenClaw.');
   }
-  const activeModelRef = resolvedProviderConfig.models[0]?.modelRef || '';
+  const preferredModelRef = trimString(resolvedProviderConfig.defaultModelRef);
+  const activeModelRef = resolvedProviderConfig.models.find((entry) => entry.modelRef === preferredModelRef)?.modelRef ||
+    resolvedProviderConfig.models[0]?.modelRef ||
+    '';
   const allowlistModelRefs = resolvedProviderConfig.models.map((entry) => entry.modelRef).filter(Boolean);
   const mergedAllowedOrigins = parseAllowedOrigins(mode, process.env.ICLAW_OPENCLAW_ALLOWED_ORIGINS);
   sanitizeLegacySkillEntries(config);

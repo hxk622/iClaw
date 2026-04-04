@@ -3,6 +3,17 @@ import {randomUUID} from 'node:crypto';
 import {Pool, type PoolClient} from 'pg';
 import {HttpError} from './errors.ts';
 import {createPgPool} from './pg-connection.ts';
+import type {
+  ListPortalRuntimeReleaseBindingHistoryInput,
+  ListPortalRuntimeReleaseBindingsInput,
+  ListPortalRuntimeReleasesInput,
+  PortalResolvedRuntimeReleaseResult,
+  PortalRuntimeReleaseBindingHistoryRecord,
+  PortalRuntimeReleaseBindingRecord,
+  PortalRuntimeReleaseRecord,
+  UpsertPortalRuntimeReleaseBindingInput,
+  UpsertPortalRuntimeReleaseInput,
+} from './runtime-release-domain.ts';
 
 import type {
   PortalAppModelProviderMode,
@@ -15,6 +26,7 @@ import type {
   PortalAppModelBindingRecord,
   PortalAppMcpBindingRecord,
   PortalAppMenuBindingRecord,
+  PortalAppRechargePackageBindingRecord,
   PortalAppRecord,
   PortalAppReleaseRecord,
   PortalAppSkillBindingRecord,
@@ -31,12 +43,14 @@ import type {
   PortalModelRecord,
   PortalMenuRecord,
   PortalMcpRecord,
+  PortalRechargePackageRecord,
   PortalSkillRecord,
   ReplacePortalAppComposerControlBindingsInput,
   ReplacePortalAppComposerShortcutBindingsInput,
   ReplacePortalAppModelBindingsInput,
   ReplacePortalAppMcpBindingsInput,
   ReplacePortalAppMenuBindingsInput,
+  ReplacePortalAppRechargePackageBindingsInput,
   ReplacePortalAppSkillBindingsInput,
   UpsertPortalAppInput,
   UpsertPortalComposerControlInput,
@@ -47,6 +61,7 @@ import type {
   UpsertPortalModelProviderProfileInput,
   UpsertPortalMenuInput,
   UpsertPortalMcpInput,
+  UpsertPortalRechargePackageInput,
   UpsertPortalSkillInput,
 } from './portal-domain.ts';
 
@@ -119,6 +134,21 @@ type PortalMenuRow = {
   category: string | null;
   route_key: string | null;
   icon_key: string | null;
+  metadata_json: Record<string, unknown> | null;
+  active: boolean;
+  created_at: Date;
+  updated_at: Date;
+};
+
+type PortalRechargePackageRow = {
+  package_id: string;
+  package_name: string;
+  credits: string | number;
+  bonus_credits: string | number;
+  amount_cny_fen: number;
+  sort_order: number;
+  recommended: boolean;
+  is_default: boolean;
   metadata_json: Record<string, unknown> | null;
   active: boolean;
   created_at: Date;
@@ -288,6 +318,16 @@ type PortalComposerShortcutBindingRow = {
   config_json: Record<string, unknown> | null;
 };
 
+type PortalRechargePackageBindingRow = {
+  app_name: string;
+  package_id: string;
+  enabled: boolean;
+  sort_order: number;
+  recommended: boolean;
+  is_default: boolean;
+  config_json: Record<string, unknown> | null;
+};
+
 type PortalAssetRow = {
   id: string;
   app_name: string;
@@ -337,6 +377,70 @@ type PortalAuditRow = {
   created_at: Date;
 };
 
+type PortalRuntimeReleaseRow = {
+  id: string;
+  runtime_kind: string;
+  version: string;
+  channel: string;
+  platform: string;
+  arch: string;
+  target_triple: string;
+  artifact_type: string;
+  storage_provider: string;
+  bucket_name: string | null;
+  object_key: string | null;
+  artifact_url: string;
+  artifact_sha256: string | null;
+  artifact_size_bytes: string | number | null;
+  launcher_relative_path: string | null;
+  git_commit: string | null;
+  git_tag: string | null;
+  release_version: string | null;
+  build_time: Date | null;
+  build_info_json: Record<string, unknown> | null;
+  metadata_json: Record<string, unknown> | null;
+  status: 'draft' | 'published' | 'deprecated' | 'archived';
+  created_by: string | null;
+  created_at: Date;
+  updated_at: Date;
+  published_at: Date | null;
+};
+
+type PortalRuntimeReleaseBindingRow = {
+  id: string;
+  scope_type: 'platform' | 'app';
+  scope_key: string;
+  runtime_kind: string;
+  channel: string;
+  platform: string;
+  arch: string;
+  target_triple: string;
+  release_id: string;
+  enabled: boolean;
+  metadata_json: Record<string, unknown> | null;
+  updated_by: string | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+type PortalRuntimeReleaseBindingHistoryRow = {
+  id: string;
+  binding_id: string;
+  scope_type: 'platform' | 'app';
+  scope_key: string;
+  runtime_kind: string;
+  channel: string;
+  platform: string;
+  arch: string;
+  target_triple: string;
+  from_release_id: string | null;
+  to_release_id: string | null;
+  change_reason: string | null;
+  operator_user_id: string | null;
+  metadata_json: Record<string, unknown> | null;
+  created_at: Date;
+};
+
 type PortalAppSnapshotState = {
   app: PortalAppRecord;
   skillBindings: PortalAppSkillBindingRecord[];
@@ -345,6 +449,7 @@ type PortalAppSnapshotState = {
   menuBindings: PortalAppMenuBindingRecord[];
   composerControlBindings: PortalAppComposerControlBindingRecord[];
   composerShortcutBindings: PortalAppComposerShortcutBindingRecord[];
+  rechargePackageBindings: PortalAppRechargePackageBindingRecord[];
   assets: PortalAppAssetRecord[];
 };
 
@@ -358,6 +463,17 @@ function asJsonObject(value: unknown): PortalJsonObject {
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.map((item) => String(item || '').trim()).filter(Boolean);
+}
+
+function parseDbNumber(value: string | number | null | undefined): number {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : 0;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
 }
 
 function mapAppRow(row: PortalAppRow): PortalAppRecord {
@@ -525,6 +641,23 @@ function mapMenuRow(row: PortalMenuRow): PortalMenuRecord {
   };
 }
 
+function mapRechargePackageRow(row: PortalRechargePackageRow): PortalRechargePackageRecord {
+  return {
+    packageId: row.package_id,
+    packageName: row.package_name,
+    credits: parseDbNumber(row.credits),
+    bonusCredits: parseDbNumber(row.bonus_credits),
+    amountCnyFen: Number(row.amount_cny_fen || 0),
+    sortOrder: row.sort_order,
+    recommended: row.recommended === true,
+    default: row.is_default === true,
+    metadata: asJsonObject(row.metadata_json),
+    active: row.active,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
 function mapComposerControlOptionRow(row: PortalComposerControlOptionRow): PortalComposerControlOptionRecord {
   return {
     controlKey: row.control_key,
@@ -654,6 +787,18 @@ function mapComposerShortcutBindingRow(row: PortalComposerShortcutBindingRow): P
   };
 }
 
+function mapRechargePackageBindingRow(row: PortalRechargePackageBindingRow): PortalAppRechargePackageBindingRecord {
+  return {
+    appName: row.app_name,
+    packageId: row.package_id,
+    enabled: row.enabled,
+    sortOrder: row.sort_order,
+    recommended: row.recommended === true,
+    default: row.is_default === true,
+    config: asJsonObject(row.config_json),
+  };
+}
+
 function mapAssetRow(row: PortalAssetRow): PortalAppAssetRecord {
   return {
     id: row.id,
@@ -711,18 +856,91 @@ function mapAuditRow(row: PortalAuditRow): PortalAppAuditRecord {
   };
 }
 
+function mapRuntimeReleaseRow(row: PortalRuntimeReleaseRow): PortalRuntimeReleaseRecord {
+  return {
+    id: row.id,
+    runtimeKind: row.runtime_kind,
+    version: row.version,
+    channel: row.channel,
+    platform: row.platform,
+    arch: row.arch,
+    targetTriple: row.target_triple,
+    artifactType: row.artifact_type,
+    storageProvider: row.storage_provider,
+    bucketName: row.bucket_name,
+    objectKey: row.object_key,
+    artifactUrl: row.artifact_url,
+    artifactSha256: row.artifact_sha256,
+    artifactSizeBytes: row.artifact_size_bytes === null ? null : Number(row.artifact_size_bytes),
+    launcherRelativePath: row.launcher_relative_path,
+    gitCommit: row.git_commit,
+    gitTag: row.git_tag,
+    releaseVersion: row.release_version,
+    buildTime: row.build_time ? row.build_time.toISOString() : null,
+    buildInfo: asJsonObject(row.build_info_json),
+    metadata: asJsonObject(row.metadata_json),
+    status: row.status,
+    createdBy: row.created_by,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+    publishedAt: row.published_at ? row.published_at.toISOString() : null,
+  };
+}
+
+function mapRuntimeReleaseBindingRow(row: PortalRuntimeReleaseBindingRow): PortalRuntimeReleaseBindingRecord {
+  return {
+    id: row.id,
+    scopeType: row.scope_type,
+    scopeKey: row.scope_key,
+    runtimeKind: row.runtime_kind,
+    channel: row.channel,
+    platform: row.platform,
+    arch: row.arch,
+    targetTriple: row.target_triple,
+    releaseId: row.release_id,
+    enabled: row.enabled,
+    metadata: asJsonObject(row.metadata_json),
+    updatedBy: row.updated_by,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapRuntimeReleaseBindingHistoryRow(
+  row: PortalRuntimeReleaseBindingHistoryRow,
+): PortalRuntimeReleaseBindingHistoryRecord {
+  return {
+    id: row.id,
+    bindingId: row.binding_id,
+    scopeType: row.scope_type,
+    scopeKey: row.scope_key,
+    runtimeKind: row.runtime_kind,
+    channel: row.channel,
+    platform: row.platform,
+    arch: row.arch,
+    targetTriple: row.target_triple,
+    fromReleaseId: row.from_release_id,
+    toReleaseId: row.to_release_id,
+    changeReason: row.change_reason,
+    operatorUserId: row.operator_user_id,
+    metadata: asJsonObject(row.metadata_json),
+    createdAt: row.created_at.toISOString(),
+  };
+}
+
 function buildReleaseSummary(state: PortalAppSnapshotState): PortalJsonObject {
   const config = state.app.config;
   const surfaces = Object.entries(asJsonObject(config.surfaces))
     .filter(([, value]) => asJsonObject(value).enabled !== false)
     .map(([key]) => key);
   return {
-    changedAreas: ['config', 'skills', 'mcps', 'models', 'menus', 'composer', 'assets'],
+    changedAreas: ['config', 'skills', 'mcps', 'models', 'menus', 'recharge', 'composer', 'assets'],
     surfaces,
     skillCount: state.skillBindings.filter((item) => item.enabled).length,
     mcpCount: state.mcpBindings.filter((item) => item.enabled).length,
     modelCount: state.modelBindings.filter((item) => item.enabled).length,
     menuCount: state.menuBindings.filter((item) => item.enabled).length,
+    rechargeCount: state.rechargePackageBindings.filter((item) => item.enabled).length,
     composerControlCount: state.composerControlBindings.filter((item) => item.enabled).length,
     composerShortcutCount: state.composerShortcutBindings.filter((item) => item.enabled).length,
     assetCount: state.assets.length,
@@ -855,6 +1073,22 @@ async function listMenuBindings(db: Pool | PoolClient, appName: string): Promise
   return result.rows.map(mapMenuBindingRow);
 }
 
+async function listRechargePackageBindings(
+  db: Pool | PoolClient,
+  appName: string,
+): Promise<PortalAppRechargePackageBindingRecord[]> {
+  const result = await db.query<PortalRechargePackageBindingRow>(
+    `
+      select app_name, package_id, enabled, sort_order, recommended, is_default, config_json
+      from oem_app_recharge_package_bindings
+      where app_name = $1
+      order by sort_order asc, package_id asc
+    `,
+    [appName],
+  );
+  return result.rows.map(mapRechargePackageBindingRow);
+}
+
 async function listComposerControlBindings(
   db: Pool | PoolClient,
   appName: string,
@@ -970,13 +1204,23 @@ async function listAuditByApp(db: Pool | PoolClient, appName: string, limit: num
 async function readAppSnapshotState(db: Pool | PoolClient, appName: string, forUpdate = false): Promise<PortalAppSnapshotState | null> {
   const appRow = await readAppRow(db, appName, forUpdate);
   if (!appRow) return null;
-  const [skillBindings, mcpBindings, modelBindings, menuBindings, composerControlBindings, composerShortcutBindings, assets] = await Promise.all([
+  const [
+    skillBindings,
+    mcpBindings,
+    modelBindings,
+    menuBindings,
+    composerControlBindings,
+    composerShortcutBindings,
+    rechargePackageBindings,
+    assets,
+  ] = await Promise.all([
     listSkillBindings(db, appName),
     listMcpBindings(db, appName),
     listModelBindings(db, appName),
     listMenuBindings(db, appName),
     listComposerControlBindings(db, appName),
     listComposerShortcutBindings(db, appName),
+    listRechargePackageBindings(db, appName),
     listAssetsByApp(db, appName),
   ]);
   return {
@@ -987,6 +1231,7 @@ async function readAppSnapshotState(db: Pool | PoolClient, appName: string, forU
     menuBindings,
     composerControlBindings,
     composerShortcutBindings,
+    rechargePackageBindings,
     assets,
   };
 }
@@ -1196,6 +1441,91 @@ async function replaceMenuBindings(
           updated_at = now()
       `,
       [appName, item.menuKey, item.enabled ?? true, item.sortOrder ?? 100, JSON.stringify(item.config || {})],
+    );
+  }
+}
+
+async function replaceRechargePackageBindings(
+  db: Pool | PoolClient,
+  appName: string,
+  items: ReplacePortalAppRechargePackageBindingsInput,
+): Promise<void> {
+  const packageIds = items.map((item) => item.packageId);
+  await db.query(
+    `
+      delete from oem_app_recharge_package_bindings
+      where app_name = $1
+        and (
+          cardinality($2::text[]) = 0
+          or package_id <> all($2::text[])
+        )
+    `,
+    [appName, packageIds],
+  );
+  for (const item of items) {
+    await db.query(
+      `
+        insert into oem_app_recharge_package_bindings (
+          app_name,
+          package_id,
+          enabled,
+          sort_order,
+          recommended,
+          is_default,
+          config_json
+        )
+        values ($1, $2, $3, $4, $5, $6, $7::jsonb)
+        on conflict (app_name, package_id)
+        do update set
+          enabled = excluded.enabled,
+          sort_order = excluded.sort_order,
+          recommended = excluded.recommended,
+          is_default = excluded.is_default,
+          config_json = excluded.config_json,
+          updated_at = now()
+      `,
+      [
+        appName,
+        item.packageId,
+        item.enabled ?? true,
+        item.sortOrder ?? 100,
+        item.recommended === true,
+        item.default === true,
+        JSON.stringify(item.config || {}),
+      ],
+    );
+  }
+}
+
+async function seedRechargePackageBindings(
+  db: Pool | PoolClient,
+  appName: string,
+  items: ReplacePortalAppRechargePackageBindingsInput,
+): Promise<void> {
+  for (const item of items) {
+    await db.query(
+      `
+        insert into oem_app_recharge_package_bindings (
+          app_name,
+          package_id,
+          enabled,
+          sort_order,
+          recommended,
+          is_default,
+          config_json
+        )
+        values ($1, $2, $3, $4, $5, $6, $7::jsonb)
+        on conflict (app_name, package_id) do nothing
+      `,
+      [
+        appName,
+        item.packageId,
+        item.enabled ?? true,
+        item.sortOrder ?? 100,
+        item.recommended === true,
+        item.default === true,
+        JSON.stringify(item.config || {}),
+      ],
     );
   }
 }
@@ -1581,6 +1911,7 @@ export class PgPortalStore {
       menuBindings: state.menuBindings,
       composerControlBindings: state.composerControlBindings,
       composerShortcutBindings: state.composerShortcutBindings,
+      rechargePackageBindings: state.rechargePackageBindings,
       assets: state.assets,
       releases,
       audit,
@@ -1688,6 +2019,54 @@ export class PgPortalStore {
       `,
     );
     return result.rows.map(mapMenuRow);
+  }
+
+  async listRechargePackages(): Promise<PortalRechargePackageRecord[]> {
+    const result = await this.pool.query<PortalRechargePackageRow>(
+      `
+        select
+          package_id,
+          package_name,
+          credits,
+          bonus_credits,
+          amount_cny_fen,
+          sort_order,
+          recommended,
+          is_default,
+          metadata_json,
+          active,
+          created_at,
+          updated_at
+        from platform_recharge_package_catalog
+        order by sort_order asc, package_id asc
+      `,
+    );
+    return result.rows.map(mapRechargePackageRow);
+  }
+
+  async getRechargePackage(packageId: string): Promise<PortalRechargePackageRecord | null> {
+    const result = await this.pool.query<PortalRechargePackageRow>(
+      `
+        select
+          package_id,
+          package_name,
+          credits,
+          bonus_credits,
+          amount_cny_fen,
+          sort_order,
+          recommended,
+          is_default,
+          metadata_json,
+          active,
+          created_at,
+          updated_at
+        from platform_recharge_package_catalog
+        where package_id = $1
+        limit 1
+      `,
+      [packageId],
+    );
+    return result.rows[0] ? mapRechargePackageRow(result.rows[0]) : null;
   }
 
   async listComposerControls(): Promise<PortalComposerControlRecord[]> {
@@ -1825,6 +2204,66 @@ export class PgPortalStore {
     return mapMenuRow(result.rows[0]);
   }
 
+  async upsertRechargePackage(input: UpsertPortalRechargePackageInput): Promise<PortalRechargePackageRecord> {
+    const result = await this.pool.query<PortalRechargePackageRow>(
+      `
+        insert into platform_recharge_package_catalog (
+          package_id,
+          package_name,
+          credits,
+          bonus_credits,
+          amount_cny_fen,
+          sort_order,
+          recommended,
+          is_default,
+          metadata_json,
+          active,
+          created_at,
+          updated_at
+        )
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, now(), now())
+        on conflict (package_id)
+        do update set
+          package_name = excluded.package_name,
+          credits = excluded.credits,
+          bonus_credits = excluded.bonus_credits,
+          amount_cny_fen = excluded.amount_cny_fen,
+          sort_order = excluded.sort_order,
+          recommended = excluded.recommended,
+          is_default = excluded.is_default,
+          metadata_json = excluded.metadata_json,
+          active = excluded.active,
+          updated_at = now()
+        returning
+          package_id,
+          package_name,
+          credits,
+          bonus_credits,
+          amount_cny_fen,
+          sort_order,
+          recommended,
+          is_default,
+          metadata_json,
+          active,
+          created_at,
+          updated_at
+      `,
+      [
+        input.packageId,
+        input.packageName,
+        input.credits,
+        input.bonusCredits ?? 0,
+        input.amountCnyFen,
+        input.sortOrder ?? 100,
+        input.recommended === true,
+        input.default === true,
+        JSON.stringify(input.metadata || {}),
+        input.active !== false,
+      ],
+    );
+    return mapRechargePackageRow(result.rows[0]);
+  }
+
   async getSkill(slug: string): Promise<PortalSkillRecord | null> {
     const result = await this.pool.query<PortalSkillRow>(
       `
@@ -1909,6 +2348,10 @@ export class PgPortalStore {
 
   async deleteSkill(slug: string): Promise<void> {
     await this.pool.query(`delete from platform_bundled_skills where skill_slug = $1`, [slug]);
+  }
+
+  async deleteRechargePackage(packageId: string): Promise<void> {
+    await this.pool.query(`delete from platform_recharge_package_catalog where package_id = $1`, [packageId]);
   }
 
   async listMcps(): Promise<PortalMcpRecord[]> {
@@ -2719,6 +3162,589 @@ export class PgPortalStore {
     };
   }
 
+  async listRuntimeReleases(input: ListPortalRuntimeReleasesInput = {}): Promise<PortalRuntimeReleaseRecord[]> {
+    const values: Array<string | number> = [];
+    const filters: string[] = [];
+    if (input.runtimeKind && input.runtimeKind.trim()) {
+      values.push(input.runtimeKind.trim());
+      filters.push(`runtime_kind = $${values.length}`);
+    }
+    if (input.channel && input.channel.trim()) {
+      values.push(input.channel.trim());
+      filters.push(`channel = $${values.length}`);
+    }
+    if (input.platform && input.platform.trim()) {
+      values.push(input.platform.trim());
+      filters.push(`platform = $${values.length}`);
+    }
+    if (input.arch && input.arch.trim()) {
+      values.push(input.arch.trim());
+      filters.push(`arch = $${values.length}`);
+    }
+    if (input.status && input.status.trim()) {
+      values.push(input.status.trim());
+      filters.push(`status = $${values.length}`);
+    }
+    const limit = Math.max(1, Math.min(Number(input.limit || 100), 200));
+    values.push(limit);
+    const whereClause = filters.length ? `where ${filters.join(' and ')}` : '';
+    const result = await this.pool.query<PortalRuntimeReleaseRow>(
+      `
+        select
+          id,
+          runtime_kind,
+          version,
+          channel,
+          platform,
+          arch,
+          target_triple,
+          artifact_type,
+          storage_provider,
+          bucket_name,
+          object_key,
+          artifact_url,
+          artifact_sha256,
+          artifact_size_bytes,
+          launcher_relative_path,
+          git_commit,
+          git_tag,
+          release_version,
+          build_time,
+          build_info_json,
+          metadata_json,
+          status,
+          created_by,
+          created_at,
+          updated_at,
+          published_at
+        from runtime_release_catalog
+        ${whereClause}
+        order by updated_at desc, created_at desc
+        limit $${values.length}
+      `,
+      values,
+    );
+    return result.rows.map(mapRuntimeReleaseRow);
+  }
+
+  async upsertRuntimeRelease(
+    input: UpsertPortalRuntimeReleaseInput,
+    actorUserId: string | null,
+  ): Promise<PortalRuntimeReleaseRecord> {
+    let id = input.id?.trim() || '';
+    if (!id) {
+      const existing = await this.pool.query<{id: string}>(
+        `
+          select id
+          from runtime_release_catalog
+          where runtime_kind = $1
+            and channel = $2
+            and target_triple = $3
+            and version = $4
+          limit 1
+        `,
+        [input.runtimeKind, input.channel, input.targetTriple, input.version],
+      );
+      id = existing.rows[0]?.id || randomUUID();
+    }
+    const publishedAt = input.status === 'published' ? new Date().toISOString() : null;
+    const result = await this.pool.query<PortalRuntimeReleaseRow>(
+      `
+        insert into runtime_release_catalog (
+          id,
+          runtime_kind,
+          version,
+          channel,
+          platform,
+          arch,
+          target_triple,
+          artifact_type,
+          storage_provider,
+          bucket_name,
+          object_key,
+          artifact_url,
+          artifact_sha256,
+          artifact_size_bytes,
+          launcher_relative_path,
+          git_commit,
+          git_tag,
+          release_version,
+          build_time,
+          build_info_json,
+          metadata_json,
+          status,
+          created_by,
+          created_at,
+          updated_at,
+          published_at
+        )
+        values (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
+          $19::timestamptz, $20::jsonb, $21::jsonb, $22, $23, now(), now(), $24::timestamptz
+        )
+        on conflict (id)
+        do update set
+          runtime_kind = excluded.runtime_kind,
+          version = excluded.version,
+          channel = excluded.channel,
+          platform = excluded.platform,
+          arch = excluded.arch,
+          target_triple = excluded.target_triple,
+          artifact_type = excluded.artifact_type,
+          storage_provider = excluded.storage_provider,
+          bucket_name = excluded.bucket_name,
+          object_key = excluded.object_key,
+          artifact_url = excluded.artifact_url,
+          artifact_sha256 = excluded.artifact_sha256,
+          artifact_size_bytes = excluded.artifact_size_bytes,
+          launcher_relative_path = excluded.launcher_relative_path,
+          git_commit = excluded.git_commit,
+          git_tag = excluded.git_tag,
+          release_version = excluded.release_version,
+          build_time = excluded.build_time,
+          build_info_json = excluded.build_info_json,
+          metadata_json = excluded.metadata_json,
+          status = excluded.status,
+          created_by = coalesce(runtime_release_catalog.created_by, excluded.created_by),
+          updated_at = now(),
+          published_at = case
+            when excluded.status = 'published' then coalesce(excluded.published_at, runtime_release_catalog.published_at, now())
+            else runtime_release_catalog.published_at
+          end
+        returning
+          id,
+          runtime_kind,
+          version,
+          channel,
+          platform,
+          arch,
+          target_triple,
+          artifact_type,
+          storage_provider,
+          bucket_name,
+          object_key,
+          artifact_url,
+          artifact_sha256,
+          artifact_size_bytes,
+          launcher_relative_path,
+          git_commit,
+          git_tag,
+          release_version,
+          build_time,
+          build_info_json,
+          metadata_json,
+          status,
+          created_by,
+          created_at,
+          updated_at,
+          published_at
+      `,
+      [
+        id,
+        input.runtimeKind,
+        input.version,
+        input.channel,
+        input.platform,
+        input.arch,
+        input.targetTriple,
+        input.artifactType || 'tar.gz',
+        input.storageProvider || 's3',
+        input.bucketName || null,
+        input.objectKey || null,
+        input.artifactUrl,
+        input.artifactSha256 || null,
+        input.artifactSizeBytes ?? null,
+        input.launcherRelativePath || null,
+        input.gitCommit || null,
+        input.gitTag || null,
+        input.releaseVersion || null,
+        input.buildTime || null,
+        JSON.stringify(input.buildInfo || {}),
+        JSON.stringify(input.metadata || {}),
+        input.status || 'draft',
+        actorUserId,
+        publishedAt,
+      ],
+    );
+    return mapRuntimeReleaseRow(result.rows[0]);
+  }
+
+  async listRuntimeReleaseBindings(
+    input: ListPortalRuntimeReleaseBindingsInput = {},
+  ): Promise<PortalRuntimeReleaseBindingRecord[]> {
+    const values: Array<string | number> = [];
+    const filters: string[] = [];
+    if (input.scopeType && input.scopeType.trim()) {
+      values.push(input.scopeType.trim());
+      filters.push(`scope_type = $${values.length}`);
+    }
+    if (input.scopeKey && input.scopeKey.trim()) {
+      values.push(input.scopeKey.trim());
+      filters.push(`scope_key = $${values.length}`);
+    }
+    if (input.runtimeKind && input.runtimeKind.trim()) {
+      values.push(input.runtimeKind.trim());
+      filters.push(`runtime_kind = $${values.length}`);
+    }
+    if (input.channel && input.channel.trim()) {
+      values.push(input.channel.trim());
+      filters.push(`channel = $${values.length}`);
+    }
+    if (input.platform && input.platform.trim()) {
+      values.push(input.platform.trim());
+      filters.push(`platform = $${values.length}`);
+    }
+    if (input.arch && input.arch.trim()) {
+      values.push(input.arch.trim());
+      filters.push(`arch = $${values.length}`);
+    }
+    const limit = Math.max(1, Math.min(Number(input.limit || 200), 500));
+    values.push(limit);
+    const whereClause = filters.length ? `where ${filters.join(' and ')}` : '';
+    const result = await this.pool.query<PortalRuntimeReleaseBindingRow>(
+      `
+        select
+          id,
+          scope_type,
+          scope_key,
+          runtime_kind,
+          channel,
+          platform,
+          arch,
+          target_triple,
+          release_id,
+          enabled,
+          metadata_json,
+          updated_by,
+          created_at,
+          updated_at
+        from runtime_release_bindings
+        ${whereClause}
+        order by updated_at desc, created_at desc
+        limit $${values.length}
+      `,
+      values,
+    );
+    return result.rows.map(mapRuntimeReleaseBindingRow);
+  }
+
+  async upsertRuntimeReleaseBinding(
+    input: UpsertPortalRuntimeReleaseBindingInput,
+    actorUserId: string | null,
+  ): Promise<PortalRuntimeReleaseBindingRecord> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+      const existingResult = await client.query<PortalRuntimeReleaseBindingRow>(
+        `
+          select
+            id,
+            scope_type,
+            scope_key,
+            runtime_kind,
+            channel,
+            platform,
+            arch,
+            target_triple,
+            release_id,
+            enabled,
+            metadata_json,
+            updated_by,
+            created_at,
+            updated_at
+          from runtime_release_bindings
+          where scope_type = $1
+            and scope_key = $2
+            and runtime_kind = $3
+            and channel = $4
+            and target_triple = $5
+          for update
+        `,
+        [input.scopeType, input.scopeKey, input.runtimeKind, input.channel, input.targetTriple],
+      );
+      const existing = existingResult.rows[0] || null;
+      const bindingId = existing?.id || input.id?.trim() || randomUUID();
+      const upsertResult = await client.query<PortalRuntimeReleaseBindingRow>(
+        `
+          insert into runtime_release_bindings (
+            id,
+            scope_type,
+            scope_key,
+            runtime_kind,
+            channel,
+            platform,
+            arch,
+            target_triple,
+            release_id,
+            enabled,
+            metadata_json,
+            updated_by,
+            created_at,
+            updated_at
+          )
+          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, now(), now())
+          on conflict (scope_type, scope_key, runtime_kind, channel, target_triple)
+          do update set
+            release_id = excluded.release_id,
+            enabled = excluded.enabled,
+            metadata_json = excluded.metadata_json,
+            updated_by = excluded.updated_by,
+            platform = excluded.platform,
+            arch = excluded.arch,
+            updated_at = now()
+          returning
+            id,
+            scope_type,
+            scope_key,
+            runtime_kind,
+            channel,
+            platform,
+            arch,
+            target_triple,
+            release_id,
+            enabled,
+            metadata_json,
+            updated_by,
+            created_at,
+            updated_at
+        `,
+        [
+          bindingId,
+          input.scopeType,
+          input.scopeKey,
+          input.runtimeKind,
+          input.channel,
+          input.platform,
+          input.arch,
+          input.targetTriple,
+          input.releaseId,
+          input.enabled !== false,
+          JSON.stringify(input.metadata || {}),
+          actorUserId,
+        ],
+      );
+      const binding = upsertResult.rows[0];
+      await client.query(
+        `
+          insert into runtime_release_binding_history (
+            id,
+            binding_id,
+            scope_type,
+            scope_key,
+            runtime_kind,
+            channel,
+            platform,
+            arch,
+            target_triple,
+            from_release_id,
+            to_release_id,
+            change_reason,
+            operator_user_id,
+            metadata_json,
+            created_at
+          )
+          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, now())
+        `,
+        [
+          randomUUID(),
+          binding.id,
+          binding.scope_type,
+          binding.scope_key,
+          binding.runtime_kind,
+          binding.channel,
+          binding.platform,
+          binding.arch,
+          binding.target_triple,
+          existing?.release_id || null,
+          binding.release_id,
+          input.changeReason || null,
+          actorUserId,
+          JSON.stringify(input.metadata || {}),
+        ],
+      );
+      await client.query('commit');
+      return mapRuntimeReleaseBindingRow(binding);
+    } catch (error) {
+      await client.query('rollback');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async listRuntimeReleaseBindingHistory(
+    input: ListPortalRuntimeReleaseBindingHistoryInput = {},
+  ): Promise<PortalRuntimeReleaseBindingHistoryRecord[]> {
+    const values: Array<string | number> = [];
+    const filters: string[] = [];
+    if (input.bindingId && input.bindingId.trim()) {
+      values.push(input.bindingId.trim());
+      filters.push(`binding_id = $${values.length}`);
+    }
+    if (input.scopeType && input.scopeType.trim()) {
+      values.push(input.scopeType.trim());
+      filters.push(`scope_type = $${values.length}`);
+    }
+    if (input.scopeKey && input.scopeKey.trim()) {
+      values.push(input.scopeKey.trim());
+      filters.push(`scope_key = $${values.length}`);
+    }
+    if (input.runtimeKind && input.runtimeKind.trim()) {
+      values.push(input.runtimeKind.trim());
+      filters.push(`runtime_kind = $${values.length}`);
+    }
+    if (input.channel && input.channel.trim()) {
+      values.push(input.channel.trim());
+      filters.push(`channel = $${values.length}`);
+    }
+    if (input.targetTriple && input.targetTriple.trim()) {
+      values.push(input.targetTriple.trim());
+      filters.push(`target_triple = $${values.length}`);
+    }
+    const limit = Math.max(1, Math.min(Number(input.limit || 100), 500));
+    values.push(limit);
+    const whereClause = filters.length ? `where ${filters.join(' and ')}` : '';
+    const result = await this.pool.query<PortalRuntimeReleaseBindingHistoryRow>(
+      `
+        select
+          id,
+          binding_id,
+          scope_type,
+          scope_key,
+          runtime_kind,
+          channel,
+          platform,
+          arch,
+          target_triple,
+          from_release_id,
+          to_release_id,
+          change_reason,
+          operator_user_id,
+          metadata_json,
+          created_at
+        from runtime_release_binding_history
+        ${whereClause}
+        order by created_at desc
+        limit $${values.length}
+      `,
+      values,
+    );
+    return result.rows.map(mapRuntimeReleaseBindingHistoryRow);
+  }
+
+  async resolveRuntimeRelease(
+    appName: string,
+    input: {runtimeKind: string; channel: string; platform: string; arch: string},
+  ): Promise<PortalResolvedRuntimeReleaseResult | null> {
+    const appRow = await readAppRow(this.pool, appName);
+    if (!appRow) {
+      return null;
+    }
+    const query = async (scopeType: 'app' | 'platform', scopeKey: string) => {
+      const result = await this.pool.query<PortalRuntimeReleaseBindingRow & PortalRuntimeReleaseRow>(
+        `
+          select
+            b.id,
+            b.scope_type,
+            b.scope_key,
+            b.runtime_kind,
+            b.channel,
+            b.platform,
+            b.arch,
+            b.target_triple,
+            b.release_id,
+            b.enabled,
+            b.metadata_json,
+            b.updated_by,
+            b.created_at,
+            b.updated_at,
+            r.id as release_row_id,
+            r.runtime_kind as release_runtime_kind,
+            r.version,
+            r.channel as release_channel,
+            r.platform as release_platform,
+            r.arch as release_arch,
+            r.target_triple as release_target_triple,
+            r.artifact_type,
+            r.storage_provider,
+            r.bucket_name,
+            r.object_key,
+            r.artifact_url,
+            r.artifact_sha256,
+            r.artifact_size_bytes,
+            r.launcher_relative_path,
+            r.git_commit,
+            r.git_tag,
+            r.release_version,
+            r.build_time,
+            r.build_info_json,
+            r.metadata_json as release_metadata_json,
+            r.status,
+            r.created_by,
+            r.created_at as release_created_at,
+            r.updated_at as release_updated_at,
+            r.published_at
+          from runtime_release_bindings b
+          join runtime_release_catalog r on r.id = b.release_id
+          where b.scope_type = $1
+            and b.scope_key = $2
+            and b.runtime_kind = $3
+            and b.channel = $4
+            and b.platform = $5
+            and b.arch = $6
+            and b.enabled = true
+            and r.status = 'published'
+          order by b.updated_at desc
+          limit 1
+        `,
+        [scopeType, scopeKey, input.runtimeKind, input.channel, input.platform, input.arch],
+      );
+      return result.rows[0] || null;
+    };
+
+    const row = (await query('app', appName)) || (await query('platform', 'platform'));
+    if (!row) {
+      return null;
+    }
+
+    const binding = mapRuntimeReleaseBindingRow(row);
+    const release = mapRuntimeReleaseRow({
+      id: (row as unknown as {release_row_id: string}).release_row_id,
+      runtime_kind: (row as unknown as {release_runtime_kind: string}).release_runtime_kind,
+      version: row.version,
+      channel: (row as unknown as {release_channel: string}).release_channel,
+      platform: (row as unknown as {release_platform: string}).release_platform,
+      arch: (row as unknown as {release_arch: string}).release_arch,
+      target_triple: (row as unknown as {release_target_triple: string}).release_target_triple,
+      artifact_type: row.artifact_type,
+      storage_provider: row.storage_provider,
+      bucket_name: row.bucket_name,
+      object_key: row.object_key,
+      artifact_url: row.artifact_url,
+      artifact_sha256: row.artifact_sha256,
+      artifact_size_bytes: row.artifact_size_bytes,
+      launcher_relative_path: row.launcher_relative_path,
+      git_commit: row.git_commit,
+      git_tag: row.git_tag,
+      release_version: row.release_version,
+      build_time: row.build_time,
+      build_info_json: row.build_info_json,
+      metadata_json: (row as unknown as {release_metadata_json: Record<string, unknown> | null}).release_metadata_json,
+      status: row.status,
+      created_by: row.created_by,
+      created_at: (row as unknown as {release_created_at: Date}).release_created_at,
+      updated_at: (row as unknown as {release_updated_at: Date}).release_updated_at,
+      published_at: row.published_at,
+    });
+
+    return {
+      appName,
+      resolvedScope: binding.scopeType,
+      binding,
+      release,
+    };
+  }
+
   async resolveBillingMultiplierForAppModel(appName: string, modelInput: string | null | undefined): Promise<number> {
     const normalizedModel = String(modelInput || '').trim();
     if (!normalizedModel) {
@@ -2941,6 +3967,31 @@ export class PgPortalStore {
     return listMenuBindings(this.pool, appName);
   }
 
+  async replaceAppRechargePackageBindings(
+    appName: string,
+    items: ReplacePortalAppRechargePackageBindingsInput,
+    actorUserId: string | null = null,
+  ): Promise<PortalAppRechargePackageBindingRecord[]> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+      await replaceRechargePackageBindings(client, appName, items);
+      await insertAuditEvent(client, {
+        appName,
+        action: 'recharge_package_bindings_saved',
+        actorUserId,
+        payload: {count: items.length},
+      });
+      await client.query('commit');
+    } catch (error) {
+      await client.query('rollback');
+      throw error;
+    } finally {
+      client.release();
+    }
+    return listRechargePackageBindings(this.pool, appName);
+  }
+
   async replaceAppComposerControlBindings(
     appName: string,
     items: ReplacePortalAppComposerControlBindingsInput,
@@ -3003,6 +4054,7 @@ export class PgPortalStore {
     mcpBindings: Array<{appName: string; items: ReplacePortalAppMcpBindingsInput}>;
     modelBindings?: Array<{appName: string; items: ReplacePortalAppModelBindingsInput}>;
     menuBindings: Array<{appName: string; items: ReplacePortalAppMenuBindingsInput}>;
+    rechargePackageBindings?: Array<{appName: string; items: ReplacePortalAppRechargePackageBindingsInput}>;
     composerControlBindings?: Array<{appName: string; items: ReplacePortalAppComposerControlBindingsInput}>;
     composerShortcutBindings?: Array<{appName: string; items: ReplacePortalAppComposerShortcutBindingsInput}>;
     preserveExistingAppState?: boolean;
@@ -3453,6 +4505,13 @@ export class PgPortalStore {
           await replaceMenuBindings(client, binding.appName, binding.items);
         }
       }
+      for (const binding of input.rechargePackageBindings || []) {
+        if (input.preserveExistingAppState) {
+          await seedRechargePackageBindings(client, binding.appName, binding.items);
+        } else {
+          await replaceRechargePackageBindings(client, binding.appName, binding.items);
+        }
+      }
       for (const binding of input.composerControlBindings || []) {
         if (input.preserveExistingAppState) {
           await seedComposerControlBindings(client, binding.appName, binding.items);
@@ -3745,6 +4804,11 @@ export class PgPortalStore {
       await replaceMcpBindings(client, appName, (Array.isArray(snapshot.mcpBindings) ? snapshot.mcpBindings : []) as ReplacePortalAppMcpBindingsInput);
       await replaceModelBindings(client, appName, (Array.isArray(snapshot.modelBindings) ? snapshot.modelBindings : []) as ReplacePortalAppModelBindingsInput);
       await replaceMenuBindings(client, appName, (Array.isArray(snapshot.menuBindings) ? snapshot.menuBindings : []) as ReplacePortalAppMenuBindingsInput);
+      await replaceRechargePackageBindings(
+        client,
+        appName,
+        (Array.isArray(snapshot.rechargePackageBindings) ? snapshot.rechargePackageBindings : []) as ReplacePortalAppRechargePackageBindingsInput,
+      );
       await replaceComposerControlBindings(
         client,
         appName,

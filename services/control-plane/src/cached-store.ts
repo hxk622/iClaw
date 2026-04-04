@@ -54,6 +54,7 @@ import type {
   WorkspaceBackupRecord,
 } from './domain.ts';
 import type {KeyValueCache} from './cache.ts';
+import type {ResolvedRechargePackageRecord} from './recharge-packages.ts';
 import type {ControlPlaneStore} from './store.ts';
 
 const USER_CACHE_TTL_SECONDS = 5 * 60;
@@ -303,6 +304,10 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
       await this.cache.set(this.paymentOrderKey(orderId), order, CREDIT_BALANCE_CACHE_TTL_SECONDS);
     }
     return order;
+  }
+
+  async resolveRechargePackage(packageId: string, appName?: string | null): Promise<ResolvedRechargePackageRecord | null> {
+    return this.base.resolveRechargePackage(packageId, appName);
   }
 
   async listPaymentOrdersAdmin(input?: {

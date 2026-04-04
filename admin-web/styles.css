@@ -198,6 +198,7 @@ code {
   flex-direction: column;
   gap: 20px;
   padding: 20px 16px;
+  overflow: hidden;
   background: var(--sidebar);
   color: var(--sidebar-text);
   border-right: 1px solid var(--sidebar-border);
@@ -233,6 +234,22 @@ code {
   gap: 6px;
 }
 
+.nav-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  margin-right: -4px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.nav-list::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
 .nav-item,
 .mini-brand-card {
   width: 100%;
@@ -262,12 +279,49 @@ code {
 }
 
 .nav-item--group {
+  justify-content: space-between;
   cursor: default;
   opacity: 0.9;
 }
 
 .nav-item--group:hover {
   transform: none;
+}
+
+.nav-group__summary {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nav-group__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid rgba(244, 243, 240, 0.1);
+  border-radius: 999px;
+  background: rgba(244, 243, 240, 0.05);
+  color: var(--sidebar-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.nav-group__toggle:hover {
+  background: rgba(244, 243, 240, 0.09);
+  border-color: rgba(244, 243, 240, 0.16);
+  color: var(--sidebar-text);
+}
+
+.nav-group__toggle-icon {
+  width: 14px;
+  height: 14px;
 }
 
 .nav-group.is-active .nav-item--group {
@@ -279,6 +333,10 @@ code {
   display: grid;
   gap: 6px;
   padding-left: 18px;
+}
+
+.nav-sublist.is-collapsed {
+  display: none;
 }
 
 .nav-subitem {
@@ -508,11 +566,12 @@ code {
 .banner-row--toast {
   position: fixed;
   top: 20px;
-  right: 24px;
+  left: 50%;
   z-index: 1200;
   width: min(520px, calc(100vw - 32px));
   padding: 0;
   pointer-events: none;
+  transform: translateX(-50%);
 }
 
 .banner {
@@ -1771,7 +1830,9 @@ code {
 
 .shell {
   min-height: 100vh;
+  height: 100vh;
   grid-template-columns: 256px minmax(0, 1fr);
+  overflow: hidden;
   background: var(--bg);
 }
 
@@ -1941,6 +2002,9 @@ code {
   gap: 0;
   padding: 0;
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--bg);
 }
 
@@ -3550,6 +3614,8 @@ code {
 @media (max-width: 980px) {
   .shell {
     grid-template-columns: 1fr;
+    height: auto;
+    overflow: visible;
   }
 
   .sidebar {
@@ -3559,6 +3625,7 @@ code {
 
   .content {
     min-height: auto;
+    overflow: visible;
   }
 
   .banner-row,

@@ -28,6 +28,7 @@ test('buildPortalPublicConfig preserves skill catalog visibility mode', () => {
     menuBindings: [],
     composerControlBindings: [],
     composerShortcutBindings: [],
+    rechargePackageBindings: [],
     assets: [],
     releases: [],
     audit: [],

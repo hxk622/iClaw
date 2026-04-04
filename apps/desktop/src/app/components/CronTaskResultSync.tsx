@@ -1,6 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
-import '@openclaw-ui/main.ts';
-import { readAppLocale } from '@/app/lib/general-preferences';
+import { useEffect, useRef } from 'react';
 import {
   inferChatTurnArtifactsFromText,
   readChatTurns,
@@ -14,39 +12,6 @@ import {
   seedCronNotificationWatermarks,
   shouldNotifyCronRun,
 } from '@/app/lib/cron-notification-watermarks';
-
-type OpenClawTheme = 'system' | 'light' | 'dark';
-
-type OpenClawSettings = {
-  gatewayUrl: string;
-  token: string;
-  sessionKey: string;
-  lastActiveSessionKey: string;
-  theme: OpenClawTheme;
-  chatFocusMode: boolean;
-  chatShowThinking: boolean;
-  splitRatio: number;
-  navCollapsed: boolean;
-  navGroupsCollapsed: Record<string, boolean>;
-  locale?: string;
-};
-
-type GatewayClient = {
-  request: <T = unknown>(method: string, params?: unknown) => Promise<T>;
-};
-
-type OpenClawAppElement = HTMLElement & {
-  password: string;
-  sessionKey: string;
-  tab: string;
-  settings: OpenClawSettings;
-  connected: boolean;
-  lastError: string | null;
-  lastErrorCode?: string | null;
-  client?: GatewayClient | null;
-  applySettings: (next: OpenClawSettings) => void;
-  connect: () => void;
-};
 
 type CronSchedule =
   | { kind: 'at'; at: string }
@@ -90,32 +55,167 @@ type CronListResult = {
 
 type PersistedCronTurnMap = Record<string, ChatTurnRecord>;
 
-function resolveThemeMode(): OpenClawTheme {
-  return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+type GatewayResponseFrame = {
+  type: 'res';
+  id: string;
+  ok: boolean;
+  payload?: unknown;
+  error?: {
+    message?: string;
+  };
+};
+
+type GatewayEventFrame = {
+  type: 'event';
+  event: string;
+  payload?: unknown;
+};
+
+type GatewayFrame = GatewayResponseFrame | GatewayEventFrame;
+
+const GATEWAY_CONNECT_SCOPES = ['operator.read', 'operator.write', 'operator.admin'];
+
+function buildGatewayConnectParams(gatewayToken?: string, gatewayPassword?: string): Record<string, unknown> {
+  const token = gatewayToken?.trim() || undefined;
+  const password = gatewayPassword?.trim() || undefined;
+  return {
+    minProtocol: 3,
+    maxProtocol: 3,
+    client: {
+      id: 'openclaw-control-ui',
+      version: 'control-ui',
+      platform: navigator.platform || 'MacIntel',
+      mode: 'webchat',
+    },
+    caps: [],
+    ...(token || password
+      ? {
+          auth: {
+            ...(token ? { token } : {}),
+            ...(password ? { password } : {}),
+          },
+        }
+      : {}),
+    role: 'operator',
+    scopes: GATEWAY_CONNECT_SCOPES,
+  };
 }
 
-function buildSettings(params: {
+function parseGatewayFrame(raw: string): GatewayFrame | null {
+  try {
+    const parsed = JSON.parse(raw) as GatewayFrame | null;
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function requestGateway<T>(input: {
   gatewayUrl: string;
   gatewayToken?: string;
-  sessionKey: string;
-}): OpenClawSettings {
-  return {
-    gatewayUrl: params.gatewayUrl,
-    token: params.gatewayToken?.trim() ?? '',
-    sessionKey: params.sessionKey,
-    lastActiveSessionKey: params.sessionKey,
-    theme: resolveThemeMode(),
-    chatFocusMode: true,
-    chatShowThinking: true,
-    splitRatio: 0.6,
-    navCollapsed: true,
-    navGroupsCollapsed: {
-      control: true,
-      agent: true,
-      settings: true,
-    },
-    locale: readAppLocale(),
-  };
+  gatewayPassword?: string;
+  method: string;
+  params?: unknown;
+}): Promise<T> {
+  return new Promise((resolve, reject) => {
+    let ws: WebSocket | null = null;
+    let settled = false;
+    let requestId: string | null = null;
+    let connected = false;
+
+    const cleanup = () => {
+      if (!ws) {
+        return;
+      }
+      const current = ws;
+      ws = null;
+      try {
+        current.close();
+      } catch {
+        // ignore close errors for best-effort background sync
+      }
+    };
+
+    const fail = (error: unknown) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      reject(error instanceof Error ? error : new Error(String(error)));
+    };
+
+    const succeed = (payload: unknown) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      resolve(payload as T);
+    };
+
+    const sendRequest = (method: string, params?: unknown) => {
+      if (!ws) {
+        fail(new Error('gateway websocket unavailable'));
+        return;
+      }
+      requestId = crypto.randomUUID();
+      ws.send(
+        JSON.stringify({
+          type: 'req',
+          id: requestId,
+          method,
+          params,
+        }),
+      );
+    };
+
+    try {
+      ws = new WebSocket(input.gatewayUrl);
+    } catch (error) {
+      fail(error);
+      return;
+    }
+
+    ws.onmessage = (event) => {
+      const frame = parseGatewayFrame(String(event.data));
+      if (!frame) {
+        return;
+      }
+
+      if (frame.type === 'event' && frame.event === 'connect.challenge') {
+        sendRequest('connect', buildGatewayConnectParams(input.gatewayToken, input.gatewayPassword));
+        return;
+      }
+
+      if (frame.type !== 'res' || !requestId || frame.id !== requestId) {
+        return;
+      }
+
+      if (!frame.ok) {
+        fail(frame.error?.message || 'gateway request failed');
+        return;
+      }
+
+      if (!connected) {
+        connected = true;
+        sendRequest(input.method, input.params);
+        return;
+      }
+
+      succeed(frame.payload);
+    };
+
+    ws.onerror = () => {
+      fail(new Error('gateway websocket error'));
+    };
+
+    ws.onclose = () => {
+      if (!settled) {
+        fail(new Error('gateway websocket closed'));
+      }
+    };
+  });
 }
 
 function trimText(value: string, limit: number): string {
@@ -188,7 +288,7 @@ export function CronTaskResultSync({
   gatewayUrl,
   gatewayToken,
   gatewayPassword,
-  sessionKey,
+  sessionKey: _sessionKey,
   enabled,
 }: {
   gatewayUrl: string;
@@ -197,13 +297,8 @@ export function CronTaskResultSync({
   sessionKey: string;
   enabled: boolean;
 }) {
-  const hostRef = useRef<HTMLDivElement | null>(null);
-  const appRef = useRef<OpenClawAppElement | null>(null);
   const latestRunTsByJobRef = useRef<Record<string, number>>({});
   const persistedCronTurnsByJobIdRef = useRef<PersistedCronTurnMap>({});
-  const [connected, setConnected] = useState(false);
-  const [clientReady, setClientReady] = useState(false);
-  const [, setPersistedCronTurnsByJobId] = useState<PersistedCronTurnMap>(() => resolvePersistedCronTurns());
 
   useEffect(() => {
     const syncPersistedCronTurns = (options?: { seedWatermarks?: boolean }) => {
@@ -218,7 +313,6 @@ export function CronTaskResultSync({
         }
       });
       persistedCronTurnsByJobIdRef.current = nextTurns;
-      setPersistedCronTurnsByJobId(nextTurns);
     };
 
     syncPersistedCronTurns({ seedWatermarks: true });
@@ -231,73 +325,22 @@ export function CronTaskResultSync({
     if (!enabled) {
       return;
     }
-    const host = hostRef.current;
-    if (!host) {
-      return;
-    }
-
-    const app = document.createElement('openclaw-app') as OpenClawAppElement;
-    app.applySettings(buildSettings({ gatewayUrl, gatewayToken, sessionKey }));
-    app.password = gatewayPassword?.trim() ?? '';
-    app.sessionKey = sessionKey;
-    app.tab = 'cron';
-    appRef.current = app;
-    host.replaceChildren(app);
-
-    return () => {
-      if (appRef.current === app) {
-        appRef.current = null;
-      }
-      host.replaceChildren();
-    };
-  }, [enabled, gatewayPassword, gatewayToken, gatewayUrl, sessionKey]);
-
-  useEffect(() => {
-    if (!enabled) {
-      setConnected(false);
-      setClientReady(false);
-      return;
-    }
-
-    const app = appRef.current;
-    if (!app) {
-      return;
-    }
-
-    app.applySettings(buildSettings({ gatewayUrl, gatewayToken, sessionKey }));
-    app.password = gatewayPassword?.trim() ?? '';
-    app.sessionKey = sessionKey;
-    app.tab = 'cron';
-    app.connect();
-
-    const timer = window.setInterval(() => {
-      const current = appRef.current;
-      setConnected(Boolean(current?.connected));
-      setClientReady(Boolean(current?.client && typeof current.client.request === 'function'));
-    }, 250);
-
-    return () => window.clearInterval(timer);
-  }, [enabled, gatewayPassword, gatewayToken, gatewayUrl, sessionKey]);
-
-  useEffect(() => {
-    if (!enabled || !connected || !clientReady) {
-      return;
-    }
-
-    const client = appRef.current?.client;
-    if (!client || typeof client.request !== 'function') {
-      return;
-    }
 
     let cancelled = false;
 
     const syncOnce = async () => {
       try {
-        const listResult = await client.request<CronListResult>('cron.list', {
-          includeDisabled: true,
-          limit: 100,
-          sortBy: 'nextRunAtMs',
-          sortDir: 'asc',
+        const listResult = await requestGateway<CronListResult>({
+          gatewayUrl,
+          gatewayToken,
+          gatewayPassword,
+          method: 'cron.list',
+          params: {
+            includeDisabled: true,
+            limit: 100,
+            sortBy: 'nextRunAtMs',
+            sortDir: 'asc',
+          },
         });
         if (cancelled) {
           return;
@@ -348,6 +391,18 @@ export function CronTaskResultSync({
               source: 'cron',
               title: '定时任务已完成',
               text: summary,
+              metadata: {
+                taskName: job.name ?? turn?.title ?? '定时任务',
+                routeTarget: 'cron',
+                sessionKey: turn?.sessionKey ?? null,
+                conversationId: turn?.conversationId ?? null,
+                cronJobId: jobId,
+                model: turn?.model ?? null,
+                provider: turn?.provider ?? null,
+                nextRunAt: job.state?.nextRunAtMs ?? turn?.nextRunAt ?? null,
+                runAt: job.state?.lastRunAtMs ?? latestRunTs,
+                result: summary,
+              },
             });
             continue;
           }
@@ -358,6 +413,18 @@ export function CronTaskResultSync({
               source: 'cron',
               title: '定时任务执行失败',
               text: job.state?.lastError?.trim() || summary,
+              metadata: {
+                taskName: job.name ?? turn?.title ?? '定时任务',
+                routeTarget: 'cron',
+                sessionKey: turn?.sessionKey ?? null,
+                conversationId: turn?.conversationId ?? null,
+                cronJobId: jobId,
+                model: turn?.model ?? null,
+                provider: turn?.provider ?? null,
+                nextRunAt: job.state?.nextRunAtMs ?? turn?.nextRunAt ?? null,
+                runAt: job.state?.lastRunAtMs ?? latestRunTs,
+                errorReason: job.state?.lastError?.trim() || summary,
+              },
             });
           }
         }
@@ -375,7 +442,7 @@ export function CronTaskResultSync({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [clientReady, connected, enabled]);
+  }, [enabled, gatewayPassword, gatewayToken, gatewayUrl]);
 
-  return <div ref={hostRef} className="hidden" aria-hidden="true" />;
+  return null;
 }

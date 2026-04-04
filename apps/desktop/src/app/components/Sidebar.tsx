@@ -418,10 +418,12 @@ const SidebarFooterAccount = memo(function SidebarFooterAccount({
   authenticated,
   collapsed,
   settingsEnabled,
+  showRestartUpdate,
   onOpenAccount,
   onOpenRechargeCenter,
   onOpenLogin,
   onOpenSettings,
+  onRestartApp,
   onLogout,
 }: {
   user: SidebarUser | null;

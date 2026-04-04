@@ -26,6 +26,7 @@ import {
 } from './lib/tauri-runtime-config';
 import {
   loadBrandRuntimeConfigWithFallback,
+  resolveAuthExperienceConfig,
   resolveHeaderConfig,
   resolveInputComposerConfig,
   resolveRequiredEnabledMenuKeys,
@@ -961,6 +962,7 @@ export default function App() {
   const [chatSurfaceBusy, setChatSurfaceBusy] = useState(false);
   const [brandRuntimeReady, setBrandRuntimeReady] = useState(!IS_TAURI_RUNTIME);
   const [brandShellConfig, setBrandShellConfig] = useState<Record<string, unknown> | null>(null);
+  const authExperienceConfig = useMemo(() => resolveAuthExperienceConfig(brandShellConfig), [brandShellConfig]);
   const brandRuntimeSignatureRef = useRef<string | null>(null);
   const brandRuntimeSyncInFlightRef = useRef(false);
   const desktopUpdateLastCheckedAtRef = useRef(0);
@@ -2048,6 +2050,7 @@ export default function App() {
             initialMode={authModalMode}
             loading={authLoading}
             error={authError}
+            experienceConfig={authExperienceConfig}
             socialLoadingProvider={socialLoadingProvider}
             onClose={() => {
               setAuthModalOpen(false);
@@ -2832,16 +2835,6 @@ function AuthedView({
       if (!isGeneralChatSessionKey(current.sessionKey)) {
         return current;
       }
-      if (
-        current.initialPrompt ||
-        current.initialPromptKey ||
-        current.initialAgentSlug ||
-        current.initialSkillSlug ||
-        current.initialSkillOption ||
-        current.initialStockContext
-      ) {
-        return current;
-      }
 
       const nextSessionKey = createSuccessorGeneralChatSessionKey(current.sessionKey);
       console.info('[desktop] rotate overloaded general chat session', {
@@ -2871,6 +2864,14 @@ function AuthedView({
         sessionKey: nextSessionKey,
         conversationId: current.conversationId,
         kind: 'general',
+        initialPrompt: null,
+        initialPromptKey: null,
+        focusedTurnId: null,
+        focusedTurnKey: null,
+        initialAgentSlug: current.initialAgentSlug,
+        initialSkillSlug: current.initialSkillSlug,
+        initialSkillOption: current.initialSkillOption,
+        initialStockContext: current.initialStockContext,
       });
     });
   }, []);
@@ -3229,6 +3230,8 @@ function AuthedView({
         <RechargeCenter
           client={client}
           token={accessToken}
+          appName={BRAND.brandId}
+          runtimeConfig={brandShellConfig}
           active={overlayView === 'recharge'}
           onPaymentSettled={refreshCreditBalance}
           onClose={() => setOverlayView(null)}

@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Eye, EyeOff, Loader2, X } from 'lucide-react';
 import { Button } from '@/app/components/ui/Button';
 import { BRAND } from '@/app/lib/brand';
+import type { ResolvedAuthExperienceConfig } from '@/app/lib/oem-runtime';
 
 interface AuthPanelProps {
   open: boolean;
   loading: boolean;
   error: string | null;
+  experienceConfig: ResolvedAuthExperienceConfig;
   socialLoadingProvider?: 'wechat' | 'google' | null;
   initialMode?: 'login' | 'register';
   onClose: () => void;
@@ -104,6 +106,7 @@ export function AuthPanel({
   open,
   loading,
   error,
+  experienceConfig,
   socialLoadingProvider = null,
   initialMode = 'login',
   onClose,
@@ -119,9 +122,17 @@ export function AuthPanel({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [activeAgreementKey, setActiveAgreementKey] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const normalizedUsername = useMemo(() => normalizeUsername(username), [username]);
   const passwordStrength = useMemo(() => getPasswordStrength(password), [password]);
+  const activeAgreement = useMemo(
+    () => experienceConfig.agreements.find((item) => item.key === activeAgreementKey) || null,
+    [activeAgreementKey, experienceConfig.agreements],
+  );
+  const panelTitle = experienceConfig.title?.trim() || '登录以继续使用账户与额度体系';
+  const panelSubtitle = experienceConfig.subtitle?.trim() || '';
+  const socialNotice = experienceConfig.socialNotice?.trim() || '微信和 Gmail 登录暂未开放，请先使用账号密码登录。';
 
   const effectiveError = error || localError;
 
@@ -129,6 +140,7 @@ export function AuthPanel({
     if (!open) return;
     setMode(initialMode);
     setLocalError(null);
+    setActiveAgreementKey(null);
   }, [initialMode, open]);
   const canSubmit = useMemo(() => {
     if (!password.trim()) return false;
@@ -196,7 +208,8 @@ export function AuthPanel({
             </div>
             <div>
               <div className="text-[12px] font-semibold uppercase tracking-[0.22em] text-[var(--brand-primary)]">{BRAND.displayName}</div>
-              <div className="text-[13px] text-[var(--text-secondary)]">登录以继续使用账户与额度体系</div>
+              <div className="text-[13px] text-[var(--text-secondary)]">{panelTitle}</div>
+              {panelSubtitle ? <div className="mt-1 max-w-[420px] text-[12px] leading-5 text-[var(--text-muted)]">{panelSubtitle}</div> : null}
             </div>
           </div>
           <button
@@ -353,7 +366,26 @@ export function AuthPanel({
                   }}
                   className="mt-1 h-4 w-4 rounded border-[var(--chip-brand-border-strong)] text-[var(--brand-primary)]"
                 />
-                <span>我已阅读并同意 {BRAND.legalName} 的服务协议、隐私说明，以及账号龙虾币相关计费规则。</span>
+                <span>
+                  我已阅读并同意 {BRAND.legalName} 的
+                  {experienceConfig.agreements.map((agreement, index) => (
+                    <Fragment key={agreement.key}>
+                      {index > 0 ? '、' : ' '}
+                      <button
+                        type="button"
+                        className="font-medium text-[var(--brand-primary)] underline-offset-2 transition hover:underline"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setActiveAgreementKey(agreement.key);
+                        }}
+                      >
+                        {agreement.title}
+                      </button>
+                    </Fragment>
+                  ))}
+                  。
+                </span>
               </label>
             </>
           )}
@@ -380,7 +412,7 @@ export function AuthPanel({
         <SocialDivider />
 
         <div className="mb-3 rounded-2xl border border-[var(--chip-brand-border)] bg-[var(--chip-brand-bg)] px-4 py-3 text-[12px] text-[var(--text-secondary)]">
-          微信和 Gmail 登录暂未开放，请先使用账号密码登录。
+          {socialNotice}
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -420,6 +452,44 @@ export function AuthPanel({
           </button>
         </p>
       </div>
+      {activeAgreement ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/25 px-4 py-8 backdrop-blur-[4px]"
+          onClick={() => setActiveAgreementKey(null)}
+        >
+          <div
+            className="w-full max-w-[760px] overflow-hidden rounded-[28px] border border-[var(--border-default)] bg-[var(--bg-panel)] shadow-[0_24px_80px_rgba(0,0,0,0.24)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-[var(--border-default)] px-6 py-5">
+              <div>
+                <div className="text-[18px] font-semibold text-[var(--text-primary)]">{activeAgreement.title}</div>
+                <div className="mt-2 text-[12px] text-[var(--text-secondary)]">
+                  <span>{activeAgreement.version || '未设置版本'}</span>
+                  <span className="mx-2">•</span>
+                  <span>{activeAgreement.effectiveDate || '未设置生效日期'}</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                aria-label="关闭协议内容"
+                className="rounded-full p-2 text-[var(--text-muted)] transition hover:bg-[var(--chip-brand-bg)] hover:text-[var(--brand-primary)]"
+                onClick={() => setActiveAgreementKey(null)}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="max-h-[70vh] overflow-y-auto px-6 py-5">
+              {activeAgreement.summary ? (
+                <div className="mb-4 rounded-2xl border border-[var(--chip-brand-border)] bg-[var(--chip-brand-bg)] px-4 py-3 text-[13px] leading-6 text-[var(--text-secondary)]">
+                  {activeAgreement.summary}
+                </div>
+              ) : null}
+              <div className="whitespace-pre-wrap text-[14px] leading-7 text-[var(--text-primary)]">{activeAgreement.content}</div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

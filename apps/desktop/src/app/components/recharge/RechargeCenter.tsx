@@ -1,4 +1,4 @@
-import {type MouseEvent as ReactMouseEvent, type RefObject, useEffect, useMemo, useRef, useState} from 'react';
+import {type MouseEvent as ReactMouseEvent, useEffect, useMemo, useRef, useState} from 'react';
 import {flushSync} from 'react-dom';
 import QRCode from 'qrcode';
 import {
@@ -7,6 +7,7 @@ import {
   ArrowUpRight,
   Check,
   CheckCircle2,
+  ShieldCheck,
   ChevronDown,
   Clock3,
   LoaderCircle,
@@ -99,6 +100,28 @@ function formatPaymentDeadline(value: string | null): string | null {
   });
 }
 
+function parsePaymentDeadline(value: string | null): number | null {
+  if (!value) {
+    return null;
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed.getTime();
+}
+
+function formatCountdownLabel(remainingMs: number | null): string | null {
+  if (remainingMs == null) {
+    return null;
+  }
+  const safeMs = Math.max(0, remainingMs);
+  const totalSeconds = Math.ceil(safeMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
 function resolveOrderStatusLabel(status: PaymentOrderData['status']): string {
   switch (status) {
     case 'paid':
@@ -131,6 +154,17 @@ function formatCreditsLabel(value: number): string {
   return value.toLocaleString('zh-CN');
 }
 
+function getPaymentMethodDisplayLabel(paymentMethod: PaymentMethod): string {
+  return paymentMethod === 'wechat_qr' ? '微信支付' : '支付宝';
+}
+
+function formatOrderIdShort(orderId: string | null | undefined): string | null {
+  if (!orderId) {
+    return null;
+  }
+  return orderId.length > 12 ? `${orderId.slice(0, 6)} · ${orderId.slice(-4)}` : orderId;
+}
+
 function PaymentBrandLogo({paymentMethod}: {paymentMethod: PaymentMethod}) {
   if (paymentMethod === 'alipay_qr') {
     return (
@@ -156,11 +190,11 @@ function PaymentBrandLogo({paymentMethod}: {paymentMethod: PaymentMethod}) {
   );
 }
 
-function PaymentScanBadge({paymentMethod}: {paymentMethod: PaymentMethod}) {
+function PaymentScanBadge({paymentMethod, expired = false}: {paymentMethod: PaymentMethod; expired?: boolean}) {
   return (
     <div className="inline-flex items-center justify-center gap-2 rounded-full border border-white/70 bg-white/92 px-4 py-2 text-xs font-medium text-[#1f2937] shadow-[0_12px_24px_rgba(15,23,42,0.10)]">
-      <ScanLine className="h-4 w-4" />
-      <span>{paymentMethod === 'wechat_qr' ? '微信扫一扫' : '支付宝扫一扫'}</span>
+      {expired ? <Clock3 className="h-4 w-4" /> : <ScanLine className="h-4 w-4" />}
+      <span>{expired ? '二维码已过期' : paymentMethod === 'wechat_qr' ? '微信扫一扫' : '支付宝扫一扫'}</span>
     </div>
   );
 }
@@ -168,24 +202,45 @@ function PaymentScanBadge({paymentMethod}: {paymentMethod: PaymentMethod}) {
 function BrandedPaymentQr({
   paymentMethod,
   qrUrl,
+  expired = false,
+  onRefresh,
 }: {
   paymentMethod: PaymentMethod;
   qrUrl: string;
+  expired?: boolean;
+  onRefresh?: () => void;
 }) {
   return (
-    <div className="flex flex-col items-center gap-4">
+    <div className="flex flex-col items-center gap-2.5">
       <div className="relative overflow-hidden rounded-[30px] border border-white/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-4 shadow-[0_28px_60px_rgba(15,23,42,0.14)]">
         <div className="absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,rgba(248,250,252,0.94),rgba(255,255,255,0))]" />
         <img
           src={qrUrl}
           alt={`${paymentMethod === 'wechat_qr' ? '微信' : '支付宝'}支付二维码`}
-          className="relative block h-64 w-64 rounded-[24px] object-contain"
+          className={cn(
+            'relative block h-56 w-56 rounded-[24px] object-contain transition-[filter,transform,opacity] duration-300 md:h-60 md:w-60',
+            expired && 'scale-[1.01] opacity-75 blur-[0.5px]',
+          )}
         />
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <PaymentBrandLogo paymentMethod={paymentMethod} />
         </div>
+        {expired ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-[rgba(31,41,55,0.40)] backdrop-blur-[1.5px]">
+            <button
+              type="button"
+              onClick={onRefresh}
+              className="group inline-flex cursor-pointer flex-col items-center gap-3 text-white transition-transform hover:scale-[1.02]"
+            >
+              <span className="flex h-20 w-20 items-center justify-center rounded-full border-[5px] border-white/95 bg-white/12 shadow-[0_20px_40px_rgba(0,0,0,0.18)] backdrop-blur-[2px] transition-transform duration-200 group-hover:rotate-[-18deg]">
+                <RefreshCw className="h-9 w-9" strokeWidth={2.5} />
+              </span>
+              <span className="text-[15px] font-semibold tracking-[0.02em] text-white">刷新二维码</span>
+            </button>
+          </div>
+        ) : null}
       </div>
-      <PaymentScanBadge paymentMethod={paymentMethod} />
+      <PaymentScanBadge paymentMethod={paymentMethod} expired={expired} />
     </div>
   );
 }
@@ -222,14 +277,12 @@ export function RechargeCenter({
   const paymentOrderRequestTimeoutMs = 8_000;
   const [step, setStep] = useState<RechargeStep>('packages');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('wechat_qr');
-  const [packageDropdownOpen, setPackageDropdownOpen] = useState(false);
   const [creatingOrder, setCreatingOrder] = useState(false);
   const [activeOrder, setActiveOrder] = useState<PaymentOrderData | null>(null);
   const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
   const [generatedLaunchQrUrl, setGeneratedLaunchQrUrl] = useState<string | null>(null);
   const [autoCreateOrderToken, setAutoCreateOrderToken] = useState(0);
   const [selectedPackageId, setSelectedPackageId] = useState<string>(getDefaultPackageId(FALLBACK_RECHARGE_PACKAGES));
-  const dropdownRef = useRef<HTMLDivElement>(null);
   const createOrderAbortRef = useRef<AbortController | null>(null);
 
   const availablePackages = useMemo(() => {
@@ -293,18 +346,6 @@ export function RechargeCenter({
     }
     setSelectedPackageId(defaultPackageId);
   }, [availablePackages, defaultPackageId, selectedPackageId]);
-
-  useEffect(() => {
-    if (!active) return;
-    if (!packageDropdownOpen) return;
-    const handlePointerDown = (event: globalThis.MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setPackageDropdownOpen(false);
-      }
-    };
-    window.addEventListener('mousedown', handlePointerDown);
-    return () => window.removeEventListener('mousedown', handlePointerDown);
-  }, [active, packageDropdownOpen]);
 
   const cancelPendingCreateOrder = () => {
     createOrderAbortRef.current?.abort();
@@ -428,12 +469,17 @@ export function RechargeCenter({
   const openPayment = (packageId: string) => {
     flushSync(() => {
       setSelectedPackageId(packageId);
-      setPackageDropdownOpen(false);
       setPaymentMessage(null);
       setActiveOrder(null);
       setStep('payment');
       setAutoCreateOrderToken((current) => current + 1);
     });
+  };
+  const closePaymentModal = () => {
+    cancelPendingCreateOrder();
+    setPaymentMessage(null);
+    setActiveOrder(null);
+    setStep('packages');
   };
 
   return (
@@ -442,7 +488,7 @@ export function RechargeCenter({
       aria-hidden={active ? undefined : true}
       onClick={onClose}
     >
-      {step === 'packages' ? (
+      <div className="relative w-full">
         <PackageSelectionView
           packages={availablePackages}
           selectedPackageId={currentPackage.packageId}
@@ -450,49 +496,38 @@ export function RechargeCenter({
           onClose={onClose}
           onContinue={openPayment}
         />
-      ) : (
-        <PaymentView
-          packages={availablePackages}
-          currentPackage={currentPackage}
-          totalPrice={totalPrice}
-          paymentMethod={paymentMethod}
-          activeOrder={activeOrder}
-          resolvedQrUrl={resolvedQrUrl}
-          onPaymentMethodChange={(method) => {
-            cancelPendingCreateOrder();
-            setPaymentMethod(method);
-            setActiveOrder(null);
-            setPaymentMessage(null);
-            setAutoCreateOrderToken((current) => current + 1);
-          }}
-          packageDropdownOpen={packageDropdownOpen}
-          onTogglePackageDropdown={() => setPackageDropdownOpen((current) => !current)}
-          onSelectPackage={(packageId) => {
-            cancelPendingCreateOrder();
-            setSelectedPackageId(packageId);
-            setPackageDropdownOpen(false);
-            setActiveOrder(null);
-            setPaymentMessage(null);
-            setAutoCreateOrderToken((current) => current + 1);
-          }}
-          dropdownRef={dropdownRef}
-          onBack={() => {
-            cancelPendingCreateOrder();
-            setPackageDropdownOpen(false);
-            setPaymentMessage(null);
-            setActiveOrder(null);
-            setStep('packages');
-          }}
-          onClose={() => {
-            cancelPendingCreateOrder();
-            onClose();
-          }}
-          creatingOrder={creatingOrder}
-          paymentMessage={paymentMessage}
-          onPayNow={handlePayNow}
-          onPanelClick={(event) => event.stopPropagation()}
-        />
-      )}
+
+        {step === 'payment' ? (
+          <div
+            className="absolute inset-0 flex items-center justify-center rounded-[32px] bg-[rgba(248,250,252,0.72)] px-4 py-4 backdrop-blur-[6px] dark:bg-[rgba(8,12,20,0.52)]"
+            onClick={(event) => {
+              event.stopPropagation();
+              closePaymentModal();
+            }}
+          >
+            <PaymentView
+              currentPackage={currentPackage}
+              totalPrice={totalPrice}
+              paymentMethod={paymentMethod}
+              activeOrder={activeOrder}
+              resolvedQrUrl={resolvedQrUrl}
+              onPaymentMethodChange={(method) => {
+                cancelPendingCreateOrder();
+                setPaymentMethod(method);
+                setActiveOrder(null);
+                setPaymentMessage(null);
+                setAutoCreateOrderToken((current) => current + 1);
+              }}
+              onBack={closePaymentModal}
+              onClose={closePaymentModal}
+              creatingOrder={creatingOrder}
+              paymentMessage={paymentMessage}
+              onPayNow={handlePayNow}
+              onPanelClick={(event) => event.stopPropagation()}
+            />
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -511,10 +546,6 @@ function PackageSelectionView({
   onContinue: (packageId: string) => void;
 }) {
   const handlePackageCardClick = (packageId: string) => {
-    if (selectedPackageId === packageId) {
-      onContinue(packageId);
-      return;
-    }
     onPackageSelect(packageId);
   };
 
@@ -693,11 +724,36 @@ function PaymentView({
 }) {
   const orderStatus = activeOrder?.status || null;
   const expiryLabel = formatPaymentDeadline(activeOrder?.expires_at || null);
+  const expiryDeadlineTs = parsePaymentDeadline(activeOrder?.expires_at || null);
+  const [nowTs, setNowTs] = useState(() => Date.now());
   const isPaid = orderStatus === 'paid';
   const isFailed = orderStatus === 'failed';
-  const isExpired = orderStatus === 'expired';
+  const isRefunded = orderStatus === 'refunded';
+  const remainingMs =
+    expiryDeadlineTs != null && !isPaid && !isFailed && !isRefunded ? Math.max(0, expiryDeadlineTs - nowTs) : null;
+  const hasLocallyExpired = remainingMs === 0 && expiryDeadlineTs != null && !isPaid && !isFailed && !isRefunded;
+  const isExpired = orderStatus === 'expired' || hasLocallyExpired;
   const isAwaitingPayment = !creatingOrder && Boolean(activeOrder) && !isPaid && !isFailed && !isExpired;
   const shouldShowQr = Boolean(resolvedQrUrl) && !isPaid && !isFailed && !isExpired;
+  const shouldShowExpiredQr = Boolean(resolvedQrUrl) && isExpired && !isPaid && !isFailed;
+  const countdownLabel = formatCountdownLabel(remainingMs);
+  const expiringSoon = isAwaitingPayment && remainingMs != null && remainingMs > 0 && remainingMs <= 2 * 60 * 1000;
+  const paymentMethodLabel = getPaymentMethodDisplayLabel(paymentMethod);
+  const shortOrderId = formatOrderIdShort(activeOrder?.order_id);
+
+  useEffect(() => {
+    if (expiryDeadlineTs == null || isPaid || isFailed || isExpired || isRefunded) {
+      return;
+    }
+    setNowTs(Date.now());
+    const timer = window.setInterval(() => {
+      setNowTs(Date.now());
+    }, 1000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [expiryDeadlineTs, isExpired, isFailed, isPaid, isRefunded]);
+
   const statusCard = creatingOrder
     ? {
         tone: 'border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-100',
@@ -736,7 +792,9 @@ function PaymentView({
                 icon: Clock3,
                 iconClassName: '',
                 title: '等待完成支付',
-                description: `支付完成后将自动刷新状态，并为当前账号充值 ${formatCreditsLabel(currentPackage.totalCredits)} 龙虾币。`,
+                description: expiringSoon
+                  ? `订单即将过期，请尽快扫码完成支付。支付成功后会自动为当前账号充值 ${formatCreditsLabel(currentPackage.totalCredits)} 龙虾币。`
+                  : `支付完成后将自动刷新状态，并为当前账号充值 ${formatCreditsLabel(currentPackage.totalCredits)} 龙虾币。`,
               }
             : {
                 tone: 'border-gray-200 bg-gray-50 text-gray-800 dark:border-[#2a3441] dark:bg-[#1a1f28] dark:text-gray-200',
@@ -757,13 +815,13 @@ function PaymentView({
 
   return (
     <div
-      className="flex max-h-[min(840px,calc(100vh-24px))] w-full max-w-[1120px] flex-col overflow-hidden rounded-[28px] bg-white shadow-xl dark:border dark:border-[#2a3441] dark:bg-[#1a1f28] dark:shadow-2xl"
+      className="flex w-full max-w-[1120px] flex-col overflow-hidden rounded-[28px] bg-white shadow-xl dark:border dark:border-[#2a3441] dark:bg-[#1a1f28] dark:shadow-2xl"
       onClick={onPanelClick}
     >
-      <div className="relative border-b border-gray-100 px-6 pb-4 pt-6 dark:border-[#2a3441] md:px-8">
+      <div className="relative border-b border-gray-100 px-5 pb-3 pt-4 dark:border-[#2a3441] md:px-6">
         <button
           onClick={onBack}
-          className="absolute left-5 top-6 flex cursor-pointer items-center gap-2 text-gray-600 transition-colors hover:text-[#E63946] dark:text-gray-400 md:left-8"
+          className="absolute left-4 top-4 flex cursor-pointer items-center gap-2 text-gray-600 transition-colors hover:text-[#E63946] dark:text-gray-400 md:left-6"
         >
           <ArrowLeft className="h-5 w-5" />
           <span className="font-medium">返回充值包</span>
@@ -771,19 +829,22 @@ function PaymentView({
 
         <button
           onClick={onClose}
-          className="absolute right-5 top-5 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-[#2a3441] md:right-7 md:top-5"
+          className="absolute right-4 top-3 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-[#2a3441] md:right-5 md:top-3"
         >
           <X className="h-5 w-5 text-gray-600 dark:text-gray-400" />
         </button>
       </div>
 
-      <div className="flex-1 overflow-auto px-5 py-5 md:px-8 md:py-6">
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.04fr)_minmax(380px,0.96fr)]">
-          <section className="rounded-2xl border border-gray-200 bg-gray-50 p-6 dark:border-[#2a3441] dark:bg-[#1f2630]">
-            <h2 className="mb-2 text-2xl font-bold text-[#1a1a1a] dark:text-[#f0f2f5]">确认充值包</h2>
-            <p className="mb-6 text-sm text-gray-600 dark:text-gray-400">当前页面只处理一次性充值，支付完成后龙虾币会直接到账，不会自动续费。</p>
+      <div className="flex-1 overflow-hidden px-3 py-3 md:px-5 md:py-4">
+        <div className="grid gap-3 xl:grid-cols-[minmax(280px,0.78fr)_minmax(0,1.22fr)]">
+          <section className="rounded-[26px] border border-gray-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f3f6fb_100%)] p-4 dark:border-[#2a3441] dark:bg-[linear-gradient(180deg,#1c2330_0%,#1a1f28_100%)] xl:flex xl:flex-col">
+            <div className="mb-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#d92f3d] dark:text-[#ff8a93]">本次充值</p>
+              <h2 className="mt-2 text-[26px] font-bold text-[#1a1a1a] dark:text-[#f0f2f5]">确认充值包</h2>
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">左侧只保留套餐与到账信息，右侧直接完成支付，不再重复堆叠相同内容。</p>
+            </div>
 
-            <div ref={dropdownRef} className="relative mb-6">
+            <div ref={dropdownRef} className="relative mb-3">
               <button
                 onClick={onTogglePackageDropdown}
                 className="flex w-full cursor-pointer items-center justify-between rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-left transition-colors hover:border-[#E63946] dark:border-[#2a3441] dark:bg-[#252d3a]"
@@ -824,26 +885,43 @@ function PaymentView({
               ) : null}
             </div>
 
-            <div className="mb-6 border-b border-gray-200 pb-6 dark:border-[#2a3441]">
-              <div className="flex items-baseline gap-2">
-                <span className="text-sm text-gray-500">¥</span>
-                <span className="text-5xl font-bold text-[#1a1a1a] dark:text-[#f0f2f5]">{totalPrice}</span>
-                <span className="text-gray-500 dark:text-gray-400">一次性充值</span>
+            <div className="mb-3 rounded-2xl border border-gray-200 bg-white p-4 dark:border-[#2a3441] dark:bg-[#252d3a]">
+              <div className="flex items-end justify-between gap-4">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-sm text-gray-500">¥</span>
+                  <span className="text-5xl font-bold text-[#1a1a1a] dark:text-[#f0f2f5]">{totalPrice}</span>
+                </div>
+                <span className="rounded-full bg-[#fff1f2] px-3 py-1 text-xs font-semibold text-[#d92f3d] dark:bg-[#3a1e22] dark:text-[#ff9ea6]">
+                  一次性充值
+                </span>
               </div>
-              <p className="mt-2 text-sm text-gray-500">
-                基础到账 {formatCreditsLabel(currentPackage.credits)} 龙虾币
-                {currentPackage.bonusCredits > 0 ? ` · 赠送 ${formatCreditsLabel(currentPackage.bonusCredits)}` : ''}
-              </p>
-              <p className="mt-1 text-sm font-medium text-[#d92f3d] dark:text-[#ff8a93]">
-                合计到账 {formatCreditsLabel(currentPackage.totalCredits)} 龙虾币
-              </p>
+              <div className="mt-3 grid gap-2.5 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+                <div className="rounded-xl bg-gray-50 px-4 py-3 dark:bg-[#1f2630]">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">基础到账</p>
+                  <p className="mt-1 text-sm font-semibold text-[#1a1a1a] dark:text-[#f0f2f5]">
+                    {formatCreditsLabel(currentPackage.credits)} 龙虾币
+                  </p>
+                </div>
+                <div className="rounded-xl bg-gray-50 px-4 py-3 dark:bg-[#1f2630]">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">赠送额度</p>
+                  <p className="mt-1 text-sm font-semibold text-[#1a1a1a] dark:text-[#f0f2f5]">
+                    {currentPackage.bonusCredits > 0 ? `${formatCreditsLabel(currentPackage.bonusCredits)} 龙虾币` : '无赠送'}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-[#fff5f5] px-4 py-3 dark:bg-[#2f1d22]">
+                  <p className="text-xs text-[#d06a74] dark:text-[#ffb3bb]">合计到账</p>
+                  <p className="mt-1 text-sm font-semibold text-[#d92f3d] dark:text-[#ff8a93]">
+                    {formatCreditsLabel(currentPackage.totalCredits)} 龙虾币
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <div>
-              <p className="mb-3 text-sm font-medium text-gray-700 dark:text-gray-400">到账说明</p>
-              <ul className="space-y-2.5">
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-[#2a3441] dark:bg-[#252d3a] xl:mt-auto">
+              <p className="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">到账说明</p>
+              <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
                 {currentPackage.featureList.map((feature) => (
-                  <li key={feature} className="flex items-start gap-3">
+                  <li key={feature} className="flex items-start gap-2 rounded-xl bg-gray-50 px-3 py-2.5 dark:bg-[#1f2630]">
                     <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#E63946] dark:shadow-lg dark:shadow-red-900/30">
                       <Check className="h-3 w-3 text-white" />
                     </div>
@@ -854,77 +932,64 @@ function PaymentView({
             </div>
           </section>
 
-          <section className="rounded-2xl border border-gray-200 bg-gray-50 p-6 dark:border-[#2a3441] dark:bg-[#1f2630]">
-            <h2 className="mb-2 text-2xl font-bold text-[#1a1a1a] dark:text-[#f0f2f5]">请选择方式完成支付</h2>
-            <p className="mb-5 text-sm text-gray-600 dark:text-gray-400">当前模态窗就是支付页。请选择微信或支付宝后，直接扫描右侧收款码完成支付。</p>
-
-            <div className={cn('mb-4 rounded-2xl border px-4 py-4', statusCard.tone)}>
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/70 text-current dark:bg-black/10">
-                    <StatusIcon className={cn('h-5 w-5', statusCard.iconClassName)} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold">{statusCard.title}</p>
-                    <p className="mt-1 text-sm leading-6 opacity-90">{statusCard.description}</p>
-                    {paymentMessage ? <p className="mt-2 text-xs opacity-80">{paymentMessage}</p> : null}
-                    {activeOrder ? (
-                      <p className="mt-2 text-xs opacity-75">
-                        订单状态: {resolveOrderStatusLabel(activeOrder.status)}
-                        {expiryLabel && !isPaid ? ` · 有效至 ${expiryLabel}` : ''}
-                      </p>
-                    ) : null}
-                  </div>
+          <section className="rounded-[26px] border border-gray-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f2f5fa_100%)] p-4 dark:border-[#2a3441] dark:bg-[linear-gradient(180deg,#1c2330_0%,#1a1f28_100%)] xl:flex xl:flex-col">
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-3 rounded-[24px] border border-[#dbe4f0] bg-[linear-gradient(135deg,#ffffff_0%,#f9fbff_72%,#f2f7fd_100%)] px-4 py-3 shadow-[0_16px_40px_rgba(148,163,184,0.12)] dark:border-[#334155] dark:bg-[linear-gradient(135deg,#222b39_0%,#1b2330_72%,#171d28_100%)]">
+              <div className="min-w-0">
+                <div className="inline-flex items-center gap-2 rounded-full border border-[#d8e4f2] bg-white/88 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#5b6b80] dark:border-[#3a475a] dark:bg-[#111827]/50 dark:text-[#cbd5e1]">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  ICLAW 收银台
                 </div>
-                {showStatusAction ? (
-                  <button
-                    type="button"
-                    onClick={handlePrimaryAction}
-                    className="inline-flex shrink-0 items-center gap-2 rounded-full border border-current/18 bg-white/70 px-3 py-2 text-xs font-medium transition-colors hover:bg-white dark:bg-black/10 dark:hover:bg-black/20"
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" />
-                    {statusActionLabel}
-                  </button>
-                ) : null}
+                <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-2">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#94a3b8]">应付金额</p>
+                    <p className="mt-1 text-[32px] font-bold tracking-[-0.04em] text-[#111827] dark:text-[#f8fafc]">¥{totalPrice}</p>
+                  </div>
+                  <div className="pb-1 text-sm text-[#64748b] dark:text-[#94a3b8]">{formatCreditsLabel(currentPackage.totalCredits)} 龙虾币</div>
+                </div>
+              </div>
+              <div className="grid min-w-[220px] gap-2 text-right sm:grid-cols-3 xl:min-w-[250px] xl:grid-cols-1 xl:text-left">
+                <div className="rounded-2xl border border-[#e2e8f0] bg-white/82 px-3 py-2.5 dark:border-[#334155] dark:bg-[#111827]/45">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-[#94a3b8]">支付渠道</p>
+                  <p className="mt-1 text-sm font-semibold text-[#111827] dark:text-[#f8fafc]">{paymentMethodLabel}</p>
+                </div>
+                <div className="rounded-2xl border border-[#e2e8f0] bg-white/82 px-3 py-2.5 dark:border-[#334155] dark:bg-[#111827]/45">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-[#94a3b8]">订单编号</p>
+                  <p className="mt-1 text-sm font-semibold text-[#111827] dark:text-[#f8fafc]">{shortOrderId || '等待生成'}</p>
+                </div>
+                <div className="rounded-2xl border border-[#e2e8f0] bg-white/82 px-3 py-2.5 dark:border-[#334155] dark:bg-[#111827]/45">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-[#94a3b8]">支付保障</p>
+                  <p className="mt-1 text-sm font-semibold text-[#111827] dark:text-[#f8fafc]">官方扫码 / 实时到账</p>
+                </div>
               </div>
             </div>
 
-            <div className="mb-4 flex gap-3">
-              {(['wechat_qr', 'alipay_qr'] as PaymentMethod[]).map((method) => {
-                const meta = PAYMENT_METHOD_META[method];
-                const selected = paymentMethod === method;
-                return (
-                  <button
-                    key={method}
-                    onClick={() => onPaymentMethodChange(method)}
-                    className={cn(
-                      'flex-1 cursor-pointer rounded-xl py-3 font-medium transition-all',
-                      creatingOrder || isPaid ? 'cursor-not-allowed opacity-60' : '',
-                      selected
-                        ? meta.accentClassName
-                        : 'border-2 border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-[#2a3441] dark:bg-[#252d3a] dark:text-gray-400 dark:hover:border-[#3a4551]',
-                    )}
-                    disabled={creatingOrder || isPaid}
-                  >
-                    {meta.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="rounded-2xl border-2 border-gray-200 bg-white p-4 dark:border-[#2a3441] dark:bg-[#252d3a]">
-                <div className="mb-3 flex items-center justify-between">
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_228px]">
+              <div className="rounded-[24px] border-2 border-[#d8e1ed] bg-white p-4 shadow-[0_20px_48px_rgba(148,163,184,0.12)] dark:border-[#334155] dark:bg-[#252d3a] xl:flex xl:min-h-[520px] xl:flex-col">
+                <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-[#1a1a1a] dark:text-[#f0f2f5]">扫码支付</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {paymentMethod === 'wechat_qr' ? '微信扫码' : '支付宝扫码'}
-                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{paymentMethodLabel}</p>
                   </div>
-                  <div className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-[11px] font-medium text-gray-500 dark:border-[#364152] dark:bg-[#1f2630] dark:text-gray-300">
-                    {paymentMethod === 'wechat_qr' ? '微信官方收款码样式' : '支付宝官方收款码样式'}
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    {countdownLabel && !isPaid && !isFailed && !isExpired ? (
+                      <div
+                        className={cn(
+                          'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold',
+                          expiringSoon
+                            ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200'
+                            : 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-200',
+                        )}
+                      >
+                        <Clock3 className="h-3.5 w-3.5" />
+                        {countdownLabel}
+                      </div>
+                    ) : null}
+                    <div className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-[11px] font-medium text-gray-500 dark:border-[#364152] dark:bg-[#1f2630] dark:text-gray-300">
+                      {paymentMethod === 'wechat_qr' ? '微信官方收款码样式' : '支付宝官方收款码样式'}
+                    </div>
                   </div>
                 </div>
-                <div className="flex min-h-[420px] items-center justify-center rounded-[24px] bg-[linear-gradient(180deg,#eef2f7_0%,#e7edf6_100%)] p-6 dark:bg-[linear-gradient(180deg,#111827_0%,#182130_100%)]">
+                <div className="flex min-h-[328px] items-center justify-center rounded-[24px] bg-[linear-gradient(180deg,#eef2f7_0%,#e7edf6_100%)] p-4 dark:bg-[linear-gradient(180deg,#111827_0%,#182130_100%)] xl:flex-1">
                   {creatingOrder ? (
                     <div className="text-center text-sm text-gray-500 dark:text-gray-400">正在创建支付订单...</div>
                   ) : isPaid ? (
@@ -947,16 +1012,8 @@ function PaymentView({
                         </p>
                       </div>
                     </div>
-                  ) : isExpired ? (
-                    <div className="flex h-72 w-72 flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-amber-200 bg-amber-50 px-6 text-center dark:border-amber-900/60 dark:bg-amber-950/30">
-                      <Clock3 className="h-12 w-12 text-amber-500" />
-                      <div>
-                        <p className="text-base font-semibold text-amber-700 dark:text-amber-200">订单已过期</p>
-                        <p className="mt-1 text-xs leading-5 text-amber-600/80 dark:text-amber-200/70">
-                          当前收款码已失效，请重新创建订单后再支付。
-                        </p>
-                      </div>
-                    </div>
+                  ) : shouldShowExpiredQr ? (
+                    <BrandedPaymentQr paymentMethod={paymentMethod} qrUrl={resolvedQrUrl!} expired onRefresh={handlePrimaryAction} />
                   ) : shouldShowQr ? (
                     <BrandedPaymentQr paymentMethod={paymentMethod} qrUrl={resolvedQrUrl!} />
                   ) : (
@@ -974,6 +1031,8 @@ function PaymentView({
                     ? paymentMethod === 'wechat_qr'
                       ? '请直接使用微信扫描上方二维码完成支付。'
                       : '请直接使用支付宝扫描上方二维码完成支付。'
+                    : shouldShowExpiredQr
+                      ? '当前二维码已失效，请直接点击中间按钮刷新新的二维码。'
                     : isPaid
                       ? `支付已完成，${formatCreditsLabel(currentPackage.totalCredits)} 龙虾币已经写入当前账号。`
                       : isFailed
@@ -982,14 +1041,98 @@ function PaymentView({
                           ? '订单已过期，请重新创建后再支付。'
                           : '系统正在生成新的收款码，请稍候。'}
                 </p>
-                {isPaid ? (
-                  <p className="mt-2 text-center text-xs text-emerald-700/80 dark:text-emerald-200/80">
-                    将自动关闭充值窗口并回到你刚才的页面，不会刷新当前应用。
-                  </p>
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-2.5 text-[11px] text-[#7b8797] dark:text-[#94a3b8]">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[#dbe4f0] bg-[#f8fbff] px-3 py-1.5 dark:border-[#334155] dark:bg-[#111827]/40">
+                    <ShieldCheck className="h-3.5 w-3.5 text-[#16a34a]" />
+                    安全支付环境
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[#dbe4f0] bg-[#f8fbff] px-3 py-1.5 dark:border-[#334155] dark:bg-[#111827]/40">
+                    <Clock3 className="h-3.5 w-3.5 text-[#2563eb]" />
+                    支付结果自动同步
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[#dbe4f0] bg-[#f8fbff] px-3 py-1.5 dark:border-[#334155] dark:bg-[#111827]/40">
+                    <ScanLine className="h-3.5 w-3.5 text-[#0f766e]" />
+                    官方扫码通道
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid content-start gap-3">
+                <div className={cn('rounded-[22px] border px-4 py-3.5', statusCard.tone)}>
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/70 text-current dark:bg-black/10">
+                      <StatusIcon className={cn('h-5 w-5', statusCard.iconClassName)} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold">{statusCard.title}</p>
+                      <p className="mt-1 text-xs leading-5 opacity-90">{statusCard.description}</p>
+                      {paymentMessage ? <p className="mt-2 text-xs opacity-80">{paymentMessage}</p> : null}
+                      {activeOrder ? (
+                        <p className="mt-2 text-[11px] opacity-75">
+                          {resolveOrderStatusLabel(activeOrder.status)}
+                          {expiryLabel && !isPaid ? ` · ${expiryLabel}` : ''}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-2.5">
+                  {(['wechat_qr', 'alipay_qr'] as PaymentMethod[]).map((method) => {
+                    const meta = PAYMENT_METHOD_META[method];
+                    const selected = paymentMethod === method;
+                    return (
+                      <button
+                        key={method}
+                        onClick={() => onPaymentMethodChange(method)}
+                        className={cn(
+                          'w-full cursor-pointer rounded-xl py-3 font-medium transition-all',
+                          creatingOrder || isPaid ? 'cursor-not-allowed opacity-60' : '',
+                          selected
+                            ? meta.accentClassName
+                            : 'border-2 border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-[#2a3441] dark:bg-[#252d3a] dark:text-gray-400 dark:hover:border-[#3a4551]',
+                        )}
+                        disabled={creatingOrder || isPaid}
+                      >
+                        {meta.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="rounded-[22px] border border-gray-200 bg-white px-4 py-3 dark:border-[#2a3441] dark:bg-[#252d3a]">
+                  <div className="grid gap-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">本次到账</p>
+                      <p className="text-sm font-semibold text-[#1a1a1a] dark:text-[#f0f2f5]">
+                        {formatCreditsLabel(currentPackage.totalCredits)} 龙虾币
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">支付方式</p>
+                      <p className="text-sm font-semibold text-[#1a1a1a] dark:text-[#f0f2f5]">{paymentMethodLabel}</p>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">订单编号</p>
+                      <p className="text-sm font-semibold text-[#1a1a1a] dark:text-[#f0f2f5]">{shortOrderId || '等待生成'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {showStatusAction ? (
+                  <button
+                    type="button"
+                    onClick={handlePrimaryAction}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-[18px] border border-[#dbe4f0] bg-white px-4 py-3 text-sm font-medium text-[#1f2937] transition-colors hover:bg-[#f8fafc] dark:border-[#334155] dark:bg-[#252d3a] dark:text-gray-200 dark:hover:bg-[#2d3748]"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    {statusActionLabel}
+                  </button>
                 ) : null}
+              </div>
             </div>
 
-            <div className="mt-4 text-center text-xs text-gray-500">
+            <div className="mt-3 text-center text-xs text-gray-500">
               <p>
                 充值即表示您同意我们的{' '}
                 <a href="#" className="cursor-pointer text-[#E63946] hover:underline">
@@ -1000,7 +1143,7 @@ function PaymentView({
                   支付服务协议
                 </a>
               </p>
-              <p className="mt-2">这是一次性充值，不会产生后续自动扣费。</p>
+              <p className="mt-1">这是一次性充值，不会产生后续自动扣费。</p>
             </div>
           </section>
         </div>
