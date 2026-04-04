@@ -101,12 +101,17 @@ function normalizeBaseUrl(value) {
   return typeof value === 'string' ? value.trim().replace(/\/+$/, '') : '';
 }
 
+function normalizePublicReleaseVersion(value) {
+  return typeof value === 'string' ? value.trim().replace(/\+/g, '.') : '';
+}
+
 function buildDownloadHref(runtimeBrand, arch) {
   const baseUrl = normalizeBaseUrl(runtimeBrand.distribution.downloads?.[ENV_NAME]?.publicBaseUrl);
   if (!baseUrl) {
     return '';
   }
-  const fileName = `${runtimeBrand.release.artifactBaseName}_${runtimeBrand.release.version}_${arch}_${ENV_NAME}.dmg`;
+  const publicReleaseVersion = normalizePublicReleaseVersion(runtimeBrand.release.version);
+  const fileName = `${runtimeBrand.release.artifactBaseName}_${publicReleaseVersion}_${arch}_${ENV_NAME}.dmg`;
   return `${baseUrl}/darwin/${arch}/${encodeURIComponent(fileName)}`;
 }
 
