@@ -69,11 +69,26 @@ async function fetchManifest(baseUrl, brandId, channel, target) {
   }
   const payload = await response.json().catch(() => null);
   const data = payload && payload.success === true ? payload.data : payload;
-  if (!response.ok || payload?.success === false || !data?.entry) {
+  if (!response.ok || payload?.success === false) {
     const message = payload?.error?.message || `${response.status} ${response.statusText}`.trim();
     throw new Error(`failed to export manifest for ${target.platform}/${target.arch}: ${message}`);
   }
-  return data;
+  const directEntry =
+    data?.entry &&
+    data.entry.platform === target.platform &&
+    data.entry.arch === target.arch
+      ? data.entry
+      : null;
+  const fallbackEntry = Array.isArray(data?.entries)
+    ? data.entries.find((entry) => entry?.platform === target.platform && entry?.arch === target.arch) || null
+    : null;
+  if (!directEntry && !fallbackEntry) {
+    return null;
+  }
+  return {
+    ...data,
+    entry: directEntry || fallbackEntry,
+  };
 }
 
 async function writeJson(filePath, payload) {
