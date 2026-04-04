@@ -9,9 +9,9 @@ import {
   CheckCircle2,
   ChevronDown,
   Clock3,
-  ExternalLink,
   LoaderCircle,
   RefreshCw,
+  ScanLine,
   X,
 } from 'lucide-react';
 import {type IClawClient, type PaymentOrderData} from '@iclaw/sdk';
@@ -122,19 +122,6 @@ function isDataImageUrl(value: string | null | undefined): boolean {
   return typeof value === 'string' && value.startsWith('data:image/');
 }
 
-function openPaymentUrl(url: string): boolean {
-  try {
-    const newWindow = window.open(url, '_blank', 'noopener,noreferrer');
-    if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-      return false;
-    }
-    return true;
-  } catch (error) {
-    console.error('failed to open payment url', error);
-    return false;
-  }
-}
-
 function formatPriceAmount(amountCnyFen: number): string {
   const amount = amountCnyFen / 100;
   return Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
@@ -142,6 +129,65 @@ function formatPriceAmount(amountCnyFen: number): string {
 
 function formatCreditsLabel(value: number): string {
   return value.toLocaleString('zh-CN');
+}
+
+function PaymentBrandLogo({paymentMethod}: {paymentMethod: PaymentMethod}) {
+  if (paymentMethod === 'alipay_qr') {
+    return (
+      <div className="flex h-16 w-16 items-center justify-center rounded-[20px] bg-[#1677FF] shadow-[0_14px_28px_rgba(22,119,255,0.28)] ring-4 ring-white/92">
+        <span className="text-[44px] font-black leading-none tracking-[-0.08em] text-white">支</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-16 w-16 items-center justify-center rounded-[20px] bg-[#07C160] shadow-[0_14px_28px_rgba(7,193,96,0.28)] ring-4 ring-white/92">
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-9 w-9">
+        <path
+          fill="#FFFFFF"
+          d="M8.37 4.4C4.31 4.4 1 7.16 1 10.54c0 1.95 1.08 3.68 2.76 4.82l-.7 2.43 2.63-1.3c.88.2 1.79.3 2.68.3 4.06 0 7.37-2.76 7.37-6.15S12.43 4.4 8.37 4.4Zm-2.46 5.08a.8.8 0 1 1 0-1.6.8.8 0 0 1 0 1.6Zm4.92 0a.8.8 0 1 1 0-1.6.8.8 0 0 1 0 1.6Z"
+        />
+        <path
+          fill="#FFFFFF"
+          d="M16.88 9.38c-3.39 0-6.12 2.28-6.12 5.1 0 1.52.8 2.89 2.07 3.82l-.56 1.96 2.1-1.04c.81.18 1.49.22 2.51.22 3.38 0 6.12-2.28 6.12-5.1s-2.74-4.96-6.12-4.96Zm-2.04 4.23a.67.67 0 1 1 0-1.34.67.67 0 0 1 0 1.34Zm4.07 0a.67.67 0 1 1 0-1.34.67.67 0 0 1 0 1.34Z"
+        />
+      </svg>
+    </div>
+  );
+}
+
+function PaymentScanBadge({paymentMethod}: {paymentMethod: PaymentMethod}) {
+  return (
+    <div className="inline-flex items-center justify-center gap-2 rounded-full border border-white/70 bg-white/92 px-4 py-2 text-xs font-medium text-[#1f2937] shadow-[0_12px_24px_rgba(15,23,42,0.10)]">
+      <ScanLine className="h-4 w-4" />
+      <span>{paymentMethod === 'wechat_qr' ? '微信扫一扫' : '支付宝扫一扫'}</span>
+    </div>
+  );
+}
+
+function BrandedPaymentQr({
+  paymentMethod,
+  qrUrl,
+}: {
+  paymentMethod: PaymentMethod;
+  qrUrl: string;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-4">
+      <div className="relative overflow-hidden rounded-[30px] border border-white/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-4 shadow-[0_28px_60px_rgba(15,23,42,0.14)]">
+        <div className="absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,rgba(248,250,252,0.94),rgba(255,255,255,0))]" />
+        <img
+          src={qrUrl}
+          alt={`${paymentMethod === 'wechat_qr' ? '微信' : '支付宝'}支付二维码`}
+          className="relative block h-64 w-64 rounded-[24px] object-contain"
+        />
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <PaymentBrandLogo paymentMethod={paymentMethod} />
+        </div>
+      </div>
+      <PaymentScanBadge paymentMethod={paymentMethod} />
+    </div>
+  );
 }
 
 function getDefaultPackageId(packages: RechargePackage[]): string {
@@ -217,7 +263,7 @@ export function RechargeCenter({
     }
     let cancelled = false;
     QRCode.toDataURL(launchPaymentUrl, {
-      errorCorrectionLevel: 'M',
+      errorCorrectionLevel: 'H',
       margin: 1,
       width: 320,
       color: {
@@ -291,12 +337,8 @@ export function RechargeCenter({
         return;
       }
       setActiveOrder(order);
-      if (order.payment_url && !isDataImageUrl(order.payment_url)) {
-        setPaymentMessage(
-          '已生成动态支付二维码；你也可以点击下方按钮在浏览器打开支付页，当前页面不会跳走。',
-        );
-      } else if (order.payment_url) {
-        setPaymentMessage('二维码已生成，请扫码完成支付。');
+      if (order.payment_url) {
+        setPaymentMessage('支付二维码已就绪，请直接扫码完成支付。');
       } else {
         setPaymentMessage('支付订单已创建，但未返回支付入口。');
       }
@@ -417,7 +459,6 @@ export function RechargeCenter({
           activeOrder={activeOrder}
           displayPaymentUrl={displayPaymentUrl}
           resolvedQrUrl={resolvedQrUrl}
-          launchPaymentUrl={launchPaymentUrl}
           onPaymentMethodChange={(method) => {
             cancelPendingCreateOrder();
             setPaymentMethod(method);
@@ -450,16 +491,6 @@ export function RechargeCenter({
           creatingOrder={creatingOrder}
           paymentMessage={paymentMessage}
           onPayNow={handlePayNow}
-          onReopenPayment={() => {
-            if (launchPaymentUrl) {
-              const opened = openPaymentUrl(launchPaymentUrl);
-              setPaymentMessage(
-                opened
-                  ? '支付页面已重新打开。'
-                  : '浏览器拦截了弹窗，请点击地址栏允许后重试，当前页面不会跳转。',
-              );
-            }
-          }}
           onResetOrder={() => {
             cancelPendingCreateOrder();
             setActiveOrder(null);
@@ -638,7 +669,6 @@ function PaymentView({
   activeOrder,
   displayPaymentUrl,
   resolvedQrUrl,
-  launchPaymentUrl,
   onPaymentMethodChange,
   packageDropdownOpen,
   onTogglePackageDropdown,
@@ -649,7 +679,6 @@ function PaymentView({
   creatingOrder,
   paymentMessage,
   onPayNow,
-  onReopenPayment,
   onResetOrder,
   onPanelClick,
 }: {
@@ -660,7 +689,6 @@ function PaymentView({
   activeOrder: PaymentOrderData | null;
   displayPaymentUrl: string | null;
   resolvedQrUrl: string | null;
-  launchPaymentUrl: string | null;
   onPaymentMethodChange: (method: PaymentMethod) => void;
   packageDropdownOpen: boolean;
   onTogglePackageDropdown: () => void;
@@ -671,7 +699,6 @@ function PaymentView({
   creatingOrder: boolean;
   paymentMessage: string | null;
   onPayNow: () => void;
-  onReopenPayment: () => void;
   onResetOrder: () => void;
   onPanelClick: (event: ReactMouseEvent<HTMLDivElement>) => void;
 }) {
@@ -681,8 +708,6 @@ function PaymentView({
   const isFailed = orderStatus === 'failed';
   const isExpired = orderStatus === 'expired';
   const isAwaitingPayment = !creatingOrder && Boolean(activeOrder) && !isPaid && !isFailed && !isExpired;
-  const canReopenExternalPayment = isAwaitingPayment && Boolean(launchPaymentUrl);
-  const priceSummary = `¥${totalPrice}`;
   const statusCard = creatingOrder
     ? {
         tone: 'border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-100',
@@ -725,37 +750,31 @@ function PaymentView({
               }
             : {
                 tone: 'border-gray-200 bg-gray-50 text-gray-800 dark:border-[#2a3441] dark:bg-[#1a1f28] dark:text-gray-200',
-                icon: ExternalLink,
+                icon: Clock3,
                 iconClassName: '',
                 title: '尚未创建订单',
-                description: `请选择支付方式并创建订单。订单创建成功后，右侧会立即生成真实支付二维码，本次将为当前账号充值 ${formatCreditsLabel(currentPackage.totalCredits)} 龙虾币。`,
+                description: `请选择支付方式并创建订单。订单创建成功后，当前模态窗会直接展示真实支付二维码，本次将为当前账号充值 ${formatCreditsLabel(currentPackage.totalCredits)} 龙虾币。`,
               };
   const StatusIcon = statusCard.icon;
   const primaryButtonLabel = creatingOrder
     ? '创建订单中...'
     : isPaid
       ? '立即返回'
-      : canReopenExternalPayment
-        ? '打开支付页'
-        : isAwaitingPayment
-          ? '等待支付完成'
-          : isFailed || isExpired
-            ? '重新创建订单'
-            : '创建订单并生成二维码';
+      : isAwaitingPayment
+        ? '等待支付完成'
+        : isFailed || isExpired
+          ? '重新创建订单'
+          : '创建订单并生成二维码';
   const primaryButtonTone = isPaid
     ? 'bg-emerald-500 text-white hover:bg-emerald-600'
     : isFailed || isExpired
       ? 'bg-[#E63946] text-white hover:bg-[#d92f3d]'
       : 'bg-blue-500 text-white hover:bg-blue-600';
-  const primaryButtonDisabled = creatingOrder || (isAwaitingPayment && !canReopenExternalPayment && !isPaid);
+  const primaryButtonDisabled = creatingOrder || (isAwaitingPayment && !isPaid);
 
   const handlePrimaryAction = () => {
     if (isPaid) {
       onClose();
-      return;
-    }
-    if (canReopenExternalPayment) {
-      onReopenPayment();
       return;
     }
     if (!isAwaitingPayment || isFailed || isExpired) {
@@ -864,7 +883,7 @@ function PaymentView({
 
           <section className="rounded-2xl border border-gray-200 bg-gray-50 p-6 dark:border-[#2a3441] dark:bg-[#1f2630]">
             <h2 className="mb-2 text-2xl font-bold text-[#1a1a1a] dark:text-[#f0f2f5]">请选择方式完成支付</h2>
-            <p className="mb-5 text-sm text-gray-600 dark:text-gray-400">支持微信支付与支付宝。优先在当前页直接扫码，必要时再打开外部支付页。</p>
+            <p className="mb-5 text-sm text-gray-600 dark:text-gray-400">当前模态窗就是支付页。请选择微信或支付宝后，直接扫描右侧收款码完成支付。</p>
 
             <div className={cn('mb-4 rounded-2xl border px-4 py-4', statusCard.tone)}>
               <div className="flex items-start gap-3">
@@ -973,26 +992,15 @@ function PaymentView({
                       {paymentMethod === 'wechat_qr' ? '微信扫码' : '支付宝扫码'}
                     </p>
                   </div>
-                  {launchPaymentUrl ? (
-                    <button
-                      type="button"
-                      onClick={onReopenPayment}
-                      className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 dark:border-[#364152] dark:text-gray-200 dark:hover:border-[#435064] dark:hover:bg-[#2a3441]"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      打开支付页
-                    </button>
-                  ) : null}
+                  <div className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-[11px] font-medium text-gray-500 dark:border-[#364152] dark:bg-[#1f2630] dark:text-gray-300">
+                    {paymentMethod === 'wechat_qr' ? '微信官方收款码样式' : '支付宝官方收款码样式'}
+                  </div>
                 </div>
-                <div className="flex min-h-[280px] items-center justify-center rounded-xl bg-gray-100 dark:bg-[#1a1f28]">
+                <div className="flex min-h-[280px] items-center justify-center rounded-[24px] bg-[linear-gradient(180deg,#eef2f7_0%,#e7edf6_100%)] p-4 dark:bg-[linear-gradient(180deg,#111827_0%,#182130_100%)]">
                 {creatingOrder ? (
                   <div className="text-center text-sm text-gray-500 dark:text-gray-400">正在创建支付订单...</div>
                 ) : resolvedQrUrl ? (
-                  <img
-                    src={resolvedQrUrl}
-                    alt={`${paymentMethod === 'wechat_qr' ? '微信' : '支付宝'}支付二维码`}
-                    className="h-64 w-64 rounded-xl border border-gray-200 bg-white object-contain p-3 shadow-sm"
-                  />
+                  <BrandedPaymentQr paymentMethod={paymentMethod} qrUrl={resolvedQrUrl} />
                 ) : isPaid ? (
                   <div className="flex h-64 w-64 flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-emerald-200 bg-emerald-50 text-center dark:border-emerald-900/60 dark:bg-emerald-950/30">
                     <CheckCircle2 className="h-12 w-12 text-emerald-500" />
@@ -1039,7 +1047,7 @@ function PaymentView({
                       ? paymentMethod === 'wechat_qr'
                         ? '请直接使用微信扫描上方二维码完成支付。'
                         : '请直接使用支付宝扫描上方二维码完成支付。'
-                      : '请直接扫描上方动态二维码；如果扫码不便，也可以打开支付页继续。'
+                      : '请直接扫描上方收款码完成支付。'
                     : isPaid
                       ? `支付已完成，${formatCreditsLabel(currentPackage.totalCredits)} 龙虾币已经写入当前账号。`
                       : isFailed
