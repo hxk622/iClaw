@@ -1,0 +1,1221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>苍穹源创商业计划书 - Web Slides</title>
+  <style>
+    :root {
+      --bg: #07111f;
+      --bg-deep: #030814;
+      --panel: rgba(12, 27, 48, 0.72);
+      --panel-strong: rgba(16, 34, 61, 0.9);
+      --line: rgba(120, 196, 255, 0.18);
+      --text: #eef6ff;
+      --muted: #9cb9d9;
+      --cyan: #5ed7ff;
+      --teal: #7ef5d5;
+      --gold: #ffd56b;
+      --red: #ff8b8b;
+      --title-size: clamp(1.7rem, 5vw, 4.5rem);
+      --h2-size: clamp(1.3rem, 3.5vw, 2.75rem);
+      --h3-size: clamp(1rem, 2.3vw, 1.7rem);
+      --body-size: clamp(0.78rem, 1.3vw, 1.1rem);
+      --small-size: clamp(0.68rem, 1vw, 0.9rem);
+      --slide-padding: clamp(1rem, 4vw, 3.5rem);
+      --content-gap: clamp(0.75rem, 2vw, 1.5rem);
+      --element-gap: clamp(0.5rem, 1vw, 0.9rem);
+      --card-radius: 24px;
+      --shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+      --font-display: "Avenir Next", "SF Pro Display", "PingFang SC", "Noto Sans SC", sans-serif;
+      --font-body: "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+
+    html,
+    body {
+      height: 100%;
+      overflow-x: hidden;
+      margin: 0;
+      background:
+        radial-gradient(circle at 20% 20%, rgba(32, 90, 156, 0.34), transparent 28%),
+        radial-gradient(circle at 80% 10%, rgba(32, 111, 185, 0.22), transparent 24%),
+        radial-gradient(circle at 70% 70%, rgba(23, 128, 178, 0.18), transparent 20%),
+        linear-gradient(180deg, #091320 0%, #050a13 55%, #02060e 100%);
+      color: var(--text);
+      font-family: var(--font-body);
+    }
+
+    html {
+      scroll-snap-type: y mandatory;
+      scroll-behavior: smooth;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        radial-gradient(circle at 12% 18%, rgba(255, 255, 255, 0.85) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 77% 14%, rgba(255, 255, 255, 0.7) 0 1px, transparent 1.4px),
+        radial-gradient(circle at 64% 62%, rgba(94, 215, 255, 0.65) 0 1px, transparent 1.6px),
+        radial-gradient(circle at 27% 72%, rgba(126, 245, 213, 0.45) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 88% 78%, rgba(255, 213, 107, 0.35) 0 1px, transparent 1.5px);
+      opacity: 0.9;
+    }
+
+    .slide {
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+      scroll-snap-align: start;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      isolation: isolate;
+      background:
+        linear-gradient(130deg, rgba(255, 255, 255, 0.03), transparent 30%),
+        linear-gradient(180deg, rgba(8, 17, 31, 0.3), rgba(2, 5, 12, 0.55));
+    }
+
+    .slide::after {
+      content: "";
+      position: absolute;
+      inset: 2.3vh 2.3vw;
+      border: 1px solid rgba(123, 197, 255, 0.12);
+      border-radius: 28px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .slide-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      max-height: 100%;
+      overflow: hidden;
+      padding: var(--slide-padding);
+      gap: var(--content-gap);
+      position: relative;
+      z-index: 1;
+    }
+
+    .eyebrow {
+      font-size: var(--small-size);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      font-weight: 700;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1,
+    h2 {
+      font-family: var(--font-display);
+      line-height: 1.05;
+    }
+
+    h1 {
+      font-size: var(--title-size);
+      max-width: min(88vw, 1100px);
+    }
+
+    h2 {
+      font-size: var(--h2-size);
+      max-width: min(86vw, 960px);
+    }
+
+    h3 {
+      font-size: var(--h3-size);
+      line-height: 1.15;
+    }
+
+    p,
+    li {
+      font-size: var(--body-size);
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .lead {
+      font-size: clamp(0.95rem, 1.7vw, 1.35rem);
+      max-width: min(82vw, 820px);
+      color: #dceafc;
+    }
+
+    .hero {
+      justify-content: space-between;
+      padding-top: clamp(1.5rem, 6vh, 4rem);
+      padding-bottom: clamp(1.5rem, 7vh, 4rem);
+    }
+
+    .hero-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.8rem;
+      padding: 0.65rem 1rem;
+      border-radius: 999px;
+      background: rgba(9, 25, 45, 0.62);
+      border: 1px solid rgba(120, 196, 255, 0.18);
+      box-shadow: var(--shadow);
+      width: fit-content;
+    }
+
+    .brand-mark {
+      width: 1.25rem;
+      height: 1.25rem;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 30% 30%, #dffaff, #57d6ff 40%, #0d5ad9 70%, transparent 72%);
+      box-shadow: 0 0 22px rgba(94, 215, 255, 0.55);
+    }
+
+    .hero-grid,
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+      gap: clamp(0.6rem, 1.6vw, 1rem);
+      align-items: stretch;
+    }
+
+    .hero-grid {
+      max-width: min(92vw, 1120px);
+      grid-template-columns: 1.25fr 0.95fr;
+    }
+
+    .panel,
+    .metric,
+    .card,
+    .timeline-card {
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
+        var(--panel);
+      border: 1px solid rgba(125, 197, 255, 0.14);
+      border-radius: var(--card-radius);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+
+    .panel {
+      padding: clamp(1rem, 2vw, 1.5rem);
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .hero-copy {
+      justify-content: space-between;
+      min-height: min(58vh, 540px);
+    }
+
+    .hero-orbit {
+      position: relative;
+      min-height: min(58vh, 540px);
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 50%, rgba(22, 101, 207, 0.18), transparent 34%),
+        linear-gradient(180deg, rgba(7, 15, 28, 0.42), rgba(4, 9, 18, 0.9));
+    }
+
+    .orbit-ring {
+      position: absolute;
+      inset: 50% auto auto 50%;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      border: 1px solid rgba(120, 196, 255, 0.12);
+    }
+
+    .orbit-ring.r1 { width: min(50vw, 360px); height: min(50vw, 360px); }
+    .orbit-ring.r2 { width: min(36vw, 260px); height: min(36vw, 260px); }
+    .orbit-ring.r3 { width: min(22vw, 170px); height: min(22vw, 170px); }
+
+    .orbit-core {
+      position: absolute;
+      inset: 50% auto auto 50%;
+      transform: translate(-50%, -50%);
+      width: clamp(5rem, 14vw, 8rem);
+      height: clamp(5rem, 14vw, 8rem);
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.95), rgba(126, 245, 213, 0.8) 18%, rgba(94, 215, 255, 0.8) 45%, rgba(13, 90, 217, 0.85) 70%);
+      box-shadow: 0 0 60px rgba(94, 215, 255, 0.45);
+    }
+
+    .orbit-node {
+      position: absolute;
+      padding: 0.75rem 0.9rem;
+      border-radius: 18px;
+      background: rgba(6, 18, 35, 0.9);
+      border: 1px solid rgba(120, 196, 255, 0.15);
+      font-size: var(--small-size);
+      color: #d9edff;
+      max-width: min(28vw, 190px);
+    }
+
+    .orbit-node strong {
+      display: block;
+      color: var(--text);
+      margin-bottom: 0.25rem;
+      font-size: var(--body-size);
+    }
+
+    .orbit-node.n1 { top: 15%; left: 10%; }
+    .orbit-node.n2 { top: 18%; right: 8%; }
+    .orbit-node.n3 { bottom: 16%; left: 12%; }
+    .orbit-node.n4 { bottom: 18%; right: 10%; }
+
+    .metrics-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: clamp(0.6rem, 1vw, 0.9rem);
+    }
+
+    .metric {
+      padding: 0.9rem 1rem;
+      min-height: 5.2rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 0.15rem;
+    }
+
+    .metric-value {
+      font-family: var(--font-display);
+      font-size: clamp(1.25rem, 3.2vw, 2.2rem);
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .metric-label {
+      font-size: var(--small-size);
+      color: var(--muted);
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
+      gap: clamp(0.75rem, 1.8vw, 1.4rem);
+      align-items: stretch;
+      min-height: 0;
+    }
+
+    .stack {
+      display: grid;
+      gap: clamp(0.6rem, 1vw, 0.9rem);
+    }
+
+    .stack-row {
+      padding: 1rem 1.15rem;
+      border-radius: 22px;
+      background: rgba(9, 23, 42, 0.78);
+      border: 1px solid rgba(120, 196, 255, 0.15);
+      position: relative;
+    }
+
+    .stack-row::before {
+      content: "";
+      position: absolute;
+      inset: auto auto 0 0;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, rgba(94, 215, 255, 0.7), transparent 85%);
+    }
+
+    .stack-label {
+      font-size: var(--small-size);
+      color: var(--cyan);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-bottom: 0.45rem;
+      font-weight: 700;
+    }
+
+    .bullet-list,
+    .tag-list {
+      display: grid;
+      gap: clamp(0.5rem, 1vh, 0.9rem);
+      padding: 0;
+      list-style: none;
+      margin: 0;
+    }
+
+    .bullet-list li {
+      position: relative;
+      padding-left: 1.1rem;
+    }
+
+    .bullet-list li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0.56em;
+      width: 0.45rem;
+      height: 0.45rem;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--teal), var(--cyan));
+      box-shadow: 0 0 14px rgba(94, 215, 255, 0.45);
+    }
+
+    .tag-list {
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+    }
+
+    .tag {
+      padding: 0.8rem 0.95rem;
+      border-radius: 18px;
+      background: rgba(7, 18, 34, 0.82);
+      border: 1px solid rgba(120, 196, 255, 0.12);
+      color: #d6ebff;
+      font-size: var(--small-size);
+    }
+
+    .card {
+      padding: 1rem 1.05rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+      justify-content: space-between;
+      overflow: hidden;
+    }
+
+    .card-number {
+      font-size: var(--small-size);
+      color: var(--cyan);
+      font-weight: 700;
+      letter-spacing: 0.14em;
+    }
+
+    .card p {
+      font-size: clamp(0.74rem, 1.05vw, 1rem);
+    }
+
+    .highlight {
+      color: var(--gold);
+    }
+
+    .danger {
+      color: var(--red);
+    }
+
+    .comparison {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: clamp(0.7rem, 1.5vw, 1rem);
+    }
+
+    .comparison .panel h3 {
+      margin-bottom: 0.2rem;
+    }
+
+    .market-shape {
+      position: relative;
+      min-height: min(36vh, 310px);
+      border-radius: 26px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01)),
+        rgba(6, 17, 31, 0.88);
+      border: 1px solid rgba(120, 196, 255, 0.15);
+      overflow: hidden;
+    }
+
+    .market-shape::before {
+      content: "";
+      position: absolute;
+      left: 8%;
+      right: 8%;
+      bottom: 12%;
+      top: 12%;
+      background:
+        linear-gradient(0deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px) 0 0 / 100% 25%,
+        linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px) 0 0 / 20% 100%;
+    }
+
+    .market-line {
+      position: absolute;
+      left: 9%;
+      right: 9%;
+      bottom: 18%;
+      height: 58%;
+      background: linear-gradient(180deg, rgba(94, 215, 255, 0.26), rgba(94, 215, 255, 0.02));
+      clip-path: polygon(0% 88%, 18% 78%, 38% 62%, 58% 45%, 78% 25%, 100% 0%, 100% 100%, 0% 100%);
+      border-bottom-left-radius: 16px;
+      border-bottom-right-radius: 16px;
+    }
+
+    .market-points {
+      position: absolute;
+      inset: 0;
+    }
+
+    .market-point {
+      position: absolute;
+      width: 0.9rem;
+      height: 0.9rem;
+      border-radius: 50%;
+      background: #e9fbff;
+      box-shadow: 0 0 18px rgba(94, 215, 255, 0.8);
+      transform: translate(-50%, -50%);
+    }
+
+    .market-point span {
+      position: absolute;
+      top: -1.9rem;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: var(--small-size);
+      color: #d8edff;
+      white-space: nowrap;
+    }
+
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: clamp(0.6rem, 1vw, 0.9rem);
+    }
+
+    .timeline-card {
+      padding: 0.9rem 0.95rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+
+    .timeline-year {
+      color: var(--gold);
+      font-weight: 700;
+      font-size: var(--small-size);
+      letter-spacing: 0.12em;
+    }
+
+    .footer-note {
+      position: absolute;
+      left: var(--slide-padding);
+      bottom: max(0.9rem, env(safe-area-inset-bottom));
+      font-size: var(--small-size);
+      color: rgba(187, 212, 239, 0.74);
+      z-index: 2;
+    }
+
+    .nav-dots {
+      position: fixed;
+      right: clamp(0.7rem, 1.6vw, 1.2rem);
+      top: 50%;
+      transform: translateY(-50%);
+      display: grid;
+      gap: 0.45rem;
+      z-index: 20;
+    }
+
+    .nav-dot {
+      width: 0.72rem;
+      height: 0.72rem;
+      border-radius: 50%;
+      border: 1px solid rgba(186, 220, 255, 0.32);
+      background: rgba(255, 255, 255, 0.08);
+      transition: transform 240ms ease, background 240ms ease, box-shadow 240ms ease;
+      cursor: pointer;
+    }
+
+    .nav-dot.active {
+      background: linear-gradient(135deg, var(--teal), var(--cyan));
+      transform: scale(1.12);
+      box-shadow: 0 0 16px rgba(94, 215, 255, 0.48);
+    }
+
+    .slide-counter {
+      position: fixed;
+      top: clamp(0.8rem, 2vw, 1.2rem);
+      right: clamp(0.9rem, 2vw, 1.5rem);
+      z-index: 20;
+      font-size: var(--small-size);
+      letter-spacing: 0.12em;
+      color: rgba(216, 237, 255, 0.82);
+      padding: 0.45rem 0.7rem;
+      border-radius: 999px;
+      background: rgba(5, 13, 26, 0.62);
+      border: 1px solid rgba(120, 196, 255, 0.12);
+      backdrop-filter: blur(14px);
+    }
+
+    .keyboard-hint {
+      position: fixed;
+      left: clamp(0.8rem, 2vw, 1.4rem);
+      bottom: clamp(0.8rem, 2vw, 1.2rem);
+      z-index: 20;
+      font-size: var(--small-size);
+      color: rgba(187, 212, 239, 0.68);
+      padding: 0.45rem 0.7rem;
+      border-radius: 999px;
+      background: rgba(5, 13, 26, 0.5);
+      border: 1px solid rgba(120, 196, 255, 0.1);
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(16px);
+      transition: opacity 700ms ease, transform 700ms ease;
+    }
+
+    .slide.in-view .reveal {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .slide.in-view .reveal.delay-1 { transition-delay: 90ms; }
+    .slide.in-view .reveal.delay-2 { transition-delay: 160ms; }
+    .slide.in-view .reveal.delay-3 { transition-delay: 240ms; }
+    .slide.in-view .reveal.delay-4 { transition-delay: 320ms; }
+
+    @media (max-height: 700px) {
+      :root {
+        --slide-padding: clamp(0.8rem, 2.5vw, 2rem);
+        --content-gap: clamp(0.45rem, 1.2vw, 0.9rem);
+        --title-size: clamp(1.35rem, 4vw, 2.6rem);
+        --h2-size: clamp(1.05rem, 3vw, 1.9rem);
+      }
+
+      .hero-grid,
+      .split,
+      .comparison {
+        gap: 0.7rem;
+      }
+    }
+
+    @media (max-height: 600px) {
+      :root {
+        --slide-padding: clamp(0.65rem, 2vw, 1.5rem);
+        --body-size: clamp(0.7rem, 1vw, 0.94rem);
+      }
+
+      .keyboard-hint,
+      .footer-note {
+        display: none;
+      }
+    }
+
+    @media (max-height: 500px) {
+      :root {
+        --title-size: clamp(1.1rem, 3vw, 1.6rem);
+        --h2-size: clamp(0.95rem, 2.3vw, 1.3rem);
+      }
+
+      .hero-grid,
+      .split,
+      .comparison,
+      .metrics-row,
+      .timeline {
+        grid-template-columns: 1fr;
+      }
+
+      .nav-dots {
+        display: none;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .hero-grid,
+      .split,
+      .comparison,
+      .metrics-row,
+      .timeline {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-orbit,
+      .market-shape {
+        min-height: 240px;
+      }
+    }
+
+    @media (max-width: 600px) {
+      :root {
+        --title-size: clamp(1.35rem, 7vw, 2.4rem);
+      }
+
+      .nav-dots,
+      .keyboard-hint {
+        display: none;
+      }
+
+      .orbit-node {
+        max-width: 38vw;
+        padding: 0.55rem 0.65rem;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.2s !important;
+      }
+
+      html {
+        scroll-behavior: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="slide-counter" aria-live="polite"><span id="current-slide">01</span> / 12</div>
+  <div class="keyboard-hint">方向键 / PageDown 翻页</div>
+  <nav class="nav-dots" aria-label="幻灯片导航">
+    <button class="nav-dot active" data-slide="0" aria-label="第1页"></button>
+    <button class="nav-dot" data-slide="1" aria-label="第2页"></button>
+    <button class="nav-dot" data-slide="2" aria-label="第3页"></button>
+    <button class="nav-dot" data-slide="3" aria-label="第4页"></button>
+    <button class="nav-dot" data-slide="4" aria-label="第5页"></button>
+    <button class="nav-dot" data-slide="5" aria-label="第6页"></button>
+    <button class="nav-dot" data-slide="6" aria-label="第7页"></button>
+    <button class="nav-dot" data-slide="7" aria-label="第8页"></button>
+    <button class="nav-dot" data-slide="8" aria-label="第9页"></button>
+    <button class="nav-dot" data-slide="9" aria-label="第10页"></button>
+    <button class="nav-dot" data-slide="10" aria-label="第11页"></button>
+    <button class="nav-dot" data-slide="11" aria-label="第12页"></button>
+  </nav>
+
+  <section class="slide in-view" id="slide-1">
+    <div class="slide-content hero">
+      <div class="hero-top reveal">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>苍穹源创 · Zhiyuan Engine</span>
+        </div>
+        <div class="eyebrow">Investor Draft / 2026</div>
+      </div>
+      <div class="hero-grid">
+        <div class="panel hero-copy reveal delay-1">
+          <div class="stack">
+            <div class="eyebrow">商业计划书</div>
+            <h1>让 AI 从云端工具，变成可拥有、可控制、可私有化的智能体基础设施</h1>
+            <p class="lead">以 <span class="highlight">OpenClawBox 终端</span> 为入口，以 <span class="highlight">IClaw 平台</span> 为中台，以 <span class="highlight">行业化交付</span> 为落地抓手，打通 AI 落地最后一公里。</p>
+          </div>
+          <div class="metrics-row">
+            <div class="metric">
+              <div class="metric-value">终端化</div>
+              <div class="metric-label">把 AI 做成设备，而不只是 App</div>
+            </div>
+            <div class="metric">
+              <div class="metric-value">本地化</div>
+              <div class="metric-label">数据不出域，离线可运行</div>
+            </div>
+            <div class="metric">
+              <div class="metric-value">平台化</div>
+              <div class="metric-label">Skill / 工作流 / 模型统一调度</div>
+            </div>
+          </div>
+        </div>
+        <div class="panel hero-orbit reveal delay-2" aria-hidden="true">
+          <div class="orbit-ring r1"></div>
+          <div class="orbit-ring r2"></div>
+          <div class="orbit-ring r3"></div>
+          <div class="orbit-core"></div>
+          <div class="orbit-node n1"><strong>个人</strong>专属 AI 助理与创作中枢</div>
+          <div class="orbit-node n2"><strong>企业</strong>私有部署与数字员工平台</div>
+          <div class="orbit-node n3"><strong>开发者</strong>Skill 工厂与行业封装</div>
+          <div class="orbit-node n4"><strong>生态</strong>终端入口 + 平台订阅 + 服务交付</div>
+        </div>
+      </div>
+      <div class="footer-note">基于现有材料重构的融资版网页 BP 草案</div>
+    </div>
+  </section>
+
+  <section class="slide" id="slide-2">
+    <div class="slide-content">
+      <div class="eyebrow reveal">01 / 愿景</div>
+      <h2 class="reveal delay-1">我们的愿景：让人类专注创造，让 AI 以终端化、平台化、行业化的方式进入千行百业</h2>
+      <div class="comparison">
+        <div class="panel reveal delay-2">
+          <h3>我们要占的位置</h3>
+          <ul class="bullet-list">
+            <li>不是又一个聊天助手，而是 <span class="highlight">AI 终端入口</span></li>
+            <li>不是单点模型能力，而是 <span class="highlight">可部署的智能体工作台</span></li>
+            <li>不是纯软件订阅，而是 <span class="highlight">硬件 + 平台 + 行业服务</span> 的新基础设施</li>
+            <li>不是云端托管依赖，而是 <span class="highlight">用户可拥有的数据与算力载体</span></li>
+          </ul>
+        </div>
+        <div class="panel reveal delay-3">
+          <h3>愿景落点</h3>
+          <div class="grid">
+            <div class="card">
+              <div class="card-number">A</div>
+              <h3>人人可拥有</h3>
+              <p>AI 像电脑、手机一样成为个人与组织的长期资产。</p>
+            </div>
+            <div class="card">
+              <div class="card-number">B</div>
+              <h3>人人可控制</h3>
+              <p>权限、模型、数据、工作流由用户和企业掌握。</p>
+            </div>
+            <div class="card">
+              <div class="card-number">C</div>
+              <h3>人人可部署</h3>
+              <p>从家庭桌面到政企内网，统一能力、分级交付。</p>
+            </div>
+            <div class="card">
+              <div class="card-number">D</div>
+              <h3>人人可受益</h3>
+              <p>让 AI 真正创造效率，而不是制造新门槛。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="slide-3">
+    <div class="slide-content">
+      <div class="eyebrow reveal">02 / 问题</div>
+      <h2 class="reveal delay-1">AI 能力越强，离普通用户和真实业务反而越远</h2>
+      <div class="grid">
+        <div class="card reveal delay-1">
+          <div class="card-number">01</div>
+          <h3>部署鸿沟</h3>
+          <p>技术供给快速迭代，但企业真正需要的是可开箱、可上线、可维护的现成方案。</p>
+        </div>
+        <div class="card reveal delay-2">
+          <div class="card-number">02</div>
+          <h3>安全鸿沟</h3>
+          <p>云端集中化与高权限运行模式，难以满足数据主权、隐私保护与合规要求。</p>
+        </div>
+        <div class="card reveal delay-3">
+          <div class="card-number">03</div>
+          <h3>场景鸿沟</h3>
+          <p>通用模型能力很强，但行业工作流、知识库、Skill 封装仍然稀缺。</p>
+        </div>
+        <div class="card reveal delay-4">
+          <div class="card-number">04</div>
+          <h3>成本鸿沟</h3>
+          <p>长期 token 计费、高频调用与云端依赖，让中小企业和个人难以规模化使用。</p>
+        </div>
+      </div>
+      <div class="panel reveal delay-4">
+        <p class="lead">今天真正缺的，不是再多一个模型，而是一个能把 <span class="highlight">算力、模型、工具、数据、工作流</span> 变成可交付产品的系统。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="slide-4">
+    <div class="slide-content">
+      <div class="eyebrow reveal">03 / 解决方案</div>
+      <h2 class="reveal delay-1">我们的答案：OpenClawBox + IClaw 平台 + 行业服务，构成完整的 AI 终端生态</h2>
+      <div class="split">
+        <div class="panel reveal delay-2">
+          <div class="stack">
+            <div class="stack-row">
+              <div class="stack-label">终端设备层</div>
+              <h3>OpenClawBox</h3>
+              <p>本地高性能算力、多模态感知、自主任务执行、离线可运行、数据完全本地化。</p>
+            </div>
+            <div class="stack-row">
+              <div class="stack-label">平台能力层</div>
+              <h3>IClaw Platform</h3>
+              <p>可视化智能体构建、行业 Skill 封装、模型调度、知识库、工作流、Token 服务与运营配置。</p>
+            </div>
+            <div class="stack-row">
+              <div class="stack-label">行业交付层</div>
+              <h3>Vertical Service</h3>
+              <p>围绕办公自动化、教育辅助、法律、金融、政企场景提供私有部署、定制开发与实施咨询。</p>
+            </div>
+          </div>
+        </div>
+        <div class="panel reveal delay-3">
+          <h3>核心价值主张</h3>
+          <ul class="bullet-list">
+            <li><span class="highlight">开箱即用</span>：用设备承载 AI，降低部署与学习门槛</li>
+            <li><span class="highlight">隐私安全</span>：数据本地处理，不依赖持续联网</li>
+            <li><span class="highlight">成本可控</span>：从“按 token 租用”走向“资产化投入”</li>
+            <li><span class="highlight">持续扩展</span>：通过 Skill 与工作流把行业 know-how 沉淀下来</li>
+          </ul>
+          <div class="tag-list">
+            <div class="tag">终端即入口</div>
+            <div class="tag">平台即复用</div>
+            <div class="tag">服务即变现</div>
+            <div class="tag">数据即护城河</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="slide-5">
+    <div class="slide-content">
+      <div class="eyebrow reveal">04 / 产品亮点与领先性</div>
+      <h2 class="reveal delay-1">我们的产品不是一个 AI App，而是一台终端、一个工作台和一套可部署的生产系统</h2>
+      <div class="grid">
+        <div class="card reveal delay-1">
+          <div class="card-number">P1</div>
+          <h3>终端化体验</h3>
+          <p>AI 从浏览器标签页变成专属设备，用户感知更稳定、关系更长期。</p>
+        </div>
+        <div class="card reveal delay-2">
+          <div class="card-number">P2</div>
+          <h3>多模态与执行闭环</h3>
+          <p>同时理解文本、语音、视觉，并具备自主任务执行能力。</p>
+        </div>
+        <div class="card reveal delay-3">
+          <div class="card-number">P3</div>
+          <h3>可视化搭建</h3>
+          <p>无需深度编程即可构建智能体，显著降低企业内部应用门槛。</p>
+        </div>
+        <div class="card reveal delay-4">
+          <div class="card-number">P4</div>
+          <h3>行业 Skill 工厂</h3>
+          <p>把经验固化为可复用模块，提升交付效率与客户留存。</p>
+        </div>
+        <div class="card reveal delay-4">
+          <div class="card-number">P5</div>
+          <h3>低总拥有成本</h3>
+          <p>避免纯云端高频计费，适合高频、长期、稳定的真实工作流。</p>
+        </div>
+        <div class="card reveal delay-4">
+          <div class="card-number">P6</div>
+          <h3>硬软服一体化</h3>
+          <p>从采购、部署、使用到扩展形成完整链路，更符合 B 端决策逻辑。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="slide-6">
+    <div class="slide-content">
+      <div class="eyebrow reveal">05 / 技术亮点与领先性</div>
+      <h2 class="reveal delay-1">技术领先性不在模型更大，而在于把模型变成可控、可部署、可规模化交付的系统</h2>
+      <div class="split">
+        <div class="panel reveal delay-2">
+          <h3>技术亮点</h3>
+          <ul class="bullet-list">
+            <li><span class="highlight">Local-first 架构</span>：本地优先，兼顾离线运行、低延迟和数据主权</li>
+            <li><span class="highlight">混合模型调度</span>：本地模型、私有模型、云模型按任务动态协同</li>
+            <li><span class="highlight">Skill / Workflow 封装</span>：让通用模型成为行业能力，而非一次性 prompt</li>
+            <li><span class="highlight">终端与平台协同</span>：设备负责感知与执行，平台负责管理、分发与订阅</li>
+            <li><span class="highlight">工程化交付能力</span>：权限、部署、回滚、私有化、安全策略形成企业可采购能力</li>
+          </ul>
+        </div>
+        <div class="panel reveal delay-3">
+          <h3>相对云端 Agent 的领先性</h3>
+          <div class="grid">
+            <div class="card">
+              <h3>更稳定</h3>
+              <p>不依赖高权限云执行与持续联网。</p>
+            </div>
+            <div class="card">
+              <h3>更合规</h3>
+              <p>适配政企、教育、法律、金融等敏感场景。</p>
+            </div>
+            <div class="card">
+              <h3>更低成本</h3>
+              <p>高频任务不被 token 曲线持续侵蚀利润。</p>
+            </div>
+            <div class="card">
+              <h3>更易复制</h3>
+              <p>行业模板、知识库、Skill 形成复用资产。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="slide-7">
+    <div class="slide-content">
+      <div class="eyebrow reveal">06 / 竞争壁垒</div>
+      <h2 class="reveal delay-1">我们的护城河不在单点功能，而在“终端入口 + 本地安全 + 平台复用 + 行业落地”的组合</h2>
+      <div class="grid">
+        <div class="card reveal delay-1">
+          <div class="card-number">MOAT-1</div>
+          <h3>终端入口壁垒</h3>
+          <p>一旦 AI 成为设备而非网页插件，用户关系、数据关系、服务关系都会更深。</p>
+        </div>
+        <div class="card reveal delay-2">
+          <div class="card-number">MOAT-2</div>
+          <h3>安全与私有化壁垒</h3>
+          <p>对企业和政府场景，隐私、安全、离线与可控不是附加项，而是采购前提。</p>
+        </div>
+        <div class="card reveal delay-3">
+          <div class="card-number">MOAT-3</div>
+          <h3>平台复用壁垒</h3>
+          <p>Skill、工作流、知识库与模型编排越丰富，迁移成本越高，复制效率越强。</p>
+        </div>
+        <div class="card reveal delay-4">
+          <div class="card-number">MOAT-4</div>
+          <h3>行业落地壁垒</h3>
+          <p>谁先沉淀场景模板、交付方法与渠道网络，谁就更难被纯模型公司替代。</p>
+        </div>
+      </div>
+      <div class="panel reveal delay-4">
+        <p class="lead">这是一个 <span class="highlight">系统级优势</span>，而不是一项功能上线就能被复制的优势。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="slide-8">
+    <div class="slide-content">
+      <div class="eyebrow reveal">07 / 市场机会</div>
+      <h2 class="reveal delay-1">AI 智能体仍处在爆发前夜，终端化、本地化与行业化会成为下一阶段重要分化点</h2>
+      <div class="split">
+        <div class="panel reveal delay-2">
+          <h3>市场判断</h3>
+          <ul class="bullet-list">
+            <li>中国 AI 智能体市场预计从 2026 年的千亿级，向 2030 年的数千亿级持续增长</li>
+            <li>个人、SMB、政企三类市场需求不同，但都在寻找更可控、更高 ROI 的交付形态</li>
+            <li>随着云端成本暴露与合规要求提高，<span class="highlight">终端化 AI</span> 具备独立赛道机会</li>
+          </ul>
+          <div class="metrics-row">
+            <div class="metric">
+              <div class="metric-value">800亿+</div>
+              <div class="metric-label">个人与专业用户空间</div>
+            </div>
+            <div class="metric">
+              <div class="metric-value">300亿+</div>
+              <div class="metric-label">中小企业市场空间</div>
+            </div>
+            <div class="metric">
+              <div class="metric-value">100亿+</div>
+              <div class="metric-label">国央企与政府场景空间</div>
+            </div>
+          </div>
+        </div>
+        <div class="panel reveal delay-3">
+          <h3>趋势曲线</h3>
+          <div class="market-shape" aria-hidden="true">
+            <div class="market-line"></div>
+            <div class="market-points">
+              <div class="market-point" style="left: 10%; top: 69%;"><span>2026</span></div>
+              <div class="market-point" style="left: 30%; top: 60%;"><span>2027</span></div>
+              <div class="market-point" style="left: 50%; top: 48%;"><span>2028</span></div>
+              <div class="market-point" style="left: 70%; top: 33%;"><span>2029</span></div>
+              <div class="market-point" style="left: 90%; top: 15%;"><span>2030</span></div>
+            </div>
+          </div>
+          <p>不是所有 AI 公司都能吃到这轮增长，真正受益者会是那些能把技术转成 <span class="highlight">可采购、可部署、可扩张</span> 产品的团队。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="slide-9">
+    <div class="slide-content">
+      <div class="eyebrow reveal">08 / 商业模式</div>
+      <h2 class="reveal delay-1">商业模式不是单一订阅，而是硬件销售、平台服务、企业交付与生态分成的组合收入结构</h2>
+      <div class="grid">
+        <div class="card reveal delay-1">
+          <div class="card-number">R1</div>
+          <h3>硬件销售</h3>
+          <p>OpenClawBox 基础版 / 专业版 / 企业级定制终端，形成现金回流与入口优势。</p>
+        </div>
+        <div class="card reveal delay-2">
+          <div class="card-number">R2</div>
+          <h3>平台订阅</h3>
+          <p>IClaw 平台按月 / 年收费，提供管理后台、模型调度、知识库与编排能力。</p>
+        </div>
+        <div class="card reveal delay-3">
+          <div class="card-number">R3</div>
+          <h3>企业服务</h3>
+          <p>私有部署、咨询实施、行业定制、培训服务，提升客单价和毛利率。</p>
+        </div>
+        <div class="card reveal delay-4">
+          <div class="card-number">R4</div>
+          <h3>Skill 市场分成</h3>
+          <p>开发者上传行业 Skill 与工作流，平台抽成，形成长期生态收入。</p>
+        </div>
+        <div class="card reveal delay-4">
+          <div class="card-number">R5</div>
+          <h3>渠道合作</h3>
+          <p>省市代理、行业方案商、OEM 与预装合作，放大分发效率。</p>
+        </div>
+        <div class="card reveal delay-4">
+          <div class="card-number">R6</div>
+          <h3>盈利逻辑</h3>
+          <p>硬件建立入口，平台提高留存，服务带来现金流，生态拉长生命周期价值。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="slide-10">
+    <div class="slide-content">
+      <div class="eyebrow reveal">09 / 团队与执行</div>
+      <h2 class="reveal delay-1">现有材料显示团队具备技术与产业双重基因，但正式融资版必须把“谁在做、做到哪了”讲透</h2>
+      <div class="comparison">
+        <div class="panel reveal delay-2">
+          <h3>当前可讲的执行优势</h3>
+          <ul class="bullet-list">
+            <li>团队具备 <span class="highlight">顶尖高校 + 大厂</span> 复合背景</li>
+            <li>同时覆盖 AI 深度应用、边缘计算、产品化与产业落地</li>
+            <li>方向选择清晰，优先切入可付费的本地化与行业场景</li>
+            <li>具备从终端到平台的完整产品视角，而非单一算法视角</li>
+          </ul>
+        </div>
+        <div class="panel reveal delay-3">
+          <h3>正式融资版建议补齐</h3>
+          <ul class="bullet-list">
+            <li><span class="danger">核心成员姓名、职责、代表经历</span></li>
+            <li><span class="danger">当前原型、Demo、试点、客户反馈</span></li>
+            <li><span class="danger">里程碑与时间线：已完成 / 未来 12 个月</span></li>
+            <li><span class="danger">为什么这支团队最适合做这件事</span></li>
+          </ul>
+          <p>这一页是融资说服力的关键补强位。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="slide-11">
+    <div class="slide-content">
+      <div class="eyebrow reveal">10 / 路线图与融资</div>
+      <h2 class="reveal delay-1">本轮融资的目标，不是单纯烧钱扩张，而是完成从产品验证到规模化复制的关键跨越</h2>
+      <div class="timeline">
+        <div class="timeline-card reveal delay-1">
+          <div class="timeline-year">阶段 1</div>
+          <h3>产品定型</h3>
+          <p>完善 OpenClawBox 量产方案与 IClaw 平台核心能力。</p>
+        </div>
+        <div class="timeline-card reveal delay-2">
+          <div class="timeline-year">阶段 2</div>
+          <h3>行业试点</h3>
+          <p>围绕办公、教育、法律、金融等场景跑通首批客户与模板。</p>
+        </div>
+        <div class="timeline-card reveal delay-3">
+          <div class="timeline-year">阶段 3</div>
+          <h3>渠道复制</h3>
+          <p>建立区域代理与行业伙伴体系，提高交付与获客效率。</p>
+        </div>
+        <div class="timeline-card reveal delay-4">
+          <div class="timeline-year">阶段 4</div>
+          <h3>生态扩展</h3>
+          <p>上线 Skill 市场与更多第三方能力接入，放大平台效应。</p>
+        </div>
+      </div>
+      <div class="comparison">
+        <div class="panel reveal delay-3">
+          <h3>融资规划</h3>
+          <ul class="bullet-list">
+            <li>本轮融资需求：<span class="highlight">5000 万人民币</span></li>
+            <li>研发投入：50%</li>
+            <li>生产制造：20%</li>
+            <li>市场推广：20%</li>
+            <li>运营储备：10%</li>
+          </ul>
+        </div>
+        <div class="panel reveal delay-4">
+          <h3>对外叙事建议</h3>
+          <ul class="bullet-list">
+            <li>把融资与里程碑绑定，而不是只给预算拆分</li>
+            <li>把营收预测与客单价、出货量、订阅转化率挂钩</li>
+            <li>优先证明“可复制的首单模型”，再谈远期宏大空间</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="slide-12">
+    <div class="slide-content">
+      <div class="eyebrow reveal">11 / 结论</div>
+      <h2 class="reveal delay-1">这件事值得做，不是因为 Agent 很热，而是因为真正可拥有、可部署、可持续使用的 AI 基础设施仍然缺位</h2>
+      <div class="hero-grid">
+        <div class="panel hero-copy reveal delay-2">
+          <div class="stack">
+            <h3>一句话总结</h3>
+            <p class="lead">苍穹源创要做的，不是下一个通用聊天产品，而是 <span class="highlight">AI 终端时代的入口型公司</span>。</p>
+          </div>
+          <ul class="bullet-list">
+            <li>愿景：让 AI 真正落地，让智能触手可及</li>
+            <li>壁垒：终端入口 + 本地安全 + 平台复用 + 行业落地</li>
+            <li>亮点：硬件 + 软件 + 服务一体化，兼顾个人、企业与开发者</li>
+            <li>技术：Local-first、混合调度、Skill 工厂、可交付工程化</li>
+          </ul>
+        </div>
+        <div class="panel reveal delay-3">
+          <h3>这版 Web BP 已具备的能力</h3>
+          <ul class="bullet-list">
+            <li>已经能清晰回答愿景、壁垒、产品亮点、技术亮点</li>
+            <li>已经形成一套对投资人可讲的 12 页融资结构</li>
+            <li>下一步只需补强团队、进展、客户验证与数据支撑</li>
+          </ul>
+          <div class="tag-list">
+            <div class="tag">可继续深化为正式融资版</div>
+            <div class="tag">可转成路演稿与口播稿</div>
+            <div class="tag">可继续导出为 PPT/PDF</div>
+          </div>
+        </div>
+      </div>
+      <div class="footer-note">让人类专注创造，让 AI 赋能千行百业</div>
+    </div>
+  </section>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    const dots = Array.from(document.querySelectorAll('.nav-dot'));
+    const currentSlideEl = document.getElementById('current-slide');
+
+    const updateActive = (index) => {
+      dots.forEach((dot, idx) => dot.classList.toggle('active', idx === index));
+      currentSlideEl.textContent = String(index + 1).padStart(2, '0');
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const index = slides.indexOf(entry.target);
+          entry.target.classList.add('in-view');
+          updateActive(index);
+        }
+      });
+    }, { threshold: 0.6 });
+
+    slides.forEach((slide) => observer.observe(slide));
+
+    dots.forEach((dot) => {
+      dot.addEventListener('click', () => {
+        const index = Number(dot.dataset.slide || 0);
+        slides[index]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+
+    const goToSlide = (nextIndex) => {
+      const bounded = Math.max(0, Math.min(slides.length - 1, nextIndex));
+      slides[bounded].scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    window.addEventListener('keydown', (event) => {
+      const activeIndex = dots.findIndex((dot) => dot.classList.contains('active'));
+      if (['ArrowDown', 'PageDown', ' '].includes(event.key)) {
+        event.preventDefault();
+        goToSlide(activeIndex + 1);
+      }
+      if (['ArrowUp', 'PageUp'].includes(event.key)) {
+        event.preventDefault();
+        goToSlide(activeIndex - 1);
+      }
+      if (event.key === 'Home') {
+        event.preventDefault();
+        goToSlide(0);
+      }
+      if (event.key === 'End') {
+        event.preventDefault();
+        goToSlide(slides.length - 1);
+      }
+    });
+  </script>
+</body>
+</html>
