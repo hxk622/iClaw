@@ -30,7 +30,7 @@ const PANEL_OVERLAY_CLASS =
   'fixed inset-0 z-50 flex items-center justify-center bg-[rgba(8,12,20,0.24)] p-4 backdrop-blur-[4px] dark:bg-[rgba(0,0,0,0.44)] md:p-8';
 
 const PRIMARY_ACTION_BUTTON_CLASS =
-  'bg-[#111827] text-white hover:bg-[#0B1220] dark:bg-[#F5F7FA] dark:text-[#111827] dark:hover:bg-[#E7EAEE]';
+  'bg-[#111827] !text-white hover:bg-[#0B1220] dark:border dark:border-[#DDE3EA] dark:bg-[#F7F9FC] dark:!text-[#0F172A] dark:hover:bg-[#ECF1F6]';
 
 const SECONDARY_ACTION_BUTTON_CLASS =
   'border border-[#E5E7EB] bg-white text-[#374151] hover:bg-[#F9FAFB] dark:border-[#2A2A2A] dark:bg-transparent dark:text-[#D1D5DB] dark:hover:bg-[#1A1A1A]';
