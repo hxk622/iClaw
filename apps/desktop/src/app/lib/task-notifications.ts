@@ -4,6 +4,21 @@ import { buildChatScopedStorageKey } from '@/app/lib/chat-persistence-scope';
 
 export type AppNotificationTone = 'success' | 'error' | 'info';
 export type AppNotificationSource = 'cron' | 'chat' | 'system';
+export type AppNotificationRouteTarget = 'cron' | 'chat' | 'task-center';
+
+export interface AppNotificationMetadata {
+  taskName?: string | null;
+  routeTarget?: AppNotificationRouteTarget | null;
+  sessionKey?: string | null;
+  conversationId?: string | null;
+  cronJobId?: string | null;
+  model?: string | null;
+  provider?: string | null;
+  nextRunAt?: number | null;
+  runAt?: number | null;
+  errorReason?: string | null;
+  result?: string | null;
+}
 
 export interface AppNotificationRecord {
   id: string;
@@ -12,6 +27,8 @@ export interface AppNotificationRecord {
   title: string;
   text: string;
   createdAt: string;
+  readAt?: string | null;
+  metadata?: AppNotificationMetadata | null;
 }
 
 const TASK_NOTIFICATIONS_STORAGE_KEY = 'iclaw.task.notifications.v1';
@@ -33,6 +50,34 @@ function normalizeText(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
+function normalizeOptionalNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function normalizeMetadata(value: unknown): AppNotificationMetadata | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const source = value as Record<string, unknown>;
+  return {
+    taskName: normalizeText(source.taskName),
+    routeTarget:
+      source.routeTarget === 'cron' || source.routeTarget === 'chat' || source.routeTarget === 'task-center'
+        ? source.routeTarget
+        : null,
+    sessionKey: normalizeText(source.sessionKey),
+    conversationId: normalizeText(source.conversationId),
+    cronJobId: normalizeText(source.cronJobId),
+    model: normalizeText(source.model),
+    provider: normalizeText(source.provider),
+    nextRunAt: normalizeOptionalNumber(source.nextRunAt),
+    runAt: normalizeOptionalNumber(source.runAt),
+    errorReason: normalizeText(source.errorReason),
+    result: normalizeText(source.result),
+  };
+}
+
 function normalizeNotification(record: AppNotificationRecord): AppNotificationRecord | null {
   const id = normalizeText(record.id);
   const title = normalizeText(record.title);
@@ -48,6 +93,8 @@ function normalizeNotification(record: AppNotificationRecord): AppNotificationRe
     title,
     text,
     createdAt,
+    readAt: normalizeText(record.readAt),
+    metadata: normalizeMetadata(record.metadata),
   };
 }
 
@@ -92,6 +139,7 @@ export function pushAppNotification(input: {
   source?: AppNotificationSource;
   title: string;
   text: string;
+  metadata?: AppNotificationMetadata | null;
 }): AppNotificationRecord | null {
   const title = normalizeText(input.title);
   const text = normalizeText(input.text);
@@ -108,9 +156,43 @@ export function pushAppNotification(input: {
     title,
     text,
     createdAt: new Date().toISOString(),
+    readAt: null,
+    metadata: input.metadata ? normalizeMetadata(input.metadata) : null,
   };
   writeAppNotifications([nextRecord, ...readAppNotifications()]);
   return nextRecord;
+}
+
+export function markAppNotificationRead(id: string): void {
+  const normalizedId = normalizeText(id);
+  if (!normalizedId) {
+    return;
+  }
+  const now = new Date().toISOString();
+  writeAppNotifications(
+    readAppNotifications().map((record) =>
+      record.id === normalizedId && !record.readAt
+        ? {
+            ...record,
+            readAt: now,
+          }
+        : record,
+    ),
+  );
+}
+
+export function markAllAppNotificationsRead(): void {
+  const now = new Date().toISOString();
+  writeAppNotifications(
+    readAppNotifications().map((record) =>
+      record.readAt
+        ? record
+        : {
+            ...record,
+            readAt: now,
+          },
+    ),
+  );
 }
 
 export function dismissAppNotification(id: string): void {
@@ -119,6 +201,10 @@ export function dismissAppNotification(id: string): void {
     return;
   }
   writeAppNotifications(readAppNotifications().filter((record) => record.id !== normalizedId));
+}
+
+export function clearAppNotifications(): void {
+  writeAppNotifications([]);
 }
 
 export function subscribeAppNotifications(listener: () => void): () => void {

@@ -38,6 +38,8 @@ import { FirstRunSetupPanel } from './components/FirstRunSetupPanel';
 import { IClawHeader } from './components/IClawHeader';
 import { OpenClawChatSurface } from './components/OpenClawChatSurface';
 import { CronTaskResultSync } from './components/CronTaskResultSync';
+import { NotificationCenterDetailDrawer } from './components/notifications/NotificationCenterDetailDrawer';
+import { NotificationCenterDrawer } from './components/notifications/NotificationCenterDrawer';
 import { Sidebar, SIDEBAR_COLLAPSED_WIDTH, SIDEBAR_EXPANDED_WIDTH } from './components/Sidebar';
 import { DesktopUpdateGuard } from './components/DesktopUpdateGuard';
 import { Button } from './components/ui/Button';
@@ -94,6 +96,13 @@ import { syncManagedSkills, type SkillStoreItem } from './lib/skill-store';
 import { readCacheJson, readCacheString, writeCacheJson, writeCacheString } from './lib/persistence/cache-store';
 import { buildStorageKey } from './lib/storage';
 import { useSurfaceCacheManager } from './lib/surface-cache';
+import { buildNotificationCenterItems } from './lib/notification-center';
+import {
+  clearAppNotifications,
+  markAllAppNotificationsRead,
+  markAppNotificationRead,
+  useAppNotifications,
+} from './lib/task-notifications';
 import {
   checkDesktopUpdate,
   downloadAndInstallDesktopUpdate,
@@ -2151,6 +2160,12 @@ function AuthedView({
   const [selectedTaskCenterConversationId, setSelectedTaskCenterConversationId] = useState<string | null>(
     () => readPersistedWorkspaceScene().selectedConversationId,
   );
+  const [notificationCenterOpen, setNotificationCenterOpen] = useState(false);
+  const [selectedNotificationId, setSelectedNotificationId] = useState<string | null>(null);
+  const [cronNotificationSelection, setCronNotificationSelection] = useState<{
+    jobId: string;
+    token: number;
+  } | null>(null);
   const [activeChatRoute, setActiveChatRoute] = useState<ActiveChatRoute>(() => initialChatRouteRef.current);
   const [chatSurfaceEntries, setChatSurfaceEntries] = useState<Record<string, ChatSurfaceEntry>>(() => {
     const initialRoute = initialChatRouteRef.current;
@@ -2164,6 +2179,7 @@ function AuthedView({
   const [chatSurfaceRuntimeState, setChatSurfaceRuntimeState] = useState<Record<string, ChatSurfaceRuntimeState>>({});
   const [creditBalance, setCreditBalance] = useState<CreditBalanceData | null>(null);
   const [creditBalanceLoading, setCreditBalanceLoading] = useState(false);
+  const appNotifications = useAppNotifications();
   const surfaceCache = useSurfaceCacheManager();
   const {
     ensureMounted: ensureSurfaceMounted,
@@ -2198,6 +2214,18 @@ function AuthedView({
       : availablePrimaryViews.includes(primaryView)
         ? primaryView
         : fallbackPrimaryView;
+  const notificationItems = useMemo(
+    () => buildNotificationCenterItems(appNotifications),
+    [appNotifications],
+  );
+  const unreadNotificationCount = useMemo(
+    () => notificationItems.filter((item) => !item.isRead).length,
+    [notificationItems],
+  );
+  const selectedNotification = useMemo(
+    () => notificationItems.find((item) => item.id === selectedNotificationId) ?? null,
+    [notificationItems, selectedNotificationId],
+  );
   const chatShellAuthenticated =
     authenticated ||
     Boolean(accessToken) ||
@@ -2214,6 +2242,12 @@ function AuthedView({
     version: 0,
   };
   const hasAnyBusyChatSurface = Boolean(chatSurfaceRuntimeState[targetChatSurfaceKey]?.busy);
+
+  useEffect(() => {
+    if (selectedNotificationId && !selectedNotification) {
+      setSelectedNotificationId(null);
+    }
+  }, [selectedNotification, selectedNotificationId]);
 
   useEffect(() => {
     if (authenticated || accessToken) {
@@ -2585,6 +2619,87 @@ function AuthedView({
     }
     setOverlayView('recharge');
   }, [authenticated, onRequestAuth, setOverlayView]);
+
+  const closeNotificationCenter = useCallback(() => {
+    setNotificationCenterOpen(false);
+    setSelectedNotificationId(null);
+  }, []);
+
+  const handleNotificationBellClick = useCallback(() => {
+    setNotificationCenterOpen((current) => {
+      const next = !current;
+      if (!next) {
+        setSelectedNotificationId(null);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleNotificationSelect = useCallback(
+    (notification: (typeof notificationItems)[number]) => {
+      markAppNotificationRead(notification.id);
+      setSelectedNotificationId(notification.id);
+    },
+    [notificationItems],
+  );
+
+  const handleNotificationPrimaryAction = useCallback(
+    (notification: (typeof notificationItems)[number]) => {
+      markAppNotificationRead(notification.id);
+
+      if (notification.routeTarget === 'cron' && notification.cronJobId) {
+        setCronNotificationSelection({
+          jobId: notification.cronJobId,
+          token: Date.now(),
+        });
+        setPrimaryView('cron');
+        closeNotificationCenter();
+        return;
+      }
+
+      if (notification.routeTarget === 'chat' && notification.sessionKey) {
+        const sessionKey = canonicalizeChatSessionKey(notification.sessionKey);
+        const conversation =
+          (notification.conversationId ? readChatConversation(notification.conversationId) : null) ||
+          findChatConversationBySessionKey(sessionKey);
+        openChatRoute(
+          buildConversationBackedChatRoute({
+            sessionKey,
+            conversationId: conversation?.id ?? notification.conversationId ?? null,
+            kind: conversation?.kind ?? 'general',
+            title: conversation?.title ?? notification.details.taskName,
+            initialPrompt: null,
+            initialPromptKey: null,
+            focusedTurnId: null,
+            focusedTurnKey: null,
+            initialAgentSlug: null,
+            initialSkillSlug: null,
+            initialSkillOption: null,
+            initialStockContext: null,
+          }),
+        );
+        closeNotificationCenter();
+        return;
+      }
+
+      if (notification.routeTarget === 'task-center') {
+        setSelectedTaskCenterConversationId(notification.conversationId ?? null);
+        setPrimaryView('task-center');
+        closeNotificationCenter();
+      }
+    },
+    [closeNotificationCenter, openChatRoute, setPrimaryView],
+  );
+
+  const handleNotificationSecondaryAction = useCallback(
+    (notification: (typeof notificationItems)[number]) => {
+      markAppNotificationRead(notification.id);
+      setSelectedTaskCenterConversationId(notification.conversationId ?? null);
+      setPrimaryView('task-center');
+      closeNotificationCenter();
+    },
+    [closeNotificationCenter, setPrimaryView],
+  );
 
   const handleOpenChatView = useCallback(() => setPrimaryView('chat'), [setPrimaryView]);
   const handleOpenInvestmentExpertsView = useCallback(() => setPrimaryView('investment-experts'), [setPrimaryView]);
@@ -3037,6 +3152,8 @@ function AuthedView({
               gatewayPassword={gatewayAuth.password}
               sessionKey={CRON_SYSTEM_SESSION_KEY}
               shellAuthenticated={authenticated}
+              initialSelectedJobId={cronNotificationSelection?.jobId ?? null}
+              initialSelectedJobToken={cronNotificationSelection?.token ?? null}
             />
           </DeferredSurface>
         );
@@ -3207,6 +3324,9 @@ function AuthedView({
             authenticated={authenticated}
             onCreditsClick={handleHeaderAccountAction}
             onRechargeClick={handleHeaderRechargeAction}
+            notificationUnreadCount={unreadNotificationCount}
+            notificationCenterOpen={notificationCenterOpen}
+            onNotificationsClick={handleNotificationBellClick}
           />
         )}
         <div className="relative isolate flex min-h-0 flex-1 flex-col overflow-hidden [contain:layout_paint_style]">
@@ -3287,6 +3407,33 @@ function AuthedView({
       {mountedOverlaySurfaceKeys.map((view) => (
         <div key={`overlay-surface:${view}`}>{renderOverlaySurface(view)}</div>
       ))}
+      {notificationCenterOpen ? (
+        <div
+          className="fixed inset-0 z-[50] bg-black/20 transition-opacity dark:bg-black/40"
+          onClick={closeNotificationCenter}
+          aria-hidden="true"
+        />
+      ) : null}
+      <NotificationCenterDrawer
+        open={notificationCenterOpen}
+        notifications={notificationItems}
+        selectedNotificationId={selectedNotificationId}
+        onClose={closeNotificationCenter}
+        onSelect={handleNotificationSelect}
+        onMarkAllRead={() => markAllAppNotificationsRead()}
+        onClearAll={() => {
+          clearAppNotifications();
+          closeNotificationCenter();
+        }}
+      />
+      <NotificationCenterDetailDrawer
+        open={Boolean(notificationCenterOpen && selectedNotification)}
+        notification={selectedNotification}
+        onClose={() => setSelectedNotificationId(null)}
+        onMarkAsRead={(id) => markAppNotificationRead(id)}
+        onPrimaryAction={handleNotificationPrimaryAction}
+        onSecondaryAction={handleNotificationSecondaryAction}
+      />
     </div>
   );
 }

@@ -89,6 +89,8 @@ type OpenClawCronSurfaceProps = {
   gatewayPassword?: string;
   sessionKey?: string;
   shellAuthenticated?: boolean;
+  initialSelectedJobId?: string | null;
+  initialSelectedJobToken?: number | null;
 };
 
 type CronSurfaceStatus = {
@@ -827,6 +829,8 @@ export function OpenClawCronSurface({
   gatewayPassword,
   sessionKey = 'agent:main:main',
   shellAuthenticated = false,
+  initialSelectedJobId = null,
+  initialSelectedJobToken = null,
 }: OpenClawCronSurfaceProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const appRef = useRef<OpenClawAppElement | null>(null);
@@ -866,6 +870,7 @@ export function OpenClawCronSurface({
     resolvePersistedCronTurns(),
   );
   const latestRunTsByJobRef = useRef<Record<string, number>>({});
+  const consumedInitialSelectedJobTokenRef = useRef<number | null>(null);
 
   useEffect(() => {
     const syncPersistedCronTurns = () => {
@@ -1271,6 +1276,21 @@ export function OpenClawCronSurface({
     () => jobs.find((job) => job.id === selectedJobId) ?? null,
     [jobs, selectedJobId],
   );
+
+  useEffect(() => {
+    if (!initialSelectedJobId || initialSelectedJobToken == null) {
+      return;
+    }
+    if (consumedInitialSelectedJobTokenRef.current === initialSelectedJobToken) {
+      return;
+    }
+    if (!jobs.some((job) => job.id === initialSelectedJobId)) {
+      return;
+    }
+    consumedInitialSelectedJobTokenRef.current = initialSelectedJobToken;
+    setSelectedJobId(initialSelectedJobId);
+    void loadRunHistory([initialSelectedJobId], { limit: 10 });
+  }, [initialSelectedJobId, initialSelectedJobToken, jobs, loadRunHistory]);
 
   const basicJobs = useMemo(() => jobs.filter(isBasicEditableJob), [jobs]);
   const installedPresetIds = useMemo(() => {

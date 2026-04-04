@@ -1,6 +1,7 @@
 import { Coins, Crown, Globe2, Minus, Newspaper, Sparkles, TrendingDown, TrendingUp } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { SecurityStatusInline } from '@/app/components/ui/SecurityStatusInline';
+import { NotificationCenterBell } from '@/app/components/notifications/NotificationCenterBell';
 import { cn } from '@/app/lib/cn';
 import type { ResolvedHeaderConfig } from '@/app/lib/oem-runtime';
 
@@ -11,6 +12,9 @@ type IClawHeaderProps = {
   authenticated: boolean;
   onCreditsClick: () => void;
   onRechargeClick: () => void;
+  notificationUnreadCount?: number;
+  notificationCenterOpen?: boolean;
+  onNotificationsClick?: () => void;
 };
 
 type HeaderMarketQuote = {
@@ -369,6 +373,9 @@ export const IClawHeader = memo(function IClawHeader({
   authenticated,
   onCreditsClick,
   onRechargeClick,
+  notificationUnreadCount = 0,
+  notificationCenterOpen = false,
+  onNotificationsClick,
 }: IClawHeaderProps) {
   traceHeaderRender({
     authenticated,
@@ -475,6 +482,12 @@ export const IClawHeader = memo(function IClawHeader({
         ) : null}
 
         <div className="flex shrink-0 items-center gap-3">
+          <NotificationCenterBell
+            unreadCount={notificationUnreadCount}
+            open={notificationCenterOpen}
+            onClick={() => onNotificationsClick?.()}
+          />
+
           {resolvedConfig?.showSecurityBadge !== false ? (
             <SecurityStatusInline
               state="protecting"
