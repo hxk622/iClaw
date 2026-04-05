@@ -488,7 +488,7 @@ function repairConversationList(records: ChatConversationRecord[]): ChatConversa
   repairedRecords.sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
 
   if (changed) {
-    writeConversationList(repairedRecords);
+    writeConversationList(repairedRecords, { emitEvent: false });
   }
 
   return repairedRecords;
@@ -508,9 +508,16 @@ function readConversationList(): ChatConversationRecord[] {
   return repairConversationList(records);
 }
 
-function writeConversationList(records: ChatConversationRecord[]): void {
+function writeConversationList(
+  records: ChatConversationRecord[],
+  options?: {
+    emitEvent?: boolean;
+  },
+): void {
   writeCacheJson(resolveChatConversationsStorageKey(), records.slice(0, MAX_CONVERSATIONS));
-  emitChatConversationsUpdated();
+  if (options?.emitEvent !== false) {
+    emitChatConversationsUpdated();
+  }
 }
 
 function updateConversationList(
