@@ -180,7 +180,7 @@ function getPackageCardMeta(item: RechargePackage, index: number, total: number)
   if (item.recommended || item.default) {
     return {
       icon: <Zap className="h-5 w-5" />,
-      badgeText: item.badgeLabel || '最受欢迎',
+      badgeText: item.badgeLabel || '超值推荐',
       badgeClassName: 'bg-blue-600 text-white dark:bg-blue-500',
       accentClassName:
         'border-[rgba(59,130,246,0.42)] bg-[linear-gradient(180deg,rgba(239,246,255,0.94)_0%,rgba(248,250,252,0.96)_100%)] shadow-[0_20px_50px_rgba(59,130,246,0.16)] dark:border-[rgba(96,165,250,0.4)] dark:bg-[linear-gradient(180deg,rgba(26,38,64,0.96)_0%,rgba(20,20,20,0.98)_100%)] dark:shadow-[0_20px_50px_rgba(37,99,235,0.18)]',

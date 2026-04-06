@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {config} from './config.ts';
+import {createSignature} from './epay.ts';
 import {HttpError} from './errors.ts';
 import {ControlPlaneService} from './service.ts';
 import {InMemoryControlPlaneStore} from './store.ts';
@@ -389,6 +390,73 @@ test('admin payment gateway config persists and returns exact values from contro
   });
 });
 
+test('OEM payment gateway inherits platform by default and can override independently', async () => {
+  await withBootstrapRoles({adminEmails: ['payments-admin@example.com']}, async () => {
+    const store = new InMemoryControlPlaneStore();
+    const service = new ControlPlaneService(store);
+    const registration = await service.register({
+      username: 'payments-admin',
+      email: 'payments-admin@example.com',
+      password: 'password123',
+      name: 'Payments Admin',
+    });
+
+    await service.upsertAdminPaymentGatewayConfig(registration.tokens.access_token, {
+      provider: 'epay',
+      config_values: {
+        partner_id: 'platform-partner-001',
+        gateway: 'https://platform-epay.example.com/submit.php',
+      },
+      secret_values: {
+        key: 'platform-key-xyz',
+      },
+    });
+
+    const inherited = await service.getAdminPaymentGatewayConfig(registration.tokens.access_token, {
+      scope_type: 'app',
+      scope_key: 'licaiclaw',
+    });
+    assert.equal(inherited.source, 'platform_inherited');
+    assert.equal(inherited.scope_type, 'app');
+    assert.equal(inherited.scope_key, 'licaiclaw');
+    assert.deepEqual(inherited.config, {
+      partner_id: 'platform-partner-001',
+      gateway: 'https://platform-epay.example.com/submit.php',
+    });
+
+    const saved = await service.upsertAdminPaymentGatewayConfig(registration.tokens.access_token, {
+      provider: 'epay',
+      scope_type: 'app',
+      scope_key: 'licaiclaw',
+      config_values: {
+        partner_id: 'oem-partner-002',
+        gateway: 'https://oem-epay.example.com/submit.php',
+      },
+      secret_values: {
+        key: 'oem-key-xyz',
+      },
+    });
+    assert.equal(saved.source, 'admin');
+    assert.equal(saved.scope_type, 'app');
+    assert.equal(saved.scope_key, 'licaiclaw');
+    assert.deepEqual(saved.config, {
+      partner_id: 'oem-partner-002',
+      gateway: 'https://oem-epay.example.com/submit.php',
+    });
+
+    const created = await service.createPaymentOrder(registration.tokens.access_token, {
+      provider: 'wechat_qr',
+      package_id: 'topup_3000',
+      app_name: 'licaiclaw',
+    });
+    assert.ok(created.payment_url);
+    const paymentUrl = new URL(created.payment_url);
+    assert.equal(paymentUrl.origin, 'https://oem-epay.example.com');
+    assert.equal(paymentUrl.pathname, '/submit.php');
+    assert.equal(paymentUrl.searchParams.get('pid'), 'oem-partner-002');
+  });
+});
+
 test('blank admin payment gateway config overrides env fallback for payment order creation', async () => {
   await withEpayConfig(
     {
@@ -425,12 +493,71 @@ test('blank admin payment gateway config overrides env fallback for payment orde
         (error: unknown) => {
           assert.ok(error instanceof HttpError);
           assert.equal(error.statusCode, 503);
-          assert.match(error.message, /平台支付网关/);
+          assert.match(error.message, /支付中心为当前 OEM 或平台/);
           return true;
         },
       );
     },
   );
+});
+
+test('epay webhook for OEM order verifies with OEM-specific key', async () => {
+  await withBootstrapRoles({adminEmails: ['payments-admin@example.com']}, async () => {
+    const store = new InMemoryControlPlaneStore();
+    const service = new ControlPlaneService(store);
+    const registration = await service.register({
+      username: 'payments-admin',
+      email: 'payments-admin@example.com',
+      password: 'password123',
+      name: 'Payments Admin',
+    });
+
+    await service.upsertAdminPaymentGatewayConfig(registration.tokens.access_token, {
+      provider: 'epay',
+      config_values: {
+        partner_id: 'platform-partner-001',
+        gateway: 'https://platform-epay.example.com/submit.php',
+      },
+      secret_values: {
+        key: 'platform-key-xyz',
+      },
+    });
+    await service.upsertAdminPaymentGatewayConfig(registration.tokens.access_token, {
+      provider: 'epay',
+      scope_type: 'app',
+      scope_key: 'licaiclaw',
+      config_values: {
+        partner_id: 'oem-partner-002',
+        gateway: 'https://oem-epay.example.com/submit.php',
+      },
+      secret_values: {
+        key: 'oem-key-xyz',
+      },
+    });
+
+    const created = await service.createPaymentOrder(registration.tokens.access_token, {
+      provider: 'wechat_qr',
+      package_id: 'topup_3000',
+      app_name: 'licaiclaw',
+    });
+    const payload = {
+      out_trade_no: created.order_id,
+      trade_no: 'epay-oem-paid-001',
+      trade_status: 'TRADE_SUCCESS',
+      type: 'wxpay',
+      money: '30.00',
+    };
+
+    const resolved = await service.applyEpayWebhook({
+      ...payload,
+      sign: createSignature(payload, 'oem-key-xyz'),
+      sign_type: 'MD5',
+    });
+    assert.equal(resolved.status, 'paid');
+
+    const credits = await service.creditsMe(registration.tokens.access_token);
+    assert.equal(credits.topup_balance, 3000);
+  });
 });
 
 test('getPaymentOrder reconciles pending epay orders via provider query when webhook is missing', async () => {

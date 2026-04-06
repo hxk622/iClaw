@@ -491,11 +491,13 @@ export type AdminPaymentProviderBindingView = {
   updated_at: string;
 };
 
-export type AdminPaymentGatewayConfigSource = 'admin' | 'env_fallback' | 'unset';
+export type AdminPaymentGatewayConfigSource = 'admin' | 'platform_inherited' | 'env_fallback' | 'unset';
 
 export type AdminPaymentGatewayConfigView = {
   provider: 'epay';
   source: AdminPaymentGatewayConfigSource;
+  scope_type: 'platform' | 'app';
+  scope_key: string;
   config: {
     partner_id: string;
     gateway: string;
@@ -529,6 +531,8 @@ export type UpsertAdminPaymentProviderBindingInput = {
 
 export type UpsertAdminPaymentGatewayConfigInput = {
   provider?: string;
+  scope_type?: string;
+  scope_key?: string;
   config_values?: Record<string, unknown>;
   secret_values?: Record<string, string>;
 };

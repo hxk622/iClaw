@@ -620,6 +620,8 @@ function normalizePaymentProviderConfigValues(value: unknown): Record<string, st
 type ResolvedPaymentGatewayConfigState = {
   provider: 'epay';
   source: AdminPaymentGatewayConfigSource;
+  scopeType: 'platform' | 'app';
+  scopeKey: string;
   configValues: {
     partner_id: string;
     gateway: string;
@@ -657,6 +659,8 @@ function toAdminPaymentGatewayConfigView(state: ResolvedPaymentGatewayConfigStat
   return {
     provider: state.provider,
     source: state.source,
+    scope_type: state.scopeType,
+    scope_key: state.scopeKey,
     config: {
       partner_id: state.configValues.partner_id,
       gateway: state.configValues.gateway,
@@ -1587,8 +1591,21 @@ export class ControlPlaneService {
     this.resolveBillingMultiplierForModel = options.resolveBillingMultiplierForModel || (async () => 1);
   }
 
-  private async resolvePaymentGatewayConfigState(): Promise<ResolvedPaymentGatewayConfigState> {
-    const persisted = await this.store.getSystemState(EPAY_PAYMENT_GATEWAY_STATE_KEY);
+  private resolvePaymentGatewayStateKey(scopeType: 'platform' | 'app', scopeKey: string): string {
+    return scopeType === 'platform' ? EPAY_PAYMENT_GATEWAY_STATE_KEY : `${EPAY_PAYMENT_GATEWAY_STATE_KEY}:app:${scopeKey}`;
+  }
+
+  private async resolvePaymentGatewayConfigState(
+    scopeType: 'platform' | 'app' = 'platform',
+    scopeKey = 'platform',
+  ): Promise<ResolvedPaymentGatewayConfigState> {
+    const normalizedScopeKey =
+      scopeType === 'platform'
+        ? 'platform'
+        : String(scopeKey || '')
+            .trim()
+            .toLowerCase();
+    const persisted = await this.store.getSystemState(this.resolvePaymentGatewayStateKey(scopeType, normalizedScopeKey));
     if (persisted) {
       const persistedObject = asObject(persisted);
       const configValues = normalizeEpayGatewayConfigValues(persistedObject.config_values);
@@ -1601,10 +1618,22 @@ export class ControlPlaneService {
       return {
         provider: 'epay',
         source: 'admin',
+        scopeType,
+        scopeKey: normalizedScopeKey,
         configValues,
         secretValues,
         configuredSecretKeys,
         updatedAt: String(persistedObject.updated_at || '').trim() || null,
+      };
+    }
+
+    if (scopeType === 'app') {
+      const platformState = await this.resolvePaymentGatewayConfigState('platform', 'platform');
+      return {
+        ...platformState,
+        source: platformState.source === 'admin' ? 'platform_inherited' : platformState.source,
+        scopeType: 'app',
+        scopeKey: normalizedScopeKey,
       };
     }
 
@@ -1623,6 +1652,8 @@ export class ControlPlaneService {
     return {
       provider: 'epay',
       source: hasEnvValues ? 'env_fallback' : 'unset',
+      scopeType: 'platform',
+      scopeKey: 'platform',
       configValues: envConfigValues,
       secretValues: envSecretValues,
       configuredSecretKeys: envSecretValues.key ? ['key'] : [],
@@ -1630,11 +1661,14 @@ export class ControlPlaneService {
     };
   }
 
-  private async resolveEpayService(): Promise<{
+  private async resolveEpayService(appName: string | null = null): Promise<{
     gateway: ResolvedPaymentGatewayConfigState;
     service: EpayService;
   }> {
-    const gateway = await this.resolvePaymentGatewayConfigState();
+    const normalizedAppName = String(appName || '').trim().toLowerCase();
+    const gateway = normalizedAppName
+      ? await this.resolvePaymentGatewayConfigState('app', normalizedAppName)
+      : await this.resolvePaymentGatewayConfigState('platform', 'platform');
     return {
       gateway,
       service: new EpayService({
@@ -2006,13 +2040,15 @@ export class ControlPlaneService {
           : `${paymentProviderLabel(provider)} 当前不可用`,
       );
     }
-    const {gateway: paymentGatewayConfig, service: epayService} = await this.resolveEpayService();
+    const {gateway: paymentGatewayConfig, service: epayService} = await this.resolveEpayService(appName || null);
     const paymentProfileResolution = await this.resolvePaymentProviderProfileForOrder(provider, appName || null);
     if ((provider === 'wechat_qr' || provider === 'alipay_qr') && !epayService.isEnabled()) {
       throw new HttpError(
         503,
         'SERVICE_UNAVAILABLE',
-        '支付通道未配置，请先在 admin-web 的平台支付网关中填写 partner_id / key / gateway',
+        appName
+          ? '支付通道未配置，请先在 admin-web 的支付中心为当前 OEM 或平台填写 partner_id / key / gateway'
+          : '支付通道未配置，请先在 admin-web 的平台支付网关中填写 partner_id / key / gateway',
       );
     }
     const orderId = randomUUID();
@@ -2119,12 +2155,16 @@ export class ControlPlaneService {
   }
 
   async applyEpayWebhook(input: Record<string, unknown>): Promise<PaymentOrderView> {
-    const {service: epayService} = await this.resolveEpayService();
-    const webhook = epayService.parseWebhook(input);
-    const adminOrder = await this.store.getPaymentOrderAdmin(webhook.orderId);
+    const orderId = String(input.out_trade_no || '').trim();
+    if (!orderId) {
+      throw new HttpError(400, 'BAD_REQUEST', 'invalid epay webhook payload');
+    }
+    const adminOrder = await this.store.getPaymentOrderAdmin(orderId);
     if (!adminOrder) {
       throw new HttpError(404, 'NOT_FOUND', 'payment order not found');
     }
+    const {service: epayService} = await this.resolveEpayService(adminOrder.appName || null);
+    const webhook = epayService.parseWebhook(input);
     const order = await this.store.applyPaymentWebhook(adminOrder.provider, {
       event_id: webhook.eventId,
       order_id: webhook.orderId,
@@ -2161,9 +2201,22 @@ export class ControlPlaneService {
     };
   }
 
-  async getAdminPaymentGatewayConfig(accessToken: string): Promise<AdminPaymentGatewayConfigView> {
+  async getAdminPaymentGatewayConfig(
+    accessToken: string,
+    input?: {scope_type?: string | null; scope_key?: string | null},
+  ): Promise<AdminPaymentGatewayConfigView> {
     await this.requireAdminUser(accessToken);
-    return toAdminPaymentGatewayConfigView(await this.resolvePaymentGatewayConfigState());
+    const scopeType = normalizePaymentProviderScopeType(input?.scope_type || undefined, 'platform');
+    const scopeKey =
+      scopeType === 'platform'
+        ? 'platform'
+        : String(input?.scope_key || '')
+            .trim()
+            .toLowerCase();
+    if (scopeType === 'app' && !scopeKey) {
+      throw new HttpError(400, 'BAD_REQUEST', 'scope_key is required');
+    }
+    return toAdminPaymentGatewayConfigView(await this.resolvePaymentGatewayConfigState(scopeType, scopeKey));
   }
 
   async upsertAdminPaymentGatewayConfig(
@@ -2174,6 +2227,16 @@ export class ControlPlaneService {
     const provider = String(input.provider || 'epay').trim().toLowerCase();
     if (provider !== 'epay') {
       throw new HttpError(400, 'BAD_REQUEST', 'unsupported payment gateway provider');
+    }
+    const scopeType = normalizePaymentProviderScopeType(input.scope_type, 'platform');
+    const scopeKey =
+      scopeType === 'platform'
+        ? 'platform'
+        : String(input.scope_key || '')
+            .trim()
+            .toLowerCase();
+    if (scopeType === 'app' && !scopeKey) {
+      throw new HttpError(400, 'BAD_REQUEST', 'scope_key is required');
     }
     const normalizedConfigValues = normalizeConfigStringMap(input.config_values);
     const normalizedSecretValues = asObject(input.secret_values);
@@ -2192,8 +2255,8 @@ export class ControlPlaneService {
       secret_payload_encrypted: encryptInstallSecretPayload(nextSecretValues),
       updated_at: new Date().toISOString(),
     };
-    await this.store.setSystemState(EPAY_PAYMENT_GATEWAY_STATE_KEY, nextState);
-    return toAdminPaymentGatewayConfigView(await this.resolvePaymentGatewayConfigState());
+    await this.store.setSystemState(this.resolvePaymentGatewayStateKey(scopeType, scopeKey), nextState);
+    return toAdminPaymentGatewayConfigView(await this.resolvePaymentGatewayConfigState(scopeType, scopeKey));
   }
 
   async listAdminPaymentProviderProfiles(

@@ -1392,8 +1392,11 @@ const server = createJsonServer([
   {
     method: 'GET',
     path: '/admin/payments/gateway-config',
-    handler: ({headers}: HandlerContext) =>
-      service.getAdminPaymentGatewayConfig(requireBearerToken(headers)),
+    handler: ({headers, url}: HandlerContext) =>
+      service.getAdminPaymentGatewayConfig(requireBearerToken(headers), {
+        scope_type: (url.searchParams.get('scope_type') || '').trim() || null,
+        scope_key: (url.searchParams.get('scope_key') || '').trim() || null,
+      }),
   },
   {
     method: 'PUT',
