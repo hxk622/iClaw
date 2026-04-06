@@ -15,6 +15,15 @@ fi
 : "${ICLAW_CONTROL_PLANE_PM2_APP:=iclaw-control-plane}"
 
 REMOTE="${ICLAW_CONTROL_PLANE_USER}@${ICLAW_CONTROL_PLANE_HOST}"
+LOCAL_PROD_ENV_FILE="${ROOT_DIR}/.env.prod"
+
+resolve_local_env_value() {
+  local key="$1"
+  if [[ ! -f "$LOCAL_PROD_ENV_FILE" ]]; then
+    return 0
+  fi
+  grep -E "^${key}=" "$LOCAL_PROD_ENV_FILE" | tail -n 1 | sed "s/^${key}=//"
+}
 
 node "$ROOT_DIR/scripts/write-build-info.mjs" \
   --component control-plane \
@@ -57,6 +66,23 @@ done
 echo "control-plane health check timed out after restart" >&2
 exit 1
 '
+
+SOURCE_DATABASE_URL="$(resolve_local_env_value "ICLAW_PACKAGE_SOURCE_DATABASE_URL")"
+if [[ -z "${SOURCE_DATABASE_URL}" ]]; then
+  echo "ICLAW_PACKAGE_SOURCE_DATABASE_URL is required in local .env.prod for prod override sync" >&2
+  exit 1
+fi
+SOURCE_INSTALL_SECRET_KEY="$(resolve_local_env_value "ICLAW_PACKAGE_SOURCE_INSTALL_SECRET_KEY")"
+if [[ -z "${SOURCE_INSTALL_SECRET_KEY}" ]]; then
+  SOURCE_INSTALL_SECRET_KEY="$(resolve_local_env_value "ICLAW_PACKAGE_SOURCE_S3_SECRET_KEY")"
+fi
+if [[ -z "${SOURCE_INSTALL_SECRET_KEY}" ]]; then
+  echo "ICLAW_PACKAGE_SOURCE_INSTALL_SECRET_KEY or ICLAW_PACKAGE_SOURCE_S3_SECRET_KEY is required in local .env.prod for prod override sync" >&2
+  exit 1
+fi
+
+echo "Syncing system overrides from source database into prod database"
+ssh "${REMOTE}" "cd ${ICLAW_CONTROL_PLANE_PATH} && env ICLAW_PACKAGE_SOURCE_DATABASE_URL='${SOURCE_DATABASE_URL}' ICLAW_PACKAGE_SOURCE_INSTALL_SECRET_KEY='${SOURCE_INSTALL_SECRET_KEY}' node --experimental-strip-types services/control-plane/scripts/sync-system-overrides.ts"
 
 echo "Verifying desktop CORS on prod"
 curl -i -X OPTIONS \
