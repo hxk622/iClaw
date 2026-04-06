@@ -33,7 +33,7 @@ type RechargePackage = ResolvedRechargePackageConfig;
 type RechargePaymentMethod = ResolvedRechargePaymentMethodConfig;
 
 const PANEL_OVERLAY_CLASS =
-  'fixed inset-0 z-50 overflow-y-auto bg-[rgba(8,12,20,0.24)] p-4 backdrop-blur-[4px] dark:bg-[rgba(0,0,0,0.44)] md:p-8';
+  'fixed inset-0 z-50 overflow-hidden bg-[rgba(8,12,20,0.24)] p-4 backdrop-blur-[4px] dark:bg-[rgba(0,0,0,0.44)] md:p-8';
 
 const PRIMARY_ACTION_BUTTON_CLASS =
   'bg-[#111827] !text-white hover:bg-[#0B1220] dark:border dark:border-[#DDE3EA] dark:bg-[#F7F9FC] dark:!text-[#0F172A] dark:hover:bg-[#ECF1F6]';
@@ -346,6 +346,17 @@ export function RechargeCenter({
   const resolvedQrUrl = displayPaymentUrl || generatedLaunchQrUrl;
 
   useEffect(() => {
+    if (!active) {
+      return;
+    }
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [active]);
+
+  useEffect(() => {
     if (displayPaymentUrl) {
       setGeneratedLaunchQrUrl(null);
       return;
@@ -616,6 +627,13 @@ function PackageSelectionView({
   onContinue: (packageId: string) => void;
 }) {
   const hasPaymentMethods = paymentMethods.length > 0;
+  const packageCount = packages.length;
+  const wideLayout = packageCount >= 4;
+  const ultraWideLayout = packageCount >= 5;
+  const modalMaxWidth = ultraWideLayout ? '1720px' : wideLayout ? '1480px' : '1240px';
+  const packageGridStyle = packageCount
+    ? {gridTemplateColumns: `repeat(${packageCount}, minmax(0, 1fr))`}
+    : undefined;
 
   const handlePackageCardClick = (packageId: string) => {
     onPackageSelect(packageId);
@@ -623,7 +641,11 @@ function PackageSelectionView({
 
   return (
     <div
-      className="mx-auto w-full max-w-[1240px] max-h-[calc(100vh-32px)] overflow-y-auto rounded-[28px] border border-gray-200/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.98)_100%)] p-8 shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:border-[#2A3442] dark:bg-[linear-gradient(180deg,rgba(18,20,24,0.98)_0%,rgba(15,15,15,0.98)_100%)] dark:shadow-[0_30px_90px_rgba(0,0,0,0.44)] md:p-12"
+      className={cn(
+        'mx-auto w-full overflow-hidden rounded-[28px] border border-gray-200/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.98)_100%)] shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:border-[#2A3442] dark:bg-[linear-gradient(180deg,rgba(18,20,24,0.98)_0%,rgba(15,15,15,0.98)_100%)] dark:shadow-[0_30px_90px_rgba(0,0,0,0.44)]',
+        wideLayout ? 'p-6 md:p-8' : 'p-8 md:p-12',
+      )}
+      style={{maxWidth: `min(calc(100vw - 32px), ${modalMaxWidth})`}}
       data-testid="recharge-package-view"
       onClick={(event) => event.stopPropagation()}
     >
@@ -638,8 +660,8 @@ function PackageSelectionView({
           <X className="h-5 w-5 text-gray-600 dark:text-gray-300" />
         </button>
 
-        <div className="mb-10 text-center">
-          <div className="mb-4 flex flex-wrap items-center justify-center gap-2">
+        <div className={cn('text-center', wideLayout ? 'mb-7' : 'mb-10')}>
+          <div className={cn('flex flex-wrap items-center justify-center gap-2', wideLayout ? 'mb-3' : 'mb-4')}>
             <span className="inline-flex items-center rounded-full border border-[rgba(59,130,246,0.16)] bg-[rgba(59,130,246,0.08)] px-3 py-1 text-[12px] font-medium text-[#2563EB] dark:border-[rgba(96,165,250,0.22)] dark:bg-[rgba(59,130,246,0.12)] dark:text-[#93C5FD]">
               支付成功后即时到账
             </span>
@@ -650,13 +672,25 @@ function PackageSelectionView({
               一次性充值，不会自动续费
             </span>
           </div>
-          <div className="mb-2 flex items-center justify-center gap-3">
-            <h1 className="text-[30px] leading-[1.25] tracking-[-0.02em] text-gray-900 dark:text-gray-50">充值龙虾币</h1>
+          <div className={cn('flex items-center justify-center gap-3', wideLayout ? 'mb-1.5' : 'mb-2')}>
+            <h1
+              className={cn(
+                'leading-[1.25] tracking-[-0.02em] text-gray-900 dark:text-gray-50',
+                ultraWideLayout ? 'text-[28px]' : wideLayout ? 'text-[29px]' : 'text-[30px]',
+              )}
+            >
+              充值龙虾币
+            </h1>
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#f1d38a] bg-[linear-gradient(180deg,#fff7df_0%,#fde7a7_100%)] text-[#8a5a00] shadow-[0_6px_16px_rgba(180,134,0,0.14)] dark:border-[#5b471b] dark:bg-[linear-gradient(180deg,#3a2f16_0%,#2b220f_100%)] dark:text-[#f2cf75] dark:shadow-none">
               <Coins className="h-4 w-4" />
             </span>
           </div>
-          <p className="mx-auto max-w-[720px] text-[15px] leading-7 text-gray-500 dark:text-gray-400">
+          <p
+            className={cn(
+              'mx-auto text-gray-500 dark:text-gray-400',
+              wideLayout ? 'max-w-[920px] text-[14px] leading-6' : 'max-w-[720px] text-[15px] leading-7',
+            )}
+          >
             选择最适合你的套餐。主推档更适合连续多轮对话、工具调用与高频任务执行，重度使用建议直接囤大包。
           </p>
           {!hasPaymentMethods ? (
@@ -668,7 +702,10 @@ function PackageSelectionView({
       </div>
 
       {packages.length ? (
-        <div className="mx-auto grid max-w-[1120px] grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <div
+          className={cn('mx-auto grid', wideLayout ? 'gap-3.5' : 'max-w-[1120px] gap-5')}
+          style={packageGridStyle}
+        >
         {packages.map((item, index) => {
           const selected = item.packageId === selectedPackageId;
           const priceLabel = formatPriceAmount(item.amountCnyFen);
@@ -689,7 +726,8 @@ function PackageSelectionView({
                 }
               }}
               className={cn(
-                'relative flex h-full cursor-pointer flex-col overflow-hidden rounded-[24px] border p-7 text-left outline-none transition-all duration-200',
+                'relative flex h-full cursor-pointer flex-col overflow-hidden rounded-[24px] border text-left outline-none transition-all duration-200',
+                ultraWideLayout ? 'p-4' : wideLayout ? 'p-5' : 'p-7',
                 SPRING_PRESSABLE,
                 INTERACTIVE_FOCUS_RING,
                 selected
@@ -707,14 +745,33 @@ function PackageSelectionView({
                 </div>
               ) : null}
 
-              <div className="mb-5 flex items-start justify-between gap-3">
+              <div className={cn('flex items-start justify-between gap-3', wideLayout ? 'mb-4' : 'mb-5')}>
                 <div className="flex items-center gap-2.5">
-                  <div className={cn('flex h-10 w-10 items-center justify-center rounded-xl transition-colors', meta.iconWrapClassName)}>
+                  <div
+                    className={cn(
+                      'flex items-center justify-center rounded-xl transition-colors',
+                      ultraWideLayout ? 'h-9 w-9' : 'h-10 w-10',
+                      meta.iconWrapClassName,
+                    )}
+                  >
                   {meta.icon}
                   </div>
                   <div>
-                    <h3 className="text-[19px] font-semibold tracking-[-0.01em] text-gray-900 dark:text-gray-100">{item.packageName}</h3>
-                    <div className={cn('mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium', meta.eyebrowClassName)}>
+                    <h3
+                      className={cn(
+                        'font-semibold tracking-[-0.01em] text-gray-900 dark:text-gray-100',
+                        ultraWideLayout ? 'text-[17px]' : wideLayout ? 'text-[18px]' : 'text-[19px]',
+                      )}
+                    >
+                      {item.packageName}
+                    </h3>
+                    <div
+                      className={cn(
+                        'inline-flex rounded-full px-2.5 py-1 font-medium',
+                        wideLayout ? 'mt-1.5 text-[10px]' : 'mt-2 text-[11px]',
+                        meta.eyebrowClassName,
+                      )}
+                    >
                       {meta.eyebrowText}
                     </div>
                   </div>
@@ -724,50 +781,75 @@ function PackageSelectionView({
                 ) : null}
               </div>
 
-              <div className="mb-6">
+              <div className={cn(wideLayout ? 'mb-4' : 'mb-6')}>
                 <div className="flex items-baseline gap-0.5">
-                  <span className="text-[15px] text-gray-500 dark:text-gray-400">¥</span>
-                  <span className={cn('text-[42px] font-semibold leading-none tracking-tight', meta.priceGlowClassName)}>{priceLabel}</span>
+                  <span className={cn('text-gray-500 dark:text-gray-400', wideLayout ? 'text-[14px]' : 'text-[15px]')}>¥</span>
+                  <span
+                    className={cn(
+                      'font-semibold leading-none tracking-tight',
+                      ultraWideLayout ? 'text-[34px]' : wideLayout ? 'text-[38px]' : 'text-[42px]',
+                      meta.priceGlowClassName,
+                    )}
+                  >
+                    {priceLabel}
+                  </span>
                 </div>
                 {item.highlight ? (
-                  <div className="mt-3 inline-flex rounded-full bg-[rgba(59,130,246,0.10)] px-3 py-1 text-[12px] font-medium text-[#2563EB] dark:bg-[rgba(96,165,250,0.16)] dark:text-[#93C5FD]">
+                  <div
+                    className={cn(
+                      'inline-flex rounded-full bg-[rgba(59,130,246,0.10)] px-3 py-1 font-medium text-[#2563EB] dark:bg-[rgba(96,165,250,0.16)] dark:text-[#93C5FD]',
+                      wideLayout ? 'mt-2 text-[11px]' : 'mt-3 text-[12px]',
+                    )}
+                  >
                     {item.highlight}
                   </div>
                 ) : null}
                 {item.description ? (
-                  <p className="mt-3 text-[13px] leading-6 text-gray-500 dark:text-gray-400">{item.description}</p>
+                  <p className={cn('text-gray-500 dark:text-gray-400', wideLayout ? 'mt-2 text-[12px] leading-5' : 'mt-3 text-[13px] leading-6')}>
+                    {item.description}
+                  </p>
                 ) : null}
                 {meta.promoText ? (
-                  <p className="mt-2 text-[12px] font-medium leading-5 text-gray-600 dark:text-gray-300">{meta.promoText}</p>
+                  <p
+                    className={cn(
+                      'font-medium text-gray-600 dark:text-gray-300',
+                      wideLayout ? 'mt-1.5 text-[11px] leading-[18px]' : 'mt-2 text-[12px] leading-5',
+                    )}
+                  >
+                    {meta.promoText}
+                  </p>
                 ) : null}
               </div>
 
-              <div className="mb-7 flex-1 space-y-2.5">
-                <div className="flex items-center justify-between text-[14px]">
+              <div className={cn('flex-1', wideLayout ? 'mb-5 space-y-2' : 'mb-7 space-y-2.5')}>
+                <div className={cn('flex items-center justify-between', wideLayout ? 'text-[13px]' : 'text-[14px]')}>
                   <span className="text-gray-500 dark:text-gray-400">{item.bonusCredits > 0 ? '基础到账' : '到账数量'}</span>
                   <span className="font-medium text-gray-900 dark:text-gray-100">{formatCreditsLabel(item.credits)}</span>
                 </div>
                 {item.bonusCredits > 0 ? (
-                  <div className="flex items-center justify-between text-[14px]">
+                  <div className={cn('flex items-center justify-between', wideLayout ? 'text-[13px]' : 'text-[14px]')}>
                     <span className="text-gray-500 dark:text-gray-400">赠送额度</span>
                     <span className="font-medium text-orange-600 dark:text-orange-400">+{formatCreditsLabel(item.bonusCredits)}</span>
                   </div>
                 ) : null}
-                <div className="my-2.5 h-px bg-gray-200/80 dark:bg-gray-800" />
-                <div className="flex items-center justify-between pt-1 text-[14px]">
+                <div className={cn('h-px bg-gray-200/80 dark:bg-gray-800', wideLayout ? 'my-2' : 'my-2.5')} />
+                <div className={cn('flex items-center justify-between pt-1', wideLayout ? 'text-[13px]' : 'text-[14px]')}>
                   <span className="font-medium text-gray-900 dark:text-gray-100">合计到账</span>
-                  <span className="text-[15px] font-semibold text-gray-900 dark:text-gray-100">
+                  <span className={cn('font-semibold text-gray-900 dark:text-gray-100', wideLayout ? 'text-[14px]' : 'text-[15px]')}>
                     {formatCreditsLabel(item.totalCredits)} 龙虾币
                   </span>
                 </div>
                 {item.featureList.length ? (
-                  <div className="mt-4 space-y-2 pt-1">
+                  <div className={cn('pt-1', wideLayout ? 'mt-3 space-y-1.5' : 'mt-4 space-y-2')}>
                     {item.featureList.slice(0, 5).map((feature, featureIndex) => (
                       <div
                         key={`${item.packageId}-feature-${featureIndex}`}
-                        className="flex items-start gap-2 text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                        className={cn(
+                          'flex items-start gap-2 text-gray-500 dark:text-gray-400',
+                          wideLayout ? 'text-[12px] leading-[18px]' : 'text-[13px] leading-5',
+                        )}
                       >
-                        <span className="mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full bg-gray-300 dark:bg-gray-600" />
+                        <span className={cn('shrink-0 rounded-full bg-gray-300 dark:bg-gray-600', wideLayout ? 'mt-[5px] h-1.5 w-1.5' : 'mt-[6px] h-1.5 w-1.5')} />
                         <span>{feature}</span>
                       </div>
                     ))}
@@ -787,7 +869,8 @@ function PackageSelectionView({
                   }}
                   disabled={!hasPaymentMethods}
                   className={cn(
-                    'w-full cursor-pointer rounded-md py-2.5 text-[16px] font-medium transition-colors',
+                    'w-full cursor-pointer rounded-md font-medium transition-colors',
+                    wideLayout ? 'py-[9px] text-[15px]' : 'py-2.5 text-[16px]',
                     !hasPaymentMethods && 'cursor-not-allowed opacity-55',
                     meta.ctaClassName,
                   )}
