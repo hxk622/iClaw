@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent as ReactDragEvent } from 'react';
+import { createPortal } from 'react-dom';
 import type { CreditQuoteData, IClawClient, MarketFundData, MarketStockData, RunBillingSummaryData } from '@iclaw/sdk';
 import '@openclaw-ui/main.ts';
 import {
@@ -7464,6 +7465,42 @@ export function OpenClawChatSurface({
     closeSelectionMenu();
   }, [closeSelectionMenu, selectionMenu]);
 
+  const selectionMenuContent =
+    selectionMenu && typeof document !== 'undefined' ? (
+      <div
+        ref={selectionMenuRef}
+        className="iclaw-chat-selection-menu"
+        style={{ left: selectionMenu.x, top: selectionMenu.y }}
+        role="menu"
+        aria-label="选中文本操作"
+      >
+        <button type="button" className="iclaw-chat-selection-menu__item" onClick={() => handleSelectionAction('')}>
+          <MessageSquarePlus className="iclaw-chat-selection-menu__icon" />
+          追问
+        </button>
+        <button
+          type="button"
+          className="iclaw-chat-selection-menu__item"
+          onClick={() => handleSelectionAction('请总结这段内容的要点。')}
+        >
+          <ScrollText className="iclaw-chat-selection-menu__icon" />
+          总结
+        </button>
+        <button
+          type="button"
+          className="iclaw-chat-selection-menu__item"
+          onClick={() => handleSelectionAction('请用更容易理解的话解释这段内容。')}
+        >
+          <MessageCircleQuestionMark className="iclaw-chat-selection-menu__icon" />
+          解释
+        </button>
+        <button type="button" className="iclaw-chat-selection-menu__item" onClick={() => void handleSelectionCopy()}>
+          <Copy className="iclaw-chat-selection-menu__icon" />
+          复制
+        </button>
+      </div>
+    ) : null;
+
   const handleWelcomeStartChat = useCallback(() => {
     composerRef.current?.focus();
   }, []);
@@ -8562,40 +8599,7 @@ export function OpenClawChatSurface({
               </div>
             ) : null}
 
-                {selectionMenu ? (
-                  <div
-                    ref={selectionMenuRef}
-                    className="iclaw-chat-selection-menu"
-                    style={{ left: selectionMenu.x, top: selectionMenu.y }}
-                    role="menu"
-                    aria-label="选中文本操作"
-                  >
-                    <button type="button" className="iclaw-chat-selection-menu__item" onClick={() => handleSelectionAction('')}>
-                      <MessageSquarePlus className="iclaw-chat-selection-menu__icon" />
-                      追问
-                    </button>
-                    <button
-                      type="button"
-                      className="iclaw-chat-selection-menu__item"
-                      onClick={() => handleSelectionAction('请总结这段内容的要点。')}
-                    >
-                      <ScrollText className="iclaw-chat-selection-menu__icon" />
-                      总结
-                    </button>
-                    <button
-                      type="button"
-                      className="iclaw-chat-selection-menu__item"
-                      onClick={() => handleSelectionAction('请用更容易理解的话解释这段内容。')}
-                    >
-                      <MessageCircleQuestionMark className="iclaw-chat-selection-menu__icon" />
-                      解释
-                    </button>
-                    <button type="button" className="iclaw-chat-selection-menu__item" onClick={() => void handleSelectionCopy()}>
-                      <Copy className="iclaw-chat-selection-menu__icon" />
-                      复制
-                    </button>
-                  </div>
-                ) : null}
+                {selectionMenuContent ? createPortal(selectionMenuContent, document.body) : null}
               </div>
             </div>
 
