@@ -4,6 +4,7 @@
 - 用 Chrome DevTools Protocol 模拟真实用户行为
 - 覆盖 `admin-web`、`desktop web shell`、支付链路等高价值页面
 - 每条脚本都能输出截图，便于回归确认
+- 发版前将本次用户级测试结果汇总到 `docs/version_record/test_report/`
 
 ## 目录结构
 
@@ -104,3 +105,14 @@ ICLAW_TEST_SCREENSHOT_PATH=/tmp/iclaw-payment-admin-gateway-read.png
   - `tests/archive/tmp-tests/README.md`
 
 这样即使某个临时脚本后面被删掉，最后一次收割到的版本仍然会保留在归档里。
+
+## 发版测试报告要求
+
+- 每次正式发版前，必须至少整理一份测试报告到：
+  - `docs/version_record/test_report/<version>.md`
+- 对应发版文档必须填写：
+  - `test_report: docs/version_record/test_report/<version>.md`
+- 测试报告应优先引用：
+  - 本次实际执行的正式脚本
+  - 截图路径
+  - `tests/archive/tmp-tests` 中相关归档（如有）

@@ -5,6 +5,8 @@
 ## 1. 版本与构建
 
 - [ ] 版本号已更新（app/package/tauri 配置一致）
+- [ ] 本次测试报告已创建到 `docs/version_record/test_report/`
+- [ ] 发版文档已填写 `test_report` 字段并指向对应测试报告
 - [ ] 下载页对外版本号已切到本次最新四段时间戳（不是旧的 `+build` 版本）
 - [x] sidecar 二进制版本已锁定
 - [x] 本地全量构建通过
@@ -55,6 +57,7 @@
 
 ## 7. 发布门槛（必须全部满足）
 
+- [ ] 已有本次发版对应测试报告
 - [ ] 可安装
 - [ ] 可启动
 - [ ] 可登录
@@ -83,6 +86,7 @@
 
 - `macOS x64` 当前不属于默认正式发版范围
 - 只有在 `openclaw-runtime-x86_64-apple-darwin` 和 `x64 node` 构建环境都具备后，才允许恢复 `x86_64-apple-darwin` 发版
+- 每次正式发版前，测试结论必须同步沉淀到 `docs/version_record/test_report/`，并在对应发版文档中回填 `test_report`
 
 ## 首轮勾检（2026-03-21）
 

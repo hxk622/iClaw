@@ -11,6 +11,7 @@
 - `owner`:
 - `reviewer`:
 - `window`:
+- `test_report`:
 - `status`: `draft | running | done | rolled_back`
 
 ## 2. 变更摘要
@@ -60,6 +61,8 @@
 ## 4. 发布前检查
 
 - [ ] 已冻结 `git tag + commit`
+- [ ] 已生成测试报告并落到 `docs/version_record/test_report/`
+- [ ] 发版文档已填写 `test_report` 字段
 - [ ] 已确认发布范围
 - [ ] 已确认回滚目标
 - [ ] 已确认执行人和复核人
@@ -116,6 +119,12 @@
 - 风险 3：
 
 ## 8. 验证项
+
+测试报告：
+
+- `test_report`:
+- [ ] 测试报告已与本次发布文档一一对应
+- [ ] 测试报告已覆盖本次发布的用户级验证范围
 
 - [ ] `control-plane /health`
 - [ ] `admin-web` 可访问
