@@ -10,10 +10,12 @@
 
 - `tests/shared/cdp/cdp-helpers.mjs`
   通用 CDP 封装，包含页面创建、等待、点击、输入、读值、截图
+- `tests/cases/`
+  正式 case catalog，总入口；按 `P0 / P1 / P2` 分目录
 - `tests/payment/admin-gateway-read.test.mjs`
   第一条支付烟测脚本，验证 `admin-web` 平台支付网关表单可视化读取
 - `tests/payment/cases.md`
-  支付端到端 case 清单
+  payment case 的兼容跳转说明
 - `tests/chat/`
   桌面对话类 CDP 回归
 
@@ -83,8 +85,13 @@ ICLAW_TEST_SCREENSHOT_PATH=/tmp/iclaw-payment-admin-gateway-read.png
 - `tests/payment/qr-layout.test.mjs`
 - `tests/payment/expired-refresh.test.mjs`
 
-它们都已经有设计稿：
-- `tests/payment/cases.md`
+它们对应的正式 case 已改为按优先级沉淀在：
+- `tests/cases/P0/payment.md`
+
+其他域也按相同方式维护：
+- `tests/cases/P0/`
+- `tests/cases/P1/`
+- `tests/cases/P2/`
 
 ## 临时脚本自动留存
 
