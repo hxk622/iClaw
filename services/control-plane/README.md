@@ -43,7 +43,14 @@ pnpm --filter @iclaw/control-plane dev
 pnpm --filter @iclaw/control-plane check
 ```
 
-如需初始化或修复 OEM baseline，再手工执行：
+如需导出当前数据库 baseline 到仓库快照：
+
+```bash
+pnpm baseline:export
+pnpm baseline:doctor
+```
+
+如需初始化或修复 legacy OEM preset，再手工执行：
 
 ```bash
 pnpm preset:sync:oem
@@ -124,7 +131,8 @@ OEM portal 现在也是 control-plane 的职责范围之一：
 - `platform_bundled_skills` / `platform_bundled_mcps` 保存平台预装子集
 - `oem_bundled_skills` / `oem_bundled_mcps` / `oem_app_model_bindings` / `oem_app_menu_bindings` 保存 OEM app 级 binding
 - `oem_app_assets` 保存 MinIO 资产索引
-- `pnpm preset:sync:oem` 会把 `services/control-plane/presets/core-oem.json` 里的预置 app、skill、MCP、model、menu、asset 同步进数据库和对象存储
+- `pnpm baseline:export` / `pnpm baseline:doctor` 用于把数据库当前 baseline 导出到 git，并检查仓库快照是否与数据库漂移
+- `pnpm preset:sync:oem` 仍可把 `services/control-plane/presets/core-oem.json` 里的 legacy 预置 app、skill、MCP、model、menu、asset 同步进数据库和对象存储，但它不再是推荐的日常维护入口
 
 这里的职责边界需要特别明确：
 
@@ -138,8 +146,9 @@ OEM portal 现在也是 control-plane 的职责范围之一：
 - Skill 的平台级主数据物理表就是 `cloud_skill_catalog`；业务代码和运维文档都应只使用这个名字
 - MCP 的名称、描述、logo、分类、连接方式、抓取来源等原始内容属于平台级主数据，不能在 OEM binding 中复制出第二份真值
 - 对外返回某个 app 的 MCP 列表时，control-plane 应负责把“平台 catalog + OEM binding”合成为当前 app 视图；前端只负责展示，不负责推断业务真相
+- Git 中的 baseline 文件只做数据库导出快照，不再作为 prod baseline 真值
 - 仓库根目录的 `mcp/mcp.json` overlay 已删除；本地 `services/openclaw/resources/mcp/mcp.json` 只是运行时生成产物
-- `services/control-plane/presets/core-oem.json` 现在只作为手工 seed / repair manifest 使用，不再参与 control-plane 日常启动 bootstrap
+- `services/control-plane/presets/core-oem.json` 现在只作为 legacy 手工 seed / repair manifest 使用，不再参与 control-plane 日常启动 bootstrap；后续目标是彻底移除
 - `pnpm preset:sync:oem` 是显式运维动作：
   - 适用于新环境首灌
   - 适用于空库恢复

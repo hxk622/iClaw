@@ -167,6 +167,12 @@ OEM 装配层不负责：
 - `platform_bundled_mcps` 保存平台级预装 MCP 子集
 - 其它 catalog 表保存平台级能力全集
 
+补充一条执行纪律：
+
+- **数据库是 baseline 唯一真值**
+- Git 中的 baseline 文件只能由数据库导出生成，用于 review / diff / 追溯，不能反过来作为 prod 日常真值
+- `core-oem.json` 这类 preset 文件只能保留为 legacy seed / repair 素材，不能继续承担日常 baseline 维护职责
+
 ### 4.2 OEM 绑定表
 
 例如：

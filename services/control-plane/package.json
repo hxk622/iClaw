@@ -10,6 +10,8 @@
     "start": "node --experimental-strip-types src/server.ts",
     "check": "tsc --noEmit",
     "test": "node --experimental-strip-types --test src/config.test.ts src/desktop-update-resolver.test.ts src/desktop-updates.test.ts src/portal-desktop-release.test.ts src/portal-runtime.test.ts src/service.test.ts src/time.test.ts",
+    "baseline:export": "node --experimental-strip-types scripts/export-db-baseline.ts",
+    "baseline:doctor": "node --experimental-strip-types scripts/doctor-db-baseline.ts",
     "sync:clawhub:top": "node --experimental-strip-types scripts/sync-clawhub-top-skills.ts",
     "sync:clawhub:all": "node --experimental-strip-types scripts/sync-clawhub-top-skills.ts --limit 0",
     "upload:cloud-skill-artifacts": "node --experimental-strip-types scripts/upload-cloud-skill-artifacts.ts",
