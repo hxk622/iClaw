@@ -8,7 +8,7 @@ import {
   setInputValue,
   waitFor,
   waitForSelector,
-} from './lib/cdp-helpers.mjs';
+} from '../shared/cdp/cdp-helpers.mjs';
 
 const ADMIN_URL = process.env.ICLAW_ADMIN_URL || 'http://127.0.0.1:1479';
 const ADMIN_USERNAME = process.env.ICLAW_ADMIN_USERNAME || 'admin';

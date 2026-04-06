@@ -14,7 +14,7 @@
 - `admin-web` 运行在 `http://127.0.0.1:1479`
 - `desktop web shell` 运行在 `http://127.0.0.1:1520`
 - `control-plane` 运行在 `http://127.0.0.1:2130`
-- Chrome CDP 端口已开启，沿用现有 `apps/desktop/tests/cdp` 方案
+- Chrome CDP 端口已开启，统一走根目录 `tests/` 方案
 
 ## Case 01: 平台支付网关可视化配置读取
 
@@ -345,12 +345,12 @@ P2:
 ## 建议脚本拆分
 
 建议后续按下面的文件粒度落 CDP 脚本：
-- `apps/desktop/tests/cdp/payment-admin-gateway-read.test.mjs`
-- `apps/desktop/tests/cdp/payment-recharge-package-flow.test.mjs`
-- `apps/desktop/tests/cdp/payment-qr-layout.test.mjs`
-- `apps/desktop/tests/cdp/payment-expired-refresh.test.mjs`
-- `apps/desktop/tests/cdp/payment-oem-method-inheritance.test.mjs`
-- `apps/desktop/tests/cdp/payment-admin-order-linkage.test.mjs`
+- `tests/payment/admin-gateway-read.test.mjs`
+- `tests/payment/recharge-package-flow.test.mjs`
+- `tests/payment/qr-layout.test.mjs`
+- `tests/payment/expired-refresh.test.mjs`
+- `tests/payment/oem-method-inheritance.test.mjs`
+- `tests/payment/admin-order-linkage.test.mjs`
 
 这样拆的原因：
 - 每个脚本聚焦一条主链路

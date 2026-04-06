@@ -1,18 +1,20 @@
-# CDP E2E Harness
+# E2E Test Harness
 
 目标：
 - 用 Chrome DevTools Protocol 模拟真实用户行为
 - 覆盖 `admin-web`、`desktop web shell`、支付链路等高价值页面
 - 每条脚本都能输出截图，便于回归确认
 
-## 当前结构
+## 目录结构
 
-- `lib/cdp-helpers.mjs`
+- `tests/shared/cdp/cdp-helpers.mjs`
   通用 CDP 封装，包含页面创建、等待、点击、输入、读值、截图
-- `payment-admin-gateway-read.test.mjs`
+- `tests/payment/admin-gateway-read.test.mjs`
   第一条支付烟测脚本，验证 `admin-web` 平台支付网关表单可视化读取
-- `payment-e2e-cases.md`
+- `tests/payment/cases.md`
   支付端到端 case 清单
+- `tests/chat/`
+  桌面对话类 CDP 回归
 
 ## 运行前置
 
@@ -64,9 +66,9 @@ ICLAW_TEST_SCREENSHOT_PATH=/tmp/iclaw-payment-admin-gateway-read.png
 ## 下一步建议
 
 优先继续实现：
-- `payment-recharge-package-flow.test.mjs`
-- `payment-qr-layout.test.mjs`
-- `payment-expired-refresh.test.mjs`
+- `tests/payment/recharge-package-flow.test.mjs`
+- `tests/payment/qr-layout.test.mjs`
+- `tests/payment/expired-refresh.test.mjs`
 
 它们都已经有设计稿：
-- `payment-e2e-cases.md`
+- `tests/payment/cases.md`
