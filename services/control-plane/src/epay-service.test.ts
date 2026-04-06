@@ -54,4 +54,35 @@ describe('EpayService', () => {
     assert.equal(webhook.eventId, 'epay_trade_789:paid');
     assert.ok(webhook.paidAt);
   });
+
+  it('queries order status from epay api and maps paid state', async () => {
+    const service = new EpayService(CONFIG);
+    const originalFetch = globalThis.fetch;
+    const mockedFetch: typeof fetch = async () =>
+      new Response(
+        JSON.stringify({
+          code: 1,
+          trade_no: 'epay_trade_query_123',
+          out_trade_no: 'order_query_123',
+          status: 1,
+          endtime: '2026-04-06 18:20:00',
+        }),
+        {
+          status: 200,
+          headers: {'Content-Type': 'application/json'},
+        },
+      );
+    globalThis.fetch = mockedFetch;
+
+    try {
+      const result = await service.queryOrder('order_query_123');
+      assert.ok(result);
+      assert.equal(result?.orderId, 'order_query_123');
+      assert.equal(result?.providerOrderId, 'epay_trade_query_123');
+      assert.equal(result?.status, 'paid');
+      assert.ok(result?.paidAt);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

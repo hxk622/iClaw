@@ -288,8 +288,8 @@ test('payment orders without checkout urls stay empty instead of falling back to
     payment_url: null,
     packageName: '3000 龙虾币',
     credits: 3000,
-    bonusCredits: 400,
-    amountCnyFen: 3000,
+    bonusCredits: 0,
+    amountCnyFen: 2990,
     metadata: {},
   });
 
@@ -429,6 +429,60 @@ test('blank admin payment gateway config overrides env fallback for payment orde
           return true;
         },
       );
+    },
+  );
+});
+
+test('getPaymentOrder reconciles pending epay orders via provider query when webhook is missing', async () => {
+  await withEpayConfig(
+    {
+      partnerId: 'query-partner-001',
+      key: 'query-key-xyz',
+      gateway: 'https://vip1.zhunfu.cn/submit.php',
+    },
+    async () => {
+      const originalFetch = globalThis.fetch;
+      const mockedFetch: typeof fetch = async () =>
+        new Response(
+          JSON.stringify({
+            code: 1,
+            trade_no: 'epay-query-paid-001',
+            out_trade_no: 'ignored',
+            status: 1,
+            endtime: '2026-04-06 18:20:00',
+          }),
+          {
+            status: 200,
+            headers: {'Content-Type': 'application/json'},
+          },
+        );
+      globalThis.fetch = mockedFetch;
+
+      try {
+        const store = new InMemoryControlPlaneStore();
+        const service = new ControlPlaneService(store);
+        const registration = await service.register({
+          username: 'epay-query-user',
+          email: 'epay-query-user@example.com',
+          password: 'password123',
+          name: 'Epay Query User',
+        });
+
+        const created = await service.createPaymentOrder(registration.tokens.access_token, {
+          provider: 'wechat_qr',
+          package_id: 'topup_3000',
+          app_name: 'iclaw',
+        });
+        assert.equal(created.status, 'pending');
+
+        const resolved = await service.getPaymentOrder(registration.tokens.access_token, created.order_id);
+        assert.equal(resolved.status, 'paid');
+
+        const credits = await service.creditsMe(registration.tokens.access_token);
+        assert.equal(credits.topup_balance, 3000);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
     },
   );
 });

@@ -2060,9 +2060,36 @@ export class ControlPlaneService {
     if (!orderId) {
       throw new HttpError(400, 'BAD_REQUEST', 'order_id is required');
     }
-    const order = await this.store.getPaymentOrderById(user.id, orderId);
+    let order = await this.store.getPaymentOrderById(user.id, orderId);
     if (!order) {
       throw new HttpError(404, 'NOT_FOUND', 'payment order not found');
+    }
+    if (
+      order.status === 'pending' &&
+      (order.provider === 'wechat_qr' || order.provider === 'alipay_qr')
+    ) {
+      try {
+        const {service: epayService} = await this.resolveEpayService();
+        const queried = await epayService.queryOrder(order.id);
+        if (queried && queried.status !== 'pending') {
+          const reconciled = await this.store.applyPaymentWebhook(order.provider, {
+            event_id: `epay_query:${queried.providerOrderId || queried.orderId}:${queried.status}`,
+            order_id: queried.orderId,
+            provider_order_id: queried.providerOrderId || '',
+            status: queried.status,
+            paid_at: queried.paidAt || '',
+          });
+          if (reconciled) {
+            order = reconciled;
+          }
+        }
+      } catch (error) {
+        logWarn('epay order query reconciliation failed', {
+          orderId: order.id,
+          provider: order.provider,
+          error: error instanceof Error ? error.message : String(error || 'unknown error'),
+        });
+      }
     }
     return toPaymentOrderView(order);
   }

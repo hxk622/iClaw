@@ -26,6 +26,14 @@ export type EpayWebhookResult = {
   paidAt: string | null;
 };
 
+export type EpayOrderQueryResult = {
+  orderId: string;
+  providerOrderId: string | null;
+  status: 'pending' | 'paid' | 'failed';
+  paidAt: string | null;
+  raw: Record<string, unknown>;
+};
+
 function normalizeBaseUrl(value: string): string {
   const normalized = String(value || '').trim().replace(/\/$/, '');
   if (!normalized) {
@@ -44,6 +52,49 @@ function toEpayPaymentType(provider: SupportedEpayProvider): 'alipay' | 'wxpay' 
 
 function normalizeWebhookString(input: Record<string, unknown>, key: string): string {
   return String(input[key] || '').trim();
+}
+
+function resolveEpayApiUrl(gateway: string): string {
+  const normalized = String(gateway || '').trim();
+  if (!normalized) {
+    throw new HttpError(500, 'INTERNAL_SERVER_ERROR', 'epay gateway is not configured');
+  }
+  const url = new URL(normalized);
+  url.pathname = url.pathname.replace(/\/submit(?:\.php)?$/i, '/api.php');
+  if (!/\/api\.php$/i.test(url.pathname)) {
+    url.pathname = '/api.php';
+  }
+  url.search = '';
+  return url.toString();
+}
+
+function normalizePaidAt(value: unknown): string | null {
+  const text = String(value || '').trim();
+  if (!text) {
+    return null;
+  }
+  const normalized = text.replace(' ', 'T');
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return date.toISOString();
+}
+
+function mapQueryStatus(payload: Record<string, unknown>): 'pending' | 'paid' | 'failed' {
+  const normalizedStatus = String(payload.status ?? payload.trade_status ?? payload.api_trade_state ?? '')
+    .trim()
+    .toUpperCase();
+  if (normalizedStatus === '1' || normalizedStatus === 'TRADE_SUCCESS' || normalizedStatus === 'TRADE_FINISHED' || normalizedStatus === 'SUCCESS') {
+    return 'paid';
+  }
+  if (normalizedStatus === '0' || normalizedStatus === 'WAIT_BUYER_PAY' || normalizedStatus === 'PENDING' || normalizedStatus === 'NOTPAY') {
+    return 'pending';
+  }
+  if (normalizedStatus === '-1' || normalizedStatus === 'TRADE_CLOSED' || normalizedStatus === 'TRADE_FAILED' || normalizedStatus === 'FAILED' || normalizedStatus === 'CLOSED') {
+    return 'failed';
+  }
+  return 'pending';
 }
 
 function mapTradeStatus(value: string): 'pending' | 'paid' | 'failed' {
@@ -129,6 +180,43 @@ export class EpayService {
       providerOrderId,
       status,
       paidAt: status === 'paid' ? new Date().toISOString() : null,
+    };
+  }
+
+  async queryOrder(orderId: string): Promise<EpayOrderQueryResult | null> {
+    if (!this.isEnabled()) {
+      return null;
+    }
+    const normalizedOrderId = String(orderId || '').trim();
+    if (!normalizedOrderId) {
+      return null;
+    }
+    const endpoint = new URL(resolveEpayApiUrl(this.config.gateway));
+    endpoint.searchParams.set('act', 'order');
+    endpoint.searchParams.set('pid', String(this.config.partnerId || '').trim());
+    endpoint.searchParams.set('key', String(this.config.key || '').trim());
+    endpoint.searchParams.set('out_trade_no', normalizedOrderId);
+
+    const response = await fetch(endpoint.toString(), {method: 'GET'});
+    if (!response.ok) {
+      throw new HttpError(502, 'BAD_GATEWAY', `epay order query failed: ${response.status}`);
+    }
+    const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+    if (!payload || typeof payload !== 'object') {
+      throw new HttpError(502, 'BAD_GATEWAY', 'epay order query returned invalid payload');
+    }
+    const code = String(payload.code ?? '').trim();
+    if (code && code !== '1') {
+      return null;
+    }
+    const status = mapQueryStatus(payload);
+    const providerOrderId = String(payload.trade_no || payload.api_trade_no || '').trim() || null;
+    return {
+      orderId: normalizedOrderId,
+      providerOrderId,
+      status,
+      paidAt: status === 'paid' ? normalizePaidAt(payload.endtime || payload.paid_at || payload.paytime) || new Date().toISOString() : null,
+      raw: payload,
     };
   }
 }

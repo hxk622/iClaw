@@ -381,6 +381,14 @@ function parseKeyValueBody(
   return next;
 }
 
+function parseQueryParams(url: URL): Record<string, string> {
+  const next: Record<string, string> = {};
+  for (const [key, value] of url.searchParams.entries()) {
+    next[key] = value;
+  }
+  return next;
+}
+
 function getFormDataString(formData: FormData, key: string): string | null {
   const value = formData.get(key);
   return typeof value === 'string' ? value : null;
@@ -522,6 +530,18 @@ async function packageGithubSkillArtifact(metadata: Record<string, unknown>): Pr
 }
 
 const server = createJsonServer([
+  {
+    method: 'GET',
+    path: '/payments/webhooks/epay',
+    handler: async ({url}: HandlerContext) => {
+      await service.applyEpayWebhook(parseQueryParams(url));
+      return createRawResponse('success', {
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+        },
+      });
+    },
+  },
   {
     method: 'POST',
     path: '/payments/webhooks/epay',
