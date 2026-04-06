@@ -30,21 +30,43 @@ function resolveBrandPath(brandDir, rawPath) {
   return path.resolve(brandDir, rawPath);
 }
 
+function buildSourceCandidates(sourcePath) {
+  if (typeof sourcePath !== 'string' || !sourcePath.trim()) {
+    return [];
+  }
+  const normalized = sourcePath.replace(/\\/g, '/');
+  const candidates = [sourcePath];
+  const legacyPrefix = '/services/control-plane/presets/assets/';
+  const legacyIndex = normalized.indexOf(legacyPrefix);
+  if (legacyIndex >= 0) {
+    const suffix = normalized.slice(legacyIndex + legacyPrefix.length);
+    candidates.push(path.join(rootDir, 'services', 'control-plane', 'assets', suffix));
+  }
+  return [...new Set(candidates)];
+}
+
 async function ensureFile(sourcePath, label) {
   if (!sourcePath) {
     throw new Error(`missing ${label}: unresolved source path`);
   }
-  try {
-    await fs.access(sourcePath);
-  } catch {
-    throw new Error(`missing ${label}: ${sourcePath}`);
+  const candidates = buildSourceCandidates(sourcePath);
+  for (const candidate of candidates) {
+    try {
+      await fs.access(candidate);
+      return candidate;
+    } catch {}
   }
+  throw new Error(`missing ${label}: ${candidates.join(', ')}`);
+}
+
+async function resolveExistingFile(sourcePath, label) {
+  return ensureFile(sourcePath, label);
 }
 
 async function copyFile(sourcePath, targetPath) {
-  await ensureFile(sourcePath, path.basename(targetPath));
+  const resolvedSourcePath = await resolveExistingFile(sourcePath, path.basename(targetPath));
   await fs.mkdir(path.dirname(targetPath), { recursive: true });
-  await fs.copyFile(sourcePath, targetPath);
+  await fs.copyFile(resolvedSourcePath, targetPath);
 }
 
 async function copyOptionalFile(sourcePath, targetPath) {
@@ -61,7 +83,7 @@ async function copyFirstExistingFile(sourcePaths, targetPath) {
       continue;
     }
     try {
-      await fs.access(sourcePath);
+      await resolveExistingFile(sourcePath, path.basename(targetPath));
       await copyFile(sourcePath, targetPath);
       return;
     } catch {}
