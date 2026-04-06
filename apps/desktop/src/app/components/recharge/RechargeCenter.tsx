@@ -744,171 +744,175 @@ function PackageSelectionView({
           return (
             <div
               key={item.packageId}
-              role="button"
-              aria-pressed={selected}
-              tabIndex={0}
-              data-testid="recharge-package-card"
-              data-package-id={item.packageId}
-              onClick={() => handlePackageCardClick(item.packageId)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  handlePackageCardClick(item.packageId);
-                }
-              }}
-              className={cn(
-                'relative flex h-full cursor-pointer flex-col overflow-hidden rounded-[24px] border text-left outline-none transition-all duration-200',
-                ultraWideLayout ? 'p-4' : wideLayout ? 'p-5' : 'p-7',
-                meta.badgeText && (ultraWideLayout ? 'pt-8' : wideLayout ? 'pt-9' : 'pt-11'),
-                SPRING_PRESSABLE,
-                INTERACTIVE_FOCUS_RING,
-                selected
-                  ? 'translate-y-[-2px] border-gray-900 shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:border-gray-100 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]'
-                  : 'hover:border-gray-300 dark:hover:border-[#4B5563]',
-                meta.accentClassName,
-              )}
+              className={cn('relative', meta.badgeText && (wideLayout ? 'pt-3.5' : 'pt-4'))}
             >
-              <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,rgba(255,255,255,0.22)_0%,rgba(255,255,255,0)_100%)] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0)_100%)]" />
               {meta.badgeText ? (
-                <div className="absolute left-1/2 top-3 z-[1] -translate-x-1/2">
-                  <div className={cn('rounded-full px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide', meta.badgeClassName)}>
+                <div className="pointer-events-none absolute left-1/2 top-0 z-[2] -translate-x-1/2 -translate-y-1/2">
+                  <div className={cn('rounded-full px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide shadow-[0_6px_18px_rgba(15,23,42,0.12)]', meta.badgeClassName)}>
                     {meta.badgeText}
                   </div>
                 </div>
               ) : null}
 
-              <div className={cn('flex items-start justify-between gap-3', wideLayout ? 'mb-4' : 'mb-5')}>
-                <div className="flex items-center gap-2.5">
-                  <div
-                    className={cn(
-                      'flex items-center justify-center rounded-xl transition-colors',
-                      ultraWideLayout ? 'h-9 w-9' : 'h-10 w-10',
-                      meta.iconWrapClassName,
-                    )}
-                  >
-                  {meta.icon}
-                  </div>
-                  <div>
-                    <h3
-                      className={cn(
-                        'font-semibold tracking-[-0.01em] text-gray-900 dark:text-gray-100',
-                        ultraWideLayout ? 'text-[17px]' : wideLayout ? 'text-[18px]' : 'text-[19px]',
-                      )}
-                    >
-                      {item.packageName}
-                    </h3>
+              <div
+                role="button"
+                aria-pressed={selected}
+                tabIndex={0}
+                data-testid="recharge-package-card"
+                data-package-id={item.packageId}
+                onClick={() => handlePackageCardClick(item.packageId)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    handlePackageCardClick(item.packageId);
+                  }
+                }}
+                className={cn(
+                  'relative flex h-full cursor-pointer flex-col overflow-hidden rounded-[24px] border text-left outline-none transition-all duration-200',
+                  ultraWideLayout ? 'p-4' : wideLayout ? 'p-5' : 'p-7',
+                  SPRING_PRESSABLE,
+                  INTERACTIVE_FOCUS_RING,
+                  selected
+                    ? 'translate-y-[-2px] border-gray-900 shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:border-gray-100 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]'
+                    : 'hover:border-gray-300 dark:hover:border-[#4B5563]',
+                  meta.accentClassName,
+                )}
+              >
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,rgba(255,255,255,0.22)_0%,rgba(255,255,255,0)_100%)] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0)_100%)]" />
+
+                <div className={cn('flex items-start justify-between gap-3', wideLayout ? 'mb-4' : 'mb-5')}>
+                  <div className="flex items-center gap-2.5">
                     <div
                       className={cn(
-                        'inline-flex rounded-full px-2.5 py-1 font-medium',
-                        wideLayout ? 'mt-1.5 text-[10px]' : 'mt-2 text-[11px]',
-                        meta.eyebrowClassName,
+                        'flex items-center justify-center rounded-xl transition-colors',
+                        ultraWideLayout ? 'h-9 w-9' : 'h-10 w-10',
+                        meta.iconWrapClassName,
                       )}
                     >
-                      {meta.eyebrowText}
+                    {meta.icon}
                     </div>
-                  </div>
-                </div>
-                {selected ? (
-                  <span className="mt-1 inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.12)] dark:bg-emerald-400 dark:shadow-[0_0_0_4px_rgba(52,211,153,0.14)]" />
-                ) : null}
-              </div>
-
-              <div className={cn(wideLayout ? 'mb-4' : 'mb-6')}>
-                <div className="flex items-baseline gap-0.5">
-                  <span className={cn('text-gray-500 dark:text-gray-400', wideLayout ? 'text-[14px]' : 'text-[15px]')}>¥</span>
-                  <span
-                    className={cn(
-                      'font-semibold leading-none tracking-tight',
-                      ultraWideLayout ? 'text-[34px]' : wideLayout ? 'text-[38px]' : 'text-[42px]',
-                      meta.priceGlowClassName,
-                    )}
-                  >
-                    {priceLabel}
-                  </span>
-                </div>
-                {item.highlight ? (
-                  <div
-                    className={cn(
-                      'inline-flex rounded-full bg-[rgba(59,130,246,0.10)] px-3 py-1 font-medium text-[#2563EB] dark:bg-[rgba(96,165,250,0.16)] dark:text-[#93C5FD]',
-                      wideLayout ? 'mt-2 text-[11px]' : 'mt-3 text-[12px]',
-                    )}
-                  >
-                    {item.highlight}
-                  </div>
-                ) : null}
-                {item.description ? (
-                  <p className={cn('text-gray-500 dark:text-gray-400', wideLayout ? 'mt-2 text-[12px] leading-5' : 'mt-3 text-[13px] leading-6')}>
-                    {item.description}
-                  </p>
-                ) : null}
-                {meta.promoText ? (
-                  <p
-                    className={cn(
-                      'font-medium text-gray-600 dark:text-gray-300',
-                      wideLayout ? 'mt-1.5 text-[11px] leading-[18px]' : 'mt-2 text-[12px] leading-5',
-                    )}
-                  >
-                    {meta.promoText}
-                  </p>
-                ) : null}
-              </div>
-
-              <div className={cn('flex-1', wideLayout ? 'mb-5 space-y-2' : 'mb-7 space-y-2.5')}>
-                <div className={cn('flex items-center justify-between', wideLayout ? 'text-[13px]' : 'text-[14px]')}>
-                  <span className="text-gray-500 dark:text-gray-400">{item.bonusCredits > 0 ? '基础到账' : '到账数量'}</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100">{formatCreditsLabel(item.credits)}</span>
-                </div>
-                {item.bonusCredits > 0 ? (
-                  <div className={cn('flex items-center justify-between', wideLayout ? 'text-[13px]' : 'text-[14px]')}>
-                    <span className="text-gray-500 dark:text-gray-400">赠送额度</span>
-                    <span className="font-medium text-orange-600 dark:text-orange-400">+{formatCreditsLabel(item.bonusCredits)}</span>
-                  </div>
-                ) : null}
-                <div className={cn('h-px bg-gray-200/80 dark:bg-gray-800', wideLayout ? 'my-2' : 'my-2.5')} />
-                <div className={cn('flex items-center justify-between pt-1', wideLayout ? 'text-[13px]' : 'text-[14px]')}>
-                  <span className="font-medium text-gray-900 dark:text-gray-100">合计到账</span>
-                  <span className={cn('font-semibold text-gray-900 dark:text-gray-100', wideLayout ? 'text-[14px]' : 'text-[15px]')}>
-                    {formatCreditsLabel(item.totalCredits)} 龙虾币
-                  </span>
-                </div>
-                {item.featureList.length ? (
-                  <div className={cn('pt-1', wideLayout ? 'mt-3 space-y-1.5' : 'mt-4 space-y-2')}>
-                    {item.featureList.slice(0, 5).map((feature, featureIndex) => (
-                      <div
-                        key={`${item.packageId}-feature-${featureIndex}`}
+                    <div>
+                      <h3
                         className={cn(
-                          'flex items-start gap-2 text-gray-500 dark:text-gray-400',
-                          wideLayout ? 'text-[12px] leading-[18px]' : 'text-[13px] leading-5',
+                          'font-semibold tracking-[-0.01em] text-gray-900 dark:text-gray-100',
+                          ultraWideLayout ? 'text-[17px]' : wideLayout ? 'text-[18px]' : 'text-[19px]',
                         )}
                       >
-                        <span className={cn('shrink-0 rounded-full bg-gray-300 dark:bg-gray-600', wideLayout ? 'mt-[5px] h-1.5 w-1.5' : 'mt-[6px] h-1.5 w-1.5')} />
-                        <span>{feature}</span>
+                        {item.packageName}
+                      </h3>
+                      <div
+                        className={cn(
+                          'inline-flex rounded-full px-2.5 py-1 font-medium',
+                          wideLayout ? 'mt-1.5 text-[10px]' : 'mt-2 text-[11px]',
+                          meta.eyebrowClassName,
+                        )}
+                      >
+                        {meta.eyebrowText}
                       </div>
-                    ))}
+                    </div>
                   </div>
-                ) : null}
-              </div>
+                  {selected ? (
+                    <span className="mt-1 inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.12)] dark:bg-emerald-400 dark:shadow-[0_0_0_4px_rgba(52,211,153,0.14)]" />
+                  ) : null}
+                </div>
 
-              <div className="mt-auto">
-                <button
-                  type="button"
-                  data-testid="recharge-package-continue"
-                  data-package-id={item.packageId}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    event.preventDefault();
-                    onContinue(item.packageId);
-                  }}
-                  disabled={!hasPaymentMethods}
-                  className={cn(
-                    'w-full cursor-pointer rounded-md font-medium transition-colors',
-                    wideLayout ? 'py-[9px] text-[15px]' : 'py-2.5 text-[16px]',
-                    !hasPaymentMethods && 'cursor-not-allowed opacity-55',
-                    meta.ctaClassName,
-                  )}
-                >
-                  立即充值
-                </button>
+                <div className={cn(wideLayout ? 'mb-4' : 'mb-6')}>
+                  <div className="flex items-baseline gap-0.5">
+                    <span className={cn('text-gray-500 dark:text-gray-400', wideLayout ? 'text-[14px]' : 'text-[15px]')}>¥</span>
+                    <span
+                      className={cn(
+                        'font-semibold leading-none tracking-tight',
+                        ultraWideLayout ? 'text-[34px]' : wideLayout ? 'text-[38px]' : 'text-[42px]',
+                        meta.priceGlowClassName,
+                      )}
+                    >
+                      {priceLabel}
+                    </span>
+                  </div>
+                  {item.highlight ? (
+                    <div
+                      className={cn(
+                        'inline-flex rounded-full bg-[rgba(59,130,246,0.10)] px-3 py-1 font-medium text-[#2563EB] dark:bg-[rgba(96,165,250,0.16)] dark:text-[#93C5FD]',
+                        wideLayout ? 'mt-2 text-[11px]' : 'mt-3 text-[12px]',
+                      )}
+                    >
+                      {item.highlight}
+                    </div>
+                  ) : null}
+                  {item.description ? (
+                    <p className={cn('text-gray-500 dark:text-gray-400', wideLayout ? 'mt-2 text-[12px] leading-5' : 'mt-3 text-[13px] leading-6')}>
+                      {item.description}
+                    </p>
+                  ) : null}
+                  {meta.promoText ? (
+                    <p
+                      className={cn(
+                        'font-medium text-gray-600 dark:text-gray-300',
+                        wideLayout ? 'mt-1.5 text-[11px] leading-[18px]' : 'mt-2 text-[12px] leading-5',
+                      )}
+                    >
+                      {meta.promoText}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className={cn('flex-1', wideLayout ? 'mb-5 space-y-2' : 'mb-7 space-y-2.5')}>
+                  <div className={cn('flex items-center justify-between', wideLayout ? 'text-[13px]' : 'text-[14px]')}>
+                    <span className="text-gray-500 dark:text-gray-400">{item.bonusCredits > 0 ? '基础到账' : '到账数量'}</span>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">{formatCreditsLabel(item.credits)}</span>
+                  </div>
+                  {item.bonusCredits > 0 ? (
+                    <div className={cn('flex items-center justify-between', wideLayout ? 'text-[13px]' : 'text-[14px]')}>
+                      <span className="text-gray-500 dark:text-gray-400">赠送额度</span>
+                      <span className="font-medium text-orange-600 dark:text-orange-400">+{formatCreditsLabel(item.bonusCredits)}</span>
+                    </div>
+                  ) : null}
+                  <div className={cn('h-px bg-gray-200/80 dark:bg-gray-800', wideLayout ? 'my-2' : 'my-2.5')} />
+                  <div className={cn('flex items-center justify-between pt-1', wideLayout ? 'text-[13px]' : 'text-[14px]')}>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">合计到账</span>
+                    <span className={cn('font-semibold text-gray-900 dark:text-gray-100', wideLayout ? 'text-[14px]' : 'text-[15px]')}>
+                      {formatCreditsLabel(item.totalCredits)} 龙虾币
+                    </span>
+                  </div>
+                  {item.featureList.length ? (
+                    <div className={cn('pt-1', wideLayout ? 'mt-3 space-y-1.5' : 'mt-4 space-y-2')}>
+                      {item.featureList.slice(0, 5).map((feature, featureIndex) => (
+                        <div
+                          key={`${item.packageId}-feature-${featureIndex}`}
+                          className={cn(
+                            'flex items-start gap-2 text-gray-500 dark:text-gray-400',
+                            wideLayout ? 'text-[12px] leading-[18px]' : 'text-[13px] leading-5',
+                          )}
+                        >
+                          <span className={cn('shrink-0 rounded-full bg-gray-300 dark:bg-gray-600', wideLayout ? 'mt-[5px] h-1.5 w-1.5' : 'mt-[6px] h-1.5 w-1.5')} />
+                          <span>{feature}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="mt-auto">
+                  <button
+                    type="button"
+                    data-testid="recharge-package-continue"
+                    data-package-id={item.packageId}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      event.preventDefault();
+                      onContinue(item.packageId);
+                    }}
+                    disabled={!hasPaymentMethods}
+                    className={cn(
+                      'w-full cursor-pointer rounded-md font-medium transition-colors',
+                      wideLayout ? 'py-[9px] text-[15px]' : 'py-2.5 text-[16px]',
+                      !hasPaymentMethods && 'cursor-not-allowed opacity-55',
+                      meta.ctaClassName,
+                    )}
+                  >
+                    立即充值
+                  </button>
+                </div>
               </div>
             </div>
           );
