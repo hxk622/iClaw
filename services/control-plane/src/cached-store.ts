@@ -99,6 +99,10 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
     await this.base.setSystemState(stateKey, stateValue);
   }
 
+  async deleteSystemState(stateKey: string): Promise<void> {
+    await this.base.deleteSystemState(stateKey);
+  }
+
   async getUserByIdentifier(identifier: string): Promise<UserRecord | null> {
     const normalized = normalizeIdentifier(identifier);
     return this.getOrLoad(this.userIdentifierKey(normalized), USER_CACHE_TTL_SECONDS, () =>

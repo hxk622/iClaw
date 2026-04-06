@@ -444,6 +444,49 @@ test('OEM payment gateway inherits platform by default and can override independ
       gateway: 'https://oem-epay.example.com/submit.php',
     });
 
+    await service.upsertAdminPaymentGatewayConfig(registration.tokens.access_token, {
+      provider: 'epay',
+      scope_type: 'app',
+      scope_key: 'iclaw',
+      config_values: {
+        partner_id: 'oem-partner-003',
+        gateway: 'https://iclaw-epay.example.com/submit.php',
+      },
+      secret_values: {
+        key: 'iclaw-key-xyz',
+      },
+    });
+
+    await service.upsertAdminPaymentGatewayConfig(registration.tokens.access_token, {
+      provider: 'epay',
+      config_values: {
+        partner_id: 'platform-partner-004',
+        gateway: 'https://platform-epay-v2.example.com/submit.php',
+      },
+      secret_values: {
+        key: 'platform-key-v2',
+      },
+    });
+
+    const iclawConfig = await service.getAdminPaymentGatewayConfig(registration.tokens.access_token, {
+      scope_type: 'app',
+      scope_key: 'iclaw',
+    });
+    const licaiclawConfig = await service.getAdminPaymentGatewayConfig(registration.tokens.access_token, {
+      scope_type: 'app',
+      scope_key: 'licaiclaw',
+    });
+    assert.equal(iclawConfig.source, 'admin');
+    assert.equal(licaiclawConfig.source, 'admin');
+    assert.deepEqual(iclawConfig.config, {
+      partner_id: 'oem-partner-003',
+      gateway: 'https://iclaw-epay.example.com/submit.php',
+    });
+    assert.deepEqual(licaiclawConfig.config, {
+      partner_id: 'oem-partner-002',
+      gateway: 'https://oem-epay.example.com/submit.php',
+    });
+
     const created = await service.createPaymentOrder(registration.tokens.access_token, {
       provider: 'wechat_qr',
       package_id: 'topup_3000',
@@ -454,6 +497,77 @@ test('OEM payment gateway inherits platform by default and can override independ
     assert.equal(paymentUrl.origin, 'https://oem-epay.example.com');
     assert.equal(paymentUrl.pathname, '/submit.php');
     assert.equal(paymentUrl.searchParams.get('pid'), 'oem-partner-002');
+  });
+});
+
+test('OEM payment gateway can explicitly restore platform inheritance', async () => {
+  await withBootstrapRoles({adminEmails: ['payments-admin@example.com']}, async () => {
+    const store = new InMemoryControlPlaneStore();
+    const service = new ControlPlaneService(store);
+    const registration = await service.register({
+      username: 'payments-admin',
+      email: 'payments-admin@example.com',
+      password: 'password123',
+      name: 'Payments Admin',
+    });
+
+    await service.upsertAdminPaymentGatewayConfig(registration.tokens.access_token, {
+      provider: 'epay',
+      config_values: {
+        partner_id: 'platform-partner-001',
+        gateway: 'https://platform-epay.example.com/submit.php',
+      },
+      secret_values: {
+        key: 'platform-key-xyz',
+      },
+    });
+    await service.upsertAdminPaymentGatewayConfig(registration.tokens.access_token, {
+      provider: 'epay',
+      scope_type: 'app',
+      scope_key: 'iclaw',
+      config_values: {
+        partner_id: 'iclaw-partner-001',
+        gateway: 'https://iclaw-epay.example.com/submit.php',
+      },
+      secret_values: {
+        key: 'iclaw-key-xyz',
+      },
+    });
+
+    const restored = await service.upsertAdminPaymentGatewayConfig(registration.tokens.access_token, {
+      provider: 'epay',
+      scope_type: 'app',
+      scope_key: 'iclaw',
+      mode: 'inherit_platform',
+    });
+    assert.equal(restored.source, 'platform_inherited');
+    assert.equal(restored.scope_type, 'app');
+    assert.equal(restored.scope_key, 'iclaw');
+    assert.deepEqual(restored.config, {
+      partner_id: 'platform-partner-001',
+      gateway: 'https://platform-epay.example.com/submit.php',
+    });
+
+    await service.upsertAdminPaymentGatewayConfig(registration.tokens.access_token, {
+      provider: 'epay',
+      config_values: {
+        partner_id: 'platform-partner-002',
+        gateway: 'https://platform-epay-v2.example.com/submit.php',
+      },
+      secret_values: {
+        key: 'platform-key-v2',
+      },
+    });
+
+    const inherited = await service.getAdminPaymentGatewayConfig(registration.tokens.access_token, {
+      scope_type: 'app',
+      scope_key: 'iclaw',
+    });
+    assert.equal(inherited.source, 'platform_inherited');
+    assert.deepEqual(inherited.config, {
+      partner_id: 'platform-partner-002',
+      gateway: 'https://platform-epay-v2.example.com/submit.php',
+    });
   });
 });
 

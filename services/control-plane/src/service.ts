@@ -492,6 +492,17 @@ function normalizePaymentProviderScopeType(
   return scopeType;
 }
 
+function normalizePaymentGatewayMode(value: string | undefined, fallback: 'use_app_config' | 'inherit_platform' = 'use_app_config') {
+  const normalized = String(value || '').trim();
+  if (!normalized) {
+    return fallback;
+  }
+  if (normalized === 'use_app_config' || normalized === 'inherit_platform') {
+    return normalized;
+  }
+  throw new HttpError(400, 'BAD_REQUEST', 'unsupported payment gateway mode');
+}
+
 function normalizePaymentProviderBindingMode(
   value: string | undefined,
   fallback: PaymentProviderBindingMode = 'inherit_platform',
@@ -2235,8 +2246,16 @@ export class ControlPlaneService {
         : String(input.scope_key || '')
             .trim()
             .toLowerCase();
+    const mode = normalizePaymentGatewayMode(input.mode || undefined, scopeType === 'app' ? 'use_app_config' : 'use_app_config');
     if (scopeType === 'app' && !scopeKey) {
       throw new HttpError(400, 'BAD_REQUEST', 'scope_key is required');
+    }
+    if (scopeType === 'platform' && mode === 'inherit_platform') {
+      throw new HttpError(400, 'BAD_REQUEST', 'platform payment gateway cannot inherit another scope');
+    }
+    if (scopeType === 'app' && mode === 'inherit_platform') {
+      await this.store.deleteSystemState(this.resolvePaymentGatewayStateKey(scopeType, scopeKey));
+      return toAdminPaymentGatewayConfigView(await this.resolvePaymentGatewayConfigState(scopeType, scopeKey));
     }
     const normalizedConfigValues = normalizeConfigStringMap(input.config_values);
     const normalizedSecretValues = asObject(input.secret_values);

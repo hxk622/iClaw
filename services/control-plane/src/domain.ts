@@ -533,6 +533,7 @@ export type UpsertAdminPaymentGatewayConfigInput = {
   provider?: string;
   scope_type?: string;
   scope_key?: string;
+  mode?: string;
   config_values?: Record<string, unknown>;
   secret_values?: Record<string, string>;
 };

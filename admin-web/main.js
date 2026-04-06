@@ -580,6 +580,7 @@ const state = {
   memoryEmbeddingDrafts: {},
   modelLogoPresets: [],
   paymentGatewayConfigs: {},
+  paymentGatewayModeDrafts: {},
   paymentProviderProfiles: [],
   paymentProviderBindings: [],
   skillSyncSources: [],
@@ -6807,6 +6808,10 @@ async function savePaymentGatewayConfig(form) {
   const scopeKey = String(formData.get('scope_key') || (scopeType === 'app' ? getSelectedPaymentProviderTab() : 'platform'))
     .trim()
     .toLowerCase();
+  const mode =
+    scopeType === 'app' && String(formData.get('mode') || '').trim() === 'inherit_platform'
+      ? 'inherit_platform'
+      : 'use_app_config';
   state.busy = true;
   resetBanner();
   render();
@@ -6818,6 +6823,7 @@ async function savePaymentGatewayConfig(form) {
         provider: String(formData.get('provider') || 'epay').trim() || 'epay',
         scope_type: scopeType,
         scope_key: scopeType === 'app' ? scopeKey : 'platform',
+        mode,
         config_values: Object.fromEntries(
           PAYMENT_GATEWAY_CONFIG_FIELDS.map((key) => [key, String(formData.get(key) || '').trim()]),
         ),
@@ -6827,8 +6833,13 @@ async function savePaymentGatewayConfig(form) {
       }),
     });
     await loadAppData();
+    delete state.paymentGatewayModeDrafts[getPaymentGatewayModeDraftKey(scopeType, scopeType === 'app' ? scopeKey : 'platform')];
     state.selectedPaymentProviderTab = scopeType === 'platform' ? 'platform' : scopeKey;
-    setNotice(`${scopeType === 'platform' ? '平台支付网关' : `${scopeKey} 支付网关`}已保存。`);
+    setNotice(
+      scopeType === 'app' && mode === 'inherit_platform'
+        ? `${scopeKey} 已恢复继承平台支付网关。`
+        : `${scopeType === 'platform' ? '平台支付网关' : `${scopeKey} 支付网关`}已保存。`,
+    );
   } catch (error) {
     setError(error instanceof Error ? error.message : '支付网关保存失败');
   } finally {
@@ -9795,6 +9806,21 @@ function getPaymentGatewayConfigView() {
     missing_fields: asStringArray(value.missing_fields),
     updated_at: String(value.updated_at || '').trim() || '',
   };
+}
+
+function getPaymentGatewayModeDraftKey(scopeType, scopeKey) {
+  return `${scopeType}:${scopeKey}`;
+}
+
+function getPaymentGatewayMode(scopeType, scopeKey, source) {
+  const draft = state.paymentGatewayModeDrafts?.[getPaymentGatewayModeDraftKey(scopeType, scopeKey)];
+  if (draft === 'inherit_platform' || draft === 'use_app_config') {
+    return draft;
+  }
+  if (scopeType === 'app') {
+    return source === 'admin' ? 'use_app_config' : 'inherit_platform';
+  }
+  return 'use_app_config';
 }
 
 function getPaymentGatewaySourceLabel(source) {
@@ -12837,6 +12863,8 @@ function renderPaymentProviderConfigPage() {
   const gatewaySecretValues = asObject(gatewayConfig.secret_values);
   const gatewayConfiguredSecrets = Array.isArray(gatewayConfig.configured_secret_keys) ? gatewayConfig.configured_secret_keys : [];
   const gatewayMissingFields = Array.isArray(gatewayConfig.missing_fields) ? gatewayConfig.missing_fields : [];
+  const gatewayMode = getPaymentGatewayMode(scopeType, scopeKey, gatewayConfig.source);
+  const gatewayInheritMode = selectedBrand && gatewayMode === 'inherit_platform';
   const selectedBrandDetail = selectedBrand ? state.portalAppDetails[selectedBrand.brandId] || null : null;
   const profile = getPaymentProviderProfilesByScope(scopeType, scopeKey)[0] || {
     id: '',
@@ -12905,10 +12933,23 @@ function renderPaymentProviderConfigPage() {
               <h3>${escapeHtml(selectedBrand ? `${selectedBrand.displayName} 支付网关` : '平台支付网关')}</h3>
               <span>${escapeHtml(
                 selectedBrand
-                  ? 'OEM 可以单独维护 epay 网关；未单独保存前默认继承平台，保存后该 OEM 订单优先使用自己的网关。'
+                  ? 'OEM 可以显式选择“继承平台”或“使用 OEM 独立网关”；独立配置保存后只影响当前 OEM。'
                   : 'epay 属于平台级基础设施。所有 OEM 默认继承这里；一旦保存，将优先使用数据库配置。',
               )}</span>
             </div>
+            ${
+              selectedBrand
+                ? `
+                  <label class="field" style="min-width:220px;">
+                    <span>Gateway Mode</span>
+                    <select class="field-select" name="mode" data-testid="payment-gateway-mode">
+                      <option value="inherit_platform"${gatewayMode === 'inherit_platform' ? ' selected' : ''}>继承平台</option>
+                      <option value="use_app_config"${gatewayMode === 'use_app_config' ? ' selected' : ''}>使用 OEM 独立网关</option>
+                    </select>
+                  </label>
+                `
+                : ''
+            }
           </div>
           <div class="payment-provider-summary">
             <div class="payment-provider-summary__item">
@@ -12931,29 +12972,31 @@ function renderPaymentProviderConfigPage() {
           <div class="form-grid form-grid--two">
             <label class="field">
               <span>partner_id</span>
-              <input class="field-input" name="partner_id" value="${fieldValue(gatewayConfigValues.partner_id || '')}" placeholder="准付商户 partner_id" data-testid="payment-gateway-partner-id" />
+              <input class="field-input" name="partner_id" value="${fieldValue(gatewayConfigValues.partner_id || '')}" placeholder="准付商户 partner_id" data-testid="payment-gateway-partner-id"${gatewayInheritMode ? ' disabled' : ''} />
             </label>
             <label class="field">
               <span>gateway</span>
-              <input class="field-input" name="gateway" value="${fieldValue(gatewayConfigValues.gateway || '')}" placeholder="https://..." data-testid="payment-gateway-endpoint" />
+              <input class="field-input" name="gateway" value="${fieldValue(gatewayConfigValues.gateway || '')}" placeholder="https://..." data-testid="payment-gateway-endpoint"${gatewayInheritMode ? ' disabled' : ''} />
             </label>
             <label class="field field--wide">
               <span>key</span>
-              <input class="field-input" name="key" value="${fieldValue(gatewaySecretValues.key || '')}" placeholder="准付签名 key" data-testid="payment-gateway-key" />
+              <input class="field-input" name="key" value="${fieldValue(gatewaySecretValues.key || '')}" placeholder="准付签名 key" data-testid="payment-gateway-key"${gatewayInheritMode ? ' disabled' : ''} />
             </label>
           </div>
           <div class="fig-card fig-card--subtle" style="margin-top:16px;">
             <div style="font-size:13px;line-height:1.6;opacity:0.78;">
               ${escapeHtml(
                 selectedBrand
-                  ? `缺失字段：${gatewayMissingFields.join(' / ') || '无'}。当前来源是 ${getPaymentGatewaySourceLabel(gatewayConfig.source)}；一旦保存当前 OEM 表单，即改为该 OEM 独立网关，不再继续继承平台。`
+                  ? gatewayInheritMode
+                    ? `当前已选择继承平台。来源：${getPaymentGatewaySourceLabel(gatewayConfig.source)}；保存后将删除当前 OEM 的独立网关配置，并继续跟随平台。`
+                    : `缺失字段：${gatewayMissingFields.join(' / ') || '无'}。当前来源是 ${getPaymentGatewaySourceLabel(gatewayConfig.source)}；保存后只更新当前 OEM 的独立网关，不影响平台和其它 OEM。`
                   : `缺失字段：${gatewayMissingFields.join(' / ') || '无'}。保存空值后也会以 admin 配置为准，不再回退 .env。`,
               )}
             </div>
           </div>
           <div class="fig-form-actions">
             <button class="solid-button" type="submit" data-testid="payment-gateway-save"${state.busy ? ' disabled' : ''}>${escapeHtml(
-              selectedBrand ? '保存 OEM 网关' : '保存平台网关',
+              selectedBrand ? (gatewayInheritMode ? '保存并继承平台' : '保存 OEM 网关') : '保存平台网关',
             )}</button>
           </div>
         </form>
@@ -14182,6 +14225,20 @@ app.addEventListener('input', (event) => {
 app.addEventListener('change', (event) => {
   const target = event.target instanceof HTMLElement ? event.target : null;
   const form = target?.closest('form');
+  if (form instanceof HTMLFormElement && form.id === 'payment-gateway-form') {
+    const scopeType =
+      String(new FormData(form).get('scope_type') || 'platform').trim() === 'app' ? 'app' : 'platform';
+    const scopeKey = String(new FormData(form).get('scope_key') || (scopeType === 'app' ? getSelectedPaymentProviderTab() : 'platform'))
+      .trim()
+      .toLowerCase() || 'platform';
+    const mode =
+      scopeType === 'app' && String(new FormData(form).get('mode') || '').trim() === 'inherit_platform'
+        ? 'inherit_platform'
+        : 'use_app_config';
+    state.paymentGatewayModeDrafts[getPaymentGatewayModeDraftKey(scopeType, scopeKey)] = mode;
+    render();
+    return;
+  }
   if (form instanceof HTMLFormElement && form.id === 'model-provider-form') {
     captureModelProviderDraft(form);
     render();

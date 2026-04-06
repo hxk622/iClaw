@@ -1156,6 +1156,16 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     );
   }
 
+  async deleteSystemState(stateKey: string): Promise<void> {
+    await this.pool.query(
+      `
+        delete from oem_system_state
+        where state_key = $1
+      `,
+      [stateKey],
+    );
+  }
+
   async getUserByIdentifier(identifier: string): Promise<UserRecord | null> {
     const normalized = normalizeUsernameLookup(identifier);
     const result = await this.pool.query<UserRow>(

@@ -102,6 +102,7 @@ export interface ControlPlaneStore {
   readonly storageLabel: string;
   getSystemState(stateKey: string): Promise<Record<string, unknown> | null>;
   setSystemState(stateKey: string, stateValue: Record<string, unknown>): Promise<void>;
+  deleteSystemState(stateKey: string): Promise<void>;
   getUserByIdentifier(identifier: string): Promise<UserRecord | null>;
   getUserByEmail(email: string): Promise<UserRecord | null>;
   getUserByOAuthAccount(provider: OAuthProvider, providerId: string): Promise<UserRecord | null>;
@@ -420,6 +421,10 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
 
   async setSystemState(stateKey: string, stateValue: Record<string, unknown>): Promise<void> {
     this.systemStateByKey.set(stateKey, {...stateValue});
+  }
+
+  async deleteSystemState(stateKey: string): Promise<void> {
+    this.systemStateByKey.delete(stateKey);
   }
 
   async getUserByIdentifier(identifier: string): Promise<UserRecord | null> {
