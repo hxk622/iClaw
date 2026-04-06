@@ -299,7 +299,11 @@ export function RecentConversationsList({
                     className={cn(
                       'pointer-events-none absolute bottom-0.5 right-0 inline-flex max-w-[88px] items-center gap-1 whitespace-nowrap text-right text-[10px] leading-[15px] transition-opacity duration-[var(--motion-panel)]',
                       isSelected ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]',
-                      menuOpen ? 'opacity-0' : 'opacity-100 group-hover:opacity-0 group-focus-within:opacity-0',
+                      menuOpen
+                        ? 'opacity-0'
+                        : isSelected
+                          ? 'opacity-100'
+                          : 'opacity-100 group-hover:opacity-0 group-focus-within:opacity-0',
                     )}
                   >
                     <Clock3 className="h-2.5 w-2.5 shrink-0" />
