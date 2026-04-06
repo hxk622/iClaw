@@ -31,6 +31,11 @@ type PaymentMethod = 'wechat_qr' | 'alipay_qr';
 type RechargeStep = 'packages' | 'payment';
 type RechargePackage = ResolvedRechargePackageConfig;
 type RechargePaymentMethod = ResolvedRechargePaymentMethodConfig;
+type PaymentTransitionSnapshot = {
+  paymentMethod: PaymentMethod;
+  qrUrl: string;
+  kind: 'switch' | 'refresh';
+};
 
 const PANEL_OVERLAY_CLASS =
   'fixed inset-0 z-50 overflow-hidden bg-[rgba(8,12,20,0.24)] p-4 backdrop-blur-[4px] dark:bg-[rgba(0,0,0,0.44)] md:p-8';
@@ -324,6 +329,7 @@ export function RechargeCenter({
   const [generatedLaunchQrUrl, setGeneratedLaunchQrUrl] = useState<string | null>(null);
   const [autoCreateOrderToken, setAutoCreateOrderToken] = useState(0);
   const [selectedPackageId, setSelectedPackageId] = useState<string>('');
+  const [transitionSnapshot, setTransitionSnapshot] = useState<PaymentTransitionSnapshot | null>(null);
   const createOrderAbortRef = useRef<AbortController | null>(null);
 
   const availablePackages = useMemo(() => resolveRechargePackageConfig(runtimeConfig) ?? [], [runtimeConfig]);
@@ -425,6 +431,13 @@ export function RechargeCenter({
       setPaymentMessage('当前未配置可充值套餐，请先在 admin-web 发布充值配置。');
       return;
     }
+    if (resolvedQrUrl) {
+      setTransitionSnapshot({
+        paymentMethod,
+        qrUrl: resolvedQrUrl,
+        kind: 'refresh',
+      });
+    }
     cancelPendingCreateOrder();
     const controller = new AbortController();
     createOrderAbortRef.current = controller;
@@ -447,6 +460,7 @@ export function RechargeCenter({
         return;
       }
       setActiveOrder(order);
+      setTransitionSnapshot(null);
       if (order.payment_url) {
         setPaymentMessage('支付二维码已就绪，请直接扫码完成支付。');
       } else {
@@ -456,6 +470,7 @@ export function RechargeCenter({
       if (controller.signal.aborted) {
         return;
       }
+      setTransitionSnapshot(null);
       setPaymentMessage(error instanceof Error ? error.message : '创建支付订单失败');
     } finally {
       if (createOrderAbortRef.current === controller) {
@@ -546,6 +561,7 @@ export function RechargeCenter({
       setSelectedPackageId(packageId);
       setPaymentMessage(null);
       setActiveOrder(null);
+      setTransitionSnapshot(null);
       setStep('payment');
       setAutoCreateOrderToken((current) => current + 1);
     });
@@ -554,6 +570,7 @@ export function RechargeCenter({
     cancelPendingCreateOrder();
     setPaymentMessage(null);
     setActiveOrder(null);
+    setTransitionSnapshot(null);
     setStep('packages');
   };
 
@@ -589,10 +606,24 @@ export function RechargeCenter({
                 paymentMethods={availablePaymentMethods}
                 activeOrder={activeOrder}
                 resolvedQrUrl={resolvedQrUrl}
+                transitionSnapshot={transitionSnapshot}
                 onPaymentMethodChange={(method) => {
+                  if (method === paymentMethod) {
+                    return;
+                  }
                   cancelPendingCreateOrder();
+                  setTransitionSnapshot(
+                    resolvedQrUrl
+                      ? {
+                          paymentMethod,
+                          qrUrl: resolvedQrUrl,
+                          kind: 'switch',
+                        }
+                      : null,
+                  );
                   setPaymentMethod(method);
                   setActiveOrder(null);
+                  setGeneratedLaunchQrUrl(null);
                   setPaymentMessage(null);
                   setAutoCreateOrderToken((current) => current + 1);
                 }}
@@ -728,6 +759,7 @@ function PackageSelectionView({
               className={cn(
                 'relative flex h-full cursor-pointer flex-col overflow-hidden rounded-[24px] border text-left outline-none transition-all duration-200',
                 ultraWideLayout ? 'p-4' : wideLayout ? 'p-5' : 'p-7',
+                meta.badgeText && (ultraWideLayout ? 'pt-8' : wideLayout ? 'pt-9' : 'pt-11'),
                 SPRING_PRESSABLE,
                 INTERACTIVE_FOCUS_RING,
                 selected
@@ -738,7 +770,7 @@ function PackageSelectionView({
             >
               <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,rgba(255,255,255,0.22)_0%,rgba(255,255,255,0)_100%)] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0)_100%)]" />
               {meta.badgeText ? (
-                <div className="absolute -top-2.5 left-1/2 -translate-x-1/2">
+                <div className="absolute left-1/2 top-3 z-[1] -translate-x-1/2">
                   <div className={cn('rounded-full px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide', meta.badgeClassName)}>
                     {meta.badgeText}
                   </div>
@@ -904,6 +936,7 @@ function PaymentView({
   paymentMethods,
   activeOrder,
   resolvedQrUrl,
+  transitionSnapshot,
   onPaymentMethodChange,
   onBack,
   onClose,
@@ -918,6 +951,7 @@ function PaymentView({
   paymentMethods: RechargePaymentMethod[];
   activeOrder: PaymentOrderData | null;
   resolvedQrUrl: string | null;
+  transitionSnapshot: PaymentTransitionSnapshot | null;
   onPaymentMethodChange: (method: PaymentMethod) => void;
   onBack: () => void;
   onClose: () => void;
@@ -942,9 +976,17 @@ function PaymentView({
   const isAwaitingPayment = !creatingOrder && Boolean(activeOrder) && !isPaid && !isFailed && !isExpired;
   const shouldShowQr = Boolean(resolvedQrUrl) && !isPaid && !isFailed && !isExpired;
   const shouldShowExpiredQr = Boolean(resolvedQrUrl) && isExpired && !isPaid && !isFailed;
+  const shouldShowTransitionQr =
+    creatingOrder && Boolean(transitionSnapshot?.qrUrl) && !shouldShowQr && !shouldShowExpiredQr && !isPaid && !isFailed;
   const countdownLabel = formatCountdownLabel(remainingMs);
   const expiringSoon = isAwaitingPayment && remainingMs != null && remainingMs > 0 && remainingMs <= 60 * 1000;
   const shortOrderId = formatOrderIdShort(activeOrder?.order_id);
+  const transitionTitle =
+    transitionSnapshot?.kind === 'switch'
+      ? `正在切换至 ${getPaymentMethodLabel(paymentMethod, currentPaymentMethodConfig?.label)} 收款码`
+      : '正在刷新收款码';
+  const transitionDescription =
+    transitionSnapshot?.kind === 'switch' ? '当前二维码保持展示，避免卡片闪动。' : '请稍候，新的二维码正在生成。';
 
   useEffect(() => {
     if (expiryDeadlineTs == null || isPaid || isFailed || isExpired || isRefunded) {
@@ -1076,7 +1118,32 @@ function PaymentView({
 
           <div className="flex flex-1 items-center justify-center" data-testid="recharge-payment-qr-stage">
             <div className="relative">
-              {creatingOrder ? (
+              {shouldShowTransitionQr ? (
+                <div className="relative">
+                  <BrandedPaymentQr
+                    paymentMethod={transitionSnapshot!.paymentMethod}
+                    qrUrl={transitionSnapshot!.qrUrl}
+                  />
+                  <div
+                    className="absolute inset-0 flex items-center justify-center rounded-lg bg-[rgba(255,255,255,0.74)] backdrop-blur-[2px] dark:bg-[rgba(10,10,10,0.68)]"
+                    data-testid="recharge-qr-transition-mask"
+                    data-transition-kind={transitionSnapshot?.kind || 'refresh'}
+                  >
+                    <div className="flex flex-col items-center gap-2 rounded-2xl border border-white/80 bg-white/90 px-5 py-4 text-center shadow-[0_12px_32px_rgba(15,23,42,0.12)] dark:border-white/10 dark:bg-[#151515]/92 dark:shadow-[0_12px_32px_rgba(0,0,0,0.42)]">
+                      <LoaderCircle className="h-6 w-6 animate-spin text-gray-700 dark:text-gray-200" />
+                      <div
+                        className="text-[14px] font-semibold text-gray-900 dark:text-gray-100"
+                        data-testid="recharge-qr-transition-title"
+                      >
+                        {transitionTitle}
+                      </div>
+                      <p className="max-w-[220px] text-[12px] leading-5 text-gray-500 dark:text-gray-400">
+                        {transitionDescription}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : creatingOrder ? (
                 <div className="rounded-lg border border-gray-200/80 bg-white p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:border-gray-800 dark:bg-[#1A1A1A] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)]">
                   <div className="flex h-[min(280px,32vh)] w-[min(280px,32vh)] items-center justify-center rounded-md bg-gray-50 dark:bg-[#101010]">
                     <LoaderCircle className="h-7 w-7 animate-spin text-gray-600 dark:text-gray-400" />
