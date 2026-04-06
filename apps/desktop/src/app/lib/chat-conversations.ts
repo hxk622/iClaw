@@ -3,6 +3,11 @@ import {
   normalizeMessage,
   normalizeRoleForGrouping,
 } from '@openclaw-ui/ui/chat/message-normalizer.ts';
+import {
+  applyConversationMetadataSyncUpdate,
+  applyEnsureConversationUpdate,
+  areOrderedSessionKeysEqual,
+} from './chat-conversation-ordering.ts';
 import { readCacheJson, writeCacheJson } from './persistence/cache-store';
 import { tryCanonicalizeChatSessionKey } from './chat-session';
 import { buildChatScopedStorageKey } from './chat-persistence-scope';
@@ -571,17 +576,33 @@ export function ensureChatConversation(input: EnsureConversationInput): ChatConv
     const matched = byConversationId ?? bySessionKey;
 
     if (matched) {
+      const mutation = applyEnsureConversationUpdate(
+        {
+          ...matched,
+          sessionKeys: dedupeSessionKeys(matched.sessionKeys, matched.activeSessionKey),
+        },
+        {
+          sessionKey,
+          title,
+          summary,
+          nowIso: new Date().toISOString(),
+        },
+      );
+
+      if (!mutation.changed) {
+        resolvedConversationId = matched.id;
+        return current;
+      }
+
       const updatedRecord: ChatConversationRecord = {
-        ...matched,
+        ...mutation.record,
         kind: matched.kind,
-        title: matched.title || title,
-        summary: summary || matched.summary,
-        activeSessionKey: sessionKey,
-        sessionKeys: dedupeSessionKeys(matched.sessionKeys, sessionKey),
-        updatedAt: new Date().toISOString(),
       };
       resolvedConversationId = updatedRecord.id;
-      return [updatedRecord, ...current.filter((record) => record.id !== matched.id)];
+      if (mutation.activityChanged) {
+        return [updatedRecord, ...current.filter((record) => record.id !== matched.id)];
+      }
+      return current.map((record) => (record.id === matched.id ? updatedRecord : record));
     }
 
     const createdRecord: ChatConversationRecord = {
@@ -641,7 +662,7 @@ export function linkSessionToConversation(input: LinkConversationSessionInput): 
         activeSessionKey: toSessionKey,
         sessionKeys: dedupeSessionKeys(record.sessionKeys, toSessionKey),
         handoffs: nextHandoffs,
-        updatedAt: new Date().toISOString(),
+        updatedAt: record.updatedAt,
       };
     }),
   );
@@ -687,31 +708,30 @@ export function syncChatConversationMetadata(input: SyncConversationMetadataInpu
       return [createdRecord, ...current];
     }
 
-    const nextTitle = matched.title || title;
-    const nextSummary = summary || matched.summary;
-    const nextSessionKeys = dedupeSessionKeys(matched.sessionKeys, sessionKey);
-    const hasChanges =
-      nextTitle !== matched.title ||
-      nextSummary !== matched.summary ||
-      matched.activeSessionKey !== sessionKey ||
-      nextSessionKeys.length !== matched.sessionKeys.length ||
-      nextSessionKeys.some((value, index) => value !== matched.sessionKeys[index]);
-
     resolvedConversationId = matched.id;
-    if (!hasChanges) {
+    const mutation = applyConversationMetadataSyncUpdate(
+      {
+        ...matched,
+        sessionKeys: dedupeSessionKeys(matched.sessionKeys, matched.activeSessionKey),
+      },
+      {
+        sessionKey,
+        title,
+        summary,
+        nowIso: new Date().toISOString(),
+      },
+    );
+
+    if (!mutation.changed) {
       return current;
     }
 
-    const updatedRecord: ChatConversationRecord = {
-      ...matched,
-      title: nextTitle,
-      summary: nextSummary,
-      activeSessionKey: sessionKey,
-      sessionKeys: nextSessionKeys,
-      updatedAt: new Date().toISOString(),
-    };
+    const updatedRecord: ChatConversationRecord = mutation.record;
 
-    return [updatedRecord, ...current.filter((record) => record.id !== matched.id)];
+    if (mutation.activityChanged) {
+      return [updatedRecord, ...current.filter((record) => record.id !== matched.id)];
+    }
+    return current.map((record) => (record.id === matched.id ? updatedRecord : record));
   });
 
   return updated.find((record) => record.id === resolvedConversationId) ?? null;
