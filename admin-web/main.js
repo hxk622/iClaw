@@ -948,6 +948,30 @@ function formatFen(value) {
   return `¥${(normalized / 100).toFixed(2)}`;
 }
 
+function formatFenInputValue(value) {
+  const amount = Number(value || 0);
+  const normalized = Number.isFinite(amount) ? amount : 0;
+  return (normalized / 100).toFixed(2);
+}
+
+function parseYuanInputToFen(value) {
+  const normalized = String(value || '')
+    .trim()
+    .replace(/^¥/, '')
+    .replace(/,/g, '');
+  if (!normalized) {
+    return 0;
+  }
+  if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) {
+    throw new Error('金额请输入合法的元金额，最多保留两位小数');
+  }
+  const amount = Number(normalized);
+  if (!Number.isFinite(amount)) {
+    throw new Error('金额请输入合法的元金额');
+  }
+  return Math.round(amount * 100);
+}
+
 function formatDateTimeInputValue(value) {
   const date = value ? new Date(value) : new Date();
   if (Number.isNaN(date.getTime())) {
@@ -4790,7 +4814,7 @@ async function saveRechargePackageCatalogEntry(form) {
         packageName: String(formData.get('package_name') || '').trim(),
         credits: Number(formData.get('credits') || 0) || 0,
         bonusCredits: Number(formData.get('bonus_credits') || 0) || 0,
-        amountCnyFen: Number(formData.get('amount_cny_fen') || 0) || 0,
+        amountCnyFen: parseYuanInputToFen(formData.get('amount_cny_yuan')),
         sortOrder: Number(formData.get('sort_order') || 0) || 0,
         recommended: formData.get('recommended') === 'on',
         default: formData.get('default') === 'on',
@@ -12680,8 +12704,8 @@ function renderRechargePackageCatalogPage() {
                 <input class="field-input" name="package_name" value="${fieldValue(editingItem.packageName)}" placeholder="7000 龙虾币" />
               </label>
               <label class="field">
-                <span>金额（分）</span>
-                <input class="field-input" name="amount_cny_fen" type="number" min="1" step="1" value="${fieldValue(editingItem.amountCnyFen)}" />
+                <span>金额（元）</span>
+                <input class="field-input" name="amount_cny_yuan" type="number" min="0.01" step="0.01" value="${fieldValue(formatFenInputValue(editingItem.amountCnyFen))}" />
               </label>
               <label class="field">
                 <span>基础龙虾币</span>
