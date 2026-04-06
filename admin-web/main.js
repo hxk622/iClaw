@@ -14226,6 +14226,10 @@ app.addEventListener('change', (event) => {
   const target = event.target instanceof HTMLElement ? event.target : null;
   const form = target?.closest('form');
   if (form instanceof HTMLFormElement && form.id === 'payment-gateway-form') {
+    const changedField = target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement ? target.name : '';
+    if (changedField !== 'mode') {
+      return;
+    }
     const scopeType =
       String(new FormData(form).get('scope_type') || 'platform').trim() === 'app' ? 'app' : 'platform';
     const scopeKey = String(new FormData(form).get('scope_key') || (scopeType === 'app' ? getSelectedPaymentProviderTab() : 'platform'))
