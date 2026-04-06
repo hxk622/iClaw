@@ -32,7 +32,7 @@
    - 约束
    - 表结构变更
 3. `DB Data`
-   - preset 同步
+   - baseline snapshot 回灌 / 导出
    - 品牌配置
    - 模型中心配置
    - 初始化数据
@@ -156,7 +156,7 @@
 
 适用于：
 
-- preset 同步
+- baseline snapshot 回灌 / 导出
 - 业务初始化数据
 - 品牌配置修正
 - 模型中心 / Memory / OEM runtime 数据修正
@@ -166,6 +166,10 @@
 - 必须写清作用表 / 作用对象
 - 必须写清是否幂等
 - 必须写清是否可逆
+- 如涉及平台/OEM baseline，必须说明：
+  - 数据库是否已作为唯一真值完成修改
+  - 是否已执行 `pnpm baseline:export`
+  - 是否已执行 `pnpm baseline:doctor`
 - 必须写进发布单，不允许只在终端里“手工跑一下”
 
 ## 6. 对象存储规范

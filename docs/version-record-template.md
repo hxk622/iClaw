@@ -44,6 +44,11 @@
 
 内容：
 
+- [ ] 如涉及平台/OEM baseline 主数据，已先修改数据库真值
+- [ ] 已执行 `pnpm baseline:export`
+- [ ] 已执行 `pnpm baseline:doctor`
+- [ ] 如做恢复/回灌，已执行 `pnpm baseline:apply`
+
 ### 3.4 Object Storage
 
 - [ ] 无
@@ -63,6 +68,7 @@
 - [ ] 已冻结 `git tag + commit`
 - [ ] 已生成测试报告并落到 `docs/version_record/test_report/`
 - [ ] 发版文档已填写 `test_report` 字段
+- [ ] 如涉及平台/OEM baseline，已确认数据库为真值且 snapshot 已同步
 - [ ] 已确认发布范围
 - [ ] 已确认回滚目标
 - [ ] 已确认执行人和复核人

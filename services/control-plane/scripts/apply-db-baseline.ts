@@ -88,7 +88,7 @@ async function applySnapshot(snapshot: PlatformDbBaselineSnapshot) {
       });
     }
 
-    await portalStore.syncPreset({
+    await portalStore.applyBaselineSnapshot({
       apps: asArray(snapshot.apps).map((raw) => {
         const entry = asObject(raw);
         const app = asObject(entry.app);

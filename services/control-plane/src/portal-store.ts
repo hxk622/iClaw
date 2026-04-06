@@ -4042,7 +4042,7 @@ export class PgPortalStore {
     return listComposerShortcutBindings(this.pool, appName);
   }
 
-  async syncPreset(input: {
+  async applyBaselineSnapshot(input: {
     apps: UpsertPortalAppInput[];
     skills: UpsertPortalSkillInput[];
     mcps: UpsertPortalMcpInput[];
@@ -4220,7 +4220,7 @@ export class PgPortalStore {
         );
       }
 
-      const sharedPresetMcpKeys = (() => {
+      const sharedBaselineMcpKeys = (() => {
         const enabledBindingSets = input.mcpBindings
           .map((binding) =>
             new Set(
@@ -4237,7 +4237,7 @@ export class PgPortalStore {
         const [firstSet, ...restSets] = enabledBindingSets;
         return [...firstSet].filter((mcpKey) => restSets.every((items) => items.has(mcpKey)));
       })();
-      for (const [index, mcpKey] of sharedPresetMcpKeys.entries()) {
+      for (const [index, mcpKey] of sharedBaselineMcpKeys.entries()) {
         await client.query(
           `
             insert into platform_bundled_mcps (
@@ -4255,7 +4255,7 @@ export class PgPortalStore {
             mcpKey,
             (index + 1) * 10,
             JSON.stringify({
-              sourceType: 'preset',
+              sourceType: 'baseline_snapshot',
               derivedFrom: 'shared_oem_mcp_bindings',
             }),
           ],
