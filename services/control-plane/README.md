@@ -129,6 +129,7 @@ OEM portal 现在也是 control-plane 的职责范围之一：
 这里的职责边界需要特别明确：
 
 - `cloud_mcp_catalog` 保存 MCP 全集主数据，是云MCP的唯一真值
+- 飞书 CLI / 钉钉 CLI / 企微 CLI 这类平台保底 MCP 会在 control-plane 启动时补进 `cloud_mcp_catalog`，不依赖 `core-oem.json` 同步
 - `platform_bundled_mcps` 只保存平台预装 MCP 子集，不重复复制 MCP 主数据
 - `iclaw` / `licaiclaw` 这类 OEM app 只通过 `oem_bundled_mcps` 控制：
   - 是否显示

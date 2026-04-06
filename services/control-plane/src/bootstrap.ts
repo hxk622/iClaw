@@ -9,6 +9,7 @@ import {
   DEFAULT_CLOUD_SKILL_SEEDS,
   DEPRECATED_DEFAULT_AGENT_SLUGS,
 } from './catalog-defaults.ts';
+import {DEFAULT_CLOUD_MCP_SEEDS} from './mcp-defaults.ts';
 import {hashPassword} from './passwords.ts';
 import type {PortalPresetManifest} from './portal-domain.ts';
 import {syncPortalPresetManifest} from './portal-preset.ts';
@@ -23,6 +24,8 @@ const LEGACY_DEFAULT_INVESTMENT_CATEGORY_FIXUPS: Record<string, {from: string[];
 };
 const DEFAULT_CATALOGS_BOOTSTRAP_VERSION = 3;
 const DEFAULT_CATALOGS_STATE_KEY = 'bootstrap/default-catalogs';
+const DEFAULT_MCP_CATALOGS_BOOTSTRAP_VERSION = 1;
+const DEFAULT_MCP_CATALOGS_STATE_KEY = 'bootstrap/default-mcp-catalogs';
 const PORTAL_PRESET_STATE_KEY = 'portal_preset/core-oem';
 const PORTAL_PRESET_BOOTSTRAP_VERSION = 3;
 const DEFAULT_CATALOG_UPSERT_CONCURRENCY = 12;
@@ -56,6 +59,17 @@ function buildDefaultCatalogsHash(): string {
         deprecatedAgents: DEPRECATED_DEFAULT_AGENT_SLUGS,
         investmentCategoryFixups: LEGACY_DEFAULT_INVESTMENT_CATEGORY_FIXUPS,
         bootstrapVersion: DEFAULT_CATALOGS_BOOTSTRAP_VERSION,
+      }),
+    )
+    .digest('hex');
+}
+
+function buildDefaultMcpCatalogsHash(): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        mcps: DEFAULT_CLOUD_MCP_SEEDS,
+        bootstrapVersion: DEFAULT_MCP_CATALOGS_BOOTSTRAP_VERSION,
       }),
     )
     .digest('hex');
@@ -199,6 +213,43 @@ export async function ensurePortalSkillCatalogPolicy(portalStore: PgPortalStore)
 
 export async function ensureDefaultSkillSyncSources(store: ControlPlaneStore): Promise<void> {
   await store.upsertSkillSyncSource(DEFAULT_CLAWHUB_SYNC_SOURCE);
+}
+
+export async function ensureDefaultMcpCatalogs(store: ControlPlaneStore): Promise<void> {
+  const seedHash = buildDefaultMcpCatalogsHash();
+  const previousState = await store.getSystemState(DEFAULT_MCP_CATALOGS_STATE_KEY);
+  if (
+    typeof previousState?.seedHash === 'string' &&
+    previousState.seedHash === seedHash &&
+    Number(previousState.bootstrapVersion) === DEFAULT_MCP_CATALOGS_BOOTSTRAP_VERSION
+  ) {
+    return;
+  }
+
+  const existing = await store.listMcpCatalogAdmin();
+  const existingKeys = new Set(existing.map((item) => item.mcpKey));
+  for (const seed of DEFAULT_CLOUD_MCP_SEEDS) {
+    if (existingKeys.has(seed.mcpKey)) {
+      continue;
+    }
+    await store.upsertMcpCatalogEntry({
+      mcp_key: seed.mcpKey,
+      name: seed.name,
+      description: seed.description,
+      transport: seed.transport,
+      object_key: seed.objectKey,
+      config: seed.config,
+      metadata: seed.metadata,
+      active: seed.active,
+    });
+  }
+
+  await store.setSystemState(DEFAULT_MCP_CATALOGS_STATE_KEY, {
+    seedHash,
+    bootstrapVersion: DEFAULT_MCP_CATALOGS_BOOTSTRAP_VERSION,
+    seededKeys: DEFAULT_CLOUD_MCP_SEEDS.map((item) => item.mcpKey),
+    appliedAt: new Date().toISOString(),
+  });
 }
 
 export async function ensureDefaultCatalogs(store: ControlPlaneStore): Promise<void> {

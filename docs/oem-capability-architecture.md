@@ -164,6 +164,7 @@ OEM 装配层不负责：
 - `cloud_skill_catalog` 保存 skill 全集
 - `platform_bundled_skills` 保存平台级预装 skill 子集
 - `cloud_mcp_catalog` 保存 MCP 全集
+- 基础平台 MCP（如飞书 CLI / 钉钉 CLI / 企微 CLI）应直接进入 `cloud_mcp_catalog`，不能只躺在 preset 文件里等手工同步
 - `platform_bundled_mcps` 保存平台级预装 MCP 子集
 - 其它 catalog 表保存平台级能力全集
 
