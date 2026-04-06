@@ -12811,7 +12811,7 @@ function renderPaymentProviderConfigPage() {
             ${tabs
               .map(
                 (tab) =>
-                  `<button class="tab-pill${selectedTab === tab.key ? ' is-active' : ''}" type="button" data-action="select-payment-provider-tab" data-tab-key="${escapeHtml(tab.key)}">${escapeHtml(tab.label)}</button>`,
+                  `<button class="tab-pill${selectedTab === tab.key ? ' is-active' : ''}" type="button" data-action="select-payment-provider-tab" data-tab-key="${escapeHtml(tab.key)}" data-testid="payment-provider-tab-${escapeHtml(tab.key)}">${escapeHtml(tab.label)}</button>`,
               )
               .join('')}
           </div>
@@ -12862,7 +12862,7 @@ function renderPaymentProviderConfigPage() {
               </section>
             `
             : `
-              <form id="payment-gateway-form" class="fig-card fig-card--subtle">
+              <form id="payment-gateway-form" class="fig-card fig-card--subtle" data-testid="payment-gateway-form">
                 <input type="hidden" name="provider" value="epay" />
                 <div class="fig-card__head">
                   <div>
@@ -12891,15 +12891,15 @@ function renderPaymentProviderConfigPage() {
                 <div class="form-grid form-grid--two">
                   <label class="field">
                     <span>partner_id</span>
-                    <input class="field-input" name="partner_id" value="${fieldValue(gatewayConfigValues.partner_id || '')}" placeholder="准付商户 partner_id" />
+                    <input class="field-input" name="partner_id" value="${fieldValue(gatewayConfigValues.partner_id || '')}" placeholder="准付商户 partner_id" data-testid="payment-gateway-partner-id" />
                   </label>
                   <label class="field">
                     <span>gateway</span>
-                    <input class="field-input" name="gateway" value="${fieldValue(gatewayConfigValues.gateway || '')}" placeholder="https://..." />
+                    <input class="field-input" name="gateway" value="${fieldValue(gatewayConfigValues.gateway || '')}" placeholder="https://..." data-testid="payment-gateway-endpoint" />
                   </label>
                   <label class="field field--wide">
                     <span>key</span>
-                    <input class="field-input" name="key" value="${fieldValue(gatewaySecretValues.key || '')}" placeholder="准付签名 key" />
+                    <input class="field-input" name="key" value="${fieldValue(gatewaySecretValues.key || '')}" placeholder="准付签名 key" data-testid="payment-gateway-key" />
                   </label>
                 </div>
                 <div class="fig-card fig-card--subtle" style="margin-top:16px;">
@@ -12908,7 +12908,7 @@ function renderPaymentProviderConfigPage() {
                   </div>
                 </div>
                 <div class="fig-form-actions">
-                  <button class="solid-button" type="submit"${state.busy ? ' disabled' : ''}>保存平台网关</button>
+                  <button class="solid-button" type="submit" data-testid="payment-gateway-save"${state.busy ? ' disabled' : ''}>保存平台网关</button>
                 </div>
               </form>
             `
@@ -13457,17 +13457,17 @@ function renderLogin() {
           </p>
           ${renderThemeModeSwitcher('theme-switcher--login')}
         </div>
-        <form class="login-card" id="login-form">
+        <form class="login-card" id="login-form" data-testid="admin-login-form">
           <label class="field">
             <span>Username</span>
-            <input class="field-input" name="identifier" autocomplete="username" value="admin" />
+            <input class="field-input" name="identifier" autocomplete="username" value="admin" data-testid="admin-login-identifier" />
           </label>
           <label class="field">
             <span>Password</span>
-            <input class="field-input" name="password" type="password" autocomplete="current-password" value="admin" />
+            <input class="field-input" name="password" type="password" autocomplete="current-password" value="admin" data-testid="admin-login-password" />
           </label>
           <div class="banner banner--error"${state.error ? '' : ' hidden'}>${escapeHtml(state.error)}</div>
-          <button class="solid-button solid-button--full" type="submit"${state.busy ? ' disabled' : ''}>
+          <button class="solid-button solid-button--full" type="submit" data-testid="admin-login-submit"${state.busy ? ' disabled' : ''}>
             ${state.busy ? '进入中…' : '进入控制台'}
           </button>
         </form>

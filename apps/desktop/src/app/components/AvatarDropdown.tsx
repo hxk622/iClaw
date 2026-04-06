@@ -118,6 +118,7 @@ export function AvatarDropdown({
       <button
         className={menuItemClass}
         style={menuItemStyle}
+        data-testid="open-recharge-center"
         onClick={() => {
           onClose();
           onOpenRechargeCenter();

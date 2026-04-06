@@ -211,11 +211,18 @@ function BrandedPaymentQr({
 }) {
   const methodTheme = getPaymentMethodTheme(paymentMethod);
   return (
-    <div className="relative rounded-lg border border-gray-200/80 bg-white p-8 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:border-gray-800 dark:bg-[#1A1A1A] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)]">
-      <div className={cn('relative h-[280px] w-[280px] overflow-hidden rounded-md', methodTheme.qrStageClassName)}>
+    <div
+      className="relative rounded-lg border border-gray-200/80 bg-white p-8 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:border-gray-800 dark:bg-[#1A1A1A] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)]"
+      data-testid={expired ? 'recharge-qr-card-expired' : 'recharge-qr-card'}
+    >
+      <div
+        className={cn('relative h-[280px] w-[280px] overflow-hidden rounded-md', methodTheme.qrStageClassName)}
+        data-testid="recharge-qr-container"
+      >
         <img
           src={qrUrl}
           alt={`${paymentMethod === 'wechat_qr' ? '微信' : '支付宝'}支付二维码`}
+          data-testid="recharge-qr-image"
           className={cn(
             'absolute inset-0 h-full w-full object-contain transition-[filter,transform,opacity] duration-300',
             expired && 'scale-[1.01] opacity-75 blur-[0.5px]',
@@ -225,10 +232,14 @@ function BrandedPaymentQr({
           <PaymentBrandLogo paymentMethod={paymentMethod} />
         </div>
         {expired ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-white/95 backdrop-blur-sm dark:bg-gray-900/95">
+          <div
+            className="absolute inset-0 flex items-center justify-center bg-white/95 backdrop-blur-sm dark:bg-gray-900/95"
+            data-testid="recharge-qr-expired-mask"
+          >
             <button
               type="button"
               onClick={onRefresh}
+              data-testid="recharge-qr-refresh"
               className={cn(
                 'flex cursor-pointer flex-col items-center gap-2 rounded-md px-5 py-3.5 transition-colors',
                 PRIMARY_ACTION_BUTTON_CLASS,
@@ -580,11 +591,13 @@ function PackageSelectionView({
   return (
     <div
       className="mx-auto w-full max-w-[1240px] rounded-lg border border-gray-200/60 bg-white p-12 shadow-[0_1px_3px_rgba(0,0,0,0.04)] dark:border-gray-800 dark:bg-[#141414] dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)]"
+      data-testid="recharge-package-view"
       onClick={(event) => event.stopPropagation()}
     >
       <div className="relative">
         <button
           onClick={onClose}
+          data-testid="recharge-close"
           className="absolute right-0 top-0 flex h-10 w-10 cursor-pointer items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:text-gray-300 dark:hover:bg-[#242424] dark:hover:text-gray-100"
         >
           <X className="h-5 w-5 text-gray-600 dark:text-gray-300" />
@@ -620,6 +633,8 @@ function PackageSelectionView({
               role="button"
               aria-pressed={selected}
               tabIndex={0}
+              data-testid="recharge-package-card"
+              data-package-id={item.packageId}
               onClick={() => handlePackageCardClick(item.packageId)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
@@ -681,6 +696,8 @@ function PackageSelectionView({
               <div className="mt-auto">
                 <button
                   type="button"
+                  data-testid="recharge-package-continue"
+                  data-package-id={item.packageId}
                   onClick={(event) => {
                     event.stopPropagation();
                     event.preventDefault();
@@ -843,10 +860,12 @@ function PaymentView({
   return (
     <div
       className="relative h-[660px] w-[1000px] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:border-gray-800 dark:bg-[#141414] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
+      data-testid="recharge-payment-view"
       onClick={onPanelClick}
     >
       <button
         onClick={onClose}
+        data-testid="recharge-payment-close"
         className="absolute right-5 top-5 z-10 flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100"
       >
         <X className="h-4 w-4" />
@@ -877,7 +896,7 @@ function PaymentView({
             </div>
           </div>
 
-          <div className="flex flex-1 items-center justify-center">
+          <div className="flex flex-1 items-center justify-center" data-testid="recharge-payment-qr-stage">
             <div className="relative">
               {creatingOrder ? (
                 <div className="rounded-lg border border-gray-200/80 bg-white p-8 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:border-gray-800 dark:bg-[#1A1A1A] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)]">
@@ -982,6 +1001,8 @@ function PaymentView({
                     key={method}
                     onClick={() => onPaymentMethodChange(method)}
                     disabled={creatingOrder || isPaid}
+                    data-testid="recharge-payment-method"
+                    data-payment-method={method}
                     className={cn(
                       'flex w-full cursor-pointer items-center gap-3 rounded-md border p-3 text-left transition-all',
                       creatingOrder || isPaid ? 'cursor-not-allowed opacity-60' : '',
@@ -1049,6 +1070,7 @@ function PaymentView({
               <button
                 type="button"
                 onClick={handlePrimaryAction}
+                data-testid="recharge-payment-primary-action"
                 className={cn(
                   'flex w-full items-center justify-center gap-2 rounded-md py-2.5 text-[14px] font-medium transition-colors',
                   PRIMARY_ACTION_BUTTON_CLASS,
@@ -1060,6 +1082,7 @@ function PaymentView({
             ) : null}
             <button
               onClick={onBack}
+              data-testid="recharge-back-to-packages"
               className={cn(
                 'flex w-full items-center justify-center gap-2 rounded-md py-2.5 text-[14px] font-medium transition-colors',
                 SECONDARY_ACTION_BUTTON_CLASS,
