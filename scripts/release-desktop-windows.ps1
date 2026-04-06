@@ -4,6 +4,7 @@ param(
   [string[]]$Channels = @('dev', 'prod'),
   [string[]]$Targets = @('x86_64-pc-windows-msvc', 'aarch64-pc-windows-msvc'),
   [int]$KeepVersions = $(if ($env:ICLAW_KEEP_VERSIONS) { [int]$env:ICLAW_KEEP_VERSIONS } else { 2 }),
+  [switch]$SkipUnsupportedTargets,
   [switch]$SkipBuild,
   [switch]$SkipPublish,
   [switch]$SkipHomeDeploy
@@ -204,6 +205,8 @@ function Set-PreparedEnvFile {
   $envValues['APP_NAME'] = $Brand
   $envValues['ICLAW_PORTAL_APP_NAME'] = $Brand
   $envValues['ICLAW_BRAND'] = $Brand
+  $envValues['ICLAW_RELEASE_VERSION'] = $ReleaseVersion
+  $envValues['ICLAW_DESKTOP_RELEASE_VERSION'] = $ReleaseVersion
   return $envValues
 }
 
@@ -228,6 +231,42 @@ function Get-ArchLabel {
   }
 }
 
+function Should-SkipUnsupportedTargetFailure {
+  param(
+    [Parameter(Mandatory = $true)][string]$Target,
+    [Parameter(Mandatory = $true)][string]$ErrorText
+  )
+
+  if (-not $SkipUnsupportedTargets) {
+    return $false
+  }
+
+  $normalizedTarget = $Target.Trim().ToLowerInvariant()
+  if ($normalizedTarget -ne 'aarch64-pc-windows-msvc') {
+    return $false
+  }
+
+  $normalizedError = $ErrorText.ToLowerInvariant()
+  $skipMarkers = @(
+    'openclaw runtime artifact target does not match',
+    'runtime artifact sha256 mismatch',
+    'expected windows installer not found',
+    'windows bundle directory not found',
+    'failed to download runtime artifact for verification',
+    'invalid openclaw runtime bootstrap config',
+    'missing openclaw runtime bootstrap config',
+    'no windows installer found under'
+  )
+
+  foreach ($marker in $skipMarkers) {
+    if ($normalizedError.Contains($marker)) {
+      return $true
+    }
+  }
+
+  return $false
+}
+
 function Find-LatestMatch {
   param(
     [Parameter(Mandatory = $true)][string]$Directory,
@@ -243,6 +282,19 @@ function Find-LatestMatch {
     }
   }
   return $null
+}
+
+function Find-LatestFileByExtensions {
+  param(
+    [Parameter(Mandatory = $true)][string]$Directory,
+    [Parameter(Mandatory = $true)][string[]]$Extensions
+  )
+
+  $normalizedExtensions = @($Extensions | ForEach-Object { $_.Trim().ToLowerInvariant() })
+  return Get-ChildItem -LiteralPath $Directory -File -ErrorAction SilentlyContinue |
+    Where-Object { $normalizedExtensions -contains $_.Extension.Trim().ToLowerInvariant() } |
+    Sort-Object LastWriteTime, Name |
+    Select-Object -Last 1
 }
 
 function Save-WindowsArtifacts {
@@ -261,11 +313,35 @@ function Save-WindowsArtifacts {
   }
 
   if ($archLabel -eq 'aarch64') {
-    $installer = Find-LatestMatch -Directory $installerDir -Patterns @("*$AppVersion*aarch64*.exe", "*$AppVersion*arm64*.exe")
-    $updater = Find-LatestMatch -Directory $installerDir -Patterns @("*$AppVersion*aarch64*.nsis.zip", "*$AppVersion*arm64*.nsis.zip")
+    $installer = Find-LatestMatch -Directory $installerDir -Patterns @(
+      "*$ResolvedReleaseVersion*aarch64*.exe",
+      "*$ResolvedReleaseVersion*arm64*.exe",
+      "*$AppVersion*aarch64*.exe",
+      "*$AppVersion*arm64*.exe"
+    )
+    $updater = Find-LatestMatch -Directory $installerDir -Patterns @(
+      "*$ResolvedReleaseVersion*aarch64*.nsis.zip",
+      "*$ResolvedReleaseVersion*arm64*.nsis.zip",
+      "*$AppVersion*aarch64*.nsis.zip",
+      "*$AppVersion*arm64*.nsis.zip"
+    )
   } else {
-    $installer = Find-LatestMatch -Directory $installerDir -Patterns @("*$AppVersion*x64*.exe")
-    $updater = Find-LatestMatch -Directory $installerDir -Patterns @("*$AppVersion*x64*.nsis.zip")
+    $installer = Find-LatestMatch -Directory $installerDir -Patterns @(
+      "*$ResolvedReleaseVersion*x64*.exe",
+      "*$AppVersion*x64*.exe"
+    )
+    $updater = Find-LatestMatch -Directory $installerDir -Patterns @(
+      "*$ResolvedReleaseVersion*x64*.nsis.zip",
+      "*$AppVersion*x64*.nsis.zip"
+    )
+  }
+
+  if (-not $installer) {
+    $installer = Find-LatestFileByExtensions -Directory $installerDir -Extensions @('.exe')
+  }
+
+  if (-not $updater) {
+    $updater = Find-LatestFileByExtensions -Directory $installerDir -Extensions @('.zip')
   }
 
   if (-not $installer) {
@@ -428,8 +504,19 @@ try {
       $buildEnv = Set-PreparedEnvFile -EnvName $normalizedChannel
       foreach ($target in $Targets) {
         Write-Host "==> building Windows desktop: brand=$Brand channel=$normalizedChannel target=$target"
-        Invoke-Checked -FilePath $node -Arguments @("$RootDir\scripts\build-desktop-package.mjs", '--brand', $Brand, '--target', $target) -Environment $buildEnv -WorkingDirectory $RootDir
-        Save-WindowsArtifacts -Target $target -Channel $normalizedChannel -AppVersion $appVersion -ResolvedReleaseVersion $ReleaseVersion -ArtifactBaseName $artifactBaseName
+        try {
+          Invoke-Checked -FilePath $node -Arguments @("$RootDir\scripts\build-desktop-package.mjs", '--brand', $Brand, '--target', $target) -Environment $buildEnv -WorkingDirectory $RootDir
+          Save-WindowsArtifacts -Target $target -Channel $normalizedChannel -AppVersion $appVersion -ResolvedReleaseVersion $ReleaseVersion -ArtifactBaseName $artifactBaseName
+        }
+        catch {
+          $errorText = $_ | Out-String
+          if (Should-SkipUnsupportedTargetFailure -Target $target -ErrorText $errorText) {
+            Write-Warning "Skipping unsupported Windows target for brand=$Brand channel=$normalizedChannel target=$target"
+            Write-Warning $errorText.Trim()
+            continue
+          }
+          throw
+        }
       }
       Invoke-Checked -FilePath $node -Arguments @("$RootDir\scripts\generate-desktop-release-manifests.mjs", '--brand', $Brand, '--channel', $normalizedChannel, '--release-dir', $ReleaseDir, '--version', $appVersion) -Environment $buildEnv -WorkingDirectory $RootDir
     }
