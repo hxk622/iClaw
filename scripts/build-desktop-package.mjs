@@ -472,6 +472,8 @@ function syncBundledBaselineSkills({ pnpm, env, brandId, packagingPaths }) {
     ICLAW_BUNDLED_SKILLS_ONLY: '1',
     ICLAW_INCREMENTAL_SKILL_SYNC: '1',
     ICLAW_RUNTIME_SKILLS_OUTPUT_ROOT: packagingPaths.bundledSkillsDir,
+    ICLAW_RUNTIME_MCP_CONFIG_PATH: path.join(packagingPaths.resourcesSourceDir, 'mcp', 'mcp.json'),
+    ICLAW_RUNTIME_APP_CONFIG_PATH: path.join(packagingPaths.resourcesSourceDir, 'config', 'portal-app-runtime.json'),
   };
   const result = spawnSync(process.execPath, args, {
     stdio: 'pipe',
@@ -532,7 +534,7 @@ async function copyDirIfPresent(sourcePath, destinationPath) {
 }
 
 async function preparePackagingResourcesSource(resourcesSourceDir) {
-  await recreateDir(resourcesSourceDir);
+  await fs.mkdir(resourcesSourceDir, { recursive: true });
   await Promise.all([
     copyDirIfPresent(path.join(openclawResourcesSourceDir, 'certs'), path.join(resourcesSourceDir, 'certs')),
     copyDirIfPresent(path.join(openclawResourcesSourceDir, 'config'), path.join(resourcesSourceDir, 'config')),
@@ -902,6 +904,8 @@ async function main() {
   };
   const { tauriBundle, packageDmg } = platformBundleTarget();
   const pnpm = pnpmCommand();
+  const fastPackageMode = !/^(0|false|no)$/i.test(String(process.env.ICLAW_FAST_PACKAGE || '1').trim());
+  const keepPackagingCache = !/^(0|false|no)$/i.test(String(process.env.ICLAW_KEEP_PACKAGING_CACHE || '1').trim());
   let restoreRuntimeBootstrapConfig = async () => {};
 
   run(process.execPath, [brandStateScriptPath, 'snapshot', snapshotKey], { env });
@@ -920,7 +924,9 @@ async function main() {
 
     run(process.execPath, [applyBrandScriptPath, brandId], { env });
     await preparePackagingResourcesSource(packagingPaths.resourcesSourceDir);
-    syncLocalAppRuntime({ pnpm, env, brandId, packagingPaths });
+    if (!fastPackageMode) {
+      syncLocalAppRuntime({ pnpm, env, brandId, packagingPaths });
+    }
     syncBundledBaselineSkills({ pnpm, env, brandId, packagingPaths });
     run(process.execPath, [syncResourcesScriptPath], { env });
     restoreRuntimeBootstrapConfig = await applyRuntimeBootstrapOverlay(env, brandProfile, channel, runtimeTargetTriple);
@@ -944,7 +950,9 @@ async function main() {
   } finally {
     await fs.rm(tempConfigPath, { force: true });
     await restoreRuntimeBootstrapConfig();
-    await fs.rm(packagingPaths.workspaceRoot, { recursive: true, force: true });
+    if (!keepPackagingCache) {
+      await fs.rm(packagingPaths.workspaceRoot, { recursive: true, force: true });
+    }
     run(process.execPath, [brandStateScriptPath, 'restore', snapshotKey], { env });
   }
 }

@@ -373,13 +373,27 @@ async function extractPortalSkillArtifact(params: {
     await mkdir(extractRoot, {recursive: true});
     await writeFile(archivePath, params.artifact);
     if (params.format === 'zip') {
-      execFileSync('unzip', ['-q', archivePath, '-d', extractRoot], {stdio: 'pipe'});
+      try {
+        execFileSync('unzip', ['-q', archivePath, '-d', extractRoot], {stdio: 'pipe'});
+      } catch (error) {
+        if (process.platform !== 'win32') {
+          throw error;
+        }
+        execFileSync(
+          'powershell',
+          [
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
+            `Expand-Archive -LiteralPath '${archivePath.replace(/'/g, "''")}' -DestinationPath '${extractRoot.replace(/'/g, "''")}' -Force`,
+          ],
+          {stdio: 'pipe'},
+        );
+      }
     } else {
       const archiveArg = process.platform === 'win32' ? archivePath.replace(/\\/g, '/') : archivePath;
       const extractArg = process.platform === 'win32' ? extractRoot.replace(/\\/g, '/') : extractRoot;
-      const tarArgs = process.platform === 'win32'
-        ? ['--force-local', '-xzf', archiveArg, '-C', extractArg]
-        : ['-xzf', archiveArg, '-C', extractArg];
+      const tarArgs = ['-xzf', archiveArg, '-C', extractArg];
       execFileSync('tar', tarArgs, {stdio: 'pipe'});
     }
     const skillRoot = await findSkillRoot(extractRoot);

@@ -405,6 +405,7 @@ function Publish-Channel {
     $publicBaseUrl = Get-JsonValue -ScriptPath (Get-CommandPath -Name 'node') -Arguments @("$RootDir\scripts\read-brand-value.mjs", '--brand', $Brand, 'distribution.downloads.prod.publicBaseUrl')
   }
   $uploadPrefix = Resolve-UploadPrefix -PublicBaseUrl $publicBaseUrl
+  $uploadLatestOnly = -not ($env:ICLAW_UPLOAD_ALL_RELEASES -and $env:ICLAW_UPLOAD_ALL_RELEASES.Trim() -match '^(1|true|yes)$')
 
   $patterns = @(
     "${ArtifactBaseName}_*_${channelValue}.exe",
@@ -448,6 +449,10 @@ function Publish-Channel {
     Sort-Object Name
   $updaters = Get-ChildItem -LiteralPath $ReleaseDir -File -Filter "${ArtifactBaseName}_*_${channelValue}.nsis.zip*" -ErrorAction SilentlyContinue |
     Sort-Object Name
+  if ($uploadLatestOnly) {
+    $installers = @($installers | Where-Object { $_.Name -like "${ArtifactBaseName}_${ReleaseVersion}_*_${channelValue}.exe" })
+    $updaters = @($updaters | Where-Object { $_.Name -like "${ArtifactBaseName}_${ReleaseVersion}_*_${channelValue}.nsis.zip*" })
+  }
   $installerGroups = @{}
   foreach ($installer in $installers) {
     $isArm = $installer.Name -match '_(aarch64|arm64)_'
@@ -518,7 +523,7 @@ try {
           throw
         }
       }
-      Invoke-Checked -FilePath $node -Arguments @("$RootDir\scripts\generate-desktop-release-manifests.mjs", '--brand', $Brand, '--channel', $normalizedChannel, '--release-dir', $ReleaseDir, '--version', $appVersion) -Environment $buildEnv -WorkingDirectory $RootDir
+      Invoke-Checked -FilePath $node -Arguments @("$RootDir\scripts\generate-desktop-release-manifests.mjs", '--brand', $Brand, '--channel', $normalizedChannel, '--release-dir', $ReleaseDir, '--version', $publicAppVersion) -Environment $buildEnv -WorkingDirectory $RootDir
     }
   }
 
