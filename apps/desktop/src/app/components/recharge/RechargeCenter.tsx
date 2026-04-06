@@ -346,6 +346,7 @@ export function RechargeCenter({
   const [step, setStep] = useState<RechargeStep>('packages');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('wechat_qr');
   const [creatingOrder, setCreatingOrder] = useState(false);
+  const [switchingPaymentMethod, setSwitchingPaymentMethod] = useState(false);
   const [activeOrder, setActiveOrder] = useState<PaymentOrderData | null>(null);
   const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
   const [generatedLaunchQrUrl, setGeneratedLaunchQrUrl] = useState<string | null>(null);
@@ -447,6 +448,7 @@ export function RechargeCenter({
   const cancelPendingCreateOrder = () => {
     abortPendingCreateOrder();
     setCreatingOrder(false);
+    setSwitchingPaymentMethod(false);
   };
 
   useEffect(() => () => cancelPendingCreateOrder(), []);
@@ -461,6 +463,7 @@ export function RechargeCenter({
     const nextPackage = overrides?.packageConfig ?? currentPackage;
     const nextProvider = overrides?.provider ?? paymentMethod;
     const nextTransitionSnapshot = overrides?.transitionSnapshot ?? null;
+    const isMethodSwitch = nextTransitionSnapshot?.kind === 'switch';
     if (!nextPackage) {
       setPaymentMessage('当前未配置可充值套餐，请先在 admin-web 发布充值配置。');
       return;
@@ -478,10 +481,13 @@ export function RechargeCenter({
             }
           : null),
     );
-    setCreatingOrder(true);
-    setPaymentMessage(null);
-    setActiveOrder(null);
-    setGeneratedLaunchQrUrl(null);
+    setCreatingOrder(!isMethodSwitch);
+    setSwitchingPaymentMethod(isMethodSwitch);
+    if (!isMethodSwitch) {
+      setPaymentMessage(null);
+      setActiveOrder(null);
+      setGeneratedLaunchQrUrl(null);
+    }
     setPaymentMethod(nextProvider);
 
     try {
@@ -499,6 +505,7 @@ export function RechargeCenter({
       }
       setActiveOrder(order);
       setTransitionSnapshot(null);
+      setSwitchingPaymentMethod(false);
       if (order.payment_url) {
         setPaymentMessage('支付二维码已就绪，请直接扫码完成支付。');
       } else {
@@ -509,12 +516,13 @@ export function RechargeCenter({
         return;
       }
       setTransitionSnapshot(null);
+      setSwitchingPaymentMethod(false);
       setPaymentMessage(error instanceof Error ? error.message : '创建支付订单失败');
     } finally {
       if (createOrderAbortRef.current === controller) {
         createOrderAbortRef.current = null;
       }
-      if (!controller.signal.aborted) {
+      if (!controller.signal.aborted && !isMethodSwitch) {
         setCreatingOrder(false);
       }
     }
@@ -641,6 +649,7 @@ export function RechargeCenter({
                 activeOrder={activeOrder}
                 resolvedQrUrl={resolvedQrUrl}
                 transitionSnapshot={transitionSnapshot}
+                switchingPaymentMethod={switchingPaymentMethod}
                 onPaymentMethodChange={(method) => {
                   if (method === paymentMethod) {
                     return;
@@ -972,6 +981,7 @@ function PaymentView({
   activeOrder,
   resolvedQrUrl,
   transitionSnapshot,
+  switchingPaymentMethod,
   onPaymentMethodChange,
   onBack,
   onClose,
@@ -987,6 +997,7 @@ function PaymentView({
   activeOrder: PaymentOrderData | null;
   resolvedQrUrl: string | null;
   transitionSnapshot: PaymentTransitionSnapshot | null;
+  switchingPaymentMethod: boolean;
   onPaymentMethodChange: (method: PaymentMethod) => void;
   onBack: () => void;
   onClose: () => void;
@@ -1012,7 +1023,10 @@ function PaymentView({
   const shouldShowQr = Boolean(resolvedQrUrl) && !isPaid && !isFailed && !isExpired;
   const shouldShowExpiredQr = Boolean(resolvedQrUrl) && isExpired && !isPaid && !isFailed;
   const shouldShowTransitionQr =
-    creatingOrder && Boolean(transitionSnapshot?.qrUrl) && !shouldShowQr && !shouldShowExpiredQr && !isPaid && !isFailed;
+    Boolean(transitionSnapshot?.qrUrl) &&
+    (switchingPaymentMethod || (creatingOrder && !shouldShowQr && !shouldShowExpiredQr)) &&
+    !isPaid &&
+    !isFailed;
   const countdownLabel = formatCountdownLabel(remainingMs);
   const expiringSoon = isAwaitingPayment && remainingMs != null && remainingMs > 0 && remainingMs <= 60 * 1000;
   const shortOrderId = formatOrderIdShort(activeOrder?.order_id);
@@ -1091,7 +1105,10 @@ function PaymentView({
               };
   const StatusIcon = statusCard.icon;
   const showStatusAction =
-    !creatingOrder && !isPaid && (isFailed || (!activeOrder && Boolean(paymentMessage)) || (isExpired && !resolvedQrUrl));
+    !creatingOrder &&
+    !switchingPaymentMethod &&
+    !isPaid &&
+    (isFailed || (!activeOrder && Boolean(paymentMessage)) || (isExpired && !resolvedQrUrl));
 
   const handlePrimaryAction = () => {
     if (!isAwaitingPayment || isFailed || isExpired || !activeOrder) {
@@ -1285,12 +1302,12 @@ function PaymentView({
                   <button
                     key={method}
                     onClick={() => onPaymentMethodChange(method)}
-                    disabled={creatingOrder || isPaid}
+                    disabled={creatingOrder || switchingPaymentMethod || isPaid}
                     data-testid="recharge-payment-method"
                     data-payment-method={method}
                     className={cn(
                       'flex w-full cursor-pointer items-center gap-3 rounded-xl border p-2.5 text-left transition-all',
-                      creatingOrder || isPaid ? 'cursor-not-allowed opacity-60' : '',
+                      creatingOrder || switchingPaymentMethod || isPaid ? 'cursor-not-allowed opacity-60' : '',
                       selected
                         ? optionTheme.optionSelectedClassName
                         : 'border-gray-200 bg-white hover:border-gray-300 dark:border-[#31343A] dark:bg-[#1A1A1A] dark:hover:border-[#4B5563]',
