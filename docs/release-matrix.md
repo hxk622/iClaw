@@ -6,11 +6,9 @@
 
 桌面发版按宿主平台拆分：
 
-- macOS 主机产出 4 个 mac 安装包：
+- macOS 主机当前默认产出 2 个 mac 安装包：
   - Apple Silicon + dev
   - Apple Silicon + prod
-  - Intel + dev
-  - Intel + prod
 - Windows 主机产出 4 个 Windows 安装包：
   - x64 + dev
   - x64 + prod
@@ -18,6 +16,14 @@
   - ARM64 + prod
 
 一个宿主只负责自己平台，不做“单机同时出 mac + Windows”。
+
+当前限制：
+
+- `macOS x64` 当前标记为“暂不支持正式发版”
+- 原因是发布链路尚未齐备：
+  - 缺少 `openclaw-runtime-x86_64-apple-darwin`
+  - 当前执行机没有可稳定使用的 `x64 node` 环境
+- 在这两个条件补齐前，`prod` 发布口径只覆盖 `macOS arm64`
 
 ## 构建命令
 
@@ -54,7 +60,6 @@ bash scripts/build-desktop-matrix.sh
 
 - macOS:
   - `aarch64-apple-darwin`
-  - `x86_64-apple-darwin`
 - Windows:
   - `x86_64-pc-windows-msvc`
   - `aarch64-pc-windows-msvc`
@@ -111,21 +116,20 @@ bash scripts/build-desktop-matrix.sh
 
 ## macOS Prod 标准流程
 
-macOS 正式发版默认按“双打”执行，不再只打一种架构。
+macOS 正式发版当前默认只发 `Apple Silicon`。
 
 要求产物：
 
 - `aarch64-apple-darwin`
-- `x86_64-apple-darwin`
 
 标准命令：
 
 ```bash
-bash scripts/build-desktop-matrix.sh
+ICLAW_DESKTOP_TARGETS=aarch64-apple-darwin ICLAW_DESKTOP_CHANNELS=prod bash scripts/build-desktop-matrix.sh
 bash scripts/publish-downloads.sh prod
 ```
 
-如果只想手动补打单个架构，可用：
+如果后续要恢复 `macOS x64`，必须先补齐 runtime 与构建环境，再手动显式启用：
 
 ```bash
 ICLAW_DESKTOP_TARGETS=aarch64-apple-darwin ICLAW_DESKTOP_CHANNELS=prod bash scripts/build-desktop-matrix.sh
@@ -136,18 +140,14 @@ bash scripts/publish-downloads.sh prod
 发布完成后，`dist/releases/` 至少应包含：
 
 - `*_aarch64_prod.dmg`
-- `*_x64_prod.dmg`
 - `*_aarch64_prod.app.tar.gz`
 - `*_aarch64_prod.app.tar.gz.sig`
-- `*_x64_prod.app.tar.gz`
-- `*_x64_prod.app.tar.gz.sig`
 - `latest-prod-mac-aarch64.json`
-- `latest-prod-mac-x64.json`
 - `latest-prod.json`
 
 说明：
 
-- `scripts/build-desktop-matrix.sh` 在 macOS 主机上默认就会同时打 `aarch64` 和 `x64`
+- 在当前规范下，macOS `prod` 发布应显式限制为 `aarch64-apple-darwin`
 - `scripts/publish-downloads.sh prod` 会上传 installer、updater 和 manifest，并按保留策略清理旧版本
 - prod 构建必须通过签名校验；macOS 公证失败时不会产出可公开发布的 prod 包
 - 如果 `home-web` 需要展示下载链接，发布时应显式传入本次对外版本，例如 `ICLAW_HOME_PUBLIC_RELEASE_VERSION=<releaseVersion>`，避免页面继续显示旧时间戳

@@ -72,12 +72,17 @@
 说明：
 
 - 脚本会根据宿主平台自动选择 target：
-  - macOS：`aarch64-apple-darwin`、`x86_64-apple-darwin`
+  - macOS：当前正式发版默认只使用 `aarch64-apple-darwin`
   - Windows：`x86_64-pc-windows-msvc`、`aarch64-pc-windows-msvc`
 - 如只打单个 target，可加：
   - `ICLAW_DESKTOP_TARGETS=x86_64-pc-windows-msvc bash scripts/build-desktop-matrix.sh`
 - 构建后的规范化产物统一写到：
   - `dist/releases/`
+
+补充：
+
+- `macOS x64` 当前不属于默认正式发版范围
+- 只有在 `openclaw-runtime-x86_64-apple-darwin` 和 `x64 node` 构建环境都具备后，才允许恢复 `x86_64-apple-darwin` 发版
 
 ## 首轮勾检（2026-03-21）
 
