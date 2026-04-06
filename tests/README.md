@@ -132,5 +132,10 @@ ICLAW_TEST_SCREENSHOT_PATH=/tmp/iclaw-payment-admin-gateway-read.png
   - 如需豁免，必须在测试报告和发版文档同时说明
 - 测试报告应优先引用：
   - 本次实际执行的正式脚本
-  - 截图路径
+  - dev MinIO 中的截图路径
   - `tests/archive/tmp-tests` 中相关归档（如有）
+- 证据存储规则：
+  - 测试报告 `md` 进 git
+  - 截图默认不进 git
+  - 截图统一上传到 dev MinIO
+  - 测试报告中必须回填 `minio_prefix` 和关键 `evidence_objects`

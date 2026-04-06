@@ -8,6 +8,7 @@
 - `report_owner`:
 - `generated_at`:
 - `related_version_record`:
+- `minio_prefix`:
 
 ## 2. 测试范围
 
@@ -42,6 +43,12 @@
 - 日志：
 - 临时归档：
 - 其他：
+
+### 6.1 evidence_objects
+
+- `<case-id>`:
+  - `object_path`:
+  - `note`:
 
 ## 7. 风险结论
 
