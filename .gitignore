@@ -46,6 +46,10 @@ services/control-plane/build-info.json
 .omx/logs/
 .omx/metrics.json
 .omx/state/
+.omx/*
+!.omx/hud-config.json
+!.omx/setup-scope.json
+docs/.obsidian/
 .tmp-packaging/
 .tmp-*/
 config/*.local.json
