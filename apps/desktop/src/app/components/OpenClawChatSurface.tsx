@@ -1113,6 +1113,10 @@ function hasVisibleMessageContent(group: HTMLElement): boolean {
   });
 }
 
+function isToolLikeChatGroup(group: HTMLElement): boolean {
+  return Boolean(group.querySelector('.chat-tool-card, .chat-tools-collapse, .chat-tool-msg-collapse, .chat-json-collapse'));
+}
+
 function buildNormalizedGroupText(group: HTMLElement): string {
   return group.textContent?.replace(/\s+/g, ' ').trim().toLowerCase() ?? '';
 }
@@ -7653,6 +7657,7 @@ export function OpenClawChatSurface({
           (group) =>
             group.classList.contains('assistant') &&
             !group.classList.contains('tool') &&
+            !isToolLikeChatGroup(group) &&
             hasVisibleMessageContent(group),
         );
         const anchorIndex = preferredAnchorIndex >= 0 ? preferredAnchorIndex : 0;
@@ -7681,12 +7686,18 @@ export function OpenClawChatSurface({
           return;
         }
 
+        const toolLikeGroup = isToolLikeChatGroup(group);
         const isAssistantSide =
           group.classList.contains('assistant') ||
           group.classList.contains('tool') ||
-          group.classList.contains('other');
+          group.classList.contains('other') ||
+          toolLikeGroup;
 
         if (!isAssistantSide) {
+          if (!hasVisibleMessageContent(group) && !toolLikeGroup) {
+            group.classList.remove('iclaw-chat-group--continued');
+            return;
+          }
           flushAssistantSegment();
           group.classList.remove('iclaw-chat-group--continued');
           return;
@@ -7774,6 +7785,20 @@ export function OpenClawChatSurface({
             isInternallyHiddenNode(findAdjacentChatGroup(divider, 'nextElementSibling')));
         setInternalNodeHidden(divider, shouldHide);
       });
+    };
+
+    const normalizeToolCollapseDefaults = (group: HTMLElement) => {
+      Array.from(group.querySelectorAll('details.chat-tools-collapse, details.chat-tool-msg-collapse, details.chat-json-collapse')).forEach(
+        (node) => {
+          if (!(node instanceof HTMLDetailsElement)) {
+            return;
+          }
+          if (node.dataset.iclawAutoExpanded !== 'true') {
+            node.open = true;
+            node.dataset.iclawAutoExpanded = 'true';
+          }
+        },
+      );
     };
 
     const isAssistantSideGroup = (group: HTMLElement) =>
@@ -8122,6 +8147,7 @@ export function OpenClawChatSurface({
       groups.forEach((group) => {
         normalizeUserGroupClass(group);
         normalizeToolCards(group);
+        normalizeToolCollapseDefaults(group);
       });
 
       const internalMemoryFlushGroupIndexes = collectInternalMemoryFlushGroupIndexes(groups);
