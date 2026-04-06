@@ -1,15 +1,24 @@
 # 金融财商认知操作系统 PRD
 
 > 版本：v1 草案  
+> 层级：Vertical 01（Financial School）  
+> 上层平台：[Cognition Education OS](../cognition-education-os/README.md)  
 > 来源：已确认的 deep-interview + ralplan 共识结果  
-> 文档目标：把原本散落在 `.omx/specs/` 与 `.omx/plans/` 的产品定义，中心化整理到 `docs/prd/` 下，便于后续产品、设计、研发和验证共用。
+> 文档目标：把金融学校作为平台的第一个垂类产品来定义，而不是把金融版本等同于整个平台。
 
 ## 1. 一句话定义
 
-这不是一个“教你今天买什么”的理财工具，而是一个 **Financial Cognition OS + Simulation Lab**：
-通过课程、图解、情境模拟、IPS（个人资产投资备忘录）写作，帮助用户建立金融底层认知操作系统。
+这不是一个“教你今天买什么”的理财工具，而是平台 `Cognition Education OS` 的第一个垂类学校：**Financial School**。
+
+它通过课程、图解、情境模拟、IPS（个人资产投资备忘录）写作，帮助用户建立金融底层认知操作系统。
 
 ## 2. 核心结论
+
+### 垂类定位说明
+
+- 这份文档描述的是 **金融垂类**，不是全部平台
+- 平台通用能力请看：[Cognition Education OS](../cognition-education-os/README.md)
+- 本文中的 `IPS` 是金融版 artifact 模板，不代表所有行业都必须使用 IPS
 
 - **核心根问题**：用户对金融本质理解太浅
 - **v1 产品定位**：教育型认知系统，不是投顾工具，不是交易工具

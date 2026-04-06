@@ -4,7 +4,8 @@
 
 ## 当前 PRD
 
-- [金融财商认知操作系统（Financial Literacy Cognition OS）](./financial-literacy-cognition-os/README.md)
+- [Cognition Education OS（平台层）](./cognition-education-os/README.md)
+- [金融财商认知操作系统 / Financial School（Vertical 01）](./financial-literacy-cognition-os/README.md)
 
 ## 文档组织原则
 
