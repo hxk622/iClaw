@@ -29,6 +29,7 @@ import { InfoTile } from '@/app/components/ui/InfoTile';
 import { MetricCard } from '@/app/components/ui/MetricCard';
 import { PageContent, PageHeader, PageSurface } from '@/app/components/ui/PageLayout';
 import { PressableCard } from '@/app/components/ui/PressableCard';
+import { SegmentedTabs } from '@/app/components/ui/SegmentedTabs';
 import { SideDetailSheet } from '@/app/components/ui/SideDetailSheet';
 import { Switch } from '@/app/components/ui/Switch';
 import { cn } from '@/app/lib/cn';
@@ -829,27 +830,16 @@ export function MCPStoreView({
           <MetricCard label="协议数" value={metrics.protocols} icon={<Database className="h-4 w-4" />} className="min-w-0 py-3" />
         </div>
 
-        <div className="mt-6 border-b border-[var(--border-default)]">
-          <div className="flex gap-2">
-            {STORE_TABS.map((tab) => {
-              const active = tab.id === activeTab;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={cn(
-                    'cursor-pointer border-b-2 px-6 py-3 text-[14px] font-medium transition-all',
-                    active
-                      ? 'border-[var(--brand-primary)] text-[var(--text-primary)]'
-                      : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
-                  )}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
+        <div className="mt-6">
+          <SegmentedTabs
+            items={STORE_TABS.map((tab) => ({
+              id: tab.id,
+              label: tab.label,
+              badge: tab.id === 'library' ? metrics.total : metrics.installed,
+            }))}
+            activeId={activeTab}
+            onChange={setActiveTab}
+          />
         </div>
 
         <div className="space-y-5 pb-12 pt-6">

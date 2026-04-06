@@ -4,6 +4,7 @@ import { AlertCircle, Info, LoaderCircle, RefreshCw, Search } from 'lucide-react
 
 import { Button } from '@/app/components/ui/Button';
 import { PageContent, PageHeader, PageSurface } from '@/app/components/ui/PageLayout';
+import { SegmentedTabs } from '@/app/components/ui/SegmentedTabs';
 import { STORE_SHELF_GRID_CLASS } from '@/app/components/ui/store-shelf';
 import {
   INVESTMENT_EXPERT_CATEGORIES,
@@ -12,12 +13,10 @@ import {
   type InvestmentExpertFilter,
   type InvestmentExpertTab,
 } from '@/app/lib/investment-experts';
-import { cn } from '@/app/lib/cn';
 import { installLobsterAgent, loadLobsterAgents, uninstallLobsterAgent } from '@/app/lib/lobster-store';
 import { InvestmentExpertCard } from './InvestmentExpertCard';
 import { InvestmentExpertDetailDialog } from './InvestmentExpertDetailDialog';
 import { MyInvestmentExpertsView } from './MyInvestmentExpertsView';
-import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 
 function matchesQuery(expert: InvestmentExpert, query: string): boolean {
   if (!query) {
@@ -213,40 +212,15 @@ export function InvestmentExpertsView({
           </div>
         ) : null}
 
-        <div className="mt-5 border-b border-[var(--lobster-border)]">
-          <div className="flex items-center gap-7">
-            {([
-              { id: 'all', label: '全部专家' },
-              { id: 'mine', label: '我的专家' },
-            ] as const).map((tab) => {
-              const active = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={cn(
-                    'relative inline-flex items-center gap-2 pb-3 text-[15px] font-semibold transition cursor-pointer',
-                    SPRING_PRESSABLE,
-                    INTERACTIVE_FOCUS_RING,
-                    active
-                      ? 'text-[var(--lobster-text-primary)]'
-                      : 'text-[var(--lobster-text-muted)] hover:text-[var(--lobster-text-primary)]',
-                  )}
-                >
-                  <span>{tab.label}</span>
-                  {tab.id === 'mine' && installedCount > 0 ? (
-                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--lobster-gold-soft)] px-1.5 text-[11px] font-medium text-[var(--lobster-gold-strong)]">
-                      {installedCount}
-                    </span>
-                  ) : null}
-                  {active ? (
-                    <span className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-[var(--lobster-gold-strong)]" />
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
+        <div className="mt-5">
+          <SegmentedTabs
+            items={[
+              { id: 'all', label: '全部专家', badge: experts.length },
+              { id: 'mine', label: '我的专家', badge: installedCount },
+            ]}
+            activeId={activeTab}
+            onChange={setActiveTab}
+          />
         </div>
 
         <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
