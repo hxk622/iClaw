@@ -14,6 +14,8 @@
   正式 case catalog，总入口；按 `P0 / P1 / P2` 分目录
 - `tests/payment/admin-gateway-read.test.mjs`
   第一条支付烟测脚本，验证 `admin-web` 平台支付网关表单可视化读取
+- `tests/payment/admin-gateway-scope-isolation.test.mjs`
+  支付网关作用域隔离烟测，验证 OEM 保存不会覆盖平台或其它 OEM
 - `tests/payment/cases.md`
   payment case 的兼容跳转说明
 - `tests/chat/`
@@ -33,6 +35,12 @@
 
 ```bash
 pnpm test:e2e:payment:admin-gateway
+```
+
+运行 OEM / 平台支付网关隔离烟测：
+
+```bash
+pnpm test:e2e:payment:admin-gateway-scope
 ```
 
 运行后会自动触发 `.tmp-tests` 留存：
