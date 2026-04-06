@@ -1,0 +1,708 @@
+{
+  "version": 1,
+  "updatedAt": "2026-04-06T08:12:17.296Z",
+  "entries": [
+    {
+      "sourcePath": ".tmp-tests/cdp-assistant-avatar-check.mjs",
+      "fileName": "cdp-assistant-avatar-check.mjs",
+      "module": "ui",
+      "purpose": "candidate",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": true,
+      "sizeBytes": 6226,
+      "latestHash": "4110f6cec5962975c70e803eae1baba7982d66e53ce3b9e568cd6ba8c73173fa",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/ui/cdp-assistant-avatar-check.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/ui/cdp-assistant-avatar-check__4110f6cec596.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-assistant-avatar-current-check.mjs",
+      "fileName": "cdp-assistant-avatar-current-check.mjs",
+      "module": "ui",
+      "purpose": "candidate",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": true,
+      "sizeBytes": 2975,
+      "latestHash": "7d8673d68454e74d74c8b26eff169af02fe0782abec120bc1883824d64d80573",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/ui/cdp-assistant-avatar-current-check.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/ui/cdp-assistant-avatar-current-check__7d8673d68454.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-auth-state.mjs",
+      "fileName": "cdp-auth-state.mjs",
+      "module": "auth",
+      "purpose": "unknown",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": false,
+      "sizeBytes": 2748,
+      "latestHash": "e47deebd328c1fb22b3c7991b8f80cbb2c35d2d88c4ba3ca4ed0b17f2a13ece9",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/auth/cdp-auth-state.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/auth/cdp-auth-state__e47deebd328c.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-auth-welcome-flow-check.mjs",
+      "fileName": "cdp-auth-welcome-flow-check.mjs",
+      "module": "auth",
+      "purpose": "candidate",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": true,
+      "sizeBytes": 6102,
+      "latestHash": "995dbd61531950e3fbad6f23debf667ebf5aeba18ab5014c4d169a615fe69dfd",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/auth/cdp-auth-welcome-flow-check.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/auth/cdp-auth-welcome-flow-check__995dbd615319.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-billing-footer-check.mjs",
+      "fileName": "cdp-billing-footer-check.mjs",
+      "module": "payment",
+      "purpose": "candidate",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": true,
+      "sizeBytes": 5837,
+      "latestHash": "6f9eed2dcc0653daaf4068753755655058e3b8a26c3ff04882e15155df5bf104",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/payment/cdp-billing-footer-check.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/payment/cdp-billing-footer-check__6f9eed2dcc06.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-billing-live-check.mjs",
+      "fileName": "cdp-billing-live-check.mjs",
+      "module": "payment",
+      "purpose": "candidate",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": true,
+      "sizeBytes": 17167,
+      "latestHash": "d61175ecb4ac2e1b82e769dd23686af522fbfb633c5cf82e39d97143b0213a98",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/payment/cdp-billing-live-check.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/payment/cdp-billing-live-check__d61175ecb4ac.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-billing-multi-model-check.mjs",
+      "fileName": "cdp-billing-multi-model-check.mjs",
+      "module": "payment",
+      "purpose": "candidate",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": true,
+      "sizeBytes": 15224,
+      "latestHash": "db1c996abdecb99a4ceaa03f2662f21326de6987dd8ed364b6e4fcca4c0c303b",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/payment/cdp-billing-multi-model-check.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/payment/cdp-billing-multi-model-check__db1c996abdec.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-busy-state-inspect.mjs",
+      "fileName": "cdp-busy-state-inspect.mjs",
+      "module": "misc",
+      "purpose": "exploratory",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": false,
+      "sizeBytes": 8157,
+      "latestHash": "e72375f8cb7f8109bfcfd7bd691f423a1b8275a38048ff95d469b7e083e61d13",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/misc/cdp-busy-state-inspect.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/misc/cdp-busy-state-inspect__e72375f8cb7f.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-chat-check.mjs",
+      "fileName": "cdp-chat-check.mjs",
+      "module": "chat",
+      "purpose": "candidate",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": true,
+      "sizeBytes": 10986,
+      "latestHash": "525a7527a9af89763399b699c638829b9714af61f3f2a4a3e13e62c7a12ce3df",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/chat/cdp-chat-check.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/chat/cdp-chat-check__525a7527a9af.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-chat-surface-probe.mjs",
+      "fileName": "cdp-chat-surface-probe.mjs",
+      "module": "chat",
+      "purpose": "exploratory",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": false,
+      "sizeBytes": 4969,
+      "latestHash": "0c5ff7a388226fccad02b23cca2f29efc984ef52a2ada5571d98a8efa113ceae",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/chat/cdp-chat-surface-probe.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/chat/cdp-chat-surface-probe__0c5ff7a38822.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-console-debug.mjs",
+      "fileName": "cdp-console-debug.mjs",
+      "module": "misc",
+      "purpose": "exploratory",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": false,
+      "sizeBytes": 9677,
+      "latestHash": "08783acaa89f4b8d9440de9fac4fe47650b39dca45215ff8e873d7220b3357b2",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/misc/cdp-console-debug.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/misc/cdp-console-debug__08783acaa89f.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-conversation-switch-inspect.mjs",
+      "fileName": "cdp-conversation-switch-inspect.mjs",
+      "module": "chat",
+      "purpose": "exploratory",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": false,
+      "sizeBytes": 9515,
+      "latestHash": "966cdc9006303ac5606b43e57a63277cbf9144533185851bf5b37453d4247452",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/chat/cdp-conversation-switch-inspect.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/chat/cdp-conversation-switch-inspect__966cdc900630.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-list-buttons.mjs",
+      "fileName": "cdp-list-buttons.mjs",
+      "module": "ui",
+      "purpose": "exploratory",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": false,
+      "sizeBytes": 3781,
+      "latestHash": "5d8dd08e73286992cd7bacd41e2815c432aa71b51456ce9c658155c94d2bb4e0",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/ui/cdp-list-buttons.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/ui/cdp-list-buttons__5d8dd08e7328.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-list-model-options.mjs",
+      "fileName": "cdp-list-model-options.mjs",
+      "module": "models",
+      "purpose": "exploratory",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": false,
+      "sizeBytes": 3206,
+      "latestHash": "284d81ad97d1a12fcfb75515bcbe0ab0db3d77237b76a4c1c44a106891a6d5d5",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/models/cdp-list-model-options.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/models/cdp-list-model-options__284d81ad97d1.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-new-chat-repro.mjs",
+      "fileName": "cdp-new-chat-repro.mjs",
+      "module": "chat",
+      "purpose": "exploratory",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": false,
+      "sizeBytes": 7525,
+      "latestHash": "1e89b25624802de7d0ec326eed05cbb43d5459837baf1ec2bc14f68ca2ce4fdb",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/chat/cdp-new-chat-repro.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/chat/cdp-new-chat-repro__1e89b2562480.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-page-state-probe.mjs",
+      "fileName": "cdp-page-state-probe.mjs",
+      "module": "misc",
+      "purpose": "exploratory",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": false,
+      "sizeBytes": 2909,
+      "latestHash": "7831a342e1a7f8c72348dbd44d68a1172e90372d5a3b5eef16164d4281e75052",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/misc/cdp-page-state-probe.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/misc/cdp-page-state-probe__7831a342e1a7.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-real-tool-card-check.mjs",
+      "fileName": "cdp-real-tool-card-check.mjs",
+      "module": "ui",
+      "purpose": "candidate",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": true,
+      "sizeBytes": 16689,
+      "latestHash": "172ef0198554366a43fe8b9a765a4cdafde11b53f1ec32add3707efded8f8096",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/ui/cdp-real-tool-card-check.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/ui/cdp-real-tool-card-check__172ef0198554.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-recharge-layout-check.mjs",
+      "fileName": "cdp-recharge-layout-check.mjs",
+      "module": "payment",
+      "purpose": "candidate",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": true,
+      "sizeBytes": 10546,
+      "latestHash": "1c2d716941d1207312fc3247d7b0aa9f11ba212edfa89b81adbdf8d2ff5290ae",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/payment/cdp-recharge-layout-check.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/payment/cdp-recharge-layout-check__1c2d716941d1.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-scroll-inspect.mjs",
+      "fileName": "cdp-scroll-inspect.mjs",
+      "module": "ui",
+      "purpose": "exploratory",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": false,
+      "sizeBytes": 4400,
+      "latestHash": "6e8bfd4315d1f48a56bc4d95f8ce2439ec97e2f9feddcdf58d5508e03b609a44",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/ui/cdp-scroll-inspect.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/ui/cdp-scroll-inspect__6e8bfd4315d1.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-selection-menu-check.mjs",
+      "fileName": "cdp-selection-menu-check.mjs",
+      "module": "ui",
+      "purpose": "candidate",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": true,
+      "sizeBytes": 6380,
+      "latestHash": "2504498609d08aa766d75fd759de0d1b455bf0c40df8d5b2c6d2e82f0efdaeb9",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/ui/cdp-selection-menu-check.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/ui/cdp-selection-menu-check__2504498609d0.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-send-smoke-current-page.mjs",
+      "fileName": "cdp-send-smoke-current-page.mjs",
+      "module": "chat",
+      "purpose": "candidate",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": true,
+      "sizeBytes": 5850,
+      "latestHash": "b5394d6f91645fa02765a96303e1002110af9d3c327c1f883ecd01b2d5499489",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/chat/cdp-send-smoke-current-page.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/chat/cdp-send-smoke-current-page__b5394d6f9164.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-single-track-e2e-v2.mjs",
+      "fileName": "cdp-single-track-e2e-v2.mjs",
+      "module": "chat",
+      "purpose": "candidate",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": true,
+      "sizeBytes": 21277,
+      "latestHash": "ff3196afde271ed81f2f45d780dccc543c1df5b83a05965b55420162f4f9a716",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/chat/cdp-single-track-e2e-v2.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/chat/cdp-single-track-e2e-v2__ff3196afde27.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-single-track-seeded-switch.mjs",
+      "fileName": "cdp-single-track-seeded-switch.mjs",
+      "module": "chat",
+      "purpose": "unknown",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": false,
+      "sizeBytes": 19329,
+      "latestHash": "d85a9b9645e25f8e65c81cbe558cd355fc3279ccc87ecd9125ef3e5cec9ce7a8",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/chat/cdp-single-track-seeded-switch.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/chat/cdp-single-track-seeded-switch__d85a9b9645e2.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-single-track-verify.mjs",
+      "fileName": "cdp-single-track-verify.mjs",
+      "module": "chat",
+      "purpose": "candidate",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": true,
+      "sizeBytes": 18118,
+      "latestHash": "a5fcb055a992afe6d30774581f8d003b9a49d7dc6258d9544ba4bec42b66e102",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/chat/cdp-single-track-verify.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/chat/cdp-single-track-verify__a5fcb055a992.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-switch-check.mjs",
+      "fileName": "cdp-switch-check.mjs",
+      "module": "chat",
+      "purpose": "candidate",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": true,
+      "sizeBytes": 18457,
+      "latestHash": "959b7052f929aaf896d94987bdad662bbf0957e49e1b8bc22d62196ca1e12ab4",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/chat/cdp-switch-check.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/chat/cdp-switch-check__959b7052f929.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-switch-render-trace.mjs",
+      "fileName": "cdp-switch-render-trace.mjs",
+      "module": "chat",
+      "purpose": "exploratory",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": false,
+      "sizeBytes": 8827,
+      "latestHash": "77b77db8223e4a366cdf8d5352162133efc1bdd4f6017bdbf1facc656d1a7d7b",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/chat/cdp-switch-render-trace.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/chat/cdp-switch-render-trace__77b77db8223e.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-token-send-check.mjs",
+      "fileName": "cdp-token-send-check.mjs",
+      "module": "auth",
+      "purpose": "candidate",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": true,
+      "sizeBytes": 6196,
+      "latestHash": "3613bdc5a8c79b71cbeed892ad5fb3013b361fe7fc9d32eadfb4a836e859a21d",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/auth/cdp-token-send-check.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/auth/cdp-token-send-check__3613bdc5a8c7.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-tool-card-dark-screenshot.mjs",
+      "fileName": "cdp-tool-card-dark-screenshot.mjs",
+      "module": "ui",
+      "purpose": "unknown",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": false,
+      "sizeBytes": 4420,
+      "latestHash": "5a75392f21fdebd036a0d45ebf5628596a300ba26439c902333869de0a117d60",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/ui/cdp-tool-card-dark-screenshot.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/ui/cdp-tool-card-dark-screenshot__5a75392f21fd.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-tool-card-dom-probe.mjs",
+      "fileName": "cdp-tool-card-dom-probe.mjs",
+      "module": "ui",
+      "purpose": "exploratory",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": false,
+      "sizeBytes": 5562,
+      "latestHash": "c2963fa7a52c1650808b86511228de0734baca6cc6d9de2252c799eb5ae10626",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/ui/cdp-tool-card-dom-probe.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/ui/cdp-tool-card-dom-probe__c2963fa7a52c.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-tool-card-visual-check.mjs",
+      "fileName": "cdp-tool-card-visual-check.mjs",
+      "module": "ui",
+      "purpose": "candidate",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": true,
+      "sizeBytes": 12594,
+      "latestHash": "ed815619a891ca4c66b4a362b07fb5a61ebd1fe66cceb4e1f57e98bead3ba465",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/ui/cdp-tool-card-visual-check.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/ui/cdp-tool-card-visual-check__ed815619a891.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-user-scope-chat-persistence-check.mjs",
+      "fileName": "cdp-user-scope-chat-persistence-check.mjs",
+      "module": "chat",
+      "purpose": "candidate",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": true,
+      "sizeBytes": 6791,
+      "latestHash": "78b792b67c0041451d8d37bc7957112459a277332272eb48fde91da0a438f7b4",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/chat/cdp-user-scope-chat-persistence-check.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/chat/cdp-user-scope-chat-persistence-check__78b792b67c00.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-visual-inspect.mjs",
+      "fileName": "cdp-visual-inspect.mjs",
+      "module": "ui",
+      "purpose": "exploratory",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": false,
+      "sizeBytes": 8445,
+      "latestHash": "3d27f76164a87d6015ebf265aca418105debed484a9ce946736124d72150d1a3",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/ui/cdp-visual-inspect.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/ui/cdp-visual-inspect__3d27f76164a8.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/cdp-weather-crash-check.mjs",
+      "fileName": "cdp-weather-crash-check.mjs",
+      "module": "models",
+      "purpose": "candidate",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": true,
+      "sizeBytes": 6533,
+      "latestHash": "df02fafec1f1fc3ff5f50deb8af421fe70b69c66ec81abda0112f49762bea5cc",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/models/cdp-weather-crash-check.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/models/cdp-weather-crash-check__df02fafec1f1.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/chrome-capture-front-window.applescript",
+      "fileName": "chrome-capture-front-window.applescript",
+      "module": "misc",
+      "purpose": "unknown",
+      "kind": "automation",
+      "extension": ".applescript",
+      "sourcePresent": true,
+      "promoteCandidate": false,
+      "sizeBytes": 555,
+      "latestHash": "d80cf931364236d1f92f363035cbf9d84eb3d5e0de4a3557dd3c93449c144e95",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/misc/chrome-capture-front-window.applescript",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/misc/chrome-capture-front-window__d80cf9313642.applescript"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/chrome-focus-dark-toolcard.applescript",
+      "fileName": "chrome-focus-dark-toolcard.applescript",
+      "module": "misc",
+      "purpose": "unknown",
+      "kind": "automation",
+      "extension": ".applescript",
+      "sourcePresent": true,
+      "promoteCandidate": false,
+      "sizeBytes": 384,
+      "latestHash": "9e3f7350cf07477cde0d070723a93f745834d3e323911235f5399a21ffbea82f",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/misc/chrome-focus-dark-toolcard.applescript",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/misc/chrome-focus-dark-toolcard__9e3f7350cf07.applescript"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/dashscope-usage-check.mjs",
+      "fileName": "dashscope-usage-check.mjs",
+      "module": "chat",
+      "purpose": "candidate",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": true,
+      "sizeBytes": 8356,
+      "latestHash": "289b3f26162834de1e09f85100eeddeddd43cb7643f73ac0cd07c9f5d5981da5",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/chat/dashscope-usage-check.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/chat/dashscope-usage-check__289b3f261628.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/iclaw.conf.remote",
+      "fileName": "iclaw.conf.remote",
+      "module": "misc",
+      "purpose": "unknown",
+      "kind": "fixture",
+      "extension": ".remote",
+      "sourcePresent": true,
+      "promoteCandidate": false,
+      "sizeBytes": 15323,
+      "latestHash": "5f3cabb1d2b2b11828ca30278719b465a2ee0772feacf59ea4ee69b84f02aeee",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/misc/iclaw.conf.remote",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/misc/iclaw.conf__5f3cabb1d2b2.remote"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/oem-input-composer-e2e.mjs",
+      "fileName": "oem-input-composer-e2e.mjs",
+      "module": "oem",
+      "purpose": "candidate",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": true,
+      "sizeBytes": 11732,
+      "latestHash": "de0f1f8bbb6e7df9171706078e692612cb47a3993a057a36754094ec3b6788dc",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/oem/oem-input-composer-e2e.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/oem/oem-input-composer-e2e__de0f1f8bbb6e.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    },
+    {
+      "sourcePath": ".tmp-tests/oem-menu-catalog-e2e.mjs",
+      "fileName": "oem-menu-catalog-e2e.mjs",
+      "module": "oem",
+      "purpose": "candidate",
+      "kind": "script",
+      "extension": ".mjs",
+      "sourcePresent": true,
+      "promoteCandidate": true,
+      "sizeBytes": 9852,
+      "latestHash": "525fb6c9c76bfd6225ae1cafb6c618b4b59bd92059be33b736226fd34f559bf1",
+      "archiveLatestPath": "tests/archive/tmp-tests/latest/oem/oem-menu-catalog-e2e.mjs",
+      "archiveSnapshotPaths": [
+        "tests/archive/tmp-tests/snapshots/oem/oem-menu-catalog-e2e__525fb6c9c76b.mjs"
+      ],
+      "createdAt": "2026-04-06T08:11:15.059Z",
+      "lastSeenAt": "2026-04-06T08:12:17.296Z"
+    }
+  ]
+}

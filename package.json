@@ -5,6 +5,7 @@
   "packageManager": "pnpm@10.11.0",
   "scripts": {
     "dev": "pnpm dev:all",
+    "tmp-tests:harvest": "node scripts/harvest-tmp-tests.mjs",
     "sync:clawhub:top": "pnpm --filter @iclaw/control-plane sync:clawhub:top",
     "upload:cloud-skill-artifacts": "node scripts/run-with-env.mjs dev pnpm --filter @iclaw/control-plane upload:cloud-skill-artifacts",
     "publish:external-cloud-skill": "node scripts/run-with-env.mjs dev pnpm --filter @iclaw/control-plane publish:external-cloud-skill",
@@ -20,8 +21,8 @@
     "dev:web": "node scripts/run-with-env.mjs dev bash scripts/dev-web.sh",
     "dev:control-plane": "node scripts/run-with-env.mjs dev env ICLAW_CONTROL_PLANE_DETACH=0 bash scripts/dev-control-plane.sh",
     "test:runtime-config": "node --test apps/desktop/src-tauri/tests/generate-openclaw-config.test.mjs",
-    "test:e2e:payment:admin-gateway": "node tests/payment/admin-gateway-read.test.mjs",
-    "test:e2e:chat:single-track": "node tests/chat/single-track-seeded-switch.test.mjs",
+    "test:e2e:payment:admin-gateway": "node scripts/run-with-tmp-harvest.mjs node tests/payment/admin-gateway-read.test.mjs",
+    "test:e2e:chat:single-track": "node scripts/run-with-tmp-harvest.mjs node tests/chat/single-track-seeded-switch.test.mjs",
     "preset:sync:oem": "node scripts/run-with-env.mjs dev pnpm --filter @iclaw/control-plane preset:sync:oem",
     "dev:home": "pnpm dev:home-web",
     "build:home": "pnpm build:home-web",

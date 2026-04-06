@@ -32,6 +32,18 @@
 pnpm test:e2e:payment:admin-gateway
 ```
 
+运行后会自动触发 `.tmp-tests` 留存：
+- 扫描当前 `.tmp-tests`
+- 自动分类到 `tests/archive/tmp-tests`
+- 生成 `catalog.json` 与 `README.md`
+- 为每个文件保留 `latest` 镜像和按内容 hash 切分的 `snapshots`
+
+也可以单独执行留存：
+
+```bash
+pnpm tmp-tests:harvest
+```
+
 可选环境变量：
 
 ```bash
@@ -72,3 +84,23 @@ ICLAW_TEST_SCREENSHOT_PATH=/tmp/iclaw-payment-admin-gateway-read.png
 
 它们都已经有设计稿：
 - `tests/payment/cases.md`
+
+## 临时脚本自动留存
+
+`.tmp-tests` 不再只是一次性目录。
+
+正式入口脚本现在会在执行后自动收割 `.tmp-tests`：
+- 脚本：`scripts/harvest-tmp-tests.mjs`
+- 包装器：`scripts/run-with-tmp-harvest.mjs`
+- 归档目录：`tests/archive/tmp-tests`
+
+自动机制做的事情：
+- 自动扫描 `.tmp-tests` 全量文件
+- 根据文件名自动判断模块和用途
+- 自动复制到 `latest/<module>/`
+- 按内容 hash 自动生成 `snapshots/<module>/`
+- 自动生成索引：
+  - `tests/archive/tmp-tests/catalog.json`
+  - `tests/archive/tmp-tests/README.md`
+
+这样即使某个临时脚本后面被删掉，最后一次收割到的版本仍然会保留在归档里。
