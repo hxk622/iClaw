@@ -171,8 +171,13 @@ function loadBuildInfo(): BuildInfo {
 
     if (existsSync(rootPackageJsonPath)) {
       try {
-        const raw = JSON.parse(readFileSync(rootPackageJsonPath, 'utf8')) as {version?: unknown};
-        releaseVersion = typeof raw.version === 'string' ? raw.version : null;
+        const raw = JSON.parse(readFileSync(rootPackageJsonPath, 'utf8')) as {version?: unknown; releaseVersion?: unknown};
+        releaseVersion =
+          typeof raw.releaseVersion === 'string' && raw.releaseVersion.trim()
+            ? raw.releaseVersion
+            : typeof raw.version === 'string'
+              ? raw.version
+              : null;
       } catch {}
     }
 

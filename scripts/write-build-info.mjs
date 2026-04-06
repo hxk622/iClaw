@@ -39,6 +39,19 @@ function runGit(args) {
   }
 }
 
+function resolveDirtyFlag() {
+  const statusOutput = runGit(['status', '--short', '--untracked-files=all']);
+  if (!statusOutput) {
+    return false;
+  }
+  const relevantLines = statusOutput
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !line.includes('.omx/'));
+  return relevantLines.length > 0;
+}
+
 async function readJson(filePath) {
   return JSON.parse(await fs.readFile(filePath, 'utf8'));
 }
@@ -64,9 +77,10 @@ async function main() {
 
   const gitCommit = gitCommitOverride || runGit(['rev-parse', 'HEAD']) || null;
   const gitTag = gitTagOverride || runGit(['describe', '--tags', '--exact-match']) || null;
-  const dirty = runGit(['status', '--short']) !== '';
+  const dirty = resolveDirtyFlag();
   const releaseVersion =
     releaseVersionOverride ||
+    (typeof rootPackageJson.releaseVersion === 'string' && rootPackageJson.releaseVersion.trim()) ||
     (typeof rootPackageJson.version === 'string' && rootPackageJson.version.trim()) ||
     null;
 

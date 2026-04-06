@@ -27,6 +27,7 @@ const root = process.argv[2];
 const baseVersion = process.env.BASE_VERSION;
 const buildId = process.env.BUILD_ID;
 const fullVersion = `${baseVersion}+${buildId}`;
+const releaseVersion = `${baseVersion}.${buildId}`;
 
 if (!semver.valid(baseVersion)) {
   console.error(`Invalid base version: ${baseVersion} (expected SemVer MAJOR.MINOR.PATCH)`);
@@ -54,10 +55,12 @@ function updateTomlVersion(file) {
 
 updateJson('package.json', (d) => {
   d.version = fullVersion;
+  d.releaseVersion = releaseVersion;
 });
 
 updateJson('apps/desktop/package.json', (d) => {
   d.version = fullVersion;
+  d.releaseVersion = releaseVersion;
 });
 
 updateJson('apps/desktop/src-tauri/tauri.conf.json', (d) => {
@@ -71,3 +74,4 @@ echo "Updated versions:"
 echo "  base:  $BASE_VERSION"
 echo "  build: $BUILD_ID"
 echo "  full:  ${BASE_VERSION}+${BUILD_ID}"
+echo "  release: ${BASE_VERSION}.${BUILD_ID}"

@@ -154,6 +154,11 @@ function resolveHomeReleaseVersion(appVersion) {
   if (normalizedRequested) {
     return normalizedRequested.replace(/\+/g, '.');
   }
+  const rootReleaseVersion =
+    typeof process.env.ICLAW_ROOT_RELEASE_VERSION === 'string' ? process.env.ICLAW_ROOT_RELEASE_VERSION.trim() : '';
+  if (rootReleaseVersion) {
+    return rootReleaseVersion.replace(/\+/g, '.');
+  }
   return typeof appVersion === 'string' ? appVersion.replace(/\+/g, '.') : '0.0.0';
 }
 
@@ -190,6 +195,9 @@ async function main() {
   const { brandDir, profile: brand } = await loadBrandProfile({ rootDir, brandId });
   const rootPackageJson = JSON.parse(await fs.readFile(rootPackageJsonPath, 'utf8'));
   const appVersion = typeof rootPackageJson.version === 'string' ? rootPackageJson.version : '0.0.0';
+  if (typeof rootPackageJson.releaseVersion === 'string' && rootPackageJson.releaseVersion.trim()) {
+    process.env.ICLAW_ROOT_RELEASE_VERSION = rootPackageJson.releaseVersion.trim();
+  }
 
   const faviconIco = resolveBrandPath(brandDir, brand.assets.faviconIco);
   const faviconPng = resolveBrandPath(brandDir, brand.assets.faviconPng);

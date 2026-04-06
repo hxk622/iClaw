@@ -43,6 +43,9 @@ home-web/brand.generated.js
 home-web/public/brand/
 services/control-plane/build-info.json
 .tmp-brand-state/
+.omx/logs/
+.omx/metrics.json
+.omx/state/
 .tmp-packaging/
 .tmp-*/
 config/*.local.json
