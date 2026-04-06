@@ -4048,6 +4048,7 @@ export class PgPortalStore {
     mcps: UpsertPortalMcpInput[];
     models?: UpsertPortalModelInput[];
     menus?: UpsertPortalMenuInput[];
+    rechargePackages?: UpsertPortalRechargePackageInput[];
     composerControls?: UpsertPortalComposerControlInput[];
     composerShortcuts?: UpsertPortalComposerShortcutInput[];
     skillBindings: Array<{appName: string; items: ReplacePortalAppSkillBindingsInput}>;
@@ -4352,6 +4353,52 @@ export class PgPortalStore {
             menu.iconKey || null,
             JSON.stringify(menu.metadata || {}),
             menu.active ?? true,
+          ],
+        );
+      }
+
+      for (const rechargePackage of input.rechargePackages || []) {
+        await client.query(
+          `
+            insert into platform_recharge_package_catalog (
+              package_id,
+              package_name,
+              credits,
+              bonus_credits,
+              amount_cny_fen,
+              sort_order,
+              recommended,
+              is_default,
+              metadata_json,
+              active,
+              created_at,
+              updated_at
+            )
+            values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, now(), now())
+            on conflict (package_id)
+            do update set
+              package_name = excluded.package_name,
+              credits = excluded.credits,
+              bonus_credits = excluded.bonus_credits,
+              amount_cny_fen = excluded.amount_cny_fen,
+              sort_order = excluded.sort_order,
+              recommended = excluded.recommended,
+              is_default = excluded.is_default,
+              metadata_json = excluded.metadata_json,
+              active = excluded.active,
+              updated_at = now()
+          `,
+          [
+            rechargePackage.packageId,
+            rechargePackage.packageName,
+            rechargePackage.credits,
+            rechargePackage.bonusCredits ?? 0,
+            rechargePackage.amountCnyFen,
+            rechargePackage.sortOrder ?? 100,
+            rechargePackage.recommended === true,
+            rechargePackage.default === true,
+            JSON.stringify(rechargePackage.metadata || {}),
+            rechargePackage.active !== false,
           ],
         );
       }

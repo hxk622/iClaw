@@ -1542,6 +1542,12 @@ const server = createJsonServer([
       } as UpsertPortalRechargePackageInput),
   },
   {
+    method: 'POST',
+    path: '/admin/portal/catalog/recharge-packages/restore-recommended',
+    handler: ({headers}: HandlerContext) =>
+      portalService.restoreRecommendedRechargePackages(requireBearerToken(headers)),
+  },
+  {
     method: 'DELETE',
     path: '/admin/portal/catalog/skills/:slug',
     handler: ({headers, params}: HandlerContext) =>

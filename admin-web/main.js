@@ -6425,10 +6425,31 @@ async function syncPortalPresetManifest() {
     });
     await loadAppData();
     setNotice(
-      `core-oem.json 已同步到数据库：${Number(result.appCount || 0)} 个 app，${Number(result.skillCount || 0)} 个 skill，${Number(result.mcpCount || 0)} 个 mcp，${Number(result.assetCount || 0)} 个 asset。`,
+      `core-oem.json 已同步到数据库：${Number(result.appCount || 0)} 个 app，${Number(result.skillCount || 0)} 个 skill，${Number(result.mcpCount || 0)} 个 mcp，${Number(result.rechargePackageCount || 0)} 个 recharge package，${Number(result.assetCount || 0)} 个 asset。`,
     );
   } catch (error) {
     setError(error instanceof Error ? error.message : 'core-oem.json 同步失败');
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function restoreRecommendedRechargePackages() {
+  state.busy = true;
+  resetBanner();
+  render();
+
+  try {
+    const result = await apiFetch('/admin/portal/catalog/recharge-packages/restore-recommended', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    await loadAppData();
+    state.selectedRechargePackageId = 'topup_7000';
+    setNotice(`已恢复推荐三挡：保留 ${Number(result.restoredCount || 0)} 个推荐套餐，移除 ${Number(result.deletedCount || 0)} 个其它平台套餐。`);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : '恢复推荐三挡失败');
   } finally {
     state.busy = false;
     render();
@@ -12629,10 +12650,16 @@ function renderRechargePackageCatalogPage() {
             <h1>充值套餐</h1>
             <p class="fig-page__description">这里维护平台级套餐主数据。所有 OEM 默认继承这里；只有 OEM 明确配置了绑定，才会切到 OEM 自己的套餐集合。</p>
           </div>
-          <button class="solid-button fig-button" type="button" data-action="new-recharge-package">
-            ${icon('plus', 'button-icon')}
-            新增套餐
-          </button>
+          <div style="display:flex; gap:12px;">
+            <button class="ghost-button fig-button" type="button" data-action="restore-recommended-recharge-packages"${state.busy ? ' disabled' : ''}>
+              ${icon('sparkles', 'button-icon')}
+              恢复推荐三挡
+            </button>
+            <button class="solid-button fig-button" type="button" data-action="new-recharge-package">
+              ${icon('plus', 'button-icon')}
+              新增套餐
+            </button>
+          </div>
         </div>
       </div>
       ${renderPageGuide('充值套餐怎么用', [
@@ -12725,11 +12752,11 @@ function renderRechargePackageCatalogPage() {
               </label>
               <label class="field">
                 <span>Badge</span>
-                <input class="field-input" name="badge_label" value="${fieldValue(editingItem.badgeLabel)}" placeholder="最常用 / 高配" />
+                <input class="field-input" name="badge_label" value="${fieldValue(editingItem.badgeLabel)}" placeholder="推荐 / 最划算" />
               </label>
               <label class="field">
                 <span>Highlight</span>
-                <input class="field-input" name="highlight" value="${fieldValue(editingItem.highlight)}" placeholder="实得 3,400 龙虾币" />
+                <input class="field-input" name="highlight" value="${fieldValue(editingItem.highlight)}" placeholder="到账 7,000 龙虾币" />
               </label>
               <label class="field field--wide">
                 <span>特性列表</span>
@@ -14563,6 +14590,13 @@ app.addEventListener('click', async (event) => {
     state.route = 'payments-packages';
     state.selectedRechargePackageId = '__new__';
     render();
+    return;
+  }
+
+  if (action === 'restore-recommended-recharge-packages') {
+    if (window.confirm('确认恢复平台推荐三挡套餐？这会把平台套餐目录重置为 29.9 / 59.9 / 99.9 三挡，并删除其它平台套餐。')) {
+      await restoreRecommendedRechargePackages();
+    }
     return;
   }
 

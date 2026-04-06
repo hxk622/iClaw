@@ -69,6 +69,7 @@ import {syncPortalPresetManifest} from './portal-preset.ts';
 import {buildPortalPublicConfig} from './portal-runtime.ts';
 import type {PgPortalStore} from './portal-store.ts';
 import {ensurePortalPreset} from './bootstrap.ts';
+import {DEFAULT_PLATFORM_RECHARGE_PACKAGE_SEEDS} from './recharge-packages.ts';
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const defaultPortalPresetManifestPath = resolve(moduleDir, '../presets/core-oem.json');
@@ -685,9 +686,76 @@ export class PortalService {
       mcpCount: Array.isArray(raw.mcps) ? raw.mcps.length : 0,
       modelCount: Array.isArray(raw.models) ? raw.models.length : 0,
       menuCount: Array.isArray(raw.menus) ? raw.menus.length : 0,
+      rechargePackageCount: Array.isArray(raw.rechargePackages) ? raw.rechargePackages.length : 0,
       composerControlCount: Array.isArray(raw.composerControls) ? raw.composerControls.length : 0,
       composerShortcutCount: Array.isArray(raw.composerShortcuts) ? raw.composerShortcuts.length : 0,
       assetCount: Array.isArray(raw.assets) ? raw.assets.length : 0,
+    };
+  }
+
+  async restoreRecommendedRechargePackages(accessToken: string) {
+    await this.requireAdmin(accessToken);
+    const existing = await this.store.listRechargePackages();
+    let sourcePackages: UpsertPortalRechargePackageInput[] = DEFAULT_PLATFORM_RECHARGE_PACKAGE_SEEDS.map((item) => ({
+      packageId: item.packageId,
+      packageName: item.packageName,
+      credits: item.credits,
+      bonusCredits: item.bonusCredits,
+      amountCnyFen: item.amountCnyFen,
+      sortOrder: item.sortOrder,
+      recommended: item.recommended,
+      default: item.default,
+      metadata: cloneJson(item.metadata),
+      active: item.active,
+    }));
+    try {
+      const raw = JSON.parse(await readFile(defaultPortalPresetManifestPath, 'utf8')) as PortalPresetManifest;
+      if (Array.isArray(raw.rechargePackages) && raw.rechargePackages.length > 0) {
+        sourcePackages = raw.rechargePackages.map((item) => ({
+          packageId: item.packageId,
+          packageName: item.packageName,
+          credits: item.credits,
+          bonusCredits: item.bonusCredits ?? 0,
+          amountCnyFen: item.amountCnyFen,
+          sortOrder: item.sortOrder,
+          recommended: item.recommended,
+          default: item.default,
+          metadata: cloneJson(item.metadata),
+          active: item.active,
+        }));
+      }
+    } catch (error) {
+      logWarn('restoreRecommendedRechargePackages fallback to default seeds', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    const keepIds = new Set(sourcePackages.map((item) => item.packageId));
+    for (const seed of sourcePackages) {
+      await this.store.upsertRechargePackage({
+        packageId: seed.packageId,
+        packageName: seed.packageName,
+        credits: seed.credits,
+        bonusCredits: seed.bonusCredits,
+        amountCnyFen: seed.amountCnyFen,
+        sortOrder: seed.sortOrder,
+        recommended: seed.recommended,
+        default: seed.default,
+        metadata: cloneJson(seed.metadata),
+        active: seed.active,
+      });
+    }
+    let deletedCount = 0;
+    for (const item of existing) {
+      if (keepIds.has(item.packageId)) {
+        continue;
+      }
+      await this.store.deleteRechargePackage(item.packageId);
+      deletedCount += 1;
+    }
+    return {
+      ok: true,
+      restoredCount: sourcePackages.length,
+      deletedCount,
     };
   }
 

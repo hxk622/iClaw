@@ -543,6 +543,7 @@ export type PortalPresetManifest = {
   mcps: UpsertPortalMcpInput[];
   models?: UpsertPortalModelInput[];
   menus?: UpsertPortalMenuInput[];
+  rechargePackages?: UpsertPortalRechargePackageInput[];
   composerControls?: UpsertPortalComposerControlInput[];
   composerShortcuts?: UpsertPortalComposerShortcutInput[];
   assets?: Array<{
@@ -557,6 +558,7 @@ export type PortalPresetManifest = {
     mcps: Array<{appName: string; items: ReplacePortalAppMcpBindingsInput}>;
     models?: Array<{appName: string; items: ReplacePortalAppModelBindingsInput}>;
     menus: Array<{appName: string; items: ReplacePortalAppMenuBindingsInput}>;
+    rechargePackages?: Array<{appName: string; items: ReplacePortalAppRechargePackageBindingsInput}>;
     composerControls?: Array<{appName: string; items: ReplacePortalAppComposerControlBindingsInput}>;
     composerShortcuts?: Array<{appName: string; items: ReplacePortalAppComposerShortcutBindingsInput}>;
   };

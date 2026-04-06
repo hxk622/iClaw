@@ -671,11 +671,19 @@ function PackageSelectionView({
                   <span className="text-[15px] text-gray-500 dark:text-gray-400">¥</span>
                   <span className="text-[40px] font-semibold leading-none tracking-tight text-gray-900 dark:text-gray-50">{priceLabel}</span>
                 </div>
+                {item.highlight ? (
+                  <div className="mt-3 inline-flex rounded-full bg-[rgba(59,130,246,0.10)] px-3 py-1 text-[12px] font-medium text-[#2563EB] dark:bg-[rgba(96,165,250,0.16)] dark:text-[#93C5FD]">
+                    {item.highlight}
+                  </div>
+                ) : null}
+                {item.description ? (
+                  <p className="mt-3 text-[13px] leading-6 text-gray-500 dark:text-gray-400">{item.description}</p>
+                ) : null}
               </div>
 
               <div className="mb-7 flex-1 space-y-2.5">
                 <div className="flex items-center justify-between text-[14px]">
-                  <span className="text-gray-500 dark:text-gray-400">基础到账</span>
+                  <span className="text-gray-500 dark:text-gray-400">{item.bonusCredits > 0 ? '基础到账' : '到账数量'}</span>
                   <span className="font-medium text-gray-900 dark:text-gray-100">{formatCreditsLabel(item.credits)}</span>
                 </div>
                 {item.bonusCredits > 0 ? (
@@ -691,6 +699,19 @@ function PackageSelectionView({
                     {formatCreditsLabel(item.totalCredits)} 龙虾币
                   </span>
                 </div>
+                {item.featureList.length ? (
+                  <div className="mt-4 space-y-2 pt-1">
+                    {item.featureList.slice(0, 3).map((feature, featureIndex) => (
+                      <div
+                        key={`${item.packageId}-feature-${featureIndex}`}
+                        className="flex items-start gap-2 text-[13px] leading-5 text-gray-500 dark:text-gray-400"
+                      >
+                        <span className="mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full bg-gray-300 dark:bg-gray-600" />
+                        <span>{feature}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
 
               <div className="mt-auto">
