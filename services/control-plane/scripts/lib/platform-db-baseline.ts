@@ -60,6 +60,50 @@ function cloneJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+function trimString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeBaselineMetadata(input: unknown): Record<string, unknown> {
+  const metadata = cloneJson(asRecord(input));
+  const sourceType = trimString(metadata.sourceType || metadata.source_type);
+
+  delete metadata.source_type;
+
+  if (sourceType === 'preset') {
+    metadata.sourceType = 'baseline_seed';
+  } else if (sourceType) {
+    metadata.sourceType = sourceType;
+  }
+
+  return metadata;
+}
+
+function normalizeAssetMetadata(input: unknown): Record<string, unknown> {
+  const metadata = cloneJson(asRecord(input));
+  const repoAssetPath =
+    trimString(metadata.repoAssetPath || metadata.repo_asset_path || metadata.presetFilePath || metadata.preset_file_path) ||
+    '';
+  const sourceType = trimString(metadata.sourceType || metadata.source_type);
+
+  delete metadata.presetFilePath;
+  delete metadata.preset_file_path;
+  delete metadata.repo_asset_path;
+  delete metadata.source_type;
+
+  if (repoAssetPath) {
+    metadata.repoAssetPath = repoAssetPath;
+  }
+
+  if (sourceType === 'preset' || (!sourceType && repoAssetPath)) {
+    metadata.sourceType = 'repo_asset';
+  } else if (sourceType) {
+    metadata.sourceType = sourceType;
+  }
+
+  return metadata;
+}
+
 function sortKeysDeep(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map((item) => sortKeysDeep(item));
@@ -97,7 +141,7 @@ function sanitizeCloudSkill(entry: SkillCatalogEntryRecord): Record<string, unkn
     artifactSourcePath: entry.artifactSourcePath,
     originType: entry.originType,
     sourceUrl: entry.sourceUrl,
-    metadata: cloneJson(entry.metadata),
+    metadata: normalizeBaselineMetadata(entry.metadata),
     active: entry.active,
   };
 }
@@ -110,7 +154,7 @@ function sanitizeCloudMcp(entry: McpCatalogEntryRecord): Record<string, unknown>
     transport: entry.transport,
     objectKey: entry.objectKey,
     config: cloneJson(entry.config),
-    metadata: cloneJson(entry.metadata),
+    metadata: normalizeBaselineMetadata(entry.metadata),
     active: entry.active,
   };
 }
@@ -119,7 +163,7 @@ function sanitizePlatformSkill(entry: PortalSkillRecord): Record<string, unknown
   return {
     slug: entry.slug,
     active: entry.active,
-    metadata: cloneJson(entry.metadata),
+    metadata: normalizeBaselineMetadata(entry.metadata),
   };
 }
 
@@ -127,7 +171,7 @@ function sanitizePlatformMcp(entry: PortalMcpRecord): Record<string, unknown> {
   return {
     mcpKey: entry.mcpKey,
     active: entry.active,
-    metadata: cloneJson(entry.metadata),
+    metadata: normalizeBaselineMetadata(entry.metadata),
   };
 }
 
@@ -145,7 +189,7 @@ function sanitizeModel(entry: PortalModelRecord): Record<string, unknown> {
     input: cloneJson(entry.input),
     contextWindow: entry.contextWindow,
     maxTokens: entry.maxTokens,
-    metadata: cloneJson(entry.metadata),
+    metadata: normalizeBaselineMetadata(entry.metadata),
     active: entry.active,
   };
 }
@@ -157,7 +201,7 @@ function sanitizeMenu(entry: PortalMenuRecord): Record<string, unknown> {
     category: entry.category,
     routeKey: entry.routeKey,
     iconKey: entry.iconKey,
-    metadata: cloneJson(entry.metadata),
+    metadata: normalizeBaselineMetadata(entry.metadata),
     active: entry.active,
   };
 }
@@ -172,7 +216,7 @@ function sanitizeRechargePackage(entry: PortalRechargePackageRecord): Record<str
     sortOrder: entry.sortOrder,
     recommended: entry.recommended,
     default: entry.default,
-    metadata: cloneJson(entry.metadata),
+    metadata: normalizeBaselineMetadata(entry.metadata),
     active: entry.active,
   };
 }
@@ -183,14 +227,14 @@ function sanitizeComposerControl(entry: PortalComposerControlRecord): Record<str
     displayName: entry.displayName,
     controlType: entry.controlType,
     iconKey: entry.iconKey,
-    metadata: cloneJson(entry.metadata),
+    metadata: normalizeBaselineMetadata(entry.metadata),
     active: entry.active,
     options: entry.options.map((option) => ({
       optionValue: option.optionValue,
       label: option.label,
       description: option.description,
       sortOrder: option.sortOrder,
-      metadata: cloneJson(option.metadata),
+      metadata: normalizeBaselineMetadata(option.metadata),
       active: option.active,
     })),
   };
@@ -204,7 +248,7 @@ function sanitizeComposerShortcut(entry: PortalComposerShortcutRecord): Record<s
     template: entry.template,
     iconKey: entry.iconKey,
     tone: entry.tone,
-    metadata: cloneJson(entry.metadata),
+    metadata: normalizeBaselineMetadata(entry.metadata),
     active: entry.active,
   };
 }
@@ -294,7 +338,7 @@ function sanitizeAsset(entry: PortalAppAssetRecord): Record<string, unknown> {
     contentType: entry.contentType,
     sha256: entry.sha256,
     sizeBytes: entry.sizeBytes,
-    metadata: cloneJson(entry.metadata),
+    metadata: normalizeAssetMetadata(entry.metadata),
   };
 }
 

@@ -125,18 +125,20 @@ async function writeAssetFile(
   }
 
   const metadata = asObject(asset.metadata);
-  const presetFilePath = trimString(metadata.presetFilePath || metadata.preset_file_path);
-  if (!presetFilePath) {
+  const repoAssetPath = trimString(
+    metadata.repoAssetPath || metadata.repo_asset_path || metadata.presetFilePath || metadata.preset_file_path,
+  );
+  if (!repoAssetPath) {
     return null;
   }
 
-  const presetSourcePath = resolve(repoRoot, 'services/control-plane/presets', presetFilePath);
-  const presetBuffer = await readFile(presetSourcePath).catch(() => null);
-  if (!presetBuffer) {
+  const repoAssetSourcePath = resolve(repoRoot, 'services/control-plane', repoAssetPath);
+  const repoAssetBuffer = await readFile(repoAssetSourcePath).catch(() => null);
+  if (!repoAssetBuffer) {
     return null;
   }
 
-  await writeFile(targetPath, presetBuffer);
+  await writeFile(targetPath, repoAssetBuffer);
   return `./${relativePath}`;
 }
 

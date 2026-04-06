@@ -41,6 +41,41 @@ function asJsonObject(value: unknown): PortalJsonObject {
   return asObject(value) as PortalJsonObject;
 }
 
+function normalizeBaselineMetadata(value: unknown): PortalJsonObject {
+  const metadata = asJsonObject(value);
+  const sourceType = asString(metadata.sourceType || metadata.source_type);
+  const next: Record<string, unknown> = {...metadata};
+  delete next.source_type;
+  if (sourceType === 'preset') {
+    next.sourceType = 'baseline_seed';
+  } else if (sourceType) {
+    next.sourceType = sourceType;
+  }
+  return next as PortalJsonObject;
+}
+
+function normalizeAssetMetadata(value: unknown): PortalJsonObject {
+  const metadata = asJsonObject(value);
+  const repoAssetPath =
+    asString(metadata.repoAssetPath || metadata.repo_asset_path || metadata.presetFilePath || metadata.preset_file_path) ||
+    '';
+  const sourceType = asString(metadata.sourceType || metadata.source_type);
+  const next: Record<string, unknown> = {...metadata};
+  delete next.presetFilePath;
+  delete next.preset_file_path;
+  delete next.repo_asset_path;
+  delete next.source_type;
+  if (repoAssetPath) {
+    next.repoAssetPath = repoAssetPath;
+  }
+  if (sourceType === 'preset' || (!sourceType && repoAssetPath)) {
+    next.sourceType = 'repo_asset';
+  } else if (sourceType) {
+    next.sourceType = sourceType;
+  }
+  return next as PortalJsonObject;
+}
+
 async function applySnapshot(snapshot: PlatformDbBaselineSnapshot) {
   if (!config.databaseUrl) {
     throw new Error('DATABASE_URL is required');
@@ -69,7 +104,7 @@ async function applySnapshot(snapshot: PlatformDbBaselineSnapshot) {
         artifact_source_path: asString(entry.artifactSourcePath) || null,
         origin_type: (asString(entry.originType) || 'manual') as 'manual' | 'clawhub' | 'github_repo',
         source_url: asString(entry.sourceUrl) || null,
-        metadata: asObject(entry.metadata),
+        metadata: normalizeBaselineMetadata(entry.metadata),
         active: asBoolean(entry.active, true),
       });
     }
@@ -83,7 +118,7 @@ async function applySnapshot(snapshot: PlatformDbBaselineSnapshot) {
         transport: asString(entry.transport) || 'config',
         object_key: asString(entry.objectKey) || null,
         config: asObject(entry.config),
-        metadata: asObject(entry.metadata),
+        metadata: normalizeBaselineMetadata(entry.metadata),
         active: asBoolean(entry.active, true),
       });
     }
@@ -105,7 +140,7 @@ async function applySnapshot(snapshot: PlatformDbBaselineSnapshot) {
         const entry = asObject(raw);
         return {
           slug: asString(entry.slug),
-          metadata: asJsonObject(entry.metadata),
+          metadata: normalizeBaselineMetadata(entry.metadata),
           active: asBoolean(entry.active, true),
         };
       }),
@@ -118,7 +153,7 @@ async function applySnapshot(snapshot: PlatformDbBaselineSnapshot) {
           transport: asString(entry.transport) || 'config',
           objectKey: asString(entry.objectKey) || null,
           config: asJsonObject(entry.config),
-          metadata: asJsonObject(entry.metadata),
+          metadata: normalizeBaselineMetadata(entry.metadata),
           active: asBoolean(entry.active, true),
         };
       }),
@@ -137,7 +172,7 @@ async function applySnapshot(snapshot: PlatformDbBaselineSnapshot) {
           input: asArray(entry.input).map((item) => asString(item)).filter(Boolean),
           contextWindow: asNumber(entry.contextWindow, 0),
           maxTokens: asNumber(entry.maxTokens, 0),
-          metadata: asJsonObject(entry.metadata),
+          metadata: normalizeBaselineMetadata(entry.metadata),
           active: asBoolean(entry.active, true),
         };
       }),
@@ -149,7 +184,7 @@ async function applySnapshot(snapshot: PlatformDbBaselineSnapshot) {
           category: asString(entry.category) || null,
           routeKey: asString(entry.routeKey) || null,
           iconKey: asString(entry.iconKey) || null,
-          metadata: asJsonObject(entry.metadata),
+          metadata: normalizeBaselineMetadata(entry.metadata),
           active: asBoolean(entry.active, true),
         };
       }),
@@ -175,7 +210,7 @@ async function applySnapshot(snapshot: PlatformDbBaselineSnapshot) {
           displayName: asString(entry.displayName),
           controlType: asString(entry.controlType),
           iconKey: asString(entry.iconKey) || null,
-          metadata: asJsonObject(entry.metadata),
+          metadata: normalizeBaselineMetadata(entry.metadata),
           active: asBoolean(entry.active, true),
           options: asArray(entry.options).map((optionRaw) => {
             const option = asObject(optionRaw);
@@ -184,7 +219,7 @@ async function applySnapshot(snapshot: PlatformDbBaselineSnapshot) {
               label: asString(option.label),
               description: asString(option.description) || null,
               sortOrder: asNumber(option.sortOrder, 100),
-              metadata: asJsonObject(option.metadata),
+              metadata: normalizeBaselineMetadata(option.metadata),
               active: asBoolean(option.active, true),
             };
           }),
@@ -199,7 +234,7 @@ async function applySnapshot(snapshot: PlatformDbBaselineSnapshot) {
           template: asString(entry.template),
           iconKey: asString(entry.iconKey) || null,
           tone: asString(entry.tone) || null,
-          metadata: asJsonObject(entry.metadata),
+          metadata: normalizeBaselineMetadata(entry.metadata),
           active: asBoolean(entry.active, true),
         };
       }),
@@ -348,7 +383,7 @@ async function applySnapshot(snapshot: PlatformDbBaselineSnapshot) {
           contentType: asString(asset.contentType) || null,
           sha256: asString(asset.sha256) || null,
           sizeBytes: asNumber(asset.sizeBytes, 0) || null,
-          metadata: asJsonObject(asset.metadata),
+          metadata: normalizeAssetMetadata(asset.metadata),
           actorUserId: null,
         });
       }

@@ -342,8 +342,8 @@
           "assetKey": "appleTouchIcon",
           "contentType": "image/png",
           "metadata": {
-            "presetFilePath": "assets/iclaw/apple-touch-icon.png",
-            "sourceType": "preset"
+            "repoAssetPath": "assets/iclaw/apple-touch-icon.png",
+            "sourceType": "repo_asset"
           },
           "objectKey": "portal-assets/iclaw/appleTouchIcon/1774832171035-41a3faf4-e4bf-4753-9f7a-6d656a0f3971.png",
           "publicUrl": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=appleTouchIcon",
@@ -355,8 +355,8 @@
           "assetKey": "assistantAvatar",
           "contentType": "image/png",
           "metadata": {
-            "presetFilePath": "assets/iclaw/tauri-icons/icon.png",
-            "sourceType": "preset"
+            "repoAssetPath": "assets/iclaw/tauri-icons/icon.png",
+            "sourceType": "repo_asset"
           },
           "objectKey": "portal-assets/iclaw/assistantAvatar/1775288463020-64df3b2e-7114-442c-a4b2-da96346c941c.png",
           "publicUrl": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=assistantAvatar",
@@ -368,8 +368,8 @@
           "assetKey": "faviconIco",
           "contentType": "image/x-icon",
           "metadata": {
-            "presetFilePath": "assets/iclaw/favicon.ico",
-            "sourceType": "preset"
+            "repoAssetPath": "assets/iclaw/favicon.ico",
+            "sourceType": "repo_asset"
           },
           "objectKey": "portal-assets/iclaw/faviconIco/1774832170853-11afc62b-379c-4dd8-8828-bbe88da555be.ico",
           "publicUrl": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=faviconIco",
@@ -381,8 +381,8 @@
           "assetKey": "faviconPng",
           "contentType": "image/png",
           "metadata": {
-            "presetFilePath": "assets/iclaw/favicon.png",
-            "sourceType": "preset"
+            "repoAssetPath": "assets/iclaw/favicon.png",
+            "sourceType": "repo_asset"
           },
           "objectKey": "portal-assets/iclaw/faviconPng/1774832170951-e9a806fb-a931-4b0a-9b51-fc765d08bd09.png",
           "publicUrl": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=faviconPng",
@@ -394,8 +394,8 @@
           "assetKey": "installerHero",
           "contentType": "image/png",
           "metadata": {
-            "presetFilePath": "assets/iclaw/installer-hero.png",
-            "sourceType": "preset"
+            "repoAssetPath": "assets/iclaw/installer-hero.png",
+            "sourceType": "repo_asset"
           },
           "objectKey": "portal-assets/iclaw/installerHero/1774832171117-c7d46135-5aff-479e-a424-08914e9a0ca9.png",
           "publicUrl": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=installerHero",
@@ -407,8 +407,8 @@
           "assetKey": "tauriIcon128",
           "contentType": "image/png",
           "metadata": {
-            "presetFilePath": "assets/iclaw/tauri-icons/128x128.png",
-            "sourceType": "preset"
+            "repoAssetPath": "assets/iclaw/tauri-icons/128x128.png",
+            "sourceType": "repo_asset"
           },
           "objectKey": "portal-assets/iclaw/tauriIcon128/1774832171366-da27f999-6ca8-4d5c-9f37-1169517e32db.png",
           "publicUrl": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=tauriIcon128",
@@ -420,8 +420,8 @@
           "assetKey": "tauriIcon1282x",
           "contentType": "image/png",
           "metadata": {
-            "presetFilePath": "assets/iclaw/tauri-icons/128x128@2x.png",
-            "sourceType": "preset"
+            "repoAssetPath": "assets/iclaw/tauri-icons/128x128@2x.png",
+            "sourceType": "repo_asset"
           },
           "objectKey": "portal-assets/iclaw/tauriIcon1282x/1774832171730-cdb6edbf-3cd0-4b15-8b9b-d20f458c53af.png",
           "publicUrl": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=tauriIcon1282x",
@@ -433,8 +433,8 @@
           "assetKey": "tauriIcon32",
           "contentType": "image/png",
           "metadata": {
-            "presetFilePath": "assets/iclaw/tauri-icons/32x32.png",
-            "sourceType": "preset"
+            "repoAssetPath": "assets/iclaw/tauri-icons/32x32.png",
+            "sourceType": "repo_asset"
           },
           "objectKey": "portal-assets/iclaw/tauriIcon32/1774832171263-7dc26f30-952b-4003-a498-4dc4597e3366.png",
           "publicUrl": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=tauriIcon32",
@@ -446,8 +446,8 @@
           "assetKey": "tauriIconIcns",
           "contentType": "application/octet-stream",
           "metadata": {
-            "presetFilePath": "assets/iclaw/tauri-icons/icon.icns",
-            "sourceType": "preset"
+            "repoAssetPath": "assets/iclaw/tauri-icons/icon.icns",
+            "sourceType": "repo_asset"
           },
           "objectKey": "portal-assets/iclaw/tauriIconIcns/1774832172172-6b73de37-4aba-42f5-9cac-be0c16e512b3.icns",
           "publicUrl": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=tauriIconIcns",
@@ -459,8 +459,8 @@
           "assetKey": "tauriIconIco",
           "contentType": "image/x-icon",
           "metadata": {
-            "presetFilePath": "assets/iclaw/tauri-icons/icon.ico",
-            "sourceType": "preset"
+            "repoAssetPath": "assets/iclaw/tauri-icons/icon.ico",
+            "sourceType": "repo_asset"
           },
           "objectKey": "portal-assets/iclaw/tauriIconIco/1775288463198-451e59d0-4cc6-46de-a599-e3d9a7151735.ico",
           "publicUrl": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=tauriIconIco",
@@ -472,8 +472,8 @@
           "assetKey": "tauriIconPng",
           "contentType": "image/png",
           "metadata": {
-            "presetFilePath": "assets/iclaw/tauri-icons/icon.png",
-            "sourceType": "preset"
+            "repoAssetPath": "assets/iclaw/tauri-icons/icon.png",
+            "sourceType": "repo_asset"
           },
           "objectKey": "portal-assets/iclaw/tauriIconPng/1774832171827-63794083-8110-4e3d-a98b-317540b53781.png",
           "publicUrl": "http://127.0.0.1:2130/portal/asset/file?app_name=iclaw&asset_key=tauriIconPng",
@@ -996,8 +996,8 @@
           "assetKey": "appleTouchIcon",
           "contentType": "image/png",
           "metadata": {
-            "presetFilePath": "assets/licaiclaw/apple-touch-icon.png",
-            "sourceType": "preset"
+            "repoAssetPath": "assets/licaiclaw/apple-touch-icon.png",
+            "sourceType": "repo_asset"
           },
           "objectKey": "portal-assets/licaiclaw/appleTouchIcon/1774832173184-adf3e9de-a902-4648-bd56-f5904e249138.png",
           "publicUrl": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=appleTouchIcon",
@@ -1009,8 +1009,8 @@
           "assetKey": "faviconIco",
           "contentType": "image/x-icon",
           "metadata": {
-            "presetFilePath": "assets/licaiclaw/favicon.ico",
-            "sourceType": "preset"
+            "repoAssetPath": "assets/licaiclaw/favicon.ico",
+            "sourceType": "repo_asset"
           },
           "objectKey": "portal-assets/licaiclaw/faviconIco/1774832172888-d70a2d2f-2064-4b72-908d-4e2810a21807.ico",
           "publicUrl": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=faviconIco",
@@ -1022,8 +1022,8 @@
           "assetKey": "faviconPng",
           "contentType": "image/png",
           "metadata": {
-            "presetFilePath": "assets/licaiclaw/favicon.png",
-            "sourceType": "preset"
+            "repoAssetPath": "assets/licaiclaw/favicon.png",
+            "sourceType": "repo_asset"
           },
           "objectKey": "portal-assets/licaiclaw/faviconPng/1774832172986-adf95ab4-3318-4920-95d7-7c335e40254d.png",
           "publicUrl": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=faviconPng",
@@ -1035,8 +1035,8 @@
           "assetKey": "homeLogo",
           "contentType": "image/jpeg",
           "metadata": {
-            "presetFilePath": "assets/licaiclaw/home-logo.jpg",
-            "sourceType": "preset"
+            "repoAssetPath": "assets/licaiclaw/home-logo.jpg",
+            "sourceType": "repo_asset"
           },
           "objectKey": "portal-assets/licaiclaw/homeLogo/1774832173770-06503df0-1ffa-4aaa-a05e-a9d47bc5b2a9.jpg",
           "publicUrl": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=homeLogo",
@@ -1048,8 +1048,8 @@
           "assetKey": "installerHero",
           "contentType": "image/png",
           "metadata": {
-            "presetFilePath": "assets/licaiclaw/installer-hero.png",
-            "sourceType": "preset"
+            "repoAssetPath": "assets/licaiclaw/installer-hero.png",
+            "sourceType": "repo_asset"
           },
           "objectKey": "portal-assets/licaiclaw/installerHero/1774832173453-1c05175e-f61f-40bf-bfa7-4cbaf3e1c995.png",
           "publicUrl": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=installerHero",
@@ -1061,8 +1061,8 @@
           "assetKey": "logoMaster",
           "contentType": "image/jpeg",
           "metadata": {
-            "presetFilePath": "assets/licaiclaw/logo-master.jpg",
-            "sourceType": "preset"
+            "repoAssetPath": "assets/licaiclaw/logo-master.jpg",
+            "sourceType": "repo_asset"
           },
           "objectKey": "portal-assets/licaiclaw/logoMaster/1774832173601-ffb8b674-dae7-4215-baae-ae44b13ea4fb.jpg",
           "publicUrl": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=logoMaster",
@@ -1074,8 +1074,8 @@
           "assetKey": "tauriIcon128",
           "contentType": "image/png",
           "metadata": {
-            "presetFilePath": "assets/licaiclaw/tauri-icons/128x128.png",
-            "sourceType": "preset"
+            "repoAssetPath": "assets/licaiclaw/tauri-icons/128x128.png",
+            "sourceType": "repo_asset"
           },
           "objectKey": "portal-assets/licaiclaw/tauriIcon128/1774832174117-68b34a55-c0df-46ed-9ec8-9bbdc55448e7.png",
           "publicUrl": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=tauriIcon128",
@@ -1087,8 +1087,8 @@
           "assetKey": "tauriIcon1282x",
           "contentType": "image/png",
           "metadata": {
-            "presetFilePath": "assets/licaiclaw/tauri-icons/128x128@2x.png",
-            "sourceType": "preset"
+            "repoAssetPath": "assets/licaiclaw/tauri-icons/128x128@2x.png",
+            "sourceType": "repo_asset"
           },
           "objectKey": "portal-assets/licaiclaw/tauriIcon1282x/1774832174226-1464202d-e763-416c-bdba-1d388c43fc7a.png",
           "publicUrl": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=tauriIcon1282x",
@@ -1100,8 +1100,8 @@
           "assetKey": "tauriIcon32",
           "contentType": "image/png",
           "metadata": {
-            "presetFilePath": "assets/licaiclaw/tauri-icons/32x32.png",
-            "sourceType": "preset"
+            "repoAssetPath": "assets/licaiclaw/tauri-icons/32x32.png",
+            "sourceType": "repo_asset"
           },
           "objectKey": "portal-assets/licaiclaw/tauriIcon32/1774832173993-0bcd9d37-5b9a-42f5-b296-92b5b7173b11.png",
           "publicUrl": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=tauriIcon32",
@@ -1113,8 +1113,8 @@
           "assetKey": "tauriIconIcns",
           "contentType": "application/octet-stream",
           "metadata": {
-            "presetFilePath": "assets/licaiclaw/tauri-icons/icon.icns",
-            "sourceType": "preset"
+            "repoAssetPath": "assets/licaiclaw/tauri-icons/icon.icns",
+            "sourceType": "repo_asset"
           },
           "objectKey": "portal-assets/licaiclaw/tauriIconIcns/1774832174838-fee6ce41-646f-41a5-81cc-a9a1241e3ef3.icns",
           "publicUrl": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=tauriIconIcns",
@@ -1126,8 +1126,8 @@
           "assetKey": "tauriIconIco",
           "contentType": "image/x-icon",
           "metadata": {
-            "presetFilePath": "assets/licaiclaw/tauri-icons/icon.ico",
-            "sourceType": "preset"
+            "repoAssetPath": "assets/licaiclaw/tauri-icons/icon.ico",
+            "sourceType": "repo_asset"
           },
           "objectKey": "portal-assets/licaiclaw/tauriIconIco/1775288463444-d5c0f37e-ab06-4d94-9c75-2d85ca954342.ico",
           "publicUrl": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=tauriIconIco",
@@ -1139,8 +1139,8 @@
           "assetKey": "tauriIconPng",
           "contentType": "image/png",
           "metadata": {
-            "presetFilePath": "assets/licaiclaw/tauri-icons/icon.png",
-            "sourceType": "preset"
+            "repoAssetPath": "assets/licaiclaw/tauri-icons/icon.png",
+            "sourceType": "repo_asset"
           },
           "objectKey": "portal-assets/licaiclaw/tauriIconPng/1774832174317-30ae1308-8c2f-4ecd-81a5-1505b5defff5.png",
           "publicUrl": "http://127.0.0.1:2130/portal/asset/file?app_name=licaiclaw&asset_key=tauriIconPng",
@@ -1630,7 +1630,7 @@
           "publisher": "Alpaca",
           "requiresApiKey": true,
           "sourceLabel": "官方模板",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "broker",
             "stocks",
@@ -1660,7 +1660,7 @@
           "publisher": "Alpha Vantage",
           "requiresApiKey": true,
           "sourceLabel": "社区推荐",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "stocks",
             "fx",
@@ -1690,7 +1690,7 @@
           "publisher": "Atlassian",
           "requiresApiKey": true,
           "sourceLabel": "官方模板",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "jira",
             "confluence",
@@ -1719,7 +1719,7 @@
           ],
           "featured": true,
           "publisher": "iClaw",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "web",
             "automation",
@@ -1749,7 +1749,7 @@
           "publisher": "dbt Labs",
           "requiresApiKey": false,
           "sourceLabel": "社区推荐",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "analytics",
             "warehouse",
@@ -1779,7 +1779,7 @@
           "publisher": "Figma",
           "requiresApiKey": true,
           "sourceLabel": "官方模板",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "design",
             "ui",
@@ -1809,7 +1809,7 @@
           "publisher": "Financial Modeling Prep",
           "requiresApiKey": true,
           "sourceLabel": "社区推荐",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "financials",
             "valuation",
@@ -1838,7 +1838,7 @@
           "publisher": "FinGPT",
           "requiresApiKey": false,
           "sourceLabel": "社区推荐",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "finance",
             "research",
@@ -1866,7 +1866,7 @@
           "publisher": "Finnhub",
           "requiresApiKey": true,
           "sourceLabel": "社区推荐",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "news",
             "stocks",
@@ -1897,7 +1897,7 @@
           "publisher": "Federal Reserve Economic Data",
           "requiresApiKey": true,
           "sourceLabel": "社区推荐",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "macro",
             "rates",
@@ -1927,7 +1927,7 @@
           "publisher": "GitHub",
           "requiresApiKey": true,
           "sourceLabel": "官方模板",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "repo",
             "issue",
@@ -1955,7 +1955,7 @@
           "publisher": "Google Workspace",
           "requiresApiKey": true,
           "sourceLabel": "社区推荐",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "docs",
             "workspace",
@@ -1983,7 +1983,7 @@
           "publisher": "Google Workspace",
           "requiresApiKey": true,
           "sourceLabel": "社区推荐",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "drive",
             "files",
@@ -2011,7 +2011,7 @@
           "publisher": "HubSpot",
           "requiresApiKey": true,
           "sourceLabel": "社区推荐",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "crm",
             "sales",
@@ -2041,7 +2041,7 @@
           "publisher": "Jupyter",
           "requiresApiKey": false,
           "sourceLabel": "社区推荐",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "notebook",
             "python",
@@ -2069,7 +2069,7 @@
           "publisher": "Linear",
           "requiresApiKey": true,
           "sourceLabel": "社区推荐",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "issue",
             "planning",
@@ -2098,7 +2098,7 @@
           ],
           "featured": true,
           "publisher": "iClaw",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "markdown",
             "convert",
@@ -2126,7 +2126,7 @@
           "publisher": "Miro",
           "requiresApiKey": true,
           "sourceLabel": "社区推荐",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "whiteboard",
             "brainstorm",
@@ -2200,7 +2200,7 @@
             "version": 1
           },
           "sourceLabel": "社区推荐",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "image",
             "generation",
@@ -2230,7 +2230,7 @@
           "publisher": "Google NotebookLM",
           "requiresApiKey": true,
           "sourceLabel": "社区推荐",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "documents",
             "knowledge",
@@ -2260,7 +2260,7 @@
           "publisher": "Notion",
           "requiresApiKey": true,
           "sourceLabel": "官方模板",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "notes",
             "database",
@@ -2288,7 +2288,7 @@
           "publisher": "Polygon",
           "requiresApiKey": true,
           "sourceLabel": "社区推荐",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "stocks",
             "options",
@@ -2317,7 +2317,7 @@
           "publisher": "PostgreSQL ecosystem",
           "requiresApiKey": true,
           "sourceLabel": "社区推荐",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "postgres",
             "sql",
@@ -2345,7 +2345,7 @@
           "publisher": "Salesforce",
           "requiresApiKey": true,
           "sourceLabel": "社区推荐",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "crm",
             "enterprise",
@@ -2376,7 +2376,7 @@
           "publisher": "SEC EDGAR",
           "requiresApiKey": false,
           "sourceLabel": "社区推荐",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "10-K",
             "10-Q",
@@ -2407,7 +2407,7 @@
           "homepageUrl": "https://serper.dev/",
           "publisher": "Serper",
           "requiresApiKey": true,
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "search",
             "web",
@@ -2437,7 +2437,7 @@
           "publisher": "Slack",
           "requiresApiKey": true,
           "sourceLabel": "官方模板",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "chat",
             "messages",
@@ -2467,7 +2467,7 @@
           "publisher": "Stripe",
           "requiresApiKey": true,
           "sourceLabel": "官方模板",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "payments",
             "billing",
@@ -2497,7 +2497,7 @@
           "publisher": "Supabase",
           "requiresApiKey": true,
           "sourceLabel": "官方模板",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "database",
             "auth",
@@ -2528,7 +2528,7 @@
           "homepageUrl": "https://tavily.com/",
           "publisher": "Tavily",
           "requiresApiKey": true,
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "search",
             "research",
@@ -2561,7 +2561,7 @@
           "publisher": "Yahoo Finance",
           "requiresApiKey": false,
           "sourceLabel": "社区推荐",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "quote",
             "equity",
@@ -2623,7 +2623,7 @@
             "version": 1
           },
           "sourceLabel": "官方模板",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "wecom",
             "wechat-work",
@@ -2678,7 +2678,7 @@
             "version": 1
           },
           "sourceLabel": "官方模板",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "dingtalk",
             "chat",
@@ -2733,7 +2733,7 @@
             "version": 1
           },
           "sourceLabel": "官方模板",
-          "sourceType": "preset",
+          "sourceType": "baseline_seed",
           "tags": [
             "feishu",
             "lark",
@@ -5669,7 +5669,7 @@
         "displayName": "选择专家",
         "iconKey": "expert",
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "options": []
       },
@@ -5680,7 +5680,7 @@
         "displayName": "选择基金/ETF",
         "iconKey": "fund-context",
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "options": []
       },
@@ -5691,7 +5691,7 @@
         "displayName": "选择市场",
         "iconKey": "market-scope",
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "options": [
           {
@@ -5743,7 +5743,7 @@
         "displayName": "选择模式",
         "iconKey": "mode",
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "options": [
           {
@@ -5779,7 +5779,7 @@
         "displayName": "输出模版",
         "iconKey": "output-format",
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "options": [
           {
@@ -5823,7 +5823,7 @@
         "displayName": "选择技能",
         "iconKey": "skill",
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "options": []
       },
@@ -5834,7 +5834,7 @@
         "displayName": "选择股票",
         "iconKey": "stock-context",
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "options": []
       },
@@ -5845,7 +5845,7 @@
         "displayName": "选择自选组",
         "iconKey": "watchlist",
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "options": [
           {
@@ -5890,7 +5890,7 @@
         "displayName": "公司对比",
         "iconKey": "company-compare",
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "shortcutKey": "company-compare",
         "template": "请对比 #标的1 和 #标的2 的商业模式、增长质量、估值水平和关键风险。",
@@ -5902,7 +5902,7 @@
         "displayName": "财报解读",
         "iconKey": "earnings-analysis",
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "shortcutKey": "earnings-analysis",
         "template": "请解读 #标的 最新财报，重点看收入增速、利润率、经营现金流、管理层指引和预期差。",
@@ -5914,7 +5914,7 @@
         "displayName": "基金分析",
         "iconKey": "fund-analysis",
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "shortcutKey": "fund-analysis",
         "template": "请分析 #基金 的投资范围、持仓风格、业绩表现、回撤风险、基金经理特征和适合的配置场景。",
@@ -5926,7 +5926,7 @@
         "displayName": "市场复盘",
         "iconKey": "market-recap",
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "shortcutKey": "market-recap",
         "template": "请复盘今天市场，说明主要指数表现、领涨领跌板块、资金风格和背后驱动。",
@@ -5938,7 +5938,7 @@
         "displayName": "行业点评",
         "iconKey": "sector-review",
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "shortcutKey": "sector-review",
         "template": "请从行业格局、政策驱动、盈利周期和估值水平出发，点评 #行业 的当前机会与风险。",
@@ -5950,7 +5950,7 @@
         "displayName": "估值分析",
         "iconKey": "valuation-analysis",
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "shortcutKey": "valuation-analysis",
         "template": "请对 #标的 做估值分析，结合增长、盈利质量、可比公司估值和主要风险给出判断。",
@@ -5963,7 +5963,7 @@
         "iconKey": "MessageCircle",
         "metadata": {
           "category": "xiaohongshu",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "shortcutKey": "xhs-comment-reply",
         "template": "请针对这条小红书笔记的评论区，生成 10 条不同风格的回复话术，要求自然、不油腻、避免模板感，并区分答疑型、感谢型、引导私信型三类。主题：#主题",
@@ -5976,7 +5976,7 @@
         "iconKey": "Scale",
         "metadata": {
           "category": "xiaohongshu",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "shortcutKey": "xhs-competitor-review",
         "template": "请对 #对标账号 或 #赛道 做小红书竞品分析，输出内容定位、更新频率、常见选题、标题风格、互动方式，以及我们可复用的 5 条打法建议。",
@@ -5989,7 +5989,7 @@
         "iconKey": "PenTool",
         "metadata": {
           "category": "xiaohongshu",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "shortcutKey": "xhs-note-polish",
         "template": "请把这段草稿改写成适合小红书发布的笔记，输出标题、正文、分段结构、口语化表达、互动引导和建议标签。原始素材：#草稿",
@@ -6002,7 +6002,7 @@
         "iconKey": "CalendarDays",
         "metadata": {
           "category": "xiaohongshu",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "shortcutKey": "xhs-publishing-plan",
         "template": "请围绕 #主题 生成 7 天小红书发布计划。每天给出内容主题、标题方向、内容形式、发布时间建议、互动目标和复盘指标。",
@@ -6015,7 +6015,7 @@
         "iconKey": "Search",
         "metadata": {
           "category": "xiaohongshu",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "shortcutKey": "xhs-topic-mining",
         "template": "请围绕 #主题 输出 10 个适合小红书的内容选题。每个选题都给出目标人群、核心痛点、标题方向、适合的内容结构和建议标签。",
@@ -6028,7 +6028,7 @@
         "iconKey": "TrendingUp",
         "metadata": {
           "category": "xiaohongshu",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "shortcutKey": "xhs-viral-analysis",
         "template": "请拆解这个小红书选题 #主题 下的爆款内容套路，从标题钩子、封面角度、开头切入、正文结构、结尾引导和评论区互动设计 6 个维度总结。",
@@ -6041,7 +6041,7 @@
         "mcpKey": "browser",
         "metadata": {
           "derivedFrom": "shared_oem_mcp_bindings",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         }
       },
       {
@@ -6049,7 +6049,7 @@
         "mcpKey": "markitdown",
         "metadata": {
           "derivedFrom": "shared_oem_mcp_bindings",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         }
       },
       {
@@ -6057,7 +6057,7 @@
         "mcpKey": "tavily",
         "metadata": {
           "derivedFrom": "shared_oem_mcp_bindings",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         }
       },
       {
@@ -6065,7 +6065,7 @@
         "mcpKey": "serper",
         "metadata": {
           "derivedFrom": "shared_oem_mcp_bindings",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         }
       },
       {
@@ -6073,7 +6073,7 @@
         "mcpKey": "yahoo-finance",
         "metadata": {
           "derivedFrom": "shared_oem_mcp_bindings",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         }
       }
     ],
@@ -6086,7 +6086,7 @@
         "menuKey": "assets",
         "metadata": {
           "enabled_by_default": false,
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "routeKey": "assets"
       },
@@ -6098,7 +6098,7 @@
         "menuKey": "mcp",
         "metadata": {
           "enabled_by_default": false,
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "routeKey": "mcp-store"
       },
@@ -6110,7 +6110,7 @@
         "menuKey": "models",
         "metadata": {
           "enabled_by_default": false,
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "routeKey": "models"
       },
@@ -6122,7 +6122,7 @@
         "menuKey": "skills",
         "metadata": {
           "enabled_by_default": false,
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "routeKey": "skill-store"
       },
@@ -6134,7 +6134,7 @@
         "menuKey": "workspace",
         "metadata": {
           "enabled_by_default": false,
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "routeKey": "chat"
       },
@@ -6146,7 +6146,7 @@
         "menuKey": "chat",
         "metadata": {
           "enabled_by_default": true,
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "routeKey": "chat"
       },
@@ -6158,7 +6158,7 @@
         "menuKey": "cron",
         "metadata": {
           "enabled_by_default": true,
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "routeKey": "cron"
       },
@@ -6170,7 +6170,7 @@
         "menuKey": "data-connections",
         "metadata": {
           "enabled_by_default": false,
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "routeKey": "data-connections"
       },
@@ -6182,7 +6182,7 @@
         "menuKey": "finance-skills",
         "metadata": {
           "enabled_by_default": false,
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "routeKey": "finance-skills"
       },
@@ -6194,7 +6194,7 @@
         "menuKey": "foundation-skills",
         "metadata": {
           "enabled_by_default": false,
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "routeKey": "foundation-skills"
       },
@@ -6206,7 +6206,7 @@
         "menuKey": "fund-market",
         "metadata": {
           "enabled_by_default": false,
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "routeKey": "fund-market"
       },
@@ -6218,7 +6218,7 @@
         "menuKey": "im-bots",
         "metadata": {
           "enabled_by_default": true,
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "routeKey": "im-bots"
       },
@@ -6230,7 +6230,7 @@
         "menuKey": "investment-experts",
         "metadata": {
           "enabled_by_default": false,
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "routeKey": "investment-experts"
       },
@@ -6242,7 +6242,7 @@
         "menuKey": "lobster-store",
         "metadata": {
           "enabled_by_default": true,
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "routeKey": "lobster-store"
       },
@@ -6254,7 +6254,7 @@
         "menuKey": "mcp-store",
         "metadata": {
           "enabled_by_default": true,
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "routeKey": "mcp-store"
       },
@@ -6266,7 +6266,7 @@
         "menuKey": "memory",
         "metadata": {
           "enabled_by_default": true,
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "routeKey": "memory"
       },
@@ -6278,7 +6278,7 @@
         "menuKey": "security",
         "metadata": {
           "enabled_by_default": true,
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "routeKey": "security"
       },
@@ -6290,7 +6290,7 @@
         "menuKey": "settings",
         "metadata": {
           "enabled_by_default": false,
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "routeKey": "settings"
       },
@@ -6302,7 +6302,7 @@
         "menuKey": "skill-store",
         "metadata": {
           "enabled_by_default": true,
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "routeKey": "skill-store"
       },
@@ -6314,7 +6314,7 @@
         "menuKey": "stock-market",
         "metadata": {
           "enabled_by_default": false,
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "routeKey": "stock-market"
       },
@@ -6326,7 +6326,7 @@
         "menuKey": "task-center",
         "metadata": {
           "enabled_by_default": true,
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "routeKey": "task-center"
       }
@@ -6344,7 +6344,7 @@
         "label": "DeepSeek V3.2",
         "maxTokens": 8192,
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "modelId": "deepseek-v3.2",
         "providerId": "deepseek",
@@ -6364,7 +6364,7 @@
         "label": "Doubao Seed-2.0-code",
         "maxTokens": 8192,
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "modelId": "doubao-seed-2.0-code",
         "providerId": "openai",
@@ -6384,7 +6384,7 @@
         "label": "GLM 4.7",
         "maxTokens": 131072,
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "modelId": "glm-4.7",
         "providerId": "openai",
@@ -6404,7 +6404,7 @@
         "label": "GLM 5",
         "maxTokens": 16384,
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "modelId": "glm-5",
         "providerId": "openai",
@@ -6425,7 +6425,7 @@
         "label": "GPT 5.4",
         "maxTokens": 128000,
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "modelId": "gpt-5.4",
         "providerId": "openai",
@@ -6446,7 +6446,7 @@
         "label": "Kimi K2.5",
         "maxTokens": 8192,
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "modelId": "kimi-k2.5",
         "providerId": "openai",
@@ -6466,7 +6466,7 @@
         "label": "MiniMax m2.1",
         "maxTokens": 8192,
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "modelId": "MiniMax-M2.1",
         "providerId": "openai",
@@ -6486,7 +6486,7 @@
         "label": "MiniMax m2.5",
         "maxTokens": 8192,
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "modelId": "MiniMax-M2.5",
         "providerId": "openai",
@@ -6506,7 +6506,7 @@
         "label": "MiniMax m2.7",
         "maxTokens": 8192,
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "modelId": "MiniMax-M2.7",
         "providerId": "openai",
@@ -6527,7 +6527,7 @@
         "label": "Qwen3.5 Plus",
         "maxTokens": 8192,
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "modelId": "qwen3.5-plus",
         "providerId": "openai",
@@ -6547,7 +6547,7 @@
         "label": "Qwen3 Coder Plus",
         "maxTokens": 8192,
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "modelId": "qwen3-coder-plus",
         "providerId": "openai",
@@ -6568,7 +6568,7 @@
         "label": "Qwen3 Max",
         "maxTokens": 8192,
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "modelId": "qwen3-max",
         "providerId": "openai",
@@ -6633,8 +6633,7 @@
           "description": "重度使用优选，适合长期储备。",
           "eyebrow_label": "长期储备",
           "feature_list": [
-            "基础到账 13",
-            "000 龙虾币",
+            "基础到账 13,000 龙虾币",
             "单价更优，适合重度用户囤币",
             "一次性充值，不会自动续费"
           ],
@@ -6643,7 +6642,7 @@
         },
         "packageId": "topup_13000",
         "packageName": "13000 龙虾币",
-        "recommended": true,
+        "recommended": false,
         "sortOrder": 30
       }
     ],
@@ -6651,21 +6650,21 @@
       {
         "active": true,
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "docx"
       },
       {
         "active": true,
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "xlsx"
       },
       {
         "active": true,
         "metadata": {
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "pdf"
       },
@@ -6674,7 +6673,7 @@
         "metadata": {
           "platformPresetReason": "免配置网页阅读",
           "sourceCatalog": "agent-reach",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "agent-reach-web"
       },
@@ -6683,7 +6682,7 @@
         "metadata": {
           "platformPresetReason": "免配置小红书运营自动化",
           "sourceCatalog": "platform",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "xiaohongshu-skills"
       },
@@ -6692,7 +6691,7 @@
         "metadata": {
           "platformPresetReason": "免配置订阅聚合",
           "sourceCatalog": "agent-reach",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "agent-reach-rss"
       },
@@ -6701,7 +6700,7 @@
         "metadata": {
           "platformPresetReason": "免配置视频生成与动效编排",
           "sourceCatalog": "platform",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "remotion-skill"
       },
@@ -6710,7 +6709,7 @@
         "metadata": {
           "platformPresetReason": "免配置视频理解",
           "sourceCatalog": "agent-reach",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "agent-reach-youtube"
       },
@@ -6719,7 +6718,7 @@
         "metadata": {
           "platformPresetReason": "免配置技能发现与检索",
           "sourceCatalog": "platform",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "find-skill"
       },
@@ -6728,7 +6727,7 @@
         "metadata": {
           "platformPresetReason": "免配置演示文稿生成与 PPT 网页化",
           "sourceCatalog": "platform",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "frontend-slides"
       },
@@ -6737,7 +6736,7 @@
         "metadata": {
           "platformPresetReason": "免配置视频理解",
           "sourceCatalog": "agent-reach",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "agent-reach-bilibili"
       },
@@ -6746,7 +6745,7 @@
         "metadata": {
           "platformPresetReason": "免配置短视频洞察",
           "sourceCatalog": "agent-reach",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "agent-reach-douyin"
       },
@@ -6755,7 +6754,7 @@
         "metadata": {
           "platformPresetReason": "免配置文章阅读",
           "sourceCatalog": "agent-reach",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "agent-reach-wechat-official"
       },
@@ -6764,7 +6763,7 @@
         "metadata": {
           "platformPresetReason": "免配置热点追踪",
           "sourceCatalog": "agent-reach",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "agent-reach-weibo"
       },
@@ -6773,7 +6772,7 @@
         "metadata": {
           "platformPresetReason": "免配置社区洞察",
           "sourceCatalog": "agent-reach",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "agent-reach-v2ex"
       },
@@ -6782,7 +6781,7 @@
         "metadata": {
           "platformPresetReason": "免配置投资社区追踪",
           "sourceCatalog": "agent-reach",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "agent-reach-xueqiu"
       },
@@ -6791,7 +6790,7 @@
         "metadata": {
           "platformPresetReason": "金融养虾人默认预装",
           "sourceCatalog": "finance-lobster",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "skill-vetter"
       },
@@ -6800,7 +6799,7 @@
         "metadata": {
           "platformPresetReason": "金融养虾人默认预装",
           "sourceCatalog": "finance-lobster",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "multi-search-engine"
       },
@@ -6809,7 +6808,7 @@
         "metadata": {
           "platformPresetReason": "金融养虾人默认预装",
           "sourceCatalog": "finance-lobster",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "clawpolicy"
       },
@@ -6818,7 +6817,7 @@
         "metadata": {
           "platformPresetReason": "金融养虾人默认预装",
           "sourceCatalog": "finance-lobster",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "stock-analysis-skill"
       },
@@ -6827,7 +6826,7 @@
         "metadata": {
           "platformPresetReason": "金融养虾人默认预装",
           "sourceCatalog": "finance-lobster",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "stock-daily-analysis"
       },
@@ -6836,7 +6835,7 @@
         "metadata": {
           "platformPresetReason": "金融养虾人默认预装",
           "sourceCatalog": "finance-lobster",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "tushare-stock-skill"
       },
@@ -6845,7 +6844,7 @@
         "metadata": {
           "platformPresetReason": "金融养虾人默认预装",
           "sourceCatalog": "finance-lobster",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "stock-data-skill"
       },
@@ -6854,7 +6853,7 @@
         "metadata": {
           "platformPresetReason": "金融养虾人默认预装",
           "sourceCatalog": "finance-lobster",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "stock-strategy-backtester"
       },
@@ -6863,7 +6862,7 @@
         "metadata": {
           "platformPresetReason": "金融养虾人默认预装",
           "sourceCatalog": "finance-lobster",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "stock-monitor-skill"
       },
@@ -6872,7 +6871,7 @@
         "metadata": {
           "platformPresetReason": "金融养虾人默认预装",
           "sourceCatalog": "finance-lobster",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "stock-watcher"
       },
@@ -6881,7 +6880,7 @@
         "metadata": {
           "platformPresetReason": "平台级免配置预置",
           "sourceCatalog": "platform-curated-clawhub",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "self-improving-agent"
       },
@@ -6890,7 +6889,7 @@
         "metadata": {
           "platformPresetReason": "平台级免配置预置",
           "sourceCatalog": "platform-curated-clawhub",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "summarize-pro"
       },
@@ -6899,7 +6898,7 @@
         "metadata": {
           "platformPresetReason": "平台级免配置预置",
           "sourceCatalog": "platform-curated-clawhub",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "self-improving"
       },
@@ -6908,7 +6907,7 @@
         "metadata": {
           "platformPresetReason": "平台级免配置预置",
           "sourceCatalog": "platform-curated-clawhub",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "weather"
       },
@@ -6917,7 +6916,7 @@
         "metadata": {
           "platformPresetReason": "平台级免配置预置",
           "sourceCatalog": "platform-curated-clawhub",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "nano-pdf"
       },
@@ -6926,7 +6925,7 @@
         "metadata": {
           "platformPresetReason": "平台级免配置预置",
           "sourceCatalog": "platform-curated-clawhub",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "skill-creator"
       },
@@ -6935,7 +6934,7 @@
         "metadata": {
           "platformPresetReason": "平台级免配置预置",
           "sourceCatalog": "platform-curated-clawhub",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "stock-analysis"
       },
@@ -6944,7 +6943,7 @@
         "metadata": {
           "platformPresetReason": "平台级免配置预置",
           "sourceCatalog": "platform-curated-clawhub",
-          "sourceType": "preset"
+          "sourceType": "baseline_seed"
         },
         "slug": "agent-browser-clawdbot"
       }

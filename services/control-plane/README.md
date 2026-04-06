@@ -148,7 +148,8 @@ OEM portal 现在也是 control-plane 的职责范围之一：
 - 对外返回某个 app 的 MCP 列表时，control-plane 应负责把“平台 catalog + OEM binding”合成为当前 app 视图；前端只负责展示，不负责推断业务真相
 - Git 中的 baseline 文件只做数据库导出快照，不再作为 prod baseline 真值
 - 仓库根目录的 `mcp/mcp.json` overlay 已删除；本地 `services/openclaw/resources/mcp/mcp.json` 只是运行时生成产物
-- `services/control-plane/presets/core-oem.json` 已从推荐链路中移除；当前 baseline 恢复链路应使用数据库快照而不是 preset 文件
+- `services/control-plane/presets/core-oem.json` 已从推荐链路中移除；当前 baseline 恢复链路应使用数据库快照而不是 legacy preset 文件
+- `services/control-plane/assets/` 保存 repo 内静态资源（如 model logos、品牌兜底资产），不再承担 baseline 真值职责
 - `pnpm migrate:skill-catalog-table` 是一次性结构迁移：
   - 把历史物理表 `skill_catalog_entries` 重命名为 `cloud_skill_catalog`
   - 同步处理旧 view / 索引命名残留

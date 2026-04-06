@@ -139,7 +139,7 @@ const portalService = new PortalService(portalStore, async (accessToken) => serv
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const controlPlaneRoot = resolve(repoRoot, 'services/control-plane');
 const rootPackageJsonPath = resolve(repoRoot, 'package.json');
-const modelLogoAssetRoot = resolve(repoRoot, 'services/control-plane/presets/assets/model-logos');
+const modelLogoAssetRoot = resolve(repoRoot, 'services/control-plane/assets/model-logos');
 const modelLogoManifestPath = resolve(modelLogoAssetRoot, 'manifest.json');
 const controlPlaneBuildInfoPath = resolve(controlPlaneRoot, 'build-info.json');
 const controlPlanePackageJsonPath = resolve(controlPlaneRoot, 'package.json');

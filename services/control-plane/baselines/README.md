@@ -38,6 +38,9 @@ pnpm baseline:apply
 ## 当前策略
 
 - `services/control-plane/presets/core-oem.json` 已退休，不再作为 baseline 入口
+- baseline 快照中的元数据会做口径归一化：
+  - repo 内静态资产：`repoAssetPath` + `sourceType=repo_asset`
+  - 历史 `sourceType=preset`：统一收口为 `sourceType=baseline_seed`
 - 新的日常维护策略应是：
   1. 先改数据库
   2. 再导出 baseline 到 git

@@ -2,103 +2,103 @@
   {
     "preset_key": "baai",
     "label": "BAAI",
-    "asset_path": "services/control-plane/presets/assets/model-logos/BAAI.svg",
+    "asset_path": "services/control-plane/assets/model-logos/BAAI.svg",
     "asset_type": "image/svg+xml"
   },
   {
     "preset_key": "bytedance",
     "label": "ByteDance",
-    "asset_path": "services/control-plane/presets/assets/model-logos/ByteDance.svg",
+    "asset_path": "services/control-plane/assets/model-logos/ByteDance.svg",
     "asset_type": "image/svg+xml"
   },
   {
     "preset_key": "deepseek",
     "label": "DeepSeek",
-    "asset_path": "services/control-plane/presets/assets/model-logos/DeepSeek.svg",
+    "asset_path": "services/control-plane/assets/model-logos/DeepSeek.svg",
     "asset_type": "image/svg+xml"
   },
   {
     "preset_key": "stepfun",
     "label": "Stepfun",
-    "asset_path": "services/control-plane/presets/assets/model-logos/stepfun.png",
+    "asset_path": "services/control-plane/assets/model-logos/stepfun.png",
     "asset_type": "image/png"
   },
   {
     "preset_key": "tongyi",
     "label": "Tongyi",
-    "asset_path": "services/control-plane/presets/assets/model-logos/Tongyi.svg",
+    "asset_path": "services/control-plane/assets/model-logos/Tongyi.svg",
     "asset_type": "image/svg+xml"
   },
   {
     "preset_key": "baidu",
     "label": "Baidu",
-    "asset_path": "services/control-plane/presets/assets/model-logos/baidu.svg",
+    "asset_path": "services/control-plane/assets/model-logos/baidu.svg",
     "asset_type": "image/svg+xml"
   },
   {
     "preset_key": "hunyuan",
     "label": "Hunyuan",
-    "asset_path": "services/control-plane/presets/assets/model-logos/hunyuan.svg",
+    "asset_path": "services/control-plane/assets/model-logos/hunyuan.svg",
     "asset_type": "image/svg+xml"
   },
   {
     "preset_key": "minimax-color",
     "label": "MiniMax",
-    "asset_path": "services/control-plane/presets/assets/model-logos/minimax-color.svg",
+    "asset_path": "services/control-plane/assets/model-logos/minimax-color.svg",
     "asset_type": "image/svg+xml"
   },
   {
     "preset_key": "moonshotai-new",
     "label": "Moonshot AI",
-    "asset_path": "services/control-plane/presets/assets/model-logos/moonshotai_new.png",
+    "asset_path": "services/control-plane/assets/model-logos/moonshotai_new.png",
     "asset_type": "image/png"
   },
   {
     "preset_key": "netease-youdao",
     "label": "NetEase Youdao",
-    "asset_path": "services/control-plane/presets/assets/model-logos/netease-youdao.svg",
+    "asset_path": "services/control-plane/assets/model-logos/netease-youdao.svg",
     "asset_type": "image/svg+xml"
   },
   {
     "preset_key": "zhipu",
     "label": "Zhipu",
-    "asset_path": "services/control-plane/presets/assets/model-logos/zhipu.svg",
+    "asset_path": "services/control-plane/assets/model-logos/zhipu.svg",
     "asset_type": "image/svg+xml"
   },
   {
     "preset_key": "anthropic",
     "label": "Anthropic",
-    "asset_path": "services/control-plane/presets/assets/model-logos/anthropic.svg",
+    "asset_path": "services/control-plane/assets/model-logos/anthropic.svg",
     "asset_type": "image/svg+xml"
   },
   {
     "preset_key": "google-gemini",
     "label": "Google Gemini",
-    "asset_path": "services/control-plane/presets/assets/model-logos/google-gemini.svg",
+    "asset_path": "services/control-plane/assets/model-logos/google-gemini.svg",
     "asset_type": "image/svg+xml"
   },
   {
     "preset_key": "grok",
     "label": "Grok",
-    "asset_path": "services/control-plane/presets/assets/model-logos/grok.png",
+    "asset_path": "services/control-plane/assets/model-logos/grok.png",
     "asset_type": "image/png"
   },
   {
     "preset_key": "xiaomi",
     "label": "Xiaomi",
-    "asset_path": "services/control-plane/presets/assets/model-logos/xiaomi.png",
+    "asset_path": "services/control-plane/assets/model-logos/xiaomi.png",
     "asset_type": "image/png"
   },
   {
     "preset_key": "nvidia",
     "label": "NVIDIA",
-    "asset_path": "services/control-plane/presets/assets/model-logos/nvidia.png",
+    "asset_path": "services/control-plane/assets/model-logos/nvidia.png",
     "asset_type": "image/png"
   },
   {
     "preset_key": "openai",
     "label": "OpenAI",
-    "asset_path": "services/control-plane/presets/assets/model-logos/openai.svg",
+    "asset_path": "services/control-plane/assets/model-logos/openai.svg",
     "asset_type": "image/svg+xml"
   }
 ]
