@@ -8285,7 +8285,9 @@ export function OpenClawChatSurface({
                     ? '本次消息超过单次额度限制，当前已被拦截'
                     : '龙虾币余额不足，当前消息已被拦截'
                 }
-                description={creditBlockNotice?.message || '请先前往充值中心充值后再继续发送。'}
+                description={
+                  creditBlockNotice?.message || '新积分将在次日发放。请先前往充值中心充值后再继续发送。'
+                }
                 action={
                   onOpenRechargeCenter ? (
                     <Button

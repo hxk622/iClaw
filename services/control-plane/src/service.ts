@@ -3486,7 +3486,7 @@ export class ControlPlaneService {
       throw new HttpError(
         402,
         'INSUFFICIENT_CREDITS',
-        `当前龙虾币余额已为 ${currentBalance}，账号已暂停发送。请先前往充值中心充值后再继续。`,
+        `当前龙虾币余额已为 ${currentBalance}，账号已暂停发送。新积分将在次日发放。请先前往充值中心充值后再继续。`,
       );
     }
 
