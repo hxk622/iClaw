@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
 
 import type {PortalAppDetail} from './portal-domain.ts';
 import {buildPortalPublicConfig} from './portal-runtime.ts';
+import {DEFAULT_PLATFORM_RECHARGE_PACKAGE_SEEDS} from './recharge-packages.ts';
 
 test('buildPortalPublicConfig preserves skill catalog visibility mode', () => {
   const detail: PortalAppDetail = {
@@ -96,4 +98,36 @@ test('buildPortalPublicConfig publishes OEM recharge payment methods when config
   assert.equal((paymentMethods[0] as Record<string, unknown>).provider, 'alipay_qr');
   assert.equal((paymentMethods[0] as Record<string, unknown>).is_default, true);
   assert.equal(rechargeConfig.payment_methods_source_layer, 'oem_binding');
+});
+
+test('core OEM preset recharge packages stay aligned with the canonical default seeds', async () => {
+  const raw = JSON.parse(await readFile(new URL('../presets/core-oem.json', import.meta.url), 'utf8')) as {
+    rechargePackages?: Array<Record<string, unknown>>;
+  };
+  const actual = (raw.rechargePackages || []).map((item) => ({
+    packageId: item.packageId,
+    packageName: item.packageName,
+    credits: item.credits,
+    bonusCredits: item.bonusCredits,
+    amountCnyFen: item.amountCnyFen,
+    sortOrder: item.sortOrder,
+    recommended: item.recommended,
+    default: item.default,
+    active: item.active,
+    metadata: item.metadata,
+  }));
+  const expected = DEFAULT_PLATFORM_RECHARGE_PACKAGE_SEEDS.map((item) => ({
+    packageId: item.packageId,
+    packageName: item.packageName,
+    credits: item.credits,
+    bonusCredits: item.bonusCredits,
+    amountCnyFen: item.amountCnyFen,
+    sortOrder: item.sortOrder,
+    recommended: item.recommended,
+    default: item.default,
+    active: item.active,
+    metadata: item.metadata,
+  }));
+
+  assert.deepEqual(actual, expected);
 });

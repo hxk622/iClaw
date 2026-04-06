@@ -6460,9 +6460,9 @@ async function restoreRecommendedRechargePackages() {
     });
     await loadAppData();
     state.selectedRechargePackageId = 'topup_7000';
-    setNotice(`已恢复推荐三挡：保留 ${Number(result.restoredCount || 0)} 个推荐套餐，移除 ${Number(result.deletedCount || 0)} 个其它平台套餐。`);
+    setNotice(`已恢复超值推荐三挡：保留 ${Number(result.restoredCount || 0)} 个套餐，移除 ${Number(result.deletedCount || 0)} 个其它平台套餐。`);
   } catch (error) {
-    setError(error instanceof Error ? error.message : '恢复推荐三挡失败');
+    setError(error instanceof Error ? error.message : '恢复超值推荐三挡失败');
   } finally {
     state.busy = false;
     render();
@@ -8155,7 +8155,7 @@ function renderBrandRechargeAssembly(buffer) {
                           <span>${escapeHtml(`${formatFen(item.amountCnyFen)} · 实得 ${formatCredits(item.credits + item.bonusCredits)}`)}</span>
                           <div class="metric-chips">
                             <span>${escapeHtml(item.badgeLabel || (item.active !== false ? '平台套餐' : '已下架'))}</span>
-                            ${item.recommended ? '<span>平台推荐</span>' : ''}
+                            ${item.recommended ? '<span>平台超值推荐</span>' : ''}
                             ${item.default ? '<span>平台默认</span>' : ''}
                           </div>
                         </div>
@@ -8168,7 +8168,7 @@ function renderBrandRechargeAssembly(buffer) {
                           </label>
                           <label class="toggle fig-toggle">
                             <input type="checkbox" name="recharge_recommended__${escapeHtml(item.packageId)}"${recommendedPackages.includes(item.packageId) ? ' checked' : ''}${!editable || !enabled ? ' disabled' : ''} />
-                            <span>设为推荐套餐</span>
+                            <span>设为超值推荐</span>
                           </label>
                           <label class="toggle fig-toggle">
                             <input type="radio" name="recharge_default_package" value="${escapeHtml(item.packageId)}"${defaultPackage === item.packageId ? ' checked' : ''}${!editable || !enabled ? ' disabled' : ''} />
@@ -12807,7 +12807,7 @@ function renderRechargePackageCatalogPage() {
               </label>
               <label class="field">
                 <span>Badge</span>
-                <input class="field-input" name="badge_label" value="${fieldValue(editingItem.badgeLabel)}" placeholder="超值推荐 / 最划算" />
+                <input class="field-input" name="badge_label" value="${fieldValue(editingItem.badgeLabel)}" placeholder="超值推荐" />
               </label>
               <label class="field">
                 <span>Highlight</span>
@@ -14648,7 +14648,7 @@ app.addEventListener('click', async (event) => {
   }
 
   if (action === 'restore-recommended-recharge-packages') {
-    if (window.confirm('确认恢复平台推荐三挡套餐？这会把平台套餐目录重置为 29.9 / 59.9 / 99.9 三挡，并删除其它平台套餐。')) {
+    if (window.confirm('确认恢复平台超值推荐三挡套餐？这会把平台套餐目录重置为 29.9 / 59.9 / 99.9 三挡，并删除其它平台套餐。')) {
       await restoreRecommendedRechargePackages();
     }
     return;

@@ -80,7 +80,7 @@ export const DEFAULT_PLATFORM_RECHARGE_PACKAGE_SEEDS: DefaultRechargePackageSeed
     active: true,
     metadata: {
       description: '重度使用优选，适合长期储备。',
-      badge_label: '最划算',
+      badge_label: '',
       highlight: '到账 13,000 龙虾币',
       feature_list: ['基础到账 13,000 龙虾币', '单价更优，适合重度用户囤币', '一次性充值，不会自动续费'],
     },

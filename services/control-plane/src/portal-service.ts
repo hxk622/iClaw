@@ -696,7 +696,7 @@ export class PortalService {
   async restoreRecommendedRechargePackages(accessToken: string) {
     await this.requireAdmin(accessToken);
     const existing = await this.store.listRechargePackages();
-    let sourcePackages: UpsertPortalRechargePackageInput[] = DEFAULT_PLATFORM_RECHARGE_PACKAGE_SEEDS.map((item) => ({
+    const sourcePackages: UpsertPortalRechargePackageInput[] = DEFAULT_PLATFORM_RECHARGE_PACKAGE_SEEDS.map((item) => ({
       packageId: item.packageId,
       packageName: item.packageName,
       credits: item.credits,
@@ -708,27 +708,6 @@ export class PortalService {
       metadata: cloneJson(item.metadata),
       active: item.active,
     }));
-    try {
-      const raw = JSON.parse(await readFile(defaultPortalPresetManifestPath, 'utf8')) as PortalPresetManifest;
-      if (Array.isArray(raw.rechargePackages) && raw.rechargePackages.length > 0) {
-        sourcePackages = raw.rechargePackages.map((item) => ({
-          packageId: item.packageId,
-          packageName: item.packageName,
-          credits: item.credits,
-          bonusCredits: item.bonusCredits ?? 0,
-          amountCnyFen: item.amountCnyFen,
-          sortOrder: item.sortOrder,
-          recommended: item.recommended,
-          default: item.default,
-          metadata: cloneJson(item.metadata),
-          active: item.active,
-        }));
-      }
-    } catch (error) {
-      logWarn('restoreRecommendedRechargePackages fallback to default seeds', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
     const keepIds = new Set(sourcePackages.map((item) => item.packageId));
     for (const seed of sourcePackages) {
       await this.store.upsertRechargePackage({

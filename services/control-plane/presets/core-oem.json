@@ -296,12 +296,12 @@
       "bonusCredits": 0,
       "amountCnyFen": 5990,
       "sortOrder": 20,
-      "recommended": true,
+      "recommended": false,
       "default": true,
       "active": true,
       "metadata": {
         "description": "主力充值包，适合高频使用。",
-        "badge_label": "推荐",
+        "badge_label": "超值推荐",
         "highlight": "到账 7,000 龙虾币",
         "feature_list": [
           "基础到账 7,000 龙虾币",
@@ -322,7 +322,7 @@
       "active": true,
       "metadata": {
         "description": "重度使用优选，适合长期储备。",
-        "badge_label": "最划算",
+        "badge_label": "",
         "highlight": "到账 13,000 龙虾币",
         "feature_list": [
           "基础到账 13,000 龙虾币",

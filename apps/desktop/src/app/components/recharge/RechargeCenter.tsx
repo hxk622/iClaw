@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   Clock3,
   Coins,
-  Crown,
   FolderCog,
   LoaderCircle,
   RefreshCw,
@@ -181,7 +180,7 @@ function getDefaultPaymentMethod(paymentMethods: RechargePaymentMethod[]): Payme
   return paymentMethods.find((item) => item.default)?.provider || paymentMethods[0]?.provider || 'wechat_qr';
 }
 
-function getPackageCardMeta(item: RechargePackage, index: number, total: number) {
+function getPackageCardMeta(item: RechargePackage) {
   if (item.recommended) {
     return {
       icon: <Zap className="h-5 w-5" />,
@@ -218,25 +217,6 @@ function getPackageCardMeta(item: RechargePackage, index: number, total: number)
       priceGlowClassName: 'text-[#111827] dark:text-white',
       ctaClassName:
         'border border-[rgba(148,163,184,0.38)] bg-[rgba(255,255,255,0.92)] text-slate-800 shadow-[0_6px_18px_rgba(15,23,42,0.07)] hover:border-[rgba(100,116,139,0.42)] hover:bg-[rgba(248,250,252,0.98)] hover:text-slate-900 dark:border-[rgba(148,163,184,0.34)] dark:bg-[rgba(30,41,59,0.72)] dark:text-slate-100 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)] dark:hover:bg-[rgba(51,65,85,0.84)]',
-    };
-  }
-  if (index === total - 1) {
-    return {
-      icon: <Crown className="h-5 w-5" />,
-      badgeText: '最划算',
-      badgeClassName:
-        'border border-[rgba(147,51,234,0.24)] bg-[linear-gradient(135deg,#7C3AED_0%,#A855F7_100%)] text-white shadow-[0_10px_24px_rgba(147,51,234,0.20)] dark:border-[rgba(192,132,252,0.28)] dark:bg-[linear-gradient(135deg,#8B5CF6_0%,#C084FC_100%)] dark:text-white dark:shadow-[0_10px_24px_rgba(168,85,247,0.24)]',
-      accentClassName:
-        'border-[rgba(168,85,247,0.34)] bg-[linear-gradient(180deg,rgba(250,245,255,0.94)_0%,rgba(248,250,252,0.96)_100%)] shadow-[0_16px_44px_rgba(168,85,247,0.12)] dark:border-[rgba(168,85,247,0.32)] dark:bg-[linear-gradient(180deg,rgba(48,24,66,0.96)_0%,rgba(20,20,20,0.98)_100%)] dark:shadow-[0_20px_46px_rgba(168,85,247,0.16)]',
-      iconWrapClassName:
-        'bg-[linear-gradient(180deg,rgba(168,85,247,0.16)_0%,rgba(217,70,239,0.18)_100%)] text-[#7E22CE] dark:bg-[linear-gradient(180deg,rgba(168,85,247,0.24)_0%,rgba(217,70,239,0.24)_100%)] dark:text-[#D8B4FE]',
-      eyebrowText: '长期储备',
-      eyebrowClassName:
-        'border border-[rgba(168,85,247,0.24)] bg-[rgba(168,85,247,0.08)] text-[#7E22CE] dark:border-[rgba(168,85,247,0.30)] dark:bg-[rgba(168,85,247,0.14)] dark:text-[#D8B4FE]',
-      promoText: '单价更优，适合重度用户囤币和长期使用',
-      priceGlowClassName: 'text-[#111827] dark:text-white',
-      ctaClassName:
-        'border border-[rgba(147,51,234,0.22)] bg-[rgba(245,243,255,0.92)] text-[#6D28D9] shadow-[0_8px_22px_rgba(147,51,234,0.10)] hover:border-[rgba(147,51,234,0.34)] hover:bg-[rgba(237,233,254,0.96)] hover:text-[#5B21B6] dark:border-[rgba(192,132,252,0.30)] dark:bg-[rgba(76,29,149,0.24)] dark:text-[#E9D5FF] dark:shadow-[0_10px_24px_rgba(91,33,182,0.18)] dark:hover:bg-[rgba(91,33,182,0.30)]',
     };
   }
   return {
@@ -776,10 +756,10 @@ function PackageSelectionView({
           className={cn('mx-auto grid', wideLayout ? 'gap-3.5' : 'max-w-[1120px] gap-5')}
           style={packageGridStyle}
         >
-        {packages.map((item, index) => {
+        {packages.map((item) => {
           const selected = item.packageId === selectedPackageId;
           const priceLabel = formatPriceAmount(item.amountCnyFen);
-          const meta = getPackageCardMeta(item, index, packages.length);
+          const meta = getPackageCardMeta(item);
           return (
             <div key={item.packageId} className="relative">
               <div
