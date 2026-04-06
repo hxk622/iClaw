@@ -127,6 +127,9 @@ ICLAW_TEST_SCREENSHOT_PATH=/tmp/iclaw-payment-admin-gateway-read.png
   - `docs/version_record/test_report/<version>.md`
 - 对应发版文档必须填写：
   - `test_report: docs/version_record/test_report/<version>.md`
+- 发版阻断规则：
+  - `tests/cases/P0/` 对应的正式用户级用例必须全部跑通
+  - 如需豁免，必须在测试报告和发版文档同时说明
 - 测试报告应优先引用：
   - 本次实际执行的正式脚本
   - 截图路径
