@@ -6,7 +6,7 @@ import {fileURLToPath} from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, '..');
-const DEFAULT_MANIFEST_PATH = path.join(ROOT_DIR, 'services', 'control-plane', 'presets', 'core-oem.json');
+const DEFAULT_SNAPSHOT_PATH = path.join(ROOT_DIR, 'services', 'control-plane', 'baselines', 'platform-db.snapshot.json');
 
 function trimString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -45,11 +45,12 @@ function readPath(root, pathExpression) {
 }
 
 async function main() {
-  const manifestPath = path.resolve(readArg('--manifest') || DEFAULT_MANIFEST_PATH);
-  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  const snapshotPath = path.resolve(readArg('--snapshot') || readArg('--manifest') || DEFAULT_SNAPSHOT_PATH);
+  const snapshot = JSON.parse(await readFile(snapshotPath, 'utf8'));
   const buckets = new Set();
 
-  for (const app of Array.isArray(manifest.apps) ? manifest.apps : []) {
+  for (const rawApp of Array.isArray(snapshot.apps) ? snapshot.apps : []) {
+    const app = rawApp && typeof rawApp === 'object' ? rawApp.app || {} : {};
     const config = app && typeof app === 'object' ? app.config || {} : {};
     addBucket(buckets, readPath(config, 'controlPlane.s3Bucket'));
     addBucket(buckets, readPath(config, 'controlPlane.s3_bucket'));

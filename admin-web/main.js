@@ -6426,28 +6426,6 @@ function openModelLogoPicker(form, inputName) {
   dialog.showModal();
 }
 
-async function syncPortalPresetManifest() {
-  state.busy = true;
-  resetBanner();
-  render();
-
-  try {
-    const result = await apiFetch('/admin/portal/preset-sync', {
-      method: 'POST',
-      body: JSON.stringify({}),
-    });
-    await loadAppData();
-    setNotice(
-      `core-oem.json 已同步到数据库：${Number(result.appCount || 0)} 个 app，${Number(result.skillCount || 0)} 个 skill，${Number(result.mcpCount || 0)} 个 mcp，${Number(result.rechargePackageCount || 0)} 个 recharge package，${Number(result.assetCount || 0)} 个 asset。`,
-    );
-  } catch (error) {
-    setError(error instanceof Error ? error.message : 'core-oem.json 同步失败');
-  } finally {
-    state.busy = false;
-    render();
-  }
-}
-
 async function restoreRecommendedRechargePackages() {
   state.busy = true;
   resetBanner();
@@ -10135,14 +10113,13 @@ function renderModelProviderCenterPage() {
         <section class="fig-card fig-card--subtle">
           <div class="fig-card__head">
             <div>
-              <h3>Legacy Preset 同步</h3>
-              <span>仅用于首灌、空库恢复、历史修复；日常 baseline 请直接维护数据库并导出快照</span>
+              <h3>Baseline 维护规范</h3>
+              <span>数据库是唯一主数据来源；需要留痕或跨环境恢复时，使用 baseline snapshot 的导出 / 校验 / 回灌脚本</span>
             </div>
-            <button class="ghost-button" type="button" data-action="sync-portal-preset"${state.busy ? ' disabled' : ''}>Legacy：从 core-oem.json 导入</button>
           </div>
           <div class="empty-state" style="min-height:auto; align-items:flex-start; text-align:left;">
-            <strong>默认不会随 control-plane 启动自动执行。</strong>
-            <span>这里只保留历史兜底入口，避免把数据库里的日常运营配置被旧 preset 回刷覆盖。</span>
+            <strong>已移除 core-oem.json legacy preset 链路。</strong>
+            <span>日常维护直接改数据库；需要基线快照时导出 platform-db.snapshot.json，恢复时走 baseline apply。</span>
           </div>
         </section>
         <section class="fig-card fig-card--subtle">
@@ -11197,10 +11174,6 @@ function renderCloudMcpsPage() {
             <p class="fig-page__description">这里是 MCP 商店总库，也是 MCP 的唯一主数据来源。</p>
           </div>
           <div class="action-row">
-            <button class="ghost-button fig-button" type="button" data-action="sync-portal-preset"${state.busy ? ' disabled' : ''}>
-              ${icon('rotateCcw', 'button-icon')}
-              Legacy：从 core-oem.json 导入
-            </button>
             <button class="solid-button fig-button" type="button" data-action="new-cloud-mcp">
               ${icon('plus', 'button-icon')}
               新增云MCP
@@ -14599,13 +14572,6 @@ app.addEventListener('click', async (event) => {
     }
     state.busy = false;
     render();
-    return;
-  }
-
-  if (action === 'sync-portal-preset') {
-    if (window.confirm('确认执行 legacy 导入：把 core-oem.json 手工同步到数据库？这只适用于首灌、空库恢复或历史修复，不应用作日常 baseline 维护入口。')) {
-      await syncPortalPresetManifest();
-    }
     return;
   }
 

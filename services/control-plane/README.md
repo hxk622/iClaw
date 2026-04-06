@@ -50,10 +50,10 @@ pnpm baseline:export
 pnpm baseline:doctor
 ```
 
-如需初始化或修复 legacy OEM preset，再手工执行：
+如需把仓库里的 baseline snapshot 应用回数据库：
 
 ```bash
-pnpm preset:sync:oem
+pnpm baseline:apply
 ```
 
 初始化新 PostgreSQL：
@@ -132,7 +132,7 @@ OEM portal 现在也是 control-plane 的职责范围之一：
 - `oem_bundled_skills` / `oem_bundled_mcps` / `oem_app_model_bindings` / `oem_app_menu_bindings` 保存 OEM app 级 binding
 - `oem_app_assets` 保存 MinIO 资产索引
 - `pnpm baseline:export` / `pnpm baseline:doctor` 用于把数据库当前 baseline 导出到 git，并检查仓库快照是否与数据库漂移
-- `pnpm preset:sync:oem` 仍可把 `services/control-plane/presets/core-oem.json` 里的 legacy 预置 app、skill、MCP、model、menu、asset 同步进数据库和对象存储，但它不再是推荐的日常维护入口
+- `pnpm baseline:apply` 用于把仓库里的数据库快照重新应用回数据库，替代历史 preset 导入链
 
 这里的职责边界需要特别明确：
 
@@ -148,15 +148,7 @@ OEM portal 现在也是 control-plane 的职责范围之一：
 - 对外返回某个 app 的 MCP 列表时，control-plane 应负责把“平台 catalog + OEM binding”合成为当前 app 视图；前端只负责展示，不负责推断业务真相
 - Git 中的 baseline 文件只做数据库导出快照，不再作为 prod baseline 真值
 - 仓库根目录的 `mcp/mcp.json` overlay 已删除；本地 `services/openclaw/resources/mcp/mcp.json` 只是运行时生成产物
-- `services/control-plane/presets/core-oem.json` 现在只作为 legacy 手工 seed / repair manifest 使用，不再参与 control-plane 日常启动 bootstrap；后续目标是彻底移除
-- `pnpm preset:sync:oem` 是显式运维动作：
-  - 适用于新环境首灌
-  - 适用于空库恢复
-  - 适用于需要把 baseline 再同步一次的修复场景
-- `pnpm preset:doctor:oem` 是同步前预检：
-  - 检查 preset 中引用的 skill / MCP 是否都存在且为 active
-  - 检查 binding 里的 appName 是否都能在 manifest apps 中找到
-  - 预期先 `doctor`，通过后再 `sync`
+- `services/control-plane/presets/core-oem.json` 已从推荐链路中移除；当前 baseline 恢复链路应使用数据库快照而不是 preset 文件
 - `pnpm migrate:skill-catalog-table` 是一次性结构迁移：
   - 把历史物理表 `skill_catalog_entries` 重命名为 `cloud_skill_catalog`
   - 同步处理旧 view / 索引命名残留

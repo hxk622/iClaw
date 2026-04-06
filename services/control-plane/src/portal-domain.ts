@@ -535,31 +535,3 @@ export type ReplacePortalAppRechargePackageBindingsInput = Array<{
   default?: boolean;
   config?: PortalJsonObject;
 }>;
-
-export type PortalPresetManifest = {
-  schemaVersion: number;
-  apps: UpsertPortalAppInput[];
-  skills: UpsertPortalSkillInput[];
-  mcps: UpsertPortalMcpInput[];
-  models?: UpsertPortalModelInput[];
-  menus?: UpsertPortalMenuInput[];
-  rechargePackages?: UpsertPortalRechargePackageInput[];
-  composerControls?: UpsertPortalComposerControlInput[];
-  composerShortcuts?: UpsertPortalComposerShortcutInput[];
-  assets?: Array<{
-    appName: string;
-    assetKey: string;
-    filePath: string;
-    contentType: string;
-    metadata?: PortalJsonObject;
-  }>;
-  bindings: {
-    skills: Array<{appName: string; items: ReplacePortalAppSkillBindingsInput}>;
-    mcps: Array<{appName: string; items: ReplacePortalAppMcpBindingsInput}>;
-    models?: Array<{appName: string; items: ReplacePortalAppModelBindingsInput}>;
-    menus: Array<{appName: string; items: ReplacePortalAppMenuBindingsInput}>;
-    rechargePackages?: Array<{appName: string; items: ReplacePortalAppRechargePackageBindingsInput}>;
-    composerControls?: Array<{appName: string; items: ReplacePortalAppComposerControlBindingsInput}>;
-    composerShortcuts?: Array<{appName: string; items: ReplacePortalAppComposerShortcutBindingsInput}>;
-  };
-};

@@ -4148,11 +4148,11 @@ export class PgPortalStore {
           [skill.slug],
         );
         if (!catalog.rows[0]) {
-          throw new Error(`[portal-preset] preset skill not found in cloud catalog: ${skill.slug}`);
+          throw new Error(`[portal-baseline] bundled skill not found in cloud catalog: ${skill.slug}`);
         }
         const cloud = catalog.rows[0];
         if (cloud.active === false) {
-          throw new Error(`[portal-preset] preset skill inactive in cloud catalog: ${skill.slug}`);
+          throw new Error(`[portal-baseline] bundled skill inactive in cloud catalog: ${skill.slug}`);
         }
         await client.query(
           `

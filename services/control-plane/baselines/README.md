@@ -29,9 +29,15 @@ pnpm baseline:export
 pnpm baseline:doctor
 ```
 
+把仓库快照应用回数据库：
+
+```bash
+pnpm baseline:apply
+```
+
 ## 当前策略
 
-- `services/control-plane/presets/core-oem.json` 已降级为 legacy seed / repair 素材
+- `services/control-plane/presets/core-oem.json` 已退休，不再作为 baseline 入口
 - 新的日常维护策略应是：
   1. 先改数据库
   2. 再导出 baseline 到 git

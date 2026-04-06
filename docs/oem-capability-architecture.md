@@ -171,7 +171,7 @@ OEM 装配层不负责：
 
 - **数据库是 baseline 唯一真值**
 - Git 中的 baseline 文件只能由数据库导出生成，用于 review / diff / 追溯，不能反过来作为 prod 日常真值
-- `core-oem.json` 这类 preset 文件只能保留为 legacy seed / repair 素材，不能继续承担日常 baseline 维护职责
+- `core-oem.json` 这类 preset 文件应从链路中移除；恢复/回灌应改用数据库快照导入
 
 ### 4.2 OEM 绑定表
 

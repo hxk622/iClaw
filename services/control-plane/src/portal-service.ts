@@ -31,7 +31,6 @@ import type {
   PortalAppStatus,
   PortalJsonObject,
   PortalMemoryEmbeddingProfileRecord,
-  PortalPresetManifest,
   PortalModelProviderScopeType,
   ReplacePortalAppComposerControlBindingsInput,
   ReplacePortalAppComposerShortcutBindingsInput,
@@ -65,14 +64,11 @@ import type {
   UpsertPortalRuntimeReleaseBindingInput,
   UpsertPortalRuntimeReleaseInput,
 } from './runtime-release-domain.ts';
-import {syncPortalPresetManifest} from './portal-preset.ts';
 import {buildPortalPublicConfig} from './portal-runtime.ts';
 import type {PgPortalStore} from './portal-store.ts';
-import {ensurePortalPreset} from './bootstrap.ts';
 import {DEFAULT_PLATFORM_RECHARGE_PACKAGE_SEEDS} from './recharge-packages.ts';
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
-const defaultPortalPresetManifestPath = resolve(moduleDir, '../presets/core-oem.json');
 const defaultLegacyRuntimeBootstrapConfigPath = resolve(
   moduleDir,
   '../../../apps/desktop/src-tauri/resources/config/openclaw-runtime.json',
@@ -638,59 +634,6 @@ export class PortalService {
   async listApps(accessToken: string) {
     await this.requireAdmin(accessToken);
     return {items: await this.store.listApps()};
-  }
-
-  async syncPresetManifest(
-    accessToken: string,
-    input: {
-      manifestPath?: string | null;
-      forceAppState?: boolean;
-      manifest_path?: string | null;
-      force_app_state?: boolean;
-    } = {},
-  ) {
-    await this.requireAdmin(accessToken);
-    const manifestPath =
-      normalizeOptionalString(input.manifestPath ?? input.manifest_path, 'manifest_path') || defaultPortalPresetManifestPath;
-    const forceAppState = input.forceAppState === true || input.force_app_state === true;
-    let raw: PortalPresetManifest;
-    try {
-      raw = JSON.parse(await readFile(manifestPath, 'utf8')) as PortalPresetManifest;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'unknown read error';
-      throw new HttpError(500, 'PRESET_SYNC_READ_FAILED', `failed to read preset manifest: ${message}`);
-    }
-    if (raw.schemaVersion !== 1) {
-      throw new HttpError(400, 'PRESET_SYNC_UNSUPPORTED_SCHEMA', `unsupported preset schema version: ${String(raw.schemaVersion ?? '')}`);
-    }
-
-    const normalizedDefaultManifestPath = resolve(defaultPortalPresetManifestPath);
-    const normalizedRequestedManifestPath = resolve(manifestPath);
-    if (normalizedRequestedManifestPath === normalizedDefaultManifestPath && !forceAppState) {
-      await ensurePortalPreset(this.store);
-    } else {
-      await syncPortalPresetManifest(this.store, raw, {
-        manifestDir: dirname(manifestPath),
-        preserveExistingAppState: !forceAppState,
-      });
-    }
-    await this.invalidateAllRuntimeModelCaches();
-    await this.invalidateAllMemoryEmbeddingCaches();
-
-    return {
-      ok: true,
-      manifestPath,
-      preserveExistingAppState: !forceAppState,
-      appCount: Array.isArray(raw.apps) ? raw.apps.length : 0,
-      skillCount: Array.isArray(raw.skills) ? raw.skills.length : 0,
-      mcpCount: Array.isArray(raw.mcps) ? raw.mcps.length : 0,
-      modelCount: Array.isArray(raw.models) ? raw.models.length : 0,
-      menuCount: Array.isArray(raw.menus) ? raw.menus.length : 0,
-      rechargePackageCount: Array.isArray(raw.rechargePackages) ? raw.rechargePackages.length : 0,
-      composerControlCount: Array.isArray(raw.composerControls) ? raw.composerControls.length : 0,
-      composerShortcutCount: Array.isArray(raw.composerShortcuts) ? raw.composerShortcuts.length : 0,
-      assetCount: Array.isArray(raw.assets) ? raw.assets.length : 0,
-    };
   }
 
   async restoreRecommendedRechargePackages(accessToken: string) {

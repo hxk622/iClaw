@@ -13,7 +13,7 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 : "${ICLAW_PROD_MINIO_URL:=http://115.191.6.179:9000}"
 : "${ICLAW_PROD_MINIO_ACCESS_KEY:=openalpha}"
 : "${ICLAW_PROD_MINIO_SECRET_KEY:=}"
-: "${ICLAW_MINIO_BUCKET_MANIFEST:=${ROOT_DIR}/services/control-plane/presets/core-oem.json}"
+: "${ICLAW_MINIO_BUCKET_BASELINE:=${ROOT_DIR}/services/control-plane/baselines/platform-db.snapshot.json}"
 
 if [[ -z "${ICLAW_SOURCE_MINIO_SECRET_KEY}" ]]; then
   echo "ICLAW_SOURCE_MINIO_SECRET_KEY is required" >&2
@@ -42,7 +42,7 @@ else
     USER_ASSETS_BUCKET="${USER_ASSETS_BUCKET:-}" \
     ICLAW_USER_ASSETS_BUCKET="${ICLAW_USER_ASSETS_BUCKET:-}" \
     ICLAW_EXTRA_SYNC_BUCKETS="${ICLAW_EXTRA_SYNC_BUCKETS:-}" \
-    node "${ROOT_DIR}/scripts/list-minio-sync-buckets.mjs" --manifest "${ICLAW_MINIO_BUCKET_MANIFEST}" >"${bucket_list_file}"
+    node "${ROOT_DIR}/scripts/list-minio-sync-buckets.mjs" --snapshot "${ICLAW_MINIO_BUCKET_BASELINE}" >"${bucket_list_file}"
 fi
 
 while IFS= read -r bucket || [[ -n "${bucket}" ]]; do
