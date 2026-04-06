@@ -186,7 +186,8 @@ function getPackageCardMeta(item: RechargePackage, index: number, total: number)
     return {
       icon: <Zap className="h-5 w-5" />,
       badgeText: item.badgeLabel || '超值推荐',
-      badgeClassName: 'bg-blue-600 text-white dark:bg-blue-500',
+      badgeClassName:
+        'border border-[rgba(37,99,235,0.24)] bg-[linear-gradient(135deg,#2563EB_0%,#4F46E5_100%)] text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)] dark:border-[rgba(96,165,250,0.28)] dark:bg-[linear-gradient(135deg,#3B82F6_0%,#6366F1_100%)] dark:text-white dark:shadow-[0_10px_24px_rgba(59,130,246,0.24)]',
       accentClassName:
         'border-[rgba(59,130,246,0.42)] bg-[linear-gradient(180deg,rgba(239,246,255,0.94)_0%,rgba(248,250,252,0.96)_100%)] shadow-[0_20px_50px_rgba(59,130,246,0.16)] dark:border-[rgba(96,165,250,0.4)] dark:bg-[linear-gradient(180deg,rgba(26,38,64,0.96)_0%,rgba(20,20,20,0.98)_100%)] dark:shadow-[0_20px_50px_rgba(37,99,235,0.18)]',
       iconWrapClassName:
@@ -204,7 +205,8 @@ function getPackageCardMeta(item: RechargePackage, index: number, total: number)
     return {
       icon: <Zap className="h-5 w-5" />,
       badgeText: '默认套餐',
-      badgeClassName: 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900',
+      badgeClassName:
+        'border border-[rgba(148,163,184,0.32)] bg-[rgba(248,250,252,0.94)] text-slate-700 shadow-[0_6px_18px_rgba(15,23,42,0.08)] dark:border-[rgba(148,163,184,0.30)] dark:bg-[rgba(30,41,59,0.88)] dark:text-slate-100 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]',
       accentClassName:
         'border-[rgba(71,85,105,0.30)] bg-[linear-gradient(180deg,rgba(248,250,252,0.98)_0%,rgba(241,245,249,0.98)_100%)] shadow-[0_16px_44px_rgba(71,85,105,0.12)] dark:border-[rgba(148,163,184,0.30)] dark:bg-[linear-gradient(180deg,rgba(28,33,43,0.98)_0%,rgba(20,20,20,0.98)_100%)] dark:shadow-[0_20px_46px_rgba(15,23,42,0.26)]',
       iconWrapClassName:
@@ -221,7 +223,8 @@ function getPackageCardMeta(item: RechargePackage, index: number, total: number)
     return {
       icon: <Crown className="h-5 w-5" />,
       badgeText: item.badgeLabel || '最划算',
-      badgeClassName: 'bg-purple-600 text-white dark:bg-purple-500',
+      badgeClassName:
+        'border border-[rgba(147,51,234,0.24)] bg-[linear-gradient(135deg,#7C3AED_0%,#A855F7_100%)] text-white shadow-[0_10px_24px_rgba(147,51,234,0.20)] dark:border-[rgba(192,132,252,0.28)] dark:bg-[linear-gradient(135deg,#8B5CF6_0%,#C084FC_100%)] dark:text-white dark:shadow-[0_10px_24px_rgba(168,85,247,0.24)]',
       accentClassName:
         'border-[rgba(168,85,247,0.34)] bg-[linear-gradient(180deg,rgba(250,245,255,0.94)_0%,rgba(248,250,252,0.96)_100%)] shadow-[0_16px_44px_rgba(168,85,247,0.12)] dark:border-[rgba(168,85,247,0.32)] dark:bg-[linear-gradient(180deg,rgba(48,24,66,0.96)_0%,rgba(20,20,20,0.98)_100%)] dark:shadow-[0_20px_46px_rgba(168,85,247,0.16)]',
       iconWrapClassName:
@@ -829,7 +832,7 @@ function PackageSelectionView({
                     {meta.badgeText ? (
                       <div
                         className={cn(
-                          'rounded-full px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide shadow-[0_6px_18px_rgba(15,23,42,0.10)]',
+                          'inline-flex min-h-6 items-center rounded-full px-2.5 py-1 text-[10.5px] font-semibold leading-none',
                           meta.badgeClassName,
                         )}
                       >
