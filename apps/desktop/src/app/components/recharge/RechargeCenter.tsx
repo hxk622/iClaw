@@ -247,7 +247,7 @@ function BrandedPaymentQr({
       data-testid={expired ? 'recharge-qr-card-expired' : 'recharge-qr-card'}
     >
       <div
-        className={cn('relative h-[280px] w-[280px] overflow-hidden rounded-md', methodTheme.qrStageClassName)}
+        className={cn('relative h-[min(280px,32vh)] w-[min(280px,32vh)] overflow-hidden rounded-md', methodTheme.qrStageClassName)}
         data-testid="recharge-qr-container"
       >
         <img
@@ -570,7 +570,7 @@ export function RechargeCenter({
               closePaymentModal();
             }}
           >
-            <div className="flex min-h-full w-full items-center justify-center">
+            <div className="flex min-h-full w-full items-start justify-center py-4 md:items-center md:py-8">
               <PaymentView
                 currentPackage={currentPackage}
                 totalPrice={totalPrice}
@@ -941,7 +941,7 @@ function PaymentView({
 
   return (
     <div
-      className="relative h-auto max-h-[calc(100vh-48px)] w-[1040px] max-w-[calc(100vw-32px)] overflow-y-auto rounded-[28px] border border-gray-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.98)_100%)] shadow-[0_24px_80px_rgba(15,23,42,0.24)] dark:border-[#253042] dark:bg-[linear-gradient(180deg,rgba(18,20,24,0.98)_0%,rgba(15,15,15,0.98)_100%)] dark:shadow-[0_24px_90px_rgba(0,0,0,0.48)]"
+      className="relative h-[calc(100vh-32px)] max-h-[720px] w-[1040px] max-w-[calc(100vw-32px)] overflow-hidden rounded-[28px] border border-gray-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.98)_100%)] shadow-[0_24px_80px_rgba(15,23,42,0.24)] dark:border-[#253042] dark:bg-[linear-gradient(180deg,rgba(18,20,24,0.98)_0%,rgba(15,15,15,0.98)_100%)] dark:shadow-[0_24px_90px_rgba(0,0,0,0.48)]"
       data-testid="recharge-payment-view"
       onClick={onPanelClick}
     >
@@ -955,10 +955,10 @@ function PaymentView({
         <X className="h-4 w-4" />
       </button>
 
-      <div className="flex h-full min-h-[680px]">
-        <div className="relative flex w-[60%] flex-col border-r border-gray-200/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.98)_0%,rgba(241,245,249,0.94)_100%)] p-10 dark:border-[#263241] dark:bg-[linear-gradient(180deg,rgba(10,10,10,0.98)_0%,rgba(14,18,24,0.98)_100%)]">
-          <div className="mb-8">
-            <div className="mb-4 flex flex-wrap items-center gap-2">
+      <div className="flex h-full min-h-0">
+        <div className="relative flex w-[60%] min-h-0 flex-col border-r border-gray-200/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.98)_0%,rgba(241,245,249,0.94)_100%)] p-7 dark:border-[#263241] dark:bg-[linear-gradient(180deg,rgba(10,10,10,0.98)_0%,rgba(14,18,24,0.98)_100%)]">
+          <div className="mb-5">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center rounded-full border border-[rgba(59,130,246,0.18)] bg-[rgba(59,130,246,0.08)] px-3 py-1 text-[12px] font-medium text-[#2563EB] dark:border-[rgba(96,165,250,0.22)] dark:bg-[rgba(59,130,246,0.12)] dark:text-[#93C5FD]">
                 扫码即可完成支付
               </span>
@@ -966,14 +966,14 @@ function PaymentView({
                 支付成功后即时到账
               </span>
             </div>
-            <h2 className="mb-3 text-[24px] font-semibold tracking-[-0.02em] text-gray-900 dark:text-gray-50">扫码支付</h2>
+            <h2 className="mb-2 text-[22px] font-semibold tracking-[-0.02em] text-gray-900 dark:text-gray-50">扫码支付</h2>
             <div className="flex items-baseline gap-2">
               <span className="text-[14px] text-gray-500 dark:text-gray-400">应付金额</span>
-              <span className="text-[36px] font-semibold leading-none tracking-tight text-gray-900 dark:text-gray-50">¥{totalPrice}</span>
+              <span className="text-[34px] font-semibold leading-none tracking-tight text-gray-900 dark:text-gray-50">¥{totalPrice}</span>
             </div>
             <div
               className={cn(
-                'mt-4 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-medium shadow-sm',
+                'mt-3 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-medium shadow-sm',
                 methodTheme.accentBorderClassName,
                 methodTheme.accentBgClassName,
                 methodTheme.accentTextClassName,
@@ -986,7 +986,7 @@ function PaymentView({
               />
               {getPaymentMethodLabel(paymentMethod, currentPaymentMethodConfig?.label)}
             </div>
-            <p className="mt-4 max-w-[440px] text-[13px] leading-6 text-gray-500 dark:text-gray-400">
+            <p className="mt-3 max-w-[440px] text-[13px] leading-6 text-gray-500 dark:text-gray-400">
               请使用 {getPaymentMethodLabel(paymentMethod, currentPaymentMethodConfig?.label)} 扫描下方二维码完成充值。付款完成后，龙虾币会自动同步到账。
             </p>
           </div>
@@ -994,8 +994,8 @@ function PaymentView({
           <div className="flex flex-1 items-center justify-center" data-testid="recharge-payment-qr-stage">
             <div className="relative">
               {creatingOrder ? (
-                <div className="rounded-lg border border-gray-200/80 bg-white p-8 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:border-gray-800 dark:bg-[#1A1A1A] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)]">
-                  <div className="flex h-[280px] w-[280px] items-center justify-center rounded-md bg-gray-50 dark:bg-[#101010]">
+                <div className="rounded-lg border border-gray-200/80 bg-white p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:border-gray-800 dark:bg-[#1A1A1A] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)]">
+                  <div className="flex h-[min(280px,32vh)] w-[min(280px,32vh)] items-center justify-center rounded-md bg-gray-50 dark:bg-[#101010]">
                     <LoaderCircle className="h-7 w-7 animate-spin text-gray-600 dark:text-gray-400" />
                   </div>
                 </div>
@@ -1004,8 +1004,8 @@ function PaymentView({
               ) : shouldShowQr ? (
                 <BrandedPaymentQr paymentMethod={paymentMethod} qrUrl={resolvedQrUrl!} />
               ) : (
-                <div className="rounded-lg border border-gray-200/80 bg-white p-8 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:border-gray-800 dark:bg-[#1A1A1A] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)]">
-                  <div className="flex h-[280px] w-[280px] flex-col items-center justify-center rounded-md bg-gray-50 dark:bg-[#101010]">
+                <div className="rounded-lg border border-gray-200/80 bg-white p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)] dark:border-gray-800 dark:bg-[#1A1A1A] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)]">
+                  <div className="flex h-[min(280px,32vh)] w-[min(280px,32vh)] flex-col items-center justify-center rounded-md bg-gray-50 dark:bg-[#101010]">
                     <Clock3 className="h-10 w-10 text-gray-300 dark:text-gray-600" />
                     <p className="mt-3 text-sm font-medium text-gray-500 dark:text-gray-400">正在准备收款码</p>
                   </div>
@@ -1046,7 +1046,7 @@ function PaymentView({
             </div>
           </div>
 
-          <div className="space-y-1.5 text-center">
+          <div className="space-y-1 text-center">
             <p className="text-[14px] text-gray-600 dark:text-gray-300">{methodTheme.instruction}</p>
             {(isAwaitingPayment || expiringSoon) && countdownLabel ? (
               <p className="text-[13px] font-medium text-gray-500 dark:text-gray-400">
@@ -1058,15 +1058,15 @@ function PaymentView({
           </div>
         </div>
 
-        <div className="flex w-[40%] flex-col bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(248,250,252,0.96)_100%)] p-8 dark:bg-[linear-gradient(180deg,rgba(20,20,20,0.98)_0%,rgba(17,17,17,0.98)_100%)]">
-          <div className="mb-7">
+        <div className="flex w-[40%] min-h-0 flex-col bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(248,250,252,0.96)_100%)] p-6 pt-16 dark:bg-[linear-gradient(180deg,rgba(20,20,20,0.98)_0%,rgba(17,17,17,0.98)_100%)]">
+          <div className="mb-5">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-[15px] font-semibold text-gray-900 dark:text-gray-100">订单信息</h3>
               <span className="inline-flex rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-600 dark:border-gray-700 dark:bg-[#1A1A1A] dark:text-gray-300">
                 {currentPackage.badgeLabel || currentPackage.packageName}
               </span>
             </div>
-            <div className="space-y-3 rounded-[20px] border border-gray-200/70 bg-white/90 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.06)] dark:border-gray-800 dark:bg-[#1A1A1A] dark:shadow-[0_10px_30px_rgba(0,0,0,0.22)]">
+            <div className="space-y-3 rounded-[20px] border border-gray-200/70 bg-white/90 p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)] dark:border-gray-800 dark:bg-[#1A1A1A] dark:shadow-[0_10px_30px_rgba(0,0,0,0.22)]">
               <div className="flex items-center justify-between text-[13px]">
                 <span className="text-gray-500 dark:text-gray-400">套餐</span>
                 <span className="font-medium text-gray-900 dark:text-gray-100">{currentPackage.packageName}</span>
@@ -1089,7 +1089,7 @@ function PaymentView({
             </div>
           </div>
 
-          <div className="mb-7">
+          <div className="mb-5">
             <h3 className="mb-3 text-[15px] font-semibold text-gray-900 dark:text-gray-100">支付方式</h3>
             <div className="space-y-2">
               {paymentMethods.map((methodConfig) => {
@@ -1104,7 +1104,7 @@ function PaymentView({
                     data-testid="recharge-payment-method"
                     data-payment-method={method}
                     className={cn(
-                      'flex w-full cursor-pointer items-center gap-3 rounded-xl border p-3 text-left transition-all',
+                      'flex w-full cursor-pointer items-center gap-3 rounded-xl border p-2.5 text-left transition-all',
                       creatingOrder || isPaid ? 'cursor-not-allowed opacity-60' : '',
                       selected
                         ? optionTheme.optionSelectedClassName
@@ -1139,7 +1139,7 @@ function PaymentView({
             </div>
           </div>
 
-          <div className="mb-7">
+          <div className="mb-5">
             <h3 className="mb-3 text-[15px] font-semibold text-gray-900 dark:text-gray-100">支付状态</h3>
             <div className={cn('flex items-center gap-2.5 rounded-xl border p-3.5', statusCard.bgColor, statusCard.borderColor)}>
               <div className={statusCard.textColor}>
@@ -1150,7 +1150,7 @@ function PaymentView({
             {expiryLabel && !isPaid ? <p className="mt-2 text-[12px] text-gray-500 dark:text-gray-400">有效至 {expiryLabel}</p> : null}
           </div>
 
-          <div className="mb-5 mt-auto space-y-2 rounded-[20px] border border-gray-200/70 bg-white/90 p-4 text-[12px] text-gray-500 shadow-[0_8px_24px_rgba(15,23,42,0.05)] dark:border-gray-800 dark:bg-[#1A1A1A] dark:text-gray-300 dark:shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+          <div className="mb-4 mt-auto space-y-1.5 rounded-[20px] border border-gray-200/70 bg-white/90 p-3.5 text-[12px] text-gray-500 shadow-[0_8px_24px_rgba(15,23,42,0.05)] dark:border-gray-800 dark:bg-[#1A1A1A] dark:text-gray-300 dark:shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
             <div className="flex items-start gap-2">
               <div className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-gray-400 dark:bg-gray-400" />
               <span>官方扫码通道，安全可靠</span>
@@ -1172,7 +1172,7 @@ function PaymentView({
                 onClick={handlePrimaryAction}
                 data-testid="recharge-payment-primary-action"
                 className={cn(
-                  'flex w-full items-center justify-center gap-2 rounded-xl py-3 text-[14px] font-medium transition-colors shadow-sm',
+                  'flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[14px] font-medium transition-colors shadow-sm',
                   PRIMARY_ACTION_BUTTON_CLASS,
                 )}
               >
@@ -1184,7 +1184,7 @@ function PaymentView({
               onClick={onBack}
               data-testid="recharge-back-to-packages"
               className={cn(
-                'flex w-full items-center justify-center gap-2 rounded-xl py-3 text-[14px] font-medium transition-colors',
+                'flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[14px] font-medium transition-colors',
                 SECONDARY_ACTION_BUTTON_CLASS,
               )}
             >
