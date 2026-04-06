@@ -283,7 +283,7 @@ export function RechargeCenter({
   onPaymentSettled,
   active = true,
 }: RechargeCenterProps) {
-  const successAutoCloseTimeoutMs = 3_000;
+  const successAutoCloseTimeoutMs = 5_000;
   const paymentOrderRequestTimeoutMs = 8_000;
   const [step, setStep] = useState<RechargeStep>('packages');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('wechat_qr');
