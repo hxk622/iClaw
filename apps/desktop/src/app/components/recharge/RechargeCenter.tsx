@@ -182,7 +182,7 @@ function getDefaultPaymentMethod(paymentMethods: RechargePaymentMethod[]): Payme
 }
 
 function getPackageCardMeta(item: RechargePackage, index: number, total: number) {
-  if (item.recommended || item.default) {
+  if (item.recommended) {
     return {
       icon: <Zap className="h-5 w-5" />,
       badgeText: item.badgeLabel || '超值推荐',
@@ -200,10 +200,27 @@ function getPackageCardMeta(item: RechargePackage, index: number, total: number)
         'bg-[linear-gradient(135deg,#2563EB_0%,#4F46E5_100%)] !text-white hover:brightness-110 dark:border-none dark:bg-[linear-gradient(135deg,#3B82F6_0%,#6366F1_100%)] dark:!text-white',
     };
   }
+  if (item.default) {
+    return {
+      icon: <Zap className="h-5 w-5" />,
+      badgeText: '默认套餐',
+      badgeClassName: 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900',
+      accentClassName:
+        'border-[rgba(71,85,105,0.30)] bg-[linear-gradient(180deg,rgba(248,250,252,0.98)_0%,rgba(241,245,249,0.98)_100%)] shadow-[0_16px_44px_rgba(71,85,105,0.12)] dark:border-[rgba(148,163,184,0.30)] dark:bg-[linear-gradient(180deg,rgba(28,33,43,0.98)_0%,rgba(20,20,20,0.98)_100%)] dark:shadow-[0_20px_46px_rgba(15,23,42,0.26)]',
+      iconWrapClassName:
+        'bg-[linear-gradient(180deg,rgba(71,85,105,0.12)_0%,rgba(100,116,139,0.18)_100%)] text-slate-700 dark:bg-[linear-gradient(180deg,rgba(148,163,184,0.20)_0%,rgba(100,116,139,0.24)_100%)] dark:text-slate-200',
+      eyebrowText: '主力档位',
+      eyebrowClassName:
+        'border border-[rgba(148,163,184,0.24)] bg-[rgba(226,232,240,0.58)] text-slate-700 dark:border-[rgba(148,163,184,0.28)] dark:bg-[rgba(51,65,85,0.32)] dark:text-slate-200',
+      promoText: '日常充值首选，兼顾单次成本与连续使用体验',
+      priceGlowClassName: 'text-[#111827] dark:text-white',
+      ctaClassName: PRIMARY_ACTION_BUTTON_CLASS,
+    };
+  }
   if (index === total - 1) {
     return {
       icon: <Crown className="h-5 w-5" />,
-      badgeText: item.badgeLabel || '超值推荐',
+      badgeText: item.badgeLabel || '最划算',
       badgeClassName: 'bg-purple-600 text-white dark:bg-purple-500',
       accentClassName:
         'border-[rgba(168,85,247,0.34)] bg-[linear-gradient(180deg,rgba(250,245,255,0.94)_0%,rgba(248,250,252,0.96)_100%)] shadow-[0_16px_44px_rgba(168,85,247,0.12)] dark:border-[rgba(168,85,247,0.32)] dark:bg-[linear-gradient(180deg,rgba(48,24,66,0.96)_0%,rgba(20,20,20,0.98)_100%)] dark:shadow-[0_20px_46px_rgba(168,85,247,0.16)]',
@@ -327,7 +344,6 @@ export function RechargeCenter({
   const [activeOrder, setActiveOrder] = useState<PaymentOrderData | null>(null);
   const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
   const [generatedLaunchQrUrl, setGeneratedLaunchQrUrl] = useState<string | null>(null);
-  const [autoCreateOrderToken, setAutoCreateOrderToken] = useState(0);
   const [selectedPackageId, setSelectedPackageId] = useState<string>('');
   const [transitionSnapshot, setTransitionSnapshot] = useState<PaymentTransitionSnapshot | null>(null);
   const createOrderAbortRef = useRef<AbortController | null>(null);
@@ -418,39 +434,56 @@ export function RechargeCenter({
     setPaymentMethod(defaultPaymentMethod);
   }, [availablePaymentMethods, defaultPaymentMethod, paymentMethod]);
 
-  const cancelPendingCreateOrder = () => {
+  const abortPendingCreateOrder = () => {
     createOrderAbortRef.current?.abort();
     createOrderAbortRef.current = null;
+  };
+
+  const cancelPendingCreateOrder = () => {
+    abortPendingCreateOrder();
     setCreatingOrder(false);
   };
 
   useEffect(() => () => cancelPendingCreateOrder(), []);
 
-  const handlePayNow = async () => {
-    if (!currentPackage) {
+  const handlePayNow = async (
+    overrides?: {
+      packageConfig?: RechargePackage | null;
+      provider?: PaymentMethod;
+      transitionSnapshot?: PaymentTransitionSnapshot | null;
+    },
+  ) => {
+    const nextPackage = overrides?.packageConfig ?? currentPackage;
+    const nextProvider = overrides?.provider ?? paymentMethod;
+    const nextTransitionSnapshot = overrides?.transitionSnapshot ?? null;
+    if (!nextPackage) {
       setPaymentMessage('当前未配置可充值套餐，请先在 admin-web 发布充值配置。');
       return;
     }
-    if (resolvedQrUrl) {
-      setTransitionSnapshot({
-        paymentMethod,
-        qrUrl: resolvedQrUrl,
-        kind: 'refresh',
-      });
-    }
-    cancelPendingCreateOrder();
+    abortPendingCreateOrder();
     const controller = new AbortController();
     createOrderAbortRef.current = controller;
+    setTransitionSnapshot(
+      nextTransitionSnapshot ||
+        (resolvedQrUrl
+          ? {
+              paymentMethod,
+              qrUrl: resolvedQrUrl,
+              kind: 'refresh',
+            }
+          : null),
+    );
     setCreatingOrder(true);
     setPaymentMessage(null);
     setActiveOrder(null);
     setGeneratedLaunchQrUrl(null);
+    setPaymentMethod(nextProvider);
 
     try {
       const order = await client.createPaymentOrder({
         token,
-        provider: paymentMethod,
-        packageId: currentPackage.packageId,
+        provider: nextProvider,
+        packageId: nextPackage.packageId,
         returnUrl: 'iclaw://payments/result',
         appName,
         signal: controller.signal,
@@ -481,15 +514,6 @@ export function RechargeCenter({
       }
     }
   };
-
-  useEffect(() => {
-    if (!active) return;
-    if (step !== 'payment') return;
-    if (creatingOrder) return;
-    if (activeOrder) return;
-    if (autoCreateOrderToken <= 0) return;
-    void handlePayNow();
-  }, [active, step, creatingOrder, activeOrder, autoCreateOrderToken]);
 
   useEffect(() => {
     if (!active) return;
@@ -551,7 +575,8 @@ export function RechargeCenter({
   }, [active, activeOrder?.status, onClose]);
 
   const openPayment = (packageId: string) => {
-    if (!availablePackages.some((item) => item.packageId === packageId)) {
+    const nextPackage = availablePackages.find((item) => item.packageId === packageId) || null;
+    if (!nextPackage) {
       return;
     }
     if (!availablePaymentMethods.length) {
@@ -563,7 +588,11 @@ export function RechargeCenter({
       setActiveOrder(null);
       setTransitionSnapshot(null);
       setStep('payment');
-      setAutoCreateOrderToken((current) => current + 1);
+    });
+    void handlePayNow({
+      packageConfig: nextPackage,
+      provider: paymentMethod,
+      transitionSnapshot: null,
     });
   };
   const closePaymentModal = () => {
@@ -611,21 +640,17 @@ export function RechargeCenter({
                   if (method === paymentMethod) {
                     return;
                   }
-                  cancelPendingCreateOrder();
-                  setTransitionSnapshot(
-                    resolvedQrUrl
+                  void handlePayNow({
+                    packageConfig: currentPackage,
+                    provider: method,
+                    transitionSnapshot: resolvedQrUrl
                       ? {
                           paymentMethod,
                           qrUrl: resolvedQrUrl,
                           kind: 'switch',
                         }
                       : null,
-                  );
-                  setPaymentMethod(method);
-                  setActiveOrder(null);
-                  setGeneratedLaunchQrUrl(null);
-                  setPaymentMessage(null);
-                  setAutoCreateOrderToken((current) => current + 1);
+                  });
                 }}
                 onBack={closePaymentModal}
                 onClose={closePaymentModal}
@@ -742,18 +767,7 @@ function PackageSelectionView({
           const priceLabel = formatPriceAmount(item.amountCnyFen);
           const meta = getPackageCardMeta(item, index, packages.length);
           return (
-            <div
-              key={item.packageId}
-              className={cn('relative', meta.badgeText && (wideLayout ? 'pt-3.5' : 'pt-4'))}
-            >
-              {meta.badgeText ? (
-                <div className="pointer-events-none absolute left-1/2 top-0 z-[2] -translate-x-1/2 -translate-y-1/2">
-                  <div className={cn('rounded-full px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide shadow-[0_6px_18px_rgba(15,23,42,0.12)]', meta.badgeClassName)}>
-                    {meta.badgeText}
-                  </div>
-                </div>
-              ) : null}
-
+            <div key={item.packageId} className="relative">
               <div
                 role="button"
                 aria-pressed={selected}
@@ -811,9 +825,21 @@ function PackageSelectionView({
                       </div>
                     </div>
                   </div>
-                  {selected ? (
-                    <span className="mt-1 inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.12)] dark:bg-emerald-400 dark:shadow-[0_0_0_4px_rgba(52,211,153,0.14)]" />
-                  ) : null}
+                  <div className="flex shrink-0 flex-col items-end gap-2">
+                    {meta.badgeText ? (
+                      <div
+                        className={cn(
+                          'rounded-full px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide shadow-[0_6px_18px_rgba(15,23,42,0.10)]',
+                          meta.badgeClassName,
+                        )}
+                      >
+                        {meta.badgeText}
+                      </div>
+                    ) : null}
+                    {selected ? (
+                      <span className="mt-0.5 inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.12)] dark:bg-emerald-400 dark:shadow-[0_0_0_4px_rgba(52,211,153,0.14)]" />
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className={cn(wideLayout ? 'mb-4' : 'mb-6')}>
