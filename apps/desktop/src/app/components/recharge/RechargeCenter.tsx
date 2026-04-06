@@ -223,7 +223,7 @@ function getPackageCardMeta(item: RechargePackage, index: number, total: number)
   if (index === total - 1) {
     return {
       icon: <Crown className="h-5 w-5" />,
-      badgeText: item.badgeLabel || '最划算',
+      badgeText: '最划算',
       badgeClassName:
         'border border-[rgba(147,51,234,0.24)] bg-[linear-gradient(135deg,#7C3AED_0%,#A855F7_100%)] text-white shadow-[0_10px_24px_rgba(147,51,234,0.20)] dark:border-[rgba(192,132,252,0.28)] dark:bg-[linear-gradient(135deg,#8B5CF6_0%,#C084FC_100%)] dark:text-white dark:shadow-[0_10px_24px_rgba(168,85,247,0.24)]',
       accentClassName:
