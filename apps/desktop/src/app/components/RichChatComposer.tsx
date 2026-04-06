@@ -2264,34 +2264,8 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
     const skillControl = topBarControlMap.get('skill')?.item || null;
     const modeControl = topBarControlMap.get('mode')?.item || null;
     const marketScopeControl = topBarControlMap.get('market-scope')?.item || null;
-    const stockControl =
-      topBarControlMap.get('stock-context')?.item ||
-      (searchStocks
-        ? {
-            controlKey: 'stock-context',
-            displayName: findDefaultTopBarControl('stock-context')?.displayName || '选择股票',
-            controlType: 'stock',
-            iconKey: null,
-            sortOrder: findDefaultTopBarControl('stock-context')?.sortOrder || 50,
-            options: [],
-            metadata: {},
-            config: {},
-          }
-        : null);
-    const fundControl =
-      topBarControlMap.get('fund-context')?.item ||
-      (searchFunds
-        ? {
-            controlKey: 'fund-context',
-            displayName: findDefaultTopBarControl('fund-context')?.displayName || '选择基金/ETF',
-            controlType: 'fund',
-            iconKey: null,
-            sortOrder: findDefaultTopBarControl('fund-context')?.sortOrder || 60,
-            options: [],
-            metadata: {},
-            config: {},
-          }
-        : null);
+    const stockControl = topBarControlMap.get('stock-context')?.item || null;
+    const fundControl = topBarControlMap.get('fund-context')?.item || null;
     const watchlistControl = topBarControlMap.get('watchlist')?.item || null;
     const outputControl = topBarControlMap.get('output-format')?.item || null;
     const creditEstimateText = creditEstimate
@@ -2335,8 +2309,8 @@ export const RichChatComposer = forwardRef<RichChatComposerHandle, RichChatCompo
             : '基金/ETF';
     const watchlistTriggerLabel = selectedWatchlistOption?.label ?? watchlistControl?.displayName ?? '选择自选组';
     const outputTriggerLabel = selectedOutputOption?.label ?? outputControl?.displayName ?? '输出模版';
-    const stockControlVisible = Boolean(searchStocks && stockControl);
-    const fundControlVisible = Boolean(searchFunds && fundControl);
+    const stockControlVisible = Boolean(searchStocks && topBarControlMap.has('stock-context') && stockControl);
+    const fundControlVisible = Boolean(searchFunds && topBarControlMap.has('fund-context') && fundControl);
     const stockControlOrder =
       topBarControlMap.get('stock-context')?.order ??
       findDefaultTopBarControl('stock-context')?.sortOrder ??
