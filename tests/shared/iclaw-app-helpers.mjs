@@ -68,7 +68,32 @@ export async function clearAuthTokens(cdp) {
   });
 }
 
+export async function readStoredAuthTokens(cdp) {
+  const tokens = await evalJSON(
+    cdp,
+    `(() => ({
+      access_token: localStorage.getItem(${JSON.stringify(ACCESS_KEY)}),
+      refresh_token: localStorage.getItem(${JSON.stringify(REFRESH_KEY)}),
+    }))()`,
+  );
+  return {
+    access_token: tokens?.access_token || null,
+    refresh_token: tokens?.refresh_token || null,
+  };
+}
+
 export async function authenticateDesktopPage(page) {
+  const existingTokens = await readStoredAuthTokens(page.cdp);
+  if (existingTokens.access_token && existingTokens.refresh_token) {
+    await reloadPage(page.cdp);
+    try {
+      await waitForChatComposer(page.cdp);
+      return existingTokens;
+    } catch (error) {
+      console.warn('[tests] stored auth tokens were present but did not yield an authenticated desktop session', error);
+    }
+  }
+
   const tokens = await loginWithPassword();
   await seedAuthTokens(page.cdp, tokens);
   await reloadPage(page.cdp);

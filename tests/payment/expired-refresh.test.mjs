@@ -37,6 +37,7 @@ async function main() {
 
     await waitForSelector(page.cdp, '[data-testid="recharge-qr-expired-mask"]', 10_000);
     await click(page.cdp, '[data-testid="recharge-qr-refresh"]');
+    await waitForSelector(page.cdp, '[data-testid="recharge-qr-transition-mask"]', 10_000);
 
     const afterRefresh = await waitFor(
       'refreshed qr after expired refresh',
@@ -44,14 +45,20 @@ async function main() {
         evalJSON(
           page.cdp,
           `(() => {
-            const mask = document.querySelector('[data-testid="recharge-qr-expired-mask"]');
+            const expiredMask = document.querySelector('[data-testid="recharge-qr-expired-mask"]');
+            const transitionMask = document.querySelector('[data-testid="recharge-qr-transition-mask"]');
             const image = document.querySelector('[data-testid="recharge-qr-image"]');
             const src = image?.getAttribute('src') || null;
-            return !mask && src ? {qrImage: src} : null;
+            return !expiredMask &&
+              !transitionMask &&
+              src &&
+              src !== ${JSON.stringify(beforeExpire.qrImage)}
+              ? {qrImage: src}
+              : null;
           })()`,
         ),
       30_000,
-      1_000,
+      250,
     );
 
     assert.ok(beforeExpire.qrImage, 'payment flow should have an initial qr image');
