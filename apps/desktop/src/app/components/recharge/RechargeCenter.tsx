@@ -115,6 +115,21 @@ function getPaymentMethodLabel(paymentMethod: PaymentMethod, fallbackLabel?: str
   return paymentMethod === 'wechat_qr' ? '微信支付' : '支付宝';
 }
 
+function getRechargeMetadataText(metadata: Record<string, unknown> | null | undefined, ...keys: string[]): string | null {
+  const source = metadata || {};
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
+function includesLabel(value: string | null | undefined, pattern: RegExp): boolean {
+  return typeof value === 'string' && pattern.test(value.trim());
+}
+
 function PaymentMethodLogo({
   paymentMethod,
   className,
@@ -181,55 +196,72 @@ function getDefaultPaymentMethod(paymentMethods: RechargePaymentMethod[]): Payme
 }
 
 function getPackageCardMeta(item: RechargePackage) {
-  if (item.recommended) {
+  const explicitBadgeText = item.badgeLabel?.trim() || null;
+  const metadataEyebrowText = getRechargeMetadataText(item.metadata, 'eyebrow_label', 'eyebrowLabel');
+  const metadataPromoText = getRechargeMetadataText(item.metadata, 'promo_text', 'promoText');
+  const isSuperRecommended =
+    item.recommended ||
+    includesLabel(explicitBadgeText, /超值推荐|推荐套餐|推荐/i) ||
+    includesLabel(getRechargeMetadataText(item.metadata, 'card_variant', 'cardVariant'), /super|featured|recommended/i);
+  const isPlatformRecommended =
+    item.default ||
+    includesLabel(explicitBadgeText, /平台推荐|平台默认|默认套餐/i) ||
+    includesLabel(getRechargeMetadataText(item.metadata, 'card_variant', 'cardVariant'), /default|platform/i);
+
+  if (isSuperRecommended) {
     return {
       icon: <Zap className="h-5 w-5" />,
-      badgeText: item.badgeLabel || '超值推荐',
+      badgeText: explicitBadgeText || '超值推荐',
       badgeClassName:
         'border border-[rgba(37,99,235,0.24)] bg-[linear-gradient(135deg,#2563EB_0%,#4F46E5_100%)] text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)] dark:border-[rgba(96,165,250,0.28)] dark:bg-[linear-gradient(135deg,#3B82F6_0%,#6366F1_100%)] dark:text-white dark:shadow-[0_10px_24px_rgba(59,130,246,0.24)]',
       accentClassName:
         'border-[rgba(59,130,246,0.42)] bg-[linear-gradient(180deg,rgba(239,246,255,0.94)_0%,rgba(248,250,252,0.96)_100%)] shadow-[0_20px_50px_rgba(59,130,246,0.16)] dark:border-[rgba(96,165,250,0.4)] dark:bg-[linear-gradient(180deg,rgba(26,38,64,0.96)_0%,rgba(20,20,20,0.98)_100%)] dark:shadow-[0_20px_50px_rgba(37,99,235,0.18)]',
       iconWrapClassName:
         'bg-[linear-gradient(180deg,rgba(59,130,246,0.18)_0%,rgba(99,102,241,0.20)_100%)] text-[#2563EB] dark:bg-[linear-gradient(180deg,rgba(59,130,246,0.22)_0%,rgba(99,102,241,0.28)_100%)] dark:text-[#93C5FD]',
-      eyebrowText: '超值推荐',
+      eyebrowText: metadataEyebrowText || (item.default ? '主力档位' : '超值推荐'),
       eyebrowClassName:
         'border border-[rgba(96,165,250,0.24)] bg-[rgba(59,130,246,0.10)] text-[#2563EB] dark:border-[rgba(96,165,250,0.30)] dark:bg-[rgba(59,130,246,0.14)] dark:text-[#93C5FD]',
-      promoText: '高频用户主力包，连续对话和任务执行更划算',
+      promoText: metadataPromoText || (item.default ? '日常充值首选，兼顾单次成本与连续使用体验' : '高频用户主力包，连续对话和任务执行更划算'),
       priceGlowClassName: 'text-[#111827] dark:text-white',
       ctaClassName:
         'border border-[rgba(37,99,235,0.28)] bg-[linear-gradient(135deg,#2563EB_0%,#4F46E5_100%)] !text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)] hover:brightness-110 hover:shadow-[0_14px_30px_rgba(37,99,235,0.26)] dark:border-[rgba(96,165,250,0.28)] dark:bg-[linear-gradient(135deg,#3B82F6_0%,#6366F1_100%)] dark:!text-white dark:shadow-[0_10px_24px_rgba(59,130,246,0.24)]',
     };
   }
-  if (item.default) {
+  if (isPlatformRecommended) {
     return {
       icon: <Zap className="h-5 w-5" />,
-      badgeText: '默认套餐',
+      badgeText: explicitBadgeText || '默认套餐',
       badgeClassName:
         'border border-[rgba(148,163,184,0.32)] bg-[rgba(248,250,252,0.94)] text-slate-700 shadow-[0_6px_18px_rgba(15,23,42,0.08)] dark:border-[rgba(148,163,184,0.30)] dark:bg-[rgba(30,41,59,0.88)] dark:text-slate-100 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]',
       accentClassName:
         'border-[rgba(71,85,105,0.30)] bg-[linear-gradient(180deg,rgba(248,250,252,0.98)_0%,rgba(241,245,249,0.98)_100%)] shadow-[0_16px_44px_rgba(71,85,105,0.12)] dark:border-[rgba(148,163,184,0.30)] dark:bg-[linear-gradient(180deg,rgba(28,33,43,0.98)_0%,rgba(20,20,20,0.98)_100%)] dark:shadow-[0_20px_46px_rgba(15,23,42,0.26)]',
       iconWrapClassName:
         'bg-[linear-gradient(180deg,rgba(71,85,105,0.12)_0%,rgba(100,116,139,0.18)_100%)] text-slate-700 dark:bg-[linear-gradient(180deg,rgba(148,163,184,0.20)_0%,rgba(100,116,139,0.24)_100%)] dark:text-slate-200',
-      eyebrowText: '主力档位',
+      eyebrowText: metadataEyebrowText || '主力档位',
       eyebrowClassName:
         'border border-[rgba(148,163,184,0.24)] bg-[rgba(226,232,240,0.58)] text-slate-700 dark:border-[rgba(148,163,184,0.28)] dark:bg-[rgba(51,65,85,0.32)] dark:text-slate-200',
-      promoText: '日常充值首选，兼顾单次成本与连续使用体验',
+      promoText: metadataPromoText || '日常充值首选，兼顾单次成本与连续使用体验',
       priceGlowClassName: 'text-[#111827] dark:text-white',
       ctaClassName:
         'border border-[rgba(148,163,184,0.38)] bg-[rgba(255,255,255,0.92)] text-slate-800 shadow-[0_6px_18px_rgba(15,23,42,0.07)] hover:border-[rgba(100,116,139,0.42)] hover:bg-[rgba(248,250,252,0.98)] hover:text-slate-900 dark:border-[rgba(148,163,184,0.34)] dark:bg-[rgba(30,41,59,0.72)] dark:text-slate-100 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)] dark:hover:bg-[rgba(51,65,85,0.84)]',
     };
   }
+  const neutralBadgeText = explicitBadgeText;
+  const neutralEyebrowText = metadataEyebrowText || '灵活充值';
+  const neutralPromoText = metadataPromoText;
   return {
     icon: <Sparkles className="h-5 w-5" />,
-    badgeText: null,
-    badgeClassName: '',
+    badgeText: neutralBadgeText,
+    badgeClassName: neutralBadgeText
+      ? 'border border-[rgba(148,163,184,0.24)] bg-[rgba(255,255,255,0.82)] text-slate-700 shadow-[0_6px_18px_rgba(15,23,42,0.06)] dark:border-[rgba(148,163,184,0.24)] dark:bg-[rgba(30,41,59,0.82)] dark:text-slate-100 dark:shadow-[0_8px_18px_rgba(0,0,0,0.18)]'
+      : '',
     accentClassName:
       'border-gray-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(249,250,251,0.98)_100%)] shadow-[0_10px_30px_rgba(15,23,42,0.06)] dark:border-[#2F3742] dark:bg-[linear-gradient(180deg,rgba(26,26,26,0.98)_0%,rgba(20,20,20,0.98)_100%)] dark:shadow-[0_12px_32px_rgba(0,0,0,0.26)]',
     iconWrapClassName: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
-    eyebrowText: '轻量续航',
+    eyebrowText: neutralEyebrowText,
     eyebrowClassName:
       'border border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-[#1E1E1E] dark:text-gray-300',
-    promoText: '轻松补能，适合日常对话、试用和临时续航',
+    promoText: neutralPromoText,
     priceGlowClassName: 'text-gray-900 dark:text-gray-50',
     ctaClassName:
       'border border-gray-200 bg-white text-gray-700 shadow-[0_4px_14px_rgba(15,23,42,0.04)] hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900 dark:border-[#3A3A3A] dark:bg-transparent dark:text-[#E5E7EB] dark:shadow-none dark:hover:bg-[#1A1A1A]',

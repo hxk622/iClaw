@@ -47,7 +47,9 @@ export const DEFAULT_PLATFORM_RECHARGE_PACKAGE_SEEDS: DefaultRechargePackageSeed
     metadata: {
       description: '轻量补充，适合日常续航。',
       badge_label: '',
+      eyebrow_label: '轻量续航',
       highlight: '到账 3,000 龙虾币',
+      promo_text: '轻松补能，适合日常对话、试用和临时续航',
       feature_list: ['基础到账 3,000 龙虾币', '适合轻中度日常使用', '一次性充值，不会自动续费'],
     },
   },
@@ -81,7 +83,9 @@ export const DEFAULT_PLATFORM_RECHARGE_PACKAGE_SEEDS: DefaultRechargePackageSeed
     metadata: {
       description: '重度使用优选，适合长期储备。',
       badge_label: '',
+      eyebrow_label: '长期储备',
       highlight: '到账 13,000 龙虾币',
+      promo_text: '单价更优，适合重度用户囤币和长期使用',
       feature_list: ['基础到账 13,000 龙虾币', '单价更优，适合重度用户囤币', '一次性充值，不会自动续费'],
     },
   },
