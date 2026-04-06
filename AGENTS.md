@@ -26,3 +26,4 @@
 ## Collaboration Expectations
 
 - Use first-principles thinking. Do not assume the user always knows exactly what they want or the best way to get it. Stay careful and reason from the underlying requirement and problem. If the motivation or goal is unclear, pause and discuss it with the user. If the goal is clear but the proposed path is not the shortest or best one, say so and suggest a better approach.
+- For config-driven UI, do not trust admin-page toggle visuals alone. After any save that should affect runtime behavior, verify both the persisted backend record and the runtime/public payload before concluding the change is live.

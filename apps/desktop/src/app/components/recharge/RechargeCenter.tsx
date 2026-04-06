@@ -199,14 +199,9 @@ function getPackageCardMeta(item: RechargePackage) {
   const explicitBadgeText = item.badgeLabel?.trim() || null;
   const metadataEyebrowText = getRechargeMetadataText(item.metadata, 'eyebrow_label', 'eyebrowLabel');
   const metadataPromoText = getRechargeMetadataText(item.metadata, 'promo_text', 'promoText');
-  const isSuperRecommended =
-    item.recommended ||
-    includesLabel(explicitBadgeText, /超值推荐|推荐套餐|推荐/i) ||
-    includesLabel(getRechargeMetadataText(item.metadata, 'card_variant', 'cardVariant'), /super|featured|recommended/i);
-  const isPlatformRecommended =
-    item.default ||
-    includesLabel(explicitBadgeText, /平台推荐|平台默认|默认套餐/i) ||
-    includesLabel(getRechargeMetadataText(item.metadata, 'card_variant', 'cardVariant'), /default|platform/i);
+  const cardVariant = getRechargeMetadataText(item.metadata, 'card_variant', 'cardVariant');
+  const isSuperRecommended = item.recommended || includesLabel(cardVariant, /super|featured|recommended/i);
+  const isPlatformRecommended = item.default || includesLabel(cardVariant, /default|platform/i);
 
   if (isSuperRecommended) {
     return {
