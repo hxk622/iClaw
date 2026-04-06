@@ -122,6 +122,48 @@ export async function click(cdp, selector) {
   assert.equal(clicked, true, `failed to click ${selector}`);
 }
 
+export async function clickByText(cdp, labels, options = {}) {
+  const wanted = Array.isArray(labels) ? labels.filter(Boolean) : [labels].filter(Boolean);
+  assert.ok(wanted.length > 0, 'clickByText requires at least one label');
+  const {
+    selector = 'button, [role="button"], a',
+    exact = false,
+  } = options;
+
+  const result = await evalJSON(
+    cdp,
+    `(() => {
+      const wanted = ${JSON.stringify(wanted)};
+      const exact = ${JSON.stringify(Boolean(exact))};
+      const nodes = Array.from(document.querySelectorAll(${JSON.stringify(selector)}))
+        .map((node) => ({
+          node,
+          text: (node.innerText || node.textContent || node.getAttribute('aria-label') || '')
+            .replace(/\\s+/g, ' ')
+            .trim(),
+        }))
+        .filter((entry) => entry.text);
+      const target = nodes.find((entry) =>
+        wanted.some((label) => (exact ? entry.text === label : entry.text.includes(label))),
+      );
+      if (!target?.node) {
+        return {
+          clicked: false,
+          labels: nodes.map((entry) => entry.text).slice(0, 80),
+        };
+      }
+      target.node.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true, view: window}));
+      return {
+        clicked: true,
+        text: target.text,
+      };
+    })()`,
+  );
+
+  assert.equal(result?.clicked, true, `failed to click text: ${wanted.join(' | ')}`);
+  return result;
+}
+
 export async function setInputValue(cdp, selector, value) {
   await waitForSelector(cdp, selector);
   const updated = await evalJSON(
@@ -143,6 +185,10 @@ export async function setInputValue(cdp, selector, value) {
   assert.equal(updated, true, `failed to set input value for ${selector}`);
 }
 
+export async function insertText(cdp, text) {
+  await cdp.send('Input.insertText', {text: String(text)});
+}
+
 export async function readValue(cdp, selector) {
   await waitForSelector(cdp, selector);
   return evalJSON(
@@ -157,6 +203,47 @@ export async function readValue(cdp, selector) {
       `,
     ),
   );
+}
+
+export async function readBodyText(cdp, limit = 1200) {
+  return evalJSON(
+    cdp,
+    `(() => (document.body.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, ${Math.max(50, Number(limit) || 1200)}))()`,
+  );
+}
+
+export async function waitForText(cdp, text, timeoutMs = 30_000) {
+  const wanted = Array.isArray(text) ? text : [text];
+  return waitFor(
+    `text ${wanted.join(' | ')}`,
+    async () => {
+      const body = await readBodyText(cdp, 5000);
+      return wanted.every((item) => body.includes(String(item))) ? body : null;
+    },
+    timeoutMs,
+  );
+}
+
+export async function setLocalStorageItems(cdp, entries) {
+  const pairs = Object.entries(entries ?? {});
+  return evalJSON(
+    cdp,
+    `(() => {
+      const entries = ${JSON.stringify(pairs)};
+      for (const [key, value] of entries) {
+        if (value === null || value === undefined) {
+          localStorage.removeItem(key);
+        } else {
+          localStorage.setItem(key, String(value));
+        }
+      }
+      return Object.fromEntries(entries.map(([key]) => [key, localStorage.getItem(key)]));
+    })()`,
+  );
+}
+
+export async function reloadPage(cdp, options = {}) {
+  await cdp.send('Page.reload', {ignoreCache: options.ignoreCache ?? true});
 }
 
 export async function screenshot(cdp, filePath) {
