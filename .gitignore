@@ -53,3 +53,5 @@ docs/.obsidian/
 .tmp-packaging/
 .tmp-*/
 config/*.local.json
+.codex/
+docs/copilot/
