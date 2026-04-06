@@ -198,7 +198,7 @@ function getPackageCardMeta(item: RechargePackage, index: number, total: number)
       promoText: '高频用户主力包，连续对话和任务执行更划算',
       priceGlowClassName: 'text-[#111827] dark:text-white',
       ctaClassName:
-        'bg-[linear-gradient(135deg,#2563EB_0%,#4F46E5_100%)] !text-white hover:brightness-110 dark:border-none dark:bg-[linear-gradient(135deg,#3B82F6_0%,#6366F1_100%)] dark:!text-white',
+        'border border-[rgba(37,99,235,0.28)] bg-[linear-gradient(135deg,#2563EB_0%,#4F46E5_100%)] !text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)] hover:brightness-110 hover:shadow-[0_14px_30px_rgba(37,99,235,0.26)] dark:border-[rgba(96,165,250,0.28)] dark:bg-[linear-gradient(135deg,#3B82F6_0%,#6366F1_100%)] dark:!text-white dark:shadow-[0_10px_24px_rgba(59,130,246,0.24)]',
     };
   }
   if (item.default) {
@@ -216,7 +216,8 @@ function getPackageCardMeta(item: RechargePackage, index: number, total: number)
         'border border-[rgba(148,163,184,0.24)] bg-[rgba(226,232,240,0.58)] text-slate-700 dark:border-[rgba(148,163,184,0.28)] dark:bg-[rgba(51,65,85,0.32)] dark:text-slate-200',
       promoText: '日常充值首选，兼顾单次成本与连续使用体验',
       priceGlowClassName: 'text-[#111827] dark:text-white',
-      ctaClassName: PRIMARY_ACTION_BUTTON_CLASS,
+      ctaClassName:
+        'border border-[rgba(148,163,184,0.38)] bg-[rgba(255,255,255,0.92)] text-slate-800 shadow-[0_6px_18px_rgba(15,23,42,0.07)] hover:border-[rgba(100,116,139,0.42)] hover:bg-[rgba(248,250,252,0.98)] hover:text-slate-900 dark:border-[rgba(148,163,184,0.34)] dark:bg-[rgba(30,41,59,0.72)] dark:text-slate-100 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)] dark:hover:bg-[rgba(51,65,85,0.84)]',
     };
   }
   if (index === total - 1) {
@@ -235,7 +236,7 @@ function getPackageCardMeta(item: RechargePackage, index: number, total: number)
       promoText: '单价更优，适合重度用户囤币和长期使用',
       priceGlowClassName: 'text-[#111827] dark:text-white',
       ctaClassName:
-        'bg-[linear-gradient(135deg,#6D28D9_0%,#9333EA_100%)] !text-white hover:brightness-110 dark:border-none dark:bg-[linear-gradient(135deg,#7C3AED_0%,#A855F7_100%)] dark:!text-white',
+        'border border-[rgba(147,51,234,0.22)] bg-[rgba(245,243,255,0.92)] text-[#6D28D9] shadow-[0_8px_22px_rgba(147,51,234,0.10)] hover:border-[rgba(147,51,234,0.34)] hover:bg-[rgba(237,233,254,0.96)] hover:text-[#5B21B6] dark:border-[rgba(192,132,252,0.30)] dark:bg-[rgba(76,29,149,0.24)] dark:text-[#E9D5FF] dark:shadow-[0_10px_24px_rgba(91,33,182,0.18)] dark:hover:bg-[rgba(91,33,182,0.30)]',
     };
   }
   return {
@@ -250,7 +251,8 @@ function getPackageCardMeta(item: RechargePackage, index: number, total: number)
       'border border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-[#1E1E1E] dark:text-gray-300',
     promoText: '轻松补能，适合日常对话、试用和临时续航',
     priceGlowClassName: 'text-gray-900 dark:text-gray-50',
-    ctaClassName: PRIMARY_ACTION_BUTTON_CLASS,
+    ctaClassName:
+      'border border-gray-200 bg-white text-gray-700 shadow-[0_4px_14px_rgba(15,23,42,0.04)] hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900 dark:border-[#3A3A3A] dark:bg-transparent dark:text-[#E5E7EB] dark:shadow-none dark:hover:bg-[#1A1A1A]',
   };
 }
 
