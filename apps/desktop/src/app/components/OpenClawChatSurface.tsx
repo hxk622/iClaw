@@ -6377,7 +6377,7 @@ export function OpenClawChatSurface({
     !hasStableVisibleChat &&
     !status.lastError &&
     (!surfaceReadyForReveal || !hasBootSettled || initialSurfaceRestorePending || waitingForHistoryResolution || !renderReady);
-  const showSessionTransitionMask = sessionTransitionVisible && !showBootMask && !hasStableVisibleChat;
+  const showSessionTransitionMask = sessionTransitionVisible && !showBootMask;
   const showSurfaceReactivationMask = false;
   const shellTransitioning = showBootMask || showSessionTransitionMask;
   const localSendBlockedReason =
