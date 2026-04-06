@@ -33,7 +33,7 @@ type RechargePackage = ResolvedRechargePackageConfig;
 type RechargePaymentMethod = ResolvedRechargePaymentMethodConfig;
 
 const PANEL_OVERLAY_CLASS =
-  'fixed inset-0 z-50 flex items-center justify-center bg-[rgba(8,12,20,0.24)] p-4 backdrop-blur-[4px] dark:bg-[rgba(0,0,0,0.44)] md:p-8';
+  'fixed inset-0 z-50 overflow-y-auto bg-[rgba(8,12,20,0.24)] p-4 backdrop-blur-[4px] dark:bg-[rgba(0,0,0,0.44)] md:p-8';
 
 const PRIMARY_ACTION_BUTTON_CLASS =
   'bg-[#111827] !text-white hover:bg-[#0B1220] dark:border dark:border-[#DDE3EA] dark:bg-[#F7F9FC] dark:!text-[#0F172A] dark:hover:bg-[#ECF1F6]';
@@ -182,6 +182,17 @@ function getPackageCardMeta(item: RechargePackage, index: number, total: number)
       icon: <Zap className="h-5 w-5" />,
       badgeText: item.badgeLabel || '最受欢迎',
       badgeClassName: 'bg-blue-600 text-white dark:bg-blue-500',
+      accentClassName:
+        'border-[rgba(59,130,246,0.42)] bg-[linear-gradient(180deg,rgba(239,246,255,0.94)_0%,rgba(248,250,252,0.96)_100%)] shadow-[0_20px_50px_rgba(59,130,246,0.16)] dark:border-[rgba(96,165,250,0.4)] dark:bg-[linear-gradient(180deg,rgba(26,38,64,0.96)_0%,rgba(20,20,20,0.98)_100%)] dark:shadow-[0_20px_50px_rgba(37,99,235,0.18)]',
+      iconWrapClassName:
+        'bg-[linear-gradient(180deg,rgba(59,130,246,0.18)_0%,rgba(99,102,241,0.20)_100%)] text-[#2563EB] dark:bg-[linear-gradient(180deg,rgba(59,130,246,0.22)_0%,rgba(99,102,241,0.28)_100%)] dark:text-[#93C5FD]',
+      eyebrowText: '超值推荐',
+      eyebrowClassName:
+        'border border-[rgba(96,165,250,0.24)] bg-[rgba(59,130,246,0.10)] text-[#2563EB] dark:border-[rgba(96,165,250,0.30)] dark:bg-[rgba(59,130,246,0.14)] dark:text-[#93C5FD]',
+      promoText: '高频用户主力包，连续对话和任务执行更划算',
+      priceGlowClassName: 'text-[#111827] dark:text-white',
+      ctaClassName:
+        'bg-[linear-gradient(135deg,#2563EB_0%,#4F46E5_100%)] !text-white hover:brightness-110 dark:border-none dark:bg-[linear-gradient(135deg,#3B82F6_0%,#6366F1_100%)] dark:!text-white',
     };
   }
   if (index === total - 1) {
@@ -189,12 +200,32 @@ function getPackageCardMeta(item: RechargePackage, index: number, total: number)
       icon: <Crown className="h-5 w-5" />,
       badgeText: item.badgeLabel || '超值推荐',
       badgeClassName: 'bg-purple-600 text-white dark:bg-purple-500',
+      accentClassName:
+        'border-[rgba(168,85,247,0.34)] bg-[linear-gradient(180deg,rgba(250,245,255,0.94)_0%,rgba(248,250,252,0.96)_100%)] shadow-[0_16px_44px_rgba(168,85,247,0.12)] dark:border-[rgba(168,85,247,0.32)] dark:bg-[linear-gradient(180deg,rgba(48,24,66,0.96)_0%,rgba(20,20,20,0.98)_100%)] dark:shadow-[0_20px_46px_rgba(168,85,247,0.16)]',
+      iconWrapClassName:
+        'bg-[linear-gradient(180deg,rgba(168,85,247,0.16)_0%,rgba(217,70,239,0.18)_100%)] text-[#7E22CE] dark:bg-[linear-gradient(180deg,rgba(168,85,247,0.24)_0%,rgba(217,70,239,0.24)_100%)] dark:text-[#D8B4FE]',
+      eyebrowText: '长期储备',
+      eyebrowClassName:
+        'border border-[rgba(168,85,247,0.24)] bg-[rgba(168,85,247,0.08)] text-[#7E22CE] dark:border-[rgba(168,85,247,0.30)] dark:bg-[rgba(168,85,247,0.14)] dark:text-[#D8B4FE]',
+      promoText: '单价更优，适合重度用户囤币和长期使用',
+      priceGlowClassName: 'text-[#111827] dark:text-white',
+      ctaClassName:
+        'bg-[linear-gradient(135deg,#6D28D9_0%,#9333EA_100%)] !text-white hover:brightness-110 dark:border-none dark:bg-[linear-gradient(135deg,#7C3AED_0%,#A855F7_100%)] dark:!text-white',
     };
   }
   return {
     icon: <Sparkles className="h-5 w-5" />,
     badgeText: null,
     badgeClassName: '',
+    accentClassName:
+      'border-gray-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(249,250,251,0.98)_100%)] shadow-[0_10px_30px_rgba(15,23,42,0.06)] dark:border-[#2F3742] dark:bg-[linear-gradient(180deg,rgba(26,26,26,0.98)_0%,rgba(20,20,20,0.98)_100%)] dark:shadow-[0_12px_32px_rgba(0,0,0,0.26)]',
+    iconWrapClassName: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+    eyebrowText: '轻量续航',
+    eyebrowClassName:
+      'border border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-[#1E1E1E] dark:text-gray-300',
+    promoText: '轻松补能，适合日常对话、试用和临时续航',
+    priceGlowClassName: 'text-gray-900 dark:text-gray-50',
+    ctaClassName: PRIMARY_ACTION_BUTTON_CLASS,
   };
 }
 
@@ -521,7 +552,7 @@ export function RechargeCenter({
       aria-hidden={active ? undefined : true}
       onClick={onClose}
     >
-      <div className="relative flex w-full justify-center">
+      <div className="relative flex min-h-full w-full items-center justify-center py-4">
         <PackageSelectionView
           packages={availablePackages}
           paymentMethods={availablePaymentMethods}
@@ -533,33 +564,35 @@ export function RechargeCenter({
 
         {step === 'payment' && currentPackage ? (
           <div
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(15,23,42,0.22)] px-4 py-6 backdrop-blur-[4px] dark:bg-[rgba(0,0,0,0.58)] md:px-8"
+            className="fixed inset-0 z-[60] overflow-y-auto bg-[rgba(15,23,42,0.22)] px-4 py-6 backdrop-blur-[4px] dark:bg-[rgba(0,0,0,0.58)] md:px-8"
             onClick={(event) => {
               event.stopPropagation();
               closePaymentModal();
             }}
           >
-            <PaymentView
-              currentPackage={currentPackage}
-              totalPrice={totalPrice}
-              paymentMethod={paymentMethod}
-              paymentMethods={availablePaymentMethods}
-              activeOrder={activeOrder}
-              resolvedQrUrl={resolvedQrUrl}
-              onPaymentMethodChange={(method) => {
-                cancelPendingCreateOrder();
-                setPaymentMethod(method);
-                setActiveOrder(null);
-                setPaymentMessage(null);
-                setAutoCreateOrderToken((current) => current + 1);
-              }}
-              onBack={closePaymentModal}
-              onClose={closePaymentModal}
-              creatingOrder={creatingOrder}
-              paymentMessage={paymentMessage}
-              onPayNow={handlePayNow}
-              onPanelClick={(event) => event.stopPropagation()}
-            />
+            <div className="flex min-h-full w-full items-center justify-center">
+              <PaymentView
+                currentPackage={currentPackage}
+                totalPrice={totalPrice}
+                paymentMethod={paymentMethod}
+                paymentMethods={availablePaymentMethods}
+                activeOrder={activeOrder}
+                resolvedQrUrl={resolvedQrUrl}
+                onPaymentMethodChange={(method) => {
+                  cancelPendingCreateOrder();
+                  setPaymentMethod(method);
+                  setActiveOrder(null);
+                  setPaymentMessage(null);
+                  setAutoCreateOrderToken((current) => current + 1);
+                }}
+                onBack={closePaymentModal}
+                onClose={closePaymentModal}
+                creatingOrder={creatingOrder}
+                paymentMessage={paymentMessage}
+                onPayNow={handlePayNow}
+                onPanelClick={(event) => event.stopPropagation()}
+              />
+            </div>
           </div>
         ) : null}
       </div>
@@ -590,11 +623,13 @@ function PackageSelectionView({
 
   return (
     <div
-      className="mx-auto w-full max-w-[1240px] rounded-lg border border-gray-200/60 bg-white p-12 shadow-[0_1px_3px_rgba(0,0,0,0.04)] dark:border-gray-800 dark:bg-[#141414] dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)]"
+      className="mx-auto w-full max-w-[1240px] max-h-[calc(100vh-32px)] overflow-y-auto rounded-[28px] border border-gray-200/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.98)_100%)] p-8 shadow-[0_30px_80px_rgba(15,23,42,0.18)] dark:border-[#2A3442] dark:bg-[linear-gradient(180deg,rgba(18,20,24,0.98)_0%,rgba(15,15,15,0.98)_100%)] dark:shadow-[0_30px_90px_rgba(0,0,0,0.44)] md:p-12"
       data-testid="recharge-package-view"
       onClick={(event) => event.stopPropagation()}
     >
-      <div className="relative">
+      <div className="relative overflow-hidden">
+        <div className="pointer-events-none absolute left-[-72px] top-[-88px] h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(59,130,246,0.18)_0%,rgba(59,130,246,0)_72%)] dark:bg-[radial-gradient(circle,rgba(59,130,246,0.16)_0%,rgba(59,130,246,0)_72%)]" />
+        <div className="pointer-events-none absolute right-[-56px] top-[-24px] h-48 w-48 rounded-full bg-[radial-gradient(circle,rgba(168,85,247,0.18)_0%,rgba(168,85,247,0)_70%)] dark:bg-[radial-gradient(circle,rgba(168,85,247,0.16)_0%,rgba(168,85,247,0)_70%)]" />
         <button
           onClick={onClose}
           data-testid="recharge-close"
@@ -603,15 +638,26 @@ function PackageSelectionView({
           <X className="h-5 w-5 text-gray-600 dark:text-gray-300" />
         </button>
 
-        <div className="mb-12 text-center">
+        <div className="mb-10 text-center">
+          <div className="mb-4 flex flex-wrap items-center justify-center gap-2">
+            <span className="inline-flex items-center rounded-full border border-[rgba(59,130,246,0.16)] bg-[rgba(59,130,246,0.08)] px-3 py-1 text-[12px] font-medium text-[#2563EB] dark:border-[rgba(96,165,250,0.22)] dark:bg-[rgba(59,130,246,0.12)] dark:text-[#93C5FD]">
+              支付成功后即时到账
+            </span>
+            <span className="inline-flex items-center rounded-full border border-[rgba(168,85,247,0.16)] bg-[rgba(168,85,247,0.08)] px-3 py-1 text-[12px] font-medium text-[#7E22CE] dark:border-[rgba(168,85,247,0.22)] dark:bg-[rgba(168,85,247,0.12)] dark:text-[#D8B4FE]">
+              支持微信 / 支付宝
+            </span>
+            <span className="inline-flex items-center rounded-full border border-gray-200 bg-white/80 px-3 py-1 text-[12px] font-medium text-gray-600 dark:border-gray-700 dark:bg-[#181818] dark:text-gray-300">
+              一次性充值，不会自动续费
+            </span>
+          </div>
           <div className="mb-2 flex items-center justify-center gap-3">
-            <h1 className="text-[28px] leading-[1.3] tracking-[-0.01em] text-gray-900 dark:text-gray-50">充值龙虾币</h1>
+            <h1 className="text-[30px] leading-[1.25] tracking-[-0.02em] text-gray-900 dark:text-gray-50">充值龙虾币</h1>
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#f1d38a] bg-[linear-gradient(180deg,#fff7df_0%,#fde7a7_100%)] text-[#8a5a00] shadow-[0_6px_16px_rgba(180,134,0,0.14)] dark:border-[#5b471b] dark:bg-[linear-gradient(180deg,#3a2f16_0%,#2b220f_100%)] dark:text-[#f2cf75] dark:shadow-none">
               <Coins className="h-4 w-4" />
             </span>
           </div>
-          <p className="text-[15px] text-gray-500 dark:text-gray-400">
-            一次性充值，不会自动续费，支付成功后即时到账
+          <p className="mx-auto max-w-[720px] text-[15px] leading-7 text-gray-500 dark:text-gray-400">
+            选择最适合你的套餐。主推档更适合连续多轮对话、工具调用与高频任务执行，重度使用建议直接囤大包。
           </p>
           {!hasPaymentMethods ? (
             <p className="mt-4 text-[13px] text-amber-600 dark:text-amber-400">
@@ -622,7 +668,7 @@ function PackageSelectionView({
       </div>
 
       {packages.length ? (
-        <div className="mx-auto grid max-w-[1060px] grid-cols-3 gap-5">
+        <div className="mx-auto grid max-w-[1120px] grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
         {packages.map((item, index) => {
           const selected = item.packageId === selectedPackageId;
           const priceLabel = formatPriceAmount(item.amountCnyFen);
@@ -643,14 +689,16 @@ function PackageSelectionView({
                 }
               }}
               className={cn(
-                'relative flex h-full cursor-pointer flex-col rounded-lg border p-7 text-left outline-none transition-all duration-200',
+                'relative flex h-full cursor-pointer flex-col overflow-hidden rounded-[24px] border p-7 text-left outline-none transition-all duration-200',
                 SPRING_PRESSABLE,
                 INTERACTIVE_FOCUS_RING,
                 selected
-                  ? 'border-gray-900 shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:border-gray-100 dark:bg-[#1A1A1A] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]'
-                  : 'border-gray-200/80 bg-white hover:border-gray-300 dark:border-[#2F3742] dark:bg-[#1A1A1A] dark:hover:border-[#4B5563]',
+                  ? 'translate-y-[-2px] border-gray-900 shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:border-gray-100 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]'
+                  : 'hover:border-gray-300 dark:hover:border-[#4B5563]',
+                meta.accentClassName,
               )}
             >
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,rgba(255,255,255,0.22)_0%,rgba(255,255,255,0)_100%)] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0)_100%)]" />
               {meta.badgeText ? (
                 <div className="absolute -top-2.5 left-1/2 -translate-x-1/2">
                   <div className={cn('rounded-full px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide', meta.badgeClassName)}>
@@ -659,17 +707,27 @@ function PackageSelectionView({
                 </div>
               ) : null}
 
-              <div className="mb-6 flex items-center gap-2.5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-md bg-gray-100 text-gray-700 transition-colors dark:bg-gray-800 dark:text-gray-300">
+              <div className="mb-5 flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className={cn('flex h-10 w-10 items-center justify-center rounded-xl transition-colors', meta.iconWrapClassName)}>
                   {meta.icon}
+                  </div>
+                  <div>
+                    <h3 className="text-[19px] font-semibold tracking-[-0.01em] text-gray-900 dark:text-gray-100">{item.packageName}</h3>
+                    <div className={cn('mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium', meta.eyebrowClassName)}>
+                      {meta.eyebrowText}
+                    </div>
+                  </div>
                 </div>
-                <h3 className="text-[17px] font-medium text-gray-900 dark:text-gray-100">{item.packageName}</h3>
+                {selected ? (
+                  <span className="mt-1 inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.12)] dark:bg-emerald-400 dark:shadow-[0_0_0_4px_rgba(52,211,153,0.14)]" />
+                ) : null}
               </div>
 
               <div className="mb-6">
                 <div className="flex items-baseline gap-0.5">
                   <span className="text-[15px] text-gray-500 dark:text-gray-400">¥</span>
-                  <span className="text-[40px] font-semibold leading-none tracking-tight text-gray-900 dark:text-gray-50">{priceLabel}</span>
+                  <span className={cn('text-[42px] font-semibold leading-none tracking-tight', meta.priceGlowClassName)}>{priceLabel}</span>
                 </div>
                 {item.highlight ? (
                   <div className="mt-3 inline-flex rounded-full bg-[rgba(59,130,246,0.10)] px-3 py-1 text-[12px] font-medium text-[#2563EB] dark:bg-[rgba(96,165,250,0.16)] dark:text-[#93C5FD]">
@@ -678,6 +736,9 @@ function PackageSelectionView({
                 ) : null}
                 {item.description ? (
                   <p className="mt-3 text-[13px] leading-6 text-gray-500 dark:text-gray-400">{item.description}</p>
+                ) : null}
+                {meta.promoText ? (
+                  <p className="mt-2 text-[12px] font-medium leading-5 text-gray-600 dark:text-gray-300">{meta.promoText}</p>
                 ) : null}
               </div>
 
@@ -701,7 +762,7 @@ function PackageSelectionView({
                 </div>
                 {item.featureList.length ? (
                   <div className="mt-4 space-y-2 pt-1">
-                    {item.featureList.slice(0, 3).map((feature, featureIndex) => (
+                    {item.featureList.slice(0, 5).map((feature, featureIndex) => (
                       <div
                         key={`${item.packageId}-feature-${featureIndex}`}
                         className="flex items-start gap-2 text-[13px] leading-5 text-gray-500 dark:text-gray-400"
@@ -728,7 +789,7 @@ function PackageSelectionView({
                   className={cn(
                     'w-full cursor-pointer rounded-md py-2.5 text-[16px] font-medium transition-colors',
                     !hasPaymentMethods && 'cursor-not-allowed opacity-55',
-                    PRIMARY_ACTION_BUTTON_CLASS,
+                    meta.ctaClassName,
                   )}
                 >
                   立即充值
@@ -880,7 +941,7 @@ function PaymentView({
 
   return (
     <div
-      className="relative h-[660px] w-[1000px] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:border-gray-800 dark:bg-[#141414] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
+      className="relative h-auto max-h-[calc(100vh-48px)] w-[1000px] max-w-[calc(100vw-32px)] overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:border-gray-800 dark:bg-[#141414] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
       data-testid="recharge-payment-view"
       onClick={onPanelClick}
     >
