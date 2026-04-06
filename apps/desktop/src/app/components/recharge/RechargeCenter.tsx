@@ -225,7 +225,7 @@ function getPackageCardMeta(item: RechargePackage) {
   if (isPlatformRecommended) {
     return {
       icon: <Zap className="h-5 w-5" />,
-      badgeText: explicitBadgeText || '默认套餐',
+      badgeText: getRechargeMetadataText(item.metadata, 'platform_badge_label', 'platformBadgeLabel', 'default_badge_label', 'defaultBadgeLabel') || '平台推荐',
       badgeClassName:
         'border border-[rgba(148,163,184,0.32)] bg-[rgba(248,250,252,0.94)] text-slate-700 shadow-[0_6px_18px_rgba(15,23,42,0.08)] dark:border-[rgba(148,163,184,0.30)] dark:bg-[rgba(30,41,59,0.88)] dark:text-slate-100 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]',
       accentClassName:
