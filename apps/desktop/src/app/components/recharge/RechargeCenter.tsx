@@ -208,18 +208,18 @@ function getPackageCardMeta(item: RechargePackage) {
       icon: <Zap className="h-5 w-5" />,
       badgeText: explicitBadgeText || '超值推荐',
       badgeClassName:
-        'border border-[rgba(37,99,235,0.24)] bg-[linear-gradient(135deg,#2563EB_0%,#4F46E5_100%)] text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)] dark:border-[rgba(96,165,250,0.28)] dark:bg-[linear-gradient(135deg,#3B82F6_0%,#6366F1_100%)] dark:text-white dark:shadow-[0_10px_24px_rgba(59,130,246,0.24)]',
+        'border border-[rgba(147,51,234,0.24)] bg-[linear-gradient(135deg,#7C3AED_0%,#A855F7_100%)] text-white shadow-[0_10px_24px_rgba(147,51,234,0.20)] dark:border-[rgba(192,132,252,0.28)] dark:bg-[linear-gradient(135deg,#8B5CF6_0%,#C084FC_100%)] dark:text-white dark:shadow-[0_10px_24px_rgba(168,85,247,0.24)]',
       accentClassName:
-        'border-[rgba(59,130,246,0.42)] bg-[linear-gradient(180deg,rgba(239,246,255,0.94)_0%,rgba(248,250,252,0.96)_100%)] shadow-[0_20px_50px_rgba(59,130,246,0.16)] dark:border-[rgba(96,165,250,0.4)] dark:bg-[linear-gradient(180deg,rgba(26,38,64,0.96)_0%,rgba(20,20,20,0.98)_100%)] dark:shadow-[0_20px_50px_rgba(37,99,235,0.18)]',
+        'border-[rgba(168,85,247,0.34)] bg-[linear-gradient(180deg,rgba(250,245,255,0.94)_0%,rgba(248,250,252,0.96)_100%)] shadow-[0_16px_44px_rgba(168,85,247,0.12)] dark:border-[rgba(168,85,247,0.32)] dark:bg-[linear-gradient(180deg,rgba(48,24,66,0.96)_0%,rgba(20,20,20,0.98)_100%)] dark:shadow-[0_20px_46px_rgba(168,85,247,0.16)]',
       iconWrapClassName:
-        'bg-[linear-gradient(180deg,rgba(59,130,246,0.18)_0%,rgba(99,102,241,0.20)_100%)] text-[#2563EB] dark:bg-[linear-gradient(180deg,rgba(59,130,246,0.22)_0%,rgba(99,102,241,0.28)_100%)] dark:text-[#93C5FD]',
+        'bg-[linear-gradient(180deg,rgba(168,85,247,0.16)_0%,rgba(217,70,239,0.18)_100%)] text-[#7E22CE] dark:bg-[linear-gradient(180deg,rgba(168,85,247,0.24)_0%,rgba(217,70,239,0.24)_100%)] dark:text-[#D8B4FE]',
       eyebrowText: metadataEyebrowText || (item.default ? '主力档位' : '超值推荐'),
       eyebrowClassName:
-        'border border-[rgba(96,165,250,0.24)] bg-[rgba(59,130,246,0.10)] text-[#2563EB] dark:border-[rgba(96,165,250,0.30)] dark:bg-[rgba(59,130,246,0.14)] dark:text-[#93C5FD]',
+        'border border-[rgba(168,85,247,0.24)] bg-[rgba(168,85,247,0.08)] text-[#7E22CE] dark:border-[rgba(168,85,247,0.30)] dark:bg-[rgba(168,85,247,0.14)] dark:text-[#D8B4FE]',
       promoText: metadataPromoText || (item.default ? '日常充值首选，兼顾单次成本与连续使用体验' : '高频用户主力包，连续对话和任务执行更划算'),
       priceGlowClassName: 'text-[#111827] dark:text-white',
       ctaClassName:
-        'border border-[rgba(37,99,235,0.28)] bg-[linear-gradient(135deg,#2563EB_0%,#4F46E5_100%)] !text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)] hover:brightness-110 hover:shadow-[0_14px_30px_rgba(37,99,235,0.26)] dark:border-[rgba(96,165,250,0.28)] dark:bg-[linear-gradient(135deg,#3B82F6_0%,#6366F1_100%)] dark:!text-white dark:shadow-[0_10px_24px_rgba(59,130,246,0.24)]',
+        'border border-[rgba(147,51,234,0.22)] bg-[linear-gradient(135deg,#7C3AED_0%,#A855F7_100%)] !text-white shadow-[0_10px_24px_rgba(147,51,234,0.20)] hover:brightness-110 hover:shadow-[0_14px_30px_rgba(147,51,234,0.24)] dark:border-[rgba(192,132,252,0.28)] dark:bg-[linear-gradient(135deg,#8B5CF6_0%,#C084FC_100%)] dark:!text-white dark:shadow-[0_10px_24px_rgba(168,85,247,0.24)]',
     };
   }
   if (isPlatformRecommended) {
@@ -227,18 +227,18 @@ function getPackageCardMeta(item: RechargePackage) {
       icon: <Zap className="h-5 w-5" />,
       badgeText: getRechargeMetadataText(item.metadata, 'platform_badge_label', 'platformBadgeLabel', 'default_badge_label', 'defaultBadgeLabel') || '平台推荐',
       badgeClassName:
-        'border border-[rgba(148,163,184,0.32)] bg-[rgba(248,250,252,0.94)] text-slate-700 shadow-[0_6px_18px_rgba(15,23,42,0.08)] dark:border-[rgba(148,163,184,0.30)] dark:bg-[rgba(30,41,59,0.88)] dark:text-slate-100 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]',
+        'border border-[rgba(37,99,235,0.24)] bg-[linear-gradient(135deg,#2563EB_0%,#4F46E5_100%)] text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)] dark:border-[rgba(96,165,250,0.28)] dark:bg-[linear-gradient(135deg,#3B82F6_0%,#6366F1_100%)] dark:text-white dark:shadow-[0_10px_24px_rgba(59,130,246,0.24)]',
       accentClassName:
-        'border-[rgba(71,85,105,0.30)] bg-[linear-gradient(180deg,rgba(248,250,252,0.98)_0%,rgba(241,245,249,0.98)_100%)] shadow-[0_16px_44px_rgba(71,85,105,0.12)] dark:border-[rgba(148,163,184,0.30)] dark:bg-[linear-gradient(180deg,rgba(28,33,43,0.98)_0%,rgba(20,20,20,0.98)_100%)] dark:shadow-[0_20px_46px_rgba(15,23,42,0.26)]',
+        'border-[rgba(59,130,246,0.42)] bg-[linear-gradient(180deg,rgba(239,246,255,0.94)_0%,rgba(248,250,252,0.96)_100%)] shadow-[0_20px_50px_rgba(59,130,246,0.16)] dark:border-[rgba(96,165,250,0.4)] dark:bg-[linear-gradient(180deg,rgba(26,38,64,0.96)_0%,rgba(20,20,20,0.98)_100%)] dark:shadow-[0_20px_50px_rgba(37,99,235,0.18)]',
       iconWrapClassName:
-        'bg-[linear-gradient(180deg,rgba(71,85,105,0.12)_0%,rgba(100,116,139,0.18)_100%)] text-slate-700 dark:bg-[linear-gradient(180deg,rgba(148,163,184,0.20)_0%,rgba(100,116,139,0.24)_100%)] dark:text-slate-200',
+        'bg-[linear-gradient(180deg,rgba(59,130,246,0.18)_0%,rgba(99,102,241,0.20)_100%)] text-[#2563EB] dark:bg-[linear-gradient(180deg,rgba(59,130,246,0.22)_0%,rgba(99,102,241,0.28)_100%)] dark:text-[#93C5FD]',
       eyebrowText: metadataEyebrowText || '主力档位',
       eyebrowClassName:
-        'border border-[rgba(148,163,184,0.24)] bg-[rgba(226,232,240,0.58)] text-slate-700 dark:border-[rgba(148,163,184,0.28)] dark:bg-[rgba(51,65,85,0.32)] dark:text-slate-200',
+        'border border-[rgba(96,165,250,0.24)] bg-[rgba(59,130,246,0.10)] text-[#2563EB] dark:border-[rgba(96,165,250,0.30)] dark:bg-[rgba(59,130,246,0.14)] dark:text-[#93C5FD]',
       promoText: metadataPromoText || '日常充值首选，兼顾单次成本与连续使用体验',
       priceGlowClassName: 'text-[#111827] dark:text-white',
       ctaClassName:
-        'border border-[rgba(148,163,184,0.38)] bg-[rgba(255,255,255,0.92)] text-slate-800 shadow-[0_6px_18px_rgba(15,23,42,0.07)] hover:border-[rgba(100,116,139,0.42)] hover:bg-[rgba(248,250,252,0.98)] hover:text-slate-900 dark:border-[rgba(148,163,184,0.34)] dark:bg-[rgba(30,41,59,0.72)] dark:text-slate-100 dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)] dark:hover:bg-[rgba(51,65,85,0.84)]',
+        'border border-[rgba(37,99,235,0.28)] bg-[linear-gradient(135deg,#2563EB_0%,#4F46E5_100%)] !text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)] hover:brightness-110 hover:shadow-[0_14px_30px_rgba(37,99,235,0.26)] dark:border-[rgba(96,165,250,0.28)] dark:bg-[linear-gradient(135deg,#3B82F6_0%,#6366F1_100%)] dark:!text-white dark:shadow-[0_10px_24px_rgba(59,130,246,0.24)]',
     };
   }
   const neutralBadgeText = explicitBadgeText;
@@ -634,7 +634,6 @@ export function RechargeCenter({
           packages={availablePackages}
           paymentMethods={availablePaymentMethods}
           selectedPackageId={currentPackage?.packageId || selectedPackageId}
-          onPackageSelect={setSelectedPackageId}
           onClose={onClose}
           onContinue={openPayment}
         />
@@ -692,14 +691,12 @@ function PackageSelectionView({
   packages,
   paymentMethods,
   selectedPackageId,
-  onPackageSelect,
   onClose,
   onContinue,
 }: {
   packages: RechargePackage[];
   paymentMethods: RechargePaymentMethod[];
   selectedPackageId: string;
-  onPackageSelect: (packageId: string) => void;
   onClose: () => void;
   onContinue: (packageId: string) => void;
 }) {
@@ -713,7 +710,7 @@ function PackageSelectionView({
     : undefined;
 
   const handlePackageCardClick = (packageId: string) => {
-    onPackageSelect(packageId);
+    onContinue(packageId);
   };
 
   return (
@@ -803,13 +800,12 @@ function PackageSelectionView({
                   }
                 }}
                 className={cn(
-                  'relative flex h-full cursor-pointer flex-col overflow-hidden rounded-[24px] border text-left outline-none transition-all duration-200',
+                  'relative flex h-full cursor-pointer flex-col overflow-hidden rounded-[24px] border text-left outline-none transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform',
                   ultraWideLayout ? 'p-4' : wideLayout ? 'p-5' : 'p-7',
                   SPRING_PRESSABLE,
                   INTERACTIVE_FOCUS_RING,
-                  selected
-                    ? 'translate-y-[-2px] border-gray-900 shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:border-gray-100 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]'
-                    : 'hover:border-gray-300 dark:hover:border-[#4B5563]',
+                  selected ? 'z-10' : 'hover:z-10',
+                  !selected && 'hover:border-gray-300 dark:hover:border-[#4B5563]',
                   meta.accentClassName,
                 )}
               >
@@ -946,7 +942,6 @@ function PackageSelectionView({
                     data-package-id={item.packageId}
                     onClick={(event) => {
                       event.stopPropagation();
-                      event.preventDefault();
                       onContinue(item.packageId);
                     }}
                     disabled={!hasPaymentMethods}
