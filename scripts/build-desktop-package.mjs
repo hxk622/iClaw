@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadBrandProfile, resolveBrandId } from './lib/brand-profile.mjs';
+import { pathExists, syncDirOrRemove } from './lib/incremental-fs.mjs';
 import { resolveConfiguredAppName, resolvePackagingSourceEnv, resolveSigningOverlayEnv } from './lib/app-env.mjs';
 import {
   buildBundleRoot,
@@ -420,6 +421,7 @@ function syncLocalAppRuntime({ pnpm, env, brandId, packagingPaths }) {
     '--',
     '--app',
     brandId,
+    '--incremental',
   ];
   const result = spawnSync(process.execPath, args, {
     stdio: 'pipe',
@@ -507,38 +509,12 @@ async function writeTempTauriConfig() {
   return path.relative(desktopDir, tempConfigPath).replace(/\\/g, '/');
 }
 
-async function pathExists(targetPath) {
-  try {
-    await fs.access(targetPath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function recreateDir(targetPath) {
-  await fs.rm(targetPath, { recursive: true, force: true });
-  await fs.mkdir(targetPath, { recursive: true });
-}
-
-async function copyDirIfPresent(sourcePath, destinationPath) {
-  if (!(await pathExists(sourcePath))) {
-    return;
-  }
-  await fs.mkdir(path.dirname(destinationPath), { recursive: true });
-  await fs.cp(sourcePath, destinationPath, {
-    recursive: true,
-    force: true,
-    verbatimSymlinks: true,
-  });
-}
-
 async function preparePackagingResourcesSource(resourcesSourceDir) {
   await fs.mkdir(resourcesSourceDir, { recursive: true });
   await Promise.all([
-    copyDirIfPresent(path.join(openclawResourcesSourceDir, 'certs'), path.join(resourcesSourceDir, 'certs')),
-    copyDirIfPresent(path.join(openclawResourcesSourceDir, 'config'), path.join(resourcesSourceDir, 'config')),
-    copyDirIfPresent(path.join(openclawResourcesSourceDir, 'mcp'), path.join(resourcesSourceDir, 'mcp')),
+    syncDirOrRemove(path.join(openclawResourcesSourceDir, 'certs'), path.join(resourcesSourceDir, 'certs')),
+    syncDirOrRemove(path.join(openclawResourcesSourceDir, 'config'), path.join(resourcesSourceDir, 'config')),
+    syncDirOrRemove(path.join(openclawResourcesSourceDir, 'mcp'), path.join(resourcesSourceDir, 'mcp')),
   ]);
   await fs.mkdir(path.join(resourcesSourceDir, 'baseline'), { recursive: true });
   await fs.mkdir(path.join(resourcesSourceDir, 'bundled-skills'), { recursive: true });
@@ -771,6 +747,16 @@ async function verifyRemoteRuntimeArtifactSha256(artifactUrl, expectedSha256) {
     return;
   }
 
+  const verificationCacheDir = path.join(rootDir, '.tmp-packaging', 'runtime-hash-cache');
+  const verificationCacheKey = createHash('sha256')
+    .update(`${normalizedUrl}\n${normalizedExpectedSha256}`)
+    .digest('hex');
+  const verificationCachePath = path.join(verificationCacheDir, `${verificationCacheKey}.ok`);
+  if (await pathExists(verificationCachePath)) {
+    process.stdout.write(`[desktop-package] runtime hash cache hit: ${normalizedUrl}\n`);
+    return;
+  }
+
   const response = await fetch(normalizedUrl);
   if (!response.ok || !response.body) {
     throw new Error(`failed to download runtime artifact for verification: ${response.status} ${response.statusText}`.trim());
@@ -786,6 +772,9 @@ async function verifyRemoteRuntimeArtifactSha256(artifactUrl, expectedSha256) {
       `runtime artifact sha256 mismatch for ${normalizedUrl}: expected ${normalizedExpectedSha256}, got ${actualSha256}`,
     );
   }
+
+  await fs.mkdir(verificationCacheDir, { recursive: true });
+  await fs.writeFile(verificationCachePath, `${actualSha256}\n`, 'utf8');
 }
 
 async function applyRuntimeBootstrapOverlay(env, brandProfile, channel, targetTriple) {
@@ -907,6 +896,16 @@ async function main() {
   const fastPackageMode = !/^(0|false|no)$/i.test(String(process.env.ICLAW_FAST_PACKAGE || '1').trim());
   const keepPackagingCache = !/^(0|false|no)$/i.test(String(process.env.ICLAW_KEEP_PACKAGING_CACHE || '1').trim());
   let restoreRuntimeBootstrapConfig = async () => {};
+
+  if (fastPackageMode) {
+    env.ICLAW_DMG_ZLIB_LEVEL ||= '1';
+    env.ICLAW_DMG_SKIP_LAYOUT ||= '1';
+    if (process.platform === 'darwin') {
+      env.CARGO_INCREMENTAL ||= '1';
+      env.CARGO_PROFILE_RELEASE_INCREMENTAL ||= 'true';
+      env.CARGO_PROFILE_RELEASE_CODEGEN_UNITS ||= '256';
+    }
+  }
 
   run(process.execPath, [brandStateScriptPath, 'snapshot', snapshotKey], { env });
   try {

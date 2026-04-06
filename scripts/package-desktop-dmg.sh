@@ -8,6 +8,9 @@ TAURI_DIR="$DESKTOP_DIR/src-tauri"
 target=""
 profile="release"
 channel="${ICLAW_ENV_NAME:-${NODE_ENV:-}}"
+fast_package="${ICLAW_FAST_PACKAGE:-1}"
+dmg_zlib_level="${ICLAW_DMG_ZLIB_LEVEL:-}"
+dmg_skip_layout="${ICLAW_DMG_SKIP_LAYOUT:-}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -28,6 +31,10 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+is_truthy() {
+  [[ "${1:-}" =~ ^(1|true|yes)$ ]]
+}
 
 product_name="$(
   node -e "const fs=require('fs'); const path=require('path'); const config=JSON.parse(fs.readFileSync(path.join(process.argv[1], 'tauri.generated.conf.json'), 'utf8')); process.stdout.write(config.productName);" \
@@ -108,6 +115,18 @@ normalize_channel() {
   esac
 }
 
+if [[ -z "$dmg_zlib_level" ]]; then
+  if is_truthy "$fast_package"; then
+    dmg_zlib_level="1"
+  else
+    dmg_zlib_level="9"
+  fi
+fi
+
+if [[ -z "$dmg_skip_layout" ]] && is_truthy "$fast_package"; then
+  dmg_skip_layout="1"
+fi
+
 mkdir -p "$dmg_dir"
 
 stage_dir="$(mktemp -d "${TMPDIR:-/tmp}/iclaw-dmg-stage.XXXXXX")"
@@ -150,19 +169,20 @@ hdiutil attach "$rw_dmg_path" \
   -nobrowse \
   -quiet
 
-mkdir -p "$mount_dir/.background"
-if [[ -f "$dmg_background_path" ]]; then
-  cp "$dmg_background_path" "$mount_dir/.background/background.png"
-fi
-
-if [[ -f "$dmg_volume_icon_path" ]]; then
-  cp "$dmg_volume_icon_path" "$mount_dir/.VolumeIcon.icns"
-  if command -v SetFile >/dev/null 2>&1; then
-    SetFile -a C "$mount_dir" || true
+if ! is_truthy "$dmg_skip_layout"; then
+  mkdir -p "$mount_dir/.background"
+  if [[ -f "$dmg_background_path" ]]; then
+    cp "$dmg_background_path" "$mount_dir/.background/background.png"
   fi
-fi
 
-if ! osascript <<EOF >/dev/null
+  if [[ -f "$dmg_volume_icon_path" ]]; then
+    cp "$dmg_volume_icon_path" "$mount_dir/.VolumeIcon.icns"
+    if command -v SetFile >/dev/null 2>&1; then
+      SetFile -a C "$mount_dir" || true
+    fi
+  fi
+
+  if ! osascript <<EOF >/dev/null
 tell application "Finder"
   tell disk "$product_name"
     open
@@ -186,15 +206,16 @@ tell application "Finder"
   end tell
 end tell
 EOF
-then
-  echo "[dmg] warning: Finder layout customization failed for $product_name; continuing with default DMG layout" >&2
+  then
+    echo "[dmg] warning: Finder layout customization failed for $product_name; continuing with default DMG layout" >&2
+  fi
 fi
 
 hdiutil detach "$mount_dir" -quiet
 
 hdiutil convert "$rw_dmg_path" \
   -format UDZO \
-  -imagekey zlib-level=9 \
+  -imagekey "zlib-level=$dmg_zlib_level" \
   -ov \
   -o "$dmg_path" >/dev/null
 

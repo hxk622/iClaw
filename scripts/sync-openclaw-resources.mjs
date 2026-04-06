@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { syncDirOrRemove, syncFileOrRemove } from './lib/incremental-fs.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -15,44 +16,10 @@ function trimString(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-async function pathExists(targetPath) {
-  try {
-    await fs.access(targetPath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function recreateDir(targetPath) {
-  await fs.rm(targetPath, { recursive: true, force: true });
-  await fs.mkdir(targetPath, { recursive: true });
-}
-
-async function copyDirIfPresent(sourcePath, destinationPath) {
-  if (!(await pathExists(sourcePath))) {
-    return;
-  }
-  await recreateDir(destinationPath);
-  await fs.cp(sourcePath, destinationPath, {
-    recursive: true,
-    force: true,
-    verbatimSymlinks: true,
-  });
-}
-
-async function copyFileIfPresent(sourcePath, destinationPath) {
-  if (!(await pathExists(sourcePath))) {
-    return;
-  }
-  await fs.mkdir(path.dirname(destinationPath), { recursive: true });
-  await fs.copyFile(sourcePath, destinationPath);
-}
-
 async function syncMcpConfig() {
   const sourcePath = path.join(resourcesSrcDir, 'mcp', 'mcp.json');
   const outputPath = path.join(resourcesDstDir, 'mcp', 'mcp.json');
-  await copyFileIfPresent(sourcePath, outputPath);
+  await syncFileOrRemove(sourcePath, outputPath);
 }
 
 async function main() {
@@ -65,21 +32,21 @@ async function main() {
   ]);
 
   await fs.rm(path.join(resourcesDstDir, 'skills'), { recursive: true, force: true });
-  await fs.rm(path.join(resourcesDstDir, 'baseline'), { recursive: true, force: true });
-  await fs.rm(path.join(resourcesDstDir, 'bundled-skills'), { recursive: true, force: true });
-  await copyDirIfPresent(serversSrcDir, path.join(resourcesDstDir, 'servers'));
-  await copyDirIfPresent(path.join(resourcesSrcDir, 'certs'), path.join(resourcesDstDir, 'certs'));
-  await copyDirIfPresent(path.join(resourcesSrcDir, 'baseline'), path.join(resourcesDstDir, 'baseline'));
-  await copyDirIfPresent(path.join(resourcesSrcDir, 'bundled-skills'), path.join(resourcesDstDir, 'bundled-skills'));
-  await copyFileIfPresent(
-    path.join(resourcesSrcDir, 'config', 'runtime-config.json'),
-    path.join(resourcesDstDir, 'config', 'runtime-config.json'),
-  );
-  await copyFileIfPresent(
-    path.join(resourcesSrcDir, 'config', 'portal-app-runtime.json'),
-    path.join(resourcesDstDir, 'config', 'portal-app-runtime.json'),
-  );
-  await syncMcpConfig();
+  await Promise.all([
+    syncDirOrRemove(serversSrcDir, path.join(resourcesDstDir, 'servers')),
+    syncDirOrRemove(path.join(resourcesSrcDir, 'certs'), path.join(resourcesDstDir, 'certs')),
+    syncDirOrRemove(path.join(resourcesSrcDir, 'baseline'), path.join(resourcesDstDir, 'baseline')),
+    syncDirOrRemove(path.join(resourcesSrcDir, 'bundled-skills'), path.join(resourcesDstDir, 'bundled-skills')),
+    syncFileOrRemove(
+      path.join(resourcesSrcDir, 'config', 'runtime-config.json'),
+      path.join(resourcesDstDir, 'config', 'runtime-config.json'),
+    ),
+    syncFileOrRemove(
+      path.join(resourcesSrcDir, 'config', 'portal-app-runtime.json'),
+      path.join(resourcesDstDir, 'config', 'portal-app-runtime.json'),
+    ),
+    syncMcpConfig(),
+  ]);
 
   process.stdout.write(`Synced OpenClaw resources from ${resourcesSrcDir} to ${resourcesDstDir}\n`);
 }
