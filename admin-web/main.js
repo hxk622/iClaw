@@ -12673,11 +12673,11 @@ function renderRechargePackageCatalogPage() {
             <div class="form-grid form-grid--two">
               <label class="field">
                 <span>Package ID</span>
-                <input class="field-input" name="package_id" value="${fieldValue(editingItem.packageId)}" placeholder="topup_3000" ${selectedPackage ? 'readonly' : ''} />
+                <input class="field-input" name="package_id" value="${fieldValue(editingItem.packageId)}" placeholder="topup_7000" ${selectedPackage ? 'readonly' : ''} />
               </label>
               <label class="field">
                 <span>套餐名称</span>
-                <input class="field-input" name="package_name" value="${fieldValue(editingItem.packageName)}" placeholder="3000 龙虾币" />
+                <input class="field-input" name="package_name" value="${fieldValue(editingItem.packageName)}" placeholder="7000 龙虾币" />
               </label>
               <label class="field">
                 <span>金额（分）</span>
