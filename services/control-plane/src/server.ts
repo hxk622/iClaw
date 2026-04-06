@@ -12,7 +12,6 @@ import {downloadPortalSkillArtifact} from './portal-skill-storage.ts';
 import {
   ensureBootstrapAdmin,
   ensureDefaultCatalogs,
-  ensureDefaultMcpCatalogs,
   ensureDefaultSkillSyncSources,
   ensurePortalSkillCatalogPolicy,
 } from './bootstrap.ts';
@@ -259,7 +258,6 @@ async function runStartupBootstrap(): Promise<void> {
       // Default catalog repair is intentionally disabled on normal startup.
       // Keep it as an explicit/manual operation instead of a boot-time guardrail.
       // runStep('ensureDefaultCatalogs', () => ensureDefaultCatalogs(store)),
-      runStep('ensureDefaultMcpCatalogs', () => ensureDefaultMcpCatalogs(store)),
       runStep('ensureDefaultSkillSyncSources', () => ensureDefaultSkillSyncSources(store)),
       runStep('ensurePortalSkillCatalogPolicy', () => ensurePortalSkillCatalogPolicy(portalStore)),
     ]);

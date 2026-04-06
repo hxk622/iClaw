@@ -6,7 +6,6 @@ import {
   createDefaultAgentCatalogEntries,
   createDefaultCloudSkillCatalogEntries,
 } from './catalog-defaults.ts';
-import {createDefaultMcpCatalogEntries} from './mcp-defaults.ts';
 import {
   DEFAULT_PLATFORM_RECHARGE_PACKAGE_SEEDS,
   type ResolvedRechargePackageRecord,
@@ -413,10 +412,6 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
 
     for (const entry of createDefaultAgentCatalogEntries(now)) {
       this.agentCatalog.set(entry.slug, entry);
-    }
-
-    for (const entry of createDefaultMcpCatalogEntries(now)) {
-      this.mcpCatalog.set(entry.mcpKey, entry);
     }
   }
 
