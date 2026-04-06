@@ -104,15 +104,16 @@ bash scripts/build-desktop-matrix.sh
 - 根索引：`/downloads/latest-<channel>.json`
 - Windows x64：`/downloads/windows/x64/<artifact>`
 - Windows ARM64：`/downloads/windows/aarch64/<artifact>`
-- macOS Intel：`/downloads/darwin/x64/<artifact>`
-- macOS Apple Silicon：`/downloads/darwin/aarch64/<artifact>`
+- macOS Intel：`/downloads/mac/x64/<artifact>`
+- macOS Apple Silicon：`/downloads/mac/aarch64/<artifact>`
 
 说明：
 
-- 平台 manifest 也放在对应目录，例如 `latest-prod-darwin-aarch64.json` 应位于 `/downloads/darwin/aarch64/`
+- 平台 manifest 也放在对应目录，例如 `latest-prod-mac-aarch64.json` 应位于 `/downloads/mac/aarch64/`
 - installer、updater、签名文件都跟随同一平台/架构目录发布
 - 脚本侧不得再把公开下载产物只上传到桶根目录，必须和公网 URL 前缀保持一致
-- 如需兼容历史链接，可以额外保留旧文件名别名；但下载页真值必须只指向当前正式文件名
+- macOS 下载路径执行单轨制，只保留 `/downloads/mac/<arch>/`
+- 不再维护 `/downloads/darwin/<arch>/` 兼容别名
 
 ## macOS Prod 标准流程
 
