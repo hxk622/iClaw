@@ -35,6 +35,11 @@ import {
   type ChatSemanticTone,
 } from '@/app/lib/chat-semantic-formatting';
 import {
+  looksLikeOpenClawCompatibilityIssue,
+  looksLikeOpenClawTransportIssue,
+  resolveOpenClawChatRecoveryAction,
+} from '@/app/lib/openclaw-chat-recovery';
+import {
   buildComposerModelOptions,
   findComposerModelOption,
   type ComposerModelOption,
@@ -276,6 +281,20 @@ type ChatSurfaceRenderState = {
   groupCount: number;
   chatMessageCount: number;
 };
+
+function createEmptyChatSurfaceRenderState(): ChatSurfaceRenderState {
+  return {
+    hostHeight: 0,
+    hasNativeInput: false,
+    nativeInputVisible: false,
+    nativeInputHeight: 0,
+    hasThread: false,
+    threadVisible: false,
+    threadHeight: 0,
+    groupCount: 0,
+    chatMessageCount: 0,
+  };
+}
 
 type CreditBlockNotice = {
   message: string;
@@ -684,21 +703,6 @@ function formatQueuedComposerMessagePreview(payload: ComposerSendPayload): strin
     return attachmentCount === 1 ? '图片消息' : `图片消息 (${attachmentCount})`;
   }
   return '新消息';
-}
-
-function looksLikeGatewayTransportIssue(value?: string | null): boolean {
-  const normalized = value?.trim().toLowerCase() ?? '';
-  if (!normalized) {
-    return false;
-  }
-  return (
-    normalized.includes('seq gap') ||
-    normalized.includes('websocket') ||
-    normalized.includes('gateway connection closed') ||
-    normalized.includes('gateway websocket closed') ||
-    normalized.includes("reading 'ws'") ||
-    normalized.includes('transport error')
-  );
 }
 
 function createQueuedComposerMessage(payload: ComposerSendPayload): QueuedComposerMessage {
@@ -1955,7 +1959,9 @@ function enhanceChatMarkdownTable(table: HTMLTableElement): void {
   removeEmptyTrailingChatTableColumns(table);
 
   const rows = Array.from(table.querySelectorAll(':scope > tbody > tr'));
-  const headerCells = Array.from(table.querySelectorAll(':scope > thead > tr:first-child > th'));
+  const headerCells = Array.from(table.querySelectorAll(':scope > thead > tr:first-child > th')).filter(
+    (cell): cell is HTMLTableCellElement => cell instanceof HTMLTableCellElement,
+  );
   if (headerCells.length === 0 || rows.length === 0) {
     return;
   }
@@ -3877,17 +3883,10 @@ export function OpenClawChatSurface({
     lastError: null,
     lastErrorCode: null,
   });
-  const [renderState, setRenderState] = useState<ChatSurfaceRenderState>({
-    hostHeight: 0,
-    hasNativeInput: false,
-    nativeInputVisible: false,
-    nativeInputHeight: 0,
-    hasThread: false,
-    threadVisible: false,
-    threadHeight: 0,
-    groupCount: 0,
+  const [renderState, setRenderState] = useState<ChatSurfaceRenderState>(() => ({
+    ...createEmptyChatSurfaceRenderState(),
     chatMessageCount: localStoredSnapshotMessageCount,
-  });
+  }));
   const [showConnectionCard, setShowConnectionCard] = useState(false);
   const [showRenderDiagnosticsCard, setShowRenderDiagnosticsCard] = useState(false);
   const [rechargeNoticeDismissed, setRechargeNoticeDismissed] = useState(false);
@@ -3922,6 +3921,8 @@ export function OpenClawChatSurface({
   const [optimisticEmptySessionActive, setOptimisticEmptySessionActive] = useState(() =>
     shouldTreatAsImmediateEmptySession(appName, sessionKey, conversationId),
   );
+  const [embeddedResetEpoch, setEmbeddedResetEpoch] = useState(0);
+  const [compatibilityRecoveryActive, setCompatibilityRecoveryActive] = useState(false);
   const [composerDraft, setComposerDraft] = useState<ComposerDraftPayload | null>(null);
   const [assistantFooterVersion, setAssistantFooterVersion] = useState(0);
   const [sessionBillingSummaries, setSessionBillingSummaries] = useState<RunBillingSummaryData[]>([]);
@@ -4012,6 +4013,8 @@ export function OpenClawChatSurface({
   const busyRef = useRef(status.busy);
   const previousSurfaceVisibleRef = useRef(surfaceVisible);
   const hasActivatedStableSurfaceRef = useRef(false);
+  const compatibilityRecoveryAttemptsRef = useRef(0);
+  const renderRecoveryAttemptsRef = useRef(0);
   const pendingConnectionLossStatusRef = useRef<ChatSurfaceStatus>({
     busy: false,
     connected: false,
@@ -4559,6 +4562,141 @@ export function OpenClawChatSurface({
     sessionKey,
   ]);
 
+  const performEmbeddedCompatibilityReset = useCallback(
+    (reason: string) => {
+      console.warn('[desktop] reset openclaw embedded chat surface for self-heal', {
+        sessionKey,
+        reason,
+        compatibilityAttempt: compatibilityRecoveryAttemptsRef.current,
+        renderAttempt: renderRecoveryAttemptsRef.current,
+      });
+      clearOpenClawEmbeddedState(gatewayUrl);
+      reconnectKeyRef.current = null;
+      initialScrollScheduledRef.current = false;
+      pendingConnectionLossStatusRef.current = {
+        busy: false,
+        connected: false,
+        lastError: null,
+        lastErrorCode: null,
+      };
+      setCompatibilityRecoveryActive(false);
+      setStatus((current) => ({
+        ...current,
+        connected: false,
+        lastError: null,
+        lastErrorCode: null,
+      }));
+      setRenderState(createEmptyChatSurfaceRenderState());
+      setHasBootSettled(false);
+      setShowConnectionCard(false);
+      setShowRenderDiagnosticsCard(false);
+      if (
+        shellAuthenticated &&
+        !hasStoredChatSnapshotMessages(appName, sessionKey, conversationId) &&
+        !shouldTreatAsImmediateEmptySession(appName, sessionKey, conversationId)
+      ) {
+        setInitialSurfaceRestorePending(true);
+      }
+      setEmbeddedResetEpoch((current) => current + 1);
+    },
+    [appName, conversationId, gatewayUrl, sessionKey, shellAuthenticated],
+  );
+
+  const scheduleSelfHealingRecovery = useCallback(
+    (cause: 'transport' | 'compatibility' | 'render-stuck', reason: string, baseDelayMs = 320) => {
+      if (autoRecoveryTimerRef.current != null) {
+        return;
+      }
+
+      const attempt =
+        cause === 'transport'
+          ? autoRecoveryAttemptsRef.current
+          : cause === 'compatibility'
+            ? compatibilityRecoveryAttemptsRef.current
+            : renderRecoveryAttemptsRef.current;
+      const action = resolveOpenClawChatRecoveryAction({ attempt, cause });
+      if (action === 'none') {
+        return;
+      }
+
+      const delayMs = Math.min(2_500, baseDelayMs * Math.max(1, 2 ** attempt));
+      autoRecoveryTimerRef.current = window.setTimeout(() => {
+        autoRecoveryTimerRef.current = null;
+        if (cause === 'transport') {
+          autoRecoveryAttemptsRef.current += 1;
+        } else if (cause === 'compatibility') {
+          compatibilityRecoveryAttemptsRef.current += 1;
+        } else {
+          renderRecoveryAttemptsRef.current += 1;
+        }
+
+        if (action === 'force-reveal') {
+          console.warn('[desktop] force reveal openclaw chat surface in compatibility recovery mode', {
+            sessionKey,
+            cause,
+            reason,
+            attempt:
+              cause === 'transport'
+                ? autoRecoveryAttemptsRef.current
+                : cause === 'compatibility'
+                  ? compatibilityRecoveryAttemptsRef.current
+                  : renderRecoveryAttemptsRef.current,
+          });
+          setCompatibilityRecoveryActive(true);
+          try {
+            appRef.current?.connect();
+          } catch (error) {
+            console.warn('[desktop] force-reveal reconnect failed to start', {
+              sessionKey,
+              cause,
+              reason,
+              error,
+            });
+          }
+          window.setTimeout(() => {
+            void refreshModelCatalog();
+          }, 220);
+          return;
+        }
+
+        if (action === 'reset-embedded') {
+          performEmbeddedCompatibilityReset(reason);
+          return;
+        }
+
+        const app = appRef.current;
+        if (!app) {
+          return;
+        }
+        console.warn('[desktop] attempt openclaw chat auto-recovery reconnect', {
+          sessionKey,
+          cause,
+          reason,
+          attempt:
+            cause === 'transport'
+              ? autoRecoveryAttemptsRef.current
+              : cause === 'compatibility'
+                ? compatibilityRecoveryAttemptsRef.current
+                : renderRecoveryAttemptsRef.current,
+        });
+        try {
+          app.connect();
+        } catch (error) {
+          console.warn('[desktop] openclaw reconnect attempt failed to start', {
+            sessionKey,
+            cause,
+            reason,
+            error,
+          });
+        }
+        window.setTimeout(() => {
+          void refreshModelCatalog();
+        }, 220);
+      }, delayMs);
+    },
+    [performEmbeddedCompatibilityReset, refreshModelCatalog, sessionKey],
+  );
+
   const ensureWrappedClientRequest = useCallback((app: OpenClawAppElement | null) => {
     const client = app?.client;
     if (!app || !client || typeof client.request !== 'function') {
@@ -4591,7 +4729,9 @@ export function OpenClawChatSurface({
               ? error.message
               : String(error);
 
-        if (code === '403' || detailCode !== null || message.toLowerCase().includes('forbidden')) {
+        const compatibilityIssue =
+          looksLikeOpenClawCompatibilityIssue(message) || looksLikeOpenClawCompatibilityIssue(detailCode);
+        if (code === '403' || detailCode !== null || compatibilityIssue || message.toLowerCase().includes('forbidden')) {
           console.error('[iclaw][openclaw-rpc-failure]', {
             method,
             code,
@@ -4760,42 +4900,8 @@ export function OpenClawChatSurface({
   );
 
   const scheduleAutoRecoveryReconnect = useCallback((reason: string, baseDelayMs = 320) => {
-    if (autoRecoveryTimerRef.current != null) {
-      return;
-    }
-
-    const attempt = autoRecoveryAttemptsRef.current;
-    if (attempt >= 4) {
-      return;
-    }
-
-    const delayMs = Math.min(2_500, baseDelayMs * Math.max(1, 2 ** attempt));
-    autoRecoveryTimerRef.current = window.setTimeout(() => {
-      autoRecoveryTimerRef.current = null;
-      autoRecoveryAttemptsRef.current += 1;
-      const app = appRef.current;
-      if (!app) {
-        return;
-      }
-      console.warn('[desktop] attempt openclaw chat auto-recovery reconnect', {
-        sessionKey,
-        reason,
-        attempt: autoRecoveryAttemptsRef.current,
-      });
-      try {
-        app.connect();
-      } catch (error) {
-        console.warn('[desktop] openclaw reconnect attempt failed to start', {
-          sessionKey,
-          reason,
-          error,
-        });
-      }
-      window.setTimeout(() => {
-        void refreshModelCatalog();
-      }, 220);
-    }, delayMs);
-  }, [refreshModelCatalog, sessionKey]);
+    scheduleSelfHealingRecovery('transport', reason, baseDelayMs);
+  }, [scheduleSelfHealingRecovery]);
 
   useLayoutEffect(() => {
     const nextChatScope = buildChatScopeIdentity(sessionKey, conversationId);
@@ -4809,6 +4915,7 @@ export function OpenClawChatSurface({
     const preserveVisibleSurfaceDuringSwitch =
       !hasImmediateSnapshot && !fastOpenEmptySession && hasActivatedStableSurfaceRef.current;
     setOptimisticEmptySessionActive(fastOpenEmptySession);
+    setCompatibilityRecoveryActive(false);
     previousChatScopeRef.current = nextChatScope;
     sessionTransitionPendingRef.current = !hasImmediateSnapshot && !fastOpenEmptySession;
     sessionTransitionStartedAtRef.current = performance.now();
@@ -4828,17 +4935,7 @@ export function OpenClawChatSurface({
           },
     );
     if (!hasImmediateSnapshot && !preserveVisibleSurfaceDuringSwitch) {
-      setRenderState({
-        hostHeight: 0,
-        hasNativeInput: false,
-        nativeInputVisible: false,
-        nativeInputHeight: 0,
-        hasThread: false,
-        threadVisible: false,
-        threadHeight: 0,
-        groupCount: 0,
-        chatMessageCount: 0,
-      });
+      setRenderState(createEmptyChatSurfaceRenderState());
     }
     if (hasImmediateSnapshot) {
       setSessionHistoryState('has-history');
@@ -4860,6 +4957,8 @@ export function OpenClawChatSurface({
     }
     clearAutoRecoveryTimer();
     autoRecoveryAttemptsRef.current = 0;
+    compatibilityRecoveryAttemptsRef.current = 0;
+    renderRecoveryAttemptsRef.current = 0;
     clearOverloadedGeneralSessionRotationTimer();
     overloadedGeneralSessionRef.current = null;
     artifactAutoOpenStateRef.current = {
@@ -5199,6 +5298,7 @@ export function OpenClawChatSurface({
     }
 
     clearOpenClawEmbeddedState(gatewayUrl);
+    initialScrollScheduledRef.current = false;
 
     const app = document.createElement('openclaw-app') as OpenClawAppElement;
     const settings = buildSettings({ gatewayUrl, gatewayToken, sessionKey: effectiveGatewaySessionKey });
@@ -5229,7 +5329,7 @@ export function OpenClawChatSurface({
       }
       host.replaceChildren();
     };
-  }, []);
+  }, [embeddedResetEpoch]);
 
   useEffect(() => {
     const app = appRef.current;
@@ -5417,9 +5517,12 @@ export function OpenClawChatSurface({
 
       const lowerMessage = message.toLowerCase();
       const lowerRaw = raw?.toLowerCase() ?? '';
+      const compatibilityIssue =
+        looksLikeOpenClawCompatibilityIssue(message) || looksLikeOpenClawCompatibilityIssue(raw);
       const looksRelevant =
         code === '403' ||
         detailCode !== null ||
+        compatibilityIssue ||
         lowerMessage.includes('forbidden') ||
         lowerRaw.includes('openclaw') ||
         lowerRaw.includes('gateway') ||
@@ -6097,10 +6200,10 @@ export function OpenClawChatSurface({
     const transportIssue =
       !status.connected &&
       (
-        looksLikeGatewayTransportIssue(status.lastError) ||
-        looksLikeGatewayTransportIssue(lastRpcFailure?.message) ||
-        looksLikeGatewayTransportIssue(unhandledGatewayError?.message) ||
-        looksLikeGatewayTransportIssue(unhandledGatewayError?.raw)
+        looksLikeOpenClawTransportIssue(status.lastError) ||
+        looksLikeOpenClawTransportIssue(lastRpcFailure?.message) ||
+        looksLikeOpenClawTransportIssue(unhandledGatewayError?.message) ||
+        looksLikeOpenClawTransportIssue(unhandledGatewayError?.raw)
       );
 
     if (!canAttemptAutoRecovery || !transportIssue) {
@@ -6117,6 +6220,26 @@ export function OpenClawChatSurface({
     lastRpcFailure?.message,
     scheduleAutoRecoveryReconnect,
     status.connected,
+    status.lastError,
+    unhandledGatewayError?.message,
+    unhandledGatewayError?.raw,
+  ]);
+
+  useEffect(() => {
+    const compatibilityIssue =
+      looksLikeOpenClawCompatibilityIssue(status.lastError) ||
+      looksLikeOpenClawCompatibilityIssue(lastRpcFailure?.message) ||
+      looksLikeOpenClawCompatibilityIssue(unhandledGatewayError?.message) ||
+      looksLikeOpenClawCompatibilityIssue(unhandledGatewayError?.raw);
+    if (!compatibilityIssue) {
+      compatibilityRecoveryAttemptsRef.current = 0;
+      return;
+    }
+
+    scheduleSelfHealingRecovery('compatibility', 'protocol-compatibility', 180);
+  }, [
+    lastRpcFailure?.message,
+    scheduleSelfHealingRecovery,
     status.lastError,
     unhandledGatewayError?.message,
     unhandledGatewayError?.raw,
@@ -6371,14 +6494,16 @@ export function OpenClawChatSurface({
   const hasStableVisibleChat =
     hasLocalStoredSnapshotMessages || hasObservedHistory || renderState.groupCount > 0 || renderState.chatMessageCount > 0;
   const renderReady = isSessionRenderReady(renderState);
+  const shouldForceSurfaceReveal = compatibilityRecoveryActive && status.connected && !status.lastError;
   const surfaceReadyForReveal =
     status.connected &&
-    (hasStableVisibleChat || allowImmediateEmptySessionUi || sessionHistoryState === 'empty') &&
+    (hasStableVisibleChat || allowImmediateEmptySessionUi || sessionHistoryState === 'empty' || shouldForceSurfaceReveal) &&
     !status.lastError;
   const showBootMask =
     shellAuthenticated &&
     !sessionTransitionVisible &&
     !allowImmediateEmptySessionUi &&
+    !compatibilityRecoveryActive &&
     !hasStableVisibleChat &&
     !status.lastError &&
     (!surfaceReadyForReveal || !hasBootSettled || initialSurfaceRestorePending || waitingForHistoryResolution || !renderReady);
@@ -6401,10 +6526,50 @@ export function OpenClawChatSurface({
   const showRechargeCtaCard = status.connected && Boolean(creditBlockNotice) && !rechargeNoticeDismissed;
 
   useEffect(() => {
+    const renderStuck =
+      shellAuthenticated &&
+      status.connected &&
+      !status.lastError &&
+      !renderReady &&
+      !surfaceReactivating &&
+      !sessionTransitionVisible &&
+      !initialSurfaceRestorePending &&
+      !allowImmediateEmptySessionUi &&
+      !hasStableVisibleChat;
+
+    if (!renderStuck) {
+      renderRecoveryAttemptsRef.current = 0;
+      return;
+    }
+
+    scheduleSelfHealingRecovery('render-stuck', 'render-stuck-after-connect', 260);
+  }, [
+    allowImmediateEmptySessionUi,
+    hasStableVisibleChat,
+    initialSurfaceRestorePending,
+    renderReady,
+    scheduleSelfHealingRecovery,
+    sessionTransitionVisible,
+    shellAuthenticated,
+    status.connected,
+    status.lastError,
+    surfaceReactivating,
+  ]);
+
+  useEffect(() => {
     if (!creditBlockNotice) {
       setRechargeNoticeDismissed(false);
     }
   }, [creditBlockNotice]);
+
+  useEffect(() => {
+    if (!compatibilityRecoveryActive || !status.connected || status.lastError || !renderReady) {
+      return;
+    }
+    setCompatibilityRecoveryActive(false);
+    compatibilityRecoveryAttemptsRef.current = 0;
+    renderRecoveryAttemptsRef.current = 0;
+  }, [compatibilityRecoveryActive, renderReady, status.connected, status.lastError]);
 
   useEffect(() => {
     if (surfaceReadyForReveal) {
@@ -6475,6 +6640,10 @@ export function OpenClawChatSurface({
       modelOptions: modelOptions.map((option) => option.id),
       modelsLoading,
       modelSwitching,
+      compatibilityRecoveryActive,
+      compatibilityRecoveryAttempts: compatibilityRecoveryAttemptsRef.current,
+      renderRecoveryAttempts: renderRecoveryAttemptsRef.current,
+      transportRecoveryAttempts: autoRecoveryAttemptsRef.current,
       pendingSettlementCount,
       sessionBillingSummaries: sessionBillingSummaries.map((summary) => ({
         grantId: summary.grant_id,
@@ -6515,6 +6684,7 @@ export function OpenClawChatSurface({
     modelOptions,
     modelsLoading,
     modelSwitching,
+    compatibilityRecoveryActive,
     pendingSettlementCount,
     renderState,
     resolvedModelSessionKey,
@@ -6529,6 +6699,9 @@ export function OpenClawChatSurface({
   ]);
 
   const renderDiagnosticsMessage = (() => {
+    if (compatibilityRecoveryActive) {
+      return '已自动切换到兼容恢复模式。输入区会先恢复可用，聊天内核会在后台继续自动重建。';
+    }
     if (unhandledGatewayError?.code === '403') {
       return '当前页面捕获到了未处理的 403。更像是 OpenClaw 某个初始化或刷新请求被 gateway 拒绝，不是纯样式白板。';
     }
@@ -7174,7 +7347,7 @@ export function OpenClawChatSurface({
           ...current,
           lastError: detail,
         }));
-        return looksLikeGatewayTransportIssue(detail) ? 'retry' : 'failed';
+        return looksLikeOpenClawTransportIssue(detail) ? 'retry' : 'failed';
       }
     }
 
@@ -7305,7 +7478,7 @@ export function OpenClawChatSurface({
         lastError: isCreditBlockCode(code) ? null : detail,
         lastErrorCode: isCreditBlockCode(code) ? null : code,
       }));
-      return looksLikeGatewayTransportIssue(detail) ? 'retry' : 'failed';
+      return looksLikeOpenClawTransportIssue(detail) ? 'retry' : 'failed';
     }
   }, [
     clearUsageSettlementTimers,
