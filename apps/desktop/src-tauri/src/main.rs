@@ -19,6 +19,8 @@ use std::io::{Read, Write};
 use std::net::TcpListener;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::{mpsc, Mutex};
@@ -65,6 +67,8 @@ const SHARED_GATEWAY_TOKEN_DIR: &str = ".openclaw";
 const SHARED_GATEWAY_TOKEN_FILE: &str = "gateway-token";
 const DESKTOP_UPDATER_PUBLIC_KEY: Option<&str> = option_env!("TAURI_UPDATER_PUBLIC_KEY");
 const MEMORY_RUNTIME_STATUS_TIMEOUT_MS: u64 = 2500;
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 #[derive(Serialize, Deserialize, Clone)]
 struct RuntimeConfig {
@@ -4369,6 +4373,14 @@ fn process_is_managed_local_service(process: &ListeningProcess, app: &AppHandle)
         || process.details.contains(runtime_root_text.as_ref())
 }
 
+#[cfg(windows)]
+fn configure_background_child_process(command: &mut Command) {
+    command.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(windows))]
+fn configure_background_child_process(_command: &mut Command) {}
+
 fn terminate_pid(pid: u32) -> bool {
     Command::new("kill")
         .args(["-TERM", &pid.to_string()])
@@ -4890,6 +4902,7 @@ fn start_sidecar(
         ));
     }
     let mut command = Command::new(&node_path);
+    configure_background_child_process(&mut command);
     command.current_dir(&runtime_root);
     command.env(
         "ICLAW_OPENCLAW_RUNTIME_ROOT",
@@ -5725,7 +5738,9 @@ fn run_memory_cli_json(app: &AppHandle, args: &[&str]) -> Result<serde_json::Val
 fn parse_memory_cli_json_output(stdout: &str) -> Result<serde_json::Value, String> {
     let trimmed = stdout.trim();
     if trimmed.is_empty() {
-        return Err(String::from("failed to parse memory cli json: empty stdout"));
+        return Err(String::from(
+            "failed to parse memory cli json: empty stdout",
+        ));
     }
     if let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed) {
         return Ok(value);
