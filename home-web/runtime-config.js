@@ -87,6 +87,46 @@ function defaultPages(runtimeBrand, templateKey) {
             {blockKey: 'download-grid.classic', enabled: true, sortOrder: 20, props: {}},
           ],
     },
+    {
+      pageKey: 'privacy',
+      path: '/privacy',
+      enabled: true,
+      seo: {
+        title: '隐私政策',
+        description: '查看隐私政策',
+      },
+      blocks: [
+        {
+          blockKey: 'rich-text.legal',
+          enabled: true,
+          sortOrder: 10,
+          props: {
+            title: '隐私政策',
+            content: '请在后台维护隐私政策内容。',
+          },
+        },
+      ],
+    },
+    {
+      pageKey: 'terms',
+      path: '/terms',
+      enabled: true,
+      seo: {
+        title: '用户协议',
+        description: '查看用户协议',
+      },
+      blocks: [
+        {
+          blockKey: 'rich-text.legal',
+          enabled: true,
+          sortOrder: 10,
+          props: {
+            title: '用户协议',
+            content: '请在后台维护用户协议内容。',
+          },
+        },
+      ],
+    },
   ];
 }
 

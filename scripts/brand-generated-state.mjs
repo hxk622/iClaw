@@ -50,7 +50,13 @@ async function pathInfo(targetPath) {
 }
 
 async function copyToSnapshot(srcPath, destPath, type) {
+  try {
+    await fs.access(srcPath);
+  } catch {
+    return;
+  }
   await fs.mkdir(path.dirname(destPath), {recursive: true});
+  await fs.rm(destPath, {recursive: true, force: true, maxRetries: 5, retryDelay: 100});
   if (type === 'dir') {
     await fs.cp(srcPath, destPath, {recursive: true});
     return;
@@ -59,7 +65,7 @@ async function copyToSnapshot(srcPath, destPath, type) {
 }
 
 async function removeTarget(targetPath) {
-  await fs.rm(targetPath, {recursive: true, force: true});
+  await fs.rm(targetPath, {recursive: true, force: true, maxRetries: 5, retryDelay: 100});
 }
 
 async function snapshot(key) {
@@ -107,6 +113,10 @@ async function restore(key) {
       continue;
     }
     const snapshotPath = path.join(keyDir, 'files', relativePath);
+    const snapshotInfo = await pathInfo(snapshotPath);
+    if (!snapshotInfo.exists) {
+      continue;
+    }
     await copyToSnapshot(snapshotPath, absolutePath, entry.type === 'dir' ? 'dir' : 'file');
   }
 

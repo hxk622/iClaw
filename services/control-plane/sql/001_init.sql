@@ -857,6 +857,85 @@ create table if not exists oem_app_assets (
   unique (app_name, asset_key)
 );
 
+create table if not exists marketing_site_template_catalog (
+  template_key text primary key,
+  label text not null,
+  description text not null default '',
+  metadata_json jsonb not null default '{}'::jsonb,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists marketing_site_shell_variant_catalog (
+  variant_key text primary key,
+  shell_key text not null,
+  label text not null,
+  description text not null default '',
+  metadata_json jsonb not null default '{}'::jsonb,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists marketing_site_block_variant_catalog (
+  variant_key text primary key,
+  block_key text not null,
+  label text not null,
+  description text not null default '',
+  metadata_json jsonb not null default '{}'::jsonb,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists portal_app_marketing_site_state (
+  app_name text primary key references oem_apps(app_name) on delete cascade,
+  template_key text not null references marketing_site_template_catalog(template_key),
+  metadata_json jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists portal_app_marketing_site_shell_bindings (
+  app_name text not null references oem_apps(app_name) on delete cascade,
+  shell_key text not null,
+  enabled boolean not null default true,
+  variant_key text not null references marketing_site_shell_variant_catalog(variant_key),
+  sort_order integer not null default 100,
+  props_json jsonb not null default '{}'::jsonb,
+  metadata_json jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (app_name, shell_key)
+);
+
+create table if not exists portal_app_marketing_site_page_bindings (
+  app_name text not null references oem_apps(app_name) on delete cascade,
+  page_key text not null,
+  path text not null,
+  enabled boolean not null default true,
+  sort_order integer not null default 100,
+  seo_json jsonb not null default '{}'::jsonb,
+  metadata_json jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (app_name, page_key)
+);
+
+create table if not exists portal_app_marketing_site_block_bindings (
+  app_name text not null references oem_apps(app_name) on delete cascade,
+  page_key text not null,
+  block_key text not null,
+  enabled boolean not null default true,
+  variant_key text not null references marketing_site_block_variant_catalog(variant_key),
+  sort_order integer not null default 100,
+  props_json jsonb not null default '{}'::jsonb,
+  metadata_json jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (app_name, page_key, block_key)
+);
+
 create table if not exists oem_system_state (
   state_key text primary key,
   state_value jsonb not null default '{}'::jsonb,
@@ -887,6 +966,69 @@ create table if not exists oem_app_audit_events (
 alter table oem_app_assets add column if not exists storage_provider text not null default 's3';
 alter table oem_app_assets add column if not exists public_url text;
 alter table oem_app_assets add column if not exists created_by uuid references users(id) on delete set null;
+
+insert into marketing_site_template_catalog (
+  template_key,
+  label,
+  description,
+  metadata_json,
+  active
+) values
+  ('classic-download', '经典下载页', '适合 iclaw 等简洁官网场景的下载模板。', '{"family":"classic"}'::jsonb, true),
+  ('wealth-premium', '财富模板', '适合理财客等金融/财富管理 OEM 的官网模板。', '{"family":"wealth"}'::jsonb, true)
+on conflict (template_key) do update set
+  label = excluded.label,
+  description = excluded.description,
+  metadata_json = excluded.metadata_json,
+  active = excluded.active,
+  updated_at = now();
+
+insert into marketing_site_shell_variant_catalog (
+  variant_key,
+  shell_key,
+  label,
+  description,
+  metadata_json,
+  active
+) values
+  ('default-header', 'header', '默认 Header', '经典模板顶部栏。', '{}'::jsonb, true),
+  ('finance-header', 'header', '金融 Header', '财富模板顶部栏。', '{}'::jsonb, true),
+  ('default-footer', 'footer', '默认 Footer', '经典模板底部栏。', '{}'::jsonb, true),
+  ('finance-legal-footer', 'footer', '金融 Footer', '财富模板法律与品牌 footer。', '{}'::jsonb, true)
+on conflict (variant_key) do update set
+  shell_key = excluded.shell_key,
+  label = excluded.label,
+  description = excluded.description,
+  metadata_json = excluded.metadata_json,
+  active = excluded.active,
+  updated_at = now();
+
+insert into marketing_site_block_variant_catalog (
+  variant_key,
+  block_key,
+  label,
+  description,
+  metadata_json,
+  active
+) values
+  ('hero.basic', 'hero', '基础 Hero', '经典模板 Hero 区块。', '{}'::jsonb, true),
+  ('hero.wealth', 'hero', '财富 Hero', '财富模板 Hero 区块。', '{}'::jsonb, true),
+  ('download-grid.classic', 'download-grid', '基础下载区', '经典模板下载区块。', '{}'::jsonb, true),
+  ('download-grid.finance', 'download-grid', '金融下载区', '财富模板下载区块。', '{}'::jsonb, true),
+  ('feature-cards.wealth', 'feature-cards', '财富特性卡片', '财富模板特性说明区。', '{}'::jsonb, true),
+  ('scenario-cards.wealth', 'scenario-cards', '财富场景卡片', '财富模板场景说明区。', '{}'::jsonb, true),
+  ('workflow-steps.wealth', 'workflow-steps', '财富流程区', '财富模板流程步骤区。', '{}'::jsonb, true),
+  ('capability-grid.wealth', 'capability-grid', '财富能力矩阵', '财富模板能力区。', '{}'::jsonb, true),
+  ('security-badges.finance', 'security-badges', '金融治理区', '财富模板治理与合规说明区。', '{}'::jsonb, true),
+  ('cta-banner.finance', 'cta-banner', '金融 CTA', '财富模板底部 CTA 区。', '{}'::jsonb, true),
+  ('rich-text.legal', 'rich-text', '法律文本', '隐私政策、用户协议等法律页面内容区。', '{}'::jsonb, true)
+on conflict (variant_key) do update set
+  block_key = excluded.block_key,
+  label = excluded.label,
+  description = excluded.description,
+  metadata_json = excluded.metadata_json,
+  active = excluded.active,
+  updated_at = now();
 
 do $$
 begin
@@ -1912,6 +2054,16 @@ create index if not exists idx_oem_app_releases_app_published
   on oem_app_releases(app_name, published_at desc, version_no desc);
 create index if not exists idx_oem_app_audit_events_app_created
   on oem_app_audit_events(app_name, created_at desc);
+create index if not exists idx_portal_marketing_site_shell_bindings_app_sort
+  on portal_app_marketing_site_shell_bindings(app_name, sort_order, shell_key);
+create index if not exists idx_portal_marketing_site_page_bindings_app_sort
+  on portal_app_marketing_site_page_bindings(app_name, sort_order, page_key);
+create index if not exists idx_portal_marketing_site_block_bindings_app_page_sort
+  on portal_app_marketing_site_block_bindings(app_name, page_key, sort_order, block_key);
+create index if not exists idx_marketing_site_shell_variant_catalog_shell
+  on marketing_site_shell_variant_catalog(shell_key, variant_key);
+create index if not exists idx_marketing_site_block_variant_catalog_block
+  on marketing_site_block_variant_catalog(block_key, variant_key);
 
 create table if not exists chat_conversations (
   id uuid primary key,

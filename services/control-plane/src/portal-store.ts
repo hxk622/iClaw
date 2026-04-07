@@ -453,6 +453,50 @@ type PortalAppSnapshotState = {
   assets: PortalAppAssetRecord[];
 };
 
+type MarketingSiteStateRow = {
+  app_name: string;
+  template_key: string;
+  metadata_json: Record<string, unknown> | null;
+  updated_at: Date;
+};
+
+type MarketingSiteShellBindingRow = {
+  app_name: string;
+  shell_key: string;
+  enabled: boolean;
+  variant_key: string;
+  sort_order: number;
+  props_json: Record<string, unknown> | null;
+  metadata_json: Record<string, unknown> | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+type MarketingSitePageBindingRow = {
+  app_name: string;
+  page_key: string;
+  path: string;
+  enabled: boolean;
+  sort_order: number;
+  seo_json: Record<string, unknown> | null;
+  metadata_json: Record<string, unknown> | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+type MarketingSiteBlockBindingRow = {
+  app_name: string;
+  page_key: string;
+  block_key: string;
+  enabled: boolean;
+  variant_key: string;
+  sort_order: number;
+  props_json: Record<string, unknown> | null;
+  metadata_json: Record<string, unknown> | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
 function asJsonObject(value: unknown): PortalJsonObject {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {};
@@ -463,6 +507,10 @@ function asJsonObject(value: unknown): PortalJsonObject {
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.map((item) => String(item || '').trim()).filter(Boolean);
+}
+
+function cloneJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
 }
 
 function parseDbNumber(value: string | number | null | undefined): number {
@@ -1204,6 +1252,7 @@ async function listAuditByApp(db: Pool | PoolClient, appName: string, limit: num
 async function readAppSnapshotState(db: Pool | PoolClient, appName: string, forUpdate = false): Promise<PortalAppSnapshotState | null> {
   const appRow = await readAppRow(db, appName, forUpdate);
   if (!appRow) return null;
+  const marketingSite = await readMarketingSiteConfigFromBindings(db, appName);
   const [
     skillBindings,
     mcpBindings,
@@ -1223,8 +1272,32 @@ async function readAppSnapshotState(db: Pool | PoolClient, appName: string, forU
     listRechargePackageBindings(db, appName),
     listAssetsByApp(db, appName),
   ]);
+  const app = mapAppRow(appRow);
+  if (marketingSite) {
+    const existingSurfaces = asJsonObject(app.config.surfaces);
+    const existingHomeWeb = asJsonObject(existingSurfaces['home-web']);
+    const existingHomeWebConfig = asJsonObject(existingHomeWeb.config);
+    app.config = {
+      ...app.config,
+      marketingSite,
+      surfaces: {
+        ...existingSurfaces,
+        'home-web': {
+          ...existingHomeWeb,
+          enabled: existingHomeWeb.enabled !== false,
+          config: {
+            ...existingHomeWebConfig,
+            templateKey: marketingSite.templateKey,
+            siteShell: cloneJson(asJsonObject(marketingSite.siteShell)),
+            pages: cloneJson(Array.isArray(marketingSite.pages) ? marketingSite.pages : []),
+            marketingSite: cloneJson(marketingSite),
+          },
+        },
+      },
+    };
+  }
   return {
-    app: mapAppRow(appRow),
+    app,
     skillBindings,
     mcpBindings,
     modelBindings,
@@ -1259,6 +1332,384 @@ async function insertAuditEvent(
     `,
     [randomUUID(), input.appName, input.action, input.actorUserId, JSON.stringify(input.payload)],
   );
+}
+
+function normalizeMarketingSiteTemplateKey(value: unknown, appName: string): string {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  if (raw) return raw;
+  return appName === 'licaiclaw' ? 'wealth-premium' : 'classic-download';
+}
+
+function defaultMarketingSiteConfigFromApp(appName: string, config: PortalJsonObject): PortalJsonObject {
+  const website = asJsonObject(config.website);
+  const displayName =
+    String(config.displayName || config.display_name || website.brandLabel || appName).trim() || appName;
+  const isWealth = appName === 'licaiclaw';
+  return {
+    templateKey: normalizeMarketingSiteTemplateKey('', appName),
+    siteShell: {
+      header: {
+        enabled: true,
+        variant: isWealth ? 'finance-header' : 'default-header',
+        props: {
+          brandLabel: String(website.brandLabel || displayName).trim() || displayName,
+          subline: String(website.kicker || 'Official Website').trim() || 'Official Website',
+          navItems: isWealth
+            ? [
+                {label: '核心能力', href: '#capabilities'},
+                {label: '适用场景', href: '#scenes'},
+                {label: '安全合规', href: '#security'},
+              ]
+            : [],
+          primaryCta: {
+            label: String(website.topCtaLabel || '下载').trim() || '下载',
+            href: '#download',
+          },
+        },
+      },
+      footer: {
+        enabled: true,
+        variant: isWealth ? 'finance-legal-footer' : 'default-footer',
+        props: {
+          columns: [
+            {
+              title: '站点',
+              links: [
+                {label: '首页', href: '/'},
+                {label: String(website.downloadTitle || `下载 ${displayName}`).trim() || `下载 ${displayName}`, href: '#download'},
+              ],
+            },
+          ],
+          legalLinks: [
+            {label: '隐私政策', href: '/privacy'},
+            {label: '用户协议', href: '/terms'},
+          ],
+          copyrightText: `© ${new Date().getFullYear()} ${displayName}`,
+          icpText: '',
+        },
+      },
+    },
+    pages: [
+      {
+        pageKey: 'home',
+        path: '/',
+        enabled: true,
+        seo: {
+          title: String(website.homeTitle || `${displayName} 官网`).trim() || `${displayName} 官网`,
+          description: String(website.metaDescription || `${displayName} 官网`).trim() || `${displayName} 官网`,
+        },
+        blocks: [
+          {
+            blockKey: isWealth ? 'hero.wealth' : 'hero.basic',
+            enabled: true,
+            sortOrder: 10,
+            props: {
+              eyebrow: String(website.kicker || 'Official Website').trim() || 'Official Website',
+              titlePre: String(website.heroTitlePre || '').trim(),
+              titleMain: String(website.heroTitleMain || '').trim(),
+              description: String(website.heroDescription || '').trim(),
+            },
+          },
+          {
+            blockKey: isWealth ? 'download-grid.finance' : 'download-grid.classic',
+            enabled: true,
+            sortOrder: 20,
+            props: {
+              title: String(website.downloadTitle || `下载 ${displayName}`).trim() || `下载 ${displayName}`,
+            },
+          },
+        ],
+      },
+      {
+        pageKey: 'privacy',
+        path: '/privacy',
+        enabled: true,
+        seo: {title: '隐私政策', description: '查看隐私政策'},
+        blocks: [
+          {
+            blockKey: 'rich-text.legal',
+            enabled: true,
+            sortOrder: 10,
+            props: {title: '隐私政策', content: '请在后台维护隐私政策内容。'},
+          },
+        ],
+      },
+      {
+        pageKey: 'terms',
+        path: '/terms',
+        enabled: true,
+        seo: {title: '用户协议', description: '查看用户协议'},
+        blocks: [
+          {
+            blockKey: 'rich-text.legal',
+            enabled: true,
+            sortOrder: 10,
+            props: {title: '用户协议', content: '请在后台维护用户协议内容。'},
+          },
+        ],
+      },
+    ],
+  };
+}
+
+function normalizeMarketingSiteConfigFromAppConfig(appName: string, config: PortalJsonObject): PortalJsonObject {
+  const surfaces = asJsonObject(config.surfaces);
+  const homeWebSurface = asJsonObject(surfaces['home-web']);
+  const homeWebConfig = asJsonObject(homeWebSurface.config);
+  const nested = asJsonObject(homeWebConfig.marketingSite);
+  const defaults = defaultMarketingSiteConfigFromApp(appName, config);
+  return {
+    ...cloneJson(defaults),
+    ...cloneJson(nested),
+    ...cloneJson(homeWebConfig),
+    templateKey: normalizeMarketingSiteTemplateKey(homeWebConfig.templateKey || nested.templateKey, appName),
+    siteShell: {
+      ...cloneJson(asJsonObject(defaults.siteShell)),
+      ...cloneJson(asJsonObject(nested.siteShell)),
+      ...cloneJson(asJsonObject(homeWebConfig.siteShell)),
+    },
+    pages: Array.isArray(homeWebConfig.pages)
+      ? cloneJson(homeWebConfig.pages)
+      : Array.isArray(nested.pages)
+        ? cloneJson(nested.pages)
+        : cloneJson(asJsonObject(defaults).pages),
+  };
+}
+
+async function replaceMarketingSiteBindings(
+  db: Pool | PoolClient,
+  appName: string,
+  config: PortalJsonObject,
+): Promise<void> {
+  const marketingSite = normalizeMarketingSiteConfigFromAppConfig(appName, config);
+  await db.query(`delete from portal_app_marketing_site_shell_bindings where app_name = $1`, [appName]);
+  await db.query(`delete from portal_app_marketing_site_block_bindings where app_name = $1`, [appName]);
+  await db.query(`delete from portal_app_marketing_site_page_bindings where app_name = $1`, [appName]);
+  await db.query(
+    `
+      insert into portal_app_marketing_site_state (
+        app_name,
+        template_key,
+        metadata_json,
+        updated_at
+      )
+      values ($1, $2, $3::jsonb, now())
+      on conflict (app_name)
+      do update set
+        template_key = excluded.template_key,
+        metadata_json = excluded.metadata_json,
+        updated_at = now()
+    `,
+    [appName, String(marketingSite.templateKey || '').trim() || normalizeMarketingSiteTemplateKey('', appName), JSON.stringify({})],
+  );
+
+  const siteShell = asJsonObject(marketingSite.siteShell);
+  let shellSortOrder = 10;
+  for (const shellKey of Object.keys(siteShell)) {
+    const shell = asJsonObject(siteShell[shellKey]);
+    const variantKey = String(shell.variant || '').trim();
+    if (!variantKey) continue;
+    await db.query(
+      `
+        insert into portal_app_marketing_site_shell_bindings (
+          app_name,
+          shell_key,
+          enabled,
+          variant_key,
+          sort_order,
+          props_json,
+          metadata_json
+        )
+        values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb)
+        on conflict (app_name, shell_key)
+        do update set
+          enabled = excluded.enabled,
+          variant_key = excluded.variant_key,
+          sort_order = excluded.sort_order,
+          props_json = excluded.props_json,
+          metadata_json = excluded.metadata_json,
+          updated_at = now()
+      `,
+      [
+        appName,
+        shellKey,
+        shell.enabled !== false,
+        variantKey,
+        shellSortOrder,
+        JSON.stringify(asJsonObject(shell.props)),
+        JSON.stringify({}),
+      ],
+    );
+    shellSortOrder += 10;
+  }
+
+  const pages = Array.isArray(marketingSite.pages) ? marketingSite.pages : [];
+  let pageSortOrder = 10;
+  for (const rawPage of pages) {
+    const page = asJsonObject(rawPage);
+    const pageKey = String(page.pageKey || '').trim();
+    if (!pageKey) continue;
+    await db.query(
+      `
+        insert into portal_app_marketing_site_page_bindings (
+          app_name,
+          page_key,
+          path,
+          enabled,
+          sort_order,
+          seo_json,
+          metadata_json
+        )
+        values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb)
+        on conflict (app_name, page_key)
+        do update set
+          path = excluded.path,
+          enabled = excluded.enabled,
+          sort_order = excluded.sort_order,
+          seo_json = excluded.seo_json,
+          metadata_json = excluded.metadata_json,
+          updated_at = now()
+      `,
+      [
+        appName,
+        pageKey,
+        String(page.path || '/').trim() || '/',
+        page.enabled !== false,
+        Number(page.sortOrder || pageSortOrder) || pageSortOrder,
+        JSON.stringify(asJsonObject(page.seo)),
+        JSON.stringify({}),
+      ],
+    );
+    const blocks = Array.isArray(page.blocks) ? page.blocks : [];
+    let blockDefaultOrder = 10;
+    for (const rawBlock of blocks) {
+      const block = asJsonObject(rawBlock);
+      const blockKey = String(block.blockKey || '').trim();
+      if (!blockKey) continue;
+      await db.query(
+        `
+          insert into portal_app_marketing_site_block_bindings (
+            app_name,
+            page_key,
+            block_key,
+            enabled,
+            variant_key,
+            sort_order,
+            props_json,
+            metadata_json
+          )
+          values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb)
+          on conflict (app_name, page_key, block_key)
+          do update set
+            enabled = excluded.enabled,
+            variant_key = excluded.variant_key,
+            sort_order = excluded.sort_order,
+            props_json = excluded.props_json,
+            metadata_json = excluded.metadata_json,
+            updated_at = now()
+        `,
+        [
+          appName,
+          pageKey,
+          blockKey,
+          block.enabled !== false,
+          String(block.variantKey || block.blockKey || '').trim() || blockKey,
+          Number(block.sortOrder || blockDefaultOrder) || blockDefaultOrder,
+          JSON.stringify(asJsonObject(block.props)),
+          JSON.stringify({}),
+        ],
+      );
+      blockDefaultOrder += 10;
+    }
+    pageSortOrder += 10;
+  }
+}
+
+async function readMarketingSiteConfigFromBindings(
+  db: Pool | PoolClient,
+  appName: string,
+): Promise<PortalJsonObject | null> {
+  const [stateResult, shellResult, pageResult, blockResult] = await Promise.all([
+    db.query<MarketingSiteStateRow>(
+      `
+        select app_name, template_key, metadata_json, updated_at
+        from portal_app_marketing_site_state
+        where app_name = $1
+        limit 1
+      `,
+      [appName],
+    ),
+    db.query<MarketingSiteShellBindingRow>(
+      `
+        select app_name, shell_key, enabled, variant_key, sort_order, props_json, metadata_json, created_at, updated_at
+        from portal_app_marketing_site_shell_bindings
+        where app_name = $1
+        order by sort_order asc, shell_key asc
+      `,
+      [appName],
+    ),
+    db.query<MarketingSitePageBindingRow>(
+      `
+        select app_name, page_key, path, enabled, sort_order, seo_json, metadata_json, created_at, updated_at
+        from portal_app_marketing_site_page_bindings
+        where app_name = $1
+        order by sort_order asc, page_key asc
+      `,
+      [appName],
+    ),
+    db.query<MarketingSiteBlockBindingRow>(
+      `
+        select app_name, page_key, block_key, enabled, variant_key, sort_order, props_json, metadata_json, created_at, updated_at
+        from portal_app_marketing_site_block_bindings
+        where app_name = $1
+        order by page_key asc, sort_order asc, block_key asc
+      `,
+      [appName],
+    ),
+  ]);
+  if (!stateResult.rows[0]) {
+    return null;
+  }
+  const blocksByPage = new Map<string, PortalJsonObject[]>();
+  for (const row of blockResult.rows) {
+    const current = blocksByPage.get(row.page_key) || [];
+    current.push({
+      blockKey: row.block_key,
+      variantKey: row.variant_key,
+      enabled: row.enabled,
+      sortOrder: row.sort_order,
+      props: asJsonObject(row.props_json),
+      metadata: asJsonObject(row.metadata_json),
+    });
+    blocksByPage.set(row.page_key, current);
+  }
+  const siteShell = Object.fromEntries(
+    shellResult.rows.map((row) => [
+      row.shell_key,
+      {
+        enabled: row.enabled,
+        variant: row.variant_key,
+        sortOrder: row.sort_order,
+        props: asJsonObject(row.props_json),
+        metadata: asJsonObject(row.metadata_json),
+      },
+    ]),
+  );
+  const pages = pageResult.rows.map((row) => ({
+    pageKey: row.page_key,
+    path: row.path,
+    enabled: row.enabled,
+    sortOrder: row.sort_order,
+    seo: asJsonObject(row.seo_json),
+    metadata: asJsonObject(row.metadata_json),
+    blocks: blocksByPage.get(row.page_key) || [],
+  }));
+  return {
+    templateKey: stateResult.rows[0].template_key,
+    metadata: asJsonObject(stateResult.rows[0].metadata_json),
+    siteShell,
+    pages,
+  };
 }
 
 async function replaceSkillBindings(
@@ -1919,56 +2370,67 @@ export class PgPortalStore {
   }
 
   async upsertApp(input: UpsertPortalAppInput, actorUserId: string | null = null): Promise<PortalAppRecord> {
-    const result = await this.pool.query<PortalAppRow>(
-      `
-        insert into oem_apps (
-          app_name,
-          display_name,
-          description,
-          status,
-          default_locale,
-          config_json,
-          created_at,
-          updated_at
-        )
-        values ($1, $2, $3, $4, $5, $6::jsonb, now(), now())
-        on conflict (app_name)
-        do update set
-          display_name = excluded.display_name,
-          description = excluded.description,
-          status = excluded.status,
-          default_locale = excluded.default_locale,
-          config_json = excluded.config_json,
-          updated_at = now()
-        returning
-          app_name,
-          display_name,
-          description,
-          status,
-          default_locale,
-          config_json,
-          created_at,
-          updated_at
-      `,
-      [
-        input.appName,
-        input.displayName,
-        input.description || null,
-        input.status || 'active',
-        input.defaultLocale || 'zh-CN',
-        JSON.stringify(input.config || {}),
-      ],
-    );
-    await insertAuditEvent(this.pool, {
-      appName: input.appName,
-      action: 'app_saved',
-      actorUserId,
-      payload: {
-        displayName: input.displayName,
-        status: input.status || 'active',
-      },
-    });
-    return mapAppRow(result.rows[0]);
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+      const result = await client.query<PortalAppRow>(
+        `
+          insert into oem_apps (
+            app_name,
+            display_name,
+            description,
+            status,
+            default_locale,
+            config_json,
+            created_at,
+            updated_at
+          )
+          values ($1, $2, $3, $4, $5, $6::jsonb, now(), now())
+          on conflict (app_name)
+          do update set
+            display_name = excluded.display_name,
+            description = excluded.description,
+            status = excluded.status,
+            default_locale = excluded.default_locale,
+            config_json = excluded.config_json,
+            updated_at = now()
+          returning
+            app_name,
+            display_name,
+            description,
+            status,
+            default_locale,
+            config_json,
+            created_at,
+            updated_at
+        `,
+        [
+          input.appName,
+          input.displayName,
+          input.description || null,
+          input.status || 'active',
+          input.defaultLocale || 'zh-CN',
+          JSON.stringify(input.config || {}),
+        ],
+      );
+      await replaceMarketingSiteBindings(client, input.appName, asJsonObject(input.config));
+      await insertAuditEvent(client, {
+        appName: input.appName,
+        action: 'app_saved',
+        actorUserId,
+        payload: {
+          displayName: input.displayName,
+          status: input.status || 'active',
+        },
+      });
+      await client.query('commit');
+      return mapAppRow(result.rows[0]);
+    } catch (error) {
+      await client.query('rollback');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async listSkills(): Promise<PortalSkillRecord[]> {
@@ -4846,6 +5308,7 @@ export class PgPortalStore {
           JSON.stringify(appRecord.config),
         ],
       );
+      await replaceMarketingSiteBindings(client, appName, appRecord.config);
 
       await replaceSkillBindings(client, appName, (Array.isArray(snapshot.skillBindings) ? snapshot.skillBindings : []) as ReplacePortalAppSkillBindingsInput);
       await replaceMcpBindings(client, appName, (Array.isArray(snapshot.mcpBindings) ? snapshot.mcpBindings : []) as ReplacePortalAppMcpBindingsInput);
