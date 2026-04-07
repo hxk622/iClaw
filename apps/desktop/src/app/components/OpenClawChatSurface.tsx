@@ -39,6 +39,7 @@ import {
   looksLikeOpenClawTransportIssue,
   resolveOpenClawChatRecoveryAction,
 } from '@/app/lib/openclaw-chat-recovery';
+import { shouldShowOpenClawConnectionCard } from '@/app/lib/openclaw-chat-connection';
 import {
   buildComposerModelOptions,
   findComposerModelOption,
@@ -6357,33 +6358,21 @@ export function OpenClawChatSurface({
   }, [closeSelectionMenu, resolveChatSelection, selectionMenu]);
 
   useEffect(() => {
-    const bootStillSettling =
-      initialSurfaceRestorePending ||
-      !hasBootSettled ||
-      (shellAuthenticated && sessionHistoryState === 'unknown' && !hasObservedHistory);
-    const hasStableVisibleChat = hasObservedHistory || renderState.groupCount > 0 || renderState.chatMessageCount > 0;
+    const shouldShow = shouldShowOpenClawConnectionCard({
+      allowImmediateEmptySessionUi,
+      statusConnected: status.connected,
+      statusLastError: status.lastError,
+      surfaceVisible,
+      surfaceReactivating,
+      sessionTransitionVisible,
+      initialSurfaceRestorePending,
+      hasBootSettled,
+      shellAuthenticated,
+      sessionHistoryState,
+      hasObservedHistory,
+    });
 
-    if (allowImmediateEmptySessionUi && !status.lastError) {
-      setShowConnectionCard(false);
-      return;
-    }
-
-    if (!surfaceVisible || surfaceReactivating) {
-      setShowConnectionCard(false);
-      return;
-    }
-
-    if (hasStableVisibleChat) {
-      setShowConnectionCard(false);
-      return;
-    }
-
-    if ((sessionTransitionVisible || bootStillSettling) && !status.lastError) {
-      setShowConnectionCard(false);
-      return;
-    }
-
-    if (status.connected) {
+    if (!shouldShow) {
       setShowConnectionCard(false);
       return;
     }
@@ -6403,15 +6392,13 @@ export function OpenClawChatSurface({
     hasBootSettled,
     hasObservedHistory,
     initialSurfaceRestorePending,
-    renderState.chatMessageCount,
-    renderState.groupCount,
     sessionHistoryState,
     sessionTransitionVisible,
-    surfaceReactivating,
-    surfaceVisible,
     shellAuthenticated,
     status.connected,
     status.lastError,
+    surfaceReactivating,
+    surfaceVisible,
   ]);
 
   useEffect(() => {
