@@ -63,6 +63,10 @@ updateJson('apps/desktop/package.json', (d) => {
   d.releaseVersion = releaseVersion;
 });
 
+updateJson('apps/desktop/src-tauri/tauri.template.conf.json', (d) => {
+  d.version = fullVersion;
+});
+
 updateJson('apps/desktop/src-tauri/tauri.conf.json', (d) => {
   d.version = fullVersion;
 });

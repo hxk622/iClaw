@@ -16,7 +16,8 @@ const outputIconsDir = path.join(tauriDir, 'icons-generated');
 const outputInstallerAssetsDir = path.join(tauriDir, 'installer-generated');
 const legacyInstallerAssetPath = path.join(desktopDir, 'src', 'app', 'assets', 'installer-lobster.png');
 const homeWebPublicBrandDir = path.join(homeWebDir, 'public', 'brand');
-const tauriTemplatePath = path.join(tauriDir, 'tauri.conf.json');
+const tauriTemplatePath = path.join(tauriDir, 'tauri.template.conf.json');
+const tauriMaterializedPath = path.join(tauriDir, 'tauri.conf.json');
 const tauriGeneratedPath = path.join(tauriDir, 'tauri.generated.conf.json');
 const brandGeneratedTsPath = path.join(desktopDir, 'src', 'app', 'lib', 'brand.generated.ts');
 const brandGeneratedJsonPath = path.join(tauriDir, 'brand.generated.json');
@@ -232,6 +233,24 @@ function buildHomeBrandJs(brand, appVersion) {
   )};\n`;
 }
 
+function assertDesktopBrandConsistency(tauriConfig, brand) {
+  const expectedProductName = typeof brand.productName === 'string' ? brand.productName.trim() : '';
+  const actualProductName = typeof tauriConfig.productName === 'string' ? tauriConfig.productName.trim() : '';
+  if (!expectedProductName || actualProductName !== expectedProductName) {
+    throw new Error(
+      `desktop brand config mismatch: productName must equal brand.productName (${JSON.stringify(expectedProductName)}), got ${JSON.stringify(actualProductName)}`,
+    );
+  }
+
+  const windowTitle = tauriConfig.app?.windows?.[0]?.title;
+  const actualWindowTitle = typeof windowTitle === 'string' ? windowTitle.trim() : '';
+  if (actualWindowTitle !== expectedProductName) {
+    throw new Error(
+      `desktop brand config mismatch: window title must equal brand.productName (${JSON.stringify(expectedProductName)}), got ${JSON.stringify(actualWindowTitle)}`,
+    );
+  }
+}
+
 async function main() {
   const brandId = resolveBrandId(process.argv[2]);
   const { brandDir, profile: brand } = await loadBrandProfile({ rootDir, brandId });
@@ -360,7 +379,11 @@ async function main() {
     }
   }
 
-  await fs.writeFile(tauriGeneratedPath, `${JSON.stringify(tauriConfig, null, 2)}\n`, 'utf8');
+  assertDesktopBrandConsistency(tauriConfig, brand);
+
+  const tauriConfigRaw = `${JSON.stringify(tauriConfig, null, 2)}\n`;
+  await fs.writeFile(tauriMaterializedPath, tauriConfigRaw, 'utf8');
+  await fs.writeFile(tauriGeneratedPath, tauriConfigRaw, 'utf8');
   await fs.writeFile(
     brandGeneratedJsonPath,
     `${JSON.stringify(
