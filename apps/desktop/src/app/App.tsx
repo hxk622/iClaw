@@ -1285,6 +1285,11 @@ export default function App() {
     let cancelled = false;
     let settled = false;
 
+    const markBootstrapReady = () => {
+      if (cancelled || settled) return;
+      setAuthBootstrapReady(true);
+    };
+
     const settleGuest = (clearStoredAuth = false) => {
       if (cancelled || settled) return;
       settled = true;
@@ -1316,8 +1321,33 @@ export default function App() {
     };
 
     const timeoutId = window.setTimeout(() => {
-      settleGuest(false);
+      // Do not lock the session into guest mode on slow cold starts.
+      // The auth bootstrap can still finish after the UI becomes interactive.
+      markBootstrapReady();
     }, AUTH_BOOTSTRAP_TIMEOUT_MS);
+
+    const syncSessionArtifacts = async (
+      token: string,
+      options: {
+        resetWorkspaceOnFailure?: boolean;
+        logContext: string;
+      },
+    ): Promise<void> => {
+      try {
+        await syncWorkspaceForUser(token);
+      } catch (error) {
+        console.error(`[desktop] ${options.logContext}: failed to sync workspace from backup`, error);
+        if (options.resetWorkspaceOnFailure) {
+          await resetIclawWorkspaceToDefaults();
+        }
+      }
+
+      try {
+        await syncManagedProviderAuth();
+      } catch (error) {
+        console.warn(`[desktop] ${options.logContext}: failed to sync managed provider auth`, error);
+      }
+    };
 
     const bootAuth = async () => {
       try {
@@ -1345,46 +1375,47 @@ export default function App() {
 
         try {
           const user = (await (IS_TAURI_RUNTIME ? desktopMe(auth.accessToken) : client.me(auth.accessToken))) as AuthUser;
-          try {
-            await syncWorkspaceForUser(auth.accessToken);
-          } catch (error) {
-            console.error('[desktop] failed to sync workspace from backup, resetting to defaults', error);
-            await resetIclawWorkspaceToDefaults();
-          }
-          try {
-            await syncManagedProviderAuth();
-          } catch (error) {
-            console.warn('[desktop] failed to sync managed provider auth from stored session', error);
-          }
           settleAuthed(auth.accessToken, user || null);
+          void syncSessionArtifacts(auth.accessToken, {
+            resetWorkspaceOnFailure: true,
+            logContext: 'stored session restore',
+          });
           return;
         } catch (error) {
           if (!isUnauthorizedAuthError(error)) {
             console.warn('[desktop] failed to validate stored access token, keeping session for retry', error);
             settlePreservedAuth(auth.accessToken, null);
+            void syncSessionArtifacts(auth.accessToken, {
+              resetWorkspaceOnFailure: false,
+              logContext: 'stored session degraded restore',
+            });
             return;
           }
         }
 
         try {
           const refreshed = IS_TAURI_RUNTIME ? await desktopRefresh(auth.refreshToken) : await client.refresh(auth.refreshToken);
-          try {
-            await syncWorkspaceForUser(refreshed.access_token);
-          } catch (error) {
-            console.error('[desktop] failed to sync workspace after refresh, resetting to defaults', error);
-            await resetIclawWorkspaceToDefaults();
-          }
           await writeAuth({
             accessToken: refreshed.access_token,
             refreshToken: refreshed.refresh_token || auth.refreshToken,
           });
-          try {
-            await syncManagedProviderAuth();
-          } catch (error) {
-            console.warn('[desktop] failed to sync managed provider auth after refresh', error);
-          }
-          const user = (await (IS_TAURI_RUNTIME ? desktopMe(refreshed.access_token) : client.me(refreshed.access_token))) as AuthUser;
-          settleAuthed(refreshed.access_token, user || null);
+          settlePreservedAuth(refreshed.access_token, null);
+          void (async () => {
+            await syncSessionArtifacts(refreshed.access_token, {
+              resetWorkspaceOnFailure: true,
+              logContext: 'refreshed session restore',
+            });
+            try {
+              const user = (await (IS_TAURI_RUNTIME
+                ? desktopMe(refreshed.access_token)
+                : client.me(refreshed.access_token))) as AuthUser;
+              if (cancelled) return;
+              applyChatPersistenceUserScope(user || null);
+              setCurrentUser(user || null);
+            } catch (error) {
+              console.warn('[desktop] failed to load user profile after refresh', error);
+            }
+          })();
         } catch (error) {
           if (isUnauthorizedAuthError(error)) {
             await clearManagedProviderAuth().catch(() => {});
