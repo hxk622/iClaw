@@ -169,6 +169,7 @@ export function normalizeRuntimeBrand(base, payload) {
   };
   const runtimeBrand = {
     ...base,
+    brandId: trimString(payload?.app?.appName || payload?.brand?.brandId) || base.brandId,
     displayName: trimString(payload?.brand?.displayName || payload?.app?.displayName) || base.displayName,
     website,
     assets,

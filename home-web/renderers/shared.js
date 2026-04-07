@@ -98,6 +98,11 @@ export function getPage(runtimeBrand, pageKey = 'home') {
   return asArray(runtimeBrand.marketingSite.pages).find((item) => trimString(item.pageKey) === pageKey) || null;
 }
 
+export function getPageByPath(runtimeBrand, pathname) {
+  const normalizedPath = trimString(pathname || '/') || '/';
+  return asArray(runtimeBrand.marketingSite.pages).find((item) => trimString(asObject(item).path || '/') === normalizedPath) || null;
+}
+
 export function getEnabledBlocks(page) {
   return asArray(page?.blocks)
     .map((item) => asObject(item))

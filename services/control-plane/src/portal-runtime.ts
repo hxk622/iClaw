@@ -65,6 +65,165 @@ function normalizePortalMenuKeys(keys: string[]): string[] {
   return normalized;
 }
 
+function normalizeMarketingTemplateKey(value: unknown, appName: string): string {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  if (raw) {
+    return raw;
+  }
+  return appName === 'licaiclaw' ? 'wealth-premium' : 'classic-download';
+}
+
+function buildDefaultMarketingSiteConfig(input: {
+  appName: string;
+  displayName: string;
+  website: PortalJsonObject;
+}): PortalJsonObject {
+  const isWealth = input.appName === 'licaiclaw';
+  return {
+    templateKey: normalizeMarketingTemplateKey('', input.appName),
+    siteShell: {
+      header: {
+        enabled: true,
+        variant: isWealth ? 'finance-header' : 'default-header',
+        props: {
+          brandLabel: String(input.website.brandLabel || input.displayName).trim() || input.displayName,
+          subline: String(input.website.kicker || 'Official Website').trim() || 'Official Website',
+          navItems: isWealth
+            ? [
+                {label: '核心能力', href: '#capabilities'},
+                {label: '适用场景', href: '#scenes'},
+                {label: '安全合规', href: '#security'},
+              ]
+            : [],
+          primaryCta: {
+            label: String(input.website.topCtaLabel || '下载').trim() || '下载',
+            href: '#download',
+          },
+        },
+      },
+      footer: {
+        enabled: true,
+        variant: isWealth ? 'finance-legal-footer' : 'default-footer',
+        props: {
+          columns: [
+            {
+              title: '站点',
+              links: [
+                {label: '首页', href: '/'},
+                {label: String(input.website.downloadTitle || `下载 ${input.displayName}`).trim() || `下载 ${input.displayName}`, href: '#download'},
+              ],
+            },
+          ],
+          legalLinks: [
+            {label: '隐私政策', href: '/privacy'},
+            {label: '用户协议', href: '/terms'},
+          ],
+          copyrightText: `© ${new Date().getFullYear()} ${input.displayName}`,
+          icpText: '',
+        },
+      },
+    },
+    pages: [
+      {
+        pageKey: 'home',
+        path: '/',
+        enabled: true,
+        seo: {
+          title: String(input.website.homeTitle || `${input.displayName} 官网`).trim() || `${input.displayName} 官网`,
+          description:
+            String(input.website.metaDescription || `${input.displayName} 官网`).trim() || `${input.displayName} 官网`,
+        },
+        blocks: [
+          {
+            blockKey: isWealth ? 'hero.wealth' : 'hero.basic',
+            enabled: true,
+            sortOrder: 10,
+            props: {
+              eyebrow: String(input.website.kicker || 'Official Website').trim() || 'Official Website',
+              titlePre: String(input.website.heroTitlePre || '').trim(),
+              titleMain: String(input.website.heroTitleMain || '').trim(),
+              description: String(input.website.heroDescription || '').trim(),
+            },
+          },
+          {
+            blockKey: isWealth ? 'download-grid.finance' : 'download-grid.classic',
+            enabled: true,
+            sortOrder: 20,
+            props: {
+              title: String(input.website.downloadTitle || `下载 ${input.displayName}`).trim() || `下载 ${input.displayName}`,
+            },
+          },
+        ],
+      },
+      {
+        pageKey: 'privacy',
+        path: '/privacy',
+        enabled: true,
+        seo: {
+          title: '隐私政策',
+          description: '查看隐私政策',
+        },
+        blocks: [
+          {
+            blockKey: 'rich-text.legal',
+            enabled: true,
+            sortOrder: 10,
+            props: {
+              title: '隐私政策',
+              content: '请在后台维护隐私政策内容。',
+            },
+          },
+        ],
+      },
+      {
+        pageKey: 'terms',
+        path: '/terms',
+        enabled: true,
+        seo: {
+          title: '用户协议',
+          description: '查看用户协议',
+        },
+        blocks: [
+          {
+            blockKey: 'rich-text.legal',
+            enabled: true,
+            sortOrder: 10,
+            props: {
+              title: '用户协议',
+              content: '请在后台维护用户协议内容。',
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+function normalizeMarketingSiteConfig(
+  homeWebSurfaceConfig: PortalJsonObject,
+  input: {appName: string; displayName: string; website: PortalJsonObject},
+): PortalJsonObject {
+  const direct = asObject(homeWebSurfaceConfig);
+  const nested = asObject(direct.marketingSite);
+  const defaultConfig = buildDefaultMarketingSiteConfig(input);
+  return {
+    ...cloneJson(defaultConfig),
+    ...cloneJson(nested),
+    ...cloneJson(direct),
+    templateKey: normalizeMarketingTemplateKey(direct.templateKey || nested.templateKey, input.appName),
+    siteShell: {
+      ...cloneJson(asObject(defaultConfig.siteShell)),
+      ...cloneJson(asObject(nested.siteShell)),
+      ...cloneJson(asObject(direct.siteShell)),
+    },
+    pages: Array.isArray(direct.pages)
+      ? cloneJson(direct.pages)
+      : Array.isArray(nested.pages)
+        ? cloneJson(nested.pages)
+        : cloneJson(asArray(defaultConfig.pages)),
+  };
+}
+
 export function buildPortalPublicConfig(
   detail: PortalAppDetail,
   options: {
@@ -304,8 +463,19 @@ export function buildPortalPublicConfig(
     payment_methods_source_layer: rechargePaymentMethodsSourceLayer,
     source_layer: hasAppRechargeBindings ? 'oem_binding' : 'platform_catalog',
   };
+  const nextHomeWebSurface = asObject(surfaces['home-web']);
+  const nextHomeWebSurfaceConfig = normalizeMarketingSiteConfig(asObject(nextHomeWebSurface.config), {
+    appName: detail.app.appName,
+    displayName: detail.app.displayName,
+    website: asObject(existingConfig.website),
+  });
   const resolvedSurfaces: PortalJsonObject = {
     ...surfaces,
+    'home-web': {
+      ...nextHomeWebSurface,
+      enabled: nextHomeWebSurface.enabled !== false,
+      config: nextHomeWebSurfaceConfig,
+    },
     input: {
       ...inputSurface,
       config: nextInputSurfaceConfig,
@@ -349,6 +519,7 @@ export function buildPortalPublicConfig(
         ...existingAssets,
         ...Object.fromEntries(assetEntries),
       },
+      marketingSite: cloneJson(nextHomeWebSurfaceConfig),
       surfaces: resolvedSurfaces,
       capabilities: {
         ...existingCapabilities,

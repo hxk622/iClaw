@@ -1,6 +1,7 @@
 import './styles.css';
 
 const API_BASE_URL = ((import.meta.env.VITE_AUTH_BASE_URL || 'http://127.0.0.1:2130') + '').trim().replace(/\/+$/, '');
+const HOME_WEB_PREVIEW_BASE_URL = ((import.meta.env.VITE_HOME_WEB_BASE_URL || 'http://127.0.0.1:1477') + '').trim().replace(/\/+$/, '');
 const TOKEN_STORAGE_KEY = 'iclaw.admin-web.tokens';
 const THEME_STORAGE_KEY = 'iclaw.admin-web.theme';
 const NAV_GROUP_COLLAPSE_STORAGE_KEY = 'iclaw.admin-web.nav-groups.v1';
@@ -778,6 +779,14 @@ function escapeHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
+function encodePreviewPayload(value) {
+  const json = JSON.stringify(value || {});
+  return btoa(unescape(encodeURIComponent(json)))
+    .replaceAll('+', '-')
+    .replaceAll('/', '_')
+    .replaceAll(/=+$/g, '');
+}
+
 function icon(name, className = '') {
   const cls = className ? ` class="${escapeHtml(className)}"` : '';
   const common = `fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"`;
@@ -1493,18 +1502,115 @@ const DEFAULT_HEADER_SURFACE_CONFIG = {
 };
 
 const DEFAULT_HOME_WEB_SURFACE_CONFIG = {
-  website: {
-    homeTitle: 'iClaw 官网',
-    metaDescription: 'iClaw 官网，面向普通用户的本地 AI 客户端。',
-    brandLabel: 'iClaw',
-    kicker: 'Official Website',
-    heroTitlePre: '让AI真正像软件一样',
-    heroTitleMain: '装上就能用！',
-    heroDescription: 'iClaw 面向普通用户设计。少一点配置，多一点结果。打开、提问、执行、拿答案。',
-    topCtaLabel: '下载',
-    scrollLabel: '向下下载',
-    downloadTitle: '下载 iClaw',
+  templateKey: 'classic-download',
+  siteShell: {
+    header: {
+      enabled: true,
+      variant: 'default-header',
+      props: {
+        brandLabel: 'iClaw',
+        subline: 'Official Website',
+        navItems: [],
+        primaryCta: {
+          label: '下载',
+          href: '#download',
+        },
+      },
+    },
+    footer: {
+      enabled: true,
+      variant: 'default-footer',
+      props: {
+        columns: [
+          {
+            title: '站点',
+            links: [
+              {label: '首页', href: '/'},
+              {label: '下载', href: '#download'},
+            ],
+          },
+        ],
+        legalLinks: [
+          {label: '隐私政策', href: '/privacy'},
+          {label: '用户协议', href: '/terms'},
+        ],
+        copyrightText: '© 2026 iClaw',
+        icpText: '',
+      },
+    },
   },
+  pages: [
+    {
+      pageKey: 'home',
+      path: '/',
+      enabled: true,
+      seo: {
+        title: 'iClaw 官网',
+        description: 'iClaw 官网，面向普通用户的本地 AI 客户端。',
+      },
+      blocks: [
+        {
+          blockKey: 'hero.basic',
+          enabled: true,
+          sortOrder: 10,
+          props: {
+            eyebrow: 'Official Website',
+            titlePre: '让AI真正像软件一样',
+            titleMain: '装上就能用！',
+            description: 'iClaw 面向普通用户设计。少一点配置，多一点结果。打开、提问、执行、拿答案。',
+          },
+        },
+        {
+          blockKey: 'download-grid.classic',
+          enabled: true,
+          sortOrder: 20,
+          props: {
+            title: '下载 iClaw',
+          },
+        },
+      ],
+    },
+    {
+      pageKey: 'privacy',
+      path: '/privacy',
+      enabled: true,
+      seo: {
+        title: '隐私政策',
+        description: '查看隐私政策',
+      },
+      blocks: [
+        {
+          blockKey: 'rich-text.legal',
+          enabled: true,
+          sortOrder: 10,
+          props: {
+            title: '隐私政策',
+            content: '请在 admin-web 中维护隐私政策内容。',
+          },
+        },
+      ],
+    },
+    {
+      pageKey: 'terms',
+      path: '/terms',
+      enabled: true,
+      seo: {
+        title: '用户协议',
+        description: '查看用户协议',
+      },
+      blocks: [
+        {
+          blockKey: 'rich-text.legal',
+          enabled: true,
+          sortOrder: 10,
+          props: {
+            title: '用户协议',
+            content: '请在 admin-web 中维护用户协议内容。',
+          },
+        },
+      ],
+    },
+  ],
 };
 
 const DEFAULT_SIDEBAR_SURFACE_CONFIG = {
@@ -1729,39 +1835,446 @@ function buildWelcomeSurfaceConfigFromBuffer(welcome) {
   };
 }
 
+function normalizeLinkItem(value, fallbackLabel = '', fallbackHref = '#') {
+  const item = asObject(value);
+  return {
+    label: String(item.label || fallbackLabel).trim(),
+    href: String(item.href || fallbackHref).trim() || fallbackHref,
+  };
+}
+
+function parseLabelHrefLines(raw) {
+  return splitLines(raw)
+    .map((line) => {
+      const [labelPart, hrefPart] = line.split('|');
+      const label = String(labelPart || '').trim();
+      const href = String(hrefPart || '').trim();
+      if (!label && !href) {
+        return null;
+      }
+      return {
+        label: label || href || '',
+        href: href || '#',
+      };
+    })
+    .filter(Boolean);
+}
+
+function formatLabelHrefLines(items) {
+  return asArray(items)
+    .map((item) => {
+      const entry = normalizeLinkItem(item);
+      if (!entry.label && !entry.href) {
+        return '';
+      }
+      return `${entry.label}|${entry.href}`;
+    })
+    .filter(Boolean)
+    .join('\n');
+}
+
+function normalizeBlockItem(value, fallbackKey, fallbackSortOrder, fallbackProps = {}) {
+  const item = asObject(value);
+  return {
+    blockKey: String(item.blockKey || fallbackKey).trim() || fallbackKey,
+    enabled: item.enabled !== false,
+    sortOrder: Number(item.sortOrder || fallbackSortOrder) || fallbackSortOrder,
+    props: {
+      ...clone(fallbackProps),
+      ...clone(asObject(item.props)),
+    },
+  };
+}
+
+function normalizeBlockList(items, fallbackItems) {
+  const source = asArray(items);
+  if (!source.length) {
+    return fallbackItems.map((item, index) => normalizeBlockItem(item, item.blockKey, item.sortOrder || (index + 1) * 10, item.props));
+  }
+  return source
+    .map((item, index) => normalizeBlockItem(item, asObject(item).blockKey || `block-${index + 1}`, Number(asObject(item).sortOrder || (index + 1) * 10), asObject(item).props))
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.blockKey.localeCompare(right.blockKey, 'zh-CN'));
+}
+
+function findMarketingPage(config, pageKey) {
+  return asArray(config.pages).find((item) => String(asObject(item).pageKey || '').trim() === pageKey) || null;
+}
+
+function findMarketingBlock(page, blockPrefix) {
+  return normalizeBlockList(asObject(page).blocks, [])
+    .find((item) => String(item.blockKey || '').trim().startsWith(blockPrefix)) || null;
+}
+
 function normalizeHomeWebSurfaceConfig(value) {
   const config = asObject(value);
+  const marketingSite = asObject(config.marketingSite);
+  const siteShell = asObject(config.siteShell);
+  const header = asObject(siteShell.header || marketingSite.siteShell?.header);
+  const footer = asObject(siteShell.footer || marketingSite.siteShell?.footer);
   const website = asObject(config.website);
+  const templateKey = String(config.templateKey || marketingSite.templateKey || DEFAULT_HOME_WEB_SURFACE_CONFIG.templateKey).trim()
+    || DEFAULT_HOME_WEB_SURFACE_CONFIG.templateKey;
+  const pages = normalizeBlockPages(config, marketingSite, website, templateKey);
+  const homePage = findMarketingPage({pages}, 'home') || asObject(DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[0]);
+  const privacyPage = findMarketingPage({pages}, 'privacy') || asObject(DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[1]);
+  const termsPage = findMarketingPage({pages}, 'terms') || asObject(DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[2]);
+  const heroBlock = findMarketingBlock(homePage, 'hero.') || normalizeBlockItem(DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[0].blocks[0], 'hero.basic', 10, DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[0].blocks[0].props);
+  const downloadBlock = findMarketingBlock(homePage, 'download-grid.') || normalizeBlockItem(DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[0].blocks[1], 'download-grid.classic', 20, DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[0].blocks[1].props);
+  const featureBlock = findMarketingBlock(homePage, 'feature-cards.') || normalizeBlockItem({blockKey: 'feature-cards.wealth', sortOrder: 30, props: {title: '', items: []}}, 'feature-cards.wealth', 30, {title: '', items: []});
+  const scenarioBlock = findMarketingBlock(homePage, 'scenario-cards.') || normalizeBlockItem({blockKey: 'scenario-cards.wealth', sortOrder: 40, props: {title: '', items: []}}, 'scenario-cards.wealth', 40, {title: '', items: []});
+  const workflowBlock = findMarketingBlock(homePage, 'workflow-steps.') || normalizeBlockItem({blockKey: 'workflow-steps.wealth', sortOrder: 50, props: {title: '', steps: []}}, 'workflow-steps.wealth', 50, {title: '', steps: []});
+  const capabilityBlock = findMarketingBlock(homePage, 'capability-grid.') || normalizeBlockItem({blockKey: 'capability-grid.wealth', sortOrder: 60, props: {title: '', items: []}}, 'capability-grid.wealth', 60, {title: '', items: []});
+  const securityBlock = findMarketingBlock(homePage, 'security') || normalizeBlockItem({blockKey: 'security-badges.finance', sortOrder: 70, props: {title: '', items: []}}, 'security-badges.finance', 70, {title: '', items: []});
+  const ctaBlock = findMarketingBlock(homePage, 'cta-banner.') || normalizeBlockItem({blockKey: 'cta-banner.finance', sortOrder: 80, props: {title: '', description: '', ctaLabel: ''}}, 'cta-banner.finance', 80, {title: '', description: '', ctaLabel: ''});
+  const privacyBlock = findMarketingBlock(privacyPage, 'rich-text.') || normalizeBlockItem(DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[1].blocks[0], 'rich-text.legal', 10, DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[1].blocks[0].props);
+  const termsBlock = findMarketingBlock(termsPage, 'rich-text.') || normalizeBlockItem(DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[2].blocks[0], 'rich-text.legal', 10, DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[2].blocks[0].props);
+  const headerProps = asObject(header.props);
+  const footerProps = asObject(footer.props);
   return {
-    homeTitle: String(website.homeTitle || DEFAULT_HOME_WEB_SURFACE_CONFIG.website.homeTitle).trim(),
-    metaDescription: String(website.metaDescription || DEFAULT_HOME_WEB_SURFACE_CONFIG.website.metaDescription).trim(),
-    brandLabel: String(website.brandLabel || DEFAULT_HOME_WEB_SURFACE_CONFIG.website.brandLabel).trim(),
-    kicker: String(website.kicker || DEFAULT_HOME_WEB_SURFACE_CONFIG.website.kicker).trim(),
-    heroTitlePre: String(website.heroTitlePre || DEFAULT_HOME_WEB_SURFACE_CONFIG.website.heroTitlePre).trim(),
-    heroTitleMain: String(website.heroTitleMain || DEFAULT_HOME_WEB_SURFACE_CONFIG.website.heroTitleMain).trim(),
-    heroDescription: String(website.heroDescription || DEFAULT_HOME_WEB_SURFACE_CONFIG.website.heroDescription).trim(),
-    topCtaLabel: String(website.topCtaLabel || DEFAULT_HOME_WEB_SURFACE_CONFIG.website.topCtaLabel).trim(),
-    scrollLabel: String(website.scrollLabel || DEFAULT_HOME_WEB_SURFACE_CONFIG.website.scrollLabel).trim(),
-    downloadTitle: String(website.downloadTitle || DEFAULT_HOME_WEB_SURFACE_CONFIG.website.downloadTitle).trim(),
+    templateKey,
+    headerEnabled: header.enabled !== false,
+    headerVariant: String(header.variant || DEFAULT_HOME_WEB_SURFACE_CONFIG.siteShell.header.variant).trim(),
+    headerBrandLabel: String(headerProps.brandLabel || website.brandLabel || DEFAULT_HOME_WEB_SURFACE_CONFIG.siteShell.header.props.brandLabel).trim(),
+    headerSubline: String(headerProps.subline || website.kicker || DEFAULT_HOME_WEB_SURFACE_CONFIG.siteShell.header.props.subline).trim(),
+    headerNavItemsText: formatLabelHrefLines(asArray(headerProps.navItems)),
+    headerPrimaryCtaLabel: String(asObject(headerProps.primaryCta).label || website.topCtaLabel || DEFAULT_HOME_WEB_SURFACE_CONFIG.siteShell.header.props.primaryCta.label).trim(),
+    headerPrimaryCtaHref: String(asObject(headerProps.primaryCta).href || DEFAULT_HOME_WEB_SURFACE_CONFIG.siteShell.header.props.primaryCta.href).trim(),
+    footerEnabled: footer.enabled !== false,
+    footerVariant: String(footer.variant || DEFAULT_HOME_WEB_SURFACE_CONFIG.siteShell.footer.variant).trim(),
+    footerColumnsText: formatLabelHrefLines(asArray(asObject(asArray(footerProps.columns)[0]).links)),
+    footerLegalLinksText: formatLabelHrefLines(asArray(footerProps.legalLinks)),
+    footerCopyrightText: String(footerProps.copyrightText || DEFAULT_HOME_WEB_SURFACE_CONFIG.siteShell.footer.props.copyrightText).trim(),
+    footerIcpText: String(footerProps.icpText || '').trim(),
+    homeEnabled: asObject(homePage).enabled !== false,
+    homeSeoTitle: String(asObject(homePage.seo).title || website.homeTitle || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[0].seo.title).trim(),
+    homeSeoDescription: String(asObject(homePage.seo).description || website.metaDescription || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[0].seo.description).trim(),
+    heroEnabled: heroBlock.enabled !== false,
+    heroVariant: heroBlock.blockKey,
+    heroEyebrow: String(asObject(heroBlock.props).eyebrow || website.kicker || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[0].blocks[0].props.eyebrow).trim(),
+    heroTitlePre: String(asObject(heroBlock.props).titlePre || website.heroTitlePre || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[0].blocks[0].props.titlePre).trim(),
+    heroTitleMain: String(asObject(heroBlock.props).titleMain || website.heroTitleMain || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[0].blocks[0].props.titleMain).trim(),
+    heroDescription: String(asObject(heroBlock.props).description || website.heroDescription || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[0].blocks[0].props.description).trim(),
+    downloadEnabled: downloadBlock.enabled !== false,
+    downloadVariant: downloadBlock.blockKey,
+    downloadTitle: String(asObject(downloadBlock.props).title || website.downloadTitle || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[0].blocks[1].props.title).trim(),
+    featureEnabled: featureBlock.enabled !== false,
+    featureVariant: featureBlock.blockKey,
+    featureTitle: String(asObject(featureBlock.props).title || '').trim(),
+    featureItemsText: splitLines(asArray(asObject(featureBlock.props).items).map((item) => `${String(asObject(item).title || '').trim()}|${String(asObject(item).description || '').trim()}`).join('\n')).join('\n'),
+    scenarioEnabled: scenarioBlock.enabled !== false,
+    scenarioVariant: scenarioBlock.blockKey,
+    scenarioTitle: String(asObject(scenarioBlock.props).title || '').trim(),
+    scenarioItemsText: splitLines(asArray(asObject(scenarioBlock.props).items).map((item) => `${String(asObject(item).title || '').trim()}|${String(asObject(item).description || '').trim()}`).join('\n')).join('\n'),
+    workflowEnabled: workflowBlock.enabled !== false,
+    workflowVariant: workflowBlock.blockKey,
+    workflowTitle: String(asObject(workflowBlock.props).title || '').trim(),
+    workflowItemsText: splitLines(asArray(asObject(workflowBlock.props).steps).map((item) => `${String(asObject(item).title || '').trim()}|${String(asObject(item).description || '').trim()}`).join('\n')).join('\n'),
+    capabilityEnabled: capabilityBlock.enabled !== false,
+    capabilityVariant: capabilityBlock.blockKey,
+    capabilityTitle: String(asObject(capabilityBlock.props).title || '').trim(),
+    capabilityItemsText: splitLines(asArray(asObject(capabilityBlock.props).items).map((item) => `${String(asObject(item).title || '').trim()}|${String(asObject(item).description || '').trim()}`).join('\n')).join('\n'),
+    securityEnabled: securityBlock.enabled !== false,
+    securityVariant: securityBlock.blockKey,
+    securityTitle: String(asObject(securityBlock.props).title || '').trim(),
+    securityItemsText: splitLines(asArray(asObject(securityBlock.props).items).map((item) => String(item || '').trim()).join('\n')).join('\n'),
+    ctaEnabled: ctaBlock.enabled !== false,
+    ctaVariant: ctaBlock.blockKey,
+    ctaTitle: String(asObject(ctaBlock.props).title || '').trim(),
+    ctaDescription: String(asObject(ctaBlock.props).description || '').trim(),
+    ctaLabel: String(asObject(ctaBlock.props).ctaLabel || '').trim(),
+    privacyEnabled: asObject(privacyPage).enabled !== false,
+    privacySeoTitle: String(asObject(privacyPage.seo).title || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[1].seo.title).trim(),
+    privacySeoDescription: String(asObject(privacyPage.seo).description || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[1].seo.description).trim(),
+    privacyTitle: String(asObject(privacyBlock.props).title || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[1].blocks[0].props.title).trim(),
+    privacyContent: String(asObject(privacyBlock.props).content || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[1].blocks[0].props.content).trim(),
+    termsEnabled: asObject(termsPage).enabled !== false,
+    termsSeoTitle: String(asObject(termsPage.seo).title || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[2].seo.title).trim(),
+    termsSeoDescription: String(asObject(termsPage.seo).description || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[2].seo.description).trim(),
+    termsTitle: String(asObject(termsBlock.props).title || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[2].blocks[0].props.title).trim(),
+    termsContent: String(asObject(termsBlock.props).content || DEFAULT_HOME_WEB_SURFACE_CONFIG.pages[2].blocks[0].props.content).trim(),
+    pages,
   };
 }
 
 function buildHomeWebSurfaceConfigFromBuffer(homeWeb) {
-  const next = normalizeHomeWebSurfaceConfig({website: homeWeb});
+  const next = normalizeHomeWebSurfaceConfig(homeWeb);
+  const firstFooterColumnLinks = parseLabelHrefLines(next.footerColumnsText);
+  const legalLinks = parseLabelHrefLines(next.footerLegalLinksText);
+  const featureItems = parseLabelHrefLines(next.featureItemsText).map((item) => ({title: item.label, description: item.href === '#' ? '' : item.href}));
+  const scenarioItems = parseLabelHrefLines(next.scenarioItemsText).map((item) => ({title: item.label, description: item.href === '#' ? '' : item.href}));
+  const workflowSteps = parseLabelHrefLines(next.workflowItemsText).map((item) => ({title: item.label, description: item.href === '#' ? '' : item.href}));
+  const capabilityItems = parseLabelHrefLines(next.capabilityItemsText).map((item) => ({title: item.label, description: item.href === '#' ? '' : item.href}));
+  const securityItems = splitLines(next.securityItemsText);
+  const pages = [
+    {
+      pageKey: 'home',
+      path: '/',
+      enabled: next.homeEnabled !== false,
+      seo: {
+        title: next.homeSeoTitle,
+        description: next.homeSeoDescription,
+      },
+      blocks: [
+        {
+          blockKey: next.heroVariant,
+          enabled: next.heroEnabled !== false,
+          sortOrder: 10,
+          props: {
+            eyebrow: next.heroEyebrow,
+            titlePre: next.heroTitlePre,
+            titleMain: next.heroTitleMain,
+            description: next.heroDescription,
+          },
+        },
+        {
+          blockKey: next.downloadVariant,
+          enabled: next.downloadEnabled !== false,
+          sortOrder: 20,
+          props: {
+            title: next.downloadTitle,
+          },
+        },
+        {
+          blockKey: next.featureVariant,
+          enabled: next.featureEnabled !== false,
+          sortOrder: 30,
+          props: {
+            title: next.featureTitle,
+            items: featureItems,
+          },
+        },
+        {
+          blockKey: next.scenarioVariant,
+          enabled: next.scenarioEnabled !== false,
+          sortOrder: 40,
+          props: {
+            title: next.scenarioTitle,
+            items: scenarioItems,
+          },
+        },
+        {
+          blockKey: next.workflowVariant,
+          enabled: next.workflowEnabled !== false,
+          sortOrder: 50,
+          props: {
+            title: next.workflowTitle,
+            steps: workflowSteps,
+          },
+        },
+        {
+          blockKey: next.capabilityVariant,
+          enabled: next.capabilityEnabled !== false,
+          sortOrder: 60,
+          props: {
+            title: next.capabilityTitle,
+            items: capabilityItems,
+          },
+        },
+        {
+          blockKey: next.securityVariant,
+          enabled: next.securityEnabled !== false,
+          sortOrder: 70,
+          props: {
+            title: next.securityTitle,
+            items: securityItems,
+          },
+        },
+        {
+          blockKey: next.ctaVariant,
+          enabled: next.ctaEnabled !== false,
+          sortOrder: 80,
+          props: {
+            title: next.ctaTitle,
+            description: next.ctaDescription,
+            ctaLabel: next.ctaLabel,
+          },
+        },
+      ],
+    },
+    {
+      pageKey: 'privacy',
+      path: '/privacy',
+      enabled: next.privacyEnabled !== false,
+      seo: {
+        title: next.privacySeoTitle,
+        description: next.privacySeoDescription,
+      },
+      blocks: [
+        {
+          blockKey: 'rich-text.legal',
+          enabled: true,
+          sortOrder: 10,
+          props: {
+            title: next.privacyTitle,
+            content: next.privacyContent,
+          },
+        },
+      ],
+    },
+    {
+      pageKey: 'terms',
+      path: '/terms',
+      enabled: next.termsEnabled !== false,
+      seo: {
+        title: next.termsSeoTitle,
+        description: next.termsSeoDescription,
+      },
+      blocks: [
+        {
+          blockKey: 'rich-text.legal',
+          enabled: true,
+          sortOrder: 10,
+          props: {
+            title: next.termsTitle,
+            content: next.termsContent,
+          },
+        },
+      ],
+    },
+  ];
   return {
     website: {
-      homeTitle: next.homeTitle,
-      metaDescription: next.metaDescription,
-      brandLabel: next.brandLabel,
-      kicker: next.kicker,
+      homeTitle: next.homeSeoTitle,
+      metaDescription: next.homeSeoDescription,
+      brandLabel: next.headerBrandLabel,
+      kicker: next.heroEyebrow,
       heroTitlePre: next.heroTitlePre,
       heroTitleMain: next.heroTitleMain,
       heroDescription: next.heroDescription,
-      topCtaLabel: next.topCtaLabel,
-      scrollLabel: next.scrollLabel,
+      topCtaLabel: next.headerPrimaryCtaLabel,
+      scrollLabel: '向下下载',
       downloadTitle: next.downloadTitle,
     },
+    templateKey: next.templateKey,
+    siteShell: {
+      header: {
+        enabled: next.headerEnabled !== false,
+        variant: next.headerVariant,
+        props: {
+          brandLabel: next.headerBrandLabel,
+          subline: next.headerSubline,
+          navItems: parseLabelHrefLines(next.headerNavItemsText),
+          primaryCta: {
+            label: next.headerPrimaryCtaLabel,
+            href: next.headerPrimaryCtaHref,
+          },
+        },
+      },
+      footer: {
+        enabled: next.footerEnabled !== false,
+        variant: next.footerVariant,
+        props: {
+          columns: [
+            {
+              title: '站点',
+              links: firstFooterColumnLinks,
+            },
+          ],
+          legalLinks,
+          copyrightText: next.footerCopyrightText,
+          icpText: next.footerIcpText,
+        },
+      },
+    },
+    pages,
+    marketingSite: {
+      templateKey: next.templateKey,
+      siteShell: {
+        header: {
+          enabled: next.headerEnabled !== false,
+          variant: next.headerVariant,
+          props: {
+            brandLabel: next.headerBrandLabel,
+            subline: next.headerSubline,
+            navItems: parseLabelHrefLines(next.headerNavItemsText),
+            primaryCta: {
+              label: next.headerPrimaryCtaLabel,
+              href: next.headerPrimaryCtaHref,
+            },
+          },
+        },
+        footer: {
+          enabled: next.footerEnabled !== false,
+          variant: next.footerVariant,
+          props: {
+            columns: [
+              {
+                title: '站点',
+                links: firstFooterColumnLinks,
+              },
+            ],
+            legalLinks,
+            copyrightText: next.footerCopyrightText,
+            icpText: next.footerIcpText,
+          },
+        },
+      },
+      pages,
+    },
   };
+}
+
+function normalizeBlockPages(config, marketingSite, website, templateKey) {
+  const sourcePages = Array.isArray(config.pages)
+    ? config.pages
+    : Array.isArray(marketingSite.pages)
+      ? marketingSite.pages
+      : [];
+  if (sourcePages.length) {
+    return sourcePages.map((item) => clone(asObject(item)));
+  }
+  const isWealth = templateKey === 'wealth-premium';
+  const base = clone(DEFAULT_HOME_WEB_SURFACE_CONFIG.pages);
+  base[0].seo.title = String(website.homeTitle || base[0].seo.title).trim();
+  base[0].seo.description = String(website.metaDescription || base[0].seo.description).trim();
+  base[0].blocks[0].blockKey = isWealth ? 'hero.wealth' : 'hero.basic';
+  base[0].blocks[0].props.eyebrow = String(website.kicker || base[0].blocks[0].props.eyebrow).trim();
+  base[0].blocks[0].props.titlePre = String(website.heroTitlePre || base[0].blocks[0].props.titlePre).trim();
+  base[0].blocks[0].props.titleMain = String(website.heroTitleMain || base[0].blocks[0].props.titleMain).trim();
+  base[0].blocks[0].props.description = String(website.heroDescription || base[0].blocks[0].props.description).trim();
+  base[0].blocks[1].blockKey = isWealth ? 'download-grid.finance' : 'download-grid.classic';
+  base[0].blocks[1].props.title = String(website.downloadTitle || base[0].blocks[1].props.title).trim();
+  if (isWealth) {
+    base[0].blocks.push(
+      {
+        blockKey: 'feature-cards.wealth',
+        enabled: true,
+        sortOrder: 30,
+        props: {title: '', items: []},
+      },
+      {
+        blockKey: 'scenario-cards.wealth',
+        enabled: true,
+        sortOrder: 40,
+        props: {title: '', items: []},
+      },
+      {
+        blockKey: 'workflow-steps.wealth',
+        enabled: true,
+        sortOrder: 50,
+        props: {title: '', steps: []},
+      },
+      {
+        blockKey: 'capability-grid.wealth',
+        enabled: true,
+        sortOrder: 60,
+        props: {title: '', items: []},
+      },
+      {
+        blockKey: 'security-badges.finance',
+        enabled: true,
+        sortOrder: 70,
+        props: {title: '', items: []},
+      },
+      {
+        blockKey: 'cta-banner.finance',
+        enabled: true,
+        sortOrder: 80,
+        props: {title: '', description: '', ctaLabel: ''},
+      },
+    );
+  }
+  return base;
 }
 
 function normalizeInputSurfaceConfig(value) {
@@ -4119,50 +4632,248 @@ function captureBrandEditorBuffer() {
     });
   }
   const homeWeb = normalizeHomeWebSurfaceConfig({
-    website: {
-      homeTitle:
-        form.querySelector('[name="home_web_home_title"]') instanceof HTMLInputElement
-          ? form.querySelector('[name="home_web_home_title"]').value
-          : existing.homeWeb?.homeTitle,
-      metaDescription:
-        form.querySelector('[name="home_web_meta_description"]') instanceof HTMLTextAreaElement
-          ? form.querySelector('[name="home_web_meta_description"]').value
-          : existing.homeWeb?.metaDescription,
-      brandLabel:
-        form.querySelector('[name="home_web_brand_label"]') instanceof HTMLInputElement
-          ? form.querySelector('[name="home_web_brand_label"]').value
-          : existing.homeWeb?.brandLabel,
-      kicker:
-        form.querySelector('[name="home_web_kicker"]') instanceof HTMLInputElement
-          ? form.querySelector('[name="home_web_kicker"]').value
-          : existing.homeWeb?.kicker,
-      heroTitlePre:
-        form.querySelector('[name="home_web_hero_title_pre"]') instanceof HTMLInputElement
-          ? form.querySelector('[name="home_web_hero_title_pre"]').value
-          : existing.homeWeb?.heroTitlePre,
-      heroTitleMain:
-        form.querySelector('[name="home_web_hero_title_main"]') instanceof HTMLInputElement
-          ? form.querySelector('[name="home_web_hero_title_main"]').value
-          : existing.homeWeb?.heroTitleMain,
-      heroDescription:
-        form.querySelector('[name="home_web_hero_description"]') instanceof HTMLTextAreaElement
-          ? form.querySelector('[name="home_web_hero_description"]').value
-          : existing.homeWeb?.heroDescription,
-      topCtaLabel:
-        form.querySelector('[name="home_web_top_cta_label"]') instanceof HTMLInputElement
-          ? form.querySelector('[name="home_web_top_cta_label"]').value
-          : existing.homeWeb?.topCtaLabel,
-      scrollLabel:
-        form.querySelector('[name="home_web_scroll_label"]') instanceof HTMLInputElement
-          ? form.querySelector('[name="home_web_scroll_label"]').value
-          : existing.homeWeb?.scrollLabel,
-      downloadTitle:
-        form.querySelector('[name="home_web_download_title"]') instanceof HTMLInputElement
-          ? form.querySelector('[name="home_web_download_title"]').value
-          : existing.homeWeb?.downloadTitle,
-    },
+    templateKey:
+      form.querySelector('[name="home_web_template_key"]') instanceof HTMLSelectElement
+        ? form.querySelector('[name="home_web_template_key"]').value
+        : existing.homeWeb?.templateKey,
+    headerEnabled:
+      form.querySelector('[name="home_web_header_enabled"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_header_enabled"]').checked
+        : existing.homeWeb?.headerEnabled,
+    headerVariant:
+      form.querySelector('[name="home_web_header_variant"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_header_variant"]').value
+        : existing.homeWeb?.headerVariant,
+    headerBrandLabel:
+      form.querySelector('[name="home_web_header_brand_label"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_header_brand_label"]').value
+        : existing.homeWeb?.headerBrandLabel,
+    headerSubline:
+      form.querySelector('[name="home_web_header_subline"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_header_subline"]').value
+        : existing.homeWeb?.headerSubline,
+    headerNavItemsText:
+      form.querySelector('[name="home_web_header_nav_items"]') instanceof HTMLTextAreaElement
+        ? form.querySelector('[name="home_web_header_nav_items"]').value
+        : existing.homeWeb?.headerNavItemsText,
+    headerPrimaryCtaLabel:
+      form.querySelector('[name="home_web_header_primary_cta_label"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_header_primary_cta_label"]').value
+        : existing.homeWeb?.headerPrimaryCtaLabel,
+    headerPrimaryCtaHref:
+      form.querySelector('[name="home_web_header_primary_cta_href"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_header_primary_cta_href"]').value
+        : existing.homeWeb?.headerPrimaryCtaHref,
+    footerEnabled:
+      form.querySelector('[name="home_web_footer_enabled"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_footer_enabled"]').checked
+        : existing.homeWeb?.footerEnabled,
+    footerVariant:
+      form.querySelector('[name="home_web_footer_variant"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_footer_variant"]').value
+        : existing.homeWeb?.footerVariant,
+    footerColumnsText:
+      form.querySelector('[name="home_web_footer_columns"]') instanceof HTMLTextAreaElement
+        ? form.querySelector('[name="home_web_footer_columns"]').value
+        : existing.homeWeb?.footerColumnsText,
+    footerLegalLinksText:
+      form.querySelector('[name="home_web_footer_legal_links"]') instanceof HTMLTextAreaElement
+        ? form.querySelector('[name="home_web_footer_legal_links"]').value
+        : existing.homeWeb?.footerLegalLinksText,
+    footerCopyrightText:
+      form.querySelector('[name="home_web_footer_copyright_text"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_footer_copyright_text"]').value
+        : existing.homeWeb?.footerCopyrightText,
+    footerIcpText:
+      form.querySelector('[name="home_web_footer_icp_text"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_footer_icp_text"]').value
+        : existing.homeWeb?.footerIcpText,
+    homeSeoTitle:
+      form.querySelector('[name="home_web_home_seo_title"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_home_seo_title"]').value
+        : existing.homeWeb?.homeSeoTitle,
+    homeSeoDescription:
+      form.querySelector('[name="home_web_home_seo_description"]') instanceof HTMLTextAreaElement
+        ? form.querySelector('[name="home_web_home_seo_description"]').value
+        : existing.homeWeb?.homeSeoDescription,
+    heroEnabled:
+      form.querySelector('[name="home_web_hero_enabled"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_hero_enabled"]').checked
+        : existing.homeWeb?.heroEnabled,
+    heroVariant:
+      form.querySelector('[name="home_web_hero_variant"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_hero_variant"]').value
+        : existing.homeWeb?.heroVariant,
+    heroEyebrow:
+      form.querySelector('[name="home_web_hero_eyebrow"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_hero_eyebrow"]').value
+        : existing.homeWeb?.heroEyebrow,
+    heroTitlePre:
+      form.querySelector('[name="home_web_hero_title_pre"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_hero_title_pre"]').value
+        : existing.homeWeb?.heroTitlePre,
+    heroTitleMain:
+      form.querySelector('[name="home_web_hero_title_main"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_hero_title_main"]').value
+        : existing.homeWeb?.heroTitleMain,
+    heroDescription:
+      form.querySelector('[name="home_web_hero_description"]') instanceof HTMLTextAreaElement
+        ? form.querySelector('[name="home_web_hero_description"]').value
+        : existing.homeWeb?.heroDescription,
+    downloadEnabled:
+      form.querySelector('[name="home_web_download_enabled"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_download_enabled"]').checked
+        : existing.homeWeb?.downloadEnabled,
+    downloadVariant:
+      form.querySelector('[name="home_web_download_variant"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_download_variant"]').value
+        : existing.homeWeb?.downloadVariant,
+    downloadTitle:
+      form.querySelector('[name="home_web_download_title"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_download_title"]').value
+        : existing.homeWeb?.downloadTitle,
+    featureEnabled:
+      form.querySelector('[name="home_web_feature_enabled"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_feature_enabled"]').checked
+        : existing.homeWeb?.featureEnabled,
+    featureVariant:
+      form.querySelector('[name="home_web_feature_variant"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_feature_variant"]').value
+        : existing.homeWeb?.featureVariant,
+    featureTitle:
+      form.querySelector('[name="home_web_feature_title"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_feature_title"]').value
+        : existing.homeWeb?.featureTitle,
+    featureItemsText:
+      form.querySelector('[name="home_web_feature_items"]') instanceof HTMLTextAreaElement
+        ? form.querySelector('[name="home_web_feature_items"]').value
+        : existing.homeWeb?.featureItemsText,
+    scenarioEnabled:
+      form.querySelector('[name="home_web_scenario_enabled"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_scenario_enabled"]').checked
+        : existing.homeWeb?.scenarioEnabled,
+    scenarioVariant:
+      form.querySelector('[name="home_web_scenario_variant"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_scenario_variant"]').value
+        : existing.homeWeb?.scenarioVariant,
+    scenarioTitle:
+      form.querySelector('[name="home_web_scenario_title"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_scenario_title"]').value
+        : existing.homeWeb?.scenarioTitle,
+    scenarioItemsText:
+      form.querySelector('[name="home_web_scenario_items"]') instanceof HTMLTextAreaElement
+        ? form.querySelector('[name="home_web_scenario_items"]').value
+        : existing.homeWeb?.scenarioItemsText,
+    workflowEnabled:
+      form.querySelector('[name="home_web_workflow_enabled"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_workflow_enabled"]').checked
+        : existing.homeWeb?.workflowEnabled,
+    workflowVariant:
+      form.querySelector('[name="home_web_workflow_variant"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_workflow_variant"]').value
+        : existing.homeWeb?.workflowVariant,
+    workflowTitle:
+      form.querySelector('[name="home_web_workflow_title"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_workflow_title"]').value
+        : existing.homeWeb?.workflowTitle,
+    workflowItemsText:
+      form.querySelector('[name="home_web_workflow_items"]') instanceof HTMLTextAreaElement
+        ? form.querySelector('[name="home_web_workflow_items"]').value
+        : existing.homeWeb?.workflowItemsText,
+    capabilityEnabled:
+      form.querySelector('[name="home_web_capability_enabled"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_capability_enabled"]').checked
+        : existing.homeWeb?.capabilityEnabled,
+    capabilityVariant:
+      form.querySelector('[name="home_web_capability_variant"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_capability_variant"]').value
+        : existing.homeWeb?.capabilityVariant,
+    capabilityTitle:
+      form.querySelector('[name="home_web_capability_title"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_capability_title"]').value
+        : existing.homeWeb?.capabilityTitle,
+    capabilityItemsText:
+      form.querySelector('[name="home_web_capability_items"]') instanceof HTMLTextAreaElement
+        ? form.querySelector('[name="home_web_capability_items"]').value
+        : existing.homeWeb?.capabilityItemsText,
+    securityEnabled:
+      form.querySelector('[name="home_web_security_enabled"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_security_enabled"]').checked
+        : existing.homeWeb?.securityEnabled,
+    securityVariant:
+      form.querySelector('[name="home_web_security_variant"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_security_variant"]').value
+        : existing.homeWeb?.securityVariant,
+    securityTitle:
+      form.querySelector('[name="home_web_security_title"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_security_title"]').value
+        : existing.homeWeb?.securityTitle,
+    securityItemsText:
+      form.querySelector('[name="home_web_security_items"]') instanceof HTMLTextAreaElement
+        ? form.querySelector('[name="home_web_security_items"]').value
+        : existing.homeWeb?.securityItemsText,
+    ctaEnabled:
+      form.querySelector('[name="home_web_cta_enabled"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_cta_enabled"]').checked
+        : existing.homeWeb?.ctaEnabled,
+    ctaVariant:
+      form.querySelector('[name="home_web_cta_variant"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_cta_variant"]').value
+        : existing.homeWeb?.ctaVariant,
+    ctaTitle:
+      form.querySelector('[name="home_web_cta_title"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_cta_title"]').value
+        : existing.homeWeb?.ctaTitle,
+    ctaDescription:
+      form.querySelector('[name="home_web_cta_description"]') instanceof HTMLTextAreaElement
+        ? form.querySelector('[name="home_web_cta_description"]').value
+        : existing.homeWeb?.ctaDescription,
+    ctaLabel:
+      form.querySelector('[name="home_web_cta_label"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_cta_label"]').value
+        : existing.homeWeb?.ctaLabel,
+    privacyEnabled:
+      form.querySelector('[name="home_web_privacy_enabled"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_privacy_enabled"]').checked
+        : existing.homeWeb?.privacyEnabled,
+    privacySeoTitle:
+      form.querySelector('[name="home_web_privacy_seo_title"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_privacy_seo_title"]').value
+        : existing.homeWeb?.privacySeoTitle,
+    privacySeoDescription:
+      form.querySelector('[name="home_web_privacy_seo_description"]') instanceof HTMLTextAreaElement
+        ? form.querySelector('[name="home_web_privacy_seo_description"]').value
+        : existing.homeWeb?.privacySeoDescription,
+    privacyTitle:
+      form.querySelector('[name="home_web_privacy_title"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_privacy_title"]').value
+        : existing.homeWeb?.privacyTitle,
+    privacyContent:
+      form.querySelector('[name="home_web_privacy_content"]') instanceof HTMLTextAreaElement
+        ? form.querySelector('[name="home_web_privacy_content"]').value
+        : existing.homeWeb?.privacyContent,
+    termsEnabled:
+      form.querySelector('[name="home_web_terms_enabled"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_terms_enabled"]').checked
+        : existing.homeWeb?.termsEnabled,
+    termsSeoTitle:
+      form.querySelector('[name="home_web_terms_seo_title"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_terms_seo_title"]').value
+        : existing.homeWeb?.termsSeoTitle,
+    termsSeoDescription:
+      form.querySelector('[name="home_web_terms_seo_description"]') instanceof HTMLTextAreaElement
+        ? form.querySelector('[name="home_web_terms_seo_description"]').value
+        : existing.homeWeb?.termsSeoDescription,
+    termsTitle:
+      form.querySelector('[name="home_web_terms_title"]') instanceof HTMLInputElement
+        ? form.querySelector('[name="home_web_terms_title"]').value
+        : existing.homeWeb?.termsTitle,
+    termsContent:
+      form.querySelector('[name="home_web_terms_content"]') instanceof HTMLTextAreaElement
+        ? form.querySelector('[name="home_web_terms_content"]').value
+        : existing.homeWeb?.termsContent,
   });
-  if (form.querySelector('[name="home_web_enabled"]') || form.querySelector('[name="home_web_home_title"]')) {
+  if (form.querySelector('[name="home_web_enabled"]') || form.querySelector('[name="home_web_template_key"]')) {
     surfaceMap.set('home-web', {
       key: 'home-web',
       label: surfaceLabel('home-web'),
@@ -4515,6 +5226,28 @@ function syncBrandEditorBuffer() {
   captureBrandEditorBuffer();
 }
 
+function openHomeWebPreview() {
+  const buffer = captureBrandEditorBuffer() || ensureBrandDraftBuffer();
+  if (!buffer?.brandId) {
+    setError('预览前请先进入品牌详情。');
+    render();
+    return;
+  }
+  const payload = {
+    config: {
+      surfaces: {
+        'home-web': {
+          enabled: buffer.homeWeb?.enabled !== false,
+          config: buildHomeWebSurfaceConfigFromBuffer(buffer.homeWeb || {}),
+        },
+      },
+    },
+  };
+  const preview = encodePreviewPayload(payload);
+  const url = `${HOME_WEB_PREVIEW_BASE_URL}/?app_name=${encodeURIComponent(buffer.brandId)}&preview=${encodeURIComponent(preview)}`;
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
 function parseJsonText(raw, label) {
   try {
     const parsed = JSON.parse(String(raw || '{}'));
@@ -4616,6 +5349,52 @@ function composeDraftConfig(buffer) {
   };
 
   return draftConfig;
+}
+
+function validateMarketingSiteSurfaceConfig(config) {
+  const normalized = normalizeHomeWebSurfaceConfig(config);
+  if (!normalized.templateKey) {
+    throw new Error('官网模板不能为空。');
+  }
+  if (!normalized.headerBrandLabel) {
+    throw new Error('Header 品牌名不能为空。');
+  }
+  if (!normalized.homeSeoTitle) {
+    throw new Error('首页 SEO 标题不能为空。');
+  }
+  if (!normalized.heroTitleMain) {
+    throw new Error('Hero 主标题不能为空。');
+  }
+  if (!normalized.downloadTitle) {
+    throw new Error('下载区标题不能为空。');
+  }
+  return normalized;
+}
+
+async function verifyMarketingSitePublicPayload(appName, expectedTemplateKey) {
+  const result = await apiFetch(`/portal/public-config?app_name=${encodeURIComponent(appName)}&surface_key=home-web`, {method: 'GET'});
+  const payload = asObject(result?.data || result);
+  const surfaceConfig = asObject(payload.surfaceConfig);
+  const normalized = normalizeHomeWebSurfaceConfig(surfaceConfig);
+  if (!normalized.templateKey) {
+    throw new Error('公开 payload 未返回官网模板。');
+  }
+  if (expectedTemplateKey && normalized.templateKey !== expectedTemplateKey) {
+    throw new Error(`公开 payload 模板不匹配，预期 ${expectedTemplateKey}，实际 ${normalized.templateKey}。`);
+  }
+  return normalized;
+}
+
+async function verifyMarketingSiteDraftPayload(appName, expectedTemplateKey) {
+  const detail = await apiFetch(`/admin/portal/apps/${encodeURIComponent(appName)}`, {method: 'GET'});
+  const normalized = normalizeHomeWebSurfaceConfig(asObject(asObject(asObject(detail?.app).config).surfaces)['home-web']?.config || {});
+  if (!normalized.templateKey) {
+    throw new Error('后台 draft 未保存官网模板。');
+  }
+  if (expectedTemplateKey && normalized.templateKey !== expectedTemplateKey) {
+    throw new Error(`后台 draft 模板不匹配，预期 ${expectedTemplateKey}，实际 ${normalized.templateKey}。`);
+  }
+  return normalized;
 }
 
 async function authenticate(identifier, password) {
@@ -5293,8 +6072,10 @@ async function saveBrandEditor(form) {
   snapshot.selectedSkills = ensureEffectiveSkillSelection(snapshot.selectedSkills);
   snapshot.selectedMcp = ensureEffectiveMcpSelection(snapshot.selectedMcp);
   let draftConfig;
+  let expectedMarketingSite;
   try {
     draftConfig = composeDraftConfig(snapshot);
+    expectedMarketingSite = validateMarketingSiteSurfaceConfig(asObject(asObject(draftConfig.surfaces)['home-web']).config);
   } catch (error) {
     setError(error instanceof Error ? error.message : '品牌配置不是合法 JSON');
     return false;
@@ -5429,6 +6210,7 @@ async function saveBrandEditor(form) {
     await loadAppData();
     state.route = 'brand-detail';
     await loadBrandDetail(snapshot.brandId, {silent: true, suppressRender: true});
+    await verifyMarketingSiteDraftPayload(snapshot.brandId, expectedMarketingSite.templateKey);
     setNotice(`已保存 ${snapshot.displayName || snapshot.brandId} 的应用配置。`);
     return true;
   } catch (error) {
@@ -5459,6 +6241,9 @@ async function publishCurrentBrand() {
     await loadAppData();
     state.route = 'brand-detail';
     await loadBrandDetail(brandId, {silent: true, suppressRender: true});
+    const detail = state.portalAppDetails[brandId];
+    const expectedTemplateKey = normalizeHomeWebSurfaceConfig(asObject(asObject(asObject(detail?.app?.config).surfaces)['home-web']).config).templateKey;
+    await verifyMarketingSitePublicPayload(brandId, expectedTemplateKey);
     setNotice(`已发布 ${brandId} 当前快照。`);
   } catch (error) {
     setError(error instanceof Error ? error.message : '发布失败');
@@ -7740,7 +8525,7 @@ function renderBrandDesktopAssembly(buffer) {
 }
 
 function renderBrandHomeWebAssembly(buffer) {
-  const homeWeb = normalizeHomeWebSurfaceConfig({website: buffer.homeWeb});
+  const homeWeb = normalizeHomeWebSurfaceConfig(buffer.homeWeb);
   const enabled = buffer.homeWeb?.enabled !== false;
   const presetPicker = renderPresetPicker({
     presets: HOME_WEB_SURFACE_PRESETS,
@@ -7750,33 +8535,125 @@ function renderBrandHomeWebAssembly(buffer) {
     <section class="fig-brand-section">
       <div class="fig-section-heading">
         <h2>Home页</h2>
-        <p>按内容区块维护官网 / Home 页文案，保存后仍然写回 <code>surfaces["home-web"].config.website</code>。</p>
+        <p>这里维护官网 shell、页面和区块装配。保存后仍然写回 <code>surfaces["home-web"].config</code>，但模型已经从平面文案升级为 <code>template + siteShell + pages + blocks</code>。</p>
       </div>
       ${presetPicker}
       <article class="fig-card fig-card--subtle">
         <div class="fig-card__head">
-          <h3>显示开关</h3>
-          <span>关闭后保留配置，但不让这一层 Home surface 生效。</span>
+          <h3>站点总开关与预览</h3>
+          <span>官网 surface 关闭后保留配置，但公开配置不再把它视为启用状态。</span>
         </div>
-        <label class="toggle fig-toggle">
-          <input type="checkbox" name="home_web_enabled"${enabled ? ' checked' : ''} />
-          <span>${visibilityStateLabel(enabled)}</span>
-        </label>
+        <div class="form-grid">
+          <label class="toggle fig-toggle field field--wide">
+            <input type="checkbox" name="home_web_enabled"${enabled ? ' checked' : ''} />
+            <span>${visibilityStateLabel(enabled)}</span>
+          </label>
+          <label class="field">
+            <span>Template Key</span>
+            <select class="field-select" name="home_web_template_key">
+              <option value="classic-download"${homeWeb.templateKey === 'classic-download' ? ' selected' : ''}>classic-download</option>
+              <option value="wealth-premium"${homeWeb.templateKey === 'wealth-premium' ? ' selected' : ''}>wealth-premium</option>
+            </select>
+          </label>
+          <div class="fig-form-actions">
+            <button class="text-button" type="button" data-action="preview-home-web">打开预览</button>
+          </div>
+        </div>
       </article>
       <div class="fig-capability-columns">
         <article class="fig-card fig-card--subtle">
           <div class="fig-card__head">
-            <h3>品牌与 Hero</h3>
-            <span>控制顶部按钮、品牌名和 Hero 主文案。</span>
+            <h3>Header Shell</h3>
+            <span>控制顶部品牌、导航和主 CTA，属于全站 shell，不归某个 block 拥有。</span>
           </div>
           <div class="form-grid">
             <label class="field">
-              <span>Brand Label</span>
-              <input class="field-input" name="home_web_brand_label" value="${fieldValue(homeWeb.brandLabel)}" />
+              <span>Header Variant</span>
+              <input class="field-input" name="home_web_header_variant" value="${fieldValue(homeWeb.headerVariant)}" />
             </label>
             <label class="field">
-              <span>Kicker</span>
-              <input class="field-input" name="home_web_kicker" value="${fieldValue(homeWeb.kicker)}" />
+              <span>Brand Label</span>
+              <input class="field-input" name="home_web_header_brand_label" value="${fieldValue(homeWeb.headerBrandLabel)}" />
+            </label>
+            <label class="field">
+              <span>Subline</span>
+              <input class="field-input" name="home_web_header_subline" value="${fieldValue(homeWeb.headerSubline)}" />
+            </label>
+            <label class="field">
+              <span>Primary CTA Label</span>
+              <input class="field-input" name="home_web_header_primary_cta_label" value="${fieldValue(homeWeb.headerPrimaryCtaLabel)}" />
+            </label>
+            <label class="field">
+              <span>Primary CTA Href</span>
+              <input class="field-input" name="home_web_header_primary_cta_href" value="${fieldValue(homeWeb.headerPrimaryCtaHref)}" />
+            </label>
+            <label class="toggle fig-toggle field field--wide">
+              <input type="checkbox" name="home_web_header_enabled"${homeWeb.headerEnabled ? ' checked' : ''} />
+              <span>${visibilityStateLabel(homeWeb.headerEnabled)}</span>
+            </label>
+            <label class="field field--wide">
+              <span>Header Nav Items</span>
+              <textarea class="field-textarea" name="home_web_header_nav_items" rows="4" placeholder="产品优势|#features&#10;适用场景|#scenes">${fieldValue(homeWeb.headerNavItemsText)}</textarea>
+            </label>
+          </div>
+        </article>
+        <article class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
+            <h3>Footer Shell</h3>
+            <span>维护法律链接、版权和备案信息；终局这里会继续接更多 footer slot。</span>
+          </div>
+          <div class="form-grid">
+            <label class="field">
+              <span>Footer Variant</span>
+              <input class="field-input" name="home_web_footer_variant" value="${fieldValue(homeWeb.footerVariant)}" />
+            </label>
+            <label class="field">
+              <span>Copyright</span>
+              <input class="field-input" name="home_web_footer_copyright_text" value="${fieldValue(homeWeb.footerCopyrightText)}" />
+            </label>
+            <label class="field">
+              <span>ICP备案</span>
+              <input class="field-input" name="home_web_footer_icp_text" value="${fieldValue(homeWeb.footerIcpText)}" />
+            </label>
+            <label class="toggle fig-toggle field field--wide">
+              <input type="checkbox" name="home_web_footer_enabled"${homeWeb.footerEnabled ? ' checked' : ''} />
+              <span>${visibilityStateLabel(homeWeb.footerEnabled)}</span>
+            </label>
+            <label class="field field--wide">
+              <span>Footer Links</span>
+              <textarea class="field-textarea" name="home_web_footer_columns" rows="4" placeholder="首页|/&#10;下载|#download">${fieldValue(homeWeb.footerColumnsText)}</textarea>
+            </label>
+            <label class="field field--wide">
+              <span>Legal Links</span>
+              <textarea class="field-textarea" name="home_web_footer_legal_links" rows="4" placeholder="隐私政策|/privacy&#10;用户协议|/terms">${fieldValue(homeWeb.footerLegalLinksText)}</textarea>
+            </label>
+          </div>
+        </article>
+        <article class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
+            <h3>首页 SEO 与 Hero</h3>
+            <span>首页层级只保留最关键的 SEO 和 Hero 字段，其他富内容放到 block 区。</span>
+          </div>
+          <div class="form-grid">
+            <label class="field">
+              <span>Home SEO Title</span>
+              <input class="field-input" name="home_web_home_seo_title" value="${fieldValue(homeWeb.homeSeoTitle)}" />
+            </label>
+            <label class="field field--wide">
+              <span>Home SEO Description</span>
+              <textarea class="field-textarea" name="home_web_home_seo_description" rows="3">${fieldValue(homeWeb.homeSeoDescription)}</textarea>
+            </label>
+            <label class="field">
+              <span>Hero Variant</span>
+              <input class="field-input" name="home_web_hero_variant" value="${fieldValue(homeWeb.heroVariant)}" />
+            </label>
+            <label class="toggle fig-toggle field">
+              <input type="checkbox" name="home_web_hero_enabled"${homeWeb.heroEnabled ? ' checked' : ''} />
+              <span>${visibilityStateLabel(homeWeb.heroEnabled)}</span>
+            </label>
+            <label class="field">
+              <span>Hero Eyebrow</span>
+              <input class="field-input" name="home_web_hero_eyebrow" value="${fieldValue(homeWeb.heroEyebrow)}" />
             </label>
             <label class="field">
               <span>Hero Title Pre</span>
@@ -7786,37 +8663,177 @@ function renderBrandHomeWebAssembly(buffer) {
               <span>Hero Title Main</span>
               <input class="field-input" name="home_web_hero_title_main" value="${fieldValue(homeWeb.heroTitleMain)}" />
             </label>
-            <label class="field">
-              <span>Top CTA Label</span>
-              <input class="field-input" name="home_web_top_cta_label" value="${fieldValue(homeWeb.topCtaLabel)}" />
-            </label>
-            <label class="field">
-              <span>Scroll Label</span>
-              <input class="field-input" name="home_web_scroll_label" value="${fieldValue(homeWeb.scrollLabel)}" />
+            <label class="field field--wide">
+              <span>Hero Description</span>
+              <textarea class="field-textarea" name="home_web_hero_description" rows="4">${fieldValue(homeWeb.heroDescription)}</textarea>
             </label>
           </div>
         </article>
         <article class="fig-card fig-card--subtle">
           <div class="fig-card__head">
-            <h3>SEO 与下载区</h3>
-            <span>控制浏览器标题、描述和下载区域标题。</span>
+            <h3>首页 Blocks</h3>
+            <span>第一阶段先维护核心 block；下一阶段再抽成完整平台 catalog UI。</span>
           </div>
           <div class="form-grid">
             <label class="field">
-              <span>Home Title</span>
-              <input class="field-input" name="home_web_home_title" value="${fieldValue(homeWeb.homeTitle)}" />
+              <span>Download Variant</span>
+              <input class="field-input" name="home_web_download_variant" value="${fieldValue(homeWeb.downloadVariant)}" />
             </label>
-            <label class="field">
+            <label class="toggle fig-toggle field">
+              <input type="checkbox" name="home_web_download_enabled"${homeWeb.downloadEnabled ? ' checked' : ''} />
+              <span>${visibilityStateLabel(homeWeb.downloadEnabled)}</span>
+            </label>
+            <label class="field field--wide">
               <span>Download Title</span>
               <input class="field-input" name="home_web_download_title" value="${fieldValue(homeWeb.downloadTitle)}" />
             </label>
-            <label class="field field--wide">
-              <span>Meta Description</span>
-              <textarea class="field-textarea" name="home_web_meta_description" rows="4">${fieldValue(homeWeb.metaDescription)}</textarea>
+            <label class="field">
+              <span>Feature Variant</span>
+              <input class="field-input" name="home_web_feature_variant" value="${fieldValue(homeWeb.featureVariant)}" />
+            </label>
+            <label class="toggle fig-toggle field">
+              <input type="checkbox" name="home_web_feature_enabled"${homeWeb.featureEnabled ? ' checked' : ''} />
+              <span>${visibilityStateLabel(homeWeb.featureEnabled)}</span>
             </label>
             <label class="field field--wide">
-              <span>Hero Description</span>
-              <textarea class="field-textarea" name="home_web_hero_description" rows="4">${fieldValue(homeWeb.heroDescription)}</textarea>
+              <span>Feature Title</span>
+              <input class="field-input" name="home_web_feature_title" value="${fieldValue(homeWeb.featureTitle)}" />
+            </label>
+            <label class="field field--wide">
+              <span>Feature Items</span>
+              <textarea class="field-textarea" name="home_web_feature_items" rows="5" placeholder="财富研究一体化|把研究与交付收进一个桌面工作台">${fieldValue(homeWeb.featureItemsText)}</textarea>
+            </label>
+            <label class="field">
+              <span>Scenario Variant</span>
+              <input class="field-input" name="home_web_scenario_variant" value="${fieldValue(homeWeb.scenarioVariant)}" />
+            </label>
+            <label class="toggle fig-toggle field">
+              <input type="checkbox" name="home_web_scenario_enabled"${homeWeb.scenarioEnabled ? ' checked' : ''} />
+              <span>${visibilityStateLabel(homeWeb.scenarioEnabled)}</span>
+            </label>
+            <label class="field field--wide">
+              <span>Scenario Title</span>
+              <input class="field-input" name="home_web_scenario_title" value="${fieldValue(homeWeb.scenarioTitle)}" />
+            </label>
+            <label class="field field--wide">
+              <span>Scenario Items</span>
+              <textarea class="field-textarea" name="home_web_scenario_items" rows="5" placeholder="财富顾问 / 投顾服务|适合组合诊断与客户陪伴">${fieldValue(homeWeb.scenarioItemsText)}</textarea>
+            </label>
+            <label class="field">
+              <span>Workflow Variant</span>
+              <input class="field-input" name="home_web_workflow_variant" value="${fieldValue(homeWeb.workflowVariant)}" />
+            </label>
+            <label class="toggle fig-toggle field">
+              <input type="checkbox" name="home_web_workflow_enabled"${homeWeb.workflowEnabled ? ' checked' : ''} />
+              <span>${visibilityStateLabel(homeWeb.workflowEnabled)}</span>
+            </label>
+            <label class="field field--wide">
+              <span>Workflow Title</span>
+              <input class="field-input" name="home_web_workflow_title" value="${fieldValue(homeWeb.workflowTitle)}" />
+            </label>
+            <label class="field field--wide">
+              <span>Workflow Steps</span>
+              <textarea class="field-textarea" name="home_web_workflow_items" rows="5" placeholder="接收问题|从客户问题或研究主题切入">${fieldValue(homeWeb.workflowItemsText)}</textarea>
+            </label>
+            <label class="field">
+              <span>Capability Variant</span>
+              <input class="field-input" name="home_web_capability_variant" value="${fieldValue(homeWeb.capabilityVariant)}" />
+            </label>
+            <label class="toggle fig-toggle field">
+              <input type="checkbox" name="home_web_capability_enabled"${homeWeb.capabilityEnabled ? ' checked' : ''} />
+              <span>${visibilityStateLabel(homeWeb.capabilityEnabled)}</span>
+            </label>
+            <label class="field field--wide">
+              <span>Capability Title</span>
+              <input class="field-input" name="home_web_capability_title" value="${fieldValue(homeWeb.capabilityTitle)}" />
+            </label>
+            <label class="field field--wide">
+              <span>Capability Items</span>
+              <textarea class="field-textarea" name="home_web_capability_items" rows="5" placeholder="多资产研究|股票、基金、宏观问题统一工作流">${fieldValue(homeWeb.capabilityItemsText)}</textarea>
+            </label>
+            <label class="field">
+              <span>Security Variant</span>
+              <input class="field-input" name="home_web_security_variant" value="${fieldValue(homeWeb.securityVariant)}" />
+            </label>
+            <label class="toggle fig-toggle field">
+              <input type="checkbox" name="home_web_security_enabled"${homeWeb.securityEnabled ? ' checked' : ''} />
+              <span>${visibilityStateLabel(homeWeb.securityEnabled)}</span>
+            </label>
+            <label class="field field--wide">
+              <span>Security Title</span>
+              <input class="field-input" name="home_web_security_title" value="${fieldValue(homeWeb.securityTitle)}" />
+            </label>
+            <label class="field field--wide">
+              <span>Security Items</span>
+              <textarea class="field-textarea" name="home_web_security_items" rows="5" placeholder="品牌级配置集中管理">${fieldValue(homeWeb.securityItemsText)}</textarea>
+            </label>
+            <label class="field">
+              <span>CTA Variant</span>
+              <input class="field-input" name="home_web_cta_variant" value="${fieldValue(homeWeb.ctaVariant)}" />
+            </label>
+            <label class="toggle fig-toggle field">
+              <input type="checkbox" name="home_web_cta_enabled"${homeWeb.ctaEnabled ? ' checked' : ''} />
+              <span>${visibilityStateLabel(homeWeb.ctaEnabled)}</span>
+            </label>
+            <label class="field field--wide">
+              <span>CTA Title</span>
+              <input class="field-input" name="home_web_cta_title" value="${fieldValue(homeWeb.ctaTitle)}" />
+            </label>
+            <label class="field field--wide">
+              <span>CTA Description</span>
+              <textarea class="field-textarea" name="home_web_cta_description" rows="3">${fieldValue(homeWeb.ctaDescription)}</textarea>
+            </label>
+            <label class="field">
+              <span>CTA Button Label</span>
+              <input class="field-input" name="home_web_cta_label" value="${fieldValue(homeWeb.ctaLabel)}" />
+            </label>
+          </div>
+        </article>
+        <article class="fig-card fig-card--subtle">
+          <div class="fig-card__head">
+            <h3>法律页面</h3>
+            <span>这两页属于 marketing site 的 page registry，终局会继续扩展为多页面管理。</span>
+          </div>
+          <div class="form-grid">
+            <label class="toggle fig-toggle field">
+              <input type="checkbox" name="home_web_privacy_enabled"${homeWeb.privacyEnabled ? ' checked' : ''} />
+              <span>隐私政策 ${visibilityStateLabel(homeWeb.privacyEnabled)}</span>
+            </label>
+            <label class="toggle fig-toggle field">
+              <input type="checkbox" name="home_web_terms_enabled"${homeWeb.termsEnabled ? ' checked' : ''} />
+              <span>用户协议 ${visibilityStateLabel(homeWeb.termsEnabled)}</span>
+            </label>
+            <label class="field">
+              <span>Privacy SEO Title</span>
+              <input class="field-input" name="home_web_privacy_seo_title" value="${fieldValue(homeWeb.privacySeoTitle)}" />
+            </label>
+            <label class="field">
+              <span>Terms SEO Title</span>
+              <input class="field-input" name="home_web_terms_seo_title" value="${fieldValue(homeWeb.termsSeoTitle)}" />
+            </label>
+            <label class="field field--wide">
+              <span>Privacy SEO Description</span>
+              <textarea class="field-textarea" name="home_web_privacy_seo_description" rows="3">${fieldValue(homeWeb.privacySeoDescription)}</textarea>
+            </label>
+            <label class="field field--wide">
+              <span>Terms SEO Description</span>
+              <textarea class="field-textarea" name="home_web_terms_seo_description" rows="3">${fieldValue(homeWeb.termsSeoDescription)}</textarea>
+            </label>
+            <label class="field">
+              <span>Privacy Title</span>
+              <input class="field-input" name="home_web_privacy_title" value="${fieldValue(homeWeb.privacyTitle)}" />
+            </label>
+            <label class="field">
+              <span>Terms Title</span>
+              <input class="field-input" name="home_web_terms_title" value="${fieldValue(homeWeb.termsTitle)}" />
+            </label>
+            <label class="field field--wide">
+              <span>Privacy Content</span>
+              <textarea class="field-textarea" name="home_web_privacy_content" rows="10">${fieldValue(homeWeb.privacyContent)}</textarea>
+            </label>
+            <label class="field field--wide">
+              <span>Terms Content</span>
+              <textarea class="field-textarea" name="home_web_terms_content" rows="10">${fieldValue(homeWeb.termsContent)}</textarea>
             </label>
           </div>
         </article>
@@ -14646,6 +15663,11 @@ app.addEventListener('click', async (event) => {
     state.brandDraftBuffer = buffer;
     setNotice(`已填充 Home 模板：${preset.label}`);
     render();
+    return;
+  }
+
+  if (action === 'preview-home-web') {
+    openHomeWebPreview();
     return;
   }
 
