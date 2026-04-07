@@ -2,7 +2,7 @@
 
 目标：
 - 用 Chrome DevTools Protocol 模拟真实用户行为
-- 覆盖 `admin-web`、`desktop web shell`、支付链路等高价值页面
+- 覆盖 `admin-web`、`desktop web shell`、支付链路、桌面客户端首次安装/启动链路等高价值页面
 - 每条脚本都能输出截图，便于回归确认
 - 发版前将本次用户级测试结果汇总到 `docs/version_record/test_report/`
 
@@ -20,6 +20,8 @@
   payment case 的兼容跳转说明
 - `tests/chat/`
   桌面对话类 CDP 回归
+- `tests/install/`
+  桌面客户端首次安装、失败重试、二次启动与安装包 smoke 回归
 
 ## 运行前置
 
@@ -41,6 +43,12 @@ pnpm test:e2e:payment:admin-gateway
 
 ```bash
 pnpm test:e2e:payment:admin-gateway-scope
+```
+
+桌面安装 / 更新链路自检：
+
+```bash
+pnpm self-test:desktop-update
 ```
 
 运行后会自动触发 `.tmp-tests` 留存：
@@ -86,15 +94,25 @@ ICLAW_TEST_SCREENSHOT_PATH=/tmp/iclaw-payment-admin-gateway-read.png
 - 过期遮罩
 - 刷新二维码按钮
 
+安装链路后续需要补充：
+- 启动 gate / 安装进度页关键节点
+- 安装失败态与重试按钮
+- 首次安装完成后的自动进入应用
+
 ## 下一步建议
 
 优先继续实现：
+- `tests/install/first-run-setup-gate.test.mjs`
+- `tests/install/runtime-install-retry.test.mjs`
+- `tests/install/installed-runtime-bootstrap.test.mjs`
+- `tests/install/desktop-package-smoke.test.mjs`
 - `tests/payment/recharge-package-flow.test.mjs`
 - `tests/payment/qr-layout.test.mjs`
 - `tests/payment/expired-refresh.test.mjs`
 
 它们对应的正式 case 已改为按优先级沉淀在：
 - `tests/cases/P0/payment.md`
+- `tests/cases/P0/install.md`
 
 其他域也按相同方式维护：
 - `tests/cases/P0/`

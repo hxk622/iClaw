@@ -13,7 +13,7 @@
 
 - **case 目录按优先级分层**
 - **test 脚本目录按业务域放置**
-  - 例如：`tests/chat/*.test.mjs`、`tests/payment/*.test.mjs`
+  - 例如：`tests/chat/*.test.mjs`、`tests/payment/*.test.mjs`、`tests/install/*.test.mjs`
 - 一个脚本可以对应一个或多个 case，但每个 case 必须能回指：
   - 脚本路径
   - 断言口径
@@ -24,6 +24,7 @@
 - `P0/chat.md`
 - `P0/auth.md`
 - `P0/payment.md`
+- `P0/install.md`
 - `P1/chat.md`
 - `P1/auth.md`
 - `P1/oem.md`
