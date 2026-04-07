@@ -51,6 +51,12 @@ pnpm test:e2e:payment:admin-gateway-scope
 pnpm test:e2e:install:first-run-gate
 ```
 
+运行游客模式输入框 / loginwall 测试：
+
+```bash
+pnpm test:e2e:auth:guest-composer-loginwall
+```
+
 运行“智能投资专家”左侧菜单打开测试：
 
 ```bash

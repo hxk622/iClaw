@@ -2216,10 +2216,9 @@ function AuthedView({
     authenticated ||
     Boolean(accessToken) ||
     (!authModalOpen && authBootstrapReady && chatRuntimeAuthRef.current);
-  const showWelcomeBackground = authBootstrapReady && !authenticated;
   const chatMenuLabel = menuUiConfig.chat.displayName;
   const keepChatSurfaceMounted =
-    !showStartupGate && !showWelcomeBackground && authBootstrapReady && chatShellAuthenticated;
+    !showStartupGate && authBootstrapReady;
   const targetChatSurfaceKey = buildChatSurfaceCacheKey(activeChatRoute);
   const mountedMenuSurfaceKeys = getMountedSurfaceKeys('menu');
   const mountedOverlaySurfaceKeys = getMountedSurfaceKeys('overlay') as OverlayView[];
@@ -3348,6 +3347,7 @@ function AuthedView({
                 welcomePageConfig={welcomePageConfig}
                 onGeneralChatSessionOverloaded={handleRotateGeneralChatSession}
                 onOpenRechargeCenter={() => setOverlayView('recharge')}
+                onRequireAuth={onRequestAuth}
                 runtimeStateKey={targetChatSurfaceKey}
                 onRuntimeStateChange={updateChatSurfaceRuntimeFlags}
                 surfaceVisible={resolvedPrimaryView === 'chat'}
@@ -3365,27 +3365,10 @@ function AuthedView({
               {renderMenuSurface(viewKey)}
             </div>
           ))}
-          {resolvedPrimaryView === 'chat' ? (
-            showStartupGate ? (
-              <div className={buildSurfaceLayerClassName(true)}>
-                <ChatBootstrapPlaceholderView />
-              </div>
-            ) : showWelcomeBackground ? (
-              <div className={buildSurfaceLayerClassName(true)}>
-                <WelcomeBackgroundView welcomePageConfig={welcomePageConfig} onRequestAuth={onRequestAuth} />
-              </div>
-            ) : chatShellAuthenticated ? null : (
-              <div className={buildSurfaceLayerClassName(true)}>
-                <RuntimeAuthRequiredView
-                  eyebrow="Chat Shell"
-                  title="当前聊天区还不能挂载运行时"
-                  description="这不是正常空态。当前是 iClaw shell 还没有完成登录确认，因此 OpenClaw chat wrapper 暂时不会挂载。"
-                  authenticated={chatShellAuthenticated}
-                  hasGatewayAuth={Boolean(gatewayAuth.token || gatewayAuth.password)}
-                  onLogin={() => onRequestAuth('login')}
-                />
-              </div>
-            )
+          {resolvedPrimaryView === 'chat' && showStartupGate ? (
+            <div className={buildSurfaceLayerClassName(true)}>
+              <ChatBootstrapPlaceholderView />
+            </div>
           ) : null}
         </div>
       </div>

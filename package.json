@@ -36,6 +36,7 @@
     "test:e2e:chat:persisted-session-restore": "node scripts/run-with-tmp-harvest.mjs node tests/chat/persisted-session-restore.test.mjs",
     "test:e2e:chat:empty-state": "node scripts/run-with-tmp-harvest.mjs node tests/chat/conversation-empty-state.test.mjs",
     "test:e2e:auth:login-bootstrap": "node scripts/run-with-tmp-harvest.mjs node tests/auth/login-session-bootstrap.test.mjs",
+    "test:e2e:auth:guest-composer-loginwall": "node scripts/run-with-tmp-harvest.mjs node tests/auth/guest-composer-loginwall.test.mjs",
     "test:e2e:auth:oauth-callback": "node scripts/run-with-tmp-harvest.mjs node tests/auth/oauth-callback-complete.test.mjs",
     "baseline:export": "node scripts/run-with-env.mjs dev pnpm --filter @iclaw/control-plane baseline:export",
     "baseline:doctor": "node scripts/run-with-env.mjs dev pnpm --filter @iclaw/control-plane baseline:doctor",

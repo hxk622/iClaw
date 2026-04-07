@@ -241,6 +241,7 @@ type OpenClawChatSurfaceProps = {
   welcomePageConfig?: ResolvedWelcomePageConfig | null;
   onGeneralChatSessionOverloaded?: (snapshot: ChatSessionPressureSnapshot) => void;
   onOpenRechargeCenter?: () => void;
+  onRequireAuth?: (mode?: 'login' | 'register', nextView?: 'account' | 'recharge' | null) => void;
   runtimeStateKey?: string | null;
   onRuntimeStateChange?: (
     runtimeStateKey: string,
@@ -3831,6 +3832,7 @@ export function OpenClawChatSurface({
   welcomePageConfig = null,
   onGeneralChatSessionOverloaded,
   onOpenRechargeCenter,
+  onRequireAuth,
   runtimeStateKey,
   onRuntimeStateChange,
   surfaceVisible = true,
@@ -7566,6 +7568,10 @@ export function OpenClawChatSurface({
   }, [effectiveSendBlockedReason, flushQueuedMessages, queuedMessages.length, status.busy, status.connected]);
 
   const handleSend = useCallback(async (payload: ComposerSendPayload): Promise<boolean> => {
+    if (!shellAuthenticated) {
+      onRequireAuth?.('login');
+      return false;
+    }
     const app = appRef.current;
     const gatewayBusy = app ? reconcileGatewayChatBusyState(app, effectiveGatewaySessionKey).busy : false;
     if (!effectiveSendBlockedReason && !status.connected && allowImmediateEmptySessionUi) {
@@ -7591,7 +7597,9 @@ export function OpenClawChatSurface({
     effectiveSendBlockedReason,
     enqueueQueuedMessage,
     optimisticEmptySessionActive,
+    onRequireAuth,
     sendQueuedOrImmediateMessage,
+    shellAuthenticated,
     status.busy,
     status.connected,
   ]);
@@ -8705,7 +8713,7 @@ export function OpenClawChatSurface({
                   sendDisabledReason={effectiveSendBlockedReason}
                   dropActive={shellDropActive}
                   sessionTransitioning={shellTransitioning}
-                  queueWhileConnecting={allowImmediateEmptySessionUi}
+                  queueWhileConnecting={allowImmediateEmptySessionUi || !shellAuthenticated}
                   lobsterAgents={installedLobsterAgents}
                   skillOptions={skillOptions}
                   initialSelectedAgentSlug={initialAgentSlug}
