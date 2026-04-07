@@ -6,6 +6,7 @@ import { Button } from '@/app/components/ui/Button';
 import { PageContent, PageHeader, PageSurface } from '@/app/components/ui/PageLayout';
 import { SegmentedTabs } from '@/app/components/ui/SegmentedTabs';
 import { STORE_SHELF_GRID_CLASS } from '@/app/components/ui/store-shelf';
+import { cn } from '@/app/lib/cn';
 import {
   INVESTMENT_EXPERT_CATEGORIES,
   hydrateInvestmentExperts,
@@ -14,6 +15,7 @@ import {
   type InvestmentExpertTab,
 } from '@/app/lib/investment-experts';
 import { installLobsterAgent, loadLobsterAgents, uninstallLobsterAgent } from '@/app/lib/lobster-store';
+import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 import { InvestmentExpertCard } from './InvestmentExpertCard';
 import { InvestmentExpertDetailDialog } from './InvestmentExpertDetailDialog';
 import { MyInvestmentExpertsView } from './MyInvestmentExpertsView';
