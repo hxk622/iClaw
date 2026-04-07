@@ -25,6 +25,11 @@ import {
   type RuntimeInstallProgress,
 } from './lib/tauri-runtime-config';
 import {
+  buildInstallerViewModel,
+  resolveShouldShowStartupGate,
+  type InstallerViewModel,
+} from './lib/startup-gate';
+import {
   loadBrandRuntimeConfigWithFallback,
   resolveAuthExperienceConfig,
   resolveHeaderConfig,
@@ -668,18 +673,6 @@ function buildDesktopUpdateAnnouncement(hint: DesktopUpdateHint): string {
   const base = `发现新版本 ${hint.latestVersion}。当前策略：${policyLabel}。`;
   return reasonMessage ? `${base} ${reasonMessage}` : base;
 }
-
-type InstallerViewState = 'loading' | 'error';
-
-type InstallerViewModel = {
-  state: InstallerViewState;
-  title: string;
-  subtitle: string;
-  progress: number;
-  stepLabel: string;
-  stepDetail: string;
-  errorMessage: string | null;
-};
 
 function RuntimeAuthRequiredView({
   eyebrow,
@@ -1648,102 +1641,29 @@ export default function App() {
       window.clearInterval(timer);
     };
   }, [brandRuntimeReady, client, runtimeChecking, runtimeInstalling, runtimeReady]);
-  const runtimeUnavailableErrorMessage =
-    !runtimeReady && !runtimeInstalling && !runtimeDiagnosis?.runtime_installable
-      ? '当前安装包未包含可用的运行时来源，请重新下载应用或联系支持。'
-      : null;
-  const installStageErrorMessage = runtimeInstallError || runtimeUnavailableErrorMessage;
-  const startupStageErrorMessage = !installStageErrorMessage && runtimeReady ? healthError : null;
-  const installerView: InstallerViewModel = (() => {
-    const normalizedProgress = runtimeInstallProgress
-      ? {
-          ...runtimeInstallProgress,
-          label: normalizeBrandRuntimeText(runtimeInstallProgress.label),
-          detail: normalizeBrandRuntimeText(runtimeInstallProgress.detail),
-        }
-      : null;
-    const stableProgress = Math.max(lastRuntimeProgressRef.current, normalizedProgress?.progress ?? 0);
-
-    if (installStageErrorMessage) {
-      return {
-        state: 'error',
-        title: '唤醒失败',
-        subtitle: '安装过程遇到问题',
-        progress: Math.max(6, Math.min(88, stableProgress || 6)),
-        stepLabel: '安装过程中断',
-        stepDetail: '本地运行环境还没有准备完成，无法继续进入应用。',
-        errorMessage: installStageErrorMessage,
-      };
-    }
-
-    if (startupStageErrorMessage) {
-      return {
-        state: 'error',
-        title: '启动失败',
-        subtitle: '本地服务未能成功拉起',
-        progress: Math.max(96, stableProgress),
-        stepLabel: '运行环境已部署完成',
-        stepDetail: 'runtime 文件已经准备好，但本地 API / gateway 健康检查没有通过。',
-        errorMessage: startupStageErrorMessage,
-      };
-    }
-
-    if (runtimeInstalling) {
-      const progress = normalizedProgress ?? {
-        phase: 'prepare',
-        progress: 6,
-        label: '正在准备安装组件',
-        detail: '首次启动需要部署本地运行环境，请稍候。',
-      };
-      const title =
-        progress.progress < 30
-          ? `${BRAND.displayName} 正在苏醒`
-          : progress.progress < 85
-            ? `正在准备 ${BRAND.displayName}`
-            : '即将完成';
-      return {
-        state: 'loading',
-        title,
-        subtitle: '正在部署你的本地 AI 助手',
-        progress: progress.progress,
-        stepLabel: progress.label,
-        stepDetail: progress.detail,
-        errorMessage: null,
-      };
-    }
-
-    if (runtimeChecking || !runtimeReady) {
-      return {
-        state: 'loading',
-        title: `${BRAND.displayName} 正在苏醒`,
-        subtitle: '正在启动本地 AI 运行环境',
-        progress: 12,
-        stepLabel: '正在检查本地引擎',
-        stepDetail: '确认 runtime、gateway、工作区和运行配置是否已准备就绪。',
-        errorMessage: null,
-      };
-    }
-
-    return {
-      state: 'loading',
-      title: '即将完成',
-      subtitle: '本地运行环境已准备完成',
-      progress: healthy ? 100 : 96,
-      stepLabel: healthy ? `${BRAND.displayName} 已就绪` : '正在启动本地服务',
-      stepDetail: healthy ? '正在进入应用。' : '正在拉起本地服务并完成最后的健康检查。',
-      errorMessage: null,
-    };
-  })();
-  const shouldShowStartupGate =
-    IS_TAURI_RUNTIME &&
-    (
-      runtimeChecking ||
-      runtimeInstalling ||
-      !runtimeReady ||
-      !initialHealthResolved ||
-      healthChecking ||
-      (!healthy && Boolean(healthError))
-    );
+  const installerView: InstallerViewModel = buildInstallerViewModel({
+    brandDisplayName: BRAND.displayName,
+    runtimeReady,
+    runtimeChecking,
+    runtimeInstalling,
+    healthy,
+    healthError,
+    runtimeInstallError,
+    runtimeDiagnosis,
+    runtimeInstallProgress,
+    lastRuntimeProgress: lastRuntimeProgressRef.current,
+    normalizeText: normalizeBrandRuntimeText,
+  });
+  const shouldShowStartupGate = resolveShouldShowStartupGate({
+    isTauriRuntime: IS_TAURI_RUNTIME,
+    runtimeChecking,
+    runtimeInstalling,
+    runtimeReady,
+    initialHealthResolved,
+    healthChecking,
+    healthy,
+    healthError,
+  });
   const shouldShowAuthBootstrapHint = !shouldShowStartupGate && !authBootstrapReady;
 
   useEffect(() => {

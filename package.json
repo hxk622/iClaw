@@ -28,6 +28,7 @@
     "test:e2e:payment:qr-layout": "node scripts/run-with-tmp-harvest.mjs node tests/payment/qr-layout.test.mjs",
     "test:e2e:payment:expired-refresh": "node scripts/run-with-tmp-harvest.mjs node tests/payment/expired-refresh.test.mjs",
     "test:e2e:payment:misconfigured-gateway-error": "node scripts/run-with-tmp-harvest.mjs node tests/payment/misconfigured-gateway-error.test.mjs",
+    "test:e2e:install:first-run-gate": "node --experimental-strip-types --test tests/install/first-run-setup-gate.test.mjs",
     "test:e2e:chat:single-track": "node scripts/run-with-tmp-harvest.mjs node tests/chat/single-track-seeded-switch.test.mjs",
     "test:e2e:chat:send-smoke": "node scripts/run-with-tmp-harvest.mjs node tests/chat/send-smoke.test.mjs",
     "test:e2e:chat:new-chat-switch": "node scripts/run-with-tmp-harvest.mjs node tests/chat/new-chat-create-and-switch.test.mjs",

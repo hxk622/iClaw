@@ -45,6 +45,12 @@ pnpm test:e2e:payment:admin-gateway
 pnpm test:e2e:payment:admin-gateway-scope
 ```
 
+运行首次安装 gate 主链路测试：
+
+```bash
+pnpm test:e2e:install:first-run-gate
+```
+
 桌面安装 / 更新链路自检：
 
 ```bash
@@ -95,14 +101,12 @@ ICLAW_TEST_SCREENSHOT_PATH=/tmp/iclaw-payment-admin-gateway-read.png
 - 刷新二维码按钮
 
 安装链路后续需要补充：
-- 启动 gate / 安装进度页关键节点
 - 安装失败态与重试按钮
 - 首次安装完成后的自动进入应用
 
 ## 下一步建议
 
 优先继续实现：
-- `tests/install/first-run-setup-gate.test.mjs`
 - `tests/install/runtime-install-retry.test.mjs`
 - `tests/install/installed-runtime-bootstrap.test.mjs`
 - `tests/install/desktop-package-smoke.test.mjs`
