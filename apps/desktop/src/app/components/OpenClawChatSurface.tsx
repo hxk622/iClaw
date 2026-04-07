@@ -4501,6 +4501,7 @@ export function OpenClawChatSurface({
     };
   }, []);
 
+  // Keep this callback declared before any hooks/callbacks that reference it.
   const refreshModelCatalog = useCallback(async (): Promise<boolean> => {
     const app = appRef.current;
     if (!app) {
@@ -4561,6 +4562,7 @@ export function OpenClawChatSurface({
     appName,
     authBaseUrl,
     clearOverloadedGeneralSessionRotationTimer,
+    conversationId,
     scheduleOverloadedGeneralSessionRotation,
     sessionKey,
   ]);
