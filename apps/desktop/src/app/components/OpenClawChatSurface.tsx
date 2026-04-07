@@ -5354,6 +5354,8 @@ export function OpenClawChatSurface({
     });
     if (reconnectKeyRef.current === null) {
       reconnectKeyRef.current = reconnectKey;
+      initialScrollScheduledRef.current = false;
+      app.connect();
       return;
     }
     if (reconnectKeyRef.current !== reconnectKey) {
