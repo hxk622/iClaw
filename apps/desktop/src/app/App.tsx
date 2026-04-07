@@ -2219,6 +2219,11 @@ function AuthedView({
   const chatMenuLabel = menuUiConfig.chat.displayName;
   const keepChatSurfaceMounted =
     !showStartupGate && authBootstrapReady;
+  const showWelcomeBackground =
+    !authenticated &&
+    authBootstrapReady &&
+    Boolean(welcomePageConfig) &&
+    welcomePageConfig.enabled !== false;
   const targetChatSurfaceKey = buildChatSurfaceCacheKey(activeChatRoute);
   const mountedMenuSurfaceKeys = getMountedSurfaceKeys('menu');
   const mountedOverlaySurfaceKeys = getMountedSurfaceKeys('overlay') as OverlayView[];
@@ -3122,7 +3127,7 @@ function AuthedView({
           />
         );
       }
-      if (showWelcomeBackground) {
+      if (showWelcomeBackground && welcomePageConfig) {
         return <WelcomeBackgroundView welcomePageConfig={welcomePageConfig} onRequestAuth={onRequestAuth} />;
       }
       if (authenticated) {
