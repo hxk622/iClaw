@@ -51,6 +51,12 @@ pnpm test:e2e:payment:admin-gateway-scope
 pnpm test:e2e:install:first-run-gate
 ```
 
+运行“智能投资专家”左侧菜单打开测试：
+
+```bash
+pnpm test:e2e:investment-experts:menu-open
+```
+
 桌面安装 / 更新链路自检：
 
 ```bash
