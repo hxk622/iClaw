@@ -12,6 +12,11 @@ interface FirstRunSetupPanelProps {
   stepLabel: string;
   stepDetail: string;
   errorMessage: string | null;
+  errorTitle?: string | null;
+  diagnosticItems?: Array<{
+    label: string;
+    value: string;
+  }>;
   onRetry: () => Promise<void>;
   presentation?: 'fullscreen' | 'embedded';
 }
@@ -76,6 +81,8 @@ export function FirstRunSetupPanel({
   stepLabel,
   stepDetail,
   errorMessage,
+  errorTitle = null,
+  diagnosticItems = [],
   onRetry,
   presentation = 'fullscreen',
 }: FirstRunSetupPanelProps) {
@@ -229,13 +236,28 @@ export function FirstRunSetupPanel({
                   <AlertTriangle className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className={`text-sm font-medium ${palette.info}`}>安装过程中断</div>
+                  <div className={`text-sm font-medium ${palette.info}`}>{errorTitle || '启动过程中断'}</div>
                   <div className={`mt-2 whitespace-pre-wrap break-words text-sm leading-7 ${palette.detail}`}>
                     {errorMessage}
                   </div>
                 </div>
               </div>
             </div>
+            {diagnosticItems.length ? (
+              <div className={`rounded-[24px] border px-5 py-5 ${palette.stepCard}`}>
+                <div className={`text-sm font-medium ${palette.info}`}>诊断信息</div>
+                <div className="mt-4 space-y-4">
+                  {diagnosticItems.map((item) => (
+                    <div key={`${item.label}-${item.value}`} className="min-w-0">
+                      <div className={`text-[11px] uppercase tracking-[0.24em] ${palette.detail}`}>{item.label}</div>
+                      <div className={`mt-1 whitespace-pre-wrap break-words text-sm leading-7 ${palette.detail}`}>
+                        {item.value}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             <Button
               variant="primary"
               size="md"

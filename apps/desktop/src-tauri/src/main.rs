@@ -689,6 +689,17 @@ struct RuntimeDiagnosis {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StartupDiagnosticsSnapshot {
+    bootstrap_log_path: String,
+    sidecar_stdout_log_path: String,
+    sidecar_stderr_log_path: String,
+    bootstrap_tail: Option<String>,
+    sidecar_stdout_tail: Option<String>,
+    sidecar_stderr_tail: Option<String>,
+}
+
+#[derive(Serialize)]
 struct BundledSkillCatalogItem {
     slug: String,
     name: String,
@@ -4235,6 +4246,22 @@ fn read_log_tail(path: &Path, max_chars: usize) -> Option<String> {
     )
 }
 
+#[tauri::command]
+fn load_startup_diagnostics(app: AppHandle) -> Result<StartupDiagnosticsSnapshot, String> {
+    let paths = ensure_runtime_dirs(&app)?;
+    let bootstrap_log_path = PathBuf::from(&paths.log_dir).join("desktop-bootstrap.log");
+    let (sidecar_stdout_log_path, sidecar_stderr_log_path) = sidecar_log_paths(&app)?;
+
+    Ok(StartupDiagnosticsSnapshot {
+        bootstrap_log_path: bootstrap_log_path.to_string_lossy().to_string(),
+        sidecar_stdout_log_path: sidecar_stdout_log_path.to_string_lossy().to_string(),
+        sidecar_stderr_log_path: sidecar_stderr_log_path.to_string_lossy().to_string(),
+        bootstrap_tail: read_log_tail(&bootstrap_log_path, 1200),
+        sidecar_stdout_tail: read_log_tail(&sidecar_stdout_log_path, 1200),
+        sidecar_stderr_tail: read_log_tail(&sidecar_stderr_log_path, 1200),
+    })
+}
+
 fn describe_sidecar_exit(status: ExitStatus, stdout_path: &Path, stderr_path: &Path) -> String {
     let code = status
         .code()
@@ -6594,6 +6621,7 @@ fn main() {
             sync_oem_runtime_snapshot,
             install_runtime,
             diagnose_runtime,
+            load_startup_diagnostics,
             load_bundled_skills_catalog,
             load_bundled_mcp_catalog,
             list_managed_skills,

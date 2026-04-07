@@ -20,9 +20,11 @@ import {
   diagnoseRuntime,
   installRuntime,
   listenRuntimeInstallProgress,
+  loadStartupDiagnostics,
   syncPortalProviderAuth,
   type RuntimeDiagnosis,
   type RuntimeInstallProgress,
+  type StartupDiagnosticsSnapshot,
 } from './lib/tauri-runtime-config';
 import {
   buildInstallerViewModel,
@@ -926,6 +928,7 @@ export default function App() {
   const [runtimeReady, setRuntimeReady] = useState(!isTauriRuntime());
   const [runtimeDiagnosis, setRuntimeDiagnosis] = useState<RuntimeDiagnosis | null>(null);
   const [runtimeInstallProgress, setRuntimeInstallProgress] = useState<RuntimeInstallProgress | null>(null);
+  const [startupDiagnostics, setStartupDiagnostics] = useState<StartupDiagnosticsSnapshot | null>(null);
   const [primaryView, setPrimaryView] = useState<PrimaryView>(() =>
     resolveInitialPrimaryView({
       persistedPrimaryView: readPersistedWorkspaceScene().primaryView,
@@ -1083,6 +1086,7 @@ export default function App() {
   }, []);
 
   const retrySetup = async () => {
+    setStartupDiagnostics(null);
     if (!runtimeReady) {
       await handleInstallRuntime();
       return;
@@ -1118,6 +1122,31 @@ export default function App() {
       setInitialHealthResolved(true);
     }
   };
+
+  useEffect(() => {
+    if (!IS_TAURI_RUNTIME) {
+      return;
+    }
+    if (!runtimeInstallError && !healthError) {
+      setStartupDiagnostics(null);
+      return;
+    }
+
+    let cancelled = false;
+    void loadStartupDiagnostics()
+      .then((snapshot) => {
+        if (!cancelled) {
+          setStartupDiagnostics(snapshot);
+        }
+      })
+      .catch((error) => {
+        console.warn('[desktop] failed to load startup diagnostics', error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [healthError, runtimeInstallError]);
 
   useEffect(() => {
     if (!IS_TAURI_RUNTIME) return;
@@ -1682,6 +1711,7 @@ export default function App() {
     runtimeInstallError,
     runtimeDiagnosis,
     runtimeInstallProgress,
+    startupDiagnostics,
     lastRuntimeProgress: lastRuntimeProgressRef.current,
     normalizeText: normalizeBrandRuntimeText,
   });
@@ -1991,6 +2021,8 @@ export default function App() {
               stepLabel={installerView.stepLabel}
               stepDetail={installerView.stepDetail}
               errorMessage={installerView.errorMessage}
+              errorTitle={installerView.errorTitle}
+              diagnosticItems={installerView.diagnosticItems}
               onRetry={retrySetup}
             />
           </div>

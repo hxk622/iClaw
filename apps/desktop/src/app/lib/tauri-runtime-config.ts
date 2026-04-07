@@ -26,6 +26,15 @@ export interface RuntimeDiagnosis {
   cache_dir: string;
 }
 
+export interface StartupDiagnosticsSnapshot {
+  bootstrapLogPath: string;
+  sidecarStdoutLogPath: string;
+  sidecarStderrLogPath: string;
+  bootstrapTail: string | null;
+  sidecarStdoutTail: string | null;
+  sidecarStderrTail: string | null;
+}
+
 export interface RuntimeInstallProgress {
   phase: string;
   progress: number;
@@ -61,6 +70,11 @@ export async function installRuntime(): Promise<boolean> {
 export async function diagnoseRuntime(): Promise<RuntimeDiagnosis | null> {
   if (!isTauriRuntime()) return null;
   return invoke<RuntimeDiagnosis>('diagnose_runtime');
+}
+
+export async function loadStartupDiagnostics(): Promise<StartupDiagnosticsSnapshot | null> {
+  if (!isTauriRuntime()) return null;
+  return invoke<StartupDiagnosticsSnapshot>('load_startup_diagnostics');
 }
 
 export async function listenRuntimeInstallProgress(
