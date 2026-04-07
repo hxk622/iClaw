@@ -24,6 +24,10 @@ OEM 需要支持的不只是：
 
 因此，OEM 架构必须从一开始就采用“中心化能力中心 + OEM 装配层”的模式，而不是把能力定义散落到代码和各 OEM 配置里。
 
+官网 / 营销站的具体落地设计见：
+
+- [marketing-site-shell-design.md](/Users/xingkaihan/Documents/Code/iClaw/docs/marketing-site-shell-design.md)
+
 ## 2. 总原则
 
 所有 OEM 能力统一遵循以下原则：
