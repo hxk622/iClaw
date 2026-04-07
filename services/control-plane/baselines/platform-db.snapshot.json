@@ -790,8 +790,8 @@
       "modelBindings": [
         {
           "config": {
-            "default": true,
-            "recommended": true
+            "default": false,
+            "recommended": false
           },
           "enabled": true,
           "modelRef": "openai/qwen3.5-plus",
@@ -872,7 +872,7 @@
         {
           "config": {
             "default": false,
-            "recommended": true
+            "recommended": false
           },
           "enabled": true,
           "modelRef": "openai/glm-5",
@@ -881,7 +881,7 @@
         {
           "config": {
             "default": false,
-            "recommended": true
+            "recommended": false
           },
           "enabled": true,
           "modelRef": "deepseek/deepseek-v3.2",
@@ -1243,86 +1243,7 @@
           "sortOrder": 60
         }
       ],
-      "mcpBindings": [
-        {
-          "config": {},
-          "enabled": true,
-          "mcpKey": "alpaca",
-          "sortOrder": 10
-        },
-        {
-          "config": {},
-          "enabled": true,
-          "mcpKey": "alphavantage",
-          "sortOrder": 20
-        },
-        {
-          "config": {},
-          "enabled": true,
-          "mcpKey": "browser",
-          "sortOrder": 30
-        },
-        {
-          "config": {},
-          "enabled": true,
-          "mcpKey": "dbt",
-          "sortOrder": 40
-        },
-        {
-          "config": {},
-          "enabled": true,
-          "mcpKey": "fingpt",
-          "sortOrder": 50
-        },
-        {
-          "config": {},
-          "enabled": true,
-          "mcpKey": "fmp",
-          "sortOrder": 60
-        },
-        {
-          "config": {},
-          "enabled": true,
-          "mcpKey": "fred",
-          "sortOrder": 70
-        },
-        {
-          "config": {},
-          "enabled": true,
-          "mcpKey": "markitdown",
-          "sortOrder": 80
-        },
-        {
-          "config": {},
-          "enabled": true,
-          "mcpKey": "nano-banana",
-          "sortOrder": 90
-        },
-        {
-          "config": {},
-          "enabled": true,
-          "mcpKey": "sec-edgar",
-          "sortOrder": 100
-        },
-        {
-          "config": {},
-          "enabled": true,
-          "mcpKey": "serper",
-          "sortOrder": 110
-        },
-        {
-          "config": {},
-          "enabled": true,
-          "mcpKey": "tavily",
-          "sortOrder": 120
-        },
-        {
-          "config": {},
-          "enabled": true,
-          "mcpKey": "yahoo-finance",
-          "sortOrder": 130
-        }
-      ],
+      "mcpBindings": [],
       "menuBindings": [
         {
           "config": {
@@ -1451,8 +1372,8 @@
       "modelBindings": [
         {
           "config": {
-            "default": true,
-            "recommended": true
+            "default": false,
+            "recommended": false
           },
           "enabled": true,
           "modelRef": "openai/gpt-5.4",
@@ -1479,7 +1400,7 @@
         {
           "config": {
             "default": false,
-            "recommended": true
+            "recommended": false
           },
           "enabled": true,
           "modelRef": "openai/glm-5",
@@ -1488,7 +1409,7 @@
         {
           "config": {
             "default": false,
-            "recommended": true
+            "recommended": false
           },
           "enabled": true,
           "modelRef": "deepseek/deepseek-v3.2",
@@ -6038,10 +5959,26 @@
     "mcps": [
       {
         "active": true,
+        "mcpKey": "alpaca",
+        "metadata": {
+          "derivedFrom": "shared_oem_mcp_bindings",
+          "sourceType": "baseline_snapshot"
+        }
+      },
+      {
+        "active": true,
         "mcpKey": "browser",
         "metadata": {
           "derivedFrom": "shared_oem_mcp_bindings",
           "sourceType": "baseline_seed"
+        }
+      },
+      {
+        "active": true,
+        "mcpKey": "alphavantage",
+        "metadata": {
+          "derivedFrom": "shared_oem_mcp_bindings",
+          "sourceType": "baseline_snapshot"
         }
       },
       {
@@ -6062,6 +5999,14 @@
       },
       {
         "active": true,
+        "mcpKey": "dbt",
+        "metadata": {
+          "derivedFrom": "shared_oem_mcp_bindings",
+          "sourceType": "baseline_snapshot"
+        }
+      },
+      {
+        "active": true,
         "mcpKey": "serper",
         "metadata": {
           "derivedFrom": "shared_oem_mcp_bindings",
@@ -6070,10 +6015,50 @@
       },
       {
         "active": true,
+        "mcpKey": "fingpt",
+        "metadata": {
+          "derivedFrom": "shared_oem_mcp_bindings",
+          "sourceType": "baseline_snapshot"
+        }
+      },
+      {
+        "active": true,
         "mcpKey": "yahoo-finance",
         "metadata": {
           "derivedFrom": "shared_oem_mcp_bindings",
           "sourceType": "baseline_seed"
+        }
+      },
+      {
+        "active": true,
+        "mcpKey": "fmp",
+        "metadata": {
+          "derivedFrom": "shared_oem_mcp_bindings",
+          "sourceType": "baseline_snapshot"
+        }
+      },
+      {
+        "active": true,
+        "mcpKey": "fred",
+        "metadata": {
+          "derivedFrom": "shared_oem_mcp_bindings",
+          "sourceType": "baseline_snapshot"
+        }
+      },
+      {
+        "active": true,
+        "mcpKey": "nano-banana",
+        "metadata": {
+          "derivedFrom": "shared_oem_mcp_bindings",
+          "sourceType": "baseline_snapshot"
+        }
+      },
+      {
+        "active": true,
+        "mcpKey": "sec-edgar",
+        "metadata": {
+          "derivedFrom": "shared_oem_mcp_bindings",
+          "sourceType": "baseline_snapshot"
         }
       }
     ],
