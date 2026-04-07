@@ -16,50 +16,6 @@
     <script type="module" src="./main.js"></script>
   </head>
   <body>
-    <section class="hero" id="top">
-      <img id="hero-art" class="hero-art" src="/hero-art.svg" alt="Hero artwork" />
-      <div class="hero-overlay"></div>
-      <div class="hero-floats">
-        <img id="hero-layer-1" src="/hero-layer-1.svg" alt="Visual layer one" class="float-card float-a spring-layer" />
-        <img id="hero-photo" src="/hero-photo.jpg" alt="Product visual" class="float-photo float-b spring-layer" />
-      </div>
-      <header class="hero-topbar">
-        <div class="brand">
-          <img id="brand-logo" src="/logo.png" alt="Brand logo" class="brand-logo" />
-          <span id="brand-label">Brand</span>
-        </div>
-        <div class="hero-topbar__actions">
-          <button id="theme-toggle" type="button" class="theme-toggle" aria-label="切换主题">
-            <span class="theme-toggle__label">Theme</span>
-            <strong id="theme-toggle-text">跟随系统</strong>
-          </button>
-          <a id="top-cta" href="#download" class="top-cta">下载</a>
-        </div>
-      </header>
-
-      <div class="hero-content spring-layer">
-        <p id="hero-kicker" class="kicker">Official Website</p>
-        <h1 class="hero-title">
-          <span id="hero-title-pre" class="hero-title-pre">让AI真正像软件一样</span>
-          <span id="hero-title-main" class="hero-title-main">装上就能用！</span>
-        </h1>
-        <p id="hero-description">
-          面向普通用户设计。少一点配置，多一点结果。
-          打开、提问、执行、拿答案。
-        </p>
-        <a href="#download" class="scroll-down">
-          <span id="scroll-label">向下下载</span>
-          <strong>↓</strong>
-        </a>
-      </div>
-    </section>
-
-    <section class="download" id="download" aria-labelledby="downloads-title">
-      <div class="download-head">
-        <h2 id="downloads-title">下载</h2>
-        <span id="env-pill" class="env-pill"></span>
-      </div>
-      <div id="downloads-grid" class="downloads-grid"></div>
-    </section>
+    <div id="app"></div>
   </body>
 </html>

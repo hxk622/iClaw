@@ -62,6 +62,21 @@ function normalizeWebsite(raw: unknown, displayName: string) {
   };
 }
 
+function defaultMarketingTemplateKey(brandId: string): string {
+  return brandId === 'licaiclaw' ? 'wealth-premium' : 'classic-download';
+}
+
+function normalizeMarketingSite(raw: unknown, brandId: string) {
+  const source = asObject(raw);
+  const nested = asObject(source.marketingSite);
+  const siteShell = asObject(source.siteShell);
+  return {
+    templateKey: trimString(source.templateKey || nested.templateKey) || defaultMarketingTemplateKey(brandId),
+    siteShell: Object.keys(siteShell).length > 0 ? siteShell : asObject(nested.siteShell),
+    pages: Array.isArray(source.pages) ? source.pages : Array.isArray(nested.pages) ? nested.pages : [],
+  };
+}
+
 function findAsset(detail: PortalAppDetail, assetKey: string): PortalAppAssetRecord | null {
   const direct = detail.assets.find((item) => item.assetKey === assetKey) || null;
   if (direct) {
@@ -167,6 +182,9 @@ function buildProfile(detail: PortalAppDetail, cachedAssets: Record<string, stri
   const runtimeProd = asObject(runtimeDistribution.prod);
   const controlPlane = asObject(appConfig.controlPlane || appConfig.control_plane);
   const website = normalizeWebsite(appConfig.website, detail.app.displayName);
+  const surfaces = asObject(appConfig.surfaces);
+  const homeWebSurface = asObject(surfaces['home-web']);
+  const homeWebSurfaceConfig = asObject(homeWebSurface.config);
   const productName =
     trimString(appConfig.productName || appConfig.product_name || brandMeta.product_name || brandMeta.productName) ||
     detail.app.displayName;
@@ -214,6 +232,7 @@ function buildProfile(detail: PortalAppDetail, cachedAssets: Record<string, stri
       },
     },
     website,
+    marketingSite: normalizeMarketingSite(homeWebSurfaceConfig, brandId),
     distribution: {
       artifactBaseName: trimString(distribution.artifactBaseName || distribution.artifact_base_name) || productName,
       downloads: {

@@ -74,6 +74,14 @@ body {
   scroll-behavior: smooth;
 }
 
+body {
+  min-height: 100vh;
+}
+
+#app {
+  min-height: 100vh;
+}
+
 .hero {
   position: relative;
   min-height: 100vh;
@@ -477,5 +485,560 @@ body {
   }
   100% {
     background-position: -80% 0;
+  }
+}
+
+.site-footer {
+  border-top: 1px solid var(--line);
+  padding: 28px clamp(16px, 4vw, 40px) 40px;
+}
+
+.site-footer__main,
+.site-footer__legal {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.site-footer__main {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+
+.site-footer__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.site-footer__logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  object-fit: cover;
+}
+
+.site-footer__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 18px;
+  width: min(560px, 100%);
+}
+
+.site-footer__column h4 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.site-footer__links,
+.site-footer__mini-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+
+.site-footer__links a,
+.site-footer__mini-links a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.site-footer__links a:hover,
+.site-footer__mini-links a:hover {
+  color: var(--text);
+}
+
+.site-footer__legal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.wealth-shell {
+  position: relative;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top, rgba(196, 154, 86, 0.2), transparent 36%),
+    linear-gradient(180deg, #08111e 0%, #091422 42%, #05080d 100%);
+  color: #f2f4f8;
+}
+
+.wealth-shell__backdrop {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 46px 46px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.75), transparent 92%);
+}
+
+.wealth-header,
+.wealth-section,
+.wealth-cta,
+.site-footer--wealth .site-footer__main,
+.site-footer--wealth .site-footer__legal {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.wealth-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px clamp(16px, 4vw, 40px);
+  backdrop-filter: blur(16px);
+  background: rgba(7, 11, 17, 0.7);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.wealth-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.wealth-brand img {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 1px solid rgba(205, 170, 101, 0.35);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
+}
+
+.wealth-brand span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.wealth-brand strong {
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
+
+.wealth-brand small {
+  color: #b5bec9;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.wealth-nav {
+  display: inline-flex;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.wealth-nav a,
+.wealth-header__cta,
+.wealth-primary,
+.wealth-secondary,
+.wealth-cta a {
+  text-decoration: none;
+}
+
+.wealth-nav a {
+  color: #d4dae3;
+  font-size: 14px;
+}
+
+.wealth-nav a:hover {
+  color: #f6d48f;
+}
+
+.wealth-header__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.wealth-theme-toggle {
+  color: #edf1f7;
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.wealth-header__cta,
+.wealth-primary,
+.wealth-cta a {
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f2d59b 0%, #bd9757 100%);
+  color: #111318;
+  font-weight: 800;
+  padding: 11px 18px;
+}
+
+.wealth-secondary {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #edf1f7;
+  padding: 11px 18px;
+}
+
+.wealth-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  gap: 28px;
+  padding: 72px clamp(16px, 4vw, 40px) 40px;
+  align-items: center;
+}
+
+.wealth-kicker,
+.wealth-section__head p,
+.wealth-cta p {
+  margin: 0 0 10px;
+  color: #d8b56d;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+.wealth-hero h1,
+.wealth-section__head h2,
+.wealth-cta h2 {
+  margin: 0;
+  letter-spacing: -0.035em;
+}
+
+.wealth-hero h1 {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: clamp(36px, 6vw, 76px);
+}
+
+.wealth-hero h1 span {
+  color: #dae2ec;
+  font-size: clamp(20px, 2.8vw, 34px);
+}
+
+.wealth-hero h1 strong {
+  color: #fff7ea;
+}
+
+.wealth-hero__description {
+  max-width: 640px;
+  color: #b5bec9;
+  font-size: 18px;
+  line-height: 1.8;
+}
+
+.wealth-hero__actions {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 28px;
+}
+
+.wealth-hero__panel,
+.wealth-info-card,
+.wealth-scene-card,
+.wealth-capability-card,
+.wealth-step,
+.wealth-security,
+.wealth-download-card,
+.wealth-cta {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.28);
+}
+
+.wealth-hero__panel {
+  border-radius: 28px;
+  padding: 24px;
+}
+
+.wealth-hero__panel-top,
+.wealth-hero__quote,
+.wealth-hero__stats {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.wealth-hero__panel-top span,
+.wealth-hero__quote label,
+.wealth-hero__stats span {
+  color: #9ea8b4;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.wealth-hero__quote,
+.wealth-hero__stats {
+  margin-top: 18px;
+}
+
+.wealth-hero__stats div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wealth-hero__image {
+  width: 100%;
+  margin-top: 22px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  object-fit: cover;
+}
+
+.wealth-section {
+  padding: 24px clamp(16px, 4vw, 40px) 0;
+}
+
+.wealth-section__head {
+  margin-bottom: 18px;
+}
+
+.wealth-section__head h2,
+.wealth-cta h2 {
+  font-size: clamp(26px, 3.6vw, 46px);
+  color: #f7fbff;
+}
+
+.wealth-card-grid,
+.wealth-download-grid,
+.wealth-steps {
+  display: grid;
+  gap: 18px;
+}
+
+.wealth-card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.wealth-card-grid--wide {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.wealth-info-card,
+.wealth-scene-card,
+.wealth-capability-card,
+.wealth-step {
+  border-radius: 24px;
+  padding: 22px;
+}
+
+.wealth-info-card h3,
+.wealth-scene-card h3,
+.wealth-capability-card h3,
+.wealth-step h3 {
+  margin: 0 0 12px;
+  font-size: 21px;
+}
+
+.wealth-info-card p,
+.wealth-scene-card p,
+.wealth-capability-card p,
+.wealth-step p,
+.wealth-cta span {
+  margin: 0;
+  color: #b6c0cb;
+  line-height: 1.8;
+}
+
+.wealth-steps {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.wealth-step__index {
+  display: inline-flex;
+  margin-bottom: 16px;
+  color: #e1bc72;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+}
+
+.wealth-download-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.wealth-download-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-radius: 22px;
+  padding: 18px;
+}
+
+.wealth-download-card__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.wealth-download-card--cyan .wealth-download-card__icon {
+  background: rgba(99, 220, 255, 0.12);
+  color: #8be4ff;
+}
+
+.wealth-download-card--violet .wealth-download-card__icon {
+  background: rgba(177, 126, 255, 0.12);
+  color: #d4bcff;
+}
+
+.wealth-download-card--amber .wealth-download-card__icon {
+  background: rgba(255, 210, 103, 0.12);
+  color: #f6d48f;
+}
+
+.wealth-download-card__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wealth-download-card strong {
+  font-size: 16px;
+}
+
+.wealth-download-card span {
+  color: #9ea8b4;
+  font-size: 13px;
+}
+
+.wealth-download-card a,
+.wealth-download-card button {
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-weight: 700;
+}
+
+.wealth-download-card a {
+  background: #f6d48f;
+  color: #10141b;
+}
+
+.wealth-download-card button {
+  background: rgba(255, 255, 255, 0.08);
+  color: #7f8a96;
+}
+
+.wealth-security {
+  border-radius: 28px;
+  padding: 24px;
+}
+
+.wealth-security ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.wealth-security li {
+  position: relative;
+  padding-left: 22px;
+  color: #d7dde7;
+}
+
+.wealth-security li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.6em;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #d8b56d;
+}
+
+.wealth-cta {
+  margin: 36px auto 0;
+  border-radius: 30px;
+  padding: 28px clamp(18px, 3vw, 34px);
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+}
+
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(24px);
+  transition:
+    opacity 520ms ease,
+    transform 520ms ease;
+}
+
+[data-reveal].is-visible,
+.download-card.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (max-width: 980px) {
+  .wealth-header,
+  .wealth-hero,
+  .site-footer__main,
+  .wealth-cta {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .wealth-nav,
+  .wealth-header__actions {
+    width: 100%;
+  }
+
+  .wealth-nav {
+    justify-content: flex-start;
+  }
+
+  .wealth-hero {
+    padding-top: 42px;
+  }
+}
+
+@media (max-width: 780px) {
+  .site-footer__main {
+    flex-direction: column;
+  }
+
+  .site-footer__grid,
+  .wealth-security ul,
+  .wealth-download-grid,
+  .wealth-card-grid,
+  .wealth-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .wealth-download-card,
+  .wealth-cta {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

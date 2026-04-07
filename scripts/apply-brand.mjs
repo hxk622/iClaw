@@ -23,6 +23,10 @@ const brandGeneratedJsonPath = path.join(tauriDir, 'brand.generated.json');
 const homeWebBrandGeneratedJsPath = path.join(homeWebDir, 'brand.generated.js');
 const rootPackageJsonPath = path.join(rootDir, 'package.json');
 
+function defaultMarketingTemplateKey(brandId) {
+  return brandId === 'licaiclaw' ? 'wealth-premium' : 'classic-download';
+}
+
 function resolveBrandPath(brandDir, rawPath) {
   if (typeof rawPath !== 'string' || !rawPath.trim()) {
     return null;
@@ -190,11 +194,27 @@ function buildHomeBrandJs(brand, appVersion) {
       brandId: brand.brandId,
       displayName: brand.displayName,
       defaultThemeMode: brand.defaultThemeMode || 'dark',
+      marketingSite: {
+        templateKey:
+          (brand.marketingSite && typeof brand.marketingSite === 'object' && typeof brand.marketingSite.templateKey === 'string'
+            ? brand.marketingSite.templateKey.trim()
+            : '') || defaultMarketingTemplateKey(brand.brandId),
+        siteShell:
+          brand.marketingSite && typeof brand.marketingSite === 'object' && brand.marketingSite.siteShell
+            ? brand.marketingSite.siteShell
+            : {},
+        pages:
+          brand.marketingSite && typeof brand.marketingSite === 'object' && Array.isArray(brand.marketingSite.pages)
+            ? brand.marketingSite.pages
+            : [],
+      },
       website: brand.website,
       assets: {
         faviconPngSrc: '/brand/favicon.png',
         appleTouchIconSrc: '/brand/apple-touch-icon.png',
         logoSrc: '/brand/logo.png',
+        installerHeroSrc: '/brand/installer-hero.png',
+        logoMasterSrc: '/brand/logo-master.png',
         heroArtSrc: brand.assets.homeHeroArt ? '/brand/hero-art.svg' : '/hero-art.svg',
         heroLayer1Src: brand.assets.homeHeroLayer1 ? '/brand/hero-layer-1.svg' : '/hero-layer-1.svg',
         heroLayer2Src: brand.assets.homeHeroLayer2 ? '/brand/hero-layer-2.svg' : '/hero-layer-2.svg',
@@ -244,6 +264,9 @@ async function main() {
   const homeLogo = brand.assets.homeLogo
     ? resolveBrandPath(brandDir, brand.assets.homeLogo)
     : resolveBrandPath(brandDir, brand.assets.faviconPng);
+  const logoMaster = brand.assets.logoMaster
+    ? resolveBrandPath(brandDir, brand.assets.logoMaster)
+    : homeLogo;
   const assistantAvatar = brand.assets.assistantAvatar
     ? resolveBrandPath(brandDir, brand.assets.assistantAvatar)
     : brand.assets.logoMaster
@@ -289,6 +312,8 @@ async function main() {
   await copyFile(faviconPng, path.join(homeWebPublicBrandDir, 'favicon.png'));
   await copyFile(appleTouchIcon, path.join(homeWebPublicBrandDir, 'apple-touch-icon.png'));
   await copyFile(homeLogo, path.join(homeWebPublicBrandDir, 'logo.png'));
+  await copyFile(installerHero, path.join(homeWebPublicBrandDir, 'installer-hero.png'));
+  await copyFile(logoMaster, path.join(homeWebPublicBrandDir, 'logo-master.png'));
   await copyOptionalFile(homeHeroArt, path.join(homeWebPublicBrandDir, 'hero-art.svg'));
   await copyOptionalFile(homeHeroLayer1, path.join(homeWebPublicBrandDir, 'hero-layer-1.svg'));
   await copyOptionalFile(homeHeroLayer2, path.join(homeWebPublicBrandDir, 'hero-layer-2.svg'));
