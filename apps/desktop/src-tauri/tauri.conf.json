@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "理财客",
-  "version": "1.0.2+202604081335",
+  "version": "1.0.2+202604090003",
   "identifier": "ai.licaiclaw.desktop",
   "build": {
     "beforeDevCommand": "node ../../scripts/sync-openclaw-resources.mjs && pnpm dev --host 0.0.0.0 --port 1520",
