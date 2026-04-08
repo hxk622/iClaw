@@ -173,6 +173,26 @@ async function loadPublishedConfig() {
   }
 }
 
+async function loadDesktopReleaseEntries(appName) {
+  try {
+    const response = await fetch(
+      `${CONTROL_PLANE_BASE_URL}/desktop/release-manifest?app_name=${encodeURIComponent(appName)}&channel=${encodeURIComponent(ENV_NAME)}`,
+      {
+        headers: {
+          Accept: 'application/json',
+        },
+      },
+    );
+    if (!response.ok) {
+      return [];
+    }
+    const payload = await response.json();
+    return asArray(payload.entries).map((item) => asObject(item));
+  } catch {
+    return [];
+  }
+}
+
 function installThemeToggle() {
   const toggle = document.querySelector('[data-action="cycle-theme"]');
   if (!toggle) {
@@ -185,30 +205,48 @@ function installThemeToggle() {
   });
 }
 
-function buildDownloads(runtimeBrand) {
+function buildDownloads(runtimeBrand, desktopReleaseEntries = []) {
+  const entryMap = new Map(
+    desktopReleaseEntries
+      .filter((item) => trimString(item.platform) === 'darwin')
+      .map((item) => [trimString(item.arch), asObject(item)]),
+  );
+  const appleEntry = entryMap.get('aarch64') || null;
+  const intelEntry = entryMap.get('x64') || null;
+  const appleHref = appleEntry ? buildManifestBackedDownloadHref(runtimeBrand, appleEntry, 'aarch64') : buildDownloadHref(runtimeBrand, 'aarch64');
+  const intelHref = intelEntry ? buildManifestBackedDownloadHref(runtimeBrand, intelEntry, 'x64') : '';
   return [
     {
       key: 'mac-apple-silicon',
       title: ENV_NAME === 'prod' ? 'Mac Apple Silicon' : 'Mac Apple Silicon (dev)',
-      href: buildDownloadHref(runtimeBrand, 'aarch64'),
+      href: appleHref,
       note: ENV_NAME === 'prod' ? 'M 系列芯片 · 正式版' : 'M 系列芯片 · 开发版',
       icon: '⬢',
       tone: 'cyan',
-      status: buildDownloadHref(runtimeBrand, 'aarch64') ? 'ready' : 'soon',
+      status: appleHref ? 'ready' : 'soon',
     },
     {
       key: 'mac-intel',
       title: ENV_NAME === 'prod' ? 'Mac Intel' : 'Mac Intel (dev)',
-      href: buildDownloadHref(runtimeBrand, 'x64'),
-      note: ENV_NAME === 'prod' ? 'Intel 芯片 · 正式版' : 'Intel 芯片 · 开发版',
+      href: intelHref,
+      note: intelHref ? (ENV_NAME === 'prod' ? 'Intel 芯片 · 正式版' : 'Intel 芯片 · 开发版') : '敬请期待',
       icon: '◆',
       tone: 'violet',
-      status: buildDownloadHref(runtimeBrand, 'x64') ? 'ready' : 'soon',
+      status: intelHref ? 'ready' : 'soon',
     },
     {key: 'windows', title: 'Windows', href: '', note: '敬请期待', icon: '▣', tone: 'amber', status: 'soon'},
     {key: 'ios', title: 'iOS', href: '', note: '敬请期待', icon: '◉', tone: 'cyan', status: 'soon'},
     {key: 'android', title: 'Android', href: '', note: '敬请期待', icon: '△', tone: 'violet', status: 'soon'},
   ];
+}
+
+function buildManifestBackedDownloadHref(runtimeBrand, entry, arch) {
+  const baseUrl = ((runtimeBrand.distribution.downloads?.[ENV_NAME]?.publicBaseUrl || '') + '').trim().replace(/\/+$/, '');
+  const artifactName = trimString(entry.artifact_name);
+  if (!baseUrl || !artifactName) {
+    return buildDownloadHref(runtimeBrand, arch);
+  }
+  return `${baseUrl}/mac/${arch}/${encodeURIComponent(artifactName)}`;
 }
 
 function buildDownloadHref(runtimeBrand, arch) {
@@ -312,6 +350,30 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
   }
 });
 
-loadPublishedConfig().then((runtimeBrand) => {
-  renderApp(runtimeBrand);
+Promise.all([loadPublishedConfig(), loadDesktopReleaseEntries(currentAppName())]).then(([runtimeBrand, desktopReleaseEntries]) => {
+  const app = document.querySelector('#app');
+  if (!app) {
+    throw new Error('home-web mount failed');
+  }
+
+  const currentPage = getPageByPath(runtimeBrand, window.location.pathname) || null;
+  document.body.dataset.templateKey = runtimeBrand.marketingSite.templateKey;
+  if (currentPage && trimString(currentPage.pageKey) !== 'home') {
+    app.innerHTML = renderGenericPage(runtimeBrand, currentPage);
+    applyHead(runtimeBrand, currentPage);
+    applyThemeMode(currentThemeMode);
+    installThemeToggle();
+    return;
+  }
+
+  const renderer = renderers[runtimeBrand.marketingSite.templateKey] || renderers['classic-download'];
+  app.innerHTML = renderer.render(runtimeBrand, {
+    envName: ENV_NAME,
+    envLabel: ENV_LABEL,
+    downloads: buildDownloads(runtimeBrand, desktopReleaseEntries),
+  });
+  applyHead(runtimeBrand, currentPage);
+  applyThemeMode(currentThemeMode);
+  installThemeToggle();
+  renderer.enhance?.(app, runtimeBrand, {envName: ENV_NAME, envLabel: ENV_LABEL});
 });
