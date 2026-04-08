@@ -219,6 +219,32 @@
 - 前端必须在后端可用后再切流
 - desktop 重新补包后，必须在对象存储上传完成后再次发布 `home-web`，确保下载页链接与当前产物一致
 
+如发布对象主要是：
+
+- `services/control-plane`
+- `home-web`
+- 可选 `admin-web`
+- 可选 prod DB 同步
+
+优先使用统一编排脚本：
+
+```bash
+ICLAW_CONTROL_PLANE_PASSWORD='***' \
+ICLAW_NGINX_PASSWORD='***' \
+pnpm deploy:prod:marketing
+```
+
+可选开关：
+
+- `ICLAW_DEPLOY_ADMIN=1`
+- `ICLAW_DEPLOY_SYNC_DB=1`
+- `ICLAW_DEPLOY_DRY_RUN=1`
+
+硬规则：
+
+- 品牌官网构建必须显式覆盖 `APP_NAME` / `ICLAW_PORTAL_APP_NAME`
+- 官网下载按钮必须按真实 release manifest 判定是否可用，不允许继续构造不存在的静态安装包链接
+
 ## 8. 验证规范
 
 每次上线必须至少覆盖以下验证：
