@@ -409,7 +409,7 @@ const SURFACE_LABELS = {
 };
 const SURFACE_BLUEPRINTS = [
   {key: 'desktop', label: '桌面端', icon: 'monitor', kind: 'shell'},
-  {key: 'home-web', label: 'Home页', icon: 'globe', kind: 'shell'},
+  {key: 'home-web', label: 'Home官网', icon: 'globe', kind: 'shell'},
   {key: 'welcome', label: 'Welcome页', icon: 'sparkles', kind: 'shell'},
   {key: 'header', label: 'Header栏', icon: 'layout', kind: 'shell'},
   {key: 'sidebar', label: '侧边栏', icon: 'sidebar', kind: 'shell'},
@@ -428,7 +428,7 @@ const DEFAULT_SURFACE_KEYS = SURFACE_BLUEPRINTS.filter((item) => item.key !== 'w
 const MODULE_SURFACE_KEYS = SURFACE_BLUEPRINTS.filter((item) => item.kind === 'module').map((item) => item.key);
 const BRAND_DETAIL_TABS = [
   {id: 'desktop', label: '桌面端', icon: 'monitor'},
-  {id: 'home-web', label: 'Home页', icon: 'globe'},
+  {id: 'home-web', label: 'Home官网', icon: 'globe'},
   {id: 'welcome', label: 'Welcome页', icon: 'sparkles'},
   {id: 'auth', label: '登录与协议', icon: 'shield'},
   {id: 'header', label: 'Header栏', icon: 'layout'},
@@ -8534,7 +8534,7 @@ function renderBrandHomeWebAssembly(buffer) {
   return `
     <section class="fig-brand-section">
       <div class="fig-section-heading">
-        <h2>Home页</h2>
+        <h2>Home官网</h2>
         <p>这里维护官网 shell、页面和区块装配。保存后仍然写回 <code>surfaces["home-web"].config</code>，但模型已经从平面文案升级为 <code>template + siteShell + pages + blocks</code>。</p>
       </div>
       ${presetPicker}
