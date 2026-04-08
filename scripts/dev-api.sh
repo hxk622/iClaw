@@ -15,6 +15,8 @@ EXTRA_CA_CERTS_PATH="${ICLAW_EXTRA_CA_CERTS_PATH:-$ROOT_DIR/services/openclaw/re
 OPENCLAW_VERBOSE="${ICLAW_OPENCLAW_VERBOSE:-1}"
 OPENCLAW_WS_LOG_STYLE="${ICLAW_OPENCLAW_WS_LOG:-compact}"
 OPENCLAW_RAW_STREAM="${ICLAW_OPENCLAW_RAW_STREAM:-0}"
+HEALTHCHECK_ATTEMPTS="${ICLAW_API_HEALTHCHECK_ATTEMPTS:-80}"
+HEALTHCHECK_INTERVAL_SECONDS="${ICLAW_API_HEALTHCHECK_INTERVAL_SECONDS:-0.25}"
 TARGET_ENV="$(normalize_iclaw_env_name "${ICLAW_ENV_NAME:-${NODE_ENV:-dev}}")"
 PORTAL_APP_NAME=""
 PORTAL_APP_SOURCE=""
@@ -272,12 +274,36 @@ stop_existing_api() {
   local pids=""
   if command -v lsof >/dev/null 2>&1; then
     pids="$(lsof -ti ":$API_PORT" || true)"
+  elif command -v powershell.exe >/dev/null 2>&1; then
+    pids="$(
+      powershell.exe -NoProfile -NonInteractive -Command '
+        $pids = Get-NetTCPConnection -LocalPort '"$API_PORT"' -State Listen -ErrorAction SilentlyContinue |
+          Select-Object -ExpandProperty OwningProcess -Unique
+        if ($pids) { ($pids | ForEach-Object { [string]$_ }) -join " " }
+      ' \
+        | tr -d '\r' \
+        || true
+    )"
+  elif command -v netstat >/dev/null 2>&1; then
+    pids="$(
+      netstat -ano 2>/dev/null \
+        | awk -v port=":$API_PORT" '$2 ~ port"$" && $4 == "LISTENING" {print $5}' \
+        | sort -u \
+        | tr '\n' ' ' \
+        || true
+    )"
   else
-    echo "[api-dev] lsof 不可用，跳过端口占用进程回收。"
+    echo "[api-dev] 未找到 lsof / powershell / netstat，跳过端口占用进程回收。"
   fi
   if [[ -n "$pids" ]]; then
     echo "[api-dev] 关闭已存在后端进程 (:$API_PORT): $pids"
-    kill $pids >/dev/null 2>&1 || true
+    if command -v taskkill.exe >/dev/null 2>&1; then
+      for pid in $pids; do
+        taskkill.exe //PID "$pid" //F >/dev/null 2>&1 || true
+      done
+    else
+      kill $pids >/dev/null 2>&1 || true
+    fi
     sleep 0.4
   fi
 }
@@ -291,11 +317,14 @@ prepare_log_output() {
 
 wait_for_health() {
   local pid="$1"
+  local tolerate_pid_exit="${2:-0}"
   local ok=""
   local health_http=""
   local health_body=""
 
-  for _ in {1..40}; do
+  local attempt=0
+  while [[ "$attempt" -lt "$HEALTHCHECK_ATTEMPTS" ]]; do
+    attempt=$((attempt + 1))
     health_http="$(env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u all_proxy -u ALL_PROXY \
       curl -sS -o /tmp/iclaw-dev-api-health-body.$$ -w '%{http_code}' "http://127.0.0.1:$API_PORT/health" 2>/dev/null || true)"
     health_body="$(cat /tmp/iclaw-dev-api-health-body.$$ 2>/dev/null || true)"
@@ -309,10 +338,10 @@ wait_for_health() {
       ok="1"
       break
     fi
-    if ! kill -0 "$pid" >/dev/null 2>&1; then
+    if [[ "$tolerate_pid_exit" != "1" ]] && ! kill -0 "$pid" >/dev/null 2>&1; then
       break
     fi
-    sleep 0.25
+    sleep "$HEALTHCHECK_INTERVAL_SECONDS"
   done
 
   if [[ -z "$ok" ]]; then
@@ -402,7 +431,7 @@ EOF
     return 1
   fi
 
-  wait_for_health "$pid"
+  wait_for_health "$pid" 1
 
   echo "[api-dev] 后端已就绪 PID=$pid (log: $LOG_FILE)"
   echo "[api-dev] 最新日志软链: $LATEST_LOG"
