@@ -139,22 +139,27 @@ sync_db_to_prod() {
     "cd $(printf '%q' "$ROOT_DIR") && bash scripts/sync-control-plane-db-to-prod.sh"
 }
 
-extract_aarch64_artifact_name() {
+extract_artifact_name() {
   local app_name="$1"
   local domain="$2"
+  local target="$3"
+  local arch="$4"
   local manifest
-  manifest="$(curl -fsS "${domain}/desktop/release-manifest?app_name=${app_name}&channel=prod")"
+  manifest="$(curl -fsS "${domain}/desktop/release-manifest?app_name=${app_name}&channel=prod&target=${target}&arch=${arch}")"
   printf '%s' "$manifest" | node --input-type=module -e '
     let raw = "";
     process.stdin.on("data", (chunk) => (raw += chunk));
     process.stdin.on("end", () => {
       const payload = JSON.parse(raw || "{}");
-      const entry = Array.isArray(payload.entries)
-        ? payload.entries.find((item) => item.platform === "darwin" && item.arch === "aarch64")
-        : null;
+      const entry =
+        payload && payload.entry && payload.entry.platform === process.argv[1] && payload.entry.arch === process.argv[2]
+          ? payload.entry
+          : Array.isArray(payload.entries)
+            ? payload.entries.find((item) => item.platform === process.argv[1] && item.arch === process.argv[2])
+            : null;
       process.stdout.write((entry && entry.artifact_name) || "");
     });
-  '
+  ' "$target" "$arch"
 }
 
 check_chrome_available() {
@@ -166,16 +171,23 @@ smoke_check_domain() {
   local domain="$2"
   local expected_template="$3"
   local expected_title="$4"
-  local artifact_name
+  local mac_artifact_name
+  local windows_artifact_name
 
   echo "[smoke] checking ${brand} via ${domain}"
   run_cmd curl -fsS "${domain}/health"
-  artifact_name="$(extract_aarch64_artifact_name "$brand" "$domain")"
-  if [[ -z "$artifact_name" ]]; then
+  mac_artifact_name="$(extract_artifact_name "$brand" "$domain" "darwin" "aarch64")"
+  if [[ -z "$mac_artifact_name" ]]; then
     echo "Missing aarch64 artifact_name in release manifest for ${brand}" >&2
     exit 1
   fi
-  run_cmd curl -I -fsS "${domain}/downloads/mac/aarch64/${artifact_name}"
+  run_cmd curl -I -fsS "${domain}/downloads/mac/aarch64/${mac_artifact_name}"
+  windows_artifact_name="$(extract_artifact_name "$brand" "$domain" "windows" "x64")"
+  if [[ -z "$windows_artifact_name" ]]; then
+    echo "Missing windows/x64 artifact_name in release manifest for ${brand}" >&2
+    exit 1
+  fi
+  run_cmd curl -I -fsS "${domain}/downloads/windows/x64/${windows_artifact_name}"
 
   if check_chrome_available; then
     local dom
@@ -183,7 +195,7 @@ smoke_check_domain() {
     printf '%s' "$dom" | grep -q "data-template-key=\"${expected_template}\""
     printf '%s' "$dom" | grep -q "<title>${expected_title}</title>"
     printf '%s' "$dom" | grep -q "Mac Intel"
-    printf '%s' "$dom" | grep -q "敬请期待"
+    printf '%s' "$dom" | grep -q "Windows x64"
   else
     echo "[smoke] chrome headless unavailable, skipping DOM verification"
   fi

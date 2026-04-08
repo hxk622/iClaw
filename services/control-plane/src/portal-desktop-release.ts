@@ -344,8 +344,13 @@ function findTarget(
   arch: DesktopReleaseArch | '',
 ): PortalDesktopReleaseTarget | null {
   if (platform && arch) {
-    const exact = targets.find((entry) => entry.platform === platform && entry.arch === arch);
-    if (exact) return exact;
+    return targets.find((entry) => entry.platform === platform && entry.arch === arch) || null;
+  }
+  if (platform) {
+    return targets.find((entry) => entry.platform === platform) || null;
+  }
+  if (arch) {
+    return targets.find((entry) => entry.arch === arch) || null;
   }
   return targets[0] || null;
 }
@@ -475,6 +480,7 @@ export function buildPortalDesktopReleaseManifestPayload(input: {
         entry: targetEntry,
       };
     }
+    return null;
   }
 
   const uniqueVersions = Array.from(new Set(entries.map((entry) => entry.version)));

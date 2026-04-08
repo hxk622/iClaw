@@ -57,14 +57,14 @@ export function normalizePublicReleaseVersion(value) {
   return typeof value === 'string' ? value.trim().replace(/\+/g, '.') : '';
 }
 
-export function buildDownloadHref(runtimeBrand, envName, arch) {
+export function buildDownloadHref(runtimeBrand, envName, platform, arch, extension) {
   const baseUrl = normalizeBaseUrl(runtimeBrand.distribution.downloads?.[envName]?.publicBaseUrl);
   if (!baseUrl) {
     return '';
   }
   const publicReleaseVersion = normalizePublicReleaseVersion(runtimeBrand.release.version);
-  const fileName = `${runtimeBrand.release.artifactBaseName}_${publicReleaseVersion}_${arch}_${envName}.dmg`;
-  return `${baseUrl}/darwin/${arch}/${encodeURIComponent(fileName)}`;
+  const fileName = `${runtimeBrand.release.artifactBaseName}_${publicReleaseVersion}_${arch}_${envName}.${extension}`;
+  return `${baseUrl}/${platform}/${arch}/${encodeURIComponent(fileName)}`;
 }
 
 export function buildDownloads(runtimeBrand, envName) {
@@ -72,7 +72,7 @@ export function buildDownloads(runtimeBrand, envName) {
     {
       key: 'mac-apple-silicon',
       title: envName === 'prod' ? 'Mac Apple Silicon' : 'Mac Apple Silicon (dev)',
-      href: buildDownloadHref(runtimeBrand, envName, 'aarch64'),
+      href: buildDownloadHref(runtimeBrand, envName, 'darwin', 'aarch64', 'dmg'),
       note: envName === 'prod' ? 'M 系列芯片 · 正式版' : 'M 系列芯片 · 开发版',
       icon: '⬢',
       tone: 'cyan',
@@ -80,7 +80,7 @@ export function buildDownloads(runtimeBrand, envName) {
     {
       key: 'mac-intel',
       title: envName === 'prod' ? 'Mac Intel' : 'Mac Intel (dev)',
-      href: buildDownloadHref(runtimeBrand, envName, 'x64'),
+      href: buildDownloadHref(runtimeBrand, envName, 'darwin', 'x64', 'dmg'),
       note: envName === 'prod' ? 'Intel 芯片 · 正式版' : 'Intel 芯片 · 开发版',
       icon: '◆',
       tone: 'violet',

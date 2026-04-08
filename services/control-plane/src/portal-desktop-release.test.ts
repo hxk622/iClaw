@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   buildPortalDesktopReleaseManifestPayload,
   compareDesktopReleaseVersions,
+  resolvePortalDesktopReleaseDownloadFile,
   resolvePortalDesktopReleaseHint,
   resolvePortalDesktopUpdaterPayload,
   writePortalDesktopReleaseConfig,
@@ -18,6 +19,7 @@ function buildPublishedConfig(input: {
   forceUpdateBelowVersion?: string | null;
   allowCurrentRunToFinish?: boolean;
   includeUpdater?: boolean;
+  extraTargets?: PortalDesktopReleaseTarget[];
 }): Record<string, unknown> {
   const target: PortalDesktopReleaseTarget = {
     platform: 'darwin',
@@ -115,7 +117,7 @@ function buildPublishedConfig(input: {
         published: {
           version: input.version,
           notes: input.notes || 'Desktop release notes',
-          targets: [target],
+          targets: [target, ...(input.extraTargets || [])],
           policy: {
             mandatory: Boolean(input.mandatory),
             forceUpdateBelowVersion: input.forceUpdateBelowVersion || null,
@@ -282,4 +284,103 @@ test('buildPortalDesktopReleaseManifestPayload includes updater metadata only wh
 
   assert.ok(withUpdater.entry?.updater);
   assert.equal(withoutUpdater.entry?.updater ?? null, null);
+});
+
+test('buildPortalDesktopReleaseManifestPayload does not fall back to a different platform when target/arch is specified', () => {
+  const config = buildPublishedConfig({
+    version: '1.0.2+202604041200',
+  });
+
+  const payload = buildPortalDesktopReleaseManifestPayload({
+    baseUrl: 'https://updates.example.com',
+    appName: 'iclaw',
+    channel: 'prod',
+    snapshot: (config as { desktop_release_admin: { channels: { prod: { published: PortalDesktopReleaseConfig['channels']['prod']['published'] } } } }).desktop_release_admin.channels.prod.published,
+    platform: 'windows',
+    arch: 'x64',
+  });
+
+  assert.equal(payload, null);
+});
+
+test('buildPortalDesktopReleaseManifestPayload returns the exact windows target when published', () => {
+  const config = buildPublishedConfig({
+    version: '1.0.2+202604041200',
+    extraTargets: [
+      {
+        platform: 'windows',
+        arch: 'x64',
+        installer: {
+          storageProvider: 's3',
+          objectKey: 'desktop/windows/x64/iClaw.exe',
+          contentType: 'application/vnd.microsoft.portable-executable',
+          fileName: 'iClaw.exe',
+          sha256: 'windows-installer-sha',
+          sizeBytes: 2048,
+          uploadedAt: '2026-04-04T00:00:00.000Z',
+        },
+        updater: {
+          storageProvider: 's3',
+          objectKey: 'desktop/windows/x64/iClaw.nsis.zip',
+          contentType: 'application/zip',
+          fileName: 'iClaw.nsis.zip',
+          sha256: 'windows-updater-sha',
+          sizeBytes: 1024,
+          uploadedAt: '2026-04-04T00:00:00.000Z',
+        },
+        signature: {
+          storageProvider: 's3',
+          objectKey: 'desktop/windows/x64/iClaw.nsis.zip.sig',
+          contentType: 'text/plain',
+          fileName: 'iClaw.nsis.zip.sig',
+          sha256: 'windows-sig-sha',
+          sizeBytes: 128,
+          uploadedAt: '2026-04-04T00:00:00.000Z',
+          signature: 'signed-windows-updater-payload',
+        },
+        release: {
+          version: '1.0.2+202604041200',
+          notes: 'Windows release notes',
+          publishedAt: '2026-04-04T00:00:00.000Z',
+          policy: {
+            mandatory: true,
+            forceUpdateBelowVersion: null,
+            allowCurrentRunToFinish: false,
+            reasonCode: 'desktop_update',
+            reasonMessage: 'Please update the desktop app.',
+          },
+        },
+      },
+    ],
+  });
+
+  const payload = buildPortalDesktopReleaseManifestPayload({
+    baseUrl: 'https://updates.example.com',
+    appName: 'iclaw',
+    channel: 'prod',
+    snapshot: (config as { desktop_release_admin: { channels: { prod: { published: PortalDesktopReleaseConfig['channels']['prod']['published'] } } } }).desktop_release_admin.channels.prod.published,
+    platform: 'windows',
+    arch: 'x64',
+  }) as {entry?: {platform?: string; arch?: string; artifact_name?: string}};
+
+  assert.equal(payload.entry?.platform, 'windows');
+  assert.equal(payload.entry?.arch, 'x64');
+  assert.equal(payload.entry?.artifact_name, 'iClaw.exe');
+});
+
+test('resolvePortalDesktopReleaseDownloadFile does not fall back to another platform when exact target is missing', () => {
+  const config = buildPublishedConfig({
+    version: '1.0.2+202604041200',
+  });
+
+  const installer = resolvePortalDesktopReleaseDownloadFile({
+    appName: 'iclaw',
+    config,
+    channel: 'prod',
+    platform: 'windows',
+    arch: 'x64',
+    artifactType: 'installer',
+  });
+
+  assert.equal(installer, null);
 });

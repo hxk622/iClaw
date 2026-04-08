@@ -28,6 +28,11 @@ function parseArgs(argv) {
   let notes = '';
   let platform = '';
   let arch = '';
+  let mandatory = false;
+  let allowCurrentRunToFinish = true;
+  let forceUpdateBelowVersion = '';
+  let reasonCode = '';
+  let reasonMessage = '';
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -66,9 +71,49 @@ function parseArgs(argv) {
       index += 1;
       continue;
     }
+    if (arg === '--mandatory') {
+      mandatory = true;
+      continue;
+    }
+    if (arg === '--disallow-current-run-to-finish') {
+      allowCurrentRunToFinish = false;
+      continue;
+    }
+    if (arg === '--allow-current-run-to-finish') {
+      allowCurrentRunToFinish = true;
+      continue;
+    }
+    if (arg === '--force-update-below-version') {
+      forceUpdateBelowVersion = trimString(argv[index + 1] || '');
+      index += 1;
+      continue;
+    }
+    if (arg === '--reason-code') {
+      reasonCode = trimString(argv[index + 1] || '');
+      index += 1;
+      continue;
+    }
+    if (arg === '--reason-message') {
+      reasonMessage = trimString(argv[index + 1] || '');
+      index += 1;
+      continue;
+    }
   }
 
-  return { brandId, channel, releaseDir, version, notes, platform, arch };
+  return {
+    brandId,
+    channel,
+    releaseDir,
+    version,
+    notes,
+    platform,
+    arch,
+    mandatory,
+    allowCurrentRunToFinish,
+    forceUpdateBelowVersion,
+    reasonCode,
+    reasonMessage,
+  };
 }
 
 function escapeRegExp(value) {
@@ -227,7 +272,7 @@ function inferContentType(filePath) {
   return 'application/octet-stream';
 }
 
-async function publishTarget({ baseUrl, accessToken, brandId, channel, version, notes, target }) {
+async function publishTarget({ baseUrl, accessToken, brandId, channel, version, notes, target, policy }) {
   const targetPrefix = `/admin/portal/apps/${encodeURIComponent(brandId)}/desktop-release/${encodeURIComponent(channel)}/${encodeURIComponent(target.platform)}/${encodeURIComponent(target.arch)}`;
   await apiUploadBinary(baseUrl, accessToken, `${targetPrefix}/installer`, target.installerPath, inferContentType(target.installerPath));
   if (target.updaterPath && target.signaturePath) {
@@ -240,11 +285,11 @@ async function publishTarget({ baseUrl, accessToken, brandId, channel, version, 
     body: JSON.stringify({
       version,
       notes: notes || null,
-      mandatory: false,
-      allow_current_run_to_finish: true,
-      force_update_below_version: null,
-      reason_code: null,
-      reason_message: null,
+      mandatory: policy.mandatory,
+      allow_current_run_to_finish: policy.allowCurrentRunToFinish,
+      force_update_below_version: policy.forceUpdateBelowVersion,
+      reason_code: policy.reasonCode,
+      reason_message: policy.reasonMessage,
     }),
   });
 }
@@ -261,6 +306,13 @@ async function main() {
   const { profile } = await loadBrandProfile({ rootDir, brandId: args.brandId, envName: args.channel });
   const baseUrl = resolveControlPlaneBaseUrl(profile);
   const accessToken = await resolveAccessToken(baseUrl);
+  const policy = {
+    mandatory: args.mandatory,
+    allowCurrentRunToFinish: args.allowCurrentRunToFinish,
+    forceUpdateBelowVersion: args.forceUpdateBelowVersion || null,
+    reasonCode: args.reasonCode || null,
+    reasonMessage: args.reasonMessage || null,
+  };
   const filteredTargets = supportedTargets.filter((target) => {
     if (args.platform && target.platform !== args.platform) return false;
     if (args.arch && target.arch !== args.arch) return false;
@@ -291,6 +343,7 @@ async function main() {
       version: publishVersion,
       notes: args.notes,
       target: artifacts,
+      policy,
     });
     process.stdout.write(`[desktop-release] published ${args.brandId}/${args.channel}/${target.platform}/${target.arch} -> ${publishVersion}\n`);
     publishedCount += 1;

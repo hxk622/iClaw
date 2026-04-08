@@ -2,7 +2,7 @@ import './styles.css';
 import {HOME_BRAND} from './brand.generated.js';
 import {renderClassicTemplate, enhanceClassicTemplate} from './renderers/classic.js';
 import {renderWealthTemplate, enhanceWealthTemplate} from './renderers/wealth.js';
-import {asArray, asObject, escapeHtml, getPageByPath, trimString} from './renderers/shared.js';
+import {asArray, asObject, buildDownloadHref, escapeHtml, getPageByPath, trimString} from './renderers/shared.js';
 import {normalizeRuntimeBrand} from './runtime-config.js';
 
 const ENV_NAME = (import.meta.env.VITE_BUILD_CHANNEL || (import.meta.env.PROD ? 'prod' : 'dev')).trim().toLowerCase();
@@ -208,13 +208,17 @@ function installThemeToggle() {
 function buildDownloads(runtimeBrand, desktopReleaseEntries = []) {
   const entryMap = new Map(
     desktopReleaseEntries
-      .filter((item) => trimString(item.platform) === 'darwin')
-      .map((item) => [trimString(item.arch), asObject(item)]),
+      .map((item) => {
+        const entry = asObject(item);
+        return [`${trimString(entry.platform)}/${trimString(entry.arch)}`, entry];
+      }),
   );
-  const appleEntry = entryMap.get('aarch64') || null;
-  const intelEntry = entryMap.get('x64') || null;
-  const appleHref = appleEntry ? buildManifestBackedDownloadHref(runtimeBrand, appleEntry, 'aarch64') : buildDownloadHref(runtimeBrand, 'aarch64');
-  const intelHref = intelEntry ? buildManifestBackedDownloadHref(runtimeBrand, intelEntry, 'x64') : '';
+  const appleEntry = entryMap.get('darwin/aarch64') || null;
+  const intelEntry = entryMap.get('darwin/x64') || null;
+  const windowsEntry = entryMap.get('windows/x64') || null;
+  const appleHref = appleEntry ? buildManifestBackedDownloadHref(runtimeBrand, appleEntry, 'mac', 'aarch64') : buildDownloadHref(runtimeBrand, ENV_NAME, 'darwin', 'aarch64', 'dmg');
+  const intelHref = intelEntry ? buildManifestBackedDownloadHref(runtimeBrand, intelEntry, 'mac', 'x64') : '';
+  const windowsHref = windowsEntry ? buildManifestBackedDownloadHref(runtimeBrand, windowsEntry, 'windows', 'x64') : '';
   return [
     {
       key: 'mac-apple-silicon',
@@ -234,29 +238,29 @@ function buildDownloads(runtimeBrand, desktopReleaseEntries = []) {
       tone: 'violet',
       status: intelHref ? 'ready' : 'soon',
     },
-    {key: 'windows', title: 'Windows', href: '', note: '敬请期待', icon: '▣', tone: 'amber', status: 'soon'},
+    {
+      key: 'windows',
+      title: ENV_NAME === 'prod' ? 'Windows' : 'Windows (dev)',
+      href: windowsHref,
+      note: windowsHref ? (ENV_NAME === 'prod' ? 'Windows x64 · 正式版' : 'Windows x64 · 开发版') : '敬请期待',
+      icon: '▣',
+      tone: 'amber',
+      status: windowsHref ? 'ready' : 'soon',
+    },
     {key: 'ios', title: 'iOS', href: '', note: '敬请期待', icon: '◉', tone: 'cyan', status: 'soon'},
     {key: 'android', title: 'Android', href: '', note: '敬请期待', icon: '△', tone: 'violet', status: 'soon'},
   ];
 }
 
-function buildManifestBackedDownloadHref(runtimeBrand, entry, arch) {
+function buildManifestBackedDownloadHref(runtimeBrand, entry, publicPlatform, arch) {
   const baseUrl = ((runtimeBrand.distribution.downloads?.[ENV_NAME]?.publicBaseUrl || '') + '').trim().replace(/\/+$/, '');
   const artifactName = trimString(entry.artifact_name);
   if (!baseUrl || !artifactName) {
-    return buildDownloadHref(runtimeBrand, arch);
+    const sourcePlatform = trimString(entry.platform) === 'windows' ? 'windows' : 'darwin';
+    const extension = sourcePlatform === 'windows' ? 'exe' : 'dmg';
+    return buildDownloadHref(runtimeBrand, ENV_NAME, sourcePlatform, arch, extension);
   }
-  return `${baseUrl}/mac/${arch}/${encodeURIComponent(artifactName)}`;
-}
-
-function buildDownloadHref(runtimeBrand, arch) {
-  const baseUrl = ((runtimeBrand.distribution.downloads?.[ENV_NAME]?.publicBaseUrl || '') + '').trim().replace(/\/+$/, '');
-  if (!baseUrl) {
-    return '';
-  }
-  const publicReleaseVersion = ((runtimeBrand.release.version || '') + '').trim().replace(/\+/g, '.');
-  const fileName = `${runtimeBrand.release.artifactBaseName}_${publicReleaseVersion}_${arch}_${ENV_NAME}.dmg`;
-  return `${baseUrl}/darwin/${arch}/${encodeURIComponent(fileName)}`;
+  return `${baseUrl}/${publicPlatform}/${arch}/${encodeURIComponent(artifactName)}`;
 }
 
 function renderGenericPage(runtimeBrand, currentPage) {
