@@ -141,3 +141,33 @@ test('missing diagnosis does not surface install failure before probe completes'
   assert.equal(view.subtitle, '正在启动本地 AI 运行环境');
   assert.equal(view.errorMessage, null);
 });
+
+test('existing runtime with incomplete init artifacts still renders as startup loading', () => {
+  const view = buildInstallerViewModel({
+    brandDisplayName: 'iClaw',
+    runtimeReady: false,
+    runtimeChecking: false,
+    runtimeInstalling: false,
+    healthy: false,
+    healthError: null,
+    runtimeInstallError: null,
+    runtimeDiagnosis: {
+      runtime_found: true,
+      runtime_installable: false,
+      runtime_path: 'D:/runtime/openclaw.exe',
+      runtime_version: '1.2.3',
+      runtime_download_url: null,
+      skills_dir_ready: false,
+      mcp_config_ready: false,
+      work_dir: 'D:/runtime/work',
+      log_dir: 'D:/runtime/logs',
+    },
+    runtimeInstallProgress: null,
+    startupDiagnostics: null,
+    lastRuntimeProgress: 0,
+  });
+
+  assert.equal(view.state, 'loading');
+  assert.equal(view.stepLabel, '正在检查本地引擎');
+  assert.equal(view.errorMessage, null);
+});

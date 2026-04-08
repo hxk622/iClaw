@@ -54,6 +54,36 @@ test('buildInstallerViewModel keeps probing state while runtime diagnosis is sti
   assert.equal(view.errorMessage, null);
 });
 
+test('buildInstallerViewModel does not classify existing runtime as missing source while init artifacts are still catching up', () => {
+  const view = buildInstallerViewModel({
+    brandDisplayName: 'iClaw',
+    runtimeReady: false,
+    runtimeChecking: false,
+    runtimeInstalling: false,
+    healthy: false,
+    healthError: null,
+    runtimeInstallError: null,
+    runtimeDiagnosis: {
+      runtime_found: true,
+      runtime_installable: false,
+      runtime_path: 'D:/runtime/openclaw.exe',
+      runtime_version: '1.2.3',
+      runtime_download_url: null,
+      skills_dir_ready: false,
+      mcp_config_ready: false,
+      work_dir: 'D:/runtime/work',
+      log_dir: 'D:/runtime/logs',
+    },
+    runtimeInstallProgress: null,
+    startupDiagnostics: null,
+    lastRuntimeProgress: 0,
+  });
+
+  assert.equal(view.state, 'loading');
+  assert.equal(view.title, 'iClaw 正在苏醒');
+  assert.equal(view.errorMessage, null);
+});
+
 test('buildInstallerViewModel classifies missing initialization artifacts separately from startup failure', () => {
   const view = buildInstallerViewModel({
     brandDisplayName: 'iClaw',

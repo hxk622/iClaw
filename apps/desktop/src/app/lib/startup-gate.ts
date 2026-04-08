@@ -94,11 +94,12 @@ function detectPortConflictMessage(message: string | null): boolean {
 function resolveRuntimeUnavailableErrorMessage(input: {
   runtimeReady: boolean;
   runtimeInstalling: boolean;
-  runtimeDiagnosis: Pick<RuntimeDiagnosis, 'runtime_installable'> | null;
+  runtimeDiagnosis: Pick<RuntimeDiagnosis, 'runtime_installable' | 'runtime_found'> | null;
 }): string | null {
   return input.runtimeDiagnosis !== null &&
     !input.runtimeReady &&
     !input.runtimeInstalling &&
+    !input.runtimeDiagnosis.runtime_found &&
     !input.runtimeDiagnosis.runtime_installable
     ? '当前安装包未包含可用的运行时来源，请重新下载应用或联系支持。'
     : null;
