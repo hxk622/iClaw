@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { buildInstallerViewModel } from './startup-gate.ts';
+import { resolveDesktopStartupSnapshot } from './startup-orchestrator.ts';
 
 test('buildInstallerViewModel classifies runtime source issues as install-stage failures', () => {
   const view = buildInstallerViewModel({
@@ -90,6 +91,7 @@ test('buildInstallerViewModel classifies missing initialization artifacts separa
     runtimeReady: true,
     runtimeChecking: false,
     runtimeInstalling: false,
+    initialHealthResolved: true,
     healthy: false,
     healthError: 'health check failed',
     runtimeInstallError: null,
@@ -120,6 +122,7 @@ test('buildInstallerViewModel surfaces startup diagnostics for sidecar failures'
     runtimeReady: true,
     runtimeChecking: false,
     runtimeInstalling: false,
+    initialHealthResolved: true,
     healthy: false,
     healthError: '无法连接本地 API，请确认已启动并监听 http://127.0.0.1:2126',
     runtimeInstallError: null,
@@ -150,4 +153,52 @@ test('buildInstallerViewModel surfaces startup diagnostics for sidecar failures'
   assert.equal(view.title, '本地服务启动失败');
   assert.ok(view.diagnosticItems.some((item) => item.label === '最近 stderr'));
   assert.ok(view.diagnosticItems.some((item) => item.label === 'Bootstrap 日志'));
+});
+
+test('resolveDesktopStartupSnapshot keeps startup in loading while local service health is still unresolved', () => {
+  const snapshot = resolveDesktopStartupSnapshot({
+    isTauriRuntime: true,
+    runtimeChecking: false,
+    runtimeInstalling: false,
+    runtimeReady: true,
+    runtimeInstallError: null,
+    runtimeDiagnosis: {
+      runtime_found: true,
+      runtime_installable: true,
+      skills_dir_ready: true,
+      mcp_config_ready: true,
+    },
+    initialHealthResolved: false,
+    healthChecking: false,
+    healthy: false,
+    healthError: '无法连接本地 API，请确认已启动并监听 http://127.0.0.1:2126',
+  });
+
+  assert.equal(snapshot.state, 'loading');
+  assert.equal(snapshot.phase, 'starting_local_service');
+  assert.equal(snapshot.shouldShowError, false);
+});
+
+test('resolveDesktopStartupSnapshot classifies runtime install errors as terminal install-stage failures', () => {
+  const snapshot = resolveDesktopStartupSnapshot({
+    isTauriRuntime: true,
+    runtimeChecking: false,
+    runtimeInstalling: false,
+    runtimeReady: false,
+    runtimeInstallError: '下载 runtime 失败：network timeout',
+    runtimeDiagnosis: {
+      runtime_found: false,
+      runtime_installable: true,
+      skills_dir_ready: false,
+      mcp_config_ready: false,
+    },
+    initialHealthResolved: false,
+    healthChecking: false,
+    healthy: false,
+    healthError: null,
+  });
+
+  assert.equal(snapshot.state, 'error');
+  assert.equal(snapshot.phase, 'blocked_runtime_install');
+  assert.equal(snapshot.shouldShowError, true);
 });

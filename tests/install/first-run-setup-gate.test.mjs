@@ -168,6 +168,6 @@ test('existing runtime with incomplete init artifacts still renders as startup l
   });
 
   assert.equal(view.state, 'loading');
-  assert.equal(view.stepLabel, '正在检查本地引擎');
+  assert.equal(view.stepLabel, '正在补齐运行环境资源');
   assert.equal(view.errorMessage, null);
 });

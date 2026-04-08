@@ -3,6 +3,7 @@ import type {
   RuntimeInstallProgress,
   StartupDiagnosticsSnapshot,
 } from './tauri-runtime-config';
+import { resolveDesktopStartupSnapshot } from './startup-orchestrator.ts';
 
 export type InstallerViewState = 'loading' | 'error';
 
@@ -40,6 +41,7 @@ type StartupGateRuntimeDiagnosis = Pick<
 
 export type StartupGateViewInput = {
   brandDisplayName: string;
+  isTauriRuntime?: boolean;
   runtimeReady: boolean;
   runtimeChecking: boolean;
   runtimeInstalling: boolean;
@@ -49,6 +51,8 @@ export type StartupGateViewInput = {
   runtimeDiagnosis: StartupGateRuntimeDiagnosis | null;
   runtimeInstallProgress: StartupGateProgress | null;
   startupDiagnostics: StartupDiagnosticsSnapshot | null;
+  initialHealthResolved?: boolean;
+  healthChecking?: boolean;
   lastRuntimeProgress: number;
   normalizeText?: (value: string) => string;
 };
@@ -260,19 +264,20 @@ function buildStartupStageErrorView(input: StartupGateViewInput, normalizeText: 
 
 export function buildInstallerViewModel(input: StartupGateViewInput): InstallerViewModel {
   const normalizeText = input.normalizeText || defaultNormalizeText;
-  const startupStageErrorMessage = cleanText(
-    !input.runtimeInstallError && input.runtimeReady ? input.healthError : null,
-    normalizeText,
-  );
-  const installStageErrorMessage = cleanText(
-    input.runtimeInstallError ||
-      resolveRuntimeUnavailableErrorMessage({
-        runtimeReady: input.runtimeReady,
-        runtimeInstalling: input.runtimeInstalling,
-        runtimeDiagnosis: input.runtimeDiagnosis,
-      }),
-    normalizeText,
-  );
+  const inferredInitialHealthResolved =
+    input.initialHealthResolved ?? (input.healthy ? true : false);
+  const startup = resolveDesktopStartupSnapshot({
+    isTauriRuntime: input.isTauriRuntime ?? true,
+    runtimeChecking: input.runtimeChecking,
+    runtimeInstalling: input.runtimeInstalling,
+    runtimeReady: input.runtimeReady,
+    runtimeInstallError: input.runtimeInstallError,
+    runtimeDiagnosis: input.runtimeDiagnosis,
+    initialHealthResolved: inferredInitialHealthResolved,
+    healthChecking: input.healthChecking ?? false,
+    healthy: input.healthy,
+    healthError: input.healthError,
+  });
   const normalizedProgress = input.runtimeInstallProgress
     ? {
         ...input.runtimeInstallProgress,
@@ -281,15 +286,15 @@ export function buildInstallerViewModel(input: StartupGateViewInput): InstallerV
       }
     : null;
 
-  if (installStageErrorMessage) {
+  if (startup.phase === 'blocked_missing_runtime_source' || startup.phase === 'blocked_runtime_install') {
     return buildInstallStageErrorView(input, normalizeText);
   }
 
-  if (startupStageErrorMessage) {
+  if (startup.phase === 'blocked_port_conflict' || startup.phase === 'blocked_local_service') {
     return buildStartupStageErrorView(input, normalizeText);
   }
 
-  if (input.runtimeInstalling) {
+  if (startup.phase === 'installing_runtime') {
     const progress = normalizedProgress ?? {
       phase: 'prepare',
       progress: 6,
@@ -315,7 +320,21 @@ export function buildInstallerViewModel(input: StartupGateViewInput): InstallerV
     };
   }
 
-  if (input.runtimeChecking || !input.runtimeReady) {
+  if (startup.phase === 'preparing_runtime_assets') {
+    return {
+      state: 'loading',
+      title: `${input.brandDisplayName} 正在苏醒`,
+      subtitle: '正在同步本地运行环境',
+      progress: Math.max(18, Math.min(90, input.lastRuntimeProgress || normalizedProgress?.progress || 18)),
+      stepLabel: '正在补齐运行环境资源',
+      stepDetail: 'runtime 已存在，但工作区、skills 或 MCP 配置仍在同步，请稍候。',
+      errorMessage: null,
+      errorTitle: null,
+      diagnosticItems: [],
+    };
+  }
+
+  if (startup.phase === 'probing_runtime') {
     return {
       state: 'loading',
       title: `${input.brandDisplayName} 正在苏醒`,
@@ -323,6 +342,23 @@ export function buildInstallerViewModel(input: StartupGateViewInput): InstallerV
       progress: 12,
       stepLabel: '正在检查本地引擎',
       stepDetail: '确认 runtime、gateway、工作区和运行配置是否已准备就绪。',
+      errorMessage: null,
+      errorTitle: null,
+      diagnosticItems: [],
+    };
+  }
+
+  if (startup.phase === 'starting_local_service' || startup.phase === 'verifying_local_service') {
+    return {
+      state: 'loading',
+      title: '即将完成',
+      subtitle: '本地运行环境已准备完成',
+      progress: 96,
+      stepLabel: startup.phase === 'starting_local_service' ? '正在启动本地服务' : '正在验证本地服务',
+      stepDetail:
+        startup.phase === 'starting_local_service'
+          ? '正在拉起本地服务并建立运行连接。'
+          : '正在等待本地服务通过最后的健康检查。',
       errorMessage: null,
       errorTitle: null,
       diagnosticItems: [],
@@ -343,13 +379,16 @@ export function buildInstallerViewModel(input: StartupGateViewInput): InstallerV
 }
 
 export function resolveShouldShowStartupGate(input: StartupGateVisibilityInput): boolean {
-  return (
-    input.isTauriRuntime &&
-    (input.runtimeChecking ||
-      input.runtimeInstalling ||
-      !input.runtimeReady ||
-      !input.initialHealthResolved ||
-      input.healthChecking ||
-      (!input.healthy && Boolean(input.healthError)))
-  );
+  return resolveDesktopStartupSnapshot({
+    isTauriRuntime: input.isTauriRuntime,
+    runtimeChecking: input.runtimeChecking,
+    runtimeInstalling: input.runtimeInstalling,
+    runtimeReady: input.runtimeReady,
+    runtimeInstallError: null,
+    runtimeDiagnosis: null,
+    initialHealthResolved: input.initialHealthResolved,
+    healthChecking: input.healthChecking,
+    healthy: input.healthy,
+    healthError: input.healthError,
+  }).shouldShowGate;
 }

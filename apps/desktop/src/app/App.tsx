@@ -22,15 +22,8 @@ import {
   listenRuntimeInstallProgress,
   loadStartupDiagnostics,
   syncPortalProviderAuth,
-  type RuntimeDiagnosis,
-  type RuntimeInstallProgress,
-  type StartupDiagnosticsSnapshot,
 } from './lib/tauri-runtime-config';
-import {
-  buildInstallerViewModel,
-  resolveShouldShowStartupGate,
-  type InstallerViewModel,
-} from './lib/startup-gate';
+import { useDesktopStartupController } from './lib/use-desktop-startup-controller';
 import {
   loadBrandRuntimeConfigWithFallback,
   resolveAuthExperienceConfig,
@@ -918,17 +911,6 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(false);
   const [socialLoadingProvider, setSocialLoadingProvider] = useState<OAuthProvider | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [healthChecking, setHealthChecking] = useState(true);
-  const [healthy, setHealthy] = useState(false);
-  const [healthError, setHealthError] = useState<string | null>(null);
-  const [initialHealthResolved, setInitialHealthResolved] = useState(false);
-  const [runtimeChecking, setRuntimeChecking] = useState(true);
-  const [runtimeInstalling, setRuntimeInstalling] = useState(false);
-  const [runtimeInstallError, setRuntimeInstallError] = useState<string | null>(null);
-  const [runtimeReady, setRuntimeReady] = useState(!isTauriRuntime());
-  const [runtimeDiagnosis, setRuntimeDiagnosis] = useState<RuntimeDiagnosis | null>(null);
-  const [runtimeInstallProgress, setRuntimeInstallProgress] = useState<RuntimeInstallProgress | null>(null);
-  const [startupDiagnostics, setStartupDiagnostics] = useState<StartupDiagnosticsSnapshot | null>(null);
   const [primaryView, setPrimaryView] = useState<PrimaryView>(() =>
     resolveInitialPrimaryView({
       persistedPrimaryView: readPersistedWorkspaceScene().primaryView,
@@ -963,7 +945,6 @@ export default function App() {
   const brandRuntimeSyncInFlightRef = useRef(false);
   const desktopUpdateLastCheckedAtRef = useRef(0);
   const desktopUpdateCheckInFlightRef = useRef(false);
-  const lastRuntimeProgressRef = useRef(0);
 
   useEffect(() => {
     if (!currentUser) {
@@ -1028,46 +1009,6 @@ export default function App() {
     return formatPortConflictMessage(status?.occupied_ports ?? []);
   }, []);
 
-  const waitForClientHealth = useCallback(
-    async (
-      options: {
-        attempts?: number;
-        intervalMs?: number;
-        suppressError?: boolean;
-      } = {},
-    ): Promise<boolean> => {
-      const {
-        attempts = SIDECAR_BOOT_HEALTHCHECK_ATTEMPTS,
-        intervalMs = SIDECAR_BOOT_HEALTHCHECK_INTERVAL_MS,
-        suppressError = false,
-      } = options;
-      for (let attempt = 0; attempt < attempts; attempt += 1) {
-        try {
-          await client.health();
-          setHealthy(true);
-          setHealthError(null);
-          return true;
-        } catch (error) {
-          const portConflictMessage = await resolvePortConflictMessage();
-          if (!suppressError) {
-            setHealthy(false);
-            setHealthError(
-              portConflictMessage || (error instanceof Error ? error.message : 'health check failed'),
-            );
-          } else {
-            setHealthy(false);
-            setHealthError(null);
-          }
-        }
-        await new Promise((resolve) => {
-          window.setTimeout(resolve, intervalMs);
-        });
-      }
-      return false;
-    },
-    [client, resolvePortConflictMessage],
-  );
-
   const syncManagedProviderAuth = useCallback(async (): Promise<void> => {
     if (!IS_TAURI_RUNTIME) {
       return;
@@ -1083,85 +1024,6 @@ export default function App() {
       return;
     }
     await clearPortalProviderAuth();
-  }, []);
-
-  const retrySetup = async () => {
-    setStartupDiagnostics(null);
-    if (!runtimeReady) {
-      await handleInstallRuntime();
-      return;
-    }
-
-    setHealthError(null);
-    setInitialHealthResolved(false);
-    setHealthChecking(true);
-    try {
-      await refreshGatewayAuth();
-      setBrandRuntimeReady(false);
-      await syncBrandRuntimeSnapshot();
-      await startSidecar(SIDE_CAR_ARGS);
-      const healthyNow = await waitForClientHealth({
-        attempts: SIDECAR_BOOT_HEALTHCHECK_ATTEMPTS,
-        intervalMs: SIDECAR_BOOT_HEALTHCHECK_INTERVAL_MS,
-        suppressError: true,
-      });
-      if (!healthyNow) {
-        throw new Error(`无法连接本地 API，请确认已启动并监听 ${API_BASE_URL}`);
-      }
-      setHealthy(true);
-      setHealthError(null);
-    } catch (error) {
-      const status = await detectPortConflicts().catch(() => null);
-      setHealthy(false);
-      setHealthError(
-        formatPortConflictMessage(status?.occupied_ports ?? []) ||
-          (error instanceof Error ? error.message : 'failed to start openclaw runtime'),
-      );
-    } finally {
-      setHealthChecking(false);
-      setInitialHealthResolved(true);
-    }
-  };
-
-  useEffect(() => {
-    if (!IS_TAURI_RUNTIME) {
-      return;
-    }
-    if (!runtimeInstallError && !healthError) {
-      setStartupDiagnostics(null);
-      return;
-    }
-
-    let cancelled = false;
-    void loadStartupDiagnostics()
-      .then((snapshot) => {
-        if (!cancelled) {
-          setStartupDiagnostics(snapshot);
-        }
-      })
-      .catch((error) => {
-        console.warn('[desktop] failed to load startup diagnostics', error);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [healthError, runtimeInstallError]);
-
-  useEffect(() => {
-    if (!IS_TAURI_RUNTIME) return;
-
-    let detach = () => {};
-    void listenRuntimeInstallProgress((payload) => {
-      lastRuntimeProgressRef.current = Math.max(lastRuntimeProgressRef.current, payload.progress || 0);
-      setRuntimeInstallProgress(payload);
-    }).then((unlisten) => {
-      detach = unlisten;
-    });
-
-    return () => {
-      detach();
-    };
   }, []);
 
   useEffect(() => {
@@ -1204,109 +1066,6 @@ export default function App() {
 
     return () => {
       detach();
-    };
-  }, []);
-
-  const applyRuntimeDiagnosis = (diagnosis: RuntimeDiagnosis | null): boolean => {
-    setRuntimeDiagnosis(diagnosis);
-    const ready =
-      Boolean(diagnosis?.runtime_found) &&
-      Boolean(diagnosis?.skills_dir_ready) &&
-      Boolean(diagnosis?.mcp_config_ready);
-    setRuntimeReady(ready);
-    return ready;
-  };
-
-  const checkRuntime = async () => {
-    if (!isTauriRuntime()) {
-      setRuntimeReady(true);
-      setRuntimeChecking(false);
-      return;
-    }
-    setRuntimeChecking(true);
-    setRuntimeInstallError(null);
-    if (!runtimeInstalling) {
-      setRuntimeInstallProgress({
-        phase: 'inspect',
-        progress: 12,
-        label: '正在检查本地环境',
-        detail: '确认核心组件、工作区和运行配置是否已准备就绪。',
-      });
-    }
-    try {
-      const diagnosis = await diagnoseRuntime();
-      applyRuntimeDiagnosis(diagnosis);
-    } finally {
-      setRuntimeChecking(false);
-    }
-  };
-
-  const handleInstallRuntime = async () => {
-    setRuntimeInstalling(true);
-    setRuntimeInstallError(null);
-    setRuntimeInstallProgress({
-      phase: 'prepare',
-      progress: 6,
-      label: '正在准备安装组件',
-      detail: '为首次启动创建本地运行目录并校验安装来源。',
-    });
-    try {
-      await installRuntime();
-      await checkRuntime();
-    } catch (error) {
-      setRuntimeInstallError(error instanceof Error ? error.message : 'runtime install failed');
-    } finally {
-      setRuntimeInstalling(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!isTauriRuntime()) {
-      setRuntimeReady(true);
-      setRuntimeChecking(false);
-      return;
-    }
-
-    let cancelled = false;
-
-    const ensureRuntimeInstalled = async () => {
-      setRuntimeChecking(true);
-      setRuntimeInstallError(null);
-      try {
-        const diagnosis = await diagnoseRuntime();
-        const ready = applyRuntimeDiagnosis(diagnosis);
-        if (ready || !diagnosis?.runtime_installable || diagnosis.runtime_found) {
-          return;
-        }
-
-        setRuntimeInstalling(true);
-        setRuntimeInstallProgress({
-          phase: 'prepare',
-          progress: 6,
-          label: '正在准备安装组件',
-          detail: '首次启动需要部署本地运行环境，请稍候。',
-        });
-        await installRuntime();
-        if (cancelled) return;
-        const nextDiagnosis = await diagnoseRuntime();
-        if (cancelled) return;
-        applyRuntimeDiagnosis(nextDiagnosis);
-      } catch (error) {
-        if (!cancelled) {
-          setRuntimeInstallError(error instanceof Error ? error.message : 'runtime install failed');
-        }
-      } finally {
-        if (!cancelled) {
-          setRuntimeInstalling(false);
-          setRuntimeChecking(false);
-        }
-      }
-    };
-
-    void ensureRuntimeInstalled();
-
-    return () => {
-      cancelled = true;
     };
   }, []);
 
@@ -1591,140 +1350,39 @@ export default function App() {
   };
 
   const isAuthenticated = Boolean(accessToken || sessionAuthed);
+  const healthCheck = useCallback(async () => {
+    await client.health();
+  }, [client]);
 
-  useEffect(() => {
-    if (isTauriRuntime() && (!brandRuntimeReady || !runtimeReady || runtimeChecking || runtimeInstalling)) {
-      setHealthChecking(false);
-      setHealthy(false);
-      setInitialHealthResolved(false);
-      return;
-    }
+  const startupControllerConfig = useMemo(
+    () => ({
+      isTauriRuntime: IS_TAURI_RUNTIME,
+      brandDisplayName: BRAND.displayName,
+      brandRuntimeReady,
+      apiBaseUrl: API_BASE_URL,
+      sidecarArgs: SIDE_CAR_ARGS,
+      sidecarBootHealthcheckAttempts: SIDECAR_BOOT_HEALTHCHECK_ATTEMPTS,
+      sidecarBootHealthcheckIntervalMs: SIDECAR_BOOT_HEALTHCHECK_INTERVAL_MS,
+      normalizeText: normalizeBrandRuntimeText,
+      diagnoseRuntime,
+      installRuntime,
+      loadStartupDiagnostics,
+      listenRuntimeInstallProgress,
+      ensureOpenClawCliAvailable,
+      startSidecar,
+      healthCheck,
+      resolvePortConflictMessage,
+      refreshGatewayAuth,
+      syncBrandRuntimeSnapshot,
+    }),
+    [brandRuntimeReady, healthCheck, refreshGatewayAuth, resolvePortConflictMessage, syncBrandRuntimeSnapshot],
+  );
 
-    let cancelled = false;
-
-    const check = async (
-      options: {
-        blocking?: boolean;
-        suppressError?: boolean;
-      } = {},
-    ): Promise<boolean> => {
-      const { blocking = false, suppressError = false } = options;
-      if (blocking) {
-        setHealthChecking(true);
-      }
-      try {
-        const healthyNow = await waitForClientHealth({
-          attempts: 1,
-          suppressError,
-        });
-        return healthyNow;
-      } finally {
-        if (!cancelled && blocking) {
-          setHealthChecking(false);
-        }
-      }
-    };
-
-    const waitForSidecarHealth = async (): Promise<boolean> => {
-      for (let attempt = 0; attempt < SIDECAR_BOOT_HEALTHCHECK_ATTEMPTS; attempt += 1) {
-        const healthyNow = await check({ suppressError: true });
-        if (healthyNow || cancelled) {
-          return healthyNow;
-        }
-        if (!cancelled) {
-          setHealthy(false);
-          setHealthError(null);
-        }
-        await new Promise((resolve) => {
-          window.setTimeout(resolve, SIDECAR_BOOT_HEALTHCHECK_INTERVAL_MS);
-        });
-      }
-      return false;
-    };
-
-    const boot = async () => {
-      if (isTauriRuntime()) {
-        try {
-          await ensureOpenClawCliAvailable();
-        } catch (error) {
-          console.warn('[desktop] failed to ensure openclaw cli launcher', error);
-        }
-      }
-      const healthyNow = await check({
-        blocking: true,
-        suppressError: isTauriRuntime(),
-      });
-      if (!cancelled && !healthyNow && isTauriRuntime()) {
-        setHealthChecking(true);
-        setHealthError(null);
-        try {
-          await startSidecar(SIDE_CAR_ARGS);
-        } catch (error) {
-          const portConflictMessage = await resolvePortConflictMessage();
-          if (!cancelled) {
-            setHealthy(false);
-            setHealthError(
-              portConflictMessage ||
-                (error instanceof Error ? error.message : 'failed to start openclaw runtime'),
-            );
-          }
-          if (!cancelled) {
-            setInitialHealthResolved(true);
-          }
-          return;
-        }
-        const sidecarHealthy = await waitForSidecarHealth();
-        if (!cancelled) {
-          setHealthChecking(false);
-        }
-        if (!cancelled && !sidecarHealthy) {
-          const portConflictMessage = await resolvePortConflictMessage();
-          setHealthy(false);
-          setHealthError(
-            portConflictMessage ||
-              `无法连接本地 API，请确认已启动并监听 ${API_BASE_URL}`,
-          );
-        }
-      }
-      if (!cancelled) {
-        setInitialHealthResolved(true);
-      }
-    };
-
-    void boot();
-    const timer = window.setInterval(() => {
-      void check({ blocking: false });
-    }, 10000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [brandRuntimeReady, client, runtimeChecking, runtimeInstalling, runtimeReady]);
-  const installerView: InstallerViewModel = buildInstallerViewModel({
-    brandDisplayName: BRAND.displayName,
-    runtimeReady,
-    runtimeChecking,
-    runtimeInstalling,
-    healthy,
-    healthError,
-    runtimeInstallError,
-    runtimeDiagnosis,
-    runtimeInstallProgress,
-    startupDiagnostics,
-    lastRuntimeProgress: lastRuntimeProgressRef.current,
-    normalizeText: normalizeBrandRuntimeText,
-  });
-  const shouldShowStartupGate = resolveShouldShowStartupGate({
-    isTauriRuntime: IS_TAURI_RUNTIME,
-    runtimeChecking,
-    runtimeInstalling,
-    runtimeReady,
-    initialHealthResolved,
-    healthChecking,
-    healthy,
-    healthError,
-  });
+  const {
+    installerView,
+    shouldShowStartupGate,
+    retrySetup,
+  } = useDesktopStartupController(startupControllerConfig);
   const shouldShowAuthBootstrapHint = !shouldShowStartupGate && !authBootstrapReady;
 
   useEffect(() => {
@@ -2223,7 +1881,7 @@ function AuthedView({
     !authenticated &&
     authBootstrapReady &&
     Boolean(welcomePageConfig) &&
-    welcomePageConfig.enabled !== false;
+    welcomePageConfig?.enabled !== false;
   const targetChatSurfaceKey = buildChatSurfaceCacheKey(activeChatRoute);
   const mountedMenuSurfaceKeys = getMountedSurfaceKeys('menu');
   const mountedOverlaySurfaceKeys = getMountedSurfaceKeys('overlay') as OverlayView[];

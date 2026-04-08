@@ -2,6 +2,10 @@
 
 更新时间：2026-04-07
 
+补充阅读：
+
+- [desktop-startup-orchestrator-architecture.md](/D:/code/iClaw/docs/desktop-startup-orchestrator-architecture.md)
+
 ## 1. 目标
 
 - 统一 `iClaw` 桌面端在 Windows 与 macOS 上的安装、首次启动初始化、日常启动、窗口关闭与应用退出语义。
@@ -449,6 +453,12 @@ macOS：
 原因：
 
 - 先统一边界，才能避免修复一个问题时继续制造新的语义冲突。
+
+当前进展补充：
+
+- 启动门禁的阶段裁决已下沉到统一 `startup orchestrator`
+- `App.tsx` 中核心启动时序已进一步下沉到 `startup controller`
+- 当前剩余工作重点已经从“消除布尔散落”转向“补齐 event model、retry policy、diagnostics timeline”
 
 ## 15. 验收标准
 
