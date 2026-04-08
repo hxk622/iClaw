@@ -360,6 +360,14 @@ async function findSkillRoot(dir: string): Promise<string | null> {
   return null;
 }
 
+function extractTarGzArchive(archivePath: string, extractRoot: string): void {
+  const tarCommand = process.platform === 'win32' ? 'tar.exe' : 'tar';
+  execFileSync(tarCommand, ['-xzf', basename(archivePath), '-C', basename(extractRoot)], {
+    cwd: dirname(archivePath),
+    stdio: 'pipe',
+  });
+}
+
 async function extractPortalSkillArtifact(params: {
   slug: string;
   artifact: Buffer;
@@ -391,10 +399,7 @@ async function extractPortalSkillArtifact(params: {
         );
       }
     } else {
-      const archiveArg = process.platform === 'win32' ? archivePath.replace(/\\/g, '/') : archivePath;
-      const extractArg = process.platform === 'win32' ? extractRoot.replace(/\\/g, '/') : extractRoot;
-      const tarArgs = ['-xzf', archiveArg, '-C', extractArg];
-      execFileSync('tar', tarArgs, {stdio: 'pipe'});
+      extractTarGzArchive(archivePath, extractRoot);
     }
     const skillRoot = await findSkillRoot(extractRoot);
     if (!skillRoot) {

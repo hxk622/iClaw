@@ -63,7 +63,14 @@ copy_runtime_path() {
   fi
 
   if [[ -d "$source_root/$path" ]]; then
-    rsync -a --delete "$source_root/$path/" "$dest_root/$path/"
+    mkdir -p "$dest_root/$path"
+    if command -v rsync >/dev/null 2>&1; then
+      rsync -a --delete "$source_root/$path/" "$dest_root/$path/"
+    else
+      rm -rf "$dest_root/$path"
+      mkdir -p "$dest_root/$path"
+      cp -R "$source_root/$path/." "$dest_root/$path/"
+    fi
     return 0
   fi
 

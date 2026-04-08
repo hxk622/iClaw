@@ -2,7 +2,7 @@ import {existsSync, readFileSync} from 'node:fs';
 import {mkdtemp, mkdir, readdir, rm, writeFile} from 'node:fs/promises';
 import {execFileSync} from 'node:child_process';
 import {tmpdir} from 'node:os';
-import {dirname, resolve} from 'node:path';
+import {basename, dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 import { downloadAvatar } from './avatar-storage.ts';
@@ -42,6 +42,15 @@ import type {
   WorkspaceBackupInput,
   SkillCatalogEntryView,
 } from './domain.ts';
+
+function extractTarGzArchive(archivePath: string, extractDir: string): void {
+  const tarCommand = process.platform === 'win32' ? 'tar.exe' : 'tar';
+  execFileSync(tarCommand, ['-xzf', basename(archivePath), '-C', basename(extractDir)], {
+    cwd: dirname(archivePath),
+    encoding: 'buffer',
+    maxBuffer: 64 * 1024 * 1024,
+  });
+}
 import {HttpError} from './errors.ts';
 import {createJsonServer, createRawResponse, type HandlerContext} from './http.ts';
 import {PgOemStore} from './oem-store.ts';
@@ -503,10 +512,7 @@ async function packageGithubSkillArtifact(metadata: Record<string, unknown>): Pr
       throw new HttpError(502, 'BAD_GATEWAY', `failed to fetch github archive: ${response.status} ${text}`);
     }
     await writeFile(archivePath, Buffer.from(await response.arrayBuffer()));
-    execFileSync('tar', ['-xzf', archivePath, '-C', extractDir], {
-      encoding: 'buffer',
-      maxBuffer: 64 * 1024 * 1024,
-    });
+    extractTarGzArchive(archivePath, extractDir);
 
     const extractedEntries = await readdir(extractDir, {withFileTypes: true});
     const rootDir = extractedEntries.find((entry) => entry.isDirectory())?.name || '';

@@ -270,11 +270,22 @@ sync_gateway_token_config() {
 
 stop_existing_api() {
   local pids=""
-  pids="$(lsof -ti ":$API_PORT" || true)"
+  if command -v lsof >/dev/null 2>&1; then
+    pids="$(lsof -ti ":$API_PORT" || true)"
+  else
+    echo "[api-dev] lsof 不可用，跳过端口占用进程回收。"
+  fi
   if [[ -n "$pids" ]]; then
     echo "[api-dev] 关闭已存在后端进程 (:$API_PORT): $pids"
     kill $pids >/dev/null 2>&1 || true
     sleep 0.4
+  fi
+}
+
+prepare_log_output() {
+  mkdir -p "$LOG_DIR"
+  if ! ln -sfn "$LOG_FILE" "$LATEST_LOG" 2>/dev/null; then
+    LATEST_LOG="$LOG_FILE"
   fi
 }
 
@@ -323,8 +334,7 @@ wait_for_health() {
 }
 
 start_openclaw_detached() {
-  mkdir -p "$LOG_DIR"
-  ln -sfn "$LOG_FILE" "$LATEST_LOG"
+  prepare_log_output
   local -a openclaw_args=("--port" "$API_PORT")
   if [[ "$OPENCLAW_VERBOSE" == "1" ]]; then
     openclaw_args+=("--verbose")
@@ -338,6 +348,12 @@ start_openclaw_detached() {
 
   echo "[api-dev] 启动后端服务 :$API_PORT"
   echo "[api-dev] gateway tracing: verbose=$OPENCLAW_VERBOSE ws-log=$OPENCLAW_WS_LOG_STYLE raw-stream=$OPENCLAW_RAW_STREAM"
+  local spawn_command="$OPENCLAW_BIN"
+  local spawn_uses_bash="0"
+  if [[ "$OPENCLAW_BIN" != *.exe ]] && [[ "$OPENCLAW_BIN" != *.cmd ]] && [[ "$OPENCLAW_BIN" != *.bat ]]; then
+    spawn_command="$(command -v bash)"
+    spawn_uses_bash="1"
+  fi
   local pid
   pid="$(
     PATH="$ROOT_DIR/services/openclaw/bin:$OPENCLAW_RUNTIME_NODE_DIR${PATH:+:$PATH}" \
@@ -350,17 +366,22 @@ start_openclaw_detached() {
     NODE_EXTRA_CA_CERTS="$EXTRA_CA_CERTS_PATH" \
     PORT="$API_PORT" \
     OPENCLAW_BIN_PATH="$OPENCLAW_BIN" \
+    OPENCLAW_DETACHED_COMMAND="$spawn_command" \
     OPENCLAW_LOG_FILE="$LOG_FILE" \
+    OPENCLAW_SPAWN_USE_BASH="$spawn_uses_bash" \
     OPENCLAW_ARGS_JSON="$(printf '%s\n' "${openclaw_args[@]}" | node -e 'const fs=require("fs"); const args=fs.readFileSync(0, "utf8").split(/\n/).filter(Boolean); process.stdout.write(JSON.stringify(args));')" \
     node <<'EOF'
 const fs = require('fs');
 const { spawn } = require('child_process');
 
-const cmd = process.env.OPENCLAW_BIN_PATH;
+const originalCmd = process.env.OPENCLAW_BIN_PATH;
+const cmd = process.env.OPENCLAW_DETACHED_COMMAND || originalCmd;
 const logFile = process.env.OPENCLAW_LOG_FILE;
-const args = JSON.parse(process.env.OPENCLAW_ARGS_JSON || '[]');
+const usesBash = process.env.OPENCLAW_SPAWN_USE_BASH === '1';
+const runtimeArgs = JSON.parse(process.env.OPENCLAW_ARGS_JSON || '[]');
+const args = usesBash ? [originalCmd, ...runtimeArgs] : runtimeArgs;
 
-if (!cmd || !logFile) {
+if (!cmd || !originalCmd || !logFile) {
   process.stderr.write('[api-dev] detached spawn missing command or log path\n');
   process.exit(1);
 }
@@ -389,8 +410,7 @@ EOF
 }
 
 start_openclaw_foreground() {
-  mkdir -p "$LOG_DIR"
-  ln -sfn "$LOG_FILE" "$LATEST_LOG"
+  prepare_log_output
   local -a openclaw_args=("--port" "$API_PORT")
   if [[ "$OPENCLAW_VERBOSE" == "1" ]]; then
     openclaw_args+=("--verbose")
