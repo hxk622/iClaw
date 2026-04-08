@@ -1594,6 +1594,100 @@ fn manifest_skill_slugs(value: &serde_json::Value) -> Vec<String> {
     }
 }
 
+fn current_openclaw_skill_platform() -> &'static str {
+    #[cfg(target_os = "windows")]
+    {
+        "win32"
+    }
+    #[cfg(target_os = "macos")]
+    {
+        "darwin"
+    }
+    #[cfg(target_os = "linux")]
+    {
+        "linux"
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        "unknown"
+    }
+}
+
+fn platform_aliases_for_match() -> &'static [&'static str] {
+    #[cfg(target_os = "windows")]
+    {
+        &["win32", "windows", "win"]
+    }
+    #[cfg(target_os = "macos")]
+    {
+        &["darwin", "macos", "mac", "osx"]
+    }
+    #[cfg(target_os = "linux")]
+    {
+        &["linux"]
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        &["unknown"]
+    }
+}
+
+fn parse_skill_supported_platforms(skill_root: &Path) -> Result<Option<Vec<String>>, String> {
+    let skill_path = skill_root.join("SKILL.md");
+    if !skill_path.exists() {
+        return Ok(None);
+    }
+    let raw = fs::read_to_string(&skill_path).map_err(|e| {
+        format!(
+            "failed to read skill manifest {}: {e}",
+            skill_path.to_string_lossy()
+        )
+    })?;
+    let metadata_line = raw
+        .lines()
+        .map(str::trim)
+        .find(|line| line.starts_with("metadata:"));
+    let Some(metadata_line) = metadata_line else {
+        return Ok(None);
+    };
+    let metadata_raw = metadata_line.trim_start_matches("metadata:").trim();
+    if metadata_raw.is_empty() {
+        return Ok(None);
+    }
+    let parsed = match serde_json::from_str::<serde_json::Value>(metadata_raw) {
+        Ok(value) => value,
+        Err(_) => return Ok(None),
+    };
+    let os_values = parsed
+        .get("openclaw")
+        .and_then(|value| value.get("os"))
+        .and_then(|value| value.as_array());
+    let Some(os_values) = os_values else {
+        return Ok(None);
+    };
+    let parsed_values = os_values
+        .iter()
+        .filter_map(|value| value.as_str())
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+    if parsed_values.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(parsed_values))
+    }
+}
+
+fn skill_supports_current_platform(skill_root: &Path) -> Result<bool, String> {
+    let Some(platforms) = parse_skill_supported_platforms(skill_root)? else {
+        return Ok(true);
+    };
+    let aliases = platform_aliases_for_match();
+    Ok(platforms
+        .iter()
+        .any(|platform| aliases.iter().any(|alias| platform == alias)))
+}
+
 fn skill_manifest_matches_snapshot(
     manifest: &serde_json::Value,
     snapshot: &OemRuntimeSnapshot,
@@ -1975,6 +2069,36 @@ fn save_runtime_skill_sync_state(
     write_locked_json_file(&path, &value)
 }
 
+fn runtime_skills_dir_contains_unsupported_entries(app: &AppHandle) -> Result<bool, String> {
+    let skills_root = runtime_skills_dir(app)?;
+    if !skills_root.exists() {
+        return Ok(false);
+    }
+    let entries = fs::read_dir(&skills_root).map_err(|e| {
+        format!(
+            "failed to scan runtime skills dir {}: {e}",
+            skills_root.to_string_lossy()
+        )
+    })?;
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("failed to read runtime skill dir entry: {e}"))?;
+        let path = entry.path();
+        let metadata = entry.metadata().map_err(|e| {
+            format!(
+                "failed to read runtime skill metadata {}: {e}",
+                path.to_string_lossy()
+            )
+        })?;
+        if !metadata.is_dir() || !path.join("SKILL.md").exists() {
+            continue;
+        }
+        if !skill_supports_current_platform(&path)? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 fn load_runtime_mcp_sync_state(app: &AppHandle) -> Result<Option<RuntimeMcpSyncState>, String> {
     let path = runtime_mcp_sync_state_path(app)?;
     if !path.exists() {
@@ -2006,6 +2130,9 @@ fn runtime_skills_cache_is_fresh(
     app: &AppHandle,
     snapshot: &OemRuntimeSnapshot,
 ) -> Result<bool, String> {
+    if runtime_skills_dir_contains_unsupported_entries(app)? {
+        return Ok(false);
+    }
     let expected_skill_slugs = runtime_skill_bindings_from_snapshot(snapshot)
         .into_iter()
         .map(|(slug, _)| slug)
@@ -2117,7 +2244,68 @@ fn activate_packaged_runtime_skill_baseline(
             )
         })?;
     }
-    copy_dir_recursive(&packaged_root, &skills_root)?;
+    fs::create_dir_all(&skills_root).map_err(|e| {
+        format!(
+            "failed to create runtime skills dir {}: {e}",
+            skills_root.to_string_lossy()
+        )
+    })?;
+    let mut copied_skill_dirs = Vec::new();
+    let entries = fs::read_dir(&packaged_root).map_err(|e| {
+        format!(
+            "failed to scan packaged runtime skills dir {}: {e}",
+            packaged_root.to_string_lossy()
+        )
+    })?;
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("failed to read packaged skill dir entry: {e}"))?;
+        let source_path = entry.path();
+        let metadata = entry.metadata().map_err(|e| {
+            format!(
+                "failed to read packaged skill metadata {}: {e}",
+                source_path.to_string_lossy()
+            )
+        })?;
+        if !metadata.is_dir() || !source_path.join("SKILL.md").exists() {
+            continue;
+        }
+        if !skill_supports_current_platform(&source_path)? {
+            append_desktop_bootstrap_log(
+                app,
+                &format!(
+                    "runtime skills: skip packaged unsupported skill dir={} platform={}",
+                    source_path
+                        .file_name()
+                        .and_then(|value| value.to_str())
+                        .unwrap_or("unknown"),
+                    current_openclaw_skill_platform()
+                ),
+            );
+            continue;
+        }
+        let dir_name = source_path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                format!(
+                    "failed to resolve packaged skill dir name from {}",
+                    source_path.to_string_lossy()
+                )
+            })?;
+        let target_path = skills_root.join(&dir_name);
+        copy_dir_recursive(&source_path, &target_path)?;
+        copied_skill_dirs.push(dir_name);
+    }
+    let bundled_manifest = json!({
+        "version": "0.1.0",
+        "preset": snapshot.brand_id,
+        "publishedVersion": snapshot.published_version,
+        "skills": copied_skill_dirs,
+    });
+    let runtime_skills_manifest_path = runtime_skills_manifest_path(app)?;
+    write_locked_json_file(&runtime_skills_manifest_path, &bundled_manifest)?;
 
     let sync_state = RuntimeSkillSyncState {
         brand_id: snapshot.brand_id.clone(),
@@ -2523,6 +2711,18 @@ fn sync_current_brand_runtime_skills(app: &AppHandle, auth_base_url: &str) -> Re
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty() && value != "extract")
             .unwrap_or_else(|| slug.to_string());
+        if !skill_supports_current_platform(&skill_root)? {
+            append_desktop_bootstrap_log(
+                app,
+                &format!(
+                    "runtime skills: skip downloaded unsupported skill slug={} dir={} platform={}",
+                    slug,
+                    dir_name,
+                    current_openclaw_skill_platform()
+                ),
+            );
+            continue;
+        }
         let destination = staged_skills_root.join(&dir_name);
         copy_dir_recursive(&skill_root, &destination)?;
         copied_skill_dirs.push(dir_name);
