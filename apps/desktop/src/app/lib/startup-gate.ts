@@ -96,7 +96,10 @@ function resolveRuntimeUnavailableErrorMessage(input: {
   runtimeInstalling: boolean;
   runtimeDiagnosis: Pick<RuntimeDiagnosis, 'runtime_installable'> | null;
 }): string | null {
-  return !input.runtimeReady && !input.runtimeInstalling && !input.runtimeDiagnosis?.runtime_installable
+  return input.runtimeDiagnosis !== null &&
+    !input.runtimeReady &&
+    !input.runtimeInstalling &&
+    !input.runtimeDiagnosis.runtime_installable
     ? '当前安装包未包含可用的运行时来源，请重新下载应用或联系支持。'
     : null;
 }

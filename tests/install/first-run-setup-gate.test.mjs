@@ -36,6 +36,8 @@ test('first run shows install progress view before runtime is ready', () => {
     stepLabel: '正在准备安装组件',
     stepDetail: '首次启动需要部署 理财爪 本地运行环境，请稍候。',
     errorMessage: null,
+    errorTitle: null,
+    diagnosticItems: [],
   });
 
   assert.equal(
@@ -75,8 +77,8 @@ test('install failure shows retryable error view instead of silent loading', () 
   });
 
   assert.equal(view.state, 'error');
-  assert.equal(view.title, '唤醒失败');
-  assert.equal(view.stepLabel, '安装过程中断');
+  assert.equal(view.title, '首次启动初始化失败');
+  assert.equal(view.stepLabel, '本地运行环境尚未准备完成');
   assert.match(view.errorMessage || '', /network timeout/);
 });
 
@@ -118,4 +120,24 @@ test('startup gate disappears after install and health check complete', () => {
     }),
     false,
   );
+});
+
+test('missing diagnosis does not surface install failure before probe completes', () => {
+  const view = buildInstallerViewModel({
+    brandDisplayName: 'iClaw',
+    runtimeReady: false,
+    runtimeChecking: false,
+    runtimeInstalling: false,
+    healthy: false,
+    healthError: null,
+    runtimeInstallError: null,
+    runtimeDiagnosis: null,
+    runtimeInstallProgress: null,
+    startupDiagnostics: null,
+    lastRuntimeProgress: 0,
+  });
+
+  assert.equal(view.state, 'loading');
+  assert.equal(view.subtitle, '正在启动本地 AI 运行环境');
+  assert.equal(view.errorMessage, null);
 });

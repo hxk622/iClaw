@@ -33,6 +33,27 @@ test('buildInstallerViewModel classifies runtime source issues as install-stage 
   assert.equal(view.errorTitle, '缺少可用 runtime 来源');
 });
 
+test('buildInstallerViewModel keeps probing state while runtime diagnosis is still unavailable', () => {
+  const view = buildInstallerViewModel({
+    brandDisplayName: 'iClaw',
+    runtimeReady: false,
+    runtimeChecking: false,
+    runtimeInstalling: false,
+    healthy: false,
+    healthError: null,
+    runtimeInstallError: null,
+    runtimeDiagnosis: null,
+    runtimeInstallProgress: null,
+    startupDiagnostics: null,
+    lastRuntimeProgress: 0,
+  });
+
+  assert.equal(view.state, 'loading');
+  assert.equal(view.title, 'iClaw 正在苏醒');
+  assert.equal(view.stepLabel, '正在检查本地引擎');
+  assert.equal(view.errorMessage, null);
+});
+
 test('buildInstallerViewModel classifies missing initialization artifacts separately from startup failure', () => {
   const view = buildInstallerViewModel({
     brandDisplayName: 'iClaw',
