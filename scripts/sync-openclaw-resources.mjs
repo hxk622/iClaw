@@ -29,6 +29,7 @@ async function main() {
     fs.mkdir(path.join(resourcesDstDir, 'config'), { recursive: true }),
     fs.mkdir(path.join(resourcesDstDir, 'certs'), { recursive: true }),
     fs.mkdir(path.join(resourcesDstDir, 'servers'), { recursive: true }),
+    fs.mkdir(path.join(resourcesDstDir, 'openclaw-runtime'), { recursive: true }),
   ]);
 
   await fs.rm(path.join(resourcesDstDir, 'skills'), { recursive: true, force: true });
@@ -37,6 +38,7 @@ async function main() {
     syncDirOrRemove(path.join(resourcesSrcDir, 'certs'), path.join(resourcesDstDir, 'certs')),
     syncDirOrRemove(path.join(resourcesSrcDir, 'baseline'), path.join(resourcesDstDir, 'baseline')),
     syncDirOrRemove(path.join(resourcesSrcDir, 'bundled-skills'), path.join(resourcesDstDir, 'bundled-skills')),
+    syncDirOrRemove(path.join(resourcesSrcDir, 'openclaw-runtime'), path.join(resourcesDstDir, 'openclaw-runtime')),
     syncFileOrRemove(
       path.join(resourcesSrcDir, 'config', 'runtime-config.json'),
       path.join(resourcesDstDir, 'config', 'runtime-config.json'),

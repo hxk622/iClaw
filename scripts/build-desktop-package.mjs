@@ -33,6 +33,8 @@ const packageDmgScriptPath = path.join(rootDir, 'scripts', 'package-desktop-dmg.
 const runtimeBootstrapConfigPath = path.join(tauriDir, 'resources', 'config', 'openclaw-runtime.json');
 const bundledRuntimeDir = path.join(tauriDir, 'resources', 'openclaw-runtime');
 const openclawResourcesSourceDir = path.join(rootDir, 'services', 'openclaw', 'resources');
+const runtimeArtifactCacheDir = path.join(rootDir, '.artifacts', 'openclaw-runtime');
+const runtimeInstallReceiptName = '.iclaw-runtime-install.json';
 const nsisAutoRunDefinition = '!define MUI_FINISHPAGE_RUN\n!define MUI_FINISHPAGE_RUN_FUNCTION RunMainBinary\n';
 
 function parseArgs(argv) {
@@ -560,8 +562,10 @@ async function findLatestWindowsNsisArtifact(fileName, target = '') {
 async function runtimeLayoutLooksComplete(runtimeDir, targetTriple = '') {
   const requiredPaths = [
     path.join(runtimeDir, targetTriple.includes('windows') ? 'openclaw-runtime.cmd' : 'openclaw-runtime'),
+    path.join(runtimeDir, 'bin', targetTriple.includes('windows') ? 'node.exe' : 'node'),
     path.join(runtimeDir, 'openclaw', 'openclaw.mjs'),
     path.join(runtimeDir, 'openclaw', 'package.json'),
+    path.join(runtimeDir, 'openclaw', 'node_modules', 'chalk', 'package.json'),
   ];
   const checks = await Promise.all(requiredPaths.map((targetPath) => pathExists(targetPath)));
   return checks.every(Boolean);
@@ -777,6 +781,237 @@ async function verifyRemoteRuntimeArtifactSha256(artifactUrl, expectedSha256) {
   await fs.writeFile(verificationCachePath, `${actualSha256}\n`, 'utf8');
 }
 
+function normalizeRuntimeArtifactFormat(value) {
+  const normalized = trimString(value).toLowerCase();
+  if (normalized === 'tar.gz' || normalized === 'tgz' || normalized === 'zip') {
+    return normalized;
+  }
+  return '';
+}
+
+function runtimeArchiveExtension(format) {
+  if (format === 'zip') {
+    return 'zip';
+  }
+  if (format === 'tgz') {
+    return 'tgz';
+  }
+  return 'tar.gz';
+}
+
+function isHttpUrl(value) {
+  return /^https?:\/\//i.test(trimString(value));
+}
+
+function buildLocalRuntimeArtifactPath({ version, targetTriple, artifactFormat }) {
+  const normalizedVersion = trimString(version);
+  const normalizedTargetTriple = trimString(targetTriple);
+  const normalizedFormat = normalizeRuntimeArtifactFormat(artifactFormat) || 'tar.gz';
+  if (!normalizedVersion || !normalizedTargetTriple) {
+    return '';
+  }
+  return path.join(
+    runtimeArtifactCacheDir,
+    `openclaw-runtime-${normalizedTargetTriple}-${normalizedVersion}.${runtimeArchiveExtension(normalizedFormat)}`,
+  );
+}
+
+async function sha256File(filePath) {
+  const hasher = createHash('sha256');
+  const handle = await fs.open(filePath, 'r');
+  try {
+    const stream = handle.createReadStream();
+    for await (const chunk of stream) {
+      hasher.update(chunk);
+    }
+  } finally {
+    await handle.close();
+  }
+  return hasher.digest('hex').toLowerCase();
+}
+
+async function verifyRuntimeArtifactFileSha256(filePath, expectedSha256) {
+  const normalizedExpectedSha256 = trimString(expectedSha256).toLowerCase();
+  if (!normalizedExpectedSha256) {
+    return;
+  }
+  const actualSha256 = await sha256File(filePath);
+  if (actualSha256 !== normalizedExpectedSha256) {
+    throw new Error(`runtime artifact sha256 mismatch for ${filePath}: expected ${normalizedExpectedSha256}, got ${actualSha256}`);
+  }
+}
+
+async function downloadRuntimeArtifact({ artifactUrl, destinationPath }) {
+  const response = await fetch(artifactUrl);
+  if (!response.ok || !response.body) {
+    throw new Error(`failed to download runtime artifact: ${response.status} ${response.statusText}`.trim());
+  }
+
+  await fs.mkdir(path.dirname(destinationPath), { recursive: true });
+  const chunks = [];
+  for await (const chunk of response.body) {
+    chunks.push(chunk);
+  }
+  await fs.writeFile(destinationPath, Buffer.concat(chunks));
+}
+
+function runChecked(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: options.cwd ?? rootDir,
+    env: options.env ?? process.env,
+    shell: options.shell ?? false,
+    encoding: 'utf8',
+    stdio: options.stdio ?? 'pipe',
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    const details = [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
+    throw new Error(details || `command failed: ${command} ${args.join(' ')}`);
+  }
+  return result;
+}
+
+async function extractRuntimeArchive({ archivePath, artifactFormat, destinationDir }) {
+  await fs.mkdir(destinationDir, { recursive: true });
+  if (artifactFormat === 'zip') {
+    if (process.platform === 'win32') {
+      runChecked(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-Command',
+          `Expand-Archive -LiteralPath '${archivePath.replace(/'/g, "''")}' -DestinationPath '${destinationDir.replace(/'/g, "''")}' -Force`,
+        ],
+      );
+      return;
+    }
+    runChecked('unzip', ['-q', archivePath, '-d', destinationDir]);
+    return;
+  }
+
+  runChecked('tar', ['-xzf', archivePath, '-C', destinationDir]);
+}
+
+async function resolveExtractedRuntimeRoot(extractedDir, targetTriple = '') {
+  if (await runtimeLayoutLooksComplete(extractedDir, targetTriple)) {
+    return extractedDir;
+  }
+
+  const entries = await fs.readdir(extractedDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const candidate = path.join(extractedDir, entry.name);
+    if (await runtimeLayoutLooksComplete(candidate, targetTriple)) {
+      return candidate;
+    }
+  }
+
+  throw new Error(`runtime archive did not contain a complete runtime layout under ${extractedDir}`);
+}
+
+async function writeBundledRuntimeInstallReceipt(runtimeDir, config) {
+  const receipt = {
+    version: trimString(config.version) || null,
+    artifact_url: trimString(config.artifact_url) || null,
+    artifact_sha256: trimString(config.artifact_sha256).toLowerCase() || null,
+  };
+  await fs.writeFile(path.join(runtimeDir, runtimeInstallReceiptName), `${JSON.stringify(receipt, null, 2)}\n`, 'utf8');
+}
+
+async function resolveRuntimeArtifactSource({ config, targetTriple, packagingPaths }) {
+  const version = trimString(config.version);
+  const artifactUrl = trimString(config.artifact_url);
+  const artifactFormat = normalizeRuntimeArtifactFormat(config.artifact_format) || 'tar.gz';
+  const localConfigPath = !isHttpUrl(artifactUrl) && artifactUrl ? path.resolve(rootDir, artifactUrl) : '';
+  const cachedArtifactPath = buildLocalRuntimeArtifactPath({ version, targetTriple, artifactFormat });
+
+  if (localConfigPath && (await pathExists(localConfigPath))) {
+    return { artifactPath: localConfigPath, source: 'configured-local', artifactFormat };
+  }
+  if (cachedArtifactPath && (await pathExists(cachedArtifactPath))) {
+    return { artifactPath: cachedArtifactPath, source: 'local-cache', artifactFormat };
+  }
+  if (!artifactUrl || !isHttpUrl(artifactUrl)) {
+    throw new Error(
+      [
+        'desktop packaging aborted: unable to resolve a local or remote OpenClaw runtime artifact.',
+        `Configured artifact_url: ${artifactUrl || '<empty>'}`,
+        `Expected local cache: ${cachedArtifactPath || '<unknown>'}`,
+      ].join('\n'),
+    );
+  }
+
+  const downloadDir = path.join(packagingPaths.workspaceRoot, 'runtime-cache');
+  const artifactPath = path.join(downloadDir, basename(new URL(artifactUrl).pathname));
+  if (!(await pathExists(artifactPath))) {
+    process.stdout.write(`[desktop-package] downloading runtime artifact for ${targetTriple || 'host'}: ${artifactUrl}\n`);
+    await downloadRuntimeArtifact({ artifactUrl, destinationPath: artifactPath });
+  } else {
+    process.stdout.write(`[desktop-package] reusing downloaded runtime artifact: ${artifactPath}\n`);
+  }
+  return { artifactPath, source: 'remote-download', artifactFormat };
+}
+
+async function prepareBundledRuntime({ env, brandProfile, channel, targetTriple, packagingPaths }) {
+  const stagedRuntimeDir = path.join(packagingPaths.resourcesSourceDir, 'openclaw-runtime');
+  if (await runtimeLayoutLooksComplete(stagedRuntimeDir, targetTriple)) {
+    process.stdout.write(`[desktop-package] bundled runtime already staged: ${stagedRuntimeDir}\n`);
+    return;
+  }
+
+  const rawConfig = resolveRuntimeBootstrapConfigForTarget(
+    applyRuntimeBootstrapEnvOverrides(
+      applyBrandRuntimeBootstrapOverrides(await readRuntimeBootstrapConfig(), brandProfile, channel, targetTriple),
+      env,
+      targetTriple,
+    ),
+    targetTriple,
+  );
+  const version = trimString(rawConfig.version);
+  const artifactUrl = trimString(rawConfig.artifact_url);
+  const artifactSha256 = trimString(rawConfig.artifact_sha256).toLowerCase();
+  const artifactFormat = normalizeRuntimeArtifactFormat(rawConfig.artifact_format) || 'tar.gz';
+
+  if (!version || !artifactUrl) {
+    throw new Error(
+      [
+        'desktop packaging aborted: invalid OpenClaw runtime bootstrap config for thick package mode.',
+        `Expected non-empty version and artifact_url for target ${targetTriple || 'current-host'} in ${runtimeBootstrapConfigPath}`,
+      ].join('\n'),
+    );
+  }
+
+  const { artifactPath, source } = await resolveRuntimeArtifactSource({
+    config: rawConfig,
+    targetTriple,
+    packagingPaths,
+  });
+  await verifyRuntimeArtifactFileSha256(artifactPath, artifactSha256);
+
+  const extractRoot = path.join(packagingPaths.workspaceRoot, 'runtime-extract');
+  await fs.rm(extractRoot, { recursive: true, force: true });
+  await extractRuntimeArchive({ archivePath: artifactPath, artifactFormat, destinationDir: extractRoot });
+  const normalizedRuntimeRoot = await resolveExtractedRuntimeRoot(extractRoot, targetTriple);
+
+  await fs.rm(stagedRuntimeDir, { recursive: true, force: true });
+  await fs.mkdir(path.dirname(stagedRuntimeDir), { recursive: true });
+  await fs.rename(normalizedRuntimeRoot, stagedRuntimeDir);
+  await writeBundledRuntimeInstallReceipt(stagedRuntimeDir, {
+    version,
+    artifact_url: artifactUrl,
+    artifact_sha256: artifactSha256,
+  });
+  await fs.rm(extractRoot, { recursive: true, force: true });
+
+  process.stdout.write(
+    `[desktop-package] bundled runtime prepared for ${targetTriple || 'host'} from ${source}: ${artifactPath}\n`,
+  );
+}
+
 async function applyRuntimeBootstrapOverlay(env, brandProfile, channel, targetTriple) {
   const originalExists = await pathExists(runtimeBootstrapConfigPath);
   const originalRaw = originalExists ? await fs.readFile(runtimeBootstrapConfigPath, 'utf8') : null;
@@ -927,8 +1162,9 @@ async function main() {
       syncLocalAppRuntime({ pnpm, env, brandId, packagingPaths });
     }
     syncBundledBaselineSkills({ pnpm, env, brandId, packagingPaths });
-    run(process.execPath, [syncResourcesScriptPath], { env });
     restoreRuntimeBootstrapConfig = await applyRuntimeBootstrapOverlay(env, brandProfile, channel, runtimeTargetTriple);
+    await prepareBundledRuntime({ env, brandProfile, channel, targetTriple: runtimeTargetTriple, packagingPaths });
+    run(process.execPath, [syncResourcesScriptPath], { env });
     await assertPackagedRuntimeConfig(env, runtimeTargetTriple);
     const tempTauriConfigArg = await writeTempTauriConfig();
 
