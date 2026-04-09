@@ -418,6 +418,10 @@ function main() {
   plugins.entries = entries;
   config.plugins = plugins;
 
+  const browser = ensureObject(config, 'browser');
+  browser.headless = true;
+  config.browser = browser;
+
   writeJson(configPath, config);
 }
 

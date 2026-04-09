@@ -119,5 +119,8 @@
       "memory": "memory-core"
     },
     "entries": {}
+  },
+  "browser": {
+    "headless": true
   }
 }

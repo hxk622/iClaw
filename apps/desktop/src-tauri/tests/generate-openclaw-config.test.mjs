@@ -68,6 +68,18 @@ test('golden: prod runtime config generation stays stable', () => {
   assert.deepEqual(actual, readFixture('expected-prod.json'));
 });
 
+test('defaults desktop runtime browser launcher to headless', () => {
+  const actual = runGenerator({
+    ICLAW_OPENCLAW_RUNTIME_CONFIG_PATH: path.join(fixturesDir, 'runtime-config.fixture.json'),
+    ICLAW_OPENCLAW_OEM_RUNTIME_SNAPSHOT_PATH: path.join(fixturesDir, 'oem-runtime-snapshot.fixture.json'),
+    ICLAW_OPENCLAW_GATEWAY_TOKEN: 'browser-headless-token',
+    ICLAW_OPENCLAW_WORKSPACE_DIR: '/tmp/iclaw-browser-headless-workspace',
+    ICLAW_OPENCLAW_RUNTIME_MODE: 'prod',
+    ICLAW_OPENCLAW_ALLOWED_ORIGINS: 'tauri://localhost,http://tauri.localhost,https://tauri.localhost',
+  });
+  assert.equal(actual.browser?.headless, true);
+});
+
 test('normalizes openai-compatible provider baseUrl to include /v1 when missing', () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'iclaw-runtime-config-baseurl-test-'));
   try {
