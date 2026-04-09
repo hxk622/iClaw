@@ -218,7 +218,9 @@ function buildDownloads(runtimeBrand, desktopReleaseEntries = []) {
   const windowsEntry = entryMap.get('windows/x64') || null;
   const appleHref = appleEntry ? buildManifestBackedDownloadHref(runtimeBrand, appleEntry, 'mac', 'aarch64') : buildDownloadHref(runtimeBrand, ENV_NAME, 'darwin', 'aarch64', 'dmg');
   const intelHref = intelEntry ? buildManifestBackedDownloadHref(runtimeBrand, intelEntry, 'mac', 'x64') : '';
-  const windowsHref = windowsEntry ? buildManifestBackedDownloadHref(runtimeBrand, windowsEntry, 'windows', 'x64') : '';
+  const windowsHref = windowsEntry
+    ? buildManifestBackedDownloadHref(runtimeBrand, windowsEntry, 'windows', 'x64')
+    : buildDownloadHref(runtimeBrand, ENV_NAME, 'windows', 'x64', 'exe');
   return [
     {
       key: 'mac-apple-silicon',
