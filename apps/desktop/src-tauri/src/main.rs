@@ -5805,6 +5805,7 @@ fn run_memory_cli(app: &AppHandle, args: &[&str]) -> Result<std::process::Output
     let cli_path = resolved_runtime_cli_entry_path(&runtime_root);
 
     let mut command = Command::new(&node_path);
+    configure_background_child_process(&mut command);
     command.arg(&cli_path);
     command.args(args);
     configure_memory_runtime_command(&mut command, app)?;
