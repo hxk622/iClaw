@@ -252,6 +252,9 @@ type OpenClawChatSurfaceProps = {
       ready?: boolean;
     },
   ) => void;
+  ensureRuntimeReadyForRecovery?: () => Promise<
+    'unsupported' | 'healthy' | 'restarted' | 'restarting' | 'cooldown' | 'failed'
+  >;
   surfaceVisible?: boolean;
   sendBlockedReason?: string | null;
 };
@@ -3836,6 +3839,7 @@ export function OpenClawChatSurface({
   onRequireAuth,
   runtimeStateKey,
   onRuntimeStateChange,
+  ensureRuntimeReadyForRecovery,
   surfaceVisible = true,
   sendBlockedReason = null,
 }: OpenClawChatSurfaceProps) {
@@ -4684,22 +4688,37 @@ export function OpenClawChatSurface({
                 ? compatibilityRecoveryAttemptsRef.current
                 : renderRecoveryAttemptsRef.current,
         });
-        try {
-          app.connect();
-        } catch (error) {
-          console.warn('[desktop] openclaw reconnect attempt failed to start', {
-            sessionKey,
-            cause,
-            reason,
-            error,
-          });
-        }
-        window.setTimeout(() => {
-          void refreshModelCatalog();
-        }, 220);
+        void (async () => {
+          if (cause === 'transport' && ensureRuntimeReadyForRecovery) {
+            const recoveryResult = await ensureRuntimeReadyForRecovery();
+            if (recoveryResult === 'failed' || recoveryResult === 'cooldown' || recoveryResult === 'restarting') {
+              console.warn('[desktop] skip reconnect because local runtime recovery is pending', {
+                sessionKey,
+                cause,
+                reason,
+                recoveryResult,
+              });
+              return;
+            }
+          }
+
+          try {
+            app.connect();
+          } catch (error) {
+            console.warn('[desktop] openclaw reconnect attempt failed to start', {
+              sessionKey,
+              cause,
+              reason,
+              error,
+            });
+          }
+          window.setTimeout(() => {
+            void refreshModelCatalog();
+          }, 220);
+        })();
       }, delayMs);
     },
-    [performEmbeddedCompatibilityReset, refreshModelCatalog, sessionKey],
+    [ensureRuntimeReadyForRecovery, performEmbeddedCompatibilityReset, refreshModelCatalog, sessionKey],
   );
 
   const ensureWrappedClientRequest = useCallback((app: OpenClawAppElement | null) => {

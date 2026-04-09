@@ -6517,6 +6517,7 @@ fn open_external_url(url: String) -> Result<bool, String> {
     let mut command = {
         let mut cmd = Command::new("cmd");
         cmd.args(["/C", "start", "", parsed.as_str()]);
+        configure_background_child_process(&mut cmd);
         cmd
     };
 

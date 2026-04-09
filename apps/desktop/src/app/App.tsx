@@ -14,7 +14,14 @@ import { IClawClient, type CreditBalanceData, type DesktopUpdateHint, type Marke
 import desktopPackageJson from '../../package.json';
 import { clearAuth, readAuth, writeAuth } from './lib/auth-storage';
 import { getGoogleOAuthUrl, getWeChatOAuthUrl, openOAuthPopup, type OAuthProvider } from './lib/oauth';
-import { detectPortConflicts, ensureOpenClawCliAvailable, isTauriRuntime, loadGatewayAuth, startSidecar } from './lib/tauri-sidecar';
+import {
+  detectPortConflicts,
+  ensureOpenClawCliAvailable,
+  isTauriRuntime,
+  loadGatewayAuth,
+  startSidecar,
+  stopSidecar,
+} from './lib/tauri-sidecar';
 import {
   clearPortalProviderAuth,
   diagnoseRuntime,
@@ -24,6 +31,10 @@ import {
   syncPortalProviderAuth,
 } from './lib/tauri-runtime-config';
 import { useDesktopStartupController } from './lib/use-desktop-startup-controller';
+import {
+  ensureDesktopRuntimeReadyForChatRecovery,
+  type DesktopRuntimeRecoveryState,
+} from './lib/desktop-runtime-recovery';
 import {
   loadBrandRuntimeConfigWithFallback,
   resolveAuthExperienceConfig,
@@ -1353,6 +1364,38 @@ export default function App() {
   const healthCheck = useCallback(async () => {
     await client.health();
   }, [client]);
+  const runtimeRecoveryStateRef = useRef<DesktopRuntimeRecoveryState>({
+    inFlight: null,
+    lastRestartAt: 0,
+  });
+  const waitForLocalRuntimeHealth = useCallback(async () => {
+    for (let attempt = 0; attempt < SIDECAR_BOOT_HEALTHCHECK_ATTEMPTS; attempt += 1) {
+      try {
+        await healthCheck();
+        return true;
+      } catch {
+        if (attempt >= SIDECAR_BOOT_HEALTHCHECK_ATTEMPTS - 1) {
+          break;
+        }
+        await new Promise((resolve) => {
+          window.setTimeout(resolve, SIDECAR_BOOT_HEALTHCHECK_INTERVAL_MS);
+        });
+      }
+    }
+    return false;
+  }, [healthCheck]);
+  const ensureChatRuntimeReady = useCallback(async () => {
+    return ensureDesktopRuntimeReadyForChatRecovery(runtimeRecoveryStateRef.current, {
+      isTauriRuntime: IS_TAURI_RUNTIME,
+      healthCheck,
+      refreshGatewayAuth,
+      syncBrandRuntimeSnapshot,
+      stopSidecar,
+      startSidecar,
+      sidecarArgs: SIDE_CAR_ARGS,
+      waitForHealth: waitForLocalRuntimeHealth,
+    });
+  }, [healthCheck, refreshGatewayAuth, syncBrandRuntimeSnapshot, waitForLocalRuntimeHealth]);
 
   const startupControllerConfig = useMemo(
     () => ({
@@ -1663,6 +1706,7 @@ export default function App() {
           desktopUpdatePolicyLabel={resolveDesktopUpdatePolicyLabel(effectiveDesktopUpdateHint)}
           desktopUpdateNewRunBlockedReason={desktopUpdateNewRunBlockedReason}
           desktopUpdateSendBlockedReason={desktopUpdateSendBlockedReason}
+          ensureRuntimeReadyForRecovery={ensureChatRuntimeReady}
           onChatBusyChange={setChatSurfaceBusy}
           desktopUpdateChecking={desktopUpdateActionState === 'checking'}
           desktopUpdateReadyToRestart={desktopUpdateActionState === 'ready-to-restart'}
@@ -1744,6 +1788,9 @@ interface AuthedViewProps {
   desktopUpdatePolicyLabel: string;
   desktopUpdateNewRunBlockedReason: string | null;
   desktopUpdateSendBlockedReason: string | null;
+  ensureRuntimeReadyForRecovery: () => Promise<
+    'unsupported' | 'healthy' | 'restarted' | 'restarting' | 'cooldown' | 'failed'
+  >;
   onChatBusyChange: (busy: boolean) => void;
   desktopUpdateChecking: boolean;
   desktopUpdateReadyToRestart: boolean;
@@ -1787,6 +1834,7 @@ function AuthedView({
   desktopUpdatePolicyLabel,
   desktopUpdateNewRunBlockedReason,
   desktopUpdateSendBlockedReason,
+  ensureRuntimeReadyForRecovery,
   onChatBusyChange,
   desktopUpdateChecking,
   desktopUpdateReadyToRestart,
@@ -3013,6 +3061,7 @@ function AuthedView({
                 onRequireAuth={onRequestAuth}
                 runtimeStateKey={targetChatSurfaceKey}
                 onRuntimeStateChange={updateChatSurfaceRuntimeFlags}
+                ensureRuntimeReadyForRecovery={ensureChatRuntimeReady}
                 surfaceVisible={resolvedPrimaryView === 'chat'}
                 sendBlockedReason={desktopUpdateSendBlockedReason}
               />
