@@ -1,6 +1,6 @@
 # iClaw 上线规范
 
-更新时间：2026-04-05
+更新时间：2026-04-10
 
 ## 1. 目标
 
@@ -218,6 +218,7 @@
 - 业务数据必须先于依赖它的运行时
 - 前端必须在后端可用后再切流
 - desktop 重新补包后，必须在对象存储上传完成后再次发布 `home-web`，确保下载页链接与当前产物一致
+- Windows 正式发版从 `1.0.4` 起默认按 `installer-driven force upgrade` 验收，不再要求 native updater 作为前置门槛
 
 如发布对象主要是：
 
@@ -291,6 +292,16 @@ pnpm deploy:prod:marketing
 - desktop 下载页可访问
 - 安装包链接不 404
 - updater manifest 可读取
+
+Windows 补充规则：
+
+- `update-hint` 必须返回本次真值版本、强更策略和 installer 地址
+- 若本次发布声明支持 Windows 强更，则必须验证：
+  - `1.0.3 -> 1.0.4` 可自动进入升级
+  - 可自动下载安装包
+  - 可自动拉起安装器
+  - 升级后可恢复退出前页面
+- `updater/signature` 缺失本身不构成 Windows 正式发布阻断项，除非本次发布明确声明要验证 native updater
 
 验证结果必须写回发布单，不允许只口头确认。
 

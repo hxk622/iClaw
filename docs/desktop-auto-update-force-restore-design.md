@@ -37,6 +37,26 @@
 - `updater` / `signature` 在 Windows 上属于可选增强能力，不是强更是否生效的前提条件。
 - 因此，Windows 侧“是否能强更”与“是否具备 native updater”必须分开验证，不能混为一谈。
 
+### 3.2 架构决策
+
+本项目从 `1.0.4` 开始，Windows 升级策略正式定为：
+
+- 决策名：`Windows Installer-Driven Force Upgrade`
+- 决策级别：架构级，不作为临时 workaround
+- 默认链路：
+  - `update-hint` 负责版本裁决与强更策略
+  - installer 下载链路负责实际升级
+  - scene snapshot 负责升级后的工作现场恢复
+- 不再把 `native updater availability` 作为 Windows 正式发版的前置条件
+- 若某次发布额外支持 native updater，只能算增强项，不能替代主链路验收
+
+这意味着：
+
+- Windows 强更的真值来源是 `control-plane policy + release installer`
+- 不是 `updater/signature`
+- 不是桌面端本地自行比较版本
+- 不是下载页上的手工文案
+
 ## 4. 总体原则
 
 ### 4.1 后端是策略源
@@ -73,6 +93,31 @@
   - 自动进入升级
   - 自动拉起安装
   - 自动恢复现场
+
+### 4.3 Rust / Web 分层
+
+Rust 端负责：
+
+- 校验下载 URL、目标路径和文件名
+- 下载 installer 到本地临时目录
+- 产出可订阅的下载进度
+- 在 Windows 上拉起 installer 进程
+- 在进入升级前把最终可恢复所需的最小状态写盘
+- 在重启后提供读取和清理恢复快照的能力
+
+前端负责：
+
+- 根据 `update-hint` 决定何时开始升级
+- 统一封禁新任务入口
+- 归集当前页面、路由、会话、草稿等恢复信息
+- 调用 Rust 下载 / 拉起安装器命令
+- 启动后读取恢复快照并还原 UI 现场
+
+约束：
+
+- 前端不直接自己下载大文件
+- 前端不直接用浏览器打开下载页替代正式升级链路
+- Rust 不负责业务级“当前 run 是否结束”的判断
 
 ## 5. 产品语义
 
@@ -192,6 +237,14 @@
 - `restoring_scene`
 - `failed`
 
+补充内部执行阶段：
+
+- `preparing_upgrade`
+- `saving_scene_snapshot`
+- `downloading_installer`
+- `launching_installer`
+- `awaiting_app_restart`
+
 ### 7.2 运行态信号
 
 桌面端需要统一抽象“是否存在活动任务”：
@@ -248,14 +301,39 @@
 ### 8.2 第一阶段需要保存的内容
 
 - 当前页面路由
+- 当前 `primaryView`
+- 当前 `overlayView`
 - 当前会话 `sessionKey`
+- 当前 `conversationId`
 - 当前聚焦轮次 `focusedTurnId`
 - 最近一次可恢复的 prompt
 - composer draft 文本
 - composer 附件引用摘要
 - 选中的模型
+- 当前命中的更新版本
+- 当前 installer URL
 - 更新时间前的目标版本
 - 快照创建时间
+
+推荐数据结构：
+
+```json
+{
+  "schemaVersion": 1,
+  "reason": "desktop_force_upgrade",
+  "targetVersion": "1.0.4",
+  "installerUrl": "https://...",
+  "createdAt": "2026-04-10T10:00:00.000Z",
+  "scene": {
+    "primaryView": "chat",
+    "overlayView": null,
+    "conversationId": "conv_xxx",
+    "sessionKey": "agent:main:main",
+    "focusedTurnId": "turn_xxx",
+    "initialPrompt": null
+  }
+}
+```
 
 ### 8.3 第一阶段不恢复的内容
 
@@ -296,6 +374,13 @@
 - 保留错误日志
 - 给用户一条非阻断提示：升级成功，但未能完全恢复现场
 
+恢复规则补充：
+
+- 若 `targetVersion` 大于当前版本，不恢复，说明升级未真正完成
+- 若 `snapshot` 超过 24 小时未消费，默认丢弃
+- 若恢复引用的会话不存在，则退回到同一 `primaryView` 的默认入口，不阻塞启动
+- 若恢复引用的草稿已失效，则只恢复页面和会话，不强行注入坏数据
+
 ## 10. 后台配置设计
 
 需要有正式后台配置，不再只依赖环境变量。
@@ -323,13 +408,37 @@
 4. 若有活动任务，则等待终态
 5. 终态后自动开始升级
 6. 升级前写入本地 `scene snapshot`
-7. 升级后自动恢复路由、会话和 composer draft
+7. 通过 Rust 下载 Windows installer
+8. 通过 Rust 自动拉起安装器
+9. 升级后自动恢复路由、会话和 composer draft
 
 做到这一步，就已经满足：
 
 - 运营可强更
 - 不打断当前任务
 - 升级后基本回到工作现场
+
+## 11.1 `1.0.4` 首轮范围
+
+`1.0.4` 是 Windows 新升级链路的第一轮 baseline 验证版本，范围固定如下：
+
+- 包含：
+  - `1.0.3 -> 1.0.4` 的 Windows 强更识别
+  - 自动下载安装包
+  - 自动拉起安装器
+  - 升级完成后恢复到退出前页面
+- 不包含：
+  - 增量 patch 更新
+  - 中断后断点续传
+  - 多版本跳跃升级编排
+  - 未完成 run 的恢复
+  - 精确滚动位置恢复
+
+验收对象：
+
+- QA 机器先手工升到 `1.0.3`
+- 然后用 `1.0.4` 验证新链路
+- 不要求 `1.0.2` 直接兼容这套新实现
 
 ## 12. 第二阶段增强项
 
@@ -348,6 +457,7 @@
 - 在 desktop 加入 force-upgrade orchestrator
 - 封禁新任务入口
 - 接入 run 终态监听
+- 加入 Windows installer 下载与启动命令
 
 ### Phase 2
 
@@ -366,6 +476,23 @@
 - 命中强更后，用户不能再发起新任务。
 - 若当前已有任务运行，不会被中断。
 - 当前任务结束后自动触发升级。
+- Windows 可自动下载安装包并拉起安装器。
 - 升级后自动重启应用。
 - 升级后能恢复到原页面、原会话，并恢复输入草稿。
 - manifest 异常、签名异常、下载失败时有清晰提示且不会破坏现有可用状态。
+
+## 15. 失败与回滚策略
+
+- 若 installer 下载失败：
+  - 保持当前应用继续可用
+  - 保持强更拦截状态
+  - 提供“重试升级”入口
+- 若 installer 启动失败：
+  - 保持当前应用继续可用
+  - 保留已下载文件，允许重试
+- 若升级后恢复失败：
+  - 不视为升级失败
+  - 记录日志并降级进入首页
+- 若 `1.0.4` 首轮验证失败：
+  - 继续保留 `update-hint + 手工下载链接` 作为应急回退链路
+  - 不回退到“强依赖 native updater”的旧策略
