@@ -3133,7 +3133,7 @@ function AuthedView({
                 onRequireAuth={onRequestAuth}
                 runtimeStateKey={targetChatSurfaceKey}
                 onRuntimeStateChange={updateChatSurfaceRuntimeFlags}
-                ensureRuntimeReadyForRecovery={ensureChatRuntimeReady}
+                ensureRuntimeReadyForRecovery={ensureRuntimeReadyForRecovery}
                 surfaceVisible={resolvedPrimaryView === 'chat'}
                 sendBlockedReason={desktopUpdateSendBlockedReason}
               />
