@@ -25,6 +25,12 @@ import './openclaw-chat-surface.css';
 import { Button } from '@/app/components/ui/Button';
 import { EmptyStatePanel } from '@/app/components/ui/EmptyStatePanel';
 import { PageSurface } from '@/app/components/ui/PageLayout';
+import {
+  HighRiskConfirmationModal,
+  type HighRiskConfirmationModalProps,
+  type HighRiskImpactItem,
+  type HighRiskRollbackStatus,
+} from '@/app/components/HighRiskConfirmationModal';
 import { K2CWelcomePage } from '@/app/components/K2CWelcomePage';
 import { readAppLocale } from '@/app/lib/general-preferences';
 import {
@@ -1326,6 +1332,16 @@ type ParsedApprovalActionGroup = {
   buttons: HTMLButtonElement[];
 };
 
+type HighRiskConfirmationRequest = Omit<
+  HighRiskConfirmationModalProps,
+  'open' | 'onOpenChange' | 'onConfirm' | 'onCancel'
+> & {
+  onConfirm: () => void;
+  onCancel?: () => void;
+};
+
+const CHAT_HIGH_RISK_CONFIRMATION_EVENT = 'iclaw:chat-high-risk-confirmation';
+
 const CHAT_APPROVAL_POSITIVE_LABEL_PATTERNS = [
   /(allow|允许|批准|同意|继续执行|继续|执行)/i,
   /(session|会话|task|任务|once|一次)/i,
@@ -1502,6 +1518,82 @@ function clearApprovalActionCard(group: HTMLElement): void {
   });
 }
 
+function summarizeApprovalCommand(command: string | null): string {
+  const normalized = (command ?? '').trim();
+  if (!normalized) {
+    return '当前动作未返回可展示的命令摘要';
+  }
+  const firstLine = normalized.split(/\r?\n/).find((line) => line.trim())?.trim() ?? normalized;
+  return firstLine.length > 160 ? `${firstLine.slice(0, 157)}...` : firstLine;
+}
+
+function buildHighRiskConfirmationRequest(
+  parsed: ParsedApprovalActionGroup,
+  onConfirm: () => void,
+): HighRiskConfirmationRequest {
+  const impactItems: HighRiskImpactItem[] = [];
+
+  parsed.paths.forEach((path) => {
+    impactItems.push({
+      type: path.includes('.') ? 'file' : 'directory',
+      value: path,
+    });
+  });
+
+  impactItems.push({
+    type: 'privilege',
+    label: '权限等级',
+    value: parsed.requiresElevation ? '需要管理员权限后才可执行' : parsed.isReadOnly ? '当前动作为只读访问' : '普通本地权限',
+  });
+
+  impactItems.push({
+    type: 'cloud',
+    label: '网络传输',
+    value: parsed.uploadsData ? '动作会上传本地数据到远端服务' : '动作本身不涉及远端上传',
+  });
+
+  const title =
+    parsed.riskLevel === 'critical'
+      ? '这是一个严重风险动作，执行前需要你再次确认'
+      : '这是一个高危动作，执行前需要你再次确认';
+
+  const description = parsed.intent;
+
+  const rollbackStatus: HighRiskRollbackStatus =
+    parsed.uploadsData ? 'partial' : parsed.requiresElevation && !parsed.isReadOnly ? 'partial' : parsed.isReadOnly ? 'full' : 'none';
+
+  const rollbackDescription =
+    rollbackStatus === 'full'
+      ? '该动作以读取和诊断为主，可通过停止执行或关闭本次任务完全回退。'
+      : rollbackStatus === 'partial'
+        ? '该动作可能涉及系统状态修改或数据上传，部分影响可通过后续修复撤回，但已上传数据无法保证完全回退。'
+        : '该动作可能直接修改本地环境或系统配置，执行后不保证可以自动恢复到原状态。';
+
+  const reason =
+    parsed.requiresElevation
+      ? '该动作需要更高系统权限才能完成目标，继续前你需要确认这是你预期的系统级操作。'
+      : parsed.uploadsData
+        ? '该动作会把本地信息发送到远端服务，继续前你需要确认这些数据允许被上传。'
+        : '该动作会对本地环境产生较强影响，继续前你需要确认影响范围和后果。';
+
+  return {
+    riskLevel: parsed.riskLevel === 'critical' ? 'critical' : 'high',
+    title,
+    description,
+    reason,
+    impactItems,
+    rollbackStatus,
+    rollbackDescription,
+    commandSummary: summarizeApprovalCommand(parsed.command),
+    fullCommand: parsed.command,
+    requireAcknowledgement: true,
+    acknowledgementText: '我已知晓该操作可能影响本地系统、文件或隐私数据',
+    confirmText: '确认执行',
+    cancelText: '取消',
+    onConfirm,
+  };
+}
+
 function normalizeApprovalActionCard(group: HTMLElement): void {
   clearApprovalActionCard(group);
 
@@ -1668,12 +1760,25 @@ function normalizeApprovalActionCard(group: HTMLElement): void {
 
     proxy.addEventListener('click', () => {
       const isReject = CHAT_APPROVAL_NEGATIVE_LABEL_PATTERN.test(label);
-      card.dataset.iclawApprovalStatus = isReject ? 'rejected' : 'approved';
-      if (footerNode) {
-        footerNode.hidden = false;
-        footerNode.textContent = isReject ? '此操作已被拒绝，AI 将尝试寻找其他方案。' : '授权已提交，正在继续执行。';
+      const commitDecision = () => {
+        card.dataset.iclawApprovalStatus = isReject ? 'rejected' : 'approved';
+        if (footerNode) {
+          footerNode.hidden = false;
+          footerNode.textContent = isReject ? '此操作已被拒绝，AI 将尝试寻找其他方案。' : '授权已提交，正在继续执行。';
+        }
+        originalButton.click();
+      };
+
+      if (!isReject && (parsed.riskLevel === 'high' || parsed.riskLevel === 'critical')) {
+        window.dispatchEvent(
+          new CustomEvent<HighRiskConfirmationRequest>(CHAT_HIGH_RISK_CONFIRMATION_EVENT, {
+            detail: buildHighRiskConfirmationRequest(parsed, commitDecision),
+          }),
+        );
+        return;
       }
-      originalButton.click();
+
+      commitDecision();
     });
   });
 
@@ -4291,6 +4396,7 @@ export function OpenClawChatSurface({
   const [unhandledGatewayError, setUnhandledGatewayError] = useState<UnhandledGatewayError | null>(null);
   const [lastRpcFailure, setLastRpcFailure] = useState<GatewayRpcFailure | null>(null);
   const [selectionMenu, setSelectionMenu] = useState<SelectionMenuState | null>(null);
+  const [highRiskConfirmationRequest, setHighRiskConfirmationRequest] = useState<HighRiskConfirmationRequest | null>(null);
   const [modelOptions, setModelOptions] = useState<ComposerModelOption[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [resolvedModelSessionKey, setResolvedModelSessionKey] = useState<string | null>(null);
@@ -8070,6 +8176,21 @@ export function OpenClawChatSurface({
       </div>
     ) : null;
 
+  useEffect(() => {
+    const handleHighRiskConfirmationRequest = (event: Event) => {
+      const detail = (event as CustomEvent<HighRiskConfirmationRequest | null>).detail;
+      if (!detail) {
+        return;
+      }
+      setHighRiskConfirmationRequest(detail);
+    };
+
+    window.addEventListener(CHAT_HIGH_RISK_CONFIRMATION_EVENT, handleHighRiskConfirmationRequest);
+    return () => {
+      window.removeEventListener(CHAT_HIGH_RISK_CONFIRMATION_EVENT, handleHighRiskConfirmationRequest);
+    };
+  }, []);
+
   const handleWelcomeStartChat = useCallback(() => {
     composerRef.current?.focus();
   }, []);
@@ -9164,6 +9285,41 @@ export function OpenClawChatSurface({
             ) : null}
 
                 {selectionMenuContent ? createPortal(selectionMenuContent, document.body) : null}
+                {highRiskConfirmationRequest
+                  ? createPortal(
+                      <HighRiskConfirmationModal
+                        open
+                        riskLevel={highRiskConfirmationRequest.riskLevel}
+                        title={highRiskConfirmationRequest.title}
+                        description={highRiskConfirmationRequest.description}
+                        reason={highRiskConfirmationRequest.reason}
+                        impactItems={highRiskConfirmationRequest.impactItems}
+                        rollbackStatus={highRiskConfirmationRequest.rollbackStatus}
+                        rollbackDescription={highRiskConfirmationRequest.rollbackDescription}
+                        commandSummary={highRiskConfirmationRequest.commandSummary}
+                        fullCommand={highRiskConfirmationRequest.fullCommand}
+                        requireAcknowledgement={highRiskConfirmationRequest.requireAcknowledgement}
+                        acknowledgementText={highRiskConfirmationRequest.acknowledgementText}
+                        confirmText={highRiskConfirmationRequest.confirmText}
+                        cancelText={highRiskConfirmationRequest.cancelText}
+                        onConfirm={() => {
+                          const currentRequest = highRiskConfirmationRequest;
+                          setHighRiskConfirmationRequest(null);
+                          currentRequest.onConfirm();
+                        }}
+                        onCancel={() => {
+                          highRiskConfirmationRequest.onCancel?.();
+                          setHighRiskConfirmationRequest(null);
+                        }}
+                        onOpenChange={(open) => {
+                          if (!open) {
+                            setHighRiskConfirmationRequest(null);
+                          }
+                        }}
+                      />,
+                      document.body,
+                    )
+                  : null}
               </div>
             </div>
 
