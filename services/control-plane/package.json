@@ -17,6 +17,7 @@
     "sync:clawhub:all": "node --experimental-strip-types scripts/sync-clawhub-top-skills.ts --limit 0",
     "upload:cloud-skill-artifacts": "node --experimental-strip-types scripts/upload-cloud-skill-artifacts.ts",
     "publish:external-cloud-skill": "node --experimental-strip-types scripts/publish-external-cloud-skill.ts",
+    "publish:github-cloud-skill": "node --experimental-strip-types scripts/publish-github-cloud-skill.ts",
     "migrate:skill-catalog-table": "node --experimental-strip-types scripts/migrate-skill-catalog-table.ts",
     "migrate:canonical-session-keys": "node --experimental-strip-types scripts/migrate-canonical-session-keys.ts",
     "import:a-share-stocks": "node --experimental-strip-types scripts/import-a-share-stocks.ts",

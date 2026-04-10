@@ -3822,6 +3822,37 @@
       },
       {
         "active": true,
+        "artifactFormat": "zip",
+        "artifactSha256": "56c2f23d4a0e86a9b79653c347e46a4ddd42d61962fa392b14e99ad889291672",
+        "artifactSourcePath": null,
+        "artifactUrl": null,
+        "category": "research",
+        "description": "输入人物、主题或模糊需求，自动深度调研并蒸馏为可运行的人物 Skill，也支持先诊断推荐再生成。",
+        "distribution": "cloud",
+        "market": "通用",
+        "metadata": {
+          "execution_surface": "desktop-local",
+          "portal_artifact_object_key": "portal-skills/nuwa-skill/1.0.0/artifact.zip",
+          "source_kind": "github_repo",
+          "source_label": "GitHub",
+          "source_repo": "alchaincyf/nuwa-skill"
+        },
+        "name": "女娲造人术",
+        "originType": "github_repo",
+        "publisher": "alchaincyf · iClaw",
+        "skillType": "生成器",
+        "slug": "nuwa-skill",
+        "sourceUrl": "https://github.com/alchaincyf/nuwa-skill",
+        "tags": [
+          "Skill蒸馏",
+          "人物Skill",
+          "认知框架",
+          "研究"
+        ],
+        "version": "1.0.0"
+      },
+      {
+        "active": true,
         "artifactFormat": "tar.gz",
         "artifactSha256": null,
         "artifactSourcePath": null,
@@ -6931,6 +6962,15 @@
           "sourceType": "baseline_seed"
         },
         "slug": "agent-browser-clawdbot"
+      },
+      {
+        "active": true,
+        "metadata": {
+          "platformPresetReason": "平台预置人物视角蒸馏",
+          "sourceCatalog": "github_repo",
+          "sourceType": "manual_publish"
+        },
+        "slug": "nuwa-skill"
       }
     ]
   },
