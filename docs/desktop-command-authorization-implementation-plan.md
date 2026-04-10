@@ -20,7 +20,7 @@
 
 - 桌面端高危动作统一进入授权流
 - 支持一次性授权
-- 支持任务级与会话级授权缓存
+- 仅对低中风险受控动作支持任务级与会话级授权缓存
 - 本地审计日志
 - control-plane 侧企业策略管理基础接口
 - admin-web 基础查询页
@@ -43,6 +43,12 @@ MVP 只覆盖以下动作类型：
 - `manage_local_process`
 - `execute_shell`
 - `elevated_execute`
+
+约束说明：
+
+- `execute_shell` 在 MVP 内只允许以 `allow_with_approval` 方式进入授权流，不允许自动静默放行
+- `elevated_execute` 在 MVP 内只允许 `once`，不允许缓存为 `task` / `session`
+- 白名单能力仅面向模板化动作和低风险受控动作，不面向自由文本 shell
 
 MVP 成功标准：
 
@@ -72,14 +78,19 @@ create table desktop_action_policy_rules (
   capability text not null,
   risk_level text not null, -- low | medium | high | critical
   official_only boolean not null default false,
+  publisher_ids jsonb not null default '[]'::jsonb,
+  package_digests jsonb not null default '[]'::jsonb,
   skill_slugs jsonb not null default '[]'::jsonb,
   workflow_ids jsonb not null default '[]'::jsonb,
-  path_prefixes jsonb not null default '[]'::jsonb,
-  domains jsonb not null default '[]'::jsonb,
-  ports jsonb not null default '[]'::jsonb,
+  executor_types jsonb not null default '[]'::jsonb,
+  executor_template_ids jsonb not null default '[]'::jsonb,
+  canonical_path_prefixes jsonb not null default '[]'::jsonb,
+  network_destinations jsonb not null default '[]'::jsonb,
+  access_modes jsonb not null default '[]'::jsonb,
   allow_elevation boolean not null default false,
   allow_network_egress boolean not null default false,
   grant_scope text not null default 'once',
+  max_grant_scope text not null default 'once',
   ttl_seconds integer null,
   enabled boolean not null default true,
   priority integer not null default 100,
@@ -87,6 +98,14 @@ create table desktop_action_policy_rules (
   updated_at timestamptz not null default now()
 );
 ```
+
+字段约束：
+
+- 不允许把自由文本 shell 命令存入策略表作为白名单条件
+- `execute_shell` / `elevated_execute` 的策略 `effect` 只能是 `allow_with_approval` 或 `deny`
+- `elevated_execute.max_grant_scope` 必须固定为 `once`
+- `network_destinations` 必须记录 `scheme + host + port + pathPrefix + redirectPolicy`
+- `official_only=true` 时，必须同时命中 `publisher_ids` 或 `package_digests`
 
 ### 4.2 `desktop_action_approval_grants`
 
@@ -103,7 +122,16 @@ create table desktop_action_approval_grants (
   device_id text not null,
   app_name text not null,
   intent_fingerprint text not null,
+  approved_plan_hash text not null,
   capability text not null,
+  risk_level text not null,
+  access_modes jsonb not null default '[]'::jsonb,
+  normalized_resources jsonb not null default '[]'::jsonb,
+  network_destinations jsonb not null default '[]'::jsonb,
+  executor_type text not null,
+  executor_template_id text null,
+  publisher_id text null,
+  package_digest text null,
   scope text not null, -- once | task | session | ttl
   task_id text null,
   session_key text null,
@@ -115,6 +143,13 @@ create table desktop_action_approval_grants (
 create index desktop_action_approval_grants_lookup_idx
   on desktop_action_approval_grants(user_id, device_id, app_name, intent_fingerprint);
 ```
+
+复用约束：
+
+- grant 命中必须同时匹配 `intent_fingerprint + approved_plan_hash`
+- L3 只能存 `once`
+- L4 不允许落 grant
+- `elevated_execute` 不允许命中 `task` / `session` grant
 
 ### 4.3 `desktop_action_audit_events`
 
@@ -143,7 +178,10 @@ create table desktop_action_audit_events (
   summary text not null,
   reason text null,
   resources jsonb not null default '[]'::jsonb,
-  command_snapshot text null,
+  matched_policy_rule_id text null,
+  approved_plan_hash text null,
+  executed_plan_hash text null,
+  command_snapshot_redacted text null,
   result_code text null,
   result_summary text null,
   duration_ms integer null,
@@ -153,6 +191,12 @@ create table desktop_action_audit_events (
 create index desktop_action_audit_events_trace_idx
   on desktop_action_audit_events(trace_id, created_at desc);
 ```
+
+审计约束：
+
+- 默认不上报未脱敏的原始命令
+- 若 `approved_plan_hash != executed_plan_hash`，必须记录专门的拒绝/失配事件
+- 必须记录 `matched_policy_rule_id`，用于还原“命中哪条策略后执行”
 
 ### 4.4 `desktop_diagnostic_uploads`
 
@@ -174,10 +218,17 @@ create table desktop_diagnostic_uploads (
   file_size_bytes bigint not null,
   sha256 text null,
   source_type text not null, -- manual | auto_error_capture | approval_flow
+  contains_customer_logs boolean not null default true,
+  sensitivity_level text not null default 'customer',
   linked_intent_id text null,
   created_at timestamptz not null default now()
 );
 ```
+
+上传约束：
+
+- 诊断上传必须绑定具体 bucket / key prefix / source_type
+- `contains_customer_logs=true` 的对象在 admin-web 中必须按更严格权限展示和下载
 
 ## 5. API 草案
 
@@ -211,6 +262,7 @@ create table desktop_diagnostic_uploads (
         "effect": "allow_with_approval",
         "capability": "collect_diagnostics",
         "riskLevel": "medium",
+        "maxGrantScope": "session",
         "enabled": true,
         "priority": 100
       }
@@ -225,6 +277,13 @@ create table desktop_diagnostic_uploads (
 用途：
 
 - 新建策略
+
+服务端校验：
+
+- 拒绝保存自由文本 shell 白名单
+- `execute_shell` 不能保存为 `allow`
+- `elevated_execute` 不能保存 `task` / `session`
+- `official_only=true` 时必须提交发布者身份约束
 
 #### `PUT /admin/security/action-policies/:id`
 
@@ -271,6 +330,10 @@ create table desktop_diagnostic_uploads (
 - 用户授权方式
 - 执行结果
 - 关联日志与上传记录
+- `matchedPolicyRuleId`
+- `approvedPlanHash`
+- `executedPlanHash`
+- `commandSnapshotRedacted`
 
 ### 5.3 Admin 授权撤销接口
 
@@ -294,6 +357,11 @@ create table desktop_diagnostic_uploads (
 
 - 拉取当前 app 生效的动作策略快照
 
+备注：
+
+- 该接口只下发策略快照，不下发“可绕过本地校验”的执行许可
+- 桌面端必须在本地再次做路径规范化、发布者校验、grant scope 裁剪和 plan hash 一致性校验
+
 ### 5.5 审计上报接口
 
 #### `POST /portal/desktop/security/action-audit-events`
@@ -302,6 +370,11 @@ create table desktop_diagnostic_uploads (
 
 - 桌面端批量上报本地审计日志
 
+要求：
+
+- 仅允许上报脱敏后的命令摘要
+- 必须携带 `matchedPolicyRuleId`、`approvedPlanHash`、`executedPlanHash`
+
 ### 5.6 诊断文件元数据接口
 
 #### `POST /portal/desktop/security/diagnostic-uploads`
@@ -309,6 +382,11 @@ create table desktop_diagnostic_uploads (
 用途：
 
 - 记录客户端已上传到 S3 / MinIO 的日志文件元数据
+
+要求：
+
+- 必须携带 bucket、object key、source type、是否包含客户真实日志
+- 下载权限由 control-plane 侧更严格鉴权单独控制
 
 ## 6. 桌面端状态机
 
@@ -324,6 +402,7 @@ create table desktop_diagnostic_uploads (
 - `executing`
 - `completed`
 - `denied`
+- `plan_mismatch_denied`
 - `failed`
 
 ### 6.2 状态转移
@@ -335,6 +414,7 @@ idle
   -> approval_required
       -> denied
       -> approved_pending_execute
+      -> plan_mismatch_denied
   -> executing
       -> completed
       -> failed
@@ -360,7 +440,18 @@ idle
 5. `ActionPolicyBadge`
    - 展示“由策略自动允许”“需人工授权”“已被策略拒绝”
 
-### 6.4 与聊天页关系
+### 6.4 本地强制执行清单
+
+以下逻辑必须由桌面端本地强制执行，不能只依赖 control-plane：
+
+1. realpath / canonical path 规范化
+2. scheme + host + port + pathPrefix + redirectPolicy 的网络目标校验
+3. `official_only` 的发布者身份校验
+4. capability 对应的最大 `grant_scope` 裁剪
+5. `approved_plan_hash` 与 `executed_plan_hash` 一致性检查
+6. 离线时默认更保守的拒绝或显式确认
+
+### 6.5 与聊天页关系
 
 聊天区建议按以下顺序串联：
 
@@ -686,16 +777,16 @@ idle
 
 这份实施稿建议按以下顺序评审：
 
-1. 产品确认授权粒度与默认策略
+1. 产品确认授权粒度与默认策略，但不得突破安全不变量
 2. 设计确认聊天页与 admin-web 的信息层级
-3. 桌面端确认状态机与组件边界
-4. control-plane 确认表结构与接口
-5. 运维确认日志上传、保留期与对象存储前缀
+3. 桌面端确认本地强制执行边界与离线保守策略
+4. control-plane 确认表结构、接口与服务端拒绝保存非法策略
+5. 运维确认日志上传、保留期、对象存储前缀与敏感日志下载权限
 
 ## 12. 下一步建议
 
 如果本稿评审通过，建议直接进入三个并行输出：
 
 1. 后端 SQL migration + domain types
-2. 桌面端授权流 PRD + 低保真交互稿
+2. 桌面端授权流 PRD + 本地强制校验实现清单
 3. admin-web `安全治理` 菜单与页面实现

@@ -127,6 +127,18 @@
 - 指定期限
 - 手动撤销
 
+### 4.6 安全不变量优先于产品配置
+
+以下约束定义为不可违反的安全不变量，不允许通过 admin-web、control-plane 配置或 OEM 定制绕过：
+
+1. 不允许将自由文本原始 shell 命令录入长期白名单。
+2. `execute_shell` 不允许自动静默放行；只有受控模板 shell 动作才允许进入 `allow_with_approval`，且默认仅 `once`。
+3. `elevated_execute` 永远不能静默放行，且不允许缓存为 `task` / `session` grant。
+4. 白名单只允许覆盖模板化动作和低风险受控动作，不允许覆盖 L3 / L4 的自由执行能力。
+5. grant 复用必须绑定结构化资源、访问模式、来源身份、风险等级和批准时的执行计划 hash。
+6. 高风险动作一旦进入用户确认态，批准前后执行计划不可变。
+7. control-plane 只负责下发策略与记录审计，最终强制执行必须在桌面端本地完成；离线时默认更保守，而不是更宽松。
+
 ## 5. 目标架构
 
 整体拆成 6 层：
@@ -166,6 +178,10 @@ type ActionIntent = {
     agentId: string | null;
     skillSlug: string | null;
     workflowId: string | null;
+    publisherId: string | null;
+    packageId: string | null;
+    packageVersion: string | null;
+    packageDigest: string | null;
     toolName: string;
   };
   capability:
@@ -186,9 +202,21 @@ type ActionIntent = {
     kind: 'path' | 'url' | 'port' | 'process' | 'bucket';
     value: string;
     access: 'read' | 'write' | 'execute' | 'connect';
+    normalizedValue?: string;
+  }>;
+  executorType: 'template' | 'shell' | 'browser' | 'filesystem' | 'process' | 'upload';
+  executorTemplateId: string | null;
+  riskClass: 'L1' | 'L2' | 'L3' | 'L4';
+  networkDestinations: Array<{
+    scheme: string;
+    host: string;
+    port: number | null;
+    pathPrefix: string | null;
+    redirectPolicy: 'none' | 'same-origin-only' | 'allowlisted';
   }>;
   commandPreview: string | null;
   rollbackHint: string | null;
+  compiledPlanHash: string;
   metadata: Record<string, unknown>;
 };
 ```
@@ -209,11 +237,21 @@ type PolicyRule = {
     workflowIds?: string[];
   };
   constraints: {
-    pathPrefixes?: string[];
-    domains?: string[];
-    ports?: number[];
+    canonicalPathPrefixes?: string[];
+    networkDestinations?: Array<{
+      scheme: string;
+      host: string;
+      port?: number;
+      pathPrefix?: string;
+      redirectPolicy?: 'none' | 'same-origin-only' | 'allowlisted';
+    }>;
     allowElevation?: boolean;
     allowNetworkEgress?: boolean;
+    requiredAccessModes?: Array<'read' | 'write' | 'execute' | 'connect'>;
+    executorTypes?: string[];
+    executorTemplateIds?: string[];
+    publisherIds?: string[];
+    packageDigests?: string[];
   };
   riskLevel: 'low' | 'medium' | 'high' | 'critical';
   grantScope: 'once' | 'task' | 'session' | 'ttl';
@@ -227,6 +265,7 @@ type PolicyRule = {
 type ApprovalGrant = {
   id: string;
   intentFingerprint: string;
+  approvedPlanHash: string;
   grantedByUserId: string;
   scope: 'once' | 'task' | 'session' | 'ttl';
   expiresAt: string | null;
@@ -251,7 +290,10 @@ type AuditEvent = {
     | 'execution_finished';
   decision: 'allow' | 'deny' | 'pending';
   reason: string;
-  commandSnapshot: string | null;
+  matchedPolicyRuleId: string | null;
+  approvedPlanHash: string | null;
+  executedPlanHash: string | null;
+  commandSnapshotRedacted: string | null;
   resultCode: string | null;
   durationMs: number | null;
   createdAt: string;
@@ -272,6 +314,7 @@ type AuditEvent = {
 
 - 可在规则命中时自动放行
 - 仍保留审计
+- 可进入模板级长期 allow
 
 ### 7.2 L2 中风险
 
@@ -283,6 +326,7 @@ type AuditEvent = {
 
 - 首次授权
 - 支持任务级 / 会话级复用
+- 仅允许模板化动作或受控 capability 进入复用
 
 ### 7.3 L3 高风险
 
@@ -295,6 +339,8 @@ type AuditEvent = {
 
 - 每次显式确认
 - 禁止普通长期静默放行
+- grant scope 只能是 `once`
+- 不允许通过自由 shell 白名单复用
 
 ### 7.4 L4 极高风险
 
@@ -307,6 +353,8 @@ type AuditEvent = {
 
 - 默认拒绝
 - 只有受控官方 workflow 且命中特批策略时才可进入人工确认
+- 不允许缓存 grant
+- 不允许静默自动执行
 
 ## 8. 用户授权交互设计
 
@@ -406,10 +454,18 @@ type AuditEvent = {
 建议使用结构化指纹，而不是命令字符串：
 
 ```text
-capability + normalized resources + source scope + elevation + network egress
+capability
++ normalized resources
++ resource access mode
++ executor type / template id
++ source identity(publisher/package/workflow)
++ risk class
++ elevation
++ network destination set
++ approved plan hash
 ```
 
-这样同一动作即使底层实现命令有微调，也能复用授权。
+这样同一动作即使底层实现命令有微调，也能安全复用授权，同时避免“读”和“写”、“官方旧版本”和“被替换版本”共用同一 grant。
 
 ### 9.4 默认禁止的白名单方向
 
@@ -420,6 +476,7 @@ capability + normalized resources + source scope + elevation + network egress
 - 任意外网上传
 - 任意浏览器打开非企业信任域名
 - 任意执行下载后脚本
+- 任意自由文本 shell / powershell / bash / cmd 命令
 
 ## 10. 执行平面设计
 
@@ -461,6 +518,19 @@ capability + normalized resources + source scope + elevation + network egress
 
 不能把提权动作和普通 shell 动作混到一套默认策略里。
 
+### 10.4 批准前后计划必须一致
+
+用户批准的是“已编译完成的那个动作计划”，不是模糊意图。
+
+因此系统必须满足：
+
+- 用户看到确认卡时，已经生成稳定的 `compiledPlanHash`
+- grant 记录中保存 `approvedPlanHash`
+- 执行开始时重新计算并记录 `executedPlanHash`
+- 若 `approvedPlanHash != executedPlanHash`，必须中止执行并重新申请授权
+
+这条规则用于防止批准前后参数漂移、执行器切换、资源范围扩大等 TOCTOU 问题。
+
 ## 11. 审计与安全中心
 
 ### 11.1 最低审计要求
@@ -481,6 +551,12 @@ capability + normalized resources + source scope + elevation + network egress
 - 执行结果
 - 关联日志 / 产物位置
 
+同时默认遵循最小暴露原则：
+
+- control-plane 默认只保存脱敏后的 `commandSnapshotRedacted`
+- 原始命令和客户本地真实日志不进入普通 admin 查询
+- 下载客户日志必须走更严格鉴权并单独审计
+
 ### 11.2 Admin 侧能力
 
 后续建议在 admin-web 增加：
@@ -500,7 +576,34 @@ capability + normalized resources + source scope + elevation + network egress
 - 一键撤销全部会话授权
 - 是否允许诊断日志上传
 
-## 12. 推荐实现顺序
+## 12. 本地强制执行边界
+
+以下校验必须在桌面端本地强制执行，不能仅依赖 control-plane 返回结果：
+
+1. 路径规范化
+   - 必须基于 realpath / canonical path
+   - 处理 symlink、junction、`..`、大小写、UNC 路径
+
+2. 网络目标规范化
+   - 必须校验 scheme、host、port、path prefix、redirect policy
+   - 不能只按 `allow_network_egress=true` 这种布尔开关放行
+
+3. 发布者身份校验
+   - `official_only` 必须绑定真实发布者身份、package/workflow id、版本或 digest
+
+4. grant scope 上限
+   - 本地按 capability / risk class 再次裁剪允许的最大 grant scope
+   - 即使 control-plane 错配，本地也不能把 L3/L4 放宽成 task/session
+
+5. 计划一致性校验
+   - 比较 `approvedPlanHash` 与 `executedPlanHash`
+   - 不一致直接拒绝执行并要求重新授权
+
+6. 离线退化策略
+   - control-plane 不可达时，不允许扩大权限
+   - 无法验证策略时按更保守路径处理：要求显式授权或直接拒绝
+
+## 13. 推荐实现顺序
 
 ### Phase 1：先把授权链路做正确
 
