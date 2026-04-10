@@ -304,6 +304,12 @@ After Codex finishes the analysis, QA should also submit the bug into the enterp
 
 Field guidance:
 
+- `状态`
+  Default to `待处理（Open）`.
+  For newly created QA bug entries, do not manually switch to `处理中` or later states during initial intake.
+- `优先级`
+  Use the priority conclusion from Section 7.2.
+  Select `P0` / `P1` / `P2` / `P3` according to actual impact rather than subjective wording.
 - `Bug标题`
   Use the final bug title from Section 7.3.
   It must be clear and concise.
@@ -328,9 +334,11 @@ Recommended submission sequence:
 3. review and finalize the title, description, priority, and code analysis
 4. open enterprise WeCom `【bug管理】` multidimensional table
 5. open `Bug录入表单`
-6. fill in `Bug标题`, `复现步骤与描述`, `AI分析`
-7. upload reproduction screenshots to `截图`
-8. submit the form
+6. set `状态` to `待处理（Open）`
+7. select `优先级`
+8. fill in `Bug标题`, `复现步骤与描述`, `AI分析`
+9. upload reproduction screenshots to `截图`
+10. after filling is complete, wait for tester review and do not submit on behalf of QA unless explicitly requested
 
 ## 10. Confidence Guidance
 
@@ -404,7 +412,10 @@ This workflow is working as intended when:
 - the output consistently separates symptom from cause
 - the bug title is directly usable in a tracking system
 - the bug title and description can be directly pasted into the WeCom `Bug录入表单`
+- the default bug `状态` is set to `待处理（Open）`
+- the `优先级` field matches the impact-based priority judgment
 - the screenshot field is filled with QA reproduction evidence
 - the `AI分析` field contains repository-backed analysis instead of generic guesses
+- the filled content is ready for tester review before any final submission action
 - the bug description is formal enough for engineering handoff
 - the analysis references real repository files instead of generic assumptions
