@@ -8,11 +8,20 @@ export type DesktopUpdateUpgradeConfig = {
   channel: 'dev' | 'prod';
 };
 
+export type DesktopRuntimePlatform = 'windows' | 'macos' | 'linux' | 'web';
+
 export type DesktopUpdateUpgradeDeps = {
   isTauriRuntime: boolean;
+  platform: DesktopRuntimePlatform;
   checkDesktopUpdate: (input: DesktopUpdateUpgradeConfig) => Promise<DesktopUpdateCheckResult | null>;
   downloadAndInstallDesktopUpdate: () => Promise<boolean>;
+  downloadAndLaunchDesktopInstaller: (input: {
+    artifactUrl: string;
+    version?: string | null;
+    artifactSha256?: string | null;
+  }) => Promise<boolean>;
   resolveDesktopUpdateArtifactUrl?: (hint: DesktopUpdateHint) => Promise<string | null>;
+  onBeforeInstallerLaunch?: (input: { hint: DesktopUpdateHint; artifactUrl: string }) => Promise<void>;
   openExternal: (url: string) => void;
 };
 
@@ -22,6 +31,11 @@ export type DesktopUpdateUpgradeResult =
       actionState: 'downloading';
       progress: number;
       detail: string;
+    }
+  | {
+      mode: 'installer';
+      actionState: 'opened';
+      statusMessage: string;
     }
   | {
       mode: 'external';
@@ -40,6 +54,28 @@ export async function executeDesktopUpdateUpgrade(input: {
   deps: DesktopUpdateUpgradeDeps;
 }): Promise<DesktopUpdateUpgradeResult> {
   const { hint, config, deps } = input;
+
+  if (deps.isTauriRuntime && deps.platform === 'windows') {
+    const resolveArtifactUrl = deps.resolveDesktopUpdateArtifactUrl || resolveDesktopUpdateArtifactUrl;
+    const artifactUrl = trimString(await resolveArtifactUrl(hint));
+    if (!artifactUrl) {
+      throw new Error('当前更新源未提供安装包地址');
+    }
+    await deps.onBeforeInstallerLaunch?.({ hint, artifactUrl });
+    const started = await deps.downloadAndLaunchDesktopInstaller({
+      artifactUrl,
+      version: hint.latestVersion,
+      artifactSha256: null,
+    });
+    if (!started) {
+      throw new Error('桌面安装器启动失败');
+    }
+    return {
+      mode: 'installer',
+      actionState: 'opened',
+      statusMessage: '已启动安装器，正在完成升级。',
+    };
+  }
 
   if (deps.isTauriRuntime) {
     const updaterCheck = await deps.checkDesktopUpdate(config);

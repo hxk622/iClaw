@@ -44,6 +44,21 @@ export async function downloadAndInstallDesktopUpdate(): Promise<boolean> {
   return invoke<boolean>('download_and_install_desktop_update');
 }
 
+export async function downloadAndLaunchDesktopInstaller(input: {
+  artifactUrl: string;
+  version?: string | null;
+  artifactSha256?: string | null;
+}): Promise<boolean> {
+  if (!isTauriRuntime()) return false;
+  return invoke<boolean>('download_and_launch_desktop_installer', {
+    input: {
+      artifactUrl: input.artifactUrl,
+      version: input.version || null,
+      artifactSha256: input.artifactSha256 || null,
+    },
+  });
+}
+
 export async function restartDesktopApp(): Promise<void> {
   if (!isTauriRuntime()) return;
   await invoke('restart_desktop_app');

@@ -95,11 +95,15 @@ import {
   type ChatSessionPressureSnapshot,
 } from './lib/chat-session';
 import {
+  clearDesktopUpdateSceneSnapshot,
+  formatDesktopUpdateVersion,
   normalizeDesktopUpdateEnforcementState,
   readSkippedDesktopUpdateVersion,
+  readDesktopUpdateSceneSnapshot,
   resolveDesktopUpdateGateState,
   resolveDesktopUpdatePolicyLabel,
   shouldShowDesktopUpdateHint,
+  writeDesktopUpdateSceneSnapshot,
   writeSkippedDesktopUpdateVersion,
 } from './lib/desktop-updates';
 import { openExternalUrl } from './lib/open-external-url';
@@ -117,6 +121,7 @@ import {
 } from './lib/task-notifications';
 import {
   checkDesktopUpdate,
+  downloadAndLaunchDesktopInstaller,
   downloadAndInstallDesktopUpdate,
   listenDesktopUpdateProgress,
   restartDesktopApp,
@@ -279,6 +284,16 @@ const DESKTOP_RELEASE_CHANNEL: 'dev' | 'prod' =
 const DISPLAY_DESKTOP_APP_VERSION = DESKTOP_APP_VERSION.split('+', 1)[0] || DESKTOP_APP_VERSION;
 const DESKTOP_UPDATE_REVALIDATE_TTL_MS = 15 * 60 * 1000;
 const ACTIVE_CHAT_ROUTE_STORAGE_KEY = 'iclaw.desktop.active-chat-route.v1';
+const DESKTOP_RUNTIME_PLATFORM: 'windows' | 'macos' | 'linux' | 'web' =
+  typeof navigator === 'undefined'
+    ? 'web'
+    : /windows/i.test(navigator.userAgent)
+      ? 'windows'
+      : /mac os x|macintosh/i.test(navigator.userAgent)
+        ? 'macos'
+        : /linux/i.test(navigator.userAgent)
+          ? 'linux'
+          : 'web';
 
 type ActiveChatRoute = {
   conversationId: string | null;
@@ -956,6 +971,7 @@ export default function App() {
   const brandRuntimeSyncInFlightRef = useRef(false);
   const desktopUpdateLastCheckedAtRef = useRef(0);
   const desktopUpdateCheckInFlightRef = useRef(false);
+  const desktopUpdateAutoTriggeredVersionRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!currentUser) {
@@ -1068,6 +1084,11 @@ export default function App() {
       if (payload.phase === 'ready-to-restart') {
         setDesktopUpdateActionState('ready-to-restart');
         setDesktopUpdateStatusMessage('新版本已安装，重启应用后生效。');
+        return;
+      }
+      if (payload.phase === 'installer-started') {
+        setDesktopUpdateActionState('opened');
+        setDesktopUpdateStatusMessage('安装器已启动，当前应用即将退出。');
         return;
       }
       setDesktopUpdateActionState('downloading');
@@ -1444,6 +1465,7 @@ export default function App() {
   useEffect(() => {
     if (!desktopUpdateHint) return;
     if (desktopUpdateHint.latestVersion !== skippedDesktopUpdateVersion) {
+      desktopUpdateAutoTriggeredVersionRef.current = null;
       if (desktopUpdateActionState !== 'ready-to-restart') {
         setDesktopUpdateActionState('idle');
       }
@@ -1528,6 +1550,23 @@ export default function App() {
   }, [desktopUpdateGateState, effectiveDesktopUpdateHint]);
 
   useEffect(() => {
+    const snapshot = readDesktopUpdateSceneSnapshot();
+    if (!snapshot) {
+      return;
+    }
+    if (formatDesktopUpdateVersion(DESKTOP_APP_VERSION) !== formatDesktopUpdateVersion(snapshot.targetVersion)) {
+      return;
+    }
+    void clearDesktopUpdateSceneSnapshot()
+      .then(() => {
+        setDesktopUpdateStatusMessage('已恢复到升级前页面。');
+      })
+      .catch((error) => {
+        console.warn('[desktop] failed to clear desktop update scene snapshot', error);
+      });
+  }, []);
+
+  useEffect(() => {
     if (!authBootstrapReady || guestPromptInitialized || (IS_TAURI_RUNTIME && shouldShowStartupGate)) {
       return;
     }
@@ -1604,7 +1643,7 @@ export default function App() {
     }
   };
 
-  const handleUpgradeDesktopApp = async () => {
+  const handleUpgradeDesktopApp = useCallback(async () => {
     if (!effectiveDesktopUpdateHint) return;
     setDesktopUpdateActionState('checking');
     setDesktopUpdateError(null);
@@ -1619,8 +1658,18 @@ export default function App() {
         },
         deps: {
           isTauriRuntime: IS_TAURI_RUNTIME,
+          platform: DESKTOP_RUNTIME_PLATFORM,
           checkDesktopUpdate,
           downloadAndInstallDesktopUpdate,
+          downloadAndLaunchDesktopInstaller,
+          onBeforeInstallerLaunch: async ({ hint, artifactUrl }) => {
+            await writeDesktopUpdateSceneSnapshot({
+              targetVersion: hint.latestVersion,
+              installerUrl: artifactUrl,
+              primaryView,
+              overlayView,
+            });
+          },
           openExternal: (url) => {
             void openExternalUrl(url);
           },
@@ -1637,16 +1686,39 @@ export default function App() {
       setDesktopUpdateActionState(result.actionState);
       setDesktopUpdateStatusMessage(result.statusMessage);
     } catch (error) {
+      desktopUpdateAutoTriggeredVersionRef.current = null;
       setDesktopUpdateActionState('idle');
       setDesktopUpdateError(error instanceof Error ? error.message : '打开更新链接失败');
       setDesktopUpdateStatusMessage(error instanceof Error ? error.message : '打开更新链接失败');
     }
-  };
+  }, [effectiveDesktopUpdateHint, overlayView, primaryView]);
 
   const handleRestartDesktopApp = async () => {
     if (!IS_TAURI_RUNTIME) return;
     await restartDesktopApp();
   };
+
+  useEffect(() => {
+    if (!IS_TAURI_RUNTIME || DESKTOP_RUNTIME_PLATFORM !== 'windows') {
+      return;
+    }
+    if (!effectiveDesktopUpdateHint || desktopUpdateGateState !== 'required_blocked') {
+      return;
+    }
+    if (desktopUpdateActionState !== 'idle') {
+      return;
+    }
+    if (desktopUpdateAutoTriggeredVersionRef.current === effectiveDesktopUpdateHint.latestVersion) {
+      return;
+    }
+    desktopUpdateAutoTriggeredVersionRef.current = effectiveDesktopUpdateHint.latestVersion;
+    void handleUpgradeDesktopApp();
+  }, [
+    desktopUpdateActionState,
+    desktopUpdateGateState,
+    effectiveDesktopUpdateHint,
+    handleUpgradeDesktopApp,
+  ]);
 
   return (
     <SettingsProvider>

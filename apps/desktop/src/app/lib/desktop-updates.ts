@@ -31,6 +31,18 @@ type DesktopUpdateConfig = {
   skippedVersion?: string | null;
 };
 
+type DesktopUpdateSceneSnapshot = {
+  schemaVersion: 1;
+  reason: 'desktop_force_upgrade';
+  targetVersion: string;
+  installerUrl: string | null;
+  primaryView: string | null;
+  overlayView: string | null;
+  createdAt: string;
+};
+
+const DESKTOP_UPDATE_SCENE_SECTION = 'desktop-update-scene';
+
 function trimString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
@@ -71,6 +83,52 @@ export async function writeSkippedDesktopUpdateVersion(version: string | null): 
   await writeDesktopUpdateConfig({
     skippedVersion: trimString(version) || null,
   });
+}
+
+export function readDesktopUpdateSceneSnapshot(): DesktopUpdateSceneSnapshot | null {
+  const stored = readDesktopConfigSection<DesktopUpdateSceneSnapshot>(DESKTOP_UPDATE_SCENE_SECTION);
+  if (!stored || typeof stored !== 'object') {
+    return null;
+  }
+  const targetVersion = trimString(stored.targetVersion);
+  const createdAt = trimString(stored.createdAt);
+  if (!targetVersion || !createdAt) {
+    return null;
+  }
+  return {
+    schemaVersion: 1,
+    reason: 'desktop_force_upgrade',
+    targetVersion,
+    installerUrl: trimString(stored.installerUrl) || null,
+    primaryView: trimString(stored.primaryView) || null,
+    overlayView: trimString(stored.overlayView) || null,
+    createdAt,
+  };
+}
+
+export async function writeDesktopUpdateSceneSnapshot(input: {
+  targetVersion: string;
+  installerUrl?: string | null;
+  primaryView?: string | null;
+  overlayView?: string | null;
+}): Promise<void> {
+  const targetVersion = trimString(input.targetVersion);
+  if (!targetVersion) {
+    return;
+  }
+  await writeDesktopConfigSection(DESKTOP_UPDATE_SCENE_SECTION, {
+    schemaVersion: 1,
+    reason: 'desktop_force_upgrade',
+    targetVersion,
+    installerUrl: trimString(input.installerUrl) || null,
+    primaryView: trimString(input.primaryView) || null,
+    overlayView: trimString(input.overlayView) || null,
+    createdAt: new Date().toISOString(),
+  } satisfies DesktopUpdateSceneSnapshot);
+}
+
+export async function clearDesktopUpdateSceneSnapshot(): Promise<void> {
+  await writeDesktopConfigSection(DESKTOP_UPDATE_SCENE_SECTION, null);
 }
 
 export function normalizeDesktopUpdateEnforcementState(

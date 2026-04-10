@@ -32,6 +32,7 @@ test('executeDesktopUpdateUpgrade prefers native tauri updater when signed updat
     },
     deps: {
       isTauriRuntime: true,
+      platform: 'macos',
       checkDesktopUpdate: async (input) => {
         calls.push(`check:${input.appName}:${input.channel}`);
         return {
@@ -46,6 +47,10 @@ test('executeDesktopUpdateUpgrade prefers native tauri updater when signed updat
       },
       downloadAndInstallDesktopUpdate: async () => {
         calls.push('download');
+        return true;
+      },
+      downloadAndLaunchDesktopInstaller: async () => {
+        calls.push('installer');
         return true;
       },
       resolveDesktopUpdateArtifactUrl: async () => {
@@ -68,6 +73,63 @@ test('executeDesktopUpdateUpgrade prefers native tauri updater when signed updat
   });
 });
 
+test('executeDesktopUpdateUpgrade prefers windows installer flow over native updater', async () => {
+  const openedUrls: string[] = [];
+  const calls: string[] = [];
+
+  const result = await executeDesktopUpdateUpgrade({
+    hint: buildHint({
+      artifactUrl: 'https://downloads.example.com/iclaw-installer.exe',
+      latestVersion: '1.0.4',
+      mandatory: true,
+      enforcementState: 'required_after_run',
+    }),
+    config: {
+      authBaseUrl: 'https://updates.example.com',
+      appName: 'iclaw',
+      channel: 'prod',
+    },
+    deps: {
+      isTauriRuntime: true,
+      platform: 'windows',
+      checkDesktopUpdate: async () => {
+        calls.push('check');
+        return null;
+      },
+      downloadAndInstallDesktopUpdate: async () => {
+        calls.push('native');
+        return true;
+      },
+      downloadAndLaunchDesktopInstaller: async (input) => {
+        calls.push(`installer:${input.artifactUrl}:${input.version}`);
+        return true;
+      },
+      onBeforeInstallerLaunch: async (input) => {
+        calls.push(`prepare:${input.artifactUrl}:${input.hint.latestVersion}`);
+      },
+      resolveDesktopUpdateArtifactUrl: async () => {
+        calls.push('artifact');
+        return 'https://downloads.example.com/iclaw-installer.exe';
+      },
+      openExternal: (url) => {
+        openedUrls.push(url);
+      },
+    },
+  });
+
+  assert.deepEqual(calls, [
+    'artifact',
+    'prepare:https://downloads.example.com/iclaw-installer.exe:1.0.4',
+    'installer:https://downloads.example.com/iclaw-installer.exe:1.0.4',
+  ]);
+  assert.deepEqual(openedUrls, []);
+  assert.deepEqual(result, {
+    mode: 'installer',
+    actionState: 'opened',
+    statusMessage: '已启动安装器，正在完成升级。',
+  });
+});
+
 test('executeDesktopUpdateUpgrade opens runtime-provided external download url when updater falls back to installer', async () => {
   const openedUrls: string[] = [];
 
@@ -80,6 +142,7 @@ test('executeDesktopUpdateUpgrade opens runtime-provided external download url w
     },
     deps: {
       isTauriRuntime: true,
+      platform: 'macos',
       checkDesktopUpdate: async () => ({
         supported: false,
         available: false,
@@ -90,6 +153,7 @@ test('executeDesktopUpdateUpgrade opens runtime-provided external download url w
         external_download_url: 'https://downloads.example.com/iclaw.dmg',
       }),
       downloadAndInstallDesktopUpdate: async () => false,
+      downloadAndLaunchDesktopInstaller: async () => false,
       resolveDesktopUpdateArtifactUrl: async () => {
         throw new Error('should not resolve artifact when runtime already supplied external url');
       },
@@ -120,8 +184,10 @@ test('executeDesktopUpdateUpgrade falls back to manifest artifact resolution out
     },
     deps: {
       isTauriRuntime: false,
+      platform: 'web',
       checkDesktopUpdate: async () => null,
       downloadAndInstallDesktopUpdate: async () => false,
+      downloadAndLaunchDesktopInstaller: async () => false,
       resolveDesktopUpdateArtifactUrl: async () => 'https://downloads.example.com/iclaw-installer.dmg',
       openExternal: (url) => {
         openedUrls.push(url);
@@ -151,8 +217,10 @@ test('executeDesktopUpdateUpgrade throws when no native updater and no fallback 
       },
       deps: {
         isTauriRuntime: false,
+        platform: 'web',
         checkDesktopUpdate: async () => null,
         downloadAndInstallDesktopUpdate: async () => false,
+        downloadAndLaunchDesktopInstaller: async () => false,
         resolveDesktopUpdateArtifactUrl: async () => null,
         openExternal: () => {},
       },

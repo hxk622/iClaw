@@ -670,6 +670,14 @@ struct DesktopUpdateCommandInput {
     channel: Option<String>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopInstallerCommandInput {
+    artifact_url: String,
+    version: Option<String>,
+    artifact_sha256: Option<String>,
+}
+
 #[derive(Serialize)]
 struct RuntimeDiagnosis {
     runtime_found: bool,
@@ -6536,6 +6544,171 @@ fn open_external_url(url: String) -> Result<bool, String> {
     Ok(true)
 }
 
+fn desktop_update_downloads_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app_data_base_dir(app)?.join("desktop-updates").join("downloads");
+    fs::create_dir_all(&dir)
+        .map_err(|e| format!("failed to create desktop update downloads dir: {e}"))?;
+    Ok(dir)
+}
+
+fn sanitize_download_file_name(name: &str, fallback: &str) -> String {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return String::from(fallback);
+    }
+    let sanitized = trimmed
+        .chars()
+        .map(|ch| match ch {
+            '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*' => '_',
+            _ => ch,
+        })
+        .collect::<String>();
+    if sanitized.trim().is_empty() {
+        String::from(fallback)
+    } else {
+        sanitized
+    }
+}
+
+fn resolve_desktop_installer_file_name(url: &str, version: Option<&str>) -> String {
+    let fallback = match version.map(str::trim).filter(|value| !value.is_empty()) {
+        Some(value) => format!("iclaw-desktop-{value}.exe"),
+        None => String::from("iclaw-desktop-update.exe"),
+    };
+    if let Ok(parsed) = Url::parse(url) {
+        if let Some(file_name) = Path::new(parsed.path())
+            .file_name()
+            .and_then(|value| value.to_str())
+        {
+            return sanitize_download_file_name(file_name, &fallback);
+        }
+    }
+    Path::new(url)
+        .file_name()
+        .and_then(|value| value.to_str())
+        .map(|value| sanitize_download_file_name(value, &fallback))
+        .unwrap_or(fallback)
+}
+
+fn launch_downloaded_windows_installer(
+    app: &AppHandle,
+    installer_path: &Path,
+    version: Option<String>,
+) -> Result<bool, String> {
+    #[cfg(not(windows))]
+    {
+        let _ = app;
+        let _ = installer_path;
+        let _ = version;
+        Err(String::from(
+            "desktop installer launch is only supported on windows",
+        ))
+    }
+
+    #[cfg(windows)]
+    {
+        let installer = installer_path
+            .to_str()
+            .ok_or_else(|| String::from("installer path contains invalid utf-8"))?;
+        let parent = installer_path
+            .parent()
+            .and_then(|value| value.to_str())
+            .ok_or_else(|| String::from("installer parent path contains invalid utf-8"))?;
+        let mut command = Command::new("cmd");
+        command.args(["/C", "start", "", "/D", parent, installer]);
+        configure_background_child_process(&mut command);
+        command.stdout(Stdio::null()).stderr(Stdio::null());
+        command
+            .spawn()
+            .map_err(|e| format!("failed to launch desktop installer: {e}"))?;
+        emit_desktop_update_progress(
+            app,
+            "installer-started",
+            100,
+            version,
+            None,
+            None,
+            "安装器已启动，当前应用即将退出。",
+        );
+        let app_handle = app.clone();
+        thread::spawn(move || {
+            thread::sleep(Duration::from_millis(900));
+            app_handle.exit(0);
+        });
+        Ok(true)
+    }
+}
+
+fn download_and_launch_desktop_installer_blocking(
+    app: &AppHandle,
+    input: DesktopInstallerCommandInput,
+) -> Result<bool, String> {
+    let artifact_url = input.artifact_url.trim();
+    if artifact_url.is_empty() {
+        return Err(String::from("desktop installer artifact url is required"));
+    }
+
+    emit_desktop_update_progress(
+        app,
+        "preparing-installer",
+        4,
+        input.version.clone(),
+        Some(0),
+        None,
+        "正在准备下载安装包。",
+    );
+
+    let file_name = resolve_desktop_installer_file_name(artifact_url, input.version.as_deref());
+    let downloads_dir = desktop_update_downloads_dir(app)?;
+    let installer_path = downloads_dir.join(file_name);
+    let partial_path = installer_path.with_extension("download");
+
+    if partial_path.exists() {
+        fs::remove_file(&partial_path)
+            .map_err(|e| format!("failed to clear previous partial installer: {e}"))?;
+    }
+    if installer_path.exists() {
+        fs::remove_file(&installer_path)
+            .map_err(|e| format!("failed to clear previous installer: {e}"))?;
+    }
+
+    download_file_with_optional_sha256(
+        app,
+        artifact_url,
+        &partial_path,
+        input.artifact_sha256.clone(),
+    )
+    .map_err(|error| error.replace("skill archive", "desktop installer"))?;
+
+    fs::rename(&partial_path, &installer_path)
+        .map_err(|e| format!("failed to finalize downloaded installer: {e}"))?;
+
+    emit_desktop_update_progress(
+        app,
+        "launching-installer",
+        92,
+        input.version.clone(),
+        None,
+        None,
+        "安装包下载完成，正在启动安装器。",
+    );
+
+    launch_downloaded_windows_installer(app, &installer_path, input.version)
+}
+
+#[tauri::command]
+async fn download_and_launch_desktop_installer(
+    app: AppHandle,
+    input: DesktopInstallerCommandInput,
+) -> Result<bool, String> {
+    let app_handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        download_and_launch_desktop_installer_blocking(&app_handle, input)
+    })
+    .await
+    .map_err(|e| format!("failed to join desktop installer task: {e}"))?
+}
+
 fn apply_initial_window_layout(app: &AppHandle) {
     let Some(window) = app.get_webview_window("main") else {
         return;
@@ -6645,6 +6818,7 @@ fn main() {
             reindex_memory,
             check_desktop_update,
             download_and_install_desktop_update,
+            download_and_launch_desktop_installer,
             restart_desktop_app,
             open_external_url
         ])
