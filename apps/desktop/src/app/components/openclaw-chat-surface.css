@@ -1821,7 +1821,7 @@ body {
 
 .openclaw-chat-surface .iclaw-chat-approval-card__impact-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -1901,7 +1901,8 @@ body {
 
 .openclaw-chat-surface .iclaw-chat-approval-card__command,
 .openclaw-chat-surface .iclaw-chat-approval-card__path,
-.openclaw-chat-surface .iclaw-chat-approval-card__empty {
+.openclaw-chat-surface .iclaw-chat-approval-card__empty,
+.openclaw-chat-surface .iclaw-chat-approval-card__rollback-note {
   margin: 0;
   padding: 10px 12px;
   border-radius: 12px;
@@ -1919,6 +1920,23 @@ body {
 
 .openclaw-chat-surface .iclaw-chat-approval-card__path + .iclaw-chat-approval-card__path {
   margin-top: 6px;
+}
+
+.openclaw-chat-surface .iclaw-chat-approval-card__rollback-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.08);
+  color: rgb(37, 99, 235);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.openclaw-chat-surface .iclaw-chat-approval-card__rollback-chip[data-iclaw-rollback='no'] {
+  background: rgba(239, 68, 68, 0.1);
+  color: rgb(185, 28, 28);
 }
 
 .openclaw-chat-surface .iclaw-chat-approval-card__actions {
@@ -1960,6 +1978,13 @@ body {
   background: color-mix(in srgb, var(--bg-hover) 88%, transparent);
 }
 
+.openclaw-chat-surface .iclaw-chat-approval-card__action:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  transform: none;
+  box-shadow: none;
+}
+
 .openclaw-chat-surface .iclaw-chat-approval-card__action--secondary {
   background: color-mix(in srgb, var(--bg-elevated) 94%, transparent);
 }
@@ -1996,6 +2021,7 @@ body {
   --_approval-icon-fg: rgb(5, 150, 105);
   --_approval-badge-bg: rgba(16, 185, 129, 0.12);
   --_approval-badge-fg: rgb(5, 150, 105);
+  background: color-mix(in srgb, var(--chat-surface-panel) 92%, rgba(16, 185, 129, 0.08));
 }
 
 .openclaw-chat-surface .iclaw-chat-approval-card[data-iclaw-approval-status='rejected'] {
@@ -2004,6 +2030,7 @@ body {
   --_approval-icon-fg: rgb(100, 116, 139);
   --_approval-badge-bg: rgba(148, 163, 184, 0.14);
   --_approval-badge-fg: rgb(100, 116, 139);
+  background: color-mix(in srgb, var(--chat-surface-panel) 94%, rgba(148, 163, 184, 0.08));
 }
 
 .openclaw-chat-surface .iclaw-chat-approval-card[data-iclaw-approval-status='approved'] .iclaw-chat-approval-card__badge,
@@ -2019,6 +2046,26 @@ body {
 .openclaw-chat-surface .iclaw-chat-approval-card[data-iclaw-approval-status='rejected'] .iclaw-chat-approval-card__badge::before {
   content: '操作已取消';
   font-size: 12px;
+}
+
+@media (max-width: 720px) {
+  .openclaw-chat-surface .iclaw-chat-approval-card__impact-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .openclaw-chat-surface .iclaw-chat-approval-card__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .openclaw-chat-surface .iclaw-chat-approval-card__action-group {
+    justify-content: stretch;
+  }
+
+  .openclaw-chat-surface .iclaw-chat-approval-card__action-group .iclaw-chat-approval-card__action,
+  .openclaw-chat-surface .iclaw-chat-approval-card__actions > .iclaw-chat-approval-card__action {
+    width: 100%;
+  }
 }
 
 .iclaw-chat-inline-reference {
