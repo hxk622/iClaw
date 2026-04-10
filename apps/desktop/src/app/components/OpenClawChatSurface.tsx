@@ -7338,14 +7338,6 @@ export function OpenClawChatSurface({
     const matchingPrompt = payload.prompt.trim();
     const promptToSend = buildSkillScopedPrompt(payload);
     const normalizedPrompt = promptToSend.trim();
-    const shouldAugmentWithMemory = !normalizedPrompt.startsWith('/');
-    const relevantMemoryMatches = shouldAugmentWithMemory
-      ? await loadRelevantMemoryMatches(matchingPrompt || normalizedPrompt)
-      : [];
-    const runtimePrompt =
-      shouldAugmentWithMemory && relevantMemoryMatches.length > 0
-        ? buildMemoryContextPrompt(normalizedPrompt, relevantMemoryMatches)
-        : normalizedPrompt;
     if (normalizedPrompt.startsWith('/') && payload.imageAttachments.length === 0) {
       try {
         app.chatMessage = normalizedPrompt;
@@ -7375,6 +7367,7 @@ export function OpenClawChatSurface({
       failureMessage: null,
     };
 
+    const shouldAugmentWithMemory = !normalizedPrompt.startsWith('/');
     let runId: string | null = null;
     let handoffStarted = false;
 
@@ -7397,6 +7390,15 @@ export function OpenClawChatSurface({
       });
       persistChatSessionSnapshot();
       scrollChatToBottom({force: true});
+      const relevantMemoryMatchesPromise = shouldAugmentWithMemory
+        ? loadRelevantMemoryMatches(matchingPrompt || normalizedPrompt)
+        : Promise.resolve([]);
+      const gatewaySessionPreparedPromise = ensureGatewaySessionPrepared();
+      const relevantMemoryMatches = await relevantMemoryMatchesPromise;
+      const runtimePrompt =
+        shouldAugmentWithMemory && relevantMemoryMatches.length > 0
+          ? buildMemoryContextPrompt(normalizedPrompt, relevantMemoryMatches)
+          : normalizedPrompt;
 
       const runGrant = await Promise.all([
         creditClient.authorizeRun({
@@ -7414,7 +7416,7 @@ export function OpenClawChatSurface({
           model: selectedModelId || undefined,
           appName,
         }),
-        ensureGatewaySessionPrepared(),
+        gatewaySessionPreparedPromise,
       ]).then(([grant]) => grant);
       setCreditBlockNotice(null);
       const baselineTokenSnapshot = await loadGatewaySessionTokenSnapshot(app, runtimeSessionKey).catch(() => null);
