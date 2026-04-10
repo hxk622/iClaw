@@ -8121,13 +8121,7 @@ export function OpenClawChatSurface({
         .filter((group) => !isHiddenChatGroup(group) && isAssistantSideGroup(group));
 
       if (currentTurnGroups.length === 0) {
-        return null;
-      }
-
-      const hasAssistantOutput = currentTurnGroups.some((group) => group.classList.contains('assistant'));
-      const hasInterruptionGroup = currentTurnGroups.some((group) => !group.classList.contains('assistant'));
-      if (!hasAssistantOutput || !hasInterruptionGroup) {
-        return null;
+        return groups[lastUserIndex] ?? null;
       }
 
       return currentTurnGroups[currentTurnGroups.length - 1] ?? null;
