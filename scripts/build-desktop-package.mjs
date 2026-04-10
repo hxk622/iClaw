@@ -34,11 +34,8 @@ const runtimeBootstrapConfigPath = path.join(tauriDir, 'resources', 'config', 'o
 const bundledRuntimeDir = path.join(tauriDir, 'resources', 'openclaw-runtime');
 const openclawResourcesSourceDir = path.join(rootDir, 'services', 'openclaw', 'resources');
 const runtimeArtifactCacheDir = path.join(rootDir, '.artifacts', 'openclaw-runtime');
-const webview2ArtifactCacheDir = path.join(rootDir, '.artifacts', 'webview2-runtime');
 const runtimeInstallReceiptName = '.iclaw-runtime-install.json';
 const nsisAutoRunDefinition = '!define MUI_FINISHPAGE_RUN\n!define MUI_FINISHPAGE_RUN_FUNCTION RunMainBinary\n';
-const nsisWebviewModeDefinition = '!define INSTALLWEBVIEW2MODE "downloadBootstrapper"';
-const nsisWebviewInstallerPathDefinition = '!define WEBVIEW2INSTALLERPATH ""';
 
 function parseArgs(argv) {
   const forwardedArgs = [];
@@ -276,125 +273,13 @@ function findMakensisPath() {
   throw new Error('desktop packaging aborted: NSIS compiler not found (makensis)');
 }
 
-function escapeNsisString(value) {
-  return String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '$\\"');
-}
-
-function runCaptured(command, args, options = {}) {
-  const result = spawnSync(command, args, {
-    cwd: options.cwd ?? rootDir,
-    env: options.env ?? process.env,
-    shell: options.shell ?? false,
-    encoding: 'utf8',
-  });
-  if (result.error) {
-    throw result.error;
-  }
-  if (result.status !== 0) {
-    const stderr = trimString(result.stderr);
-    const stdout = trimString(result.stdout);
-    throw new Error(
-      [
-        `command failed: ${command} ${args.join(' ')}`.trim(),
-        stderr || stdout || `exit ${result.status ?? 'unknown'}`,
-      ].join('\n'),
-    );
-  }
-  return result.stdout || '';
-}
-
-async function findCachedWebview2OfflineInstaller() {
-  if (!(await pathExists(webview2ArtifactCacheDir))) {
-    return null;
-  }
-  const entries = await fs.readdir(webview2ArtifactCacheDir, { withFileTypes: true });
-  const installers = [];
-  for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.exe')) {
-      continue;
-    }
-    const fullPath = path.join(webview2ArtifactCacheDir, entry.name);
-    const stat = await fs.stat(fullPath);
-    installers.push({ fullPath, mtimeMs: stat.mtimeMs });
-  }
-  installers.sort((left, right) => right.mtimeMs - left.mtimeMs);
-  return installers[0]?.fullPath || null;
-}
-
-async function resolveWebview2OfflineInstallerPath() {
-  if (process.platform !== 'win32') {
-    return '';
-  }
-
-  const overridePath = trimString(process.env.ICLAW_WEBVIEW2_OFFLINE_INSTALLER_PATH);
-  if (overridePath) {
-    const absoluteOverride = path.resolve(rootDir, overridePath);
-    if (!(await pathExists(absoluteOverride))) {
-      throw new Error(`desktop packaging aborted: missing ICLAW_WEBVIEW2_OFFLINE_INSTALLER_PATH at ${absoluteOverride}`);
-    }
-    return absoluteOverride;
-  }
-
-  const cachedInstaller = await findCachedWebview2OfflineInstaller();
-  if (cachedInstaller) {
-    process.stdout.write(`[desktop-package] reusing cached WebView2 offline installer: ${cachedInstaller}\n`);
-    return cachedInstaller;
-  }
-
-  const tempDownloadDir = path.join(rootDir, '.tmp-packaging', 'webview2-offline-installer');
-  await fs.rm(tempDownloadDir, { recursive: true, force: true });
-  await fs.mkdir(tempDownloadDir, { recursive: true });
-
-  const wingetOutput = runCaptured(
-    'winget',
-    ['download', 'Microsoft.EdgeWebView2Runtime', '--download-directory', tempDownloadDir],
-    { cwd: rootDir, shell: process.platform === 'win32' },
-  );
-  const downloadedInstaller = (await fs.readdir(tempDownloadDir))
-    .filter((name) => name.toLowerCase().endsWith('.exe'))
-    .map((name) => path.join(tempDownloadDir, name))[0];
-
-  if (!downloadedInstaller || !(await pathExists(downloadedInstaller))) {
-    throw new Error(
-      [
-        'desktop packaging aborted: failed to resolve downloaded WebView2 offline installer from winget.',
-        trimString(wingetOutput) || `Expected an .exe under ${tempDownloadDir}`,
-      ].join('\n'),
-    );
-  }
-
-  await fs.mkdir(webview2ArtifactCacheDir, { recursive: true });
-  const cachedPath = path.join(webview2ArtifactCacheDir, path.basename(downloadedInstaller));
-  await fs.copyFile(downloadedInstaller, cachedPath);
-  process.stdout.write(`[desktop-package] cached WebView2 offline installer: ${cachedPath}\n`);
-  return cachedPath;
-}
-
 async function patchWindowsNsisScript(installerScriptPath) {
   const raw = await fs.readFile(installerScriptPath);
   const source = raw.toString('latin1');
-  const webview2OfflineInstallerPath = await resolveWebview2OfflineInstallerPath();
-
-  let patched = source;
-  let changed = false;
-  if (patched.includes(nsisAutoRunDefinition)) {
-    patched = patched.replace(nsisAutoRunDefinition, '');
-    changed = true;
-  }
-  if (webview2OfflineInstallerPath && patched.includes(nsisWebviewModeDefinition)) {
-    patched = patched.replace(nsisWebviewModeDefinition, '!define INSTALLWEBVIEW2MODE "offlineInstaller"');
-    changed = true;
-  }
-  if (webview2OfflineInstallerPath && patched.includes(nsisWebviewInstallerPathDefinition)) {
-    patched = patched.replace(
-      nsisWebviewInstallerPathDefinition,
-      `!define WEBVIEW2INSTALLERPATH "${escapeNsisString(webview2OfflineInstallerPath)}"`,
-    );
-    changed = true;
-  }
-  if (!changed) {
+  if (!source.includes(nsisAutoRunDefinition)) {
     return false;
   }
+  const patched = source.replace(nsisAutoRunDefinition, '');
   await fs.writeFile(installerScriptPath, Buffer.from(patched, 'latin1'));
   return true;
 }
