@@ -46,6 +46,15 @@
 - [ ] Windows 签名完成
 - [ ] Windows SmartScreen 风险已评估
 
+Windows 补充要求：
+
+- 未做 Windows Authenticode 签名的 `.exe`，默认视为“仅限内部测试包”，不允许当作正式外发包。
+- QA 若看到 “Microsoft Defender SmartScreen 阻止了无法识别的应用启动”，优先判定为“未签名 / 信誉不足”，不要误判为“程序被识别为病毒”。
+- 正式发布前必须至少确认：
+  - 安装包已做 Authenticode 签名
+  - 已附带时间戳
+  - QA 干净 Windows 机器不再出现 SmartScreen 阻断，或已明确记录为仅内部灰测豁免
+
 ## 6. 更新
 
 - [ ] 更新源可访问
@@ -63,6 +72,7 @@
 - Windows 正式发版默认不依赖 native updater。
 - Windows 的发布验收主链路是：版本检查 -> 强更策略 -> installer 下载 -> 拉起安装器 -> 重启恢复现场。
 - 因此 Windows `updater/signature` 缺失，不应单独阻断正式强更发布；但如果本次声明支持 native updater，则仍需额外验收。
+- 但 Windows installer 若未完成 Authenticode 签名，仍应阻断正式对外发布。
 
 ## 7. 发布门槛（必须全部满足）
 
@@ -97,6 +107,7 @@
 - `macOS x64` 当前不属于默认正式发版范围
 - 只有在 `openclaw-runtime-x86_64-apple-darwin` 和 `x64 node` 构建环境都具备后，才允许恢复 `x86_64-apple-darwin` 发版
 - 每次正式发版前，测试结论必须同步沉淀到 `docs/version_record/test_report/`，并在对应发版文档中回填 `test_report`
+- Windows 宿主如需并行构建多个品牌，不允许共享同一轮 `.env` / brand-generated 中间态；应串行打包，或先把打包工作目录彻底隔离
 
 ## 首轮勾检（2026-03-21）
 

@@ -302,6 +302,15 @@ Windows 补充规则：
   - 可自动拉起安装器
   - 升级后可恢复退出前页面
 - `updater/signature` 缺失本身不构成 Windows 正式发布阻断项，除非本次发布明确声明要验证 native updater
+- 但 Windows installer 未做 Authenticode 签名时，`SmartScreen` 拦截应视为正式发布阻断项
+- `SmartScreen` 的“无法识别的应用”默认归类为签名/信誉问题，不归类为“已确认病毒”
+- 若只能以“更多信息 -> 仍要运行”的方式安装，该包只能算内部测试包，不能作为正式对外发布结论
+
+本轮已踩到的发布坑，后续必须避免重复发生：
+
+- Windows 打包脚本若依赖宿主 PowerShell 特性，发版前必须先在当前宿主做一次空跑校验；脚本不能假设所有 Windows 机器都支持同一组参数能力
+- 多品牌 Windows 打包不允许直接并行复用同一工作区的 `.env`、`brand.generated.*`、`tauri.generated.conf.json` 等中间产物，否则容易出现版本号、品牌资源或构建结果串包
+- 补包后必须再次核对最终 `dist/releases` 文件名与版本号，确认对外四段版本和源码基线一致，不能只看中途构建日志
 
 验证结果必须写回发布单，不允许只口头确认。
 
