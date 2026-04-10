@@ -621,6 +621,28 @@ async function collectRuntimeDirsByName(rootDir, directoryNames) {
   return matches;
 }
 
+async function collectRuntimeDirs(rootDir) {
+  const dirs = [];
+  if (!(await pathExists(rootDir))) {
+    return dirs;
+  }
+
+  async function walk(currentDir) {
+    const entries = await fs.readdir(currentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+      const fullPath = path.join(currentDir, entry.name);
+      dirs.push(fullPath);
+      await walk(fullPath);
+    }
+  }
+
+  await walk(rootDir);
+  return dirs;
+}
+
 async function removeRuntimePath(targetPath, stats) {
   if (!(await pathExists(targetPath))) {
     return;
@@ -638,6 +660,65 @@ async function removeRuntimePath(targetPath, stats) {
   stats.filesRemoved += 1;
   stats.bytesRemoved += metadata.size;
   await fs.rm(targetPath, { force: true });
+}
+
+async function directoryContainsRuntimeFiles(targetPath) {
+  const runtimeExtensions = new Set(['.js', '.mjs', '.cjs', '.node', '.dll', '.exe', '.wasm']);
+  const files = await collectRuntimeFiles(targetPath);
+  return files.some((filePath) => {
+    const extension = path.extname(filePath).toLowerCase();
+    if (runtimeExtensions.has(extension)) {
+      return true;
+    }
+    return extension === '' && path.basename(filePath).toLowerCase() !== 'license';
+  });
+}
+
+async function removeSourceOnlyCandidateDirs(rootDir, candidateNames, stats) {
+  const candidates = await collectRuntimeDirs(rootDir);
+  const wanted = new Set(candidateNames.map((name) => name.toLowerCase()));
+  for (const dirPath of candidates) {
+    const dirName = path.basename(dirPath).toLowerCase();
+    if (!wanted.has(dirName)) {
+      continue;
+    }
+    if (await directoryContainsRuntimeFiles(dirPath)) {
+      continue;
+    }
+    await removeRuntimePath(dirPath, stats);
+  }
+}
+
+async function removeTypeOnlyPackageDirs(nodeModulesRoot, stats) {
+  if (!(await pathExists(nodeModulesRoot))) {
+    return;
+  }
+
+  const packageDirs = [];
+  const entries = await fs.readdir(nodeModulesRoot, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const fullPath = path.join(nodeModulesRoot, entry.name);
+    if (entry.name.startsWith('@')) {
+      const scopedEntries = await fs.readdir(fullPath, { withFileTypes: true });
+      for (const scopedEntry of scopedEntries) {
+        if (scopedEntry.isDirectory()) {
+          packageDirs.push(path.join(fullPath, scopedEntry.name));
+        }
+      }
+      continue;
+    }
+    packageDirs.push(fullPath);
+  }
+
+  for (const packageDir of packageDirs) {
+    if (await directoryContainsRuntimeFiles(packageDir)) {
+      continue;
+    }
+    await removeRuntimePath(packageDir, stats);
+  }
 }
 
 function currentWindowsKoffiDir(targetTriple = '') {
@@ -682,7 +763,7 @@ async function pruneBundledRuntime(runtimeDir, targetTriple = '') {
     bytesRemoved: 0,
   };
   const runtimeFiles = await collectRuntimeFiles(runtimeDir);
-  const removableExtensions = new Set(['.map', '.pdb']);
+  const removableExtensions = new Set(['.map', '.pdb', '.md', '.mdx']);
   const removableTypeSuffixes = ['.d.ts', '.d.cts', '.d.mts'];
   const nodeModulesRoot = path.join(runtimeDir, 'openclaw', 'node_modules');
 
@@ -697,11 +778,12 @@ async function pruneBundledRuntime(runtimeDir, targetTriple = '') {
     }
   }
 
-  const removableNodeModuleDirs = ['test', 'tests', '__tests__', '__mocks__', 'docs', 'doc', 'example', 'examples'];
-  const removableDirs = await collectRuntimeDirsByName(nodeModulesRoot, removableNodeModuleDirs);
-  for (const dirPath of removableDirs) {
-    await removeRuntimePath(dirPath, stats);
-  }
+  await removeSourceOnlyCandidateDirs(
+    nodeModulesRoot,
+    ['test', 'tests', '__tests__', '__mocks__', 'docs', 'doc', 'example', 'examples', '.github', 'src', 'types', 'dist-types', 'ts3.4'],
+    stats,
+  );
+  await removeTypeOnlyPackageDirs(nodeModulesRoot, stats);
 
   const maybeRemoveDirChildrenExcept = async (parentDir, keepNames) => {
     if (!(await pathExists(parentDir))) {
