@@ -3149,6 +3149,15 @@ function AuthedView({
               {renderMenuSurface(viewKey)}
             </div>
           ))}
+          {resolvedPrimaryView === 'chat' && !showStartupGate && !authBootstrapReady ? (
+            <div className={buildSurfaceLayerClassName(true)}>
+              <AuthBootstrapPlaceholderView
+                eyebrow="Chat Shell"
+                title="正在恢复聊天会话"
+                description="本地引擎已经就绪，正在恢复 control-plane 登录态并准备聊天界面。"
+              />
+            </div>
+          ) : null}
           {resolvedPrimaryView === 'chat' && showStartupGate ? (
             <div className={buildSurfaceLayerClassName(true)}>
               <ChatBootstrapPlaceholderView />
