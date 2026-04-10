@@ -1312,6 +1312,382 @@ function normalizeToolCards(group: HTMLElement): void {
   group.removeAttribute('hidden');
 }
 
+type ChatApprovalRiskLevel = 'low' | 'medium' | 'high' | 'critical';
+
+type ParsedApprovalActionGroup = {
+  intent: string;
+  command: string | null;
+  riskLevel: ChatApprovalRiskLevel;
+  requiresElevation: boolean;
+  uploadsData: boolean;
+  isReadOnly: boolean;
+  paths: string[];
+  timeoutLabel: string | null;
+  buttons: HTMLButtonElement[];
+};
+
+const CHAT_APPROVAL_POSITIVE_LABEL_PATTERNS = [
+  /(allow|允许|批准|同意|继续执行|继续|执行)/i,
+  /(session|会话|task|任务|once|一次)/i,
+];
+
+const CHAT_APPROVAL_NEGATIVE_LABEL_PATTERN = /(reject|拒绝|取消|deny|不允许|停止)/i;
+
+function normalizeApprovalActionButtonLabel(value: string): string {
+  return value.replace(/^\s*\d+\s*[.)、：:-]?\s*/, '').replace(/\s+/g, ' ').trim();
+}
+
+function collectApprovalActionButtons(group: HTMLElement): HTMLButtonElement[] {
+  return Array.from(group.querySelectorAll<HTMLButtonElement>('.chat-group-messages button')).filter((button) => {
+    if (!(button instanceof HTMLButtonElement)) {
+      return false;
+    }
+    if (button.closest('.iclaw-chat-approval-card, .iclaw-chat-assistant-footer')) {
+      return false;
+    }
+    const label = normalizeApprovalActionButtonLabel(button.textContent ?? '');
+    if (!label) {
+      return false;
+    }
+    return (
+      CHAT_APPROVAL_NEGATIVE_LABEL_PATTERN.test(label) ||
+      CHAT_APPROVAL_POSITIVE_LABEL_PATTERNS.some((pattern) => pattern.test(label))
+    );
+  });
+}
+
+function extractApprovalCommandText(group: HTMLElement): string | null {
+  const preformattedNodes = Array.from(group.querySelectorAll('pre, code')).filter(
+    (node): node is HTMLElement =>
+      node instanceof HTMLElement && node.closest('.iclaw-chat-approval-card') === null,
+  );
+  for (const node of preformattedNodes) {
+    const text = node.textContent?.trim() ?? '';
+    if (text) {
+      return text;
+    }
+  }
+
+  const fullText = extractChatGroupText(group);
+  const commandLine = fullText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) =>
+      /^(sudo|rm\b|cat\b|ls\b|cp\b|mv\b|chmod\b|chown\b|tee\b|curl\b|wget\b|pnpm\b|npm\b|yarn\b|python\b|node\b|bash\b|sh\b|git\b|systemctl\b|launchctl\b|powershell\b|pwsh\b|cmd\b|reg\b|sc\b)/i.test(
+        line,
+      ),
+    );
+  return commandLine || null;
+}
+
+function extractApprovalPaths(text: string): string[] {
+  const matches = text.match(/(?:[A-Za-z]:\\[^\s"'`<>|]+|(?:~|\/)[^\s"'`<>|]+)/g) ?? [];
+  const unique = new Set<string>();
+  matches.forEach((match) => {
+    const normalized = match.replace(/[),.;:]+$/, '').trim();
+    if (normalized) {
+      unique.add(normalized);
+    }
+  });
+  return Array.from(unique).slice(0, 6);
+}
+
+function inferApprovalRiskLevel(text: string, options: { requiresElevation: boolean; uploadsData: boolean }): ChatApprovalRiskLevel {
+  const normalized = text.toLowerCase();
+  if (
+    /(rm\s+-rf|iptables|sudoers|reg\s+add|reg\s+delete|format\b|diskpart|bcdedit|shutdown\b|reboot\b|launchctl\s+bootout|systemctl\s+(?:stop|disable|mask|restart))/i.test(
+      normalized,
+    )
+  ) {
+    return 'critical';
+  }
+  if (
+    options.uploadsData ||
+    /(curl\b|wget\b|scp\b|s3\b|minio\b|upload|上传|远端|云端|external network|公网)/i.test(normalized)
+  ) {
+    return options.requiresElevation ? 'critical' : 'high';
+  }
+  if (
+    options.requiresElevation ||
+    /(sudo\b|管理员权限|elevated|提权|写入|delete|删除|修改|变更|install|安装|restart|重启)/i.test(normalized)
+  ) {
+    return 'high';
+  }
+  if (/(write|写入|create|创建|move|移动|copy|复制|rename|重命名)/i.test(normalized)) {
+    return 'medium';
+  }
+  return 'low';
+}
+
+function resolveApprovalFallbackIntent(parsed: {
+  requiresElevation: boolean;
+  uploadsData: boolean;
+  isReadOnly: boolean;
+}): string {
+  if (parsed.requiresElevation && parsed.uploadsData) {
+    return '需要管理员权限并可能上传本地诊断信息，继续前需要你的授权。';
+  }
+  if (parsed.requiresElevation) {
+    return '需要管理员权限来执行本地命令，继续前需要你的授权。';
+  }
+  if (parsed.uploadsData) {
+    return '需要上传本地数据到远端服务，继续前需要你的授权。';
+  }
+  if (parsed.isReadOnly) {
+    return '需要读取本地环境信息来继续处理当前任务。';
+  }
+  return '需要执行本地动作来继续处理当前任务。';
+}
+
+function parseApprovalActionGroup(group: HTMLElement): ParsedApprovalActionGroup | null {
+  const buttons = collectApprovalActionButtons(group);
+  if (buttons.length < 2) {
+    return null;
+  }
+
+  const fullText = extractChatGroupText(group);
+  const normalized = fullText.replace(/\s+/g, ' ').trim();
+  if (
+    !/(授权|允许执行|allow|approve|批准|是否允许|执行这个命令|执行命令|管理员权限|elevated|sudo)/i.test(normalized)
+  ) {
+    return null;
+  }
+
+  const command = extractApprovalCommandText(group);
+  const paths = extractApprovalPaths(`${normalized}\n${command ?? ''}`);
+  const requiresElevation =
+    /(管理员权限|elevated|sudo|uac|root permission)/i.test(normalized) || /(^|\s)sudo(\s|$)/i.test(command ?? '');
+  const uploadsData =
+    /(上传|远端|云端|upload|s3|minio|curl\b|wget\b|scp\b|https?:\/\/)/i.test(normalized) ||
+    /(curl\b|wget\b|scp\b|https?:\/\/)/i.test(command ?? '');
+  const isReadOnly =
+    !requiresElevation &&
+    !uploadsData &&
+    !/(写入|删除|修改|install|restart|tee\b|rm\b|mv\b|chmod\b|chown\b|touch\b|echo\s+.+>|cp\b)/i.test(
+      `${normalized}\n${command ?? ''}`,
+    );
+
+  const intentCandidates = normalized
+    .split(/(?<=[。！？!?])\s+|\n+/)
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .filter((segment) => segment !== command)
+    .filter((segment) => !/^(\d+\s*[.)、：:-]?\s*)?(允许|本任务允许|本会话允许|拒绝|allow|reject|deny)/i.test(segment))
+    .filter((segment) => !/^\d+\s*秒后自动取消/.test(segment));
+
+  const intent =
+    intentCandidates.find((segment) => segment.length >= 8 && !/^(sudo|rm\b|cat\b|ls\b|curl\b|pnpm\b|npm\b|python\b)/i.test(segment)) ||
+    resolveApprovalFallbackIntent({ requiresElevation, uploadsData, isReadOnly });
+
+  const timeoutMatch = normalized.match(/(\d+\s*秒后自动取消)/);
+
+  return {
+    intent,
+    command,
+    riskLevel: inferApprovalRiskLevel(`${normalized}\n${command ?? ''}`, { requiresElevation, uploadsData }),
+    requiresElevation,
+    uploadsData,
+    isReadOnly,
+    paths,
+    timeoutLabel: timeoutMatch?.[1] ?? null,
+    buttons,
+  };
+}
+
+function clearApprovalActionCard(group: HTMLElement): void {
+  group.querySelectorAll<HTMLElement>('[data-iclaw-approval-card="true"]').forEach((node) => node.remove());
+  group.querySelectorAll<HTMLElement>('[data-iclaw-approval-hidden="true"]').forEach((node) => {
+    node.removeAttribute('hidden');
+    delete node.dataset.iclawApprovalHidden;
+  });
+}
+
+function normalizeApprovalActionCard(group: HTMLElement): void {
+  clearApprovalActionCard(group);
+
+  const parsed = parseApprovalActionGroup(group);
+  if (!parsed) {
+    return;
+  }
+
+  const messages = group.querySelector('.chat-group-messages') as HTMLElement | null;
+  if (!messages) {
+    return;
+  }
+
+  Array.from(messages.children).forEach((child) => {
+    if (!(child instanceof HTMLElement)) {
+      return;
+    }
+    if (child.classList.contains('iclaw-chat-assistant-footer')) {
+      return;
+    }
+    child.dataset.iclawApprovalHidden = 'true';
+    child.setAttribute('hidden', 'true');
+  });
+
+  const footer = messages.querySelector(':scope > .iclaw-chat-assistant-footer');
+  const card = document.createElement('section');
+  card.className = 'iclaw-chat-approval-card';
+  card.dataset.iclawApprovalCard = 'true';
+  card.dataset.iclawRiskLevel = parsed.riskLevel;
+  card.dataset.iclawApprovalStatus = 'pending';
+
+  const commandMarkup = parsed.command
+    ? `<pre class="iclaw-chat-approval-card__command"></pre>`
+    : '<div class="iclaw-chat-approval-card__empty">当前未返回可展示的命令明细</div>';
+
+  const pathMarkup =
+    parsed.paths.length > 0
+      ? `<div class="iclaw-chat-approval-card__paths"></div>`
+      : '';
+
+  const timeoutMarkup = parsed.timeoutLabel
+    ? `<span class="iclaw-chat-approval-card__timeout">${parsed.timeoutLabel}</span>`
+    : '';
+
+  card.innerHTML = `
+    <div class="iclaw-chat-approval-card__header">
+      <div class="iclaw-chat-approval-card__icon" aria-hidden="true"></div>
+      <div class="iclaw-chat-approval-card__headline">
+        <div class="iclaw-chat-approval-card__title-row">
+          <h3 class="iclaw-chat-approval-card__title">需要你的授权</h3>
+          <span class="iclaw-chat-approval-card__badge"></span>
+        </div>
+        <p class="iclaw-chat-approval-card__intent"></p>
+      </div>
+    </div>
+    <div class="iclaw-chat-approval-card__impact">
+      <div class="iclaw-chat-approval-card__impact-grid">
+        <div class="iclaw-chat-approval-card__impact-item">
+          <span class="iclaw-chat-approval-card__impact-label">资源范围</span>
+          <strong class="iclaw-chat-approval-card__impact-value">${parsed.paths.length > 0 ? `${parsed.paths.length} 个路径` : '当前动作'}</strong>
+        </div>
+        <div class="iclaw-chat-approval-card__impact-item">
+          <span class="iclaw-chat-approval-card__impact-label">权限需求</span>
+          <strong class="iclaw-chat-approval-card__impact-value">${parsed.requiresElevation ? '需要管理员权限' : parsed.isReadOnly ? '仅读取，不修改' : '普通权限'}</strong>
+        </div>
+        <div class="iclaw-chat-approval-card__impact-item">
+          <span class="iclaw-chat-approval-card__impact-label">网络传输</span>
+          <strong class="iclaw-chat-approval-card__impact-value">${parsed.uploadsData ? '上传到远端' : '不会上传远端'}</strong>
+        </div>
+      </div>
+    </div>
+    <button type="button" class="iclaw-chat-approval-card__toggle" aria-expanded="false">
+      查看技术细节
+    </button>
+    <div class="iclaw-chat-approval-card__details" hidden>
+      <div class="iclaw-chat-approval-card__details-inner">
+        <div class="iclaw-chat-approval-card__detail-group">
+          <div class="iclaw-chat-approval-card__detail-title-row">
+            <span class="iclaw-chat-approval-card__detail-title">执行命令</span>
+            ${timeoutMarkup}
+          </div>
+          ${commandMarkup}
+        </div>
+        ${pathMarkup}
+      </div>
+    </div>
+    <div class="iclaw-chat-approval-card__actions">
+      <button type="button" class="iclaw-chat-approval-card__reject">拒绝</button>
+      <div class="iclaw-chat-approval-card__action-group"></div>
+    </div>
+    <div class="iclaw-chat-approval-card__footer" hidden></div>
+  `;
+
+  const intentNode = card.querySelector('.iclaw-chat-approval-card__intent') as HTMLParagraphElement | null;
+  if (intentNode) {
+    intentNode.textContent = parsed.intent;
+  }
+  const badgeNode = card.querySelector('.iclaw-chat-approval-card__badge') as HTMLSpanElement | null;
+  if (badgeNode) {
+    const labels: Record<ChatApprovalRiskLevel, string> = {
+      low: '低风险',
+      medium: '中风险',
+      high: '高风险',
+      critical: '极高风险',
+    };
+    badgeNode.textContent = labels[parsed.riskLevel];
+  }
+
+  const commandNode = card.querySelector('.iclaw-chat-approval-card__command') as HTMLPreElement | null;
+  if (commandNode && parsed.command) {
+    commandNode.textContent = parsed.command;
+  }
+
+  const pathsNode = card.querySelector('.iclaw-chat-approval-card__paths') as HTMLDivElement | null;
+  if (pathsNode) {
+    const title = document.createElement('div');
+    title.className = 'iclaw-chat-approval-card__detail-title';
+    title.textContent = '涉及路径';
+    pathsNode.append(title);
+    parsed.paths.forEach((path) => {
+      const item = document.createElement('div');
+      item.className = 'iclaw-chat-approval-card__path';
+      item.textContent = path;
+      pathsNode.append(item);
+    });
+  }
+
+  const details = card.querySelector('.iclaw-chat-approval-card__details') as HTMLDivElement | null;
+  const toggle = card.querySelector('.iclaw-chat-approval-card__toggle') as HTMLButtonElement | null;
+  toggle?.addEventListener('click', () => {
+    const expanded = toggle.getAttribute('aria-expanded') === 'true';
+    toggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+    toggle.textContent = expanded ? '查看技术细节' : '收起技术细节';
+    if (details) {
+      if (expanded) {
+        details.setAttribute('hidden', 'true');
+      } else {
+        details.removeAttribute('hidden');
+      }
+    }
+  });
+
+  const actionGroup = card.querySelector('.iclaw-chat-approval-card__action-group') as HTMLDivElement | null;
+  const rejectButton = card.querySelector('.iclaw-chat-approval-card__reject') as HTMLButtonElement | null;
+  const footerNode = card.querySelector('.iclaw-chat-approval-card__footer') as HTMLDivElement | null;
+
+  parsed.buttons.forEach((originalButton) => {
+    const label = normalizeApprovalActionButtonLabel(originalButton.textContent ?? '');
+    const proxy = document.createElement('button');
+    proxy.type = 'button';
+    proxy.textContent = label;
+    proxy.className = 'iclaw-chat-approval-card__action';
+
+    if (CHAT_APPROVAL_NEGATIVE_LABEL_PATTERN.test(label)) {
+      proxy.classList.add('iclaw-chat-approval-card__action--reject');
+      rejectButton?.replaceWith(proxy);
+    } else if (/session|会话/i.test(label)) {
+      proxy.classList.add('iclaw-chat-approval-card__action--primary');
+      actionGroup?.append(proxy);
+    } else {
+      proxy.classList.add('iclaw-chat-approval-card__action--secondary');
+      actionGroup?.append(proxy);
+    }
+
+    proxy.addEventListener('click', () => {
+      const isReject = CHAT_APPROVAL_NEGATIVE_LABEL_PATTERN.test(label);
+      card.dataset.iclawApprovalStatus = isReject ? 'rejected' : 'approved';
+      if (footerNode) {
+        footerNode.hidden = false;
+        footerNode.textContent = isReject ? '此操作已被拒绝，AI 将尝试寻找其他方案。' : '授权已提交，正在继续执行。';
+      }
+      originalButton.click();
+    });
+  });
+
+  if (!card.querySelector('.iclaw-chat-approval-card__action--reject')) {
+    rejectButton?.remove();
+  }
+
+  if (footer instanceof HTMLElement) {
+    messages.insertBefore(card, footer);
+  } else {
+    messages.append(card);
+  }
+}
+
 function createReferenceChip(text: string): HTMLSpanElement {
   const chip = document.createElement('span');
   chip.className = 'iclaw-chat-inline-reference';
@@ -8371,6 +8747,7 @@ export function OpenClawChatSurface({
       groups.forEach((group) => {
         normalizeUserGroupClass(group);
         normalizeToolCards(group);
+        normalizeApprovalActionCard(group);
         normalizeToolCollapseDefaults(group);
       });
 
