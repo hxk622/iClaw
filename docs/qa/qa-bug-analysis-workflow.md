@@ -212,7 +212,7 @@ Follow with one concise reason.
 
 ### 7.3 Bug Title
 
-One line suitable for Jira / Tapd / ZenTao / enterprise WeCom bug intake forms.
+One line suitable for Jira / Tapd / ZenTao.
 
 Requirements:
 
@@ -295,52 +295,7 @@ Code Analysis
 3. ...
 ```
 
-## 9. WeCom Bug Submission Workflow
-
-After Codex finishes the analysis, QA should also submit the bug into the enterprise WeCom multidimensional table:
-
-- table: `【bug管理】`
-- form: `Bug录入表单`
-
-Field guidance:
-
-- `状态`
-  Default to `待处理（Open）`.
-  For newly created QA bug entries, do not manually switch to `处理中` or later states during initial intake.
-- `优先级`
-  Use the priority conclusion from Section 7.2.
-  Select `P0` / `P1` / `P2` / `P3` according to actual impact rather than subjective wording.
-- `Bug标题`
-  Use the final bug title from Section 7.3.
-  It must be clear and concise.
-  Use `【】` to highlight the key module, scene, or symptom when helpful.
-- `复现步骤与描述`
-  Use the final bug description from Section 7.4.
-  Keep the structure clear and the wording precise.
-  Keep it neither too short nor too long.
-  Recommended order: reproduction steps, actual result, expected result, impact.
-- `截图`
-  Upload the screenshots captured during QA reproduction.
-  Prefer screenshots that directly show the visible symptom, blocked state, error state, or wrong rendering result.
-- `AI分析`
-  Fill this with the code-based analysis produced by Codex.
-  The content should come from repository analysis rather than screenshot description alone.
-  Prefer concise analysis that points to likely modules, code paths, state conditions, and leading cause class.
-
-Recommended submission sequence:
-
-1. reproduce the issue and collect screenshots
-2. ask Codex to analyze the bug against `C:\hexun\code\iClaw`
-3. review and finalize the title, description, priority, and code analysis
-4. open enterprise WeCom `【bug管理】` multidimensional table
-5. open `Bug录入表单`
-6. set `状态` to `待处理（Open）`
-7. select `优先级`
-8. fill in `Bug标题`, `复现步骤与描述`, `AI分析`
-9. upload reproduction screenshots to `截图`
-10. after filling is complete, wait for tester review and do not submit on behalf of QA unless explicitly requested
-
-## 10. Confidence Guidance
+## 9. Confidence Guidance
 
 If the root cause is strongly supported by code, say it directly.
 
@@ -352,7 +307,7 @@ If the root cause is only partially supported, use wording such as:
 
 Do not present speculation as confirmed fact.
 
-## 11. Screenshot Handling Guidance
+## 10. Screenshot Handling Guidance
 
 When analyzing screenshots, Codex should pay attention to:
 
@@ -364,9 +319,7 @@ When analyzing screenshots, Codex should pay attention to:
 
 If multiple screenshots are provided, compare them in chronological order if possible.
 
-When the bug is later submitted to the WeCom `Bug录入表单`, those same screenshots should be attached in the `截图` field.
-
-## 12. Project-Specific Guidance for iClaw
+## 11. Project-Specific Guidance for iClaw
 
 For this repository, prioritize these locations when the symptom appears in desktop chat or startup flows:
 
@@ -383,7 +336,7 @@ Follow repository guardrails:
 - first inspect wrapper / integration layers around OpenClaw
 - distinguish frontend origin `1520`, control-plane backend `2130`, and local runtime `2126`
 
-## 13. Example Trigger
+## 12. Example Trigger
 
 Example QA request:
 
@@ -404,18 +357,12 @@ Expected response shape:
 - provide one final bug description
 - explain the most relevant code path
 
-## 14. Acceptance Standard
+## 13. Acceptance Standard
 
 This workflow is working as intended when:
 
 - two similar bugs receive similar priority judgments
 - the output consistently separates symptom from cause
 - the bug title is directly usable in a tracking system
-- the bug title and description can be directly pasted into the WeCom `Bug录入表单`
-- the default bug `状态` is set to `待处理（Open）`
-- the `优先级` field matches the impact-based priority judgment
-- the screenshot field is filled with QA reproduction evidence
-- the `AI分析` field contains repository-backed analysis instead of generic guesses
-- the filled content is ready for tester review before any final submission action
 - the bug description is formal enough for engineering handoff
 - the analysis references real repository files instead of generic assumptions
