@@ -44,14 +44,18 @@ import type {
   CreateDesktopActionApprovalGrantInput,
   CreateDesktopActionAuditEventInput,
   CreateDesktopDiagnosticUploadInput,
+  DesktopActionAccessMode,
   DesktopActionApprovalGrantRecord,
   DesktopActionAuditDecision,
   DesktopActionAuditEventRecord,
   DesktopActionAuditStage,
+  DesktopActionExecutorType,
   DesktopActionGrantScope,
+  DesktopActionNetworkDestination,
   DesktopActionPolicyEffect,
   DesktopActionPolicyRuleRecord,
   DesktopActionPolicyScope,
+  DesktopActionRiskClass,
   DesktopActionRiskLevel,
   DesktopDiagnosticUploadRecord,
   DesktopDiagnosticUploadSourceType,
@@ -157,6 +161,16 @@ const DESKTOP_ACTION_POLICY_SCOPES = new Set<DesktopActionPolicyScope>(['platfor
 const DESKTOP_ACTION_POLICY_EFFECTS = new Set<DesktopActionPolicyEffect>(['allow', 'allow_with_approval', 'deny']);
 const DESKTOP_ACTION_RISK_LEVELS = new Set<DesktopActionRiskLevel>(['low', 'medium', 'high', 'critical']);
 const DESKTOP_ACTION_GRANT_SCOPES = new Set<DesktopActionGrantScope>(['once', 'task', 'session', 'ttl']);
+const DESKTOP_ACTION_ACCESS_MODES = new Set<DesktopActionAccessMode>(['read', 'write', 'execute', 'connect']);
+const DESKTOP_ACTION_EXECUTOR_TYPES = new Set<DesktopActionExecutorType>([
+  'template',
+  'shell',
+  'browser',
+  'filesystem',
+  'process',
+  'upload',
+]);
+const DESKTOP_ACTION_RISK_CLASSES = new Set<DesktopActionRiskClass>(['L1', 'L2', 'L3', 'L4']);
 const DESKTOP_ACTION_AUDIT_DECISIONS = new Set<DesktopActionAuditDecision>(['allow', 'deny', 'pending']);
 const DESKTOP_ACTION_AUDIT_STAGES = new Set<DesktopActionAuditStage>([
   'intent_created',
@@ -164,6 +178,7 @@ const DESKTOP_ACTION_AUDIT_STAGES = new Set<DesktopActionAuditStage>([
   'approval_requested',
   'approval_granted',
   'approval_denied',
+  'plan_mismatch_denied',
   'execution_started',
   'execution_finished',
 ]);
@@ -172,6 +187,7 @@ const DESKTOP_DIAGNOSTIC_UPLOAD_SOURCE_TYPES = new Set<DesktopDiagnosticUploadSo
   'auto_error_capture',
   'approval_flow',
 ]);
+const DESKTOP_DIAGNOSTIC_SENSITIVITY_LEVELS = new Set(['customer', 'internal', 'redacted']);
 
 function resolvePublicApiBaseUrl(): string {
   if (config.apiUrl.trim()) {
@@ -494,14 +510,19 @@ function toAdminDesktopActionPolicyRuleView(record: DesktopActionPolicyRuleRecor
     capability: record.capability,
     risk_level: record.riskLevel,
     official_only: record.officialOnly,
+    publisher_ids: record.publisherIds,
+    package_digests: record.packageDigests,
     skill_slugs: record.skillSlugs,
     workflow_ids: record.workflowIds,
-    path_prefixes: record.pathPrefixes,
-    domains: record.domains,
-    ports: record.ports,
+    executor_types: record.executorTypes,
+    executor_template_ids: record.executorTemplateIds,
+    canonical_path_prefixes: record.canonicalPathPrefixes,
+    network_destinations: record.networkDestinations,
+    access_modes: record.accessModes,
     allow_elevation: record.allowElevation,
     allow_network_egress: record.allowNetworkEgress,
     grant_scope: record.grantScope,
+    max_grant_scope: record.maxGrantScope,
     ttl_seconds: record.ttlSeconds,
     enabled: record.enabled,
     priority: record.priority,
@@ -519,7 +540,16 @@ function toAdminDesktopActionApprovalGrantView(
     device_id: record.deviceId,
     app_name: record.appName,
     intent_fingerprint: record.intentFingerprint,
+    approved_plan_hash: record.approvedPlanHash,
     capability: record.capability,
+    risk_level: record.riskLevel,
+    access_modes: record.accessModes,
+    normalized_resources: record.normalizedResources,
+    network_destinations: record.networkDestinations,
+    executor_type: record.executorType,
+    executor_template_id: record.executorTemplateId,
+    publisher_id: record.publisherId,
+    package_digest: record.packageDigest,
     scope: record.scope,
     task_id: record.taskId,
     session_key: record.sessionKey,
@@ -548,7 +578,10 @@ function toAdminDesktopActionAuditEventView(record: DesktopActionAuditEventRecor
     summary: record.summary,
     reason: record.reason,
     resources: record.resources,
-    command_snapshot: record.commandSnapshot,
+    matched_policy_rule_id: record.matchedPolicyRuleId,
+    approved_plan_hash: record.approvedPlanHash,
+    executed_plan_hash: record.executedPlanHash,
+    command_snapshot_redacted: record.commandSnapshotRedacted,
     result_code: record.resultCode,
     result_summary: record.resultSummary,
     duration_ms: record.durationMs,
@@ -568,6 +601,8 @@ function toAdminDesktopDiagnosticUploadView(record: DesktopDiagnosticUploadRecor
     file_size_bytes: record.fileSizeBytes,
     sha256: record.sha256,
     source_type: record.sourceType,
+    contains_customer_logs: record.containsCustomerLogs,
+    sensitivity_level: record.sensitivityLevel,
     linked_intent_id: record.linkedIntentId,
     created_at: record.createdAt,
   };
@@ -1086,6 +1121,187 @@ function normalizeIntegerArray(value: unknown, field: string, fallback: number[]
     deduped.add(normalized);
   }
   return Array.from(deduped);
+}
+
+function normalizeDesktopActionAccessModeArray(
+  value: unknown,
+  field: string,
+  fallback: DesktopActionAccessMode[] = [],
+): DesktopActionAccessMode[] {
+  if (value === undefined) {
+    return [...fallback];
+  }
+  if (!Array.isArray(value)) {
+    throw new HttpError(400, 'BAD_REQUEST', `${field} must be an array of access modes`);
+  }
+  const deduped = new Set<DesktopActionAccessMode>();
+  for (const item of value) {
+    const normalized = typeof item === 'string' ? item.trim().toLowerCase() : '';
+    if (!DESKTOP_ACTION_ACCESS_MODES.has(normalized as DesktopActionAccessMode)) {
+      throw new HttpError(400, 'BAD_REQUEST', `${field} contains invalid access mode`);
+    }
+    deduped.add(normalized as DesktopActionAccessMode);
+  }
+  return Array.from(deduped);
+}
+
+function normalizeDesktopActionExecutorType(
+  value: unknown,
+  field: string,
+  fallback?: DesktopActionExecutorType,
+): DesktopActionExecutorType {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  const resolved = (normalized || fallback || '') as DesktopActionExecutorType;
+  if (!DESKTOP_ACTION_EXECUTOR_TYPES.has(resolved)) {
+    throw new HttpError(400, 'BAD_REQUEST', `${field} is invalid`);
+  }
+  return resolved;
+}
+
+function normalizeDesktopActionExecutorTypeArray(
+  value: unknown,
+  field: string,
+  fallback: DesktopActionExecutorType[] = [],
+): DesktopActionExecutorType[] {
+  if (value === undefined) {
+    return [...fallback];
+  }
+  if (!Array.isArray(value)) {
+    throw new HttpError(400, 'BAD_REQUEST', `${field} must be an array of executor types`);
+  }
+  const deduped = new Set<DesktopActionExecutorType>();
+  for (const item of value) {
+    deduped.add(normalizeDesktopActionExecutorType(item, field));
+  }
+  return Array.from(deduped);
+}
+
+function normalizeDesktopActionNetworkDestinations(
+  value: unknown,
+  field: string,
+  fallback: DesktopActionNetworkDestination[] = [],
+): DesktopActionNetworkDestination[] {
+  if (value === undefined) {
+    return fallback.map((item) => ({...item}));
+  }
+  if (!Array.isArray(value)) {
+    throw new HttpError(400, 'BAD_REQUEST', `${field} must be an array`);
+  }
+  const deduped = new Map<string, DesktopActionNetworkDestination>();
+  for (const item of value) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      throw new HttpError(400, 'BAD_REQUEST', `${field} must contain objects`);
+    }
+    const record = item as Record<string, unknown>;
+    const scheme = normalizeOptionalCatalogString(record.scheme, `${field}.scheme`)?.toLowerCase() || '';
+    const host = normalizeOptionalCatalogString(record.host, `${field}.host`)?.toLowerCase() || '';
+    const pathPrefixValue = normalizeOptionalCatalogString(
+      record.pathPrefix ?? record.path_prefix,
+      `${field}.pathPrefix`,
+      {
+        allowNull: true,
+        trimToNull: true,
+      },
+    );
+    const pathPrefix: string | null = pathPrefixValue ?? null;
+    const redirectPolicy =
+      normalizeOptionalCatalogString(record.redirectPolicy ?? record.redirect_policy, `${field}.redirectPolicy`, {
+        allowNull: true,
+        trimToNull: true,
+      })?.toLowerCase() || 'none';
+    const port =
+      normalizeOptionalIntegerField(record.port, `${field}.port`, {min: 1, allowNull: true}) ?? null;
+    if (!scheme || !host) {
+      throw new HttpError(400, 'BAD_REQUEST', `${field} requires scheme and host`);
+    }
+    if (!['none', 'same-origin-only', 'allowlisted'].includes(redirectPolicy)) {
+      throw new HttpError(400, 'BAD_REQUEST', `${field}.redirectPolicy is invalid`);
+    }
+    const normalized: DesktopActionNetworkDestination = {
+      scheme,
+      host,
+      port,
+      pathPrefix,
+      redirectPolicy: redirectPolicy as DesktopActionNetworkDestination['redirectPolicy'],
+    };
+    deduped.set(JSON.stringify(normalized), normalized);
+  }
+  return Array.from(deduped.values());
+}
+
+function normalizeRecordArray(
+  value: unknown,
+  field: string,
+  fallback: Array<Record<string, unknown>> = [],
+): Array<Record<string, unknown>> {
+  if (value === undefined) {
+    return fallback.map((item) => ({...item}));
+  }
+  if (!Array.isArray(value)) {
+    throw new HttpError(400, 'BAD_REQUEST', `${field} must be an array`);
+  }
+  return value.map((item) => normalizeJsonObject(item, field));
+}
+
+function resolveDesktopActionRiskClass(riskLevel: DesktopActionRiskLevel): DesktopActionRiskClass {
+  switch (riskLevel) {
+    case 'low':
+      return 'L1';
+    case 'medium':
+      return 'L2';
+    case 'high':
+      return 'L3';
+    case 'critical':
+      return 'L4';
+  }
+}
+
+function clampDesktopActionGrantScope(
+  scope: DesktopActionGrantScope,
+  capability: string,
+  riskLevel: DesktopActionRiskLevel,
+): DesktopActionGrantScope {
+  const normalizedCapability = capability.trim().toLowerCase();
+  const riskClass = resolveDesktopActionRiskClass(riskLevel);
+  if (riskClass === 'L4') {
+    return 'once';
+  }
+  if (riskClass === 'L3') {
+    return 'once';
+  }
+  if (normalizedCapability === 'elevated_execute') {
+    return 'once';
+  }
+  return scope;
+}
+
+function validateDesktopPolicyInvariant(input: {
+  capability: string;
+  effect: DesktopActionPolicyEffect;
+  riskLevel: DesktopActionRiskLevel;
+  grantScope: DesktopActionGrantScope;
+  maxGrantScope: DesktopActionGrantScope;
+  officialOnly: boolean;
+  publisherIds: string[];
+  packageDigests: string[];
+  executorTemplateIds: string[];
+}): void {
+  const capability = input.capability.trim().toLowerCase();
+  if ((capability === 'execute_shell' || capability === 'elevated_execute') && input.effect === 'allow') {
+    throw new HttpError(400, 'BAD_REQUEST', `${capability} cannot use effect=allow`);
+  }
+  if (capability === 'elevated_execute' && (input.grantScope !== 'once' || input.maxGrantScope !== 'once')) {
+    throw new HttpError(400, 'BAD_REQUEST', 'elevated_execute must use once-only grants');
+  }
+  if (resolveDesktopActionRiskClass(input.riskLevel) === 'L4' && input.effect === 'allow') {
+    throw new HttpError(400, 'BAD_REQUEST', 'L4 actions cannot be auto-allowed');
+  }
+  if (input.effect === 'allow' && input.executorTemplateIds.length === 0) {
+    throw new HttpError(400, 'BAD_REQUEST', 'effect=allow requires executor_template_ids');
+  }
+  if (input.officialOnly && input.publisherIds.length === 0 && input.packageDigests.length === 0) {
+    throw new HttpError(400, 'BAD_REQUEST', 'official_only requires publisher_ids or package_digests');
+  }
 }
 
 function normalizeOptionalIntegerField(
@@ -2785,27 +3001,74 @@ export class ControlPlaneService {
       throw new HttpError(400, 'BAD_REQUEST', 'capability is required');
     }
 
+    const effect = normalizeDesktopActionPolicyEffect(input.effect, existing?.effect || 'allow_with_approval');
+    const riskLevel = normalizeDesktopActionRiskLevel(input.risk_level, existing?.riskLevel || 'medium');
+    const officialOnly = normalizeOptionalBoolean(input.official_only, 'official_only') ?? existing?.officialOnly ?? false;
+    const publisherIds = normalizeStringArray(input.publisher_ids, 'publisher_ids', existing?.publisherIds || []);
+    const packageDigests = normalizeStringArray(input.package_digests, 'package_digests', existing?.packageDigests || []);
+    const grantScope = normalizeDesktopActionGrantScope(input.grant_scope, existing?.grantScope || 'once');
+    const maxGrantScopeRequested = normalizeDesktopActionGrantScope(
+      input.max_grant_scope,
+      existing?.maxGrantScope || grantScope,
+    );
+    const clampedGrantScope = clampDesktopActionGrantScope(grantScope, capability, riskLevel);
+    const maxGrantScope = clampDesktopActionGrantScope(maxGrantScopeRequested, capability, riskLevel);
+    const executorTemplateIds = normalizeStringArray(
+      input.executor_template_ids,
+      'executor_template_ids',
+      existing?.executorTemplateIds || [],
+    );
+
+    validateDesktopPolicyInvariant({
+      capability,
+      effect,
+      riskLevel,
+      grantScope: clampedGrantScope,
+      maxGrantScope,
+      officialOnly,
+      publisherIds,
+      packageDigests,
+      executorTemplateIds,
+    });
+
     const record = await this.store.upsertDesktopActionPolicyRule({
       id,
       scope: normalizeDesktopActionPolicyScope(input.scope, existing?.scope || 'platform'),
       scope_id: scopeIdCandidate === undefined ? (existing?.scopeId || null) : scopeIdCandidate,
       name: name.trim(),
-      effect: normalizeDesktopActionPolicyEffect(input.effect, existing?.effect || 'allow_with_approval'),
+      effect,
       capability,
-      risk_level: normalizeDesktopActionRiskLevel(input.risk_level, existing?.riskLevel || 'medium'),
-      official_only: normalizeOptionalBoolean(input.official_only, 'official_only') ?? existing?.officialOnly ?? false,
+      risk_level: riskLevel,
+      official_only: officialOnly,
+      publisher_ids: publisherIds,
+      package_digests: packageDigests,
       skill_slugs: normalizeStringArray(input.skill_slugs, 'skill_slugs', existing?.skillSlugs || []),
       workflow_ids: normalizeStringArray(input.workflow_ids, 'workflow_ids', existing?.workflowIds || []),
-      path_prefixes: normalizeStringArray(input.path_prefixes, 'path_prefixes', existing?.pathPrefixes || []),
-      domains: normalizeStringArray(input.domains, 'domains', existing?.domains || []),
-      ports: normalizeIntegerArray(input.ports, 'ports', existing?.ports || []),
+      executor_types: normalizeDesktopActionExecutorTypeArray(
+        input.executor_types,
+        'executor_types',
+        existing?.executorTypes || [],
+      ),
+      executor_template_ids: executorTemplateIds,
+      canonical_path_prefixes: normalizeStringArray(
+        input.canonical_path_prefixes,
+        'canonical_path_prefixes',
+        existing?.canonicalPathPrefixes || [],
+      ),
+      network_destinations: normalizeDesktopActionNetworkDestinations(
+        input.network_destinations,
+        'network_destinations',
+        existing?.networkDestinations || [],
+      ),
+      access_modes: normalizeDesktopActionAccessModeArray(input.access_modes, 'access_modes', existing?.accessModes || []),
       allow_elevation:
         normalizeOptionalBoolean(input.allow_elevation, 'allow_elevation') ?? existing?.allowElevation ?? false,
       allow_network_egress:
         normalizeOptionalBoolean(input.allow_network_egress, 'allow_network_egress') ??
         existing?.allowNetworkEgress ??
         false,
-      grant_scope: normalizeDesktopActionGrantScope(input.grant_scope, existing?.grantScope || 'once'),
+      grant_scope: clampedGrantScope,
+      max_grant_scope: maxGrantScope,
       ttl_seconds:
         normalizeOptionalIntegerField(input.ttl_seconds, 'ttl_seconds', {min: 1, allowNull: true}) ??
         existing?.ttlSeconds ??
@@ -2950,7 +3213,12 @@ export class ControlPlaneService {
     if (!deviceId || !appName || !intentFingerprint || !capability) {
       throw new HttpError(400, 'BAD_REQUEST', 'device_id, app_name, intent_fingerprint, capability are required');
     }
-    const scope = normalizeDesktopActionGrantScope(input.scope, 'once');
+    const approvedPlanHash = String(input.approved_plan_hash || '').trim();
+    if (!approvedPlanHash) {
+      throw new HttpError(400, 'BAD_REQUEST', 'approved_plan_hash is required');
+    }
+    const riskLevel = normalizeDesktopActionRiskLevel(input.risk_level, 'medium');
+    const scope = clampDesktopActionGrantScope(normalizeDesktopActionGrantScope(input.scope, 'once'), capability, riskLevel);
     const expiresAtInput = normalizeOptionalCatalogString(input.expires_at, 'expires_at', {allowNull: true, trimToNull: true});
     let expiresAt = expiresAtInput === undefined ? null : expiresAtInput;
     if (scope === 'ttl') {
@@ -2969,7 +3237,26 @@ export class ControlPlaneService {
       device_id: deviceId,
       app_name: appName,
       intent_fingerprint: intentFingerprint,
+      approved_plan_hash: approvedPlanHash,
       capability,
+      risk_level: riskLevel,
+      access_modes: normalizeDesktopActionAccessModeArray(input.access_modes, 'access_modes', []),
+      normalized_resources: normalizeRecordArray(input.normalized_resources, 'normalized_resources', []),
+      network_destinations: normalizeDesktopActionNetworkDestinations(
+        input.network_destinations,
+        'network_destinations',
+        [],
+      ),
+      executor_type: normalizeDesktopActionExecutorType(input.executor_type, 'executor_type', 'template'),
+      executor_template_id:
+        normalizeOptionalCatalogString(input.executor_template_id, 'executor_template_id', {
+          allowNull: true,
+          trimToNull: true,
+        }) ?? null,
+      publisher_id:
+        normalizeOptionalCatalogString(input.publisher_id, 'publisher_id', {allowNull: true, trimToNull: true}) ?? null,
+      package_digest:
+        normalizeOptionalCatalogString(input.package_digest, 'package_digest', {allowNull: true, trimToNull: true}) ?? null,
       scope,
       task_id: normalizeOptionalCatalogString(input.task_id, 'task_id', {allowNull: true, trimToNull: true}) ?? null,
       session_key:
@@ -3012,6 +3299,22 @@ export class ControlPlaneService {
         if (Number.isNaN(Date.parse(createdAt))) {
           throw new HttpError(400, 'BAD_REQUEST', 'created_at must be a valid ISO timestamp');
         }
+        const approvedPlanHash =
+          normalizeOptionalCatalogString(item.approved_plan_hash, 'approved_plan_hash', {allowNull: true, trimToNull: true}) ??
+          null;
+        const executedPlanHash =
+          normalizeOptionalCatalogString(item.executed_plan_hash, 'executed_plan_hash', {allowNull: true, trimToNull: true}) ??
+          null;
+        const stage = normalizeDesktopActionAuditStage(item.stage, 'intent_created');
+        if (stage === 'plan_mismatch_denied') {
+          if (!approvedPlanHash || !executedPlanHash || approvedPlanHash === executedPlanHash) {
+            throw new HttpError(
+              400,
+              'BAD_REQUEST',
+              'plan_mismatch_denied requires different approved_plan_hash and executed_plan_hash',
+            );
+          }
+        }
         return {
           id: String(item.id || randomUUID()).trim() || randomUUID(),
           intent_id: intentId,
@@ -3029,14 +3332,19 @@ export class ControlPlaneService {
           requires_elevation:
             normalizeOptionalBoolean(item.requires_elevation, 'requires_elevation') ?? false,
           decision: normalizeDesktopActionAuditDecision(item.decision, 'pending'),
-          stage: normalizeDesktopActionAuditStage(item.stage, 'intent_created'),
+          stage,
           summary,
           reason: normalizeOptionalCatalogString(item.reason, 'reason', {allowNull: true, trimToNull: true}) ?? null,
-          resources: Array.isArray(item.resources)
-            ? item.resources.map((entry) => asObject(entry))
-            : [],
-          command_snapshot:
-            normalizeOptionalCatalogString(item.command_snapshot, 'command_snapshot', {
+          resources: normalizeRecordArray(item.resources, 'resources', []),
+          matched_policy_rule_id:
+            normalizeOptionalCatalogString(item.matched_policy_rule_id, 'matched_policy_rule_id', {
+              allowNull: true,
+              trimToNull: true,
+            }) ?? null,
+          approved_plan_hash: approvedPlanHash,
+          executed_plan_hash: executedPlanHash,
+          command_snapshot_redacted:
+            normalizeOptionalCatalogString(item.command_snapshot_redacted, 'command_snapshot_redacted', {
               allowNull: true,
               trimToNull: true,
             }) ?? null,
@@ -3081,6 +3389,14 @@ export class ControlPlaneService {
     if (Number.isNaN(Date.parse(createdAt))) {
       throw new HttpError(400, 'BAD_REQUEST', 'created_at must be a valid ISO timestamp');
     }
+    const sensitivityLevel =
+      (normalizeOptionalCatalogString(input.sensitivity_level, 'sensitivity_level', {
+        allowNull: true,
+        trimToNull: true,
+      })?.toLowerCase() as 'customer' | 'internal' | 'redacted' | undefined) || 'customer';
+    if (!DESKTOP_DIAGNOSTIC_SENSITIVITY_LEVELS.has(sensitivityLevel)) {
+      throw new HttpError(400, 'BAD_REQUEST', 'sensitivity_level is invalid');
+    }
     const record = await this.store.createDesktopDiagnosticUpload({
       id: String(input.id || randomUUID()).trim() || randomUUID(),
       user_id: user.id,
@@ -3092,6 +3408,8 @@ export class ControlPlaneService {
       file_size_bytes: fileSizeBytes,
       sha256: normalizeOptionalCatalogString(input.sha256, 'sha256', {allowNull: true, trimToNull: true}) ?? null,
       source_type: normalizeDesktopDiagnosticUploadSourceType(input.source_type, 'manual'),
+      contains_customer_logs: normalizeOptionalBoolean(input.contains_customer_logs, 'contains_customer_logs') ?? true,
+      sensitivity_level: sensitivityLevel,
       linked_intent_id:
         normalizeOptionalCatalogString(input.linked_intent_id, 'linked_intent_id', {
           allowNull: true,

@@ -555,14 +555,19 @@ type DesktopActionPolicyRuleRow = {
   capability: string;
   risk_level: 'low' | 'medium' | 'high' | 'critical';
   official_only: boolean;
+  publisher_ids: unknown;
+  package_digests: unknown;
   skill_slugs: unknown;
   workflow_ids: unknown;
-  path_prefixes: unknown;
-  domains: unknown;
-  ports: unknown;
+  executor_types: unknown;
+  executor_template_ids: unknown;
+  canonical_path_prefixes: unknown;
+  network_destinations: unknown;
+  access_modes: unknown;
   allow_elevation: boolean;
   allow_network_egress: boolean;
   grant_scope: 'once' | 'task' | 'session' | 'ttl';
+  max_grant_scope: 'once' | 'task' | 'session' | 'ttl';
   ttl_seconds: number | null;
   enabled: boolean;
   priority: number;
@@ -576,7 +581,16 @@ type DesktopActionApprovalGrantRow = {
   device_id: string;
   app_name: string;
   intent_fingerprint: string;
+  approved_plan_hash: string;
   capability: string;
+  risk_level: 'low' | 'medium' | 'high' | 'critical';
+  access_modes: unknown;
+  normalized_resources: unknown;
+  network_destinations: unknown;
+  executor_type: 'template' | 'shell' | 'browser' | 'filesystem' | 'process' | 'upload';
+  executor_template_id: string | null;
+  publisher_id: string | null;
+  package_digest: string | null;
   scope: 'once' | 'task' | 'session' | 'ttl';
   task_id: string | null;
   session_key: string | null;
@@ -610,7 +624,10 @@ type DesktopActionAuditEventRow = {
   summary: string;
   reason: string | null;
   resources_json: unknown;
-  command_snapshot: string | null;
+  matched_policy_rule_id: string | null;
+  approved_plan_hash: string | null;
+  executed_plan_hash: string | null;
+  command_snapshot_redacted: string | null;
   result_code: string | null;
   result_summary: string | null;
   duration_ms: number | null;
@@ -628,6 +645,8 @@ type DesktopDiagnosticUploadRow = {
   file_size_bytes: string | number;
   sha256: string | null;
   source_type: 'manual' | 'auto_error_capture' | 'approval_flow';
+  contains_customer_logs: boolean;
+  sensitivity_level: 'customer' | 'internal' | 'redacted';
   linked_intent_id: string | null;
   created_at: Date;
 };
@@ -860,14 +879,19 @@ function mapDesktopActionPolicyRuleRow(row: DesktopActionPolicyRuleRow): Desktop
     capability: row.capability,
     riskLevel: row.risk_level,
     officialOnly: row.official_only,
+    publisherIds: parseStringArray(row.publisher_ids),
+    packageDigests: parseStringArray(row.package_digests),
     skillSlugs: parseStringArray(row.skill_slugs),
     workflowIds: parseStringArray(row.workflow_ids),
-    pathPrefixes: parseStringArray(row.path_prefixes),
-    domains: parseStringArray(row.domains),
-    ports: parseNumberArray(row.ports),
+    executorTypes: parseStringArray(row.executor_types) as DesktopActionPolicyRuleRecord['executorTypes'],
+    executorTemplateIds: parseStringArray(row.executor_template_ids),
+    canonicalPathPrefixes: parseStringArray(row.canonical_path_prefixes),
+    networkDestinations: parseJsonObjectArray(row.network_destinations) as DesktopActionPolicyRuleRecord['networkDestinations'],
+    accessModes: parseStringArray(row.access_modes) as DesktopActionPolicyRuleRecord['accessModes'],
     allowElevation: row.allow_elevation,
     allowNetworkEgress: row.allow_network_egress,
     grantScope: row.grant_scope,
+    maxGrantScope: row.max_grant_scope,
     ttlSeconds: row.ttl_seconds,
     enabled: row.enabled,
     priority: row.priority,
@@ -883,7 +907,16 @@ function mapDesktopActionApprovalGrantRow(row: DesktopActionApprovalGrantRow): D
     deviceId: row.device_id,
     appName: row.app_name,
     intentFingerprint: row.intent_fingerprint,
+    approvedPlanHash: row.approved_plan_hash,
     capability: row.capability,
+    riskLevel: row.risk_level,
+    accessModes: parseStringArray(row.access_modes) as DesktopActionApprovalGrantRecord['accessModes'],
+    normalizedResources: parseJsonObjectArray(row.normalized_resources),
+    networkDestinations: parseJsonObjectArray(row.network_destinations) as DesktopActionApprovalGrantRecord['networkDestinations'],
+    executorType: row.executor_type,
+    executorTemplateId: row.executor_template_id,
+    publisherId: row.publisher_id,
+    packageDigest: row.package_digest,
     scope: row.scope,
     taskId: row.task_id,
     sessionKey: row.session_key,
@@ -912,7 +945,10 @@ function mapDesktopActionAuditEventRow(row: DesktopActionAuditEventRow): Desktop
     summary: row.summary,
     reason: row.reason,
     resources: parseJsonObjectArray(row.resources_json),
-    commandSnapshot: row.command_snapshot,
+    matchedPolicyRuleId: row.matched_policy_rule_id,
+    approvedPlanHash: row.approved_plan_hash,
+    executedPlanHash: row.executed_plan_hash,
+    commandSnapshotRedacted: row.command_snapshot_redacted,
     resultCode: row.result_code,
     resultSummary: row.result_summary,
     durationMs: row.duration_ms,
@@ -932,6 +968,8 @@ function mapDesktopDiagnosticUploadRow(row: DesktopDiagnosticUploadRow): Desktop
     fileSizeBytes: parseDbNumber(row.file_size_bytes),
     sha256: row.sha256,
     sourceType: row.source_type,
+    containsCustomerLogs: row.contains_customer_logs,
+    sensitivityLevel: row.sensitivity_level,
     linkedIntentId: row.linked_intent_id,
     createdAt: row.created_at.toISOString(),
   };
@@ -3008,8 +3046,9 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       `
         select
           id, scope, scope_id, name, effect, capability, risk_level, official_only,
-          skill_slugs, workflow_ids, path_prefixes, domains, ports,
-          allow_elevation, allow_network_egress, grant_scope, ttl_seconds,
+          publisher_ids, package_digests, skill_slugs, workflow_ids,
+          executor_types, executor_template_ids, canonical_path_prefixes, network_destinations, access_modes,
+          allow_elevation, allow_network_egress, grant_scope, max_grant_scope, ttl_seconds,
           enabled, priority, created_at, updated_at
         from desktop_action_policy_rules
         ${where.length > 0 ? `where ${where.join(' and ')}` : ''}
@@ -3026,8 +3065,9 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       `
         select
           id, scope, scope_id, name, effect, capability, risk_level, official_only,
-          skill_slugs, workflow_ids, path_prefixes, domains, ports,
-          allow_elevation, allow_network_egress, grant_scope, ttl_seconds,
+          publisher_ids, package_digests, skill_slugs, workflow_ids,
+          executor_types, executor_template_ids, canonical_path_prefixes, network_destinations, access_modes,
+          allow_elevation, allow_network_egress, grant_scope, max_grant_scope, ttl_seconds,
           enabled, priority, created_at, updated_at
         from desktop_action_policy_rules
         where id = $1
@@ -3045,14 +3085,15 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       `
         insert into desktop_action_policy_rules (
           id, scope, scope_id, name, effect, capability, risk_level, official_only,
-          skill_slugs, workflow_ids, path_prefixes, domains, ports,
-          allow_elevation, allow_network_egress, grant_scope, ttl_seconds,
+          publisher_ids, package_digests, skill_slugs, workflow_ids,
+          executor_types, executor_template_ids, canonical_path_prefixes, network_destinations, access_modes,
+          allow_elevation, allow_network_egress, grant_scope, max_grant_scope, ttl_seconds,
           enabled, priority, created_at, updated_at
         )
         values (
           $1, $2, $3, $4, $5, $6, $7, $8,
-          $9::jsonb, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb,
-          $14, $15, $16, $17, $18, $19, now(), now()
+          $9::jsonb, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb, $14::jsonb, $15::jsonb, $16::jsonb, $17::jsonb,
+          $18, $19, $20, $21, $22, $23, now(), now()
         )
         on conflict (id)
         do update set
@@ -3063,14 +3104,19 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           capability = excluded.capability,
           risk_level = excluded.risk_level,
           official_only = excluded.official_only,
+          publisher_ids = excluded.publisher_ids,
+          package_digests = excluded.package_digests,
           skill_slugs = excluded.skill_slugs,
           workflow_ids = excluded.workflow_ids,
-          path_prefixes = excluded.path_prefixes,
-          domains = excluded.domains,
-          ports = excluded.ports,
+          executor_types = excluded.executor_types,
+          executor_template_ids = excluded.executor_template_ids,
+          canonical_path_prefixes = excluded.canonical_path_prefixes,
+          network_destinations = excluded.network_destinations,
+          access_modes = excluded.access_modes,
           allow_elevation = excluded.allow_elevation,
           allow_network_egress = excluded.allow_network_egress,
           grant_scope = excluded.grant_scope,
+          max_grant_scope = excluded.max_grant_scope,
           ttl_seconds = excluded.ttl_seconds,
           enabled = excluded.enabled,
           priority = excluded.priority,
@@ -3085,14 +3131,19 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         input.capability,
         input.risk_level,
         input.official_only,
+        JSON.stringify(input.publisher_ids),
+        JSON.stringify(input.package_digests),
         JSON.stringify(input.skill_slugs),
         JSON.stringify(input.workflow_ids),
-        JSON.stringify(input.path_prefixes),
-        JSON.stringify(input.domains),
-        JSON.stringify(input.ports),
+        JSON.stringify(input.executor_types),
+        JSON.stringify(input.executor_template_ids),
+        JSON.stringify(input.canonical_path_prefixes),
+        JSON.stringify(input.network_destinations),
+        JSON.stringify(input.access_modes),
         input.allow_elevation,
         input.allow_network_egress,
         input.grant_scope,
+        input.max_grant_scope,
         input.ttl_seconds,
         input.enabled,
         input.priority,
@@ -3139,7 +3190,8 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     const result = await this.pool.query<DesktopActionApprovalGrantRow>(
       `
         select
-          id, user_id, device_id, app_name, intent_fingerprint, capability,
+          id, user_id, device_id, app_name, intent_fingerprint, approved_plan_hash, capability, risk_level,
+          access_modes, normalized_resources, network_destinations, executor_type, executor_template_id, publisher_id, package_digest,
           scope, task_id, session_key, expires_at, revoked_at, created_at
         from desktop_action_approval_grants
         ${where.length > 0 ? `where ${where.join(' and ')}` : ''}
@@ -3157,12 +3209,14 @@ export class PgControlPlaneStore implements ControlPlaneStore {
     const result = await this.pool.query<DesktopActionApprovalGrantRow>(
       `
         insert into desktop_action_approval_grants (
-          id, user_id, device_id, app_name, intent_fingerprint, capability,
+          id, user_id, device_id, app_name, intent_fingerprint, approved_plan_hash, capability, risk_level,
+          access_modes, normalized_resources, network_destinations, executor_type, executor_template_id, publisher_id, package_digest,
           scope, task_id, session_key, expires_at, revoked_at, created_at
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, null, $11)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11::jsonb, $12, $13, $14, $15, $16, $17, $18, $19, null, $20)
         returning
-          id, user_id, device_id, app_name, intent_fingerprint, capability,
+          id, user_id, device_id, app_name, intent_fingerprint, approved_plan_hash, capability, risk_level,
+          access_modes, normalized_resources, network_destinations, executor_type, executor_template_id, publisher_id, package_digest,
           scope, task_id, session_key, expires_at, revoked_at, created_at
       `,
       [
@@ -3171,7 +3225,16 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         input.device_id,
         input.app_name,
         input.intent_fingerprint,
+        input.approved_plan_hash,
         input.capability,
+        input.risk_level,
+        JSON.stringify(input.access_modes),
+        JSON.stringify(input.normalized_resources),
+        JSON.stringify(input.network_destinations),
+        input.executor_type,
+        input.executor_template_id || null,
+        input.publisher_id || null,
+        input.package_digest || null,
         input.scope,
         input.task_id || null,
         input.session_key || null,
@@ -3189,7 +3252,8 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         set revoked_at = $2
         where id = $1
         returning
-          id, user_id, device_id, app_name, intent_fingerprint, capability,
+          id, user_id, device_id, app_name, intent_fingerprint, approved_plan_hash, capability, risk_level,
+          access_modes, normalized_resources, network_destinations, executor_type, executor_template_id, publisher_id, package_digest,
           scope, task_id, session_key, expires_at, revoked_at, created_at
       `,
       [id, revokedAt],
@@ -3244,7 +3308,8 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         select
           id, intent_id, trace_id, user_id, device_id, app_name, agent_id, skill_slug, workflow_id,
           capability, risk_level, requires_elevation, decision, stage, summary, reason,
-          resources_json, command_snapshot, result_code, result_summary, duration_ms, created_at
+          resources_json, matched_policy_rule_id, approved_plan_hash, executed_plan_hash, command_snapshot_redacted,
+          result_code, result_summary, duration_ms, created_at
         from desktop_action_audit_events
         ${where.length > 0 ? `where ${where.join(' and ')}` : ''}
         order by created_at desc
@@ -3268,17 +3333,19 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           insert into desktop_action_audit_events (
             id, intent_id, trace_id, user_id, device_id, app_name, agent_id, skill_slug, workflow_id,
             capability, risk_level, requires_elevation, decision, stage, summary, reason,
-            resources_json, command_snapshot, result_code, result_summary, duration_ms, created_at
+            resources_json, matched_policy_rule_id, approved_plan_hash, executed_plan_hash, command_snapshot_redacted,
+            result_code, result_summary, duration_ms, created_at
           )
           values (
             $1, $2, $3, $4, $5, $6, $7, $8, $9,
             $10, $11, $12, $13, $14, $15, $16,
-            $17::jsonb, $18, $19, $20, $21, $22
+            $17::jsonb, $18, $19, $20, $21, $22, $23, $24, $25
           )
           returning
             id, intent_id, trace_id, user_id, device_id, app_name, agent_id, skill_slug, workflow_id,
             capability, risk_level, requires_elevation, decision, stage, summary, reason,
-            resources_json, command_snapshot, result_code, result_summary, duration_ms, created_at
+            resources_json, matched_policy_rule_id, approved_plan_hash, executed_plan_hash, command_snapshot_redacted,
+            result_code, result_summary, duration_ms, created_at
         `,
         [
           item.id,
@@ -3298,7 +3365,10 @@ export class PgControlPlaneStore implements ControlPlaneStore {
           item.summary,
           item.reason || null,
           JSON.stringify(item.resources),
-          item.command_snapshot || null,
+          item.matched_policy_rule_id || null,
+          item.approved_plan_hash || null,
+          item.executed_plan_hash || null,
+          item.command_snapshot_redacted || null,
           item.result_code || null,
           item.result_summary || null,
           item.duration_ms,
@@ -3341,7 +3411,7 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       `
         select
           id, user_id, device_id, app_name, upload_bucket, upload_key,
-          file_name, file_size_bytes, sha256, source_type, linked_intent_id, created_at
+          file_name, file_size_bytes, sha256, source_type, contains_customer_logs, sensitivity_level, linked_intent_id, created_at
         from desktop_diagnostic_uploads
         ${where.length > 0 ? `where ${where.join(' and ')}` : ''}
         order by created_at desc
@@ -3359,12 +3429,12 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       `
         insert into desktop_diagnostic_uploads (
           id, user_id, device_id, app_name, upload_bucket, upload_key,
-          file_name, file_size_bytes, sha256, source_type, linked_intent_id, created_at
+          file_name, file_size_bytes, sha256, source_type, contains_customer_logs, sensitivity_level, linked_intent_id, created_at
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         returning
           id, user_id, device_id, app_name, upload_bucket, upload_key,
-          file_name, file_size_bytes, sha256, source_type, linked_intent_id, created_at
+          file_name, file_size_bytes, sha256, source_type, contains_customer_logs, sensitivity_level, linked_intent_id, created_at
       `,
       [
         input.id,
@@ -3377,6 +3447,8 @@ export class PgControlPlaneStore implements ControlPlaneStore {
         input.file_size_bytes,
         input.sha256 || null,
         input.source_type,
+        input.contains_customer_logs,
+        input.sensitivity_level,
         input.linked_intent_id || null,
         input.created_at,
       ],

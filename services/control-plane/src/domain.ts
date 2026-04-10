@@ -5,15 +5,27 @@ export type DesktopActionPolicyEffect = 'allow' | 'allow_with_approval' | 'deny'
 export type DesktopActionRiskLevel = 'low' | 'medium' | 'high' | 'critical';
 export type DesktopActionGrantScope = 'once' | 'task' | 'session' | 'ttl';
 export type DesktopActionAuditDecision = 'allow' | 'deny' | 'pending';
+export type DesktopActionAccessMode = 'read' | 'write' | 'execute' | 'connect';
+export type DesktopActionExecutorType = 'template' | 'shell' | 'browser' | 'filesystem' | 'process' | 'upload';
+export type DesktopActionRiskClass = 'L1' | 'L2' | 'L3' | 'L4';
 export type DesktopActionAuditStage =
   | 'intent_created'
   | 'policy_evaluated'
   | 'approval_requested'
   | 'approval_granted'
   | 'approval_denied'
+  | 'plan_mismatch_denied'
   | 'execution_started'
   | 'execution_finished';
 export type DesktopDiagnosticUploadSourceType = 'manual' | 'auto_error_capture' | 'approval_flow';
+
+export type DesktopActionNetworkDestination = {
+  scheme: string;
+  host: string;
+  port: number | null;
+  pathPrefix: string | null;
+  redirectPolicy: 'none' | 'same-origin-only' | 'allowlisted';
+};
 
 export type UserRecord = {
   id: string;
@@ -428,14 +440,19 @@ export type DesktopActionPolicyRuleRecord = {
   capability: string;
   riskLevel: DesktopActionRiskLevel;
   officialOnly: boolean;
+  publisherIds: string[];
+  packageDigests: string[];
   skillSlugs: string[];
   workflowIds: string[];
-  pathPrefixes: string[];
-  domains: string[];
-  ports: number[];
+  executorTypes: DesktopActionExecutorType[];
+  executorTemplateIds: string[];
+  canonicalPathPrefixes: string[];
+  networkDestinations: DesktopActionNetworkDestination[];
+  accessModes: DesktopActionAccessMode[];
   allowElevation: boolean;
   allowNetworkEgress: boolean;
   grantScope: DesktopActionGrantScope;
+  maxGrantScope: DesktopActionGrantScope;
   ttlSeconds: number | null;
   enabled: boolean;
   priority: number;
@@ -449,7 +466,16 @@ export type DesktopActionApprovalGrantRecord = {
   deviceId: string;
   appName: string;
   intentFingerprint: string;
+  approvedPlanHash: string;
   capability: string;
+  riskLevel: DesktopActionRiskLevel;
+  accessModes: DesktopActionAccessMode[];
+  normalizedResources: Array<Record<string, unknown>>;
+  networkDestinations: DesktopActionNetworkDestination[];
+  executorType: DesktopActionExecutorType;
+  executorTemplateId: string | null;
+  publisherId: string | null;
+  packageDigest: string | null;
   scope: DesktopActionGrantScope;
   taskId: string | null;
   sessionKey: string | null;
@@ -476,7 +502,10 @@ export type DesktopActionAuditEventRecord = {
   summary: string;
   reason: string | null;
   resources: Array<Record<string, unknown>>;
-  commandSnapshot: string | null;
+  matchedPolicyRuleId: string | null;
+  approvedPlanHash: string | null;
+  executedPlanHash: string | null;
+  commandSnapshotRedacted: string | null;
   resultCode: string | null;
   resultSummary: string | null;
   durationMs: number | null;
@@ -494,6 +523,8 @@ export type DesktopDiagnosticUploadRecord = {
   fileSizeBytes: number;
   sha256: string | null;
   sourceType: DesktopDiagnosticUploadSourceType;
+  containsCustomerLogs: boolean;
+  sensitivityLevel: 'customer' | 'internal' | 'redacted';
   linkedIntentId: string | null;
   createdAt: string;
 };
@@ -507,14 +538,19 @@ export type AdminDesktopActionPolicyRuleView = {
   capability: string;
   risk_level: DesktopActionRiskLevel;
   official_only: boolean;
+  publisher_ids: string[];
+  package_digests: string[];
   skill_slugs: string[];
   workflow_ids: string[];
-  path_prefixes: string[];
-  domains: string[];
-  ports: number[];
+  executor_types: DesktopActionExecutorType[];
+  executor_template_ids: string[];
+  canonical_path_prefixes: string[];
+  network_destinations: DesktopActionNetworkDestination[];
+  access_modes: DesktopActionAccessMode[];
   allow_elevation: boolean;
   allow_network_egress: boolean;
   grant_scope: DesktopActionGrantScope;
+  max_grant_scope: DesktopActionGrantScope;
   ttl_seconds: number | null;
   enabled: boolean;
   priority: number;
@@ -528,7 +564,16 @@ export type AdminDesktopActionApprovalGrantView = {
   device_id: string;
   app_name: string;
   intent_fingerprint: string;
+  approved_plan_hash: string;
   capability: string;
+  risk_level: DesktopActionRiskLevel;
+  access_modes: DesktopActionAccessMode[];
+  normalized_resources: Array<Record<string, unknown>>;
+  network_destinations: DesktopActionNetworkDestination[];
+  executor_type: DesktopActionExecutorType;
+  executor_template_id: string | null;
+  publisher_id: string | null;
+  package_digest: string | null;
   scope: DesktopActionGrantScope;
   task_id: string | null;
   session_key: string | null;
@@ -555,7 +600,10 @@ export type AdminDesktopActionAuditEventView = {
   summary: string;
   reason: string | null;
   resources: Array<Record<string, unknown>>;
-  command_snapshot: string | null;
+  matched_policy_rule_id: string | null;
+  approved_plan_hash: string | null;
+  executed_plan_hash: string | null;
+  command_snapshot_redacted: string | null;
   result_code: string | null;
   result_summary: string | null;
   duration_ms: number | null;
@@ -573,6 +621,8 @@ export type AdminDesktopDiagnosticUploadView = {
   file_size_bytes: number;
   sha256: string | null;
   source_type: DesktopDiagnosticUploadSourceType;
+  contains_customer_logs: boolean;
+  sensitivity_level: 'customer' | 'internal' | 'redacted';
   linked_intent_id: string | null;
   created_at: string;
 };
@@ -586,14 +636,19 @@ export type UpsertDesktopActionPolicyRuleInput = {
   capability?: string | null;
   risk_level?: DesktopActionRiskLevel | null;
   official_only?: boolean | null;
+  publisher_ids?: string[] | null;
+  package_digests?: string[] | null;
   skill_slugs?: string[] | null;
   workflow_ids?: string[] | null;
-  path_prefixes?: string[] | null;
-  domains?: string[] | null;
-  ports?: number[] | null;
+  executor_types?: DesktopActionExecutorType[] | null;
+  executor_template_ids?: string[] | null;
+  canonical_path_prefixes?: string[] | null;
+  network_destinations?: DesktopActionNetworkDestination[] | null;
+  access_modes?: DesktopActionAccessMode[] | null;
   allow_elevation?: boolean | null;
   allow_network_egress?: boolean | null;
   grant_scope?: DesktopActionGrantScope | null;
+  max_grant_scope?: DesktopActionGrantScope | null;
   ttl_seconds?: number | null;
   enabled?: boolean | null;
   priority?: number | null;
@@ -604,7 +659,16 @@ export type CreateDesktopActionApprovalGrantInput = {
   device_id?: string | null;
   app_name?: string | null;
   intent_fingerprint?: string | null;
+  approved_plan_hash?: string | null;
   capability?: string | null;
+  risk_level?: DesktopActionRiskLevel | null;
+  access_modes?: DesktopActionAccessMode[] | null;
+  normalized_resources?: Array<Record<string, unknown>> | null;
+  network_destinations?: DesktopActionNetworkDestination[] | null;
+  executor_type?: DesktopActionExecutorType | null;
+  executor_template_id?: string | null;
+  publisher_id?: string | null;
+  package_digest?: string | null;
   scope?: DesktopActionGrantScope | null;
   task_id?: string | null;
   session_key?: string | null;
@@ -629,7 +693,10 @@ export type CreateDesktopActionAuditEventInput = {
   summary?: string | null;
   reason?: string | null;
   resources?: Array<Record<string, unknown>> | null;
-  command_snapshot?: string | null;
+  matched_policy_rule_id?: string | null;
+  approved_plan_hash?: string | null;
+  executed_plan_hash?: string | null;
+  command_snapshot_redacted?: string | null;
   result_code?: string | null;
   result_summary?: string | null;
   duration_ms?: number | null;
@@ -647,6 +714,8 @@ export type CreateDesktopDiagnosticUploadInput = {
   file_size_bytes?: number | null;
   sha256?: string | null;
   source_type?: DesktopDiagnosticUploadSourceType | null;
+  contains_customer_logs?: boolean | null;
+  sensitivity_level?: 'customer' | 'internal' | 'redacted' | null;
   linked_intent_id?: string | null;
   created_at?: string | null;
 };

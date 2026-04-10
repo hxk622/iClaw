@@ -300,13 +300,20 @@ test('desktop action security flow persists policies, grants, audit events, and 
       capability: 'collect_diagnostics',
       risk_level: 'medium',
       grant_scope: 'session',
+      max_grant_scope: 'session',
       enabled: true,
       priority: 20,
       official_only: true,
+      publisher_ids: ['iclaw-official'],
       allow_network_egress: true,
       skill_slugs: ['official-diagnostics'],
+      executor_template_ids: ['collect-diagnostics-template'],
+      executor_types: ['template'],
+      access_modes: ['read', 'connect'],
+      network_destinations: [{scheme: 'https', host: 'logs.iclaw.local', port: 443, pathPrefix: '/upload', redirectPolicy: 'allowlisted'}],
     });
     assert.equal(policy.capability, 'collect_diagnostics');
+    assert.deepEqual(policy.publisher_ids, ['iclaw-official']);
 
     const adminPolicies = await service.listAdminDesktopActionPolicies(admin.tokens.access_token, {
       capability: 'collect_diagnostics',
@@ -321,11 +328,21 @@ test('desktop action security flow persists policies, grants, audit events, and 
       device_id: 'device-001',
       app_name: 'iclaw',
       intent_fingerprint: 'intent-fp-001',
+      approved_plan_hash: 'plan-hash-001',
       capability: 'collect_diagnostics',
+      risk_level: 'medium',
       scope: 'session',
       session_key: 'agent:main:main',
+      access_modes: ['read', 'connect'],
+      normalized_resources: [{kind: 'path', value: '/logs/runtime.log', access: 'read'}],
+      network_destinations: [{scheme: 'https', host: 'logs.iclaw.local', port: 443, pathPrefix: '/upload', redirectPolicy: 'allowlisted'}],
+      executor_type: 'template',
+      executor_template_id: 'collect-diagnostics-template',
+      publisher_id: 'iclaw-official',
+      package_digest: 'sha256:bundle-001',
     });
     assert.equal(grant.device_id, 'device-001');
+    assert.equal(grant.approved_plan_hash, 'plan-hash-001');
 
     const audits = await service.recordDesktopActionAuditEvents(user.tokens.access_token, [
       {
@@ -339,6 +356,9 @@ test('desktop action security flow persists policies, grants, audit events, and 
         stage: 'approval_requested',
         summary: 'Need to upload local logs',
         resources: [{kind: 'log', path: 'logs/runtime.log'}],
+        matched_policy_rule_id: 'policy-diagnostics',
+        approved_plan_hash: 'plan-hash-001',
+        command_snapshot_redacted: 'tar logs && upload [REDACTED]',
       },
       {
         intent_id: 'intent-001',
@@ -350,9 +370,14 @@ test('desktop action security flow persists policies, grants, audit events, and 
         decision: 'allow',
         stage: 'approval_granted',
         summary: 'User approved diagnostic upload',
+        matched_policy_rule_id: 'policy-diagnostics',
+        approved_plan_hash: 'plan-hash-001',
+        executed_plan_hash: 'plan-hash-001',
+        command_snapshot_redacted: 'tar logs && upload [REDACTED]',
       },
     ]);
     assert.equal(audits.items.length, 2);
+    assert.equal(audits.items[0]?.matched_policy_rule_id, 'policy-diagnostics');
 
     const upload = await service.recordDesktopDiagnosticUpload(user.tokens.access_token, {
       device_id: 'device-001',
@@ -362,9 +387,12 @@ test('desktop action security flow persists policies, grants, audit events, and 
       file_name: 'runtime.log',
       file_size_bytes: 2048,
       source_type: 'approval_flow',
+      contains_customer_logs: true,
+      sensitivity_level: 'customer',
       linked_intent_id: 'intent-001',
     });
     assert.equal(upload.source_type, 'approval_flow');
+    assert.equal(upload.contains_customer_logs, true);
 
     const adminAudits = await service.listAdminDesktopActionAuditEvents(admin.tokens.access_token, {
       intent_id: 'intent-001',
@@ -385,6 +413,73 @@ test('desktop action security flow persists policies, grants, audit events, and 
     });
     assert.equal(diagnosticUploads.items.length, 1);
     assert.equal(diagnosticUploads.items[0]?.upload_key, 'users/security-user/trace-001/runtime.log');
+  });
+});
+
+test('desktop action policy invariants reject unsafe shell whitelist and elevated reusable grants', async () => {
+  await withBootstrapRoles({adminEmails: ['security-admin@example.com']}, async () => {
+    const store = new InMemoryControlPlaneStore();
+    const service = new ControlPlaneService(store);
+
+    const admin = await service.register({
+      username: 'security-admin-2',
+      email: 'security-admin@example.com',
+      password: 'password123',
+      name: 'Security Admin 2',
+    });
+    const user = await service.register({
+      username: 'security-user-2',
+      email: 'security-user-2@example.com',
+      password: 'password123',
+      name: 'Security User 2',
+    });
+
+    await assert.rejects(
+      service.upsertAdminDesktopActionPolicy(admin.tokens.access_token, {
+        id: 'policy-shell-unsafe',
+        scope: 'platform',
+        name: 'Unsafe Shell Auto Allow',
+        effect: 'allow',
+        capability: 'execute_shell',
+        risk_level: 'high',
+        executor_template_ids: ['shell-template'],
+      }),
+      (error: unknown) => {
+        assert.ok(error instanceof HttpError);
+        assert.match(error.message, /cannot use effect=allow/);
+        return true;
+      },
+    );
+
+    const elevatedPolicy = await service.upsertAdminDesktopActionPolicy(admin.tokens.access_token, {
+      id: 'policy-elevated-once',
+      scope: 'platform',
+      name: 'Elevated Repair',
+      effect: 'allow_with_approval',
+      capability: 'elevated_execute',
+      risk_level: 'critical',
+      official_only: true,
+      publisher_ids: ['iclaw-official'],
+      grant_scope: 'session',
+      max_grant_scope: 'session',
+      executor_template_ids: ['elevated-repair-template'],
+      executor_types: ['template'],
+    });
+    assert.equal(elevatedPolicy.grant_scope, 'once');
+    assert.equal(elevatedPolicy.max_grant_scope, 'once');
+
+    const elevatedGrant = await service.createDesktopActionApprovalGrant(user.tokens.access_token, {
+      device_id: 'device-002',
+      app_name: 'iclaw',
+      intent_fingerprint: 'intent-fp-elevated',
+      approved_plan_hash: 'plan-hash-elevated',
+      capability: 'elevated_execute',
+      risk_level: 'critical',
+      scope: 'session',
+      session_key: 'agent:main:main',
+      executor_type: 'template',
+    });
+    assert.equal(elevatedGrant.scope, 'once');
   });
 });
 
