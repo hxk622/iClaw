@@ -1,7 +1,7 @@
 {
   "name": "@iclaw/desktop",
-  "version": "1.0.3+202604092345",
-  "releaseVersion": "1.0.3.202604092345",
+  "version": "1.0.4+202604101315",
+  "releaseVersion": "1.0.4.202604101315",
   "private": true,
   "type": "module",
   "scripts": {
