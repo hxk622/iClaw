@@ -571,6 +571,176 @@ async function runtimeLayoutLooksComplete(runtimeDir, targetTriple = '') {
   return checks.every(Boolean);
 }
 
+async function collectRuntimeFiles(rootDir) {
+  const files = [];
+  if (!(await pathExists(rootDir))) {
+    return files;
+  }
+
+  async function walk(currentDir) {
+    const entries = await fs.readdir(currentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        await walk(fullPath);
+        continue;
+      }
+      if (entry.isFile()) {
+        files.push(fullPath);
+      }
+    }
+  }
+
+  await walk(rootDir);
+  return files;
+}
+
+async function collectRuntimeDirsByName(rootDir, directoryNames) {
+  const matches = [];
+  if (!(await pathExists(rootDir))) {
+    return matches;
+  }
+  const wanted = new Set(directoryNames.map((name) => name.toLowerCase()));
+
+  async function walk(currentDir) {
+    const entries = await fs.readdir(currentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+      const fullPath = path.join(currentDir, entry.name);
+      if (wanted.has(entry.name.toLowerCase())) {
+        matches.push(fullPath);
+        continue;
+      }
+      await walk(fullPath);
+    }
+  }
+
+  await walk(rootDir);
+  return matches;
+}
+
+async function removeRuntimePath(targetPath, stats) {
+  if (!(await pathExists(targetPath))) {
+    return;
+  }
+  const metadata = await fs.stat(targetPath);
+  if (metadata.isDirectory()) {
+    const files = await collectRuntimeFiles(targetPath);
+    const fileStats = await Promise.all(files.map(async (filePath) => fs.stat(filePath)));
+    stats.filesRemoved += fileStats.length;
+    stats.bytesRemoved += fileStats.reduce((total, item) => total + item.size, 0);
+    await fs.rm(targetPath, { recursive: true, force: true });
+    stats.directoriesRemoved += 1;
+    return;
+  }
+  stats.filesRemoved += 1;
+  stats.bytesRemoved += metadata.size;
+  await fs.rm(targetPath, { force: true });
+}
+
+function currentWindowsKoffiDir(targetTriple = '') {
+  if (targetTriple.includes('arm64')) {
+    return 'win32_arm64';
+  }
+  if (targetTriple.includes('i686') || targetTriple.includes('ia32')) {
+    return 'win32_ia32';
+  }
+  return 'win32_x64';
+}
+
+function currentWindowsCanvasPackage(targetTriple = '') {
+  if (targetTriple.includes('arm64')) {
+    return 'canvas-win32-arm64-msvc';
+  }
+  return 'canvas-win32-x64-msvc';
+}
+
+function currentWindowsSharpPackage(targetTriple = '') {
+  if (targetTriple.includes('arm64')) {
+    return 'sharp-win32-arm64';
+  }
+  return 'sharp-win32-x64';
+}
+
+function currentWindowsNodePtyPackage(targetTriple = '') {
+  if (targetTriple.includes('arm64')) {
+    return 'node-pty-win32-arm64';
+  }
+  return 'node-pty-win32-x64';
+}
+
+async function pruneBundledRuntime(runtimeDir, targetTriple = '') {
+  if (!(targetTriple || '').includes('windows')) {
+    return;
+  }
+
+  const stats = {
+    filesRemoved: 0,
+    directoriesRemoved: 0,
+    bytesRemoved: 0,
+  };
+  const runtimeFiles = await collectRuntimeFiles(runtimeDir);
+  const removableExtensions = new Set(['.map', '.pdb']);
+  const removableTypeSuffixes = ['.d.ts', '.d.cts', '.d.mts'];
+  const nodeModulesRoot = path.join(runtimeDir, 'openclaw', 'node_modules');
+
+  for (const filePath of runtimeFiles) {
+    const normalized = filePath.toLowerCase();
+    const ext = path.extname(filePath).toLowerCase();
+    const inNodeModules = normalized.includes(`${path.sep}openclaw${path.sep}node_modules${path.sep}`);
+    const shouldRemoveByExt =
+      removableExtensions.has(ext) || (inNodeModules && removableTypeSuffixes.some((suffix) => normalized.endsWith(suffix)));
+    if (shouldRemoveByExt) {
+      await removeRuntimePath(filePath, stats);
+    }
+  }
+
+  const removableNodeModuleDirs = ['test', 'tests', '__tests__', '__mocks__', 'docs', 'doc', 'example', 'examples'];
+  const removableDirs = await collectRuntimeDirsByName(nodeModulesRoot, removableNodeModuleDirs);
+  for (const dirPath of removableDirs) {
+    await removeRuntimePath(dirPath, stats);
+  }
+
+  const maybeRemoveDirChildrenExcept = async (parentDir, keepNames) => {
+    if (!(await pathExists(parentDir))) {
+      return;
+    }
+    const entries = await fs.readdir(parentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+      if (keepNames.has(entry.name)) {
+        continue;
+      }
+      await removeRuntimePath(path.join(parentDir, entry.name), stats);
+    }
+  };
+
+  await maybeRemoveDirChildrenExcept(
+    path.join(nodeModulesRoot, 'koffi', 'build', 'koffi'),
+    new Set([currentWindowsKoffiDir(targetTriple)]),
+  );
+  await maybeRemoveDirChildrenExcept(
+    path.join(nodeModulesRoot, '@napi-rs'),
+    new Set(['canvas', currentWindowsCanvasPackage(targetTriple), 'wasm-runtime']),
+  );
+  await maybeRemoveDirChildrenExcept(
+    path.join(nodeModulesRoot, '@img'),
+    new Set(['colour', currentWindowsSharpPackage(targetTriple)]),
+  );
+  await maybeRemoveDirChildrenExcept(
+    path.join(nodeModulesRoot, '@lydell'),
+    new Set([currentWindowsNodePtyPackage(targetTriple)]),
+  );
+
+  process.stdout.write(
+    `[desktop-package] pruned bundled runtime for ${targetTriple}: removed ${stats.filesRemoved} files, ${stats.directoriesRemoved} directories, ${stats.bytesRemoved} bytes\n`,
+  );
+}
+
 function inferRuntimeTargetTriple(target = '') {
   return resolvePackagingTargetInfo(target)?.triple || '';
 }
@@ -1074,6 +1244,7 @@ async function resolveRuntimeArtifactSource({ config, brandId, targetTriple, pac
 async function prepareBundledRuntime({ env, brandId, brandProfile, channel, targetTriple, packagingPaths }) {
   const stagedRuntimeDir = path.join(packagingPaths.resourcesSourceDir, 'openclaw-runtime');
   if (await runtimeLayoutLooksComplete(stagedRuntimeDir, targetTriple)) {
+    await pruneBundledRuntime(stagedRuntimeDir, targetTriple);
     process.stdout.write(`[desktop-package] bundled runtime already staged: ${stagedRuntimeDir}\n`);
     return;
   }
@@ -1123,6 +1294,7 @@ async function prepareBundledRuntime({ env, brandId, brandProfile, channel, targ
   await fs.rm(stagedRuntimeDir, { recursive: true, force: true });
   await fs.mkdir(path.dirname(stagedRuntimeDir), { recursive: true });
   await fs.rename(normalizedRuntimeRoot, stagedRuntimeDir);
+  await pruneBundledRuntime(stagedRuntimeDir, targetTriple);
   await writeBundledRuntimeInstallReceipt(stagedRuntimeDir, {
     version,
     artifact_url: artifactUrl,
