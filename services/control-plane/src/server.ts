@@ -18,6 +18,9 @@ import {
 import {CachedControlPlaneStore} from './cached-store.ts';
 import {config} from './config.ts';
 import type {
+  CreateDesktopActionApprovalGrantInput,
+  CreateDesktopActionAuditEventInput,
+  CreateDesktopDiagnosticUploadInput,
   ChangePasswordInput,
   CreatePaymentOrderInput,
   ImportUserPrivateSkillInput,
@@ -28,6 +31,7 @@ import type {
   PaymentWebhookInput,
   RegisterInput,
   RunAuthorizeInput,
+  UpsertDesktopActionPolicyRuleInput,
   UpsertAgentCatalogEntryInput,
   UpsertAdminPaymentGatewayConfigInput,
   UpsertAdminPaymentProviderBindingInput,
@@ -396,6 +400,22 @@ function parseQueryParams(url: URL): Record<string, string> {
     next[key] = value;
   }
   return next;
+}
+
+function parseOptionalBooleanQuery(value: string | null): boolean | null {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+  if (normalized === 'true' || normalized === '1') {
+    return true;
+  }
+  if (normalized === 'false' || normalized === '0') {
+    return false;
+  }
+  throw new HttpError(400, 'BAD_REQUEST', 'boolean query parameter is invalid');
 }
 
 function getFormDataString(formData: FormData, key: string): string | null {
@@ -1396,6 +1416,74 @@ const server = createJsonServer([
       }),
   },
   {
+    method: 'GET',
+    path: '/admin/security/action-policies',
+    handler: ({headers, url}: HandlerContext) =>
+      service.listAdminDesktopActionPolicies(requireBearerToken(headers), {
+        scope: (url.searchParams.get('scope') || '').trim() || null,
+        capability: (url.searchParams.get('capability') || '').trim() || null,
+        risk_level: (url.searchParams.get('risk_level') || url.searchParams.get('riskLevel') || '').trim() || null,
+        enabled: parseOptionalBooleanQuery(url.searchParams.get('enabled')),
+        query: (url.searchParams.get('query') || '').trim() || null,
+        limit: url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : null,
+      }),
+  },
+  {
+    method: 'PUT',
+    path: '/admin/security/action-policies',
+    handler: ({headers, body}: HandlerContext) =>
+      service.upsertAdminDesktopActionPolicy(
+        requireBearerToken(headers),
+        (body || {}) as UpsertDesktopActionPolicyRuleInput,
+      ),
+  },
+  {
+    method: 'GET',
+    path: '/admin/security/action-grants',
+    handler: ({headers, url}: HandlerContext) =>
+      service.listAdminDesktopActionApprovalGrants(requireBearerToken(headers), {
+        user_id: (url.searchParams.get('user_id') || url.searchParams.get('userId') || '').trim() || null,
+        device_id: (url.searchParams.get('device_id') || url.searchParams.get('deviceId') || '').trim() || null,
+        app_name: (url.searchParams.get('app_name') || url.searchParams.get('appName') || '').trim() || null,
+        capability: (url.searchParams.get('capability') || '').trim() || null,
+        active_only: parseOptionalBooleanQuery(url.searchParams.get('active_only') || url.searchParams.get('activeOnly')),
+        limit: url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : null,
+      }),
+  },
+  {
+    method: 'POST',
+    path: '/admin/security/action-grants/:id/revoke',
+    handler: ({headers, params}: HandlerContext) =>
+      service.revokeAdminDesktopActionApprovalGrant(requireBearerToken(headers), params.id || ''),
+  },
+  {
+    method: 'GET',
+    path: '/admin/security/action-audit-events',
+    handler: ({headers, url}: HandlerContext) =>
+      service.listAdminDesktopActionAuditEvents(requireBearerToken(headers), {
+        intent_id: (url.searchParams.get('intent_id') || url.searchParams.get('intentId') || '').trim() || null,
+        user_id: (url.searchParams.get('user_id') || url.searchParams.get('userId') || '').trim() || null,
+        device_id: (url.searchParams.get('device_id') || url.searchParams.get('deviceId') || '').trim() || null,
+        app_name: (url.searchParams.get('app_name') || url.searchParams.get('appName') || '').trim() || null,
+        capability: (url.searchParams.get('capability') || '').trim() || null,
+        risk_level: (url.searchParams.get('risk_level') || url.searchParams.get('riskLevel') || '').trim() || null,
+        decision: (url.searchParams.get('decision') || '').trim() || null,
+        limit: url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : null,
+      }),
+  },
+  {
+    method: 'GET',
+    path: '/admin/security/action-diagnostic-uploads',
+    handler: ({headers, url}: HandlerContext) =>
+      service.listAdminDesktopDiagnosticUploads(requireBearerToken(headers), {
+        user_id: (url.searchParams.get('user_id') || url.searchParams.get('userId') || '').trim() || null,
+        device_id: (url.searchParams.get('device_id') || url.searchParams.get('deviceId') || '').trim() || null,
+        app_name: (url.searchParams.get('app_name') || url.searchParams.get('appName') || '').trim() || null,
+        source_type: (url.searchParams.get('source_type') || url.searchParams.get('sourceType') || '').trim() || null,
+        limit: url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : null,
+      }),
+  },
+  {
     method: 'PUT',
     path: '/admin/payments/gateway-config',
     handler: ({headers, body}: HandlerContext) =>
@@ -1879,6 +1967,42 @@ const server = createJsonServer([
         platform: (url.searchParams.get('platform') || '').trim() || null,
         arch: (url.searchParams.get('arch') || '').trim() || null,
       }),
+  },
+  {
+    method: 'GET',
+    path: '/portal/runtime/security/action-policy-snapshot',
+    handler: ({headers, url}: HandlerContext) =>
+      service.getRuntimeDesktopActionPolicySnapshot(
+        requireBearerToken(headers),
+        (url.searchParams.get('app_name') || '').trim(),
+      ),
+  },
+  {
+    method: 'POST',
+    path: '/portal/desktop/security/action-grants',
+    handler: ({headers, body}: HandlerContext) =>
+      service.createDesktopActionApprovalGrant(
+        requireBearerToken(headers),
+        (body || {}) as CreateDesktopActionApprovalGrantInput,
+      ),
+  },
+  {
+    method: 'POST',
+    path: '/portal/desktop/security/action-audit-events',
+    handler: ({headers, body}: HandlerContext) =>
+      service.recordDesktopActionAuditEvents(
+        requireBearerToken(headers),
+        ((body || {}) as CreateDesktopActionAuditEventInput | CreateDesktopActionAuditEventInput[]),
+      ),
+  },
+  {
+    method: 'POST',
+    path: '/portal/desktop/security/diagnostic-uploads',
+    handler: ({headers, body}: HandlerContext) =>
+      service.recordDesktopDiagnosticUpload(
+        requireBearerToken(headers),
+        (body || {}) as CreateDesktopDiagnosticUploadInput,
+      ),
   },
   {
     method: 'GET',

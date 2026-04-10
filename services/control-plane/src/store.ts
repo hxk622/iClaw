@@ -18,10 +18,17 @@ import type {
   AdminPaymentOrderDetailRecord,
   AdminPaymentOrderSummaryRecord,
   AgentCatalogEntryRecord,
+  CreateDesktopActionApprovalGrantInput,
+  CreateDesktopActionAuditEventInput,
+  CreateDesktopDiagnosticUploadInput,
   CreatePaymentOrderInput,
   CreateUserInput,
   CreditAccountRecord,
   CreditLedgerRecord,
+  DesktopActionApprovalGrantRecord,
+  DesktopActionAuditEventRecord,
+  DesktopActionPolicyRuleRecord,
+  DesktopDiagnosticUploadRecord,
   ExtensionInstallTarget,
   ImportUserPrivateSkillInput,
   InstallAgentInput,
@@ -52,6 +59,7 @@ import type {
   UpsertAgentCatalogEntryInput,
   UpsertAdminPaymentProviderBindingInput,
   UpsertAdminPaymentProviderProfileInput,
+  UpsertDesktopActionPolicyRuleInput,
   UpsertMcpCatalogEntryInput,
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
@@ -193,6 +201,49 @@ export interface ControlPlaneStore {
     operatorDisplayName: string;
     note?: string | null;
   }): Promise<AdminPaymentOrderDetailRecord | null>;
+  listDesktopActionPolicyRules(input?: {
+    scope?: string | null;
+    capability?: string | null;
+    riskLevel?: string | null;
+    enabled?: boolean | null;
+    query?: string | null;
+    limit?: number | null;
+  }): Promise<DesktopActionPolicyRuleRecord[]>;
+  getDesktopActionPolicyRuleById(id: string): Promise<DesktopActionPolicyRuleRecord | null>;
+  upsertDesktopActionPolicyRule(input: Required<UpsertDesktopActionPolicyRuleInput> & {id: string}): Promise<DesktopActionPolicyRuleRecord>;
+  listDesktopActionApprovalGrants(input?: {
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    capability?: string | null;
+    activeOnly?: boolean | null;
+    limit?: number | null;
+  }): Promise<DesktopActionApprovalGrantRecord[]>;
+  createDesktopActionApprovalGrant(input: Required<CreateDesktopActionApprovalGrantInput> & {id: string; created_at: string}): Promise<DesktopActionApprovalGrantRecord>;
+  revokeDesktopActionApprovalGrant(id: string, revokedAt: string): Promise<DesktopActionApprovalGrantRecord | null>;
+  listDesktopActionAuditEvents(input?: {
+    intentId?: string | null;
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    capability?: string | null;
+    riskLevel?: string | null;
+    decision?: string | null;
+    limit?: number | null;
+  }): Promise<DesktopActionAuditEventRecord[]>;
+  createDesktopActionAuditEvents(
+    input: Array<Required<CreateDesktopActionAuditEventInput> & {id: string; created_at: string}>,
+  ): Promise<DesktopActionAuditEventRecord[]>;
+  listDesktopDiagnosticUploads(input?: {
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    sourceType?: string | null;
+    limit?: number | null;
+  }): Promise<DesktopDiagnosticUploadRecord[]>;
+  createDesktopDiagnosticUpload(
+    input: Required<CreateDesktopDiagnosticUploadInput> & {id: string; created_at: string},
+  ): Promise<DesktopDiagnosticUploadRecord>;
   applyPaymentWebhook(provider: PaymentProvider, input: Required<PaymentWebhookInput>): Promise<PaymentOrderRecord | null>;
   getRunGrantById(grantId: string): Promise<RunGrantRecord | null>;
   getRunBillingSummary(grantId: string): Promise<RunBillingSummaryRecord | null>;
@@ -370,6 +421,10 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   private readonly creditLedgerByUserId = new Map<string, CreditLedgerRecord[]>();
   private readonly paymentProviderProfilesById = new Map<string, PaymentProviderProfileRecord>();
   private readonly paymentProviderBindingsByKey = new Map<string, PaymentProviderBindingRecord>();
+  private readonly desktopActionPolicyRulesById = new Map<string, DesktopActionPolicyRuleRecord>();
+  private readonly desktopActionApprovalGrantsById = new Map<string, DesktopActionApprovalGrantRecord>();
+  private readonly desktopActionAuditEventsById = new Map<string, DesktopActionAuditEventRecord>();
+  private readonly desktopDiagnosticUploadsById = new Map<string, DesktopDiagnosticUploadRecord>();
   private readonly paymentOrdersById = new Map<string, PaymentOrderRecord>();
   private readonly rechargePaymentMethodConfigsByApp = new Map<string, Record<string, unknown>>();
   private readonly systemStateByKey = new Map<string, Record<string, unknown>>();
@@ -1159,6 +1214,227 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     });
     this.paymentWebhookEventsByOrderId.set(order.id, events);
     return this.getPaymentOrderAdmin(order.id);
+  }
+
+  async listDesktopActionPolicyRules(input?: {
+    scope?: string | null;
+    capability?: string | null;
+    riskLevel?: string | null;
+    enabled?: boolean | null;
+    query?: string | null;
+    limit?: number | null;
+  }): Promise<DesktopActionPolicyRuleRecord[]> {
+    const scope = String(input?.scope || '').trim().toLowerCase();
+    const capability = String(input?.capability || '').trim().toLowerCase();
+    const riskLevel = String(input?.riskLevel || '').trim().toLowerCase();
+    const query = String(input?.query || '').trim().toLowerCase();
+    const limit = typeof input?.limit === 'number' && Number.isFinite(input.limit) ? Math.max(1, Math.floor(input.limit)) : 200;
+    return Array.from(this.desktopActionPolicyRulesById.values())
+      .filter((item) => (!scope ? true : item.scope === scope))
+      .filter((item) => (!capability ? true : item.capability.toLowerCase() === capability))
+      .filter((item) => (!riskLevel ? true : item.riskLevel === riskLevel))
+      .filter((item) => (typeof input?.enabled === 'boolean' ? item.enabled === input.enabled : true))
+      .filter((item) =>
+        !query
+          ? true
+          : item.name.toLowerCase().includes(query) ||
+            item.capability.toLowerCase().includes(query) ||
+            (item.scopeId || '').toLowerCase().includes(query),
+      )
+      .sort((left, right) => left.priority - right.priority || Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
+      .slice(0, limit);
+  }
+
+  async getDesktopActionPolicyRuleById(id: string): Promise<DesktopActionPolicyRuleRecord | null> {
+    return this.desktopActionPolicyRulesById.get(id) || null;
+  }
+
+  async upsertDesktopActionPolicyRule(
+    input: Required<UpsertDesktopActionPolicyRuleInput> & {id: string},
+  ): Promise<DesktopActionPolicyRuleRecord> {
+    const existing = this.desktopActionPolicyRulesById.get(input.id);
+    const record: DesktopActionPolicyRuleRecord = {
+      id: input.id,
+      scope: input.scope || existing?.scope || 'platform',
+      scopeId: input.scope_id || null,
+      name: input.name || existing?.name || '',
+      effect: input.effect || existing?.effect || 'allow_with_approval',
+      capability: input.capability || existing?.capability || '',
+      riskLevel: input.risk_level || existing?.riskLevel || 'medium',
+      officialOnly: input.official_only ?? existing?.officialOnly ?? false,
+      skillSlugs: [...(input.skill_slugs || existing?.skillSlugs || [])],
+      workflowIds: [...(input.workflow_ids || existing?.workflowIds || [])],
+      pathPrefixes: [...(input.path_prefixes || existing?.pathPrefixes || [])],
+      domains: [...(input.domains || existing?.domains || [])],
+      ports: [...(input.ports || existing?.ports || [])],
+      allowElevation: input.allow_elevation ?? existing?.allowElevation ?? false,
+      allowNetworkEgress: input.allow_network_egress ?? existing?.allowNetworkEgress ?? false,
+      grantScope: input.grant_scope || existing?.grantScope || 'once',
+      ttlSeconds: input.ttl_seconds ?? existing?.ttlSeconds ?? null,
+      enabled: input.enabled ?? existing?.enabled ?? true,
+      priority: input.priority ?? existing?.priority ?? 100,
+      createdAt: existing?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    this.desktopActionPolicyRulesById.set(record.id, record);
+    return record;
+  }
+
+  async listDesktopActionApprovalGrants(input?: {
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    capability?: string | null;
+    activeOnly?: boolean | null;
+    limit?: number | null;
+  }): Promise<DesktopActionApprovalGrantRecord[]> {
+    const now = Date.now();
+    const limit = typeof input?.limit === 'number' && Number.isFinite(input.limit) ? Math.max(1, Math.floor(input.limit)) : 200;
+    return Array.from(this.desktopActionApprovalGrantsById.values())
+      .filter((item) => (!input?.userId ? true : item.userId === input.userId))
+      .filter((item) => (!input?.deviceId ? true : item.deviceId === input.deviceId))
+      .filter((item) => (!input?.appName ? true : item.appName === input.appName))
+      .filter((item) => (!input?.capability ? true : item.capability === input.capability))
+      .filter((item) => {
+        if (!input?.activeOnly) {
+          return true;
+        }
+        if (item.revokedAt) {
+          return false;
+        }
+        if (item.expiresAt && Date.parse(item.expiresAt) <= now) {
+          return false;
+        }
+        return true;
+      })
+      .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
+      .slice(0, limit);
+  }
+
+  async createDesktopActionApprovalGrant(
+    input: Required<CreateDesktopActionApprovalGrantInput> & {id: string; created_at: string},
+  ): Promise<DesktopActionApprovalGrantRecord> {
+    const record: DesktopActionApprovalGrantRecord = {
+      id: input.id,
+      userId: input.user_id || '',
+      deviceId: input.device_id || '',
+      appName: input.app_name || '',
+      intentFingerprint: input.intent_fingerprint || '',
+      capability: input.capability || '',
+      scope: input.scope || 'once',
+      taskId: input.task_id || null,
+      sessionKey: input.session_key || null,
+      expiresAt: input.expires_at || null,
+      revokedAt: null,
+      createdAt: input.created_at,
+    };
+    this.desktopActionApprovalGrantsById.set(record.id, record);
+    return record;
+  }
+
+  async revokeDesktopActionApprovalGrant(id: string, revokedAt: string): Promise<DesktopActionApprovalGrantRecord | null> {
+    const current = this.desktopActionApprovalGrantsById.get(id);
+    if (!current) {
+      return null;
+    }
+    const next = {...current, revokedAt};
+    this.desktopActionApprovalGrantsById.set(id, next);
+    return next;
+  }
+
+  async listDesktopActionAuditEvents(input?: {
+    intentId?: string | null;
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    capability?: string | null;
+    riskLevel?: string | null;
+    decision?: string | null;
+    limit?: number | null;
+  }): Promise<DesktopActionAuditEventRecord[]> {
+    const limit = typeof input?.limit === 'number' && Number.isFinite(input.limit) ? Math.max(1, Math.floor(input.limit)) : 200;
+    return Array.from(this.desktopActionAuditEventsById.values())
+      .filter((item) => (!input?.intentId ? true : item.intentId === input.intentId))
+      .filter((item) => (!input?.userId ? true : item.userId === input.userId))
+      .filter((item) => (!input?.deviceId ? true : item.deviceId === input.deviceId))
+      .filter((item) => (!input?.appName ? true : item.appName === input.appName))
+      .filter((item) => (!input?.capability ? true : item.capability === input.capability))
+      .filter((item) => (!input?.riskLevel ? true : item.riskLevel === input.riskLevel))
+      .filter((item) => (!input?.decision ? true : item.decision === input.decision))
+      .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
+      .slice(0, limit);
+  }
+
+  async createDesktopActionAuditEvents(
+    input: Array<Required<CreateDesktopActionAuditEventInput> & {id: string; created_at: string}>,
+  ): Promise<DesktopActionAuditEventRecord[]> {
+    const created: DesktopActionAuditEventRecord[] = input.map((item) => {
+      const record: DesktopActionAuditEventRecord = {
+        id: item.id,
+        intentId: item.intent_id || '',
+        traceId: item.trace_id || '',
+        userId: item.user_id || null,
+        deviceId: item.device_id || '',
+        appName: item.app_name || '',
+        agentId: item.agent_id || null,
+        skillSlug: item.skill_slug || null,
+        workflowId: item.workflow_id || null,
+        capability: item.capability || '',
+        riskLevel: item.risk_level || 'medium',
+        requiresElevation: item.requires_elevation ?? false,
+        decision: item.decision || 'pending',
+        stage: item.stage || 'intent_created',
+        summary: item.summary || '',
+        reason: item.reason || null,
+        resources: item.resources || [],
+        commandSnapshot: item.command_snapshot || null,
+        resultCode: item.result_code || null,
+        resultSummary: item.result_summary || null,
+        durationMs: item.duration_ms,
+        createdAt: item.created_at,
+      };
+      this.desktopActionAuditEventsById.set(record.id, record);
+      return record;
+    });
+    return created;
+  }
+
+  async listDesktopDiagnosticUploads(input?: {
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    sourceType?: string | null;
+    limit?: number | null;
+  }): Promise<DesktopDiagnosticUploadRecord[]> {
+    const limit = typeof input?.limit === 'number' && Number.isFinite(input.limit) ? Math.max(1, Math.floor(input.limit)) : 200;
+    return Array.from(this.desktopDiagnosticUploadsById.values())
+      .filter((item) => (!input?.userId ? true : item.userId === input.userId))
+      .filter((item) => (!input?.deviceId ? true : item.deviceId === input.deviceId))
+      .filter((item) => (!input?.appName ? true : item.appName === input.appName))
+      .filter((item) => (!input?.sourceType ? true : item.sourceType === input.sourceType))
+      .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
+      .slice(0, limit);
+  }
+
+  async createDesktopDiagnosticUpload(
+    input: Required<CreateDesktopDiagnosticUploadInput> & {id: string; created_at: string},
+  ): Promise<DesktopDiagnosticUploadRecord> {
+    const record: DesktopDiagnosticUploadRecord = {
+      id: input.id,
+      userId: input.user_id || null,
+      deviceId: input.device_id || '',
+      appName: input.app_name || '',
+      uploadBucket: input.upload_bucket || '',
+      uploadKey: input.upload_key || '',
+      fileName: input.file_name || '',
+      fileSizeBytes: input.file_size_bytes ?? 0,
+      sha256: input.sha256 || null,
+      sourceType: input.source_type || 'manual',
+      linkedIntentId: input.linked_intent_id || null,
+      createdAt: input.created_at,
+    };
+    this.desktopDiagnosticUploadsById.set(record.id, record);
+    return record;
   }
 
   async applyPaymentWebhook(provider: PaymentProvider, input: Required<PaymentWebhookInput>): Promise<PaymentOrderRecord | null> {

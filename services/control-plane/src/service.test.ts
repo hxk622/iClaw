@@ -274,6 +274,120 @@ test('non-admin users cannot access admin skill catalog APIs', async () => {
   });
 });
 
+test('desktop action security flow persists policies, grants, audit events, and diagnostic uploads', async () => {
+  await withBootstrapRoles({adminEmails: ['security-admin@example.com']}, async () => {
+    const store = new InMemoryControlPlaneStore();
+    const service = new ControlPlaneService(store);
+
+    const admin = await service.register({
+      username: 'security-admin',
+      email: 'security-admin@example.com',
+      password: 'password123',
+      name: 'Security Admin',
+    });
+    const user = await service.register({
+      username: 'security-user',
+      email: 'security-user@example.com',
+      password: 'password123',
+      name: 'Security User',
+    });
+
+    const policy = await service.upsertAdminDesktopActionPolicy(admin.tokens.access_token, {
+      id: 'policy-diagnostics',
+      scope: 'platform',
+      name: 'Diagnostic Upload Policy',
+      effect: 'allow_with_approval',
+      capability: 'collect_diagnostics',
+      risk_level: 'medium',
+      grant_scope: 'session',
+      enabled: true,
+      priority: 20,
+      official_only: true,
+      allow_network_egress: true,
+      skill_slugs: ['official-diagnostics'],
+    });
+    assert.equal(policy.capability, 'collect_diagnostics');
+
+    const adminPolicies = await service.listAdminDesktopActionPolicies(admin.tokens.access_token, {
+      capability: 'collect_diagnostics',
+    });
+    assert.equal(adminPolicies.items.length, 1);
+
+    const snapshot = await service.getRuntimeDesktopActionPolicySnapshot(user.tokens.access_token, 'iclaw');
+    assert.equal(snapshot.items.length, 1);
+    assert.equal(snapshot.items[0]?.effect, 'allow_with_approval');
+
+    const grant = await service.createDesktopActionApprovalGrant(user.tokens.access_token, {
+      device_id: 'device-001',
+      app_name: 'iclaw',
+      intent_fingerprint: 'intent-fp-001',
+      capability: 'collect_diagnostics',
+      scope: 'session',
+      session_key: 'agent:main:main',
+    });
+    assert.equal(grant.device_id, 'device-001');
+
+    const audits = await service.recordDesktopActionAuditEvents(user.tokens.access_token, [
+      {
+        intent_id: 'intent-001',
+        trace_id: 'trace-001',
+        device_id: 'device-001',
+        app_name: 'iclaw',
+        capability: 'collect_diagnostics',
+        risk_level: 'medium',
+        decision: 'pending',
+        stage: 'approval_requested',
+        summary: 'Need to upload local logs',
+        resources: [{kind: 'log', path: 'logs/runtime.log'}],
+      },
+      {
+        intent_id: 'intent-001',
+        trace_id: 'trace-001',
+        device_id: 'device-001',
+        app_name: 'iclaw',
+        capability: 'collect_diagnostics',
+        risk_level: 'medium',
+        decision: 'allow',
+        stage: 'approval_granted',
+        summary: 'User approved diagnostic upload',
+      },
+    ]);
+    assert.equal(audits.items.length, 2);
+
+    const upload = await service.recordDesktopDiagnosticUpload(user.tokens.access_token, {
+      device_id: 'device-001',
+      app_name: 'iclaw',
+      upload_bucket: 'desktop-logs',
+      upload_key: 'users/security-user/trace-001/runtime.log',
+      file_name: 'runtime.log',
+      file_size_bytes: 2048,
+      source_type: 'approval_flow',
+      linked_intent_id: 'intent-001',
+    });
+    assert.equal(upload.source_type, 'approval_flow');
+
+    const adminAudits = await service.listAdminDesktopActionAuditEvents(admin.tokens.access_token, {
+      intent_id: 'intent-001',
+    });
+    assert.equal(adminAudits.items.length, 2);
+
+    const adminGrants = await service.listAdminDesktopActionApprovalGrants(admin.tokens.access_token, {
+      user_id: user.user.id,
+      active_only: true,
+    });
+    assert.equal(adminGrants.items.length, 1);
+
+    const revoked = await service.revokeAdminDesktopActionApprovalGrant(admin.tokens.access_token, grant.id);
+    assert.ok(revoked.revoked_at);
+
+    const diagnosticUploads = await service.listAdminDesktopDiagnosticUploads(admin.tokens.access_token, {
+      user_id: user.user.id,
+    });
+    assert.equal(diagnosticUploads.items.length, 1);
+    assert.equal(diagnosticUploads.items[0]?.upload_key, 'users/security-user/trace-001/runtime.log');
+  });
+});
+
 test('payment orders without checkout urls stay empty instead of falling back to placeholder qr payloads', async () => {
   const store = new InMemoryControlPlaneStore();
   const order = await store.createPaymentOrder('user_123', {

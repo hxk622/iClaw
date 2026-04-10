@@ -1,4 +1,7 @@
 import type {
+  CreateDesktopActionApprovalGrantInput,
+  CreateDesktopActionAuditEventInput,
+  CreateDesktopDiagnosticUploadInput,
   AdminPaymentOrderDetailRecord,
   AdminPaymentOrderSummaryRecord,
   AgentCatalogEntryRecord,
@@ -32,9 +35,14 @@ import type {
   SkillCatalogEntryRecord,
   SkillSyncRunRecord,
   SkillSyncSourceRecord,
+  DesktopActionApprovalGrantRecord,
+  DesktopActionAuditEventRecord,
+  DesktopActionPolicyRuleRecord,
+  DesktopDiagnosticUploadRecord,
   UpsertAgentCatalogEntryInput,
   UpsertAdminPaymentProviderBindingInput,
   UpsertAdminPaymentProviderProfileInput,
+  UpsertDesktopActionPolicyRuleInput,
   UpsertMcpCatalogEntryInput,
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
@@ -417,6 +425,83 @@ export class CachedControlPlaneStore implements ControlPlaneStore {
       ]);
     }
     return detail;
+  }
+
+  async listDesktopActionPolicyRules(input?: {
+    scope?: string | null;
+    capability?: string | null;
+    riskLevel?: string | null;
+    enabled?: boolean | null;
+    query?: string | null;
+    limit?: number | null;
+  }): Promise<DesktopActionPolicyRuleRecord[]> {
+    return this.base.listDesktopActionPolicyRules(input);
+  }
+
+  async getDesktopActionPolicyRuleById(id: string): Promise<DesktopActionPolicyRuleRecord | null> {
+    return this.base.getDesktopActionPolicyRuleById(id);
+  }
+
+  async upsertDesktopActionPolicyRule(
+    input: Required<UpsertDesktopActionPolicyRuleInput> & {id: string},
+  ): Promise<DesktopActionPolicyRuleRecord> {
+    return this.base.upsertDesktopActionPolicyRule(input);
+  }
+
+  async listDesktopActionApprovalGrants(input?: {
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    capability?: string | null;
+    activeOnly?: boolean | null;
+    limit?: number | null;
+  }): Promise<DesktopActionApprovalGrantRecord[]> {
+    return this.base.listDesktopActionApprovalGrants(input);
+  }
+
+  async createDesktopActionApprovalGrant(
+    input: Required<CreateDesktopActionApprovalGrantInput> & {id: string; created_at: string},
+  ): Promise<DesktopActionApprovalGrantRecord> {
+    return this.base.createDesktopActionApprovalGrant(input);
+  }
+
+  async revokeDesktopActionApprovalGrant(id: string, revokedAt: string): Promise<DesktopActionApprovalGrantRecord | null> {
+    return this.base.revokeDesktopActionApprovalGrant(id, revokedAt);
+  }
+
+  async listDesktopActionAuditEvents(input?: {
+    intentId?: string | null;
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    capability?: string | null;
+    riskLevel?: string | null;
+    decision?: string | null;
+    limit?: number | null;
+  }): Promise<DesktopActionAuditEventRecord[]> {
+    return this.base.listDesktopActionAuditEvents(input);
+  }
+
+  async createDesktopActionAuditEvents(
+    input: Array<Required<CreateDesktopActionAuditEventInput> & {id: string; created_at: string}>,
+  ): Promise<DesktopActionAuditEventRecord[]> {
+    return this.base.createDesktopActionAuditEvents(input);
+  }
+
+  async listDesktopDiagnosticUploads(input?: {
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    sourceType?: string | null;
+    limit?: number | null;
+  }): Promise<DesktopDiagnosticUploadRecord[]> {
+    return this.base.listDesktopDiagnosticUploads(input);
+  }
+
+  async createDesktopDiagnosticUpload(
+    input: Required<CreateDesktopDiagnosticUploadInput> & {id: string; created_at: string},
+  ): Promise<DesktopDiagnosticUploadRecord> {
+    return this.base.createDesktopDiagnosticUpload(input);
   }
 
   async applyPaymentWebhook(provider: PaymentProvider, input: Required<PaymentWebhookInput>): Promise<PaymentOrderRecord | null> {

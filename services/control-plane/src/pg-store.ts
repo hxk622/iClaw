@@ -17,6 +17,9 @@ import {
   type ResolvedRechargePaymentMethodRecord,
 } from './recharge-payment-methods.ts';
 import type {
+  CreateDesktopActionApprovalGrantInput,
+  CreateDesktopActionAuditEventInput,
+  CreateDesktopDiagnosticUploadInput,
   AdminPaymentOrderDetailRecord,
   AdminPaymentOrderSummaryRecord,
   AgentCatalogEntryRecord,
@@ -25,6 +28,10 @@ import type {
   CreateUserInput,
   CreditAccountRecord,
   CreditLedgerRecord,
+  DesktopActionApprovalGrantRecord,
+  DesktopActionAuditEventRecord,
+  DesktopActionPolicyRuleRecord,
+  DesktopDiagnosticUploadRecord,
   ExtensionInstallTarget,
   ImportUserPrivateSkillInput,
   InstallAgentInput,
@@ -57,6 +64,7 @@ import type {
   UpsertAgentCatalogEntryInput,
   UpsertAdminPaymentProviderBindingInput,
   UpsertAdminPaymentProviderProfileInput,
+  UpsertDesktopActionPolicyRuleInput,
   UpsertMcpCatalogEntryInput,
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
@@ -538,6 +546,92 @@ type SystemStateRow = {
   updated_at: Date;
 };
 
+type DesktopActionPolicyRuleRow = {
+  id: string;
+  scope: 'platform' | 'oem' | 'org';
+  scope_id: string | null;
+  name: string;
+  effect: 'allow' | 'allow_with_approval' | 'deny';
+  capability: string;
+  risk_level: 'low' | 'medium' | 'high' | 'critical';
+  official_only: boolean;
+  skill_slugs: unknown;
+  workflow_ids: unknown;
+  path_prefixes: unknown;
+  domains: unknown;
+  ports: unknown;
+  allow_elevation: boolean;
+  allow_network_egress: boolean;
+  grant_scope: 'once' | 'task' | 'session' | 'ttl';
+  ttl_seconds: number | null;
+  enabled: boolean;
+  priority: number;
+  created_at: Date;
+  updated_at: Date;
+};
+
+type DesktopActionApprovalGrantRow = {
+  id: string;
+  user_id: string;
+  device_id: string;
+  app_name: string;
+  intent_fingerprint: string;
+  capability: string;
+  scope: 'once' | 'task' | 'session' | 'ttl';
+  task_id: string | null;
+  session_key: string | null;
+  expires_at: Date | null;
+  revoked_at: Date | null;
+  created_at: Date;
+};
+
+type DesktopActionAuditEventRow = {
+  id: string;
+  intent_id: string;
+  trace_id: string;
+  user_id: string | null;
+  device_id: string;
+  app_name: string;
+  agent_id: string | null;
+  skill_slug: string | null;
+  workflow_id: string | null;
+  capability: string;
+  risk_level: 'low' | 'medium' | 'high' | 'critical';
+  requires_elevation: boolean;
+  decision: 'allow' | 'deny' | 'pending';
+  stage:
+    | 'intent_created'
+    | 'policy_evaluated'
+    | 'approval_requested'
+    | 'approval_granted'
+    | 'approval_denied'
+    | 'execution_started'
+    | 'execution_finished';
+  summary: string;
+  reason: string | null;
+  resources_json: unknown;
+  command_snapshot: string | null;
+  result_code: string | null;
+  result_summary: string | null;
+  duration_ms: number | null;
+  created_at: Date;
+};
+
+type DesktopDiagnosticUploadRow = {
+  id: string;
+  user_id: string | null;
+  device_id: string;
+  app_name: string;
+  upload_bucket: string;
+  upload_key: string;
+  file_name: string;
+  file_size_bytes: string | number;
+  sha256: string | null;
+  source_type: 'manual' | 'auto_error_capture' | 'approval_flow';
+  linked_intent_id: string | null;
+  created_at: Date;
+};
+
 function mapUserRow(row: UserRow): UserRecord {
   return {
     id: row.id,
@@ -699,11 +793,36 @@ function parseStringArray(raw: unknown): string[] {
   return raw.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
 }
 
+function parseNumberArray(raw: unknown): number[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => {
+      if (typeof item === 'number' && Number.isFinite(item)) {
+        return Math.floor(item);
+      }
+      if (typeof item === 'string' && item.trim()) {
+        const parsed = Number(item);
+        return Number.isFinite(parsed) ? Math.floor(parsed) : null;
+      }
+      return null;
+    })
+    .filter((item): item is number => item != null);
+}
+
 function parseJsonObject(raw: unknown): Record<string, unknown> {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return {};
   }
   return raw as Record<string, unknown>;
+}
+
+function parseJsonObjectArray(raw: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  return raw
+    .map((item) => parseJsonObject(item))
+    .filter((item) => Object.keys(item).length > 0);
 }
 
 function parseCreditLedgerAssistantTimestamp(metadata: Record<string, unknown> | null): number | null {
@@ -728,6 +847,93 @@ function mapAgentCatalogRow(row: AgentCatalogRow): AgentCatalogRecord {
     active: row.active,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapDesktopActionPolicyRuleRow(row: DesktopActionPolicyRuleRow): DesktopActionPolicyRuleRecord {
+  return {
+    id: row.id,
+    scope: row.scope,
+    scopeId: row.scope_id,
+    name: row.name,
+    effect: row.effect,
+    capability: row.capability,
+    riskLevel: row.risk_level,
+    officialOnly: row.official_only,
+    skillSlugs: parseStringArray(row.skill_slugs),
+    workflowIds: parseStringArray(row.workflow_ids),
+    pathPrefixes: parseStringArray(row.path_prefixes),
+    domains: parseStringArray(row.domains),
+    ports: parseNumberArray(row.ports),
+    allowElevation: row.allow_elevation,
+    allowNetworkEgress: row.allow_network_egress,
+    grantScope: row.grant_scope,
+    ttlSeconds: row.ttl_seconds,
+    enabled: row.enabled,
+    priority: row.priority,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapDesktopActionApprovalGrantRow(row: DesktopActionApprovalGrantRow): DesktopActionApprovalGrantRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    deviceId: row.device_id,
+    appName: row.app_name,
+    intentFingerprint: row.intent_fingerprint,
+    capability: row.capability,
+    scope: row.scope,
+    taskId: row.task_id,
+    sessionKey: row.session_key,
+    expiresAt: row.expires_at ? row.expires_at.toISOString() : null,
+    revokedAt: row.revoked_at ? row.revoked_at.toISOString() : null,
+    createdAt: row.created_at.toISOString(),
+  };
+}
+
+function mapDesktopActionAuditEventRow(row: DesktopActionAuditEventRow): DesktopActionAuditEventRecord {
+  return {
+    id: row.id,
+    intentId: row.intent_id,
+    traceId: row.trace_id,
+    userId: row.user_id,
+    deviceId: row.device_id,
+    appName: row.app_name,
+    agentId: row.agent_id,
+    skillSlug: row.skill_slug,
+    workflowId: row.workflow_id,
+    capability: row.capability,
+    riskLevel: row.risk_level,
+    requiresElevation: row.requires_elevation,
+    decision: row.decision,
+    stage: row.stage,
+    summary: row.summary,
+    reason: row.reason,
+    resources: parseJsonObjectArray(row.resources_json),
+    commandSnapshot: row.command_snapshot,
+    resultCode: row.result_code,
+    resultSummary: row.result_summary,
+    durationMs: row.duration_ms,
+    createdAt: row.created_at.toISOString(),
+  };
+}
+
+function mapDesktopDiagnosticUploadRow(row: DesktopDiagnosticUploadRow): DesktopDiagnosticUploadRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    deviceId: row.device_id,
+    appName: row.app_name,
+    uploadBucket: row.upload_bucket,
+    uploadKey: row.upload_key,
+    fileName: row.file_name,
+    fileSizeBytes: parseDbNumber(row.file_size_bytes),
+    sha256: row.sha256,
+    sourceType: row.source_type,
+    linkedIntentId: row.linked_intent_id,
+    createdAt: row.created_at.toISOString(),
   };
 }
 
@@ -2762,6 +2968,420 @@ export class PgControlPlaneStore implements ControlPlaneStore {
       client.release();
     }
     return this.getPaymentOrderAdmin(input.orderId);
+  }
+
+  async listDesktopActionPolicyRules(input?: {
+    scope?: string | null;
+    capability?: string | null;
+    riskLevel?: string | null;
+    enabled?: boolean | null;
+    query?: string | null;
+    limit?: number | null;
+  }): Promise<DesktopActionPolicyRuleRecord[]> {
+    const values: unknown[] = [];
+    const where: string[] = [];
+    if (input?.scope) {
+      values.push(String(input.scope).trim().toLowerCase());
+      where.push(`scope = $${values.length}`);
+    }
+    if (input?.capability) {
+      values.push(String(input.capability).trim().toLowerCase());
+      where.push(`lower(capability) = $${values.length}`);
+    }
+    if (input?.riskLevel) {
+      values.push(String(input.riskLevel).trim().toLowerCase());
+      where.push(`risk_level = $${values.length}`);
+    }
+    if (typeof input?.enabled === 'boolean') {
+      values.push(input.enabled);
+      where.push(`enabled = $${values.length}`);
+    }
+    if (input?.query) {
+      values.push(`%${String(input.query).trim().toLowerCase()}%`);
+      where.push(
+        `(lower(name) like $${values.length} or lower(capability) like $${values.length} or lower(coalesce(scope_id, '')) like $${values.length})`,
+      );
+    }
+    const limit = typeof input?.limit === 'number' && Number.isFinite(input.limit) ? Math.max(1, Math.floor(input.limit)) : 200;
+    values.push(limit);
+    const result = await this.pool.query<DesktopActionPolicyRuleRow>(
+      `
+        select
+          id, scope, scope_id, name, effect, capability, risk_level, official_only,
+          skill_slugs, workflow_ids, path_prefixes, domains, ports,
+          allow_elevation, allow_network_egress, grant_scope, ttl_seconds,
+          enabled, priority, created_at, updated_at
+        from desktop_action_policy_rules
+        ${where.length > 0 ? `where ${where.join(' and ')}` : ''}
+        order by priority asc, updated_at desc
+        limit $${values.length}
+      `,
+      values,
+    );
+    return result.rows.map(mapDesktopActionPolicyRuleRow);
+  }
+
+  async getDesktopActionPolicyRuleById(id: string): Promise<DesktopActionPolicyRuleRecord | null> {
+    const result = await this.pool.query<DesktopActionPolicyRuleRow>(
+      `
+        select
+          id, scope, scope_id, name, effect, capability, risk_level, official_only,
+          skill_slugs, workflow_ids, path_prefixes, domains, ports,
+          allow_elevation, allow_network_egress, grant_scope, ttl_seconds,
+          enabled, priority, created_at, updated_at
+        from desktop_action_policy_rules
+        where id = $1
+        limit 1
+      `,
+      [id],
+    );
+    return result.rows[0] ? mapDesktopActionPolicyRuleRow(result.rows[0]) : null;
+  }
+
+  async upsertDesktopActionPolicyRule(
+    input: Required<UpsertDesktopActionPolicyRuleInput> & {id: string},
+  ): Promise<DesktopActionPolicyRuleRecord> {
+    await this.pool.query(
+      `
+        insert into desktop_action_policy_rules (
+          id, scope, scope_id, name, effect, capability, risk_level, official_only,
+          skill_slugs, workflow_ids, path_prefixes, domains, ports,
+          allow_elevation, allow_network_egress, grant_scope, ttl_seconds,
+          enabled, priority, created_at, updated_at
+        )
+        values (
+          $1, $2, $3, $4, $5, $6, $7, $8,
+          $9::jsonb, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb,
+          $14, $15, $16, $17, $18, $19, now(), now()
+        )
+        on conflict (id)
+        do update set
+          scope = excluded.scope,
+          scope_id = excluded.scope_id,
+          name = excluded.name,
+          effect = excluded.effect,
+          capability = excluded.capability,
+          risk_level = excluded.risk_level,
+          official_only = excluded.official_only,
+          skill_slugs = excluded.skill_slugs,
+          workflow_ids = excluded.workflow_ids,
+          path_prefixes = excluded.path_prefixes,
+          domains = excluded.domains,
+          ports = excluded.ports,
+          allow_elevation = excluded.allow_elevation,
+          allow_network_egress = excluded.allow_network_egress,
+          grant_scope = excluded.grant_scope,
+          ttl_seconds = excluded.ttl_seconds,
+          enabled = excluded.enabled,
+          priority = excluded.priority,
+          updated_at = now()
+      `,
+      [
+        input.id,
+        input.scope,
+        input.scope_id || null,
+        input.name,
+        input.effect,
+        input.capability,
+        input.risk_level,
+        input.official_only,
+        JSON.stringify(input.skill_slugs),
+        JSON.stringify(input.workflow_ids),
+        JSON.stringify(input.path_prefixes),
+        JSON.stringify(input.domains),
+        JSON.stringify(input.ports),
+        input.allow_elevation,
+        input.allow_network_egress,
+        input.grant_scope,
+        input.ttl_seconds,
+        input.enabled,
+        input.priority,
+      ],
+    );
+    const record = await this.getDesktopActionPolicyRuleById(input.id);
+    if (!record) {
+      throw new Error('DESKTOP_ACTION_POLICY_UPSERT_FAILED');
+    }
+    return record;
+  }
+
+  async listDesktopActionApprovalGrants(input?: {
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    capability?: string | null;
+    activeOnly?: boolean | null;
+    limit?: number | null;
+  }): Promise<DesktopActionApprovalGrantRecord[]> {
+    const values: unknown[] = [];
+    const where: string[] = [];
+    if (input?.userId) {
+      values.push(input.userId);
+      where.push(`user_id = $${values.length}`);
+    }
+    if (input?.deviceId) {
+      values.push(input.deviceId);
+      where.push(`device_id = $${values.length}`);
+    }
+    if (input?.appName) {
+      values.push(input.appName);
+      where.push(`app_name = $${values.length}`);
+    }
+    if (input?.capability) {
+      values.push(input.capability);
+      where.push(`capability = $${values.length}`);
+    }
+    if (input?.activeOnly) {
+      where.push(`revoked_at is null and (expires_at is null or expires_at > now())`);
+    }
+    const limit = typeof input?.limit === 'number' && Number.isFinite(input.limit) ? Math.max(1, Math.floor(input.limit)) : 200;
+    values.push(limit);
+    const result = await this.pool.query<DesktopActionApprovalGrantRow>(
+      `
+        select
+          id, user_id, device_id, app_name, intent_fingerprint, capability,
+          scope, task_id, session_key, expires_at, revoked_at, created_at
+        from desktop_action_approval_grants
+        ${where.length > 0 ? `where ${where.join(' and ')}` : ''}
+        order by created_at desc
+        limit $${values.length}
+      `,
+      values,
+    );
+    return result.rows.map(mapDesktopActionApprovalGrantRow);
+  }
+
+  async createDesktopActionApprovalGrant(
+    input: Required<CreateDesktopActionApprovalGrantInput> & {id: string; created_at: string},
+  ): Promise<DesktopActionApprovalGrantRecord> {
+    const result = await this.pool.query<DesktopActionApprovalGrantRow>(
+      `
+        insert into desktop_action_approval_grants (
+          id, user_id, device_id, app_name, intent_fingerprint, capability,
+          scope, task_id, session_key, expires_at, revoked_at, created_at
+        )
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, null, $11)
+        returning
+          id, user_id, device_id, app_name, intent_fingerprint, capability,
+          scope, task_id, session_key, expires_at, revoked_at, created_at
+      `,
+      [
+        input.id,
+        input.user_id,
+        input.device_id,
+        input.app_name,
+        input.intent_fingerprint,
+        input.capability,
+        input.scope,
+        input.task_id || null,
+        input.session_key || null,
+        input.expires_at || null,
+        input.created_at,
+      ],
+    );
+    return mapDesktopActionApprovalGrantRow(result.rows[0]);
+  }
+
+  async revokeDesktopActionApprovalGrant(id: string, revokedAt: string): Promise<DesktopActionApprovalGrantRecord | null> {
+    const result = await this.pool.query<DesktopActionApprovalGrantRow>(
+      `
+        update desktop_action_approval_grants
+        set revoked_at = $2
+        where id = $1
+        returning
+          id, user_id, device_id, app_name, intent_fingerprint, capability,
+          scope, task_id, session_key, expires_at, revoked_at, created_at
+      `,
+      [id, revokedAt],
+    );
+    return result.rows[0] ? mapDesktopActionApprovalGrantRow(result.rows[0]) : null;
+  }
+
+  async listDesktopActionAuditEvents(input?: {
+    intentId?: string | null;
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    capability?: string | null;
+    riskLevel?: string | null;
+    decision?: string | null;
+    limit?: number | null;
+  }): Promise<DesktopActionAuditEventRecord[]> {
+    const values: unknown[] = [];
+    const where: string[] = [];
+    if (input?.intentId) {
+      values.push(input.intentId);
+      where.push(`intent_id = $${values.length}`);
+    }
+    if (input?.userId) {
+      values.push(input.userId);
+      where.push(`user_id = $${values.length}`);
+    }
+    if (input?.deviceId) {
+      values.push(input.deviceId);
+      where.push(`device_id = $${values.length}`);
+    }
+    if (input?.appName) {
+      values.push(input.appName);
+      where.push(`app_name = $${values.length}`);
+    }
+    if (input?.capability) {
+      values.push(input.capability);
+      where.push(`capability = $${values.length}`);
+    }
+    if (input?.riskLevel) {
+      values.push(input.riskLevel);
+      where.push(`risk_level = $${values.length}`);
+    }
+    if (input?.decision) {
+      values.push(input.decision);
+      where.push(`decision = $${values.length}`);
+    }
+    const limit = typeof input?.limit === 'number' && Number.isFinite(input.limit) ? Math.max(1, Math.floor(input.limit)) : 200;
+    values.push(limit);
+    const result = await this.pool.query<DesktopActionAuditEventRow>(
+      `
+        select
+          id, intent_id, trace_id, user_id, device_id, app_name, agent_id, skill_slug, workflow_id,
+          capability, risk_level, requires_elevation, decision, stage, summary, reason,
+          resources_json, command_snapshot, result_code, result_summary, duration_ms, created_at
+        from desktop_action_audit_events
+        ${where.length > 0 ? `where ${where.join(' and ')}` : ''}
+        order by created_at desc
+        limit $${values.length}
+      `,
+      values,
+    );
+    return result.rows.map(mapDesktopActionAuditEventRow);
+  }
+
+  async createDesktopActionAuditEvents(
+    input: Array<Required<CreateDesktopActionAuditEventInput> & {id: string; created_at: string}>,
+  ): Promise<DesktopActionAuditEventRecord[]> {
+    if (input.length === 0) {
+      return [];
+    }
+    const created: DesktopActionAuditEventRecord[] = [];
+    for (const item of input) {
+      const result = await this.pool.query<DesktopActionAuditEventRow>(
+        `
+          insert into desktop_action_audit_events (
+            id, intent_id, trace_id, user_id, device_id, app_name, agent_id, skill_slug, workflow_id,
+            capability, risk_level, requires_elevation, decision, stage, summary, reason,
+            resources_json, command_snapshot, result_code, result_summary, duration_ms, created_at
+          )
+          values (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9,
+            $10, $11, $12, $13, $14, $15, $16,
+            $17::jsonb, $18, $19, $20, $21, $22
+          )
+          returning
+            id, intent_id, trace_id, user_id, device_id, app_name, agent_id, skill_slug, workflow_id,
+            capability, risk_level, requires_elevation, decision, stage, summary, reason,
+            resources_json, command_snapshot, result_code, result_summary, duration_ms, created_at
+        `,
+        [
+          item.id,
+          item.intent_id,
+          item.trace_id,
+          item.user_id || null,
+          item.device_id,
+          item.app_name,
+          item.agent_id || null,
+          item.skill_slug || null,
+          item.workflow_id || null,
+          item.capability,
+          item.risk_level,
+          item.requires_elevation,
+          item.decision,
+          item.stage,
+          item.summary,
+          item.reason || null,
+          JSON.stringify(item.resources),
+          item.command_snapshot || null,
+          item.result_code || null,
+          item.result_summary || null,
+          item.duration_ms,
+          item.created_at,
+        ],
+      );
+      created.push(mapDesktopActionAuditEventRow(result.rows[0]));
+    }
+    return created;
+  }
+
+  async listDesktopDiagnosticUploads(input?: {
+    userId?: string | null;
+    deviceId?: string | null;
+    appName?: string | null;
+    sourceType?: string | null;
+    limit?: number | null;
+  }): Promise<DesktopDiagnosticUploadRecord[]> {
+    const values: unknown[] = [];
+    const where: string[] = [];
+    if (input?.userId) {
+      values.push(input.userId);
+      where.push(`user_id = $${values.length}`);
+    }
+    if (input?.deviceId) {
+      values.push(input.deviceId);
+      where.push(`device_id = $${values.length}`);
+    }
+    if (input?.appName) {
+      values.push(input.appName);
+      where.push(`app_name = $${values.length}`);
+    }
+    if (input?.sourceType) {
+      values.push(input.sourceType);
+      where.push(`source_type = $${values.length}`);
+    }
+    const limit = typeof input?.limit === 'number' && Number.isFinite(input.limit) ? Math.max(1, Math.floor(input.limit)) : 200;
+    values.push(limit);
+    const result = await this.pool.query<DesktopDiagnosticUploadRow>(
+      `
+        select
+          id, user_id, device_id, app_name, upload_bucket, upload_key,
+          file_name, file_size_bytes, sha256, source_type, linked_intent_id, created_at
+        from desktop_diagnostic_uploads
+        ${where.length > 0 ? `where ${where.join(' and ')}` : ''}
+        order by created_at desc
+        limit $${values.length}
+      `,
+      values,
+    );
+    return result.rows.map(mapDesktopDiagnosticUploadRow);
+  }
+
+  async createDesktopDiagnosticUpload(
+    input: Required<CreateDesktopDiagnosticUploadInput> & {id: string; created_at: string},
+  ): Promise<DesktopDiagnosticUploadRecord> {
+    const result = await this.pool.query<DesktopDiagnosticUploadRow>(
+      `
+        insert into desktop_diagnostic_uploads (
+          id, user_id, device_id, app_name, upload_bucket, upload_key,
+          file_name, file_size_bytes, sha256, source_type, linked_intent_id, created_at
+        )
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        returning
+          id, user_id, device_id, app_name, upload_bucket, upload_key,
+          file_name, file_size_bytes, sha256, source_type, linked_intent_id, created_at
+      `,
+      [
+        input.id,
+        input.user_id || null,
+        input.device_id,
+        input.app_name,
+        input.upload_bucket,
+        input.upload_key,
+        input.file_name,
+        input.file_size_bytes,
+        input.sha256 || null,
+        input.source_type,
+        input.linked_intent_id || null,
+        input.created_at,
+      ],
+    );
+    return mapDesktopDiagnosticUploadRow(result.rows[0]);
   }
 
   async applyPaymentWebhook(provider: PaymentProvider, input: Required<PaymentWebhookInput>): Promise<PaymentOrderRecord | null> {

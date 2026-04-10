@@ -17,6 +17,10 @@ import {
 } from './user-file-storage.ts';
 
 import type {
+  AdminDesktopActionApprovalGrantView,
+  AdminDesktopActionAuditEventView,
+  AdminDesktopActionPolicyRuleView,
+  AdminDesktopDiagnosticUploadView,
   AdminRefundPaymentOrderInput,
   AdminMarkPaymentOrderPaidInput,
   AdminPaymentOrderDetailView,
@@ -37,6 +41,20 @@ import type {
   CreditQuoteInput,
   CreditQuoteView,
   CreditLedgerItemView,
+  CreateDesktopActionApprovalGrantInput,
+  CreateDesktopActionAuditEventInput,
+  CreateDesktopDiagnosticUploadInput,
+  DesktopActionApprovalGrantRecord,
+  DesktopActionAuditDecision,
+  DesktopActionAuditEventRecord,
+  DesktopActionAuditStage,
+  DesktopActionGrantScope,
+  DesktopActionPolicyEffect,
+  DesktopActionPolicyRuleRecord,
+  DesktopActionPolicyScope,
+  DesktopActionRiskLevel,
+  DesktopDiagnosticUploadRecord,
+  DesktopDiagnosticUploadSourceType,
   ExtensionInstallTarget,
   ExtensionSetupStatus,
   ImportUserPrivateSkillInput,
@@ -77,6 +95,7 @@ import type {
   UpsertAdminPaymentProviderBindingInput,
   UpsertAdminPaymentGatewayConfigInput,
   UpsertAdminPaymentProviderProfileInput,
+  UpsertDesktopActionPolicyRuleInput,
   UpsertSkillCatalogEntryInput,
   UpsertSkillSyncSourceInput,
   UpsertUserExtensionInstallConfigInput,
@@ -134,6 +153,25 @@ const PAYMENT_PROVIDER_REQUIRED_CONFIG_FIELDS = ['sp_mchid', 'sp_appid', 'sub_mc
 const EPAY_PAYMENT_GATEWAY_STATE_KEY = 'payment_gateway:epay';
 const EPAY_GATEWAY_CONFIG_FIELDS = ['partner_id', 'gateway'] as const;
 const EPAY_GATEWAY_SECRET_FIELDS = ['key'] as const;
+const DESKTOP_ACTION_POLICY_SCOPES = new Set<DesktopActionPolicyScope>(['platform', 'oem', 'org']);
+const DESKTOP_ACTION_POLICY_EFFECTS = new Set<DesktopActionPolicyEffect>(['allow', 'allow_with_approval', 'deny']);
+const DESKTOP_ACTION_RISK_LEVELS = new Set<DesktopActionRiskLevel>(['low', 'medium', 'high', 'critical']);
+const DESKTOP_ACTION_GRANT_SCOPES = new Set<DesktopActionGrantScope>(['once', 'task', 'session', 'ttl']);
+const DESKTOP_ACTION_AUDIT_DECISIONS = new Set<DesktopActionAuditDecision>(['allow', 'deny', 'pending']);
+const DESKTOP_ACTION_AUDIT_STAGES = new Set<DesktopActionAuditStage>([
+  'intent_created',
+  'policy_evaluated',
+  'approval_requested',
+  'approval_granted',
+  'approval_denied',
+  'execution_started',
+  'execution_finished',
+]);
+const DESKTOP_DIAGNOSTIC_UPLOAD_SOURCE_TYPES = new Set<DesktopDiagnosticUploadSourceType>([
+  'manual',
+  'auto_error_capture',
+  'approval_flow',
+]);
 
 function resolvePublicApiBaseUrl(): string {
   if (config.apiUrl.trim()) {
@@ -443,6 +481,95 @@ function toUserFileView(record: UserFileRecord, baseUrl: string): UserFileView {
     created_at: record.createdAt,
     updated_at: record.updatedAt,
     deleted_at: record.deletedAt,
+  };
+}
+
+function toAdminDesktopActionPolicyRuleView(record: DesktopActionPolicyRuleRecord): AdminDesktopActionPolicyRuleView {
+  return {
+    id: record.id,
+    scope: record.scope,
+    scope_id: record.scopeId,
+    name: record.name,
+    effect: record.effect,
+    capability: record.capability,
+    risk_level: record.riskLevel,
+    official_only: record.officialOnly,
+    skill_slugs: record.skillSlugs,
+    workflow_ids: record.workflowIds,
+    path_prefixes: record.pathPrefixes,
+    domains: record.domains,
+    ports: record.ports,
+    allow_elevation: record.allowElevation,
+    allow_network_egress: record.allowNetworkEgress,
+    grant_scope: record.grantScope,
+    ttl_seconds: record.ttlSeconds,
+    enabled: record.enabled,
+    priority: record.priority,
+    created_at: record.createdAt,
+    updated_at: record.updatedAt,
+  };
+}
+
+function toAdminDesktopActionApprovalGrantView(
+  record: DesktopActionApprovalGrantRecord,
+): AdminDesktopActionApprovalGrantView {
+  return {
+    id: record.id,
+    user_id: record.userId,
+    device_id: record.deviceId,
+    app_name: record.appName,
+    intent_fingerprint: record.intentFingerprint,
+    capability: record.capability,
+    scope: record.scope,
+    task_id: record.taskId,
+    session_key: record.sessionKey,
+    expires_at: record.expiresAt,
+    revoked_at: record.revokedAt,
+    created_at: record.createdAt,
+  };
+}
+
+function toAdminDesktopActionAuditEventView(record: DesktopActionAuditEventRecord): AdminDesktopActionAuditEventView {
+  return {
+    id: record.id,
+    intent_id: record.intentId,
+    trace_id: record.traceId,
+    user_id: record.userId,
+    device_id: record.deviceId,
+    app_name: record.appName,
+    agent_id: record.agentId,
+    skill_slug: record.skillSlug,
+    workflow_id: record.workflowId,
+    capability: record.capability,
+    risk_level: record.riskLevel,
+    requires_elevation: record.requiresElevation,
+    decision: record.decision,
+    stage: record.stage,
+    summary: record.summary,
+    reason: record.reason,
+    resources: record.resources,
+    command_snapshot: record.commandSnapshot,
+    result_code: record.resultCode,
+    result_summary: record.resultSummary,
+    duration_ms: record.durationMs,
+    created_at: record.createdAt,
+  };
+}
+
+function toAdminDesktopDiagnosticUploadView(record: DesktopDiagnosticUploadRecord): AdminDesktopDiagnosticUploadView {
+  return {
+    id: record.id,
+    user_id: record.userId,
+    device_id: record.deviceId,
+    app_name: record.appName,
+    upload_bucket: record.uploadBucket,
+    upload_key: record.uploadKey,
+    file_name: record.fileName,
+    file_size_bytes: record.fileSizeBytes,
+    sha256: record.sha256,
+    source_type: record.sourceType,
+    linked_intent_id: record.linkedIntentId,
+    created_at: record.createdAt,
   };
 }
 
@@ -835,6 +962,154 @@ function normalizeOptionalBoolean(value: unknown, field: string): boolean | unde
     throw new HttpError(400, 'BAD_REQUEST', `${field} must be a boolean`);
   }
   return value;
+}
+
+function normalizeDesktopActionPolicyScope(
+  value: unknown,
+  fallback?: DesktopActionPolicyScope,
+): DesktopActionPolicyScope {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  const resolved = (normalized || fallback || '') as DesktopActionPolicyScope;
+  if (!DESKTOP_ACTION_POLICY_SCOPES.has(resolved)) {
+    throw new HttpError(400, 'BAD_REQUEST', 'scope must be platform, oem, or org');
+  }
+  return resolved;
+}
+
+function normalizeDesktopActionPolicyEffect(
+  value: unknown,
+  fallback?: DesktopActionPolicyEffect,
+): DesktopActionPolicyEffect {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  const resolved = (normalized || fallback || '') as DesktopActionPolicyEffect;
+  if (!DESKTOP_ACTION_POLICY_EFFECTS.has(resolved)) {
+    throw new HttpError(400, 'BAD_REQUEST', 'effect must be allow, allow_with_approval, or deny');
+  }
+  return resolved;
+}
+
+function normalizeDesktopActionRiskLevel(
+  value: unknown,
+  fallback?: DesktopActionRiskLevel,
+): DesktopActionRiskLevel {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  const resolved = (normalized || fallback || '') as DesktopActionRiskLevel;
+  if (!DESKTOP_ACTION_RISK_LEVELS.has(resolved)) {
+    throw new HttpError(400, 'BAD_REQUEST', 'risk_level must be low, medium, high, or critical');
+  }
+  return resolved;
+}
+
+function normalizeDesktopActionGrantScope(
+  value: unknown,
+  fallback?: DesktopActionGrantScope,
+): DesktopActionGrantScope {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  const resolved = (normalized || fallback || '') as DesktopActionGrantScope;
+  if (!DESKTOP_ACTION_GRANT_SCOPES.has(resolved)) {
+    throw new HttpError(400, 'BAD_REQUEST', 'grant_scope must be once, task, session, or ttl');
+  }
+  return resolved;
+}
+
+function normalizeDesktopActionAuditDecision(
+  value: unknown,
+  fallback?: DesktopActionAuditDecision,
+): DesktopActionAuditDecision {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  const resolved = (normalized || fallback || '') as DesktopActionAuditDecision;
+  if (!DESKTOP_ACTION_AUDIT_DECISIONS.has(resolved)) {
+    throw new HttpError(400, 'BAD_REQUEST', 'decision must be allow, deny, or pending');
+  }
+  return resolved;
+}
+
+function normalizeDesktopActionAuditStage(
+  value: unknown,
+  fallback?: DesktopActionAuditStage,
+): DesktopActionAuditStage {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  const resolved = (normalized || fallback || '') as DesktopActionAuditStage;
+  if (!DESKTOP_ACTION_AUDIT_STAGES.has(resolved)) {
+    throw new HttpError(400, 'BAD_REQUEST', 'stage is invalid');
+  }
+  return resolved;
+}
+
+function normalizeDesktopDiagnosticUploadSourceType(
+  value: unknown,
+  fallback?: DesktopDiagnosticUploadSourceType,
+): DesktopDiagnosticUploadSourceType {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  const resolved = (normalized || fallback || '') as DesktopDiagnosticUploadSourceType;
+  if (!DESKTOP_DIAGNOSTIC_UPLOAD_SOURCE_TYPES.has(resolved)) {
+    throw new HttpError(400, 'BAD_REQUEST', 'source_type must be manual, auto_error_capture, or approval_flow');
+  }
+  return resolved;
+}
+
+function normalizeStringArray(value: unknown, field: string, fallback: string[] = []): string[] {
+  if (value === undefined) {
+    return [...fallback];
+  }
+  if (!Array.isArray(value)) {
+    throw new HttpError(400, 'BAD_REQUEST', `${field} must be an array of strings`);
+  }
+  const deduped = new Set<string>();
+  for (const item of value) {
+    if (typeof item !== 'string') {
+      throw new HttpError(400, 'BAD_REQUEST', `${field} must be an array of strings`);
+    }
+    const normalized = item.trim();
+    if (!normalized) continue;
+    deduped.add(normalized);
+  }
+  return Array.from(deduped);
+}
+
+function normalizeIntegerArray(value: unknown, field: string, fallback: number[] = []): number[] {
+  if (value === undefined) {
+    return [...fallback];
+  }
+  if (!Array.isArray(value)) {
+    throw new HttpError(400, 'BAD_REQUEST', `${field} must be an array of integers`);
+  }
+  const deduped = new Set<number>();
+  for (const item of value) {
+    if (typeof item !== 'number' || !Number.isFinite(item)) {
+      throw new HttpError(400, 'BAD_REQUEST', `${field} must be an array of integers`);
+    }
+    const normalized = Math.floor(item);
+    if (normalized < 0) {
+      throw new HttpError(400, 'BAD_REQUEST', `${field} must contain non-negative integers`);
+    }
+    deduped.add(normalized);
+  }
+  return Array.from(deduped);
+}
+
+function normalizeOptionalIntegerField(
+  value: unknown,
+  field: string,
+  options: {min?: number; allowNull?: boolean} = {},
+): number | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === null) {
+    if (options.allowNull) {
+      return null;
+    }
+    throw new HttpError(400, 'BAD_REQUEST', `${field} must be an integer`);
+  }
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new HttpError(400, 'BAD_REQUEST', `${field} must be an integer`);
+  }
+  const normalized = Math.floor(value);
+  if (typeof options.min === 'number' && normalized < options.min) {
+    throw new HttpError(400, 'BAD_REQUEST', `${field} must be >= ${options.min}`);
+  }
+  return normalized;
 }
 
 function normalizeJsonObject(value: unknown, field: string, fallback: Record<string, unknown> = {}): Record<string, unknown> {
@@ -2460,6 +2735,371 @@ export class ControlPlaneService {
       }
       throw error;
     }
+  }
+
+  async listAdminDesktopActionPolicies(
+    accessToken: string,
+    input: {
+      scope?: string | null;
+      capability?: string | null;
+      risk_level?: string | null;
+      enabled?: boolean | null;
+      query?: string | null;
+      limit?: number | null;
+    } = {},
+  ): Promise<{items: AdminDesktopActionPolicyRuleView[]}> {
+    await this.requireAdminUser(accessToken);
+    const items = await this.store.listDesktopActionPolicyRules({
+      scope: input.scope || null,
+      capability: input.capability || null,
+      riskLevel: input.risk_level || null,
+      enabled: typeof input.enabled === 'boolean' ? input.enabled : null,
+      query: input.query || null,
+      limit: input.limit,
+    });
+    return {items: items.map(toAdminDesktopActionPolicyRuleView)};
+  }
+
+  async upsertAdminDesktopActionPolicy(
+    accessToken: string,
+    input: UpsertDesktopActionPolicyRuleInput,
+  ): Promise<AdminDesktopActionPolicyRuleView> {
+    await this.requireAdminUser(accessToken);
+    const existing = input.id ? await this.store.getDesktopActionPolicyRuleById(String(input.id).trim()) : null;
+    const id = String(input.id || existing?.id || randomUUID()).trim();
+    if (!id) {
+      throw new HttpError(400, 'BAD_REQUEST', 'id is required');
+    }
+
+    const nameCandidate = normalizeOptionalCatalogString(input.name, 'name');
+    const capabilityCandidate = normalizeOptionalCatalogString(input.capability, 'capability');
+    const scopeIdCandidate = normalizeOptionalCatalogString(input.scope_id, 'scope_id', {allowNull: true, trimToNull: true});
+    const name = (nameCandidate === undefined ? existing?.name : nameCandidate) || '';
+    const capability = ((capabilityCandidate === undefined ? existing?.capability : capabilityCandidate) || '')
+      .trim()
+      .toLowerCase();
+    if (!name.trim()) {
+      throw new HttpError(400, 'BAD_REQUEST', 'name is required');
+    }
+    if (!capability) {
+      throw new HttpError(400, 'BAD_REQUEST', 'capability is required');
+    }
+
+    const record = await this.store.upsertDesktopActionPolicyRule({
+      id,
+      scope: normalizeDesktopActionPolicyScope(input.scope, existing?.scope || 'platform'),
+      scope_id: scopeIdCandidate === undefined ? (existing?.scopeId || null) : scopeIdCandidate,
+      name: name.trim(),
+      effect: normalizeDesktopActionPolicyEffect(input.effect, existing?.effect || 'allow_with_approval'),
+      capability,
+      risk_level: normalizeDesktopActionRiskLevel(input.risk_level, existing?.riskLevel || 'medium'),
+      official_only: normalizeOptionalBoolean(input.official_only, 'official_only') ?? existing?.officialOnly ?? false,
+      skill_slugs: normalizeStringArray(input.skill_slugs, 'skill_slugs', existing?.skillSlugs || []),
+      workflow_ids: normalizeStringArray(input.workflow_ids, 'workflow_ids', existing?.workflowIds || []),
+      path_prefixes: normalizeStringArray(input.path_prefixes, 'path_prefixes', existing?.pathPrefixes || []),
+      domains: normalizeStringArray(input.domains, 'domains', existing?.domains || []),
+      ports: normalizeIntegerArray(input.ports, 'ports', existing?.ports || []),
+      allow_elevation:
+        normalizeOptionalBoolean(input.allow_elevation, 'allow_elevation') ?? existing?.allowElevation ?? false,
+      allow_network_egress:
+        normalizeOptionalBoolean(input.allow_network_egress, 'allow_network_egress') ??
+        existing?.allowNetworkEgress ??
+        false,
+      grant_scope: normalizeDesktopActionGrantScope(input.grant_scope, existing?.grantScope || 'once'),
+      ttl_seconds:
+        normalizeOptionalIntegerField(input.ttl_seconds, 'ttl_seconds', {min: 1, allowNull: true}) ??
+        existing?.ttlSeconds ??
+        null,
+      enabled: normalizeOptionalBoolean(input.enabled, 'enabled') ?? existing?.enabled ?? true,
+      priority: normalizeOptionalIntegerField(input.priority, 'priority', {min: 0}) ?? existing?.priority ?? 100,
+    });
+    return toAdminDesktopActionPolicyRuleView(record);
+  }
+
+  async listAdminDesktopActionApprovalGrants(
+    accessToken: string,
+    input: {
+      user_id?: string | null;
+      device_id?: string | null;
+      app_name?: string | null;
+      capability?: string | null;
+      active_only?: boolean | null;
+      limit?: number | null;
+    } = {},
+  ): Promise<{items: AdminDesktopActionApprovalGrantView[]}> {
+    await this.requireAdminUser(accessToken);
+    const items = await this.store.listDesktopActionApprovalGrants({
+      userId: input.user_id || null,
+      deviceId: input.device_id || null,
+      appName: input.app_name || null,
+      capability: input.capability || null,
+      activeOnly: typeof input.active_only === 'boolean' ? input.active_only : null,
+      limit: input.limit,
+    });
+    return {items: items.map(toAdminDesktopActionApprovalGrantView)};
+  }
+
+  async revokeAdminDesktopActionApprovalGrant(
+    accessToken: string,
+    idInput: string,
+  ): Promise<AdminDesktopActionApprovalGrantView> {
+    await this.requireAdminUser(accessToken);
+    const id = String(idInput || '').trim();
+    if (!id) {
+      throw new HttpError(400, 'BAD_REQUEST', 'id is required');
+    }
+    const record = await this.store.revokeDesktopActionApprovalGrant(id, new Date().toISOString());
+    if (!record) {
+      throw new HttpError(404, 'NOT_FOUND', 'desktop action approval grant not found');
+    }
+    return toAdminDesktopActionApprovalGrantView(record);
+  }
+
+  async listAdminDesktopActionAuditEvents(
+    accessToken: string,
+    input: {
+      intent_id?: string | null;
+      user_id?: string | null;
+      device_id?: string | null;
+      app_name?: string | null;
+      capability?: string | null;
+      risk_level?: string | null;
+      decision?: string | null;
+      limit?: number | null;
+    } = {},
+  ): Promise<{items: AdminDesktopActionAuditEventView[]}> {
+    await this.requireAdminUser(accessToken);
+    const items = await this.store.listDesktopActionAuditEvents({
+      intentId: input.intent_id || null,
+      userId: input.user_id || null,
+      deviceId: input.device_id || null,
+      appName: input.app_name || null,
+      capability: input.capability || null,
+      riskLevel: input.risk_level || null,
+      decision: input.decision || null,
+      limit: input.limit,
+    });
+    return {items: items.map(toAdminDesktopActionAuditEventView)};
+  }
+
+  async listAdminDesktopDiagnosticUploads(
+    accessToken: string,
+    input: {
+      user_id?: string | null;
+      device_id?: string | null;
+      app_name?: string | null;
+      source_type?: string | null;
+      limit?: number | null;
+    } = {},
+  ): Promise<{items: AdminDesktopDiagnosticUploadView[]}> {
+    await this.requireAdminUser(accessToken);
+    const items = await this.store.listDesktopDiagnosticUploads({
+      userId: input.user_id || null,
+      deviceId: input.device_id || null,
+      appName: input.app_name || null,
+      sourceType: input.source_type || null,
+      limit: input.limit,
+    });
+    return {items: items.map(toAdminDesktopDiagnosticUploadView)};
+  }
+
+  async getRuntimeDesktopActionPolicySnapshot(
+    accessToken: string,
+    appNameInput: string,
+  ): Promise<{
+    app_name: string;
+    fetched_at: string;
+    items: AdminDesktopActionPolicyRuleView[];
+  }> {
+    await this.getUserForAccessToken(accessToken);
+    const appName = String(appNameInput || '')
+      .trim()
+      .toLowerCase();
+    if (!appName) {
+      throw new HttpError(400, 'BAD_REQUEST', 'app_name is required');
+    }
+    const items = await this.store.listDesktopActionPolicyRules({enabled: true, limit: 1000});
+    const filtered = items.filter((item) => {
+      if (item.scope === 'platform') {
+        return true;
+      }
+      return String(item.scopeId || '')
+        .trim()
+        .toLowerCase() === appName;
+    });
+    return {
+      app_name: appName,
+      fetched_at: new Date().toISOString(),
+      items: filtered.map(toAdminDesktopActionPolicyRuleView),
+    };
+  }
+
+  async createDesktopActionApprovalGrant(
+    accessToken: string,
+    input: CreateDesktopActionApprovalGrantInput,
+  ): Promise<AdminDesktopActionApprovalGrantView> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const deviceId = String(input.device_id || '').trim();
+    const appName = String(input.app_name || '')
+      .trim()
+      .toLowerCase();
+    const intentFingerprint = String(input.intent_fingerprint || '').trim();
+    const capability = String(input.capability || '')
+      .trim()
+      .toLowerCase();
+    if (!deviceId || !appName || !intentFingerprint || !capability) {
+      throw new HttpError(400, 'BAD_REQUEST', 'device_id, app_name, intent_fingerprint, capability are required');
+    }
+    const scope = normalizeDesktopActionGrantScope(input.scope, 'once');
+    const expiresAtInput = normalizeOptionalCatalogString(input.expires_at, 'expires_at', {allowNull: true, trimToNull: true});
+    let expiresAt = expiresAtInput === undefined ? null : expiresAtInput;
+    if (scope === 'ttl') {
+      if (!expiresAt) {
+        throw new HttpError(400, 'BAD_REQUEST', 'expires_at is required when scope=ttl');
+      }
+      if (Number.isNaN(Date.parse(expiresAt))) {
+        throw new HttpError(400, 'BAD_REQUEST', 'expires_at must be a valid ISO timestamp');
+      }
+    } else {
+      expiresAt = expiresAt && !Number.isNaN(Date.parse(expiresAt)) ? expiresAt : null;
+    }
+    const record = await this.store.createDesktopActionApprovalGrant({
+      id: randomUUID(),
+      user_id: user.id,
+      device_id: deviceId,
+      app_name: appName,
+      intent_fingerprint: intentFingerprint,
+      capability,
+      scope,
+      task_id: normalizeOptionalCatalogString(input.task_id, 'task_id', {allowNull: true, trimToNull: true}) ?? null,
+      session_key:
+        normalizeOptionalCatalogString(input.session_key, 'session_key', {allowNull: true, trimToNull: true}) ?? null,
+      expires_at: expiresAt,
+      created_at: new Date().toISOString(),
+    });
+    return toAdminDesktopActionApprovalGrantView(record);
+  }
+
+  async recordDesktopActionAuditEvents(
+    accessToken: string,
+    input: CreateDesktopActionAuditEventInput | CreateDesktopActionAuditEventInput[],
+  ): Promise<{items: AdminDesktopActionAuditEventView[]}> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const items = Array.isArray(input) ? input : [input];
+    if (items.length === 0) {
+      return {items: []};
+    }
+    const records = await this.store.createDesktopActionAuditEvents(
+      items.map((item) => {
+        const intentId = String(item.intent_id || '').trim();
+        const traceId = String(item.trace_id || '').trim();
+        const deviceId = String(item.device_id || '').trim();
+        const appName = String(item.app_name || '')
+          .trim()
+          .toLowerCase();
+        const capability = String(item.capability || '')
+          .trim()
+          .toLowerCase();
+        const summary = String(item.summary || '').trim();
+        if (!intentId || !traceId || !deviceId || !appName || !capability || !summary) {
+          throw new HttpError(
+            400,
+            'BAD_REQUEST',
+            'intent_id, trace_id, device_id, app_name, capability, summary are required',
+          );
+        }
+        const createdAt = String(item.created_at || '').trim() || new Date().toISOString();
+        if (Number.isNaN(Date.parse(createdAt))) {
+          throw new HttpError(400, 'BAD_REQUEST', 'created_at must be a valid ISO timestamp');
+        }
+        return {
+          id: String(item.id || randomUUID()).trim() || randomUUID(),
+          intent_id: intentId,
+          trace_id: traceId,
+          user_id: user.id,
+          device_id: deviceId,
+          app_name: appName,
+          agent_id: normalizeOptionalCatalogString(item.agent_id, 'agent_id', {allowNull: true, trimToNull: true}) ?? null,
+          skill_slug:
+            normalizeOptionalCatalogString(item.skill_slug, 'skill_slug', {allowNull: true, trimToNull: true}) ?? null,
+          workflow_id:
+            normalizeOptionalCatalogString(item.workflow_id, 'workflow_id', {allowNull: true, trimToNull: true}) ?? null,
+          capability,
+          risk_level: normalizeDesktopActionRiskLevel(item.risk_level, 'medium'),
+          requires_elevation:
+            normalizeOptionalBoolean(item.requires_elevation, 'requires_elevation') ?? false,
+          decision: normalizeDesktopActionAuditDecision(item.decision, 'pending'),
+          stage: normalizeDesktopActionAuditStage(item.stage, 'intent_created'),
+          summary,
+          reason: normalizeOptionalCatalogString(item.reason, 'reason', {allowNull: true, trimToNull: true}) ?? null,
+          resources: Array.isArray(item.resources)
+            ? item.resources.map((entry) => asObject(entry))
+            : [],
+          command_snapshot:
+            normalizeOptionalCatalogString(item.command_snapshot, 'command_snapshot', {
+              allowNull: true,
+              trimToNull: true,
+            }) ?? null,
+          result_code:
+            normalizeOptionalCatalogString(item.result_code, 'result_code', {allowNull: true, trimToNull: true}) ??
+            null,
+          result_summary:
+            normalizeOptionalCatalogString(item.result_summary, 'result_summary', {allowNull: true, trimToNull: true}) ??
+            null,
+          duration_ms: normalizeOptionalIntegerField(item.duration_ms, 'duration_ms', {min: 0, allowNull: true}) ?? null,
+          created_at: createdAt,
+        };
+      }),
+    );
+    return {items: records.map(toAdminDesktopActionAuditEventView)};
+  }
+
+  async recordDesktopDiagnosticUpload(
+    accessToken: string,
+    input: CreateDesktopDiagnosticUploadInput,
+  ): Promise<AdminDesktopDiagnosticUploadView> {
+    const user = await this.getUserForAccessToken(accessToken);
+    const deviceId = String(input.device_id || '').trim();
+    const appName = String(input.app_name || '')
+      .trim()
+      .toLowerCase();
+    const uploadBucket = String(input.upload_bucket || '').trim();
+    const uploadKey = String(input.upload_key || '').trim();
+    const fileName = String(input.file_name || '').trim();
+    if (!deviceId || !appName || !uploadBucket || !uploadKey || !fileName) {
+      throw new HttpError(
+        400,
+        'BAD_REQUEST',
+        'device_id, app_name, upload_bucket, upload_key, file_name are required',
+      );
+    }
+    const fileSizeBytes = normalizeOptionalIntegerField(input.file_size_bytes, 'file_size_bytes', {min: 0});
+    if (typeof fileSizeBytes !== 'number') {
+      throw new HttpError(400, 'BAD_REQUEST', 'file_size_bytes is required');
+    }
+    const createdAt = String(input.created_at || '').trim() || new Date().toISOString();
+    if (Number.isNaN(Date.parse(createdAt))) {
+      throw new HttpError(400, 'BAD_REQUEST', 'created_at must be a valid ISO timestamp');
+    }
+    const record = await this.store.createDesktopDiagnosticUpload({
+      id: String(input.id || randomUUID()).trim() || randomUUID(),
+      user_id: user.id,
+      device_id: deviceId,
+      app_name: appName,
+      upload_bucket: uploadBucket,
+      upload_key: uploadKey,
+      file_name: fileName,
+      file_size_bytes: fileSizeBytes,
+      sha256: normalizeOptionalCatalogString(input.sha256, 'sha256', {allowNull: true, trimToNull: true}) ?? null,
+      source_type: normalizeDesktopDiagnosticUploadSourceType(input.source_type, 'manual'),
+      linked_intent_id:
+        normalizeOptionalCatalogString(input.linked_intent_id, 'linked_intent_id', {
+          allowNull: true,
+          trimToNull: true,
+        }) ?? null,
+      created_at: createdAt,
+    });
+    return toAdminDesktopDiagnosticUploadView(record);
   }
 
   async getWorkspaceBackup(accessToken: string): Promise<WorkspaceBackupView | null> {

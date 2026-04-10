@@ -1,5 +1,20 @@
 export type UserRole = 'user' | 'admin' | 'super_admin';
 
+export type DesktopActionPolicyScope = 'platform' | 'oem' | 'org';
+export type DesktopActionPolicyEffect = 'allow' | 'allow_with_approval' | 'deny';
+export type DesktopActionRiskLevel = 'low' | 'medium' | 'high' | 'critical';
+export type DesktopActionGrantScope = 'once' | 'task' | 'session' | 'ttl';
+export type DesktopActionAuditDecision = 'allow' | 'deny' | 'pending';
+export type DesktopActionAuditStage =
+  | 'intent_created'
+  | 'policy_evaluated'
+  | 'approval_requested'
+  | 'approval_granted'
+  | 'approval_denied'
+  | 'execution_started'
+  | 'execution_finished';
+export type DesktopDiagnosticUploadSourceType = 'manual' | 'auto_error_capture' | 'approval_flow';
+
 export type UserRecord = {
   id: string;
   username: string;
@@ -402,6 +417,238 @@ export type PaymentProviderBindingRecord = {
   mode: PaymentProviderBindingMode;
   activeProfileId: string | null;
   updatedAt: string;
+};
+
+export type DesktopActionPolicyRuleRecord = {
+  id: string;
+  scope: DesktopActionPolicyScope;
+  scopeId: string | null;
+  name: string;
+  effect: DesktopActionPolicyEffect;
+  capability: string;
+  riskLevel: DesktopActionRiskLevel;
+  officialOnly: boolean;
+  skillSlugs: string[];
+  workflowIds: string[];
+  pathPrefixes: string[];
+  domains: string[];
+  ports: number[];
+  allowElevation: boolean;
+  allowNetworkEgress: boolean;
+  grantScope: DesktopActionGrantScope;
+  ttlSeconds: number | null;
+  enabled: boolean;
+  priority: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DesktopActionApprovalGrantRecord = {
+  id: string;
+  userId: string;
+  deviceId: string;
+  appName: string;
+  intentFingerprint: string;
+  capability: string;
+  scope: DesktopActionGrantScope;
+  taskId: string | null;
+  sessionKey: string | null;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+};
+
+export type DesktopActionAuditEventRecord = {
+  id: string;
+  intentId: string;
+  traceId: string;
+  userId: string | null;
+  deviceId: string;
+  appName: string;
+  agentId: string | null;
+  skillSlug: string | null;
+  workflowId: string | null;
+  capability: string;
+  riskLevel: DesktopActionRiskLevel;
+  requiresElevation: boolean;
+  decision: DesktopActionAuditDecision;
+  stage: DesktopActionAuditStage;
+  summary: string;
+  reason: string | null;
+  resources: Array<Record<string, unknown>>;
+  commandSnapshot: string | null;
+  resultCode: string | null;
+  resultSummary: string | null;
+  durationMs: number | null;
+  createdAt: string;
+};
+
+export type DesktopDiagnosticUploadRecord = {
+  id: string;
+  userId: string | null;
+  deviceId: string;
+  appName: string;
+  uploadBucket: string;
+  uploadKey: string;
+  fileName: string;
+  fileSizeBytes: number;
+  sha256: string | null;
+  sourceType: DesktopDiagnosticUploadSourceType;
+  linkedIntentId: string | null;
+  createdAt: string;
+};
+
+export type AdminDesktopActionPolicyRuleView = {
+  id: string;
+  scope: DesktopActionPolicyScope;
+  scope_id: string | null;
+  name: string;
+  effect: DesktopActionPolicyEffect;
+  capability: string;
+  risk_level: DesktopActionRiskLevel;
+  official_only: boolean;
+  skill_slugs: string[];
+  workflow_ids: string[];
+  path_prefixes: string[];
+  domains: string[];
+  ports: number[];
+  allow_elevation: boolean;
+  allow_network_egress: boolean;
+  grant_scope: DesktopActionGrantScope;
+  ttl_seconds: number | null;
+  enabled: boolean;
+  priority: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AdminDesktopActionApprovalGrantView = {
+  id: string;
+  user_id: string;
+  device_id: string;
+  app_name: string;
+  intent_fingerprint: string;
+  capability: string;
+  scope: DesktopActionGrantScope;
+  task_id: string | null;
+  session_key: string | null;
+  expires_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
+};
+
+export type AdminDesktopActionAuditEventView = {
+  id: string;
+  intent_id: string;
+  trace_id: string;
+  user_id: string | null;
+  device_id: string;
+  app_name: string;
+  agent_id: string | null;
+  skill_slug: string | null;
+  workflow_id: string | null;
+  capability: string;
+  risk_level: DesktopActionRiskLevel;
+  requires_elevation: boolean;
+  decision: DesktopActionAuditDecision;
+  stage: DesktopActionAuditStage;
+  summary: string;
+  reason: string | null;
+  resources: Array<Record<string, unknown>>;
+  command_snapshot: string | null;
+  result_code: string | null;
+  result_summary: string | null;
+  duration_ms: number | null;
+  created_at: string;
+};
+
+export type AdminDesktopDiagnosticUploadView = {
+  id: string;
+  user_id: string | null;
+  device_id: string;
+  app_name: string;
+  upload_bucket: string;
+  upload_key: string;
+  file_name: string;
+  file_size_bytes: number;
+  sha256: string | null;
+  source_type: DesktopDiagnosticUploadSourceType;
+  linked_intent_id: string | null;
+  created_at: string;
+};
+
+export type UpsertDesktopActionPolicyRuleInput = {
+  id?: string | null;
+  scope?: DesktopActionPolicyScope | null;
+  scope_id?: string | null;
+  name?: string | null;
+  effect?: DesktopActionPolicyEffect | null;
+  capability?: string | null;
+  risk_level?: DesktopActionRiskLevel | null;
+  official_only?: boolean | null;
+  skill_slugs?: string[] | null;
+  workflow_ids?: string[] | null;
+  path_prefixes?: string[] | null;
+  domains?: string[] | null;
+  ports?: number[] | null;
+  allow_elevation?: boolean | null;
+  allow_network_egress?: boolean | null;
+  grant_scope?: DesktopActionGrantScope | null;
+  ttl_seconds?: number | null;
+  enabled?: boolean | null;
+  priority?: number | null;
+};
+
+export type CreateDesktopActionApprovalGrantInput = {
+  user_id?: string | null;
+  device_id?: string | null;
+  app_name?: string | null;
+  intent_fingerprint?: string | null;
+  capability?: string | null;
+  scope?: DesktopActionGrantScope | null;
+  task_id?: string | null;
+  session_key?: string | null;
+  expires_at?: string | null;
+};
+
+export type CreateDesktopActionAuditEventInput = {
+  id?: string | null;
+  intent_id?: string | null;
+  trace_id?: string | null;
+  user_id?: string | null;
+  device_id?: string | null;
+  app_name?: string | null;
+  agent_id?: string | null;
+  skill_slug?: string | null;
+  workflow_id?: string | null;
+  capability?: string | null;
+  risk_level?: DesktopActionRiskLevel | null;
+  requires_elevation?: boolean | null;
+  decision?: DesktopActionAuditDecision | null;
+  stage?: DesktopActionAuditStage | null;
+  summary?: string | null;
+  reason?: string | null;
+  resources?: Array<Record<string, unknown>> | null;
+  command_snapshot?: string | null;
+  result_code?: string | null;
+  result_summary?: string | null;
+  duration_ms?: number | null;
+  created_at?: string | null;
+};
+
+export type CreateDesktopDiagnosticUploadInput = {
+  id?: string | null;
+  user_id?: string | null;
+  device_id?: string | null;
+  app_name?: string | null;
+  upload_bucket?: string | null;
+  upload_key?: string | null;
+  file_name?: string | null;
+  file_size_bytes?: number | null;
+  sha256?: string | null;
+  source_type?: DesktopDiagnosticUploadSourceType | null;
+  linked_intent_id?: string | null;
+  created_at?: string | null;
 };
 
 export type AdminPaymentOrderSummaryRecord = PaymentOrderRecord & {
