@@ -64,6 +64,9 @@ ID:
 - 安装失败态
 - 点击重试后重新开始安装
 
+备注:
+- 自动化脚本待补；当前仅保留正式 case 设计，参考 [tests/install/README.md](/C:/hexun/code/iClaw/tests/install/README.md)
+
 ## Case: 已完成安装的客户端二次启动不重复安装
 
 ID:
@@ -92,6 +95,9 @@ ID:
 截图点:
 - 二次启动首页
 
+备注:
+- 自动化脚本待补；当前仅保留正式 case 设计，参考 [tests/install/README.md](/C:/hexun/code/iClaw/tests/install/README.md)
+
 ## Case: 发布安装包包含首次安装所需关键资源
 
 ID:
@@ -119,3 +125,6 @@ ID:
 
 截图点:
 - 产物目录或自检结果摘要
+
+备注:
+- 自动化脚本待补；当前仅保留正式 case 设计，参考 [tests/install/README.md](/C:/hexun/code/iClaw/tests/install/README.md)
