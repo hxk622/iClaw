@@ -1,6 +1,6 @@
 # Desktop Auto Update, Force Upgrade, And Scene Restore
 
-更新时间：2026-03-22
+更新时间：2026-04-10
 
 ## 1. 目标
 
@@ -23,6 +23,19 @@
 - 发布脚本已具备 installer、updater archive、signature、manifest 的生成与上传基础。
 - 当前强更来源仍是环境变量，尚未形成正式后台配置。
 - 当前“恢复现场”仅覆盖 workspace backup，不覆盖聊天现场、路由、草稿和升级前上下文。
+
+## 3.1 当前落地策略
+
+- Windows 不把 Tauri native updater 作为正式发版主链路依赖。
+- Windows 强更主链路是：
+  - control-plane 基于版本检查下发 `mandatory` / `enforcement_state`
+  - 客户端命中强更后禁止继续发起新任务
+  - 客户端自动获取 installer 下载地址
+  - 客户端自动下载完整安装包
+  - 客户端自动拉起安装器
+  - 升级完成后自动重启应用，并恢复到退出前页面
+- `updater` / `signature` 在 Windows 上属于可选增强能力，不是强更是否生效的前提条件。
+- 因此，Windows 侧“是否能强更”与“是否具备 native updater”必须分开验证，不能混为一谈。
 
 ## 4. 总体原则
 
@@ -50,6 +63,16 @@
 - 在活动任务结束后触发升级。
 - 在升级前保存本地现场快照。
 - 升级后自动恢复现场。
+
+桌面端升级执行原则：
+
+- Windows：默认走 installer 模式，不要求 native updater 可用。
+- 若 native updater 可用，可作为补充能力，但不能成为 Windows 正式发版的单点依赖。
+- 对用户暴露的产品体验目标保持一致：
+  - 自动检查版本
+  - 自动进入升级
+  - 自动拉起安装
+  - 自动恢复现场
 
 ## 5. 产品语义
 

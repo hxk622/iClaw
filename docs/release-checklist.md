@@ -1,6 +1,6 @@
 # iClaw v0 发布检查清单（macOS / Windows）
 
-更新时间：2026-04-05
+更新时间：2026-04-10
 
 ## 1. 版本与构建
 
@@ -14,7 +14,7 @@
 - [ ] Windows 产物包含：`.exe`
 - [ ] updater 产物包含：
   - macOS：`.app.tar.gz` + `.sig`
-  - Windows：`.nsis.zip` + `.sig`
+  - Windows：`.nsis.zip` + `.sig` 可选，不作为强更发布阻断项
 
 ## 2. 安装与启动
 
@@ -52,8 +52,17 @@
 - [ ] 更新检查可用
 - [ ] 更新失败可回退
 - [ ] macOS 自动更新链路可用
-- [ ] Windows 自动更新链路可用
+- [ ] Windows 强更链路可用
+- [ ] Windows installer 下载地址与当前发布版本一致
+- [ ] Windows 命中强更后可自动下载安装包并拉起安装器
+- [ ] Windows 升级完成后可恢复到退出前页面
 - [ ] `home-web` 下载链接与当前 installer 文件名一致
+
+说明：
+
+- Windows 正式发版默认不依赖 native updater。
+- Windows 的发布验收主链路是：版本检查 -> 强更策略 -> installer 下载 -> 拉起安装器 -> 重启恢复现场。
+- 因此 Windows `updater/signature` 缺失，不应单独阻断正式强更发布；但如果本次声明支持 native updater，则仍需额外验收。
 
 ## 7. 发布门槛（必须全部满足）
 
@@ -108,4 +117,4 @@
   - Windows 实机打包与自动更新仍需在 Windows 宿主完成一轮验收
 - 下一步：
   - macOS：完成签名、公证、自动更新验收
-  - Windows：完成签名、自动更新验收、安装回归
+  - Windows：完成签名、强更 installer 链路验收、安装回归

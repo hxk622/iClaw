@@ -282,6 +282,12 @@ node scripts/generate-desktop-release-manifests.mjs --channel prod
 
 如果构建时设置了 `TAURI_SIGNING_PRIVATE_KEY`，桌面端构建会额外生成 updater bundle 和 `.sig`，并自动写入 release manifest。
 
+当前发布策略补充：
+
+- Windows 正式发版不把 `updater/signature` 作为强依赖。
+- Windows 主更新链路是：control-plane 版本检查与强更裁决 -> 获取 installer 下载地址 -> 自动下载安装包 -> 自动拉起安装器 -> 重启后恢复退出前页面。
+- `updater/signature` 在 Windows 上属于可选增强能力，不是强更提醒或强更执行的必要条件。
+
 ## Desktop Update Hints
 
 control-plane 现在会基于 desktop release manifest，在常规响应里附带桌面更新 hint。
@@ -308,6 +314,12 @@ control-plane 响应头：
 Tauri updater 动态接口：
 
 - `GET /desktop/update?current_version=...&target=...&arch=...&channel=...`
+
+说明：
+
+- `/desktop/update-hint` 是强更策略与版本检查主入口。
+- Windows 端即使不依赖 Tauri native updater，也必须依赖 `/desktop/update-hint` 做版本裁决。
+- `/desktop/update` 主要服务于存在 native updater 能力的平台或场景，不能被视为 Windows 强更是否可用的唯一依据。
 
 服务端优先从本地 `dist/releases/` 读取 manifest，也支持通过环境变量覆盖：
 
