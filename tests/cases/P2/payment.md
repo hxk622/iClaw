@@ -6,10 +6,7 @@ ID:
 - `PAY-E2E-010`
 
 脚本:
-- 待补自动化脚本
+- `tests/payment/order-center-read-after-create.test.mjs`
 
 目标:
 - 验证前台支付动作与后台订单中心的数据链路闭环
-
-备注:
-- 当前正式 case 已定义，但仓库里不存在对应脚本

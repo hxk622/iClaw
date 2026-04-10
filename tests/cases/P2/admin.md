@@ -6,10 +6,7 @@ ID:
 - `ADMIN-E2E-001`
 
 脚本:
-- 待补自动化脚本
+- `tests/admin/oem-config-to-frontend-smoke.test.mjs`
 
 目标:
 - 验证后台配置变更后，前台关键 UI 与能力入口同步更新
-
-备注:
-- 当前正式 case 已定义，但仓库里不存在对应脚本
