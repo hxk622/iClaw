@@ -17,6 +17,24 @@ fi
 REMOTE="${ICLAW_CONTROL_PLANE_USER}@${ICLAW_CONTROL_PLANE_HOST}"
 LOCAL_PROD_ENV_FILE="${ROOT_DIR}/.env.prod"
 
+sync_path() {
+  local source_path="$1"
+  local remote_path="$2"
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a "$source_path" "${REMOTE}:${remote_path}"
+    return
+  fi
+
+  if [[ "$source_path" == */ ]]; then
+    ssh "${REMOTE}" "mkdir -p '${remote_path}'"
+    scp -r "${source_path%/}" "${REMOTE}:$(dirname "${remote_path%/}")/"
+    return
+  fi
+
+  ssh "${REMOTE}" "mkdir -p '$(dirname "${remote_path}")'"
+  scp "$source_path" "${REMOTE}:${remote_path}"
+}
+
 resolve_local_env_value() {
   local key="$1"
   if [[ ! -f "$LOCAL_PROD_ENV_FILE" ]]; then
@@ -32,25 +50,25 @@ node "$ROOT_DIR/scripts/write-build-info.mjs" \
 
 echo "Deploying control-plane source -> ${REMOTE}:${ICLAW_CONTROL_PLANE_PATH}/services/control-plane"
 
-rsync -a \
+sync_path \
   "$ROOT_DIR/services/control-plane/assets/" \
-  "${REMOTE}:${ICLAW_CONTROL_PLANE_PATH}/services/control-plane/assets/"
+  "${ICLAW_CONTROL_PLANE_PATH}/services/control-plane/assets/"
 
-rsync -a \
+sync_path \
   "$ROOT_DIR/services/control-plane/src/" \
-  "${REMOTE}:${ICLAW_CONTROL_PLANE_PATH}/services/control-plane/src/"
+  "${ICLAW_CONTROL_PLANE_PATH}/services/control-plane/src/"
 
-rsync -a \
+sync_path \
   "$ROOT_DIR/services/control-plane/scripts/" \
-  "${REMOTE}:${ICLAW_CONTROL_PLANE_PATH}/services/control-plane/scripts/"
+  "${ICLAW_CONTROL_PLANE_PATH}/services/control-plane/scripts/"
 
-rsync -a \
+sync_path \
   "$ROOT_DIR/services/control-plane/sql/" \
-  "${REMOTE}:${ICLAW_CONTROL_PLANE_PATH}/services/control-plane/sql/"
+  "${ICLAW_CONTROL_PLANE_PATH}/services/control-plane/sql/"
 
-rsync -a \
+sync_path \
   "$ROOT_DIR/services/control-plane/build-info.json" \
-  "${REMOTE}:${ICLAW_CONTROL_PLANE_PATH}/services/control-plane/build-info.json"
+  "${ICLAW_CONTROL_PLANE_PATH}/services/control-plane/build-info.json"
 
 echo "Restarting PM2 app: ${ICLAW_CONTROL_PLANE_PM2_APP}"
 ssh "${REMOTE}" "cd ${ICLAW_CONTROL_PLANE_PATH} && pm2 restart ${ICLAW_CONTROL_PLANE_PM2_APP}"

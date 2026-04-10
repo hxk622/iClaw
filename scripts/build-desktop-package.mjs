@@ -803,7 +803,30 @@ function isHttpUrl(value) {
   return /^https?:\/\//i.test(trimString(value));
 }
 
-function buildLocalRuntimeArtifactPath({ version, targetTriple, artifactFormat }) {
+function runtimeArtifactFileName({ version, targetTriple, artifactFormat, artifactUrl }) {
+  const normalizedVersion = trimString(version);
+  const normalizedTargetTriple = trimString(targetTriple);
+  const normalizedArtifactUrl = trimString(artifactUrl);
+  if (normalizedArtifactUrl) {
+    try {
+      const fileName = basename(new URL(normalizedArtifactUrl).pathname);
+      if (fileName) {
+        return fileName;
+      }
+    } catch {
+      const fileName = basename(normalizedArtifactUrl.replace(/\\/g, '/'));
+      if (fileName) {
+        return fileName;
+      }
+    }
+  }
+  if (!normalizedVersion || !normalizedTargetTriple) {
+    return '';
+  }
+  return `openclaw-runtime-${normalizedTargetTriple}-${normalizedVersion}.${runtimeArchiveExtension(artifactFormat)}`;
+}
+
+function buildLegacyRuntimeArtifactPath({ version, targetTriple, artifactFormat }) {
   const normalizedVersion = trimString(version);
   const normalizedTargetTriple = trimString(targetTriple);
   const normalizedFormat = normalizeRuntimeArtifactFormat(artifactFormat) || 'tar.gz';
@@ -814,6 +837,28 @@ function buildLocalRuntimeArtifactPath({ version, targetTriple, artifactFormat }
     runtimeArtifactCacheDir,
     `openclaw-runtime-${normalizedTargetTriple}-${normalizedVersion}.${runtimeArchiveExtension(normalizedFormat)}`,
   );
+}
+
+function buildBrandRuntimeArtifactPath({ brandId, version, targetTriple, artifactFormat, artifactUrl }) {
+  const normalizedBrandId = trimString(brandId);
+  const normalizedVersion = trimString(version);
+  const normalizedTargetTriple = trimString(targetTriple);
+  const fileName = runtimeArtifactFileName({ version, targetTriple, artifactFormat, artifactUrl });
+  if (!normalizedBrandId || !normalizedVersion || !normalizedTargetTriple || !fileName) {
+    return '';
+  }
+  return path.join(runtimeArtifactCacheDir, normalizedBrandId, normalizedTargetTriple, normalizedVersion, fileName);
+}
+
+function buildSharedRuntimeArtifactPath({ version, targetTriple, artifactFormat, artifactUrl, artifactSha256 }) {
+  const normalizedVersion = trimString(version);
+  const normalizedTargetTriple = trimString(targetTriple);
+  const normalizedArtifactSha256 = trimString(artifactSha256).toLowerCase();
+  const fileName = runtimeArtifactFileName({ version, targetTriple, artifactFormat, artifactUrl });
+  if (!normalizedVersion || !normalizedTargetTriple || !normalizedArtifactSha256 || !fileName) {
+    return '';
+  }
+  return path.join(runtimeArtifactCacheDir, '_shared', normalizedTargetTriple, normalizedVersion, normalizedArtifactSha256, fileName);
 }
 
 async function sha256File(filePath) {
@@ -891,7 +936,10 @@ async function extractRuntimeArchive({ archivePath, artifactFormat, destinationD
     return;
   }
 
-  runChecked('tar', ['-xzf', archivePath, '-C', destinationDir]);
+  const normalizedArchivePath = process.platform === 'win32' ? archivePath.replace(/\\/g, '/') : archivePath;
+  const normalizedDestinationDir = process.platform === 'win32' ? destinationDir.replace(/\\/g, '/') : destinationDir;
+  const tarCommand = process.platform === 'win32' ? 'C:\\Windows\\System32\\tar.exe' : 'tar';
+  runChecked(tarCommand, ['-xzf', normalizedArchivePath, '-C', normalizedDestinationDir]);
 }
 
 async function resolveExtractedRuntimeRoot(extractedDir, targetTriple = '') {
@@ -922,41 +970,108 @@ async function writeBundledRuntimeInstallReceipt(runtimeDir, config) {
   await fs.writeFile(path.join(runtimeDir, runtimeInstallReceiptName), `${JSON.stringify(receipt, null, 2)}\n`, 'utf8');
 }
 
-async function resolveRuntimeArtifactSource({ config, targetTriple, packagingPaths }) {
+async function tryResolveCachedRuntimeArtifact(candidates, expectedSha256) {
+  for (const candidate of candidates) {
+    if (!candidate?.artifactPath || !(await pathExists(candidate.artifactPath))) {
+      continue;
+    }
+    try {
+      await verifyRuntimeArtifactFileSha256(candidate.artifactPath, expectedSha256);
+      process.stdout.write(`[desktop-package] using cached runtime artifact (${candidate.source}): ${candidate.artifactPath}\n`);
+      return candidate;
+    } catch (error) {
+      process.stdout.write(
+        `[desktop-package] ignoring cached runtime artifact with sha mismatch (${candidate.source}): ${candidate.artifactPath}\n`,
+      );
+    }
+  }
+  return null;
+}
+
+async function persistRuntimeArtifactCopy(sourcePath, destinationPath) {
+  if (!destinationPath || sourcePath === destinationPath) {
+    return;
+  }
+  await fs.mkdir(path.dirname(destinationPath), { recursive: true });
+  await fs.copyFile(sourcePath, destinationPath);
+}
+
+async function resolveRuntimeArtifactSource({ config, brandId, targetTriple, packagingPaths }) {
   const version = trimString(config.version);
   const artifactUrl = trimString(config.artifact_url);
+  const artifactSha256 = trimString(config.artifact_sha256).toLowerCase();
   const artifactFormat = normalizeRuntimeArtifactFormat(config.artifact_format) || 'tar.gz';
   const localConfigPath = !isHttpUrl(artifactUrl) && artifactUrl ? path.resolve(rootDir, artifactUrl) : '';
-  const cachedArtifactPath = buildLocalRuntimeArtifactPath({ version, targetTriple, artifactFormat });
+  const brandCachedArtifactPath = buildBrandRuntimeArtifactPath({
+    brandId,
+    version,
+    targetTriple,
+    artifactFormat,
+    artifactUrl,
+  });
+  const sharedCachedArtifactPath = buildSharedRuntimeArtifactPath({
+    version,
+    targetTriple,
+    artifactFormat,
+    artifactUrl,
+    artifactSha256,
+  });
+  const legacyCachedArtifactPath = buildLegacyRuntimeArtifactPath({ version, targetTriple, artifactFormat });
 
   if (localConfigPath && (await pathExists(localConfigPath))) {
-    return { artifactPath: localConfigPath, source: 'configured-local', artifactFormat };
+    return {
+      artifactPath: localConfigPath,
+      source: 'configured-local',
+      artifactFormat,
+      brandCachedArtifactPath,
+      sharedCachedArtifactPath,
+    };
   }
-  if (cachedArtifactPath && (await pathExists(cachedArtifactPath))) {
-    return { artifactPath: cachedArtifactPath, source: 'local-cache', artifactFormat };
+
+  const cached = await tryResolveCachedRuntimeArtifact(
+    [
+      { artifactPath: brandCachedArtifactPath, source: 'brand-cache', artifactFormat },
+      { artifactPath: sharedCachedArtifactPath, source: 'shared-cache', artifactFormat },
+      { artifactPath: legacyCachedArtifactPath, source: 'legacy-cache', artifactFormat },
+    ],
+    artifactSha256,
+  );
+  if (cached) {
+    return {
+      ...cached,
+      brandCachedArtifactPath,
+      sharedCachedArtifactPath,
+    };
   }
   if (!artifactUrl || !isHttpUrl(artifactUrl)) {
     throw new Error(
       [
         'desktop packaging aborted: unable to resolve a local or remote OpenClaw runtime artifact.',
         `Configured artifact_url: ${artifactUrl || '<empty>'}`,
-        `Expected local cache: ${cachedArtifactPath || '<unknown>'}`,
+        `Expected local cache: ${brandCachedArtifactPath || legacyCachedArtifactPath || '<unknown>'}`,
       ].join('\n'),
     );
   }
 
   const downloadDir = path.join(packagingPaths.workspaceRoot, 'runtime-cache');
-  const artifactPath = path.join(downloadDir, basename(new URL(artifactUrl).pathname));
+  const artifactPath =
+    brandCachedArtifactPath || path.join(downloadDir, basename(new URL(artifactUrl).pathname));
   if (!(await pathExists(artifactPath))) {
     process.stdout.write(`[desktop-package] downloading runtime artifact for ${targetTriple || 'host'}: ${artifactUrl}\n`);
     await downloadRuntimeArtifact({ artifactUrl, destinationPath: artifactPath });
   } else {
     process.stdout.write(`[desktop-package] reusing downloaded runtime artifact: ${artifactPath}\n`);
   }
-  return { artifactPath, source: 'remote-download', artifactFormat };
+  return {
+    artifactPath,
+    source: 'remote-download',
+    artifactFormat,
+    brandCachedArtifactPath,
+    sharedCachedArtifactPath,
+  };
 }
 
-async function prepareBundledRuntime({ env, brandProfile, channel, targetTriple, packagingPaths }) {
+async function prepareBundledRuntime({ env, brandId, brandProfile, channel, targetTriple, packagingPaths }) {
   const stagedRuntimeDir = path.join(packagingPaths.resourcesSourceDir, 'openclaw-runtime');
   if (await runtimeLayoutLooksComplete(stagedRuntimeDir, targetTriple)) {
     process.stdout.write(`[desktop-package] bundled runtime already staged: ${stagedRuntimeDir}\n`);
@@ -985,12 +1100,20 @@ async function prepareBundledRuntime({ env, brandProfile, channel, targetTriple,
     );
   }
 
-  const { artifactPath, source } = await resolveRuntimeArtifactSource({
+  const {
+    artifactPath,
+    source,
+    brandCachedArtifactPath,
+    sharedCachedArtifactPath,
+  } = await resolveRuntimeArtifactSource({
     config: rawConfig,
+    brandId,
     targetTriple,
     packagingPaths,
   });
   await verifyRuntimeArtifactFileSha256(artifactPath, artifactSha256);
+  await persistRuntimeArtifactCopy(artifactPath, brandCachedArtifactPath);
+  await persistRuntimeArtifactCopy(artifactPath, sharedCachedArtifactPath);
 
   const extractRoot = path.join(packagingPaths.workspaceRoot, 'runtime-extract');
   await fs.rm(extractRoot, { recursive: true, force: true });
@@ -1163,7 +1286,14 @@ async function main() {
     }
     syncBundledBaselineSkills({ pnpm, env, brandId, packagingPaths });
     restoreRuntimeBootstrapConfig = await applyRuntimeBootstrapOverlay(env, brandProfile, channel, runtimeTargetTriple);
-    await prepareBundledRuntime({ env, brandProfile, channel, targetTriple: runtimeTargetTriple, packagingPaths });
+    await prepareBundledRuntime({
+      env,
+      brandId,
+      brandProfile,
+      channel,
+      targetTriple: runtimeTargetTriple,
+      packagingPaths,
+    });
     run(process.execPath, [syncResourcesScriptPath], { env });
     await assertPackagedRuntimeConfig(env, runtimeTargetTriple);
     const tempTauriConfigArg = await writeTempTauriConfig();

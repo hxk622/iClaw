@@ -18,6 +18,9 @@ $DesktopDir = Join-Path $RootDir 'apps\desktop'
 $ReleaseDir = Join-Path $RootDir 'dist\releases'
 $TauriTargetDir = Join-Path $DesktopDir 'src-tauri\target'
 $BackupEnvPath = Join-Path $RootDir '.env.codex.backup'
+$env:APP_NAME = $Brand
+$env:ICLAW_PORTAL_APP_NAME = $Brand
+$env:ICLAW_BRAND = $Brand
 
 function Invoke-Checked {
   param(

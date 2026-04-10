@@ -25,6 +25,15 @@ if ! [[ "$KEEP_VERSIONS" =~ ^[0-9]+$ ]] || [[ "$KEEP_VERSIONS" -lt 1 ]]; then
   exit 1
 fi
 
+require_mc_alias() {
+  local alias_name="$1"
+  if ! mc alias ls | grep -q "^${alias_name}[[:space:]]"; then
+    echo "Missing mc alias: ${alias_name}" >&2
+    echo "Configure a valid MinIO/S3 alias first, or override with ICLAW_MINIO_*_ALIAS." >&2
+    exit 1
+  fi
+}
+
 node "$ROOT_DIR/scripts/export-desktop-release-manifests.mjs" --channel "$ENV_NAME"
 
 local_prune() {
@@ -259,9 +268,10 @@ if [[ "$ENV_NAME" == "dev" ]]; then
 
   echo "Uploaded to dev minio: $dev_upload_target"
 elif [[ "$ENV_NAME" == "prod" ]]; then
-  : "${ICLAW_MINIO_PROD_ALIAS:=prod115x}"
+  : "${ICLAW_MINIO_PROD_ALIAS:=remoteprod}"
   : "${ICLAW_MINIO_PROD_BUCKET:=$PROD_BUCKET_DEFAULT}"
   : "${ICLAW_MINIO_PROD_PREFIX:=$(resolve_upload_prefix "$PROD_PUBLIC_BASE_URL")}"
+  require_mc_alias "$ICLAW_MINIO_PROD_ALIAS"
 
   prune_all_local
 

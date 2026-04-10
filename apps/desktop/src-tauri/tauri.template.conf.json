@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "__BRAND_PRODUCT_NAME__",
-  "version": "1.0.2+202604090003",
+  "version": "1.0.3+202604092345",
   "identifier": "ai.iclaw.desktop",
   "build": {
     "beforeDevCommand": "node ../../scripts/sync-openclaw-resources.mjs && pnpm dev --host 0.0.0.0 --port 1520",
