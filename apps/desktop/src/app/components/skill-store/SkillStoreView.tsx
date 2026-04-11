@@ -51,6 +51,11 @@ import { PageContent, PageHeader, PageSurface } from '@/app/components/ui/PageLa
 import { PressableCard } from '@/app/components/ui/PressableCard';
 import { SegmentedTabs } from '@/app/components/ui/SegmentedTabs';
 import { cn } from '@/app/lib/cn';
+import {
+  applySkillPreset,
+  getCatalogTagKeywordsForPreset,
+  type SkillStorePreset,
+} from '@/app/lib/skill-store-presets';
 import { INTERACTIVE_FOCUS_RING, SPRING_PRESSABLE } from '@/app/lib/ui-interactions';
 import { SkillStoreAdminSheet } from './SkillStoreAdminSheet';
 import { SkillStoreDetailSheet } from './SkillStoreDetailSheet';
@@ -58,7 +63,7 @@ import { SkillStoreImportSheet } from './SkillStoreImportSheet';
 import { SkillGlyph, skillTagClassName } from './SkillStoreVisuals';
 import { ExtensionInstallConfigModal } from '@/app/components/extensions/ExtensionInstallConfigModal';
 
-export type SkillStoreViewPreset = 'all' | 'finance' | 'foundation';
+export type SkillStoreViewPreset = SkillStorePreset;
 
 const storeTabs = [
   { id: 'store', label: '技能库' },
@@ -108,91 +113,6 @@ const tagFilterPriority = [
 ] as const;
 
 const hiddenQuickFilterTags = new Set(['金融', '通用', '技能', '工具包', '研究报告']);
-const FINANCE_TAG_KEYWORDS = [
-  '财经',
-  '金融',
-  '投资',
-  '股票',
-  '股市',
-  'a股',
-  '美股',
-  '港股',
-  '基金',
-  '债券',
-  '期权',
-  '量化',
-  '因子',
-  '财报',
-  '研报',
-  '研究报告',
-  '市场',
-  '行业',
-  '宏观',
-  '组合',
-  '风控',
-  '风险',
-  '回撤',
-  '估值',
-  '交易',
-  '加密',
-  '币圈',
-  'esg',
-] as const;
-const FOUNDATION_TAG_KEYWORDS = [
-  '基础',
-  '基础办公',
-  '办公',
-  '办公效率',
-  '通用',
-  '文档',
-  '表格',
-  '电子表格',
-  'pdf',
-  'docx',
-  'xlsx',
-  '演示',
-  'ppt',
-  '幻灯片',
-  '搜索',
-  '自动化',
-  '协同',
-  '知识库',
-  '任务管理',
-  '日程',
-  '总结',
-  '内容创作',
-  '视频',
-  'productivity',
-  'automation',
-  'search',
-  'documentation',
-  'document',
-  'documents',
-  'office',
-  'excel',
-  'word',
-  'pptx',
-  'slides',
-  'presentation',
-  'email',
-  'calendar',
-  'workflow',
-  'knowledge',
-  'notes',
-  'markdown',
-  'converter',
-  'file',
-  'files',
-  'spreadsheet',
-  'docs',
-  'deck',
-  'meeting',
-  'meetings',
-  'schedule',
-  'planning',
-  'todo',
-  'base',
-] as const;
 const ALL_SKILL_INITIAL_LIMIT = 120;
 const SPECIALIZED_INITIAL_LIMIT = 300;
 
@@ -269,35 +189,6 @@ function preinstalledPriority(skill: SkillStoreItem): number {
     return 2;
   }
   return 3;
-}
-
-function normalizeSkillTag(value: string): string {
-  return value.trim().toLowerCase();
-}
-
-function skillHasTagKeyword(skill: SkillStoreItem, keywords: readonly string[]): boolean {
-  const normalizedTags = skill.tags.map(normalizeSkillTag);
-  return normalizedTags.some((tag) => keywords.some((keyword) => tag.includes(keyword)));
-}
-
-function isFinanceSkill(skill: SkillStoreItem): boolean {
-  return skillHasTagKeyword(skill, FINANCE_TAG_KEYWORDS);
-}
-
-function isFoundationSkill(skill: SkillStoreItem): boolean {
-  return skillHasTagKeyword(skill, FOUNDATION_TAG_KEYWORDS);
-}
-
-function applySkillPreset<T extends SkillStoreItem>(items: T[], preset: SkillStoreViewPreset): T[] {
-  if (preset === 'all') {
-    return items;
-  }
-  if (preset === 'finance') {
-    return items.filter(isFinanceSkill);
-  }
-  return items
-    .filter(isFoundationSkill)
-    .sort(compareSkillsByPopularity);
 }
 
 function SkillStatusBadge({ status }: {status: SkillDisplayStatus}) {
@@ -657,12 +548,7 @@ export function SkillStoreView({
   description?: string;
 }) {
   const catalogTagKeywords = useMemo(
-    () =>
-      preset === 'finance'
-        ? [...FINANCE_TAG_KEYWORDS]
-        : preset === 'foundation'
-          ? [...FOUNDATION_TAG_KEYWORDS]
-          : [],
+    () => getCatalogTagKeywordsForPreset(preset),
     [preset],
   );
   const [initialCatalogSnapshot] = useState(() => readSkillStoreCatalogSnapshot({ tagKeywords: catalogTagKeywords }));
