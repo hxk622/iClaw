@@ -389,5 +389,6 @@ Windows 补充规则：
 
 - [release-checklist.md](/Users/xingkaihan/Documents/Code/iClaw/docs/release-checklist.md)
 - [release-matrix.md](/Users/xingkaihan/Documents/Code/iClaw/docs/release-matrix.md)
+- [windows-desktop-release-sop.md](/D:/code/iClaw/docs/windows-desktop-release-sop.md)
 - [prod-infra-inventory.md](/Users/xingkaihan/Documents/Code/iClaw/docs/prod-infra-inventory.md)
 - [version-record-template.md](/Users/xingkaihan/Documents/Code/iClaw/docs/version-record-template.md)

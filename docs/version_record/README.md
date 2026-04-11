@@ -15,6 +15,10 @@
   同时写明原因、影响范围、替代验证、审批人
 - 测试报告 `md` 进 git；截图等视觉证据默认不进 git
 - 截图等证据统一上传到 dev MinIO，并在测试报告中回填对象路径
+- 如发现历史版本漏记，必须在下一次工作日内补录，并在文档中明确标注：
+  - 哪些信息是事后追溯
+  - 哪些步骤当时没有按标准执行
+  - 偏差对追溯、回滚、验收的影响
 
 ## baseline 规则
 
@@ -29,3 +33,4 @@
 
 - 发版文档模板：`docs/version-record-template.md`
 - 测试报告模板：`docs/version_record/test_report/_template.md`
+- Windows 桌面正式发版 SOP：`docs/windows-desktop-release-sop.md`
